@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
 
@@ -90,7 +89,3 @@ I (7758) GATTS_DEMO: ESP_GATTS_CONF_EVT, status 0
 ## Troubleshooting
 
 For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
-=======
-# SensorArray
-We use esp32 to develop
->>>>>>> a4d678e4ac33b318b883d4f47234cde2278c3b0d
