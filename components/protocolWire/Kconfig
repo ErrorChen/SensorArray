@@ -1,0 +1,11 @@
+menu "Wire Protocol"
+
+config PROTOCOL_ENABLE_CRC16
+    bool "Enable CRC16 for frames"
+    default y
+
+config PROTOCOL_FRAME_VERSION
+    int "Protocol frame version"
+    default 1
+
+endmenu

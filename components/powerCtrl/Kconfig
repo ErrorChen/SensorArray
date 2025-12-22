@@ -1,0 +1,19 @@
+menu "Power Control (EN/PG/IRQ GPIO abstraction)"
+
+config POWER_MAIN_EN_GPIO
+    int "Main power enable GPIO (-1 if always on)"
+    default -1
+
+config POWER_ANALOG_EN_GPIO
+    int "Analog rails enable GPIO (-1 if always on)"
+    default -1
+
+config POWER_CHG_STAT_GPIO
+    int "Charger status GPIO (-1 if not connected)"
+    default -1
+
+config POWER_PG_GPIO
+    int "Power-good GPIO (-1 if not connected)"
+    default -1
+
+endmenu

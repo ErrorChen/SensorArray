@@ -1,0 +1,18 @@
+menu "BLE Transport"
+
+config BLE_TRANSPORT_ENABLE
+    bool "Enable BLE transport module"
+    default y
+    depends on SENSORARRAY_ENABLE_BLE
+
+config BLE_TRANSPORT_MTU_TARGET
+    int "Target MTU (negotiated)"
+    default 247
+    depends on BLE_TRANSPORT_ENABLE
+
+config BLE_TRANSPORT_NOTIFY_QUEUE_LEN
+    int "Notify queue length"
+    default 128
+    depends on BLE_TRANSPORT_ENABLE
+
+endmenu

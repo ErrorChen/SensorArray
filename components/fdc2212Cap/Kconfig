@@ -1,0 +1,12 @@
+menu "FDC2212 (I2C)"
+
+config FDC2212_I2C_ADDR
+    hex "I2C address (0x2A or 0x2B)"
+    default 0x2A
+
+config FDC2212_CHANNELS
+    int "Number of channels used (1 or 2)"
+    default 2
+    range 1 2
+
+endmenu

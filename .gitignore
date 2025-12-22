@@ -1,6 +1,22 @@
+# ESP-IDF build output
 build/
-managed_components/
+*.map
+*.elf
+*.bin
+
+# Local sdkconfig (generated)
+sdkconfig
 sdkconfig.old
-*.log
+sdkconfig.*.old
+
+# IDE
 .vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS
 .DS_Store
+Thumbs.db

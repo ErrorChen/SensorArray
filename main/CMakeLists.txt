@@ -1,3 +1,16 @@
-idf_component_register(SRCS "example_ble_server_throughput.c"
-                    PRIV_REQUIRES bt nvs_flash
-                    INCLUDE_DIRS ".")
+idf_component_register(
+    SRCS
+        "example_ble_server_throughput.c"
+    INCLUDE_DIRS
+        "."
+    PRIV_REQUIRES
+        boardSupport
+        powerCtrl
+        tmuxSwitch
+        ads126xAdc
+        fdc2212Cap
+        protocolWire
+        transportWire
+        bleTransport
+        matrixEngine
+)

@@ -1,38 +1,95 @@
-menu "Example 'GATT SERVER THROUGHPUT' Config"
+menu "SensorArray Project"
 
-    config EXAMPLE_SET_RAW_ADV_DATA
-        bool "Use raw data for advertising packets and scan response data"
-        help
-            If this config item is set, raw binary data will be used to generate advertising & scan response data.
-            This option uses the esp_ble_gap_config_adv_data_raw() and esp_ble_gap_config_scan_rsp_data_raw()
-            functions.
+config SENSORARRAY_ENABLE_WIRED
+    bool "Enable wired transport (UART/USB-CDC)"
+    default y
 
-            If this config item is unset, advertising & scan response data is provided via a higher-level
-            esp_ble_adv_data_t structure. The lower layer will generate the BLE packets. This option has higher
-            overhead at runtime.
+config SENSORARRAY_ENABLE_BLE
+    bool "Enable BLE transport (later for wireless streaming)"
+    default y
 
-    config EXAMPLE_GATTS_NOTIFY_THROUGHPUT
-        bool "test the gatts notify throughput"
-        help
-            If this config item is set, then the 'EXAMPLE_GATTC_WRITE_THROUGHPUT' config should be close,
-            it can't test both write or notify at the same time at this demo
+choice SENSORARRAY_ADS126X_VARIANT
+    prompt "ADS126x variant (first batch uses ADS1262)"
+    default SENSORARRAY_ADS1262
+    help
+        ADS1262: ADC1 only.
+        ADS1263: ADC1 + ADC2 (aux ADC2 registers exist).
+config SENSORARRAY_ADS1262
+    bool "ADS1262 (ADC1 only)"
+config SENSORARRAY_ADS1263
+    bool "ADS1263 (ADC1 + ADC2)"
+endchoice
 
-    config EXAMPLE_GATTC_WRITE_THROUGHPUT
-        bool "test the gattc write throughput"
-        help
-            If this config item is set, then the 'EXAMPLE_GATTS_NOTIFY_THROUGHPUT' config should be close,
-            it can't test both write or notify at the same time at this demo
+menu "Multi-core scheduling (FreeRTOS SMP)"
+    help
+        Pin high-rate scan tasks to a dedicated core.
+        ESP-IDF supports xTaskCreatePinnedToCore().
 
-    config EXAMPLE_CI_ID
-        int "example id for CI test"
-        default 0
-        help
-            This config the example id for CI test. Only for internal used.
+config SENSORARRAY_SCAN_TASK_CORE
+    int "Scan task core id (0 or 1)"
+    default 1
+    range 0 1
 
-    config EXAMPLE_CI_PIPELINE_ID
-        int "The pipeline id for CI test"
-        default 0
-        help
-            This config the pipeline id for CI test. Only for internal used.
+config SENSORARRAY_COMM_TASK_CORE
+    int "Comm/stream task core id (0 or 1)"
+    default 0
+    range 0 1
+
+config SENSORARRAY_BLE_TASK_CORE
+    int "BLE task core id (0 or 1)"
+    default 0
+    range 0 1
+    depends on SENSORARRAY_ENABLE_BLE
+
+endmenu
+
+menu "Task resources"
+config SENSORARRAY_SCAN_TASK_STACK
+    int "Scan task stack bytes"
+    default 8192
+
+config SENSORARRAY_SCAN_TASK_PRIO
+    int "Scan task priority"
+    default 12
+
+config SENSORARRAY_COMM_TASK_STACK
+    int "Comm task stack bytes"
+    default 4096
+
+config SENSORARRAY_COMM_TASK_PRIO
+    int "Comm task priority"
+    default 8
+endmenu
+
+menu "SPI DMA (ADS126x)"
+config SENSORARRAY_SPI_USE_DMA
+    bool "Enable SPI DMA where possible"
+    default y
+    help
+        If enabled, SPI transfers should use DMA-capable buffers (MALLOC_CAP_DMA),
+        32-bit aligned, and length multiples of 4 for best efficiency.
+
+config SENSORARRAY_SPI_MAX_TRANSFER_BYTES
+    int "SPI max transfer size (bytes)"
+    default 64
+endmenu
+
+menu "Matrix defaults"
+config SENSORARRAY_MATRIX_ROWS
+    int "Matrix rows"
+    default 8
+
+config SENSORARRAY_MATRIX_COLS
+    int "Matrix cols"
+    default 8
+
+config SENSORARRAY_FRAME_PERIOD_MS
+    int "Target frame period (ms)"
+    default 50
+
+config SENSORARRAY_OVERSAMPLE
+    int "Oversample count per point"
+    default 2
+endmenu
 
 endmenu

@@ -1,0 +1,31 @@
+menu "TMUX Control Pins (per schematic)"
+
+menu "TMUX1108 (A0/A1/A2 + SW)"
+config TMUX1108_A0_GPIO
+    int "TMUX1108 A0 GPIO"
+    default 4
+
+config TMUX1108_A1_GPIO
+    int "TMUX1108 A1 GPIO"
+    default 5
+
+config TMUX1108_A2_GPIO
+    int "TMUX1108 A2 GPIO"
+    default 6
+
+config TMUX1108_SW_GPIO
+    int "TMUX1108 SW GPIO (power pull-down / chip-select power to GND)"
+    default 7
+endmenu
+
+menu "TMUX1134 (SELA/SELB)"
+config TMUX1134_SELA_GPIO
+    int "TMUX1134 SELA GPIO"
+    default 1
+
+config TMUX1134_SELB_GPIO
+    int "TMUX1134 SELB GPIO"
+    default 2
+endmenu
+
+endmenu

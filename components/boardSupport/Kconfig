@@ -1,0 +1,65 @@
+menu "Board Support (Pins/Buses)"
+
+menu "I2C1 (SDA1/SCL1)"
+config BOARD_I2C_PORT
+    int "I2C port"
+    default 0
+
+config BOARD_I2C_SDA_GPIO
+    int "I2C SDA GPIO"
+    default 9
+
+config BOARD_I2C_SCL_GPIO
+    int "I2C SCL GPIO"
+    default 10
+
+config BOARD_I2C_FREQ_HZ
+    int "I2C frequency (Hz)"
+    default 400000
+endmenu
+
+menu "I2C2 (SDA2/SCL2, optional)"
+config BOARD_I2C1_PORT
+    int "I2C1 port (optional second bus)"
+    default 1
+
+config BOARD_I2C1_SDA_GPIO
+    int "I2C1 SDA GPIO (optional second bus)"
+    default 11
+
+config BOARD_I2C1_SCL_GPIO
+    int "I2C1 SCL GPIO (optional second bus)"
+    default 12
+endmenu
+
+menu "SPI (ADS126x)"
+config BOARD_SPI_HOST
+    int "SPI host device (platform-specific)"
+    default 2
+
+config BOARD_SPI_SCLK_GPIO
+    int "SPI SCLK GPIO"
+    default 47
+
+config BOARD_SPI_MOSI_GPIO
+    int "SPI MOSI GPIO (ADS126x DIN)"
+    default 21
+
+config BOARD_SPI_MISO_GPIO
+    int "SPI MISO GPIO (ADS126x DOUT)"
+    default 14
+
+config BOARD_ADS126X_CS_GPIO
+    int "ADS126x CS GPIO"
+    default 10
+
+config BOARD_ADS126X_DRDY_GPIO
+    int "ADS126x DRDY GPIO (-1 if unused)"
+    default 13
+
+config BOARD_ADS126X_RESET_GPIO
+    int "ADS126x PWDN/RESET GPIO (-1 if unused)"
+    default 38
+endmenu
+
+endmenu

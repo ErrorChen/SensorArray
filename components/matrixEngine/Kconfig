@@ -1,0 +1,49 @@
+menu "Matrix Engine"
+
+config MATRIX_ROWS
+    int "Rows"
+    default SENSORARRAY_MATRIX_ROWS
+
+config MATRIX_COLS
+    int "Cols"
+    default SENSORARRAY_MATRIX_COLS
+
+config MATRIX_FRAME_PERIOD_MS
+    int "Frame period (ms)"
+    default SENSORARRAY_FRAME_PERIOD_MS
+
+config MATRIX_OVERSAMPLE
+    int "Oversample"
+    default SENSORARRAY_OVERSAMPLE
+
+config MATRIX_USE_RINGBUFFER
+    bool "Use FreeRTOS ringbuffer for streaming"
+    default y
+
+config MATRIX_SCAN_TASK_CORE
+    int "Scan task core"
+    default SENSORARRAY_SCAN_TASK_CORE
+    range 0 1
+
+config MATRIX_COMM_TASK_CORE
+    int "Comm task core"
+    default SENSORARRAY_COMM_TASK_CORE
+    range 0 1
+
+config MATRIX_SCAN_TASK_STACK
+    int "Scan task stack"
+    default SENSORARRAY_SCAN_TASK_STACK
+
+config MATRIX_SCAN_TASK_PRIO
+    int "Scan task priority"
+    default SENSORARRAY_SCAN_TASK_PRIO
+
+config MATRIX_COMM_TASK_STACK
+    int "Comm task stack"
+    default SENSORARRAY_COMM_TASK_STACK
+
+config MATRIX_COMM_TASK_PRIO
+    int "Comm task priority"
+    default SENSORARRAY_COMM_TASK_PRIO
+
+endmenu

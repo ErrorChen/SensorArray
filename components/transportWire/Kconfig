@@ -1,0 +1,33 @@
+menu "Wired Transport"
+
+config WIRE_UART_ENABLE
+    bool "Enable UART transport"
+    default y
+    depends on SENSORARRAY_ENABLE_WIRED
+
+config WIRE_UART_PORT
+    int "UART port"
+    default 1
+    depends on WIRE_UART_ENABLE
+
+config WIRE_UART_TX_GPIO
+    int "UART TX GPIO"
+    default 17
+    depends on WIRE_UART_ENABLE
+
+config WIRE_UART_RX_GPIO
+    int "UART RX GPIO"
+    default 18
+    depends on WIRE_UART_ENABLE
+
+config WIRE_UART_BAUD
+    int "UART baudrate"
+    default 2000000
+    depends on WIRE_UART_ENABLE
+
+config WIRE_USB_CDC_ENABLE
+    bool "Enable USB-CDC transport (optional)"
+    default n
+    depends on SENSORARRAY_ENABLE_WIRED
+
+endmenu
