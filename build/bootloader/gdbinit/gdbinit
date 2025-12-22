@@ -1,0 +1,2 @@
+source C:/ESP32/SensorArray/build/bootloader/gdbinit/symbols
+source C:/ESP32/SensorArray/build/bootloader/gdbinit/connect
