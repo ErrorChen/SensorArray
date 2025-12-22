@@ -1,7 +1,7 @@
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
 
-# ESP-IDF BLE throughput GATT SERVER Test V1
+# ESP-IDF BLE throughput GATT SERVER Test V2
 
 This is the demo used to test the BLE throughput, this demo should used with throughput client demo together.
 The throughput of BLE can up to 720-767 Kbps between to ESP32 board.
