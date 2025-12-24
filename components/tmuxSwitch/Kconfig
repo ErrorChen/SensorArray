@@ -1,31 +1,111 @@
-menu "TMUX Control Pins (per schematic)"
+menu "TMUX Switch"
 
-menu "TMUX1108 (A0/A1/A2 + SW)"
+menu "TMUX1108"
+
 config TMUX1108_A0_GPIO
     int "TMUX1108 A0 GPIO"
     default 4
+    help
+        GPIO for TMUX1108 A0. Must be set to a valid GPIO.
 
 config TMUX1108_A1_GPIO
     int "TMUX1108 A1 GPIO"
     default 5
+    help
+        GPIO for TMUX1108 A1. Must be set to a valid GPIO.
 
 config TMUX1108_A2_GPIO
     int "TMUX1108 A2 GPIO"
     default 6
+    help
+        GPIO for TMUX1108 A2. Must be set to a valid GPIO.
 
 config TMUX1108_SW_GPIO
-    int "TMUX1108 SW GPIO (power pull-down / chip-select power to GND)"
+    int "TMUX1108 SW GPIO (REF/GND select)"
     default 7
+    help
+        GPIO for SW (REF/GND select) into TMUX1108.
+
+config TMUX1108_SW_REF_LEVEL
+    bool "SW high level selects REF (y=high, n=low)"
+    default y
+
+config TMUX1108_DEFAULT_SOURCE
+    int "Default source (0=GND, 1=REF)"
+    range 0 1
+    default 0
+
+config TMUX1108_SWITCH_ROW_SAFE_MODE
+    bool "Enable safe row switching via SW"
+    default y
+
+config TMUX1108_SAFE_SOURCE
+    int "Safe source during row switch (0=GND, 1=REF)"
+    range 0 1
+    default 0
+    depends on TMUX1108_SWITCH_ROW_SAFE_MODE
+
+config TMUX1108_SWITCH_DELAY_US
+    int "Switch delay (us) when safe mode is enabled"
+    range 0 100000
+    default 0
+    depends on TMUX1108_SWITCH_ROW_SAFE_MODE
+
 endmenu
 
-menu "TMUX1134 (SELA/SELB)"
-config TMUX1134_SELA_GPIO
-    int "TMUX1134 SELA GPIO"
+menu "TMUX1134"
+
+config TMUX1134_SEL1_GPIO
+    int "TMUX1134 SEL1 GPIO (SELA)"
+    default 1
+    help
+        GPIO for TMUX1134 SEL1 (SELA). Must be set to a valid GPIO.
+
+config TMUX1134_SEL2_GPIO
+    int "TMUX1134 SEL2 GPIO (SELB)"
+    default 2
+    help
+        GPIO for TMUX1134 SEL2 (SELB). Must be set to a valid GPIO.
+
+config TMUX1134_SEL3_GPIO
+    int "TMUX1134 SEL3 GPIO (optional)"
+    default -1
+
+config TMUX1134_SEL4_GPIO
+    int "TMUX1134 SEL4 GPIO (optional)"
+    default -1
+
+config TMUX1134_EN_GPIO
+    int "TMUX1134 EN GPIO (-1 if tied off)"
+    default -1
+
+config TMUX1134_DEFAULT_ALL_OFF
+    bool "Default all-off at init (EN off if controllable)"
+    default n
+
+config TMUX1134_DEFAULT_SELA_ENABLED
+    bool "Default SELA enabled"
+    default n
+
+config TMUX1134_DEFAULT_SELB_ENABLED
+    bool "Default SELB enabled"
+    default n
+
+config TMUX1134_SELA_ENABLED_LEVEL
+    int "SELA enabled level (0 or 1)"
+    range 0 1
     default 1
 
-config TMUX1134_SELB_GPIO
-    int "TMUX1134 SELB GPIO"
-    default 2
+config TMUX1134_SELB_ENABLED_LEVEL
+    int "SELB enabled level (0 or 1)"
+    range 0 1
+    default 1
+
+config TMUX1134_EN_OFF_LEVEL
+    int "EN off level (0 or 1)"
+    range 0 1
+    default 0
+
 endmenu
 
 endmenu

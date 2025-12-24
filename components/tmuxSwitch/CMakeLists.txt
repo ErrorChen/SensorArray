@@ -1,5 +1,1 @@
-idf_component_register(
-    SRC_DIRS "."
-    INCLUDE_DIRS "include"
-    REQUIRES driver
-)
+idf_component_register(SRCS "tmuxSwitch.c" INCLUDE_DIRS "include")
