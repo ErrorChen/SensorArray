@@ -4,7 +4,7 @@
 SensorArray firmware targets ESP32-S3 with a modular component layout for mux control, ADC sampling, and capacitance sensing. The current app_main entry point is still the BLE throughput example while the sensor array stack is built out.
 
 ## Status
-- app_main is defined in `main/example_ble_server_throughput.c`.
+- app_main is defined in `example/example_ble_server_throughput.c`.
 - `main/main.c` and most components do not define app_main().
 - Implemented drivers live in `components/ads126xAdc`, `components/fdc2214Cap`, and `components/tmuxSwitch`.
 

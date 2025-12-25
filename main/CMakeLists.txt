@@ -1,8 +1,6 @@
 idf_component_register(
-    SRCS
-        "example_ble_server_throughput.c"
-    INCLUDE_DIRS
-        "."
+    SRCS "main.c"
+    INCLUDE_DIRS "."
     PRIV_REQUIRES
         boardSupport
         powerCtrl
