@@ -7,6 +7,16 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
 
+#ifndef CONFIG_TMUX1134_DEFAULT_ALL_OFF
+#define CONFIG_TMUX1134_DEFAULT_ALL_OFF 0
+#endif
+#ifndef CONFIG_TMUX1134_DEFAULT_SELA_ENABLED
+#define CONFIG_TMUX1134_DEFAULT_SELA_ENABLED 0
+#endif
+#ifndef CONFIG_TMUX1134_DEFAULT_SELB_ENABLED
+#define CONFIG_TMUX1134_DEFAULT_SELB_ENABLED 0
+#endif
+
 #define TMUX_GPIO_VALID(gpio) ((gpio) >= 0 && (gpio) < GPIO_NUM_MAX)
 #define TMUX1134_SELA_LEVEL (CONFIG_TMUX1134_SELA_ENABLED_LEVEL ? 1 : 0)
 #define TMUX1134_SELB_LEVEL (CONFIG_TMUX1134_SELB_ENABLED_LEVEL ? 1 : 0)
@@ -112,15 +122,15 @@ esp_err_t tmuxSwitchInit(void)
     mask |= 1ULL << CONFIG_TMUX1108_SW_GPIO;
     mask |= 1ULL << CONFIG_TMUX1134_SEL1_GPIO;
     mask |= 1ULL << CONFIG_TMUX1134_SEL2_GPIO;
-    if (CONFIG_TMUX1134_SEL3_GPIO >= 0) {
-        mask |= 1ULL << CONFIG_TMUX1134_SEL3_GPIO;
-    }
-    if (CONFIG_TMUX1134_SEL4_GPIO >= 0) {
-        mask |= 1ULL << CONFIG_TMUX1134_SEL4_GPIO;
-    }
-    if (CONFIG_TMUX1134_EN_GPIO >= 0) {
-        mask |= 1ULL << CONFIG_TMUX1134_EN_GPIO;
-    }
+#if CONFIG_TMUX1134_SEL3_GPIO >= 0
+    mask |= 1ULL << CONFIG_TMUX1134_SEL3_GPIO;
+#endif
+#if CONFIG_TMUX1134_SEL4_GPIO >= 0
+    mask |= 1ULL << CONFIG_TMUX1134_SEL4_GPIO;
+#endif
+#if CONFIG_TMUX1134_EN_GPIO >= 0
+    mask |= 1ULL << CONFIG_TMUX1134_EN_GPIO;
+#endif
 
     gpio_config_t cfg = {
         .pin_bit_mask = mask,
