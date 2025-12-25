@@ -14,6 +14,7 @@
 ## SPI configuration notes
 - SPI mode 1 (CPOL=0, CPHA=1).
 - Keep CS under SPI driver control; ADS126x resets the serial interface when CS goes high.
+- If CS is tied low on the board, set `CONFIG_BOARD_ADS126X_CS_GPIO=-1` so the SPI driver does not drive CS.
 - Do not sample DRDY during SPI clocking because DOUT/DRDY changes state during reads.
 
 ## Command and register summary (used by this driver)

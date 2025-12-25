@@ -50,8 +50,8 @@ config BOARD_SPI_MISO_GPIO
     default 14
 
 config BOARD_ADS126X_CS_GPIO
-    int "ADS126x CS GPIO"
-    default 10
+    int "ADS126x CS GPIO (-1 if tied low)"
+    default -1
 
 config BOARD_ADS126X_DRDY_GPIO
     int "ADS126x DRDY GPIO (-1 if unused)"
