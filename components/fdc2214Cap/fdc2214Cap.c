@@ -69,8 +69,8 @@ static const char* TAG = "fdc2214Cap";
 
 #define FDC2214_RESET_DEV_BIT (1U << 15)
 
-// Drive current register uses a 5-bit field; reserved bits are forced to 0.
-#define FDC2214_DRIVE_CURRENT_MASK 0x07C0
+// Drive current register uses CHx_IDRIVE [15:11]; reserved bits are forced to 0.
+#define FDC2214_DRIVE_CURRENT_MASK 0xF800
 
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;

@@ -74,7 +74,7 @@ Fdc2214CapChannelConfig_t chCfg = {
     .SettleCount = 0x0400,
     .Offset = 0,
     .ClockDividers = 0x0401, // example: FIN_SEL + FREF_DIVIDER
-    .DriveCurrent = 0x0010,
+    .DriveCurrent = 0x7C00,
 };
 
 Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &chCfg);
