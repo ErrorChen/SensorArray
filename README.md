@@ -26,12 +26,16 @@ SensorArray firmware targets ESP32-S3 with a modular component layout for mux co
 - BLE Transport: enable, MTU target, notify queue length
 
 ## Components
-- boardSupport: board pin/bus mapping and init (placeholder)
-- powerCtrl: power enable/pg/irq GPIO abstraction (placeholder)
 - tmuxSwitch: TMUX1108/TMUX1134 GPIO control and safe row switching
 - ads126xAdc: ADS1262/ADS1263 SPI driver (ADC2 optional)
 - fdc2214Cap: FDC2214 capacitance sensing over I2C
+
+## Core
+- boardSupport: board pin/bus mapping and init (placeholder)
+- powerCtrl: power enable/pg/irq GPIO abstraction (placeholder)
 - matrixEngine: scan scheduler, ringbuffer, multicore tasking (placeholder)
+
+## Transport
 - protocolWire: binary framing + CRC (placeholder)
 - transportWire: wired streaming (UART/USB-CDC) (placeholder)
 - bleTransport: BLE streaming module (placeholder)
