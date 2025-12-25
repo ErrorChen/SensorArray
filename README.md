@@ -37,8 +37,8 @@ frame for streaming over BLE or wired links. The codebase is componentized so
 the sensor stack can be reused by future app_main implementations.
 
 ## Current Status and Entry Point
-- `example/example_ble_server_throughput.c` provides the active `app_main()`.
-- `main/main.c` is a placeholder and intentionally does not define `app_main()`.
+- `main/main.c` provides the active `app_main()` test entry.
+- `example/example_ble_server_throughput.c` remains a reference BLE throughput example.
 - Driver components are implemented; several higher-level modules are still
   placeholders or partially integrated.
 
@@ -46,8 +46,8 @@ the sensor stack can be reused by future app_main implementations.
 - `components/`: Hardware drivers (TMUX1108/TMUX1134, ADS126x, FDC2214).
 - `core/`: Board abstractions, power control, and the matrix scan engine.
 - `transport/`: Protocol framing and transport-specific helpers.
-- `example/`: BLE throughput example used as the current entry point.
-- `main/`: Placeholder for a future application entry.
+- `example/`: BLE throughput example reference.
+- `main/`: Project entry point (`app_main()`).
 - `datasheets/`: Vendor datasheets and reference documents.
 
 ## Build and Flash
@@ -121,7 +121,7 @@ FDC2214 capacitance (`components/fdc2214Cap`):
 - `transport/bleTransport`: BLE streaming module (placeholder).
 
 ## Example App
-The BLE throughput example is currently the only `app_main()`:
+The BLE throughput example is kept for reference:
 - `example/example_ble_server_throughput.c`
 
 ## Datasheets

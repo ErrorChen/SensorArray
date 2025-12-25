@@ -8,6 +8,7 @@ idf_component_register(
         ads126xAdc
         fdc2214Cap
         protocolWire
+        protocolUsb
         transportWire
         bleTransport
         matrixEngine
