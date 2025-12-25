@@ -8,7 +8,7 @@ idf_component_register(
         powerCtrl
         tmuxSwitch
         ads126xAdc
-        fdc2212Cap
+        fdc2214Cap
         protocolWire
         transportWire
         bleTransport
