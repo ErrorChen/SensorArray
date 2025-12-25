@@ -1,14 +1,25 @@
 menu "ADS126x ADC (ADS1262/ADS1263)"
 
+config ADS126X_LOG_LEVEL
+    int "Log level (0=none, 4=verbose)"
+    range 0 4
+    default 3
+
 config ADS126X_SPI_CLOCK_HZ
     int "SPI clock (Hz)"
     default 2000000
 
 config ADS126X_HAS_ADC2
-    bool "HAS ADC2 (ADS1263 only)"
-    default y if SENSORARRAY_ADS1263
-    default n if SENSORARRAY_ADS1262
+    bool "Enable ADC2 API (ADS1263 only)"
+    default y
     help
-        ADS1263 has an auxiliary ADC2. ADS1262 does not.
+        ADS1263 has an auxiliary ADC2. ADS1262 does not. When running on
+        ADS1262, ADC2 APIs return ESP_ERR_NOT_SUPPORTED.
+
+config ADS126X_HELPER_CREATE_SPI
+    bool "Enable helper to create SPI bus/device"
+    default n
+    help
+        Builds ads126xAdcHelperCreateSpiDevice() for quick validation.
 
 endmenu
