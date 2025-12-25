@@ -37,6 +37,7 @@ SensorArray firmware targets ESP32-S3 with a modular component layout for mux co
 
 ## Transport
 - protocolWire: binary framing + CRC (placeholder)
+- protocolUsb: USB sync/length/CRC framing helper
 - transportWire: wired streaming (UART/USB-CDC) (placeholder)
 - bleTransport: BLE streaming module (placeholder)
 
