@@ -37,7 +37,8 @@ frame for streaming over BLE or wired links. The codebase is componentized so
 the sensor stack can be reused by future app_main implementations.
 
 ## Current Status and Entry Point
-- `main/main.c` provides the active `app_main()` test entry.
+- `main/main.c` runs a device bring-up test for ADS126x/FDC2214, logs a few
+  samples, then idles (no matrix scan tasks).
 - `example/example_ble_server_throughput.c` remains a reference BLE throughput example.
 - Driver components are implemented; several higher-level modules are still
   placeholders or partially integrated.

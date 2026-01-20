@@ -105,3 +105,7 @@ Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);
 - MUX_CONFIG bits12:3 must be fixed to 0x41; the driver enforces this on every write.
 - CLOCK_DIVIDERS FREF_DIVIDER cannot be 0; the driver rejects it.
 - Expected IDs: MANUFACTURER_ID=0x5449, DEVICE_ID=0x3055.
+
+## SensorArray test app
+`main/main.c` includes a bring-up test that initializes FDC2214, validates IDs,
+reads a small set of samples across enabled channels, and logs raw results before idling.

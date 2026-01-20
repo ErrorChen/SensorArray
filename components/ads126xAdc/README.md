@@ -129,3 +129,7 @@ Note: the helper assumes the ADS126x owns the SPI bus. Do not use it on a shared
 - When INTREF is enabled, allow time for REFOUT to settle (50 ms typical with 1 uF).
 - INPMUX defaults to AIN0/AIN1; always set the correct input pair.
 - ADC2 APIs return ESP_ERR_NOT_SUPPORTED on ADS1262 hardware.
+
+## SensorArray test app
+`main/main.c` includes a simple bring-up test that initializes ADS126x, verifies the ID,
+reads a few ADC1 samples, and logs the raw code + microvolts before idling.
