@@ -20,6 +20,30 @@ config SENSORARRAY_ADS1263
     bool "ADS1263 (ADC1 + ADC2)"
 endchoice
 
+menu "Bring-up FDC mapping"
+    help
+        Bring-up defaults for dual-FDC2214 topology:
+        D1..D4 on primary bus (ADDR high), D5..D8 on secondary bus (ADDR low).
+
+config SENSORARRAY_FDC_PRIMARY_I2C_ADDR
+    hex "Primary FDC I2C address (D1..D4)"
+    default 0x2B
+    help
+        Expected ADDR-high device for D1..D4 bank.
+
+config SENSORARRAY_FDC_SECONDARY_I2C_ADDR
+    hex "Secondary FDC I2C address (D5..D8)"
+    default 0x2A
+    help
+        Expected ADDR-low device for D5..D8 bank.
+
+config SENSORARRAY_FDC_STARTUP_PROBE
+    bool "Probe FDC addresses on startup"
+    default y
+    help
+        Probe 0x2A/0x2B on each configured FDC bus and emit compact bring-up logs.
+endmenu
+
 menu "Multi-core scheduling (FreeRTOS SMP)"
     help
         Pin high-rate scan tasks to a dedicated core.
