@@ -47,10 +47,14 @@
 #define SENSORARRAY_ADS_MUX_AINCOM 0x0Au
 
 #define SENSORARRAY_S1 1u
-#define SENSORARRAY_S2 2u
+#define SENSORARRAY_S4 4u
+#define SENSORARRAY_S5 5u
+#define SENSORARRAY_S8 8u
 
 #define SENSORARRAY_D1 1u
 #define SENSORARRAY_D4 4u
+#define SENSORARRAY_D5 5u
+#define SENSORARRAY_D7 7u
 #define SENSORARRAY_D8 8u
 
 #define SENSORARRAY_NA "na"
@@ -415,9 +419,8 @@ static esp_err_t sensorarrayPrepareAdsRefPath(ads126xAdcHandle_t *handle)
     }
 
     /*
-     * SW=HIGH drives the path from ADS REF output in current hardware.
-     * Keep this explicit: resistor-mode reads are only trusted after REF is
-     * configured and given extra settle time.
+     * SW high state drives the ADS REF-derived path in current hardware.
+     * Keep REF preparation explicit before entering the runtime loop.
      */
     esp_err_t err = ads126xAdcConfigure(handle, true, false, ADS126X_CRC_OFF, 1, 0);
     if (err != ESP_OK) {
@@ -463,10 +466,12 @@ static esp_err_t sensorarrayApplyFdcModePolicy(Fdc2214CapDevice_t *dev, uint8_t 
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // TMUX1108 selects S-line path. TMUX1134 SELA/SELB route cap/volt branches for debug points.
     { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, true, false, "S1D1_res_selA_on" },
-    { SENSORARRAY_S2, SENSORARRAY_D4, SENSORARRAY_PATH_CAPACITIVE, true, false, "S2D4_cap_selA_on" },
-    { SENSORARRAY_S2, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, false, false, "S2D4_volt_selA_off" },
-    { SENSORARRAY_S2, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, false, true, "S2D8_cap_selB_on" },
-    { SENSORARRAY_S2, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, false, false, "S2D8_volt_selB_off" },
+    { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, false, false, "S4D4_res_selA_off" },
+    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, false, false, "S5D5_cap_selB_off" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, false, false, "S8D7_cap_selB_off" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, false, true, "S8D7_volt_selB_on" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, false, true, "S8D8_cap_selB_on" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, false, false, "S8D8_volt_selB_off" },
 };
 
 static const sensorarrayFdcDLineMap_t s_sensorarrayFdcDLineMap[] = {
@@ -892,13 +897,15 @@ static esp_err_t sensorarrayReadFdcSample(Fdc2214CapDevice_t *dev,
     return Fdc2214CapReadSample(dev, ch, outSample);
 }
 
-static void sensorarrayDebugReadResistorS1D1(void)
+static void sensorarrayDebugReadResistor(const char *pointLabel, uint8_t sColumn, uint8_t dLine)
 {
     char valueBuf[24];
     char uvBuf[24];
     char mohmBuf[24];
     char rawBuf[24];
     char mapBuf[72];
+    char columnBuf[6];
+    char dLineBuf[6];
 
     esp_err_t err = ESP_OK;
     int32_t uv = 0;
@@ -915,15 +922,15 @@ static void sensorarrayDebugReadResistorS1D1(void)
     } else if (!s_state.adsRefReady) {
         status = "skip_ref_not_ready";
     } else {
-        err = sensorarrayApplyRoute(SENSORARRAY_S1,
-                                    SENSORARRAY_D1,
+        err = sensorarrayApplyRoute(sColumn,
+                                    dLine,
                                     SENSORARRAY_PATH_RESISTIVE,
-                                    TMUX1108_SOURCE_REF,
+                                    TMUX1108_SOURCE_GND,
                                     &routeMap);
         if (err != ESP_OK) {
             status = (err == ESP_ERR_NOT_SUPPORTED) ? "route_map_missing" : "route_error";
         } else {
-            err = sensorarrayReadAdsUv(SENSORARRAY_D1, true, &raw, &uv);
+            err = sensorarrayReadAdsUv(dLine, true, &raw, &uv);
             if (err != ESP_OK) {
                 status = "ads_read_error";
             } else {
@@ -942,11 +949,14 @@ static void sensorarrayDebugReadResistorS1D1(void)
         }
     }
 
-    sensorarrayLogDbg("S1D1",
+    snprintf(columnBuf, sizeof(columnBuf), "S%u", (unsigned)sColumn);
+    snprintf(dLineBuf, sizeof(dLineBuf), "D%u", (unsigned)dLine);
+
+    sensorarrayLogDbg(pointLabel,
                       "res",
-                      "S1",
-                      "D1",
-                      "HIGH",
+                      columnBuf,
+                      dLineBuf,
+                      "LOW",
                       "ads",
                       sensorarrayFmtI32(valueBuf, sizeof(valueBuf), haveMohm, mohm),
                       sensorarrayFmtI32(uvBuf, sizeof(uvBuf), haveUv, uv),
@@ -996,7 +1006,7 @@ static void sensorarrayDebugReadPiezoCap(const char *pointLabel, uint8_t sColumn
         err = sensorarrayApplyRoute(sColumn,
                                     dLine,
                                     SENSORARRAY_PATH_CAPACITIVE,
-                                    TMUX1108_SOURCE_GND,
+                                    TMUX1108_SOURCE_REF,
                                     &routeMap);
         if (err != ESP_OK) {
             status = (err == ESP_ERR_NOT_SUPPORTED) ? "route_map_missing" : "route_error";
@@ -1021,7 +1031,7 @@ static void sensorarrayDebugReadPiezoCap(const char *pointLabel, uint8_t sColumn
                       "cap",
                       columnBuf,
                       dLineBuf,
-                      "LOW",
+                      "HIGH",
                       "fdc",
                       sensorarrayFmtU32(valueBuf, sizeof(valueBuf), haveSample, sample.Raw28),
                       SENSORARRAY_NA,
@@ -1071,7 +1081,7 @@ static void sensorarrayDebugReadPiezoVolt(const char *pointLabel, uint8_t sColum
         err = sensorarrayApplyRoute(sColumn,
                                     dLine,
                                     SENSORARRAY_PATH_RESISTIVE,
-                                    TMUX1108_SOURCE_GND,
+                                    TMUX1108_SOURCE_REF,
                                     &routeMap);
         if (err != ESP_OK) {
             status = (err == ESP_ERR_NOT_SUPPORTED) ? "route_map_missing" : "route_error";
@@ -1093,7 +1103,7 @@ static void sensorarrayDebugReadPiezoVolt(const char *pointLabel, uint8_t sColum
                       "volt",
                       columnBuf,
                       dLineBuf,
-                      "LOW",
+                      "HIGH",
                       "ads",
                       sensorarrayFmtI32(valueBuf, sizeof(valueBuf), haveUv, uv),
                       sensorarrayFmtI32(uvBuf, sizeof(uvBuf), haveUv, uv),
@@ -1114,20 +1124,26 @@ static void sensorarrayDebugReadPiezoVolt(const char *pointLabel, uint8_t sColum
 static void sensorarrayRunBringupLoop(void)
 {
     while (true) {
-        // 1) S1D1 resistor via ADS (SW HIGH, REF-ready required)
-        sensorarrayDebugReadResistorS1D1();
+        // 1) S1D1 resistor via ADS (SW LOW)
+        sensorarrayDebugReadResistor("S1D1", SENSORARRAY_S1, SENSORARRAY_D1);
 
-        // 2) S2D4 piezo capacitance via FDC (SW LOW)
-        sensorarrayDebugReadPiezoCap("S2D4", SENSORARRAY_S2, SENSORARRAY_D4);
+        // 2) S4D4 resistor via ADS (SW LOW)
+        sensorarrayDebugReadResistor("S4D4", SENSORARRAY_S4, SENSORARRAY_D4);
 
-        // 3) S2D4 piezo voltage via ADS (SW LOW)
-        sensorarrayDebugReadPiezoVolt("S2D4", SENSORARRAY_S2, SENSORARRAY_D4);
+        // 3) S5D5 capacitive point via FDC (SW HIGH)
+        sensorarrayDebugReadPiezoCap("S5D5", SENSORARRAY_S5, SENSORARRAY_D5);
 
-        // 4) S2D8 piezo capacitance via FDC (SW LOW)
-        sensorarrayDebugReadPiezoCap("S2D8", SENSORARRAY_S2, SENSORARRAY_D8);
+        // 4) S8D7 piezo capacitance via FDC (SW HIGH)
+        sensorarrayDebugReadPiezoCap("S8D7", SENSORARRAY_S8, SENSORARRAY_D7);
 
-        // 5) S2D8 piezo voltage via ADS (SW LOW)
-        sensorarrayDebugReadPiezoVolt("S2D8", SENSORARRAY_S2, SENSORARRAY_D8);
+        // 5) S8D7 piezo voltage via ADS (SW HIGH)
+        sensorarrayDebugReadPiezoVolt("S8D7", SENSORARRAY_S8, SENSORARRAY_D7);
+
+        // 6) S8D8 piezo capacitance via FDC (SW HIGH)
+        sensorarrayDebugReadPiezoCap("S8D8", SENSORARRAY_S8, SENSORARRAY_D8);
+
+        // 7) S8D8 piezo voltage via ADS (SW HIGH)
+        sensorarrayDebugReadPiezoVolt("S8D8", SENSORARRAY_S8, SENSORARRAY_D8);
 
         sensorarrayDelayMs(SENSORARRAY_LOOP_DELAY_MS);
     }
