@@ -1,102 +1,83 @@
-#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "sdkconfig.h"
 
-#include "esp_err.h"
-#include "esp_log.h"
+#include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "ads126xAdc.h"
 #include "boardSupport.h"
 #include "fdc2214Cap.h"
-#include "matrixEngine.h"
-#include "protocolUsb.h"
-#include "protocolWire.h"
 #include "tmuxSwitch.h"
 
-static const char *TAG = "sensorArrayTest";
+#define SENSORARRAY_RESIST_REF_OHMS 10000u
+#define SENSORARRAY_RESIST_EXCITATION_UV 2500000u
 
-#ifndef CONFIG_MATRIX_ROWS
-#define CONFIG_MATRIX_ROWS 1
-#endif
-#ifndef CONFIG_MATRIX_COLS
-#define CONFIG_MATRIX_COLS 1
-#endif
-#ifndef CONFIG_MATRIX_FRAME_PERIOD_MS
-#define CONFIG_MATRIX_FRAME_PERIOD_MS 50
-#endif
-#ifndef CONFIG_MATRIX_SCAN_TASK_CORE
-#define CONFIG_MATRIX_SCAN_TASK_CORE 1
-#endif
-#ifndef CONFIG_MATRIX_COMM_TASK_CORE
-#define CONFIG_MATRIX_COMM_TASK_CORE 0
-#endif
-#ifndef CONFIG_MATRIX_SCAN_TASK_STACK
-#define CONFIG_MATRIX_SCAN_TASK_STACK 8192
-#endif
-#ifndef CONFIG_MATRIX_COMM_TASK_STACK
-#define CONFIG_MATRIX_COMM_TASK_STACK 4096
-#endif
-#ifndef CONFIG_MATRIX_SCAN_TASK_PRIO
-#define CONFIG_MATRIX_SCAN_TASK_PRIO 12
-#endif
-#ifndef CONFIG_MATRIX_COMM_TASK_PRIO
-#define CONFIG_MATRIX_COMM_TASK_PRIO 8
-#endif
+#define SENSORARRAY_REF_SETTLE_MS 120u
+#define SENSORARRAY_SETTLE_AFTER_COLUMN_MS 2u
+#define SENSORARRAY_SETTLE_AFTER_PATH_MS 2u
+#define SENSORARRAY_SETTLE_AFTER_SW_MS 2u
+#define SENSORARRAY_LOOP_DELAY_MS 250u
 
-#define SENSORARRAY_TEST_QUEUE_LEN 4u
-#define SENSORARRAY_TEST_MAX_ROWS 8u
-#define SENSORARRAY_TEST_MAX_COLS 8u
-#define SENSORARRAY_TEST_RESIST_REF_OHMS 10000u
-#define SENSORARRAY_TEST_RESIST_EXCITATION_UV 2500000u
-#define SENSORARRAY_ADS126X_DEV_ID_ADS1262 0x00u
-#define SENSORARRAY_ADS126X_DEV_ID_ADS1263 0x01u
-#define SENSORARRAY_FDC2214_EXPECTED_MANUFACTURER_ID 0x5449u
-#define SENSORARRAY_FDC2214_EXPECTED_DEVICE_ID 0x3055u
+#define SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID 0x5449u
+#define SENSORARRAY_FDC_EXPECTED_DEVICE_ID 0x3055u
+#define SENSORARRAY_FDC_REQUIRED_CHANNELS 4u
+
+#define SENSORARRAY_ADS_MUX_AINCOM 0x0Au
+
+#define SENSORARRAY_S1 1u
+#define SENSORARRAY_S2 2u
+
+#define SENSORARRAY_D1 1u
+#define SENSORARRAY_D4 4u
+#define SENSORARRAY_D8 8u
+
+#define SENSORARRAY_NA "na"
+
+typedef enum {
+    SENSORARRAY_PATH_RESISTIVE = 0,
+    SENSORARRAY_PATH_CAPACITIVE = 1,
+} sensorarrayPath_t;
 
 typedef struct {
-    protocolWireFrame_t frame;
-    matrixEngineMeasure_t measure;
-} sensorarrayTestFrame_t;
+    spi_device_handle_t spiDevice;
+    ads126xAdcHandle_t ads;
+    bool adsReady;
+    bool adsRefReady;
 
-typedef struct {
-    uint32_t parsedFrames;
-} sensorarrayCommStats_t;
+    Fdc2214CapDevice_t *fdcPrimary;   // D1..D4 (C1..C4)
+    Fdc2214CapDevice_t *fdcSecondary; // D5..D8 (C5..C8)
+    bool fdcPrimaryReady;
+    bool fdcSecondaryReady;
+    uint8_t fdcConfiguredChannels;
 
-static QueueHandle_t s_frameQueue = NULL;
-static ads126xAdcHandle_t s_adcHandle = {0};
-static spi_device_handle_t s_spiDevice = NULL;
-static Fdc2214CapDevice_t *s_capDevice = NULL;
-static bool s_adcReady = false;
-static bool s_capReady = false;
-static bool s_matrixReady = false;
+    bool boardReady;
+    bool tmuxReady;
+} sensorarrayState_t;
+
+static sensorarrayState_t s_state = {0};
+
+static void sensorarrayDelayMs(uint32_t delayMs)
+{
+    if (delayMs > 0u) {
+        vTaskDelay(pdMS_TO_TICKS(delayMs));
+    }
+}
 
 static gpio_num_t sensorarrayToGpio(int gpio)
 {
     return gpio < 0 ? GPIO_NUM_NC : (gpio_num_t)gpio;
 }
 
-static const char *sensorarrayMeasureName(matrixEngineMeasure_t measure)
+static uint8_t sensorarrayNormalizeFdcChannels(uint8_t channels)
 {
-    switch (measure) {
-    case MATRIX_ENGINE_MEASURE_VOLTAGE_UV:
-        return "voltage_uv";
-    case MATRIX_ENGINE_MEASURE_RESISTANCE_MOHM:
-        return "resistance_mohm";
-    case MATRIX_ENGINE_MEASURE_CAP_RAW:
-        return "cap_raw";
-    default:
-        return "unknown";
-    }
-}
-
-static uint8_t sensorarrayNormalizeCapChannels(uint8_t channels)
-{
-    if (channels == 0) {
-        channels = 1;
+    if (channels == 0u) {
+        channels = 1u;
     }
     if (channels > 4u) {
         channels = 4u;
@@ -104,150 +85,92 @@ static uint8_t sensorarrayNormalizeCapChannels(uint8_t channels)
     return channels;
 }
 
-static esp_err_t sensorarrayCheckAds126xPins(ads126xAdcHandle_t *handle)
+static const char *sensorarrayRefState(void)
 {
-    if (!handle) {
-        return ESP_ERR_INVALID_ARG;
+    if (!s_state.adsReady) {
+        return "UNAVAILABLE";
     }
-
-    uint8_t id = 0;
-    esp_err_t err = ads126xAdcGetIdRaw(handle, &id);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "ADS126x self-check ID read failed: %d", err);
-        return err;
-    }
-
-    uint8_t devId = (uint8_t)((id >> 5) & 0x07u);
-    if (devId != SENSORARRAY_ADS126X_DEV_ID_ADS1262 &&
-        devId != SENSORARRAY_ADS126X_DEV_ID_ADS1263) {
-        ESP_LOGW(TAG, "ADS126x self-check ID invalid: 0x%02X", id);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-    if (handle->forcedType == ADS126X_DEVICE_ADS1262 &&
-        devId != SENSORARRAY_ADS126X_DEV_ID_ADS1262) {
-        ESP_LOGW(TAG, "ADS126x self-check forced ADS1262 mismatch: 0x%02X", id);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-    if (handle->forcedType == ADS126X_DEVICE_ADS1263 &&
-        devId != SENSORARRAY_ADS126X_DEV_ID_ADS1263) {
-        ESP_LOGW(TAG, "ADS126x self-check forced ADS1263 mismatch: 0x%02X", id);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    err = ads126xAdcStartAdc1(handle);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "ADS126x self-check start failed: %d", err);
-        return err;
-    }
-
-    int32_t raw = 0;
-    err = ads126xAdcReadAdc1Raw(handle, &raw, NULL);
-    (void)ads126xAdcStopAdc1(handle);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "ADS126x self-check read failed: %d", err);
-        return err;
-    }
-
-    ESP_LOGI(TAG, "ADS126x self-check ok (id=0x%02X raw=%ld)", id, (long)raw);
-    return ESP_OK;
+    return s_state.adsRefReady ? "READY" : "NOT_READY";
 }
 
-static esp_err_t sensorarrayCheckFdc2214Pins(Fdc2214CapDevice_t *dev, uint8_t channels)
+static const char *sensorarrayFmtI32(char *buf, size_t bufSize, bool valid, int32_t value)
 {
-    if (!dev) {
-        return ESP_ERR_INVALID_ARG;
+    if (!valid) {
+        return SENSORARRAY_NA;
     }
-
-    uint16_t manufacturer = 0;
-    uint16_t deviceId = 0;
-    esp_err_t err = Fdc2214CapReadId(dev, &manufacturer, &deviceId);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "FDC2214 self-check ID read failed: %d", err);
-        return err;
-    }
-    if (manufacturer != SENSORARRAY_FDC2214_EXPECTED_MANUFACTURER_ID ||
-        deviceId != SENSORARRAY_FDC2214_EXPECTED_DEVICE_ID) {
-        ESP_LOGW(TAG,
-                 "FDC2214 self-check ID mismatch: 0x%04X/0x%04X",
-                 manufacturer,
-                 deviceId);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    channels = sensorarrayNormalizeCapChannels(channels);
-
-    vTaskDelay(pdMS_TO_TICKS(10));
-    for (uint8_t ch = 0; ch < channels; ++ch) {
-        Fdc2214CapSample_t sample = {0};
-        err = Fdc2214CapReadSample(dev, (Fdc2214CapChannel_t)ch, &sample);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "FDC2214 self-check CH%u read failed: %d", ch, err);
-            return err;
-        }
-        if (sample.ErrWatchdog || sample.ErrAmplitude) {
-            ESP_LOGW(TAG,
-                     "FDC2214 self-check CH%u error WD=%d AMP=%d",
-                     ch,
-                     sample.ErrWatchdog,
-                     sample.ErrAmplitude);
-            return ESP_ERR_INVALID_RESPONSE;
-        }
-    }
-
-    ESP_LOGI(TAG, "FDC2214 self-check ok (id=0x%04X)", manufacturer);
-    return ESP_OK;
+    snprintf(buf, bufSize, "%ld", (long)value);
+    return buf;
 }
 
-static esp_err_t sensorarrayRunAdcTest(ads126xAdcHandle_t *handle, size_t samples)
+static const char *sensorarrayFmtU32(char *buf, size_t bufSize, bool valid, uint32_t value)
 {
-    if (!handle || samples == 0) {
-        return ESP_ERR_INVALID_ARG;
+    if (!valid) {
+        return SENSORARRAY_NA;
     }
-
-    esp_err_t err = ads126xAdcStartAdc1(handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    for (size_t i = 0; i < samples; ++i) {
-        int32_t raw = 0;
-        err = ads126xAdcReadAdc1Raw(handle, &raw, NULL);
-        if (err != ESP_OK) {
-            break;
-        }
-        int32_t uv = ads126xAdcRawToMicrovolts(handle, raw);
-        ESP_LOGI(TAG, "ADS126x sample %u raw=%ld uv=%ld", (unsigned)i, (long)raw, (long)uv);
-    }
-
-    ads126xAdcStopAdc1(handle);
-    return err;
+    snprintf(buf, bufSize, "%lu", (unsigned long)value);
+    return buf;
 }
 
-static esp_err_t sensorarrayRunCapTest(Fdc2214CapDevice_t *dev, uint8_t channels, size_t samples)
+static const char *sensorarrayFmtBool(char *buf, size_t bufSize, bool valid, bool value)
 {
-    if (!dev || samples == 0) {
-        return ESP_ERR_INVALID_ARG;
+    if (!valid) {
+        return SENSORARRAY_NA;
     }
+    snprintf(buf, bufSize, "%d", value ? 1 : 0);
+    return buf;
+}
 
-    channels = sensorarrayNormalizeCapChannels(channels);
-    for (size_t i = 0; i < samples; ++i) {
-        for (uint8_t ch = 0; ch < channels; ++ch) {
-            Fdc2214CapSample_t sample = {0};
-            esp_err_t err = Fdc2214CapReadSample(dev, (Fdc2214CapChannel_t)ch, &sample);
-            if (err != ESP_OK) {
-                return err;
-            }
-            ESP_LOGI(TAG,
-                     "FDC2214 sample %u ch=%u raw=0x%07lX wd=%d amp=%d",
-                     (unsigned)i,
-                     (unsigned)ch,
-                     (unsigned long)sample.Raw28,
-                     sample.ErrWatchdog,
-                     sample.ErrAmplitude);
-        }
-    }
+static void sensorarrayLogDbg(const char *point,
+                              const char *kind,
+                              const char *column,
+                              const char *dline,
+                              const char *sw,
+                              const char *mode,
+                              const char *value,
+                              const char *valueUv,
+                              const char *valueMohm,
+                              const char *raw,
+                              const char *wd,
+                              const char *amp,
+                              esp_err_t err,
+                              const char *status)
+{
+    printf("DBG,point=%s,kind=%s,column=%s,dline=%s,sw=%s,ref=%s,mode=%s,value=%s,valueUv=%s,"
+           "valueMohm=%s,raw=%s,wd=%s,amp=%s,err=%ld,status=%s\n",
+           point ? point : SENSORARRAY_NA,
+           kind ? kind : SENSORARRAY_NA,
+           column ? column : SENSORARRAY_NA,
+           dline ? dline : SENSORARRAY_NA,
+           sw ? sw : SENSORARRAY_NA,
+           sensorarrayRefState(),
+           mode ? mode : SENSORARRAY_NA,
+           value ? value : SENSORARRAY_NA,
+           valueUv ? valueUv : SENSORARRAY_NA,
+           valueMohm ? valueMohm : SENSORARRAY_NA,
+           raw ? raw : SENSORARRAY_NA,
+           wd ? wd : SENSORARRAY_NA,
+           amp ? amp : SENSORARRAY_NA,
+           (long)err,
+           status ? status : SENSORARRAY_NA);
+}
 
-    return ESP_OK;
+static void sensorarrayLogStartup(const char *mode, esp_err_t err, const char *status, int32_t detailValue)
+{
+    char valueBuf[24];
+    sensorarrayLogDbg("INIT",
+                      "startup",
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      mode,
+                      sensorarrayFmtI32(valueBuf, sizeof(valueBuf), true, detailValue),
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      err,
+                      status);
 }
 
 static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
@@ -273,7 +196,6 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
 
     esp_err_t err = spi_bus_initialize(CONFIG_BOARD_SPI_HOST, &busCfg, dmaChan);
     if (err == ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "SPI bus already initialized");
         err = ESP_OK;
     }
     if (err != ESP_OK) {
@@ -290,7 +212,7 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
     return spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
 }
 
-static esp_err_t sensorarrayInitAdc(ads126xAdcHandle_t *handle, spi_device_handle_t *spiDevice)
+static esp_err_t sensorarrayInitAds(ads126xAdcHandle_t *handle, spi_device_handle_t *spiDevice)
 {
     if (!handle || !spiDevice) {
         return ESP_ERR_INVALID_ARG;
@@ -324,27 +246,77 @@ static esp_err_t sensorarrayInitAdc(ads126xAdcHandle_t *handle, spi_device_handl
         return err;
     }
 
-    err = sensorarrayCheckAds126xPins(handle);
+    // Basic conversion smoke-test before the runtime loop.
+    err = ads126xAdcStartAdc1(handle);
     if (err != ESP_OK) {
         return err;
     }
-    ESP_LOGI(TAG, "ADS126x init ok, deviceType=%d id=0x%02X", handle->deviceType, handle->idRegRaw);
-    return ESP_OK;
+    int32_t raw = 0;
+    return ads126xAdcReadAdc1Raw(handle, &raw, NULL);
 }
 
-static esp_err_t sensorarrayInitCap(Fdc2214CapDevice_t **outDev)
+static esp_err_t sensorarrayPrepareAdsRefPath(ads126xAdcHandle_t *handle)
 {
-#if !CONFIG_FDC2214CAP_ENABLE
-    (void)outDev;
-    return ESP_ERR_NOT_SUPPORTED;
-#else
-    if (!outDev) {
+    if (!handle) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    const BoardSupportI2cCtx_t *i2cCtx = boardSupportGetI2cCtx();
-    if (!i2cCtx) {
-        return ESP_ERR_INVALID_STATE;
+    /*
+     * SW=HIGH drives the path from ADS REF output in current hardware.
+     * Keep this explicit: resistor-mode reads are only trusted after REF is
+     * configured and given extra settle time.
+     */
+    esp_err_t err = ads126xAdcConfigure(handle, true, false, ADS126X_CRC_OFF, 1, 0);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = ads126xAdcSetRefMux(handle, 0x00);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    sensorarrayDelayMs(SENSORARRAY_REF_SETTLE_MS);
+
+    err = ads126xAdcStartAdc1(handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    int32_t raw = 0;
+    return ads126xAdcReadAdc1Raw(handle, &raw, NULL);
+}
+
+static esp_err_t sensorarrayApplyFdcModePolicy(Fdc2214CapDevice_t *dev, uint8_t channels)
+{
+    channels = sensorarrayNormalizeFdcChannels(channels);
+
+    if (channels == 1u) {
+        return Fdc2214CapSetSingleChannelMode(dev, FDC2214_CH0);
+    }
+
+    uint8_t rrSequence = 2u;
+    if (channels == 2u) {
+        rrSequence = 0u;
+    } else if (channels == 3u) {
+        rrSequence = 1u;
+    }
+
+    return Fdc2214CapSetAutoScanMode(dev, rrSequence, FDC2214_DEGLITCH_10MHZ);
+}
+
+static esp_err_t sensorarrayInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
+                                          uint8_t channels,
+                                          Fdc2214CapDevice_t **outDev)
+{
+#if !CONFIG_FDC2214CAP_ENABLE
+    (void)i2cCtx;
+    (void)channels;
+    (void)outDev;
+    return ESP_ERR_NOT_SUPPORTED;
+#else
+    if (!i2cCtx || !outDev) {
+        return ESP_ERR_INVALID_ARG;
     }
 
     Fdc2214CapBusConfig_t busCfg = {
@@ -374,6 +346,13 @@ static esp_err_t sensorarrayInitCap(Fdc2214CapDevice_t **outDev)
         Fdc2214CapDestroy(dev);
         return err;
     }
+    if (manufacturer != SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID ||
+        deviceId != SENSORARRAY_FDC_EXPECTED_DEVICE_ID) {
+        Fdc2214CapDestroy(dev);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    channels = sensorarrayNormalizeFdcChannels(channels);
 
     Fdc2214CapChannelConfig_t chCfg = {
         .Rcount = 0xFFFF,
@@ -383,7 +362,6 @@ static esp_err_t sensorarrayInitCap(Fdc2214CapDevice_t **outDev)
         .DriveCurrent = 0xA000,
     };
 
-    uint8_t channels = sensorarrayNormalizeCapChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     for (uint8_t ch = 0; ch < channels; ++ch) {
         err = Fdc2214CapConfigureChannel(dev, (Fdc2214CapChannel_t)ch, &chCfg);
         if (err != ESP_OK) {
@@ -392,296 +370,455 @@ static esp_err_t sensorarrayInitCap(Fdc2214CapDevice_t **outDev)
         }
     }
 
-    if (channels > 1u) {
-        err = Fdc2214CapSetAutoScanMode(dev, 0, FDC2214_DEGLITCH_10MHZ);
-    } else {
-        err = Fdc2214CapSetSingleChannelMode(dev, FDC2214_CH0);
-    }
+    err = sensorarrayApplyFdcModePolicy(dev, channels);
     if (err != ESP_OK) {
         Fdc2214CapDestroy(dev);
         return err;
     }
 
-    err = sensorarrayCheckFdc2214Pins(dev, channels);
-    if (err != ESP_OK) {
-        Fdc2214CapDestroy(dev);
-        return err;
-    }
-
-    ESP_LOGI(TAG, "FDC2214 init ok (0x%02X)", CONFIG_FDC2214CAP_I2C_ADDR);
     *outDev = dev;
     return ESP_OK;
 #endif
 }
 
-static esp_err_t sensorarrayInitMatrix(void)
+static bool sensorarrayAdsMuxForDLine(uint8_t dLine, uint8_t *muxp, uint8_t *muxn)
 {
-    matrixEngineConfig_t cfg = {0};
-    cfg.adc = s_adcReady ? &s_adcHandle : NULL;
-    cfg.cap = s_capReady ? s_capDevice : NULL;
-    cfg.oversample = 0;
-    cfg.resistanceRefOhms = SENSORARRAY_TEST_RESIST_REF_OHMS;
-    cfg.resistanceExcitationUv = SENSORARRAY_TEST_RESIST_EXCITATION_UV;
-    cfg.selectRow = NULL;
-    cfg.selectColGroup = NULL;
-    cfg.drive = NULL;
-    cfg.userCtx = NULL;
+    if (!muxp || !muxn || dLine < 1u || dLine > 8u) {
+        return false;
+    }
 
-    return matrixEngineInit(&cfg);
+    *muxp = (uint8_t)(8u - dLine); // D1->AIN7 ... D8->AIN0
+    *muxn = SENSORARRAY_ADS_MUX_AINCOM;
+    return true;
 }
 
-static void sensorarrayFillFrame(protocolWireFrame_t *frame,
-                                 const int32_t *values,
-                                 size_t count,
-                                 uint16_t rows,
-                                 uint16_t cols,
-                                 matrixEngineMeasure_t measure,
-                                 uint16_t seq)
+static bool sensorarrayCapPathOnSelEnabled(uint8_t dLine)
 {
-    if (!frame || !values || rows == 0 || cols == 0) {
-        return;
-    }
-
-    memset(frame, 0, sizeof(*frame));
-    frame->seq = seq;
-    frame->t0 = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
-
-    size_t points = count;
-    if (points > PROTOCOL_WIRE_POINT_COUNT) {
-        points = PROTOCOL_WIRE_POINT_COUNT;
-    }
-
-    for (size_t idx = 0; idx < points; ++idx) {
-        uint16_t row = (uint16_t)(idx / cols);
-        uint16_t col = (uint16_t)(idx % cols);
-        frame->validMask |= (1ULL << idx);
-        frame->offset[idx] = (uint16_t)(((row & 0xFFu) << 8) | (col & 0xFFu));
-
-        uint32_t payload = (uint32_t)values[idx] & PROTOCOL_WIRE_PAYLOAD_MASK;
-        uint8_t tag = (measure == MATRIX_ENGINE_MEASURE_CAP_RAW)
-                          ? PROTOCOL_WIRE_DATA_TAG_FDC2214
-                          : PROTOCOL_WIRE_DATA_TAG_NONE;
-        frame->data[idx] = protocolWirePackTaggedU28(tag, payload);
-    }
+    /*
+     * From current schematic routing, even D lines (D2/D4/D6/D8) route to C*
+     * when SEL is enabled; odd D lines route to C* when SEL is disabled.
+     */
+    return (dLine % 2u) == 0u;
 }
 
-static esp_err_t sensorarrayReadMatrix(matrixEngineMeasure_t measure,
-                                       int32_t *values,
-                                       size_t valueCount,
-                                       uint16_t rows,
-                                       uint16_t cols)
+static esp_err_t sensorarrayApplyRoute(uint8_t sColumn,
+                                       uint8_t dLine,
+                                       sensorarrayPath_t path,
+                                       tmux1108Source_t swSource)
 {
-    matrixEngineRegion_t region = {
-        .row = 0,
-        .col = 0,
-        .rows = rows,
-        .cols = cols,
-    };
+    if (!s_state.tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (sColumn < 1u || sColumn > 8u || dLine < 1u || dLine > 8u) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
-    matrixEngineRequest_t req = {
-        .io = MATRIX_ENGINE_IO_READ,
-        .measure = measure,
-        .driveSource = TMUX1108_SOURCE_GND,
-    };
+    esp_err_t err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u)); // TMUX1108 selects S1..S8
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_COLUMN_MS);
 
-    return matrixEngineRegionIo(&region, &req, values, valueCount);
+    bool capPathWhenSelEnabled = sensorarrayCapPathOnSelEnabled(dLine);
+    bool targetSelEnabled = (path == SENSORARRAY_PATH_CAPACITIVE) ? capPathWhenSelEnabled
+                                                                   : !capPathWhenSelEnabled;
+
+    bool selA = false;
+    bool selB = false;
+    if (dLine <= 4u) {
+        selA = targetSelEnabled;
+    } else {
+        selB = targetSelEnabled;
+    }
+
+    err = tmuxSwitchSetSelAEnabled(selA);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = tmuxSwitchSetSelBEnabled(selB);
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_PATH_MS);
+
+    err = tmuxSwitchSet1108Source(swSource); // SW controls REF/GND source state.
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_SW_MS);
+
+    return ESP_OK;
 }
 
-static void sensorarrayCommOnFrame(const uint8_t *payload, uint16_t payloadLen, void *userCtx)
+static esp_err_t sensorarrayReadAdsUv(uint8_t dLine, bool discardFirst, int32_t *outRaw, int32_t *outUv)
 {
-    (void)payload;
-    (void)payloadLen;
-    sensorarrayCommStats_t *stats = (sensorarrayCommStats_t *)userCtx;
-    if (stats) {
-        stats->parsedFrames += 1u;
-    }
-}
-
-static void sensorarrayScanTask(void *arg)
-{
-    (void)arg;
-    ESP_LOGI(TAG, "scan task start core=%d", (int)xPortGetCoreID());
-
-    uint16_t rows = (uint16_t)CONFIG_MATRIX_ROWS;
-    uint16_t cols = (uint16_t)CONFIG_MATRIX_COLS;
-    if (rows == 0) {
-        rows = 1;
-    }
-    if (cols == 0) {
-        cols = 1;
-    }
-    if (rows > SENSORARRAY_TEST_MAX_ROWS) {
-        rows = SENSORARRAY_TEST_MAX_ROWS;
-    }
-    if (cols > SENSORARRAY_TEST_MAX_COLS) {
-        cols = SENSORARRAY_TEST_MAX_COLS;
+    if (!outRaw || !outUv || !s_state.adsReady) {
+        return ESP_ERR_INVALID_STATE;
     }
 
-    size_t pointCount = (size_t)rows * cols;
-    int32_t values[PROTOCOL_WIRE_POINT_COUNT] = {0};
-    uint16_t seq = 0;
+    uint8_t muxp = 0;
+    uint8_t muxn = 0;
+    if (!sensorarrayAdsMuxForDLine(dLine, &muxp, &muxn)) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
-    while (true) {
-        if (!s_matrixReady) {
-            vTaskDelay(pdMS_TO_TICKS(500));
-            continue;
+    esp_err_t err = ads126xAdcSetInputMux(&s_state.ads, muxp, muxn);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = ads126xAdcStartAdc1(&s_state.ads);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (discardFirst) {
+        int32_t throwaway = 0;
+        err = ads126xAdcReadAdc1Raw(&s_state.ads, &throwaway, NULL);
+        if (err != ESP_OK) {
+            return err;
         }
+    }
 
-        matrixEngineMeasure_t measures[] = {
-            MATRIX_ENGINE_MEASURE_VOLTAGE_UV,
-            MATRIX_ENGINE_MEASURE_RESISTANCE_MOHM,
-            MATRIX_ENGINE_MEASURE_CAP_RAW,
-        };
+    err = ads126xAdcReadAdc1Raw(&s_state.ads, outRaw, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
 
-        for (size_t i = 0; i < sizeof(measures) / sizeof(measures[0]); ++i) {
-            matrixEngineMeasure_t measure = measures[i];
-            if ((measure == MATRIX_ENGINE_MEASURE_CAP_RAW && !s_capReady) ||
-                (measure != MATRIX_ENGINE_MEASURE_CAP_RAW && !s_adcReady)) {
-                continue;
-            }
+    *outUv = ads126xAdcRawToMicrovolts(&s_state.ads, *outRaw);
+    return ESP_OK;
+}
 
-            esp_err_t err = sensorarrayReadMatrix(measure, values, pointCount, rows, cols);
+static bool sensorarrayUvToResistanceMohm(int32_t uv, int32_t *outMohm)
+{
+    if (!outMohm) {
+        return false;
+    }
+    if (uv <= 0 || (uint32_t)uv >= SENSORARRAY_RESIST_EXCITATION_UV) {
+        return false;
+    }
+
+    int64_t numerator = (int64_t)SENSORARRAY_RESIST_REF_OHMS * 1000 * (int64_t)uv;
+    int64_t denominator = (int64_t)SENSORARRAY_RESIST_EXCITATION_UV - (int64_t)uv;
+    if (denominator == 0) {
+        return false;
+    }
+
+    *outMohm = (int32_t)(numerator / denominator);
+    return true;
+}
+
+static Fdc2214CapDevice_t *sensorarrayFdcDeviceForDLine(uint8_t dLine)
+{
+    if (dLine >= 1u && dLine <= 4u) {
+        return s_state.fdcPrimary;
+    }
+    if (dLine >= 5u && dLine <= 8u) {
+        return s_state.fdcSecondary;
+    }
+    return NULL;
+}
+
+static bool sensorarrayFdcReadyForDLine(uint8_t dLine)
+{
+    if (dLine >= 1u && dLine <= 4u) {
+        return s_state.fdcPrimaryReady;
+    }
+    if (dLine >= 5u && dLine <= 8u) {
+        return s_state.fdcSecondaryReady;
+    }
+    return false;
+}
+
+static bool sensorarrayFdcChannelForDLine(uint8_t dLine, Fdc2214CapChannel_t *outChannel)
+{
+    if (!outChannel || dLine < 1u || dLine > 8u) {
+        return false;
+    }
+
+    uint8_t indexInBank = (uint8_t)((dLine - 1u) % 4u);
+    *outChannel = (Fdc2214CapChannel_t)indexInBank;
+    return true;
+}
+
+static esp_err_t sensorarrayReadFdcSample(Fdc2214CapDevice_t *dev,
+                                          Fdc2214CapChannel_t ch,
+                                          bool discardFirst,
+                                          Fdc2214CapSample_t *outSample)
+{
+    if (!dev || !outSample) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (discardFirst) {
+        Fdc2214CapSample_t throwaway = {0};
+        esp_err_t err = Fdc2214CapReadSample(dev, ch, &throwaway);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    return Fdc2214CapReadSample(dev, ch, outSample);
+}
+
+static void sensorarrayDebugReadResistorS1D1(void)
+{
+    char valueBuf[24];
+    char uvBuf[24];
+    char mohmBuf[24];
+    char rawBuf[24];
+
+    esp_err_t err = ESP_OK;
+    int32_t uv = 0;
+    int32_t raw = 0;
+    int32_t mohm = 0;
+    bool haveUv = false;
+    bool haveRaw = false;
+    bool haveMohm = false;
+    const char *status = "ok";
+
+    if (!s_state.adsReady) {
+        status = "skip_ads_unavailable";
+    } else if (!s_state.adsRefReady) {
+        status = "skip_ref_not_ready";
+    } else {
+        err = sensorarrayApplyRoute(SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, TMUX1108_SOURCE_REF);
+        if (err != ESP_OK) {
+            status = "route_error";
+        } else {
+            err = sensorarrayReadAdsUv(SENSORARRAY_D1, true, &raw, &uv);
             if (err != ESP_OK) {
-                ESP_LOGW(TAG, "matrix read %s failed: %d", sensorarrayMeasureName(measure), err);
-                continue;
-            }
-
-            sensorarrayTestFrame_t frame = {0};
-            frame.measure = measure;
-            sensorarrayFillFrame(&frame.frame, values, pointCount, rows, cols, measure, seq++);
-
-            if (s_frameQueue) {
-                if (xQueueSend(s_frameQueue, &frame, pdMS_TO_TICKS(50)) != pdTRUE) {
-                    ESP_LOGW(TAG, "frame queue full; dropping");
+                status = "ads_read_error";
+            } else {
+                haveRaw = true;
+                haveUv = true;
+                if (sensorarrayUvToResistanceMohm(uv, &mohm)) {
+                    haveMohm = true;
+                } else {
+                    status = "res_calc_invalid";
                 }
             }
         }
-
-        vTaskDelay(pdMS_TO_TICKS(CONFIG_MATRIX_FRAME_PERIOD_MS));
     }
+
+    sensorarrayLogDbg("S1D1",
+                      "res",
+                      "S1",
+                      "D1",
+                      "HIGH",
+                      "ads",
+                      sensorarrayFmtI32(valueBuf, sizeof(valueBuf), haveMohm, mohm),
+                      sensorarrayFmtI32(uvBuf, sizeof(uvBuf), haveUv, uv),
+                      sensorarrayFmtI32(mohmBuf, sizeof(mohmBuf), haveMohm, mohm),
+                      sensorarrayFmtI32(rawBuf, sizeof(rawBuf), haveRaw, raw),
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      err,
+                      status);
 }
 
-static void sensorarrayCommTask(void *arg)
+static void sensorarrayDebugReadPiezoCap(const char *pointLabel, uint8_t sColumn, uint8_t dLine)
 {
-    (void)arg;
-    ESP_LOGI(TAG, "comm task start core=%d", (int)xPortGetCoreID());
+    char valueBuf[24];
+    char rawBuf[24];
+    char wdBuf[8];
+    char ampBuf[8];
 
-    protocolUsbParser_t parser = {0};
-    sensorarrayCommStats_t stats = {0};
-    protocolUsbParserInit(&parser, sensorarrayCommOnFrame, &stats);
+    esp_err_t err = ESP_OK;
+    Fdc2214CapSample_t sample = {0};
+    bool haveSample = false;
+    bool haveFlags = false;
+    const char *status = "ok";
 
+    if (!sensorarrayFdcReadyForDLine(dLine)) {
+        status = "skip_fdc_unavailable";
+    } else {
+        err = sensorarrayApplyRoute(sColumn, dLine, SENSORARRAY_PATH_CAPACITIVE, TMUX1108_SOURCE_GND);
+        if (err != ESP_OK) {
+            status = "route_error";
+        } else {
+            Fdc2214CapChannel_t channel = FDC2214_CH0;
+            if (!sensorarrayFdcChannelForDLine(dLine, &channel)) {
+                err = ESP_ERR_INVALID_ARG;
+                status = "mapping_error";
+            } else {
+                Fdc2214CapDevice_t *dev = sensorarrayFdcDeviceForDLine(dLine);
+                err = sensorarrayReadFdcSample(dev, channel, true, &sample);
+                if (err != ESP_OK) {
+                    status = "fdc_read_error";
+                } else {
+                    haveSample = true;
+                    haveFlags = true;
+                    if (sample.ErrWatchdog || sample.ErrAmplitude) {
+                        status = "warn_sensor_flags";
+                    }
+                }
+            }
+        }
+    }
+
+    sensorarrayLogDbg(pointLabel,
+                      "cap",
+                      (sColumn == SENSORARRAY_S1) ? "S1" : "S2",
+                      (dLine == SENSORARRAY_D4) ? "D4" : "D8",
+                      "LOW",
+                      "fdc",
+                      sensorarrayFmtU32(valueBuf, sizeof(valueBuf), haveSample, sample.Raw28),
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      sensorarrayFmtU32(rawBuf, sizeof(rawBuf), haveSample, sample.Raw28),
+                      sensorarrayFmtBool(wdBuf, sizeof(wdBuf), haveFlags, sample.ErrWatchdog),
+                      sensorarrayFmtBool(ampBuf, sizeof(ampBuf), haveFlags, sample.ErrAmplitude),
+                      err,
+                      status);
+}
+
+static void sensorarrayDebugReadPiezoVolt(const char *pointLabel, uint8_t sColumn, uint8_t dLine)
+{
+    char valueBuf[24];
+    char uvBuf[24];
+    char rawBuf[24];
+
+    esp_err_t err = ESP_OK;
+    int32_t uv = 0;
+    int32_t raw = 0;
+    bool haveUv = false;
+    bool haveRaw = false;
+    const char *status = "ok";
+
+    if (!s_state.adsReady) {
+        status = "skip_ads_unavailable";
+    } else {
+        err = sensorarrayApplyRoute(sColumn, dLine, SENSORARRAY_PATH_RESISTIVE, TMUX1108_SOURCE_GND);
+        if (err != ESP_OK) {
+            status = "route_error";
+        } else {
+            err = sensorarrayReadAdsUv(dLine, true, &raw, &uv);
+            if (err != ESP_OK) {
+                status = "ads_read_error";
+            } else {
+                haveUv = true;
+                haveRaw = true;
+            }
+        }
+    }
+
+    sensorarrayLogDbg(pointLabel,
+                      "volt",
+                      (sColumn == SENSORARRAY_S1) ? "S1" : "S2",
+                      (dLine == SENSORARRAY_D4) ? "D4" : "D8",
+                      "LOW",
+                      "ads",
+                      sensorarrayFmtI32(valueBuf, sizeof(valueBuf), haveUv, uv),
+                      sensorarrayFmtI32(uvBuf, sizeof(uvBuf), haveUv, uv),
+                      SENSORARRAY_NA,
+                      sensorarrayFmtI32(rawBuf, sizeof(rawBuf), haveRaw, raw),
+                      SENSORARRAY_NA,
+                      SENSORARRAY_NA,
+                      err,
+                      status);
+}
+
+static void sensorarrayRunBringupLoop(void)
+{
     while (true) {
-        sensorarrayTestFrame_t frame = {0};
-        if (!s_frameQueue) {
-            vTaskDelay(pdMS_TO_TICKS(200));
-            continue;
-        }
-        if (xQueueReceive(s_frameQueue, &frame, portMAX_DELAY) != pdTRUE) {
-            continue;
-        }
+        // 1) S1D1 resistor via ADS (SW HIGH, REF-ready required)
+        sensorarrayDebugReadResistorS1D1();
 
-        uint8_t wireBuf[PROTOCOL_WIRE_FRAME_BYTES] = {0};
-        esp_err_t err = protocolWirePackFrame(&frame.frame, wireBuf, sizeof(wireBuf));
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "pack wire failed: %d", err);
-            continue;
-        }
+        // 2) S2D4 piezo capacitance via FDC (SW LOW)
+        sensorarrayDebugReadPiezoCap("S2D4", SENSORARRAY_S2, SENSORARRAY_D4);
 
-        uint8_t usbBuf[PROTOCOL_USB_HEADER_BYTES + PROTOCOL_WIRE_FRAME_BYTES] = {0};
-        err = protocolUsbBuildFrame(wireBuf, sizeof(wireBuf), usbBuf, sizeof(usbBuf));
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "pack usb failed: %d", err);
-            continue;
-        }
+        // 3) S2D4 piezo voltage via ADS (SW LOW)
+        sensorarrayDebugReadPiezoVolt("S2D4", SENSORARRAY_S2, SENSORARRAY_D4);
 
-        size_t parsed = protocolUsbParserFeed(&parser, usbBuf, sizeof(usbBuf));
-        ESP_LOGI(TAG,
-                 "send %s seq=%u bytes=%u parsed=%u total=%u",
-                 sensorarrayMeasureName(frame.measure),
-                 frame.frame.seq,
-                 (unsigned)sizeof(usbBuf),
-                 (unsigned)parsed,
-                 (unsigned)stats.parsedFrames);
-    }
-}
+        // 4) S2D8 piezo capacitance via FDC (SW LOW)
+        sensorarrayDebugReadPiezoCap("S2D8", SENSORARRAY_S2, SENSORARRAY_D8);
 
-static void sensorarrayCoreProbeTask(void *arg)
-{
-    (void)arg;
-    for (int i = 0; i < 5; ++i) {
-        ESP_LOGI(TAG, "core probe tick=%u core=%d", (unsigned)i, (int)xPortGetCoreID());
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-    vTaskDelete(NULL);
-}
+        // 5) S2D8 piezo voltage via ADS (SW LOW)
+        sensorarrayDebugReadPiezoVolt("S2D8", SENSORARRAY_S2, SENSORARRAY_D8);
 
-static void sensorarrayCreateTask(const char *name,
-                                  TaskFunction_t fn,
-                                  uint32_t stack,
-                                  void *arg,
-                                  UBaseType_t prio,
-                                  int coreId)
-{
-#if CONFIG_FREERTOS_UNICORE
-    (void)coreId;
-    BaseType_t ok = xTaskCreate(fn, name, stack, arg, prio, NULL);
-#else
-    BaseType_t ok = xTaskCreatePinnedToCore(fn, name, stack, arg, prio, NULL, coreId);
-#endif
-    if (ok != pdPASS) {
-        ESP_LOGE(TAG, "task create failed: %s", name);
+        sensorarrayDelayMs(SENSORARRAY_LOOP_DELAY_MS);
     }
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "sensor array test app start");
+    uint8_t requestedChannels = sensorarrayNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
+    if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
+        requestedChannels = SENSORARRAY_FDC_REQUIRED_CHANNELS;
+    }
+    s_state.fdcConfiguredChannels = requestedChannels;
+
+    sensorarrayLogStartup("app", ESP_OK, "start", 0);
+    sensorarrayLogStartup("fdc_channels", ESP_OK, "policy_applied", (int32_t)requestedChannels);
 
     esp_err_t err = boardSupportInit();
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "boardSupportInit failed: %d", err);
-    }
+    s_state.boardReady = (err == ESP_OK);
+    sensorarrayLogStartup("board", err, s_state.boardReady ? "ok" : "init_failed", (int32_t)s_state.boardReady);
 
     err = tmuxSwitchInit();
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "tmuxSwitchInit failed: %d", err);
+    s_state.tmuxReady = (err == ESP_OK);
+    sensorarrayLogStartup("tmux", err, s_state.tmuxReady ? "ok" : "init_failed", (int32_t)s_state.tmuxReady);
+
+    if (s_state.tmuxReady) {
+        esp_err_t tmuxErr = tmuxSwitchSelectRow(0);
+        if (tmuxErr == ESP_OK) {
+            tmuxErr = tmuxSwitchSetSelAEnabled(false);
+        }
+        if (tmuxErr == ESP_OK) {
+            tmuxErr = tmuxSwitchSetSelBEnabled(false);
+        }
+        if (tmuxErr == ESP_OK) {
+            tmuxErr = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
+        }
+        sensorarrayLogStartup("tmux_defaults",
+                              tmuxErr,
+                              (tmuxErr == ESP_OK) ? "ok" : "set_failed",
+                              (int32_t)(tmuxErr == ESP_OK));
     }
 
-    err = sensorarrayInitAdc(&s_adcHandle, &s_spiDevice);
-    if (err == ESP_OK) {
-        s_adcReady = true;
+    err = sensorarrayInitAds(&s_state.ads, &s_state.spiDevice);
+    s_state.adsReady = (err == ESP_OK);
+    sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok" : "init_failed", (int32_t)s_state.adsReady);
+
+    if (s_state.adsReady) {
+        err = sensorarrayPrepareAdsRefPath(&s_state.ads);
+        s_state.adsRefReady = (err == ESP_OK);
+        sensorarrayLogStartup("ads_ref",
+                              err,
+                              s_state.adsRefReady ? "ready" : "not_ready",
+                              (int32_t)s_state.adsRefReady);
     } else {
-        ESP_LOGW(TAG, "ADS126x init failed: %d (%s)", err, esp_err_to_name(err));
+        s_state.adsRefReady = false;
+        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_ads_unavailable", 0);
     }
 
-    err = sensorarrayInitCap(&s_capDevice);
-    if (err == ESP_OK) {
-        s_capReady = true;
-    } else {
-        ESP_LOGW(TAG, "FDC2214 init failed: %d (%s)", err, esp_err_to_name(err));
-    }
+    if (s_state.boardReady) {
+        err = sensorarrayInitFdcDevice(boardSupportGetI2cCtx(), requestedChannels, &s_state.fdcPrimary);
+        s_state.fdcPrimaryReady = (err == ESP_OK);
+        sensorarrayLogStartup("fdc_primary",
+                              err,
+                              s_state.fdcPrimaryReady ? "ok" : "init_failed",
+                              (int32_t)s_state.fdcPrimaryReady);
 
-    if (s_adcReady) {
-        err = sensorarrayRunAdcTest(&s_adcHandle, 5);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "ADS126x test failed: %d (%s)", err, esp_err_to_name(err));
+        const BoardSupportI2cCtx_t *i2c1Ctx = boardSupportGetI2c1Ctx();
+        if (i2c1Ctx) {
+            err = sensorarrayInitFdcDevice(i2c1Ctx, requestedChannels, &s_state.fdcSecondary);
+            s_state.fdcSecondaryReady = (err == ESP_OK);
+            sensorarrayLogStartup("fdc_secondary",
+                                  err,
+                                  s_state.fdcSecondaryReady ? "ok" : "init_failed",
+                                  (int32_t)s_state.fdcSecondaryReady);
+        } else {
+            s_state.fdcSecondaryReady = false;
+            sensorarrayLogStartup("fdc_secondary", ESP_ERR_NOT_SUPPORTED, "skip_i2c1_unavailable", 0);
         }
     } else {
-        ESP_LOGW(TAG, "ADS126x test skipped: init failed");
+        s_state.fdcPrimaryReady = false;
+        s_state.fdcSecondaryReady = false;
+        sensorarrayLogStartup("fdc_primary", ESP_ERR_INVALID_STATE, "skip_board_unavailable", 0);
+        sensorarrayLogStartup("fdc_secondary", ESP_ERR_INVALID_STATE, "skip_board_unavailable", 0);
     }
 
-    if (s_capReady) {
-        uint8_t channels = sensorarrayNormalizeCapChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
-        err = sensorarrayRunCapTest(s_capDevice, channels, 2);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "FDC2214 test failed: %d (%s)", err, esp_err_to_name(err));
-        }
-    } else {
-        ESP_LOGW(TAG, "FDC2214 test skipped: init failed");
-    }
-
-    ESP_LOGI(TAG, "device test complete");
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+    sensorarrayRunBringupLoop();
 }
