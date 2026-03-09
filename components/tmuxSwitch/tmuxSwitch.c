@@ -156,6 +156,14 @@ esp_err_t tmuxSwitchInit(void)
         selb_default = false;
     }
 
+    /*
+     * If EN is controllable, force OFF first so row/source/SEL lines settle before
+     * the final requested enable state is applied.
+     */
+    if (CONFIG_TMUX1134_EN_GPIO >= 0) {
+        tmux1134SetEnStateNoLock(false);
+    }
+
     // TMUX1108 EN is tied high on this board; only A[2:0] and SW are controlled.
     tmux1108ApplySourceNoLock(default_source);
     tmux1108ApplyRowNoLock(0);

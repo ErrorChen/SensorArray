@@ -12,7 +12,9 @@
 #define CONFIG_ADS126X_LOG_LEVEL 3
 #endif
 
+#ifndef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL CONFIG_ADS126X_LOG_LEVEL
+#endif
 
 static const char *TAG = "ads126xAdc";
 
@@ -71,6 +73,12 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_DEV_ID_ADS1263 0x01u
 
 #define ADS126X_MAX_REG_READ_LEN 32u
+
+/* Millisecond-level delays keep timing robust with RTOS tick granularity. */
+#define ADS126X_RESET_PULSE_LOW_MS 2u
+#define ADS126X_RESET_RELEASE_WAIT_MS 2u
+#define ADS126X_RESET_COMMAND_DELAY_MS 2u
+#define ADS126X_INTERNAL_REF_SETTLE_MS 50u
 
 static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 {
@@ -146,6 +154,13 @@ static ads126xDeviceType_t ads126xAdcDeviceFromId(uint8_t idReg, ads126xDeviceTy
     default:
         return ADS126X_DEVICE_AUTO;
     }
+}
+
+static bool ads126xAdcIsValidForcedType(ads126xDeviceType_t forcedType)
+{
+    return forcedType == ADS126X_DEVICE_AUTO ||
+           forcedType == ADS126X_DEVICE_ADS1262 ||
+           forcedType == ADS126X_DEVICE_ADS1263;
 }
 
 /* Datasheet checksum: sum(data bytes) + 0x9B, lower 8 bits. */
@@ -236,6 +251,9 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
     if (!handle || !cfg || !cfg->spiDevice) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!ads126xAdcIsValidForcedType(cfg->forcedType)) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     memset(handle, 0, sizeof(*handle));
     handle->spiDevice = cfg->spiDevice;
@@ -283,14 +301,57 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
         return err;
     }
 
-    /* Datasheet requires a short delay after RESET command before next command. */
-    vTaskDelay(pdMS_TO_TICKS(2));
+    /*
+     * Datasheet minimum is 8 * tCLK after RESET command before next command.
+     * Use millisecond delay for margin across clock options and RTOS tick quantization.
+     */
+    vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_COMMAND_DELAY_MS));
 
+    bool idReadOk = false;
     err = ads126xAdcGetIdRaw(handle, &handle->idRegRaw);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Failed to read ID register, err=%d", err);
+    } else {
+        idReadOk = true;
     }
-    handle->deviceType = ads126xAdcDeviceFromId(handle->idRegRaw, handle->forcedType);
+
+    ads126xDeviceType_t detectedType = ADS126X_DEVICE_AUTO;
+    if (idReadOk) {
+        detectedType = ads126xAdcDeviceFromId(handle->idRegRaw, ADS126X_DEVICE_AUTO);
+        if (detectedType == ADS126X_DEVICE_AUTO) {
+            ESP_LOGW(TAG, "Unknown ADS126x ID register value: 0x%02X", handle->idRegRaw);
+        }
+    }
+
+    if (handle->forcedType != ADS126X_DEVICE_AUTO) {
+        handle->deviceType = handle->forcedType;
+        if (!idReadOk) {
+            ESP_LOGW(TAG,
+                     "Using forced device type %d with unreadable ID register",
+                     (int)handle->forcedType);
+        } else if (detectedType == ADS126X_DEVICE_AUTO) {
+            ESP_LOGW(TAG,
+                     "Using forced device type %d with unknown ID 0x%02X",
+                     (int)handle->forcedType,
+                     handle->idRegRaw);
+        } else if (detectedType != handle->forcedType) {
+            ESP_LOGW(TAG,
+                     "Forced device type %d mismatches ID 0x%02X (detected type %d)",
+                     (int)handle->forcedType,
+                     handle->idRegRaw,
+                     (int)detectedType);
+        }
+    } else if (!idReadOk || detectedType == ADS126X_DEVICE_AUTO) {
+        /* Keep AUTO when ID cannot be trusted to avoid mis-classifying as ADS1262. */
+        handle->deviceType = ADS126X_DEVICE_AUTO;
+        if (!idReadOk) {
+            ESP_LOGW(TAG, "ID register unavailable; keeping device type AUTO");
+        } else {
+            ESP_LOGW(TAG, "ID 0x%02X not recognized; keeping device type AUTO", handle->idRegRaw);
+        }
+    } else {
+        handle->deviceType = detectedType;
+    }
 
     err = ads126xAdcConfigure(handle,
                               cfg->enableInternalRef,
@@ -317,6 +378,14 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
     if (err != ESP_OK) {
         ads126xAdcDeinit(handle);
         return err;
+    }
+
+    if (cfg->enableInternalRef) {
+        /*
+         * REFOUT startup is datasheet-sensitive; with 1-uF reference capacitor, allow
+         * conservative settling time so the first conversion is less likely to be invalid.
+         */
+        vTaskDelay(pdMS_TO_TICKS(ADS126X_INTERNAL_REF_SETTLE_MS));
     }
 
     return ESP_OK;
@@ -350,9 +419,9 @@ esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)
 
     /* RESET/PWDN is active low; hold low briefly then release high. */
     gpio_set_level(handle->resetGpio, 0);
-    vTaskDelay(pdMS_TO_TICKS(2));
+    vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_PULSE_LOW_MS));
     gpio_set_level(handle->resetGpio, 1);
-    vTaskDelay(pdMS_TO_TICKS(2));
+    vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_RELEASE_WAIT_MS));
 
     return ESP_OK;
 }
@@ -655,7 +724,12 @@ esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
         return err;
     }
 
-    size_t frameLen = 3;
+    /*
+     * ADS1263 ADC2 data-byte sequence (RDATA2):
+     *   [status?] [data2_msb] [data2_mid] [data2_lsb] [pad=0x00] [crc/chk?]
+     * If status is disabled, bytes are left-shifted and start at data2_msb.
+     */
+    size_t frameLen = 4; /* 3 ADC2 data bytes + 1 mandatory zero pad byte. */
     if (handle->enableStatusByte) {
         frameLen += 1;
     }
@@ -663,7 +737,7 @@ esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
         frameLen += 1;
     }
 
-    uint8_t frame[5] = {0};
+    uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA2;
     err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen);
     if (err != ESP_OK) {
@@ -679,11 +753,16 @@ esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
     }
 
     uint8_t *dataBytes = &frame[idx];
+    uint8_t padByte = dataBytes[3];
+    if (padByte != 0x00u) {
+        ESP_LOGW(TAG, "ADC2 pad byte unexpected: 0x%02X", padByte);
+    }
+
     if (handle->crcMode != ADS126X_CRC_OFF) {
         uint8_t expected = frame[frameLen - 1];
         uint8_t actual = (handle->crcMode == ADS126X_CRC_CRC8)
-                             ? ads126xAdcCrc8(dataBytes, 3)
-                             : ads126xAdcChecksum(dataBytes, 3);
+                              ? ads126xAdcCrc8(dataBytes, 3)
+                              : ads126xAdcChecksum(dataBytes, 3);
         if (expected != actual) {
             ESP_LOGW(TAG, "ADC2 CRC/CHK mismatch (exp=0x%02X calc=0x%02X)", expected, actual);
             return ESP_ERR_INVALID_RESPONSE;
@@ -693,6 +772,7 @@ esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
     uint32_t raw = ((uint32_t)dataBytes[0] << 16) |
                    ((uint32_t)dataBytes[1] << 8) |
                    (uint32_t)dataBytes[2];
+    /* ADC2 output code is 24-bit two's complement; sign-extend to int32_t. */
     if (raw & 0x00800000u) {
         raw |= 0xFF000000u;
     }

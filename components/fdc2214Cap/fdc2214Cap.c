@@ -82,6 +82,19 @@ static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)
     return (ch >= FDC2214_CH0) && (ch <= FDC2214_CH3);
 }
 
+static bool Fdc2214IsValidDeglitch(Fdc2214CapDeglitch_t deglitch)
+{
+    switch (deglitch) {
+    case FDC2214_DEGLITCH_1MHZ:
+    case FDC2214_DEGLITCH_3P3MHZ:
+    case FDC2214_DEGLITCH_10MHZ:
+    case FDC2214_DEGLITCH_33MHZ:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static uint8_t Fdc2214RegForChannelStep1(uint8_t base, Fdc2214CapChannel_t ch)
 {
     return (uint8_t)(base + (uint8_t)ch);
@@ -355,14 +368,22 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
     }
+    /* Keep a strict range here (0..2) for explicit caller intent and API stability. */
     if (rrSequence > 2) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!Fdc2214IsValidDeglitch(deglitch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
+    /*
+     * This only configures the hardware sequencer (AUTOSCAN + RR_SEQUENCE).
+     * The caller still controls read cadence and which channel data registers to poll.
+     */
     uint16_t muxReg = FDC2214_MUX_AUTOSCAN_BIT;
     muxReg |= (uint16_t)((uint16_t)rrSequence << FDC2214_MUX_RR_SEQUENCE_SHIFT);
     muxReg |= FDC2214_MUX_FIXED_MASK;
-    muxReg |= (uint16_t)(deglitch & FDC2214_MUX_DEGLITCH_MASK);
+    muxReg |= (uint16_t)deglitch;
 
     esp_err_t err = Fdc2214CapWriteReg16(dev, FDC2214_REG_MUX_CONFIG, muxReg);
     if (err != ESP_OK) {
@@ -382,7 +403,8 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Read MSB then LSB in one I2C transaction to keep a consistent sample.
+    // Read one channel's MSB/LSB pair in one I2C transaction to keep one coherent sample.
+    // In autoscan mode, each channel register pair stores that channel's latest completed conversion.
     uint8_t rx[4] = {0};
     uint8_t reg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, ch);
     esp_err_t err = Fdc2214CapReadBytes(dev, reg, rx, sizeof(rx));

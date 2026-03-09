@@ -651,29 +651,33 @@ void app_main(void)
     if (err == ESP_OK) {
         s_adcReady = true;
     } else {
-        ESP_LOGW(TAG, "ADS126x init failed: %d", err);
+        ESP_LOGW(TAG, "ADS126x init failed: %d (%s)", err, esp_err_to_name(err));
     }
 
     err = sensorarrayInitCap(&s_capDevice);
     if (err == ESP_OK) {
         s_capReady = true;
     } else {
-        ESP_LOGW(TAG, "FDC2214 init failed: %d", err);
+        ESP_LOGW(TAG, "FDC2214 init failed: %d (%s)", err, esp_err_to_name(err));
     }
 
     if (s_adcReady) {
         err = sensorarrayRunAdcTest(&s_adcHandle, 5);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "ADS126x test failed: %d", err);
+            ESP_LOGW(TAG, "ADS126x test failed: %d (%s)", err, esp_err_to_name(err));
         }
+    } else {
+        ESP_LOGW(TAG, "ADS126x test skipped: init failed");
     }
 
     if (s_capReady) {
         uint8_t channels = sensorarrayNormalizeCapChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
         err = sensorarrayRunCapTest(s_capDevice, channels, 2);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "FDC2214 test failed: %d", err);
+            ESP_LOGW(TAG, "FDC2214 test failed: %d (%s)", err, esp_err_to_name(err));
         }
+    } else {
+        ESP_LOGW(TAG, "FDC2214 test skipped: init failed");
     }
 
     ESP_LOGI(TAG, "device test complete");
