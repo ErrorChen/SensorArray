@@ -23,11 +23,13 @@ typedef struct {
     int a1Level;
     int a2Level;
     int swLevel;
-    int sel1Level;
-    int sel2Level;
+    int sel1Level; // Raw GPIO level on TMUX1134 SEL1 pin (SELA).
+    int sel2Level; // Raw GPIO level on TMUX1134 SEL2 pin (SELB).
     int sel3Level;
     int sel4Level;
-    int enLevel;
+    int enLevel;   // Raw GPIO level on TMUX1134 EN pin (or -1 when not controllable).
+    int selaLevel; // Alias of sel1Level for explicit SELA naming.
+    int selbLevel; // Alias of sel2Level for explicit SELB naming.
 } tmuxSwitchControlState_t;
 
 esp_err_t tmuxSwitchInit(void);

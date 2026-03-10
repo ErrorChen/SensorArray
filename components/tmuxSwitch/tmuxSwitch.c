@@ -447,6 +447,8 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     outState->sel3Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL3_GPIO);
     outState->sel4Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL4_GPIO);
     outState->enLevel = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_EN_GPIO);
+    outState->selaLevel = outState->sel1Level;
+    outState->selbLevel = outState->sel2Level;
     portEXIT_CRITICAL(&s_tmux_lock);
 
     return ESP_OK;
