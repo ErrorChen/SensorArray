@@ -1,47 +1,48 @@
-# protocolWire
+# protocolWire / 线协议帧
 
-Binary framing helper for SensorArray transport. It packs a fixed 400-byte frame
-that can be sent over BLE/WiFi/USB.
+## 1) Scope / 模块范围
 
-## Frame layout (little-endian)
-- seq: 16-bit (2B)
-- t0: 32-bit (4B)
-- validMask: 64-bit (8B)
-- offset[64]: 64 x 16-bit (128B)
-- data[64]: 64 x 32-bit (256B)
-- crc16: 16-bit (2B, optional)
+**中文**
 
-Total: 400 bytes per frame.
+`protocolWire` 负责固定长度 wire 帧（400 bytes）打包/解包相关辅助，适合作为上层传输（USB/BLE/UART）的 payload。
 
-## Data tag packing
-The upper 4 bits of each 32-bit data word carry a tag, the lower 28 bits carry
-the payload. For FDC2214 28-bit samples:
+**English**
 
-```c
-uint32_t packed = protocolWirePackTaggedU28(PROTOCOL_WIRE_DATA_TAG_FDC2214, raw28);
-```
+`protocolWire` packs helper structures into a fixed-size wire frame (400 bytes), suitable as payload for higher-level transports (USB/BLE/UART).
 
-On the receiver:
-```c
-uint8_t tag = protocolWireGetTag(packed);
-uint32_t payload = protocolWireGetPayload(packed);
-```
+## 2) Frame Layout / 帧结构
 
-## CRC16
-When `CONFIG_PROTOCOL_ENABLE_CRC16` is enabled, CRC16 is CCITT-FALSE
-(poly 0x1021, init 0xFFFF). If disabled, crc16 is written as 0.
+- `seq` (2B)
+- `t0` (4B)
+- `validMask` (8B)
+- `offset[64]` (128B)
+- `data[64]` (256B)
+- `crc16` (2B)
 
-## Basic usage
-```c
-protocolWireFrame_t frame = {0};
-frame.seq = seq;
-frame.t0 = t0;
-frame.validMask = validMask;
-memcpy(frame.offset, offsets, sizeof(frame.offset));
-for (size_t i = 0; i < PROTOCOL_WIRE_POINT_COUNT; ++i) {
-    frame.data[i] = protocolWirePackTaggedU28(PROTOCOL_WIRE_DATA_TAG_FDC2214, raw28[i]);
-}
+Total: `400 bytes`.
 
-uint8_t out[PROTOCOL_WIRE_FRAME_BYTES];
-protocolWirePackFrame(&frame, out, sizeof(out));
-```
+## 3) Tag Packing / 数据打标
+
+高 4 bit 为 tag，低 28 bit 为 payload。
+Upper 4 bits are tag, lower 28 bits are payload.
+
+Typical API:
+- `protocolWirePackTaggedU28`
+- `protocolWireGetTag`
+- `protocolWireGetPayload`
+- `protocolWirePackFrame`
+
+## 4) Boundary / 边界
+
+**中文**
+
+- 该模块不关心板级路由、采样策略或设备拓扑。
+
+**English**
+
+- This module is independent from board routing, sampling policy, and hardware topology.
+
+## 5) Current Status / 当前状态
+
+- 已可用于固定帧打包。
+- 是否投入默认应用主链路由 app 层决定。

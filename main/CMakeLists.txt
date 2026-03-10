@@ -1,5 +1,14 @@
 idf_component_register(
-    SRCS "main.c"
+    SRCS
+        "main.c"
+        "sensorarrayApp.c"
+        "sensorarrayBoardMap.c"
+        "sensorarrayBringup.c"
+        "sensorarrayMeasure.c"
+        "sensorarrayLog.c"
+        "sensorarrayDebug.c"
+        "sensorarrayDebugSelftest.c"
+        "sensorarrayDebugS1d1.c"
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         boardSupport

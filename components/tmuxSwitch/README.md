@@ -1,51 +1,45 @@
-# tmuxSwitch
+# tmuxSwitch / TMUX GPIO Control
 
-ESP-IDF GPIO driver for TMUX1108 (8:1 mux) and TMUX1134 (4x SPDT).
+## 1) Scope / 模块范围
 
-## Board assumptions (current hardware)
-- TMUX1108 EN is tied high on this board. Firmware can only drive `A0/A1/A2/SW`.
-- TMUX1134 EN may be optional (`CONFIG_TMUX1134_EN_GPIO=-1` means no firmware control).
-- When TMUX1134 EN is not controllable, there is no true global disconnect from firmware.
+**中文**
 
-## TMUX1108 mapping
-- `row 0..7 -> S1..S8`.
-- `tmux1108SetSource(TMUX1108_SOURCE_GND/REF)` drives SW according to `CONFIG_TMUX1108_SW_REF_LEVEL`.
+`tmuxSwitch` 统一封装 TMUX1108 与 TMUX1134 的 GPIO 控制：行选择、SW 源切换、SELA/SELB 逻辑级设置、控制状态读取。
+它是通用控制层，不承载板级 route table。
 
-## TMUX1134 control model
-- Preferred API for debug/bring-up is explicit logic-level selection:
-  - `tmux1134SelectSelALevel(bool level)`
-  - `tmux1134SelectSelBLevel(bool level)`
-- Optional EN control:
-  - `tmux1134SetEnLogicalState(bool on)`
-  - `tmux1134GetEnLogicalState(bool *onOut)`
-- Backward-compat wrappers are still available:
-  - `tmux1134SetSelAEnabled(bool enabled)`
-  - `tmux1134SetSelBEnabled(bool enabled)`
-  - These wrappers only map `enabled` to a configured logic level (`CONFIG_TMUX1134_SELx_ENABLED_LEVEL`).
-  - They do not guarantee electrical disconnect semantics.
+**English**
 
-## Electrical meaning reminder
-- TMUX1134 path is selected by SEL logic level.
-- If EN is tied active on hardware, changing SEL only switches path selection; it does not isolate the switch.
-- `tmux1134SetAllOff()` only guarantees EN-off behavior when EN is actually GPIO-controlled.
+`tmuxSwitch` provides GPIO control for TMUX1108 and TMUX1134: row select, SW source switch, SELA/SELB logic level control, and control-state readback.
+It is a generic control layer and does not own board route tables.
 
-## Raw control-state observability
-- Use `tmuxSwitchGetControlState(...)` to read driven logic levels:
-  - `A0/A1/A2/SW`
-  - `SEL1/SEL2/SEL3/SEL4`
-  - `EN` (if configured)
-- This is intended for deterministic probe/debug logging.
+## 2) Main APIs / 主要接口
 
-## Safe row switching and glitches
-- If `CONFIG_TMUX1108_SWITCH_ROW_SAFE_MODE=y`, row switching temporarily moves SW to
-  `CONFIG_TMUX1108_SAFE_SOURCE`, updates row, delays `CONFIG_TMUX1108_SWITCH_DELAY_US`,
-  then restores previous source.
+- `tmuxSwitchInit`
+- `tmuxSwitchSelectRow`
+- `tmuxSwitchSet1108Source`
+- `tmux1134SelectSelALevel`
+- `tmux1134SelectSelBLevel`
+- `tmux1134SetEnLogicalState`
+- `tmuxSwitchGetControlState`
 
-## Minimal usage
-```c
-tmuxSwitchInit();
-tmuxSwitchSelectRow(3);
-tmux1134SelectSelALevel(true);
-tmux1134SelectSelBLevel(false);
-tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF);
-```
+## 3) Integration Boundary / 集成边界
+
+**中文**
+
+- 本驱动只关心 GPIO 与开关状态控制。
+- 哪个 `S/D/path` 组合对应什么 SELA/SELB/SW，属于 `main/sensorarrayBoardMap.c` + `main/sensorarrayMeasure.c`。
+
+**English**
+
+- The driver only handles GPIO-level switch control.
+- Which `S/D/path` maps to SELA/SELB/SW belongs to `main/sensorarrayBoardMap.c` + `main/sensorarrayMeasure.c`.
+
+## 4) Kconfig Notes / Kconfig 说明
+
+- SW polarity and safe row-switch options are configurable.
+- EN pin can be optional depending on board wiring.
+
+## 5) Current Status / 当前状态
+
+- Used by bring-up and debug orchestration.
+- Control-state logging (`DBGCTRL`) relies on this module.

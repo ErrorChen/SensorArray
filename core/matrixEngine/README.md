@@ -1,89 +1,64 @@
-# matrixEngine
+# matrixEngine / 矩阵引擎
 
-Matrix scan helper for SensorArray. It coordinates row select (TMUX1108),
-column-group select (TMUX1134), and measurement via ADS126x and/or FDC2214.
-The main API is a single call that reads or writes a rectangular region.
+## 1) Scope / 模块范围
 
-## Default hardware assumptions
+**中文**
 
-These defaults are used if you do not provide custom callbacks or mappings:
+`matrixEngine` 提供同步矩形区域 I/O（READ/WRITE）执行框架：
+- 调用行选择回调
+- 调用列组选择回调
+- 调用 ADS/FDC 读数
+- 输出 row-major 数据
 
-- Rows: TMUX1108 A0/A1/A2 select row 0..7 (S1..S8).
-- Col groups: TMUX1134 selects a group of 4 columns.
-  - Group 0 -> SELA, group 1 -> SELB.
-  - For cap reads, the TMUX1134 path is driven to the C side.
-  - For voltage/resistance reads, the TMUX1134 path is driven to the R side.
-- ADS126x:
-  - R1..R8 map to AIN7..AIN0.
-  - MUXN defaults to AINCOM.
-- FDC2214:
-  - C1..C4 on device 0, C5..C8 on device 1.
-  - Channel defaults to col % 4 if not overridden.
+它是可复用引擎，不应固化某块板的完整业务路由策略。
 
-If your wiring differs, provide custom callbacks and/or mapping arrays in
-matrixEngineConfig_t.
+**English**
 
-## API summary
+`matrixEngine` provides a synchronous rectangular region I/O executor (READ/WRITE):
+- row-select callback orchestration
+- column-group callback orchestration
+- ADS/FDC reads
+- row-major output
+
+It is reusable engine logic and should not hardcode a full board-specific business route strategy.
+
+## 2) Default Behavior / 默认行为
+
+当未提供自定义映射/回调时，默认行为是：
+
+- 行：`row 0..7` 对应 TMUX1108 行选择。
+- 列组：默认 4 列一组（group0/group1）。
+- ADS 默认列映射：`col0..col7 -> AIN0..AIN7`，`MUXN=AINCOM`。
+- FDC 默认：每 4 列一颗器件，通道 `col % 4`。
+
+When custom mappings/callbacks are not provided:
+
+- Rows: `row 0..7` through TMUX1108 row selection.
+- Column group: default 4 columns per group.
+- ADS default mapping: `col0..col7 -> AIN0..AIN7`, `MUXN=AINCOM`.
+- FDC default: one device per 4-column bank, channel `col % 4`.
+
+## 3) Public API / 对外接口
 
 Header: `core/matrixEngine/include/matrixEngine.h`
 
 - `matrixEngineInit(const matrixEngineConfig_t *cfg)`
-  - Stores configuration, installs default callbacks if missing, and creates
-    a mutex.
-  - Calls `tmuxSwitchInit()` if default row/col/drive callbacks are used.
-- `matrixEngineRegionIo(...)`
-  - Single entry point for region read or write.
-  - Row-major ordering for output values.
-  - Uses a mutex to serialize access.
-- `matrixEngineDeinit()`
-  - Releases internal resources.
+- `matrixEngineRegionIo(const matrixEngineRegion_t *region, const matrixEngineRequest_t *req, int32_t *outValues, size_t outCount)`
+- `matrixEngineDeinit(void)`
 
-## Configuration
+## 4) Boundary with App Layer / 与应用层边界
 
-Key fields in `matrixEngineConfig_t`:
+**中文**
 
-- `adc`: ADS126x handle (required for voltage/resistance reads).
-- `cap`: Single FDC2214 handle (optional if using `capDevices`).
-- `capDevices` + `capDeviceCount`: Use when you have multiple FDC2214s.
-- `adcMuxPByCol` / `adcMuxNByCol`: Optional explicit MUX tables per column.
-- `capDeviceIndexByCol` / `capChannelByCol`: Optional explicit cap mapping.
-- `colGroupSize`: Defaults to 4 (matches TMUX1134 grouping).
-- `oversample`: Defaults to `CONFIG_MATRIX_OVERSAMPLE` (>= 1).
-- `resistanceRefOhms` / `resistanceExcitationUv`: Used for resistance math.
-- `selectRow`, `selectColGroup`, `drive`: Override if wiring differs.
+- `matrixEngine` 是可选引擎，当前默认 `main` 应用未接入主流程。
+- 当前板 canonical mapping 由 `main/sensorarrayBoardMap.c` 维护；若你要用 `matrixEngine` 处理同一板，请在 `matrixEngineConfig_t` 中显式传入一致映射。
 
-## Example
+**English**
 
-```c
-static Fdc2214CapDevice_t *caps[] = { cap0, cap1 };
+- `matrixEngine` is optional and not currently the default app execution path.
+- Canonical board mapping is maintained in `main/sensorarrayBoardMap.c`; pass explicit tables in `matrixEngineConfig_t` if you need strict alignment.
 
-matrixEngineConfig_t cfg = {
-    .adc = &adc,
-    .capDevices = caps,
-    .capDeviceCount = 2,
-    .colGroupSize = 4,
-    .resistanceRefOhms = 10000,
-    .resistanceExcitationUv = 3300000,
-};
+## 5) Current Status / 当前状态
 
-matrixEngineInit(&cfg);
-
-matrixEngineRegion_t region = { .row = 0, .col = 0, .rows = 1, .cols = 4 };
-matrixEngineRequest_t req = {
-    .io = MATRIX_ENGINE_IO_READ,
-    .measure = MATRIX_ENGINE_MEASURE_VOLTAGE_UV,
-};
-
-int32_t values[4] = {0};
-matrixEngineRegionIo(&region, &req, values, 4);
-```
-
-## Notes
-
-- ADS126x must be initialized and ADC1 conversions started before reads.
-- FDC2214 devices must be configured before cap reads.
-- Resistance uses a divider model:
-  `R_unknown = R_ref * Vmeas / (Vexc - Vmeas)`, output is in mOhm.
-- If you want to read battery voltage on AIN8, call the ADS126x driver
-  directly or add a small helper; the default matrix mapping does not use
-  AIN8/AIN9.
+- Core API is usable.
+- Recommended next step: integrate with transport pipeline and task scheduling when production scan flow is defined.

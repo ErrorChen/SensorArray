@@ -24,7 +24,6 @@
 #define MATRIX_ENGINE_DEFAULT_COLS 8u
 
 #define MATRIX_ENGINE_ADS_MUX_AIN0 0x0u
-#define MATRIX_ENGINE_ADS_MUX_AIN7 0x7u
 #define MATRIX_ENGINE_ADS_MUX_AINCOM 0xAu
 
 typedef struct {
@@ -105,7 +104,8 @@ static bool matrixEngineDefaultAdcMuxForCol(uint16_t col, uint8_t *muxp, uint8_t
         return false;
     }
 
-    *muxp = (uint8_t)(MATRIX_ENGINE_ADS_MUX_AIN7 - col);
+    // Canonical board map: D1..D8 align to AIN0..AIN7.
+    *muxp = (uint8_t)(MATRIX_ENGINE_ADS_MUX_AIN0 + col);
     *muxn = MATRIX_ENGINE_ADS_MUX_AINCOM;
     return true;
 }

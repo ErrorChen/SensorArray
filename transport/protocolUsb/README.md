@@ -1,40 +1,41 @@
-# protocolUsb
+# protocolUsb / USB 封装协议
 
-USB framing helper for SensorArray streaming. USB-CDC may split data into small
-packets, so this module adds a sync word, length, and CRC16 to each frame.
+## 1) Scope / 模块范围
 
-## Frame layout (little-endian)
-- syncWord: 16-bit (0xA55A, bytes on wire: 0x5A 0xA5)
-- frameLen: 16-bit payload length in bytes
-- frameCrc16: 16-bit CRC16-CCITT-FALSE over payload
-- payload: frameLen bytes (e.g., protocolWire 400-byte frame)
+**中文**
 
-Total: 6 + frameLen bytes.
+`protocolUsb` 提供 USB 字节流友好的封装：
+`sync + len + crc + payload`，并提供流式解析器用于重同步。
 
-## CRC16
-CRC16 is CCITT-FALSE (poly 0x1021, init 0xFFFF).
+**English**
 
-## Basic usage
-Build a frame:
-```c
-uint8_t out[PROTOCOL_USB_HEADER_BYTES + PROTOCOL_WIRE_FRAME_BYTES];
-protocolUsbBuildFrame(payload, payloadLen, out, sizeof(out));
-```
+`protocolUsb` wraps payloads for USB byte streams with:
+`sync + len + crc + payload`, and provides a stream parser with resynchronization.
 
-Parse a byte stream:
-```c
-static void onFrame(const uint8_t *payload, uint16_t len, void *userCtx)
-{
-    // TODO: decode payload (e.g., protocolWire frame) or enqueue for processing.
-}
+## 2) Frame Layout / 帧结构
 
-protocolUsbParser_t parser;
-protocolUsbParserInit(&parser, onFrame, NULL);
-protocolUsbParserFeed(&parser, rxBytes, rxLen);
-```
+- `syncWord` (2B, default `0xA55A`)
+- `frameLen` (2B)
+- `frameCrc16` (2B)
+- `payload` (`frameLen` bytes)
 
-## Notes
-- `PROTOCOL_USB_MAX_PAYLOAD_BYTES` defaults to 512; override at build time if
-  you need a different maximum.
-- When CRC/length errors occur, the parser resynchronizes by scanning for the
-  next syncWord.
+## 3) Main API / 主要接口
+
+- `protocolUsbBuildFrame`
+- `protocolUsbParserInit`
+- `protocolUsbParserFeed`
+
+## 4) Boundary / 边界
+
+**中文**
+
+- 本模块只处理 USB 封装与流解析，不理解业务 payload 语义。
+
+**English**
+
+- This module only handles USB framing/parsing and does not interpret payload semantics.
+
+## 5) Current Status / 当前状态
+
+- 可与 `protocolWire` 组合。
+- 默认 `main` 应用尚未将其接入实时数据流。
