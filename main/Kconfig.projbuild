@@ -178,6 +178,42 @@ config SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
     default y
     depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
 
+config SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
+    bool "Enable S1D1 static resistor debug mode"
+    default n
+    help
+        Force app_main() into a dedicated S1D1-only resistive debug path.
+        This mode holds one matrix route for board-level probing and does not
+        enter the rotating bring-up scan loop.
+
+choice SENSORARRAY_S1D1_STATIC_BEHAVIOUR
+    prompt "S1D1 static debug behaviour"
+    default SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
+    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
+config SENSORARRAY_S1D1_STATIC_ROUTE_ONLY
+    bool "ROUTE_ONLY"
+    help
+        Apply S1D1 resistive route, hold it static, and emit heartbeat logs.
+config SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
+    bool "ROUTE_AND_READ"
+    help
+        Keep S1D1 resistive route static and read ADS D1 once per loop.
+endchoice
+
+config SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS
+    int "S1D1 static loop delay (ms)"
+    default 1000
+    range 50 10000
+    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
+
+config SENSORARRAY_S1D1_STATIC_REAPPLY_ROUTE_EACH_LOOP
+    bool "S1D1 static: re-apply route each loop"
+    default n
+    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
+    help
+        n: apply route once and hold control lines fixed.
+        y: re-assert the same S1D1 route before each loop iteration.
+
 config SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
     int "Route step delay (ms)"
     default 2

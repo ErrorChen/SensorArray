@@ -61,6 +61,21 @@
 #ifndef CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
 #define CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST 1
 #endif
+#ifndef CONFIG_SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
+#define CONFIG_SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG 0
+#endif
+#ifndef CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_ONLY
+#define CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_ONLY 0
+#endif
+#ifndef CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
+#define CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ 1
+#endif
+#ifndef CONFIG_SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS
+#define CONFIG_SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS 1000
+#endif
+#ifndef CONFIG_SENSORARRAY_S1D1_STATIC_REAPPLY_ROUTE_EACH_LOOP
+#define CONFIG_SENSORARRAY_S1D1_STATIC_REAPPLY_ROUTE_EACH_LOOP 0
+#endif
 #ifndef CONFIG_SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
 #define CONFIG_SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS 2
 #endif
@@ -2158,6 +2173,20 @@ static const char *sensorarrayS1D1BehaviorName(void)
     return sensorarrayIsS1D1RouteOnlyBehavior() ? "ROUTE_ONLY" : "ROUTE_AND_ADS_READ";
 }
 
+static bool sensorarrayIsS1D1StaticRouteOnlyBehavior(void)
+{
+#if CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
+    return false;
+#else
+    return true;
+#endif
+}
+
+static const char *sensorarrayS1D1StaticBehaviorName(void)
+{
+    return sensorarrayIsS1D1StaticRouteOnlyBehavior() ? "ROUTE_ONLY" : "ROUTE_AND_READ";
+}
+
 static void sensorarrayLogS1D1ControlState(const char *mapLabel)
 {
     char rowBuf[12];
@@ -2284,6 +2313,174 @@ static void sensorarrayRunSingleResistorS1D1Mode(void)
                           err,
                           (err == ESP_OK) ? "ads_read_ok" : "ads_read_error");
         sensorarrayDelayMs((uint32_t)CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS);
+    }
+}
+
+static esp_err_t sensorarrayApplyS1D1StaticRoute(const sensorarrayRouteMap_t *routeMap,
+                                                 bool reapplyEachLoop,
+                                                 const char **outMapLabel)
+{
+    const char *mapLabel = SENSORARRAY_NA;
+    esp_err_t err = sensorarrayApplyRoute(SENSORARRAY_S1,
+                                          SENSORARRAY_D1,
+                                          SENSORARRAY_PATH_RESISTIVE,
+                                          TMUX1108_SOURCE_GND,
+                                          &mapLabel);
+
+    if (outMapLabel) {
+        *outMapLabel = mapLabel ? mapLabel : SENSORARRAY_NA;
+    }
+
+    printf("DBGROUTEFIX,mode=s1d1_static,point=S1D1,kind=res,column=S1,dline=D1,pathIntent=resistive,"
+           "swIntent=GND_LOW,map=%s,selARequested=%u,selBRequested=%u,reapplyEachLoop=%u,behaviour=%s,routeErr=%ld,"
+           "status=%s\n",
+           mapLabel ? mapLabel : SENSORARRAY_NA,
+           (routeMap != NULL && routeMap->selALevel) ? 1u : 0u,
+           (routeMap != NULL && routeMap->selBLevel) ? 1u : 0u,
+           reapplyEachLoop ? 1u : 0u,
+           sensorarrayS1D1StaticBehaviorName(),
+           (long)err,
+           (err == ESP_OK) ? "route_applied" : "route_error");
+    sensorarrayLogS1D1ControlState(mapLabel);
+    sensorarrayLogControlGpio("s1d1_static_route_applied", "S1D1");
+
+    return err;
+}
+
+/*
+ * Developer note:
+ * menuconfig -> SensorArray Project -> Debug routing and self-test ->
+ * Enable S1D1 static resistor debug mode.
+ * ROUTE_ONLY applies/holds S1D1 resistive route and logs heartbeat only.
+ * ROUTE_AND_READ keeps the same route and reads ADS D1 each loop.
+ * Re-apply route each loop toggles one-time route hold vs per-loop re-assert.
+ */
+static void sensorarrayRunS1D1StaticResistorDebug(void)
+{
+    const sensorarrayRouteMap_t *routeMap =
+        sensorarrayFindRouteMap(SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE);
+    const bool routeOnly = sensorarrayIsS1D1StaticRouteOnlyBehavior();
+    const bool reapplyEachLoop = (CONFIG_SENSORARRAY_S1D1_STATIC_REAPPLY_ROUTE_EACH_LOOP != 0);
+    const uint32_t loopDelayMs = (uint32_t)CONFIG_SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS;
+    const char *mapLabel = SENSORARRAY_NA;
+    uint32_t heartbeatCount = 0u;
+
+    printf("=== S1D1 STATIC RESISTOR DEBUG MODE ACTIVE ===\n");
+    printf("DBGSTATIC,mode=s1d1_resistor_static,status=active,point=S1D1,kind=res,column=S1,dline=D1,"
+           "pathIntent=resistive,swIntent=GND_LOW,behaviour=%s,reapplyEachLoop=%u,loopDelayMs=%u\n",
+           sensorarrayS1D1StaticBehaviorName(),
+           reapplyEachLoop ? 1u : 0u,
+           (unsigned)loopDelayMs);
+
+    if (!routeMap) {
+        sensorarrayLogStartup("s1d1_static", ESP_ERR_NOT_SUPPORTED, "s1d1_route_missing", 0);
+        sensorarrayIdleForever("s1d1_static_route_missing");
+        return;
+    }
+
+    sensorarrayLogStartup("s1d1_static",
+                          ESP_OK,
+                          routeOnly ? "route_only" : "route_and_read",
+                          (int32_t)loopDelayMs);
+
+    if (!reapplyEachLoop) {
+        esp_err_t routeErr = sensorarrayApplyS1D1StaticRoute(routeMap, false, &mapLabel);
+        if (routeErr != ESP_OK) {
+            sensorarrayIdleForever("s1d1_static_route_error");
+            return;
+        }
+    } else {
+        mapLabel = routeMap->mapLabel ? routeMap->mapLabel : SENSORARRAY_NA;
+    }
+
+    while (true) {
+        esp_err_t routeErr = ESP_OK;
+        char heartbeatBuf[24];
+
+        if (reapplyEachLoop) {
+            routeErr = sensorarrayApplyS1D1StaticRoute(routeMap, true, &mapLabel);
+        }
+        if (routeErr != ESP_OK) {
+            sensorarrayLogDbg("S1D1",
+                              "res",
+                              "S1",
+                              "D1",
+                              sensorarraySwSourceName(TMUX1108_SOURCE_GND),
+                              routeOnly ? "s1d1_static_route_only" : "s1d1_static_route_and_read",
+                              sensorarrayFmtU32(heartbeatBuf, sizeof(heartbeatBuf), true, heartbeatCount),
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              mapLabel ? mapLabel : SENSORARRAY_NA,
+                              routeErr,
+                              "route_error");
+            sensorarrayDelayMs(loopDelayMs);
+            ++heartbeatCount;
+            continue;
+        }
+
+        if (routeOnly) {
+            sensorarrayLogDbg("S1D1",
+                              "res",
+                              "S1",
+                              "D1",
+                              sensorarraySwSourceName(TMUX1108_SOURCE_GND),
+                              "s1d1_static_route_only",
+                              sensorarrayFmtU32(heartbeatBuf, sizeof(heartbeatBuf), true, heartbeatCount),
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              mapLabel ? mapLabel : SENSORARRAY_NA,
+                              ESP_OK,
+                              "heartbeat");
+        } else {
+            char valueBuf[24];
+            char uvBuf[24];
+            char rawBuf[24];
+            int32_t raw = 0;
+            int32_t uv = 0;
+
+            esp_err_t readErr = sensorarrayDebugReadAdsS1D1Once((CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST != 0),
+                                                                &raw,
+                                                                &uv);
+            sensorarrayLogDbg("S1D1",
+                              "res",
+                              "S1",
+                              "D1",
+                              sensorarraySwSourceName(TMUX1108_SOURCE_GND),
+                              "s1d1_static_route_and_read",
+                              sensorarrayFmtI32(valueBuf, sizeof(valueBuf), readErr == ESP_OK, uv),
+                              sensorarrayFmtI32(uvBuf, sizeof(uvBuf), readErr == ESP_OK, uv),
+                              SENSORARRAY_NA,
+                              sensorarrayFmtI32(rawBuf, sizeof(rawBuf), readErr == ESP_OK, raw),
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              SENSORARRAY_NA,
+                              mapLabel ? mapLabel : SENSORARRAY_NA,
+                              readErr,
+                              (readErr == ESP_OK) ? "ads_read_ok" : "ads_read_error");
+        }
+
+        sensorarrayDelayMs(loopDelayMs);
+        ++heartbeatCount;
     }
 }
 
@@ -2437,8 +2634,11 @@ void app_main(void)
     s_state.adsRefMux = 0u;
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+    bool s1d1StaticMode = (CONFIG_SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG != 0);
+    bool s1d1StaticRouteOnly = s1d1StaticMode && sensorarrayIsS1D1StaticRouteOnlyBehavior();
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
-    bool s1d1RouteOnly = s1d1ResMode && sensorarrayIsS1D1RouteOnlyBehavior();
+    bool s1d1RouteOnly = s1d1StaticRouteOnly || (s1d1ResMode && sensorarrayIsS1D1RouteOnlyBehavior());
+    bool s1d1SkipFdcMode = s1d1StaticMode || s1d1ResMode;
 
     uint8_t requestedChannels = sensorarrayNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -2537,11 +2737,12 @@ void app_main(void)
         }
     }
 
-    if (s1d1ResMode) {
+    if (s1d1SkipFdcMode) {
+        const char *fdcSkipStatus = s1d1StaticMode ? "skip_s1d1_static_mode" : "skip_s1d1_resistor_mode";
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcPrimary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 "skip_s1d1_resistor_mode",
+                                 fdcSkipStatus,
                                  0,
                                  false,
                                  0,
@@ -2550,7 +2751,7 @@ void app_main(void)
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcSecondary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 "skip_s1d1_resistor_mode",
+                                 fdcSkipStatus,
                                  0,
                                  false,
                                  0,
@@ -2666,6 +2867,11 @@ void app_main(void)
                                  0,
                                  0,
                                  "D5..D8");
+    }
+
+    if (s1d1StaticMode) {
+        sensorarrayRunS1D1StaticResistorDebug();
+        return;
     }
 
     sensorarrayRunSelectedDebugMode();
