@@ -2487,26 +2487,8 @@ static void sensorarrayRunS1D1StaticResistorDebug(void)
 static void sensorarrayRunBringupLoop(void)
 {
     while (true) {
-        // 1) S1D1 resistor via ADS (SW LOW)
+        // Keep bring-up output focused on S1D1 only.
         sensorarrayDebugReadResistor("S1D1", SENSORARRAY_S1, SENSORARRAY_D1);
-
-        // 2) S4D4 resistor via ADS (SW LOW)
-        sensorarrayDebugReadResistor("S4D4", SENSORARRAY_S4, SENSORARRAY_D4);
-
-        // 3) S5D5 capacitive point via FDC (SW HIGH)
-        sensorarrayDebugReadPiezoCap("S5D5", SENSORARRAY_S5, SENSORARRAY_D5);
-
-        // 4) S8D7 piezo capacitance via FDC (SW HIGH)
-        sensorarrayDebugReadPiezoCap("S8D7", SENSORARRAY_S8, SENSORARRAY_D7);
-
-        // 5) S8D7 piezo voltage via ADS (SW HIGH)
-        sensorarrayDebugReadPiezoVolt("S8D7", SENSORARRAY_S8, SENSORARRAY_D7);
-
-        // 6) S8D8 piezo capacitance via FDC (SW HIGH)
-        sensorarrayDebugReadPiezoCap("S8D8", SENSORARRAY_S8, SENSORARRAY_D8);
-
-        // 7) S8D8 piezo voltage via ADS (SW HIGH)
-        sensorarrayDebugReadPiezoVolt("S8D8", SENSORARRAY_S8, SENSORARRAY_D8);
 
         sensorarrayDelayMs((uint32_t)CONFIG_SENSORARRAY_DEBUG_SCAN_LOOP_DELAY_MS);
     }
