@@ -46,6 +46,21 @@
 #ifndef CONFIG_SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
 #define CONFIG_SENSORARRAY_DEBUG_MODE_FDC_SELFTEST 0
 #endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
+#define CONFIG_SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR 0
+#endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY
+#define CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY 1
+#endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
+#define CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ 0
+#endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS
+#define CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS 1000
+#endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
+#define CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST 1
+#endif
 #ifndef CONFIG_SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
 #define CONFIG_SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS 2
 #endif
@@ -206,6 +221,7 @@ typedef enum {
     SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP,
     SENSORARRAY_DEBUG_MODE_ADS_SELFTEST,
     SENSORARRAY_DEBUG_MODE_FDC_SELFTEST,
+    SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR,
 } sensorarrayDebugMode_t;
 
 typedef struct {
@@ -326,6 +342,8 @@ static const sensorarrayAdsReadPolicy_t s_adsReadPolicy = {
 #define SENSORARRAY_ACTIVE_DEBUG_MODE SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
 #elif CONFIG_SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
 #define SENSORARRAY_ACTIVE_DEBUG_MODE SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+#elif CONFIG_SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
+#define SENSORARRAY_ACTIVE_DEBUG_MODE SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
 #else
 #define SENSORARRAY_ACTIVE_DEBUG_MODE SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
 #endif
@@ -479,6 +497,8 @@ static const char *sensorarrayDebugModeName(sensorarrayDebugMode_t mode)
         return "ADS_SELFTEST";
     case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
         return "FDC_SELFTEST";
+    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+        return "S1D1_RESISTOR_DEBUG";
     default:
         return "UNKNOWN";
     }
@@ -853,7 +873,7 @@ static esp_err_t sensorarrayApplyFdcModePolicy(Fdc2214CapDevice_t *dev, uint8_t 
 
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // TMUX1108 selects S-line path. TMUX1134 SELA/SELB route cap/volt branches for debug points.
-    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, true, false, "S1D1_res_selA1_selB0" },
+    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, true, false, "S1D1_res_selA_on" },
     { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, false, false, "S4D4_res_selA0_selB0" },
     { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, false, false, "S5D5_cap_selA0_selB0" },
     { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, false, false, "S8D7_cap_selA0_selB0" },
@@ -1325,17 +1345,26 @@ static esp_err_t sensorarrayReadAdsUv(uint8_t dLine, bool discardFirst, int32_t 
     }
     sensorarrayDbgExtraSetDiscardCount((uint8_t)totalDiscard);
 
+    printf("DBGADSSEQ,dLine=%u,step=set_input_mux,muxp=%u,muxn=%u,discardFirst=%u,discardCount=%u\n",
+           (unsigned)dLine,
+           (unsigned)muxp,
+           (unsigned)muxn,
+           discardFirst ? 1u : 0u,
+           (unsigned)totalDiscard);
+
     if (s_adsReadPolicy.stopBeforeMuxChange && s_state.adsAdc1Running) {
         esp_err_t stopErr = ads126xAdcStopAdc1(&s_state.ads);
         if (stopErr == ESP_OK) {
             s_state.adsAdc1Running = false;
         } else {
+            printf("DBGADSSEQ,dLine=%u,step=stop1,err=%ld,status=stop_error\n", (unsigned)dLine, (long)stopErr);
             return stopErr;
         }
     }
 
     esp_err_t err = ads126xAdcSetInputMux(&s_state.ads, muxp, muxn);
     if (err != ESP_OK) {
+        printf("DBGADSSEQ,dLine=%u,step=set_input_mux,err=%ld,status=set_mux_error\n", (unsigned)dLine, (long)err);
         return err;
     }
 
@@ -1344,8 +1373,10 @@ static esp_err_t sensorarrayReadAdsUv(uint8_t dLine, bool discardFirst, int32_t 
     }
 
     if (s_adsReadPolicy.startEveryRead || !s_state.adsAdc1Running) {
+        printf("DBGADSSEQ,dLine=%u,step=start1,muxp=%u,muxn=%u\n", (unsigned)dLine, (unsigned)muxp, (unsigned)muxn);
         err = ads126xAdcStartAdc1(&s_state.ads);
         if (err != ESP_OK) {
+            printf("DBGADSSEQ,dLine=%u,step=start1,err=%ld,status=start_error\n", (unsigned)dLine, (long)err);
             return err;
         }
         s_state.adsAdc1Running = true;
@@ -1353,11 +1384,27 @@ static esp_err_t sensorarrayReadAdsUv(uint8_t dLine, bool discardFirst, int32_t 
 
     for (uint16_t discardIdx = 0; discardIdx < totalDiscard; ++discardIdx) {
         int32_t throwaway = 0;
+        printf("DBGADSSEQ,dLine=%u,step=discard,index=%u,muxp=%u,muxn=%u\n",
+               (unsigned)dLine,
+               (unsigned)discardIdx,
+               (unsigned)muxp,
+               (unsigned)muxn);
         err = sensorarrayAdsReadRawWithRetry(&throwaway, s_adsReadPolicy.readRetryCount, NULL);
         if (err != ESP_OK) {
+            printf("DBGADSSEQ,dLine=%u,step=discard,index=%u,err=%ld,status=discard_error\n",
+                   (unsigned)dLine,
+                   (unsigned)discardIdx,
+                   (long)err);
             return err;
         }
     }
+
+    printf("DBGADSSEQ,dLine=%u,step=read,muxp=%u,muxn=%u,discardFirst=%u,discardCount=%u\n",
+           (unsigned)dLine,
+           (unsigned)muxp,
+           (unsigned)muxn,
+           discardFirst ? 1u : 0u,
+           (unsigned)totalDiscard);
 
     bool readTimedOut = false;
     err = sensorarrayAdsReadRawWithRetry(outRaw, s_adsReadPolicy.readRetryCount, &readTimedOut);
@@ -1374,6 +1421,14 @@ static esp_err_t sensorarrayReadAdsUv(uint8_t dLine, bool discardFirst, int32_t 
     }
 
     *outUv = ads126xAdcRawToMicrovolts(&s_state.ads, *outRaw);
+    printf("DBGADSSEQ,dLine=%u,step=read_done,muxp=%u,muxn=%u,raw=%ld,uv=%ld,discardFirst=%u,discardCount=%u\n",
+           (unsigned)dLine,
+           (unsigned)muxp,
+           (unsigned)muxn,
+           (long)*outRaw,
+           (long)*outUv,
+           discardFirst ? 1u : 0u,
+           (unsigned)totalDiscard);
     sensorarrayDbgExtraCaptureCtrl();
     return ESP_OK;
 }
@@ -2089,6 +2144,149 @@ static void sensorarrayRunFdcSelftestMode(void)
     sensorarrayIdleForever("fdc_selftest_done");
 }
 
+static bool sensorarrayIsS1D1RouteOnlyBehavior(void)
+{
+#if CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
+    return false;
+#else
+    return true;
+#endif
+}
+
+static const char *sensorarrayS1D1BehaviorName(void)
+{
+    return sensorarrayIsS1D1RouteOnlyBehavior() ? "ROUTE_ONLY" : "ROUTE_AND_ADS_READ";
+}
+
+static void sensorarrayLogS1D1ControlState(const char *mapLabel)
+{
+    char rowBuf[12];
+    char a0Buf[8];
+    char a1Buf[8];
+    char a2Buf[8];
+    char swBuf[8];
+    char selABuf[8];
+    char selBBuf[8];
+
+    tmuxSwitchControlState_t ctrl = {0};
+    bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
+    printf("DBGCTRL,point=S1D1,row=%s,a0=%s,a1=%s,a2=%s,sw=%s,selA=%s,selB=%s,map=%s\n",
+           sensorarrayFmtU8(rowBuf, sizeof(rowBuf), haveCtrl, haveCtrl ? ctrl.row : 0u),
+           sensorarrayFmtGpioLevel(a0Buf, sizeof(a0Buf), haveCtrl, haveCtrl ? ctrl.a0Level : -1),
+           sensorarrayFmtGpioLevel(a1Buf, sizeof(a1Buf), haveCtrl, haveCtrl ? ctrl.a1Level : -1),
+           sensorarrayFmtGpioLevel(a2Buf, sizeof(a2Buf), haveCtrl, haveCtrl ? ctrl.a2Level : -1),
+           sensorarrayFmtGpioLevel(swBuf, sizeof(swBuf), haveCtrl, haveCtrl ? ctrl.swLevel : -1),
+           sensorarrayFmtGpioLevel(selABuf, sizeof(selABuf), haveCtrl, haveCtrl ? ctrl.sel1Level : -1),
+           sensorarrayFmtGpioLevel(selBBuf, sizeof(selBBuf), haveCtrl, haveCtrl ? ctrl.sel2Level : -1),
+           mapLabel ? mapLabel : SENSORARRAY_NA);
+}
+
+static esp_err_t sensorarrayDebugReadAdsS1D1Once(bool discardFirst, int32_t *outRaw, int32_t *outUv)
+{
+    if (!outRaw || !outUv) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_state.adsReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    *outRaw = 0;
+    *outUv = 0;
+
+    uint8_t muxp = 0;
+    uint8_t muxn = 0;
+    if (!sensorarrayAdsMuxForDLine(SENSORARRAY_D1, &muxp, &muxn)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    printf("DBGADS1D1,point=S1D1,step=begin,dLine=1,muxp=%u,muxn=%u,discardFirst=%u\n",
+           (unsigned)muxp,
+           (unsigned)muxn,
+           discardFirst ? 1u : 0u);
+
+    esp_err_t err = sensorarrayReadAdsUv(SENSORARRAY_D1, discardFirst, outRaw, outUv);
+    printf("DBGADS1D1,point=S1D1,step=done,dLine=1,muxp=%u,muxn=%u,raw=%ld,uv=%ld,discardFirst=%u,err=%ld,status=%s\n",
+           (unsigned)muxp,
+           (unsigned)muxn,
+           (long)*outRaw,
+           (long)*outUv,
+           discardFirst ? 1u : 0u,
+           (long)err,
+           (err == ESP_OK) ? "ok" : "read_error");
+    return err;
+}
+
+/*
+ * Temporary single-point debug mode for isolating S1D1 resistive routing and ADS behaviour.
+ * This mode deliberately avoids matrix scanning and FDC read paths.
+ */
+static void sensorarrayRunSingleResistorS1D1Mode(void)
+{
+    const sensorarrayRouteMap_t *routeMap =
+        sensorarrayFindRouteMap(SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE);
+    const char *mapLabel = SENSORARRAY_NA;
+    if (!routeMap) {
+        sensorarrayLogStartup("s1d1_mode", ESP_ERR_NOT_SUPPORTED, "s1d1_route_missing", 0);
+        sensorarrayIdleForever("s1d1_route_missing");
+        return;
+    }
+
+    esp_err_t err = sensorarrayApplyRoute(SENSORARRAY_S1,
+                                          SENSORARRAY_D1,
+                                          SENSORARRAY_PATH_RESISTIVE,
+                                          TMUX1108_SOURCE_GND,
+                                          &mapLabel);
+    printf("DBGROUTEFIX,point=S1D1,sColumn=1,row=0,dLine=1,path=res,map=%s,selAReq=%u,selBReq=%u,sw=%s,mode=%s,err=%ld,"
+           "status=%s\n",
+           mapLabel ? mapLabel : SENSORARRAY_NA,
+           routeMap->selALevel ? 1u : 0u,
+           routeMap->selBLevel ? 1u : 0u,
+           sensorarraySwSourceName(TMUX1108_SOURCE_GND),
+           sensorarrayS1D1BehaviorName(),
+           (long)err,
+           (err == ESP_OK) ? "route_applied" : "route_error");
+    sensorarrayLogS1D1ControlState(mapLabel);
+    if (err != ESP_OK) {
+        sensorarrayIdleForever("s1d1_route_error");
+        return;
+    }
+
+    if (sensorarrayIsS1D1RouteOnlyBehavior()) {
+        sensorarrayIdleForever("s1d1_route_only");
+        return;
+    }
+
+    while (true) {
+        char valueBuf[24];
+        char uvBuf[24];
+        char rawBuf[24];
+        int32_t raw = 0;
+        int32_t uv = 0;
+
+        err = sensorarrayDebugReadAdsS1D1Once((CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST != 0), &raw, &uv);
+        sensorarrayLogDbg("S1D1",
+                          "res",
+                          "S1",
+                          "D1",
+                          sensorarraySwSourceName(TMUX1108_SOURCE_GND),
+                          "ads_s1d1",
+                          sensorarrayFmtI32(valueBuf, sizeof(valueBuf), err == ESP_OK, uv),
+                          sensorarrayFmtI32(uvBuf, sizeof(uvBuf), err == ESP_OK, uv),
+                          SENSORARRAY_NA,
+                          sensorarrayFmtI32(rawBuf, sizeof(rawBuf), err == ESP_OK, raw),
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          SENSORARRAY_NA,
+                          mapLabel ? mapLabel : SENSORARRAY_NA,
+                          err,
+                          (err == ESP_OK) ? "ads_read_ok" : "ads_read_error");
+        sensorarrayDelayMs((uint32_t)CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS);
+    }
+}
+
 static void sensorarrayRunBringupLoop(void)
 {
     while (true) {
@@ -2204,6 +2402,9 @@ static void sensorarrayRunSelectedDebugMode(void)
     case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
         sensorarrayRunFdcSelftestMode();
         return;
+    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+        sensorarrayRunSingleResistorS1D1Mode();
+        return;
     default:
         sensorarrayRunBringupLoop();
         return;
@@ -2234,6 +2435,10 @@ void app_main(void)
     s_state.adsAdc1Running = false;
     s_state.adsRefMuxValid = false;
     s_state.adsRefMux = 0u;
+
+    sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+    bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
+    bool s1d1RouteOnly = s1d1ResMode && sensorarrayIsS1D1RouteOnlyBehavior();
 
     uint8_t requestedChannels = sensorarrayNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -2305,25 +2510,53 @@ void app_main(void)
         sensorarrayLogControlGpio("tmux_defaults", "INIT");
     }
 
-    err = sensorarrayInitAds(&s_state.ads, &s_state.spiDevice);
-    s_state.adsReady = (err == ESP_OK);
-    sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok" : "init_failed", (int32_t)s_state.adsReady);
-
-    if (s_state.adsReady) {
-        err = sensorarrayPrepareAdsRefPath(&s_state.ads);
-        s_state.adsRefReady = (err == ESP_OK);
-        sensorarrayLogStartup("ads_ref",
-                              err,
-                              s_state.adsRefReady ? "ready" : "not_ready",
-                              (int32_t)s_state.adsRefReady);
-    } else {
+    if (s1d1RouteOnly) {
+        s_state.adsReady = false;
         s_state.adsRefReady = false;
         s_state.adsAdc1Running = false;
         s_state.adsRefMuxValid = false;
-        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_ads_unavailable", 0);
+        sensorarrayLogStartup("ads", ESP_ERR_INVALID_STATE, "skip_route_only_mode", 0);
+        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_route_only_mode", 0);
+    } else {
+        err = sensorarrayInitAds(&s_state.ads, &s_state.spiDevice);
+        s_state.adsReady = (err == ESP_OK);
+        sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok" : "init_failed", (int32_t)s_state.adsReady);
+
+        if (s_state.adsReady) {
+            err = sensorarrayPrepareAdsRefPath(&s_state.ads);
+            s_state.adsRefReady = (err == ESP_OK);
+            sensorarrayLogStartup("ads_ref",
+                                  err,
+                                  s_state.adsRefReady ? "ready" : "not_ready",
+                                  (int32_t)s_state.adsRefReady);
+        } else {
+            s_state.adsRefReady = false;
+            s_state.adsAdc1Running = false;
+            s_state.adsRefMuxValid = false;
+            sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_ads_unavailable", 0);
+        }
     }
 
-    if (s_state.boardReady) {
+    if (s1d1ResMode) {
+        sensorarrayLogStartupFdc("fdc_init",
+                                 &s_state.fdcPrimary,
+                                 ESP_ERR_NOT_SUPPORTED,
+                                 "skip_s1d1_resistor_mode",
+                                 0,
+                                 false,
+                                 0,
+                                 0,
+                                 "D1..D4");
+        sensorarrayLogStartupFdc("fdc_init",
+                                 &s_state.fdcSecondary,
+                                 ESP_ERR_NOT_SUPPORTED,
+                                 "skip_s1d1_resistor_mode",
+                                 0,
+                                 false,
+                                 0,
+                                 0,
+                                 "D5..D8");
+    } else if (s_state.boardReady) {
         s_state.fdcPrimary.i2cCtx = boardSupportGetI2cCtx();
         s_state.fdcSecondary.i2cCtx = boardSupportGetI2c1Ctx();
 

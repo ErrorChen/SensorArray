@@ -8,7 +8,7 @@ build/
 sdkconfig
 sdkconfig.old
 sdkconfig.*.old
-
+*.projbuild
 # IDE
 .vscode/
 .idea/

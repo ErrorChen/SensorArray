@@ -147,7 +147,36 @@ config SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
     bool "FDC_SELFTEST"
     help
         Run FDC-only deterministic self-test on one mapped D line.
+config SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
+    bool "S1D1_RESISTOR_DEBUG"
+    help
+        Dedicated single-point resistor debug mode for S1D1 on ADS path only.
 endchoice
+
+choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
+    prompt "S1D1 resistor debug behavior"
+    default SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY
+    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
+config SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY
+    bool "ROUTE_ONLY"
+    help
+        Apply S1D1 resistor route once, log control state, then hold forever.
+config SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
+    bool "ROUTE_AND_ADS_READ"
+    help
+        Apply S1D1 resistor route once, then read ADS D1 periodically.
+endchoice
+
+config SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS
+    int "S1D1 ADS loop interval (ms)"
+    default 1000
+    range 100 10000
+    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
+
+config SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
+    bool "S1D1 ADS helper: discard first sample"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
 
 config SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
     int "Route step delay (ms)"
