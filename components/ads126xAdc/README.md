@@ -130,6 +130,17 @@ Note: the helper assumes the ADS126x owns the SPI bus. Do not use it on a shared
 - INPMUX defaults to AIN0/AIN1; always set the correct input pair.
 - ADC2 APIs return ESP_ERR_NOT_SUPPORTED on ADS1262 hardware.
 
-## SensorArray test app
-`main/main.c` includes a simple bring-up test that initializes ADS126x, verifies the ID,
-reads a few ADC1 samples, and logs the raw code + microvolts before idling.
+## SensorArray debug integration
+`main/main.c` now includes dedicated ADS debug modes that use this driver to:
+- Dump key registers (`ID/POWER/INTERFACE/MODE2/INPMUX/REFMUX`) before/after config.
+- Force INPMUX (`muxp/muxn`) and raw REFMUX values.
+- Run explicit read sequence variants (`STOP1 -> INPMUX -> delay -> START1 -> discard -> read`).
+- Emit machine-readable logs with raw code, converted microvolts, mux pair, refmux, discard count,
+  and DRDY-timeout information.
+
+The normal route read path also exposes configurable sequencing policy in `menuconfig`:
+- Optional `STOP1` before MUX change.
+- Optional settle delay after MUX change.
+- `START1` per-read or only when needed.
+- Base discard count.
+- Retry count on timeout/error.

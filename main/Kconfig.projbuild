@@ -116,4 +116,218 @@ config SENSORARRAY_OVERSAMPLE
     default 2
 endmenu
 
+menu "Debug routing and self-test"
+    help
+        Deterministic debug workflows for matrix routing and ADS/FDC validation.
+
+choice SENSORARRAY_DEBUG_MODE
+    prompt "Debug execution mode"
+    default SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
+config SENSORARRAY_DEBUG_MODE_ROUTE_IDLE
+    bool "ROUTE_IDLE"
+    help
+        Initialize hardware then idle forever without touching routes again.
+config SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+    bool "ROUTE_FIXED_STATE"
+    help
+        Apply one explicit route (S/D/path/SW/SEL levels) and hold it for probing.
+config SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE
+    bool "ROUTE_STEP_ONCE"
+    help
+        Step through the route map once then stop.
+config SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
+    bool "ROUTE_SCAN_LOOP"
+    help
+        Continuously run the bring-up scan loop.
+config SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+    bool "ADS_SELFTEST"
+    help
+        Run ADS-only deterministic self-test with explicit register/mux sequencing.
+config SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+    bool "FDC_SELFTEST"
+    help
+        Run FDC-only deterministic self-test on one mapped D line.
+endchoice
+
+config SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
+    int "Route step delay (ms)"
+    default 2
+    range 0 5000
+    help
+        Delay applied between ROW/SELA/SELB/SW operations in debug helpers.
+
+config SENSORARRAY_DEBUG_FIXED_HOLD_FOREVER
+    bool "Fixed route: hold final state forever"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_HOLD_MS
+    int "Fixed route: hold delay when not forever (ms)"
+    default 0
+    range 0 3600000
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_S_COLUMN
+    int "Fixed route S column (1..8)"
+    default 1
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_D_LINE
+    int "Fixed route D line (1..8)"
+    default 1
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+choice SENSORARRAY_DEBUG_FIXED_PATH
+    prompt "Fixed route path type"
+    default SENSORARRAY_DEBUG_FIXED_PATH_RESISTIVE
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+config SENSORARRAY_DEBUG_FIXED_PATH_RESISTIVE
+    bool "Resistive branch"
+config SENSORARRAY_DEBUG_FIXED_PATH_CAPACITIVE
+    bool "Capacitive branch"
+config SENSORARRAY_DEBUG_FIXED_PATH_VOLTAGE
+    bool "Voltage branch"
+endchoice
+
+choice SENSORARRAY_DEBUG_FIXED_SW_SOURCE
+    prompt "Fixed route SW source"
+    default SENSORARRAY_DEBUG_FIXED_SW_SOURCE_GND
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+config SENSORARRAY_DEBUG_FIXED_SW_SOURCE_GND
+    bool "SW -> GND source"
+config SENSORARRAY_DEBUG_FIXED_SW_SOURCE_REF
+    bool "SW -> REF source"
+endchoice
+
+config SENSORARRAY_DEBUG_FIXED_SELA_LEVEL
+    bool "Fixed route SELA logic level (n=0, y=1)"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_SELB_LEVEL
+    bool "Fixed route SELB logic level (n=0, y=1)"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_SKIP_ADS_READ
+    bool "Fixed route: skip ADS read"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_FIXED_SKIP_FDC_READ
+    bool "Fixed route: skip FDC read"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+
+config SENSORARRAY_DEBUG_SCAN_LOOP_DELAY_MS
+    int "Route scan loop delay (ms)"
+    default 250
+    range 0 5000
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
+
+config SENSORARRAY_DEBUG_STEP_ONCE_DELAY_MS
+    int "Route step-once delay between entries (ms)"
+    default 50
+    range 0 5000
+    depends on SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE
+
+config SENSORARRAY_DEBUG_ADS_FORCE_MUXP
+    int "ADS self-test muxp nibble"
+    default 7
+    range 0 15
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_FORCE_MUXN
+    int "ADS self-test muxn nibble"
+    default 10
+    range 0 15
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_FORCE_REFMUX
+    hex "ADS self-test REFMUX raw value"
+    default 0x00
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_STOP1_BEFORE_MUX
+    bool "ADS self-test: STOP1 before INPMUX write"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_SETTLE_AFTER_MUX_MS
+    int "ADS self-test: settle delay after INPMUX write (ms)"
+    default 2
+    range 0 5000
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_START1_BEFORE_READ
+    bool "ADS self-test: START1 before read sequence"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_DISCARD_COUNT
+    int "ADS self-test: discard sample count"
+    default 1
+    range 0 32
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_READ_RETRY_COUNT
+    int "ADS self-test: read retry count"
+    default 1
+    range 0 16
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_ADS_SAMPLE_COUNT
+    int "ADS self-test: number of final samples"
+    default 1
+    range 1 64
+    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
+
+config SENSORARRAY_DEBUG_FDC_D_LINE
+    int "FDC self-test D line (1..8)"
+    default 5
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+
+config SENSORARRAY_DEBUG_FDC_DISCARD_FIRST
+    bool "FDC self-test: discard first sample"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+
+config SENSORARRAY_DEBUG_FDC_SAMPLE_COUNT
+    int "FDC self-test: sample count"
+    default 1
+    range 1 64
+    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+endmenu
+
+menu "ADS read sequencing policy"
+    help
+        Runtime policy used by sensorarrayReadAdsUv() in route workflows.
+
+config SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX
+    bool "Call STOP1 before INPMUX change"
+    default n
+
+config SENSORARRAY_ADS_READ_SETTLE_AFTER_MUX_MS
+    int "Delay after INPMUX change (ms)"
+    default 0
+    range 0 5000
+
+config SENSORARRAY_ADS_READ_START1_EVERY_READ
+    bool "Call START1 on every read"
+    default y
+
+config SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT
+    int "Base discard count before each final sample"
+    default 0
+    range 0 32
+
+config SENSORARRAY_ADS_READ_RETRY_COUNT
+    int "Retry count on timeout/error"
+    default 0
+    range 0 16
+endmenu
+
 endmenu

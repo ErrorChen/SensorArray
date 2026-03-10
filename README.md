@@ -10,6 +10,7 @@ ESP-IDF firmware repository for ESP32-S3. It is organized as reusable components
 | --- | --- |
 | [main/main.c](main/main.c) | 当前默认入口；硬件 bring-up 循环 / Current default entry point; hardware bring-up loop |
 | [main/Kconfig.projbuild](main/Kconfig.projbuild) | 顶层项目配置 / Top-level project configuration |
+| [main/DEBUG_ROUTING.md](main/DEBUG_ROUTING.md) | 路由/ADS/FDC 调试模式说明 / Routing/ADS/FDC debug mode guide |
 | [components/ads126xAdc/README.md](components/ads126xAdc/README.md) | ADS1262/ADS1263 SPI 驱动 / ADS1262/ADS1263 SPI driver |
 | [components/fdc2214Cap/README.md](components/fdc2214Cap/README.md) | FDC2214 I2C 驱动 / FDC2214 I2C driver |
 | [components/tmuxSwitch/README.md](components/tmuxSwitch/README.md) | TMUX1108/TMUX1134 GPIO 控制 / TMUX1108/TMUX1134 GPIO control |
