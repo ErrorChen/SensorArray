@@ -243,47 +243,6 @@ esp_err_t sensorarrayMeasureReadAdsPairUv(sensorarrayState_t *state,
         }
     }
 
-    esp_err_t err = ads126xAdcSetInputMux(&state->ads, muxp, muxn);
-    if (err != ESP_OK) {
-        printf("DBGADSSEQ,step=set_input_mux,err=%ld,status=set_mux_error\n", (long)err);
-        return err;
-    }
-
-    if (readPolicy->settleAfterMuxMs > 0u) {
-        sensorarrayDelayMs(readPolicy->settleAfterMuxMs);
-    }
-
-    if (readPolicy->startEveryRead || !state->adsAdc1Running) {
-        printf("DBGADSSEQ,step=start1,muxp=%u(%s),muxn=%u(%s)\n",
-               (unsigned)muxp,
-               sensorarrayLogAdsMuxName(muxp),
-               (unsigned)muxn,
-               sensorarrayLogAdsMuxName(muxn));
-        err = ads126xAdcStartAdc1(&state->ads);
-        if (err != ESP_OK) {
-            printf("DBGADSSEQ,step=start1,err=%ld,status=start_error\n", (long)err);
-            return err;
-        }
-        state->adsAdc1Running = true;
-    }
-
-    for (uint16_t discardIdx = 0; discardIdx < totalDiscard; ++discardIdx) {
-        int32_t throwaway = 0;
-        printf("DBGADSSEQ,step=discard,index=%u,muxp=%u(%s),muxn=%u(%s)\n",
-               (unsigned)discardIdx,
-               (unsigned)muxp,
-               sensorarrayLogAdsMuxName(muxp),
-               (unsigned)muxn,
-               sensorarrayLogAdsMuxName(muxn));
-        err = sensorarrayMeasureReadAdsRawWithRetry(state, &throwaway, readPolicy->readRetryCount, NULL, NULL);
-        if (err != ESP_OK) {
-            printf("DBGADSSEQ,step=discard,index=%u,err=%ld,status=discard_error\n",
-                   (unsigned)discardIdx,
-                   (long)err);
-            return err;
-        }
-    }
-
     printf("DBGADSSEQ,step=read,muxp=%u(%s),muxn=%u(%s),discardFirst=%u,discardCount=%u\n",
            (unsigned)muxp,
            sensorarrayLogAdsMuxName(muxp),
@@ -292,13 +251,36 @@ esp_err_t sensorarrayMeasureReadAdsPairUv(sensorarrayState_t *state,
            discardFirst ? 1u : 0u,
            (unsigned)totalDiscard);
 
+    const bool startEachRead = readPolicy->startEveryRead || !state->adsAdc1Running;
     bool readTimedOut = false;
     uint8_t statusByte = 0u;
-    err = sensorarrayMeasureReadAdsRawWithRetry(state,
-                                                outRaw,
-                                                readPolicy->readRetryCount,
-                                                &readTimedOut,
-                                                &statusByte);
+    esp_err_t err = ESP_FAIL;
+    for (uint8_t attempt = 0u; attempt <= readPolicy->readRetryCount; ++attempt) {
+        err = ads126xAdcReadSingleDiffUv(&state->ads,
+                                         muxp,
+                                         muxn,
+                                         startEachRead,
+                                         readPolicy->settleAfterMuxMs,
+                                         (uint8_t)totalDiscard,
+                                         outRaw,
+                                         outUv,
+                                         &statusByte);
+        if (err == ESP_OK) {
+            state->adsAdc1Running = true;
+            break;
+        }
+        readTimedOut = (err == ESP_ERR_TIMEOUT);
+        printf("DBGADSRETRY,attempt=%u,maxRetry=%u,muxp=%u,muxn=%u,err=%ld\n",
+               (unsigned)attempt,
+               (unsigned)readPolicy->readRetryCount,
+               (unsigned)muxp,
+               (unsigned)muxn,
+               (long)err);
+        if (attempt < readPolicy->readRetryCount) {
+            sensorarrayDelayMs(1u);
+        }
+    }
+
     if (err != ESP_OK) {
         printf("DBGADSREAD,status=error,muxp=%u(%s),muxn=%u(%s),refmux=0x%02X,discardCount=%u,drdyTimeout=%u,err=%ld\n",
                (unsigned)muxp,
@@ -315,7 +297,6 @@ esp_err_t sensorarrayMeasureReadAdsPairUv(sensorarrayState_t *state,
     if (outStatusByte) {
         *outStatusByte = statusByte;
     }
-    *outUv = ads126xAdcRawToMicrovolts(&state->ads, *outRaw);
 
     printf("DBGADSSEQ,step=read_done,muxp=%u(%s),muxn=%u(%s),raw=%ld,uv=%ld,statusByte=0x%02X,discardFirst=%u,"
            "discardCount=%u\n",
@@ -432,19 +413,12 @@ esp_err_t sensorarrayMeasureReadAdsKeyRegisterSnapshot(sensorarrayState_t *state
 
     esp_err_t err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_ID, &outSnapshot->id);
     if (err == ESP_OK) {
-        err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_POWER, &outSnapshot->power);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_INTERFACE, &outSnapshot->iface);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_MODE2, &outSnapshot->mode2);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_INPMUX, &outSnapshot->inpmux);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayMeasureAdsReadRegister(state, SENSORARRAY_ADS_REG_REFMUX, &outSnapshot->refmux);
+        err = ads126xAdcReadCoreRegisters(&state->ads,
+                                          &outSnapshot->power,
+                                          &outSnapshot->iface,
+                                          &outSnapshot->mode2,
+                                          &outSnapshot->inpmux,
+                                          &outSnapshot->refmux);
     }
 
     if (err == ESP_OK) {

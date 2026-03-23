@@ -54,9 +54,6 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_REG_INPMUX 0x06
 #define ADS126X_REG_REFMUX 0x0F
 
-/* POWER register bit definitions. */
-#define ADS126X_POWER_INTREF (1u << 0)
-
 /* INTERFACE register bit definitions. */
 #define ADS126X_INTERFACE_STATUS (1u << 2)
 #define ADS126X_INTERFACE_CRC_MASK 0x03u
@@ -488,7 +485,7 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Read-modify-write to preserve reserved bits. */
+    /* Read-modify-write to preserve VBIAS and reserved bits. */
     uint8_t power = 0;
     esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
     if (err != ESP_OK) {
@@ -544,6 +541,148 @@ esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_
 {
     uint8_t value = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_INPMUX, &value, 1);
+}
+
+esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t power = 0u;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (enableVbias) {
+        power |= ADS126X_POWER_VBIAS;
+    } else {
+        power &= (uint8_t)~ADS126X_POWER_VBIAS;
+    }
+
+    return ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
+}
+
+esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
+                                      uint8_t *outPower,
+                                      uint8_t *outInterface,
+                                      uint8_t *outMode2,
+                                      uint8_t *outInpmux,
+                                      uint8_t *outRefmux)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t power = 0u;
+    uint8_t iface = 0u;
+    uint8_t mode2 = 0u;
+    uint8_t inpmux = 0u;
+    uint8_t refmux = 0u;
+
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &mode2, 1);
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_INPMUX, &inpmux, 1);
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_REFMUX, &refmux, 1);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (outPower) {
+        *outPower = power;
+    }
+    if (outInterface) {
+        *outInterface = iface;
+    }
+    if (outMode2) {
+        *outMode2 = mode2;
+    }
+    if (outInpmux) {
+        *outInpmux = inpmux;
+    }
+    if (outRefmux) {
+        *outRefmux = refmux;
+    }
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
+                                     uint8_t muxp,
+                                     uint8_t muxn,
+                                     bool start1EveryRead,
+                                     uint32_t settleMs,
+                                     uint8_t discardCount,
+                                     int32_t *outRaw,
+                                     int32_t *outUv,
+                                     uint8_t *outStatus)
+{
+    if (!handle || (!outRaw && !outUv)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    muxp &= 0x0Fu;
+    muxn &= 0x0Fu;
+    if (outRaw) {
+        *outRaw = 0;
+    }
+    if (outUv) {
+        *outUv = 0;
+    }
+    if (outStatus) {
+        *outStatus = 0u;
+    }
+
+    esp_err_t err = ads126xAdcSetInputMux(handle, muxp, muxn);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (settleMs > 0u) {
+        vTaskDelay(pdMS_TO_TICKS(settleMs));
+    }
+
+    if (start1EveryRead) {
+        err = ads126xAdcStartAdc1(handle);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    for (uint8_t discardIdx = 0u; discardIdx < discardCount; ++discardIdx) {
+        int32_t discardRaw = 0;
+        err = ads126xAdcReadAdc1Raw(handle, &discardRaw, NULL);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    int32_t raw = 0;
+    uint8_t statusByte = 0u;
+    err = ads126xAdcReadAdc1Raw(handle, &raw, &statusByte);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (outRaw) {
+        *outRaw = raw;
+    }
+    if (outUv) {
+        *outUv = ads126xAdcRawToMicrovolts(handle, raw);
+    }
+    if (outStatus) {
+        *outStatus = statusByte;
+    }
+    return ESP_OK;
 }
 
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle)

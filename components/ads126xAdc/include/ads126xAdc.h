@@ -18,6 +18,10 @@ extern "C" {
 #define ADS126X_ADC_DEFAULT_VREF_UV 2500000u
 #define ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS 1000u
 
+/* POWER register bits for ads126xAdcReadCoreRegisters()/ads126xAdcSetVbiasEnabled(). */
+#define ADS126X_POWER_INTREF (1u << 0)
+#define ADS126X_POWER_VBIAS (1u << 1)
+
 typedef enum {
     ADS126X_DEVICE_AUTO = 0,
     ADS126X_DEVICE_ADS1262,
@@ -87,6 +91,38 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+
+/*
+ * Enable/disable internal AINCOM level shift (VBIAS) via POWER register bit1.
+ * This performs a read-modify-write and preserves other POWER bits.
+ */
+esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias);
+
+/*
+ * Read core register snapshot used by debug and bringup diagnostics.
+ * Any output pointer may be NULL when that field is not required.
+ */
+esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
+                                      uint8_t *outPower,
+                                      uint8_t *outInterface,
+                                      uint8_t *outMode2,
+                                      uint8_t *outInpmux,
+                                      uint8_t *outRefmux);
+
+/*
+ * Read a single differential ADC1 sample in microvolts:
+ * 1) set INPMUX (muxp/muxn), 2) optional settle delay, 3) optional START1,
+ * 4) optional discard conversions, 5) final conversion read and raw->uV conversion.
+ */
+esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
+                                     uint8_t muxp,
+                                     uint8_t muxn,
+                                     bool start1EveryRead,
+                                     uint32_t settleMs,
+                                     uint8_t discardCount,
+                                     int32_t *outRaw,
+                                     int32_t *outUv,
+                                     uint8_t *outStatus);
 
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);

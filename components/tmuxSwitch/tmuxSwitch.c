@@ -437,7 +437,6 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     outState->row = s_row;
     outState->source = s_source;
     outState->tmux1134EnControllable = (CONFIG_TMUX1134_EN_GPIO >= 0);
-    outState->tmux1134EnLogicalOn = s_en_on;
     outState->a0Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A0_GPIO);
     outState->a1Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A1_GPIO);
     outState->a2Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A2_GPIO);
@@ -446,7 +445,19 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     outState->sel2Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL2_GPIO);
     outState->sel3Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL3_GPIO);
     outState->sel4Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL4_GPIO);
-    outState->enLevel = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_EN_GPIO);
+    if (outState->tmux1134EnControllable) {
+        outState->enLevel = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_EN_GPIO);
+        if (outState->enLevel >= 0) {
+            int offLevel = CONFIG_TMUX1134_EN_OFF_LEVEL ? 1 : 0;
+            outState->tmux1134EnLogicalOn = (outState->enLevel != offLevel);
+        } else {
+            outState->tmux1134EnLogicalOn = s_en_on;
+        }
+    } else {
+        /* EN is hard-wired on this board; expose as not-controllable in readback. */
+        outState->enLevel = -1;
+        outState->tmux1134EnLogicalOn = true;
+    }
     outState->selaLevel = outState->sel1Level;
     outState->selbLevel = outState->sel2Level;
     portEXIT_CRITICAL(&s_tmux_lock);
