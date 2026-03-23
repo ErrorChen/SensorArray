@@ -10,3 +10,6 @@ void sensorarrayDebugRunSingleResistorS1D1ModeImpl(sensorarrayState_t *state,
 
 void sensorarrayDebugRunS1D1StaticResistorDebugImpl(sensorarrayState_t *state,
                                                     const sensorarrayAdsReadPolicy_t *adsPolicy);
+
+void sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(sensorarrayState_t *state,
+                                                 const sensorarrayAdsReadPolicy_t *adsPolicy);

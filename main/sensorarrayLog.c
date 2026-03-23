@@ -217,6 +217,8 @@ const char *sensorarrayLogDebugModeName(sensorarrayDebugMode_t mode)
         return "FDC_SELFTEST";
     case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
         return "S1D1_RESISTOR_DEBUG";
+    case SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD:
+        return "S1D1_FORCE_ADS_HOLD";
     default:
         return "UNKNOWN";
     }

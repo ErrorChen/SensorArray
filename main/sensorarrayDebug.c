@@ -367,6 +367,12 @@ void sensorarrayDebugRunS1D1StaticResistorDebug(sensorarrayState_t *state,
     sensorarrayDebugRunS1D1StaticResistorDebugImpl(state, adsPolicy);
 }
 
+void sensorarrayDebugRunS1D1ForceAdsHoldMode(sensorarrayState_t *state,
+                                             const sensorarrayAdsReadPolicy_t *adsPolicy)
+{
+    sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(state, adsPolicy);
+}
+
 void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
                                      const sensorarrayAdsReadPolicy_t *adsPolicy)
 {
@@ -394,6 +400,9 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
         return;
     case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
         sensorarrayDebugRunSingleResistorS1D1ModeImpl(state, adsPolicy);
+        return;
+    case SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD:
+        sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(state, adsPolicy);
         return;
     default:
         sensorarrayRunBringupLoop(state, adsPolicy);

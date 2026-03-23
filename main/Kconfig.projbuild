@@ -151,7 +151,25 @@ config SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
     bool "S1D1_RESISTOR_DEBUG"
     help
         Dedicated single-point resistor debug mode for S1D1 on ADS path only.
+config SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
+    bool "S1D1_FORCE_ADS_HOLD"
+    help
+        Force S1D1 to ADS1263 branch and hold SELA/SELB static for oscilloscope exclusion testing.
 endchoice
+
+config SENSORARRAY_S1D1_FORCE_ADS_HOLD_LOOP_MS
+    int "S1D1 force-ADS-hold loop delay (ms)"
+    default 1000
+    range 50 10000
+    depends on SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
+
+config SENSORARRAY_S1D1_FORCE_ADS_REAPPLY_EACH_LOOP
+    bool "S1D1 force-ADS-hold: re-apply route each loop"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
+    help
+        n: apply force route once then hold and only read back.
+        y: re-assert the same force route before each loop.
 
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
     prompt "S1D1 resistor debug behavior"
