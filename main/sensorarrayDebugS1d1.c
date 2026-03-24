@@ -77,6 +77,21 @@ static const char *sensorarraySelaRouteNameFromGpioLevel(bool selaGpioLevel)
     return sensorarrayBoardMapSelaRouteName(sensorarraySelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0));
 }
 
+static const char *sensorarrayBuildSweepLabel(bool selaGpioLevel, bool selBLevel, char *buf, size_t bufSize)
+{
+    if (!buf || bufSize == 0u) {
+        return SENSORARRAY_NA;
+    }
+
+    snprintf(buf,
+             bufSize,
+             "SELA_GPIO%u_%s_SELB%u",
+             selaGpioLevel ? 1u : 0u,
+             sensorarraySelaRouteNameFromGpioLevel(selaGpioLevel),
+             selBLevel ? 1u : 0u);
+    return buf;
+}
+
 static const char *sensorarrayResolvedSelaRouteName(int selaReadLevel)
 {
     sensorarraySelaRoute_t route = SENSORARRAY_SELA_ROUTE_ADS1263;
@@ -709,22 +724,27 @@ void sensorarrayDebugRunAdsS1D1OnlyModeImpl(sensorarrayState_t *state,
     const struct {
         bool selaGpioLevel;
         bool selBLevel;
-        const char *label;
     } sweepStates[] = {
-        { false, false, "SELA_GPIO0_SELB0" },
-        { true, false, "SELA_GPIO1_SELB0" },
-        { false, true, "SELA_GPIO0_SELB1" },
-        { true, true, "SELA_GPIO1_SELB1" },
+        { false, false },
+        { true, false },
+        { false, true },
+        { true, true },
     };
 
     while (true) {
         for (uint8_t i = 0u; i < 4u; ++i) {
+            char sweepLabelBuf[48];
             bool desiredSelaGpioLevel = lockedMode ? lockedSelaGpioLevel : sweepStates[i].selaGpioLevel;
             sensorarraySelaRoute_t desiredSelaRoute =
                 sensorarraySelaRouteFromGpioLevel(desiredSelaGpioLevel ? 1 : 0);
             bool desiredSelBLevel = lockedMode ? lockedSelBLevel : sweepStates[i].selBLevel;
             const char *mode = lockedMode ? "locked_single_state" : "sweep_states";
-            const char *sampleLabel = lockedMode ? "D1_AIN0_AINCOM_LOCKED" : sweepStates[i].label;
+            const char *sampleLabel =
+                lockedMode ? "D1_AIN0_AINCOM_LOCKED"
+                           : sensorarrayBuildSweepLabel(desiredSelaGpioLevel,
+                                                        desiredSelBLevel,
+                                                        sweepLabelBuf,
+                                                        sizeof(sweepLabelBuf));
 
             sensorarrayRouteReadbackEval_t routeEval = sensorarrayRouteEvalUnavailable();
             err = sensorarrayApplyS1D1Route(state,

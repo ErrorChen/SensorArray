@@ -183,8 +183,13 @@
 #define SENSORARRAY_DEBUG_ADS_S1D1_LOCK_TO_SINGLE_STATE 1
 #endif
 
+/*
+ * Raw SELA GPIO default for locked S1D1 debug flows.
+ * Keep this aligned with sensorarrayBoardMap.c so ADS-focused modes still
+ * resolve to the ADS1263 branch by default.
+ */
 #ifndef SENSORARRAY_S1D1_DEBUG_SELA_LEVEL
-#define SENSORARRAY_S1D1_DEBUG_SELA_LEVEL 1
+#define SENSORARRAY_S1D1_DEBUG_SELA_LEVEL 0
 #endif
 
 #ifndef SENSORARRAY_S1D1_DEBUG_SELB_LEVEL

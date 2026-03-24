@@ -285,9 +285,12 @@ config SENSORARRAY_DEBUG_FIXED_SW_SOURCE_REF
 endchoice
 
 config SENSORARRAY_DEBUG_FIXED_SELA_LEVEL
-    bool "Fixed route SELA logic level (n=0, y=1)"
+    bool "Fixed route SELA logic level (raw GPIO: n=0, y=1)"
     default n
     depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
+    help
+        Raw SELA GPIO level for manual route probing.
+        Current board polarity is GPIO 0 -> ADS1263 and GPIO 1 -> FDC2214.
 
 config SENSORARRAY_DEBUG_FIXED_SELB_LEVEL
     bool "Fixed route SELB logic level (n=0, y=1)"

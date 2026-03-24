@@ -34,6 +34,10 @@ Use `ROUTE_FIXED_STATE` and configure:
 - `Fixed route: skip FDC read`
 - `Fixed route: hold final state forever` (recommended for scope/DMM probing)
 
+Current board polarity is translated only in `main/sensorarrayBoardMap.c`:
+- `SELA GPIO 0 -> ADS1263`
+- `SELA GPIO 1 -> FDC2214`
+
 The firmware applies GPIO controls in deterministic order:
 1. TMUX1108 row (`A0/A1/A2`)
 2. TMUX1134 SELA level
