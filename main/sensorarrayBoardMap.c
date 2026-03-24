@@ -47,16 +47,20 @@ bool sensorarrayBoardMapSelaRouteToGpioLevel(sensorarraySelaRoute_t route, int *
     }
 
     /*
-     * Confirmed on current hardware:
-     *   SELA GPIO 0 -> ADS1263 branch
-     *   SELA GPIO 1 -> FDC2214 branch
+     * Confirmed on current hardware after scope validation:
+     *   SELA GPIO 0 -> FDC2214 branch
+     *   SELA GPIO 1 -> ADS1263 branch
+     *
+     * This is the only place that translates logical SELA paths into raw GPIO
+     * levels. Callers must pass sensorarraySelaRoute_t and must not hardcode
+     * assumptions such as "0 means ADS1263".
      */
     switch (route) {
     case SENSORARRAY_SELA_ROUTE_ADS1263:
-        *outLevel = 0;
+        *outLevel = 1;
         return true;
     case SENSORARRAY_SELA_ROUTE_FDC2214:
-        *outLevel = 1;
+        *outLevel = 0;
         return true;
     default:
         return false;
@@ -71,10 +75,10 @@ bool sensorarrayBoardMapSelaRouteFromGpioLevel(int gpioLevel, sensorarraySelaRou
 
     switch (gpioLevel) {
     case 0:
-        *outRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+        *outRoute = SENSORARRAY_SELA_ROUTE_FDC2214;
         return true;
     case 1:
-        *outRoute = SENSORARRAY_SELA_ROUTE_FDC2214;
+        *outRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
         return true;
     default:
         return false;
@@ -179,16 +183,16 @@ void sensorarrayBoardMapAudit(void)
         if (!entry) {
             continue;
         }
-        int selaGpioLevel = -1;
-        (void)sensorarrayBoardMapSelaRouteToGpioLevel(entry->selaRoute, &selaGpioLevel);
+        int selaWriteLevel = -1;
+        (void)sensorarrayBoardMapSelaRouteToGpioLevel(entry->selaRoute, &selaWriteLevel);
 
-        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaGpioLevel=%d,selBLevel=%u,label=%s\n",
+        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selBLevel=%u,label=%s\n",
                (unsigned)i,
                (unsigned)entry->sColumn,
                (unsigned)entry->dLine,
                sensorarrayBoardMapPathName(entry->path),
                sensorarrayBoardMapSelaRouteName(entry->selaRoute),
-               selaGpioLevel,
+               selaWriteLevel,
                entry->selBLevel ? 1u : 0u,
                entry->mapLabel ? entry->mapLabel : SENSORARRAY_NA);
     }

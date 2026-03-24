@@ -67,7 +67,7 @@ typedef struct {
     uint8_t dLine;
     sensorarrayDebugPath_t path;
     tmux1108Source_t swSource;
-    bool selaGpioLevel; // Raw GPIO level used only by low-level debug route modes.
+    sensorarraySelaRoute_t selaRoute; // Logical SELA target path; GPIO level is derived centrally.
     bool selBLevel;
     bool skipAdsRead;
     bool skipFdcRead;

@@ -32,6 +32,11 @@ static const char *sensorarrayDebugPathKind(sensorarrayDebugPath_t path)
     }
 }
 
+static bool sensorarrayDebugSelaRouteFromGpioLevel(bool selaGpioLevel, sensorarraySelaRoute_t *outRoute)
+{
+    return sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0, outRoute);
+}
+
 void sensorarrayDebugIdleForever(const char *reason)
 {
     sensorarrayLogControlGpio("idle", reason);
@@ -66,7 +71,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                             cfg->dLine,
                             cfg->path,
                             cfg->swSource,
-                            cfg->selaGpioLevel,
+                            cfg->selaRoute,
                             cfg->selBLevel,
                             ESP_OK,
                             "apply_fixed_route");
@@ -76,7 +81,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                                        cfg->dLine,
                                                        cfg->path,
                                                        cfg->swSource,
-                                                       cfg->selaGpioLevel,
+                                                       cfg->selaRoute,
                                                        cfg->selBLevel,
                                                        cfg->delayAfterRowMs,
                                                        cfg->delayAfterSelAMs,
@@ -158,7 +163,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                 cfg->dLine,
                                 cfg->path,
                                 cfg->swSource,
-                                cfg->selaGpioLevel,
+                                cfg->selaRoute,
                                 cfg->selBLevel,
                                 ESP_OK,
                                 "fixed_state_latched");
@@ -174,7 +179,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                 cfg->dLine,
                                 cfg->path,
                                 cfg->swSource,
-                                cfg->selaGpioLevel,
+                                cfg->selaRoute,
                                 cfg->selBLevel,
                                 ESP_OK,
                                 "holding_final_state");
@@ -296,12 +301,22 @@ static void sensorarrayRunRouteIdleMode(void)
 
 static void sensorarrayRunRouteFixedStateMode(sensorarrayState_t *state, const sensorarrayAdsReadPolicy_t *adsPolicy)
 {
+    sensorarraySelaRoute_t fixedSelaRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+    if (!sensorarrayDebugSelaRouteFromGpioLevel((CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL != 0), &fixedSelaRoute)) {
+        sensorarrayLogStartup("route_fixed",
+                              ESP_ERR_INVALID_ARG,
+                              "fixed_sela_level_invalid",
+                              (int32_t)CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL);
+        sensorarrayDebugIdleForever("route_fixed_invalid_sela_level");
+        return;
+    }
+
     sensorarrayDebugFixedRoute_t cfg = {
         .sColumn = (uint8_t)CONFIG_SENSORARRAY_DEBUG_FIXED_S_COLUMN,
         .dLine = (uint8_t)CONFIG_SENSORARRAY_DEBUG_FIXED_D_LINE,
         .path = sensorarrayConfiguredFixedPath(),
         .swSource = sensorarrayConfiguredFixedSwSource(),
-        .selaGpioLevel = (CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL != 0),
+        .selaRoute = fixedSelaRoute,
         .selBLevel = (CONFIG_SENSORARRAY_DEBUG_FIXED_SELB_LEVEL != 0),
         .skipAdsRead = (CONFIG_SENSORARRAY_DEBUG_FIXED_SKIP_ADS_READ != 0),
         .skipFdcRead = (CONFIG_SENSORARRAY_DEBUG_FIXED_SKIP_FDC_READ != 0),
@@ -328,8 +343,7 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
         }
 
         tmux1108Source_t source = sensorarrayBoardMapDefaultSwSource(route);
-        int selaGpioLevel = 0;
-        if (!sensorarrayBoardMapSelaRouteToGpioLevel(route->selaRoute, &selaGpioLevel)) {
+        if (!sensorarrayBoardMapSelaRouteToGpioLevel(route->selaRoute, &(int){0})) {
             sensorarrayLogStartup("route_step_once", ESP_ERR_INVALID_STATE, "sela_route_invalid", (int32_t)i);
             break;
         }
@@ -338,7 +352,7 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
             .dLine = route->dLine,
             .path = sensorarrayBoardMapPathToDebugPath(route->path, source),
             .swSource = source,
-            .selaGpioLevel = (selaGpioLevel != 0),
+            .selaRoute = route->selaRoute,
             .selBLevel = route->selBLevel,
             .skipAdsRead = (route->path == SENSORARRAY_PATH_CAPACITIVE),
             .skipFdcRead = (route->path != SENSORARRAY_PATH_CAPACITIVE),

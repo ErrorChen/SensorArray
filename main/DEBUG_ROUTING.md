@@ -59,7 +59,7 @@ Self-test logs:
 
 ## Route map audit output
 At boot, firmware prints:
-- `DBGROUTEMAP,...` full route table (`S`, `D`, `path`, `selALevel`, `selBLevel`, label).
+- `DBGROUTEMAP,...` full route table (`S`, `D`, `path`, `selaRoute`, `selaWriteLevel`, `selBLevel`, label).
 - `DBGFDCMAP,...` full D-line to FDC-device/channel mapping.
 
 ## Control GPIO observability
@@ -72,6 +72,7 @@ After route operations, firmware prints:
 
 ## TMUX1134 abstraction note
 The project now treats TMUX1134 as explicit logic-level routing, not abstract "enable/disable":
-- Use `tmux1134SelectSelALevel()` / `tmux1134SelectSelBLevel()` for direct SEL control.
+- App/route flows should use `sensorarrayMeasureSetSelaPath()` so logical SELA path and raw GPIO level stay mapped in one place.
+- `tmux1134SelectSelALevel()` / `tmux1134SelectSelBLevel()` remain low-level driver APIs only.
 - Legacy enabled/disabled APIs remain as wrappers only.
 - If TMUX1134 EN is not GPIO-controlled, "all off" is not a true disconnect.

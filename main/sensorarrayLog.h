@@ -86,7 +86,7 @@ void sensorarrayLogRouteStep(const char *stage,
                              uint8_t dLine,
                              sensorarrayDebugPath_t path,
                              tmux1108Source_t swSource,
-                             bool selaGpioLevel,
+                             sensorarraySelaRoute_t selaRoute,
                              bool selBLevel,
                              esp_err_t err,
                              const char *status);

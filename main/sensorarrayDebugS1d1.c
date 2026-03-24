@@ -58,13 +58,23 @@ static const char *sensorarraySafePolicyModeName(const char *mode)
     return mode ? mode : SENSORARRAY_NA;
 }
 
-static const char *sensorarraySelaRouteNameFromGpioLevel(bool selaGpioLevel)
+static sensorarraySelaRoute_t sensorarraySelaRouteFromGpioLevel(int selaGpioLevel)
 {
     sensorarraySelaRoute_t route = SENSORARRAY_SELA_ROUTE_ADS1263;
-    if (sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0, &route)) {
-        return sensorarrayBoardMapSelaRouteName(route);
-    }
-    return "UNKNOWN";
+    (void)sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel, &route);
+    return route;
+}
+
+static int sensorarraySelaWriteLevelForRoute(sensorarraySelaRoute_t route)
+{
+    int selaWriteLevel = -1;
+    (void)sensorarrayBoardMapSelaRouteToGpioLevel(route, &selaWriteLevel);
+    return selaWriteLevel;
+}
+
+static const char *sensorarraySelaRouteNameFromGpioLevel(bool selaGpioLevel)
+{
+    return sensorarrayBoardMapSelaRouteName(sensorarraySelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0));
 }
 
 static const char *sensorarrayResolvedSelaRouteName(int selaReadLevel)
@@ -89,12 +99,17 @@ static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const se
 }
 
 static sensorarrayRouteReadbackEval_t sensorarrayEvaluateS1D1Readback(const tmuxSwitchControlState_t *ctrl,
-                                                                      bool desiredSelaGpioLevel,
+                                                                      sensorarraySelaRoute_t desiredSelaRoute,
                                                                       bool desiredSelBLevel,
                                                                       bool desiredEn)
 {
     sensorarrayRouteReadbackEval_t eval = sensorarrayRouteEvalUnavailable();
+    int desiredSelaGpioLevel = sensorarraySelaWriteLevelForRoute(desiredSelaRoute);
     if (!ctrl) {
+        return eval;
+    }
+    if (desiredSelaGpioLevel < 0) {
+        eval.mismatchReason = "sela_route_invalid";
         return eval;
     }
 
@@ -147,21 +162,23 @@ static sensorarrayRouteReadbackEval_t sensorarrayEvaluateS1D1Readback(const tmux
 
 static void sensorarrayLogRouteApply(const char *mode,
                                      bool lockedMode,
-                                     bool desiredSelaGpioLevel,
+                                     sensorarraySelaRoute_t desiredSelaRoute,
                                      bool desiredSelBLevel,
                                      bool desiredEn,
                                      esp_err_t err)
 {
-    printf("tag=ROUTE_APPLY,mode=%s,locked=%u,lockedSelaGpioLevel=%u,lockedSelaRoute=%s,lockedSelBLevel=%u,"
-           "row=S1,source=GND,desiredSelaGpioLevel=%u,desiredSelaRoute=%s,desiredSelBLevel=%u,desiredEn=%u,"
+    sensorarraySelaRoute_t lockedSelaRoute =
+        sensorarraySelaRouteFromGpioLevel((SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0) ? 1 : 0);
+    printf("tag=ROUTE_APPLY,mode=%s,locked=%u,lockedSelaGpioLevel=%d,lockedSelaRoute=%s,lockedSelBLevel=%u,"
+           "row=S1,source=GND,desiredSelaGpioLevel=%d,desiredSelaRoute=%s,desiredSelBLevel=%u,desiredEn=%u,"
            "result=%s,err=%ld\n",
            sensorarraySafePolicyModeName(mode),
            lockedMode ? 1u : 0u,
-           (unsigned)(SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
-           sensorarraySelaRouteNameFromGpioLevel(SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
+           sensorarraySelaWriteLevelForRoute(lockedSelaRoute),
+           sensorarrayBoardMapSelaRouteName(lockedSelaRoute),
            (unsigned)(SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0),
-           desiredSelaGpioLevel ? 1u : 0u,
-           sensorarraySelaRouteNameFromGpioLevel(desiredSelaGpioLevel),
+           sensorarraySelaWriteLevelForRoute(desiredSelaRoute),
+           sensorarrayBoardMapSelaRouteName(desiredSelaRoute),
            desiredSelBLevel ? 1u : 0u,
            desiredEn ? 1u : 0u,
            (err == ESP_OK) ? "ok" : "route_apply_error",
@@ -170,14 +187,14 @@ static void sensorarrayLogRouteApply(const char *mode,
 
 static void sensorarrayLogRouteReadback(const tmuxSwitchControlState_t *ctrl,
                                         const sensorarrayRouteReadbackEval_t *eval,
-                                        bool requestedSelaGpioLevel)
+                                        sensorarraySelaRoute_t requestedSelaRoute)
 {
     char rowBuf[8];
     const sensorarrayRouteReadbackEval_t fallback = sensorarrayRouteEvalUnavailable();
     const sensorarrayRouteReadbackEval_t *report = eval ? eval : &fallback;
 
     printf("tag=ROUTE_READBACK,row=%s,source=%s,a0=%d,a1=%d,a2=%d,sw=%d,sel1=%d,sel2=%d,sel3=%d,sel4=%d,"
-           "requestedSelaRoute=%s,requestedSelaGpioLevel=%u,resolvedSelaRoute=%s,selaLevel=%d,selbLevel=%d,"
+           "requestedSelaRoute=%s,requestedSelaGpioLevel=%d,resolvedSelaRoute=%s,selaLevel=%d,selbLevel=%d,"
            "enLevel=%d,readbackMatch=%u,mismatchReason=%s,routeConfidence=%s\n",
            ctrl ? sensorarrayRowName(ctrl->row, rowBuf, sizeof(rowBuf)) : SENSORARRAY_NA,
            sensorarrayCtrlSourceName(ctrl),
@@ -189,8 +206,8 @@ static void sensorarrayLogRouteReadback(const tmuxSwitchControlState_t *ctrl,
            ctrl ? ctrl->sel2Level : -1,
            ctrl ? ctrl->sel3Level : -1,
            ctrl ? ctrl->sel4Level : -1,
-           sensorarraySelaRouteNameFromGpioLevel(requestedSelaGpioLevel),
-           requestedSelaGpioLevel ? 1u : 0u,
+           sensorarrayBoardMapSelaRouteName(requestedSelaRoute),
+           sensorarraySelaWriteLevelForRoute(requestedSelaRoute),
            ctrl ? sensorarrayResolvedSelaRouteName(ctrl->selaLevel) : "UNKNOWN",
            ctrl ? ctrl->selaLevel : -1,
            ctrl ? ctrl->selbLevel : -1,
@@ -367,7 +384,7 @@ static esp_err_t sensorarrayResolveS1D1AdsMux(uint8_t *outMuxp, uint8_t *outMuxn
 static esp_err_t sensorarrayApplyS1D1Route(sensorarrayState_t *state,
                                            const char *mode,
                                            bool lockedMode,
-                                           bool desiredSelaGpioLevel,
+                                           sensorarraySelaRoute_t desiredSelaRoute,
                                            bool desiredSelBLevel,
                                            sensorarrayRouteReadbackEval_t *outEval,
                                            tmuxSwitchControlState_t *outCtrl)
@@ -379,8 +396,8 @@ static esp_err_t sensorarrayApplyS1D1Route(sensorarrayState_t *state,
         *outCtrl = (tmuxSwitchControlState_t){0};
     }
     if (!state || !state->tmuxReady) {
-        sensorarrayLogRouteApply(mode, lockedMode, desiredSelaGpioLevel, desiredSelBLevel, true, ESP_ERR_INVALID_STATE);
-        sensorarrayLogRouteReadback(NULL, outEval, desiredSelaGpioLevel);
+        sensorarrayLogRouteApply(mode, lockedMode, desiredSelaRoute, desiredSelBLevel, true, ESP_ERR_INVALID_STATE);
+        sensorarrayLogRouteReadback(NULL, outEval, desiredSelaRoute);
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -389,7 +406,7 @@ static esp_err_t sensorarrayApplyS1D1Route(sensorarrayState_t *state,
                                                        SENSORARRAY_D1,
                                                        SENSORARRAY_DEBUG_PATH_RESISTIVE,
                                                        TMUX1108_SOURCE_GND,
-                                                       desiredSelaGpioLevel,
+                                                       desiredSelaRoute,
                                                        desiredSelBLevel,
                                                        SENSORARRAY_SETTLE_AFTER_COLUMN_MS,
                                                        SENSORARRAY_SETTLE_AFTER_PATH_MS,
@@ -397,12 +414,12 @@ static esp_err_t sensorarrayApplyS1D1Route(sensorarrayState_t *state,
                                                        SENSORARRAY_SETTLE_AFTER_SW_MS,
                                                        mode);
 
-    sensorarrayLogRouteApply(mode, lockedMode, desiredSelaGpioLevel, desiredSelBLevel, true, err);
+    sensorarrayLogRouteApply(mode, lockedMode, desiredSelaRoute, desiredSelBLevel, true, err);
 
     tmuxSwitchControlState_t ctrl = {0};
     if (tmuxSwitchGetControlState(&ctrl) != ESP_OK) {
         sensorarrayRouteReadbackEval_t eval = sensorarrayRouteEvalUnavailable();
-        sensorarrayLogRouteReadback(NULL, &eval, desiredSelaGpioLevel);
+        sensorarrayLogRouteReadback(NULL, &eval, desiredSelaRoute);
         if (outEval) {
             *outEval = eval;
         }
@@ -410,8 +427,8 @@ static esp_err_t sensorarrayApplyS1D1Route(sensorarrayState_t *state,
     }
 
     sensorarrayRouteReadbackEval_t eval =
-        sensorarrayEvaluateS1D1Readback(&ctrl, desiredSelaGpioLevel, desiredSelBLevel, true);
-    sensorarrayLogRouteReadback(&ctrl, &eval, desiredSelaGpioLevel);
+        sensorarrayEvaluateS1D1Readback(&ctrl, desiredSelaRoute, desiredSelBLevel, true);
+    sensorarrayLogRouteReadback(&ctrl, &eval, desiredSelaRoute);
     if (outCtrl) {
         *outCtrl = ctrl;
     }
@@ -673,13 +690,15 @@ void sensorarrayDebugRunAdsS1D1OnlyModeImpl(sensorarrayState_t *state,
 
     const bool lockedMode = (SENSORARRAY_DEBUG_ADS_S1D1_LOCK_TO_SINGLE_STATE != 0);
     const bool lockedSelaGpioLevel = (SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0);
+    const sensorarraySelaRoute_t lockedSelaRoute =
+        sensorarraySelaRouteFromGpioLevel(lockedSelaGpioLevel ? 1 : 0);
     const bool lockedSelBLevel = (SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0);
     printf("tag=ROUTE_MODE,mode=%s,locked=%u,lockedSelaGpioLevel=%u,lockedSelaRoute=%s,lockedSelBLevel=%u,muxp=%u,"
            "muxn=%u,muxpName=%s,muxnName=%s,holdMs=%u\n",
            lockedMode ? "locked_single_state" : "sweep_states",
            lockedMode ? 1u : 0u,
            lockedSelaGpioLevel ? 1u : 0u,
-           sensorarraySelaRouteNameFromGpioLevel(lockedSelaGpioLevel),
+           sensorarrayBoardMapSelaRouteName(lockedSelaRoute),
            lockedSelBLevel ? 1u : 0u,
            (unsigned)muxp,
            (unsigned)muxn,
@@ -701,6 +720,8 @@ void sensorarrayDebugRunAdsS1D1OnlyModeImpl(sensorarrayState_t *state,
     while (true) {
         for (uint8_t i = 0u; i < 4u; ++i) {
             bool desiredSelaGpioLevel = lockedMode ? lockedSelaGpioLevel : sweepStates[i].selaGpioLevel;
+            sensorarraySelaRoute_t desiredSelaRoute =
+                sensorarraySelaRouteFromGpioLevel(desiredSelaGpioLevel ? 1 : 0);
             bool desiredSelBLevel = lockedMode ? lockedSelBLevel : sweepStates[i].selBLevel;
             const char *mode = lockedMode ? "locked_single_state" : "sweep_states";
             const char *sampleLabel = lockedMode ? "D1_AIN0_AINCOM_LOCKED" : sweepStates[i].label;
@@ -709,7 +730,7 @@ void sensorarrayDebugRunAdsS1D1OnlyModeImpl(sensorarrayState_t *state,
             err = sensorarrayApplyS1D1Route(state,
                                             mode,
                                             lockedMode,
-                                            desiredSelaGpioLevel,
+                                            desiredSelaRoute,
                                             desiredSelBLevel,
                                             &routeEval,
                                             NULL);
@@ -746,7 +767,7 @@ void sensorarrayDebugRunAdsS1D1OnlyModeImpl(sensorarrayState_t *state,
 static void sensorarrayRunS1D1RouteOnlyLoop(sensorarrayState_t *state,
                                             const char *mode,
                                             bool lockedMode,
-                                            bool desiredSelaGpioLevel,
+                                            sensorarraySelaRoute_t desiredSelaRoute,
                                             bool desiredSelBLevel,
                                             uint32_t loopDelayMs)
 {
@@ -755,7 +776,7 @@ static void sensorarrayRunS1D1RouteOnlyLoop(sensorarrayState_t *state,
         (void)sensorarrayApplyS1D1Route(state,
                                         mode,
                                         lockedMode,
-                                        desiredSelaGpioLevel,
+                                        desiredSelaRoute,
                                         desiredSelBLevel,
                                         &routeEval,
                                         NULL);
@@ -790,29 +811,28 @@ void sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(sensorarrayState_t *state,
 
     const sensorarrayRouteMap_t *routeMap =
         sensorarrayBoardMapFindRoute(SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE);
-    int desiredSelaGpioLevelInt = 0;
-    if (routeMap && !sensorarrayBoardMapSelaRouteToGpioLevel(routeMap->selaRoute, &desiredSelaGpioLevelInt)) {
+    if (routeMap && !sensorarrayBoardMapSelaRouteToGpioLevel(routeMap->selaRoute, &(int){0})) {
         sensorarrayDebugIdleForever("s1d1_force_ads_hold_sela_route_invalid");
         return;
     }
-    bool desiredSelaGpioLevel = (desiredSelaGpioLevelInt != 0);
+    sensorarraySelaRoute_t desiredSelaRoute = routeMap ? routeMap->selaRoute : SENSORARRAY_SELA_ROUTE_ADS1263;
     bool desiredSelBLevel = routeMap ? routeMap->selBLevel : false;
 
     const bool lockedMode = (SENSORARRAY_DEBUG_ADS_S1D1_LOCK_TO_SINGLE_STATE != 0);
     if (lockedMode) {
-        desiredSelaGpioLevel = (SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0);
+        desiredSelaRoute = sensorarraySelaRouteFromGpioLevel((SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0) ? 1 : 0);
         desiredSelBLevel = (SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0);
     }
 
     printf("tag=ROUTE_MODE,mode=%s,locked=%u,lockedSelaGpioLevel=%u,lockedSelaRoute=%s,lockedSelBLevel=%u,"
-           "desiredSelaGpioLevel=%u,desiredSelaRoute=%s,desiredSelBLevel=%u,muxp=%u,muxn=%u,loopDelayMs=%u\n",
+           "desiredSelaGpioLevel=%d,desiredSelaRoute=%s,desiredSelBLevel=%u,muxp=%u,muxn=%u,loopDelayMs=%u\n",
            lockedMode ? "locked_single_state" : "force_hold",
            lockedMode ? 1u : 0u,
            (unsigned)(SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
            sensorarraySelaRouteNameFromGpioLevel(SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
            (unsigned)(SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0),
-           desiredSelaGpioLevel ? 1u : 0u,
-           sensorarraySelaRouteNameFromGpioLevel(desiredSelaGpioLevel),
+           sensorarraySelaWriteLevelForRoute(desiredSelaRoute),
+           sensorarrayBoardMapSelaRouteName(desiredSelaRoute),
            desiredSelBLevel ? 1u : 0u,
            (unsigned)muxp,
            (unsigned)muxn,
@@ -823,7 +843,7 @@ void sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(sensorarrayState_t *state,
         err = sensorarrayApplyS1D1Route(state,
                                         lockedMode ? "locked_single_state" : "force_hold",
                                         lockedMode,
-                                        desiredSelaGpioLevel,
+                                        desiredSelaRoute,
                                         desiredSelBLevel,
                                         &routeEval,
                                         NULL);
@@ -858,7 +878,7 @@ void sensorarrayDebugRunSingleResistorS1D1ModeImpl(sensorarrayState_t *state,
     sensorarrayRunS1D1RouteOnlyLoop(state,
                                     "single_resistor_route_only",
                                     true,
-                                    (SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
+                                    sensorarraySelaRouteFromGpioLevel((SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0) ? 1 : 0),
                                     (SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0),
                                     (uint32_t)CONFIG_SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS);
 #endif
@@ -877,7 +897,7 @@ void sensorarrayDebugRunS1D1StaticResistorDebugImpl(sensorarrayState_t *state,
     sensorarrayRunS1D1RouteOnlyLoop(state,
                                     "s1d1_static_route_only",
                                     true,
-                                    (SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0),
+                                    sensorarraySelaRouteFromGpioLevel((SENSORARRAY_S1D1_DEBUG_SELA_LEVEL != 0) ? 1 : 0),
                                     (SENSORARRAY_S1D1_DEBUG_SELB_LEVEL != 0),
                                     (uint32_t)CONFIG_SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS);
 #endif
