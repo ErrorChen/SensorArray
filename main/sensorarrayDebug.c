@@ -66,7 +66,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                             cfg->dLine,
                             cfg->path,
                             cfg->swSource,
-                            cfg->selALevel,
+                            cfg->selaGpioLevel,
                             cfg->selBLevel,
                             ESP_OK,
                             "apply_fixed_route");
@@ -76,7 +76,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                                        cfg->dLine,
                                                        cfg->path,
                                                        cfg->swSource,
-                                                       cfg->selALevel,
+                                                       cfg->selaGpioLevel,
                                                        cfg->selBLevel,
                                                        cfg->delayAfterRowMs,
                                                        cfg->delayAfterSelAMs,
@@ -158,7 +158,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                 cfg->dLine,
                                 cfg->path,
                                 cfg->swSource,
-                                cfg->selALevel,
+                                cfg->selaGpioLevel,
                                 cfg->selBLevel,
                                 ESP_OK,
                                 "fixed_state_latched");
@@ -174,7 +174,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                 cfg->dLine,
                                 cfg->path,
                                 cfg->swSource,
-                                cfg->selALevel,
+                                cfg->selaGpioLevel,
                                 cfg->selBLevel,
                                 ESP_OK,
                                 "holding_final_state");
@@ -301,7 +301,7 @@ static void sensorarrayRunRouteFixedStateMode(sensorarrayState_t *state, const s
         .dLine = (uint8_t)CONFIG_SENSORARRAY_DEBUG_FIXED_D_LINE,
         .path = sensorarrayConfiguredFixedPath(),
         .swSource = sensorarrayConfiguredFixedSwSource(),
-        .selALevel = (CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL != 0),
+        .selaGpioLevel = (CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL != 0),
         .selBLevel = (CONFIG_SENSORARRAY_DEBUG_FIXED_SELB_LEVEL != 0),
         .skipAdsRead = (CONFIG_SENSORARRAY_DEBUG_FIXED_SKIP_ADS_READ != 0),
         .skipFdcRead = (CONFIG_SENSORARRAY_DEBUG_FIXED_SKIP_FDC_READ != 0),
@@ -328,12 +328,17 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
         }
 
         tmux1108Source_t source = sensorarrayBoardMapDefaultSwSource(route);
+        int selaGpioLevel = 0;
+        if (!sensorarrayBoardMapSelaRouteToGpioLevel(route->selaRoute, &selaGpioLevel)) {
+            sensorarrayLogStartup("route_step_once", ESP_ERR_INVALID_STATE, "sela_route_invalid", (int32_t)i);
+            break;
+        }
         sensorarrayDebugFixedRoute_t cfg = {
             .sColumn = route->sColumn,
             .dLine = route->dLine,
             .path = sensorarrayBoardMapPathToDebugPath(route->path, source),
             .swSource = source,
-            .selALevel = route->selALevel,
+            .selaGpioLevel = (selaGpioLevel != 0),
             .selBLevel = route->selBLevel,
             .skipAdsRead = (route->path == SENSORARRAY_PATH_CAPACITIVE),
             .skipFdcRead = (route->path != SENSORARRAY_PATH_CAPACITIVE),

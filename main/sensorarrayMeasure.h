@@ -14,12 +14,24 @@ sensorarrayFdcDeviceState_t *sensorarrayMeasureGetFdcStateForDLine(sensorarraySt
                                                                     uint8_t dLine,
                                                                     const sensorarrayFdcDLineMap_t **outMap);
 
+esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t *state,
+                                        sensorarraySelaRoute_t selaRoute,
+                                        uint32_t settleDelayMs,
+                                        const char *stage,
+                                        const char *label);
+
+esp_err_t sensorarrayMeasureSetSelaGpioLevel(sensorarrayState_t *state,
+                                             bool selaGpioLevel,
+                                             uint32_t settleDelayMs,
+                                             const char *stage,
+                                             const char *label);
+
 esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint8_t sColumn,
                                              uint8_t dLine,
                                              sensorarrayDebugPath_t path,
                                              tmux1108Source_t swSource,
-                                             bool selALevel,
+                                             bool selaGpioLevel,
                                              bool selBLevel,
                                              uint32_t delayAfterRowMs,
                                              uint32_t delayAfterSelAMs,

@@ -71,13 +71,22 @@ void sensorarrayLogStartupFdc(const char *mode,
 
 void sensorarrayLogControlGpio(const char *stage, const char *point);
 
+void sensorarrayLogSelaRouteDecision(const char *stage,
+                                     const char *label,
+                                     sensorarraySelaRoute_t requestRoute,
+                                     int selaWriteLevel,
+                                     int selaReadLevel,
+                                     bool resolvedValid,
+                                     sensorarraySelaRoute_t resolvedRoute);
+void sensorarrayLogSelaReadbackMismatch(const char *stage, const char *label, int wroteLevel, int readLevel);
+
 void sensorarrayLogRouteStep(const char *stage,
                              const char *label,
                              uint8_t sColumn,
                              uint8_t dLine,
                              sensorarrayDebugPath_t path,
                              tmux1108Source_t swSource,
-                             bool selALevel,
+                             bool selaGpioLevel,
                              bool selBLevel,
                              esp_err_t err,
                              const char *status);

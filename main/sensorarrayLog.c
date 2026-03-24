@@ -5,6 +5,7 @@
 
 #include "driver/gpio.h"
 
+#include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
 
 typedef struct {
@@ -443,26 +444,56 @@ void sensorarrayLogControlGpio(const char *stage, const char *point)
            sensorarrayLogFmtGpioLevel(resetBuf, sizeof(resetBuf), true, resetLevel));
 }
 
+void sensorarrayLogSelaRouteDecision(const char *stage,
+                                     const char *label,
+                                     sensorarraySelaRoute_t requestRoute,
+                                     int selaWriteLevel,
+                                     int selaReadLevel,
+                                     bool resolvedValid,
+                                     sensorarraySelaRoute_t resolvedRoute)
+{
+    printf("[ROUTE] request=%s,selaWrite=%d,selaRead=%d,resolved=%s,stage=%s,label=%s\n",
+           sensorarrayBoardMapSelaRouteName(requestRoute),
+           selaWriteLevel,
+           selaReadLevel,
+           resolvedValid ? sensorarrayBoardMapSelaRouteName(resolvedRoute) : "UNKNOWN",
+           stage ? stage : SENSORARRAY_NA,
+           label ? label : SENSORARRAY_NA);
+}
+
+void sensorarrayLogSelaReadbackMismatch(const char *stage, const char *label, int wroteLevel, int readLevel)
+{
+    printf("[ROUTE][WARN] SELA readback mismatch: wrote=%d read=%d,stage=%s,label=%s\n",
+           wroteLevel,
+           readLevel,
+           stage ? stage : SENSORARRAY_NA,
+           label ? label : SENSORARRAY_NA);
+}
+
 void sensorarrayLogRouteStep(const char *stage,
                              const char *label,
                              uint8_t sColumn,
                              uint8_t dLine,
                              sensorarrayDebugPath_t path,
                              tmux1108Source_t swSource,
-                             bool selALevel,
+                             bool selaGpioLevel,
                              bool selBLevel,
                              esp_err_t err,
                              const char *status)
 {
-    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selALevel=%u,selBLevel=%u,err=%ld,"
-           "status=%s\n",
+    sensorarraySelaRoute_t selaRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+    const bool haveSelaRoute = sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0, &selaRoute);
+
+    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,selaGpioLevel=%u,"
+           "selBLevel=%u,err=%ld,status=%s\n",
            stage ? stage : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA,
            (unsigned)sColumn,
            (unsigned)dLine,
            sensorarrayLogDebugPathName(path),
            sensorarrayLogSwSourceName(swSource),
-           selALevel ? 1u : 0u,
+           haveSelaRoute ? sensorarrayBoardMapSelaRouteName(selaRoute) : SENSORARRAY_NA,
+           selaGpioLevel ? 1u : 0u,
            selBLevel ? 1u : 0u,
            (long)err,
            status ? status : SENSORARRAY_NA);

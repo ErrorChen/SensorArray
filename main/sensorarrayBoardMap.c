@@ -7,13 +7,13 @@
 
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // Board/application route recipes used by current debug workflows.
-    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, true, false, "S1D1_res_selA_on" },
-    { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, false, false, "S4D4_res_selA0_selB0" },
-    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, false, false, "S5D5_cap_selA0_selB0" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, false, false, "S8D7_cap_selA0_selB0" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, false, true, "S8D7_volt_selA0_selB1" },
-    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, false, true, "S8D8_cap_selA0_selB1" },
-    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, false, false, "S8D8_volt_selA0_selB0" },
+    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S1D1_res_sela_ads1263" },
+    { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S4D4_res_sela_ads1263_selb0" },
+    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S5D5_cap_sela_ads1263_selb0" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D7_cap_sela_ads1263_selb0" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, true, "S8D7_volt_sela_ads1263_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_ADS1263, true, "S8D8_cap_sela_ads1263_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D8_volt_sela_ads1263_selb0" },
 };
 
 static const sensorarrayFdcDLineMap_t s_sensorarrayFdcDLineMap[] = {
@@ -27,6 +27,59 @@ static const sensorarrayFdcDLineMap_t s_sensorarrayFdcDLineMap[] = {
     { 7u, SENSORARRAY_FDC_DEV_SECONDARY, FDC2214_CH2, "D7_secondary_selb_ch2" },
     { 8u, SENSORARRAY_FDC_DEV_SECONDARY, FDC2214_CH3, "D8_secondary_selb_ch3" },
 };
+
+const char *sensorarrayBoardMapSelaRouteName(sensorarraySelaRoute_t route)
+{
+    switch (route) {
+    case SENSORARRAY_SELA_ROUTE_ADS1263:
+        return "ADS1263";
+    case SENSORARRAY_SELA_ROUTE_FDC2214:
+        return "FDC2214";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+bool sensorarrayBoardMapSelaRouteToGpioLevel(sensorarraySelaRoute_t route, int *outLevel)
+{
+    if (!outLevel) {
+        return false;
+    }
+
+    /*
+     * Confirmed on current hardware:
+     *   SELA GPIO 0 -> ADS1263 branch
+     *   SELA GPIO 1 -> FDC2214 branch
+     */
+    switch (route) {
+    case SENSORARRAY_SELA_ROUTE_ADS1263:
+        *outLevel = 0;
+        return true;
+    case SENSORARRAY_SELA_ROUTE_FDC2214:
+        *outLevel = 1;
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool sensorarrayBoardMapSelaRouteFromGpioLevel(int gpioLevel, sensorarraySelaRoute_t *outRoute)
+{
+    if (!outRoute) {
+        return false;
+    }
+
+    switch (gpioLevel) {
+    case 0:
+        *outRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+        return true;
+    case 1:
+        *outRoute = SENSORARRAY_SELA_ROUTE_FDC2214;
+        return true;
+    default:
+        return false;
+    }
+}
 
 bool sensorarrayBoardMapAdsMuxForDLine(uint8_t dLine, uint8_t *muxp, uint8_t *muxn)
 {
@@ -126,12 +179,16 @@ void sensorarrayBoardMapAudit(void)
         if (!entry) {
             continue;
         }
-        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selALevel=%u,selBLevel=%u,label=%s\n",
+        int selaGpioLevel = -1;
+        (void)sensorarrayBoardMapSelaRouteToGpioLevel(entry->selaRoute, &selaGpioLevel);
+
+        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaGpioLevel=%d,selBLevel=%u,label=%s\n",
                (unsigned)i,
                (unsigned)entry->sColumn,
                (unsigned)entry->dLine,
                sensorarrayBoardMapPathName(entry->path),
-               entry->selALevel ? 1u : 0u,
+               sensorarrayBoardMapSelaRouteName(entry->selaRoute),
+               selaGpioLevel,
                entry->selBLevel ? 1u : 0u,
                entry->mapLabel ? entry->mapLabel : SENSORARRAY_NA);
     }

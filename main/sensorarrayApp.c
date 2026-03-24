@@ -11,6 +11,7 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayDebug.h"
 #include "sensorarrayLog.h"
+#include "sensorarrayMeasure.h"
 #include "sensorarrayTypes.h"
 
 #if CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
@@ -43,7 +44,11 @@ static void sensorarrayApplyTmuxDefaults(void)
 
     esp_err_t tmuxErr = tmuxSwitchSelectRow(0);
     if (tmuxErr == ESP_OK) {
-        tmuxErr = tmux1134SelectSelALevel(false);
+        tmuxErr = sensorarrayMeasureSetSelaPath(&s_state,
+                                                SENSORARRAY_SELA_ROUTE_ADS1263,
+                                                SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                                "init_default",
+                                                "tmux_defaults");
     }
     if (tmuxErr == ESP_OK) {
         tmuxErr = tmux1134SelectSelBLevel(false);

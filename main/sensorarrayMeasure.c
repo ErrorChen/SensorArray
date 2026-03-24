@@ -28,6 +28,58 @@ static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const se
     return policy ? policy : &kDefaultPolicy;
 }
 
+static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
+{
+    if (!state || !state->adsReady || !state->adsAdc1Running) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = ads126xAdcStopAdc1(&state->ads);
+    if (err == ESP_OK) {
+        state->adsAdc1Running = false;
+    }
+    return err;
+}
+
+static esp_err_t sensorarrayMeasureWriteSela(sensorarrayState_t *state,
+                                             sensorarraySelaRoute_t requestRoute,
+                                             bool selaGpioLevel,
+                                             uint32_t settleDelayMs,
+                                             const char *stage,
+                                             const char *label)
+{
+    (void)state;
+
+    esp_err_t err = tmux1134SelectSelALevel(selaGpioLevel);
+    int selaReadLevel = -1;
+    bool resolvedValid = false;
+    sensorarraySelaRoute_t resolvedRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+
+    tmuxSwitchControlState_t ctrl = {0};
+    if (tmuxSwitchGetControlState(&ctrl) == ESP_OK) {
+        selaReadLevel = ctrl.selaLevel;
+        resolvedValid = sensorarrayBoardMapSelaRouteFromGpioLevel(selaReadLevel, &resolvedRoute);
+    }
+
+    sensorarrayLogSelaRouteDecision(stage,
+                                    label,
+                                    requestRoute,
+                                    selaGpioLevel ? 1 : 0,
+                                    selaReadLevel,
+                                    resolvedValid,
+                                    resolvedRoute);
+    if (selaReadLevel >= 0 && selaReadLevel != (selaGpioLevel ? 1 : 0)) {
+        sensorarrayLogSelaReadbackMismatch(stage, label, selaGpioLevel ? 1 : 0, selaReadLevel);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // SELA changes the TMUX1134 analog branch; give the branch a short, conservative settle window.
+    sensorarrayDelayMs(settleDelayMs);
+    return ESP_OK;
+}
+
 sensorarrayFdcDeviceState_t *sensorarrayMeasureGetFdcState(sensorarrayState_t *state,
                                                             sensorarrayFdcDeviceId_t devId)
 {
@@ -60,12 +112,53 @@ sensorarrayFdcDeviceState_t *sensorarrayMeasureGetFdcStateForDLine(sensorarraySt
     return sensorarrayMeasureGetFdcState(state, map->devId);
 }
 
+esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t *state,
+                                        sensorarraySelaRoute_t selaRoute,
+                                        uint32_t settleDelayMs,
+                                        const char *stage,
+                                        const char *label)
+{
+    if (!state || !state->tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int selaWriteLevel = 0;
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return sensorarrayMeasureWriteSela(state,
+                                       selaRoute,
+                                       (selaWriteLevel != 0),
+                                       settleDelayMs,
+                                       stage,
+                                       label);
+}
+
+esp_err_t sensorarrayMeasureSetSelaGpioLevel(sensorarrayState_t *state,
+                                             bool selaGpioLevel,
+                                             uint32_t settleDelayMs,
+                                             const char *stage,
+                                             const char *label)
+{
+    if (!state || !state->tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    sensorarraySelaRoute_t requestRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+    if (!sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0, &requestRoute)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return sensorarrayMeasureWriteSela(state, requestRoute, selaGpioLevel, settleDelayMs, stage, label);
+}
+
 esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint8_t sColumn,
                                              uint8_t dLine,
                                              sensorarrayDebugPath_t path,
                                              tmux1108Source_t swSource,
-                                             bool selALevel,
+                                             bool selaGpioLevel,
                                              bool selBLevel,
                                              uint32_t delayAfterRowMs,
                                              uint32_t delayAfterSelAMs,
@@ -80,29 +173,54 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
-    sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selALevel, selBLevel, err, "set_row");
+    const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
+    esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
+    sensorarrayLogRouteStep("ads_stop",
+                            label,
+                            sColumn,
+                            dLine,
+                            path,
+                            swSource,
+                            selaGpioLevel,
+                            selBLevel,
+                            err,
+                            adsStopNeeded ? ((err == ESP_OK) ? "stop_ads_before_route" : "stop_ads_error")
+                                          : "ads_already_stopped");
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
+    sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selaGpioLevel, selBLevel, err, "set_row");
     if (err != ESP_OK) {
         return err;
     }
     sensorarrayDelayMs(delayAfterRowMs);
 
-    err = tmux1134SelectSelALevel(selALevel);
-    sensorarrayLogRouteStep("selA", label, sColumn, dLine, path, swSource, selALevel, selBLevel, err, "set_selA");
+    err = sensorarrayMeasureSetSelaGpioLevel(state, selaGpioLevel, delayAfterSelAMs, "selA", label);
+    sensorarrayLogRouteStep("selA",
+                            label,
+                            sColumn,
+                            dLine,
+                            path,
+                            swSource,
+                            selaGpioLevel,
+                            selBLevel,
+                            err,
+                            "set_sela_gpio");
     if (err != ESP_OK) {
         return err;
     }
-    sensorarrayDelayMs(delayAfterSelAMs);
 
     err = tmux1134SelectSelBLevel(selBLevel);
-    sensorarrayLogRouteStep("selB", label, sColumn, dLine, path, swSource, selALevel, selBLevel, err, "set_selB");
+    sensorarrayLogRouteStep("selB", label, sColumn, dLine, path, swSource, selaGpioLevel, selBLevel, err, "set_selB");
     if (err != ESP_OK) {
         return err;
     }
     sensorarrayDelayMs(delayAfterSelBMs);
 
     err = tmuxSwitchSet1108Source(swSource);
-    sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selALevel, selBLevel, err, "set_sw");
+    sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selaGpioLevel, selBLevel, err, "set_sw");
     if (err != ESP_OK) {
         return err;
     }
@@ -134,21 +252,97 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    esp_err_t err = sensorarrayMeasureApplyRouteLevels(state,
-                                                       sColumn,
-                                                       dLine,
-                                                       sensorarrayBoardMapPathToDebugPath(path, swSource),
-                                                       swSource,
-                                                       routeMap->selALevel,
-                                                       routeMap->selBLevel,
-                                                       SENSORARRAY_SETTLE_AFTER_COLUMN_MS,
-                                                       0u,
-                                                       SENSORARRAY_SETTLE_AFTER_PATH_MS,
-                                                       SENSORARRAY_SETTLE_AFTER_SW_MS,
-                                                       routeMap->mapLabel);
+    sensorarrayDebugPath_t debugPath = sensorarrayBoardMapPathToDebugPath(path, swSource);
+    int selaGpioLevel = 0;
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(routeMap->selaRoute, &selaGpioLevel)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
+    esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
+    sensorarrayLogRouteStep("ads_stop",
+                            routeMap->mapLabel,
+                            sColumn,
+                            dLine,
+                            debugPath,
+                            swSource,
+                            (selaGpioLevel != 0),
+                            routeMap->selBLevel,
+                            err,
+                            adsStopNeeded ? ((err == ESP_OK) ? "stop_ads_before_route" : "stop_ads_error")
+                                          : "ads_already_stopped");
     if (err != ESP_OK) {
         return err;
     }
+
+    err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
+    sensorarrayLogRouteStep("row",
+                            routeMap->mapLabel,
+                            sColumn,
+                            dLine,
+                            debugPath,
+                            swSource,
+                            (selaGpioLevel != 0),
+                            routeMap->selBLevel,
+                            err,
+                            "set_row");
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_COLUMN_MS);
+
+    err = sensorarrayMeasureSetSelaPath(state,
+                                        routeMap->selaRoute,
+                                        SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                        "selA",
+                                        routeMap->mapLabel);
+    sensorarrayLogRouteStep("selA",
+                            routeMap->mapLabel,
+                            sColumn,
+                            dLine,
+                            debugPath,
+                            swSource,
+                            (selaGpioLevel != 0),
+                            routeMap->selBLevel,
+                            err,
+                            "set_sela_path");
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = tmux1134SelectSelBLevel(routeMap->selBLevel);
+    sensorarrayLogRouteStep("selB",
+                            routeMap->mapLabel,
+                            sColumn,
+                            dLine,
+                            debugPath,
+                            swSource,
+                            (selaGpioLevel != 0),
+                            routeMap->selBLevel,
+                            err,
+                            "set_selB");
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_PATH_MS);
+
+    err = tmuxSwitchSet1108Source(swSource);
+    sensorarrayLogRouteStep("sw",
+                            routeMap->mapLabel,
+                            sColumn,
+                            dLine,
+                            debugPath,
+                            swSource,
+                            (selaGpioLevel != 0),
+                            routeMap->selBLevel,
+                            err,
+                            "set_sw");
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_SW_MS);
+
+    sensorarrayLogDbgExtraCaptureCtrl();
 
     if (outMapLabel) {
         *outMapLabel = routeMap->mapLabel;

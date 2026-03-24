@@ -18,6 +18,16 @@ typedef enum {
     SENSORARRAY_PATH_CAPACITIVE = 1,
 } sensorarrayPath_t;
 
+/*
+ * Logical destination selected by the SELA branch mux.
+ * Enum values do not encode GPIO levels; the board-specific GPIO mapping lives
+ * in main/sensorarrayBoardMap.c only.
+ */
+typedef enum {
+    SENSORARRAY_SELA_ROUTE_ADS1263 = 0,
+    SENSORARRAY_SELA_ROUTE_FDC2214 = 1,
+} sensorarraySelaRoute_t;
+
 typedef enum {
     SENSORARRAY_DEBUG_PATH_RESISTIVE = 0,
     SENSORARRAY_DEBUG_PATH_CAPACITIVE,
@@ -39,7 +49,7 @@ typedef struct {
     uint8_t sColumn;
     uint8_t dLine;
     sensorarrayPath_t path;
-    bool selALevel;
+    sensorarraySelaRoute_t selaRoute; // Logical SELA target path, not a raw GPIO level.
     bool selBLevel;
     const char *mapLabel;
 } sensorarrayRouteMap_t;
@@ -57,7 +67,7 @@ typedef struct {
     uint8_t dLine;
     sensorarrayDebugPath_t path;
     tmux1108Source_t swSource;
-    bool selALevel;
+    bool selaGpioLevel; // Raw GPIO level used only by low-level debug route modes.
     bool selBLevel;
     bool skipAdsRead;
     bool skipFdcRead;
