@@ -7,6 +7,7 @@
 
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
+#include "sensorarrayDebugCap.h"
 #include "sensorarrayDebugS1d1.h"
 #include "sensorarrayDebugSelftest.h"
 #include "sensorarrayLog.h"
@@ -374,24 +375,6 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
     sensorarrayDebugIdleForever("route_step_once_done");
 }
 
-void sensorarrayDebugRunAdsS1D1OnlyMode(sensorarrayState_t *state,
-                                        const sensorarrayAdsReadPolicy_t *adsPolicy)
-{
-    sensorarrayDebugRunAdsS1D1OnlyModeImpl(state, adsPolicy);
-}
-
-void sensorarrayDebugRunS1D1StaticResistorDebug(sensorarrayState_t *state,
-                                                const sensorarrayAdsReadPolicy_t *adsPolicy)
-{
-    sensorarrayDebugRunS1D1StaticResistorDebugImpl(state, adsPolicy);
-}
-
-void sensorarrayDebugRunS1D1ForceAdsHoldMode(sensorarrayState_t *state,
-                                             const sensorarrayAdsReadPolicy_t *adsPolicy)
-{
-    sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(state, adsPolicy);
-}
-
 void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
                                      const sensorarrayAdsReadPolicy_t *adsPolicy)
 {
@@ -420,8 +403,8 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
     case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
         sensorarrayDebugRunSingleResistorS1D1ModeImpl(state, adsPolicy);
         return;
-    case SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD:
-        sensorarrayDebugRunS1D1ForceAdsHoldModeImpl(state, adsPolicy);
+    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
+        sensorarrayDebugRunS5D5CapFdcSecondaryMode(state);
         return;
     default:
         sensorarrayRunBringupLoop(state, adsPolicy);

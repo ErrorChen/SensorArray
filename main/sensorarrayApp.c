@@ -14,18 +14,6 @@
 #include "sensorarrayMeasure.h"
 #include "sensorarrayTypes.h"
 
-#if CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
-#define SENSORARRAY_S1D1_ROUTE_ONLY_BEHAVIOR 0
-#else
-#define SENSORARRAY_S1D1_ROUTE_ONLY_BEHAVIOR 1
-#endif
-
-#if CONFIG_SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
-#define SENSORARRAY_S1D1_STATIC_ROUTE_ONLY_BEHAVIOR 0
-#else
-#define SENSORARRAY_S1D1_STATIC_ROUTE_ONLY_BEHAVIOR 1
-#endif
-
 static sensorarrayState_t s_state = {0};
 
 static const sensorarrayAdsReadPolicy_t s_adsReadPolicy = {
@@ -74,13 +62,11 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
-    bool s1d1StaticMode = (CONFIG_SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG != 0);
-    bool s1d1StaticRouteOnly = s1d1StaticMode && (SENSORARRAY_S1D1_STATIC_ROUTE_ONLY_BEHAVIOR != 0);
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
-    bool s1d1ForceAdsHoldMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD);
-    bool s1d1RouteOnly = s1d1StaticRouteOnly || (s1d1ResMode && (SENSORARRAY_S1D1_ROUTE_ONLY_BEHAVIOR != 0));
-    bool adsS1d1OnlyMode = (SENSORARRAY_DEBUG_ADS_S1D1_ONLY != 0);
-    bool s1d1SkipFdcMode = s1d1StaticMode || s1d1ResMode || s1d1ForceAdsHoldMode || adsS1d1OnlyMode;
+    bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
+    bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
+    bool skipAdsInit = s1d1RouteOnly || singleCapFdcMode;
+    bool skipFdcInit = s1d1ResMode;
 
     uint8_t requestedChannels = sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -101,14 +87,6 @@ void sensorarrayAppRun(void)
                                                                 &s_state.fdcSecondary.i2cAddr);
 
     sensorarrayLogStartup("app", ESP_OK, "start", 0);
-    sensorarrayLogStartup("ads_s1d1_only_mode",
-                          ESP_OK,
-                          adsS1d1OnlyMode ? "enabled" : "disabled",
-                          adsS1d1OnlyMode ? 1 : 0);
-    sensorarrayLogStartup("s1d1_force_ads_hold_mode",
-                          ESP_OK,
-                          s1d1ForceAdsHoldMode ? "enabled" : "disabled",
-                          s1d1ForceAdsHoldMode ? 1 : 0);
     sensorarrayLogStartup("fdc_channels", ESP_OK, "policy_applied", (int32_t)requestedChannels);
     sensorarrayLogStartupFdc("fdc_cfg",
                              &s_state.fdcPrimary,
@@ -140,13 +118,14 @@ void sensorarrayAppRun(void)
 
     sensorarrayApplyTmuxDefaults();
 
-    if (s1d1RouteOnly && !adsS1d1OnlyMode) {
+    if (skipAdsInit) {
+        const char *adsSkipStatus = singleCapFdcMode ? "skip_cap_fdc_secondary_mode" : "skip_route_only_mode";
         s_state.adsReady = false;
         s_state.adsRefReady = false;
         s_state.adsAdc1Running = false;
         s_state.adsRefMuxValid = false;
-        sensorarrayLogStartup("ads", ESP_ERR_INVALID_STATE, "skip_route_only_mode", 0);
-        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_route_only_mode", 0);
+        sensorarrayLogStartup("ads", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
+        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
     } else {
         err = sensorarrayBringupInitAds(&s_state);
         s_state.adsReady = (err == ESP_OK);
@@ -165,16 +144,11 @@ void sensorarrayAppRun(void)
     }
     sensorarrayLogSetAdsState(s_state.adsReady, s_state.adsRefReady);
 
-    if (s1d1SkipFdcMode) {
-        const char *fdcSkipStatus = s1d1ForceAdsHoldMode ? "skip_s1d1_force_ads_hold_mode"
-                                                         : (adsS1d1OnlyMode ? "skip_ads_s1d1_only_mode"
-                                                                            : (s1d1StaticMode
-                                                                                   ? "skip_s1d1_static_mode"
-                                                                                   : "skip_s1d1_resistor_mode"));
+    if (skipFdcInit) {
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcPrimary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 fdcSkipStatus,
+                                 "skip_s1d1_resistor_mode",
                                  0,
                                  false,
                                  0,
@@ -183,7 +157,7 @@ void sensorarrayAppRun(void)
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcSecondary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 fdcSkipStatus,
+                                 "skip_s1d1_resistor_mode",
                                  0,
                                  false,
                                  0,
@@ -299,23 +273,6 @@ void sensorarrayAppRun(void)
                                  0,
                                  0,
                                  "D5..D8_secondary_selb_side");
-    }
-
-    if (s1d1ForceAdsHoldMode) {
-        sensorarrayDebugRunS1D1ForceAdsHoldMode(&s_state, &s_adsReadPolicy);
-        return;
-    }
-
-    if (adsS1d1OnlyMode) {
-        // Old mode: ADS-only raw sweep (cycles SELA/SELB states).
-        // New mode: SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD keeps one forced route static.
-        sensorarrayDebugRunAdsS1D1OnlyMode(&s_state, &s_adsReadPolicy);
-        return;
-    }
-
-    if (s1d1StaticMode) {
-        sensorarrayDebugRunS1D1StaticResistorDebug(&s_state, &s_adsReadPolicy);
-        return;
     }
 
     sensorarrayDebugRunSelectedMode(&s_state, &s_adsReadPolicy);

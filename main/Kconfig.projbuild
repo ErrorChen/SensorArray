@@ -151,25 +151,52 @@ config SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
     bool "S1D1_RESISTOR_DEBUG"
     help
         Dedicated single-point resistor debug mode for S1D1 on ADS path only.
-config SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
-    bool "S1D1_FORCE_ADS_HOLD"
+config SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    bool "S5D5_CAP_FDC_SECONDARY"
     help
-        Force S1D1 to ADS1263 branch and hold SELA/SELB static for oscilloscope exclusion testing.
+        Lock the matrix to S5D5 capacitive route and stream samples from the
+        secondary FDC2214 (D5 -> secondary, CH0). This mode is intended for
+        SELB / secondary FDC2214 single-point debug only.
 endchoice
 
-config SENSORARRAY_S1D1_FORCE_ADS_HOLD_LOOP_MS
-    int "S1D1 force-ADS-hold loop delay (ms)"
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_S_COLUMN
+    int "Single-cap debug S column"
+    default 5
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Default target is S5 for S5D5 / SELB / secondary FDC2214 debug.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_D_LINE
+    int "Single-cap debug D line"
+    default 5
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Default target is D5, which must map to secondary FDC2214 CH0.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOOP_DELAY_MS
+    int "Single-cap debug loop delay (ms)"
     default 1000
     range 50 10000
-    depends on SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
-
-config SENSORARRAY_S1D1_FORCE_ADS_REAPPLY_EACH_LOOP
-    bool "S1D1 force-ADS-hold: re-apply route each loop"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S1D1_FORCE_ADS_HOLD
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        n: apply force route once then hold and only read back.
-        y: re-assert the same force route before each loop.
+        Delay between secondary FDC2214 sample bursts while S5D5 route stays locked.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST
+    bool "Single-cap debug: discard first sample"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Discard the first FDC2214 sample in each loop before reporting final data.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SAMPLE_COUNT
+    int "Single-cap debug: sample count per loop"
+    default 1
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Small burst size for S5D5 / secondary FDC2214 sample logging.
 
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
     prompt "S1D1 resistor debug behavior"
@@ -195,42 +222,6 @@ config SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
     bool "S1D1 ADS helper: discard first sample"
     default y
     depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
-
-config SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
-    bool "Enable S1D1 static resistor debug mode"
-    default n
-    help
-        Force app_main() into a dedicated S1D1-only resistive debug path.
-        This mode holds one matrix route for board-level probing and does not
-        enter the rotating bring-up scan loop.
-
-choice SENSORARRAY_S1D1_STATIC_BEHAVIOUR
-    prompt "S1D1 static debug behaviour"
-    default SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
-    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
-config SENSORARRAY_S1D1_STATIC_ROUTE_ONLY
-    bool "ROUTE_ONLY"
-    help
-        Apply S1D1 resistive route, hold it static, and emit heartbeat logs.
-config SENSORARRAY_S1D1_STATIC_ROUTE_AND_READ
-    bool "ROUTE_AND_READ"
-    help
-        Keep S1D1 resistive route static and read ADS D1 once per loop.
-endchoice
-
-config SENSORARRAY_S1D1_STATIC_LOOP_DELAY_MS
-    int "S1D1 static loop delay (ms)"
-    default 1000
-    range 50 10000
-    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
-
-config SENSORARRAY_S1D1_STATIC_REAPPLY_ROUTE_EACH_LOOP
-    bool "S1D1 static: re-apply route each loop"
-    default n
-    depends on SENSORARRAY_S1D1_RESISTOR_STATIC_DEBUG
-    help
-        n: apply route once and hold control lines fixed.
-        y: re-assert the same S1D1 route before each loop iteration.
 
 config SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
     int "Route step delay (ms)"

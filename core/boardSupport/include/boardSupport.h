@@ -16,6 +16,14 @@ typedef struct {
     uint32_t TimeoutMs;
 } BoardSupportI2cCtx_t;
 
+typedef struct {
+    bool Enabled;
+    i2c_port_t Port;
+    int SdaGpio;
+    int SclGpio;
+    uint32_t FrequencyHz;
+} BoardSupportI2cBusInfo_t;
+
 // Initialize board-level buses (I2C primary and optional secondary).
 esp_err_t boardSupportInit(void);
 // Deinitialize buses initialized by boardSupportInit.
@@ -28,6 +36,8 @@ bool boardSupportIsI2c1Enabled(void);
 const BoardSupportI2cCtx_t* boardSupportGetI2cCtx(void);
 // Returns the default I2C context for the optional second bus, or NULL if disabled.
 const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void);
+// Returns configured bus metadata for the selected board-level I2C bus.
+bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo);
 
 // Convenience I2C callbacks matching Fdc2214Cap bus config signatures.
 esp_err_t boardSupportI2cWriteRead(void* userCtx,

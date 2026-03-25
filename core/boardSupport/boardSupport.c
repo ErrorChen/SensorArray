@@ -162,6 +162,34 @@ const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void)
     return &s_i2c1_ctx;
 }
 
+bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo)
+{
+    if (!outInfo) {
+        return false;
+    }
+
+    if (secondary) {
+        *outInfo = (BoardSupportI2cBusInfo_t){
+            .Enabled = boardSupportIsI2c1Enabled(),
+            .Port = (i2c_port_t)CONFIG_BOARD_I2C1_PORT,
+            .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
+            .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
+            .FrequencyHz = CONFIG_BOARD_I2C_FREQ_HZ,
+        };
+        return true;
+    }
+
+    *outInfo = (BoardSupportI2cBusInfo_t){
+        .Enabled = boardSupportI2cPinsValid(CONFIG_BOARD_I2C_SDA_GPIO, CONFIG_BOARD_I2C_SCL_GPIO) &&
+                   (CONFIG_BOARD_I2C_PORT >= 0),
+        .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
+        .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
+        .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
+        .FrequencyHz = CONFIG_BOARD_I2C_FREQ_HZ,
+    };
+    return true;
+}
+
 esp_err_t boardSupportI2cWriteRead(void* userCtx,
                                   uint8_t addr7,
                                   const uint8_t* tx,

@@ -7,6 +7,7 @@ idf_component_register(
         "sensorarrayMeasure.c"
         "sensorarrayLog.c"
         "sensorarrayDebug.c"
+        "sensorarrayDebugCap.c"
         "sensorarrayDebugSelftest.c"
         "sensorarrayDebugS1d1.c"
     INCLUDE_DIRS "."
