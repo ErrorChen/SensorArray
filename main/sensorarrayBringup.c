@@ -109,7 +109,7 @@ static esp_err_t sensorarrayApplyFdcModePolicy(Fdc2214CapDevice_t *dev, uint8_t 
     return Fdc2214CapSetAutoScanMode(dev, rrSequence, FDC2214_DEGLITCH_10MHZ);
 }
 
-static esp_err_t sensorarrayProbeFdcAddress(const BoardSupportI2cCtx_t *i2cCtx,
+esp_err_t sensorarrayBringupProbeFdcAddress(const BoardSupportI2cCtx_t *i2cCtx,
                                             uint8_t i2cAddr,
                                             uint16_t *outManufacturerId)
 {
@@ -124,6 +124,33 @@ static esp_err_t sensorarrayProbeFdcAddress(const BoardSupportI2cCtx_t *i2cCtx,
         *outManufacturerId = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
     }
     return err;
+}
+
+esp_err_t sensorarrayBringupReadFdcIdsRaw(const BoardSupportI2cCtx_t *i2cCtx,
+                                          uint8_t i2cAddr,
+                                          uint16_t *outManufacturerId,
+                                          uint16_t *outDeviceId)
+{
+    if (!i2cCtx || !outManufacturerId || !outDeviceId) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t reg = SENSORARRAY_FDC_REG_MANUFACTURER_ID;
+    uint8_t rx[2] = {0};
+    esp_err_t err = boardSupportI2cWriteRead((void *)i2cCtx, i2cAddr, &reg, sizeof(reg), rx, sizeof(rx));
+    if (err != ESP_OK) {
+        return err;
+    }
+    *outManufacturerId = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
+
+    reg = (uint8_t)(SENSORARRAY_FDC_REG_MANUFACTURER_ID + 1u);
+    err = boardSupportI2cWriteRead((void *)i2cCtx, i2cAddr, &reg, sizeof(reg), rx, sizeof(rx));
+    if (err != ESP_OK) {
+        return err;
+    }
+    *outDeviceId = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
+
+    return ESP_OK;
 }
 
 uint8_t sensorarrayBringupNormalizeFdcChannels(uint8_t channels)
@@ -300,7 +327,7 @@ void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState)
         probeState.i2cAddr = probeAddresses[i];
 
         uint16_t manufacturerId = 0;
-        esp_err_t err = sensorarrayProbeFdcAddress(fdcState->i2cCtx, probeState.i2cAddr, &manufacturerId);
+        esp_err_t err = sensorarrayBringupProbeFdcAddress(fdcState->i2cCtx, probeState.i2cAddr, &manufacturerId);
         sensorarrayLogStartupFdc("fdc_probe",
                                  &probeState,
                                  err,
@@ -442,6 +469,66 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     if (outDiag) {
         outDiag->status = "ok";
         outDiag->detail = (int32_t)channels;
+    }
+    return ESP_OK;
+#endif
+}
+
+esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2cCtx,
+                                                  uint8_t i2cAddr,
+                                                  Fdc2214CapChannel_t channel,
+                                                  Fdc2214CapDevice_t **outDev,
+                                                  sensorarrayFdcInitDiag_t *outDiag)
+{
+    sensorarrayBringupInitFdcDiag(outDiag);
+
+#if !CONFIG_FDC2214CAP_ENABLE
+    (void)i2cCtx;
+    (void)i2cAddr;
+    (void)channel;
+    (void)outDev;
+    if (outDiag) {
+        outDiag->status = "component_disabled";
+    }
+    return ESP_ERR_NOT_SUPPORTED;
+#else
+    if (!i2cCtx || !outDev || channel < FDC2214_CH0 || channel > FDC2214_CH3) {
+        if (outDiag) {
+            outDiag->status = "invalid_args";
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /*
+     * Reuse the validated multi-channel bring-up flow so reset/ID checks and
+     * conservative channel register defaults stay centralized in one place.
+     * channel+1 ensures target CHx register is configured before forcing
+     * single-channel mode.
+     */
+    uint8_t channelsToConfigure = (uint8_t)channel + 1u;
+    esp_err_t err = sensorarrayBringupInitFdcDevice(i2cCtx,
+                                                    i2cAddr,
+                                                    channelsToConfigure,
+                                                    outDev,
+                                                    outDiag);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = Fdc2214CapSetSingleChannelMode(*outDev, channel);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "single_channel_mode_failure";
+            outDiag->detail = (int32_t)channel;
+        }
+        Fdc2214CapDestroy(*outDev);
+        *outDev = NULL;
+        return err;
+    }
+
+    if (outDiag) {
+        outDiag->status = "ok_single_channel";
+        outDiag->detail = (int32_t)channel;
     }
     return ESP_OK;
 #endif

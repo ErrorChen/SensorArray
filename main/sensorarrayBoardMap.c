@@ -9,9 +9,15 @@ static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // Board/application route recipes used by current debug workflows.
     { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S1D1_res_sela_ads1263" },
     { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S4D4_res_sela_ads1263_selb0" },
-    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, false, "S5D5_cap_sela_fdc2214_selb0" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, false, "S8D7_cap_sela_fdc2214_selb0" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, true, "S8D7_volt_sela_ads1263_selb1" },
+    /*
+     * Confirmed mapping (datasheets/circuit.pdf page4 + TMUX1134 truth table):
+     *  - U7 (SELB device) serves D5..D8.
+     *  - On TMUX1134, SEL=1 selects SxA (capacitive Cx), SEL=0 selects SxB (resistive Rx).
+     * Therefore capacitive D5/D7 routes require selBLevel=true, and resistive D7 requires false.
+     */
+    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S5D5_cap_selb_fdc2214" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D7_cap_selb_fdc2214_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D7_volt_sela_ads1263_selb0" },
     { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D8_cap_sela_fdc2214_selb1" },
     { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D8_volt_sela_ads1263_selb0" },
 };

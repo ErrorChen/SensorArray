@@ -7,7 +7,7 @@
 
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
-#include "sensorarrayDebugCap.h"
+#include "sensorarrayDebugFdcSelbS5d5.h"
 #include "sensorarrayDebugS1d1.h"
 #include "sensorarrayDebugSelftest.h"
 #include "sensorarrayLog.h"
@@ -376,9 +376,9 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
 }
 
 void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
-                                     const sensorarrayAdsReadPolicy_t *adsPolicy)
+                                     const sensorarrayAdsReadPolicy_t *adsPolicy,
+                                     sensorarrayDebugMode_t mode)
 {
-    sensorarrayDebugMode_t mode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
     sensorarrayLogStartup("debug_mode", ESP_OK, sensorarrayLogDebugModeName(mode), (int32_t)mode);
 
     switch (mode) {
@@ -404,7 +404,7 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
         sensorarrayDebugRunSingleResistorS1D1ModeImpl(state, adsPolicy);
         return;
     case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
-        sensorarrayDebugRunS5D5CapFdcSecondaryMode(state);
+        sensorarrayDebugRunTestFdc2214SelbS5D5(state);
         return;
     default:
         sensorarrayRunBringupLoop(state, adsPolicy);

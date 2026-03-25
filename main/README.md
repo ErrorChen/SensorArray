@@ -32,7 +32,7 @@
 - `sensorarrayMeasure.c/.h`: route 应用、采样、重试/丢弃、换算。
 - `sensorarrayLog.c/.h`: `INIT,...` / `DBG,...` / `DBGCTRL,...` 日志辅助。
 - `sensorarrayDebug.c/.h`: 调度器 + 通用路由调试模式。
-- `sensorarrayDebugCap.c/.h`: `S5D5` / secondary FDC2214 单点电容调试模式。
+- `sensorarrayDebugFdcSelbS5d5.c/.h`: `S5D5` / SELB / secondary FDC2214 专用 bring-up 调试模式。
 - `sensorarrayDebugSelftest.c/.h`: ADS/FDC 自检模式。
 - `sensorarrayDebugS1d1.c/.h`: S1D1 电阻专项调试模式。
 
@@ -76,4 +76,4 @@
 
 - 入口已完成去 god-file 化重构。
 - 调试执行体已按“调度 / 自检 / 单点电容 / S1D1 专项”拆分。
-- `S5D5` 电容 route 已固化为 `sela_fdc2214` 正式语义。
+- `S5D5` 电容调试入口已固定为 `SELB + secondary FDC2214(0x2A)` 专用路径。

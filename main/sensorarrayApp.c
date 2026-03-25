@@ -62,6 +62,9 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+#if CONFIG_SENSORARRAY_DEBUG_FORCE_FDC_SELB_S5D5
+    activeMode = SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY;
+#endif
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
     bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
@@ -85,6 +88,11 @@ void sensorarrayAppRun(void)
                                                               &s_state.fdcPrimary.i2cAddr);
     bool secondaryAddrValid = sensorarrayBringupParseI2cAddress((uint32_t)CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR,
                                                                 &s_state.fdcSecondary.i2cAddr);
+    if (singleCapFdcMode) {
+        // Dedicated SELB bring-up is fixed to ADDR-low secondary FDC2214.
+        s_state.fdcSecondary.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_LOW;
+        secondaryAddrValid = true;
+    }
 
     sensorarrayLogStartup("app", ESP_OK, "start", 0);
     sensorarrayLogStartup("fdc_channels", ESP_OK, "policy_applied", (int32_t)requestedChannels);
@@ -100,13 +108,17 @@ void sensorarrayAppRun(void)
     sensorarrayLogStartupFdc("fdc_cfg",
                              &s_state.fdcSecondary,
                              secondaryAddrValid ? ESP_OK : ESP_ERR_INVALID_ARG,
-                             secondaryAddrValid ? "configured" : "invalid_addr_config",
-                             (int32_t)CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR,
+                             secondaryAddrValid
+                                 ? (singleCapFdcMode ? "forced_addr_low_for_selb_mode" : "configured")
+                                 : "invalid_addr_config",
+                             (int32_t)s_state.fdcSecondary.i2cAddr,
                              false,
                              0,
                              0,
                              "D5..D8_secondary_selb_side");
-    sensorarrayBoardMapAudit();
+    if (!singleCapFdcMode) {
+        sensorarrayBoardMapAudit();
+    }
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -167,7 +179,17 @@ void sensorarrayAppRun(void)
         s_state.fdcPrimary.i2cCtx = boardSupportGetI2cCtx();
         s_state.fdcSecondary.i2cCtx = boardSupportGetI2c1Ctx();
 
-        if (!primaryAddrValid) {
+        if (singleCapFdcMode) {
+            sensorarrayLogStartupFdc("fdc_init",
+                                     &s_state.fdcPrimary,
+                                     ESP_ERR_NOT_SUPPORTED,
+                                     "skip_selb_single_point_mode",
+                                     0,
+                                     false,
+                                     0,
+                                     0,
+                                     "D1..D4_primary_sela_side");
+        } else if (!primaryAddrValid) {
             sensorarrayLogStartupFdc("fdc_init",
                                      &s_state.fdcPrimary,
                                      ESP_ERR_INVALID_ARG,
@@ -237,7 +259,7 @@ void sensorarrayAppRun(void)
             sensorarrayFdcInitDiag_t diag = {0};
             err = sensorarrayBringupInitFdcDevice(s_state.fdcSecondary.i2cCtx,
                                                   s_state.fdcSecondary.i2cAddr,
-                                                  requestedChannels,
+                                                  singleCapFdcMode ? 1u : requestedChannels,
                                                   &s_state.fdcSecondary.handle,
                                                   &diag);
             s_state.fdcSecondary.ready = (err == ESP_OK);
@@ -248,7 +270,7 @@ void sensorarrayAppRun(void)
                                      &s_state.fdcSecondary,
                                      err,
                                      diag.status,
-                                     (err == ESP_OK) ? (int32_t)requestedChannels : diag.detail,
+                                     (err == ESP_OK) ? (int32_t)(singleCapFdcMode ? 1u : requestedChannels) : diag.detail,
                                      diag.haveIds,
                                      diag.manufacturerId,
                                      diag.deviceId,
@@ -275,5 +297,5 @@ void sensorarrayAppRun(void)
                                  "D5..D8_secondary_selb_side");
     }
 
-    sensorarrayDebugRunSelectedMode(&s_state, &s_adsReadPolicy);
+    sensorarrayDebugRunSelectedMode(&s_state, &s_adsReadPolicy, activeMode);
 }

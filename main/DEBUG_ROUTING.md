@@ -22,7 +22,7 @@ Available modes:
 - `ADS_SELFTEST`: ADS-only deterministic self-test sequence.
 - `FDC_SELFTEST`: FDC-only deterministic self-test sequence.
 - `S1D1_RESISTOR_DEBUG`: single-point resistor debug using the board-map route for `S1D1`.
-- `S5D5_CAP_FDC_SECONDARY`: lock `S5D5` capacitive route and stream `D5 -> secondary FDC2214 CH0`.
+- `S5D5_CAP_FDC_SECONDARY`: dedicated `S5D5 / SELB / secondary FDC2214(0x2A)` bring-up path.
 
 ## Manual probe mode (freeze one route)
 Use `ROUTE_FIXED_STATE` and configure:
@@ -71,7 +71,7 @@ At boot, firmware prints:
 `S5D5` capacitive route is now expected to report:
 - `path=cap`
 - `selaRoute=FDC2214`
-- `label=S5D5_cap_sela_fdc2214_selb0`
+- `label=S5D5_cap_selb_fdc2214`
 
 ## Control GPIO observability
 After route operations, firmware prints:
