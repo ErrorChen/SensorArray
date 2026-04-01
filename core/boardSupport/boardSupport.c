@@ -11,7 +11,7 @@
 static const char *TAG = "boardSupport";
 
 #ifndef CONFIG_BOARD_I2C_FREQ_HZ
-#define CONFIG_BOARD_I2C_FREQ_HZ 350000
+#define CONFIG_BOARD_I2C_FREQ_HZ 375000
 #endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
