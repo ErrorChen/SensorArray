@@ -151,23 +151,124 @@ void sensorarrayDebugRunFdcSelftestModeImpl(sensorarrayState_t *state)
         sampleCount = 1u;
     }
 
+    uint32_t validCount = 0u;
+    uint32_t i2cErrCount = 0u;
+    uint32_t configUnknownCount = 0u;
+    uint32_t stillSleepingCount = 0u;
+    uint32_t notConvertingCount = 0u;
+    uint32_t noUnreadCount = 0u;
+    uint32_t zeroRawCount = 0u;
+    uint32_t watchdogCount = 0u;
+    uint32_t amplitudeCount = 0u;
+
     for (uint8_t i = 0; i < sampleCount; ++i) {
-        Fdc2214CapSample_t sample = {0};
         bool doDiscard = discardFirst && (i == 0u);
-        esp_err_t err = sensorarrayMeasureReadFdcSample(fdcState->handle, fdcMap->channel, doDiscard, &sample);
-        printf("DBGFDCSELF,index=%u,dLine=%u,fdcDev=%s,channel=%u,discardFirst=%u,raw=%lu,wd=%u,amp=%u,err=%ld,"
-               "status=%s\n",
+        sensorarrayFdcReadDiag_t diag = {0};
+        esp_err_t err = sensorarrayMeasureReadFdcSampleDiag(fdcState->handle,
+                                                            fdcMap->channel,
+                                                            doDiscard,
+                                                            fdcState->haveIds,
+                                                            fdcState->configVerified,
+                                                            &diag);
+        const char *statusName = sensorarrayMeasureFdcSampleStatusName(diag.statusCode);
+        const char *refClockName = (diag.sample.RefClockSource == FDC2214_REF_CLOCK_EXTERNAL)
+                                       ? "external_clkin"
+                                       : "internal_oscillator";
+
+        switch (diag.statusCode) {
+        case SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID:
+            validCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR:
+            i2cErrCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN:
+            configUnknownCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_STILL_SLEEPING:
+            stillSleepingCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING:
+            notConvertingCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION:
+            noUnreadCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID:
+            zeroRawCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT:
+            watchdogCount++;
+            break;
+        case SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT:
+            amplitudeCount++;
+            break;
+        default:
+            configUnknownCount++;
+            break;
+        }
+
+        printf("DBGFDCSELF,index=%u,dLine=%u,fdcDev=%s,channel=%u,discardFirst=%u,i2cOk=%u,idOk=%u,configOk=%u,"
+               "converting=%u,unread=%u,sampleValid=%u,raw=%lu,wd=%u,amp=%u,statusReg=0x%04X,configReg=0x%04X,"
+               "muxReg=0x%04X,refClock=%s,err=%ld,status=%s\n",
                (unsigned)i,
                (unsigned)dLine,
                fdcState->label ? fdcState->label : SENSORARRAY_NA,
                (unsigned)fdcMap->channel,
                doDiscard ? 1u : 0u,
-               (unsigned long)sample.Raw28,
-               sample.ErrWatchdog ? 1u : 0u,
-               sample.ErrAmplitude ? 1u : 0u,
+               diag.i2cOk ? 1u : 0u,
+               diag.idOk ? 1u : 0u,
+               diag.configOk ? 1u : 0u,
+               diag.converting ? 1u : 0u,
+               diag.unreadConversionPresent ? 1u : 0u,
+               diag.sampleValid ? 1u : 0u,
+               (unsigned long)diag.sample.Raw28,
+               diag.sample.ErrWatchdog ? 1u : 0u,
+               diag.sample.ErrAmplitude ? 1u : 0u,
+               diag.sample.StatusRaw,
+               diag.sample.ConfigRaw,
+               diag.sample.MuxRaw,
+               refClockName,
                (long)err,
-               (err == ESP_OK) ? "ok" : "read_error");
+               statusName);
     }
+
+    uint32_t invalidCount = i2cErrCount + configUnknownCount + stillSleepingCount + notConvertingCount + noUnreadCount +
+                            zeroRawCount + watchdogCount + amplitudeCount;
+    const char *rootCause = "sample_valid";
+    if (i2cErrCount > 0u) {
+        rootCause = "i2c_read_error";
+    } else if (configUnknownCount > 0u) {
+        rootCause = "config_unknown";
+    } else if (stillSleepingCount > 0u) {
+        rootCause = "device_still_sleeping";
+    } else if (notConvertingCount > 0u) {
+        rootCause = "not_converting";
+    } else if (noUnreadCount > 0u) {
+        rootCause = "no_unread_conversions";
+    } else if (zeroRawCount > 0u) {
+        rootCause = "raw_stuck_zero";
+    } else if (watchdogCount > 0u) {
+        rootCause = "watchdog_fault";
+    } else if (amplitudeCount > 0u) {
+        rootCause = "amplitude_fault";
+    }
+
+    printf("DBGFDCSELF_SUMMARY,dLine=%u,samples=%u,valid=%lu,invalid=%lu,i2cErr=%lu,configUnknown=%lu,stillSleeping=%lu,"
+           "notConverting=%lu,noUnread=%lu,zeroRaw=%lu,watchdog=%lu,amplitude=%lu,rootCause=%s\n",
+           (unsigned)dLine,
+           (unsigned)sampleCount,
+           (unsigned long)validCount,
+           (unsigned long)invalidCount,
+           (unsigned long)i2cErrCount,
+           (unsigned long)configUnknownCount,
+           (unsigned long)stillSleepingCount,
+           (unsigned long)notConvertingCount,
+           (unsigned long)noUnreadCount,
+           (unsigned long)zeroRawCount,
+           (unsigned long)watchdogCount,
+           (unsigned long)amplitudeCount,
+           rootCause);
 
     sensorarrayDebugIdleForever("fdc_selftest_done");
 }

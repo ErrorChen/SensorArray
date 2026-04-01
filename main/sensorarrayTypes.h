@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "esp_err.h"
+
 #include "ads126xAdc.h"
 #include "boardSupport.h"
 #include "fdc2214Cap.h"
@@ -97,7 +99,40 @@ typedef struct {
     bool haveIds;
     uint16_t manufacturerId;
     uint16_t deviceId;
+    bool configVerified;
+    bool refClockKnown;
+    Fdc2214CapRefClockSource_t refClockSource;
+    uint32_t refClockHz;
+    uint16_t statusConfigReg;
+    uint16_t configReg;
+    uint16_t muxConfigReg;
 } sensorarrayFdcDeviceState_t;
+
+typedef enum {
+    SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR = 0,
+    SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN,
+    SENSORARRAY_FDC_SAMPLE_STATUS_STILL_SLEEPING,
+    SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING,
+    SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION,
+    SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID,
+    SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT,
+    SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT,
+    SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID,
+} sensorarrayFdcSampleStatus_t;
+
+typedef struct {
+    esp_err_t err;
+    Fdc2214CapSample_t sample;
+    Fdc2214CapStatus_t status;
+    Fdc2214CapCoreRegs_t coreRegs;
+    bool i2cOk;
+    bool idOk;
+    bool configOk;
+    bool converting;
+    bool unreadConversionPresent;
+    bool sampleValid;
+    sensorarrayFdcSampleStatus_t statusCode;
+} sensorarrayFdcReadDiag_t;
 
 typedef enum {
     SENSORARRAY_RES_CONVERT_OK = 0,
@@ -110,6 +145,13 @@ typedef struct {
     bool haveIds;
     uint16_t manufacturerId;
     uint16_t deviceId;
+    bool configVerified;
+    bool refClockKnown;
+    Fdc2214CapRefClockSource_t refClockSource;
+    uint32_t refClockHz;
+    uint16_t statusConfigReg;
+    uint16_t configReg;
+    uint16_t muxConfigReg;
     int32_t detail;
 } sensorarrayFdcInitDiag_t;
 

@@ -11,6 +11,9 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayLog.h"
 
+#define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
+#define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
+
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
     if (delayMs > 0u) {
@@ -91,22 +94,230 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
     return spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
 }
 
-static esp_err_t sensorarrayApplyFdcModePolicy(Fdc2214CapDevice_t *dev, uint8_t channels)
+static Fdc2214CapRefClockSource_t sensorarrayBringupFdcRefClockSource(void)
 {
-    channels = sensorarrayBringupNormalizeFdcChannels(channels);
+#if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    return FDC2214_REF_CLOCK_EXTERNAL;
+#else
+    return FDC2214_REF_CLOCK_INTERNAL;
+#endif
+}
 
-    if (channels == 1u) {
-        return Fdc2214CapSetSingleChannelMode(dev, FDC2214_CH0);
+static const char *sensorarrayBringupFdcRefClockName(Fdc2214CapRefClockSource_t source)
+{
+    return (source == FDC2214_REF_CLOCK_EXTERNAL) ? "external_clkin" : "internal_oscillator";
+}
+
+static bool sensorarrayBringupFdcAutoScanForChannels(uint8_t channels)
+{
+    return channels > 1u;
+}
+
+static uint8_t sensorarrayBringupFdcRrSequenceForChannels(uint8_t channels)
+{
+    if (channels <= 2u) {
+        return 0u; // CH0..CH1
+    }
+    if (channels == 3u) {
+        return 1u; // CH0..CH2
+    }
+    return 2u; // CH0..CH3
+}
+
+static Fdc2214CapChannelConfig_t sensorarrayBringupFdcDebugChannelProfile(uint8_t channelIndex)
+{
+    (void)channelIndex;
+
+    /*
+     * Explicit single-channel debug profile for deterministic CH0 bring-up:
+     * - CLOCK_DIVIDERS explicitly sets both CHx_FIN_SEL and CHx_FREF_DIVIDER.
+     * - Values follow datasheet-style single-channel examples and avoid implicit defaults.
+     */
+    return (Fdc2214CapChannelConfig_t){
+        .Rcount = SENSORARRAY_FDC_DEBUG_RCOUNT_CH0,
+        .SettleCount = SENSORARRAY_FDC_DEBUG_SETTLECOUNT_CH0,
+        .Offset = SENSORARRAY_FDC_DEBUG_OFFSET_CH0,
+        .ClockDividers = SENSORARRAY_FDC_DEBUG_CLOCK_DIVIDERS_CH0,
+        .DriveCurrent = SENSORARRAY_FDC_DEBUG_DRIVE_CURRENT_CH0,
+    };
+}
+
+static uint16_t sensorarrayBringupFdcExpectedMuxConfig(uint8_t channels)
+{
+    bool autoScan = sensorarrayBringupFdcAutoScanForChannels(channels);
+    uint8_t rrSequence = sensorarrayBringupFdcRrSequenceForChannels(channels);
+    uint16_t muxConfig = 0x0208u; // Reserved bits [12:3] must be 00_0100_0001b.
+    if (autoScan) {
+        muxConfig |= 0x8000u;
+        muxConfig |= (uint16_t)((uint16_t)rrSequence << 13);
+    }
+    muxConfig |= (uint16_t)FDC2214_DEGLITCH_10MHZ;
+    return muxConfig;
+}
+
+static uint16_t sensorarrayBringupFdcExpectedStatusConfig(void)
+{
+    return SENSORARRAY_FDC_STATUS_CONFIG_DEFAULT;
+}
+
+static uint16_t sensorarrayBringupFdcBuildFinalConfig(Fdc2214CapChannel_t activeChannel)
+{
+    Fdc2214CapConfigOptions_t config = {
+        .ActiveChannel = activeChannel,
+        .SleepModeEnabled = false,
+        // Keep full activation drive during sensor wake-up for strict debug reproducibility.
+        .SensorActivateSelLowPower = false,
+        .RefClockSource = sensorarrayBringupFdcRefClockSource(),
+        // Keep INTB disabled; software polling and explicit status checks are used in debug flows.
+        .IntbDisabled = true,
+        .HighCurrentDrive = false,
+    };
+    return Fdc2214CapBuildConfig(&config);
+}
+
+static esp_err_t sensorarrayBringupReadFdcReg(Fdc2214CapDevice_t *dev, uint8_t reg, uint16_t *outValue)
+{
+    if (!dev || !outValue) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return Fdc2214CapReadRawRegisters(dev, reg, outValue);
+}
+
+static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx_t *i2cCtx,
+                                                        uint8_t i2cAddr,
+                                                        const char *fdcLabel,
+                                                        const char *stage,
+                                                        Fdc2214CapDevice_t *dev,
+                                                        uint16_t manufacturerId,
+                                                        uint16_t deviceId)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t rrSequence = 2u;
-    if (channels == 2u) {
-        rrSequence = 0u;
-    } else if (channels == 3u) {
-        rrSequence = 1u;
+    uint16_t status = 0u;
+    uint16_t statusConfig = 0u;
+    uint16_t config = 0u;
+    uint16_t muxConfig = 0u;
+    uint16_t clockDiv0 = 0u;
+    uint16_t rcount0 = 0u;
+    uint16_t settle0 = 0u;
+    uint16_t drive0 = 0u;
+
+    esp_err_t err = sensorarrayBringupReadFdcReg(dev, 0x18u, &status);
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x19u, &statusConfig);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x1Au, &config);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x1Bu, &muxConfig);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x14u, &clockDiv0);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x08u, &rcount0);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x10u, &settle0);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBringupReadFdcReg(dev, 0x1Eu, &drive0);
     }
 
-    return Fdc2214CapSetAutoScanMode(dev, rrSequence, FDC2214_DEGLITCH_10MHZ);
+    printf("DBGFDCINIT,stage=%s,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,status=0x%04X,"
+           "statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,clockDiv0=0x%04X,rcount0=0x%04X,settle0=0x%04X,"
+           "drive0=0x%04X,refClock=%s,refClockHz=%lu,err=%ld,result=%s\n",
+           stage ? stage : SENSORARRAY_NA,
+           fdcLabel ? fdcLabel : SENSORARRAY_NA,
+           i2cCtx ? (int)i2cCtx->Port : -1,
+           i2cAddr,
+           manufacturerId,
+           deviceId,
+           status,
+           statusConfig,
+           config,
+           muxConfig,
+           clockDiv0,
+           rcount0,
+           settle0,
+           drive0,
+           sensorarrayBringupFdcRefClockName(sensorarrayBringupFdcRefClockSource()),
+           (unsigned long)SENSORARRAY_FDC_REF_CLOCK_HZ,
+           (long)err,
+           (err == ESP_OK) ? "ok" : "read_error");
+
+    return err;
+}
+
+static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
+                                                        uint8_t channels,
+                                                        uint16_t expectedStatusConfig,
+                                                        uint16_t expectedConfig,
+                                                        uint16_t expectedMuxConfig)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapCoreRegs_t coreRegs = {0};
+    esp_err_t err = Fdc2214CapReadCoreRegs(dev, &coreRegs);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapStatus_t status = {0};
+    err = Fdc2214CapReadStatus(dev, &status);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    bool sleepEnabled = (coreRegs.Config & SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK) != 0u;
+    bool autoScanEnabled = (coreRegs.MuxConfig & SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK) != 0u;
+    uint8_t activeChannel = (uint8_t)((coreRegs.Config >> 14) & 0x3u);
+    uint8_t expectedActiveChannel = (uint8_t)((expectedConfig >> 14) & 0x3u);
+    bool converting = (!sleepEnabled) && (autoScanEnabled || (activeChannel == expectedActiveChannel));
+
+    bool unreadPresent = false;
+    for (uint8_t ch = 0u; ch < channels && ch < 4u; ++ch) {
+        unreadPresent = unreadPresent || status.UnreadConversion[ch];
+    }
+
+    printf("DBGFDCINIT_VERIFY,sleep=%u,autoscan=%u,activeChannel=%u,converting=%u,unreadPresent=%u,"
+           "status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,expectedStatusConfig=0x%04X,"
+           "expectedConfig=0x%04X,expectedMuxConfig=0x%04X,result=%s\n",
+           sleepEnabled ? 1u : 0u,
+           autoScanEnabled ? 1u : 0u,
+           (unsigned)activeChannel,
+           converting ? 1u : 0u,
+           unreadPresent ? 1u : 0u,
+           coreRegs.Status,
+           coreRegs.StatusConfig,
+           coreRegs.Config,
+           coreRegs.MuxConfig,
+           expectedStatusConfig,
+           expectedConfig,
+           expectedMuxConfig,
+           (!sleepEnabled &&
+            converting &&
+            coreRegs.StatusConfig == expectedStatusConfig &&
+            coreRegs.Config == expectedConfig &&
+            coreRegs.MuxConfig == expectedMuxConfig)
+               ? "ok"
+               : "mismatch");
+
+    if (sleepEnabled || !converting) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (coreRegs.StatusConfig != expectedStatusConfig ||
+        coreRegs.Config != expectedConfig ||
+        coreRegs.MuxConfig != expectedMuxConfig) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_OK;
 }
 
 esp_err_t sensorarrayBringupProbeFdcAddress(const BoardSupportI2cCtx_t *i2cCtx,
@@ -254,6 +465,13 @@ void sensorarrayBringupResetFdcState(sensorarrayFdcDeviceState_t *fdcState,
     fdcState->haveIds = false;
     fdcState->manufacturerId = 0;
     fdcState->deviceId = 0;
+    fdcState->configVerified = false;
+    fdcState->refClockKnown = false;
+    fdcState->refClockSource = FDC2214_REF_CLOCK_INTERNAL;
+    fdcState->refClockHz = 0u;
+    fdcState->statusConfigReg = 0u;
+    fdcState->configReg = 0u;
+    fdcState->muxConfigReg = 0u;
 }
 
 bool sensorarrayBringupParseI2cAddress(uint32_t configuredAddress, uint8_t *outAddress)
@@ -434,6 +652,13 @@ void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag)
     diag->haveIds = false;
     diag->manufacturerId = 0;
     diag->deviceId = 0;
+    diag->configVerified = false;
+    diag->refClockKnown = false;
+    diag->refClockSource = FDC2214_REF_CLOCK_INTERNAL;
+    diag->refClockHz = 0u;
+    diag->statusConfigReg = 0u;
+    diag->configReg = 0u;
+    diag->muxConfigReg = 0u;
     diag->detail = 0;
 }
 
@@ -517,16 +742,25 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     }
 
     channels = sensorarrayBringupNormalizeFdcChannels(channels);
+    const bool autoScan = sensorarrayBringupFdcAutoScanForChannels(channels);
+    const uint8_t rrSequence = sensorarrayBringupFdcRrSequenceForChannels(channels);
+    const uint16_t expectedStatusConfig = sensorarrayBringupFdcExpectedStatusConfig();
+    const uint16_t expectedMuxConfig = sensorarrayBringupFdcExpectedMuxConfig(channels);
+    const uint16_t finalConfig = sensorarrayBringupFdcBuildFinalConfig(FDC2214_CH0);
+    const char *fdcLabel = (i2cAddr == SENSORARRAY_FDC_I2C_ADDR_LOW) ? "secondary_selb_side" : "primary_sela_side";
 
-    Fdc2214CapChannelConfig_t chCfg = {
-        .Rcount = 0xFFFF,
-        .SettleCount = 0x0400,
-        .Offset = 0x0000,
-        .ClockDividers = 0x0001,
-        .DriveCurrent = 0xA000,
-    };
+    // CONFIG must be written in sleep before channel/mux writes to avoid ambiguous run-state transitions.
+    err = Fdc2214CapEnterSleep(dev, finalConfig);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "enter_sleep_failure";
+        }
+        Fdc2214CapDestroy(dev);
+        return err;
+    }
 
     for (uint8_t ch = 0; ch < channels; ++ch) {
+        Fdc2214CapChannelConfig_t chCfg = sensorarrayBringupFdcDebugChannelProfile(ch);
         err = Fdc2214CapConfigureChannel(dev, (Fdc2214CapChannel_t)ch, &chCfg);
         if (err != ESP_OK) {
             if (outDiag) {
@@ -536,12 +770,73 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
             Fdc2214CapDestroy(dev);
             return err;
         }
+
+        err = Fdc2214CapReadbackVerifyChannelConfig(dev, (Fdc2214CapChannel_t)ch, &chCfg);
+        if (err != ESP_OK) {
+            if (outDiag) {
+                outDiag->status = "channel_readback_mismatch";
+                outDiag->detail = (int32_t)ch;
+            }
+            Fdc2214CapDestroy(dev);
+            return err;
+        }
     }
 
-    err = sensorarrayApplyFdcModePolicy(dev, channels);
+    err = Fdc2214CapSetStatusConfig(dev, expectedStatusConfig);
     if (err != ESP_OK) {
         if (outDiag) {
-            outDiag->status = "mode_config_failure";
+            outDiag->status = "status_config_failure";
+        }
+        Fdc2214CapDestroy(dev);
+        return err;
+    }
+
+    err = Fdc2214CapSetMuxConfig(dev, autoScan, rrSequence, FDC2214_DEGLITCH_10MHZ);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "mux_config_failure";
+        }
+        Fdc2214CapDestroy(dev);
+        return err;
+    }
+
+    /*
+     * Final CONFIG write is intentionally last:
+     * it clears SLEEP_MODE_EN and starts conversion with a known-good bit pattern.
+     */
+    err = Fdc2214CapExitSleep(dev, finalConfig);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "exit_sleep_failure";
+        }
+        Fdc2214CapDestroy(dev);
+        return err;
+    }
+
+    err = sensorarrayBringupVerifyFdcActiveState(dev,
+                                                 channels,
+                                                 expectedStatusConfig,
+                                                 finalConfig,
+                                                 expectedMuxConfig);
+    if (err != ESP_OK) {
+        (void)sensorarrayBringupDumpFdcInitRegisters(i2cCtx,
+                                                     i2cAddr,
+                                                     fdcLabel,
+                                                     "verify_failed",
+                                                     dev,
+                                                     manufacturer,
+                                                     deviceId);
+        if (outDiag) {
+            outDiag->status = "active_verify_failure";
+        }
+        Fdc2214CapDestroy(dev);
+        return err;
+    }
+
+    err = sensorarrayBringupDumpFdcInitRegisters(i2cCtx, i2cAddr, fdcLabel, "post_init", dev, manufacturer, deviceId);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "diagnostic_dump_failure";
         }
         Fdc2214CapDestroy(dev);
         return err;
@@ -550,6 +845,13 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     *outDev = dev;
     if (outDiag) {
         outDiag->status = "ok";
+        outDiag->configVerified = true;
+        outDiag->refClockKnown = true;
+        outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
+        outDiag->refClockHz = SENSORARRAY_FDC_REF_CLOCK_HZ;
+        outDiag->statusConfigReg = expectedStatusConfig;
+        outDiag->configReg = finalConfig;
+        outDiag->muxConfigReg = expectedMuxConfig;
         outDiag->detail = (int32_t)channels;
     }
     return ESP_OK;
@@ -582,10 +884,9 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
     }
 
     /*
-     * Reuse the validated multi-channel bring-up flow so reset/ID checks and
-     * conservative channel register defaults stay centralized in one place.
-     * channel+1 ensures target CHx register is configured before forcing
-     * single-channel mode.
+     * Reuse the validated strict bring-up flow so reset/ID checks, sleep sequencing,
+     * explicit channel profile, and readback verification stay centralized.
+     * channel+1 ensures target CHx register is configured before forcing single-channel mode.
      */
     uint8_t channelsToConfigure = (uint8_t)channel + 1u;
     esp_err_t err = sensorarrayBringupInitFdcDevice(i2cCtx,
@@ -608,8 +909,30 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
         return err;
     }
 
+    uint16_t expectedStatusConfig = sensorarrayBringupFdcExpectedStatusConfig();
+    uint16_t expectedMuxConfig = sensorarrayBringupFdcExpectedMuxConfig(1u);
+    uint16_t expectedConfig = sensorarrayBringupFdcBuildFinalConfig(channel);
+    err = sensorarrayBringupVerifyFdcActiveState(*outDev,
+                                                 1u,
+                                                 expectedStatusConfig,
+                                                 expectedConfig,
+                                                 expectedMuxConfig);
+    if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->status = "single_channel_verify_failure";
+            outDiag->detail = (int32_t)channel;
+        }
+        Fdc2214CapDestroy(*outDev);
+        *outDev = NULL;
+        return err;
+    }
+
     if (outDiag) {
         outDiag->status = "ok_single_channel";
+        outDiag->configVerified = true;
+        outDiag->statusConfigReg = expectedStatusConfig;
+        outDiag->configReg = expectedConfig;
+        outDiag->muxConfigReg = expectedMuxConfig;
         outDiag->detail = (int32_t)channel;
     }
     return ESP_OK;

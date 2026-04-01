@@ -69,6 +69,13 @@ esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
                                           Fdc2214CapChannel_t ch,
                                           bool discardFirst,
                                           Fdc2214CapSample_t *outSample);
+esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
+                                              Fdc2214CapChannel_t ch,
+                                              bool discardFirst,
+                                              bool idOk,
+                                              bool configOk,
+                                              sensorarrayFdcReadDiag_t *outDiag);
+const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t status);
 
 esp_err_t sensorarrayMeasureAdsReadRegister(sensorarrayState_t *state, uint8_t reg, uint8_t *outValue);
 esp_err_t sensorarrayMeasureReadAdsKeyRegisterSnapshot(sensorarrayState_t *state,

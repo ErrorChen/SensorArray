@@ -9,6 +9,16 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayLog.h"
 
+#define SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT 14
+#define SENSORARRAY_FDC_STATUS_ERR_WD_MASK (1U << 11)
+#define SENSORARRAY_FDC_STATUS_ERR_AHW_MASK (1U << 10)
+#define SENSORARRAY_FDC_STATUS_ERR_ALW_MASK (1U << 9)
+#define SENSORARRAY_FDC_STATUS_DRDY_MASK (1U << 6)
+#define SENSORARRAY_FDC_STATUS_UNREAD_CH0_MASK (1U << 3)
+#define SENSORARRAY_FDC_STATUS_UNREAD_CH1_MASK (1U << 2)
+#define SENSORARRAY_FDC_STATUS_UNREAD_CH2_MASK (1U << 1)
+#define SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK (1U << 0)
+
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
     if (delayMs > 0u) {
@@ -555,6 +565,125 @@ const char *sensorarrayMeasureDividerModelStatus(int32_t uv, int32_t *outMohm, b
     return "divider_model_invalid";
 }
 
+static sensorarrayFdcSampleStatus_t sensorarrayMeasureMapFdcStatus(Fdc2214CapSampleStatus_t sampleStatus)
+{
+    switch (sampleStatus) {
+    case FDC2214_SAMPLE_STATUS_SAMPLE_VALID:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID;
+    case FDC2214_SAMPLE_STATUS_STILL_SLEEPING:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_STILL_SLEEPING;
+    case FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING;
+    case FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
+    case FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID;
+    case FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT;
+    case FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT;
+    case FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN:
+    default:
+        return SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
+    }
+}
+
+const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t status)
+{
+    switch (status) {
+    case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR:
+        return "i2c_read_error";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN:
+        return "config_unknown";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_STILL_SLEEPING:
+        return "still_sleeping";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING:
+        return "i2c_read_ok_but_not_converting";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION:
+        return "no_unread_conversion";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID:
+        return "zero_raw_invalid";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT:
+        return "watchdog_fault";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT:
+        return "amplitude_fault";
+    case SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID:
+        return "sample_valid";
+    default:
+        return "config_unknown";
+    }
+}
+
+esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
+                                              Fdc2214CapChannel_t ch,
+                                              bool discardFirst,
+                                              bool idOk,
+                                              bool configOk,
+                                              sensorarrayFdcReadDiag_t *outDiag)
+{
+    if (!dev || !outDiag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outDiag = (sensorarrayFdcReadDiag_t){
+        .err = ESP_FAIL,
+        .i2cOk = false,
+        .idOk = idOk,
+        .configOk = configOk,
+        .statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR,
+    };
+
+    if (discardFirst) {
+        Fdc2214CapSample_t throwaway = {0};
+        esp_err_t discardErr = Fdc2214CapReadSample(dev, ch, &throwaway);
+        if (discardErr != ESP_OK) {
+            outDiag->err = discardErr;
+            return discardErr;
+        }
+    }
+
+    esp_err_t err = Fdc2214CapReadSample(dev, ch, &outDiag->sample);
+    outDiag->err = err;
+    outDiag->i2cOk = (err == ESP_OK);
+    if (err != ESP_OK) {
+        outDiag->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR;
+        outDiag->sampleValid = false;
+        return err;
+    }
+
+    outDiag->coreRegs.Status = outDiag->sample.StatusRaw;
+    outDiag->coreRegs.Config = outDiag->sample.ConfigRaw;
+    outDiag->coreRegs.MuxConfig = outDiag->sample.MuxRaw;
+    (void)Fdc2214CapReadRawRegisters(dev, 0x19u, &outDiag->coreRegs.StatusConfig);
+
+    uint16_t statusRaw = outDiag->sample.StatusRaw;
+    outDiag->status = (Fdc2214CapStatus_t){
+        .Raw = statusRaw,
+        .ErrorChannel = (uint8_t)((statusRaw >> SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT) & 0x3u),
+        .ErrWatchdog = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_WD_MASK) != 0u,
+        .ErrAmplitudeHigh = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_AHW_MASK) != 0u,
+        .ErrAmplitudeLow = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_ALW_MASK) != 0u,
+        .DataReady = (statusRaw & SENSORARRAY_FDC_STATUS_DRDY_MASK) != 0u,
+        .UnreadConversion = {
+            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH0_MASK) != 0u,
+            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH1_MASK) != 0u,
+            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH2_MASK) != 0u,
+            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK) != 0u,
+        },
+    };
+
+    outDiag->converting = outDiag->sample.Converting;
+    outDiag->unreadConversionPresent = outDiag->sample.UnreadConversionPresent;
+
+    sensorarrayFdcSampleStatus_t mappedStatus = sensorarrayMeasureMapFdcStatus(outDiag->sample.SampleStatus);
+    if (!idOk || !configOk) {
+        mappedStatus = SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
+    }
+    outDiag->statusCode = mappedStatus;
+    outDiag->sampleValid = (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
+    return ESP_OK;
+}
+
 esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
                                           Fdc2214CapChannel_t ch,
                                           bool discardFirst,
@@ -564,15 +693,13 @@ esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (discardFirst) {
-        Fdc2214CapSample_t throwaway = {0};
-        esp_err_t err = Fdc2214CapReadSample(dev, ch, &throwaway);
-        if (err != ESP_OK) {
-            return err;
-        }
+    sensorarrayFdcReadDiag_t diag = {0};
+    esp_err_t err = sensorarrayMeasureReadFdcSampleDiag(dev, ch, discardFirst, true, true, &diag);
+    if (err != ESP_OK) {
+        return err;
     }
-
-    return Fdc2214CapReadSample(dev, ch, outSample);
+    *outSample = diag.sample;
+    return ESP_OK;
 }
 
 esp_err_t sensorarrayMeasureAdsReadRegister(sensorarrayState_t *state, uint8_t reg, uint8_t *outValue)

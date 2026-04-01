@@ -223,6 +223,13 @@ void sensorarrayAppRun(void)
             s_state.fdcPrimary.haveIds = diag.haveIds;
             s_state.fdcPrimary.manufacturerId = diag.manufacturerId;
             s_state.fdcPrimary.deviceId = diag.deviceId;
+            s_state.fdcPrimary.configVerified = diag.configVerified;
+            s_state.fdcPrimary.refClockKnown = diag.refClockKnown;
+            s_state.fdcPrimary.refClockSource = diag.refClockSource;
+            s_state.fdcPrimary.refClockHz = diag.refClockHz;
+            s_state.fdcPrimary.statusConfigReg = diag.statusConfigReg;
+            s_state.fdcPrimary.configReg = diag.configReg;
+            s_state.fdcPrimary.muxConfigReg = diag.muxConfigReg;
             sensorarrayLogStartupFdc("fdc_init",
                                      &s_state.fdcPrimary,
                                      err,
@@ -267,6 +274,13 @@ void sensorarrayAppRun(void)
             s_state.fdcSecondary.haveIds = diag.haveIds;
             s_state.fdcSecondary.manufacturerId = diag.manufacturerId;
             s_state.fdcSecondary.deviceId = diag.deviceId;
+            s_state.fdcSecondary.configVerified = diag.configVerified;
+            s_state.fdcSecondary.refClockKnown = diag.refClockKnown;
+            s_state.fdcSecondary.refClockSource = diag.refClockSource;
+            s_state.fdcSecondary.refClockHz = diag.refClockHz;
+            s_state.fdcSecondary.statusConfigReg = diag.statusConfigReg;
+            s_state.fdcSecondary.configReg = diag.configReg;
+            s_state.fdcSecondary.muxConfigReg = diag.muxConfigReg;
             sensorarrayLogStartupFdc("fdc_init",
                                      &s_state.fdcSecondary,
                                      err,

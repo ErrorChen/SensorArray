@@ -20,6 +20,11 @@ typedef enum {
     FDC2214_CH3 = 3,
 } Fdc2214CapChannel_t;
 
+typedef enum {
+    FDC2214_REF_CLOCK_INTERNAL = 0,
+    FDC2214_REF_CLOCK_EXTERNAL = 1,
+} Fdc2214CapRefClockSource_t;
+
 typedef esp_err_t (*Fdc2214I2cWriteReadFn)(void* userCtx,
                                           uint8_t addr7,
                                           const uint8_t* tx,
@@ -56,9 +61,58 @@ typedef struct {
 } Fdc2214CapChannelConfig_t;
 
 typedef struct {
+    Fdc2214CapChannel_t ActiveChannel;
+    bool SleepModeEnabled;
+    bool SensorActivateSelLowPower;
+    Fdc2214CapRefClockSource_t RefClockSource;
+    bool IntbDisabled;
+    bool HighCurrentDrive;
+} Fdc2214CapConfigOptions_t;
+
+typedef struct {
+    uint16_t Raw;
+    uint8_t ErrorChannel;
+    bool ErrWatchdog;
+    bool ErrAmplitudeHigh;
+    bool ErrAmplitudeLow;
+    bool DataReady;
+    bool UnreadConversion[4];
+} Fdc2214CapStatus_t;
+
+typedef struct {
+    uint16_t Status;
+    uint16_t StatusConfig;
+    uint16_t Config;
+    uint16_t MuxConfig;
+} Fdc2214CapCoreRegs_t;
+
+typedef enum {
+    FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN = 0,
+    FDC2214_SAMPLE_STATUS_SAMPLE_VALID,
+    FDC2214_SAMPLE_STATUS_STILL_SLEEPING,
+    FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING,
+    FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION,
+    FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID,
+    FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT,
+    FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT,
+} Fdc2214CapSampleStatus_t;
+
+typedef struct {
     uint32_t Raw28;
     bool ErrWatchdog;
     bool ErrAmplitude;
+    uint16_t StatusRaw;
+    uint16_t ConfigRaw;
+    uint16_t MuxRaw;
+    bool SleepModeEnabled;
+    bool AutoScanEnabled;
+    bool Converting;
+    bool UnreadConversionPresent;
+    bool DataReady;
+    Fdc2214CapChannel_t ActiveChannel;
+    Fdc2214CapRefClockSource_t RefClockSource;
+    bool SampleValid;
+    Fdc2214CapSampleStatus_t SampleStatus;
 } Fdc2214CapSample_t;
 
 // Create a device handle; the I2C callbacks are used for all transactions.
@@ -76,16 +130,46 @@ esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
                                      Fdc2214CapChannel_t ch,
                                      const Fdc2214CapChannelConfig_t* cfg);
 
+// Read back configured channel registers and verify expected values.
+esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
+                                                Fdc2214CapChannel_t ch,
+                                                const Fdc2214CapChannelConfig_t* expectedCfg);
+
+// Build a known-good CONFIG register value with required reserved-bit defaults.
+uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options);
+
+// Enter sleep mode explicitly by writing CONFIG with SLEEP_MODE_EN=1.
+esp_err_t Fdc2214CapEnterSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
+// Exit sleep mode explicitly by writing CONFIG with SLEEP_MODE_EN=0.
+esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
+
+// Read and decode STATUS register.
+esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
+// Read key core registers used for diagnostics.
+esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs);
+
 // Single channel continuous conversion; CONFIG.ACTIVE_CHAN selects channel.
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh);
 // Autoscan conversion over CH0..CHn; rrSequence maps 0->CH0-CH1, 1->CH0-CH2, 2->CH0-CH3.
 esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch);
+
+// Configure STATUS_CONFIG (ERROR_CONFIG) register; reserved bits are validated/sanitized.
+esp_err_t Fdc2214CapSetStatusConfig(Fdc2214CapDevice_t* dev, uint16_t statusConfig);
+// Configure MUX_CONFIG directly with explicit autoscan/rr/deglitch controls.
+esp_err_t Fdc2214CapSetMuxConfig(Fdc2214CapDevice_t* dev,
+                                 bool autoScan,
+                                 uint8_t rrSequence,
+                                 Fdc2214CapDeglitch_t deglitch);
 
 // Read one 28-bit sample; ErrWatchdog/ErrAmplitude come from MSB bits and clear on read.
 esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);
+// Write a raw 16-bit register value.
+esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value);
+// Human-readable semantic status for sample diagnostics.
+const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status);
 
 #ifdef __cplusplus
 }

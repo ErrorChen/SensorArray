@@ -124,14 +124,21 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
     if (!cfg->skipFdcRead) {
         const sensorarrayFdcDLineMap_t *fdcMap = NULL;
         sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcStateForDLine(state, cfg->dLine, &fdcMap);
-        Fdc2214CapSample_t sample = {0};
+        sensorarrayFdcReadDiag_t fdcDiag = {0};
         esp_err_t readErr = ESP_ERR_INVALID_STATE;
         if (fdcState && fdcState->ready && fdcState->handle && fdcMap) {
-            readErr = sensorarrayMeasureReadFdcSample(fdcState->handle, fdcMap->channel, false, &sample);
+            readErr = sensorarrayMeasureReadFdcSampleDiag(fdcState->handle,
+                                                          fdcMap->channel,
+                                                          false,
+                                                          fdcState->haveIds,
+                                                          fdcState->configVerified,
+                                                          &fdcDiag);
         } else if (!fdcMap || !fdcState) {
             readErr = ESP_ERR_INVALID_ARG;
         }
 
+        const char *fdcStatus = (readErr == ESP_OK) ? sensorarrayMeasureFdcSampleStatusName(fdcDiag.statusCode)
+                                                     : "i2c_read_error";
         sensorarrayLogDbgExtraCaptureCtrl();
         sensorarrayLogDbg(cfg->label ? cfg->label : "FIXED",
                           kind,
@@ -139,12 +146,12 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                           dLineBuf,
                           sensorarrayLogSwSourceName(cfg->swSource),
                           "fdc_fixed",
-                          sensorarrayLogFmtU32(valueBuf, sizeof(valueBuf), readErr == ESP_OK, sample.Raw28),
+                          sensorarrayLogFmtU32(valueBuf, sizeof(valueBuf), readErr == ESP_OK, fdcDiag.sample.Raw28),
                           SENSORARRAY_NA,
                           SENSORARRAY_NA,
-                          sensorarrayLogFmtU32(rawBuf, sizeof(rawBuf), readErr == ESP_OK, sample.Raw28),
-                          sensorarrayLogFmtBool(wdBuf, sizeof(wdBuf), readErr == ESP_OK, sample.ErrWatchdog),
-                          sensorarrayLogFmtBool(ampBuf, sizeof(ampBuf), readErr == ESP_OK, sample.ErrAmplitude),
+                          sensorarrayLogFmtU32(rawBuf, sizeof(rawBuf), readErr == ESP_OK, fdcDiag.sample.Raw28),
+                          sensorarrayLogFmtBool(wdBuf, sizeof(wdBuf), readErr == ESP_OK, fdcDiag.sample.ErrWatchdog),
+                          sensorarrayLogFmtBool(ampBuf, sizeof(ampBuf), readErr == ESP_OK, fdcDiag.sample.ErrAmplitude),
                           fdcState ? fdcState->label : SENSORARRAY_NA,
                           SENSORARRAY_NA,
                           SENSORARRAY_NA,
@@ -155,7 +162,7 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                                       cfg->label,
                                                       fdcMap ? fdcMap->mapLabel : SENSORARRAY_NA),
                           readErr,
-                          (readErr == ESP_OK) ? "fdc_read_ok" : "fdc_read_error");
+                          fdcStatus);
     }
 
     if (cfg->holdForever) {

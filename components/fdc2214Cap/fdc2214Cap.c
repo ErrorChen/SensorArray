@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "sdkconfig.h"
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -19,18 +20,15 @@ static const char* TAG = "fdc2214Cap";
 
 // Register map notes (FDC2214):
 // 0x00..0x07: DATA_CH0..CH3 (MSB + status) and DATA_LSB_CHx
-//   MSB bits: [13]=ERR_WD, [12]=ERR_AW, [11:0]=DATA[27:16]
-//   LSB bits: [15:0]=DATA[15:0]
-//   DATA_LSB must be read immediately after DATA_MSB to ensure one conversion pair.
 // 0x08..0x0B: RCOUNT_CH0..CH3
 // 0x0C..0x0F: OFFSET_CH0..CH3
 // 0x10..0x13: SETTLECOUNT_CH0..CH3
 // 0x14..0x17: CLOCK_DIVIDERS_CH0..CH3
 // 0x18: STATUS
-// 0x19: STATUS_CONFIG
-// 0x1A: CONFIG (ACTIVE_CHAN, SLEEP_MODE)
-// 0x1B: MUX_CONFIG (AUTOSCAN_EN, RR_SEQUENCE, DEGLITCH; bits12:3 fixed to 0x41)
-// 0x1C: RESET_DEV (write bit15=1 to reset, read returns 0)
+// 0x19: STATUS_CONFIG (ERROR_CONFIG)
+// 0x1A: CONFIG
+// 0x1B: MUX_CONFIG
+// 0x1C: RESET_DEV (write bit15=1 to reset)
 // 0x1E..0x21: DRIVE_CURRENT_CH0..CH3
 // 0x7E: MANUFACTURER_ID (0x5449)
 // 0x7F: DEVICE_ID (0x3055 for FDC2214)
@@ -54,8 +52,32 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_DATA_ERR_WD_MASK (1U << 13)
 #define FDC2214_DATA_ERR_AW_MASK (1U << 12)
 
+#define FDC2214_STATUS_ERR_CHAN_SHIFT 14
+#define FDC2214_STATUS_ERR_CHAN_MASK (0x3U << FDC2214_STATUS_ERR_CHAN_SHIFT)
+#define FDC2214_STATUS_ERR_WD_MASK (1U << 11)
+#define FDC2214_STATUS_ERR_AHW_MASK (1U << 10)
+#define FDC2214_STATUS_ERR_ALW_MASK (1U << 9)
+#define FDC2214_STATUS_DRDY_MASK (1U << 6)
+#define FDC2214_STATUS_UNREAD_CH0_MASK (1U << 3)
+#define FDC2214_STATUS_UNREAD_CH1_MASK (1U << 2)
+#define FDC2214_STATUS_UNREAD_CH2_MASK (1U << 1)
+#define FDC2214_STATUS_UNREAD_CH3_MASK (1U << 0)
+
 #define FDC2214_CONFIG_ACTIVE_CHAN_SHIFT 14
 #define FDC2214_CONFIG_ACTIVE_CHAN_MASK (0x3U << FDC2214_CONFIG_ACTIVE_CHAN_SHIFT)
+#define FDC2214_CONFIG_SLEEP_MODE_EN_MASK (1U << 13)
+#define FDC2214_CONFIG_RESERVED_BIT12_MASK (1U << 12)
+#define FDC2214_CONFIG_SENSOR_ACTIVATE_SEL_MASK (1U << 11)
+#define FDC2214_CONFIG_RESERVED_BIT10_MASK (1U << 10)
+#define FDC2214_CONFIG_REF_CLK_SRC_MASK (1U << 9)
+#define FDC2214_CONFIG_RESERVED_BIT8_MASK (1U << 8)
+#define FDC2214_CONFIG_INTB_DIS_MASK (1U << 7)
+#define FDC2214_CONFIG_HIGH_CURRENT_DRV_MASK (1U << 6)
+#define FDC2214_CONFIG_RESERVED_LOW_MASK 0x003F
+#define FDC2214_CONFIG_RESERVED_LOW_REQUIRED 0x0001
+
+#define FDC2214_CONFIG_REQUIRED_SET_MASK \
+    (FDC2214_CONFIG_RESERVED_BIT12_MASK | FDC2214_CONFIG_RESERVED_BIT10_MASK | FDC2214_CONFIG_RESERVED_LOW_REQUIRED)
 
 #define FDC2214_MUX_AUTOSCAN_BIT (1U << 15)
 #define FDC2214_MUX_RR_SEQUENCE_SHIFT 13
@@ -64,13 +86,20 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_MUX_FIXED_MASK (FDC2214_MUX_FIXED_BITS << 3)
 #define FDC2214_MUX_DEGLITCH_MASK 0x7U
 
-#define FDC2214_CLOCK_FREF_DIVIDER_MASK 0x03FF
 #define FDC2214_CLOCK_RESERVED_MASK 0xCC00
+#define FDC2214_CLOCK_FIN_SEL_SHIFT 12
+#define FDC2214_CLOCK_FIN_SEL_MASK (0x3U << FDC2214_CLOCK_FIN_SEL_SHIFT)
+#define FDC2214_CLOCK_FREF_DIVIDER_MASK 0x03FF
+
+#define FDC2214_STATUS_CONFIG_ALLOWED_MASK 0x3821
 
 #define FDC2214_RESET_DEV_BIT (1U << 15)
 
-// Drive current register uses CHx_IDRIVE [15:11]; reserved bits are forced to 0.
+// Drive current register uses CHx_IDRIVE [15:11]; reserved bits must stay clear.
 #define FDC2214_DRIVE_CURRENT_MASK 0xF800
+
+// Datasheet timing (FDC221x): sleep-to-active wake-up time typ/min requirement.
+#define FDC2214_SLEEP_WAKEUP_US 50U
 
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
@@ -95,6 +124,11 @@ static bool Fdc2214IsValidDeglitch(Fdc2214CapDeglitch_t deglitch)
     }
 }
 
+static bool Fdc2214IsValidRefClock(Fdc2214CapRefClockSource_t refClockSource)
+{
+    return (refClockSource == FDC2214_REF_CLOCK_INTERNAL) || (refClockSource == FDC2214_REF_CLOCK_EXTERNAL);
+}
+
 static uint8_t Fdc2214RegForChannelStep1(uint8_t base, Fdc2214CapChannel_t ch)
 {
     return (uint8_t)(base + (uint8_t)ch);
@@ -103,6 +137,146 @@ static uint8_t Fdc2214RegForChannelStep1(uint8_t base, Fdc2214CapChannel_t ch)
 static uint8_t Fdc2214RegForChannelStep2(uint8_t base, Fdc2214CapChannel_t ch)
 {
     return (uint8_t)(base + (uint8_t)ch * 2U);
+}
+
+static void Fdc2214CapDelayUs(uint32_t delayUs)
+{
+    if (delayUs > 0U) {
+        esp_rom_delay_us(delayUs);
+    }
+}
+
+static uint16_t Fdc2214CapApplyConfigReservedBits(uint16_t configValue)
+{
+    // CONFIG requires fixed reserved values:
+    // bit12=1, bit10=1, bit8=0, bits[5:0]=0b000001.
+    configValue |= FDC2214_CONFIG_REQUIRED_SET_MASK;
+    configValue &= (uint16_t)~FDC2214_CONFIG_RESERVED_BIT8_MASK;
+    configValue &= (uint16_t)~(FDC2214_CONFIG_RESERVED_LOW_MASK & (uint16_t)~FDC2214_CONFIG_RESERVED_LOW_REQUIRED);
+    return configValue;
+}
+
+static bool Fdc2214CapConfigReservedBitsValid(uint16_t configValue)
+{
+    if ((configValue & FDC2214_CONFIG_RESERVED_BIT12_MASK) == 0U) {
+        return false;
+    }
+    if ((configValue & FDC2214_CONFIG_RESERVED_BIT10_MASK) == 0U) {
+        return false;
+    }
+    if ((configValue & FDC2214_CONFIG_RESERVED_BIT8_MASK) != 0U) {
+        return false;
+    }
+    return (configValue & FDC2214_CONFIG_RESERVED_LOW_MASK) == FDC2214_CONFIG_RESERVED_LOW_REQUIRED;
+}
+
+static Fdc2214CapChannel_t Fdc2214CapActiveChannelFromConfig(uint16_t configValue)
+{
+    uint8_t active = (uint8_t)((configValue & FDC2214_CONFIG_ACTIVE_CHAN_MASK) >> FDC2214_CONFIG_ACTIVE_CHAN_SHIFT);
+    if (active > (uint8_t)FDC2214_CH3) {
+        return FDC2214_CH0;
+    }
+    return (Fdc2214CapChannel_t)active;
+}
+
+static Fdc2214CapRefClockSource_t Fdc2214CapRefClockFromConfig(uint16_t configValue)
+{
+    return ((configValue & FDC2214_CONFIG_REF_CLK_SRC_MASK) != 0U) ? FDC2214_REF_CLOCK_EXTERNAL
+                                                                    : FDC2214_REF_CLOCK_INTERNAL;
+}
+
+static Fdc2214CapConfigOptions_t Fdc2214CapConfigOptionsFromRaw(uint16_t configValue)
+{
+    return (Fdc2214CapConfigOptions_t){
+        .ActiveChannel = Fdc2214CapActiveChannelFromConfig(configValue),
+        .SleepModeEnabled = (configValue & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) != 0U,
+        .SensorActivateSelLowPower = (configValue & FDC2214_CONFIG_SENSOR_ACTIVATE_SEL_MASK) != 0U,
+        .RefClockSource = Fdc2214CapRefClockFromConfig(configValue),
+        .IntbDisabled = (configValue & FDC2214_CONFIG_INTB_DIS_MASK) != 0U,
+        .HighCurrentDrive = (configValue & FDC2214_CONFIG_HIGH_CURRENT_DRV_MASK) != 0U,
+    };
+}
+
+static void Fdc2214CapDecodeStatusRaw(uint16_t raw, Fdc2214CapStatus_t* outStatus)
+{
+    if (!outStatus) {
+        return;
+    }
+
+    *outStatus = (Fdc2214CapStatus_t){
+        .Raw = raw,
+        .ErrorChannel = (uint8_t)((raw & FDC2214_STATUS_ERR_CHAN_MASK) >> FDC2214_STATUS_ERR_CHAN_SHIFT),
+        .ErrWatchdog = (raw & FDC2214_STATUS_ERR_WD_MASK) != 0U,
+        .ErrAmplitudeHigh = (raw & FDC2214_STATUS_ERR_AHW_MASK) != 0U,
+        .ErrAmplitudeLow = (raw & FDC2214_STATUS_ERR_ALW_MASK) != 0U,
+        .DataReady = (raw & FDC2214_STATUS_DRDY_MASK) != 0U,
+        .UnreadConversion =
+            {
+                (raw & FDC2214_STATUS_UNREAD_CH0_MASK) != 0U,
+                (raw & FDC2214_STATUS_UNREAD_CH1_MASK) != 0U,
+                (raw & FDC2214_STATUS_UNREAD_CH2_MASK) != 0U,
+                (raw & FDC2214_STATUS_UNREAD_CH3_MASK) != 0U,
+            },
+    };
+}
+
+static esp_err_t Fdc2214CapBuildMuxValue(bool autoScan,
+                                         uint8_t rrSequence,
+                                         Fdc2214CapDeglitch_t deglitch,
+                                         uint16_t* outMuxValue)
+{
+    if (!outMuxValue) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (rrSequence > 2U) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidDeglitch(deglitch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t muxValue = 0U;
+    if (autoScan) {
+        muxValue |= FDC2214_MUX_AUTOSCAN_BIT;
+    }
+    muxValue |= (uint16_t)((uint16_t)rrSequence << FDC2214_MUX_RR_SEQUENCE_SHIFT);
+    muxValue |= FDC2214_MUX_FIXED_MASK;
+    muxValue |= (uint16_t)deglitch;
+    *outMuxValue = muxValue;
+    return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapNormalizeClockDividers(uint16_t rawClockDividers, uint16_t* outClockDividers)
+{
+    if (!outClockDividers) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t clockDividers = (uint16_t)(rawClockDividers & (uint16_t)~FDC2214_CLOCK_RESERVED_MASK);
+    uint16_t finSel = (uint16_t)((clockDividers & FDC2214_CLOCK_FIN_SEL_MASK) >> FDC2214_CLOCK_FIN_SEL_SHIFT);
+    uint16_t frefDiv = (uint16_t)(clockDividers & FDC2214_CLOCK_FREF_DIVIDER_MASK);
+
+    if (finSel == 0U) {
+        ESP_LOGE(TAG, "CLOCK_DIVIDERS invalid: CHx_FIN_SEL must be explicit/non-zero (raw=0x%04X)", rawClockDividers);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (frefDiv == 0U) {
+        ESP_LOGE(TAG, "CLOCK_DIVIDERS invalid: CHx_FREF_DIVIDER must be non-zero (raw=0x%04X)", rawClockDividers);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outClockDividers = clockDividers;
+    return ESP_OK;
+}
+
+static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)
+{
+    return (uint16_t)(rawDriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
+}
+
+static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)
+{
+    return (uint16_t)(statusConfig & FDC2214_STATUS_CONFIG_ALLOWED_MASK);
 }
 
 static esp_err_t Fdc2214CapLock(Fdc2214CapDevice_t* dev)
@@ -125,7 +299,7 @@ static void Fdc2214CapUnlock(Fdc2214CapDevice_t* dev)
 
 static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx, size_t txLen)
 {
-    if (!dev || !tx || txLen == 0) {
+    if (!dev || !tx || txLen == 0U) {
         return ESP_ERR_INVALID_ARG;
     }
     if (!dev->bus.Write) {
@@ -148,7 +322,7 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
                                           uint8_t* rx,
                                           size_t rxLen)
 {
-    if (!dev || !tx || txLen == 0 || !rx || rxLen == 0) {
+    if (!dev || !tx || txLen == 0U || !rx || rxLen == 0U) {
         return ESP_ERR_INVALID_ARG;
     }
     if (!dev->bus.WriteRead) {
@@ -191,18 +365,41 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
         return err;
     }
 
-    *outValue = ((uint16_t)rx[0] << 8) | rx[1];
+    *outValue = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
     ESP_LOGD(TAG, "Read reg 0x%02X = 0x%04X", reg, *outValue);
     return ESP_OK;
 }
 
 static esp_err_t Fdc2214CapReadBytes(Fdc2214CapDevice_t* dev, uint8_t reg, uint8_t* rx, size_t rxLen)
 {
+    if (!dev || !rx || rxLen == 0U) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     uint8_t tx = reg;
     esp_err_t err = Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, rxLen);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Read bytes from reg 0x%02X failed: %d", reg, err);
         return err;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapWriteReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t expectedValue)
+{
+    esp_err_t err = Fdc2214CapWriteReg16(dev, reg, expectedValue);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint16_t readbackValue = 0U;
+    err = Fdc2214CapReadReg16(dev, reg, &readbackValue);
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (readbackValue != expectedValue) {
+        ESP_LOGE(TAG, "Readback mismatch reg 0x%02X: wrote 0x%04X read 0x%04X", reg, expectedValue, readbackValue);
+        return ESP_ERR_INVALID_RESPONSE;
     }
     return ESP_OK;
 }
@@ -274,9 +471,120 @@ esp_err_t Fdc2214CapReadId(Fdc2214CapDevice_t* dev, uint16_t* manufacturerId, ui
     return ESP_OK;
 }
 
+uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options)
+{
+    const Fdc2214CapConfigOptions_t defaults = {
+        .ActiveChannel = FDC2214_CH0,
+        .SleepModeEnabled = true,
+        .SensorActivateSelLowPower = true,
+        .RefClockSource = FDC2214_REF_CLOCK_INTERNAL,
+        .IntbDisabled = false,
+        .HighCurrentDrive = false,
+    };
+    Fdc2214CapConfigOptions_t cfg = options ? *options : defaults;
+
+    if (!Fdc2214IsValidChannel(cfg.ActiveChannel)) {
+        cfg.ActiveChannel = FDC2214_CH0;
+    }
+    if (!Fdc2214IsValidRefClock(cfg.RefClockSource)) {
+        cfg.RefClockSource = FDC2214_REF_CLOCK_INTERNAL;
+    }
+
+    uint16_t config = 0U;
+    config |= (uint16_t)((uint16_t)cfg.ActiveChannel << FDC2214_CONFIG_ACTIVE_CHAN_SHIFT);
+    if (cfg.SleepModeEnabled) {
+        config |= FDC2214_CONFIG_SLEEP_MODE_EN_MASK;
+    }
+    if (cfg.SensorActivateSelLowPower) {
+        config |= FDC2214_CONFIG_SENSOR_ACTIVATE_SEL_MASK;
+    }
+    if (cfg.RefClockSource == FDC2214_REF_CLOCK_EXTERNAL) {
+        config |= FDC2214_CONFIG_REF_CLK_SRC_MASK;
+    }
+    if (cfg.IntbDisabled) {
+        config |= FDC2214_CONFIG_INTB_DIS_MASK;
+    }
+    if (cfg.HighCurrentDrive) {
+        config |= FDC2214_CONFIG_HIGH_CURRENT_DRV_MASK;
+    }
+
+    return Fdc2214CapApplyConfigReservedBits(config);
+}
+
+esp_err_t Fdc2214CapEnterSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t sleepConfig = Fdc2214CapApplyConfigReservedBits((uint16_t)(configWithoutSleep | FDC2214_CONFIG_SLEEP_MODE_EN_MASK));
+    return Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, sleepConfig);
+}
+
+esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t activeConfig = Fdc2214CapApplyConfigReservedBits((uint16_t)(configWithoutSleep & ~FDC2214_CONFIG_SLEEP_MODE_EN_MASK));
+    esp_err_t err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, activeConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // Datasheet requires a short sleep-to-active wake-up interval before trusting conversions.
+    Fdc2214CapDelayUs(FDC2214_SLEEP_WAKEUP_US);
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus)
+{
+    if (!dev || !outStatus) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t rawStatus = 0U;
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &rawStatus);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapDecodeStatusRaw(rawStatus, outStatus);
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs)
+{
+    if (!dev || !outRegs) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapCoreRegs_t regs = {0};
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &regs.Status);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS_CONFIG, &regs.StatusConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &regs.Config);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &regs.MuxConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    *outRegs = regs;
+    return ESP_OK;
+}
+
 esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
-                                    Fdc2214CapChannel_t ch,
-                                    const Fdc2214CapChannelConfig_t* cfg)
+                                     Fdc2214CapChannel_t ch,
+                                     const Fdc2214CapChannelConfig_t* cfg)
 {
     if (!dev || !cfg) {
         return ESP_ERR_INVALID_ARG;
@@ -284,42 +592,138 @@ esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
     if (!Fdc2214IsValidChannel(ch)) {
         return ESP_ERR_INVALID_ARG;
     }
-
-    esp_err_t err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, ch), cfg->SettleCount);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_OFFSET_BASE, ch), cfg->Offset);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    uint16_t clockDividers = cfg->ClockDividers;
-    if ((clockDividers & FDC2214_CLOCK_FREF_DIVIDER_MASK) == 0) {
-        ESP_LOGE(TAG, "Clock divider FREF_DIVIDER must be non-zero");
+    if (cfg->Rcount < 0x0100U) {
+        ESP_LOGE(TAG, "RCOUNT must be >= 0x0100 (got 0x%04X)", cfg->Rcount);
         return ESP_ERR_INVALID_ARG;
     }
-    clockDividers &= (uint16_t)(~FDC2214_CLOCK_RESERVED_MASK);
-    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), clockDividers);
+    if (cfg->SettleCount == 0U) {
+        ESP_LOGE(TAG, "SETTLECOUNT must be non-zero");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t clockDividers = 0U;
+    esp_err_t err = Fdc2214CapNormalizeClockDividers(cfg->ClockDividers, &clockDividers);
     if (err != ESP_OK) {
         return err;
     }
 
-    uint16_t driveCurrent = (uint16_t)(cfg->DriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
+    uint16_t driveCurrent = Fdc2214CapNormalizeDriveCurrent(cfg->DriveCurrent);
     if (driveCurrent != cfg->DriveCurrent) {
         ESP_LOGW(TAG, "Drive current masked to 0x%04X to clear reserved bits", driveCurrent);
     }
-    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), driveCurrent);
+
+    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, ch), cfg->SettleCount);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_OFFSET_BASE, ch), cfg->Offset);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), clockDividers);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), driveCurrent);
     if (err != ESP_OK) {
         return err;
     }
 
-    ESP_LOGI(TAG, "Configured CH%d", (int)ch);
+    ESP_LOGI(TAG,
+             "Configured CH%d rcount=0x%04X settle=0x%04X offset=0x%04X clock=0x%04X drive=0x%04X",
+             (int)ch,
+             cfg->Rcount,
+             cfg->SettleCount,
+             cfg->Offset,
+             clockDividers,
+             driveCurrent);
     return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
+                                                Fdc2214CapChannel_t ch,
+                                                const Fdc2214CapChannelConfig_t* expectedCfg)
+{
+    if (!dev || !expectedCfg) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t expectedClockDividers = 0U;
+    esp_err_t err = Fdc2214CapNormalizeClockDividers(expectedCfg->ClockDividers, &expectedClockDividers);
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint16_t expectedDriveCurrent = Fdc2214CapNormalizeDriveCurrent(expectedCfg->DriveCurrent);
+
+    struct VerifyItem {
+        uint8_t reg;
+        uint16_t expected;
+        const char* name;
+    };
+    const struct VerifyItem verifyItems[] = {
+        { Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), expectedCfg->Rcount, "RCOUNT" },
+        { Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, ch), expectedCfg->SettleCount, "SETTLECOUNT" },
+        { Fdc2214RegForChannelStep1(FDC2214_REG_OFFSET_BASE, ch), expectedCfg->Offset, "OFFSET" },
+        { Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), expectedClockDividers, "CLOCK_DIVIDERS" },
+        { Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), expectedDriveCurrent, "DRIVE_CURRENT" },
+    };
+
+    for (size_t i = 0U; i < (sizeof(verifyItems) / sizeof(verifyItems[0])); ++i) {
+        uint16_t readback = 0U;
+        err = Fdc2214CapReadReg16(dev, verifyItems[i].reg, &readback);
+        if (err != ESP_OK) {
+            return err;
+        }
+        if (readback != verifyItems[i].expected) {
+            ESP_LOGE(TAG,
+                     "CH%d %s mismatch reg 0x%02X expected 0x%04X got 0x%04X",
+                     (int)ch,
+                     verifyItems[i].name,
+                     verifyItems[i].reg,
+                     verifyItems[i].expected,
+                     readback);
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapSetStatusConfig(Fdc2214CapDevice_t* dev, uint16_t statusConfig)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t normalized = Fdc2214CapNormalizeStatusConfig(statusConfig);
+    if (normalized != statusConfig) {
+        ESP_LOGW(TAG, "STATUS_CONFIG masked from 0x%04X to 0x%04X", statusConfig, normalized);
+    }
+    return Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_STATUS_CONFIG, normalized);
+}
+
+esp_err_t Fdc2214CapSetMuxConfig(Fdc2214CapDevice_t* dev,
+                                 bool autoScan,
+                                 uint8_t rrSequence,
+                                 Fdc2214CapDeglitch_t deglitch)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t muxValue = 0U;
+    esp_err_t err = Fdc2214CapBuildMuxValue(autoScan, rrSequence, deglitch, &muxValue);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_MUX_CONFIG, muxValue);
 }
 
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh)
@@ -331,30 +735,32 @@ esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChan
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint16_t configReg = 0;
-    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
-    if (err != ESP_OK) {
-        return err;
-    }
-    configReg &= (uint16_t)(~FDC2214_CONFIG_ACTIVE_CHAN_MASK);
-    configReg |= (uint16_t)((uint16_t)activeCh << FDC2214_CONFIG_ACTIVE_CHAN_SHIFT);
-    err = Fdc2214CapWriteReg16(dev, FDC2214_REG_CONFIG, configReg);
+    uint16_t muxReg = 0U;
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &muxReg);
     if (err != ESP_OK) {
         return err;
     }
 
-    uint16_t muxReg = 0;
-    err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &muxReg);
+    Fdc2214CapDeglitch_t deglitch = (Fdc2214CapDeglitch_t)(muxReg & FDC2214_MUX_DEGLITCH_MASK);
+    if (!Fdc2214IsValidDeglitch(deglitch)) {
+        deglitch = FDC2214_DEGLITCH_10MHZ;
+    }
+    err = Fdc2214CapSetMuxConfig(dev, false, 0U, deglitch);
     if (err != ESP_OK) {
         return err;
     }
-    uint16_t deglitch = (uint16_t)(muxReg & FDC2214_MUX_DEGLITCH_MASK);
-    uint16_t rrSequence = (uint16_t)((muxReg & FDC2214_MUX_RR_SEQUENCE_MASK) >> FDC2214_MUX_RR_SEQUENCE_SHIFT);
 
-    uint16_t newMux = (uint16_t)(rrSequence << FDC2214_MUX_RR_SEQUENCE_SHIFT);
-    newMux |= FDC2214_MUX_FIXED_MASK;
-    newMux |= deglitch;
-    err = Fdc2214CapWriteReg16(dev, FDC2214_REG_MUX_CONFIG, newMux);
+    uint16_t configReg = 0U;
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapConfigOptions_t options = Fdc2214CapConfigOptionsFromRaw(configReg);
+    options.ActiveChannel = activeCh;
+    options.SleepModeEnabled = false;
+    uint16_t newConfig = Fdc2214CapBuildConfig(&options);
+    err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, newConfig);
     if (err != ESP_OK) {
         return err;
     }
@@ -368,24 +774,30 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
     }
-    /* Keep a strict range here (0..2) for explicit caller intent and API stability. */
-    if (rrSequence > 2) {
+    if (rrSequence > 2U) {
         return ESP_ERR_INVALID_ARG;
     }
     if (!Fdc2214IsValidDeglitch(deglitch)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /*
-     * This only configures the hardware sequencer (AUTOSCAN + RR_SEQUENCE).
-     * The caller still controls read cadence and which channel data registers to poll.
-     */
-    uint16_t muxReg = FDC2214_MUX_AUTOSCAN_BIT;
-    muxReg |= (uint16_t)((uint16_t)rrSequence << FDC2214_MUX_RR_SEQUENCE_SHIFT);
-    muxReg |= FDC2214_MUX_FIXED_MASK;
-    muxReg |= (uint16_t)deglitch;
+    esp_err_t err = Fdc2214CapSetMuxConfig(dev, true, rrSequence, deglitch);
+    if (err != ESP_OK) {
+        return err;
+    }
 
-    esp_err_t err = Fdc2214CapWriteReg16(dev, FDC2214_REG_MUX_CONFIG, muxReg);
+    uint16_t configReg = 0U;
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // Keep ref-clock/intb/high-current policy but force active conversion state.
+    Fdc2214CapConfigOptions_t options = Fdc2214CapConfigOptionsFromRaw(configReg);
+    options.ActiveChannel = FDC2214_CH0;
+    options.SleepModeEnabled = false;
+    uint16_t newConfig = Fdc2214CapBuildConfig(&options);
+    err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, newConfig);
     if (err != ESP_OK) {
         return err;
     }
@@ -403,23 +815,78 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Read one channel's MSB/LSB pair in one I2C transaction to keep one coherent sample.
-    // In autoscan mode, each channel register pair stores that channel's latest completed conversion.
-    uint8_t rx[4] = {0};
-    uint8_t reg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, ch);
-    esp_err_t err = Fdc2214CapReadBytes(dev, reg, rx, sizeof(rx));
+    *outSample = (Fdc2214CapSample_t){
+        .ActiveChannel = FDC2214_CH0,
+        .RefClockSource = FDC2214_REF_CLOCK_INTERNAL,
+        .SampleStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN,
+    };
+
+    Fdc2214CapCoreRegs_t coreRegs = {0};
+    esp_err_t err = Fdc2214CapReadCoreRegs(dev, &coreRegs);
     if (err != ESP_OK) {
         return err;
     }
 
-    uint16_t msb = ((uint16_t)rx[0] << 8) | rx[1];
-    uint16_t lsb = ((uint16_t)rx[2] << 8) | rx[3];
+    Fdc2214CapStatus_t status = {0};
+    Fdc2214CapDecodeStatusRaw(coreRegs.Status, &status);
 
-    outSample->Raw28 = ((uint32_t)(msb & FDC2214_DATA_MSB_MASK) << 16) | lsb;
-    outSample->ErrWatchdog = (msb & FDC2214_DATA_ERR_WD_MASK) != 0;
-    outSample->ErrAmplitude = (msb & FDC2214_DATA_ERR_AW_MASK) != 0;
+    uint8_t rx[4] = {0};
+    uint8_t reg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, ch);
+    err = Fdc2214CapReadBytes(dev, reg, rx, sizeof(rx));
+    if (err != ESP_OK) {
+        return err;
+    }
 
-    // ERR_WD / ERR_AW bits are cleared by reading the MSB register.
+    uint16_t msb = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
+    uint16_t lsb = (uint16_t)(((uint16_t)rx[2] << 8) | rx[3]);
+    uint32_t raw28 = ((uint32_t)(msb & FDC2214_DATA_MSB_MASK) << 16) | lsb;
+
+    Fdc2214CapChannel_t activeChannel = Fdc2214CapActiveChannelFromConfig(coreRegs.Config);
+    bool autoScanEnabled = (coreRegs.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0U;
+    bool sleepModeEnabled = (coreRegs.Config & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) != 0U;
+    bool converting = (!sleepModeEnabled) && (autoScanEnabled || (activeChannel == ch));
+    bool unreadConversion = status.UnreadConversion[(uint8_t)ch];
+
+    bool configKnown = Fdc2214CapConfigReservedBitsValid(coreRegs.Config) &&
+                       ((coreRegs.MuxConfig & FDC2214_MUX_FIXED_MASK) == FDC2214_MUX_FIXED_MASK);
+
+    outSample->Raw28 = raw28;
+    outSample->ErrWatchdog = ((msb & FDC2214_DATA_ERR_WD_MASK) != 0U) || status.ErrWatchdog;
+    outSample->ErrAmplitude = ((msb & FDC2214_DATA_ERR_AW_MASK) != 0U) || status.ErrAmplitudeHigh || status.ErrAmplitudeLow;
+    outSample->StatusRaw = coreRegs.Status;
+    outSample->ConfigRaw = coreRegs.Config;
+    outSample->MuxRaw = coreRegs.MuxConfig;
+    outSample->SleepModeEnabled = sleepModeEnabled;
+    outSample->AutoScanEnabled = autoScanEnabled;
+    outSample->Converting = converting;
+    outSample->UnreadConversionPresent = unreadConversion;
+    outSample->DataReady = status.DataReady;
+    outSample->ActiveChannel = activeChannel;
+    outSample->RefClockSource = Fdc2214CapRefClockFromConfig(coreRegs.Config);
+
+    Fdc2214CapSampleStatus_t semanticStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
+    if (!configKnown) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
+    } else if (sleepModeEnabled) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_STILL_SLEEPING;
+    } else if (!converting) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING;
+    } else if (!unreadConversion) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
+    } else if (outSample->ErrWatchdog) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT;
+    } else if (outSample->ErrAmplitude) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT;
+    } else if (raw28 == 0U) {
+        // An all-zero payload can be stale data from a non-converting/sleeping path.
+        // Do not auto-promote transport success to semantic sample validity.
+        semanticStatus = FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID;
+    } else {
+        semanticStatus = FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
+    }
+
+    outSample->SampleStatus = semanticStatus;
+    outSample->SampleValid = (semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID);
     return ESP_OK;
 }
 
@@ -429,4 +896,35 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
         return ESP_ERR_INVALID_ARG;
     }
     return Fdc2214CapReadReg16(dev, reg, outValue);
+}
+
+esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return Fdc2214CapWriteReg16(dev, reg, value);
+}
+
+const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status)
+{
+    switch (status) {
+    case FDC2214_SAMPLE_STATUS_SAMPLE_VALID:
+        return "sample_valid";
+    case FDC2214_SAMPLE_STATUS_STILL_SLEEPING:
+        return "still_sleeping";
+    case FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING:
+        return "i2c_read_ok_but_not_converting";
+    case FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION:
+        return "no_unread_conversion";
+    case FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID:
+        return "zero_raw_invalid";
+    case FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT:
+        return "watchdog_fault";
+    case FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT:
+        return "amplitude_fault";
+    case FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN:
+    default:
+        return "config_unknown";
+    }
 }

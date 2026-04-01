@@ -20,12 +20,6 @@
 #define SENSORARRAY_FDC_DBG_SAMPLE_DELAY_MS 20u
 #define SENSORARRAY_FDC_DBG_MIN_LOOP_DELAY_MS 50u
 
-#define SENSORARRAY_FDC_REG_DATA_MSB_BASE 0x00u
-#define SENSORARRAY_FDC_REG_DATA_LSB_BASE 0x01u
-#define SENSORARRAY_FDC_DATA_MSB_MASK 0x0FFFu
-#define SENSORARRAY_FDC_DATA_ERR_WD_MASK (1u << 13)
-#define SENSORARRAY_FDC_DATA_ERR_AW_MASK (1u << 12)
-
 typedef struct {
     const sensorarrayRouteMap_t *route;
     const sensorarrayFdcDLineMap_t *fdcMap;
@@ -75,16 +69,6 @@ static const char *sensorarrayFdcChannelName(Fdc2214CapChannel_t ch)
     default:
         return "INVALID";
     }
-}
-
-static uint8_t sensorarrayFdcRegDataMsb(Fdc2214CapChannel_t ch)
-{
-    return (uint8_t)(SENSORARRAY_FDC_REG_DATA_MSB_BASE + ((uint8_t)ch * 2u));
-}
-
-static uint8_t sensorarrayFdcRegDataLsb(Fdc2214CapChannel_t ch)
-{
-    return (uint8_t)(SENSORARRAY_FDC_REG_DATA_LSB_BASE + ((uint8_t)ch * 2u));
 }
 
 static uint32_t sensorarrayFdcSampleCountForBringup(void)
@@ -166,12 +150,7 @@ static void sensorarrayLogRouteEvidenceSummary(const sensorarrayFdcSelbS5d5Ctx_t
 }
 
 static void sensorarrayLogFinalDbg(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
-                                   bool rawValid,
-                                   uint16_t rawMsb,
-                                   uint16_t rawLsb,
-                                   uint32_t raw28,
-                                   bool errWd,
-                                   bool errAw,
+                                   const sensorarrayFdcReadDiag_t *diag,
                                    const char *status)
 {
     char rawMsbBuf[12];
@@ -179,6 +158,7 @@ static void sensorarrayLogFinalDbg(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
     char rawBuf[20];
     char wdBuf[4];
     char awBuf[4];
+    char freqBuf[20];
 
     const char *mapLabel = (ctx && ctx->route && ctx->route->mapLabel) ? ctx->route->mapLabel : SENSORARRAY_NA;
     int port = (ctx && ctx->fdcState && ctx->fdcState->i2cCtx) ? (int)ctx->fdcState->i2cCtx->Port : -1;
@@ -190,22 +170,77 @@ static void sensorarrayLogFinalDbg(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
     const char *rawStr = SENSORARRAY_NA;
     const char *wdStr = SENSORARRAY_NA;
     const char *awStr = SENSORARRAY_NA;
-    if (rawValid) {
-        snprintf(rawMsbBuf, sizeof(rawMsbBuf), "0x%04X", rawMsb);
-        snprintf(rawLsbBuf, sizeof(rawLsbBuf), "0x%04X", rawLsb);
-        snprintf(rawBuf, sizeof(rawBuf), "%lu", (unsigned long)raw28);
-        snprintf(wdBuf, sizeof(wdBuf), "%u", errWd ? 1u : 0u);
-        snprintf(awBuf, sizeof(awBuf), "%u", errAw ? 1u : 0u);
+    const char *freqStr = SENSORARRAY_NA;
+    const char *refClockSource = SENSORARRAY_NA;
+    bool refClockSourceKnown = false;
+    const char *sleepStr = SENSORARRAY_NA;
+    const char *autoScanStr = SENSORARRAY_NA;
+    const char *convertingStr = SENSORARRAY_NA;
+    const char *unreadStr = SENSORARRAY_NA;
+    const char *statusRegStr = SENSORARRAY_NA;
+    const char *configRegStr = SENSORARRAY_NA;
+    const char *muxRegStr = SENSORARRAY_NA;
+
+    char sleepBuf[4];
+    char autoScanBuf[4];
+    char convertingBuf[4];
+    char unreadBuf[4];
+    char statusRegBuf[12];
+    char configRegBuf[12];
+    char muxRegBuf[12];
+
+    if (diag && diag->i2cOk) {
+        uint16_t dataMsb = (uint16_t)((diag->sample.Raw28 >> 16) & 0x0FFFu);
+        if (diag->sample.ErrWatchdog) {
+            dataMsb |= 0x2000u;
+        }
+        if (diag->sample.ErrAmplitude) {
+            dataMsb |= 0x1000u;
+        }
+
+        snprintf(rawMsbBuf, sizeof(rawMsbBuf), "0x%04X", dataMsb);
+        snprintf(rawLsbBuf, sizeof(rawLsbBuf), "0x%04X", (uint16_t)(diag->sample.Raw28 & 0xFFFFu));
+        snprintf(rawBuf, sizeof(rawBuf), "%lu", (unsigned long)diag->sample.Raw28);
+        snprintf(wdBuf, sizeof(wdBuf), "%u", diag->sample.ErrWatchdog ? 1u : 0u);
+        snprintf(awBuf, sizeof(awBuf), "%u", diag->sample.ErrAmplitude ? 1u : 0u);
+        snprintf(sleepBuf, sizeof(sleepBuf), "%u", diag->sample.SleepModeEnabled ? 1u : 0u);
+        snprintf(autoScanBuf, sizeof(autoScanBuf), "%u", diag->sample.AutoScanEnabled ? 1u : 0u);
+        snprintf(convertingBuf, sizeof(convertingBuf), "%u", diag->sample.Converting ? 1u : 0u);
+        snprintf(unreadBuf, sizeof(unreadBuf), "%u", diag->sample.UnreadConversionPresent ? 1u : 0u);
+        snprintf(statusRegBuf, sizeof(statusRegBuf), "0x%04X", diag->sample.StatusRaw);
+        snprintf(configRegBuf, sizeof(configRegBuf), "0x%04X", diag->sample.ConfigRaw);
+        snprintf(muxRegBuf, sizeof(muxRegBuf), "0x%04X", diag->sample.MuxRaw);
+
         rawMsbStr = rawMsbBuf;
         rawLsbStr = rawLsbBuf;
         rawStr = rawBuf;
         wdStr = wdBuf;
         awStr = awBuf;
+        sleepStr = sleepBuf;
+        autoScanStr = autoScanBuf;
+        convertingStr = convertingBuf;
+        unreadStr = unreadBuf;
+        statusRegStr = statusRegBuf;
+        configRegStr = configRegBuf;
+        muxRegStr = muxRegBuf;
+        refClockSource = (diag->sample.RefClockSource == FDC2214_REF_CLOCK_EXTERNAL) ? "external_clkin" : "internal_oscillator";
+        refClockSourceKnown = true;
+    }
+
+    if (ctx && ctx->fdcState && ctx->fdcState->refClockKnown) {
+        snprintf(freqBuf, sizeof(freqBuf), "%lu", (unsigned long)ctx->fdcState->refClockHz);
+        freqStr = freqBuf;
+        if (!refClockSourceKnown) {
+            refClockSource = (ctx->fdcState->refClockSource == FDC2214_REF_CLOCK_EXTERNAL)
+                                 ? "external_clkin"
+                                 : "internal_oscillator";
+            refClockSourceKnown = true;
+        }
     }
 
     printf("DBG,point=S5D5,kind=cap,mode=fdc,map=%s,fdcDev=SELB,i2cPort=%d,i2cAddr=0x%02X,channel=%s,"
-           "rawMsb=%s,rawLsb=%s,raw=%s,freqHz=na(reason=missing_fref_clock),"
-           "capPf=na(reason=missing_l_or_scale),wd=%s,amp=%s,status=%s\n",
+           "rawMsb=%s,rawLsb=%s,raw=%s,freqHz=%s,refClockSource=%s,capPf=na(reason=missing_l_or_scale),wd=%s,"
+           "amp=%s,sleep=%s,autoscan=%s,converting=%s,unread=%s,statusReg=%s,configReg=%s,muxReg=%s,status=%s\n",
            mapLabel,
            port,
            addr,
@@ -213,25 +248,18 @@ static void sensorarrayLogFinalDbg(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
            rawMsbStr,
            rawLsbStr,
            rawStr,
+           freqStr,
+           refClockSource,
            wdStr,
            awStr,
+           sleepStr,
+           autoScanStr,
+           convertingStr,
+           unreadStr,
+           statusRegStr,
+           configRegStr,
+           muxRegStr,
            status ? status : SENSORARRAY_NA);
-}
-
-static esp_err_t sensorarrayReadFdcRawWords(Fdc2214CapDevice_t *dev,
-                                            Fdc2214CapChannel_t channel,
-                                            uint16_t *outRawMsb,
-                                            uint16_t *outRawLsb)
-{
-    if (!dev || !outRawMsb || !outRawLsb) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    esp_err_t err = Fdc2214CapReadRawRegisters(dev, sensorarrayFdcRegDataMsb(channel), outRawMsb);
-    if (err != ESP_OK) {
-        return err;
-    }
-    return Fdc2214CapReadRawRegisters(dev, sensorarrayFdcRegDataLsb(channel), outRawLsb);
 }
 
 static sensorarrayRouteCheck_t sensorarrayVerifyRouteAndLog(const sensorarrayFdcSelbS5d5Ctx_t *ctx)
@@ -293,7 +321,7 @@ static sensorarrayRouteCheck_t sensorarrayVerifyRouteAndLog(const sensorarrayFdc
     }
 
     const char *status = routeCheck.commandMatch
-                             ? (routeCheck.gpioObservedMatch ? "read_ok" : "warn_gpio_mismatch")
+                             ? (routeCheck.gpioObservedMatch ? "route_state_ok" : "warn_gpio_mismatch")
                              : "warn_command_mismatch";
     printf("DBGFDC,stage=route_verify,point=S5D5,row=%u,expectedA0=%d,expectedA1=%d,expectedA2=%d,expectedSELA=%d,"
            "expectedSELB=%d,expectedSW=%d,cmdA0=%d,cmdA1=%d,cmdA2=%d,cmdSELA=%d,cmdSELB=%d,cmdSW=%d,obsA0=%d,"
@@ -347,7 +375,7 @@ static void sensorarrayAbortDebugRun(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
                                      const char *holdReason)
 {
     sensorarrayLogRouteEvidenceSummary(ctx, routeCommandIssued, routeCheck, fdcCommOk, status);
-    sensorarrayLogFinalDbg(ctx, false, 0, 0, 0, false, false, status);
+    sensorarrayLogFinalDbg(ctx, NULL, status);
     sensorarrayHoldFailure(holdReason);
 }
 
@@ -557,7 +585,7 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
            (int)ctx.fdcState->i2cCtx->Port,
            ctx.i2cAddr,
            (long)ackErr,
-           (ackErr == ESP_OK) ? "read_ok" : "no_i2c_ack");
+           (ackErr == ESP_OK) ? "ack_ok" : "no_i2c_ack");
     if (ackErr != ESP_OK) {
         sensorarrayAbortDebugRun(&ctx,
                                  routeCommandIssued,
@@ -574,7 +602,7 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     esp_err_t idErr = sensorarrayBringupReadFdcIdsRaw(ctx.fdcState->i2cCtx, ctx.i2cAddr, &idMfg, &idDev);
     bool idMatch = (idMfg == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID) &&
                    (idDev == SENSORARRAY_FDC_EXPECTED_DEVICE_ID);
-    const char *idStatus = ((idErr == ESP_OK) && idMatch) ? "read_ok" : "bad_device_id";
+    const char *idStatus = ((idErr == ESP_OK) && idMatch) ? "id_ok" : "bad_device_id";
     const char *idDetail = (idErr != ESP_OK) ? "id_read_failed" : (idMatch ? "id_match" : "id_mismatch");
     printf("DBGFDC,stage=fdc_id,point=S5D5,fdcDev=SELB,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,err=%ld,detail=%s,"
            "status=%s\n",
@@ -611,15 +639,15 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     ctx.fdcState->haveIds = initDiag.haveIds;
     ctx.fdcState->manufacturerId = initDiag.manufacturerId;
     ctx.fdcState->deviceId = initDiag.deviceId;
+    ctx.fdcState->configVerified = initDiag.configVerified;
+    ctx.fdcState->refClockKnown = initDiag.refClockKnown;
+    ctx.fdcState->refClockSource = initDiag.refClockSource;
+    ctx.fdcState->refClockHz = initDiag.refClockHz;
+    ctx.fdcState->statusConfigReg = initDiag.statusConfigReg;
+    ctx.fdcState->configReg = initDiag.configReg;
+    ctx.fdcState->muxConfigReg = initDiag.muxConfigReg;
 
-    const char *initStatus = "read_ok";
-    if (initErr != ESP_OK) {
-        initStatus = (initDiag.haveIds &&
-                      (initDiag.manufacturerId != SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID ||
-                       initDiag.deviceId != SENSORARRAY_FDC_EXPECTED_DEVICE_ID))
-                         ? "bad_device_id"
-                         : "no_i2c_ack";
-    }
+    const char *initStatus = (initErr == ESP_OK) ? "init_ok" : (initDiag.status ? initDiag.status : "init_failed");
     printf("DBGFDC,stage=fdc_init,point=S5D5,fdcDev=SELB,i2cAddr=0x%02X,channel=%s,idMfg=0x%04X,idDev=0x%04X,"
            "detail=%ld,err=%ld,status=%s\n",
            ctx.i2cAddr,
@@ -643,134 +671,224 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     sensorarrayPromoteRouteStatusWithFunctionalEvidence(&routeCheck, fdcCommOk);
     sensorarrayLogRouteEvidenceSummary(&ctx, routeCommandIssued, &routeCheck, fdcCommOk, "fdc_init_ok");
 
+    Fdc2214CapCoreRegs_t coreRegs = {0};
+    esp_err_t coreErr = Fdc2214CapReadCoreRegs(ctx.fdcState->handle, &coreRegs);
+    printf("DBGFDC,stage=core_dump,point=S5D5,fdcDev=SELB,i2cPort=%d,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,"
+           "status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,refClockKnown=%u,refClock=%s,"
+           "refClockHz=%lu,err=%ld,status=%s\n",
+           (int)ctx.fdcState->i2cCtx->Port,
+           ctx.i2cAddr,
+           ctx.fdcState->manufacturerId,
+           ctx.fdcState->deviceId,
+           coreRegs.Status,
+           coreRegs.StatusConfig,
+           coreRegs.Config,
+           coreRegs.MuxConfig,
+           ctx.fdcState->refClockKnown ? 1u : 0u,
+           (ctx.fdcState->refClockSource == FDC2214_REF_CLOCK_EXTERNAL) ? "external_clkin" : "internal_oscillator",
+           (unsigned long)ctx.fdcState->refClockHz,
+           (long)coreErr,
+           (coreErr == ESP_OK) ? "core_regs_ok" : "core_regs_read_error");
+    if (coreErr != ESP_OK) {
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 &routeCheck,
+                                 fdcCommOk,
+                                 "core_regs_read_error",
+                                 "fdc_selb_s5d5_core_regs_read_error");
+        return;
+    }
+
     uint32_t cycle = 0u;
+    uint32_t persistentZeroCycles = 0u;
     while (true) {
         uint32_t minRaw = UINT_MAX;
         uint32_t maxRaw = 0u;
         uint64_t sumRaw = 0u;
-        uint32_t okCount = 0u;
-        bool anyFlagged = false;
-
-        if (ctx.discardFirst) {
-            uint16_t discardMsb = 0u;
-            uint16_t discardLsb = 0u;
-            esp_err_t discardErr = sensorarrayReadFdcRawWords(ctx.fdcState->handle,
-                                                               ctx.fdcMap->channel,
-                                                               &discardMsb,
-                                                               &discardLsb);
-            if (discardErr != ESP_OK) {
-                printf("DBGFDC,stage=fdc_read,point=S5D5,cycle=%lu,index=discard,fdcDev=SELB,i2cAddr=0x%02X,"
-                       "channel=%s,err=%ld,detail=%s,status=sample_read_failed\n",
-                       (unsigned long)cycle,
-                       ctx.i2cAddr,
-                       sensorarrayFdcChannelName(ctx.fdcMap->channel),
-                       (long)discardErr,
-                       (discardErr == ESP_ERR_TIMEOUT) ? "read_timeout" : "i2c_error");
-                sensorarrayAbortDebugRun(&ctx,
-                                         routeCommandIssued,
-                                         &routeCheck,
-                                         fdcCommOk,
-                                         "sample_read_failed",
-                                         "fdc_selb_s5d5_sample_read_failed");
-                return;
-            }
-
-            uint32_t discardRaw = ((uint32_t)(discardMsb & SENSORARRAY_FDC_DATA_MSB_MASK) << 16) | (uint32_t)discardLsb;
-            printf("DBGFDC,stage=fdc_read,point=S5D5,cycle=%lu,index=discard,fdcDev=SELB,i2cPort=%d,i2cAddr=0x%02X,"
-                   "channel=%s,rawMsb=0x%04X,rawLsb=0x%04X,raw=%lu,status=discarded\n",
-                   (unsigned long)cycle,
-                   (int)ctx.fdcState->i2cCtx->Port,
-                   ctx.i2cAddr,
-                   sensorarrayFdcChannelName(ctx.fdcMap->channel),
-                   discardMsb,
-                   discardLsb,
-                   (unsigned long)discardRaw);
-            sensorarrayDelayMs(SENSORARRAY_FDC_DBG_SAMPLE_DELAY_MS);
-        }
+        uint32_t validCount = 0u;
+        uint32_t invalidCount = 0u;
+        uint32_t i2cErrCount = 0u;
+        uint32_t configUnknownCount = 0u;
+        uint32_t stillSleepingCount = 0u;
+        uint32_t notConvertingCount = 0u;
+        uint32_t noUnreadCount = 0u;
+        uint32_t zeroRawCount = 0u;
+        uint32_t watchdogCount = 0u;
+        uint32_t amplitudeCount = 0u;
+        uint32_t refClockInconsistentCount = 0u;
 
         for (uint32_t i = 0; i < ctx.sampleCount; ++i) {
-            uint16_t rawMsb = 0u;
-            uint16_t rawLsb = 0u;
-            esp_err_t readErr = sensorarrayReadFdcRawWords(ctx.fdcState->handle, ctx.fdcMap->channel, &rawMsb, &rawLsb);
-            if (readErr != ESP_OK) {
-                printf("DBGFDC,stage=fdc_read,point=S5D5,cycle=%lu,index=%lu,fdcDev=SELB,i2cAddr=0x%02X,channel=%s,"
-                       "err=%ld,detail=%s,status=sample_read_failed\n",
-                       (unsigned long)cycle,
-                       (unsigned long)i,
-                       ctx.i2cAddr,
-                       sensorarrayFdcChannelName(ctx.fdcMap->channel),
-                       (long)readErr,
-                       (readErr == ESP_ERR_TIMEOUT) ? "read_timeout" : "i2c_error");
-                sensorarrayAbortDebugRun(&ctx,
-                                         routeCommandIssued,
-                                         &routeCheck,
-                                         fdcCommOk,
-                                         "sample_read_failed",
-                                         "fdc_selb_s5d5_sample_read_failed");
-                return;
+            bool doDiscard = ctx.discardFirst && (i == 0u);
+            sensorarrayFdcReadDiag_t diag = {0};
+            esp_err_t readErr = sensorarrayMeasureReadFdcSampleDiag(ctx.fdcState->handle,
+                                                                    ctx.fdcMap->channel,
+                                                                    doDiscard,
+                                                                    ctx.fdcState->haveIds,
+                                                                    ctx.fdcState->configVerified,
+                                                                    &diag);
+            const char *sampleStatus = sensorarrayMeasureFdcSampleStatusName(diag.statusCode);
+            bool refClockInconsistent = ctx.fdcState->refClockKnown &&
+                                        diag.i2cOk &&
+                                        (diag.sample.RefClockSource != ctx.fdcState->refClockSource);
+            if (refClockInconsistent) {
+                refClockInconsistentCount++;
             }
 
-            uint32_t raw28 = ((uint32_t)(rawMsb & SENSORARRAY_FDC_DATA_MSB_MASK) << 16) | (uint32_t)rawLsb;
-            bool errWd = (rawMsb & SENSORARRAY_FDC_DATA_ERR_WD_MASK) != 0u;
-            bool errAw = (rawMsb & SENSORARRAY_FDC_DATA_ERR_AW_MASK) != 0u;
-            anyFlagged = anyFlagged || errWd || errAw;
-            if (raw28 < minRaw) {
-                minRaw = raw28;
+            switch (diag.statusCode) {
+            case SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID:
+                validCount++;
+                if (diag.sample.Raw28 < minRaw) {
+                    minRaw = diag.sample.Raw28;
+                }
+                if (diag.sample.Raw28 > maxRaw) {
+                    maxRaw = diag.sample.Raw28;
+                }
+                sumRaw += (uint64_t)diag.sample.Raw28;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR:
+                i2cErrCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN:
+                configUnknownCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_STILL_SLEEPING:
+                stillSleepingCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING:
+                notConvertingCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION:
+                noUnreadCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID:
+                zeroRawCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT:
+                watchdogCount++;
+                invalidCount++;
+                break;
+            case SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT:
+                amplitudeCount++;
+                invalidCount++;
+                break;
+            default:
+                configUnknownCount++;
+                invalidCount++;
+                break;
             }
-            if (raw28 > maxRaw) {
-                maxRaw = raw28;
-            }
-            sumRaw += (uint64_t)raw28;
-            okCount++;
 
             printf("DBGFDC,stage=fdc_read,point=S5D5,cycle=%lu,index=%lu,fdcDev=SELB,i2cPort=%d,i2cAddr=0x%02X,"
-                   "channel=%s,rawMsb=0x%04X,rawLsb=0x%04X,raw=%lu,wd=%u,amp=%u,status=read_ok\n",
+                   "channel=%s,discardFirst=%u,i2cOk=%u,idOk=%u,configOk=%u,converting=%u,unread=%u,sampleValid=%u,"
+                   "raw=%lu,wd=%u,amp=%u,statusReg=0x%04X,configReg=0x%04X,muxReg=0x%04X,refClockSrc=%s,"
+                   "refClockInconsistent=%u,err=%ld,status=%s\n",
                    (unsigned long)cycle,
                    (unsigned long)i,
                    (int)ctx.fdcState->i2cCtx->Port,
                    ctx.i2cAddr,
                    sensorarrayFdcChannelName(ctx.fdcMap->channel),
-                   rawMsb,
-                   rawLsb,
-                   (unsigned long)raw28,
-                   errWd ? 1u : 0u,
-                   errAw ? 1u : 0u);
+                   doDiscard ? 1u : 0u,
+                   diag.i2cOk ? 1u : 0u,
+                   diag.idOk ? 1u : 0u,
+                   diag.configOk ? 1u : 0u,
+                   diag.converting ? 1u : 0u,
+                   diag.unreadConversionPresent ? 1u : 0u,
+                   diag.sampleValid ? 1u : 0u,
+                   (unsigned long)diag.sample.Raw28,
+                   diag.sample.ErrWatchdog ? 1u : 0u,
+                   diag.sample.ErrAmplitude ? 1u : 0u,
+                   diag.sample.StatusRaw,
+                   diag.sample.ConfigRaw,
+                   diag.sample.MuxRaw,
+                   (diag.sample.RefClockSource == FDC2214_REF_CLOCK_EXTERNAL) ? "external_clkin" : "internal_oscillator",
+                   refClockInconsistent ? 1u : 0u,
+                   (long)readErr,
+                   sampleStatus);
 
-            sensorarrayLogFinalDbg(&ctx, true, rawMsb, rawLsb, raw28, errWd, errAw, "read_ok");
+            sensorarrayLogFinalDbg(&ctx, &diag, sampleStatus);
             sensorarrayDelayMs(SENSORARRAY_FDC_DBG_SAMPLE_DELAY_MS);
         }
 
-        if (okCount == 0u) {
-            sensorarrayAbortDebugRun(&ctx,
-                                     routeCommandIssued,
-                                     &routeCheck,
-                                     fdcCommOk,
-                                     "sample_read_failed",
-                                     "fdc_selb_s5d5_sample_read_zero");
-            return;
+        if (zeroRawCount == ctx.sampleCount && ctx.sampleCount > 0u) {
+            persistentZeroCycles++;
+        } else {
+            persistentZeroCycles = 0u;
         }
 
-        uint32_t meanRaw = (uint32_t)(sumRaw / (uint64_t)okCount);
-        uint32_t spanRaw = maxRaw - minRaw;
-        uint32_t stableThreshold = (meanRaw / 20u) + 1u; // 5% window for bring-up stability check.
-        bool stable = (spanRaw <= stableThreshold) && !anyFlagged;
+        uint32_t meanRaw = (validCount > 0u) ? (uint32_t)(sumRaw / (uint64_t)validCount) : 0u;
+        uint32_t spanRaw = (validCount > 0u) ? (maxRaw - minRaw) : 0u;
+        uint32_t stableThreshold = (meanRaw / 20u) + 1u; // 5% window for valid-only span check.
+        bool stable = (validCount > 0u) && (invalidCount == 0u) && (spanRaw <= stableThreshold);
         bool canCalibrate = stable;
 
+        const char *rootCause = "sample_valid";
+        if (i2cErrCount > 0u) {
+            rootCause = "i2c_read_error";
+        } else if (!ctx.fdcState->refClockKnown) {
+            rootCause = "reference_clock_unknown";
+        } else if (refClockInconsistentCount > 0u) {
+            rootCause = "reference_clock_inconsistent";
+        } else if (!ctx.fdcState->configVerified) {
+            rootCause = "channel_config_readback_mismatch";
+        } else if (stillSleepingCount > 0u) {
+            rootCause = "device_still_sleeping";
+        } else if (notConvertingCount > 0u) {
+            rootCause = "not_converting";
+        } else if (noUnreadCount > 0u) {
+            rootCause = "no_unread_conversions";
+        } else if (zeroRawCount > 0u) {
+            rootCause = "raw_stuck_zero";
+        } else if (watchdogCount > 0u) {
+            rootCause = "watchdog_fault";
+        } else if (amplitudeCount > 0u) {
+            rootCause = "amplitude_fault";
+        } else if (configUnknownCount > 0u) {
+            rootCause = "config_unknown";
+        }
+        const char *summaryStatus = (invalidCount == 0u && validCount > 0u) ? "sample_valid" : rootCause;
+
         printf("DBGFDC,stage=summary,point=S5D5,kind=cap,mode=fdc,fdcDev=SELB,i2cAddr=0x%02X,channel=%s,cycle=%lu,"
-               "samples=%lu,ok=%lu,min=%lu,max=%lu,mean=%lu,span=%lu,stable=%u,calReady=%u,status=read_ok\n",
+               "samples=%lu,valid=%lu,invalid=%lu,min=%lu,max=%lu,mean=%lu,span=%lu,stable=%u,calReady=%u,"
+               "i2cErr=%lu,configUnknown=%lu,stillSleeping=%lu,notConverting=%lu,noUnread=%lu,zeroRaw=%lu,"
+               "watchdog=%lu,amplitude=%lu,refClockKnown=%u,refClockInconsistent=%lu,configVerified=%u,"
+               "persistentZeroCycles=%lu,status=%s\n",
                ctx.i2cAddr,
                sensorarrayFdcChannelName(ctx.fdcMap->channel),
                (unsigned long)cycle,
                (unsigned long)ctx.sampleCount,
-               (unsigned long)okCount,
-               (unsigned long)minRaw,
-               (unsigned long)maxRaw,
+               (unsigned long)validCount,
+               (unsigned long)invalidCount,
+               (unsigned long)((validCount > 0u) ? minRaw : 0u),
+               (unsigned long)((validCount > 0u) ? maxRaw : 0u),
                (unsigned long)meanRaw,
                (unsigned long)spanRaw,
                stable ? 1u : 0u,
-               canCalibrate ? 1u : 0u);
+               canCalibrate ? 1u : 0u,
+               (unsigned long)i2cErrCount,
+               (unsigned long)configUnknownCount,
+               (unsigned long)stillSleepingCount,
+               (unsigned long)notConvertingCount,
+               (unsigned long)noUnreadCount,
+               (unsigned long)zeroRawCount,
+               (unsigned long)watchdogCount,
+               (unsigned long)amplitudeCount,
+               ctx.fdcState->refClockKnown ? 1u : 0u,
+               (unsigned long)refClockInconsistentCount,
+               ctx.fdcState->configVerified ? 1u : 0u,
+               (unsigned long)persistentZeroCycles,
+               summaryStatus);
+        if (invalidCount > 0u) {
+            printf("DBGFDC,stage=root_cause,point=S5D5,cycle=%lu,rootCause=%s,detail=status_driven_diagnosis\n",
+                   (unsigned long)cycle,
+                   rootCause);
+        }
         if (cycle == 0u) {
-            sensorarrayLogRouteEvidenceSummary(&ctx, routeCommandIssued, &routeCheck, fdcCommOk, "read_ok");
+            sensorarrayLogRouteEvidenceSummary(&ctx, routeCommandIssued, &routeCheck, fdcCommOk, summaryStatus);
         }
 
         cycle++;
