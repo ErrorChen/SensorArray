@@ -293,22 +293,31 @@ void sensorarrayLogDbg(const char *point,
     char muxnBuf[12];
     char refmuxBuf[12];
     char discardBuf[12];
-    char ctrlA0Buf[8];
-    char ctrlA1Buf[8];
-    char ctrlA2Buf[8];
-    char ctrlSwBuf[8];
-    char ctrlSel1Buf[8];
-    char ctrlSel2Buf[8];
-    char ctrlSel3Buf[8];
-    char ctrlSel4Buf[8];
-    char ctrlEnBuf[8];
+    char cmdA0Buf[8];
+    char cmdA1Buf[8];
+    char cmdA2Buf[8];
+    char cmdSwBuf[8];
+    char cmdSel1Buf[8];
+    char cmdSel2Buf[8];
+    char cmdSel3Buf[8];
+    char cmdSel4Buf[8];
+    char cmdEnBuf[8];
+    char obsA0Buf[8];
+    char obsA1Buf[8];
+    char obsA2Buf[8];
+    char obsSwBuf[8];
+    char obsSel1Buf[8];
+    char obsSel2Buf[8];
+    char obsSel3Buf[8];
+    char obsSel4Buf[8];
+    char obsEnBuf[8];
     const tmuxSwitchControlState_t *ctrl = s_dbgExtra.ctrlValid ? &s_dbgExtra.ctrl : NULL;
 
     printf("DBG,point=%s,kind=%s,column=%s,dline=%s,sw=%s,ref=%s,mode=%s,value=%s,valueUv=%s,"
            "valueMohm=%s,raw=%s,wd=%s,amp=%s,fdcDev=%s,i2cPort=%s,i2cAddr=%s,idMfg=%s,idDev=%s,"
            "refReady=%s,map=%s,err=%ld,status=%s,muxp=%s,muxn=%s,refmux=%s,discardCount=%s,"
-           "ctrlA0=%s,ctrlA1=%s,ctrlA2=%s,ctrlSW=%s,ctrlSel1=%s,ctrlSel2=%s,ctrlSel3=%s,"
-           "ctrlSel4=%s,ctrlEn=%s\n",
+           "cmdA0=%s,cmdA1=%s,cmdA2=%s,cmdSW=%s,cmdSELA=%s,cmdSELB=%s,cmdSEL3=%s,cmdSEL4=%s,cmdEN=%s,"
+           "obsA0=%s,obsA1=%s,obsA2=%s,obsSW=%s,obsSELA=%s,obsSELB=%s,obsSEL3=%s,obsSEL4=%s,obsEN=%s\n",
            point ? point : SENSORARRAY_NA,
            kind ? kind : SENSORARRAY_NA,
            column ? column : SENSORARRAY_NA,
@@ -335,15 +344,24 @@ void sensorarrayLogDbg(const char *point,
            sensorarrayLogFmtU8(muxnBuf, sizeof(muxnBuf), s_dbgExtra.muxValid, s_dbgExtra.muxn),
            sensorarrayLogFmtHexU8(refmuxBuf, sizeof(refmuxBuf), s_dbgExtra.refmuxValid, s_dbgExtra.refmux),
            sensorarrayLogFmtU8(discardBuf, sizeof(discardBuf), s_dbgExtra.discardCountValid, s_dbgExtra.discardCount),
-           sensorarrayLogFmtGpioLevel(ctrlA0Buf, sizeof(ctrlA0Buf), ctrl != NULL, ctrl ? ctrl->a0Level : -1),
-           sensorarrayLogFmtGpioLevel(ctrlA1Buf, sizeof(ctrlA1Buf), ctrl != NULL, ctrl ? ctrl->a1Level : -1),
-           sensorarrayLogFmtGpioLevel(ctrlA2Buf, sizeof(ctrlA2Buf), ctrl != NULL, ctrl ? ctrl->a2Level : -1),
-           sensorarrayLogFmtGpioLevel(ctrlSwBuf, sizeof(ctrlSwBuf), ctrl != NULL, ctrl ? ctrl->swLevel : -1),
-           sensorarrayLogFmtGpioLevel(ctrlSel1Buf, sizeof(ctrlSel1Buf), ctrl != NULL, ctrl ? ctrl->selaLevel : -1),
-           sensorarrayLogFmtGpioLevel(ctrlSel2Buf, sizeof(ctrlSel2Buf), ctrl != NULL, ctrl ? ctrl->selbLevel : -1),
-           sensorarrayLogFmtGpioLevel(ctrlSel3Buf, sizeof(ctrlSel3Buf), ctrl != NULL, ctrl ? ctrl->sel3Level : -1),
-           sensorarrayLogFmtGpioLevel(ctrlSel4Buf, sizeof(ctrlSel4Buf), ctrl != NULL, ctrl ? ctrl->sel4Level : -1),
-           sensorarrayLogFmtGpioLevel(ctrlEnBuf, sizeof(ctrlEnBuf), ctrl != NULL, ctrl ? ctrl->enLevel : -1));
+           sensorarrayLogFmtGpioLevel(cmdA0Buf, sizeof(cmdA0Buf), ctrl != NULL, ctrl ? ctrl->cmdA0Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdA1Buf, sizeof(cmdA1Buf), ctrl != NULL, ctrl ? ctrl->cmdA1Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdA2Buf, sizeof(cmdA2Buf), ctrl != NULL, ctrl ? ctrl->cmdA2Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdSwBuf, sizeof(cmdSwBuf), ctrl != NULL, ctrl ? ctrl->cmdSwLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel1Buf, sizeof(cmdSel1Buf), ctrl != NULL, ctrl ? ctrl->cmdSelaLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel2Buf, sizeof(cmdSel2Buf), ctrl != NULL, ctrl ? ctrl->cmdSelbLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel3Buf, sizeof(cmdSel3Buf), ctrl != NULL, ctrl ? ctrl->cmdSel3Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel4Buf, sizeof(cmdSel4Buf), ctrl != NULL, ctrl ? ctrl->cmdSel4Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdEnBuf, sizeof(cmdEnBuf), ctrl != NULL, ctrl ? ctrl->cmdEnLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsA0Buf, sizeof(obsA0Buf), ctrl != NULL, ctrl ? ctrl->obsA0Level : -1),
+           sensorarrayLogFmtGpioLevel(obsA1Buf, sizeof(obsA1Buf), ctrl != NULL, ctrl ? ctrl->obsA1Level : -1),
+           sensorarrayLogFmtGpioLevel(obsA2Buf, sizeof(obsA2Buf), ctrl != NULL, ctrl ? ctrl->obsA2Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSwBuf, sizeof(obsSwBuf), ctrl != NULL, ctrl ? ctrl->obsSwLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsSel1Buf, sizeof(obsSel1Buf), ctrl != NULL, ctrl ? ctrl->obsSelaLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsSel2Buf, sizeof(obsSel2Buf), ctrl != NULL, ctrl ? ctrl->obsSelbLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsSel3Buf, sizeof(obsSel3Buf), ctrl != NULL, ctrl ? ctrl->obsSel3Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSel4Buf, sizeof(obsSel4Buf), ctrl != NULL, ctrl ? ctrl->obsSel4Level : -1),
+           sensorarrayLogFmtGpioLevel(obsEnBuf, sizeof(obsEnBuf), ctrl != NULL, ctrl ? ctrl->obsEnLevel : -1));
     sensorarrayLogDbgExtraReset();
 }
 
@@ -412,15 +430,24 @@ void sensorarrayLogStartupFdc(const char *mode,
 
 void sensorarrayLogControlGpio(const char *stage, const char *point)
 {
-    char a0Buf[8];
-    char a1Buf[8];
-    char a2Buf[8];
-    char swBuf[8];
-    char sel1Buf[8];
-    char sel2Buf[8];
-    char sel3Buf[8];
-    char sel4Buf[8];
-    char enBuf[8];
+    char cmdA0Buf[8];
+    char cmdA1Buf[8];
+    char cmdA2Buf[8];
+    char cmdSwBuf[8];
+    char cmdSel1Buf[8];
+    char cmdSel2Buf[8];
+    char cmdSel3Buf[8];
+    char cmdSel4Buf[8];
+    char cmdEnBuf[8];
+    char obsA0Buf[8];
+    char obsA1Buf[8];
+    char obsA2Buf[8];
+    char obsSwBuf[8];
+    char obsSel1Buf[8];
+    char obsSel2Buf[8];
+    char obsSel3Buf[8];
+    char obsSel4Buf[8];
+    char obsEnBuf[8];
     char drdyBuf[8];
     char resetBuf[8];
 
@@ -429,19 +456,29 @@ void sensorarrayLogControlGpio(const char *stage, const char *point)
     int drdyLevel = sensorarrayReadOptionalGpioLevel(CONFIG_BOARD_ADS126X_DRDY_GPIO);
     int resetLevel = sensorarrayReadOptionalGpioLevel(CONFIG_BOARD_ADS126X_RESET_GPIO);
 
-    printf("DBGCTRL,stage=%s,point=%s,a0=%s,a1=%s,a2=%s,sw=%s,sel1=%s,sel2=%s,sel3=%s,sel4=%s,en=%s,"
-           "drdy=%s,adsReset=%s\n",
+    printf("DBGCTRL,stage=%s,point=%s,cmdA0=%s,cmdA1=%s,cmdA2=%s,cmdSW=%s,cmdSELA=%s,cmdSELB=%s,cmdSEL3=%s,"
+           "cmdSEL4=%s,cmdEN=%s,obsA0=%s,obsA1=%s,obsA2=%s,obsSW=%s,obsSELA=%s,obsSELB=%s,obsSEL3=%s,"
+           "obsSEL4=%s,obsEN=%s,drdy=%s,adsReset=%s\n",
            stage ? stage : SENSORARRAY_NA,
            point ? point : SENSORARRAY_NA,
-           sensorarrayLogFmtGpioLevel(a0Buf, sizeof(a0Buf), haveCtrl, haveCtrl ? ctrl.a0Level : -1),
-           sensorarrayLogFmtGpioLevel(a1Buf, sizeof(a1Buf), haveCtrl, haveCtrl ? ctrl.a1Level : -1),
-           sensorarrayLogFmtGpioLevel(a2Buf, sizeof(a2Buf), haveCtrl, haveCtrl ? ctrl.a2Level : -1),
-           sensorarrayLogFmtGpioLevel(swBuf, sizeof(swBuf), haveCtrl, haveCtrl ? ctrl.swLevel : -1),
-           sensorarrayLogFmtGpioLevel(sel1Buf, sizeof(sel1Buf), haveCtrl, haveCtrl ? ctrl.sel1Level : -1),
-           sensorarrayLogFmtGpioLevel(sel2Buf, sizeof(sel2Buf), haveCtrl, haveCtrl ? ctrl.sel2Level : -1),
-           sensorarrayLogFmtGpioLevel(sel3Buf, sizeof(sel3Buf), haveCtrl, haveCtrl ? ctrl.sel3Level : -1),
-           sensorarrayLogFmtGpioLevel(sel4Buf, sizeof(sel4Buf), haveCtrl, haveCtrl ? ctrl.sel4Level : -1),
-           sensorarrayLogFmtGpioLevel(enBuf, sizeof(enBuf), haveCtrl, haveCtrl ? ctrl.enLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdA0Buf, sizeof(cmdA0Buf), haveCtrl, haveCtrl ? ctrl.cmdA0Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdA1Buf, sizeof(cmdA1Buf), haveCtrl, haveCtrl ? ctrl.cmdA1Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdA2Buf, sizeof(cmdA2Buf), haveCtrl, haveCtrl ? ctrl.cmdA2Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdSwBuf, sizeof(cmdSwBuf), haveCtrl, haveCtrl ? ctrl.cmdSwLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel1Buf, sizeof(cmdSel1Buf), haveCtrl, haveCtrl ? ctrl.cmdSelaLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel2Buf, sizeof(cmdSel2Buf), haveCtrl, haveCtrl ? ctrl.cmdSelbLevel : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel3Buf, sizeof(cmdSel3Buf), haveCtrl, haveCtrl ? ctrl.cmdSel3Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdSel4Buf, sizeof(cmdSel4Buf), haveCtrl, haveCtrl ? ctrl.cmdSel4Level : -1),
+           sensorarrayLogFmtGpioLevel(cmdEnBuf, sizeof(cmdEnBuf), haveCtrl, haveCtrl ? ctrl.cmdEnLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsA0Buf, sizeof(obsA0Buf), haveCtrl, haveCtrl ? ctrl.obsA0Level : -1),
+           sensorarrayLogFmtGpioLevel(obsA1Buf, sizeof(obsA1Buf), haveCtrl, haveCtrl ? ctrl.obsA1Level : -1),
+           sensorarrayLogFmtGpioLevel(obsA2Buf, sizeof(obsA2Buf), haveCtrl, haveCtrl ? ctrl.obsA2Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSwBuf, sizeof(obsSwBuf), haveCtrl, haveCtrl ? ctrl.obsSwLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsSel1Buf, sizeof(obsSel1Buf), haveCtrl, haveCtrl ? ctrl.obsSel1Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSel2Buf, sizeof(obsSel2Buf), haveCtrl, haveCtrl ? ctrl.obsSel2Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSel3Buf, sizeof(obsSel3Buf), haveCtrl, haveCtrl ? ctrl.obsSel3Level : -1),
+           sensorarrayLogFmtGpioLevel(obsSel4Buf, sizeof(obsSel4Buf), haveCtrl, haveCtrl ? ctrl.obsSel4Level : -1),
+           sensorarrayLogFmtGpioLevel(obsEnBuf, sizeof(obsEnBuf), haveCtrl, haveCtrl ? ctrl.obsEnLevel : -1),
            sensorarrayLogFmtGpioLevel(drdyBuf, sizeof(drdyBuf), true, drdyLevel),
            sensorarrayLogFmtGpioLevel(resetBuf, sizeof(resetBuf), true, resetLevel));
 }
@@ -450,22 +487,26 @@ void sensorarrayLogSelaRouteDecision(const char *stage,
                                      const char *label,
                                      sensorarraySelaRoute_t requestRoute,
                                      int selaWriteLevel,
-                                     int selaReadLevel,
-                                     bool resolvedValid,
-                                     sensorarraySelaRoute_t resolvedRoute)
+                                     int selaCmdLevel,
+                                     int selaObsLevel,
+                                     bool obsResolvedValid,
+                                     sensorarraySelaRoute_t obsResolvedRoute)
 {
-    printf("[ROUTE] request=%s, selaWrite=%d, selaRead=%d, resolved=%s, stage=%s, label=%s\n",
+    printf("[ROUTE] request=%s,selaExpected=%d,cmdSELA=%d,obsSELA=%d,obsResolved=%s,stage=%s,label=%s,"
+           "note=obsSELA_is_MCU_gpio_observation_only\n",
            sensorarrayBoardMapSelaRouteName(requestRoute),
            selaWriteLevel,
-           selaReadLevel,
-           resolvedValid ? sensorarrayBoardMapSelaRouteName(resolvedRoute) : "UNKNOWN",
+           selaCmdLevel,
+           selaObsLevel,
+           obsResolvedValid ? sensorarrayBoardMapSelaRouteName(obsResolvedRoute) : "UNKNOWN",
            stage ? stage : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA);
 }
 
 void sensorarrayLogSelaReadbackMismatch(const char *stage, const char *label, int wroteLevel, int readLevel)
 {
-    printf("[ROUTE][WARN] SELA readback mismatch: wrote=%d read=%d, stage=%s, label=%s\n",
+    printf("[ROUTE][WARN] SELA GPIO observation mismatch: expected=%d obs=%d, stage=%s, label=%s,"
+           "action=continue_functional_checks\n",
            wroteLevel,
            readLevel,
            stage ? stage : SENSORARRAY_NA,

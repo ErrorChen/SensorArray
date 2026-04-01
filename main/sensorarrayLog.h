@@ -75,9 +75,10 @@ void sensorarrayLogSelaRouteDecision(const char *stage,
                                      const char *label,
                                      sensorarraySelaRoute_t requestRoute,
                                      int selaWriteLevel,
-                                     int selaReadLevel,
-                                     bool resolvedValid,
-                                     sensorarraySelaRoute_t resolvedRoute);
+                                     int selaCmdLevel,
+                                     int selaObsLevel,
+                                     bool obsResolvedValid,
+                                     sensorarraySelaRoute_t obsResolvedRoute);
 void sensorarrayLogSelaReadbackMismatch(const char *stage, const char *label, int wroteLevel, int readLevel);
 
 void sensorarrayLogRouteStep(const char *stage,

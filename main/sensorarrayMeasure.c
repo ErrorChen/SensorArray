@@ -55,25 +55,28 @@ static esp_err_t sensorarrayMeasureWriteSela(sensorarrayState_t *state,
     }
 
     esp_err_t err = tmux1134SelectSelALevel(selaWriteLevel != 0);
-    int selaReadLevel = -1;
-    bool resolvedValid = false;
-    sensorarraySelaRoute_t resolvedRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
+    int selaCmdLevel = -1;
+    int selaObsLevel = -1;
+    bool obsResolvedValid = false;
+    sensorarraySelaRoute_t obsResolvedRoute = SENSORARRAY_SELA_ROUTE_ADS1263;
 
     tmuxSwitchControlState_t ctrl = {0};
     if (tmuxSwitchGetControlState(&ctrl) == ESP_OK) {
-        selaReadLevel = ctrl.selaLevel;
-        resolvedValid = sensorarrayBoardMapSelaRouteFromGpioLevel(selaReadLevel, &resolvedRoute);
+        selaCmdLevel = ctrl.cmdSelaLevel;
+        selaObsLevel = ctrl.obsSelaLevel;
+        obsResolvedValid = sensorarrayBoardMapSelaRouteFromGpioLevel(selaObsLevel, &obsResolvedRoute);
     }
 
     sensorarrayLogSelaRouteDecision(stage,
                                     label,
                                     requestRoute,
                                     selaWriteLevel,
-                                    selaReadLevel,
-                                    resolvedValid,
-                                    resolvedRoute);
-    if (selaReadLevel >= 0 && selaReadLevel != selaWriteLevel) {
-        sensorarrayLogSelaReadbackMismatch(stage, label, selaWriteLevel, selaReadLevel);
+                                    selaCmdLevel,
+                                    selaObsLevel,
+                                    obsResolvedValid,
+                                    obsResolvedRoute);
+    if (selaObsLevel >= 0 && selaObsLevel != selaWriteLevel) {
+        sensorarrayLogSelaReadbackMismatch(stage, label, selaWriteLevel, selaObsLevel);
     }
     if (err != ESP_OK) {
         return err;

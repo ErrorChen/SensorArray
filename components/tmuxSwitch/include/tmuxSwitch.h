@@ -15,29 +15,51 @@ typedef enum {
 
 typedef struct {
     bool inited;
-    uint8_t row;
-    tmux1108Source_t source;
     bool tmux1134EnControllable;
-    bool tmux1134EnLogicalOn;
-    int a0Level;
-    int a1Level;
-    int a2Level;
-    int swLevel;
-    int sel1Level; // Raw GPIO level on TMUX1134 SEL1 pin (SELA).
-    int sel2Level; // Raw GPIO level on TMUX1134 SEL2 pin (SELB).
-    int sel3Level;
-    int sel4Level;
-    int enLevel;   // Raw GPIO level on TMUX1134 EN pin (or -1 when not controllable).
-    int selaLevel; // Alias of sel1Level for explicit SELA naming.
-    int selbLevel; // Alias of sel2Level for explicit SELB naming.
+
+    /* Last software-commanded control state (metadata, not hardware proof). */
+    uint8_t cmdRow;
+    tmux1108Source_t cmdSource;
+    bool cmdTmux1134EnLogicalOn;
+    int cmdA0Level;
+    int cmdA1Level;
+    int cmdA2Level;
+    int cmdSwLevel;
+    int cmdSel1Level;
+    int cmdSel2Level;
+    int cmdSel3Level;
+    int cmdSel4Level;
+    int cmdEnLevel;
+    int cmdSelaLevel; // Alias of cmdSel1Level for explicit SELA naming.
+    int cmdSelbLevel; // Alias of cmdSel2Level for explicit SELB naming.
+
+    /*
+     * MCU-side GPIO observations. These are pin-level observations only and do
+     * not prove analog conduction through the external switch matrix.
+     */
+    int obsA0Level;
+    int obsA1Level;
+    int obsA2Level;
+    int obsSwLevel;
+    int obsSel1Level;
+    int obsSel2Level;
+    int obsSel3Level;
+    int obsSel4Level;
+    int obsEnLevel;
+    bool obsTmux1134EnLogicalOnValid;
+    bool obsTmux1134EnLogicalOn;
+    int obsSelaLevel; // Alias of obsSel1Level for explicit SELA naming.
+    int obsSelbLevel; // Alias of obsSel2Level for explicit SELB naming.
 } tmuxSwitchControlState_t;
 
 esp_err_t tmuxSwitchInit(void);
 
 esp_err_t tmux1108SelectRow(uint8_t row);
+/* Returns the last software-commanded row index (0..7). */
 esp_err_t tmux1108GetRow(uint8_t *rowOut);
 
 esp_err_t tmux1108SetSource(tmux1108Source_t source);
+/* Returns the last software-commanded SW source. */
 esp_err_t tmux1108GetSource(tmux1108Source_t *sourceOut);
 
 /*
@@ -57,6 +79,11 @@ esp_err_t tmux1134SetSelAEnabled(bool enabled);
 esp_err_t tmux1134SetSelBEnabled(bool enabled);
 esp_err_t tmux1134SetAllOff(void);
 esp_err_t tmux1134SetAllOn(void);
+
+/*
+ * Captures both software-commanded state and MCU pin observations.
+ * Observed GPIO levels are MCU-side only and are not definitive analog-route proof.
+ */
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState);
 
 esp_err_t tmuxSwitchSelectRow(uint8_t row);

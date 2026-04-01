@@ -6,6 +6,7 @@
 #include "boardSupport.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sdkconfig.h"
 
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
@@ -38,6 +39,20 @@ typedef struct {
     uint32_t loopDelayMs;
     bool discardFirst;
 } sensorarrayFdcSelbS5d5Ctx_t;
+
+typedef enum {
+    ROUTE_STATUS_COMMAND_ONLY = 0,
+    ROUTE_STATUS_GPIO_CONFIRMED,
+    ROUTE_STATUS_GPIO_MISMATCH,
+    ROUTE_STATUS_FUNCTIONALLY_CONFIRMED,
+} sensorarrayRouteStatus_t;
+
+typedef struct {
+    bool ctrlStateReadOk;
+    bool commandMatch;
+    bool gpioObservedMatch;
+    sensorarrayRouteStatus_t routeStatus;
+} sensorarrayRouteCheck_t;
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -91,6 +106,63 @@ static uint32_t sensorarrayFdcLoopDelayMsForBringup(void)
         delayMs = SENSORARRAY_FDC_DBG_MIN_LOOP_DELAY_MS;
     }
     return delayMs;
+}
+
+static const char *sensorarrayRouteStatusName(sensorarrayRouteStatus_t status)
+{
+    switch (status) {
+    case ROUTE_STATUS_COMMAND_ONLY:
+        return "ROUTE_STATUS_COMMAND_ONLY";
+    case ROUTE_STATUS_GPIO_CONFIRMED:
+        return "ROUTE_STATUS_GPIO_CONFIRMED";
+    case ROUTE_STATUS_GPIO_MISMATCH:
+        return "ROUTE_STATUS_GPIO_MISMATCH";
+    case ROUTE_STATUS_FUNCTIONALLY_CONFIRMED:
+        return "ROUTE_STATUS_FUNCTIONALLY_CONFIRMED";
+    default:
+        return "ROUTE_STATUS_UNKNOWN";
+    }
+}
+
+static int sensorarrayExpectedSwLevel(tmux1108Source_t source)
+{
+    int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
+    return (source == TMUX1108_SOURCE_REF) ? refLevel : (refLevel ? 0 : 1);
+}
+
+static void sensorarrayPromoteRouteStatusWithFunctionalEvidence(sensorarrayRouteCheck_t *routeCheck, bool fdcCommOk)
+{
+    if (!routeCheck || !fdcCommOk) {
+        return;
+    }
+    if (routeCheck->routeStatus == ROUTE_STATUS_GPIO_MISMATCH) {
+        routeCheck->routeStatus = ROUTE_STATUS_FUNCTIONALLY_CONFIRMED;
+    }
+}
+
+static void sensorarrayLogRouteEvidenceSummary(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
+                                               bool routeCommandIssued,
+                                               const sensorarrayRouteCheck_t *routeCheck,
+                                               bool fdcCommOk,
+                                               const char *status)
+{
+    const char *mapLabel = (ctx && ctx->route && ctx->route->mapLabel) ? ctx->route->mapLabel : SENSORARRAY_NA;
+    int ctrlStateRead = routeCheck ? (routeCheck->ctrlStateReadOk ? 1 : 0) : -1;
+    int commandMatch = routeCheck ? (routeCheck->commandMatch ? 1 : 0) : -1;
+    int gpioObservedMatch = routeCheck ? (routeCheck->gpioObservedMatch ? 1 : 0) : -1;
+    const char *routeStatus = routeCheck ? sensorarrayRouteStatusName(routeCheck->routeStatus) : "ROUTE_STATUS_COMMAND_ONLY";
+
+    printf("DBGFDC,stage=diagnosis,point=S5D5,map=%s,routeCommandIssued=%u,ctrlStateRead=%d,commandMatch=%d,"
+           "gpioObservedMatch=%d,routeStatus=%s,fdcComm=%u,status=%s,"
+           "note=GPIO_observation_is_MCU_side_only_and_not_analog_switch_conduction_proof\n",
+           mapLabel,
+           routeCommandIssued ? 1u : 0u,
+           ctrlStateRead,
+           commandMatch,
+           gpioObservedMatch,
+           routeStatus,
+           fdcCommOk ? 1u : 0u,
+           status ? status : SENSORARRAY_NA);
 }
 
 static void sensorarrayLogFinalDbg(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
@@ -162,55 +234,121 @@ static esp_err_t sensorarrayReadFdcRawWords(Fdc2214CapDevice_t *dev,
     return Fdc2214CapReadRawRegisters(dev, sensorarrayFdcRegDataLsb(channel), outRawLsb);
 }
 
-static bool sensorarrayVerifyRouteAndLog(const sensorarrayFdcSelbS5d5Ctx_t *ctx)
+static sensorarrayRouteCheck_t sensorarrayVerifyRouteAndLog(const sensorarrayFdcSelbS5d5Ctx_t *ctx)
 {
+    sensorarrayRouteCheck_t routeCheck = {
+        .ctrlStateReadOk = false,
+        .commandMatch = false,
+        .gpioObservedMatch = false,
+        .routeStatus = ROUTE_STATUS_COMMAND_ONLY,
+    };
     if (!ctx) {
-        return false;
+        return routeCheck;
     }
 
     tmuxSwitchControlState_t ctrl = {0};
     if (tmuxSwitchGetControlState(&ctrl) != ESP_OK) {
-        printf("DBGFDC,stage=row,point=S5D5,status=route_mismatch,detail=ctrl_read_failed\n");
-        return false;
+        printf("DBGFDC,stage=route_verify,point=S5D5,commandMatch=0,gpioObservedMatch=0,routeStatus=%s,"
+               "status=ctrl_state_unavailable\n",
+               sensorarrayRouteStatusName(routeCheck.routeStatus));
+        sensorarrayLogControlGpio("route_verify", "S5D5");
+        return routeCheck;
     }
 
+    routeCheck.ctrlStateReadOk = true;
     int expectedA0 = (int)(ctx->rowIndex & 0x1u);
     int expectedA1 = (int)((ctx->rowIndex >> 1u) & 0x1u);
     int expectedA2 = (int)((ctx->rowIndex >> 2u) & 0x1u);
     int expectedSelB = (ctx->route && ctx->route->selBLevel) ? 1 : 0;
-    int expectedSw = (ctx->swSource == TMUX1108_SOURCE_REF) ? 1 : 0;
+    int expectedSw = sensorarrayExpectedSwLevel(ctx->swSource);
 
-    bool rowOk = (ctrl.a0Level == expectedA0) && (ctrl.a1Level == expectedA1) && (ctrl.a2Level == expectedA2);
-    bool selaOk = (ctrl.selaLevel == ctx->selaWriteLevel);
-    bool selbOk = (ctrl.selbLevel == expectedSelB);
-    bool swOk = (ctrl.source == ctx->swSource) || (ctrl.swLevel == expectedSw);
-    bool routeOk = rowOk && selaOk && selbOk && swOk;
+    /*
+     * cmd* fields are software-command metadata; obs* fields are MCU GPIO samples.
+     * Neither is definitive analog-path proof, so functional FDC communication is
+     * treated as stronger evidence when route status is ambiguous.
+     */
+    bool rowCommandMatch = (ctrl.cmdRow == ctx->rowIndex) &&
+                           (ctrl.cmdA0Level == expectedA0) &&
+                           (ctrl.cmdA1Level == expectedA1) &&
+                           (ctrl.cmdA2Level == expectedA2);
+    bool selaCommandMatch = (ctrl.cmdSelaLevel == ctx->selaWriteLevel);
+    bool selbCommandMatch = (ctrl.cmdSelbLevel == expectedSelB);
+    bool swCommandMatch = (ctrl.cmdSource == ctx->swSource) && (ctrl.cmdSwLevel == expectedSw);
+    routeCheck.commandMatch = rowCommandMatch && selaCommandMatch && selbCommandMatch && swCommandMatch;
 
-    printf("DBGFDC,stage=selB,point=S5D5,row=%u,expectedA0=%d,expectedA1=%d,expectedA2=%d,actualA0=%d,actualA1=%d,"
-           "actualA2=%d,expectedSELA=%d,actualSELA=%d,expectedSELB=%d,actualSELB=%d,expectedSW=%d,actualSW=%d,"
+    bool rowObservedMatch = (ctrl.obsA0Level == expectedA0) &&
+                            (ctrl.obsA1Level == expectedA1) &&
+                            (ctrl.obsA2Level == expectedA2);
+    bool selaObservedMatch = (ctrl.obsSelaLevel == ctx->selaWriteLevel);
+    bool selbObservedMatch = (ctrl.obsSelbLevel == expectedSelB);
+    bool swObservedMatch = (ctrl.obsSwLevel == expectedSw);
+    routeCheck.gpioObservedMatch = rowObservedMatch && selaObservedMatch && selbObservedMatch && swObservedMatch;
+
+    if (routeCheck.commandMatch && routeCheck.gpioObservedMatch) {
+        routeCheck.routeStatus = ROUTE_STATUS_GPIO_CONFIRMED;
+    } else if (routeCheck.commandMatch) {
+        routeCheck.routeStatus = ROUTE_STATUS_GPIO_MISMATCH;
+    } else {
+        routeCheck.routeStatus = ROUTE_STATUS_COMMAND_ONLY;
+    }
+
+    const char *status = routeCheck.commandMatch
+                             ? (routeCheck.gpioObservedMatch ? "read_ok" : "warn_gpio_mismatch")
+                             : "warn_command_mismatch";
+    printf("DBGFDC,stage=route_verify,point=S5D5,row=%u,expectedA0=%d,expectedA1=%d,expectedA2=%d,expectedSELA=%d,"
+           "expectedSELB=%d,expectedSW=%d,cmdA0=%d,cmdA1=%d,cmdA2=%d,cmdSELA=%d,cmdSELB=%d,cmdSW=%d,obsA0=%d,"
+           "obsA1=%d,obsA2=%d,obsSELA=%d,obsSELB=%d,obsSW=%d,commandMatch=%u,gpioObservedMatch=%u,routeStatus=%s,"
            "status=%s\n",
            (unsigned)ctx->rowIndex,
            expectedA0,
            expectedA1,
            expectedA2,
-           ctrl.a0Level,
-           ctrl.a1Level,
-           ctrl.a2Level,
            ctx->selaWriteLevel,
-           ctrl.selaLevel,
            expectedSelB,
-           ctrl.selbLevel,
            expectedSw,
-           ctrl.swLevel,
-           routeOk ? "read_ok" : "route_mismatch");
+           ctrl.cmdA0Level,
+           ctrl.cmdA1Level,
+           ctrl.cmdA2Level,
+           ctrl.cmdSelaLevel,
+           ctrl.cmdSelbLevel,
+           ctrl.cmdSwLevel,
+           ctrl.obsA0Level,
+           ctrl.obsA1Level,
+           ctrl.obsA2Level,
+           ctrl.obsSelaLevel,
+           ctrl.obsSelbLevel,
+           ctrl.obsSwLevel,
+           routeCheck.commandMatch ? 1u : 0u,
+           routeCheck.gpioObservedMatch ? 1u : 0u,
+           sensorarrayRouteStatusName(routeCheck.routeStatus),
+           status);
+
+    if (!routeCheck.gpioObservedMatch) {
+        printf("DBGFDC,stage=route_verify_warn,point=S5D5,detail=gpio_observed_mismatch_continuing_with_functional_probe\n");
+    }
+    if (!routeCheck.commandMatch) {
+        printf("DBGFDC,stage=route_verify_warn,point=S5D5,detail=command_state_mismatch_continuing_with_functional_probe\n");
+    }
 
     sensorarrayLogControlGpio("route_verify", "S5D5");
-    return routeOk;
+    return routeCheck;
 }
 
 static void sensorarrayHoldFailure(const char *reason)
 {
     sensorarrayDebugIdleForever(reason ? reason : "fdc_selb_s5d5_failure");
+}
+
+static void sensorarrayAbortDebugRun(const sensorarrayFdcSelbS5d5Ctx_t *ctx,
+                                     bool routeCommandIssued,
+                                     const sensorarrayRouteCheck_t *routeCheck,
+                                     bool fdcCommOk,
+                                     const char *status,
+                                     const char *holdReason)
+{
+    sensorarrayLogRouteEvidenceSummary(ctx, routeCommandIssued, routeCheck, fdcCommOk, status);
+    sensorarrayLogFinalDbg(ctx, false, 0, 0, 0, false, false, status);
+    sensorarrayHoldFailure(holdReason);
 }
 
 void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
@@ -229,6 +367,14 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
         .loopDelayMs = sensorarrayFdcLoopDelayMsForBringup(),
         .discardFirst = (CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST != 0),
     };
+    sensorarrayRouteCheck_t routeCheck = {
+        .ctrlStateReadOk = false,
+        .commandMatch = false,
+        .gpioObservedMatch = false,
+        .routeStatus = ROUTE_STATUS_COMMAND_ONLY,
+    };
+    bool routeCommandIssued = false;
+    bool fdcCommOk = false;
 
     printf("DBGFDC,stage=target,point=S5D5,kind=cap,mode=S5D5_CAP_FDC_SECONDARY,fdcDev=SELB,sColumn=%u,dLine=%u,"
            "i2cAddr=0x%02X,sda=%d,scl=%d,samplesPerLoop=%lu,loopDelayMs=%lu,discardFirst=%u,status=begin\n",
@@ -242,9 +388,13 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
            ctx.discardFirst ? 1u : 0u);
 
     if (!state || !state->boardReady || !state->tmuxReady) {
-        printf("DBGFDC,stage=fdc_probe,point=S5D5,status=route_mismatch,detail=state_not_ready\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_state_not_ready");
+        printf("DBGFDC,stage=fdc_probe,point=S5D5,status=state_not_ready,detail=state_not_ready\n");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "state_not_ready",
+                                 "fdc_selb_s5d5_state_not_ready");
         return;
     }
 
@@ -252,44 +402,68 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     ctx.fdcMap = sensorarrayBoardMapFindFdcByDLine(SENSORARRAY_D5);
     ctx.fdcState = sensorarrayMeasureGetFdcState(state, SENSORARRAY_FDC_DEV_SECONDARY);
     if (!ctx.route || !ctx.fdcMap || !ctx.fdcState) {
-        printf("DBGFDC,stage=fdc_probe,point=S5D5,status=route_mismatch,detail=route_or_fdc_state_missing\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_map_missing");
+        printf("DBGFDC,stage=fdc_probe,point=S5D5,status=route_or_fdc_state_missing,detail=route_or_fdc_state_missing\n");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "route_or_fdc_state_missing",
+                                 "fdc_selb_s5d5_map_missing");
         return;
     }
 
     if (ctx.fdcMap->devId != SENSORARRAY_FDC_DEV_SECONDARY) {
         printf("DBGFDC,stage=fdc_probe,point=S5D5,status=invalid_channel_map,detail=d5_not_secondary\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "invalid_channel_map");
-        sensorarrayHoldFailure("fdc_selb_s5d5_invalid_dline_owner");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "invalid_channel_map",
+                                 "fdc_selb_s5d5_invalid_dline_owner");
         return;
     }
     if (ctx.fdcMap->channel != FDC2214_CH0) {
         printf("DBGFDC,stage=fdc_probe,point=S5D5,status=invalid_channel_map,detail=d5_expected_ch0_actual_%u\n",
                (unsigned)ctx.fdcMap->channel);
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "invalid_channel_map");
-        sensorarrayHoldFailure("fdc_selb_s5d5_invalid_channel");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "invalid_channel_map",
+                                 "fdc_selb_s5d5_invalid_channel");
         return;
     }
 
     if (!sensorarrayBoardMapSelaRouteToGpioLevel(ctx.route->selaRoute, &ctx.selaWriteLevel)) {
-        printf("DBGFDC,stage=selA,point=S5D5,status=route_mismatch,detail=sela_route_invalid\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_sela_invalid");
+        printf("DBGFDC,stage=selA,point=S5D5,status=sela_route_invalid,detail=sela_route_invalid\n");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "sela_route_invalid",
+                                 "fdc_selb_s5d5_sela_invalid");
         return;
     }
     if (ctx.route->selaRoute != SENSORARRAY_SELA_ROUTE_FDC2214 || !ctx.route->selBLevel) {
-        printf("DBGFDC,stage=selA,point=S5D5,status=route_mismatch,detail=expected_cap_route_sela_fdc_selb_high\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_route_semantic_mismatch");
+        printf("DBGFDC,stage=selA,point=S5D5,status=route_semantic_mismatch,detail=expected_cap_route_sela_fdc_selb_high\n");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "route_semantic_mismatch",
+                                 "fdc_selb_s5d5_route_semantic_mismatch");
         return;
     }
 
     ctx.swSource = sensorarrayBoardMapDefaultSwSource(ctx.route);
     if (ctx.swSource != TMUX1108_SOURCE_REF) {
-        printf("DBGFDC,stage=sw,point=S5D5,status=route_mismatch,detail=cap_should_use_ref\n");
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_sw_invalid");
+        printf("DBGFDC,stage=sw,point=S5D5,status=sw_source_invalid,detail=cap_should_use_ref\n");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "sw_source_invalid",
+                                 "fdc_selb_s5d5_sw_invalid");
         return;
     }
 
@@ -310,8 +484,12 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
                (unsigned long)ctx.busInfo.FrequencyHz,
                (unsigned long)(ctx.fdcState->i2cCtx ? ctx.fdcState->i2cCtx->TimeoutMs : 0u),
                ctx.i2cAddr);
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "no_i2c_ack");
-        sensorarrayHoldFailure("fdc_selb_s5d5_i2c_bus_invalid");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "no_i2c_ack",
+                                 "fdc_selb_s5d5_i2c_bus_invalid");
         return;
     }
 
@@ -328,9 +506,41 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     }
     printf("DBGFDC,stage=ads_isolation,point=S5D5,err=%ld,status=%s\n", (long)adsErr, adsStatus);
     if (adsErr != ESP_OK) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_ads_stop_fail");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 NULL,
+                                 fdcCommOk,
+                                 "ads_stop_failed",
+                                 "fdc_selb_s5d5_ads_stop_fail");
         return;
+    }
+
+    const char *routeLabel = SENSORARRAY_NA;
+    esp_err_t routeErr = sensorarrayMeasureApplyRoute(state,
+                                                      SENSORARRAY_S5,
+                                                      SENSORARRAY_D5,
+                                                      SENSORARRAY_PATH_CAPACITIVE,
+                                                      ctx.swSource,
+                                                      &routeLabel);
+    routeCommandIssued = (routeErr == ESP_OK);
+    if (routeErr != ESP_OK) {
+        printf("DBGFDC,stage=row,point=S5D5,map=%s,err=%ld,status=route_apply_failed\n",
+               routeLabel ? routeLabel : SENSORARRAY_NA,
+               (long)routeErr);
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 &routeCheck,
+                                 fdcCommOk,
+                                 "route_apply_failed",
+                                 "fdc_selb_s5d5_route_apply_fail");
+        return;
+    }
+
+    routeCheck = sensorarrayVerifyRouteAndLog(&ctx);
+    if (!routeCheck.commandMatch || !routeCheck.gpioObservedMatch) {
+        printf("DBGFDC,stage=route_verify,point=S5D5,commandMatch=%u,gpioObservedMatch=%u,status=warning_continue_to_fdc_probe\n",
+               routeCheck.commandMatch ? 1u : 0u,
+               routeCheck.gpioObservedMatch ? 1u : 0u);
     }
 
     printf("DBGFDC,stage=fdc_probe,point=S5D5,fdcDev=SELB,i2cPort=%d,sda=%d,scl=%d,freqHz=%lu,timeoutMs=%lu,"
@@ -349,10 +559,15 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
            (long)ackErr,
            (ackErr == ESP_OK) ? "read_ok" : "no_i2c_ack");
     if (ackErr != ESP_OK) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "no_i2c_ack");
-        sensorarrayHoldFailure("fdc_selb_s5d5_no_i2c_ack");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 &routeCheck,
+                                 fdcCommOk,
+                                 "no_i2c_ack",
+                                 "fdc_selb_s5d5_no_i2c_ack");
         return;
     }
+    fdcCommOk = true;
 
     uint16_t idMfg = 0u;
     uint16_t idDev = 0u;
@@ -370,32 +585,15 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
            idDetail,
            idStatus);
     if (idErr != ESP_OK || !idMatch) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "bad_device_id");
-        sensorarrayHoldFailure("fdc_selb_s5d5_bad_device_id");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 &routeCheck,
+                                 fdcCommOk,
+                                 "bad_device_id",
+                                 "fdc_selb_s5d5_bad_device_id");
         return;
     }
-
-    const char *routeLabel = SENSORARRAY_NA;
-    esp_err_t routeErr = sensorarrayMeasureApplyRoute(state,
-                                                      SENSORARRAY_S5,
-                                                      SENSORARRAY_D5,
-                                                      SENSORARRAY_PATH_CAPACITIVE,
-                                                      ctx.swSource,
-                                                      &routeLabel);
-    if (routeErr != ESP_OK) {
-        printf("DBGFDC,stage=row,point=S5D5,map=%s,err=%ld,status=route_mismatch\n",
-               routeLabel ? routeLabel : SENSORARRAY_NA,
-               (long)routeErr);
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_route_apply_fail");
-        return;
-    }
-
-    if (!sensorarrayVerifyRouteAndLog(&ctx)) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "route_mismatch");
-        sensorarrayHoldFailure("fdc_selb_s5d5_route_verify_fail");
-        return;
-    }
+    sensorarrayPromoteRouteStatusWithFunctionalEvidence(&routeCheck, fdcCommOk);
 
     if (ctx.fdcState->handle) {
         (void)Fdc2214CapDestroy(ctx.fdcState->handle);
@@ -432,10 +630,18 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
            (long)initErr,
            initStatus);
     if (initErr != ESP_OK || !ctx.fdcState->ready || !ctx.fdcState->handle) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, initStatus);
-        sensorarrayHoldFailure("fdc_selb_s5d5_init_fail");
+        sensorarrayAbortDebugRun(&ctx,
+                                 routeCommandIssued,
+                                 &routeCheck,
+                                 fdcCommOk,
+                                 initStatus,
+                                 "fdc_selb_s5d5_init_fail");
         return;
     }
+
+    fdcCommOk = true;
+    sensorarrayPromoteRouteStatusWithFunctionalEvidence(&routeCheck, fdcCommOk);
+    sensorarrayLogRouteEvidenceSummary(&ctx, routeCommandIssued, &routeCheck, fdcCommOk, "fdc_init_ok");
 
     uint32_t cycle = 0u;
     while (true) {
@@ -460,8 +666,12 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
                        sensorarrayFdcChannelName(ctx.fdcMap->channel),
                        (long)discardErr,
                        (discardErr == ESP_ERR_TIMEOUT) ? "read_timeout" : "i2c_error");
-                sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "sample_read_failed");
-                sensorarrayHoldFailure("fdc_selb_s5d5_sample_read_failed");
+                sensorarrayAbortDebugRun(&ctx,
+                                         routeCommandIssued,
+                                         &routeCheck,
+                                         fdcCommOk,
+                                         "sample_read_failed",
+                                         "fdc_selb_s5d5_sample_read_failed");
                 return;
             }
 
@@ -491,8 +701,12 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
                        sensorarrayFdcChannelName(ctx.fdcMap->channel),
                        (long)readErr,
                        (readErr == ESP_ERR_TIMEOUT) ? "read_timeout" : "i2c_error");
-                sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "sample_read_failed");
-                sensorarrayHoldFailure("fdc_selb_s5d5_sample_read_failed");
+                sensorarrayAbortDebugRun(&ctx,
+                                         routeCommandIssued,
+                                         &routeCheck,
+                                         fdcCommOk,
+                                         "sample_read_failed",
+                                         "fdc_selb_s5d5_sample_read_failed");
                 return;
             }
 
@@ -527,8 +741,12 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
         }
 
         if (okCount == 0u) {
-            sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "sample_read_failed");
-            sensorarrayHoldFailure("fdc_selb_s5d5_sample_read_zero");
+            sensorarrayAbortDebugRun(&ctx,
+                                     routeCommandIssued,
+                                     &routeCheck,
+                                     fdcCommOk,
+                                     "sample_read_failed",
+                                     "fdc_selb_s5d5_sample_read_zero");
             return;
         }
 
@@ -551,6 +769,9 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
                (unsigned long)spanRaw,
                stable ? 1u : 0u,
                canCalibrate ? 1u : 0u);
+        if (cycle == 0u) {
+            sensorarrayLogRouteEvidenceSummary(&ctx, routeCommandIssued, &routeCheck, fdcCommOk, "read_ok");
+        }
 
         cycle++;
         sensorarrayDelayMs(ctx.loopDelayMs);

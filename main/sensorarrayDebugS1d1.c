@@ -37,12 +37,14 @@ static void sensorarrayLogS1D1RouteState(const char *mode,
                                          const char *status)
 {
     tmuxSwitchControlState_t ctrl = {0};
-    int selaReadLevel = -1;
+    int selaCmdLevel = -1;
+    int selaObsLevel = -1;
     if (tmuxSwitchGetControlState(&ctrl) == ESP_OK) {
-        selaReadLevel = ctrl.selaLevel;
+        selaCmdLevel = ctrl.cmdSelaLevel;
+        selaObsLevel = ctrl.obsSelaLevel;
     }
 
-    printf("DBGS1D1CFG,mode=%s,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selaReadLevel=%d,"
+    printf("DBGS1D1CFG,mode=%s,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selaCmdLevel=%d,selaObsLevel=%d,"
            "selBLevel=%u,swSource=%s,label=%s,err=%ld,status=%s\n",
            mode ? mode : SENSORARRAY_NA,
            (unsigned)SENSORARRAY_S1,
@@ -50,7 +52,8 @@ static void sensorarrayLogS1D1RouteState(const char *mode,
            sensorarrayBoardMapPathName(SENSORARRAY_PATH_RESISTIVE),
            route ? sensorarrayBoardMapSelaRouteName(route->selaRoute) : SENSORARRAY_NA,
            selaWriteLevel,
-           selaReadLevel,
+           selaCmdLevel,
+           selaObsLevel,
            route ? (route->selBLevel ? 1u : 0u) : 0u,
            sensorarrayLogSwSourceLogicalName(swSource),
            route && route->mapLabel ? route->mapLabel : SENSORARRAY_NA,
