@@ -7,6 +7,24 @@
 
 #include "sensorarrayTypes.h"
 
+typedef enum {
+    SENSORARRAY_FDC_DISCOVERY_NO_ACK = 0,
+    SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED,
+    SENSORARRAY_FDC_DISCOVERY_ID_OK,
+    SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID,
+} sensorarrayFdcDiscoveryStatus_t;
+
+typedef struct {
+    sensorarrayFdcDiscoveryStatus_t status;
+    esp_err_t ackErr;
+    esp_err_t idErr;
+    bool ack;
+    bool haveManufacturerId;
+    bool haveDeviceId;
+    uint16_t manufacturerId;
+    uint16_t deviceId;
+} sensorarrayFdcProbeDiag_t;
+
 uint8_t sensorarrayBringupNormalizeFdcChannels(uint8_t channels);
 
 void sensorarrayBringupResetFdcState(sensorarrayFdcDeviceState_t *fdcState,
@@ -28,6 +46,10 @@ esp_err_t sensorarrayBringupReadFdcIdsRaw(const BoardSupportI2cCtx_t *i2cCtx,
                                           uint8_t i2cAddr,
                                           uint16_t *outManufacturerId,
                                           uint16_t *outDeviceId);
+const char *sensorarrayBringupFdcDiscoveryStatusName(sensorarrayFdcDiscoveryStatus_t status);
+esp_err_t sensorarrayBringupProbeFdcCandidate(const BoardSupportI2cCtx_t *i2cCtx,
+                                              uint8_t i2cAddr,
+                                              sensorarrayFdcProbeDiag_t *outDiag);
 
 esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
                                           uint8_t i2cAddr,

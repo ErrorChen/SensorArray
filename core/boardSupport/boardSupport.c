@@ -11,7 +11,7 @@
 static const char *TAG = "boardSupport";
 
 #ifndef CONFIG_BOARD_I2C_FREQ_HZ
-#define CONFIG_BOARD_I2C_FREQ_HZ 400000
+#define CONFIG_BOARD_I2C_FREQ_HZ 100000
 #endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
@@ -232,6 +232,35 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                                       tx,
                                       txLen,
                                       pdMS_TO_TICKS(ctx->TimeoutMs));
+}
+
+esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7)
+{
+    if (!i2cCtx || addr7 > 0x7Fu) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (!cmd) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    esp_err_t err = i2c_master_start(cmd);
+    if (err == ESP_OK) {
+        err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_WRITE), true);
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_stop(cmd);
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_cmd_begin(i2cCtx->Port, cmd, pdMS_TO_TICKS(i2cCtx->TimeoutMs));
+    }
+
+    i2c_cmd_link_delete(cmd);
+    return err;
 }
 
 // IMPORTANT: Do not define app_main() here.

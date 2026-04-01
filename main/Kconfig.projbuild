@@ -122,7 +122,7 @@ menu "Debug routing and self-test"
 
 choice SENSORARRAY_DEBUG_MODE
     prompt "Debug execution mode"
-    default SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
+    default SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
 config SENSORARRAY_DEBUG_MODE_ROUTE_IDLE
     bool "ROUTE_IDLE"
     help
@@ -157,6 +157,12 @@ config SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
         Lock the matrix to S5D5 capacitive route and stream samples from the
         secondary FDC2214 (D5 -> secondary, CH0). This mode is intended for
         SELB / secondary FDC2214 single-point debug only.
+config SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
+    bool "FDC_I2C_DISCOVERY"
+    help
+        Continuous FDC I2C discovery mode. Probes both buses (SDA/SCL:
+        9/10 and 11/12) and both candidate addresses (0x2A/0x2B) every cycle,
+        then prints per-candidate ACK/ID status plus one summary line.
 endchoice
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_S_COLUMN
@@ -377,6 +383,14 @@ config SENSORARRAY_DEBUG_FDC_SAMPLE_COUNT
     default 1
     range 1 64
     depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
+
+config SENSORARRAY_DEBUG_FDC_I2C_DISCOVERY_LOOP_DELAY_MS
+    int "FDC I2C discovery: loop interval (ms)"
+    default 1000
+    range 100 10000
+    depends on SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
+    help
+        Delay between complete 2-bus x 2-address probe cycles.
 endmenu
 
 menu "ADS read sequencing policy"

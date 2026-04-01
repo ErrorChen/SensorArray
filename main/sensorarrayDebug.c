@@ -8,6 +8,7 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayDebugFdcSelbS5d5.h"
+#include "sensorarrayDebugFdcI2cDiscovery.h"
 #include "sensorarrayDebugS1d1.h"
 #include "sensorarrayDebugSelftest.h"
 #include "sensorarrayLog.h"
@@ -405,6 +406,9 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
         return;
     case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
         sensorarrayDebugRunTestFdc2214SelbS5D5(state);
+        return;
+    case SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY:
+        sensorarrayDebugRunFdcI2cDiscoveryMode(state);
         return;
     default:
         sensorarrayRunBringupLoop(state, adsPolicy);

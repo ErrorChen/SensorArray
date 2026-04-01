@@ -23,6 +23,7 @@ Available modes:
 - `FDC_SELFTEST`: FDC-only deterministic self-test sequence.
 - `S1D1_RESISTOR_DEBUG`: single-point resistor debug using the board-map route for `S1D1`.
 - `S5D5_CAP_FDC_SECONDARY`: dedicated `S5D5 / SELB / secondary FDC2214(0x2A)` bring-up path.
+- `FDC_I2C_DISCOVERY`: continuous 2-bus x 2-address I2C discovery (`IO9/10`, `IO11/12`, `0x2A/0x2B`).
 
 ## Manual probe mode (freeze one route)
 Use `ROUTE_FIXED_STATE` and configure:
@@ -62,6 +63,18 @@ Use `ADS_SELFTEST` and configure:
 Self-test logs:
 - `DBGADSREG,...` for key register dumps.
 - `DBGADSSELF,...` for discard/sample sequencing details.
+
+## FDC I2C discovery mode
+Use `FDC_I2C_DISCOVERY` to isolate communication only (no ADS/matrix measurement dependency).
+
+Logs:
+- `FDC_SCAN_BOOT,...` bus pins + frequency + enable state on boot.
+- `FDC_SCAN,...` one line per candidate with ACK/ID status:
+  - `no_ack`
+  - `ack_but_read_failed`
+  - `id_ok`
+  - `unexpected_id`
+- `FDC_SCAN_SUMMARY,cycle=N,found=...` once per full cycle.
 
 ## Route map audit output
 At boot, firmware prints:

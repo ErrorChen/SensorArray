@@ -316,25 +316,56 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
         return;
     }
 
-    uint16_t probeMfg2A = 0u;
-    uint16_t probeMfg2B = 0u;
-    esp_err_t probeErr2A = sensorarrayBringupProbeFdcAddress(ctx.fdcState->i2cCtx, SENSORARRAY_FDC_I2C_ADDR_LOW, &probeMfg2A);
-    esp_err_t probeErr2B =
-        sensorarrayBringupProbeFdcAddress(ctx.fdcState->i2cCtx, SENSORARRAY_FDC_I2C_ADDR_HIGH, &probeMfg2B);
+    sensorarrayFdcProbeDiag_t probe2A = {0};
+    sensorarrayFdcProbeDiag_t probe2B = {0};
+    (void)sensorarrayBringupProbeFdcCandidate(ctx.fdcState->i2cCtx, SENSORARRAY_FDC_I2C_ADDR_LOW, &probe2A);
+    (void)sensorarrayBringupProbeFdcCandidate(ctx.fdcState->i2cCtx, SENSORARRAY_FDC_I2C_ADDR_HIGH, &probe2B);
+
+    if (probe2A.status == SENSORARRAY_FDC_DISCOVERY_ID_OK && probe2B.status != SENSORARRAY_FDC_DISCOVERY_ID_OK) {
+        ctx.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_LOW;
+    } else if (probe2B.status == SENSORARRAY_FDC_DISCOVERY_ID_OK &&
+               probe2A.status != SENSORARRAY_FDC_DISCOVERY_ID_OK) {
+        ctx.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_HIGH;
+    } else if (probe2A.ack && !probe2B.ack) {
+        ctx.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_LOW;
+    } else if (probe2B.ack && !probe2A.ack) {
+        ctx.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_HIGH;
+    }
+    ctx.fdcState->i2cAddr = ctx.i2cAddr;
+
+    char mfg2ABuf[12];
+    char mfg2BBuf[12];
+    char dev2ABuf[12];
+    char dev2BBuf[12];
+    const char *mfg2A = probe2A.haveManufacturerId ? (snprintf(mfg2ABuf, sizeof(mfg2ABuf), "0x%04X", probe2A.manufacturerId),
+                                                      mfg2ABuf)
+                                                    : SENSORARRAY_NA;
+    const char *mfg2B = probe2B.haveManufacturerId ? (snprintf(mfg2BBuf, sizeof(mfg2BBuf), "0x%04X", probe2B.manufacturerId),
+                                                      mfg2BBuf)
+                                                    : SENSORARRAY_NA;
+    const char *dev2A = probe2A.haveDeviceId ? (snprintf(dev2ABuf, sizeof(dev2ABuf), "0x%04X", probe2A.deviceId), dev2ABuf)
+                                              : SENSORARRAY_NA;
+    const char *dev2B = probe2B.haveDeviceId ? (snprintf(dev2BBuf, sizeof(dev2BBuf), "0x%04X", probe2B.deviceId), dev2BBuf)
+                                              : SENSORARRAY_NA;
+
+    bool anyAck = probe2A.ack || probe2B.ack;
+    bool anyIdOk = (probe2A.status == SENSORARRAY_FDC_DISCOVERY_ID_OK) || (probe2B.status == SENSORARRAY_FDC_DISCOVERY_ID_OK);
     printf("DBGFDC,stage=fdc_probe,point=S5D5,fdcDev=SELB,i2cPort=%d,sda=%d,scl=%d,freqHz=%lu,timeoutMs=%lu,"
-           "probe2A=%s,probe2B=%s,mfg2A=0x%04X,mfg2B=0x%04X,i2cAddr=0x%02X,status=%s\n",
+           "probe2A=%s,probe2B=%s,mfg2A=%s,mfg2B=%s,dev2A=%s,dev2B=%s,i2cAddr=0x%02X,status=%s\n",
            (int)ctx.fdcState->i2cCtx->Port,
            ctx.busInfo.SdaGpio,
            ctx.busInfo.SclGpio,
            (unsigned long)ctx.busInfo.FrequencyHz,
            (unsigned long)ctx.fdcState->i2cCtx->TimeoutMs,
-           (probeErr2A == ESP_OK) ? "ack" : "no_ack",
-           (probeErr2B == ESP_OK) ? "ack" : "no_ack",
-           probeMfg2A,
-           probeMfg2B,
+           sensorarrayBringupFdcDiscoveryStatusName(probe2A.status),
+           sensorarrayBringupFdcDiscoveryStatusName(probe2B.status),
+           mfg2A,
+           mfg2B,
+           dev2A,
+           dev2B,
            ctx.i2cAddr,
-           (probeErr2A == ESP_OK) ? "read_ok" : "no_i2c_ack");
-    if (probeErr2A != ESP_OK) {
+           anyIdOk ? "id_ok" : (anyAck ? "ack_detected" : "no_i2c_ack"));
+    if (!anyAck) {
         sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "no_i2c_ack");
         sensorarrayHoldFailure("fdc_selb_s5d5_no_i2c_ack");
         return;
@@ -346,14 +377,15 @@ void sensorarrayDebugRunTestFdc2214SelbS5D5(sensorarrayState_t *state)
     bool idOk = (idErr == ESP_OK) &&
                 (idMfg == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID) &&
                 (idDev == SENSORARRAY_FDC_EXPECTED_DEVICE_ID);
+    const char *idStatus = (idErr != ESP_OK) ? "ack_but_read_failed" : (idOk ? "read_ok" : "bad_device_id");
     printf("DBGFDC,stage=fdc_probe,point=S5D5,fdcDev=SELB,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,err=%ld,status=%s\n",
            ctx.i2cAddr,
            idMfg,
            idDev,
            (long)idErr,
-           idOk ? "read_ok" : "bad_device_id");
+           idStatus);
     if (!idOk) {
-        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, "bad_device_id");
+        sensorarrayLogFinalDbg(&ctx, false, 0, 0, 0, false, false, idStatus);
         sensorarrayHoldFailure("fdc_selb_s5d5_bad_device_id");
         return;
     }

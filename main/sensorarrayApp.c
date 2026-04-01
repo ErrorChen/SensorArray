@@ -62,14 +62,12 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
-#if CONFIG_SENSORARRAY_DEBUG_FORCE_FDC_SELB_S5D5
-    activeMode = SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY;
-#endif
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
     bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
-    bool skipAdsInit = s1d1RouteOnly || singleCapFdcMode;
-    bool skipFdcInit = s1d1ResMode;
+    bool fdcI2cDiscoveryMode = (activeMode == SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY);
+    bool skipAdsInit = s1d1RouteOnly || singleCapFdcMode || fdcI2cDiscoveryMode;
+    bool skipFdcInit = s1d1ResMode || fdcI2cDiscoveryMode;
 
     uint8_t requestedChannels = sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -116,7 +114,7 @@ void sensorarrayAppRun(void)
                              0,
                              0,
                              "D5..D8_secondary_selb_side");
-    if (!singleCapFdcMode) {
+    if (!singleCapFdcMode && !fdcI2cDiscoveryMode) {
         sensorarrayBoardMapAudit();
     }
 
@@ -131,7 +129,9 @@ void sensorarrayAppRun(void)
     sensorarrayApplyTmuxDefaults();
 
     if (skipAdsInit) {
-        const char *adsSkipStatus = singleCapFdcMode ? "skip_cap_fdc_secondary_mode" : "skip_route_only_mode";
+        const char *adsSkipStatus = singleCapFdcMode
+                                        ? "skip_cap_fdc_secondary_mode"
+                                        : (fdcI2cDiscoveryMode ? "skip_fdc_i2c_discovery_mode" : "skip_route_only_mode");
         s_state.adsReady = false;
         s_state.adsRefReady = false;
         s_state.adsAdc1Running = false;
@@ -157,10 +157,11 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(s_state.adsReady, s_state.adsRefReady);
 
     if (skipFdcInit) {
+        const char *fdcSkipStatus = s1d1ResMode ? "skip_s1d1_resistor_mode" : "skip_fdc_i2c_discovery_mode";
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcPrimary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 "skip_s1d1_resistor_mode",
+                                 fdcSkipStatus,
                                  0,
                                  false,
                                  0,
@@ -169,7 +170,7 @@ void sensorarrayAppRun(void)
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcSecondary,
                                  ESP_ERR_NOT_SUPPORTED,
-                                 "skip_s1d1_resistor_mode",
+                                 fdcSkipStatus,
                                  0,
                                  false,
                                  0,

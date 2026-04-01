@@ -52,6 +52,9 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                               const uint8_t* tx,
                               size_t txLen);
 
+// Probe I2C address with a START + address byte + STOP transaction.
+esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7);
+
 #ifdef __cplusplus
 }
 #endif

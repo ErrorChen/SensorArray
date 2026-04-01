@@ -220,6 +220,8 @@ const char *sensorarrayLogDebugModeName(sensorarrayDebugMode_t mode)
         return "S1D1_RESISTOR_DEBUG";
     case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
         return "S5D5_CAP_FDC_SECONDARY";
+    case SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY:
+        return "FDC_I2C_DISCOVERY";
     default:
         return "UNKNOWN";
     }

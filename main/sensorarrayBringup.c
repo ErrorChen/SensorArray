@@ -153,6 +153,80 @@ esp_err_t sensorarrayBringupReadFdcIdsRaw(const BoardSupportI2cCtx_t *i2cCtx,
     return ESP_OK;
 }
 
+const char *sensorarrayBringupFdcDiscoveryStatusName(sensorarrayFdcDiscoveryStatus_t status)
+{
+    switch (status) {
+    case SENSORARRAY_FDC_DISCOVERY_NO_ACK:
+        return "no_ack";
+    case SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED:
+        return "ack_but_read_failed";
+    case SENSORARRAY_FDC_DISCOVERY_ID_OK:
+        return "id_ok";
+    case SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID:
+    default:
+        return "unexpected_id";
+    }
+}
+
+static void sensorarrayBringupInitFdcProbeDiag(sensorarrayFdcProbeDiag_t *diag)
+{
+    if (!diag) {
+        return;
+    }
+
+    *diag = (sensorarrayFdcProbeDiag_t){
+        .status = SENSORARRAY_FDC_DISCOVERY_NO_ACK,
+        .ackErr = ESP_ERR_INVALID_STATE,
+        .idErr = ESP_ERR_INVALID_STATE,
+        .ack = false,
+        .haveManufacturerId = false,
+        .haveDeviceId = false,
+        .manufacturerId = 0u,
+        .deviceId = 0u,
+    };
+}
+
+esp_err_t sensorarrayBringupProbeFdcCandidate(const BoardSupportI2cCtx_t *i2cCtx,
+                                              uint8_t i2cAddr,
+                                              sensorarrayFdcProbeDiag_t *outDiag)
+{
+    if (!i2cCtx || !outDiag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    sensorarrayBringupInitFdcProbeDiag(outDiag);
+
+    outDiag->ackErr = boardSupportI2cProbeAddress(i2cCtx, i2cAddr);
+    if (outDiag->ackErr != ESP_OK) {
+        outDiag->status = SENSORARRAY_FDC_DISCOVERY_NO_ACK;
+        return outDiag->ackErr;
+    }
+
+    outDiag->ack = true;
+
+    uint16_t manufacturerId = 0u;
+    uint16_t deviceId = 0u;
+    outDiag->idErr = sensorarrayBringupReadFdcIdsRaw(i2cCtx, i2cAddr, &manufacturerId, &deviceId);
+    if (outDiag->idErr != ESP_OK) {
+        outDiag->status = SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED;
+        return outDiag->idErr;
+    }
+
+    outDiag->haveManufacturerId = true;
+    outDiag->haveDeviceId = true;
+    outDiag->manufacturerId = manufacturerId;
+    outDiag->deviceId = deviceId;
+
+    if (manufacturerId == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID &&
+        deviceId == SENSORARRAY_FDC_EXPECTED_DEVICE_ID) {
+        outDiag->status = SENSORARRAY_FDC_DISCOVERY_ID_OK;
+        return ESP_OK;
+    }
+
+    outDiag->status = SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID;
+    return ESP_OK;
+}
+
 uint8_t sensorarrayBringupNormalizeFdcChannels(uint8_t channels)
 {
     if (channels == 0u) {
@@ -326,17 +400,25 @@ void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState)
         sensorarrayFdcDeviceState_t probeState = *fdcState;
         probeState.i2cAddr = probeAddresses[i];
 
-        uint16_t manufacturerId = 0;
-        esp_err_t err = sensorarrayBringupProbeFdcAddress(fdcState->i2cCtx, probeState.i2cAddr, &manufacturerId);
+        sensorarrayFdcProbeDiag_t probeDiag = {0};
+        esp_err_t err = sensorarrayBringupProbeFdcCandidate(fdcState->i2cCtx, probeState.i2cAddr, &probeDiag);
+        if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID) {
+            err = ESP_OK;
+        } else if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED) {
+            err = probeDiag.idErr;
+        } else if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_NO_ACK) {
+            err = probeDiag.ackErr;
+        }
+
         sensorarrayLogStartupFdc("fdc_probe",
                                  &probeState,
                                  err,
-                                 (err == ESP_OK) ? "probe_ack" : "probe_no_ack",
+                                 sensorarrayBringupFdcDiscoveryStatusName(probeDiag.status),
                                  (int32_t)probeState.i2cAddr,
-                                 (err == ESP_OK),
-                                 manufacturerId,
-                                 0,
-                                 "probe_mfg_reg_0x7E");
+                                 probeDiag.haveManufacturerId && probeDiag.haveDeviceId,
+                                 probeDiag.manufacturerId,
+                                 probeDiag.deviceId,
+                                 "probe_regs_0x7E_0x7F");
     }
 #else
     (void)fdcState;

@@ -55,6 +55,7 @@
 - `FDC_SELFTEST`
 - `S1D1_RESISTOR_DEBUG`
 - `S5D5_CAP_FDC_SECONDARY`
+- `FDC_I2C_DISCOVERY`
 
 ## 5) Boundary Rules / 边界规则
 
@@ -76,4 +77,4 @@
 
 - 入口已完成去 god-file 化重构。
 - 调试执行体已按“调度 / 自检 / 单点电容 / S1D1 专项”拆分。
-- `S5D5` 电容调试入口已固定为 `SELB + secondary FDC2214(0x2A)` 专用路径。
+- 新增 `FDC_I2C_DISCOVERY`：持续轮询 `I2C0/I2C1 x 0x2A/0x2B`，仅用于确认 I2C ACK 与 ID 可读性。
