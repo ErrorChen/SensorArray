@@ -122,7 +122,7 @@ menu "Debug routing and self-test"
 
 choice SENSORARRAY_DEBUG_MODE
     prompt "Debug execution mode"
-    default SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
+    default SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 config SENSORARRAY_DEBUG_MODE_ROUTE_IDLE
     bool "ROUTE_IDLE"
     help
