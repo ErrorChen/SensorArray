@@ -663,6 +663,29 @@ void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag)
     diag->detail = 0;
 }
 
+void sensorarrayBringupApplyFdcInitResult(sensorarrayFdcDeviceState_t *fdcState,
+                                          Fdc2214CapDevice_t *deviceHandle,
+                                          esp_err_t initErr,
+                                          const sensorarrayFdcInitDiag_t *diag)
+{
+    if (!fdcState || !diag) {
+        return;
+    }
+
+    fdcState->handle = (initErr == ESP_OK) ? deviceHandle : NULL;
+    fdcState->ready = (initErr == ESP_OK) && (deviceHandle != NULL);
+    fdcState->haveIds = diag->haveIds;
+    fdcState->manufacturerId = diag->manufacturerId;
+    fdcState->deviceId = diag->deviceId;
+    fdcState->configVerified = diag->configVerified;
+    fdcState->refClockKnown = diag->refClockKnown;
+    fdcState->refClockSource = diag->refClockSource;
+    fdcState->refClockHz = diag->refClockHz;
+    fdcState->statusConfigReg = diag->statusConfigReg;
+    fdcState->configReg = diag->configReg;
+    fdcState->muxConfigReg = diag->muxConfigReg;
+}
+
 esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
                                           uint8_t i2cAddr,
                                           uint8_t channels,

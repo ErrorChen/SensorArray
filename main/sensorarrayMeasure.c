@@ -18,6 +18,8 @@
 #define SENSORARRAY_FDC_STATUS_UNREAD_CH1_MASK (1U << 2)
 #define SENSORARRAY_FDC_STATUS_UNREAD_CH2_MASK (1U << 1)
 #define SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK (1U << 0)
+#define SENSORARRAY_FDC_RAW_SCALE_2P28 268435456.0
+#define SENSORARRAY_PI 3.14159265358979323846
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -614,14 +616,20 @@ const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t s
     }
 }
 
-esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
-                                              Fdc2214CapChannel_t ch,
-                                              bool discardFirst,
-                                              bool idOk,
-                                              bool configOk,
-                                              sensorarrayFdcReadDiag_t *outDiag)
+typedef esp_err_t (*sensorarrayFdcReadSampleFn_t)(Fdc2214CapDevice_t *dev,
+                                                   Fdc2214CapChannel_t ch,
+                                                   Fdc2214CapSample_t *outSample);
+
+static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcReadSampleFn_t readFn,
+                                                               Fdc2214CapDevice_t *dev,
+                                                               Fdc2214CapChannel_t ch,
+                                                               bool discardFirst,
+                                                               bool idOk,
+                                                               bool configOk,
+                                                               bool relaxedMode,
+                                                               sensorarrayFdcReadDiag_t *outDiag)
 {
-    if (!dev || !outDiag) {
+    if (!readFn || !dev || !outDiag) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -631,23 +639,27 @@ esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
         .idOk = idOk,
         .configOk = configOk,
         .statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR,
+        .sampleValid = false,
+        .provisionalReadable = false,
+        .qualityDegraded = false,
     };
 
     if (discardFirst) {
         Fdc2214CapSample_t throwaway = {0};
-        esp_err_t discardErr = Fdc2214CapReadSample(dev, ch, &throwaway);
+        esp_err_t discardErr = readFn(dev, ch, &throwaway);
         if (discardErr != ESP_OK) {
             outDiag->err = discardErr;
             return discardErr;
         }
     }
 
-    esp_err_t err = Fdc2214CapReadSample(dev, ch, &outDiag->sample);
+    esp_err_t err = readFn(dev, ch, &outDiag->sample);
     outDiag->err = err;
     outDiag->i2cOk = (err == ESP_OK);
     if (err != ESP_OK) {
         outDiag->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR;
         outDiag->sampleValid = false;
+        outDiag->provisionalReadable = false;
         return err;
     }
 
@@ -680,8 +692,51 @@ esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
         mappedStatus = SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
     }
     outDiag->statusCode = mappedStatus;
-    outDiag->sampleValid = (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
+    outDiag->qualityDegraded = (!outDiag->sample.UnreadConversionPresent) ||
+                               outDiag->sample.ErrWatchdog ||
+                               outDiag->sample.ErrAmplitude;
+    outDiag->provisionalReadable = idOk && configOk && outDiag->sample.Converting && (outDiag->sample.Raw28 != 0u);
+    outDiag->sampleValid = relaxedMode ? outDiag->provisionalReadable
+                                       : (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
+    if (!idOk || !configOk) {
+        outDiag->sampleValid = false;
+        outDiag->provisionalReadable = false;
+    }
     return ESP_OK;
+}
+
+esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
+                                              Fdc2214CapChannel_t ch,
+                                              bool discardFirst,
+                                              bool idOk,
+                                              bool configOk,
+                                              sensorarrayFdcReadDiag_t *outDiag)
+{
+    return sensorarrayMeasureReadFdcSampleDiagWithReader(Fdc2214CapReadSample,
+                                                         dev,
+                                                         ch,
+                                                         discardFirst,
+                                                         idOk,
+                                                         configOk,
+                                                         false,
+                                                         outDiag);
+}
+
+esp_err_t sensorarrayMeasureReadFdcSampleDiagRelaxed(Fdc2214CapDevice_t *dev,
+                                                     Fdc2214CapChannel_t ch,
+                                                     bool discardFirst,
+                                                     bool idOk,
+                                                     bool configOk,
+                                                     sensorarrayFdcReadDiag_t *outDiag)
+{
+    return sensorarrayMeasureReadFdcSampleDiagWithReader(Fdc2214CapReadSampleRelaxed,
+                                                         dev,
+                                                         ch,
+                                                         discardFirst,
+                                                         idOk,
+                                                         configOk,
+                                                         true,
+                                                         outDiag);
 }
 
 esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
@@ -700,6 +755,31 @@ esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
     }
     *outSample = diag.sample;
     return ESP_OK;
+}
+
+double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz)
+{
+    if (raw28 == 0u || refClockHz == 0u) {
+        return 0.0;
+    }
+    return ((double)raw28 * (double)refClockHz) / SENSORARRAY_FDC_RAW_SCALE_2P28;
+}
+
+bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf)
+{
+    if (!outCapPf || frequencyHz <= 0.0 || inductorUh == 0u) {
+        return false;
+    }
+
+    double inductorH = ((double)inductorUh) * 1e-6;
+    double omega = 2.0 * SENSORARRAY_PI * frequencyHz;
+    double denom = omega * omega * inductorH;
+    if (denom <= 0.0) {
+        return false;
+    }
+
+    *outCapPf = (1.0 / denom) * 1e12;
+    return true;
 }
 
 esp_err_t sensorarrayMeasureAdsReadRegister(sensorarrayState_t *state, uint8_t reg, uint8_t *outValue)

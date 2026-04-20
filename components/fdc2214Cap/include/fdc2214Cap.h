@@ -216,6 +216,10 @@ esp_err_t Fdc2214CapSetMuxConfig(Fdc2214CapDevice_t* dev,
 
 // Read one 28-bit sample; ErrWatchdog/ErrAmplitude come from MSB bits and clear on read.
 esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample);
+// Read one sample with relaxed bring-up validity: I2C ok + converting + raw!=0 is considered readable.
+esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      Fdc2214CapSample_t* outSample);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

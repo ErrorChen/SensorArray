@@ -42,6 +42,14 @@ config SENSORARRAY_FDC_STARTUP_PROBE
     default y
     help
         Probe 0x2A/0x2B on each configured FDC bus and emit compact bring-up logs.
+
+config SENSORARRAY_FDC_TANK_INDUCTOR_UH
+    int "Tank inductor value for FDC conversion (uH, 0=unknown)"
+    default 0
+    range 0 1000000
+    help
+        Used for optional capacitance conversion in FDC debug logs.
+        When set to 0, logs still report raw/frequency and mark capPf as unavailable.
 endmenu
 
 menu "Multi-core scheduling (FreeRTOS SMP)"
@@ -211,6 +219,54 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SAMPLE_COUNT
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Small burst size for S5D5 / secondary FDC2214 sample logging.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SWEEP_SAMPLE_COUNT
+    int "Single-cap debug: sweep sample count per candidate"
+    default 6
+    range 1 64
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Number of relaxed samples collected for each (high-current, drive-current) candidate.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCKED_SAMPLE_COUNT
+    int "Single-cap debug: locked sample count per burst"
+    default 12
+    range 1 256
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Number of samples emitted in each locked read burst before loop delay.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
+    int "Single-cap debug: unread poll timeout (ms)"
+    default 200
+    range 1 10000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Timeout while polling STATUS unread/data-ready before each locked sample read.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_INTERVAL_MS
+    int "Single-cap debug: unread poll interval (ms)"
+    default 5
+    range 1 1000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Poll interval used while waiting for unread/data-ready in locked mode.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_RECOVERY_REINIT_ERR_THRESHOLD
+    int "Single-cap debug: recovery reinit streak threshold"
+    default 3
+    range 1 32
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Consecutive fault threshold for triggering recovery reinit.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCK_REQUIRE_MIN_SCORE
+    int "Single-cap debug: minimum sweep score to lock"
+    default 40
+    range -500 500
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Candidates below this score are logged but not locked.
 
 config SENSORARRAY_DEBUG_CHECKPOINT_GPIO
     int "Debug checkpoint GPIO (-1 to disable)"

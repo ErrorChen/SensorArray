@@ -1013,7 +1013,10 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     return ESP_OK;
 }
 
-esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)
+static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
+                                                       Fdc2214CapChannel_t ch,
+                                                       bool relaxedValidity,
+                                                       Fdc2214CapSample_t* outSample)
 {
     if (!dev || !outSample) {
         return ESP_ERR_INVALID_ARG;
@@ -1074,8 +1077,28 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
     }
 
     outSample->SampleStatus = semanticStatus;
-    outSample->SampleValid = (semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID);
+    if (relaxedValidity) {
+        /*
+         * Relaxed bring-up validity keeps payload visibility when transport is healthy
+         * even if unread/amplitude/watchdog flags are present.
+         */
+        outSample->SampleValid = configKnown && snapshot.Converting && (snapshot.DataRaw28 != 0U);
+    } else {
+        outSample->SampleValid = (semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID);
+    }
     return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)
+{
+    return Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
+}
+
+esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      Fdc2214CapSample_t* outSample)
+{
+    return Fdc2214CapReadSampleWithValidityMode(dev, ch, true, outSample);
 }
 
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)

@@ -131,6 +131,8 @@ typedef struct {
     bool converting;
     bool unreadConversionPresent;
     bool sampleValid;
+    bool provisionalReadable;
+    bool qualityDegraded;
     sensorarrayFdcSampleStatus_t statusCode;
 } sensorarrayFdcReadDiag_t;
 

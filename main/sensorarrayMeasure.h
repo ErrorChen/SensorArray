@@ -75,7 +75,16 @@ esp_err_t sensorarrayMeasureReadFdcSampleDiag(Fdc2214CapDevice_t *dev,
                                               bool idOk,
                                               bool configOk,
                                               sensorarrayFdcReadDiag_t *outDiag);
+esp_err_t sensorarrayMeasureReadFdcSampleDiagRelaxed(Fdc2214CapDevice_t *dev,
+                                                      Fdc2214CapChannel_t ch,
+                                                      bool discardFirst,
+                                                      bool idOk,
+                                                      bool configOk,
+                                                      sensorarrayFdcReadDiag_t *outDiag);
 const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t status);
+
+double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz);
+bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf);
 
 esp_err_t sensorarrayMeasureAdsReadRegister(sensorarrayState_t *state, uint8_t reg, uint8_t *outValue);
 esp_err_t sensorarrayMeasureReadAdsKeyRegisterSnapshot(sensorarrayState_t *state,

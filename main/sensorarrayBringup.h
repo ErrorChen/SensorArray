@@ -38,6 +38,10 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state);
 esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state);
 
 void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag);
+void sensorarrayBringupApplyFdcInitResult(sensorarrayFdcDeviceState_t *fdcState,
+                                          Fdc2214CapDevice_t *deviceHandle,
+                                          esp_err_t initErr,
+                                          const sensorarrayFdcInitDiag_t *diag);
 void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState);
 esp_err_t sensorarrayBringupProbeFdcAddress(const BoardSupportI2cCtx_t *i2cCtx,
                                             uint8_t i2cAddr,
