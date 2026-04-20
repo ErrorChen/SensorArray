@@ -268,6 +268,44 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCK_REQUIRE_MIN_SCORE
     help
         Candidates below this score are logged but not locked.
 
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_CAP_COMPUTATION
+    bool "Single-cap debug: enable LC capacitance computation"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        When enabled, compute total capacitance from frequency using LC resonance formula.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_NET_CAP_OUTPUT
+    bool "Single-cap debug: output net capacitance (total-fixed-parasitic)"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY && SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_CAP_COMPUTATION
+    help
+        When enabled, logs include net capacitance after subtracting fixed and parasitic terms.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_INDUCTOR_UH
+    int "Single-cap debug: tank inductor value (uH)"
+    default 18
+    range 0 1000000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        S5D5 LC tank inductor used for total capacitance computation.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FIXED_CAP_PF
+    int "Single-cap debug: fixed capacitor value (pF)"
+    default 33
+    range 0 1000000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Fixed capacitor in the resonant network (for net capacitance output only).
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_PARASITIC_CAP_PF
+    int "Single-cap debug: parasitic capacitance compensation (pF)"
+    default 0
+    range -1000000 1000000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Board/mux/wiring parasitic compensation term used for net capacitance output.
+
 config SENSORARRAY_DEBUG_CHECKPOINT_GPIO
     int "Debug checkpoint GPIO (-1 to disable)"
     default 15

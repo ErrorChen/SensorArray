@@ -767,17 +767,24 @@ double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz
 
 bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf)
 {
-    if (!outCapPf || frequencyHz <= 0.0 || inductorUh == 0u) {
+    return sensorarrayMeasureFdcComputeCapacitancePf(frequencyHz, (double)inductorUh, outCapPf);
+}
+
+bool sensorarrayMeasureFdcComputeCapacitancePf(double frequencyHz, double inductorValueUh, double *outCapPf)
+{
+    if (!outCapPf || frequencyHz <= 0.0 || inductorValueUh <= 0.0) {
         return false;
     }
 
-    double inductorH = ((double)inductorUh) * 1e-6;
+    // Unit conversion: uH -> H.
+    double inductorH = inductorValueUh * 1e-6;
     double omega = 2.0 * SENSORARRAY_PI * frequencyHz;
     double denom = omega * omega * inductorH;
     if (denom <= 0.0) {
         return false;
     }
 
+    // Unit conversion: F -> pF.
     *outCapPf = (1.0 / denom) * 1e12;
     return true;
 }
