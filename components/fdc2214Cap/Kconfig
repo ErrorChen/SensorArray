@@ -10,6 +10,14 @@ config FDC2214CAP_LOG_LEVEL
     default 3
     depends on FDC2214CAP_ENABLE
 
+config FDC2214CAP_MUTEX_TIMEOUT_MS
+    int "Mutex lock timeout (ms)"
+    range 1 10000
+    default 200
+    depends on FDC2214CAP_ENABLE
+    help
+        Finite timeout for internal driver mutex lock. Prevents indefinite waits.
+
 config FDC2214CAP_I2C_ADDR
     hex "I2C address (0x2A or 0x2B)"
     default 0x2A

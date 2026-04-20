@@ -13,12 +13,20 @@ static const char *TAG = "boardSupport";
 #ifndef CONFIG_BOARD_I2C_FREQ_HZ
 #define CONFIG_BOARD_I2C_FREQ_HZ 325000
 #endif
+#ifndef CONFIG_BOARD_I2C0_FREQ_HZ
+#define CONFIG_BOARD_I2C0_FREQ_HZ CONFIG_BOARD_I2C_FREQ_HZ
+#endif
+#ifndef CONFIG_BOARD_I2C1_FREQ_HZ
+#define CONFIG_BOARD_I2C1_FREQ_HZ CONFIG_BOARD_I2C_FREQ_HZ
+#endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
 
 static bool s_inited = false;
 static bool s_i2c0_inited = false;
 static bool s_i2c1_inited = false;
+static uint32_t s_i2c0_configured_freq_hz = CONFIG_BOARD_I2C0_FREQ_HZ;
+static uint32_t s_i2c1_configured_freq_hz = CONFIG_BOARD_I2C1_FREQ_HZ;
 
 static BoardSupportI2cCtx_t s_i2c0_ctx = {
     .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
@@ -35,7 +43,11 @@ static bool boardSupportI2cPinsValid(int sda_gpio, int scl_gpio)
     return (sda_gpio >= 0) && (scl_gpio >= 0);
 }
 
-static esp_err_t boardSupportInitI2c(i2c_port_t port, int sda_gpio, int scl_gpio, uint32_t freq_hz)
+static esp_err_t boardSupportInitI2c(i2c_port_t port,
+                                     int sda_gpio,
+                                     int scl_gpio,
+                                     uint32_t requested_freq_hz,
+                                     uint32_t *out_configured_freq_hz)
 {
     if (!boardSupportI2cPinsValid(sda_gpio, scl_gpio)) {
         return ESP_ERR_INVALID_ARG;
@@ -47,7 +59,7 @@ static esp_err_t boardSupportInitI2c(i2c_port_t port, int sda_gpio, int scl_gpio
     cfg.scl_io_num = scl_gpio;
     cfg.sda_pullup_en = GPIO_PULLUP_ENABLE;
     cfg.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    cfg.master.clk_speed = freq_hz;
+    cfg.master.clk_speed = requested_freq_hz;
 #ifdef SOC_I2C_SUPPORT_CLK_SRC
     cfg.clk_flags = 0;
 #endif
@@ -64,6 +76,9 @@ static esp_err_t boardSupportInitI2c(i2c_port_t port, int sda_gpio, int scl_gpio
         return err;
     }
 
+    if (out_configured_freq_hz) {
+        *out_configured_freq_hz = cfg.master.clk_speed;
+    }
     return ESP_OK;
 }
 
@@ -76,16 +91,19 @@ esp_err_t boardSupportInit(void)
     esp_err_t err = boardSupportInitI2c((i2c_port_t)CONFIG_BOARD_I2C_PORT,
                                         CONFIG_BOARD_I2C_SDA_GPIO,
                                         CONFIG_BOARD_I2C_SCL_GPIO,
-                                        CONFIG_BOARD_I2C_FREQ_HZ);
+                                        CONFIG_BOARD_I2C0_FREQ_HZ,
+                                        &s_i2c0_configured_freq_hz);
     if (err != ESP_OK) {
         return err;
     }
     s_i2c0_inited = true;
-    ESP_LOGI(TAG, "I2C0: port=%d SDA=%d SCL=%d freq=%u",
+    ESP_LOGI(TAG,
+             "I2C0: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
              CONFIG_BOARD_I2C_PORT,
              CONFIG_BOARD_I2C_SDA_GPIO,
              CONFIG_BOARD_I2C_SCL_GPIO,
-             (unsigned)CONFIG_BOARD_I2C_FREQ_HZ);
+             (unsigned)CONFIG_BOARD_I2C0_FREQ_HZ,
+             (unsigned)s_i2c0_configured_freq_hz);
 
     if (boardSupportIsI2c1Enabled()) {
         if (CONFIG_BOARD_I2C1_PORT == CONFIG_BOARD_I2C_PORT) {
@@ -98,18 +116,21 @@ esp_err_t boardSupportInit(void)
         err = boardSupportInitI2c((i2c_port_t)CONFIG_BOARD_I2C1_PORT,
                                   CONFIG_BOARD_I2C1_SDA_GPIO,
                                   CONFIG_BOARD_I2C1_SCL_GPIO,
-                                  CONFIG_BOARD_I2C_FREQ_HZ);
+                                  CONFIG_BOARD_I2C1_FREQ_HZ,
+                                  &s_i2c1_configured_freq_hz);
         if (err != ESP_OK) {
             i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C_PORT);
             s_i2c0_inited = false;
             return err;
         }
         s_i2c1_inited = true;
-        ESP_LOGI(TAG, "I2C1: port=%d SDA=%d SCL=%d freq=%u",
+        ESP_LOGI(TAG,
+                 "I2C1: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
                  CONFIG_BOARD_I2C1_PORT,
                  CONFIG_BOARD_I2C1_SDA_GPIO,
                  CONFIG_BOARD_I2C1_SCL_GPIO,
-                 (unsigned)CONFIG_BOARD_I2C_FREQ_HZ);
+                 (unsigned)CONFIG_BOARD_I2C1_FREQ_HZ,
+                 (unsigned)s_i2c1_configured_freq_hz);
     }
 
     s_inited = true;
@@ -174,7 +195,7 @@ bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo
             .Port = (i2c_port_t)CONFIG_BOARD_I2C1_PORT,
             .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
             .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
-            .FrequencyHz = CONFIG_BOARD_I2C_FREQ_HZ,
+            .FrequencyHz = s_i2c1_inited ? s_i2c1_configured_freq_hz : CONFIG_BOARD_I2C1_FREQ_HZ,
         };
         return true;
     }
@@ -185,7 +206,7 @@ bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo
         .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
         .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
         .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
-        .FrequencyHz = CONFIG_BOARD_I2C_FREQ_HZ,
+        .FrequencyHz = s_i2c0_inited ? s_i2c0_configured_freq_hz : CONFIG_BOARD_I2C0_FREQ_HZ,
     };
     return true;
 }

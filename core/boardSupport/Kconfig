@@ -1,6 +1,6 @@
 menu "Board Support (Pins/Buses)"
 
-menu "I2C1 (SDA1/SCL1)"
+menu "I2C0 (SDA0/SCL0)"
 config BOARD_I2C_PORT
     int "I2C port"
     default 0
@@ -14,8 +14,19 @@ config BOARD_I2C_SCL_GPIO
     default 10
 
 config BOARD_I2C_FREQ_HZ
-    int "I2C frequency (Hz)"
+    int "Legacy shared I2C frequency fallback (Hz)"
     default 325000
+    help
+        Compatibility fallback used when per-bus frequencies are not configured.
+
+config BOARD_I2C0_FREQ_HZ
+    int "I2C0 requested frequency (Hz)"
+    default BOARD_I2C_FREQ_HZ
+
+config BOARD_I2C1_FREQ_HZ
+    int "I2C1 requested frequency (Hz)"
+    default BOARD_I2C_FREQ_HZ
+
 endmenu
 
 menu "I2C2 (SDA2/SCL2, optional)"

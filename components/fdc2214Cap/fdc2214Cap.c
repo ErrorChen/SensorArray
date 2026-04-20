@@ -11,6 +11,9 @@
 #ifndef CONFIG_FDC2214CAP_LOG_LEVEL
 #define CONFIG_FDC2214CAP_LOG_LEVEL 3
 #endif
+#ifndef CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS
+#define CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS 200
+#endif
 #ifndef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL CONFIG_FDC2214CAP_LOG_LEVEL
 #endif
@@ -284,7 +287,12 @@ static esp_err_t Fdc2214CapLock(Fdc2214CapDevice_t* dev)
     if (!dev || !dev->mutex) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (xSemaphoreTake(dev->mutex, portMAX_DELAY) != pdTRUE) {
+    TickType_t timeoutTicks = pdMS_TO_TICKS((uint32_t)CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS);
+    if (timeoutTicks == 0) {
+        timeoutTicks = 1;
+    }
+    if (xSemaphoreTake(dev->mutex, timeoutTicks) != pdTRUE) {
+        ESP_LOGE(TAG, "Mutex timeout after %u ms", (unsigned)CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS);
         return ESP_ERR_TIMEOUT;
     }
     return ESP_OK;
@@ -347,7 +355,6 @@ static esp_err_t Fdc2214CapWriteReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint
         ESP_LOGE(TAG, "Write reg 0x%02X failed: %d", reg, err);
         return err;
     }
-    ESP_LOGD(TAG, "Write reg 0x%02X = 0x%04X", reg, value);
     return ESP_OK;
 }
 
@@ -366,26 +373,17 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
     }
 
     *outValue = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
-    ESP_LOGD(TAG, "Read reg 0x%02X = 0x%04X", reg, *outValue);
     return ESP_OK;
 }
 
-static esp_err_t Fdc2214CapReadBytes(Fdc2214CapDevice_t* dev, uint8_t reg, uint8_t* rx, size_t rxLen)
-{
-    if (!dev || !rx || rxLen == 0U) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    uint8_t tx = reg;
-    esp_err_t err = Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, rxLen);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Read bytes from reg 0x%02X failed: %d", reg, err);
-        return err;
-    }
-    return ESP_OK;
-}
-
-static esp_err_t Fdc2214CapWriteReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t expectedValue)
+static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
+                                                     uint8_t reg,
+                                                     uint16_t expectedValue,
+                                                     uint16_t compareMask,
+                                                     bool mismatchIsWarning,
+                                                     const char* regName,
+                                                     bool* outMaskedMatch,
+                                                     uint16_t* outReadbackValue)
 {
     esp_err_t err = Fdc2214CapWriteReg16(dev, reg, expectedValue);
     if (err != ESP_OK) {
@@ -397,11 +395,51 @@ static esp_err_t Fdc2214CapWriteReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg
     if (err != ESP_OK) {
         return err;
     }
-    if (readbackValue != expectedValue) {
-        ESP_LOGE(TAG, "Readback mismatch reg 0x%02X: wrote 0x%04X read 0x%04X", reg, expectedValue, readbackValue);
+
+    uint16_t expectedMasked = (uint16_t)(expectedValue & compareMask);
+    uint16_t readbackMasked = (uint16_t)(readbackValue & compareMask);
+    bool maskedMatch = (expectedMasked == readbackMasked);
+
+    if (outMaskedMatch) {
+        *outMaskedMatch = maskedMatch;
+    }
+    if (outReadbackValue) {
+        *outReadbackValue = readbackValue;
+    }
+
+    if (!maskedMatch) {
+        if (mismatchIsWarning) {
+            ESP_LOGW(TAG,
+                     "%s readback masked mismatch reg 0x%02X: wrote 0x%04X read 0x%04X mask 0x%04X",
+                     regName ? regName : "REG",
+                     reg,
+                     expectedValue,
+                     readbackValue,
+                     compareMask);
+            return ESP_OK;
+        }
+        ESP_LOGE(TAG,
+                 "%s readback mismatch reg 0x%02X: wrote 0x%04X read 0x%04X mask 0x%04X",
+                 regName ? regName : "REG",
+                 reg,
+                 expectedValue,
+                 readbackValue,
+                 compareMask);
         return ESP_ERR_INVALID_RESPONSE;
     }
     return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapWriteReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t expectedValue)
+{
+    return Fdc2214CapWriteReg16VerifyWithMask(dev,
+                                              reg,
+                                              expectedValue,
+                                              0xFFFFu,
+                                              false,
+                                              "REG",
+                                              NULL,
+                                              NULL);
 }
 
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev)
@@ -582,10 +620,111 @@ esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* 
     return ESP_OK;
 }
 
-esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
-                                     Fdc2214CapChannel_t ch,
-                                     const Fdc2214CapChannelConfig_t* cfg)
+esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t dataChannel,
+                                      Fdc2214CapDebugSnapshot_t* outSnapshot)
 {
+    if (!dev || !outSnapshot) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(dataChannel)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapDebugSnapshot_t snapshot = {
+        .DataChannel = dataChannel,
+        .ActiveChannel = FDC2214_CH0,
+    };
+
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &snapshot.Status);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS_CONFIG, &snapshot.StatusConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &snapshot.Config);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &snapshot.MuxConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, FDC2214_CH0), &snapshot.RcountCh0);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev,
+                              Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, FDC2214_CH0),
+                              &snapshot.SettleCountCh0);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev,
+                              Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, FDC2214_CH0),
+                              &snapshot.ClockDividersCh0);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev,
+                              Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, FDC2214_CH0),
+                              &snapshot.DriveCurrentCh0);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t dataReg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, dataChannel);
+    err = Fdc2214CapReadReg16(dev, dataReg, &snapshot.DataMsb);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadReg16(dev, (uint8_t)(dataReg + 1u), &snapshot.DataLsb);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapStatus_t statusDecoded = {0};
+    Fdc2214CapDecodeStatusRaw(snapshot.Status, &statusDecoded);
+
+    snapshot.DataRaw28 = ((uint32_t)(snapshot.DataMsb & FDC2214_DATA_MSB_MASK) << 16) | snapshot.DataLsb;
+    snapshot.DataErrWatchdog = ((snapshot.DataMsb & FDC2214_DATA_ERR_WD_MASK) != 0U) || statusDecoded.ErrWatchdog;
+    snapshot.DataErrAmplitude = ((snapshot.DataMsb & FDC2214_DATA_ERR_AW_MASK) != 0U) ||
+                                statusDecoded.ErrAmplitudeHigh ||
+                                statusDecoded.ErrAmplitudeLow;
+    snapshot.ErrorChannel = statusDecoded.ErrorChannel;
+    snapshot.StatusErrWatchdog = statusDecoded.ErrWatchdog;
+    snapshot.StatusErrAmplitudeHigh = statusDecoded.ErrAmplitudeHigh;
+    snapshot.StatusErrAmplitudeLow = statusDecoded.ErrAmplitudeLow;
+    snapshot.DataReady = statusDecoded.DataReady;
+    for (size_t i = 0U; i < 4U; ++i) {
+        snapshot.UnreadConversion[i] = statusDecoded.UnreadConversion[i];
+    }
+
+    snapshot.ActiveChannel = Fdc2214CapActiveChannelFromConfig(snapshot.Config);
+    snapshot.SleepModeEnabled = (snapshot.Config & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) != 0U;
+    snapshot.AutoScanEnabled = (snapshot.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0U;
+    snapshot.Converting = (!snapshot.SleepModeEnabled) &&
+                          (snapshot.AutoScanEnabled || (snapshot.ActiveChannel == dataChannel));
+
+    *outSnapshot = snapshot;
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
+                                               Fdc2214CapChannel_t ch,
+                                               const Fdc2214CapChannelConfig_t* cfg,
+                                               Fdc2214CapChannelConfigResult_t* outResult,
+                                               uint16_t* outDriveCurrentReadback)
+{
+    if (outResult) {
+        *outResult = FDC2214_CHANNEL_CONFIG_RESULT_OK;
+    }
+    if (outDriveCurrentReadback) {
+        *outDriveCurrentReadback = 0U;
+    }
+
     if (!dev || !cfg) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -628,9 +767,31 @@ esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
     if (err != ESP_OK) {
         return err;
     }
-    err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), driveCurrent);
+    /*
+     * DRIVE_CURRENT uses CHx_IDRIVE [15:11] only; lower bits are reserved.
+     * Comparing all 16 bits can report false mismatches even when the effective
+     * IDRIVE setting is correct. In bring-up/debug flows, an IDRIVE mismatch is
+     * downgraded to warning so we can keep collecting status/raw data instead of
+     * terminating visibility too early.
+     */
+    bool driveMaskedMatch = true;
+    uint16_t driveReadback = 0U;
+    err = Fdc2214CapWriteReg16VerifyWithMask(dev,
+                                             Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
+                                             driveCurrent,
+                                             FDC2214_DRIVE_CURRENT_MASK,
+                                             true,
+                                             "DRIVE_CURRENT",
+                                             &driveMaskedMatch,
+                                             &driveReadback);
     if (err != ESP_OK) {
         return err;
+    }
+    if (outDriveCurrentReadback) {
+        *outDriveCurrentReadback = driveReadback;
+    }
+    if (!driveMaskedMatch && outResult) {
+        *outResult = FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH;
     }
 
     ESP_LOGI(TAG,
@@ -644,10 +805,26 @@ esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
     return ESP_OK;
 }
 
-esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
-                                                Fdc2214CapChannel_t ch,
-                                                const Fdc2214CapChannelConfig_t* expectedCfg)
+esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
+                                     Fdc2214CapChannel_t ch,
+                                     const Fdc2214CapChannelConfig_t* cfg)
 {
+    return Fdc2214CapConfigureChannelWithResult(dev, ch, cfg, NULL, NULL);
+}
+
+esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* dev,
+                                                          Fdc2214CapChannel_t ch,
+                                                          const Fdc2214CapChannelConfig_t* expectedCfg,
+                                                          Fdc2214CapChannelVerifyResult_t* outResult,
+                                                          uint16_t* outDriveCurrentReadback)
+{
+    if (outResult) {
+        *outResult = FDC2214_CHANNEL_VERIFY_RESULT_OK;
+    }
+    if (outDriveCurrentReadback) {
+        *outDriveCurrentReadback = 0U;
+    }
+
     if (!dev || !expectedCfg) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -672,7 +849,6 @@ esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
         { Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, ch), expectedCfg->SettleCount, "SETTLECOUNT" },
         { Fdc2214RegForChannelStep1(FDC2214_REG_OFFSET_BASE, ch), expectedCfg->Offset, "OFFSET" },
         { Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), expectedClockDividers, "CLOCK_DIVIDERS" },
-        { Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), expectedDriveCurrent, "DRIVE_CURRENT" },
     };
 
     for (size_t i = 0U; i < (sizeof(verifyItems) / sizeof(verifyItems[0])); ++i) {
@@ -693,7 +869,38 @@ esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
         }
     }
 
+    uint16_t driveReadback = 0U;
+    err = Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), &driveReadback);
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (outDriveCurrentReadback) {
+        *outDriveCurrentReadback = driveReadback;
+    }
+
+    uint16_t expectedDriveMasked = (uint16_t)(expectedDriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
+    uint16_t readDriveMasked = (uint16_t)(driveReadback & FDC2214_DRIVE_CURRENT_MASK);
+    if (readDriveMasked != expectedDriveMasked) {
+        ESP_LOGW(TAG,
+                 "CH%d DRIVE_CURRENT IDRIVE mismatch reg 0x%02X expected(masked)=0x%04X got(masked)=0x%04X raw=0x%04X",
+                 (int)ch,
+                 Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
+                 expectedDriveMasked,
+                 readDriveMasked,
+                 driveReadback);
+        if (outResult) {
+            *outResult = FDC2214_CHANNEL_VERIFY_RESULT_WARN_DRIVE_CURRENT_MISMATCH;
+        }
+    }
+
     return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
+                                                Fdc2214CapChannel_t ch,
+                                                const Fdc2214CapChannelConfig_t* expectedCfg)
+{
+    return Fdc2214CapReadbackVerifyChannelConfigWithResult(dev, ch, expectedCfg, NULL, NULL);
 }
 
 esp_err_t Fdc2214CapSetStatusConfig(Fdc2214CapDevice_t* dev, uint16_t statusConfig)
@@ -821,55 +1028,36 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
         .SampleStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN,
     };
 
-    Fdc2214CapCoreRegs_t coreRegs = {0};
-    esp_err_t err = Fdc2214CapReadCoreRegs(dev, &coreRegs);
+    Fdc2214CapDebugSnapshot_t snapshot = {0};
+    esp_err_t err = Fdc2214CapReadDebugSnapshot(dev, ch, &snapshot);
     if (err != ESP_OK) {
         return err;
     }
 
-    Fdc2214CapStatus_t status = {0};
-    Fdc2214CapDecodeStatusRaw(coreRegs.Status, &status);
+    bool unreadConversion = snapshot.UnreadConversion[(uint8_t)ch];
+    bool configKnown = Fdc2214CapConfigReservedBitsValid(snapshot.Config) &&
+                       ((snapshot.MuxConfig & FDC2214_MUX_FIXED_MASK) == FDC2214_MUX_FIXED_MASK);
 
-    uint8_t rx[4] = {0};
-    uint8_t reg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, ch);
-    err = Fdc2214CapReadBytes(dev, reg, rx, sizeof(rx));
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    uint16_t msb = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
-    uint16_t lsb = (uint16_t)(((uint16_t)rx[2] << 8) | rx[3]);
-    uint32_t raw28 = ((uint32_t)(msb & FDC2214_DATA_MSB_MASK) << 16) | lsb;
-
-    Fdc2214CapChannel_t activeChannel = Fdc2214CapActiveChannelFromConfig(coreRegs.Config);
-    bool autoScanEnabled = (coreRegs.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0U;
-    bool sleepModeEnabled = (coreRegs.Config & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) != 0U;
-    bool converting = (!sleepModeEnabled) && (autoScanEnabled || (activeChannel == ch));
-    bool unreadConversion = status.UnreadConversion[(uint8_t)ch];
-
-    bool configKnown = Fdc2214CapConfigReservedBitsValid(coreRegs.Config) &&
-                       ((coreRegs.MuxConfig & FDC2214_MUX_FIXED_MASK) == FDC2214_MUX_FIXED_MASK);
-
-    outSample->Raw28 = raw28;
-    outSample->ErrWatchdog = ((msb & FDC2214_DATA_ERR_WD_MASK) != 0U) || status.ErrWatchdog;
-    outSample->ErrAmplitude = ((msb & FDC2214_DATA_ERR_AW_MASK) != 0U) || status.ErrAmplitudeHigh || status.ErrAmplitudeLow;
-    outSample->StatusRaw = coreRegs.Status;
-    outSample->ConfigRaw = coreRegs.Config;
-    outSample->MuxRaw = coreRegs.MuxConfig;
-    outSample->SleepModeEnabled = sleepModeEnabled;
-    outSample->AutoScanEnabled = autoScanEnabled;
-    outSample->Converting = converting;
+    outSample->Raw28 = snapshot.DataRaw28;
+    outSample->ErrWatchdog = snapshot.DataErrWatchdog;
+    outSample->ErrAmplitude = snapshot.DataErrAmplitude;
+    outSample->StatusRaw = snapshot.Status;
+    outSample->ConfigRaw = snapshot.Config;
+    outSample->MuxRaw = snapshot.MuxConfig;
+    outSample->SleepModeEnabled = snapshot.SleepModeEnabled;
+    outSample->AutoScanEnabled = snapshot.AutoScanEnabled;
+    outSample->Converting = snapshot.Converting;
     outSample->UnreadConversionPresent = unreadConversion;
-    outSample->DataReady = status.DataReady;
-    outSample->ActiveChannel = activeChannel;
-    outSample->RefClockSource = Fdc2214CapRefClockFromConfig(coreRegs.Config);
+    outSample->DataReady = snapshot.DataReady;
+    outSample->ActiveChannel = snapshot.ActiveChannel;
+    outSample->RefClockSource = Fdc2214CapRefClockFromConfig(snapshot.Config);
 
     Fdc2214CapSampleStatus_t semanticStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
     if (!configKnown) {
         semanticStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
-    } else if (sleepModeEnabled) {
+    } else if (snapshot.SleepModeEnabled) {
         semanticStatus = FDC2214_SAMPLE_STATUS_STILL_SLEEPING;
-    } else if (!converting) {
+    } else if (!snapshot.Converting) {
         semanticStatus = FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING;
     } else if (!unreadConversion) {
         semanticStatus = FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
@@ -877,7 +1065,7 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
         semanticStatus = FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT;
     } else if (outSample->ErrAmplitude) {
         semanticStatus = FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT;
-    } else if (raw28 == 0U) {
+    } else if (snapshot.DataRaw28 == 0U) {
         // An all-zero payload can be stale data from a non-converting/sleeping path.
         // Do not auto-promote transport success to semantic sample validity.
         semanticStatus = FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID;

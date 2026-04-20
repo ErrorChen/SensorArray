@@ -60,6 +60,16 @@ typedef struct {
     uint16_t DriveCurrent;
 } Fdc2214CapChannelConfig_t;
 
+typedef enum {
+    FDC2214_CHANNEL_CONFIG_RESULT_OK = 0,
+    FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH,
+} Fdc2214CapChannelConfigResult_t;
+
+typedef enum {
+    FDC2214_CHANNEL_VERIFY_RESULT_OK = 0,
+    FDC2214_CHANNEL_VERIFY_RESULT_WARN_DRIVE_CURRENT_MISMATCH,
+} Fdc2214CapChannelVerifyResult_t;
+
 typedef struct {
     Fdc2214CapChannel_t ActiveChannel;
     bool SleepModeEnabled;
@@ -85,6 +95,33 @@ typedef struct {
     uint16_t Config;
     uint16_t MuxConfig;
 } Fdc2214CapCoreRegs_t;
+
+typedef struct {
+    uint16_t Status;
+    uint16_t StatusConfig;
+    uint16_t Config;
+    uint16_t MuxConfig;
+    uint16_t RcountCh0;
+    uint16_t SettleCountCh0;
+    uint16_t ClockDividersCh0;
+    uint16_t DriveCurrentCh0;
+    Fdc2214CapChannel_t DataChannel;
+    uint16_t DataMsb;
+    uint16_t DataLsb;
+    uint32_t DataRaw28;
+    bool DataErrWatchdog;
+    bool DataErrAmplitude;
+    uint8_t ErrorChannel;
+    bool StatusErrWatchdog;
+    bool StatusErrAmplitudeHigh;
+    bool StatusErrAmplitudeLow;
+    bool DataReady;
+    bool UnreadConversion[4];
+    Fdc2214CapChannel_t ActiveChannel;
+    bool SleepModeEnabled;
+    bool AutoScanEnabled;
+    bool Converting;
+} Fdc2214CapDebugSnapshot_t;
 
 typedef enum {
     FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN = 0,
@@ -129,11 +166,23 @@ esp_err_t Fdc2214CapReadId(Fdc2214CapDevice_t* dev, uint16_t* manufacturerId, ui
 esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
                                      Fdc2214CapChannel_t ch,
                                      const Fdc2214CapChannelConfig_t* cfg);
+// Same as Fdc2214CapConfigureChannel, with non-fatal warning detail for DRIVE_CURRENT readback.
+esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
+                                               Fdc2214CapChannel_t ch,
+                                               const Fdc2214CapChannelConfig_t* cfg,
+                                               Fdc2214CapChannelConfigResult_t* outResult,
+                                               uint16_t* outDriveCurrentReadback);
 
 // Read back configured channel registers and verify expected values.
 esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev,
                                                 Fdc2214CapChannel_t ch,
                                                 const Fdc2214CapChannelConfig_t* expectedCfg);
+// Same as Fdc2214CapReadbackVerifyChannelConfig, with non-fatal warning detail for DRIVE_CURRENT readback.
+esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* dev,
+                                                          Fdc2214CapChannel_t ch,
+                                                          const Fdc2214CapChannelConfig_t* expectedCfg,
+                                                          Fdc2214CapChannelVerifyResult_t* outResult,
+                                                          uint16_t* outDriveCurrentReadback);
 
 // Build a known-good CONFIG register value with required reserved-bit defaults.
 uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options);
@@ -147,6 +196,10 @@ esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSle
 esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
 // Read key core registers used for diagnostics.
 esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs);
+// Read one structured debug snapshot (core regs + CH0 config regs + DATA_CHx with decoded status fields).
+esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t dataChannel,
+                                      Fdc2214CapDebugSnapshot_t* outSnapshot);
 
 // Single channel continuous conversion; CONFIG.ACTIVE_CHAN selects channel.
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh);

@@ -189,6 +189,14 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOOP_DELAY_MS
     help
         Delay between secondary FDC2214 sample bursts while S5D5 route stays locked.
 
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS
+    int "Single-cap debug startup delay before first sweep (ms)"
+    default 500
+    range 0 10000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Delay after boot before the first S5D5 sweep. Useful for stable capture setup.
+
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST
     bool "Single-cap debug: discard first sample"
     default y
@@ -203,6 +211,21 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SAMPLE_COUNT
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Small burst size for S5D5 / secondary FDC2214 sample logging.
+
+config SENSORARRAY_DEBUG_CHECKPOINT_GPIO
+    int "Debug checkpoint GPIO (-1 to disable)"
+    default 15
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Scope/logic-analyzer checkpoint output for S5D5 single-point debug milestones.
+
+config SENSORARRAY_DEBUG_CHECKPOINT_PULSE_US
+    int "Debug checkpoint pulse width (us)"
+    default 250
+    range 20 20000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Pulse width and gap for checkpoint markers.
 
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
     prompt "S1D1 resistor debug behavior"

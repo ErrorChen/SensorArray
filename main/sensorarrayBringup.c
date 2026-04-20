@@ -13,6 +13,7 @@
 
 #define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
 #define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
+#define SENSORARRAY_FDC_DRIVE_CURRENT_MASK 0xF800u
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -748,6 +749,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     const uint16_t expectedMuxConfig = sensorarrayBringupFdcExpectedMuxConfig(channels);
     const uint16_t finalConfig = sensorarrayBringupFdcBuildFinalConfig(FDC2214_CH0);
     const char *fdcLabel = (i2cAddr == SENSORARRAY_FDC_I2C_ADDR_LOW) ? "secondary_selb_side" : "primary_sela_side";
+    bool driveCurrentWarning = false;
 
     // CONFIG must be written in sleep before channel/mux writes to avoid ambiguous run-state transitions.
     err = Fdc2214CapEnterSleep(dev, finalConfig);
@@ -761,7 +763,13 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
 
     for (uint8_t ch = 0; ch < channels; ++ch) {
         Fdc2214CapChannelConfig_t chCfg = sensorarrayBringupFdcDebugChannelProfile(ch);
-        err = Fdc2214CapConfigureChannel(dev, (Fdc2214CapChannel_t)ch, &chCfg);
+        Fdc2214CapChannelConfigResult_t cfgResult = FDC2214_CHANNEL_CONFIG_RESULT_OK;
+        uint16_t cfgDriveReadback = 0u;
+        err = Fdc2214CapConfigureChannelWithResult(dev,
+                                                   (Fdc2214CapChannel_t)ch,
+                                                   &chCfg,
+                                                   &cfgResult,
+                                                   &cfgDriveReadback);
         if (err != ESP_OK) {
             if (outDiag) {
                 outDiag->status = "channel_config_failure";
@@ -770,8 +778,23 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
             Fdc2214CapDestroy(dev);
             return err;
         }
+        if (cfgResult == FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH) {
+            driveCurrentWarning = true;
+            printf("DBGFDCINIT_WARN,stage=channel_config,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,driveReadback=0x%04X,"
+                   "status=drive_current_effective_mismatch_continue\n",
+                   (unsigned)ch,
+                   chCfg.DriveCurrent,
+                   (uint16_t)(chCfg.DriveCurrent & SENSORARRAY_FDC_DRIVE_CURRENT_MASK),
+                   cfgDriveReadback);
+        }
 
-        err = Fdc2214CapReadbackVerifyChannelConfig(dev, (Fdc2214CapChannel_t)ch, &chCfg);
+        Fdc2214CapChannelVerifyResult_t verifyResult = FDC2214_CHANNEL_VERIFY_RESULT_OK;
+        uint16_t verifyDriveReadback = 0u;
+        err = Fdc2214CapReadbackVerifyChannelConfigWithResult(dev,
+                                                              (Fdc2214CapChannel_t)ch,
+                                                              &chCfg,
+                                                              &verifyResult,
+                                                              &verifyDriveReadback);
         if (err != ESP_OK) {
             if (outDiag) {
                 outDiag->status = "channel_readback_mismatch";
@@ -779,6 +802,15 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
             }
             Fdc2214CapDestroy(dev);
             return err;
+        }
+        if (verifyResult == FDC2214_CHANNEL_VERIFY_RESULT_WARN_DRIVE_CURRENT_MISMATCH) {
+            driveCurrentWarning = true;
+            printf("DBGFDCINIT_WARN,stage=channel_readback,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,"
+                   "driveReadback=0x%04X,status=drive_current_effective_mismatch_continue\n",
+                   (unsigned)ch,
+                   chCfg.DriveCurrent,
+                   (uint16_t)(chCfg.DriveCurrent & SENSORARRAY_FDC_DRIVE_CURRENT_MASK),
+                   verifyDriveReadback);
         }
     }
 
@@ -844,7 +876,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
 
     *outDev = dev;
     if (outDiag) {
-        outDiag->status = "ok";
+        outDiag->status = driveCurrentWarning ? "ok_with_drive_current_warning" : "ok";
         outDiag->configVerified = true;
         outDiag->refClockKnown = true;
         outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
@@ -884,8 +916,10 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
     }
 
     /*
-     * Reuse the validated strict bring-up flow so reset/ID checks, sleep sequencing,
+     * Reuse the validated bring-up flow so reset/ID checks, sleep sequencing,
      * explicit channel profile, and readback verification stay centralized.
+     * DRIVE_CURRENT effective-IDRIVE mismatches are warning-only in this flow
+     * to preserve downstream debug visibility.
      * channel+1 ensures target CHx register is configured before forcing single-channel mode.
      */
     uint8_t channelsToConfigure = (uint8_t)channel + 1u;
