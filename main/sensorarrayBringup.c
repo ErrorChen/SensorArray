@@ -109,6 +109,32 @@ static const char *sensorarrayBringupFdcRefClockName(Fdc2214CapRefClockSource_t 
     return (source == FDC2214_REF_CLOCK_EXTERNAL) ? "external_clkin" : "internal_oscillator";
 }
 
+static sensorarrayFdcRefClockQuality_t sensorarrayBringupFdcRefClockQuality(void)
+{
+#if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    return SENSORARRAY_FDC_REF_CLOCK_QUALITY_EXTERNAL_ASSUMED;
+#else
+    return SENSORARRAY_FDC_REF_CLOCK_QUALITY_NOMINAL_INTERNAL;
+#endif
+}
+
+static const char *sensorarrayBringupFdcRefClockQualityName(sensorarrayFdcRefClockQuality_t quality)
+{
+    switch (quality) {
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_NOMINAL_INTERNAL:
+        return "nominal_internal";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_ESTIMATED:
+        return "estimated";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_CALIBRATED:
+        return "calibrated";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_EXTERNAL_ASSUMED:
+        return "external_assumed";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN:
+    default:
+        return "unknown";
+    }
+}
+
 static bool sensorarrayBringupFdcAutoScanForChannels(uint8_t channels)
 {
     return channels > 1u;
@@ -190,7 +216,10 @@ static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx
                                                         const char *stage,
                                                         Fdc2214CapDevice_t *dev,
                                                         uint16_t manufacturerId,
-                                                        uint16_t deviceId)
+                                                        uint16_t deviceId,
+                                                        uint16_t *outClockDiv0Raw,
+                                                        Fdc2214CapClockDividerInfo_t *outClockDiv0Info,
+                                                        bool *outClockDiv0InfoValid)
 {
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
@@ -228,9 +257,34 @@ static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx
         err = sensorarrayBringupReadFdcReg(dev, 0x1Eu, &drive0);
     }
 
+    bool clockDivDecodeValid = false;
+    Fdc2214CapClockDividerInfo_t clockDivInfo = {0};
+    if (err == ESP_OK && Fdc2214CapDecodeClockDividers(clockDiv0, &clockDivInfo) == ESP_OK) {
+        clockDivDecodeValid = true;
+    }
+
+    if (outClockDiv0Raw) {
+        *outClockDiv0Raw = clockDiv0;
+    }
+    if (outClockDiv0InfoValid) {
+        *outClockDiv0InfoValid = clockDivDecodeValid;
+    }
+    if (outClockDiv0Info && clockDivDecodeValid) {
+        *outClockDiv0Info = clockDivInfo;
+    }
+
+    sensorarrayFdcRefClockQuality_t refClockQuality = sensorarrayBringupFdcRefClockQuality();
+    char calibratedHzField[24] = {0};
+    if (refClockQuality == SENSORARRAY_FDC_REF_CLOCK_QUALITY_CALIBRATED) {
+        (void)snprintf(calibratedHzField, sizeof(calibratedHzField), "%lu", (unsigned long)SENSORARRAY_FDC_REF_CLOCK_HZ);
+    } else {
+        (void)snprintf(calibratedHzField, sizeof(calibratedHzField), "%s", SENSORARRAY_NA);
+    }
+
     printf("DBGFDCINIT,stage=%s,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,status=0x%04X,"
-           "statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,clockDiv0=0x%04X,rcount0=0x%04X,settle0=0x%04X,"
-           "drive0=0x%04X,refClock=%s,refClockHz=%lu,err=%ld,result=%s\n",
+           "statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,clockDiv0Raw=0x%04X,finSel0=%u,finDivider0=%u,"
+           "frefDivider0=%u,rcount0=0x%04X,settle0=0x%04X,drive0=0x%04X,refClockSource=%s,refClockQuality=%s,"
+           "refClockHzNominal=%lu,refClockHzCalibrated=%s,err=%ld,result=%s\n",
            stage ? stage : SENSORARRAY_NA,
            fdcLabel ? fdcLabel : SENSORARRAY_NA,
            i2cCtx ? (int)i2cCtx->Port : -1,
@@ -238,17 +292,22 @@ static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx
            manufacturerId,
            deviceId,
            status,
-           statusConfig,
-           config,
-           muxConfig,
-           clockDiv0,
-           rcount0,
-           settle0,
-           drive0,
-           sensorarrayBringupFdcRefClockName(sensorarrayBringupFdcRefClockSource()),
-           (unsigned long)SENSORARRAY_FDC_REF_CLOCK_HZ,
-           (long)err,
-           (err == ESP_OK) ? "ok" : "read_error");
+            statusConfig,
+            config,
+            muxConfig,
+            clockDiv0,
+            clockDivDecodeValid ? (unsigned)clockDivInfo.FinSel : 0u,
+            clockDivDecodeValid ? (unsigned)clockDivInfo.FinDivider : 0u,
+            clockDivDecodeValid ? (unsigned)clockDivInfo.FrefDivider : 0u,
+            rcount0,
+            settle0,
+            drive0,
+            sensorarrayBringupFdcRefClockName(sensorarrayBringupFdcRefClockSource()),
+            sensorarrayBringupFdcRefClockQualityName(refClockQuality),
+            (unsigned long)SENSORARRAY_FDC_REF_CLOCK_HZ,
+            calibratedHzField,
+            (long)err,
+            (err == ESP_OK) ? "ok" : "read_error");
 
     return err;
 }
@@ -469,7 +528,14 @@ void sensorarrayBringupResetFdcState(sensorarrayFdcDeviceState_t *fdcState,
     fdcState->configVerified = false;
     fdcState->refClockKnown = false;
     fdcState->refClockSource = FDC2214_REF_CLOCK_INTERNAL;
+    fdcState->refClockQuality = SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN;
+    fdcState->refClockIsCalibrated = false;
     fdcState->refClockHz = 0u;
+    fdcState->refClockHzNominal = 0u;
+    fdcState->refClockHzCalibrated = 0u;
+    fdcState->channel0ClockDividersRaw = 0u;
+    fdcState->channel0ClockDividerValid = false;
+    fdcState->channel0ClockDividerInfo = (Fdc2214CapClockDividerInfo_t){0};
     fdcState->statusConfigReg = 0u;
     fdcState->configReg = 0u;
     fdcState->muxConfigReg = 0u;
@@ -656,7 +722,14 @@ void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag)
     diag->configVerified = false;
     diag->refClockKnown = false;
     diag->refClockSource = FDC2214_REF_CLOCK_INTERNAL;
+    diag->refClockQuality = SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN;
+    diag->refClockIsCalibrated = false;
     diag->refClockHz = 0u;
+    diag->refClockHzNominal = 0u;
+    diag->refClockHzCalibrated = 0u;
+    diag->channel0ClockDividersRaw = 0u;
+    diag->channel0ClockDividerValid = false;
+    diag->channel0ClockDividerInfo = (Fdc2214CapClockDividerInfo_t){0};
     diag->statusConfigReg = 0u;
     diag->configReg = 0u;
     diag->muxConfigReg = 0u;
@@ -680,7 +753,14 @@ void sensorarrayBringupApplyFdcInitResult(sensorarrayFdcDeviceState_t *fdcState,
     fdcState->configVerified = diag->configVerified;
     fdcState->refClockKnown = diag->refClockKnown;
     fdcState->refClockSource = diag->refClockSource;
+    fdcState->refClockQuality = diag->refClockQuality;
+    fdcState->refClockIsCalibrated = diag->refClockIsCalibrated;
     fdcState->refClockHz = diag->refClockHz;
+    fdcState->refClockHzNominal = diag->refClockHzNominal;
+    fdcState->refClockHzCalibrated = diag->refClockHzCalibrated;
+    fdcState->channel0ClockDividersRaw = diag->channel0ClockDividersRaw;
+    fdcState->channel0ClockDividerValid = diag->channel0ClockDividerValid;
+    fdcState->channel0ClockDividerInfo = diag->channel0ClockDividerInfo;
     fdcState->statusConfigReg = diag->statusConfigReg;
     fdcState->configReg = diag->configReg;
     fdcState->muxConfigReg = diag->muxConfigReg;
@@ -880,7 +960,10 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
                                                      "verify_failed",
                                                      dev,
                                                      manufacturer,
-                                                     deviceId);
+                                                     deviceId,
+                                                     NULL,
+                                                     NULL,
+                                                     NULL);
         if (outDiag) {
             outDiag->status = "active_verify_failure";
         }
@@ -888,7 +971,19 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         return err;
     }
 
-    err = sensorarrayBringupDumpFdcInitRegisters(i2cCtx, i2cAddr, fdcLabel, "post_init", dev, manufacturer, deviceId);
+    uint16_t clockDiv0Raw = 0u;
+    Fdc2214CapClockDividerInfo_t clockDiv0Info = {0};
+    bool clockDiv0InfoValid = false;
+    err = sensorarrayBringupDumpFdcInitRegisters(i2cCtx,
+                                                 i2cAddr,
+                                                 fdcLabel,
+                                                 "post_init",
+                                                 dev,
+                                                 manufacturer,
+                                                 deviceId,
+                                                 &clockDiv0Raw,
+                                                 &clockDiv0Info,
+                                                 &clockDiv0InfoValid);
     if (err != ESP_OK) {
         if (outDiag) {
             outDiag->status = "diagnostic_dump_failure";
@@ -901,9 +996,17 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     if (outDiag) {
         outDiag->status = driveCurrentWarning ? "ok_with_drive_current_warning" : "ok";
         outDiag->configVerified = true;
+        // "known" means source/path is known; exact calibrated Hz is tracked separately.
         outDiag->refClockKnown = true;
         outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
+        outDiag->refClockQuality = sensorarrayBringupFdcRefClockQuality();
+        outDiag->refClockIsCalibrated = (outDiag->refClockQuality == SENSORARRAY_FDC_REF_CLOCK_QUALITY_CALIBRATED);
         outDiag->refClockHz = SENSORARRAY_FDC_REF_CLOCK_HZ;
+        outDiag->refClockHzNominal = SENSORARRAY_FDC_REF_CLOCK_HZ;
+        outDiag->refClockHzCalibrated = 0u;
+        outDiag->channel0ClockDividersRaw = clockDiv0Raw;
+        outDiag->channel0ClockDividerValid = clockDiv0InfoValid;
+        outDiag->channel0ClockDividerInfo = clockDiv0InfoValid ? clockDiv0Info : (Fdc2214CapClockDividerInfo_t){0};
         outDiag->statusConfigReg = expectedStatusConfig;
         outDiag->configReg = finalConfig;
         outDiag->muxConfigReg = expectedMuxConfig;

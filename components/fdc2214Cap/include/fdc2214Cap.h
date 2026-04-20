@@ -123,6 +123,21 @@ typedef struct {
     bool Converting;
 } Fdc2214CapDebugSnapshot_t;
 
+typedef struct {
+    uint16_t RawClockDividers;
+    uint16_t NormalizedClockDividers;
+    uint8_t FinSel;
+    uint8_t FinDivider;
+    uint16_t FrefDivider;
+} Fdc2214CapClockDividerInfo_t;
+
+typedef struct {
+    double FclkHz;
+    double FrefHz;
+    double FinHz;
+    double FsensorHz;
+} Fdc2214CapFrequencyInfo_t;
+
 typedef enum {
     FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN = 0,
     FDC2214_SAMPLE_STATUS_SAMPLE_VALID,
@@ -227,6 +242,16 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
 esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value);
 // Human-readable semantic status for sample diagnostics.
 const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status);
+
+// Decode CHx_FIN_SEL and CHx_FREF_DIVIDER from a CLOCK_DIVIDERS register value.
+esp_err_t Fdc2214CapDecodeClockDividers(uint16_t rawClockDividers,
+                                        Fdc2214CapClockDividerInfo_t* outInfo);
+// Recover physical frequencies for one raw sample:
+// fRef=fClk/FREF_DIVIDER, fIn=raw/2^28*fRef, fSensor=fIn*FIN_DIVIDER.
+bool Fdc2214CapComputeSensorFrequencyHz(uint32_t raw28,
+                                        uint32_t fClkHz,
+                                        const Fdc2214CapClockDividerInfo_t* clockDividerInfo,
+                                        Fdc2214CapFrequencyInfo_t* outFrequencyInfo);
 
 #ifdef __cplusplus
 }

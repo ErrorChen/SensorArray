@@ -83,6 +83,28 @@ esp_err_t sensorarrayMeasureReadFdcSampleDiagRelaxed(Fdc2214CapDevice_t *dev,
                                                       sensorarrayFdcReadDiag_t *outDiag);
 const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t status);
 
+typedef struct {
+    uint32_t raw28;
+    uint32_t refClockHz;
+    sensorarrayFdcRefClockQuality_t refClockQuality;
+    Fdc2214CapClockDividerInfo_t clockDividerInfo;
+    double fClkHz;
+    double fRefHz;
+    double fInHz;
+    double restoredSensorFrequencyHz;
+} sensorarrayFdcFrequencyRestore_t;
+
+const char *sensorarrayMeasureFdcRefClockQualityName(sensorarrayFdcRefClockQuality_t quality);
+bool sensorarrayMeasureFdcRestoreFrequencyWithClockInfo(uint32_t raw28,
+                                                        uint32_t refClockHz,
+                                                        sensorarrayFdcRefClockQuality_t refClockQuality,
+                                                        const Fdc2214CapClockDividerInfo_t *clockDividerInfo,
+                                                        sensorarrayFdcFrequencyRestore_t *outRestore);
+bool sensorarrayMeasureFdcRestoreFrequency(const sensorarrayFdcDeviceState_t *fdcState,
+                                           uint32_t raw28,
+                                           sensorarrayFdcFrequencyRestore_t *outRestore);
+
+// Legacy helper kept for compatibility: assumes FIN_SEL=1 and FREF_DIVIDER=1.
 double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz);
 bool sensorarrayMeasureFdcComputeCapacitancePf(double frequencyHz, double inductorValueUh, double *outCapPf);
 bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf);

@@ -97,6 +97,7 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_STATUS_CONFIG_ALLOWED_MASK 0x3821
 
 #define FDC2214_RESET_DEV_BIT (1U << 15)
+#define FDC2214_RAW_SCALE_2P28 268435456.0
 
 // Drive current register uses CHx_IDRIVE [15:11]; reserved bits must stay clear.
 #define FDC2214_DRIVE_CURRENT_MASK 0xF800
@@ -255,21 +256,78 @@ static esp_err_t Fdc2214CapNormalizeClockDividers(uint16_t rawClockDividers, uin
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint16_t clockDividers = (uint16_t)(rawClockDividers & (uint16_t)~FDC2214_CLOCK_RESERVED_MASK);
-    uint16_t finSel = (uint16_t)((clockDividers & FDC2214_CLOCK_FIN_SEL_MASK) >> FDC2214_CLOCK_FIN_SEL_SHIFT);
-    uint16_t frefDiv = (uint16_t)(clockDividers & FDC2214_CLOCK_FREF_DIVIDER_MASK);
+    Fdc2214CapClockDividerInfo_t info = {0};
+    esp_err_t err = Fdc2214CapDecodeClockDividers(rawClockDividers, &info);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    *outClockDividers = info.NormalizedClockDividers;
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapDecodeClockDividers(uint16_t rawClockDividers, Fdc2214CapClockDividerInfo_t* outInfo)
+{
+    if (!outInfo) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t normalizedClockDividers = (uint16_t)(rawClockDividers & (uint16_t)~FDC2214_CLOCK_RESERVED_MASK);
+    uint16_t finSel = (uint16_t)((normalizedClockDividers & FDC2214_CLOCK_FIN_SEL_MASK) >> FDC2214_CLOCK_FIN_SEL_SHIFT);
+    uint16_t frefDivider = (uint16_t)(normalizedClockDividers & FDC2214_CLOCK_FREF_DIVIDER_MASK);
 
     if (finSel == 0U) {
         ESP_LOGE(TAG, "CLOCK_DIVIDERS invalid: CHx_FIN_SEL must be explicit/non-zero (raw=0x%04X)", rawClockDividers);
         return ESP_ERR_INVALID_ARG;
     }
-    if (frefDiv == 0U) {
+    if (frefDivider == 0U) {
         ESP_LOGE(TAG, "CLOCK_DIVIDERS invalid: CHx_FREF_DIVIDER must be non-zero (raw=0x%04X)", rawClockDividers);
         return ESP_ERR_INVALID_ARG;
     }
 
-    *outClockDividers = clockDividers;
+    /*
+     * Use the explicit CHx_FIN_SEL numeric value as the divider factor.
+     * Keeping this decode centralized avoids formula drift between layers.
+     */
+    outInfo->RawClockDividers = rawClockDividers;
+    outInfo->NormalizedClockDividers = normalizedClockDividers;
+    outInfo->FinSel = (uint8_t)finSel;
+    outInfo->FinDivider = (uint8_t)finSel;
+    outInfo->FrefDivider = frefDivider;
     return ESP_OK;
+}
+
+bool Fdc2214CapComputeSensorFrequencyHz(uint32_t raw28,
+                                        uint32_t fClkHz,
+                                        const Fdc2214CapClockDividerInfo_t* clockDividerInfo,
+                                        Fdc2214CapFrequencyInfo_t* outFrequencyInfo)
+{
+    if (!clockDividerInfo || !outFrequencyInfo) {
+        return false;
+    }
+    if (raw28 == 0U || fClkHz == 0U || clockDividerInfo->FrefDivider == 0U || clockDividerInfo->FinDivider == 0U) {
+        return false;
+    }
+
+    double fclkHz = (double)fClkHz;
+    double frefHz = fclkHz / (double)clockDividerInfo->FrefDivider;
+    if (frefHz <= 0.0) {
+        return false;
+    }
+
+    double finHz = ((double)raw28 * frefHz) / FDC2214_RAW_SCALE_2P28;
+    double fsensorHz = finHz * (double)clockDividerInfo->FinDivider;
+    if (finHz <= 0.0 || fsensorHz <= 0.0) {
+        return false;
+    }
+
+    *outFrequencyInfo = (Fdc2214CapFrequencyInfo_t){
+        .FclkHz = fclkHz,
+        .FrefHz = frefHz,
+        .FinHz = finHz,
+        .FsensorHz = fsensorHz,
+    };
+    return true;
 }
 
 static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)

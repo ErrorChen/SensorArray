@@ -90,6 +90,14 @@ typedef struct {
     const char *mapLabel;
 } sensorarrayFdcDLineMap_t;
 
+typedef enum {
+    SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN = 0,
+    SENSORARRAY_FDC_REF_CLOCK_QUALITY_NOMINAL_INTERNAL,
+    SENSORARRAY_FDC_REF_CLOCK_QUALITY_ESTIMATED,
+    SENSORARRAY_FDC_REF_CLOCK_QUALITY_CALIBRATED,
+    SENSORARRAY_FDC_REF_CLOCK_QUALITY_EXTERNAL_ASSUMED,
+} sensorarrayFdcRefClockQuality_t;
+
 typedef struct {
     const char *label;
     const BoardSupportI2cCtx_t *i2cCtx;
@@ -100,9 +108,17 @@ typedef struct {
     uint16_t manufacturerId;
     uint16_t deviceId;
     bool configVerified;
+    // true means clock source/config path is known; it does not imply calibrated Hz.
     bool refClockKnown;
     Fdc2214CapRefClockSource_t refClockSource;
+    sensorarrayFdcRefClockQuality_t refClockQuality;
+    bool refClockIsCalibrated;
     uint32_t refClockHz;
+    uint32_t refClockHzNominal;
+    uint32_t refClockHzCalibrated;
+    uint16_t channel0ClockDividersRaw;
+    bool channel0ClockDividerValid;
+    Fdc2214CapClockDividerInfo_t channel0ClockDividerInfo;
     uint16_t statusConfigReg;
     uint16_t configReg;
     uint16_t muxConfigReg;
@@ -148,9 +164,17 @@ typedef struct {
     uint16_t manufacturerId;
     uint16_t deviceId;
     bool configVerified;
+    // true means clock source/config path is known; it does not imply calibrated Hz.
     bool refClockKnown;
     Fdc2214CapRefClockSource_t refClockSource;
+    sensorarrayFdcRefClockQuality_t refClockQuality;
+    bool refClockIsCalibrated;
     uint32_t refClockHz;
+    uint32_t refClockHzNominal;
+    uint32_t refClockHzCalibrated;
+    uint16_t channel0ClockDividersRaw;
+    bool channel0ClockDividerValid;
+    Fdc2214CapClockDividerInfo_t channel0ClockDividerInfo;
     uint16_t statusConfigReg;
     uint16_t configReg;
     uint16_t muxConfigReg;

@@ -757,8 +757,100 @@ esp_err_t sensorarrayMeasureReadFdcSample(Fdc2214CapDevice_t *dev,
     return ESP_OK;
 }
 
+const char *sensorarrayMeasureFdcRefClockQualityName(sensorarrayFdcRefClockQuality_t quality)
+{
+    switch (quality) {
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_NOMINAL_INTERNAL:
+        return "nominal_internal";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_ESTIMATED:
+        return "estimated";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_CALIBRATED:
+        return "calibrated";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_EXTERNAL_ASSUMED:
+        return "external_assumed";
+    case SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN:
+    default:
+        return "unknown";
+    }
+}
+
+bool sensorarrayMeasureFdcRestoreFrequencyWithClockInfo(uint32_t raw28,
+                                                        uint32_t refClockHz,
+                                                        sensorarrayFdcRefClockQuality_t refClockQuality,
+                                                        const Fdc2214CapClockDividerInfo_t *clockDividerInfo,
+                                                        sensorarrayFdcFrequencyRestore_t *outRestore)
+{
+    if (!clockDividerInfo || !outRestore) {
+        return false;
+    }
+
+    *outRestore = (sensorarrayFdcFrequencyRestore_t){
+        .raw28 = raw28,
+        .refClockHz = refClockHz,
+        .refClockQuality = refClockQuality,
+        .clockDividerInfo = *clockDividerInfo,
+    };
+
+    Fdc2214CapFrequencyInfo_t frequencyInfo = {0};
+    if (!Fdc2214CapComputeSensorFrequencyHz(raw28, refClockHz, clockDividerInfo, &frequencyInfo)) {
+        return false;
+    }
+
+    outRestore->fClkHz = frequencyInfo.FclkHz;
+    outRestore->fRefHz = frequencyInfo.FrefHz;
+    outRestore->fInHz = frequencyInfo.FinHz;
+    outRestore->restoredSensorFrequencyHz = frequencyInfo.FsensorHz;
+    return true;
+}
+
+bool sensorarrayMeasureFdcRestoreFrequency(const sensorarrayFdcDeviceState_t *fdcState,
+                                           uint32_t raw28,
+                                           sensorarrayFdcFrequencyRestore_t *outRestore)
+{
+    if (!outRestore) {
+        return false;
+    }
+
+    uint32_t refClockHz = SENSORARRAY_FDC_REF_CLOCK_HZ;
+    sensorarrayFdcRefClockQuality_t refClockQuality = SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN;
+    Fdc2214CapClockDividerInfo_t clockDividerInfo = {0};
+    bool haveClockDividerInfo = false;
+
+    if (fdcState) {
+        if (fdcState->refClockHz > 0u) {
+            refClockHz = fdcState->refClockHz;
+        }
+        refClockQuality = fdcState->refClockQuality;
+        if (fdcState->channel0ClockDividerValid) {
+            clockDividerInfo = fdcState->channel0ClockDividerInfo;
+            haveClockDividerInfo = true;
+        } else if (fdcState->channel0ClockDividersRaw != 0u &&
+                   Fdc2214CapDecodeClockDividers(fdcState->channel0ClockDividersRaw, &clockDividerInfo) == ESP_OK) {
+            haveClockDividerInfo = true;
+        }
+    }
+
+    if (!haveClockDividerInfo &&
+        Fdc2214CapDecodeClockDividers(SENSORARRAY_FDC_DEBUG_CLOCK_DIVIDERS_CH0, &clockDividerInfo) == ESP_OK) {
+        haveClockDividerInfo = true;
+    }
+    if (!haveClockDividerInfo) {
+        return false;
+    }
+
+    return sensorarrayMeasureFdcRestoreFrequencyWithClockInfo(raw28,
+                                                              refClockHz,
+                                                              refClockQuality,
+                                                              &clockDividerInfo,
+                                                              outRestore);
+}
+
 double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz)
 {
+    /*
+     * Legacy path retained for compatibility with old logs/tests.
+     * New code should use sensorarrayMeasureFdcRestoreFrequency* to include FIN_SEL/FREF_DIVIDER.
+     */
     if (raw28 == 0u || refClockHz == 0u) {
         return 0.0;
     }
