@@ -27,9 +27,16 @@
 #define SENSORARRAY_S5D5_REG_MUX_CONFIG 0x1Bu
 #define SENSORARRAY_S5D5_REG_CONFIG 0x1Au
 #define SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0 0x1Eu
+#define SENSORARRAY_S5D5_REG_DATA_MSB_BASE 0x00u
+#define SENSORARRAY_S5D5_REG_DATA_LSB_BASE 0x01u
+#define SENSORARRAY_S5D5_DATA_MSB_MASK 0x0FFFu
+#define SENSORARRAY_S5D5_DATA_ERR_WD_MASK (1u << 13)
+#define SENSORARRAY_S5D5_DATA_ERR_AW_MASK (1u << 12)
 #define SENSORARRAY_S5D5_STEP_SETTLE_MS 350u
 #define SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS 20u
 #define SENSORARRAY_S5D5_ROUND_FAIL_DELAY_MS 500u
+#define SENSORARRAY_S5D5_RECOVERY_FAIL_DEGRADED_THRESHOLD 3u
+#define SENSORARRAY_S5D5_DEGRADED_MIN_BACKOFF_MS 2000u
 #define SENSORARRAY_S5D5_RAW_SPAN_TOO_SMALL_PERMILLE 4u
 #define SENSORARRAY_S5D5_RAW_SPAN_HEALTHY_LOW_MAX_PERMILLE 20u
 #define SENSORARRAY_S5D5_RAW_SPAN_HEALTHY_MID_MAX_PERMILLE 120u
@@ -639,6 +646,29 @@ typedef struct {
     double netCapPfSum;
 } sensorarrayS5d5LockedSummary_t;
 
+typedef struct {
+    bool valid;
+    uint16_t statusReg;
+    uint16_t configReg;
+    uint16_t muxConfig;
+    uint16_t driveReg;
+    bool highCurrentReadback;
+    uint16_t driveCurrentReadbackNorm;
+    uint8_t activeChannelReadback;
+    bool activeChannelMatch;
+    bool matchesLockedCandidate;
+} sensorarrayS5d5RuntimeReadback_t;
+
+typedef struct {
+    uint16_t statusRaw;
+    bool converting;
+    bool unreadPresent;
+    bool errWatchdog;
+    bool errAmplitude;
+    uint32_t raw28;
+    sensorarrayFdcSampleStatus_t statusCode;
+} sensorarrayS5d5FastSample_t;
+
 static const char *sensorarrayS5d5RawSpanBandName(sensorarrayS5d5RawSpanBand_t band)
 {
     switch (band) {
@@ -817,6 +847,68 @@ static esp_err_t sensorarrayS5d5ReadKeyRegs(Fdc2214CapDevice_t *dev,
         return err;
     }
     return Fdc2214CapReadRawRegisters(dev, SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0, outDriveCurrent);
+}
+
+static uint8_t sensorarrayS5d5DataMsbRegForChannel(Fdc2214CapChannel_t channel)
+{
+    return (uint8_t)(SENSORARRAY_S5D5_REG_DATA_MSB_BASE + ((uint8_t)channel * 2u));
+}
+
+static esp_err_t sensorarrayS5d5ReadFastSample(Fdc2214CapDevice_t *dev,
+                                               Fdc2214CapChannel_t channel,
+                                               const Fdc2214CapStatus_t *statusHint,
+                                               sensorarrayS5d5FastSample_t *outSample)
+{
+    if (!dev || !outSample || channel < FDC2214_CH0 || channel > FDC2214_CH3) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapStatus_t status = {0};
+    if (statusHint) {
+        status = *statusHint;
+    } else {
+        esp_err_t statusErr = Fdc2214CapReadStatus(dev, &status);
+        if (statusErr != ESP_OK) {
+            return statusErr;
+        }
+    }
+
+    uint8_t msbReg = sensorarrayS5d5DataMsbRegForChannel(channel);
+    uint16_t dataMsb = 0u;
+    uint16_t dataLsb = 0u;
+    esp_err_t err = Fdc2214CapReadRawRegisters(dev, msbReg, &dataMsb);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapReadRawRegisters(dev, (uint8_t)(msbReg + 1u), &dataLsb);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    outSample->statusRaw = status.Raw;
+    outSample->converting = status.UnreadConversion[(uint8_t)channel] || status.DataReady;
+    outSample->unreadPresent = status.UnreadConversion[(uint8_t)channel];
+    outSample->raw28 = (((uint32_t)(dataMsb & SENSORARRAY_S5D5_DATA_MSB_MASK)) << 16) | (uint32_t)dataLsb;
+    outSample->errWatchdog = ((dataMsb & SENSORARRAY_S5D5_DATA_ERR_WD_MASK) != 0u) || status.ErrWatchdog;
+    outSample->errAmplitude = ((dataMsb & SENSORARRAY_S5D5_DATA_ERR_AW_MASK) != 0u) ||
+                              status.ErrAmplitudeHigh ||
+                              status.ErrAmplitudeLow;
+
+    if (!outSample->converting) {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING;
+    } else if (!outSample->unreadPresent) {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
+    } else if (outSample->errWatchdog) {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_WATCHDOG_FAULT;
+    } else if (outSample->errAmplitude) {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT;
+    } else if (outSample->raw28 == 0u) {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_ZERO_RAW_INVALID;
+    } else {
+        outSample->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID;
+    }
+
+    return ESP_OK;
 }
 
 static void sensorarrayS5d5StopAdsForIsolation(sensorarrayState_t *state)
@@ -2003,6 +2095,10 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     if (warnLogStride == 0u) {
         warnLogStride = 1u;
     }
+    uint32_t diagLogStride = (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DIAG_LOG_STRIDE;
+    if (diagLogStride == 0u) {
+        diagLogStride = 1u;
+    }
     uint32_t unreadPollTimeoutMs = (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS;
     uint32_t unreadPollIntervalMs = (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_INTERVAL_MS;
     if (unreadPollIntervalMs == 0u) {
@@ -2030,18 +2126,20 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     printf("DBGFDC_S5D5,stage=target,mode=S5D5_CAP_FDC_SECONDARY,fdcDev=secondary_selb_side,i2cPort=1,"
            "sda=%d,scl=%d,i2cAddr=0x%02X,route=S5D5_CAP,channel=CH0,sweepSamples=%lu,lockedSamples=%lu,"
            "loopDelayMs=%lu,discardFirst=%u,recoveryThreshold=%lu,lockMinScore=%ld,verboseLog=%u,warnLogStride=%lu,"
-           "enableCapComputation=%u,enableNetCapOutput=%u,inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f\n",
+           "diagLogStride=%lu,enableCapComputation=%u,enableNetCapOutput=%u,inductorUh=%.3f,fixedCapPf=%.3f,"
+           "parasiticCapPf=%.3f\n",
            busInfo.SdaGpio,
            busInfo.SclGpio,
            SENSORARRAY_FDC_I2C_ADDR_LOW,
-           (unsigned long)sweepSampleCount,
-           (unsigned long)lockedSampleCount,
+            (unsigned long)sweepSampleCount,
+            (unsigned long)lockedSampleCount,
             (unsigned long)loopDelayMs,
            discardFirst ? 1u : 0u,
            (unsigned long)recoveryReinitThreshold,
            (long)lockMinScore,
            verboseLog ? 1u : 0u,
            (unsigned long)warnLogStride,
+           (unsigned long)diagLogStride,
            capConfig.enableCapComputation ? 1u : 0u,
            capConfig.enableNetCapOutput ? 1u : 0u,
            capConfig.inductorValueUh,
@@ -2076,10 +2174,26 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     uint32_t noUnreadStreak = 0u;
     uint32_t nonConvertingStreak = 0u;
     uint32_t readbackMismatchStreak = 0u;
+    uint32_t readbackIoFailureStreak = 0u;
+    uint32_t recoveryFailureStreak = 0u;
+    bool degradedMode = false;
+    uint32_t degradedWarnCounter = 0u;
+    sensorarrayS5d5RuntimeReadback_t runtimeReadback = {0};
     sensorarrayS5d5SweepCandidate_t lockedCandidate = {0};
 
     while (true) {
         sensorarrayS5d5StopAdsForIsolation(state);
+        if (degradedMode) {
+            uint32_t degradedDelayMs = (loopDelayMs >= SENSORARRAY_S5D5_DEGRADED_MIN_BACKOFF_MS)
+                                           ? loopDelayMs
+                                           : SENSORARRAY_S5D5_DEGRADED_MIN_BACKOFF_MS;
+            if (sensorarrayLogShouldEmitRateLimitedWarning(&degradedWarnCounter, warnLogStride)) {
+                printf("DBGFDC_S5D5,stage=degraded_state,status=holdoff,recoveryFailureStreak=%lu,backoffMs=%lu\n",
+                       (unsigned long)recoveryFailureStreak,
+                       (unsigned long)degradedDelayMs);
+            }
+            sensorarrayDebugSelftestDelayMs(degradedDelayMs);
+        }
 
         if (!modeFdcInitialized || !fdcState->ready || !fdcState->handle) {
             sensorarrayCheckpointEmit(&checkpoint, SENSORARRAY_CHECKPOINT_EVENT_FDC_INIT_BEGIN);
@@ -2103,8 +2217,16 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_ROUND_FAIL_DELAY_MS);
                 continue;
             }
+            if (degradedMode) {
+                printf("DBGFDC_S5D5,stage=degraded_state,status=exit,recoveryFailureStreak=%lu\n",
+                       (unsigned long)recoveryFailureStreak);
+            }
+            degradedMode = false;
+            degradedWarnCounter = 0u;
+            recoveryFailureStreak = 0u;
             modeFdcInitialized = true;
             locked = false;
+            runtimeReadback.valid = false;
         }
 
         if (!locked) {
@@ -2168,7 +2290,24 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                                                                          sweepRecoveryStreak);
                 locked = false;
                 modeFdcInitialized = (recoveryErr == ESP_OK);
-                if (recoveryErr != ESP_OK) {
+                runtimeReadback.valid = false;
+                if (recoveryErr == ESP_OK) {
+                    if (degradedMode) {
+                        printf("DBGFDC_S5D5,stage=degraded_state,status=exit,recoveryFailureStreak=%lu\n",
+                               (unsigned long)recoveryFailureStreak);
+                    }
+                    degradedMode = false;
+                    degradedWarnCounter = 0u;
+                    recoveryFailureStreak = 0u;
+                } else {
+                    recoveryFailureStreak++;
+                    if (!degradedMode &&
+                        recoveryFailureStreak >= SENSORARRAY_S5D5_RECOVERY_FAIL_DEGRADED_THRESHOLD) {
+                        degradedMode = true;
+                        printf("DBGFDC_S5D5,stage=degraded_state,status=enter,recoveryFailureStreak=%lu,reason=%s\n",
+                               (unsigned long)recoveryFailureStreak,
+                               sweepRecoveryReason ? sweepRecoveryReason : SENSORARRAY_NA);
+                    }
                     printf("DBGFDC_S5D5,stage=lock_failed,reason=sweep_recovery_failed,recoveryReason=%s,err=%ld,"
                            "status=fail_fast\n",
                            sweepRecoveryReason ? sweepRecoveryReason : SENSORARRAY_NA,
@@ -2216,11 +2355,30 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
 
             esp_err_t lockErr = sensorarrayS5d5ApplyLockedCandidate(fdcState->handle, &bestCandidate, fdcMap->channel);
             if (lockErr != ESP_OK) {
-                (void)sensorarrayS5d5DoRecoveryReinit(state,
-                                                      fdcState,
-                                                      &checkpoint,
-                                                      "lock_apply_failed",
-                                                      1u);
+                esp_err_t recoveryErr = sensorarrayS5d5DoRecoveryReinit(state,
+                                                                         fdcState,
+                                                                         &checkpoint,
+                                                                         "lock_apply_failed",
+                                                                         1u);
+                modeFdcInitialized = (recoveryErr == ESP_OK);
+                runtimeReadback.valid = false;
+                if (recoveryErr == ESP_OK) {
+                    if (degradedMode) {
+                        printf("DBGFDC_S5D5,stage=degraded_state,status=exit,recoveryFailureStreak=%lu\n",
+                               (unsigned long)recoveryFailureStreak);
+                    }
+                    degradedMode = false;
+                    degradedWarnCounter = 0u;
+                    recoveryFailureStreak = 0u;
+                } else {
+                    recoveryFailureStreak++;
+                    if (!degradedMode &&
+                        recoveryFailureStreak >= SENSORARRAY_S5D5_RECOVERY_FAIL_DEGRADED_THRESHOLD) {
+                        degradedMode = true;
+                        printf("DBGFDC_S5D5,stage=degraded_state,status=enter,recoveryFailureStreak=%lu,reason=lock_apply_failed\n",
+                               (unsigned long)recoveryFailureStreak);
+                    }
+                }
                 locked = false;
                 sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_ROUND_FAIL_DELAY_MS);
                 continue;
@@ -2245,12 +2403,25 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
             }
 
             lockedCandidate = bestCandidate;
+            runtimeReadback = (sensorarrayS5d5RuntimeReadback_t){
+                .valid = bestCandidate.readbackValid,
+                .statusReg = bestCandidate.statusRegReadback,
+                .configReg = bestCandidate.configRegReadback,
+                .muxConfig = bestCandidate.muxConfigReadback,
+                .driveReg = bestCandidate.driveCurrentReadbackNorm,
+                .highCurrentReadback = bestCandidate.highCurrentReadback,
+                .driveCurrentReadbackNorm = bestCandidate.driveCurrentReadbackNorm,
+                .activeChannelReadback = bestCandidate.activeChannelReadback,
+                .activeChannelMatch = (bestCandidate.activeChannelReadback == (uint8_t)fdcMap->channel),
+                .matchesLockedCandidate = bestCandidate.readbackMatches,
+            };
             lockEpoch++;
             locked = true;
             i2cFailureStreak = 0u;
             noUnreadStreak = 0u;
             nonConvertingStreak = 0u;
             readbackMismatchStreak = 0u;
+            readbackIoFailureStreak = 0u;
         }
 
         sensorarrayS5d5LockedSummary_t lockedSummary = {
@@ -2277,15 +2448,13 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                                                                     &waitStatus,
                                                                     &waitPollCount);
 
-            sensorarrayFdcReadDiag_t diag = {0};
+            sensorarrayS5d5FastSample_t sample = {0};
             esp_err_t readErr = ESP_OK;
             if (waitErr == ESP_OK) {
-                readErr = sensorarrayMeasureReadFdcSampleDiagRelaxed(fdcState->handle,
-                                                                     fdcMap->channel,
-                                                                     false,
-                                                                     fdcState->haveIds,
-                                                                     fdcState->configVerified,
-                                                                     &diag);
+                readErr = sensorarrayS5d5ReadFastSample(fdcState->handle,
+                                                        fdcMap->channel,
+                                                        &waitStatus,
+                                                        &sample);
             } else {
                 readErr = waitErr;
             }
@@ -2300,20 +2469,29 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 noUnreadStreak = 0u;
                 lockedSummary.i2cErrorCount++;
                 lockedSummary.warningSamples++;
+                const char *runtimeErrReason = (readErr == ESP_FAIL)
+                                                   ? ((waitErr == ESP_OK) ? "readback_nack" : "unexpected_runtime_nack")
+                                                   : "i2c_read_error";
                 lockedSampleGlobalIndex++;
                 if (verboseLog || sensorarrayLogShouldEmitRateLimitedWarning(&lockedWarnLogCounter, warnLogStride)) {
-                    printf("DBGFDC_S5D5,stage=locked_warning,index=%lu,lockEpoch=%lu,reason=i2c_read_error,err=%ld,"
-                           "waitReady=%u,unread=%u,i2cStreak=%lu\n",
+                    printf("DBGFDC_S5D5,stage=locked_warning,index=%lu,lockEpoch=%lu,reason=%s,err=%ld,"
+                           "waitReady=%u,unread=%u,polls=%lu,i2cStreak=%lu\n",
                            (unsigned long)lockedSampleGlobalIndex,
                            (unsigned long)lockEpoch,
+                           runtimeErrReason,
                            (long)readErr,
                            waitReady ? 1u : 0u,
                            waitStatus.UnreadConversion[(uint8_t)fdcMap->channel] ? 1u : 0u,
+                           (unsigned long)waitPollCount,
                            (unsigned long)i2cFailureStreak);
                 }
                 if (i2cFailureStreak >= recoveryReinitThreshold && !needRecovery) {
                     needRecovery = true;
-                    recoveryReason = "i2c_error_streak";
+                    if (readErr == ESP_FAIL) {
+                        recoveryReason = (waitErr == ESP_OK) ? "readback_nack_streak" : "unexpected_runtime_nack_streak";
+                    } else {
+                        recoveryReason = "i2c_error_streak";
+                    }
                     recoveryStreakCount = i2cFailureStreak;
                 }
                 bool sclHigh = true;
@@ -2324,28 +2502,103 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                     recoveryReason = "i2c_line_stuck";
                     recoveryStreakCount = i2cFailureStreak;
                 }
+                if (needRecovery) {
+                    break;
+                }
                 sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS);
                 continue;
             }
 
             i2cFailureStreak = 0u;
-            bool activeChannelMatch = (diag.sample.ActiveChannel == fdcMap->channel);
-            if (!diag.sample.Converting) {
+
+            bool doReadbackDiag = (sampleIndex == 0u) ||
+                                  sensorarrayLogShouldEmitPeriodic(lockedSampleGlobalIndex + 1u, diagLogStride);
+            if (doReadbackDiag) {
+                uint16_t statusReg = 0u;
+                uint16_t configReg = 0u;
+                uint16_t muxConfig = 0u;
+                uint16_t driveReg = 0u;
+                esp_err_t readbackErr =
+                    sensorarrayS5d5ReadKeyRegs(fdcState->handle, &statusReg, &configReg, &muxConfig, &driveReg);
+                if (readbackErr == ESP_OK) {
+                    readbackIoFailureStreak = 0u;
+                    bool highCurrentReadback = (configReg & SENSORARRAY_S5D5_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
+                    uint16_t driveCurrentReadbackNorm = (uint16_t)(driveReg & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
+                    uint8_t activeChannelReadback =
+                        (uint8_t)((configReg & SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_MASK) >>
+                                  SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_SHIFT);
+                    bool activeChannelMatch = (activeChannelReadback == (uint8_t)fdcMap->channel);
+                    bool readbackMatchesLockedCandidate =
+                        activeChannelMatch &&
+                        (highCurrentReadback == lockedCandidate.highCurrentReq) &&
+                        (driveCurrentReadbackNorm == lockedCandidate.driveCurrentNorm);
+
+                    runtimeReadback.valid = true;
+                    runtimeReadback.statusReg = statusReg;
+                    runtimeReadback.configReg = configReg;
+                    runtimeReadback.muxConfig = muxConfig;
+                    runtimeReadback.driveReg = driveReg;
+                    runtimeReadback.highCurrentReadback = highCurrentReadback;
+                    runtimeReadback.driveCurrentReadbackNorm = driveCurrentReadbackNorm;
+                    runtimeReadback.activeChannelReadback = activeChannelReadback;
+                    runtimeReadback.activeChannelMatch = activeChannelMatch;
+                    runtimeReadback.matchesLockedCandidate = readbackMatchesLockedCandidate;
+
+                    if (verboseLog) {
+                        printf("DBGFDC_S5D5,stage=locked_diag,index=%lu,lockEpoch=%lu,statusReg=0x%04X,configReg=0x%04X,"
+                               "muxConfig=0x%04X,driveReg=0x%04X,activeChannelReadback=%u,match=%u\n",
+                               (unsigned long)(lockedSampleGlobalIndex + 1u),
+                               (unsigned long)lockEpoch,
+                               statusReg,
+                               configReg,
+                               muxConfig,
+                               driveReg,
+                               (unsigned)activeChannelReadback,
+                               readbackMatchesLockedCandidate ? 1u : 0u);
+                    }
+                } else {
+                    readbackIoFailureStreak++;
+                    runtimeReadback.valid = false;
+                    lockedSummary.warningSamples++;
+                    if (verboseLog || sensorarrayLogShouldEmitRateLimitedWarning(&lockedWarnLogCounter, warnLogStride)) {
+                        printf("DBGFDC_S5D5,stage=locked_warning,index=%lu,lockEpoch=%lu,reason=%s,err=%ld,"
+                               "readbackIoStreak=%lu\n",
+                               (unsigned long)(lockedSampleGlobalIndex + 1u),
+                               (unsigned long)lockEpoch,
+                               (readbackErr == ESP_FAIL) ? "readback_nack" : "readback_i2c_error",
+                               (long)readbackErr,
+                               (unsigned long)readbackIoFailureStreak);
+                    }
+                    if (!needRecovery && readbackIoFailureStreak >= recoveryReinitThreshold) {
+                        needRecovery = true;
+                        recoveryReason = (readbackErr == ESP_FAIL) ? "readback_nack_streak"
+                                                                   : "readback_i2c_error_streak";
+                        recoveryStreakCount = readbackIoFailureStreak;
+                    }
+                }
+            }
+            if (needRecovery) {
+                break;
+            }
+
+            bool activeChannelMatch = runtimeReadback.valid ? runtimeReadback.activeChannelMatch : true;
+            if (runtimeReadback.valid && !runtimeReadback.matchesLockedCandidate) {
+                readbackMismatchStreak++;
+            } else if (runtimeReadback.valid) {
+                readbackMismatchStreak = 0u;
+            }
+
+            if (!sample.converting) {
                 nonConvertingStreak++;
                 lockedSummary.nonConvertingCount++;
             } else {
                 nonConvertingStreak = 0u;
             }
-            if (!diag.sample.UnreadConversionPresent) {
+            if (!sample.unreadPresent) {
                 noUnreadStreak++;
             } else {
                 noUnreadStreak = 0u;
                 lockedSummary.unreadPresentCount++;
-            }
-            if (!activeChannelMatch) {
-                readbackMismatchStreak++;
-            } else {
-                readbackMismatchStreak = 0u;
             }
 
             if (nonConvertingStreak >= recoveryReinitThreshold && !needRecovery) {
@@ -2364,7 +2617,12 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 recoveryStreakCount = noUnreadStreak;
             }
 
-            bool qualityGood = diag.shouldCountForSweep && waitReady && activeChannelMatch;
+            bool sampleHealthReadable = sample.converting &&
+                                        sample.unreadPresent &&
+                                        !sample.errWatchdog &&
+                                        !sample.errAmplitude &&
+                                        (sample.raw28 != 0u);
+            bool qualityGood = sampleHealthReadable && waitReady && activeChannelMatch;
             if (qualityGood) {
                 lockedSummary.goodSamples++;
             } else {
@@ -2374,36 +2632,36 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                            "converting=%u,unread=%u,watchdog=%u,amplitude=%u,activeChannelMatch=%u,sampleValid=%u\n",
                            (unsigned long)(lockedSampleGlobalIndex + 1u),
                            (unsigned long)lockEpoch,
-                           diag.sample.Converting ? 1u : 0u,
-                           diag.sample.UnreadConversionPresent ? 1u : 0u,
-                           diag.sample.ErrWatchdog ? 1u : 0u,
-                           diag.sample.ErrAmplitude ? 1u : 0u,
+                           sample.converting ? 1u : 0u,
+                           sample.unreadPresent ? 1u : 0u,
+                           sample.errWatchdog ? 1u : 0u,
+                           sample.errAmplitude ? 1u : 0u,
                            activeChannelMatch ? 1u : 0u,
-                           diag.sampleValid ? 1u : 0u);
+                           sampleHealthReadable ? 1u : 0u);
                 }
             }
-            if (diag.sample.ErrAmplitude) {
+            if (sample.errAmplitude) {
                 lockedSummary.amplitudeFaultSamples++;
             }
-            if (diag.sample.ErrWatchdog) {
+            if (sample.errWatchdog) {
                 lockedSummary.watchdogFaultSamples++;
             }
-            if (diag.healthReadable) {
+            if (sampleHealthReadable) {
                 lockedSummary.healthReadableCount++;
             }
-            if (diag.sample.Raw28 != 0u) {
+            if (sample.raw28 != 0u) {
                 lockedSummary.nonZeroRawCount++;
-                if (diag.sample.Raw28 < lockedSummary.rawMin) {
-                    lockedSummary.rawMin = diag.sample.Raw28;
+                if (sample.raw28 < lockedSummary.rawMin) {
+                    lockedSummary.rawMin = sample.raw28;
                 }
-                if (diag.sample.Raw28 > lockedSummary.rawMax) {
-                    lockedSummary.rawMax = diag.sample.Raw28;
+                if (sample.raw28 > lockedSummary.rawMax) {
+                    lockedSummary.rawMax = sample.raw28;
                 }
-                lockedSummary.rawSum += diag.sample.Raw28;
+                lockedSummary.rawSum += sample.raw28;
             }
 
             sensorarrayFdcFrequencyRestore_t freqRestore = {0};
-            bool haveRestoredFreq = sensorarrayMeasureFdcRestoreFrequency(fdcState, diag.sample.Raw28, &freqRestore);
+            bool haveRestoredFreq = sensorarrayMeasureFdcRestoreFrequency(fdcState, sample.raw28, &freqRestore);
             double restoredSensorFreqHz = haveRestoredFreq ? freqRestore.restoredSensorFrequencyHz : 0.0;
             if (haveRestoredFreq) {
                 lockedSummary.freqHzSum += restoredSensorFreqHz;
@@ -2428,7 +2686,7 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                     lockedSummary.netCapSampleCount++;
                 }
             }
-            const char *statusName = sensorarrayMeasureFdcSampleStatusName(diag.statusCode);
+            const char *statusName = sensorarrayMeasureFdcSampleStatusName(sample.statusCode);
 
             uint32_t refClockHzMeta = SENSORARRAY_FDC_REF_CLOCK_HZ;
             sensorarrayFdcRefClockQuality_t refClockQualityMeta = SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN;
@@ -2452,59 +2710,116 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
             lockedSampleGlobalIndex++;
             if (verboseLog) {
                 if (haveTotalCapPf) {
-                if (haveNetCapPf) {
-                    printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
-                           "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
-                           "restoredSensorFreqHz=%s,totalCapPf=%.3f,netCapPf=%.3f,inductorUh=%.3f,fixedCapPf=%.3f,"
-                           "parasiticCapPf=%.3f,unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,status=%s\n",
-                           (unsigned long)lockedSampleGlobalIndex,
-                           (unsigned long)lockEpoch,
-                           lockedCandidate.highCurrentReq ? 1u : 0u,
-                           lockedCandidate.driveCurrentNorm,
-                           (unsigned long)diag.sample.Raw28,
-                           (unsigned long)refClockHzMeta,
-                           sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
-                           clockDiv0RawMeta,
-                           haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
-                           haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
-                           restoredFreqField,
-                           totalCapPf,
-                           netCapPf,
-                           capConfig.inductorValueUh,
-                           capConfig.fixedCapPf,
-                           capConfig.parasiticCapPf,
-                           diag.sample.UnreadConversionPresent ? 1u : 0u,
-                           diag.sample.Converting ? 1u : 0u,
-                           diag.sample.ErrWatchdog ? 1u : 0u,
-                           diag.sample.ErrAmplitude ? 1u : 0u,
-                           qualityGood ? "good" : "warning",
-                           statusName);
+                    if (haveNetCapPf) {
+                        printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
+                               "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
+                               "restoredSensorFreqHz=%s,totalCapPf=%.3f,netCapPf=%.3f,inductorUh=%.3f,fixedCapPf=%.3f,"
+                               "parasiticCapPf=%.3f,unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,status=%s\n",
+                               (unsigned long)lockedSampleGlobalIndex,
+                               (unsigned long)lockEpoch,
+                               lockedCandidate.highCurrentReq ? 1u : 0u,
+                               lockedCandidate.driveCurrentNorm,
+                               (unsigned long)sample.raw28,
+                               (unsigned long)refClockHzMeta,
+                               sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
+                               clockDiv0RawMeta,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
+                               restoredFreqField,
+                               totalCapPf,
+                               netCapPf,
+                               capConfig.inductorValueUh,
+                               capConfig.fixedCapPf,
+                               capConfig.parasiticCapPf,
+                               sample.unreadPresent ? 1u : 0u,
+                               sample.converting ? 1u : 0u,
+                               sample.errWatchdog ? 1u : 0u,
+                               sample.errAmplitude ? 1u : 0u,
+                               qualityGood ? "good" : "warning",
+                               statusName);
+                    } else {
+                        printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
+                               "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
+                               "restoredSensorFreqHz=%s,totalCapPf=%.3f,inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f,"
+                               "unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,status=%s\n",
+                               (unsigned long)lockedSampleGlobalIndex,
+                               (unsigned long)lockEpoch,
+                               lockedCandidate.highCurrentReq ? 1u : 0u,
+                               lockedCandidate.driveCurrentNorm,
+                               (unsigned long)sample.raw28,
+                               (unsigned long)refClockHzMeta,
+                               sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
+                               clockDiv0RawMeta,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
+                               restoredFreqField,
+                               totalCapPf,
+                               capConfig.inductorValueUh,
+                               capConfig.fixedCapPf,
+                               capConfig.parasiticCapPf,
+                               sample.unreadPresent ? 1u : 0u,
+                               sample.converting ? 1u : 0u,
+                               sample.errWatchdog ? 1u : 0u,
+                               sample.errAmplitude ? 1u : 0u,
+                               qualityGood ? "good" : "warning",
+                               statusName);
+                    }
                 } else {
-                    printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
-                           "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
-                           "restoredSensorFreqHz=%s,totalCapPf=%.3f,inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f,"
-                           "unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,status=%s\n",
-                           (unsigned long)lockedSampleGlobalIndex,
-                           (unsigned long)lockEpoch,
-                           lockedCandidate.highCurrentReq ? 1u : 0u,
-                           lockedCandidate.driveCurrentNorm,
-                           (unsigned long)diag.sample.Raw28,
-                           (unsigned long)refClockHzMeta,
-                           sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
-                           clockDiv0RawMeta,
-                           haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
-                           haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
-                           restoredFreqField,
-                           totalCapPf,
-                           capConfig.inductorValueUh,
-                           capConfig.fixedCapPf,
-                           capConfig.parasiticCapPf,
-                           diag.sample.UnreadConversionPresent ? 1u : 0u,
-                           diag.sample.Converting ? 1u : 0u,
-                           diag.sample.ErrWatchdog ? 1u : 0u,
-                           diag.sample.ErrAmplitude ? 1u : 0u,
-                           qualityGood ? "good" : "warning",
-                           statusName);
+                    if (capConfig.enableNetCapOutput) {
+                        printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
+                               "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
+                               "restoredSensorFreqHz=%s,totalCapPf=na(reason=%s),netCapPf=na(reason=%s),inductorUh=%.3f,"
+                               "fixedCapPf=%.3f,parasiticCapPf=%.3f,unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,"
+                               "status=%s\n",
+                               (unsigned long)lockedSampleGlobalIndex,
+                               (unsigned long)lockEpoch,
+                               lockedCandidate.highCurrentReq ? 1u : 0u,
+                               lockedCandidate.driveCurrentNorm,
+                               (unsigned long)sample.raw28,
+                               (unsigned long)refClockHzMeta,
+                               sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
+                               clockDiv0RawMeta,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
+                               restoredFreqField,
+                               capReason,
+                               capReason,
+                               capConfig.inductorValueUh,
+                               capConfig.fixedCapPf,
+                               capConfig.parasiticCapPf,
+                               sample.unreadPresent ? 1u : 0u,
+                               sample.converting ? 1u : 0u,
+                               sample.errWatchdog ? 1u : 0u,
+                               sample.errAmplitude ? 1u : 0u,
+                               qualityGood ? "good" : "warning",
+                               statusName);
+                    } else {
+                        printf("DBGFDC_S5D5,stage=locked_sample,index=%lu,lockEpoch=%lu,highCurrent=%u,driveCurrent=0x%04X,"
+                               "raw=%lu,refClockHz=%lu,refClockQuality=%s,clockDiv0Raw=0x%04X,finSel=%u,frefDivider=%u,"
+                               "restoredSensorFreqHz=%s,totalCapPf=na(reason=%s),inductorUh=%.3f,fixedCapPf=%.3f,"
+                               "parasiticCapPf=%.3f,unread=%u,converting=%u,wd=%u,aw=%u,sampleQuality=%s,status=%s\n",
+                               (unsigned long)lockedSampleGlobalIndex,
+                               (unsigned long)lockEpoch,
+                               lockedCandidate.highCurrentReq ? 1u : 0u,
+                               lockedCandidate.driveCurrentNorm,
+                               (unsigned long)sample.raw28,
+                               (unsigned long)refClockHzMeta,
+                               sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
+                               clockDiv0RawMeta,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FinSel : 0u,
+                               haveClockInfoMeta ? (unsigned)clockInfoMeta.FrefDivider : 0u,
+                               restoredFreqField,
+                               capReason,
+                               capConfig.inductorValueUh,
+                               capConfig.fixedCapPf,
+                               capConfig.parasiticCapPf,
+                               sample.unreadPresent ? 1u : 0u,
+                               sample.converting ? 1u : 0u,
+                               sample.errWatchdog ? 1u : 0u,
+                               sample.errAmplitude ? 1u : 0u,
+                               qualityGood ? "good" : "warning",
+                               statusName);
+                    }
                 }
             } else {
                 if (capConfig.enableNetCapOutput) {
@@ -2516,7 +2831,7 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                            (unsigned long)lockEpoch,
                            lockedCandidate.highCurrentReq ? 1u : 0u,
                            lockedCandidate.driveCurrentNorm,
-                           (unsigned long)diag.sample.Raw28,
+                           (unsigned long)sample.raw28,
                            (unsigned long)refClockHzMeta,
                            sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
                            clockDiv0RawMeta,
@@ -2528,10 +2843,10 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                            capConfig.inductorValueUh,
                            capConfig.fixedCapPf,
                            capConfig.parasiticCapPf,
-                           diag.sample.UnreadConversionPresent ? 1u : 0u,
-                           diag.sample.Converting ? 1u : 0u,
-                           diag.sample.ErrWatchdog ? 1u : 0u,
-                           diag.sample.ErrAmplitude ? 1u : 0u,
+                           sample.unreadPresent ? 1u : 0u,
+                           sample.converting ? 1u : 0u,
+                           sample.errWatchdog ? 1u : 0u,
+                           sample.errAmplitude ? 1u : 0u,
                            qualityGood ? "good" : "warning",
                            statusName);
                 } else {
@@ -2543,7 +2858,7 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                            (unsigned long)lockEpoch,
                            lockedCandidate.highCurrentReq ? 1u : 0u,
                            lockedCandidate.driveCurrentNorm,
-                           (unsigned long)diag.sample.Raw28,
+                           (unsigned long)sample.raw28,
                            (unsigned long)refClockHzMeta,
                            sensorarrayMeasureFdcRefClockQualityName(refClockQualityMeta),
                            clockDiv0RawMeta,
@@ -2554,14 +2869,16 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                            capConfig.inductorValueUh,
                            capConfig.fixedCapPf,
                            capConfig.parasiticCapPf,
-                           diag.sample.UnreadConversionPresent ? 1u : 0u,
-                           diag.sample.Converting ? 1u : 0u,
-                           diag.sample.ErrWatchdog ? 1u : 0u,
-                            diag.sample.ErrAmplitude ? 1u : 0u,
-                            qualityGood ? "good" : "warning",
-                            statusName);
+                           sample.unreadPresent ? 1u : 0u,
+                           sample.converting ? 1u : 0u,
+                           sample.errWatchdog ? 1u : 0u,
+                           sample.errAmplitude ? 1u : 0u,
+                           qualityGood ? "good" : "warning",
+                           statusName);
                 }
-                }
+            }
+            if (needRecovery) {
+                break;
             }
             sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS);
         }
@@ -2731,8 +3048,30 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                                                                      recoveryReason,
                                                                      recoveryStreakCount);
             locked = false;
+            runtimeReadback.valid = false;
             modeFdcInitialized = (recoveryErr == ESP_OK);
-            if (recoveryErr != ESP_OK) {
+            if (recoveryErr == ESP_OK) {
+                if (degradedMode) {
+                    printf("DBGFDC_S5D5,stage=degraded_state,status=exit,recoveryFailureStreak=%lu\n",
+                           (unsigned long)recoveryFailureStreak);
+                }
+                degradedMode = false;
+                degradedWarnCounter = 0u;
+                recoveryFailureStreak = 0u;
+                i2cFailureStreak = 0u;
+                noUnreadStreak = 0u;
+                nonConvertingStreak = 0u;
+                readbackMismatchStreak = 0u;
+                readbackIoFailureStreak = 0u;
+            } else {
+                recoveryFailureStreak++;
+                if (!degradedMode &&
+                    recoveryFailureStreak >= SENSORARRAY_S5D5_RECOVERY_FAIL_DEGRADED_THRESHOLD) {
+                    degradedMode = true;
+                    printf("DBGFDC_S5D5,stage=degraded_state,status=enter,recoveryFailureStreak=%lu,reason=%s\n",
+                           (unsigned long)recoveryFailureStreak,
+                           recoveryReason ? recoveryReason : SENSORARRAY_NA);
+                }
                 sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_ROUND_FAIL_DELAY_MS);
             }
             continue;

@@ -439,6 +439,53 @@ const char *sensorarrayBringupFdcDiscoveryStatusName(sensorarrayFdcDiscoveryStat
     }
 }
 
+static const char *sensorarrayBringupStartupProbeStatus(const sensorarrayFdcDeviceState_t *fdcState,
+                                                        uint8_t probedAddr,
+                                                        const sensorarrayFdcProbeDiag_t *probeDiag,
+                                                        esp_err_t *outErr)
+{
+    if (outErr) {
+        *outErr = ESP_OK;
+    }
+    if (!fdcState || !probeDiag) {
+        if (outErr) {
+            *outErr = ESP_ERR_INVALID_ARG;
+        }
+        return "probe_invalid_args";
+    }
+
+    bool expectedAddr = (probedAddr == fdcState->i2cAddr);
+    switch (probeDiag->status) {
+    case SENSORARRAY_FDC_DISCOVERY_NO_ACK:
+        if (expectedAddr) {
+            if (outErr) {
+                *outErr = probeDiag->ackErr;
+            }
+            return "probe_expected_addr_no_ack";
+        }
+        return "expected_probe_absent";
+
+    case SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED:
+        if (outErr) {
+            *outErr = probeDiag->idErr;
+        }
+        if (probeDiag->idErr == ESP_FAIL) {
+            return expectedAddr ? "readback_nack" : "probe_unexpected_addr_readback_nack";
+        }
+        return expectedAddr ? "probe_expected_addr_read_failed" : "probe_unexpected_addr_read_failed";
+
+    case SENSORARRAY_FDC_DISCOVERY_ID_OK:
+        return expectedAddr ? "probe_expected_addr_ok" : "probe_unexpected_addr_present";
+
+    case SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID:
+    default:
+        if (outErr) {
+            *outErr = ESP_ERR_INVALID_RESPONSE;
+        }
+        return expectedAddr ? "probe_expected_addr_unexpected_id" : "probe_unexpected_addr_unexpected_id";
+    }
+}
+
 static void sensorarrayBringupInitFdcProbeDiag(sensorarrayFdcProbeDiag_t *diag)
 {
     if (!diag) {
@@ -671,8 +718,50 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
 
 void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState)
 {
-#if CONFIG_SENSORARRAY_FDC_STARTUP_PROBE
     if (!fdcState || !fdcState->i2cCtx) {
+        return;
+    }
+
+#if !CONFIG_SENSORARRAY_FDC_STARTUP_PROBE
+    sensorarrayLogStartupFdc("fdc_probe",
+                             fdcState,
+                             ESP_OK,
+                             "probe_disabled",
+                             (int32_t)fdcState->i2cAddr,
+                             false,
+                             0u,
+                             0u,
+                             "probe_regs_0x7E_0x7F");
+    return;
+#else
+    const bool probeAllAddresses = (CONFIG_SENSORARRAY_FDC_STARTUP_PROBE_ALL_ADDR != 0);
+    if (!probeAllAddresses) {
+        sensorarrayLogStartupFdc("fdc_probe",
+                                 fdcState,
+                                 ESP_OK,
+                                 "probe_single_expected_addr",
+                                 (int32_t)fdcState->i2cAddr,
+                                 false,
+                                 0u,
+                                 0u,
+                                 "probe_regs_0x7E_0x7F");
+
+        sensorarrayFdcProbeDiag_t probeDiag = {0};
+        (void)sensorarrayBringupProbeFdcCandidate(fdcState->i2cCtx, fdcState->i2cAddr, &probeDiag);
+        esp_err_t effectiveErr = ESP_OK;
+        const char *status = sensorarrayBringupStartupProbeStatus(fdcState,
+                                                                  fdcState->i2cAddr,
+                                                                  &probeDiag,
+                                                                  &effectiveErr);
+        sensorarrayLogStartupFdc("fdc_probe",
+                                 fdcState,
+                                 effectiveErr,
+                                 status,
+                                 (int32_t)fdcState->i2cAddr,
+                                 probeDiag.haveManufacturerId && probeDiag.haveDeviceId,
+                                 probeDiag.manufacturerId,
+                                 probeDiag.deviceId,
+                                 "probe_regs_0x7E_0x7F");
         return;
     }
 
@@ -686,27 +775,23 @@ void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState)
         probeState.i2cAddr = probeAddresses[i];
 
         sensorarrayFdcProbeDiag_t probeDiag = {0};
-        esp_err_t err = sensorarrayBringupProbeFdcCandidate(fdcState->i2cCtx, probeState.i2cAddr, &probeDiag);
-        if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_UNEXPECTED_ID) {
-            err = ESP_OK;
-        } else if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_ACK_BUT_READ_FAILED) {
-            err = probeDiag.idErr;
-        } else if (probeDiag.status == SENSORARRAY_FDC_DISCOVERY_NO_ACK) {
-            err = probeDiag.ackErr;
-        }
+        (void)sensorarrayBringupProbeFdcCandidate(fdcState->i2cCtx, probeState.i2cAddr, &probeDiag);
+        esp_err_t effectiveErr = ESP_OK;
+        const char *probeStatus = sensorarrayBringupStartupProbeStatus(fdcState,
+                                                                        probeState.i2cAddr,
+                                                                        &probeDiag,
+                                                                        &effectiveErr);
 
         sensorarrayLogStartupFdc("fdc_probe",
                                  &probeState,
-                                 err,
-                                 sensorarrayBringupFdcDiscoveryStatusName(probeDiag.status),
+                                 effectiveErr,
+                                 probeStatus,
                                  (int32_t)probeState.i2cAddr,
                                  probeDiag.haveManufacturerId && probeDiag.haveDeviceId,
                                  probeDiag.manufacturerId,
                                  probeDiag.deviceId,
                                  "probe_regs_0x7E_0x7F");
     }
-#else
-    (void)fdcState;
 #endif
 }
 

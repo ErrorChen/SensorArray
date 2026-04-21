@@ -40,6 +40,7 @@ const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void);
 bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo);
 
 // Convenience I2C callbacks matching Fdc2214Cap bus config signatures.
+// All boardSupport I2C APIs are serialized with one mutex per I2C port.
 esp_err_t boardSupportI2cWriteRead(void* userCtx,
                                   uint8_t addr7,
                                   const uint8_t* tx,

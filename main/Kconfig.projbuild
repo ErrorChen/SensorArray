@@ -41,7 +41,16 @@ config SENSORARRAY_FDC_STARTUP_PROBE
     bool "Probe FDC addresses on startup"
     default y
     help
-        Probe 0x2A/0x2B on each configured FDC bus and emit compact bring-up logs.
+        Probe startup FDC presence and emit compact bring-up logs.
+
+config SENSORARRAY_FDC_STARTUP_PROBE_ALL_ADDR
+    bool "Startup probe: scan both 0x2A and 0x2B on each configured bus"
+    default n
+    depends on SENSORARRAY_FDC_STARTUP_PROBE
+    help
+        Diagnostic opt-in. When disabled, startup probe touches only the configured
+        expected address for each device, which avoids intentional absent-address
+        NACK traffic in normal debug runs.
 
 config SENSORARRAY_FDC_TANK_INDUCTOR_UH
     int "Tank inductor value for FDC conversion (uH, 0=unknown)"
@@ -251,6 +260,16 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_WARN_LOG_STRIDE
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Rate limit repeated warning/error logs in tight loops. 1 means no rate limiting.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DIAG_LOG_STRIDE
+    int "Single-cap debug: locked-mode diagnostic readback stride"
+    default 16
+    range 1 1024
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Read STATUS/CONFIG/MUX/DRIVE readback only once per N locked samples.
+        Fast-path sampling still runs every sample; this setting throttles heavy
+        diagnostic register traffic.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
     int "Single-cap debug: unread poll timeout (ms)"
