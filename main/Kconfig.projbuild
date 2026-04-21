@@ -236,6 +236,22 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCKED_SAMPLE_COUNT
     help
         Number of samples emitted in each locked read burst before loop delay.
 
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_VERBOSE_LOG
+    bool "Single-cap debug: enable verbose per-sample logs"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Enable high-frequency per-sample logs in S5D5 secondary FDC mode.
+        Keep disabled for timing-sensitive sweeps.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_WARN_LOG_STRIDE
+    int "Single-cap debug: warning log stride"
+    default 8
+    range 1 256
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Rate limit repeated warning/error logs in tight loops. 1 means no rate limiting.
+
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
     int "Single-cap debug: unread poll timeout (ms)"
     default 200

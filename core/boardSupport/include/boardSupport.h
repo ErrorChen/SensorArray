@@ -52,6 +52,15 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                               const uint8_t* tx,
                               size_t txLen);
 
+// Read current bus line levels (true = released/high, false = low/stuck).
+esp_err_t boardSupportI2cCheckLines(const BoardSupportI2cCtx_t *i2cCtx,
+                                    bool *outSclHigh,
+                                    bool *outSdaHigh);
+// Re-install the I2C driver using the board's configured pins/frequency for this context.
+esp_err_t boardSupportI2cReinit(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
+// Attempt stuck-bus recovery (9 SCL pulses + STOP) and reinitialize the driver.
+esp_err_t boardSupportI2cRecoverBus(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
+
 // Probe I2C address with a START + address byte + STOP transaction.
 esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7);
 

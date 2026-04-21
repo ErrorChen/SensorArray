@@ -89,6 +89,26 @@ void sensorarrayLogDbgExtraCaptureCtrl(void)
     }
 }
 
+bool sensorarrayLogShouldEmitPeriodic(uint32_t index, uint32_t period)
+{
+    if (period <= 1u) {
+        return true;
+    }
+    return (index % period) == 0u;
+}
+
+bool sensorarrayLogShouldEmitRateLimitedWarning(uint32_t *counter, uint32_t period)
+{
+    if (!counter) {
+        return true;
+    }
+    (*counter)++;
+    if (*counter == 1u) {
+        return true;
+    }
+    return sensorarrayLogShouldEmitPeriodic(*counter, (period == 0u) ? 1u : period);
+}
+
 const char *sensorarrayLogFmtI32(char *buf, size_t bufSize, bool valid, int32_t value)
 {
     if (!valid) {

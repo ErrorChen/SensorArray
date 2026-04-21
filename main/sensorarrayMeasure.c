@@ -638,9 +638,12 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
         .i2cOk = false,
         .idOk = idOk,
         .configOk = configOk,
+        .transportReadable = false,
         .statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR,
         .sampleValid = false,
         .provisionalReadable = false,
+        .healthReadable = false,
+        .shouldCountForSweep = false,
         .qualityDegraded = false,
     };
 
@@ -658,8 +661,11 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
     outDiag->i2cOk = (err == ESP_OK);
     if (err != ESP_OK) {
         outDiag->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR;
+        outDiag->transportReadable = false;
         outDiag->sampleValid = false;
         outDiag->provisionalReadable = false;
+        outDiag->healthReadable = false;
+        outDiag->shouldCountForSweep = false;
         return err;
     }
 
@@ -692,15 +698,24 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
         mappedStatus = SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
     }
     outDiag->statusCode = mappedStatus;
-    outDiag->qualityDegraded = (!outDiag->sample.UnreadConversionPresent) ||
-                               outDiag->sample.ErrWatchdog ||
-                               outDiag->sample.ErrAmplitude;
-    outDiag->provisionalReadable = idOk && configOk && outDiag->sample.Converting && (outDiag->sample.Raw28 != 0u);
-    outDiag->sampleValid = relaxedMode ? outDiag->provisionalReadable
+    outDiag->transportReadable = outDiag->i2cOk && idOk && configOk;
+    bool activeChannelMatch = ((uint8_t)outDiag->sample.ActiveChannel == (uint8_t)ch);
+    outDiag->provisionalReadable =
+        outDiag->transportReadable && outDiag->sample.Converting && (outDiag->sample.Raw28 != 0u);
+    outDiag->healthReadable = outDiag->provisionalReadable &&
+                              outDiag->sample.UnreadConversionPresent &&
+                              !outDiag->sample.ErrWatchdog &&
+                              !outDiag->sample.ErrAmplitude;
+    outDiag->shouldCountForSweep = outDiag->healthReadable && activeChannelMatch;
+    outDiag->qualityDegraded = outDiag->transportReadable && (!outDiag->healthReadable || !activeChannelMatch);
+    outDiag->sampleValid = relaxedMode ? outDiag->healthReadable
                                        : (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
-    if (!idOk || !configOk) {
+    if (!outDiag->transportReadable) {
         outDiag->sampleValid = false;
         outDiag->provisionalReadable = false;
+        outDiag->healthReadable = false;
+        outDiag->shouldCountForSweep = false;
+        outDiag->qualityDegraded = false;
     }
     return ESP_OK;
 }

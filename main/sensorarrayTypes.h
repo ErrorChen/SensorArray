@@ -144,10 +144,13 @@ typedef struct {
     bool i2cOk;
     bool idOk;
     bool configOk;
+    bool transportReadable;
     bool converting;
     bool unreadConversionPresent;
     bool sampleValid;
     bool provisionalReadable;
+    bool healthReadable;
+    bool shouldCountForSweep;
     bool qualityDegraded;
     sensorarrayFdcSampleStatus_t statusCode;
 } sensorarrayFdcReadDiag_t;
