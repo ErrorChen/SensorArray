@@ -166,7 +166,18 @@ typedef struct {
     bool haveIds;
     uint16_t manufacturerId;
     uint16_t deviceId;
+    bool transportOk;
+    bool idOk;
     bool configVerified;
+    bool configReadbackOk;
+    bool postInitConverting;
+    bool postInitUnreadPresent;
+    bool postInitStatusWatchdogFault;
+    bool postInitStatusAmplitudeFault;
+    bool postInitHealthy;
+    uint16_t channel0DriveCurrentReq;
+    uint16_t channel0DriveCurrentApplied;
+    bool channel0DriveCurrentMasked;
     // true means clock source/config path is known; it does not imply calibrated Hz.
     bool refClockKnown;
     Fdc2214CapRefClockSource_t refClockSource;

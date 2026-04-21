@@ -15,6 +15,8 @@ void sensorarrayLogDbgExtraSetMux(uint8_t muxp, uint8_t muxn);
 void sensorarrayLogDbgExtraSetRefMux(uint8_t refmux);
 void sensorarrayLogDbgExtraSetDiscardCount(uint8_t discardCount);
 void sensorarrayLogDbgExtraCaptureCtrl(void);
+bool sensorarrayLogShouldPrint(uint32_t index, uint32_t stride);
+bool sensorarrayLogRateLimited(uint32_t *counter, uint32_t stride);
 bool sensorarrayLogShouldEmitPeriodic(uint32_t index, uint32_t period);
 bool sensorarrayLogShouldEmitRateLimitedWarning(uint32_t *counter, uint32_t period);
 

@@ -214,6 +214,61 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS
     help
         Delay after boot before the first S5D5 sweep. Useful for stable capture setup.
 
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISABLE_SWEEP
+    bool "Single-cap debug: disable drive sweep (conservative mode)"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Conservative default: skip multi-candidate sweep and keep diagnosis on a
+        fixed single-drive path to reduce lock-up risk in bad hardware states.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_SINGLE_DRIVE
+    bool "Single-cap debug: force one drive-current setting"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Use one fixed DRIVE_CURRENT for route-gate probe and optional conservative lock.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_DRIVE_CURRENT
+    hex "Single-cap debug: forced drive current register value"
+    default 0x7800
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Raw DRIVE_CURRENT register request. Reserved bits are masked by driver logic.
+        0x7800 is the conservative baseline for current single-drive diagnostics.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_MAX_RECOVERY_ATTEMPTS
+    int "Single-cap debug: max consecutive recovery attempts"
+    default 3
+    range 1 64
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Prevent infinite recovery loops. After limit is reached, enter cooldown/fail-fast.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_RECOVERY_COOLDOWN_MS
+    int "Single-cap debug: recovery cooldown after max attempts (ms)"
+    default 2000
+    range 0 60000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Backoff delay once max recovery attempts are exhausted.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_INIT_SETTLE_DELAY_MS
+    int "Single-cap debug: init settle delay after successful reinit (ms)"
+    default 200
+    range 0 10000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Settling delay after FDC init/recovery before route verification or sampling.
+
+config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_POST_RESET_DELAY_MS
+    int "Single-cap debug: post-reset settle delay (ms)"
+    default 10
+    range 0 1000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Additional delay after FDC reset before ID/config accesses in bring-up paths.
+
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST
     bool "Single-cap debug: discard first sample"
     default y

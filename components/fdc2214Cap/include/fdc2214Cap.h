@@ -90,6 +90,14 @@ typedef struct {
 } Fdc2214CapStatus_t;
 
 typedef struct {
+    bool AnyFault;
+    bool WatchdogFault;
+    bool AmplitudeFault;
+    bool DataReady;
+    bool AnyUnreadConversion;
+} Fdc2214CapStatusHealth_t;
+
+typedef struct {
     uint16_t Status;
     uint16_t StatusConfig;
     uint16_t Config;
@@ -209,6 +217,12 @@ esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSle
 
 // Read and decode STATUS register.
 esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
+// Decode frequently used STATUS fault/readiness summary flags.
+void Fdc2214CapDecodeStatusHealth(const Fdc2214CapStatus_t* status, Fdc2214CapStatusHealth_t* outHealth);
+// Read STATUS and provide both raw decoded fields and summarized health flags.
+esp_err_t Fdc2214CapReadStatusDecoded(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapStatus_t* outStatus,
+                                      Fdc2214CapStatusHealth_t* outHealth);
 // Read key core registers used for diagnostics.
 esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs);
 // Read one structured debug snapshot (core regs + CH0 config regs + DATA_CHx with decoded status fields).

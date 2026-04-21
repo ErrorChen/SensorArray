@@ -22,6 +22,24 @@ static void sensorarrayDelayMs(uint32_t delayMs)
     }
 }
 
+static uint32_t sensorarrayBringupPostResetDelayMs(void)
+{
+#ifdef CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_POST_RESET_DELAY_MS
+    return (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_POST_RESET_DELAY_MS;
+#else
+    return 5u;
+#endif
+}
+
+static uint32_t sensorarrayBringupInitSettleDelayMs(void)
+{
+#ifdef CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_INIT_SETTLE_DELAY_MS
+    return (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_INIT_SETTLE_DELAY_MS;
+#else
+    return 100u;
+#endif
+}
+
 static gpio_num_t sensorarrayToGpio(int gpio)
 {
     return gpio < 0 ? GPIO_NUM_NC : (gpio_num_t)gpio;
@@ -316,7 +334,8 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
                                                         uint8_t channels,
                                                         uint16_t expectedStatusConfig,
                                                         uint16_t expectedConfig,
-                                                        uint16_t expectedMuxConfig)
+                                                        uint16_t expectedMuxConfig,
+                                                        sensorarrayFdcInitDiag_t *outDiag)
 {
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
@@ -329,8 +348,13 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
     }
 
     Fdc2214CapStatus_t status = {0};
-    err = Fdc2214CapReadStatus(dev, &status);
+    Fdc2214CapStatusHealth_t statusHealth = {0};
+    err = Fdc2214CapReadStatusDecoded(dev, &status, &statusHealth);
     if (err != ESP_OK) {
+        if (outDiag) {
+            outDiag->transportOk = false;
+            outDiag->postInitHealthy = false;
+        }
         return err;
     }
 
@@ -345,14 +369,36 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
         unreadPresent = unreadPresent || status.UnreadConversion[ch];
     }
 
+    bool configReadbackOk = (coreRegs.StatusConfig == expectedStatusConfig) &&
+                            (coreRegs.Config == expectedConfig) &&
+                            (coreRegs.MuxConfig == expectedMuxConfig);
+    bool initHealthy = (!sleepEnabled) &&
+                       converting &&
+                       unreadPresent &&
+                       !statusHealth.WatchdogFault &&
+                       !statusHealth.AmplitudeFault &&
+                       configReadbackOk;
+
+    if (outDiag) {
+        outDiag->transportOk = true;
+        outDiag->configReadbackOk = configReadbackOk;
+        outDiag->postInitConverting = converting;
+        outDiag->postInitUnreadPresent = unreadPresent;
+        outDiag->postInitStatusWatchdogFault = statusHealth.WatchdogFault;
+        outDiag->postInitStatusAmplitudeFault = statusHealth.AmplitudeFault;
+        outDiag->postInitHealthy = initHealthy;
+    }
+
     printf("DBGFDCINIT_VERIFY,sleep=%u,autoscan=%u,activeChannel=%u,converting=%u,unreadPresent=%u,"
-           "status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,expectedStatusConfig=0x%04X,"
-           "expectedConfig=0x%04X,expectedMuxConfig=0x%04X,result=%s\n",
+           "statusWatchdog=%u,statusAmplitude=%u,status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,"
+           "expectedStatusConfig=0x%04X,expectedConfig=0x%04X,expectedMuxConfig=0x%04X,result=%s\n",
            sleepEnabled ? 1u : 0u,
            autoScanEnabled ? 1u : 0u,
            (unsigned)activeChannel,
            converting ? 1u : 0u,
            unreadPresent ? 1u : 0u,
+           statusHealth.WatchdogFault ? 1u : 0u,
+           statusHealth.AmplitudeFault ? 1u : 0u,
            coreRegs.Status,
            coreRegs.StatusConfig,
            coreRegs.Config,
@@ -360,20 +406,17 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
            expectedStatusConfig,
            expectedConfig,
            expectedMuxConfig,
-           (!sleepEnabled &&
-            converting &&
-            coreRegs.StatusConfig == expectedStatusConfig &&
-            coreRegs.Config == expectedConfig &&
-            coreRegs.MuxConfig == expectedMuxConfig)
+           initHealthy
                ? "ok"
-               : "mismatch");
+               : "unhealthy_or_mismatch");
 
     if (sleepEnabled || !converting) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (coreRegs.StatusConfig != expectedStatusConfig ||
-        coreRegs.Config != expectedConfig ||
-        coreRegs.MuxConfig != expectedMuxConfig) {
+    if (!configReadbackOk) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    if (statusHealth.AnyFault) {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -804,7 +847,18 @@ void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag)
     diag->haveIds = false;
     diag->manufacturerId = 0;
     diag->deviceId = 0;
+    diag->transportOk = false;
+    diag->idOk = false;
     diag->configVerified = false;
+    diag->configReadbackOk = false;
+    diag->postInitConverting = false;
+    diag->postInitUnreadPresent = false;
+    diag->postInitStatusWatchdogFault = false;
+    diag->postInitStatusAmplitudeFault = false;
+    diag->postInitHealthy = false;
+    diag->channel0DriveCurrentReq = 0u;
+    diag->channel0DriveCurrentApplied = 0u;
+    diag->channel0DriveCurrentMasked = false;
     diag->refClockKnown = false;
     diag->refClockSource = FDC2214_REF_CLOCK_INTERNAL;
     diag->refClockQuality = SENSORARRAY_FDC_REF_CLOCK_QUALITY_UNKNOWN;
@@ -903,6 +957,10 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         Fdc2214CapDestroy(dev);
         return err;
     }
+    if (outDiag) {
+        outDiag->transportOk = true;
+    }
+    sensorarrayDelayMs(sensorarrayBringupPostResetDelayMs());
 
     uint16_t manufacturer = 0;
     uint16_t deviceId = 0;
@@ -919,12 +977,14 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         outDiag->haveIds = true;
         outDiag->manufacturerId = manufacturer;
         outDiag->deviceId = deviceId;
+        outDiag->idOk = true;
     }
 
     if (manufacturer != SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID ||
         deviceId != SENSORARRAY_FDC_EXPECTED_DEVICE_ID) {
         if (outDiag) {
             outDiag->status = "id_mismatch";
+            outDiag->idOk = false;
         }
         Fdc2214CapDestroy(dev);
         return ESP_ERR_INVALID_RESPONSE;
@@ -975,6 +1035,11 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
                    (uint16_t)(chCfg.DriveCurrent & SENSORARRAY_FDC_DRIVE_CURRENT_MASK),
                    cfgDriveReadback);
         }
+        if (outDiag && ch == 0u) {
+            outDiag->channel0DriveCurrentReq = (uint16_t)(chCfg.DriveCurrent & SENSORARRAY_FDC_DRIVE_CURRENT_MASK);
+            outDiag->channel0DriveCurrentApplied = (uint16_t)(cfgDriveReadback & SENSORARRAY_FDC_DRIVE_CURRENT_MASK);
+            outDiag->channel0DriveCurrentMasked = (outDiag->channel0DriveCurrentReq != outDiag->channel0DriveCurrentApplied);
+        }
 
         Fdc2214CapChannelVerifyResult_t verifyResult = FDC2214_CHANNEL_VERIFY_RESULT_OK;
         uint16_t verifyDriveReadback = 0u;
@@ -999,6 +1064,11 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
                    chCfg.DriveCurrent,
                    (uint16_t)(chCfg.DriveCurrent & SENSORARRAY_FDC_DRIVE_CURRENT_MASK),
                    verifyDriveReadback);
+        }
+        if (outDiag && ch == 0u) {
+            outDiag->channel0DriveCurrentApplied = (uint16_t)(verifyDriveReadback & SENSORARRAY_FDC_DRIVE_CURRENT_MASK);
+            outDiag->channel0DriveCurrentMasked =
+                (outDiag->channel0DriveCurrentReq != outDiag->channel0DriveCurrentApplied);
         }
     }
 
@@ -1032,12 +1102,14 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         Fdc2214CapDestroy(dev);
         return err;
     }
+    sensorarrayDelayMs(sensorarrayBringupInitSettleDelayMs());
 
     err = sensorarrayBringupVerifyFdcActiveState(dev,
                                                  channels,
                                                  expectedStatusConfig,
                                                  finalConfig,
-                                                 expectedMuxConfig);
+                                                 expectedMuxConfig,
+                                                 outDiag);
     if (err != ESP_OK) {
         (void)sensorarrayBringupDumpFdcInitRegisters(i2cCtx,
                                                      i2cAddr,
@@ -1077,10 +1149,36 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         return err;
     }
 
+    if (outDiag) {
+        printf("DBGFDCINIT_HEALTH,fdcDev=%s,i2cAddr=0x%02X,transportOk=%u,idOk=%u,configReadbackOk=%u,converting=%u,"
+               "unread=%u,watchdog=%u,amplitude=%u,driveReq=0x%04X,driveApplied=0x%04X,result=%s\n",
+               fdcLabel,
+               i2cAddr,
+               outDiag->transportOk ? 1u : 0u,
+               outDiag->idOk ? 1u : 0u,
+               outDiag->configReadbackOk ? 1u : 0u,
+               outDiag->postInitConverting ? 1u : 0u,
+               outDiag->postInitUnreadPresent ? 1u : 0u,
+               outDiag->postInitStatusWatchdogFault ? 1u : 0u,
+               outDiag->postInitStatusAmplitudeFault ? 1u : 0u,
+               outDiag->channel0DriveCurrentReq,
+               outDiag->channel0DriveCurrentApplied,
+               outDiag->postInitHealthy ? "healthy" : "warning");
+    }
+
     *outDev = dev;
     if (outDiag) {
-        outDiag->status = driveCurrentWarning ? "ok_with_drive_current_warning" : "ok";
+        if (!outDiag->postInitHealthy && driveCurrentWarning) {
+            outDiag->status = "ok_with_post_init_warning_and_drive_warning";
+        } else if (!outDiag->postInitHealthy) {
+            outDiag->status = "ok_with_post_init_warning";
+        } else {
+            outDiag->status = driveCurrentWarning ? "ok_with_drive_current_warning" : "ok";
+        }
+        outDiag->transportOk = true;
+        outDiag->idOk = true;
         outDiag->configVerified = true;
+        outDiag->configReadbackOk = true;
         // "known" means source/path is known; exact calibrated Hz is tracked separately.
         outDiag->refClockKnown = true;
         outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
@@ -1153,6 +1251,7 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
         *outDev = NULL;
         return err;
     }
+    sensorarrayDelayMs(sensorarrayBringupInitSettleDelayMs());
 
     uint16_t expectedStatusConfig = sensorarrayBringupFdcExpectedStatusConfig();
     uint16_t expectedMuxConfig = sensorarrayBringupFdcExpectedMuxConfig(1u);
@@ -1161,7 +1260,8 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
                                                  1u,
                                                  expectedStatusConfig,
                                                  expectedConfig,
-                                                 expectedMuxConfig);
+                                                 expectedMuxConfig,
+                                                 outDiag);
     if (err != ESP_OK) {
         if (outDiag) {
             outDiag->status = "single_channel_verify_failure";
@@ -1173,8 +1273,19 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
     }
 
     if (outDiag) {
-        outDiag->status = "ok_single_channel";
+        if (!outDiag->postInitHealthy && outDiag->channel0DriveCurrentMasked) {
+            outDiag->status = "ok_single_channel_with_post_init_warning_and_drive_warning";
+        } else if (!outDiag->postInitHealthy) {
+            outDiag->status = "ok_single_channel_with_post_init_warning";
+        } else if (outDiag->channel0DriveCurrentMasked) {
+            outDiag->status = "ok_single_channel_with_drive_warning";
+        } else {
+            outDiag->status = "ok_single_channel";
+        }
+        outDiag->transportOk = true;
+        outDiag->idOk = true;
         outDiag->configVerified = true;
+        outDiag->configReadbackOk = true;
         outDiag->statusConfigReg = expectedStatusConfig;
         outDiag->configReg = expectedConfig;
         outDiag->muxConfigReg = expectedMuxConfig;

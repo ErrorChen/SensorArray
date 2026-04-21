@@ -103,7 +103,12 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_DRIVE_CURRENT_MASK 0xF800
 
 // Datasheet timing (FDC221x): sleep-to-active wake-up time typ/min requirement.
-#define FDC2214_SLEEP_WAKEUP_US 50U
+#define FDC2214_SLEEP_WAKEUP_US 1000U
+#ifdef CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_POST_RESET_DELAY_MS
+#define FDC2214_RESET_SETTLE_US ((uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_POST_RESET_DELAY_MS * 1000U)
+#else
+#define FDC2214_RESET_SETTLE_US 5000U
+#endif
 
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
@@ -545,7 +550,13 @@ esp_err_t Fdc2214CapReset(Fdc2214CapDevice_t* dev)
         return ESP_ERR_INVALID_ARG;
     }
     ESP_LOGI(TAG, "Reset device");
-    return Fdc2214CapWriteReg16(dev, FDC2214_REG_RESET_DEV, FDC2214_RESET_DEV_BIT);
+    esp_err_t err = Fdc2214CapWriteReg16(dev, FDC2214_REG_RESET_DEV, FDC2214_RESET_DEV_BIT);
+    if (err != ESP_OK) {
+        return err;
+    }
+    // Keep post-reset access conservative; the next register transaction should not race device reset.
+    Fdc2214CapDelayUs(FDC2214_RESET_SETTLE_US);
+    return ESP_OK;
 }
 
 esp_err_t Fdc2214CapReadId(Fdc2214CapDevice_t* dev, uint16_t* manufacturerId, uint16_t* deviceId)
@@ -647,6 +658,46 @@ esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outS
     }
 
     Fdc2214CapDecodeStatusRaw(rawStatus, outStatus);
+    return ESP_OK;
+}
+
+void Fdc2214CapDecodeStatusHealth(const Fdc2214CapStatus_t* status, Fdc2214CapStatusHealth_t* outHealth)
+{
+    if (!outHealth) {
+        return;
+    }
+
+    *outHealth = (Fdc2214CapStatusHealth_t){0};
+    if (!status) {
+        return;
+    }
+
+    bool anyUnread = false;
+    for (size_t i = 0u; i < 4u; ++i) {
+        anyUnread = anyUnread || status->UnreadConversion[i];
+    }
+
+    outHealth->WatchdogFault = status->ErrWatchdog;
+    outHealth->AmplitudeFault = status->ErrAmplitudeHigh || status->ErrAmplitudeLow;
+    outHealth->AnyFault = outHealth->WatchdogFault || outHealth->AmplitudeFault;
+    outHealth->DataReady = status->DataReady;
+    outHealth->AnyUnreadConversion = anyUnread;
+}
+
+esp_err_t Fdc2214CapReadStatusDecoded(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapStatus_t* outStatus,
+                                      Fdc2214CapStatusHealth_t* outHealth)
+{
+    if (!dev || !outStatus || !outHealth) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = Fdc2214CapReadStatus(dev, outStatus);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapDecodeStatusHealth(outStatus, outHealth);
     return ESP_OK;
 }
 

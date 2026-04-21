@@ -109,6 +109,16 @@ bool sensorarrayLogShouldEmitRateLimitedWarning(uint32_t *counter, uint32_t peri
     return sensorarrayLogShouldEmitPeriodic(*counter, (period == 0u) ? 1u : period);
 }
 
+bool sensorarrayLogShouldPrint(uint32_t index, uint32_t stride)
+{
+    return sensorarrayLogShouldEmitPeriodic(index, stride);
+}
+
+bool sensorarrayLogRateLimited(uint32_t *counter, uint32_t stride)
+{
+    return sensorarrayLogShouldEmitRateLimitedWarning(counter, stride);
+}
+
 const char *sensorarrayLogFmtI32(char *buf, size_t bufSize, bool valid, int32_t value)
 {
     if (!valid) {
