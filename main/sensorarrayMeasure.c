@@ -8,6 +8,7 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayLog.h"
+#include "sensorarrayRecovery.h"
 
 #define SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT 14
 #define SENSORARRAY_FDC_STATUS_ERR_WD_MASK (1U << 11)
@@ -26,6 +27,85 @@ static void sensorarrayDelayMs(uint32_t delayMs)
     if (delayMs > 0u) {
         vTaskDelay(pdMS_TO_TICKS(delayMs));
     }
+}
+
+static uint32_t sensorarrayTickToMs(TickType_t tick)
+{
+    return (uint32_t)tick * (uint32_t)portTICK_PERIOD_MS;
+}
+
+static void sensorarrayLogRouteProgress(const char *stage,
+                                        const char *phase,
+                                        const char *label,
+                                        uint8_t sColumn,
+                                        uint8_t dLine,
+                                        sensorarrayDebugPath_t path,
+                                        tmux1108Source_t swSource,
+                                        sensorarraySelaRoute_t selaRoute,
+                                        bool selBLevel,
+                                        TickType_t enterTick,
+                                        esp_err_t err)
+{
+    TickType_t nowTick = xTaskGetTickCount();
+    uint32_t elapsedMs = sensorarrayTickToMs(nowTick - enterTick);
+    uint32_t uptimeMs = sensorarrayTickToMs(nowTick);
+    int selaWriteLevel = -1;
+    bool haveSelaWrite = sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel);
+    char selaWriteBuf[8] = {0};
+
+    printf("DBGROUTE,stage=%s_%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRoute=%s,selaWrite=%s,"
+           "selBLevel=%u,elapsedMs=%lu,err=%ld,tick=%lu,uptimeMs=%lu\n",
+           stage ? stage : SENSORARRAY_NA,
+           phase ? phase : SENSORARRAY_NA,
+           label ? label : SENSORARRAY_NA,
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayLogDebugPathName(path),
+           sensorarrayLogSwSourceName(swSource),
+           sensorarrayBoardMapSelaRouteName(selaRoute),
+           sensorarrayLogFmtGpioLevel(selaWriteBuf, sizeof(selaWriteBuf), haveSelaWrite, selaWriteLevel),
+           selBLevel ? 1u : 0u,
+           (unsigned long)elapsedMs,
+           (long)err,
+           (unsigned long)nowTick,
+           (unsigned long)uptimeMs);
+
+    if (sensorarrayRecoveryIsS5d5Mode()) {
+        printf("DBGFDC_S5D5,stage=route_progress,phase=%s,routeStage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,"
+               "selaRoute=%s,selBLevel=%u,elapsedMs=%lu,err=%ld,tick=%lu\n",
+               phase ? phase : SENSORARRAY_NA,
+               stage ? stage : SENSORARRAY_NA,
+               label ? label : SENSORARRAY_NA,
+               (unsigned)sColumn,
+               (unsigned)dLine,
+               sensorarrayLogDebugPathName(path),
+               sensorarrayLogSwSourceName(swSource),
+               sensorarrayBoardMapSelaRouteName(selaRoute),
+               selBLevel ? 1u : 0u,
+               (unsigned long)elapsedMs,
+               (long)err,
+               (unsigned long)nowTick);
+    }
+}
+
+static void sensorarrayRouteKickAndCheckpoint(sensorarrayRecoveryStage_t stage,
+                                              uint8_t sColumn,
+                                              uint8_t dLine,
+                                              sensorarrayRecoveryCheckpointEvent_t checkpointEvent)
+{
+    sensorarrayRecoveryKick(stage, sColumn, dLine);
+    sensorarrayRecoveryTaskWdtReset();
+    sensorarrayRecoveryEmitCheckpoint(checkpointEvent);
+}
+
+static void sensorarrayRouteDelayAndWatchdog(uint32_t delayMs)
+{
+    if (delayMs == 0u) {
+        return;
+    }
+    sensorarrayDelayMs(delayMs);
+    sensorarrayRecoveryKickAlive();
+    sensorarrayRecoveryTaskWdtReset();
 }
 
 static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const sensorarrayAdsReadPolicy_t *policy)
@@ -163,6 +243,8 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint32_t delayAfterSwMs,
                                              const char *label)
 {
+    TickType_t stageTick = xTaskGetTickCount();
+
     if (!state || !state->tmuxReady) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -173,8 +255,54 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
         return ESP_ERR_INVALID_ARG;
     }
 
+    sensorarrayLogRouteProgress("ads_stop",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
+    if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("ads_stop",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("ads_stop",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                err,
+                                "stop_ads_error");
+        return err;
+    }
+    sensorarrayLogRouteProgress("ads_stop",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     sensorarrayLogRouteStep("ads_stop",
                             label,
                             sColumn,
@@ -184,20 +312,114 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                             selaRoute,
                             selBLevel,
                             err,
-                            adsStopNeeded ? ((err == ESP_OK) ? "stop_ads_before_route" : "stop_ads_error")
-                                          : "ads_already_stopped");
-    if (err != ESP_OK) {
-        return err;
-    }
+                            adsStopNeeded ? "stop_ads_before_route" : "ads_already_stopped");
 
+    stageTick = xTaskGetTickCount();
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_ROW_ENTER,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_ROW_ENTER);
+    sensorarrayLogRouteProgress("row",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
-    sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_row");
     if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("row",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_row_failed");
         return err;
     }
-    sensorarrayDelayMs(delayAfterRowMs);
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_ROW_EXIT,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_ROW_EXIT);
+    sensorarrayLogRouteProgress("row",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
+    sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_row");
+    sensorarrayRouteDelayAndWatchdog(delayAfterRowMs);
 
+    stageTick = xTaskGetTickCount();
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SELA_ENTER,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SELA_ENTER);
+    sensorarrayLogRouteProgress("selA",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     err = sensorarrayMeasureSetSelaPath(state, selaRoute, delayAfterSelAMs, "selA", label);
+    if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("selA",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("selA",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                err,
+                                "set_sela_path_failed");
+        return err;
+    }
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SELA_EXIT,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SELA_EXIT);
+    sensorarrayLogRouteProgress("selA",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     sensorarrayLogRouteStep("selA",
                             label,
                             sColumn,
@@ -208,25 +430,159 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                             selBLevel,
                             err,
                             "set_sela_path");
-    if (err != ESP_OK) {
-        return err;
-    }
 
+    stageTick = xTaskGetTickCount();
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SELB_ENTER,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SELB_ENTER);
+    sensorarrayLogRouteProgress("selB",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     err = tmux1134SelectSelBLevel(selBLevel);
+    if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("selB",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("selB", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_selB_failed");
+        return err;
+    }
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SELB_EXIT,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SELB_EXIT);
+    sensorarrayLogRouteProgress("selB",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     sensorarrayLogRouteStep("selB", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_selB");
-    if (err != ESP_OK) {
-        return err;
-    }
-    sensorarrayDelayMs(delayAfterSelBMs);
+    sensorarrayRouteDelayAndWatchdog(delayAfterSelBMs);
 
+    stageTick = xTaskGetTickCount();
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SW_ENTER,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SW_ENTER);
+    sensorarrayLogRouteProgress("sw",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
     err = tmuxSwitchSet1108Source(swSource);
-    sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sw");
     if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("sw",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sw_failed");
         return err;
     }
-    sensorarrayDelayMs(delayAfterSwMs);
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_SW_EXIT,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_SW_EXIT);
+    sensorarrayLogRouteProgress("sw",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
+    sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sw");
+    sensorarrayRouteDelayAndWatchdog(delayAfterSwMs);
 
-    sensorarrayLogDbgExtraCaptureCtrl();
+    stageTick = xTaskGetTickCount();
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_VERIFY_ENTER,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_VERIFY_ENTER);
+    sensorarrayLogRouteProgress("route_verify",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
+    tmuxSwitchControlState_t ctrl = {0};
+    err = tmuxSwitchGetControlState(&ctrl);
+    if (err != ESP_OK) {
+        sensorarrayLogRouteProgress("route_verify",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        if (sensorarrayRecoveryIsS5d5Mode()) {
+            return err;
+        }
+    } else {
+        (void)ctrl;
+        sensorarrayLogDbgExtraCaptureCtrl();
+    }
+    sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_VERIFY_EXIT,
+                                      sColumn,
+                                      dLine,
+                                      SENSORARRAY_RECOVERY_CHECKPOINT_EVENT_ROUTE_VERIFY_EXIT);
+    sensorarrayLogRouteProgress("route_verify",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                err);
     return ESP_OK;
 }
 
@@ -257,91 +613,21 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
         return ESP_ERR_INVALID_STATE;
     }
 
-    const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
-    esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
-    sensorarrayLogRouteStep("ads_stop",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            adsStopNeeded ? ((err == ESP_OK) ? "stop_ads_before_route" : "stop_ads_error")
-                                          : "ads_already_stopped");
+    esp_err_t err = sensorarrayMeasureApplyRouteLevels(state,
+                                                       sColumn,
+                                                       dLine,
+                                                       debugPath,
+                                                       swSource,
+                                                       routeMap->selaRoute,
+                                                       routeMap->selBLevel,
+                                                       SENSORARRAY_SETTLE_AFTER_COLUMN_MS,
+                                                       SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                                       SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                                       SENSORARRAY_SETTLE_AFTER_SW_MS,
+                                                       routeMap->mapLabel);
     if (err != ESP_OK) {
         return err;
     }
-
-    err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
-    sensorarrayLogRouteStep("row",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            "set_row");
-    if (err != ESP_OK) {
-        return err;
-    }
-    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_COLUMN_MS);
-
-    err = sensorarrayMeasureSetSelaPath(state,
-                                        routeMap->selaRoute,
-                                        SENSORARRAY_SETTLE_AFTER_PATH_MS,
-                                        "selA",
-                                        routeMap->mapLabel);
-    sensorarrayLogRouteStep("selA",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            "set_sela_path");
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = tmux1134SelectSelBLevel(routeMap->selBLevel);
-    sensorarrayLogRouteStep("selB",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            "set_selB");
-    if (err != ESP_OK) {
-        return err;
-    }
-    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_PATH_MS);
-
-    err = tmuxSwitchSet1108Source(swSource);
-    sensorarrayLogRouteStep("sw",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            "set_sw");
-    if (err != ESP_OK) {
-        return err;
-    }
-    sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_SW_MS);
-
-    sensorarrayLogDbgExtraCaptureCtrl();
 
     if (outMapLabel) {
         *outMapLabel = routeMap->mapLabel;

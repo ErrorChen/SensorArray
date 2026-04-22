@@ -1,6 +1,7 @@
 #include "sensorarrayDebug.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -13,6 +14,7 @@
 #include "sensorarrayDebugSelftest.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
+#include "sensorarrayRecovery.h"
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -39,12 +41,61 @@ static bool sensorarrayDebugSelaRouteFromGpioLevel(bool selaGpioLevel, sensorarr
     return sensorarrayBoardMapSelaRouteFromGpioLevel(selaGpioLevel ? 1 : 0, outRoute);
 }
 
+static sensorarrayRecoveryStage_t sensorarrayDebugStageToRecoveryStage(const char *stage)
+{
+    if (!stage) {
+        return SENSORARRAY_RECOVERY_STAGE_UNKNOWN;
+    }
+    if (strcmp(stage, "fdc_init") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_FDC_INIT_BEGIN;
+    }
+    if (strcmp(stage, "route_apply") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_ROW_ENTER;
+    }
+    if (strcmp(stage, "row") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_ROW_ENTER;
+    }
+    if (strcmp(stage, "selA") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_SELA_ENTER;
+    }
+    if (strcmp(stage, "selB") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_SELB_ENTER;
+    }
+    if (strcmp(stage, "sw") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_SW_ENTER;
+    }
+    if (strcmp(stage, "route_verify") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_ROUTE_VERIFY_ENTER;
+    }
+    if (strcmp(stage, "sweep") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_SWEEP_CANDIDATE_BEGIN;
+    }
+    if (strcmp(stage, "locked_sample") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_LOCKED_SAMPLE_BEGIN;
+    }
+    if (strcmp(stage, "recovery") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_RECOVERY_BEGIN;
+    }
+    if (strcmp(stage, "mode_enter") == 0) {
+        return SENSORARRAY_RECOVERY_STAGE_APP_INIT;
+    }
+    return SENSORARRAY_RECOVERY_STAGE_UNKNOWN;
+}
+
+void sensorarrayDebugHandleFatal(const char *reason, esp_err_t err, const char *stage, uint8_t sColumn, uint8_t dLine)
+{
+    sensorarrayRecoveryStage_t stageId = sensorarrayDebugStageToRecoveryStage(stage);
+    sensorarrayRecoveryHandleFatal(reason, err, stageId, sColumn, dLine);
+}
+
 void sensorarrayDebugIdleForever(const char *reason)
 {
     sensorarrayLogControlGpio("idle", reason);
-    while (true) {
-        sensorarrayDelayMs(1000u);
-    }
+    sensorarrayDebugHandleFatal(reason ? reason : "debug_idle",
+                                ESP_OK,
+                                "idle",
+                                0u,
+                                0u);
 }
 
 static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
@@ -176,9 +227,8 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
                                 cfg->selBLevel,
                                 ESP_OK,
                                 "fixed_state_latched");
-        while (true) {
-            sensorarrayDelayMs(1000u);
-        }
+        sensorarrayDebugIdleForever("fixed_state_latched");
+        return ESP_OK;
     }
 
     if (cfg->holdMs > 0u) {
@@ -316,7 +366,11 @@ static void sensorarrayRunRouteFixedStateMode(sensorarrayState_t *state, const s
                               ESP_ERR_INVALID_ARG,
                               "fixed_sela_level_invalid",
                               (int32_t)CONFIG_SENSORARRAY_DEBUG_FIXED_SELA_LEVEL);
-        sensorarrayDebugIdleForever("route_fixed_invalid_sela_level");
+        sensorarrayDebugHandleFatal("route_fixed_invalid_sela_level",
+                                    ESP_ERR_INVALID_ARG,
+                                    "route_fixed",
+                                    (uint8_t)CONFIG_SENSORARRAY_DEBUG_FIXED_S_COLUMN,
+                                    (uint8_t)CONFIG_SENSORARRAY_DEBUG_FIXED_D_LINE);
         return;
     }
 

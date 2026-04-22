@@ -7,6 +7,7 @@ idf_component_register(
         "sensorarrayMeasure.c"
         "sensorarrayLog.c"
         "sensorarrayDebug.c"
+        "sensorarrayRecovery.c"
         "sensorarrayDebugFdcI2cDiscovery.c"
         "sensorarrayDebugFdcSelbS5d5.c"
         "sensorarrayDebugSelftest.c"

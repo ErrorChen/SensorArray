@@ -416,6 +416,86 @@ config SENSORARRAY_DEBUG_CHECKPOINT_PULSE_US
     help
         Pulse width and gap for checkpoint markers.
 
+choice SENSORARRAY_DEBUG_FAIL_ACTION
+    prompt "Debug fatal action policy"
+    default SENSORARRAY_DEBUG_FAIL_ACTION_RESTART if SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    default SENSORARRAY_DEBUG_FAIL_ACTION_IDLE
+config SENSORARRAY_DEBUG_FAIL_ACTION_IDLE
+    bool "IDLE (heartbeat only)"
+    help
+        Enter controlled idle with periodic heartbeat logs.
+config SENSORARRAY_DEBUG_FAIL_ACTION_RESTART
+    bool "RESTART"
+    help
+        Delay briefly for log flush then software restart.
+config SENSORARRAY_DEBUG_FAIL_ACTION_PANIC
+    bool "PANIC"
+    help
+        Abort immediately for panic/backtrace capture.
+endchoice
+
+config SENSORARRAY_DEBUG_RESTART_DELAY_MS
+    int "Debug restart delay before esp_restart (ms)"
+    default 200
+    range 0 10000
+    help
+        Small delay before restart to flush final UART logs.
+
+config SENSORARRAY_DEBUG_PROGRESS_WATCHDOG_ENABLE
+    bool "Enable software progress watchdog"
+    default y if SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    default n
+    help
+        Monitor stage progress and auto-restart on prolonged stall.
+
+config SENSORARRAY_DEBUG_PROGRESS_WATCHDOG_TIMEOUT_MS
+    int "Progress watchdog timeout (ms)"
+    default 2000
+    range 500 30000
+    help
+        If no stage kick is observed within timeout, treat as progress stall.
+
+config SENSORARRAY_DEBUG_PROGRESS_WATCHDOG_MONITOR_PERIOD_MS
+    int "Progress watchdog monitor period (ms)"
+    default 150
+    range 50 5000
+    help
+        Monitor task polling period for stall detection.
+
+config SENSORARRAY_DEBUG_TASK_WDT_ENABLE
+    bool "Enable ESP-IDF task watchdog for debug task"
+    default y if SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    default n
+    help
+        Register the S5D5 debug execution task to TWDT.
+
+config SENSORARRAY_DEBUG_TASK_WDT_TIMEOUT_MS
+    int "Task watchdog timeout (ms)"
+    default 4000
+    range 1000 60000
+    help
+        TWDT timeout for the subscribed debug task.
+
+config SENSORARRAY_DEBUG_TASK_WDT_PANIC
+    bool "Task watchdog timeout triggers panic"
+    default n
+    help
+        If disabled, TWDT timeout uses reset path without panic backtrace.
+
+config SENSORARRAY_DEBUG_REBOOT_BACKOFF_MS
+    int "Restart storm cooldown backoff (ms)"
+    default 2000
+    range 0 120000
+    help
+        Extra delay before restart after reboot streak threshold.
+
+config SENSORARRAY_DEBUG_MAX_REBOOT_STREAK_BEFORE_COOLDOWN
+    int "Restart storm streak threshold"
+    default 6
+    range 1 1000
+    help
+        Consecutive restart requests needed before cooldown backoff is applied.
+
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
     prompt "S1D1 resistor debug behavior"
     default SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY

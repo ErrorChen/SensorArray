@@ -12,6 +12,7 @@
 #include "sensorarrayDebug.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
+#include "sensorarrayRecovery.h"
 #include "sensorarrayTypes.h"
 
 static sensorarrayState_t s_state = {0};
@@ -62,6 +63,10 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+    sensorarrayRecoveryInit(activeMode);
+    sensorarrayRecoveryLogBootInfo();
+    sensorarrayRecoveryKick(SENSORARRAY_RECOVERY_STAGE_APP_INIT, 0u, 0u);
+
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
     bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
