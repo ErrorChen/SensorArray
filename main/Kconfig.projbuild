@@ -215,27 +215,32 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS
         Delay after boot before the first S5D5 sweep. Useful for stable capture setup.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISABLE_SWEEP
-    bool "Single-cap debug: disable drive sweep (conservative mode)"
-    default y
+    bool "Single-cap debug: disable drive sweep (single-candidate override)"
+    default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        Conservative default: skip multi-candidate sweep and keep diagnosis on a
-        fixed single-drive path to reduce lock-up risk in bad hardware states.
+        Advanced override. Normal debug flow should keep sweep enabled so S5D5 can
+        search (high-current, drive-step) candidates and lock to measured evidence.
+        Enable this only for targeted experiments when you intentionally want one
+        candidate path.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_SINGLE_DRIVE
     bool "Single-cap debug: force one drive-current setting"
-    default y
+    default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        Use one fixed DRIVE_CURRENT for route-gate probe and optional conservative lock.
+        Advanced override. When enabled, sweep still runs unless disable-sweep is
+        also enabled, but all candidates use one forced drive step. Keep disabled
+        for normal unstable/unknown lock-point debug so the full sweep can search.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_DRIVE_CURRENT
-    hex "Single-cap debug: forced drive current register value"
-    default 0x7800
+    hex "Single-cap debug: forced drive current (step or legacy raw)"
+    default 0x001F
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        Raw DRIVE_CURRENT register request. Reserved bits are masked by driver logic.
-        0x7800 is the conservative baseline for current single-drive diagnostics.
+        Canonical form is logical drive step (0x00..0x1F). Legacy raw register
+        form is still accepted (bits [15:11] used, lower bits masked). This setting
+        is only used when force-single-drive override is enabled.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_MAX_RECOVERY_ATTEMPTS
     int "Single-cap debug: max consecutive recovery attempts"

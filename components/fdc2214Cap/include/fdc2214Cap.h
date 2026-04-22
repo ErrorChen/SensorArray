@@ -60,6 +60,9 @@ typedef struct {
     uint16_t DriveCurrent;
 } Fdc2214CapChannelConfig_t;
 
+#define FDC2214_CAP_DRIVE_CURRENT_MASK 0xF800u
+#define FDC2214_CAP_DRIVE_STEP_MAX 31u
+
 typedef enum {
     FDC2214_CHANNEL_CONFIG_RESULT_OK = 0,
     FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH,
@@ -254,6 +257,10 @@ esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);
 // Write a raw 16-bit register value.
 esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value);
+// Explicit drive-current helpers (canonical semantic form is logical step 0..31).
+uint16_t Fdc2214CapMaskDriveCurrentRaw(uint16_t rawDriveCurrent);
+bool Fdc2214CapDriveStepToRaw(uint8_t step, uint16_t* outRawDriveCurrent);
+bool Fdc2214CapDriveRawToStep(uint16_t rawDriveCurrent, uint8_t* outStep, uint16_t* outMaskedRawDriveCurrent);
 // Human-readable semantic status for sample diagnostics.
 const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status);
 

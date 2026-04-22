@@ -18,7 +18,9 @@
 #include "sensorarrayMeasure.h"
 #include "tmuxSwitch.h"
 
-#define SENSORARRAY_S5D5_DRIVE_CURRENT_MASK 0xF800u
+#define SENSORARRAY_S5D5_DRIVE_CURRENT_MASK FDC2214_CAP_DRIVE_CURRENT_MASK
+#define SENSORARRAY_S5D5_DRIVE_STEP_MAX FDC2214_CAP_DRIVE_STEP_MAX
+#define SENSORARRAY_S5D5_DRIVE_STEP_DEFAULT 31u
 #define SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_SHIFT 14u
 #define SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_MASK 0xC000u
 #define SENSORARRAY_S5D5_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
@@ -42,13 +44,13 @@
 #define SENSORARRAY_S5D5_RAW_SPAN_HEALTHY_MID_MAX_PERMILLE 120u
 #define SENSORARRAY_S5D5_RAW_SPAN_HIGH_MAX_PERMILLE 280u
 
-static const uint16_t SENSORARRAY_S5D5_DRIVE_CURRENT_SWEEP_TABLE[] = {
-    0xA000u,
-    0xB800u,
-    0xC000u,
-    0xD000u,
-    0xE000u,
-    0xF800u,
+static const uint8_t SENSORARRAY_S5D5_DRIVE_STEP_SWEEP_TABLE[] = {
+    20u, // 0xA000
+    23u, // 0xB800
+    24u, // 0xC000
+    26u, // 0xD000
+    28u, // 0xE000
+    31u, // 0xF800
 };
 
 static const bool SENSORARRAY_S5D5_HIGH_CURRENT_SWEEP_TABLE[] = {
@@ -413,6 +415,47 @@ static const char *sensorarrayS5d5FaultReasonName(sensorarrayS5d5FaultReason_t r
     }
 }
 
+static bool sensorarrayS5d5FaultNeedsBusRecovery(sensorarrayS5d5FaultReason_t reason)
+{
+    switch (reason) {
+    case SENSORARRAY_S5D5_FAULT_I2C_TRANSACTION_FAILED:
+    case SENSORARRAY_S5D5_FAULT_I2C_LINE_STUCK:
+    case SENSORARRAY_S5D5_FAULT_LOCK_APPLY_FAILED:
+        return true;
+    case SENSORARRAY_S5D5_FAULT_UNREAD_TIMEOUT_REPEATED:
+    case SENSORARRAY_S5D5_FAULT_WATCHDOG_FAULT_PERSISTENT:
+    case SENSORARRAY_S5D5_FAULT_AMPLITUDE_FAULT_PERSISTENT:
+    case SENSORARRAY_S5D5_FAULT_TRANSPORT_UNREADABLE_PERSISTENT:
+    case SENSORARRAY_S5D5_FAULT_RAW_SPAN_OR_HEALTH_GATE_FAILED:
+    case SENSORARRAY_S5D5_FAULT_READBACK_MISMATCH:
+    case SENSORARRAY_S5D5_FAULT_NONE:
+    default:
+        return false;
+    }
+}
+
+static const char *sensorarrayS5d5RecoveryTriggerClass(sensorarrayS5d5FaultReason_t reason, const char *detail)
+{
+    if (reason == SENSORARRAY_S5D5_FAULT_I2C_LINE_STUCK) {
+        return "line_stuck";
+    }
+    if (reason == SENSORARRAY_S5D5_FAULT_I2C_TRANSACTION_FAILED ||
+        reason == SENSORARRAY_S5D5_FAULT_LOCK_APPLY_FAILED) {
+        if (detail && strstr(detail, "timeout")) {
+            return "timeout";
+        }
+        return "transport_failure";
+    }
+    if (reason == SENSORARRAY_S5D5_FAULT_UNREAD_TIMEOUT_REPEATED ||
+        reason == SENSORARRAY_S5D5_FAULT_WATCHDOG_FAULT_PERSISTENT ||
+        reason == SENSORARRAY_S5D5_FAULT_AMPLITUDE_FAULT_PERSISTENT ||
+        reason == SENSORARRAY_S5D5_FAULT_TRANSPORT_UNREADABLE_PERSISTENT ||
+        reason == SENSORARRAY_S5D5_FAULT_RAW_SPAN_OR_HEALTH_GATE_FAILED) {
+        return "analog_quality";
+    }
+    return "policy_mistake";
+}
+
 static int sensorarrayExpectedSwLevel(tmux1108Source_t source)
 {
     int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
@@ -574,9 +617,75 @@ static sensorarrayS5d5RouteCheck_t sensorarrayVerifyS5d5Route(tmux1108Source_t s
     return routeCheck;
 }
 
-static esp_err_t sensorarrayApplyS5d5DriveStep(Fdc2214CapDevice_t *dev, bool highCurrent, uint16_t driveCurrentReq)
+static uint16_t sensorarrayS5d5DriveRawFromStep(uint8_t driveStep)
+{
+    uint16_t raw = 0u;
+    if (!Fdc2214CapDriveStepToRaw(driveStep, &raw)) {
+        return 0u;
+    }
+    return raw;
+}
+
+static uint8_t sensorarrayS5d5DriveStepFromRaw(uint16_t driveRaw, uint16_t *outMaskedRaw)
+{
+    uint8_t driveStep = 0u;
+    uint16_t maskedRaw = 0u;
+    (void)Fdc2214CapDriveRawToStep(driveRaw, &driveStep, &maskedRaw);
+    if (outMaskedRaw) {
+        *outMaskedRaw = maskedRaw;
+    }
+    return driveStep;
+}
+
+static void sensorarrayS5d5ResolveForcedDriveConfig(uint16_t configValue,
+                                                    uint8_t *outDriveStep,
+                                                    uint16_t *outDriveRawReq,
+                                                    uint16_t *outDriveRawMasked,
+                                                    bool *outLegacyRawInput,
+                                                    bool *outReservedBitsMasked)
+{
+    uint8_t driveStep = SENSORARRAY_S5D5_DRIVE_STEP_DEFAULT;
+    uint16_t driveRawReq = configValue;
+    uint16_t driveRawMasked = 0u;
+    bool legacyRawInput = false;
+    bool reservedBitsMasked = false;
+
+    if (configValue <= SENSORARRAY_S5D5_DRIVE_STEP_MAX) {
+        driveStep = (uint8_t)configValue;
+        driveRawMasked = sensorarrayS5d5DriveRawFromStep(driveStep);
+        driveRawReq = driveRawMasked;
+    } else {
+        legacyRawInput = true;
+        driveStep = sensorarrayS5d5DriveStepFromRaw(configValue, &driveRawMasked);
+        reservedBitsMasked = (driveRawMasked != configValue);
+    }
+
+    if (outDriveStep) {
+        *outDriveStep = driveStep;
+    }
+    if (outDriveRawReq) {
+        *outDriveRawReq = driveRawReq;
+    }
+    if (outDriveRawMasked) {
+        *outDriveRawMasked = driveRawMasked;
+    }
+    if (outLegacyRawInput) {
+        *outLegacyRawInput = legacyRawInput;
+    }
+    if (outReservedBitsMasked) {
+        *outReservedBitsMasked = reservedBitsMasked;
+    }
+}
+
+static esp_err_t sensorarrayApplyS5d5DriveStep(Fdc2214CapDevice_t *dev,
+                                                bool highCurrent,
+                                                uint8_t driveStep,
+                                                uint16_t *outDriveRawWritten)
 {
     if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (driveStep > SENSORARRAY_S5D5_DRIVE_STEP_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -600,8 +709,11 @@ static esp_err_t sensorarrayApplyS5d5DriveStep(Fdc2214CapDevice_t *dev, bool hig
         return err;
     }
 
-    uint16_t driveCurrentNorm = (uint16_t)(driveCurrentReq & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
-    return Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0, driveCurrentNorm);
+    uint16_t driveCurrentRaw = sensorarrayS5d5DriveRawFromStep(driveStep);
+    if (outDriveRawWritten) {
+        *outDriveRawWritten = driveCurrentRaw;
+    }
+    return Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0, driveCurrentRaw);
 }
 
 typedef enum {
@@ -622,6 +734,7 @@ typedef enum {
 
 typedef struct {
     bool highCurrentReq;
+    uint8_t driveStep;
     uint16_t driveCurrentReq;
     uint16_t driveCurrentNorm;
     bool configWriteOk;
@@ -784,10 +897,9 @@ static const char *sensorarrayS5d5CandidateHealthClassName(sensorarrayS5d5Candid
     }
 }
 
-static int32_t sensorarrayS5d5DrivePreferenceScore(uint16_t driveCurrentNorm, bool highCurrentReq)
+static int32_t sensorarrayS5d5DrivePreferenceScore(uint8_t driveStep, bool highCurrentReq)
 {
-    int32_t driveStep = (int32_t)((driveCurrentNorm >> 11u) & 0x1Fu);
-    int32_t delta = driveStep - 26;
+    int32_t delta = (int32_t)driveStep - 26;
     if (delta < 0) {
         delta = -delta;
     }
@@ -1028,16 +1140,19 @@ static esp_err_t sensorarrayInitS5d5SecondaryFdc(sensorarrayState_t *state,
 
 static void sensorarrayS5d5CandidateInit(sensorarrayS5d5SweepCandidate_t *candidate,
                                          bool highCurrentReq,
+                                         uint8_t driveStep,
                                          uint16_t driveCurrentReq)
 {
     if (!candidate) {
         return;
     }
 
+    uint16_t driveCurrentNorm = sensorarrayS5d5DriveRawFromStep(driveStep);
     *candidate = (sensorarrayS5d5SweepCandidate_t){
         .highCurrentReq = highCurrentReq,
+        .driveStep = driveStep,
         .driveCurrentReq = driveCurrentReq,
-        .driveCurrentNorm = (uint16_t)(driveCurrentReq & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK),
+        .driveCurrentNorm = driveCurrentNorm,
         .configWriteOk = true,
         .rawMin = UINT_MAX,
         .rawSpanBand = SENSORARRAY_S5D5_RAW_SPAN_BAND_TOO_SMALL,
@@ -1214,7 +1329,7 @@ static int32_t sensorarrayS5d5FinalizeCandidate(sensorarrayS5d5SweepCandidate_t 
     if (!candidate->readbackHighCurrentMatch) {
         candidate->scoreReadback -= 12;
     }
-    candidate->scorePreference = sensorarrayS5d5DrivePreferenceScore(candidate->driveCurrentNorm, candidate->highCurrentReq);
+    candidate->scorePreference = sensorarrayS5d5DrivePreferenceScore(candidate->driveStep, candidate->highCurrentReq);
 
     int32_t healthClassBonus = 0;
     switch (candidate->healthClass) {
@@ -1257,6 +1372,7 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
                                                                              uint32_t sampleCount,
                                                                              bool discardFirst,
                                                                              uint32_t recoveryThreshold,
+                                                                             uint8_t driveStep,
                                                                              uint16_t driveCurrentReq,
                                                                              sensorarrayS5d5SweepCandidate_t *outCandidate,
                                                                              bool *outNeedRecovery,
@@ -1282,9 +1398,12 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
     *outRecoveryStreak = 0u;
 
     sensorarrayS5d5SweepCandidate_t candidate = {0};
-    sensorarrayS5d5CandidateInit(&candidate, false, driveCurrentReq);
+    sensorarrayS5d5CandidateInit(&candidate, false, driveStep, driveCurrentReq);
 
-    esp_err_t cfgErr = sensorarrayApplyS5d5DriveStep(fdcState->handle, candidate.highCurrentReq, candidate.driveCurrentReq);
+    uint16_t appliedDriveRaw = 0u;
+    esp_err_t cfgErr =
+        sensorarrayApplyS5d5DriveStep(fdcState->handle, candidate.highCurrentReq, candidate.driveStep, &appliedDriveRaw);
+    candidate.driveCurrentNorm = appliedDriveRaw;
     if (cfgErr != ESP_OK) {
         candidate.configWriteOk = false;
         candidate.i2cErrorCount++;
@@ -1294,8 +1413,11 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
         *outRecoveryReason = "route_gate_apply_drive_failed";
         *outRecoveryStreak = 1u;
         *outCandidate = candidate;
-        printf("DBGFDC_S5D5,stage=route_analog_probe,result=apply_failed,driveCurrentReq=0x%04X,err=%ld\n",
+        printf("DBGFDC_S5D5,stage=route_analog_probe,result=apply_failed,driveStep=%u,driveRawReq=0x%04X,"
+               "driveRawMasked=0x%04X,err=%ld\n",
+               (unsigned)candidate.driveStep,
                candidate.driveCurrentReq,
+               candidate.driveCurrentNorm,
                (long)cfgErr);
         return SENSORARRAY_S5D5_ROUTE_GATE_BLOCKED_BEFORE_SWEEP;
     }
@@ -1316,10 +1438,6 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
     }
 
     uint32_t i2cStreak = 0u;
-    uint32_t noUnreadStreak = 0u;
-    uint32_t transportUnreadableStreak = 0u;
-    uint32_t watchdogStreak = 0u;
-    uint32_t amplitudeStreak = 0u;
 
     for (uint32_t sampleIndex = 0u; sampleIndex < sampleCount; ++sampleIndex) {
         sensorarrayFdcReadDiag_t diag = {0};
@@ -1333,33 +1451,9 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
             candidate.sampleCount++;
             candidate.i2cErrorCount++;
             i2cStreak++;
-            noUnreadStreak = 0u;
-            transportUnreadableStreak++;
-            watchdogStreak = 0u;
-            amplitudeStreak = 0u;
         } else {
             sensorarrayS5d5CandidateIngestDiag(&candidate, &diag, fdcMap->channel);
             i2cStreak = 0u;
-            if (!diag.unreadConversionPresent) {
-                noUnreadStreak++;
-            } else {
-                noUnreadStreak = 0u;
-            }
-            if (!diag.transportReadable) {
-                transportUnreadableStreak++;
-            } else {
-                transportUnreadableStreak = 0u;
-            }
-            if (diag.sample.ErrWatchdog) {
-                watchdogStreak++;
-            } else {
-                watchdogStreak = 0u;
-            }
-            if (diag.sample.ErrAmplitude) {
-                amplitudeStreak++;
-            } else {
-                amplitudeStreak = 0u;
-            }
         }
 
         if (i2cStreak >= recoveryThreshold) {
@@ -1375,34 +1469,6 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
                 *outRecoveryReason = "route_gate_i2c_error_streak";
             }
             *outRecoveryStreak = i2cStreak;
-            break;
-        }
-        if (noUnreadStreak >= recoveryThreshold) {
-            *outNeedRecovery = true;
-            *outRecoveryFault = SENSORARRAY_S5D5_FAULT_UNREAD_TIMEOUT_REPEATED;
-            *outRecoveryReason = "route_gate_no_unread_streak";
-            *outRecoveryStreak = noUnreadStreak;
-            break;
-        }
-        if (transportUnreadableStreak >= recoveryThreshold) {
-            *outNeedRecovery = true;
-            *outRecoveryFault = SENSORARRAY_S5D5_FAULT_TRANSPORT_UNREADABLE_PERSISTENT;
-            *outRecoveryReason = "route_gate_transport_unreadable_streak";
-            *outRecoveryStreak = transportUnreadableStreak;
-            break;
-        }
-        if (watchdogStreak >= recoveryThreshold) {
-            *outNeedRecovery = true;
-            *outRecoveryFault = SENSORARRAY_S5D5_FAULT_WATCHDOG_FAULT_PERSISTENT;
-            *outRecoveryReason = "route_gate_watchdog_fault_streak";
-            *outRecoveryStreak = watchdogStreak;
-            break;
-        }
-        if (amplitudeStreak >= recoveryThreshold) {
-            *outNeedRecovery = true;
-            *outRecoveryFault = SENSORARRAY_S5D5_FAULT_AMPLITUDE_FAULT_PERSISTENT;
-            *outRecoveryReason = "route_gate_amplitude_fault_streak";
-            *outRecoveryStreak = amplitudeStreak;
             break;
         }
         sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS);
@@ -1435,32 +1501,24 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
     (void)sensorarrayS5d5FinalizeCandidate(&candidate);
     *outCandidate = candidate;
 
-    sensorarrayS5d5RouteGateStatus_t routeGateStatus = SENSORARRAY_S5D5_ROUTE_GATE_OK;
-    if (!candidate.analogRouteVerified) {
-        routeGateStatus = SENSORARRAY_S5D5_ROUTE_GATE_GPIO_OK_ANALOG_UNVERIFIED;
-    }
-
-    if (!*outNeedRecovery &&
-        (!candidate.analogRouteVerified ||
-         candidate.rawSpanBand == SENSORARRAY_S5D5_RAW_SPAN_BAND_TOO_SMALL ||
-         !candidate.passedValidityGate)) {
-        *outNeedRecovery = true;
-        *outRecoveryFault = SENSORARRAY_S5D5_FAULT_RAW_SPAN_OR_HEALTH_GATE_FAILED;
-        *outRecoveryReason = "route_gate_analog_health_rejected";
-        *outRecoveryStreak = (candidate.sampleCount > candidate.healthReadableCount)
-                                 ? (candidate.sampleCount - candidate.healthReadableCount)
-                                 : 1u;
-        routeGateStatus = SENSORARRAY_S5D5_ROUTE_GATE_BLOCKED_BEFORE_SWEEP;
-    }
+    sensorarrayS5d5RouteGateStatus_t routeGateStatus = candidate.analogRouteVerified
+                                                            ? SENSORARRAY_S5D5_ROUTE_GATE_OK
+                                                            : SENSORARRAY_S5D5_ROUTE_GATE_GPIO_OK_ANALOG_UNVERIFIED;
     if (*outNeedRecovery) {
         routeGateStatus = SENSORARRAY_S5D5_ROUTE_GATE_BLOCKED_BEFORE_SWEEP;
     }
 
-    printf("DBGFDC_S5D5,stage=route_analog_probe,highCurrentReq=%u,driveCurrentReq=0x%04X,samples=%lu,i2cErr=%lu,"
+    const char *probeAction = *outNeedRecovery ? "pre_sweep_block_hard_fault" : "continue_to_sweep";
+
+    printf("DBGFDC_S5D5,stage=route_analog_probe,highCurrentReq=%u,driveStep=%u,driveCurrentReq=0x%04X,"
+           "driveCurrentNorm=0x%04X,samples=%lu,i2cErr=%lu,"
            "transportReadable=%lu,healthReadable=%lu,unread=%lu,watchdog=%lu,amplitude=%lu,rawSpanPermille=%lu,"
-           "rawSpanBand=%s,healthClass=%s,analogRouteVerified=%u,passedValidityGate=%u,rejectReason=%s,gate=%s\n",
+           "rawSpanBand=%s,healthClass=%s,analogRouteVerified=%u,passedValidityGate=%u,rejectReason=%s,gate=%s,"
+           "probeAction=%s,recoveryReason=%s\n",
            candidate.highCurrentReq ? 1u : 0u,
+           (unsigned)candidate.driveStep,
            candidate.driveCurrentReq,
+           candidate.driveCurrentNorm,
            (unsigned long)candidate.sampleCount,
            (unsigned long)candidate.i2cErrorCount,
            (unsigned long)candidate.transportReadableCount,
@@ -1474,7 +1532,9 @@ static sensorarrayS5d5RouteGateStatus_t sensorarrayS5d5ProbeAnalogRouteGate(sens
            candidate.analogRouteVerified ? 1u : 0u,
            candidate.passedValidityGate ? 1u : 0u,
            candidate.rejectReason ? candidate.rejectReason : SENSORARRAY_NA,
-           sensorarrayS5d5RouteGateStatusName(routeGateStatus));
+           sensorarrayS5d5RouteGateStatusName(routeGateStatus),
+           probeAction,
+           *outRecoveryReason ? *outRecoveryReason : SENSORARRAY_NA);
 
     return routeGateStatus;
 }
@@ -1558,7 +1618,7 @@ static bool sensorarrayS5d5CandidateBetter(const sensorarrayS5d5SweepCandidate_t
         if (candidate->highCurrentReq != best->highCurrentReq) {
             return !candidate->highCurrentReq && best->highCurrentReq;
         }
-        return candidate->driveCurrentReq < best->driveCurrentReq;
+        return candidate->driveStep < best->driveStep;
     }
 
     // Fallback ranking when every candidate failed validity gate.
@@ -1600,7 +1660,7 @@ static bool sensorarrayS5d5CandidateBetter(const sensorarrayS5d5SweepCandidate_t
     if (candidate->scorePreference != best->scorePreference) {
         return candidate->scorePreference > best->scorePreference;
     }
-    return candidate->driveCurrentReq < best->driveCurrentReq;
+    return candidate->driveStep < best->driveStep;
 }
 
 static const char *sensorarrayS5d5CandidateBetterReason(const sensorarrayS5d5SweepCandidate_t *candidate,
@@ -1667,7 +1727,8 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                                            uint32_t sweepSampleCount,
                                            bool discardFirst,
                                            bool forceSingleDrive,
-                                           uint16_t forcedDriveCurrent,
+                                           uint8_t forcedDriveStep,
+                                           uint16_t forcedDriveCurrentReq,
                                            int32_t minScore,
                                            const sensorarrayCheckpointGpio_t *checkpoint,
                                            sensorarrayS5d5SweepCandidate_t *outBestCandidate,
@@ -1691,13 +1752,17 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                        sizeof(SENSORARRAY_S5D5_HIGH_CURRENT_SWEEP_TABLE[0]);
     size_t driveCount = forceSingleDrive
                             ? 1u
-                            : (sizeof(SENSORARRAY_S5D5_DRIVE_CURRENT_SWEEP_TABLE) /
-                               sizeof(SENSORARRAY_S5D5_DRIVE_CURRENT_SWEEP_TABLE[0]));
-    printf("DBGFDC_S5D5,stage=sweep_begin,candidates=%u,samplesPerCandidate=%lu,forceSingleDrive=%u,forcedDrive=0x%04X\n",
+                            : (sizeof(SENSORARRAY_S5D5_DRIVE_STEP_SWEEP_TABLE) /
+                               sizeof(SENSORARRAY_S5D5_DRIVE_STEP_SWEEP_TABLE[0]));
+    uint16_t forcedDriveCurrentNorm = sensorarrayS5d5DriveRawFromStep(forcedDriveStep);
+    printf("DBGFDC_S5D5,stage=sweep_begin,candidates=%u,samplesPerCandidate=%lu,forceSingleDrive=%u,"
+           "forcedDriveStep=%u,forcedDriveRawReq=0x%04X,forcedDriveRawMasked=0x%04X\n",
            (unsigned)(highCount * driveCount),
            (unsigned long)sweepSampleCount,
            forceSingleDrive ? 1u : 0u,
-           (uint16_t)(forcedDriveCurrent & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK));
+           (unsigned)forcedDriveStep,
+           forcedDriveCurrentReq,
+           forcedDriveCurrentNorm);
 
     bool haveBestValid = false;
     bool haveBestFallback = false;
@@ -1714,13 +1779,14 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
             sensorarrayCheckpointEmit(checkpoint, SENSORARRAY_CHECKPOINT_EVENT_STEP_BEGIN);
 
             sensorarrayS5d5SweepCandidate_t candidate = {0};
-            uint16_t driveReq = forceSingleDrive
-                                    ? (uint16_t)(forcedDriveCurrent & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK)
-                                    : SENSORARRAY_S5D5_DRIVE_CURRENT_SWEEP_TABLE[driveIndex];
-            sensorarrayS5d5CandidateInit(&candidate, highCurrentReq, driveReq);
+            uint8_t driveStep = forceSingleDrive ? forcedDriveStep : SENSORARRAY_S5D5_DRIVE_STEP_SWEEP_TABLE[driveIndex];
+            uint16_t driveReqRaw = forceSingleDrive ? forcedDriveCurrentReq : sensorarrayS5d5DriveRawFromStep(driveStep);
+            sensorarrayS5d5CandidateInit(&candidate, highCurrentReq, driveStep, driveReqRaw);
 
+            uint16_t appliedDriveRaw = 0u;
             esp_err_t cfgErr =
-                sensorarrayApplyS5d5DriveStep(fdcState->handle, candidate.highCurrentReq, candidate.driveCurrentReq);
+                sensorarrayApplyS5d5DriveStep(fdcState->handle, candidate.highCurrentReq, candidate.driveStep, &appliedDriveRaw);
+            candidate.driveCurrentNorm = appliedDriveRaw;
             if (cfgErr != ESP_OK) {
                 candidate.configWriteOk = false;
                 candidate.i2cErrorCount++;
@@ -1744,10 +1810,6 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
 
             if (cfgErr == ESP_OK) {
                 uint32_t i2cReadStreak = 0u;
-                uint32_t noUnreadStreak = 0u;
-                uint32_t transportUnreadableStreak = 0u;
-                uint32_t watchdogStreak = 0u;
-                uint32_t amplitudeStreak = 0u;
                 for (uint32_t sampleIndex = 0u; sampleIndex < sweepSampleCount; ++sampleIndex) {
                     sensorarrayFdcReadDiag_t diag = {0};
                     esp_err_t readErr = sensorarrayMeasureReadFdcSampleDiagRelaxed(fdcState->handle,
@@ -1760,33 +1822,9 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                         candidate.sampleCount++;
                         candidate.i2cErrorCount++;
                         i2cReadStreak++;
-                        noUnreadStreak = 0u;
-                        transportUnreadableStreak++;
-                        watchdogStreak = 0u;
-                        amplitudeStreak = 0u;
                     } else {
                         sensorarrayS5d5CandidateIngestDiag(&candidate, &diag, fdcMap->channel);
                         i2cReadStreak = 0u;
-                        if (!diag.unreadConversionPresent) {
-                            noUnreadStreak++;
-                        } else {
-                            noUnreadStreak = 0u;
-                        }
-                        if (!diag.transportReadable) {
-                            transportUnreadableStreak++;
-                        } else {
-                            transportUnreadableStreak = 0u;
-                        }
-                        if (diag.sample.ErrWatchdog) {
-                            watchdogStreak++;
-                        } else {
-                            watchdogStreak = 0u;
-                        }
-                        if (diag.sample.ErrAmplitude) {
-                            amplitudeStreak++;
-                        } else {
-                            amplitudeStreak = 0u;
-                        }
                     }
                     if (i2cReadStreak >= recoveryThreshold) {
                         bool sclHigh = true;
@@ -1807,46 +1845,6 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                                (long)lineErr,
                                (lineErr == ESP_OK) ? (sclHigh ? 1 : 0) : -1,
                                (lineErr == ESP_OK) ? (sdaHigh ? 1 : 0) : -1);
-                        break;
-                    }
-                    if (noUnreadStreak >= recoveryThreshold) {
-                        *outNeedRecovery = true;
-                        *outRecoveryFault = SENSORARRAY_S5D5_FAULT_UNREAD_TIMEOUT_REPEATED;
-                        *outRecoveryReason = "sweep_no_unread_streak";
-                        *outRecoveryStreak = noUnreadStreak;
-                        printf("DBGFDC_S5D5,stage=sweep_abort,reason=%s,streak=%lu\n",
-                               *outRecoveryReason,
-                               (unsigned long)noUnreadStreak);
-                        break;
-                    }
-                    if (transportUnreadableStreak >= recoveryThreshold) {
-                        *outNeedRecovery = true;
-                        *outRecoveryFault = SENSORARRAY_S5D5_FAULT_TRANSPORT_UNREADABLE_PERSISTENT;
-                        *outRecoveryReason = "sweep_transport_unreadable_streak";
-                        *outRecoveryStreak = transportUnreadableStreak;
-                        printf("DBGFDC_S5D5,stage=sweep_abort,reason=%s,streak=%lu\n",
-                               *outRecoveryReason,
-                               (unsigned long)transportUnreadableStreak);
-                        break;
-                    }
-                    if (watchdogStreak >= recoveryThreshold) {
-                        *outNeedRecovery = true;
-                        *outRecoveryFault = SENSORARRAY_S5D5_FAULT_WATCHDOG_FAULT_PERSISTENT;
-                        *outRecoveryReason = "sweep_watchdog_fault_streak";
-                        *outRecoveryStreak = watchdogStreak;
-                        printf("DBGFDC_S5D5,stage=sweep_abort,reason=%s,streak=%lu\n",
-                               *outRecoveryReason,
-                               (unsigned long)watchdogStreak);
-                        break;
-                    }
-                    if (amplitudeStreak >= recoveryThreshold) {
-                        *outNeedRecovery = true;
-                        *outRecoveryFault = SENSORARRAY_S5D5_FAULT_AMPLITUDE_FAULT_PERSISTENT;
-                        *outRecoveryReason = "sweep_amplitude_fault_streak";
-                        *outRecoveryStreak = amplitudeStreak;
-                        printf("DBGFDC_S5D5,stage=sweep_abort,reason=%s,streak=%lu\n",
-                               *outRecoveryReason,
-                               (unsigned long)amplitudeStreak);
                         break;
                     }
                     sensorarrayDebugSelftestDelayMs(SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS);
@@ -1886,17 +1884,6 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
             }
 
             (void)sensorarrayS5d5FinalizeCandidate(&candidate);
-            if (!candidate.readbackMatches) {
-                *outNeedRecovery = true;
-                *outRecoveryFault = SENSORARRAY_S5D5_FAULT_READBACK_MISMATCH;
-                *outRecoveryReason = "sweep_readback_mismatch";
-                *outRecoveryStreak = 1u;
-                printf("DBGFDC_S5D5,stage=sweep_abort,reason=%s,highCurrentReq=%u,driveCurrentReq=0x%04X\n",
-                       *outRecoveryReason,
-                       candidate.highCurrentReq ? 1u : 0u,
-                       candidate.driveCurrentReq);
-                return false;
-            }
             const char *candidateStatus = sensorarrayS5d5CandidateStatus(&candidate, minScore);
             char scoreBreakdown[192] = {0};
             (void)snprintf(scoreBreakdown,
@@ -1910,8 +1897,9 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                            (long)candidate.scoreReadback,
                            (long)candidate.scorePreference,
                            (long)candidate.score);
-            printf("DBGFDC_S5D5,stage=sweep_candidate,highCurrentReq=%u,highCurrentReadback=%u,driveCurrentReq=0x%04X,"
-                    "driveCurrentNorm=0x%04X,driveCurrentReadback=0x%04X,activeChannelReadback=%u,samples=%lu,"
+            printf("DBGFDC_S5D5,stage=sweep_candidate,highCurrentReq=%u,highCurrentReadback=%u,driveStep=%u,"
+                   "driveCurrentReq=0x%04X,driveCurrentNorm=0x%04X,driveCurrentReadback=0x%04X,"
+                   "activeChannelReadback=%u,activeChannelReadbackMatch=%u,samples=%lu,"
                    "i2cErr=%lu,transportReadable=%lu,provisionalReadable=%lu,healthReadable=%lu,validSamples=%lu,"
                    "sweepCountable=%lu,convertingOk=%lu,unreadOk=%lu,watchdog=%lu,amplitude=%lu,nonZeroRaw=%lu,"
                    "rawMin=%lu,rawMax=%lu,rawAvg=%lu,rawSpan=%lu,rawSpanPermille=%lu,rawSpanBand=%s,statusReg=0x%04X,"
@@ -1920,10 +1908,12 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                    "passedValidityGate=%u,rejectReason=%s,scoreBreakdown=%s,status=%s\n",
                    candidate.highCurrentReq ? 1u : 0u,
                    candidate.highCurrentReadback ? 1u : 0u,
+                   (unsigned)candidate.driveStep,
                    candidate.driveCurrentReq,
                    candidate.driveCurrentNorm,
                    candidate.driveCurrentReadbackNorm,
                    (unsigned)candidate.activeChannelReadback,
+                   candidate.readbackActiveChannelMatch ? 1u : 0u,
                    (unsigned long)candidate.sampleCount,
                    (unsigned long)candidate.i2cErrorCount,
                    (unsigned long)candidate.transportReadableCount,
@@ -1957,6 +1947,13 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                    candidate.rejectReason ? candidate.rejectReason : SENSORARRAY_NA,
                    scoreBreakdown,
                    candidateStatus);
+            printf("DBGFDC_S5D5,stage=sweep_candidate_decision,highCurrentReq=%u,driveStep=%u,result=%s,"
+                   "rejectReason=%s,status=%s\n",
+                   candidate.highCurrentReq ? 1u : 0u,
+                   (unsigned)candidate.driveStep,
+                   candidate.passedValidityGate ? "candidate_valid" : "candidate_diagnostic_only",
+                   candidate.rejectReason ? candidate.rejectReason : SENSORARRAY_NA,
+                   candidateStatus);
 
             if (candidate.passedValidityGate) {
                 if (!haveBestValid || sensorarrayS5d5CandidateBetter(&candidate, &bestValidCandidate)) {
@@ -1964,10 +1961,11 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                     bestValidCandidate = candidate;
                     haveBestValid = true;
                     printf("DBGFDC_S5D5,stage=sweep_best_update,pool=valid,reason=%s,newScore=%ld,oldScore=%ld,"
-                           "newDriveCurrentReq=0x%04X,newHighCurrentReq=%u\n",
+                           "newDriveStep=%u,newDriveCurrentReq=0x%04X,newHighCurrentReq=%u\n",
                            sensorarrayS5d5CandidateBetterReason(&candidate, prev),
                            (long)candidate.score,
                            prev ? (long)prev->score : (long)INT_MIN,
+                           (unsigned)candidate.driveStep,
                            candidate.driveCurrentReq,
                            candidate.highCurrentReq ? 1u : 0u);
                 }
@@ -1976,10 +1974,11 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                 bestFallbackCandidate = candidate;
                 haveBestFallback = true;
                 printf("DBGFDC_S5D5,stage=sweep_best_update,pool=fallback,reason=%s,newScore=%ld,oldScore=%ld,"
-                       "newDriveCurrentReq=0x%04X,newHighCurrentReq=%u\n",
+                       "newDriveStep=%u,newDriveCurrentReq=0x%04X,newHighCurrentReq=%u\n",
                        sensorarrayS5d5CandidateBetterReason(&candidate, prev),
                        (long)candidate.score,
                        prev ? (long)prev->score : (long)INT_MIN,
+                       (unsigned)candidate.driveStep,
                        candidate.driveCurrentReq,
                        candidate.highCurrentReq ? 1u : 0u);
             }
@@ -2009,12 +2008,14 @@ static bool sensorarrayS5d5SweepCandidates(sensorarrayFdcDeviceState_t *fdcState
                    (long)selectedCandidate.scorePreference,
                    (long)selectedCandidate.score);
 
-    printf("DBGFDC_S5D5,stage=sweep_selected,highCurrentReq=%u,driveCurrentReq=0x%04X,driveCurrentNorm=0x%04X,"
+    printf("DBGFDC_S5D5,stage=sweep_selected,highCurrentReq=%u,driveStep=%u,driveCurrentReq=0x%04X,"
+            "driveCurrentNorm=0x%04X,"
             "driveCurrentReadback=0x%04X,activeChannelReadback=%u,samples=%lu,i2cErr=%lu,convertingOk=%lu,unreadOk=%lu,"
            "watchdog=%lu,amplitude=%lu,nonZeroRaw=%lu,validSamples=%lu,healthReadable=%lu,rawMin=%lu,rawMax=%lu,"
            "rawAvg=%lu,rawSpan=%lu,rawSpanPermille=%lu,rawSpanBand=%s,healthClass=%s,analogRouteVerified=%u,"
            "passedValidityGate=%u,rejectReason=%s,selectionType=%s,scoreBreakdown=%s,status=%s\n",
            selectedCandidate.highCurrentReq ? 1u : 0u,
+           (unsigned)selectedCandidate.driveStep,
            selectedCandidate.driveCurrentReq,
            selectedCandidate.driveCurrentNorm,
            selectedCandidate.driveCurrentReadbackNorm,
@@ -2088,8 +2089,8 @@ static bool sensorarrayS5d5RunMathSelfCheck(void)
 
     sensorarrayS5d5SweepCandidate_t ampHealthy = {0};
     sensorarrayS5d5SweepCandidate_t ampFaulty = {0};
-    sensorarrayS5d5CandidateInit(&ampHealthy, false, 0xC000u);
-    sensorarrayS5d5CandidateInit(&ampFaulty, false, 0xF800u);
+    sensorarrayS5d5CandidateInit(&ampHealthy, false, sensorarrayS5d5DriveStepFromRaw(0xC000u, NULL), 0xC000u);
+    sensorarrayS5d5CandidateInit(&ampFaulty, false, sensorarrayS5d5DriveStepFromRaw(0xF800u, NULL), 0xF800u);
 
     ampHealthy.sampleCount = 6u;
     ampHealthy.transportReadableCount = 6u;
@@ -2155,11 +2156,16 @@ static esp_err_t sensorarrayS5d5ApplyLockedCandidate(Fdc2214CapDevice_t *dev,
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = sensorarrayApplyS5d5DriveStep(dev, candidate->highCurrentReq, candidate->driveCurrentReq);
+    uint16_t appliedDriveRaw = 0u;
+    esp_err_t err =
+        sensorarrayApplyS5d5DriveStep(dev, candidate->highCurrentReq, candidate->driveStep, &appliedDriveRaw);
     if (err != ESP_OK) {
-        printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,driveCurrentReq=0x%04X,err=%ld,status=apply_failed\n",
+        printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,driveStep=%u,driveCurrentReq=0x%04X,"
+               "driveCurrentNorm=0x%04X,err=%ld,status=apply_failed\n",
                candidate->highCurrentReq ? 1u : 0u,
+               (unsigned)candidate->driveStep,
                candidate->driveCurrentReq,
+               candidate->driveCurrentNorm,
                (long)err);
         return err;
     }
@@ -2172,9 +2178,12 @@ static esp_err_t sensorarrayS5d5ApplyLockedCandidate(Fdc2214CapDevice_t *dev,
     uint16_t driveReg = 0u;
     err = sensorarrayS5d5ReadKeyRegs(dev, &statusReg, &configReg, &muxConfig, &driveReg);
     if (err != ESP_OK) {
-        printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,driveCurrentReq=0x%04X,err=%ld,status=readback_failed\n",
+        printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,driveStep=%u,driveCurrentReq=0x%04X,"
+               "driveCurrentNorm=0x%04X,err=%ld,status=readback_failed\n",
                candidate->highCurrentReq ? 1u : 0u,
+               (unsigned)candidate->driveStep,
                candidate->driveCurrentReq,
+               candidate->driveCurrentNorm,
                (long)err);
         return err;
     }
@@ -2187,13 +2196,15 @@ static esp_err_t sensorarrayS5d5ApplyLockedCandidate(Fdc2214CapDevice_t *dev,
                  (driveCurrentReadbackNorm == candidate->driveCurrentNorm) &&
                  (activeChannelReadback == (uint8_t)channel);
 
-    printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,highCurrentReadback=%u,driveCurrentReq=0x%04X,"
-           "driveCurrentNorm=0x%04X,driveCurrentReadback=0x%04X,activeChannelReadback=%u,statusReg=0x%04X,"
-           "configReg=0x%04X,muxConfig=0x%04X,status=%s\n",
+    printf("DBGFDC_S5D5,stage=lock_apply,highCurrentReq=%u,highCurrentReadback=%u,driveStep=%u,"
+           "driveCurrentReq=0x%04X,driveCurrentNorm=0x%04X,driveAppliedRaw=0x%04X,driveCurrentReadback=0x%04X,"
+           "activeChannelReadback=%u,statusReg=0x%04X,configReg=0x%04X,muxConfig=0x%04X,status=%s\n",
            candidate->highCurrentReq ? 1u : 0u,
            highCurrentReadback ? 1u : 0u,
+           (unsigned)candidate->driveStep,
            candidate->driveCurrentReq,
            candidate->driveCurrentNorm,
+           appliedDriveRaw,
            driveCurrentReadbackNorm,
            (unsigned)activeChannelReadback,
            statusReg,
@@ -2416,16 +2427,33 @@ static esp_err_t sensorarrayS5d5HandleFaultAndRecover(sensorarrayState_t *state,
 
     tracker->lastFaultReason = faultReason;
     const char *reasonName = faultDetail ? faultDetail : sensorarrayS5d5FaultReasonName(faultReason);
+    bool needsBusRecovery = sensorarrayS5d5FaultNeedsBusRecovery(faultReason);
+    const char *triggerClass = sensorarrayS5d5RecoveryTriggerClass(faultReason, reasonName);
     if (maxRecoveryAttempts == 0u) {
         maxRecoveryAttempts = 1u;
     }
 
+    if (!needsBusRecovery) {
+        printf("DBGFDC_S5D5,stage=recovery_policy,action=analog_retry,trigger=%s,fault=%s,detail=%s,streak=%lu,"
+               "busRecovery=%u,recoveryCount=%lu,maxAttempts=%lu,status=retry_without_bus_recovery\n",
+               triggerClass,
+               sensorarrayS5d5FaultReasonName(faultReason),
+               reasonName ? reasonName : SENSORARRAY_NA,
+               (unsigned long)streakCount,
+               0u,
+               (unsigned long)tracker->recoveryCount,
+               (unsigned long)maxRecoveryAttempts);
+        tracker->recoveryCount = 0u;
+        return ESP_OK;
+    }
+
     if (tracker->recoveryCount >= maxRecoveryAttempts) {
         printf("DBGFDC_S5D5,stage=recovery_gate,result=blocked,reason=max_attempts_reached,maxAttempts=%lu,"
-               "recoveryCount=%lu,lastFault=%s,cooldownMs=%lu\n",
+               "recoveryCount=%lu,lastFault=%s,trigger=%s,cooldownMs=%lu\n",
                (unsigned long)maxRecoveryAttempts,
                (unsigned long)tracker->recoveryCount,
                sensorarrayS5d5FaultReasonName(tracker->lastFaultReason),
+               triggerClass,
                (unsigned long)recoveryCooldownMs);
         if (recoveryCooldownMs > 0u) {
             sensorarrayDebugSelftestDelayMs(recoveryCooldownMs);
@@ -2438,8 +2466,9 @@ static esp_err_t sensorarrayS5d5HandleFaultAndRecover(sensorarrayState_t *state,
     if (fdcState && fdcState->handle) {
         sleepErr = Fdc2214CapEnterSleep(fdcState->handle, fdcState->configReg);
     }
-    printf("DBGFDC_S5D5,stage=fault_gate,result=triggered,fault=%s,detail=%s,streak=%lu,recoveryCount=%lu,"
-           "maxAttempts=%lu,sleepErr=%ld\n",
+    printf("DBGFDC_S5D5,stage=recovery_policy,action=bus_recovery,trigger=%s,fault=%s,detail=%s,streak=%lu,"
+           "recoveryCount=%lu,maxAttempts=%lu,sleepErr=%ld\n",
+           triggerClass,
            sensorarrayS5d5FaultReasonName(faultReason),
            reasonName ? reasonName : SENSORARRAY_NA,
            (unsigned long)streakCount,
@@ -2454,13 +2483,14 @@ static esp_err_t sensorarrayS5d5HandleFaultAndRecover(sensorarrayState_t *state,
                                                             streakCount,
                                                             initSettleDelayMs);
     printf("DBGFDC_S5D5,stage=recovery_gate,result=%s,fault=%s,detail=%s,recoveryCount=%lu,maxAttempts=%lu,"
-           "cooldownMs=%lu,err=%ld\n",
+           "cooldownMs=%lu,trigger=%s,err=%ld\n",
            (recoverErr == ESP_OK) ? "recovered" : "failed",
            sensorarrayS5d5FaultReasonName(faultReason),
            reasonName ? reasonName : SENSORARRAY_NA,
            (unsigned long)tracker->recoveryCount,
            (unsigned long)maxRecoveryAttempts,
            (unsigned long)recoveryCooldownMs,
+           triggerClass,
            (long)recoverErr);
 
     if (recoverErr == ESP_OK) {
@@ -2568,11 +2598,19 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     }
     bool disableSweep = (CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISABLE_SWEEP != 0);
     bool forceSingleDrive = (CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_SINGLE_DRIVE != 0);
-    uint16_t forcedDriveCurrent =
-        (uint16_t)(CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_DRIVE_CURRENT & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
-    if (forcedDriveCurrent == 0u) {
-        forcedDriveCurrent = 0x7800u;
-    }
+    bool sweepEnabled = !disableSweep;
+    uint16_t forcedDriveConfigValue = (uint16_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_DRIVE_CURRENT;
+    uint8_t forcedDriveStep = SENSORARRAY_S5D5_DRIVE_STEP_DEFAULT;
+    uint16_t forcedDriveCurrentReq = 0u;
+    uint16_t forcedDriveCurrentMasked = 0u;
+    bool forcedDriveLegacyRawInput = false;
+    bool forcedDriveReservedBitsMasked = false;
+    sensorarrayS5d5ResolveForcedDriveConfig(forcedDriveConfigValue,
+                                            &forcedDriveStep,
+                                            &forcedDriveCurrentReq,
+                                            &forcedDriveCurrentMasked,
+                                            &forcedDriveLegacyRawInput,
+                                            &forcedDriveReservedBitsMasked);
     uint32_t maxRecoveryAttempts = (uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_MAX_RECOVERY_ATTEMPTS;
     if (maxRecoveryAttempts == 0u) {
         maxRecoveryAttempts = 1u;
@@ -2591,10 +2629,22 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     bool discardFirst = (CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST != 0);
     sensorarrayCheckpointGpio_t checkpoint = sensorarrayCheckpointInit();
 
+    if (forcedDriveLegacyRawInput || forcedDriveReservedBitsMasked) {
+        printf("DBGFDC_S5D5,stage=drive_config_parse,configRaw=0x%04X,legacyRawInput=%u,reservedBitsMasked=%u,"
+               "driveStep=%u,driveRawReq=0x%04X,driveRawMasked=0x%04X,status=normalized\n",
+               forcedDriveConfigValue,
+               forcedDriveLegacyRawInput ? 1u : 0u,
+               forcedDriveReservedBitsMasked ? 1u : 0u,
+               (unsigned)forcedDriveStep,
+               forcedDriveCurrentReq,
+               forcedDriveCurrentMasked);
+    }
+
     printf("DBGFDC_S5D5,stage=target,mode=S5D5_CAP_FDC_SECONDARY,fdcDev=secondary_selb_side,i2cPort=1,"
            "sda=%d,scl=%d,i2cAddr=0x%02X,route=S5D5_CAP,channel=CH0,sweepSamples=%lu,lockedSamples=%lu,"
            "loopDelayMs=%lu,discardFirst=%u,recoveryThreshold=%lu,lockMinScore=%ld,verboseLog=%u,warnLogStride=%lu,"
-           "diagLogStride=%lu,disableSweep=%u,forceSingleDrive=%u,forcedDrive=0x%04X,maxRecoveryAttempts=%lu,"
+           "diagLogStride=%lu,sweepEnabled=%u,disableSweep=%u,forceSingleDrive=%u,forcedDriveStep=%u,"
+           "forcedDriveRawReq=0x%04X,forcedDriveRawMasked=0x%04X,maxRecoveryAttempts=%lu,"
            "recoveryCooldownMs=%lu,initSettleDelayMs=%lu,postResetDelayMs=%lu,enableCapComputation=%u,"
            "enableNetCapOutput=%u,inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f\n",
            busInfo.SdaGpio,
@@ -2609,9 +2659,12 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
            verboseLog ? 1u : 0u,
            (unsigned long)warnLogStride,
            (unsigned long)diagLogStride,
+           sweepEnabled ? 1u : 0u,
            disableSweep ? 1u : 0u,
            forceSingleDrive ? 1u : 0u,
-           forcedDriveCurrent,
+           (unsigned)forcedDriveStep,
+           forcedDriveCurrentReq,
+           forcedDriveCurrentMasked,
            (unsigned long)maxRecoveryAttempts,
            (unsigned long)recoveryCooldownMs,
            (unsigned long)initSettleDelayMs,
@@ -2621,17 +2674,29 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
            capConfig.inductorValueUh,
            capConfig.fixedCapPf,
            capConfig.parasiticCapPf);
+    printf("DBGFDC_S5D5,stage=sweep_policy,sweepEnabled=%u,reason=%s,forceSingleDrive=%u,forcedDriveStep=%u,"
+           "forcedDriveRawReq=0x%04X,forcedDriveRawMasked=0x%04X\n",
+           sweepEnabled ? 1u : 0u,
+           sweepEnabled ? "normal_candidate_search_enabled" : "disabled_by_config",
+           forceSingleDrive ? 1u : 0u,
+           (unsigned)forcedDriveStep,
+           forcedDriveCurrentReq,
+           forcedDriveCurrentMasked);
     printf("DBGFDC_S5D5,stage=route_semantics,note=route_verification_split_into_gpio_and_analog_health\n");
-    printf("DBGFDC_S5D5,stage=sweep_plan,highCurrent=0|1,driveCurrentList=0xA000|0xB800|0xC000|0xD000|0xE000|0xF800,"
-           "stepSettleMs=%u,sampleGapMs=%u,unreadPollTimeoutMs=%lu,unreadPollIntervalMs=%lu,disableSweep=%u,"
-           "forceSingleDrive=%u,forcedDrive=0x%04X,inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f\n",
+    printf("DBGFDC_S5D5,stage=sweep_plan,highCurrent=0|1,driveStepList=20|23|24|26|28|31,"
+           "driveRawList=0xA000|0xB800|0xC000|0xD000|0xE000|0xF800,stepSettleMs=%u,sampleGapMs=%u,"
+           "unreadPollTimeoutMs=%lu,unreadPollIntervalMs=%lu,disableSweep=%u,forceSingleDrive=%u,"
+           "forcedDriveStep=%u,forcedDriveRawReq=0x%04X,forcedDriveRawMasked=0x%04X,inductorUh=%.3f,"
+           "fixedCapPf=%.3f,parasiticCapPf=%.3f\n",
            (unsigned)SENSORARRAY_S5D5_STEP_SETTLE_MS,
            (unsigned)SENSORARRAY_S5D5_STEP_SAMPLE_GAP_MS,
            (unsigned long)unreadPollTimeoutMs,
            (unsigned long)unreadPollIntervalMs,
            disableSweep ? 1u : 0u,
            forceSingleDrive ? 1u : 0u,
-           forcedDriveCurrent,
+           (unsigned)forcedDriveStep,
+           forcedDriveCurrentReq,
+           forcedDriveCurrentMasked,
            capConfig.inductorValueUh,
            capConfig.fixedCapPf,
            capConfig.parasiticCapPf);
@@ -2773,26 +2838,23 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                                                     gateProbeSamples,
                                                     discardFirst,
                                                     recoveryReinitThreshold,
-                                                    forcedDriveCurrent,
+                                                    forcedDriveStep,
+                                                    forcedDriveCurrentReq,
                                                     &gateCandidate,
                                                     &gateNeedRecovery,
                                                     &gateRecoveryFault,
                                                     &gateRecoveryReason,
                                                     &gateRecoveryStreak);
-            bool analogRouteVerified = (routeGateStatus == SENSORARRAY_S5D5_ROUTE_GATE_OK) && gateCandidate.analogRouteVerified;
-            printf("DBGFDC_S5D5,stage=route_gate,result=%s,gateStatus=%s,gpioRouteVerified=1,analogRouteVerified=%u,"
-                   "reason=%s,rejectReason=%s\n",
-                   analogRouteVerified ? "pass" : "blocked",
+            bool preSweepBlocked = (routeGateStatus == SENSORARRAY_S5D5_ROUTE_GATE_BLOCKED_BEFORE_SWEEP);
+            printf("DBGFDC_S5D5,stage=route_gate,result=%s,gateStatus=%s,gpioRouteVerified=1,analogEvidence=%u,"
+                   "probeRejectReason=%s,recoveryReason=%s,recoveryPending=%u\n",
+                   preSweepBlocked ? "pre_sweep_block" : "probe_continue",
                    sensorarrayS5d5RouteGateStatusName(routeGateStatus),
-                   analogRouteVerified ? 1u : 0u,
-                   gateRecoveryReason ? gateRecoveryReason : "analog_route_unverified",
-                   gateCandidate.rejectReason ? gateCandidate.rejectReason : SENSORARRAY_NA);
-            if (!analogRouteVerified) {
-                printf("DBGFDC_S5D5,stage=route_gate,result=blocked,reason=analog_route_unverified,gateStatus=%s,"
-                       "fault=%s,recoveryPending=%u\n",
-                       sensorarrayS5d5RouteGateStatusName(routeGateStatus),
-                       sensorarrayS5d5FaultReasonName(gateRecoveryFault),
-                       gateNeedRecovery ? 1u : 0u);
+                   gateCandidate.analogRouteVerified ? 1u : 0u,
+                   gateCandidate.rejectReason ? gateCandidate.rejectReason : SENSORARRAY_NA,
+                   gateRecoveryReason ? gateRecoveryReason : SENSORARRAY_NA,
+                   gateNeedRecovery ? 1u : 0u);
+            if (preSweepBlocked) {
                 if (gateNeedRecovery) {
                     esp_err_t recoveryErr = sensorarrayS5d5HandleFaultAndRecover(state,
                                                                                   fdcState,
@@ -2828,6 +2890,8 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                     sensorarrayDebugSelftestDelayMs(loopDelayMs);
                     continue;
                 }
+                printf("DBGFDC_S5D5,stage=lock_failed_after_sweep,reason=transport_failed_before_sweep,"
+                       "status=pre_sweep_blocked_no_recovery_path\n");
                 sensorarrayDebugSelftestDelayMs(loopDelayMs);
                 continue;
             }
@@ -2841,8 +2905,10 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 haveBest = true;
                 bestCandidate = gateCandidate;
                 selectedFromValidPool = bestCandidate.passedValidityGate;
-                printf("DBGFDC_S5D5,stage=sweep_bypass,result=single_drive_mode,driveCurrent=0x%04X,score=%ld,"
-                       "healthClass=%s,analogRouteVerified=%u\n",
+                printf("DBGFDC_S5D5,stage=sweep_bypass,result=single_drive_mode,driveStep=%u,driveCurrentReq=0x%04X,"
+                       "driveCurrent=0x%04X,score=%ld,healthClass=%s,analogRouteVerified=%u\n",
+                       (unsigned)bestCandidate.driveStep,
+                       bestCandidate.driveCurrentReq,
                        bestCandidate.driveCurrentNorm,
                        (long)bestCandidate.score,
                        sensorarrayS5d5CandidateHealthClassName(bestCandidate.healthClass),
@@ -2853,7 +2919,8 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                                                           sweepSampleCount,
                                                           discardFirst,
                                                           forceSingleDrive,
-                                                          forcedDriveCurrent,
+                                                          forcedDriveStep,
+                                                          forcedDriveCurrentReq,
                                                           lockMinScore,
                                                           &checkpoint,
                                                           &bestCandidate,
@@ -2903,18 +2970,23 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 continue;
             }
             if (!haveBest) {
-                printf("DBGFDC_S5D5,stage=lock_failed,reason=no_candidate,bestScore=%ld,minScore=%ld,status=error\n",
+                printf("DBGFDC_S5D5,stage=lock_failed_after_sweep,reason=no_candidate_measured,bestScore=%ld,"
+                       "minScore=%ld,status=error\n",
                        (long)INT_MIN,
                        (long)lockMinScore);
                 sensorarrayDebugSelftestDelayMs(loopDelayMs);
                 continue;
             }
             if (!selectedFromValidPool || !bestCandidate.passedValidityGate) {
-                printf("DBGFDC_S5D5,stage=lock_failed,reason=no_valid_candidate_selected_fallback,rejectReason=%s,"
-                       "bestScore=%ld,minScore=%ld,status=error\n",
+                printf("DBGFDC_S5D5,stage=lock_failed_after_sweep,reason=no_candidate_met_minimum_health,"
+                       "rejectReason=%s,bestScore=%ld,minScore=%ld,diagnosticDriveStep=%u,diagnosticDriveReq=0x%04X,"
+                       "diagnosticDriveNorm=0x%04X,status=diagnostic_only\n",
                        bestCandidate.rejectReason ? bestCandidate.rejectReason : SENSORARRAY_NA,
                        (long)bestCandidate.score,
-                       (long)lockMinScore);
+                       (long)lockMinScore,
+                       (unsigned)bestCandidate.driveStep,
+                       bestCandidate.driveCurrentReq,
+                       bestCandidate.driveCurrentNorm);
                 sensorarrayDebugSelftestDelayMs(loopDelayMs);
                 continue;
             }
@@ -2923,8 +2995,8 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                    bestAnalogRouteVerified ? 1u : 0u,
                    bestAnalogRouteVerified ? "fully_verified" : "gpio_ok_but_analog_unhealthy");
             if (!bestAnalogRouteVerified) {
-                printf("DBGFDC_S5D5,stage=lock_failed,reason=analog_route_unhealthy,healthClass=%s,rejectReason=%s,"
-                       "score=%ld,status=error\n",
+                printf("DBGFDC_S5D5,stage=lock_failed_after_sweep,reason=candidate_analog_health_below_requirement,"
+                       "healthClass=%s,rejectReason=%s,score=%ld,status=error\n",
                        sensorarrayS5d5CandidateHealthClassName(bestCandidate.healthClass),
                        bestCandidate.rejectReason ? bestCandidate.rejectReason : SENSORARRAY_NA,
                        (long)bestCandidate.score);
@@ -2932,7 +3004,8 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                 continue;
             }
             if (bestCandidate.score < lockMinScore) {
-                printf("DBGFDC_S5D5,stage=lock_failed,reason=score_below_min,bestScore=%ld,minScore=%ld,status=error\n",
+                printf("DBGFDC_S5D5,stage=lock_failed_after_sweep,reason=score_below_minimum,bestScore=%ld,"
+                       "minScore=%ld,status=error\n",
                        (long)bestCandidate.score,
                        (long)lockMinScore);
                 sensorarrayDebugSelftestDelayMs(loopDelayMs);

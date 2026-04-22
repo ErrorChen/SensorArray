@@ -100,7 +100,7 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_RAW_SCALE_2P28 268435456.0
 
 // Drive current register uses CHx_IDRIVE [15:11]; reserved bits must stay clear.
-#define FDC2214_DRIVE_CURRENT_MASK 0xF800
+#define FDC2214_DRIVE_CURRENT_MASK FDC2214_CAP_DRIVE_CURRENT_MASK
 
 // Datasheet timing (FDC221x): sleep-to-active wake-up time typ/min requirement.
 #define FDC2214_SLEEP_WAKEUP_US 1000U
@@ -335,9 +335,37 @@ bool Fdc2214CapComputeSensorFrequencyHz(uint32_t raw28,
     return true;
 }
 
-static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)
+uint16_t Fdc2214CapMaskDriveCurrentRaw(uint16_t rawDriveCurrent)
 {
     return (uint16_t)(rawDriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
+}
+
+bool Fdc2214CapDriveStepToRaw(uint8_t step, uint16_t* outRawDriveCurrent)
+{
+    if (!outRawDriveCurrent || step > FDC2214_CAP_DRIVE_STEP_MAX) {
+        return false;
+    }
+    *outRawDriveCurrent = (uint16_t)(((uint16_t)(step & 0x1Fu)) << 11u);
+    return true;
+}
+
+bool Fdc2214CapDriveRawToStep(uint16_t rawDriveCurrent, uint8_t* outStep, uint16_t* outMaskedRawDriveCurrent)
+{
+    uint16_t masked = Fdc2214CapMaskDriveCurrentRaw(rawDriveCurrent);
+    if (outMaskedRawDriveCurrent) {
+        *outMaskedRawDriveCurrent = masked;
+    }
+
+    uint8_t step = (uint8_t)((masked >> 11u) & 0x1Fu);
+    if (outStep) {
+        *outStep = step;
+    }
+    return true;
+}
+
+static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)
+{
+    return Fdc2214CapMaskDriveCurrentRaw(rawDriveCurrent);
 }
 
 static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)
@@ -856,8 +884,14 @@ esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
     }
 
     uint16_t driveCurrent = Fdc2214CapNormalizeDriveCurrent(cfg->DriveCurrent);
+    uint8_t driveStep = 0U;
+    (void)Fdc2214CapDriveRawToStep(driveCurrent, &driveStep, NULL);
     if (driveCurrent != cfg->DriveCurrent) {
-        ESP_LOGW(TAG, "Drive current masked to 0x%04X to clear reserved bits", driveCurrent);
+        ESP_LOGW(TAG,
+                 "Drive current sanitized: reqRaw=0x%04X maskedRaw=0x%04X driveStep=%u",
+                 cfg->DriveCurrent,
+                 driveCurrent,
+                 (unsigned)driveStep);
     }
 
     err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
@@ -904,12 +938,15 @@ esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
     }
 
     ESP_LOGI(TAG,
-             "Configured CH%d rcount=0x%04X settle=0x%04X offset=0x%04X clock=0x%04X drive=0x%04X",
+             "Configured CH%d rcount=0x%04X settle=0x%04X offset=0x%04X clock=0x%04X "
+             "driveStep=%u driveRawReq=0x%04X driveRawMasked=0x%04X",
              (int)ch,
              cfg->Rcount,
              cfg->SettleCount,
              cfg->Offset,
              clockDividers,
+             (unsigned)driveStep,
+             cfg->DriveCurrent,
              driveCurrent);
     return ESP_OK;
 }
@@ -990,12 +1027,19 @@ esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* de
     uint16_t expectedDriveMasked = (uint16_t)(expectedDriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
     uint16_t readDriveMasked = (uint16_t)(driveReadback & FDC2214_DRIVE_CURRENT_MASK);
     if (readDriveMasked != expectedDriveMasked) {
+        uint8_t expectedStep = 0U;
+        uint8_t readStep = 0U;
+        (void)Fdc2214CapDriveRawToStep(expectedDriveMasked, &expectedStep, NULL);
+        (void)Fdc2214CapDriveRawToStep(readDriveMasked, &readStep, NULL);
         ESP_LOGW(TAG,
-                 "CH%d DRIVE_CURRENT IDRIVE mismatch reg 0x%02X expected(masked)=0x%04X got(masked)=0x%04X raw=0x%04X",
+                 "CH%d DRIVE_CURRENT IDRIVE mismatch reg 0x%02X expected(masked)=0x%04X(step=%u) "
+                 "got(masked)=0x%04X(step=%u) raw=0x%04X",
                  (int)ch,
                  Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
                  expectedDriveMasked,
+                 (unsigned)expectedStep,
                  readDriveMasked,
+                 (unsigned)readStep,
                  driveReadback);
         if (outResult) {
             *outResult = FDC2214_CHANNEL_VERIFY_RESULT_WARN_DRIVE_CURRENT_MISMATCH;
@@ -1222,6 +1266,20 @@ esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint
 {
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (reg >= FDC2214_REG_DRIVE_CURRENT_BASE && reg <= (uint8_t)(FDC2214_REG_DRIVE_CURRENT_BASE + 3u)) {
+        uint16_t masked = Fdc2214CapMaskDriveCurrentRaw(value);
+        if (masked != value) {
+            uint8_t step = 0U;
+            (void)Fdc2214CapDriveRawToStep(masked, &step, NULL);
+            ESP_LOGW(TAG,
+                     "Raw DRIVE_CURRENT write sanitized reg=0x%02X reqRaw=0x%04X maskedRaw=0x%04X step=%u",
+                     reg,
+                     value,
+                     masked,
+                     (unsigned)step);
+        }
+        value = masked;
     }
     return Fdc2214CapWriteReg16(dev, reg, value);
 }
