@@ -24,6 +24,36 @@ typedef struct {
     uint32_t FrequencyHz;
 } BoardSupportI2cBusInfo_t;
 
+typedef enum {
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE = 0,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_DURING_TRANSFER,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW_AFTER_PULSE,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_GPIO_CONFIG_FAILED,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_REINIT,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_RECOVER,
+} BoardSupportI2cRecoveryReason_t;
+
+typedef struct {
+    bool Valid;
+    i2c_port_t Port;
+    BoardSupportI2cRecoveryReason_t Reason;
+    esp_err_t LastTransferErr;
+    esp_err_t LastRecoverErr;
+    esp_err_t LastReinitErr;
+    uint32_t FailureStreak;
+    bool RecoverAttempted;
+    bool RecoverFailed;
+    bool ReinitAttempted;
+    bool ReinitSucceeded;
+    int SclHigh;
+    int SdaHigh;
+} BoardSupportI2cRecoveryStatus_t;
+
 // Initialize board-level buses (I2C primary and optional secondary).
 esp_err_t boardSupportInit(void);
 // Deinitialize buses initialized by boardSupportInit.
@@ -61,6 +91,13 @@ esp_err_t boardSupportI2cCheckLines(const BoardSupportI2cCtx_t *i2cCtx,
 esp_err_t boardSupportI2cReinit(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
 // Attempt stuck-bus recovery (9 SCL pulses + STOP) and reinitialize the driver.
 esp_err_t boardSupportI2cRecoverBus(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
+
+// Returns latest recovery-related status captured for this bus.
+bool boardSupportI2cGetLastRecoveryStatus(const BoardSupportI2cCtx_t *i2cCtx,
+                                          BoardSupportI2cRecoveryStatus_t *outStatus);
+
+// Returns text name for recovery-reason enum.
+const char *boardSupportI2cRecoveryReasonName(BoardSupportI2cRecoveryReason_t reason);
 
 // Probe I2C address with a START + address byte + STOP transaction.
 esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7);
