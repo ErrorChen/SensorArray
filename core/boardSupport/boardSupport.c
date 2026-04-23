@@ -41,12 +41,17 @@ static uint32_t s_i2c0_failure_streak = 0u;
 static uint32_t s_i2c1_failure_streak = 0u;
 static uint32_t s_i2c0_warn_log_counter = 0u;
 static uint32_t s_i2c1_warn_log_counter = 0u;
+static uint32_t s_i2c0_bus_generation = 1u;
+static uint32_t s_i2c1_bus_generation = 1u;
+static bool s_i2c0_recovering = false;
+static bool s_i2c1_recovering = false;
 static SemaphoreHandle_t s_i2c0_mutex = NULL;
 static SemaphoreHandle_t s_i2c1_mutex = NULL;
 static BoardSupportI2cRecoveryStatus_t s_i2c0_recovery_status = {
     .Valid = false,
     .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
     .Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE,
+    .RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE,
     .LastTransferErr = ESP_OK,
     .LastRecoverErr = ESP_OK,
     .LastReinitErr = ESP_OK,
@@ -55,13 +60,20 @@ static BoardSupportI2cRecoveryStatus_t s_i2c0_recovery_status = {
     .RecoverFailed = false,
     .ReinitAttempted = false,
     .ReinitSucceeded = false,
+    .DeleteAttempted = false,
+    .DeleteErr = ESP_OK,
+    .InitAttempted = false,
+    .InitErr = ESP_OK,
+    .PulsesIssued = 0u,
     .SclHigh = -1,
     .SdaHigh = -1,
+    .BusGeneration = 1u,
 };
 static BoardSupportI2cRecoveryStatus_t s_i2c1_recovery_status = {
     .Valid = false,
     .Port = (i2c_port_t)CONFIG_BOARD_I2C1_PORT,
     .Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE,
+    .RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE,
     .LastTransferErr = ESP_OK,
     .LastRecoverErr = ESP_OK,
     .LastReinitErr = ESP_OK,
@@ -70,8 +82,14 @@ static BoardSupportI2cRecoveryStatus_t s_i2c1_recovery_status = {
     .RecoverFailed = false,
     .ReinitAttempted = false,
     .ReinitSucceeded = false,
+    .DeleteAttempted = false,
+    .DeleteErr = ESP_OK,
+    .InitAttempted = false,
+    .InitErr = ESP_OK,
+    .PulsesIssued = 0u,
     .SclHigh = -1,
     .SdaHigh = -1,
+    .BusGeneration = 1u,
 };
 
 static BoardSupportI2cCtx_t s_i2c0_ctx = {
@@ -95,6 +113,8 @@ typedef struct {
     uint32_t *configuredFreqHz;
     uint32_t *failureStreak;
     uint32_t *warnLogCounter;
+    uint32_t *busGeneration;
+    bool *recoveringFlag;
     SemaphoreHandle_t *busMutex;
     const char *name;
 } boardSupportI2cPortConfig_t;
@@ -106,70 +126,119 @@ typedef esp_err_t (*boardSupportI2cTransferFn_t)(const BoardSupportI2cCtx_t *ctx
                                                  uint8_t *rx,
                                                  size_t rxLen);
 
-const char *boardSupportI2cRecoveryReasonName(BoardSupportI2cRecoveryReason_t reason)
+const char *boardSupportI2cRecoverReasonToString(BoardSupportI2cRecoveryReason_t reason)
 {
     switch (reason) {
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT:
+        return "startup_soft_reinit";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK:
+        return "single_nack";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK:
+        return "repeated_nack";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT:
+        return "timeout";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW:
+        return "line_stuck_low";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE:
+        return "controller_state";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST:
+        return "manual_user_request";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK:
-        return "preop_line_stuck";
-    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT:
-        return "transfer_timeout";
-    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK:
-        return "transfer_error_streak";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_DURING_TRANSFER:
-        return "line_stuck_during_transfer";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW:
-        return "recover_scl_held_low";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW_AFTER_PULSE:
-        return "recover_scl_held_low_after_pulse";
-    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT:
-        return "recover_fail_driver_reinit";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_GPIO_CONFIG_FAILED:
-        return "recover_gpio_config_failed";
+        return "line_stuck_low";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT:
+        return "timeout";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK:
+        return "repeated_nack";
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT:
+        return "controller_state";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_REINIT:
-        return "manual_reinit";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_RECOVER:
-        return "manual_recover";
+        return "manual_user_request";
     case BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE:
     default:
         return "none";
     }
 }
 
+const char *boardSupportI2cRecoveryReasonName(BoardSupportI2cRecoveryReason_t reason)
+{
+    return boardSupportI2cRecoverReasonToString(reason);
+}
+
+static const char *boardSupportI2cRecoveryLevelName(BoardSupportI2cRecoveryLevel_t level)
+{
+    switch (level) {
+    case BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE:
+        return "none";
+    case BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY:
+        return "controller_only";
+    case BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY:
+        return "line_recovery";
+    case BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL:
+        return "driver_reinstall";
+    default:
+        return "unknown";
+    }
+}
+
 static BoardSupportI2cRecoveryReason_t boardSupportI2cRecoveryReasonFromLabel(const char *reason,
                                                                                BoardSupportI2cRecoveryReason_t fallback)
 {
-    if (!reason) {
+    if (!reason || reason[0] == '\0') {
         return fallback;
     }
-    if (strcmp(reason, "preop_line_stuck") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK;
+    if (strcmp(reason, "startup_soft_reinit") == 0 || strcmp(reason, "s5d5_secondary_reinit") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT;
     }
-    if (strcmp(reason, "transfer_timeout") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT;
+    if (strcmp(reason, "single_nack") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK;
     }
-    if (strcmp(reason, "transfer_error_streak") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK;
+    if (strcmp(reason, "repeated_nack") == 0 || strcmp(reason, "transfer_error_streak") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK;
     }
-    if (strcmp(reason, "line_stuck_during_transfer") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_DURING_TRANSFER;
+    if (strcmp(reason, "timeout") == 0 || strcmp(reason, "transfer_timeout") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT;
     }
-    if (strcmp(reason, "recover_scl_held_low") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW;
+    if (strcmp(reason, "line_stuck_low") == 0 ||
+        strcmp(reason, "line_stuck_during_transfer") == 0 ||
+        strcmp(reason, "preop_line_stuck") == 0 ||
+        strcmp(reason, "recover_scl_held_low") == 0 ||
+        strcmp(reason, "recover_scl_held_low_after_pulse") == 0 ||
+        strcmp(reason, "recover_gpio_config_failed") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW;
     }
-    if (strcmp(reason, "recover_scl_held_low_after_pulse") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW_AFTER_PULSE;
+    if (strcmp(reason, "controller_state") == 0 || strcmp(reason, "recover_fail_driver_reinit") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE;
     }
-    if (strcmp(reason, "recover_fail_driver_reinit") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT;
+    if (strcmp(reason, "manual_user_request") == 0 ||
+        strcmp(reason, "manual_reinit") == 0 ||
+        strcmp(reason, "manual_recover") == 0) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST;
     }
-    if (strcmp(reason, "recover_gpio_config_failed") == 0) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_GPIO_CONFIG_FAILED;
+    if (strstr(reason, "stuck") != NULL || strstr(reason, "scl_held_low") != NULL || strstr(reason, "sda_held_low") != NULL) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW;
     }
-    if (strstr(reason, "recover") != NULL) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_RECOVER;
+    if (strstr(reason, "timeout") != NULL) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT;
+    }
+    if (strstr(reason, "nack") != NULL) {
+        if (strstr(reason, "repeated") != NULL || strstr(reason, "streak") != NULL) {
+            return BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK;
+        }
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK;
+    }
+    if (strstr(reason, "controller") != NULL) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE;
     }
     if (strstr(reason, "reinit") != NULL) {
-        return BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_REINIT;
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT;
+    }
+    if (strstr(reason, "manual") != NULL || strstr(reason, "user") != NULL || strstr(reason, "recover") != NULL) {
+        return BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST;
     }
     return fallback;
 }
@@ -271,6 +340,8 @@ static bool boardSupportResolveI2cPort(const BoardSupportI2cCtx_t *i2cCtx, board
             .configuredFreqHz = &s_i2c0_configured_freq_hz,
             .failureStreak = &s_i2c0_failure_streak,
             .warnLogCounter = &s_i2c0_warn_log_counter,
+            .busGeneration = &s_i2c0_bus_generation,
+            .recoveringFlag = &s_i2c0_recovering,
             .busMutex = &s_i2c0_mutex,
             .name = "I2C0",
         };
@@ -289,6 +360,8 @@ static bool boardSupportResolveI2cPort(const BoardSupportI2cCtx_t *i2cCtx, board
             .configuredFreqHz = &s_i2c1_configured_freq_hz,
             .failureStreak = &s_i2c1_failure_streak,
             .warnLogCounter = &s_i2c1_warn_log_counter,
+            .busGeneration = &s_i2c1_bus_generation,
+            .recoveringFlag = &s_i2c1_recovering,
             .busMutex = &s_i2c1_mutex,
             .name = "I2C1",
         };
@@ -317,10 +390,17 @@ static void boardSupportRecoveryStatusReset(BoardSupportI2cRecoveryStatus_t *sta
     if (!status) {
         return;
     }
+    uint32_t generation = 0u;
+    if (port == (i2c_port_t)CONFIG_BOARD_I2C_PORT) {
+        generation = s_i2c0_bus_generation;
+    } else if (port == (i2c_port_t)CONFIG_BOARD_I2C1_PORT) {
+        generation = s_i2c1_bus_generation;
+    }
     *status = (BoardSupportI2cRecoveryStatus_t){
         .Valid = true,
         .Port = port,
         .Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE,
+        .RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE,
         .LastTransferErr = ESP_OK,
         .LastRecoverErr = ESP_OK,
         .LastReinitErr = ESP_OK,
@@ -329,8 +409,14 @@ static void boardSupportRecoveryStatusReset(BoardSupportI2cRecoveryStatus_t *sta
         .RecoverFailed = false,
         .ReinitAttempted = false,
         .ReinitSucceeded = false,
+        .DeleteAttempted = false,
+        .DeleteErr = ESP_OK,
+        .InitAttempted = false,
+        .InitErr = ESP_OK,
+        .PulsesIssued = 0u,
         .SclHigh = -1,
         .SdaHigh = -1,
+        .BusGeneration = generation,
     };
 }
 
@@ -417,58 +503,381 @@ static esp_err_t boardSupportConfigureRecoveryPins(const boardSupportI2cPortConf
     return ESP_OK;
 }
 
-static esp_err_t boardSupportI2cReinitLocked(const boardSupportI2cPortConfig_t *cfg, const char *reason)
+static void boardSupportI2cRecoveryResultInit(BoardSupportI2cRecoveryResult_t *result,
+                                              const boardSupportI2cPortConfig_t *cfg,
+                                              BoardSupportI2cRecoveryReason_t reason,
+                                              BoardSupportI2cRecoveryLevel_t requestedLevel)
+{
+    if (!result || !cfg) {
+        return;
+    }
+    *result = (BoardSupportI2cRecoveryResult_t){
+        .Reason = reason,
+        .Port = cfg->port,
+        .RequestedLevel = requestedLevel,
+        .AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE,
+        .PreSclHigh = -1,
+        .PreSdaHigh = -1,
+        .PulsesIssued = 0u,
+        .DeleteAttempted = false,
+        .DeleteErr = ESP_OK,
+        .InitAttempted = false,
+        .InitErr = ESP_OK,
+        .PostSclHigh = -1,
+        .PostSdaHigh = -1,
+        .Success = false,
+        .BusGenerationAfter = cfg->busGeneration ? *cfg->busGeneration : 0u,
+    };
+}
+
+static void boardSupportI2cUpdateStatusFromResult(BoardSupportI2cRecoveryStatus_t *status,
+                                                  const BoardSupportI2cRecoveryResult_t *result,
+                                                  esp_err_t recoverErr)
+{
+    if (!status || !result) {
+        return;
+    }
+    status->Valid = true;
+    status->Port = result->Port;
+    status->Reason = result->Reason;
+    status->RecoveryLevel = result->AttemptedLevel;
+    status->RecoverAttempted = (result->AttemptedLevel != BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE);
+    status->RecoverFailed = !result->Success;
+    status->LastRecoverErr = recoverErr;
+    status->ReinitAttempted = result->AttemptedLevel == BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+    status->ReinitSucceeded = status->ReinitAttempted && result->Success;
+    status->DeleteAttempted = result->DeleteAttempted;
+    status->DeleteErr = result->DeleteErr;
+    status->InitAttempted = result->InitAttempted;
+    status->InitErr = result->InitErr;
+    status->LastReinitErr = result->InitAttempted ? result->InitErr : ESP_OK;
+    status->PulsesIssued = result->PulsesIssued;
+    status->SclHigh = result->PostSclHigh;
+    status->SdaHigh = result->PostSdaHigh;
+    status->BusGeneration = result->BusGenerationAfter;
+}
+
+static BoardSupportI2cRecoveryLevel_t boardSupportI2cDefaultLevelForReason(BoardSupportI2cRecoveryReason_t reason)
+{
+    switch (reason) {
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK:
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_DURING_TRANSFER:
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW:
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW_AFTER_PULSE:
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_GPIO_CONFIG_FAILED:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_REINIT:
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_RECOVER:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+    case BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE:
+    default:
+        return BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+    }
+}
+
+static esp_err_t boardSupportI2cControllerRecoverLocked(const boardSupportI2cPortConfig_t *cfg)
+{
+    if (!cfg || !cfg->valid) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t txErr = i2c_reset_tx_fifo(cfg->port);
+    esp_err_t rxErr = i2c_reset_rx_fifo(cfg->port);
+    if (txErr != ESP_OK) {
+        return txErr;
+    }
+    if (rxErr != ESP_OK) {
+        return rxErr;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t boardSupportI2cLineRecoverLocked(const boardSupportI2cPortConfig_t *cfg,
+                                                  BoardSupportI2cRecoveryResult_t *result)
+{
+    if (!cfg || !result) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    bool preHighHigh = (result->PreSclHigh == 1) && (result->PreSdaHigh == 1);
+    if (preHighHigh) {
+        return ESP_OK;
+    }
+
+    esp_err_t pinErr = boardSupportConfigureRecoveryPins(cfg);
+    if (pinErr != ESP_OK) {
+        return pinErr;
+    }
+
+    bool sclAfterRelease = gpio_get_level((gpio_num_t)cfg->sclGpio) != 0;
+    bool sdaAfterRelease = gpio_get_level((gpio_num_t)cfg->sdaGpio) != 0;
+    if (!sclAfterRelease) {
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (!sdaAfterRelease) {
+        for (uint32_t i = 0u; i < BOARD_SUPPORT_I2C_RECOVERY_PULSE_COUNT; ++i) {
+            gpio_set_level((gpio_num_t)cfg->sclGpio, 0);
+            esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
+            gpio_set_level((gpio_num_t)cfg->sclGpio, 1);
+            esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
+            result->PulsesIssued = i + 1u;
+            if (gpio_get_level((gpio_num_t)cfg->sdaGpio) != 0) {
+                break;
+            }
+        }
+    }
+
+    gpio_set_level((gpio_num_t)cfg->sdaGpio, 0);
+    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
+    gpio_set_level((gpio_num_t)cfg->sclGpio, 1);
+    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
+    gpio_set_level((gpio_num_t)cfg->sdaGpio, 1);
+    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
+
+    esp_err_t pinRestoreErr = i2c_set_pin(cfg->port,
+                                          cfg->sdaGpio,
+                                          cfg->sclGpio,
+                                          GPIO_PULLUP_ENABLE,
+                                          GPIO_PULLUP_ENABLE,
+                                          I2C_MODE_MASTER);
+    if (pinRestoreErr != ESP_OK) {
+        return pinRestoreErr;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t boardSupportI2cDriverReinstallLocked(const boardSupportI2cPortConfig_t *cfg,
+                                                      BoardSupportI2cRecoveryResult_t *result)
+{
+    if (!cfg || !result || !cfg->initedFlag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (cfg->busGeneration) {
+        (*cfg->busGeneration)++;
+        result->BusGenerationAfter = *cfg->busGeneration;
+    }
+
+    result->DeleteAttempted = true;
+    result->DeleteErr = i2c_driver_delete(cfg->port);
+    if (result->DeleteErr != ESP_OK && result->DeleteErr != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG,
+                 "%s driver_reinstall delete_state=unexpected_failure deleteErr=%d",
+                 cfg->name ? cfg->name : "I2C",
+                 result->DeleteErr);
+        *cfg->initedFlag = false;
+        return result->DeleteErr;
+    }
+    ESP_LOGW(TAG,
+             "%s driver_reinstall delete_state=%s deleteErr=%d",
+             cfg->name ? cfg->name : "I2C",
+             (result->DeleteErr == ESP_ERR_INVALID_STATE) ? "driver_absent" : "delete_ok",
+             result->DeleteErr);
+    *cfg->initedFlag = false;
+
+    result->InitAttempted = true;
+    result->InitErr = boardSupportInitI2c(cfg->port,
+                                          cfg->sdaGpio,
+                                          cfg->sclGpio,
+                                          cfg->requestedFreqHz,
+                                          cfg->configuredFreqHz);
+    if (result->InitErr != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "%s driver_reinstall init_state=failed initErr=%d deleteErr=%d",
+                 cfg->name ? cfg->name : "I2C",
+                 result->InitErr,
+                 result->DeleteErr);
+        return result->InitErr;
+    }
+    ESP_LOGW(TAG,
+             "%s driver_reinstall init_state=ok initErr=%d deleteErr=%d",
+             cfg->name ? cfg->name : "I2C",
+             result->InitErr,
+             result->DeleteErr);
+    *cfg->initedFlag = true;
+    if (cfg->failureStreak) {
+        *cfg->failureStreak = 0u;
+    }
+    if (cfg->warnLogCounter) {
+        *cfg->warnLogCounter = 0u;
+    }
+    return ESP_OK;
+}
+
+static void boardSupportI2cLogRecoverSummary(const boardSupportI2cPortConfig_t *cfg,
+                                             const BoardSupportI2cRecoveryResult_t *result,
+                                             esp_err_t err)
+{
+    if (!cfg || !result) {
+        return;
+    }
+    printf("BSI2C_RECOVER_SUMMARY,port=%d,reason=%s,level=%s,preScl=%d,preSda=%d,pulses=%lu,"
+           "deleteAttempted=%u,deleteErr=%ld,initAttempted=%u,initErr=%ld,postScl=%d,postSda=%d,"
+           "success=%u,busGeneration=%lu,err=%ld\n",
+           (int)cfg->port,
+           boardSupportI2cRecoverReasonToString(result->Reason),
+           boardSupportI2cRecoveryLevelName(result->AttemptedLevel),
+           result->PreSclHigh,
+           result->PreSdaHigh,
+           (unsigned long)result->PulsesIssued,
+           result->DeleteAttempted ? 1u : 0u,
+           (long)result->DeleteErr,
+           result->InitAttempted ? 1u : 0u,
+           (long)result->InitErr,
+           result->PostSclHigh,
+           result->PostSdaHigh,
+           result->Success ? 1u : 0u,
+           (unsigned long)result->BusGenerationAfter,
+           (long)err);
+}
+
+static esp_err_t boardSupportI2cRecoverLocked(const boardSupportI2cPortConfig_t *cfg,
+                                              BoardSupportI2cRecoveryReason_t reason,
+                                              BoardSupportI2cRecoveryLevel_t requestedLevel,
+                                              BoardSupportI2cRecoveryResult_t *outResult)
 {
     if (!cfg || !cfg->valid || !cfg->enabled || !cfg->initedFlag) {
         return ESP_ERR_INVALID_ARG;
     }
 
+    BoardSupportI2cRecoveryResult_t localResult = {0};
+    boardSupportI2cRecoveryResultInit(&localResult, cfg, reason, requestedLevel);
+    if (outResult) {
+        *outResult = localResult;
+    }
+
+    if (cfg->recoveringFlag && *cfg->recoveringFlag) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (cfg->recoveringFlag) {
+        *cfg->recoveringFlag = true;
+    }
+
+    esp_err_t err = ESP_OK;
+    bool sclHigh = true;
+    bool sdaHigh = true;
+    if (boardSupportI2cCheckLinesLocked(cfg, &sclHigh, &sdaHigh) == ESP_OK) {
+        localResult.PreSclHigh = sclHigh ? 1 : 0;
+        localResult.PreSdaHigh = sdaHigh ? 1 : 0;
+    }
+
+    bool preHighHigh = (localResult.PreSclHigh == 1) && (localResult.PreSdaHigh == 1);
+    BoardSupportI2cRecoveryLevel_t effectiveLevel = requestedLevel;
+    bool forceDriverReinstall =
+        (reason == BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE) &&
+        (requestedLevel >= BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL);
+    if (effectiveLevel == BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE) {
+        effectiveLevel = boardSupportI2cDefaultLevelForReason(reason);
+    }
+
+    if (preHighHigh && reason == BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT) {
+        effectiveLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+    }
+    if (preHighHigh &&
+        effectiveLevel >= BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY &&
+        reason != BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE &&
+        reason != BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST) {
+        /*
+         * Idle-high means the bus is electrically free. Do not force GPIO line
+         * pulsing or immediate driver reinstall in this state.
+         */
+        effectiveLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+    }
+
+    if (effectiveLevel == BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE) {
+        localResult.AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+        err = ESP_OK;
+    } else if (!preHighHigh &&
+               reason == BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW &&
+               effectiveLevel >= BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY) {
+        localResult.AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+        err = boardSupportI2cLineRecoverLocked(cfg, &localResult);
+    } else {
+        localResult.AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+        err = boardSupportI2cControllerRecoverLocked(cfg);
+        if (err != ESP_OK &&
+            effectiveLevel >= BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY &&
+            !preHighHigh) {
+            localResult.AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+            err = boardSupportI2cLineRecoverLocked(cfg, &localResult);
+        }
+    }
+
+    if ((forceDriverReinstall || err != ESP_OK) &&
+        requestedLevel >= BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL) {
+        localResult.AttemptedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL;
+        err = boardSupportI2cDriverReinstallLocked(cfg, &localResult);
+    }
+
+    bool sclAfter = true;
+    bool sdaAfter = true;
+    if (boardSupportI2cCheckLinesLocked(cfg, &sclAfter, &sdaAfter) == ESP_OK) {
+        localResult.PostSclHigh = sclAfter ? 1 : 0;
+        localResult.PostSdaHigh = sdaAfter ? 1 : 0;
+    } else {
+        localResult.PostSclHigh = -1;
+        localResult.PostSdaHigh = -1;
+    }
+    if (cfg->busGeneration) {
+        localResult.BusGenerationAfter = *cfg->busGeneration;
+    }
+    localResult.Success = (err == ESP_OK);
+    if (err == ESP_OK && cfg->failureStreak) {
+        *cfg->failureStreak = 0u;
+    }
+
     BoardSupportI2cRecoveryStatus_t *status = boardSupportRecoveryStatusForCfg(cfg);
+    boardSupportI2cUpdateStatusFromResult(status, &localResult, err);
     if (status) {
-        status->Valid = true;
-        status->Port = cfg->port;
-        status->Reason = boardSupportI2cRecoveryReasonFromLabel(reason,
-                                                                BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_REINIT);
-        status->ReinitAttempted = true;
-        status->ReinitSucceeded = false;
-        status->LastReinitErr = ESP_FAIL;
+        status->FailureStreak = cfg->failureStreak ? *cfg->failureStreak : 0u;
     }
+    boardSupportI2cLogRecoverSummary(cfg, &localResult, err);
 
-    esp_err_t deleteErr = i2c_driver_delete(cfg->port);
-    if (deleteErr != ESP_OK && deleteErr != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "%s delete before reinit failed: %d", cfg->name, deleteErr);
+    if (cfg->recoveringFlag) {
+        *cfg->recoveringFlag = false;
     }
-    *cfg->initedFlag = false;
+    if (outResult) {
+        *outResult = localResult;
+    }
+    return err;
+}
 
-    esp_err_t err = boardSupportInitI2c(cfg->port,
-                                        cfg->sdaGpio,
-                                        cfg->sclGpio,
-                                        cfg->requestedFreqHz,
-                                        cfg->configuredFreqHz);
-    if (err == ESP_OK) {
-        *cfg->initedFlag = true;
-        if (cfg->failureStreak) {
-            *cfg->failureStreak = 0u;
-        }
-        if (cfg->warnLogCounter) {
-            *cfg->warnLogCounter = 0u;
-        }
-        if (status) {
-            status->ReinitSucceeded = true;
-            status->FailureStreak = 0u;
-        }
-    }
-    if (status) {
-        status->LastReinitErr = err;
-    }
-
+static esp_err_t boardSupportI2cReinitLocked(const boardSupportI2cPortConfig_t *cfg, const char *reason)
+{
+    BoardSupportI2cRecoveryReason_t reasonEnum =
+        boardSupportI2cRecoveryReasonFromLabel(reason, BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST);
+    BoardSupportI2cRecoveryResult_t result = {0};
+    esp_err_t err = boardSupportI2cRecoverLocked(cfg,
+                                                 reasonEnum,
+                                                 BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL,
+                                                 &result);
     ESP_LOGW(TAG,
-             "%s reinit reason=%s deleteErr=%d initErr=%d freqHz=%u status=%s",
-             cfg->name,
-             reason ? reason : "na",
-             deleteErr,
-             err,
-             (unsigned)(cfg->configuredFreqHz ? *cfg->configuredFreqHz : cfg->requestedFreqHz),
+             "%s reinit reason=%s deleteAttempted=%u deleteErr=%d initAttempted=%u initErr=%d freqHz=%u status=%s",
+             cfg ? cfg->name : "I2C",
+             boardSupportI2cRecoverReasonToString(reasonEnum),
+             result.DeleteAttempted ? 1 : 0,
+             result.DeleteErr,
+             result.InitAttempted ? 1 : 0,
+             result.InitErr,
+             (unsigned)(cfg && cfg->configuredFreqHz ? *cfg->configuredFreqHz : 0u),
              (err == ESP_OK) ? "reinit_ok" : "reinit_failed");
     return err;
 }
@@ -477,226 +886,17 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
                                                  const char *reason,
                                                  uint32_t *outPulsesIssued)
 {
-    if (!cfg || !cfg->valid || !cfg->enabled || !cfg->initedFlag) {
-        return ESP_ERR_INVALID_ARG;
-    }
+    BoardSupportI2cRecoveryReason_t reasonEnum =
+        boardSupportI2cRecoveryReasonFromLabel(reason, BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW);
+    BoardSupportI2cRecoveryResult_t result = {0};
+    esp_err_t err = boardSupportI2cRecoverLocked(cfg,
+                                                 reasonEnum,
+                                                 BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY,
+                                                 &result);
     if (outPulsesIssued) {
-        *outPulsesIssued = 0u;
+        *outPulsesIssued = result.PulsesIssued;
     }
-
-    BoardSupportI2cRecoveryStatus_t *status = boardSupportRecoveryStatusForCfg(cfg);
-    BoardSupportI2cRecoveryReason_t reasonEnum = boardSupportI2cRecoveryReasonFromLabel(
-        reason,
-        BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_RECOVER);
-    if (status) {
-        status->Valid = true;
-        status->Port = cfg->port;
-        status->Reason = reasonEnum;
-        status->RecoverAttempted = true;
-        status->RecoverFailed = false;
-        status->ReinitAttempted = false;
-        status->ReinitSucceeded = false;
-        status->LastRecoverErr = ESP_FAIL;
-        status->LastReinitErr = ESP_OK;
-    }
-
-    bool sclBefore = true;
-    bool sdaBefore = true;
-    bool haveLinesBefore = (boardSupportI2cCheckLinesLocked(cfg, &sclBefore, &sdaBefore) == ESP_OK);
-    boardSupportRecoveryStatusUpdateLines(status, haveLinesBefore, sclBefore, sdaBefore);
-
-    ESP_LOGW(TAG,
-             "%s recover_attempt reason=%s sclBefore=%d sdaBefore=%d",
-             cfg->name,
-             reason ? reason : "na",
-             sclBefore ? 1 : 0,
-             sdaBefore ? 1 : 0);
-
-    esp_err_t deleteErr = i2c_driver_delete(cfg->port);
-    if (deleteErr != ESP_OK && deleteErr != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "%s delete before recover failed: %d", cfg->name, deleteErr);
-    }
-    *cfg->initedFlag = false;
-
-    esp_err_t pinErr = boardSupportConfigureRecoveryPins(cfg);
-    if (pinErr != ESP_OK) {
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_GPIO_CONFIG_FAILED;
-            status->LastRecoverErr = pinErr;
-            status->RecoverFailed = true;
-        }
-        ESP_LOGE(TAG, "%s recover failed: status=recover_gpio_config_failed err=%d", cfg->name, pinErr);
-        return pinErr;
-    }
-
-    bool sclAfterRelease = gpio_get_level((gpio_num_t)cfg->sclGpio) != 0;
-    bool sdaAfterRelease = gpio_get_level((gpio_num_t)cfg->sdaGpio) != 0;
-
-    // If SCL cannot be released high, no software pulse strategy can recover this bus.
-    if (!sclAfterRelease) {
-        esp_err_t reinitErr = boardSupportI2cReinitLocked(cfg, "recover_scl_held_low");
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW;
-            status->LastReinitErr = reinitErr;
-            status->RecoverFailed = true;
-            status->LastRecoverErr = (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
-            status->ReinitAttempted = true;
-            status->ReinitSucceeded = (reinitErr == ESP_OK);
-            status->SclHigh = 0;
-            status->SdaHigh = sdaAfterRelease ? 1 : 0;
-        }
-        ESP_LOGE(TAG,
-                 "%s recover failed: status=recover_fail_scl_held_low reason=%s reinitErr=%d",
-                 cfg->name,
-                 reason ? reason : "na",
-                 reinitErr);
-        if (outPulsesIssued) {
-            *outPulsesIssued = 0u;
-        }
-        return (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
-    }
-
-    uint32_t pulsesIssued = 0u;
-    if (!sdaAfterRelease) {
-        for (uint32_t i = 0u; i < BOARD_SUPPORT_I2C_RECOVERY_PULSE_COUNT; ++i) {
-            gpio_set_level((gpio_num_t)cfg->sclGpio, 0);
-            esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
-            gpio_set_level((gpio_num_t)cfg->sclGpio, 1);
-            esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
-            pulsesIssued = i + 1u;
-            if (gpio_get_level((gpio_num_t)cfg->sdaGpio) != 0) {
-                break;
-            }
-        }
-    }
-
-    // Attempt STOP condition while GPIO-open-drain mode is active.
-    gpio_set_level((gpio_num_t)cfg->sdaGpio, 0);
-    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
-    gpio_set_level((gpio_num_t)cfg->sclGpio, 1);
-    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
-    gpio_set_level((gpio_num_t)cfg->sdaGpio, 1);
-    esp_rom_delay_us(BOARD_SUPPORT_I2C_RECOVERY_HALF_PERIOD_US);
-
-    bool sclAfterPulse = gpio_get_level((gpio_num_t)cfg->sclGpio) != 0;
-    bool sdaAfterPulse = gpio_get_level((gpio_num_t)cfg->sdaGpio) != 0;
-
-    if (!sclAfterPulse) {
-        esp_err_t reinitErr = boardSupportI2cReinitLocked(cfg, "recover_scl_held_low_after_pulse");
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW_AFTER_PULSE;
-            status->LastReinitErr = reinitErr;
-            status->RecoverFailed = true;
-            status->LastRecoverErr = (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
-            status->ReinitAttempted = true;
-            status->ReinitSucceeded = (reinitErr == ESP_OK);
-            status->SclHigh = 0;
-            status->SdaHigh = sdaAfterPulse ? 1 : 0;
-        }
-        ESP_LOGE(TAG,
-                 "%s recover failed: status=recover_fail_scl_held_low reason=%s pulses=%lu reinitErr=%d",
-                 cfg->name,
-                 reason ? reason : "na",
-                 (unsigned long)pulsesIssued,
-                 reinitErr);
-        if (outPulsesIssued) {
-            *outPulsesIssued = pulsesIssued;
-        }
-        return (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
-    }
-
-    esp_err_t reinitErr = boardSupportI2cReinitLocked(cfg, reason ? reason : "bus_recover");
-    if (reinitErr != ESP_OK) {
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_FAIL_DRIVER_REINIT;
-            status->LastReinitErr = reinitErr;
-            status->RecoverFailed = true;
-            status->LastRecoverErr = reinitErr;
-            status->ReinitAttempted = true;
-            status->ReinitSucceeded = false;
-        }
-        ESP_LOGE(TAG,
-                 "%s recover failed: status=recover_fail_driver_reinit reason=%s err=%d",
-                 cfg->name,
-                 reason ? reason : "na",
-                 reinitErr);
-        if (outPulsesIssued) {
-            *outPulsesIssued = pulsesIssued;
-        }
-        return reinitErr;
-    }
-
-    bool sclAfterReinit = true;
-    bool sdaAfterReinit = true;
-    (void)boardSupportI2cCheckLinesLocked(cfg, &sclAfterReinit, &sdaAfterReinit);
-    if (!sclAfterReinit) {
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_RECOVER_SCL_HELD_LOW;
-            status->LastRecoverErr = ESP_ERR_TIMEOUT;
-            status->RecoverFailed = true;
-            status->ReinitAttempted = true;
-            status->ReinitSucceeded = true;
-            status->SclHigh = 0;
-            status->SdaHigh = sdaAfterReinit ? 1 : 0;
-        }
-        ESP_LOGE(TAG,
-                 "%s recover failed: status=recover_fail_scl_held_low reason=%s pulses=%lu sdaAfterReinit=%d",
-                 cfg->name,
-                 reason ? reason : "na",
-                 (unsigned long)pulsesIssued,
-                 sdaAfterReinit ? 1 : 0);
-        if (outPulsesIssued) {
-            *outPulsesIssued = pulsesIssued;
-        }
-        return ESP_ERR_TIMEOUT;
-    }
-
-    if (status) {
-        status->Reason = reasonEnum;
-        status->LastRecoverErr = ESP_OK;
-        status->RecoverFailed = false;
-        status->ReinitAttempted = true;
-        status->ReinitSucceeded = true;
-        status->LastReinitErr = ESP_OK;
-        status->FailureStreak = 0u;
-        status->SclHigh = sclAfterReinit ? 1 : 0;
-        status->SdaHigh = sdaAfterReinit ? 1 : 0;
-    }
-
-    ESP_LOGW(TAG,
-             "%s recover_success reason=%s pulses=%lu sclAfterRelease=%d sdaAfterRelease=%d "
-             "sclAfterPulse=%d sdaAfterPulse=%d sclAfterReinit=%d sdaAfterReinit=%d",
-             cfg->name,
-             reason ? reason : "na",
-             (unsigned long)pulsesIssued,
-             sclAfterRelease ? 1 : 0,
-             sdaAfterRelease ? 1 : 0,
-             sclAfterPulse ? 1 : 0,
-             sdaAfterPulse ? 1 : 0,
-             sclAfterReinit ? 1 : 0,
-             sdaAfterReinit ? 1 : 0);
-    if (outPulsesIssued) {
-        *outPulsesIssued = pulsesIssued;
-    }
-    return ESP_OK;
-}
-
-static bool boardSupportI2cShouldRecover(esp_err_t err,
-                                         uint32_t failureStreak,
-                                         bool sclHigh,
-                                         bool sdaHigh,
-                                         bool allowStreakRecover)
-{
-    if (!sclHigh || !sdaHigh) {
-        return true;
-    }
-    if (err == ESP_ERR_TIMEOUT) {
-        return true;
-    }
-    if (!allowStreakRecover) {
-        return false;
-    }
-    return failureStreak >= BOARD_SUPPORT_I2C_FAILURE_STREAK_TRIGGER;
+    return err;
 }
 
 static esp_err_t boardSupportI2cTransferWriteRead(const BoardSupportI2cCtx_t *ctx,
@@ -786,6 +986,7 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
         status->Valid = true;
         status->Port = cfg->port;
         status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE;
+        status->RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
         status->LastTransferErr = ESP_OK;
         status->LastRecoverErr = ESP_OK;
         status->LastReinitErr = ESP_OK;
@@ -793,6 +994,12 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
         status->RecoverFailed = false;
         status->ReinitAttempted = false;
         status->ReinitSucceeded = false;
+        status->DeleteAttempted = false;
+        status->DeleteErr = ESP_OK;
+        status->InitAttempted = false;
+        status->InitErr = ESP_OK;
+        status->PulsesIssued = 0u;
+        status->BusGeneration = cfg->busGeneration ? *cfg->busGeneration : 0u;
     }
 
     bool sclHigh = true;
@@ -800,12 +1007,10 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
     bool havePreopLines = (boardSupportI2cCheckLinesLocked(cfg, &sclHigh, &sdaHigh) == ESP_OK);
     boardSupportRecoveryStatusUpdateLines(status, havePreopLines, sclHigh, sdaHigh);
     if (havePreopLines && (!sclHigh || !sdaHigh)) {
-        if (status) {
-            status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK;
-            status->RecoverAttempted = true;
-            status->FailureStreak = cfg->failureStreak ? *cfg->failureStreak : 0u;
-        }
-        esp_err_t preRecoverErr = boardSupportI2cRecoverBusLocked(cfg, "preop_line_stuck", NULL);
+        esp_err_t preRecoverErr = boardSupportI2cRecoverLocked(cfg,
+                                                               BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW,
+                                                               BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY,
+                                                               NULL);
         if (preRecoverErr != ESP_OK) {
             if (status) {
                 status->LastRecoverErr = preRecoverErr;
@@ -828,11 +1033,13 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
             }
             if (status) {
                 status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE;
+                status->RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
                 status->LastTransferErr = ESP_OK;
                 status->FailureStreak = 0u;
                 status->RecoverFailed = false;
                 status->SclHigh = 1;
                 status->SdaHigh = 1;
+                status->BusGeneration = cfg->busGeneration ? *cfg->busGeneration : 0u;
             }
             return ESP_OK;
         }
@@ -842,21 +1049,24 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
         }
         bool haveLines = (boardSupportI2cCheckLinesLocked(cfg, &sclHigh, &sdaHigh) == ESP_OK);
         boardSupportRecoveryStatusUpdateLines(status, haveLines, sclHigh, sdaHigh);
-        bool shouldRecover = boardSupportI2cShouldRecover(err,
-                                                          cfg->failureStreak ? *cfg->failureStreak : 1u,
-                                                          haveLines ? sclHigh : true,
-                                                          haveLines ? sdaHigh : true,
-                                                          allowStreakRecover);
+        uint32_t failureStreak = cfg->failureStreak ? *cfg->failureStreak : 1u;
+        BoardSupportI2cRecoveryReason_t reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK;
+        BoardSupportI2cRecoveryLevel_t level = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
+        if (!haveLines || !sclHigh || !sdaHigh) {
+            reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW;
+            level = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+        } else if (err == ESP_ERR_TIMEOUT) {
+            reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT;
+            level = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+        } else if (allowStreakRecover && failureStreak >= BOARD_SUPPORT_I2C_FAILURE_STREAK_TRIGGER) {
+            reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK;
+            level = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+        }
         if (status) {
             status->LastTransferErr = err;
-            status->FailureStreak = cfg->failureStreak ? *cfg->failureStreak : 0u;
-            if (!haveLines || !sclHigh || !sdaHigh) {
-                status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_DURING_TRANSFER;
-            } else if (err == ESP_ERR_TIMEOUT) {
-                status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT;
-            } else {
-                status->Reason = BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK;
-            }
+            status->FailureStreak = failureStreak;
+            status->Reason = reason;
+            status->RecoveryLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE;
         }
 
         if (boardSupportShouldEmitRateLimited(cfg->warnLogCounter, BOARD_SUPPORT_I2C_WARN_LOG_STRIDE)) {
@@ -874,18 +1084,12 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
                      haveLines ? (sdaHigh ? 1 : 0) : -1);
         }
 
+        bool shouldRecover = (level != BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE);
         if (!shouldRecover || attempt >= BOARD_SUPPORT_I2C_TRANSACTION_RETRY_MAX) {
             break;
         }
 
-        const char *reason = (!haveLines || !sclHigh || !sdaHigh) ? "line_stuck_during_transfer"
-                                                                   : ((err == ESP_ERR_TIMEOUT) ? "transfer_timeout"
-                                                                                               : "transfer_error_streak");
-        if (status) {
-            status->RecoverAttempted = true;
-            status->Reason = boardSupportI2cRecoveryReasonFromLabel(reason, status->Reason);
-        }
-        esp_err_t recoverErr = boardSupportI2cRecoverBusLocked(cfg, reason, NULL);
+        esp_err_t recoverErr = boardSupportI2cRecoverLocked(cfg, reason, level, NULL);
         if (recoverErr != ESP_OK) {
             if (status) {
                 status->LastRecoverErr = recoverErr;
@@ -934,6 +1138,10 @@ esp_err_t boardSupportInit(void)
     s_i2c0_inited = true;
     s_i2c0_failure_streak = 0u;
     s_i2c0_warn_log_counter = 0u;
+    s_i2c0_recovering = false;
+    if (s_i2c0_bus_generation == 0u) {
+        s_i2c0_bus_generation = 1u;
+    }
     boardSupportRecoveryStatusReset(&s_i2c0_recovery_status, (i2c_port_t)CONFIG_BOARD_I2C_PORT);
     ESP_LOGI(TAG,
              "I2C0: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
@@ -964,6 +1172,10 @@ esp_err_t boardSupportInit(void)
         s_i2c1_inited = true;
         s_i2c1_failure_streak = 0u;
         s_i2c1_warn_log_counter = 0u;
+        s_i2c1_recovering = false;
+        if (s_i2c1_bus_generation == 0u) {
+            s_i2c1_bus_generation = 1u;
+        }
         boardSupportRecoveryStatusReset(&s_i2c1_recovery_status, (i2c_port_t)CONFIG_BOARD_I2C1_PORT);
         ESP_LOGI(TAG,
                  "I2C1: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
@@ -1005,6 +1217,8 @@ esp_err_t boardSupportDeinit(void)
     s_i2c1_failure_streak = 0u;
     s_i2c0_warn_log_counter = 0u;
     s_i2c1_warn_log_counter = 0u;
+    s_i2c0_recovering = false;
+    s_i2c1_recovering = false;
     s_i2c0_recovery_status.Valid = false;
     s_i2c1_recovery_status.Valid = false;
     if (s_i2c1_mutex) {
@@ -1134,6 +1348,58 @@ esp_err_t boardSupportI2cRecoverBus(const BoardSupportI2cCtx_t *i2cCtx, const ch
     return err;
 }
 
+esp_err_t boardSupportI2cRecover(const BoardSupportI2cCtx_t *i2cCtx,
+                                 BoardSupportI2cRecoveryReason_t reason,
+                                 BoardSupportI2cRecoveryLevel_t requestedLevel,
+                                 uint8_t addr7,
+                                 uint32_t failureStreakHint,
+                                 BoardSupportI2cRecoveryResult_t *outResult)
+{
+    (void)addr7;
+    (void)failureStreakHint;
+    if (!i2cCtx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    boardSupportI2cPortConfig_t cfg = {0};
+    if (!boardSupportResolveI2cPort(i2cCtx, &cfg) || !cfg.valid || !cfg.enabled || !cfg.initedFlag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t lockErr = boardSupportI2cLockPort(&cfg);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+    esp_err_t err = boardSupportI2cRecoverLocked(&cfg, reason, requestedLevel, outResult);
+    boardSupportI2cUnlockPort(&cfg);
+    return err;
+}
+
+esp_err_t boardSupportI2cGetPortGeneration(const BoardSupportI2cCtx_t *i2cCtx, uint32_t *outGeneration)
+{
+    if (!i2cCtx || !outGeneration) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    boardSupportI2cPortConfig_t cfg = {0};
+    if (!boardSupportResolveI2cPort(i2cCtx, &cfg) || !cfg.valid || !cfg.enabled || !cfg.busGeneration) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *outGeneration = *cfg.busGeneration;
+    return ESP_OK;
+}
+
+esp_err_t boardSupportI2cGetBusGeneration(void *userCtx, uint32_t *outGeneration)
+{
+    return boardSupportI2cGetPortGeneration((const BoardSupportI2cCtx_t *)userCtx, outGeneration);
+}
+
 esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
                                        uint8_t addr7,
                                        const char *reason,
@@ -1174,21 +1440,36 @@ esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
            (precheckErr == ESP_OK) ? (sclHigh ? 1 : 0) : -1,
            (precheckErr == ESP_OK) ? (sdaHigh ? 1 : 0) : -1,
            (long)precheckErr);
-    printf("DBGS5D5_I2C,stage=manual_recover_begin,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,failureStreak=%lu\n",
+
+    BoardSupportI2cRecoveryReason_t reasonEnum = boardSupportI2cRecoveryReasonFromLabel(
+        reason,
+        BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST);
+    BoardSupportI2cRecoveryLevel_t requestedLevel = boardSupportI2cDefaultLevelForReason(reasonEnum);
+    if (precheckErr == ESP_OK && (!sclHigh || !sdaHigh) &&
+        requestedLevel < BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY) {
+        requestedLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+    }
+
+    printf("DBGS5D5_I2C,stage=manual_recover_begin,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,reasonEnum=%s,"
+           "requestedLevel=%s,failureStreak=%lu\n",
            (int)cfg.port,
            cfg.sdaGpio,
            cfg.sclGpio,
            addr7,
            reason ? reason : "manual_recover",
+           boardSupportI2cRecoverReasonToString(reasonEnum),
+           boardSupportI2cRecoveryLevelName(requestedLevel),
            (unsigned long)failureStreak);
 
-    uint32_t pulsesIssued = 0u;
-    esp_err_t recoverErr = boardSupportI2cRecoverBusLocked(&cfg, reason ? reason : "manual_recover", &pulsesIssued);
+    BoardSupportI2cRecoveryResult_t recoverResult = {0};
+    esp_err_t recoverErr = boardSupportI2cRecoverLocked(&cfg, reasonEnum, requestedLevel, &recoverResult);
     BoardSupportI2cRecoveryStatus_t *status = boardSupportRecoveryStatusForCfg(&cfg);
     int reinitSucceeded = (status && status->ReinitSucceeded) ? 1 : 0;
     esp_err_t reinitErr = status ? status->LastReinitErr : ESP_OK;
 
-    if (recoverErr == ESP_OK && BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS > 0u) {
+    if (recoverErr == ESP_OK &&
+        recoverResult.AttemptedLevel != BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE &&
+        BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS > 0u) {
         printf("DBGS5D5_I2C,stage=post_recover_stabilize,port=%d,delayMs=%u\n",
                (int)cfg.port,
                (unsigned)BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS);
@@ -1196,16 +1477,21 @@ esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
     }
 
     printf("DBGS5D5_I2C,stage=manual_recover_end,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,failureStreak=%lu,"
-           "pulsesIssued=%lu,driverReinitResult=%d,reinitErr=%ld,err=%ld\n",
+           "level=%s,pulsesIssued=%lu,deleteAttempted=%u,deleteErr=%ld,driverReinitResult=%d,reinitErr=%ld,"
+           "busGeneration=%lu,err=%ld\n",
            (int)cfg.port,
            cfg.sdaGpio,
            cfg.sclGpio,
            addr7,
            reason ? reason : "manual_recover",
            (unsigned long)failureStreak,
-           (unsigned long)pulsesIssued,
+           boardSupportI2cRecoveryLevelName(recoverResult.AttemptedLevel),
+           (unsigned long)recoverResult.PulsesIssued,
+           recoverResult.DeleteAttempted ? 1u : 0u,
+           (long)recoverResult.DeleteErr,
            reinitSucceeded,
            (long)reinitErr,
+           (unsigned long)recoverResult.BusGenerationAfter,
            (long)recoverErr);
 
     boardSupportI2cUnlockPort(&cfg);

@@ -21,6 +21,7 @@
 #include "esp_log.h"
 
 static const char* TAG = "fdc2214Cap";
+static uint32_t s_fdc2214_instance_counter = 0u;
 
 // Register map notes (FDC2214):
 // 0x00..0x07: DATA_CH0..CH3 (MSB + status) and DATA_LSB_CHx
@@ -115,6 +116,12 @@ typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
     SemaphoreHandle_t mutex;
     Fdc2214CapTxnDiag_t txnDiag;
+    uint32_t busGenerationAtCreate;
+    bool valid;
+    uint32_t instanceId;
+    uint32_t consecutiveTransportFailures;
+    uint8_t lastFailedReg;
+    esp_err_t lastTransportErr;
 } Fdc2214CapDevice_t;
 
 static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)
@@ -375,6 +382,54 @@ static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)
     return (uint16_t)(statusConfig & FDC2214_STATUS_CONFIG_ALLOWED_MASK);
 }
 
+static esp_err_t Fdc2214CapReadBusGeneration(Fdc2214CapDevice_t* dev, uint32_t* outGeneration)
+{
+    if (!dev || !outGeneration) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!dev->bus.GetBusGeneration) {
+        *outGeneration = dev->busGenerationAtCreate;
+        return ESP_OK;
+    }
+    esp_err_t err = dev->bus.GetBusGeneration(dev->bus.UserCtx, outGeneration);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapEnsureDeviceFresh(Fdc2214CapDevice_t* dev, uint8_t regHint)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!dev->valid) {
+        ESP_LOGW(TAG,
+                 "fdcDev invalid instanceId=%lu addr=0x%02X reg=0x%02X",
+                 (unsigned long)dev->instanceId,
+                 (unsigned)dev->bus.I2cAddress7,
+                 (unsigned)regHint);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint32_t currentGeneration = dev->busGenerationAtCreate;
+    esp_err_t genErr = Fdc2214CapReadBusGeneration(dev, &currentGeneration);
+    if (genErr == ESP_OK &&
+        dev->busGenerationAtCreate != 0u &&
+        currentGeneration != dev->busGenerationAtCreate) {
+        dev->valid = false;
+        ESP_LOGW(TAG,
+                 "fdcDev stale due to busGeneration mismatch instanceId=%lu addr=0x%02X createGen=%lu currentGen=%lu reg=0x%02X",
+                 (unsigned long)dev->instanceId,
+                 (unsigned)dev->bus.I2cAddress7,
+                 (unsigned long)dev->busGenerationAtCreate,
+                 (unsigned long)currentGeneration,
+                 (unsigned)regHint);
+        return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_OK;
+}
+
 static void Fdc2214CapTxnMark(Fdc2214CapDevice_t* dev,
                               Fdc2214CapTxnOpKind_t opKind,
                               uint8_t reg,
@@ -392,11 +447,15 @@ static void Fdc2214CapTxnMark(Fdc2214CapDevice_t* dev,
     dev->txnDiag.LastRxLen = rxLen;
     dev->txnDiag.LastErr = err;
     dev->txnDiag.FailedReg = failedReg;
+    dev->lastTransportErr = err;
+    dev->lastFailedReg = failedReg;
     if (err == ESP_OK) {
         dev->txnDiag.ConsecutiveFailCount = 0u;
+        dev->consecutiveTransportFailures = 0u;
         dev->txnDiag.LastSuccessTick = (uint32_t)xTaskGetTickCount();
     } else {
         dev->txnDiag.ConsecutiveFailCount++;
+        dev->consecutiveTransportFailures++;
     }
 }
 
@@ -432,8 +491,20 @@ static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = Fdc2214CapLock(dev);
+    esp_err_t err = Fdc2214CapEnsureDeviceFresh(dev, tx[0]);
     if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE, tx[0], txLen, 0u, err, tx[0]);
+        return err;
+    }
+
+    err = Fdc2214CapLock(dev);
+    if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE, tx[0], txLen, 0u, err, tx[0]);
+        return err;
+    }
+    err = Fdc2214CapEnsureDeviceFresh(dev, tx[0]);
+    if (err != ESP_OK) {
+        Fdc2214CapUnlock(dev);
         Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE, tx[0], txLen, 0u, err, tx[0]);
         return err;
     }
@@ -457,8 +528,20 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = Fdc2214CapLock(dev);
+    esp_err_t err = Fdc2214CapEnsureDeviceFresh(dev, tx[0]);
     if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE_READ, tx[0], txLen, rxLen, err, tx[0]);
+        return err;
+    }
+
+    err = Fdc2214CapLock(dev);
+    if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE_READ, tx[0], txLen, rxLen, err, tx[0]);
+        return err;
+    }
+    err = Fdc2214CapEnsureDeviceFresh(dev, tx[0]);
+    if (err != ESP_OK) {
+        Fdc2214CapUnlock(dev);
         Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE_READ, tx[0], txLen, rxLen, err, tx[0]);
         return err;
     }
@@ -596,9 +679,25 @@ esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDev
         .LastSuccessTick = 0u,
         .FailedReg = 0xFFu,
     };
+    dev->instanceId = ++s_fdc2214_instance_counter;
+    dev->valid = true;
+    dev->consecutiveTransportFailures = 0u;
+    dev->lastFailedReg = 0xFFu;
+    dev->lastTransportErr = ESP_OK;
+    dev->busGenerationAtCreate = 0u;
+    if (dev->bus.GetBusGeneration) {
+        uint32_t currentGeneration = 0u;
+        if (dev->bus.GetBusGeneration(dev->bus.UserCtx, &currentGeneration) == ESP_OK) {
+            dev->busGenerationAtCreate = currentGeneration;
+        }
+    }
 
     *outDev = dev;
-    ESP_LOGI(TAG, "Created device at I2C address 0x%02X", dev->bus.I2cAddress7);
+    ESP_LOGI(TAG,
+             "Created device instanceId=%lu addr=0x%02X busGeneration=%lu",
+             (unsigned long)dev->instanceId,
+             dev->bus.I2cAddress7,
+             (unsigned long)dev->busGenerationAtCreate);
     return ESP_OK;
 }
 
@@ -607,6 +706,7 @@ esp_err_t Fdc2214CapDestroy(Fdc2214CapDevice_t* dev)
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
     }
+    dev->valid = false;
     if (dev->mutex) {
         vSemaphoreDelete(dev->mutex);
         dev->mutex = NULL;
@@ -883,6 +983,77 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
 
     *outSnapshot = snapshot;
     Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_SNAPSHOT, (uint8_t)(dataReg + 1u), 1u, 2u, ESP_OK, 0xFFu);
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapReadHealthSnapshot(Fdc2214CapDevice_t* dev,
+                                       Fdc2214CapChannel_t dataChannel,
+                                       Fdc2214CapHealthSnapshot_t* outSnapshot)
+{
+    if (!dev || !outSnapshot) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(dataChannel)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outSnapshot = (Fdc2214CapHealthSnapshot_t){
+        .LastFailedReg = dev->lastFailedReg,
+        .TransportErr = dev->lastTransportErr,
+        .ConsecutiveTransportFailures = dev->consecutiveTransportFailures,
+        .BusGenerationAtCreate = dev->busGenerationAtCreate,
+        .BusGenerationCurrent = dev->busGenerationAtCreate,
+        .InstanceId = dev->instanceId,
+        .Stale = !dev->valid,
+    };
+
+    uint32_t currentGeneration = dev->busGenerationAtCreate;
+    if (Fdc2214CapReadBusGeneration(dev, &currentGeneration) == ESP_OK) {
+        outSnapshot->BusGenerationCurrent = currentGeneration;
+    }
+    if (dev->busGenerationAtCreate != 0u &&
+        outSnapshot->BusGenerationCurrent != dev->busGenerationAtCreate) {
+        outSnapshot->Stale = true;
+    }
+    if (outSnapshot->Stale) {
+        outSnapshot->TransportErr = ESP_ERR_INVALID_STATE;
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint16_t manufacturerId = 0u;
+    uint16_t deviceId = 0u;
+    esp_err_t err = Fdc2214CapReadId(dev, &manufacturerId, &deviceId);
+    if (err == ESP_OK) {
+        outSnapshot->ManufacturerId = manufacturerId;
+        outSnapshot->DeviceId = deviceId;
+        outSnapshot->IdReadOk = true;
+    } else {
+        outSnapshot->TransportErr = err;
+        return err;
+    }
+
+    Fdc2214CapDebugSnapshot_t debugSnapshot = {0};
+    err = Fdc2214CapReadDebugSnapshot(dev, dataChannel, &debugSnapshot);
+    if (err != ESP_OK) {
+        outSnapshot->TransportErr = err;
+        outSnapshot->LastFailedReg = debugSnapshot.FailedReg;
+        return err;
+    }
+
+    outSnapshot->Status = debugSnapshot.Status;
+    outSnapshot->Config = debugSnapshot.Config;
+    outSnapshot->MuxConfig = debugSnapshot.MuxConfig;
+    outSnapshot->StatusConfig = debugSnapshot.StatusConfig;
+    outSnapshot->DriveCurrentRaw = debugSnapshot.DriveCurrentCh0;
+    outSnapshot->ActiveChannel = (uint8_t)debugSnapshot.ActiveChannel;
+    outSnapshot->UnreadPresent = debugSnapshot.UnreadConversion[(uint8_t)dataChannel] || debugSnapshot.DataReady;
+    outSnapshot->WatchdogFault = debugSnapshot.StatusErrWatchdog || debugSnapshot.DataErrWatchdog;
+    outSnapshot->AmplitudeFault =
+        debugSnapshot.StatusErrAmplitudeHigh || debugSnapshot.StatusErrAmplitudeLow || debugSnapshot.DataErrAmplitude;
+    outSnapshot->ConfigReadbackMismatch = false;
+    outSnapshot->LastFailedReg = dev->lastFailedReg;
+    outSnapshot->TransportErr = ESP_OK;
+    outSnapshot->ConsecutiveTransportFailures = dev->consecutiveTransportFailures;
     return ESP_OK;
 }
 

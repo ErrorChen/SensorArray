@@ -25,7 +25,23 @@ typedef struct {
 } BoardSupportI2cBusInfo_t;
 
 typedef enum {
+    BOARD_SUPPORT_I2C_RECOVERY_LEVEL_NONE = 0,
+    BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY,
+    BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY,
+    BOARD_SUPPORT_I2C_RECOVERY_LEVEL_DRIVER_REINSTALL,
+} BoardSupportI2cRecoveryLevel_t;
+
+typedef enum {
     BOARD_SUPPORT_I2C_RECOVERY_REASON_NONE = 0,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_SINGLE_NACK,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_REPEATED_NACK,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_TIMEOUT,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_CONTROLLER_STATE,
+    BOARD_SUPPORT_I2C_RECOVERY_REASON_MANUAL_USER_REQUEST,
+
+    // Legacy names kept for compatibility with existing call sites.
     BOARD_SUPPORT_I2C_RECOVERY_REASON_PREOP_LINE_STUCK,
     BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_TIMEOUT,
     BOARD_SUPPORT_I2C_RECOVERY_REASON_TRANSFER_ERROR_STREAK,
@@ -39,9 +55,28 @@ typedef enum {
 } BoardSupportI2cRecoveryReason_t;
 
 typedef struct {
+    BoardSupportI2cRecoveryReason_t Reason;
+    i2c_port_t Port;
+    BoardSupportI2cRecoveryLevel_t RequestedLevel;
+    BoardSupportI2cRecoveryLevel_t AttemptedLevel;
+    int PreSclHigh;
+    int PreSdaHigh;
+    uint32_t PulsesIssued;
+    bool DeleteAttempted;
+    esp_err_t DeleteErr;
+    bool InitAttempted;
+    esp_err_t InitErr;
+    int PostSclHigh;
+    int PostSdaHigh;
+    bool Success;
+    uint32_t BusGenerationAfter;
+} BoardSupportI2cRecoveryResult_t;
+
+typedef struct {
     bool Valid;
     i2c_port_t Port;
     BoardSupportI2cRecoveryReason_t Reason;
+    BoardSupportI2cRecoveryLevel_t RecoveryLevel;
     esp_err_t LastTransferErr;
     esp_err_t LastRecoverErr;
     esp_err_t LastReinitErr;
@@ -50,8 +85,14 @@ typedef struct {
     bool RecoverFailed;
     bool ReinitAttempted;
     bool ReinitSucceeded;
+    bool DeleteAttempted;
+    esp_err_t DeleteErr;
+    bool InitAttempted;
+    esp_err_t InitErr;
+    uint32_t PulsesIssued;
     int SclHigh;
     int SdaHigh;
+    uint32_t BusGeneration;
 } BoardSupportI2cRecoveryStatus_t;
 
 // Initialize board-level buses (I2C primary and optional secondary).
@@ -96,6 +137,14 @@ esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
                                        uint8_t addr7,
                                        const char *reason,
                                        uint32_t failureStreakHint);
+esp_err_t boardSupportI2cRecover(const BoardSupportI2cCtx_t *i2cCtx,
+                                 BoardSupportI2cRecoveryReason_t reason,
+                                 BoardSupportI2cRecoveryLevel_t requestedLevel,
+                                 uint8_t addr7,
+                                 uint32_t failureStreakHint,
+                                 BoardSupportI2cRecoveryResult_t *outResult);
+esp_err_t boardSupportI2cGetPortGeneration(const BoardSupportI2cCtx_t *i2cCtx, uint32_t *outGeneration);
+esp_err_t boardSupportI2cGetBusGeneration(void *userCtx, uint32_t *outGeneration);
 
 // Returns latest recovery-related status captured for this bus.
 bool boardSupportI2cGetLastRecoveryStatus(const BoardSupportI2cCtx_t *i2cCtx,
@@ -103,6 +152,7 @@ bool boardSupportI2cGetLastRecoveryStatus(const BoardSupportI2cCtx_t *i2cCtx,
 
 // Returns text name for recovery-reason enum.
 const char *boardSupportI2cRecoveryReasonName(BoardSupportI2cRecoveryReason_t reason);
+const char *boardSupportI2cRecoverReasonToString(BoardSupportI2cRecoveryReason_t reason);
 
 // Probe I2C address with a START + address byte + STOP transaction.
 esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7);

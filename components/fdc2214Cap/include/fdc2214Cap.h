@@ -36,12 +36,14 @@ typedef esp_err_t (*Fdc2214I2cWriteFn)(void* userCtx,
                                       uint8_t addr7,
                                       const uint8_t* tx,
                                       size_t txLen);
+typedef esp_err_t (*Fdc2214I2cGetBusGenerationFn)(void* userCtx, uint32_t* outGeneration);
 
 typedef struct {
     uint8_t I2cAddress7;
     void* UserCtx;
     Fdc2214I2cWriteReadFn WriteRead;
     Fdc2214I2cWriteFn Write;
+    Fdc2214I2cGetBusGenerationFn GetBusGeneration;
     int IntGpio;
 } Fdc2214CapBusConfig_t;
 
@@ -200,6 +202,29 @@ typedef struct {
     uint8_t FailedReg;
 } Fdc2214CapTxnDiag_t;
 
+typedef struct {
+    uint16_t ManufacturerId;
+    uint16_t DeviceId;
+    bool IdReadOk;
+    uint16_t Status;
+    uint16_t Config;
+    uint16_t MuxConfig;
+    uint16_t StatusConfig;
+    uint16_t DriveCurrentRaw;
+    uint8_t ActiveChannel;
+    bool UnreadPresent;
+    bool WatchdogFault;
+    bool AmplitudeFault;
+    bool ConfigReadbackMismatch;
+    uint8_t LastFailedReg;
+    esp_err_t TransportErr;
+    uint32_t ConsecutiveTransportFailures;
+    uint32_t BusGenerationAtCreate;
+    uint32_t BusGenerationCurrent;
+    uint32_t InstanceId;
+    bool Stale;
+} Fdc2214CapHealthSnapshot_t;
+
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
 // Destroy the device handle and release the mutex.
@@ -254,6 +279,9 @@ esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* 
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t dataChannel,
                                       Fdc2214CapDebugSnapshot_t* outSnapshot);
+esp_err_t Fdc2214CapReadHealthSnapshot(Fdc2214CapDevice_t* dev,
+                                       Fdc2214CapChannel_t dataChannel,
+                                       Fdc2214CapHealthSnapshot_t* outSnapshot);
 // Return last transaction context for diagnostics and recovery logs.
 esp_err_t Fdc2214CapGetLastTransactionDiag(Fdc2214CapDevice_t* dev, Fdc2214CapTxnDiag_t* outDiag);
 

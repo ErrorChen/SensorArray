@@ -937,6 +937,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         .UserCtx = (void *)i2cCtx,
         .WriteRead = boardSupportI2cWriteRead,
         .Write = boardSupportI2cWrite,
+        .GetBusGeneration = boardSupportI2cGetBusGeneration,
         .IntGpio = -1,
     };
 
@@ -1323,11 +1324,42 @@ esp_err_t sensorarrayBringupReinitSecondaryFdcForS5d5(sensorarrayState_t *state,
            (int)fdcState->i2cCtx->Port,
            fdcState->i2cAddr);
 
-    esp_err_t recoverErr =
-        boardSupportI2cManualRecover(fdcState->i2cCtx, fdcState->i2cAddr, "s5d5_secondary_reinit", 0u);
-    if (recoverErr != ESP_OK) {
-        outDiag->status = "manual_recover_failed";
-        return recoverErr;
+    bool preSclHigh = true;
+    bool preSdaHigh = true;
+    esp_err_t precheckErr = boardSupportI2cCheckLines(fdcState->i2cCtx, &preSclHigh, &preSdaHigh);
+    printf("DBGS5D5_I2C,stage=precheck,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=startup_soft_reinit,sclHigh=%d,sdaHigh=%d,err=%ld\n",
+           (int)fdcState->i2cCtx->Port,
+           SENSORARRAY_SECONDARY_I2C_EXPECTED_SDA_GPIO,
+           SENSORARRAY_SECONDARY_I2C_EXPECTED_SCL_GPIO,
+           fdcState->i2cAddr,
+           (precheckErr == ESP_OK) ? (preSclHigh ? 1 : 0) : -1,
+           (precheckErr == ESP_OK) ? (preSdaHigh ? 1 : 0) : -1,
+           (long)precheckErr);
+
+    if (precheckErr == ESP_OK && preSclHigh && preSdaHigh) {
+        /*
+         * Idle-high means the bus is electrically free. Startup reinit must not
+         * trigger manual pulse recovery or driver reinstall in this condition.
+         */
+        printf("DBGS5D5_I2C,stage=startup_recover_skip,reason=idle_high_bus,action=no_recovery\n");
+    } else {
+        BoardSupportI2cRecoveryReason_t recoverReason = BOARD_SUPPORT_I2C_RECOVERY_REASON_STARTUP_SOFT_REINIT;
+        BoardSupportI2cRecoveryLevel_t recoverLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_CONTROLLER_ONLY;
+        if (precheckErr == ESP_OK && (!preSclHigh || !preSdaHigh)) {
+            recoverReason = BOARD_SUPPORT_I2C_RECOVERY_REASON_LINE_STUCK_LOW;
+            recoverLevel = BOARD_SUPPORT_I2C_RECOVERY_LEVEL_LINE_RECOVERY;
+        }
+        BoardSupportI2cRecoveryResult_t recoverResult = {0};
+        esp_err_t recoverErr = boardSupportI2cRecover(fdcState->i2cCtx,
+                                                      recoverReason,
+                                                      recoverLevel,
+                                                      fdcState->i2cAddr,
+                                                      0u,
+                                                      &recoverResult);
+        if (recoverErr != ESP_OK) {
+            outDiag->status = "startup_recover_failed";
+            return recoverErr;
+        }
     }
 
     Fdc2214CapDevice_t *newHandle = NULL;

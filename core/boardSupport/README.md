@@ -37,3 +37,9 @@
 
 - Used by `main/sensorarrayApp.c` bring-up path.
 - Exposes configured bus metadata for diagnostics such as secondary FDC single-point debug.
+- Recovery now uses staged escalation:
+  - `controller_only` for soft faults (no GPIO pulse / no reinstall)
+  - `line_recovery` only when line-state indicates stuck-low
+  - `driver_reinstall` only when required, with strict delete/init result handling
+- If precheck is idle-high (`SCL=1,SDA=1`), startup soft-reinit does not force manual line recovery.
+- Full driver reinstall increments per-port `busGeneration`; upper layers can invalidate stale device handles safely.
