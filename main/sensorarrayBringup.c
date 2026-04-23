@@ -1294,3 +1294,120 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
     return ESP_OK;
 #endif
 }
+
+esp_err_t sensorarrayBringupReinitSecondaryFdcForS5d5(sensorarrayState_t *state,
+                                                       sensorarrayFdcInitDiag_t *outDiag)
+{
+    if (!state || !outDiag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    sensorarrayFdcDeviceState_t *fdcState = &state->fdcSecondary;
+    sensorarrayBringupInitFdcDiag(outDiag);
+    fdcState->i2cCtx = boardSupportGetI2c1Ctx();
+    fdcState->i2cAddr = SENSORARRAY_FDC_I2C_ADDR_LOW;
+
+    if (!fdcState->i2cCtx) {
+        outDiag->status = "i2c1_ctx_missing";
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (fdcState->handle) {
+        (void)Fdc2214CapDestroy(fdcState->handle);
+        fdcState->handle = NULL;
+    }
+    fdcState->ready = false;
+
+    printf("DBGS5D5_FDC,stage=create,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,status=begin\n",
+           fdcState->label ? fdcState->label : SENSORARRAY_NA,
+           (int)fdcState->i2cCtx->Port,
+           fdcState->i2cAddr);
+
+    esp_err_t recoverErr =
+        boardSupportI2cManualRecover(fdcState->i2cCtx, fdcState->i2cAddr, "s5d5_secondary_reinit", 0u);
+    if (recoverErr != ESP_OK) {
+        outDiag->status = "manual_recover_failed";
+        return recoverErr;
+    }
+
+    Fdc2214CapDevice_t *newHandle = NULL;
+    esp_err_t err = sensorarrayBringupInitFdcSingleChannel(fdcState->i2cCtx,
+                                                            fdcState->i2cAddr,
+                                                            FDC2214_CH0,
+                                                            &newHandle,
+                                                            outDiag);
+    sensorarrayBringupApplyFdcInitResult(fdcState, newHandle, err, outDiag);
+    printf("DBGS5D5_FDC,stage=reset,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,err=%ld,status=%s\n",
+           fdcState->label ? fdcState->label : SENSORARRAY_NA,
+           (int)fdcState->i2cCtx->Port,
+           fdcState->i2cAddr,
+           (long)err,
+           (err == ESP_OK) ? "ok" : "init_failed");
+    if (err != ESP_OK || !fdcState->handle || !fdcState->ready) {
+        return (err != ESP_OK) ? err : ESP_ERR_INVALID_STATE;
+    }
+
+    bool postInitGateOk = outDiag->configReadbackOk &&
+                          outDiag->postInitConverting &&
+                          outDiag->postInitUnreadPresent &&
+                          !outDiag->postInitStatusWatchdogFault &&
+                          !outDiag->postInitStatusAmplitudeFault;
+    printf("DBGS5D5_FDC,stage=config,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,converting=%u,unread=%u,watchdog=%u,"
+           "amplitude=%u,configReadbackOk=%u,status=%s\n",
+           fdcState->label ? fdcState->label : SENSORARRAY_NA,
+           (int)fdcState->i2cCtx->Port,
+           fdcState->i2cAddr,
+           outDiag->postInitConverting ? 1u : 0u,
+           outDiag->postInitUnreadPresent ? 1u : 0u,
+           outDiag->postInitStatusWatchdogFault ? 1u : 0u,
+           outDiag->postInitStatusAmplitudeFault ? 1u : 0u,
+           outDiag->configReadbackOk ? 1u : 0u,
+           postInitGateOk ? "ok" : "post_init_gate_failed");
+    if (!postInitGateOk) {
+        outDiag->status = "post_init_gate_failed";
+        (void)Fdc2214CapDestroy(fdcState->handle);
+        fdcState->handle = NULL;
+        fdcState->ready = false;
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    Fdc2214CapDebugSnapshot_t snapshot = {0};
+    err = Fdc2214CapReadDebugSnapshot(fdcState->handle, FDC2214_CH0, &snapshot);
+    printf("DBGS5D5_FDC,stage=snapshot_before,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,status=0x%04X,statusConfig=0x%04X,"
+           "config=0x%04X,muxConfig=0x%04X,driveCurrent=0x%04X,watchdog=%u,amplitude=%u,unread=%u,dataMsb=0x%04X,"
+           "dataLsb=0x%04X,err=%ld,failedReg=0x%02X\n",
+           fdcState->label ? fdcState->label : SENSORARRAY_NA,
+           (int)fdcState->i2cCtx->Port,
+           fdcState->i2cAddr,
+           snapshot.Status,
+           snapshot.StatusConfig,
+           snapshot.Config,
+           snapshot.MuxConfig,
+           snapshot.DriveCurrentCh0,
+           (snapshot.StatusErrWatchdog || snapshot.DataErrWatchdog) ? 1u : 0u,
+           (snapshot.StatusErrAmplitudeHigh || snapshot.StatusErrAmplitudeLow || snapshot.DataErrAmplitude) ? 1u : 0u,
+           snapshot.UnreadConversion[FDC2214_CH0] ? 1u : 0u,
+           snapshot.DataMsb,
+           snapshot.DataLsb,
+           (long)err,
+           snapshot.FailedReg);
+    if (err != ESP_OK) {
+        outDiag->status = "post_init_snapshot_failed";
+        (void)Fdc2214CapDestroy(fdcState->handle);
+        fdcState->handle = NULL;
+        fdcState->ready = false;
+        return err;
+    }
+
+    if (snapshot.Config != outDiag->configReg ||
+        snapshot.MuxConfig != outDiag->muxConfigReg ||
+        snapshot.StatusConfig != outDiag->statusConfigReg) {
+        outDiag->status = "post_init_config_mismatch";
+        (void)Fdc2214CapDestroy(fdcState->handle);
+        fdcState->handle = NULL;
+        fdcState->ready = false;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_OK;
+}

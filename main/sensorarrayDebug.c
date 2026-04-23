@@ -437,6 +437,26 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
     sensorarrayDebugIdleForever("route_step_once_done");
 }
 
+static void sensorarrayDebugLogS5d5ModeStage(const char *stage,
+                                             sensorarrayState_t *state,
+                                             sensorarrayDebugMode_t activeMode,
+                                             const char *lastFailureReason)
+{
+    const sensorarrayFdcDeviceState_t *fdcState = state ? &state->fdcSecondary : NULL;
+    BoardSupportI2cRecoveryStatus_t recovery = {0};
+    bool haveRecovery = fdcState && fdcState->i2cCtx &&
+                        boardSupportI2cGetLastRecoveryStatus(fdcState->i2cCtx, &recovery);
+    printf("DBGS5D5_MODE,stage=%s,activeMode=%d,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,recoverCount=%lu,lastFailureReason=%s\n",
+           stage ? stage : SENSORARRAY_NA,
+           (int)activeMode,
+           fdcState ? (fdcState->label ? fdcState->label : SENSORARRAY_NA) : SENSORARRAY_NA,
+           (fdcState && fdcState->i2cCtx) ? (int)fdcState->i2cCtx->Port : -1,
+           fdcState ? fdcState->i2cAddr : 0u,
+           (unsigned long)(haveRecovery ? recovery.FailureStreak : 0u),
+           haveRecovery ? boardSupportI2cRecoveryReasonName(recovery.Reason)
+                        : (lastFailureReason ? lastFailureReason : SENSORARRAY_NA));
+}
+
 void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
                                      const sensorarrayAdsReadPolicy_t *adsPolicy,
                                      sensorarrayDebugMode_t mode)
@@ -466,7 +486,15 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
         sensorarrayDebugRunSingleResistorS1D1ModeImpl(state, adsPolicy);
         return;
     case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
+        sensorarrayDebugLogS5d5ModeStage("enter", state, mode, "none");
+        if (!state) {
+            sensorarrayDebugLogS5d5ModeStage("abort", state, mode, "state_null");
+            sensorarrayDebugHandleFatal("s5d5_state_null", ESP_ERR_INVALID_ARG, "mode_enter", SENSORARRAY_S5, SENSORARRAY_D5);
+            return;
+        }
+        sensorarrayDebugLogS5d5ModeStage("recover_resume", state, mode, "mode_dispatch");
         sensorarrayDebugRunTestFdc2214SelbS5D5(state);
+        sensorarrayDebugLogS5d5ModeStage("exit", state, mode, "returned");
         return;
     case SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY:
         sensorarrayDebugRunFdcI2cDiscoveryMode(state);

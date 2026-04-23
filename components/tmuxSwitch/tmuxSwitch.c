@@ -8,6 +8,7 @@
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
+#include "freertos/task.h"
 
 #ifndef CONFIG_TMUX1134_DEFAULT_ALL_OFF
 #define CONFIG_TMUX1134_DEFAULT_ALL_OFF 0
@@ -22,17 +23,36 @@
 #define TMUX_GPIO_VALID(gpio) ((gpio) >= 0 && (gpio) < GPIO_NUM_MAX)
 #define TMUX1134_SELA_LEVEL (CONFIG_TMUX1134_SELA_ENABLED_LEVEL ? 1 : 0)
 #define TMUX1134_SELB_LEVEL (CONFIG_TMUX1134_SELB_ENABLED_LEVEL ? 1 : 0)
+#define TMUX_SETTER_VERIFY_RETRY_MAX 2u
+#define TMUX_SETTER_VERIFY_DELAY_US 5u
 
 static portMUX_TYPE s_tmux_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_inited = false;
 static uint8_t s_row = 0;
 static tmux1108Source_t s_source = TMUX1108_SOURCE_GND;
 static bool s_en_on = true;
+static uint32_t s_sequence = 0u;
+static TickType_t s_last_update_tick = 0;
 static int s_cmd_sel1_level = 0;
 static int s_cmd_sel2_level = 0;
 static int s_cmd_sel3_level = -1;
 static int s_cmd_sel4_level = -1;
 static int s_cmd_en_level = -1;
+static int s_verified_a0_level = -1;
+static int s_verified_a1_level = -1;
+static int s_verified_a2_level = -1;
+static int s_verified_sw_level = -1;
+static int s_verified_sel1_level = -1;
+static int s_verified_sel2_level = -1;
+static int s_verified_sel3_level = -1;
+static int s_verified_sel4_level = -1;
+static int s_verified_en_level = -1;
+
+static void tmuxAdvanceSequenceNoLock(void)
+{
+    s_sequence++;
+    s_last_update_tick = xTaskGetTickCount();
+}
 
 static tmux1108Source_t tmux1108SourceFromConfig(int value)
 {
@@ -91,6 +111,25 @@ static void tmuxSetCachedSelLevelNoLock(int gpio, int level)
 #endif
 }
 
+static void tmuxSetVerifiedSelLevelNoLock(int gpio, int level)
+{
+    if (gpio == CONFIG_TMUX1134_SEL1_GPIO) {
+        s_verified_sel1_level = level;
+    } else if (gpio == CONFIG_TMUX1134_SEL2_GPIO) {
+        s_verified_sel2_level = level;
+    }
+#if CONFIG_TMUX1134_SEL3_GPIO >= 0
+    else if (gpio == CONFIG_TMUX1134_SEL3_GPIO) {
+        s_verified_sel3_level = level;
+    }
+#endif
+#if CONFIG_TMUX1134_SEL4_GPIO >= 0
+    else if (gpio == CONFIG_TMUX1134_SEL4_GPIO) {
+        s_verified_sel4_level = level;
+    }
+#endif
+}
+
 static void tmux1134ApplySelNoLock(int gpio, bool level)
 {
     if (gpio < 0) {
@@ -121,6 +160,73 @@ static void tmux1134SetEnStateNoLock(bool on)
     gpio_set_level((gpio_num_t)CONFIG_TMUX1134_EN_GPIO, level);
     s_en_on = on;
     s_cmd_en_level = level;
+}
+
+static esp_err_t tmuxWriteAndVerifyNoLock(int gpio, int level, int *outObserved)
+{
+    if (gpio < 0) {
+        if (outObserved) {
+            *outObserved = -1;
+        }
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    int observed = -1;
+    for (uint32_t attempt = 0u; attempt <= TMUX_SETTER_VERIFY_RETRY_MAX; ++attempt) {
+        gpio_set_level((gpio_num_t)gpio, level ? 1 : 0);
+        esp_rom_delay_us(TMUX_SETTER_VERIFY_DELAY_US);
+        observed = tmuxReadGpioLevelNoLock(gpio);
+        if (observed == (level ? 1 : 0)) {
+            if (outObserved) {
+                *outObserved = observed;
+            }
+            return ESP_OK;
+        }
+    }
+
+    if (outObserved) {
+        *outObserved = observed;
+    }
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+static esp_err_t tmuxApplyRowAndVerifyNoLock(uint8_t row, int *outObsA0, int *outObsA1, int *outObsA2)
+{
+    int obsA0 = -1;
+    int obsA1 = -1;
+    int obsA2 = -1;
+    for (uint32_t attempt = 0u; attempt <= TMUX_SETTER_VERIFY_RETRY_MAX; ++attempt) {
+        tmux1108ApplyRowNoLock(row);
+        esp_rom_delay_us(TMUX_SETTER_VERIFY_DELAY_US);
+        obsA0 = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A0_GPIO);
+        obsA1 = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A1_GPIO);
+        obsA2 = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A2_GPIO);
+        if (obsA0 == (int)(row & 0x1u) &&
+            obsA1 == (int)((row >> 1u) & 0x1u) &&
+            obsA2 == (int)((row >> 2u) & 0x1u)) {
+            if (outObsA0) {
+                *outObsA0 = obsA0;
+            }
+            if (outObsA1) {
+                *outObsA1 = obsA1;
+            }
+            if (outObsA2) {
+                *outObsA2 = obsA2;
+            }
+            return ESP_OK;
+        }
+    }
+
+    if (outObsA0) {
+        *outObsA0 = obsA0;
+    }
+    if (outObsA1) {
+        *outObsA1 = obsA1;
+    }
+    if (outObsA2) {
+        *outObsA2 = obsA2;
+    }
+    return ESP_ERR_INVALID_RESPONSE;
 }
 
 static const char *tmuxStringOrNa(const char *value)
@@ -314,6 +420,17 @@ esp_err_t tmuxSwitchInit(void)
 
     s_row = 0;
     s_source = default_source;
+    s_verified_a0_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A0_GPIO);
+    s_verified_a1_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A1_GPIO);
+    s_verified_a2_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A2_GPIO);
+    s_verified_sw_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_SW_GPIO);
+    s_verified_sel1_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL1_GPIO);
+    s_verified_sel2_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL2_GPIO);
+    s_verified_sel3_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL3_GPIO);
+    s_verified_sel4_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_SEL4_GPIO);
+    s_verified_en_level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1134_EN_GPIO);
+    s_sequence = 1u;
+    s_last_update_tick = xTaskGetTickCount();
     s_inited = true;
 
     portEXIT_CRITICAL(&s_tmux_lock);
@@ -332,7 +449,10 @@ esp_err_t tmux1108SelectRow(uint8_t row)
         portEXIT_CRITICAL(&s_tmux_lock);
         return ESP_ERR_INVALID_STATE;
     }
-    if (s_row == row) {
+    if (s_row == row &&
+        s_verified_a0_level == (int)(row & 0x1u) &&
+        s_verified_a1_level == (int)((row >> 1u) & 0x1u) &&
+        s_verified_a2_level == (int)((row >> 2u) & 0x1u)) {
         portEXIT_CRITICAL(&s_tmux_lock);
         return ESP_OK;
     }
@@ -347,7 +467,21 @@ esp_err_t tmux1108SelectRow(uint8_t row)
     }
 #endif
 
-    tmux1108ApplyRowNoLock(row);
+    s_row = row;
+
+    int obsA0 = -1;
+    int obsA1 = -1;
+    int obsA2 = -1;
+    esp_err_t verifyErr = tmuxApplyRowAndVerifyNoLock(row, &obsA0, &obsA1, &obsA2);
+    if (verifyErr == ESP_OK) {
+        s_verified_a0_level = obsA0;
+        s_verified_a1_level = obsA1;
+        s_verified_a2_level = obsA2;
+    } else {
+        s_verified_a0_level = -1;
+        s_verified_a1_level = -1;
+        s_verified_a2_level = -1;
+    }
 
 #if CONFIG_TMUX1108_SWITCH_ROW_SAFE_MODE
     tmuxDelayUs();
@@ -356,10 +490,10 @@ esp_err_t tmux1108SelectRow(uint8_t row)
     }
 #endif
 
-    s_row = row;
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
 
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1108GetRow(uint8_t *rowOut)
@@ -390,16 +524,21 @@ esp_err_t tmux1108SetSource(tmux1108Source_t source)
         portEXIT_CRITICAL(&s_tmux_lock);
         return ESP_ERR_INVALID_STATE;
     }
-    if (s_source == source) {
+    if (s_source == source &&
+        s_verified_sw_level == tmux1108SourceToLevel(source)) {
         portEXIT_CRITICAL(&s_tmux_lock);
         return ESP_OK;
     }
 
-    tmux1108ApplySourceNoLock(source);
     s_source = source;
+    int expectedLevel = tmux1108SourceToLevel(source);
+    int observed = -1;
+    esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1108_SW_GPIO, expectedLevel, &observed);
+    s_verified_sw_level = (verifyErr == ESP_OK) ? observed : -1;
 
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1108GetSource(tmux1108Source_t *sourceOut)
@@ -429,12 +568,24 @@ esp_err_t tmux1134SelectSelALevel(bool level)
 
     if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
         tmux1134SetEnStateNoLock(true);
+        int enObserved = -1;
+        esp_err_t enVerifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_EN_GPIO, s_cmd_en_level, &enObserved);
+        s_verified_en_level = (enVerifyErr == ESP_OK) ? enObserved : -1;
+        if (enVerifyErr != ESP_OK) {
+            tmuxAdvanceSequenceNoLock();
+            portEXIT_CRITICAL(&s_tmux_lock);
+            return enVerifyErr;
+        }
     }
 
     tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL1_GPIO, level);
+    int observed = -1;
+    esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_SEL1_GPIO, level ? 1 : 0, &observed);
+    tmuxSetVerifiedSelLevelNoLock(CONFIG_TMUX1134_SEL1_GPIO, (verifyErr == ESP_OK) ? observed : -1);
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
 
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1134SelectSelBLevel(bool level)
@@ -447,12 +598,24 @@ esp_err_t tmux1134SelectSelBLevel(bool level)
 
     if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
         tmux1134SetEnStateNoLock(true);
+        int enObserved = -1;
+        esp_err_t enVerifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_EN_GPIO, s_cmd_en_level, &enObserved);
+        s_verified_en_level = (enVerifyErr == ESP_OK) ? enObserved : -1;
+        if (enVerifyErr != ESP_OK) {
+            tmuxAdvanceSequenceNoLock();
+            portEXIT_CRITICAL(&s_tmux_lock);
+            return enVerifyErr;
+        }
     }
 
     tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL2_GPIO, level);
+    int observed = -1;
+    esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_SEL2_GPIO, level ? 1 : 0, &observed);
+    tmuxSetVerifiedSelLevelNoLock(CONFIG_TMUX1134_SEL2_GPIO, (verifyErr == ESP_OK) ? observed : -1);
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
 
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1134SelectSel3Level(bool level)
@@ -469,12 +632,24 @@ esp_err_t tmux1134SelectSel3Level(bool level)
 
     if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
         tmux1134SetEnStateNoLock(true);
+        int enObserved = -1;
+        esp_err_t enVerifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_EN_GPIO, s_cmd_en_level, &enObserved);
+        s_verified_en_level = (enVerifyErr == ESP_OK) ? enObserved : -1;
+        if (enVerifyErr != ESP_OK) {
+            tmuxAdvanceSequenceNoLock();
+            portEXIT_CRITICAL(&s_tmux_lock);
+            return enVerifyErr;
+        }
     }
 
     tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL3_GPIO, level);
+    int observed = -1;
+    esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_SEL3_GPIO, level ? 1 : 0, &observed);
+    tmuxSetVerifiedSelLevelNoLock(CONFIG_TMUX1134_SEL3_GPIO, (verifyErr == ESP_OK) ? observed : -1);
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
 
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1134SelectSel4Level(bool level)
@@ -491,12 +666,24 @@ esp_err_t tmux1134SelectSel4Level(bool level)
 
     if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
         tmux1134SetEnStateNoLock(true);
+        int enObserved = -1;
+        esp_err_t enVerifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_EN_GPIO, s_cmd_en_level, &enObserved);
+        s_verified_en_level = (enVerifyErr == ESP_OK) ? enObserved : -1;
+        if (enVerifyErr != ESP_OK) {
+            tmuxAdvanceSequenceNoLock();
+            portEXIT_CRITICAL(&s_tmux_lock);
+            return enVerifyErr;
+        }
     }
 
     tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL4_GPIO, level);
+    int observed = -1;
+    esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_SEL4_GPIO, level ? 1 : 0, &observed);
+    tmuxSetVerifiedSelLevelNoLock(CONFIG_TMUX1134_SEL4_GPIO, (verifyErr == ESP_OK) ? observed : -1);
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
 
-    return ESP_OK;
+    return verifyErr;
 }
 
 esp_err_t tmux1134SetEnLogicalState(bool on)
@@ -508,10 +695,18 @@ esp_err_t tmux1134SetEnLogicalState(bool on)
     }
     if (CONFIG_TMUX1134_EN_GPIO >= 0) {
         tmux1134SetEnStateNoLock(on);
+        int observed = -1;
+        esp_err_t verifyErr = tmuxWriteAndVerifyNoLock(CONFIG_TMUX1134_EN_GPIO, s_cmd_en_level, &observed);
+        s_verified_en_level = (verifyErr == ESP_OK) ? observed : -1;
+        tmuxAdvanceSequenceNoLock();
+        portEXIT_CRITICAL(&s_tmux_lock);
+        return verifyErr;
     } else {
         s_en_on = true;
         s_cmd_en_level = -1;
+        s_verified_en_level = -1;
     }
+    tmuxAdvanceSequenceNoLock();
     portEXIT_CRITICAL(&s_tmux_lock);
     return ESP_OK;
 }
@@ -544,43 +739,28 @@ esp_err_t tmux1134SetSelBEnabled(bool enabled)
 
 esp_err_t tmux1134SetAllOff(void)
 {
-    portENTER_CRITICAL(&s_tmux_lock);
-    if (!s_inited) {
-        portEXIT_CRITICAL(&s_tmux_lock);
-        return ESP_ERR_INVALID_STATE;
+    esp_err_t err = tmux1134SetEnLogicalState(false);
+    if (err != ESP_OK) {
+        return err;
     }
-
-    if (CONFIG_TMUX1134_EN_GPIO >= 0) {
-        tmux1134SetEnStateNoLock(false);
-    } else {
-        s_en_on = true;
-        s_cmd_en_level = -1;
+    err = tmux1134SelectSelALevel(tmux1134EnabledToSelLevel(false, TMUX1134_SELA_LEVEL));
+    if (err != ESP_OK) {
+        return err;
     }
-
-    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL1_GPIO, tmux1134EnabledToSelLevel(false, TMUX1134_SELA_LEVEL));
-    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL2_GPIO, tmux1134EnabledToSelLevel(false, TMUX1134_SELB_LEVEL));
-
-    portEXIT_CRITICAL(&s_tmux_lock);
-    return ESP_OK;
+    return tmux1134SelectSelBLevel(tmux1134EnabledToSelLevel(false, TMUX1134_SELB_LEVEL));
 }
 
 esp_err_t tmux1134SetAllOn(void)
 {
-    portENTER_CRITICAL(&s_tmux_lock);
-    if (!s_inited) {
-        portEXIT_CRITICAL(&s_tmux_lock);
-        return ESP_ERR_INVALID_STATE;
+    esp_err_t err = tmux1134SetEnLogicalState(true);
+    if (err != ESP_OK) {
+        return err;
     }
-
-    if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
-        tmux1134SetEnStateNoLock(true);
+    err = tmux1134SelectSelALevel(tmux1134EnabledToSelLevel(true, TMUX1134_SELA_LEVEL));
+    if (err != ESP_OK) {
+        return err;
     }
-
-    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL1_GPIO, tmux1134EnabledToSelLevel(true, TMUX1134_SELA_LEVEL));
-    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL2_GPIO, tmux1134EnabledToSelLevel(true, TMUX1134_SELB_LEVEL));
-
-    portEXIT_CRITICAL(&s_tmux_lock);
-    return ESP_OK;
+    return tmux1134SelectSelBLevel(tmux1134EnabledToSelLevel(true, TMUX1134_SELB_LEVEL));
 }
 
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
@@ -612,6 +792,19 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     outState->cmdEnLevel = (CONFIG_TMUX1134_EN_GPIO >= 0) ? s_cmd_en_level : -1;
     outState->cmdSelaLevel = outState->cmdSel1Level;
     outState->cmdSelbLevel = outState->cmdSel2Level;
+    outState->verifiedA0Level = s_verified_a0_level;
+    outState->verifiedA1Level = s_verified_a1_level;
+    outState->verifiedA2Level = s_verified_a2_level;
+    outState->verifiedSwLevel = s_verified_sw_level;
+    outState->verifiedSel1Level = s_verified_sel1_level;
+    outState->verifiedSel2Level = s_verified_sel2_level;
+    outState->verifiedSel3Level = s_verified_sel3_level;
+    outState->verifiedSel4Level = s_verified_sel4_level;
+    outState->verifiedEnLevel = s_verified_en_level;
+    outState->verifiedSelaLevel = s_verified_sel1_level;
+    outState->verifiedSelbLevel = s_verified_sel2_level;
+    outState->sequence = s_sequence;
+    outState->tickMs = (uint32_t)(s_last_update_tick * (TickType_t)portTICK_PERIOD_MS);
 
     outState->obsA0Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A0_GPIO);
     outState->obsA1Level = tmuxReadGpioLevelNoLock(CONFIG_TMUX1108_A1_GPIO);
@@ -642,6 +835,11 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     portEXIT_CRITICAL(&s_tmux_lock);
 
     return ESP_OK;
+}
+
+esp_err_t tmuxSwitchSnapshotControlState(tmuxSwitchControlState_t *outState)
+{
+    return tmuxSwitchGetControlState(outState);
 }
 
 esp_err_t tmuxSwitchLogControlSnapshot(const tmuxSwitchSnapshotContext_t *context)
@@ -760,13 +958,23 @@ esp_err_t tmuxSwitchLogControlSnapshot(const tmuxSwitchSnapshotContext_t *contex
     }
 
     printf("DBGTMUXCTRL,stage=%s,routeLabel=%s,targetPath=%s,status=%s,routeConsistency=%s,mismatchCount=%lu,"
-           "note=observedLevel_is_mcu_gpio_only_not_analog_conduction_proof\n",
+           "sequence=%lu,tickMs=%lu,verifiedA0=%d,verifiedA1=%d,verifiedA2=%d,verifiedSW=%d,verifiedSELA=%d,"
+           "verifiedSELB=%d,verifiedEN=%d,note=observedLevel_is_mcu_gpio_only_not_analog_conduction_proof\n",
            tmuxStringOrNa(context ? context->stage : NULL),
            tmuxStringOrNa(context ? context->routeLabel : NULL),
            tmuxStringOrNa(context ? context->targetPath : NULL),
            (mismatchCount == 0u) ? "command_observed_match" : "command_observed_mismatch",
            (mismatchCount == 0u) ? "pass" : "fail",
-           (unsigned long)mismatchCount);
+           (unsigned long)mismatchCount,
+           (unsigned long)ctrl.sequence,
+           (unsigned long)ctrl.tickMs,
+           ctrl.verifiedA0Level,
+           ctrl.verifiedA1Level,
+           ctrl.verifiedA2Level,
+           ctrl.verifiedSwLevel,
+           ctrl.verifiedSelaLevel,
+           ctrl.verifiedSelbLevel,
+           ctrl.verifiedEnLevel);
     return ESP_OK;
 }
 

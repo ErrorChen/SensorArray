@@ -30,6 +30,7 @@ static const char *TAG = "boardSupport";
 #define BOARD_SUPPORT_I2C_TRANSACTION_RETRY_MAX 1u
 #define BOARD_SUPPORT_I2C_MUTEX_TIMEOUT_MS 200u
 #define BOARD_SUPPORT_I2C_WARN_LOG_STRIDE 8u
+#define BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS 2u
 
 static bool s_inited = false;
 static bool s_i2c0_inited = false;
@@ -472,10 +473,15 @@ static esp_err_t boardSupportI2cReinitLocked(const boardSupportI2cPortConfig_t *
     return err;
 }
 
-static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig_t *cfg, const char *reason)
+static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig_t *cfg,
+                                                 const char *reason,
+                                                 uint32_t *outPulsesIssued)
 {
     if (!cfg || !cfg->valid || !cfg->enabled || !cfg->initedFlag) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (outPulsesIssued) {
+        *outPulsesIssued = 0u;
     }
 
     BoardSupportI2cRecoveryStatus_t *status = boardSupportRecoveryStatusForCfg(cfg);
@@ -544,6 +550,9 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
                  cfg->name,
                  reason ? reason : "na",
                  reinitErr);
+        if (outPulsesIssued) {
+            *outPulsesIssued = 0u;
+        }
         return (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
     }
 
@@ -590,6 +599,9 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
                  reason ? reason : "na",
                  (unsigned long)pulsesIssued,
                  reinitErr);
+        if (outPulsesIssued) {
+            *outPulsesIssued = pulsesIssued;
+        }
         return (reinitErr == ESP_OK) ? ESP_ERR_TIMEOUT : reinitErr;
     }
 
@@ -608,6 +620,9 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
                  cfg->name,
                  reason ? reason : "na",
                  reinitErr);
+        if (outPulsesIssued) {
+            *outPulsesIssued = pulsesIssued;
+        }
         return reinitErr;
     }
 
@@ -630,6 +645,9 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
                  reason ? reason : "na",
                  (unsigned long)pulsesIssued,
                  sdaAfterReinit ? 1 : 0);
+        if (outPulsesIssued) {
+            *outPulsesIssued = pulsesIssued;
+        }
         return ESP_ERR_TIMEOUT;
     }
 
@@ -657,6 +675,9 @@ static esp_err_t boardSupportI2cRecoverBusLocked(const boardSupportI2cPortConfig
              sdaAfterPulse ? 1 : 0,
              sclAfterReinit ? 1 : 0,
              sdaAfterReinit ? 1 : 0);
+    if (outPulsesIssued) {
+        *outPulsesIssued = pulsesIssued;
+    }
     return ESP_OK;
 }
 
@@ -784,7 +805,7 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
             status->RecoverAttempted = true;
             status->FailureStreak = cfg->failureStreak ? *cfg->failureStreak : 0u;
         }
-        esp_err_t preRecoverErr = boardSupportI2cRecoverBusLocked(cfg, "preop_line_stuck");
+        esp_err_t preRecoverErr = boardSupportI2cRecoverBusLocked(cfg, "preop_line_stuck", NULL);
         if (preRecoverErr != ESP_OK) {
             if (status) {
                 status->LastRecoverErr = preRecoverErr;
@@ -864,7 +885,7 @@ static esp_err_t boardSupportI2cRunWithRecoveryLocked(const BoardSupportI2cCtx_t
             status->RecoverAttempted = true;
             status->Reason = boardSupportI2cRecoveryReasonFromLabel(reason, status->Reason);
         }
-        esp_err_t recoverErr = boardSupportI2cRecoverBusLocked(cfg, reason);
+        esp_err_t recoverErr = boardSupportI2cRecoverBusLocked(cfg, reason, NULL);
         if (recoverErr != ESP_OK) {
             if (status) {
                 status->LastRecoverErr = recoverErr;
@@ -1108,9 +1129,87 @@ esp_err_t boardSupportI2cRecoverBus(const BoardSupportI2cCtx_t *i2cCtx, const ch
     if (lockErr != ESP_OK) {
         return lockErr;
     }
-    esp_err_t err = boardSupportI2cRecoverBusLocked(&cfg, reason);
+    esp_err_t err = boardSupportI2cRecoverBusLocked(&cfg, reason, NULL);
     boardSupportI2cUnlockPort(&cfg);
     return err;
+}
+
+esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
+                                       uint8_t addr7,
+                                       const char *reason,
+                                       uint32_t failureStreakHint)
+{
+    if (!i2cCtx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    boardSupportI2cPortConfig_t cfg = {0};
+    if (!boardSupportResolveI2cPort(i2cCtx, &cfg) || !cfg.valid || !cfg.enabled || !cfg.initedFlag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t lockErr = boardSupportI2cLockPort(&cfg);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+
+    bool sclHigh = true;
+    bool sdaHigh = true;
+    esp_err_t precheckErr = boardSupportI2cCheckLinesLocked(&cfg, &sclHigh, &sdaHigh);
+    uint32_t failureStreak = failureStreakHint;
+    if (cfg.failureStreak && *cfg.failureStreak > failureStreak) {
+        failureStreak = *cfg.failureStreak;
+    }
+
+    printf("DBGS5D5_I2C,stage=precheck,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,failureStreak=%lu,sclHigh=%d,sdaHigh=%d,err=%ld\n",
+           (int)cfg.port,
+           cfg.sdaGpio,
+           cfg.sclGpio,
+           addr7,
+           reason ? reason : "manual_recover",
+           (unsigned long)failureStreak,
+           (precheckErr == ESP_OK) ? (sclHigh ? 1 : 0) : -1,
+           (precheckErr == ESP_OK) ? (sdaHigh ? 1 : 0) : -1,
+           (long)precheckErr);
+    printf("DBGS5D5_I2C,stage=manual_recover_begin,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,failureStreak=%lu\n",
+           (int)cfg.port,
+           cfg.sdaGpio,
+           cfg.sclGpio,
+           addr7,
+           reason ? reason : "manual_recover",
+           (unsigned long)failureStreak);
+
+    uint32_t pulsesIssued = 0u;
+    esp_err_t recoverErr = boardSupportI2cRecoverBusLocked(&cfg, reason ? reason : "manual_recover", &pulsesIssued);
+    BoardSupportI2cRecoveryStatus_t *status = boardSupportRecoveryStatusForCfg(&cfg);
+    int reinitSucceeded = (status && status->ReinitSucceeded) ? 1 : 0;
+    esp_err_t reinitErr = status ? status->LastReinitErr : ESP_OK;
+
+    if (recoverErr == ESP_OK && BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS > 0u) {
+        printf("DBGS5D5_I2C,stage=post_recover_stabilize,port=%d,delayMs=%u\n",
+               (int)cfg.port,
+               (unsigned)BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS);
+        vTaskDelay(pdMS_TO_TICKS(BOARD_SUPPORT_I2C_POST_RECOVER_STABILIZE_MS));
+    }
+
+    printf("DBGS5D5_I2C,stage=manual_recover_end,port=%d,sda=%d,scl=%d,addr=0x%02X,reason=%s,failureStreak=%lu,"
+           "pulsesIssued=%lu,driverReinitResult=%d,reinitErr=%ld,err=%ld\n",
+           (int)cfg.port,
+           cfg.sdaGpio,
+           cfg.sclGpio,
+           addr7,
+           reason ? reason : "manual_recover",
+           (unsigned long)failureStreak,
+           (unsigned long)pulsesIssued,
+           reinitSucceeded,
+           (long)reinitErr,
+           (long)recoverErr);
+
+    boardSupportI2cUnlockPort(&cfg);
+    return recoverErr;
 }
 
 bool boardSupportI2cGetLastRecoveryStatus(const BoardSupportI2cCtx_t *i2cCtx,

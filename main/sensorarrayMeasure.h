@@ -40,6 +40,9 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
                                        tmux1108Source_t swSource,
                                        const char **outMapLabel);
 
+// Dedicated S5D5 debug route: S5 -> D5 -> secondary FDC branch, capacitive SELB path.
+esp_err_t sensorarrayMeasureApplyS5d5SecondaryCapRouteExact(sensorarrayState_t *state, const char **outMapLabel);
+
 esp_err_t sensorarrayMeasureReadAdsRawWithRetry(sensorarrayState_t *state,
                                                 int32_t *outRaw,
                                                 uint8_t retryCount,

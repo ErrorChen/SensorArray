@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "esp_err.h"
+
 #include "sensorarrayTypes.h"
 
 bool sensorarrayBoardMapAdsMuxForDLine(uint8_t dLine, uint8_t *muxp, uint8_t *muxn);
@@ -33,3 +35,6 @@ sensorarrayDebugPath_t sensorarrayBoardMapPathToDebugPath(sensorarrayPath_t path
 tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t *route);
 
 void sensorarrayBoardMapAudit(void);
+
+// Guard against board-map drift that would invalidate S5D5 dedicated secondary mode assumptions.
+esp_err_t sensorarrayBoardMapAssertS5d5CapRouteInvariant(void);

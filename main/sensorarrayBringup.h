@@ -65,3 +65,7 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
                                                   Fdc2214CapChannel_t channel,
                                                   Fdc2214CapDevice_t **outDev,
                                                   sensorarrayFdcInitDiag_t *outDiag);
+
+// Dedicated S5D5 helper: force secondary-only reinit with strict post-init gate.
+esp_err_t sensorarrayBringupReinitSecondaryFdcForS5d5(sensorarrayState_t *state,
+                                                       sensorarrayFdcInitDiag_t *outDiag);

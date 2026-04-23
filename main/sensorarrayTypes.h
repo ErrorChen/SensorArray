@@ -216,6 +216,7 @@ typedef struct {
     sensorarrayFdcDeviceState_t fdcPrimary;
     sensorarrayFdcDeviceState_t fdcSecondary;
     uint8_t fdcConfiguredChannels;
+    bool dedicatedSecondaryFdcMode;
 
     bool boardReady;
     bool tmuxReady;

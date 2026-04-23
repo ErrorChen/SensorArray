@@ -132,6 +132,8 @@ typedef struct {
     bool SleepModeEnabled;
     bool AutoScanEnabled;
     bool Converting;
+    uint8_t FailedReg; // 0xFF when snapshot read completed without register-level failure.
+    bool Partial;      // true when a register read failed mid-snapshot.
 } Fdc2214CapDebugSnapshot_t;
 
 typedef struct {
@@ -177,6 +179,26 @@ typedef struct {
     bool SampleValid;
     Fdc2214CapSampleStatus_t SampleStatus;
 } Fdc2214CapSample_t;
+
+typedef enum {
+    FDC2214_TXN_OP_NONE = 0,
+    FDC2214_TXN_OP_WRITE,
+    FDC2214_TXN_OP_WRITE_READ,
+    FDC2214_TXN_OP_REG_READ,
+    FDC2214_TXN_OP_REG_WRITE,
+    FDC2214_TXN_OP_SNAPSHOT,
+} Fdc2214CapTxnOpKind_t;
+
+typedef struct {
+    Fdc2214CapTxnOpKind_t LastOpKind;
+    uint8_t LastReg;
+    size_t LastTxLen;
+    size_t LastRxLen;
+    esp_err_t LastErr;
+    uint32_t ConsecutiveFailCount;
+    uint32_t LastSuccessTick;
+    uint8_t FailedReg;
+} Fdc2214CapTxnDiag_t;
 
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
@@ -232,6 +254,8 @@ esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* 
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t dataChannel,
                                       Fdc2214CapDebugSnapshot_t* outSnapshot);
+// Return last transaction context for diagnostics and recovery logs.
+esp_err_t Fdc2214CapGetLastTransactionDiag(Fdc2214CapDevice_t* dev, Fdc2214CapTxnDiag_t* outDiag);
 
 // Single channel continuous conversion; CONFIG.ACTIVE_CHAN selects channel.
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh);

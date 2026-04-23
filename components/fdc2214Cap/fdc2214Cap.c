@@ -7,6 +7,7 @@
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #ifndef CONFIG_FDC2214CAP_LOG_LEVEL
 #define CONFIG_FDC2214CAP_LOG_LEVEL 3
@@ -113,6 +114,7 @@ static const char* TAG = "fdc2214Cap";
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
     SemaphoreHandle_t mutex;
+    Fdc2214CapTxnDiag_t txnDiag;
 } Fdc2214CapDevice_t;
 
 static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)
@@ -373,6 +375,31 @@ static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)
     return (uint16_t)(statusConfig & FDC2214_STATUS_CONFIG_ALLOWED_MASK);
 }
 
+static void Fdc2214CapTxnMark(Fdc2214CapDevice_t* dev,
+                              Fdc2214CapTxnOpKind_t opKind,
+                              uint8_t reg,
+                              size_t txLen,
+                              size_t rxLen,
+                              esp_err_t err,
+                              uint8_t failedReg)
+{
+    if (!dev) {
+        return;
+    }
+    dev->txnDiag.LastOpKind = opKind;
+    dev->txnDiag.LastReg = reg;
+    dev->txnDiag.LastTxLen = txLen;
+    dev->txnDiag.LastRxLen = rxLen;
+    dev->txnDiag.LastErr = err;
+    dev->txnDiag.FailedReg = failedReg;
+    if (err == ESP_OK) {
+        dev->txnDiag.ConsecutiveFailCount = 0u;
+        dev->txnDiag.LastSuccessTick = (uint32_t)xTaskGetTickCount();
+    } else {
+        dev->txnDiag.ConsecutiveFailCount++;
+    }
+}
+
 static esp_err_t Fdc2214CapLock(Fdc2214CapDevice_t* dev)
 {
     if (!dev || !dev->mutex) {
@@ -407,10 +434,12 @@ static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx
 
     esp_err_t err = Fdc2214CapLock(dev);
     if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE, tx[0], txLen, 0u, err, tx[0]);
         return err;
     }
     err = dev->bus.Write(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen);
     Fdc2214CapUnlock(dev);
+    Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE, tx[0], txLen, 0u, err, tx[0]);
 
     return err;
 }
@@ -430,10 +459,12 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
 
     esp_err_t err = Fdc2214CapLock(dev);
     if (err != ESP_OK) {
+        Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE_READ, tx[0], txLen, rxLen, err, tx[0]);
         return err;
     }
     err = dev->bus.WriteRead(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen, rx, rxLen);
     Fdc2214CapUnlock(dev);
+    Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_WRITE_READ, tx[0], txLen, rxLen, err, tx[0]);
 
     return err;
 }
@@ -442,6 +473,7 @@ static esp_err_t Fdc2214CapWriteReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint
 {
     uint8_t tx[3] = { reg, (uint8_t)(value >> 8), (uint8_t)(value & 0xFF) };
     esp_err_t err = Fdc2214CapWriteBytes(dev, tx, sizeof(tx));
+    Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_REG_WRITE, reg, sizeof(tx), 0u, err, reg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Write reg 0x%02X failed: %d", reg, err);
         return err;
@@ -458,6 +490,7 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
     uint8_t tx = reg;
     uint8_t rx[2] = {0};
     esp_err_t err = Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, sizeof(rx));
+    Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_REG_READ, reg, sizeof(tx), sizeof(rx), err, reg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Read reg 0x%02X failed: %d", reg, err);
         return err;
@@ -553,6 +586,16 @@ esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDev
         free(dev);
         return ESP_ERR_NO_MEM;
     }
+    dev->txnDiag = (Fdc2214CapTxnDiag_t){
+        .LastOpKind = FDC2214_TXN_OP_NONE,
+        .LastReg = 0u,
+        .LastTxLen = 0u,
+        .LastRxLen = 0u,
+        .LastErr = ESP_OK,
+        .ConsecutiveFailCount = 0u,
+        .LastSuccessTick = 0u,
+        .FailedReg = 0xFFu,
+    };
 
     *outDev = dev;
     ESP_LOGI(TAG, "Created device at I2C address 0x%02X", dev->bus.I2cAddress7);
@@ -771,55 +814,46 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     Fdc2214CapDebugSnapshot_t snapshot = {
         .DataChannel = dataChannel,
         .ActiveChannel = FDC2214_CH0,
+        .FailedReg = 0xFFu,
+        .Partial = false,
     };
 
-    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &snapshot.Status);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS_CONFIG, &snapshot.StatusConfig);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &snapshot.Config);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &snapshot.MuxConfig);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, FDC2214_CH0), &snapshot.RcountCh0);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev,
-                              Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, FDC2214_CH0),
-                              &snapshot.SettleCountCh0);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev,
-                              Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, FDC2214_CH0),
-                              &snapshot.ClockDividersCh0);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev,
-                              Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, FDC2214_CH0),
-                              &snapshot.DriveCurrentCh0);
-    if (err != ESP_OK) {
-        return err;
-    }
-
     uint8_t dataReg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, dataChannel);
-    err = Fdc2214CapReadReg16(dev, dataReg, &snapshot.DataMsb);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = Fdc2214CapReadReg16(dev, (uint8_t)(dataReg + 1u), &snapshot.DataLsb);
-    if (err != ESP_OK) {
-        return err;
+    const uint8_t snapshotRegs[] = {
+        FDC2214_REG_STATUS,
+        FDC2214_REG_STATUS_CONFIG,
+        FDC2214_REG_CONFIG,
+        FDC2214_REG_MUX_CONFIG,
+        Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, FDC2214_CH0),
+        Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, FDC2214_CH0),
+        Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, FDC2214_CH0),
+        Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, FDC2214_CH0),
+        dataReg,
+        (uint8_t)(dataReg + 1u),
+    };
+    uint16_t* snapshotFields[] = {
+        &snapshot.Status,
+        &snapshot.StatusConfig,
+        &snapshot.Config,
+        &snapshot.MuxConfig,
+        &snapshot.RcountCh0,
+        &snapshot.SettleCountCh0,
+        &snapshot.ClockDividersCh0,
+        &snapshot.DriveCurrentCh0,
+        &snapshot.DataMsb,
+        &snapshot.DataLsb,
+    };
+
+    esp_err_t err = ESP_OK;
+    for (size_t i = 0u; i < (sizeof(snapshotRegs) / sizeof(snapshotRegs[0])); ++i) {
+        err = Fdc2214CapReadReg16(dev, snapshotRegs[i], snapshotFields[i]);
+        if (err != ESP_OK) {
+            snapshot.Partial = true;
+            snapshot.FailedReg = snapshotRegs[i];
+            *outSnapshot = snapshot;
+            Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_SNAPSHOT, snapshotRegs[i], 1u, 2u, err, snapshotRegs[i]);
+            return err;
+        }
     }
 
     Fdc2214CapStatus_t statusDecoded = {0};
@@ -844,8 +878,20 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     snapshot.AutoScanEnabled = (snapshot.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0U;
     snapshot.Converting = (!snapshot.SleepModeEnabled) &&
                           (snapshot.AutoScanEnabled || (snapshot.ActiveChannel == dataChannel));
+    snapshot.FailedReg = 0xFFu;
+    snapshot.Partial = false;
 
     *outSnapshot = snapshot;
+    Fdc2214CapTxnMark(dev, FDC2214_TXN_OP_SNAPSHOT, (uint8_t)(dataReg + 1u), 1u, 2u, ESP_OK, 0xFFu);
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapGetLastTransactionDiag(Fdc2214CapDevice_t* dev, Fdc2214CapTxnDiag_t* outDiag)
+{
+    if (!dev || !outDiag) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *outDiag = dev->txnDiag;
     return ESP_OK;
 }
 

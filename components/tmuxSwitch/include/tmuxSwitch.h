@@ -50,6 +50,27 @@ typedef struct {
     bool obsTmux1134EnLogicalOn;
     int obsSelaLevel; // Alias of obsSel1Level for explicit SELA naming.
     int obsSelbLevel; // Alias of obsSel2Level for explicit SELB naming.
+
+    /*
+     * Verified control levels: last value that was explicitly written and
+     * immediately read back as matching on MCU GPIOs.
+     * -1 means unknown / not yet verified.
+     */
+    int verifiedA0Level;
+    int verifiedA1Level;
+    int verifiedA2Level;
+    int verifiedSwLevel;
+    int verifiedSel1Level;
+    int verifiedSel2Level;
+    int verifiedSel3Level;
+    int verifiedSel4Level;
+    int verifiedEnLevel;
+    int verifiedSelaLevel; // Alias of verifiedSel1Level.
+    int verifiedSelbLevel; // Alias of verifiedSel2Level.
+
+    // Monotonic control update sequence and update tick in ms.
+    uint32_t sequence;
+    uint32_t tickMs;
 } tmuxSwitchControlState_t;
 
 typedef struct {
@@ -94,6 +115,7 @@ esp_err_t tmux1134SetAllOn(void);
  * Observed GPIO levels are MCU-side only and are not definitive analog-route proof.
  */
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState);
+esp_err_t tmuxSwitchSnapshotControlState(tmuxSwitchControlState_t *outState);
 esp_err_t tmuxSwitchLogControlSnapshot(const tmuxSwitchSnapshotContext_t *context);
 
 esp_err_t tmuxSwitchSelectRow(uint8_t row);

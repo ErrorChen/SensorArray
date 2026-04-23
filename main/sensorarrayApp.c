@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "boardSupport.h"
 #include "tmuxSwitch.h"
@@ -24,6 +25,47 @@ static const sensorarrayAdsReadPolicy_t s_adsReadPolicy = {
     .baseDiscardCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT,
     .readRetryCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT,
 };
+
+static esp_err_t sensorarrayApplyS5d5SecondaryModeBootState(void)
+{
+    if (!s_state.tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t invariantErr = sensorarrayBoardMapAssertS5d5CapRouteInvariant();
+    if (invariantErr != ESP_OK) {
+        return invariantErr;
+    }
+
+    // Dedicated mode boot must avoid ADS default path contamination.
+    esp_err_t err = tmux1134SetEnLogicalState(false);
+    if (err == ESP_OK) {
+        err = tmuxSwitchSelectRow(0u);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayMeasureSetSelaPath(&s_state,
+                                            SENSORARRAY_SELA_ROUTE_FDC2214,
+                                            SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                            "mode_boot_isolated",
+                                            "s5d5_boot");
+    }
+    if (err == ESP_OK) {
+        err = tmux1134SelectSelBLevel(true);
+    }
+    if (err == ESP_OK) {
+        err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
+    }
+    if (err == ESP_OK) {
+        err = tmux1134SetEnLogicalState(true);
+    }
+
+    sensorarrayLogStartup("mode_boot_isolated",
+                          err,
+                          (err == ESP_OK) ? "secondary_boot_state_ready" : "secondary_boot_state_failed",
+                          (int32_t)(err == ESP_OK));
+    sensorarrayLogControlGpio("mode_boot_isolated", "S5D5");
+    return err;
+}
 
 static void sensorarrayApplyTmuxDefaults(void)
 {
@@ -73,6 +115,7 @@ void sensorarrayAppRun(void)
     bool fdcI2cDiscoveryMode = (activeMode == SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY);
     bool skipAdsInit = s1d1RouteOnly || singleCapFdcMode || fdcI2cDiscoveryMode;
     bool skipFdcInit = s1d1ResMode || fdcI2cDiscoveryMode;
+    s_state.dedicatedSecondaryFdcMode = singleCapFdcMode;
 
     uint8_t requestedChannels = sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -130,13 +173,25 @@ void sensorarrayAppRun(void)
     err = tmuxSwitchInit();
     s_state.tmuxReady = (err == ESP_OK);
     sensorarrayLogStartup("tmux", err, s_state.tmuxReady ? "ok" : "init_failed", (int32_t)s_state.tmuxReady);
-
-    sensorarrayApplyTmuxDefaults();
+    if (singleCapFdcMode) {
+        printf("DBGS5D5_MODE,stage=mode_boot_isolated,activeMode=%d,mode_boot_bypass_ads=1,mode_boot_secondary_only=1\n",
+               (int)activeMode);
+        err = sensorarrayApplyS5d5SecondaryModeBootState();
+        sensorarrayLogStartup("mode_boot_secondary_only",
+                              err,
+                              (err == ESP_OK) ? "ready" : "failed",
+                              (int32_t)(err == ESP_OK));
+    } else {
+        sensorarrayApplyTmuxDefaults();
+    }
 
     if (skipAdsInit) {
         const char *adsSkipStatus = singleCapFdcMode
                                         ? "skip_cap_fdc_secondary_mode"
                                         : (fdcI2cDiscoveryMode ? "skip_fdc_i2c_discovery_mode" : "skip_route_only_mode");
+        if (singleCapFdcMode) {
+            sensorarrayLogStartup("mode_boot_bypass_ads", ESP_OK, "enabled", 1);
+        }
         s_state.adsReady = false;
         s_state.adsRefReady = false;
         s_state.adsAdc1Running = false;
@@ -274,32 +329,35 @@ void sensorarrayAppRun(void)
                                      0,
                                      "D5..D8_secondary_selb_side");
         } else {
-            sensorarrayBringupProbeFdcBus(&s_state.fdcSecondary);
-
             sensorarrayFdcInitDiag_t diag = {0};
-            err = sensorarrayBringupInitFdcDevice(s_state.fdcSecondary.i2cCtx,
-                                                  s_state.fdcSecondary.i2cAddr,
-                                                  singleCapFdcMode ? 1u : requestedChannels,
-                                                  &s_state.fdcSecondary.handle,
-                                                  &diag);
-            s_state.fdcSecondary.ready = (err == ESP_OK);
-            s_state.fdcSecondary.haveIds = diag.haveIds;
-            s_state.fdcSecondary.manufacturerId = diag.manufacturerId;
-            s_state.fdcSecondary.deviceId = diag.deviceId;
-            s_state.fdcSecondary.configVerified = diag.configVerified;
-            s_state.fdcSecondary.refClockKnown = diag.refClockKnown;
-            s_state.fdcSecondary.refClockSource = diag.refClockSource;
-            s_state.fdcSecondary.refClockQuality = diag.refClockQuality;
-            s_state.fdcSecondary.refClockIsCalibrated = diag.refClockIsCalibrated;
-            s_state.fdcSecondary.refClockHz = diag.refClockHz;
-            s_state.fdcSecondary.refClockHzNominal = diag.refClockHzNominal;
-            s_state.fdcSecondary.refClockHzCalibrated = diag.refClockHzCalibrated;
-            s_state.fdcSecondary.channel0ClockDividersRaw = diag.channel0ClockDividersRaw;
-            s_state.fdcSecondary.channel0ClockDividerValid = diag.channel0ClockDividerValid;
-            s_state.fdcSecondary.channel0ClockDividerInfo = diag.channel0ClockDividerInfo;
-            s_state.fdcSecondary.statusConfigReg = diag.statusConfigReg;
-            s_state.fdcSecondary.configReg = diag.configReg;
-            s_state.fdcSecondary.muxConfigReg = diag.muxConfigReg;
+            if (singleCapFdcMode) {
+                err = sensorarrayBringupReinitSecondaryFdcForS5d5(&s_state, &diag);
+            } else {
+                sensorarrayBringupProbeFdcBus(&s_state.fdcSecondary);
+                err = sensorarrayBringupInitFdcDevice(s_state.fdcSecondary.i2cCtx,
+                                                      s_state.fdcSecondary.i2cAddr,
+                                                      requestedChannels,
+                                                      &s_state.fdcSecondary.handle,
+                                                      &diag);
+                s_state.fdcSecondary.ready = (err == ESP_OK);
+                s_state.fdcSecondary.haveIds = diag.haveIds;
+                s_state.fdcSecondary.manufacturerId = diag.manufacturerId;
+                s_state.fdcSecondary.deviceId = diag.deviceId;
+                s_state.fdcSecondary.configVerified = diag.configVerified;
+                s_state.fdcSecondary.refClockKnown = diag.refClockKnown;
+                s_state.fdcSecondary.refClockSource = diag.refClockSource;
+                s_state.fdcSecondary.refClockQuality = diag.refClockQuality;
+                s_state.fdcSecondary.refClockIsCalibrated = diag.refClockIsCalibrated;
+                s_state.fdcSecondary.refClockHz = diag.refClockHz;
+                s_state.fdcSecondary.refClockHzNominal = diag.refClockHzNominal;
+                s_state.fdcSecondary.refClockHzCalibrated = diag.refClockHzCalibrated;
+                s_state.fdcSecondary.channel0ClockDividersRaw = diag.channel0ClockDividersRaw;
+                s_state.fdcSecondary.channel0ClockDividerValid = diag.channel0ClockDividerValid;
+                s_state.fdcSecondary.channel0ClockDividerInfo = diag.channel0ClockDividerInfo;
+                s_state.fdcSecondary.statusConfigReg = diag.statusConfigReg;
+                s_state.fdcSecondary.configReg = diag.configReg;
+                s_state.fdcSecondary.muxConfigReg = diag.muxConfigReg;
+            }
             sensorarrayLogStartupFdc("fdc_init",
                                      &s_state.fdcSecondary,
                                      err,

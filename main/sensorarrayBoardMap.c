@@ -248,6 +248,71 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
     return TMUX1108_SOURCE_GND;
 }
 
+esp_err_t sensorarrayBoardMapAssertS5d5CapRouteInvariant(void)
+{
+    const sensorarrayRouteMap_t *route = sensorarrayBoardMapFindRoute(SENSORARRAY_S5,
+                                                                       SENSORARRAY_D5,
+                                                                       SENSORARRAY_PATH_CAPACITIVE);
+    if (!route) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=route_missing,sColumn=%u,dLine=%u,path=cap\n",
+               (unsigned)SENSORARRAY_S5,
+               (unsigned)SENSORARRAY_D5);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (route->selaRoute != SENSORARRAY_SELA_ROUTE_FDC2214) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=sela_not_fdc,selaRoute=%s\n",
+               sensorarrayBoardMapSelaRouteName(route->selaRoute));
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!route->selBLevel) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=selb_not_capacitive,selbLevel=%u\n",
+               route->selBLevel ? 1u : 0u);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    const sensorarrayFdcDLineMap_t *fdcMap = sensorarrayBoardMapFindFdcByDLine(SENSORARRAY_D5);
+    if (!fdcMap || fdcMap->devId != SENSORARRAY_FDC_DEV_SECONDARY || fdcMap->channel != FDC2214_CH0) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=d5_not_secondary_ch0,fdcDev=%u,fdcChannel=%u\n",
+               fdcMap ? (unsigned)fdcMap->devId : 0u,
+               fdcMap ? (unsigned)fdcMap->channel : 0u);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int selaLevel = -1;
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(SENSORARRAY_SELA_ROUTE_FDC2214, &selaLevel) || selaLevel != 1) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=sela_gpio_semantic_unexpected,selaLevel=%d\n", selaLevel);
+        return ESP_ERR_INVALID_STATE;
+    }
+    sensorarraySelaRoute_t selaRoundtrip = SENSORARRAY_SELA_ROUTE_ADS1263;
+    if (!sensorarrayBoardMapSelaRouteFromGpioLevel(selaLevel, &selaRoundtrip) ||
+        selaRoundtrip != SENSORARRAY_SELA_ROUTE_FDC2214) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=sela_roundtrip_failed,selaLevel=%d\n", selaLevel);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    tmux1108Source_t swSource = sensorarrayBoardMapDefaultSwSource(route);
+    if (swSource != TMUX1108_SOURCE_GND) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=sw_not_unique_legal_state,swSource=%s\n",
+               sensorarrayBoardMapSwSourceSemanticName(swSource));
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int swLevel = sensorarrayBoardMapSwSourceToGpioLevel(swSource);
+    if (swLevel != 0 && swLevel != 1) {
+        printf("board_map_invariant_broken,scope=s5d5,reason=sw_gpio_invalid,swLevel=%d\n", swLevel);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    printf("board_map_invariant_ok,scope=s5d5,sColumn=%u,dLine=%u,sela=%s,selb=capacitive,sw=%s,fdcDev=secondary,channel=%u\n",
+           (unsigned)route->sColumn,
+           (unsigned)route->dLine,
+           sensorarrayBoardMapSelaRouteName(route->selaRoute),
+           sensorarrayBoardMapSwSourceSemanticName(swSource),
+           (unsigned)fdcMap->channel);
+    return ESP_OK;
+}
+
 void sensorarrayBoardMapAudit(void)
 {
     printf("DBGROUTECTRL,gpioName=A0,gpioNum=%d,activePolarity=active_high,logic1Meaning=row_bit0=1,"

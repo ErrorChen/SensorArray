@@ -91,6 +91,11 @@ esp_err_t boardSupportI2cCheckLines(const BoardSupportI2cCtx_t *i2cCtx,
 esp_err_t boardSupportI2cReinit(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
 // Attempt stuck-bus recovery (9 SCL pulses + STOP) and reinitialize the driver.
 esp_err_t boardSupportI2cRecoverBus(const BoardSupportI2cCtx_t *i2cCtx, const char *reason);
+// Explicit manual recover flow with diagnostic logging for dedicated debug mode.
+esp_err_t boardSupportI2cManualRecover(const BoardSupportI2cCtx_t *i2cCtx,
+                                       uint8_t addr7,
+                                       const char *reason,
+                                       uint32_t failureStreakHint);
 
 // Returns latest recovery-related status captured for this bus.
 bool boardSupportI2cGetLastRecoveryStatus(const BoardSupportI2cCtx_t *i2cCtx,
