@@ -5,6 +5,36 @@
 
 #include "sensorarrayConfig.h"
 
+#ifndef CONFIG_TMUX1134_DEFAULT_ALL_OFF
+#define CONFIG_TMUX1134_DEFAULT_ALL_OFF 0
+#endif
+
+/*
+ * Board-control semantic contract (S5D5 debug must follow this table).
+ *
+ * TMUX1108:
+ *   - A0/A1/A2: row binary select, active-high bits.
+ *   - SW gpio: polarity is board-specific via CONFIG_TMUX1108_SW_REF_LEVEL.
+ *       SW level == refLevel -> source REF
+ *       SW level != refLevel -> source GND
+ *     For S5D5 capacitive bring-up we intentionally command source=GND so the
+ *     D branch is forced to local reference ground during route verification.
+ *
+ * TMUX1134:
+ *   - SELA/SELB/SEL3/SEL4: active-high selects SxA, low selects SxB.
+ *   - EN: if present, off level is CONFIG_TMUX1134_EN_OFF_LEVEL.
+ *   - On this board SELA semantics are:
+ *       SELA=0 -> ADS1263 branch
+ *       SELA=1 -> FDC2214 branch
+ *   - On this board SELB semantics are:
+ *       SELB=0 -> resistive branch (Rx)
+ *       SELB=1 -> capacitive branch (Cx, D5..D8 side)
+ *
+ * Default power-up state after tmuxSwitchInit():
+ *   row=0 (A2..A0 = 000), SELA=0, SELB=0, SEL3=0(if present), SEL4=0(if present),
+ *   SW=CONFIG_TMUX1108_DEFAULT_SOURCE, EN logical on (or hard-wired on).
+ */
+
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // Board/application route recipes used by current debug workflows.
     { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S1D1_res_sela_ads1263" },
@@ -91,6 +121,38 @@ bool sensorarrayBoardMapSelaRouteFromGpioLevel(int gpioLevel, sensorarraySelaRou
     }
 }
 
+int sensorarrayBoardMapSwSourceToGpioLevel(tmux1108Source_t source)
+{
+    int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
+    return (source == TMUX1108_SOURCE_REF) ? refLevel : (refLevel ? 0 : 1);
+}
+
+bool sensorarrayBoardMapSwSourceFromGpioLevel(int gpioLevel, tmux1108Source_t *outSource)
+{
+    if (!outSource) {
+        return false;
+    }
+    if (gpioLevel != 0 && gpioLevel != 1) {
+        return false;
+    }
+    int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
+    *outSource = (gpioLevel == refLevel) ? TMUX1108_SOURCE_REF : TMUX1108_SOURCE_GND;
+    return true;
+}
+
+const char *sensorarrayBoardMapSwSourceSemanticName(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
+}
+
+const char *sensorarrayBoardMapSelLevelSemanticName(int gpioLevel)
+{
+    if (gpioLevel < 0) {
+        return "UNKNOWN";
+    }
+    return (gpioLevel != 0) ? "SxA" : "SxB";
+}
+
 bool sensorarrayBoardMapAdsMuxForDLine(uint8_t dLine, uint8_t *muxp, uint8_t *muxn)
 {
     if (!muxp || !muxn || dLine < 1u || dLine > 8u) {
@@ -174,7 +236,11 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
         return TMUX1108_SOURCE_GND;
     }
     if (route->path == SENSORARRAY_PATH_CAPACITIVE) {
-        return TMUX1108_SOURCE_REF;
+        /*
+         * Capacitive S5D5 bring-up expects D-side forced to board ground through
+         * TMUX1108 SW source selection.
+         */
+        return TMUX1108_SOURCE_GND;
     }
     if (route->mapLabel && strstr(route->mapLabel, "volt") != NULL) {
         return TMUX1108_SOURCE_REF;
@@ -184,6 +250,47 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
 
 void sensorarrayBoardMapAudit(void)
 {
+    printf("DBGROUTECTRL,gpioName=A0,gpioNum=%d,activePolarity=active_high,logic1Meaning=row_bit0=1,"
+           "defaultPowerUp=0\n",
+           CONFIG_TMUX1108_A0_GPIO);
+    printf("DBGROUTECTRL,gpioName=A1,gpioNum=%d,activePolarity=active_high,logic1Meaning=row_bit1=1,"
+           "defaultPowerUp=0\n",
+           CONFIG_TMUX1108_A1_GPIO);
+    printf("DBGROUTECTRL,gpioName=A2,gpioNum=%d,activePolarity=active_high,logic1Meaning=row_bit2=1,"
+           "defaultPowerUp=0\n",
+           CONFIG_TMUX1108_A2_GPIO);
+    printf("DBGROUTECTRL,gpioName=SW,gpioNum=%d,activePolarity=%s,logic1Meaning=%s,logic0Meaning=%s,"
+           "defaultPowerUpSource=%s\n",
+           CONFIG_TMUX1108_SW_GPIO,
+           CONFIG_TMUX1108_SW_REF_LEVEL ? "active_high_selects_REF" : "active_high_selects_GND",
+           CONFIG_TMUX1108_SW_REF_LEVEL ? "source=REF" : "source=GND",
+           CONFIG_TMUX1108_SW_REF_LEVEL ? "source=GND" : "source=REF",
+           sensorarrayBoardMapSwSourceSemanticName((CONFIG_TMUX1108_DEFAULT_SOURCE != 0) ? TMUX1108_SOURCE_REF
+                                                                                           : TMUX1108_SOURCE_GND));
+    printf("DBGROUTECTRL,gpioName=SELA,gpioNum=%d,activePolarity=active_high_selects_SxA,logic1Meaning=FDC2214,"
+           "logic0Meaning=ADS1263,defaultPowerUp=0\n",
+           CONFIG_TMUX1134_SEL1_GPIO);
+    printf("DBGROUTECTRL,gpioName=SELB,gpioNum=%d,activePolarity=active_high_selects_SxA,logic1Meaning=capacitive_Cx_D5_D8,"
+           "logic0Meaning=resistive_Rx_D5_D8,defaultPowerUp=0\n",
+           CONFIG_TMUX1134_SEL2_GPIO);
+    printf("DBGROUTECTRL,gpioName=SEL3,gpioNum=%d,activePolarity=active_high_selects_SxA,logic1Meaning=SxA,"
+           "logic0Meaning=SxB,defaultPowerUp=%s\n",
+           CONFIG_TMUX1134_SEL3_GPIO,
+           (CONFIG_TMUX1134_SEL3_GPIO >= 0) ? "0" : "na");
+    printf("DBGROUTECTRL,gpioName=SEL4,gpioNum=%d,activePolarity=active_high_selects_SxA,logic1Meaning=SxA,"
+           "logic0Meaning=SxB,defaultPowerUp=%s\n",
+           CONFIG_TMUX1134_SEL4_GPIO,
+           (CONFIG_TMUX1134_SEL4_GPIO >= 0) ? "0" : "na");
+    printf("DBGROUTECTRL,gpioName=EN,gpioNum=%d,activePolarity=%s,logic1Meaning=%s,logic0Meaning=%s,defaultPowerUp=%s\n",
+           CONFIG_TMUX1134_EN_GPIO,
+           CONFIG_TMUX1134_EN_OFF_LEVEL ? "active_low_enables" : "active_high_enables",
+           CONFIG_TMUX1134_EN_OFF_LEVEL ? "disable" : "enable",
+           CONFIG_TMUX1134_EN_OFF_LEVEL ? "enable" : "disable",
+           (CONFIG_TMUX1134_EN_GPIO >= 0)
+               ? (CONFIG_TMUX1134_DEFAULT_ALL_OFF ? (CONFIG_TMUX1134_EN_OFF_LEVEL ? "1" : "0")
+                                                  : (CONFIG_TMUX1134_EN_OFF_LEVEL ? "0" : "1"))
+               : "hardwired_on");
+
     for (size_t i = 0; i < sensorarrayBoardMapRouteCount(); ++i) {
         const sensorarrayRouteMap_t *entry = sensorarrayBoardMapRouteAt(i);
         if (!entry) {
@@ -191,8 +298,10 @@ void sensorarrayBoardMapAudit(void)
         }
         int selaWriteLevel = -1;
         (void)sensorarrayBoardMapSelaRouteToGpioLevel(entry->selaRoute, &selaWriteLevel);
+        int swWriteLevel = sensorarrayBoardMapSwSourceToGpioLevel(sensorarrayBoardMapDefaultSwSource(entry));
 
-        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selBLevel=%u,label=%s\n",
+        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selBLevel=%u,"
+               "swSource=%s,swWriteLevel=%d,label=%s\n",
                (unsigned)i,
                (unsigned)entry->sColumn,
                (unsigned)entry->dLine,
@@ -200,6 +309,8 @@ void sensorarrayBoardMapAudit(void)
                sensorarrayBoardMapSelaRouteName(entry->selaRoute),
                selaWriteLevel,
                entry->selBLevel ? 1u : 0u,
+               sensorarrayBoardMapSwSourceSemanticName(sensorarrayBoardMapDefaultSwSource(entry)),
+               swWriteLevel,
                entry->mapLabel ? entry->mapLabel : SENSORARRAY_NA);
     }
 

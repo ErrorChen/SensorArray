@@ -193,12 +193,12 @@ const char *sensorarrayLogFmtGpioLevel(char *buf, size_t bufSize, bool valid, in
 
 const char *sensorarrayLogSwSourceName(tmux1108Source_t source)
 {
-    return (source == TMUX1108_SOURCE_REF) ? "HIGH" : "LOW";
+    return sensorarrayBoardMapSwSourceSemanticName(source);
 }
 
 const char *sensorarrayLogSwSourceLogicalName(tmux1108Source_t source)
 {
-    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
+    return sensorarrayBoardMapSwSourceSemanticName(source);
 }
 
 const char *sensorarrayLogAdsMuxName(uint8_t mux)
@@ -555,20 +555,25 @@ void sensorarrayLogRouteStep(const char *stage,
                              const char *status)
 {
     char selaWriteBuf[8];
+    char swWriteBuf[8];
     int selaWriteLevel = -1;
+    int swWriteLevel = sensorarrayBoardMapSwSourceToGpioLevel(swSource);
     const bool haveSelaWrite = sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel);
+    const char *selBSemantic = sensorarrayBoardMapSelLevelSemanticName(selBLevel ? 1 : 0);
 
-    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,selaWrite=%s,"
-           "selBLevel=%u,err=%ld,status=%s\n",
+    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,swSourceSemantic=%s,swExpectedLevel=%s,"
+           "selaRequest=%s,selaExpectedLevel=%s,selBExpectedLevel=%u,selBSemantic=%s,err=%ld,status=%s\n",
            stage ? stage : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA,
            (unsigned)sColumn,
            (unsigned)dLine,
            sensorarrayLogDebugPathName(path),
-           sensorarrayLogSwSourceName(swSource),
+           sensorarrayBoardMapSwSourceSemanticName(swSource),
+           sensorarrayLogFmtGpioLevel(swWriteBuf, sizeof(swWriteBuf), true, swWriteLevel),
            haveSelaWrite ? sensorarrayBoardMapSelaRouteName(selaRoute) : SENSORARRAY_NA,
            sensorarrayLogFmtGpioLevel(selaWriteBuf, sizeof(selaWriteBuf), haveSelaWrite, selaWriteLevel),
            selBLevel ? 1u : 0u,
+           selBSemantic,
            (long)err,
            status ? status : SENSORARRAY_NA);
     sensorarrayLogControlGpio(stage, label);

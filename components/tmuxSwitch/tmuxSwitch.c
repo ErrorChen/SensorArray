@@ -1,5 +1,7 @@
 #include "tmuxSwitch.h"
 
+#include <stdio.h>
+
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -119,6 +121,79 @@ static void tmux1134SetEnStateNoLock(bool on)
     gpio_set_level((gpio_num_t)CONFIG_TMUX1134_EN_GPIO, level);
     s_en_on = on;
     s_cmd_en_level = level;
+}
+
+static const char *tmuxStringOrNa(const char *value)
+{
+    return value ? value : "na";
+}
+
+static const char *tmuxFormatLevel(char *buf, size_t bufSize, int level)
+{
+    if (!buf || bufSize == 0u) {
+        return "na";
+    }
+    if (level < 0) {
+        (void)snprintf(buf, bufSize, "na");
+        return buf;
+    }
+    (void)snprintf(buf, bufSize, "%d", level ? 1 : 0);
+    return buf;
+}
+
+static const char *tmuxSwSemanticFromLevel(int level)
+{
+    if (level < 0) {
+        return "source=na";
+    }
+    int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
+    return (level == refLevel) ? "level->source=REF" : "level->source=GND";
+}
+
+static const char *tmux1134SelSemanticFromLevel(int level)
+{
+    if (level < 0) {
+        return "select=na";
+    }
+    return (level != 0) ? "level->select=SxA" : "level->select=SxB";
+}
+
+static const char *tmux1134EnSemanticFromLevel(int level)
+{
+    if (CONFIG_TMUX1134_EN_GPIO < 0) {
+        return "enabled=hardwired";
+    }
+    if (level < 0) {
+        return "enabled=na";
+    }
+    int offLevel = CONFIG_TMUX1134_EN_OFF_LEVEL ? 1 : 0;
+    return (level == offLevel) ? "enabled=0" : "enabled=1";
+}
+
+static void tmuxLogSnapshotLine(const tmuxSwitchSnapshotContext_t *context,
+                                const char *gpioName,
+                                int gpioNum,
+                                int commandLevel,
+                                int observedLevel,
+                                const char *activePolarity,
+                                const char *semanticMeaning,
+                                const char *readbackReliability)
+{
+    char cmdBuf[8] = {0};
+    char obsBuf[8] = {0};
+    printf("DBGTMUXCTRL,stage=%s,routeLabel=%s,targetPath=%s,expectedSemantic=%s,gpioName=%s,gpioNum=%d,"
+           "commandLevel=%s,observedLevel=%s,activePolarity=%s,semanticMeaning=%s,readbackReliability=%s\n",
+           tmuxStringOrNa(context ? context->stage : NULL),
+           tmuxStringOrNa(context ? context->routeLabel : NULL),
+           tmuxStringOrNa(context ? context->targetPath : NULL),
+           tmuxStringOrNa(context ? context->expectedSemantic : NULL),
+           tmuxStringOrNa(gpioName),
+           gpioNum,
+           tmuxFormatLevel(cmdBuf, sizeof(cmdBuf), commandLevel),
+           tmuxFormatLevel(obsBuf, sizeof(obsBuf), observedLevel),
+           tmuxStringOrNa(activePolarity),
+           tmuxStringOrNa(semanticMeaning),
+           tmuxStringOrNa(readbackReliability));
 }
 
 static esp_err_t tmuxValidateConfig(void)
@@ -380,6 +455,50 @@ esp_err_t tmux1134SelectSelBLevel(bool level)
     return ESP_OK;
 }
 
+esp_err_t tmux1134SelectSel3Level(bool level)
+{
+    if (CONFIG_TMUX1134_SEL3_GPIO < 0) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    portENTER_CRITICAL(&s_tmux_lock);
+    if (!s_inited) {
+        portEXIT_CRITICAL(&s_tmux_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
+        tmux1134SetEnStateNoLock(true);
+    }
+
+    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL3_GPIO, level);
+    portEXIT_CRITICAL(&s_tmux_lock);
+
+    return ESP_OK;
+}
+
+esp_err_t tmux1134SelectSel4Level(bool level)
+{
+    if (CONFIG_TMUX1134_SEL4_GPIO < 0) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    portENTER_CRITICAL(&s_tmux_lock);
+    if (!s_inited) {
+        portEXIT_CRITICAL(&s_tmux_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (CONFIG_TMUX1134_EN_GPIO >= 0 && !s_en_on) {
+        tmux1134SetEnStateNoLock(true);
+    }
+
+    tmux1134ApplySelNoLock(CONFIG_TMUX1134_SEL4_GPIO, level);
+    portEXIT_CRITICAL(&s_tmux_lock);
+
+    return ESP_OK;
+}
+
 esp_err_t tmux1134SetEnLogicalState(bool on)
 {
     portENTER_CRITICAL(&s_tmux_lock);
@@ -522,6 +641,132 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     outState->obsSelbLevel = outState->obsSel2Level;
     portEXIT_CRITICAL(&s_tmux_lock);
 
+    return ESP_OK;
+}
+
+esp_err_t tmuxSwitchLogControlSnapshot(const tmuxSwitchSnapshotContext_t *context)
+{
+    tmuxSwitchControlState_t ctrl = {0};
+    esp_err_t err = tmuxSwitchGetControlState(&ctrl);
+    if (err != ESP_OK) {
+        printf("DBGTMUXCTRL,stage=%s,routeLabel=%s,targetPath=%s,status=ctrl_state_unavailable,err=%ld\n",
+               tmuxStringOrNa(context ? context->stage : NULL),
+               tmuxStringOrNa(context ? context->routeLabel : NULL),
+               tmuxStringOrNa(context ? context->targetPath : NULL),
+               (long)err);
+        return err;
+    }
+
+    tmuxLogSnapshotLine(context,
+                        "A0",
+                        CONFIG_TMUX1108_A0_GPIO,
+                        ctrl.cmdA0Level,
+                        ctrl.obsA0Level,
+                        "active_high(bit0)",
+                        "row_select_bit0",
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "A1",
+                        CONFIG_TMUX1108_A1_GPIO,
+                        ctrl.cmdA1Level,
+                        ctrl.obsA1Level,
+                        "active_high(bit1)",
+                        "row_select_bit1",
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "A2",
+                        CONFIG_TMUX1108_A2_GPIO,
+                        ctrl.cmdA2Level,
+                        ctrl.obsA2Level,
+                        "active_high(bit2)",
+                        "row_select_bit2",
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "SW",
+                        CONFIG_TMUX1108_SW_GPIO,
+                        ctrl.cmdSwLevel,
+                        ctrl.obsSwLevel,
+                        CONFIG_TMUX1108_SW_REF_LEVEL ? "active_high_selects_REF" : "active_high_selects_GND",
+                        tmuxSwSemanticFromLevel(ctrl.cmdSwLevel),
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "SELA",
+                        CONFIG_TMUX1134_SEL1_GPIO,
+                        ctrl.cmdSelaLevel,
+                        ctrl.obsSelaLevel,
+                        "active_high_selects_SxA",
+                        tmux1134SelSemanticFromLevel(ctrl.cmdSelaLevel),
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "SELB",
+                        CONFIG_TMUX1134_SEL2_GPIO,
+                        ctrl.cmdSelbLevel,
+                        ctrl.obsSelbLevel,
+                        "active_high_selects_SxA",
+                        tmux1134SelSemanticFromLevel(ctrl.cmdSelbLevel),
+                        "low");
+    tmuxLogSnapshotLine(context,
+                        "SEL3",
+                        CONFIG_TMUX1134_SEL3_GPIO,
+                        ctrl.cmdSel3Level,
+                        ctrl.obsSel3Level,
+                        "active_high_selects_SxA",
+                        tmux1134SelSemanticFromLevel(ctrl.cmdSel3Level),
+                        (CONFIG_TMUX1134_SEL3_GPIO >= 0) ? "low" : "not_available");
+    tmuxLogSnapshotLine(context,
+                        "SEL4",
+                        CONFIG_TMUX1134_SEL4_GPIO,
+                        ctrl.cmdSel4Level,
+                        ctrl.obsSel4Level,
+                        "active_high_selects_SxA",
+                        tmux1134SelSemanticFromLevel(ctrl.cmdSel4Level),
+                        (CONFIG_TMUX1134_SEL4_GPIO >= 0) ? "low" : "not_available");
+    tmuxLogSnapshotLine(context,
+                        "EN",
+                        CONFIG_TMUX1134_EN_GPIO,
+                        ctrl.cmdEnLevel,
+                        ctrl.obsEnLevel,
+                        CONFIG_TMUX1134_EN_OFF_LEVEL ? "active_low_enables" : "active_high_enables",
+                        tmux1134EnSemanticFromLevel(ctrl.cmdEnLevel),
+                        (CONFIG_TMUX1134_EN_GPIO >= 0) ? "low" : "not_available");
+
+    uint32_t mismatchCount = 0u;
+    const int cmdLevels[] = {
+        ctrl.cmdA0Level,
+        ctrl.cmdA1Level,
+        ctrl.cmdA2Level,
+        ctrl.cmdSwLevel,
+        ctrl.cmdSelaLevel,
+        ctrl.cmdSelbLevel,
+        ctrl.cmdSel3Level,
+        ctrl.cmdSel4Level,
+        ctrl.cmdEnLevel,
+    };
+    const int obsLevels[] = {
+        ctrl.obsA0Level,
+        ctrl.obsA1Level,
+        ctrl.obsA2Level,
+        ctrl.obsSwLevel,
+        ctrl.obsSelaLevel,
+        ctrl.obsSelbLevel,
+        ctrl.obsSel3Level,
+        ctrl.obsSel4Level,
+        ctrl.obsEnLevel,
+    };
+    for (size_t i = 0u; i < (sizeof(cmdLevels) / sizeof(cmdLevels[0])); ++i) {
+        if (cmdLevels[i] >= 0 && obsLevels[i] >= 0 && cmdLevels[i] != obsLevels[i]) {
+            mismatchCount++;
+        }
+    }
+
+    printf("DBGTMUXCTRL,stage=%s,routeLabel=%s,targetPath=%s,status=%s,routeConsistency=%s,mismatchCount=%lu,"
+           "note=observedLevel_is_mcu_gpio_only_not_analog_conduction_proof\n",
+           tmuxStringOrNa(context ? context->stage : NULL),
+           tmuxStringOrNa(context ? context->routeLabel : NULL),
+           tmuxStringOrNa(context ? context->targetPath : NULL),
+           (mismatchCount == 0u) ? "command_observed_match" : "command_observed_mismatch",
+           (mismatchCount == 0u) ? "pass" : "fail",
+           (unsigned long)mismatchCount);
     return ESP_OK;
 }
 

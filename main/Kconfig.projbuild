@@ -216,26 +216,24 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISABLE_SWEEP
     bool "Single-cap debug: disable drive sweep (single-candidate override)"
-    default n
+    default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        Advanced override. Normal debug flow should keep sweep enabled so S5D5 can
-        search (high-current, drive-step) candidates and lock to measured evidence.
-        Enable this only for targeted experiments when you intentionally want one
-        candidate path.
+        Default staged bring-up mode: route_only -> route_verified -> fdc_ping ->
+        single_drive_probe, without immediately running full candidate sweep.
+        Disable this option only after route and single-drive probe are verified.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_SINGLE_DRIVE
     bool "Single-cap debug: force one drive-current setting"
-    default n
+    default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
-        Advanced override. When enabled, sweep still runs unless disable-sweep is
-        also enabled, but all candidates use one forced drive step. Keep disabled
-        for normal unstable/unknown lock-point debug so the full sweep can search.
+        Keep enabled for staged S5D5 verification to lock drive current first.
+        Limited sweep can be enabled later only after route and single-drive pass.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FORCE_DRIVE_CURRENT
     hex "Single-cap debug: forced drive current (step or legacy raw)"
-    default 0x001F
+    default 0x7800
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Canonical form is logical drive step (0x00..0x1F). Legacy raw register
@@ -478,6 +476,7 @@ config SENSORARRAY_DEBUG_TASK_WDT_TIMEOUT_MS
 
 config SENSORARRAY_DEBUG_TASK_WDT_PANIC
     bool "Task watchdog timeout triggers panic"
+    default y if SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     default n
     help
         If disabled, TWDT timeout uses reset path without panic backtrace.

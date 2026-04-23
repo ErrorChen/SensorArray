@@ -22,6 +22,8 @@
 #define SENSORARRAY_FDC_RAW_SCALE_2P28 268435456.0
 #define SENSORARRAY_PI 3.14159265358979323846
 
+static const char *sensorarrayRouteSelBSemanticName(uint8_t dLine, int selBLevel);
+
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
     if (delayMs > 0u) {
@@ -50,38 +52,44 @@ static void sensorarrayLogRouteProgress(const char *stage,
     uint32_t elapsedMs = sensorarrayTickToMs(nowTick - enterTick);
     uint32_t uptimeMs = sensorarrayTickToMs(nowTick);
     int selaWriteLevel = -1;
+    int swWriteLevel = sensorarrayBoardMapSwSourceToGpioLevel(swSource);
     bool haveSelaWrite = sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel);
     char selaWriteBuf[8] = {0};
+    char swWriteBuf[8] = {0};
 
-    printf("DBGROUTE,stage=%s_%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRoute=%s,selaWrite=%s,"
-           "selBLevel=%u,elapsedMs=%lu,err=%ld,tick=%lu,uptimeMs=%lu\n",
+    printf("DBGROUTE,stage=%s_%s,label=%s,sColumn=%u,dLine=%u,path=%s,swSemantic=%s,swWrite=%s,selaRoute=%s,selaWrite=%s,"
+           "selBLevel=%u,selBSemantic=%s,elapsedMs=%lu,err=%ld,tick=%lu,uptimeMs=%lu\n",
            stage ? stage : SENSORARRAY_NA,
            phase ? phase : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA,
            (unsigned)sColumn,
            (unsigned)dLine,
            sensorarrayLogDebugPathName(path),
-           sensorarrayLogSwSourceName(swSource),
+           sensorarrayBoardMapSwSourceSemanticName(swSource),
+           sensorarrayLogFmtGpioLevel(swWriteBuf, sizeof(swWriteBuf), true, swWriteLevel),
            sensorarrayBoardMapSelaRouteName(selaRoute),
            sensorarrayLogFmtGpioLevel(selaWriteBuf, sizeof(selaWriteBuf), haveSelaWrite, selaWriteLevel),
            selBLevel ? 1u : 0u,
+           sensorarrayRouteSelBSemanticName(dLine, selBLevel ? 1 : 0),
            (unsigned long)elapsedMs,
            (long)err,
            (unsigned long)nowTick,
            (unsigned long)uptimeMs);
 
     if (sensorarrayRecoveryIsS5d5Mode()) {
-        printf("DBGFDC_S5D5,stage=route_progress,phase=%s,routeStage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,"
-               "selaRoute=%s,selBLevel=%u,elapsedMs=%lu,err=%ld,tick=%lu\n",
+        printf("DBGFDC_S5D5,stage=route_progress,phase=%s,routeStage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,"
+               "swSemantic=%s,swWrite=%d,selaRoute=%s,selBLevel=%u,selBSemantic=%s,elapsedMs=%lu,err=%ld,tick=%lu\n",
                phase ? phase : SENSORARRAY_NA,
                stage ? stage : SENSORARRAY_NA,
                label ? label : SENSORARRAY_NA,
                (unsigned)sColumn,
                (unsigned)dLine,
                sensorarrayLogDebugPathName(path),
-               sensorarrayLogSwSourceName(swSource),
+               sensorarrayBoardMapSwSourceSemanticName(swSource),
+               swWriteLevel,
                sensorarrayBoardMapSelaRouteName(selaRoute),
                selBLevel ? 1u : 0u,
+               sensorarrayRouteSelBSemanticName(dLine, selBLevel ? 1 : 0),
                (unsigned long)elapsedMs,
                (long)err,
                (unsigned long)nowTick);
@@ -106,6 +114,185 @@ static void sensorarrayRouteDelayAndWatchdog(uint32_t delayMs)
     sensorarrayDelayMs(delayMs);
     sensorarrayRecoveryKickAlive();
     sensorarrayRecoveryTaskWdtReset();
+}
+
+typedef struct {
+    bool ctrlStateReadOk;
+    bool commandMatch;
+    bool observedMatch;
+    bool semanticMatch;
+    bool consistent;
+    tmuxSwitchControlState_t ctrl;
+    int expectedA0;
+    int expectedA1;
+    int expectedA2;
+    int expectedSw;
+    int expectedSela;
+    int expectedSelB;
+    int expectedSel3;
+    int expectedSel4;
+    bool expectedSel3Valid;
+    bool expectedSel4Valid;
+    bool cmdSwSemanticValid;
+    bool obsSwSemanticValid;
+    tmux1108Source_t cmdSwSemantic;
+    tmux1108Source_t obsSwSemantic;
+    bool cmdSelaSemanticValid;
+    bool obsSelaSemanticValid;
+    sensorarraySelaRoute_t cmdSelaSemantic;
+    sensorarraySelaRoute_t obsSelaSemantic;
+} sensorarrayRouteConsistency_t;
+
+static const char *sensorarrayRouteSelBSemanticName(uint8_t dLine, int selBLevel)
+{
+    if (dLine >= 5u && dLine <= 8u) {
+        return (selBLevel != 0) ? "capacitive_D5_D8_side" : "resistive_D5_D8_side";
+    }
+    return (selBLevel != 0) ? "SxA" : "SxB";
+}
+
+static const char *sensorarrayRouteSemanticNameOrNa(bool valid, const char *name)
+{
+    return valid && name ? name : SENSORARRAY_NA;
+}
+
+static esp_err_t sensorarrayMeasureEvaluateRouteConsistency(uint8_t sColumn,
+                                                            uint8_t dLine,
+                                                            tmux1108Source_t swSource,
+                                                            sensorarraySelaRoute_t selaRoute,
+                                                            bool selBLevel,
+                                                            sensorarrayRouteConsistency_t *outConsistency)
+{
+    if (!outConsistency) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outConsistency = (sensorarrayRouteConsistency_t){0};
+
+    sensorarrayRouteConsistency_t *consistency = outConsistency;
+    consistency->expectedA0 = (int)((sColumn - 1u) & 0x1u);
+    consistency->expectedA1 = (int)(((sColumn - 1u) >> 1u) & 0x1u);
+    consistency->expectedA2 = (int)(((sColumn - 1u) >> 2u) & 0x1u);
+    consistency->expectedSw = sensorarrayBoardMapSwSourceToGpioLevel(swSource);
+    consistency->expectedSelB = selBLevel ? 1 : 0;
+    consistency->expectedSel3 = 0;
+    consistency->expectedSel4 = 0;
+    consistency->expectedSel3Valid = (CONFIG_TMUX1134_SEL3_GPIO >= 0);
+    consistency->expectedSel4Valid = (CONFIG_TMUX1134_SEL4_GPIO >= 0);
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &consistency->expectedSela)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = tmuxSwitchGetControlState(&consistency->ctrl);
+    if (err != ESP_OK) {
+        return err;
+    }
+    consistency->ctrlStateReadOk = true;
+
+    bool cmdSel3Match = !consistency->expectedSel3Valid || (consistency->ctrl.cmdSel3Level == consistency->expectedSel3);
+    bool cmdSel4Match = !consistency->expectedSel4Valid || (consistency->ctrl.cmdSel4Level == consistency->expectedSel4);
+    bool obsSel3Match = !consistency->expectedSel3Valid || (consistency->ctrl.obsSel3Level == consistency->expectedSel3);
+    bool obsSel4Match = !consistency->expectedSel4Valid || (consistency->ctrl.obsSel4Level == consistency->expectedSel4);
+
+    consistency->commandMatch = (consistency->ctrl.cmdA0Level == consistency->expectedA0) &&
+                                (consistency->ctrl.cmdA1Level == consistency->expectedA1) &&
+                                (consistency->ctrl.cmdA2Level == consistency->expectedA2) &&
+                                (consistency->ctrl.cmdSwLevel == consistency->expectedSw) &&
+                                (consistency->ctrl.cmdSelaLevel == consistency->expectedSela) &&
+                                (consistency->ctrl.cmdSelbLevel == consistency->expectedSelB) &&
+                                cmdSel3Match &&
+                                cmdSel4Match;
+
+    consistency->observedMatch = (consistency->ctrl.obsA0Level == consistency->expectedA0) &&
+                                 (consistency->ctrl.obsA1Level == consistency->expectedA1) &&
+                                 (consistency->ctrl.obsA2Level == consistency->expectedA2) &&
+                                 (consistency->ctrl.obsSwLevel == consistency->expectedSw) &&
+                                 (consistency->ctrl.obsSelaLevel == consistency->expectedSela) &&
+                                 (consistency->ctrl.obsSelbLevel == consistency->expectedSelB) &&
+                                 obsSel3Match &&
+                                 obsSel4Match;
+
+    consistency->cmdSwSemanticValid =
+        sensorarrayBoardMapSwSourceFromGpioLevel(consistency->ctrl.cmdSwLevel, &consistency->cmdSwSemantic);
+    consistency->obsSwSemanticValid =
+        sensorarrayBoardMapSwSourceFromGpioLevel(consistency->ctrl.obsSwLevel, &consistency->obsSwSemantic);
+    consistency->cmdSelaSemanticValid =
+        sensorarrayBoardMapSelaRouteFromGpioLevel(consistency->ctrl.cmdSelaLevel, &consistency->cmdSelaSemantic);
+    consistency->obsSelaSemanticValid =
+        sensorarrayBoardMapSelaRouteFromGpioLevel(consistency->ctrl.obsSelaLevel, &consistency->obsSelaSemantic);
+
+    consistency->semanticMatch = consistency->cmdSwSemanticValid &&
+                                 consistency->obsSwSemanticValid &&
+                                 consistency->cmdSelaSemanticValid &&
+                                 consistency->obsSelaSemanticValid &&
+                                 (consistency->cmdSwSemantic == swSource) &&
+                                 (consistency->obsSwSemantic == swSource) &&
+                                 (consistency->cmdSelaSemantic == selaRoute) &&
+                                 (consistency->obsSelaSemantic == selaRoute);
+    consistency->consistent = consistency->commandMatch && consistency->observedMatch && consistency->semanticMatch;
+    (void)dLine;
+    return ESP_OK;
+}
+
+static void sensorarrayMeasureLogRouteSnapshot(const char *label,
+                                               uint8_t sColumn,
+                                               uint8_t dLine,
+                                               sensorarrayDebugPath_t path,
+                                               tmux1108Source_t swSource,
+                                               sensorarraySelaRoute_t selaRoute,
+                                               bool selBLevel,
+                                               const sensorarrayRouteConsistency_t *consistency)
+{
+    if (!consistency) {
+        return;
+    }
+
+    const tmuxSwitchControlState_t *ctrl = &consistency->ctrl;
+    const char *cmdSwSemantic =
+        sensorarrayRouteSemanticNameOrNa(consistency->cmdSwSemanticValid,
+                                         sensorarrayBoardMapSwSourceSemanticName(consistency->cmdSwSemantic));
+    const char *obsSwSemantic =
+        sensorarrayRouteSemanticNameOrNa(consistency->obsSwSemanticValid,
+                                         sensorarrayBoardMapSwSourceSemanticName(consistency->obsSwSemantic));
+    const char *cmdSelaSemantic =
+        sensorarrayRouteSemanticNameOrNa(consistency->cmdSelaSemanticValid,
+                                         sensorarrayBoardMapSelaRouteName(consistency->cmdSelaSemantic));
+    const char *obsSelaSemantic =
+        sensorarrayRouteSemanticNameOrNa(consistency->obsSelaSemanticValid,
+                                         sensorarrayBoardMapSelaRouteName(consistency->obsSelaSemantic));
+
+    printf("DBGROUTE_SNAPSHOT,routeLabel=%s,targetPath=S%uD%u_%s,swSemanticExpected=%s,selaSemanticExpected=%s,"
+           "selBSemanticExpected=%s,cmdA0=%d,cmdA1=%d,cmdA2=%d,cmdSW=%d,cmdSELA=%d,cmdSELB=%d,cmdSEL3=%d,cmdSEL4=%d,"
+           "obsA0=%d,obsA1=%d,obsA2=%d,obsSW=%d,obsSELA=%d,obsSELB=%d,obsSEL3=%d,obsSEL4=%d,cmdSwSemantic=%s,"
+           "obsSwSemantic=%s,cmdSelaSemantic=%s,obsSelaSemantic=%s,routeConsistency=%s\n",
+           label ? label : SENSORARRAY_NA,
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayLogDebugPathName(path),
+           sensorarrayBoardMapSwSourceSemanticName(swSource),
+           sensorarrayBoardMapSelaRouteName(selaRoute),
+           sensorarrayRouteSelBSemanticName(dLine, selBLevel ? 1 : 0),
+           ctrl->cmdA0Level,
+           ctrl->cmdA1Level,
+           ctrl->cmdA2Level,
+           ctrl->cmdSwLevel,
+           ctrl->cmdSelaLevel,
+           ctrl->cmdSelbLevel,
+           ctrl->cmdSel3Level,
+           ctrl->cmdSel4Level,
+           ctrl->obsA0Level,
+           ctrl->obsA1Level,
+           ctrl->obsA2Level,
+           ctrl->obsSwLevel,
+           ctrl->obsSelaLevel,
+           ctrl->obsSelbLevel,
+           ctrl->obsSel3Level,
+           ctrl->obsSel4Level,
+           cmdSwSemantic,
+           obsSwSemantic,
+           cmdSelaSemantic,
+           obsSelaSemantic,
+           consistency->consistent ? "pass" : "fail");
 }
 
 static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const sensorarrayAdsReadPolicy_t *policy)
@@ -532,6 +719,106 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
     sensorarrayRouteDelayAndWatchdog(delayAfterSwMs);
 
     stageTick = xTaskGetTickCount();
+    sensorarrayLogRouteProgress("sel3",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
+    err = tmux1134SelectSel3Level(false);
+    if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED) {
+        sensorarrayLogRouteProgress("sel3",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("sel3", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sel3_failed");
+        return err;
+    }
+    sensorarrayLogRouteProgress("sel3",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                err);
+    sensorarrayLogRouteStep("sel3",
+                            label,
+                            sColumn,
+                            dLine,
+                            path,
+                            swSource,
+                            selaRoute,
+                            selBLevel,
+                            (err == ESP_ERR_NOT_SUPPORTED) ? ESP_OK : err,
+                            (err == ESP_ERR_NOT_SUPPORTED) ? "sel3_not_supported_skip" : "set_sel3_low");
+
+    stageTick = xTaskGetTickCount();
+    sensorarrayLogRouteProgress("sel4",
+                                "enter",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                ESP_OK);
+    err = tmux1134SelectSel4Level(false);
+    if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED) {
+        sensorarrayLogRouteProgress("sel4",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("sel4", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sel4_failed");
+        return err;
+    }
+    sensorarrayLogRouteProgress("sel4",
+                                "exit",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                stageTick,
+                                err);
+    sensorarrayLogRouteStep("sel4",
+                            label,
+                            sColumn,
+                            dLine,
+                            path,
+                            swSource,
+                            selaRoute,
+                            selBLevel,
+                            (err == ESP_ERR_NOT_SUPPORTED) ? ESP_OK : err,
+                            (err == ESP_ERR_NOT_SUPPORTED) ? "sel4_not_supported_skip" : "set_sel4_low");
+
+    stageTick = xTaskGetTickCount();
     sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_VERIFY_ENTER,
                                       sColumn,
                                       dLine,
@@ -547,8 +834,24 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                 selBLevel,
                                 stageTick,
                                 ESP_OK);
-    tmuxSwitchControlState_t ctrl = {0};
-    err = tmuxSwitchGetControlState(&ctrl);
+
+    char expectedSemantic[128] = {0};
+    (void)snprintf(expectedSemantic,
+                   sizeof(expectedSemantic),
+                   "sw=%s,sela=%s,selB=%s",
+                   sensorarrayBoardMapSwSourceSemanticName(swSource),
+                   sensorarrayBoardMapSelaRouteName(selaRoute),
+                   sensorarrayRouteSelBSemanticName(dLine, selBLevel ? 1 : 0));
+    tmuxSwitchSnapshotContext_t snapshotContext = {
+        .stage = "route_verify",
+        .routeLabel = label ? label : SENSORARRAY_NA,
+        .targetPath = sensorarrayLogDebugPathName(path),
+        .expectedSemantic = expectedSemantic,
+    };
+    (void)tmuxSwitchLogControlSnapshot(&snapshotContext);
+
+    sensorarrayRouteConsistency_t consistency = {0};
+    err = sensorarrayMeasureEvaluateRouteConsistency(sColumn, dLine, swSource, selaRoute, selBLevel, &consistency);
     if (err != ESP_OK) {
         sensorarrayLogRouteProgress("route_verify",
                                     "fail",
@@ -561,13 +864,55 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                     selBLevel,
                                     stageTick,
                                     err);
-        if (sensorarrayRecoveryIsS5d5Mode()) {
-            return err;
-        }
-    } else {
-        (void)ctrl;
-        sensorarrayLogDbgExtraCaptureCtrl();
+        sensorarrayLogRouteStep("route_verify",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                err,
+                                "raw_snapshot_read_failed");
+        return err;
     }
+
+    sensorarrayMeasureLogRouteSnapshot(label, sColumn, dLine, path, swSource, selaRoute, selBLevel, &consistency);
+    sensorarrayLogDbgExtraCaptureCtrl();
+    if (!consistency.consistent) {
+        err = ESP_ERR_INVALID_STATE;
+        sensorarrayLogRouteProgress("route_verify",
+                                    "fail",
+                                    label,
+                                    sColumn,
+                                    dLine,
+                                    path,
+                                    swSource,
+                                    selaRoute,
+                                    selBLevel,
+                                    stageTick,
+                                    err);
+        sensorarrayLogRouteStep("route_verify",
+                                label,
+                                sColumn,
+                                dLine,
+                                path,
+                                swSource,
+                                selaRoute,
+                                selBLevel,
+                                err,
+                                "route_consistency_fail");
+        printf("DBGROUTE,stage=route_verify,label=%s,sColumn=%u,dLine=%u,routeConsistency=fail,commandMatch=%u,"
+               "observedMatch=%u,semanticMatch=%u,status=abort_followup\n",
+               label ? label : SENSORARRAY_NA,
+               (unsigned)sColumn,
+               (unsigned)dLine,
+               consistency.commandMatch ? 1u : 0u,
+               consistency.observedMatch ? 1u : 0u,
+               consistency.semanticMatch ? 1u : 0u);
+        return err;
+    }
+
     sensorarrayRouteKickAndCheckpoint(SENSORARRAY_RECOVERY_STAGE_ROUTE_VERIFY_EXIT,
                                       sColumn,
                                       dLine,
@@ -582,7 +927,21 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                 selaRoute,
                                 selBLevel,
                                 stageTick,
-                                err);
+                                ESP_OK);
+    sensorarrayLogRouteStep("route_verify",
+                            label,
+                            sColumn,
+                            dLine,
+                            path,
+                            swSource,
+                            selaRoute,
+                            selBLevel,
+                            ESP_OK,
+                            "route_consistency_pass");
+    printf("DBGROUTE,stage=route_verify,label=%s,sColumn=%u,dLine=%u,routeConsistency=pass,status=route_verified\n",
+           label ? label : SENSORARRAY_NA,
+           (unsigned)sColumn,
+           (unsigned)dLine);
     return ESP_OK;
 }
 

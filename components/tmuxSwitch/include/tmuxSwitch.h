@@ -52,6 +52,13 @@ typedef struct {
     int obsSelbLevel; // Alias of obsSel2Level for explicit SELB naming.
 } tmuxSwitchControlState_t;
 
+typedef struct {
+    const char *stage;
+    const char *routeLabel;
+    const char *targetPath;
+    const char *expectedSemantic;
+} tmuxSwitchSnapshotContext_t;
+
 esp_err_t tmuxSwitchInit(void);
 
 esp_err_t tmux1108SelectRow(uint8_t row);
@@ -68,6 +75,8 @@ esp_err_t tmux1108GetSource(tmux1108Source_t *sourceOut);
  */
 esp_err_t tmux1134SelectSelALevel(bool level);
 esp_err_t tmux1134SelectSelBLevel(bool level);
+esp_err_t tmux1134SelectSel3Level(bool level);
+esp_err_t tmux1134SelectSel4Level(bool level);
 esp_err_t tmux1134SetEnLogicalState(bool on);
 esp_err_t tmux1134GetEnLogicalState(bool *onOut);
 
@@ -85,6 +94,7 @@ esp_err_t tmux1134SetAllOn(void);
  * Observed GPIO levels are MCU-side only and are not definitive analog-route proof.
  */
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState);
+esp_err_t tmuxSwitchLogControlSnapshot(const tmuxSwitchSnapshotContext_t *context);
 
 esp_err_t tmuxSwitchSelectRow(uint8_t row);
 esp_err_t tmuxSwitchSetSelAEnabled(bool enabled);
