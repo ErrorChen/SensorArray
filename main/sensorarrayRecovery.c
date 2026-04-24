@@ -440,13 +440,30 @@ static void sensorarrayRecoveryTaskWdtEnsureConfigured(void)
         .idle_core_mask = 0u,
         .trigger_panic = (CONFIG_SENSORARRAY_DEBUG_TASK_WDT_PANIC != 0),
     };
-    esp_err_t err = esp_task_wdt_init(&config);
-    if (err == ESP_ERR_INVALID_STATE) {
-        err = esp_task_wdt_reconfigure(&config);
+
+    TaskHandle_t probeTask = xTaskGetCurrentTaskHandle();
+    esp_err_t statusErr = esp_task_wdt_status(probeTask);
+    if (statusErr == ESP_OK || statusErr == ESP_ERR_NOT_FOUND) {
+        /*
+         * TWDT is already initialized by the platform or another module.
+         * Dedicated debug path must stay idempotent and skip re-initialization.
+         */
+        s_runtime.taskWdtConfigured = true;
+        printf("DBGRECOVERY,taskWdt=already_initialized,timeoutMs=%lu,panic=%u\n",
+               (unsigned long)config.timeout_ms,
+               config.trigger_panic ? 1u : 0u);
+        return;
     }
+
+    esp_err_t err = esp_task_wdt_init(&config);
     if (err == ESP_OK) {
         s_runtime.taskWdtConfigured = true;
         printf("DBGRECOVERY,taskWdt=enabled,timeoutMs=%lu,panic=%u\n",
+               (unsigned long)config.timeout_ms,
+               config.trigger_panic ? 1u : 0u);
+    } else if (err == ESP_ERR_INVALID_STATE) {
+        s_runtime.taskWdtConfigured = true;
+        printf("DBGRECOVERY,taskWdt=already_initialized_after_init_check,timeoutMs=%lu,panic=%u\n",
                (unsigned long)config.timeout_ms,
                config.trigger_panic ? 1u : 0u);
     } else {
@@ -473,15 +490,24 @@ void sensorarrayRecoveryTaskWdtRegisterCurrentTask(const char *taskTag)
     if (statusErr == ESP_OK) {
         s_runtime.taskWdtTaskRegistered = true;
         s_runtime.taskWdtTaskHandle = currentTask;
+        printf("DBGRECOVERY,taskWdt=task_already_registered,task=%s\n", taskTag ? taskTag : SENSORARRAY_NA);
         return;
+    }
+    if (statusErr != ESP_ERR_NOT_FOUND && statusErr != ESP_ERR_INVALID_STATE) {
+        printf("DBGRECOVERY,taskWdt=task_status_unknown,task=%s,err=%ld\n",
+               taskTag ? taskTag : SENSORARRAY_NA,
+               (long)statusErr);
     }
 
     esp_err_t addErr = esp_task_wdt_add(currentTask);
-    if (addErr == ESP_OK || addErr == ESP_ERR_INVALID_STATE) {
+    if (addErr == ESP_OK) {
         s_runtime.taskWdtTaskRegistered = true;
         s_runtime.taskWdtTaskHandle = currentTask;
         printf("DBGRECOVERY,taskWdt=task_registered,task=%s\n", taskTag ? taskTag : SENSORARRAY_NA);
     } else {
+        if (addErr == ESP_ERR_INVALID_STATE) {
+            s_runtime.taskWdtConfigured = false;
+        }
         printf("DBGRECOVERY,taskWdt=task_register_failed,task=%s,err=%ld\n",
                taskTag ? taskTag : SENSORARRAY_NA,
                (long)addErr);
@@ -505,7 +531,10 @@ void sensorarrayRecoveryTaskWdtDeleteCurrentTask(void)
     if (currentTask != s_runtime.taskWdtTaskHandle) {
         return;
     }
-    (void)esp_task_wdt_delete(currentTask);
+    esp_err_t delErr = esp_task_wdt_delete(currentTask);
+    if (delErr != ESP_OK && delErr != ESP_ERR_NOT_FOUND && delErr != ESP_ERR_INVALID_STATE) {
+        printf("DBGRECOVERY,taskWdt=task_delete_failed,err=%ld\n", (long)delErr);
+    }
     s_runtime.taskWdtTaskRegistered = false;
     s_runtime.taskWdtTaskHandle = NULL;
 }

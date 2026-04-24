@@ -523,7 +523,7 @@ void sensorarrayLogSelaRouteDecision(const char *stage,
                                      sensorarraySelaRoute_t obsResolvedRoute)
 {
     printf("[ROUTE] request=%s,selaExpected=%d,cmdSELA=%d,obsSELA=%d,obsResolved=%s,stage=%s,label=%s,"
-           "note=obsSELA_is_MCU_gpio_observation_only\n",
+           "note=obsSELA_is_MCU_gpio_observation_only_not_analog_path_proof\n",
            sensorarrayBoardMapSelaRouteName(requestRoute),
            selaWriteLevel,
            selaCmdLevel,

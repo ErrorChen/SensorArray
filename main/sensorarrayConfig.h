@@ -273,12 +273,13 @@
 #define SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL 0u
 #define SENSORARRAY_FDC_REF_CLOCK_HZ 40000000u
 #define SENSORARRAY_FDC_STATUS_CONFIG_DEFAULT 0x3800u
-// Single-channel debug profile follows datasheet-style values for CH0 continuous conversion.
+// Single-channel debug profile follows a conservative bring-up set for CH0 continuous conversion.
+// Keep raw format explicit to avoid hidden masking side effects in dedicated debug logs.
 #define SENSORARRAY_FDC_DEBUG_RCOUNT_CH0 0x2089u
-#define SENSORARRAY_FDC_DEBUG_SETTLECOUNT_CH0 0x000Au
+#define SENSORARRAY_FDC_DEBUG_SETTLECOUNT_CH0 0x0020u
 #define SENSORARRAY_FDC_DEBUG_OFFSET_CH0 0x0000u
 #define SENSORARRAY_FDC_DEBUG_CLOCK_DIVIDERS_CH0 0x2001u
-#define SENSORARRAY_FDC_DEBUG_DRIVE_CURRENT_CH0 0x7C00u
+#define SENSORARRAY_FDC_DEBUG_DRIVE_CURRENT_CH0 0x7800u
 #define SENSORARRAY_SECONDARY_I2C_EXPECTED_SDA_GPIO 11
 #define SENSORARRAY_SECONDARY_I2C_EXPECTED_SCL_GPIO 12
 

@@ -85,6 +85,11 @@ static sensorarrayRecoveryStage_t sensorarrayDebugStageToRecoveryStage(const cha
 void sensorarrayDebugHandleFatal(const char *reason, esp_err_t err, const char *stage, uint8_t sColumn, uint8_t dLine)
 {
     sensorarrayRecoveryStage_t stageId = sensorarrayDebugStageToRecoveryStage(stage);
+    /*
+     * Keep TWDT task subscription idempotent across repeated dedicated-session
+     * failures/restarts: fatal path always releases current task subscription.
+     */
+    sensorarrayRecoveryTaskWdtDeleteCurrentTask();
     sensorarrayRecoveryHandleFatal(reason, err, stageId, sColumn, dLine);
 }
 
