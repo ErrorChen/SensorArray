@@ -31,17 +31,17 @@ typedef struct {
     bool skipFdcInit;
 } sensorarrayVoltageReadModeConfig_t;
 
-static const sensorarrayVoltageReadModeConfig_t s_piezoReadMode = {
-    .modeName = "PIEZO_READ",
-    .modeNameCn = "压电读取",
+static const  sensorarrayVoltageReadModeConfig_t s_resistanceReadMode= {
+    .modeName = "RESISTANCE_READ",
+    .modeNameCn = "电阻读取",
     .swSource = TMUX1108_SOURCE_REF,
     .swName = "REF",
     .skipFdcInit = true,
 };
 
-static const sensorarrayVoltageReadModeConfig_t s_resistanceReadMode = {
-    .modeName = "RESISTANCE_READ",
-    .modeNameCn = "电阻读取",
+static const  sensorarrayVoltageReadModeConfig_t s_piezoReadMode= {
+    .modeName = "PIEZO_READ",
+    .modeNameCn = "压电读取",
     .swSource = TMUX1108_SOURCE_GND,
     .swName = "GND",
     .skipFdcInit = true,
