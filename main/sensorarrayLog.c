@@ -163,7 +163,7 @@ const char *sensorarrayLogFmtGpioLevel(char *buf, size_t bufSize, bool valid, in
 
 const char *sensorarrayLogSwSourceName(tmux1108Source_t source)
 {
-    return (source == TMUX1108_SOURCE_REF) ? "HIGH" : "LOW";
+    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
 }
 
 const char *sensorarrayLogSwSourceLogicalName(tmux1108Source_t source)
@@ -231,12 +231,12 @@ const char *sensorarrayLogDebugPathName(sensorarrayDebugPath_t path)
 {
     switch (path) {
     case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
-        return "cap";
+        return "CAPACITIVE";
     case SENSORARRAY_DEBUG_PATH_VOLTAGE:
-        return "volt";
+        return "PIEZO_VOLTAGE";
     case SENSORARRAY_DEBUG_PATH_RESISTIVE:
     default:
-        return "res";
+        return "RESISTIVE";
     }
 }
 
@@ -525,17 +525,26 @@ void sensorarrayLogRouteStep(const char *stage,
                              const char *status)
 {
     char selaWriteBuf[8];
+    char expectedSwBuf[8];
+    char cmdSwBuf[8];
+    char obsSwBuf[8];
     int selaWriteLevel = -1;
     const bool haveSelaWrite = sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel);
+    int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(swSource);
+    tmuxSwitchControlState_t ctrl = {0};
+    bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
 
-    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,selaWrite=%s,"
-           "selBLevel=%u,err=%ld,status=%s\n",
+    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,swSource=%s,expectedSwLevel=%s,"
+           "cmdSwLevel=%s,obsSwLevel=%s,selaRequest=%s,selaWrite=%s,selBLevel=%u,err=%ld,status=%s\n",
            stage ? stage : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA,
            (unsigned)sColumn,
            (unsigned)dLine,
            sensorarrayLogDebugPathName(path),
            sensorarrayLogSwSourceName(swSource),
+           sensorarrayLogFmtGpioLevel(expectedSwBuf, sizeof(expectedSwBuf), expectedSwLevel >= 0, expectedSwLevel),
+           sensorarrayLogFmtGpioLevel(cmdSwBuf, sizeof(cmdSwBuf), haveCtrl, haveCtrl ? ctrl.cmdSwLevel : -1),
+           sensorarrayLogFmtGpioLevel(obsSwBuf, sizeof(obsSwBuf), haveCtrl, haveCtrl ? ctrl.obsSwLevel : -1),
            haveSelaWrite ? sensorarrayBoardMapSelaRouteName(selaRoute) : SENSORARRAY_NA,
            sensorarrayLogFmtGpioLevel(selaWriteBuf, sizeof(selaWriteBuf), haveSelaWrite, selaWriteLevel),
            selBLevel ? 1u : 0u,

@@ -18,6 +18,7 @@ typedef enum {
 typedef enum {
     SENSORARRAY_PATH_RESISTIVE = 0,
     SENSORARRAY_PATH_CAPACITIVE = 1,
+    SENSORARRAY_PATH_PIEZO_VOLTAGE = 2,
 } sensorarrayPath_t;
 
 /*

@@ -2,6 +2,8 @@
 
 `ads126xAdc` 是通用 ADS1262/ADS1263 SPI driver。它只处理 ADS 芯片级行为：寄存器访问、ADC1/ADC2 控制、INPMUX/REFMUX、internal reference、VBIAS/AINCOM level shift、raw code 读取、raw->microvolts、fast voltage read 和 auto-gain。它不包含 `S1D1`、`D1..D8`、`SW`、`PIEZO_READ`、`RESISTANCE_READ` 或任何板级 route mapping。
 
+Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. Piezo voltage reading uses this ADS driver but must route through the board layer with `TMUX1108_SOURCE_GND`, so SW is driven HIGH before ADS voltage samples are read.
+
 ## Data Rate And Gain Enums
 
 ADC1 MODE2 register：address `0x05`，bit7=`BYPASS`，bits 6:4=`GAIN[2:0]`，bits 3:0=`DR[3:0]`。

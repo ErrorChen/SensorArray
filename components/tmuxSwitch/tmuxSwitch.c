@@ -1,5 +1,7 @@
 #include "tmuxSwitch.h"
 
+#include <stdio.h>
+
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -7,6 +9,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
 
+#ifndef CONFIG_TMUX1108_SW_REF_LEVEL
+#define CONFIG_TMUX1108_SW_REF_LEVEL 0
+#endif
 #ifndef CONFIG_TMUX1134_DEFAULT_ALL_OFF
 #define CONFIG_TMUX1134_DEFAULT_ALL_OFF 0
 #endif
@@ -48,8 +53,32 @@ static void tmuxDelayUs(void)
 
 static int tmux1108SourceToLevel(tmux1108Source_t source)
 {
+    return tmuxSwitch1108SourceToSwLevel(source);
+}
+
+static const char *tmux1108SourceName(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
+}
+
+int tmuxSwitch1108SourceToSwLevel(tmux1108Source_t source)
+{
+    /*
+     * SensorArray board SW source polarity:
+     *   SW LOW  -> REF
+     *   SW HIGH -> GND
+     *
+     * Piezo-voltage reading and FDC/capacitive reading require GND,
+     * therefore both modes must drive SW HIGH.
+     */
     int ref_level = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
-    return (source == TMUX1108_SOURCE_REF) ? ref_level : (ref_level ? 0 : 1);
+    if (source == TMUX1108_SOURCE_REF) {
+        return ref_level;
+    }
+    if (source == TMUX1108_SOURCE_GND) {
+        return ref_level ? 0 : 1;
+    }
+    return -1;
 }
 
 static void tmux1108ApplySourceNoLock(tmux1108Source_t source)
@@ -523,6 +552,61 @@ esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)
     portEXIT_CRITICAL(&s_tmux_lock);
 
     return ESP_OK;
+}
+
+esp_err_t tmuxSwitchAssert1108Source(tmux1108Source_t expectedSource, const char *stage)
+{
+    if (expectedSource != TMUX1108_SOURCE_GND && expectedSource != TMUX1108_SOURCE_REF) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    tmuxSwitchControlState_t ctrl = {0};
+    esp_err_t err = tmuxSwitchGetControlState(&ctrl);
+    int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(expectedSource);
+    if (err != ESP_OK) {
+        printf("DBGTMUXSW_ERR,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=UNKNOWN,"
+               "cmdSwLevel=-1,obsSwLevel=-1,status=ctrl_state_unavailable,err=%ld\n",
+               stage ? stage : "unknown",
+               tmux1108SourceName(expectedSource),
+               expectedSwLevel,
+               (long)err);
+        return err;
+    }
+
+    const bool cmdSourceOk = (ctrl.cmdSource == expectedSource);
+    const bool cmdSwOk = (ctrl.cmdSwLevel == expectedSwLevel);
+    const bool obsSwOk = (ctrl.obsSwLevel == expectedSwLevel);
+    if (cmdSourceOk && cmdSwOk && obsSwOk) {
+        printf("DBGTMUXSW,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=%s,cmdSwLevel=%d,"
+               "obsSwLevel=%d,status=ok\n",
+               stage ? stage : "unknown",
+               tmux1108SourceName(expectedSource),
+               expectedSwLevel,
+               tmux1108SourceName(ctrl.cmdSource),
+               ctrl.cmdSwLevel,
+               ctrl.obsSwLevel);
+        return ESP_OK;
+    }
+
+    const char *status = "sw_level_mismatch";
+    if (!cmdSourceOk) {
+        status = (expectedSource == TMUX1108_SOURCE_GND) ? "sw_not_high" : "sw_not_low";
+    } else if (!cmdSwOk) {
+        status = "cmd_sw_level_mismatch";
+    } else if (!obsSwOk) {
+        status = (expectedSource == TMUX1108_SOURCE_GND) ? "sw_not_high" : "sw_not_low";
+    }
+
+    printf("DBGTMUXSW_ERR,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=%s,cmdSwLevel=%d,"
+           "obsSwLevel=%d,status=%s\n",
+           stage ? stage : "unknown",
+           tmux1108SourceName(expectedSource),
+           expectedSwLevel,
+           tmux1108SourceName(ctrl.cmdSource),
+           ctrl.cmdSwLevel,
+           ctrl.obsSwLevel,
+           status);
+    return ESP_ERR_INVALID_STATE;
 }
 
 esp_err_t tmuxSwitchSelectRow(uint8_t row)

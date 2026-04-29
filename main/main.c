@@ -26,24 +26,33 @@ static bool s_voltageHeaderPrinted = false;
 typedef struct {
     const char *modeName;
     const char *modeNameCn;
+    sensorarrayPath_t path;
+    const char *routeModeName;
     tmux1108Source_t swSource;
     const char *swName;
+    const char *swReason;
     bool skipFdcInit;
 } sensorarrayVoltageReadModeConfig_t;
 
 static const  sensorarrayVoltageReadModeConfig_t s_resistanceReadMode= {
     .modeName = "RESISTANCE_READ",
     .modeNameCn = "电阻读取",
+    .path = SENSORARRAY_PATH_RESISTIVE,
+    .routeModeName = "RESISTIVE",
     .swSource = TMUX1108_SOURCE_REF,
     .swName = "REF",
+    .swReason = "resistive_requires_reference_source",
     .skipFdcInit = true,
 };
 
 static const  sensorarrayVoltageReadModeConfig_t s_piezoReadMode= {
     .modeName = "PIEZO_READ",
     .modeNameCn = "压电读取",
+    .path = SENSORARRAY_PATH_PIEZO_VOLTAGE,
+    .routeModeName = "PIEZO_VOLTAGE",
     .swSource = TMUX1108_SOURCE_GND,
     .swName = "GND",
+    .swReason = "piezo_requires_ground_source",
     .skipFdcInit = true,
 };
 
@@ -112,23 +121,42 @@ static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltag
     if (err == ESP_OK) {
         esp_rom_delay_us((uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_PATH_SETTLE_US);
     }
+    if (err == ESP_OK) {
+        err = tmuxSwitchAssert1108Source(mode->swSource, mode->routeModeName);
+    }
     return err;
 }
 
 static void sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-    printf("APPMODE,active=%s,cnName=%s,skipAdsInit=0,skipFdcInit=%u,sw=%s\n",
+    printf("APPMODE,active=%s,cnName=%s,skipAdsInit=0,skipFdcInit=%u,path=%s,swSource=%s\n",
            mode->modeName,
            mode->modeNameCn,
            mode->skipFdcInit ? 1u : 0u,
+           mode->routeModeName,
            mode->swName);
+}
+
+static void sensorarrayMainPrintModeRequirement(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    printf("DBGMODE,mode=%s,requiredSwSource=%s,requiredSwLevel=%d,reason=%s\n",
+           mode->routeModeName,
+           mode->swName,
+           tmuxSwitch1108SourceToSwLevel(mode->swSource),
+           mode->swReason);
 }
 
 static void sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-    printf("DBGROUTEPOLICY,mode=%s,sw=%s,sela=ADS126X,fdcInitSkipped=%u\n",
-           mode->modeName,
+    tmuxSwitchControlState_t ctrl = {0};
+    bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
+    printf("DBGROUTEPOLICY,mode=%s,swSource=%s,expectedSwLevel=%d,cmdSwLevel=%d,obsSwLevel=%d,"
+           "sela=ADS126X,fdcInitSkipped=%u\n",
+           mode->routeModeName,
            mode->swName,
+           tmuxSwitch1108SourceToSwLevel(mode->swSource),
+           haveCtrl ? ctrl.cmdSwLevel : -1,
+           haveCtrl ? ctrl.obsSwLevel : -1,
            mode->skipFdcInit ? 1u : 0u);
 }
 
@@ -143,6 +171,7 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
 
     sensorarrayMainPrintAppMode(mode);
+    sensorarrayMainPrintModeRequirement(mode);
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -367,11 +396,14 @@ static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *fra
 
 static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-    printf("VOLTSCAN_INIT,mode=%s,cnName=%s,sw=%s,fdcInitSkipped=%u,rows=8,cols=8,unit=uV,"
+    printf("VOLTSCAN_INIT,mode=%s,appMode=%s,cnName=%s,swSource=%s,expectedSwLevel=%d,"
+           "fdcInitSkipped=%u,rows=8,cols=8,unit=uV,"
            "dr=%u,gainDefault=%u,autoGain=%s,discardFirst=%u,oversample=%u\n",
+           mode->routeModeName,
            mode->modeName,
            mode->modeNameCn,
            mode->swName,
+           tmuxSwitch1108SourceToSwLevel(mode->swSource),
            mode->skipFdcInit ? 1u : 0u,
            (unsigned)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F),
            (unsigned)sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN),

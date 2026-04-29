@@ -6,8 +6,8 @@
 
 默认运行模式是 `PIEZO_READ / 压电读取`：
 
-- `PIEZO_READ / 压电读取`: ADS126x voltage scan，读取 `S1-S8 x D1-D8`，`SW=REF`。
-- `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan，读取 `S1-S8 x D1-D8`，`SW=GND`。
+- `PIEZO_READ / 压电读取`: ADS126x voltage scan，读取 `S1-S8 x D1-D8`，`SW=GND`。
+- `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan，读取 `S1-S8 x D1-D8`，`SW=REF`。
 - `DEBUG / bring-up`: 旧 debug dispatcher 和 FDC2214 bring-up 入口。
 
 `main/main.c` 仍是默认主程序，`app_main()` 仍在 `main/main.c`，不是只调用 `sensorarrayAppRun()` 的薄入口。默认 `PIEZO_READ` 和 `RESISTANCE_READ` 都不会初始化或轮询 FDC2214；旧 FDC2214/S5D5 调试代码仍保留，只能通过 Debug / bring-up mode 进入。
@@ -28,9 +28,24 @@ idf.py menuconfig
 
 应用模式：
 
-- `SensorArray application mode -> PIEZO_READ / 压电读取: ADS126x voltage scan with SW=REF`
-- `SensorArray application mode -> RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=GND`
+- `SensorArray application mode -> PIEZO_READ / 压电读取: ADS126x voltage scan with SW=GND`
+- `SensorArray application mode -> RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=REF`
 - `SensorArray application mode -> Debug / bring-up modes`
+
+## SW 极性与模式关系
+
+SensorArray board SW polarity:
+
+```text
+SW = LOW  -> REF
+SW = HIGH -> GND
+```
+
+Mode requirements:
+
+- Resistance reading: normally uses REF source, therefore SW = LOW, unless the hardware design says otherwise.
+- Piezo voltage reading: requires GND source, therefore SW = HIGH.
+- Capacitive / FDC2214 reading: requires GND source, therefore SW = HIGH.
 
 `ADS126x voltage scan` 菜单保留高速扫描参数：ADS126x data rate、row/path/mux settle、discard first、oversample、frame period、auto gain，以及 raw/gain/error 可选输出。旧 `VOLTAGE_MATRIX_SCAN` symbol 保留为兼容别名，默认含义已迁移为 `PIEZO_READ`。
 
@@ -47,15 +62,16 @@ idf.py flash monitor
 默认 `PIEZO_READ` 启动时应看到：
 
 ```text
-APPMODE,active=PIEZO_READ,cnName=压电读取,skipAdsInit=0,skipFdcInit=1,sw=REF
+APPMODE,active=PIEZO_READ,cnName=压电读取,skipAdsInit=0,skipFdcInit=1,path=PIEZO_VOLTAGE,swSource=GND
 DBGSYSREF,vdd_mv=3300,vss_mv=-1800,span_mv=5100,target_mid_gnd_mv=750,target_mid_avss_mv=2550
 DBGADSREF,stage=prepare_ref_bias_settled,...,intrefOk=1,vbiasOk=1,refmuxOk=1,result=ok
-DBGROUTEPOLICY,mode=PIEZO_READ,sw=REF,sela=ADS126X,fdcInitSkipped=1
+DBGMODE,mode=PIEZO_VOLTAGE,requiredSwSource=GND,requiredSwLevel=1,reason=piezo_requires_ground_source
+DBGROUTEPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,cmdSwLevel=1,obsSwLevel=1,sela=ADS126X,fdcInitSkipped=1
 MATV_HEADER,seq,timestamp_us,duration_us,unit,S1D1,...,S8D8
 MATV,<seq>,<timestamp_us>,<duration_us>,uV,<64 int32 microvolts>
 ```
 
-切换到 `RESISTANCE_READ` 后，`APPMODE` 和 `DBGROUTEPOLICY` 会显示 `sw=GND`。CSV 仍使用 `MATV_HEADER` / `MATV`，点顺序为 `S1D1..S1D8,S2D1..S2D8,...,S8D8`。可选输出包括 `MATV_RAW`、`MATV_GAIN`、`MATV_ERR`。
+切换到 `RESISTANCE_READ` 后，`APPMODE` 和 `DBGROUTEPOLICY` 会显示 `swSource=REF,expectedSwLevel=0`。CSV 仍使用 `MATV_HEADER` / `MATV`，点顺序为 `S1D1..S1D8,S2D1..S2D8,...,S8D8`。可选输出包括 `MATV_RAW`、`MATV_GAIN`、`MATV_ERR`。
 
 ## REF / MID 说明
 

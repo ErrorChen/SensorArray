@@ -13,10 +13,10 @@ choice SENSORARRAY_APP_MODE
     default SENSORARRAY_APP_MODE_PIEZO_READ
 
 config SENSORARRAY_APP_MODE_PIEZO_READ
-    bool "PIEZO_READ / 压电读取: ADS126x voltage scan with SW=REF"
+    bool "PIEZO_READ / 压电读取: ADS126x voltage scan with SW=GND"
 
 config SENSORARRAY_APP_MODE_RESISTANCE_READ
-    bool "RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=GND"
+    bool "RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=REF"
 
 config SENSORARRAY_APP_MODE_DEBUG
     bool "Debug / bring-up modes"
@@ -29,7 +29,7 @@ config SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
     help
         Legacy compatibility symbol. The old VOLTAGE_MATRIX_SCAN mode has been
         renamed to PIEZO_READ / 压电读取 for the default ADS126x voltage scan
-        with SW=REF.
+        with SW=GND.
 
 choice SENSORARRAY_ADS126X_VARIANT
     prompt "ADS126x variant (first batch uses ADS1262)"

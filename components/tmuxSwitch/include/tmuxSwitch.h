@@ -63,6 +63,16 @@ esp_err_t tmux1108SetSource(tmux1108Source_t source);
 esp_err_t tmux1108GetSource(tmux1108Source_t *sourceOut);
 
 /*
+ * SensorArray board SW source polarity:
+ *   SW LOW  -> REF
+ *   SW HIGH -> GND
+ *
+ * Piezo-voltage reading and FDC/capacitive reading require GND,
+ * therefore both modes must drive SW HIGH.
+ */
+int tmuxSwitch1108SourceToSwLevel(tmux1108Source_t source);
+
+/*
  * Explicit SEL logic-level control.
  * level=0/1 is written directly to SELx pin without enabled/disabled abstraction.
  */
@@ -85,6 +95,7 @@ esp_err_t tmux1134SetAllOn(void);
  * Observed GPIO levels are MCU-side only and are not definitive analog-route proof.
  */
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState);
+esp_err_t tmuxSwitchAssert1108Source(tmux1108Source_t expectedSource, const char *stage);
 
 esp_err_t tmuxSwitchSelectRow(uint8_t row);
 esp_err_t tmuxSwitchSetSelAEnabled(bool enabled);

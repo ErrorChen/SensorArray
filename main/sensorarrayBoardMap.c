@@ -1,7 +1,6 @@
 #include "sensorarrayBoardMap.h"
 
 #include <stdio.h>
-#include <string.h>
 
 #include "sensorarrayConfig.h"
 
@@ -17,9 +16,9 @@ static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
      */
     { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S5D5_cap_selb_fdc2214" },
     { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D7_cap_selb_fdc2214_selb1" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D7_volt_sela_ads1263_selb0" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_PIEZO_VOLTAGE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D7_piezo_voltage_sela_ads1263_selb0" },
     { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D8_cap_sela_fdc2214_selb1" },
-    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D8_volt_sela_ads1263_selb0" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_PIEZO_VOLTAGE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D8_piezo_voltage_sela_ads1263_selb0" },
 };
 
 static const sensorarrayFdcDLineMap_t s_sensorarrayFdcDLineMap[] = {
@@ -154,15 +153,25 @@ const sensorarrayFdcDLineMap_t *sensorarrayBoardMapFdcAt(size_t index)
 
 const char *sensorarrayBoardMapPathName(sensorarrayPath_t path)
 {
-    return (path == SENSORARRAY_PATH_CAPACITIVE) ? "cap" : "res";
+    switch (path) {
+    case SENSORARRAY_PATH_RESISTIVE:
+        return "RESISTIVE";
+    case SENSORARRAY_PATH_CAPACITIVE:
+        return "CAPACITIVE";
+    case SENSORARRAY_PATH_PIEZO_VOLTAGE:
+        return "PIEZO_VOLTAGE";
+    default:
+        return "UNKNOWN";
+    }
 }
 
 sensorarrayDebugPath_t sensorarrayBoardMapPathToDebugPath(sensorarrayPath_t path, tmux1108Source_t swSource)
 {
+    (void)swSource;
     if (path == SENSORARRAY_PATH_CAPACITIVE) {
         return SENSORARRAY_DEBUG_PATH_CAPACITIVE;
     }
-    if (swSource == TMUX1108_SOURCE_REF) {
+    if (path == SENSORARRAY_PATH_PIEZO_VOLTAGE) {
         return SENSORARRAY_DEBUG_PATH_VOLTAGE;
     }
     return SENSORARRAY_DEBUG_PATH_RESISTIVE;
@@ -173,13 +182,11 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
     if (!route) {
         return TMUX1108_SOURCE_GND;
     }
-    if (route->path == SENSORARRAY_PATH_CAPACITIVE) {
-        return TMUX1108_SOURCE_REF;
+    if (route->path == SENSORARRAY_PATH_CAPACITIVE ||
+        route->path == SENSORARRAY_PATH_PIEZO_VOLTAGE) {
+        return TMUX1108_SOURCE_GND;
     }
-    if (route->mapLabel && strstr(route->mapLabel, "volt") != NULL) {
-        return TMUX1108_SOURCE_REF;
-    }
-    return TMUX1108_SOURCE_GND;
+    return TMUX1108_SOURCE_REF;
 }
 
 void sensorarrayBoardMapAudit(void)

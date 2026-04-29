@@ -1,5 +1,6 @@
 #include "sensorarrayVoltageScan.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "esp_rom_sys.h"
@@ -26,6 +27,26 @@ static bool sensorarrayVoltageScanGainValid(uint8_t gain)
            gain == ADS126X_GAIN_8 ||
            gain == ADS126X_GAIN_16 ||
            gain == ADS126X_GAIN_32;
+}
+
+static const char *sensorarrayVoltageScanSourceName(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
+}
+
+static const char *sensorarrayVoltageScanPathName(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "RESISTIVE" : "PIEZO_VOLTAGE";
+}
+
+static const char *sensorarrayVoltageScanRouteTag(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "DBGRES_ROUTE" : "DBGPIEZO_ROUTE";
+}
+
+static const char *sensorarrayVoltageScanAssertStage(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "resistance_voltage_scan" : "piezo_voltage_scan";
 }
 
 esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
@@ -68,12 +89,51 @@ esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
         return err;
     }
 
+    /*
+     * Confirmed SensorArray board polarity:
+     *   SW LOW  -> REF
+     *   SW HIGH -> GND
+     *
+     * Piezo voltage scan requires GND at the selected TMUX1108 source,
+     * so this mode must command TMUX1108_SOURCE_GND and observe SW HIGH.
+     */
+    err = tmuxSwitchAssert1108Source(swSource, sensorarrayVoltageScanAssertStage(swSource));
+    if (err != ESP_OK) {
+        return err;
+    }
+
     err = tmux1134SetEnLogicalState(true);
     if (err != ESP_OK) {
         return err;
     }
 
     sensorarrayVoltageScanDelayUs(pathSettleUs);
+
+    tmuxSwitchControlState_t ctrl = {0};
+    bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
+    int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(swSource);
+    printf("%s,timestamp_us=%lld,s=S%u,d=D%u,path=%s,adc=ADS126x,swSource=%s,expectedSwLevel=%d,"
+           "cmdSwLevel=%d,obsSwLevel=%d,cmdA0=%d,cmdA1=%d,cmdA2=%d,obsA0=%d,obsA1=%d,obsA2=%d,"
+           "cmdSELA=%d,cmdSELB=%d,obsSELA=%d,obsSELB=%d,status=route_locked\n",
+           sensorarrayVoltageScanRouteTag(swSource),
+           (long long)esp_timer_get_time(),
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayVoltageScanPathName(swSource),
+           sensorarrayVoltageScanSourceName(swSource),
+           expectedSwLevel,
+           haveCtrl ? ctrl.cmdSwLevel : -1,
+           haveCtrl ? ctrl.obsSwLevel : -1,
+           haveCtrl ? ctrl.cmdA0Level : -1,
+           haveCtrl ? ctrl.cmdA1Level : -1,
+           haveCtrl ? ctrl.cmdA2Level : -1,
+           haveCtrl ? ctrl.obsA0Level : -1,
+           haveCtrl ? ctrl.obsA1Level : -1,
+           haveCtrl ? ctrl.obsA2Level : -1,
+           haveCtrl ? ctrl.cmdSelaLevel : -1,
+           haveCtrl ? ctrl.cmdSelbLevel : -1,
+           haveCtrl ? ctrl.obsSelaLevel : -1,
+           haveCtrl ? ctrl.obsSelbLevel : -1);
     return ESP_OK;
 }
 
@@ -84,7 +144,7 @@ esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
 {
     return sensorarrayVoltageScanApplyRouteFastWithSource(sColumn,
                                                           dLine,
-                                                          TMUX1108_SOURCE_REF,
+                                                          TMUX1108_SOURCE_GND,
                                                           rowSettleUs,
                                                           pathSettleUs);
 }
@@ -209,6 +269,6 @@ esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
 {
     return sensorarrayVoltageScanOneFrameWithSource(ads,
                                                     gainTable,
-                                                    TMUX1108_SOURCE_REF,
+                                                    TMUX1108_SOURCE_GND,
                                                     outFrame);
 }

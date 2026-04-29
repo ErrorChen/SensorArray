@@ -16,10 +16,28 @@
 
 - `TMUX1108_SOURCE_GND`: select the GND source in software terms.
 - `TMUX1108_SOURCE_REF`: select the REF source in software terms.
-- `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan with `SW=GND`.
-- `PIEZO_READ / 压电读取`: ADS126x voltage scan with `SW=REF`.
+- `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan with `SW=REF`.
+- `PIEZO_READ / 压电读取`: ADS126x voltage scan with `SW=GND`.
+- `CAPACITIVE / FDC2214`: FDC2214 capacitive read with `SW=GND`.
 
-SW 高低电平由 `CONFIG_TMUX1108_SW_REF_LEVEL` 和底层实现决定，调用者不要直接写 GPIO，也不要假设 raw GPIO level 等于某个模拟源。业务层应调用 `tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND/REF)`。
+Current SensorArray board polarity:
+
+```text
+SW = LOW  -> REF
+SW = HIGH -> GND
+```
+
+Function mapping on this board:
+
+```text
+tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF)
+  -> drives SW LOW
+
+tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND)
+  -> drives SW HIGH
+```
+
+SW 高低电平由 `CONFIG_TMUX1108_SW_REF_LEVEL` 和底层实现决定，当前默认 `CONFIG_TMUX1108_SW_REF_LEVEL=n`，也就是 REF 为 LOW。调用者不要直接写 GPIO，也不要假设 raw GPIO level 等于某个模拟源。业务层应调用 `tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND/REF)`。
 
 ## Readback Boundary
 
@@ -33,6 +51,6 @@ SW 高低电平由 `CONFIG_TMUX1108_SW_REF_LEVEL` 和底层实现决定，调用
 
 ## Kconfig Notes
 
-- `CONFIG_TMUX1108_SW_REF_LEVEL` controls which SW GPIO level means REF.
+- `CONFIG_TMUX1108_SW_REF_LEVEL` controls which SW GPIO level means REF. Current board default is false/low.
 - Safe row switching can temporarily move SW to a configured safe source.
 - TMUX1134 EN can be optional depending on board wiring.

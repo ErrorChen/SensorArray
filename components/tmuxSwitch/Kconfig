@@ -27,8 +27,17 @@ config TMUX1108_SW_GPIO
         GPIO for SW (REF/GND select) into TMUX1108.
 
 config TMUX1108_SW_REF_LEVEL
-    bool "SW high level selects REF (y=high, n=low)"
-    default y
+    bool "SW level selecting REF source (n=low, y=high)"
+    default n
+    help
+        Hardware polarity of the SW-controlled source selector.
+        Current SensorArray board:
+          SW = LOW  selects REF
+          SW = HIGH selects GND
+
+        Therefore the default REF level is low/false.
+        Piezo-voltage and capacitive/FDC modes require GND, so they must
+        drive SW high.
 
 config TMUX1108_DEFAULT_SOURCE
     int "Default source (0=GND, 1=REF)"

@@ -15,6 +15,8 @@
 
 这些仍属于 `main/sensorarrayBoardMap.c` 和 debug/app 层。
 
+Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. Capacitive / FDC2214 routes require the GND source, so the board layer must command `TMUX1108_SOURCE_GND` and observe SW HIGH before FDC samples are trusted.
+
 ## Solidified Helper APIs
 
 新增/整理的通用 helper：

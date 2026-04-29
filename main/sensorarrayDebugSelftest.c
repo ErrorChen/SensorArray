@@ -338,8 +338,7 @@ static void sensorarrayDebugSelftestDelayMs(uint32_t delayMs)
 
 static int sensorarrayExpectedSwLevel(tmux1108Source_t source)
 {
-    int refLevel = CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0;
-    return (source == TMUX1108_SOURCE_REF) ? refLevel : (refLevel ? 0 : 1);
+    return tmuxSwitch1108SourceToSwLevel(source);
 }
 
 static void sensorarrayCheckpointPulse(const sensorarrayCheckpointGpio_t *checkpoint, uint32_t pulseCount)
@@ -1361,12 +1360,10 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
 
         if (!locked) {
             const char *routeMapLabel = SENSORARRAY_NA;
-            esp_err_t routeErr = sensorarrayMeasureApplyRoute(state,
-                                                              SENSORARRAY_S5,
-                                                              SENSORARRAY_D5,
-                                                              SENSORARRAY_PATH_CAPACITIVE,
-                                                              swSource,
-                                                              &routeMapLabel);
+            esp_err_t routeErr = sensorarrayMeasureApplyCapacitiveRoute(state,
+                                                                        SENSORARRAY_S5,
+                                                                        SENSORARRAY_D5,
+                                                                        &routeMapLabel);
             printf("DBGFDC_S5D5,stage=route_apply,map=%s,err=%ld,status=%s\n",
                    routeMapLabel ? routeMapLabel : SENSORARRAY_NA,
                    (long)routeErr,

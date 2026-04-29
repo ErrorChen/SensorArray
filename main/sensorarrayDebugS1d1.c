@@ -66,7 +66,7 @@ static esp_err_t sensorarrayApplyS1D1ResRoute(sensorarrayState_t *state,
                                               tmux1108Source_t *outSwSource)
 {
     int selaWriteLevel = -1;
-    tmux1108Source_t swSource = TMUX1108_SOURCE_GND;
+    tmux1108Source_t swSource = TMUX1108_SOURCE_REF;
     const sensorarrayRouteMap_t *route = sensorarrayGetS1D1ResRoute(&selaWriteLevel, &swSource);
     if (outRoute) {
         *outRoute = route;
@@ -78,7 +78,7 @@ static esp_err_t sensorarrayApplyS1D1ResRoute(sensorarrayState_t *state,
         sensorarrayLogS1D1RouteState("S1D1_RESISTOR", NULL, swSource, selaWriteLevel, ESP_ERR_NOT_SUPPORTED, "route_map_missing");
         return ESP_ERR_NOT_SUPPORTED;
     }
-    if (swSource != TMUX1108_SOURCE_GND) {
+    if (swSource != TMUX1108_SOURCE_REF) {
         sensorarrayLogS1D1RouteState("S1D1_RESISTOR", route, swSource, selaWriteLevel, ESP_ERR_INVALID_STATE, "sw_source_invalid");
         return ESP_ERR_INVALID_STATE;
     }
@@ -88,12 +88,10 @@ static esp_err_t sensorarrayApplyS1D1ResRoute(sensorarrayState_t *state,
     }
 
     const char *mapLabel = SENSORARRAY_NA;
-    esp_err_t err = sensorarrayMeasureApplyRoute(state,
-                                                 SENSORARRAY_S1,
-                                                 SENSORARRAY_D1,
-                                                 SENSORARRAY_PATH_RESISTIVE,
-                                                 swSource,
-                                                 &mapLabel);
+    esp_err_t err = sensorarrayMeasureApplyResistanceRoute(state,
+                                                           SENSORARRAY_S1,
+                                                           SENSORARRAY_D1,
+                                                           &mapLabel);
     (void)mapLabel;
     sensorarrayLogS1D1RouteState("S1D1_RESISTOR",
                                  route,
@@ -162,7 +160,7 @@ void sensorarrayDebugRunSingleResistorS1D1ModeImpl(sensorarrayState_t *state,
     }
 
     const sensorarrayRouteMap_t *route = NULL;
-    tmux1108Source_t swSource = TMUX1108_SOURCE_GND;
+    tmux1108Source_t swSource = TMUX1108_SOURCE_REF;
     esp_err_t err = sensorarrayApplyS1D1ResRoute(state, &route, &swSource);
     if (err != ESP_OK) {
         sensorarrayDebugIdleForever("s1d1_route_apply_failure");

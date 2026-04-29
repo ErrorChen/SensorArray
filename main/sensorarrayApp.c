@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "boardSupport.h"
 #include "tmuxSwitch.h"
@@ -47,12 +48,59 @@ static void sensorarrayApplyTmuxDefaults(void)
     if (tmuxErr == ESP_OK) {
         tmuxErr = tmux1134SetEnLogicalState(true);
     }
+    if (tmuxErr == ESP_OK) {
+        tmuxErr = tmuxSwitchAssert1108Source(TMUX1108_SOURCE_GND, "tmux_defaults");
+    }
 
     sensorarrayLogStartup("tmux_defaults",
                           tmuxErr,
                           (tmuxErr == ESP_OK) ? "ok" : "set_failed",
                           (int32_t)(tmuxErr == ESP_OK));
     sensorarrayLogControlGpio("tmux_defaults", "INIT");
+}
+
+static void sensorarrayAppLogModeRequirement(sensorarrayDebugMode_t activeMode)
+{
+    const char *mode = NULL;
+    tmux1108Source_t source = TMUX1108_SOURCE_GND;
+    const char *reason = NULL;
+
+    switch (activeMode) {
+    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+        mode = "RESISTIVE";
+        source = TMUX1108_SOURCE_REF;
+        reason = "resistive_requires_reference_source";
+        break;
+    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
+    case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
+        mode = "CAPACITIVE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "fdc_capacitive_requires_ground_source";
+        break;
+    case SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE:
+#if CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_CAPACITIVE
+        mode = "CAPACITIVE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "fdc_capacitive_requires_ground_source";
+#elif CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_VOLTAGE
+        mode = "PIEZO_VOLTAGE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "piezo_requires_ground_source";
+#else
+        mode = "RESISTIVE";
+        source = TMUX1108_SOURCE_REF;
+        reason = "resistive_requires_reference_source";
+#endif
+        break;
+    default:
+        return;
+    }
+
+    printf("DBGMODE,mode=%s,requiredSwSource=%s,requiredSwLevel=%d,reason=%s\n",
+           mode,
+           sensorarrayLogSwSourceLogicalName(source),
+           tmuxSwitch1108SourceToSwLevel(source),
+           reason);
 }
 
 void sensorarrayAppRun(void)
@@ -62,6 +110,7 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+    sensorarrayAppLogModeRequirement(activeMode);
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
     bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);

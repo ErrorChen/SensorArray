@@ -25,12 +25,24 @@ static const char *sensorarrayDebugPathKind(sensorarrayDebugPath_t path)
 {
     switch (path) {
     case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
-        return "cap";
+        return "CAPACITIVE";
     case SENSORARRAY_DEBUG_PATH_VOLTAGE:
-        return "volt";
+        return "PIEZO_VOLTAGE";
     case SENSORARRAY_DEBUG_PATH_RESISTIVE:
     default:
-        return "res";
+        return "RESISTIVE";
+    }
+}
+
+static tmux1108Source_t sensorarrayDebugRequiredSwSourceForPath(sensorarrayDebugPath_t path)
+{
+    switch (path) {
+    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+        return TMUX1108_SOURCE_GND;
+    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+    default:
+        return TMUX1108_SOURCE_REF;
     }
 }
 
@@ -54,6 +66,20 @@ static esp_err_t sensorarrayDebugApplyFixedRoute(sensorarrayState_t *state,
     if (!state || !cfg) {
         return ESP_ERR_INVALID_ARG;
     }
+
+    sensorarrayDebugFixedRoute_t effectiveCfg = *cfg;
+    tmux1108Source_t requiredSwSource = sensorarrayDebugRequiredSwSourceForPath(effectiveCfg.path);
+    if (effectiveCfg.swSource != requiredSwSource) {
+        printf("DBGROUTE_POLICY_OVERRIDE,label=%s,path=%s,requestedSwSource=%s,requiredSwSource=%s,"
+               "requiredSwLevel=%d,status=source_corrected\n",
+               effectiveCfg.label ? effectiveCfg.label : SENSORARRAY_NA,
+               sensorarrayDebugPathKind(effectiveCfg.path),
+               sensorarrayLogSwSourceLogicalName(effectiveCfg.swSource),
+               sensorarrayLogSwSourceLogicalName(requiredSwSource),
+               tmuxSwitch1108SourceToSwLevel(requiredSwSource));
+        effectiveCfg.swSource = requiredSwSource;
+    }
+    cfg = &effectiveCfg;
 
     char columnBuf[6];
     char dLineBuf[6];
@@ -227,7 +253,7 @@ static void sensorarrayDebugReadResistor(sensorarrayState_t *state,
     } else if (!state->adsRefReady) {
         status = "skip_ref_not_ready";
     } else {
-        err = sensorarrayMeasureApplyRoute(state, sColumn, dLine, SENSORARRAY_PATH_RESISTIVE, TMUX1108_SOURCE_GND, &routeMap);
+        err = sensorarrayMeasureApplyResistanceRoute(state, sColumn, dLine, &routeMap);
         if (err != ESP_OK) {
             status = (err == ESP_ERR_NOT_SUPPORTED) ? "route_map_missing" : "route_error";
         } else {
@@ -253,10 +279,10 @@ static void sensorarrayDebugReadResistor(sensorarrayState_t *state,
     snprintf(dLineBuf, sizeof(dLineBuf), "D%u", (unsigned)dLine);
 
     sensorarrayLogDbg(pointLabel,
-                      "res",
+                      "RESISTIVE",
                       columnBuf,
                       dLineBuf,
-                      "LOW",
+                      sensorarrayLogSwSourceLogicalName(TMUX1108_SOURCE_REF),
                       "ads",
                       sensorarrayLogFmtI32(valueBuf, sizeof(valueBuf), haveMohm, mohm),
                       sensorarrayLogFmtI32(uvBuf, sizeof(uvBuf), haveUv, uv),

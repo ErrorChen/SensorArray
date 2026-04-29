@@ -4,6 +4,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
@@ -38,6 +39,119 @@ static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const se
         .readRetryCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT,
     };
     return policy ? policy : &kDefaultPolicy;
+}
+
+static const char *sensorarrayMeasureDebugPathName(sensorarrayDebugPath_t path)
+{
+    switch (path) {
+    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+        return "CAPACITIVE";
+    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+        return "PIEZO_VOLTAGE";
+    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+    default:
+        return "RESISTIVE";
+    }
+}
+
+static const char *sensorarrayMeasureRouteTag(sensorarrayDebugPath_t path)
+{
+    switch (path) {
+    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+        return "DBGCAP_ROUTE";
+    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+        return "DBGPIEZO_ROUTE";
+    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+    default:
+        return "DBGRES_ROUTE";
+    }
+}
+
+static const char *sensorarrayMeasureRouteDeviceKey(sensorarrayDebugPath_t path)
+{
+    return (path == SENSORARRAY_DEBUG_PATH_CAPACITIVE) ? "fdc" : "adc";
+}
+
+static const char *sensorarrayMeasureRouteDeviceName(sensorarrayDebugPath_t path)
+{
+    return (path == SENSORARRAY_DEBUG_PATH_CAPACITIVE) ? "FDC2214" : "ADS126x";
+}
+
+static const char *sensorarrayMeasureRouteAssertStage(sensorarrayDebugPath_t path)
+{
+    switch (path) {
+    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+        return "capacitive_route";
+    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+        return "piezo_route";
+    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+    default:
+        return "resistance_route";
+    }
+}
+
+static esp_err_t sensorarrayMeasureAssertAndLogRoute(uint8_t sColumn,
+                                                     uint8_t dLine,
+                                                     sensorarrayDebugPath_t path,
+                                                     tmux1108Source_t swSource)
+{
+    const int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(swSource);
+    esp_err_t assertErr = tmuxSwitchAssert1108Source(swSource, sensorarrayMeasureRouteAssertStage(path));
+
+    tmuxSwitchControlState_t ctrl = {0};
+    bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
+    printf("%s,timestamp_us=%lld,s=S%u,d=D%u,path=%s,%s=%s,swSource=%s,expectedSwLevel=%d,"
+           "cmdSwLevel=%d,obsSwLevel=%d,cmdA0=%d,cmdA1=%d,cmdA2=%d,obsA0=%d,obsA1=%d,obsA2=%d,"
+           "cmdSELA=%d,cmdSELB=%d,obsSELA=%d,obsSELB=%d,status=%s\n",
+           sensorarrayMeasureRouteTag(path),
+           (long long)esp_timer_get_time(),
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayMeasureDebugPathName(path),
+           sensorarrayMeasureRouteDeviceKey(path),
+           sensorarrayMeasureRouteDeviceName(path),
+           sensorarrayLogSwSourceLogicalName(swSource),
+           expectedSwLevel,
+           haveCtrl ? ctrl.cmdSwLevel : -1,
+           haveCtrl ? ctrl.obsSwLevel : -1,
+           haveCtrl ? ctrl.cmdA0Level : -1,
+           haveCtrl ? ctrl.cmdA1Level : -1,
+           haveCtrl ? ctrl.cmdA2Level : -1,
+           haveCtrl ? ctrl.obsA0Level : -1,
+           haveCtrl ? ctrl.obsA1Level : -1,
+           haveCtrl ? ctrl.obsA2Level : -1,
+           haveCtrl ? ctrl.cmdSelaLevel : -1,
+           haveCtrl ? ctrl.cmdSelbLevel : -1,
+           haveCtrl ? ctrl.obsSelaLevel : -1,
+           haveCtrl ? ctrl.obsSelbLevel : -1,
+           (assertErr == ESP_OK) ? "route_locked" : "sw_assert_failed");
+    return assertErr;
+}
+
+static bool sensorarrayMeasureRouteSourceAllowed(sensorarrayPath_t path, tmux1108Source_t swSource)
+{
+    switch (path) {
+    case SENSORARRAY_PATH_CAPACITIVE:
+    case SENSORARRAY_PATH_PIEZO_VOLTAGE:
+        return swSource == TMUX1108_SOURCE_GND;
+    case SENSORARRAY_PATH_RESISTIVE:
+        return swSource == TMUX1108_SOURCE_REF;
+    default:
+        return false;
+    }
+}
+
+static bool sensorarrayMeasureDebugRouteSourceAllowed(sensorarrayDebugPath_t path, tmux1108Source_t swSource)
+{
+    switch (path) {
+    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+        return swSource == TMUX1108_SOURCE_GND;
+    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+        return swSource == TMUX1108_SOURCE_REF;
+    default:
+        return false;
+    }
 }
 
 static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
@@ -172,6 +286,9 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
     if (!sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &(int){0})) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!sensorarrayMeasureDebugRouteSourceAllowed(path, swSource)) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
@@ -226,6 +343,11 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
     }
     sensorarrayDelayMs(delayAfterSwMs);
 
+    err = sensorarrayMeasureAssertAndLogRoute(sColumn, dLine, path, swSource);
+    if (err != ESP_OK) {
+        return err;
+    }
+
     sensorarrayLogDbgExtraCaptureCtrl();
     return ESP_OK;
 }
@@ -244,6 +366,9 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
         return ESP_ERR_INVALID_STATE;
     }
     if (sColumn < 1u || sColumn > 8u || dLine < 1u || dLine > 8u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayMeasureRouteSourceAllowed(path, swSource)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -341,12 +466,80 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
     }
     sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_SW_MS);
 
+    err = sensorarrayMeasureAssertAndLogRoute(sColumn, dLine, debugPath, swSource);
+    if (err != ESP_OK) {
+        return err;
+    }
+
     sensorarrayLogDbgExtraCaptureCtrl();
 
     if (outMapLabel) {
         *outMapLabel = routeMap->mapLabel;
     }
     return ESP_OK;
+}
+
+esp_err_t sensorarrayMeasureApplyResistanceRoute(sensorarrayState_t *state,
+                                                 uint8_t sColumn,
+                                                 uint8_t dLine,
+                                                 const char **outMapLabel)
+{
+    return sensorarrayMeasureApplyRoute(state,
+                                        sColumn,
+                                        dLine,
+                                        SENSORARRAY_PATH_RESISTIVE,
+                                        TMUX1108_SOURCE_REF,
+                                        outMapLabel);
+}
+
+esp_err_t sensorarrayMeasureApplyPiezoVoltageRoute(sensorarrayState_t *state,
+                                                   uint8_t sColumn,
+                                                   uint8_t dLine,
+                                                   const char **outMapLabel)
+{
+    if (outMapLabel) {
+        *outMapLabel = "piezo_voltage_sela_ads126x_gnd";
+    }
+    if (!state || !state->tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (sColumn < 1u || sColumn > 8u || dLine < 1u || dLine > 8u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /*
+     * Confirmed SensorArray board polarity:
+     *   SW LOW  -> REF
+     *   SW HIGH -> GND
+     *
+     * Piezo voltage reading uses the ADS126x voltage path and requires GND
+     * at the selected TMUX1108 source, so this route always commands GND.
+     */
+    return sensorarrayMeasureApplyRouteLevels(state,
+                                              sColumn,
+                                              dLine,
+                                              SENSORARRAY_DEBUG_PATH_VOLTAGE,
+                                              TMUX1108_SOURCE_GND,
+                                              SENSORARRAY_SELA_ROUTE_ADS1263,
+                                              false,
+                                              SENSORARRAY_SETTLE_AFTER_COLUMN_MS,
+                                              SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                              SENSORARRAY_SETTLE_AFTER_PATH_MS,
+                                              SENSORARRAY_SETTLE_AFTER_SW_MS,
+                                              "piezo_voltage_sela_ads126x_gnd");
+}
+
+esp_err_t sensorarrayMeasureApplyCapacitiveRoute(sensorarrayState_t *state,
+                                                 uint8_t sColumn,
+                                                 uint8_t dLine,
+                                                 const char **outMapLabel)
+{
+    return sensorarrayMeasureApplyRoute(state,
+                                        sColumn,
+                                        dLine,
+                                        SENSORARRAY_PATH_CAPACITIVE,
+                                        TMUX1108_SOURCE_GND,
+                                        outMapLabel);
 }
 
 esp_err_t sensorarrayMeasureReadAdsRawWithRetry(sensorarrayState_t *state,
