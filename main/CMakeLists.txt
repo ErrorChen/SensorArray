@@ -5,6 +5,7 @@ idf_component_register(
         "sensorarrayBoardMap.c"
         "sensorarrayBringup.c"
         "sensorarrayMeasure.c"
+        "sensorarrayVoltageScan.c"
         "sensorarrayLog.c"
         "sensorarrayDebug.c"
         "sensorarrayDebugFdcI2cDiscovery.c"
@@ -14,6 +15,7 @@ idf_component_register(
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         boardSupport
+        esp_timer
         powerCtrl
         tmuxSwitch
         ads126xAdc

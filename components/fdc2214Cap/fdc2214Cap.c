@@ -103,6 +103,21 @@ static const char* TAG = "fdc2214Cap";
 
 // Datasheet timing (FDC221x): sleep-to-active wake-up time typ/min requirement.
 #define FDC2214_SLEEP_WAKEUP_US 50U
+#define FDC2214CAP_PI 3.14159265358979323846
+
+static const uint16_t FDC2214CAP_DEFAULT_SWEEP_DRIVE_CURRENTS[] = {
+    0xA000u,
+    0xB800u,
+    0xC000u,
+    0xD000u,
+    0xE000u,
+    0xF800u,
+};
+
+static const bool FDC2214CAP_DEFAULT_SWEEP_HIGH_CURRENT[] = {
+    false,
+    true,
+};
 
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
@@ -1138,4 +1153,462 @@ const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status)
     default:
         return "config_unknown";
     }
+}
+
+static fdc2214CapSingleChannelProfile_t fdc2214CapDefaultSingleChannelProfile(void)
+{
+    return (fdc2214CapSingleChannelProfile_t){
+        .ChannelConfig = {
+            .Rcount = FDC2214CAP_DEFAULT_SINGLE_CHANNEL_RCOUNT,
+            .SettleCount = FDC2214CAP_DEFAULT_SINGLE_CHANNEL_SETTLECOUNT,
+            .Offset = FDC2214CAP_DEFAULT_SINGLE_CHANNEL_OFFSET,
+            .ClockDividers = FDC2214CAP_DEFAULT_SINGLE_CHANNEL_CLOCK_DIVIDERS,
+            .DriveCurrent = FDC2214CAP_DEFAULT_SINGLE_CHANNEL_DRIVE_CURRENT,
+        },
+        .StatusConfig = FDC2214CAP_DEFAULT_STATUS_CONFIG,
+        .Deglitch = FDC2214_DEGLITCH_10MHZ,
+        .RefClockSource = FDC2214_REF_CLOCK_INTERNAL,
+        .SensorActivateSelLowPower = false,
+        .IntbDisabled = true,
+        .HighCurrentDrive = false,
+        .SettleAfterExitSleepUs = FDC2214_SLEEP_WAKEUP_US,
+    };
+}
+
+static void fdc2214CapInitSingleChannelResult(fdc2214CapSingleChannelResult_t *result)
+{
+    if (!result) {
+        return;
+    }
+    *result = (fdc2214CapSingleChannelResult_t){
+        .ConfigureResult = FDC2214_CHANNEL_CONFIG_RESULT_OK,
+        .VerifyResult = FDC2214_CHANNEL_VERIFY_RESULT_OK,
+    };
+}
+
+esp_err_t fdc2214CapApplySingleChannelProfile(Fdc2214CapDevice_t *dev,
+                                              Fdc2214CapChannel_t ch,
+                                              const fdc2214CapSingleChannelProfile_t *profile,
+                                              fdc2214CapSingleChannelResult_t *outResult)
+{
+    if (!dev || !Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    fdc2214CapInitSingleChannelResult(outResult);
+    fdc2214CapSingleChannelProfile_t defaultProfile = fdc2214CapDefaultSingleChannelProfile();
+    const fdc2214CapSingleChannelProfile_t *useProfile = profile ? profile : &defaultProfile;
+    if (!Fdc2214IsValidDeglitch(useProfile->Deglitch) || !Fdc2214IsValidRefClock(useProfile->RefClockSource)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapConfigOptions_t configOptions = {
+        .ActiveChannel = ch,
+        .SleepModeEnabled = false,
+        .SensorActivateSelLowPower = useProfile->SensorActivateSelLowPower,
+        .RefClockSource = useProfile->RefClockSource,
+        .IntbDisabled = useProfile->IntbDisabled,
+        .HighCurrentDrive = useProfile->HighCurrentDrive,
+    };
+    uint16_t finalConfig = Fdc2214CapBuildConfig(&configOptions);
+
+    esp_err_t err = Fdc2214CapEnterSleep(dev, finalConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapChannelConfigResult_t cfgResult = FDC2214_CHANNEL_CONFIG_RESULT_OK;
+    uint16_t driveReadback = 0u;
+    err = Fdc2214CapConfigureChannelWithResult(dev,
+                                               ch,
+                                               &useProfile->ChannelConfig,
+                                               &cfgResult,
+                                               &driveReadback);
+    if (outResult) {
+        outResult->ConfigureResult = cfgResult;
+        outResult->DriveCurrentReadback = driveReadback;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapChannelVerifyResult_t verifyResult = FDC2214_CHANNEL_VERIFY_RESULT_OK;
+    err = Fdc2214CapReadbackVerifyChannelConfigWithResult(dev,
+                                                          ch,
+                                                          &useProfile->ChannelConfig,
+                                                          &verifyResult,
+                                                          &driveReadback);
+    if (outResult) {
+        outResult->VerifyResult = verifyResult;
+        outResult->DriveCurrentReadback = driveReadback;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = Fdc2214CapSetStatusConfig(dev, useProfile->StatusConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = Fdc2214CapSetMuxConfig(dev, false, 0u, useProfile->Deglitch);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = Fdc2214CapExitSleep(dev, finalConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+    Fdc2214CapDelayUs(useProfile->SettleAfterExitSleepUs);
+
+    if (outResult) {
+        Fdc2214CapCoreRegs_t regs = {0};
+        if (Fdc2214CapReadCoreRegs(dev, &regs) == ESP_OK) {
+            outResult->StatusConfig = regs.StatusConfig;
+            outResult->Config = regs.Config;
+            outResult->MuxConfig = regs.MuxConfig;
+        }
+    }
+    return ESP_OK;
+}
+
+esp_err_t fdc2214CapConfigureSingleChannelContinuousDefault(Fdc2214CapDevice_t *dev,
+                                                            Fdc2214CapChannel_t ch,
+                                                            fdc2214CapSingleChannelResult_t *outResult)
+{
+    fdc2214CapSingleChannelProfile_t profile = fdc2214CapDefaultSingleChannelProfile();
+    return fdc2214CapApplySingleChannelProfile(dev, ch, &profile, outResult);
+}
+
+esp_err_t fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t *dev,
+                                      Fdc2214CapChannel_t ch,
+                                      Fdc2214CapSample_t *outSample)
+{
+    return Fdc2214CapReadSampleRelaxed(dev, ch, outSample);
+}
+
+esp_err_t fdc2214CapReadSampleWithStatus(Fdc2214CapDevice_t *dev,
+                                         Fdc2214CapChannel_t ch,
+                                         bool relaxed,
+                                         Fdc2214CapSample_t *outSample,
+                                         Fdc2214CapStatus_t *outStatus)
+{
+    if (!dev || !outSample || !Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (outStatus) {
+        esp_err_t statusErr = Fdc2214CapReadStatus(dev, outStatus);
+        if (statusErr != ESP_OK) {
+            return statusErr;
+        }
+    }
+
+    return relaxed ? Fdc2214CapReadSampleRelaxed(dev, ch, outSample)
+                   : Fdc2214CapReadSample(dev, ch, outSample);
+}
+
+double fdc2214CapRaw28ToSensorFrequencyHz(uint32_t raw28, uint32_t refClockHz)
+{
+    if (raw28 == 0u || refClockHz == 0u) {
+        return 0.0;
+    }
+    return ((double)raw28 * (double)refClockHz) / 268435456.0;
+}
+
+bool fdc2214CapFrequencyToCapacitancePf(double frequencyHz, double inductorValueUh, double *outCapPf)
+{
+    if (!outCapPf || frequencyHz <= 0.0 || inductorValueUh <= 0.0) {
+        return false;
+    }
+
+    double inductorH = inductorValueUh * 1e-6;
+    double omega = 2.0 * FDC2214CAP_PI * frequencyHz;
+    double denom = omega * omega * inductorH;
+    if (denom <= 0.0) {
+        return false;
+    }
+    *outCapPf = (1.0 / denom) * 1e12;
+    return true;
+}
+
+static void fdc2214CapInitDriveSweepResult(fdc2214CapDriveSweepResult_t *result,
+                                           bool highCurrent,
+                                           uint16_t driveCurrent)
+{
+    if (!result) {
+        return;
+    }
+    *result = (fdc2214CapDriveSweepResult_t){
+        .HighCurrent = highCurrent,
+        .DriveCurrent = driveCurrent,
+        .DriveCurrentNormalized = Fdc2214CapNormalizeDriveCurrent(driveCurrent),
+        .RawMin = UINT32_MAX,
+        .Err = ESP_FAIL,
+    };
+}
+
+static esp_err_t fdc2214CapApplyDriveCurrentStep(Fdc2214CapDevice_t *dev,
+                                                 Fdc2214CapChannel_t ch,
+                                                 bool highCurrent,
+                                                 uint16_t driveCurrent,
+                                                 uint32_t settleAfterStepUs,
+                                                 fdc2214CapDriveSweepResult_t *outResult)
+{
+    if (!dev || !Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (outResult) {
+        fdc2214CapInitDriveSweepResult(outResult, highCurrent, driveCurrent);
+    }
+
+    uint16_t configReg = 0u;
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
+    if (err != ESP_OK) {
+        if (outResult) {
+            outResult->Err = err;
+        }
+        return err;
+    }
+
+    Fdc2214CapConfigOptions_t options = Fdc2214CapConfigOptionsFromRaw(configReg);
+    options.ActiveChannel = ch;
+    options.SleepModeEnabled = false;
+    options.HighCurrentDrive = highCurrent;
+    uint16_t newConfig = Fdc2214CapBuildConfig(&options);
+    err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, newConfig);
+    if (err != ESP_OK) {
+        if (outResult) {
+            outResult->Err = err;
+        }
+        return err;
+    }
+
+    uint16_t normalizedDrive = Fdc2214CapNormalizeDriveCurrent(driveCurrent);
+    err = Fdc2214CapWriteReg16VerifyWithMask(dev,
+                                             Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
+                                             normalizedDrive,
+                                             FDC2214_DRIVE_CURRENT_MASK,
+                                             true,
+                                             "DRIVE_CURRENT",
+                                             NULL,
+                                             outResult ? &outResult->DriveCurrentReadback : NULL);
+    if (err != ESP_OK) {
+        if (outResult) {
+            outResult->Err = err;
+        }
+        return err;
+    }
+
+    Fdc2214CapDelayUs(settleAfterStepUs);
+    if (outResult) {
+        outResult->Err = ESP_OK;
+    }
+    return ESP_OK;
+}
+
+esp_err_t fdc2214CapLockDriveCurrent(Fdc2214CapDevice_t *dev,
+                                     Fdc2214CapChannel_t ch,
+                                     bool highCurrent,
+                                     uint16_t driveCurrent,
+                                     uint32_t settleAfterStepUs,
+                                     fdc2214CapDriveSweepResult_t *outResult)
+{
+    return fdc2214CapApplyDriveCurrentStep(dev, ch, highCurrent, driveCurrent, settleAfterStepUs, outResult);
+}
+
+static void fdc2214CapSweepIngestSample(fdc2214CapDriveSweepResult_t *candidate,
+                                        const Fdc2214CapSample_t *sample)
+{
+    if (!candidate || !sample) {
+        return;
+    }
+
+    candidate->SampleCount++;
+    if (sample->SampleValid) {
+        candidate->ValidSampleCount++;
+    }
+    if (sample->Raw28 != 0u) {
+        candidate->NonZeroRawCount++;
+    }
+    if (sample->UnreadConversionPresent || sample->DataReady) {
+        candidate->UnreadCount++;
+    }
+    if (sample->ErrWatchdog) {
+        candidate->WatchdogFaultCount++;
+    }
+    if (sample->ErrAmplitude) {
+        candidate->AmplitudeFaultCount++;
+    }
+    if (sample->Raw28 < candidate->RawMin) {
+        candidate->RawMin = sample->Raw28;
+    }
+    if (sample->Raw28 > candidate->RawMax) {
+        candidate->RawMax = sample->Raw28;
+    }
+    candidate->RawSum += sample->Raw28;
+}
+
+static void fdc2214CapSweepFinalize(fdc2214CapDriveSweepResult_t *candidate)
+{
+    if (!candidate) {
+        return;
+    }
+
+    if (candidate->SampleCount == 0u) {
+        candidate->RawMin = 0u;
+        candidate->RawMax = 0u;
+        candidate->RawMean = 0u;
+        candidate->RawSpan = 0u;
+        candidate->Score = -100000;
+        return;
+    }
+
+    if (candidate->RawMin == UINT32_MAX) {
+        candidate->RawMin = 0u;
+        candidate->RawMax = 0u;
+    }
+    candidate->RawMean = (uint32_t)(candidate->RawSum / candidate->SampleCount);
+    candidate->RawSpan = candidate->RawMax - candidate->RawMin;
+    int32_t score = 0;
+    score += (int32_t)candidate->ValidSampleCount * 20;
+    score += (int32_t)candidate->NonZeroRawCount * 6;
+    score += (int32_t)candidate->UnreadCount * 4;
+    score -= (int32_t)candidate->I2cErrorCount * 40;
+    score -= (int32_t)candidate->WatchdogFaultCount * 12;
+    score -= (int32_t)candidate->AmplitudeFaultCount * 12;
+    if (candidate->RawSpan < 1000u) {
+        score += 8;
+    }
+    candidate->Score = score;
+    candidate->Err = (candidate->I2cErrorCount == 0u) ? ESP_OK : ESP_FAIL;
+}
+
+static bool fdc2214CapSweepCandidateBetter(const fdc2214CapDriveSweepResult_t *candidate,
+                                           const fdc2214CapDriveSweepResult_t *best)
+{
+    if (!best || best->SampleCount == 0u) {
+        return true;
+    }
+    if (candidate->Score != best->Score) {
+        return candidate->Score > best->Score;
+    }
+    if (candidate->ValidSampleCount != best->ValidSampleCount) {
+        return candidate->ValidSampleCount > best->ValidSampleCount;
+    }
+    if (candidate->AmplitudeFaultCount != best->AmplitudeFaultCount) {
+        return candidate->AmplitudeFaultCount < best->AmplitudeFaultCount;
+    }
+    if (candidate->RawSpan != best->RawSpan) {
+        return candidate->RawSpan < best->RawSpan;
+    }
+    return candidate->DriveCurrentNormalized > best->DriveCurrentNormalized;
+}
+
+esp_err_t fdc2214CapSweepDriveCurrent(Fdc2214CapDevice_t *dev,
+                                      Fdc2214CapChannel_t ch,
+                                      const fdc2214CapDriveSweepConfig_t *cfg,
+                                      fdc2214CapDriveSweepResult_t *outBestResult)
+{
+    if (!dev || !outBestResult || !Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const bool *highValues = FDC2214CAP_DEFAULT_SWEEP_HIGH_CURRENT;
+    size_t highCount = sizeof(FDC2214CAP_DEFAULT_SWEEP_HIGH_CURRENT) /
+                       sizeof(FDC2214CAP_DEFAULT_SWEEP_HIGH_CURRENT[0]);
+    const uint16_t *driveValues = FDC2214CAP_DEFAULT_SWEEP_DRIVE_CURRENTS;
+    size_t driveCount = sizeof(FDC2214CAP_DEFAULT_SWEEP_DRIVE_CURRENTS) /
+                        sizeof(FDC2214CAP_DEFAULT_SWEEP_DRIVE_CURRENTS[0]);
+    uint32_t settleUs = 350000u;
+    uint32_t sampleGapUs = 20000u;
+    uint32_t samplesPerCandidate = 6u;
+    bool discardFirst = true;
+    bool relaxedRead = true;
+    int32_t minAcceptScore = -100000;
+
+    if (cfg) {
+        if (cfg->HighCurrentValues && cfg->HighCurrentCount > 0u) {
+            highValues = cfg->HighCurrentValues;
+            highCount = cfg->HighCurrentCount;
+        }
+        if (cfg->DriveCurrentValues && cfg->DriveCurrentCount > 0u) {
+            driveValues = cfg->DriveCurrentValues;
+            driveCount = cfg->DriveCurrentCount;
+        }
+        if (cfg->SettleAfterStepUs > 0u) {
+            settleUs = cfg->SettleAfterStepUs;
+        }
+        sampleGapUs = cfg->SampleGapUs;
+        if (cfg->SamplesPerCandidate > 0u) {
+            samplesPerCandidate = cfg->SamplesPerCandidate;
+        }
+        discardFirst = cfg->DiscardFirst;
+        relaxedRead = cfg->RelaxedRead;
+        minAcceptScore = cfg->MinAcceptScore;
+    }
+
+    bool haveBest = false;
+    fdc2214CapDriveSweepResult_t best = {0};
+    esp_err_t lastErr = ESP_OK;
+
+    for (size_t hi = 0u; hi < highCount; ++hi) {
+        for (size_t di = 0u; di < driveCount; ++di) {
+            fdc2214CapDriveSweepResult_t candidate = {0};
+            fdc2214CapInitDriveSweepResult(&candidate, highValues[hi], driveValues[di]);
+
+            lastErr = fdc2214CapApplyDriveCurrentStep(dev,
+                                                      ch,
+                                                      candidate.HighCurrent,
+                                                      candidate.DriveCurrent,
+                                                      settleUs,
+                                                      &candidate);
+            if (lastErr != ESP_OK) {
+                candidate.I2cErrorCount++;
+                candidate.SampleCount = 1u;
+                fdc2214CapSweepFinalize(&candidate);
+            } else {
+                if (discardFirst) {
+                    Fdc2214CapSample_t discardSample = {0};
+                    esp_err_t discardErr = relaxedRead ? Fdc2214CapReadSampleRelaxed(dev, ch, &discardSample)
+                                                       : Fdc2214CapReadSample(dev, ch, &discardSample);
+                    if (discardErr != ESP_OK) {
+                        candidate.I2cErrorCount++;
+                    }
+                }
+
+                for (uint32_t sampleIdx = 0u; sampleIdx < samplesPerCandidate; ++sampleIdx) {
+                    Fdc2214CapSample_t sample = {0};
+                    esp_err_t readErr = relaxedRead ? Fdc2214CapReadSampleRelaxed(dev, ch, &sample)
+                                                    : Fdc2214CapReadSample(dev, ch, &sample);
+                    if (readErr != ESP_OK) {
+                        candidate.SampleCount++;
+                        candidate.I2cErrorCount++;
+                        lastErr = readErr;
+                    } else {
+                        fdc2214CapSweepIngestSample(&candidate, &sample);
+                    }
+                    Fdc2214CapDelayUs(sampleGapUs);
+                }
+                fdc2214CapSweepFinalize(&candidate);
+            }
+
+            if (!haveBest || fdc2214CapSweepCandidateBetter(&candidate, &best)) {
+                best = candidate;
+                haveBest = true;
+            }
+        }
+    }
+
+    if (!haveBest) {
+        return ESP_FAIL;
+    }
+
+    *outBestResult = best;
+    if (best.Score < minAcceptScore) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    return (best.I2cErrorCount == 0u) ? ESP_OK : lastErr;
 }

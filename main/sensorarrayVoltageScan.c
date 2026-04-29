@@ -1,0 +1,187 @@
+#include "sensorarrayVoltageScan.h"
+
+#include <string.h>
+
+#include "esp_rom_sys.h"
+#include "esp_timer.h"
+
+#include "sensorarrayBoardMap.h"
+#include "sensorarrayConfig.h"
+#include "tmuxSwitch.h"
+
+static uint32_t s_voltageFrameSequence = 0u;
+
+static void sensorarrayVoltageScanDelayUs(uint32_t delayUs)
+{
+    if (delayUs > 0u) {
+        esp_rom_delay_us(delayUs);
+    }
+}
+
+static bool sensorarrayVoltageScanGainValid(uint8_t gain)
+{
+    return gain == ADS126X_GAIN_1 ||
+           gain == ADS126X_GAIN_2 ||
+           gain == ADS126X_GAIN_4 ||
+           gain == ADS126X_GAIN_8 ||
+           gain == ADS126X_GAIN_16 ||
+           gain == ADS126X_GAIN_32;
+}
+
+esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
+                                               uint8_t dLine,
+                                               uint32_t rowSettleUs,
+                                               uint32_t pathSettleUs)
+{
+    if (sColumn < 1u || sColumn > SENSORARRAY_VOLTAGE_SCAN_ROWS ||
+        dLine < 1u || dLine > SENSORARRAY_VOLTAGE_SCAN_COLS) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayVoltageScanDelayUs(rowSettleUs);
+
+    int selaLevel = 0;
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(SENSORARRAY_SELA_ROUTE_ADS1263, &selaLevel)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    err = tmux1134SelectSelALevel(selaLevel != 0);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = tmux1134SelectSelBLevel(false);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    /*
+     * Voltage scan currently uses REF as the TMUX1108 source per board-map
+     * bring-up notes. TODO: confirm REF/GND source polarity on the hardware with
+     * a scope before changing this default.
+     */
+    err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = tmux1134SetEnLogicalState(true);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    sensorarrayVoltageScanDelayUs(pathSettleUs);
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
+                                         const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
+                                                                [SENSORARRAY_VOLTAGE_SCAN_COLS],
+                                         sensorarrayVoltageFrame_t *outFrame)
+{
+    if (!ads || !outFrame) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    sensorarrayVoltageFrame_t frame = {
+        .sequence = s_voltageFrameSequence++,
+        .timestampUs = (uint64_t)esp_timer_get_time(),
+    };
+
+    esp_err_t frameErr = ESP_OK;
+    for (uint8_t s = 1u; s <= SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
+        esp_err_t routeErr = sensorarrayVoltageScanApplyRouteFast(
+            s,
+            1u,
+            (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_ROW_SETTLE_US,
+            (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_PATH_SETTLE_US);
+        if (routeErr != ESP_OK) {
+            frameErr = routeErr;
+            for (uint8_t d = 1u; d <= SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
+                frame.err[s - 1u][d - 1u] = routeErr;
+                frame.gain[s - 1u][d - 1u] = ads->pgaGain;
+            }
+            continue;
+        }
+
+        for (uint8_t d = 1u; d <= SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
+            uint8_t row = (uint8_t)(s - 1u);
+            uint8_t col = (uint8_t)(d - 1u);
+            uint8_t muxp = 0u;
+            uint8_t muxn = 0u;
+            if (!sensorarrayBoardMapAdsMuxForDLine(d, &muxp, &muxn)) {
+                frame.err[row][col] = ESP_ERR_INVALID_ARG;
+                frameErr = ESP_ERR_INVALID_ARG;
+                continue;
+            }
+
+            ads126xAdcVoltageReadConfig_t readCfg = {
+                .muxp = muxp,
+                .muxn = muxn,
+                .stopBeforeMuxChange = false,
+                .startAfterMuxChange = false,
+                .settleAfterMuxUs = (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_MUX_SETTLE_US,
+                .discardFirst = (CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST != 0),
+                .oversampleCount = (uint8_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_OVERSAMPLE,
+                .drdyTimeoutUs = (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_DRDY_TIMEOUT_US,
+            };
+
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_POINT
+            ads126xAdcAutoGainConfig_t gainCfg = {
+                .minGain = ADS126X_GAIN_1,
+                .maxGain = ADS126X_GAIN_32,
+                .initialGain = (uint8_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN,
+                .headroomPercent = (uint8_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_HEADROOM_PERCENT,
+                .maxIterations = 4u,
+                .settleAfterGainChangeUs = (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_MUX_SETTLE_US,
+                .keepConfiguredOnSuccess = true,
+            };
+            ads126xAdcAutoGainResult_t gainResult = {0};
+            esp_err_t autoGainErr = ads126xAdcSelectAutoGainForVoltage(ads, &readCfg, &gainCfg, &gainResult);
+            if (autoGainErr != ESP_OK) {
+                frame.err[row][col] = autoGainErr;
+                frame.gain[row][col] = ads->pgaGain;
+                frameErr = autoGainErr;
+                continue;
+            }
+#else
+            uint8_t targetGain = ads->pgaGain;
+            if (gainTable && sensorarrayVoltageScanGainValid(gainTable[row][col])) {
+                targetGain = gainTable[row][col];
+            }
+            if (targetGain != ads->pgaGain) {
+                esp_err_t gainErr = ads126xAdcConfigureVoltageMode(ads,
+                                                                   targetGain,
+                                                                   ads->dataRateDr,
+                                                                   ads->enableStatusByte,
+                                                                   ads->crcMode != ADS126X_CRC_OFF);
+                if (gainErr != ESP_OK) {
+                    frame.err[row][col] = gainErr;
+                    frame.gain[row][col] = targetGain;
+                    frameErr = gainErr;
+                    continue;
+                }
+            }
+#endif
+            ads126xAdcVoltageSample_t sample = {0};
+            esp_err_t readErr = ads126xAdcReadVoltageMicrovoltsFast(ads, &readCfg, &sample);
+            frame.microvolts[row][col] = sample.microvolts;
+            frame.raw[row][col] = sample.rawCode;
+            frame.gain[row][col] = sample.gain;
+            frame.err[row][col] = readErr;
+            frame.clipped[row][col] = sample.clippedOrNearFullScale;
+            if (readErr != ESP_OK) {
+                frameErr = readErr;
+            }
+        }
+    }
+
+    uint64_t frameEndUs = (uint64_t)esp_timer_get_time();
+    frame.scanDurationUs = (uint32_t)(frameEndUs - frame.timestampUs);
+    memcpy(outFrame, &frame, sizeof(frame));
+    return frameErr;
+}

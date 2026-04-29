@@ -60,6 +60,14 @@ typedef struct {
     uint16_t DriveCurrent;
 } Fdc2214CapChannelConfig_t;
 
+#define FDC2214CAP_DEFAULT_SINGLE_CHANNEL_RCOUNT 0x2089u
+#define FDC2214CAP_DEFAULT_SINGLE_CHANNEL_SETTLECOUNT 0x000Au
+#define FDC2214CAP_DEFAULT_SINGLE_CHANNEL_OFFSET 0x0000u
+#define FDC2214CAP_DEFAULT_SINGLE_CHANNEL_CLOCK_DIVIDERS 0x2001u
+#define FDC2214CAP_DEFAULT_SINGLE_CHANNEL_DRIVE_CURRENT 0x7C00u
+#define FDC2214CAP_DEFAULT_STATUS_CONFIG 0x3800u
+#define FDC2214CAP_DEFAULT_REF_CLOCK_HZ 40000000u
+
 typedef enum {
     FDC2214_CHANNEL_CONFIG_RESULT_OK = 0,
     FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH,
@@ -152,6 +160,60 @@ typedef struct {
     Fdc2214CapSampleStatus_t SampleStatus;
 } Fdc2214CapSample_t;
 
+typedef struct {
+    Fdc2214CapChannelConfig_t ChannelConfig;
+    uint16_t StatusConfig;
+    Fdc2214CapDeglitch_t Deglitch;
+    Fdc2214CapRefClockSource_t RefClockSource;
+    bool SensorActivateSelLowPower;
+    bool IntbDisabled;
+    bool HighCurrentDrive;
+    uint32_t SettleAfterExitSleepUs;
+} fdc2214CapSingleChannelProfile_t;
+
+typedef struct {
+    uint16_t StatusConfig;
+    uint16_t Config;
+    uint16_t MuxConfig;
+    uint16_t DriveCurrentReadback;
+    Fdc2214CapChannelConfigResult_t ConfigureResult;
+    Fdc2214CapChannelVerifyResult_t VerifyResult;
+} fdc2214CapSingleChannelResult_t;
+
+typedef struct {
+    bool HighCurrent;
+    uint16_t DriveCurrent;
+    uint16_t DriveCurrentNormalized;
+    uint16_t DriveCurrentReadback;
+    uint32_t SampleCount;
+    uint32_t I2cErrorCount;
+    uint32_t ValidSampleCount;
+    uint32_t NonZeroRawCount;
+    uint32_t UnreadCount;
+    uint32_t WatchdogFaultCount;
+    uint32_t AmplitudeFaultCount;
+    uint32_t RawMin;
+    uint32_t RawMax;
+    uint64_t RawSum;
+    uint32_t RawMean;
+    uint32_t RawSpan;
+    int32_t Score;
+    esp_err_t Err;
+} fdc2214CapDriveSweepResult_t;
+
+typedef struct {
+    const bool *HighCurrentValues;
+    size_t HighCurrentCount;
+    const uint16_t *DriveCurrentValues;
+    size_t DriveCurrentCount;
+    uint32_t SettleAfterStepUs;
+    uint32_t SampleGapUs;
+    uint32_t SamplesPerCandidate;
+    bool DiscardFirst;
+    bool RelaxedRead;
+    int32_t MinAcceptScore;
+} fdc2214CapDriveSweepConfig_t;
+
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
 // Destroy the device handle and release the mutex.
@@ -227,6 +289,34 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
 esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value);
 // Human-readable semantic status for sample diagnostics.
 const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status);
+
+esp_err_t fdc2214CapApplySingleChannelProfile(Fdc2214CapDevice_t *dev,
+                                              Fdc2214CapChannel_t ch,
+                                              const fdc2214CapSingleChannelProfile_t *profile,
+                                              fdc2214CapSingleChannelResult_t *outResult);
+esp_err_t fdc2214CapConfigureSingleChannelContinuousDefault(Fdc2214CapDevice_t *dev,
+                                                            Fdc2214CapChannel_t ch,
+                                                            fdc2214CapSingleChannelResult_t *outResult);
+esp_err_t fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t *dev,
+                                      Fdc2214CapChannel_t ch,
+                                      Fdc2214CapSample_t *outSample);
+esp_err_t fdc2214CapReadSampleWithStatus(Fdc2214CapDevice_t *dev,
+                                         Fdc2214CapChannel_t ch,
+                                         bool relaxed,
+                                         Fdc2214CapSample_t *outSample,
+                                         Fdc2214CapStatus_t *outStatus);
+double fdc2214CapRaw28ToSensorFrequencyHz(uint32_t raw28, uint32_t refClockHz);
+bool fdc2214CapFrequencyToCapacitancePf(double frequencyHz, double inductorValueUh, double *outCapPf);
+esp_err_t fdc2214CapLockDriveCurrent(Fdc2214CapDevice_t *dev,
+                                     Fdc2214CapChannel_t ch,
+                                     bool highCurrent,
+                                     uint16_t driveCurrent,
+                                     uint32_t settleAfterStepUs,
+                                     fdc2214CapDriveSweepResult_t *outResult);
+esp_err_t fdc2214CapSweepDriveCurrent(Fdc2214CapDevice_t *dev,
+                                      Fdc2214CapChannel_t ch,
+                                      const fdc2214CapDriveSweepConfig_t *cfg,
+                                      fdc2214CapDriveSweepResult_t *outBestResult);
 
 #ifdef __cplusplus
 }

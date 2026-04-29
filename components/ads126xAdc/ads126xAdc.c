@@ -1,10 +1,13 @@
 #include "ads126xAdc.h"
 
+#include <limits.h>
 #include <string.h>
 
 #include "sdkconfig.h"
+#include "esp_rom_sys.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "driver/gpio.h"
 #include "freertos/task.h"
 
@@ -62,6 +65,9 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_MODE2_BYPASS (1u << 7)
 #define ADS126X_MODE2_GAIN_SHIFT 4
 #define ADS126X_MODE2_DR_MASK 0x0Fu
+
+#define ADS126X_ADC1_RAW_NEAR_FULL_SCALE ((int64_t)INT32_MAX * 90 / 100)
+#define ADS126X_DRDY_FAST_YIELD_INTERVAL 64u
 
 /* ID register bits. */
 #define ADS126X_ID_DEV_ID_MASK 0xE0u
@@ -135,6 +141,87 @@ static bool ads126xAdcGainToCode(uint8_t gain, uint8_t *code)
     default:
         return false;
     }
+}
+
+static bool ads126xAdcIsValidGain(uint8_t gain)
+{
+    uint8_t code = 0;
+    return ads126xAdcGainToCode(gain, &code);
+}
+
+static uint8_t ads126xAdcNormalizeGainOrDefault(uint8_t gain, uint8_t fallback)
+{
+    if (ads126xAdcIsValidGain(gain)) {
+        return gain;
+    }
+    return ads126xAdcIsValidGain(fallback) ? fallback : ADS126X_GAIN_1;
+}
+
+static uint8_t ads126xAdcNextLowerGain(uint8_t gain)
+{
+    switch (gain) {
+    case ADS126X_GAIN_32:
+        return ADS126X_GAIN_16;
+    case ADS126X_GAIN_16:
+        return ADS126X_GAIN_8;
+    case ADS126X_GAIN_8:
+        return ADS126X_GAIN_4;
+    case ADS126X_GAIN_4:
+        return ADS126X_GAIN_2;
+    case ADS126X_GAIN_2:
+    case ADS126X_GAIN_1:
+    default:
+        return ADS126X_GAIN_1;
+    }
+}
+
+static bool ads126xAdcRawNearFullScale(int32_t rawCode)
+{
+    int64_t rawAbs = (rawCode == INT32_MIN) ? ((int64_t)INT32_MAX + 1LL) : (int64_t)(rawCode < 0 ? -rawCode : rawCode);
+    return rawAbs > ADS126X_ADC1_RAW_NEAR_FULL_SCALE;
+}
+
+static uint8_t ads126xAdcSelectGainForUv(const ads126xAdcHandle_t *handle,
+                                         int32_t microvolts,
+                                         uint8_t minGain,
+                                         uint8_t maxGain,
+                                         uint8_t headroomPercent)
+{
+    if (!handle || handle->vrefMicrovolts == 0u) {
+        return ADS126X_GAIN_1;
+    }
+
+    static const uint8_t gains[] = {
+        ADS126X_GAIN_1,
+        ADS126X_GAIN_2,
+        ADS126X_GAIN_4,
+        ADS126X_GAIN_8,
+        ADS126X_GAIN_16,
+        ADS126X_GAIN_32,
+    };
+
+    minGain = ads126xAdcNormalizeGainOrDefault(minGain, ADS126X_GAIN_1);
+    maxGain = ads126xAdcNormalizeGainOrDefault(maxGain, ADS126X_GAIN_32);
+    if (minGain > maxGain) {
+        uint8_t tmp = minGain;
+        minGain = maxGain;
+        maxGain = tmp;
+    }
+
+    int64_t absUv = (microvolts == INT32_MIN) ? ((int64_t)INT32_MAX + 1LL)
+                                              : (int64_t)(microvolts < 0 ? -microvolts : microvolts);
+    int64_t limit = ((int64_t)handle->vrefMicrovolts * (int64_t)headroomPercent) / 100LL;
+    uint8_t selected = minGain;
+    for (size_t i = 0; i < (sizeof(gains) / sizeof(gains[0])); ++i) {
+        uint8_t gain = gains[i];
+        if (gain < minGain || gain > maxGain) {
+            continue;
+        }
+        if (absUv == 0 || (absUv * (int64_t)gain) < limit) {
+            selected = gain;
+        }
+    }
+    return selected;
 }
 
 static ads126xDeviceType_t ads126xAdcDeviceFromId(uint8_t idReg, ads126xDeviceType_t forced)
@@ -532,6 +619,27 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     return ESP_OK;
 }
 
+esp_err_t ads126xAdcConfigureVoltageMode(ads126xAdcHandle_t *handle,
+                                         uint8_t gain,
+                                         uint8_t dataRateDr,
+                                         bool enableStatusByte,
+                                         bool enableCrc)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!ads126xAdcIsValidGain(gain) || dataRateDr > ADS126X_MODE2_DR_MASK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return ads126xAdcConfigure(handle,
+                               handle->enableInternalRef,
+                               enableStatusByte,
+                               enableCrc ? ADS126X_CRC_CRC8 : ADS126X_CRC_OFF,
+                               gain,
+                               dataRateDr);
+}
+
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue)
 {
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_REFMUX, &refmuxValue, 1);
@@ -723,17 +831,40 @@ esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
     return ESP_OK;
 }
 
-esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
-                                int32_t *rawCode,
-                                uint8_t *statusByteOptional)
+esp_err_t ads126xAdcWaitDrdyFastUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs)
 {
-    if (!handle || !rawCode) {
+    if (!handle) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = ads126xAdcWaitDrdy(handle, handle->drdyTimeoutMs);
-    if (err != ESP_OK) {
-        return err;
+    if (handle->drdyGpio == GPIO_NUM_NC) {
+        if (timeoutUs > 0u) {
+            esp_rom_delay_us(timeoutUs);
+        }
+        return ESP_OK;
+    }
+
+    int64_t startUs = esp_timer_get_time();
+    uint32_t pollCount = 0u;
+    while (gpio_get_level(handle->drdyGpio) != 0) {
+        if (timeoutUs == 0u || (uint64_t)(esp_timer_get_time() - startUs) >= (uint64_t)timeoutUs) {
+            return ESP_ERR_TIMEOUT;
+        }
+        pollCount++;
+        if ((pollCount % ADS126X_DRDY_FAST_YIELD_INTERVAL) == 0u) {
+            taskYIELD();
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t ads126xAdcReadAdc1RawAfterDrdy(ads126xAdcHandle_t *handle,
+                                                int32_t *rawCode,
+                                                uint8_t *statusByteOptional)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
     }
 
     size_t frameLen = 4;
@@ -746,7 +877,7 @@ esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
 
     uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA1;
-    err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen);
+    esp_err_t err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen);
     if (err != ESP_OK) {
         return err;
     }
@@ -780,6 +911,22 @@ esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
     return ESP_OK;
 }
 
+esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
+                                int32_t *rawCode,
+                                uint8_t *statusByteOptional)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ads126xAdcWaitDrdy(handle, handle->drdyTimeoutMs);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return ads126xAdcReadAdc1RawAfterDrdy(handle, rawCode, statusByteOptional);
+}
+
 int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode)
 {
     if (!handle || handle->pgaGain == 0 || handle->vrefMicrovolts == 0) {
@@ -790,6 +937,211 @@ int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawC
     int64_t numerator = (int64_t)rawCode * (int64_t)handle->vrefMicrovolts;
     int64_t denominator = (int64_t)handle->pgaGain * (1LL << 31);
     return (int32_t)(numerator / denominator);
+}
+
+esp_err_t ads126xAdcReadVoltageMicrovoltsFast(ads126xAdcHandle_t *handle,
+                                              const ads126xAdcVoltageReadConfig_t *cfg,
+                                              ads126xAdcVoltageSample_t *outSample)
+{
+    if (!handle || !cfg || !outSample) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outSample = (ads126xAdcVoltageSample_t){
+        .gain = handle->pgaGain,
+        .err = ESP_FAIL,
+    };
+
+    uint8_t oversampleCount = cfg->oversampleCount;
+    if (oversampleCount == 0u) {
+        oversampleCount = 1u;
+    }
+
+    esp_err_t err = ESP_OK;
+    if (cfg->stopBeforeMuxChange) {
+        err = ads126xAdcStopAdc1(handle);
+        if (err != ESP_OK) {
+            outSample->err = err;
+            return err;
+        }
+    }
+
+    err = ads126xAdcSetInputMux(handle, (uint8_t)(cfg->muxp & 0x0Fu), (uint8_t)(cfg->muxn & 0x0Fu));
+    if (err != ESP_OK) {
+        outSample->err = err;
+        return err;
+    }
+
+    if (cfg->settleAfterMuxUs > 0u) {
+        esp_rom_delay_us(cfg->settleAfterMuxUs);
+    }
+
+    if (cfg->startAfterMuxChange) {
+        err = ads126xAdcStartAdc1(handle);
+        if (err != ESP_OK) {
+            outSample->err = err;
+            return err;
+        }
+    }
+
+    if (cfg->discardFirst) {
+        int32_t discardRaw = 0;
+        err = ads126xAdcWaitDrdyFastUs(handle, cfg->drdyTimeoutUs);
+        if (err == ESP_OK) {
+            err = ads126xAdcReadAdc1RawAfterDrdy(handle, &discardRaw, NULL);
+        }
+        if (err != ESP_OK) {
+            outSample->err = err;
+            return err;
+        }
+    }
+
+    int64_t rawSum = 0;
+    uint8_t samplesUsed = 0u;
+    int32_t lastRaw = 0;
+    for (uint8_t i = 0u; i < oversampleCount; ++i) {
+        int32_t raw = 0;
+        err = ads126xAdcWaitDrdyFastUs(handle, cfg->drdyTimeoutUs);
+        if (err == ESP_OK) {
+            err = ads126xAdcReadAdc1RawAfterDrdy(handle, &raw, NULL);
+        }
+        if (err != ESP_OK) {
+            outSample->err = err;
+            outSample->samplesUsed = samplesUsed;
+            return err;
+        }
+        rawSum += (int64_t)raw;
+        lastRaw = raw;
+        samplesUsed++;
+    }
+
+    int32_t averagedRaw = (samplesUsed > 0u) ? (int32_t)(rawSum / (int64_t)samplesUsed) : lastRaw;
+    outSample->rawCode = averagedRaw;
+    outSample->microvolts = ads126xAdcRawToMicrovolts(handle, averagedRaw);
+    outSample->gain = handle->pgaGain;
+    outSample->samplesUsed = samplesUsed;
+    outSample->clippedOrNearFullScale = ads126xAdcRawNearFullScale(averagedRaw);
+    outSample->err = ESP_OK;
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcSelectAutoGainForVoltage(ads126xAdcHandle_t *handle,
+                                             const ads126xAdcVoltageReadConfig_t *readCfg,
+                                             const ads126xAdcAutoGainConfig_t *gainCfg,
+                                             ads126xAdcAutoGainResult_t *outResult)
+{
+    if (!handle || !readCfg || !gainCfg || !outResult) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outResult = (ads126xAdcAutoGainResult_t){
+        .selectedGain = ADS126X_GAIN_1,
+        .err = ESP_FAIL,
+    };
+
+    uint8_t minGain = ads126xAdcNormalizeGainOrDefault(gainCfg->minGain, ADS126X_GAIN_1);
+    uint8_t maxGain = ads126xAdcNormalizeGainOrDefault(gainCfg->maxGain, ADS126X_GAIN_32);
+    if (minGain > maxGain) {
+        uint8_t tmp = minGain;
+        minGain = maxGain;
+        maxGain = tmp;
+    }
+
+    uint8_t candidateGain = ads126xAdcNormalizeGainOrDefault(gainCfg->initialGain, ADS126X_GAIN_1);
+    if (candidateGain < minGain) {
+        candidateGain = minGain;
+    }
+    if (candidateGain > maxGain) {
+        candidateGain = maxGain;
+    }
+
+    uint8_t headroomPercent = gainCfg->headroomPercent;
+    if (headroomPercent < 1u || headroomPercent > 100u) {
+        headroomPercent = 75u;
+    }
+
+    uint8_t maxIterations = gainCfg->maxIterations ? gainCfg->maxIterations : 4u;
+    uint8_t originalGain = handle->pgaGain;
+    uint8_t originalDr = handle->dataRateDr;
+    bool originalStatus = handle->enableStatusByte;
+    ads126xCrcMode_t originalCrc = handle->crcMode;
+    esp_err_t err = ESP_OK;
+
+    for (uint8_t iteration = 0u; iteration < maxIterations; ++iteration) {
+        err = ads126xAdcConfigure(handle,
+                                  handle->enableInternalRef,
+                                  handle->enableStatusByte,
+                                  handle->crcMode,
+                                  candidateGain,
+                                  handle->dataRateDr);
+        if (err != ESP_OK) {
+            outResult->err = err;
+            break;
+        }
+        if (gainCfg->settleAfterGainChangeUs > 0u) {
+            esp_rom_delay_us(gainCfg->settleAfterGainChangeUs);
+        }
+
+        ads126xAdcVoltageSample_t sample = {0};
+        err = ads126xAdcReadVoltageMicrovoltsFast(handle, readCfg, &sample);
+        outResult->iterations = (uint8_t)(iteration + 1u);
+        outResult->selectedGain = candidateGain;
+        outResult->sampleRaw = sample.rawCode;
+        outResult->sampleMicrovolts = sample.microvolts;
+        outResult->clippedOrNearFullScale = sample.clippedOrNearFullScale;
+        outResult->err = err;
+        if (err != ESP_OK) {
+            break;
+        }
+
+        uint8_t selectedGain = ads126xAdcSelectGainForUv(handle,
+                                                         sample.microvolts,
+                                                         minGain,
+                                                         maxGain,
+                                                         headroomPercent);
+        if (sample.clippedOrNearFullScale) {
+            uint8_t lower = ads126xAdcNextLowerGain(candidateGain);
+            if (lower < minGain) {
+                lower = minGain;
+            }
+            if (selectedGain >= candidateGain) {
+                selectedGain = lower;
+            }
+        }
+
+        outResult->selectedGain = selectedGain;
+        if (selectedGain == candidateGain) {
+            err = ESP_OK;
+            outResult->err = ESP_OK;
+            break;
+        }
+        candidateGain = selectedGain;
+    }
+
+    if (err == ESP_OK && gainCfg->keepConfiguredOnSuccess) {
+        if (handle->pgaGain != outResult->selectedGain) {
+            err = ads126xAdcConfigure(handle,
+                                      handle->enableInternalRef,
+                                      handle->enableStatusByte,
+                                      handle->crcMode,
+                                      outResult->selectedGain,
+                                      handle->dataRateDr);
+            outResult->err = err;
+        }
+    } else {
+        esp_err_t restoreErr = ads126xAdcConfigure(handle,
+                                                   handle->enableInternalRef,
+                                                   originalStatus,
+                                                   originalCrc,
+                                                   ads126xAdcNormalizeGainOrDefault(originalGain, ADS126X_GAIN_1),
+                                                   originalDr);
+        if (err == ESP_OK && restoreErr != ESP_OK) {
+            err = restoreErr;
+            outResult->err = restoreErr;
+        }
+    }
+
+    return outResult->err;
 }
 
 esp_err_t ads126xAdcSelfOffsetCal(ads126xAdcHandle_t *handle)

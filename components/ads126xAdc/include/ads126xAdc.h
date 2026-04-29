@@ -34,6 +34,34 @@ typedef enum {
     ADS126X_CRC_CRC8 = 2,
 } ads126xCrcMode_t;
 
+typedef enum {
+    ADS126X_ADC1_DR_2P5_SPS = 0x0,
+    ADS126X_ADC1_DR_5_SPS = 0x1,
+    ADS126X_ADC1_DR_10_SPS = 0x2,
+    ADS126X_ADC1_DR_16P6_SPS = 0x3,
+    ADS126X_ADC1_DR_20_SPS = 0x4,
+    ADS126X_ADC1_DR_50_SPS = 0x5,
+    ADS126X_ADC1_DR_60_SPS = 0x6,
+    ADS126X_ADC1_DR_100_SPS = 0x7,
+    ADS126X_ADC1_DR_400_SPS = 0x8,
+    ADS126X_ADC1_DR_1200_SPS = 0x9,
+    ADS126X_ADC1_DR_2400_SPS = 0xA,
+    ADS126X_ADC1_DR_4800_SPS = 0xB,
+    ADS126X_ADC1_DR_7200_SPS = 0xC,
+    ADS126X_ADC1_DR_14400_SPS = 0xD,
+    ADS126X_ADC1_DR_19200_SPS = 0xE,
+    ADS126X_ADC1_DR_38400_SPS = 0xF,
+} ads126xAdc1DataRate_t;
+
+typedef enum {
+    ADS126X_GAIN_1 = 1,
+    ADS126X_GAIN_2 = 2,
+    ADS126X_GAIN_4 = 4,
+    ADS126X_GAIN_8 = 8,
+    ADS126X_GAIN_16 = 16,
+    ADS126X_GAIN_32 = 32,
+} ads126xGain_t;
+
 typedef struct {
     spi_device_handle_t spiDevice;
     gpio_num_t drdyGpio;
@@ -71,6 +99,45 @@ typedef struct {
     size_t spiBufSize;
 } ads126xAdcHandle_t;
 
+typedef struct {
+    uint8_t muxp;
+    uint8_t muxn;
+    bool stopBeforeMuxChange;
+    bool startAfterMuxChange;
+    uint32_t settleAfterMuxUs;
+    bool discardFirst;
+    uint8_t oversampleCount;
+    uint32_t drdyTimeoutUs;
+} ads126xAdcVoltageReadConfig_t;
+
+typedef struct {
+    int32_t rawCode;
+    int32_t microvolts;
+    uint8_t gain;
+    uint8_t samplesUsed;
+    bool clippedOrNearFullScale;
+    esp_err_t err;
+} ads126xAdcVoltageSample_t;
+
+typedef struct {
+    uint8_t minGain;
+    uint8_t maxGain;
+    uint8_t initialGain;
+    uint8_t headroomPercent;
+    uint8_t maxIterations;
+    uint32_t settleAfterGainChangeUs;
+    bool keepConfiguredOnSuccess;
+} ads126xAdcAutoGainConfig_t;
+
+typedef struct {
+    uint8_t selectedGain;
+    int32_t sampleRaw;
+    int32_t sampleMicrovolts;
+    bool clippedOrNearFullScale;
+    uint8_t iterations;
+    esp_err_t err;
+} ads126xAdcAutoGainResult_t;
+
 esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *cfg);
 esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle);
 
@@ -88,6 +155,12 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               ads126xCrcMode_t crcMode,
                               uint8_t pgaGain,
                               uint8_t dataRateDr);
+
+esp_err_t ads126xAdcConfigureVoltageMode(ads126xAdcHandle_t *handle,
+                                         uint8_t gain,
+                                         uint8_t dataRateDr,
+                                         bool enableStatusByte,
+                                         bool enableCrc);
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
@@ -129,11 +202,22 @@ esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);
 
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs);
 
+esp_err_t ads126xAdcWaitDrdyFastUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs);
+
 esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
                                 int32_t *rawCode,
                                 uint8_t *statusByteOptional);
 
 int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode);
+
+esp_err_t ads126xAdcReadVoltageMicrovoltsFast(ads126xAdcHandle_t *handle,
+                                              const ads126xAdcVoltageReadConfig_t *cfg,
+                                              ads126xAdcVoltageSample_t *outSample);
+
+esp_err_t ads126xAdcSelectAutoGainForVoltage(ads126xAdcHandle_t *handle,
+                                             const ads126xAdcVoltageReadConfig_t *readCfg,
+                                             const ads126xAdcAutoGainConfig_t *gainCfg,
+                                             ads126xAdcAutoGainResult_t *outResult);
 
 esp_err_t ads126xAdcSelfOffsetCal(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcSelfGainCal(ads126xAdcHandle_t *handle);

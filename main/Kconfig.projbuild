@@ -8,6 +8,18 @@ config SENSORARRAY_ENABLE_BLE
     bool "Enable BLE transport (later for wireless streaming)"
     default y
 
+choice SENSORARRAY_APP_MODE
+    prompt "SensorArray application mode"
+    default SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+
+config SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+    bool "Voltage matrix scan: ADS126x S1-S8 x D1-D8"
+
+config SENSORARRAY_APP_MODE_DEBUG
+    bool "Debug / bring-up modes"
+
+endchoice
+
 choice SENSORARRAY_ADS126X_VARIANT
     prompt "ADS126x variant (first batch uses ADS1262)"
     default SENSORARRAY_ADS1262
@@ -124,7 +136,106 @@ config SENSORARRAY_OVERSAMPLE
     default 2
 endmenu
 
+menu "Voltage matrix scan"
+    depends on SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+    help
+        Default application mode. Scans S1-S8 x D1-D8 through ADS126x and
+        emits one CSV row per complete 64-point voltage frame.
+
+config SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS
+    int "Voltage scan frame period in ms, 0 = run as fast as possible"
+    default 0
+
+config SENSORARRAY_VOLTAGE_SCAN_ROW_SETTLE_US
+    int "Settle time after S row switch"
+    default 200
+
+config SENSORARRAY_VOLTAGE_SCAN_PATH_SETTLE_US
+    int "Settle time after SELA/SELB/SW path switch"
+    default 200
+
+config SENSORARRAY_VOLTAGE_SCAN_MUX_SETTLE_US
+    int "Settle time after ADS INPMUX switch"
+    default 20
+
+config SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
+    bool "Discard first conversion after mux switch"
+    default y
+
+config SENSORARRAY_VOLTAGE_SCAN_OVERSAMPLE
+    int "Oversample count per point"
+    range 1 16
+    default 1
+
+config SENSORARRAY_VOLTAGE_SCAN_OUTPUT_RAW
+    bool "Output raw ADC code line"
+    default n
+
+config SENSORARRAY_VOLTAGE_SCAN_OUTPUT_GAIN
+    bool "Output gain line"
+    default n
+
+config SENSORARRAY_VOLTAGE_SCAN_OUTPUT_ERR
+    bool "Output error line when errors occur"
+    default y
+
+config SENSORARRAY_VOLTAGE_SCAN_PRINT_HEADER_EVERY_N_FRAMES
+    int "Print CSV header every N frames, 0 = only once"
+    default 100
+
+config SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE
+    int "ADS126x ADC1 data rate DR code"
+    range 0 15
+    default 15
+    help
+        ADS126x MODE2 DR[3:0]. 15 means 38400 SPS.
+        Valid values:
+        0=2.5SPS, 1=5SPS, 2=10SPS, 3=16.6SPS,
+        4=20SPS, 5=50SPS, 6=60SPS, 7=100SPS,
+        8=400SPS, 9=1200SPS, 10=2400SPS, 11=4800SPS,
+        12=7200SPS, 13=14400SPS, 14=19200SPS, 15=38400SPS.
+
+config SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN
+    int "ADS126x default PGA gain"
+    default 1
+    help
+        Valid gains: 1, 2, 4, 8, 16, 32.
+
+choice SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_MODE
+    prompt "Voltage scan auto gain mode"
+    default SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_BOOTSTRAP_ONCE
+
+config SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_OFF
+    bool "Off"
+
+config SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_BOOTSTRAP_ONCE
+    bool "Bootstrap once at startup, then reuse per-point gains"
+
+config SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_FRAME
+    bool "Re-evaluate gain once per frame"
+
+config SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_POINT
+    bool "Re-evaluate gain for every point, slow but safest"
+
+endchoice
+
+config SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_HEADROOM_PERCENT
+    int "Auto gain full-scale headroom percentage"
+    range 50 95
+    default 75
+
+config SENSORARRAY_VOLTAGE_SCAN_DRDY_TIMEOUT_US
+    int "Fast DRDY timeout in microseconds"
+    default 2000
+
+config SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG
+    bool "Verbose voltage scan logs"
+    default n
+
+endmenu
+
 menu "Debug routing and self-test"
+    depends on SENSORARRAY_APP_MODE_DEBUG
     help
         Deterministic debug workflows for matrix routing and ADS/FDC validation.
 
