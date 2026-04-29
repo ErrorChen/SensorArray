@@ -342,7 +342,7 @@ static void sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *fra
         esp_rom_delay_us((uint32_t)remainingUs);
     }
 }
-
+// The main application entry point. 
 void app_main(void)
 {
 #if CONFIG_SENSORARRAY_APP_MODE_DEBUG
