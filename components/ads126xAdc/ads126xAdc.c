@@ -450,7 +450,7 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
 
     if (cfg->enableInternalRef) {
         /* Select internal reference on REFMUX when INTREF is enabled. */
-        err = ads126xAdcSetRefMux(handle, 0x00);
+        err = ads126xAdcSetRefMux(handle, ADS126X_REFMUX_INTERNAL);
         if (err != ESP_OK) {
             ads126xAdcDeinit(handle);
             return err;

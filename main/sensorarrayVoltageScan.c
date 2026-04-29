@@ -28,13 +28,17 @@ static bool sensorarrayVoltageScanGainValid(uint8_t gain)
            gain == ADS126X_GAIN_32;
 }
 
-esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
-                                               uint8_t dLine,
-                                               uint32_t rowSettleUs,
-                                               uint32_t pathSettleUs)
+esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
+                                                         uint8_t dLine,
+                                                         tmux1108Source_t swSource,
+                                                         uint32_t rowSettleUs,
+                                                         uint32_t pathSettleUs)
 {
     if (sColumn < 1u || sColumn > SENSORARRAY_VOLTAGE_SCAN_ROWS ||
         dLine < 1u || dLine > SENSORARRAY_VOLTAGE_SCAN_COLS) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (swSource != TMUX1108_SOURCE_GND && swSource != TMUX1108_SOURCE_REF) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -59,12 +63,7 @@ esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
         return err;
     }
 
-    /*
-     * Voltage scan currently uses REF as the TMUX1108 source per board-map
-     * bring-up notes. TODO: confirm REF/GND source polarity on the hardware with
-     * a scope before changing this default.
-     */
-    err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF);
+    err = tmuxSwitchSet1108Source(swSource);
     if (err != ESP_OK) {
         return err;
     }
@@ -78,12 +77,28 @@ esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
     return ESP_OK;
 }
 
-esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
-                                         const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
-                                                                [SENSORARRAY_VOLTAGE_SCAN_COLS],
-                                         sensorarrayVoltageFrame_t *outFrame)
+esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
+                                               uint8_t dLine,
+                                               uint32_t rowSettleUs,
+                                               uint32_t pathSettleUs)
+{
+    return sensorarrayVoltageScanApplyRouteFastWithSource(sColumn,
+                                                          dLine,
+                                                          TMUX1108_SOURCE_REF,
+                                                          rowSettleUs,
+                                                          pathSettleUs);
+}
+
+esp_err_t sensorarrayVoltageScanOneFrameWithSource(ads126xAdcHandle_t *ads,
+                                                   const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
+                                                                          [SENSORARRAY_VOLTAGE_SCAN_COLS],
+                                                   tmux1108Source_t swSource,
+                                                   sensorarrayVoltageFrame_t *outFrame)
 {
     if (!ads || !outFrame) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (swSource != TMUX1108_SOURCE_GND && swSource != TMUX1108_SOURCE_REF) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -94,9 +109,10 @@ esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
 
     esp_err_t frameErr = ESP_OK;
     for (uint8_t s = 1u; s <= SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
-        esp_err_t routeErr = sensorarrayVoltageScanApplyRouteFast(
+        esp_err_t routeErr = sensorarrayVoltageScanApplyRouteFastWithSource(
             s,
             1u,
+            swSource,
             (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_ROW_SETTLE_US,
             (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_PATH_SETTLE_US);
         if (routeErr != ESP_OK) {
@@ -184,4 +200,15 @@ esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
     frame.scanDurationUs = (uint32_t)(frameEndUs - frame.timestampUs);
     memcpy(outFrame, &frame, sizeof(frame));
     return frameErr;
+}
+
+esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
+                                         const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
+                                                                [SENSORARRAY_VOLTAGE_SCAN_COLS],
+                                         sensorarrayVoltageFrame_t *outFrame)
+{
+    return sensorarrayVoltageScanOneFrameWithSource(ads,
+                                                    gainTable,
+                                                    TMUX1108_SOURCE_REF,
+                                                    outFrame);
 }

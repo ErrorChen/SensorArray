@@ -1,6 +1,6 @@
 ﻿# fdc2214Cap / FDC2214 Driver
 
-`fdc2214Cap` 是通用 FDC2214 I2C driver。默认应用已经切换到 ADS126x voltage matrix scan，不再主动运行 FDC2214 S5D5 debug、I2C discovery、polling 或 sweep loop；但 FDC 源码和调试成果仍保留，并把可复用能力固化为 component helper。
+`fdc2214Cap` 是通用 FDC2214 I2C driver。默认应用是 `PIEZO_READ / 压电读取`，也可切换到 `RESISTANCE_READ / 电阻读取`；这两个 ADS126x 读取模式都不初始化、不轮询 FDC2214。FDC2214 源码和旧 S5D5 debug 仍保留，但只能通过 `DEBUG / bring-up` mode 进入。
 
 ## Scope
 
@@ -11,6 +11,7 @@
 - `S5D5`、`S1D1` 等矩阵点语义。
 - `SELA`、`SELB`、`SDA11/SCL12` 等板级路由/引脚归属。
 - `D1..D4 -> primary`、`D5..D8 -> secondary` 的板级 mapping。
+- `PIEZO_READ`、`RESISTANCE_READ` 或 ADS126x 读取模式策略。
 
 这些仍属于 `main/sensorarrayBoardMap.c` 和 debug/app 层。
 

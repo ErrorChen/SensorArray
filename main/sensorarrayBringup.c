@@ -27,7 +27,19 @@ static gpio_num_t sensorarrayToGpio(int gpio)
     return gpio < 0 ? GPIO_NUM_NC : (gpio_num_t)gpio;
 }
 
-static esp_err_t sensorarrayBringupLogAdsCoreRegisters(sensorarrayState_t *state, const char *stage)
+static void sensorarrayBringupLogSystemRefTargets(void)
+{
+    printf("DBGSYSREF,vdd_mv=%d,vss_mv=%d,span_mv=%d,target_mid_gnd_mv=%d,target_mid_avss_mv=%d\n",
+           SENSORARRAY_REF_VDD_MV,
+           SENSORARRAY_REF_VSS_MV,
+           SENSORARRAY_REF_SUPPLY_SPAN_MV,
+           SENSORARRAY_REF_TARGET_MID_GND_MV,
+           SENSORARRAY_REF_TARGET_MID_AVSS_MV);
+}
+
+static esp_err_t sensorarrayBringupLogAdsRefReadback(sensorarrayState_t *state,
+                                                     const char *stage,
+                                                     uint8_t expectedRefmux)
 {
     if (!state) {
         return ESP_ERR_INVALID_ARG;
@@ -39,21 +51,35 @@ static esp_err_t sensorarrayBringupLogAdsCoreRegisters(sensorarrayState_t *state
     uint8_t inpmux = 0u;
     uint8_t refmux = 0u;
     esp_err_t err = ads126xAdcReadCoreRegisters(&state->ads, &power, &iface, &mode2, &inpmux, &refmux);
+    const bool readOk = (err == ESP_OK);
+    const bool intrefOk = readOk && ((power & ADS126X_POWER_INTREF) != 0u);
+    const bool vbiasOk = readOk && ((power & ADS126X_POWER_VBIAS) != 0u);
+    const bool refmuxOk = readOk && (refmux == expectedRefmux);
+    const bool ok = intrefOk && vbiasOk && refmuxOk;
 
-    printf("tag=ADS_CORE_READBACK,stage=%s,power=0x%02X,interface=0x%02X,mode2=0x%02X,inpmux=0x%02X,refmux=0x%02X,"
-           "intref=%u,vbias=%u,err=%ld,result=%s\n",
+    printf("DBGADSREF,stage=%s,power=0x%02X,interface=0x%02X,mode2=0x%02X,inpmux=0x%02X,refmux=0x%02X,"
+           "intrefOk=%u,vbiasOk=%u,refmuxOk=%u,result=%s,mismatch_read=%u,mismatch_intref=%u,"
+           "mismatch_vbias=%u,mismatch_refmux=%u,err=%ld\n",
            stage ? stage : SENSORARRAY_NA,
            power,
            iface,
            mode2,
            inpmux,
            refmux,
-           (unsigned)((power & ADS126X_POWER_INTREF) != 0u),
-           (unsigned)((power & ADS126X_POWER_VBIAS) != 0u),
-           (long)err,
-           (err == ESP_OK) ? "ok" : "read_error");
+           intrefOk ? 1u : 0u,
+           vbiasOk ? 1u : 0u,
+           refmuxOk ? 1u : 0u,
+           ok ? "ok" : "mismatch",
+           readOk ? 0u : 1u,
+           intrefOk ? 0u : 1u,
+           vbiasOk ? 0u : 1u,
+           refmuxOk ? 0u : 1u,
+           (long)err);
 
-    return err;
+    if (!readOk) {
+        return err;
+    }
+    return ok ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
@@ -549,6 +575,8 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
         return ESP_ERR_INVALID_ARG;
     }
 
+    sensorarrayBringupLogSystemRefTargets();
+
     esp_err_t err = ads126xAdcConfigure(&state->ads, true, false, ADS126X_CRC_OFF, 1, 0);
     if (err != ESP_OK) {
         return err;
@@ -559,38 +587,18 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
         return err;
     }
 
-    err = sensorarrayBringupAdsSetRefMux(state, 0x00);
+    err = sensorarrayBringupAdsSetRefMux(state, ADS126X_REFMUX_INTERNAL);
     if (err != ESP_OK) {
         return err;
     }
 
     sensorarrayDelayMs(SENSORARRAY_REF_SETTLE_MS);
 
-    err = sensorarrayBringupLogAdsCoreRegisters(state, "prepare_ref_bias_settled");
+    err = sensorarrayBringupLogAdsRefReadback(state,
+                                              "prepare_ref_bias_settled",
+                                              ADS126X_REFMUX_INTERNAL);
     if (err != ESP_OK) {
         return err;
-    }
-
-    uint8_t power = 0u;
-    uint8_t inpmux = 0u;
-    uint8_t refmux = 0u;
-    err = ads126xAdcReadCoreRegisters(&state->ads, &power, NULL, NULL, &inpmux, &refmux);
-    if (err != ESP_OK) {
-        return err;
-    }
-    const bool intrefOk = ((power & ADS126X_POWER_INTREF) != 0u);
-    const bool vbiasOk = ((power & ADS126X_POWER_VBIAS) != 0u);
-    const bool refmuxOk = (refmux == 0x00u);
-    printf("tag=ADS_CORE_EXPECT,stage=prepare_ref_bias_settled,intrefExpected=1,intrefReadback=%u,"
-           "vbiasExpected=1,vbiasReadback=%u,refmuxExpected=0x00,refmuxReadback=0x%02X,inpmuxReadback=0x%02X,"
-           "result=%s\n",
-           intrefOk ? 1u : 0u,
-           vbiasOk ? 1u : 0u,
-           refmux,
-           inpmux,
-           (intrefOk && vbiasOk && refmuxOk) ? "ok" : "mismatch");
-    if (!(intrefOk && vbiasOk && refmuxOk)) {
-        return ESP_ERR_INVALID_STATE;
     }
 
     err = ads126xAdcStartAdc1(&state->ads);

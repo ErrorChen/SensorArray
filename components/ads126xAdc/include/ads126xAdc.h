@@ -22,6 +22,9 @@ extern "C" {
 #define ADS126X_POWER_INTREF (1u << 0)
 #define ADS126X_POWER_VBIAS (1u << 1)
 
+/* REFMUX value for the ADS126x internal 2.5 V reference. */
+#define ADS126X_REFMUX_INTERNAL 0x00u
+
 typedef enum {
     ADS126X_DEVICE_AUTO = 0,
     ADS126X_DEVICE_ADS1262,

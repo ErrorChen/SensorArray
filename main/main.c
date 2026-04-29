@@ -23,6 +23,30 @@ static sensorarrayState_t s_state = {0};
 static uint8_t s_gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS][SENSORARRAY_VOLTAGE_SCAN_COLS];
 static bool s_voltageHeaderPrinted = false;
 
+typedef struct {
+    const char *modeName;
+    const char *modeNameCn;
+    tmux1108Source_t swSource;
+    const char *swName;
+    bool skipFdcInit;
+} sensorarrayVoltageReadModeConfig_t;
+
+static const sensorarrayVoltageReadModeConfig_t s_piezoReadMode = {
+    .modeName = "PIEZO_READ",
+    .modeNameCn = "压电读取",
+    .swSource = TMUX1108_SOURCE_REF,
+    .swName = "REF",
+    .skipFdcInit = true,
+};
+
+static const sensorarrayVoltageReadModeConfig_t s_resistanceReadMode = {
+    .modeName = "RESISTANCE_READ",
+    .modeNameCn = "电阻读取",
+    .swSource = TMUX1108_SOURCE_GND,
+    .swName = "GND",
+    .skipFdcInit = true,
+};
+
 static uint8_t sensorarrayMainNormalizeGain(int configuredGain)
 {
     switch (configuredGain) {
@@ -59,8 +83,12 @@ static void sensorarrayMainIdleAfterFatal(const char *stage, esp_err_t err)
     }
 }
 
-static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(void)
+static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+    if (!mode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     esp_err_t err = tmuxSwitchSelectRow(0u);
     if (err != ESP_OK) {
         return err;
@@ -76,11 +104,7 @@ static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(void)
         err = tmux1134SelectSelBLevel(false);
     }
     if (err == ESP_OK) {
-        /*
-         * Voltage mode currently uses REF as the source. TODO: verify REF/GND
-         * source semantics on hardware before changing this default.
-         */
-        err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF);
+        err = tmuxSwitchSet1108Source(mode->swSource);
     }
     if (err == ESP_OK) {
         err = tmux1134SetEnLogicalState(true);
@@ -91,10 +115,34 @@ static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(void)
     return err;
 }
 
-static esp_err_t sensorarrayMainInitVoltageScan(void)
+static void sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+    printf("APPMODE,active=%s,cnName=%s,skipAdsInit=0,skipFdcInit=%u,sw=%s\n",
+           mode->modeName,
+           mode->modeNameCn,
+           mode->skipFdcInit ? 1u : 0u,
+           mode->swName);
+}
+
+static void sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    printf("DBGROUTEPOLICY,mode=%s,sw=%s,sela=ADS126X,fdcInitSkipped=%u\n",
+           mode->modeName,
+           mode->swName,
+           mode->skipFdcInit ? 1u : 0u);
+}
+
+static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    if (!mode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     s_state = (sensorarrayState_t){0};
+    s_voltageHeaderPrinted = false;
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
+
+    sensorarrayMainPrintAppMode(mode);
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -104,11 +152,6 @@ static esp_err_t sensorarrayMainInitVoltageScan(void)
 
     err = tmuxSwitchInit();
     s_state.tmuxReady = (err == ESP_OK);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = sensorarrayMainApplyVoltageTmuxDefaults();
     if (err != ESP_OK) {
         return err;
     }
@@ -124,6 +167,12 @@ static esp_err_t sensorarrayMainInitVoltageScan(void)
     if (err != ESP_OK) {
         return err;
     }
+
+    err = sensorarrayMainApplyVoltageTmuxDefaults(mode);
+    if (err != ESP_OK) {
+        return err;
+    }
+    sensorarrayMainPrintRoutePolicy(mode);
 
     if (s_state.adsAdc1Running) {
         err = ads126xAdcStopAdc1(&s_state.ads);
@@ -162,8 +211,12 @@ static ads126xAdcVoltageReadConfig_t sensorarrayMainAutoGainReadConfig(uint8_t m
     };
 }
 
-static esp_err_t sensorarrayMainBootstrapAutoGain(bool printSummary)
+static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadModeConfig_t *mode, bool printSummary)
 {
+    if (!mode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     uint8_t defaultGain = sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN);
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_OFF
@@ -175,9 +228,10 @@ static esp_err_t sensorarrayMainBootstrapAutoGain(bool printSummary)
 #else
     uint32_t errCount = 0u;
     for (uint8_t s = 1u; s <= SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
-        esp_err_t routeErr = sensorarrayVoltageScanApplyRouteFast(
+        esp_err_t routeErr = sensorarrayVoltageScanApplyRouteFastWithSource(
             s,
             1u,
+            mode->swSource,
             (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_ROW_SETTLE_US,
             (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_PATH_SETTLE_US);
         if (routeErr != ESP_OK) {
@@ -311,9 +365,14 @@ static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *fra
     printf("\n");
 }
 
-static void sensorarrayMainPrintInitSummary(void)
+static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-    printf("VOLTSCAN_INIT,rows=8,cols=8,unit=uV,dr=%u,gainDefault=%u,autoGain=%s,discardFirst=%u,oversample=%u\n",
+    printf("VOLTSCAN_INIT,mode=%s,cnName=%s,sw=%s,fdcInitSkipped=%u,rows=8,cols=8,unit=uV,"
+           "dr=%u,gainDefault=%u,autoGain=%s,discardFirst=%u,oversample=%u\n",
+           mode->modeName,
+           mode->modeNameCn,
+           mode->swName,
+           mode->skipFdcInit ? 1u : 0u,
            (unsigned)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F),
            (unsigned)sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN),
            sensorarrayMainAutoGainModeName(),
@@ -342,14 +401,10 @@ static void sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *fra
         esp_rom_delay_us((uint32_t)remainingUs);
     }
 }
-// The main application entry point. 
-void app_main(void)
+
+static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-#if CONFIG_SENSORARRAY_APP_MODE_DEBUG
-    sensorarrayAppRun();
-    return;
-#else
-    esp_err_t err = sensorarrayMainInitVoltageScan();
+    esp_err_t err = sensorarrayMainInitVoltageScan(mode);
     if (err != ESP_OK) {
         sensorarrayMainIdleAfterFatal("init", err);
     }
@@ -359,17 +414,17 @@ void app_main(void)
     printf("VOLTSCAN_GAIN,mode=per_point,points=64,headroomPercent=%u\n",
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_HEADROOM_PERCENT);
 #else
-    (void)sensorarrayMainBootstrapAutoGain(true);
+    (void)sensorarrayMainBootstrapAutoGain(mode, true);
 #endif
-    sensorarrayMainPrintInitSummary();
+    sensorarrayMainPrintInitSummary(mode);
 
     while (true) {
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_FRAME
-        (void)sensorarrayMainBootstrapAutoGain(false);
+        (void)sensorarrayMainBootstrapAutoGain(mode, false);
 #endif
 
         sensorarrayVoltageFrame_t frame = {0};
-        (void)sensorarrayVoltageScanOneFrame(&s_state.ads, s_gainTable, &frame);
+        (void)sensorarrayVoltageScanOneFrameWithSource(&s_state.ads, s_gainTable, mode->swSource, &frame);
 
         sensorarrayMainMaybePrintVoltageHeader(frame.sequence);
         sensorarrayMainPrintVoltageFrameCsv(&frame);
@@ -390,5 +445,27 @@ void app_main(void)
             taskYIELD();
         }
     }
+}
+
+void sensorarrayRunPiezoRead(void)
+{
+    sensorarrayRunVoltageReadMode(&s_piezoReadMode);
+}
+
+void sensorarrayRunResistanceRead(void)
+{
+    sensorarrayRunVoltageReadMode(&s_resistanceReadMode);
+}
+
+// The main application entry point.
+void app_main(void)
+{
+#if CONFIG_SENSORARRAY_APP_MODE_DEBUG
+    printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n");
+    sensorarrayAppRun();
+#elif CONFIG_SENSORARRAY_APP_MODE_RESISTANCE_READ
+    sensorarrayRunResistanceRead();
+#else
+    sensorarrayRunPiezoRead();
 #endif
 }

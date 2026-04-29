@@ -6,6 +6,7 @@
 #include "esp_err.h"
 
 #include "ads126xAdc.h"
+#include "tmuxSwitch.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,10 +31,22 @@ esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
                                                uint32_t rowSettleUs,
                                                uint32_t pathSettleUs);
 
+esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
+                                                         uint8_t dLine,
+                                                         tmux1108Source_t swSource,
+                                                         uint32_t rowSettleUs,
+                                                         uint32_t pathSettleUs);
+
 esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
                                          const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
                                                                 [SENSORARRAY_VOLTAGE_SCAN_COLS],
                                          sensorarrayVoltageFrame_t *outFrame);
+
+esp_err_t sensorarrayVoltageScanOneFrameWithSource(ads126xAdcHandle_t *ads,
+                                                   const uint8_t gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS]
+                                                                          [SENSORARRAY_VOLTAGE_SCAN_COLS],
+                                                   tmux1108Source_t swSource,
+                                                   sensorarrayVoltageFrame_t *outFrame);
 
 #ifdef __cplusplus
 }

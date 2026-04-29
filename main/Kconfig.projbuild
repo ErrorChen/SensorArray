@@ -10,15 +10,26 @@ config SENSORARRAY_ENABLE_BLE
 
 choice SENSORARRAY_APP_MODE
     prompt "SensorArray application mode"
-    default SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+    default SENSORARRAY_APP_MODE_PIEZO_READ
 
-config SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
-    bool "Voltage matrix scan: ADS126x S1-S8 x D1-D8"
+config SENSORARRAY_APP_MODE_PIEZO_READ
+    bool "PIEZO_READ / 压电读取: ADS126x voltage scan with SW=REF"
+
+config SENSORARRAY_APP_MODE_RESISTANCE_READ
+    bool "RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=GND"
 
 config SENSORARRAY_APP_MODE_DEBUG
     bool "Debug / bring-up modes"
 
 endchoice
+
+config SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+    bool
+    default y if SENSORARRAY_APP_MODE_PIEZO_READ
+    help
+        Legacy compatibility symbol. The old VOLTAGE_MATRIX_SCAN mode has been
+        renamed to PIEZO_READ / 压电读取 for the default ADS126x voltage scan
+        with SW=REF.
 
 choice SENSORARRAY_ADS126X_VARIANT
     prompt "ADS126x variant (first batch uses ADS1262)"
@@ -33,6 +44,7 @@ config SENSORARRAY_ADS1263
 endchoice
 
 menu "Bring-up FDC mapping"
+    depends on SENSORARRAY_APP_MODE_DEBUG
     help
         Bring-up defaults for dual-FDC2214 topology:
         D1..D4 on primary bus (ADDR high), D5..D8 on secondary bus (ADDR low).
@@ -136,11 +148,12 @@ config SENSORARRAY_OVERSAMPLE
     default 2
 endmenu
 
-menu "Voltage matrix scan"
-    depends on SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+menu "ADS126x voltage scan"
+    depends on SENSORARRAY_APP_MODE_PIEZO_READ || SENSORARRAY_APP_MODE_RESISTANCE_READ || SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
     help
-        Default application mode. Scans S1-S8 x D1-D8 through ADS126x and
-        emits one CSV row per complete 64-point voltage frame.
+        Shared parameters for PIEZO_READ and RESISTANCE_READ. Both scan
+        S1-S8 x D1-D8 through ADS126x and emit one CSV row per complete
+        64-point voltage frame.
 
 config SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS
     int "Voltage scan frame period in ms, 0 = run as fast as possible"

@@ -1,6 +1,6 @@
 ﻿# ads126xAdc / ADS126x Driver
 
-`ads126xAdc` 是通用 ADS1262/ADS1263 SPI driver。它只处理 ADS 芯片级行为：寄存器访问、ADC1/ADC2 控制、INPMUX/REFMUX、raw code 读取、raw->microvolts、fast voltage read 和 auto-gain。它不包含 `S1D1`、`D1..D8` 或任何板级 route mapping。
+`ads126xAdc` 是通用 ADS1262/ADS1263 SPI driver。它只处理 ADS 芯片级行为：寄存器访问、ADC1/ADC2 控制、INPMUX/REFMUX、internal reference、VBIAS/AINCOM level shift、raw code 读取、raw->microvolts、fast voltage read 和 auto-gain。它不包含 `S1D1`、`D1..D8`、`SW`、`PIEZO_READ`、`RESISTANCE_READ` 或任何板级 route mapping。
 
 ## Data Rate And Gain Enums
 
@@ -12,6 +12,30 @@ Public enums：
 - `ads126xGain_t`: `ADS126X_GAIN_1`, `2`, `4`, `8`, `16`, `32`。
 
 `ads126xAdcConfigureVoltageMode(handle, gain, dataRateDr, enableStatusByte, enableCrc)` 会保留当前 internal reference setting，并配置 status/CRC、PGA gain 和 ADC1 data rate。
+
+## Internal Reference / VBIAS / REFMUX
+
+相关 API：
+
+```c
+esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
+                              bool enableInternalRef,
+                              bool enableStatusByte,
+                              ads126xCrcMode_t crcMode,
+                              uint8_t pgaGain,
+                              uint8_t dataRateDr);
+
+esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias);
+esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
+esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
+                                      uint8_t *outPower,
+                                      uint8_t *outInterface,
+                                      uint8_t *outMode2,
+                                      uint8_t *outInpmux,
+                                      uint8_t *outRefmux);
+```
+
+`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。应用层的 `sensorarrayBringupPrepareAdsRefPath()` 会启用 internal reference、启用 VBIAS/AINCOM level shift、设置 REFMUX，并用 `ads126xAdcReadCoreRegisters()` 读回 `POWER`、`INTERFACE`、`MODE2`、`INPMUX`、`REFMUX`。ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
 
 ## Fast Voltage Read API
 
