@@ -19,6 +19,7 @@
 - `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan with `SW=REF`.
 - `PIEZO_READ / 压电读取`: ADS126x voltage scan with `SW=GND`.
 - `DEBUG / CAPACITIVE / FDC2214`: FDC2214 capacitive read with `SW=GND` unless a debug submode explicitly overrides the source.
+- `PIEZO_READ` requires `SW HIGH -> GND`; `RESISTANCE_READ` requires `SW LOW -> REF`.
 
 Current SensorArray board polarity:
 
@@ -37,7 +38,7 @@ tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND)
   -> drives SW HIGH
 ```
 
-On the current board, SW drives Q1 (`2N7002`) gate through R46 with R47 pulldown. `SW HIGH` turns Q1 on and pulls `REF/D` toward GND. Firmware must therefore keep ADS126x INTREF/REFOUT and VBIAS off whenever commanding `TMUX1108_SOURCE_GND`; otherwise REFOUT (~0.7 V vs system GND when AVSS=-1.8 V) fights the Q1 pulldown.
+On the current board, SW drives Q1 (`2N7002`) gate through R46 with R47 pulldown. `SW HIGH` turns Q1 on and selects the GND source. ADS126x `INTREF=ON` is allowed in `PIEZO_READ` and does not by itself prove that the external `REF/MID` node is driven into the TMUX1108 SW path. Fatal `ref_sw_conflict` is reserved for actual external REF/MID drive versus GND risk, SW command/readback mismatch, or ADS POWER/REFMUX readback that makes conversion untrustworthy.
 
 SW 高低电平由 `CONFIG_TMUX1108_SW_REF_LEVEL` 和底层实现决定，当前默认 `CONFIG_TMUX1108_SW_REF_LEVEL=n`，也就是 REF 为 LOW。调用者不要直接写 GPIO，也不要假设 raw GPIO level 等于某个模拟源。业务层应调用 `tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND/REF)`。
 

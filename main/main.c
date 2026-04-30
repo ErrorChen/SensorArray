@@ -23,6 +23,7 @@
 static sensorarrayState_t s_state = {0};
 static uint8_t s_gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS][SENSORARRAY_VOLTAGE_SCAN_COLS];
 static bool s_voltageHeaderPrinted = false;
+static bool s_refPolicyAllowedWarningPrinted = false;
 
 static esp_err_t sensorarrayMainConfigureAndStartVoltageAdc(void);
 
@@ -31,10 +32,16 @@ typedef enum {
     ROUTE_SOURCE_GND = 1,
 } route_source_t;
 
+typedef enum {
+    SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE = 0,
+    SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE = 1,
+} sensorarrayVoltageMode_t;
+
 typedef struct {
     sensorarrayAppMode_t appMode;
     const char *modeName;
     const char *modeNameCn;
+    sensorarrayVoltageMode_t voltageMode;
     sensorarrayPath_t path;
     const char *routeModeName;
     bool skipFdcInit;
@@ -44,6 +51,7 @@ static const  sensorarrayVoltageReadModeConfig_t s_resistanceReadMode= {
     .appMode = SENSORARRAY_APP_MODE_RESISTANCE_READ,
     .modeName = "RESISTANCE_READ",
     .modeNameCn = "电阻读取",
+    .voltageMode = SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE,
     .path = SENSORARRAY_PATH_RESISTIVE,
     .routeModeName = "RESISTIVE",
     .skipFdcInit = true,
@@ -53,6 +61,7 @@ static const  sensorarrayVoltageReadModeConfig_t s_piezoReadMode= {
     .appMode = SENSORARRAY_APP_MODE_PIEZO_READ,
     .modeName = "PIEZO_READ",
     .modeNameCn = "压电读取",
+    .voltageMode = SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE,
     .path = SENSORARRAY_PATH_PIEZO_VOLTAGE,
     .routeModeName = "PIEZO_VOLTAGE",
     .skipFdcInit = true,
@@ -119,21 +128,34 @@ static route_source_t sensorarrayMainRouteSourceForMode(const sensorarrayVoltage
     return sensorarrayMainRouteSourceFromTmux(sensorarrayMainRequiredSource(mode));
 }
 
-static const char *sensorarrayMainRouteSourceName(route_source_t source)
+static const char *sensorarrayMainVoltageModeName(sensorarrayVoltageMode_t mode)
 {
-    switch (source) {
-    case ROUTE_SOURCE_REF:
-        return "REF";
-    case ROUTE_SOURCE_GND:
-        return "GND";
+    switch (mode) {
+    case SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE:
+        return "PIEZO_VOLTAGE";
+    case SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE:
+        return "RESISTANCE_VOLTAGE";
     default:
         return "UNKNOWN";
     }
 }
 
-static esp_err_t sensorarrayMainReadRefPolicyState(int *outSwLevel, bool *outIntref, bool *outVbias)
+static bool sensorarrayMainVoltageModeVbiasRequired(sensorarrayVoltageMode_t mode)
 {
-    if (!outSwLevel || !outIntref || !outVbias) {
+    return mode == SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE;
+}
+
+static bool sensorarrayMainVoltageModeExternalRefDriveAllowed(sensorarrayVoltageMode_t mode)
+{
+    return mode == SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE;
+}
+
+static esp_err_t sensorarrayMainReadRefPolicyState(int *outSwLevel,
+                                                   bool *outIntref,
+                                                   bool *outVbias,
+                                                   uint8_t *outRefmux)
+{
+    if (!outSwLevel || !outIntref || !outVbias || !outRefmux) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -145,13 +167,67 @@ static esp_err_t sensorarrayMainReadRefPolicyState(int *outSwLevel, bool *outInt
     *outSwLevel = (ctrl.obsSwLevel >= 0) ? ctrl.obsSwLevel : ctrl.cmdSwLevel;
 
     uint8_t power = 0u;
-    err = ads126xAdcReadCoreRegisters(&s_state.ads, &power, NULL, NULL, NULL, NULL);
+    err = ads126xAdcReadCoreRegisters(&s_state.ads, &power, NULL, NULL, NULL, outRefmux);
     if (err != ESP_OK) {
         return err;
     }
     *outIntref = ((power & ADS126X_POWER_INTREF) != 0u);
     *outVbias = ((power & ADS126X_POWER_VBIAS) != 0u);
     return ESP_OK;
+}
+
+static esp_err_t sensorarrayMainPrepareAdsForPiezoVoltageMode(sensorarrayState_t *state)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ads126xAdcConfigure(&state->ads,
+                                        true,
+                                        false,
+                                        ADS126X_CRC_OFF,
+                                        state->ads.pgaGain ? state->ads.pgaGain : ADS126X_GAIN_1,
+                                        state->ads.dataRateDr);
+    if (err != ESP_OK) {
+        return err;
+    }
+    state->ads.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
+
+    err = ads126xAdcSetVbiasEnabled(&state->ads, false);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = sensorarrayBringupAdsSetRefMux(state, ADS126X_REFMUX_INTERNAL);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(SENSORARRAY_REF_SETTLE_MS));
+
+    uint8_t power = 0u;
+    uint8_t refmux = 0u;
+    err = ads126xAdcReadCoreRegisters(&state->ads, &power, NULL, NULL, NULL, &refmux);
+    bool readOk = (err == ESP_OK);
+    bool intrefOk = readOk && ((power & ADS126X_POWER_INTREF) != 0u);
+    bool vbiasOff = readOk && ((power & ADS126X_POWER_VBIAS) == 0u);
+    bool refmuxOk = readOk && (refmux == ADS126X_REFMUX_INTERNAL);
+    bool ok = intrefOk && vbiasOff && refmuxOk;
+
+    printf("DBGADSREF,mode=PIEZO,intref=%u,vbias=%u,refmux=0x%02X,"
+           "adcReference=INTERNAL,vref_uv=%lu,result=%s,err=%ld\n",
+           (readOk && ((power & ADS126X_POWER_INTREF) != 0u)) ? 1u : 0u,
+           (readOk && ((power & ADS126X_POWER_VBIAS) != 0u)) ? 1u : 0u,
+           refmux,
+           (unsigned long)state->ads.vrefMicrovolts,
+           ok ? "ok" : "mismatch",
+           (long)err);
+
+    state->adsRefReady = ok;
+    if (!readOk) {
+        return err;
+    }
+    return ok ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 esp_err_t route_apply_source_policy(route_source_t source)
@@ -189,61 +265,226 @@ esp_err_t route_apply_source_policy(route_source_t source)
         return ESP_OK;
     }
 
-    err = ads126x_disable_ref_for_ground_mode(&s_state);
+    err = sensorarrayMainPrepareAdsForPiezoVoltageMode(&s_state);
     if (err != ESP_OK) {
         return err;
     }
-    vTaskDelay(pdMS_TO_TICKS(20u));
 
     err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
     if (err != ESP_OK) {
         return err;
     }
     vTaskDelay(pdMS_TO_TICKS(5u));
-    printf("DBGREFPOLICY,source=GND,sw=1,intref=0,vbias=0,expected_ref_mv=0\n");
-    return ESP_OK;
-}
 
-static esp_err_t sensorarrayMainCheckRefSwConflict(route_source_t source)
-{
     int swLevel = -1;
     bool intref = false;
     bool vbias = false;
-    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias);
+    uint8_t refmux = 0u;
+    esp_err_t readErr = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias, &refmux);
+    printf("DBGREFPOLICY,source=GND,sw=%d,intref=%d,vbias=%d,refmux=0x%02X,"
+           "expected_ref_mv=0,result=%s,reason=piezo_gnd_source_allows_internal_ref\n",
+           readErr == ESP_OK ? swLevel : -1,
+           readErr == ESP_OK ? (intref ? 1 : 0) : -1,
+           readErr == ESP_OK ? (vbias ? 1 : 0) : -1,
+           readErr == ESP_OK ? refmux : 0u,
+           readErr == ESP_OK ? "allowed" : "readback_unavailable");
+    return ESP_OK;
+}
+
+static bool sensorarrayVoltageScanRefPolicyAllows(sensorarrayVoltageMode_t mode,
+                                                  tmux1108Source_t swSource,
+                                                  int expectedSwLevel,
+                                                  int swReadbackLevel,
+                                                  bool adsIntrefEnabled,
+                                                  bool adsVbiasEnabled,
+                                                  const char **outReason)
+{
+    const char *reason = "allowed";
+    bool allowed = true;
+
+    switch (mode) {
+    case SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE:
+        if (swSource != TMUX1108_SOURCE_GND ||
+            expectedSwLevel != tmuxSwitch1108SourceToSwLevel(TMUX1108_SOURCE_GND)) {
+            allowed = false;
+            reason = "piezo_requires_gnd_source";
+        } else if (swReadbackLevel != expectedSwLevel) {
+            allowed = false;
+            reason = "sw_readback_mismatch";
+        } else if (adsVbiasEnabled) {
+            allowed = false;
+            reason = "piezo_forbids_external_ref_drive";
+        } else {
+            reason = adsIntrefEnabled ? "piezo_gnd_source_allows_internal_ref" : "piezo_gnd_source_ok";
+        }
+        break;
+
+    case SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE:
+        if (swSource != TMUX1108_SOURCE_REF ||
+            expectedSwLevel != tmuxSwitch1108SourceToSwLevel(TMUX1108_SOURCE_REF)) {
+            allowed = false;
+            reason = "resistance_requires_ref_source";
+        } else if (swReadbackLevel != expectedSwLevel) {
+            allowed = false;
+            reason = "sw_readback_mismatch";
+        } else if (!adsIntrefEnabled) {
+            allowed = false;
+            reason = "resistance_requires_internal_ref";
+        } else if (!adsVbiasEnabled) {
+            allowed = false;
+            reason = "resistance_requires_vbias";
+        } else {
+            reason = "resistance_ref_source_requires_ref";
+        }
+        break;
+
+    default:
+        allowed = false;
+        reason = "unsupported_voltage_mode";
+        break;
+    }
+
+    if (outReason) {
+        *outReason = reason;
+    }
+    return allowed;
+}
+
+static bool sensorarrayMainRefmuxAllowedForMode(sensorarrayVoltageMode_t mode,
+                                                bool adsIntrefEnabled,
+                                                uint8_t refmux,
+                                                const char **outReason)
+{
+    const char *reason = "refmux_allowed";
+    bool allowed = true;
+
+    switch (mode) {
+    case SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE:
+        if (refmux != ADS126X_REFMUX_INTERNAL && refmux != ADS126X_REFMUX_AVDD_AVSS) {
+            allowed = false;
+            reason = "piezo_refmux_untrusted";
+        } else if (adsIntrefEnabled && refmux == ADS126X_REFMUX_INTERNAL) {
+            reason = "piezo_internal_refmux_allowed";
+        } else {
+            reason = "piezo_refmux_allowed";
+        }
+        break;
+
+    case SENSORARRAY_VOLTAGE_MODE_RESISTANCE_VOLTAGE:
+        if (refmux != ADS126X_REFMUX_INTERNAL) {
+            allowed = false;
+            reason = "resistance_requires_internal_refmux";
+        } else {
+            reason = "resistance_internal_refmux_ok";
+        }
+        break;
+
+    default:
+        allowed = false;
+        reason = "unsupported_voltage_mode";
+        break;
+    }
+
+    if (outReason) {
+        *outReason = reason;
+    }
+    return allowed;
+}
+
+static bool sensorarrayMainPolicyReasonIsAdsRefError(const char *reason)
+{
+    return reason &&
+           (strcmp(reason, "resistance_requires_internal_ref") == 0 ||
+            strcmp(reason, "resistance_requires_vbias") == 0);
+}
+
+static esp_err_t sensorarrayMainCheckRefSwPolicy(const sensorarrayVoltageReadModeConfig_t *mode,
+                                                 const char **outFatalStage)
+{
+    if (!mode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (outFatalStage) {
+        *outFatalStage = "ref_sw_conflict";
+    }
+
+    tmux1108Source_t swSource = sensorarrayMainRequiredSource(mode);
+    int expectedSwLevel = sensorarrayMainExpectedSwLevel(mode);
+    int swLevel = -1;
+    bool intref = false;
+    bool vbias = false;
+    uint8_t refmux = 0u;
+    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias, &refmux);
     if (err != ESP_OK) {
-        printf("DBGREFCONFLICT,reason=policy_state_unavailable,source=%s,sw=-1,intref=-1,vbias=-1,err=%ld\n",
-               sensorarrayMainRouteSourceName(source),
+        if (outFatalStage) {
+            *outFatalStage = "ads_ref_error";
+        }
+        printf("DBGADSREF_ERR,reason=policy_state_unavailable,mode=%s,source=%s,sw=-1,"
+               "expectedSwLevel=%d,intref=-1,vbias=-1,refmux=0x00,err=%ld\n",
+               sensorarrayMainVoltageModeName(mode->voltageMode),
+               sensorarrayAppSwSourceName(swSource),
+               expectedSwLevel,
                (long)err);
-        printf("MATV_ABORT,reason=ref_sw_conflict\n");
+        printf("MATV_ABORT,reason=ads_ref_error\n");
         return err;
     }
 
     const char *reason = NULL;
-    if (swLevel == 1 && intref) {
-        reason = "sw_high_but_intref_on";
-    } else if (source == ROUTE_SOURCE_GND && intref) {
-        reason = "gnd_mode_but_intref_on";
-    } else if (source == ROUTE_SOURCE_GND && vbias) {
-        reason = "gnd_mode_but_vbias_on";
-    } else if (source == ROUTE_SOURCE_REF && swLevel != 0) {
-        reason = "ref_mode_but_sw_high";
-    } else if (source == ROUTE_SOURCE_GND && swLevel != 1) {
-        reason = "gnd_mode_but_sw_low";
-    } else if (source == ROUTE_SOURCE_REF && !intref) {
-        reason = "ref_mode_but_intref_off";
-    } else if (source == ROUTE_SOURCE_REF && !vbias) {
-        reason = "ref_mode_but_vbias_off";
-    }
-
-    if (reason) {
-        printf("DBGREFCONFLICT,reason=%s,sw=%d,intref=%u,vbias=%u,source=%s\n",
+    bool allowed = sensorarrayVoltageScanRefPolicyAllows(mode->voltageMode,
+                                                         swSource,
+                                                         expectedSwLevel,
+                                                         swLevel,
+                                                         intref,
+                                                         vbias,
+                                                         &reason);
+    if (!allowed) {
+        bool adsRefError = sensorarrayMainPolicyReasonIsAdsRefError(reason);
+        if (outFatalStage && adsRefError) {
+            *outFatalStage = "ads_ref_error";
+        }
+        printf("%s,reason=%s,mode=%s,sw=%d,expectedSwLevel=%d,intref=%u,"
+               "vbias=%u,refmux=0x%02X,source=%s\n",
+               adsRefError ? "DBGADSREF_ERR" : "DBGREFCONFLICT",
                reason,
+               sensorarrayMainVoltageModeName(mode->voltageMode),
                swLevel,
+               expectedSwLevel,
                intref ? 1u : 0u,
                vbias ? 1u : 0u,
-               sensorarrayMainRouteSourceName(source));
-        printf("MATV_ABORT,reason=ref_sw_conflict\n");
+               refmux,
+               sensorarrayAppSwSourceName(swSource));
+        printf("MATV_ABORT,reason=%s\n", adsRefError ? "ads_ref_error" : "ref_sw_conflict");
         return ESP_ERR_INVALID_STATE;
+    }
+
+    const char *refmuxReason = NULL;
+    if (!sensorarrayMainRefmuxAllowedForMode(mode->voltageMode, intref, refmux, &refmuxReason)) {
+        if (outFatalStage) {
+            *outFatalStage = "ads_ref_error";
+        }
+        printf("DBGADSREF_ERR,reason=%s,mode=%s,sw=%d,expectedSwLevel=%d,intref=%u,"
+               "vbias=%u,refmux=0x%02X,source=%s\n",
+               refmuxReason,
+               sensorarrayMainVoltageModeName(mode->voltageMode),
+               swLevel,
+               expectedSwLevel,
+               intref ? 1u : 0u,
+               vbias ? 1u : 0u,
+               refmux,
+               sensorarrayAppSwSourceName(swSource));
+        printf("MATV_ABORT,reason=ads_ref_error\n");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (mode->voltageMode == SENSORARRAY_VOLTAGE_MODE_PIEZO_VOLTAGE &&
+        intref &&
+        !vbias &&
+        swLevel == expectedSwLevel &&
+        !s_refPolicyAllowedWarningPrinted) {
+        printf("DBGREFPOLICY,mode=PIEZO_VOLTAGE,sw=%d,source=GND,intref=1,vbias=0,"
+               "result=allowed,reason=piezo_gnd_source_allows_internal_ref\n",
+               swLevel);
+        s_refPolicyAllowedWarningPrinted = true;
     }
 
     return ESP_OK;
@@ -309,6 +550,17 @@ static void sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConf
            mode->skipFdcInit ? 1u : 0u);
 }
 
+static void sensorarrayMainPrintVoltageRefPolicy(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    printf("VOLTSCAN_REFPOLICY,mode=%s,swSource=%s,expectedSwLevel=%d,intrefAllowed=1,"
+           "vbiasRequired=%u,externalRefDriveAllowed=%u\n",
+           sensorarrayMainVoltageModeName(mode->voltageMode),
+           sensorarrayMainRequiredSourceName(mode),
+           sensorarrayMainExpectedSwLevel(mode),
+           sensorarrayMainVoltageModeVbiasRequired(mode->voltageMode) ? 1u : 0u,
+           sensorarrayMainVoltageModeExternalRefDriveAllowed(mode->voltageMode) ? 1u : 0u);
+}
+
 static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     if (!mode) {
@@ -317,6 +569,7 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
 
     s_state = (sensorarrayState_t){0};
     s_voltageHeaderPrinted = false;
+    s_refPolicyAllowedWarningPrinted = false;
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
 
     sensorarrayMainPrintModeRequirement(mode);
@@ -361,10 +614,12 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
         return err;
     }
     sensorarrayMainPrintRoutePolicy(mode);
+    sensorarrayMainPrintVoltageRefPolicy(mode);
 
-    err = sensorarrayMainCheckRefSwConflict(routeSource);
+    const char *fatalStage = "ref_sw_conflict";
+    err = sensorarrayMainCheckRefSwPolicy(mode, &fatalStage);
     if (err != ESP_OK) {
-        sensorarrayMainIdleAfterFatal("ref_sw_conflict", err);
+        sensorarrayMainIdleAfterFatal(fatalStage, err);
     }
 
     if (s_state.adsAdc1Running) {
@@ -632,9 +887,11 @@ static esp_err_t sensorarrayMainRecoverAds(const sensorarrayVoltageReadModeConfi
         return err;
     }
 
-    err = sensorarrayMainCheckRefSwConflict(routeSource);
+    const char *fatalStage = "ref_sw_conflict";
+    err = sensorarrayMainCheckRefSwPolicy(mode, &fatalStage);
     if (err != ESP_OK) {
-        printf("VOLTSCAN_RECOVERY,stage=ref_sw_conflict,err=%ld,status=conflict_after_route_defaults\n",
+        printf("VOLTSCAN_RECOVERY,stage=%s,err=%ld,status=policy_check_failed_after_route_defaults\n",
+               fatalStage,
                (long)err);
         return err;
     }
@@ -700,12 +957,12 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
         recoveryThreshold = 3u;
     }
     tmux1108Source_t requiredSource = sensorarrayMainRequiredSource(mode);
-    route_source_t routeSource = sensorarrayMainRouteSourceForMode(mode);
 
     while (true) {
-        esp_err_t conflictErr = sensorarrayMainCheckRefSwConflict(routeSource);
-        if (conflictErr != ESP_OK) {
-            sensorarrayMainIdleAfterFatal("ref_sw_conflict", conflictErr);
+        const char *fatalStage = "ref_sw_conflict";
+        esp_err_t policyErr = sensorarrayMainCheckRefSwPolicy(mode, &fatalStage);
+        if (policyErr != ESP_OK) {
+            sensorarrayMainIdleAfterFatal(fatalStage, policyErr);
         }
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_FRAME
@@ -764,12 +1021,14 @@ static void sensorarrayMainDiagPrintRefSw(const char *phase)
     int swLevel = -1;
     bool intref = false;
     bool vbias = false;
-    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias);
-    printf("DBGDIAG_REF_SW,phase=%s,sw=%d,intref=%u,vbias=%u,err=%ld\n",
+    uint8_t refmux = 0u;
+    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias, &refmux);
+    printf("DBGDIAG_REF_SW,phase=%s,sw=%d,intref=%u,vbias=%u,refmux=0x%02X,err=%ld\n",
            phase ? phase : "UNKNOWN",
            swLevel,
            intref ? 1u : 0u,
            vbias ? 1u : 0u,
+           refmux,
            (long)err);
 }
 

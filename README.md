@@ -51,9 +51,10 @@ REF/SW hardware interaction:
 
 - With `AVSS=-1.8 V`, ADS126x internal `REFOUT` is `AVSS + 2.5 V`, about `0.7 V` relative to system GND.
 - `SW=HIGH` turns on Q1 (`2N7002`) through R46 and pulls the `REF/D` node toward GND.
-- Therefore `SW=HIGH` must never be combined with ADS126x `INTREF/REFOUT=ON`; otherwise the 0.7 V REF output fights the Q1 pulldown, typically leaving `REF/D` around `0.18 V` instead of 0 V.
-- Resistance reading: `SW LOW`, Q1 off, `INTREF ON`, `VBIAS ON`, `REF/D ~= 0.7 V`.
-- Piezo reading: `SW HIGH`, Q1 on, `INTREF OFF`, `VBIAS OFF`, `REF/D ~= 0 V`.
+- `ADS126x INTREF=ON` is allowed in `PIEZO_READ`. It means the ADC internal 2.5 V reference is enabled for ADC reference / REFMUX / internal functions; by itself it is not proof that the external `REF/MID` node is being driven into the TMUX1108 SW path.
+- `PIEZO_READ / 压电读取`: `SW HIGH -> GND`, `VBIAS OFF`; `INTREF` may be ON and must not trigger `ref_sw_conflict` by itself.
+- `RESISTANCE_READ / 电阻读取`: `SW LOW -> REF`, `INTREF ON`, `VBIAS ON`, internal REFMUX.
+- Fatal `ref_sw_conflict` is reserved for real unsafe route states: commanded GND but an external REF/MID driver is explicitly enabled into the same external SW node, commanded REF but SW reads back HIGH/GND, commanded GND but SW reads back LOW/REF, or ADS POWER/REFMUX readback is incompatible with a trustworthy conversion.
 
 `ADS126x voltage scan` 菜单保留高速扫描参数：ADS126x data rate、row/path/mux settle、discard first、oversample、frame period、auto gain，以及 raw/gain 可选输出；错误帧固定输出 `MATV_ERR`。旧 `VOLTAGE_MATRIX_SCAN` symbol 保留为兼容别名，当前等价于 `PIEZO_READ`，source 为 `SW=GND`。
 
@@ -72,9 +73,10 @@ idf.py flash monitor
 ```text
 APPMODE,compiled=PIEZO_READ,entry=main_fast_scan,swSource=GND,expectedSwLevel=1
 APPPOLICY,appMode=PIEZO_READ,isDebugAppMode=0,mode=PIEZO_VOLTAGE,requiredSwSource=GND,requiredSwLevel=1,reason=piezo_requires_ground_source
-DBGADSREF,mode=PIEZO,external_refout=disabled,intref=0,vbias=0,refmux=0x24,adcReference=AVDD_AVSS,...,result=ok
-DBGREFPOLICY,source=GND,sw=1,intref=0,vbias=0,expected_ref_mv=0
+DBGADSREF,mode=PIEZO,intref=1,vbias=0,refmux=0x00,adcReference=INTERNAL,...,result=ok
+DBGREFPOLICY,mode=PIEZO_VOLTAGE,sw=1,source=GND,intref=1,vbias=0,result=allowed,reason=piezo_gnd_source_allows_internal_ref
 ROUTEPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,cmdSwLevel=1,obsSwLevel=1,sela=ADS126X,fdcInitSkipped=1
+VOLTSCAN_REFPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,intrefAllowed=1,vbiasRequired=0,externalRefDriveAllowed=0
 VOLTSCAN_INIT,mode=PIEZO_VOLTAGE,appMode=PIEZO_READ,cnName=压电读取,swSource=GND,expectedSwLevel=1,...
 MATV_HEADER,seq,timestamp_us,duration_us,unit,S1D1,...,S8D8
 MATV,<seq>,<timestamp_us>,<duration_us>,uV,<64 int32 microvolts>
@@ -94,6 +96,17 @@ target_mid_gnd_mv = (3300 + (-1800)) / 2 = 750
 target_mid_avss_mv = 750 - (-1800) = 2550
 ```
 
+REF/SW policy summary:
+
+- SW polarity is fixed: `LOW=REF`, `HIGH=GND`.
+- `PIEZO_READ` requires `SW=HIGH/GND`; `ADS126x INTREF=ON` is allowed and does not mean the external REF node is forced into the SW path.
+- `RESISTANCE_READ` requires `SW=LOW/REF`; `INTREF=ON`, `VBIAS=ON`, and internal REFMUX are expected.
+- Only a real external REF/MID driver versus GND short risk, SW readback mismatch, or incompatible ADS POWER/REFMUX readback should produce fatal `ref_sw_conflict` / `ads_ref_error`.
+
+```text
+VOLTSCAN_REFPOLICY,mode=RESISTANCE_VOLTAGE,swSource=REF,expectedSwLevel=0,intrefAllowed=1,vbiasRequired=1,externalRefDriveAllowed=1
+```
+
 不要把 `(VDD + |VSS|) / 2 = 2.55 V` 当成相对 GND 的 midpoint；`2.55 V` 是相对 `VSS/AVSS` 的距离。
 
-`RESISTANCE_READ` 才会打开 ADS126x internal REF/VBIAS，并可输出 `DBGADSREF_ANALOG`。`PIEZO_READ` 必须输出 `DBGADSREF,mode=PIEZO,external_refout=disabled,intref=0,vbias=0,result=ok`，不允许输出 `intrefOk=1,vbiasOk=1` 后继续扫描。若 `SENSOR_ARRAY_DIAG_REF_SW_CONFLICT` 诊断模式下 `GND` phase 仍稳定在约 `0.18 V`，说明仍有其他源在驱动 `REF/D`，应继续检查 IDAC、VBIAS、TMUX1134、ADS GPIO 或其他通路。
+`RESISTANCE_READ` requires ADS126x internal REF/VBIAS and internal REFMUX. `PIEZO_READ` may run with `SW=HIGH/GND,intref=1,vbias=0`; this is allowed and should continue scanning. A fatal `ref_sw_conflict` should only indicate a real external REF/MID drive conflict or SW route mismatch.

@@ -2,7 +2,7 @@
 
 `ads126xAdc` 是通用 ADS1262/ADS1263 SPI driver。它只处理 ADS 芯片级行为：寄存器访问、ADC1/ADC2 控制、INPMUX/REFMUX、internal reference、VBIAS/AINCOM level shift、raw code 读取、raw->microvolts、fast voltage read 和 auto-gain。它不包含 `S1D1`、`D1..D8`、`SW`、`PIEZO_READ`、`RESISTANCE_READ` 或任何板级 route mapping。
 
-Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. `PIEZO_READ / 压电读取` uses `TMUX1108_SOURCE_GND` (SW HIGH), `RESISTANCE_READ / 电阻读取` uses `TMUX1108_SOURCE_REF` (SW LOW), and DEBUG/FDC uses GND unless the selected debug submode explicitly overrides it. This driver does not choose the source; board/app code must pass the resolved source before ADS samples are trusted.
+Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. `PIEZO_READ / 压电读取` uses `TMUX1108_SOURCE_GND` (SW HIGH), `RESISTANCE_READ / 电阻读取` uses `TMUX1108_SOURCE_REF` (SW LOW), and DEBUG/FDC uses GND unless the selected debug submode explicitly overrides it. ADS126x `INTREF=ON` is allowed in `PIEZO_READ`; it is an ADC internal-reference state and does not by itself mean the external `REF/MID` node is driven into the TMUX1108 SW path. This driver does not choose the source; board/app code must pass the resolved source before ADS samples are trusted.
 
 ## Data Rate And Gain Enums
 
@@ -37,7 +37,7 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
                                       uint8_t *outRefmux);
 ```
 
-`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。`ADS126X_REFMUX_AVDD_AVSS` 表示 ADC1 使用 AVDD/AVSS supply reference，不打开 REFOUT。应用层的 `ads126x_enable_ref_for_resistance_mode()` 只在 `RESISTANCE_READ / REF` 模式启用 internal reference、VBIAS/AINCOM level shift 和 internal REFMUX；`ads126x_disable_ref_for_ground_mode()` 在 `PIEZO_READ / GND` 模式关闭 INTREF/VBIAS 并切到 AVDD/AVSS reference，避免 REFOUT 与 Q1 下拉对拉。ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
+`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。`ADS126X_REFMUX_AVDD_AVSS` 表示 ADC1 使用 AVDD/AVSS supply reference。应用层的 `RESISTANCE_READ / REF` 模式启用 internal reference、VBIAS/AINCOM level shift 和 internal REFMUX；`PIEZO_READ / GND` 模式使用 `SW=HIGH/GND`、允许 `INTREF=ON`、要求 `VBIAS=OFF`。`INTREF=ON` is not external REF drive evidence, so it must not trigger fatal `ref_sw_conflict` unless board/app code has also enabled a real external REF/MID driver into the same SW node or SW readback mismatches the command. ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
 
 ## Fast Voltage Read API
 
