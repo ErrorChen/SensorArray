@@ -18,7 +18,7 @@
 - `TMUX1108_SOURCE_REF`: select the REF source in software terms.
 - `RESISTANCE_READ / 电阻读取`: ADS126x voltage scan with `SW=REF`.
 - `PIEZO_READ / 压电读取`: ADS126x voltage scan with `SW=GND`.
-- `CAPACITIVE / FDC2214`: FDC2214 capacitive read with `SW=GND`.
+- `DEBUG / CAPACITIVE / FDC2214`: FDC2214 capacitive read with `SW=GND` unless a debug submode explicitly overrides the source.
 
 Current SensorArray board polarity:
 

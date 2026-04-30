@@ -14,6 +14,10 @@
 #define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
 #define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
 #define SENSORARRAY_FDC_DRIVE_CURRENT_MASK 0xF800u
+#define SENSORARRAY_ADS_REF_ANALOG_SETTLE_MS 25u
+#define SENSORARRAY_ADS_REF_ANALOG_MUX_SETTLE_US 1000u
+#define SENSORARRAY_ADS_REF_ANALOG_DRDY_TIMEOUT_US 50000u
+#define SENSORARRAY_ADS_REF_ANALOG_NEAR_ZERO_LIMIT_UV 10000
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -33,6 +37,14 @@ static void sensorarrayBringupLogSystemRefTargets(void)
            SENSORARRAY_REF_VDD_MV,
            SENSORARRAY_REF_VSS_MV,
            SENSORARRAY_REF_SUPPLY_SPAN_MV,
+           SENSORARRAY_REF_TARGET_MID_GND_MV,
+           SENSORARRAY_REF_TARGET_MID_AVSS_MV);
+}
+
+static void sensorarrayBringupLogRefMidTargetNote(void)
+{
+    printf("DBGREFMID_TARGET,target_mid_gnd_mv=%d,target_mid_avss_mv=%d,"
+           "note=register_ok_not_external_voltage_proof\n",
            SENSORARRAY_REF_TARGET_MID_GND_MV,
            SENSORARRAY_REF_TARGET_MID_AVSS_MV);
 }
@@ -609,6 +621,115 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
 
     int32_t raw = 0;
     return ads126xAdcReadAdc1Raw(&state->ads, &raw, NULL);
+}
+
+esp_err_t sensorarrayBringupVerifyAdsRefAnalog(sensorarrayState_t *state)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t power = 0u;
+    uint8_t iface = 0u;
+    uint8_t mode2 = 0u;
+    uint8_t inpmux = 0u;
+    uint8_t refmux = 0u;
+    esp_err_t err = ads126xAdcReadCoreRegisters(&state->ads, &power, &iface, &mode2, &inpmux, &refmux);
+    bool readOk = (err == ESP_OK);
+    bool intrefOk = readOk && ((power & ADS126X_POWER_INTREF) != 0u);
+    bool vbiasOk = readOk && ((power & ADS126X_POWER_VBIAS) != 0u);
+    bool refmuxOk = readOk && (refmux == ADS126X_REFMUX_INTERNAL);
+    bool regOk = intrefOk && vbiasOk && refmuxOk;
+
+    printf("DBGADSREF_ANALOG,stage=register_check,power=0x%02X,interface=0x%02X,mode2=0x%02X,"
+           "inpmux=0x%02X,refmux=0x%02X,intrefOk=%u,vbiasOk=%u,refmuxOk=%u,result=%s,err=%ld\n",
+           power,
+           iface,
+           mode2,
+           inpmux,
+           refmux,
+           intrefOk ? 1u : 0u,
+           vbiasOk ? 1u : 0u,
+           refmuxOk ? 1u : 0u,
+           regOk ? "ok" : "mismatch",
+           (long)err);
+
+    if (!readOk) {
+        return err;
+    }
+    if (!regOk) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    sensorarrayBringupLogRefMidTargetNote();
+    sensorarrayDelayMs(SENSORARRAY_ADS_REF_ANALOG_SETTLE_MS);
+
+    if (state->adsAdc1Running) {
+        err = ads126xAdcStopAdc1(&state->ads);
+        if (err != ESP_OK) {
+            printf("DBGADSREF_ANALOG,stage=stop_before_ain9_aincom,ain9_aincom_uv=0,expectedNearZero=1,"
+                   "result=mismatch,err=%ld\n",
+                   (long)err);
+            return err;
+        }
+        state->adsAdc1Running = false;
+    }
+
+    err = ads126xAdcConfigureVoltageMode(&state->ads,
+                                         ADS126X_GAIN_1,
+                                         (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F),
+                                         false,
+                                         false);
+    if (err != ESP_OK) {
+        printf("DBGADSREF_ANALOG,stage=configure_ain9_aincom,ain9_aincom_uv=0,expectedNearZero=1,"
+               "result=mismatch,err=%ld\n",
+               (long)err);
+        return err;
+    }
+
+    err = ads126xAdcStartAdc1(&state->ads);
+    if (err != ESP_OK) {
+        printf("DBGADSREF_ANALOG,stage=start_ain9_aincom,ain9_aincom_uv=0,expectedNearZero=1,"
+               "result=mismatch,err=%ld\n",
+               (long)err);
+        return err;
+    }
+    state->adsAdc1Running = true;
+
+    ads126xAdcVoltageReadConfig_t readCfg = {
+        .muxp = SENSORARRAY_ADS_MUX_AIN9,
+        .muxn = SENSORARRAY_ADS_MUX_AINCOM,
+        .stopBeforeMuxChange = false,
+        .startAfterMuxChange = false,
+        .settleAfterMuxUs = SENSORARRAY_ADS_REF_ANALOG_MUX_SETTLE_US,
+        .discardFirst = true,
+        .oversampleCount = 2u,
+        .drdyTimeoutUs = SENSORARRAY_ADS_REF_ANALOG_DRDY_TIMEOUT_US,
+    };
+    ads126xAdcVoltageSample_t sample = {0};
+    err = ads126xAdcReadVoltageMicrovoltsFast(&state->ads, &readCfg, &sample);
+    int32_t uv = sample.microvolts;
+    int64_t absUv = (uv < 0) ? -(int64_t)uv : (int64_t)uv;
+    bool nearZero = (err == ESP_OK) && (absUv <= SENSORARRAY_ADS_REF_ANALOG_NEAR_ZERO_LIMIT_UV);
+    printf("DBGADSREF_ANALOG,stage=ain9_aincom_short,ain9_aincom_uv=%ld,expectedNearZero=1,"
+           "limit_uv=%d,samples=%u,result=%s,err=%ld\n",
+           (long)uv,
+           SENSORARRAY_ADS_REF_ANALOG_NEAR_ZERO_LIMIT_UV,
+           (unsigned)sample.samplesUsed,
+           nearZero ? "ok" : "mismatch",
+           (long)err);
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (!nearZero) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    printf("DBGADSREF_ANALOG,stage=external_ref_mid,node=unmapped,result=register_ok_but_external_ref_not_verified,"
+           "target_mid_gnd_mv=%d,target_mid_avss_mv=%d\n",
+           SENSORARRAY_REF_TARGET_MID_GND_MV,
+           SENSORARRAY_REF_TARGET_MID_AVSS_MV);
+    return ESP_OK;
 }
 
 void sensorarrayBringupProbeFdcBus(const sensorarrayFdcDeviceState_t *fdcState)

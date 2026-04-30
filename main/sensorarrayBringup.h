@@ -36,6 +36,7 @@ bool sensorarrayBringupParseI2cAddress(uint32_t configuredAddress, uint8_t *outA
 esp_err_t sensorarrayBringupAdsSetRefMux(sensorarrayState_t *state, uint8_t refmuxValue);
 esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state);
 esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state);
+esp_err_t sensorarrayBringupVerifyAdsRefAnalog(sensorarrayState_t *state);
 
 void sensorarrayBringupInitFdcDiag(sensorarrayFdcInitDiag_t *diag);
 void sensorarrayBringupApplyFdcInitResult(sensorarrayFdcDeviceState_t *fdcState,

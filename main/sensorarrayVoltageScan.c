@@ -5,7 +5,9 @@
 
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
+#include "freertos/task.h"
 
+#include "sensorarrayApp.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
 #include "tmuxSwitch.h"
@@ -34,6 +36,7 @@ static const char *sensorarrayVoltageScanSourceName(tmux1108Source_t source)
     return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
 }
 
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG
 static const char *sensorarrayVoltageScanPathName(tmux1108Source_t source)
 {
     return (source == TMUX1108_SOURCE_REF) ? "RESISTIVE" : "PIEZO_VOLTAGE";
@@ -43,10 +46,64 @@ static const char *sensorarrayVoltageScanRouteTag(tmux1108Source_t source)
 {
     return (source == TMUX1108_SOURCE_REF) ? "DBGRES_ROUTE" : "DBGPIEZO_ROUTE";
 }
+#endif
 
 static const char *sensorarrayVoltageScanAssertStage(tmux1108Source_t source)
 {
     return (source == TMUX1108_SOURCE_REF) ? "resistance_voltage_scan" : "piezo_voltage_scan";
+}
+
+static esp_err_t sensorarrayVoltageScanAssertSourceFast(tmux1108Source_t expectedSource, const char *stage)
+{
+    tmuxSwitchControlState_t ctrl = {0};
+    esp_err_t err = tmuxSwitchGetControlState(&ctrl);
+    int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(expectedSource);
+    if (err != ESP_OK) {
+        printf("DBGTMUXSW_ERR,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=UNKNOWN,"
+               "cmdSwLevel=-1,obsSwLevel=-1,status=ctrl_state_unavailable,err=%ld\n",
+               stage ? stage : "unknown",
+               sensorarrayVoltageScanSourceName(expectedSource),
+               expectedSwLevel,
+               (long)err);
+        return err;
+    }
+
+    bool cmdSourceOk = (ctrl.cmdSource == expectedSource);
+    bool cmdSwOk = (ctrl.cmdSwLevel == expectedSwLevel);
+    bool obsSwOk = (ctrl.obsSwLevel == expectedSwLevel);
+    if (cmdSourceOk && cmdSwOk && obsSwOk) {
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG
+        printf("DBGTMUXSW,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=%s,cmdSwLevel=%d,"
+               "obsSwLevel=%d,status=ok\n",
+               stage ? stage : "unknown",
+               sensorarrayVoltageScanSourceName(expectedSource),
+               expectedSwLevel,
+               sensorarrayVoltageScanSourceName(ctrl.cmdSource),
+               ctrl.cmdSwLevel,
+               ctrl.obsSwLevel);
+#endif
+        return ESP_OK;
+    }
+
+    const char *status = "sw_level_mismatch";
+    if (!cmdSourceOk) {
+        status = (expectedSource == TMUX1108_SOURCE_GND) ? "sw_not_high" : "sw_not_low";
+    } else if (!cmdSwOk) {
+        status = "cmd_sw_level_mismatch";
+    } else if (!obsSwOk) {
+        status = (expectedSource == TMUX1108_SOURCE_GND) ? "sw_not_high" : "sw_not_low";
+    }
+
+    printf("DBGTMUXSW_ERR,stage=%s,expectedSource=%s,expectedSwLevel=%d,cmdSource=%s,cmdSwLevel=%d,"
+           "obsSwLevel=%d,status=%s\n",
+           stage ? stage : "unknown",
+           sensorarrayVoltageScanSourceName(expectedSource),
+           expectedSwLevel,
+           sensorarrayVoltageScanSourceName(ctrl.cmdSource),
+           ctrl.cmdSwLevel,
+           ctrl.obsSwLevel,
+           status);
+    return ESP_ERR_INVALID_STATE;
 }
 
 esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
@@ -97,7 +154,7 @@ esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
      * Piezo voltage scan requires GND at the selected TMUX1108 source,
      * so this mode must command TMUX1108_SOURCE_GND and observe SW HIGH.
      */
-    err = tmuxSwitchAssert1108Source(swSource, sensorarrayVoltageScanAssertStage(swSource));
+    err = sensorarrayVoltageScanAssertSourceFast(swSource, sensorarrayVoltageScanAssertStage(swSource));
     if (err != ESP_OK) {
         return err;
     }
@@ -109,6 +166,7 @@ esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
 
     sensorarrayVoltageScanDelayUs(pathSettleUs);
 
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG
     tmuxSwitchControlState_t ctrl = {0};
     bool haveCtrl = (tmuxSwitchGetControlState(&ctrl) == ESP_OK);
     int expectedSwLevel = tmuxSwitch1108SourceToSwLevel(swSource);
@@ -134,6 +192,7 @@ esp_err_t sensorarrayVoltageScanApplyRouteFastWithSource(uint8_t sColumn,
            haveCtrl ? ctrl.cmdSelbLevel : -1,
            haveCtrl ? ctrl.obsSelaLevel : -1,
            haveCtrl ? ctrl.obsSelbLevel : -1);
+#endif
     return ESP_OK;
 }
 
@@ -142,9 +201,10 @@ esp_err_t sensorarrayVoltageScanApplyRouteFast(uint8_t sColumn,
                                                uint32_t rowSettleUs,
                                                uint32_t pathSettleUs)
 {
+    tmux1108Source_t requiredSource = sensorarrayAppModeRequiredSource(sensorarrayAppCompiledMode());
     return sensorarrayVoltageScanApplyRouteFastWithSource(sColumn,
                                                           dLine,
-                                                          TMUX1108_SOURCE_GND,
+                                                          requiredSource,
                                                           rowSettleUs,
                                                           pathSettleUs);
 }
@@ -181,6 +241,7 @@ esp_err_t sensorarrayVoltageScanOneFrameWithSource(ads126xAdcHandle_t *ads,
                 frame.err[s - 1u][d - 1u] = routeErr;
                 frame.gain[s - 1u][d - 1u] = ads->pgaGain;
             }
+            taskYIELD();
             continue;
         }
 
@@ -254,11 +315,13 @@ esp_err_t sensorarrayVoltageScanOneFrameWithSource(ads126xAdcHandle_t *ads,
                 frameErr = readErr;
             }
         }
+        taskYIELD();
     }
 
     uint64_t frameEndUs = (uint64_t)esp_timer_get_time();
     frame.scanDurationUs = (uint32_t)(frameEndUs - frame.timestampUs);
     memcpy(outFrame, &frame, sizeof(frame));
+    taskYIELD();
     return frameErr;
 }
 
@@ -267,8 +330,9 @@ esp_err_t sensorarrayVoltageScanOneFrame(ads126xAdcHandle_t *ads,
                                                                 [SENSORARRAY_VOLTAGE_SCAN_COLS],
                                          sensorarrayVoltageFrame_t *outFrame)
 {
+    tmux1108Source_t requiredSource = sensorarrayAppModeRequiredSource(sensorarrayAppCompiledMode());
     return sensorarrayVoltageScanOneFrameWithSource(ads,
                                                     gainTable,
-                                                    TMUX1108_SOURCE_GND,
+                                                    requiredSource,
                                                     outFrame);
 }

@@ -8,7 +8,7 @@
 
 - `SENSORARRAY_APP_MODE_PIEZO_READ`: 默认，运行 `sensorarrayRunPiezoRead()`，`SW=GND`。
 - `SENSORARRAY_APP_MODE_RESISTANCE_READ`: 运行 `sensorarrayRunResistanceRead()`，`SW=REF`。
-- `SENSORARRAY_APP_MODE_DEBUG`: 运行旧 `sensorarrayAppRun()`，进入 bring-up/debug dispatcher。
+- `SENSORARRAY_APP_MODE_DEBUG`: 运行旧 `sensorarrayAppRun()`，进入 bring-up/debug dispatcher；FDC/debug 默认使用 GND，除非 debug 子模式明确解析为 REF。
 
 默认 `PIEZO_READ` 和 `RESISTANCE_READ` 不初始化、不轮询 FDC2214。
 
@@ -21,9 +21,9 @@ SW = LOW  -> REF
 SW = HIGH -> GND
 ```
 
-- Resistance reading: normally uses REF source, therefore SW = LOW, unless the hardware design says otherwise.
-- Piezo voltage reading: requires GND source, therefore SW = HIGH.
-- Capacitive / FDC2214 reading: requires GND source, therefore SW = HIGH.
+- `PIEZO_READ / 压电读取`: requires GND source, therefore SW = HIGH.
+- `RESISTANCE_READ / 电阻读取`: requires REF source, therefore SW = LOW.
+- `DEBUG / FDC2214`: uses GND unless the selected debug submode explicitly resolves another source.
 
 ## 初始化顺序
 
@@ -33,24 +33,27 @@ ADS126x 读取模式共用同一条高速 8x8 voltage scan 主体：
 2. `tmuxSwitchInit()`
 3. `sensorarrayBringupInitAds()`
 4. `sensorarrayBringupPrepareAdsRefPath()` 打开 internal REF、VBIAS/AINCOM level shift、internal REFMUX
-5. ADS REF/VBIAS readback，打印 `DBGSYSREF` 和 `DBGADSREF`
+5. ADS REF/VBIAS readback 和 analog closed-loop check，打印 `DBGSYSREF`、`DBGADSREF`、`DBGADSREF_ANALOG`
 6. apply selected SW source，`PIEZO_READ -> GND`，`RESISTANCE_READ -> REF`
 7. 进入 `S1-S8 x D1-D8` 8x8 voltage scan loop，每帧输出 `MATV`
 
 启动日志会显示：
 
 ```text
-APPMODE,active=PIEZO_READ,cnName=压电读取,skipAdsInit=0,skipFdcInit=1,path=PIEZO_VOLTAGE,swSource=GND
-DBGMODE,mode=PIEZO_VOLTAGE,requiredSwSource=GND,requiredSwLevel=1,reason=piezo_requires_ground_source
-DBGROUTEPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,cmdSwLevel=1,obsSwLevel=1,sela=ADS126X,fdcInitSkipped=1
+APPMODE,compiled=PIEZO_READ,entry=main_fast_scan,swSource=GND,expectedSwLevel=1
+APPPOLICY,appMode=PIEZO_READ,isDebugAppMode=0,mode=PIEZO_VOLTAGE,requiredSwSource=GND,requiredSwLevel=1,reason=piezo_requires_ground_source
+DBGADSREF_ANALOG,stage=ain9_aincom_short,ain9_aincom_uv=...,expectedNearZero=1,...,result=ok
+ROUTEPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,cmdSwLevel=1,obsSwLevel=1,sela=ADS126X,fdcInitSkipped=1
+VOLTSCAN_INIT,mode=PIEZO_VOLTAGE,appMode=PIEZO_READ,cnName=压电读取,swSource=GND,expectedSwLevel=1,...
 ```
 
 或电阻读取：
 
 ```text
-APPMODE,active=RESISTANCE_READ,cnName=电阻读取,skipAdsInit=0,skipFdcInit=1,path=RESISTIVE,swSource=REF
-DBGMODE,mode=RESISTIVE,requiredSwSource=REF,requiredSwLevel=0,reason=resistive_requires_reference_source
-DBGROUTEPOLICY,mode=RESISTIVE,swSource=REF,expectedSwLevel=0,cmdSwLevel=0,obsSwLevel=0,sela=ADS126X,fdcInitSkipped=1
+APPMODE,compiled=RESISTANCE_READ,entry=main_fast_scan,swSource=REF,expectedSwLevel=0
+APPPOLICY,appMode=RESISTANCE_READ,isDebugAppMode=0,mode=RESISTIVE,requiredSwSource=REF,requiredSwLevel=0,reason=resistive_requires_reference_source
+ROUTEPOLICY,mode=RESISTIVE,swSource=REF,expectedSwLevel=0,cmdSwLevel=0,obsSwLevel=0,sela=ADS126X,fdcInitSkipped=1
+VOLTSCAN_INIT,mode=RESISTIVE,appMode=RESISTANCE_READ,cnName=电阻读取,swSource=REF,expectedSwLevel=0,...
 ```
 
 ## CSV
@@ -60,7 +63,7 @@ MATV_HEADER,seq,timestamp_us,duration_us,unit,S1D1,...,S8D8
 MATV,<seq>,<timestamp_us>,<duration_us>,uV,<64 int32 microvolts>
 ```
 
-点顺序始终为 `S1D1..S1D8,S2D1..S2D8,...,S8D8`。`timestamp_us` 是帧开始时刻，`duration_us` 是整帧耗时。可选输出：`MATV_RAW`、`MATV_GAIN`、`MATV_ERR`。
+点顺序始终为 `S1D1..S1D8,S2D1..S2D8,...,S8D8`。`timestamp_us` 是帧开始时刻，`duration_us` 是整帧耗时。可选输出：`MATV_RAW`、`MATV_GAIN`；错误帧固定输出 `MATV_ERR`。
 
 ## 切换模式
 
@@ -75,7 +78,8 @@ idf.py menuconfig
 ## 文件边界
 
 - `main.c`: app mode 分流、PIEZO/RESISTANCE 主循环、CSV 输出、auto-gain table。
-- `sensorarrayVoltageScan.c/.h`: 8x8 fast route 和 frame scan helper；压电读取固定 `TMUX1108_SOURCE_GND`，电阻读取固定 `TMUX1108_SOURCE_REF`。
+- `sensorarrayApp.c/.h`: app mode 到 SW source 的单一语义来源；`PIEZO_READ -> GND`，`RESISTANCE_READ -> REF`，DEBUG 由子模式解析。
+- `sensorarrayVoltageScan.c/.h`: 8x8 fast route 和 frame scan helper；生产路径必须调用 `WithSource` 版本，兼容 wrapper 只从 app mode source API 取默认 source。
 - `sensorarrayBoardMap.c/.h`: 板级 mapping 单一真相源，SELA GPIO level 只能通过 `sensorarrayBoardMapSelaRouteToGpioLevel()` 转换。
 - `sensorarrayBringup.c/.h`: ADS/FDC bring-up helper；默认 ADS 读取只使用 ADS REF/VBIAS 相关路径。
 - `sensorarrayApp.c` 与 `sensorarrayDebug*.c`: 旧 bring-up/debug dispatcher，仅 DEBUG mode 使用。

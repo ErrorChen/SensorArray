@@ -25,11 +25,131 @@ static const sensorarrayAdsReadPolicy_t s_adsReadPolicy = {
     .readRetryCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT,
 };
 
-static void sensorarrayApplyTmuxDefaults(void)
+sensorarrayAppMode_t sensorarrayAppCompiledMode(void)
+{
+#if CONFIG_SENSORARRAY_APP_MODE_DEBUG
+    return SENSORARRAY_APP_MODE_DEBUG;
+#elif CONFIG_SENSORARRAY_APP_MODE_RESISTANCE_READ
+    return SENSORARRAY_APP_MODE_RESISTANCE_READ;
+#else
+    return SENSORARRAY_APP_MODE_PIEZO_READ;
+#endif
+}
+
+const char *sensorarrayAppModeName(sensorarrayAppMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_APP_MODE_RESISTANCE_READ:
+        return "RESISTANCE_READ";
+    case SENSORARRAY_APP_MODE_DEBUG:
+        return "DEBUG";
+    case SENSORARRAY_APP_MODE_PIEZO_READ:
+    default:
+        return "PIEZO_READ";
+    }
+}
+
+const char *sensorarrayAppModeEntryName(sensorarrayAppMode_t mode)
+{
+    return (mode == SENSORARRAY_APP_MODE_DEBUG) ? "debug_dispatcher" : "main_fast_scan";
+}
+
+const char *sensorarrayAppSwSourceName(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? "REF" : "GND";
+}
+
+tmux1108Source_t sensorarrayAppModeRequiredSource(sensorarrayAppMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_APP_MODE_RESISTANCE_READ:
+        return TMUX1108_SOURCE_REF;
+    case SENSORARRAY_APP_MODE_DEBUG:
+        /*
+         * DEBUG app mode has no single production source. GND is the safe
+         * fallback for startup logging; each debug submode resolves its own
+         * source through sensorarrayAppDebugModeRequiredSource().
+         */
+        return TMUX1108_SOURCE_GND;
+    case SENSORARRAY_APP_MODE_PIEZO_READ:
+    default:
+        return TMUX1108_SOURCE_GND;
+    }
+}
+
+const char *sensorarrayAppModeSourceReason(sensorarrayAppMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_APP_MODE_RESISTANCE_READ:
+        return "resistive_requires_reference_source";
+    case SENSORARRAY_APP_MODE_DEBUG:
+        return "debug_submode_selects_source";
+    case SENSORARRAY_APP_MODE_PIEZO_READ:
+    default:
+        return "piezo_requires_ground_source";
+    }
+}
+
+bool sensorarrayAppDebugModeRequiredSource(sensorarrayDebugMode_t debugMode,
+                                           tmux1108Source_t *outSource,
+                                           const char **outRouteMode,
+                                           const char **outReason)
+{
+    const char *routeMode = NULL;
+    tmux1108Source_t source = TMUX1108_SOURCE_GND;
+    const char *reason = NULL;
+
+    switch (debugMode) {
+    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+        routeMode = "RESISTIVE";
+        source = TMUX1108_SOURCE_REF;
+        reason = "resistive_requires_reference_source";
+        break;
+    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
+    case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
+        routeMode = "CAPACITIVE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "fdc_capacitive_requires_ground_source";
+        break;
+    case SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE:
+#if CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_CAPACITIVE
+        routeMode = "CAPACITIVE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "fdc_capacitive_requires_ground_source";
+#elif CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_VOLTAGE
+        routeMode = "PIEZO_VOLTAGE";
+        source = TMUX1108_SOURCE_GND;
+        reason = "piezo_requires_ground_source";
+#else
+        routeMode = "RESISTIVE";
+        source = TMUX1108_SOURCE_REF;
+        reason = "resistive_requires_reference_source";
+#endif
+        break;
+    default:
+        return false;
+    }
+
+    if (outSource) {
+        *outSource = source;
+    }
+    if (outRouteMode) {
+        *outRouteMode = routeMode;
+    }
+    if (outReason) {
+        *outReason = reason;
+    }
+    return true;
+}
+
+static void sensorarrayApplyTmuxDefaults(sensorarrayDebugMode_t activeMode)
 {
     if (!s_state.tmuxReady) {
         return;
     }
+
+    tmux1108Source_t defaultSource = sensorarrayAppModeRequiredSource(SENSORARRAY_APP_MODE_DEBUG);
+    (void)sensorarrayAppDebugModeRequiredSource(activeMode, &defaultSource, NULL, NULL);
 
     esp_err_t tmuxErr = tmuxSwitchSelectRow(0);
     if (tmuxErr == ESP_OK) {
@@ -43,13 +163,13 @@ static void sensorarrayApplyTmuxDefaults(void)
         tmuxErr = tmux1134SelectSelBLevel(false);
     }
     if (tmuxErr == ESP_OK) {
-        tmuxErr = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
+        tmuxErr = tmuxSwitchSet1108Source(defaultSource);
     }
     if (tmuxErr == ESP_OK) {
         tmuxErr = tmux1134SetEnLogicalState(true);
     }
     if (tmuxErr == ESP_OK) {
-        tmuxErr = tmuxSwitchAssert1108Source(TMUX1108_SOURCE_GND, "tmux_defaults");
+        tmuxErr = tmuxSwitchAssert1108Source(defaultSource, "tmux_defaults");
     }
 
     sensorarrayLogStartup("tmux_defaults",
@@ -61,44 +181,25 @@ static void sensorarrayApplyTmuxDefaults(void)
 
 static void sensorarrayAppLogModeRequirement(sensorarrayDebugMode_t activeMode)
 {
-    const char *mode = NULL;
-    tmux1108Source_t source = TMUX1108_SOURCE_GND;
-    const char *reason = NULL;
+    const char *mode = "NONE";
+    tmux1108Source_t source = sensorarrayAppModeRequiredSource(SENSORARRAY_APP_MODE_DEBUG);
+    const char *reason = "no_fixed_source_for_debug_submode";
+    bool resolved = sensorarrayAppDebugModeRequiredSource(activeMode, &source, &mode, &reason);
 
-    switch (activeMode) {
-    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
-        mode = "RESISTIVE";
-        source = TMUX1108_SOURCE_REF;
-        reason = "resistive_requires_reference_source";
-        break;
-    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
-    case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
-        mode = "CAPACITIVE";
-        source = TMUX1108_SOURCE_GND;
-        reason = "fdc_capacitive_requires_ground_source";
-        break;
-    case SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE:
-#if CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_CAPACITIVE
-        mode = "CAPACITIVE";
-        source = TMUX1108_SOURCE_GND;
-        reason = "fdc_capacitive_requires_ground_source";
-#elif CONFIG_SENSORARRAY_DEBUG_FIXED_PATH_VOLTAGE
-        mode = "PIEZO_VOLTAGE";
-        source = TMUX1108_SOURCE_GND;
-        reason = "piezo_requires_ground_source";
-#else
-        mode = "RESISTIVE";
-        source = TMUX1108_SOURCE_REF;
-        reason = "resistive_requires_reference_source";
-#endif
-        break;
-    default:
+    if (!resolved) {
+        printf("DBGMODE,appMode=DEBUG,isDebugAppMode=1,debugMode=%s,mode=%s,"
+               "requiredSwSource=DEBUG_SUBMODE_UNSPECIFIED,requiredSwLevel=-1,reason=%s\n",
+               sensorarrayLogDebugModeName(activeMode),
+               mode,
+               reason);
         return;
     }
 
-    printf("DBGMODE,mode=%s,requiredSwSource=%s,requiredSwLevel=%d,reason=%s\n",
+    printf("DBGMODE,appMode=DEBUG,isDebugAppMode=1,debugMode=%s,mode=%s,"
+           "requiredSwSource=%s,requiredSwLevel=%d,reason=%s\n",
+           sensorarrayLogDebugModeName(activeMode),
            mode,
-           sensorarrayLogSwSourceLogicalName(source),
+           sensorarrayAppSwSourceName(source),
            tmuxSwitch1108SourceToSwLevel(source),
            reason);
 }
@@ -175,7 +276,7 @@ void sensorarrayAppRun(void)
     s_state.tmuxReady = (err == ESP_OK);
     sensorarrayLogStartup("tmux", err, s_state.tmuxReady ? "ok" : "init_failed", (int32_t)s_state.tmuxReady);
 
-    sensorarrayApplyTmuxDefaults();
+    sensorarrayApplyTmuxDefaults(activeMode);
 
     if (skipAdsInit) {
         const char *adsSkipStatus = singleCapFdcMode

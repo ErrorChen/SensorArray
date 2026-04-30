@@ -19,6 +19,10 @@
 #define LOG_LOCAL_LEVEL CONFIG_ADS126X_LOG_LEVEL
 #endif
 
+#ifndef CONFIG_ADS126X_ALLOW_DRDY_NC_DELAY_MODE
+#define CONFIG_ADS126X_ALLOW_DRDY_NC_DELAY_MODE 0
+#endif
+
 static const char *TAG = "ads126xAdc";
 
 #define ADS126X_SPI_DUMMY_BYTE 0x00
@@ -82,6 +86,12 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_RESET_RELEASE_WAIT_MS 2u
 #define ADS126X_RESET_COMMAND_DELAY_MS 2u
 #define ADS126X_INTERNAL_REF_SETTLE_MS 50u
+
+#if CONFIG_ADS126X_ALLOW_DRDY_NC_DELAY_MODE
+static bool s_drdyNcDelayModeLogged = false;
+#else
+static bool s_drdyNcMissingLogged = false;
+#endif
 
 static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 {
@@ -803,6 +813,29 @@ esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle)
     return ads126xAdcSendCommand(handle, ADS126X_CMD_STOP1);
 }
 
+static esp_err_t ads126xAdcWaitDrdyNcDelayOrError(uint32_t timeoutUs)
+{
+#if CONFIG_ADS126X_ALLOW_DRDY_NC_DELAY_MODE
+    if (!s_drdyNcDelayModeLogged) {
+        ESP_LOGW(TAG, "DRDY GPIO is not configured; using explicit delay mode before RDATA");
+        s_drdyNcDelayModeLogged = true;
+    }
+    if (timeoutUs >= 1000u) {
+        vTaskDelay(pdMS_TO_TICKS((timeoutUs + 999u) / 1000u));
+    } else if (timeoutUs > 0u) {
+        esp_rom_delay_us(timeoutUs);
+    }
+    return ESP_OK;
+#else
+    if (!s_drdyNcMissingLogged) {
+        ESP_LOGW(TAG, "DRDY GPIO is not configured and delay mode is disabled; ADC read aborted");
+        s_drdyNcMissingLogged = true;
+    }
+    (void)timeoutUs;
+    return ESP_ERR_INVALID_STATE;
+#endif
+}
+
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
 {
     if (!handle) {
@@ -810,10 +843,8 @@ esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
     }
 
     if (handle->drdyGpio == GPIO_NUM_NC) {
-        if (timeoutMs > 0) {
-            vTaskDelay(pdMS_TO_TICKS(timeoutMs));
-        }
-        return ESP_OK;
+        uint32_t timeoutUs = (timeoutMs > (UINT_MAX / 1000u)) ? UINT_MAX : (timeoutMs * 1000u);
+        return ads126xAdcWaitDrdyNcDelayOrError(timeoutUs);
     }
 
     TickType_t start = xTaskGetTickCount();
@@ -838,10 +869,7 @@ esp_err_t ads126xAdcWaitDrdyFastUs(ads126xAdcHandle_t *handle, uint32_t timeoutU
     }
 
     if (handle->drdyGpio == GPIO_NUM_NC) {
-        if (timeoutUs > 0u) {
-            esp_rom_delay_us(timeoutUs);
-        }
-        return ESP_OK;
+        return ads126xAdcWaitDrdyNcDelayOrError(timeoutUs);
     }
 
     int64_t startUs = esp_timer_get_time();

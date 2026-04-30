@@ -189,8 +189,11 @@ config SENSORARRAY_VOLTAGE_SCAN_OUTPUT_GAIN
     default n
 
 config SENSORARRAY_VOLTAGE_SCAN_OUTPUT_ERR
-    bool "Output error line when errors occur"
+    bool "Deprecated: MATV_ERR is always output on error"
     default y
+    help
+        Kept for sdkconfig compatibility. Runtime error frames always emit
+        MATV_ERR regardless of this option.
 
 config SENSORARRAY_VOLTAGE_SCAN_PRINT_HEADER_EVERY_N_FRAMES
     int "Print CSV header every N frames, 0 = only once"
@@ -244,6 +247,11 @@ config SENSORARRAY_VOLTAGE_SCAN_DRDY_TIMEOUT_US
 config SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG
     bool "Verbose voltage scan logs"
     default n
+
+config SENSORARRAY_VOLTAGE_SCAN_RECOVERY_ERR_THRESHOLD
+    int "Consecutive failed frames before ADS recovery"
+    range 1 100
+    default 3
 
 endmenu
 

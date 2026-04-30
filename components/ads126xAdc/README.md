@@ -2,7 +2,7 @@
 
 `ads126xAdc` 是通用 ADS1262/ADS1263 SPI driver。它只处理 ADS 芯片级行为：寄存器访问、ADC1/ADC2 控制、INPMUX/REFMUX、internal reference、VBIAS/AINCOM level shift、raw code 读取、raw->microvolts、fast voltage read 和 auto-gain。它不包含 `S1D1`、`D1..D8`、`SW`、`PIEZO_READ`、`RESISTANCE_READ` 或任何板级 route mapping。
 
-Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. Piezo voltage reading uses this ADS driver but must route through the board layer with `TMUX1108_SOURCE_GND`, so SW is driven HIGH before ADS voltage samples are read.
+Board-layer reminder: current SensorArray SW polarity is `SW LOW -> REF` and `SW HIGH -> GND`. `PIEZO_READ / 压电读取` uses `TMUX1108_SOURCE_GND` (SW HIGH), `RESISTANCE_READ / 电阻读取` uses `TMUX1108_SOURCE_REF` (SW LOW), and DEBUG/FDC uses GND unless the selected debug submode explicitly overrides it. This driver does not choose the source; board/app code must pass the resolved source before ADS samples are trusted.
 
 ## Data Rate And Gain Enums
 
@@ -63,6 +63,7 @@ Fast read 行为：
 
 - 只接受 ADS `muxp/muxn`，不理解板级 D-line。
 - 使用 `esp_timer_get_time()` + `gpio_get_level()` 做 us 级 DRDY polling。
+- 如果 `drdyGpio == GPIO_NUM_NC`，默认返回错误；只有启用 `CONFIG_ADS126X_ALLOW_DRDY_NC_DELAY_MODE` 时才进入显式 delay mode，并打印 warning。
 - 默认不 STOP/START；是否 STOP/START 由 cfg 控制。
 - `discardFirst=true` 时第一笔 DRDY/RDATA 会被读出并丢弃。
 - `oversampleCount` 使用 `int64_t` 累加 raw，再平均为 `int32_t`。

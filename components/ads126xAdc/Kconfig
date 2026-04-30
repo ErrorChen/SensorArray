@@ -22,4 +22,12 @@ config ADS126X_HELPER_CREATE_SPI
     help
         Builds ads126xAdcHelperCreateSpiDevice() for quick validation.
 
+config ADS126X_ALLOW_DRDY_NC_DELAY_MODE
+    bool "Allow explicit delay mode when ADS126x DRDY GPIO is unused"
+    default n
+    help
+        If disabled, ADC read helpers return an error when drdyGpio is
+        GPIO_NUM_NC. Enable only on boards that intentionally omit DRDY and
+        accept timeout-based conversion delays before RDATA.
+
 endmenu
