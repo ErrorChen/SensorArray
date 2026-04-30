@@ -32,8 +32,8 @@ ADS126x 读取模式共用同一条高速 8x8 voltage scan 主体：
 1. `boardSupportInit()`
 2. `tmuxSwitchInit()`
 3. `sensorarrayBringupInitAds()`
-4. `sensorarrayBringupPrepareAdsRefPath()` 打开 internal REF、VBIAS/AINCOM level shift、internal REFMUX
-5. ADS REF/VBIAS readback 和 analog closed-loop check，打印 `DBGSYSREF`、`DBGADSREF`、`DBGADSREF_ANALOG`
+4. `route_apply_source_policy()` 按 source 配置 REF/SW：`PIEZO_READ -> GND` 会关闭 INTREF/VBIAS，`RESISTANCE_READ -> REF` 才会打开 internal REF/VBIAS。
+5. `RESISTANCE_READ` 执行 ADS REF/VBIAS readback 和 analog closed-loop check，打印 `DBGSYSREF`、`DBGADSREF`、`DBGADSREF_ANALOG`；`PIEZO_READ` 只打印 REFOUT disabled 状态。
 6. apply selected SW source，`PIEZO_READ -> GND`，`RESISTANCE_READ -> REF`
 7. 进入 `S1-S8 x D1-D8` 8x8 voltage scan loop，每帧输出 `MATV`
 
@@ -42,7 +42,8 @@ ADS126x 读取模式共用同一条高速 8x8 voltage scan 主体：
 ```text
 APPMODE,compiled=PIEZO_READ,entry=main_fast_scan,swSource=GND,expectedSwLevel=1
 APPPOLICY,appMode=PIEZO_READ,isDebugAppMode=0,mode=PIEZO_VOLTAGE,requiredSwSource=GND,requiredSwLevel=1,reason=piezo_requires_ground_source
-DBGADSREF_ANALOG,stage=ain9_aincom_short,ain9_aincom_uv=...,expectedNearZero=1,...,result=ok
+DBGADSREF,mode=PIEZO,external_refout=disabled,intref=0,vbias=0,refmux=0x24,adcReference=AVDD_AVSS,...,result=ok
+DBGREFPOLICY,source=GND,sw=1,intref=0,vbias=0,expected_ref_mv=0
 ROUTEPOLICY,mode=PIEZO_VOLTAGE,swSource=GND,expectedSwLevel=1,cmdSwLevel=1,obsSwLevel=1,sela=ADS126X,fdcInitSkipped=1
 VOLTSCAN_INIT,mode=PIEZO_VOLTAGE,appMode=PIEZO_READ,cnName=压电读取,swSource=GND,expectedSwLevel=1,...
 ```
@@ -52,6 +53,8 @@ VOLTSCAN_INIT,mode=PIEZO_VOLTAGE,appMode=PIEZO_READ,cnName=压电读取,swSource
 ```text
 APPMODE,compiled=RESISTANCE_READ,entry=main_fast_scan,swSource=REF,expectedSwLevel=0
 APPPOLICY,appMode=RESISTANCE_READ,isDebugAppMode=0,mode=RESISTIVE,requiredSwSource=REF,requiredSwLevel=0,reason=resistive_requires_reference_source
+DBGREFPOLICY,source=REF,sw=0,intref=1,vbias=1,expected_ref_mv=700
+DBGADSREF_ANALOG,stage=ain9_aincom_short,ain9_aincom_uv=...,expectedNearZero=1,...,result=ok
 ROUTEPOLICY,mode=RESISTIVE,swSource=REF,expectedSwLevel=0,cmdSwLevel=0,obsSwLevel=0,sela=ADS126X,fdcInitSkipped=1
 VOLTSCAN_INIT,mode=RESISTIVE,appMode=RESISTANCE_READ,cnName=电阻读取,swSource=REF,expectedSwLevel=0,...
 ```
@@ -81,5 +84,9 @@ idf.py menuconfig
 - `sensorarrayApp.c/.h`: app mode 到 SW source 的单一语义来源；`PIEZO_READ -> GND`，`RESISTANCE_READ -> REF`，DEBUG 由子模式解析。
 - `sensorarrayVoltageScan.c/.h`: 8x8 fast route 和 frame scan helper；生产路径必须调用 `WithSource` 版本，兼容 wrapper 只从 app mode source API 取默认 source。
 - `sensorarrayBoardMap.c/.h`: 板级 mapping 单一真相源，SELA GPIO level 只能通过 `sensorarrayBoardMapSelaRouteToGpioLevel()` 转换。
-- `sensorarrayBringup.c/.h`: ADS/FDC bring-up helper；默认 ADS 读取只使用 ADS REF/VBIAS 相关路径。
+- `sensorarrayBringup.c/.h`: ADS/FDC bring-up helper；`ads126x_enable_ref_for_resistance_mode()` 只给 REF/电阻模式打开 INTREF/VBIAS，`ads126x_disable_ref_for_ground_mode()` 给 GND/压电模式关闭 REFOUT/VBIAS。
 - `sensorarrayApp.c` 与 `sensorarrayDebug*.c`: 旧 bring-up/debug dispatcher，仅 DEBUG mode 使用。
+
+## REF/SW 冲突诊断
+
+`SENSOR_ARRAY_DIAG_REF_SW_CONFLICT=1` 会进入不扫描矩阵的最小诊断循环：REF phase 每 500 ms 输出 `DBGDIAG_REF_SW,phase=REF,sw=0,intref=1,vbias=1`，持续 5 秒；GND phase 输出 `DBGDIAG_REF_SW,phase=GND,sw=1,intref=0,vbias=0`，持续 5 秒。示波器上 `REF/D` 应在 REF phase 约 `0.7 V`，GND phase 接近 `0 V`。

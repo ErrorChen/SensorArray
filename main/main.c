@@ -26,6 +26,11 @@ static bool s_voltageHeaderPrinted = false;
 
 static esp_err_t sensorarrayMainConfigureAndStartVoltageAdc(void);
 
+typedef enum {
+    ROUTE_SOURCE_REF = 0,
+    ROUTE_SOURCE_GND = 1,
+} route_source_t;
+
 typedef struct {
     sensorarrayAppMode_t appMode;
     const char *modeName;
@@ -102,6 +107,146 @@ static const char *sensorarrayMainRequiredSourceName(const sensorarrayVoltageRea
 static int sensorarrayMainExpectedSwLevel(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     return tmuxSwitch1108SourceToSwLevel(sensorarrayMainRequiredSource(mode));
+}
+
+static route_source_t sensorarrayMainRouteSourceFromTmux(tmux1108Source_t source)
+{
+    return (source == TMUX1108_SOURCE_REF) ? ROUTE_SOURCE_REF : ROUTE_SOURCE_GND;
+}
+
+static route_source_t sensorarrayMainRouteSourceForMode(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    return sensorarrayMainRouteSourceFromTmux(sensorarrayMainRequiredSource(mode));
+}
+
+static const char *sensorarrayMainRouteSourceName(route_source_t source)
+{
+    switch (source) {
+    case ROUTE_SOURCE_REF:
+        return "REF";
+    case ROUTE_SOURCE_GND:
+        return "GND";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static esp_err_t sensorarrayMainReadRefPolicyState(int *outSwLevel, bool *outIntref, bool *outVbias)
+{
+    if (!outSwLevel || !outIntref || !outVbias) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    tmuxSwitchControlState_t ctrl = {0};
+    esp_err_t err = tmuxSwitchGetControlState(&ctrl);
+    if (err != ESP_OK) {
+        return err;
+    }
+    *outSwLevel = (ctrl.obsSwLevel >= 0) ? ctrl.obsSwLevel : ctrl.cmdSwLevel;
+
+    uint8_t power = 0u;
+    err = ads126xAdcReadCoreRegisters(&s_state.ads, &power, NULL, NULL, NULL, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
+    *outIntref = ((power & ADS126X_POWER_INTREF) != 0u);
+    *outVbias = ((power & ADS126X_POWER_VBIAS) != 0u);
+    return ESP_OK;
+}
+
+esp_err_t route_apply_source_policy(route_source_t source)
+{
+    if (source != ROUTE_SOURCE_REF && source != ROUTE_SOURCE_GND) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_state.adsReady || !s_state.tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = ads126xAdcStopAdc1(&s_state.ads);
+    if (err != ESP_OK) {
+        return err;
+    }
+    s_state.adsAdc1Running = false;
+
+    err = tmux1134SetEnLogicalState(false);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (source == ROUTE_SOURCE_REF) {
+        err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_REF);
+        if (err != ESP_OK) {
+            return err;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5u));
+
+        err = ads126x_enable_ref_for_resistance_mode(&s_state);
+        if (err != ESP_OK) {
+            return err;
+        }
+        printf("DBGREFPOLICY,source=REF,sw=0,intref=1,vbias=1,expected_ref_mv=700\n");
+        return ESP_OK;
+    }
+
+    err = ads126x_disable_ref_for_ground_mode(&s_state);
+    if (err != ESP_OK) {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(20u));
+
+    err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
+    if (err != ESP_OK) {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(5u));
+    printf("DBGREFPOLICY,source=GND,sw=1,intref=0,vbias=0,expected_ref_mv=0\n");
+    return ESP_OK;
+}
+
+static esp_err_t sensorarrayMainCheckRefSwConflict(route_source_t source)
+{
+    int swLevel = -1;
+    bool intref = false;
+    bool vbias = false;
+    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias);
+    if (err != ESP_OK) {
+        printf("DBGREFCONFLICT,reason=policy_state_unavailable,source=%s,sw=-1,intref=-1,vbias=-1,err=%ld\n",
+               sensorarrayMainRouteSourceName(source),
+               (long)err);
+        printf("MATV_ABORT,reason=ref_sw_conflict\n");
+        return err;
+    }
+
+    const char *reason = NULL;
+    if (swLevel == 1 && intref) {
+        reason = "sw_high_but_intref_on";
+    } else if (source == ROUTE_SOURCE_GND && intref) {
+        reason = "gnd_mode_but_intref_on";
+    } else if (source == ROUTE_SOURCE_GND && vbias) {
+        reason = "gnd_mode_but_vbias_on";
+    } else if (source == ROUTE_SOURCE_REF && swLevel != 0) {
+        reason = "ref_mode_but_sw_high";
+    } else if (source == ROUTE_SOURCE_GND && swLevel != 1) {
+        reason = "gnd_mode_but_sw_low";
+    } else if (source == ROUTE_SOURCE_REF && !intref) {
+        reason = "ref_mode_but_intref_off";
+    } else if (source == ROUTE_SOURCE_REF && !vbias) {
+        reason = "ref_mode_but_vbias_off";
+    }
+
+    if (reason) {
+        printf("DBGREFCONFLICT,reason=%s,sw=%d,intref=%u,vbias=%u,source=%s\n",
+               reason,
+               swLevel,
+               intref ? 1u : 0u,
+               vbias ? 1u : 0u,
+               sensorarrayMainRouteSourceName(source));
+        printf("MATV_ABORT,reason=ref_sw_conflict\n");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return ESP_OK;
 }
 
 static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltageReadModeConfig_t *mode)
@@ -194,16 +339,21 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
         return err;
     }
 
-    err = sensorarrayBringupPrepareAdsRefPath(&s_state);
+    route_source_t routeSource = sensorarrayMainRouteSourceForMode(mode);
+    err = route_apply_source_policy(routeSource);
     if (err != ESP_OK) {
         s_state.adsRefReady = false;
         return err;
     }
 
-    err = sensorarrayBringupVerifyAdsRefAnalog(&s_state);
-    s_state.adsRefReady = (err == ESP_OK);
-    if (err != ESP_OK) {
-        sensorarrayMainIdleAfterFatal("ref_analog_verify", err);
+    if (routeSource == ROUTE_SOURCE_REF) {
+        err = sensorarrayBringupVerifyAdsRefAnalog(&s_state);
+        s_state.adsRefReady = (err == ESP_OK);
+        if (err != ESP_OK) {
+            sensorarrayMainIdleAfterFatal("ref_analog_verify", err);
+        }
+    } else {
+        s_state.adsRefReady = true;
     }
 
     err = sensorarrayMainApplyVoltageTmuxDefaults(mode);
@@ -211,6 +361,11 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
         return err;
     }
     sensorarrayMainPrintRoutePolicy(mode);
+
+    err = sensorarrayMainCheckRefSwConflict(routeSource);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("ref_sw_conflict", err);
+    }
 
     if (s_state.adsAdc1Running) {
         err = ads126xAdcStopAdc1(&s_state.ads);
@@ -459,8 +614,9 @@ static esp_err_t sensorarrayMainRecoverAds(const sensorarrayVoltageReadModeConfi
     }
 
     s_state.adsRefReady = false;
-    esp_err_t err = sensorarrayBringupPrepareAdsRefPath(&s_state);
-    if (err == ESP_OK) {
+    route_source_t routeSource = sensorarrayMainRouteSourceForMode(mode);
+    esp_err_t err = route_apply_source_policy(routeSource);
+    if (err == ESP_OK && routeSource == ROUTE_SOURCE_REF) {
         err = sensorarrayBringupVerifyAdsRefAnalog(&s_state);
     }
     s_state.adsRefReady = (err == ESP_OK);
@@ -473,6 +629,13 @@ static esp_err_t sensorarrayMainRecoverAds(const sensorarrayVoltageReadModeConfi
     err = sensorarrayMainApplyVoltageTmuxDefaults(mode);
     if (err != ESP_OK) {
         printf("VOLTSCAN_RECOVERY,stage=route_defaults,err=%ld,status=route_defaults_failed\n", (long)err);
+        return err;
+    }
+
+    err = sensorarrayMainCheckRefSwConflict(routeSource);
+    if (err != ESP_OK) {
+        printf("VOLTSCAN_RECOVERY,stage=ref_sw_conflict,err=%ld,status=conflict_after_route_defaults\n",
+               (long)err);
         return err;
     }
 
@@ -537,8 +700,14 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
         recoveryThreshold = 3u;
     }
     tmux1108Source_t requiredSource = sensorarrayMainRequiredSource(mode);
+    route_source_t routeSource = sensorarrayMainRouteSourceForMode(mode);
 
     while (true) {
+        esp_err_t conflictErr = sensorarrayMainCheckRefSwConflict(routeSource);
+        if (conflictErr != ESP_OK) {
+            sensorarrayMainIdleAfterFatal("ref_sw_conflict", conflictErr);
+        }
+
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_FRAME
         (void)sensorarrayMainBootstrapAutoGain(mode, false);
 #endif
@@ -589,6 +758,66 @@ void sensorarrayRunResistanceRead(void)
     sensorarrayRunVoltageReadMode(&s_resistanceReadMode);
 }
 
+#if SENSOR_ARRAY_DIAG_REF_SW_CONFLICT
+static void sensorarrayMainDiagPrintRefSw(const char *phase)
+{
+    int swLevel = -1;
+    bool intref = false;
+    bool vbias = false;
+    esp_err_t err = sensorarrayMainReadRefPolicyState(&swLevel, &intref, &vbias);
+    printf("DBGDIAG_REF_SW,phase=%s,sw=%d,intref=%u,vbias=%u,err=%ld\n",
+           phase ? phase : "UNKNOWN",
+           swLevel,
+           intref ? 1u : 0u,
+           vbias ? 1u : 0u,
+           (long)err);
+}
+
+static void sensorarrayRunRefSwConflictDiag(void)
+{
+    s_state = (sensorarrayState_t){0};
+
+    esp_err_t err = boardSupportInit();
+    s_state.boardReady = (err == ESP_OK);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("diag_board", err);
+    }
+
+    err = tmuxSwitchInit();
+    s_state.tmuxReady = (err == ESP_OK);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("diag_tmux", err);
+    }
+
+    err = sensorarrayBringupInitAds(&s_state);
+    s_state.adsReady = (err == ESP_OK);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("diag_ads", err);
+    }
+
+    printf("APPMODE,compiled=DIAG_REF_SW_CONFLICT,entry=ref_sw_conflict_diag,swSource=REF|GND,expectedSwLevel=0|1\n");
+    while (true) {
+        err = route_apply_source_policy(ROUTE_SOURCE_REF);
+        if (err != ESP_OK) {
+            sensorarrayMainIdleAfterFatal("diag_ref_policy", err);
+        }
+        for (uint8_t i = 0u; i < 10u; ++i) {
+            sensorarrayMainDiagPrintRefSw("REF");
+            vTaskDelay(pdMS_TO_TICKS(500u));
+        }
+
+        err = route_apply_source_policy(ROUTE_SOURCE_GND);
+        if (err != ESP_OK) {
+            sensorarrayMainIdleAfterFatal("diag_gnd_policy", err);
+        }
+        for (uint8_t i = 0u; i < 10u; ++i) {
+            sensorarrayMainDiagPrintRefSw("GND");
+            vTaskDelay(pdMS_TO_TICKS(500u));
+        }
+    }
+}
+#endif
+
 static void sensorarrayMainPrintStartupAppMode(void)
 {
     sensorarrayAppMode_t appMode = sensorarrayAppCompiledMode();
@@ -622,6 +851,9 @@ static void sensorarrayMainPrintStartupAppMode(void)
 // The main application entry point.
 void app_main(void)
 {
+#if SENSOR_ARRAY_DIAG_REF_SW_CONFLICT
+    sensorarrayRunRefSwConflictDiag();
+#else
     sensorarrayMainPrintStartupAppMode();
 #if CONFIG_SENSORARRAY_APP_MODE_DEBUG
     sensorarrayAppRun();
@@ -629,5 +861,6 @@ void app_main(void)
     sensorarrayRunResistanceRead();
 #else
     sensorarrayRunPiezoRead();
+#endif
 #endif
 }

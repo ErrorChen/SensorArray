@@ -37,7 +37,7 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
                                       uint8_t *outRefmux);
 ```
 
-`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。应用层的 `sensorarrayBringupPrepareAdsRefPath()` 会启用 internal reference、启用 VBIAS/AINCOM level shift、设置 REFMUX，并用 `ads126xAdcReadCoreRegisters()` 读回 `POWER`、`INTERFACE`、`MODE2`、`INPMUX`、`REFMUX`。ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
+`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。`ADS126X_REFMUX_AVDD_AVSS` 表示 ADC1 使用 AVDD/AVSS supply reference，不打开 REFOUT。应用层的 `ads126x_enable_ref_for_resistance_mode()` 只在 `RESISTANCE_READ / REF` 模式启用 internal reference、VBIAS/AINCOM level shift 和 internal REFMUX；`ads126x_disable_ref_for_ground_mode()` 在 `PIEZO_READ / GND` 模式关闭 INTREF/VBIAS 并切到 AVDD/AVSS reference，避免 REFOUT 与 Q1 下拉对拉。ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
 
 ## Fast Voltage Read API
 

@@ -101,9 +101,12 @@ bool sensorarrayAppDebugModeRequiredSource(sensorarrayDebugMode_t debugMode,
 
     switch (debugMode) {
     case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+    case SENSORARRAY_DEBUG_MODE_ADS_SELFTEST:
         routeMode = "RESISTIVE";
         source = TMUX1108_SOURCE_REF;
-        reason = "resistive_requires_reference_source";
+        reason = (debugMode == SENSORARRAY_DEBUG_MODE_ADS_SELFTEST)
+                     ? "ads_selftest_requires_internal_reference"
+                     : "resistive_requires_reference_source";
         break;
     case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
     case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
@@ -211,6 +214,8 @@ void sensorarrayAppRun(void)
     sensorarrayLogSetAdsState(false, false);
 
     sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
+    tmux1108Source_t activeSource = sensorarrayAppModeRequiredSource(SENSORARRAY_APP_MODE_DEBUG);
+    (void)sensorarrayAppDebugModeRequiredSource(activeMode, &activeSource, NULL, NULL);
     sensorarrayAppLogModeRequirement(activeMode);
     bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
@@ -294,7 +299,9 @@ void sensorarrayAppRun(void)
         sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok" : "init_failed", (int32_t)s_state.adsReady);
 
         if (s_state.adsReady) {
-            err = sensorarrayBringupPrepareAdsRefPath(&s_state);
+            err = (activeSource == TMUX1108_SOURCE_REF)
+                      ? ads126x_enable_ref_for_resistance_mode(&s_state)
+                      : ads126x_disable_ref_for_ground_mode(&s_state);
             s_state.adsRefReady = (err == ESP_OK);
             sensorarrayLogStartup("ads_ref", err, s_state.adsRefReady ? "ready" : "not_ready", (int32_t)s_state.adsRefReady);
         } else {

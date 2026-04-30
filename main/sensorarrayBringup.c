@@ -561,7 +561,7 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
 #endif
     cfg.crcMode = ADS126X_CRC_OFF;
     cfg.enableStatusByte = false;
-    cfg.enableInternalRef = true;
+    cfg.enableInternalRef = false;
     cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
     cfg.pgaGain = 1;
     cfg.dataRateDr = 0;
@@ -571,17 +571,14 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
         return err;
     }
 
-    err = ads126xAdcStartAdc1(&state->ads);
-    if (err != ESP_OK) {
-        return err;
-    }
-    state->adsAdc1Running = true;
-
-    int32_t raw = 0;
-    return ads126xAdcReadAdc1Raw(&state->ads, &raw, NULL);
+    state->adsAdc1Running = false;
+    state->adsRefReady = false;
+    state->adsRefMuxValid = false;
+    state->adsRefMux = 0u;
+    return ESP_OK;
 }
 
-esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
+esp_err_t ads126x_enable_ref_for_resistance_mode(sensorarrayState_t *state)
 {
     if (!state) {
         return ESP_ERR_INVALID_ARG;
@@ -589,10 +586,16 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
 
     sensorarrayBringupLogSystemRefTargets();
 
-    esp_err_t err = ads126xAdcConfigure(&state->ads, true, false, ADS126X_CRC_OFF, 1, 0);
+    esp_err_t err = ads126xAdcConfigure(&state->ads,
+                                        true,
+                                        false,
+                                        ADS126X_CRC_OFF,
+                                        state->ads.pgaGain ? state->ads.pgaGain : ADS126X_GAIN_1,
+                                        state->ads.dataRateDr);
     if (err != ESP_OK) {
         return err;
     }
+    state->ads.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
 
     err = ads126xAdcSetVbiasEnabled(&state->ads, true);
     if (err != ESP_OK) {
@@ -607,20 +610,74 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
     sensorarrayDelayMs(SENSORARRAY_REF_SETTLE_MS);
 
     err = sensorarrayBringupLogAdsRefReadback(state,
-                                              "prepare_ref_bias_settled",
+                                              "enable_ref_for_resistance_settled",
                                               ADS126X_REFMUX_INTERNAL);
     if (err != ESP_OK) {
         return err;
     }
 
-    err = ads126xAdcStartAdc1(&state->ads);
+    state->adsRefReady = true;
+    return ESP_OK;
+}
+
+esp_err_t ads126x_disable_ref_for_ground_mode(sensorarrayState_t *state)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ads126xAdcConfigure(&state->ads,
+                                        false,
+                                        false,
+                                        ADS126X_CRC_OFF,
+                                        state->ads.pgaGain ? state->ads.pgaGain : ADS126X_GAIN_1,
+                                        state->ads.dataRateDr);
     if (err != ESP_OK) {
         return err;
     }
-    state->adsAdc1Running = true;
 
-    int32_t raw = 0;
-    return ads126xAdcReadAdc1Raw(&state->ads, &raw, NULL);
+    err = ads126xAdcSetVbiasEnabled(&state->ads, false);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = sensorarrayBringupAdsSetRefMux(state, ADS126X_REFMUX_AVDD_AVSS);
+    if (err != ESP_OK) {
+        return err;
+    }
+    state->ads.vrefMicrovolts = (uint32_t)SENSORARRAY_REF_SUPPLY_SPAN_MV * 1000u;
+
+    uint8_t power = 0u;
+    uint8_t iface = 0u;
+    uint8_t mode2 = 0u;
+    uint8_t inpmux = 0u;
+    uint8_t refmux = 0u;
+    err = ads126xAdcReadCoreRegisters(&state->ads, &power, &iface, &mode2, &inpmux, &refmux);
+    bool readOk = (err == ESP_OK);
+    bool intrefOff = readOk && ((power & ADS126X_POWER_INTREF) == 0u);
+    bool vbiasOff = readOk && ((power & ADS126X_POWER_VBIAS) == 0u);
+    bool refmuxOk = readOk && (refmux == ADS126X_REFMUX_AVDD_AVSS);
+    bool ok = intrefOff && vbiasOff && refmuxOk;
+
+    printf("DBGADSREF,mode=PIEZO,external_refout=disabled,intref=%u,vbias=%u,refmux=0x%02X,"
+           "adcReference=AVDD_AVSS,vref_uv=%lu,result=%s,err=%ld\n",
+           (readOk && ((power & ADS126X_POWER_INTREF) != 0u)) ? 1u : 0u,
+           (readOk && ((power & ADS126X_POWER_VBIAS) != 0u)) ? 1u : 0u,
+           refmux,
+           (unsigned long)state->ads.vrefMicrovolts,
+           ok ? "ok" : "mismatch",
+           (long)err);
+
+    state->adsRefReady = ok;
+    if (!readOk) {
+        return err;
+    }
+    return ok ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
+{
+    return ads126x_enable_ref_for_resistance_mode(state);
 }
 
 esp_err_t sensorarrayBringupVerifyAdsRefAnalog(sensorarrayState_t *state)

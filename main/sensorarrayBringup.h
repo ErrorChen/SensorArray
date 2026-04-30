@@ -35,6 +35,8 @@ bool sensorarrayBringupParseI2cAddress(uint32_t configuredAddress, uint8_t *outA
 
 esp_err_t sensorarrayBringupAdsSetRefMux(sensorarrayState_t *state, uint8_t refmuxValue);
 esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state);
+esp_err_t ads126x_enable_ref_for_resistance_mode(sensorarrayState_t *state);
+esp_err_t ads126x_disable_ref_for_ground_mode(sensorarrayState_t *state);
 esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state);
 esp_err_t sensorarrayBringupVerifyAdsRefAnalog(sensorarrayState_t *state);
 
