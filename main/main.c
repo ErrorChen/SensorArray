@@ -461,7 +461,7 @@ void sensorarrayRunResistanceRead(void)
 void app_main(void)
 {
 #if CONFIG_SENSORARRAY_APP_MODE_DEBUG
-    printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n");
+    printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n"); //debug mode, no ADS126x initialization, direct GPIO control for routing
     sensorarrayAppRun();
 #elif CONFIG_SENSORARRAY_APP_MODE_RESISTANCE_READ
     sensorarrayRunResistanceRead();
