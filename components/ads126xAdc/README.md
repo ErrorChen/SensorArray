@@ -11,7 +11,7 @@ Public enums：
 - `ads126xAdc1DataRate_t`: `ADS126X_ADC1_DR_2P5_SPS` through `ADS126X_ADC1_DR_38400_SPS`，DR code `0x0..0xF`。
 - `ads126xGain_t`: `ADS126X_GAIN_1`, `2`, `4`, `8`, `16`, `32`。
 
-`ads126xAdcConfigureVoltageMode(handle, gain, dataRateDr, enableStatusByte, enableCrc)` 会保留当前 internal reference setting，并配置 status/CRC、PGA gain 和 ADC1 data rate。
+`ads126xAdcConfigureVoltageMode(handle, gain, dataRateDr, enableStatusByte, enableCrc)` 只配置 `INTERFACE` 和 `MODE2`，不会写 `POWER.INTREF`，因此不会意外重新打开 internal reference / REFOUT。
 
 ## Internal Reference / VBIAS / REFMUX
 
@@ -25,8 +25,10 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               uint8_t pgaGain,
                               uint8_t dataRateDr);
 
+esp_err_t ads126xAdcSetInternalRefEnabled(ads126xAdcHandle_t *handle, bool enableInternalRef);
 esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias);
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
+esp_err_t ads126xAdcSetVrefMicrovolts(ads126xAdcHandle_t *handle, uint32_t vrefMicrovolts);
 esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
                                       uint8_t *outPower,
                                       uint8_t *outInterface,
@@ -35,7 +37,9 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
                                       uint8_t *outRefmux);
 ```
 
-`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。应用层的 `sensorarrayBringupPrepareAdsRefPath()` 会启用 internal reference、启用 VBIAS/AINCOM level shift、设置 REFMUX，并用 `ads126xAdcReadCoreRegisters()` 读回 `POWER`、`INTERFACE`、`MODE2`、`INPMUX`、`REFMUX`。ADS driver 只提供通用寄存器能力，不判断板上 `REF/MID` 模拟节点是否真的达到目标电压。
+`ads126xAdcSetInternalRefEnabled(false)` 会通过 `POWER.INTREF=0` 关闭 ADS126x internal reference / REFOUT，并在写寄存器成功后更新 driver cache。后续 `ads126xAdcConfigureVoltageMode()` 不会重新打开 REFOUT；auto-gain 使用 cache，因此调用 no-ref policy 后也会保持 `POWER.INTREF=0`。
+
+`ADS126X_REFMUX_INTERNAL` 表示 ADS126x internal 2.5 V reference。`ADS126X_REFMUX_AVDD_AVSS` 表示 ADC1 使用 AVDD/AVSS 作为 reference，来自 ADS126x datasheet 的 `RMUXP=100` / `RMUXN=100`。应用层的 `sensorarrayBringupPrepareAdsRefPath()` 会启用 internal reference、启用 VBIAS/AINCOM level shift、设置 REFMUX，并用 `ads126xAdcReadCoreRegisters()` 读回 `POWER`、`INTERFACE`、`MODE2`、`INPMUX`、`REFMUX`。这条 REF/MID policy 用于 `RESISTANCE_READ` 和 debug/bring-up，不用于 `PIEZO_READ`。压电读取 policy 是 `POWER.INTREF=0` / REFOUT off、`POWER.VBIAS=0`，并使用 `REFMUX=ADS126X_REFMUX_AVDD_AVSS`。
 
 ## Fast Voltage Read API
 
@@ -76,7 +80,7 @@ ADC1 raw code 是 signed 32-bit。换算公式：
 microvolts = raw * vref_microvolts / (gain * 2^31)
 ```
 
-默认 `vrefMicrovolts=2500000`，输出单位始终是 `int32_t microvolts`。
+默认 `vrefMicrovolts=2500000`，输出单位始终是 `int32_t microvolts`。如果应用层把 REFMUX 从 internal 2.5 V 切到 AVDD/AVSS 或其他 external reference，必须同步调用 `ads126xAdcSetVrefMicrovolts()`，否则 raw-to-uV 换算会与实际 ADC reference 不一致。
 
 ## Auto Gain
 

@@ -24,6 +24,8 @@ extern "C" {
 
 /* REFMUX value for the ADS126x internal 2.5 V reference. */
 #define ADS126X_REFMUX_INTERNAL 0x00u
+/* REFMUX value for AVDD/AVSS reference: RMUXP=100 (VAVDD), RMUXN=100 (VAVSS). */
+#define ADS126X_REFMUX_AVDD_AVSS 0x24u
 
 typedef enum {
     ADS126X_DEVICE_AUTO = 0,
@@ -159,6 +161,13 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               uint8_t pgaGain,
                               uint8_t dataRateDr);
 
+/*
+ * Enable/disable the ADS126x internal reference and REFOUT via POWER.INTREF.
+ * This performs a read-modify-write, preserves POWER.VBIAS and other bits, and
+ * updates handle->enableInternalRef only after the register write succeeds.
+ */
+esp_err_t ads126xAdcSetInternalRefEnabled(ads126xAdcHandle_t *handle, bool enableInternalRef);
+
 esp_err_t ads126xAdcConfigureVoltageMode(ads126xAdcHandle_t *handle,
                                          uint8_t gain,
                                          uint8_t dataRateDr,
@@ -167,6 +176,7 @@ esp_err_t ads126xAdcConfigureVoltageMode(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcSetVrefMicrovolts(ads126xAdcHandle_t *handle, uint32_t vrefMicrovolts);
 
 /*
  * Enable/disable internal AINCOM level shift (VBIAS) via POWER register bit1.

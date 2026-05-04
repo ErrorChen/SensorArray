@@ -7,6 +7,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
 
+#ifndef CONFIG_TMUX1108_SW_REF_LEVEL
+#define CONFIG_TMUX1108_SW_REF_LEVEL 0
+#endif
 #ifndef CONFIG_TMUX1134_DEFAULT_ALL_OFF
 #define CONFIG_TMUX1134_DEFAULT_ALL_OFF 0
 #endif

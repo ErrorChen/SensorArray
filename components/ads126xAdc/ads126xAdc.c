@@ -553,6 +553,44 @@ esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg)
     return ads126xAdcReadRegisters(handle, ADS126X_REG_ID, idReg, 1);
 }
 
+static esp_err_t ads126xAdcConfigureInterfaceAndMode2(ads126xAdcHandle_t *handle,
+                                                      bool enableStatusByte,
+                                                      ads126xCrcMode_t crcMode,
+                                                      uint8_t pgaGain,
+                                                      uint8_t dataRateDr)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (crcMode > ADS126X_CRC_CRC8 || dataRateDr > ADS126X_MODE2_DR_MASK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t gainCode = 0;
+    if (!ads126xAdcGainToCode(pgaGain, &gainCode)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t iface = 0;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+    iface &= (uint8_t)~(ADS126X_INTERFACE_STATUS | ADS126X_INTERFACE_CRC_MASK);
+    if (enableStatusByte) {
+        iface |= ADS126X_INTERFACE_STATUS;
+    }
+    iface |= (uint8_t)crcMode;
+    err = ads126xAdcWriteRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t mode2 = (uint8_t)((gainCode << ADS126X_MODE2_GAIN_SHIFT) | (dataRateDr & ADS126X_MODE2_DR_MASK));
+    mode2 &= (uint8_t)~ADS126X_MODE2_BYPASS;
+    return ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &mode2, 1);
+}
+
 esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               bool enableInternalRef,
                               bool enableStatusByte,
@@ -566,9 +604,7 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     if (crcMode > ADS126X_CRC_CRC8 || dataRateDr > ADS126X_MODE2_DR_MASK) {
         return ESP_ERR_INVALID_ARG;
     }
-
-    uint8_t gainCode = 0;
-    if (!ads126xAdcGainToCode(pgaGain, &gainCode)) {
+    if (!ads126xAdcIsValidGain(pgaGain)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -588,24 +624,11 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return err;
     }
 
-    uint8_t iface = 0;
-    err = ads126xAdcReadRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
-    if (err != ESP_OK) {
-        return err;
-    }
-    iface &= (uint8_t)~(ADS126X_INTERFACE_STATUS | ADS126X_INTERFACE_CRC_MASK);
-    if (enableStatusByte) {
-        iface |= ADS126X_INTERFACE_STATUS;
-    }
-    iface |= (uint8_t)crcMode;
-    err = ads126xAdcWriteRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    uint8_t mode2 = (uint8_t)((gainCode << ADS126X_MODE2_GAIN_SHIFT) | (dataRateDr & ADS126X_MODE2_DR_MASK));
-    mode2 &= (uint8_t)~ADS126X_MODE2_BYPASS;
-    err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &mode2, 1);
+    err = ads126xAdcConfigureInterfaceAndMode2(handle,
+                                               enableStatusByte,
+                                               crcMode,
+                                               pgaGain,
+                                               dataRateDr);
     if (err != ESP_OK) {
         return err;
     }
@@ -616,6 +639,36 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     handle->pgaGain = pgaGain;
     handle->dataRateDr = dataRateDr;
 
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcSetInternalRefEnabled(ads126xAdcHandle_t *handle, bool enableInternalRef)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t power = 0u;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t nextPower = power;
+    if (enableInternalRef) {
+        nextPower |= ADS126X_POWER_INTREF;
+    } else {
+        nextPower &= (uint8_t)~ADS126X_POWER_INTREF;
+    }
+
+    if (nextPower != power) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &nextPower, 1);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    handle->enableInternalRef = enableInternalRef;
     return ESP_OK;
 }
 
@@ -632,12 +685,21 @@ esp_err_t ads126xAdcConfigureVoltageMode(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    return ads126xAdcConfigure(handle,
-                               handle->enableInternalRef,
-                               enableStatusByte,
-                               enableCrc ? ADS126X_CRC_CRC8 : ADS126X_CRC_OFF,
-                               gain,
-                               dataRateDr);
+    ads126xCrcMode_t crcMode = enableCrc ? ADS126X_CRC_CRC8 : ADS126X_CRC_OFF;
+    esp_err_t err = ads126xAdcConfigureInterfaceAndMode2(handle,
+                                                         enableStatusByte,
+                                                         crcMode,
+                                                         gain,
+                                                         dataRateDr);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    handle->enableStatusByte = enableStatusByte;
+    handle->crcMode = crcMode;
+    handle->pgaGain = gain;
+    handle->dataRateDr = dataRateDr;
+    return ESP_OK;
 }
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue)
@@ -649,6 +711,16 @@ esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_
 {
     uint8_t value = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_INPMUX, &value, 1);
+}
+
+esp_err_t ads126xAdcSetVrefMicrovolts(ads126xAdcHandle_t *handle, uint32_t vrefMicrovolts)
+{
+    if (!handle || vrefMicrovolts == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    handle->vrefMicrovolts = vrefMicrovolts;
+    return ESP_OK;
 }
 
 esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias)
