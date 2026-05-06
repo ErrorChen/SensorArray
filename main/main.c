@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "esp_err.h"
+#include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -17,12 +18,20 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayTypes.h"
 #include "sensorarrayVoltageScan.h"
+#include "sensorarrayVoltageStream.h"
 #include "tmuxSwitch.h"
+
+#ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
+#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST 0
+#endif
 
 static sensorarrayState_t s_state = {0};
 static uint8_t s_gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS][SENSORARRAY_VOLTAGE_SCAN_COLS];
 static bool s_voltageHeaderPrinted = false;
 static const char *s_voltageFatalStage = "init";
+static uint32_t s_legacyStatFrames = 0u;
+static uint64_t s_legacyStatScanTotalUs = 0u;
+static uint32_t s_legacyStatScanMaxUs = 0u;
 
 #define SENSORARRAY_MAIN_TMUX1108_REF_LEVEL (CONFIG_TMUX1108_SW_REF_LEVEL ? 1 : 0)
 #define SENSORARRAY_MAIN_TMUX1108_GND_LEVEL (CONFIG_TMUX1108_SW_REF_LEVEL ? 0 : 1)
@@ -155,7 +164,7 @@ static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltag
     return err;
 }
 
-static void sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t *mode)
+static void __attribute__((unused)) sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     printf("APPMODE,active=%s,cnName=%s,skipAdsInit=0,skipFdcInit=%u,sw=%s,"
            "expectedSwLevel=%d,intrefExpected=%u,vbiasExpected=%u,expectedRefmux=0x%02X,"
@@ -172,7 +181,7 @@ static void sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t
            mode->adsRefPolicyName);
 }
 
-static void sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConfig_t *mode)
+static void __attribute__((unused)) sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     printf("DBGROUTEPOLICY,mode=%s,sw=%s,expectedSwLevel=%d,adsIntRef=%s,adsVbias=%s,"
            "adsRefmux=0x%02X,vrefUv=%lu,refPrepPath=%u,sela=ADS126X,fdcInitSkipped=%u\n",
@@ -187,8 +196,115 @@ static void sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConf
            mode->skipFdcInit ? 1u : 0u);
 }
 
-static esp_err_t sensorarrayMainLogTmuxPolicyReadback(const sensorarrayVoltageReadModeConfig_t *mode,
-                                                      const char *stage)
+esp_err_t sensorarrayMainCheckTmuxPolicy(const sensorarrayVoltageReadModeConfig_t *mode,
+                                         sensorarrayStatusCode_t *outCode)
+{
+    if (outCode) {
+        *outCode = SENSORARRAY_STATUS_OK;
+    }
+    if (!mode) {
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_INTERNAL_ASSERT_FAIL;
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    tmuxSwitchControlState_t control = {0};
+    esp_err_t err = tmuxSwitchGetControlState(&control);
+    if (err != ESP_OK) {
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_TMUX_SOURCE_FAIL;
+        }
+        return err;
+    }
+
+    const bool sourceOk = (control.cmdSource == mode->swSource);
+    const bool cmdSwOk = (control.cmdSwLevel == mode->expectedSwLevel);
+    const bool obsSwOk = (control.obsSwLevel == mode->expectedSwLevel);
+    if (!sourceOk || !cmdSwOk || !obsSwOk) {
+        if (!mode->useAdsInternalRef && mode->expectedSwLevel == 1) {
+            sensorarrayMainSetFatalStage("piezo_sw_not_high");
+        } else {
+            sensorarrayMainSetFatalStage("tmux_sw_policy_mismatch");
+        }
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_TMUX_SW_POLICY_MISMATCH;
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayMainCheckAdsPowerPolicy(sensorarrayState_t *state,
+                                             const sensorarrayVoltageReadModeConfig_t *mode,
+                                             sensorarrayStatusCode_t *outCode)
+{
+    if (outCode) {
+        *outCode = SENSORARRAY_STATUS_OK;
+    }
+    if (!state || !mode) {
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_INTERNAL_ASSERT_FAIL;
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t power = 0u;
+    uint8_t refmux = 0u;
+    esp_err_t err = ads126xAdcReadCoreRegisters(&state->ads, &power, NULL, NULL, NULL, &refmux);
+    if (err != ESP_OK) {
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_ADS_SPI_FAIL;
+        }
+        return err;
+    }
+
+    const bool intrefEnabled = ((power & ADS126X_POWER_INTREF) != 0u);
+    const bool vbiasEnabled = ((power & ADS126X_POWER_VBIAS) != 0u);
+    const bool intrefOk = (intrefEnabled == mode->useAdsInternalRef);
+    const bool vbiasOk = (vbiasEnabled == mode->useAdsVbias);
+    const bool refmuxOk = (!mode->checkAdsRefmux || refmux == mode->expectedAdsRefmux);
+
+    if (!mode->useAdsInternalRef && intrefEnabled) {
+        sensorarrayMainSetFatalStage("piezo_refout_not_off");
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_ADS_REF_POLICY_MISMATCH;
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!mode->useAdsVbias && vbiasEnabled) {
+        sensorarrayMainSetFatalStage("piezo_vbias_not_off");
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_ADS_REF_POLICY_MISMATCH;
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!refmuxOk) {
+        sensorarrayMainSetFatalStage("ads_refmux_policy_mismatch");
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_ADS_REF_POLICY_MISMATCH;
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!intrefOk || !vbiasOk) {
+        sensorarrayMainSetFatalStage("ads_power_policy_mismatch");
+        if (outCode) {
+            *outCode = SENSORARRAY_STATUS_ADS_REF_POLICY_MISMATCH;
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayMainCheckAdsRefPolicy(sensorarrayState_t *state,
+                                           const sensorarrayVoltageReadModeConfig_t *mode,
+                                           sensorarrayStatusCode_t *outCode)
+{
+    return sensorarrayMainCheckAdsPowerPolicy(state, mode, outCode);
+}
+
+static esp_err_t __attribute__((unused)) sensorarrayMainLogTmuxPolicyReadback(const sensorarrayVoltageReadModeConfig_t *mode,
+                                                                              const char *stage)
 {
     if (!mode) {
         return ESP_ERR_INVALID_ARG;
@@ -230,9 +346,9 @@ static esp_err_t sensorarrayMainLogTmuxPolicyReadback(const sensorarrayVoltageRe
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayMainLogAdsPowerPolicyReadback(sensorarrayState_t *state,
-                                                          const sensorarrayVoltageReadModeConfig_t *mode,
-                                                          const char *stage)
+static esp_err_t __attribute__((unused)) sensorarrayMainLogAdsPowerPolicyReadback(sensorarrayState_t *state,
+                                                                                  const sensorarrayVoltageReadModeConfig_t *mode,
+                                                                                  const char *stage)
 {
     if (!state || !mode) {
         return ESP_ERR_INVALID_ARG;
@@ -352,7 +468,12 @@ static esp_err_t sensorarrayMainPrepareAdsPiezoNoRef(sensorarrayState_t *state,
     }
 
     state->adsRefReady = false;
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     return sensorarrayMainLogAdsPowerPolicyReadback(state, mode, "piezo_no_ref_settled");
+#else
+    sensorarrayStatusCode_t code = SENSORARRAY_STATUS_OK;
+    return sensorarrayMainCheckAdsRefPolicy(state, mode, &code);
+#endif
 }
 
 static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadModeConfig_t *mode)
@@ -363,12 +484,17 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
 
     s_state = (sensorarrayState_t){0};
     s_voltageHeaderPrinted = false;
+    s_legacyStatFrames = 0u;
+    s_legacyStatScanTotalUs = 0u;
+    s_legacyStatScanMaxUs = 0u;
     sensorarrayMainSetFatalStage("init");
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
     uint8_t defaultGain = sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN);
     uint8_t dataRateDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
 
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     sensorarrayMainPrintAppMode(mode);
+#endif
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -420,12 +546,24 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
     if (err != ESP_OK) {
         return err;
     }
+    sensorarrayStatusCode_t policyCode = SENSORARRAY_STATUS_OK;
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     sensorarrayMainPrintRoutePolicy(mode);
-
     err = sensorarrayMainLogTmuxPolicyReadback(mode, "voltage_scan_init");
+#else
+    err = sensorarrayMainCheckTmuxPolicy(mode, &policyCode);
+#endif
     if (err != ESP_OK) {
         return err;
     }
+
+#if !CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+    err = sensorarrayMainCheckAdsRefPolicy(&s_state, mode, &policyCode);
+    if (err != ESP_OK) {
+        return err;
+    }
+#endif
+    (void)policyCode;
 
     err = ads126xAdcStartAdc1(&s_state.ads);
     if (err != ESP_OK) {
@@ -603,6 +741,44 @@ static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *fra
     printf("\n");
 }
 
+static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *frame)
+{
+    if (!frame) {
+        return;
+    }
+
+    s_legacyStatFrames++;
+    s_legacyStatScanTotalUs += frame->scanDurationUs;
+    if (frame->scanDurationUs > s_legacyStatScanMaxUs) {
+        s_legacyStatScanMaxUs = frame->scanDurationUs;
+    }
+
+    if ((frame->sequence % (uint32_t)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES) != 0u) {
+        return;
+    }
+
+    uint32_t scanAvgUs = s_legacyStatFrames == 0u
+                             ? 0u
+                             : (uint32_t)(s_legacyStatScanTotalUs / (uint64_t)s_legacyStatFrames);
+    uint32_t fps = scanAvgUs == 0u ? 0u : (1000000u / scanAvgUs);
+    uint32_t pps = fps * SENSORARRAY_VOLTAGE_SCAN_ROWS * SENSORARRAY_VOLTAGE_SCAN_COLS;
+    uint8_t adsDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
+
+    printf("STAT,seq=%" PRIu32 ",fps=%" PRIu32 ",pps=%" PRIu32
+           ",scanAvgUs=%" PRIu32 ",scanMaxUs=%" PRIu32
+           ",routeAvgUs=0,inpmuxAvgUs=0,drdyAvgUs=0,adcReadAvgUs=0,spiAvgUs=0,"
+           "queueAvgUs=0,usbAvgUs=0,drop=0,decimated=0,qFull=0,drdyTimeout=0,spiFail=0,"
+           "adsDr=%u,adsSps=%" PRIu32 ",outputDiv=1,scanPeriodUs=%u,status=0x00000000,code=0x0000\n",
+           frame->sequence,
+           fps,
+           pps,
+           scanAvgUs,
+           s_legacyStatScanMaxUs,
+           (unsigned)adsDr,
+           ads126xAdcDataRateCodeToSps(adsDr),
+           (unsigned)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS * 1000u));
+}
+
 static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     printf("VOLTSCAN_INIT,mode=%s,cnName=%s,sw=%s,expectedSwLevel=%d,adsIntRef=%s,adsVbias=%s,"
@@ -648,10 +824,36 @@ static void sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *fra
 
 static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    esp_log_level_set("*", ESP_LOG_WARN);
+#endif
+
     esp_err_t err = sensorarrayMainInitVoltageScan(mode);
     if (err != ESP_OK) {
         sensorarrayMainIdleAfterFatal(s_voltageFatalStage, err);
     }
+
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
+    sensorarrayVoltageStreamConfig_t streamCfg = {
+        .ads = &s_state.ads,
+        .swSource = mode->swSource,
+        .modeName = mode->modeName,
+        .swName = mode->swName,
+        .expectedAdsRefmux = mode->expectedAdsRefmux,
+        .useAdsInternalRef = mode->useAdsInternalRef,
+        .useAdsVbias = mode->useAdsVbias,
+        .routePolicyOk = true,
+        .adsPolicyOk = true,
+    };
+    err = sensorarrayVoltageStreamStart(&streamCfg);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("voltage_stream_start", err);
+    }
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000u));
+    }
+#endif
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_POINT
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
@@ -672,6 +874,7 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
 
         sensorarrayMainMaybePrintVoltageHeader(frame.sequence);
         sensorarrayMainPrintVoltageFrameCsv(&frame);
+        sensorarrayMainPrintLegacyStat(&frame);
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_RAW
         sensorarrayMainPrintRawFrameCsv(&frame);
 #endif

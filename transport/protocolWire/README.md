@@ -46,3 +46,22 @@ Typical API:
 
 - 已可用于固定帧打包。
 - 是否投入默认应用主链路由 app 层决定。
+
+## Voltage compact frame used by FAST/MAX
+
+`protocolWire` still provides the existing fixed 400-byte generic frame. The high-rate ADS126x voltage stream uses a compact app-layer frame because it needs voltage-specific status, drop/decimation counters, ADS data-rate metadata, and CRC32 while avoiding CSV formatting cost.
+
+Frame type: `sensorarrayVoltageCompactFrame_t`
+
+- magic: `0x31434153` (`SAC1` bytes)
+- version: `1`
+- frameType: `0x1261` (ADS126x voltage microvolts)
+- sequence/timestamp/scan duration
+- status flags and first/last status code
+- dropped frame count and output-decimated frame count
+- 64-bit valid mask
+- `int32_t microvolts[64]`, order `S1D1..S1D8,S2D1..S8D8`
+- ADS DR code and output divider
+- IEEE CRC32 over the whole frame except `crc32`
+
+This frame is emitted by the output task with a single `fwrite()` call. It is intentionally not newline-delimited; host tools should search for the magic word and validate CRC32.

@@ -102,6 +102,20 @@ typedef struct {
     uint8_t *spiTxBuf;
     uint8_t *spiRxBuf;
     size_t spiBufSize;
+    bool spiDmaCapable;
+    bool fastConfigured;
+    bool fastBusAcquired;
+    bool fastDirectReadFailed;
+    struct {
+        bool fastInpmuxWrite;
+        bool directRead;
+        bool statusByteEnabled;
+        bool crcEnabled;
+        bool fixedGain;
+        bool usePollingTransmit;
+        bool acquireBusPerFrame;
+        uint32_t drdyTimeoutUs;
+    } fastOptions;
 } ads126xAdcHandle_t;
 
 typedef struct {
@@ -142,6 +156,38 @@ typedef struct {
     uint8_t iterations;
     esp_err_t err;
 } ads126xAdcAutoGainResult_t;
+
+typedef struct {
+    bool fastInpmuxWrite;
+    bool directRead;
+    bool statusByteEnabled;
+    bool crcEnabled;
+    bool fixedGain;
+    bool usePollingTransmit;
+    bool acquireBusPerFrame;
+    uint32_t drdyTimeoutUs;
+} ads126xAdcFastScanOptions_t;
+
+typedef struct {
+    uint32_t spiTransferCount;
+    uint32_t inpmuxWriteCount;
+    uint32_t directReadCount;
+    uint32_t rdataReadCount;
+    uint32_t drdyTimeoutCount;
+    uint32_t crcFailCount;
+    uint32_t statusBadCount;
+    uint32_t gainChangeCount;
+
+    uint64_t spiTransferTotalUs;
+    uint64_t inpmuxWriteTotalUs;
+    uint64_t drdyWaitTotalUs;
+    uint64_t adcReadTotalUs;
+
+    uint32_t spiTransferMaxUs;
+    uint32_t inpmuxWriteMaxUs;
+    uint32_t drdyWaitMaxUs;
+    uint32_t adcReadMaxUs;
+} ads126xAdcFastPerfCounters_t;
 
 esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *cfg);
 esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle);
@@ -226,6 +272,27 @@ int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawC
 esp_err_t ads126xAdcReadVoltageMicrovoltsFast(ads126xAdcHandle_t *handle,
                                               const ads126xAdcVoltageReadConfig_t *cfg,
                                               ads126xAdcVoltageSample_t *outSample);
+
+esp_err_t ads126xAdcConfigureFastScan(ads126xAdcHandle_t *handle,
+                                      const ads126xAdcFastScanOptions_t *options);
+
+esp_err_t ads126xAdcBeginFastFrame(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcEndFastFrame(ads126xAdcHandle_t *handle);
+
+esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+
+esp_err_t ads126xAdcReadAdc1RawDirectFast(ads126xAdcHandle_t *handle,
+                                          int32_t *rawCode,
+                                          uint8_t *statusOptional);
+
+esp_err_t ads126xAdcReadVoltageMicrovoltsFast2(ads126xAdcHandle_t *handle,
+                                               const ads126xAdcVoltageReadConfig_t *cfg,
+                                               ads126xAdcVoltageSample_t *outSample,
+                                               ads126xAdcFastPerfCounters_t *perf);
+
+uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
+uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 
 esp_err_t ads126xAdcSelectAutoGainForVoltage(ads126xAdcHandle_t *handle,
                                              const ads126xAdcVoltageReadConfig_t *readCfg,

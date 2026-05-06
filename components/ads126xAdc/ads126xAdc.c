@@ -7,6 +7,7 @@
 #include "esp_rom_sys.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_memory_utils.h"
 #include "esp_timer.h"
 #include "driver/gpio.h"
 #include "freertos/task.h"
@@ -20,6 +21,31 @@
 #endif
 
 static const char *TAG = "ads126xAdc";
+
+#ifndef CONFIG_SENSORARRAY_ADS_FAST_INPMUX_WRITE
+#define CONFIG_SENSORARRAY_ADS_FAST_INPMUX_WRITE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_FAST_READ_DIRECT
+#define CONFIG_SENSORARRAY_ADS_FAST_READ_DIRECT 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_FAST_DISABLE_STATUS_CRC
+#define CONFIG_SENSORARRAY_ADS_FAST_DISABLE_STATUS_CRC 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_FAST_FIXED_GAIN
+#define CONFIG_SENSORARRAY_ADS_FAST_FIXED_GAIN 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_SPI_POLLING_TRANSMIT
+#define CONFIG_SENSORARRAY_ADS_SPI_POLLING_TRANSMIT 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_SPI_ACQUIRE_BUS_PER_FRAME
+#define CONFIG_SENSORARRAY_ADS_SPI_ACQUIRE_BUS_PER_FRAME 0
+#endif
+#ifndef CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST
+#define CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST 2000
+#endif
+#ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE
+#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE ADS126X_ADC1_DR_38400_SPS
+#endif
 
 #define ADS126X_SPI_DUMMY_BYTE 0x00
 
@@ -92,6 +118,9 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 
     handle->spiTxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
     handle->spiRxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
+    handle->spiDmaCapable = handle->spiTxBuf && handle->spiRxBuf &&
+                            esp_ptr_dma_capable(handle->spiTxBuf) &&
+                            esp_ptr_dma_capable(handle->spiRxBuf);
     if (!handle->spiTxBuf || !handle->spiRxBuf) {
         if (handle->spiTxBuf) {
             heap_caps_free(handle->spiTxBuf);
@@ -110,6 +139,7 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
             }
             return ESP_ERR_NO_MEM;
         }
+        handle->spiDmaCapable = false;
         ESP_LOGW(TAG, "DMA buffers unavailable; using non-DMA buffers");
     }
 
@@ -320,6 +350,69 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
     return err;
 }
 
+static void ads126xAdcFastPerfAdd(uint64_t *totalUs, uint32_t *maxUs, uint32_t sampleUs)
+{
+    if (totalUs) {
+        *totalUs += sampleUs;
+    }
+    if (maxUs && sampleUs > *maxUs) {
+        *maxUs = sampleUs;
+    }
+}
+
+static esp_err_t ads126xAdcSpiTransferFast(ads126xAdcHandle_t *handle,
+                                           const uint8_t *tx,
+                                           size_t txLen,
+                                           uint8_t *rx,
+                                           size_t rxLen,
+                                           ads126xAdcFastPerfCounters_t *perf)
+{
+    if (!handle || !handle->spiDevice) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t totalLen = txLen + rxLen;
+    if (totalLen == 0u) {
+        return ESP_OK;
+    }
+    if (totalLen > handle->spiBufSize || !handle->spiTxBuf || !handle->spiRxBuf) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    if (txLen > 0u && tx) {
+        memcpy(handle->spiTxBuf, tx, txLen);
+    }
+    if (rxLen > 0u) {
+        memset(handle->spiTxBuf + txLen, ADS126X_SPI_DUMMY_BYTE, rxLen);
+    }
+    memset(handle->spiRxBuf, 0, totalLen);
+
+    spi_transaction_t trans = {0};
+    trans.length = totalLen * 8u;
+    trans.rxlength = totalLen * 8u;
+    trans.tx_buffer = handle->spiTxBuf;
+    trans.rx_buffer = handle->spiRxBuf;
+
+    int64_t startUs = esp_timer_get_time();
+    esp_err_t err;
+    if (handle->fastOptions.usePollingTransmit && totalLen <= 8u) {
+        err = spi_device_polling_transmit(handle->spiDevice, &trans);
+    } else {
+        err = spi_device_transmit(handle->spiDevice, &trans);
+    }
+    uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - startUs);
+
+    if (perf) {
+        perf->spiTransferCount++;
+        ads126xAdcFastPerfAdd(&perf->spiTransferTotalUs, &perf->spiTransferMaxUs, elapsedUs);
+    }
+
+    if (err == ESP_OK && rx && rxLen > 0u) {
+        memcpy(rx, handle->spiRxBuf + txLen, rxLen);
+    }
+    return err;
+}
+
 static bool ads126xAdcIsAdc2Supported(const ads126xAdcHandle_t *handle)
 {
 #if CONFIG_ADS126X_HAS_ADC2
@@ -351,6 +444,14 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
     handle->pgaGain = cfg->pgaGain;
     handle->dataRateDr = cfg->dataRateDr;
     handle->drdyTimeoutMs = ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS;
+    handle->fastOptions.fastInpmuxWrite = CONFIG_SENSORARRAY_ADS_FAST_INPMUX_WRITE != 0;
+    handle->fastOptions.directRead = CONFIG_SENSORARRAY_ADS_FAST_READ_DIRECT != 0;
+    handle->fastOptions.statusByteEnabled = cfg->enableStatusByte;
+    handle->fastOptions.crcEnabled = cfg->crcMode != ADS126X_CRC_OFF;
+    handle->fastOptions.fixedGain = CONFIG_SENSORARRAY_ADS_FAST_FIXED_GAIN != 0;
+    handle->fastOptions.usePollingTransmit = CONFIG_SENSORARRAY_ADS_SPI_POLLING_TRANSMIT != 0;
+    handle->fastOptions.acquireBusPerFrame = CONFIG_SENSORARRAY_ADS_SPI_ACQUIRE_BUS_PER_FRAME != 0;
+    handle->fastOptions.drdyTimeoutUs = CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST;
 
     handle->mutex = xSemaphoreCreateMutex();
     if (!handle->mutex) {
@@ -713,6 +814,137 @@ esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_INPMUX, &value, 1);
 }
 
+esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t cmd[3] = {
+        (uint8_t)(ADS126X_CMD_WREG | ADS126X_REG_INPMUX),
+        0u,
+        (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu)),
+    };
+    return ads126xAdcSpiTransferFast(handle, cmd, sizeof(cmd), NULL, 0, NULL);
+}
+
+esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t expected = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
+    esp_err_t err = ads126xAdcSetInputMux(handle, muxp, muxn);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t actual = 0u;
+    err = ads126xAdcReadRegisters(handle, ADS126X_REG_INPMUX, &actual, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return (actual == expected) ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+}
+
+esp_err_t ads126xAdcConfigureFastScan(ads126xAdcHandle_t *handle,
+                                      const ads126xAdcFastScanOptions_t *options)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ads126xAdcFastScanOptions_t opt = {
+        .fastInpmuxWrite = CONFIG_SENSORARRAY_ADS_FAST_INPMUX_WRITE != 0,
+        .directRead = CONFIG_SENSORARRAY_ADS_FAST_READ_DIRECT != 0,
+        .statusByteEnabled = handle->enableStatusByte,
+        .crcEnabled = handle->crcMode != ADS126X_CRC_OFF,
+        .fixedGain = CONFIG_SENSORARRAY_ADS_FAST_FIXED_GAIN != 0,
+        .usePollingTransmit = CONFIG_SENSORARRAY_ADS_SPI_POLLING_TRANSMIT != 0,
+        .acquireBusPerFrame = CONFIG_SENSORARRAY_ADS_SPI_ACQUIRE_BUS_PER_FRAME != 0,
+        .drdyTimeoutUs = CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST,
+    };
+    if (options) {
+        opt = *options;
+    }
+
+#if CONFIG_SENSORARRAY_ADS_FAST_DISABLE_STATUS_CRC
+    opt.statusByteEnabled = false;
+    opt.crcEnabled = false;
+#endif
+    if (opt.drdyTimeoutUs == 0u) {
+        opt.drdyTimeoutUs = CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST;
+    }
+
+    handle->fastOptions.fastInpmuxWrite = opt.fastInpmuxWrite;
+    handle->fastOptions.directRead = opt.directRead;
+    handle->fastOptions.statusByteEnabled = opt.statusByteEnabled;
+    handle->fastOptions.crcEnabled = opt.crcEnabled;
+    handle->fastOptions.fixedGain = opt.fixedGain;
+    handle->fastOptions.usePollingTransmit = opt.usePollingTransmit;
+    handle->fastOptions.acquireBusPerFrame = opt.acquireBusPerFrame;
+    handle->fastOptions.drdyTimeoutUs = opt.drdyTimeoutUs;
+
+    uint8_t dataRateDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & ADS126X_MODE2_DR_MASK);
+    uint8_t gain = ads126xAdcNormalizeGainOrDefault(handle->pgaGain, ADS126X_GAIN_1);
+    esp_err_t err = ads126xAdcConfigureVoltageMode(handle,
+                                                   gain,
+                                                   dataRateDr,
+                                                   opt.statusByteEnabled,
+                                                   opt.crcEnabled);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t iface = 0u;
+    uint8_t mode2 = 0u;
+    err = ads126xAdcReadCoreRegisters(handle, NULL, &iface, &mode2, NULL, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t expectedCrc = opt.crcEnabled ? ADS126X_CRC_CRC8 : ADS126X_CRC_OFF;
+    bool ifaceOk = (((iface & ADS126X_INTERFACE_STATUS) != 0u) == opt.statusByteEnabled) &&
+                   ((iface & ADS126X_INTERFACE_CRC_MASK) == expectedCrc);
+    bool mode2Ok = ((mode2 & ADS126X_MODE2_DR_MASK) == dataRateDr);
+    if (!ifaceOk || !mode2Ok) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    handle->fastConfigured = true;
+    handle->fastDirectReadFailed = false;
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcBeginFastFrame(ads126xAdcHandle_t *handle)
+{
+    if (!handle || !handle->spiDevice) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!handle->fastOptions.acquireBusPerFrame || handle->fastBusAcquired) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = spi_device_acquire_bus(handle->spiDevice, portMAX_DELAY);
+    if (err == ESP_OK) {
+        handle->fastBusAcquired = true;
+    }
+    return err;
+}
+
+esp_err_t ads126xAdcEndFastFrame(ads126xAdcHandle_t *handle)
+{
+    if (!handle || !handle->spiDevice) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (handle->fastBusAcquired) {
+        spi_device_release_bus(handle->spiDevice);
+        handle->fastBusAcquired = false;
+    }
+    return ESP_OK;
+}
+
 esp_err_t ads126xAdcSetVrefMicrovolts(ads126xAdcHandle_t *handle, uint32_t vrefMicrovolts)
 {
     if (!handle || vrefMicrovolts == 0u) {
@@ -983,6 +1215,164 @@ static esp_err_t ads126xAdcReadAdc1RawAfterDrdy(ads126xAdcHandle_t *handle,
     return ESP_OK;
 }
 
+static esp_err_t ads126xAdcWaitDrdyFastTimed(ads126xAdcHandle_t *handle,
+                                             uint32_t timeoutUs,
+                                             ads126xAdcFastPerfCounters_t *perf)
+{
+    int64_t startUs = esp_timer_get_time();
+    esp_err_t err = ads126xAdcWaitDrdyFastUs(handle, timeoutUs);
+    uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - startUs);
+    if (perf) {
+        ads126xAdcFastPerfAdd(&perf->drdyWaitTotalUs, &perf->drdyWaitMaxUs, elapsedUs);
+        if (err == ESP_ERR_TIMEOUT) {
+            perf->drdyTimeoutCount++;
+        }
+    }
+    return err;
+}
+
+static esp_err_t ads126xAdcParseAdc1FrameFast(ads126xAdcHandle_t *handle,
+                                              const uint8_t *frame,
+                                              size_t frameLen,
+                                              int32_t *rawCode,
+                                              uint8_t *statusByteOptional,
+                                              ads126xAdcFastPerfCounters_t *perf)
+{
+    if (!handle || !frame || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t idx = 0u;
+    if (handle->enableStatusByte) {
+        if (frameLen < 5u) {
+            return ESP_ERR_INVALID_SIZE;
+        }
+        uint8_t status = frame[idx++];
+        if (statusByteOptional) {
+            *statusByteOptional = status;
+        }
+        if (status == 0xFFu) {
+            if (perf) {
+                perf->statusBadCount++;
+            }
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+
+    if ((idx + 4u) > frameLen) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    const uint8_t *dataBytes = &frame[idx];
+    idx += 4u;
+
+    if (handle->crcMode != ADS126X_CRC_OFF) {
+        if (idx >= frameLen) {
+            return ESP_ERR_INVALID_SIZE;
+        }
+        uint8_t expected = frame[idx];
+        uint8_t actual = (handle->crcMode == ADS126X_CRC_CRC8)
+                             ? ads126xAdcCrc8(dataBytes, 4)
+                             : ads126xAdcChecksum(dataBytes, 4);
+        if (expected != actual) {
+            if (perf) {
+                perf->crcFailCount++;
+            }
+            return ESP_ERR_INVALID_CRC;
+        }
+    }
+
+    uint32_t rawU = ((uint32_t)dataBytes[0] << 24) |
+                    ((uint32_t)dataBytes[1] << 16) |
+                    ((uint32_t)dataBytes[2] << 8) |
+                    (uint32_t)dataBytes[3];
+    *rawCode = (int32_t)rawU;
+    return ESP_OK;
+}
+
+static size_t ads126xAdcAdc1FrameLen(const ads126xAdcHandle_t *handle)
+{
+    size_t frameLen = 4u;
+    if (handle && handle->enableStatusByte) {
+        frameLen++;
+    }
+    if (handle && handle->crcMode != ADS126X_CRC_OFF) {
+        frameLen++;
+    }
+    return frameLen;
+}
+
+static esp_err_t ads126xAdcReadAdc1RawRdataFast(ads126xAdcHandle_t *handle,
+                                                int32_t *rawCode,
+                                                uint8_t *statusByteOptional,
+                                                ads126xAdcFastPerfCounters_t *perf)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t frameLen = ads126xAdcAdc1FrameLen(handle);
+    uint8_t frame[6] = {0};
+    uint8_t cmd = ADS126X_CMD_RDATA1;
+    int64_t startUs = esp_timer_get_time();
+    esp_err_t err = ads126xAdcSpiTransferFast(handle, &cmd, 1u, frame, frameLen, perf);
+    if (err == ESP_OK) {
+        err = ads126xAdcParseAdc1FrameFast(handle, frame, frameLen, rawCode, statusByteOptional, perf);
+    }
+    uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - startUs);
+    if (perf) {
+        perf->rdataReadCount++;
+        ads126xAdcFastPerfAdd(&perf->adcReadTotalUs, &perf->adcReadMaxUs, elapsedUs);
+    }
+    return err;
+}
+
+static esp_err_t ads126xAdcReadAdc1RawDirectFastWithPerf(ads126xAdcHandle_t *handle,
+                                                         int32_t *rawCode,
+                                                         uint8_t *statusByteOptional,
+                                                         ads126xAdcFastPerfCounters_t *perf)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ads126xAdcWaitDrdyFastTimed(handle, handle->fastOptions.drdyTimeoutUs, perf);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    size_t frameLen = ads126xAdcAdc1FrameLen(handle);
+    if (handle->fastOptions.directRead && !handle->fastDirectReadFailed) {
+        uint8_t frame[6] = {0};
+        int64_t startUs = esp_timer_get_time();
+        err = ads126xAdcSpiTransferFast(handle, NULL, 0u, frame, frameLen, perf);
+        if (err == ESP_OK) {
+            err = ads126xAdcParseAdc1FrameFast(handle, frame, frameLen, rawCode, statusByteOptional, perf);
+        }
+        uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - startUs);
+        if (perf) {
+            perf->directReadCount++;
+            ads126xAdcFastPerfAdd(&perf->adcReadTotalUs, &perf->adcReadMaxUs, elapsedUs);
+        }
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+        handle->fastDirectReadFailed = true;
+        if (perf) {
+            perf->directReadCount++;
+        }
+    }
+
+    return ads126xAdcReadAdc1RawRdataFast(handle, rawCode, statusByteOptional, perf);
+}
+
+esp_err_t ads126xAdcReadAdc1RawDirectFast(ads126xAdcHandle_t *handle,
+                                          int32_t *rawCode,
+                                          uint8_t *statusOptional)
+{
+    ads126xAdcFastPerfCounters_t perf = {0};
+    return ads126xAdcReadAdc1RawDirectFastWithPerf(handle, rawCode, statusOptional, &perf);
+}
+
 esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
                                 int32_t *rawCode,
                                 uint8_t *statusByteOptional)
@@ -1095,6 +1485,102 @@ esp_err_t ads126xAdcReadVoltageMicrovoltsFast(ads126xAdcHandle_t *handle,
     outSample->clippedOrNearFullScale = ads126xAdcRawNearFullScale(averagedRaw);
     outSample->err = ESP_OK;
     return ESP_OK;
+}
+
+esp_err_t ads126xAdcReadVoltageMicrovoltsFast2(ads126xAdcHandle_t *handle,
+                                               const ads126xAdcVoltageReadConfig_t *cfg,
+                                               ads126xAdcVoltageSample_t *outSample,
+                                               ads126xAdcFastPerfCounters_t *perf)
+{
+    if (!handle || !cfg || !outSample) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *outSample = (ads126xAdcVoltageSample_t){
+        .gain = handle->pgaGain,
+        .err = ESP_FAIL,
+    };
+
+    uint8_t oversampleCount = cfg->oversampleCount ? cfg->oversampleCount : 1u;
+
+    int64_t muxStartUs = esp_timer_get_time();
+    esp_err_t err;
+    if (handle->fastOptions.fastInpmuxWrite) {
+        uint8_t cmd[3] = {
+            (uint8_t)(ADS126X_CMD_WREG | ADS126X_REG_INPMUX),
+            0u,
+            (uint8_t)(((cfg->muxp & 0x0Fu) << 4) | (cfg->muxn & 0x0Fu)),
+        };
+        err = ads126xAdcSpiTransferFast(handle, cmd, sizeof(cmd), NULL, 0, perf);
+    } else {
+        err = ads126xAdcSetInputMuxVerified(handle, cfg->muxp, cfg->muxn);
+    }
+    uint32_t muxElapsedUs = (uint32_t)(esp_timer_get_time() - muxStartUs);
+    if (perf) {
+        perf->inpmuxWriteCount++;
+        ads126xAdcFastPerfAdd(&perf->inpmuxWriteTotalUs, &perf->inpmuxWriteMaxUs, muxElapsedUs);
+    }
+    if (err != ESP_OK) {
+        outSample->err = err;
+        return err;
+    }
+
+    if (cfg->settleAfterMuxUs > 0u) {
+        esp_rom_delay_us(cfg->settleAfterMuxUs);
+    }
+
+    if (cfg->discardFirst) {
+        int32_t discardRaw = 0;
+        err = ads126xAdcReadAdc1RawDirectFastWithPerf(handle, &discardRaw, NULL, perf);
+        if (err != ESP_OK) {
+            outSample->err = err;
+            return err;
+        }
+    }
+
+    int64_t rawSum = 0;
+    uint8_t samplesUsed = 0u;
+    int32_t lastRaw = 0;
+    for (uint8_t i = 0u; i < oversampleCount; ++i) {
+        int32_t raw = 0;
+        err = ads126xAdcReadAdc1RawDirectFastWithPerf(handle, &raw, NULL, perf);
+        if (err != ESP_OK) {
+            outSample->err = err;
+            outSample->samplesUsed = samplesUsed;
+            return err;
+        }
+        rawSum += (int64_t)raw;
+        lastRaw = raw;
+        samplesUsed++;
+    }
+
+    int32_t averagedRaw = (samplesUsed > 0u) ? (int32_t)(rawSum / (int64_t)samplesUsed) : lastRaw;
+    outSample->rawCode = averagedRaw;
+    outSample->microvolts = ads126xAdcRawToMicrovolts(handle, averagedRaw);
+    outSample->gain = handle->pgaGain;
+    outSample->samplesUsed = samplesUsed;
+    outSample->clippedOrNearFullScale = ads126xAdcRawNearFullScale(averagedRaw);
+    outSample->err = ESP_OK;
+    return ESP_OK;
+}
+
+uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)
+{
+    static const uint32_t spsRounded[16] = {
+        3u, 5u, 10u, 17u, 20u, 50u, 60u, 100u,
+        400u, 1200u, 2400u, 4800u, 7200u, 14400u, 19200u, 38400u,
+    };
+    return spsRounded[drCode & ADS126X_MODE2_DR_MASK];
+}
+
+uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode)
+{
+    static const uint32_t deciSps[16] = {
+        25u, 50u, 100u, 166u, 200u, 500u, 600u, 1000u,
+        4000u, 12000u, 24000u, 48000u, 72000u, 144000u, 192000u, 384000u,
+    };
+    uint32_t rate = deciSps[drCode & ADS126X_MODE2_DR_MASK];
+    return (rate == 0u) ? 0u : (uint32_t)((10000000u + (rate / 2u)) / rate);
 }
 
 esp_err_t ads126xAdcSelectAutoGainForVoltage(ads126xAdcHandle_t *handle,

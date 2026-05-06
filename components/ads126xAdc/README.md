@@ -134,3 +134,55 @@ ads126xAdcReadVoltageMicrovoltsFast(&adc, &readCfg, &sample);
 ```
 
 Board/app layer is responsible for translating `D1..D8 -> muxp/muxn`.
+
+## Fast scan API added for 8x8 voltage throughput
+
+The legacy safe path remains available. FAST/MAX code should use the new APIs:
+
+```c
+typedef struct {
+    bool fastInpmuxWrite;
+    bool directRead;
+    bool statusByteEnabled;
+    bool crcEnabled;
+    bool fixedGain;
+    bool usePollingTransmit;
+    bool acquireBusPerFrame;
+    uint32_t drdyTimeoutUs;
+} ads126xAdcFastScanOptions_t;
+
+esp_err_t ads126xAdcConfigureFastScan(ads126xAdcHandle_t *handle,
+                                      const ads126xAdcFastScanOptions_t *options);
+esp_err_t ads126xAdcBeginFastFrame(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcEndFastFrame(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcReadAdc1RawDirectFast(ads126xAdcHandle_t *handle,
+                                          int32_t *rawCode,
+                                          uint8_t *statusOptional);
+esp_err_t ads126xAdcReadVoltageMicrovoltsFast2(ads126xAdcHandle_t *handle,
+                                               const ads126xAdcVoltageReadConfig_t *cfg,
+                                               ads126xAdcVoltageSample_t *outSample,
+                                               ads126xAdcFastPerfCounters_t *perf);
+```
+
+FAST rules:
+
+- Initialize ADC1 once, then `START1` once for continuous conversion.
+- Per frame: optionally `spi_device_acquire_bus`, scan all 64 points, then release.
+- Per point: WREG `INPMUX`, optional mux settle, wait DRDY, direct-read ADC1 data or fall back to `RDATA1`.
+- Do not STOP/START per point.
+- Do not call `ads126xAdcConfigureVoltageMode()` per point.
+- Do not modify POWER/INTERFACE/MODE/REFMUX in the hot path.
+- Do not print/log in the hot path.
+
+`ads126xAdcConfigureFastScan()` disables status and CRC/checksum when configured, verifies core register readback at setup, and keeps `MODE2.DR` at `CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE` unless rate control later reduces it safely at frame boundaries.
+
+Data-rate helpers:
+
+```c
+uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
+uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
+```
+
+`ads126xAdcExpectedConversionPeriodUs()` is a theoretical ADC conversion period. It is not a fixed mux-settle delay; routed matrix settling and first-conversion behavior can be longer.

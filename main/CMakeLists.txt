@@ -6,6 +6,10 @@ idf_component_register(
         "sensorarrayBringup.c"
         "sensorarrayMeasure.c"
         "sensorarrayVoltageScan.c"
+        "sensorarrayVoltageStream.c"
+        "sensorarrayStatus.c"
+        "sensorarrayPerf.c"
+        "sensorarrayRateControl.c"
         "sensorarrayLog.c"
         "sensorarrayDebug.c"
         "sensorarrayDebugFdcI2cDiscovery.c"
@@ -17,6 +21,8 @@ idf_component_register(
         boardSupport
         esp_timer
         powerCtrl
+        esp_driver_usb_serial_jtag
+        vfs
         tmuxSwitch
         ads126xAdc
         fdc2214Cap

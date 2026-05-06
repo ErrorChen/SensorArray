@@ -68,3 +68,28 @@ idf.py menuconfig
 - `sensorarrayBoardMap.c/.h`: 板级 mapping 单一真相源，SELA GPIO level 只能通过 `sensorarrayBoardMapSelaRouteToGpioLevel()` 转换。
 - `sensorarrayBringup.c/.h`: ADS/FDC bring-up helper；REF/MID 准备路径只用于 `RESISTANCE_READ` 和 debug/bring-up 场景。
 - `sensorarrayApp.c` 与 `sensorarrayDebug*.c`: 旧 bring-up/debug dispatcher，仅 DEBUG mode 使用。
+
+## FAST/MAX scan architecture
+
+SAFE profile keeps the legacy `sensorarrayRunVoltageReadMode()` loop: scan one frame, then print `MATV` CSV in the same task. FAST/MAX use `sensorarrayVoltageStreamStart()` instead:
+
+- `sensorarrayVoltageScanTask`: pinned to `CONFIG_SENSORARRAY_SCAN_TASK_CORE`, priority `CONFIG_SENSORARRAY_SCAN_TASK_PRIORITY`; owns TMUX and ADS126x SPI; does not call `printf`, `fprintf`, `fwrite`, or `ESP_LOGI`.
+- `sensorarrayVoltageOutputTask`: pinned to `CONFIG_SENSORARRAY_COMM_TASK_CORE`, priority `CONFIG_SENSORARRAY_COMM_TASK_PRIORITY`; owns USB Serial/JTAG stdout and emits startup config, binary frames, optional CSV, `STAT`, and `RATE_EVENT`.
+- `sensorarrayVoltageStreamFrame_t`: queue item containing the scan frame and pending rate action/cause.
+
+FAST startup output examples:
+
+```text
+ADS_FAST_CONFIG,dr=15,status=0,crc=0,directRead=1,fastMux=1,fixedGain=1,pollingSpi=1,busAcquire=1,drdyTimeoutUs=2000
+VOLTSCAN_CONFIG,mode=PIEZO_READ,dr=15,format=BINARY,queueDepth=4,scanCore=1,commCore=0,dma=1,spiPolling=1,busAcquire=1,csvEvery=0,discardFirst=0,oversample=1,rowSettleUs=200,pathSettleUs=200,muxSettleUs=20,autoRate=1,usbNonblocking=1
+ROUTE_POLICY,mode=PIEZO_READ,sw=GND,routePolicyOk=1
+ADS_POLICY,mode=PIEZO_READ,intref=0,vbias=0,expectedRefmux=0x24,adsPolicyOk=1
+```
+
+`PIEZO_READ` remains GND/zero path with `POWER.INTREF=0`, `POWER.VBIAS=0`, `REFMUX=AVDD/AVSS`, and FDC skipped. `RESISTANCE_READ` remains REF/MID path with internal REF, VBIAS, internal REFMUX, and FDC skipped. Policy mismatches are fatal and are not rate-controlled.
+
+`STAT` fields separate likely bottlenecks:
+
+```text
+STAT,seq=100,fps=120,pps=7680,scanAvgUs=8300,scanMaxUs=9100,routeAvgUs=410,inpmuxAvgUs=8,drdyAvgUs=24,adcReadAvgUs=14,spiAvgUs=5,queueAvgUs=1,usbAvgUs=90,drop=0,decimated=0,qFull=0,drdyTimeout=0,spiFail=0,adsDr=15,adsSps=38400,outputDiv=1,scanPeriodUs=0,status=0x00000000,code=0x0000
+```

@@ -23,6 +23,20 @@ config SENSORARRAY_APP_MODE_DEBUG
 
 endchoice
 
+choice SENSORARRAY_VOLTAGE_SCAN_THROUGHPUT_PROFILE
+    prompt "Voltage scan throughput profile"
+    default SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+
+config SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+    bool "SAFE: verified, conservative, CSV-compatible"
+
+config SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    bool "FAST: high-throughput ADS126x scan, binary/status output"
+
+config SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    bool "MAX: experimental maximum throughput"
+endchoice
+
 config SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
     bool
     default y if SENSORARRAY_APP_MODE_PIEZO_READ
@@ -108,6 +122,11 @@ config SENSORARRAY_SCAN_TASK_PRIO
     int "Scan task priority"
     default 12
 
+config SENSORARRAY_SCAN_TASK_PRIORITY
+    int "Voltage scan task priority"
+    default 10
+    range 1 24
+
 config SENSORARRAY_COMM_TASK_STACK
     int "Comm task stack bytes"
     default 4096
@@ -115,6 +134,11 @@ config SENSORARRAY_COMM_TASK_STACK
 config SENSORARRAY_COMM_TASK_PRIO
     int "Comm task priority"
     default 8
+
+config SENSORARRAY_COMM_TASK_PRIORITY
+    int "Output/communication task priority"
+    default 5
+    range 1 24
 endmenu
 
 menu "SPI DMA (ADS126x)"
@@ -155,6 +179,186 @@ menu "ADS126x voltage scan"
         S1-S8 x D1-D8 through ADS126x and emit one CSV row per complete
         64-point voltage frame.
 
+config SENSORARRAY_ADS_FAST_INPMUX_WRITE
+    bool "Use fast ADS126x INPMUX write without readback in hot path"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_FAST_READ_DIRECT
+    bool "Use ADS126x direct data read path when possible"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_FAST_DISABLE_STATUS_CRC
+    bool "Disable ADS126x status and CRC/checksum bytes in fast hot path"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_FAST_FIXED_GAIN
+    bool "Use fixed ADS126x gain during fast scan"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_SPI_POLLING_TRANSMIT
+    bool "Use spi_device_polling_transmit for short ADS126x transactions"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_SPI_ACQUIRE_BUS_PER_FRAME
+    bool "Acquire ADS SPI bus for each 64-point frame"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST
+    int "Fast ADS126x DRDY timeout in us"
+    default 2000
+    range 100 100000
+
+config SENSORARRAY_SCAN_USE_DEDICATED_TASKS
+    bool "Use dedicated scan/output tasks"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+choice SENSORARRAY_OUTPUT_FORMAT
+    prompt "SensorArray output format"
+    default SENSORARRAY_OUTPUT_FORMAT_CSV if SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+    default SENSORARRAY_OUTPUT_FORMAT_BINARY if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default SENSORARRAY_OUTPUT_FORMAT_BINARY if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+
+config SENSORARRAY_OUTPUT_FORMAT_CSV
+    bool "CSV"
+
+config SENSORARRAY_OUTPUT_FORMAT_BINARY
+    bool "Binary"
+
+config SENSORARRAY_OUTPUT_FORMAT_BOTH
+    bool "Both CSV and binary"
+
+config SENSORARRAY_OUTPUT_FORMAT_OFF
+    bool "Off, only status"
+endchoice
+
+config SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N
+    int "Print CSV every N frames, 0 disables CSV"
+    default 1 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+    default 0 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default 0 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    range 0 100000
+
+config SENSORARRAY_STREAM_QUEUE_DEPTH
+    int "Voltage frame stream queue depth"
+    default 4
+    range 1 32
+
+choice SENSORARRAY_STREAM_DROP_POLICY
+    prompt "Stream queue drop policy"
+    default SENSORARRAY_STREAM_DROP_NEWEST
+
+config SENSORARRAY_STREAM_DROP_NEWEST
+    bool "Drop newest frame when queue full"
+
+config SENSORARRAY_STREAM_DROP_OLDEST
+    bool "Drop oldest frame when queue full"
+
+config SENSORARRAY_STREAM_BLOCK_SAFE_ONLY
+    bool "Block only in SAFE mode"
+endchoice
+
+config SENSORARRAY_STATUS_PERIOD_N_FRAMES
+    int "Status line period in frames"
+    default 100
+    range 1 100000
+
+config SENSORARRAY_USB_STDOUT_NONBLOCKING
+    bool "Use USB Serial/JTAG VFS nonblocking mode for stdout when available"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+config SENSORARRAY_AUTO_RATE_CONTROL
+    bool "Enable automatic rate control for voltage scan"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default n
+
+choice SENSORARRAY_AUTO_RATE_CONTROL_MODE
+    prompt "Auto rate control mode"
+    default SENSORARRAY_AUTO_RATE_CONTROL_OUTPUT_FIRST
+
+config SENSORARRAY_AUTO_RATE_CONTROL_OFF
+    bool "Off"
+
+config SENSORARRAY_AUTO_RATE_CONTROL_OUTPUT_FIRST
+    bool "Output-first: reduce USB/stdout output rate before reducing ADC scan rate"
+
+config SENSORARRAY_AUTO_RATE_CONTROL_LOSSLESS_OUTPUT
+    bool "Lossless-output: slow scan rate to avoid output frame drops"
+
+config SENSORARRAY_AUTO_RATE_CONTROL_FULL
+    bool "Full: adapt output rate, scan period, ADS data rate, and settle"
+endchoice
+
+config SENSORARRAY_AUTO_RATE_WINDOW_FRAMES
+    int "Auto rate control window in frames"
+    default 100
+    range 10 10000
+
+config SENSORARRAY_AUTO_RATE_QUEUE_HIGH_WATERMARK_PERCENT
+    int "Queue high watermark percent"
+    default 75
+    range 10 100
+
+config SENSORARRAY_AUTO_RATE_QUEUE_LOW_WATERMARK_PERCENT
+    int "Queue low watermark percent"
+    default 25
+    range 0 90
+
+config SENSORARRAY_AUTO_RATE_MAX_DROP_PER_WINDOW
+    int "Maximum dropped frames per control window"
+    default 0
+    range 0 10000
+
+config SENSORARRAY_AUTO_RATE_MAX_DRDY_TIMEOUT_PER_WINDOW
+    int "Maximum DRDY timeouts per control window"
+    default 0
+    range 0 10000
+
+config SENSORARRAY_AUTO_RATE_MAX_SPI_FAIL_PER_WINDOW
+    int "Maximum SPI failures per control window"
+    default 0
+    range 0 10000
+
+config SENSORARRAY_AUTO_RATE_MIN_ADS_DR
+    int "Minimum ADS126x data-rate code allowed by auto rate control"
+    default 12
+    range 0 15
+
+config SENSORARRAY_AUTO_RATE_RECOVERY_WINDOWS
+    int "Stable windows needed before attempting rate increase"
+    default 20
+    range 1 10000
+
+config SENSORARRAY_AUTO_RATE_ENABLE_UPSHIFT
+    bool "Allow automatic rate increase after stable operation"
+    default n
+
+config SENSORARRAY_AUTO_RATE_OUTPUT_DIV_MAX
+    int "Maximum output divider"
+    default 64
+    range 1 1024
+
+config SENSORARRAY_AUTO_RATE_SCAN_FRAME_PERIOD_MAX_US
+    int "Maximum inserted scan frame period in microseconds"
+    default 20000
+    range 0 1000000
+
 config SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS
     int "Voltage scan frame period in ms, 0 = run as fast as possible"
     default 0
@@ -173,7 +377,9 @@ config SENSORARRAY_VOLTAGE_SCAN_MUX_SETTLE_US
 
 config SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
     bool "Discard first conversion after mux switch"
-    default y
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+    default n if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default n if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
 
 config SENSORARRAY_VOLTAGE_SCAN_OVERSAMPLE
     int "Oversample count per point"

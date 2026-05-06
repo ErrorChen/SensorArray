@@ -29,12 +29,14 @@ static gpio_num_t sensorarrayToGpio(int gpio)
 
 static void sensorarrayBringupLogSystemRefTargets(void)
 {
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     printf("DBGSYSREF,vdd_mv=%d,vss_mv=%d,span_mv=%d,target_mid_gnd_mv=%d,target_mid_avss_mv=%d\n",
            SENSORARRAY_REF_VDD_MV,
            SENSORARRAY_REF_VSS_MV,
            SENSORARRAY_REF_SUPPLY_SPAN_MV,
            SENSORARRAY_REF_TARGET_MID_GND_MV,
            SENSORARRAY_REF_TARGET_MID_AVSS_MV);
+#endif
 }
 
 static esp_err_t sensorarrayBringupLogAdsRefReadback(sensorarrayState_t *state,
@@ -57,6 +59,7 @@ static esp_err_t sensorarrayBringupLogAdsRefReadback(sensorarrayState_t *state,
     const bool refmuxOk = readOk && (refmux == expectedRefmux);
     const bool ok = intrefOk && vbiasOk && refmuxOk;
 
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     printf("DBGADSREF,stage=%s,power=0x%02X,interface=0x%02X,mode2=0x%02X,inpmux=0x%02X,refmux=0x%02X,"
            "intrefOk=%u,vbiasOk=%u,refmuxOk=%u,result=%s,mismatch_read=%u,mismatch_intref=%u,"
            "mismatch_vbias=%u,mismatch_refmux=%u,err=%ld\n",
@@ -75,6 +78,12 @@ static esp_err_t sensorarrayBringupLogAdsRefReadback(sensorarrayState_t *state,
            vbiasOk ? 0u : 1u,
            refmuxOk ? 0u : 1u,
            (long)err);
+#else
+    (void)stage;
+    (void)iface;
+    (void)mode2;
+    (void)inpmux;
+#endif
 
     if (!readOk) {
         return err;
