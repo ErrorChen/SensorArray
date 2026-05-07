@@ -18,6 +18,9 @@ config SENSORARRAY_APP_MODE_PIEZO_READ
 config SENSORARRAY_APP_MODE_RESISTANCE_READ
     bool "RESISTANCE_READ / 电阻读取: ADS126x voltage scan with SW=REF/MID"
 
+config SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
+    bool "FAST_BINARY_FAKE: firmware-only compact binary fake stream"
+
 config SENSORARRAY_APP_MODE_DEBUG
     bool "Debug / bring-up modes"
 
@@ -27,6 +30,7 @@ choice SENSORARRAY_VOLTAGE_SCAN_THROUGHPUT_PROFILE
     prompt "Voltage scan throughput profile"
     default SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST if SENSORARRAY_APP_MODE_PIEZO_READ
     default SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST if SENSORARRAY_APP_MODE_RESISTANCE_READ
+    default SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST if SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
     default SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
 
 config SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
@@ -186,7 +190,7 @@ config SENSORARRAY_OVERSAMPLE
 endmenu
 
 menu "ADS126x voltage scan"
-    depends on SENSORARRAY_APP_MODE_PIEZO_READ || SENSORARRAY_APP_MODE_RESISTANCE_READ || SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
+    depends on SENSORARRAY_APP_MODE_PIEZO_READ || SENSORARRAY_APP_MODE_RESISTANCE_READ || SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN || SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
     help
         Shared parameters for PIEZO_READ and RESISTANCE_READ. FAST/MAX
         profiles emit compact binary frames by default through a dedicated
@@ -244,6 +248,7 @@ choice SENSORARRAY_OUTPUT_FORMAT
     default SENSORARRAY_OUTPUT_FORMAT_CSV if SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
     default SENSORARRAY_OUTPUT_FORMAT_BINARY if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
     default SENSORARRAY_OUTPUT_FORMAT_BINARY if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default SENSORARRAY_OUTPUT_FORMAT_BINARY if SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
 
 config SENSORARRAY_OUTPUT_FORMAT_CSV
     bool "CSV"
@@ -258,6 +263,32 @@ config SENSORARRAY_OUTPUT_FORMAT_OFF
     bool "Off, only status"
 endchoice
 
+config SENSORARRAY_BINARY_PURE_MODE
+    bool "Use pure binary stream without text logs"
+    default y
+    depends on SENSORARRAY_OUTPUT_FORMAT_BINARY
+
+config SENSORARRAY_BINARY_ALLOW_STARTUP_TEXT
+    bool "Allow startup text before binary stream"
+    default n
+    depends on SENSORARRAY_OUTPUT_FORMAT_BINARY
+
+config SENSORARRAY_USB_EXACT_BINARY_WRITE
+    bool "Use exact write semantics for binary frames"
+    default y
+    depends on SENSORARRAY_OUTPUT_FORMAT_BINARY
+
+config SENSORARRAY_BINARY_PARTIAL_FATAL
+    bool "Enter fatal state if a binary frame is partially written and cannot finish"
+    default y
+    depends on SENSORARRAY_OUTPUT_FORMAT_BINARY
+
+config SENSORARRAY_FAST_BINARY_FAKE_FPS
+    int "FAST_BINARY fake data FPS"
+    default 100
+    range 0 1000
+    depends on SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
+
 config SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N
     int "Print CSV every N frames, 0 disables CSV"
     default 1 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
@@ -271,6 +302,15 @@ config SENSORARRAY_STREAM_QUEUE_DEPTH
     default 16 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
     default 4
     range 1 64
+
+config SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    bool "Use pointer queue for stream frames"
+    default y
+
+config SENSORARRAY_STREAM_FRAME_POOL_SIZE
+    int "Stream frame pool size"
+    default 16
+    range 4 64
 
 choice SENSORARRAY_STREAM_DROP_POLICY
     prompt "Stream queue drop policy"
@@ -324,6 +364,7 @@ config SENSORARRAY_USB_STDOUT_NONBLOCKING
     bool "Use USB Serial/JTAG VFS nonblocking mode for stdout when available"
     default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
     default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    default y if SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
     default n
 
 config SENSORARRAY_FAST_FORBID_LEGACY_CSV_HOT_PATH
@@ -341,12 +382,13 @@ config SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
     default y
 
 config SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS
-    int "FAST_BINARY bounded write max attempts"
+    int "FAST_BINARY first-byte write probe max attempts"
     default 8
     range 1 64
     help
-        Maximum attempts to complete a bounded stdout write. This must remain
-        finite so the output task never blocks forever.
+        Maximum attempts before the first byte of a binary frame is written.
+        Once any byte of a frame has been written, the writer must either
+        complete that frame exactly or enter the binary partial-fatal state.
 
 config SENSORARRAY_AUTO_RATE_CONTROL
     bool "Enable automatic rate control for voltage scan"

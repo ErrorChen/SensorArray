@@ -34,6 +34,12 @@
 #ifndef CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH
 #define CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH 4
 #endif
+#ifndef CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+#define CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_STREAM_FRAME_POOL_SIZE
+#define CONFIG_SENSORARRAY_STREAM_FRAME_POOL_SIZE 16
+#endif
 #ifndef CONFIG_SENSORARRAY_SCAN_TASK_STACK
 #define CONFIG_SENSORARRAY_SCAN_TASK_STACK 12288
 #endif
@@ -58,6 +64,30 @@
 #ifndef CONFIG_SENSORARRAY_BINARY_TEXT_STATUS
 #define CONFIG_SENSORARRAY_BINARY_TEXT_STATUS 0
 #endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV
+#define CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV 0
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+#define CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY 0
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
+#define CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH 0
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_FORMAT_OFF
+#define CONFIG_SENSORARRAY_OUTPUT_FORMAT_OFF 0
+#endif
+#ifndef CONFIG_SENSORARRAY_BINARY_PURE_MODE
+#define CONFIG_SENSORARRAY_BINARY_PURE_MODE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_BINARY_ALLOW_STARTUP_TEXT
+#define CONFIG_SENSORARRAY_BINARY_ALLOW_STARTUP_TEXT 0
+#endif
+#ifndef CONFIG_SENSORARRAY_USB_EXACT_BINARY_WRITE
+#define CONFIG_SENSORARRAY_USB_EXACT_BINARY_WRITE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_BINARY_PARTIAL_FATAL
+#define CONFIG_SENSORARRAY_BINARY_PARTIAL_FATAL 1
+#endif
 #ifndef CONFIG_SENSORARRAY_STACK_WATERMARK_PERIOD_N_FRAMES
 #define CONFIG_SENSORARRAY_STACK_WATERMARK_PERIOD_N_FRAMES 100
 #endif
@@ -75,6 +105,9 @@
 #endif
 #ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
 #define CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST 0
+#endif
+#ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE
+#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE 15
 #endif
 #ifndef CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST
 #define CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US_FAST 2000
@@ -109,15 +142,23 @@
 #ifndef CONFIG_SENSORARRAY_BINARY_STARTUP_MARKER
 #define CONFIG_SENSORARRAY_BINARY_STARTUP_MARKER 0
 #endif
+#ifndef CONFIG_SENSORARRAY_FAST_BINARY_FAKE_FPS
+#define CONFIG_SENSORARRAY_FAST_BINARY_FAKE_FPS 100
+#endif
 
 #define SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS ((uint32_t)CONFIG_SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS)
+#define SENSORARRAY_BINARY_FIRST_BYTE_TIMEOUT_MS 0u
+#define SENSORARRAY_BINARY_FINISH_TIMEOUT_MS 250u
 
 typedef struct {
     sensorarrayVoltageStreamConfig_t config;
     QueueHandle_t queue;
+    QueueHandle_t freeQueue;
     sensorarrayStatusCounters_t status;
     sensorarrayPerfCounters_t perf;
     sensorarrayRateController_t controller;
+    sensorarrayVoltageStreamFrame_t *framePool;
+    uint32_t framePoolSize;
     sensorarrayVoltageStreamFrame_t *outputRxFrame;
     sensorarrayVoltageStreamFrame_t *scanTxFrame;
     sensorarrayVoltageStreamFrame_t *dropScratchFrame;
@@ -133,19 +174,65 @@ typedef struct {
     bool headerPrinted;
     bool textStatusSuppressedByStack;
     bool textStatusSuppressedByBinaryMode;
+    bool fakeMode;
+    bool binaryPartialFatal;
+    uint8_t fakeAdsDr;
+    uint32_t fakeFps;
+    uint32_t fakeSequence;
     uint32_t usbWriteCount;
     int64_t streamStartUs;
 } sensorarrayVoltageStreamContext_t;
 
 static sensorarrayVoltageStreamContext_t s_stream = {0};
 static sensorarrayVoltageStreamFrame_t s_dropScratchStatic;
+static volatile bool s_binaryModeActive = false;
+
+static bool sensorarrayVoltageStreamCanPrintText(void)
+{
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    return !s_binaryModeActive && (CONFIG_SENSORARRAY_BINARY_ALLOW_STARTUP_TEXT != 0);
+#else
+    return true;
+#endif
+}
+
+static bool sensorarrayVoltageStreamPureBinaryEnabled(void)
+{
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    return CONFIG_SENSORARRAY_BINARY_PURE_MODE != 0;
+#else
+    return false;
+#endif
+}
+
+static uint32_t sensorarrayVoltageStreamReadyQueueDepth(void)
+{
+    return (uint32_t)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH;
+}
+
+static uint32_t sensorarrayVoltageStreamFramePoolSize(void)
+{
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    return (uint32_t)CONFIG_SENSORARRAY_STREAM_FRAME_POOL_SIZE;
+#else
+    return 0u;
+#endif
+}
 
 static esp_err_t sensorarrayVoltageStreamAllocateBuffers(void)
 {
+    s_stream.outputCompactFrame = heap_caps_calloc(1, sizeof(*s_stream.outputCompactFrame), MALLOC_CAP_8BIT);
+
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    s_stream.framePoolSize = sensorarrayVoltageStreamFramePoolSize();
+    s_stream.framePool = heap_caps_calloc(s_stream.framePoolSize, sizeof(*s_stream.framePool), MALLOC_CAP_8BIT);
+    if (!s_stream.framePool || !s_stream.outputCompactFrame) {
+        return ESP_ERR_NO_MEM;
+    }
+#else
     s_stream.outputRxFrame = heap_caps_calloc(1, sizeof(*s_stream.outputRxFrame), MALLOC_CAP_8BIT);
     s_stream.scanTxFrame = heap_caps_calloc(1, sizeof(*s_stream.scanTxFrame), MALLOC_CAP_8BIT);
     s_stream.dropScratchFrame = heap_caps_calloc(1, sizeof(*s_stream.dropScratchFrame), MALLOC_CAP_8BIT);
-    s_stream.outputCompactFrame = heap_caps_calloc(1, sizeof(*s_stream.outputCompactFrame), MALLOC_CAP_8BIT);
 
     if (!s_stream.dropScratchFrame) {
         memset(&s_dropScratchStatic, 0, sizeof(s_dropScratchStatic));
@@ -153,19 +240,20 @@ static esp_err_t sensorarrayVoltageStreamAllocateBuffers(void)
     }
 
     if (!s_stream.outputRxFrame || !s_stream.scanTxFrame || !s_stream.outputCompactFrame) {
-        printf("STREAM_FATAL,reason=heap_alloc_failed,outputRx=%p,scanTx=%p,dropScratch=%p,compact=%p\n",
-               (void *)s_stream.outputRxFrame,
-               (void *)s_stream.scanTxFrame,
-               (void *)s_stream.dropScratchFrame,
-               (void *)s_stream.outputCompactFrame);
         return ESP_ERR_NO_MEM;
     }
+#endif
 
     return ESP_OK;
 }
 
 static void sensorarrayVoltageStreamReleaseBuffers(void)
 {
+    if (s_stream.framePool) {
+        heap_caps_free(s_stream.framePool);
+        s_stream.framePool = NULL;
+        s_stream.framePoolSize = 0u;
+    }
     if (s_stream.outputRxFrame) {
         heap_caps_free(s_stream.outputRxFrame);
         s_stream.outputRxFrame = NULL;
@@ -182,6 +270,48 @@ static void sensorarrayVoltageStreamReleaseBuffers(void)
         heap_caps_free(s_stream.outputCompactFrame);
         s_stream.outputCompactFrame = NULL;
     }
+}
+
+static void sensorarrayVoltageStreamDeleteQueues(void)
+{
+    if (s_stream.queue) {
+        vQueueDelete(s_stream.queue);
+        s_stream.queue = NULL;
+    }
+    if (s_stream.freeQueue) {
+        vQueueDelete(s_stream.freeQueue);
+        s_stream.freeQueue = NULL;
+    }
+}
+
+static esp_err_t sensorarrayVoltageStreamCreateQueues(void)
+{
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    s_stream.queue = xQueueCreate(sensorarrayVoltageStreamReadyQueueDepth(),
+                                  sizeof(sensorarrayVoltageStreamFrame_t *));
+    s_stream.freeQueue = xQueueCreate(s_stream.framePoolSize,
+                                      sizeof(sensorarrayVoltageStreamFrame_t *));
+    if (!s_stream.queue || !s_stream.freeQueue) {
+        sensorarrayVoltageStreamDeleteQueues();
+        return ESP_ERR_NO_MEM;
+    }
+
+    for (uint32_t i = 0u; i < s_stream.framePoolSize; ++i) {
+        sensorarrayVoltageStreamFrame_t *frame = &s_stream.framePool[i];
+        if (xQueueSend(s_stream.freeQueue, &frame, 0) != pdTRUE) {
+            sensorarrayVoltageStreamDeleteQueues();
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    return ESP_OK;
+#else
+    s_stream.queue = xQueueCreate(sensorarrayVoltageStreamReadyQueueDepth(),
+                                  sizeof(sensorarrayVoltageStreamFrame_t));
+    if (!s_stream.queue) {
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
+#endif
 }
 
 static uint32_t sensorarrayVoltageStreamCrc32Bytes(const uint8_t *data, size_t len)
@@ -266,6 +396,9 @@ static void sensorarrayVoltageStreamConfigureStdout(void)
 
 static void sensorarrayVoltageStreamPrintHeader(void)
 {
+    if (!sensorarrayVoltageStreamCanPrintText()) {
+        return;
+    }
     if (s_stream.headerPrinted) {
         return;
     }
@@ -281,7 +414,7 @@ static void sensorarrayVoltageStreamPrintHeader(void)
 
 static void __attribute__((unused)) sensorarrayVoltageStreamPrintCsv(const sensorarrayVoltageFrame_t *frame)
 {
-    if (!frame) {
+    if (!frame || !sensorarrayVoltageStreamCanPrintText()) {
         return;
     }
     sensorarrayVoltageStreamPrintHeader();
@@ -297,92 +430,173 @@ static void __attribute__((unused)) sensorarrayVoltageStreamPrintCsv(const senso
     printf("\n");
 }
 
-static void __attribute__((unused)) sensorarrayVoltageStreamRecordUsbWrite(size_t requested, size_t written, int64_t startUs)
+static void sensorarrayVoltageStreamRecordWriteTiming(int64_t startUs)
 {
     uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - startUs);
     sensorarrayPerfAddSample(&s_stream.perf.usbWriteTotalUs, &s_stream.perf.usbWriteMaxUs, elapsedUs);
+    s_stream.perf.lastWriteUs = elapsedUs;
+    if (elapsedUs > s_stream.perf.maxWriteUs) {
+        s_stream.perf.maxWriteUs = elapsedUs;
+    }
     s_stream.usbWriteCount++;
-
-    if (written == requested) {
-        return;
-    }
-    if (written == 0u) {
-        sensorarrayStatusRecord(&s_stream.status,
-                                SENSORARRAY_STATUS_USB_STDOUT_WRITE_FAIL,
-                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
-    }
 }
 
-static size_t sensorarrayVoltageStreamWriteAllBounded(const uint8_t *data,
-                                                      size_t length,
-                                                      uint32_t maxAttempts)
+static bool sensorarrayVoltageStreamWriteRetryable(ssize_t result, int err)
 {
-    if (!data || length == 0u || maxAttempts == 0u) {
-        return 0u;
+    return result == 0 ||
+           (result < 0 && (err == EAGAIN || err == EWOULDBLOCK || err == EINTR));
+}
+
+static sensorarrayWriteResult_t sensorarrayVoltageStreamWriteFrameExact(const uint8_t *data,
+                                                                        size_t length,
+                                                                        uint32_t firstByteTimeoutMs,
+                                                                        uint32_t finishTimeoutMs)
+{
+    if (!data || length == 0u) {
+        return SENSORARRAY_WRITE_INVALID_ARG;
     }
 
     size_t total = 0u;
-    uint32_t attempts = 0u;
-    while (total < length && attempts < maxAttempts) {
+    uint32_t firstByteAttempts = 0u;
+    int64_t startUs = esp_timer_get_time();
+    int64_t firstByteUs = 0;
+
+    while (total < length) {
         errno = 0;
         ssize_t result = write(STDOUT_FILENO, data + total, length - total);
-        attempts++;
+        int err = errno;
+
         if (result > 0) {
+            if (total == 0u) {
+                firstByteUs = esp_timer_get_time();
+            }
             total += (size_t)result;
-            if (total == length) {
-                break;
+            continue;
+        }
+
+        if (!sensorarrayVoltageStreamWriteRetryable(result, err)) {
+            return (total == 0u)
+                       ? SENSORARRAY_WRITE_TIMEOUT_BEFORE_FIRST_BYTE
+                       : SENSORARRAY_WRITE_PARTIAL_FATAL;
+        }
+
+        int64_t nowUs = esp_timer_get_time();
+        if (err == EINTR) {
+            taskYIELD();
+            continue;
+        }
+        if (total == 0u) {
+            if (err == EAGAIN || err == EWOULDBLOCK || result == 0) {
+                s_stream.perf.usbBusyBeforeFrame++;
+            }
+            if (++firstByteAttempts >= SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS) {
+                return SENSORARRAY_WRITE_DROPPED_BEFORE_FIRST_BYTE;
+            }
+            if (firstByteTimeoutMs > 0u &&
+                (uint64_t)(nowUs - startUs) >= ((uint64_t)firstByteTimeoutMs * 1000u)) {
+                return SENSORARRAY_WRITE_TIMEOUT_BEFORE_FIRST_BYTE;
             }
             taskYIELD();
             continue;
         }
 
-        if (result < 0 && errno == EINTR) {
-            continue;
+        if (finishTimeoutMs > 0u &&
+            (uint64_t)(nowUs - firstByteUs) >= ((uint64_t)finishTimeoutMs * 1000u)) {
+            return SENSORARRAY_WRITE_PARTIAL_FATAL;
         }
-        if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            vTaskDelay(pdMS_TO_TICKS(1u));
-            continue;
-        }
-        break;
+        vTaskDelay(pdMS_TO_TICKS(1u));
     }
 
-    if (total > 0u && total < length) {
-        sensorarrayStatusRecord(&s_stream.status,
-                                SENSORARRAY_STATUS_BINARY_WRITE_PARTIAL,
-                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
-    }
-
-    return total;
+    return SENSORARRAY_WRITE_OK;
 }
 
-static bool __attribute__((unused)) sensorarrayVoltageStreamWriteBinary(const sensorarrayVoltageFrame_t *frame)
+static void sensorarrayVoltageStreamRecordBinaryWriteResult(sensorarrayWriteResult_t result)
+{
+    switch (result) {
+    case SENSORARRAY_WRITE_OK:
+        s_stream.perf.framesOutput++;
+        s_stream.perf.framesWritten++;
+        break;
+    case SENSORARRAY_WRITE_DROPPED_BEFORE_FIRST_BYTE:
+        s_stream.perf.framesDropped++;
+        s_stream.perf.writerDropFrames++;
+        s_stream.perf.framesDroppedBeforeFirstByte++;
+        s_stream.perf.outputDecimatedFrames++;
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_BINARY_DROPPED_BEFORE_FIRST_BYTE,
+                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
+        break;
+    case SENSORARRAY_WRITE_TIMEOUT_BEFORE_FIRST_BYTE:
+        s_stream.perf.framesDropped++;
+        s_stream.perf.writerDropFrames++;
+        s_stream.perf.framesDroppedBeforeFirstByte++;
+        s_stream.perf.usbTimeoutBeforeFrame++;
+        s_stream.perf.outputDecimatedFrames++;
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_BINARY_TIMEOUT_BEFORE_FIRST_BYTE,
+                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
+        break;
+    case SENSORARRAY_WRITE_PARTIAL_FATAL:
+        s_stream.binaryPartialFatal = true;
+        s_stream.controller.fatalStop = true;
+        s_stream.perf.framesPartialFatal++;
+        s_stream.perf.usbTimeoutAfterPartial++;
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_BINARY_PARTIAL_FATAL,
+                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED | SENSORARRAY_FRAME_FLAG_FATAL);
+        break;
+    case SENSORARRAY_WRITE_INVALID_ARG:
+    default:
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
+                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
+        break;
+    }
+}
+
+static sensorarrayWriteResult_t __attribute__((unused)) sensorarrayVoltageStreamWriteBinary(const sensorarrayVoltageFrame_t *frame)
 {
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
     if (!frame || !s_stream.outputCompactFrame) {
-        return false;
+        return SENSORARRAY_WRITE_INVALID_ARG;
+    }
+    if (s_stream.binaryPartialFatal) {
+        return SENSORARRAY_WRITE_PARTIAL_FATAL;
     }
 
     sensorarrayVoltageCompactFrame_t *compact = s_stream.outputCompactFrame;
     memset(compact, 0, sizeof(*compact));
     sensorarrayVoltageCompactFrameFromScan(frame, compact);
+
     int64_t startUs = esp_timer_get_time();
-    size_t written = sensorarrayVoltageStreamWriteAllBounded((const uint8_t *)compact,
-                                                             sizeof(*compact),
-                                                             SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS);
-    sensorarrayVoltageStreamRecordUsbWrite(sizeof(*compact), written, startUs);
-    if (written == sizeof(*compact)) {
-        s_stream.perf.framesOutput++;
-        return true;
-    }
-    return false;
+#if CONFIG_SENSORARRAY_USB_EXACT_BINARY_WRITE
+    sensorarrayWriteResult_t result = sensorarrayVoltageStreamWriteFrameExact(
+        (const uint8_t *)compact,
+        sizeof(*compact),
+        SENSORARRAY_BINARY_FIRST_BYTE_TIMEOUT_MS,
+        SENSORARRAY_BINARY_FINISH_TIMEOUT_MS);
+#else
+    sensorarrayWriteResult_t result = sensorarrayVoltageStreamWriteFrameExact(
+        (const uint8_t *)compact,
+        sizeof(*compact),
+        SENSORARRAY_BINARY_FIRST_BYTE_TIMEOUT_MS,
+        SENSORARRAY_BINARY_FINISH_TIMEOUT_MS);
+#endif
+    sensorarrayVoltageStreamRecordWriteTiming(startUs);
+    sensorarrayVoltageStreamRecordBinaryWriteResult(result);
+    return result;
 #else
     (void)frame;
-    return false;
+    return SENSORARRAY_WRITE_INVALID_ARG;
 #endif
 }
 
 static bool sensorarrayVoltageStreamShouldPrintTextStatus(void)
 {
+    if (!sensorarrayVoltageStreamCanPrintText()) {
+        return false;
+    }
+
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
     if (!CONFIG_SENSORARRAY_BINARY_TEXT_STATUS) {
         return false;
@@ -441,7 +655,7 @@ static void sensorarrayVoltageStreamUpdateStackWatermarks(uint32_t sequence)
 
 static void sensorarrayVoltageStreamPrintStat(const sensorarrayVoltageFrame_t *frame)
 {
-    if (!frame) {
+    if (!frame || !sensorarrayVoltageStreamCanPrintText()) {
         return;
     }
 
@@ -495,7 +709,7 @@ static void sensorarrayVoltageStreamPrintStat(const sensorarrayVoltageFrame_t *f
            sensorarrayPerfAvgU32(s_stream.perf.usbWriteTotalUs,
                                  s_stream.usbWriteCount ? s_stream.usbWriteCount : 1u),
            s_stream.perf.usbWriteMaxUs,
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            qUsed,
            s_stream.status.droppedFrameCount,
            s_stream.status.outputDecimatedFrameCount,
@@ -521,7 +735,8 @@ static void sensorarrayVoltageStreamPrintStat(const sensorarrayVoltageFrame_t *f
 
 static void sensorarrayVoltageStreamPrintRateEvent(const sensorarrayVoltageStreamFrame_t *streamFrame)
 {
-    if (!streamFrame || streamFrame->rateAction == SENSORARRAY_RATE_ACTION_NONE) {
+    if (!streamFrame || !sensorarrayVoltageStreamCanPrintText() ||
+        streamFrame->rateAction == SENSORARRAY_RATE_ACTION_NONE) {
         return;
     }
 
@@ -549,17 +764,33 @@ static void sensorarrayVoltageStreamPrintRateEvent(const sensorarrayVoltageStrea
 
 static void sensorarrayVoltageStreamPrintStartup(void)
 {
+    if (!sensorarrayVoltageStreamCanPrintText()) {
+        return;
+    }
+
+    ads126xAdcHandle_t *ads = s_stream.config.ads;
+    uint8_t adsDr = ads ? ads->dataRateDr : s_stream.fakeAdsDr;
+    bool statusByte = ads ? ads->enableStatusByte : false;
+    bool crcEnabled = ads ? (ads->crcMode != ADS126X_CRC_OFF) : false;
+    bool directRead = ads ? ads->fastOptions.directRead : false;
+    bool fastMux = ads ? ads->fastOptions.fastInpmuxWrite : false;
+    bool fixedGain = ads ? ads->fastOptions.fixedGain : false;
+    bool pollingSpi = ads ? ads->fastOptions.usePollingTransmit : false;
+    bool busAcquire = ads ? ads->fastOptions.acquireBusPerFrame : false;
+    uint32_t drdyTimeoutUs = ads ? ads->fastOptions.drdyTimeoutUs : 0u;
+    bool dmaCapable = ads ? ads->spiDmaCapable : false;
+
     printf("ADS_FAST_CONFIG,dr=%u,status=%u,crc=%u,directRead=%u,fastMux=%u,fixedGain=%u,"
            "pollingSpi=%u,busAcquire=%u,drdyTimeoutUs=%" PRIu32 "\n",
-           (unsigned)s_stream.config.ads->dataRateDr,
-           s_stream.config.ads->enableStatusByte ? 1u : 0u,
-           s_stream.config.ads->crcMode != ADS126X_CRC_OFF ? 1u : 0u,
-           s_stream.config.ads->fastOptions.directRead ? 1u : 0u,
-           s_stream.config.ads->fastOptions.fastInpmuxWrite ? 1u : 0u,
-           s_stream.config.ads->fastOptions.fixedGain ? 1u : 0u,
-           s_stream.config.ads->fastOptions.usePollingTransmit ? 1u : 0u,
-           s_stream.config.ads->fastOptions.acquireBusPerFrame ? 1u : 0u,
-           s_stream.config.ads->fastOptions.drdyTimeoutUs);
+           (unsigned)adsDr,
+           statusByte ? 1u : 0u,
+           crcEnabled ? 1u : 0u,
+           directRead ? 1u : 0u,
+           fastMux ? 1u : 0u,
+           fixedGain ? 1u : 0u,
+           pollingSpi ? 1u : 0u,
+           busAcquire ? 1u : 0u,
+           drdyTimeoutUs);
 
     const char *format =
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
@@ -576,14 +807,14 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            "dma=%u,spiPolling=%u,busAcquire=%u,csvEvery=%u,discardFirst=%u,oversample=%u,"
            "rowSettleUs=%u,pathSettleUs=%u,muxSettleUs=%" PRIu32 ",autoRate=%u,usbNonblocking=%u\n",
            s_stream.config.modeName ? s_stream.config.modeName : "UNKNOWN",
-           (unsigned)s_stream.config.ads->dataRateDr,
+           (unsigned)adsDr,
            format,
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_CORE,
            (unsigned)CONFIG_SENSORARRAY_COMM_TASK_CORE,
-           s_stream.config.ads->spiDmaCapable ? 1u : 0u,
-           s_stream.config.ads->fastOptions.usePollingTransmit ? 1u : 0u,
-           s_stream.config.ads->fastOptions.acquireBusPerFrame ? 1u : 0u,
+           dmaCapable ? 1u : 0u,
+           pollingSpi ? 1u : 0u,
+           busAcquire ? 1u : 0u,
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
            CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST ? 1u : 0u,
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_OVERSAMPLE,
@@ -597,8 +828,12 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            "commStack=%u,scanStack=%u,heapFree=%u,heapMinFree=%u\n",
            (unsigned)sizeof(sensorarrayVoltageStreamFrame_t),
            (unsigned)sizeof(sensorarrayVoltageCompactFrame_t),
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
-           (unsigned)(CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH * sizeof(sensorarrayVoltageStreamFrame_t)),
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+           (unsigned)(sensorarrayVoltageStreamReadyQueueDepth() * sizeof(sensorarrayVoltageStreamFrame_t *)),
+#else
+           (unsigned)(sensorarrayVoltageStreamReadyQueueDepth() * sizeof(sensorarrayVoltageStreamFrame_t)),
+#endif
            (unsigned)CONFIG_SENSORARRAY_COMM_TASK_STACK,
            (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK,
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
@@ -613,7 +848,7 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            (unsigned)SENSORARRAY_VOLTAGE_COMPACT_TYPE_ADS126X_UV,
            (unsigned)SENSORARRAY_VOLTAGE_COMPACT_SIZE,
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES,
            sensorarrayVoltageStreamShouldPrintTextStatus() ? 1u : 0u);
 #elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
@@ -624,18 +859,18 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            (unsigned)SENSORARRAY_VOLTAGE_COMPACT_TYPE_ADS126X_UV,
            (unsigned)SENSORARRAY_VOLTAGE_COMPACT_SIZE,
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES,
            sensorarrayVoltageStreamShouldPrintTextStatus() ? 1u : 0u);
 #elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV
     printf("STREAM_INIT,format=csv,csvEvery=%u,queueDepth=%u,statusEvery=%u,textStatus=%u\n",
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES,
            sensorarrayVoltageStreamShouldPrintTextStatus() ? 1u : 0u);
 #else
     printf("STREAM_INIT,format=off,queueDepth=%u,statusEvery=%u,textStatus=%u\n",
-           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)sensorarrayVoltageStreamReadyQueueDepth(),
            (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES,
            sensorarrayVoltageStreamShouldPrintTextStatus() ? 1u : 0u);
 #endif
@@ -653,6 +888,74 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            s_stream.config.adsPolicyOk ? 1u : 0u);
 }
 
+static sensorarrayVoltageStreamFrame_t *sensorarrayVoltageStreamAcquireScanFrame(void)
+{
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    sensorarrayVoltageStreamFrame_t *frame = NULL;
+    if (!s_stream.freeQueue || xQueueReceive(s_stream.freeQueue, &frame, 0) != pdTRUE || !frame) {
+        s_stream.perf.framesDropped++;
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_QUEUE_FULL,
+                                SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_FRAME_DROPPED,
+                                SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+        return NULL;
+    }
+    return frame;
+#else
+    return s_stream.scanTxFrame;
+#endif
+}
+
+static bool sensorarrayVoltageStreamReceiveReadyFrame(sensorarrayVoltageStreamFrame_t **outFrame)
+{
+    if (!outFrame) {
+        return false;
+    }
+    *outFrame = NULL;
+
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    sensorarrayVoltageStreamFrame_t *frame = NULL;
+    if (!s_stream.queue || xQueueReceive(s_stream.queue, &frame, portMAX_DELAY) != pdTRUE || !frame) {
+        return false;
+    }
+    *outFrame = frame;
+    return true;
+#else
+    sensorarrayVoltageStreamFrame_t *frame = s_stream.outputRxFrame;
+    if (!frame) {
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
+                                SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
+        return false;
+    }
+    memset(frame, 0, sizeof(*frame));
+    if (!s_stream.queue || xQueueReceive(s_stream.queue, frame, portMAX_DELAY) != pdTRUE) {
+        return false;
+    }
+    *outFrame = frame;
+    return true;
+#endif
+}
+
+static void sensorarrayVoltageStreamReleaseFrame(sensorarrayVoltageStreamFrame_t *frame)
+{
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    if (!frame || !s_stream.freeQueue) {
+        return;
+    }
+    memset(frame, 0, sizeof(*frame));
+    if (xQueueSend(s_stream.freeQueue, &frame, 0) != pdTRUE) {
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
+                                SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+    }
+#else
+    (void)frame;
+#endif
+}
+
 static void sensorarrayVoltageOutputTask(void *arg)
 {
     (void)arg;
@@ -660,18 +963,14 @@ static void sensorarrayVoltageOutputTask(void *arg)
     sensorarrayVoltageStreamPrintStartup();
 
     while (true) {
-        sensorarrayVoltageStreamFrame_t *streamFrame = s_stream.outputRxFrame;
-        if (!streamFrame) {
-            sensorarrayStatusRecord(&s_stream.status,
-                                    SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
-                                    SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
-            vTaskDelay(pdMS_TO_TICKS(100u));
+        sensorarrayVoltageStreamFrame_t *streamFrame = NULL;
+        if (!sensorarrayVoltageStreamReceiveReadyFrame(&streamFrame)) {
             continue;
         }
 
-        memset(streamFrame, 0, sizeof(*streamFrame));
-
-        if (xQueueReceive(s_stream.queue, streamFrame, portMAX_DELAY) != pdTRUE) {
+        if (s_stream.binaryPartialFatal) {
+            sensorarrayVoltageStreamReleaseFrame(streamFrame);
+            vTaskDelay(pdMS_TO_TICKS(100u));
             continue;
         }
 
@@ -682,22 +981,10 @@ static void sensorarrayVoltageOutputTask(void *arg)
         }
 
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
-        uint32_t shortBefore = s_stream.status.usbShortWriteCount;
-        uint32_t failBefore = s_stream.status.usbWriteFailCount;
-        bool binaryWritten = sensorarrayVoltageStreamWriteBinary(&streamFrame->frame);
-        if (!binaryWritten) {
-            sensorarrayStatusCode_t code =
-                (s_stream.status.usbWriteFailCount != failBefore)
-                    ? SENSORARRAY_STATUS_USB_STDOUT_WRITE_FAIL
-                    : SENSORARRAY_STATUS_BINARY_WRITE_PARTIAL;
-            if (s_stream.status.usbShortWriteCount != shortBefore ||
-                s_stream.status.usbWriteFailCount != failBefore) {
-                streamFrame->frame.statusFlags |= SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED;
-                if (streamFrame->frame.firstStatusCode == SENSORARRAY_STATUS_OK) {
-                    streamFrame->frame.firstStatusCode = code;
-                }
-                streamFrame->frame.lastStatusCode = code;
-            }
+        sensorarrayWriteResult_t writeResult = sensorarrayVoltageStreamWriteBinary(&streamFrame->frame);
+        if (writeResult == SENSORARRAY_WRITE_PARTIAL_FATAL) {
+            sensorarrayVoltageStreamReleaseFrame(streamFrame);
+            continue;
         }
 #endif
 
@@ -714,6 +1001,8 @@ static void sensorarrayVoltageOutputTask(void *arg)
             (streamFrame->frame.sequence % (uint32_t)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES) == 0u) {
             sensorarrayVoltageStreamPrintStat(&streamFrame->frame);
         }
+
+        sensorarrayVoltageStreamReleaseFrame(streamFrame);
     }
 }
 
@@ -748,7 +1037,11 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
     }
 
     int64_t queueStartUs = esp_timer_get_time();
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    BaseType_t sent = xQueueSend(s_stream.queue, &streamFrame, 0);
+#else
     BaseType_t sent = xQueueSend(s_stream.queue, streamFrame, 0);
+#endif
     uint32_t queueElapsedUs = (uint32_t)(esp_timer_get_time() - queueStartUs);
     sensorarrayPerfAddSample(&s_stream.perf.queueSendTotalUs, &s_stream.perf.queueSendMaxUs, queueElapsedUs);
 
@@ -762,6 +1055,16 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
                             SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
 
 #if CONFIG_SENSORARRAY_STREAM_DROP_OLDEST
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    sensorarrayVoltageStreamFrame_t *oldFrame = NULL;
+    if (xQueueReceive(s_stream.queue, &oldFrame, 0) == pdTRUE && oldFrame) {
+        sensorarrayVoltageStreamReleaseFrame(oldFrame);
+    } else {
+        sensorarrayStatusRecord(&s_stream.status,
+                                SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
+                                SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+    }
+#else
     sensorarrayVoltageStreamFrame_t *oldFrame = s_stream.dropScratchFrame;
     if (oldFrame) {
         memset(oldFrame, 0, sizeof(*oldFrame));
@@ -771,6 +1074,7 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
                                 SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
                                 SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
     }
+#endif
     s_stream.perf.framesDropped++;
     sensorarrayStatusRecord(&s_stream.status,
                             SENSORARRAY_STATUS_STREAM_FRAME_DROPPED,
@@ -782,13 +1086,29 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
     streamFrame->frame.lastStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
     streamFrame->frame.droppedFrames = s_stream.status.droppedFrameCount;
     streamFrame->frame.outputDecimatedFrames = s_stream.status.outputDecimatedFrameCount;
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    if (xQueueSend(s_stream.queue, &streamFrame, 0) == pdTRUE) {
+        s_stream.perf.framesQueued++;
+    } else {
+        sensorarrayVoltageStreamReleaseFrame(streamFrame);
+    }
+#else
     if (xQueueSend(s_stream.queue, streamFrame, 0) == pdTRUE) {
         s_stream.perf.framesQueued++;
     }
+#endif
 #elif CONFIG_SENSORARRAY_STREAM_BLOCK_SAFE_ONLY && CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    if (xQueueSend(s_stream.queue, &streamFrame, portMAX_DELAY) == pdTRUE) {
+        s_stream.perf.framesQueued++;
+    } else {
+        sensorarrayVoltageStreamReleaseFrame(streamFrame);
+    }
+#else
     if (xQueueSend(s_stream.queue, streamFrame, portMAX_DELAY) == pdTRUE) {
         s_stream.perf.framesQueued++;
     }
+#endif
 #else
     s_stream.perf.framesDropped++;
     sensorarrayStatusRecord(&s_stream.status,
@@ -801,6 +1121,9 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
     streamFrame->frame.lastStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
     streamFrame->frame.droppedFrames = s_stream.status.droppedFrameCount;
     streamFrame->frame.outputDecimatedFrames = s_stream.status.outputDecimatedFrameCount;
+#if CONFIG_SENSORARRAY_STREAM_USE_POINTER_QUEUE
+    sensorarrayVoltageStreamReleaseFrame(streamFrame);
+#endif
 #endif
 }
 
@@ -809,12 +1132,9 @@ static void sensorarrayVoltageScanTask(void *arg)
     (void)arg;
 
     while (s_stream.running && !s_stream.controller.fatalStop) {
-        sensorarrayVoltageStreamFrame_t *streamFrame = s_stream.scanTxFrame;
+        sensorarrayVoltageStreamFrame_t *streamFrame = sensorarrayVoltageStreamAcquireScanFrame();
         if (!streamFrame) {
-            sensorarrayStatusRecord(&s_stream.status,
-                                    SENSORARRAY_STATUS_STREAM_INTERNAL_ERROR,
-                                    SENSORARRAY_FRAME_FLAG_ADS_ERROR);
-            vTaskDelay(pdMS_TO_TICKS(100u));
+            vTaskDelay(pdMS_TO_TICKS(1u));
             continue;
         }
 
@@ -829,6 +1149,7 @@ static void sensorarrayVoltageScanTask(void *arg)
                                                     &streamFrame->frame,
                                                     &s_stream.status,
                                                     &s_stream.perf);
+        s_stream.perf.framesGenerated++;
 
         streamFrame->frame.outputDivider = (uint8_t)(s_stream.controller.outputDivider > 255u
                                                          ? 255u
@@ -836,6 +1157,7 @@ static void sensorarrayVoltageScanTask(void *arg)
         streamFrame->frame.adsDr = s_stream.controller.currentAdsDr;
         streamFrame->frame.rateControlLevel = (uint16_t)s_stream.controller.degradeCount;
         streamFrame->frame.scanFramePeriodUs = s_stream.controller.scanFramePeriodUs;
+        uint32_t scanDurationUs = streamFrame->frame.scanDurationUs;
 
         if ((streamFrame->frame.sequence % (uint32_t)CONFIG_SENSORARRAY_AUTO_RATE_WINDOW_FRAMES) == 0u) {
             sensorarrayRateAction_t action = SENSORARRAY_RATE_ACTION_NONE;
@@ -844,7 +1166,7 @@ static void sensorarrayVoltageScanTask(void *arg)
             if (sensorarrayRateControllerUpdate(&s_stream.controller,
                                                 &s_stream.perf,
                                                 &s_stream.status,
-                                                CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+                                                sensorarrayVoltageStreamReadyQueueDepth(),
                                                 queueUsed,
                                                 &action,
                                                 &cause) == ESP_OK &&
@@ -871,10 +1193,11 @@ static void sensorarrayVoltageScanTask(void *arg)
             sensorarrayStatusRecord(&s_stream.status,
                                     SENSORARRAY_STATUS_RATE_OUTPUT_DECIMATED,
                                     SENSORARRAY_FRAME_FLAG_OUTPUT_DECIMATED);
+            sensorarrayVoltageStreamReleaseFrame(streamFrame);
         }
 
-        if (s_stream.controller.scanFramePeriodUs > streamFrame->frame.scanDurationUs) {
-            uint32_t throttleUs = s_stream.controller.scanFramePeriodUs - streamFrame->frame.scanDurationUs;
+        if (s_stream.controller.scanFramePeriodUs > scanDurationUs) {
+            uint32_t throttleUs = s_stream.controller.scanFramePeriodUs - scanDurationUs;
             if (throttleUs < 1000u) {
                 esp_rom_delay_us(throttleUs);
             } else {
@@ -884,6 +1207,137 @@ static void sensorarrayVoltageScanTask(void *arg)
     }
 
     vTaskDelete(NULL);
+}
+
+static void sensorarrayVoltageStreamFillFakeFrame(sensorarrayVoltageStreamFrame_t *streamFrame)
+{
+    if (!streamFrame) {
+        return;
+    }
+
+    memset(streamFrame, 0, sizeof(*streamFrame));
+    sensorarrayVoltageFrame_t *frame = &streamFrame->frame;
+    int64_t startUs = esp_timer_get_time();
+    uint32_t sequence = s_stream.fakeSequence++;
+
+    frame->sequence = sequence;
+    frame->timestampUs = (uint64_t)startUs;
+    frame->statusFlags = SENSORARRAY_FRAME_FLAG_OK;
+    frame->firstStatusCode = SENSORARRAY_STATUS_OK;
+    frame->lastStatusCode = SENSORARRAY_STATUS_OK;
+    frame->validMask = UINT64_MAX;
+    frame->adsDr = s_stream.controller.currentAdsDr;
+    frame->outputDivider = (uint8_t)(s_stream.controller.outputDivider > 255u
+                                         ? 255u
+                                         : s_stream.controller.outputDivider);
+    frame->rateControlLevel = (uint16_t)s_stream.controller.degradeCount;
+    frame->scanFramePeriodUs = s_stream.controller.scanFramePeriodUs;
+    frame->droppedFrames = s_stream.status.droppedFrameCount;
+    frame->outputDecimatedFrames = s_stream.status.outputDecimatedFrameCount;
+
+    for (uint32_t i = 0u; i < 64u; ++i) {
+        uint8_t row = (uint8_t)(i / SENSORARRAY_VOLTAGE_SCAN_COLS);
+        uint8_t col = (uint8_t)(i % SENSORARRAY_VOLTAGE_SCAN_COLS);
+        frame->microvolts[row][col] = (int32_t)(100000u + i + (sequence % 1000u));
+        frame->raw[row][col] = frame->microvolts[row][col];
+        frame->gain[row][col] = ADS126X_GAIN_1;
+        frame->err[row][col] = ESP_OK;
+        frame->pointStatus[row][col] = SENSORARRAY_STATUS_OK;
+        frame->clipped[row][col] = false;
+    }
+
+    frame->scanDurationUs = (uint32_t)(esp_timer_get_time() - startUs);
+    s_stream.perf.framesGenerated++;
+    s_stream.perf.framesScanned++;
+    s_stream.perf.pointsScanned += 64u;
+    sensorarrayPerfAddSample(&s_stream.perf.scanTotalUs,
+                             &s_stream.perf.scanMaxUs,
+                             frame->scanDurationUs);
+}
+
+static void sensorarrayVoltageFakeScanTask(void *arg)
+{
+    (void)arg;
+    uint32_t fps = s_stream.fakeFps;
+    TickType_t periodTicks = 0;
+    TickType_t lastWake = xTaskGetTickCount();
+    if (fps > 0u) {
+        uint32_t periodMs = (1000u + fps - 1u) / fps;
+        if (periodMs == 0u) {
+            periodMs = 1u;
+        }
+        periodTicks = pdMS_TO_TICKS(periodMs);
+        if (periodTicks == 0) {
+            periodTicks = 1;
+        }
+    }
+
+    while (s_stream.running && !s_stream.controller.fatalStop) {
+        sensorarrayVoltageStreamFrame_t *streamFrame = sensorarrayVoltageStreamAcquireScanFrame();
+        if (!streamFrame) {
+            vTaskDelay(pdMS_TO_TICKS(1u));
+            continue;
+        }
+
+        sensorarrayVoltageStreamFillFakeFrame(streamFrame);
+        sensorarrayVoltageStreamQueueFrame(streamFrame);
+
+        if (periodTicks > 0) {
+            vTaskDelayUntil(&lastWake, periodTicks);
+        } else if ((s_stream.fakeSequence & 0x0Fu) == 0u) {
+            vTaskDelay(pdMS_TO_TICKS(1u));
+        } else {
+            taskYIELD();
+        }
+    }
+
+    vTaskDelete(NULL);
+}
+
+static void sensorarrayVoltageStreamApplyOutputMode(void)
+{
+    s_binaryModeActive = sensorarrayVoltageStreamPureBinaryEnabled();
+    if (s_binaryModeActive) {
+        esp_log_level_set("*", ESP_LOG_NONE);
+    } else {
+        esp_log_level_set("*", ESP_LOG_WARN);
+    }
+}
+
+static esp_err_t sensorarrayVoltageStreamStartTasks(TaskFunction_t scanTaskFn, const char *scanTaskName)
+{
+    s_stream.running = true;
+    s_stream.streamStartUs = esp_timer_get_time();
+
+    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayVoltageOutputTask,
+                                            "sensorarray_out",
+                                            CONFIG_SENSORARRAY_COMM_TASK_STACK,
+                                            NULL,
+                                            CONFIG_SENSORARRAY_COMM_TASK_PRIORITY,
+                                            &s_stream.outputTask,
+                                            CONFIG_SENSORARRAY_COMM_TASK_CORE);
+    if (ok != pdPASS) {
+        s_stream.running = false;
+        return ESP_ERR_NO_MEM;
+    }
+
+    ok = xTaskCreatePinnedToCore(scanTaskFn,
+                                 scanTaskName,
+                                 CONFIG_SENSORARRAY_SCAN_TASK_STACK,
+                                 NULL,
+                                 CONFIG_SENSORARRAY_SCAN_TASK_PRIORITY,
+                                 &s_stream.scanTask,
+                                 CONFIG_SENSORARRAY_SCAN_TASK_CORE);
+    if (ok != pdPASS) {
+        s_stream.running = false;
+        if (s_stream.outputTask) {
+            vTaskDelete(s_stream.outputTask);
+            s_stream.outputTask = NULL;
+        }
+        return ESP_ERR_NO_MEM;
+    }
+
+    return ESP_OK;
 }
 
 esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *config)
@@ -897,10 +1351,13 @@ esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *
 
     memset(&s_stream, 0, sizeof(s_stream));
     s_stream.config = *config;
+    s_stream.fakeMode = false;
+    s_stream.fakeAdsDr = config->ads->dataRateDr;
 
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
     s_stream.textStatusSuppressedByBinaryMode = !CONFIG_SENSORARRAY_BINARY_TEXT_STATUS;
 #endif
+    sensorarrayVoltageStreamApplyOutputMode();
 
     esp_err_t memErr = sensorarrayVoltageStreamAllocateBuffers();
     if (memErr != ESP_OK) {
@@ -908,11 +1365,10 @@ esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *
         return memErr;
     }
 
-    s_stream.queue = xQueueCreate(CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
-                                  sizeof(sensorarrayVoltageStreamFrame_t));
-    if (!s_stream.queue) {
+    esp_err_t queueErr = sensorarrayVoltageStreamCreateQueues();
+    if (queueErr != ESP_OK) {
         sensorarrayVoltageStreamReleaseBuffers();
-        return ESP_ERR_NO_MEM;
+        return queueErr;
     }
 
     ads126xAdcFastScanOptions_t fastOptions = {
@@ -930,8 +1386,7 @@ esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *
 
     esp_err_t err = ads126xAdcConfigureFastScan(config->ads, &fastOptions);
     if (err != ESP_OK) {
-        vQueueDelete(s_stream.queue);
-        s_stream.queue = NULL;
+        sensorarrayVoltageStreamDeleteQueues();
         sensorarrayVoltageStreamReleaseBuffers();
         return err;
     }
@@ -946,42 +1401,70 @@ esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *
                                 SENSORARRAY_FRAME_FLAG_ADS_ERROR);
     }
 
-    esp_log_level_set("*", ESP_LOG_WARN);
-
-    s_stream.running = true;
-    s_stream.streamStartUs = esp_timer_get_time();
-    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayVoltageOutputTask,
-                                            "sensorarray_out",
-                                            CONFIG_SENSORARRAY_COMM_TASK_STACK,
-                                            NULL,
-                                            CONFIG_SENSORARRAY_COMM_TASK_PRIORITY,
-                                            &s_stream.outputTask,
-                                            CONFIG_SENSORARRAY_COMM_TASK_CORE);
-    if (ok != pdPASS) {
-        s_stream.running = false;
-        vQueueDelete(s_stream.queue);
-        s_stream.queue = NULL;
+    err = sensorarrayVoltageStreamStartTasks(sensorarrayVoltageScanTask, "sensorarray_scan");
+    if (err != ESP_OK) {
+        sensorarrayVoltageStreamDeleteQueues();
         sensorarrayVoltageStreamReleaseBuffers();
-        return ESP_ERR_NO_MEM;
+        return err;
     }
 
-    ok = xTaskCreatePinnedToCore(sensorarrayVoltageScanTask,
-                                 "sensorarray_scan",
-                                 CONFIG_SENSORARRAY_SCAN_TASK_STACK,
-                                 NULL,
-                                 CONFIG_SENSORARRAY_SCAN_TASK_PRIORITY,
-                                 &s_stream.scanTask,
-                                 CONFIG_SENSORARRAY_SCAN_TASK_CORE);
-    if (ok != pdPASS) {
-        s_stream.running = false;
-        if (s_stream.outputTask) {
-            vTaskDelete(s_stream.outputTask);
-            s_stream.outputTask = NULL;
-        }
-        vQueueDelete(s_stream.queue);
-        s_stream.queue = NULL;
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayVoltageStreamStartFake(const sensorarrayVoltageStreamFakeConfig_t *config)
+{
+    if (s_stream.running) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint8_t adsDr = config ? config->adsDr : (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
+    if (adsDr > 15u) {
+        adsDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
+    }
+    uint32_t fps = config ? config->fps : (uint32_t)CONFIG_SENSORARRAY_FAST_BINARY_FAKE_FPS;
+
+    memset(&s_stream, 0, sizeof(s_stream));
+    s_stream.config = (sensorarrayVoltageStreamConfig_t){
+        .ads = NULL,
+        .swSource = TMUX1108_SOURCE_GND,
+        .modeName = (config && config->modeName) ? config->modeName : "FAST_BINARY_FAKE",
+        .swName = "FAKE",
+        .expectedAdsRefmux = 0u,
+        .useAdsInternalRef = false,
+        .useAdsVbias = false,
+        .routePolicyOk = true,
+        .adsPolicyOk = true,
+    };
+    s_stream.fakeMode = true;
+    s_stream.fakeAdsDr = adsDr;
+    s_stream.fakeFps = fps;
+
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    s_stream.textStatusSuppressedByBinaryMode = !CONFIG_SENSORARRAY_BINARY_TEXT_STATUS;
+#endif
+    sensorarrayVoltageStreamApplyOutputMode();
+
+    esp_err_t err = sensorarrayVoltageStreamAllocateBuffers();
+    if (err != ESP_OK) {
         sensorarrayVoltageStreamReleaseBuffers();
-        return ESP_ERR_NO_MEM;
+        return err;
+    }
+
+    err = sensorarrayVoltageStreamCreateQueues();
+    if (err != ESP_OK) {
+        sensorarrayVoltageStreamReleaseBuffers();
+        return err;
+    }
+
+    sensorarrayRateControllerInit(&s_stream.controller,
+                                  adsDr,
+                                  adsDr);
+
+    err = sensorarrayVoltageStreamStartTasks(sensorarrayVoltageFakeScanTask, "sensorarray_fake");
+    if (err != ESP_OK) {
+        sensorarrayVoltageStreamDeleteQueues();
+        sensorarrayVoltageStreamReleaseBuffers();
+        return err;
     }
 
     return ESP_OK;

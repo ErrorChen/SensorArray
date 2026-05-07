@@ -74,6 +74,14 @@ typedef struct {
     sensorarrayRateCause_t rateCause;
 } sensorarrayVoltageStreamFrame_t;
 
+typedef enum {
+    SENSORARRAY_WRITE_OK = 0,
+    SENSORARRAY_WRITE_DROPPED_BEFORE_FIRST_BYTE,
+    SENSORARRAY_WRITE_TIMEOUT_BEFORE_FIRST_BYTE,
+    SENSORARRAY_WRITE_PARTIAL_FATAL,
+    SENSORARRAY_WRITE_INVALID_ARG
+} sensorarrayWriteResult_t;
+
 typedef struct {
     ads126xAdcHandle_t *ads;
     tmux1108Source_t swSource;
@@ -86,7 +94,14 @@ typedef struct {
     bool adsPolicyOk;
 } sensorarrayVoltageStreamConfig_t;
 
+typedef struct {
+    const char *modeName;
+    uint8_t adsDr;
+    uint32_t fps;
+} sensorarrayVoltageStreamFakeConfig_t;
+
 esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *config);
+esp_err_t sensorarrayVoltageStreamStartFake(const sensorarrayVoltageStreamFakeConfig_t *config);
 QueueHandle_t sensorarrayVoltageStreamQueue(void);
 sensorarrayStatusCounters_t *sensorarrayVoltageStreamStatus(void);
 sensorarrayPerfCounters_t *sensorarrayVoltageStreamPerf(void);

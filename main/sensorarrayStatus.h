@@ -34,6 +34,9 @@ typedef enum {
     SENSORARRAY_STATUS_OUT_STACK_CRITICAL        = 0x3008,
     SENSORARRAY_STATUS_BINARY_TEXT_SUPPRESSED    = 0x3009,
     SENSORARRAY_STATUS_BINARY_WRITE_PARTIAL      = 0x300A,
+    SENSORARRAY_STATUS_BINARY_DROPPED_BEFORE_FIRST_BYTE = 0x300B,
+    SENSORARRAY_STATUS_BINARY_TIMEOUT_BEFORE_FIRST_BYTE = 0x300C,
+    SENSORARRAY_STATUS_BINARY_PARTIAL_FATAL      = 0x300D,
 
     SENSORARRAY_STATUS_SPI_BUS_ACQUIRE_FAIL      = 0x4001,
     SENSORARRAY_STATUS_SPI_BUS_RELEASE_FAIL      = 0x4002,
@@ -90,6 +93,11 @@ typedef struct {
     uint32_t usbStdoutBlockedCount;
     uint32_t usbShortWriteCount;
     uint32_t usbWriteFailCount;
+    uint32_t binaryDroppedBeforeFirstByteCount;
+    uint32_t binaryPartialFatalCount;
+    uint32_t usbBusyBeforeFrameCount;
+    uint32_t usbTimeoutBeforeFrameCount;
+    uint32_t usbTimeoutAfterPartialCount;
 
     uint32_t rateControlDegradeCount;
     uint32_t rateControlUpshiftCount;

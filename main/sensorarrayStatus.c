@@ -75,6 +75,19 @@ void sensorarrayStatusRecord(sensorarrayStatusCounters_t *status,
     case SENSORARRAY_STATUS_BINARY_WRITE_PARTIAL:
         status->usbShortWriteCount++;
         break;
+    case SENSORARRAY_STATUS_BINARY_DROPPED_BEFORE_FIRST_BYTE:
+        status->binaryDroppedBeforeFirstByteCount++;
+        status->usbBusyBeforeFrameCount++;
+        break;
+    case SENSORARRAY_STATUS_BINARY_TIMEOUT_BEFORE_FIRST_BYTE:
+        status->usbTimeoutBeforeFrameCount++;
+        break;
+    case SENSORARRAY_STATUS_BINARY_PARTIAL_FATAL:
+        status->binaryPartialFatalCount++;
+        status->usbTimeoutAfterPartialCount++;
+        status->usbShortWriteCount++;
+        status->fatalCount++;
+        break;
     case SENSORARRAY_STATUS_OUT_STACK_CRITICAL:
         status->rateControlDegradeCount++;
         break;
@@ -120,6 +133,9 @@ const char *sensorarrayStatusCodeName(sensorarrayStatusCode_t code)
     case SENSORARRAY_STATUS_OUT_STACK_CRITICAL: return "OUT_STACK_CRITICAL";
     case SENSORARRAY_STATUS_BINARY_TEXT_SUPPRESSED: return "BINARY_TEXT_SUPPRESSED";
     case SENSORARRAY_STATUS_BINARY_WRITE_PARTIAL: return "BINARY_WRITE_PARTIAL";
+    case SENSORARRAY_STATUS_BINARY_DROPPED_BEFORE_FIRST_BYTE: return "BINARY_DROPPED_BEFORE_FIRST_BYTE";
+    case SENSORARRAY_STATUS_BINARY_TIMEOUT_BEFORE_FIRST_BYTE: return "BINARY_TIMEOUT_BEFORE_FIRST_BYTE";
+    case SENSORARRAY_STATUS_BINARY_PARTIAL_FATAL: return "BINARY_PARTIAL_FATAL";
     case SENSORARRAY_STATUS_SPI_BUS_ACQUIRE_FAIL: return "SPI_BUS_ACQUIRE_FAIL";
     case SENSORARRAY_STATUS_SPI_BUS_RELEASE_FAIL: return "SPI_BUS_RELEASE_FAIL";
     case SENSORARRAY_STATUS_MODE_POLICY_MISMATCH: return "MODE_POLICY_MISMATCH";

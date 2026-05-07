@@ -7,10 +7,18 @@ extern "C" {
 #endif
 
 typedef struct {
+    uint32_t framesGenerated;
     uint32_t framesScanned;
     uint32_t framesQueued;
     uint32_t framesOutput;
+    uint32_t framesWritten;
     uint32_t framesDropped;
+    uint32_t writerDropFrames;
+    uint32_t framesDroppedBeforeFirstByte;
+    uint32_t framesPartialFatal;
+    uint32_t usbBusyBeforeFrame;
+    uint32_t usbTimeoutBeforeFrame;
+    uint32_t usbTimeoutAfterPartial;
     uint32_t outputDecimatedFrames;
     uint32_t pointsScanned;
     uint32_t spiTransactionCount;
@@ -34,6 +42,8 @@ typedef struct {
     uint32_t spiTransferMaxUs;
     uint32_t queueSendMaxUs;
     uint32_t usbWriteMaxUs;
+    uint32_t maxWriteUs;
+    uint32_t lastWriteUs;
 } sensorarrayPerfCounters_t;
 
 void sensorarrayPerfAddSample(uint64_t *totalUs, uint32_t *maxUs, uint32_t sampleUs);

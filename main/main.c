@@ -40,6 +40,29 @@ static uint32_t s_legacyStatScanMaxUs = 0u;
 #define SENSORARRAY_MAIN_TMUX1108_SOURCE_LEVEL(source) \
     (((source) == TMUX1108_SOURCE_REF) ? SENSORARRAY_MAIN_TMUX1108_REF_LEVEL : SENSORARRAY_MAIN_TMUX1108_GND_LEVEL)
 
+static bool sensorarrayMainCanPrintText(void)
+{
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    if (CONFIG_SENSORARRAY_BINARY_PURE_MODE && !CONFIG_SENSORARRAY_BINARY_ALLOW_STARTUP_TEXT) {
+        return false;
+    }
+#endif
+    return true;
+}
+
+static void sensorarrayMainConfigureLogLevel(void)
+{
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    if (CONFIG_SENSORARRAY_BINARY_PURE_MODE) {
+        esp_log_level_set("*", ESP_LOG_NONE);
+        return;
+    }
+#endif
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    esp_log_level_set("*", ESP_LOG_WARN);
+#endif
+}
+
 typedef struct {
     const char *modeName;
     const char *modeNameCn;
@@ -128,7 +151,9 @@ static const char *sensorarrayMainOffOn(bool enabled)
 
 static void sensorarrayMainIdleAfterFatal(const char *stage, esp_err_t err)
 {
-    printf("VOLTSCAN_FATAL,stage=%s,err=%ld\n", stage ? stage : "unknown", (long)err);
+    if (sensorarrayMainCanPrintText()) {
+        printf("VOLTSCAN_FATAL,stage=%s,err=%ld\n", stage ? stage : "unknown", (long)err);
+    }
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000u));
     }
@@ -136,6 +161,9 @@ static void sensorarrayMainIdleAfterFatal(const char *stage, esp_err_t err)
 
 static void sensorarrayMainPrintResetReason(void)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("RESET_REASON,reason=%d,heapFree=%u,heapMinFree=%u\n",
            (int)esp_reset_reason(),
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
@@ -144,7 +172,7 @@ static void sensorarrayMainPrintResetReason(void)
 
 static void sensorarrayMainPrintBootAnalogSafe(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-    if (!mode) {
+    if (!mode || !sensorarrayMainCanPrintText()) {
         return;
     }
 
@@ -190,6 +218,9 @@ static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltag
 
 static void __attribute__((unused)) sensorarrayMainPrintAppMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("APPMODE,active=%s,cnName=%s,skipAdsInit=0,skipFdcInit=%u,sw=%s,"
            "expectedSwLevel=%d,intrefExpected=%u,vbiasExpected=%u,expectedRefmux=0x%02X,"
            "vrefUv=%lu,adsRefPolicy=%s\n",
@@ -207,6 +238,9 @@ static void __attribute__((unused)) sensorarrayMainPrintAppMode(const sensorarra
 
 static void __attribute__((unused)) sensorarrayMainPrintRoutePolicy(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("DBGROUTEPOLICY,mode=%s,sw=%s,expectedSwLevel=%d,adsIntRef=%s,adsVbias=%s,"
            "adsRefmux=0x%02X,vrefUv=%lu,refPrepPath=%u,sela=ADS126X,fdcInitSkipped=%u\n",
            mode->modeName,
@@ -342,19 +376,21 @@ static esp_err_t __attribute__((unused)) sensorarrayMainLogTmuxPolicyReadback(co
     const bool obsSwOk = readOk && (control.obsSwLevel == mode->expectedSwLevel);
     const bool ok = sourceOk && cmdSwOk && obsSwOk;
 
-    printf("DBGTMUXPOLICY,mode=%s,stage=%s,swSource=%s,cmdSwLevel=%d,obsSwLevel=%d,"
-           "expectedSwLevel=%d,sourceOk=%u,cmdSwOk=%u,obsSwOk=%u,result=%s,err=%ld\n",
-           mode->modeName,
-           stage ? stage : "unknown",
-           mode->swName,
-           readOk ? control.cmdSwLevel : -1,
-           readOk ? control.obsSwLevel : -1,
-           mode->expectedSwLevel,
-           sourceOk ? 1u : 0u,
-           cmdSwOk ? 1u : 0u,
-           obsSwOk ? 1u : 0u,
-           ok ? "ok" : "mismatch",
-           (long)err);
+    if (sensorarrayMainCanPrintText()) {
+        printf("DBGTMUXPOLICY,mode=%s,stage=%s,swSource=%s,cmdSwLevel=%d,obsSwLevel=%d,"
+               "expectedSwLevel=%d,sourceOk=%u,cmdSwOk=%u,obsSwOk=%u,result=%s,err=%ld\n",
+               mode->modeName,
+               stage ? stage : "unknown",
+               mode->swName,
+               readOk ? control.cmdSwLevel : -1,
+               readOk ? control.obsSwLevel : -1,
+               mode->expectedSwLevel,
+               sourceOk ? 1u : 0u,
+               cmdSwOk ? 1u : 0u,
+               obsSwOk ? 1u : 0u,
+               ok ? "ok" : "mismatch",
+               (long)err);
+    }
 
     if (!readOk) {
         return err;
@@ -392,34 +428,36 @@ static esp_err_t __attribute__((unused)) sensorarrayMainLogAdsPowerPolicyReadbac
     const bool refmuxOk = readOk && (!mode->checkAdsRefmux || refmux == mode->expectedAdsRefmux);
     const bool ok = intrefOk && vbiasOk && refmuxOk;
 
-    printf("DBGADSREFPOLICY,mode=%s,stage=%s,policy=%s,power=0x%02X,interface=0x%02X,"
-           "mode2=0x%02X,inpmux=0x%02X,refmux=0x%02X,powerIntref=%u,powerVbias=%u,"
-           "expectedIntref=%u,expectedVbias=%u,expectedRefmux=0x%02X,refmuxCheck=%u,refmuxOk=%u,"
-           "vrefUv=%lu,refout=%s,result=%s,mismatch_read=%u,mismatch_intref=%u,mismatch_vbias=%u,"
-           "mismatch_refmux=%u,err=%ld\n",
-           mode->modeName,
-           stage ? stage : "unknown",
-           mode->adsRefPolicyName ? mode->adsRefPolicyName : "unknown",
-           power,
-           iface,
-           mode2,
-           inpmux,
-           refmux,
-           intrefEnabled ? 1u : 0u,
-           vbiasEnabled ? 1u : 0u,
-           mode->useAdsInternalRef ? 1u : 0u,
-           mode->useAdsVbias ? 1u : 0u,
-           mode->expectedAdsRefmux,
-           mode->checkAdsRefmux ? 1u : 0u,
-           refmuxOk ? 1u : 0u,
-           (unsigned long)mode->vrefMicrovolts,
-           intrefEnabled ? "on" : "off",
-           ok ? "ok" : "mismatch",
-           readOk ? 0u : 1u,
-           intrefOk ? 0u : 1u,
-           vbiasOk ? 0u : 1u,
-           refmuxOk ? 0u : 1u,
-           (long)err);
+    if (sensorarrayMainCanPrintText()) {
+        printf("DBGADSREFPOLICY,mode=%s,stage=%s,policy=%s,power=0x%02X,interface=0x%02X,"
+               "mode2=0x%02X,inpmux=0x%02X,refmux=0x%02X,powerIntref=%u,powerVbias=%u,"
+               "expectedIntref=%u,expectedVbias=%u,expectedRefmux=0x%02X,refmuxCheck=%u,refmuxOk=%u,"
+               "vrefUv=%lu,refout=%s,result=%s,mismatch_read=%u,mismatch_intref=%u,mismatch_vbias=%u,"
+               "mismatch_refmux=%u,err=%ld\n",
+               mode->modeName,
+               stage ? stage : "unknown",
+               mode->adsRefPolicyName ? mode->adsRefPolicyName : "unknown",
+               power,
+               iface,
+               mode2,
+               inpmux,
+               refmux,
+               intrefEnabled ? 1u : 0u,
+               vbiasEnabled ? 1u : 0u,
+               mode->useAdsInternalRef ? 1u : 0u,
+               mode->useAdsVbias ? 1u : 0u,
+               mode->expectedAdsRefmux,
+               mode->checkAdsRefmux ? 1u : 0u,
+               refmuxOk ? 1u : 0u,
+               (unsigned long)mode->vrefMicrovolts,
+               intrefEnabled ? "on" : "off",
+               ok ? "ok" : "mismatch",
+               readOk ? 0u : 1u,
+               intrefOk ? 0u : 1u,
+               vbiasOk ? 0u : 1u,
+               refmuxOk ? 0u : 1u,
+               (long)err);
+    }
 
     if (!readOk) {
         return err;
@@ -621,7 +659,7 @@ static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadMo
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_OFF
     memset(s_gainTable, defaultGain, sizeof(s_gainTable));
-    if (printSummary) {
+    if (printSummary && sensorarrayMainCanPrintText()) {
         printf("VOLTSCAN_GAIN,mode=off,gain=%u\n", (unsigned)defaultGain);
     }
     return ESP_OK;
@@ -669,7 +707,7 @@ static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadMo
         }
     }
 
-    if (printSummary || CONFIG_SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG) {
+    if ((printSummary || CONFIG_SENSORARRAY_VOLTAGE_SCAN_VERBOSE_LOG) && sensorarrayMainCanPrintText()) {
         printf("VOLTSCAN_GAIN,mode=%s,points=64,errCount=%lu,headroomPercent=%u\n",
                sensorarrayMainAutoGainModeName(),
                (unsigned long)errCount,
@@ -681,6 +719,9 @@ static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadMo
 
 static void sensorarrayMainPrintVoltageHeader(void)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("MATV_HEADER,seq,timestamp_us,duration_us,unit");
     for (uint8_t s = 1u; s <= SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
         for (uint8_t d = 1u; d <= SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
@@ -716,6 +757,9 @@ static bool sensorarrayMainFrameHasError(const sensorarrayVoltageFrame_t *frame)
 
 static void sensorarrayMainPrintVoltageFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("MATV,%" PRIu32 ",%" PRIu64 ",%" PRIu32 ",uV",
            frame->sequence,
            frame->timestampUs,
@@ -731,6 +775,9 @@ static void sensorarrayMainPrintVoltageFrameCsv(const sensorarrayVoltageFrame_t 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_RAW
 static void sensorarrayMainPrintRawFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("MATV_RAW,%" PRIu32 ",%" PRIu64, frame->sequence, frame->timestampUs);
     for (uint8_t s = 0u; s < SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
         for (uint8_t d = 0u; d < SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
@@ -744,6 +791,9 @@ static void sensorarrayMainPrintRawFrameCsv(const sensorarrayVoltageFrame_t *fra
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_GAIN
 static void sensorarrayMainPrintGainFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("MATV_GAIN,%" PRIu32 ",%" PRIu64, frame->sequence, frame->timestampUs);
     for (uint8_t s = 0u; s < SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
         for (uint8_t d = 0u; d < SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
@@ -756,6 +806,9 @@ static void sensorarrayMainPrintGainFrameCsv(const sensorarrayVoltageFrame_t *fr
 
 static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("MATV_ERR,%" PRIu32 ",%" PRIu64, frame->sequence, frame->timestampUs);
     for (uint8_t s = 0u; s < SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
         for (uint8_t d = 0u; d < SENSORARRAY_VOLTAGE_SCAN_COLS; ++d) {
@@ -767,7 +820,7 @@ static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *fra
 
 static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *frame)
 {
-    if (!frame) {
+    if (!frame || !sensorarrayMainCanPrintText()) {
         return;
     }
 
@@ -806,6 +859,9 @@ static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *fram
 
 static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
 {
+    if (!sensorarrayMainCanPrintText()) {
+        return;
+    }
     printf("VOLTSCAN_INIT,mode=%s,cnName=%s,sw=%s,expectedSwLevel=%d,adsIntRef=%s,adsVbias=%s,"
            "adsRefmux=0x%02X,vrefUv=%lu,fdcInitSkipped=%u,rows=8,cols=8,unit=uV,dr=%u,gainDefault=%u,autoGain=%s,"
            "discardFirst=%u,oversample=%u\n",
@@ -849,9 +905,7 @@ static void sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *fra
 
 static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig_t *mode)
 {
-#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
-    esp_log_level_set("*", ESP_LOG_WARN);
-#endif
+    sensorarrayMainConfigureLogLevel();
 
     sensorarrayMainPrintBootAnalogSafe(mode);
 
@@ -884,8 +938,10 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_POINT
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
-    printf("VOLTSCAN_GAIN,mode=per_point,points=64,headroomPercent=%u\n",
-           (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_HEADROOM_PERCENT);
+    if (sensorarrayMainCanPrintText()) {
+        printf("VOLTSCAN_GAIN,mode=per_point,points=64,headroomPercent=%u\n",
+               (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_HEADROOM_PERCENT);
+    }
 #else
     (void)sensorarrayMainBootstrapAutoGain(mode, true);
 #endif
@@ -931,13 +987,36 @@ void sensorarrayRunResistanceRead(void)
     sensorarrayRunVoltageReadMode(&s_resistanceReadMode);
 }
 
+void sensorarrayRunFastBinaryFake(void)
+{
+    sensorarrayMainConfigureLogLevel();
+
+    sensorarrayVoltageStreamFakeConfig_t fakeCfg = {
+        .modeName = "FAST_BINARY_FAKE",
+        .adsDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F),
+        .fps = (uint32_t)CONFIG_SENSORARRAY_FAST_BINARY_FAKE_FPS,
+    };
+    esp_err_t err = sensorarrayVoltageStreamStartFake(&fakeCfg);
+    if (err != ESP_OK) {
+        sensorarrayMainIdleAfterFatal("fast_binary_fake_start", err);
+    }
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000u));
+    }
+}
+
 // The main application entry point.
 void app_main(void)
 {
+    sensorarrayMainConfigureLogLevel();
     sensorarrayMainPrintResetReason();
 
-#if CONFIG_SENSORARRAY_APP_MODE_DEBUG
-    printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n"); //debug mode, no ADS126x initialization, direct GPIO control for routing
+#if CONFIG_SENSORARRAY_APP_MODE_FAST_BINARY_FAKE
+    sensorarrayRunFastBinaryFake();
+#elif CONFIG_SENSORARRAY_APP_MODE_DEBUG
+    if (sensorarrayMainCanPrintText()) {
+        printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n"); //debug mode, no ADS126x initialization, direct GPIO control for routing
+    }
     sensorarrayAppRun();
 #elif CONFIG_SENSORARRAY_APP_MODE_RESISTANCE_READ
     sensorarrayRunResistanceRead();
