@@ -14,3 +14,8 @@ uint32_t sensorarrayPerfAvgU32(uint64_t totalUs, uint32_t count)
 {
     return (count == 0u) ? 0u : (uint32_t)(totalUs / (uint64_t)count);
 }
+
+uint32_t sensorarrayPerfMinNonZeroU32(uint32_t currentMin, uint32_t sample)
+{
+    return (currentMin == 0u || sample < currentMin) ? sample : currentMin;
+}

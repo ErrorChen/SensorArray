@@ -97,6 +97,9 @@ esp_err_t sensorarrayRateControllerApplyAction(sensorarrayRateController_t *cont
                                                sensorarrayRateCause_t cause,
                                                ads126xAdcHandle_t *ads);
 
+void sensorarrayRateControllerForceOutputDividerAtLeast(sensorarrayRateController_t *controller,
+                                                        uint32_t minDivider);
+
 const char *sensorarrayRateActionName(sensorarrayRateAction_t action);
 const char *sensorarrayRateCauseName(sensorarrayRateCause_t cause);
 

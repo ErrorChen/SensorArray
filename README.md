@@ -47,17 +47,25 @@ Default FAST/BINARY firmware should print a short ASCII startup section before
 the compact binary stream:
 
 ```text
+RESET_REASON,reason=...,heapFree=...,heapMinFree=...
 APPMODE,active=PIEZO_READ,...
 BUILD_CONFIG,appMode=PIEZO_READ,profile=FAST,output=BINARY,csvEvery=0,dedicatedTasks=1,queueDepth=16,usbNonblocking=1,commit=<hash>
 DBGADSREFPOLICY,mode=PIEZO_READ,...
 DBGROUTEPOLICY,mode=PIEZO_READ,...
 DBGTMUXPOLICY,mode=PIEZO_READ,...
+STREAM_MEM,streamFrameSize=...,compactFrameSize=312,queueDepth=16,queueBytes=...,commStack=16384,scanStack=12288,heapFree=...,heapMinFree=...
 VOLTSCAN_CONFIG,mode=PIEZO_READ,dr=15,format=binary,queueDepth=16,...
-STREAM_INIT,format=binary,magic=0x31434153,magicBytes=SAC1,version=1,frameType=0x1261,frameSize=312,csvEvery=0,...
+STREAM_INIT,format=binary,magic=0x31434153,magicBytes=SAC1,version=1,frameType=0x1261,frameSize=312,csvEvery=0,queueDepth=16,statusEvery=1000,textStatus=0
 ```
 
-After scanning starts, a plain serial monitor may show binary noise. That is
-normal. The host parser should resync on `SAC1`.
+After `STREAM_INIT`, FAST/BINARY defaults to pure 312-byte `SAC1` compact
+binary frames. A plain serial monitor may show binary noise; that is normal.
+The host parser must resync on `magic=SAC1`, `frameSize=312`, and CRC32.
+
+FAST/BINARY does not mix periodic ASCII `STAT` or `RATE_EVENT` lines into the
+binary stream unless `CONFIG_SENSORARRAY_BINARY_TEXT_STATUS=y` is explicitly
+enabled. For manual text diagnostics, use that option, select
+`CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH`, or switch to the SAFE/CSV profile.
 
 In FAST/BINARY hot path you should not see continuous:
 
@@ -95,6 +103,8 @@ host should display those points as NaN.
 
 The compact frame keeps passive drops and active decimation as separate
 saturated 16-bit counters. Full cumulative values are available in `STAT`.
+If GUI `crc_errors`, `resyncs`, or `parse_errors` climb continuously, first
+check whether mixed text/binary output was enabled.
 
 ## Switching Back To Legacy CSV
 
@@ -147,7 +157,7 @@ If it does not show `profile=FAST,output=BINARY,csvEvery=0`, rebuild after
 `STAT` separates scan, queue, USB stdout, and host-parser problems:
 
 ```text
-STAT,seq=100,fps=31,scanFps=31,outFps=31,scanAvgUs=31442,scanMaxUs=...,usbAvgUs=...,usbMaxUs=...,qDepth=16,qUsed=0,qFull=0,drop=0,decimated=0,shortWrite=0,writeFail=0,outputDiv=1,...
+STAT,seq=1000,fps=31,scanFps=31,outFps=31,scanAvgUs=31442,scanMaxUs=...,usbAvgUs=...,usbMaxUs=...,qDepth=16,qUsed=0,qFull=0,drop=0,decimated=0,shortWrite=0,writeFail=0,outputDiv=1,outStackMinWords=...,scanStackMinWords=...,heapFree=...,heapMinFree=...
 ```
 
 Use the fields this way:
@@ -158,6 +168,36 @@ Use the fields this way:
 - `decimated` rising or `outputDiv > 1`: rate control is intentionally skipping output frames.
 - `shortWrite` or `writeFail` rising: nonblocking stdout could not accept full 312-byte frames.
 - `scanAvgUs` high: ADS/TMUX scan timing, settle time, DRDY, or SPI is the bottleneck.
+
+## Stack Overflow Checks
+
+The FAST/MAX tasks are named `sensorarray_out` and `sensorarray_scan`.
+If a panic reports `sensorarray_out stack overflow`, first confirm:
+
+- `CONFIG_SENSORARRAY_COMM_TASK_STACK >= 16384`
+- `CONFIG_SENSORARRAY_SCAN_TASK_STACK >= 12288`
+- `STREAM_MEM` reports the expected stack sizes and `compactFrameSize=312`
+- pure FAST/BINARY has `textStatus=0` and no periodic `STAT` after `STREAM_INIT`
+- `outStackMinWords`, `scanStackMinWords`, `heapFree`, and `heapMinFree` in text
+  debug mode still have margin
+
+If a panic reports `sensorarray_scan stack overflow`, inspect scan-frame and ADS
+hot-path changes first.
+
+Periodic REF activity during this failure should be treated as a likely
+secondary effect of MCU reboot. Once `sensorarray_out` no longer overflows and
+the board stops resetting, re-check REF on the scope. If REF still toggles
+without resets, debug the REF/SW/ADS reference policy separately.
+
+Recent stream/output status codes:
+
+```text
+0x3006 STREAM_INTERNAL_ERROR
+0x3007 OUT_STACK_LOW
+0x3008 OUT_STACK_CRITICAL
+0x3009 BINARY_TEXT_SUPPRESSED
+0x300A BINARY_WRITE_PARTIAL
+```
 
 Future USB Vendor Bulk Transfer may still be worth testing, but only after
 recording FAST/BINARY `scanFps`, `outFps`, queue usage, write failures, and host

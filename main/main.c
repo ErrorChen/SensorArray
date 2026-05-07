@@ -4,8 +4,10 @@
 #include <string.h>
 
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -130,6 +132,28 @@ static void sensorarrayMainIdleAfterFatal(const char *stage, esp_err_t err)
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000u));
     }
+}
+
+static void sensorarrayMainPrintResetReason(void)
+{
+    printf("RESET_REASON,reason=%d,heapFree=%u,heapMinFree=%u\n",
+           (int)esp_reset_reason(),
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+           (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+}
+
+static void sensorarrayMainPrintBootAnalogSafe(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    if (!mode) {
+        return;
+    }
+
+    printf("BOOT_ANALOG_SAFE,mode=%s,sw=%s,ref=%s,adsIntRef=%u,adsVbias=%u\n",
+           mode->modeName,
+           mode->swName,
+           mode->useAdsInternalRef ? "internal" : "avdd_avss",
+           mode->useAdsInternalRef ? 1u : 0u,
+           mode->useAdsVbias ? 1u : 0u);
 }
 
 static esp_err_t sensorarrayMainApplyVoltageTmuxDefaults(const sensorarrayVoltageReadModeConfig_t *mode)
@@ -753,7 +777,8 @@ static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *fram
         s_legacyStatScanMaxUs = frame->scanDurationUs;
     }
 
-    if ((frame->sequence % (uint32_t)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES) != 0u) {
+    if (CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES == 0 ||
+        (frame->sequence % (uint32_t)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES) != 0u) {
         return;
     }
 
@@ -827,6 +852,8 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
     esp_log_level_set("*", ESP_LOG_WARN);
 #endif
+
+    sensorarrayMainPrintBootAnalogSafe(mode);
 
     esp_err_t err = sensorarrayMainInitVoltageScan(mode);
     if (err != ESP_OK) {
@@ -907,6 +934,8 @@ void sensorarrayRunResistanceRead(void)
 // The main application entry point.
 void app_main(void)
 {
+    sensorarrayMainPrintResetReason();
+
 #if CONFIG_SENSORARRAY_APP_MODE_DEBUG
     printf("APPMODE,active=DEBUG,cnName=Debug,skipAdsInit=1,skipFdcInit=0,sw=DEBUG\n"); //debug mode, no ADS126x initialization, direct GPIO control for routing
     sensorarrayAppRun();

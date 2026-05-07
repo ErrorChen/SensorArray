@@ -38,6 +38,7 @@ typedef struct {
 
 void sensorarrayPerfAddSample(uint64_t *totalUs, uint32_t *maxUs, uint32_t sampleUs);
 uint32_t sensorarrayPerfAvgU32(uint64_t totalUs, uint32_t count);
+uint32_t sensorarrayPerfMinNonZeroU32(uint32_t currentMin, uint32_t sample);
 
 #ifdef __cplusplus
 }

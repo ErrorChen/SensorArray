@@ -26,6 +26,7 @@ The voltage read modes share one initialization path:
 Default FAST/BINARY startup should include:
 
 ```text
+RESET_REASON,reason=...,heapFree=...,heapMinFree=...
 APPMODE,active=PIEZO_READ,...
 BUILD_CONFIG,appMode=PIEZO_READ,profile=FAST,output=BINARY,csvEvery=0,dedicatedTasks=1,queueDepth=16,usbNonblocking=1,commit=<hash>
 DBGADSREFPOLICY,mode=PIEZO_READ,stage=piezo_no_ref_settled,...
@@ -33,7 +34,8 @@ DBGROUTEPOLICY,mode=PIEZO_READ,sw=GND,...
 DBGTMUXPOLICY,mode=PIEZO_READ,stage=voltage_scan_init,...
 ADS_FAST_CONFIG,dr=15,...
 VOLTSCAN_CONFIG,mode=PIEZO_READ,dr=15,format=binary,queueDepth=16,...
-STREAM_INIT,format=binary,magic=0x31434153,magicBytes=SAC1,version=1,frameType=0x1261,frameSize=312,csvEvery=0,...
+STREAM_MEM,streamFrameSize=...,compactFrameSize=312,queueDepth=16,queueBytes=...,commStack=16384,scanStack=12288,heapFree=...,heapMinFree=...
+STREAM_INIT,format=binary,magic=0x31434153,magicBytes=SAC1,version=1,frameType=0x1261,frameSize=312,csvEvery=0,queueDepth=16,statusEvery=1000,textStatus=0
 ```
 
 ## FAST/MAX Stream Architecture
@@ -44,9 +46,10 @@ It starts `sensorarrayVoltageStreamStart()` and then idles in `main.c`.
 - `sensorarrayVoltageScanTask`: owns TMUX and ADS126x SPI, scans 64 points, and
   sends frames to the queue. It does not call `printf`, `fprintf`, `fwrite`, or
   `ESP_LOGI` in the hot path.
-- `sensorarrayVoltageOutputTask`: owns USB Serial/JTAG stdout. It prints startup
-  config, writes compact binary frames, optional sampled CSV, `STAT`, and
-  `RATE_EVENT`.
+- `sensorarray_out`: owns USB Serial/JTAG stdout. It prints startup config,
+  writes compact binary frames, optional sampled CSV, `STAT`, and `RATE_EVENT`.
+  In pure FAST/BINARY, `STAT` and `RATE_EVENT` are disabled after `STREAM_INIT`
+  unless `CONFIG_SENSORARRAY_BINARY_TEXT_STATUS=y`.
 - Queue sends are nonblocking in FAST/MAX. Queue full events update `qFull`,
   `drop`, and frame metadata.
 
@@ -58,7 +61,13 @@ CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N=0
 ```
 
 Each published frame writes one 312-byte compact binary frame. It does not write
-`MATV_HEADER`, `MATV`, `MATV_RAW`, or `MATV_GAIN`.
+`MATV_HEADER`, `MATV`, `MATV_RAW`, `MATV_GAIN`, periodic `STAT`, or
+`RATE_EVENT` in the default pure-binary profile. Ordinary serial monitors will
+show binary data after `STREAM_INIT`; host tools must resync by `SAC1`, frame
+size 312, and CRC32.
+
+For manual text diagnostics, enable `CONFIG_SENSORARRAY_BINARY_TEXT_STATUS=y`,
+select `CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH`, or use SAFE/CSV.
 
 ## SAFE Legacy CSV
 
@@ -117,6 +126,8 @@ crc32      = IEEE CRC32 over all previous bytes
 The point order matches the old `MATV` CSV exactly.
 Passive drops and active decimation are distinct saturated 16-bit fields in the
 compact frame; full cumulative counts are also printed in `STAT`.
+If GUI `crc_errors`, `resyncs`, or `parse_errors` climb continuously, first
+check whether mixed text/binary output was enabled.
 
 ## STAT Fields
 
@@ -136,6 +147,9 @@ decimated   active output skips from rate control
 shortWrite  partial nonblocking stdout writes
 writeFail   zero-byte/nonrecoverable stdout write failures
 outputDiv   active output decimation divisor
+outStackMinWords  minimum observed output task stack high-water mark
+scanStackMinWords minimum observed scan task stack high-water mark
+heapFree / heapMinFree  current and minimum free 8-bit heap
 ```
 
 Interpretation:
@@ -146,6 +160,34 @@ Interpretation:
 - Rising `decimated` or `outputDiv > 1`: auto rate control is protecting output.
 - Rising `shortWrite` or `writeFail`: nonblocking USB Serial/JTAG stdout is slow
   or the host is not reading fast enough.
+
+## Stack And REF Diagnostics
+
+Task names are intentionally short so FreeRTOS panic output is unambiguous:
+
+```text
+sensorarray_out   output/USB stdout task
+sensorarray_scan  TMUX/ADS scan task
+```
+
+For `sensorarray_out stack overflow`, confirm `STREAM_MEM` reports
+`commStack=16384`, the output path is not mixing periodic text into FAST_BINARY,
+and text debug `STAT` still shows healthy `outStackMinWords`. For
+`sensorarray_scan stack overflow`, inspect scan-frame and ADS hot-path stack use.
+
+Periodic REF pulses during a reboot loop should be treated first as a secondary
+effect of MCU reset and ADS/route reinitialization. If resets stop but REF still
+toggles, debug the REF/SW/ADS reference policy separately.
+
+Recent stream/output status codes:
+
+```text
+0x3006 STREAM_INTERNAL_ERROR
+0x3007 OUT_STACK_LOW
+0x3008 OUT_STACK_CRITICAL
+0x3009 BINARY_TEXT_SUPPRESSED
+0x300A BINARY_WRITE_PARTIAL
+```
 
 ## Boundary
 

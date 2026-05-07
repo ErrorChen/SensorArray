@@ -334,6 +334,23 @@ esp_err_t sensorarrayRateControllerApplyAction(sensorarrayRateController_t *cont
     }
 }
 
+void sensorarrayRateControllerForceOutputDividerAtLeast(sensorarrayRateController_t *controller,
+                                                        uint32_t minDivider)
+{
+    if (!controller || minDivider == 0u) {
+        return;
+    }
+
+    if (minDivider > (uint32_t)CONFIG_SENSORARRAY_AUTO_RATE_OUTPUT_DIV_MAX) {
+        minDivider = (uint32_t)CONFIG_SENSORARRAY_AUTO_RATE_OUTPUT_DIV_MAX;
+    }
+
+    if (controller->outputDivider < minDivider) {
+        controller->outputDivider = minDivider;
+        controller->degradeCount++;
+    }
+}
+
 const char *sensorarrayRateActionName(sensorarrayRateAction_t action)
 {
     switch (action) {

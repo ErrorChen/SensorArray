@@ -118,7 +118,12 @@ endmenu
 menu "Task resources"
 config SENSORARRAY_SCAN_TASK_STACK
     int "Scan task stack bytes"
-    default 8192
+    default 12288
+    range 8192 32768
+    help
+        Stack for voltage scan task. FAST/MAX profiles scan an 8x8 matrix and
+        may hold frame metadata, route state, and ADS timing records. Keep enough
+        margin to avoid stack pressure during error handling.
 
 config SENSORARRAY_SCAN_TASK_PRIO
     int "Scan task priority"
@@ -131,7 +136,13 @@ config SENSORARRAY_SCAN_TASK_PRIORITY
 
 config SENSORARRAY_COMM_TASK_STACK
     int "Comm task stack bytes"
-    default 4096
+    default 16384
+    range 8192 32768
+    help
+        Stack for FAST/MAX output task. This task owns USB Serial/JTAG stdout,
+        binary frame writing, optional text status, and error handling. stdio
+        and printf can consume significant stack, so the default must be larger
+        than the old 4096-byte setting.
 
 config SENSORARRAY_COMM_TASK_PRIO
     int "Comm task priority"
@@ -277,8 +288,37 @@ endchoice
 
 config SENSORARRAY_STATUS_PERIOD_N_FRAMES
     int "Status line period in frames"
+    default 1000
+    range 0 100000
+    help
+        0 disables periodic ASCII STAT output. In pure FAST_BINARY mode, ASCII
+        STAT should be disabled by default unless explicitly allowed.
+
+config SENSORARRAY_BINARY_TEXT_STATUS
+    bool "Allow ASCII STAT/RATE_EVENT lines inside FAST_BINARY stream"
+    default n
+    help
+        Enable only for manual debugging. When disabled, pure FAST_BINARY mode
+        must not insert ASCII STAT/RATE_EVENT lines after STREAM_INIT because
+        mixed text/binary output causes GUI resync/CRC/parse errors and increases
+        output task stack pressure.
+
+config SENSORARRAY_STACK_WATERMARK_PERIOD_N_FRAMES
+    int "Stack watermark check period in frames"
     default 100
-    range 1 100000
+    range 1 10000
+    help
+        Check output/scan task stack high-water marks every N output frames.
+
+config SENSORARRAY_OUTPUT_STACK_LOW_WORDS
+    int "Output task low stack watermark in words"
+    default 1024
+    range 128 8192
+
+config SENSORARRAY_OUTPUT_STACK_CRITICAL_WORDS
+    int "Output task critical stack watermark in words"
+    default 512
+    range 64 4096
 
 config SENSORARRAY_USB_STDOUT_NONBLOCKING
     bool "Use USB Serial/JTAG VFS nonblocking mode for stdout when available"
@@ -299,6 +339,14 @@ config SENSORARRAY_BINARY_STARTUP_MARKER
 config SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
     bool "Assert compact binary frame size at build time"
     default y
+
+config SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS
+    int "FAST_BINARY bounded write max attempts"
+    default 8
+    range 1 64
+    help
+        Maximum attempts to complete a bounded stdout write. This must remain
+        finite so the output task never blocks forever.
 
 config SENSORARRAY_AUTO_RATE_CONTROL
     bool "Enable automatic rate control for voltage scan"

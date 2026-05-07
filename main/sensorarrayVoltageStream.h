@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "sdkconfig.h"
@@ -50,10 +51,20 @@ typedef struct __attribute__((packed)) {
 #if CONFIG_SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
 #if defined(__cplusplus)
 static_assert(sizeof(sensorarrayVoltageCompactFrame_t) == SENSORARRAY_VOLTAGE_COMPACT_SIZE,
-              "sensorarrayVoltageCompactFrame_t must be exactly 312 bytes");
+              "sensorarrayVoltageCompactFrame_t size mismatch");
+static_assert(SENSORARRAY_VOLTAGE_COMPACT_SIZE == 312,
+              "SAC1 compact voltage frame must remain 312 bytes for host GUI compatibility");
+static_assert(offsetof(sensorarrayVoltageCompactFrame_t, crc32) ==
+              sizeof(sensorarrayVoltageCompactFrame_t) - sizeof(uint32_t),
+              "crc32 must be the final field in sensorarrayVoltageCompactFrame_t");
 #else
 _Static_assert(sizeof(sensorarrayVoltageCompactFrame_t) == SENSORARRAY_VOLTAGE_COMPACT_SIZE,
-               "sensorarrayVoltageCompactFrame_t must be exactly 312 bytes");
+               "sensorarrayVoltageCompactFrame_t size mismatch");
+_Static_assert(SENSORARRAY_VOLTAGE_COMPACT_SIZE == 312,
+               "SAC1 compact voltage frame must remain 312 bytes for host GUI compatibility");
+_Static_assert(offsetof(sensorarrayVoltageCompactFrame_t, crc32) ==
+               sizeof(sensorarrayVoltageCompactFrame_t) - sizeof(uint32_t),
+               "crc32 must be the final field in sensorarrayVoltageCompactFrame_t");
 #endif
 #endif
 
