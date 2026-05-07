@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "sdkconfig.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -20,26 +21,41 @@ extern "C" {
 #define SENSORARRAY_VOLTAGE_COMPACT_MAGIC 0x31434153u
 #define SENSORARRAY_VOLTAGE_COMPACT_VERSION 1u
 #define SENSORARRAY_VOLTAGE_COMPACT_TYPE_ADS126X_UV 0x1261u
+#define SENSORARRAY_VOLTAGE_COMPACT_SIZE 312u
+
+#ifndef CONFIG_SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
+#define CONFIG_SENSORARRAY_BINARY_ASSERT_FRAME_SIZE 1
+#endif
 
 typedef struct __attribute__((packed)) {
-    uint32_t magic;
-    uint16_t version;
-    uint16_t frameType;
+    uint32_t magic;                  /* 0x31434153, bytes "SAC1". */
+    uint16_t version;                /* 1. */
+    uint16_t frameType;              /* 0x1261, ADS126x microvolts. */
     uint32_t sequence;
     uint64_t timestampUs;
     uint32_t scanDurationUs;
     uint32_t statusFlags;
     uint32_t firstStatusCode;
     uint32_t lastStatusCode;
-    uint32_t droppedFrames;
-    uint32_t outputDecimatedFrames;
+    uint16_t droppedFrames;          /* Saturated passive drop count. */
+    uint16_t outputDecimatedFrames;  /* Saturated active decimation count. */
     uint64_t validMask;
-    int32_t microvolts[64];
+    int32_t microvolts[64];          /* [0]=S1D1, [1]=S1D2, ..., [63]=S8D8. */
     uint8_t adsDr;
     uint8_t outputDivider;
     uint16_t reserved;
-    uint32_t crc32;
+    uint32_t crc32;                  /* IEEE CRC32 over all previous bytes. */
 } sensorarrayVoltageCompactFrame_t;
+
+#if CONFIG_SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
+#if defined(__cplusplus)
+static_assert(sizeof(sensorarrayVoltageCompactFrame_t) == SENSORARRAY_VOLTAGE_COMPACT_SIZE,
+              "sensorarrayVoltageCompactFrame_t must be exactly 312 bytes");
+#else
+_Static_assert(sizeof(sensorarrayVoltageCompactFrame_t) == SENSORARRAY_VOLTAGE_COMPACT_SIZE,
+               "sensorarrayVoltageCompactFrame_t must be exactly 312 bytes");
+#endif
+#endif
 
 typedef struct {
     sensorarrayVoltageFrame_t frame;

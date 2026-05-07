@@ -1,95 +1,155 @@
 # main / Application Layer
 
-`main/main.c` 保持默认主程序，`app_main()` 仍在这里完成默认业务编排。默认模式是 `PIEZO_READ / 压电读取`，旧 `sensorarrayAppRun()` 只在 `DEBUG / bring-up` app mode 下作为 debug dispatcher 入口。
+`main/main.c` remains the firmware entry point. `app_main()` selects one of:
 
-## App Mode 选择
+- `PIEZO_READ`: default ADS126x voltage scan, `SW=HIGH`, software source `GND`
+  / zero path, REFOUT off, VBIAS off, `REFMUX=AVDD/AVSS`.
+- `RESISTANCE_READ`: ADS126x voltage scan with software source `REF`, internal
+  REF on, VBIAS on, and REF/MID path preserved.
+- `DEBUG`: bring-up and FDC2214 debug dispatcher.
 
-`app_main()` 按 Kconfig 编译期选择：
+`PIEZO_READ` and `RESISTANCE_READ` do not initialize or poll FDC2214 during the
+normal ADS126x voltage scan path.
 
-- `SENSORARRAY_APP_MODE_PIEZO_READ`: 默认，运行 `sensorarrayRunPiezoRead()`，`SW=HIGH`，软件 source 为 `GND` / zero path，ADS126x REFOUT 关闭，ADC reference 使用 AVDD/AVSS。
-- `SENSORARRAY_APP_MODE_RESISTANCE_READ`: 运行 `sensorarrayRunResistanceRead()`，软件 source 为 `REF`，保留 REF/MID 路径。
-- `SENSORARRAY_APP_MODE_DEBUG`: 运行旧 `sensorarrayAppRun()`，进入 bring-up/debug dispatcher。
+## Startup Sequence
 
-默认 `PIEZO_READ` 和 `RESISTANCE_READ` 不初始化、不轮询 FDC2214。
+The voltage read modes share one initialization path:
 
-## 初始化顺序
+1. Print `APPMODE` and `BUILD_CONFIG`.
+2. Initialize board support, TMUX, and ADS126x.
+3. Apply the selected ADS reference policy.
+4. Print `DBGADSREFPOLICY`.
+5. Apply selected TMUX route policy.
+6. Print `DBGROUTEPOLICY` and `DBGTMUXPOLICY`.
+7. Enter either FAST/MAX stream tasks or the SAFE legacy CSV loop.
 
-ADS126x 读取模式共用同一条高速 8x8 voltage scan 主体：
-
-1. `boardSupportInit()`
-2. `tmuxSwitchInit()`
-3. `sensorarrayBringupInitAds()`
-4. `PIEZO_READ` 调用本地 no-ref policy，关闭 `POWER.INTREF` / REFOUT，关闭 `POWER.VBIAS`，打印 `DBGADSREFPOLICY`
-5. `RESISTANCE_READ` 调用 `sensorarrayBringupPrepareAdsRefPath()`，打开 internal REF、VBIAS/AINCOM level shift、internal REFMUX，并打印 `DBGSYSREF` / `DBGADSREF`
-6. apply selected SW source，`PIEZO_READ -> GND` 且 `expectedSwLevel=1`，`RESISTANCE_READ -> REF`
-7. 打印 `DBGROUTEPOLICY` 和一次 `DBGTMUXPOLICY`
-8. 进入 `S1-S8 x D1-D8` 8x8 voltage scan loop，每帧输出 `MATV`
-
-启动日志会显示：
+Default FAST/BINARY startup should include:
 
 ```text
-APPMODE,active=PIEZO_READ,cnName=压电读取,skipAdsInit=0,skipFdcInit=1,sw=GND,expectedSwLevel=1,intrefExpected=0,vbiasExpected=0,expectedRefmux=0x24,vrefUv=5100000,adsRefPolicy=piezo_no_refout_no_vbias
-DBGADSREFPOLICY,mode=PIEZO_READ,stage=piezo_no_ref_settled,...,powerIntref=0,powerVbias=0,expectedRefmux=0x24,vrefUv=5100000,refout=off,result=ok
-DBGROUTEPOLICY,mode=PIEZO_READ,sw=GND,expectedSwLevel=1,adsIntRef=off,adsVbias=off,adsRefmux=0x24,vrefUv=5100000,refPrepPath=0,sela=ADS126X,fdcInitSkipped=1
-DBGTMUXPOLICY,mode=PIEZO_READ,stage=voltage_scan_init,swSource=GND,cmdSwLevel=1,obsSwLevel=1,expectedSwLevel=1,...,result=ok
+APPMODE,active=PIEZO_READ,...
+BUILD_CONFIG,appMode=PIEZO_READ,profile=FAST,output=BINARY,csvEvery=0,dedicatedTasks=1,queueDepth=16,usbNonblocking=1,commit=<hash>
+DBGADSREFPOLICY,mode=PIEZO_READ,stage=piezo_no_ref_settled,...
+DBGROUTEPOLICY,mode=PIEZO_READ,sw=GND,...
+DBGTMUXPOLICY,mode=PIEZO_READ,stage=voltage_scan_init,...
+ADS_FAST_CONFIG,dr=15,...
+VOLTSCAN_CONFIG,mode=PIEZO_READ,dr=15,format=binary,queueDepth=16,...
+STREAM_INIT,format=binary,magic=0x31434153,magicBytes=SAC1,version=1,frameType=0x1261,frameSize=312,csvEvery=0,...
 ```
 
-或电阻读取：
+## FAST/MAX Stream Architecture
+
+FAST/MAX does not use the legacy `sensorarrayRunVoltageReadMode()` CSV hot loop.
+It starts `sensorarrayVoltageStreamStart()` and then idles in `main.c`.
+
+- `sensorarrayVoltageScanTask`: owns TMUX and ADS126x SPI, scans 64 points, and
+  sends frames to the queue. It does not call `printf`, `fprintf`, `fwrite`, or
+  `ESP_LOGI` in the hot path.
+- `sensorarrayVoltageOutputTask`: owns USB Serial/JTAG stdout. It prints startup
+  config, writes compact binary frames, optional sampled CSV, `STAT`, and
+  `RATE_EVENT`.
+- Queue sends are nonblocking in FAST/MAX. Queue full events update `qFull`,
+  `drop`, and frame metadata.
+
+FAST/BINARY output behavior:
 
 ```text
-APPMODE,active=RESISTANCE_READ,cnName=电阻读取,skipAdsInit=0,skipFdcInit=1,sw=REF,...,intrefExpected=1,vbiasExpected=1
-DBGADSREF,stage=prepare_ref_bias_settled,...,intrefOk=1,vbiasOk=1,refmuxOk=1,result=ok
-DBGROUTEPOLICY,mode=RESISTANCE_READ,sw=REF,...,adsIntRef=on,adsVbias=on,refPrepPath=1
+CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY=y
+CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N=0
 ```
 
-## CSV
+Each published frame writes one 312-byte compact binary frame. It does not write
+`MATV_HEADER`, `MATV`, `MATV_RAW`, or `MATV_GAIN`.
+
+## SAFE Legacy CSV
+
+SAFE keeps the compatibility path:
 
 ```text
 MATV_HEADER,seq,timestamp_us,duration_us,unit,S1D1,...,S8D8
 MATV,<seq>,<timestamp_us>,<duration_us>,uV,<64 int32 microvolts>
 ```
 
-点顺序始终为 `S1D1..S1D8,S2D1..S2D8,...,S8D8`。`timestamp_us` 是帧开始时刻，`duration_us` 是整帧耗时。可选输出：`MATV_RAW`、`MATV_GAIN`、`MATV_ERR`。
+CSV is printed only when:
 
-## 切换模式
+```text
+CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV=y
+```
+
+or:
+
+```text
+CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH=y
+```
+
+and `CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N > 0`.
+
+To switch back for debug:
+
+```text
+SensorArray application mode -> PIEZO_READ or RESISTANCE_READ
+Voltage scan throughput profile -> SAFE
+SensorArray output format -> CSV
+CSV every N frames -> 1
+```
+
+Then run:
 
 ```bash
-idf.py menuconfig
+idf.py fullclean
+idf.py reconfigure
+idf.py build
+idf.py flash monitor
 ```
 
-- 默认压电读取：`SensorArray application mode -> PIEZO_READ / 压电读取`
-- 电阻读取：`SensorArray application mode -> RESISTANCE_READ / 电阻读取`
-- FDC debug：`SensorArray application mode -> Debug / bring-up modes`，再选择 `Debug execution mode -> S5D5 FDC secondary`、`FDC I2C discovery` 或其他 debug 项。
+## Compact Binary Frame
 
-## 文件边界
-
-- `main.c`: app mode 分流、PIEZO/RESISTANCE 主循环、CSV 输出、auto-gain table。
-- `sensorarrayVoltageScan.c/.h`: 8x8 fast route 和 frame scan helper；新代码使用 `sensorarrayVoltageScan*WithSource()` 显式传入 `TMUX1108_SOURCE_REF/GND`。
-- `sensorarrayBoardMap.c/.h`: 板级 mapping 单一真相源，SELA GPIO level 只能通过 `sensorarrayBoardMapSelaRouteToGpioLevel()` 转换。
-- `sensorarrayBringup.c/.h`: ADS/FDC bring-up helper；REF/MID 准备路径只用于 `RESISTANCE_READ` 和 debug/bring-up 场景。
-- `sensorarrayApp.c` 与 `sensorarrayDebug*.c`: 旧 bring-up/debug dispatcher，仅 DEBUG mode 使用。
-
-## FAST/MAX scan architecture
-
-SAFE profile keeps the legacy `sensorarrayRunVoltageReadMode()` loop: scan one frame, then print `MATV` CSV in the same task. FAST/MAX use `sensorarrayVoltageStreamStart()` instead:
-
-- `sensorarrayVoltageScanTask`: pinned to `CONFIG_SENSORARRAY_SCAN_TASK_CORE`, priority `CONFIG_SENSORARRAY_SCAN_TASK_PRIORITY`; owns TMUX and ADS126x SPI; does not call `printf`, `fprintf`, `fwrite`, or `ESP_LOGI`.
-- `sensorarrayVoltageOutputTask`: pinned to `CONFIG_SENSORARRAY_COMM_TASK_CORE`, priority `CONFIG_SENSORARRAY_COMM_TASK_PRIORITY`; owns USB Serial/JTAG stdout and emits startup config, binary frames, optional CSV, `STAT`, and `RATE_EVENT`.
-- `sensorarrayVoltageStreamFrame_t`: queue item containing the scan frame and pending rate action/cause.
-
-FAST startup output examples:
+`sensorarrayVoltageCompactFrame_t` is fixed at 312 bytes and has a build-time
+static assert:
 
 ```text
-ADS_FAST_CONFIG,dr=15,status=0,crc=0,directRead=1,fastMux=1,fixedGain=1,pollingSpi=1,busAcquire=1,drdyTimeoutUs=2000
-VOLTSCAN_CONFIG,mode=PIEZO_READ,dr=15,format=BINARY,queueDepth=4,scanCore=1,commCore=0,dma=1,spiPolling=1,busAcquire=1,csvEvery=0,discardFirst=0,oversample=1,rowSettleUs=200,pathSettleUs=200,muxSettleUs=20,autoRate=1,usbNonblocking=1
-ROUTE_POLICY,mode=PIEZO_READ,sw=GND,routePolicyOk=1
-ADS_POLICY,mode=PIEZO_READ,intref=0,vbias=0,expectedRefmux=0x24,adsPolicyOk=1
+magic      = 0x31434153, bytes "SAC1"
+version    = 1
+frameType  = 0x1261
+microvolts = S1D1, S1D2, ..., S8D8
+crc32      = IEEE CRC32 over all previous bytes
 ```
 
-`PIEZO_READ` remains GND/zero path with `POWER.INTREF=0`, `POWER.VBIAS=0`, `REFMUX=AVDD/AVSS`, and FDC skipped. `RESISTANCE_READ` remains REF/MID path with internal REF, VBIAS, internal REFMUX, and FDC skipped. Policy mismatches are fatal and are not rate-controlled.
+The point order matches the old `MATV` CSV exactly.
+Passive drops and active decimation are distinct saturated 16-bit fields in the
+compact frame; full cumulative counts are also printed in `STAT`.
 
-`STAT` fields separate likely bottlenecks:
+## STAT Fields
+
+`STAT` now exposes the likely bottleneck directly:
 
 ```text
-STAT,seq=100,fps=120,pps=7680,scanAvgUs=8300,scanMaxUs=9100,routeAvgUs=410,inpmuxAvgUs=8,drdyAvgUs=24,adcReadAvgUs=14,spiAvgUs=5,queueAvgUs=1,usbAvgUs=90,drop=0,decimated=0,qFull=0,drdyTimeout=0,spiFail=0,adsDr=15,adsSps=38400,outputDiv=1,scanPeriodUs=0,status=0x00000000,code=0x0000
+scanFps     ADS/TMUX scan task frame rate
+outFps      successful compact binary frame output rate
+scanAvgUs   average 64-point scan duration
+usbAvgUs    average bounded binary stdout write time
+usbMaxUs    maximum bounded binary stdout write time
+qDepth      configured queue depth
+qUsed       queue fill at STAT time
+qFull       queue-full events
+drop        passive queue/output drops
+decimated   active output skips from rate control
+shortWrite  partial nonblocking stdout writes
+writeFail   zero-byte/nonrecoverable stdout write failures
+outputDiv   active output decimation divisor
 ```
+
+Interpretation:
+
+- Low `scanFps`: ADS/TMUX/settle/DRDY/SPI is limiting.
+- `scanFps` normal but `outFps` low: USB stdout or host parser is limiting.
+- Rising `qUsed`, `qFull`, or `drop`: output task is behind scan task.
+- Rising `decimated` or `outputDiv > 1`: auto rate control is protecting output.
+- Rising `shortWrite` or `writeFail`: nonblocking USB Serial/JTAG stdout is slow
+  or the host is not reading fast enough.
+
+## Boundary
+
+This firmware still uses ESP32-S3 USB Serial/JTAG stdout. USB Vendor Bulk
+Transfer is a future transport option, not part of this fix. Collect
+FAST/BINARY `scanFps`, `outFps`, queue, stdout-write, and host parser data
+before deciding whether Vendor Bulk is necessary.

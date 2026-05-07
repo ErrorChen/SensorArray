@@ -181,10 +181,12 @@ esp_err_t sensorarrayRateControllerUpdate(sensorarrayRateController_t *controlle
             *outAction = SENSORARRAY_RATE_ACTION_USE_COMPACT_BINARY_ONLY;
         } else if (controller->outputDivider < (uint32_t)CONFIG_SENSORARRAY_AUTO_RATE_OUTPUT_DIV_MAX) {
             *outAction = SENSORARRAY_RATE_ACTION_INCREASE_OUTPUT_DIVIDER;
-#if CONFIG_SENSORARRAY_AUTO_RATE_CONTROL_LOSSLESS_OUTPUT || CONFIG_SENSORARRAY_AUTO_RATE_CONTROL_FULL
         } else if (controller->scanFramePeriodUs < (uint32_t)CONFIG_SENSORARRAY_AUTO_RATE_SCAN_FRAME_PERIOD_MAX_US) {
             *outAction = SENSORARRAY_RATE_ACTION_ADD_SCAN_FRAME_PERIOD;
-#endif
+        } else if (controller->currentAdsDr > controller->minAdsDr) {
+            *outAction = SENSORARRAY_RATE_ACTION_DECREASE_ADS_DR;
+        } else {
+            *outAction = SENSORARRAY_RATE_ACTION_FATAL_STOP;
         }
     }
 

@@ -9,6 +9,7 @@ extern "C" {
 typedef struct {
     uint32_t framesScanned;
     uint32_t framesQueued;
+    uint32_t framesOutput;
     uint32_t framesDropped;
     uint32_t outputDecimatedFrames;
     uint32_t pointsScanned;

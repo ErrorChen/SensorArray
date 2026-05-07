@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -54,7 +55,7 @@
 #define CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES 100
 #endif
 #ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N
-#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N 1
+#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N 0
 #endif
 #ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
 #define CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST 0
@@ -89,6 +90,11 @@
 #ifndef CONFIG_SENSORARRAY_AUTO_RATE_WINDOW_FRAMES
 #define CONFIG_SENSORARRAY_AUTO_RATE_WINDOW_FRAMES 100
 #endif
+#ifndef CONFIG_SENSORARRAY_BINARY_STARTUP_MARKER
+#define CONFIG_SENSORARRAY_BINARY_STARTUP_MARKER 0
+#endif
+
+#define SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS 3u
 
 typedef struct {
     sensorarrayVoltageStreamConfig_t config;
@@ -102,6 +108,7 @@ typedef struct {
     bool usbNonblocking;
     bool headerPrinted;
     uint32_t usbWriteCount;
+    int64_t streamStartUs;
 } sensorarrayVoltageStreamContext_t;
 
 static sensorarrayVoltageStreamContext_t s_stream = {0};
@@ -118,13 +125,18 @@ static uint32_t sensorarrayVoltageStreamCrc32Bytes(const uint8_t *data, size_t l
     return ~crc;
 }
 
+static uint16_t sensorarrayVoltageStreamSaturateU16(uint32_t value)
+{
+    return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
+}
+
 uint32_t sensorarrayVoltageCompactFrameCrc32(const sensorarrayVoltageCompactFrame_t *frame)
 {
     if (!frame) {
         return 0u;
     }
     return sensorarrayVoltageStreamCrc32Bytes((const uint8_t *)frame,
-                                              sizeof(*frame) - sizeof(frame->crc32));
+                                              offsetof(sensorarrayVoltageCompactFrame_t, crc32));
 }
 
 void sensorarrayVoltageCompactFrameFromScan(const sensorarrayVoltageFrame_t *scan,
@@ -144,8 +156,8 @@ void sensorarrayVoltageCompactFrameFromScan(const sensorarrayVoltageFrame_t *sca
     out->statusFlags = scan->statusFlags;
     out->firstStatusCode = scan->firstStatusCode;
     out->lastStatusCode = scan->lastStatusCode;
-    out->droppedFrames = scan->droppedFrames;
-    out->outputDecimatedFrames = scan->outputDecimatedFrames;
+    out->droppedFrames = sensorarrayVoltageStreamSaturateU16(scan->droppedFrames);
+    out->outputDecimatedFrames = sensorarrayVoltageStreamSaturateU16(scan->outputDecimatedFrames);
     out->validMask = scan->validMask;
     out->adsDr = scan->adsDr;
     out->outputDivider = scan->outputDivider;
@@ -223,11 +235,10 @@ static void __attribute__((unused)) sensorarrayVoltageStreamRecordUsbWrite(size_
     if (written == requested) {
         return;
     }
-    if (written == 0u || ferror(stdout)) {
+    if (written == 0u) {
         sensorarrayStatusRecord(&s_stream.status,
                                 SENSORARRAY_STATUS_USB_STDOUT_WRITE_FAIL,
                                 SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED);
-        clearerr(stdout);
     } else {
         sensorarrayStatusRecord(&s_stream.status,
                                 SENSORARRAY_STATUS_USB_STDOUT_SHORT_WRITE,
@@ -235,16 +246,59 @@ static void __attribute__((unused)) sensorarrayVoltageStreamRecordUsbWrite(size_
     }
 }
 
-static void __attribute__((unused)) sensorarrayVoltageStreamWriteBinary(const sensorarrayVoltageFrame_t *frame)
+static size_t sensorarrayVoltageStreamWriteAllBounded(const uint8_t *data,
+                                                      size_t length,
+                                                      uint32_t maxAttempts)
+{
+    if (!data || length == 0u || maxAttempts == 0u) {
+        return 0u;
+    }
+
+    size_t total = 0u;
+    uint32_t attempts = 0u;
+    while (total < length && attempts < maxAttempts) {
+        errno = 0;
+        ssize_t result = write(STDOUT_FILENO, data + total, length - total);
+        attempts++;
+        if (result > 0) {
+            total += (size_t)result;
+            if (total == length) {
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(1u));
+            continue;
+        }
+
+        if (result < 0 && errno == EINTR) {
+            continue;
+        }
+        if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            vTaskDelay(pdMS_TO_TICKS(1u));
+            continue;
+        }
+        break;
+    }
+    return total;
+}
+
+static bool __attribute__((unused)) sensorarrayVoltageStreamWriteBinary(const sensorarrayVoltageFrame_t *frame)
 {
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
     sensorarrayVoltageCompactFrame_t compact = {0};
     sensorarrayVoltageCompactFrameFromScan(frame, &compact);
     int64_t startUs = esp_timer_get_time();
-    size_t written = fwrite(&compact, 1u, sizeof(compact), stdout);
+    size_t written = sensorarrayVoltageStreamWriteAllBounded((const uint8_t *)&compact,
+                                                             sizeof(compact),
+                                                             SENSORARRAY_BINARY_WRITE_MAX_ATTEMPTS);
     sensorarrayVoltageStreamRecordUsbWrite(sizeof(compact), written, startUs);
+    if (written == sizeof(compact)) {
+        s_stream.perf.framesOutput++;
+        return true;
+    }
+    return false;
 #else
     (void)frame;
+    return false;
 #endif
 }
 
@@ -261,24 +315,33 @@ static void sensorarrayVoltageStreamPrintStat(const sensorarrayVoltageFrame_t *f
         routeCount = 1u;
     }
 
-    uint32_t elapsedUs = (uint32_t)((uint64_t)esp_timer_get_time() - frame->timestampUs);
-    (void)elapsedUs;
+    int64_t nowUs = esp_timer_get_time();
+    uint64_t elapsedStreamUs = (s_stream.streamStartUs > 0 && nowUs > s_stream.streamStartUs)
+                                   ? (uint64_t)(nowUs - s_stream.streamStartUs)
+                                   : 1u;
     uint32_t scanAvgUs = sensorarrayPerfAvgU32(s_stream.perf.scanTotalUs, frames);
-    uint32_t fps = (scanAvgUs == 0u) ? 0u : (1000000u / scanAvgUs);
-    uint32_t pps = fps * SENSORARRAY_VOLTAGE_SCAN_ROWS * SENSORARRAY_VOLTAGE_SCAN_COLS;
+    uint32_t scanFps = (uint32_t)(((uint64_t)s_stream.perf.framesScanned * 1000000u) / elapsedStreamUs);
+    uint32_t outFps = (uint32_t)(((uint64_t)s_stream.perf.framesOutput * 1000000u) / elapsedStreamUs);
+    uint32_t fps = scanFps;
+    uint32_t pps = scanFps * SENSORARRAY_VOLTAGE_SCAN_ROWS * SENSORARRAY_VOLTAGE_SCAN_COLS;
     uint32_t adsSps = ads126xAdcDataRateCodeToSps(s_stream.controller.currentAdsDr);
+    uint32_t qUsed = s_stream.queue ? uxQueueMessagesWaiting(s_stream.queue) : 0u;
 
-    printf("STAT,seq=%" PRIu32 ",fps=%" PRIu32 ",pps=%" PRIu32
-           ",scanAvgUs=%" PRIu32 ",scanMaxUs=%" PRIu32
+    printf("STAT,seq=%" PRIu32 ",fps=%" PRIu32 ",scanFps=%" PRIu32 ",outFps=%" PRIu32
+           ",pps=%" PRIu32 ",scanAvgUs=%" PRIu32 ",scanMaxUs=%" PRIu32
            ",routeAvgUs=%" PRIu32 ",inpmuxAvgUs=%" PRIu32
            ",drdyAvgUs=%" PRIu32 ",adcReadAvgUs=%" PRIu32
            ",spiAvgUs=%" PRIu32 ",queueAvgUs=%" PRIu32 ",usbAvgUs=%" PRIu32
+           ",usbMaxUs=%" PRIu32 ",qDepth=%u,qUsed=%" PRIu32
            ",drop=%" PRIu32 ",decimated=%" PRIu32 ",qFull=%" PRIu32
+           ",shortWrite=%" PRIu32 ",writeFail=%" PRIu32
            ",drdyTimeout=%" PRIu32 ",spiFail=%" PRIu32
            ",adsDr=%u,adsSps=%" PRIu32 ",outputDiv=%" PRIu32
            ",scanPeriodUs=%" PRIu32 ",status=0x%08" PRIX32 ",code=0x%04" PRIX32 "\n",
            frame->sequence,
            fps,
+           scanFps,
+           outFps,
            pps,
            scanAvgUs,
            s_stream.perf.scanMaxUs,
@@ -292,9 +355,14 @@ static void sensorarrayVoltageStreamPrintStat(const sensorarrayVoltageFrame_t *f
                                  s_stream.perf.framesQueued ? s_stream.perf.framesQueued : 1u),
            sensorarrayPerfAvgU32(s_stream.perf.usbWriteTotalUs,
                                  s_stream.usbWriteCount ? s_stream.usbWriteCount : 1u),
+           s_stream.perf.usbWriteMaxUs,
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           qUsed,
            s_stream.status.droppedFrameCount,
            s_stream.status.outputDecimatedFrameCount,
            s_stream.status.queueFullCount,
+           s_stream.status.usbShortWriteCount,
+           s_stream.status.usbWriteFailCount,
            s_stream.status.adsDrdyTimeoutCount,
            s_stream.status.adsSpiFailCount,
            (unsigned)s_stream.controller.currentAdsDr,
@@ -349,13 +417,13 @@ static void sensorarrayVoltageStreamPrintStartup(void)
 
     const char *format =
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
-        "BINARY";
+        "binary";
 #elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
-        "BOTH";
+        "both";
 #elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_OFF
-        "OFF";
+        "off";
 #else
-        "CSV";
+        "csv";
 #endif
 
     printf("VOLTSCAN_CONFIG,mode=%s,dr=%u,format=%s,queueDepth=%u,scanCore=%u,commCore=%u,"
@@ -378,6 +446,39 @@ static void sensorarrayVoltageStreamPrintStartup(void)
            s_stream.controller.muxSettleUs,
            CONFIG_SENSORARRAY_AUTO_RATE_CONTROL ? 1u : 0u,
            s_stream.usbNonblocking ? 1u : 0u);
+
+#if CONFIG_SENSORARRAY_BINARY_STARTUP_MARKER
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    printf("STREAM_INIT,format=binary,magic=0x%08" PRIX32 ",magicBytes=SAC1,version=%u,"
+           "frameType=0x%04X,frameSize=%u,csvEvery=%u,queueDepth=%u,statusEvery=%u\n",
+           (uint32_t)SENSORARRAY_VOLTAGE_COMPACT_MAGIC,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_VERSION,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_TYPE_ADS126X_UV,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_SIZE,
+           (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES);
+#elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
+    printf("STREAM_INIT,format=both,magic=0x%08" PRIX32 ",magicBytes=SAC1,version=%u,"
+           "frameType=0x%04X,frameSize=%u,csvEvery=%u,queueDepth=%u,statusEvery=%u\n",
+           (uint32_t)SENSORARRAY_VOLTAGE_COMPACT_MAGIC,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_VERSION,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_TYPE_ADS126X_UV,
+           (unsigned)SENSORARRAY_VOLTAGE_COMPACT_SIZE,
+           (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES);
+#elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV
+    printf("STREAM_INIT,format=csv,csvEvery=%u,queueDepth=%u,statusEvery=%u\n",
+           (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES);
+#else
+    printf("STREAM_INIT,format=off,queueDepth=%u,statusEvery=%u\n",
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           (unsigned)CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES);
+#endif
+#endif
 
     printf("ROUTE_POLICY,mode=%s,sw=%s,routePolicyOk=%u\n",
            s_stream.config.modeName ? s_stream.config.modeName : "UNKNOWN",
@@ -406,7 +507,23 @@ static void sensorarrayVoltageOutputTask(void *arg)
         sensorarrayVoltageStreamPrintRateEvent(&streamFrame);
 
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
-        sensorarrayVoltageStreamWriteBinary(&streamFrame.frame);
+        uint32_t shortBefore = s_stream.status.usbShortWriteCount;
+        uint32_t failBefore = s_stream.status.usbWriteFailCount;
+        bool binaryWritten = sensorarrayVoltageStreamWriteBinary(&streamFrame.frame);
+        if (!binaryWritten) {
+            sensorarrayStatusCode_t code =
+                (s_stream.status.usbWriteFailCount != failBefore)
+                    ? SENSORARRAY_STATUS_USB_STDOUT_WRITE_FAIL
+                    : SENSORARRAY_STATUS_USB_STDOUT_SHORT_WRITE;
+            if (s_stream.status.usbShortWriteCount != shortBefore ||
+                s_stream.status.usbWriteFailCount != failBefore) {
+                streamFrame.frame.statusFlags |= SENSORARRAY_FRAME_FLAG_OUTPUT_THROTTLED;
+                if (streamFrame.frame.firstStatusCode == SENSORARRAY_STATUS_OK) {
+                    streamFrame.frame.firstStatusCode = code;
+                }
+                streamFrame.frame.lastStatusCode = code;
+            }
+        }
 #endif
 
 #if CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
@@ -470,6 +587,17 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
 #if CONFIG_SENSORARRAY_STREAM_DROP_OLDEST
     sensorarrayVoltageStreamFrame_t oldFrame = {0};
     (void)xQueueReceive(s_stream.queue, &oldFrame, 0);
+    s_stream.perf.framesDropped++;
+    sensorarrayStatusRecord(&s_stream.status,
+                            SENSORARRAY_STATUS_STREAM_FRAME_DROPPED,
+                            SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+    streamFrame->frame.statusFlags |= SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED;
+    if (streamFrame->frame.firstStatusCode == SENSORARRAY_STATUS_OK) {
+        streamFrame->frame.firstStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
+    }
+    streamFrame->frame.lastStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
+    streamFrame->frame.droppedFrames = s_stream.status.droppedFrameCount;
+    streamFrame->frame.outputDecimatedFrames = s_stream.status.outputDecimatedFrameCount;
     if (xQueueSend(s_stream.queue, streamFrame, 0) == pdTRUE) {
         s_stream.perf.framesQueued++;
     }
@@ -478,13 +606,18 @@ static void sensorarrayVoltageStreamQueueFrame(sensorarrayVoltageStreamFrame_t *
         s_stream.perf.framesQueued++;
     }
 #else
-    (void)streamFrame;
-#endif
-
     s_stream.perf.framesDropped++;
     sensorarrayStatusRecord(&s_stream.status,
                             SENSORARRAY_STATUS_STREAM_FRAME_DROPPED,
                             SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED);
+    streamFrame->frame.statusFlags |= SENSORARRAY_FRAME_FLAG_QUEUE_DROPPED;
+    if (streamFrame->frame.firstStatusCode == SENSORARRAY_STATUS_OK) {
+        streamFrame->frame.firstStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
+    }
+    streamFrame->frame.lastStatusCode = SENSORARRAY_STATUS_STREAM_FRAME_DROPPED;
+    streamFrame->frame.droppedFrames = s_stream.status.droppedFrameCount;
+    streamFrame->frame.outputDecimatedFrames = s_stream.status.outputDecimatedFrameCount;
+#endif
 }
 
 static void sensorarrayVoltageScanTask(void *arg)
@@ -607,6 +740,7 @@ esp_err_t sensorarrayVoltageStreamStart(const sensorarrayVoltageStreamConfig_t *
     esp_log_level_set("*", ESP_LOG_WARN);
 
     s_stream.running = true;
+    s_stream.streamStartUs = esp_timer_get_time();
     BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayVoltageOutputTask,
                                             "sensorarray_output",
                                             CONFIG_SENSORARRAY_COMM_TASK_STACK,

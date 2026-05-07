@@ -24,6 +24,32 @@
 #ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST
 #define CONFIG_SENSORARRAY_VOLTAGE_SCAN_DISCARD_FIRST 0
 #endif
+#ifndef CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N
+#define CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N 0
+#endif
+#ifndef CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES
+#define CONFIG_SENSORARRAY_STATUS_PERIOD_N_FRAMES 100
+#endif
+#ifndef CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH
+#define CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH 4
+#endif
+#ifndef CONFIG_SENSORARRAY_SCAN_USE_DEDICATED_TASKS
+#define CONFIG_SENSORARRAY_SCAN_USE_DEDICATED_TASKS 0
+#endif
+#ifndef CONFIG_SENSORARRAY_USB_STDOUT_NONBLOCKING
+#define CONFIG_SENSORARRAY_USB_STDOUT_NONBLOCKING 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FAST_FORBID_LEGACY_CSV_HOT_PATH
+#define CONFIG_SENSORARRAY_FAST_FORBID_LEGACY_CSV_HOT_PATH 0
+#endif
+#ifndef SENSORARRAY_GIT_HASH
+#define SENSORARRAY_GIT_HASH "unknown"
+#endif
+
+#if (CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX) && \
+    !CONFIG_SENSORARRAY_SCAN_USE_DEDICATED_TASKS
+#error "FAST/MAX voltage scan requires dedicated scan/output tasks"
+#endif
 
 static sensorarrayState_t s_state = {0};
 static uint8_t s_gainTable[SENSORARRAY_VOLTAGE_SCAN_ROWS][SENSORARRAY_VOLTAGE_SCAN_COLS];
@@ -122,6 +148,44 @@ static void sensorarrayMainSetFatalStage(const char *stage)
 static const char *sensorarrayMainOffOn(bool enabled)
 {
     return enabled ? "on" : "off";
+}
+
+static const char *sensorarrayMainProfileName(void)
+{
+#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    return "FAST";
+#elif CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+    return "MAX";
+#else
+    return "SAFE";
+#endif
+}
+
+static const char *sensorarrayMainOutputFormatName(void)
+{
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    return "BINARY";
+#elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
+    return "BOTH";
+#elif CONFIG_SENSORARRAY_OUTPUT_FORMAT_OFF
+    return "OFF";
+#else
+    return "CSV";
+#endif
+}
+
+static void sensorarrayMainPrintBuildConfig(const sensorarrayVoltageReadModeConfig_t *mode)
+{
+    printf("BUILD_CONFIG,appMode=%s,profile=%s,output=%s,csvEvery=%u,dedicatedTasks=%u,"
+           "queueDepth=%u,usbNonblocking=%u,commit=%s\n",
+           mode && mode->modeName ? mode->modeName : "UNKNOWN",
+           sensorarrayMainProfileName(),
+           sensorarrayMainOutputFormatName(),
+           (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N,
+           CONFIG_SENSORARRAY_SCAN_USE_DEDICATED_TASKS ? 1u : 0u,
+           (unsigned)CONFIG_SENSORARRAY_STREAM_QUEUE_DEPTH,
+           CONFIG_SENSORARRAY_USB_STDOUT_NONBLOCKING ? 1u : 0u,
+           SENSORARRAY_GIT_HASH);
 }
 
 static void sensorarrayMainIdleAfterFatal(const char *stage, esp_err_t err)
@@ -468,12 +532,8 @@ static esp_err_t sensorarrayMainPrepareAdsPiezoNoRef(sensorarrayState_t *state,
     }
 
     state->adsRefReady = false;
-#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
-    return sensorarrayMainLogAdsPowerPolicyReadback(state, mode, "piezo_no_ref_settled");
-#else
     sensorarrayStatusCode_t code = SENSORARRAY_STATUS_OK;
     return sensorarrayMainCheckAdsRefPolicy(state, mode, &code);
-#endif
 }
 
 static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadModeConfig_t *mode)
@@ -491,10 +551,6 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
     memset(s_gainTable, sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN), sizeof(s_gainTable));
     uint8_t defaultGain = sensorarrayMainNormalizeGain(CONFIG_SENSORARRAY_VOLTAGE_SCAN_DEFAULT_GAIN);
     uint8_t dataRateDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
-
-#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
-    sensorarrayMainPrintAppMode(mode);
-#endif
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -542,28 +598,23 @@ static esp_err_t sensorarrayMainInitVoltageScan(const sensorarrayVoltageReadMode
         return err;
     }
 
-    err = sensorarrayMainApplyVoltageTmuxDefaults(mode);
-    if (err != ESP_OK) {
-        return err;
-    }
-    sensorarrayStatusCode_t policyCode = SENSORARRAY_STATUS_OK;
-#if CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
-    sensorarrayMainPrintRoutePolicy(mode);
-    err = sensorarrayMainLogTmuxPolicyReadback(mode, "voltage_scan_init");
-#else
-    err = sensorarrayMainCheckTmuxPolicy(mode, &policyCode);
-#endif
+    err = sensorarrayMainLogAdsPowerPolicyReadback(
+        &s_state,
+        mode,
+        mode->useAdsInternalRef ? "resistance_ref_settled" : "piezo_no_ref_settled");
     if (err != ESP_OK) {
         return err;
     }
 
-#if !CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
-    err = sensorarrayMainCheckAdsRefPolicy(&s_state, mode, &policyCode);
+    err = sensorarrayMainApplyVoltageTmuxDefaults(mode);
     if (err != ESP_OK) {
         return err;
     }
-#endif
-    (void)policyCode;
+    sensorarrayMainPrintRoutePolicy(mode);
+    err = sensorarrayMainLogTmuxPolicyReadback(mode, "voltage_scan_init");
+    if (err != ESP_OK) {
+        return err;
+    }
 
     err = ads126xAdcStartAdc1(&s_state.ads);
     if (err != ESP_OK) {
@@ -587,7 +638,8 @@ static ads126xAdcVoltageReadConfig_t sensorarrayMainAutoGainReadConfig(uint8_t m
     };
 }
 
-static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadModeConfig_t *mode, bool printSummary)
+static esp_err_t __attribute__((unused)) sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadModeConfig_t *mode,
+                                                                          bool printSummary)
 {
     if (!mode) {
         return ESP_ERR_INVALID_ARG;
@@ -655,7 +707,7 @@ static esp_err_t sensorarrayMainBootstrapAutoGain(const sensorarrayVoltageReadMo
 #endif
 }
 
-static void sensorarrayMainPrintVoltageHeader(void)
+static void __attribute__((unused)) sensorarrayMainPrintVoltageHeader(void)
 {
     printf("MATV_HEADER,seq,timestamp_us,duration_us,unit");
     for (uint8_t s = 1u; s <= SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
@@ -666,7 +718,7 @@ static void sensorarrayMainPrintVoltageHeader(void)
     printf("\n");
 }
 
-static void sensorarrayMainMaybePrintVoltageHeader(uint32_t sequence)
+static void __attribute__((unused)) sensorarrayMainMaybePrintVoltageHeader(uint32_t sequence)
 {
     int headerEvery = CONFIG_SENSORARRAY_VOLTAGE_SCAN_PRINT_HEADER_EVERY_N_FRAMES;
     if (!s_voltageHeaderPrinted || (headerEvery > 0 && (sequence % (uint32_t)headerEvery) == 0u)) {
@@ -675,7 +727,7 @@ static void sensorarrayMainMaybePrintVoltageHeader(uint32_t sequence)
     }
 }
 
-static bool sensorarrayMainFrameHasError(const sensorarrayVoltageFrame_t *frame)
+static bool __attribute__((unused)) sensorarrayMainFrameHasError(const sensorarrayVoltageFrame_t *frame)
 {
     if (!frame) {
         return false;
@@ -690,7 +742,7 @@ static bool sensorarrayMainFrameHasError(const sensorarrayVoltageFrame_t *frame)
     return false;
 }
 
-static void sensorarrayMainPrintVoltageFrameCsv(const sensorarrayVoltageFrame_t *frame)
+static void __attribute__((unused)) sensorarrayMainPrintVoltageFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
     printf("MATV,%" PRIu32 ",%" PRIu64 ",%" PRIu32 ",uV",
            frame->sequence,
@@ -730,7 +782,7 @@ static void sensorarrayMainPrintGainFrameCsv(const sensorarrayVoltageFrame_t *fr
 }
 #endif
 
-static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *frame)
+static void __attribute__((unused)) sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *frame)
 {
     printf("MATV_ERR,%" PRIu32 ",%" PRIu64, frame->sequence, frame->timestampUs);
     for (uint8_t s = 0u; s < SENSORARRAY_VOLTAGE_SCAN_ROWS; ++s) {
@@ -741,7 +793,7 @@ static void sensorarrayMainPrintErrFrameCsv(const sensorarrayVoltageFrame_t *fra
     printf("\n");
 }
 
-static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *frame)
+static void __attribute__((unused)) sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *frame)
 {
     if (!frame) {
         return;
@@ -764,12 +816,14 @@ static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *fram
     uint32_t pps = fps * SENSORARRAY_VOLTAGE_SCAN_ROWS * SENSORARRAY_VOLTAGE_SCAN_COLS;
     uint8_t adsDr = (uint8_t)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_ADS_DATA_RATE & 0x0F);
 
-    printf("STAT,seq=%" PRIu32 ",fps=%" PRIu32 ",pps=%" PRIu32
+    printf("STAT,seq=%" PRIu32 ",fps=%" PRIu32 ",scanFps=%" PRIu32 ",outFps=0,pps=%" PRIu32
            ",scanAvgUs=%" PRIu32 ",scanMaxUs=%" PRIu32
            ",routeAvgUs=0,inpmuxAvgUs=0,drdyAvgUs=0,adcReadAvgUs=0,spiAvgUs=0,"
-           "queueAvgUs=0,usbAvgUs=0,drop=0,decimated=0,qFull=0,drdyTimeout=0,spiFail=0,"
+           "queueAvgUs=0,usbAvgUs=0,usbMaxUs=0,qDepth=0,qUsed=0,drop=0,decimated=0,"
+           "qFull=0,shortWrite=0,writeFail=0,drdyTimeout=0,spiFail=0,"
            "adsDr=%u,adsSps=%" PRIu32 ",outputDiv=1,scanPeriodUs=%u,status=0x00000000,code=0x0000\n",
            frame->sequence,
+           fps,
            fps,
            pps,
            scanAvgUs,
@@ -779,7 +833,7 @@ static void sensorarrayMainPrintLegacyStat(const sensorarrayVoltageFrame_t *fram
            (unsigned)(CONFIG_SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS * 1000u));
 }
 
-static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
+static void __attribute__((unused)) sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConfig_t *mode)
 {
     printf("VOLTSCAN_INIT,mode=%s,cnName=%s,sw=%s,expectedSwLevel=%d,adsIntRef=%s,adsVbias=%s,"
            "adsRefmux=0x%02X,vrefUv=%lu,fdcInitSkipped=%u,rows=8,cols=8,unit=uV,dr=%u,gainDefault=%u,autoGain=%s,"
@@ -800,7 +854,7 @@ static void sensorarrayMainPrintInitSummary(const sensorarrayVoltageReadModeConf
            (unsigned)CONFIG_SENSORARRAY_VOLTAGE_SCAN_OVERSAMPLE);
 }
 
-static void sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *frame)
+static void __attribute__((unused)) sensorarrayMainDelayFramePeriod(const sensorarrayVoltageFrame_t *frame)
 {
     uint32_t framePeriodMs = (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_FRAME_PERIOD_MS;
     if (framePeriodMs == 0u || !frame) {
@@ -828,6 +882,9 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
     esp_log_level_set("*", ESP_LOG_WARN);
 #endif
 
+    sensorarrayMainPrintAppMode(mode);
+    sensorarrayMainPrintBuildConfig(mode);
+
     esp_err_t err = sensorarrayMainInitVoltageScan(mode);
     if (err != ESP_OK) {
         sensorarrayMainIdleAfterFatal(s_voltageFatalStage, err);
@@ -853,6 +910,13 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000u));
     }
+#else
+#if CONFIG_SENSORARRAY_FAST_FORBID_LEGACY_CSV_HOT_PATH && \
+    (CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST || CONFIG_SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX)
+#error "FAST/MAX profile must not compile legacy MATV loop"
+#endif
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_BINARY
+    sensorarrayMainIdleAfterFatal("binary_selected_without_stream_profile", ESP_FAIL);
 #endif
 
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_AUTO_GAIN_PER_POINT
@@ -872,26 +936,34 @@ static void sensorarrayRunVoltageReadMode(const sensorarrayVoltageReadModeConfig
         sensorarrayVoltageFrame_t frame = {0};
         (void)sensorarrayVoltageScanOneFrameWithSource(&s_state.ads, s_gainTable, mode->swSource, &frame);
 
-        sensorarrayMainMaybePrintVoltageHeader(frame.sequence);
-        sensorarrayMainPrintVoltageFrameCsv(&frame);
-        sensorarrayMainPrintLegacyStat(&frame);
+#if CONFIG_SENSORARRAY_OUTPUT_FORMAT_CSV || CONFIG_SENSORARRAY_OUTPUT_FORMAT_BOTH
+        const bool printCsvFrame =
+            CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N > 0 &&
+            (frame.sequence % (uint32_t)CONFIG_SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N) == 0u;
+        if (printCsvFrame) {
+            sensorarrayMainMaybePrintVoltageHeader(frame.sequence);
+            sensorarrayMainPrintVoltageFrameCsv(&frame);
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_RAW
-        sensorarrayMainPrintRawFrameCsv(&frame);
+            sensorarrayMainPrintRawFrameCsv(&frame);
 #endif
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_GAIN
-        sensorarrayMainPrintGainFrameCsv(&frame);
+            sensorarrayMainPrintGainFrameCsv(&frame);
 #endif
 #if CONFIG_SENSORARRAY_VOLTAGE_SCAN_OUTPUT_ERR
-        if (sensorarrayMainFrameHasError(&frame)) {
-            sensorarrayMainPrintErrFrameCsv(&frame);
+            if (sensorarrayMainFrameHasError(&frame)) {
+                sensorarrayMainPrintErrFrameCsv(&frame);
+            }
+#endif
         }
 #endif
+        sensorarrayMainPrintLegacyStat(&frame);
 
         sensorarrayMainDelayFramePeriod(&frame);
         if ((frame.sequence & 0x0Fu) == 0u) {
             taskYIELD();
         }
     }
+#endif
 }
 
 void sensorarrayRunPiezoRead(void)

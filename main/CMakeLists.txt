@@ -32,3 +32,15 @@ idf_component_register(
         bleTransport
         matrixEngine
 )
+
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/.."
+    OUTPUT_VARIABLE SENSORARRAY_GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT SENSORARRAY_GIT_HASH)
+    set(SENSORARRAY_GIT_HASH "unknown")
+endif()
+target_compile_definitions(${COMPONENT_LIB} PRIVATE SENSORARRAY_GIT_HASH="${SENSORARRAY_GIT_HASH}")

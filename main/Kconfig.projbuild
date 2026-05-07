@@ -25,6 +25,8 @@ endchoice
 
 choice SENSORARRAY_VOLTAGE_SCAN_THROUGHPUT_PROFILE
     prompt "Voltage scan throughput profile"
+    default SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST if SENSORARRAY_APP_MODE_PIEZO_READ
+    default SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST if SENSORARRAY_APP_MODE_RESISTANCE_READ
     default SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
 
 config SENSORARRAY_VOLTAGE_SCAN_PROFILE_SAFE
@@ -175,9 +177,9 @@ endmenu
 menu "ADS126x voltage scan"
     depends on SENSORARRAY_APP_MODE_PIEZO_READ || SENSORARRAY_APP_MODE_RESISTANCE_READ || SENSORARRAY_APP_MODE_VOLTAGE_MATRIX_SCAN
     help
-        Shared parameters for PIEZO_READ and RESISTANCE_READ. Both scan
-        S1-S8 x D1-D8 through ADS126x and emit one CSV row per complete
-        64-point voltage frame.
+        Shared parameters for PIEZO_READ and RESISTANCE_READ. FAST/MAX
+        profiles emit compact binary frames by default through a dedicated
+        output task. SAFE profile keeps legacy MATV CSV compatibility.
 
 config SENSORARRAY_ADS_FAST_INPMUX_WRITE
     bool "Use fast ADS126x INPMUX write without readback in hot path"
@@ -254,8 +256,10 @@ config SENSORARRAY_VOLTAGE_SCAN_CSV_EVERY_N
 
 config SENSORARRAY_STREAM_QUEUE_DEPTH
     int "Voltage frame stream queue depth"
+    default 16 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default 16 if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
     default 4
-    range 1 32
+    range 1 64
 
 choice SENSORARRAY_STREAM_DROP_POLICY
     prompt "Stream queue drop policy"
@@ -281,6 +285,20 @@ config SENSORARRAY_USB_STDOUT_NONBLOCKING
     default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
     default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
     default n
+
+config SENSORARRAY_FAST_FORBID_LEGACY_CSV_HOT_PATH
+    bool "Forbid legacy MATV CSV in FAST/MAX hot path"
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_FAST
+    default y if SENSORARRAY_VOLTAGE_SCAN_PROFILE_MAX
+
+config SENSORARRAY_BINARY_STARTUP_MARKER
+    bool "Print STREAM_INIT marker before binary stream"
+    default y if SENSORARRAY_OUTPUT_FORMAT_BINARY
+    default y if SENSORARRAY_OUTPUT_FORMAT_BOTH
+
+config SENSORARRAY_BINARY_ASSERT_FRAME_SIZE
+    bool "Assert compact binary frame size at build time"
+    default y
 
 config SENSORARRAY_AUTO_RATE_CONTROL
     bool "Enable automatic rate control for voltage scan"
