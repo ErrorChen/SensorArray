@@ -455,7 +455,7 @@ static esp_err_t sensorarrayMainPrepareAdsPiezoNoRef(sensorarrayState_t *state,
         return err;
     }
 
-    err = ads126xAdcSetVrefMicrovolts(&sta  te->ads, mode->vrefMicrovolts);
+    err = ads126xAdcSetVrefMicrovolts(&state->ads, mode->vrefMicrovolts);
     if (err != ESP_OK) {
         sensorarrayMainSetFatalStage("piezo_vref_set");
         return err;
