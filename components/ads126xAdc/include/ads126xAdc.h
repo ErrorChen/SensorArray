@@ -42,6 +42,8 @@ typedef struct {
     ads126xCrcMode_t crcMode;
     bool enableStatusByte;
     bool enableInternalRef;
+    bool skipResetOnInit;
+    bool skipConfigureOnInit;
     uint32_t vrefMicrovolts;
     uint8_t pgaGain;
     uint8_t dataRateDr;
@@ -81,6 +83,16 @@ esp_err_t ads126xAdcReadRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr,
 esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, const uint8_t *data, size_t len);
 
 esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg);
+esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower);
+esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power);
+esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
+                                     bool updateInternalRef,
+                                     bool enableInternalRef,
+                                     bool updateVbias,
+                                     bool enableVbias,
+                                     uint8_t *outPowerBefore,
+                                     uint8_t *outPowerAfter);
+esp_err_t ads126xAdcSetInternalReference(ads126xAdcHandle_t *handle, bool enableInternalRef);
 
 esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               bool enableInternalRef,

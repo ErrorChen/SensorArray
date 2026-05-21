@@ -174,7 +174,7 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
         return TMUX1108_SOURCE_GND;
     }
     if (route->path == SENSORARRAY_PATH_CAPACITIVE) {
-        return TMUX1108_SOURCE_REF;
+        return TMUX1108_SOURCE_GND;
     }
     if (route->mapLabel && strstr(route->mapLabel, "volt") != NULL) {
         return TMUX1108_SOURCE_REF;

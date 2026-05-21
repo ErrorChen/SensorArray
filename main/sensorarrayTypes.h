@@ -37,6 +37,23 @@ typedef enum {
 } sensorarrayDebugPath_t;
 
 typedef enum {
+    SENSORARRAY_MATRIX_D_SOURCE_GND = 0,
+    SENSORARRAY_MATRIX_D_SOURCE_REF,
+} sensorarrayMatrixDSourcePolicy_t;
+
+typedef enum {
+    SENSORARRAY_ADS_INTREF_OFF = 0,
+    SENSORARRAY_ADS_INTREF_ON,
+    SENSORARRAY_ADS_INTREF_KEEP,
+} sensorarrayAdsIntRefPolicy_t;
+
+typedef enum {
+    SENSORARRAY_ADS_VBIAS_OFF = 0,
+    SENSORARRAY_ADS_VBIAS_ON,
+    SENSORARRAY_ADS_VBIAS_KEEP,
+} sensorarrayAdsVbiasPolicy_t;
+
+typedef enum {
     SENSORARRAY_DEBUG_MODE_ROUTE_IDLE = 0,
     SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE,
     SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE,

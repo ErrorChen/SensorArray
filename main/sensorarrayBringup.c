@@ -596,6 +596,46 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
     return ads126xAdcReadAdc1Raw(&state->ads, &raw, NULL);
 }
 
+esp_err_t sensorarrayBringupAttachAdsNoReset(sensorarrayState_t *state)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = sensorarrayInitSpi(&state->spiDevice);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    ads126xAdcConfig_t cfg = {0};
+    cfg.spiDevice = state->spiDevice;
+    cfg.drdyGpio = sensorarrayToGpio(CONFIG_BOARD_ADS126X_DRDY_GPIO);
+    cfg.resetGpio = sensorarrayToGpio(CONFIG_BOARD_ADS126X_RESET_GPIO);
+#if CONFIG_SENSORARRAY_ADS1262
+    cfg.forcedType = ADS126X_DEVICE_ADS1262;
+#elif CONFIG_SENSORARRAY_ADS1263
+    cfg.forcedType = ADS126X_DEVICE_ADS1263;
+#else
+    cfg.forcedType = ADS126X_DEVICE_AUTO;
+#endif
+    cfg.crcMode = ADS126X_CRC_OFF;
+    cfg.enableStatusByte = false;
+    cfg.enableInternalRef = false;
+    cfg.skipResetOnInit = true;
+    cfg.skipConfigureOnInit = true;
+    cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
+    cfg.pgaGain = 1;
+    cfg.dataRateDr = 0;
+
+    err = ads126xAdcInit(&state->ads, &cfg);
+    if (err == ESP_OK) {
+        state->adsAdc1Running = false;
+        state->adsRefReady = false;
+        state->adsRefMuxValid = false;
+    }
+    return err;
+}
+
 esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
 {
     if (!state) {

@@ -41,11 +41,9 @@ Current board polarity is translated only in `main/sensorarrayBoardMap.c`:
 - `SELA GPIO 0 -> ADS1263`
 - `SELA GPIO 1 -> FDC2214`
 
-The firmware applies GPIO controls in deterministic order:
-1. TMUX1108 row (`A0/A1/A2`)
-2. TMUX1134 SELA level
-3. TMUX1134 SELB level
-4. TMUX1108 SW source
+For routes that keep D on GND, the firmware asserts TMUX1108 SW to GND before
+row/path changes, then asserts it again after SELA/SELB. REF routes guard D on
+GND during row/path changes and connect REF only as the final SW action.
 
 Per-step delays are controlled by `Route step delay (ms)`.
 

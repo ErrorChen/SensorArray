@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -40,6 +41,132 @@ static const sensorarrayAdsReadPolicy_t *sensorarrayReadPolicyOrDefault(const se
     return policy ? policy : &kDefaultPolicy;
 }
 
+static const char *sensorarrayMatrixDSourceName(sensorarrayMatrixDSourcePolicy_t dSource)
+{
+    return (dSource == SENSORARRAY_MATRIX_D_SOURCE_REF) ? "REF" : "GND";
+}
+
+static const char *sensorarrayAdsIntRefPolicyName(sensorarrayAdsIntRefPolicy_t policy)
+{
+    switch (policy) {
+    case SENSORARRAY_ADS_INTREF_ON:
+        return "ON";
+    case SENSORARRAY_ADS_INTREF_KEEP:
+        return "KEEP";
+    case SENSORARRAY_ADS_INTREF_OFF:
+    default:
+        return "OFF";
+    }
+}
+
+static const char *sensorarrayAdsVbiasPolicyName(sensorarrayAdsVbiasPolicy_t policy)
+{
+    switch (policy) {
+    case SENSORARRAY_ADS_VBIAS_ON:
+        return "ON";
+    case SENSORARRAY_ADS_VBIAS_KEEP:
+        return "KEEP";
+    case SENSORARRAY_ADS_VBIAS_OFF:
+    default:
+        return "OFF";
+    }
+}
+
+static bool sensorarrayAdsIntRefPolicyUpdates(sensorarrayAdsIntRefPolicy_t policy)
+{
+    return policy != SENSORARRAY_ADS_INTREF_KEEP;
+}
+
+static bool sensorarrayAdsVbiasPolicyUpdates(sensorarrayAdsVbiasPolicy_t policy)
+{
+    return policy != SENSORARRAY_ADS_VBIAS_KEEP;
+}
+
+static int sensorarrayReadResetGpioLevel(void)
+{
+    if (CONFIG_BOARD_ADS126X_RESET_GPIO < 0) {
+        return -1;
+    }
+    return gpio_get_level((gpio_num_t)CONFIG_BOARD_ADS126X_RESET_GPIO);
+}
+
+esp_err_t sensorarrayMeasureApplyRefPolicy(sensorarrayState_t *state,
+                                           const char *stage,
+                                           const char *mode,
+                                           sensorarrayMatrixDSourcePolicy_t dSource,
+                                           sensorarrayAdsIntRefPolicy_t intrefPolicy,
+                                           sensorarrayAdsVbiasPolicy_t vbiasPolicy,
+                                           const char *reason)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const bool updateIntref = sensorarrayAdsIntRefPolicyUpdates(intrefPolicy);
+    const bool updateVbias = sensorarrayAdsVbiasPolicyUpdates(vbiasPolicy);
+    const bool enableIntref = (intrefPolicy == SENSORARRAY_ADS_INTREF_ON);
+    const bool enableVbias = (vbiasPolicy == SENSORARRAY_ADS_VBIAS_ON);
+
+    uint8_t powerBefore = 0u;
+    uint8_t powerAfter = 0u;
+    bool havePower = false;
+    esp_err_t err = ESP_OK;
+    const char *status = "ok";
+
+    if (!state->adsReady) {
+        err = (updateIntref || updateVbias) ? ESP_ERR_INVALID_STATE : ESP_OK;
+        status = (err == ESP_OK) ? "ads_unavailable_keep" : "ads_unavailable";
+    } else if (updateIntref || updateVbias) {
+        err = ads126xAdcApplyPowerPolicy(&state->ads,
+                                         updateIntref,
+                                         enableIntref,
+                                         updateVbias,
+                                         enableVbias,
+                                         &powerBefore,
+                                         &powerAfter);
+        havePower = (err == ESP_OK);
+        status = (err == ESP_OK) ? "ok" : "power_policy_error";
+    } else {
+        err = ads126xAdcReadPowerRegister(&state->ads, &powerBefore);
+        if (err == ESP_OK) {
+            powerAfter = powerBefore;
+            havePower = true;
+            status = "keep";
+        } else {
+            status = "read_power_error";
+        }
+    }
+
+    if (err == ESP_OK) {
+        if (intrefPolicy == SENSORARRAY_ADS_INTREF_OFF) {
+            state->adsRefReady = false;
+        } else if (intrefPolicy == SENSORARRAY_ADS_INTREF_ON) {
+            state->adsRefReady = true;
+        }
+        sensorarrayLogSetAdsState(state->adsReady, state->adsRefReady);
+    }
+
+    char beforeBuf[8];
+    char afterBuf[8];
+    char resetBuf[8];
+    printf("DBGREFPOLICY,stage=%s,mode=%s,dSource=%s,swReq=%s,intrefReq=%s,vbiasReq=%s,powerBefore=%s,"
+           "powerAfter=%s,noDelay=1,adsReset=%s,reason=%s,err=%ld,status=%s\n",
+           stage ? stage : SENSORARRAY_NA,
+           mode ? mode : SENSORARRAY_NA,
+           sensorarrayMatrixDSourceName(dSource),
+           (dSource == SENSORARRAY_MATRIX_D_SOURCE_REF) ? sensorarrayLogSwSourceName(TMUX1108_SOURCE_REF)
+                                                        : sensorarrayLogSwSourceName(TMUX1108_SOURCE_GND),
+           sensorarrayAdsIntRefPolicyName(intrefPolicy),
+           sensorarrayAdsVbiasPolicyName(vbiasPolicy),
+           sensorarrayLogFmtHexU8(beforeBuf, sizeof(beforeBuf), havePower, powerBefore),
+           sensorarrayLogFmtHexU8(afterBuf, sizeof(afterBuf), havePower, powerAfter),
+           sensorarrayLogFmtGpioLevel(resetBuf, sizeof(resetBuf), true, sensorarrayReadResetGpioLevel()),
+           reason ? reason : SENSORARRAY_NA,
+           (long)err,
+           status);
+    return err;
+}
+
 static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
 {
     if (!state || !state->adsReady || !state->adsAdc1Running) {
@@ -50,6 +177,37 @@ static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
     if (err == ESP_OK) {
         state->adsAdc1Running = false;
     }
+    return err;
+}
+
+static esp_err_t sensorarrayMeasureSetSwForRoute(sensorarrayState_t *state,
+                                                 const char *stage,
+                                                 uint8_t sColumn,
+                                                 uint8_t dLine,
+                                                 sensorarrayDebugPath_t path,
+                                                 tmux1108Source_t swSource,
+                                                 sensorarraySelaRoute_t selaRoute,
+                                                 bool selBLevel,
+                                                 const char *label,
+                                                 const char *status,
+                                                 const char *reason)
+{
+    if (!state || !state->tmuxReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = tmuxSwitchSet1108Source(swSource);
+    sensorarrayLogRouteStepEx(stage,
+                              label,
+                              sColumn,
+                              dLine,
+                              path,
+                              swSource,
+                              selaRoute,
+                              selBLevel,
+                              err,
+                              status,
+                              reason);
     return err;
 }
 
@@ -190,6 +348,48 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
         return err;
     }
 
+    if (swSource == TMUX1108_SOURCE_REF) {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_pre_ref_guard",
+                                              sColumn,
+                                              dLine,
+                                              path,
+                                              TMUX1108_SOURCE_GND,
+                                              selaRoute,
+                                              selBLevel,
+                                              label,
+                                              "set_sw_pre_ref_guard",
+                                              "isolate_ref_before_route");
+        if (err != ESP_OK) {
+            return err;
+        }
+        err = sensorarrayMeasureApplyRefPolicy(state,
+                                               "enter_ref_mode",
+                                               "route_apply_levels",
+                                               SENSORARRAY_MATRIX_D_SOURCE_REF,
+                                               SENSORARRAY_ADS_INTREF_ON,
+                                               SENSORARRAY_ADS_VBIAS_ON,
+                                               "ref_d_before_connect");
+        if (err != ESP_OK) {
+            return err;
+        }
+    } else {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_pre_ground",
+                                              sColumn,
+                                              dLine,
+                                              path,
+                                              swSource,
+                                              selaRoute,
+                                              selBLevel,
+                                              label,
+                                              "set_sw_pre_ground",
+                                              "ground_d_before_route");
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
     err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
     sensorarrayLogRouteStep("row", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_row");
     if (err != ESP_OK) {
@@ -219,8 +419,31 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
     }
     sensorarrayDelayMs(delayAfterSelBMs);
 
-    err = tmuxSwitchSet1108Source(swSource);
-    sensorarrayLogRouteStep("sw", label, sColumn, dLine, path, swSource, selaRoute, selBLevel, err, "set_sw");
+    if (swSource == TMUX1108_SOURCE_GND) {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_final_assert",
+                                              sColumn,
+                                              dLine,
+                                              path,
+                                              swSource,
+                                              selaRoute,
+                                              selBLevel,
+                                              label,
+                                              "ok",
+                                              "final_ground_assert");
+    } else {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw",
+                                              sColumn,
+                                              dLine,
+                                              path,
+                                              swSource,
+                                              selaRoute,
+                                              selBLevel,
+                                              label,
+                                              "set_sw",
+                                              "connect_ref_after_route");
+    }
     if (err != ESP_OK) {
         return err;
     }
@@ -274,6 +497,48 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
         return err;
     }
 
+    if (swSource == TMUX1108_SOURCE_REF) {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_pre_ref_guard",
+                                              sColumn,
+                                              dLine,
+                                              debugPath,
+                                              TMUX1108_SOURCE_GND,
+                                              routeMap->selaRoute,
+                                              routeMap->selBLevel,
+                                              routeMap->mapLabel,
+                                              "set_sw_pre_ref_guard",
+                                              "isolate_ref_before_route");
+        if (err != ESP_OK) {
+            return err;
+        }
+        err = sensorarrayMeasureApplyRefPolicy(state,
+                                               "enter_ref_mode",
+                                               "route_apply",
+                                               SENSORARRAY_MATRIX_D_SOURCE_REF,
+                                               SENSORARRAY_ADS_INTREF_ON,
+                                               SENSORARRAY_ADS_VBIAS_ON,
+                                               "ref_d_before_connect");
+        if (err != ESP_OK) {
+            return err;
+        }
+    } else {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_pre_ground",
+                                              sColumn,
+                                              dLine,
+                                              debugPath,
+                                              swSource,
+                                              routeMap->selaRoute,
+                                              routeMap->selBLevel,
+                                              routeMap->mapLabel,
+                                              "set_sw_pre_ground",
+                                              "ground_d_before_route");
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
     err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
     sensorarrayLogRouteStep("row",
                             routeMap->mapLabel,
@@ -325,17 +590,31 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
     }
     sensorarrayDelayMs(SENSORARRAY_SETTLE_AFTER_PATH_MS);
 
-    err = tmuxSwitchSet1108Source(swSource);
-    sensorarrayLogRouteStep("sw",
-                            routeMap->mapLabel,
-                            sColumn,
-                            dLine,
-                            debugPath,
-                            swSource,
-                            routeMap->selaRoute,
-                            routeMap->selBLevel,
-                            err,
-                            "set_sw");
+    if (swSource == TMUX1108_SOURCE_GND) {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw_final_assert",
+                                              sColumn,
+                                              dLine,
+                                              debugPath,
+                                              swSource,
+                                              routeMap->selaRoute,
+                                              routeMap->selBLevel,
+                                              routeMap->mapLabel,
+                                              "ok",
+                                              "final_ground_assert");
+    } else {
+        err = sensorarrayMeasureSetSwForRoute(state,
+                                              "sw",
+                                              sColumn,
+                                              dLine,
+                                              debugPath,
+                                              swSource,
+                                              routeMap->selaRoute,
+                                              routeMap->selBLevel,
+                                              routeMap->mapLabel,
+                                              "set_sw",
+                                              "connect_ref_after_route");
+    }
     if (err != ESP_OK) {
         return err;
     }

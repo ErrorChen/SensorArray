@@ -1330,7 +1330,7 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
         return;
     }
 
-    tmux1108Source_t swSource = sensorarrayBoardMapDefaultSwSource(route);
+    tmux1108Source_t swSource = TMUX1108_SOURCE_GND;
     BoardSupportI2cBusInfo_t busInfo = {0};
     (void)boardSupportGetI2cBusInfo(true, &busInfo);
     if (!busInfo.Enabled ||
@@ -1414,6 +1414,20 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
            capConfig.inductorValueUh,
            capConfig.fixedCapPf,
            capConfig.parasiticCapPf);
+
+    sensorarrayS5d5StopAdsForIsolation(state);
+    esp_err_t refPolicyErr = sensorarrayMeasureApplyRefPolicy(state,
+                                                              "enter_ground_no_ref_mode",
+                                                              "S5D5_CAP_FDC_SECONDARY",
+                                                              SENSORARRAY_MATRIX_D_SOURCE_GND,
+                                                              SENSORARRAY_ADS_INTREF_OFF,
+                                                              SENSORARRAY_ADS_VBIAS_OFF,
+                                                              "fdc_cap_no_ref");
+    if (refPolicyErr != ESP_OK) {
+        printf("DBGFDC_S5D5,stage=ref_policy,err=%ld,status=ref_policy_failed\n", (long)refPolicyErr);
+        sensorarrayDebugIdleForever("s5d5_ref_policy_failed");
+        return;
+    }
 
     if (CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS > 0) {
         sensorarrayDebugSelftestDelayMs((uint32_t)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS);

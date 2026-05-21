@@ -1,5 +1,6 @@
 #include "ads126xAdc.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "sdkconfig.h"
@@ -160,6 +161,14 @@ static bool ads126xAdcIsValidForcedType(ads126xDeviceType_t forcedType)
            forcedType == ADS126X_DEVICE_ADS1263;
 }
 
+static const char *ads126xAdcPowerReqName(bool update, bool enable)
+{
+    if (!update) {
+        return "KEEP";
+    }
+    return enable ? "ON" : "OFF";
+}
+
 /* Datasheet checksum: sum(data bytes) + 0x9B, lower 8 bits. */
 static uint8_t ads126xAdcChecksum(const uint8_t *data, size_t len)
 {
@@ -284,25 +293,27 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
         gpio_set_direction(handle->drdyGpio, GPIO_MODE_INPUT);
     }
 
-    if (handle->resetGpio != GPIO_NUM_NC) {
-        err = ads126xAdcHardwareReset(handle);
+    if (!cfg->skipResetOnInit) {
+        if (handle->resetGpio != GPIO_NUM_NC) {
+            err = ads126xAdcHardwareReset(handle);
+            if (err != ESP_OK) {
+                ads126xAdcDeinit(handle);
+                return err;
+            }
+        }
+
+        err = ads126xAdcSendCommand(handle, ADS126X_CMD_RESET);
         if (err != ESP_OK) {
             ads126xAdcDeinit(handle);
             return err;
         }
-    }
 
-    err = ads126xAdcSendCommand(handle, ADS126X_CMD_RESET);
-    if (err != ESP_OK) {
-        ads126xAdcDeinit(handle);
-        return err;
+        /*
+         * Datasheet minimum is 8 * tCLK after RESET command before next command.
+         * Use millisecond delay for margin across clock options and RTOS tick quantization.
+         */
+        vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_COMMAND_DELAY_MS));
     }
-
-    /*
-     * Datasheet minimum is 8 * tCLK after RESET command before next command.
-     * Use millisecond delay for margin across clock options and RTOS tick quantization.
-     */
-    vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_COMMAND_DELAY_MS));
 
     bool idReadOk = false;
     err = ads126xAdcGetIdRaw(handle, &handle->idRegRaw);
@@ -350,39 +361,41 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
         handle->deviceType = detectedType;
     }
 
-    err = ads126xAdcConfigure(handle,
-                              cfg->enableInternalRef,
-                              cfg->enableStatusByte,
-                              cfg->crcMode,
-                              cfg->pgaGain,
-                              cfg->dataRateDr);
-    if (err != ESP_OK) {
-        ads126xAdcDeinit(handle);
-        return err;
-    }
-
-    if (cfg->enableInternalRef) {
-        /* Select internal reference on REFMUX when INTREF is enabled. */
-        err = ads126xAdcSetRefMux(handle, 0x00);
+    if (!cfg->skipConfigureOnInit) {
+        err = ads126xAdcConfigure(handle,
+                                  cfg->enableInternalRef,
+                                  cfg->enableStatusByte,
+                                  cfg->crcMode,
+                                  cfg->pgaGain,
+                                  cfg->dataRateDr);
         if (err != ESP_OK) {
             ads126xAdcDeinit(handle);
             return err;
         }
-    }
 
-    /* Default to AIN0/AIN1; applications should set the real channel. */
-    err = ads126xAdcSetInputMux(handle, 0x00, 0x01);
-    if (err != ESP_OK) {
-        ads126xAdcDeinit(handle);
-        return err;
-    }
+        if (cfg->enableInternalRef) {
+            /* Select internal reference on REFMUX when INTREF is enabled. */
+            err = ads126xAdcSetRefMux(handle, 0x00);
+            if (err != ESP_OK) {
+                ads126xAdcDeinit(handle);
+                return err;
+            }
+        }
 
-    if (cfg->enableInternalRef) {
-        /*
-         * REFOUT startup is datasheet-sensitive; with 1-uF reference capacitor, allow
-         * conservative settling time so the first conversion is less likely to be invalid.
-         */
-        vTaskDelay(pdMS_TO_TICKS(ADS126X_INTERNAL_REF_SETTLE_MS));
+        /* Default to AIN0/AIN1; applications should set the real channel. */
+        err = ads126xAdcSetInputMux(handle, 0x00, 0x01);
+        if (err != ESP_OK) {
+            ads126xAdcDeinit(handle);
+            return err;
+        }
+
+        if (cfg->enableInternalRef) {
+            /*
+             * REFOUT startup is datasheet-sensitive; with 1-uF reference capacitor, allow
+             * conservative settling time so the first conversion is less likely to be invalid.
+             */
+            vTaskDelay(pdMS_TO_TICKS(ADS126X_INTERNAL_REF_SETTLE_MS));
+        }
     }
 
     return ESP_OK;
@@ -466,6 +479,121 @@ esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg)
     return ads126xAdcReadRegisters(handle, ADS126X_REG_ID, idReg, 1);
 }
 
+esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower)
+{
+    if (!outPower) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, outPower, 1);
+}
+
+esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power)
+{
+    return ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
+}
+
+esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
+                                     bool updateInternalRef,
+                                     bool enableInternalRef,
+                                     bool updateVbias,
+                                     bool enableVbias,
+                                     uint8_t *outPowerBefore,
+                                     uint8_t *outPowerAfter)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t powerBefore = 0u;
+    uint8_t powerTarget = 0u;
+    uint8_t powerAfter = 0u;
+
+    esp_err_t err = ads126xAdcReadPowerRegister(handle, &powerBefore);
+    if (err != ESP_OK) {
+        printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=na,powerTarget=na,"
+               "powerAfter=na,err=%ld,status=read_power_error\n",
+               ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
+               ads126xAdcPowerReqName(updateVbias, enableVbias),
+               (long)err);
+        return err;
+    }
+
+    powerTarget = powerBefore;
+    if (updateInternalRef) {
+        if (enableInternalRef) {
+            powerTarget |= ADS126X_POWER_INTREF;
+        } else {
+            powerTarget &= (uint8_t)~ADS126X_POWER_INTREF;
+        }
+    }
+    if (updateVbias) {
+        if (enableVbias) {
+            powerTarget |= ADS126X_POWER_VBIAS;
+        } else {
+            powerTarget &= (uint8_t)~ADS126X_POWER_VBIAS;
+        }
+    }
+
+    if (powerTarget != powerBefore) {
+        err = ads126xAdcWritePowerRegister(handle, powerTarget);
+        if (err != ESP_OK) {
+            printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=0x%02X,"
+                   "powerTarget=0x%02X,powerAfter=na,err=%ld,status=write_power_error\n",
+                   ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
+                   ads126xAdcPowerReqName(updateVbias, enableVbias),
+                   powerBefore,
+                   powerTarget,
+                   (long)err);
+            return err;
+        }
+    }
+
+    err = ads126xAdcReadPowerRegister(handle, &powerAfter);
+    if (err != ESP_OK) {
+        printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=0x%02X,"
+               "powerTarget=0x%02X,powerAfter=na,err=%ld,status=readback_power_error\n",
+               ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
+               ads126xAdcPowerReqName(updateVbias, enableVbias),
+               powerBefore,
+               powerTarget,
+               (long)err);
+        return err;
+    }
+
+    bool policyOk = true;
+    if (updateInternalRef) {
+        policyOk = policyOk && (((powerAfter & ADS126X_POWER_INTREF) != 0u) == enableInternalRef);
+    }
+    if (updateVbias) {
+        policyOk = policyOk && (((powerAfter & ADS126X_POWER_VBIAS) != 0u) == enableVbias);
+    }
+
+    if (outPowerBefore) {
+        *outPowerBefore = powerBefore;
+    }
+    if (outPowerAfter) {
+        *outPowerAfter = powerAfter;
+    }
+    handle->enableInternalRef = (powerAfter & ADS126X_POWER_INTREF) != 0u;
+
+    printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=0x%02X,powerTarget=0x%02X,"
+           "powerAfter=0x%02X,err=%ld,status=%s\n",
+           ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
+           ads126xAdcPowerReqName(updateVbias, enableVbias),
+           powerBefore,
+           powerTarget,
+           powerAfter,
+           policyOk ? 0L : (long)ESP_ERR_INVALID_STATE,
+           policyOk ? "ok" : "policy_mismatch");
+
+    return policyOk ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t ads126xAdcSetInternalReference(ads126xAdcHandle_t *handle, bool enableInternalRef)
+{
+    return ads126xAdcApplyPowerPolicy(handle, true, enableInternalRef, false, false, NULL, NULL);
+}
+
 esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               bool enableInternalRef,
                               bool enableStatusByte,
@@ -485,18 +613,15 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Read-modify-write to preserve VBIAS and reserved bits. */
-    uint8_t power = 0;
-    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
-    if (err != ESP_OK) {
-        return err;
-    }
-    if (enableInternalRef) {
-        power |= ADS126X_POWER_INTREF;
-    } else {
-        power &= (uint8_t)~ADS126X_POWER_INTREF;
-    }
-    err = ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
+    uint8_t powerBefore = 0u;
+    uint8_t powerAfter = 0u;
+    esp_err_t err = ads126xAdcApplyPowerPolicy(handle,
+                                               true,
+                                               enableInternalRef,
+                                               false,
+                                               false,
+                                               &powerBefore,
+                                               &powerAfter);
     if (err != ESP_OK) {
         return err;
     }
@@ -549,19 +674,7 @@ esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t power = 0u;
-    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    if (enableVbias) {
-        power |= ADS126X_POWER_VBIAS;
-    } else {
-        power &= (uint8_t)~ADS126X_POWER_VBIAS;
-    }
-
-    return ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
+    return ads126xAdcApplyPowerPolicy(handle, false, false, true, enableVbias, NULL, NULL);
 }
 
 esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,

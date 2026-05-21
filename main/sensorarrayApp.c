@@ -66,7 +66,7 @@ void sensorarrayAppRun(void)
     bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
     bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
     bool fdcI2cDiscoveryMode = (activeMode == SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY);
-    bool skipAdsInit = s1d1RouteOnly || singleCapFdcMode || fdcI2cDiscoveryMode;
+    bool skipAdsInit = s1d1RouteOnly || fdcI2cDiscoveryMode;
     bool skipFdcInit = s1d1ResMode || fdcI2cDiscoveryMode;
 
     uint8_t requestedChannels = sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
@@ -129,15 +129,27 @@ void sensorarrayAppRun(void)
     sensorarrayApplyTmuxDefaults();
 
     if (skipAdsInit) {
-        const char *adsSkipStatus = singleCapFdcMode
-                                        ? "skip_cap_fdc_secondary_mode"
-                                        : (fdcI2cDiscoveryMode ? "skip_fdc_i2c_discovery_mode" : "skip_route_only_mode");
+        const char *adsSkipStatus = fdcI2cDiscoveryMode ? "skip_fdc_i2c_discovery_mode" : "skip_route_only_mode";
         s_state.adsReady = false;
         s_state.adsRefReady = false;
         s_state.adsAdc1Running = false;
         s_state.adsRefMuxValid = false;
         sensorarrayLogStartup("ads", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
         sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
+    } else if (singleCapFdcMode) {
+        err = sensorarrayBringupAttachAdsNoReset(&s_state);
+        s_state.adsReady = (err == ESP_OK);
+        sensorarrayLogStartup("ads",
+                              err,
+                              s_state.adsReady ? "attached_no_reset_for_cap_fdc" : "attach_no_reset_failed",
+                              (int32_t)s_state.adsReady);
+        s_state.adsRefReady = false;
+        s_state.adsAdc1Running = false;
+        s_state.adsRefMuxValid = false;
+        sensorarrayLogStartup("ads_ref",
+                              s_state.adsReady ? ESP_OK : ESP_ERR_INVALID_STATE,
+                              s_state.adsReady ? "deferred_off_for_cap_fdc" : "skip_ads_unavailable",
+                              0);
     } else {
         err = sensorarrayBringupInitAds(&s_state);
         s_state.adsReady = (err == ESP_OK);
