@@ -765,6 +765,136 @@ double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz
     return ((double)raw28 * (double)refClockHz) / SENSORARRAY_FDC_RAW_SCALE_2P28;
 }
 
+const char *sensorarrayMeasureFdcRefClockSourceName(sensorarrayFdcRefClockSource_t source)
+{
+    switch (source) {
+    case SENSORARRAY_FDC_REF_CLOCK_SOURCE_INTERNAL:
+        return "internal";
+    case SENSORARRAY_FDC_REF_CLOCK_SOURCE_EXTERNAL:
+        return "external";
+    default:
+        return "unknown";
+    }
+}
+
+sensorarrayFdcRefClockSource_t sensorarrayMeasureFdcEffectiveRefClockSource(void)
+{
+#if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    return SENSORARRAY_FDC_REF_CLOCK_SOURCE_EXTERNAL;
+#else
+    return SENSORARRAY_FDC_REF_CLOCK_SOURCE_INTERNAL;
+#endif
+}
+
+uint32_t sensorarrayMeasureFdcEffectiveFclkHz(void)
+{
+#if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    return SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ;
+#else
+#if SENSORARRAY_FDC_INTERNAL_CLOCK_CALIBRATED_HZ > 0u
+    return SENSORARRAY_FDC_INTERNAL_CLOCK_CALIBRATED_HZ;
+#else
+    return SENSORARRAY_FDC_INTERNAL_CLOCK_NOMINAL_HZ;
+#endif
+#endif
+}
+
+bool sensorarrayMeasureFdcDecodeClockDividers(uint16_t clockDividers,
+                                              uint8_t *outFinSelCode,
+                                              uint8_t *outFinFactor,
+                                              uint16_t *outFrefDivider,
+                                              const char **outStatus)
+{
+    if (!outFinSelCode || !outFinFactor || !outFrefDivider || !outStatus) {
+        if (outStatus) {
+            *outStatus = "invalid_arg";
+        }
+        return false;
+    }
+
+    uint8_t finSelCode = (uint8_t)((clockDividers >> 12) & 0x03u);
+    uint16_t frefDivider = (uint16_t)(clockDividers & 0x03FFu);
+
+    *outFinSelCode = finSelCode;
+    *outFinFactor = 0u;
+    *outFrefDivider = frefDivider;
+    *outStatus = "ok";
+
+    if (frefDivider == 0u) {
+        *outStatus = "zero_fref_divider";
+        return false;
+    }
+    if (finSelCode == 0u) {
+        *outStatus = "invalid_fin_sel_zero";
+        return false;
+    }
+    if (finSelCode == 1u) {
+        *outFinFactor = 1u;
+        return true;
+    }
+    if (finSelCode == 2u) {
+        *outFinFactor = 2u;
+        return true;
+    }
+
+    *outStatus = "unsupported_fin_sel_3";
+    return false;
+}
+
+bool sensorarrayMeasureFdcComputeFrequencyDiag(uint32_t raw28,
+                                               uint16_t clockDividers,
+                                               sensorarrayFdcFrequencyDiag_t *outDiag)
+{
+    if (!outDiag) {
+        return false;
+    }
+
+    *outDiag = (sensorarrayFdcFrequencyDiag_t){
+        .clockDividers = clockDividers,
+        .refClockSource = sensorarrayMeasureFdcEffectiveRefClockSource(),
+        .effectiveFclkHz = sensorarrayMeasureFdcEffectiveFclkHz(),
+        .valid = false,
+        .status = "unknown",
+    };
+
+    if (raw28 == 0u) {
+        outDiag->status = "zero_raw";
+        return false;
+    }
+    if (outDiag->effectiveFclkHz == 0u) {
+        outDiag->status = "zero_effective_fclk";
+        return false;
+    }
+
+    const char *decodeStatus = "unknown";
+    bool decodeOk = sensorarrayMeasureFdcDecodeClockDividers(clockDividers,
+                                                             &outDiag->finSelCode,
+                                                             &outDiag->finFactor,
+                                                             &outDiag->frefDivider,
+                                                             &decodeStatus);
+    outDiag->status = decodeStatus;
+    if (!decodeOk) {
+        return false;
+    }
+
+    outDiag->effectiveFrefHz = (double)outDiag->effectiveFclkHz / (double)outDiag->frefDivider;
+    outDiag->freqHzBase = sensorarrayMeasureFdcRawToFrequencyHz(raw28, outDiag->effectiveFclkHz);
+    outDiag->freqHzCorrected =
+        ((double)raw28 * outDiag->effectiveFrefHz * (double)outDiag->finFactor) / SENSORARRAY_FDC_RAW_SCALE_2P28;
+    outDiag->valid = true;
+    outDiag->status = "ok";
+    return true;
+}
+
+double sensorarrayMeasureFdcRawToSensorFrequencyHz(uint32_t raw28, uint16_t clockDividers)
+{
+    sensorarrayFdcFrequencyDiag_t diag = {0};
+    if (!sensorarrayMeasureFdcComputeFrequencyDiag(raw28, clockDividers, &diag) || !diag.valid) {
+        return 0.0;
+    }
+    return diag.freqHzCorrected;
+}
+
 bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf)
 {
     return sensorarrayMeasureFdcComputeCapacitancePf(frequencyHz, (double)inductorUh, outCapPf);

@@ -10,6 +10,7 @@
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayLog.h"
+#include "sensorarrayMeasure.h"
 
 #define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
 #define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
@@ -246,11 +247,63 @@ static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx
            settle0,
            drive0,
            sensorarrayBringupFdcRefClockName(sensorarrayBringupFdcRefClockSource()),
-           (unsigned long)SENSORARRAY_FDC_REF_CLOCK_HZ,
+           (unsigned long)sensorarrayMeasureFdcEffectiveFclkHz(),
            (long)err,
            (err == ESP_OK) ? "ok" : "read_error");
 
     return err;
+}
+
+static void sensorarrayBringupDumpFdcClock(Fdc2214CapDevice_t *dev,
+                                           const char *fdcLabel,
+                                           const char *stage,
+                                           Fdc2214CapChannel_t channel)
+{
+    uint16_t clockDividers = 0u;
+    uint16_t configReg = 0u;
+    uint16_t muxConfig = 0u;
+    uint8_t finSelCode = 0u;
+    uint8_t finFactor = 0u;
+    uint16_t frefDivider = 0u;
+    const char *clockStatus = "unknown";
+    esp_err_t clockErr = ESP_ERR_INVALID_ARG;
+
+    if (dev) {
+        (void)Fdc2214CapReadRawRegisters(dev, 0x1Au, &configReg);
+        (void)Fdc2214CapReadRawRegisters(dev, 0x1Bu, &muxConfig);
+        clockErr = Fdc2214CapReadClockDividers(dev, channel, &clockDividers);
+    }
+
+    bool decodeOk = false;
+    if (clockErr == ESP_OK) {
+        decodeOk = sensorarrayMeasureFdcDecodeClockDividers(clockDividers,
+                                                            &finSelCode,
+                                                            &finFactor,
+                                                            &frefDivider,
+                                                            &clockStatus);
+    } else {
+        clockStatus = "clock_read_error";
+    }
+
+    uint32_t effectiveFclkHz = sensorarrayMeasureFdcEffectiveFclkHz();
+    double effectiveFrefHz = (decodeOk && frefDivider > 0u) ? ((double)effectiveFclkHz / (double)frefDivider) : 0.0;
+
+    printf("DBGFDC_CLOCK,stage=%s,device=%s,channel=%u,clockDiv=0x%04X,finSelCode=%u,finFactor=%u,"
+           "frefDivider=%u,refClockSource=%s,effectiveFclkHz=%lu,effectiveFrefHz=%.3f,configReg=0x%04X,"
+           "muxConfig=0x%04X,status=%s\n",
+           stage ? stage : SENSORARRAY_NA,
+           fdcLabel ? fdcLabel : SENSORARRAY_NA,
+           (unsigned)channel,
+           clockDividers,
+           (unsigned)finSelCode,
+           (unsigned)finFactor,
+           (unsigned)frefDivider,
+           sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()),
+           (unsigned long)effectiveFclkHz,
+           effectiveFrefHz,
+           configReg,
+           muxConfig,
+           clockStatus ? clockStatus : SENSORARRAY_NA);
 }
 
 static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
@@ -896,6 +949,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         Fdc2214CapDestroy(dev);
         return err;
     }
+    sensorarrayBringupDumpFdcClock(dev, fdcLabel, "init", FDC2214_CH0);
 
     *outDev = dev;
     if (outDiag) {
@@ -903,7 +957,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         outDiag->configVerified = true;
         outDiag->refClockKnown = true;
         outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
-        outDiag->refClockHz = SENSORARRAY_FDC_REF_CLOCK_HZ;
+        outDiag->refClockHz = sensorarrayMeasureFdcEffectiveFclkHz();
         outDiag->statusConfigReg = expectedStatusConfig;
         outDiag->configReg = finalConfig;
         outDiag->muxConfigReg = expectedMuxConfig;
@@ -984,9 +1038,15 @@ esp_err_t sensorarrayBringupInitFdcSingleChannel(const BoardSupportI2cCtx_t *i2c
         return err;
     }
 
+    const char *fdcLabel = (i2cAddr == SENSORARRAY_FDC_I2C_ADDR_LOW) ? "secondary_selb_side" : "primary_sela_side";
+    sensorarrayBringupDumpFdcClock(*outDev, fdcLabel, "init", channel);
+
     if (outDiag) {
         outDiag->status = "ok_single_channel";
         outDiag->configVerified = true;
+        outDiag->refClockKnown = true;
+        outDiag->refClockSource = sensorarrayBringupFdcRefClockSource();
+        outDiag->refClockHz = sensorarrayMeasureFdcEffectiveFclkHz();
         outDiag->statusConfigReg = expectedStatusConfig;
         outDiag->configReg = expectedConfig;
         outDiag->muxConfigReg = expectedMuxConfig;

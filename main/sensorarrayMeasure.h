@@ -83,6 +83,39 @@ esp_err_t sensorarrayMeasureReadFdcSampleDiagRelaxed(Fdc2214CapDevice_t *dev,
                                                       sensorarrayFdcReadDiag_t *outDiag);
 const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t status);
 
+typedef enum {
+    SENSORARRAY_FDC_REF_CLOCK_SOURCE_INTERNAL = 0,
+    SENSORARRAY_FDC_REF_CLOCK_SOURCE_EXTERNAL = 1,
+} sensorarrayFdcRefClockSource_t;
+
+typedef struct {
+    uint16_t clockDividers;
+    uint8_t finSelCode;
+    uint8_t finFactor;
+    uint16_t frefDivider;
+    sensorarrayFdcRefClockSource_t refClockSource;
+    uint32_t effectiveFclkHz;
+    double effectiveFrefHz;
+    double freqHzBase;
+    double freqHzCorrected;
+    bool valid;
+    const char *status;
+} sensorarrayFdcFrequencyDiag_t;
+
+const char *sensorarrayMeasureFdcRefClockSourceName(sensorarrayFdcRefClockSource_t source);
+uint32_t sensorarrayMeasureFdcEffectiveFclkHz(void);
+sensorarrayFdcRefClockSource_t sensorarrayMeasureFdcEffectiveRefClockSource(void);
+bool sensorarrayMeasureFdcDecodeClockDividers(uint16_t clockDividers,
+                                              uint8_t *outFinSelCode,
+                                              uint8_t *outFinFactor,
+                                              uint16_t *outFrefDivider,
+                                              const char **outStatus);
+bool sensorarrayMeasureFdcComputeFrequencyDiag(uint32_t raw28,
+                                               uint16_t clockDividers,
+                                               sensorarrayFdcFrequencyDiag_t *outDiag);
+double sensorarrayMeasureFdcRawToSensorFrequencyHz(uint32_t raw28, uint16_t clockDividers);
+// Base FDC raw28 formula only, before CHx_FIN_SEL / CHx_FREF_DIVIDER correction.
+// Keep this for debug comparison; do not use it as the final capacitance input.
 double sensorarrayMeasureFdcRawToFrequencyHz(uint32_t raw28, uint32_t refClockHz);
 bool sensorarrayMeasureFdcComputeCapacitancePf(double frequencyHz, double inductorValueUh, double *outCapPf);
 bool sensorarrayMeasureFdcTryCapacitancePf(double frequencyHz, uint32_t inductorUh, double *outCapPf);

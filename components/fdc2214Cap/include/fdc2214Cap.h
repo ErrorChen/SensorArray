@@ -196,6 +196,10 @@ esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSle
 esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
 // Read key core registers used for diagnostics.
 esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs);
+// Read CLOCK_DIVIDERS_CHx for the requested channel.
+esp_err_t Fdc2214CapReadClockDividers(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      uint16_t* outClockDividers);
 // Read one structured debug snapshot (core regs + CH0 config regs + DATA_CHx with decoded status fields).
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t dataChannel,

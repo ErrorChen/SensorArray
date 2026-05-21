@@ -620,6 +620,19 @@ esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* 
     return ESP_OK;
 }
 
+esp_err_t Fdc2214CapReadClockDividers(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      uint16_t* outClockDividers)
+{
+    if (!dev || !outClockDividers) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), outClockDividers);
+}
+
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t dataChannel,
                                       Fdc2214CapDebugSnapshot_t* outSnapshot)

@@ -238,7 +238,25 @@
 #define SENSORARRAY_FDC_I2C_ADDR_HIGH 0x2Bu
 #define SENSORARRAY_FDC_REG_MANUFACTURER_ID 0x7Eu
 #define SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL 0u
-#define SENSORARRAY_FDC_REF_CLOCK_HZ 40000000u
+#define SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ 40000000u
+#define SENSORARRAY_FDC_INTERNAL_CLOCK_NOMINAL_HZ 43400000u
+/*
+ * Optional internal oscillator calibration. 0 means disabled.
+ *
+ * External reference mode uses SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ.
+ * Internal oscillator mode uses SENSORARRAY_FDC_INTERNAL_CLOCK_CALIBRATED_HZ
+ * when non-zero, otherwise SENSORARRAY_FDC_INTERNAL_CLOCK_NOMINAL_HZ.
+ *
+ * S5D5 oscilloscope frequency or known-cap measurements can be used to
+ * back-calculate a calibrated internal oscillator value, but the measured
+ * sensor frequency itself must not be hard-coded here.
+ */
+#define SENSORARRAY_FDC_INTERNAL_CLOCK_CALIBRATED_HZ 0u
+/*
+ * Backward-compatible alias for older code. New frequency conversion code must
+ * choose the effective FCLK from the selected internal/external clock source.
+ */
+#define SENSORARRAY_FDC_REF_CLOCK_HZ SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ
 #define SENSORARRAY_FDC_STATUS_CONFIG_DEFAULT 0x3800u
 // Single-channel debug profile follows datasheet-style values for CH0 continuous conversion.
 #define SENSORARRAY_FDC_DEBUG_RCOUNT_CH0 0x2089u
