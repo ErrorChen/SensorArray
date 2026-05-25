@@ -10,6 +10,16 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayLog.h"
 
+#ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+#define CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE 0
+#endif
+
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+#define DBGFDCLOW_TRACE(...) printf(__VA_ARGS__)
+#else
+#define DBGFDCLOW_TRACE(...) do { } while (0)
+#endif
+
 #define SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT 14
 #define SENSORARRAY_FDC_STATUS_ERR_WD_MASK (1U << 11)
 #define SENSORARRAY_FDC_STATUS_ERR_AHW_MASK (1U << 10)
@@ -912,6 +922,11 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
         return ESP_ERR_INVALID_ARG;
     }
 
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=diag_enter,channel=%u,discardFirst=%u,relaxed=%u\n",
+                    (unsigned)ch,
+                    discardFirst ? 1u : 0u,
+                    relaxedMode ? 1u : 0u);
+
     *outDiag = (sensorarrayFdcReadDiag_t){
         .err = ESP_FAIL,
         .i2cOk = false,
@@ -925,27 +940,62 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
 
     if (discardFirst) {
         Fdc2214CapSample_t throwaway = {0};
+        DBGFDCLOW_TRACE("DBGFDCLOW,stage=discard_sample_begin,channel=%u\n", (unsigned)ch);
         esp_err_t discardErr = readFn(dev, ch, &throwaway);
+        DBGFDCLOW_TRACE("DBGFDCLOW,stage=discard_sample_done,channel=%u,err=%ld\n",
+                        (unsigned)ch,
+                        (long)discardErr);
         if (discardErr != ESP_OK) {
             outDiag->err = discardErr;
+            DBGFDCLOW_TRACE("DBGFDCLOW,stage=diag_done,err=%ld,statusCode=%u\n",
+                            (long)discardErr,
+                            (unsigned)outDiag->statusCode);
             return discardErr;
         }
     }
 
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=read_sample_begin,channel=%u\n", (unsigned)ch);
     esp_err_t err = readFn(dev, ch, &outDiag->sample);
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=read_sample_done,channel=%u,err=%ld,raw=%lu,status=0x%04X,"
+                    "config=0x%04X,mux=0x%04X,statusCode=%u\n",
+                    (unsigned)ch,
+                    (long)err,
+                    (unsigned long)outDiag->sample.Raw28,
+                    outDiag->sample.StatusRaw,
+                    outDiag->sample.ConfigRaw,
+                    outDiag->sample.MuxRaw,
+                    (unsigned)outDiag->sample.SampleStatus);
     outDiag->err = err;
     outDiag->i2cOk = (err == ESP_OK);
     if (err != ESP_OK) {
         outDiag->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR;
         outDiag->sampleValid = false;
         outDiag->provisionalReadable = false;
+        DBGFDCLOW_TRACE("DBGFDCLOW,stage=diag_done,err=%ld,statusCode=%u\n",
+                        (long)err,
+                        (unsigned)outDiag->statusCode);
         return err;
     }
 
     outDiag->coreRegs.Status = outDiag->sample.StatusRaw;
     outDiag->coreRegs.Config = outDiag->sample.ConfigRaw;
     outDiag->coreRegs.MuxConfig = outDiag->sample.MuxRaw;
-    (void)Fdc2214CapReadRawRegisters(dev, 0x19u, &outDiag->coreRegs.StatusConfig);
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=read_status_config_begin\n");
+    esp_err_t statusCfgErr = Fdc2214CapReadRawRegisters(dev, 0x19u, &outDiag->coreRegs.StatusConfig);
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=read_status_config_done,err=%ld,statusConfig=0x%04X\n",
+                    (long)statusCfgErr,
+                    outDiag->coreRegs.StatusConfig);
+    if (statusCfgErr != ESP_OK) {
+        outDiag->err = statusCfgErr;
+        outDiag->i2cOk = false;
+        outDiag->statusCode = SENSORARRAY_FDC_SAMPLE_STATUS_I2C_READ_ERROR;
+        outDiag->sampleValid = false;
+        outDiag->provisionalReadable = false;
+        DBGFDCLOW_TRACE("DBGFDCLOW,stage=diag_done,err=%ld,statusCode=%u\n",
+                        (long)statusCfgErr,
+                        (unsigned)outDiag->statusCode);
+        return statusCfgErr;
+    }
 
     uint16_t statusRaw = outDiag->sample.StatusRaw;
     outDiag->status = (Fdc2214CapStatus_t){
@@ -981,6 +1031,11 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
         outDiag->sampleValid = false;
         outDiag->provisionalReadable = false;
     }
+    DBGFDCLOW_TRACE("DBGFDCLOW,stage=diag_done,err=%ld,statusCode=%u,sampleValid=%u,provisional=%u\n",
+                    (long)outDiag->err,
+                    (unsigned)outDiag->statusCode,
+                    outDiag->sampleValid ? 1u : 0u,
+                    outDiag->provisionalReadable ? 1u : 0u);
     return ESP_OK;
 }
 

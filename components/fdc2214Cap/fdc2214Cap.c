@@ -1,5 +1,6 @@
 #include "fdc2214Cap.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,7 +13,10 @@
 #define CONFIG_FDC2214CAP_LOG_LEVEL 3
 #endif
 #ifndef CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS
-#define CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS 200
+#define CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS 50
+#endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+#define CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE 1
 #endif
 #ifndef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL CONFIG_FDC2214CAP_LOG_LEVEL
@@ -20,6 +24,12 @@
 #include "esp_log.h"
 
 static const char* TAG = "fdc2214Cap";
+
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+#define FDCLOW_TRACE(...) printf(__VA_ARGS__)
+#else
+#define FDCLOW_TRACE(...) do { } while (0)
+#endif
 
 // Register map notes (FDC2214):
 // 0x00..0x07: DATA_CH0..CH3 (MSB + status) and DATA_LSB_CHx
@@ -314,13 +324,22 @@ static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx
         return ESP_ERR_INVALID_STATE;
     }
 
+    FDCLOW_TRACE("FDCLOW,op=write_begin,addr=0x%02X,txLen=%u\n",
+                 dev->bus.I2cAddress7,
+                 (unsigned)txLen);
     esp_err_t err = Fdc2214CapLock(dev);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("FDCLOW,op=write_done,addr=0x%02X,err=%ld\n",
+                     dev->bus.I2cAddress7,
+                     (long)err);
         return err;
     }
     err = dev->bus.Write(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen);
     Fdc2214CapUnlock(dev);
 
+    FDCLOW_TRACE("FDCLOW,op=write_done,addr=0x%02X,err=%ld\n",
+                 dev->bus.I2cAddress7,
+                 (long)err);
     return err;
 }
 
@@ -337,24 +356,37 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
         return ESP_ERR_INVALID_STATE;
     }
 
+    FDCLOW_TRACE("FDCLOW,op=write_read_begin,addr=0x%02X,txLen=%u,rxLen=%u\n",
+                 dev->bus.I2cAddress7,
+                 (unsigned)txLen,
+                 (unsigned)rxLen);
     esp_err_t err = Fdc2214CapLock(dev);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
+                     dev->bus.I2cAddress7,
+                     (long)err);
         return err;
     }
     err = dev->bus.WriteRead(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen, rx, rxLen);
     Fdc2214CapUnlock(dev);
 
+    FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
+                 dev->bus.I2cAddress7,
+                 (long)err);
     return err;
 }
 
 static esp_err_t Fdc2214CapWriteReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value)
 {
+    FDCLOW_TRACE("FDCLOW,op=write_reg_begin,reg=0x%02X,value=0x%04X\n", reg, value);
     uint8_t tx[3] = { reg, (uint8_t)(value >> 8), (uint8_t)(value & 0xFF) };
     esp_err_t err = Fdc2214CapWriteBytes(dev, tx, sizeof(tx));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Write reg 0x%02X failed: %d", reg, err);
+        FDCLOW_TRACE("FDCLOW,op=write_reg_done,reg=0x%02X,err=%ld\n", reg, (long)err);
         return err;
     }
+    FDCLOW_TRACE("FDCLOW,op=write_reg_done,reg=0x%02X,err=%ld\n", reg, (long)ESP_OK);
     return ESP_OK;
 }
 
@@ -364,15 +396,24 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
         return ESP_ERR_INVALID_ARG;
     }
 
+    FDCLOW_TRACE("FDCLOW,op=read_reg_begin,reg=0x%02X\n", reg);
     uint8_t tx = reg;
     uint8_t rx[2] = {0};
     esp_err_t err = Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, sizeof(rx));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Read reg 0x%02X failed: %d", reg, err);
+        FDCLOW_TRACE("FDCLOW,op=read_reg_done,reg=0x%02X,err=%ld,value=0x%04X\n",
+                     reg,
+                     (long)err,
+                     0u);
         return err;
     }
 
     *outValue = (uint16_t)(((uint16_t)rx[0] << 8) | rx[1]);
+    FDCLOW_TRACE("FDCLOW,op=read_reg_done,reg=0x%02X,err=%ld,value=0x%04X\n",
+                 reg,
+                 (long)ESP_OK,
+                 *outValue);
     return ESP_OK;
 }
 
@@ -385,14 +426,26 @@ static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
                                                      bool* outMaskedMatch,
                                                      uint16_t* outReadbackValue)
 {
+    FDCLOW_TRACE("FDCLOW,op=write_reg_verify_begin,reg=0x%02X,value=0x%04X,mask=0x%04X\n",
+                 reg,
+                 expectedValue,
+                 compareMask);
     esp_err_t err = Fdc2214CapWriteReg16(dev, reg, expectedValue);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X\n",
+                     reg,
+                     (long)err,
+                     0u);
         return err;
     }
 
     uint16_t readbackValue = 0U;
     err = Fdc2214CapReadReg16(dev, reg, &readbackValue);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X\n",
+                     reg,
+                     (long)err,
+                     readbackValue);
         return err;
     }
 
@@ -416,6 +469,10 @@ static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
                      expectedValue,
                      readbackValue,
                      compareMask);
+            FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X,status=warning_mismatch\n",
+                         reg,
+                         (long)ESP_OK,
+                         readbackValue);
             return ESP_OK;
         }
         ESP_LOGE(TAG,
@@ -425,8 +482,16 @@ static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
                  expectedValue,
                  readbackValue,
                  compareMask);
+        FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X,status=mismatch\n",
+                     reg,
+                     (long)ESP_ERR_INVALID_RESPONSE,
+                     readbackValue);
         return ESP_ERR_INVALID_RESPONSE;
     }
+    FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X,status=match\n",
+                 reg,
+                 (long)ESP_OK,
+                 readbackValue);
     return ESP_OK;
 }
 
@@ -649,19 +714,35 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
         .ActiveChannel = FDC2214_CH0,
     };
 
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_status_begin\n");
     esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &snapshot.Status);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_status_done,err=%ld,status=0x%04X\n",
+                 (long)err,
+                 snapshot.Status);
     if (err != ESP_OK) {
         return err;
     }
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_status_config_begin\n");
     err = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS_CONFIG, &snapshot.StatusConfig);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_status_config_done,err=%ld,statusConfig=0x%04X\n",
+                 (long)err,
+                 snapshot.StatusConfig);
     if (err != ESP_OK) {
         return err;
     }
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_config_begin\n");
     err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &snapshot.Config);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_config_done,err=%ld,config=0x%04X\n",
+                 (long)err,
+                 snapshot.Config);
     if (err != ESP_OK) {
         return err;
     }
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_mux_begin\n");
     err = Fdc2214CapReadReg16(dev, FDC2214_REG_MUX_CONFIG, &snapshot.MuxConfig);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_mux_done,err=%ld,mux=0x%04X\n",
+                 (long)err,
+                 snapshot.MuxConfig);
     if (err != ESP_OK) {
         return err;
     }
@@ -675,9 +756,13 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     if (err != ESP_OK) {
         return err;
     }
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_clock_begin\n");
     err = Fdc2214CapReadReg16(dev,
                               Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, FDC2214_CH0),
                               &snapshot.ClockDividersCh0);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_clock_done,err=%ld,clock=0x%04X\n",
+                 (long)err,
+                 snapshot.ClockDividersCh0);
     if (err != ESP_OK) {
         return err;
     }
@@ -689,12 +774,25 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     }
 
     uint8_t dataReg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, dataChannel);
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_data_begin,channel=%u,reg=0x%02X\n",
+                 (unsigned)dataChannel,
+                 dataReg);
     err = Fdc2214CapReadReg16(dev, dataReg, &snapshot.DataMsb);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("DBGFDCLOW,stage=read_data_done,err=%ld,raw=%lu,msb=0x%04X,lsb=0x%04X\n",
+                     (long)err,
+                     0ul,
+                     snapshot.DataMsb,
+                     snapshot.DataLsb);
         return err;
     }
     err = Fdc2214CapReadReg16(dev, (uint8_t)(dataReg + 1u), &snapshot.DataLsb);
     if (err != ESP_OK) {
+        FDCLOW_TRACE("DBGFDCLOW,stage=read_data_done,err=%ld,raw=%lu,msb=0x%04X,lsb=0x%04X\n",
+                     (long)err,
+                     0ul,
+                     snapshot.DataMsb,
+                     snapshot.DataLsb);
         return err;
     }
 
@@ -702,6 +800,11 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     Fdc2214CapDecodeStatusRaw(snapshot.Status, &statusDecoded);
 
     snapshot.DataRaw28 = ((uint32_t)(snapshot.DataMsb & FDC2214_DATA_MSB_MASK) << 16) | snapshot.DataLsb;
+    FDCLOW_TRACE("DBGFDCLOW,stage=read_data_done,err=%ld,raw=%lu,msb=0x%04X,lsb=0x%04X\n",
+                 (long)ESP_OK,
+                 (unsigned long)snapshot.DataRaw28,
+                 snapshot.DataMsb,
+                 snapshot.DataLsb);
     snapshot.DataErrWatchdog = ((snapshot.DataMsb & FDC2214_DATA_ERR_WD_MASK) != 0U) || statusDecoded.ErrWatchdog;
     snapshot.DataErrAmplitude = ((snapshot.DataMsb & FDC2214_DATA_ERR_AW_MASK) != 0U) ||
                                 statusDecoded.ErrAmplitudeHigh ||
@@ -1104,14 +1207,28 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
 
 esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)
 {
-    return Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
+    FDCLOW_TRACE("FDCLOW,op=read_sample_begin,channel=%u,relaxed=0\n", (unsigned)ch);
+    esp_err_t err = Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
+    FDCLOW_TRACE("FDCLOW,op=read_sample_done,channel=%u,err=%ld,raw=%lu,status=%u\n",
+                 (unsigned)ch,
+                 (long)err,
+                 outSample ? (unsigned long)outSample->Raw28 : 0ul,
+                 outSample ? (unsigned)outSample->SampleStatus : 0u);
+    return err;
 }
 
 esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t ch,
                                       Fdc2214CapSample_t* outSample)
 {
-    return Fdc2214CapReadSampleWithValidityMode(dev, ch, true, outSample);
+    FDCLOW_TRACE("FDCLOW,op=read_sample_begin,channel=%u,relaxed=1\n", (unsigned)ch);
+    esp_err_t err = Fdc2214CapReadSampleWithValidityMode(dev, ch, true, outSample);
+    FDCLOW_TRACE("FDCLOW,op=read_sample_done,channel=%u,err=%ld,raw=%lu,status=%u\n",
+                 (unsigned)ch,
+                 (long)err,
+                 outSample ? (unsigned long)outSample->Raw28 : 0ul,
+                 outSample ? (unsigned)outSample->SampleStatus : 0u);
+    return err;
 }
 
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)
@@ -1119,7 +1236,13 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
     if (!dev || !outValue) {
         return ESP_ERR_INVALID_ARG;
     }
-    return Fdc2214CapReadReg16(dev, reg, outValue);
+    FDCLOW_TRACE("FDCLOW,op=read_raw_begin,reg=0x%02X\n", reg);
+    esp_err_t err = Fdc2214CapReadReg16(dev, reg, outValue);
+    FDCLOW_TRACE("FDCLOW,op=read_raw_done,reg=0x%02X,err=%ld,value=0x%04X\n",
+                 reg,
+                 (long)err,
+                 outValue ? *outValue : 0u);
+    return err;
 }
 
 esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value)
@@ -1127,7 +1250,10 @@ esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
     }
-    return Fdc2214CapWriteReg16(dev, reg, value);
+    FDCLOW_TRACE("FDCLOW,op=write_raw_begin,reg=0x%02X,value=0x%04X\n", reg, value);
+    esp_err_t err = Fdc2214CapWriteReg16(dev, reg, value);
+    FDCLOW_TRACE("FDCLOW,op=write_raw_done,reg=0x%02X,err=%ld\n", reg, (long)err);
+    return err;
 }
 
 const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status)

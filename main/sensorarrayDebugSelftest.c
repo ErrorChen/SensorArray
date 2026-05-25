@@ -42,6 +42,7 @@
 #define SENSORARRAY_S5D5_DEFAULT_DEGLITCH_BW_HZ 10000000u
 #define SENSORARRAY_S5D5_DEFAULT_DRIVE_CURRENT_REQ \
     ((uint16_t)(SENSORARRAY_FDC_DEBUG_DRIVE_CURRENT_CH0 & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK))
+#define SENSORARRAY_S5D5_DIRECT_SAFE_DRIVE_CURRENT_REQ 0x7800u
 #define SENSORARRAY_S5D5_DEFAULT_CONFIG_REG 0x1481u
 #define SENSORARRAY_S5D5_DEFAULT_MUX_CONFIG_REG 0x020Du
 #define SENSORARRAY_S5D5_DEFAULT_CLOCK_DIVIDERS_REG 0x2001u
@@ -710,6 +711,83 @@ static esp_err_t sensorarrayApplyS5d5DriveStep(Fdc2214CapDevice_t *dev, bool hig
         return configReadbackErr;
     }
     return driveReadbackErr;
+}
+
+static esp_err_t sensorarrayS5d5ApplyDirectSafeLock(Fdc2214CapDevice_t *dev)
+{
+    if (!dev) {
+        printf("DBGFDC_S5D5,stage=direct_lock_failed,err=%ld,reason=invalid_dev\n",
+               (long)ESP_ERR_INVALID_ARG);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t firstErr = ESP_OK;
+    const uint16_t muxConfigReq = SENSORARRAY_S5D5_DEFAULT_MUX_CONFIG_REG;
+    const uint16_t configReq =
+        (uint16_t)((SENSORARRAY_S5D5_DEFAULT_CONFIG_REG &
+                    (uint16_t)~(SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_MASK |
+                                SENSORARRAY_S5D5_CONFIG_SLEEP_MODE_EN_MASK |
+                                SENSORARRAY_S5D5_CONFIG_HIGH_CURRENT_DRV_MASK)) |
+                   ((uint16_t)FDC2214_CH0 << SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_SHIFT));
+    const uint16_t driveReq =
+        (uint16_t)(SENSORARRAY_S5D5_DIRECT_SAFE_DRIVE_CURRENT_REQ & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
+
+    printf("DBGFDC_S5D5,stage=direct_apply_deglitch_begin,code=0x%X,muxConfigReq=0x%04X\n",
+           (unsigned)SENSORARRAY_S5D5_DEFAULT_DEGLITCH_REQ,
+           muxConfigReq);
+    esp_err_t err = Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_MUX_CONFIG, muxConfigReq);
+    uint16_t muxConfigReadback = 0u;
+    esp_err_t readErr = Fdc2214CapReadRawRegisters(dev, SENSORARRAY_S5D5_REG_MUX_CONFIG, &muxConfigReadback);
+    if (err == ESP_OK && readErr != ESP_OK) {
+        err = readErr;
+    }
+    if (firstErr == ESP_OK && err != ESP_OK) {
+        firstErr = err;
+    }
+    printf("DBGFDC_S5D5,stage=direct_apply_deglitch_done,err=%ld,muxConfig=0x%04X,deglitch=0x%X\n",
+           (long)err,
+           muxConfigReadback,
+           (unsigned)(muxConfigReadback & SENSORARRAY_S5D5_MUX_CONFIG_DEGLITCH_MASK));
+
+    printf("DBGFDC_S5D5,stage=direct_apply_config_begin,configReq=0x%04X\n", configReq);
+    err = Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_CONFIG, configReq);
+    uint16_t configReadback = 0u;
+    readErr = Fdc2214CapReadRawRegisters(dev, SENSORARRAY_S5D5_REG_CONFIG, &configReadback);
+    if (err == ESP_OK && readErr != ESP_OK) {
+        err = readErr;
+    }
+    if (firstErr == ESP_OK && err != ESP_OK) {
+        firstErr = err;
+    }
+    printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,activeChannel=%u,"
+           "sleep=%u,highCurrent=%u\n",
+           (long)err,
+           configReadback,
+           (unsigned)((configReadback & SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_MASK) >>
+                      SENSORARRAY_S5D5_CONFIG_ACTIVE_CHAN_SHIFT),
+           (configReadback & SENSORARRAY_S5D5_CONFIG_SLEEP_MODE_EN_MASK) ? 1u : 0u,
+           (configReadback & SENSORARRAY_S5D5_CONFIG_HIGH_CURRENT_DRV_MASK) ? 1u : 0u);
+
+    printf("DBGFDC_S5D5,stage=direct_apply_drive_begin,drive=0x%04X\n", driveReq);
+    err = Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0, driveReq);
+    uint16_t driveReadbackRaw = 0u;
+    readErr = Fdc2214CapReadRawRegisters(dev, SENSORARRAY_S5D5_REG_DRIVE_CURRENT_CH0, &driveReadbackRaw);
+    uint16_t driveReadback = (uint16_t)(driveReadbackRaw & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
+    if (err == ESP_OK && readErr != ESP_OK) {
+        err = readErr;
+    }
+    if (firstErr == ESP_OK && err != ESP_OK) {
+        firstErr = err;
+    }
+    printf("DBGFDC_S5D5,stage=direct_apply_drive_done,err=%ld,driveReadback=0x%04X\n",
+           (long)err,
+           driveReadback);
+
+    if (firstErr != ESP_OK) {
+        printf("DBGFDC_S5D5,stage=direct_lock_failed,err=%ld,status=continue_to_locked_loop\n",
+               (long)firstErr);
+    }
+    return firstErr;
 }
 
 typedef struct {
@@ -1697,7 +1775,12 @@ static bool sensorarrayS5d5CaptureBaseline(Fdc2214CapDevice_t *dev,
                                             uint32_t timeoutMs,
                                             sensorarrayS5d5Profile_t *outBaseline)
 {
+    printf("DBGFDC_S5D5,stage=baseline_enter,sampleCount=%lu,timeoutMs=%lu\n",
+           (unsigned long)sampleCount,
+           (unsigned long)timeoutMs);
     if (!dev || !outBaseline) {
+        printf("DBGFDC_S5D5,stage=baseline_failed,reason=invalid_arg,err=%ld,samples=0\n",
+               (long)ESP_ERR_INVALID_ARG);
         return false;
     }
     if (sampleCount == 0u) {
@@ -1712,6 +1795,7 @@ static bool sensorarrayS5d5CaptureBaseline(Fdc2214CapDevice_t *dev,
     uint16_t muxConfigReg = 0u;
     uint16_t clockDividersReg = 0u;
     uint16_t driveCurrentReg = 0u;
+    printf("DBGFDC_S5D5,stage=baseline_key_regs_begin\n");
     esp_err_t regsErr = sensorarrayS5d5ReadKeyRegs(dev,
                                                    (Fdc2214CapChannel_t)channel,
                                                    &statusReg,
@@ -1719,6 +1803,14 @@ static bool sensorarrayS5d5CaptureBaseline(Fdc2214CapDevice_t *dev,
                                                    &muxConfigReg,
                                                    &clockDividersReg,
                                                    &driveCurrentReg);
+    printf("DBGFDC_S5D5,stage=baseline_key_regs_done,err=%ld,statusReg=0x%04X,config=0x%04X,"
+           "muxConfig=0x%04X,clockDiv=0x%04X,drive=0x%04X\n",
+           (long)regsErr,
+           statusReg,
+           configReg,
+           muxConfigReg,
+           clockDividersReg,
+           driveCurrentReg);
     if (regsErr != ESP_OK) {
         *outBaseline = (sensorarrayS5d5Profile_t){0};
         printf("DBGFDC_S5D5,stage=baseline_failed,reason=readback_failed,err=%ld,samples=0\n",
@@ -1764,7 +1856,21 @@ static bool sensorarrayS5d5CaptureBaseline(Fdc2214CapDevice_t *dev,
     uint32_t sampleTimeouts = 0u;
     for (uint32_t sampleIndex = 0u; sampleIndex < sampleCount; ++sampleIndex) {
         sensorarrayFdcReadDiag_t diag = {0};
-        esp_err_t sampleErr = sensorarrayS5d5ReadOneSampleBounded(dev, channel, timeoutMs, &diag);
+        printf("DBGFDC_S5D5,stage=baseline_sample_begin,index=%lu\n",
+               (unsigned long)sampleIndex);
+        printf("DBGFDC_S5D5,stage=baseline_sample_call_diag_begin,index=%lu\n",
+               (unsigned long)sampleIndex);
+        esp_err_t sampleErr = sensorarrayMeasureReadFdcSampleDiagRelaxed(dev,
+                                                                          (Fdc2214CapChannel_t)channel,
+                                                                          false,
+                                                                          true,
+                                                                          true,
+                                                                          &diag);
+        printf("DBGFDC_S5D5,stage=baseline_sample_call_diag_done,index=%lu,err=%ld,i2cOk=%u,statusCode=%u\n",
+               (unsigned long)sampleIndex,
+               (long)sampleErr,
+               diag.i2cOk ? 1u : 0u,
+               (unsigned)diag.statusCode);
         if (sampleErr != ESP_OK && firstErr == ESP_OK) {
             firstErr = sampleErr;
         }
@@ -2862,10 +2968,12 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     };
     sensorarrayCheckpointGpio_t checkpoint = sensorarrayCheckpointInit();
 
+    bool directOnlyMode = (CONFIG_SENSORARRAY_DEBUG_S5D5_DISABLE_ALL_SWEEP_AND_BASELINE != 0);
+    bool forceDirectLock = (CONFIG_SENSORARRAY_DEBUG_S5D5_FORCE_DIRECT_10MHZ_LOCK != 0);
     printf("DBGFDC_S5D5,stage=target,mode=S5D5_CAP_FDC_SECONDARY,fdcDev=secondary_selb_side,i2cPort=1,"
            "sda=%d,scl=%d,i2cAddr=0x%02X,route=S5D5_CAP,channel=CH0,lockedSamples=%lu,loopDelayMs=%lu,"
            "bootFullSweepEnable=%u,bootBudgetMs=%lu,enableCapComputation=%u,enableNetCapOutput=%u,"
-           "inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f\n",
+           "inductorUh=%.3f,fixedCapPf=%.3f,parasiticCapPf=%.3f,directOnly=%u,forceDirect10MHz=%u\n",
            busInfo.SdaGpio,
            busInfo.SclGpio,
            SENSORARRAY_FDC_I2C_ADDR_LOW,
@@ -2877,7 +2985,9 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
            capConfig.enableNetCapOutput ? 1u : 0u,
            capConfig.inductorValueUh,
            capConfig.fixedCapPf,
-           capConfig.parasiticCapPf);
+           capConfig.parasiticCapPf,
+           directOnlyMode ? 1u : 0u,
+           forceDirectLock ? 1u : 0u);
     printf("DBGFDC_S5D5,stage=route_semantics,note=route_verify_only_confirms_gpio_control_state_not_analog_conduction\n");
     printf("DBGFDC_S5D5,stage=sweep_plan,deglitch=baseline_filtered_1MHz|3p3MHz|10MHz|33MHz,"
            "highCurrent=0_then_conditional_1,driveCurrentList=0x7800|0xA000|0xB800|0xC000|0xD000|0xE000|0xF800,bootFirstSettleMs=%lu,"
@@ -2887,13 +2997,6 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
            (unsigned long)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SETTLE_MS,
            (unsigned long)CONFIG_SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SETTLE_MS,
            (unsigned long)unreadPollTimeoutMs);
-    printf("DBGFDC_S5D5,stage=sweep_enter,bootFullSweepEnable=%u,bootBudgetMs=%lu,"
-           "baselineSamples=%lu,skipBelowBaseline=%u,fallback10MHz=%u\n",
-           (CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE != 0) ? 1u : 0u,
-           (unsigned long)CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_SWEEP_BUDGET_MS,
-           (unsigned long)CONFIG_SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT,
-           (CONFIG_SENSORARRAY_DEBUG_S5D5_SKIP_BELOW_BASELINE_DEGLITCH != 0) ? 1u : 0u,
-           (CONFIG_SENSORARRAY_DEBUG_S5D5_FALLBACK_DEGLITCH_10MHZ != 0) ? 1u : 0u);
 
     sensorarrayS5d5StopAdsForIsolation(state);
     esp_err_t refPolicyErr = sensorarrayMeasureApplyRefPolicy(state,
@@ -2965,56 +3068,94 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
     sensorarrayS5d5Runtime_t runtime = {0};
     sensorarrayS5d5Profile_t selectedProfile = {0};
     sensorarrayS5d5Profile_t baselineProfile = {0};
-    bool baselineOk = sensorarrayS5d5CaptureBaseline(fdcState->handle,
-                                                     (uint8_t)fdcMap->channel,
-                                                     (uint32_t)CONFIG_SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT,
-                                                     unreadPollTimeoutMs,
-                                                     &baselineProfile);
+    bool baselineOk = false;
     bool bootSweepOk = false;
-    if (CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE != 0) {
-        bootSweepOk = sensorarrayS5d5RunBootFullSweep(fdcState->handle,
-                                                       (uint8_t)fdcMap->channel,
-                                                       &runtime,
-                                                       &selectedProfile,
-                                                       baselineProfile.valid ? &baselineProfile : NULL);
-    } else {
+    bool directLockPath = directOnlyMode || forceDirectLock;
+    const char *lockSource = directLockPath ? "direct_10mhz" : "boot_sweep";
+
+    printf("DBGFDC_S5D5,stage=sweep_enter,bootFullSweepEnable=%u,bootBudgetMs=%lu,"
+           "baselineSamples=%lu,skipBelowBaseline=%u,fallback10MHz=%u,directOnly=%u,forceDirect10MHz=%u,"
+           "bootBaselineEnable=%u\n",
+           (CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE != 0) ? 1u : 0u,
+           (unsigned long)CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_SWEEP_BUDGET_MS,
+           (unsigned long)CONFIG_SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT,
+           (CONFIG_SENSORARRAY_DEBUG_S5D5_SKIP_BELOW_BASELINE_DEGLITCH != 0) ? 1u : 0u,
+           (CONFIG_SENSORARRAY_DEBUG_S5D5_FALLBACK_DEGLITCH_10MHZ != 0) ? 1u : 0u,
+           directOnlyMode ? 1u : 0u,
+           forceDirectLock ? 1u : 0u,
+           (CONFIG_SENSORARRAY_DEBUG_S5D5_ENABLE_BOOT_BASELINE_READ != 0) ? 1u : 0u);
+
+    if (directLockPath) {
+        sensorarrayS5d5MakeDefaultSafeProfile(&selectedProfile);
+        selectedProfile.driveCurrentReq = SENSORARRAY_S5D5_DIRECT_SAFE_DRIVE_CURRENT_REQ;
+        selectedProfile.driveCurrentNorm =
+            (uint16_t)(SENSORARRAY_S5D5_DIRECT_SAFE_DRIVE_CURRENT_REQ & SENSORARRAY_S5D5_DRIVE_CURRENT_MASK);
+        printf("DBGFDC_S5D5,stage=direct_lock_enter,reason=avoid_boot_baseline_hang,deglitch=10MHz,"
+               "drive=0x%04X\n",
+               selectedProfile.driveCurrentNorm);
+        esp_err_t lockErr = sensorarrayS5d5ApplyDirectSafeLock(fdcState->handle);
+        printf("DBGFDC_S5D5,stage=direct_lock_done,err=%ld,status=%s\n",
+               (long)lockErr,
+               (lockErr == ESP_OK) ? "ok" : "failed_continue_to_locked_loop");
         runtime.bootSweepDone = true;
-        printf("DBGFDC_S5D5,stage=boot_full_sweep_skip,status=disabled\n");
-    }
-
-    if (!bootSweepOk) {
-        sensorarrayS5d5MakeFallbackProfile(&selectedProfile, baselineProfile.valid ? &baselineProfile : NULL);
-        printf("DBGFDC_S5D5,stage=sweep_fallback,reason=boot_sweep_failed_or_disabled,baselineOk=%u,"
-               "deglitch=%s,driveReq=0x%04X,status=select_safe_profile\n",
-               baselineOk ? 1u : 0u,
-               selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
-               selectedProfile.driveCurrentReq);
-        printf("DBGFDC_S5D5,stage=boot_profile_select,status=fallback_default,reason=boot_sweep_failed_or_disabled\n");
     } else {
-        printf("DBGFDC_S5D5,stage=boot_profile_select,status=boot_sweep_best,deglitchName=%s,driveCurrentReq=0x%04X,"
-               "highCurrentReq=%u,score=%ld\n",
-               selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
-               selectedProfile.driveCurrentReq,
-               selectedProfile.highCurrentReq ? 1u : 0u,
-               (long)selectedProfile.score);
-    }
+        if (CONFIG_SENSORARRAY_DEBUG_S5D5_ENABLE_BOOT_BASELINE_READ != 0) {
+            baselineOk = sensorarrayS5d5CaptureBaseline(fdcState->handle,
+                                                        (uint8_t)fdcMap->channel,
+                                                        (uint32_t)CONFIG_SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT,
+                                                        unreadPollTimeoutMs,
+                                                        &baselineProfile);
+        } else {
+            printf("DBGFDC_S5D5,stage=baseline_skipped,reason=disabled_by_default_after_sweep_enter_hang\n");
+        }
 
-    esp_err_t applyErr = sensorarrayS5d5ApplyProfile(fdcState->handle, &selectedProfile, "boot_selected");
-    if (applyErr != ESP_OK) {
-        sensorarrayS5d5MakeFallbackProfile(&selectedProfile, baselineProfile.valid ? &baselineProfile : NULL);
-        applyErr = sensorarrayS5d5ApplyProfile(fdcState->handle, &selectedProfile, "boot_default_fallback");
-        printf("DBGFDC_S5D5,stage=sweep_fallback,reason=boot_selected_apply_failed,err=%ld,"
-               "deglitch=%s,driveReq=0x%04X,status=%s\n",
-               (long)applyErr,
-               selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
-               selectedProfile.driveCurrentReq,
-               (applyErr == ESP_OK) ? "fallback_applied" : "fallback_apply_failed_continue");
+        if (CONFIG_SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE != 0) {
+            bootSweepOk = sensorarrayS5d5RunBootFullSweep(fdcState->handle,
+                                                           (uint8_t)fdcMap->channel,
+                                                           &runtime,
+                                                           &selectedProfile,
+                                                           baselineProfile.valid ? &baselineProfile : NULL);
+        } else {
+            runtime.bootSweepDone = true;
+            printf("DBGFDC_S5D5,stage=boot_full_sweep_skip,status=disabled\n");
+        }
+
+        if (!bootSweepOk) {
+            sensorarrayS5d5MakeFallbackProfile(&selectedProfile, baselineProfile.valid ? &baselineProfile : NULL);
+            printf("DBGFDC_S5D5,stage=sweep_fallback,reason=boot_sweep_failed_or_disabled,baselineOk=%u,"
+                   "deglitch=%s,driveReq=0x%04X,status=select_safe_profile\n",
+                   baselineOk ? 1u : 0u,
+                   selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
+                   selectedProfile.driveCurrentReq);
+            printf("DBGFDC_S5D5,stage=boot_profile_select,status=fallback_default,reason=boot_sweep_failed_or_disabled\n");
+        } else {
+            printf("DBGFDC_S5D5,stage=boot_profile_select,status=boot_sweep_best,deglitchName=%s,driveCurrentReq=0x%04X,"
+                   "highCurrentReq=%u,score=%ld\n",
+                   selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
+                   selectedProfile.driveCurrentReq,
+                   selectedProfile.highCurrentReq ? 1u : 0u,
+                   (long)selectedProfile.score);
+        }
+
+        esp_err_t applyErr = sensorarrayS5d5ApplyProfile(fdcState->handle, &selectedProfile, "boot_selected");
+        if (applyErr != ESP_OK) {
+            sensorarrayS5d5MakeFallbackProfile(&selectedProfile, baselineProfile.valid ? &baselineProfile : NULL);
+            applyErr = sensorarrayS5d5ApplyProfile(fdcState->handle, &selectedProfile, "boot_default_fallback");
+            printf("DBGFDC_S5D5,stage=sweep_fallback,reason=boot_selected_apply_failed,err=%ld,"
+                   "deglitch=%s,driveReq=0x%04X,status=%s\n",
+                   (long)applyErr,
+                   selectedProfile.deglitchName ? selectedProfile.deglitchName : SENSORARRAY_NA,
+                   selectedProfile.driveCurrentReq,
+                   (applyErr == ESP_OK) ? "fallback_applied" : "fallback_apply_failed_continue");
+        }
     }
-    (void)sensorarrayS5d5DiscardSamples(fdcState->handle,
-                                        (uint8_t)fdcMap->channel,
-                                        SENSORARRAY_S5D5_RELOCK_DISCARD_SAMPLES,
-                                        unreadPollTimeoutMs,
-                                        "boot_lock");
+    if (!directLockPath) {
+        (void)sensorarrayS5d5DiscardSamples(fdcState->handle,
+                                            (uint8_t)fdcMap->channel,
+                                            SENSORARRAY_S5D5_RELOCK_DISCARD_SAMPLES,
+                                            unreadPollTimeoutMs,
+                                            "boot_lock");
+    }
 
     runtime.haveLastGood = true;
     runtime.lastGood = selectedProfile;
@@ -3034,17 +3175,29 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
 
     sensorarrayS5d5Profile_t lockedProfile = selectedProfile;
     uint32_t degradedApplyFailStreak = 0u;
+    printf("DBGFDC_S5D5,stage=locked_loop_enter,source=%s\n", lockSource);
     while (true) {
         sensorarrayS5d5LockedSummary_t lockedSummary = {0};
         bool needRelock = false;
         const char *relockReason = SENSORARRAY_NA;
 
         for (uint32_t burstIndex = 0u; burstIndex < lockedSampleCount; ++burstIndex) {
+            uint32_t nextSampleIndex = runtime.sampleIndex + 1u;
+            printf("DBGFDC_S5D5,stage=locked_sample_begin,index=%lu\n",
+                   (unsigned long)nextSampleIndex);
             sensorarrayFdcReadDiag_t diag = {0};
+            printf("DBGFDC_S5D5,stage=locked_sample_diag_begin,index=%lu\n",
+                   (unsigned long)nextSampleIndex);
             esp_err_t readErr = sensorarrayS5d5ReadOneSampleBounded(fdcState->handle,
                                                                     (uint8_t)fdcMap->channel,
                                                                     unreadPollTimeoutMs,
                                                                     &diag);
+            printf("DBGFDC_S5D5,stage=locked_sample_diag_done,index=%lu,err=%ld,i2cOk=%u,status=%s,statusCode=%u\n",
+                   (unsigned long)nextSampleIndex,
+                   (long)readErr,
+                   diag.i2cOk ? 1u : 0u,
+                   sensorarrayMeasureFdcSampleStatusName(diag.statusCode),
+                   (unsigned)diag.statusCode);
             if (readErr != ESP_OK) {
                 diag.err = readErr;
                 diag.i2cOk = false;
@@ -3082,7 +3235,9 @@ void sensorarrayDebugRunS5d5CapFdcSecondaryModeImpl(sensorarrayState_t *state)
                               activeChannelMatch;
             double currentFreqHz = (freqOk && freqDiag.valid) ? freqDiag.freqHzCorrected : 0.0;
             const char *decisionReason = SENSORARRAY_NA;
-            needRelock = sensorarrayS5d5ShouldRelock(&runtime, &diag, currentFreqHz, &decisionReason);
+            needRelock = directOnlyMode
+                             ? false
+                             : sensorarrayS5d5ShouldRelock(&runtime, &diag, currentFreqHz, &decisionReason);
             if (needRelock) {
                 relockReason = decisionReason;
             }

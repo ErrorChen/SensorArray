@@ -14,6 +14,9 @@ extern "C" {
 typedef struct {
     i2c_port_t Port;
     uint32_t TimeoutMs;
+    int SdaGpio;
+    int SclGpio;
+    uint32_t FrequencyHz;
 } BoardSupportI2cCtx_t;
 
 typedef struct {
@@ -38,6 +41,8 @@ const BoardSupportI2cCtx_t* boardSupportGetI2cCtx(void);
 const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void);
 // Returns configured bus metadata for the selected board-level I2C bus.
 bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo);
+// Recover an initialized board-level I2C bus after a timed-out or failed transaction.
+esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx);
 
 // Convenience I2C callbacks matching Fdc2214Cap bus config signatures.
 esp_err_t boardSupportI2cWriteRead(void* userCtx,

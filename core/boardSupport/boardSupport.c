@@ -1,6 +1,7 @@
 #include "boardSupport.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "sdkconfig.h"
 #include "driver/gpio.h"
@@ -19,6 +20,9 @@ static const char *TAG = "boardSupport";
 #ifndef CONFIG_BOARD_I2C1_FREQ_HZ
 #define CONFIG_BOARD_I2C1_FREQ_HZ CONFIG_BOARD_I2C_FREQ_HZ
 #endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+#define CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT 1
+#endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
 
@@ -31,16 +35,33 @@ static uint32_t s_i2c1_configured_freq_hz = CONFIG_BOARD_I2C1_FREQ_HZ;
 static BoardSupportI2cCtx_t s_i2c0_ctx = {
     .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
     .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
+    .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
+    .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
+    .FrequencyHz = CONFIG_BOARD_I2C0_FREQ_HZ,
 };
 
 static BoardSupportI2cCtx_t s_i2c1_ctx = {
     .Port = (i2c_port_t)CONFIG_BOARD_I2C1_PORT,
     .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
+    .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
+    .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
+    .FrequencyHz = CONFIG_BOARD_I2C1_FREQ_HZ,
 };
 
 static bool boardSupportI2cPinsValid(int sda_gpio, int scl_gpio)
 {
     return (sda_gpio >= 0) && (scl_gpio >= 0);
+}
+
+static TickType_t boardSupportI2cTimeoutTicks(uint32_t timeoutMs)
+{
+    TickType_t ticks = pdMS_TO_TICKS(timeoutMs);
+    return (ticks == 0) ? 1 : ticks;
+}
+
+static bool boardSupportI2cErrorShouldRecover(esp_err_t err)
+{
+    return err == ESP_ERR_TIMEOUT || err == ESP_FAIL;
 }
 
 static esp_err_t boardSupportInitI2c(i2c_port_t port,
@@ -82,6 +103,61 @@ static esp_err_t boardSupportInitI2c(i2c_port_t port,
     return ESP_OK;
 }
 
+esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx)
+{
+    if (!ctx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!boardSupportI2cPinsValid(ctx->SdaGpio, ctx->SclGpio)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    printf("I2CRECOVER,stage=begin,port=%d,sda=%d,scl=%d,freqHz=%lu\n",
+           (int)ctx->Port,
+           ctx->SdaGpio,
+           ctx->SclGpio,
+           (unsigned long)ctx->FrequencyHz);
+
+    esp_err_t deleteErr = i2c_driver_delete(ctx->Port);
+    if (deleteErr != ESP_OK && deleteErr != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "i2c_driver_delete port %d during recovery returned %d", (int)ctx->Port, deleteErr);
+    }
+
+    if (ctx->Port == s_i2c0_ctx.Port) {
+        s_i2c0_inited = false;
+    }
+    if (ctx->Port == s_i2c1_ctx.Port) {
+        s_i2c1_inited = false;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    uint32_t configuredFreqHz = ctx->FrequencyHz;
+    esp_err_t initErr = boardSupportInitI2c(ctx->Port,
+                                            ctx->SdaGpio,
+                                            ctx->SclGpio,
+                                            ctx->FrequencyHz,
+                                            &configuredFreqHz);
+    if (initErr == ESP_OK) {
+        if (ctx->Port == s_i2c0_ctx.Port) {
+            s_i2c0_inited = true;
+            s_i2c0_configured_freq_hz = configuredFreqHz;
+            s_i2c0_ctx.FrequencyHz = configuredFreqHz;
+        }
+        if (ctx->Port == s_i2c1_ctx.Port) {
+            s_i2c1_inited = true;
+            s_i2c1_configured_freq_hz = configuredFreqHz;
+            s_i2c1_ctx.FrequencyHz = configuredFreqHz;
+        }
+    }
+
+    printf("I2CRECOVER,stage=done,port=%d,err=%ld,configuredFreqHz=%lu\n",
+           (int)ctx->Port,
+           (long)initErr,
+           (unsigned long)configuredFreqHz);
+    return initErr;
+}
+
 esp_err_t boardSupportInit(void)
 {
     if (s_inited) {
@@ -97,6 +173,7 @@ esp_err_t boardSupportInit(void)
         return err;
     }
     s_i2c0_inited = true;
+    s_i2c0_ctx.FrequencyHz = s_i2c0_configured_freq_hz;
     ESP_LOGI(TAG,
              "I2C0: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
              CONFIG_BOARD_I2C_PORT,
@@ -124,6 +201,7 @@ esp_err_t boardSupportInit(void)
             return err;
         }
         s_i2c1_inited = true;
+        s_i2c1_ctx.FrequencyHz = s_i2c1_configured_freq_hz;
         ESP_LOGI(TAG,
                  "I2C1: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
                  CONFIG_BOARD_I2C1_PORT,
@@ -226,13 +304,24 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
-    return i2c_master_write_read_device(ctx->Port,
-                                        addr7,
-                                        tx,
-                                        txLen,
-                                        rx,
-                                        rxLen,
-                                        pdMS_TO_TICKS(ctx->TimeoutMs));
+    esp_err_t err = i2c_master_write_read_device(ctx->Port,
+                                                 addr7,
+                                                 tx,
+                                                 txLen,
+                                                 rx,
+                                                 rxLen,
+                                                 boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
+    if (boardSupportI2cErrorShouldRecover(err)) {
+        ESP_LOGE(TAG,
+                 "I2C write_read failed: port=%d addr=0x%02X err=%d, recovering",
+                 (int)ctx->Port,
+                 addr7,
+                 err);
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+        (void)boardSupportRecoverI2cBus(ctx);
+#endif
+    }
+    return err;
 }
 
 esp_err_t boardSupportI2cWrite(void* userCtx,
@@ -248,11 +337,22 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
-    return i2c_master_write_to_device(ctx->Port,
-                                      addr7,
-                                      tx,
-                                      txLen,
-                                      pdMS_TO_TICKS(ctx->TimeoutMs));
+    esp_err_t err = i2c_master_write_to_device(ctx->Port,
+                                               addr7,
+                                               tx,
+                                               txLen,
+                                               boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
+    if (boardSupportI2cErrorShouldRecover(err)) {
+        ESP_LOGE(TAG,
+                 "I2C write failed: port=%d addr=0x%02X err=%d, recovering",
+                 (int)ctx->Port,
+                 addr7,
+                 err);
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+        (void)boardSupportRecoverI2cBus(ctx);
+#endif
+    }
+    return err;
 }
 
 esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7)
@@ -277,10 +377,20 @@ esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_
         err = i2c_master_stop(cmd);
     }
     if (err == ESP_OK) {
-        err = i2c_master_cmd_begin(i2cCtx->Port, cmd, pdMS_TO_TICKS(i2cCtx->TimeoutMs));
+        err = i2c_master_cmd_begin(i2cCtx->Port, cmd, boardSupportI2cTimeoutTicks(i2cCtx->TimeoutMs));
     }
 
     i2c_cmd_link_delete(cmd);
+    if (boardSupportI2cErrorShouldRecover(err)) {
+        ESP_LOGE(TAG,
+                 "I2C probe failed: port=%d addr=0x%02X err=%d, recovering",
+                 (int)i2cCtx->Port,
+                 addr7,
+                 err);
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+        (void)boardSupportRecoverI2cBus(i2cCtx);
+#endif
+    }
     return err;
 }
 

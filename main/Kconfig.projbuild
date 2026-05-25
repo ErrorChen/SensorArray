@@ -238,6 +238,31 @@ config SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE
     default SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
+config SENSORARRAY_DEBUG_S5D5_ENABLE_BOOT_BASELINE_READ
+    bool "S5D5 cap debug: enable boot baseline read before sweep"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_FORCE_DIRECT_10MHZ_LOCK
+    bool "S5D5 cap debug: directly lock 10MHz profile before any sweep"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_DISABLE_ALL_SWEEP_AND_BASELINE
+    bool "S5D5 cap debug: disable all sweep/baseline and only run fixed 10MHz locked sample"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+    bool "S5D5 cap debug: trace every low-level FDC I2C transaction"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+    bool "S5D5 cap debug: recover I2C bus after timeout"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
     int "S5D5 cap debug: boot full sweep total time budget in ms"
     default 30000
