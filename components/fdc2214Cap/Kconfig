@@ -13,10 +13,18 @@ config FDC2214CAP_LOG_LEVEL
 config FDC2214CAP_MUTEX_TIMEOUT_MS
     int "Mutex lock timeout (ms)"
     range 1 10000
-    default 50
+    default 200
     depends on FDC2214CAP_ENABLE
     help
         Finite timeout for internal driver mutex lock. Prevents indefinite waits.
+
+config SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
+    bool "S5D5 cap debug: trace every low-level FDC I2C transaction"
+    default n
+    depends on FDC2214CAP_ENABLE
+    help
+        Verbose printf trace for every FDC2214 I2C transaction. Keep disabled
+        for normal S5D5 debug because it can saturate the serial monitor.
 
 config FDC2214CAP_I2C_ADDR
     hex "I2C address (0x2A or 0x2B)"

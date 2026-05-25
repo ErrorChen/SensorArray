@@ -253,14 +253,49 @@ config SENSORARRAY_DEBUG_S5D5_DISABLE_ALL_SWEEP_AND_BASELINE
     default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
-config SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
-    bool "S5D5 cap debug: trace every low-level FDC I2C transaction"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
 config SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
     bool "S5D5 cap debug: recover I2C bus after timeout"
-    default y
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_ROUTE_FREEZE_ONLY
+    bool "S5D5 route freeze only diagnostic"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Apply the S5D5 capacitive/FDC route, hold it for a bounded interval,
+        then return without FDC configuration, sweep, or sample loop.
+
+config SENSORARRAY_DEBUG_S5D5_ROUTE_FREEZE_MS
+    int "S5D5 route freeze time in ms"
+    default 10000
+    range 1 120000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_SWEEP
+    bool "S5D5 visible drive-current sweep diagnostic"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Alternate CH0 drive current between visible low/high settings after
+        the direct 10MHz profile is configured.
+
+config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_TIMEOUT_MS
+    int "S5D5 direct-lock configuration timeout (ms)"
+    default 2000
+    range 1 30000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_LOCKED_LOOP_TIMEOUT_MS
+    int "S5D5 locked sample loop total timeout (ms)"
+    default 60000
+    range 1 3600000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_MAX_RESWEEP_COUNT
+    int "S5D5 max runtime relock/resweep attempts"
+    default 1
+    range 0 8
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
@@ -467,20 +502,34 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_PARASITIC_CAP_PF
     help
         Board/mux/wiring parasitic compensation term used for net capacitance output.
 
-config SENSORARRAY_DEBUG_CHECKPOINT_GPIO
-    int "Debug checkpoint GPIO (-1 to disable)"
-    default 15
+config SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+    bool "Enable S5D5 debug stage pins"
+    default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Scope/logic-analyzer checkpoint output for S5D5 single-point debug milestones.
 
-config SENSORARRAY_DEBUG_CHECKPOINT_PULSE_US
-    int "Debug checkpoint pulse width (us)"
-    default 250
-    range 20 20000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Pulse width and gap for checkpoint markers.
+config SENSORARRAY_DEBUG_STAGE_BIT0_GPIO
+    int "S5D5 stage bit0 GPIO"
+    default 39
+    range 0 48
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+
+config SENSORARRAY_DEBUG_STAGE_BIT1_GPIO
+    int "S5D5 stage bit1 GPIO"
+    default 40
+    range 0 48
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+
+config SENSORARRAY_DEBUG_STAGE_BIT2_GPIO
+    int "S5D5 stage bit2 GPIO"
+    default 41
+    range 0 48
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+
+config SENSORARRAY_DEBUG_HEARTBEAT_GPIO
+    int "S5D5 heartbeat GPIO"
+    default 42
+    range 0 48
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
 
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
     prompt "S1D1 resistor debug behavior"

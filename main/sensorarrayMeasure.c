@@ -398,6 +398,22 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
         if (err != ESP_OK) {
             return err;
         }
+        if (path == SENSORARRAY_DEBUG_PATH_CAPACITIVE) {
+            sensorarrayAdsIntRefPolicy_t intrefPolicy =
+                state->adsReady ? SENSORARRAY_ADS_INTREF_OFF : SENSORARRAY_ADS_INTREF_KEEP;
+            sensorarrayAdsVbiasPolicy_t vbiasPolicy =
+                state->adsReady ? SENSORARRAY_ADS_VBIAS_OFF : SENSORARRAY_ADS_VBIAS_KEEP;
+            err = sensorarrayMeasureApplyRefPolicy(state,
+                                                   "cap_fdc_ref_off",
+                                                   "route_apply_levels",
+                                                   SENSORARRAY_MATRIX_D_SOURCE_GND,
+                                                   intrefPolicy,
+                                                   vbiasPolicy,
+                                                   "fdc_cap_path_no_ads_ref");
+            if (err != ESP_OK) {
+                return err;
+            }
+        }
     }
 
     err = tmuxSwitchSelectRow((uint8_t)(sColumn - 1u));
@@ -490,6 +506,16 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
         return ESP_ERR_INVALID_STATE;
     }
 
+    printf("DBGROUTE,stage=apply_begin,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,"
+           "selBLevel=%u,note=route_verify_only_confirms_gpio_control_state_not_analog_conduction\n",
+           routeMap->mapLabel ? routeMap->mapLabel : SENSORARRAY_NA,
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayLogDebugPathName(debugPath),
+           sensorarrayLogSwSourceName(swSource),
+           sensorarrayBoardMapSelaRouteName(routeMap->selaRoute),
+           routeMap->selBLevel ? 1u : 0u);
+
     const bool adsStopNeeded = state->adsReady && state->adsAdc1Running;
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
     sensorarrayLogRouteStep("ads_stop",
@@ -546,6 +572,22 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
                                               "ground_d_before_route");
         if (err != ESP_OK) {
             return err;
+        }
+        if (path == SENSORARRAY_PATH_CAPACITIVE) {
+            sensorarrayAdsIntRefPolicy_t intrefPolicy =
+                state->adsReady ? SENSORARRAY_ADS_INTREF_OFF : SENSORARRAY_ADS_INTREF_KEEP;
+            sensorarrayAdsVbiasPolicy_t vbiasPolicy =
+                state->adsReady ? SENSORARRAY_ADS_VBIAS_OFF : SENSORARRAY_ADS_VBIAS_KEEP;
+            err = sensorarrayMeasureApplyRefPolicy(state,
+                                                   "cap_fdc_ref_off",
+                                                   "route_apply",
+                                                   SENSORARRAY_MATRIX_D_SOURCE_GND,
+                                                   intrefPolicy,
+                                                   vbiasPolicy,
+                                                   "fdc_cap_path_no_ads_ref");
+            if (err != ESP_OK) {
+                return err;
+            }
         }
     }
 
@@ -635,6 +677,14 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
     if (outMapLabel) {
         *outMapLabel = routeMap->mapLabel;
     }
+    printf("DBGROUTE,stage=apply_done,label=%s,sColumn=%u,dLine=%u,path=%s,selaRequest=%s,"
+           "selBLevel=%u,err=0,status=ok,note=route_verify_only_confirms_gpio_control_state_not_analog_conduction\n",
+           routeMap->mapLabel ? routeMap->mapLabel : SENSORARRAY_NA,
+           (unsigned)sColumn,
+           (unsigned)dLine,
+           sensorarrayLogDebugPathName(debugPath),
+           sensorarrayBoardMapSelaRouteName(routeMap->selaRoute),
+           routeMap->selBLevel ? 1u : 0u);
     return ESP_OK;
 }
 
