@@ -228,6 +228,107 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SWEEP_SAMPLE_COUNT
     help
         Number of relaxed samples collected for each (high-current, drive-current) candidate.
 
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
+    bool "S5D5 cap debug: run one safe full sweep at boot"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
+    int "S5D5 cap debug: boot full sweep total time budget in ms"
+    default 30000
+    range 3000 120000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FAST_SETTLE_MS
+    int "S5D5 cap debug: boot full sweep first-pass settle ms"
+    default 120
+    range 20 500
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SETTLE_MS
+    int "S5D5 cap debug: boot full sweep top-candidate verify settle ms"
+    default 180
+    range 20 800
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FIRST_PASS_SAMPLES
+    int "S5D5 cap debug: boot full sweep first-pass samples per candidate"
+    default 3
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SAMPLES
+    int "S5D5 cap debug: boot full sweep verify samples per candidate"
+    default 6
+    range 2 12
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TOP_VERIFY_COUNT
+    int "S5D5 cap debug: boot full sweep number of top profiles to verify"
+    default 3
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SETTLE_MS
+    int "S5D5 cap debug: runtime fast sweep settle ms"
+    default 50
+    range 10 300
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SAMPLES
+    int "S5D5 cap debug: runtime fast sweep samples per candidate"
+    default 3
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SETTLE_MS
+    int "S5D5 cap debug: runtime medium sweep settle ms"
+    default 100
+    range 20 500
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SAMPLES
+    int "S5D5 cap debug: runtime medium sweep samples per candidate"
+    default 3
+    range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_ABS_HZ
+    int "S5D5 cap debug: absolute frequency jump threshold for relock"
+    default 500000
+    range 10000 5000000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_REL_PERMILLE
+    int "S5D5 cap debug: relative frequency jump threshold in permille"
+    default 150
+    range 1 1000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_JUMP_STREAK
+    int "S5D5 cap debug: consecutive large jumps before relock"
+    default 3
+    range 1 20
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_COOLDOWN_SAMPLES
+    int "S5D5 cap debug: minimum samples between relocks"
+    default 100
+    range 0 10000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_FULL_SWEEP_COOLDOWN_MS
+    int "S5D5 cap debug: minimum ms between runtime full sweeps"
+    default 5000
+    range 0 120000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_CAP_FDC_GOOD_ANCHOR_ALPHA_PERMILLE
+    int "S5D5 cap debug: frequency anchor update alpha for good samples"
+    default 20
+    range 0 1000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCKED_SAMPLE_COUNT
     int "Single-cap debug: locked sample count per burst"
     default 12
