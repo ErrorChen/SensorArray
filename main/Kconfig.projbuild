@@ -233,9 +233,20 @@ config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
     default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
+config SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE
+    bool "S5D5 cap debug: enable bounded boot full sweep"
+    default SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
     int "S5D5 cap debug: boot full sweep total time budget in ms"
     default 30000
+    range 3000 120000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_BOOT_SWEEP_BUDGET_MS
+    int "S5D5 cap debug: bounded boot sweep total time budget in ms"
+    default SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
     range 3000 120000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
@@ -267,6 +278,22 @@ config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TOP_VERIFY_COUNT
     int "S5D5 cap debug: boot full sweep number of top profiles to verify"
     default 3
     range 1 8
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT
+    int "S5D5 cap debug: baseline samples before boot sweep"
+    default 3
+    range 1 16
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_SKIP_BELOW_BASELINE_DEGLITCH
+    bool "S5D5 cap debug: skip deglitch bandwidth below baseline frequency"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_FALLBACK_DEGLITCH_10MHZ
+    bool "S5D5 cap debug: force 10MHz deglitch for safe fallback"
+    default y
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SETTLE_MS
@@ -344,6 +371,14 @@ config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Timeout while polling STATUS unread/data-ready before each locked sample read.
+
+config SENSORARRAY_DEBUG_S5D5_UNREAD_POLL_TIMEOUT_MS
+    int "S5D5 cap debug: unread poll timeout (ms)"
+    default SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
+    range 1 10000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Per-sample hard deadline for baseline, sweep candidates, and locked samples.
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_INTERVAL_MS
     int "Single-cap debug: unread poll interval (ms)"
