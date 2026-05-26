@@ -77,11 +77,11 @@ endmenu
 
 menu "Task resources"
 config SENSORARRAY_SCAN_TASK_STACK
-    int "Scan task stack bytes"
+    int "Debug/scan task stack bytes"
     default 8192
 
 config SENSORARRAY_SCAN_TASK_PRIO
-    int "Scan task priority"
+    int "Debug/scan task priority"
     default 12
 
 config SENSORARRAY_COMM_TASK_STACK

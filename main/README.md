@@ -4,21 +4,19 @@
 
 **中文**
 
-`main/` 负责当前板卡的应用层编排：
-- 启动顺序
-- 板级映射
-- 测量策略
-- debug 模式调度
+`main/` 只负责系统生命周期编排：
+- `app_main` 入口
+- startup 顺序
+- debug task 启动
 
 `main/main.c` 只保留 `app_main -> sensorarrayAppRun()` 薄入口。
 
 **English**
 
-`main/` owns board/app orchestration for the current hardware:
+`main/` owns system lifecycle orchestration only:
+- `app_main` entry
 - startup sequencing
-- board mapping
-- measurement policy
-- debug mode dispatch
+- debug task launch
 
 `main/main.c` is intentionally a thin entry: `app_main -> sensorarrayAppRun()`.
 
@@ -27,14 +25,14 @@
 - `sensorarrayApp.c/.h`: 顶层流程编排与模式分流。
 - `sensorarrayConfig.h`: 本层共享配置默认值与常量。
 - `sensorarrayTypes.h`: 跨文件共享类型定义。
-- `sensorarrayBoardMap.c/.h`: 板级映射单一真相源。
-- `sensorarrayBringup.c/.h`: SPI/ADS/FDC/TMUX bring-up。
-- `sensorarrayMeasure.c/.h`: route 应用、采样、重试/丢弃、换算。
+- `../core/board/sensorarrayBoardMap.c/.h`: 板级映射单一真相源。
+- `../core/board/sensorarrayBringup.c/.h`: SPI/ADS/FDC/TMUX bring-up。
+- `../core/measure/sensorarrayMeasure.c/.h`: route 应用、采样、重试/丢弃、换算。
 - `sensorarrayLog.c/.h`: `INIT,...` / `DBG,...` / `DBGCTRL,...` 日志辅助。
-- `sensorarrayDebug.c/.h`: 调度器 + 通用路由调试模式。
-- `sensorarrayDebugFdcSelbS5d5.c/.h`: `S5D5` / SELB / secondary FDC2214 专用 bring-up 调试模式。
-- `sensorarrayDebugSelftest.c/.h`: ADS/FDC 自检模式。
-- `sensorarrayDebugS1d1.c/.h`: S1D1 电阻专项调试模式。
+- `../core/debug/sensorarrayDebug.c/.h`: debug task 调度器 + 通用路由调试模式。
+- `../core/debug/sensorarrayDebugFdcSelbS5d5.c/.h`: `S5D5` / SELB / secondary FDC2214 专用 bring-up 调试模式。
+- `../core/debug/sensorarrayDebugSelftest.c/.h`: ADS/FDC 自检模式。
+- `../core/debug/sensorarrayDebugS1d1.c/.h`: S1D1 电阻专项调试模式。
 
 ## 3) Canonical Mapping / 权威映射
 
@@ -61,20 +59,23 @@
 
 **中文**
 
-- 板级映射只在 `sensorarrayBoardMap.c`。
+- 板级映射与 bring-up 只放在 `core/board`。
 - 通用驱动不吸收板级 route/debug 逻辑。
-- 测量策略放 `sensorarrayMeasure.c`，避免散落在调试模式里。
+- 可复用测量策略放 `core/measure`，避免散落在调试模式里。
+- debug/scan/sweep 执行体放 `core/debug`，复杂模式必须独立 task 化。
 - SELA 逻辑路径到 raw GPIO 电平的翻译只允许留在 board-map 层。
 
 **English**
 
-- Board mapping lives only in `sensorarrayBoardMap.c`.
+- Board mapping and bring-up live only in `core/board`.
 - Generic drivers must not absorb board-specific route/debug logic.
-- Measurement policy stays in `sensorarrayMeasure.c` instead of being duplicated in debug code.
+- Reusable measurement policy stays in `core/measure` instead of being duplicated in debug code.
+- Debug/scan/sweep bodies stay in `core/debug`; complex modes must run in their own task.
 - Logical SELA route to raw GPIO translation must stay in the board-map layer.
 
 ## 6) Current Status / 当前状态
 
 - 入口已完成去 god-file 化重构。
 - 调试执行体已按“调度 / 自检 / 单点电容 / S1D1 专项”拆分。
+- 复杂 debug/scan/sweep 由独立 FreeRTOS task 执行。
 - 新增 `FDC_I2C_DISCOVERY`：持续轮询 `I2C0/I2C1 x 0x2A/0x2B`，仅用于确认 I2C ACK 与 ID 可读性。

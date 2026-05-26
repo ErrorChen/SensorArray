@@ -51,12 +51,12 @@ Header: `core/matrixEngine/include/matrixEngine.h`
 **中文**
 
 - `matrixEngine` 是可选引擎，当前默认 `main` 应用未接入主流程。
-- 当前板 canonical mapping 由 `main/sensorarrayBoardMap.c` 维护；若你要用 `matrixEngine` 处理同一板，请在 `matrixEngineConfig_t` 中显式传入一致映射。
+- 当前板 canonical mapping 由 `core/board/sensorarrayBoardMap.c` 维护；若你要用 `matrixEngine` 处理同一板，请在 `matrixEngineConfig_t` 中显式传入一致映射。
 
 **English**
 
 - `matrixEngine` is optional and not currently the default app execution path.
-- Canonical board mapping is maintained in `main/sensorarrayBoardMap.c`; pass explicit tables in `matrixEngineConfig_t` if you need strict alignment.
+- Canonical board mapping is maintained in `core/board/sensorarrayBoardMap.c`; pass explicit tables in `matrixEngineConfig_t` if you need strict alignment.
 
 ## 5) Current Status / 当前状态
 

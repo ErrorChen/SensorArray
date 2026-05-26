@@ -14,6 +14,15 @@
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 
+typedef struct {
+    sensorarrayState_t *state;
+    const sensorarrayAdsReadPolicy_t *adsPolicy;
+    sensorarrayDebugMode_t mode;
+} sensorarrayDebugTaskContext_t;
+
+static sensorarrayDebugTaskContext_t s_debugTaskContext = {0};
+static TaskHandle_t s_debugTask = NULL;
+
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
     if (delayMs > 0u) {
@@ -294,6 +303,26 @@ static tmux1108Source_t sensorarrayConfiguredFixedSwSource(void)
 #endif
 }
 
+static const char *sensorarrayDebugTaskName(sensorarrayDebugMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP:
+        return "dbg_scan";
+    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
+        return "dbg_s5d5";
+    case SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY:
+        return "dbg_fdc_i2c";
+    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
+        return "dbg_s1d1";
+    case SENSORARRAY_DEBUG_MODE_ADS_SELFTEST:
+        return "dbg_ads_self";
+    case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
+        return "dbg_fdc_self";
+    default:
+        return "dbg_mode";
+    }
+}
+
 static void sensorarrayRunBringupLoop(sensorarrayState_t *state, const sensorarrayAdsReadPolicy_t *adsPolicy)
 {
     while (true) {
@@ -383,9 +412,9 @@ static void sensorarrayRunRouteStepOnceMode(sensorarrayState_t *state, const sen
     sensorarrayDebugIdleForever("route_step_once_done");
 }
 
-void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
-                                     const sensorarrayAdsReadPolicy_t *adsPolicy,
-                                     sensorarrayDebugMode_t mode)
+static void sensorarrayDebugDispatchSelectedMode(sensorarrayState_t *state,
+                                                 const sensorarrayAdsReadPolicy_t *adsPolicy,
+                                                 sensorarrayDebugMode_t mode)
 {
     sensorarrayLogStartup("debug_mode", ESP_OK, sensorarrayLogDebugModeName(mode), (int32_t)mode);
 
@@ -421,4 +450,51 @@ void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
         sensorarrayRunBringupLoop(state, adsPolicy);
         return;
     }
+}
+
+static void sensorarrayDebugModeTask(void *arg)
+{
+    sensorarrayDebugTaskContext_t *ctx = (sensorarrayDebugTaskContext_t *)arg;
+    if (!ctx) {
+        sensorarrayDebugIdleForever("debug_task_context_null");
+        return;
+    }
+
+    sensorarrayDebugDispatchSelectedMode(ctx->state, ctx->adsPolicy, ctx->mode);
+    sensorarrayDebugIdleForever("debug_mode_returned");
+}
+
+void sensorarrayDebugRunSelectedMode(sensorarrayState_t *state,
+                                     const sensorarrayAdsReadPolicy_t *adsPolicy,
+                                     sensorarrayDebugMode_t mode)
+{
+    if (s_debugTask) {
+        sensorarrayLogStartup("debug_task", ESP_ERR_INVALID_STATE, "already_running", (int32_t)mode);
+        return;
+    }
+
+    s_debugTaskContext = (sensorarrayDebugTaskContext_t){
+        .state = state,
+        .adsPolicy = adsPolicy,
+        .mode = mode,
+    };
+
+    BaseType_t taskOk = xTaskCreatePinnedToCore(sensorarrayDebugModeTask,
+                                                sensorarrayDebugTaskName(mode),
+                                                (uint32_t)CONFIG_SENSORARRAY_SCAN_TASK_STACK,
+                                                &s_debugTaskContext,
+                                                (UBaseType_t)CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
+                                                &s_debugTask,
+                                                (BaseType_t)CONFIG_SENSORARRAY_SCAN_TASK_CORE);
+    if (taskOk != pdPASS) {
+        s_debugTask = NULL;
+        sensorarrayLogStartup("debug_task",
+                              ESP_ERR_NO_MEM,
+                              "create_failed",
+                              (int32_t)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
+        sensorarrayDebugIdleForever("debug_task_create_failed");
+        return;
+    }
+
+    sensorarrayLogStartup("debug_task", ESP_OK, sensorarrayDebugTaskName(mode), (int32_t)mode);
 }

@@ -37,7 +37,7 @@ Use `ROUTE_FIXED_STATE` and configure:
 - `Fixed route: skip FDC read`
 - `Fixed route: hold final state forever` (recommended for scope/DMM probing)
 
-Current board polarity is translated only in `main/sensorarrayBoardMap.c`:
+Current board polarity is translated only in `core/board/sensorarrayBoardMap.c`:
 - `SELA GPIO 0 -> ADS1263`
 - `SELA GPIO 1 -> FDC2214`
 

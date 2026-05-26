@@ -30,12 +30,12 @@ The default app is still a bring-up/debug-oriented app, not a finished productio
 | --- | --- |
 | `main/main.c` | 薄入口，仅调用 `sensorarrayAppRun()` / Thin entry that only calls `sensorarrayAppRun()` |
 | `main/sensorarrayApp.c` | 应用层启动编排 / Application startup orchestration |
-| `main/sensorarrayBoardMap.c` | 板级映射单一真相源 / Single source of truth for board mapping |
-| `main/sensorarrayBringup.c` | SPI/ADS/FDC/TMUX bring-up / SPI/ADS/FDC/TMUX bring-up |
-| `main/sensorarrayMeasure.c` | 路由应用与读数流程 / Route application and measurement flows |
-| `main/sensorarrayDebug.c` | Debug 调度与路由模式 / Debug dispatch and route modes |
-| `main/sensorarrayDebugSelftest.c` | ADS/FDC 自检模式 / ADS/FDC self-test modes |
-| `main/sensorarrayDebugS1d1.c` | S1D1 专项调试模式 / S1D1 dedicated debug modes |
+| `core/board/sensorarrayBoardMap.c` | 板级映射单一真相源 / Single source of truth for board mapping |
+| `core/board/sensorarrayBringup.c` | SPI/ADS/FDC/TMUX bring-up / SPI/ADS/FDC/TMUX bring-up |
+| `core/measure/sensorarrayMeasure.c` | 路由应用与读数流程 / Route application and measurement flows |
+| `core/debug/sensorarrayDebug.c` | Debug 调度与路由模式 / Debug dispatch and route modes |
+| `core/debug/sensorarrayDebugSelftest.c` | ADS/FDC 自检模式 / ADS/FDC self-test modes |
+| `core/debug/sensorarrayDebugS1d1.c` | S1D1 专项调试模式 / S1D1 dedicated debug modes |
 | `components/ads126xAdc` | 通用 ADS1262/1263 SPI 驱动 / Generic ADS1262/1263 SPI driver |
 | `components/fdc2214Cap` | 通用 FDC2214 I2C 驱动 / Generic FDC2214 I2C driver |
 | `components/tmuxSwitch` | 通用 TMUX GPIO 控制 / Generic TMUX GPIO control |
@@ -66,8 +66,8 @@ Reusable layers:
 
 ## 4) Canonical Board Mapping / 当前权威板级映射
 
-> 本节是当前仓库映射的权威定义；`main/sensorarrayBoardMap.c` 与相关 README 必须与此一致。  
-> This section is the canonical mapping definition; `main/sensorarrayBoardMap.c` and related READMEs must stay aligned.
+> 本节是当前仓库映射的权威定义；`core/board/sensorarrayBoardMap.c` 与相关 README 必须与此一致。  
+> This section is the canonical mapping definition; `core/board/sensorarrayBoardMap.c` and related READMEs must stay aligned.
 
 ### ADS Path / ADS 路径
 
@@ -126,18 +126,18 @@ idf.py build
 **中文**
 
 - 通用驱动边界：`components/*` 不承载板级路由语义。
-- 板级映射边界：`main/sensorarrayBoardMap.c` 是映射单一真相源。
+- 板级映射边界：`core/board/sensorarrayBoardMap.c` 是映射单一真相源。
 - 应用编排边界：`main/sensorarrayApp.c` 负责启动与模式调度。
-- 测量边界：`main/sensorarrayMeasure.c` 负责 route/read/retry/discard/换算。
-- 调试边界：`main/sensorarrayDebug*.c` 负责各 debug mode 执行体。
+- 测量边界：`core/measure/sensorarrayMeasure.c` 负责 route/read/retry/discard/换算。
+- 调试边界：`core/debug/sensorarrayDebug*.c` 负责各 debug mode 执行体。
 
 **English**
 
 - Generic driver boundary: `components/*` does not carry board-specific route semantics.
-- Board mapping boundary: `main/sensorarrayBoardMap.c` is the single source of mapping truth.
+- Board mapping boundary: `core/board/sensorarrayBoardMap.c` is the single source of mapping truth.
 - App orchestration boundary: `main/sensorarrayApp.c` handles startup and mode dispatch.
-- Measurement boundary: `main/sensorarrayMeasure.c` owns route/read/retry/discard/conversion flow.
-- Debug boundary: `main/sensorarrayDebug*.c` owns debug mode execution logic.
+- Measurement boundary: `core/measure/sensorarrayMeasure.c` owns route/read/retry/discard/conversion flow.
+- Debug boundary: `core/debug/sensorarrayDebug*.c` owns debug mode execution logic.
 
 ## 7) Current Status / 当前状态
 

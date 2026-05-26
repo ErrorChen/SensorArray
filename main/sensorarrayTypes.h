@@ -23,7 +23,7 @@ typedef enum {
 /*
  * Logical destination selected by the SELA branch mux.
  * Enum values do not encode GPIO levels; the board-specific GPIO mapping lives
- * in main/sensorarrayBoardMap.c only.
+ * in core/board/sensorarrayBoardMap.c only.
  */
 typedef enum {
     SENSORARRAY_SELA_ROUTE_ADS1263 = 0,
