@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "boardSupport.h"
 #include "tmuxSwitch.h"
@@ -10,6 +11,7 @@
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayDebug.h"
+#include "sensorarrayDebugPins.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayTypes.h"
@@ -322,6 +324,11 @@ void sensorarrayAppRun(void)
                                  0,
                                  0,
                                  "D5..D8_secondary_selb_side");
+    }
+
+    if (singleCapFdcMode) {
+        (void)sensorarrayDebugPinsInit();
+        printf("BOOTMODE,S5D5_CAP_FDC_SECONDARY,commit=8ceb2a5,stage=before_dispatch\n");
     }
 
     sensorarrayDebugRunSelectedMode(&s_state, &s_adsReadPolicy, activeMode);

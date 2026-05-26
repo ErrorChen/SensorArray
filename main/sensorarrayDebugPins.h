@@ -25,6 +25,7 @@
 #endif
 
 esp_err_t sensorarrayDebugPinsInit(void);
+esp_err_t sensorarrayDebugPinsStartHardwareHeartbeat(void);
 void sensorarrayDebugPinsSetStage(uint8_t stage);
 void sensorarrayDebugPinsHeartbeatToggle(void);
 void sensorarrayDebugPinsHeartbeatMaybe(uint32_t periodMs);

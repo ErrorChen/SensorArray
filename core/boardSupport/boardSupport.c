@@ -6,6 +6,7 @@
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -25,6 +26,9 @@ static const char *TAG = "boardSupport";
 #endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
+#define BOARD_SUPPORT_I2C_TRACE_SLOW_MS 50u
+
+void sensorarrayDebugPinsSetStage(uint8_t stage) __attribute__((weak));
 
 static bool s_inited = false;
 static bool s_i2c0_inited = false;
@@ -61,6 +65,22 @@ static TickType_t boardSupportI2cTimeoutTicks(uint32_t timeoutMs)
     return (ticks == 0) ? 1 : ticks;
 }
 
+static void boardSupportI2cSetDebugStage(uint8_t stage)
+{
+    if (sensorarrayDebugPinsSetStage) {
+        sensorarrayDebugPinsSetStage(stage);
+    }
+}
+
+static uint32_t boardSupportI2cElapsedMs(int64_t startUs)
+{
+    int64_t elapsedUs = esp_timer_get_time() - startUs;
+    if (elapsedUs <= 0) {
+        return 0u;
+    }
+    return (uint32_t)((elapsedUs + 999LL) / 1000LL);
+}
+
 static bool boardSupportI2cErrorShouldRecover(esp_err_t err)
 {
 #if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
@@ -84,6 +104,12 @@ static bool *boardSupportI2cRecoveringFlag(i2c_port_t port)
 
 static bool boardSupportI2cBusAppearsStuck(const BoardSupportI2cCtx_t *ctx, int *outSda, int *outScl)
 {
+    if (outSda) {
+        *outSda = -1;
+    }
+    if (outScl) {
+        *outScl = -1;
+    }
     if (!ctx || !boardSupportI2cPinsValid(ctx->SdaGpio, ctx->SclGpio)) {
         return false;
     }
@@ -97,6 +123,71 @@ static bool boardSupportI2cBusAppearsStuck(const BoardSupportI2cCtx_t *ctx, int 
         *outScl = scl;
     }
     return sda == 0 || scl == 0;
+}
+
+static void boardSupportI2cTraceIfNeeded(const char *op,
+                                         const BoardSupportI2cCtx_t *ctx,
+                                         uint8_t addr7,
+                                         esp_err_t err,
+                                         uint32_t elapsedMs,
+                                         int sda,
+                                         int scl)
+{
+    if (err == ESP_OK && elapsedMs <= BOARD_SUPPORT_I2C_TRACE_SLOW_MS) {
+        return;
+    }
+
+    printf("I2C_TRACE,op=%s,port=%d,addr=0x%02X,err=%ld,elapsedMs=%lu,sda=%d,scl=%d\n",
+           op ? op : "unknown",
+           ctx ? (int)ctx->Port : -1,
+           addr7,
+           (long)err,
+           (unsigned long)elapsedMs,
+           sda,
+           scl);
+}
+
+static bool boardSupportI2cExpectedS5d5SecondaryNack(const BoardSupportI2cCtx_t *ctx, uint8_t addr7)
+{
+    return ctx && (int)ctx->Port == 1 && addr7 == 0x2Bu;
+}
+
+static void boardSupportI2cHandleTransactionError(const char *op,
+                                                  const BoardSupportI2cCtx_t *ctx,
+                                                  uint8_t addr7,
+                                                  esp_err_t err,
+                                                  bool stuck,
+                                                  int sda,
+                                                  int scl)
+{
+    if (err == ESP_ERR_TIMEOUT) {
+        bool doRecover = stuck && boardSupportI2cErrorShouldRecover(err);
+        printf("I2C_TIMEOUT,op=%s,port=%d,addr=0x%02X,sda=%d,scl=%d,action=%s\n",
+               op ? op : "unknown",
+               ctx ? (int)ctx->Port : -1,
+               addr7,
+               sda,
+               scl,
+               doRecover ? "recover" : "skip_recover");
+        if (doRecover) {
+            (void)boardSupportRecoverI2cBus(ctx);
+        }
+        return;
+    }
+
+    if (err == ESP_FAIL) {
+        bool doRecover = stuck && (CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT != 0);
+        printf("I2C_NACK,op=%s,port=%d,addr=0x%02X,sda=%d,scl=%d,recover=%u\n",
+               op ? op : "unknown",
+               ctx ? (int)ctx->Port : -1,
+               addr7,
+               sda,
+               scl,
+               doRecover ? 1u : 0u);
+        if (doRecover) {
+            (void)boardSupportRecoverI2cBus(ctx);
+        }
+    }
 }
 
 static esp_err_t boardSupportInitI2c(i2c_port_t port,
@@ -350,6 +441,8 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
+    boardSupportI2cSetDebugStage(5u);
+    int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_read_device(ctx->Port,
                                                  addr7,
                                                  tx,
@@ -357,27 +450,15 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
                                                  rx,
                                                  rxLen,
                                                  boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
-    if (boardSupportI2cErrorShouldRecover(err)) {
-        int sda = -1;
-        int scl = -1;
-        if (!boardSupportI2cBusAppearsStuck(ctx, &sda, &scl)) {
-            printf("I2CRECOVER,stage=skip_lines_released,op=write_read,port=%d,addr=0x%02X,err=%ld,sda=%d,scl=%d\n",
-                   (int)ctx->Port,
-                   addr7,
-                   (long)err,
-                   sda,
-                   scl);
-            return err;
-        }
-        printf("I2CRECOVER,stage=request,op=write_read,port=%d,addr=0x%02X,err=%ld,sda=%d,scl=%d\n",
-               (int)ctx->Port,
-               addr7,
-               (long)err,
-               sda,
-               scl);
-#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
-        (void)boardSupportRecoverI2cBus(ctx);
-#endif
+    uint32_t elapsedMs = boardSupportI2cElapsedMs(startUs);
+    boardSupportI2cSetDebugStage(6u);
+
+    int sda = -1;
+    int scl = -1;
+    bool stuck = boardSupportI2cBusAppearsStuck(ctx, &sda, &scl);
+    boardSupportI2cTraceIfNeeded("write_read", ctx, addr7, err, elapsedMs, sda, scl);
+    if (err != ESP_OK) {
+        boardSupportI2cHandleTransactionError("write_read", ctx, addr7, err, stuck, sda, scl);
     }
     return err;
 }
@@ -395,32 +476,22 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
+    boardSupportI2cSetDebugStage(5u);
+    int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_to_device(ctx->Port,
                                                addr7,
                                                tx,
                                                txLen,
                                                boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
-    if (boardSupportI2cErrorShouldRecover(err)) {
-        int sda = -1;
-        int scl = -1;
-        if (!boardSupportI2cBusAppearsStuck(ctx, &sda, &scl)) {
-            printf("I2CRECOVER,stage=skip_lines_released,op=write,port=%d,addr=0x%02X,err=%ld,sda=%d,scl=%d\n",
-                   (int)ctx->Port,
-                   addr7,
-                   (long)err,
-                   sda,
-                   scl);
-            return err;
-        }
-        printf("I2CRECOVER,stage=request,op=write,port=%d,addr=0x%02X,err=%ld,sda=%d,scl=%d\n",
-               (int)ctx->Port,
-               addr7,
-               (long)err,
-               sda,
-               scl);
-#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
-        (void)boardSupportRecoverI2cBus(ctx);
-#endif
+    uint32_t elapsedMs = boardSupportI2cElapsedMs(startUs);
+    boardSupportI2cSetDebugStage(6u);
+
+    int sda = -1;
+    int scl = -1;
+    bool stuck = boardSupportI2cBusAppearsStuck(ctx, &sda, &scl);
+    boardSupportI2cTraceIfNeeded("write", ctx, addr7, err, elapsedMs, sda, scl);
+    if (err != ESP_OK) {
+        boardSupportI2cHandleTransactionError("write", ctx, addr7, err, stuck, sda, scl);
     }
     return err;
 }
@@ -452,6 +523,12 @@ esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_
 
     i2c_cmd_link_delete(cmd);
     if (err != ESP_OK) {
+        if (err == ESP_FAIL && boardSupportI2cExpectedS5d5SecondaryNack(i2cCtx, addr7)) {
+            printf("I2C_NACK_EXPECTED,port=%d,addr=0x%02X,reason=secondary_addr_low_0x2A\n",
+                   (int)i2cCtx->Port,
+                   addr7);
+            return err;
+        }
         printf("I2CPROBE,port=%d,addr=0x%02X,err=%ld,status=%s\n",
                (int)i2cCtx->Port,
                addr7,

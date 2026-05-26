@@ -243,18 +243,55 @@ config SENSORARRAY_DEBUG_S5D5_ENABLE_BOOT_BASELINE_READ
     default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
+config SENSORARRAY_DEBUG_S5D5_NORMAL_SWEEP
+    bool "S5D5 cap debug: run normal FDC sweep"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_SWEEP_TRACE
+    bool "S5D5 debug: trace normal sweep stages"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_SWEEP_STEP_TIMEOUT_MS
+    int "S5D5 sweep per-step timeout in ms"
+    default 500
+    range 1 30000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_SWEEP_TOTAL_TIMEOUT_MS
+    int "S5D5 total sweep timeout in ms"
+    default 5000
+    range 1 120000
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
 config SENSORARRAY_DEBUG_S5D5_FORCE_DIRECT_10MHZ_LOCK
     bool "S5D5 cap debug: directly lock 10MHz profile before any sweep"
-    default y
+    default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_S5D5_DISABLE_ALL_SWEEP_AND_BASELINE
     bool "S5D5 cap debug: disable all sweep/baseline and only run fixed 10MHz locked sample"
-    default y
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_FALLBACK
+    bool "S5D5 cap debug: fall back to direct 10MHz lock after sweep failure"
+    default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
     bool "S5D5 cap debug: recover I2C bus after timeout"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_MINIMAL_LOG
+    bool "S5D5 cap debug: minimal log for hang localisation"
+    default y
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_I2C_TRACE
+    bool "S5D5 debug: trace slow/error I2C and raw FDC register ops"
     default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
@@ -529,6 +566,16 @@ config SENSORARRAY_DEBUG_HEARTBEAT_GPIO
     int "S5D5 heartbeat GPIO"
     default 42
     range 0 48
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+
+config SENSORARRAY_DEBUG_S5D5_HARDWARE_HEARTBEAT
+    bool "S5D5 debug: use hardware heartbeat on IO42"
+    default y
+    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
+
+config SENSORARRAY_DEBUG_S5D5_KEEP_LAST_STAGE
+    bool "S5D5 debug: keep last stage on IO39-IO41"
+    default y
     depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
 
 choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR

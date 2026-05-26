@@ -18,6 +18,9 @@
 #ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
 #define CONFIG_SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE 0
 #endif
+#ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_TRACE
+#define CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_TRACE 0
+#endif
 #ifndef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL CONFIG_FDC2214CAP_LOG_LEVEL
 #endif
@@ -29,6 +32,12 @@ static const char* TAG = "fdc2214Cap";
 #define FDCLOW_TRACE(...) printf(__VA_ARGS__)
 #else
 #define FDCLOW_TRACE(...) do { } while (0)
+#endif
+
+#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_TRACE
+#define FDC_RAW_TRACE(...) printf(__VA_ARGS__)
+#else
+#define FDC_RAW_TRACE(...) do { } while (0)
 #endif
 
 // Register map notes (FDC2214):
@@ -1236,12 +1245,17 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
     if (!dev || !outValue) {
         return ESP_ERR_INVALID_ARG;
     }
+    *outValue = 0xFFFFu;
     FDCLOW_TRACE("FDCLOW,op=read_raw_begin,reg=0x%02X\n", reg);
     esp_err_t err = Fdc2214CapReadReg16(dev, reg, outValue);
     FDCLOW_TRACE("FDCLOW,op=read_raw_done,reg=0x%02X,err=%ld,value=0x%04X\n",
                  reg,
                  (long)err,
                  outValue ? *outValue : 0u);
+    FDC_RAW_TRACE("FDC_RAW,op=read,reg=0x%02X,value=0x%04X,err=%ld\n",
+                  reg,
+                  *outValue,
+                  (long)err);
     return err;
 }
 
@@ -1253,6 +1267,10 @@ esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint
     FDCLOW_TRACE("FDCLOW,op=write_raw_begin,reg=0x%02X,value=0x%04X\n", reg, value);
     esp_err_t err = Fdc2214CapWriteReg16(dev, reg, value);
     FDCLOW_TRACE("FDCLOW,op=write_raw_done,reg=0x%02X,err=%ld\n", reg, (long)err);
+    FDC_RAW_TRACE("FDC_RAW,op=write,reg=0x%02X,value=0x%04X,err=%ld\n",
+                  reg,
+                  value,
+                  (long)err);
     return err;
 }
 
