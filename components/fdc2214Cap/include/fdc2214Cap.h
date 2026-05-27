@@ -152,6 +152,12 @@ typedef struct {
     Fdc2214CapSampleStatus_t SampleStatus;
 } Fdc2214CapSample_t;
 
+typedef struct {
+    uint32_t raw28;
+    uint16_t status;
+    bool valid;
+} Fdc2214CapChannelSample_t;
+
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
 // Destroy the device handle and release the mutex.
@@ -237,6 +243,11 @@ esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
 esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev,
                                              Fdc2214CapChannel_t ch,
                                              Fdc2214CapSample_t* outSample);
+// Read CH0..CH3 selected by channelMask bit0..bit3. outSamples[0] maps to CH0.
+esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev,
+                                    uint8_t channelMask,
+                                    Fdc2214CapChannelSample_t* outSamples,
+                                    size_t outSampleCount);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

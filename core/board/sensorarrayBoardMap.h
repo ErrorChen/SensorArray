@@ -23,9 +23,10 @@ const sensorarrayFdcDLineMap_t *sensorarrayBoardMapFdcAt(size_t index);
 const char *sensorarrayBoardMapSelaRouteName(sensorarraySelaRoute_t route);
 bool sensorarrayBoardMapSelaRouteToGpioLevel(sensorarraySelaRoute_t route, int *outLevel);
 bool sensorarrayBoardMapSelaRouteFromGpioLevel(int gpioLevel, sensorarraySelaRoute_t *outRoute);
+bool sensorarrayBoardMapFdcSelBLevel(bool *outLevel);
 
 const char *sensorarrayBoardMapPathName(sensorarrayPath_t path);
-sensorarrayDebugPath_t sensorarrayBoardMapPathToDebugPath(sensorarrayPath_t path, tmux1108Source_t swSource);
+sensorarrayRoutePathKind_t sensorarrayBoardMapPathToRoutePath(sensorarrayPath_t path, tmux1108Source_t swSource);
 tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t *route);
 
 void sensorarrayBoardMapAudit(void);

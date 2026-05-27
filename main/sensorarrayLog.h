@@ -28,8 +28,7 @@ const char *sensorarrayLogFmtGpioLevel(char *buf, size_t bufSize, bool valid, in
 const char *sensorarrayLogSwSourceName(tmux1108Source_t source);
 const char *sensorarrayLogSwSourceLogicalName(tmux1108Source_t source);
 const char *sensorarrayLogAdsMuxName(uint8_t mux);
-const char *sensorarrayLogDebugModeName(sensorarrayDebugMode_t mode);
-const char *sensorarrayLogDebugPathName(sensorarrayDebugPath_t path);
+const char *sensorarrayLogRoutePathName(sensorarrayRoutePathKind_t path);
 
 const char *sensorarrayLogBuildMapLabel(char *buf,
                                         size_t bufSize,
@@ -85,7 +84,7 @@ void sensorarrayLogRouteStep(const char *stage,
                              const char *label,
                              uint8_t sColumn,
                              uint8_t dLine,
-                             sensorarrayDebugPath_t path,
+                             sensorarrayRoutePathKind_t path,
                              tmux1108Source_t swSource,
                              sensorarraySelaRoute_t selaRoute,
                              bool selBLevel,
@@ -95,7 +94,7 @@ void sensorarrayLogRouteStepEx(const char *stage,
                                const char *label,
                                uint8_t sColumn,
                                uint8_t dLine,
-                               sensorarrayDebugPath_t path,
+                               sensorarrayRoutePathKind_t path,
                                tmux1108Source_t swSource,
                                sensorarraySelaRoute_t selaRoute,
                                bool selBLevel,

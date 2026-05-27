@@ -203,40 +203,14 @@ const char *sensorarrayLogAdsMuxName(uint8_t mux)
     }
 }
 
-const char *sensorarrayLogDebugModeName(sensorarrayDebugMode_t mode)
-{
-    switch (mode) {
-    case SENSORARRAY_DEBUG_MODE_ROUTE_IDLE:
-        return "ROUTE_IDLE";
-    case SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE:
-        return "ROUTE_FIXED_STATE";
-    case SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE:
-        return "ROUTE_STEP_ONCE";
-    case SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP:
-        return "ROUTE_SCAN_LOOP";
-    case SENSORARRAY_DEBUG_MODE_ADS_SELFTEST:
-        return "ADS_SELFTEST";
-    case SENSORARRAY_DEBUG_MODE_FDC_SELFTEST:
-        return "FDC_SELFTEST";
-    case SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR:
-        return "S1D1_RESISTOR_DEBUG";
-    case SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY:
-        return "S5D5_CAP_FDC_SECONDARY";
-    case SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY:
-        return "FDC_I2C_DISCOVERY";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-const char *sensorarrayLogDebugPathName(sensorarrayDebugPath_t path)
+const char *sensorarrayLogRoutePathName(sensorarrayRoutePathKind_t path)
 {
     switch (path) {
-    case SENSORARRAY_DEBUG_PATH_CAPACITIVE:
+    case SENSORARRAY_ROUTE_PATH_CAPACITIVE:
         return "cap";
-    case SENSORARRAY_DEBUG_PATH_VOLTAGE:
+    case SENSORARRAY_ROUTE_PATH_VOLTAGE:
         return "volt";
-    case SENSORARRAY_DEBUG_PATH_RESISTIVE:
+    case SENSORARRAY_ROUTE_PATH_RESISTIVE:
     default:
         return "res";
     }
@@ -519,7 +493,7 @@ void sensorarrayLogRouteStep(const char *stage,
                              const char *label,
                              uint8_t sColumn,
                              uint8_t dLine,
-                             sensorarrayDebugPath_t path,
+                             sensorarrayRoutePathKind_t path,
                              tmux1108Source_t swSource,
                              sensorarraySelaRoute_t selaRoute,
                              bool selBLevel,
@@ -543,7 +517,7 @@ void sensorarrayLogRouteStepEx(const char *stage,
                                const char *label,
                                uint8_t sColumn,
                                uint8_t dLine,
-                               sensorarrayDebugPath_t path,
+                               sensorarrayRoutePathKind_t path,
                                tmux1108Source_t swSource,
                                sensorarraySelaRoute_t selaRoute,
                                bool selBLevel,
@@ -555,13 +529,13 @@ void sensorarrayLogRouteStepEx(const char *stage,
     int selaWriteLevel = -1;
     const bool haveSelaWrite = sensorarrayBoardMapSelaRouteToGpioLevel(selaRoute, &selaWriteLevel);
 
-    printf("DBGROUTE,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,selaWrite=%s,"
+    printf("ROUTEDEBUG,stage=%s,label=%s,sColumn=%u,dLine=%u,path=%s,sw=%s,selaRequest=%s,selaWrite=%s,"
            "selBLevel=%u,err=%ld,status=%s,reason=%s\n",
            stage ? stage : SENSORARRAY_NA,
            label ? label : SENSORARRAY_NA,
            (unsigned)sColumn,
            (unsigned)dLine,
-           sensorarrayLogDebugPathName(path),
+           sensorarrayLogRoutePathName(path),
            sensorarrayLogSwSourceName(swSource),
            haveSelaWrite ? sensorarrayBoardMapSelaRouteName(selaRoute) : SENSORARRAY_NA,
            sensorarrayLogFmtGpioLevel(selaWriteBuf, sizeof(selaWriteBuf), haveSelaWrite, selaWriteLevel),

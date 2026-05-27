@@ -6,17 +6,10 @@ idf_component_register(
         "../core/board/sensorarrayBringup.c"
         "../core/measure/sensorarrayMeasure.c"
         "sensorarrayLog.c"
-        "../core/debug/sensorarrayDebug.c"
-        "../core/debug/sensorarrayDebugPins.c"
-        "../core/debug/sensorarrayDebugFdcI2cDiscovery.c"
-        "../core/debug/sensorarrayDebugFdcSelbS5d5.c"
-        "../core/debug/sensorarrayDebugSelftest.c"
-        "../core/debug/sensorarrayDebugS1d1.c"
     INCLUDE_DIRS
         "."
         "../core/board"
         "../core/measure"
-        "../core/debug"
     PRIV_REQUIRES
         boardSupport
         powerCtrl

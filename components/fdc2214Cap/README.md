@@ -1,19 +1,19 @@
-# fdc2214Cap / FDC2214 Driver
+ï»¿# fdc2214Cap / FDC2214 Driver
 
-## 1) Scope / Ä£¿é·¶Î§
+## 1) Scope / æ¨¡å—èŒƒå›´
 
-**ÖĞÎÄ**
+**ä¸­æ–‡**
 
-`fdc2214Cap` ÊÇÍ¨ÓÃ FDC2214 I2C Çı¶¯£¬¸ºÔğÉè±¸´´½¨¡¢¸´Î»¡¢ID ¶ÁÈ¡¡¢Í¨µÀÅäÖÃ¡¢µ¥Í¨µÀ/×Ô¶¯É¨ÃèÄ£Ê½ÉèÖÃºÍÑù±¾¶ÁÈ¡¡£
-²»°üº¬µ±Ç°°åµÄ D-line µ½Éè±¸/Í¨µÀÓ³Éä¡£
+`fdc2214Cap` æ˜¯é€šç”¨ FDC2214 I2C é©±åŠ¨ï¼Œè´Ÿè´£è®¾å¤‡åˆ›å»ºã€å¤ä½ã€ID è¯»å–ã€é€šé“é…ç½®ã€å•é€šé“/è‡ªåŠ¨æ‰«ææ¨¡å¼è®¾ç½®å’Œæ ·æœ¬è¯»å–ã€‚
+ä¸åŒ…å«å½“å‰ç”µè·¯æ¿æˆ–åº”ç”¨å±‚çš„è·¯ç”±è¯­ä¹‰ã€‚
 
 **English**
 
 `fdc2214Cap` is a generic FDC2214 I2C driver.
 It handles device creation/reset, ID readback, channel configuration, single/auto-scan mode, and sample reads.
-It does not include board-specific D-line to device/channel mapping.
+It does not include board-specific or application routing semantics.
 
-## 2) Main APIs / Ö÷Òª½Ó¿Ú
+## 2) Main APIs / ä¸»è¦æ¥å£
 
 - `Fdc2214CapCreate` / `Fdc2214CapDestroy`
 - `Fdc2214CapReset`
@@ -22,25 +22,26 @@ It does not include board-specific D-line to device/channel mapping.
 - `Fdc2214CapSetSingleChannelMode`
 - `Fdc2214CapSetAutoScanMode`
 - `Fdc2214CapReadSample`
+- `Fdc2214CapReadChannelsRaw`
 
-## 3) Integration Boundary / ¼¯³É±ß½ç
+## 3) Integration Boundary / é›†æˆè¾¹ç•Œ
 
-**ÖĞÎÄ**
+**ä¸­æ–‡**
 
-- ±¾×é¼ş½öÌá¹©Ğ¾Æ¬ÄÜÁ¦¡£
-- `D1..D4 -> primary` Óë `D5..D8 -> secondary` µÄ°å¼¶¹éÊôÓÉ `main/sensorarrayBoardMap.c` ¶¨Òå¡£
+- æœ¬ç»„ä»¶ä»…æä¾›èŠ¯ç‰‡èƒ½åŠ›ã€‚
+- æ¿çº§æ˜ å°„å’Œåº”ç”¨æ‰«æç­–ç•¥ç”± driver ä¹‹å¤–çš„ä¸Šå±‚æ¨¡å—å®šä¹‰ã€‚
 
 **English**
 
 - This component provides only chip-level capability.
-- Board ownership (`D1..D4 -> primary`, `D5..D8 -> secondary`) is defined in `main/sensorarrayBoardMap.c`.
+- Board mapping and application scan policy are defined outside this driver by higher layers.
 
-## 4) Kconfig Notes / Kconfig ËµÃ÷
+## 4) Kconfig Notes / Kconfig è¯´æ˜
 
 - I2C callbacks are provided by board/app layer (`boardSupport`).
 - Channel count/mode policy for startup is app-layer behavior.
 
-## 5) Typical Flow / µäĞÍµ÷ÓÃÁ÷³Ì
+## 5) Typical Flow / å…¸å‹è°ƒç”¨æµç¨‹
 
 ```c
 Fdc2214CapBusConfig_t bus = { ... };
@@ -53,7 +54,7 @@ Fdc2214CapSetAutoScanMode(dev, 2, FDC2214_DEGLITCH_10MHZ);
 Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);
 ```
 
-## 6) Current Status / µ±Ç°×´Ì¬
+## 6) Current Status / å½“å‰çŠ¶æ€
 
-- Used by current app bring-up and debug modes with ID check and sample logging.
+- Used by current app startup and matrix measurement code with ID check and sample reads.
 - Kept generic and reusable.

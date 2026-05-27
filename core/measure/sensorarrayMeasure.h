@@ -20,10 +20,21 @@ esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t *state,
                                         const char *stage,
                                         const char *label);
 
+esp_err_t sensorarrayMeasureSetSwPhysicalLevel(sensorarrayState_t *state,
+                                               sensorarraySwPhysicalLevel_t level,
+                                               const char *reason);
+
+esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
+                                               sensorarrayFdcMatrixFrame_t *outFrame);
+
+esp_err_t sensorarrayFdcMatrixEmitFrame(const sensorarrayFdcMatrixFrame_t *frame);
+bool sensorarrayFastSpeedIsEnabled(void);
+void sensorarrayFastSpeedSetEnabled(bool enabled);
+
 esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint8_t sColumn,
                                              uint8_t dLine,
-                                             sensorarrayDebugPath_t path,
+                                             sensorarrayRoutePathKind_t path,
                                              tmux1108Source_t swSource,
                                              sensorarraySelaRoute_t selaRoute,
                                              bool selBLevel,

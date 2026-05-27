@@ -7,19 +7,19 @@
 
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // Board/application route recipes used by current debug workflows.
-    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S1D1_res_sela_ads1263" },
-    { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S4D4_res_sela_ads1263_selb0" },
+    { SENSORARRAY_S1, SENSORARRAY_D1, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "route_res_row1_col1_ads1263" },
+    { SENSORARRAY_S4, SENSORARRAY_D4, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "route_res_row4_col4_ads1263_selb0" },
     /*
      * Confirmed mapping (datasheets/circuit.pdf page4 + TMUX1134 truth table):
      *  - U7 (SELB device) serves D5..D8.
      *  - On TMUX1134, SEL=1 selects SxA (capacitive Cx), SEL=0 selects SxB (resistive Rx).
      * Therefore capacitive D5/D7 routes require selBLevel=true, and resistive D7 requires false.
      */
-    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S5D5_cap_selb_fdc2214" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D7_cap_selb_fdc2214_selb1" },
-    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D7_volt_sela_ads1263_selb0" },
-    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "S8D8_cap_sela_fdc2214_selb1" },
-    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "S8D8_volt_sela_ads1263_selb0" },
+    { SENSORARRAY_S5, SENSORARRAY_D5, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "route_cap_row5_col5_fdc2214_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "route_cap_row8_col7_fdc2214_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D7, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "route_res_row8_col7_ads1263_selb0" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_CAPACITIVE, SENSORARRAY_SELA_ROUTE_FDC2214, true, "route_cap_row8_col8_fdc2214_selb1" },
+    { SENSORARRAY_S8, SENSORARRAY_D8, SENSORARRAY_PATH_RESISTIVE, SENSORARRAY_SELA_ROUTE_ADS1263, false, "route_res_row8_col8_ads1263_selb0" },
 };
 
 static const sensorarrayFdcDLineMap_t s_sensorarrayFdcDLineMap[] = {
@@ -91,6 +91,16 @@ bool sensorarrayBoardMapSelaRouteFromGpioLevel(int gpioLevel, sensorarraySelaRou
     }
 }
 
+bool sensorarrayBoardMapFdcSelBLevel(bool *outLevel)
+{
+    if (!outLevel) {
+        return false;
+    }
+
+    *outLevel = true;
+    return true;
+}
+
 bool sensorarrayBoardMapAdsMuxForDLine(uint8_t dLine, uint8_t *muxp, uint8_t *muxn)
 {
     if (!muxp || !muxn || dLine < 1u || dLine > 8u) {
@@ -157,15 +167,15 @@ const char *sensorarrayBoardMapPathName(sensorarrayPath_t path)
     return (path == SENSORARRAY_PATH_CAPACITIVE) ? "cap" : "res";
 }
 
-sensorarrayDebugPath_t sensorarrayBoardMapPathToDebugPath(sensorarrayPath_t path, tmux1108Source_t swSource)
+sensorarrayRoutePathKind_t sensorarrayBoardMapPathToRoutePath(sensorarrayPath_t path, tmux1108Source_t swSource)
 {
     if (path == SENSORARRAY_PATH_CAPACITIVE) {
-        return SENSORARRAY_DEBUG_PATH_CAPACITIVE;
+        return SENSORARRAY_ROUTE_PATH_CAPACITIVE;
     }
     if (swSource == TMUX1108_SOURCE_REF) {
-        return SENSORARRAY_DEBUG_PATH_VOLTAGE;
+        return SENSORARRAY_ROUTE_PATH_VOLTAGE;
     }
-    return SENSORARRAY_DEBUG_PATH_RESISTIVE;
+    return SENSORARRAY_ROUTE_PATH_RESISTIVE;
 }
 
 tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t *route)
@@ -192,7 +202,7 @@ void sensorarrayBoardMapAudit(void)
         int selaWriteLevel = -1;
         (void)sensorarrayBoardMapSelaRouteToGpioLevel(entry->selaRoute, &selaWriteLevel);
 
-        printf("DBGROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selBLevel=%u,label=%s\n",
+        printf("ROUTEMAP,index=%u,sColumn=%u,dLine=%u,path=%s,selaRoute=%s,selaWriteLevel=%d,selBLevel=%u,label=%s\n",
                (unsigned)i,
                (unsigned)entry->sColumn,
                (unsigned)entry->dLine,
@@ -210,7 +220,7 @@ void sensorarrayBoardMapAudit(void)
         }
         const char *devLabel =
             (entry->devId == SENSORARRAY_FDC_DEV_PRIMARY) ? "primary_sela_side" : "secondary_selb_side";
-        printf("DBGFDCMAP,index=%u,dLine=%u,fdcDev=%s,channel=%u,label=%s\n",
+        printf("FDCMAP,index=%u,dLine=%u,fdcDev=%s,channel=%u,label=%s\n",
                (unsigned)i,
                (unsigned)entry->dLine,
                devLabel,

@@ -126,21 +126,21 @@ static uint8_t sensorarrayBringupFdcRrSequenceForChannels(uint8_t channels)
     return 2u; // CH0..CH3
 }
 
-static Fdc2214CapChannelConfig_t sensorarrayBringupFdcDebugChannelProfile(uint8_t channelIndex)
+static Fdc2214CapChannelConfig_t sensorarrayBringupFdcMatrixChannelProfile(uint8_t channelIndex)
 {
     (void)channelIndex;
 
     /*
-     * Explicit single-channel debug profile for deterministic CH0 bring-up:
+     * Explicit channel profile shared by both FDC2214 devices:
      * - CLOCK_DIVIDERS explicitly sets both CHx_FIN_SEL and CHx_FREF_DIVIDER.
-     * - Values follow datasheet-style single-channel examples and avoid implicit defaults.
+     * - Values follow the stable bring-up profile and avoid implicit defaults.
      */
     return (Fdc2214CapChannelConfig_t){
-        .Rcount = SENSORARRAY_FDC_DEBUG_RCOUNT_CH0,
-        .SettleCount = SENSORARRAY_FDC_DEBUG_SETTLECOUNT_CH0,
-        .Offset = SENSORARRAY_FDC_DEBUG_OFFSET_CH0,
-        .ClockDividers = SENSORARRAY_FDC_DEBUG_CLOCK_DIVIDERS_CH0,
-        .DriveCurrent = SENSORARRAY_FDC_DEBUG_DRIVE_CURRENT_CH0,
+        .Rcount = SENSORARRAY_FDC_RCOUNT,
+        .SettleCount = SENSORARRAY_FDC_SETTLECOUNT,
+        .Offset = SENSORARRAY_FDC_OFFSET,
+        .ClockDividers = SENSORARRAY_FDC_CLOCK_DIVIDERS,
+        .DriveCurrent = SENSORARRAY_FDC_DRIVE_CURRENT,
     };
 }
 
@@ -177,14 +177,6 @@ static uint16_t sensorarrayBringupFdcBuildFinalConfig(Fdc2214CapChannel_t active
     return Fdc2214CapBuildConfig(&config);
 }
 
-static esp_err_t sensorarrayBringupReadFdcReg(Fdc2214CapDevice_t *dev, uint8_t reg, uint16_t *outValue)
-{
-    if (!dev || !outValue) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    return Fdc2214CapReadRawRegisters(dev, reg, outValue);
-}
-
 static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx_t *i2cCtx,
                                                         uint8_t i2cAddr,
                                                         const char *fdcLabel,
@@ -197,55 +189,28 @@ static esp_err_t sensorarrayBringupDumpFdcInitRegisters(const BoardSupportI2cCtx
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint16_t status = 0u;
-    uint16_t statusConfig = 0u;
-    uint16_t config = 0u;
-    uint16_t muxConfig = 0u;
+    Fdc2214CapCoreRegs_t coreRegs = {0};
     uint16_t clockDiv0 = 0u;
-    uint16_t rcount0 = 0u;
-    uint16_t settle0 = 0u;
-    uint16_t drive0 = 0u;
 
-    esp_err_t err = sensorarrayBringupReadFdcReg(dev, 0x18u, &status);
+    esp_err_t err = Fdc2214CapReadCoreRegs(dev, &coreRegs);
     if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x19u, &statusConfig);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x1Au, &config);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x1Bu, &muxConfig);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x14u, &clockDiv0);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x08u, &rcount0);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x10u, &settle0);
-    }
-    if (err == ESP_OK) {
-        err = sensorarrayBringupReadFdcReg(dev, 0x1Eu, &drive0);
+        err = Fdc2214CapReadClockDividers(dev, FDC2214_CH0, &clockDiv0);
     }
 
-    printf("DBGFDCINIT,stage=%s,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,status=0x%04X,"
-           "statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,clockDiv0=0x%04X,rcount0=0x%04X,settle0=0x%04X,"
-           "drive0=0x%04X,refClock=%s,refClockHz=%lu,err=%ld,result=%s\n",
+    printf("FDCINIT,stage=%s,fdcDev=%s,i2cPort=%d,i2cAddr=0x%02X,idMfg=0x%04X,idDev=0x%04X,status=0x%04X,"
+           "statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,clockDiv0=0x%04X,"
+           "refClock=%s,refClockHz=%lu,err=%ld,result=%s\n",
            stage ? stage : SENSORARRAY_NA,
            fdcLabel ? fdcLabel : SENSORARRAY_NA,
            i2cCtx ? (int)i2cCtx->Port : -1,
            i2cAddr,
            manufacturerId,
            deviceId,
-           status,
-           statusConfig,
-           config,
-           muxConfig,
+           coreRegs.Status,
+           coreRegs.StatusConfig,
+           coreRegs.Config,
+           coreRegs.MuxConfig,
            clockDiv0,
-           rcount0,
-           settle0,
-           drive0,
            sensorarrayBringupFdcRefClockName(sensorarrayBringupFdcRefClockSource()),
            (unsigned long)sensorarrayMeasureFdcEffectiveFclkHz(),
            (long)err,
@@ -269,8 +234,12 @@ static void sensorarrayBringupDumpFdcClock(Fdc2214CapDevice_t *dev,
     esp_err_t clockErr = ESP_ERR_INVALID_ARG;
 
     if (dev) {
-        (void)Fdc2214CapReadRawRegisters(dev, 0x1Au, &configReg);
-        (void)Fdc2214CapReadRawRegisters(dev, 0x1Bu, &muxConfig);
+        Fdc2214CapCoreRegs_t coreRegs = {0};
+        esp_err_t coreErr = Fdc2214CapReadCoreRegs(dev, &coreRegs);
+        if (coreErr == ESP_OK) {
+            configReg = coreRegs.Config;
+            muxConfig = coreRegs.MuxConfig;
+        }
         clockErr = Fdc2214CapReadClockDividers(dev, channel, &clockDividers);
     }
 
@@ -288,7 +257,7 @@ static void sensorarrayBringupDumpFdcClock(Fdc2214CapDevice_t *dev,
     uint32_t effectiveFclkHz = sensorarrayMeasureFdcEffectiveFclkHz();
     double effectiveFrefHz = (decodeOk && frefDivider > 0u) ? ((double)effectiveFclkHz / (double)frefDivider) : 0.0;
 
-    printf("DBGFDC_CLOCK,stage=%s,device=%s,channel=%u,clockDiv=0x%04X,finSelCode=%u,finFactor=%u,"
+    printf("FDC_CLOCK,stage=%s,device=%s,channel=%u,clockDiv=0x%04X,finSelCode=%u,finFactor=%u,"
            "frefDivider=%u,refClockSource=%s,effectiveFclkHz=%lu,effectiveFrefHz=%.3f,configReg=0x%04X,"
            "muxConfig=0x%04X,status=%s\n",
            stage ? stage : SENSORARRAY_NA,
@@ -339,7 +308,7 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
         unreadPresent = unreadPresent || status.UnreadConversion[ch];
     }
 
-    printf("DBGFDCINIT_VERIFY,sleep=%u,autoscan=%u,activeChannel=%u,converting=%u,unreadPresent=%u,"
+    printf("FDCINIT_VERIFY,sleep=%u,autoscan=%u,activeChannel=%u,converting=%u,unreadPresent=%u,"
            "status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,expectedStatusConfig=0x%04X,"
            "expectedConfig=0x%04X,expectedMuxConfig=0x%04X,refClockSource=%s,refClockHz=%lu,result=%s\n",
            sleepEnabled ? 1u : 0u,
@@ -578,7 +547,7 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
 #endif
     cfg.crcMode = ADS126X_CRC_OFF;
     cfg.enableStatusByte = false;
-    cfg.enableInternalRef = true;
+    cfg.enableInternalRef = false;
     cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
     cfg.pgaGain = 1;
     cfg.dataRateDr = 0;
@@ -588,14 +557,10 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
         return err;
     }
 
-    err = ads126xAdcStartAdc1(&state->ads);
-    if (err != ESP_OK) {
-        return err;
-    }
-    state->adsAdc1Running = true;
-
-    int32_t raw = 0;
-    return ads126xAdcReadAdc1Raw(&state->ads, &raw, NULL);
+    state->adsAdc1Running = false;
+    state->adsRefReady = false;
+    state->adsRefMuxValid = false;
+    return ESP_OK;
 }
 
 esp_err_t sensorarrayBringupAttachAdsNoReset(sensorarrayState_t *state)
@@ -880,7 +845,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
     }
 
     for (uint8_t ch = 0; ch < channels; ++ch) {
-        Fdc2214CapChannelConfig_t chCfg = sensorarrayBringupFdcDebugChannelProfile(ch);
+        Fdc2214CapChannelConfig_t chCfg = sensorarrayBringupFdcMatrixChannelProfile(ch);
         Fdc2214CapChannelConfigResult_t cfgResult = FDC2214_CHANNEL_CONFIG_RESULT_OK;
         uint16_t cfgDriveReadback = 0u;
         err = Fdc2214CapConfigureChannelWithResult(dev,
@@ -898,7 +863,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         }
         if (cfgResult == FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH) {
             driveCurrentWarning = true;
-            printf("DBGFDCINIT_WARN,stage=channel_config,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,driveReadback=0x%04X,"
+            printf("FDCINIT_WARN,stage=channel_config,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,driveReadback=0x%04X,"
                    "status=drive_current_effective_mismatch_continue\n",
                    (unsigned)ch,
                    chCfg.DriveCurrent,
@@ -923,7 +888,7 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         }
         if (verifyResult == FDC2214_CHANNEL_VERIFY_RESULT_WARN_DRIVE_CURRENT_MISMATCH) {
             driveCurrentWarning = true;
-            printf("DBGFDCINIT_WARN,stage=channel_readback,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,"
+            printf("FDCINIT_WARN,stage=channel_readback,channel=%u,driveReq=0x%04X,driveNorm=0x%04X,"
                    "driveReadback=0x%04X,status=drive_current_effective_mismatch_continue\n",
                    (unsigned)ch,
                    chCfg.DriveCurrent,

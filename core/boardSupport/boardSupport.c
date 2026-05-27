@@ -21,14 +21,12 @@ static const char *TAG = "boardSupport";
 #ifndef CONFIG_BOARD_I2C1_FREQ_HZ
 #define CONFIG_BOARD_I2C1_FREQ_HZ CONFIG_BOARD_I2C_FREQ_HZ
 #endif
-#ifndef CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
-#define CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT 0
+#ifndef CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT
+#define CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT 0
 #endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
 #define BOARD_SUPPORT_I2C_TRACE_SLOW_MS 50u
-
-void sensorarrayDebugPinsSetStage(uint8_t stage) __attribute__((weak));
 
 static bool s_inited = false;
 static bool s_i2c0_inited = false;
@@ -65,13 +63,6 @@ static TickType_t boardSupportI2cTimeoutTicks(uint32_t timeoutMs)
     return (ticks == 0) ? 1 : ticks;
 }
 
-static void boardSupportI2cSetDebugStage(uint8_t stage)
-{
-    if (sensorarrayDebugPinsSetStage) {
-        sensorarrayDebugPinsSetStage(stage);
-    }
-}
-
 static uint32_t boardSupportI2cElapsedMs(int64_t startUs)
 {
     int64_t elapsedUs = esp_timer_get_time() - startUs;
@@ -83,7 +74,7 @@ static uint32_t boardSupportI2cElapsedMs(int64_t startUs)
 
 static bool boardSupportI2cErrorShouldRecover(esp_err_t err)
 {
-#if CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
+#if CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT
     return err == ESP_ERR_TIMEOUT;
 #else
     (void)err;
@@ -147,7 +138,7 @@ static void boardSupportI2cTraceIfNeeded(const char *op,
            scl);
 }
 
-static bool boardSupportI2cExpectedS5d5SecondaryNack(const BoardSupportI2cCtx_t *ctx, uint8_t addr7)
+static bool boardSupportI2cExpectedSecondaryHighAddressNack(const BoardSupportI2cCtx_t *ctx, uint8_t addr7)
 {
     return ctx && (int)ctx->Port == 1 && addr7 == 0x2Bu;
 }
@@ -176,7 +167,7 @@ static void boardSupportI2cHandleTransactionError(const char *op,
     }
 
     if (err == ESP_FAIL) {
-        bool doRecover = stuck && (CONFIG_SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT != 0);
+        bool doRecover = stuck && (CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT != 0);
         printf("I2C_NACK,op=%s,port=%d,addr=0x%02X,sda=%d,scl=%d,recover=%u\n",
                op ? op : "unknown",
                ctx ? (int)ctx->Port : -1,
@@ -441,7 +432,6 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
-    boardSupportI2cSetDebugStage(5u);
     int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_read_device(ctx->Port,
                                                  addr7,
@@ -451,8 +441,6 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
                                                  rxLen,
                                                  boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
     uint32_t elapsedMs = boardSupportI2cElapsedMs(startUs);
-    boardSupportI2cSetDebugStage(6u);
-
     int sda = -1;
     int scl = -1;
     bool stuck = boardSupportI2cBusAppearsStuck(ctx, &sda, &scl);
@@ -476,7 +464,6 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
     }
 
     const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
-    boardSupportI2cSetDebugStage(5u);
     int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_to_device(ctx->Port,
                                                addr7,
@@ -484,8 +471,6 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                                                txLen,
                                                boardSupportI2cTimeoutTicks(ctx->TimeoutMs));
     uint32_t elapsedMs = boardSupportI2cElapsedMs(startUs);
-    boardSupportI2cSetDebugStage(6u);
-
     int sda = -1;
     int scl = -1;
     bool stuck = boardSupportI2cBusAppearsStuck(ctx, &sda, &scl);
@@ -523,7 +508,7 @@ esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_
 
     i2c_cmd_link_delete(cmd);
     if (err != ESP_OK) {
-        if (err == ESP_FAIL && boardSupportI2cExpectedS5d5SecondaryNack(i2cCtx, addr7)) {
+        if (err == ESP_FAIL && boardSupportI2cExpectedSecondaryHighAddressNack(i2cCtx, addr7)) {
             printf("I2C_NACK_EXPECTED,port=%d,addr=0x%02X,reason=secondary_addr_low_0x2A\n",
                    (int)i2cCtx->Port,
                    addr7);

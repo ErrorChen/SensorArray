@@ -2,7 +2,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "boardSupport.h"
 #include "tmuxSwitch.h"
@@ -10,21 +12,20 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
-#include "sensorarrayDebug.h"
-#include "sensorarrayDebugPins.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayTypes.h"
 
 static sensorarrayState_t s_state = {0};
 
-static const sensorarrayAdsReadPolicy_t s_adsReadPolicy = {
-    .stopBeforeMuxChange = (CONFIG_SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX != 0),
-    .settleAfterMuxMs = (uint32_t)CONFIG_SENSORARRAY_ADS_READ_SETTLE_AFTER_MUX_MS,
-    .startEveryRead = (CONFIG_SENSORARRAY_ADS_READ_START1_EVERY_READ != 0),
-    .baseDiscardCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT,
-    .readRetryCount = (uint8_t)CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT,
-};
+static void sensorarrayAppDelayFramePeriod(void)
+{
+    uint32_t periodMs = (uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS;
+    if (periodMs == 0u) {
+        periodMs = 1u;
+    }
+    vTaskDelay(pdMS_TO_TICKS(periodMs));
+}
 
 static void sensorarrayApplyTmuxDefaults(void)
 {
@@ -44,7 +45,9 @@ static void sensorarrayApplyTmuxDefaults(void)
         tmuxErr = tmux1134SelectSelBLevel(false);
     }
     if (tmuxErr == ESP_OK) {
-        tmuxErr = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
+        tmuxErr = sensorarrayMeasureSetSwPhysicalLevel(&s_state,
+                                                       SENSORARRAY_SW_PHYSICAL_LOW,
+                                                       "init_default");
     }
     if (tmuxErr == ESP_OK) {
         tmuxErr = tmux1134SetEnLogicalState(true);
@@ -54,7 +57,71 @@ static void sensorarrayApplyTmuxDefaults(void)
                           tmuxErr,
                           (tmuxErr == ESP_OK) ? "ok" : "set_failed",
                           (int32_t)(tmuxErr == ESP_OK));
-    sensorarrayLogControlGpio("tmux_defaults", "INIT");
+}
+
+static void sensorarrayAppInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
+                                        bool addressValid,
+                                        uint8_t requestedChannels,
+                                        const char *mapLabel)
+{
+    if (!fdcState) {
+        return;
+    }
+
+    esp_err_t err = ESP_OK;
+    if (!addressValid) {
+        sensorarrayLogStartupFdc("fdc_init",
+                                 fdcState,
+                                 ESP_ERR_INVALID_ARG,
+                                 "skip_invalid_addr_config",
+                                 (int32_t)fdcState->i2cAddr,
+                                 false,
+                                 0,
+                                 0,
+                                 mapLabel);
+        return;
+    }
+    if (!fdcState->i2cCtx) {
+        sensorarrayLogStartupFdc("fdc_init",
+                                 fdcState,
+                                 ESP_ERR_NOT_SUPPORTED,
+                                 "skip_i2c_unavailable",
+                                 0,
+                                 false,
+                                 0,
+                                 0,
+                                 mapLabel);
+        return;
+    }
+
+    sensorarrayBringupProbeFdcBus(fdcState);
+
+    sensorarrayFdcInitDiag_t diag = {0};
+    err = sensorarrayBringupInitFdcDevice(fdcState->i2cCtx,
+                                          fdcState->i2cAddr,
+                                          requestedChannels,
+                                          &fdcState->handle,
+                                          &diag);
+    sensorarrayBringupApplyFdcInitResult(fdcState, fdcState->handle, err, &diag);
+    sensorarrayLogStartupFdc("fdc_init",
+                             fdcState,
+                             err,
+                             diag.status,
+                             (err == ESP_OK) ? (int32_t)requestedChannels : diag.detail,
+                             diag.haveIds,
+                             diag.manufacturerId,
+                             diag.deviceId,
+                             mapLabel);
+}
+
+static void sensorarrayRunFdcMatrixLoop(void)
+{
+    while (true) {
+        sensorarrayFdcMatrixFrame_t frame = {0};
+        (void)sensorarrayMeasureReadFdcMatrixFrame(&s_state, &frame);
+        (void)sensorarrayFdcMatrixEmitFrame(&frame);
+        sensorarrayAppDelayFramePeriod();
+    }
 }
 
 void sensorarrayAppRun(void)
@@ -62,14 +129,7 @@ void sensorarrayAppRun(void)
     sensorarrayLogDbgExtraReset();
     s_state = (sensorarrayState_t){0};
     sensorarrayLogSetAdsState(false, false);
-
-    sensorarrayDebugMode_t activeMode = (sensorarrayDebugMode_t)SENSORARRAY_ACTIVE_DEBUG_MODE;
-    bool s1d1ResMode = (activeMode == SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR);
-    bool s1d1RouteOnly = s1d1ResMode && (CONFIG_SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY != 0);
-    bool singleCapFdcMode = (activeMode == SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY);
-    bool fdcI2cDiscoveryMode = (activeMode == SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY);
-    bool skipAdsInit = s1d1RouteOnly || fdcI2cDiscoveryMode;
-    bool skipFdcInit = s1d1ResMode || fdcI2cDiscoveryMode;
+    sensorarrayFastSpeedSetEnabled(false);
 
     uint8_t requestedChannels = sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
     if (requestedChannels < SENSORARRAY_FDC_REQUIRED_CHANNELS) {
@@ -78,24 +138,19 @@ void sensorarrayAppRun(void)
     s_state.fdcConfiguredChannels = requestedChannels;
 
     sensorarrayBringupResetFdcState(&s_state.fdcPrimary,
-                                    "primary_sela_side",
+                                    "primary_fdc2214",
                                     (uint8_t)(CONFIG_SENSORARRAY_FDC_PRIMARY_I2C_ADDR & 0xFFu));
     sensorarrayBringupResetFdcState(&s_state.fdcSecondary,
-                                    "secondary_selb_side",
+                                    "secondary_fdc2214",
                                     (uint8_t)(CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR & 0xFFu));
 
     bool primaryAddrValid = sensorarrayBringupParseI2cAddress((uint32_t)CONFIG_SENSORARRAY_FDC_PRIMARY_I2C_ADDR,
                                                               &s_state.fdcPrimary.i2cAddr);
     bool secondaryAddrValid = sensorarrayBringupParseI2cAddress((uint32_t)CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR,
                                                                 &s_state.fdcSecondary.i2cAddr);
-    if (singleCapFdcMode) {
-        // Dedicated SELB bring-up is fixed to ADDR-low secondary FDC2214.
-        s_state.fdcSecondary.i2cAddr = SENSORARRAY_FDC_I2C_ADDR_LOW;
-        secondaryAddrValid = true;
-    }
 
-    sensorarrayLogStartup("app", ESP_OK, "start", 0);
-    sensorarrayLogStartup("fdc_channels", ESP_OK, "policy_applied", (int32_t)requestedChannels);
+    sensorarrayLogStartup("app", ESP_OK, "fdc_matrix_start", 0);
+    sensorarrayLogStartup("fdc_channels", ESP_OK, "autoscan_ch0_ch3", (int32_t)requestedChannels);
     sensorarrayLogStartupFdc("fdc_cfg",
                              &s_state.fdcPrimary,
                              primaryAddrValid ? ESP_OK : ESP_ERR_INVALID_ARG,
@@ -104,21 +159,16 @@ void sensorarrayAppRun(void)
                              false,
                              0,
                              0,
-                             "D1..D4_primary_sela_side");
+                             "D1..D4_primary_ch0..ch3");
     sensorarrayLogStartupFdc("fdc_cfg",
                              &s_state.fdcSecondary,
                              secondaryAddrValid ? ESP_OK : ESP_ERR_INVALID_ARG,
-                             secondaryAddrValid
-                                 ? (singleCapFdcMode ? "forced_addr_low_for_selb_mode" : "configured")
-                                 : "invalid_addr_config",
+                             secondaryAddrValid ? "configured" : "invalid_addr_config",
                              (int32_t)s_state.fdcSecondary.i2cAddr,
                              false,
                              0,
                              0,
-                             "D5..D8_secondary_selb_side");
-    if (!singleCapFdcMode && !fdcI2cDiscoveryMode) {
-        sensorarrayBoardMapAudit();
-    }
+                             "D5..D8_secondary_ch0..ch3");
 
     esp_err_t err = boardSupportInit();
     s_state.boardReady = (err == ESP_OK);
@@ -130,181 +180,23 @@ void sensorarrayAppRun(void)
 
     sensorarrayApplyTmuxDefaults();
 
-    if (skipAdsInit) {
-        const char *adsSkipStatus = fdcI2cDiscoveryMode ? "skip_fdc_i2c_discovery_mode" : "skip_route_only_mode";
-        s_state.adsReady = false;
-        s_state.adsRefReady = false;
-        s_state.adsAdc1Running = false;
-        s_state.adsRefMuxValid = false;
-        sensorarrayLogStartup("ads", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
-        sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, adsSkipStatus, 0);
-    } else if (singleCapFdcMode) {
-        err = sensorarrayBringupAttachAdsNoReset(&s_state);
-        s_state.adsReady = (err == ESP_OK);
-        sensorarrayLogStartup("ads",
-                              err,
-                              s_state.adsReady ? "attached_no_reset_for_cap_fdc" : "attach_no_reset_failed",
-                              (int32_t)s_state.adsReady);
-        s_state.adsRefReady = false;
-        s_state.adsAdc1Running = false;
-        s_state.adsRefMuxValid = false;
-        sensorarrayLogStartup("ads_ref",
-                              s_state.adsReady ? ESP_OK : ESP_ERR_INVALID_STATE,
-                              s_state.adsReady ? "deferred_off_for_cap_fdc" : "skip_ads_unavailable",
-                              0);
-    } else {
-        err = sensorarrayBringupInitAds(&s_state);
-        s_state.adsReady = (err == ESP_OK);
-        sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok" : "init_failed", (int32_t)s_state.adsReady);
-
-        if (s_state.adsReady) {
-            err = sensorarrayBringupPrepareAdsRefPath(&s_state);
-            s_state.adsRefReady = (err == ESP_OK);
-            sensorarrayLogStartup("ads_ref", err, s_state.adsRefReady ? "ready" : "not_ready", (int32_t)s_state.adsRefReady);
-        } else {
-            s_state.adsRefReady = false;
-            s_state.adsAdc1Running = false;
-            s_state.adsRefMuxValid = false;
-            sensorarrayLogStartup("ads_ref", ESP_ERR_INVALID_STATE, "skip_ads_unavailable", 0);
-        }
-    }
+    err = sensorarrayBringupInitAds(&s_state);
+    s_state.adsReady = (err == ESP_OK);
+    s_state.adsRefReady = false;
+    sensorarrayLogStartup("ads", err, s_state.adsReady ? "ok_ref_off" : "init_failed", (int32_t)s_state.adsReady);
     sensorarrayLogSetAdsState(s_state.adsReady, s_state.adsRefReady);
 
-    if (skipFdcInit) {
-        const char *fdcSkipStatus = s1d1ResMode ? "skip_s1d1_resistor_mode" : "skip_fdc_i2c_discovery_mode";
-        sensorarrayLogStartupFdc("fdc_init",
-                                 &s_state.fdcPrimary,
-                                 ESP_ERR_NOT_SUPPORTED,
-                                 fdcSkipStatus,
-                                 0,
-                                 false,
-                                 0,
-                                 0,
-                                 "D1..D4_primary_sela_side");
-        sensorarrayLogStartupFdc("fdc_init",
-                                 &s_state.fdcSecondary,
-                                 ESP_ERR_NOT_SUPPORTED,
-                                 fdcSkipStatus,
-                                 0,
-                                 false,
-                                 0,
-                                 0,
-                                 "D5..D8_secondary_selb_side");
-    } else if (s_state.boardReady) {
+    if (s_state.boardReady) {
         s_state.fdcPrimary.i2cCtx = boardSupportGetI2cCtx();
         s_state.fdcSecondary.i2cCtx = boardSupportGetI2c1Ctx();
-
-        if (singleCapFdcMode) {
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcPrimary,
-                                     ESP_ERR_NOT_SUPPORTED,
-                                     "skip_selb_single_point_mode",
-                                     0,
-                                     false,
-                                     0,
-                                     0,
-                                     "D1..D4_primary_sela_side");
-        } else if (!primaryAddrValid) {
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcPrimary,
-                                     ESP_ERR_INVALID_ARG,
-                                     "skip_invalid_addr_config",
-                                     (int32_t)CONFIG_SENSORARRAY_FDC_PRIMARY_I2C_ADDR,
-                                     false,
-                                     0,
-                                     0,
-                                     "D1..D4_primary_sela_side");
-        } else if (!s_state.fdcPrimary.i2cCtx) {
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcPrimary,
-                                     ESP_ERR_NOT_SUPPORTED,
-                                     "skip_i2c0_unavailable",
-                                     0,
-                                     false,
-                                     0,
-                                     0,
-                                     "D1..D4_primary_sela_side");
-        } else {
-            sensorarrayBringupProbeFdcBus(&s_state.fdcPrimary);
-
-            sensorarrayFdcInitDiag_t diag = {0};
-            err = sensorarrayBringupInitFdcDevice(s_state.fdcPrimary.i2cCtx,
-                                                  s_state.fdcPrimary.i2cAddr,
-                                                  requestedChannels,
-                                                  &s_state.fdcPrimary.handle,
-                                                  &diag);
-            s_state.fdcPrimary.ready = (err == ESP_OK);
-            s_state.fdcPrimary.haveIds = diag.haveIds;
-            s_state.fdcPrimary.manufacturerId = diag.manufacturerId;
-            s_state.fdcPrimary.deviceId = diag.deviceId;
-            s_state.fdcPrimary.configVerified = diag.configVerified;
-            s_state.fdcPrimary.refClockKnown = diag.refClockKnown;
-            s_state.fdcPrimary.refClockSource = diag.refClockSource;
-            s_state.fdcPrimary.refClockHz = diag.refClockHz;
-            s_state.fdcPrimary.statusConfigReg = diag.statusConfigReg;
-            s_state.fdcPrimary.configReg = diag.configReg;
-            s_state.fdcPrimary.muxConfigReg = diag.muxConfigReg;
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcPrimary,
-                                     err,
-                                     diag.status,
-                                     (err == ESP_OK) ? (int32_t)requestedChannels : diag.detail,
-                                     diag.haveIds,
-                                     diag.manufacturerId,
-                                     diag.deviceId,
-                                     "D1..D4_primary_sela_side");
-        }
-
-        if (!secondaryAddrValid) {
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcSecondary,
-                                     ESP_ERR_INVALID_ARG,
-                                     "skip_invalid_addr_config",
-                                     (int32_t)CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR,
-                                     false,
-                                     0,
-                                     0,
-                                     "D5..D8_secondary_selb_side");
-        } else if (!s_state.fdcSecondary.i2cCtx) {
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcSecondary,
-                                     ESP_ERR_NOT_SUPPORTED,
-                                     "skip_i2c1_unavailable",
-                                     0,
-                                     false,
-                                     0,
-                                     0,
-                                     "D5..D8_secondary_selb_side");
-        } else {
-            sensorarrayBringupProbeFdcBus(&s_state.fdcSecondary);
-
-            sensorarrayFdcInitDiag_t diag = {0};
-            err = sensorarrayBringupInitFdcDevice(s_state.fdcSecondary.i2cCtx,
-                                                  s_state.fdcSecondary.i2cAddr,
-                                                  singleCapFdcMode ? 1u : requestedChannels,
-                                                  &s_state.fdcSecondary.handle,
-                                                  &diag);
-            s_state.fdcSecondary.ready = (err == ESP_OK);
-            s_state.fdcSecondary.haveIds = diag.haveIds;
-            s_state.fdcSecondary.manufacturerId = diag.manufacturerId;
-            s_state.fdcSecondary.deviceId = diag.deviceId;
-            s_state.fdcSecondary.configVerified = diag.configVerified;
-            s_state.fdcSecondary.refClockKnown = diag.refClockKnown;
-            s_state.fdcSecondary.refClockSource = diag.refClockSource;
-            s_state.fdcSecondary.refClockHz = diag.refClockHz;
-            s_state.fdcSecondary.statusConfigReg = diag.statusConfigReg;
-            s_state.fdcSecondary.configReg = diag.configReg;
-            s_state.fdcSecondary.muxConfigReg = diag.muxConfigReg;
-            sensorarrayLogStartupFdc("fdc_init",
-                                     &s_state.fdcSecondary,
-                                     err,
-                                     diag.status,
-                                     (err == ESP_OK) ? (int32_t)(singleCapFdcMode ? 1u : requestedChannels) : diag.detail,
-                                     diag.haveIds,
-                                     diag.manufacturerId,
-                                     diag.deviceId,
-                                     "D5..D8_secondary_selb_side");
-        }
+        sensorarrayAppInitFdcDevice(&s_state.fdcPrimary,
+                                    primaryAddrValid,
+                                    requestedChannels,
+                                    "D1..D4_primary_ch0..ch3");
+        sensorarrayAppInitFdcDevice(&s_state.fdcSecondary,
+                                    secondaryAddrValid,
+                                    requestedChannels,
+                                    "D5..D8_secondary_ch0..ch3");
     } else {
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcPrimary,
@@ -314,7 +206,7 @@ void sensorarrayAppRun(void)
                                  false,
                                  0,
                                  0,
-                                 "D1..D4_primary_sela_side");
+                                 "D1..D4_primary_ch0..ch3");
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcSecondary,
                                  ESP_ERR_INVALID_STATE,
@@ -323,13 +215,8 @@ void sensorarrayAppRun(void)
                                  false,
                                  0,
                                  0,
-                                 "D5..D8_secondary_selb_side");
+                                 "D5..D8_secondary_ch0..ch3");
     }
 
-    if (singleCapFdcMode) {
-        (void)sensorarrayDebugPinsInit();
-        printf("BOOTMODE,S5D5_CAP_FDC_SECONDARY,commit=8ceb2a5,stage=before_dispatch\n");
-    }
-
-    sensorarrayDebugRunSelectedMode(&s_state, &s_adsReadPolicy, activeMode);
+    sensorarrayRunFdcMatrixLoop();
 }

@@ -5,59 +5,40 @@ config SENSORARRAY_ENABLE_WIRED
     default y
 
 config SENSORARRAY_ENABLE_BLE
-    bool "Enable BLE transport (later for wireless streaming)"
+    bool "Enable BLE transport"
     default y
 
 choice SENSORARRAY_ADS126X_VARIANT
-    prompt "ADS126x variant (first batch uses ADS1262)"
+    prompt "ADS126x variant"
     default SENSORARRAY_ADS1262
-    help
-        ADS1262: ADC1 only.
-        ADS1263: ADC1 + ADC2 (aux ADC2 registers exist).
 config SENSORARRAY_ADS1262
     bool "ADS1262 (ADC1 only)"
 config SENSORARRAY_ADS1263
     bool "ADS1263 (ADC1 + ADC2)"
 endchoice
 
-menu "Bring-up FDC mapping"
-    help
-        Bring-up defaults for dual-FDC2214 topology:
-        D1..D4 on primary bus (ADDR high), D5..D8 on secondary bus (ADDR low).
+menu "FDC2214 matrix"
 
 config SENSORARRAY_FDC_PRIMARY_I2C_ADDR
     hex "Primary FDC I2C address (D1..D4)"
     default 0x2B
-    help
-        Expected ADDR-high device for D1..D4 bank.
 
 config SENSORARRAY_FDC_SECONDARY_I2C_ADDR
     hex "Secondary FDC I2C address (D5..D8)"
     default 0x2A
-    help
-        Expected ADDR-low device for D5..D8 bank.
 
 config SENSORARRAY_FDC_STARTUP_PROBE
     bool "Probe FDC addresses on startup"
     default y
-    help
-        Probe 0x2A/0x2B on each configured FDC bus and emit compact bring-up logs.
 
 config SENSORARRAY_FDC_TANK_INDUCTOR_UH
-    int "Tank inductor value for FDC conversion (uH, 0=unknown)"
+    int "Tank inductor value for optional conversion (uH, 0=unknown)"
     default 0
     range 0 1000000
-    help
-        Used for optional capacitance conversion in FDC debug logs.
-        When set to 0, logs still report raw/frequency and mark capPf as unavailable.
 
 config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
     bool "Use external 40MHz CLKIN for FDC2214"
     default y
-    help
-        Select the FDC2214/FDC2212 external CLKIN controller clock.
-        The board must provide a valid clock on the FDC CLKIN pin; this firmware
-        does not generate that clock.
 
 config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL_VALUE
     int
@@ -68,14 +49,28 @@ config SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ
     int "FDC external CLKIN frequency Hz"
     default 40000000
     range 2000000 40000000
+
+config SENSORARRAY_FDC_MATRIX_PERIOD_MS
+    int "Default FDC matrix frame period (ms)"
+    default 250
+    range 10 10000
     help
-        External FDC CLKIN frequency. FDC221x supports 2 MHz to 40 MHz.
+        Default printf output emits one 64-point MATRIXFDC line per frame, so
+        this is intentionally conservative for serial monitor readability.
+
+config SENSORARRAY_FDC_MATRIX_SETTLE_US
+    int "Settle time after row/path switching (us)"
+    default 1000
+    range 0 100000
+
+config SENSORARRAY_FDC_MATRIX_DISCARD_SAMPLES
+    int "Discarded sample groups after each row switch"
+    default 1
+    range 0 8
+
 endmenu
 
-menu "Multi-core scheduling (FreeRTOS SMP)"
-    help
-        Pin high-rate scan tasks to a dedicated core.
-        ESP-IDF supports xTaskCreatePinnedToCore().
+menu "Scheduling"
 
 config SENSORARRAY_SCAN_TASK_CORE
     int "Scan task core id (0 or 1)"
@@ -83,7 +78,7 @@ config SENSORARRAY_SCAN_TASK_CORE
     range 0 1
 
 config SENSORARRAY_COMM_TASK_CORE
-    int "Comm/stream task core id (0 or 1)"
+    int "Comm task core id (0 or 1)"
     default 0
     range 0 1
 
@@ -93,15 +88,12 @@ config SENSORARRAY_BLE_TASK_CORE
     range 0 1
     depends on SENSORARRAY_ENABLE_BLE
 
-endmenu
-
-menu "Task resources"
 config SENSORARRAY_SCAN_TASK_STACK
-    int "Debug/scan task stack bytes"
+    int "Scan task stack bytes"
     default 8192
 
 config SENSORARRAY_SCAN_TASK_PRIO
-    int "Debug/scan task priority"
+    int "Scan task priority"
     default 12
 
 config SENSORARRAY_COMM_TASK_STACK
@@ -111,22 +103,23 @@ config SENSORARRAY_COMM_TASK_STACK
 config SENSORARRAY_COMM_TASK_PRIO
     int "Comm task priority"
     default 8
+
 endmenu
 
 menu "SPI DMA (ADS126x)"
+
 config SENSORARRAY_SPI_USE_DMA
     bool "Enable SPI DMA where possible"
     default y
-    help
-        If enabled, SPI transfers should use DMA-capable buffers (MALLOC_CAP_DMA),
-        32-bit aligned, and length multiples of 4 for best efficiency.
 
 config SENSORARRAY_SPI_MAX_TRANSFER_BYTES
     int "SPI max transfer size (bytes)"
     default 64
+
 endmenu
 
 menu "Matrix defaults"
+
 config SENSORARRAY_MATRIX_ROWS
     int "Matrix rows"
     default 8
@@ -137,682 +130,20 @@ config SENSORARRAY_MATRIX_COLS
 
 config SENSORARRAY_FRAME_PERIOD_MS
     int "Target frame period (ms)"
-    default 50
+    default SENSORARRAY_FDC_MATRIX_PERIOD_MS
 
 config SENSORARRAY_OVERSAMPLE
     int "Oversample count per point"
-    default 2
-endmenu
-
-menu "Debug routing and self-test"
-    help
-        Deterministic debug workflows for matrix routing and ADS/FDC validation.
-
-choice SENSORARRAY_DEBUG_MODE
-    prompt "Debug execution mode"
-    default SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-config SENSORARRAY_DEBUG_MODE_ROUTE_IDLE
-    bool "ROUTE_IDLE"
-    help
-        Initialize hardware then idle forever without touching routes again.
-config SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-    bool "ROUTE_FIXED_STATE"
-    help
-        Apply one explicit route (S/D/path/SW/SEL levels) and hold it for probing.
-config SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE
-    bool "ROUTE_STEP_ONCE"
-    help
-        Step through the route map once then stop.
-config SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
-    bool "ROUTE_SCAN_LOOP"
-    help
-        Continuously run the bring-up scan loop.
-config SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-    bool "ADS_SELFTEST"
-    help
-        Run ADS-only deterministic self-test with explicit register/mux sequencing.
-config SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
-    bool "FDC_SELFTEST"
-    help
-        Run FDC-only deterministic self-test on one mapped D line.
-config SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
-    bool "S1D1_RESISTOR_DEBUG"
-    help
-        Dedicated single-point resistor debug mode for S1D1 on ADS path only.
-config SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    bool "S5D5_CAP_FDC_SECONDARY"
-    help
-        Lock the matrix to S5D5 capacitive route and stream samples from the
-        secondary FDC2214 (D5 -> secondary, CH0). This mode is intended for
-        SELB / secondary FDC2214 single-point debug only.
-config SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
-    bool "FDC_I2C_DISCOVERY"
-    help
-        Continuous FDC I2C discovery mode. Probes both buses (SDA/SCL:
-        9/10 and 11/12) and both candidate addresses (0x2A/0x2B) every cycle,
-        then prints per-candidate ACK/ID status plus one summary line.
-endchoice
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_S_COLUMN
-    int "Single-cap debug S column"
-    default 5
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Default target is S5 for S5D5 / SELB / secondary FDC2214 debug.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_D_LINE
-    int "Single-cap debug D line"
-    default 5
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Default target is D5, which must map to secondary FDC2214 CH0.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOOP_DELAY_MS
-    int "Single-cap debug loop delay (ms)"
-    default 1000
-    range 50 10000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Delay between secondary FDC2214 sample bursts while S5D5 route stays locked.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_START_DELAY_MS
-    int "Single-cap debug startup delay before first sweep (ms)"
-    default 500
-    range 0 10000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Delay after boot before the first S5D5 sweep. Useful for stable capture setup.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_DISCARD_FIRST
-    bool "Single-cap debug: discard first sample"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Discard the first FDC2214 sample in each loop before reporting final data.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SAMPLE_COUNT
-    int "Single-cap debug: sample count per loop"
     default 1
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Small burst size for S5D5 / secondary FDC2214 sample logging.
 
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_SWEEP_SAMPLE_COUNT
-    int "Single-cap debug: sweep sample count per candidate"
-    default 6
-    range 1 64
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Number of relaxed samples collected for each (high-current, drive-current) candidate.
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
-    bool "S5D5 cap debug: run one safe full sweep at boot"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_BOOT_FULL_SWEEP_ENABLE
-    bool "S5D5 cap debug: enable bounded boot full sweep"
-    default SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_ENABLE
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_ENABLE_BOOT_BASELINE_READ
-    bool "S5D5 cap debug: enable boot baseline read before sweep"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_NORMAL_SWEEP
-    bool "S5D5 cap debug: run normal FDC sweep"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_SWEEP_TRACE
-    bool "S5D5 debug: trace normal sweep stages"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_VERBOSE_SAMPLES
-    bool "S5D5 debug: print every locked sample"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_SWEEP_SAMPLE_GAP_MS
-    int "S5D5 sweep/locked short poll gap in ms"
-    default 4
-    range 0 100
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Short cooperative delay used between locked samples and as the upper
-        bound for unread polling. 0 disables the extra between-sample delay.
-
-config SENSORARRAY_DEBUG_S5D5_SWEEP_STEP_TIMEOUT_MS
-    int "S5D5 sweep per-step timeout in ms"
-    default 500
-    range 1 30000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_SWEEP_TOTAL_TIMEOUT_MS
-    int "S5D5 total sweep timeout in ms"
+config SENSORARRAY_MEASURE_LOCK_TIMEOUT_MS
+    int "Measurement lock timeout (ms)"
     default 5000
-    range 1 120000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    range 1 60000
 
-config SENSORARRAY_DEBUG_S5D5_FORCE_DIRECT_10MHZ_LOCK
-    bool "S5D5 cap debug: directly lock 10MHz profile before any sweep"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_DISABLE_ALL_SWEEP_AND_BASELINE
-    bool "S5D5 cap debug: disable all sweep/baseline and only run fixed 10MHz locked sample"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_FALLBACK
-    bool "S5D5 cap debug: fall back to direct 10MHz lock after sweep failure"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_I2C_RECOVER_ON_TIMEOUT
-    bool "S5D5 cap debug: recover I2C bus after timeout"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_MINIMAL_LOG
-    bool "S5D5 cap debug: minimal log for hang localisation"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_I2C_TRACE
-    bool "S5D5 debug: trace slow/error I2C and raw FDC register ops"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_ROUTE_FREEZE_ONLY
-    bool "S5D5 route freeze only diagnostic"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Apply the S5D5 capacitive/FDC route, hold it for a bounded interval,
-        then return without FDC configuration, sweep, or sample loop.
-
-config SENSORARRAY_DEBUG_S5D5_ROUTE_FREEZE_MS
-    int "S5D5 route freeze time in ms"
-    default 10000
-    range 1 120000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_ENABLE
-    bool "S5D5 visible drive-current sweep diagnostic"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Alternate CH0 drive current between visible low/high settings after
-        the direct 10MHz profile is configured.
-
-config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_SWEEP
-    bool "S5D5 visible drive-current sweep diagnostic (legacy alias)"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_TIMEOUT_MS
-    int "S5D5 direct-lock configuration timeout (ms)"
-    default 2000
-    range 1 30000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_LOCKED_LOOP_TIMEOUT_MS
-    int "S5D5 locked sample loop total timeout (ms)"
-    default 0
-    range 0 3600000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        0 keeps the locked observation loop running indefinitely.
-
-config SENSORARRAY_DEBUG_S5D5_MAX_RESWEEP_COUNT
-    int "S5D5 max runtime relock/resweep attempts"
-    default 0
-    range 0 1000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        0 allows unlimited runtime relock/resweep attempts.
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
-    int "S5D5 cap debug: boot full sweep total time budget in ms"
-    default 30000
-    range 3000 120000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_BOOT_SWEEP_BUDGET_MS
-    int "S5D5 cap debug: bounded boot sweep total time budget in ms"
-    default SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
-    range 3000 120000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FAST_SETTLE_MS
-    int "S5D5 cap debug: boot full sweep first-pass settle ms"
-    default 5
-    range 0 500
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SETTLE_MS
-    int "S5D5 cap debug: boot full sweep top-candidate verify settle ms"
-    default 8
-    range 0 800
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FIRST_PASS_SAMPLES
-    int "S5D5 cap debug: boot full sweep first-pass samples per candidate"
-    default 6
-    range 2 6
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SAMPLES
-    int "S5D5 cap debug: boot full sweep verify samples per candidate"
-    default 6
-    range 2 6
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TOP_VERIFY_COUNT
-    int "S5D5 cap debug: boot full sweep number of top profiles to verify"
-    default 3
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_BASELINE_SAMPLE_COUNT
-    int "S5D5 cap debug: baseline samples before boot sweep"
-    default 3
-    range 1 16
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_SKIP_BELOW_BASELINE_DEGLITCH
-    bool "S5D5 cap debug: skip deglitch bandwidth below baseline frequency"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_S5D5_FALLBACK_DEGLITCH_10MHZ
-    bool "S5D5 cap debug: force 10MHz deglitch for safe fallback"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SETTLE_MS
-    int "S5D5 cap debug: runtime fast sweep settle ms"
-    default 4
-    range 0 300
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SAMPLES
-    int "S5D5 cap debug: runtime fast sweep samples per candidate"
-    default 6
-    range 2 6
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SETTLE_MS
-    int "S5D5 cap debug: runtime medium sweep settle ms"
-    default 6
-    range 0 500
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SAMPLES
-    int "S5D5 cap debug: runtime medium sweep samples per candidate"
-    default 6
-    range 2 6
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_ABS_HZ
-    int "S5D5 cap debug: absolute frequency jump threshold for relock"
-    default 500000
-    range 10000 5000000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_REL_PERMILLE
-    int "S5D5 cap debug: relative frequency jump threshold in permille"
-    default 100
-    range 1 1000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_JUMP_STREAK
-    int "S5D5 cap debug: consecutive large jumps before relock"
-    default 3
-    range 1 20
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_COOLDOWN_SAMPLES
-    int "S5D5 cap debug: minimum samples between relocks"
-    default 100
-    range 0 10000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_FULL_SWEEP_COOLDOWN_MS
-    int "S5D5 cap debug: minimum ms between runtime full sweeps"
-    default 5000
-    range 0 120000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_GOOD_ANCHOR_ALPHA_PERMILLE
-    int "S5D5 cap debug: frequency anchor update alpha for good samples"
-    default 20
-    range 0 1000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCKED_SAMPLE_COUNT
-    int "Single-cap debug: locked sample count per burst"
-    default 12
-    range 1 256
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Number of samples emitted in each locked read burst before loop delay.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
-    int "Single-cap debug: unread poll timeout (ms)"
-    default 200
-    range 1 10000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Timeout while polling STATUS unread/data-ready before each locked sample read.
-
-config SENSORARRAY_DEBUG_S5D5_UNREAD_POLL_TIMEOUT_MS
-    int "S5D5 cap debug: unread poll timeout (ms)"
-    default SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_TIMEOUT_MS
-    range 1 10000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Per-sample hard deadline for baseline, sweep candidates, and locked samples.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_INTERVAL_MS
-    int "Single-cap debug: unread poll interval (ms)"
-    default 2
-    range 1 1000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Poll interval used while waiting for unread/data-ready in locked mode.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_RECOVERY_REINIT_ERR_THRESHOLD
-    int "Single-cap debug: recovery reinit streak threshold"
-    default 3
-    range 1 32
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Consecutive fault threshold for triggering recovery reinit.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_LOCK_REQUIRE_MIN_SCORE
-    int "Single-cap debug: minimum sweep score to lock"
-    default 40
-    range -500 500
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Candidates below this score are logged but not locked.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_CAP_COMPUTATION
-    bool "Single-cap debug: enable LC capacitance computation"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        When enabled, compute total capacitance from frequency using LC resonance formula.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_NET_CAP_OUTPUT
-    bool "Single-cap debug: output net capacitance (total-fixed-parasitic)"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY && SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_ENABLE_CAP_COMPUTATION
-    help
-        When enabled, logs include net capacitance after subtracting fixed and parasitic terms.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_INDUCTOR_UH
-    int "Single-cap debug: tank inductor value (uH)"
-    default 18
-    range 0 1000000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        S5D5 LC tank inductor used for total capacitance computation.
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_FIXED_CAP_PF
-    int "Single-cap debug: fixed capacitor value (pF)"
-    default 33
-    range 0 1000000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Fixed capacitor in the resonant network (for net capacitance output only).
-
-config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_PARASITIC_CAP_PF
-    int "Single-cap debug: parasitic capacitance compensation (pF)"
-    default 0
-    range -1000000 1000000
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-    help
-        Board/mux/wiring parasitic compensation term used for net capacitance output.
-
-config SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-    bool "Enable S5D5 debug stage pins"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
-
-config SENSORARRAY_DEBUG_STAGE_BIT0_GPIO
-    int "S5D5 stage bit0 GPIO"
-    default 39
-    range 0 48
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-config SENSORARRAY_DEBUG_STAGE_BIT1_GPIO
-    int "S5D5 stage bit1 GPIO"
-    default 40
-    range 0 48
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-config SENSORARRAY_DEBUG_STAGE_BIT2_GPIO
-    int "S5D5 stage bit2 GPIO"
-    default 41
-    range 0 48
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-config SENSORARRAY_DEBUG_HEARTBEAT_GPIO
-    int "S5D5 heartbeat GPIO"
-    default 42
-    range 0 48
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-config SENSORARRAY_DEBUG_S5D5_HARDWARE_HEARTBEAT
-    bool "S5D5 debug: use hardware heartbeat on IO42"
-    default y
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-config SENSORARRAY_DEBUG_S5D5_KEEP_LAST_STAGE
-    bool "S5D5 debug: keep last stage on IO39-IO41"
-    default y
-    depends on SENSORARRAY_DEBUG_STAGE_PINS_ENABLE
-
-choice SENSORARRAY_DEBUG_S1D1_BEHAVIOR
-    prompt "S1D1 resistor debug behavior"
-    default SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY
-    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR
-config SENSORARRAY_DEBUG_S1D1_ROUTE_ONLY
-    bool "ROUTE_ONLY"
-    help
-        Apply S1D1 resistor route once, log control state, then hold forever.
-config SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
-    bool "ROUTE_AND_ADS_READ"
-    help
-        Apply S1D1 resistor route once, then read ADS D1 periodically.
-endchoice
-
-config SENSORARRAY_DEBUG_S1D1_ADS_INTERVAL_MS
-    int "S1D1 ADS loop interval (ms)"
-    default 1000
-    range 100 10000
-    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
-
-config SENSORARRAY_DEBUG_S1D1_ADS_DISCARD_FIRST
-    bool "S1D1 ADS helper: discard first sample"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR && SENSORARRAY_DEBUG_S1D1_ROUTE_AND_ADS_READ
-
-config SENSORARRAY_DEBUG_ROUTE_STEP_DELAY_MS
-    int "Route step delay (ms)"
-    default 2
-    range 0 5000
-    help
-        Delay applied between ROW/SELA/SELB/SW operations in debug helpers.
-
-config SENSORARRAY_DEBUG_FIXED_HOLD_FOREVER
-    bool "Fixed route: hold final state forever"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_FIXED_HOLD_MS
-    int "Fixed route: hold delay when not forever (ms)"
-    default 0
-    range 0 3600000
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_FIXED_S_COLUMN
-    int "Fixed route S column (1..8)"
-    default 1
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_FIXED_D_LINE
-    int "Fixed route D line (1..8)"
-    default 1
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-choice SENSORARRAY_DEBUG_FIXED_PATH
-    prompt "Fixed route path type"
-    default SENSORARRAY_DEBUG_FIXED_PATH_RESISTIVE
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-config SENSORARRAY_DEBUG_FIXED_PATH_RESISTIVE
-    bool "Resistive branch"
-config SENSORARRAY_DEBUG_FIXED_PATH_CAPACITIVE
-    bool "Capacitive branch"
-config SENSORARRAY_DEBUG_FIXED_PATH_VOLTAGE
-    bool "Voltage branch"
-endchoice
-
-choice SENSORARRAY_DEBUG_FIXED_SW_SOURCE
-    prompt "Fixed route SW source"
-    default SENSORARRAY_DEBUG_FIXED_SW_SOURCE_GND
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-config SENSORARRAY_DEBUG_FIXED_SW_SOURCE_GND
-    bool "SW -> GND source"
-config SENSORARRAY_DEBUG_FIXED_SW_SOURCE_REF
-    bool "SW -> REF source"
-endchoice
-
-config SENSORARRAY_DEBUG_FIXED_SELA_LEVEL
-    bool "Fixed route SELA logic level (raw GPIO: n=0, y=1)"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-    help
-        Raw SELA GPIO level for manual route probing.
-        Current board polarity is GPIO 0 -> ADS1263 and GPIO 1 -> FDC2214.
-
-config SENSORARRAY_DEBUG_FIXED_SELB_LEVEL
-    bool "Fixed route SELB logic level (n=0, y=1)"
-    default n
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_FIXED_SKIP_ADS_READ
-    bool "Fixed route: skip ADS read"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_FIXED_SKIP_FDC_READ
-    bool "Fixed route: skip FDC read"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE
-
-config SENSORARRAY_DEBUG_SCAN_LOOP_DELAY_MS
-    int "Route scan loop delay (ms)"
-    default 250
-    range 0 5000
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP
-
-config SENSORARRAY_DEBUG_STEP_ONCE_DELAY_MS
-    int "Route step-once delay between entries (ms)"
-    default 50
-    range 0 5000
-    depends on SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE
-
-config SENSORARRAY_DEBUG_ADS_FORCE_MUXP
-    int "ADS self-test muxp nibble"
-    default 7
-    range 0 15
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_FORCE_MUXN
-    int "ADS self-test muxn nibble"
-    default 10
-    range 0 15
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_FORCE_REFMUX
-    hex "ADS self-test REFMUX raw value"
-    default 0x00
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_STOP1_BEFORE_MUX
-    bool "ADS self-test: STOP1 before INPMUX write"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_SETTLE_AFTER_MUX_MS
-    int "ADS self-test: settle delay after INPMUX write (ms)"
-    default 2
-    range 0 5000
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_START1_BEFORE_READ
-    bool "ADS self-test: START1 before read sequence"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_DISCARD_COUNT
-    int "ADS self-test: discard sample count"
-    default 1
-    range 0 32
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_READ_RETRY_COUNT
-    int "ADS self-test: read retry count"
-    default 1
-    range 0 16
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_ADS_SAMPLE_COUNT
-    int "ADS self-test: number of final samples"
-    default 1
-    range 1 64
-    depends on SENSORARRAY_DEBUG_MODE_ADS_SELFTEST
-
-config SENSORARRAY_DEBUG_FDC_D_LINE
-    int "FDC self-test D line (1..8)"
-    default 5
-    range 1 8
-    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
-
-config SENSORARRAY_DEBUG_FDC_DISCARD_FIRST
-    bool "FDC self-test: discard first sample"
-    default y
-    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
-
-config SENSORARRAY_DEBUG_FDC_SAMPLE_COUNT
-    int "FDC self-test: sample count"
-    default 1
-    range 1 64
-    depends on SENSORARRAY_DEBUG_MODE_FDC_SELFTEST
-
-config SENSORARRAY_DEBUG_FDC_I2C_DISCOVERY_LOOP_DELAY_MS
-    int "FDC I2C discovery: loop interval (ms)"
-    default 1000
-    range 100 10000
-    depends on SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY
-    help
-        Delay between complete 2-bus x 2-address probe cycles.
 endmenu
 
 menu "ADS read sequencing policy"
-    help
-        Runtime policy used by sensorarrayReadAdsUv() in route workflows.
 
 config SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX
     bool "Call STOP1 before INPMUX change"
@@ -836,6 +167,15 @@ config SENSORARRAY_ADS_READ_RETRY_COUNT
     int "Retry count on timeout/error"
     default 0
     range 0 16
+
+endmenu
+
+menu "I2C recovery"
+
+config SENSORARRAY_I2C_RECOVER_ON_TIMEOUT
+    bool "Recover I2C bus after timeout when pins look stuck"
+    default n
+
 endmenu
 
 endmenu

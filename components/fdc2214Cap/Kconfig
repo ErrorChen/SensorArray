@@ -18,22 +18,29 @@ config FDC2214CAP_MUTEX_TIMEOUT_MS
     help
         Finite timeout for internal driver mutex lock. Prevents indefinite waits.
 
-config SENSORARRAY_DEBUG_S5D5_LOW_LEVEL_I2C_TRACE
-    bool "S5D5 cap debug: trace every low-level FDC I2C transaction"
+config FDC2214CAP_LOW_LEVEL_I2C_TRACE
+    bool "Trace every low-level FDC I2C transaction"
     default n
     depends on FDC2214CAP_ENABLE
     help
         Verbose printf trace for every FDC2214 I2C transaction. Keep disabled
-        for normal S5D5 debug because it can saturate the serial monitor.
+        for normal matrix reads because it can saturate the serial monitor.
+
+config FDC2214CAP_RAW_I2C_TRACE
+    bool "Trace raw FDC2214 register reads/writes"
+    default n
+    depends on FDC2214CAP_ENABLE
+    help
+        Optional raw register trace for driver diagnostics only.
 
 config FDC2214CAP_I2C_ADDR
     hex "I2C address (0x2A or 0x2B)"
     default 0x2A
 
 config FDC2214CAP_CHANNELS
-    int "Number of channels used (1 or 2)"
-    default 2
-    range 1 2
+    int "Number of channels used (1..4)"
+    default 4
+    range 1 4
 
 
 endmenu

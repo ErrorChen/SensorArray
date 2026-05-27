@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -31,10 +32,26 @@ typedef enum {
 } sensorarraySelaRoute_t;
 
 typedef enum {
-    SENSORARRAY_DEBUG_PATH_RESISTIVE = 0,
-    SENSORARRAY_DEBUG_PATH_CAPACITIVE,
-    SENSORARRAY_DEBUG_PATH_VOLTAGE,
-} sensorarrayDebugPath_t;
+    SENSORARRAY_ROUTE_PATH_RESISTIVE = 0,
+    SENSORARRAY_ROUTE_PATH_CAPACITIVE,
+    SENSORARRAY_ROUTE_PATH_VOLTAGE,
+} sensorarrayRoutePathKind_t;
+
+#define SENSORARRAY_MATRIX_ROWS 8u
+#define SENSORARRAY_MATRIX_COLS 8u
+#define SENSORARRAY_MATRIX_CELL_COUNT (SENSORARRAY_MATRIX_ROWS * SENSORARRAY_MATRIX_COLS)
+
+static inline size_t sensorarrayMatrixIndex(uint8_t sIndex, uint8_t dIndex)
+{
+    return ((size_t)(sIndex - 1U) * SENSORARRAY_MATRIX_COLS) + (size_t)(dIndex - 1U);
+}
+
+static inline bool sensorarrayMatrixIndexIsValid(uint8_t sIndex, uint8_t dIndex)
+{
+    return sIndex >= 1U && sIndex <= SENSORARRAY_MATRIX_ROWS &&
+           dIndex >= 1U && dIndex <= SENSORARRAY_MATRIX_COLS &&
+           sensorarrayMatrixIndex(sIndex, dIndex) < SENSORARRAY_MATRIX_CELL_COUNT;
+}
 
 typedef enum {
     SENSORARRAY_MATRIX_D_SOURCE_GND = 0,
@@ -54,16 +71,17 @@ typedef enum {
 } sensorarrayAdsVbiasPolicy_t;
 
 typedef enum {
-    SENSORARRAY_DEBUG_MODE_ROUTE_IDLE = 0,
-    SENSORARRAY_DEBUG_MODE_ROUTE_FIXED_STATE,
-    SENSORARRAY_DEBUG_MODE_ROUTE_STEP_ONCE,
-    SENSORARRAY_DEBUG_MODE_ROUTE_SCAN_LOOP,
-    SENSORARRAY_DEBUG_MODE_ADS_SELFTEST,
-    SENSORARRAY_DEBUG_MODE_FDC_SELFTEST,
-    SENSORARRAY_DEBUG_MODE_S1D1_RESISTOR,
-    SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY,
-    SENSORARRAY_DEBUG_MODE_FDC_I2C_DISCOVERY,
-} sensorarrayDebugMode_t;
+    SENSORARRAY_SW_PHYSICAL_LOW = 0,
+    SENSORARRAY_SW_PHYSICAL_HIGH = 1,
+} sensorarraySwPhysicalLevel_t;
+
+typedef struct {
+    uint64_t timestampUs;
+    uint32_t sequence;
+    uint32_t raw28[SENSORARRAY_MATRIX_CELL_COUNT];
+    uint64_t validMask;
+    uint64_t errorMask;
+} sensorarrayFdcMatrixFrame_t;
 
 typedef struct {
     uint8_t sColumn;
@@ -81,24 +99,6 @@ typedef struct {
     uint8_t baseDiscardCount;
     uint8_t readRetryCount;
 } sensorarrayAdsReadPolicy_t;
-
-typedef struct {
-    uint8_t sColumn;
-    uint8_t dLine;
-    sensorarrayDebugPath_t path;
-    tmux1108Source_t swSource;
-    sensorarraySelaRoute_t selaRoute; // Logical SELA target path; GPIO level is derived centrally.
-    bool selBLevel;
-    bool skipAdsRead;
-    bool skipFdcRead;
-    uint32_t delayAfterRowMs;
-    uint32_t delayAfterSelAMs;
-    uint32_t delayAfterSelBMs;
-    uint32_t delayAfterSwMs;
-    bool holdForever;
-    uint32_t holdMs;
-    const char *label;
-} sensorarrayDebugFixedRoute_t;
 
 typedef struct {
     uint8_t dLine;
