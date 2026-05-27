@@ -396,15 +396,20 @@ static TickType_t sensorarrayS5d5MsToTicksAtLeastOne(uint32_t delayMs)
     return (ticks == 0u) ? 1u : ticks;
 }
 
+static void sensorarrayS5d5FeedTaskWdtIfSubscribed(void)
+{
+#if CONFIG_ESP_TASK_WDT_EN
+    esp_err_t status = esp_task_wdt_status(NULL);
+    if (status == ESP_OK) {
+        (void)esp_task_wdt_reset();
+    }
+#endif
+}
+
 static void sensorarrayS5d5ServiceScheduler(void)
 {
     sensorarrayDebugPinsHeartbeatMaybe(500u);
-#if CONFIG_ESP_TASK_WDT_EN
-    esp_err_t wdtErr = esp_task_wdt_reset();
-    if (wdtErr != ESP_OK && wdtErr != ESP_ERR_NOT_FOUND) {
-        (void)wdtErr;
-    }
-#endif
+    sensorarrayS5d5FeedTaskWdtIfSubscribed();
     vTaskDelay(sensorarrayS5d5MsToTicksAtLeastOne(1u));
 }
 
