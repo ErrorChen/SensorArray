@@ -194,12 +194,21 @@ esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSle
 
 // Read and decode STATUS register.
 esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
+// Clear latched STATUS/DATA error flags by reading STATUS and all DATA registers.
+esp_err_t Fdc2214CapClearStatus(Fdc2214CapDevice_t* dev);
 // Read key core registers used for diagnostics.
 esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs);
 // Read CLOCK_DIVIDERS_CHx for the requested channel.
 esp_err_t Fdc2214CapReadClockDividers(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t ch,
                                       uint16_t* outClockDividers);
+// Write/read DRIVE_CURRENT_CHx, masking to effective CHx_IDRIVE bits.
+esp_err_t Fdc2214CapWriteDriveCurrent(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      uint16_t driveCurrent);
+esp_err_t Fdc2214CapReadDriveCurrent(Fdc2214CapDevice_t* dev,
+                                     Fdc2214CapChannel_t ch,
+                                     uint16_t* outDriveCurrent);
 // Read one structured debug snapshot (core regs + CH0 config regs + DATA_CHx with decoded status fields).
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t dataChannel,
@@ -224,6 +233,10 @@ esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, 
 esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
                                       Fdc2214CapChannel_t ch,
                                       Fdc2214CapSample_t* outSample);
+// Read one channel's raw conversion and decoded status/error flags in one sample structure.
+esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev,
+                                             Fdc2214CapChannel_t ch,
+                                             Fdc2214CapSample_t* outSample);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

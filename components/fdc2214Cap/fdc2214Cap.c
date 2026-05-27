@@ -666,6 +666,30 @@ esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outS
     return ESP_OK;
 }
 
+esp_err_t Fdc2214CapClearStatus(Fdc2214CapDevice_t* dev)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t throwaway = 0U;
+    esp_err_t firstErr = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &throwaway);
+    for (uint8_t ch = 0U; ch < 4U; ++ch) {
+        uint8_t dataReg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, (Fdc2214CapChannel_t)ch);
+        uint16_t msb = 0U;
+        uint16_t lsb = 0U;
+        esp_err_t err = Fdc2214CapReadReg16(dev, dataReg, &msb);
+        if (err != ESP_OK && firstErr == ESP_OK) {
+            firstErr = err;
+        }
+        err = Fdc2214CapReadReg16(dev, (uint8_t)(dataReg + 1U), &lsb);
+        if (err != ESP_OK && firstErr == ESP_OK) {
+            firstErr = err;
+        }
+    }
+    return firstErr;
+}
+
 esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs)
 {
     if (!dev || !outRegs) {
@@ -705,6 +729,54 @@ esp_err_t Fdc2214CapReadClockDividers(Fdc2214CapDevice_t* dev,
         return ESP_ERR_INVALID_ARG;
     }
     return Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), outClockDividers);
+}
+
+esp_err_t Fdc2214CapWriteDriveCurrent(Fdc2214CapDevice_t* dev,
+                                      Fdc2214CapChannel_t ch,
+                                      uint16_t driveCurrent)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool maskedMatch = true;
+    uint16_t readback = 0U;
+    uint16_t normalized = Fdc2214CapNormalizeDriveCurrent(driveCurrent);
+    esp_err_t err = Fdc2214CapWriteReg16VerifyWithMask(dev,
+                                                       Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
+                                                       normalized,
+                                                       FDC2214_DRIVE_CURRENT_MASK,
+                                                       true,
+                                                       "DRIVE_CURRENT",
+                                                       &maskedMatch,
+                                                       &readback);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return maskedMatch ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+}
+
+esp_err_t Fdc2214CapReadDriveCurrent(Fdc2214CapDevice_t* dev,
+                                     Fdc2214CapChannel_t ch,
+                                     uint16_t* outDriveCurrent)
+{
+    if (!dev || !outDriveCurrent) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t raw = 0U;
+    esp_err_t err = Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), &raw);
+    if (err != ESP_OK) {
+        return err;
+    }
+    *outDriveCurrent = Fdc2214CapNormalizeDriveCurrent(raw);
+    return ESP_OK;
 }
 
 esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
@@ -1238,6 +1310,13 @@ esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev,
                  outSample ? (unsigned long)outSample->Raw28 : 0ul,
                  outSample ? (unsigned)outSample->SampleStatus : 0u);
     return err;
+}
+
+esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev,
+                                             Fdc2214CapChannel_t ch,
+                                             Fdc2214CapSample_t* outSample)
+{
+    return Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
 }
 
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)

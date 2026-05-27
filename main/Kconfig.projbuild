@@ -270,8 +270,22 @@ config SENSORARRAY_DEBUG_S5D5_NORMAL_SWEEP
 
 config SENSORARRAY_DEBUG_S5D5_SWEEP_TRACE
     bool "S5D5 debug: trace normal sweep stages"
-    default y
+    default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_VERBOSE_SAMPLES
+    bool "S5D5 debug: print every locked sample"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+
+config SENSORARRAY_DEBUG_S5D5_SWEEP_SAMPLE_GAP_MS
+    int "S5D5 sweep/locked short poll gap in ms"
+    default 4
+    range 0 100
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        Short cooperative delay used between locked samples and as the upper
+        bound for unread polling. 0 disables the extra between-sample delay.
 
 config SENSORARRAY_DEBUG_S5D5_SWEEP_STEP_TIMEOUT_MS
     int "S5D5 sweep per-step timeout in ms"
@@ -329,13 +343,18 @@ config SENSORARRAY_DEBUG_S5D5_ROUTE_FREEZE_MS
     range 1 120000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
-config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_SWEEP
+config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_ENABLE
     bool "S5D5 visible drive-current sweep diagnostic"
     default n
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
         Alternate CH0 drive current between visible low/high settings after
         the direct 10MHz profile is configured.
+
+config SENSORARRAY_DEBUG_S5D5_VISIBLE_DRIVE_SWEEP
+    bool "S5D5 visible drive-current sweep diagnostic (legacy alias)"
+    default n
+    depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_TIMEOUT_MS
     int "S5D5 direct-lock configuration timeout (ms)"
@@ -345,15 +364,19 @@ config SENSORARRAY_DEBUG_S5D5_DIRECT_LOCK_TIMEOUT_MS
 
 config SENSORARRAY_DEBUG_S5D5_LOCKED_LOOP_TIMEOUT_MS
     int "S5D5 locked sample loop total timeout (ms)"
-    default 60000
-    range 1 3600000
+    default 0
+    range 0 3600000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        0 keeps the locked observation loop running indefinitely.
 
 config SENSORARRAY_DEBUG_S5D5_MAX_RESWEEP_COUNT
     int "S5D5 max runtime relock/resweep attempts"
-    default 1
-    range 0 8
+    default 0
+    range 0 1000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
+    help
+        0 allows unlimited runtime relock/resweep attempts.
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TIME_BUDGET_MS
     int "S5D5 cap debug: boot full sweep total time budget in ms"
@@ -369,26 +392,26 @@ config SENSORARRAY_DEBUG_S5D5_BOOT_SWEEP_BUDGET_MS
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FAST_SETTLE_MS
     int "S5D5 cap debug: boot full sweep first-pass settle ms"
-    default 120
-    range 20 500
+    default 5
+    range 0 500
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SETTLE_MS
     int "S5D5 cap debug: boot full sweep top-candidate verify settle ms"
-    default 180
-    range 20 800
+    default 8
+    range 0 800
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_FIRST_PASS_SAMPLES
     int "S5D5 cap debug: boot full sweep first-pass samples per candidate"
-    default 3
-    range 1 8
+    default 6
+    range 2 6
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_VERIFY_SAMPLES
     int "S5D5 cap debug: boot full sweep verify samples per candidate"
     default 6
-    range 2 12
+    range 2 6
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_BOOT_FULL_SWEEP_TOP_VERIFY_COUNT
@@ -415,26 +438,26 @@ config SENSORARRAY_DEBUG_S5D5_FALLBACK_DEGLITCH_10MHZ
 
 config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SETTLE_MS
     int "S5D5 cap debug: runtime fast sweep settle ms"
-    default 50
-    range 10 300
+    default 4
+    range 0 300
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_FAST_SWEEP_SAMPLES
     int "S5D5 cap debug: runtime fast sweep samples per candidate"
-    default 3
-    range 1 8
+    default 6
+    range 2 6
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SETTLE_MS
     int "S5D5 cap debug: runtime medium sweep settle ms"
-    default 100
-    range 20 500
+    default 6
+    range 0 500
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_MEDIUM_SWEEP_SAMPLES
     int "S5D5 cap debug: runtime medium sweep samples per candidate"
-    default 3
-    range 1 8
+    default 6
+    range 2 6
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
 config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_ABS_HZ
@@ -445,7 +468,7 @@ config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_ABS_HZ
 
 config SENSORARRAY_DEBUG_CAP_FDC_RELOCK_FREQ_JUMP_REL_PERMILLE
     int "S5D5 cap debug: relative frequency jump threshold in permille"
-    default 150
+    default 100
     range 1 1000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
 
@@ -499,7 +522,7 @@ config SENSORARRAY_DEBUG_S5D5_UNREAD_POLL_TIMEOUT_MS
 
 config SENSORARRAY_DEBUG_CAP_FDC_SECONDARY_UNREAD_POLL_INTERVAL_MS
     int "Single-cap debug: unread poll interval (ms)"
-    default 5
+    default 2
     range 1 1000
     depends on SENSORARRAY_DEBUG_MODE_S5D5_CAP_FDC_SECONDARY
     help
