@@ -50,6 +50,26 @@ config SENSORARRAY_FDC_TANK_INDUCTOR_UH
     help
         Used for optional capacitance conversion in FDC debug logs.
         When set to 0, logs still report raw/frequency and mark capPf as unavailable.
+
+config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    bool "Use external 40MHz CLKIN for FDC2214"
+    default y
+    help
+        Select the FDC2214/FDC2212 external CLKIN controller clock.
+        The board must provide a valid clock on the FDC CLKIN pin; this firmware
+        does not generate that clock.
+
+config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL_VALUE
+    int
+    default 1 if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    default 0
+
+config SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ
+    int "FDC external CLKIN frequency Hz"
+    default 40000000
+    range 2000000 40000000
+    help
+        External FDC CLKIN frequency. FDC221x supports 2 MHz to 40 MHz.
 endmenu
 
 menu "Multi-core scheduling (FreeRTOS SMP)"

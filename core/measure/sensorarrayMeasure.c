@@ -1153,9 +1153,9 @@ const char *sensorarrayMeasureFdcRefClockSourceName(sensorarrayFdcRefClockSource
 {
     switch (source) {
     case SENSORARRAY_FDC_REF_CLOCK_SOURCE_INTERNAL:
-        return "internal";
+        return "internal_oscillator";
     case SENSORARRAY_FDC_REF_CLOCK_SOURCE_EXTERNAL:
-        return "external";
+        return "external_clkin";
     default:
         return "unknown";
     }

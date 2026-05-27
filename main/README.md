@@ -55,7 +55,20 @@
 - `S5D5_CAP_FDC_SECONDARY`
 - `FDC_I2C_DISCOVERY`
 
-## 5) Boundary Rules / 边界规则
+## 5) FDC Clock / FDC 时钟
+
+- FDC2214/FDC2212 defaults to external `CLKIN` at 40 MHz:
+  `CONFIG_SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL=y` and
+  `CONFIG_SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ=40000000`.
+- External mode sets CONFIG register `0x1A` bit9 (`REF_CLK_SRC`) and all raw to
+  frequency/capacitance conversion uses the selected effective FCLK.
+- Internal oscillator mode can still be selected through Kconfig/fallback
+  settings for debug, but it is no longer the default.
+- Hardware must provide the 40 MHz signal on the FDC `CLKIN` pin. The firmware
+  does not generate this clock from the ESP32; without the external clock,
+  conversions may fail in external-clock mode.
+
+## 6) Boundary Rules / 边界规则
 
 **中文**
 
@@ -73,7 +86,7 @@
 - Debug/scan/sweep bodies stay in `core/debug`; complex modes must run in their own task.
 - Logical SELA route to raw GPIO translation must stay in the board-map layer.
 
-## 6) Current Status / 当前状态
+## 7) Current Status / 当前状态
 
 - 入口已完成去 god-file 化重构。
 - 调试执行体已按“调度 / 自检 / 单点电容 / S1D1 专项”拆分。

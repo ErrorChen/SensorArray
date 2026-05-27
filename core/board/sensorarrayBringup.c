@@ -341,7 +341,7 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
 
     printf("DBGFDCINIT_VERIFY,sleep=%u,autoscan=%u,activeChannel=%u,converting=%u,unreadPresent=%u,"
            "status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,expectedStatusConfig=0x%04X,"
-           "expectedConfig=0x%04X,expectedMuxConfig=0x%04X,result=%s\n",
+           "expectedConfig=0x%04X,expectedMuxConfig=0x%04X,refClockSource=%s,refClockHz=%lu,result=%s\n",
            sleepEnabled ? 1u : 0u,
            autoScanEnabled ? 1u : 0u,
            (unsigned)activeChannel,
@@ -354,6 +354,8 @@ static esp_err_t sensorarrayBringupVerifyFdcActiveState(Fdc2214CapDevice_t *dev,
            expectedStatusConfig,
            expectedConfig,
            expectedMuxConfig,
+           sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()),
+           (unsigned long)sensorarrayMeasureFdcEffectiveFclkHz(),
            (!sleepEnabled &&
             converting &&
             coreRegs.StatusConfig == expectedStatusConfig &&

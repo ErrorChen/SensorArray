@@ -48,7 +48,14 @@
 #define SENSORARRAY_S5D5_VISIBLE_DRIVE_HIGH_REQ 0xF800u
 #define SENSORARRAY_S5D5_VISIBLE_DRIVE_STEPS 20u
 #define SENSORARRAY_S5D5_VISIBLE_DRIVE_PERIOD_MS 1000u
-#define SENSORARRAY_S5D5_DEFAULT_CONFIG_REG 0x1481u
+#define SENSORARRAY_S5D5_CONFIG_REF_CLK_SRC_MASK 0x0200u
+#define SENSORARRAY_S5D5_DEFAULT_CONFIG_BASE_REG 0x1481u
+#if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+#define SENSORARRAY_S5D5_DEFAULT_CONFIG_REG \
+    (SENSORARRAY_S5D5_DEFAULT_CONFIG_BASE_REG | SENSORARRAY_S5D5_CONFIG_REF_CLK_SRC_MASK)
+#else
+#define SENSORARRAY_S5D5_DEFAULT_CONFIG_REG SENSORARRAY_S5D5_DEFAULT_CONFIG_BASE_REG
+#endif
 #define SENSORARRAY_S5D5_DEFAULT_MUX_CONFIG_REG 0x020Du
 #define SENSORARRAY_S5D5_DEFAULT_CLOCK_DIVIDERS_REG 0x2001u
 
@@ -735,18 +742,23 @@ static esp_err_t sensorarrayS5d5ApplyDirectSafeLock(Fdc2214CapDevice_t *dev)
            muxConfigReadback,
            (unsigned)(muxConfigReadback & SENSORARRAY_S5D5_MUX_CONFIG_DEGLITCH_MASK));
 
-    printf("DBGFDC_S5D5,stage=direct_apply_config_begin,configReq=0x%04X\n", configReq);
+    printf("DBGFDC_S5D5,stage=direct_apply_config_begin,configReq=0x%04X,refClockSource=%s,refClockHz=%lu\n",
+           configReq,
+           sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()),
+           (unsigned long)sensorarrayMeasureFdcEffectiveFclkHz());
     sensorarrayDebugPinsSetStage(5u);
     err = Fdc2214CapWriteRawRegisters(dev, SENSORARRAY_S5D5_REG_CONFIG, configReq);
     sensorarrayDebugPinsSetStage(6u);
     if (err != ESP_OK) {
-        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,activeChannel=%u,"
-               "sleep=%u,highCurrent=%u,status=write_failed\n",
+        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,expectedConfig=0x%04X,"
+               "activeChannel=%u,sleep=%u,highCurrent=%u,refClockSource=%s,status=write_failed\n",
                (long)err,
                0u,
+               configReq,
                0u,
                0u,
-               0u);
+               0u,
+               sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()));
         return err;
     }
     uint16_t configReadback = 0u;
@@ -759,32 +771,41 @@ static esp_err_t sensorarrayS5d5ApplyDirectSafeLock(Fdc2214CapDevice_t *dev)
     bool sleepEnabled = (configReadback & SENSORARRAY_S5D5_CONFIG_SLEEP_MODE_EN_MASK) != 0u;
     bool highCurrent = (configReadback & SENSORARRAY_S5D5_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
     if (err != ESP_OK) {
-        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,activeChannel=%u,"
-               "sleep=%u,highCurrent=%u,status=readback_failed\n",
+        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,expectedConfig=0x%04X,"
+               "activeChannel=%u,sleep=%u,highCurrent=%u,refClockSource=%s,status=readback_failed\n",
                (long)err,
                configReadback,
+               configReq,
                (unsigned)activeChannel,
                sleepEnabled ? 1u : 0u,
-               highCurrent ? 1u : 0u);
+               highCurrent ? 1u : 0u,
+               sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()));
         return err;
     }
-    if (activeChannel != (uint8_t)FDC2214_CH0 || sleepEnabled || highCurrent) {
-        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,activeChannel=%u,"
-               "sleep=%u,highCurrent=%u,status=readback_mismatch\n",
+    if (configReadback != configReq ||
+        activeChannel != (uint8_t)FDC2214_CH0 ||
+        sleepEnabled ||
+        highCurrent) {
+        printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,expectedConfig=0x%04X,"
+               "activeChannel=%u,sleep=%u,highCurrent=%u,refClockSource=%s,status=readback_mismatch\n",
                (long)ESP_ERR_INVALID_RESPONSE,
                configReadback,
+               configReq,
                (unsigned)activeChannel,
                sleepEnabled ? 1u : 0u,
-               highCurrent ? 1u : 0u);
+               highCurrent ? 1u : 0u,
+               sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()));
         return ESP_ERR_INVALID_RESPONSE;
     }
-    printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,activeChannel=%u,"
-           "sleep=%u,highCurrent=%u,status=applied\n",
+    printf("DBGFDC_S5D5,stage=direct_apply_config_done,err=%ld,config=0x%04X,expectedConfig=0x%04X,"
+           "activeChannel=%u,sleep=%u,highCurrent=%u,refClockSource=%s,status=applied\n",
            (long)ESP_OK,
            configReadback,
+           configReq,
            (unsigned)activeChannel,
            sleepEnabled ? 1u : 0u,
-           highCurrent ? 1u : 0u);
+           highCurrent ? 1u : 0u,
+           sensorarrayMeasureFdcRefClockSourceName(sensorarrayMeasureFdcEffectiveRefClockSource()));
 
     printf("DBGFDC_S5D5,stage=direct_apply_drive_begin,drive=0x%04X\n", driveReq);
     sensorarrayDebugPinsSetStage(5u);
