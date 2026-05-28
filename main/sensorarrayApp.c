@@ -2,6 +2,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -113,6 +116,102 @@ static void sensorarrayAppInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                              diag.manufacturerId,
                              diag.deviceId,
                              mapLabel);
+}
+
+static bool sensorarrayParseForceFullSweepCommand(const char *line,
+                                                  bool *outHasCell,
+                                                  uint8_t *outS,
+                                                  uint8_t *outD)
+{
+    if (!line || !outHasCell || !outS || !outD) {
+        return false;
+    }
+    if (strncmp(line, "force_full_sweep", strlen("force_full_sweep")) != 0) {
+        return false;
+    }
+
+    bool haveS = false;
+    bool haveD = false;
+    uint8_t s = 1u;
+    uint8_t d = 1u;
+    const char *sArg = strstr(line, "s=");
+    const char *dArg = strstr(line, "d=");
+    if (sArg) {
+        long parsed = strtol(sArg + 2, NULL, 10);
+        if (parsed >= 1 && parsed <= 8) {
+            s = (uint8_t)parsed;
+            haveS = true;
+        }
+    }
+    if (dArg) {
+        long parsed = strtol(dArg + 2, NULL, 10);
+        if (parsed >= 1 && parsed <= 8) {
+            d = (uint8_t)parsed;
+            haveD = true;
+        }
+    }
+
+    *outHasCell = haveS && haveD;
+    *outS = s;
+    *outD = d;
+    return true;
+}
+
+static void sensorarrayCommandTask(void *arg)
+{
+    (void)arg;
+    char line[96] = {0};
+    size_t len = 0u;
+
+    while (true) {
+        int ch = getchar();
+        if (ch < 0) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+        if (ch == '\r' || ch == '\n') {
+            line[len] = '\0';
+            if (len > 0u) {
+                bool hasCell = false;
+                uint8_t s = 1u;
+                uint8_t d = 1u;
+                if (sensorarrayParseForceFullSweepCommand(line, &hasCell, &s, &d)) {
+                    if (hasCell) {
+                        sensorarrayFdcSweepRequestForceFullSweepCell(s, d);
+                    } else {
+                        sensorarrayFdcSweepRequestForceFullSweepAll();
+                    }
+                } else {
+                    printf("FDC_COMMAND,command=%s,status=ignored\n", line);
+                }
+            }
+            len = 0u;
+            continue;
+        }
+        if (len + 1u < sizeof(line)) {
+            line[len++] = (char)ch;
+        } else {
+            len = 0u;
+            printf("FDC_COMMAND,status=line_too_long\n");
+        }
+    }
+}
+
+static void sensorarrayStartCommandTask(void)
+{
+#if CONFIG_SENSORARRAY_ENABLE_WIRED
+    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayCommandTask,
+                                            "sa_cmd",
+                                            (uint32_t)CONFIG_SENSORARRAY_COMM_TASK_STACK,
+                                            NULL,
+                                            (UBaseType_t)CONFIG_SENSORARRAY_COMM_TASK_PRIO,
+                                            NULL,
+                                            (BaseType_t)CONFIG_SENSORARRAY_COMM_TASK_CORE);
+    sensorarrayLogStartup("command",
+                          (ok == pdPASS) ? ESP_OK : ESP_ERR_NO_MEM,
+                          (ok == pdPASS) ? "console_ready" : "task_create_failed",
+                          (int32_t)(ok == pdPASS));
+#endif
 }
 
 static void sensorarrayRunFdcMatrixLoop(void)
@@ -227,5 +326,6 @@ void sensorarrayAppRun(void)
                               (int32_t)err);
     }
 
+    sensorarrayStartCommandTask();
     sensorarrayRunFdcMatrixLoop();
 }

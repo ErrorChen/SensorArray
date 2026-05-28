@@ -64,6 +64,9 @@ typedef struct {
     uint32_t zeroRawCount;
     uint32_t timeoutCount;
 
+    double medianFreqHz;
+    double freqSpreadHz;
+    double relativeSpread;
     double frequencyHz;
     double frequencyMarginHz;
     bool stable;
@@ -109,6 +112,22 @@ esp_err_t sensorarrayFdcSweepRunDevice(sensorarrayState_t *state,
                                        const char *reason);
 
 esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state);
+
+sensorarrayFdcCellCalibration_t *sensorarrayFdcSweepGetCellCalibration(uint8_t sIndex,
+                                                                       uint8_t dIndex);
+
+esp_err_t sensorarrayFdcSweepMeasureCell(sensorarrayState_t *state,
+                                         uint8_t sIndex,
+                                         uint8_t dIndex,
+                                         uint32_t *outRaw28,
+                                         bool *outValid);
+
+esp_err_t sensorarrayFdcSweepForceFullSweepCell(sensorarrayState_t *state,
+                                                uint8_t sIndex,
+                                                uint8_t dIndex);
+
+void sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
+void sensorarrayFdcSweepRequestForceFullSweepAll(void);
 
 esp_err_t sensorarrayFdcSweepApplyResult(sensorarrayState_t *state,
                                          const sensorarrayFdcSweepResult_t *result);

@@ -36,9 +36,6 @@
 #define SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK (1U << 0)
 #define SENSORARRAY_FDC_RAW_SCALE_2P28 268435456.0
 #define SENSORARRAY_PI 3.14159265358979323846
-#define SENSORARRAY_FDC_MATRIX_RAW28_SATURATED_THRESHOLD 0x0FFFFF00u
-#define SENSORARRAY_FDC_MATRIX_FREQ_MARGIN_MIN_HZ 150000.0
-#define SENSORARRAY_FDC_MATRIX_FREQ_MARGIN_RATIO 0.08
 
 static SemaphoreHandle_t s_measureLock = NULL;
 static portMUX_TYPE s_measureLockMux = portMUX_INITIALIZER_UNLOCKED;
@@ -510,22 +507,6 @@ static void sensorarrayMeasureMarkFdcMatrixCellEx(sensorarrayFdcMatrixFrame_t *f
     }
 }
 
-static void sensorarrayMeasureMarkFdcMatrixCell(sensorarrayFdcMatrixFrame_t *frame,
-                                                uint8_t sIndex,
-                                                uint8_t dIndex,
-                                                uint32_t raw28,
-                                                bool valid)
-{
-    sensorarrayMeasureMarkFdcMatrixCellEx(frame, sIndex, dIndex, raw28, valid, !valid);
-}
-
-static void sensorarrayMeasureMarkFdcMatrixRowError(sensorarrayFdcMatrixFrame_t *frame, uint8_t sIndex)
-{
-    for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
-        sensorarrayMeasureMarkFdcMatrixCell(frame, sIndex, d, 0u, false);
-    }
-}
-
 static esp_err_t sensorarrayMeasureCheckFdcMatrixReady(sensorarrayState_t *state)
 {
     if (!state) {
@@ -542,240 +523,6 @@ static esp_err_t sensorarrayMeasureCheckFdcMatrixReady(sensorarrayState_t *state
         return ESP_ERR_INVALID_STATE;
     }
     return ESP_OK;
-}
-
-static uint32_t sensorarrayMeasureCeilDivU64(uint64_t numerator, uint64_t denominator)
-{
-    if (denominator == 0u) {
-        return 0u;
-    }
-    return (uint32_t)((numerator + denominator - 1u) / denominator);
-}
-
-static uint16_t sensorarrayMeasureFdcProfileClockDividers(const sensorarrayFdcDeviceState_t *fdcState)
-{
-    if (fdcState) {
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            if (fdcState->sweepProfile[ch].valid && fdcState->sweepProfile[ch].selectedClockDividers != 0u) {
-                return fdcState->sweepProfile[ch].selectedClockDividers;
-            }
-        }
-    }
-    return SENSORARRAY_FDC_CLOCK_DIVIDERS;
-}
-
-static uint32_t sensorarrayMeasureCalculateFdcAutoscanCycleUs(const sensorarrayFdcDeviceState_t *fdcState)
-{
-    uint16_t clockDividers = sensorarrayMeasureFdcProfileClockDividers(fdcState);
-    uint8_t finSelCode = 0u;
-    uint8_t finFactor = 0u;
-    uint16_t frefDivider = 0u;
-    const char *decodeStatus = NULL;
-    bool decodeOk = sensorarrayMeasureFdcDecodeClockDividers(clockDividers,
-                                                             &finSelCode,
-                                                             &finFactor,
-                                                             &frefDivider,
-                                                             &decodeStatus);
-    (void)finSelCode;
-    (void)finFactor;
-    (void)decodeStatus;
-    uint32_t fclkHz = sensorarrayMeasureFdcEffectiveFclkHz();
-    if (!decodeOk || fclkHz == 0u || frefDivider == 0u) {
-        frefDivider = 1u;
-        fclkHz = (fclkHz == 0u) ? SENSORARRAY_FDC_REF_CLOCK_HZ : fclkHz;
-    }
-
-    uint64_t frefHz = (uint64_t)fclkHz / (uint64_t)frefDivider;
-    if (frefHz == 0u) {
-        frefHz = 1u;
-    }
-
-    uint32_t settleTimeUs =
-        sensorarrayMeasureCeilDivU64((uint64_t)SENSORARRAY_FDC_SETTLECOUNT * 16ull * 1000000ull, frefHz);
-    uint32_t conversionTimeUs =
-        sensorarrayMeasureCeilDivU64((uint64_t)SENSORARRAY_FDC_RCOUNT * 16ull * 1000000ull, frefHz);
-    uint32_t switchDelayUs = 1u + sensorarrayMeasureCeilDivU64(5ull * 1000000ull, frefHz);
-    uint32_t perChannelUs = settleTimeUs + conversionTimeUs + switchDelayUs;
-    return 4u * perChannelUs;
-}
-
-static void sensorarrayMeasureDelayUsCooperative(uint32_t delayUs)
-{
-    if (delayUs == 0u) {
-        return;
-    }
-    if (delayUs > 2000u) {
-        uint32_t coarseMs = (delayUs / 1000u) - 1u;
-        if (coarseMs > 0u) {
-            vTaskDelay(pdMS_TO_TICKS(coarseMs));
-            delayUs -= coarseMs * 1000u;
-        }
-    }
-    sensorarrayMeasureDelayUs(delayUs);
-}
-
-static esp_err_t sensorarrayMeasureWaitFdcAutoscanReadyForRow(sensorarrayState_t *state)
-{
-    if (!state) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    uint32_t primaryCycleUs = sensorarrayMeasureCalculateFdcAutoscanCycleUs(&state->fdcPrimary);
-    uint32_t secondaryCycleUs = sensorarrayMeasureCalculateFdcAutoscanCycleUs(&state->fdcSecondary);
-    uint32_t rowWaitUs = (primaryCycleUs > secondaryCycleUs) ? primaryCycleUs : secondaryCycleUs;
-    rowWaitUs += (uint32_t)CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US;
-    sensorarrayMeasureDelayUsCooperative(rowWaitUs);
-    return ESP_OK;
-}
-
-static void sensorarrayMeasureRequestFdcQuickSweep(sensorarrayFdcSweepProfile_t *profile, const char *reason)
-{
-    if (!profile || profile->quickSweepPending) {
-        return;
-    }
-    profile->quickSweepPending = true;
-    profile->quickSweepReason = reason ? reason : "quick";
-}
-
-static void sensorarrayMeasureMaybeRequestFdcQuickSweep(sensorarrayState_t *state,
-                                                        sensorarrayFdcDeviceId_t devId,
-                                                        Fdc2214CapChannel_t channel,
-                                                        const Fdc2214CapFastChannelSample_t *sample)
-{
-    sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
-    if (!fdcState || !sample || (uint8_t)channel >= 4u) {
-        return;
-    }
-
-    sensorarrayFdcSweepProfile_t *profile = &fdcState->sweepProfile[(uint8_t)channel];
-    if (!profile->valid) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "missing_profile");
-        return;
-    }
-
-    bool saturated = sample->raw28 >= SENSORARRAY_FDC_MATRIX_RAW28_SATURATED_THRESHOLD;
-    if (!sample->valid) {
-        profile->consecutiveInvalid++;
-    } else {
-        profile->consecutiveInvalid = 0u;
-    }
-    if (sample->errAmplitude) {
-        profile->consecutiveAmplitudeFault++;
-    } else {
-        profile->consecutiveAmplitudeFault = 0u;
-    }
-    if (sample->errWatchdog) {
-        profile->consecutiveWatchdogFault++;
-    } else {
-        profile->consecutiveWatchdogFault = 0u;
-    }
-    if (saturated) {
-        profile->consecutiveSaturated++;
-    } else {
-        profile->consecutiveSaturated = 0u;
-    }
-    if (sample->raw28 == 0u) {
-        profile->consecutiveZeroRaw++;
-    } else {
-        profile->consecutiveZeroRaw = 0u;
-    }
-
-    uint16_t clockDividers = profile->selectedClockDividers ? profile->selectedClockDividers : SENSORARRAY_FDC_CLOCK_DIVIDERS;
-    sensorarrayFdcFrequencyDiag_t freqDiag = {0};
-    bool freqOk = (sample->raw28 != 0u) &&
-                  sensorarrayMeasureFdcComputeFrequencyDiag(sample->raw28, clockDividers, &freqDiag) &&
-                  freqDiag.valid;
-    if (sample->valid && freqOk) {
-        double previousHz = profile->lastFrequencyHz;
-        profile->lastRaw28 = sample->raw28;
-        profile->lastFrequencyHz = freqDiag.freqHzCorrected;
-        profile->lastValidTimestampUs = (uint64_t)esp_timer_get_time();
-        if (previousHz > 0.0) {
-            double deltaHz = (freqDiag.freqHzCorrected > previousHz) ? (freqDiag.freqHzCorrected - previousHz)
-                                                                     : (previousHz - freqDiag.freqHzCorrected);
-            double ratio = deltaHz / previousHz;
-            if (deltaHz >= SENSORARRAY_FDC_MATRIX_FREQ_MARGIN_MIN_HZ ||
-                ratio >= SENSORARRAY_FDC_MATRIX_FREQ_MARGIN_RATIO) {
-                sensorarrayMeasureRequestFdcQuickSweep(profile, "frequency_margin");
-            }
-        }
-        if (profile->selectedDeglitchBandwidthHz != 0u &&
-            freqDiag.freqHzCorrected >= ((double)profile->selectedDeglitchBandwidthHz * 0.90)) {
-            sensorarrayMeasureRequestFdcQuickSweep(profile, "deglitch_margin");
-        }
-    }
-
-    if (profile->consecutiveInvalid >= 5u) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "invalid_streak");
-    } else if (profile->consecutiveAmplitudeFault >= 3u) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "amplitude_fault");
-    } else if (profile->consecutiveWatchdogFault >= 3u) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "watchdog_fault");
-    } else if (profile->consecutiveZeroRaw >= 5u) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "raw_zero");
-    } else if (profile->consecutiveSaturated != 0u) {
-        sensorarrayMeasureRequestFdcQuickSweep(profile, "saturated");
-    }
-}
-
-static esp_err_t sensorarrayMeasureRunPendingFdcQuickSweepIfNeeded(sensorarrayState_t *state)
-{
-    if (!state) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    esp_err_t firstErr = ESP_OK;
-    for (uint8_t dev = 0u; dev < 2u; ++dev) {
-        sensorarrayFdcDeviceId_t devId = (dev == 0u) ? SENSORARRAY_FDC_DEV_PRIMARY : SENSORARRAY_FDC_DEV_SECONDARY;
-        sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
-        if (!fdcState || !fdcState->ready) {
-            continue;
-        }
-
-        uint8_t mask = 0u;
-        const char *reason = "quick";
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            if (fdcState->sweepProfile[ch].quickSweepPending) {
-                mask |= (uint8_t)(1u << ch);
-                reason = fdcState->sweepProfile[ch].quickSweepReason ?
-                         fdcState->sweepProfile[ch].quickSweepReason : reason;
-            }
-        }
-        if (mask == 0u) {
-            continue;
-        }
-
-        esp_err_t err = sensorarrayFdcSweepRunDevice(state, devId, mask, reason);
-        if (err != ESP_OK && firstErr == ESP_OK) {
-            firstErr = err;
-        }
-    }
-    return firstErr;
-}
-
-static void sensorarrayMeasureApplyFdcFastDeviceSamples(sensorarrayState_t *state,
-                                                        sensorarrayFdcMatrixFrame_t *frame,
-                                                        uint8_t sIndex,
-                                                        sensorarrayFdcDeviceId_t devId,
-                                                        const Fdc2214CapFastChannelSample_t samples[4])
-{
-    for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
-        const sensorarrayFdcDLineMap_t *map = sensorarrayBoardMapFindFdcByDLine(d);
-        if (!map || map->devId != devId) {
-            continue;
-        }
-
-        sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, map->devId);
-        if (!fdcState || !fdcState->ready || (uint8_t)map->channel >= 4u) {
-            sensorarrayMeasureMarkFdcMatrixCellEx(frame, sIndex, d, 0u, false, true);
-            continue;
-        }
-        const Fdc2214CapFastChannelSample_t *sample = &samples[(uint8_t)map->channel];
-        bool valid = sample->valid;
-        bool error = !valid || sample->errorMask != 0u ||
-                     sample->raw28 >= SENSORARRAY_FDC_MATRIX_RAW28_SATURATED_THRESHOLD;
-        sensorarrayMeasureMarkFdcMatrixCellEx(frame, sIndex, d, sample->raw28, valid, error);
-        sensorarrayMeasureMaybeRequestFdcQuickSweep(state, devId, map->channel, sample);
-    }
 }
 
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
@@ -813,47 +560,16 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
 
     for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
-        err = tmuxSwitchSelectRow((uint8_t)(s - 1u));
-        if (err == ESP_OK) {
-            err = sensorarrayMeasureWaitFdcAutoscanReadyForRow(state);
-        }
-        if (err != ESP_OK) {
-            if (firstErr == ESP_OK) {
+        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+            uint32_t raw28 = 0u;
+            bool valid = false;
+            err = sensorarrayFdcSweepMeasureCell(state, s, d, &raw28, &valid);
+            sensorarrayMeasureMarkFdcMatrixCellEx(outFrame, s, d, raw28, valid, !valid);
+            if (err != ESP_OK && firstErr == ESP_OK) {
                 firstErr = err;
             }
-            sensorarrayMeasureMarkFdcMatrixRowError(outFrame, s);
             taskYIELD();
-            continue;
         }
-
-        Fdc2214CapFastChannelSample_t primarySamples[4] = {0};
-        Fdc2214CapFastChannelSample_t secondarySamples[4] = {0};
-        esp_err_t primaryErr = Fdc2214CapReadAutoscan4RawFast(state->fdcPrimary.handle, primarySamples);
-        esp_err_t secondaryErr = Fdc2214CapReadAutoscan4RawFast(state->fdcSecondary.handle, secondarySamples);
-        if (primaryErr != ESP_OK && firstErr == ESP_OK) {
-            firstErr = primaryErr;
-        }
-        if (secondaryErr != ESP_OK && firstErr == ESP_OK) {
-            firstErr = secondaryErr;
-        }
-
-        sensorarrayMeasureApplyFdcFastDeviceSamples(state,
-                                                    outFrame,
-                                                    s,
-                                                    SENSORARRAY_FDC_DEV_PRIMARY,
-                                                    primarySamples);
-        sensorarrayMeasureApplyFdcFastDeviceSamples(state,
-                                                    outFrame,
-                                                    s,
-                                                    SENSORARRAY_FDC_DEV_SECONDARY,
-                                                    secondarySamples);
-
-        taskYIELD();
-    }
-
-    err = sensorarrayMeasureRunPendingFdcQuickSweepIfNeeded(state);
-    if (err != ESP_OK && firstErr == ESP_OK) {
-        firstErr = err;
     }
 
     sensorarrayMeasureGiveLock();

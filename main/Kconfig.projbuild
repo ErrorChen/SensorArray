@@ -105,6 +105,31 @@ config SENSORARRAY_FDC_SWEEP_SAMPLE_POLL_MS
     default 2
     range 1 1000
 
+config SENSORARRAY_FDC_DIRECT_FAIL_THRESHOLD
+    int "Direct-read failures before fast sweep"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_FAST_FAIL_THRESHOLD
+    int "Fast-sweep failures before full rescue"
+    default 2
+    range 1 32
+
+config SENSORARRAY_FDC_FAST_SWEEP_COOLDOWN_MS
+    int "Cooldown between fast sweeps for a cell"
+    default 2000
+    range 0 600000
+
+config SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS
+    int "Cooldown between full rescue sweeps for a cell"
+    default 10000
+    range 0 600000
+
+config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES
+    int "Direct-read quality sample count"
+    default 6
+    range 4 8
+
 endmenu
 
 menu "Scheduling"
