@@ -21,14 +21,37 @@
 #include "sensorarrayTypes.h"
 
 static sensorarrayState_t s_state = {0};
+static bool s_fdcBootSweepOk = false;
+static bool s_fdcDiagnosticMode = false;
+static uint32_t s_fdcMatrixPeriodOverrideMs = 0u;
 
 static void sensorarrayAppDelayFramePeriod(void)
 {
-    uint32_t periodMs = (uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS;
+    uint32_t periodMs = s_fdcMatrixPeriodOverrideMs ?
+                        s_fdcMatrixPeriodOverrideMs :
+                        (uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS;
     if (periodMs == 0u) {
         periodMs = 1u;
     }
     vTaskDelay(pdMS_TO_TICKS(periodMs));
+}
+
+static bool sensorarrayAppFrameRawAllZero(const sensorarrayFdcMatrixFrame_t *frame)
+{
+    if (!frame) {
+        return true;
+    }
+    for (size_t i = 0u; i < SENSORARRAY_MATRIX_CELL_COUNT; ++i) {
+        if (frame->raw28[i] != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void sensorarrayAppDelayDiagnosticPeriod(void)
+{
+    vTaskDelay(pdMS_TO_TICKS(1000u));
 }
 
 static void sensorarrayApplyTmuxDefaults(void)
@@ -157,6 +180,84 @@ static bool sensorarrayParseForceFullSweepCommand(const char *line,
     return true;
 }
 
+static esp_err_t sensorarrayHandleCommandLine(const char *line)
+{
+    if (!line || line[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool hasCell = false;
+    uint8_t s = 1u;
+    uint8_t d = 1u;
+    if (sensorarrayParseForceFullSweepCommand(line, &hasCell, &s, &d)) {
+        esp_err_t err = hasCell ? sensorarrayFdcSweepRequestForceFullSweepCell(s, d)
+                                : sensorarrayFdcSweepRequestForceFullSweepAll();
+        printf("FDC_COMMAND,command=force_full_sweep,status=%s,err=0x%lx,s=%u,d=%u,scope=%s\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               (unsigned)s,
+               (unsigned)d,
+               hasCell ? "cell" : "all");
+        return err;
+    }
+
+    if (strcmp(line, "fdc_diag") == 0) {
+        esp_err_t err = sensorarrayFdcSweepDumpAllDeviceRegs(&s_state, "command_diag", "fdc_diag");
+        printf("FDC_COMMAND,command=fdc_diag,status=%s,err=0x%lx\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err);
+        return err;
+    }
+
+    if (strcmp(line, "fdc_boot_sweep") == 0) {
+        printf("APP_FDC,stage=boot_sweep_begin,primaryReady=%d,secondaryReady=%d\n",
+               s_state.fdcPrimary.ready ? 1 : 0,
+               s_state.fdcSecondary.ready ? 1 : 0);
+        esp_err_t err = sensorarrayFdcSweepRunBoot(&s_state);
+        s_fdcBootSweepOk = (err == ESP_OK);
+        s_fdcDiagnosticMode = (err != ESP_OK);
+        printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=%d\n",
+               (unsigned long)err,
+               s_fdcBootSweepOk ? 1 : 0);
+        printf("FDC_COMMAND,command=fdc_boot_sweep,status=%s,err=0x%lx\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err);
+        return err;
+    }
+
+    if (strcmp(line, "fdc_rescue") == 0) {
+        esp_err_t err = sensorarrayFdcSweepRunFullRescueAll(&s_state, "manual_command");
+        s_fdcDiagnosticMode = (err != ESP_OK);
+        printf("FDC_COMMAND,command=fdc_rescue,status=%s,err=0x%lx\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err);
+        return err;
+    }
+
+    if (strncmp(line, "fdc_period_ms", strlen("fdc_period_ms")) == 0) {
+        const char *arg = line + strlen("fdc_period_ms");
+        while (*arg == ' ') {
+            ++arg;
+        }
+        char *end = NULL;
+        unsigned long parsed = strtoul(arg, &end, 10);
+        esp_err_t err = (arg != end && parsed >= 1ul && parsed <= 10000ul) ? ESP_OK : ESP_ERR_INVALID_ARG;
+        if (err == ESP_OK) {
+            s_fdcMatrixPeriodOverrideMs = (uint32_t)parsed;
+        }
+        printf("FDC_COMMAND,command=fdc_period_ms,status=%s,err=0x%lx,periodMs=%lu\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               (unsigned long)(err == ESP_OK ? s_fdcMatrixPeriodOverrideMs : 0u));
+        return err;
+    }
+
+    printf("FDC_COMMAND,command=%s,status=failed,err=0x%lx\n",
+           line,
+           (unsigned long)ESP_ERR_NOT_SUPPORTED);
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
 static void sensorarrayCommandTask(void *arg)
 {
     (void)arg;
@@ -172,18 +273,7 @@ static void sensorarrayCommandTask(void *arg)
         if (ch == '\r' || ch == '\n') {
             line[len] = '\0';
             if (len > 0u) {
-                bool hasCell = false;
-                uint8_t s = 1u;
-                uint8_t d = 1u;
-                if (sensorarrayParseForceFullSweepCommand(line, &hasCell, &s, &d)) {
-                    if (hasCell) {
-                        sensorarrayFdcSweepRequestForceFullSweepCell(s, d);
-                    } else {
-                        sensorarrayFdcSweepRequestForceFullSweepAll();
-                    }
-                } else {
-                    printf("FDC_COMMAND,command=%s,status=ignored\n", line);
-                }
+                (void)sensorarrayHandleCommandLine(line);
             }
             len = 0u;
             continue;
@@ -216,9 +306,84 @@ static void sensorarrayStartCommandTask(void)
 
 static void sensorarrayRunFdcMatrixLoop(void)
 {
+    static uint32_t consecutiveAllInvalidFrames = 0u;
+    static uint32_t consecutiveReadErrors = 0u;
+    static uint32_t rescueEpoch = 0u;
+    static uint32_t failedRescueCount = 0u;
+
     while (true) {
+        if (s_fdcDiagnosticMode) {
+            printf("MATRIXFDC_DIAG,stage=diagnostic_mode,bootOk=%d,failedRescue=%lu,primaryReady=%d,secondaryReady=%d\n",
+                   s_fdcBootSweepOk ? 1 : 0,
+                   (unsigned long)failedRescueCount,
+                   s_state.fdcPrimary.ready ? 1 : 0,
+                   s_state.fdcSecondary.ready ? 1 : 0);
+            uint32_t epoch = ++rescueEpoch;
+            printf("FDC_RESCUE,stage=begin,reason=diagnostic_retry,epoch=%lu\n",
+                   (unsigned long)epoch);
+            esp_err_t rescueErr = sensorarrayFdcSweepRunFullRescueAll(&s_state, "diagnostic_retry");
+            printf("FDC_RESCUE,stage=end,reason=diagnostic_retry,epoch=%lu,err=0x%lx\n",
+                   (unsigned long)epoch,
+                   (unsigned long)rescueErr);
+            if (rescueErr == ESP_OK) {
+                s_fdcDiagnosticMode = false;
+                s_fdcBootSweepOk = true;
+                consecutiveAllInvalidFrames = 0u;
+                consecutiveReadErrors = 0u;
+                failedRescueCount = 0u;
+            } else {
+                sensorarrayAppDelayDiagnosticPeriod();
+            }
+            continue;
+        }
+
         sensorarrayFdcMatrixFrame_t frame = {0};
-        (void)sensorarrayMeasureReadFdcMatrixFrame(&s_state, &frame);
+        esp_err_t readErr = sensorarrayMeasureReadFdcMatrixFrame(&s_state, &frame);
+        bool rawAllZero = sensorarrayAppFrameRawAllZero(&frame);
+        bool allInvalidZero = (frame.validMask == 0u && rawAllZero);
+        if (readErr != ESP_OK) {
+            consecutiveReadErrors++;
+        } else {
+            consecutiveReadErrors = 0u;
+        }
+
+        if (allInvalidZero) {
+            consecutiveAllInvalidFrames++;
+            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,consecutive=%lu,errorMask=0x%016llX,readErr=0x%lx\n",
+                   (unsigned long)frame.sequence,
+                   (unsigned long)consecutiveAllInvalidFrames,
+                   (unsigned long long)frame.errorMask,
+                   (unsigned long)readErr);
+            (void)sensorarrayFdcMatrixEmitFrame(&frame);
+
+            uint32_t epoch = ++rescueEpoch;
+            printf("FDC_RESCUE,stage=begin,reason=all_invalid_frame,epoch=%lu\n",
+                   (unsigned long)epoch);
+            esp_err_t rescueErr = sensorarrayFdcSweepRunFullRescueAll(&s_state, "all_invalid_frame");
+            printf("FDC_RESCUE,stage=end,reason=all_invalid_frame,epoch=%lu,err=0x%lx\n",
+                   (unsigned long)epoch,
+                   (unsigned long)rescueErr);
+            if (rescueErr == ESP_OK) {
+                consecutiveAllInvalidFrames = 0u;
+                consecutiveReadErrors = 0u;
+                failedRescueCount = 0u;
+            } else {
+                failedRescueCount++;
+                printf("FDC_FATAL,stage=matrix_loop,reason=no_oscillation_after_full_rescue,consecutive=%lu,failedRescue=%lu\n",
+                       (unsigned long)consecutiveAllInvalidFrames,
+                       (unsigned long)failedRescueCount);
+                if (failedRescueCount >= (uint32_t)CONFIG_SENSORARRAY_FDC_ALL_INVALID_RESTART_THRESHOLD) {
+                    s_fdcDiagnosticMode = true;
+                }
+                sensorarrayAppDelayDiagnosticPeriod();
+            }
+            continue;
+        }
+
+        if (frame.validMask != 0u) {
+            consecutiveAllInvalidFrames = 0u;
+            failedRescueCount = 0u;
+        }
         (void)sensorarrayFdcMatrixEmitFrame(&frame);
         sensorarrayAppDelayFramePeriod();
     }
@@ -318,12 +483,35 @@ void sensorarrayAppRun(void)
                                  "D5..D8_secondary_ch0..ch3");
     }
 
+    printf("APP_FDC,stage=boot_sweep_begin,primaryReady=%d,secondaryReady=%d\n",
+           s_state.fdcPrimary.ready ? 1 : 0,
+           s_state.fdcSecondary.ready ? 1 : 0);
     if (s_state.fdcPrimary.ready && s_state.fdcSecondary.ready) {
-        err = sensorarrayFdcSweepRunBoot(&s_state);
+        esp_err_t bootErr = sensorarrayFdcSweepRunBoot(&s_state);
+        s_fdcBootSweepOk = (bootErr == ESP_OK);
+        s_fdcDiagnosticMode = (bootErr != ESP_OK);
+        printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=%d\n",
+               (unsigned long)bootErr,
+               s_fdcBootSweepOk ? 1 : 0);
         sensorarrayLogStartup("fdc_boot_sweep",
-                              err,
-                              (err == ESP_OK) ? "ok" : "warning_or_failed",
-                              (int32_t)err);
+                              bootErr,
+                              (bootErr == ESP_OK) ? "ok" : "failed",
+                              (int32_t)bootErr);
+        if (bootErr != ESP_OK && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
+            printf("FDC_FATAL,stage=boot,reason=boot_sweep_failed,err=0x%lx\n",
+                   (unsigned long)bootErr);
+        } else if (bootErr != ESP_OK) {
+            s_fdcDiagnosticMode = false;
+            printf("FDC_BOOT,stage=warning,reason=boot_sweep_failed_not_required,err=0x%lx\n",
+                   (unsigned long)bootErr);
+        }
+    } else {
+        s_fdcBootSweepOk = false;
+        s_fdcDiagnosticMode = true;
+        printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=0\n",
+               (unsigned long)ESP_ERR_INVALID_STATE);
+        printf("FDC_FATAL,stage=boot,reason=fdc_init_not_ready,err=0x%lx\n",
+               (unsigned long)ESP_ERR_INVALID_STATE);
     }
 
     sensorarrayStartCommandTask();

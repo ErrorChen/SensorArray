@@ -21,8 +21,19 @@
 #define SENSORARRAY_FDC_SWEEP_MUX_CONFIG_AUTOSCAN_MASK 0x8000u
 #define SENSORARRAY_FDC_SWEEP_MUX_CONFIG_DEGLITCH_MASK 0x0007u
 #define SENSORARRAY_FDC_SWEEP_REG_STATUS 0x18u
+#define SENSORARRAY_FDC_SWEEP_REG_STATUS_CONFIG 0x19u
 #define SENSORARRAY_FDC_SWEEP_REG_CONFIG 0x1Au
 #define SENSORARRAY_FDC_SWEEP_REG_MUX_CONFIG 0x1Bu
+#define SENSORARRAY_FDC_SWEEP_REG_RCOUNT_BASE 0x08u
+#define SENSORARRAY_FDC_SWEEP_REG_SETTLECOUNT_BASE 0x10u
+#define SENSORARRAY_FDC_SWEEP_REG_CLOCK_DIVIDERS_BASE 0x14u
+#define SENSORARRAY_FDC_SWEEP_REG_DRIVE_CURRENT_BASE 0x1Eu
+#define SENSORARRAY_FDC_SWEEP_REG_MANUFACTURER_ID 0x7Eu
+#define SENSORARRAY_FDC_SWEEP_REG_DEVICE_ID 0x7Fu
+#define SENSORARRAY_FDC_SWEEP_STATUS_ERR_WD_MASK 0x0800u
+#define SENSORARRAY_FDC_SWEEP_STATUS_ERR_AHW_MASK 0x0400u
+#define SENSORARRAY_FDC_SWEEP_STATUS_ERR_ALW_MASK 0x0200u
+#define SENSORARRAY_FDC_SWEEP_STATUS_DRDY_MASK 0x0040u
 #define SENSORARRAY_FDC_SWEEP_RAW28_MAX 0x0FFFFFFFu
 #define SENSORARRAY_FDC_SWEEP_RAW28_SATURATED_THRESHOLD 0x0FFFFF00u
 #define SENSORARRAY_FDC_SWEEP_FAST_PROBE_SAMPLES 2u
@@ -47,23 +58,20 @@
  * fast-probe/confirm selection strategy intact.
  */
 static const uint16_t SENSORARRAY_FDC_DRIVE_CURRENT_SWEEP_TABLE[] = {
+    0x7800u,
+    0x9000u,
+    0xA000u,
+    0xB000u,
+    0xC000u,
+    0xD000u,
+    0xE000u,
+    0xF000u,
+    0xF800u,
     0x4000u,
     0x5000u,
     0x6000u,
     0x7000u,
-    0x7800u,
     0x8000u,
-    0x8800u,
-    0x9000u,
-    0x9800u,
-    0xA000u,
-    0xA800u,
-    0xB000u,
-    0xB800u,
-    0xC000u,
-    0xD000u,
-    0xE000u,
-    0xF800u,
 };
 
 static const sensorarrayFdcDeglitchCandidate_t SENSORARRAY_FDC_DEGLITCH_SWEEP_TABLE[] = {
@@ -79,12 +87,50 @@ static volatile bool gFdcForceFullSweepAllPending = false;
 static volatile bool gFdcForceFullSweepPending = false;
 static volatile uint8_t gFdcForceFullSweepS = 1u;
 static volatile uint8_t gFdcForceFullSweepD = 1u;
+static volatile uint32_t gFdcSweepRequestEpoch = 0u;
+static volatile bool gFdcRescueInProgress = false;
+static uint32_t gFdcAllInvalidReportCount = 0u;
+
+typedef struct {
+    esp_err_t i2cErr;
+    bool i2cOk;
+    bool sampleValid;
+    bool rawNonZero;
+    bool statusOk;
+    bool sleep;
+    bool converting;
+    bool watchdogFault;
+    bool amplitudeFault;
+    bool saturated;
+    bool dataReadyOk;
+    bool unreadOk;
+    uint32_t raw28;
+    uint16_t status;
+    const char *invalidReason;
+} sensorarrayFdcSampleEval_t;
 
 static bool sensorarrayFdcSweepCandidateHasStableSamples(const sensorarrayFdcSweepCandidateResult_t *candidate);
 
 static const char *sensorarrayFdcSweepDevName(sensorarrayFdcDeviceId_t devId)
 {
     return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary";
+}
+
+static const char *sensorarrayFdcSweepDevFullName(sensorarrayFdcDeviceId_t devId)
+{
+    return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary_fdc2214" : "primary_fdc2214";
+}
+
+static uint8_t sensorarrayFdcSweepDLineForDeviceChannel(sensorarrayFdcDeviceId_t devId,
+                                                        Fdc2214CapChannel_t channel)
+{
+    uint8_t base = (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? 5u : 1u;
+    return (uint8_t)(base + (uint8_t)channel);
+}
+
+static uint8_t sensorarrayFdcSweepRegForChannel(uint8_t base, Fdc2214CapChannel_t channel)
+{
+    return (uint8_t)(base + (uint8_t)channel);
 }
 
 static double sensorarrayFdcSweepAbsDouble(double value)
@@ -149,26 +195,32 @@ sensorarrayFdcCellCalibration_t *sensorarrayFdcSweepGetCellCalibration(uint8_t s
     return sensorarrayFdcSweepCell(sIndex, dIndex);
 }
 
-void sensorarrayFdcSweepRequestForceFullSweepAll(void)
+esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void)
 {
     gFdcForceFullSweepAllPending = true;
-    printf("FDC_COMMAND,command=force_full_sweep,scope=all,status=queued\n");
+    uint32_t epoch = ++gFdcSweepRequestEpoch;
+    printf("FDC_SWEEP_REQUEST,scope=all,reason=manual_or_auto,status=queued,epoch=%lu\n",
+           (unsigned long)epoch);
+    return ESP_OK;
 }
 
-void sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex)
+esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex)
 {
     if (!sensorarrayMatrixIndexIsValid(sIndex, dIndex)) {
-        printf("FDC_COMMAND,command=force_full_sweep,s=%u,d=%u,status=invalid_cell\n",
+        printf("FDC_SWEEP_REQUEST,scope=cell,status=failed,reason=bad_cell,s=%u,d=%u\n",
                (unsigned)sIndex,
                (unsigned)dIndex);
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
     gFdcForceFullSweepS = sIndex;
     gFdcForceFullSweepD = dIndex;
     gFdcForceFullSweepPending = true;
-    printf("FDC_COMMAND,command=force_full_sweep,s=%u,d=%u,status=queued\n",
+    uint32_t epoch = ++gFdcSweepRequestEpoch;
+    printf("FDC_SWEEP_REQUEST,scope=cell,s=%u,d=%u,reason=manual_or_auto,status=queued,epoch=%lu\n",
            (unsigned)sIndex,
-           (unsigned)dIndex);
+           (unsigned)dIndex,
+           (unsigned long)epoch);
+    return ESP_OK;
 }
 
 static bool sensorarrayFdcSweepConsumeForceFullSweep(uint8_t sIndex, uint8_t dIndex)
@@ -251,6 +303,51 @@ const char *sensorarrayFdcSweepReasonName(sensorarrayFdcSweepReason_t reason)
     }
 }
 
+const char *sensorarrayFdcSweepFaultReasonName(sensorarrayFdcFaultReason_t reason)
+{
+    switch (reason) {
+    case SENSORARRAY_FDC_FAULT_NONE:
+        return "none";
+    case SENSORARRAY_FDC_FAULT_ZERO_RAW:
+        return "zero_raw";
+    case SENSORARRAY_FDC_FAULT_NO_OSCILLATION:
+        return "no_oscillation";
+    case SENSORARRAY_FDC_FAULT_STATUS_SLEEP:
+        return "status_sleep";
+    case SENSORARRAY_FDC_FAULT_NOT_CONVERTING:
+        return "not_converting";
+    case SENSORARRAY_FDC_FAULT_WATCHDOG:
+        return "watchdog";
+    case SENSORARRAY_FDC_FAULT_AMPLITUDE:
+        return "amplitude";
+    case SENSORARRAY_FDC_FAULT_TIMEOUT:
+        return "timeout";
+    case SENSORARRAY_FDC_FAULT_ALL_INVALID_FRAME:
+        return "all_invalid_frame";
+    default:
+        return "unknown";
+    }
+}
+
+bool sensorarrayFdcSweepIsRescueInProgress(void)
+{
+    return gFdcRescueInProgress;
+}
+
+void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
+                                              uint64_t errorMask,
+                                              uint32_t zeroRawCount)
+{
+    gFdcAllInvalidReportCount++;
+    printf("FDC_SWEEP_REQUEST,scope=all,reason=all_invalid_frame,status=reported,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
+           (unsigned long)gFdcSweepRequestEpoch,
+           (unsigned long long)validMask,
+           (unsigned long long)errorMask,
+           (unsigned long)zeroRawCount,
+           (unsigned long)gFdcAllInvalidReportCount);
+    (void)sensorarrayFdcSweepRequestForceFullSweepAll();
+}
+
 static uint32_t sensorarrayFdcSweepNowMs(void)
 {
     return (uint32_t)(esp_timer_get_time() / 1000LL);
@@ -291,6 +388,157 @@ static void sensorarrayFdcSweepDelayMs(uint32_t delayMs)
         vTaskDelay(sensorarrayFdcSweepMsToTicksAtLeastOne(chunkMs));
         remainingMs -= chunkMs;
     }
+}
+
+static esp_err_t sensorarrayFdcSweepDumpDeviceRegs(sensorarrayFdcDeviceState_t *fdc,
+                                                   const char *stage,
+                                                   const char *reason)
+{
+    if (!fdc || !fdc->handle) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint16_t mfg = 0u;
+    uint16_t dev = 0u;
+    uint16_t status = 0u;
+    uint16_t statusConfig = 0u;
+    uint16_t config = 0u;
+    uint16_t mux = 0u;
+    esp_err_t firstErr = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_MANUFACTURER_ID, &mfg);
+    esp_err_t err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_DEVICE_ID, &dev);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_STATUS, &status);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_STATUS_CONFIG, &statusConfig);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_CONFIG, &config);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_MUX_CONFIG, &mux);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+
+    printf("FDC_REGS,stage=%s,reason=%s,device=%s,addr=0x%02X,mfg=0x%04X,dev=0x%04X,status=0x%04X,statusConfig=0x%04X,config=0x%04X,mux=0x%04X,err=0x%lx\n",
+           stage ? stage : SENSORARRAY_NA,
+           reason ? reason : SENSORARRAY_NA,
+           fdc->label ? fdc->label : SENSORARRAY_NA,
+           fdc->i2cAddr,
+           mfg,
+           dev,
+           status,
+           statusConfig,
+           config,
+           mux,
+           (unsigned long)firstErr);
+
+    if (firstErr == ESP_OK) {
+        fdc->manufacturerId = mfg;
+        fdc->deviceId = dev;
+        fdc->statusConfigReg = statusConfig;
+        fdc->configReg = config;
+        fdc->muxConfigReg = mux;
+    }
+
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        uint16_t rCount = 0u;
+        uint16_t settle = 0u;
+        uint16_t clockDiv = 0u;
+        uint16_t drive = 0u;
+        esp_err_t chErr = Fdc2214CapReadRawRegisters(fdc->handle,
+                                                     sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_RCOUNT_BASE,
+                                                                                      (Fdc2214CapChannel_t)ch),
+                                                     &rCount);
+        if (chErr == ESP_OK) {
+            chErr = Fdc2214CapReadRawRegisters(fdc->handle,
+                                               sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_SETTLECOUNT_BASE,
+                                                                                (Fdc2214CapChannel_t)ch),
+                                               &settle);
+        }
+        if (chErr == ESP_OK) {
+            chErr = Fdc2214CapReadRawRegisters(fdc->handle,
+                                               sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_CLOCK_DIVIDERS_BASE,
+                                                                                (Fdc2214CapChannel_t)ch),
+                                               &clockDiv);
+        }
+        if (chErr == ESP_OK) {
+            chErr = Fdc2214CapReadRawRegisters(fdc->handle,
+                                               sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_DRIVE_CURRENT_BASE,
+                                                                                (Fdc2214CapChannel_t)ch),
+                                               &drive);
+        }
+        if (chErr != ESP_OK && firstErr == ESP_OK) {
+            firstErr = chErr;
+        }
+        printf("FDC_REGS_CH,stage=%s,device=%s,ch=%u,rCount=0x%04X,settle=0x%04X,clockDiv=0x%04X,drive=0x%04X,err=0x%lx\n",
+               stage ? stage : SENSORARRAY_NA,
+               fdc->label ? fdc->label : SENSORARRAY_NA,
+               (unsigned)ch,
+               rCount,
+               settle,
+               clockDiv,
+               drive,
+               (unsigned long)chErr);
+    }
+    return firstErr;
+}
+
+esp_err_t sensorarrayFdcSweepDumpAllDeviceRegs(sensorarrayState_t *state,
+                                               const char *stage,
+                                               const char *reason)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t firstErr = ESP_OK;
+    esp_err_t err = sensorarrayFdcSweepDumpDeviceRegs(&state->fdcPrimary, stage, reason);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    err = sensorarrayFdcSweepDumpDeviceRegs(&state->fdcSecondary, stage, reason);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    return firstErr;
+}
+
+static esp_err_t sensorarrayFdcSweepLogBootDeviceRegs(sensorarrayFdcDeviceState_t *fdc,
+                                                      const char *deviceName)
+{
+    if (!fdc || !fdc->handle) {
+        printf("FDC_BOOT,stage=device_regs,device=%s,err=0x%lx,reason=not_ready\n",
+               deviceName ? deviceName : SENSORARRAY_NA,
+               (unsigned long)ESP_ERR_INVALID_STATE);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint16_t mfg = 0u;
+    uint16_t dev = 0u;
+    Fdc2214CapCoreRegs_t regs = {0};
+    esp_err_t err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_MANUFACTURER_ID, &mfg);
+    if (err == ESP_OK) {
+        err = Fdc2214CapReadRawRegisters(fdc->handle, SENSORARRAY_FDC_SWEEP_REG_DEVICE_ID, &dev);
+    }
+    if (err == ESP_OK) {
+        err = Fdc2214CapReadCoreRegs(fdc->handle, &regs);
+    }
+    printf("FDC_BOOT,stage=device_regs,device=%s,addr=0x%02X,mfg=0x%04X,dev=0x%04X,status=0x%04X,config=0x%04X,mux=0x%04X,err=0x%lx\n",
+           deviceName ? deviceName : SENSORARRAY_NA,
+           fdc->i2cAddr,
+           mfg,
+           dev,
+           regs.Status,
+           regs.Config,
+           regs.MuxConfig,
+           (unsigned long)err);
+    return err;
 }
 
 static const sensorarrayFdcDeglitchCandidate_t *sensorarrayFdcSweepFindDeglitchCandidate(uint8_t deglitchCode)
@@ -603,10 +851,72 @@ static bool sensorarrayFdcSweepFallbackBetter(const sensorarrayFdcSweepCandidate
     return sensorarrayFdcSweepCandidateScore(candidate) > sensorarrayFdcSweepCandidateScore(best);
 }
 
+static sensorarrayFdcSampleEval_t sensorarrayFdcSweepEvaluateSample(const sensorarrayFdcReadDiag_t *diag)
+{
+    sensorarrayFdcSampleEval_t eval = {
+        .i2cErr = diag ? diag->err : ESP_ERR_INVALID_ARG,
+        .i2cOk = diag && diag->err == ESP_OK && diag->i2cOk,
+        .invalidReason = "i2c_read_failed",
+    };
+    if (!diag) {
+        return eval;
+    }
+
+    eval.raw28 = diag->sample.Raw28;
+    eval.status = diag->sample.StatusRaw;
+    eval.rawNonZero = diag->sample.Raw28 != 0u;
+    eval.sleep = diag->sample.SleepModeEnabled;
+    eval.converting = diag->sample.Converting;
+    eval.watchdogFault = diag->sample.ErrWatchdog || diag->status.ErrWatchdog;
+    eval.amplitudeFault = diag->sample.ErrAmplitude ||
+                          diag->status.ErrAmplitudeHigh ||
+                          diag->status.ErrAmplitudeLow;
+    eval.saturated = diag->sample.Raw28 >= SENSORARRAY_FDC_SWEEP_RAW28_SATURATED_THRESHOLD;
+    eval.dataReadyOk = diag->sample.DataReady;
+    eval.unreadOk = diag->sample.UnreadConversionPresent;
+    eval.statusOk = eval.i2cOk &&
+                    !eval.sleep &&
+                    eval.converting &&
+                    !eval.watchdogFault &&
+                    !eval.amplitudeFault;
+    eval.sampleValid = eval.statusOk &&
+                       eval.rawNonZero &&
+                       eval.unreadOk &&
+                       !eval.saturated &&
+                       diag->sample.SampleStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
+
+    if (!eval.i2cOk) {
+        eval.invalidReason = "i2c_read_failed";
+    } else if (eval.sleep) {
+        eval.invalidReason = "status_sleep";
+    } else if (!eval.converting) {
+        eval.invalidReason = "status_not_converting";
+    } else if (eval.watchdogFault) {
+        eval.invalidReason = "status_watchdog";
+    } else if (eval.amplitudeFault) {
+        eval.invalidReason = "status_amplitude";
+    } else if (!eval.rawNonZero) {
+        eval.invalidReason = "zero_raw_no_oscillation";
+    } else if (eval.saturated) {
+        eval.invalidReason = "saturated";
+    } else if (!eval.unreadOk) {
+        eval.invalidReason = "no_unread_conversion";
+    } else if (diag->provisionalReadable && !diag->sampleValid) {
+        eval.invalidReason = "provisional_state";
+    } else if (!eval.sampleValid) {
+        eval.invalidReason = sensorarrayMeasureFdcSampleStatusName(diag->statusCode);
+    } else {
+        eval.invalidReason = "valid";
+    }
+    return eval;
+}
+
 static esp_err_t sensorarrayFdcSweepReadOneSampleBounded(Fdc2214CapDevice_t *dev,
+                                                         const char *deviceName,
                                                          Fdc2214CapChannel_t channel,
                                                          uint32_t timeoutMs,
-                                                         sensorarrayFdcReadDiag_t *outDiag)
+                                                         sensorarrayFdcReadDiag_t *outDiag,
+                                                         sensorarrayFdcSampleEval_t *outEval)
 {
     if (!dev || !outDiag) {
         return ESP_ERR_INVALID_ARG;
@@ -636,18 +946,40 @@ static esp_err_t sensorarrayFdcSweepReadOneSampleBounded(Fdc2214CapDevice_t *dev
         if (err != ESP_OK) {
             *outDiag = diag;
             outDiag->err = err;
+            if (outEval) {
+                *outEval = sensorarrayFdcSweepEvaluateSample(outDiag);
+            }
             return err;
         }
 
         bool terminal = diag.sample.SleepModeEnabled ||
                         !diag.sample.Converting ||
                         diag.sample.ErrWatchdog ||
-                        diag.sample.ErrAmplitude;
+            diag.sample.ErrAmplitude;
         if (diag.sample.UnreadConversionPresent ||
             diag.sample.DataReady ||
             terminal ||
             diag.provisionalReadable) {
             *outDiag = diag;
+            sensorarrayFdcSampleEval_t eval = sensorarrayFdcSweepEvaluateSample(&diag);
+            if (outEval) {
+                *outEval = eval;
+            }
+            if (!eval.sampleValid) {
+                printf("FDC_SAMPLE,stage=invalid,reason=%s,device=%s,ch=%u,status=0x%04X,raw28=%lu,i2cOk=%u,converting=%u,dataReady=%u,unread=%u,watchdog=%u,amplitude=%u,saturated=%u\n",
+                       eval.invalidReason,
+                       deviceName ? deviceName : SENSORARRAY_NA,
+                       (unsigned)channel,
+                       eval.status,
+                       (unsigned long)eval.raw28,
+                       eval.i2cOk ? 1u : 0u,
+                       eval.converting ? 1u : 0u,
+                       eval.dataReadyOk ? 1u : 0u,
+                       eval.unreadOk ? 1u : 0u,
+                       eval.watchdogFault ? 1u : 0u,
+                       eval.amplitudeFault ? 1u : 0u,
+                       eval.saturated ? 1u : 0u);
+            }
             return ESP_OK;
         }
 
@@ -661,13 +993,22 @@ static esp_err_t sensorarrayFdcSweepReadOneSampleBounded(Fdc2214CapDevice_t *dev
     *outDiag = lastDiag;
     outDiag->err = ESP_ERR_TIMEOUT;
     outDiag->i2cOk = false;
-    printf("FDC_SWEEP,stage=wait_sample,timeoutMs=%lu,polls=%lu,statusReg=0x%04X,unread=%u,dataReady=%u,result=timeout,err=%ld\n",
+    if (outEval) {
+        *outEval = sensorarrayFdcSweepEvaluateSample(outDiag);
+        outEval->i2cErr = ESP_ERR_TIMEOUT;
+        outEval->i2cOk = false;
+        outEval->sampleValid = false;
+        outEval->invalidReason = "timeout";
+    }
+    printf("FDC_SAMPLE,stage=timeout,device=%s,ch=%u,timeoutMs=%lu,polls=%lu,status=0x%04X,unread=%u,dataReady=%u,err=0x%lx\n",
+           deviceName ? deviceName : SENSORARRAY_NA,
+           (unsigned)channel,
            (unsigned long)timeoutMs,
            (unsigned long)polls,
            lastDiag.sample.StatusRaw,
            lastDiag.sample.UnreadConversionPresent ? 1u : 0u,
            lastDiag.sample.DataReady ? 1u : 0u,
-           (long)ESP_ERR_TIMEOUT);
+           (unsigned long)ESP_ERR_TIMEOUT);
     return ESP_ERR_TIMEOUT;
 }
 
@@ -798,15 +1139,17 @@ esp_err_t sensorarrayFdcSweepApplyDirectSafeLock(sensorarrayState_t *state,
     uint16_t driveNorm = (uint16_t)(driveCurrent & SENSORARRAY_FDC_SWEEP_DRIVE_CURRENT_MASK);
     Fdc2214CapDeglitch_t deglitch = sensorarrayFdcSweepDeglitchEnum(deglitchCode);
     const char *devName = sensorarrayFdcSweepDevName(devId);
+    const char *devFullName = sensorarrayFdcSweepDevFullName(devId);
     const char *source = reason ? reason : SENSORARRAY_NA;
-    bool highCurrentApplied = false;
-    if (highCurrent) {
-        printf("FDC_SWEEP,stage=direct_lock,dev=%s,ch=%u,reason=%s,highCurrentReq=1,highCurrentApplied=0,status=matrix_autoscan_disables_high_current\n",
-               devName,
-               (unsigned)channel,
-               source);
-    }
+    bool highCurrentApplied = highCurrent;
 
+    printf("FDC_LOCK,stage=apply_begin,device=%s,ch=%u,driveReq=0x%04X,deglitchReq=0x%X,highCurrentReq=%u,reason=%s\n",
+           devFullName,
+           (unsigned)channel,
+           driveNorm,
+           (unsigned)deglitchCode,
+           highCurrent ? 1u : 0u,
+           source);
     printf("FDC_SWEEP,stage=direct_lock_begin,dev=%s,ch=%u,reason=%s,deglitch=0x%X,drive=0x%04X\n",
            devName,
            (unsigned)channel,
@@ -887,6 +1230,64 @@ esp_err_t sensorarrayFdcSweepApplyDirectSafeLock(sensorarrayState_t *state,
         return (err != ESP_OK) ? err : ESP_ERR_INVALID_RESPONSE;
     }
 
+    uint16_t rCountReadback = 0u;
+    uint16_t settleReadback = 0u;
+    uint16_t clockReadback = 0u;
+    uint16_t statusReadback = 0u;
+    esp_err_t regsErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                                   sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_RCOUNT_BASE,
+                                                                                    channel),
+                                                   &rCountReadback);
+    if (regsErr == ESP_OK) {
+        regsErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                             sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_SETTLECOUNT_BASE,
+                                                                              channel),
+                                             &settleReadback);
+    }
+    if (regsErr == ESP_OK) {
+        regsErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                             sensorarrayFdcSweepRegForChannel(SENSORARRAY_FDC_SWEEP_REG_CLOCK_DIVIDERS_BASE,
+                                                                              channel),
+                                             &clockReadback);
+    }
+    if (regsErr == ESP_OK) {
+        regsErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                             SENSORARRAY_FDC_SWEEP_REG_STATUS,
+                                             &statusReadback);
+    }
+    printf("FDC_LOCK,stage=reg_readback,device=%s,ch=%u,rCount=0x%04X,settle=0x%04X,clockDiv=0x%04X,drive=0x%04X,config=0x%04X,mux=0x%04X,err=0x%lx\n",
+           devFullName,
+           (unsigned)channel,
+           rCountReadback,
+           settleReadback,
+           clockReadback,
+           driveReadback,
+           configReadback,
+           muxReadback,
+           (unsigned long)regsErr);
+    if (regsErr != ESP_OK) {
+        return regsErr;
+    }
+
+    sensorarrayFdcSweepDelayMs((uint32_t)CONFIG_SENSORARRAY_FDC_SWEEP_SETTLE_MS);
+    err = Fdc2214CapReadRawRegisters(fdcState->handle, SENSORARRAY_FDC_SWEEP_REG_STATUS, &statusReadback);
+    bool statusWatchdog = (statusReadback & SENSORARRAY_FDC_SWEEP_STATUS_ERR_WD_MASK) != 0u;
+    bool statusAmplitude = (statusReadback & (SENSORARRAY_FDC_SWEEP_STATUS_ERR_AHW_MASK |
+                                              SENSORARRAY_FDC_SWEEP_STATUS_ERR_ALW_MASK)) != 0u;
+    bool statusConverting = !sleepReadback;
+    printf("FDC_LOCK,stage=apply_done,device=%s,ch=%u,status=0x%04X,sleep=%u,converting=%u,watchdog=%u,amplitude=%u,err=0x%lx\n",
+           devFullName,
+           (unsigned)channel,
+           statusReadback,
+           sleepReadback ? 1u : 0u,
+           statusConverting ? 1u : 0u,
+           statusWatchdog ? 1u : 0u,
+           statusAmplitude ? 1u : 0u,
+           (unsigned long)err);
+    if (err != ESP_OK) {
+        return err;
+    }
+
     err = Fdc2214CapClearStatus(fdcState->handle);
     printf("FDC_SWEEP,stage=direct_lock_done,dev=%s,ch=%u,reason=%s,err=%ld,muxConfig=0x%04X,config=0x%04X,driveReadback=0x%04X,status=%s\n",
            devName,
@@ -905,6 +1306,9 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
                                                      Fdc2214CapChannel_t channel,
                                                      const sensorarrayFdcDeglitchCandidate_t *deglitch,
                                                      uint16_t driveCurrent,
+                                                     bool highCurrent,
+                                                     uint8_t sIndex,
+                                                     uint8_t dIndex,
                                                      const char *stage,
                                                      uint32_t candidateIndex,
                                                      uint32_t candidateCount,
@@ -924,16 +1328,30 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
         .deglitchBandwidthHz = deglitch->deglitchBandwidthHz,
         .driveCurrentReq = driveCurrent,
         .driveCurrentNorm = (uint16_t)(driveCurrent & SENSORARRAY_FDC_SWEEP_DRIVE_CURRENT_MASK),
+        .highCurrentReq = highCurrent,
         .raw28Min = SENSORARRAY_FDC_SWEEP_RAW28_MAX,
     };
 
     const char *devName = sensorarrayFdcSweepDevName(devId);
+    const char *devFullName = sensorarrayFdcSweepDevFullName(devId);
+    uint8_t dLine = dIndex ? dIndex : sensorarrayFdcSweepDLineForDeviceChannel(devId, channel);
     const char *stageName = stage ? stage : "sweep";
     sampleTarget = sensorarrayFdcSweepClampQualitySamples(sampleTarget);
     uint32_t stepTimeoutMs = sensorarrayFdcSweepStepTimeoutMs();
     int64_t candidateDeadlineUs = esp_timer_get_time() + ((int64_t)stepTimeoutMs * 1000LL);
 
-    printf("FDC_SWEEP,stage=%s_candidate_begin,dev=%s,ch=%u,index=%lu,count=%lu,deglitch=0x%X,deglitchName=%s,bandwidthHz=%lu,drive=0x%04X,fastProbe=%u,confirm=%u,timeoutMs=%lu\n",
+    printf("FDC_SWEEP,stage=candidate_begin,s=%u,d=%u,device=%s,ch=%u,drive=0x%04X,deglitch=0x%X,highCurrent=%u,index=%lu,count=%lu,reason=%s\n",
+           (unsigned)sIndex,
+           (unsigned)dLine,
+           devFullName,
+           (unsigned)channel,
+           outCandidate->driveCurrentNorm,
+           (unsigned)deglitch->deglitchCode,
+           highCurrent ? 1u : 0u,
+           (unsigned long)candidateIndex,
+           (unsigned long)candidateCount,
+           stageName);
+    printf("FDC_SWEEP,stage=%s_candidate_begin,dev=%s,ch=%u,index=%lu,count=%lu,deglitch=0x%X,deglitchName=%s,bandwidthHz=%lu,drive=0x%04X,highCurrent=%u,fastProbe=%u,confirm=%u,timeoutMs=%lu\n",
            stageName,
            devName,
            (unsigned)channel,
@@ -943,6 +1361,7 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
            deglitch->deglitchName,
            (unsigned long)deglitch->deglitchBandwidthHz,
            outCandidate->driveCurrentNorm,
+           highCurrent ? 1u : 0u,
            (unsigned)SENSORARRAY_FDC_SWEEP_FAST_PROBE_SAMPLES,
            (unsigned)sampleTarget,
            (unsigned long)stepTimeoutMs);
@@ -952,10 +1371,14 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
                                                                channel,
                                                                deglitch->deglitchCode,
                                                                driveCurrent,
-                                                               false,
+                                                               highCurrent,
                                                                stageName);
     if (firstErr != ESP_OK) {
         outCandidate->invalidSampleCount = 1u;
+        printf("FDC_SWEEP,stage=candidate_reject,reason=lock_failed,device=%s,ch=%u,err=0x%lx\n",
+               devFullName,
+               (unsigned)channel,
+               (unsigned long)firstErr);
         printf("FDC_SWEEP,stage=%s_candidate_summary,dev=%s,ch=%u,index=%lu,err=%ld,stable=0,status=apply_failed\n",
                stageName,
                devName,
@@ -992,11 +1415,14 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
             sampleTimeoutMs = remainingMs;
         }
         sensorarrayFdcReadDiag_t discardDiag = {0};
+        sensorarrayFdcSampleEval_t discardEval = {0};
         if (sampleTimeoutMs == 0u ||
             sensorarrayFdcSweepReadOneSampleBounded(fdcState->handle,
+                                                    devFullName,
                                                     channel,
                                                     sampleTimeoutMs,
-                                                    &discardDiag) != ESP_OK) {
+                                                    &discardDiag,
+                                                    &discardEval) != ESP_OK) {
             outCandidate->timeoutCount++;
             firstErr = ESP_ERR_TIMEOUT;
             failFast = true;
@@ -1022,10 +1448,13 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
         }
 
         sensorarrayFdcReadDiag_t diag = {0};
+        sensorarrayFdcSampleEval_t eval = {0};
         esp_err_t readErr = sensorarrayFdcSweepReadOneSampleBounded(fdcState->handle,
+                                                                    devFullName,
                                                                     channel,
                                                                     sampleTimeoutMs,
-                                                                    &diag);
+                                                                    &diag,
+                                                                    &eval);
         if (readErr != ESP_OK) {
             firstErr = readErr;
             if (readErr == ESP_ERR_TIMEOUT) {
@@ -1037,24 +1466,25 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
             break;
         }
 
-        bool saturated = diag.sample.Raw28 >= SENSORARRAY_FDC_SWEEP_RAW28_SATURATED_THRESHOLD;
-        bool sampleValid = diag.provisionalReadable &&
-                           diag.sample.UnreadConversionPresent &&
-                           diag.sample.Raw28 != 0u &&
-                           !saturated &&
-                           !diag.sample.ErrWatchdog &&
-                           !diag.sample.ErrAmplitude;
+        bool saturated = eval.saturated;
+        bool sampleValid = eval.sampleValid;
         outCandidate->raw28Last = diag.sample.Raw28;
-        if (diag.sample.Raw28 == 0u) {
+        if (!eval.rawNonZero) {
             outCandidate->zeroRawCount++;
+            printf("FDC_SWEEP,stage=candidate_sample_invalid,reason=zero_raw,device=%s,ch=%u,status=0x%04X,drive=0x%04X,deglitch=0x%X\n",
+                   devFullName,
+                   (unsigned)channel,
+                   eval.status,
+                   outCandidate->driveCurrentNorm,
+                   (unsigned)outCandidate->deglitchReq);
         }
         if (saturated) {
             outCandidate->saturatedCount++;
         }
-        if (diag.sample.ErrWatchdog) {
+        if (eval.watchdogFault) {
             outCandidate->watchdogCount++;
         }
-        if (diag.sample.ErrAmplitude) {
+        if (eval.amplitudeFault) {
             outCandidate->amplitudeFaultCount++;
         }
         if (sampleValid) {
@@ -1078,6 +1508,7 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
             }
         } else {
             outCandidate->invalidSampleCount++;
+            failReason = eval.invalidReason;
         }
 
         if (sampleIndex + 1u >= SENSORARRAY_FDC_SWEEP_FAST_PROBE_SAMPLES) {
@@ -1139,6 +1570,30 @@ static esp_err_t sensorarrayFdcSweepCaptureCandidate(sensorarrayState_t *state,
            (long)sensorarrayFdcSweepCandidateScore(outCandidate),
            outCandidate->stable ? "working" :
            (sensorarrayFdcSweepCandidateIsFallbackUsable(outCandidate) ? "fallback_usable" : "not_working"));
+
+    bool accepted = sensorarrayFdcSweepCandidateIsWorking(outCandidate);
+    const char *resultReason = accepted ? "valid" :
+                               (outCandidate->zeroRawCount != 0u) ? "zero_raw_no_oscillation" :
+                               (outCandidate->timeoutCount != 0u) ? "timeout" :
+                               (outCandidate->watchdogCount != 0u) ? "status_watchdog" :
+                               (outCandidate->amplitudeFaultCount != 0u) ? "status_amplitude" :
+                               (outCandidate->saturatedCount != 0u) ? "saturated" :
+                               failReason;
+    printf("FDC_SWEEP,stage=candidate_result,result=%s,reason=%s,device=%s,ch=%u,rawMean=%lu,freqMeanHz=%.3f,spread=%.6f,drive=0x%04X,deglitch=0x%X,highCurrent=%u,validSamples=%lu,zeroRaw=%lu,timeout=%lu,statusFault=%lu\n",
+           accepted ? "accept" : "reject",
+           resultReason ? resultReason : SENSORARRAY_NA,
+           devFullName,
+           (unsigned)channel,
+           (unsigned long)outCandidate->raw28Mean,
+           outCandidate->frequencyHz,
+           outCandidate->relativeSpread,
+           outCandidate->driveCurrentNorm,
+           (unsigned)outCandidate->deglitchReq,
+           outCandidate->highCurrentReq ? 1u : 0u,
+           (unsigned long)outCandidate->validSampleCount,
+           (unsigned long)outCandidate->zeroRawCount,
+           (unsigned long)outCandidate->timeoutCount,
+           (unsigned long)(outCandidate->watchdogCount + outCandidate->amplitudeFaultCount));
 
     return firstErr;
 }
@@ -1207,7 +1662,8 @@ esp_err_t sensorarrayFdcSweepRunChannel(sensorarrayState_t *state,
                                                              driveOrder,
                                                              (uint32_t)(sizeof(driveOrder) /
                                                                         sizeof(driveOrder[0])));
-    uint32_t candidateCount = deglitchCount * driveCount;
+    uint32_t highCurrentPasses = (strcmp(stage, "boot") == 0) ? 2u : 1u;
+    uint32_t candidateCount = deglitchCount * driveCount * highCurrentPasses;
 
     *outResult = (sensorarrayFdcSweepResult_t){
         .devId = devId,
@@ -1233,40 +1689,47 @@ esp_err_t sensorarrayFdcSweepRunChannel(sensorarrayState_t *state,
     esp_err_t lastErr = ESP_OK;
     uint32_t tried = 0u;
 
-    for (uint32_t d = 0u; d < deglitchCount; ++d) {
-        for (uint32_t i = 0u; i < driveCount; ++i) {
-            if ((uint32_t)(sensorarrayFdcSweepNowMs() - startMs) >= totalTimeoutMs) {
-                lastErr = ESP_ERR_TIMEOUT;
-                goto sweep_done;
-            }
-            sensorarrayFdcSweepCandidateResult_t candidate = {0};
-            esp_err_t candidateErr = sensorarrayFdcSweepCaptureCandidate(state,
-                                                                         devId,
-                                                                         channel,
-                                                                         deglitchOrder[d],
-                                                                         driveOrder[i],
-                                                                         stage,
-                                                                         tried,
-                                                                         candidateCount,
-                                                                         false,
-                                                                         SENSORARRAY_FDC_SWEEP_MAX_SAMPLES_PER_CANDIDATE,
-                                                                         &candidate);
-            if (candidateErr != ESP_OK) {
-                lastErr = candidateErr;
-            }
-            tried++;
-            if (sensorarrayFdcSweepCandidateIsWorking(&candidate)) {
-                if (!haveBest || sensorarrayFdcSweepCandidateBetter(&candidate, &best)) {
-                    best = candidate;
-                    haveBest = true;
+    for (uint32_t hp = 0u; hp < highCurrentPasses; ++hp) {
+        bool highCurrent = (hp != 0u);
+        for (uint32_t d = 0u; d < deglitchCount; ++d) {
+            for (uint32_t i = 0u; i < driveCount; ++i) {
+                if ((uint32_t)(sensorarrayFdcSweepNowMs() - startMs) >= totalTimeoutMs) {
+                    lastErr = ESP_ERR_TIMEOUT;
+                    goto sweep_done;
                 }
-            } else if (sensorarrayFdcSweepFallbackBetter(&candidate, &fallback)) {
-                fallback = candidate;
-                haveFallback = true;
-            }
-            if (haveBest && !haveFallback && candidate.driveCurrentNorm <= 0x7000u) {
-                /* Low-current stable candidates are preferred for the observed overdrive case. */
-                goto sweep_done;
+                sensorarrayFdcSweepCandidateResult_t candidate = {0};
+                esp_err_t candidateErr = sensorarrayFdcSweepCaptureCandidate(state,
+                                                                             devId,
+                                                                             channel,
+                                                                             deglitchOrder[d],
+                                                                             driveOrder[i],
+                                                                             highCurrent,
+                                                                             0u,
+                                                                             sensorarrayFdcSweepDLineForDeviceChannel(devId,
+                                                                                                                       channel),
+                                                                             stage,
+                                                                             tried,
+                                                                             candidateCount,
+                                                                             false,
+                                                                             SENSORARRAY_FDC_SWEEP_MAX_SAMPLES_PER_CANDIDATE,
+                                                                             &candidate);
+                if (candidateErr != ESP_OK) {
+                    lastErr = candidateErr;
+                }
+                tried++;
+                if (sensorarrayFdcSweepCandidateIsWorking(&candidate)) {
+                    if (!haveBest || sensorarrayFdcSweepCandidateBetter(&candidate, &best)) {
+                        best = candidate;
+                        haveBest = true;
+                    }
+                } else if (sensorarrayFdcSweepFallbackBetter(&candidate, &fallback)) {
+                    fallback = candidate;
+                    haveFallback = true;
+                }
+                if (haveBest && !haveFallback && candidate.driveCurrentNorm <= 0x7000u && !highCurrent) {
+                    /* Low-current stable candidates are preferred for the observed overdrive case. */
+                    goto sweep_done;
+                }
             }
         }
     }
@@ -1298,7 +1761,7 @@ sweep_done:
                                                                 channel,
                                                                 selectedCopy.deglitchReq,
                                                                 selectedCopy.driveCurrentNorm,
-                                                                false,
+                                                                selectedCopy.highCurrentReq,
                                                                 stage);
     if (applyErr != ESP_OK) {
         outResult->lastErr = applyErr;
@@ -1310,7 +1773,7 @@ sweep_done:
     outResult->selectedDeglitchBandwidthHz = selectedCopy.deglitchBandwidthHz;
     outResult->selectedDeglitchName = selectedCopy.deglitchName;
     outResult->selectedDriveCurrent = selectedCopy.driveCurrentNorm;
-    outResult->selectedHighCurrent = false;
+    outResult->selectedHighCurrent = selectedCopy.highCurrentReq;
     outResult->selectedConfig = selectedCopy.configReg;
     outResult->selectedMuxConfig = selectedCopy.muxConfigReg;
     outResult->selectedClockDividers = selectedCopy.clockDividersReg;
@@ -1360,6 +1823,11 @@ esp_err_t sensorarrayFdcSweepRestoreAutoscan(sensorarrayState_t *state,
         return ESP_ERR_INVALID_STATE;
     }
 
+    const char *devName = sensorarrayFdcSweepDevFullName(devId);
+    printf("FDC_LOCK,stage=autoscan_restore_begin,device=%s,reason=%s\n",
+           devName,
+           reason ? reason : SENSORARRAY_NA);
+
     uint32_t selectedBw = SENSORARRAY_FDC_SWEEP_DEFAULT_DEGLITCH_BW_HZ;
     uint8_t selectedCode = SENSORARRAY_FDC_SWEEP_DEFAULT_DEGLITCH_REQ;
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
@@ -1376,12 +1844,28 @@ esp_err_t sensorarrayFdcSweepRestoreAutoscan(sensorarrayState_t *state,
         err = Fdc2214CapClearStatus(fdcState->handle);
     }
     Fdc2214CapCoreRegs_t regs = {0};
-    if (err == ESP_OK && Fdc2214CapReadCoreRegs(fdcState->handle, &regs) == ESP_OK) {
-        fdcState->statusConfigReg = regs.StatusConfig;
-        fdcState->configReg = regs.Config;
-        fdcState->muxConfigReg = regs.MuxConfig;
+    if (err == ESP_OK) {
+        err = Fdc2214CapReadCoreRegs(fdcState->handle, &regs);
+        if (err == ESP_OK) {
+            fdcState->statusConfigReg = regs.StatusConfig;
+            fdcState->configReg = regs.Config;
+            fdcState->muxConfigReg = regs.MuxConfig;
+        }
     }
 
+    uint16_t statusReg = regs.Status;
+    uint16_t configReg = regs.Config;
+    uint16_t muxReg = regs.MuxConfig;
+    if (err != ESP_OK) {
+        (void)sensorarrayFdcSweepDumpDeviceRegs(fdcState, "autoscan_restore_failed", reason);
+    }
+
+    printf("FDC_LOCK,stage=autoscan_restore_done,device=%s,config=0x%04X,mux=0x%04X,status=0x%04X,err=0x%lx\n",
+           devName,
+           configReg,
+           muxReg,
+           statusReg,
+           (unsigned long)err);
     printf("FDC_SWEEP,stage=restore_autoscan,reason=%s,dev=%s,deglitch=0x%X,deglitchName=%s,bandwidthHz=%lu,err=%ld,status=%s\n",
            reason ? reason : SENSORARRAY_NA,
            sensorarrayFdcSweepDevName(devId),
@@ -1401,17 +1885,43 @@ esp_err_t sensorarrayFdcSweepRunDevice(sensorarrayState_t *state,
     if (!state || (channelMask & 0xF0u) != 0u) {
         return ESP_ERR_INVALID_ARG;
     }
+    sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
+    const char *devName = sensorarrayFdcSweepDevFullName(devId);
+    printf("FDC_SWEEP,stage=device_begin,device=%s,addr=0x%02X,channels=0x%X,reason=%s\n",
+           devName,
+           fdcState ? fdcState->i2cAddr : 0u,
+           (unsigned)channelMask,
+           reason ? reason : SENSORARRAY_NA);
+    if (!fdcState || !fdcState->ready || !fdcState->handle) {
+        printf("FDC_SWEEP,stage=device_skip,reason=not_ready,device=%s\n", devName);
+        return ESP_ERR_INVALID_STATE;
+    }
     esp_err_t firstErr = ESP_OK;
+    uint32_t validChannels = 0u;
+    uint32_t failedChannels = 0u;
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         if ((channelMask & (uint8_t)(1u << ch)) == 0u) {
             continue;
         }
         sensorarrayFdcSweepResult_t result = {0};
+        printf("FDC_SWEEP,stage=channel_begin,device=%s,ch=%u,d=%u\n",
+               devName,
+               (unsigned)ch,
+               (unsigned)sensorarrayFdcSweepDLineForDeviceChannel(devId, (Fdc2214CapChannel_t)ch));
         esp_err_t err = sensorarrayFdcSweepRunChannel(state,
                                                       devId,
                                                       (Fdc2214CapChannel_t)ch,
                                                       reason,
                                                       &result);
+        if (err == ESP_OK && result.valid && result.selectedRaw28 != 0u) {
+            validChannels++;
+        } else {
+            failedChannels++;
+            printf("FDC_SWEEP,stage=channel_failed,reason=no_oscillation,device=%s,ch=%u,err=0x%lx\n",
+                   devName,
+                   (unsigned)ch,
+                   (unsigned long)err);
+        }
         if (err != ESP_OK && firstErr == ESP_OK) {
             firstErr = err;
         }
@@ -1420,6 +1930,16 @@ esp_err_t sensorarrayFdcSweepRunDevice(sensorarrayState_t *state,
     esp_err_t restoreErr = sensorarrayFdcSweepRestoreAutoscan(state, devId, reason);
     if (restoreErr != ESP_OK && firstErr == ESP_OK) {
         firstErr = restoreErr;
+    }
+    printf("FDC_SWEEP,stage=device_done,device=%s,validChannels=%lu,failedChannels=%lu,zeroRaw=%lu,noOscillation=%lu,err=0x%lx\n",
+           devName,
+           (unsigned long)validChannels,
+           (unsigned long)failedChannels,
+           (unsigned long)failedChannels,
+           (unsigned long)failedChannels,
+           (unsigned long)((validChannels == 0u && firstErr == ESP_OK) ? ESP_ERR_INVALID_STATE : firstErr));
+    if (validChannels == 0u) {
+        return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_STATE;
     }
     return firstErr;
 }
@@ -1453,6 +1973,14 @@ static esp_err_t sensorarrayFdcSweepPrepareCellPath(sensorarrayState_t *state,
     esp_err_t err = sensorarrayMeasureEnsureFdcMatrixPath(state, reason);
     if (err == ESP_OK) {
         err = tmuxSwitchSelectRow((uint8_t)(cal->sIndex - 1u));
+        tmuxSwitchControlState_t ctrl = {0};
+        (void)tmuxSwitchGetControlState(&ctrl);
+        printf("FDC_ROW,stage=select,row=%u,selaCmd=%d,selaReadback=%d,err=0x%lx,reason=%s\n",
+               (unsigned)cal->sIndex,
+               ctrl.cmdSelaLevel,
+               ctrl.obsSelaLevel,
+               (unsigned long)err,
+               reason ? reason : SENSORARRAY_NA);
     }
     if (err == ESP_OK) {
         uint32_t settleMs = ((uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_SETTLE_US + 999u) / 1000u;
@@ -1723,7 +2251,8 @@ static esp_err_t sensorarrayFdcSweepRunCellSweep(sensorarrayState_t *state,
         }
     }
 
-    uint32_t candidateCount = deglitchCount * driveCount;
+    uint32_t highCurrentPasses = (mode == SENSORARRAY_FDC_CELL_SWEEP_FAST) ? 1u : 2u;
+    uint32_t candidateCount = deglitchCount * driveCount * highCurrentPasses;
     uint32_t startMs = sensorarrayFdcSweepNowMs();
     uint32_t totalTimeoutMs = sensorarrayFdcSweepTotalTimeoutMs();
     sensorarrayFdcSweepCandidateResult_t best = {0};
@@ -1733,37 +2262,43 @@ static esp_err_t sensorarrayFdcSweepRunCellSweep(sensorarrayState_t *state,
     esp_err_t lastErr = ESP_OK;
     uint32_t tried = 0u;
 
-    for (uint32_t d = 0u; d < deglitchCount; ++d) {
-        for (uint32_t i = 0u; i < driveCount; ++i) {
-            if ((uint32_t)(sensorarrayFdcSweepNowMs() - startMs) >= totalTimeoutMs) {
-                lastErr = ESP_ERR_TIMEOUT;
-                goto cell_sweep_done;
-            }
-            sensorarrayFdcSweepCandidateResult_t candidate = {0};
-            esp_err_t candidateErr = sensorarrayFdcSweepCaptureCandidate(state,
-                                                                         devId,
-                                                                         channel,
-                                                                         deglitchOrder[d],
-                                                                         driveOrder[i],
-                                                                         stage,
-                                                                         tried,
-                                                                         candidateCount,
-                                                                         false,
-                                                                         SENSORARRAY_FDC_SWEEP_MAX_SAMPLES_PER_CANDIDATE,
-                                                                         &candidate);
-            if (candidateErr != ESP_OK) {
-                lastErr = candidateErr;
-            }
-            tried++;
-
-            if (sensorarrayFdcSweepCandidateIsWorking(&candidate)) {
-                if (!haveBest || sensorarrayFdcSweepCandidateBetter(&candidate, &best)) {
-                    best = candidate;
-                    haveBest = true;
+    for (uint32_t hp = 0u; hp < highCurrentPasses; ++hp) {
+        bool highCurrent = (hp != 0u);
+        for (uint32_t d = 0u; d < deglitchCount; ++d) {
+            for (uint32_t i = 0u; i < driveCount; ++i) {
+                if ((uint32_t)(sensorarrayFdcSweepNowMs() - startMs) >= totalTimeoutMs) {
+                    lastErr = ESP_ERR_TIMEOUT;
+                    goto cell_sweep_done;
                 }
-            } else if (sensorarrayFdcSweepFallbackBetter(&candidate, &diagnostic)) {
-                diagnostic = candidate;
-                haveDiagnostic = true;
+                sensorarrayFdcSweepCandidateResult_t candidate = {0};
+                esp_err_t candidateErr = sensorarrayFdcSweepCaptureCandidate(state,
+                                                                             devId,
+                                                                             channel,
+                                                                             deglitchOrder[d],
+                                                                             driveOrder[i],
+                                                                             highCurrent,
+                                                                             cal->sIndex,
+                                                                             cal->dIndex,
+                                                                             stage,
+                                                                             tried,
+                                                                             candidateCount,
+                                                                             false,
+                                                                             SENSORARRAY_FDC_SWEEP_MAX_SAMPLES_PER_CANDIDATE,
+                                                                             &candidate);
+                if (candidateErr != ESP_OK) {
+                    lastErr = candidateErr;
+                }
+                tried++;
+
+                if (sensorarrayFdcSweepCandidateIsWorking(&candidate)) {
+                    if (!haveBest || sensorarrayFdcSweepCandidateBetter(&candidate, &best)) {
+                        best = candidate;
+                        haveBest = true;
+                    }
+                } else if (sensorarrayFdcSweepFallbackBetter(&candidate, &diagnostic)) {
+                    diagnostic = candidate;
+                    haveDiagnostic = true;
+                }
             }
         }
     }
@@ -1776,7 +2311,7 @@ cell_sweep_done:
                                                                     channel,
                                                                     best.deglitchReq,
                                                                     best.driveCurrentNorm,
-                                                                    false,
+                                                                    best.highCurrentReq,
                                                                     stage);
         if (applyErr != ESP_OK) {
             return applyErr;
@@ -1887,6 +2422,9 @@ static esp_err_t sensorarrayFdcSweepRunDirectReadForCell(sensorarrayState_t *sta
                                               channel,
                                               sensorarrayFdcSweepFindDeglitchCandidate((uint8_t)cal->lastGoodDeglitch),
                                               cal->lastGoodDriveCurrent,
+                                              false,
+                                              cal->sIndex,
+                                              cal->dIndex,
                                               "direct_read",
                                               0u,
                                               1u,
@@ -2018,7 +2556,9 @@ esp_err_t sensorarrayFdcSweepMeasureCell(sensorarrayState_t *state,
         (hugeJump ||
          sensorarrayFdcSweepCooldownElapsed(nowMs,
                                             cal->lastSweepMs,
-                                            (uint32_t)CONFIG_SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS))) {
+                                            (!cal->hasLastGood && !cal->hasBootSweep)
+                                                ? (uint32_t)CONFIG_SENSORARRAY_FDC_NO_OSC_RESCUE_COOLDOWN_MS
+                                                : (uint32_t)CONFIG_SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS))) {
         const char *reason = hugeJump ? "frequency_jump" :
                              (!cal->hasLastGood && !cal->hasBootSweep) ? "full_no_last_good" :
                              "fast_sweep_failed";
@@ -2058,23 +2598,131 @@ esp_err_t sensorarrayFdcSweepForceFullSweepCell(sensorarrayState_t *state,
                                                 uint8_t sIndex,
                                                 uint8_t dIndex)
 {
-    if (!state || !sensorarrayMatrixIndexIsValid(sIndex, dIndex)) {
+    return sensorarrayFdcSweepRunFullRescueCell(state, sIndex, dIndex, "force_full_sweep");
+}
+
+esp_err_t sensorarrayFdcSweepRunFullRescueCell(sensorarrayState_t *state,
+                                               uint8_t sIndex,
+                                               uint8_t dIndex,
+                                               const char *reason)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayMatrixIndexIsValid(sIndex, dIndex)) {
+        printf("FDC_SWEEP,stage=force_full_reject,reason=bad_cell,s=%u,d=%u\n",
+               (unsigned)sIndex,
+               (unsigned)dIndex);
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayFdcSweepEnsureCalibrationTable();
     sensorarrayFdcCellCalibration_t *cal = sensorarrayFdcSweepCell(sIndex, dIndex);
+    if (!cal) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    sensorarrayFdcDeviceId_t devId = (sensorarrayFdcDeviceId_t)cal->fdcDevice;
+    Fdc2214CapChannel_t channel = (Fdc2214CapChannel_t)cal->fdcChannel;
+    printf("FDC_SWEEP,stage=force_full_begin,s=%u,d=%u,device=%s,ch=%u,reason=%s\n",
+           (unsigned)sIndex,
+           (unsigned)dIndex,
+           sensorarrayFdcSweepDevFullName(devId),
+           (unsigned)channel,
+           reason ? reason : SENSORARRAY_NA);
+
     sensorarrayFdcSweepCandidateResult_t candidate = {0};
     bool accepted = false;
     esp_err_t err = sensorarrayFdcSweepRunCellSweep(state,
                                                     cal,
                                                     SENSORARRAY_FDC_CELL_SWEEP_FULL_RESCUE,
-                                                    "force_full_sweep",
+                                                    reason ? reason : "force_full_sweep",
                                                     &candidate,
                                                     &accepted);
     if (accepted) {
         sensorarrayFdcSweepLogCapResult(cal, &candidate);
+        printf("FDC_SWEEP,stage=force_full_success,s=%u,d=%u,raw28=%lu,freqHz=%.3f,drive=0x%04X,deglitch=0x%X,highCurrent=%u\n",
+               (unsigned)sIndex,
+               (unsigned)dIndex,
+               (unsigned long)(candidate.raw28Last ? candidate.raw28Last : candidate.raw28Mean),
+               candidate.frequencyHz,
+               candidate.driveCurrentNorm,
+               (unsigned)candidate.deglitchReq,
+               candidate.highCurrentReq ? 1u : 0u);
+        return ESP_OK;
     }
+    printf("FDC_SWEEP,stage=force_full_failed,s=%u,d=%u,reason=no_candidate_oscillated,err=0x%lx\n",
+           (unsigned)sIndex,
+           (unsigned)dIndex,
+           (unsigned long)err);
     return err;
+}
+
+esp_err_t sensorarrayFdcSweepRunFullRescueAll(sensorarrayState_t *state, const char *reason)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (gFdcRescueInProgress) {
+        printf("FDC_RESCUE,stage=skip,reason=rescue_already_in_progress,requestReason=%s\n",
+               reason ? reason : SENSORARRAY_NA);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    gFdcRescueInProgress = true;
+    uint32_t epoch = ++gFdcSweepRequestEpoch;
+    const char *source = reason ? reason : SENSORARRAY_NA;
+    printf("FDC_RESCUE,stage=begin,reason=%s,epoch=%lu\n",
+           source,
+           (unsigned long)epoch);
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_REG_DUMP
+    (void)sensorarrayFdcSweepDumpAllDeviceRegs(state, "rescue_begin", source);
+#endif
+
+    esp_err_t firstErr = ESP_OK;
+    uint32_t successCount = 0u;
+    uint32_t failedCount = 0u;
+
+    esp_err_t err = sensorarrayFdcSweepRunFullRescueCell(state, 5u, 5u, source);
+    if (err == ESP_OK) {
+        successCount++;
+    } else {
+        failedCount++;
+        firstErr = err;
+    }
+
+    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+            if (s == 5u && d == 5u) {
+                continue;
+            }
+            err = sensorarrayFdcSweepRunFullRescueCell(state, s, d, source);
+            if (err == ESP_OK) {
+                successCount++;
+            } else {
+                failedCount++;
+                if (firstErr == ESP_OK) {
+                    firstErr = err;
+                }
+            }
+            taskYIELD();
+        }
+    }
+
+    if (successCount == 0u) {
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_REG_DUMP
+        (void)sensorarrayFdcSweepDumpAllDeviceRegs(state, "rescue_failed", source);
+#endif
+        firstErr = (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_STATE;
+    }
+
+    gFdcRescueInProgress = false;
+    printf("FDC_RESCUE,stage=end,reason=%s,epoch=%lu,err=0x%lx,success=%lu,failed=%lu\n",
+           source,
+           (unsigned long)epoch,
+           (unsigned long)((successCount == 0u) ? firstErr : ESP_OK),
+           (unsigned long)successCount,
+           (unsigned long)failedCount);
+    return (successCount == 0u) ? firstErr : ESP_OK;
 }
 
 esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
@@ -2085,46 +2733,128 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
 
     sensorarrayFdcSweepInitCalibrationTable();
 
-    printf("FDC_BOOT_FULL_SWEEP_START,mode=%s,cellCount=%lu\n",
-           "all_matrix",
-           (unsigned long)SENSORARRAY_MATRIX_CELL_COUNT);
+    printf("FDC_BOOT,stage=begin\n");
+    esp_err_t pathErr = sensorarrayMeasurePrepareFdcMatrixPath(state, "boot_sweep");
+    printf("FDC_BOOT,stage=path_prepare,err=0x%lx\n", (unsigned long)pathErr);
+    if (pathErr != ESP_OK) {
+        return pathErr;
+    }
+
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_REG_DUMP
+    (void)sensorarrayFdcSweepDumpAllDeviceRegs(state, "boot_begin", "boot");
+#endif
+    (void)sensorarrayFdcSweepLogBootDeviceRegs(&state->fdcPrimary, "primary_fdc2214");
+    (void)sensorarrayFdcSweepLogBootDeviceRegs(&state->fdcSecondary, "secondary_fdc2214");
+
+    typedef struct {
+        uint8_t s;
+        uint8_t d;
+        const char *reason;
+    } BootCell;
+    static const BootCell bootCells[] = {
+        {5u, 5u, "boot_s5d5"},
+        {1u, 1u, "boot_s1d1"},
+        {5u, 1u, "boot_s5d1"},
+        {1u, 5u, "boot_s1d5"},
+    };
 
     esp_err_t firstErr = ESP_OK;
-    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
-        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
-            sensorarrayFdcCellCalibration_t *cal = sensorarrayFdcSweepCell(s, d);
-            if (!cal) {
-                if (firstErr == ESP_OK) {
-                    firstErr = ESP_ERR_INVALID_ARG;
-                }
-                continue;
+    uint32_t validCount = 0u;
+    bool s5d5Ok = false;
+    sensorarrayFdcSweepCandidateResult_t s5d5Candidate = {0};
+
+    for (size_t i = 0u; i < (sizeof(bootCells) / sizeof(bootCells[0])); ++i) {
+        sensorarrayFdcCellCalibration_t *cal = sensorarrayFdcSweepCell(bootCells[i].s, bootCells[i].d);
+        if (!cal) {
+            if (firstErr == ESP_OK) {
+                firstErr = ESP_ERR_INVALID_ARG;
             }
+            continue;
+        }
 
-            printf("FDC_BOOT_FULL_SWEEP_CELL,s=%u,d=%u,dev=%s,ch=%u\n",
-                   (unsigned)cal->sIndex,
-                   (unsigned)cal->dIndex,
-                   sensorarrayFdcSweepDevName((sensorarrayFdcDeviceId_t)cal->fdcDevice),
-                   (unsigned)cal->fdcChannel);
+        sensorarrayFdcDeviceId_t devId = (sensorarrayFdcDeviceId_t)cal->fdcDevice;
+        Fdc2214CapChannel_t channel = (Fdc2214CapChannel_t)cal->fdcChannel;
+        printf("FDC_SWEEP,stage=force_full_begin,s=%u,d=%u,device=%s,ch=%u,reason=%s\n",
+               (unsigned)bootCells[i].s,
+               (unsigned)bootCells[i].d,
+               sensorarrayFdcSweepDevFullName(devId),
+               (unsigned)channel,
+               bootCells[i].reason);
+        printf("FDC_BOOT_FULL_SWEEP_CELL,s=%u,d=%u,dev=%s,ch=%u,reason=%s\n",
+               (unsigned)cal->sIndex,
+               (unsigned)cal->dIndex,
+               sensorarrayFdcSweepDevName(devId),
+               (unsigned)cal->fdcChannel,
+               bootCells[i].reason);
 
-            sensorarrayFdcSweepCandidateResult_t candidate = {0};
-            bool accepted = false;
-            esp_err_t err = sensorarrayFdcSweepRunCellSweep(state,
-                                                            cal,
-                                                            SENSORARRAY_FDC_CELL_SWEEP_BOOT_FULL,
-                                                            "boot",
-                                                            &candidate,
-                                                            &accepted);
-            (void)candidate;
-            (void)accepted;
+        sensorarrayFdcSweepCandidateResult_t candidate = {0};
+        bool accepted = false;
+        esp_err_t err = sensorarrayFdcSweepRunCellSweep(state,
+                                                        cal,
+                                                        SENSORARRAY_FDC_CELL_SWEEP_BOOT_FULL,
+                                                        bootCells[i].reason,
+                                                        &candidate,
+                                                        &accepted);
+        uint32_t raw28 = candidate.raw28Last ? candidate.raw28Last : candidate.raw28Mean;
+        if (accepted && raw28 != 0u && candidate.frequencyHz > 0.0) {
+            validCount++;
+            if (bootCells[i].s == 5u && bootCells[i].d == 5u) {
+                s5d5Ok = true;
+                s5d5Candidate = candidate;
+                printf("FDC_BOOT,stage=success,cell=S5D5,device=secondary,ch=0,raw28=%lu,freqHz=%.3f,driveCurrent=0x%04X,deglitch=0x%X\n",
+                       (unsigned long)raw28,
+                       candidate.frequencyHz,
+                       candidate.driveCurrentNorm,
+                       (unsigned)candidate.deglitchReq);
+                printf("FDC_SWEEP,stage=frequency_hint,cell=S5D5,expectedHzLow=2400000,expectedHzHigh=2600000,actualHz=%.3f\n",
+                       candidate.frequencyHz);
+            }
+        } else {
+            printf("FDC_SWEEP,stage=force_full_failed,s=%u,d=%u,reason=no_candidate_oscillated,err=0x%lx\n",
+                   (unsigned)bootCells[i].s,
+                   (unsigned)bootCells[i].d,
+                   (unsigned long)err);
             if (err != ESP_OK && firstErr == ESP_OK) {
                 firstErr = err;
             }
-            taskYIELD();
         }
+        taskYIELD();
     }
 
-    printf("FDC_SWEEP,stage=boot,event=done,err=%ld,result=%s\n",
-           (long)firstErr,
-           (firstErr == ESP_OK) ? "ok" : "warning_or_failed");
-    return firstErr;
+    esp_err_t restorePrimary = sensorarrayFdcSweepRestoreAutoscan(state, SENSORARRAY_FDC_DEV_PRIMARY, "boot");
+    esp_err_t restoreSecondary = sensorarrayFdcSweepRestoreAutoscan(state, SENSORARRAY_FDC_DEV_SECONDARY, "boot");
+    if (restorePrimary != ESP_OK && firstErr == ESP_OK) {
+        firstErr = restorePrimary;
+    }
+    if (restoreSecondary != ESP_OK && firstErr == ESP_OK) {
+        firstErr = restoreSecondary;
+    }
+
+    if (validCount == 0u) {
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_REG_DUMP
+        (void)sensorarrayFdcSweepDumpAllDeviceRegs(state, "boot_failed", "no_valid_oscillation");
+#endif
+        printf("FDC_BOOT,stage=failed,reason=no_valid_oscillation\n");
+        printf("FDC_SWEEP,stage=boot,event=done,err=0x%lx,result=failed\n",
+               (unsigned long)((firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_STATE));
+        return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_STATE;
+    }
+
+    if (!s5d5Ok) {
+        printf("FDC_BOOT,stage=partial_success,failedCell=S5D5,validCount=%lu,lastS5D5Raw=%lu,lastS5D5FreqHz=%.3f\n",
+               (unsigned long)validCount,
+               (unsigned long)(s5d5Candidate.raw28Last ? s5d5Candidate.raw28Last : s5d5Candidate.raw28Mean),
+               s5d5Candidate.frequencyHz);
+    }
+
+    if (restorePrimary != ESP_OK || restoreSecondary != ESP_OK) {
+        printf("FDC_BOOT,stage=failed,reason=autoscan_restore_failed,primaryErr=0x%lx,secondaryErr=0x%lx\n",
+               (unsigned long)restorePrimary,
+               (unsigned long)restoreSecondary);
+        return (restorePrimary != ESP_OK) ? restorePrimary : restoreSecondary;
+    }
+
+    printf("FDC_SWEEP,stage=boot,event=done,err=0x0,result=ok,validCount=%lu\n",
+           (unsigned long)validCount);
+    return ESP_OK;
 }

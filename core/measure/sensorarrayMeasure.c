@@ -41,6 +41,7 @@ static SemaphoreHandle_t s_measureLock = NULL;
 static portMUX_TYPE s_measureLockMux = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t s_fdcMatrixSequence = 0u;
 static bool s_fastSpeedEnabled = false;
+static uint32_t s_fdcMatrixAllInvalidSequence = 0u;
 
 static esp_err_t sensorarrayMeasureEnsureLock(void)
 {
@@ -320,19 +321,84 @@ static esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *stat
     return err;
 }
 
-static esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, const char *reason)
+static int sensorarrayMeasureSwPhysicalReadbackFromControl(const tmuxSwitchControlState_t *ctrl)
 {
-    (void)reason;
+    return ctrl ? ctrl->obsSwLevel : -1;
+}
+
+static void sensorarrayMeasureReadFdcPathControl(tmuxSwitchControlState_t *ctrl)
+{
+    if (!ctrl || tmuxSwitchGetControlState(ctrl) != ESP_OK) {
+        if (ctrl) {
+            *ctrl = (tmuxSwitchControlState_t){
+                .cmdRow = 0xFFu,
+                .cmdSwLevel = -1,
+                .cmdSelaLevel = -1,
+                .cmdSelbLevel = -1,
+                .cmdEnLevel = -1,
+                .obsSwLevel = -1,
+                .obsSelaLevel = -1,
+                .obsSelbLevel = -1,
+                .obsEnLevel = -1,
+            };
+        }
+    }
+}
+
+static bool sensorarrayMeasureFdcPathControlMatches(const tmuxSwitchControlState_t *ctrl)
+{
+    if (!ctrl) {
+        return false;
+    }
+
+    int expectedSela = -1;
+    bool expectedSelb = false;
+    if (!sensorarrayBoardMapSelaRouteToGpioLevel(SENSORARRAY_SELA_ROUTE_FDC2214, &expectedSela) ||
+        !sensorarrayBoardMapFdcSelBLevel(&expectedSelb)) {
+        return false;
+    }
+
+    int expectedSw = 1;
+    bool swOk = ctrl->cmdSwLevel == expectedSw &&
+                (ctrl->obsSwLevel < 0 || ctrl->obsSwLevel == expectedSw);
+    bool selaOk = ctrl->cmdSelaLevel == expectedSela &&
+                  (ctrl->obsSelaLevel < 0 || ctrl->obsSelaLevel == expectedSela);
+    bool selbOk = ctrl->cmdSelbLevel == (expectedSelb ? 1 : 0) &&
+                  (ctrl->obsSelbLevel < 0 || ctrl->obsSelbLevel == (expectedSelb ? 1 : 0));
+    bool enOk = ctrl->cmdTmux1134EnLogicalOn &&
+                (!ctrl->obsTmux1134EnLogicalOnValid || ctrl->obsTmux1134EnLogicalOn);
+    return swOk && selaOk && selbOk && enOk;
+}
+
+esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, const char *reason)
+{
+    const char *source = reason ? reason : SENSORARRAY_NA;
     if (!state || !state->tmuxReady || !state->adsReady) {
+        printf("FDC_PATH,stage=prepare_done,reason=%s,ok=0,err=0x%lx,sw=-1,sela=-1,selb=-1,en=-1,adsRef=-1,adsVbias=-1\n",
+               source,
+               (unsigned long)ESP_ERR_INVALID_STATE);
         return ESP_ERR_INVALID_STATE;
     }
 
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
+    printf("FDC_PATH,stage=ads_stop,reason=%s,err=0x%lx\n", source, (unsigned long)err);
     if (err != ESP_OK) {
         return err;
     }
+#if CONFIG_SENSORARRAY_ADS1263
+    esp_err_t adc2Err = ads126xAdcStopAdc2(&state->ads);
+    printf("FDC_PATH,stage=ads_stop2,reason=%s,err=0x%lx\n", source, (unsigned long)adc2Err);
+    if (adc2Err != ESP_OK && adc2Err != ESP_ERR_NOT_SUPPORTED) {
+        return adc2Err;
+    }
+#endif
 
     err = sensorarrayMeasureForceAdsReferenceOff(state);
+    printf("FDC_PATH,stage=ads_ref_off,reason=%s,err=0x%lx,adsRefReady=%d\n",
+           source,
+           (unsigned long)err,
+           state->adsRefReady ? 1 : 0);
+    printf("FDC_PATH,stage=ads_vbias_off,reason=%s,err=0x%lx\n", source, (unsigned long)err);
     if (err != ESP_OK) {
         return err;
     }
@@ -340,11 +406,28 @@ static esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *stat
     err = sensorarrayMeasureSetSelaPathQuiet(state,
                                              SENSORARRAY_SELA_ROUTE_FDC2214,
                                              (uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_SETTLE_US);
+    tmuxSwitchControlState_t ctrl = {0};
+    sensorarrayMeasureReadFdcPathControl(&ctrl);
+    int fdcSelaLevel = -1;
+    (void)sensorarrayBoardMapSelaRouteToGpioLevel(SENSORARRAY_SELA_ROUTE_FDC2214, &fdcSelaLevel);
+    printf("FDC_PATH,stage=tmux1134_fdc,reason=%s,selaCmd=%d,selaReadback=%d,err=0x%lx\n",
+           source,
+           fdcSelaLevel,
+           ctrl.obsSelaLevel,
+           (unsigned long)err);
     if (err != ESP_OK) {
         return err;
     }
 
     err = sensorarrayMeasureSetFdcSelBPathQuiet(state);
+    sensorarrayMeasureReadFdcPathControl(&ctrl);
+    bool fdcSelbLevel = false;
+    (void)sensorarrayBoardMapFdcSelBLevel(&fdcSelbLevel);
+    printf("FDC_PATH,stage=selb_fdc,reason=%s,selbCmd=%d,selbReadback=%d,err=0x%lx\n",
+           source,
+           fdcSelbLevel ? 1 : 0,
+           ctrl.obsSelbLevel,
+           (unsigned long)err);
     if (err != ESP_OK) {
         return err;
     }
@@ -352,16 +435,72 @@ static esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *stat
     err = sensorarrayMeasureSetSwPhysicalLevel(state,
                                                SENSORARRAY_SW_PHYSICAL_HIGH,
                                                "fdc_matrix_path");
+    sensorarrayMeasureReadFdcPathControl(&ctrl);
+    printf("FDC_PATH,stage=sw_high,reason=%s,swCmd=HIGH,swReadback=%d,err=0x%lx\n",
+           source,
+           sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
+           (unsigned long)err);
     if (err != ESP_OK) {
         return err;
     }
 
-    return tmux1134SetEnLogicalState(true);
+    err = tmux1134SetEnLogicalState(true);
+    sensorarrayMeasureReadFdcPathControl(&ctrl);
+    printf("FDC_PATH,stage=tmux1108_enable,reason=%s,enCmd=1,enReadback=%d,err=0x%lx\n",
+           source,
+           ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
+           (unsigned long)err);
+
+    bool ok = (err == ESP_OK) && sensorarrayMeasureFdcPathControlMatches(&ctrl);
+    printf("FDC_PATH,stage=prepare_done,reason=%s,ok=%d,err=0x%lx,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d,adsVbias=0\n",
+           source,
+           ok ? 1 : 0,
+           (unsigned long)(ok ? ESP_OK : ESP_ERR_INVALID_STATE),
+           sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
+           ctrl.obsSelaLevel,
+           ctrl.obsSelbLevel,
+           ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
+           state->adsRefReady ? 1 : 0);
+    return ok ? ESP_OK : ((err != ESP_OK) ? err : ESP_ERR_INVALID_STATE);
 }
 
 esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const char *reason)
 {
-    return sensorarrayMeasurePrepareFdcMatrixPath(state, reason);
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    tmuxSwitchControlState_t ctrl = {0};
+    sensorarrayMeasureReadFdcPathControl(&ctrl);
+    if (!sensorarrayMeasureFdcPathControlMatches(&ctrl) || state->adsRefReady) {
+        if (state->adsRefReady) {
+            printf("FDC_PATH,stage=ensure_mismatch,reason=%s,field=adsRef,cmd=0,readback=%d\n",
+                   reason ? reason : SENSORARRAY_NA,
+                   state->adsRefReady ? 1 : 0);
+        }
+        if (!sensorarrayMeasureFdcPathControlMatches(&ctrl)) {
+            printf("FDC_PATH,stage=ensure_mismatch,reason=%s,field=tmux_path,swCmd=%d,swReadback=%d,selaCmd=%d,selaReadback=%d,selbCmd=%d,selbReadback=%d,enCmd=%d,enReadback=%d\n",
+                   reason ? reason : SENSORARRAY_NA,
+                   ctrl.cmdSwLevel,
+                   ctrl.obsSwLevel,
+                   ctrl.cmdSelaLevel,
+                   ctrl.obsSelaLevel,
+                   ctrl.cmdSelbLevel,
+                   ctrl.obsSelbLevel,
+                   ctrl.cmdTmux1134EnLogicalOn ? 1 : 0,
+                   ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : -1);
+        }
+        return sensorarrayMeasurePrepareFdcMatrixPath(state, reason);
+    }
+
+    printf("FDC_PATH,stage=ensure_ok,reason=%s,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d\n",
+           reason ? reason : SENSORARRAY_NA,
+           sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
+           ctrl.obsSelaLevel,
+           ctrl.obsSelbLevel,
+           ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
+           state->adsRefReady ? 1 : 0);
+    return ESP_OK;
 }
 
 static esp_err_t sensorarrayMeasureSetSwForRoute(sensorarrayState_t *state,
@@ -481,6 +620,19 @@ static void sensorarrayMeasureInitFdcMatrixFrame(sensorarrayFdcMatrixFrame_t *fr
     frame->sequence = s_fdcMatrixSequence++;
 }
 
+static bool sensorarrayFdcMatrixFrameRawAllZero(const sensorarrayFdcMatrixFrame_t *frame)
+{
+    if (!frame) {
+        return true;
+    }
+    for (size_t i = 0u; i < SENSORARRAY_MATRIX_CELL_COUNT; ++i) {
+        if (frame->raw28[i] != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void sensorarrayMeasureMarkFdcMatrixCellEx(sensorarrayFdcMatrixFrame_t *frame,
                                                   uint8_t sIndex,
                                                   uint8_t dIndex,
@@ -548,6 +700,8 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     esp_err_t firstErr = sensorarrayMeasureCheckFdcMatrixReady(state);
     if (firstErr != ESP_OK) {
         outFrame->errorMask = UINT64_MAX;
+        printf("MATRIXFDC_DIAG,stage=read_abort,reason=matrix_not_ready,err=0x%lx\n",
+               (unsigned long)firstErr);
         sensorarrayMeasureGiveLock();
         return firstErr;
     }
@@ -555,15 +709,45 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     firstErr = sensorarrayMeasureEnsureFdcMatrixPath(state, "fdc_matrix_frame");
     if (firstErr != ESP_OK) {
         outFrame->errorMask = UINT64_MAX;
+        printf("MATRIXFDC_DIAG,stage=read_abort,reason=path_prepare_failed,err=0x%lx\n",
+               (unsigned long)firstErr);
         sensorarrayMeasureGiveLock();
         return firstErr;
     }
 
     for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        err = tmuxSwitchSelectRow((uint8_t)(s - 1u));
+        sensorarrayMeasureDelayUs((uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_SETTLE_US);
+        tmuxSwitchControlState_t ctrl = {0};
+        sensorarrayMeasureReadFdcPathControl(&ctrl);
+        printf("FDC_ROW,stage=select,row=%u,selaCmd=%d,selaReadback=%d,err=0x%lx\n",
+               (unsigned)s,
+               ctrl.cmdSelaLevel,
+               ctrl.obsSelaLevel,
+               (unsigned long)err);
+        if (err != ESP_OK && firstErr == ESP_OK) {
+            firstErr = err;
+        }
         for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
             uint32_t raw28 = 0u;
             bool valid = false;
             err = sensorarrayFdcSweepMeasureCell(state, s, d, &raw28, &valid);
+            if (err != ESP_OK || !valid || raw28 == 0u) {
+                const sensorarrayFdcDLineMap_t *map = NULL;
+                (void)sensorarrayMeasureGetFdcStateForDLine(state, d, &map);
+                printf("MATRIXFDC_DIAG,stage=cell_invalid,seq=%lu,s=%u,d=%u,device=%s,ch=%u,i2cOk=%u,sampleValid=%u,rawNonZero=%u,raw28=%lu,err=0x%lx,reason=%s\n",
+                       (unsigned long)outFrame->sequence,
+                       (unsigned)s,
+                       (unsigned)d,
+                       map ? ((map->devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary") : SENSORARRAY_NA,
+                       map ? (unsigned)map->channel : 0u,
+                       (err == ESP_OK) ? 1u : 0u,
+                       valid ? 1u : 0u,
+                       (raw28 != 0u) ? 1u : 0u,
+                       (unsigned long)raw28,
+                       (unsigned long)err,
+                       (raw28 == 0u) ? "zero_raw_no_oscillation" : "invalid_status");
+            }
             sensorarrayMeasureMarkFdcMatrixCellEx(outFrame, s, d, raw28, valid, !valid);
             if (err != ESP_OK && firstErr == ESP_OK) {
                 firstErr = err;
@@ -573,6 +757,17 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
 
     sensorarrayMeasureGiveLock();
+    if (outFrame->validMask == 0u && sensorarrayFdcMatrixFrameRawAllZero(outFrame)) {
+        outFrame->errorMask = UINT64_MAX;
+        uint32_t seq = s_fdcMatrixAllInvalidSequence++;
+        printf("MATRIXFDC_DIAG,stage=all_invalid,seq=%lu,errorMask=0x%016llX,reason=all_zero_raw\n",
+               (unsigned long)seq,
+               (unsigned long long)outFrame->errorMask);
+        sensorarrayFdcSweepReportAllInvalidFrame(outFrame->validMask,
+                                                 outFrame->errorMask,
+                                                 SENSORARRAY_MATRIX_CELL_COUNT);
+        return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE;
+    }
     return firstErr;
 }
 
@@ -592,9 +787,10 @@ static esp_err_t sensorarrayTransportSendFdcMatrixFrame(const sensorarrayFdcMatr
     return ESP_ERR_NOT_SUPPORTED;
 }
 
-static void sensorarrayFdcMatrixPrintFrame(const sensorarrayFdcMatrixFrame_t *frame)
+static void sensorarrayFdcMatrixPrintFrame(const sensorarrayFdcMatrixFrame_t *frame, const char *tag)
 {
-    printf("MATRIXFDC,seq=%lu,timestampUs=%llu,validMask=0x%016llX,errorMask=0x%016llX,raw28=[",
+    printf("%s,seq=%lu,timestampUs=%llu,validMask=0x%016llX,errorMask=0x%016llX,raw28=[",
+           tag ? tag : "MATRIXFDC",
            (unsigned long)frame->sequence,
            (unsigned long long)frame->timestampUs,
            (unsigned long long)frame->validMask,
@@ -615,7 +811,26 @@ esp_err_t sensorarrayFdcMatrixEmitFrame(const sensorarrayFdcMatrixFrame_t *frame
         return sensorarrayTransportSendFdcMatrixFrame(frame);
     }
 
-    sensorarrayFdcMatrixPrintFrame(frame);
+    bool allZero = sensorarrayFdcMatrixFrameRawAllZero(frame);
+    if (frame->validMask == 0u && allZero) {
+#if CONFIG_SENSORARRAY_FDC_SUPPRESS_ALL_ZERO_FRAMES
+        printf("MATRIXFDC_DIAG,stage=emit_suppressed,reason=all_zero_invalid_frame,seq=%lu,errorMask=0x%016llX\n",
+               (unsigned long)frame->sequence,
+               (unsigned long long)frame->errorMask);
+        return ESP_ERR_INVALID_RESPONSE;
+#else
+        sensorarrayFdcMatrixPrintFrame(frame, "MATRIXFDC_DIAG");
+        return ESP_ERR_INVALID_RESPONSE;
+#endif
+    }
+    if (frame->validMask == 0u) {
+        printf("MATRIXFDC_DIAG,stage=emit_suppressed,reason=status_invalid_frame,seq=%lu,errorMask=0x%016llX\n",
+               (unsigned long)frame->sequence,
+               (unsigned long long)frame->errorMask);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    sensorarrayFdcMatrixPrintFrame(frame, "MATRIXFDC");
     return ESP_OK;
 }
 

@@ -125,6 +125,28 @@ config SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS
     default 10000
     range 0 600000
 
+config SENSORARRAY_FDC_SUPPRESS_ALL_ZERO_FRAMES
+    bool "Suppress all-zero invalid MATRIXFDC frames"
+    default y
+
+config SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
+    bool "Require at least one valid boot sweep sample before normal matrix output"
+    default y
+
+config SENSORARRAY_FDC_NO_OSC_RESCUE_COOLDOWN_MS
+    int "Cooldown for no-oscillation rescue"
+    default 500
+    range 0 60000
+
+config SENSORARRAY_FDC_ALL_INVALID_RESTART_THRESHOLD
+    int "Failed all-invalid rescues before diagnostic mode/restart"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_VERBOSE_REG_DUMP
+    bool "Dump FDC registers on boot/rescue failure"
+    default y
+
 config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES
     int "Direct-read quality sample count"
     default 6

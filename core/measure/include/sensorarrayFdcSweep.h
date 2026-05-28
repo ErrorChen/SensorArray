@@ -19,6 +19,18 @@ typedef enum {
     SENSORARRAY_FDC_SWEEP_REASON_DEGLITCH_MARGIN,
 } sensorarrayFdcSweepReason_t;
 
+typedef enum {
+    SENSORARRAY_FDC_FAULT_NONE = 0,
+    SENSORARRAY_FDC_FAULT_ZERO_RAW,
+    SENSORARRAY_FDC_FAULT_NO_OSCILLATION,
+    SENSORARRAY_FDC_FAULT_STATUS_SLEEP,
+    SENSORARRAY_FDC_FAULT_NOT_CONVERTING,
+    SENSORARRAY_FDC_FAULT_WATCHDOG,
+    SENSORARRAY_FDC_FAULT_AMPLITUDE,
+    SENSORARRAY_FDC_FAULT_TIMEOUT,
+    SENSORARRAY_FDC_FAULT_ALL_INVALID_FRAME,
+} sensorarrayFdcFaultReason_t;
+
 typedef struct {
     uint8_t deglitchCode;
     uint32_t deglitchBandwidthHz;
@@ -126,8 +138,21 @@ esp_err_t sensorarrayFdcSweepForceFullSweepCell(sensorarrayState_t *state,
                                                 uint8_t sIndex,
                                                 uint8_t dIndex);
 
-void sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
-void sensorarrayFdcSweepRequestForceFullSweepAll(void);
+esp_err_t sensorarrayFdcSweepRunFullRescueAll(sensorarrayState_t *state, const char *reason);
+esp_err_t sensorarrayFdcSweepRunFullRescueCell(sensorarrayState_t *state,
+                                               uint8_t sIndex,
+                                               uint8_t dIndex,
+                                               const char *reason);
+
+esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
+esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void);
+void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
+                                              uint64_t errorMask,
+                                              uint32_t zeroRawCount);
+bool sensorarrayFdcSweepIsRescueInProgress(void);
+esp_err_t sensorarrayFdcSweepDumpAllDeviceRegs(sensorarrayState_t *state,
+                                               const char *stage,
+                                               const char *reason);
 
 esp_err_t sensorarrayFdcSweepApplyResult(sensorarrayState_t *state,
                                          const sensorarrayFdcSweepResult_t *result);
@@ -145,3 +170,4 @@ esp_err_t sensorarrayFdcSweepRestoreAutoscan(sensorarrayState_t *state,
                                              const char *reason);
 
 const char *sensorarrayFdcSweepReasonName(sensorarrayFdcSweepReason_t reason);
+const char *sensorarrayFdcSweepFaultReasonName(sensorarrayFdcFaultReason_t reason);

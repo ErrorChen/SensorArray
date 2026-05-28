@@ -67,3 +67,20 @@ Example:
 `MATRIXFDC,seq=12,timestampUs=345678901,validMask=0xFFFFFFFFFFFFFFFF,errorMask=0x0000000000000000,raw28=[123,456,789,...]`
 
 Binary output is not enabled by default. `sensorarrayFastSpeedIsEnabled()` currently defaults false; the binary sender is reserved and returns `ESP_ERR_NOT_SUPPORTED` until an explicit host fast-speed/binary command path is added.
+
+`MATRIXFDC` is now emitted only when at least one `raw28` entry is semantically valid. If every cell is invalid and all raw values are zero, the firmware emits `MATRIXFDC_DIAG` and suppresses the normal frame so host tools do not treat a no-oscillation condition as a valid measurement.
+
+## FDC boot and rescue
+
+Startup performs a required visible boot full sweep before normal matrix output. The protected boot points include S5D5 and S1D1, with S5D5 treated as the current 200 pF validation point. S5D5 with 200 pF is expected near 2.4-2.6 MHz, but that range is a diagnostic hint, not a hard-coded validity gate.
+
+At runtime, direct reads and fast sweeps are tried first from cached lock settings. A full sweep is used when fast/direct recovery fails or when no oscillation is detected. An all-invalid all-zero matrix frame triggers immediate no-oscillation rescue and register dumps instead of continuing to print normal all-zero frames.
+
+Useful console commands:
+
+- `force_full_sweep`: queue a full sweep for all cells.
+- `force_full_sweep s=5 d=5`: queue a full sweep for one cell, for example S5D5.
+- `fdc_diag`: dump STATUS, CONFIG, MUX_CONFIG, IDs, RCOUNT, SETTLECOUNT, CLOCK_DIVIDERS, and DRIVE_CURRENT for both FDC2214 devices.
+- `fdc_boot_sweep`: rerun the protected boot sweep synchronously.
+- `fdc_rescue`: run synchronous full no-oscillation rescue across the matrix.
+- `fdc_period_ms 50`: override the text frame period at runtime without changing the default 250 ms configuration.
