@@ -110,6 +110,11 @@ config SENSORARRAY_FDC_DIRECT_FAIL_THRESHOLD
     default 3
     range 1 32
 
+config SENSORARRAY_FDC_CELL_FAST_SWEEP_FAIL_THRESHOLD
+    int "Cell failures before a bounded fast sweep"
+    default 2
+    range 1 32
+
 config SENSORARRAY_FDC_FAST_FAIL_THRESHOLD
     int "Fast-sweep failures before full rescue"
     default 2
@@ -125,9 +130,14 @@ config SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS
     default 10000
     range 0 600000
 
+config SENSORARRAY_FDC_FULL_RESCUE_COOLDOWN_MS
+    int "Cooldown between full-matrix rescue sweeps"
+    default 3000
+    range 0 600000
+
 config SENSORARRAY_FDC_SUPPRESS_ALL_ZERO_FRAMES
     bool "Suppress all-zero invalid MATRIXFDC frames"
-    default y
+    default n
 
 config SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
     bool "Require at least one valid boot sweep sample before normal matrix output"
@@ -142,6 +152,21 @@ config SENSORARRAY_FDC_ALL_INVALID_RESTART_THRESHOLD
     int "Failed all-invalid rescues before diagnostic mode/restart"
     default 3
     range 1 32
+
+config SENSORARRAY_FDC_ALL_INVALID_RESCUE_THRESHOLD
+    int "Consecutive all-invalid frames before full rescue"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_ROW_RESCUE_FAIL_COUNT
+    int "Per-row fail count hint for rescue diagnostics"
+    default 4
+    range 1 8
+
+config SENSORARRAY_FDC_RESCUE_TASK_STACK
+    int "Reserved FDC rescue task stack bytes"
+    default 12288
+    range 4096 32768
 
 config SENSORARRAY_FDC_VERBOSE_REG_DUMP
     bool "Dump FDC registers on boot/rescue failure"

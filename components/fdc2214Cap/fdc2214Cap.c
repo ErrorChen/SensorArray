@@ -74,17 +74,6 @@ static const char* TAG = "fdc2214Cap";
 #define FDC2214_DATA_ERR_WD_MASK (1U << 13)
 #define FDC2214_DATA_ERR_AW_MASK (1U << 12)
 
-#define FDC2214_STATUS_ERR_CHAN_SHIFT 14
-#define FDC2214_STATUS_ERR_CHAN_MASK (0x3U << FDC2214_STATUS_ERR_CHAN_SHIFT)
-#define FDC2214_STATUS_ERR_WD_MASK (1U << 11)
-#define FDC2214_STATUS_ERR_AHW_MASK (1U << 10)
-#define FDC2214_STATUS_ERR_ALW_MASK (1U << 9)
-#define FDC2214_STATUS_DRDY_MASK (1U << 6)
-#define FDC2214_STATUS_UNREAD_CH0_MASK (1U << 3)
-#define FDC2214_STATUS_UNREAD_CH1_MASK (1U << 2)
-#define FDC2214_STATUS_UNREAD_CH2_MASK (1U << 1)
-#define FDC2214_STATUS_UNREAD_CH3_MASK (1U << 0)
-
 #define FDC2214_CONFIG_ACTIVE_CHAN_SHIFT 14
 #define FDC2214_CONFIG_ACTIVE_CHAN_MASK (0x3U << FDC2214_CONFIG_ACTIVE_CHAN_SHIFT)
 #define FDC2214_CONFIG_SLEEP_MODE_EN_MASK (1U << 13)
@@ -119,6 +108,9 @@ static const char* TAG = "fdc2214Cap";
 
 // Drive current register uses CHx_IDRIVE [15:11]; reserved bits must stay clear.
 #define FDC2214_DRIVE_CURRENT_MASK 0xF800
+
+// Keep the same saturation guard as the sweep layer for strict driver samples.
+#define FDC2214_RAW28_SATURATED_THRESHOLD 0x0FFFFF00U
 
 // Datasheet timing (FDC221x): sleep-to-active wake-up time typ/min requirement.
 #define FDC2214_SLEEP_WAKEUP_US 50U
@@ -219,27 +211,64 @@ static Fdc2214CapConfigOptions_t Fdc2214CapConfigOptionsFromRaw(uint16_t configV
     };
 }
 
-static void Fdc2214CapDecodeStatusRaw(uint16_t raw, Fdc2214CapStatus_t* outStatus)
+uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch)
+{
+    switch (ch) {
+    case FDC2214_CH0:
+        return FDC2214CAP_STATUS_CH0_UNREAD_MASK;
+    case FDC2214_CH1:
+        return FDC2214CAP_STATUS_CH1_UNREAD_MASK;
+    case FDC2214_CH2:
+        return FDC2214CAP_STATUS_CH2_UNREAD_MASK;
+    case FDC2214_CH3:
+        return FDC2214CAP_STATUS_CH3_UNREAD_MASK;
+    default:
+        return 0u;
+    }
+}
+
+esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw, Fdc2214CapStatus_t* outStatus)
 {
     if (!outStatus) {
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
 
     *outStatus = (Fdc2214CapStatus_t){
-        .Raw = raw,
-        .ErrorChannel = (uint8_t)((raw & FDC2214_STATUS_ERR_CHAN_MASK) >> FDC2214_STATUS_ERR_CHAN_SHIFT),
-        .ErrWatchdog = (raw & FDC2214_STATUS_ERR_WD_MASK) != 0U,
-        .ErrAmplitudeHigh = (raw & FDC2214_STATUS_ERR_AHW_MASK) != 0U,
-        .ErrAmplitudeLow = (raw & FDC2214_STATUS_ERR_ALW_MASK) != 0U,
-        .DataReady = (raw & FDC2214_STATUS_DRDY_MASK) != 0U,
+        .Raw = statusRaw,
+        .ErrorChannel = (uint8_t)((statusRaw & FDC2214CAP_STATUS_ERR_CHAN_MASK) >>
+                                  FDC2214CAP_STATUS_ERR_CHAN_SHIFT),
+        .ErrWatchdog = (statusRaw & FDC2214CAP_STATUS_ERR_WD_MASK) != 0U,
+        .ErrAmplitudeHigh = (statusRaw & FDC2214CAP_STATUS_ERR_AHW_MASK) != 0U,
+        .ErrAmplitudeLow = (statusRaw & FDC2214CAP_STATUS_ERR_ALW_MASK) != 0U,
+        .DataReady = (statusRaw & FDC2214CAP_STATUS_DRDY_MASK) != 0U,
         .UnreadConversion =
             {
-                (raw & FDC2214_STATUS_UNREAD_CH0_MASK) != 0U,
-                (raw & FDC2214_STATUS_UNREAD_CH1_MASK) != 0U,
-                (raw & FDC2214_STATUS_UNREAD_CH2_MASK) != 0U,
-                (raw & FDC2214_STATUS_UNREAD_CH3_MASK) != 0U,
+                (statusRaw & FDC2214CAP_STATUS_CH0_UNREAD_MASK) != 0U,
+                (statusRaw & FDC2214CAP_STATUS_CH1_UNREAD_MASK) != 0U,
+                (statusRaw & FDC2214CAP_STATUS_CH2_UNREAD_MASK) != 0U,
+                (statusRaw & FDC2214CAP_STATUS_CH3_UNREAD_MASK) != 0U,
             },
     };
+    return ESP_OK;
+}
+
+bool Fdc2214CapStatusHasAmplitudeFault(const Fdc2214CapStatus_t *status)
+{
+    return status && (status->ErrAmplitudeHigh || status->ErrAmplitudeLow);
+}
+
+bool Fdc2214CapStatusHasWatchdogFault(const Fdc2214CapStatus_t *status)
+{
+    return status && status->ErrWatchdog;
+}
+
+bool Fdc2214CapStatusHasUnreadForChannel(const Fdc2214CapStatus_t *status,
+                                         Fdc2214CapChannel_t ch)
+{
+    if (!status || !Fdc2214IsValidChannel(ch)) {
+        return false;
+    }
+    return status->UnreadConversion[(uint8_t)ch];
 }
 
 static esp_err_t Fdc2214CapBuildMuxValue(bool autoScan,
@@ -662,8 +691,7 @@ esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outS
         return err;
     }
 
-    Fdc2214CapDecodeStatusRaw(rawStatus, outStatus);
-    return ESP_OK;
+    return Fdc2214CapDecodeStatusRaw(rawStatus, outStatus);
 }
 
 esp_err_t Fdc2214CapClearStatus(Fdc2214CapDevice_t* dev)
@@ -886,10 +914,8 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
                  (unsigned long)snapshot.DataRaw28,
                  snapshot.DataMsb,
                  snapshot.DataLsb);
-    snapshot.DataErrWatchdog = ((snapshot.DataMsb & FDC2214_DATA_ERR_WD_MASK) != 0U) || statusDecoded.ErrWatchdog;
-    snapshot.DataErrAmplitude = ((snapshot.DataMsb & FDC2214_DATA_ERR_AW_MASK) != 0U) ||
-                                statusDecoded.ErrAmplitudeHigh ||
-                                statusDecoded.ErrAmplitudeLow;
+    snapshot.DataErrWatchdog = (snapshot.DataMsb & FDC2214_DATA_ERR_WD_MASK) != 0U;
+    snapshot.DataErrAmplitude = (snapshot.DataMsb & FDC2214_DATA_ERR_AW_MASK) != 0U;
     snapshot.ErrorChannel = statusDecoded.ErrorChannel;
     snapshot.StatusErrWatchdog = statusDecoded.ErrWatchdog;
     snapshot.StatusErrAmplitudeHigh = statusDecoded.ErrAmplitudeHigh;
@@ -1235,13 +1261,26 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
         return err;
     }
 
-    bool unreadConversion = snapshot.UnreadConversion[(uint8_t)ch];
+    Fdc2214CapStatus_t statusDecoded = {0};
+    (void)Fdc2214CapDecodeStatusRaw(snapshot.Status, &statusDecoded);
+
+    bool unreadConversion = Fdc2214CapStatusHasUnreadForChannel(&statusDecoded, ch);
+    bool dataReady = statusDecoded.DataReady || snapshot.DataReady;
+    bool readable = unreadConversion || dataReady;
+    bool statusWatchdog = Fdc2214CapStatusHasWatchdogFault(&statusDecoded);
+    bool statusAmplitude = Fdc2214CapStatusHasAmplitudeFault(&statusDecoded);
+    bool dataWatchdog = snapshot.DataErrWatchdog;
+    bool dataAmplitude = snapshot.DataErrAmplitude;
+    bool watchdogFault = dataWatchdog || statusWatchdog;
+    bool amplitudeFault = dataAmplitude || statusAmplitude;
+    bool rawNonZero = snapshot.DataRaw28 != 0U;
+    bool saturated = snapshot.DataRaw28 >= FDC2214_RAW28_SATURATED_THRESHOLD;
     bool configKnown = Fdc2214CapConfigReservedBitsValid(snapshot.Config) &&
                        ((snapshot.MuxConfig & FDC2214_MUX_FIXED_MASK) == FDC2214_MUX_FIXED_MASK);
 
     outSample->Raw28 = snapshot.DataRaw28;
-    outSample->ErrWatchdog = snapshot.DataErrWatchdog;
-    outSample->ErrAmplitude = snapshot.DataErrAmplitude;
+    outSample->ErrWatchdog = dataWatchdog;
+    outSample->ErrAmplitude = dataAmplitude;
     outSample->StatusRaw = snapshot.Status;
     outSample->ConfigRaw = snapshot.Config;
     outSample->MuxRaw = snapshot.MuxConfig;
@@ -1249,7 +1288,7 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
     outSample->AutoScanEnabled = snapshot.AutoScanEnabled;
     outSample->Converting = snapshot.Converting;
     outSample->UnreadConversionPresent = unreadConversion;
-    outSample->DataReady = snapshot.DataReady;
+    outSample->DataReady = dataReady;
     outSample->ActiveChannel = snapshot.ActiveChannel;
     outSample->RefClockSource = Fdc2214CapRefClockFromConfig(snapshot.Config);
 
@@ -1260,29 +1299,50 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
         semanticStatus = FDC2214_SAMPLE_STATUS_STILL_SLEEPING;
     } else if (!snapshot.Converting) {
         semanticStatus = FDC2214_SAMPLE_STATUS_I2C_READ_OK_BUT_NOT_CONVERTING;
-    } else if (!unreadConversion) {
-        semanticStatus = FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
-    } else if (outSample->ErrWatchdog) {
+    } else if (watchdogFault) {
         semanticStatus = FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT;
-    } else if (outSample->ErrAmplitude) {
+    } else if (amplitudeFault) {
         semanticStatus = FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT;
-    } else if (snapshot.DataRaw28 == 0U) {
+    } else if (!rawNonZero) {
         // An all-zero payload can be stale data from a non-converting/sleeping path.
         // Do not auto-promote transport success to semantic sample validity.
         semanticStatus = FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID;
+    } else if (!readable) {
+        semanticStatus = FDC2214_SAMPLE_STATUS_NO_UNREAD_CONVERSION;
     } else {
         semanticStatus = FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
     }
 
     outSample->SampleStatus = semanticStatus;
     if (relaxedValidity) {
-        /*
-         * Relaxed bring-up validity keeps payload visibility when transport is healthy
-         * even if unread/amplitude/watchdog flags are present.
-         */
-        outSample->SampleValid = configKnown && snapshot.Converting && (snapshot.DataRaw28 != 0U);
+        outSample->SampleValid = snapshot.Converting &&
+                                 rawNonZero &&
+                                 !watchdogFault &&
+                                 !amplitudeFault &&
+                                 readable;
     } else {
-        outSample->SampleValid = (semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID);
+        outSample->SampleValid = configKnown &&
+                                 snapshot.Converting &&
+                                 rawNonZero &&
+                                 !saturated &&
+                                 !watchdogFault &&
+                                 !amplitudeFault &&
+                                 readable &&
+                                 semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
+    }
+
+    if (snapshot.Status == FDC2214CAP_STATUS_CH0_UNREAD_MASK && ch == FDC2214_CH0 &&
+        (!outSample->UnreadConversionPresent ||
+         outSample->ErrAmplitude ||
+         statusAmplitude ||
+         outSample->SampleStatus == FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT)) {
+        printf("FDC_STATUS_REGRESSION,status=0x%04X,ch=%u,unread=%u,errAmplitude=%u,statusAmplitude=%u,sampleStatus=%d\n",
+               snapshot.Status,
+               (unsigned)ch,
+               outSample->UnreadConversionPresent ? 1u : 0u,
+               outSample->ErrAmplitude ? 1u : 0u,
+               statusAmplitude ? 1u : 0u,
+               (int)outSample->SampleStatus);
     }
     return ESP_OK;
 }

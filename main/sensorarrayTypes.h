@@ -127,32 +127,45 @@ typedef struct {
 } sensorarrayFdcSweepProfile_t;
 
 typedef struct {
-    bool hasBootSweep;
-    bool hasLastGood;
-
     uint8_t sIndex;
     uint8_t dIndex;
     uint8_t fdcDevice;
     uint8_t fdcChannel;
 
-    uint16_t bootDeglitch;
+    bool hasBootSweep;
+    bool hasLastGood;
+    bool lockValid;
+
     uint16_t bootDriveCurrent;
+    Fdc2214CapDeglitch_t bootDeglitch;
     uint32_t bootRaw28;
     double bootFreqHz;
     double bootCapPf;
     int bootQualityScore;
 
-    uint16_t lastGoodDeglitch;
     uint16_t lastGoodDriveCurrent;
+    Fdc2214CapDeglitch_t lastGoodDeglitch;
+    bool lastGoodHighCurrent;
+
     uint32_t lastGoodRaw28;
     double lastGoodFreqHz;
+    uint64_t lastGoodTimestampUs;
     double lastGoodCapPf;
     int lastGoodQualityScore;
+
+    uint16_t consecutiveFailCount;
+    uint16_t consecutiveNoUnreadCount;
+    uint16_t consecutiveStatusFaultCount;
+    uint16_t consecutiveZeroRawCount;
+
+    uint64_t lastFastSweepTimestampUs;
+    uint64_t lastFullSweepTimestampUs;
 
     uint32_t lastSweepMs;
     uint8_t directFailCount;
     uint8_t fastSweepFailCount;
     uint8_t fullSweepFailCount;
+    const char *lastFailReason;
 } sensorarrayFdcCellCalibration_t;
 
 typedef struct {

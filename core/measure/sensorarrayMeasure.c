@@ -25,15 +25,6 @@
 #define FDCLOW_TRACE(...) do { } while (0)
 #endif
 
-#define SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT 14
-#define SENSORARRAY_FDC_STATUS_ERR_WD_MASK (1U << 11)
-#define SENSORARRAY_FDC_STATUS_ERR_AHW_MASK (1U << 10)
-#define SENSORARRAY_FDC_STATUS_ERR_ALW_MASK (1U << 9)
-#define SENSORARRAY_FDC_STATUS_DRDY_MASK (1U << 6)
-#define SENSORARRAY_FDC_STATUS_UNREAD_CH0_MASK (1U << 3)
-#define SENSORARRAY_FDC_STATUS_UNREAD_CH1_MASK (1U << 2)
-#define SENSORARRAY_FDC_STATUS_UNREAD_CH2_MASK (1U << 1)
-#define SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK (1U << 0)
 #define SENSORARRAY_FDC_RAW_SCALE_2P28 268435456.0
 #define SENSORARRAY_PI 3.14159265358979323846
 
@@ -728,6 +719,10 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         if (err != ESP_OK && firstErr == ESP_OK) {
             firstErr = err;
         }
+        uint32_t rowValidCount = 0u;
+        uint32_t rowFailCount = 0u;
+        uint32_t primaryValidCount = 0u;
+        uint32_t secondaryValidCount = 0u;
         for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
             uint32_t raw28 = 0u;
             bool valid = false;
@@ -735,18 +730,36 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             if (err != ESP_OK || !valid || raw28 == 0u) {
                 const sensorarrayFdcDLineMap_t *map = NULL;
                 (void)sensorarrayMeasureGetFdcStateForDLine(state, d, &map);
-                printf("MATRIXFDC_DIAG,stage=cell_invalid,seq=%lu,s=%u,d=%u,device=%s,ch=%u,i2cOk=%u,sampleValid=%u,rawNonZero=%u,raw28=%lu,err=0x%lx,reason=%s\n",
+                const sensorarrayFdcCellCalibration_t *cal =
+                    sensorarrayFdcSweepGetCellCalibration(s, d);
+                const char *reason = (cal && cal->lastFailReason) ? cal->lastFailReason :
+                                     ((raw28 == 0u) ? "zero_raw_no_oscillation" : "invalid_status");
+                rowFailCount++;
+                printf("MATRIXFDC_DIAG,stage=cell_invalid,"
+                       "seq=%lu,s=%u,d=%u,device=%s,ch=%u,"
+                       "raw28=%lu,valid=%u,err=0x%lx,"
+                       "cellFailCount=%u,rowFailCount=%u,"
+                       "reason=%s\n",
                        (unsigned long)outFrame->sequence,
                        (unsigned)s,
                        (unsigned)d,
-                       map ? ((map->devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary") : SENSORARRAY_NA,
+                       map ? ((map->devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary_fdc2214" : "primary_fdc2214") : SENSORARRAY_NA,
                        map ? (unsigned)map->channel : 0u,
-                       (err == ESP_OK) ? 1u : 0u,
-                       valid ? 1u : 0u,
-                       (raw28 != 0u) ? 1u : 0u,
                        (unsigned long)raw28,
+                       valid ? 1u : 0u,
                        (unsigned long)err,
-                       (raw28 == 0u) ? "zero_raw_no_oscillation" : "invalid_status");
+                       cal ? (unsigned)cal->consecutiveFailCount : 0u,
+                       (unsigned)rowFailCount,
+                       reason);
+            } else {
+                const sensorarrayFdcDLineMap_t *map = NULL;
+                (void)sensorarrayMeasureGetFdcStateForDLine(state, d, &map);
+                rowValidCount++;
+                if (map && map->devId == SENSORARRAY_FDC_DEV_SECONDARY) {
+                    secondaryValidCount++;
+                } else {
+                    primaryValidCount++;
+                }
             }
             sensorarrayMeasureMarkFdcMatrixCellEx(outFrame, s, d, raw28, valid, !valid);
             if (err != ESP_OK && firstErr == ESP_OK) {
@@ -754,18 +767,29 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             }
             taskYIELD();
         }
+        printf("FDC_ROW,stage=summary,row=%u,validCount=%u,failCount=%u,primaryValid=%u,secondaryValid=%u\n",
+               (unsigned)s,
+               (unsigned)rowValidCount,
+               (unsigned)rowFailCount,
+               (unsigned)primaryValidCount,
+               (unsigned)secondaryValidCount);
     }
 
     sensorarrayMeasureGiveLock();
-    if (outFrame->validMask == 0u && sensorarrayFdcMatrixFrameRawAllZero(outFrame)) {
-        outFrame->errorMask = UINT64_MAX;
+    if (outFrame->validMask == 0u) {
+        bool allZero = sensorarrayFdcMatrixFrameRawAllZero(outFrame);
         uint32_t seq = s_fdcMatrixAllInvalidSequence++;
-        printf("MATRIXFDC_DIAG,stage=all_invalid,seq=%lu,errorMask=0x%016llX,reason=all_zero_raw\n",
+        if (allZero) {
+            outFrame->errorMask = UINT64_MAX;
+        }
+        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s\n",
+               allZero ? "all_invalid" : "all_status_invalid",
                (unsigned long)seq,
-               (unsigned long long)outFrame->errorMask);
+               (unsigned long long)outFrame->errorMask,
+               allZero ? "all_zero_raw" : "raw_nonzero_status_invalid");
         sensorarrayFdcSweepReportAllInvalidFrame(outFrame->validMask,
                                                  outFrame->errorMask,
-                                                 SENSORARRAY_MATRIX_CELL_COUNT);
+                                                 allZero ? SENSORARRAY_MATRIX_CELL_COUNT : 0u);
         return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE;
     }
     return firstErr;
@@ -809,25 +833,6 @@ esp_err_t sensorarrayFdcMatrixEmitFrame(const sensorarrayFdcMatrixFrame_t *frame
 
     if (sensorarrayFastSpeedIsEnabled()) {
         return sensorarrayTransportSendFdcMatrixFrame(frame);
-    }
-
-    bool allZero = sensorarrayFdcMatrixFrameRawAllZero(frame);
-    if (frame->validMask == 0u && allZero) {
-#if CONFIG_SENSORARRAY_FDC_SUPPRESS_ALL_ZERO_FRAMES
-        printf("MATRIXFDC_DIAG,stage=emit_suppressed,reason=all_zero_invalid_frame,seq=%lu,errorMask=0x%016llX\n",
-               (unsigned long)frame->sequence,
-               (unsigned long long)frame->errorMask);
-        return ESP_ERR_INVALID_RESPONSE;
-#else
-        sensorarrayFdcMatrixPrintFrame(frame, "MATRIXFDC_DIAG");
-        return ESP_ERR_INVALID_RESPONSE;
-#endif
-    }
-    if (frame->validMask == 0u) {
-        printf("MATRIXFDC_DIAG,stage=emit_suppressed,reason=status_invalid_frame,seq=%lu,errorMask=0x%016llX\n",
-               (unsigned long)frame->sequence,
-               (unsigned long long)frame->errorMask);
-        return ESP_ERR_INVALID_RESPONSE;
     }
 
     sensorarrayFdcMatrixPrintFrame(frame, "MATRIXFDC");
@@ -1578,34 +1583,31 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
         return statusCfgErr;
     }
 
-    uint16_t statusRaw = outDiag->sample.StatusRaw;
-    outDiag->status = (Fdc2214CapStatus_t){
-        .Raw = statusRaw,
-        .ErrorChannel = (uint8_t)((statusRaw >> SENSORARRAY_FDC_STATUS_ERR_CHAN_SHIFT) & 0x3u),
-        .ErrWatchdog = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_WD_MASK) != 0u,
-        .ErrAmplitudeHigh = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_AHW_MASK) != 0u,
-        .ErrAmplitudeLow = (statusRaw & SENSORARRAY_FDC_STATUS_ERR_ALW_MASK) != 0u,
-        .DataReady = (statusRaw & SENSORARRAY_FDC_STATUS_DRDY_MASK) != 0u,
-        .UnreadConversion = {
-            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH0_MASK) != 0u,
-            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH1_MASK) != 0u,
-            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH2_MASK) != 0u,
-            (statusRaw & SENSORARRAY_FDC_STATUS_UNREAD_CH3_MASK) != 0u,
-        },
-    };
+    (void)Fdc2214CapDecodeStatusRaw(outDiag->sample.StatusRaw, &outDiag->status);
 
     outDiag->converting = outDiag->sample.Converting;
-    outDiag->unreadConversionPresent = outDiag->sample.UnreadConversionPresent;
+    outDiag->unreadConversionPresent = Fdc2214CapStatusHasUnreadForChannel(&outDiag->status, ch);
 
     sensorarrayFdcSampleStatus_t mappedStatus = sensorarrayMeasureMapFdcStatus(outDiag->sample.SampleStatus);
     if (!idOk || !configOk) {
         mappedStatus = SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
     }
+    bool statusFault = Fdc2214CapStatusHasWatchdogFault(&outDiag->status) ||
+                       Fdc2214CapStatusHasAmplitudeFault(&outDiag->status);
+    bool readable = outDiag->unreadConversionPresent || outDiag->status.DataReady || outDiag->sample.DataReady;
     outDiag->statusCode = mappedStatus;
-    outDiag->qualityDegraded = (!outDiag->sample.UnreadConversionPresent) ||
+    outDiag->qualityDegraded = (!readable) ||
                                outDiag->sample.ErrWatchdog ||
-                               outDiag->sample.ErrAmplitude;
-    outDiag->provisionalReadable = idOk && configOk && outDiag->sample.Converting && (outDiag->sample.Raw28 != 0u);
+                               outDiag->sample.ErrAmplitude ||
+                               statusFault;
+    outDiag->provisionalReadable = idOk &&
+                                   configOk &&
+                                   outDiag->sample.Converting &&
+                                   (outDiag->sample.Raw28 != 0u) &&
+                                   !outDiag->sample.ErrWatchdog &&
+                                   !outDiag->sample.ErrAmplitude &&
+                                   !statusFault &&
+                                   readable;
     outDiag->sampleValid = relaxedMode ? outDiag->provisionalReadable
                                        : (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
     if (!idOk || !configOk) {

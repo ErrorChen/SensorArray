@@ -146,6 +146,7 @@ esp_err_t sensorarrayFdcSweepRunFullRescueCell(sensorarrayState_t *state,
 
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void);
+bool sensorarrayFdcSweepConsumeForceFullSweepAll(void);
 void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint64_t errorMask,
                                               uint32_t zeroRawCount);

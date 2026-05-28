@@ -89,6 +89,19 @@ typedef struct {
     bool UnreadConversion[4];
 } Fdc2214CapStatus_t;
 
+#define FDC2214CAP_STATUS_ERR_CHAN_MASK        0xC000u
+#define FDC2214CAP_STATUS_ERR_CHAN_SHIFT       14u
+#define FDC2214CAP_STATUS_ERR_WD_MASK          0x0800u
+#define FDC2214CAP_STATUS_ERR_AHW_MASK         0x0400u
+#define FDC2214CAP_STATUS_ERR_ALW_MASK         0x0200u
+#define FDC2214CAP_STATUS_DRDY_MASK            0x0040u
+#define FDC2214CAP_STATUS_CH0_UNREAD_MASK      0x0008u
+#define FDC2214CAP_STATUS_CH1_UNREAD_MASK      0x0004u
+#define FDC2214CAP_STATUS_CH2_UNREAD_MASK      0x0002u
+#define FDC2214CAP_STATUS_CH3_UNREAD_MASK      0x0001u
+#define FDC2214CAP_STATUS_AMP_MASK \
+    (FDC2214CAP_STATUS_ERR_AHW_MASK | FDC2214CAP_STATUS_ERR_ALW_MASK)
+
 typedef struct {
     uint16_t Status;
     uint16_t StatusConfig;
@@ -218,6 +231,14 @@ uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options);
 esp_err_t Fdc2214CapEnterSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
 // Exit sleep mode explicitly by writing CONFIG with SLEEP_MODE_EN=0.
 esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
+
+uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch);
+esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw,
+                                    Fdc2214CapStatus_t *outStatus);
+bool Fdc2214CapStatusHasAmplitudeFault(const Fdc2214CapStatus_t *status);
+bool Fdc2214CapStatusHasWatchdogFault(const Fdc2214CapStatus_t *status);
+bool Fdc2214CapStatusHasUnreadForChannel(const Fdc2214CapStatus_t *status,
+                                         Fdc2214CapChannel_t ch);
 
 // Read and decode STATUS register.
 esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus);
