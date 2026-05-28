@@ -65,8 +65,45 @@ config SENSORARRAY_FDC_MATRIX_SETTLE_US
 
 config SENSORARRAY_FDC_MATRIX_DISCARD_SAMPLES
     int "Discarded sample groups after each row switch"
-    default 1
+    default 0
     range 0 8
+
+config SENSORARRAY_FDC_SETTLECOUNT_DEFAULT
+    hex "Default FDC SETTLECOUNT_CHx"
+    default 0x0080
+    help
+        Conservative matrix default. The previous 0x000A was too aggressive for
+        row switching; speed tuning should happen after valid conversions are stable.
+
+config SENSORARRAY_FDC_ROW_WAIT_SAFETY_US
+    int "Safety margin after one FDC autoscan cycle (us)"
+    default 500
+    range 0 100000
+
+config SENSORARRAY_FDC_SWEEP_STEP_TIMEOUT_MS
+    int "FDC sweep timeout per candidate (ms)"
+    default 180
+    range 1 5000
+
+config SENSORARRAY_FDC_SWEEP_TOTAL_TIMEOUT_MS
+    int "FDC sweep bounded timeout per channel (ms)"
+    default 2500
+    range 10 60000
+
+config SENSORARRAY_FDC_SWEEP_SETTLE_MS
+    int "FDC sweep settle time after applying a candidate (ms)"
+    default 20
+    range 0 1000
+
+config SENSORARRAY_FDC_SWEEP_SAMPLE_TIMEOUT_MS
+    int "FDC sweep sample wait timeout (ms)"
+    default 80
+    range 1 5000
+
+config SENSORARRAY_FDC_SWEEP_SAMPLE_POLL_MS
+    int "FDC sweep sample polling interval (ms)"
+    default 2
+    range 1 1000
 
 endmenu
 

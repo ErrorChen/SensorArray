@@ -497,6 +497,9 @@ void sensorarrayBringupResetFdcState(sensorarrayFdcDeviceState_t *fdcState,
     fdcState->statusConfigReg = 0u;
     fdcState->configReg = 0u;
     fdcState->muxConfigReg = 0u;
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        fdcState->sweepProfile[ch] = (sensorarrayFdcSweepProfile_t){0};
+    }
 }
 
 bool sensorarrayBringupParseI2cAddress(uint32_t configuredAddress, uint8_t *outAddress)

@@ -108,6 +108,25 @@ typedef struct {
 } sensorarrayFdcDLineMap_t;
 
 typedef struct {
+    bool valid;
+    uint16_t selectedDriveCurrent;
+    bool selectedHighCurrent;
+    uint8_t selectedDeglitchCode;
+    uint32_t selectedDeglitchBandwidthHz;
+    uint16_t selectedClockDividers;
+    uint32_t lastRaw28;
+    double lastFrequencyHz;
+    uint64_t lastValidTimestampUs;
+    uint32_t consecutiveInvalid;
+    uint32_t consecutiveAmplitudeFault;
+    uint32_t consecutiveWatchdogFault;
+    uint32_t consecutiveSaturated;
+    uint32_t consecutiveZeroRaw;
+    bool quickSweepPending;
+    const char *quickSweepReason;
+} sensorarrayFdcSweepProfile_t;
+
+typedef struct {
     const char *label;
     const BoardSupportI2cCtx_t *i2cCtx;
     uint8_t i2cAddr;
@@ -123,6 +142,7 @@ typedef struct {
     uint16_t statusConfigReg;
     uint16_t configReg;
     uint16_t muxConfigReg;
+    sensorarrayFdcSweepProfile_t sweepProfile[4];
 } sensorarrayFdcDeviceState_t;
 
 typedef enum {

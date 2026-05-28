@@ -1200,6 +1200,7 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     Fdc2214CapConfigOptions_t options = Fdc2214CapConfigOptionsFromRaw(configReg);
     options.ActiveChannel = FDC2214_CH0;
     options.SleepModeEnabled = false;
+    options.HighCurrentDrive = false;
     uint16_t newConfig = Fdc2214CapBuildConfig(&options);
     err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, newConfig);
     if (err != ESP_OK) {
@@ -1319,6 +1320,117 @@ esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev,
     return Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
 }
 
+esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
+                                             uint8_t channelMask,
+                                             Fdc2214CapFastChannelSample_t* outSamples,
+                                             size_t outSampleCount)
+{
+    if (!dev || !outSamples) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if ((channelMask & 0xF0u) != 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (outSampleCount < 4u) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    for (size_t i = 0u; i < 4u; ++i) {
+        outSamples[i] = (Fdc2214CapFastChannelSample_t){0};
+    }
+
+    uint16_t statusRaw = 0u;
+    esp_err_t firstErr = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &statusRaw);
+    Fdc2214CapStatus_t status = {0};
+    if (firstErr == ESP_OK) {
+        Fdc2214CapDecodeStatusRaw(statusRaw, &status);
+    }
+
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        Fdc2214CapFastChannelSample_t* sample = &outSamples[ch];
+        sample->statusRaw = statusRaw;
+        sample->dataReady = (firstErr == ESP_OK) && status.DataReady;
+        sample->unreadConversion = (firstErr == ESP_OK) && status.UnreadConversion[ch];
+        sample->sampleStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
+        if ((channelMask & (uint8_t)(1u << ch)) == 0u) {
+            continue;
+        }
+        if (firstErr != ESP_OK) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_I2C;
+            continue;
+        }
+
+        uint8_t dataReg = Fdc2214RegForChannelStep2(FDC2214_REG_DATA_MSB_BASE, (Fdc2214CapChannel_t)ch);
+        esp_err_t err = Fdc2214CapReadReg16(dev, dataReg, &sample->dataMsb);
+        if (err == ESP_OK) {
+            err = Fdc2214CapReadReg16(dev, (uint8_t)(dataReg + 1u), &sample->dataLsb);
+        }
+        if (err != ESP_OK) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_I2C;
+            if (firstErr == ESP_OK) {
+                firstErr = err;
+            }
+            continue;
+        }
+
+        sample->raw28 = ((uint32_t)(sample->dataMsb & FDC2214_DATA_MSB_MASK) << 16) |
+                        (uint32_t)sample->dataLsb;
+        sample->errWatchdog = (sample->dataMsb & FDC2214_DATA_ERR_WD_MASK) != 0u;
+        sample->errAmplitude = (sample->dataMsb & FDC2214_DATA_ERR_AW_MASK) != 0u;
+
+        bool statusFaultForChannel = status.ErrorChannel == ch &&
+                                     (status.ErrWatchdog ||
+                                      status.ErrAmplitudeHigh ||
+                                      status.ErrAmplitudeLow);
+        if (sample->errWatchdog || (status.ErrorChannel == ch && status.ErrWatchdog)) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_WATCHDOG;
+        }
+        if (sample->errAmplitude ||
+            (status.ErrorChannel == ch && (status.ErrAmplitudeHigh || status.ErrAmplitudeLow))) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_AMPLITUDE;
+        }
+        if (statusFaultForChannel) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_STATUS_FAULT;
+        }
+        if (!sample->unreadConversion) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_NO_UNREAD;
+        }
+        if (sample->raw28 == 0u) {
+            sample->errorMask |= FDC2214CAP_FAST_ERROR_ZERO_RAW;
+        }
+
+        if ((sample->errorMask & FDC2214CAP_FAST_ERROR_I2C) != 0u) {
+            sample->sampleStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
+        } else if ((sample->errorMask & FDC2214CAP_FAST_ERROR_WATCHDOG) != 0u) {
+            sample->sampleStatus = FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT;
+        } else if ((sample->errorMask & FDC2214CAP_FAST_ERROR_AMPLITUDE) != 0u) {
+            sample->sampleStatus = FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT;
+        } else if (sample->raw28 == 0u) {
+            sample->sampleStatus = FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID;
+        } else {
+            sample->sampleStatus = FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
+        }
+
+        /*
+         * UnreadConversion is diagnostic in the fast matrix path. A readable
+         * non-zero payload with no watchdog/amplitude fault remains usable, and
+         * the caller can still inspect errorMask for stale/unread suspicion.
+         */
+        sample->valid = (sample->raw28 != 0u) &&
+                        ((sample->errorMask & (FDC2214CAP_FAST_ERROR_I2C |
+                                               FDC2214CAP_FAST_ERROR_WATCHDOG |
+                                               FDC2214CAP_FAST_ERROR_AMPLITUDE)) == 0u);
+    }
+
+    return firstErr;
+}
+
+esp_err_t Fdc2214CapReadAutoscan4RawFast(Fdc2214CapDevice_t* dev,
+                                         Fdc2214CapFastChannelSample_t outSamples[4])
+{
+    return Fdc2214CapReadChannelsDataRegsFast(dev, 0x0Fu, outSamples, 4u);
+}
+
 esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev,
                                     uint8_t channelMask,
                                     Fdc2214CapChannelSample_t* outSamples,
@@ -1338,22 +1450,15 @@ esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev,
         outSamples[i] = (Fdc2214CapChannelSample_t){0};
     }
 
-    esp_err_t firstErr = ESP_OK;
+    Fdc2214CapFastChannelSample_t fastSamples[4] = {0};
+    esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsFast(dev, channelMask, fastSamples, 4u);
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         if ((channelMask & (uint8_t)(1u << ch)) == 0u) {
             continue;
         }
-
-        Fdc2214CapSample_t sample = {0};
-        esp_err_t err = Fdc2214CapReadChannelRawWithStatus(dev, (Fdc2214CapChannel_t)ch, &sample);
-        outSamples[ch].raw28 = (err == ESP_OK) ? sample.Raw28 : 0u;
-        outSamples[ch].status = (err == ESP_OK) ? sample.StatusRaw : 0u;
-        outSamples[ch].valid = (err == ESP_OK) && sample.SampleValid;
-        if (err != ESP_OK && firstErr == ESP_OK) {
-            firstErr = err;
-        } else if (err == ESP_OK && !sample.SampleValid && firstErr == ESP_OK) {
-            firstErr = ESP_ERR_INVALID_RESPONSE;
-        }
+        outSamples[ch].raw28 = fastSamples[ch].raw28;
+        outSamples[ch].status = fastSamples[ch].statusRaw;
+        outSamples[ch].valid = fastSamples[ch].valid;
     }
 
     return firstErr;

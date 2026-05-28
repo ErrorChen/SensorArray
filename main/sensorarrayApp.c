@@ -12,6 +12,7 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
+#include "sensorarrayFdcSweep.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayTypes.h"
@@ -216,6 +217,14 @@ void sensorarrayAppRun(void)
                                  0,
                                  0,
                                  "D5..D8_secondary_ch0..ch3");
+    }
+
+    if (s_state.fdcPrimary.ready && s_state.fdcSecondary.ready) {
+        err = sensorarrayFdcSweepRunBoot(&s_state);
+        sensorarrayLogStartup("fdc_boot_sweep",
+                              err,
+                              (err == ESP_OK) ? "ok" : "warning_or_failed",
+                              (int32_t)err);
     }
 
     sensorarrayRunFdcMatrixLoop();

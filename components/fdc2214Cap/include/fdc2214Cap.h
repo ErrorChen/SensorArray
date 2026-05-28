@@ -158,6 +158,27 @@ typedef struct {
     bool valid;
 } Fdc2214CapChannelSample_t;
 
+#define FDC2214CAP_FAST_ERROR_I2C (1u << 0)
+#define FDC2214CAP_FAST_ERROR_WATCHDOG (1u << 1)
+#define FDC2214CAP_FAST_ERROR_AMPLITUDE (1u << 2)
+#define FDC2214CAP_FAST_ERROR_ZERO_RAW (1u << 3)
+#define FDC2214CAP_FAST_ERROR_NO_UNREAD (1u << 4)
+#define FDC2214CAP_FAST_ERROR_STATUS_FAULT (1u << 5)
+
+typedef struct {
+    uint32_t raw28;
+    uint16_t dataMsb;
+    uint16_t dataLsb;
+    uint16_t statusRaw;
+    bool errWatchdog;
+    bool errAmplitude;
+    bool unreadConversion;
+    bool dataReady;
+    bool valid;
+    Fdc2214CapSampleStatus_t sampleStatus;
+    uint32_t errorMask;
+} Fdc2214CapFastChannelSample_t;
+
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
 // Destroy the device handle and release the mutex.
@@ -248,6 +269,13 @@ esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev,
                                     uint8_t channelMask,
                                     Fdc2214CapChannelSample_t* outSamples,
                                     size_t outSampleCount);
+// Fast autoscan read for CH0..CH3: STATUS once, then DATA_MSB/DATA_LSB for each channel.
+esp_err_t Fdc2214CapReadAutoscan4RawFast(Fdc2214CapDevice_t* dev,
+                                         Fdc2214CapFastChannelSample_t outSamples[4]);
+esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
+                                             uint8_t channelMask,
+                                             Fdc2214CapFastChannelSample_t* outSamples,
+                                             size_t outSampleCount);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

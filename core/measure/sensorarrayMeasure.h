@@ -24,6 +24,8 @@ esp_err_t sensorarrayMeasureSetSwPhysicalLevel(sensorarrayState_t *state,
                                                sensorarraySwPhysicalLevel_t level,
                                                const char *reason);
 
+esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const char *reason);
+
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame);
 

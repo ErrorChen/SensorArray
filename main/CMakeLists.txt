@@ -5,11 +5,13 @@ idf_component_register(
         "../core/board/sensorarrayBoardMap.c"
         "../core/board/sensorarrayBringup.c"
         "../core/measure/sensorarrayMeasure.c"
+        "../core/measure/sensorarrayFdcSweep.c"
         "sensorarrayLog.c"
     INCLUDE_DIRS
         "."
         "../core/board"
         "../core/measure"
+        "../core/measure/include"
     PRIV_REQUIRES
         boardSupport
         powerCtrl
