@@ -227,6 +227,20 @@ uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch)
     }
 }
 
+static const char *Fdc2214CapRrSequenceName(uint8_t rrSequence)
+{
+    switch (rrSequence) {
+    case FDC2214_RR_SEQUENCE_CH0_CH1:
+        return "ch0_ch1";
+    case FDC2214_RR_SEQUENCE_CH0_CH1_CH2:
+        return "ch0_ch1_ch2";
+    case FDC2214_RR_SEQUENCE_CH0_CH1_CH2_CH3:
+        return "ch0_ch1_ch2_ch3";
+    default:
+        return "invalid";
+    }
+}
+
 esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw, Fdc2214CapStatus_t* outStatus)
 {
     if (!outStatus) {
@@ -1204,25 +1218,21 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     if (!dev) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (rrSequence > 2U) {
+    if (rrSequence > FDC2214_RR_SEQUENCE_CH0_CH1_CH2_CH3) {
         return ESP_ERR_INVALID_ARG;
     }
     if (!Fdc2214IsValidDeglitch(deglitch)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = Fdc2214CapSetMuxConfig(dev, true, rrSequence, deglitch);
-    if (err != ESP_OK) {
-        return err;
-    }
-
     uint16_t configReg = 0U;
-    err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
+    esp_err_t err = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &configReg);
     if (err != ESP_OK) {
         return err;
     }
 
-    // Keep ref-clock/intb/high-current policy but force active conversion state.
+    // Keep ref-clock/INTB policy but force active conversion state. ACTIVE_CHAN
+    // is ignored by the runtime matrix path while AUTOSCAN_EN is asserted.
     Fdc2214CapConfigOptions_t options = Fdc2214CapConfigOptionsFromRaw(configReg);
     options.ActiveChannel = FDC2214_CH0;
     options.SleepModeEnabled = false;
@@ -1231,6 +1241,36 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     err = Fdc2214CapWriteReg16Verify(dev, FDC2214_REG_CONFIG, newConfig);
     if (err != ESP_OK) {
         return err;
+    }
+
+    err = Fdc2214CapSetMuxConfig(dev, true, rrSequence, deglitch);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    Fdc2214CapCoreRegs_t regs = {0};
+    err = Fdc2214CapReadCoreRegs(dev, &regs);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t muxRr = (uint8_t)((regs.MuxConfig & FDC2214_MUX_RR_SEQUENCE_MASK) >>
+                              FDC2214_MUX_RR_SEQUENCE_SHIFT);
+    uint8_t muxDeglitch = (uint8_t)(regs.MuxConfig & FDC2214_MUX_DEGLITCH_MASK);
+    bool autoscan = (regs.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0u;
+    bool highCurrent = (regs.Config & FDC2214_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
+    printf("FDC_AUTOSCAN_CONFIG,device=addr0x%02X,mux=0x%04X,config=0x%04X,autoscan=%u,rr=%u,rrName=%s,deglitch=0x%X,highCurrent=%u\n",
+           dev->bus.I2cAddress7,
+           regs.MuxConfig,
+           regs.Config,
+           autoscan ? 1u : 0u,
+           (unsigned)muxRr,
+           Fdc2214CapRrSequenceName(muxRr),
+           (unsigned)muxDeglitch,
+           highCurrent ? 1u : 0u);
+
+    if (!autoscan || muxRr != rrSequence || muxDeglitch != (uint8_t)deglitch || highCurrent) {
+        return ESP_ERR_INVALID_RESPONSE;
     }
 
     ESP_LOGI(TAG, "Autoscan mode set, rrSequence=%u", (unsigned)rrSequence);
@@ -1463,8 +1503,6 @@ esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
             sample->sampleStatus = FDC2214_SAMPLE_STATUS_CONFIG_UNKNOWN;
         } else if ((sample->errorMask & FDC2214CAP_FAST_ERROR_WATCHDOG) != 0u) {
             sample->sampleStatus = FDC2214_SAMPLE_STATUS_WATCHDOG_FAULT;
-        } else if ((sample->errorMask & FDC2214CAP_FAST_ERROR_AMPLITUDE) != 0u) {
-            sample->sampleStatus = FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT;
         } else if (sample->raw28 == 0u) {
             sample->sampleStatus = FDC2214_SAMPLE_STATUS_ZERO_RAW_INVALID;
         } else {
@@ -1472,14 +1510,13 @@ esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
         }
 
         /*
-         * UnreadConversion is diagnostic in the fast matrix path. A readable
-         * non-zero payload with no watchdog/amplitude fault remains usable, and
-         * the caller can still inspect errorMask for stale/unread suspicion.
+         * UnreadConversion and amplitude are diagnostics in the fast matrix path.
+         * A readable non-zero payload with no watchdog fault remains usable, and
+         * the caller can still inspect errorMask for stale/unread/amplitude suspicion.
          */
         sample->valid = (sample->raw28 != 0u) &&
                         ((sample->errorMask & (FDC2214CAP_FAST_ERROR_I2C |
-                                               FDC2214CAP_FAST_ERROR_WATCHDOG |
-                                               FDC2214CAP_FAST_ERROR_AMPLITUDE)) == 0u);
+                                               FDC2214CAP_FAST_ERROR_WATCHDOG)) == 0u);
     }
 
     return firstErr;

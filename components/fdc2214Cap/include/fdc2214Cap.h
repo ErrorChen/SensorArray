@@ -52,6 +52,12 @@ typedef enum {
     FDC2214_DEGLITCH_33MHZ = 0b111,
 } Fdc2214CapDeglitch_t;
 
+typedef enum {
+    FDC2214_RR_SEQUENCE_CH0_CH1 = 0,
+    FDC2214_RR_SEQUENCE_CH0_CH1_CH2 = 1,
+    FDC2214_RR_SEQUENCE_CH0_CH1_CH2_CH3 = 2,
+} Fdc2214CapRrSequence_t;
+
 typedef struct {
     uint16_t Rcount;
     uint16_t SettleCount;
@@ -264,7 +270,7 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
 
 // Single channel continuous conversion; CONFIG.ACTIVE_CHAN selects channel.
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh);
-// Autoscan conversion over CH0..CHn; rrSequence maps 0->CH0-CH1, 1->CH0-CH2, 2->CH0-CH3.
+// Autoscan conversion over CH0..CHn; use Fdc2214CapRrSequence_t for rrSequence.
 esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch);
 
 // Configure STATUS_CONFIG (ERROR_CONFIG) register; reserved bits are validated/sanitized.
