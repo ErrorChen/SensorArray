@@ -25,8 +25,6 @@ static sensorarrayState_t s_state = {0};
 static bool s_fdcBootSweepOk = false;
 static bool s_fdcDiagnosticMode = false;
 static uint32_t s_fdcMatrixPeriodOverrideMs = 0u;
-static int64_t s_lastFdcChannelRescueUs[2][4] = {{0}};
-static uint8_t s_fdcChannelFastFailCount[2][4] = {{0}};
 
 static void sensorarrayAppLogStackHighWater(const char *stage)
 {
@@ -64,39 +62,23 @@ static void sensorarrayAppDelayDiagnosticPeriod(void)
     vTaskDelay(pdMS_TO_TICKS(1000u));
 }
 
-static sensorarrayFdcDeviceState_t *sensorarrayAppFdcStateByIndex(uint8_t dev)
+static const char *sensorarrayAppFdcDeviceName(sensorarrayFdcDeviceId_t devId)
 {
-    return (dev == (uint8_t)SENSORARRAY_FDC_DEV_SECONDARY) ? &s_state.fdcSecondary : &s_state.fdcPrimary;
+    return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary";
 }
 
-static const char *sensorarrayAppFdcDeviceName(uint8_t dev)
+static void sensorarrayAppMarkAllFdcCellsPending(const char *reason)
 {
-    return (dev == (uint8_t)SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary";
-}
-
-static uint8_t sensorarrayAppFdcRepresentativeS(uint8_t dev)
-{
-    return (dev == (uint8_t)SENSORARRAY_FDC_DEV_SECONDARY) ? 5u : 1u;
-}
-
-static uint8_t sensorarrayAppFdcRepresentativeD(uint8_t dev, uint8_t ch)
-{
-    return (uint8_t)(((dev == (uint8_t)SENSORARRAY_FDC_DEV_SECONDARY) ? 5u : 1u) + ch);
-}
-
-static void sensorarrayAppMarkAllFdcChannelsPending(const char *reason)
-{
-    for (uint8_t dev = 0u; dev < 2u; ++dev) {
-        sensorarrayFdcDeviceState_t *fdcState = sensorarrayAppFdcStateByIndex(dev);
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            sensorarrayFdcSweepProfile_t *profile = &fdcState->sweepProfile[ch];
-            profile->quickSweepPending = true;
-            profile->quickSweepReason = reason ? reason : "runtime_rescue";
+    const char *source = reason ? reason : "runtime_rescue";
+    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+            uint8_t matrixIndex = (uint8_t)sensorarrayMatrixIndex(s, d);
+            (void)sensorarrayMeasureRequestFdcCellRescue(&s_state, matrixIndex, source);
         }
     }
 }
 
-static bool sensorarrayAppRunPendingFdcChannelRescue(bool *rescueRunning, uint32_t *rescueEpoch)
+static bool sensorarrayAppRunPendingFdcCellRescue(bool *rescueRunning, uint32_t *rescueEpoch)
 {
     if (!rescueRunning || !rescueEpoch || *rescueRunning) {
         return false;
@@ -104,89 +86,111 @@ static bool sensorarrayAppRunPendingFdcChannelRescue(bool *rescueRunning, uint32
 
     int64_t nowUs = esp_timer_get_time();
     int64_t cooldownUs = (int64_t)CONFIG_SENSORARRAY_FDC_FAST_SWEEP_COOLDOWN_MS * 1000LL;
-    for (uint8_t dev = 0u; dev < 2u; ++dev) {
-        sensorarrayFdcDeviceState_t *fdcState = sensorarrayAppFdcStateByIndex(dev);
-        if (!fdcState->ready || !fdcState->handle) {
-            continue;
-        }
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            sensorarrayFdcSweepProfile_t *profile = &fdcState->sweepProfile[ch];
-            if (!profile->quickSweepPending) {
+    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+            sensorarrayFdcCellTarget_t target = {0};
+            if (!sensorarrayMeasureMakeFdcCellTarget(&s_state, s, d, &target)) {
                 continue;
             }
-            if (s_lastFdcChannelRescueUs[dev][ch] != 0 &&
+            sensorarrayFdcCellConfigCache_t *cache =
+                sensorarrayMeasureGetFdcCellCache(&s_state, &target);
+            if (!cache || !cache->rescuePending) {
+                continue;
+            }
+
+            if (cache->lastRescueTimestampUs != 0u &&
                 cooldownUs > 0 &&
-                (nowUs - s_lastFdcChannelRescueUs[dev][ch]) < cooldownUs) {
-                printf("FDC_RESCUE,stage=defer,scope=channel,device=%s,ch=%u,reason=cooldown,pendingReason=%s\n",
-                       sensorarrayAppFdcDeviceName(dev),
-                       (unsigned)ch,
-                       profile->quickSweepReason ? profile->quickSweepReason : SENSORARRAY_NA);
+                (nowUs - (int64_t)cache->lastRescueTimestampUs) < cooldownUs) {
+                printf("FDC_RESCUE,stage=defer,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,reason=cooldown,pendingReason=%s\n",
+                       (unsigned)target.sColumn,
+                       (unsigned)target.dLine,
+                       (unsigned)target.matrixIndex,
+                       sensorarrayAppFdcDeviceName(target.devId),
+                       (unsigned)target.fdcChannel,
+                       cache->rescueReason ? cache->rescueReason : SENSORARRAY_NA);
                 return false;
             }
 
             uint32_t epoch = ++(*rescueEpoch);
-            const char *reason = profile->quickSweepReason ? profile->quickSweepReason : "runtime_channel_rescue";
+            const char *reason = cache->rescueReason ? cache->rescueReason : "runtime_cell_rescue";
+            int64_t startUs = esp_timer_get_time();
             *rescueRunning = true;
-            printf("FDC_RESCUE,stage=begin,scope=channel,device=%s,ch=%u,mode=fast,reason=%s,epoch=%lu\n",
-                   sensorarrayAppFdcDeviceName(dev),
-                   (unsigned)ch,
+            printf("FDC_RESCUE,stage=begin,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,mode=fast,reason=%s,epoch=%lu\n",
+                   (unsigned)target.sColumn,
+                   (unsigned)target.dLine,
+                   (unsigned)target.matrixIndex,
+                   sensorarrayAppFdcDeviceName(target.devId),
+                   (unsigned)target.fdcChannel,
                    reason,
                    (unsigned long)epoch);
-            esp_err_t err = sensorarrayFdcSweepRunDevice(&s_state,
-                                                         (sensorarrayFdcDeviceId_t)dev,
-                                                         (uint8_t)(1u << ch),
-                                                         reason);
-            s_lastFdcChannelRescueUs[dev][ch] = esp_timer_get_time();
-            if (err == ESP_OK) {
-                s_fdcChannelFastFailCount[dev][ch] = 0u;
-            } else if (s_fdcChannelFastFailCount[dev][ch] < UINT8_MAX) {
-                s_fdcChannelFastFailCount[dev][ch]++;
+
+            esp_err_t err = sensorarrayFdcSweepRunCellFastRescue(&s_state, &target, reason);
+            esp_err_t restoreErr = sensorarrayFdcSweepRestoreAutoscan(&s_state, target.devId, reason);
+            if (err == ESP_OK && restoreErr == ESP_OK) {
+                cache->fastRescueFailCount = 0u;
+            } else if (cache->fastRescueFailCount < UINT8_MAX) {
+                cache->fastRescueFailCount++;
             }
 
             uint8_t fullThreshold = (uint8_t)CONFIG_SENSORARRAY_FDC_FAST_FAIL_THRESHOLD;
             if (fullThreshold == 0u) {
                 fullThreshold = 1u;
             }
-            if (err != ESP_OK && s_fdcChannelFastFailCount[dev][ch] >= fullThreshold) {
-                uint8_t s = sensorarrayAppFdcRepresentativeS(dev);
-                uint8_t d = sensorarrayAppFdcRepresentativeD(dev, ch);
-                printf("FDC_RESCUE,stage=begin,scope=channel,device=%s,ch=%u,mode=full,s=%u,d=%u,reason=fast_failed,epoch=%lu\n",
-                       sensorarrayAppFdcDeviceName(dev),
-                       (unsigned)ch,
-                       (unsigned)s,
-                       (unsigned)d,
+            if ((err != ESP_OK || restoreErr != ESP_OK) &&
+                cache->fastRescueFailCount >= fullThreshold) {
+                printf("FDC_RESCUE,stage=begin,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,mode=full,reason=fast_failed,epoch=%lu\n",
+                       (unsigned)target.sColumn,
+                       (unsigned)target.dLine,
+                       (unsigned)target.matrixIndex,
+                       sensorarrayAppFdcDeviceName(target.devId),
+                       (unsigned)target.fdcChannel,
                        (unsigned long)epoch);
                 esp_err_t fullErr = sensorarrayFdcSweepRunFullRescueCell(&s_state,
-                                                                         s,
-                                                                         d,
-                                                                         "runtime_channel_full");
-                esp_err_t restoreErr = sensorarrayFdcSweepRestoreAutoscan(&s_state,
-                                                                          (sensorarrayFdcDeviceId_t)dev,
-                                                                          "runtime_channel_full");
-                if (fullErr == ESP_OK && restoreErr == ESP_OK) {
-                    s_fdcChannelFastFailCount[dev][ch] = 0u;
+                                                                         target.sColumn,
+                                                                         target.dLine,
+                                                                         "runtime_cell_full");
+                esp_err_t fullRestoreErr = sensorarrayFdcSweepRestoreAutoscan(&s_state,
+                                                                              target.devId,
+                                                                              "runtime_cell_full");
+                if (fullErr == ESP_OK && fullRestoreErr == ESP_OK) {
+                    cache->fastRescueFailCount = 0u;
                     err = ESP_OK;
+                    restoreErr = ESP_OK;
                 } else {
-                    err = (fullErr != ESP_OK) ? fullErr : restoreErr;
+                    err = (fullErr != ESP_OK) ? fullErr : fullRestoreErr;
+                    restoreErr = fullRestoreErr;
                 }
-                printf("FDC_RESCUE,stage=end,scope=channel,device=%s,ch=%u,mode=full,s=%u,d=%u,reason=fast_failed,epoch=%lu,err=0x%lx,restoreErr=0x%lx\n",
-                       sensorarrayAppFdcDeviceName(dev),
-                       (unsigned)ch,
-                       (unsigned)s,
-                       (unsigned)d,
+                printf("FDC_RESCUE,stage=end,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,mode=full,reason=fast_failed,epoch=%lu,err=0x%lx,restoreErr=0x%lx\n",
+                       (unsigned)target.sColumn,
+                       (unsigned)target.dLine,
+                       (unsigned)target.matrixIndex,
+                       sensorarrayAppFdcDeviceName(target.devId),
+                       (unsigned)target.fdcChannel,
                        (unsigned long)epoch,
-                       (unsigned long)fullErr,
-                       (unsigned long)restoreErr);
+                       (unsigned long)err,
+                       (unsigned long)fullRestoreErr);
             }
+
+            int64_t endUs = esp_timer_get_time();
+            cache->lastRescueTimestampUs = (uint64_t)endUs;
+            cache->rescuePending = false;
+            cache->rescueReason = SENSORARRAY_NA;
+            printf("FDC_RESCUE_HEARTBEAT,scope=cell,s=%u,d=%u,index=%u,elapsedMs=%lu\n",
+                   (unsigned)target.sColumn,
+                   (unsigned)target.dLine,
+                   (unsigned)target.matrixIndex,
+                   (unsigned long)((endUs - startUs) / 1000LL));
             *rescueRunning = false;
-            profile->quickSweepPending = false;
-            profile->quickSweepReason = SENSORARRAY_NA;
-            printf("FDC_RESCUE,stage=end,scope=channel,device=%s,ch=%u,mode=fast,reason=%s,epoch=%lu,err=0x%lx\n",
-                   sensorarrayAppFdcDeviceName(dev),
-                   (unsigned)ch,
+            printf("FDC_RESCUE,stage=end,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,mode=fast,reason=%s,epoch=%lu,err=0x%lx,restoreErr=0x%lx\n",
+                   (unsigned)target.sColumn,
+                   (unsigned)target.dLine,
+                   (unsigned)target.matrixIndex,
+                   sensorarrayAppFdcDeviceName(target.devId),
+                   (unsigned)target.fdcChannel,
                    reason,
                    (unsigned long)epoch,
-                   (unsigned long)err);
+                   (unsigned long)err,
+                   (unsigned long)restoreErr);
             return true;
         }
     }
@@ -488,7 +492,7 @@ static void sensorarrayRunFdcMatrixLoop(void)
             }
         }
 
-        (void)sensorarrayAppRunPendingFdcChannelRescue(&rescueRunning, &rescueEpoch);
+        (void)sensorarrayAppRunPendingFdcCellRescue(&rescueRunning, &rescueEpoch);
 
         if (s_fdcDiagnosticMode) {
             printf("MATRIXFDC_DIAG,stage=diagnostic_mode,bootOk=%d,failedRescue=%lu,primaryReady=%d,secondaryReady=%d\n",
@@ -496,7 +500,7 @@ static void sensorarrayRunFdcMatrixLoop(void)
                    (unsigned long)failedRescueCount,
                    s_state.fdcPrimary.ready ? 1 : 0,
                    s_state.fdcSecondary.ready ? 1 : 0);
-            sensorarrayAppMarkAllFdcChannelsPending("diagnostic_retry");
+            sensorarrayAppMarkAllFdcCellsPending("diagnostic_retry");
             (void)sensorarrayFdcSweepDumpAllDeviceRegs(&s_state, "diagnostic_mode", "diagnostic_retry");
             sensorarrayAppDelayDiagnosticPeriod();
             continue;
@@ -534,12 +538,12 @@ static void sensorarrayRunFdcMatrixLoop(void)
                 !rescueRunning;
             if (rescuePendingAllowed) {
                 sensorarrayAppLogStackHighWater("all_invalid_diag_before");
-                printf("FDC_RESCUE,stage=pending,scope=channels,reason=all_invalid_frame,consecutive=%lu\n",
+                printf("FDC_RESCUE,stage=pending,scope=cells,reason=all_invalid_frame,consecutive=%lu\n",
                        (unsigned long)consecutiveAllInvalidFrames);
                 printf("MATRIXFDC_DIAG,stage=all_invalid_register_dump,seq=%lu\n",
                        (unsigned long)frame.sequence);
                 (void)sensorarrayFdcSweepDumpAllDeviceRegs(&s_state, "all_invalid_frame", "all_invalid_frame");
-                sensorarrayAppMarkAllFdcChannelsPending("all_invalid_frame");
+                sensorarrayAppMarkAllFdcCellsPending("all_invalid_frame");
                 sensorarrayAppLogStackHighWater("all_invalid_diag_after");
             } else {
                 printf("FDC_RESCUE,stage=defer,reason=all_invalid_threshold_not_met,consecutive=%lu\n",

@@ -78,8 +78,14 @@ typedef enum {
 typedef struct {
     uint64_t timestampUs;
     uint32_t sequence;
+    double freqHz[SENSORARRAY_MATRIX_CELL_COUNT];
     uint32_t raw28[SENSORARRAY_MATRIX_CELL_COUNT];
+    uint16_t clockDividers[SENSORARRAY_MATRIX_CELL_COUNT];
+    uint16_t driveCurrent[SENSORARRAY_MATRIX_CELL_COUNT];
+    uint8_t deglitchCode[SENSORARRAY_MATRIX_CELL_COUNT];
+    uint32_t effectiveFclkHz[SENSORARRAY_MATRIX_CELL_COUNT];
     uint64_t validMask;
+    uint64_t warnMask;
     uint64_t errorMask;
 } sensorarrayFdcMatrixFrame_t;
 
@@ -106,6 +112,34 @@ typedef struct {
     Fdc2214CapChannel_t channel;
     const char *mapLabel;
 } sensorarrayFdcDLineMap_t;
+
+typedef struct {
+    uint8_t sColumn;
+    uint8_t dLine;
+    uint8_t matrixIndex;
+    sensorarrayFdcDeviceId_t devId;
+    uint8_t fdcChannel;
+    const char *mapLabel;
+} sensorarrayFdcCellTarget_t;
+
+typedef struct {
+    bool valid;
+    uint16_t driveCurrent;
+    uint8_t deglitch;
+    uint16_t rCount;
+    uint16_t settleCount;
+    uint16_t clockDiv;
+    uint32_t effectiveFclkHz;
+    double lastFreqHz;
+    uint32_t lastRaw28;
+    uint8_t consecutiveAmplitudeWarnings;
+    uint8_t consecutiveErrors;
+    uint32_t lastUpdateTimestampUs;
+    bool rescuePending;
+    const char *rescueReason;
+    uint8_t fastRescueFailCount;
+    uint64_t lastRescueTimestampUs;
+} sensorarrayFdcCellConfigCache_t;
 
 typedef struct {
     bool valid;
@@ -257,6 +291,7 @@ typedef struct {
     sensorarrayFdcDeviceState_t fdcPrimary;
     sensorarrayFdcDeviceState_t fdcSecondary;
     uint8_t fdcConfiguredChannels;
+    sensorarrayFdcCellConfigCache_t fdcCellCache[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
 
     bool boardReady;
     bool tmuxReady;

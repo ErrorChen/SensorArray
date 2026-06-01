@@ -66,6 +66,10 @@ esp_err_t protocolWirePackFrame(const protocolWireFrame_t *frame, uint8_t *outBu
     p += 4;
     protocolWireWriteU64LE(p, frame->validMask);
     p += 8;
+    protocolWireWriteU64LE(p, frame->warnMask);
+    p += 8;
+    protocolWireWriteU64LE(p, frame->errorMask);
+    p += 8;
     for (size_t i = 0; i < PROTOCOL_WIRE_POINT_COUNT; ++i) {
         protocolWireWriteU16LE(p, frame->offset[i]);
         p += 2;

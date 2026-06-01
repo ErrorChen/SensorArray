@@ -14,6 +14,31 @@ sensorarrayFdcDeviceState_t *sensorarrayMeasureGetFdcStateForDLine(sensorarraySt
                                                                     uint8_t dLine,
                                                                     const sensorarrayFdcDLineMap_t **outMap);
 
+bool sensorarrayMeasureDecodeMatrixIndex(uint8_t matrixIndex,
+                                          uint8_t *outSColumn,
+                                          uint8_t *outDLine);
+
+bool sensorarrayMeasureMakeFdcCellTarget(sensorarrayState_t *state,
+                                         uint8_t sColumn,
+                                         uint8_t dLine,
+                                         sensorarrayFdcCellTarget_t *outTarget);
+
+esp_err_t sensorarrayMeasureApplyFdcCellRoute(sensorarrayState_t *state,
+                                              const sensorarrayFdcCellTarget_t *target,
+                                              const char *reason);
+
+esp_err_t sensorarrayMeasureFdcDiscardStaleSamples(sensorarrayState_t *state,
+                                                   const sensorarrayFdcCellTarget_t *target,
+                                                   uint8_t discardCount,
+                                                   const char *reason);
+
+sensorarrayFdcCellConfigCache_t *sensorarrayMeasureGetFdcCellCache(sensorarrayState_t *state,
+                                                                   const sensorarrayFdcCellTarget_t *target);
+
+esp_err_t sensorarrayMeasureRequestFdcCellRescue(sensorarrayState_t *state,
+                                                uint8_t matrixIndex,
+                                                const char *reason);
+
 esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t *state,
                                         sensorarraySelaRoute_t selaRoute,
                                         uint32_t settleDelayMs,
@@ -136,6 +161,11 @@ bool sensorarrayMeasureFdcDecodeClockDividers(uint16_t clockDividers,
 bool sensorarrayMeasureFdcComputeFrequencyDiag(uint32_t raw28,
                                                uint16_t clockDividers,
                                                sensorarrayFdcFrequencyDiag_t *outDiag);
+double sensorarrayMeasureFdcFinFactorFromClockDiv(uint16_t clockDividers);
+double sensorarrayMeasureFdcFrefDividerFromClockDiv(uint16_t clockDividers);
+double sensorarrayMeasureFdcRaw28ToFreqHz(uint32_t raw28,
+                                          uint32_t effectiveFclkHz,
+                                          uint16_t clockDividers);
 double sensorarrayMeasureFdcRawToSensorFrequencyHz(uint32_t raw28, uint16_t clockDividers);
 // Base FDC raw28 formula only, before CHx_FIN_SEL / CHx_FREF_DIVIDER correction.
 // Keep this for debug comparison; do not use it as the final capacitance input.

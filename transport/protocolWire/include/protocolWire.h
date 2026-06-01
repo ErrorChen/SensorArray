@@ -18,18 +18,22 @@ extern "C" {
 #define PROTOCOL_WIRE_PAYLOAD_MASK 0x0FFFFFFFu
 
 #define PROTOCOL_WIRE_FRAME_BYTES \
-    (2u + 4u + 8u + (PROTOCOL_WIRE_POINT_COUNT * 2u) + (PROTOCOL_WIRE_POINT_COUNT * 4u) + 2u)
+    (2u + 4u + 8u + 8u + 8u + (PROTOCOL_WIRE_POINT_COUNT * 2u) + (PROTOCOL_WIRE_POINT_COUNT * 4u) + 2u)
 
 typedef enum {
     PROTOCOL_WIRE_DATA_TAG_NONE = 0x0u,
-    PROTOCOL_WIRE_DATA_TAG_FDC2214 = 0x1u,
+    PROTOCOL_WIRE_DATA_TAG_FDC2214_FREQ_HZ = 0x1u,
+    PROTOCOL_WIRE_DATA_TAG_FDC2214 = PROTOCOL_WIRE_DATA_TAG_FDC2214_FREQ_HZ,
 } protocolWireDataTag_t;
 
 typedef struct {
     uint16_t seq;
     uint32_t t0;
     uint64_t validMask;
+    uint64_t warnMask;
+    uint64_t errorMask;
     uint16_t offset[PROTOCOL_WIRE_POINT_COUNT];
+    // For FDC2214 matrix frames, data[] carries integer freqHz values, not raw28.
     uint32_t data[PROTOCOL_WIRE_POINT_COUNT];
 } protocolWireFrame_t;
 

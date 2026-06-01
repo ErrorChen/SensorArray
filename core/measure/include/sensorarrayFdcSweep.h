@@ -56,6 +56,8 @@ typedef struct {
     uint16_t statusReg;
     uint16_t configReg;
     uint16_t muxConfigReg;
+    uint16_t rCountReg;
+    uint16_t settleCountReg;
     uint16_t clockDividersReg;
 
     uint8_t finSelCode;
@@ -143,6 +145,13 @@ esp_err_t sensorarrayFdcSweepRunFullRescueCell(sensorarrayState_t *state,
                                                uint8_t sIndex,
                                                uint8_t dIndex,
                                                const char *reason);
+esp_err_t sensorarrayFdcSweepRunCellFastRescue(sensorarrayState_t *state,
+                                               const sensorarrayFdcCellTarget_t *target,
+                                               const char *reason);
+esp_err_t sensorarrayFdcSweepRunCellSweepTarget(sensorarrayState_t *state,
+                                                const sensorarrayFdcCellTarget_t *target,
+                                                const char *reason,
+                                                bool allowFullSweep);
 
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void);

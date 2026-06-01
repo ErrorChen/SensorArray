@@ -13,8 +13,12 @@
 
 The default app mode is no longer a single-point debug path. Legacy single-point, FDC discovery, locked-sample, and register-dump bring-up entries have been removed.
 
-Default frame output remains human-readable printf text:
+Default frame output remains human-readable printf text. The main payload is LC resonant frequency in Hz:
 
-`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,validMask=0x<16hex>,errorMask=0x<16hex>,raw28=[<64 values>]`
+`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 values>]`
+
+Raw FDC2214 codes are debug-only:
+
+`DEBUGFDC_RAW,seq=<sequence>,timestampUs=<timestampUs>,raw28=[<64 values>]`
 
 Binary output is reserved for an explicit fast-speed/binary host command path and is disabled by default.

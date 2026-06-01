@@ -31,8 +31,10 @@ The production frame type is `sensorarrayFdcMatrixFrame_t`:
 
 - `timestampUs`: from `esp_timer_get_time()`
 - `sequence`: increments once per generated frame
-- `raw28[64]`: primary payload
-- `validMask`: bit `i` means `raw28[i]` is valid
+- `freqHz[64]`: primary payload, converted from each cell's current `raw28` and FDC clock-divider context
+- `raw28[64]`: debug payload only
+- `validMask`: bit `i` means `freqHz[i]` is valid
+- `warnMask`: bit `i` means that cell had a non-blocking warning such as amplitude warning
 - `errorMask`: bit `i` means that cell failed, timed out, or had invalid status/data
 
 Frame order is row-major:
@@ -47,7 +49,7 @@ Index formula:
 
 Before each FDC matrix frame, `sensorarrayMeasurePrepareFdcMatrixPath()` enforces:
 
-- SW physical high
+- SW source GND
 - ADS1263 internal reference off
 - ADS1263 VBIAS off
 - ADS conversion stopped
@@ -60,21 +62,25 @@ SW physical high is controlled by `sensorarrayMeasureSetSwPhysicalLevel()`. It o
 
 Default output is one printf text line per frame:
 
-`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,validMask=0x<16hex>,errorMask=0x<16hex>,raw28=[<64 uint32 values>]`
+`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 Hz values>]`
 
 Example:
 
-`MATRIXFDC,seq=12,timestampUs=345678901,validMask=0xFFFFFFFFFFFFFFFF,errorMask=0x0000000000000000,raw28=[123,456,789,...]`
+`MATRIXFDC,seq=12,timestampUs=345678901,unit=freqHz,validMask=0xFFFFFFFFFFFFFFFF,warnMask=0x0000000000000000,errorMask=0x0000000000000000,freqHz=[2746569.0,2746501.0,...]`
+
+Raw FDC2214 codes are emitted only as a separate debug line:
+
+`DEBUGFDC_RAW,seq=12,timestampUs=345678901,raw28=[9215955,9215731,...]`
 
 Binary output is not enabled by default. `sensorarrayFastSpeedIsEnabled()` currently defaults false; the binary sender is reserved and returns `ESP_ERR_NOT_SUPPORTED` until an explicit host fast-speed/binary command path is added.
 
-`MATRIXFDC` is now emitted only when at least one `raw28` entry is semantically valid. If every cell is invalid and all raw values are zero, the firmware emits `MATRIXFDC_DIAG` and suppresses the normal frame so host tools do not treat a no-oscillation condition as a valid measurement.
+`MATRIXFDC` is now emitted only when at least one `freqHz` entry is semantically valid. If every cell is invalid and all raw values are zero, the firmware emits `MATRIXFDC_DIAG` and marks the normal frame invalid so host tools do not treat a no-oscillation condition as a valid measurement.
 
 ## FDC boot and rescue
 
-Startup performs a required visible boot full sweep before normal matrix output. The protected boot points include S5D5 and S1D1, with S5D5 treated as the current 200 pF validation point. S5D5 with 200 pF is expected near 2.4-2.6 MHz, but that range is a diagnostic hint, not a hard-coded validity gate.
+Startup performs a required visible boot full sweep before normal matrix output. The boot sweep covers all 64 cells; S5D5 with 200 pF is only a validation example and is not hard-coded.
 
-At runtime, direct reads and fast sweeps are tried first from cached lock settings. A full sweep is used when fast/direct recovery fails or when no oscillation is detected. An all-invalid all-zero matrix frame triggers immediate no-oscillation rescue and register dumps instead of continuing to print normal all-zero frames.
+At runtime, direct reads and fast sweeps are tried first from per-cell cached lock settings. A full sweep is used only as a cell-level fallback when fast/direct recovery fails or when no oscillation is detected. Amplitude warnings enter `warnMask` first and only trigger rescue after repeated warnings on the same cell.
 
 Useful console commands:
 
