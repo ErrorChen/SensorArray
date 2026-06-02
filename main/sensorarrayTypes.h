@@ -79,15 +79,120 @@ typedef struct {
     uint64_t timestampUs;
     uint32_t sequence;
     double freqHz[SENSORARRAY_MATRIX_CELL_COUNT];
+    double capTotalPf[SENSORARRAY_MATRIX_CELL_COUNT];
     uint32_t raw28[SENSORARRAY_MATRIX_CELL_COUNT];
     uint16_t clockDividers[SENSORARRAY_MATRIX_CELL_COUNT];
     uint16_t driveCurrent[SENSORARRAY_MATRIX_CELL_COUNT];
     uint8_t deglitchCode[SENSORARRAY_MATRIX_CELL_COUNT];
     uint32_t effectiveFclkHz[SENSORARRAY_MATRIX_CELL_COUNT];
     uint64_t validMask;
+    uint64_t capValidMask;
     uint64_t warnMask;
     uint64_t errorMask;
 } sensorarrayFdcMatrixFrame_t;
+
+typedef struct {
+    uint64_t frameUs;
+    uint64_t rowAvgUs;
+    uint64_t rowMinUs;
+    uint64_t rowMaxUs;
+    uint8_t slowRow;
+
+    uint64_t pathEnsureUs;
+    uint64_t cacheApplyUs;
+
+    uint64_t applyBuildConfigUs;
+    uint64_t applyChannelConfigWriteUs;
+    uint64_t applyGlobalConfigWriteUs;
+    uint64_t applyVerifyUs;
+    uint64_t applyDelayUs;
+    uint64_t applyReadyWaitUs;
+    uint64_t applyMutexWaitUs;
+    uint64_t applyLogUs;
+
+    uint64_t discardUs;
+    uint64_t waitReadyUs;
+    uint64_t readUs;
+    uint64_t emitUs;
+    uint64_t capComputeUs;
+
+    uint64_t sweepUs;
+    uint32_t runtimeSweepCount;
+
+    uint32_t i2cWriteCount;
+    uint32_t i2cReadCount;
+    uint32_t i2cVerifyReadCount;
+    uint32_t i2cRetryCount;
+    uint32_t i2cNackCount;
+    uint32_t i2cTimeoutCount;
+    uint32_t i2cRecoveryCount;
+
+    uint32_t i2cBus0WriteCount;
+    uint32_t i2cBus0ReadCount;
+    uint32_t i2cBus0WriteBytes;
+    uint32_t i2cBus0ReadBytes;
+    uint64_t i2cBus0TotalUs;
+    uint32_t i2cBus0RetryCount;
+    uint32_t i2cBus0NackCount;
+    uint32_t i2cBus0TimeoutCount;
+
+    uint32_t i2cBus1WriteCount;
+    uint32_t i2cBus1ReadCount;
+    uint32_t i2cBus1WriteBytes;
+    uint32_t i2cBus1ReadBytes;
+    uint64_t i2cBus1TotalUs;
+    uint32_t i2cBus1RetryCount;
+    uint32_t i2cBus1NackCount;
+    uint32_t i2cBus1TimeoutCount;
+
+    uint32_t i2cFreqHz;
+    uint64_t i2cEstimatedBits;
+    uint64_t i2cEstimatedBusUs;
+    uint64_t i2cMeasuredUs;
+    int64_t i2cOverheadUs;
+} sensorarrayFdcTimingSummary_t;
+
+typedef struct {
+    uint8_t row;
+    uint64_t rowUs;
+    uint64_t rowSelectUs;
+    uint64_t analogSettleUs;
+
+    uint64_t primaryTotalUs;
+    uint64_t secondaryTotalUs;
+    uint64_t parallelJoinWaitUs;
+
+    uint64_t discardUs;
+    uint64_t waitReadyUs;
+    uint64_t readUs;
+
+    uint8_t rowValidMask;
+    uint8_t rowWarnMask;
+    uint8_t rowErrorMask;
+} sensorarrayFdcRowTiming_t;
+
+typedef struct {
+    uint8_t row;
+    sensorarrayFdcDeviceId_t deviceId;
+
+    uint64_t deviceUs;
+    uint64_t applyUs;
+    uint64_t applyBuildConfigUs;
+    uint64_t channelConfigWriteUs;
+    uint64_t globalConfigWriteUs;
+    uint64_t verifyUs;
+    uint64_t discardUs;
+    uint64_t waitReadyUs;
+    uint64_t readRawUs;
+
+    uint32_t readyPollCount;
+    uint32_t regWriteCount;
+    uint32_t regReadCount;
+    uint32_t verifyReadCount;
+    uint32_t retryCount;
+    uint32_t timeoutCount;
+    uint32_t nackCount;
+} sensorarrayFdcDeviceTiming_t;
 
 typedef struct {
     uint8_t sColumn;

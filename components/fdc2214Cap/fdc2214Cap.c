@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "sdkconfig.h"
+#include "esp_timer.h"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -20,6 +21,9 @@
 #endif
 #ifndef CONFIG_FDC2214CAP_RAW_I2C_TRACE
 #define CONFIG_FDC2214CAP_RAW_I2C_TRACE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE
+#define CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE 128
 #endif
 #ifndef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL CONFIG_FDC2214CAP_LOG_LEVEL
@@ -118,7 +122,26 @@ static const char* TAG = "fdc2214Cap";
 typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
     SemaphoreHandle_t mutex;
+    Fdc2214CapI2cStats_t i2cStats;
 } Fdc2214CapDevice_t;
+
+typedef struct {
+    uint32_t sequence;
+    int64_t timestampUs;
+    const char *op;
+    uint8_t addr7;
+    uint16_t txLen;
+    uint16_t rxLen;
+    uint64_t elapsedUs;
+    esp_err_t err;
+} Fdc2214CapI2cTraceRecord_t;
+
+#if CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE > 0
+static Fdc2214CapI2cTraceRecord_t s_i2cTraceRing[CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE];
+#endif
+static bool s_i2cTraceEnabled = false;
+static uint32_t s_i2cTraceWriteIndex = 0u;
+static uint32_t s_i2cTraceSequence = 0u;
 
 static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)
 {
@@ -158,6 +181,74 @@ static void Fdc2214CapDelayUs(uint32_t delayUs)
     if (delayUs > 0U) {
         esp_rom_delay_us(delayUs);
     }
+}
+
+static void Fdc2214CapTraceRecord(const char *op,
+                                  uint8_t addr7,
+                                  size_t txLen,
+                                  size_t rxLen,
+                                  uint64_t elapsedUs,
+                                  esp_err_t err)
+{
+#if CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE > 0
+    if (!s_i2cTraceEnabled) {
+        return;
+    }
+    uint32_t slot = s_i2cTraceWriteIndex % (uint32_t)CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE;
+    s_i2cTraceRing[slot] = (Fdc2214CapI2cTraceRecord_t){
+        .sequence = s_i2cTraceSequence++,
+        .timestampUs = esp_timer_get_time(),
+        .op = op ? op : "unknown",
+        .addr7 = addr7,
+        .txLen = (uint16_t)((txLen > UINT16_MAX) ? UINT16_MAX : txLen),
+        .rxLen = (uint16_t)((rxLen > UINT16_MAX) ? UINT16_MAX : rxLen),
+        .elapsedUs = elapsedUs,
+        .err = err,
+    };
+    s_i2cTraceWriteIndex++;
+#else
+    (void)op;
+    (void)addr7;
+    (void)txLen;
+    (void)rxLen;
+    (void)elapsedUs;
+    (void)err;
+#endif
+}
+
+static void Fdc2214CapAccumulateI2cStats(Fdc2214CapDevice_t *dev,
+                                         bool readTransaction,
+                                         size_t txLen,
+                                         size_t rxLen,
+                                         uint64_t elapsedUs,
+                                         esp_err_t err)
+{
+    if (!dev) {
+        return;
+    }
+
+    if (readTransaction) {
+        dev->i2cStats.readCount++;
+        dev->i2cStats.readBytes += (uint32_t)((rxLen > UINT32_MAX) ? UINT32_MAX : rxLen);
+    } else {
+        dev->i2cStats.writeCount++;
+    }
+    dev->i2cStats.writeBytes += (uint32_t)((txLen > UINT32_MAX) ? UINT32_MAX : txLen);
+    dev->i2cStats.totalUs += elapsedUs;
+
+    if (err == ESP_ERR_TIMEOUT) {
+        dev->i2cStats.timeoutCount++;
+    } else if (err == ESP_FAIL) {
+        dev->i2cStats.nackCount++;
+    } else if (err != ESP_OK) {
+        dev->i2cStats.retryCount++;
+    }
+}
+
+static uint64_t Fdc2214CapElapsedUs(int64_t startUs)
+{
+    int64_t elapsedUs = esp_timer_get_time() - startUs;
+    return (elapsedUs > 0) ? (uint64_t)elapsedUs : 0u;
 }
 
 static uint16_t Fdc2214CapApplyConfigReservedBits(uint16_t configValue)
@@ -388,8 +479,12 @@ static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx
                      (long)err);
         return err;
     }
+    int64_t startUs = esp_timer_get_time();
     err = dev->bus.Write(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen);
+    uint64_t elapsedUs = Fdc2214CapElapsedUs(startUs);
     Fdc2214CapUnlock(dev);
+    Fdc2214CapAccumulateI2cStats(dev, false, txLen, 0u, elapsedUs, err);
+    Fdc2214CapTraceRecord("write", dev->bus.I2cAddress7, txLen, 0u, elapsedUs, err);
 
     FDCLOW_TRACE("FDCLOW,op=write_done,addr=0x%02X,err=%ld\n",
                  dev->bus.I2cAddress7,
@@ -421,8 +516,12 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
                      (long)err);
         return err;
     }
+    int64_t startUs = esp_timer_get_time();
     err = dev->bus.WriteRead(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen, rx, rxLen);
+    uint64_t elapsedUs = Fdc2214CapElapsedUs(startUs);
     Fdc2214CapUnlock(dev);
+    Fdc2214CapAccumulateI2cStats(dev, true, txLen, rxLen, elapsedUs, err);
+    Fdc2214CapTraceRecord("write_read", dev->bus.I2cAddress7, txLen, rxLen, elapsedUs, err);
 
     FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
                  dev->bus.I2cAddress7,
@@ -471,6 +570,14 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
     return ESP_OK;
 }
 
+static esp_err_t Fdc2214CapReadReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)
+{
+    if (dev) {
+        dev->i2cStats.verifyReadCount++;
+    }
+    return Fdc2214CapReadReg16(dev, reg, outValue);
+}
+
 static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
                                                      uint8_t reg,
                                                      uint16_t expectedValue,
@@ -494,7 +601,7 @@ static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev,
     }
 
     uint16_t readbackValue = 0U;
-    err = Fdc2214CapReadReg16(dev, reg, &readbackValue);
+    err = Fdc2214CapReadReg16Verify(dev, reg, &readbackValue);
     if (err != ESP_OK) {
         FDCLOW_TRACE("FDCLOW,op=write_reg_verify_done,reg=0x%02X,err=%ld,readback=0x%04X\n",
                      reg,
@@ -598,6 +705,67 @@ esp_err_t Fdc2214CapDestroy(Fdc2214CapDevice_t* dev)
     }
     free(dev);
     return ESP_OK;
+}
+
+void Fdc2214CapResetI2cStats(Fdc2214CapDevice_t* dev)
+{
+    if (dev) {
+        dev->i2cStats = (Fdc2214CapI2cStats_t){0};
+    }
+}
+
+void Fdc2214CapGetI2cStats(Fdc2214CapDevice_t* dev, Fdc2214CapI2cStats_t* outStats)
+{
+    if (!outStats) {
+        return;
+    }
+    *outStats = dev ? dev->i2cStats : (Fdc2214CapI2cStats_t){0};
+}
+
+void Fdc2214CapI2cTraceSetEnabled(bool enabled)
+{
+    s_i2cTraceEnabled = enabled;
+}
+
+bool Fdc2214CapI2cTraceIsEnabled(void)
+{
+    return s_i2cTraceEnabled;
+}
+
+void Fdc2214CapI2cTraceClear(void)
+{
+#if CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE > 0
+    memset(s_i2cTraceRing, 0, sizeof(s_i2cTraceRing));
+#endif
+    s_i2cTraceWriteIndex = 0u;
+    s_i2cTraceSequence = 0u;
+}
+
+void Fdc2214CapI2cTraceDump(void)
+{
+#if CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE > 0
+    uint32_t ringSize = (uint32_t)CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE;
+    uint32_t count = (s_i2cTraceWriteIndex < ringSize) ? s_i2cTraceWriteIndex : ringSize;
+    uint32_t first = (s_i2cTraceWriteIndex >= count) ? (s_i2cTraceWriteIndex - count) : 0u;
+    for (uint32_t i = 0u; i < count; ++i) {
+        const Fdc2214CapI2cTraceRecord_t *rec = &s_i2cTraceRing[(first + i) % ringSize];
+        printf("I2C_TRACE,seq=%lu,timestampUs=%lld,op=%s,addr=0x%02X,txLen=%u,rxLen=%u,elapsedUs=%llu,err=0x%lx\n",
+               (unsigned long)rec->sequence,
+               (long long)rec->timestampUs,
+               rec->op ? rec->op : "unknown",
+               rec->addr7,
+               (unsigned)rec->txLen,
+               (unsigned)rec->rxLen,
+               (unsigned long long)rec->elapsedUs,
+               (unsigned long)rec->err);
+    }
+    printf("I2C_TRACE_DUMP,count=%lu,ringSize=%lu,enabled=%u\n",
+           (unsigned long)count,
+           (unsigned long)ringSize,
+           s_i2cTraceEnabled ? 1u : 0u);
+#else
+    printf("I2C_TRACE_DUMP,count=0,ringSize=0,enabled=%u\n", s_i2cTraceEnabled ? 1u : 0u);
+#endif
 }
 
 esp_err_t Fdc2214CapReset(Fdc2214CapDevice_t* dev)
@@ -951,6 +1119,57 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
     return ESP_OK;
 }
 
+esp_err_t Fdc2214CapConfigureChannelWriteOnly(Fdc2214CapDevice_t* dev,
+                                              Fdc2214CapChannel_t ch,
+                                              const Fdc2214CapChannelConfig_t* cfg)
+{
+    if (!dev || !cfg) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidChannel(ch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (cfg->Rcount < 0x0100U) {
+        ESP_LOGE(TAG, "RCOUNT must be >= 0x0100 (got 0x%04X)", cfg->Rcount);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (cfg->SettleCount == 0U) {
+        ESP_LOGE(TAG, "SETTLECOUNT must be non-zero");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint16_t clockDividers = 0U;
+    esp_err_t err = Fdc2214CapNormalizeClockDividers(cfg->ClockDividers, &clockDividers);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint16_t driveCurrent = Fdc2214CapNormalizeDriveCurrent(cfg->DriveCurrent);
+    if (driveCurrent != cfg->DriveCurrent) {
+        ESP_LOGW(TAG, "Drive current masked to 0x%04X to clear reserved bits", driveCurrent);
+    }
+
+    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_SETTLECOUNT_BASE, ch), cfg->SettleCount);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_OFFSET_BASE, ch), cfg->Offset);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_CLOCK_DIVIDERS_BASE, ch), clockDividers);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return Fdc2214CapWriteReg16(dev,
+                                Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch),
+                                driveCurrent);
+}
+
 esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
                                                Fdc2214CapChannel_t ch,
                                                const Fdc2214CapChannelConfig_t* cfg,
@@ -1094,7 +1313,7 @@ esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* de
 
     for (size_t i = 0U; i < (sizeof(verifyItems) / sizeof(verifyItems[0])); ++i) {
         uint16_t readback = 0U;
-        err = Fdc2214CapReadReg16(dev, verifyItems[i].reg, &readback);
+        err = Fdc2214CapReadReg16Verify(dev, verifyItems[i].reg, &readback);
         if (err != ESP_OK) {
             return err;
         }
@@ -1111,7 +1330,7 @@ esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* de
     }
 
     uint16_t driveReadback = 0U;
-    err = Fdc2214CapReadReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), &driveReadback);
+    err = Fdc2214CapReadReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_DRIVE_CURRENT_BASE, ch), &driveReadback);
     if (err != ESP_OK) {
         return err;
     }
@@ -1214,6 +1433,54 @@ esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChan
     }
 
     ESP_LOGI(TAG, "Single-channel mode on CH%d", (int)activeCh);
+    return ESP_OK;
+}
+
+esp_err_t Fdc2214CapSetAutoScanModeWriteOnly(Fdc2214CapDevice_t* dev,
+                                             uint8_t rrSequence,
+                                             Fdc2214CapDeglitch_t deglitch,
+                                             uint16_t configTemplate,
+                                             uint16_t* outConfig,
+                                             uint16_t* outMuxConfig)
+{
+    if (!dev) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (rrSequence > FDC2214_RR_SEQUENCE_CH0_CH1_CH2_CH3) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!Fdc2214IsValidDeglitch(deglitch)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapConfigOptions_t options =
+        Fdc2214CapConfigOptionsFromRaw(Fdc2214CapApplyConfigReservedBits(configTemplate));
+    options.ActiveChannel = FDC2214_CH0;
+    options.SleepModeEnabled = false;
+    options.HighCurrentDrive = false;
+    uint16_t newConfig = Fdc2214CapBuildConfig(&options);
+
+    uint16_t muxValue = 0U;
+    esp_err_t err = Fdc2214CapBuildMuxValue(true, rrSequence, deglitch, &muxValue);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = Fdc2214CapWriteReg16(dev, FDC2214_REG_CONFIG, newConfig);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReg16(dev, FDC2214_REG_MUX_CONFIG, muxValue);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (outConfig) {
+        *outConfig = newConfig;
+    }
+    if (outMuxConfig) {
+        *outMuxConfig = muxValue;
+    }
     return ESP_OK;
 }
 

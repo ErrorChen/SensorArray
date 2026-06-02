@@ -36,6 +36,21 @@ config SENSORARRAY_FDC_TANK_INDUCTOR_UH
     default 0
     range 0 1000000
 
+config SENSORARRAY_FDC_TANK_INDUCTOR_NH
+    int "Tank inductor value for MATRIXFDC capTotalPf (nH)"
+    default 18000
+    range 1 100000000
+    help
+        Default 18000 nH is 18.000 uH. capTotalPf is derived from freqHz
+        in CPU code and does not add FDC I2C transactions.
+
+config SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF
+    bool "Emit capTotalPf[64] in MATRIXFDC text output"
+    default y
+    help
+        When enabled, MATRIXFDC includes unit=freqHz+capTotalPf, capValidMask,
+        freqHz[64], and capTotalPf[64]. This remains text printf output.
+
 config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
     bool "Use external 40MHz CLKIN for FDC2214"
     default y
@@ -52,11 +67,15 @@ config SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ
 
 config SENSORARRAY_FDC_MATRIX_PERIOD_MS
     int "Default FDC matrix frame period (ms)"
-    default 250
+    default 50
     range 10 10000
     help
-        Default printf output emits one 64-point MATRIXFDC line per frame, so
-        this is intentionally conservative for serial monitor readability.
+        First-stage target is 20 fps, i.e. 50 ms per 64-point MATRIXFDC frame.
+
+config SENSORARRAY_FDC_MATRIX_TARGET_FPS
+    int "FDC matrix first-stage target fps"
+    default 20
+    range 1 1000
 
 config SENSORARRAY_FDC_MATRIX_SETTLE_US
     int "Settle time after row/path switching (us)"
@@ -208,9 +227,46 @@ config SENSORARRAY_FDC_RAW_DEBUG_LOG
     bool "Print DEBUGFDC_RAW alongside MATRIXFDC"
     default n
 
-config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
-    int "SCAN_TIMING output interval in MATRIXFDC frames"
+config SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
+    int "SCAN_TIMING_SUMMARY output interval in MATRIXFDC frames"
     default 10
+    range 0 10000
+
+config SENSORARRAY_FDC_PROFILE_ROW_DEFAULT
+    bool "Print SCAN_ROW_TIMING by default"
+    default n
+
+config SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT
+    bool "Print SCAN_DEVICE_TIMING by default"
+    default n
+
+config SENSORARRAY_FDC_I2C_TRACE_RING_SIZE
+    int "FDC I2C trace ring records"
+    default 128
+    range 0 2048
+
+choice SENSORARRAY_FDC_VERIFY_MODE
+    prompt "Runtime FDC register readback verify mode"
+    default SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY
+config SENSORARRAY_FDC_VERIFY_MODE_FULL
+    bool "Full runtime verify"
+config SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY
+    bool "Startup/cache build verify only"
+config SENSORARRAY_FDC_VERIFY_MODE_NONE
+    bool "No runtime readback verify"
+endchoice
+
+config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
+    bool "Enable experimental high-speed FDC profile candidates"
+    default n
+    help
+        Experimental option for lower RCOUNT/SETTLECOUNT candidates. The
+        normal boot/cache mechanism remains active; this is not the default
+        stable profile.
+
+config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
+    int "Deprecated alias for SCAN_TIMING_SUMMARY output interval"
+    default SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
     range 0 10000
 
 config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES

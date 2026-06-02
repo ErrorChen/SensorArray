@@ -59,7 +59,7 @@ static void sensorarrayAppDelayFramePeriodSince(int64_t frameStartUs, uint32_t s
         return;
     }
 
-    printf("SCAN_TIMING,seq=%lu,frameUs=%lld,periodUs=%lld,overrun=1\n",
+    printf("SCAN_TIMING_OVERRUN,seq=%lu,frameUs=%lld,periodUs=%lld,overrun=1\n",
            (unsigned long)sequence,
            (long long)elapsedUs,
            (long long)periodUs);
@@ -324,6 +324,23 @@ static void sensorarrayAppInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                              mapLabel);
 }
 
+static void sensorarrayAppLogFdcParallelCfg(void)
+{
+    BoardSupportI2cBusInfo_t primaryBus = {0};
+    BoardSupportI2cBusInfo_t secondaryBus = {0};
+    (void)boardSupportGetI2cBusInfo(false, &primaryBus);
+    (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
+    bool sameBus = primaryBus.Enabled &&
+                   secondaryBus.Enabled &&
+                   primaryBus.Port == secondaryBus.Port;
+    printf("FDC_PARALLEL_CFG,enabled=0,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,reason=single_matrix_task\n",
+           primaryBus.Enabled ? (int)primaryBus.Port : -1,
+           secondaryBus.Enabled ? (int)secondaryBus.Port : -1,
+           sameBus ? 1u : 0u,
+           CONFIG_SENSORARRAY_SCAN_TASK_CORE,
+           CONFIG_SENSORARRAY_SCAN_TASK_CORE);
+}
+
 static bool sensorarrayParseForceFullSweepCommand(const char *line,
                                                   bool *outHasCell,
                                                   uint8_t *outS,
@@ -451,6 +468,22 @@ static esp_err_t sensorarrayPrintFdcCacheDiag(bool hasS, bool hasD, uint8_t sFil
     return ESP_OK;
 }
 
+static bool sensorarrayParseOnOff(const char *arg, bool *outEnabled)
+{
+    if (!arg || !outEnabled) {
+        return false;
+    }
+    if (strcmp(arg, "on") == 0) {
+        *outEnabled = true;
+        return true;
+    }
+    if (strcmp(arg, "off") == 0) {
+        *outEnabled = false;
+        return true;
+    }
+    return false;
+}
+
 static esp_err_t sensorarrayHandleCommandLine(const char *line)
 {
     if (!line || line[0] == '\0') {
@@ -482,6 +515,103 @@ static esp_err_t sensorarrayHandleCommandLine(const char *line)
                (unsigned)s,
                (unsigned)d,
                hasD ? "cell" : (hasS ? "row" : "all"));
+        return err;
+    }
+
+    if (strncmp(line, "fdc_profile ", strlen("fdc_profile ")) == 0) {
+        const char *arg = line + strlen("fdc_profile ");
+        const char *space = strchr(arg, ' ');
+        esp_err_t err = ESP_ERR_INVALID_ARG;
+        char scope[16] = {0};
+        bool enabled = false;
+        if (space && (size_t)(space - arg) < sizeof(scope)) {
+            memcpy(scope, arg, (size_t)(space - arg));
+            const char *value = space + 1;
+            if (sensorarrayParseOnOff(value, &enabled)) {
+                if (strcmp(scope, "summary") == 0) {
+                    sensorarrayMeasureFdcProfileSetSummary(enabled);
+                    err = ESP_OK;
+                } else if (strcmp(scope, "row") == 0) {
+                    sensorarrayMeasureFdcProfileSetRow(enabled);
+                    err = ESP_OK;
+                } else if (strcmp(scope, "device") == 0) {
+                    sensorarrayMeasureFdcProfileSetDevice(enabled);
+                    err = ESP_OK;
+                }
+            }
+        }
+        printf("FDC_COMMAND,command=fdc_profile,status=%s,err=0x%lx,scope=%s,enabled=%u,summary=%u,row=%u,device=%u,every=%lu\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               scope[0] ? scope : "invalid",
+               enabled ? 1u : 0u,
+               sensorarrayMeasureFdcProfileSummaryEnabled() ? 1u : 0u,
+               sensorarrayMeasureFdcProfileRowEnabled() ? 1u : 0u,
+               sensorarrayMeasureFdcProfileDeviceEnabled() ? 1u : 0u,
+               (unsigned long)sensorarrayMeasureFdcProfileSummaryEvery());
+        return err;
+    }
+
+    if (strncmp(line, "fdc_profile_every", strlen("fdc_profile_every")) == 0) {
+        const char *arg = line + strlen("fdc_profile_every");
+        while (*arg == ' ') {
+            ++arg;
+        }
+        char *end = NULL;
+        unsigned long parsed = strtoul(arg, &end, 10);
+        esp_err_t err = (arg != end && parsed <= 10000ul) ? ESP_OK : ESP_ERR_INVALID_ARG;
+        if (err == ESP_OK) {
+            sensorarrayMeasureFdcProfileSetSummaryEvery((uint32_t)parsed);
+        }
+        printf("FDC_COMMAND,command=fdc_profile_every,status=%s,err=0x%lx,every=%lu\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               (unsigned long)sensorarrayMeasureFdcProfileSummaryEvery());
+        return err;
+    }
+
+    if (strncmp(line, "fdc_i2c_trace", strlen("fdc_i2c_trace")) == 0) {
+        const char *arg = line + strlen("fdc_i2c_trace");
+        while (*arg == ' ') {
+            ++arg;
+        }
+        esp_err_t err = ESP_OK;
+        bool enabled = Fdc2214CapI2cTraceIsEnabled();
+        if (strcmp(arg, "on") == 0) {
+            Fdc2214CapI2cTraceSetEnabled(true);
+            enabled = true;
+        } else if (strcmp(arg, "off") == 0) {
+            Fdc2214CapI2cTraceSetEnabled(false);
+            enabled = false;
+        } else if (strcmp(arg, "dump") == 0) {
+            Fdc2214CapI2cTraceDump();
+        } else if (strcmp(arg, "clear") == 0) {
+            Fdc2214CapI2cTraceClear();
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
+        printf("FDC_COMMAND,command=fdc_i2c_trace,status=%s,err=0x%lx,enabled=%u,action=%s\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               enabled ? 1u : 0u,
+               arg[0] ? arg : "invalid");
+        return err;
+    }
+
+    if (strncmp(line, "fdc_discard_frames", strlen("fdc_discard_frames")) == 0) {
+        const char *arg = line + strlen("fdc_discard_frames");
+        while (*arg == ' ') {
+            ++arg;
+        }
+        char *end = NULL;
+        unsigned long parsed = strtoul(arg, &end, 10);
+        esp_err_t err = (arg != end && parsed <= 8ul) ?
+            sensorarrayMeasureFdcSetDiscardFrames((uint8_t)parsed) :
+            ESP_ERR_INVALID_ARG;
+        printf("FDC_COMMAND,command=fdc_discard_frames,status=%s,err=0x%lx,discardFrames=%u\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               (unsigned)sensorarrayMeasureFdcDiscardFrames());
         return err;
     }
 
@@ -784,6 +914,7 @@ void sensorarrayAppRun(void)
                                     secondaryAddrValid,
                                     requestedChannels,
                                     "D5..D8_secondary_ch0..ch3");
+        sensorarrayAppLogFdcParallelCfg();
     } else {
         sensorarrayLogStartupFdc("fdc_init",
                                  &s_state.fdcPrimary,

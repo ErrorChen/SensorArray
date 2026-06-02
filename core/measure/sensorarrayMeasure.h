@@ -59,6 +59,16 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
 esp_err_t sensorarrayFdcMatrixEmitFrame(const sensorarrayFdcMatrixFrame_t *frame);
 bool sensorarrayFastSpeedIsEnabled(void);
 void sensorarrayFastSpeedSetEnabled(bool enabled);
+void sensorarrayMeasureFdcProfileSetSummary(bool enabled);
+void sensorarrayMeasureFdcProfileSetRow(bool enabled);
+void sensorarrayMeasureFdcProfileSetDevice(bool enabled);
+void sensorarrayMeasureFdcProfileSetSummaryEvery(uint32_t everyNFrames);
+bool sensorarrayMeasureFdcProfileSummaryEnabled(void);
+bool sensorarrayMeasureFdcProfileRowEnabled(void);
+bool sensorarrayMeasureFdcProfileDeviceEnabled(void);
+uint32_t sensorarrayMeasureFdcProfileSummaryEvery(void);
+esp_err_t sensorarrayMeasureFdcSetDiscardFrames(uint8_t discardFrames);
+uint8_t sensorarrayMeasureFdcDiscardFrames(void);
 
 esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint8_t sColumn,

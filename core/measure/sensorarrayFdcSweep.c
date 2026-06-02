@@ -2311,7 +2311,12 @@ static void sensorarrayFdcSweepUpdateStateCacheFromCandidate(sensorarrayState_t 
     cache->fastRescueFailCount = 0u;
 
     if (target.devId <= SENSORARRAY_FDC_DEV_SECONDARY) {
-        state->fdcAppliedRow[(uint8_t)target.devId].dirty = true;
+        sensorarrayFdcAppliedRowConfig_t *applied = &state->fdcAppliedRow[(uint8_t)target.devId];
+        if (applied->valid &&
+            applied->row == target.sColumn &&
+            applied->deviceId == (uint8_t)target.devId) {
+            applied->dirty = true;
+        }
     }
 
     printf("FDC_CACHE,stage=store,source=%s,s=%u,d=%u,device=%s,ch=%u,valid=1,drive=0x%04X,rCount=0x%04X,settle=0x%04X,clockDiv=0x%04X,deglitch=0x%X,freqHz=%.3f,raw28=%lu,quality=%lu,generation=%lu\n",

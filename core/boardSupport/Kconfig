@@ -15,9 +15,25 @@ config BOARD_I2C_SCL_GPIO
 
 config BOARD_I2C_FREQ_HZ
     int "Legacy shared I2C frequency fallback (Hz)"
-    default 325000
+    default 337500
     help
         Compatibility fallback used when per-bus frequencies are not configured.
+
+config BOARD_I2C_FREQ_HZ_TEST_337500
+    bool "Document/test 337500 Hz I2C setting"
+    default y
+
+config BOARD_I2C_FREQ_HZ_TEST_350000
+    bool "Document/test 350000 Hz I2C setting"
+    default n
+
+config BOARD_I2C_FREQ_HZ_TEST_375000
+    bool "Document/test 375000 Hz I2C setting"
+    default n
+
+config BOARD_I2C_FREQ_HZ_TEST_400000
+    bool "Document/test 400000 Hz I2C setting"
+    default n
 
 config BOARD_I2C0_FREQ_HZ
     int "I2C0 requested frequency (Hz)"

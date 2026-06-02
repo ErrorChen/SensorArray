@@ -198,6 +198,19 @@ typedef struct {
     uint32_t errorMask;
 } Fdc2214CapFastChannelSample_t;
 
+typedef struct {
+    uint32_t writeCount;
+    uint32_t readCount;
+    uint32_t verifyReadCount;
+    uint32_t writeBytes;
+    uint32_t readBytes;
+    uint64_t totalUs;
+    uint32_t retryCount;
+    uint32_t nackCount;
+    uint32_t timeoutCount;
+    uint32_t recoveryCount;
+} Fdc2214CapI2cStats_t;
+
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
 // Destroy the device handle and release the mutex.
@@ -212,6 +225,10 @@ esp_err_t Fdc2214CapReadId(Fdc2214CapDevice_t* dev, uint16_t* manufacturerId, ui
 esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev,
                                      Fdc2214CapChannel_t ch,
                                      const Fdc2214CapChannelConfig_t* cfg);
+// Runtime path variant: writes channel registers and checks esp_err_t, without readback verify.
+esp_err_t Fdc2214CapConfigureChannelWriteOnly(Fdc2214CapDevice_t* dev,
+                                              Fdc2214CapChannel_t ch,
+                                              const Fdc2214CapChannelConfig_t* cfg);
 // Same as Fdc2214CapConfigureChannel, with non-fatal warning detail for DRIVE_CURRENT readback.
 esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
                                                Fdc2214CapChannel_t ch,
@@ -272,6 +289,13 @@ esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev,
 esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh);
 // Autoscan conversion over CH0..CHn; use Fdc2214CapRrSequence_t for rrSequence.
 esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch);
+// Runtime path variant: writes CONFIG/MUX_CONFIG without readback verify.
+esp_err_t Fdc2214CapSetAutoScanModeWriteOnly(Fdc2214CapDevice_t* dev,
+                                             uint8_t rrSequence,
+                                             Fdc2214CapDeglitch_t deglitch,
+                                             uint16_t configTemplate,
+                                             uint16_t* outConfig,
+                                             uint16_t* outMuxConfig);
 
 // Configure STATUS_CONFIG (ERROR_CONFIG) register; reserved bits are validated/sanitized.
 esp_err_t Fdc2214CapSetStatusConfig(Fdc2214CapDevice_t* dev, uint16_t statusConfig);
@@ -310,6 +334,14 @@ esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
 esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value);
 // Human-readable semantic status for sample diagnostics.
 const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status);
+
+void Fdc2214CapResetI2cStats(Fdc2214CapDevice_t* dev);
+void Fdc2214CapGetI2cStats(Fdc2214CapDevice_t* dev, Fdc2214CapI2cStats_t* outStats);
+
+void Fdc2214CapI2cTraceSetEnabled(bool enabled);
+bool Fdc2214CapI2cTraceIsEnabled(void);
+void Fdc2214CapI2cTraceClear(void);
+void Fdc2214CapI2cTraceDump(void);
 
 #ifdef __cplusplus
 }

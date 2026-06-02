@@ -32,8 +32,10 @@ The production frame type is `sensorarrayFdcMatrixFrame_t`:
 - `timestampUs`: from `esp_timer_get_time()`
 - `sequence`: increments once per generated frame
 - `freqHz[64]`: primary payload, converted from each cell's current `raw28` and FDC clock-divider context
+- `capTotalPf[64]`: optional CPU-derived total LC tank capacitance payload
 - `raw28[64]`: debug payload only
 - `validMask`: bit `i` means `freqHz[i]` is valid
+- `capValidMask`: bit `i` means `capTotalPf[i]` is valid
 - `warnMask`: bit `i` means that cell had a non-blocking warning such as amplitude warning
 - `errorMask`: bit `i` means that cell failed, timed out, or had invalid status/data
 
@@ -63,6 +65,20 @@ SW physical high is controlled by `sensorarrayMeasureSetSwPhysicalLevel()`. It o
 Default output is one printf text line per frame:
 
 `MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 Hz values>]`
+
+When `CONFIG_SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF=y`, the same text line includes
+`capValidMask` and `capTotalPf[64]`:
+
+`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz+capTotalPf,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capValidMask=0x<16hex>,freqHz=[<64 Hz values>],capTotalPf=[<64 pF values>]`
+
+`capTotalPf` is computed from the same `freqHz[64]` values with
+`C = 1 / ((2*pi*f)^2 * L)`, using `CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH`
+(`18000` nH by default). It adds no FDC I2C read, no sweep, and no extra ready
+wait. It is the total equivalent LC tank capacitance, including sensor,
+inductor parasitics, FDC input parasitics, TMUX parasitics, PCB/FPC/cable
+parasitics, and fixture capacitance. It is not a parasitic-subtracted pure
+sensor capacitance. Future delta reporting should use a per-cell baseline:
+`capDeltaPf = capTotalPf - capBaselinePf`.
 
 Example:
 
@@ -97,4 +113,44 @@ Useful console commands:
 - `fdc_diag`: dump STATUS, CONFIG, MUX_CONFIG, IDs, RCOUNT, SETTLECOUNT, CLOCK_DIVIDERS, and DRIVE_CURRENT for both FDC2214 devices.
 - `fdc_boot_sweep`: rerun the protected boot sweep synchronously.
 - `fdc_rescue`: run synchronous full row/device no-oscillation rescue across the matrix.
-- `fdc_period_ms 50`: override the text frame period at runtime without changing the default 250 ms configuration.
+- `fdc_period_ms 50`: override the text frame period at runtime. The first-stage default is 50 ms, or 20 fps.
+- `fdc_profile summary on|off`: enable or disable `SCAN_TIMING_SUMMARY`.
+- `fdc_profile row on|off`: enable or disable `SCAN_ROW_TIMING`.
+- `fdc_profile device on|off`: enable or disable `SCAN_DEVICE_TIMING`.
+- `fdc_profile_every <N>`: set the summary interval. Default is 10 frames.
+- `fdc_i2c_trace on|off|dump|clear`: control the FDC I2C trace ring. It records transactions without real-time per-register printf.
+- `fdc_discard_frames 0|1|2`: runtime experiment for row-switch autoscan discard frames.
+
+## FDC throughput profiling
+
+The first-stage FDC matrix target is 20 fps:
+
+- `targetFrameUs = 50000`
+- `targetRowUs = 6250`
+
+The long-term reference target is 100 fps, but that requires later architecture
+work. This revision keeps default output as text `MATRIXFDC` and does not enable
+binary output.
+
+`SCAN_TIMING_SUMMARY` reports target fps, actual fps, budget use, overrun,
+row min/max/average, cache apply breakdown, discard/wait/read timing, cap compute
+time, and FDC I2C write/read/verify/retry/NACK/timeout counts. Row and device
+timing are disabled by default and can be enabled with the runtime commands.
+
+Runtime FDC register verify defaults to `STARTUP_ONLY`: boot/cache-building paths
+can still use readback verification, while the steady matrix loop checks write
+`esp_err_t` and skips per-row full readback verify. `FULL` is for debug/bring-up;
+`NONE` is for high-speed experiments. The high-speed profile option is disabled
+by default because lower RCOUNT/SETTLECOUNT can improve frame rate while raising
+frequency noise, stability, and amplitude-warning risk.
+
+The default I2C frequency is 337500 Hz. If this increases NACK, timeout, or retry
+counts, return to 325000 Hz before trying 350000, 375000, or 400000 Hz. Summary
+bus timing is estimated from configured frequency; confirm limits with a logic
+analyzer.
+
+Primary and secondary FDC2214 devices must finish the current row before the
+matrix task switches to the next row. This revision logs `FDC_PARALLEL_CFG` and
+keeps a single matrix task; it does not introduce I2C DMA, binary output, or
+row-parameter reuse based on adjacent rows looking identical. Cell-specific cache
+keys remain row/S/D/index/device/channel specific.
