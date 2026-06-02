@@ -74,19 +74,27 @@ Raw FDC2214 codes are emitted only as a separate debug line:
 
 Binary output is not enabled by default. `sensorarrayFastSpeedIsEnabled()` currently defaults false; the binary sender is reserved and returns `ESP_ERR_NOT_SUPPORTED` until an explicit host fast-speed/binary command path is added.
 
-`MATRIXFDC` is now emitted only when at least one `freqHz` entry is semantically valid. If every cell is invalid and all raw values are zero, the firmware emits `MATRIXFDC_DIAG` and marks the normal frame invalid so host tools do not treat a no-oscillation condition as a valid measurement.
+`MATRIXFDC` remains the normal periodic output, even for degraded frames. If every cell is invalid, the firmware still emits the row-major `MATRIXFDC` frame with zeroed invalid `freqHz` entries and also emits `MATRIXFDC_DIAG` so host tools can distinguish no-oscillation or status-invalid frames from normal data.
 
 ## FDC boot and rescue
 
-Startup performs a required visible boot full sweep before normal matrix output. The boot sweep covers all 64 cells; S5D5 with 200 pF is only a validation example and is not hard-coded.
+Startup performs a visible boot full sweep before normal matrix output. The sweep is row/device based:
 
-At runtime, direct reads and fast sweeps are tried first from per-cell cached lock settings. A full sweep is used only as a cell-level fallback when fast/direct recovery fails or when no oscillation is detected. Amplitude warnings enter `warnMask` first and only trigger rescue after repeated warnings on the same cell.
+- select one S row once
+- apply a candidate deglitch/drive/high-current setting to the primary FDC and secondary FDC
+- run both FDC2214 devices in CH0-CH3 autoscan
+- read primary CH0-CH3 for D1-D4 and secondary CH0-CH3 for D5-D8
+- cache the best result per cell from those row reads
+
+Boot sweep failures no longer permanently block normal matrix output. If no valid oscillation is found during boot, the firmware restores CH0-CH3 autoscan and enters the normal matrix loop in degraded mode. Only a path/device failure that prevents both FDC devices from being usable is treated as fatal.
+
+At runtime, rescue is also row based. A pending cell rescue triggers a fast sweep of that cell's containing row, not repeated single-cell route/lock/sweep cycles. Full rescue sweeps all rows. Amplitude warnings enter `warnMask` first and remain usable when raw28 is non-zero, not saturated, watchdog-free, and converts to a plausible frequency; repeated warnings can still trigger drive-current rescue.
 
 Useful console commands:
 
-- `force_full_sweep`: queue a full sweep for all cells.
-- `force_full_sweep s=5 d=5`: queue a full sweep for one cell, for example S5D5.
+- `force_full_sweep`: queue a full row/device sweep for all rows.
+- `force_full_sweep s=5 d=5`: queue a full sweep for the row containing that cell, for example row S5.
 - `fdc_diag`: dump STATUS, CONFIG, MUX_CONFIG, IDs, RCOUNT, SETTLECOUNT, CLOCK_DIVIDERS, and DRIVE_CURRENT for both FDC2214 devices.
 - `fdc_boot_sweep`: rerun the protected boot sweep synchronously.
-- `fdc_rescue`: run synchronous full no-oscillation rescue across the matrix.
+- `fdc_rescue`: run synchronous full row/device no-oscillation rescue across the matrix.
 - `fdc_period_ms 50`: override the text frame period at runtime without changing the default 250 ms configuration.

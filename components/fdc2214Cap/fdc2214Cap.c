@@ -1358,7 +1358,6 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
         outSample->SampleValid = snapshot.Converting &&
                                  rawNonZero &&
                                  !watchdogFault &&
-                                 !amplitudeFault &&
                                  readable;
     } else {
         outSample->SampleValid = configKnown &&
@@ -1366,9 +1365,9 @@ static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev,
                                  rawNonZero &&
                                  !saturated &&
                                  !watchdogFault &&
-                                 !amplitudeFault &&
                                  readable &&
-                                 semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID;
+                                 (semanticStatus == FDC2214_SAMPLE_STATUS_SAMPLE_VALID ||
+                                  semanticStatus == FDC2214_SAMPLE_STATUS_AMPLITUDE_FAULT);
     }
 
     if (snapshot.Status == FDC2214CAP_STATUS_CH0_UNREAD_MASK && ch == FDC2214_CH0 &&

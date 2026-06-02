@@ -820,8 +820,8 @@ static bool sensorarrayMeasureFdcDeglitchCodeValid(uint8_t deglitchCode)
 
 static Fdc2214CapDeglitch_t sensorarrayMeasureSelectedFdcDeglitch(const sensorarrayFdcDeviceState_t *fdcState)
 {
-    uint8_t selectedCode = (uint8_t)FDC2214_DEGLITCH_10MHZ;
-    uint32_t selectedBandwidthHz = 10000000u;
+    uint8_t selectedCode = (uint8_t)FDC2214_DEGLITCH_3P3MHZ;
+    uint32_t selectedBandwidthHz = 3300000u;
 
     if (fdcState) {
         uint8_t muxDeglitch = (uint8_t)(fdcState->muxConfigReg & SENSORARRAY_FDC_MUX_DEGLITCH_MASK);
@@ -2601,24 +2601,27 @@ static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcRea
     if (!idOk || !configOk) {
         mappedStatus = SENSORARRAY_FDC_SAMPLE_STATUS_CONFIG_UNKNOWN;
     }
-    bool statusFault = Fdc2214CapStatusHasWatchdogFault(&outDiag->status) ||
-                       Fdc2214CapStatusHasAmplitudeFault(&outDiag->status);
+    bool watchdogFault = Fdc2214CapStatusHasWatchdogFault(&outDiag->status);
+    bool amplitudeFault = Fdc2214CapStatusHasAmplitudeFault(&outDiag->status) ||
+                          outDiag->sample.ErrAmplitude;
     bool readable = outDiag->unreadConversionPresent || outDiag->status.DataReady || outDiag->sample.DataReady;
     outDiag->statusCode = mappedStatus;
     outDiag->qualityDegraded = (!readable) ||
                                outDiag->sample.ErrWatchdog ||
                                outDiag->sample.ErrAmplitude ||
-                               statusFault;
+                               watchdogFault ||
+                               amplitudeFault;
     outDiag->provisionalReadable = idOk &&
                                    configOk &&
                                    outDiag->sample.Converting &&
                                    (outDiag->sample.Raw28 != 0u) &&
                                    !outDiag->sample.ErrWatchdog &&
-                                   !outDiag->sample.ErrAmplitude &&
-                                   !statusFault &&
+                                   !watchdogFault &&
                                    readable;
     outDiag->sampleValid = relaxedMode ? outDiag->provisionalReadable
-                                       : (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID);
+                                       : (outDiag->provisionalReadable &&
+                                          (mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_SAMPLE_VALID ||
+                                           mappedStatus == SENSORARRAY_FDC_SAMPLE_STATUS_AMPLITUDE_FAULT));
     if (!idOk || !configOk) {
         outDiag->sampleValid = false;
         outDiag->provisionalReadable = false;

@@ -127,6 +127,18 @@ esp_err_t sensorarrayFdcSweepRunDevice(sensorarrayState_t *state,
 
 esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state);
 
+esp_err_t sensorarrayFdcSweepRouteRowForCap(sensorarrayState_t *state,
+                                            uint8_t sIndex,
+                                            const char *reason);
+
+esp_err_t sensorarrayFdcSweepRunFastRescueRow(sensorarrayState_t *state,
+                                              uint8_t sIndex,
+                                              const char *reason);
+
+esp_err_t sensorarrayFdcSweepRunFullRescueRow(sensorarrayState_t *state,
+                                              uint8_t sIndex,
+                                              const char *reason);
+
 sensorarrayFdcCellCalibration_t *sensorarrayFdcSweepGetCellCalibration(uint8_t sIndex,
                                                                        uint8_t dIndex);
 
