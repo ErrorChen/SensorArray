@@ -227,6 +227,7 @@ uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch)
     }
 }
 
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
 static const char *Fdc2214CapRrSequenceName(uint8_t rrSequence)
 {
     switch (rrSequence) {
@@ -240,6 +241,7 @@ static const char *Fdc2214CapRrSequenceName(uint8_t rrSequence)
         return "invalid";
     }
 }
+#endif
 
 esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw, Fdc2214CapStatus_t* outStatus)
 {
@@ -1031,6 +1033,7 @@ esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
         *outResult = FDC2214_CHANNEL_CONFIG_RESULT_WARN_DRIVE_CURRENT_MISMATCH;
     }
 
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     ESP_LOGI(TAG,
              "Configured CH%d rcount=0x%04X settle=0x%04X offset=0x%04X clock=0x%04X drive=0x%04X",
              (int)ch,
@@ -1039,6 +1042,7 @@ esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
              cfg->Offset,
              clockDividers,
              driveCurrent);
+#endif
     return ESP_OK;
 }
 
@@ -1259,6 +1263,7 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
     uint8_t muxDeglitch = (uint8_t)(regs.MuxConfig & FDC2214_MUX_DEGLITCH_MASK);
     bool autoscan = (regs.MuxConfig & FDC2214_MUX_AUTOSCAN_BIT) != 0u;
     bool highCurrent = (regs.Config & FDC2214_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     printf("FDC_AUTOSCAN_CONFIG,device=addr0x%02X,mux=0x%04X,config=0x%04X,autoscan=%u,rr=%u,rrName=%s,deglitch=0x%X,highCurrent=%u\n",
            dev->bus.I2cAddress7,
            regs.MuxConfig,
@@ -1268,12 +1273,15 @@ esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence,
            Fdc2214CapRrSequenceName(muxRr),
            (unsigned)muxDeglitch,
            highCurrent ? 1u : 0u);
+#endif
 
     if (!autoscan || muxRr != rrSequence || muxDeglitch != (uint8_t)deglitch || highCurrent) {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     ESP_LOGI(TAG, "Autoscan mode set, rrSequence=%u", (unsigned)rrSequence);
+#endif
     return ESP_OK;
 }
 

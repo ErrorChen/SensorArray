@@ -364,13 +364,12 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint32_t zeroRawCount)
 {
     gFdcAllInvalidReportCount++;
-    printf("FDC_SWEEP_REQUEST,scope=all,reason=all_invalid_frame,status=reported,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
+    printf("FDC_SWEEP_REQUEST,scope=all,reason=all_invalid_frame,status=reported_no_queue,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
            (unsigned long)gFdcSweepRequestEpoch,
            (unsigned long long)validMask,
            (unsigned long long)errorMask,
            (unsigned long)zeroRawCount,
            (unsigned long)gFdcAllInvalidReportCount);
-    (void)sensorarrayFdcSweepRequestForceFullSweepAll();
 }
 
 static uint32_t sensorarrayFdcSweepNowMs(void)
@@ -2118,6 +2117,37 @@ typedef enum {
     SENSORARRAY_FDC_CELL_SWEEP_FULL_RESCUE,
 } sensorarrayFdcCellSweepMode_t;
 
+static sensorarrayFdcCacheSource_t sensorarrayFdcSweepCacheSourceForMode(sensorarrayFdcCellSweepMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_FDC_CELL_SWEEP_BOOT_FULL:
+        return SENSORARRAY_FDC_CACHE_SOURCE_BOOT_FULL;
+    case SENSORARRAY_FDC_CELL_SWEEP_FAST:
+        return SENSORARRAY_FDC_CACHE_SOURCE_FAST_RESCUE;
+    case SENSORARRAY_FDC_CELL_SWEEP_FULL_RESCUE:
+        return SENSORARRAY_FDC_CACHE_SOURCE_MANUAL_FULL;
+    default:
+        return SENSORARRAY_FDC_CACHE_SOURCE_NONE;
+    }
+}
+
+static const char *sensorarrayFdcSweepCacheSourceName(sensorarrayFdcCacheSource_t source)
+{
+    switch (source) {
+    case SENSORARRAY_FDC_CACHE_SOURCE_BOOT_FULL:
+        return "boot_full";
+    case SENSORARRAY_FDC_CACHE_SOURCE_MANUAL_FULL:
+        return "manual_full";
+    case SENSORARRAY_FDC_CACHE_SOURCE_FAST_RESCUE:
+        return "fast_rescue";
+    case SENSORARRAY_FDC_CACHE_SOURCE_LAST_GOOD:
+        return "last_good";
+    case SENSORARRAY_FDC_CACHE_SOURCE_NONE:
+    default:
+        return "none";
+    }
+}
+
 static void sensorarrayFdcSweepIncrementFailCount(uint8_t *count)
 {
     if (count && *count < 0xFFu) {
@@ -2227,7 +2257,8 @@ static void sensorarrayFdcSweepUpdateDeviceProfileFromCandidate(sensorarrayState
 
 static void sensorarrayFdcSweepUpdateStateCacheFromCandidate(sensorarrayState_t *state,
                                                              const sensorarrayFdcCellCalibration_t *cal,
-                                                             const sensorarrayFdcSweepCandidateResult_t *candidate)
+                                                             const sensorarrayFdcSweepCandidateResult_t *candidate,
+                                                             sensorarrayFdcCacheSource_t source)
 {
     if (!state || !cal || !candidate) {
         return;
@@ -2243,22 +2274,61 @@ static void sensorarrayFdcSweepUpdateStateCacheFromCandidate(sensorarrayState_t 
     }
 
     uint32_t raw28 = candidate->raw28Last ? candidate->raw28Last : candidate->raw28Mean;
+    int64_t nowUs = esp_timer_get_time();
+    uint32_t generation = cache->generation + 1u;
+    if (generation == 0u) {
+        generation = 1u;
+    }
+
     cache->valid = true;
-    cache->driveCurrent = candidate->driveCurrentNorm;
-    cache->deglitch = candidate->deglitchReq;
+    cache->source = source;
     cache->rCount = candidate->rCountReg;
     cache->settleCount = candidate->settleCountReg;
     cache->clockDiv = candidate->clockDividersReg;
+    cache->driveCurrent = candidate->driveCurrentNorm;
+    cache->deglitchCode = candidate->deglitchReq;
+    cache->highCurrentObserved = candidate->highCurrentReq || candidate->highCurrentReadback;
     cache->effectiveFclkHz = candidate->effectiveFclkHz ? candidate->effectiveFclkHz :
         sensorarrayMeasureFdcEffectiveFclkHz();
-    cache->lastFreqHz = candidate->frequencyHz;
     cache->lastRaw28 = raw28;
+    cache->lastFreqHz = candidate->frequencyHz;
+    cache->qualityScore = candidate->validSampleCount * 100u +
+        (candidate->stable ? 50u : 0u) +
+        (candidate->deglitchBandwidthOk ? 25u : 0u);
+    cache->generation = generation;
+    cache->storedTimestampUs = nowUs;
+    cache->lastGoodTimestampUs = nowUs;
     cache->consecutiveAmplitudeWarnings = 0u;
     cache->consecutiveErrors = 0u;
-    cache->lastUpdateTimestampUs = (uint32_t)esp_timer_get_time();
+    cache->consecutiveNoUnread = 0u;
+    cache->consecutiveZeroRaw = 0u;
+    cache->consecutiveWatchdogFaults = 0u;
+    cache->consecutiveI2cErrors = 0u;
+    cache->reapplyPending = false;
     cache->rescuePending = false;
-    cache->rescueReason = SENSORARRAY_NA;
+    cache->lastWarningReason[0] = '\0';
+    cache->lastRescueReason[0] = '\0';
     cache->fastRescueFailCount = 0u;
+
+    if (target.devId <= SENSORARRAY_FDC_DEV_SECONDARY) {
+        state->fdcAppliedRow[(uint8_t)target.devId].dirty = true;
+    }
+
+    printf("FDC_CACHE,stage=store,source=%s,s=%u,d=%u,device=%s,ch=%u,valid=1,drive=0x%04X,rCount=0x%04X,settle=0x%04X,clockDiv=0x%04X,deglitch=0x%X,freqHz=%.3f,raw28=%lu,quality=%lu,generation=%lu\n",
+           sensorarrayFdcSweepCacheSourceName(source),
+           (unsigned)cal->sIndex,
+           (unsigned)cal->dIndex,
+           sensorarrayFdcSweepDevName((sensorarrayFdcDeviceId_t)cal->fdcDevice),
+           (unsigned)cal->fdcChannel,
+           cache->driveCurrent,
+           cache->rCount,
+           cache->settleCount,
+           cache->clockDiv,
+           (unsigned)cache->deglitchCode,
+           cache->lastFreqHz,
+           (unsigned long)cache->lastRaw28,
+           (unsigned long)cache->qualityScore,
+           (unsigned long)cache->generation);
 }
 
 static void sensorarrayFdcSweepLogCapResult(const sensorarrayFdcCellCalibration_t *cal,
@@ -2587,7 +2657,10 @@ cell_sweep_done:
                                                           mode == SENSORARRAY_FDC_CELL_SWEEP_BOOT_FULL,
                                                           true);
         sensorarrayFdcSweepUpdateDeviceProfileFromCandidate(state, devId, channel, &selected);
-        sensorarrayFdcSweepUpdateStateCacheFromCandidate(state, cal, &selected);
+        sensorarrayFdcSweepUpdateStateCacheFromCandidate(state,
+                                                         cal,
+                                                         &selected,
+                                                         sensorarrayFdcSweepCacheSourceForMode(mode));
         if (outBest) {
             *outBest = selected;
         }
@@ -2738,7 +2811,10 @@ static esp_err_t sensorarrayFdcSweepRunDirectReadForCell(sensorarrayState_t *sta
 
     if (accepted) {
         sensorarrayFdcSweepUpdateCalibrationFromCandidate(cal, &candidate, false, true);
-        sensorarrayFdcSweepUpdateStateCacheFromCandidate(state, cal, &candidate);
+        sensorarrayFdcSweepUpdateStateCacheFromCandidate(state,
+                                                         cal,
+                                                         &candidate,
+                                                         SENSORARRAY_FDC_CACHE_SOURCE_LAST_GOOD);
         sensorarrayFdcSweepLogCapResult(cal, &candidate);
         if (outAccepted) {
             *outAccepted = true;
@@ -2893,6 +2969,7 @@ static uint8_t sensorarrayFdcSweepUnreadMaskFromStatus(const Fdc2214CapStatus_t 
     return mask;
 }
 
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
 static const char *sensorarrayFdcSweepRrName(uint8_t rrSequence)
 {
     switch (rrSequence) {
@@ -2906,6 +2983,7 @@ static const char *sensorarrayFdcSweepRrName(uint8_t rrSequence)
         return "invalid";
     }
 }
+#endif
 
 static sensorarrayFdcDeviceState_t *sensorarrayFdcSweepDeviceState(sensorarrayState_t *state,
                                                                    sensorarrayFdcDeviceId_t devId)
@@ -3011,6 +3089,7 @@ static esp_err_t sensorarrayFdcSweepApplyCandidateToDevice(sensorarrayState_t *s
     bool sleep = (regs.Config & SENSORARRAY_FDC_SWEEP_CONFIG_SLEEP_MODE_EN_MASK) != 0u;
     bool highCurrentReadback = (regs.Config & SENSORARRAY_FDC_SWEEP_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
 
+#if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     printf("FDC_AUTOSCAN_CONFIG,device=addr0x%02X,mux=0x%04X,config=0x%04X,autoscan=%u,rr=%u,rrName=%s,deglitch=0x%X,deglitchName=%s,highCurrent=%u,reason=%s\n",
            fdcState->i2cAddr,
            regs.MuxConfig,
@@ -3022,6 +3101,7 @@ static esp_err_t sensorarrayFdcSweepApplyCandidateToDevice(sensorarrayState_t *s
            deglitch->deglitchName ? deglitch->deglitchName : SENSORARRAY_NA,
            highCurrentReadback ? 1u : 0u,
            reason ? reason : SENSORARRAY_NA);
+#endif
 
     if (!autoscan ||
         rr != SENSORARRAY_FDC_SWEEP_AUTOSCAN_RR_SEQUENCE ||
@@ -3583,7 +3663,10 @@ row_sweep_done:
                                                                     (sensorarrayFdcDeviceId_t)cal->fdcDevice,
                                                                     (Fdc2214CapChannel_t)cal->fdcChannel,
                                                                     candidate);
-                sensorarrayFdcSweepUpdateStateCacheFromCandidate(state, cal, candidate);
+                sensorarrayFdcSweepUpdateStateCacheFromCandidate(state,
+                                                                 cal,
+                                                                 candidate,
+                                                                 sensorarrayFdcSweepCacheSourceForMode(mode));
             }
         } else {
             failCount++;

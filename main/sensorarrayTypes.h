@@ -122,24 +122,71 @@ typedef struct {
     const char *mapLabel;
 } sensorarrayFdcCellTarget_t;
 
+typedef enum {
+    SENSORARRAY_FDC_CACHE_SOURCE_NONE = 0,
+    SENSORARRAY_FDC_CACHE_SOURCE_BOOT_FULL,
+    SENSORARRAY_FDC_CACHE_SOURCE_MANUAL_FULL,
+    SENSORARRAY_FDC_CACHE_SOURCE_FAST_RESCUE,
+    SENSORARRAY_FDC_CACHE_SOURCE_LAST_GOOD,
+} sensorarrayFdcCacheSource_t;
+
 typedef struct {
     bool valid;
-    uint16_t driveCurrent;
-    uint8_t deglitch;
+    sensorarrayFdcCacheSource_t source;
     uint16_t rCount;
     uint16_t settleCount;
     uint16_t clockDiv;
+    uint16_t driveCurrent;
+    uint8_t deglitchCode;
+    bool highCurrentObserved;
     uint32_t effectiveFclkHz;
-    double lastFreqHz;
+
     uint32_t lastRaw28;
-    uint8_t consecutiveAmplitudeWarnings;
-    uint8_t consecutiveErrors;
-    uint32_t lastUpdateTimestampUs;
+    double lastFreqHz;
+
+    uint32_t qualityScore;
+    uint32_t generation;
+
+    int64_t storedTimestampUs;
+    int64_t lastAppliedTimestampUs;
+    int64_t lastGoodTimestampUs;
+    int64_t lastWarningTimestampUs;
+    int64_t lastRescueTimestampUs;
+
+    uint16_t consecutiveAmplitudeWarnings;
+    uint16_t consecutiveErrors;
+    uint16_t consecutiveNoUnread;
+    uint16_t consecutiveZeroRaw;
+    uint16_t consecutiveWatchdogFaults;
+    uint16_t consecutiveI2cErrors;
+
+    bool reapplyPending;
     bool rescuePending;
-    const char *rescueReason;
+    char lastWarningReason[32];
+    char lastRescueReason[32];
     uint8_t fastRescueFailCount;
-    uint64_t lastRescueTimestampUs;
 } sensorarrayFdcCellConfigCache_t;
+
+typedef struct {
+    bool valid;
+    bool autoscanConfigured;
+
+    uint8_t row;
+    uint8_t deviceId;
+
+    uint8_t selectedDeglitch;
+    uint16_t rCount[4];
+    uint16_t settleCount[4];
+    uint16_t clockDiv[4];
+    uint16_t driveCurrent[4];
+
+    uint32_t cacheGeneration[4];
+
+    uint32_t applyCount;
+    int64_t lastAppliedTimestampUs;
+
+    bool dirty;
+} sensorarrayFdcAppliedRowConfig_t;
 
 typedef struct {
     bool valid;
@@ -292,6 +339,7 @@ typedef struct {
     sensorarrayFdcDeviceState_t fdcSecondary;
     uint8_t fdcConfiguredChannels;
     sensorarrayFdcCellConfigCache_t fdcCellCache[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    sensorarrayFdcAppliedRowConfig_t fdcAppliedRow[2];
 
     bool boardReady;
     bool tmuxReady;

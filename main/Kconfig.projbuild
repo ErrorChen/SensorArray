@@ -68,6 +68,11 @@ config SENSORARRAY_FDC_MATRIX_DISCARD_SAMPLES
     default 0
     range 0 8
 
+config SENSORARRAY_FDC_DISCARD_FRAMES_AFTER_ROW_SWITCH
+    int "Autoscan frames discarded per FDC after each row switch"
+    default 1
+    range 0 8
+
 config SENSORARRAY_FDC_SETTLECOUNT_DEFAULT
     hex "Default FDC SETTLECOUNT_CHx"
     default 0x0080
@@ -122,8 +127,31 @@ config SENSORARRAY_FDC_FAST_FAIL_THRESHOLD
 
 config SENSORARRAY_FDC_FAST_SWEEP_COOLDOWN_MS
     int "Cooldown between fast sweeps for a cell"
-    default 2000
+    default 30000
     range 0 600000
+
+config SENSORARRAY_FDC_FAST_SWEEP_MIN_COOLDOWN_MS
+    int "Minimum cooldown between automatic runtime fast sweeps for a cell"
+    default 30000
+    range 0 600000
+
+config SENSORARRAY_FDC_RUNTIME_FAST_SWEEP_ENABLE
+    bool "Allow automatic runtime fast sweeps"
+    default n
+
+config SENSORARRAY_FDC_REAPPLY_CACHE_ON_WARNING
+    bool "Reapply cached row config on amplitude warnings"
+    default y
+
+config SENSORARRAY_FDC_WARNING_REAPPLY_THRESHOLD
+    int "Amplitude warnings before forcing cached row reapply"
+    default 2
+    range 1 32
+
+config SENSORARRAY_FDC_RESCUE_HARD_ERROR_THRESHOLD
+    int "Hard runtime errors before rescue can be scheduled"
+    default 4
+    range 1 32
 
 config SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS
     int "Cooldown between full rescue sweeps for a cell"
@@ -171,6 +199,19 @@ config SENSORARRAY_FDC_RESCUE_TASK_STACK
 config SENSORARRAY_FDC_VERBOSE_REG_DUMP
     bool "Dump FDC registers on boot/rescue failure"
     default y
+
+config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
+    bool "Print verbose per-row FDC scan diagnostics"
+    default n
+
+config SENSORARRAY_FDC_RAW_DEBUG_LOG
+    bool "Print DEBUGFDC_RAW alongside MATRIXFDC"
+    default n
+
+config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
+    int "SCAN_TIMING output interval in MATRIXFDC frames"
+    default 10
+    range 0 10000
 
 config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES
     int "Direct-read quality sample count"

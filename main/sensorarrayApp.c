@@ -33,7 +33,7 @@ static void sensorarrayAppLogStackHighWater(const char *stage)
            (unsigned long)uxTaskGetStackHighWaterMark(NULL));
 }
 
-static void sensorarrayAppDelayFramePeriod(void)
+static uint32_t sensorarrayAppFdcFramePeriodMs(void)
 {
     uint32_t periodMs = s_fdcMatrixPeriodOverrideMs ?
                         s_fdcMatrixPeriodOverrideMs :
@@ -41,7 +41,28 @@ static void sensorarrayAppDelayFramePeriod(void)
     if (periodMs == 0u) {
         periodMs = 1u;
     }
-    vTaskDelay(pdMS_TO_TICKS(periodMs));
+    return periodMs;
+}
+
+static void sensorarrayAppDelayFramePeriodSince(int64_t frameStartUs, uint32_t sequence)
+{
+    uint32_t periodMs = sensorarrayAppFdcFramePeriodMs();
+    int64_t periodUs = (int64_t)periodMs * 1000LL;
+    int64_t elapsedUs = esp_timer_get_time() - frameStartUs;
+    int64_t remainingUs = periodUs - elapsedUs;
+    if (remainingUs > 0) {
+        uint32_t delayMs = (uint32_t)((remainingUs + 999LL) / 1000LL);
+        if (delayMs == 0u) {
+            delayMs = 1u;
+        }
+        vTaskDelay(pdMS_TO_TICKS(delayMs));
+        return;
+    }
+
+    printf("SCAN_TIMING,seq=%lu,frameUs=%lld,periodUs=%lld,overrun=1\n",
+           (unsigned long)sequence,
+           (long long)elapsedUs,
+           (long long)periodUs);
 }
 
 static bool sensorarrayAppFrameRawAllZero(const sensorarrayFdcMatrixFrame_t *frame)
@@ -67,6 +88,23 @@ static const char *sensorarrayAppFdcDeviceName(sensorarrayFdcDeviceId_t devId)
     return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary";
 }
 
+static const char *sensorarrayAppFdcCacheSourceName(sensorarrayFdcCacheSource_t source)
+{
+    switch (source) {
+    case SENSORARRAY_FDC_CACHE_SOURCE_BOOT_FULL:
+        return "boot_full";
+    case SENSORARRAY_FDC_CACHE_SOURCE_MANUAL_FULL:
+        return "manual_full";
+    case SENSORARRAY_FDC_CACHE_SOURCE_FAST_RESCUE:
+        return "fast_rescue";
+    case SENSORARRAY_FDC_CACHE_SOURCE_LAST_GOOD:
+        return "last_good";
+    case SENSORARRAY_FDC_CACHE_SOURCE_NONE:
+    default:
+        return "none";
+    }
+}
+
 static void sensorarrayAppMarkAllFdcCellsPending(const char *reason)
 {
     const char *source = reason ? reason : "runtime_rescue";
@@ -85,7 +123,7 @@ static bool sensorarrayAppRunPendingFdcCellRescue(bool *rescueRunning, uint32_t 
     }
 
     int64_t nowUs = esp_timer_get_time();
-    int64_t cooldownUs = (int64_t)CONFIG_SENSORARRAY_FDC_FAST_SWEEP_COOLDOWN_MS * 1000LL;
+    int64_t cooldownUs = (int64_t)CONFIG_SENSORARRAY_FDC_FAST_SWEEP_MIN_COOLDOWN_MS * 1000LL;
     for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
         for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
             sensorarrayFdcCellTarget_t target = {0};
@@ -107,12 +145,14 @@ static bool sensorarrayAppRunPendingFdcCellRescue(bool *rescueRunning, uint32_t 
                        (unsigned)target.matrixIndex,
                        sensorarrayAppFdcDeviceName(target.devId),
                        (unsigned)target.fdcChannel,
-                       cache->rescueReason ? cache->rescueReason : SENSORARRAY_NA);
+                       cache->lastRescueReason[0] ? cache->lastRescueReason : SENSORARRAY_NA);
                 return false;
             }
 
             uint32_t epoch = ++(*rescueEpoch);
-            const char *reason = cache->rescueReason ? cache->rescueReason : "runtime_cell_rescue";
+            const char *reason = cache->lastRescueReason[0] ?
+                cache->lastRescueReason :
+                "runtime_cell_rescue";
             int64_t startUs = esp_timer_get_time();
             *rescueRunning = true;
             printf("FDC_RESCUE,stage=begin,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,mode=fast,reason=%s,epoch=%lu\n",
@@ -172,9 +212,9 @@ static bool sensorarrayAppRunPendingFdcCellRescue(bool *rescueRunning, uint32_t 
             }
 
             int64_t endUs = esp_timer_get_time();
-            cache->lastRescueTimestampUs = (uint64_t)endUs;
+            cache->lastRescueTimestampUs = endUs;
             cache->rescuePending = false;
-            cache->rescueReason = SENSORARRAY_NA;
+            cache->lastRescueReason[0] = '\0';
             printf("FDC_RESCUE_HEARTBEAT,scope=cell,s=%u,d=%u,index=%u,elapsedMs=%lu\n",
                    (unsigned)target.sColumn,
                    (unsigned)target.dLine,
@@ -323,6 +363,94 @@ static bool sensorarrayParseForceFullSweepCommand(const char *line,
     return true;
 }
 
+static bool sensorarrayParseOptionalCacheDiagArgs(const char *line,
+                                                  bool *outHasS,
+                                                  bool *outHasD,
+                                                  uint8_t *outS,
+                                                  uint8_t *outD)
+{
+    if (!line || !outHasS || !outHasD || !outS || !outD) {
+        return false;
+    }
+    if (strncmp(line, "fdc_cache_diag", strlen("fdc_cache_diag")) != 0) {
+        return false;
+    }
+
+    bool haveS = false;
+    bool haveD = false;
+    uint8_t s = 1u;
+    uint8_t d = 1u;
+    const char *sArg = strstr(line, "s=");
+    const char *dArg = strstr(line, "d=");
+    if (sArg) {
+        long parsed = strtol(sArg + 2, NULL, 10);
+        if (parsed >= 1 && parsed <= 8) {
+            s = (uint8_t)parsed;
+            haveS = true;
+        }
+    }
+    if (dArg) {
+        long parsed = strtol(dArg + 2, NULL, 10);
+        if (parsed >= 1 && parsed <= 8) {
+            d = (uint8_t)parsed;
+            haveD = true;
+        }
+    }
+
+    *outHasS = haveS;
+    *outHasD = haveS && haveD;
+    *outS = s;
+    *outD = d;
+    return true;
+}
+
+static esp_err_t sensorarrayPrintFdcCacheDiag(bool hasS, bool hasD, uint8_t sFilter, uint8_t dFilter)
+{
+    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        if (hasS && s != sFilter) {
+            continue;
+        }
+        for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+            if (hasD && d != dFilter) {
+                continue;
+            }
+            sensorarrayFdcCellTarget_t target = {0};
+            if (!sensorarrayMeasureMakeFdcCellTarget(&s_state, s, d, &target)) {
+                continue;
+            }
+            sensorarrayFdcCellConfigCache_t *cache =
+                sensorarrayMeasureGetFdcCellCache(&s_state, &target);
+            if (!cache) {
+                continue;
+            }
+            printf("FDC_CACHE_DIAG,s=%u,d=%u,index=%u,device=%s,ch=%u,valid=%u,source=%s,drive=0x%04X,rCount=0x%04X,settle=0x%04X,clockDiv=0x%04X,deglitch=0x%X,lastFreqHz=%.3f,lastRaw28=%lu,generation=%lu,quality=%lu,reapplyPending=%u,rescuePending=%u,warnCount=%u,errorCount=%u,lastAppliedUs=%lld,lastGoodUs=%lld\n",
+                   (unsigned)s,
+                   (unsigned)d,
+                   (unsigned)target.matrixIndex,
+                   sensorarrayAppFdcDeviceName(target.devId),
+                   (unsigned)target.fdcChannel,
+                   cache->valid ? 1u : 0u,
+                   sensorarrayAppFdcCacheSourceName(cache->source),
+                   cache->driveCurrent,
+                   cache->rCount,
+                   cache->settleCount,
+                   cache->clockDiv,
+                   (unsigned)cache->deglitchCode,
+                   cache->lastFreqHz,
+                   (unsigned long)cache->lastRaw28,
+                   (unsigned long)cache->generation,
+                   (unsigned long)cache->qualityScore,
+                   cache->reapplyPending ? 1u : 0u,
+                   cache->rescuePending ? 1u : 0u,
+                   (unsigned)cache->consecutiveAmplitudeWarnings,
+                   (unsigned)cache->consecutiveErrors,
+                   (long long)cache->lastAppliedTimestampUs,
+                   (long long)cache->lastGoodTimestampUs);
+        }
+    }
+    return ESP_OK;
+}
+
 static esp_err_t sensorarrayHandleCommandLine(const char *line)
 {
     if (!line || line[0] == '\0') {
@@ -341,6 +469,19 @@ static esp_err_t sensorarrayHandleCommandLine(const char *line)
                (unsigned)s,
                (unsigned)d,
                hasCell ? "cell" : "all");
+        return err;
+    }
+
+    bool hasS = false;
+    bool hasD = false;
+    if (sensorarrayParseOptionalCacheDiagArgs(line, &hasS, &hasD, &s, &d)) {
+        esp_err_t err = sensorarrayPrintFdcCacheDiag(hasS, hasD, s, d);
+        printf("FDC_COMMAND,command=fdc_cache_diag,status=%s,err=0x%lx,s=%u,d=%u,scope=%s\n",
+               (err == ESP_OK) ? "accepted" : "failed",
+               (unsigned long)err,
+               (unsigned)s,
+               (unsigned)d,
+               hasD ? "cell" : (hasS ? "row" : "all"));
         return err;
     }
 
@@ -506,6 +647,7 @@ static void sensorarrayRunFdcMatrixLoop(void)
             continue;
         }
 
+        int64_t frameStartUs = esp_timer_get_time();
         sensorarrayFdcMatrixFrame_t frame = {0};
         esp_err_t readErr = sensorarrayMeasureReadFdcMatrixFrame(&s_state, &frame);
         frameCounter++;
@@ -543,14 +685,14 @@ static void sensorarrayRunFdcMatrixLoop(void)
                 printf("MATRIXFDC_DIAG,stage=all_invalid_register_dump,seq=%lu\n",
                        (unsigned long)frame.sequence);
                 (void)sensorarrayFdcSweepDumpAllDeviceRegs(&s_state, "all_invalid_frame", "all_invalid_frame");
-                sensorarrayAppMarkAllFdcCellsPending("all_invalid_frame");
+                (void)sensorarrayFdcSweepRequestForceFullSweepAll();
                 sensorarrayAppLogStackHighWater("all_invalid_diag_after");
             } else {
                 printf("FDC_RESCUE,stage=defer,reason=all_invalid_threshold_not_met,consecutive=%lu\n",
                        (unsigned long)consecutiveAllInvalidFrames);
             }
             sensorarrayAppLogStackHighWater("all_invalid_frame_after");
-            sensorarrayAppDelayFramePeriod();
+            sensorarrayAppDelayFramePeriodSince(frameStartUs, frame.sequence);
             continue;
         }
 
@@ -565,7 +707,7 @@ static void sensorarrayRunFdcMatrixLoop(void)
             }
         }
         (void)sensorarrayFdcMatrixEmitFrame(&frame);
-        sensorarrayAppDelayFramePeriod();
+        sensorarrayAppDelayFramePeriodSince(frameStartUs, frame.sequence);
     }
 }
 
