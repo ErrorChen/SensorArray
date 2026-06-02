@@ -116,6 +116,49 @@ typedef struct {
     uint64_t emitUs;
     uint64_t capComputeUs;
 
+    uint64_t sleepBeforeRowSwitchUs;
+    uint64_t rowSwitchWhileSleepingUs;
+    uint64_t rowSettleUs;
+    uint64_t diffApplyWhileSleepingUs;
+    uint64_t sleepTotalUs;
+    uint64_t sleepExitToIntbUs;
+    uint64_t statusReadUs;
+    uint64_t dataReadUs;
+    uint64_t primaryJobUs;
+    uint64_t secondaryJobUs;
+    uint64_t dualBusWaitUs;
+    uint64_t dualBusSkewUs;
+
+    uint32_t cacheApplySkippedCount;
+    uint32_t cacheApplyDirtyDeviceCount;
+    uint32_t cacheApplyDiffWriteCount;
+    uint32_t cacheApplyFullWriteCount;
+    uint32_t cacheApplyNoDiffCount;
+    uint32_t diffRcountWrites;
+    uint32_t diffSettleWrites;
+    uint32_t diffClockDivWrites;
+    uint32_t diffDriveWrites;
+    uint32_t diffMuxWrites;
+    uint32_t diffStatusConfigWrites;
+    uint32_t diffConfigWrites;
+    uint32_t appliedFingerprintChanges;
+
+    uint32_t intbEdgeCountPrimary;
+    uint32_t intbEdgeCountSecondary;
+    uint32_t intbFalseEdgeCount;
+    uint32_t intbTimeoutCount;
+    uint32_t intbFallbackPollCount;
+    uint32_t intbFreshDrdyCount;
+    uint32_t intbStaleBeforeClearCount;
+
+    uint32_t freshAmplitudeWarningCount;
+    uint32_t staleAmplitudeWarningCount;
+    uint32_t transientAmplitudeWarningCount;
+    uint32_t warningReapplySuppressedCount;
+    uint32_t warningFastSweepRequestedCount;
+    uint32_t warningFastSweepSuppressedCooldownCount;
+    uint32_t degradedCellCount;
+
     uint64_t sweepUs;
     uint32_t runtimeSweepCount;
 
@@ -166,6 +209,17 @@ typedef struct {
     uint64_t waitReadyUs;
     uint64_t readUs;
 
+    uint64_t sleepBeforeRowSwitchUs;
+    uint64_t rowSwitchWhileSleepingUs;
+    uint64_t rowSettleUs;
+    uint64_t diffApplyWhileSleepingUs;
+    uint64_t sleepTotalUs;
+    uint64_t sleepExitToIntbUs;
+    uint64_t primaryJobUs;
+    uint64_t secondaryJobUs;
+    uint64_t dualBusWaitUs;
+    uint64_t dualBusSkewUs;
+
     uint8_t rowValidMask;
     uint8_t rowWarnMask;
     uint8_t rowErrorMask;
@@ -184,6 +238,11 @@ typedef struct {
     uint64_t discardUs;
     uint64_t waitReadyUs;
     uint64_t readRawUs;
+    uint64_t sleepEnterUs;
+    uint64_t sleepExitUs;
+    uint64_t sleepExitToIntbUs;
+    uint64_t statusReadUs;
+    uint64_t dataReadUs;
 
     uint32_t readyPollCount;
     uint32_t regWriteCount;
@@ -192,6 +251,24 @@ typedef struct {
     uint32_t retryCount;
     uint32_t timeoutCount;
     uint32_t nackCount;
+
+    uint32_t cacheDiffWriteCount;
+    uint32_t cacheFullWriteCount;
+    uint32_t cacheNoDiffCount;
+    uint32_t diffRcountWrites;
+    uint32_t diffSettleWrites;
+    uint32_t diffClockDivWrites;
+    uint32_t diffDriveWrites;
+    uint32_t diffMuxWrites;
+    uint32_t diffStatusConfigWrites;
+    uint32_t diffConfigWrites;
+    uint32_t appliedFingerprintChanged;
+
+    uint32_t intbEdgeCount;
+    uint32_t intbFalseEdgeCount;
+    uint32_t intbTimeoutCount;
+    uint32_t intbFallbackPollCount;
+    uint32_t intbFreshDrdyCount;
 } sensorarrayFdcDeviceTiming_t;
 
 typedef struct {
@@ -259,6 +336,8 @@ typedef struct {
     int64_t lastRescueTimestampUs;
 
     uint16_t consecutiveAmplitudeWarnings;
+    uint16_t staleAmplitudeWarnings;
+    uint16_t transientAmplitudeWarnings;
     uint16_t consecutiveErrors;
     uint16_t consecutiveNoUnread;
     uint16_t consecutiveZeroRaw;
@@ -270,6 +349,12 @@ typedef struct {
     char lastWarningReason[32];
     char lastRescueReason[32];
     uint8_t fastRescueFailCount;
+    uint32_t lastAppliedFingerprint;
+    uint32_t lastReapplyFingerprint;
+    uint32_t lastReapplyFrame;
+    uint64_t warningSuppressedUntilUs;
+    uint64_t lastFastSweepRequestUs;
+    bool degraded;
 } sensorarrayFdcCellConfigCache_t;
 
 typedef struct {
@@ -284,6 +369,10 @@ typedef struct {
     uint16_t settleCount[4];
     uint16_t clockDiv[4];
     uint16_t driveCurrent[4];
+    uint16_t muxConfig;
+    uint16_t statusConfig;
+    uint16_t configBaseWithoutSleepBit;
+    uint32_t fingerprint;
 
     uint32_t cacheGeneration[4];
 

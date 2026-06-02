@@ -62,14 +62,15 @@ SW physical high is controlled by `sensorarrayMeasureSetSwPhysicalLevel()`. It o
 
 ## Output policy
 
-Default output is one printf text line per frame:
+Default output is one pF printf text line per frame:
 
-`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 Hz values>]`
+`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,capValidMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capTotalPf=[<64 pF values>]`
 
-When `CONFIG_SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF=y`, the same text line includes
-`capValidMask` and `capTotalPf[64]`:
+Frequency output is optional debug output and is emitted as a separate line when
+`SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ` or
+`SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE` is selected:
 
-`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz+capTotalPf,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capValidMask=0x<16hex>,freqHz=[<64 Hz values>],capTotalPf=[<64 pF values>]`
+`MATRIXFDC_FREQ,seq=<sequence>,timestampUs=<timestampUs>,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 Hz values>]`
 
 `capTotalPf` is computed from the same `freqHz[64]` values with
 `C = 1 / ((2*pi*f)^2 * L)`, using `CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH`
@@ -82,7 +83,7 @@ sensor capacitance. Future delta reporting should use a per-cell baseline:
 
 Example:
 
-`MATRIXFDC,seq=12,timestampUs=345678901,unit=freqHz,validMask=0xFFFFFFFFFFFFFFFF,warnMask=0x0000000000000000,errorMask=0x0000000000000000,freqHz=[2746569.0,2746501.0,...]`
+`MATRIXFDC_CAP,seq=12,timestampUs=345678901,capValidMask=0xFFFFFFFFFFFFFFFF,warnMask=0x0000000000000000,errorMask=0x0000000000000000,capTotalPf=[18.692341,18.693266,...]`
 
 Raw FDC2214 codes are emitted only as a separate debug line:
 
@@ -90,7 +91,7 @@ Raw FDC2214 codes are emitted only as a separate debug line:
 
 Binary output is not enabled by default. `sensorarrayFastSpeedIsEnabled()` currently defaults false; the binary sender is reserved and returns `ESP_ERR_NOT_SUPPORTED` until an explicit host fast-speed/binary command path is added.
 
-`MATRIXFDC` remains the normal periodic output, even for degraded frames. If every cell is invalid, the firmware still emits the row-major `MATRIXFDC` frame with zeroed invalid `freqHz` entries and also emits `MATRIXFDC_DIAG` so host tools can distinguish no-oscillation or status-invalid frames from normal data.
+`MATRIXFDC_CAP` remains the normal periodic output, even for degraded frames. If every cell is invalid, the firmware still emits the row-major frame with zeroed invalid `capTotalPf` entries and also emits `MATRIXFDC_DIAG` so host tools can distinguish no-oscillation or status-invalid frames from normal data.
 
 ## FDC boot and rescue
 
@@ -104,7 +105,7 @@ Startup performs a visible boot full sweep before normal matrix output. The swee
 
 Boot sweep failures no longer permanently block normal matrix output. If no valid oscillation is found during boot, the firmware restores CH0-CH3 autoscan and enters the normal matrix loop in degraded mode. Only a path/device failure that prevents both FDC devices from being usable is treated as fatal.
 
-At runtime, rescue is also row based. A pending cell rescue triggers a fast sweep of that cell's containing row, not repeated single-cell route/lock/sweep cycles. Full rescue sweeps all rows. Amplitude warnings enter `warnMask` first and remain usable when raw28 is non-zero, not saturated, watchdog-free, and converts to a plausible frequency; repeated warnings can still trigger drive-current rescue.
+At runtime, rescue is also row based. A pending cell rescue triggers a fast sweep of that cell's containing row, not repeated single-cell route/lock/sweep cycles. Full rescue sweeps all rows. Amplitude warnings enter `warnMask` first and remain usable when raw28 is non-zero, not saturated, watchdog-free, and converts to a plausible frequency. The runtime path classifies amplitude warnings as fresh, stale, or transient. Only persistent fresh warnings from the current row epoch can request a fast sweep; stale and row-switch transient warnings are logged and suppressed.
 
 Useful console commands:
 
@@ -114,12 +115,42 @@ Useful console commands:
 - `fdc_boot_sweep`: rerun the protected boot sweep synchronously.
 - `fdc_rescue`: run synchronous full row/device no-oscillation rescue across the matrix.
 - `fdc_period_ms 50`: override the text frame period at runtime. The first-stage default is 50 ms, or 20 fps.
-- `fdc_profile summary on|off`: enable or disable `SCAN_TIMING_SUMMARY`.
+- `fdc_profile summary on|off`: enable or disable `SCAN_TIMING_10`.
 - `fdc_profile row on|off`: enable or disable `SCAN_ROW_TIMING`.
 - `fdc_profile device on|off`: enable or disable `SCAN_DEVICE_TIMING`.
 - `fdc_profile_every <N>`: set the summary interval. Default is 10 frames.
 - `fdc_i2c_trace on|off|dump|clear`: control the FDC I2C trace ring. It records transactions without real-time per-register printf.
-- `fdc_discard_frames 0|1|2`: runtime experiment for row-switch autoscan discard frames.
+- `fdc_discard_frames 0|1|2`: runtime experiment for row-switch autoscan discard frames. The production row epoch path defaults to zero discard frames because FDC conversion is restarted with `CONFIG.SLEEP_MODE_EN`.
+
+## FDC matrix row epoch state machine
+
+Each matrix row has a unique conversion epoch. The coordinator sends both FDC
+worker tasks into `CONFIG.SLEEP_MODE_EN=1`, waits for both sleep acknowledgments,
+switches the TMUX row while both FDC devices are sleeping, waits
+`CONFIG_SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US`, applies only changed cached FDC
+registers while still sleeping, exits sleep, waits for INTB/STATUS.DRDY, reads
+STATUS and DATA, and merges primary D1-D4 with secondary D5-D8.
+
+Primary and secondary workers are permanent tasks. The primary worker only uses
+the primary FDC on I2C0; the secondary worker only uses the secondary FDC on
+I2C1. If worker initialization fails, the firmware logs the reason and falls
+back to a serial sleep-epoch path.
+
+INTB is a data-ready hint only. GPIO ISR handlers record edge count, level,
+timestamp, and epoch, then notify the worker task. They do not use I2C and do
+not print. The worker still reads STATUS and requires DRDY or the CH0-CH3 unread
+mask before DATA is accepted as fresh.
+
+Diff-only cache apply keeps a per-device applied-register shadow. RCOUNT,
+SETTLECOUNT, CLOCK_DIVIDERS, DRIVE_CURRENT, MUX_CONFIG, STATUS_CONFIG, and the
+CONFIG base are written only when the desired value differs from the last
+applied value. Sleep entry/exit writes are separate CONFIG writes and are the
+normal per-row restart mechanism; the SD pin and RESET_DEV are not used for row
+restart.
+
+This is only an example test setup used to reproduce row-switch transient and
+warning behaviour. The firmware must not depend on these specific cells or
+external components.
 
 ## FDC throughput profiling
 
@@ -129,13 +160,16 @@ The first-stage FDC matrix target is 20 fps:
 - `targetRowUs = 6250`
 
 The long-term reference target is 100 fps, but that requires later architecture
-work. This revision keeps default output as text `MATRIXFDC` and does not enable
+work. This revision keeps default output as text `MATRIXFDC_CAP` and does not enable
 binary output.
 
-`SCAN_TIMING_SUMMARY` reports target fps, actual fps, budget use, overrun,
-row min/max/average, cache apply breakdown, discard/wait/read timing, cap compute
-time, and FDC I2C write/read/verify/retry/NACK/timeout counts. Row and device
-timing are disabled by default and can be enabled with the runtime commands.
+`SCAN_TIMING_10` reports the default 10-frame aggregate: target fps, actual fps,
+budget use, overrun count, row timing, sleep-before-row-switch timing, row
+settle, diff apply, sleep-exit-to-INTB, worker job timing, dual-bus skew, cache
+diff writes, warning counts, INTB counts, and FDC I2C write/read/timeout counts.
+`SCAN_BOTTLENECK` is printed immediately on frame overrun with the top timing
+contributors. Row and device timing are disabled by default and can be enabled
+with the runtime commands.
 
 Runtime FDC register verify defaults to `STARTUP_ONLY`: boot/cache-building paths
 can still use readback verification, while the steady matrix loop checks write
@@ -149,8 +183,8 @@ counts, return to 325000 Hz before trying 350000, 375000, or 400000 Hz. Summary
 bus timing is estimated from configured frequency; confirm limits with a logic
 analyzer.
 
-Primary and secondary FDC2214 devices must finish the current row before the
-matrix task switches to the next row. This revision logs `FDC_PARALLEL_CFG` and
-keeps a single matrix task; it does not introduce I2C DMA, binary output, or
-row-parameter reuse based on adjacent rows looking identical. Cell-specific cache
-keys remain row/S/D/index/device/channel specific.
+Primary and secondary FDC2214 devices must enter sleep before the matrix task
+switches to the next row, and both workers must finish or time out before the
+coordinator merges that row. This revision does not introduce I2C DMA, binary
+output, or row-parameter reuse based on adjacent rows looking identical.
+Cell-specific cache keys remain row/S/D/index/device/channel specific.

@@ -13,9 +13,13 @@
 
 The default app mode is no longer a single-point debug path. Legacy single-point, FDC discovery, locked-sample, and register-dump bring-up entries have been removed.
 
-Default frame output remains human-readable printf text. The main payload is LC resonant frequency in Hz:
+Default frame output remains human-readable printf text. The main payload is total LC tank capacitance in pF:
 
-`MATRIXFDC,seq=<sequence>,timestampUs=<timestampUs>,unit=freqHz,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 values>]`
+`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,capValidMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capTotalPf=[<64 values>]`
+
+Frequency output is optional debug text and is emitted separately:
+
+`MATRIXFDC_FREQ,seq=<sequence>,timestampUs=<timestampUs>,validMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,freqHz=[<64 values>]`
 
 Raw FDC2214 codes are debug-only:
 
