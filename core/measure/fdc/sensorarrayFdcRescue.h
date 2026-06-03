@@ -4,7 +4,7 @@
 
 #include "esp_err.h"
 
-#include "sensorarrayFdcMatrixEngine.h"
+#include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFrame.h"
 
 typedef struct {
@@ -15,4 +15,3 @@ void sensorarrayFdcRescueReset(sensorarrayFdcRescueContext_t *ctx);
 esp_err_t sensorarrayFdcRescueTick(sensorarrayFdcMatrixEngine_t *engine,
                                    const sensorarrayFrame_t *frame,
                                    sensorarrayFdcRescueContext_t *ctx);
-

@@ -65,6 +65,32 @@ config BOARD_I2C1_SCL_GPIO
     default 12
 endmenu
 
+menu "I2C recovery"
+
+config SENSORARRAY_I2C_RECOVERY_ENABLED
+    bool "Enable guarded I2C bus recovery"
+    default y
+    help
+        Recovery is only attempted after an I2C timeout when SDA or SCL is
+        confirmed low. Device NACKs do not delete or reinstall the driver.
+
+config SENSORARRAY_I2C_RECOVERY_COOLDOWN_MS
+    int "I2C recovery cooldown (ms)"
+    default 1000
+    range 0 600000
+
+config SENSORARRAY_I2C_RECOVERY_MAX_FAILS
+    int "I2C recovery failures before marking bus offline"
+    default 3
+    range 1 32
+
+config SENSORARRAY_I2C_RECOVERY_TOGGLE_CLOCKS
+    int "SCL pulses during I2C recovery"
+    default 9
+    range 1 32
+
+endmenu
+
 menu "SPI (ADS126x)"
 config BOARD_SPI_HOST
     int "SPI host device (platform-specific)"

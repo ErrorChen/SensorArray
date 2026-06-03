@@ -1,10 +1,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "esp_check.h"
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,20 +15,39 @@
 #include "boardSupport.h"
 #include "tmuxSwitch.h"
 
-#include "sensorarrayAdsMatrixEngine.h"
+#include "sensorarrayAdsMatrix.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
-#include "sensorarrayFdcMatrixEngine.h"
+#include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFdcRescue.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayFrame.h"
 #include "sensorarrayFrameOutput.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
-#include "sensorarrayMixedRowEngine.h"
+#include "sensorarrayMixedRow.h"
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
+
+#ifndef CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
+#define CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS
+#define CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS 5000
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS
+#define CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS 3
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_DIAG_DUMP_REGS
+#define CONFIG_SENSORARRAY_FDC_DIAG_DUMP_REGS 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS
+#define CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS 5000
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS
+#define CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS 1
+#endif
 
 typedef enum {
     SENSORARRAY_RUNTIME_MODE_FDC_MATRIX = 0,
@@ -53,6 +75,21 @@ typedef struct {
     int64_t lastFullRescueTimeUs;
     bool rescueRunning;
 } sensorarrayAppContext_t;
+
+static sensorarrayAppContext_t s_appContext;
+static int64_t s_lastDiagnosticDumpUs;
+
+static void sensorarrayLogRuntimeMemoryDiag(const char *stage,
+                                            const sensorarrayAppContext_t *ctx)
+{
+    printf("APP_MEM,stage=%s,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeHeap=%u,minFreeHeap=%u\n",
+           stage ? stage : SENSORARRAY_NA,
+           (const void *)ctx,
+           (unsigned)sizeof(sensorarrayAppContext_t),
+           (unsigned)uxTaskGetStackHighWaterMark(NULL),
+           (unsigned)esp_get_free_heap_size(),
+           (unsigned)esp_get_minimum_free_heap_size());
+}
 
 static void sensorarrayLogStackHighWater(const char *stage)
 {
@@ -197,6 +234,10 @@ static void sensorarrayLogFdcParallelCfg(void)
         (!primaryAvailable || !secondaryAvailable) ? "bus_unavailable" :
         sameBus ? "same_bus" :
         "dual_bus_enabled";
+    if (configEnabled && !enabled) {
+        printf("FDC_PARALLEL_WARN,reason=config_enabled_but_worker_not_available,detail=%s\n",
+               reason);
+    }
     printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s\n",
            enabled ? 1u : 0u,
            primaryAvailable ? (int)primaryBus.Port : -1,
@@ -210,12 +251,15 @@ static void sensorarrayLogFdcParallelCfg(void)
 
 static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
 {
+    sensorarrayLogRuntimeMemoryDiag("runtime_entry", ctx);
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
     }
 
     sensorarrayLogDbgExtraReset();
+    sensorarrayLogRuntimeMemoryDiag("runtime_before_clear", ctx);
     *ctx = (sensorarrayAppContext_t){0};
+    sensorarrayLogRuntimeMemoryDiag("runtime_after_clear", ctx);
     sensorarrayLogSetAdsState(false, false);
     sensorarrayFastSpeedSetEnabled(false);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
@@ -370,9 +414,16 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
         return ESP_ERR_INVALID_ARG;
     }
 
-    printf("APP_FDC,stage=boot_sweep_begin,primaryReady=%d,secondaryReady=%d\n",
+    bool requireDual = CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT != 0;
+    bool fallbackAllowed = !requireDual;
+    printf("APP_FDC_BOOT,stage=begin,primaryReady=%d,secondaryReady=%d,primaryAddr=0x%02X,secondaryAddr=0x%02X,requireDual=%u,bootSweepRequired=%u,fallbackAllowed=%u\n",
            ctx->state.fdcPrimary.ready ? 1 : 0,
-           ctx->state.fdcSecondary.ready ? 1 : 0);
+           ctx->state.fdcSecondary.ready ? 1 : 0,
+           ctx->state.fdcPrimary.i2cAddr,
+           ctx->state.fdcSecondary.i2cAddr,
+           requireDual ? 1u : 0u,
+           CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED ? 1u : 0u,
+           fallbackAllowed ? 1u : 0u);
     sensorarrayLogStackHighWater("boot_sweep_before");
     if (!ctx->state.fdcPrimary.ready) {
         ctx->fdcBootSweepOk = false;
@@ -380,15 +431,20 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
         printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=0\n",
                (unsigned long)ESP_ERR_INVALID_STATE);
-        printf("FDC_FATAL,stage=boot,reason=fdc_init_not_ready,err=0x%lx\n",
+        printf("FDC_FATAL,stage=boot,reason=primary_not_ready,err=0x%lx\n",
                (unsigned long)ESP_ERR_INVALID_STATE);
         return ESP_ERR_INVALID_STATE;
     }
     if (!ctx->state.fdcSecondary.ready) {
         ctx->fdcBootSweepOk = false;
-        ctx->fdcDiagnosticMode = false;
-        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, false);
-        printf("FDC_BUS_WARN,secondaryReady=0,action=fill_d5_d8_minus_one\n");
+        ctx->fdcDiagnosticMode = requireDual;
+        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, requireDual);
+        if (requireDual) {
+            printf("FDC_FATAL,stage=boot,reason=secondary_not_ready_require_dual,err=0x%lx\n",
+                   (unsigned long)ESP_ERR_INVALID_STATE);
+            return ESP_ERR_INVALID_STATE;
+        }
+        printf("FDC_BUS_WARN,secondaryReady=0,action=primary_only_fallback,d5_d8=device_missing\n");
         printf("APP_FDC,stage=boot_sweep_skip,reason=secondary_unavailable,primaryReady=1,secondaryReady=0,action=primary_only\n");
         return ESP_OK;
     }
@@ -460,34 +516,58 @@ static void sensorarrayRunQueuedFullSweep(sensorarrayAppContext_t *ctx)
         return;
     }
 
+    uint32_t maxFails = (uint32_t)CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS;
+    if (maxFails != 0u && ctx->failedRescueCount >= maxFails) {
+        ctx->fdcDiagnosticMode = true;
+        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
+        printf("FDC_RESCUE,stage=disabled,reason=max_failed_rescue,failedRescueCount=%lu,maxFailedRescue=%lu\n",
+               (unsigned long)ctx->failedRescueCount,
+               (unsigned long)maxFails);
+        return;
+    }
+
     int64_t nowUs = esp_timer_get_time();
-    int64_t cooldownUs = (int64_t)CONFIG_SENSORARRAY_FDC_FULL_RESCUE_COOLDOWN_MS * 1000LL;
+    int64_t cooldownUs = (int64_t)CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS * 1000LL;
     bool cooldownElapsed = ctx->lastFullRescueTimeUs == 0 ||
                            cooldownUs <= 0 ||
                            (nowUs - ctx->lastFullRescueTimeUs) >= cooldownUs;
-    if (ctx->rescueRunning || !cooldownElapsed) {
-        printf("FDC_RESCUE,stage=skip,reason=full_sweep_cooldown_or_running\n");
+    if (ctx->rescueRunning) {
+        printf("FDC_RESCUE,stage=skip,reason=already_running,failedRescueCount=%lu\n",
+               (unsigned long)ctx->failedRescueCount);
+        return;
+    }
+    if (!cooldownElapsed) {
+        printf("FDC_RESCUE,stage=skip,reason=cooldown,remainingUs=%lld,failedRescueCount=%lu\n",
+               (long long)(cooldownUs - (nowUs - ctx->lastFullRescueTimeUs)),
+               (unsigned long)ctx->failedRescueCount);
         return;
     }
 
     uint32_t epoch = ++ctx->rescueEpoch;
     ctx->rescueRunning = true;
+    int64_t rescueStartUs = esp_timer_get_time();
+    sensorarrayLogRuntimeMemoryDiag("before_full_rescue", ctx);
     sensorarrayLogStackHighWater("full_rescue_before");
-    printf("FDC_RESCUE,stage=begin,reason=queued_full_sweep_all,epoch=%lu\n",
-           (unsigned long)epoch);
+    printf("FDC_RESCUE,stage=begin,reason=queued_full_sweep_all,epoch=%lu,failedRescueCount=%lu\n",
+           (unsigned long)epoch,
+           (unsigned long)ctx->failedRescueCount);
     esp_err_t err = sensorarrayFdcMatrixEngineRunFullRescue(&ctx->fdcEngine,
                                                             "queued_full_sweep_all");
     ctx->lastFullRescueTimeUs = esp_timer_get_time();
     ctx->rescueRunning = false;
     sensorarrayLogStackHighWater("full_rescue_after");
-    printf("FDC_RESCUE,stage=end,reason=queued_full_sweep_all,epoch=%lu,err=0x%lx\n",
-           (unsigned long)epoch,
-           (unsigned long)err);
+    sensorarrayLogRuntimeMemoryDiag("after_full_rescue", ctx);
+    int64_t durationUs = ctx->lastFullRescueTimeUs - rescueStartUs;
     if (err == ESP_OK) {
         ctx->failedRescueCount = 0u;
     } else {
         ctx->failedRescueCount++;
     }
+    printf("FDC_RESCUE,stage=end,reason=queued_full_sweep_all,epoch=%lu,err=0x%lx,durationUs=%lld,failedRescueCount=%lu\n",
+           (unsigned long)epoch,
+           (unsigned long)err,
+           (long long)durationUs,
+           (unsigned long)ctx->failedRescueCount);
 }
 
 static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
@@ -495,14 +575,38 @@ static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
     if (!ctx) {
         return;
     }
-    printf("MATRIXFDC_DIAG,stage=diagnostic_mode,bootOk=%d,failedRescue=%lu,primaryReady=%d,secondaryReady=%d\n",
+    BoardSupportI2cBusInfo_t primaryBus = {0};
+    BoardSupportI2cBusInfo_t secondaryBus = {0};
+    (void)boardSupportGetI2cBusInfo(false, &primaryBus);
+    (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
+    printf("MATRIXFDC_DIAG,stage=diagnostic_mode,bootOk=%d,failedRescue=%lu,primaryReady=%d,secondaryReady=%d,primaryOffline=%u,secondaryOffline=%u\n",
            ctx->fdcBootSweepOk ? 1 : 0,
            (unsigned long)ctx->failedRescueCount,
            ctx->state.fdcPrimary.ready ? 1 : 0,
-           ctx->state.fdcSecondary.ready ? 1 : 0);
-    (void)sensorarrayFdcSweepDumpAllDeviceRegs(&ctx->state,
-                                               "diagnostic_mode",
-                                               "diagnostic_retry");
+           ctx->state.fdcSecondary.ready ? 1 : 0,
+           primaryBus.Offline ? 1u : 0u,
+           secondaryBus.Offline ? 1u : 0u);
+#if CONFIG_SENSORARRAY_FDC_DIAG_DUMP_REGS
+    int64_t nowUs = esp_timer_get_time();
+    int64_t intervalUs = (int64_t)CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS * 1000LL;
+    bool intervalElapsed = s_lastDiagnosticDumpUs == 0 ||
+                           intervalUs <= 0 ||
+                           (nowUs - s_lastDiagnosticDumpUs) >= intervalUs;
+    bool skipOffline = CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS != 0;
+    if (intervalElapsed && (!skipOffline || (!primaryBus.Offline && !secondaryBus.Offline))) {
+        esp_err_t dumpErr = sensorarrayFdcSweepDumpAllDeviceRegs(&ctx->state,
+                                                                 "diagnostic_mode",
+                                                                 "diagnostic_retry");
+        s_lastDiagnosticDumpUs = nowUs;
+        printf("MATRIXFDC_DIAG,stage=dump_done,err=0x%lx\n",
+               (unsigned long)dumpErr);
+    } else if (intervalElapsed) {
+        printf("MATRIXFDC_DIAG,stage=dump_skip,reason=offline_bus,primaryOffline=%u,secondaryOffline=%u\n",
+               primaryBus.Offline ? 1u : 0u,
+               secondaryBus.Offline ? 1u : 0u);
+        s_lastDiagnosticDumpUs = nowUs;
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(1000u));
 }
 
@@ -513,6 +617,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 
         if ((ctx->fdcFrameCounter % 100u) == 0u) {
             sensorarrayLogStackHighWater("fdc_matrix_loop");
+            sensorarrayLogRuntimeMemoryDiag("main_loop_100", ctx);
         }
         if (ctx->fdcDiagnosticMode ||
             sensorarrayFdcMatrixEngineDiagnosticMode(&ctx->fdcEngine)) {
@@ -559,7 +664,9 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
         return err;
     }
 
+    sensorarrayLogRuntimeMemoryDiag("before_board_support_init", ctx);
     err = sensorarrayInitBoardAndRouting(ctx);
+    sensorarrayLogRuntimeMemoryDiag("after_board_support_init", ctx);
     printf("APP_INIT,stage=board_routing,err=%ld\n", (long)err);
     if (err != ESP_OK) {
         return err;
@@ -569,7 +676,9 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
         return ESP_ERR_INVALID_STATE;
     }
 
+    sensorarrayLogRuntimeMemoryDiag("before_frontends", ctx);
     err = sensorarrayInitFrontends(ctx);
+    sensorarrayLogRuntimeMemoryDiag("after_frontends", ctx);
     printf("APP_INIT,stage=frontends,err=%ld\n", (long)err);
     if (err != ESP_OK) {
         return err;
@@ -581,26 +690,30 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
 
 void app_main(void)
 {
-    sensorarrayAppContext_t ctx = {0};
+    sensorarrayLogRuntimeMemoryDiag("app_main_entry_before_clear", &s_appContext);
+    memset(&s_appContext, 0, sizeof(s_appContext));
+    sensorarrayLogRuntimeMemoryDiag("app_main_after_clear", &s_appContext);
 
-    esp_err_t initErr = sensorarrayInitSystem(&ctx);
+    esp_err_t initErr = sensorarrayInitSystem(&s_appContext);
     if (initErr != ESP_OK) {
         printf("APP_FATAL,stage=init,err=%ld,action=safe_idle_no_restart\n",
                (long)initErr);
         while (true) {
             printf("APP_FATAL,stage=idle,err=%ld,boardReady=%u,frontendsReady=%u,fdcDiagnosticMode=%u\n",
                    (long)initErr,
-                   ctx.state.boardReady ? 1u : 0u,
-                   (ctx.state.adsReady || ctx.state.fdcPrimary.ready || ctx.state.fdcSecondary.ready) ? 1u : 0u,
-                   ctx.fdcDiagnosticMode ? 1u : 0u);
+                   s_appContext.state.boardReady ? 1u : 0u,
+                   (s_appContext.state.adsReady || s_appContext.state.fdcPrimary.ready || s_appContext.state.fdcSecondary.ready) ? 1u : 0u,
+                   s_appContext.fdcDiagnosticMode ? 1u : 0u);
             vTaskDelay(pdMS_TO_TICKS(1000u));
         }
     }
-    esp_err_t bootErr = sensorarrayRunBootCalibration(&ctx);
+    sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", &s_appContext);
+    esp_err_t bootErr = sensorarrayRunBootCalibration(&s_appContext);
+    sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", &s_appContext);
     if (bootErr != ESP_OK && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
-        ctx.fdcDiagnosticMode = true;
-        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx.fdcEngine, true);
+        s_appContext.fdcDiagnosticMode = true;
+        sensorarrayFdcMatrixEngineSetDiagnosticMode(&s_appContext.fdcEngine, true);
     }
 
-    sensorarrayRunMainLoop(&ctx);
+    sensorarrayRunMainLoop(&s_appContext);
 }

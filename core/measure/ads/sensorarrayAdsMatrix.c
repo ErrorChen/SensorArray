@@ -1,4 +1,4 @@
-#include "sensorarrayAdsMatrixEngine.h"
+#include "sensorarrayAdsMatrix.h"
 
 #include "sensorarrayFrameBuilder.h"
 
@@ -23,4 +23,3 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
     sensorarrayFrameBuilderInitInvalid(frame);
     return ESP_ERR_NOT_SUPPORTED;
 }
-

@@ -1488,7 +1488,7 @@ static bool __attribute__((unused)) sensorarrayMeasureFdcAutoscanConfigLooksCurr
            !sleeping;
 }
 
-#include "measure/fdc/sensorarrayFdcCacheApply.inc"
+#include "fdc/sensorarrayFdcCacheApply.inc"
 
 static esp_err_t sensorarrayMeasureVerifyFdcChannelConfigApplied(sensorarrayFdcDeviceState_t *fdcState)
 {
@@ -1757,7 +1757,7 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitBothFdcAutoscanFr
     return err;
 }
 
-#include "measure/fdc/sensorarrayFdcRead4.inc"
+#include "fdc/sensorarrayFdcRead4.inc"
 
 static sensorarrayFdcWorkerContext_t *sensorarrayMeasureFdcWorkerContext(sensorarrayFdcDeviceId_t devId)
 {
@@ -2117,9 +2117,9 @@ static const char *sensorarrayMeasureFdcParallelFallbackReason(bool configEnable
     return "parallel_error";
 }
 
-#include "measure/fdc/sensorarrayFdcRowEpoch.inc"
+#include "fdc/sensorarrayFdcRowEpoch.inc"
 
-#include "measure/fdc/sensorarrayFdcFrameBuild.inc"
+#include "fdc/sensorarrayFdcFrameBuild.inc"
 static void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *before,
                                                     const Fdc2214CapI2cStats_t *after,
                                                     sensorarrayFdcDeviceTiming_t *timing)
@@ -2584,10 +2584,7 @@ uint8_t sensorarrayMeasureFdcDiscardFrames(void)
     return s_fdcDiscardFrames;
 }
 
-#include "measure/sensorarrayFrameOutput.inc"
-}
-
-#include "measure/ads/sensorarrayAdsMeasure.inc"
+#include "ads/sensorarrayAdsMeasure.inc"
             *outHaveMohm = true;
         }
         return "divider_model_ok";
@@ -2598,7 +2595,7 @@ uint8_t sensorarrayMeasureFdcDiscardFrames(void)
     return "divider_model_invalid";
 }
 
-#include "measure/fdc/sensorarrayFdcSampleConvert.inc"
+#include "fdc/sensorarrayFdcSampleConvert.inc"
         return false;
     }
 
@@ -2611,4 +2608,4 @@ uint8_t sensorarrayMeasureFdcDiscardFrames(void)
     return true;
 }
 
-#include "measure/ads/sensorarrayAdsRegisters.inc"
+#include "ads/sensorarrayAdsRegisters.inc"

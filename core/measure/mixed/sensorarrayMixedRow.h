@@ -2,8 +2,8 @@
 
 #include "esp_err.h"
 
-#include "sensorarrayAdsMatrixEngine.h"
-#include "sensorarrayFdcMatrixEngine.h"
+#include "sensorarrayAdsMatrix.h"
+#include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFrame.h"
 #include "sensorarrayScanPlan.h"
 
@@ -11,4 +11,3 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
                                              sensorarrayAdsMatrixEngine_t *adsEngine,
                                              const sensorarrayScanPlan_t *plan,
                                              sensorarrayFrame_t *frame);
-

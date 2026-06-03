@@ -311,6 +311,13 @@ config SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
     bool "Require at least one valid boot sweep sample before normal matrix output"
     default y
 
+config SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
+    bool "Require both primary and secondary FDC devices for normal boot"
+    default y
+    help
+        When enabled, a missing secondary FDC enters diagnostic/safe idle
+        instead of silently treating D5-D8 as generic invalid cells.
+
 config SENSORARRAY_FDC_NO_OSC_RESCUE_COOLDOWN_MS
     int "Cooldown for no-oscillation rescue"
     default 500
@@ -323,6 +330,21 @@ config SENSORARRAY_FDC_ALL_INVALID_RESTART_THRESHOLD
 
 config SENSORARRAY_FDC_ALL_INVALID_RESCUE_THRESHOLD
     int "Consecutive all-invalid frames before full rescue"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_ALL_INVALID_FULL_SWEEP_THRESHOLD
+    int "Consecutive all-invalid frames before queuing a full sweep"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS
+    int "Cooldown between full sweep requests"
+    default 5000
+    range 0 600000
+
+config SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS
+    int "Full matrix rescue failures before diagnostic mode"
     default 3
     range 1 32
 
@@ -339,6 +361,21 @@ config SENSORARRAY_FDC_RESCUE_TASK_STACK
 config SENSORARRAY_FDC_VERBOSE_REG_DUMP
     bool "Dump FDC registers on boot/rescue failure"
     default y
+
+config SENSORARRAY_FDC_DIAG_DUMP_REGS
+    bool "Dump FDC registers while in diagnostic mode"
+    default n
+
+config SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS
+    int "Diagnostic FDC register dump interval (ms)"
+    default 5000
+    range 100 600000
+    depends on SENSORARRAY_FDC_DIAG_DUMP_REGS
+
+config SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS
+    bool "Skip diagnostic FDC register dump when an I2C bus is offline"
+    default y
+    depends on SENSORARRAY_FDC_DIAG_DUMP_REGS
 
 config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     bool "Print verbose per-row FDC scan diagnostics"

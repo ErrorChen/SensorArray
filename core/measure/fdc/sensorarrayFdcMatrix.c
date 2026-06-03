@@ -1,4 +1,4 @@
-#include "sensorarrayFdcMatrixEngine.h"
+#include "sensorarrayFdcMatrix.h"
 
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayMeasure.h"
@@ -70,4 +70,3 @@ sensorarrayState_t *sensorarrayFdcMatrixEngineState(sensorarrayFdcMatrixEngine_t
 {
     return engine ? engine->state : NULL;
 }
-

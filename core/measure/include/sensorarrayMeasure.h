@@ -56,7 +56,6 @@ esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame);
 
-esp_err_t sensorarrayFdcMatrixEmitFrame(const sensorarrayFdcMatrixFrame_t *frame);
 bool sensorarrayFastSpeedIsEnabled(void);
 void sensorarrayFastSpeedSetEnabled(bool enabled);
 void sensorarrayMeasureFdcProfileSetSummary(bool enabled);

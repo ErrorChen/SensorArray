@@ -1,7 +1,8 @@
 # main component
 
-`main/main.c` is the SensorArray top-level scheduler. It owns the visible
-application lifecycle:
+`main/main.c` is the SensorArray top-level lifecycle scheduler. It owns the
+visible application lifecycle and keeps measurement implementation details out
+of the main component:
 
 - initialize board support and I2C buses
 - initialize TMUX control GPIOs
@@ -9,15 +10,24 @@ application lifecycle:
 - initialize primary and secondary FDC2214 devices for CH0-CH3 autoscan
 - build the default 8x8 FDC scan plan
 - run boot FDC sweep/calibration
-- enter the production FDC matrix loop
+- enter the production matrix loop or diagnostic/safe idle path
 - emit each frame through `sensorarrayFrameOutputPrint()`
 - run the FDC rescue tick
 
 `main/sensorarrayApp.c` and `main/sensorarrayApp.h` were removed; the normal
-entry point is `main/main.c`. FDC matrix control lives under
-`main/measure/fdc/`; ADS application measurement code lives under
-`main/measure/ads/`; mixed-row scheduling is reserved under
-`main/measure/mixed/`.
+entry point is `main/main.c`.
+
+Measurement code now lives under `core/measure`:
+
+- `core/measure/fdc`: FDC matrix readout, sweep/cache, and rescue control
+- `core/measure/ads`: ADS matrix measurement entry points
+- `core/measure/mixed`: mixed-row scheduling entry points
+- `core/measure/include`: public measurement/frame/scan-plan headers
+
+Frame text output lives under `main/output`. `components/fdc2214Cap` and
+`components/ads126xAdc` remain low-level chip drivers; they do not know matrix
+rows, frames, or rescue policy. `boardSupport` owns board resource lifecycle and
+legacy I2C install/delete/transaction/recovery protection.
 
 The default app mode is no longer a single-point debug path. Legacy single-point, FDC discovery, locked-sample, and register-dump bring-up entries have been removed.
 
