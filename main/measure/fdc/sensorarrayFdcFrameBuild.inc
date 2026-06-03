@@ -557,12 +557,11 @@ static esp_err_t sensorarrayMeasureCheckFdcMatrixReady(sensorarrayState_t *state
     if (!state->boardReady || !state->tmuxReady || !state->adsReady) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (!state->fdcPrimary.ready || !state->fdcPrimary.handle ||
-        !state->fdcSecondary.ready || !state->fdcSecondary.handle) {
+    if (!sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcPrimary)) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (!state->fdcPrimary.i2cCtx || !state->fdcSecondary.i2cCtx) {
-        return ESP_ERR_INVALID_STATE;
+    if (!sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
+        sensorarrayMeasureLogFdcSecondaryUnavailableOnce();
     }
     return ESP_OK;
 }

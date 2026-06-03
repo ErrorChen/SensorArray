@@ -5,12 +5,10 @@
 
 #include "sdkconfig.h"
 #include "driver/gpio.h"
-#include "esp_log.h"
+#include "driver/i2c.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-static const char *TAG = "boardSupport";
 
 #ifndef CONFIG_BOARD_I2C_FREQ_HZ
 #define CONFIG_BOARD_I2C_FREQ_HZ 325000
@@ -23,6 +21,15 @@ static const char *TAG = "boardSupport";
 #endif
 #ifndef CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT
 #define CONFIG_SENSORARRAY_I2C_RECOVER_ON_TIMEOUT 0
+#endif
+#ifndef CONFIG_BOARD_I2C1_ENABLE
+#define CONFIG_BOARD_I2C1_ENABLE 0
+#endif
+
+#if CONFIG_BOARD_I2C1_ENABLE
+#define BOARD_SUPPORT_I2C1_ENABLE_REQUESTED 1
+#else
+#define BOARD_SUPPORT_I2C1_ENABLE_REQUESTED 0
 #endif
 
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
@@ -55,6 +62,41 @@ static BoardSupportI2cCtx_t s_i2c1_ctx = {
 static bool boardSupportI2cPinsValid(int sda_gpio, int scl_gpio)
 {
     return (sda_gpio >= 0) && (scl_gpio >= 0);
+}
+
+static bool boardSupportI2cPortValid(int port)
+{
+    return port >= 0 && port < I2C_NUM_MAX;
+}
+
+static bool boardSupportI2c1EnableRequested(void)
+{
+    return BOARD_SUPPORT_I2C1_ENABLE_REQUESTED != 0;
+}
+
+static bool boardSupportI2c1ConfiguredByPins(void)
+{
+    return boardSupportI2c1EnableRequested() &&
+           boardSupportI2cPinsValid(CONFIG_BOARD_I2C1_SDA_GPIO, CONFIG_BOARD_I2C1_SCL_GPIO) &&
+           (CONFIG_BOARD_I2C1_PORT >= 0);
+}
+
+static bool boardSupportI2cCtxInstalled(const BoardSupportI2cCtx_t *ctx)
+{
+    if (!ctx || !boardSupportI2cPortValid((int)ctx->Port)) {
+        return false;
+    }
+    if (ctx->Port == s_i2c0_ctx.Port &&
+        ctx->SdaGpio == s_i2c0_ctx.SdaGpio &&
+        ctx->SclGpio == s_i2c0_ctx.SclGpio) {
+        return s_i2c0_inited;
+    }
+    if (ctx->Port == s_i2c1_ctx.Port &&
+        ctx->SdaGpio == s_i2c1_ctx.SdaGpio &&
+        ctx->SclGpio == s_i2c1_ctx.SclGpio) {
+        return s_i2c1_inited;
+    }
+    return false;
 }
 
 static TickType_t boardSupportI2cTimeoutTicks(uint32_t timeoutMs)
@@ -187,9 +229,36 @@ static esp_err_t boardSupportInitI2c(i2c_port_t port,
                                      uint32_t requested_freq_hz,
                                      uint32_t *out_configured_freq_hz)
 {
-    if (!boardSupportI2cPinsValid(sda_gpio, scl_gpio)) {
+    if (!boardSupportI2cPortValid((int)port)) {
+        printf("BOARD_I2C_FATAL,stage=validate,port=%d,sda=%d,scl=%d,freqHz=%lu,reason=invalid_i2c_port\n",
+               (int)port,
+               sda_gpio,
+               scl_gpio,
+               (unsigned long)requested_freq_hz);
         return ESP_ERR_INVALID_ARG;
     }
+    if (!boardSupportI2cPinsValid(sda_gpio, scl_gpio)) {
+        printf("BOARD_I2C_FATAL,stage=validate,port=%d,sda=%d,scl=%d,freqHz=%lu,reason=invalid_i2c_pins\n",
+               (int)port,
+               sda_gpio,
+               scl_gpio,
+               (unsigned long)requested_freq_hz);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (requested_freq_hz == 0u) {
+        printf("BOARD_I2C_FATAL,stage=validate,port=%d,sda=%d,scl=%d,freqHz=%lu,reason=invalid_i2c_freq\n",
+               (int)port,
+               sda_gpio,
+               scl_gpio,
+               (unsigned long)requested_freq_hz);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    printf("BOARD_I2C_INIT,stage=begin,port=%d,sda=%d,scl=%d,requestedFreqHz=%lu\n",
+           (int)port,
+           sda_gpio,
+           scl_gpio,
+           (unsigned long)requested_freq_hz);
 
     i2c_config_t cfg = {0};
     cfg.mode = I2C_MODE_MASTER;
@@ -204,19 +273,34 @@ static esp_err_t boardSupportInitI2c(i2c_port_t port,
 
     esp_err_t err = i2c_param_config(port, &cfg);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_param_config port %d failed: %d", (int)port, err);
+        printf("BOARD_I2C_FATAL,stage=param_config,port=%d,sda=%d,scl=%d,requestedFreqHz=%lu,err=%ld\n",
+               (int)port,
+               sda_gpio,
+               scl_gpio,
+               (unsigned long)requested_freq_hz,
+               (long)err);
         return err;
     }
 
+    printf("BOARD_I2C_INIT,stage=driver_install,port=%d\n", (int)port);
     err = i2c_driver_install(port, I2C_MODE_MASTER, 0, 0, 0);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_driver_install port %d failed: %d", (int)port, err);
+        printf("BOARD_I2C_FATAL,stage=driver_install,port=%d,err=%ld\n",
+               (int)port,
+               (long)err);
         return err;
     }
 
+    uint32_t configured_freq_hz = cfg.master.clk_speed;
     if (out_configured_freq_hz) {
-        *out_configured_freq_hz = cfg.master.clk_speed;
+        *out_configured_freq_hz = configured_freq_hz;
     }
+    printf("BOARD_I2C_INIT,stage=installed,port=%d,sda=%d,scl=%d,requestedFreqHz=%lu,configuredFreqHz=%lu\n",
+           (int)port,
+           sda_gpio,
+           scl_gpio,
+           (unsigned long)requested_freq_hz,
+           (unsigned long)configured_freq_hz);
     return ESP_OK;
 }
 
@@ -225,16 +309,32 @@ esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx)
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!boardSupportI2cPortValid((int)ctx->Port)) {
+        printf("I2CRECOVER,stage=reject,port=%d,reason=invalid_i2c_port\n",
+               (int)ctx->Port);
+        return ESP_ERR_INVALID_ARG;
+    }
     if (!boardSupportI2cPinsValid(ctx->SdaGpio, ctx->SclGpio)) {
+        printf("I2CRECOVER,stage=reject,port=%d,sda=%d,scl=%d,reason=invalid_i2c_pins\n",
+               (int)ctx->Port,
+               ctx->SdaGpio,
+               ctx->SclGpio);
         return ESP_ERR_INVALID_ARG;
     }
 
     bool *recovering = boardSupportI2cRecoveringFlag(ctx->Port);
     if (!recovering) {
+        printf("I2CRECOVER,stage=reject,port=%d,reason=no_recovering_flag\n",
+               (int)ctx->Port);
         return ESP_ERR_INVALID_ARG;
     }
     if (*recovering) {
         printf("I2CRECOVER,stage=skip_already_recovering,port=%d\n", (int)ctx->Port);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!boardSupportI2cCtxInstalled(ctx)) {
+        printf("I2CRECOVER,stage=reject,port=%d,reason=i2c_driver_not_installed\n",
+               (int)ctx->Port);
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -247,7 +347,9 @@ esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx)
 
     esp_err_t deleteErr = i2c_driver_delete(ctx->Port);
     if (deleteErr != ESP_OK && deleteErr != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "i2c_driver_delete port %d during recovery returned %d", (int)ctx->Port, deleteErr);
+        printf("I2CRECOVER,stage=driver_delete,port=%d,err=%ld\n",
+               (int)ctx->Port,
+               (long)deleteErr);
     }
 
     if (ctx->Port == s_i2c0_ctx.Port) {
@@ -292,6 +394,50 @@ esp_err_t boardSupportInit(void)
         return ESP_OK;
     }
 
+    s_i2c0_inited = false;
+    s_i2c1_inited = false;
+    s_i2c0_ctx = (BoardSupportI2cCtx_t){
+        .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
+        .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
+        .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
+        .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
+        .FrequencyHz = CONFIG_BOARD_I2C0_FREQ_HZ,
+    };
+    s_i2c1_ctx = (BoardSupportI2cCtx_t){
+        .Port = (i2c_port_t)CONFIG_BOARD_I2C1_PORT,
+        .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
+        .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
+        .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
+        .FrequencyHz = CONFIG_BOARD_I2C1_FREQ_HZ,
+    };
+
+    printf("BOARD_I2C_CFG,primaryPort=%d,primarySda=%d,primaryScl=%d,primaryFreqHz=%lu,secondaryConfigured=%u,secondaryEnabled=%u,secondaryPort=%d,secondarySda=%d,secondaryScl=%d,secondaryFreqHz=%lu\n",
+           CONFIG_BOARD_I2C_PORT,
+           CONFIG_BOARD_I2C_SDA_GPIO,
+           CONFIG_BOARD_I2C_SCL_GPIO,
+           (unsigned long)CONFIG_BOARD_I2C0_FREQ_HZ,
+           boardSupportI2c1ConfiguredByPins() ? 1u : 0u,
+           boardSupportIsI2c1Enabled() ? 1u : 0u,
+           CONFIG_BOARD_I2C1_PORT,
+           CONFIG_BOARD_I2C1_SDA_GPIO,
+           CONFIG_BOARD_I2C1_SCL_GPIO,
+           (unsigned long)CONFIG_BOARD_I2C1_FREQ_HZ);
+
+    if (!boardSupportI2cPortValid(CONFIG_BOARD_I2C_PORT)) {
+        printf("BOARD_I2C_FATAL,stage=primary_validate,port=%d,sda=%d,scl=%d,reason=invalid_i2c_port\n",
+               CONFIG_BOARD_I2C_PORT,
+               CONFIG_BOARD_I2C_SDA_GPIO,
+               CONFIG_BOARD_I2C_SCL_GPIO);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!boardSupportI2cPinsValid(CONFIG_BOARD_I2C_SDA_GPIO, CONFIG_BOARD_I2C_SCL_GPIO)) {
+        printf("BOARD_I2C_FATAL,stage=primary_validate,port=%d,sda=%d,scl=%d,reason=invalid_i2c_pins\n",
+               CONFIG_BOARD_I2C_PORT,
+               CONFIG_BOARD_I2C_SDA_GPIO,
+               CONFIG_BOARD_I2C_SCL_GPIO);
+        return ESP_ERR_INVALID_ARG;
+    }
+
     esp_err_t err = boardSupportInitI2c((i2c_port_t)CONFIG_BOARD_I2C_PORT,
                                         CONFIG_BOARD_I2C_SDA_GPIO,
                                         CONFIG_BOARD_I2C_SCL_GPIO,
@@ -302,44 +448,43 @@ esp_err_t boardSupportInit(void)
     }
     s_i2c0_inited = true;
     s_i2c0_ctx.FrequencyHz = s_i2c0_configured_freq_hz;
-    ESP_LOGI(TAG,
-             "I2C0: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
-             CONFIG_BOARD_I2C_PORT,
-             CONFIG_BOARD_I2C_SDA_GPIO,
-             CONFIG_BOARD_I2C_SCL_GPIO,
-             (unsigned)CONFIG_BOARD_I2C0_FREQ_HZ,
-             (unsigned)s_i2c0_configured_freq_hz);
 
-    if (boardSupportIsI2c1Enabled()) {
-        if (CONFIG_BOARD_I2C1_PORT == CONFIG_BOARD_I2C_PORT) {
-            ESP_LOGE(TAG, "I2C1 port must differ from I2C0 port");
-            i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C_PORT);
-            s_i2c0_inited = false;
-            return ESP_ERR_INVALID_ARG;
-        }
-
+    if (!boardSupportI2c1EnableRequested()) {
+        printf("BOARD_I2C_INFO,stage=secondary_skip,reason=not_configured\n");
+    } else if (!boardSupportI2cPinsValid(CONFIG_BOARD_I2C1_SDA_GPIO, CONFIG_BOARD_I2C1_SCL_GPIO)) {
+        printf("BOARD_I2C_WARN,stage=secondary_disabled,port=%d,sda=%d,scl=%d,reason=invalid_i2c_pins\n",
+               CONFIG_BOARD_I2C1_PORT,
+               CONFIG_BOARD_I2C1_SDA_GPIO,
+               CONFIG_BOARD_I2C1_SCL_GPIO);
+    } else if (!boardSupportI2cPortValid(CONFIG_BOARD_I2C1_PORT)) {
+        printf("BOARD_I2C_WARN,stage=secondary_disabled,port=%d,sda=%d,scl=%d,reason=invalid_i2c_port\n",
+               CONFIG_BOARD_I2C1_PORT,
+               CONFIG_BOARD_I2C1_SDA_GPIO,
+               CONFIG_BOARD_I2C1_SCL_GPIO);
+    } else if (CONFIG_BOARD_I2C1_PORT == CONFIG_BOARD_I2C_PORT) {
+        printf("BOARD_I2C_WARN,stage=secondary_disabled,port=%d,reason=same_as_primary\n",
+               CONFIG_BOARD_I2C1_PORT);
+    } else {
         err = boardSupportInitI2c((i2c_port_t)CONFIG_BOARD_I2C1_PORT,
                                   CONFIG_BOARD_I2C1_SDA_GPIO,
                                   CONFIG_BOARD_I2C1_SCL_GPIO,
                                   CONFIG_BOARD_I2C1_FREQ_HZ,
                                   &s_i2c1_configured_freq_hz);
         if (err != ESP_OK) {
-            i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C_PORT);
-            s_i2c0_inited = false;
-            return err;
+            printf("BOARD_I2C_WARN,stage=secondary_init_failed,port=%d,err=%ld,action=primary_only\n",
+                   CONFIG_BOARD_I2C1_PORT,
+                   (long)err);
+        } else {
+            s_i2c1_inited = true;
+            s_i2c1_ctx.FrequencyHz = s_i2c1_configured_freq_hz;
         }
-        s_i2c1_inited = true;
-        s_i2c1_ctx.FrequencyHz = s_i2c1_configured_freq_hz;
-        ESP_LOGI(TAG,
-                 "I2C1: port=%d SDA=%d SCL=%d requestedFreqHz=%u configuredFreqHz=%u note=configured_not_measured",
-                 CONFIG_BOARD_I2C1_PORT,
-                 CONFIG_BOARD_I2C1_SDA_GPIO,
-                 CONFIG_BOARD_I2C1_SCL_GPIO,
-                 (unsigned)CONFIG_BOARD_I2C1_FREQ_HZ,
-                 (unsigned)s_i2c1_configured_freq_hz);
     }
 
     s_inited = true;
+    printf("BOARD_I2C_READY,primaryReady=%u,secondaryReady=%u,mode=%s\n",
+           s_i2c0_inited ? 1u : 0u,
+           s_i2c1_inited ? 1u : 0u,
+           s_i2c1_inited ? "dual_i2c" : "primary_only");
     return ESP_OK;
 }
 
@@ -351,17 +496,27 @@ esp_err_t boardSupportDeinit(void)
 
     esp_err_t err = ESP_OK;
     if (s_i2c1_inited) {
-        esp_err_t deinit_err = i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C1_PORT);
-        if (deinit_err != ESP_OK) {
-            err = deinit_err;
+        if (boardSupportI2cPortValid(CONFIG_BOARD_I2C1_PORT)) {
+            esp_err_t deinit_err = i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C1_PORT);
+            if (deinit_err != ESP_OK) {
+                err = deinit_err;
+            }
+        } else {
+            printf("BOARD_I2C_WARN,stage=deinit_skip,port=%d,reason=invalid_i2c_port\n",
+                   CONFIG_BOARD_I2C1_PORT);
         }
         s_i2c1_inited = false;
     }
 
     if (s_i2c0_inited) {
-        esp_err_t deinit_err = i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C_PORT);
-        if (deinit_err != ESP_OK) {
-            err = deinit_err;
+        if (boardSupportI2cPortValid(CONFIG_BOARD_I2C_PORT)) {
+            esp_err_t deinit_err = i2c_driver_delete((i2c_port_t)CONFIG_BOARD_I2C_PORT);
+            if (deinit_err != ESP_OK) {
+                err = deinit_err;
+            }
+        } else {
+            printf("BOARD_I2C_WARN,stage=deinit_skip,port=%d,reason=invalid_i2c_port\n",
+                   CONFIG_BOARD_I2C_PORT);
         }
         s_i2c0_inited = false;
     }
@@ -372,8 +527,9 @@ esp_err_t boardSupportDeinit(void)
 
 bool boardSupportIsI2c1Enabled(void)
 {
-    return boardSupportI2cPinsValid(CONFIG_BOARD_I2C1_SDA_GPIO, CONFIG_BOARD_I2C1_SCL_GPIO) &&
-           (CONFIG_BOARD_I2C1_PORT >= 0);
+    return boardSupportI2c1EnableRequested() &&
+           boardSupportI2cPinsValid(CONFIG_BOARD_I2C1_SDA_GPIO, CONFIG_BOARD_I2C1_SCL_GPIO) &&
+           boardSupportI2cPortValid(CONFIG_BOARD_I2C1_PORT);
 }
 
 const BoardSupportI2cCtx_t* boardSupportGetI2cCtx(void)
@@ -383,7 +539,7 @@ const BoardSupportI2cCtx_t* boardSupportGetI2cCtx(void)
 
 const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void)
 {
-    if (!boardSupportIsI2c1Enabled()) {
+    if (!boardSupportIsI2c1Enabled() || !s_i2c1_inited) {
         return NULL;
     }
     return &s_i2c1_ctx;
@@ -408,7 +564,7 @@ bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo
 
     *outInfo = (BoardSupportI2cBusInfo_t){
         .Enabled = boardSupportI2cPinsValid(CONFIG_BOARD_I2C_SDA_GPIO, CONFIG_BOARD_I2C_SCL_GPIO) &&
-                   (CONFIG_BOARD_I2C_PORT >= 0),
+                   boardSupportI2cPortValid(CONFIG_BOARD_I2C_PORT),
         .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
         .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
         .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
@@ -427,11 +583,23 @@ esp_err_t boardSupportI2cWriteRead(void* userCtx,
     if (!userCtx || !tx || txLen == 0 || !rx || rxLen == 0) {
         return ESP_ERR_INVALID_ARG;
     }
+    const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
+    if (!boardSupportI2cPortValid((int)ctx->Port)) {
+        printf("I2C_REJECT,op=write_read,port=%d,addr=0x%02X,reason=invalid_i2c_port\n",
+               (int)ctx->Port,
+               addr7);
+        return ESP_ERR_INVALID_ARG;
+    }
     if (!s_inited) {
         return ESP_ERR_INVALID_STATE;
     }
+    if (!boardSupportI2cCtxInstalled(ctx)) {
+        printf("I2C_REJECT,op=write_read,port=%d,addr=0x%02X,reason=i2c_driver_not_installed\n",
+               (int)ctx->Port,
+               addr7);
+        return ESP_ERR_INVALID_STATE;
+    }
 
-    const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
     int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_read_device(ctx->Port,
                                                  addr7,
@@ -459,11 +627,23 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
     if (!userCtx || !tx || txLen == 0) {
         return ESP_ERR_INVALID_ARG;
     }
+    const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
+    if (!boardSupportI2cPortValid((int)ctx->Port)) {
+        printf("I2C_REJECT,op=write,port=%d,addr=0x%02X,reason=invalid_i2c_port\n",
+               (int)ctx->Port,
+               addr7);
+        return ESP_ERR_INVALID_ARG;
+    }
     if (!s_inited) {
         return ESP_ERR_INVALID_STATE;
     }
+    if (!boardSupportI2cCtxInstalled(ctx)) {
+        printf("I2C_REJECT,op=write,port=%d,addr=0x%02X,reason=i2c_driver_not_installed\n",
+               (int)ctx->Port,
+               addr7);
+        return ESP_ERR_INVALID_STATE;
+    }
 
-    const BoardSupportI2cCtx_t* ctx = (const BoardSupportI2cCtx_t*)userCtx;
     int64_t startUs = esp_timer_get_time();
     esp_err_t err = i2c_master_write_to_device(ctx->Port,
                                                addr7,
@@ -486,7 +666,19 @@ esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_
     if (!i2cCtx || addr7 > 0x7Fu) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!boardSupportI2cPortValid((int)i2cCtx->Port)) {
+        printf("I2C_REJECT,op=probe,port=%d,addr=0x%02X,reason=invalid_i2c_port\n",
+               (int)i2cCtx->Port,
+               addr7);
+        return ESP_ERR_INVALID_ARG;
+    }
     if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!boardSupportI2cCtxInstalled(i2cCtx)) {
+        printf("I2C_REJECT,op=probe,port=%d,addr=0x%02X,reason=i2c_driver_not_installed\n",
+               (int)i2cCtx->Port,
+               addr7);
         return ESP_ERR_INVALID_STATE;
     }
 

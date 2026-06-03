@@ -3,6 +3,7 @@ menu "Board Support (Pins/Buses)"
 menu "I2C0 (SDA0/SCL0)"
 config BOARD_I2C_PORT
     int "I2C port"
+    range 0 1
     default 0
 
 config BOARD_I2C_SDA_GPIO
@@ -46,8 +47,13 @@ config BOARD_I2C1_FREQ_HZ
 endmenu
 
 menu "I2C2 (SDA2/SCL2, optional)"
+config BOARD_I2C1_ENABLE
+    bool "Enable secondary I2C bus"
+    default y
+
 config BOARD_I2C1_PORT
     int "I2C1 port (optional second bus)"
+    range 0 1
     default 1
 
 config BOARD_I2C1_SDA_GPIO

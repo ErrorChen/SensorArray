@@ -32,12 +32,12 @@ esp_err_t boardSupportInit(void);
 // Deinitialize buses initialized by boardSupportInit.
 esp_err_t boardSupportDeinit(void);
 
-// Returns true if the optional second I2C bus is configured/enabled.
+// Returns true if the optional second I2C bus has a legal enabled configuration.
 bool boardSupportIsI2c1Enabled(void);
 
 // Returns the default I2C context for the primary bus.
 const BoardSupportI2cCtx_t* boardSupportGetI2cCtx(void);
-// Returns the default I2C context for the optional second bus, or NULL if disabled.
+// Returns the default I2C context for the optional second bus, or NULL if disabled/unavailable.
 const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void);
 // Returns configured bus metadata for the selected board-level I2C bus.
 bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo);

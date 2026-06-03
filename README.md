@@ -12,6 +12,10 @@ This firmware is organized around a formal FDC2214 8x8 matrix read path.
 
 Temporary single-point and FDC discovery bring-up debug entry points have been removed from the default firmware.
 
+## Board configuration notes
+
+Current hardware bring-up logs have shown 16 MB flash detected while the image header is still configured for 2 MB. This is not the I2C boot-panic root cause because the app image loads and enters `app_main()`, but a later board-config pass should change menuconfig/sdkconfig flash size to 16 MB before relying on NVS, partition, or OTA space calculations.
+
 ## FDC D-line mapping
 
 - D1 -> primary FDC2214 CH0

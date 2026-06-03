@@ -391,6 +391,7 @@ static sensorarrayFdcWorkerContext_t s_fdcWorkers[2] = {
 static bool s_fdcWorkersInitAttempted = false;
 static bool s_fdcWorkersAvailable = false;
 static bool s_fdcFormalPrecheckDone = false;
+static bool s_fdcSecondaryUnavailableLogged = false;
 static uint32_t s_fdcRowEpoch = 0u;
 static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
 static sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
@@ -2171,13 +2172,20 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
 
     Fdc2214CapResetI2cStats(state->fdcPrimary.handle);
-    Fdc2214CapResetI2cStats(state->fdcSecondary.handle);
+    if (sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
+        Fdc2214CapResetI2cStats(state->fdcSecondary.handle);
+    }
     BoardSupportI2cBusInfo_t primaryBus = {0};
     BoardSupportI2cBusInfo_t secondaryBus = {0};
     (void)boardSupportGetI2cBusInfo(false, &primaryBus);
     (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
-    bool primaryBusEnabled = primaryBus.Enabled;
-    bool secondaryBusEnabled = secondaryBus.Enabled;
+    bool primaryBusEnabled = primaryBus.Enabled &&
+                             sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcPrimary);
+    bool secondaryBusEnabled = secondaryBus.Enabled &&
+                               sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary);
+    if (!secondaryBusEnabled) {
+        sensorarrayMeasureLogFdcSecondaryUnavailableOnce();
+    }
     bool sameBus = primaryBusEnabled &&
                    secondaryBusEnabled &&
                    primaryBus.Port == secondaryBus.Port;
@@ -2217,7 +2225,12 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         }
     }
     if (!s_fdcFormalPrecheckDone) {
-        esp_err_t precheckErr = sensorarrayMeasureRunFdcFormalPrecheck(state);
+        esp_err_t precheckErr = ESP_OK;
+        if (secondaryBusEnabled) {
+            precheckErr = sensorarrayMeasureRunFdcFormalPrecheck(state);
+        } else {
+            printf("FDC_FORMAL_PRECHECK,stage=skip,reason=secondary_unavailable,action=primary_only\n");
+        }
         s_fdcFormalPrecheckDone = true;
         sensorarrayMeasureRecordFirstErr(precheckErr, &firstErr);
     }
@@ -2238,7 +2251,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         Fdc2214CapI2cStats_t primaryStatsBefore = {0};
         Fdc2214CapI2cStats_t secondaryStatsBefore = {0};
         Fdc2214CapGetI2cStats(state->fdcPrimary.handle, &primaryStatsBefore);
-        Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStatsBefore);
+        if (sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
+            Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStatsBefore);
+        }
         uint32_t primaryEdgeBefore = sensorarrayMeasureFdcWorkerEdgeCount(SENSORARRAY_FDC_DEV_PRIMARY);
         uint32_t secondaryEdgeBefore = sensorarrayMeasureFdcWorkerEdgeCount(SENSORARRAY_FDC_DEV_SECONDARY);
 
@@ -2417,7 +2432,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         Fdc2214CapI2cStats_t primaryStatsAfter = {0};
         Fdc2214CapI2cStats_t secondaryStatsAfter = {0};
         Fdc2214CapGetI2cStats(state->fdcPrimary.handle, &primaryStatsAfter);
-        Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStatsAfter);
+        if (sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
+            Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStatsAfter);
+        }
         sensorarrayMeasureFillFdcDeviceI2cDelta(&primaryStatsBefore, &primaryStatsAfter, &primaryTiming);
         sensorarrayMeasureFillFdcDeviceI2cDelta(&secondaryStatsBefore, &secondaryStatsAfter, &secondaryTiming);
 
@@ -2443,7 +2460,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     Fdc2214CapI2cStats_t primaryStats = {0};
     Fdc2214CapI2cStats_t secondaryStats = {0};
     Fdc2214CapGetI2cStats(state->fdcPrimary.handle, &primaryStats);
-    Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStats);
+    if (sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
+        Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStats);
+    }
     sensorarrayMeasureMergeFdcI2cStats(&primaryStats, &secondaryStats, &primaryBus, &secondaryBus, &timing);
 
     if (CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG &&

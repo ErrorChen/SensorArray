@@ -1,4 +1,18 @@
 // Split from core/measure/sensorarrayMeasure.c to keep FDC matrix internals isolated.
+static bool sensorarrayMeasureFdcDeviceReadyForIo(const sensorarrayFdcDeviceState_t *fdcState)
+{
+    return fdcState && fdcState->ready && fdcState->handle && fdcState->i2cCtx;
+}
+
+static void sensorarrayMeasureLogFdcSecondaryUnavailableOnce(void)
+{
+    if (s_fdcSecondaryUnavailableLogged) {
+        return;
+    }
+    s_fdcSecondaryUnavailableLogged = true;
+    printf("FDC_BUS_WARN,secondaryReady=0,action=fill_d5_d8_minus_one\n");
+}
+
 static esp_err_t sensorarrayMeasureFdcSetSleepMode(sensorarrayFdcDeviceState_t *fdcState,
                                                    bool enable,
                                                    sensorarrayFdcDeviceTiming_t *timing)
@@ -742,7 +756,7 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
-    if (!fdcState || !fdcState->ready || !fdcState->handle) {
+    if (!sensorarrayMeasureFdcDeviceReadyForIo(fdcState)) {
         return ESP_ERR_INVALID_STATE;
     }
     if (timing) {
@@ -1202,27 +1216,45 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowSerialEpoch(sensorarrayState_
     }
 
     esp_err_t firstErr = ESP_OK;
+    bool primaryAvailable = sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcPrimary);
+    bool secondaryAvailable = sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary);
+    if (!primaryAvailable) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!secondaryAvailable) {
+        sensorarrayMeasureLogFdcSecondaryUnavailableOnce();
+        sensorarrayMeasureMarkFdcNoFreshSamples(secondarySamples, NULL, false);
+        secondaryTiming->row = row;
+        secondaryTiming->deviceId = SENSORARRAY_FDC_DEV_SECONDARY;
+        secondaryTiming->deviceFullInvalidCount++;
+    }
+
     int64_t sleepStartUs = esp_timer_get_time();
     printf("FDC_ROW_EPOCH,stage=sleep_enter,row=%u,epoch=%lu,dev=primary\n",
            (unsigned)row,
            (unsigned long)epochId);
     esp_err_t primaryErr = sensorarrayMeasureFdcSetSleepMode(&state->fdcPrimary, true, primaryTiming);
-    printf("FDC_ROW_EPOCH,stage=sleep_enter,row=%u,epoch=%lu,dev=secondary\n",
-           (unsigned)row,
-           (unsigned long)epochId);
-    esp_err_t secondaryErr = sensorarrayMeasureFdcSetSleepMode(&state->fdcSecondary, true, secondaryTiming);
+    esp_err_t secondaryErr = ESP_ERR_NOT_SUPPORTED;
+    if (secondaryAvailable) {
+        printf("FDC_ROW_EPOCH,stage=sleep_enter,row=%u,epoch=%lu,dev=secondary\n",
+               (unsigned)row,
+               (unsigned long)epochId);
+        secondaryErr = sensorarrayMeasureFdcSetSleepMode(&state->fdcSecondary, true, secondaryTiming);
+    }
     rowTiming->sleepBeforeRowSwitchUs = sensorarrayMeasureElapsedUs(sleepStartUs);
     if (primaryErr != ESP_OK && firstErr == ESP_OK) {
         firstErr = primaryErr;
     }
-    if (secondaryErr != ESP_OK && firstErr == ESP_OK) {
+    if (secondaryAvailable && secondaryErr != ESP_OK && firstErr == ESP_OK) {
         firstErr = secondaryErr;
     }
 
     sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayMeasureFdcWorkerContext(SENSORARRAY_FDC_DEV_PRIMARY),
                                           epochId);
-    sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayMeasureFdcWorkerContext(SENSORARRAY_FDC_DEV_SECONDARY),
-                                          epochId);
+    if (secondaryAvailable) {
+        sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayMeasureFdcWorkerContext(SENSORARRAY_FDC_DEV_SECONDARY),
+                                              epochId);
+    }
 
     esp_err_t rowErr = sensorarrayMeasureSelectFdcRowWhileSleeping(state, row, epochId, rowTiming);
     if (rowErr != ESP_OK && firstErr == ESP_OK) {
@@ -1247,7 +1279,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowSerialEpoch(sensorarrayState_
             firstErr = primaryErr;
         }
     }
-    if (secondaryErr == ESP_OK) {
+    if (secondaryAvailable && secondaryErr == ESP_OK) {
         secondaryErr = sensorarrayMeasureFdcRunDeviceEpochAfterSleep(state,
                                                                      row,
                                                                      epochId,

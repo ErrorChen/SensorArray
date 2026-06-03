@@ -183,22 +183,24 @@ static void sensorarrayLogFdcParallelCfg(void)
     BoardSupportI2cBusInfo_t secondaryBus = {0};
     (void)boardSupportGetI2cBusInfo(false, &primaryBus);
     (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
-    bool sameBus = primaryBus.Enabled &&
-                   secondaryBus.Enabled &&
+    bool primaryAvailable = primaryBus.Enabled && boardSupportGetI2cCtx();
+    bool secondaryAvailable = secondaryBus.Enabled && boardSupportGetI2c1Ctx();
+    bool sameBus = primaryAvailable &&
+                   secondaryAvailable &&
                    primaryBus.Port == secondaryBus.Port;
     bool configEnabled = CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0;
     bool enabled = configEnabled &&
-                   primaryBus.Enabled &&
-                   secondaryBus.Enabled &&
+                   primaryAvailable &&
+                   secondaryAvailable &&
                    !sameBus;
     const char *reason = !configEnabled ? "config_disabled" :
-        (!primaryBus.Enabled || !secondaryBus.Enabled) ? "bus_unavailable" :
+        (!primaryAvailable || !secondaryAvailable) ? "bus_unavailable" :
         sameBus ? "same_bus" :
         "dual_bus_enabled";
     printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s\n",
            enabled ? 1u : 0u,
-           primaryBus.Enabled ? (int)primaryBus.Port : -1,
-           secondaryBus.Enabled ? (int)secondaryBus.Port : -1,
+           primaryAvailable ? (int)primaryBus.Port : -1,
+           secondaryAvailable ? (int)secondaryBus.Port : -1,
            sameBus ? 1u : 0u,
            CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
            CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
@@ -274,12 +276,20 @@ static esp_err_t sensorarrayInitBoardAndRouting(sensorarrayAppContext_t *ctx)
     sensorarrayLogStartup("board", err,
                           ctx->state.boardReady ? "ok" : "init_failed",
                           (int32_t)ctx->state.boardReady);
+    if (err != ESP_OK) {
+        printf("APP_INIT_FATAL,stage=board_support,err=%ld,action=stop_init\n",
+               (long)err);
+        return err;
+    }
 
     err = tmuxSwitchInit();
     ctx->state.tmuxReady = (err == ESP_OK);
     sensorarrayLogStartup("tmux", err,
                           ctx->state.tmuxReady ? "ok" : "init_failed",
                           (int32_t)ctx->state.tmuxReady);
+    if (err != ESP_OK) {
+        return err;
+    }
 
     sensorarrayBoardMapAudit();
     sensorarrayApplyTmuxDefaults(&ctx->state);
@@ -333,8 +343,16 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
                                  "D5..D8_secondary_ch0..ch3");
     }
 
-    ESP_ERROR_CHECK(sensorarrayFdcMatrixEngineInit(&ctx->fdcEngine, &ctx->state));
-    ESP_ERROR_CHECK(sensorarrayAdsMatrixEngineInit(&ctx->adsEngine, &ctx->state));
+    err = sensorarrayFdcMatrixEngineInit(&ctx->fdcEngine, &ctx->state);
+    if (err != ESP_OK) {
+        sensorarrayLogStartup("fdc_matrix_engine", err, "init_failed", (int32_t)err);
+        return err;
+    }
+    err = sensorarrayAdsMatrixEngineInit(&ctx->adsEngine, &ctx->state);
+    if (err != ESP_OK) {
+        sensorarrayLogStartup("ads_matrix_engine", err, "init_failed", (int32_t)err);
+        return err;
+    }
     sensorarrayFdcRescueReset(&ctx->fdcRescue);
     return ESP_OK;
 }
@@ -356,7 +374,7 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
            ctx->state.fdcPrimary.ready ? 1 : 0,
            ctx->state.fdcSecondary.ready ? 1 : 0);
     sensorarrayLogStackHighWater("boot_sweep_before");
-    if (!ctx->state.fdcPrimary.ready || !ctx->state.fdcSecondary.ready) {
+    if (!ctx->state.fdcPrimary.ready) {
         ctx->fdcBootSweepOk = false;
         ctx->fdcDiagnosticMode = true;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
@@ -365,6 +383,14 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
         printf("FDC_FATAL,stage=boot,reason=fdc_init_not_ready,err=0x%lx\n",
                (unsigned long)ESP_ERR_INVALID_STATE);
         return ESP_ERR_INVALID_STATE;
+    }
+    if (!ctx->state.fdcSecondary.ready) {
+        ctx->fdcBootSweepOk = false;
+        ctx->fdcDiagnosticMode = false;
+        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, false);
+        printf("FDC_BUS_WARN,secondaryReady=0,action=fill_d5_d8_minus_one\n");
+        printf("APP_FDC,stage=boot_sweep_skip,reason=secondary_unavailable,primaryReady=1,secondaryReady=0,action=primary_only\n");
+        return ESP_OK;
     }
 
     esp_err_t bootErr = sensorarrayFdcMatrixEngineRunBootSweep(&ctx->fdcEngine,
@@ -527,9 +553,28 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
 {
-    ESP_RETURN_ON_ERROR(sensorarrayInitRuntime(ctx), "SensorArray", "runtime init failed");
-    ESP_RETURN_ON_ERROR(sensorarrayInitBoardAndRouting(ctx), "SensorArray", "board init failed");
-    ESP_RETURN_ON_ERROR(sensorarrayInitFrontends(ctx), "SensorArray", "frontend init failed");
+    esp_err_t err = sensorarrayInitRuntime(ctx);
+    printf("APP_INIT,stage=runtime,err=%ld\n", (long)err);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = sensorarrayInitBoardAndRouting(ctx);
+    printf("APP_INIT,stage=board_routing,err=%ld\n", (long)err);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (!ctx->state.boardReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    err = sensorarrayInitFrontends(ctx);
+    printf("APP_INIT,stage=frontends,err=%ld\n", (long)err);
+    if (err != ESP_OK) {
+        return err;
+    }
+
     sensorarrayBuildDefaultScanPlan(ctx);
     return ESP_OK;
 }
@@ -538,7 +583,19 @@ void app_main(void)
 {
     sensorarrayAppContext_t ctx = {0};
 
-    ESP_ERROR_CHECK(sensorarrayInitSystem(&ctx));
+    esp_err_t initErr = sensorarrayInitSystem(&ctx);
+    if (initErr != ESP_OK) {
+        printf("APP_FATAL,stage=init,err=%ld,action=safe_idle_no_restart\n",
+               (long)initErr);
+        while (true) {
+            printf("APP_FATAL,stage=idle,err=%ld,boardReady=%u,frontendsReady=%u,fdcDiagnosticMode=%u\n",
+                   (long)initErr,
+                   ctx.state.boardReady ? 1u : 0u,
+                   (ctx.state.adsReady || ctx.state.fdcPrimary.ready || ctx.state.fdcSecondary.ready) ? 1u : 0u,
+                   ctx.fdcDiagnosticMode ? 1u : 0u);
+            vTaskDelay(pdMS_TO_TICKS(1000u));
+        }
+    }
     esp_err_t bootErr = sensorarrayRunBootCalibration(&ctx);
     if (bootErr != ESP_OK && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
         ctx.fdcDiagnosticMode = true;
