@@ -15,7 +15,9 @@ The default app mode is no longer a single-point debug path. Legacy single-point
 
 Default frame output remains human-readable printf text. The main payload is total LC tank capacitance in pF:
 
-`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,capValidMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capTotalPf=[<64 values>]`
+`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,partial=<0|1>,frameQuality=<full|partial>,capValidMask=0x<16hex>,freshMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,invalidSentinel=-1.000000,capTotalPf=[<64 values>]`
+
+Invalid cells are emitted as `capTotalPf=-1.000000` with the corresponding `capValidMask` bit cleared and `errorMask` bit set. Host software should treat that value as an invalid sentinel, not as a measured `-1 pF` capacitance.
 
 Frequency output is optional debug text and is emitted separately:
 

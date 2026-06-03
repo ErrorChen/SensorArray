@@ -64,7 +64,7 @@ SW physical high is controlled by `sensorarrayMeasureSetSwPhysicalLevel()`. It o
 
 Default output is one pF printf text line per frame:
 
-`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,capValidMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,capTotalPf=[<64 pF values>]`
+`MATRIXFDC_CAP,seq=<sequence>,timestampUs=<timestampUs>,partial=<0|1>,frameQuality=<full|partial>,capValidMask=0x<16hex>,freshMask=0x<16hex>,warnMask=0x<16hex>,errorMask=0x<16hex>,invalidSentinel=-1.000000,capTotalPf=[<64 pF values>]`
 
 Frequency output is optional debug output and is emitted as a separate line when
 `SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ` or
@@ -83,7 +83,7 @@ sensor capacitance. Future delta reporting should use a per-cell baseline:
 
 Example:
 
-`MATRIXFDC_CAP,seq=12,timestampUs=345678901,capValidMask=0xFFFFFFFFFFFFFFFF,warnMask=0x0000000000000000,errorMask=0x0000000000000000,capTotalPf=[18.692341,18.693266,...]`
+`MATRIXFDC_CAP,seq=12,timestampUs=345678901,partial=0,frameQuality=full,capValidMask=0xFFFFFFFFFFFFFFFF,freshMask=0xFFFFFFFFFFFFFFFF,warnMask=0x0000000000000000,errorMask=0x0000000000000000,invalidSentinel=-1.000000,capTotalPf=[18.692341,18.693266,...]`
 
 Raw FDC2214 codes are emitted only as a separate debug line:
 
@@ -91,7 +91,7 @@ Raw FDC2214 codes are emitted only as a separate debug line:
 
 Binary output is not enabled by default. `sensorarrayFastSpeedIsEnabled()` currently defaults false; the binary sender is reserved and returns `ESP_ERR_NOT_SUPPORTED` until an explicit host fast-speed/binary command path is added.
 
-`MATRIXFDC_CAP` remains the normal periodic output, even for degraded frames. If every cell is invalid, the firmware still emits the row-major frame with zeroed invalid `capTotalPf` entries and also emits `MATRIXFDC_DIAG` so host tools can distinguish no-oscillation or status-invalid frames from normal data.
+`MATRIXFDC_CAP` remains the normal periodic output, even for degraded frames. Invalid cells always use `capTotalPf=-1.000000`, `capValidMask` bit 0, and `errorMask` bit 1. Host tools must treat `-1.000000` as an invalid sentinel, not a physical capacitance value; it must be excluded from heatmap autoscale, statistics, filters, and trend calculations. If every cell is invalid, the firmware still emits the row-major frame with sentinel-filled invalid entries and also emits `MATRIXFDC_DIAG` so host tools can distinguish no-oscillation or status-invalid frames from normal data.
 
 ## FDC boot and rescue
 
