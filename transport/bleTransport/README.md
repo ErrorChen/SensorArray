@@ -1,23 +1,13 @@
-# bleTransport / BLE ´«Êä²ã£¨Õ¼Î»£©
+# bleTransport / BLE ä¼ è¾“å ä½å±‚
 
-## 1) Scope / Ä£¿é·¶Î§
+## ä¸­æ–‡è¯´æ˜
 
-**ÖĞÎÄ**
+`transport/bleTransport` å½“å‰æ˜¯å ä½æ¨¡å—ã€‚`bleTransport.h` è¿˜æ²¡æœ‰ stable public APIï¼Œ`bleTransport.c` åªä¿ç•™å®ç°å ä½å¹¶æ˜ç¡®ä¸å®šä¹‰ `app_main()`ã€‚
 
-`bleTransport` Ô¤Áô¸ø BLE Í¨µÀµÄ´«ÊäÊµÏÖ£¨Á¬½Ó¹ÜÀí¡¢·Ö°ü·¢ËÍ¡¢ÍÌÍÂ¿ØÖÆ£©£¬µ±Ç°ÈÔÊÇÕ¼Î»¡£
+é¢„æœŸèŒè´£æ˜¯ BLE connectionã€MTU åˆ†ç‰‡ã€notification pacing å’Œ reconnect policyã€‚å½“å‰é»˜è®¤ SensorArray frame è¾“å‡ºä»æ˜¯ `main/output` çš„ printf textï¼Œä¸ç»è¿‡ BLE transportã€‚
 
-**English**
+## Australian English Documentation
 
-`bleTransport` is reserved for BLE transport implementation (connection handling, chunked send, throughput control), and is currently a placeholder.
+`transport/bleTransport` is currently a placeholder. `bleTransport.h` has no stable public API yet, and `bleTransport.c` only keeps an implementation placeholder and explicitly does not define `app_main()`.
 
-## 2) Planned Responsibility / ¹æ»®Ö°Ôğ
-
-- ³ĞÔØ `protocolWire` »ò `protocolUsb` payload¡£
-- ´¦Àí BLE MTU¡¢Í¨Öª½Ú×à¡¢ÖØÁ¬²ßÂÔ¡£
-
-- Carry `protocolWire` or `protocolUsb` payload.
-- Handle BLE MTU, notification pacing, and reconnect policy.
-
-## 3) Current Status / µ±Ç°×´Ì¬
-
-- Placeholder only (`bleTransport.c/.h` stubs).
+The intended role is BLE connection handling, MTU chunking, notification pacing, and reconnect policy. Current SensorArray frame output defaults to printf text from `main/output`, not BLE transport.

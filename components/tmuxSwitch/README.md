@@ -1,259 +1,92 @@
-# tmuxSwitch / TMUX GPIO Control Layer
+# tmuxSwitch / TMUX GPIO Control Primitive Layer
 
----
+## ç›®å½• / Table of contents
 
-## ÖÐÎÄËµÃ÷
+- [ä¸­æ–‡è¯´æ˜Ž / Chinese documentation](#ä¸­æ–‡è¯´æ˜Ž--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
+- [Kconfig](#kconfig)
 
-### ¸ÅÊö
+## ä¸­æ–‡è¯´æ˜Ž / Chinese documentation
 
-`tmuxSwitch` Ìá¹© **GPIO ¼¶±ðµÄ TMUX ¿ª¹Ø¿ØÖÆ**£¬Í³Ò»ÁË TMUX1108£¨ÐÐ/Ô´Ñ¡ÔñÆ÷£©ºÍ TMUX1134£¨Ä£ÄâÇ°¶ËÇÐ»»Æ÷£©µÄ½Ó¿Ú¡£
+### èŒè´£
 
-**ºËÐÄÌØÐÔ£º´¿ GPIO Çý¶¯£¬²»ÖªµÀ S/D Ó³Éä»òÒµÎñº¬Òå¡£Ëü½öÖªµÀÈçºÎÀ­/·Å GPIO Òý½Å¡£**
+`components/tmuxSwitch` æ˜¯ TMUX1108/TMUX1134 çš„ GPIO/control primitive layerã€‚å®ƒè´Ÿè´£åˆå§‹åŒ– GPIOã€é€‰æ‹© TMUX1108 row indexã€è®¾ç½® TMUX1108 SW sourceã€è®¾ç½® TMUX1134 SELA/SELB/EN é€»è¾‘ç”µå¹³ï¼Œå¹¶æä¾› MCU-side control/readback snapshotã€‚
 
-### Ö÷Òª½Ó¿Ú
+å®ƒä¸çŸ¥é“ï¼š
 
-```c
-// ³õÊ¼»¯
-esp_err_t tmuxSwitchInit(void);
-esp_err_t tmuxSwitchDeinit(void);
+- å“ªä¸ª row index åœ¨ä¸šåŠ¡ä¸Šå« S1/S2ã€‚
+- å“ªä¸ª SELA/SELB ç»„åˆåœ¨æ¿çº§è¯­ä¹‰ä¸Šæ˜¯ ADS æˆ– FDCã€‚
+- å“ªä¸ª D-line å±žäºŽ primary/secondary FDCã€‚
+- FDC frame å¦‚ä½•æž„å»ºã€‚
+- ä½•æ—¶éœ€è¦ rescue æˆ– sweepã€‚
 
-// TMUX1108 ÐÐÑ¡Ôñ (S1-S8)
-esp_err_t tmuxSwitchSelectRow(uint8_t row_index);  // row_index = 0..7 ¡ú S1..S8
+æ¿çº§å«ä¹‰ç”± `core/board/sensorarrayBoardMap.c` ç»™å‡ºï¼Œæµ‹é‡ç­–ç•¥ç”± `core/measure` ç»™å‡ºã€‚
 
-// TMUX1108 Ô´Ñ¡Ôñ
-esp_err_t tmuxSwitchSet1108Source(uint8_t source_level);
-// source_level: 0 = GND, 1 = VBIAS/¸ßµçÆ½
+### çœŸå®ž API
 
-// TMUX1134 SELA Âß¼­¿ØÖÆ
-esp_err_t tmux1134SelectSelALevel(bool high);
-// high = true ¡ú SELA = Âß¼­ 1 (FDC Â·ÓÉ)
-// high = false ¡ú SELA = Âß¼­ 0 (ADS Â·ÓÉ)
+| API | ä½œç”¨ |
+|---|---|
+| `tmuxSwitchInit()` | Configure TMUX GPIO and initial software-commanded state. |
+| `tmux1108SelectRow()`, `tmuxSwitchSelectRow()` | Select row index `0..7`. Measurement/board layers map this to S1..S8. |
+| `tmux1108GetRow()` | Return last software-commanded row index. |
+| `tmux1108SetSource()`, `tmuxSwitchSet1108Source()` | Select `TMUX1108_SOURCE_GND` or `TMUX1108_SOURCE_REF`. |
+| `tmux1108GetSource()` | Return last software-commanded SW source. |
+| `tmux1134SelectSelALevel()`, `tmux1134SelectSelBLevel()` | Drive raw SELA/SELB logic levels. |
+| `tmux1134SetEnLogicalState()`, `tmux1134GetEnLogicalState()` | Control/read logical EN state. |
+| `tmux1134SetSelAEnabled()`, `tmux1134SetSelBEnabled()` | Backward-compatible enabled wrappers using configured enabled levels. |
+| `tmux1134SetAllOff()`, `tmux1134SetAllOn()` | Convenience wrappers. |
+| `tmuxSwitchGetControlState()` | Capture last commanded state plus MCU GPIO observations. Observations do not prove analogue conduction. |
 
-// TMUX1134 SELB Âß¼­¿ØÖÆ
-esp_err_t tmux1134SelectSelBLevel(bool high);
+### çŠ¶æ€ç»“æž„
 
-// TMUX1134 EN (Ê¹ÄÜ) Âß¼­¿ØÖÆ
-esp_err_t tmux1134SetEnLogicalState(bool enabled);
+`tmuxSwitchControlState_t` contains:
 
-// ×´Ì¬¶ÁÈ¡
-esp_err_t tmuxSwitchGetControlState(tmuxControlState_t *state_out);
+- software-commanded state: `cmdRow`, `cmdSource`, `cmdSwLevel`, `cmdSelaLevel`, `cmdSelbLevel`, `cmdTmux1134EnLogicalOn`;
+- MCU-side observations: `obsA0Level`, `obsA1Level`, `obsA2Level`, `obsSwLevel`, `obsSelaLevel`, `obsSelbLevel`, `obsEnLevel`;
+- EN controllability and readback validity flags.
+
+### å±‚çº§å…³ç³»
+
+```text
+core/board
+  defines SELA_ROUTE_ADS1263/FDC2214 -> raw GPIO level
+  defines board FDC SELB policy
+core/measure
+  decides route safety, settle delays, ADS/FDC mutual exclusion
+components/tmuxSwitch
+  only drives and observes GPIO-level control signals
 ```
 
-### ¹¤×÷Á÷³Ì
+## Australian English documentation
 
-```c
-// ³õÊ¼»¯
-tmuxSwitchInit();  // ÅäÖÃËùÓÐ GPIO£¬ÉèÖÃ³õÊ¼Ì¬
+### Responsibility
 
-// Ñ¡ÔñÐÐ£¨TMUX1108£©
-// ¶ÁÈ¡ S1D1..S1D8£¨S1 ÐÐ£©
-tmuxSwitchSelectRow(0);  // Ñ¡ÔñµÚÒ»ÐÐ
-vTaskDelay(pdMS_TO_TICKS(50));  // µÈ´ýÄ£ÄâÂ·¾¶ÎÈ¶¨
+`components/tmuxSwitch` is the GPIO/control primitive layer for TMUX1108 and TMUX1134. It initialises GPIO, selects a TMUX1108 row index, selects the TMUX1108 SW source, drives TMUX1134 SELA/SELB/EN logic levels, and captures MCU-side control/readback snapshots.
 
-// ÉÔºó£¬¶ÁÈ¡ S2 ÐÐ
-tmuxSwitchSelectRow(1);  // Ñ¡ÔñµÚ¶þÐÐ
-vTaskDelay(pdMS_TO_TICKS(50));
+It does not know business row names, ADS/FDC route meaning, D-line ownership, FDC frame building, or rescue policy. Board meaning comes from `core/board/sensorarrayBoardMap.c`; measurement policy comes from `core/measure`.
 
-// Ñ¡ÔñÇ°¶Ë£¨TMUX1134£©
-// ÔÚ FDC ¶ÁÈ¡Ä£Ê½ÖÐ
-tmux1134SelectSelALevel(true);  // SELA ¡ú FDC Â·ÓÉ
-tmux1134SelectSelBLevel(false); // SELB ¡ú OFF
-tmux1134SetEnLogicalState(true);// EN ¡ú Ê¹ÄÜ
+### API groups
 
-// ÔÚ ADS ¶ÁÈ¡Ä£Ê½ÖÐ£¨Î´À´£©
-tmux1134SelectSelALevel(false); // SELA ¡ú ADS Â·ÓÉ
+- Initialisation: `tmuxSwitchInit()`.
+- TMUX1108 row/source: `tmux1108SelectRow()`, `tmuxSwitchSelectRow()`, `tmux1108SetSource()`, `tmuxSwitchSet1108Source()`.
+- TMUX1134 raw logic levels: `tmux1134SelectSelALevel()`, `tmux1134SelectSelBLevel()`, `tmux1134SetEnLogicalState()`.
+- Compatibility wrappers: `tmux1134SetSelAEnabled()`, `tmux1134SetSelBEnabled()`, `tmux1134SetAllOff()`, `tmux1134SetAllOn()`.
+- Diagnostics: `tmuxSwitchGetControlState()`.
 
-// ¶ÁÈ¡µ±Ç°×´Ì¬£¨Õï¶ÏÓÃ£©
-tmuxControlState_t state = {0};
-tmuxSwitchGetControlState(&state);
-printf("Row:%u, SelA:%u, SelB:%u, EN:%u\n",
-       state.current_row, state.sela_level, state.selb_level, state.en_level);
+GPIO observations are MCU pin observations only. They are useful diagnostics but do not prove the external analogue path is conducting correctly.
 
-// ÇåÀí
-tmuxSwitchDeinit();
-```
+## Kconfig
 
-### GPIO Ó³Éä
-
-µäÐÍµÄ GPIO ÅäÖÃ£¨¿ÉÔÚ Kconfig ÖÐÐÞ¸Ä£©£º
-
-```
-TMUX1108 (ÐÐ/Ô´Ñ¡Ôñ):
-  S0   ¡ú GPIO X
-  S1   ¡ú GPIO Y
-  S2   ¡ú GPIO Z
-  (3 Î»µØÖ·Ïß, ¶ÔÓ¦ 8 ÐÐ)
-  SW   ¡ú GPIO A
-  (1 Î»Ô´Ñ¡Ôñ)
-
-TMUX1134 (Ç°¶ËÇÐ»»):
-  SELA ¡ú GPIO B
-  SELB ¡ú GPIO C
-  EN   ¡ú GPIO D
-```
-
-### Éè¼Æ±ß½ç
-
-**tmuxSwitch ÖªµÀ£º**
-- GPIO Òý½ÅºÅ
-- Âß¼­µçÆ½µÄÎïÀí±íÊ¾
-- TMUX µØÖ·±àÂë
-
-**tmuxSwitch ²»ÖªµÀ£º**
-- ÄÄ¸öÐÐÊÇ S1¡¢S2 µÈ£¨ÒµÎñ²ã¶¨Òå£©
-- ÄÄ¸öÇ°¶ËÅäÖÃ¶ÔÓ¦ FDC vs ADS£¨ÒµÎñ²ã¶¨Òå£©
-- Ä£ÄâÂ·¾¶µÄÉúÐ§Ê±¼ä£¨ÒµÎñ²ã¶¨Òå£©
-- ¾ÈÔ®²ßÂÔ»òÐÐÇÐ»»Ë³Ðò£¨ÒµÎñ²ã¶¨Òå£©
-
-### ·Ö²ãÊ¾Àý
-
-```
-Ó¦ÓÃ²ã (core/measure/fdc)
-  ©À©¤ ÖªµÀ S1 ÐÐ¶ÔÓ¦ TMUX ÐÐ 0
-  ©À©¤ ÖªµÀ D1-D4 ¶ÔÓ¦ Primary FDC
-  ©À©¤ µ÷ÓÃ tmuxSwitchSelectRow(0)
-  ©¸©¤ µÈ´ý¶¨Ê±ºó½øÐÐ I2C ¶ÁÈ¡
-       ¡ý
-TMUX Çý¶¯ (tmuxSwitch)
-  ©À©¤ ²»ÖªµÀ "S1" µÄº¬Òå
-  ©À©¤ Ö»ÖªµÀ "row_index=0" ¡ú GPIO addr = 0b000
-  ©À©¤ À­µÍ S0/S1/S2 GPIO
-  ©¸©¤ ·µ»Ø³É¹¦
-```
-
-### µ±Ç°×´Ì¬
-
-- ? TMUX1108 ÐÐÑ¡Ôñ (8 ÐÐ)
-- ? TMUX1108 Ô´Ñ¡Ôñ (GND / VBIAS)
-- ? TMUX1134 SELA/SELB/EN ¿ØÖÆ
-- ? ×´Ì¬¶ÁÈ¡ÓëÕï¶Ï
-- ? GPIO ÖÐ¶Ï±£»¤£¨¿ÉÑ¡£©
-
----
-
-## Australian English Documentation
-
-### Overview
-
-`tmuxSwitch` provides **GPIO-level TMUX switch control**, unifying TMUX1108 (row/source selector) and TMUX1134 (analogue front-end switcher) interfaces.
-
-**Core principle: pure GPIO driver, unaware of S/D mapping or business semantics. It only knows how to pull/release GPIO pins.**
-
-### Main APIs
-
-```c
-// Initialisation
-esp_err_t tmuxSwitchInit(void);
-esp_err_t tmuxSwitchDeinit(void);
-
-// TMUX1108 row selection (S1-S8)
-esp_err_t tmuxSwitchSelectRow(uint8_t row_index);  // row_index = 0..7 ¡ú S1..S8
-
-// TMUX1108 source selection
-esp_err_t tmuxSwitchSet1108Source(uint8_t source_level);
-// source_level: 0 = GND, 1 = VBIAS/high
-
-// TMUX1134 SELA logic control
-esp_err_t tmux1134SelectSelALevel(bool high);
-// high = true ¡ú SELA = logic 1 (FDC routed)
-// high = false ¡ú SELA = logic 0 (ADS routed)
-
-// TMUX1134 SELB logic control
-esp_err_t tmux1134SelectSelBLevel(bool high);
-
-// TMUX1134 EN (enable) logic control
-esp_err_t tmux1134SetEnLogicalState(bool enabled);
-
-// State readback
-esp_err_t tmuxSwitchGetControlState(tmuxControlState_t *state_out);
-```
-
-### Workflow
-
-```c
-// Initialisation
-tmuxSwitchInit();  // Configure all GPIO, set initial states
-
-// Select row (TMUX1108)
-// Read S1D1..S1D8 (S1 row)
-tmuxSwitchSelectRow(0);  // Select first row
-vTaskDelay(pdMS_TO_TICKS(50));  // Wait for analogue path stabilisation
-
-// Later, read S2 row
-tmuxSwitchSelectRow(1);  // Select second row
-vTaskDelay(pdMS_TO_TICKS(50));
-
-// Select front-end (TMUX1134)
-// In FDC readout mode
-tmux1134SelectSelALevel(true);   // SELA ¡ú FDC routed
-tmux1134SelectSelBLevel(false);  // SELB ¡ú OFF
-tmux1134SetEnLogicalState(true); // EN ¡ú enabled
-
-// In ADS readout mode (future)
-tmux1134SelectSelALevel(false); // SELA ¡ú ADS routed
-
-// Read current state (diagnostics)
-tmuxControlState_t state = {0};
-tmuxSwitchGetControlState(&state);
-printf("Row:%u, SelA:%u, SelB:%u, EN:%u\n",
-       state.current_row, state.sela_level, state.selb_level, state.en_level);
-
-// Cleanup
-tmuxSwitchDeinit();
-```
-
-### GPIO mapping
-
-Typical GPIO configuration (modifiable via Kconfig):
-
-```
-TMUX1108 (row/source selection):
-  S0   ¡ú GPIO X
-  S1   ¡ú GPIO Y
-  S2   ¡ú GPIO Z
-  (3-bit address lines, mapping to 8 rows)
-  SW   ¡ú GPIO A
-  (1-bit source selection)
-
-TMUX1134 (front-end switching):
-  SELA ¡ú GPIO B
-  SELB ¡ú GPIO C
-  EN   ¡ú GPIO D
-```
-
-### Design boundary
-
-**tmuxSwitch knows:**
-- GPIO pin numbers
-- Physical representation of logic levels
-- TMUX address encoding
-
-**tmuxSwitch does NOT know:**
-- Which row is S1, S2, etc. (application-defined)
-- Which front-end config maps to FDC vs ADS (application-defined)
-- Analogue path settling time (application-defined)
-- Rescue strategy or row-switch sequence (application-defined)
-
-### Layering example
-
-```
-Application layer (core/measure/fdc)
-  ©À©¤ Knows S1 row maps to TMUX row 0
-  ©À©¤ Knows D1-D4 map to Primary FDC
-  ©À©¤ Calls tmuxSwitchSelectRow(0)
-  ©¸©¤ Waits per timing, then performs I2C reads
-       ¡ý
-TMUX driver (tmuxSwitch)
-  ©À©¤ Does not know meaning of "S1"
-  ©À©¤ Only knows "row_index=0" ¡ú GPIO addr = 0b000
-  ©À©¤ Pulls S0/S1/S2 GPIO low
-  ©¸©¤ Returns success
-```
-
-### Current status
-
-- ? TMUX1108 row selection (8 rows)
-- ? TMUX1108 source selection (GND / VBIAS)
-- ? TMUX1134 SELA/SELB/EN control
-- ? State readback and diagnostics
-- ? GPIO interrupt protection (optional)
+| Option | Default | Notes |
+|---|---:|---|
+| `CONFIG_TMUX1108_A0_GPIO`, `CONFIG_TMUX1108_A1_GPIO`, `CONFIG_TMUX1108_A2_GPIO` | `4`, `5`, `6` | TMUX1108 address pins. |
+| `CONFIG_TMUX1108_SW_GPIO` | `7` | TMUX1108 SW source select pin. |
+| `CONFIG_TMUX1108_SW_REF_LEVEL` | n | Defines which physical SW level selects REF. |
+| `CONFIG_TMUX1108_DEFAULT_SOURCE` | `0` | Default source, `0=GND`, `1=REF`. |
+| `CONFIG_TMUX1108_SWITCH_ROW_SAFE_MODE` | y | Optional safe row-switch policy in the primitive layer. |
+| `CONFIG_TMUX1108_SAFE_SOURCE` | `0` | Safe source when safe mode is enabled. |
+| `CONFIG_TMUX1108_SWITCH_DELAY_US` | `0` | Primitive switch delay. Measurement layer has separate FDC row settle timing. |
+| `CONFIG_TMUX1134_SEL1_GPIO`, `CONFIG_TMUX1134_SEL2_GPIO`, `CONFIG_TMUX1134_SEL3_GPIO`, `CONFIG_TMUX1134_SEL4_GPIO` | `1`, `2`, `-1`, `-1` | TMUX1134 SEL GPIOs. SEL1 is SELA, SEL2 is SELB. |
+| `CONFIG_TMUX1134_EN_GPIO` | `-1` | EN GPIO, or tied off when `-1`. |
+| `CONFIG_TMUX1134_DEFAULT_ALL_OFF`, `CONFIG_TMUX1134_DEFAULT_SELA_ENABLED`, `CONFIG_TMUX1134_DEFAULT_SELB_ENABLED` | n, n, n | Primitive default state options. |
+| `CONFIG_TMUX1134_SELA_ENABLED_LEVEL`, `CONFIG_TMUX1134_SELB_ENABLED_LEVEL`, `CONFIG_TMUX1134_EN_OFF_LEVEL` | `1`, `1`, `0` | Compatibility wrapper levels. Board route meaning is still defined in `core/board`. |

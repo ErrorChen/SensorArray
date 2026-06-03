@@ -1,285 +1,95 @@
-# ads126xAdc / ADS126x SPI Driver
+# ads126xAdc / ADS126x Chip-level SPI Driver
 
----
+## ç›®å½• / Table of contents
 
-## ÖĞÎÄËµÃ÷
+- [ä¸­æ–‡è¯´æ˜ / Chinese documentation](#ä¸­æ–‡è¯´æ˜--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
+- [Kconfig](#kconfig)
 
-### ¸ÅÊö
+## ä¸­æ–‡è¯´æ˜ / Chinese documentation
 
-`ads126xAdc` ÊÇ **Ğ¾Æ¬¼¶ SPI Çı¶¯**£¬Ö§³Ö ADS1262 ºÍ ADS1263 ¾«ÃÜ ADC£¬´¦Àí¼Ä´æÆ÷·ÃÎÊ¡¢×ª»»¿ØÖÆ¡¢Ñù±¾¶ÁÈ¡ºÍµ¥Î»×ª»»¡£
+### èŒè´£
 
-**ºËĞÄÌØĞÔ£º²»ÖªµÀ D-line¡¢Ä£ÄâÂ·ÓÉ»òÓ¦ÓÃ²ßÂÔ¡£Ëü½öÖªµÀÈçºÎÓëĞ¾Æ¬Í¨ĞÅ¡£**
+`components/ads126xAdc` æ˜¯ ADS1262/ADS1263 èŠ¯ç‰‡çº§ SPI driverã€‚å®ƒè´Ÿè´£ SPI register read/writeã€ADC1/ADC2 conversion controlã€input muxã€reference muxã€POWER register policyã€DRDY waitã€raw ADC read å’Œ raw-to-microvolts conversionã€‚
 
-### Ö÷Òª½Ó¿Ú
+å®ƒä¸çŸ¥é“ï¼š
 
-```c
-// ÉúÃüÖÜÆÚ
-ads126xAdcHandle_t adc = {0};
-ads126xAdcConfig_t cfg = { ... };
-ads126xAdcInit(&adc, &cfg);              // ³õÊ¼»¯ ADC ÉÏÏÂÎÄ
-ads126xAdcDeinit(&adc);                  // ·´³õÊ¼»¯
+- D1-D8 D-line çš„æ¿çº§æ„ä¹‰ã€‚
+- SELA/SELB/SW è·¯ç”±å«ä¹‰ã€‚
+- ä»€ä¹ˆæ—¶å€™ä¸ºäº† FDC mode å…³é—­ ADSã€‚
+- FDC matrix scan/rescue ç­–ç•¥ã€‚
+- SensorArray 64-cell frame æ ¼å¼ã€‚
 
-// ÅäÖÃ
-ads126xAdcConfigure(&adc, true, false, ADS126X_CRC_OFF, 1, 0);
-ads126xAdcSetInputMux(&adc, muxp, muxn); // ÊäÈë¶àÂ·Ñ¡Ôñ
-ads126xAdcSetRefMux(&adc, ref_sel);      // ²Î¿¼µçÑ¹¶àÂ·Ñ¡Ôñ
+FDC matrix mode ä¸‹å…³é—­ ADS conversionã€internal reference å’Œ VBIAS æ˜¯ measurement-layer policyï¼Œä¸æ˜¯ ADS driver è‡ªå·±å†³å®šã€‚
 
-// ×ª»»¿ØÖÆ
-ads126xAdcStartAdc1(&adc);     // Æô¶¯ ADC1 ×ª»»
-ads126xAdcStopAdc1(&adc);      // Í£Ö¹ ADC1 ×ª»»
+### ä¸»è¦ç±»å‹
 
-// Êı¾İ¶ÁÈ¡
-int32_t raw = 0;
-ads126xAdcReadAdc1Raw(&adc, &raw, NULL); // ¶ÁÔ­Ê¼Öµ
-int32_t microvolt = ads126xAdcRawToMicrovolts(&adc, raw);
+| ç±»å‹ | ä½œç”¨ |
+|---|---|
+| `ads126xAdcConfig_t` | SPI handleã€DRDY/RESET GPIOã€device typeã€CRCã€status byteã€referenceã€PGA/data-rate defaultsã€‚ |
+| `ads126xAdcHandle_t` | Semi-opaque runtime handle with SPI buffers, mutex and chip settings. |
+| `ads126xDeviceType_t` | `ADS126X_DEVICE_AUTO`ã€`ADS126X_DEVICE_ADS1262`ã€`ADS126X_DEVICE_ADS1263`ã€‚ |
+| `ads126xCrcMode_t` | `ADS126X_CRC_OFF`ã€`ADS126X_CRC_CHECKSUM`ã€`ADS126X_CRC_CRC8`ã€‚ |
+
+### çœŸå® API
+
+| API | ä½œç”¨ |
+|---|---|
+| `ads126xAdcInit()`, `ads126xAdcDeinit()` | Initialise/deinitialise the handle. |
+| `ads126xAdcHardwareReset()`, `ads126xAdcSendCommand()` | Reset and command helpers. |
+| `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()` | Raw register block access. |
+| `ads126xAdcGetIdRaw()`, `ads126xAdcReadPowerRegister()`, `ads126xAdcWritePowerRegister()` | Identity and POWER register access. |
+| `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()` | Internal reference and VBIAS control. |
+| `ads126xAdcConfigure()` | Core ADC configuration. |
+| `ads126xAdcSetRefMux()`, `ads126xAdcSetInputMux()` | Reference and input mux selection. |
+| `ads126xAdcReadCoreRegisters()` | Diagnostic register snapshot. |
+| `ads126xAdcReadSingleDiffUv()` | One differential ADC1 read with mux/settle/discard/final conversion. |
+| `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()` | ADC1 conversion control and readout. |
+| `ads126xAdcRawToMicrovolts()` | Raw ADC code to microvolts. |
+| `ads126xAdcSelfOffsetCal()`, `ads126xAdcSelfGainCal()`, `ads126xAdcSystemOffsetCal()`, `ads126xAdcSystemGainCal()`, `ads126xAdcSelfCal()` | Calibration commands. |
+| `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()` | ADC2 APIs, useful on ADS1263; ADS1262 use may return not supported. |
+
+### FDC mode safety
+
+`sensorarrayMeasurePrepareFdcMatrixPath()` uses ADS driver APIs as part of FDC route safety:
+
+```text
+ads126xAdcStopAdc1()
+ads126xAdcStopAdc2() when ADS1263 support is compiled
+ads126xAdcApplyPowerPolicy() / related helpers to turn internal reference and VBIAS off
+ads126xAdcSetRefMux() in measurement-layer route policy where needed
 ```
 
-### ADS1263 µÄ ADC2 Ö§³Ö
+The driver exposes chip operations. The measurement layer decides when those operations are required.
 
-ÈôÊ¹ÓÃ ADS1263 ÇÒĞèÒª ADC2£¨ÎÂ¶È´«¸ĞÆ÷¡¢ÄÚ²¿»ù×¼µÈ£©£º
+## Australian English documentation
 
-```c
-ads126xAdcStartAdc2(&adc);
-int32_t raw2 = 0;
-ads126xAdcReadAdc2Raw(&adc, &raw2, NULL);
-```
+### Responsibility
 
-### ¹¤×÷Á÷³Ì
+`components/ads126xAdc` is the chip-level SPI driver for ADS1262/ADS1263. It owns SPI register access, conversion control, input and reference mux control, POWER register policy, DRDY waiting, raw reads, and raw-to-microvolts conversion.
 
-```c
-// SPI ×ÜÏß³õÊ¼»¯£¨ÓÉ boardSupport ¸ºÔğ£©
-SPI ÅäÖÃ£º
-  - Ê±ÖÓÆµÂÊ£ºÍ¨³£ 5-20 MHz
-  - Ä£Ê½£ºSPI mode 1 (CPOL=0, CPHA=1)
-  - ×Ö³¤£º8 bit
+It does not know D-line mapping, SELA/SELB/SW route meaning, when ADS must be disabled for FDC, FDC matrix scan strategy, or SensorArray frame layout.
 
-// ADC ³õÊ¼»¯
-ads126xAdcConfig_t cfg = {
-  .spi_ctx = spi_handle,
-  .cs_gpio = GPIO_NUM_XX,
-  .drdy_gpio = GPIO_NUM_XX,
-};
-ads126xAdcInit(&adc, &cfg);
+Turning ADS conversion, internal reference, and VBIAS off during FDC matrix mode is a measurement-layer policy, not an ADS driver policy.
 
-// ÅäÖÃ ADC1
-ads126xAdcConfigure(&adc,
-  true,               // ÆôÓÃ CRC
-  false,              // ½ûÓÃ DACDAC
-  ADS126X_CRC_16,    // CRC ÀàĞÍ
-  1,                 // ADC Ê±ÖÓ·ÖÆµÆ÷
-  0);                // ±£Áô
+### API groups
 
-// ÅäÖÃÊäÈë¶àÂ·
-// ADS1263: AIN0..AIN9, AINCOM
-ads126xAdcSetInputMux(&adc, AIN0, AINCOM); // AIN0 vs ¹«¹²
+- Lifecycle: `ads126xAdcInit()`, `ads126xAdcDeinit()`.
+- Register access: `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()`.
+- Power/reference: `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()`, `ads126xAdcSetRefMux()`.
+- Input selection: `ads126xAdcSetInputMux()`.
+- ADC1 conversion: `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()`, `ads126xAdcReadSingleDiffUv()`.
+- ADC2 conversion: `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()`.
+- Conversion helpers: `ads126xAdcRawToMicrovolts()`.
+- Calibration: self and system offset/gain calibration functions.
 
-// ÅäÖÃ²Î¿¼µçÑ¹
-// Ñ¡Ïî£ºVREF (Íâ²¿), AVDD/AVSS (µçÔ´), ÄÚ²¿»ù×¼µÈ
-ads126xAdcSetRefMux(&adc, ADS126X_VREF_EXT);
+## Kconfig
 
-// Æô¶¯×ª»»
-ads126xAdcStartAdc1(&adc);
-
-// µÈ´ı DRDY »òÂÖÑ¯
-vTaskDelay(pdMS_TO_TICKS(10));  // µäĞÍ×ª»»Ê±¼ä ~5 ms
-
-// ¶ÁÈ¡Ô­Ê¼Öµ
-int32_t raw_code = 0;
-ads126xAdcReadAdc1Raw(&adc, &raw_code, NULL);
-
-// ×ª»»ÎªÎ¢·ü
-int32_t microvolt = ads126xAdcRawToMicrovolts(&adc, raw_code);
-// ¼ÙÉè VREF = 2.5V: raw_code = 0x7FFFFF ¡ú 2.5V = 2500000 ?V
-
-// Í£Ö¹
-ads126xAdcStopAdc1(&adc);
-ads126xAdcDeinit(&adc);
-```
-
-### SPI ÊÂÎñ
-
-±¾Çı¶¯µÄ SPI Í¨ĞÅÓÉ `boardSupport` Ìá¹©µÄ»Øµ÷Íê³É¡£µ÷ÓÃÕß¸ºÔğ£º
-
-- SPI ×ÜÏß³õÊ¼»¯Óë¹ÜÀí
-- CS GPIO ¿ØÖÆ£¨¿ÉÑ¡£¬È¡¾öÓÚ SPI ×ÜÏßÅäÖÃ£©
-- DRDY GPIO ÖĞ¶Ï£¨¿ÉÑ¡£¬¿ÉÓÃÂÖÑ¯Ìæ´ú£©
-- ³¬Ê±Óë´íÎó´¦Àí
-
-### Óë FDC µÄ»¥³â¹ØÏµ
-
-**ÖØÒª**£ºÔÚ FDC ¾ØÕó¶ÁÈ¡Â·¾¶ÖĞ£¬ADS ±ØĞë£º
-
-```
-? ÄÚ²¿²Î¿¼¹Ø±Õ (REF_MUX)
-? VBIAS ¹Ø±Õ
-? ADC ×ª»»Í£Ö¹
-? ²»Ê¹ÓÃ²âÁ¿Â·¾¶ÖĞµÄÈÎºÎÄ£Äâ×ÊÔ´
-```
-
-ÕâÓÉ `core/measure/fdc` ÖĞµÄ `sensorarrayMeasurePrepareFdcMatrixPath()` Ç¿ÖÆÖ´ĞĞ¡£
-
-### Éè¼Æ±ß½ç
-
-**ads126xAdc ÖªµÀ£º**
-- ADS1262/ADS1263 ¼Ä´æÆ÷µØÖ·Óë×Ö¶Î
-- SPI ¶ÁĞ´ÊÂÎñ
-- ²Î¿¼µçÑ¹ÓëÊäÈë¶àÂ·ÅäÖÃ
-- Ô­Ê¼Âëµ½Î¢·ü×ª»»
-
-**ads126xAdc ²»ÖªµÀ£º**
-- D1..D8 D-line Ó³Éä
-- Ä£ÄâÂ·ÓÉ (SELA/SELB/SW)
-- ¾ØÕóÉ¨Ãè²ßÂÔ
-- ºÎÊ±Ó¦ÆôÓÃ/½ûÓÃ ADS
-- Óë FDC µÄ»¥³â¹æÔò
-
-### µ±Ç°Ö§³Ö
-
-- ? ADS1262 (µ¥ ADC)
-- ? ADS1263 (Ë« ADC + ÎÂ¶È´«¸ĞÆ÷)
-- ? Íâ²¿²Î¿¼ (VREF)
-- ? µçÔ´²Î¿¼ (AVDD/AVSS)
-- ? ÄÚ²¿»ù×¼
-- ? CRC Ğ£Ñé
-
----
-
-## Australian English Documentation
-
-### Overview
-
-`ads126xAdc` is a **chip-level SPI driver** for ADS1262 and ADS1263 precision ADCs, handling register access, conversion control, sample reads, and unit conversion.
-
-**Core principle: knows nothing about D-lines, analogue routing, or application strategy. It only knows how to communicate with the chip.**
-
-### Main APIs
-
-```c
-// Lifecycle
-ads126xAdcHandle_t adc = {0};
-ads126xAdcConfig_t cfg = { ... };
-ads126xAdcInit(&adc, &cfg);               // Initialise ADC context
-ads126xAdcDeinit(&adc);                   // Deinitialise
-
-// Configuration
-ads126xAdcConfigure(&adc, true, false, ADS126X_CRC_OFF, 1, 0);
-ads126xAdcSetInputMux(&adc, muxp, muxn); // Input multiplexing
-ads126xAdcSetRefMux(&adc, ref_sel);      // Reference multiplexing
-
-// Conversion control
-ads126xAdcStartAdc1(&adc);     // Start ADC1 conversion
-ads126xAdcStopAdc1(&adc);      // Stop ADC1 conversion
-
-// Data reads
-int32_t raw = 0;
-ads126xAdcReadAdc1Raw(&adc, &raw, NULL); // Read raw value
-int32_t microvolt = ads126xAdcRawToMicrovolts(&adc, raw);
-```
-
-### ADS1263 ADC2 support
-
-If using ADS1263 and need ADC2 (temperature sensor, internal reference, etc.):
-
-```c
-ads126xAdcStartAdc2(&adc);
-int32_t raw2 = 0;
-ads126xAdcReadAdc2Raw(&adc, &raw2, NULL);
-```
-
-### Workflow
-
-```c
-// SPI bus initialisation (handled by boardSupport)
-SPI configuration:
-  - Clock frequency: typically 5-20 MHz
-  - Mode: SPI mode 1 (CPOL=0, CPHA=1)
-  - Word length: 8 bit
-
-// ADC initialisation
-ads126xAdcConfig_t cfg = {
-  .spi_ctx = spi_handle,
-  .cs_gpio = GPIO_NUM_XX,
-  .drdy_gpio = GPIO_NUM_XX,
-};
-ads126xAdcInit(&adc, &cfg);
-
-// Configure ADC1
-ads126xAdcConfigure(&adc,
-  true,               // Enable CRC
-  false,              // Disable DACDAC
-  ADS126X_CRC_16,    // CRC type
-  1,                 // ADC clock divider
-  0);                // Reserved
-
-// Configure input mux
-// ADS1263: AIN0..AIN9, AINCOM
-ads126xAdcSetInputMux(&adc, AIN0, AINCOM); // AIN0 vs common
-
-// Configure reference
-// Options: VREF (external), AVDD/AVSS (supply), internal reference, etc.
-ads126xAdcSetRefMux(&adc, ADS126X_VREF_EXT);
-
-// Start conversion
-ads126xAdcStartAdc1(&adc);
-
-// Wait for DRDY or poll
-vTaskDelay(pdMS_TO_TICKS(10));  // Typical conversion time ~5 ms
-
-// Read raw value
-int32_t raw_code = 0;
-ads126xAdcReadAdc1Raw(&adc, &raw_code, NULL);
-
-// Convert to microvolts
-int32_t microvolt = ads126xAdcRawToMicrovolts(&adc, raw_code);
-// Example: VREF = 2.5V: raw_code = 0x7FFFFF ¡ú 2.5V = 2500000 ?V
-
-// Stop
-ads126xAdcStopAdc1(&adc);
-ads126xAdcDeinit(&adc);
-```
-
-### SPI transactions
-
-All SPI communication via callbacks provided by `boardSupport`. Caller responsible for:
-
-- SPI bus initialisation and management
-- CS GPIO control (optional, depends on SPI bus config)
-- DRDY GPIO interrupt (optional, can substitute polling)
-- Timeout and error handling
-
-### Mutual exclusion with FDC
-
-**Important**: During FDC matrix readout path, ADS must:
-
-```
-? Internal reference OFF (REF_MUX)
-? VBIAS OFF
-? ADC conversion stopped
-? No use of any analogue resources in measurement path
-```
-
-This is enforced by `sensorarrayMeasurePrepareFdcMatrixPath()` in `core/measure/fdc`.
-
-### Design boundary
-
-**ads126xAdc knows:**
-- ADS1262/ADS1263 register addresses and fields
-- SPI read/write transactions
-- Reference voltage and input mux configuration
-- Raw-to-microvolt conversion
-
-**ads126xAdc does NOT know:**
-- D1..D8 D-line mapping
-- Analogue routing (SELA/SELB/SW)
-- Matrix scan strategy
-- When to enable/disable ADS
-- Mutual exclusion rules with FDC
-
-### Current support
-
-- ? ADS1262 (single ADC)
-- ? ADS1263 (dual ADC + temperature sensor)
-- ? External reference (VREF)
-- ? Supply reference (AVDD/AVSS)
-- ? Internal reference
-- ? CRC checking
+| Option | Default | Notes |
+|---|---:|---|
+| `CONFIG_ADS126X_LOG_LEVEL` | `3` | Driver log level. |
+| `CONFIG_ADS126X_SPI_CLOCK_HZ` | `2000000` | SPI clock in Hz. |
+| `CONFIG_ADS126X_HAS_ADC2` | y | Builds ADC2 APIs. ADS1262 hardware does not provide ADC2. |
+| `CONFIG_ADS126X_HELPER_CREATE_SPI` | n | Optional helper SPI create/destroy functions for quick validation. |
+| `CONFIG_SENSORARRAY_SPI_USE_DMA` | y | Project SPI DMA option consumed by the ADS implementation. |
+| `CONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES` | `64` | SPI transfer buffer sizing. |

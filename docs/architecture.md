@@ -1,55 +1,38 @@
-# SensorArray Architecture
+# SensorArray architecture / SensorArray 架构
 
-## Layering
+## 中文说明
 
-- `main`: app lifecycle, initialization scheduling, diagnostic/safe idle, and frame output calls.
-- `core/measure`: measurement core and public frame/scan-plan APIs.
-- `core/measure/fdc`: FDC matrix readout, sweep/cache management, and rescue throttling.
-- `core/measure/ads`: ADS matrix readout entry points.
-- `core/measure/mixed`: mixed-row scheduling entry points.
-- `main/output`: text frame output and future protocol output adapters.
-- `components/*`: low-level chip drivers only.
-- `boardSupport`: board resource lifecycle, GPIO/SPI/I2C ownership, and guarded legacy I2C recovery.
+当前源码树采用分层结构：
 
-## FDC Flow
+| 层 | 路径 | 责任 |
+|---|---|---|
+| 应用层 | `main/main.c` | 初始化编排、boot sweep 调用、主循环、safe idle、诊断模式和 frame output 调用。 |
+| 输出层 | `main/output` | 当前 text frame output。 |
+| 板级映射 | `core/board` | S/D、SELA/SELB、ADS mux 和 FDC D-line ownership 的硬件语义。 |
+| 资源层 | `core/boardSupport` | I2C/SPI/GPIO resource lifecycle、FDC I2C callbacks 和 guarded I2C recovery。 |
+| 测量层 | `core/measure` | ADS/FDC route policy、FDC row epoch、frame build、sweep/cache/rescue。 |
+| 芯片驱动 | `components/*` | FDC2214 I2C、ADS126x SPI、TMUX GPIO primitives。 |
+| transport | `transport/*` | protocol/transport scaffolding；当前不是默认 frame output。 |
 
-`app_main` initializes runtime storage, board support, frontends, and scan plans.
-FDC work then flows through `sensorarrayFdcMatrixEngineRunBootSweep`,
-`sensorarrayFdcMatrixEngineReadFrame`, `sensorarrayMeasureReadFdcMatrixFrame`,
-FDC sweep/cache/rescue helpers, `fdc2214Cap`, and finally the `boardSupportI2c`
-transaction wrappers.
+关键边界：
 
-`main.c` does not call the FDC2214 low-level driver directly. `core/measure`
-does not install or delete I2C drivers. The FDC2214 driver does not know matrix
-rows, D-lines, or frame output.
+- `main` 不直接访问 FDC2214/ADS126x registers。
+- `components/fdc2214Cap` 不知道 rows、D-lines、TMUX route 或 rescue。
+- `components/ads126xAdc` 不决定 FDC mode 下 ADS 何时关闭。
+- `components/tmuxSwitch` 不知道 SELA/SELB 的板级业务含义。
+- `core/board` 是硬件语义真源。
+- `core/measure` 是测量策略真源。
 
-## ADS Flow
+## Australian English Documentation
 
-`app_main` initializes the ADS frontend through board bring-up. Runtime reads
-flow through `sensorarrayAdsMatrixEngineReadFrame`, ADS measurement helpers,
-`ads126xAdc`, and board-owned SPI/GPIO resources.
+The current source tree is layered:
 
-## FDC File Split Rule
+- `main/main.c`: application lifecycle, boot sweep call, main loop, safe idle, diagnostic mode, and frame output call.
+- `main/output`: current text frame output.
+- `core/board`: hardware meaning for S/D, SELA/SELB, ADS mux, and FDC D-line ownership.
+- `core/boardSupport`: I2C/SPI/GPIO resource lifecycle, FDC I2C callbacks, and guarded I2C recovery.
+- `core/measure`: ADS/FDC route policy, FDC row epoch, frame build, sweep/cache/rescue.
+- `components/*`: chip-level FDC2214 I2C, ADS126x SPI, and TMUX GPIO primitives.
+- `transport/*`: protocol/transport scaffolding, not the default frame output path.
 
-FDC code should stay in a few high-cohesion files:
-
-- `sensorarrayFdcMatrix.c/.h`: FDC matrix engine facade.
-- `sensorarrayFdcSweep.c/.h`: sweep/cache calibration and full-matrix rescue implementation.
-- `sensorarrayFdcRescue.c/.h`: runtime all-invalid rescue policy.
-
-Small helpers used by only one of those files should remain static or local
-include fragments. Add a new FDC file only for an independent state machine or a
-stable public API.
-
-## I2C Recovery
-
-`boardSupport` owns legacy I2C driver install/delete and all I2C transactions.
-Each bus has a mutex, installed/offline/recovering state, counters, and recovery
-cooldown. Plain NACKs are device-level failures and do not trigger driver
-delete/reinstall. Recovery is only attempted after `ESP_ERR_TIMEOUT` when SDA or
-SCL is confirmed stuck low.
-
-## Output
-
-Frame output reads a completed frame and prints host-compatible text. It must
-not mutate measurement state.
+The main rule is that board meaning belongs in `core/board`, measurement policy belongs in `core/measure`, and chip drivers stay unaware of matrix semantics.

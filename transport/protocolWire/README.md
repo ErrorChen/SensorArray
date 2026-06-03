@@ -1,48 +1,42 @@
-# protocolWire / 线协议帧
+# protocolWire / fixed-size wire payload
 
-## 1) Scope / 模块范围
+## 鐩綍 / Table of contents
 
-**中文**
+- [涓枃璇存槑 / Chinese documentation](#涓枃璇存槑--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
 
-`protocolWire` 负责固定长度 wire 帧（400 bytes）打包/解包相关辅助，适合作为上层传输（USB/BLE/UART）的 payload。
+## 涓枃璇存槑 / Chinese documentation
 
-**English**
+`transport/protocolWire` packs a fixed-size 64-point wire payload. It is transport-independent and does not know board routing, sampling policy or current text output.
 
-`protocolWire` packs helper structures into a fixed-size wire frame (400 bytes), suitable as payload for higher-level transports (USB/BLE/UART).
+Current frame fields:
 
-## 2) Frame Layout / 帧结构
+```text
+seq          2 bytes
+t0           4 bytes
+validMask    8 bytes
+warnMask     8 bytes
+errorMask    8 bytes
+offset[64]   128 bytes
+data[64]     256 bytes
+crc16        2 bytes
+total        416 bytes
+```
 
-- `seq` (2B)
-- `t0` (4B)
-- `validMask` (8B)
-- `offset[64]` (128B)
-- `data[64]` (256B)
-- `crc16` (2B)
+For FDC matrix frames, `data[]` carries integer `freqHz` values, not raw28.
 
-Total: `400 bytes`.
+Tag helpers use the upper 4 bits of each 32-bit data word:
 
-## 3) Tag Packing / 数据打标
+```text
+protocolWirePackTaggedU28(tag, payload28)
+protocolWireGetTag(value)
+protocolWireGetPayload(value)
+```
 
-高 4 bit 为 tag，低 28 bit 为 payload。
-Upper 4 bits are tag, lower 28 bits are payload.
+`protocolWirePackFrame()` writes little-endian fields and appends CCITT-FALSE CRC16 when `CONFIG_PROTOCOL_ENABLE_CRC16` is enabled.
 
-Typical API:
-- `protocolWirePackTaggedU28`
-- `protocolWireGetTag`
-- `protocolWireGetPayload`
-- `protocolWirePackFrame`
+## Australian English documentation
 
-## 4) Boundary / 边界
+`transport/protocolWire` packs a fixed-size 64-point wire payload. It is independent of board routing, sampling policy, and current text output.
 
-**中文**
-
-- 该模块不关心板级路由、采样策略或设备拓扑。
-
-**English**
-
-- This module is independent from board routing, sampling policy, and hardware topology.
-
-## 5) Current Status / 当前状态
-
-- 已可用于固定帧打包。
-- 是否投入默认应用主链路由 app 层决定。
+The packed frame is `416` bytes in the current source tree and includes `validMask`, `warnMask`, `errorMask`, 64 offsets, 64 data words, and CRC16. It is not the default runtime output path; current firmware output is text `MATRIXFDC_*` lines.

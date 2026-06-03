@@ -1,41 +1,36 @@
-# protocolUsb / USB ·â×°Ğ­Òé
+# protocolUsb / USB byte-stream framing
 
-## 1) Scope / Ä£¿é·¶Î§
+## ç›®å½• / Table of contents
 
-**ÖĞÎÄ**
+- [ä¸­æ–‡è¯´æ˜ / Chinese documentation](#ä¸­æ–‡è¯´æ˜--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
 
-`protocolUsb` Ìá¹© USB ×Ö½ÚÁ÷ÓÑºÃµÄ·â×°£º
-`sync + len + crc + payload`£¬²¢Ìá¹©Á÷Ê½½âÎöÆ÷ÓÃÓÚÖØÍ¬²½¡£
+## ä¸­æ–‡è¯´æ˜ / Chinese documentation
 
-**English**
+`transport/protocolUsb` æä¾› USB/UART-like byte stream frame wrapper å’Œ parserã€‚å®ƒåªå¤„ç† byte framingï¼Œä¸è§£é‡Š SensorArray payload è¯­ä¹‰ã€‚
 
-`protocolUsb` wraps payloads for USB byte streams with:
-`sync + len + crc + payload`, and provides a stream parser with resynchronization.
+Frame layout:
 
-## 2) Frame Layout / Ö¡½á¹¹
+```text
+syncWord   2 bytes, little-endian, default 0xA55A
+frameLen   2 bytes, little-endian
+crc16      2 bytes, CCITT-FALSE over payload
+payload    frameLen bytes, max PROTOCOL_USB_MAX_PAYLOAD_BYTES
+```
 
-- `syncWord` (2B, default `0xA55A`)
-- `frameLen` (2B)
-- `frameCrc16` (2B)
-- `payload` (`frameLen` bytes)
+çœŸå® APIï¼š
 
-## 3) Main API / Ö÷Òª½Ó¿Ú
+| API | ä½œç”¨ |
+|---|---|
+| `protocolUsbBuildFrame()` | Build `[sync | len | crc16 | payload]`. Payload length must be non-zero and <= `512` unless max is overridden. |
+| `protocolUsbParserInit()` | Initialise parser and optional frame callback. |
+| `protocolUsbParserReset()` | Clear parser buffer and error counters. |
+| `protocolUsbParserFeed()` | Feed bytes, resynchronise on sync word, verify length/CRC, call callback and return parsed frame count. |
 
-- `protocolUsbBuildFrame`
-- `protocolUsbParserInit`
-- `protocolUsbParserFeed`
+Parser diagnostics are stored in `badCrcCount`, `badLenCount` and `dropCount`.
 
-## 4) Boundary / ±ß½ç
+## Australian English documentation
 
-**ÖĞÎÄ**
+`transport/protocolUsb` provides byte-stream framing and parsing for USB/UART-like transports. It handles framing only and does not interpret SensorArray payload semantics.
 
-- ±¾Ä£¿éÖ»´¦Àí USB ·â×°ÓëÁ÷½âÎö£¬²»Àí½âÒµÎñ payload ÓïÒå¡£
-
-**English**
-
-- This module only handles USB framing/parsing and does not interpret payload semantics.
-
-## 5) Current Status / µ±Ç°×´Ì¬
-
-- ¿ÉÓë `protocolWire` ×éºÏ¡£
-- Ä¬ÈÏ `main` Ó¦ÓÃÉĞÎ´½«Æä½ÓÈëÊµÊ±Êı¾İÁ÷¡£
+It is not the current default runtime output path. The default firmware frame output is printf text from `main/output`.

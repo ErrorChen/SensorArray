@@ -1,64 +1,43 @@
-# matrixEngine / æÿ’Û“˝«Ê
+# matrixEngine / Áü©ÈòµÂå∫Âüü I/O ÂºïÊìé
 
-## 1) Scope / ƒ£øÈ∑∂Œß
+## ÁõÆÂΩï / Table of contents
 
-**÷–Œƒ**
+- [‰∏≠ÊñáËØ¥Êòé / Chinese documentation](#‰∏≠ÊñáËØ¥Êòé--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
+- [Kconfig](#kconfig)
 
-`matrixEngine` Ã·π©Õ¨≤Ωæÿ–Œ«¯”Ú I/O£®READ/WRITE£©÷¥––øÚº‹£∫
-- µ˜”√––—°‘Òªÿµ˜
-- µ˜”√¡–◊È—°‘Òªÿµ˜
-- µ˜”√ ADS/FDC ∂¡ ˝
--  ‰≥ˆ row-major  ˝æ›
+## ‰∏≠ÊñáËØ¥Êòé / Chinese documentation
 
-À¸ «ø…∏¥”√“˝«Ê£¨≤ª”¶πÃªØƒ≥øÈ∞ÂµƒÕÍ’˚“µŒÒ¬∑”…≤ﬂ¬‘°£
+`core/matrixEngine` ÊòØ‰∏Ä‰∏™ÂèØÂ§çÁî®ÁöÑÂêåÊ≠•Áü©ÂΩ¢Âå∫Âüü I/O executor„ÄÇÂÆÉÂèØ‰ª•Âú® caller Êèê‰æõÈÖçÁΩÆÂêéÔºåÊåâ row-major È°∫Â∫èÊâßË°å voltage„ÄÅraw capacitance Êàñ resistance ËØªÂèñ„ÄÇÂΩìÂâç `main` ÈªòËÆ§ÁîüÂëΩÂë®ÊúüÊ≤°Êúâ‰ΩøÁî®ÂÆÉÔºõFDC production path ‰ΩøÁî® `core/measure/fdc` ÁöÑ row epoch ÂÆûÁé∞„ÄÇ
 
-**English**
+### API
 
-`matrixEngine` provides a synchronous rectangular region I/O executor (READ/WRITE):
-- row-select callback orchestration
-- column-group callback orchestration
-- ADS/FDC reads
-- row-major output
+| API | ‰ΩúÁî® |
+|---|---|
+| `matrixEngineInit(const matrixEngineConfig_t *cfg)` | ‰øùÂ≠òÈÖçÁΩÆÔºåÂÆâË£ÖÈªòËÆ§ row/column/drive callbacksÔºåÂàõÂª∫ mutex„ÄÇ |
+| `matrixEngineRegionIo(const matrixEngineRegion_t *region, const matrixEngineRequest_t *req, int32_t *outValues, size_t outCount)` | ÂØπÁü©ÂΩ¢Âå∫ÂüüÊâßË°å READ/WRITEÔºõREAD ËæìÂá∫ row-major values„ÄÇ |
+| `matrixEngineDeinit()` | Âà†Èô§ mutex Âπ∂Ê∏ÖÁ©∫ engine state„ÄÇ |
 
-It is reusable engine logic and should not hardcode a full board-specific business route strategy.
+### ËæπÁïå
 
-## 2) Default Behavior / ƒ¨»œ––Œ™
+- ÈªòËÆ§ row callback Ë∞ÉÁî® `tmuxSwitchSelectRow(row)`„ÄÇ
+- ÈªòËÆ§ column group callback Áî® TMUX1134 SELA/SELB enabled wrappers„ÄÇ
+- ÈªòËÆ§ ADS mux ÂÅáËÆæ `col0..col7 -> AIN0..AIN7` against AINCOM„ÄÇ
+- ÈªòËÆ§ FDC raw pathÊåâ 4-column bank Âíå `col % 4` ÈÄâÊã© FDC channel„ÄÇ
+- Canonical board map ‰ªçÂú® `core/board/sensorarrayBoardMap.c`ÔºõÂ¶ÇÊûúÈúÄË¶Å‰∏•Ê†ºÊùøÁ∫ßÊò†Â∞ÑÔºåÂ∫îÈÄöËøá `matrixEngineConfig_t` ÊòæÂºè‰º†ÂÖ• mapping/callback„ÄÇ
 
-µ±Œ¥Ã·π©◊‘∂®“Â”≥…‰/ªÿµ˜ ±£¨ƒ¨»œ––Œ™ «£∫
+## Australian English documentation
 
-- ––£∫`row 0..7` ∂‘”¶ TMUX1108 ––—°‘Ò°£
-- ¡–◊È£∫ƒ¨»œ 4 ¡–“ª◊È£®group0/group1£©°£
-- ADS ƒ¨»œ¡–”≥…‰£∫`col0..col7 -> AIN0..AIN7`£¨`MUXN=AINCOM`°£
-- FDC ƒ¨»œ£∫√ø 4 ¡–“ªø≈∆˜º˛£¨Õ®µ¿ `col % 4`°£
+`core/matrixEngine` is a reusable synchronous rectangular region I/O executor. After a caller provides configuration, it can perform voltage, raw capacitance, or resistance reads in row-major order. It is not the default `main` lifecycle path; the production FDC path uses the row epoch implementation in `core/measure/fdc`.
 
-When custom mappings/callbacks are not provided:
+Use this module as a generic engine only. Do not put board-specific route meaning or rescue policy into it.
 
-- Rows: `row 0..7` through TMUX1108 row selection.
-- Column group: default 4 columns per group.
-- ADS default mapping: `col0..col7 -> AIN0..AIN7`, `MUXN=AINCOM`.
-- FDC default: one device per 4-column bank, channel `col % 4`.
+## Kconfig
 
-## 3) Public API / ∂‘Õ‚Ω”ø⁄
-
-Header: `core/matrixEngine/include/matrixEngine.h`
-
-- `matrixEngineInit(const matrixEngineConfig_t *cfg)`
-- `matrixEngineRegionIo(const matrixEngineRegion_t *region, const matrixEngineRequest_t *req, int32_t *outValues, size_t outCount)`
-- `matrixEngineDeinit(void)`
-
-## 4) Boundary with App Layer / ”Î”¶”√≤„±ﬂΩÁ
-
-**÷–Œƒ**
-
-- `matrixEngine`  «ø…—°“˝«Ê£¨µ±«∞ƒ¨»œ `main` ”¶”√Œ¥Ω”»Î÷˜¡˜≥Ã°£
-- µ±«∞∞Â canonical mapping ”… `core/board/sensorarrayBoardMap.c` Œ¨ª§£ª»Ùƒ„“™”√ `matrixEngine` ¥¶¿ÌÕ¨“ª∞Â£¨«Î‘⁄ `matrixEngineConfig_t` ÷–œ‘ Ω¥´»Î“ª÷¬”≥…‰°£
-
-**English**
-
-- `matrixEngine` is optional and not currently the default app execution path.
-- Canonical board mapping is maintained in `core/board/sensorarrayBoardMap.c`; pass explicit tables in `matrixEngineConfig_t` if you need strict alignment.
-
-## 5) Current Status / µ±«∞◊¥Ã¨
-
-- Core API is usable.
-- Recommended next step: integrate with transport pipeline and task scheduling when production scan flow is defined.
+| Option | Default | Notes |
+|---|---:|---|
+| `CONFIG_MATRIX_ROWS`, `CONFIG_MATRIX_COLS` | derive from SensorArray defaults | Region validation limits. |
+| `CONFIG_MATRIX_FRAME_PERIOD_MS` | `CONFIG_SENSORARRAY_FRAME_PERIOD_MS` | Generic matrix setting, not current FDC production timing. |
+| `CONFIG_MATRIX_OVERSAMPLE` | `CONFIG_SENSORARRAY_OVERSAMPLE` | Default oversample when config does not set `oversample`. |
+| `CONFIG_MATRIX_USE_RINGBUFFER` | y | Reserved/shared matrix transport option. |
+| `CONFIG_MATRIX_SCAN_TASK_*`, `CONFIG_MATRIX_COMM_TASK_*` | derive from SensorArray task defaults | Scheduling defaults for future integration. |

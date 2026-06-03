@@ -1,23 +1,13 @@
-# transportWire / ÓĞÏß´«Êä²ã£¨Õ¼Î»£©
+# transportWire / wired transport placeholder
 
-## 1) Scope / Ä£¿é·¶Î§
+## ä¸­æ–‡è¯´æ˜
 
-**ÖĞÎÄ**
+`transport/transportWire` å½“å‰æ˜¯æœ‰çº¿ä¼ è¾“å ä½æ¨¡å—ã€‚`transportWire.h` è¿˜æ²¡æœ‰ stable public APIï¼Œ`transportWire.c` åªä¿ç•™å®ç°å ä½å¹¶æ˜ç¡®ä¸å®šä¹‰ `app_main()`ã€‚
 
-`transportWire` Ô¤Áô¸øÓĞÏß´«ÊäÊµÏÖ£¨UART/USB-CDC µÈ£©Óë·¢ËÍ¶ÓÁĞ²ßÂÔ£¬Ä¿Ç°ÈÔÊÇÕ¼Î»¡£
+é¢„æœŸèŒè´£æ˜¯ UART/USB-CDC port writesã€TX queue/backpressure å’Œ recoveryï¼Œå¹¶å¯èƒ½æ‰¿è½½ `protocolWire` æˆ– `protocolUsb` payloadã€‚å½“å‰é»˜è®¤ SensorArray frame è¾“å‡ºä¸ç»è¿‡è¯¥æ¨¡å—ã€‚
 
-**English**
+## Australian English Documentation
 
-`transportWire` is reserved for wired transport implementation (UART/USB-CDC etc.) and TX queue policy, currently a placeholder.
+`transport/transportWire` is currently a wired-transport placeholder. `transportWire.h` has no stable public API yet, and `transportWire.c` only keeps an implementation placeholder and explicitly does not define `app_main()`.
 
-## 2) Planned Responsibility / ¹æ»®Ö°Ôğ
-
-- ¶Ô½Ó `protocolWire` / `protocolUsb` Êä³ö¡£
-- ´¦Àí¶Ë¿ÚĞ´Èë¡¢±³Ñ¹Óë´íÎó»Ö¸´¡£
-
-- Bridge `protocolWire` / `protocolUsb` outputs.
-- Handle port writes, backpressure, and recovery.
-
-## 3) Current Status / µ±Ç°×´Ì¬
-
-- Placeholder only (`transportWire.c/.h` stubs).
+The intended role is UART/USB-CDC port writing, TX queue/backpressure, and recovery, potentially carrying `protocolWire` or `protocolUsb` payloads. Current SensorArray frame output does not use this module.

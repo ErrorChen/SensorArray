@@ -1,211 +1,121 @@
-﻿# fdc2214Cap / FDC2214 Generic Driver
+# fdc2214Cap / FDC2214 Chip-level I2C Driver
 
----
+## 目录 / Table of contents
 
-## 中文说明
+- [中文说明 / Chinese documentation](#中文说明--chinese-documentation)
+- [Australian English documentation](#australian-english-documentation)
+- [Kconfig](#kconfig)
 
-### 概述
+## 中文说明 / Chinese documentation
 
-`fdc2214Cap` 是 **芯片级 I2C 驱动**，专门处理 FDC2214/FDC2212 电容感应芯片的寄存器访问和样本读取。
+### 职责
 
-**核心特性：不知道矩阵、行、D-line、TMUX 路由或救援策略。它仅知道如何与芯片通信。**
+`components/fdc2214Cap` 是 FDC2214/FDC2212 芯片级 I2C driver。它只知道寄存器、I2C 事务、设备 handle、通道配置、autoscan/single-channel mode、STATUS 解码和 raw28 读取。
 
-### 主要接口
+它不知道：
+
+- S1-S8 行。
+- D1-D8 的板级意义。
+- primary/secondary FDC 对应哪些 D-line。
+- TMUX1108/TMUX1134 路由。
+- ADS/FDC 互斥。
+- row epoch、boot sweep、rescue 策略。
+- 64-cell frame 格式。
+- `raw28 -> freqHz -> capTotalPf` 的矩阵级换算策略。
+
+这些属于 `core/board` 和 `core/measure`。
+
+### 主要类型
+
+| 类型 | 作用 |
+|---|---|
+| `Fdc2214CapDevice_t` | opaque device handle。 |
+| `Fdc2214CapBusConfig_t` | I2C address、user context、write/read callback、INT GPIO metadata。 |
+| `Fdc2214CapChannel_t` | `FDC2214_CH0` 到 `FDC2214_CH3`。 |
+| `Fdc2214CapChannelConfig_t` | `Rcount`、`SettleCount`、`Offset`、`ClockDividers`、`DriveCurrent`。 |
+| `Fdc2214CapConfigOptions_t` | CONFIG register builder input。 |
+| `Fdc2214CapStatus_t` | Decoded STATUS fields including DRDY, unread conversion and error flags。 |
+| `Fdc2214CapSample_t` | Single-channel raw28 sample with decoded status/config context。 |
+| `Fdc2214CapFastChannelSample_t` | Fast autoscan channel sample used by matrix path。 |
+| `Fdc2214CapI2cStats_t` | Driver I2C counters and timing. |
+
+### 真实 API
+
+| API | 作用 |
+|---|---|
+| `Fdc2214CapCreate()`, `Fdc2214CapDestroy()` | Create/destroy device handle and mutex. |
+| `Fdc2214CapReset()`, `Fdc2214CapReadId()` | Reset chip and read manufacturer/device IDs. |
+| `Fdc2214CapConfigureChannel()`, `Fdc2214CapConfigureChannelWriteOnly()`, `Fdc2214CapConfigureChannelWithResult()` | Write channel registers; variants trade readback/detail for runtime speed. |
+| `Fdc2214CapReadbackVerifyChannelConfig()`, `Fdc2214CapReadbackVerifyChannelConfigWithResult()` | Verify channel register configuration. |
+| `Fdc2214CapBuildConfig()`, `Fdc2214CapEnterSleep()`, `Fdc2214CapExitSleep()` | Build CONFIG and explicitly enter/exit sleep mode. |
+| `Fdc2214CapDecodeStatusRaw()`, `Fdc2214CapReadStatus()`, `Fdc2214CapClearStatus()` | STATUS decode, read and clear helpers. |
+| `Fdc2214CapReadCoreRegs()`, `Fdc2214CapReadDebugSnapshot()` | Diagnostic register snapshots. |
+| `Fdc2214CapSetSingleChannelMode()`, `Fdc2214CapSetAutoScanMode()`, `Fdc2214CapSetAutoScanModeWriteOnly()` | Configure conversion mode. |
+| `Fdc2214CapReadSample()`, `Fdc2214CapReadSampleRelaxed()`, `Fdc2214CapReadChannelRawWithStatus()` | Single-channel raw sample reads. |
+| `Fdc2214CapReadChannelsRaw()`, `Fdc2214CapReadAutoscan4RawFast()`, `Fdc2214CapReadChannelsDataRegsFast()` | Multi-channel/autoscan raw reads. |
+| `Fdc2214CapReadRawRegisters()`, `Fdc2214CapWriteRawRegisters()` | Raw 16-bit register access. |
+| `Fdc2214CapResetI2cStats()`, `Fdc2214CapGetI2cStats()` | I2C profiling counters. |
+| `Fdc2214CapI2cTraceSetEnabled()`, `Fdc2214CapI2cTraceIsEnabled()`, `Fdc2214CapI2cTraceClear()`, `Fdc2214CapI2cTraceDump()` | Trace ring controls. |
+
+### 最小调用形状
 
 ```c
-// 生命周期
-Fdc2214CapDevice_t *dev = NULL;
-Fdc2214CapCreate(&bus_config, &dev);     // 创建设备上下文
-Fdc2214CapReset(dev);                    // 硬件复位
-Fdc2214CapReadId(dev, &mfr_id, &dev_id); // 读制造商/设备 ID
-Fdc2214CapDestroy(&dev);                 // 销毁上下文
-
-// 配置
-Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &channel_cfg);
-Fdc2214CapSetAutoScanMode(dev, 2, FDC2214_DEGLITCH_10MHZ);  // 2 通道自动扫描
-Fdc2214CapSetSingleChannelMode(dev, FDC2214_CH0);            // 单通道模式
-
-// 数据读取
-Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);      // 读单个通道样本
-Fdc2214CapReadChannelsRaw(dev, ch_mask, raw_array);   // 批量读取
-```
-
-### 工作流程
-
-```c
-// 典型初始化流程
 Fdc2214CapBusConfig_t bus = {
-  .i2c_ctx = i2c_handle,
-  .i2c_addr = 0x2B,
-  .write_fn = boardSupportI2cWrite,
-  .read_fn = boardSupportI2cRead,
+    .I2cAddress7 = 0x2B,
+    .UserCtx = (void *)boardSupportGetI2cCtx(),
+    .WriteRead = boardSupportI2cWriteRead,
+    .Write = boardSupportI2cWrite,
+    .IntGpio = -1,
 };
 
 Fdc2214CapDevice_t *dev = NULL;
-Fdc2214CapCreate(&bus, &dev);
+ESP_ERROR_CHECK(Fdc2214CapCreate(&bus, &dev));
+ESP_ERROR_CHECK(Fdc2214CapReset(dev));
 
-// 验证设备
-Fdc2214CapReset(dev);
-uint16_t mfr_id, dev_id;
-Fdc2214CapReadId(dev, &mfr_id, &dev_id);
-// 应检查 mfr_id = 0x5449 (TI), dev_id = 0x3055 (FDC2214)
+uint16_t manufacturerId = 0;
+uint16_t deviceId = 0;
+ESP_ERROR_CHECK(Fdc2214CapReadId(dev, &manufacturerId, &deviceId));
 
-// 配置通道
-Fdc2214CapChannelConfig_t ch_cfg = {
-  .fref = 43360,      // 参考频率 (Hz)
-  .idrive = 10,       // 驱动电流 (μA)
-  .settlecount = 128, // 稳定时间
+Fdc2214CapChannelConfig_t cfg = {
+    .Rcount = 0x2089,
+    .SettleCount = 0x0080,
+    .Offset = 0x0000,
+    .ClockDividers = 0x2001,
+    .DriveCurrent = 0x7C00,
 };
-Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &ch_cfg);
-Fdc2214CapConfigureChannel(dev, FDC2214_CH1, &ch_cfg);
-// ... 配置 CH2, CH3
-
-// 启用自动扫描
-Fdc2214CapSetAutoScanMode(dev, 4, FDC2214_DEGLITCH_10MHZ);  // 4 通道、10 MHz deglitch
-
-// 读取样本
-Fdc2214CapSample_t sample;
-Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);
-// sample.raw28    - 28 位原始码
-// sample.freq_hz  - 换算后的频率
-
-// 清理
-Fdc2214CapDestroy(&dev);
+ESP_ERROR_CHECK(Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &cfg));
 ```
 
-### I2C 事务
+## Australian English documentation
 
-本驱动的所有 I2C 通信都通过 `boardSupport` 提供的回调完成。调用者负责：
+### Responsibility
 
-- I2C 总线初始化与管理
-- 互斥锁保护（防止并发冲突）
-- 超时处理
-- 错误恢复
+`components/fdc2214Cap` is the chip-level I2C driver for FDC2214/FDC2212. It knows register addresses, I2C transactions, device handles, channel configuration, autoscan/single-channel modes, STATUS decoding, and raw28 reads.
 
-### 设计边界
+It does not know rows, D-line meaning, primary/secondary board ownership, TMUX routing, ADS/FDC mutual exclusion, row epochs, boot sweep, rescue policy, 64-cell frame layout, or matrix-level capacitance conversion. Those belong to `core/board` and `core/measure`.
 
-**fdc2214Cap 知道：**
-- FDC2214 寄存器地址与字段定义
-- I2C 读写事务
-- 样本转换（raw28 → frequency）
+### API groups
 
-**fdc2214Cap 不知道：**
-- TMUX 行选择
-- D-line 映射或通道意义
-- 矩阵扫描计划
-- 全局救援策略
-- 用户按下了哪一行
+- Lifecycle: `Fdc2214CapCreate()`, `Fdc2214CapDestroy()`.
+- Identity/reset: `Fdc2214CapReset()`, `Fdc2214CapReadId()`.
+- Channel config: `Fdc2214CapConfigureChannel*()`, `Fdc2214CapReadbackVerifyChannelConfig*()`.
+- Conversion mode: `Fdc2214CapSetSingleChannelMode()`, `Fdc2214CapSetAutoScanMode*()`.
+- Sleep epoch support: `Fdc2214CapBuildConfig()`, `Fdc2214CapEnterSleep()`, `Fdc2214CapExitSleep()`.
+- Status and diagnostics: `Fdc2214CapReadStatus()`, `Fdc2214CapReadCoreRegs()`, `Fdc2214CapReadDebugSnapshot()`.
+- Data reads: `Fdc2214CapReadSample*()`, `Fdc2214CapReadChannelsRaw()`, `Fdc2214CapReadAutoscan4RawFast()`.
+- Raw registers: `Fdc2214CapReadRawRegisters()`, `Fdc2214CapWriteRawRegisters()`.
+- I2C diagnostics: `Fdc2214CapGetI2cStats()` and the `Fdc2214CapI2cTrace*()` functions.
 
-### 当前支持
+The driver reports raw data and chip status. Frequency and pF conversion used by `MATRIXFDC_CAP` are measurement-layer responsibilities.
 
-- ✓ FDC2214/FDC2212 系列（根据 Kconfig）
-- ✓ CH0-CH3 通道
-- ✓ 单通道模式
-- ✓ 4 通道自动扫描
-- ✓ 原始 28 位码读取
-- ✓ ID 验证
+## Kconfig
 
----
-
-## Australian English Documentation
-
-### Overview
-
-`fdc2214Cap` is a **chip-level I2C driver** for FDC2214/FDC2212 capacitance-sensing chips, handling register access and sample reads.
-
-**Core principle: knows nothing about matrices, rows, D-lines, TMUX routing, or rescue strategy. It only knows how to communicate with the chip.**
-
-### Main APIs
-
-```c
-// Lifecycle
-Fdc2214CapDevice_t *dev = NULL;
-Fdc2214CapCreate(&bus_config, &dev);      // Create device context
-Fdc2214CapReset(dev);                     // Hardware reset
-Fdc2214CapReadId(dev, &mfr_id, &dev_id);  // Read manufacturer/device ID
-Fdc2214CapDestroy(&dev);                  // Destroy context
-
-// Configuration
-Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &channel_cfg);
-Fdc2214CapSetAutoScanMode(dev, 2, FDC2214_DEGLITCH_10MHZ);  // 2-channel autoscan
-Fdc2214CapSetSingleChannelMode(dev, FDC2214_CH0);            // Single-channel mode
-
-// Data reads
-Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);     // Read single-channel sample
-Fdc2214CapReadChannelsRaw(dev, ch_mask, raw_array);  // Batch read
-```
-
-### Workflow
-
-```c
-// Typical initialisation flow
-Fdc2214CapBusConfig_t bus = {
-  .i2c_ctx = i2c_handle,
-  .i2c_addr = 0x2B,
-  .write_fn = boardSupportI2cWrite,
-  .read_fn = boardSupportI2cRead,
-};
-
-Fdc2214CapDevice_t *dev = NULL;
-Fdc2214CapCreate(&bus, &dev);
-
-// Verify device
-Fdc2214CapReset(dev);
-uint16_t mfr_id, dev_id;
-Fdc2214CapReadId(dev, &mfr_id, &dev_id);
-// Should check: mfr_id = 0x5449 (TI), dev_id = 0x3055 (FDC2214)
-
-// Configure channels
-Fdc2214CapChannelConfig_t ch_cfg = {
-  .fref = 43360,      // Reference frequency (Hz)
-  .idrive = 10,       // Drive current (μA)
-  .settlecount = 128, // Settle time
-};
-Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &ch_cfg);
-Fdc2214CapConfigureChannel(dev, FDC2214_CH1, &ch_cfg);
-// ... configure CH2, CH3
-
-// Enable autoscan
-Fdc2214CapSetAutoScanMode(dev, 4, FDC2214_DEGLITCH_10MHZ);  // 4-channel, 10 MHz deglitch
-
-// Read sample
-Fdc2214CapSample_t sample;
-Fdc2214CapReadSample(dev, FDC2214_CH0, &sample);
-// sample.raw28    - 28-bit raw code
-// sample.freq_hz  - converted frequency
-
-// Cleanup
-Fdc2214CapDestroy(&dev);
-```
-
-### I2C transactions
-
-All I2C communication is via callbacks provided by `boardSupport`. Caller responsible for:
-
-- I2C bus initialisation and management
-- Mutex protection (prevent concurrent conflicts)
-- Timeout handling
-- Error recovery
-
-### Design boundary
-
-**fdc2214Cap knows:**
-- FDC2214 register addresses and fields
-- I2C read/write transactions
-- Sample conversion (raw28 → frequency)
-
-**fdc2214Cap does NOT know:**
-- TMUX row selection
-- D-line mapping or channel semantics
-- Matrix scan plan
-- Global rescue strategy
-- Which row the user pressed
-
-### Current support
-
-- ✓ FDC2214/FDC2212 family (per Kconfig)
-- ✓ CH0-CH3 channels
-- ✓ Single-channel mode
-- ✓ 4-channel autoscan
-- ✓ Raw 28-bit code reads
-- ✓ ID verification
+| Option | Default | Notes |
+|---|---:|---|
+| `CONFIG_FDC2214CAP_ENABLE` | y | Enables the component. |
+| `CONFIG_FDC2214CAP_LOG_LEVEL` | `3` | Component log level. |
+| `CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS` | `200` | Internal mutex lock timeout. |
+| `CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE` | n | Verbose per-transaction printf; keep off for normal matrix reads. |
+| `CONFIG_FDC2214CAP_RAW_I2C_TRACE` | n | Raw register trace for diagnostics. |
+| `CONFIG_FDC2214CAP_I2C_ADDR` | `0x2A` | Generic component default; the app uses primary/secondary project config instead. |
+| `CONFIG_FDC2214CAP_CHANNELS` | `4` | Current matrix expects CH0-CH3 on each FDC. |

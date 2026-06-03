@@ -1,33 +1,22 @@
-# powerCtrl / µçÔ´¿ØÖÆ²ã£¨Õ¼Î»£©
+# powerCtrl / ç”µæºæ§åˆ¶å ä½å±‚
 
-## 1) Scope / Ä£¿é·¶Î§
+## ä¸­æ–‡è¯´æ˜
 
-**ÖĞÎÄ**
+`core/powerCtrl` å½“å‰æ˜¯å ä½æ¨¡å—ã€‚`powerCtrl.h` è¿˜æ²¡æœ‰ç¨³å®š public APIï¼Œ`powerCtrl.c` åªä¿ç•™å®ç°å ä½å¹¶æ˜ç¡®ä¸å®šä¹‰ `app_main()`ã€‚
 
-`powerCtrl` Ä¿Ç°ÊÇÔ¤ÁôÄ£¿é£¬ÉĞÎ´¶¨ÒåÎÈ¶¨¹«¹² API¡£
+Kconfig ä¸­å­˜åœ¨å¯é€‰ GPIOï¼š
 
-**English**
+| Option | Default | Notes |
+|---|---:|---|
+| `CONFIG_POWER_MAIN_EN_GPIO` | `-1` | Main power enable GPIO, `-1` means always on or not controlled. |
+| `CONFIG_POWER_ANALOG_EN_GPIO` | `-1` | Analogue rails enable GPIO. |
+| `CONFIG_POWER_CHG_STAT_GPIO` | `-1` | Charger status GPIO. |
+| `CONFIG_POWER_PG_GPIO` | `-1` | Power-good GPIO. |
 
-`powerCtrl` is currently a placeholder module with no stable public API yet.
+å½“å‰ `main` ç”Ÿå‘½å‘¨æœŸæ²¡æœ‰é€šè¿‡è¯¥æ¨¡å—æ§åˆ¶ LM27762ã€TPS631000ã€BQ24074 æˆ–å…¶å®ƒç”µæº ICã€‚
 
-## 2) Intended Direction / Ô¤ÆÚ·½Ïò
+## Australian English Documentation
 
-- µçÔ´Óò¿ª¹ØÓëÉÏµçÊ±Ğò³éÏó¡£
-- µÍ¹¦ºÄ²ßÂÔÈë¿Ú£¨Ë¯Ãß/»½ĞÑÇ°ºó¹³×Ó£©¡£
+`core/powerCtrl` is currently a placeholder. `powerCtrl.h` has no stable public API yet, and `powerCtrl.c` only keeps an implementation placeholder and explicitly does not define `app_main()`.
 
-- Power-domain switching and power-up sequencing abstraction.
-- Low-power policy hooks (sleep/wake transitions).
-
-## 3) Boundary / ±ß½ç
-
-**ÖĞÎÄ**
-
-- ºóĞøÊµÏÖÓ¦±£³ÖÍ¨ÓÃ£¬²»ÓëÄ³¸öµ¥°å route map Ç¿ñîºÏ¡£
-
-**English**
-
-- Future implementation should remain reusable and not tightly couple to a single board route map.
-
-## 4) Current Status / µ±Ç°×´Ì¬
-
-- Placeholder only (`.c/.h` stubs).
+The Kconfig GPIOs are reserved for later board power control. The current `main` lifecycle does not drive LM27762, TPS631000, BQ24074, or other power ICs through this module.
