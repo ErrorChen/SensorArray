@@ -88,6 +88,9 @@
 #ifndef CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE
 #define CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE -1
 #endif
+#ifndef CONFIG_FREERTOS_UNICORE
+#define CONFIG_FREERTOS_UNICORE 0
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
 #define CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS 25
 #endif
@@ -2081,6 +2084,107 @@ static uint32_t sensorarrayMeasureFdcWorkerEdgeCount(sensorarrayFdcDeviceId_t de
     return ctx ? ctx->edgeCount : 0u;
 }
 
+static bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
+                                                int configuredCore,
+                                                int defaultCore,
+                                                BaseType_t *outCore,
+                                                bool *outPinned,
+                                                const char **outReason)
+{
+    (void)workerName;
+    if (!outCore || !outPinned || !outReason) {
+        return false;
+    }
+
+    int processors = (int)portNUM_PROCESSORS;
+    if (processors <= 0) {
+        processors = 1;
+    }
+
+    if (CONFIG_FREERTOS_UNICORE || processors <= 1) {
+        *outCore = 0;
+        *outPinned = true;
+        *outReason = "unicore_core0";
+        return true;
+    }
+
+    if (configuredCore >= 0 && configuredCore < processors) {
+        *outCore = (BaseType_t)configuredCore;
+        *outPinned = true;
+        *outReason = "configured";
+        return true;
+    }
+
+    if (configuredCore < 0) {
+        *outCore = (BaseType_t)-1;
+        *outPinned = false;
+        *outReason = "no_affinity_static";
+        return true;
+    }
+
+    int normalizedCore = (defaultCore >= 0 && defaultCore < processors) ? defaultCore : 0;
+    *outCore = (BaseType_t)normalizedCore;
+    *outPinned = true;
+    *outReason = "out_of_range_normalized";
+    return true;
+}
+
+static void sensorarrayMeasureCleanupFdcWorkers(void)
+{
+    for (uint8_t i = 0u; i < 2u; ++i) {
+        sensorarrayFdcWorkerContext_t *ctx = &s_fdcWorkers[i];
+        if (ctx->task) {
+            vTaskDelete(ctx->task);
+            ctx->task = NULL;
+        }
+        ctx->initialized = false;
+        ctx->waitTask = NULL;
+        if (ctx->queue) {
+            vQueueDelete(ctx->queue);
+            ctx->queue = NULL;
+        }
+        if (ctx->sleepAck) {
+            vSemaphoreDelete(ctx->sleepAck);
+            ctx->sleepAck = NULL;
+        }
+        if (ctx->start) {
+            vSemaphoreDelete(ctx->start);
+            ctx->start = NULL;
+        }
+        if (ctx->done) {
+            vSemaphoreDelete(ctx->done);
+            ctx->done = NULL;
+        }
+    }
+}
+
+static const char *sensorarrayMeasureFdcParallelFallbackReason(bool configEnabled,
+                                                              bool primaryBusEnabled,
+                                                              bool secondaryBusEnabled,
+                                                              bool sameBus,
+                                                              esp_err_t err)
+{
+    if (!configEnabled) {
+        return "config_disabled";
+    }
+    if (!primaryBusEnabled || !secondaryBusEnabled) {
+        return "bus_unavailable";
+    }
+    if (sameBus) {
+        return "same_bus";
+    }
+    if (s_fdcWorkersInitAttempted && !s_fdcWorkersAvailable) {
+        return "worker_init_failed";
+    }
+    if (err == ESP_ERR_TIMEOUT) {
+        return "timeout";
+    }
+    if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_NOT_SUPPORTED) {
+        return "worker_unavailable";
+    }
+    return "parallel_error";
+}
+
 static esp_err_t sensorarrayMeasureFdcSetSleepMode(sensorarrayFdcDeviceState_t *fdcState,
                                                    bool enable,
                                                    sensorarrayFdcDeviceTiming_t *timing)
@@ -2365,7 +2469,7 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
 static esp_err_t sensorarrayMeasureEnsureFdcWorkers(void)
 {
     if (s_fdcWorkersInitAttempted) {
-        return s_fdcWorkersAvailable ? ESP_OK : ESP_ERR_INVALID_STATE;
+        return s_fdcWorkersAvailable ? ESP_OK : ESP_ERR_NOT_SUPPORTED;
     }
     s_fdcWorkersInitAttempted = true;
 
@@ -2380,7 +2484,10 @@ static esp_err_t sensorarrayMeasureEnsureFdcWorkers(void)
         ctx->start = xSemaphoreCreateBinaryStatic(&ctx->startStorage);
         ctx->done = xSemaphoreCreateBinaryStatic(&ctx->doneStorage);
         if (!ctx->queue || !ctx->sleepAck || !ctx->start || !ctx->done) {
-            firstErr = ESP_ERR_NO_MEM;
+            firstErr = ESP_FAIL;
+            printf("FDC_WORKER_CREATE_FAIL,dev=%s,err=0x%lx,status=fallback_serial,reason=resource_init_failed\n",
+                   sensorarrayMeasureFdcDeviceName(ctx->devId),
+                   (unsigned long)firstErr);
             break;
         }
         (void)sensorarrayMeasureEnsureFdcIntb(ctx);
@@ -2388,23 +2495,72 @@ static esp_err_t sensorarrayMeasureEnsureFdcWorkers(void)
         char taskName[24] = {0};
         snprintf(taskName, sizeof(taskName), "fdc_%s_worker",
                  ctx->devId == SENSORARRAY_FDC_DEV_SECONDARY ? "secondary" : "primary");
-        ctx->task = xTaskCreateStaticPinnedToCore(sensorarrayMeasureFdcWorkerTask,
-                                                  taskName,
-                                                  SENSORARRAY_FDC_WORKER_STACK_WORDS,
-                                                  ctx,
-                                                  CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
-                                                  ctx->stack,
-                                                  &ctx->taskStorage,
-                                                  CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE);
-        if (!ctx->task) {
-            firstErr = ESP_ERR_NO_MEM;
+        BaseType_t resolvedCore = 0;
+        bool pinned = true;
+        const char *coreReason = "unknown";
+        if (!sensorarrayMeasureResolveWorkerCore(taskName,
+                                                 CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+                                                 1,
+                                                 &resolvedCore,
+                                                 &pinned,
+                                                 &coreReason)) {
+            firstErr = ESP_FAIL;
+            printf("FDC_WORKER_CREATE_FAIL,dev=%s,err=0x%lx,status=fallback_serial,reason=core_resolve_failed\n",
+                   sensorarrayMeasureFdcDeviceName(ctx->devId),
+                   (unsigned long)firstErr);
             break;
         }
+        if (strcmp(coreReason, "configured") != 0) {
+            printf("FDC_WORKER_CORE_FIX,dev=%s,configuredCore=%d,resolvedCore=%d,pinned=%u,portNumProcessors=%d,reason=%s\n",
+                   sensorarrayMeasureFdcDeviceName(ctx->devId),
+                   CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+                   (int)resolvedCore,
+                   pinned ? 1u : 0u,
+                   (int)portNUM_PROCESSORS,
+                   coreReason);
+        }
+        printf("FDC_WORKER_CREATE_BEGIN,dev=%s,configuredCore=%d,resolvedCore=%d,pinned=%u,stackWords=%lu,prio=%d,portNumProcessors=%d\n",
+               sensorarrayMeasureFdcDeviceName(ctx->devId),
+               CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+               (int)resolvedCore,
+               pinned ? 1u : 0u,
+               (unsigned long)SENSORARRAY_FDC_WORKER_STACK_WORDS,
+               CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+               (int)portNUM_PROCESSORS);
+        if (pinned) {
+            ctx->task = xTaskCreateStaticPinnedToCore(sensorarrayMeasureFdcWorkerTask,
+                                                      taskName,
+                                                      SENSORARRAY_FDC_WORKER_STACK_WORDS,
+                                                      ctx,
+                                                      CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+                                                      ctx->stack,
+                                                      &ctx->taskStorage,
+                                                      resolvedCore);
+        } else {
+            ctx->task = xTaskCreateStatic(sensorarrayMeasureFdcWorkerTask,
+                                          taskName,
+                                          SENSORARRAY_FDC_WORKER_STACK_WORDS,
+                                          ctx,
+                                          CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+                                          ctx->stack,
+                                          &ctx->taskStorage);
+        }
+        if (!ctx->task) {
+            firstErr = ESP_FAIL;
+            printf("FDC_WORKER_CREATE_FAIL,dev=%s,err=0x%lx,status=fallback_serial,reason=task_create_failed\n",
+                   sensorarrayMeasureFdcDeviceName(ctx->devId),
+                   (unsigned long)firstErr);
+            break;
+        }
+        printf("FDC_WORKER_CREATE_DONE,dev=%s,handle=%p,err=0x0,status=ok\n",
+               sensorarrayMeasureFdcDeviceName(ctx->devId),
+               (void *)ctx->task);
         ctx->initialized = true;
     }
 
     s_fdcWorkersAvailable = firstErr == ESP_OK;
     if (!s_fdcWorkersAvailable) {
+        sensorarrayMeasureCleanupFdcWorkers();
         printf("FDC_WORKER,stage=init,status=fallback_serial,err=0x%lx\n",
                (unsigned long)firstErr);
         return firstErr;
@@ -2647,9 +2803,12 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
             xSemaphoreGive(secondaryCtx->start);
             (void)xSemaphoreTake(secondaryCtx->done, syncTicks);
         }
-        printf("FDC_WORKER,row=%u,epoch=%lu,status=fallback_serial,reason=queue_send_timeout\n",
+        printf("FDC_PARALLEL_FALLBACK,reason=queue_failed,row=%u,epoch=%lu,primaryQueued=%u,secondaryQueued=%u,err=0x%lx\n",
                (unsigned)row,
-               (unsigned long)epochId);
+               (unsigned long)epochId,
+               primaryQueued == pdTRUE ? 1u : 0u,
+               secondaryQueued == pdTRUE ? 1u : 0u,
+               (unsigned long)ESP_ERR_TIMEOUT);
         return ESP_ERR_TIMEOUT;
     }
 
@@ -3868,6 +4027,17 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     BoardSupportI2cBusInfo_t secondaryBus = {0};
     (void)boardSupportGetI2cBusInfo(false, &primaryBus);
     (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
+    bool primaryBusEnabled = primaryBus.Enabled;
+    bool secondaryBusEnabled = secondaryBus.Enabled;
+    bool sameBus = primaryBusEnabled &&
+                   secondaryBusEnabled &&
+                   primaryBus.Port == secondaryBus.Port;
+    bool parallelConfigEnabled = CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0;
+    bool parallelEligible = parallelConfigEnabled &&
+                            primaryBusEnabled &&
+                            secondaryBusEnabled &&
+                            !sameBus &&
+                            (!s_fdcWorkersInitAttempted || s_fdcWorkersAvailable);
 
     int64_t stageStartUs = esp_timer_get_time();
     firstErr = sensorarrayMeasureEnsureFdcMatrixPath(state, "fdc_matrix_frame");
@@ -3908,7 +4078,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
 
         stageStartUs = esp_timer_get_time();
         esp_err_t rowErr = ESP_ERR_NOT_SUPPORTED;
-        if (CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ) {
+        if (parallelEligible) {
             rowErr = sensorarrayMeasureReadFdcMatrixRowParallelEpoch(state,
                                                                      s,
                                                                      epochId,
@@ -3918,14 +4088,23 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                                      &primaryTiming,
                                                                      &secondaryTiming,
                                                                      &rowTiming);
-            if (rowErr != ESP_OK && !s_fdcWorkersAvailable) {
-                printf("FDC_WORKER,row=%u,epoch=%lu,status=fallback_serial,err=0x%lx\n",
+            if (rowErr != ESP_OK) {
+                printf("FDC_PARALLEL_FALLBACK,reason=%s,row=%u,epoch=%lu,err=0x%lx,primaryBus=%d,secondaryBus=%d,sameBus=%u\n",
+                       sensorarrayMeasureFdcParallelFallbackReason(parallelConfigEnabled,
+                                                                  primaryBusEnabled,
+                                                                  secondaryBusEnabled,
+                                                                  sameBus,
+                                                                  rowErr),
                        (unsigned)s,
                        (unsigned long)epochId,
-                       (unsigned long)rowErr);
+                       (unsigned long)rowErr,
+                       primaryBusEnabled ? (int)primaryBus.Port : -1,
+                       secondaryBusEnabled ? (int)secondaryBus.Port : -1,
+                       sameBus ? 1u : 0u);
+                parallelEligible = false;
             }
         }
-        if (!CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ || rowErr != ESP_OK) {
+        if (!parallelEligible || rowErr != ESP_OK) {
             rowErr = sensorarrayMeasureReadFdcMatrixRowSerialEpoch(state,
                                                                    s,
                                                                    epochId,

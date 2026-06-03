@@ -333,12 +333,24 @@ static void sensorarrayAppLogFdcParallelCfg(void)
     bool sameBus = primaryBus.Enabled &&
                    secondaryBus.Enabled &&
                    primaryBus.Port == secondaryBus.Port;
-    printf("FDC_PARALLEL_CFG,enabled=0,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,reason=single_matrix_task\n",
+    bool configEnabled = CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0;
+    bool enabled = configEnabled &&
+                   primaryBus.Enabled &&
+                   secondaryBus.Enabled &&
+                   !sameBus;
+    const char *reason = !configEnabled ? "config_disabled" :
+        (!primaryBus.Enabled || !secondaryBus.Enabled) ? "bus_unavailable" :
+        sameBus ? "same_bus" :
+        "dual_bus_enabled";
+    printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s\n",
+           enabled ? 1u : 0u,
            primaryBus.Enabled ? (int)primaryBus.Port : -1,
            secondaryBus.Enabled ? (int)secondaryBus.Port : -1,
            sameBus ? 1u : 0u,
-           CONFIG_SENSORARRAY_SCAN_TASK_CORE,
-           CONFIG_SENSORARRAY_SCAN_TASK_CORE);
+           CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+           CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+           enabled ? "parallel" : "serial",
+           reason);
 }
 
 static bool sensorarrayParseForceFullSweepCommand(const char *line,

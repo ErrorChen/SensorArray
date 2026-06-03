@@ -136,6 +136,24 @@ the primary FDC on I2C0; the secondary worker only uses the secondary FDC on
 I2C1. If worker initialization fails, the firmware logs the reason and falls
 back to a serial sleep-epoch path.
 
+## Known recovery behaviour / Worker core affinity
+
+`CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE=-1` means no affinity. That value must
+not be passed to `xTaskCreateStaticPinnedToCore`; the firmware creates unpinned
+static worker tasks for no-affinity mode, and only calls the pinned API with a
+normalized core ID in the valid CPU range. On unicore builds the worker core is
+resolved to core 0.
+
+Worker creation failures are nonfatal. The firmware logs
+`FDC_WORKER_CREATE_FAIL` / `FDC_PARALLEL_FALLBACK` and continues with the serial
+sleep-epoch row path, so successful boot cache construction can still lead to
+normal `MATRIXFDC_CAP` frames.
+
+Boot full sweep is a startup cache-building phase. After
+`FDC_BOOT_MATRIX_SWEEP_DONE` succeeds, repeated boot sweep plus reset usually
+means a later panic/assert should be investigated first, especially task core
+affinity or worker creation, before changing sweep parameters.
+
 INTB is a data-ready hint only. GPIO ISR handlers record edge count, level,
 timestamp, and epoch, then notify the worker task. They do not use I2C and do
 not print. The worker still reads STATUS and requires DRDY or the CH0-CH3 unread
