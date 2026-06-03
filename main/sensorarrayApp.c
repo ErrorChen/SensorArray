@@ -70,12 +70,8 @@ static bool sensorarrayAppFrameRawAllZero(const sensorarrayFdcMatrixFrame_t *fra
     if (!frame) {
         return true;
     }
-    for (size_t i = 0u; i < SENSORARRAY_MATRIX_CELL_COUNT; ++i) {
-        if (frame->raw28[i] != 0u) {
-            return false;
-        }
-    }
-    return true;
+    return frame->freshCount == SENSORARRAY_MATRIX_CELL_COUNT &&
+           frame->hardwareZeroRawCount == SENSORARRAY_MATRIX_CELL_COUNT;
 }
 
 static void sensorarrayAppDelayDiagnosticPeriod(void)
@@ -793,22 +789,26 @@ static void sensorarrayRunFdcMatrixLoop(void)
         sensorarrayFdcMatrixFrame_t frame = {0};
         esp_err_t readErr = sensorarrayMeasureReadFdcMatrixFrame(&s_state, &frame);
         frameCounter++;
-        bool rawAllZero = sensorarrayAppFrameRawAllZero(&frame);
-        bool allInvalidZero = (frame.validMask == 0u && rawAllZero);
+        bool hardwareRawAllZero = sensorarrayAppFrameRawAllZero(&frame);
+        bool allInvalidFrame = (frame.validMask == 0u);
         if (readErr != ESP_OK) {
             consecutiveReadErrors++;
         } else {
             consecutiveReadErrors = 0u;
         }
 
-        if (allInvalidZero) {
+        if (allInvalidFrame) {
             consecutiveAllInvalidFrames++;
             sensorarrayAppLogStackHighWater("all_invalid_frame_before");
-            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,consecutive=%lu,errorMask=0x%016llX,readErr=0x%lx\n",
+            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,consecutive=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u\n",
                    (unsigned long)frame.sequence,
                    (unsigned long)consecutiveAllInvalidFrames,
                    (unsigned long long)frame.errorMask,
-                   (unsigned long)readErr);
+                   (unsigned long)readErr,
+                   s_fdcBootSweepOk ? 1u : 0u,
+                   (unsigned)frame.freshCount,
+                   (unsigned)frame.hardwareZeroRawCount,
+                   (unsigned)frame.placeholderZeroCount);
             (void)sensorarrayFdcMatrixEmitFrame(&frame);
             nowUs = esp_timer_get_time();
             cooldownElapsed = lastFullRescueTimeUs == 0 ||
@@ -816,22 +816,31 @@ static void sensorarrayRunFdcMatrixLoop(void)
                               (nowUs - lastFullRescueTimeUs) >= cooldownUs;
             bool rescuePendingAllowed =
                 consecutiveAllInvalidFrames >= (uint32_t)CONFIG_SENSORARRAY_FDC_ALL_INVALID_RESCUE_THRESHOLD &&
-                rawAllZero &&
+                hardwareRawAllZero &&
                 frame.validMask == 0u &&
                 cooldownElapsed &&
                 !rescueRunning;
             if (rescuePendingAllowed) {
                 sensorarrayAppLogStackHighWater("all_invalid_diag_before");
-                printf("FDC_RESCUE,stage=pending,scope=cells,reason=all_invalid_frame,consecutive=%lu\n",
+                printf("FDC_RESCUE,stage=pending,scope=cells,reason=persistent_all_rows_hardware_zero,consecutive=%lu\n",
                        (unsigned long)consecutiveAllInvalidFrames);
                 printf("MATRIXFDC_DIAG,stage=all_invalid_register_dump,seq=%lu\n",
                        (unsigned long)frame.sequence);
-                (void)sensorarrayFdcSweepDumpAllDeviceRegs(&s_state, "all_invalid_frame", "all_invalid_frame");
+                (void)sensorarrayFdcSweepDumpAllDeviceRegs(&s_state,
+                                                           "persistent_all_rows_hardware_zero",
+                                                           "persistent_all_rows_hardware_zero");
                 (void)sensorarrayFdcSweepRequestForceFullSweepAll();
                 sensorarrayAppLogStackHighWater("all_invalid_diag_after");
             } else {
-                printf("FDC_RESCUE,stage=defer,reason=all_invalid_threshold_not_met,consecutive=%lu\n",
-                       (unsigned long)consecutiveAllInvalidFrames);
+                const char *deferReason = hardwareRawAllZero ?
+                    "all_invalid_threshold_not_met" :
+                    (frame.freshCount == 0u ? "intb_sync_suspected" : "normal_path_invalid_after_boot_ok");
+                printf("FDC_RESCUE,stage=defer,reason=%s,consecutive=%lu,bootOk=%u,freshCount=%u,placeholderZeroCount=%u\n",
+                       deferReason,
+                       (unsigned long)consecutiveAllInvalidFrames,
+                       s_fdcBootSweepOk ? 1u : 0u,
+                       (unsigned)frame.freshCount,
+                       (unsigned)frame.placeholderZeroCount);
             }
             sensorarrayAppLogStackHighWater("all_invalid_frame_after");
             sensorarrayAppDelayFramePeriodSince(frameStartUs, frame.sequence);

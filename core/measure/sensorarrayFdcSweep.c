@@ -364,7 +364,12 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint32_t zeroRawCount)
 {
     gFdcAllInvalidReportCount++;
-    printf("FDC_SWEEP_REQUEST,scope=all,reason=all_invalid_frame,status=reported_no_queue,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
+    const char *reason =
+        (zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
+        "persistent_all_rows_hardware_zero" :
+        "normal_path_invalid_after_boot_ok";
+    printf("FDC_SWEEP_REQUEST,scope=all,reason=%s,status=reported_no_queue,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
+           reason,
            (unsigned long)gFdcSweepRequestEpoch,
            (unsigned long long)validMask,
            (unsigned long long)errorMask,

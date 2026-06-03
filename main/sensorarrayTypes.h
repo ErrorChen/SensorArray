@@ -87,8 +87,18 @@ typedef struct {
     uint32_t effectiveFclkHz[SENSORARRAY_MATRIX_CELL_COUNT];
     uint64_t validMask;
     uint64_t capValidMask;
+    uint64_t freshMask;
     uint64_t warnMask;
     uint64_t errorMask;
+    uint8_t hardwareZeroRawCount;
+    uint8_t placeholderZeroCount;
+    uint8_t validCount;
+    uint8_t freshCount;
+    esp_err_t firstReadErr;
+    uint8_t firstBadRow;
+    uint8_t firstBadDevice;
+    uint16_t firstBadStatus;
+    uint8_t firstBadUnread;
 } sensorarrayFdcMatrixFrame_t;
 
 typedef struct {
@@ -150,6 +160,23 @@ typedef struct {
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
     uint32_t intbStaleBeforeClearCount;
+    uint32_t readyFullCount;
+    uint32_t readyPartialCount;
+    uint32_t readyNoneCount;
+    uint32_t fallbackAttemptCount;
+    uint32_t fallbackSuccessCount;
+    uint32_t fallbackPartialCount;
+    uint32_t fallbackFailCount;
+    uint32_t rowFullInvalidCount;
+    uint32_t deviceFullInvalidCount;
+    uint64_t waitReadyUsPrimaryTotal;
+    uint64_t waitReadyUsSecondaryTotal;
+    uint64_t read4UsPrimaryTotal;
+    uint64_t read4UsSecondaryTotal;
+    uint64_t maxWaitReadyUs;
+    uint64_t maxI2cReadUs;
+    uint32_t sweepRequestCount;
+    uint32_t sweepActuallyQueuedCount;
 
     uint32_t freshAmplitudeWarningCount;
     uint32_t staleAmplitudeWarningCount;
@@ -269,6 +296,16 @@ typedef struct {
     uint32_t intbTimeoutCount;
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
+    uint32_t readyFullCount;
+    uint32_t readyPartialCount;
+    uint32_t readyNoneCount;
+    uint32_t fallbackAttemptCount;
+    uint32_t fallbackSuccessCount;
+    uint32_t fallbackPartialCount;
+    uint32_t fallbackFailCount;
+    uint32_t deviceFullInvalidCount;
+    uint64_t maxWaitReadyUs;
+    uint64_t maxI2cReadUs;
 } sensorarrayFdcDeviceTiming_t;
 
 typedef struct {
