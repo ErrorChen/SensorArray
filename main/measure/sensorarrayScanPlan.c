@@ -1,0 +1,52 @@
+#include "sensorarrayScanPlan.h"
+
+#include <string.h>
+
+static void sensorarrayScanPlanBuildRows(sensorarrayScanPlan_t *plan,
+                                         sensorarrayCellOpKind_t defaultOp)
+{
+    if (!plan) {
+        return;
+    }
+
+    memset(plan, 0, sizeof(*plan));
+    plan->rowCount = 8u;
+    for (uint8_t row = 1u; row <= 8u; ++row) {
+        sensorarrayRowPlan_t *rowPlan = &plan->rows[row - 1u];
+        rowPlan->row = row;
+        rowPlan->cellCount = 8u;
+        for (uint8_t dLine = 1u; dLine <= 8u; ++dLine) {
+            rowPlan->cells[dLine - 1u] = (sensorarrayCellOp_t){
+                .row = row,
+                .dLine = dLine,
+                .opKind = defaultOp,
+            };
+        }
+    }
+}
+
+void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan)
+{
+    sensorarrayScanPlanBuildRows(plan, SENSORARRAY_CELL_OP_FDC_CAP);
+}
+
+void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan)
+{
+    sensorarrayScanPlanBuildRows(plan, SENSORARRAY_CELL_OP_SKIP);
+    if (!plan) {
+        return;
+    }
+
+    for (uint8_t row = 1u; row <= 8u; ++row) {
+        sensorarrayRowPlan_t *rowPlan = &plan->rows[row - 1u];
+        rowPlan->cells[0].opKind = SENSORARRAY_CELL_OP_ADS_RESISTANCE;
+        rowPlan->cells[1].opKind = SENSORARRAY_CELL_OP_ADS_RESISTANCE;
+        rowPlan->cells[2].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
+        rowPlan->cells[3].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
+        rowPlan->cells[4].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
+        rowPlan->cells[5].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
+        rowPlan->cells[6].opKind = SENSORARRAY_CELL_OP_ADS_PIEZO;
+        rowPlan->cells[7].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
+    }
+}
+

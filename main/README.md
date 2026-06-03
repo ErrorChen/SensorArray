@@ -1,15 +1,23 @@
 # main component
 
-`main/main.c` is intentionally thin and only calls `sensorarrayAppRun()`.
-
-`main/sensorarrayApp.c` performs application orchestration:
+`main/main.c` is the SensorArray top-level scheduler. It owns the visible
+application lifecycle:
 
 - initialize board support and I2C buses
 - initialize TMUX control GPIOs
 - initialize ADS with internal reference and VBIAS off by default
 - initialize primary and secondary FDC2214 devices for CH0-CH3 autoscan
+- build the default 8x8 FDC scan plan
+- run boot FDC sweep/calibration
 - enter the production FDC matrix loop
-- emit each frame through `sensorarrayFdcMatrixEmitFrame()`
+- emit each frame through `sensorarrayFrameOutputPrint()`
+- run the FDC rescue tick
+
+`main/sensorarrayApp.c` and `main/sensorarrayApp.h` were removed; the normal
+entry point is `main/main.c`. FDC matrix control lives under
+`main/measure/fdc/`; ADS application measurement code lives under
+`main/measure/ads/`; mixed-row scheduling is reserved under
+`main/measure/mixed/`.
 
 The default app mode is no longer a single-point debug path. Legacy single-point, FDC discovery, locked-sample, and register-dump bring-up entries have been removed.
 

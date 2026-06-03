@@ -368,13 +368,23 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
         (zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
         "persistent_all_rows_hardware_zero" :
         "normal_path_invalid_after_boot_ok";
-    printf("FDC_SWEEP_REQUEST,scope=all,reason=%s,status=reported_no_queue,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu\n",
+    bool queued = false;
+    const char *status = "observed_no_queue";
+    if (gFdcAllInvalidReportCount >= 3u) {
+        gFdcForceFullSweepAllPending = true;
+        gFdcSweepRequestEpoch++;
+        queued = true;
+        status = "queued";
+    }
+    printf("FDC_SWEEP_REQUEST,scope=all,reason=%s,status=%s,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,reports=%lu,queueReason=%s\n",
            reason,
+           status,
            (unsigned long)gFdcSweepRequestEpoch,
            (unsigned long long)validMask,
            (unsigned long long)errorMask,
            (unsigned long)zeroRawCount,
-           (unsigned long)gFdcAllInvalidReportCount);
+           (unsigned long)gFdcAllInvalidReportCount,
+           queued ? "all_invalid_sequence_3" : "threshold_not_met");
 }
 
 static uint32_t sensorarrayFdcSweepNowMs(void)

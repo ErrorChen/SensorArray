@@ -1,17 +1,36 @@
 idf_component_register(
     SRCS
         "main.c"
-        "sensorarrayApp.c"
+        "sensorarrayLog.c"
         "../core/board/sensorarrayBoardMap.c"
         "../core/board/sensorarrayBringup.c"
+        "measure/sensorarrayScanPlan.c"
+        "measure/sensorarrayFrameBuilder.c"
+        "measure/sensorarrayFrameOutput.c"
+        "measure/fdc/sensorarrayFdcMatrixEngine.c"
+        "measure/fdc/sensorarrayFdcRowEpoch.c"
+        "measure/fdc/sensorarrayFdcReady.c"
+        "measure/fdc/sensorarrayFdcCache.c"
+        "measure/fdc/sensorarrayFdcWorker.c"
+        "measure/fdc/sensorarrayFdcSweep.c"
+        "measure/fdc/sensorarrayFdcRescue.c"
+        "measure/fdc/sensorarrayFdcConvert.c"
+        "measure/ads/sensorarrayAdsMatrixEngine.c"
+        "measure/ads/sensorarrayAdsPowerPolicy.c"
+        "measure/ads/sensorarrayAdsRead.c"
+        "measure/ads/sensorarrayAdsConvert.c"
+        "measure/mixed/sensorarrayMixedRowEngine.c"
         "../core/measure/sensorarrayMeasure.c"
         "../core/measure/sensorarrayFdcSweep.c"
-        "sensorarrayLog.c"
     INCLUDE_DIRS
         "."
         "../core/board"
         "../core/measure"
         "../core/measure/include"
+        "measure"
+        "measure/fdc"
+        "measure/ads"
+        "measure/mixed"
     PRIV_REQUIRES
         boardSupport
         powerCtrl
