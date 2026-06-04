@@ -131,6 +131,15 @@ config SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
     bool "Force serial FDC formal row reads"
     default n
 
+config SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME
+    bool "Disable FDC parallel reads for the rest of a frame after a worker timeout"
+    default y
+
+config SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES
+    int "FDC parallel retry interval after an in-frame timeout"
+    default 10
+    range 0 10000
+
 config SENSORARRAY_FDC_WORKER_TASK_STACK
     int "FDC worker task stack bytes"
     default 6144
@@ -406,13 +415,25 @@ config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     bool "Print verbose per-row FDC scan diagnostics"
     default n
 
+config SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
+    int "Sample normal FDC row/device diagnostics every N frames"
+    default 10
+    range 0 10000
+    help
+        0 disables sampled normal-path diagnostics. Exceptional timeout,
+        stale, duplicate, I2C error and fallback diagnostics are still printed.
+
+config SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS
+    bool "Print normal full-poll success diagnostics"
+    default n
+
 config SENSORARRAY_LOG_FRAME_SUMMARY
     bool "Print formal FDC frame summary"
     default y
 
 config SENSORARRAY_LOG_ROW_SUMMARY
     bool "Print formal FDC row summary"
-    default y
+    default n
 
 config SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES
     int "BOARD_I2C_STATS aggregate period in MATRIXFDC frames"

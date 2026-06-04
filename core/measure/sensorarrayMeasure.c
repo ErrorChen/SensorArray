@@ -80,6 +80,12 @@
 #ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ
 #define CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ 1
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME
+#define CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES
+#define CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES 10
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK
 #define CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK 6144
 #endif
@@ -129,7 +135,13 @@
 #define CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
 #endif
 #ifndef CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
-#define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 1
+#define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES 10
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS
+#define CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS 0
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ
 #define CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ 0
@@ -344,13 +356,44 @@ typedef struct {
 } sensorarrayFdcWorkerResult_t;
 
 typedef struct {
+    uint32_t frameSeq;
+    uint8_t row;
+    uint32_t epochId;
+    sensorarrayFdcDeviceId_t devId;
+    bool jobQueued;
+    bool sleepAckReceived;
+    bool startGiven;
+    bool runStarted;
+    bool runCompleted;
+    bool doneReceived;
+    bool lateDone;
+    bool staleResultDiscarded;
+    uint32_t queueSendUs;
+    uint32_t sleepAckWaitUs;
+    uint32_t startWaitUs;
+    uint32_t doneWaitUs;
+    uint32_t workerRunUs;
+    uint32_t waitWorkerIdleAfterTimeoutUs;
+    esp_err_t err;
+} sensorarrayFdcWorkerTrace_t;
+
+typedef struct {
+    uint32_t frameSeq;
+    bool okRead[SENSORARRAY_MATRIX_ROWS][2];
+    uint32_t duplicateReadCount;
+} sensorarrayFdcFrameReadTracker_t;
+
+typedef struct {
     sensorarrayState_t *state;
+    uint32_t frameSeq;
     uint8_t row;
     uint32_t epochId;
     sensorarrayFdcAutoscanSamples_t *outSamples;
     sensorarrayFdcRuntimeChannelConfig_t *outConfigs;
     sensorarrayFdcDeviceTiming_t *timing;
     sensorarrayFdcWorkerResult_t *result;
+    sensorarrayFdcWorkerTrace_t *trace;
+    sensorarrayFdcFrameReadTracker_t *readTracker;
 } sensorarrayFdcWorkerJob_t;
 
 typedef struct {
@@ -407,7 +450,9 @@ static bool s_fdcWorkersInitAttempted = false;
 static bool s_fdcWorkersAvailable = false;
 static bool s_fdcFormalPrecheckDone = false;
 static bool s_fdcSecondaryUnavailableLogged = false;
+static bool s_fdcParallelConfigLogged = false;
 static uint32_t s_fdcRowEpoch = 0u;
+static uint32_t s_fdcParallelCooldownFrames = 0u;
 static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
 static sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
 static SemaphoreHandle_t s_fdcGpioIsrServiceMutex = NULL;
@@ -744,6 +789,7 @@ static bool sensorarrayMeasureFdcPathControlMatches(const tmuxSwitchControlState
 esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, const char *reason)
 {
     const char *source = reason ? reason : SENSORARRAY_NA;
+    bool logNormal = CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG;
     if (!state || !state->tmuxReady || !state->adsReady) {
         printf("FDC_PATH,stage=prepare_done,reason=%s,ok=0,err=0x%lx,sw=-1,sela=-1,selb=-1,en=-1,adsRef=-1,adsVbias=-1\n",
                source,
@@ -752,24 +798,30 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
     }
 
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
-    printf("FDC_PATH,stage=ads_stop,reason=%s,err=0x%lx\n", source, (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=ads_stop,reason=%s,err=0x%lx\n", source, (unsigned long)err);
+    }
     if (err != ESP_OK) {
         return err;
     }
 #if CONFIG_SENSORARRAY_ADS1263
     esp_err_t adc2Err = ads126xAdcStopAdc2(&state->ads);
-    printf("FDC_PATH,stage=ads_stop2,reason=%s,err=0x%lx\n", source, (unsigned long)adc2Err);
+    if (logNormal || (adc2Err != ESP_OK && adc2Err != ESP_ERR_NOT_SUPPORTED)) {
+        printf("FDC_PATH,stage=ads_stop2,reason=%s,err=0x%lx\n", source, (unsigned long)adc2Err);
+    }
     if (adc2Err != ESP_OK && adc2Err != ESP_ERR_NOT_SUPPORTED) {
         return adc2Err;
     }
 #endif
 
     err = sensorarrayMeasureForceAdsReferenceOff(state);
-    printf("FDC_PATH,stage=ads_ref_off,reason=%s,err=0x%lx,adsRefReady=%d\n",
-           source,
-           (unsigned long)err,
-           state->adsRefReady ? 1 : 0);
-    printf("FDC_PATH,stage=ads_vbias_off,reason=%s,err=0x%lx\n", source, (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=ads_ref_off,reason=%s,err=0x%lx,adsRefReady=%d\n",
+               source,
+               (unsigned long)err,
+               state->adsRefReady ? 1 : 0);
+        printf("FDC_PATH,stage=ads_vbias_off,reason=%s,err=0x%lx\n", source, (unsigned long)err);
+    }
     if (err != ESP_OK) {
         return err;
     }
@@ -781,11 +833,13 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
     sensorarrayMeasureReadFdcPathControl(&ctrl);
     int fdcSelaLevel = -1;
     (void)sensorarrayBoardMapSelaRouteToGpioLevel(SENSORARRAY_SELA_ROUTE_FDC2214, &fdcSelaLevel);
-    printf("FDC_PATH,stage=tmux1134_fdc,reason=%s,selaCmd=%d,selaReadback=%d,err=0x%lx\n",
-           source,
-           fdcSelaLevel,
-           ctrl.obsSelaLevel,
-           (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=tmux1134_fdc,reason=%s,selaCmd=%d,selaReadback=%d,err=0x%lx\n",
+               source,
+               fdcSelaLevel,
+               ctrl.obsSelaLevel,
+               (unsigned long)err);
+    }
     if (err != ESP_OK) {
         return err;
     }
@@ -794,42 +848,50 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
     sensorarrayMeasureReadFdcPathControl(&ctrl);
     bool fdcSelbLevel = false;
     (void)sensorarrayBoardMapFdcSelBLevel(&fdcSelbLevel);
-    printf("FDC_PATH,stage=selb_fdc,reason=%s,selbCmd=%d,selbReadback=%d,err=0x%lx\n",
-           source,
-           fdcSelbLevel ? 1 : 0,
-           ctrl.obsSelbLevel,
-           (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=selb_fdc,reason=%s,selbCmd=%d,selbReadback=%d,err=0x%lx\n",
+               source,
+               fdcSelbLevel ? 1 : 0,
+               ctrl.obsSelbLevel,
+               (unsigned long)err);
+    }
     if (err != ESP_OK) {
         return err;
     }
 
     err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
     sensorarrayMeasureReadFdcPathControl(&ctrl);
-    printf("FDC_PATH,stage=sw_gnd,reason=%s,swCmd=GND,swReadback=%d,err=0x%lx\n",
-           source,
-           sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
-           (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=sw_gnd,reason=%s,swCmd=GND,swReadback=%d,err=0x%lx\n",
+               source,
+               sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
+               (unsigned long)err);
+    }
     if (err != ESP_OK) {
         return err;
     }
 
     err = tmux1134SetEnLogicalState(true);
     sensorarrayMeasureReadFdcPathControl(&ctrl);
-    printf("FDC_PATH,stage=tmux1108_enable,reason=%s,enCmd=1,enReadback=%d,err=0x%lx\n",
-           source,
-           ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
-           (unsigned long)err);
+    if (logNormal || err != ESP_OK) {
+        printf("FDC_PATH,stage=tmux1108_enable,reason=%s,enCmd=1,enReadback=%d,err=0x%lx\n",
+               source,
+               ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
+               (unsigned long)err);
+    }
 
     bool ok = (err == ESP_OK) && sensorarrayMeasureFdcPathControlMatches(&ctrl);
-    printf("FDC_PATH,stage=prepare_done,reason=%s,ok=%d,err=0x%lx,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d,adsVbias=0\n",
-           source,
-           ok ? 1 : 0,
-           (unsigned long)(ok ? ESP_OK : ESP_ERR_INVALID_STATE),
-           sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
-           ctrl.obsSelaLevel,
-           ctrl.obsSelbLevel,
-           ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
-           state->adsRefReady ? 1 : 0);
+    if (logNormal || !ok) {
+        printf("FDC_PATH,stage=prepare_done,reason=%s,ok=%d,err=0x%lx,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d,adsVbias=0\n",
+               source,
+               ok ? 1 : 0,
+               (unsigned long)(ok ? ESP_OK : ESP_ERR_INVALID_STATE),
+               sensorarrayMeasureSwPhysicalReadbackFromControl(&ctrl),
+               ctrl.obsSelaLevel,
+               ctrl.obsSelbLevel,
+               ctrl.obsTmux1134EnLogicalOnValid ? (ctrl.obsTmux1134EnLogicalOn ? 1 : 0) : (ctrl.cmdTmux1134EnLogicalOn ? 1 : 0),
+               state->adsRefReady ? 1 : 0);
+    }
     return ok ? ESP_OK : ((err != ESP_OK) ? err : ESP_ERR_INVALID_STATE);
 }
 
@@ -2215,6 +2277,25 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                             secondaryBusEnabled &&
                             !sameBus &&
                             (!s_fdcWorkersInitAttempted || s_fdcWorkersAvailable);
+    if (!s_fdcParallelConfigLogged) {
+        s_fdcParallelConfigLogged = true;
+        printf("FDC_PARALLEL_CONFIG,parallelEnabled=%u,forceSingleThread=%u,disableAfterTimeoutInFrame=%u,retryIntervalFrames=%lu,cooldownFrames=%lu,workerSyncTimeoutMs=%lu,primaryBus=%d,secondaryBus=%d,sameBus=%u,scanTaskCore=%d,scanTaskPriority=%d,workerTaskCore=%d,workerTaskPriority=%d\n",
+               parallelConfigEnabled ? 1u : 0u,
+               CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ ? 1u : 0u,
+               CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME ? 1u : 0u,
+               (unsigned long)CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES,
+               (unsigned long)s_fdcParallelCooldownFrames,
+               (unsigned long)CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS,
+               primaryBusEnabled ? (int)primaryBus.Port : -1,
+               secondaryBusEnabled ? (int)secondaryBus.Port : -1,
+               sameBus ? 1u : 0u,
+               CONFIG_SENSORARRAY_SCAN_TASK_CORE,
+               CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
+               CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+               CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO);
+    }
+    bool parallelAllowedForFrame = parallelEligible && s_fdcParallelCooldownFrames == 0u;
+    bool parallelDisabledForThisFrame = false;
 
     int64_t stageStartUs = esp_timer_get_time();
     firstErr = sensorarrayMeasureEnsureFdcMatrixPath(state, "fdc_matrix_frame");
@@ -2256,6 +2337,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
 
     sensorarrayFdcFrameHealth_t frameHealth = {0};
+    sensorarrayFdcFrameReadTracker_t readTracker = {
+        .frameSeq = outFrame->sequence,
+    };
     for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
         sensorarrayFdcRowTiming_t rowTiming = {
             .row = s,
@@ -2282,19 +2366,37 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         sensorarrayFdcRuntimeChannelConfig_t runtimeConfigs[2][4] = {0};
         sensorarrayFdcAutoscanSamples_t primarySamples = {0};
         sensorarrayFdcAutoscanSamples_t secondarySamples = {0};
+        uint32_t duplicateReadCountBeforeRow = readTracker.duplicateReadCount;
 
-        stageStartUs = esp_timer_get_time();
         esp_err_t rowErr = ESP_ERR_NOT_SUPPORTED;
-        if (parallelEligible) {
+        bool rowHandledByParallel = false;
+        bool useParallelThisRow = parallelAllowedForFrame && !parallelDisabledForThisFrame;
+        if (useParallelThisRow) {
+            bool rowWorkerTimeout = false;
             rowErr = sensorarrayMeasureReadFdcMatrixRowParallelEpoch(state,
                                                                      s,
                                                                      epochId,
+                                                                     outFrame->sequence,
                                                                      &primarySamples,
                                                                      &secondarySamples,
                                                                      runtimeConfigs,
                                                                      &primaryTiming,
                                                                      &secondaryTiming,
-                                                                     &rowTiming);
+                                                                     &rowTiming,
+                                                                     &readTracker,
+                                                                     &rowWorkerTimeout);
+            rowHandledByParallel = rowErr == ESP_OK;
+            if (rowWorkerTimeout &&
+                CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME) {
+                parallelDisabledForThisFrame = true;
+                s_fdcParallelCooldownFrames =
+                    (uint32_t)CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES;
+                printf("FDC_PARALLEL_FRAME_DOWNGRADE,seq=%lu,row=%u,epoch=%lu,reason=worker_timeout,cooldownFrames=%lu,remainingRowsSerial=1\n",
+                       (unsigned long)outFrame->sequence,
+                       (unsigned)s,
+                       (unsigned long)epochId,
+                       (unsigned long)s_fdcParallelCooldownFrames);
+            }
             if (rowErr != ESP_OK) {
                 printf("FDC_PARALLEL_FALLBACK,reason=%s,row=%u,epoch=%lu,err=0x%lx,primaryBus=%d,secondaryBus=%d,sameBus=%u\n",
                        sensorarrayMeasureFdcParallelFallbackReason(parallelConfigEnabled,
@@ -2308,19 +2410,26 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                        primaryBusEnabled ? (int)primaryBus.Port : -1,
                        secondaryBusEnabled ? (int)secondaryBus.Port : -1,
                        sameBus ? 1u : 0u);
-                parallelEligible = false;
+                parallelDisabledForThisFrame = true;
             }
         }
-        if (!parallelEligible || rowErr != ESP_OK) {
+        if (!rowHandledByParallel) {
+            bool serialFallback = useParallelThisRow || parallelDisabledForThisFrame;
+            int64_t serialStartUs = esp_timer_get_time();
             rowErr = sensorarrayMeasureReadFdcMatrixRowSerialEpoch(state,
                                                                    s,
                                                                    epochId,
+                                                                   outFrame->sequence,
                                                                    &primarySamples,
                                                                    &secondarySamples,
                                                                    runtimeConfigs,
                                                                    &primaryTiming,
                                                                    &secondaryTiming,
-                                                                   &rowTiming);
+                                                                   &rowTiming,
+                                                                   &readTracker);
+            if (serialFallback) {
+                rowTiming.serialFallbackUs += sensorarrayMeasureElapsedUs(serialStartUs);
+            }
         }
         if (rowErr != ESP_OK && firstErr == ESP_OK) {
             firstErr = rowErr;
@@ -2406,6 +2515,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         rowTiming.rowValidMask = rowValidMask8;
         rowTiming.rowWarnMask = rowWarnMask8;
         rowTiming.rowErrorMask = rowErrorMask8;
+        rowTiming.duplicateReadCount = readTracker.duplicateReadCount - duplicateReadCountBeforeRow;
         if (rowValidMask8 == 0u) {
             timing.rowFullInvalidCount++;
         }
@@ -2473,11 +2583,15 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         }
         taskYIELD();
     }
+    if (s_fdcParallelCooldownFrames > 0u) {
+        s_fdcParallelCooldownFrames--;
+    }
     sensorarrayMeasureUpdateFdcRuntimeProfiles(state, &frameHealth);
     sensorarrayMeasureCountFdcFrameWarnings(&frameHealth, &timing);
 
     timing.capComputeUs = sensorarrayMeasureComputeFdcFrameCapTotalPf(outFrame);
     timing.frameUs = sensorarrayMeasureElapsedUs(frameStartUs);
+    timing.measureLockHeldUs = timing.frameUs;
     timing.rowAvgUs = rowTotalUs / SENSORARRAY_MATRIX_ROWS;
     if (timing.rowMinUs == UINT64_MAX) {
         timing.rowMinUs = 0u;

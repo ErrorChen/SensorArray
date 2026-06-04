@@ -749,6 +749,24 @@ static void sensorarrayMeasurePrintFdcTimingSummary(const sensorarrayFdcTimingSu
            (unsigned long)summary->i2cBus1RetryCount,
            (unsigned long)summary->i2cBus1NackCount,
            (unsigned long)summary->i2cBus1TimeoutCount);
+    printf("SCAN_TIMING_WORKER,seq=%lu,workerQueueSendUs=%llu,workerSleepAckWaitUs=%llu,workerStartGiveUs=%llu,workerDoneWaitUs=%llu,workerLateDoneUs=%llu,workerIdleAfterTimeoutUs=%llu,serialFallbackUs=%llu,repairPrimaryUs=%llu,repairSecondaryUs=%llu,workerTimeoutCount=%lu,workerLateDoneCount=%lu,staleResultDiscardedCount=%lu,duplicateReadCount=%lu,outputFormatUs=%llu,outputPrintfUs=%llu,measureLockHeldUs=%llu\n",
+           (unsigned long)sequence,
+           (unsigned long long)summary->workerQueueSendUs,
+           (unsigned long long)summary->workerSleepAckWaitUs,
+           (unsigned long long)summary->workerStartGiveUs,
+           (unsigned long long)summary->workerDoneWaitUs,
+           (unsigned long long)summary->workerLateDoneUs,
+           (unsigned long long)summary->workerIdleAfterTimeoutUs,
+           (unsigned long long)summary->serialFallbackUs,
+           (unsigned long long)summary->repairPrimaryUs,
+           (unsigned long long)summary->repairSecondaryUs,
+           (unsigned long)summary->workerTimeoutCount,
+           (unsigned long)summary->workerLateDoneCount,
+           (unsigned long)summary->staleResultDiscardedCount,
+           (unsigned long)summary->duplicateReadCount,
+           (unsigned long long)summary->outputFormatUs,
+           (unsigned long long)summary->outputPrintfUs,
+           (unsigned long long)summary->measureLockHeldUs);
 }
 
 static uint64_t sensorarrayMeasureAvgU64(uint64_t total, uint32_t count)
@@ -869,6 +887,26 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
                (unsigned long)t->fallbackSuccessCount,
                (unsigned long)t->fallbackPartialCount,
                (unsigned long)t->fallbackFailCount);
+        printf("FDC_WORKER_SYNC_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,queueSendAvgUs=%llu,sleepAckWaitAvgUs=%llu,startGiveAvgUs=%llu,doneWaitAvgUs=%llu,lateDoneUs=%llu,idleAfterTimeoutUs=%llu,serialFallbackAvgUs=%llu,repairPrimaryAvgUs=%llu,repairSecondaryAvgUs=%llu,workerTimeoutCount=%lu,workerLateDoneCount=%lu,staleResultDiscardedCount=%lu,duplicateReadCount=%lu,outputFormatAvgUs=%llu,outputPrintfAvgUs=%llu,measureLockHeldAvgUs=%llu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->workerQueueSendUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->workerSleepAckWaitUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->workerStartGiveUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->workerDoneWaitUs, rowCount),
+               (unsigned long long)t->workerLateDoneUs,
+               (unsigned long long)t->workerIdleAfterTimeoutUs,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->serialFallbackUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->repairPrimaryUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->repairSecondaryUs, rowCount),
+               (unsigned long)t->workerTimeoutCount,
+               (unsigned long)t->workerLateDoneCount,
+               (unsigned long)t->staleResultDiscardedCount,
+               (unsigned long)t->duplicateReadCount,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->outputFormatUs, agg->frames),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->measureLockHeldUs, agg->frames));
         printf("FDC_VALIDITY_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,rowFullInvalidCount=%lu,deviceFullInvalidCount=%lu,degradedCellCount=%lu,freshWarnCount=%lu,staleWarnCount=%lu,transientWarnCount=%lu,fastSweepRequestedCount=%lu,sweepRequestCount=%lu,sweepActuallyQueuedCount=%lu\n",
                (unsigned long)agg->seqStart,
                (unsigned long)agg->seqEnd,
@@ -955,6 +993,26 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ && s_fdcWorkersAvailable) ? 1u : 0u,
            SENSORARRAY_FDC_READY_MODE_NAME,
            SENSORARRAY_FDC_INTB_HINT_NAME);
+    printf("SCAN_TIMING_WORKER_10,seqStart=%lu,seqEnd=%lu,frames=%lu,workerQueueSendAvgUs=%llu,workerSleepAckWaitAvgUs=%llu,workerStartGiveAvgUs=%llu,workerDoneWaitAvgUs=%llu,workerLateDoneUs=%llu,workerIdleAfterTimeoutUs=%llu,serialFallbackAvgUs=%llu,repairPrimaryAvgUs=%llu,repairSecondaryAvgUs=%llu,workerTimeoutCount=%lu,workerLateDoneCount=%lu,staleResultDiscardedCount=%lu,duplicateReadCount=%lu,outputFormatAvgUs=%llu,outputPrintfAvgUs=%llu,measureLockHeldAvgUs=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerQueueSendUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerSleepAckWaitUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerStartGiveUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerDoneWaitUs, rowCount),
+           (unsigned long long)t->workerLateDoneUs,
+           (unsigned long long)t->workerIdleAfterTimeoutUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->serialFallbackUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->repairPrimaryUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->repairSecondaryUs, rowCount),
+           (unsigned long)t->workerTimeoutCount,
+           (unsigned long)t->workerLateDoneCount,
+           (unsigned long)t->staleResultDiscardedCount,
+           (unsigned long)t->duplicateReadCount,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->outputFormatUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->measureLockHeldUs, agg->frames));
 }
 
 static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimingSummary_t *summary,
@@ -1010,6 +1068,18 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(secondaryJobUs);
     SENSORARRAY_FDC_AGG_ADD(dualBusWaitUs);
     SENSORARRAY_FDC_AGG_ADD(dualBusSkewUs);
+    SENSORARRAY_FDC_AGG_ADD(workerQueueSendUs);
+    SENSORARRAY_FDC_AGG_ADD(workerSleepAckWaitUs);
+    SENSORARRAY_FDC_AGG_ADD(workerStartGiveUs);
+    SENSORARRAY_FDC_AGG_ADD(workerDoneWaitUs);
+    SENSORARRAY_FDC_AGG_ADD(workerLateDoneUs);
+    SENSORARRAY_FDC_AGG_ADD(workerIdleAfterTimeoutUs);
+    SENSORARRAY_FDC_AGG_ADD(serialFallbackUs);
+    SENSORARRAY_FDC_AGG_ADD(repairPrimaryUs);
+    SENSORARRAY_FDC_AGG_ADD(repairSecondaryUs);
+    SENSORARRAY_FDC_AGG_ADD(outputFormatUs);
+    SENSORARRAY_FDC_AGG_ADD(outputPrintfUs);
+    SENSORARRAY_FDC_AGG_ADD(measureLockHeldUs);
     SENSORARRAY_FDC_AGG_ADD(cacheApplySkippedCount);
     SENSORARRAY_FDC_AGG_ADD(cacheApplyDirtyDeviceCount);
     SENSORARRAY_FDC_AGG_ADD(cacheApplyDiffWriteCount);
@@ -1066,6 +1136,10 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(fallbackFailCount);
     SENSORARRAY_FDC_AGG_ADD(rowFullInvalidCount);
     SENSORARRAY_FDC_AGG_ADD(deviceFullInvalidCount);
+    SENSORARRAY_FDC_AGG_ADD(workerTimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(workerLateDoneCount);
+    SENSORARRAY_FDC_AGG_ADD(staleResultDiscardedCount);
+    SENSORARRAY_FDC_AGG_ADD(duplicateReadCount);
     SENSORARRAY_FDC_AGG_ADD(waitReadyUsPrimaryTotal);
     SENSORARRAY_FDC_AGG_ADD(waitReadyUsSecondaryTotal);
     SENSORARRAY_FDC_AGG_ADD(read4UsPrimaryTotal);
@@ -1101,11 +1175,18 @@ static void sensorarrayMeasurePrintFdcBottleneck(const sensorarrayFdcTimingSumma
     } items[] = {
         {"cacheApplyUs", summary->cacheApplyUs},
         {"i2cMeasuredUs", summary->i2cMeasuredUs},
-        {"waitReadyUs", summary->waitReadyUs},
-        {"readUs", summary->readUs},
+        {"readyPollUs", summary->waitReadyUs},
+        {"read4I2cUs", summary->readUs},
         {"rowMaxUs", summary->rowMaxUs},
         {"diffApplyWhileSleepingUs", summary->diffApplyWhileSleepingUs},
-        {"sleepExitToIntbUs", summary->sleepExitToIntbUs},
+        {"workerDoneWaitUs", summary->workerDoneWaitUs},
+        {"workerSleepAckWaitUs", summary->workerSleepAckWaitUs},
+        {"workerIdleAfterTimeoutUs", summary->workerIdleAfterTimeoutUs},
+        {"serialFallbackUs", summary->serialFallbackUs},
+        {"repairPrimaryUs", summary->repairPrimaryUs},
+        {"repairSecondaryUs", summary->repairSecondaryUs},
+        {"outputPrintfUs", summary->outputPrintfUs},
+        {"measureLockHeldUs", summary->measureLockHeldUs},
     };
 
     for (size_t i = 0u; i < sizeof(items) / sizeof(items[0]); ++i) {
@@ -1120,6 +1201,8 @@ static void sensorarrayMeasurePrintFdcBottleneck(const sensorarrayFdcTimingSumma
 
     const char *hint =
         (summary->cacheApplyDiffWriteCount > 64u) ? "excessive_diff_writes" :
+        (summary->workerTimeoutCount > 0u) ? "worker_sync_timeout" :
+        (summary->serialFallbackUs > 0u) ? "serial_fallback" :
         (summary->intbTimeoutCount > 0u) ? "intb_timeout_or_polling_fallback" :
         (summary->i2cMeasuredUs > SENSORARRAY_FDC_TARGET_FRAME_US) ? "i2c_transaction_budget" :
         "row_epoch_timing";

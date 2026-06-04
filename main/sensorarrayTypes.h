@@ -138,6 +138,18 @@ typedef struct {
     uint64_t secondaryJobUs;
     uint64_t dualBusWaitUs;
     uint64_t dualBusSkewUs;
+    uint64_t workerQueueSendUs;
+    uint64_t workerSleepAckWaitUs;
+    uint64_t workerStartGiveUs;
+    uint64_t workerDoneWaitUs;
+    uint64_t workerLateDoneUs;
+    uint64_t workerIdleAfterTimeoutUs;
+    uint64_t serialFallbackUs;
+    uint64_t repairPrimaryUs;
+    uint64_t repairSecondaryUs;
+    uint64_t outputFormatUs;
+    uint64_t outputPrintfUs;
+    uint64_t measureLockHeldUs;
 
     uint32_t cacheApplySkippedCount;
     uint32_t cacheApplyDirtyDeviceCount;
@@ -169,6 +181,10 @@ typedef struct {
     uint32_t fallbackFailCount;
     uint32_t rowFullInvalidCount;
     uint32_t deviceFullInvalidCount;
+    uint32_t workerTimeoutCount;
+    uint32_t workerLateDoneCount;
+    uint32_t staleResultDiscardedCount;
+    uint32_t duplicateReadCount;
     uint64_t waitReadyUsPrimaryTotal;
     uint64_t waitReadyUsSecondaryTotal;
     uint64_t read4UsPrimaryTotal;
@@ -246,6 +262,19 @@ typedef struct {
     uint64_t secondaryJobUs;
     uint64_t dualBusWaitUs;
     uint64_t dualBusSkewUs;
+    uint64_t workerQueueSendUs;
+    uint64_t workerSleepAckWaitUs;
+    uint64_t workerStartGiveUs;
+    uint64_t workerDoneWaitUs;
+    uint64_t workerLateDoneUs;
+    uint64_t workerIdleAfterTimeoutUs;
+    uint64_t serialFallbackUs;
+    uint64_t repairPrimaryUs;
+    uint64_t repairSecondaryUs;
+    uint32_t workerTimeoutCount;
+    uint32_t workerLateDoneCount;
+    uint32_t staleResultDiscardedCount;
+    uint32_t duplicateReadCount;
 
     uint8_t rowValidMask;
     uint8_t rowWarnMask;

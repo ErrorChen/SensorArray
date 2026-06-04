@@ -125,6 +125,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                                                   const sensorarrayFdcReadyState_t *ready,
                                                   esp_err_t readErr,
                                                   uint32_t readUs,
+                                                  bool logNormal,
                                                   sensorarrayFdcDeviceRead4Result_t *outRead4)
 {
     if (!outRead4) {
@@ -193,6 +194,14 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     bool diagnostic = outRead4->readUs == 0u &&
                       outRead4->unreadMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
     const char *diagnosticName = sensorarrayMeasureFdcRead4DiagnosticName(outRead4);
+    bool fullSuccess = outRead4->readErr == ESP_OK &&
+                       !outRead4->timeout &&
+                       !outRead4->partial &&
+                       outRead4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL &&
+                       outRead4->validMask4 == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    if (fullSuccess && !logNormal) {
+        return;
+    }
     printf("FDC_DEVICE_READ4,dev=%s,row=%u,epoch=%lu,readMode=%s,diagnostic=%s,rawSource=%s,raw28=[%lu,%lu,%lu,%lu],freqHz=[%.3f,%.3f,%.3f,%.3f],freshMask=0x%X,validMask=0x%X,warnMask=0x%X,errorMask=0x%X,status=0x%04X,unread=0x%X,drdy=%u,partial=%u,timeout=%u,edgeDelta=%lu,waitUs=%lu,readUs=%lu,pollCount=%lu,readyMode=%s,err=0x%lx,errName=%s\n",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
