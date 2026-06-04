@@ -126,14 +126,16 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 | `fdcRescue` | Runtime all-invalid rescue context ticked after each frame. |
 | `primaryAddrValid`, `secondaryAddrValid` | FDC I2C address parse results. |
 | `requestedFdcChannels` | Normalised FDC channel count; the matrix expects four channels per FDC. |
-| `fdcBootSweepOk` | Boot sweep result used by diagnostics. |
-| `fdcDiagnosticMode` | Set after fatal FDC readiness, required boot sweep, or repeated rescue failure conditions. |
+| `fdcBootSweepOk` | True only when the boot sweep transport succeeds and boot quality is `OK`. |
+| `fdcBootSummary` | Last boot-sweep summary: valid/failed/cache-filled counts, row masks, quality and reason. |
+| `fdcDegradedMode` | Set when boot policy allows partial hardware or the boot sweep quality is degraded. |
+| `fdcDiagnosticMode` | Set after fatal FDC readiness, non-OK required boot quality, or repeated rescue failure conditions. |
 | `fdcFrameCounter` | Incremented per read attempt and used for periodic stack/memory logs. |
 | `failedRescueCount`, `rescueEpoch`, `lastFullRescueTimeUs`, `rescueRunning` | Full-sweep rescue throttling and diagnostics. |
 
 ### Runtime lifecycle
 
-`app_main()` clears `s_appContext`, runs `sensorarrayInitSystem()`, enters safe idle on init failure, runs `sensorarrayRunBootCalibration()`, marks diagnostic mode when a required boot sweep fails, then calls `sensorarrayRunMainLoop()`.
+`app_main()` clears `s_appContext`, runs `sensorarrayInitSystem()`, enters safe idle on init failure, runs `sensorarrayRunBootCalibration()`, marks diagnostic mode when a required boot sweep does not produce `OK` quality, then calls `sensorarrayRunMainLoop()`.
 
 The main loop consumes queued full sweeps, emits periodic memory/stack diagnostics, handles diagnostic mode, reads one frame, prints all-invalid or frame-error diagnostics, emits text output, runs rescue tick, then delays to the configured frame period.
 
@@ -142,7 +144,7 @@ The main loop consumes queued full sweeps, emits periodic memory/stack diagnosti
 - Init failure enters safe idle with `APP_FATAL`; there is no automatic restart.
 - Primary FDC missing is a serious boot failure.
 - Secondary FDC missing is fatal only when dual-FDC boot is required.
-- Required boot sweep failure sets diagnostic mode.
+- Required boot sweep quality must be `OK`; degraded or failed quality sets diagnostic mode when boot sweep is required.
 - Runtime all-invalid frames are still emitted and then evaluated by the rescue path.
 - Full rescue is throttled by cooldown and maximum consecutive failure count.
 
@@ -156,11 +158,12 @@ For the full configuration table, see “Configuration options” in the root `R
 |---|---|
 | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` | `sensorarrayDelayFramePeriodSince()` uses it as target frame period. Current defaults set `50 ms`; `250 ms` would be about `4 fps`. |
 | `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED` | Controls whether boot sweep failure leaves the app in diagnostic mode. |
+| `CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS`, `CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED`, `CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK` | Define the boot quality gate stored in `fdcBootSummary`. |
 | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT` | Controls whether secondary FDC absence is fatal or primary-only fallback. |
 | `CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS` | Throttles queued full sweep in `sensorarrayRunQueuedFullSweep()`. |
 | `CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS` | Enters diagnostic mode after repeated full sweep failures. |
 | `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_REGS`, `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS`, `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS` | Controls optional register dumping from `sensorarrayRunDiagnosticTick()`. |
-| `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ` | Logged by app init through `sensorarrayLogFdcParallelCfg()` and used by measurement row epoch. |
+| `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ`, `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE`, `CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ` | Logged by app init through `sensorarrayLogFdcParallelCfg()` and used by measurement row epoch. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_*`, `CONFIG_SENSORARRAY_FDC_RAW_DEBUG_LOG` | Controls what `sensorarrayFrameOutputPrint()` prints after the app reads a frame. |
 
 ## 边界 / Boundaries

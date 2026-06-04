@@ -114,6 +114,26 @@ typedef struct {
     const char *reason;
 } sensorarrayFdcSweepResult_t;
 
+typedef enum {
+    SENSORARRAY_FDC_BOOT_QUALITY_OK = 0,
+    SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED,
+    SENSORARRAY_FDC_BOOT_QUALITY_FAIL,
+} sensorarrayFdcBootQuality_t;
+
+typedef struct {
+    esp_err_t transportErr;
+    sensorarrayFdcBootQuality_t quality;
+    uint8_t validCellCount;
+    uint8_t failedCellCount;
+    uint8_t cacheFilledCellCount;
+    uint8_t validRowMask;
+    uint8_t failedRowMask;
+    uint8_t primaryValidRows;
+    uint8_t secondaryValidRows;
+    bool degraded;
+    const char *reason;
+} sensorarrayFdcBootSummary_t;
+
 esp_err_t sensorarrayFdcSweepRunChannel(sensorarrayState_t *state,
                                         sensorarrayFdcDeviceId_t devId,
                                         Fdc2214CapChannel_t channel,
@@ -125,7 +145,8 @@ esp_err_t sensorarrayFdcSweepRunDevice(sensorarrayState_t *state,
                                        uint8_t channelMask,
                                        const char *reason);
 
-esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state);
+esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state,
+                                     sensorarrayFdcBootSummary_t *outSummary);
 
 esp_err_t sensorarrayFdcSweepRouteRowForCap(sensorarrayState_t *state,
                                             uint8_t sIndex,

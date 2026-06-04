@@ -123,6 +123,14 @@ config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ
     bool "Read primary and secondary FDC devices with dual worker tasks"
     default y
 
+config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE
+    bool "Require guarded FDC dual-worker result handoff"
+    default y
+
+config SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
+    bool "Force serial FDC formal row reads"
+    default n
+
 config SENSORARRAY_FDC_WORKER_TASK_STACK
     int "FDC worker task stack bytes"
     default 6144
@@ -311,6 +319,23 @@ config SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
     bool "Require at least one valid boot sweep sample before normal matrix output"
     default y
 
+config SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS
+    int "Minimum valid FDC cells for normal boot quality"
+    default 48
+    range 1 64
+
+config SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED
+    bool "Allow explicit degraded FDC boot quality"
+    default y
+    help
+        When enabled, a boot sweep with some valid cells but fewer than the
+        required minimum is reported as degraded instead of transport failure.
+
+config SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK
+    hex "Required FDC boot row mask"
+    default 0xFF
+    range 0 0xFF
+
 config SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
     bool "Require both primary and secondary FDC devices for normal boot"
     default y
@@ -380,6 +405,51 @@ config SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS
 config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
     bool "Print verbose per-row FDC scan diagnostics"
     default n
+
+config SENSORARRAY_LOG_FRAME_SUMMARY
+    bool "Print formal FDC frame summary"
+    default y
+
+config SENSORARRAY_LOG_ROW_SUMMARY
+    bool "Print formal FDC row summary"
+    default y
+
+config SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES
+    int "BOARD_I2C_STATS aggregate period in MATRIXFDC frames"
+    default 10
+    range 0 10000
+
+config SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES
+    int "FDC_TIMING_STATS aggregate period in MATRIXFDC frames"
+    default 10
+    range 0 10000
+
+config SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER
+    bool "Print every board-level I2C transaction"
+    default n
+
+config SENSORARRAY_LOG_FDC_REGISTER_TRACE
+    bool "Print FDC register trace"
+    default n
+
+config SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE
+    bool "Print every sweep candidate detail"
+    default n
+
+config SENSORARRAY_LOG_WORKER_VERBOSE
+    bool "Print verbose FDC worker logs"
+    default n
+
+config SENSORARRAY_LOG_CACHE_APPLY_VERBOSE
+    bool "Print verbose FDC cache apply details"
+    default n
+
+config SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ
+    bool "Allow safe-default FDC row configs in formal reads"
+    default n
+    help
+        Keep disabled for normal operation: uncalibrated cells are marked
+        invalid and scheduled for rescue instead of being read as normal data.
 
 config SENSORARRAY_FDC_RAW_DEBUG_LOG
     bool "Print DEBUGFDC_RAW alongside MATRIXFDC"

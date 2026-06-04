@@ -10,6 +10,10 @@
 
 #define SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF (-1.0)
 
+#ifndef CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY
+#define CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY 1
+#endif
+
 static esp_err_t sensorarrayTransportSendFdcMatrixFrame(const sensorarrayFrame_t *frame)
 {
     (void)frame;
@@ -23,6 +27,19 @@ static void sensorarrayFrameOutputPrintText(const sensorarrayFrame_t *frame, con
 #endif
     bool partial = frame->capValidMask != UINT64_MAX;
     const char *frameQuality = partial ? "partial" : "full";
+#if CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY
+    printf("FDC_FRAME_SUMMARY,seq=%lu,validCells=%u,invalidCells=%u,freshCells=%u,capValidMask=0x%016llX,validMask=0x%016llX,warnMask=0x%016llX,errorMask=0x%016llX,firstBadRow=%u,firstBadDevice=%u\n",
+           (unsigned long)frame->sequence,
+           (unsigned)frame->validCount,
+           (unsigned)(SENSORARRAY_MATRIX_CELL_COUNT - frame->validCount),
+           (unsigned)frame->freshCount,
+           (unsigned long long)frame->capValidMask,
+           (unsigned long long)frame->validMask,
+           (unsigned long long)frame->warnMask,
+           (unsigned long long)frame->errorMask,
+           (unsigned)frame->firstBadRow,
+           (unsigned)frame->firstBadDevice);
+#endif
     printf("FDC_FRAME_OUTPUT,seq=%lu,frameQuality=%s,partial=%u,capValidMask=0x%016llX,errorMask=0x%016llX,invalidSentinel=%.6f\n",
            (unsigned long)frame->sequence,
            frameQuality,

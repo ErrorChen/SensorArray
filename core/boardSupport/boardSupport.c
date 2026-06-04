@@ -37,6 +37,9 @@
 #ifndef CONFIG_SENSORARRAY_I2C_RECOVERY_TOGGLE_CLOCKS
 #define CONFIG_SENSORARRAY_I2C_RECOVERY_TOGGLE_CLOCKS 9
 #endif
+#ifndef CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER
+#define CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER 0
+#endif
 
 #if CONFIG_BOARD_I2C1_ENABLE
 #define BOARD_SUPPORT_I2C1_ENABLE_REQUESTED 1
@@ -516,18 +519,20 @@ static esp_err_t boardSupportI2cFinishTransaction(BoardSupportI2cCtx_t *ctx,
     }
     ctx->LastTransactionUs = esp_timer_get_time();
     int64_t elapsedUs = ctx->LastTransactionUs - startUs;
-    printf("BOARD_I2C_XFER,stage=end,port=%d,addr=0x%02X,op=%s,err=0x%lx,elapsedUs=%lld,sda=%d,scl=%d,busState=%s,nackCount=%lu,timeoutCount=%lu,offline=%u\n",
-           (int)ctx->Port,
-           addr7,
-           op ? op : "unknown",
-           (unsigned long)err,
-           (long long)elapsedUs,
-           sda,
-           scl,
-           boardSupportI2cBusStateName(busState),
-           (unsigned long)ctx->NackCount,
-           (unsigned long)ctx->TimeoutCount,
-           ctx->Offline ? 1u : 0u);
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER || err != ESP_OK) {
+        printf("BOARD_I2C_XFER,stage=end,port=%d,addr=0x%02X,op=%s,err=0x%lx,elapsedUs=%lld,sda=%d,scl=%d,busState=%s,nackCount=%lu,timeoutCount=%lu,offline=%u\n",
+               (int)ctx->Port,
+               addr7,
+               op ? op : "unknown",
+               (unsigned long)err,
+               (long long)elapsedUs,
+               sda,
+               scl,
+               boardSupportI2cBusStateName(busState),
+               (unsigned long)ctx->NackCount,
+               (unsigned long)ctx->TimeoutCount,
+               ctx->Offline ? 1u : 0u);
+    }
     boardSupportI2cUnlock(ctx);
     boardSupportI2cHandleTransactionError(ctx, addr7, op, err, busState);
     return err;
@@ -872,12 +877,14 @@ esp_err_t boardSupportI2cWriteRead(void *userCtx,
 
     ctx->TransactionCount++;
     int64_t startUs = esp_timer_get_time();
-    printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=write_read,txLen=%u,rxLen=%u,count=%lu\n",
-           (int)ctx->Port,
-           addr7,
-           (unsigned)txLen,
-           (unsigned)rxLen,
-           (unsigned long)ctx->TransactionCount);
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER) {
+        printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=write_read,txLen=%u,rxLen=%u,count=%lu\n",
+               (int)ctx->Port,
+               addr7,
+               (unsigned)txLen,
+               (unsigned)rxLen,
+               (unsigned long)ctx->TransactionCount);
+    }
     err = i2c_master_write_read_device(ctx->Port,
                                        addr7,
                                        tx,
@@ -913,11 +920,13 @@ esp_err_t boardSupportI2cWrite(void *userCtx,
 
     ctx->TransactionCount++;
     int64_t startUs = esp_timer_get_time();
-    printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=write,txLen=%u,rxLen=0,count=%lu\n",
-           (int)ctx->Port,
-           addr7,
-           (unsigned)txLen,
-           (unsigned long)ctx->TransactionCount);
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER) {
+        printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=write,txLen=%u,rxLen=0,count=%lu\n",
+               (int)ctx->Port,
+               addr7,
+               (unsigned)txLen,
+               (unsigned long)ctx->TransactionCount);
+    }
     err = i2c_master_write_to_device(ctx->Port,
                                      addr7,
                                      tx,
@@ -951,11 +960,13 @@ esp_err_t boardSupportI2cRead(void *userCtx,
 
     ctx->TransactionCount++;
     int64_t startUs = esp_timer_get_time();
-    printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=read,txLen=0,rxLen=%u,count=%lu\n",
-           (int)ctx->Port,
-           addr7,
-           (unsigned)rxLen,
-           (unsigned long)ctx->TransactionCount);
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER) {
+        printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=read,txLen=0,rxLen=%u,count=%lu\n",
+               (int)ctx->Port,
+               addr7,
+               (unsigned)rxLen,
+               (unsigned long)ctx->TransactionCount);
+    }
     err = i2c_master_read_from_device(ctx->Port,
                                       addr7,
                                       rx,
@@ -997,10 +1008,12 @@ esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *userCtx, uint8
 
     ctx->TransactionCount++;
     int64_t startUs = esp_timer_get_time();
-    printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=probe,txLen=1,rxLen=0,count=%lu\n",
-           (int)ctx->Port,
-           addr7,
-           (unsigned long)ctx->TransactionCount);
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER) {
+        printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=probe,txLen=1,rxLen=0,count=%lu\n",
+               (int)ctx->Port,
+               addr7,
+               (unsigned long)ctx->TransactionCount);
+    }
     err = i2c_master_start(cmd);
     if (err == ESP_OK) {
         err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_WRITE), true);

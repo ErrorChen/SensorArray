@@ -17,16 +17,22 @@ esp_err_t sensorarrayFdcMatrixEngineInit(sensorarrayFdcMatrixEngine_t *engine,
 }
 
 esp_err_t sensorarrayFdcMatrixEngineRunBootSweep(sensorarrayFdcMatrixEngine_t *engine,
-                                                 const sensorarrayScanPlan_t *plan)
+                                                 const sensorarrayScanPlan_t *plan,
+                                                 sensorarrayFdcBootSummary_t *outSummary)
 {
     (void)plan;
     if (!engine || !engine->state) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = sensorarrayFdcSweepRunBoot(engine->state);
-    engine->bootSweepOk = (err == ESP_OK);
-    engine->diagnosticMode = (err != ESP_OK);
+    sensorarrayFdcBootSummary_t summary = {0};
+    esp_err_t err = sensorarrayFdcSweepRunBoot(engine->state, &summary);
+    engine->bootSummary = summary;
+    engine->bootSweepOk = (err == ESP_OK && summary.quality == SENSORARRAY_FDC_BOOT_QUALITY_OK);
+    engine->diagnosticMode = (err != ESP_OK || summary.quality == SENSORARRAY_FDC_BOOT_QUALITY_FAIL);
+    if (outSummary) {
+        *outSummary = summary;
+    }
     return err;
 }
 
@@ -64,6 +70,11 @@ void sensorarrayFdcMatrixEngineSetDiagnosticMode(sensorarrayFdcMatrixEngine_t *e
 bool sensorarrayFdcMatrixEngineDiagnosticMode(const sensorarrayFdcMatrixEngine_t *engine)
 {
     return engine && engine->diagnosticMode;
+}
+
+const sensorarrayFdcBootSummary_t *sensorarrayFdcMatrixEngineBootSummary(const sensorarrayFdcMatrixEngine_t *engine)
+{
+    return engine ? &engine->bootSummary : NULL;
 }
 
 sensorarrayState_t *sensorarrayFdcMatrixEngineState(sensorarrayFdcMatrixEngine_t *engine)

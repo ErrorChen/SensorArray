@@ -100,8 +100,27 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         timing->applyBuildConfigUs += sensorarrayMeasureElapsedUs(buildStartUs);
     }
 
+    if (missingMask != 0u && !CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ) {
+        printf("FDC_CACHE_MISS,row=%u,device=%s,missingMask=0x%X,action=mark_invalid_request_fast_sweep,reason=cache_missing\n",
+               (unsigned)row,
+               sensorarrayMeasureFdcDeviceName(devId),
+               (unsigned)missingMask);
+        for (uint8_t ch = 0u; ch < 4u; ++ch) {
+            if ((missingMask & (uint8_t)(1u << ch)) == 0u) {
+                continue;
+            }
+            uint8_t dIndex = (uint8_t)(1u + ch + ((devId == SENSORARRAY_FDC_DEV_SECONDARY) ? 4u : 0u));
+            uint8_t matrixIndex = (uint8_t)sensorarrayMatrixIndex(row, dIndex);
+            (void)sensorarrayMeasureRequestFdcCellRescue(state, matrixIndex, "cache_missing");
+        }
+        if (timing) {
+            timing->applyUs += sensorarrayMeasureElapsedUs(applyStartUs);
+        }
+        return ESP_ERR_NOT_FOUND;
+    }
+
     if (missingMask != 0u) {
-        printf("FDC_CACHE,stage=miss,row=%u,device=%s,missingMask=0x%X,action=use_safe_default\n",
+        printf("FDC_CACHE_MISS,row=%u,device=%s,missingMask=0x%X,action=use_safe_default,reason=debug_safe_default_enabled\n",
                (unsigned)row,
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)missingMask);
@@ -250,13 +269,13 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         }
     }
 
-#if CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
+#if CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE
     const bool printApplyLog = true;
 #else
     const bool printApplyLog = diffWriteCount != 0u;
 #endif
     if (printApplyLog) {
-    printf("FDC_CACHE,stage=apply_row,row=%u,device=%s,force=%u,reason=%s,changed=%lu,driveCurrent=[0x%04X,0x%04X,0x%04X,0x%04X],rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X],clockDiv=[0x%04X,0x%04X,0x%04X,0x%04X],deglitch=0x%X,muxConfig=0x%04X,statusConfig=0x%04X,configBaseWithoutSleep=0x%04X\n",
+    printf("FDC_CACHE_APPLY,row=%u,dev=%s,force=%u,reason=%s,changed=%lu,driveCurrent=[0x%04X,0x%04X,0x%04X,0x%04X],rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X],clockDiv=[0x%04X,0x%04X,0x%04X,0x%04X],deglitch=0x%X,muxConfig=0x%04X,statusConfig=0x%04X,configBaseWithoutSleep=0x%04X\n",
            (unsigned)row,
            sensorarrayMeasureFdcDeviceName(devId),
            forceWrite || reapplyRequested ? 1u : 0u,

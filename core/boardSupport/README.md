@@ -33,6 +33,7 @@
 - Recovery requires SDA/SCL to be observed stuck low.
 - Recovery is throttled by cooldown and max-failure counters.
 - Repeated recovery failure marks the bus offline.
+- `BOARD_I2C_XFER` begin/end transaction spam is gated by `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER`; errors and recovery logs still print when that verbose flag is disabled.
 
 Key logs include `BOARD_I2C_CFG`, `BOARD_I2C_INIT`, `BOARD_I2C_READY`, `BOARD_I2C_XFER`, `BOARD_I2C_ERR`, `BOARD_I2C_RECOVERY`, `BOARD_I2C_OFFLINE` and `I2C_REJECT`.
 
@@ -47,6 +48,8 @@ It does not own D-line mapping, FDC/ADS route policy, matrix scanning, rescue po
 `boardSupportInit()` configures I2C0 first. If I2C1 is requested and valid, it initialises I2C1 on a different ESP-IDF I2C port. If secondary setup is invalid or fails, the secondary bus is disabled and the application can continue primary-only where higher layers allow it.
 
 The I2C callbacks validate installed/offline/recovering state, lock the bus mutex, run the ESP-IDF I2C transaction, update counters, log result state, and optionally trigger guarded recovery.
+
+Low-level `BOARD_I2C_XFER` transaction begin/end logs are disabled by default through `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER`; failed transactions and recovery state still log without enabling verbose transaction tracing.
 
 ## Kconfig
 
@@ -63,3 +66,4 @@ The I2C callbacks validate installed/offline/recovering state, lock the bus mute
 | `CONFIG_SENSORARRAY_I2C_RECOVERY_COOLDOWN_MS` | `1000` | Cooldown between recovery attempts. |
 | `CONFIG_SENSORARRAY_I2C_RECOVERY_MAX_FAILS` | `3` | Recovery failures before offline. |
 | `CONFIG_SENSORARRAY_I2C_RECOVERY_TOGGLE_CLOCKS` | `9` | SCL pulses during recovery. |
+| `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER` | n | Enables verbose per-transaction `BOARD_I2C_XFER` begin/end logs. |

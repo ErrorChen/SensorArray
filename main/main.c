@@ -48,6 +48,15 @@
 #ifndef CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS
 #define CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS 1
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
+#define CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED
+#define CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS
+#define CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS 48
+#endif
 
 typedef enum {
     SENSORARRAY_RUNTIME_MODE_FDC_MATRIX = 0,
@@ -69,6 +78,8 @@ typedef struct {
     uint8_t requestedFdcChannels;
     bool fdcBootSweepOk;
     bool fdcDiagnosticMode;
+    bool fdcDegradedMode;
+    sensorarrayFdcBootSummary_t fdcBootSummary;
     uint32_t fdcFrameCounter;
     uint32_t failedRescueCount;
     uint32_t rescueEpoch;
@@ -77,7 +88,20 @@ typedef struct {
 } sensorarrayAppContext_t;
 
 static sensorarrayAppContext_t s_appContext;
-static int64_t s_lastDiagnosticDumpUs;
+static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
+
+static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
+{
+    switch (quality) {
+    case SENSORARRAY_FDC_BOOT_QUALITY_OK:
+        return "ok";
+    case SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED:
+        return "degraded";
+    case SENSORARRAY_FDC_BOOT_QUALITY_FAIL:
+    default:
+        return "fail";
+    }
+}
 
 static void sensorarrayLogRuntimeMemoryDiag(const char *stage,
                                             const sensorarrayAppContext_t *ctx)
@@ -426,7 +450,15 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
            fallbackAllowed ? 1u : 0u);
     sensorarrayLogStackHighWater("boot_sweep_before");
     if (!ctx->state.fdcPrimary.ready) {
+        ctx->fdcBootSummary = (sensorarrayFdcBootSummary_t){
+            .transportErr = ESP_ERR_INVALID_STATE,
+            .quality = SENSORARRAY_FDC_BOOT_QUALITY_FAIL,
+            .failedCellCount = SENSORARRAY_MATRIX_CELL_COUNT,
+            .failedRowMask = 0xFFu,
+            .reason = "primary_not_ready",
+        };
         ctx->fdcBootSweepOk = false;
+        ctx->fdcDegradedMode = false;
         ctx->fdcDiagnosticMode = true;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
         printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=0\n",
@@ -436,7 +468,17 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
         return ESP_ERR_INVALID_STATE;
     }
     if (!ctx->state.fdcSecondary.ready) {
+        ctx->fdcBootSummary = (sensorarrayFdcBootSummary_t){
+            .transportErr = ESP_ERR_INVALID_STATE,
+            .quality = requireDual ? SENSORARRAY_FDC_BOOT_QUALITY_FAIL : SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED,
+            .validCellCount = 0u,
+            .failedCellCount = SENSORARRAY_MATRIX_CELL_COUNT,
+            .failedRowMask = 0xFFu,
+            .degraded = !requireDual,
+            .reason = requireDual ? "secondary_not_ready_require_dual" : "secondary_unavailable_primary_only",
+        };
         ctx->fdcBootSweepOk = false;
+        ctx->fdcDegradedMode = !requireDual;
         ctx->fdcDiagnosticMode = requireDual;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, requireDual);
         if (requireDual) {
@@ -445,26 +487,48 @@ static esp_err_t sensorarrayRunBootCalibration(sensorarrayAppContext_t *ctx)
             return ESP_ERR_INVALID_STATE;
         }
         printf("FDC_BUS_WARN,secondaryReady=0,action=primary_only_fallback,d5_d8=device_missing\n");
-        printf("APP_FDC,stage=boot_sweep_skip,reason=secondary_unavailable,primaryReady=1,secondaryReady=0,action=primary_only\n");
+        printf("APP_FDC,stage=boot_sweep_skip,reason=secondary_unavailable,primaryReady=1,secondaryReady=0,action=primary_only,quality=%s\n",
+               sensorarrayAppFdcBootQualityName(ctx->fdcBootSummary.quality));
         return ESP_OK;
     }
 
+    sensorarrayFdcBootSummary_t bootSummary = {0};
     esp_err_t bootErr = sensorarrayFdcMatrixEngineRunBootSweep(&ctx->fdcEngine,
-                                                               &ctx->scanPlan);
+                                                               &ctx->scanPlan,
+                                                               &bootSummary);
     sensorarrayLogStackHighWater("boot_sweep_after");
-    ctx->fdcBootSweepOk = (bootErr == ESP_OK);
-    ctx->fdcDiagnosticMode = (bootErr != ESP_OK);
+    ctx->fdcBootSummary = bootSummary;
+    ctx->fdcBootSweepOk = (bootErr == ESP_OK &&
+                           bootSummary.quality == SENSORARRAY_FDC_BOOT_QUALITY_OK);
+    ctx->fdcDegradedMode = (bootSummary.quality == SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED);
+    ctx->fdcDiagnosticMode =
+        (bootErr != ESP_OK) ||
+        (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
+         bootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK);
     sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, ctx->fdcDiagnosticMode);
-    printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=%d\n",
+    printf("APP_FDC,stage=boot_sweep_return,err=0x%lx,ok=%d,quality=%s,validCount=%u,failCount=%u,cacheFilledCount=%u,required=%u,degraded=%u,diagnostic=%u,reason=%s\n",
            (unsigned long)bootErr,
-           ctx->fdcBootSweepOk ? 1 : 0);
+           ctx->fdcBootSweepOk ? 1 : 0,
+           sensorarrayAppFdcBootQualityName(bootSummary.quality),
+           (unsigned)bootSummary.validCellCount,
+           (unsigned)bootSummary.failedCellCount,
+           (unsigned)bootSummary.cacheFilledCellCount,
+           (unsigned)CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS,
+           ctx->fdcDegradedMode ? 1u : 0u,
+           ctx->fdcDiagnosticMode ? 1u : 0u,
+           bootSummary.reason ? bootSummary.reason : SENSORARRAY_NA);
     sensorarrayLogStartup("fdc_boot_sweep",
                           bootErr,
-                          (bootErr == ESP_OK) ? "ok" : "failed",
+                          ctx->fdcBootSweepOk ? "ok" :
+                          (ctx->fdcDegradedMode ? "degraded" : "failed"),
                           (int32_t)bootErr);
-    if (bootErr != ESP_OK && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
-        printf("FDC_FATAL,stage=boot,reason=boot_sweep_failed,err=0x%lx\n",
-               (unsigned long)bootErr);
+    if (ctx->fdcDiagnosticMode && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
+        printf("FDC_FATAL,stage=boot,reason=boot_quality_not_ok,err=0x%lx,quality=%s,validCount=%u,required=%u,summaryReason=%s\n",
+               (unsigned long)bootErr,
+               sensorarrayAppFdcBootQualityName(bootSummary.quality),
+               (unsigned)bootSummary.validCellCount,
+               (unsigned)CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS,
+               bootSummary.reason ? bootSummary.reason : SENSORARRAY_NA);
     } else if (bootErr != ESP_OK) {
         ctx->fdcDiagnosticMode = false;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, false);
@@ -710,7 +774,9 @@ void app_main(void)
     sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", &s_appContext);
     esp_err_t bootErr = sensorarrayRunBootCalibration(&s_appContext);
     sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", &s_appContext);
-    if (bootErr != ESP_OK && CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED) {
+    if (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
+        (bootErr != ESP_OK ||
+         s_appContext.fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
         s_appContext.fdcDiagnosticMode = true;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&s_appContext.fdcEngine, true);
     }

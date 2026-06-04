@@ -63,6 +63,18 @@
 #ifndef CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS
 #define CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS 5000
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS
+#define CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS 48
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED
+#define CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK
+#define CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK 0xFF
+#endif
+#ifndef CONFIG_SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE
+#define CONFIG_SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE 0
+#endif
 
 /*
  * The validated debug-cell table started at 0x7800. The matrix has been observed
@@ -152,6 +164,19 @@ static const char *sensorarrayFdcSweepDevFullName(sensorarrayFdcDeviceId_t devId
     return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary_fdc2214" : "primary_fdc2214";
 }
 
+static const char *sensorarrayFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
+{
+    switch (quality) {
+    case SENSORARRAY_FDC_BOOT_QUALITY_OK:
+        return "ok";
+    case SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED:
+        return "degraded";
+    case SENSORARRAY_FDC_BOOT_QUALITY_FAIL:
+    default:
+        return "fail";
+    }
+}
+
 static uint8_t sensorarrayFdcSweepDLineForDeviceChannel(sensorarrayFdcDeviceId_t devId,
                                                         Fdc2214CapChannel_t channel)
 {
@@ -183,6 +208,13 @@ static uint32_t sensorarrayFdcSweepClampQualitySamples(uint32_t requested)
 static uint16_t sensorarrayFdcSweepClampDrive(uint16_t drive)
 {
     uint16_t norm = (uint16_t)(drive & SENSORARRAY_FDC_SWEEP_DRIVE_CURRENT_MASK);
+    static bool warned = false;
+    if (drive != 0u && norm != drive && !warned) {
+        warned = true;
+        printf("FDC_DRIVE_TABLE_NORMALISED,original=0x%04X,normalised=0x%04X,reason=reserved_bits\n",
+               drive,
+               norm ? norm : SENSORARRAY_FDC_SWEEP_DEFAULT_DRIVE_CURRENT_REQ);
+    }
     if (norm == 0u) {
         return SENSORARRAY_FDC_SWEEP_DEFAULT_DRIVE_CURRENT_REQ;
     }
@@ -3449,6 +3481,42 @@ static bool sensorarrayFdcSweepRowCandidateUsable(const sensorarrayFdcSweepCandi
            candidate->deglitchBandwidthOk;
 }
 
+static const char *sensorarrayFdcSweepRowRejectReason(const sensorarrayFdcSweepCandidateResult_t *candidate)
+{
+    if (!candidate || !candidate->valid) {
+        return "too_many_invalid_samples";
+    }
+    if (candidate->raw28Mean == 0u || candidate->zeroRawCount != 0u) {
+        return "no_raw_frequency";
+    }
+    if (candidate->frequencyHz <= 0.0) {
+        return "no_raw_frequency";
+    }
+    if (!candidate->deglitchBandwidthOk) {
+        return "deglitch_margin_failed";
+    }
+    if (candidate->timeoutCount != 0u) {
+        return "timeout_seen";
+    }
+    if (candidate->watchdogCount != 0u) {
+        return "watchdog_seen";
+    }
+    if (candidate->saturatedCount != 0u) {
+        return "saturated_seen";
+    }
+    if (candidate->amplitudeFaultCount != 0u) {
+        return "amplitude_fault";
+    }
+    if (candidate->invalidSampleCount != 0u) {
+        return "too_many_invalid_samples";
+    }
+    if ((candidate->driveCurrentNorm & (uint16_t)~SENSORARRAY_FDC_SWEEP_DRIVE_CURRENT_MASK) != 0u ||
+        candidate->driveCurrentNorm == 0u) {
+        return "invalid_drive_current";
+    }
+    return "score_lower_than_existing";
+}
+
 static bool sensorarrayFdcSweepRowCandidateBetter(const sensorarrayFdcSweepCandidateResult_t *candidate,
                                                   const sensorarrayFdcSweepCandidateResult_t *best)
 {
@@ -3664,31 +3732,16 @@ static esp_err_t sensorarrayFdcSweepRow(sensorarrayState_t *state,
                     secondaryRead.errorMask = 0x0Fu;
                 }
 
-                printf("FDC_ROW_SWEEP_CANDIDATE,s=%u,dev=primary,deglitchName=%s,drive=0x%04X,highCurrent=%u,usableMask=0x%X,warnMask=0x%X,errorMask=0x%X,candidate=%lu/%lu\n",
-                       (unsigned)sIndex,
-                       deglitch->deglitchName ? deglitch->deglitchName : SENSORARRAY_NA,
-                       primaryDrive[0],
-                       highCurrent ? 1u : 0u,
-                       (unsigned)primaryRead.validMask,
-                       (unsigned)primaryRead.warnMask,
-                       (unsigned)primaryRead.errorMask,
-                       (unsigned long)(candidateIndex + 1u),
-                       (unsigned long)candidateCount);
-                printf("FDC_ROW_SWEEP_CANDIDATE,s=%u,dev=secondary,deglitchName=%s,drive=0x%04X,highCurrent=%u,usableMask=0x%X,warnMask=0x%X,errorMask=0x%X,candidate=%lu/%lu\n",
-                       (unsigned)sIndex,
-                       deglitch->deglitchName ? deglitch->deglitchName : SENSORARRAY_NA,
-                       secondaryDrive[0],
-                       highCurrent ? 1u : 0u,
-                       (unsigned)secondaryRead.validMask,
-                       (unsigned)secondaryRead.warnMask,
-                       (unsigned)secondaryRead.errorMask,
-                       (unsigned long)(candidateIndex + 1u),
-                       (unsigned long)candidateCount);
-
                 const sensorarrayFdcSweepDeviceRead4_t *reads[2] = {&primaryRead, &secondaryRead};
+                uint8_t sampleValidMask[2] = {0u, 0u};
+                uint8_t rawFreqMask[2] = {0u, 0u};
+                uint8_t deglitchOkMask[2] = {0u, 0u};
+                uint8_t acceptedMask[2] = {0u, 0u};
+                uint8_t rejectReasonMask[2] = {0u, 0u};
                 for (uint8_t dev = 0u; dev < 2u; ++dev) {
                     for (uint8_t ch = 0u; ch < SENSORARRAY_FDC_SWEEP_DEVICE_CHANNELS; ++ch) {
                         uint8_t rowCell = (uint8_t)(ch + (dev * SENSORARRAY_FDC_SWEEP_DEVICE_CHANNELS));
+                        uint8_t chBit = (uint8_t)(1u << ch);
                         sensorarrayFdcSweepCandidateResult_t candidate = {0};
                         sensorarrayFdcSweepBuildCandidateFromRead(reads[dev],
                                                                   (sensorarrayFdcDeviceId_t)dev,
@@ -3696,6 +3749,20 @@ static esp_err_t sensorarrayFdcSweepRow(sensorarrayState_t *state,
                                                                   deglitch,
                                                                   highCurrent,
                                                                   &candidate);
+                        if ((reads[dev]->validMask & chBit) != 0u) {
+                            sampleValidMask[dev] |= chBit;
+                        }
+                        if (sensorarrayFdcSweepCandidateHasRawFrequency(&candidate)) {
+                            rawFreqMask[dev] |= chBit;
+                        }
+                        if (candidate.deglitchBandwidthOk) {
+                            deglitchOkMask[dev] |= chBit;
+                        }
+                        if (sensorarrayFdcSweepRowCandidateUsable(&candidate)) {
+                            acceptedMask[dev] |= chBit;
+                        } else {
+                            rejectReasonMask[dev] |= chBit;
+                        }
                         if (!haveBest[rowCell] ||
                             sensorarrayFdcSweepRowCandidateBetter(&candidate, &best[rowCell])) {
                             best[rowCell] = candidate;
@@ -3703,6 +3770,36 @@ static esp_err_t sensorarrayFdcSweepRow(sensorarrayState_t *state,
                         }
                     }
                 }
+#if CONFIG_SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE
+                printf("FDC_ROW_SWEEP_CANDIDATE,s=%u,dev=primary,deglitchName=%s,drive=0x%04X,highCurrent=%u,sampleValidMask=0x%X,rawFreqMask=0x%X,deglitchOkMask=0x%X,acceptedMask=0x%X,rejectReasonMask=0x%X,warnMask=0x%X,errorMask=0x%X,candidate=%lu/%lu\n",
+                       (unsigned)sIndex,
+                       deglitch->deglitchName ? deglitch->deglitchName : SENSORARRAY_NA,
+                       primaryDrive[0],
+                       highCurrent ? 1u : 0u,
+                       (unsigned)sampleValidMask[SENSORARRAY_FDC_DEV_PRIMARY],
+                       (unsigned)rawFreqMask[SENSORARRAY_FDC_DEV_PRIMARY],
+                       (unsigned)deglitchOkMask[SENSORARRAY_FDC_DEV_PRIMARY],
+                       (unsigned)acceptedMask[SENSORARRAY_FDC_DEV_PRIMARY],
+                       (unsigned)rejectReasonMask[SENSORARRAY_FDC_DEV_PRIMARY],
+                       (unsigned)primaryRead.warnMask,
+                       (unsigned)primaryRead.errorMask,
+                       (unsigned long)(candidateIndex + 1u),
+                       (unsigned long)candidateCount);
+                printf("FDC_ROW_SWEEP_CANDIDATE,s=%u,dev=secondary,deglitchName=%s,drive=0x%04X,highCurrent=%u,sampleValidMask=0x%X,rawFreqMask=0x%X,deglitchOkMask=0x%X,acceptedMask=0x%X,rejectReasonMask=0x%X,warnMask=0x%X,errorMask=0x%X,candidate=%lu/%lu\n",
+                       (unsigned)sIndex,
+                       deglitch->deglitchName ? deglitch->deglitchName : SENSORARRAY_NA,
+                       secondaryDrive[0],
+                       highCurrent ? 1u : 0u,
+                       (unsigned)sampleValidMask[SENSORARRAY_FDC_DEV_SECONDARY],
+                       (unsigned)rawFreqMask[SENSORARRAY_FDC_DEV_SECONDARY],
+                       (unsigned)deglitchOkMask[SENSORARRAY_FDC_DEV_SECONDARY],
+                       (unsigned)acceptedMask[SENSORARRAY_FDC_DEV_SECONDARY],
+                       (unsigned)rejectReasonMask[SENSORARRAY_FDC_DEV_SECONDARY],
+                       (unsigned)secondaryRead.warnMask,
+                       (unsigned)secondaryRead.errorMask,
+                       (unsigned long)(candidateIndex + 1u),
+                       (unsigned long)candidateCount);
+#endif
 
                 candidateIndex++;
                 if (mode == SENSORARRAY_FDC_CELL_SWEEP_FAST) {
@@ -3726,6 +3823,11 @@ row_sweep_done:
     ;
     uint32_t okCount = 0u;
     uint32_t failCount = 0u;
+    uint8_t sampleValidMask = 0u;
+    uint8_t rawFreqMask = 0u;
+    uint8_t deglitchOkMask = 0u;
+    uint8_t acceptedMask = 0u;
+    uint8_t committedMask = 0u;
     uint8_t validMask = 0u;
     uint8_t warnMask = 0u;
     uint8_t errorMask = 0u;
@@ -3738,11 +3840,22 @@ row_sweep_done:
         sensorarrayFdcCellCalibration_t *cal = sensorarrayFdcSweepCell(sIndex, dIndex);
         sensorarrayFdcSweepCandidateResult_t *candidate = &best[rowCell];
         bool usable = haveBest[rowCell] && sensorarrayFdcSweepRowCandidateUsable(candidate);
+        if (haveBest[rowCell] && candidate->validSampleCount != 0u) {
+            sampleValidMask |= (uint8_t)(1u << rowCell);
+        }
+        if (sensorarrayFdcSweepCandidateHasRawFrequency(candidate)) {
+            rawFreqMask |= (uint8_t)(1u << rowCell);
+        }
+        if (haveBest[rowCell] && candidate->deglitchBandwidthOk) {
+            deglitchOkMask |= (uint8_t)(1u << rowCell);
+        }
         if (candidate->amplitudeFaultCount != 0u) {
             warnMask |= (uint8_t)(1u << rowCell);
         }
         if (usable) {
             okCount++;
+            acceptedMask |= (uint8_t)(1u << rowCell);
+            committedMask |= (uint8_t)(1u << rowCell);
             validMask |= (uint8_t)(1u << rowCell);
             freqHz[rowCell] = candidate->frequencyHz;
             bestDrive[rowCell] = candidate->driveCurrentNorm;
@@ -3766,6 +3879,21 @@ row_sweep_done:
             errorMask |= (uint8_t)(1u << rowCell);
             bestDrive[rowCell] = candidate->driveCurrentNorm;
             bestDeglitch[rowCell] = candidate->deglitchReq;
+            sensorarrayFdcDeviceId_t devId =
+                (dIndex > 4u) ? SENSORARRAY_FDC_DEV_SECONDARY : SENSORARRAY_FDC_DEV_PRIMARY;
+            uint8_t ch = (uint8_t)((dIndex - 1u) & 0x03u);
+            printf("FDC_ROW_SWEEP_REJECT,row=%u,dev=%s,ch=%u,d=%u,reason=%s,raw28=%lu,freqHz=%.3f,deglitchName=%s,deglitchBandwidthHz=%lu,deglitchMarginRatio=%.3f,drive=0x%04X\n",
+                   (unsigned)sIndex,
+                   sensorarrayFdcSweepDevName(devId),
+                   (unsigned)ch,
+                   (unsigned)dIndex,
+                   sensorarrayFdcSweepRowRejectReason(haveBest[rowCell] ? candidate : NULL),
+                   (unsigned long)(haveBest[rowCell] ? candidate->raw28Mean : 0u),
+                   haveBest[rowCell] ? candidate->frequencyHz : 0.0,
+                   (haveBest[rowCell] && candidate->deglitchName) ? candidate->deglitchName : SENSORARRAY_NA,
+                   (unsigned long)(haveBest[rowCell] ? candidate->deglitchBandwidthHz : 0u),
+                   haveBest[rowCell] ? candidate->deglitchMarginRatio : 0.0,
+                   haveBest[rowCell] ? candidate->driveCurrentNorm : 0u);
             if (cal) {
                 sensorarrayFdcSweepIncrementFailCount16(&cal->consecutiveFailCount);
                 if (mode == SENSORARRAY_FDC_CELL_SWEEP_FAST) {
@@ -3784,7 +3912,7 @@ row_sweep_done:
         }
     }
 
-    printf("FDC_ROW_SWEEP_RESULT,s=%u,freqHz=[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f],bestDeglitch=[0x%X,0x%X,0x%X,0x%X,0x%X,0x%X,0x%X,0x%X],bestDrive=[0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X],validMask=0x%02X,warnMask=0x%02X,errorMask=0x%02X,mode=%s,reason=%s\n",
+    printf("FDC_ROW_SWEEP_RESULT,s=%u,freqHz=[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f],bestDeglitch=[0x%X,0x%X,0x%X,0x%X,0x%X,0x%X,0x%X,0x%X],bestDrive=[0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X,0x%04X],sampleValidMask=0x%02X,rawFreqMask=0x%02X,deglitchOkMask=0x%02X,acceptedMask=0x%02X,committedMask=0x%02X,validMask=0x%02X,warnMask=0x%02X,errorMask=0x%02X,mode=%s,reason=%s\n",
            (unsigned)sIndex,
            freqHz[0], freqHz[1], freqHz[2], freqHz[3],
            freqHz[4], freqHz[5], freqHz[6], freqHz[7],
@@ -3794,11 +3922,26 @@ row_sweep_done:
            (unsigned)bestDeglitch[6], (unsigned)bestDeglitch[7],
            bestDrive[0], bestDrive[1], bestDrive[2], bestDrive[3],
            bestDrive[4], bestDrive[5], bestDrive[6], bestDrive[7],
+           (unsigned)sampleValidMask,
+           (unsigned)rawFreqMask,
+           (unsigned)deglitchOkMask,
+           (unsigned)acceptedMask,
+           (unsigned)committedMask,
            (unsigned)validMask,
            (unsigned)warnMask,
            (unsigned)errorMask,
            stage,
            source);
+
+    if (acceptedMask != 0u && committedMask == 0u) {
+        printf("FDC_SWEEP_INTERNAL_ERROR,row=%u,acceptedMask=0x%02X,committedMask=0x%02X,reason=accepted_not_committed\n",
+               (unsigned)sIndex,
+               (unsigned)acceptedMask,
+               (unsigned)committedMask);
+        if (firstErr == ESP_OK) {
+            firstErr = ESP_ERR_INVALID_STATE;
+        }
+    }
 
     if (outOkCount) {
         *outOkCount = okCount;
@@ -4028,9 +4171,54 @@ esp_err_t sensorarrayFdcSweepRunFullRescueAll(sensorarrayState_t *state, const c
     return (successCount == 0u) ? ESP_ERR_INVALID_RESPONSE : ESP_OK;
 }
 
-esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
+static uint8_t sensorarrayFdcSweepBootRowCacheMask(const sensorarrayState_t *state, uint8_t row)
+{
+    if (!state || row < 1u || row > SENSORARRAY_MATRIX_ROWS) {
+        return 0u;
+    }
+
+    uint8_t mask = 0u;
+    for (uint8_t d = 1u; d <= SENSORARRAY_MATRIX_COLS; ++d) {
+        if (state->fdcCellCache[row - 1u][d - 1u].valid) {
+            mask |= (uint8_t)(1u << (d - 1u));
+        }
+    }
+    return mask;
+}
+
+static uint8_t sensorarrayFdcSweepBootCacheFilledCount(const sensorarrayState_t *state)
 {
     if (!state) {
+        return 0u;
+    }
+
+    uint8_t count = 0u;
+    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+        uint8_t rowMask = sensorarrayFdcSweepBootRowCacheMask(state, s);
+        for (uint8_t d = 0u; d < SENSORARRAY_MATRIX_COLS; ++d) {
+            if ((rowMask & (uint8_t)(1u << d)) != 0u && count < UINT8_MAX) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state,
+                                     sensorarrayFdcBootSummary_t *outSummary)
+{
+    if (outSummary) {
+        *outSummary = (sensorarrayFdcBootSummary_t){
+            .transportErr = ESP_ERR_INVALID_STATE,
+            .quality = SENSORARRAY_FDC_BOOT_QUALITY_FAIL,
+            .reason = "not_started",
+        };
+    }
+    if (!state) {
+        if (outSummary) {
+            outSummary->transportErr = ESP_ERR_INVALID_ARG;
+            outSummary->reason = "invalid_arg";
+        }
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -4040,6 +4228,11 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
     esp_err_t pathErr = sensorarrayMeasurePrepareFdcMatrixPath(state, "boot_sweep");
     printf("FDC_BOOT,stage=path_prepare,err=0x%lx\n", (unsigned long)pathErr);
     if (pathErr != ESP_OK) {
+        if (outSummary) {
+            outSummary->transportErr = pathErr;
+            outSummary->quality = SENSORARRAY_FDC_BOOT_QUALITY_FAIL;
+            outSummary->reason = "path_prepare_failed";
+        }
         return pathErr;
     }
 
@@ -4052,6 +4245,10 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
     esp_err_t firstErr = ESP_OK;
     uint32_t okCount = 0u;
     uint32_t failCount = 0u;
+    uint8_t validRowMask = 0u;
+    uint8_t failedRowMask = 0u;
+    uint8_t primaryValidRows = 0u;
+    uint8_t secondaryValidRows = 0u;
 
     printf("FDC_BOOT_MATRIX_SWEEP_START,targetCount=%lu\n",
            (unsigned long)SENSORARRAY_MATRIX_CELL_COUNT);
@@ -4069,17 +4266,27 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
         if (err != ESP_OK && err != ESP_ERR_INVALID_RESPONSE && firstErr == ESP_OK) {
             firstErr = err;
         }
-        printf("FDC_BOOT_ROW_RESULT,s=%u,result=%s,okCount=%lu,failCount=%lu,err=0x%lx\n",
+        uint8_t rowCacheMask = sensorarrayFdcSweepBootRowCacheMask(state, s);
+        if ((rowCacheMask & 0x0Fu) == 0x0Fu) {
+            primaryValidRows |= (uint8_t)(1u << (s - 1u));
+        }
+        if ((rowCacheMask & 0xF0u) == 0xF0u) {
+            secondaryValidRows |= (uint8_t)(1u << (s - 1u));
+        }
+        if (rowCacheMask == 0xFFu) {
+            validRowMask |= (uint8_t)(1u << (s - 1u));
+        } else {
+            failedRowMask |= (uint8_t)(1u << (s - 1u));
+        }
+        printf("FDC_BOOT_ROW_RESULT,s=%u,result=%s,okCount=%lu,failCount=%lu,rowCacheMask=0x%02X,err=0x%lx\n",
                (unsigned)s,
-               (rowOk != 0u) ? "ok" : "degraded",
+               (rowCacheMask == 0xFFu) ? "ok" : ((rowCacheMask != 0u) ? "degraded" : "fail"),
                (unsigned long)rowOk,
                (unsigned long)rowFail,
+               (unsigned)rowCacheMask,
                (unsigned long)err);
         taskYIELD();
     }
-    printf("FDC_BOOT_MATRIX_SWEEP_DONE,okCount=%lu,failCount=%lu\n",
-           (unsigned long)okCount,
-           (unsigned long)failCount);
 
     esp_err_t restorePrimary = sensorarrayFdcSweepRestoreAutoscan(state, SENSORARRAY_FDC_DEV_PRIMARY, "boot");
     esp_err_t restoreSecondary = sensorarrayFdcSweepRestoreAutoscan(state, SENSORARRAY_FDC_DEV_SECONDARY, "boot");
@@ -4090,18 +4297,77 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
         firstErr = restoreSecondary;
     }
 
+    uint8_t cacheFilledCount = sensorarrayFdcSweepBootCacheFilledCount(state);
+    uint32_t requiredValidCount = (uint32_t)CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS;
+    if (requiredValidCount == 0u) {
+        requiredValidCount = SENSORARRAY_MATRIX_CELL_COUNT;
+    }
+    if (requiredValidCount > SENSORARRAY_MATRIX_CELL_COUNT) {
+        requiredValidCount = SENSORARRAY_MATRIX_CELL_COUNT;
+    }
+    uint8_t requiredRowsMask = (uint8_t)(CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK & 0xFFu);
+    bool requiredRowsOk = (validRowMask & requiredRowsMask) == requiredRowsMask;
+    sensorarrayFdcBootQuality_t quality = SENSORARRAY_FDC_BOOT_QUALITY_FAIL;
+    const char *qualityReason = "too_few_valid_cells";
+    if (firstErr != ESP_OK && okCount == 0u) {
+        quality = SENSORARRAY_FDC_BOOT_QUALITY_FAIL;
+        qualityReason = "transport_failed_no_valid_cells";
+    } else if (cacheFilledCount >= requiredValidCount && requiredRowsOk) {
+        quality = SENSORARRAY_FDC_BOOT_QUALITY_OK;
+        qualityReason = "meets_required_valid_cells";
+    } else if (okCount != 0u && CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED) {
+        quality = SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED;
+        qualityReason = requiredRowsOk ? "below_min_valid_cells" : "required_rows_incomplete";
+    } else if (!requiredRowsOk) {
+        qualityReason = "required_rows_incomplete";
+    }
+
+    sensorarrayFdcBootSummary_t summary = {
+        .transportErr = firstErr,
+        .quality = quality,
+        .validCellCount = cacheFilledCount,
+        .failedCellCount = (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - cacheFilledCount),
+        .cacheFilledCellCount = cacheFilledCount,
+        .validRowMask = validRowMask,
+        .failedRowMask = failedRowMask,
+        .primaryValidRows = primaryValidRows,
+        .secondaryValidRows = secondaryValidRows,
+        .degraded = quality == SENSORARRAY_FDC_BOOT_QUALITY_DEGRADED,
+        .reason = qualityReason,
+    };
+    if (outSummary) {
+        *outSummary = summary;
+    }
+
+    printf("FDC_BOOT_MATRIX_SWEEP_DONE,validCount=%u,failCount=%u,cacheFilledCount=%u,requiredValidCount=%lu,validRowMask=0x%02X,failedRowMask=0x%02X,primaryValidRows=0x%02X,secondaryValidRows=0x%02X,quality=%s,reason=%s,transportErr=0x%lx\n",
+           (unsigned)summary.validCellCount,
+           (unsigned)summary.failedCellCount,
+           (unsigned)summary.cacheFilledCellCount,
+           (unsigned long)requiredValidCount,
+           (unsigned)summary.validRowMask,
+           (unsigned)summary.failedRowMask,
+           (unsigned)summary.primaryValidRows,
+           (unsigned)summary.secondaryValidRows,
+           sensorarrayFdcBootQualityName(summary.quality),
+           summary.reason ? summary.reason : SENSORARRAY_NA,
+           (unsigned long)summary.transportErr);
+
     if (okCount == 0u) {
 #if CONFIG_SENSORARRAY_FDC_VERBOSE_REG_DUMP
         (void)sensorarrayFdcSweepDumpAllDeviceRegs(state, "boot_failed", "no_valid_oscillation");
 #endif
-        printf("FDC_BOOT,stage=warning,reason=no_valid_oscillation,action=enter_normal_loop_degraded\n");
+        printf("FDC_BOOT,stage=warning,reason=no_valid_oscillation,action=diagnostic_or_degraded_gate\n");
         if (restorePrimary != ESP_OK && restoreSecondary != ESP_OK) {
             printf("FDC_BOOT,stage=failed,reason=both_fdc_autoscan_restore_failed\n");
             printf("FDC_SWEEP,stage=boot,event=done,err=0x%lx,result=failed\n",
                    (unsigned long)((firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE));
             return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE;
         }
-        printf("FDC_SWEEP,stage=boot,event=done,err=0x0,result=degraded,validCount=0\n");
+        printf("FDC_SWEEP,stage=boot,event=done,err=0x0,result=%s,validCount=0,requiredValidCount=%lu,quality=%s,reason=%s\n",
+               sensorarrayFdcBootQualityName(summary.quality),
+               (unsigned long)requiredValidCount,
+               sensorarrayFdcBootQualityName(summary.quality),
+               summary.reason ? summary.reason : SENSORARRAY_NA);
         return ESP_OK;
     }
 
@@ -4111,7 +4377,12 @@ esp_err_t sensorarrayFdcSweepRunBoot(sensorarrayState_t *state)
                (unsigned long)restoreSecondary);
     }
 
-    printf("FDC_SWEEP,stage=boot,event=done,err=0x0,result=ok,validCount=%lu\n",
-           (unsigned long)okCount);
+    printf("FDC_SWEEP,stage=boot,event=done,err=0x%lx,result=%s,validCount=%u,requiredValidCount=%lu,quality=%s,reason=%s\n",
+           (unsigned long)((firstErr == ESP_OK) ? ESP_OK : firstErr),
+           sensorarrayFdcBootQualityName(summary.quality),
+           (unsigned)summary.validCellCount,
+           (unsigned long)requiredValidCount,
+           sensorarrayFdcBootQualityName(summary.quality),
+           summary.reason ? summary.reason : SENSORARRAY_NA);
     return ESP_OK;
 }

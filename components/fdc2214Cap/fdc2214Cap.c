@@ -432,6 +432,19 @@ static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)
     return (uint16_t)(rawDriveCurrent & FDC2214_DRIVE_CURRENT_MASK);
 }
 
+static void Fdc2214CapLogDriveCurrentNormalizedOnce(uint16_t original, uint16_t normalized)
+{
+    static bool warned = false;
+    if (warned || original == normalized) {
+        return;
+    }
+    warned = true;
+    ESP_LOGW(TAG,
+             "FDC_DRIVE_TABLE_NORMALISED,original=0x%04X,normalised=0x%04X,reason=reserved_bits",
+             original,
+             normalized);
+}
+
 static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)
 {
     return (uint16_t)(statusConfig & FDC2214_STATUS_CONFIG_ALLOWED_MASK);
@@ -1145,9 +1158,7 @@ esp_err_t Fdc2214CapConfigureChannelWriteOnly(Fdc2214CapDevice_t* dev,
     }
 
     uint16_t driveCurrent = Fdc2214CapNormalizeDriveCurrent(cfg->DriveCurrent);
-    if (driveCurrent != cfg->DriveCurrent) {
-        ESP_LOGW(TAG, "Drive current masked to 0x%04X to clear reserved bits", driveCurrent);
-    }
+    Fdc2214CapLogDriveCurrentNormalizedOnce(cfg->DriveCurrent, driveCurrent);
 
     err = Fdc2214CapWriteReg16(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
     if (err != ESP_OK) {
@@ -1205,9 +1216,7 @@ esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev,
     }
 
     uint16_t driveCurrent = Fdc2214CapNormalizeDriveCurrent(cfg->DriveCurrent);
-    if (driveCurrent != cfg->DriveCurrent) {
-        ESP_LOGW(TAG, "Drive current masked to 0x%04X to clear reserved bits", driveCurrent);
-    }
+    Fdc2214CapLogDriveCurrentNormalizedOnce(cfg->DriveCurrent, driveCurrent);
 
     err = Fdc2214CapWriteReg16Verify(dev, Fdc2214RegForChannelStep1(FDC2214_REG_RCOUNT_BASE, ch), cfg->Rcount);
     if (err != ESP_OK) {

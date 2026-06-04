@@ -3,3 +3,10 @@ idf_component_register(
     INCLUDE_DIRS "include"
     REQUIRES driver esp_timer
 )
+
+target_compile_options(${COMPONENT_LIB} PRIVATE
+    -Wall
+    -Wextra
+    -Wformat=2
+    -Wformat-security
+)

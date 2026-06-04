@@ -81,10 +81,12 @@ Fdc2214CapChannelConfig_t cfg = {
     .SettleCount = 0x0080,
     .Offset = 0x0000,
     .ClockDividers = 0x2001,
-    .DriveCurrent = 0x7C00,
+    .DriveCurrent = 0x7800,
 };
 ESP_ERROR_CHECK(Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &cfg));
 ```
+
+Drive-current values are normalised to the FDC2214 register mask before write. Use `0x7800` for the current project default; `0x7C00` includes bits outside the accepted drive-current field and will be masked by the driver.
 
 ## Australian English documentation
 
@@ -107,6 +109,8 @@ It does not know rows, D-line meaning, primary/secondary board ownership, TMUX r
 - I2C diagnostics: `Fdc2214CapGetI2cStats()` and the `Fdc2214CapI2cTrace*()` functions.
 
 The driver reports raw data and chip status. Frequency and pF conversion used by `MATRIXFDC_CAP` are measurement-layer responsibilities.
+
+Drive-current writes are masked to the FDC2214 drive-current field. The SensorArray default is `0x7800`; avoid documenting or tuning with `0x7C00` because the extra bit is discarded before the register write.
 
 ## Kconfig
 

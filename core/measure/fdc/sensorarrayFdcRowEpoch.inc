@@ -766,7 +766,7 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
 
     int64_t jobStartUs = esp_timer_get_time();
     int64_t applyStartUs = esp_timer_get_time();
-    printf("FDC_ROW_EPOCH,stage=apply_cache,row=%u,epoch=%lu,dev=%s,force=1\n",
+    printf("FDC_ROW_EPOCH,stage=apply_cache,row=%u,epoch=%lu,dev=%s,force=0,reason=matrix_row_epoch_sleep\n",
            (unsigned)row,
            (unsigned long)epochId,
            sensorarrayMeasureFdcDeviceName(devId));
@@ -774,11 +774,37 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
                                                               row,
                                                               devId,
                                                               "matrix_row_epoch_sleep",
-                                                              true,
+                                                              false,
                                                               timing);
     uint64_t applyUs = sensorarrayMeasureElapsedUs(applyStartUs);
     if (timing) {
         timing->applyUs += 0u;
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        *outReady = (sensorarrayFdcReadyState_t){
+            .kind = SENSORARRAY_FDC_READY_NONE,
+            .err = ESP_ERR_NOT_FOUND,
+            .diagnostic = "cache_missing",
+        };
+        sensorarrayMeasureMarkFdcNoFreshSamples(outSamples, outReady, false);
+        sensorarrayMeasureBuildFdcRead4Result(row,
+                                              epochId,
+                                              devId,
+                                              outSamples,
+                                              outConfigs,
+                                              outReady,
+                                              ESP_ERR_NOT_FOUND,
+                                              0u,
+                                              outRead4);
+        if (timing) {
+            timing->deviceUs = sensorarrayMeasureElapsedUs(jobStartUs);
+            timing->deviceFullInvalidCount++;
+        }
+        printf("FDC_ROW_SUMMARY,row=%u,epoch=%lu,dev=%s,validMask=0x0,errorMask=0xF,cacheMissMask=0xF,timeoutMask=0x0,action=skip_normal_read,reason=cache_missing\n",
+               (unsigned)row,
+               (unsigned long)epochId,
+               sensorarrayMeasureFdcDeviceName(devId));
+        return ESP_OK;
     }
     sensorarrayMeasureRuntimeConfigsFromApplied(state, devId, outConfigs);
     if (err != ESP_OK) {
@@ -1371,12 +1397,12 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         if (primaryQueued == pdTRUE) {
             (void)xSemaphoreTake(primaryCtx->sleepAck, syncTicks);
             xSemaphoreGive(primaryCtx->start);
-            (void)xSemaphoreTake(primaryCtx->done, syncTicks);
+            (void)xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
         }
         if (secondaryQueued == pdTRUE) {
             (void)xSemaphoreTake(secondaryCtx->sleepAck, syncTicks);
             xSemaphoreGive(secondaryCtx->start);
-            (void)xSemaphoreTake(secondaryCtx->done, syncTicks);
+            (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
         }
         printf("FDC_PARALLEL_FALLBACK,reason=queue_failed,row=%u,epoch=%lu,primaryQueued=%u,secondaryQueued=%u,err=0x%lx\n",
                (unsigned)row,
@@ -1428,9 +1454,14 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
     if (primaryDone != pdTRUE) {
         primaryResult.err = ESP_ERR_TIMEOUT;
         primaryTiming->timeoutCount++;
-        printf("FDC_WORKER,row=%u,epoch=%lu,device=primary,status=timeout\n",
+        printf("FDC_WORKER_TIMEOUT,row=%u,epoch=%lu,device=primary,action=wait_worker_idle_before_fallback\n",
                (unsigned)row,
                (unsigned long)epochId);
+        primaryDone = xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
+        printf("FDC_WORKER,row=%u,epoch=%lu,device=primary,status=%s\n",
+               (unsigned)row,
+               (unsigned long)epochId,
+               primaryDone == pdTRUE ? "late_done" : "timeout_wait_failed");
         if (firstErr == ESP_OK) {
             firstErr = ESP_ERR_TIMEOUT;
         }
@@ -1438,9 +1469,14 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
     if (secondaryDone != pdTRUE) {
         secondaryResult.err = ESP_ERR_TIMEOUT;
         secondaryTiming->timeoutCount++;
-        printf("FDC_WORKER,row=%u,epoch=%lu,device=secondary,status=timeout\n",
+        printf("FDC_WORKER_TIMEOUT,row=%u,epoch=%lu,device=secondary,action=wait_worker_idle_before_fallback\n",
                (unsigned)row,
                (unsigned long)epochId);
+        secondaryDone = xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
+        printf("FDC_WORKER,row=%u,epoch=%lu,device=secondary,status=%s\n",
+               (unsigned)row,
+               (unsigned long)epochId,
+               secondaryDone == pdTRUE ? "late_done" : "timeout_wait_failed");
         if (firstErr == ESP_OK) {
             firstErr = ESP_ERR_TIMEOUT;
         }
@@ -1449,7 +1485,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         (primaryResult.epochId != epochId ||
          primaryResult.row != row ||
          primaryResult.devId != SENSORARRAY_FDC_DEV_PRIMARY)) {
-        printf("FDC_WORKER_RESULT,stage=stale_reject,row=%u,epoch=%lu,device=primary,resultRow=%u,resultEpoch=%lu,resultDev=%s\n",
+        printf("FDC_STALE_RESULT_DROPPED,row=%u,epoch=%lu,device=primary,resultRow=%u,resultEpoch=%lu,resultDev=%s\n",
                (unsigned)row,
                (unsigned long)epochId,
                (unsigned)primaryResult.row,
@@ -1464,7 +1500,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         (secondaryResult.epochId != epochId ||
          secondaryResult.row != row ||
          secondaryResult.devId != SENSORARRAY_FDC_DEV_SECONDARY)) {
-        printf("FDC_WORKER_RESULT,stage=stale_reject,row=%u,epoch=%lu,device=secondary,resultRow=%u,resultEpoch=%lu,resultDev=%s\n",
+        printf("FDC_STALE_RESULT_DROPPED,row=%u,epoch=%lu,device=secondary,resultRow=%u,resultEpoch=%lu,resultDev=%s\n",
                (unsigned)row,
                (unsigned long)epochId,
                (unsigned)secondaryResult.row,

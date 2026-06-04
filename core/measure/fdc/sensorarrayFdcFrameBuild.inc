@@ -768,6 +768,122 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
     uint64_t budgetUsePctAvg = SENSORARRAY_FDC_TARGET_FRAME_US ?
         ((avgFrameUs * 100ull) / SENSORARRAY_FDC_TARGET_FRAME_US) :
         0ull;
+    uint32_t rowCount = agg->frames * SENSORARRAY_MATRIX_ROWS;
+
+#if CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES > 0
+    if (agg->frames >= CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES) {
+        uint32_t bus0Ops = t->i2cBus0WriteCount + t->i2cBus0ReadCount;
+        uint32_t bus1Ops = t->i2cBus1WriteCount + t->i2cBus1ReadCount;
+        printf("BOARD_I2C_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,port=0,writeCount=%lu,readCount=%lu,writeBytes=%lu,readBytes=%lu,avgUs=%llu,totalUs=%llu,retryCount=%lu,nackCount=%lu,timeoutCount=%lu,recoveryCountGlobal=%lu,maxReadUsGlobal=%llu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long)t->i2cBus0WriteCount,
+               (unsigned long)t->i2cBus0ReadCount,
+               (unsigned long)t->i2cBus0WriteBytes,
+               (unsigned long)t->i2cBus0ReadBytes,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus0TotalUs, bus0Ops),
+               (unsigned long long)t->i2cBus0TotalUs,
+               (unsigned long)t->i2cBus0RetryCount,
+               (unsigned long)t->i2cBus0NackCount,
+               (unsigned long)t->i2cBus0TimeoutCount,
+               (unsigned long)t->i2cRecoveryCount,
+               (unsigned long long)t->maxI2cReadUs);
+        printf("BOARD_I2C_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,port=1,writeCount=%lu,readCount=%lu,writeBytes=%lu,readBytes=%lu,avgUs=%llu,totalUs=%llu,retryCount=%lu,nackCount=%lu,timeoutCount=%lu,recoveryCountGlobal=%lu,maxReadUsGlobal=%llu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long)t->i2cBus1WriteCount,
+               (unsigned long)t->i2cBus1ReadCount,
+               (unsigned long)t->i2cBus1WriteBytes,
+               (unsigned long)t->i2cBus1ReadBytes,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, bus1Ops),
+               (unsigned long long)t->i2cBus1TotalUs,
+               (unsigned long)t->i2cBus1RetryCount,
+               (unsigned long)t->i2cBus1NackCount,
+               (unsigned long)t->i2cBus1TimeoutCount,
+               (unsigned long)t->i2cRecoveryCount,
+               (unsigned long long)t->maxI2cReadUs);
+    }
+#endif
+
+#if CONFIG_SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES > 0
+    if (agg->frames >= CONFIG_SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES) {
+        printf("FDC_TIMING_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,targetFps=%lu,avgFrameUs=%llu,minFrameUs=%llu,maxFrameUs=%llu,avgFps=%llu.%02llu,budgetUsePctAvg=%llu,overrunCount=%lu,rowAvgUs=%llu,rowMaxUs=%llu,slowRow=%u,cacheApplyAvgUs=%llu,waitReadyPrimaryAvgUs=%llu,waitReadySecondaryAvgUs=%llu,read4PrimaryAvgUs=%llu,read4SecondaryAvgUs=%llu,sweepAvgUs=%llu,runtimeSweepCount=%lu,intbTimeoutCount=%lu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long)CONFIG_SENSORARRAY_FDC_MATRIX_TARGET_FPS,
+               (unsigned long long)avgFrameUs,
+               (unsigned long long)agg->frameUsMin,
+               (unsigned long long)agg->frameUsMax,
+               (unsigned long long)(avgFpsX100 / 100ull),
+               (unsigned long long)(avgFpsX100 % 100ull),
+               (unsigned long long)budgetUsePctAvg,
+               (unsigned long)agg->overrunCount,
+               (unsigned long long)sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount),
+               (unsigned long long)agg->rowUsMax,
+               (unsigned)agg->slowRow,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyUs, agg->frames),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsPrimaryTotal, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsSecondaryTotal, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsPrimaryTotal, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsSecondaryTotal, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->sweepUs, t->runtimeSweepCount),
+               (unsigned long)t->runtimeSweepCount,
+               (unsigned long)t->intbTimeoutCount);
+        printf("FDC_CACHE_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,applyAvgUs=%llu,skippedCount=%lu,dirtyDeviceCount=%lu,diffWriteCount=%lu,fullWriteCount=%lu,noDiffCount=%lu,diffRcountWrites=%lu,diffSettleWrites=%lu,diffClockDivWrites=%lu,diffDriveWrites=%lu,diffMuxWrites=%lu,diffStatusConfigWrites=%lu,diffConfigWrites=%lu,appliedFingerprintChanges=%lu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyUs, agg->frames),
+               (unsigned long)t->cacheApplySkippedCount,
+               (unsigned long)t->cacheApplyDirtyDeviceCount,
+               (unsigned long)t->cacheApplyDiffWriteCount,
+               (unsigned long)t->cacheApplyFullWriteCount,
+               (unsigned long)t->cacheApplyNoDiffCount,
+               (unsigned long)t->diffRcountWrites,
+               (unsigned long)t->diffSettleWrites,
+               (unsigned long)t->diffClockDivWrites,
+               (unsigned long)t->diffDriveWrites,
+               (unsigned long)t->diffMuxWrites,
+               (unsigned long)t->diffStatusConfigWrites,
+               (unsigned long)t->diffConfigWrites,
+               (unsigned long)t->appliedFingerprintChanges);
+        printf("FDC_WORKER_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,parallel=%u,primaryJobAvgUs=%llu,secondaryJobAvgUs=%llu,dualBusWaitAvgUs=%llu,dualBusSkewAvgUs=%llu,intbFreshDrdyCount=%lu,intbFalseEdgeCount=%lu,intbTimeoutCount=%lu,readyFullCount=%lu,readyPartialCount=%lu,readyNoneCount=%lu,fallbackAttemptCount=%lu,fallbackSuccessCount=%lu,fallbackPartialCount=%lu,fallbackFailCount=%lu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ && s_fdcWorkersAvailable) ? 1u : 0u,
+               (unsigned long long)sensorarrayMeasureAvgU64(t->primaryJobUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryJobUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount),
+               (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusSkewUs, rowCount),
+               (unsigned long)t->intbFreshDrdyCount,
+               (unsigned long)t->intbFalseEdgeCount,
+               (unsigned long)t->intbTimeoutCount,
+               (unsigned long)t->readyFullCount,
+               (unsigned long)t->readyPartialCount,
+               (unsigned long)t->readyNoneCount,
+               (unsigned long)t->fallbackAttemptCount,
+               (unsigned long)t->fallbackSuccessCount,
+               (unsigned long)t->fallbackPartialCount,
+               (unsigned long)t->fallbackFailCount);
+        printf("FDC_VALIDITY_STATS,seqStart=%lu,seqEnd=%lu,periodFrames=%lu,rowFullInvalidCount=%lu,deviceFullInvalidCount=%lu,degradedCellCount=%lu,freshWarnCount=%lu,staleWarnCount=%lu,transientWarnCount=%lu,fastSweepRequestedCount=%lu,sweepRequestCount=%lu,sweepActuallyQueuedCount=%lu\n",
+               (unsigned long)agg->seqStart,
+               (unsigned long)agg->seqEnd,
+               (unsigned long)agg->frames,
+               (unsigned long)t->rowFullInvalidCount,
+               (unsigned long)t->deviceFullInvalidCount,
+               (unsigned long)t->degradedCellCount,
+               (unsigned long)t->freshAmplitudeWarningCount,
+               (unsigned long)t->staleAmplitudeWarningCount,
+               (unsigned long)t->transientAmplitudeWarningCount,
+               (unsigned long)t->warningFastSweepRequestedCount,
+               (unsigned long)t->sweepRequestCount,
+               (unsigned long)t->sweepActuallyQueuedCount);
+    }
+#endif
 
     printf("SCAN_TIMING_10,seqStart=%lu,seqEnd=%lu,frames=%lu,targetFps=%lu,avgFrameUs=%llu,minFrameUs=%llu,maxFrameUs=%llu,avgFps=%llu.%02llu,budgetUsePctAvg=%llu,overrunCount=%lu,rowAvgUs=%llu,rowMaxUs=%llu,slowRow=%u,sleepBeforeRowSwitchAvgUs=%llu,rowSwitchWhileSleepingAvgUs=%llu,rowSettleAvgUs=%llu,diffApplyWhileSleepingAvgUs=%llu,sleepTotalAvgUs=%llu,sleepExitToIntbAvgUs=%llu,statusReadAvgUs=%llu,dataReadAvgUs=%llu,primaryJobAvgUs=%llu,secondaryJobAvgUs=%llu,dualBusWaitAvgUs=%llu,dualBusSkewAvgUs=%llu,cacheApplyAvgUs=%llu,cacheDiffWriteAvg=%llu,i2cWriteAvg=%llu,i2cReadAvg=%llu,i2cMeasuredAvgUs=%llu,bus0AvgUs=%llu,bus1AvgUs=%llu,freshWarnCount=%lu,staleWarnCount=%lu,transientWarnCount=%lu,fastSweepCount=%lu,intbFreshDrdyCount=%lu,intbTimeoutCount=%lu,intbFalseEdgeCount=%lu,readyFullCount=%lu,readyPartialCount=%lu,readyNoneCount=%lu,fallbackAttemptCount=%lu,fallbackSuccessCount=%lu,fallbackPartialCount=%lu,fallbackFailCount=%lu,rowFullInvalidCount=%lu,deviceFullInvalidCount=%lu,avgWaitReadyUsPrimary=%llu,avgWaitReadyUsSecondary=%llu,maxWaitReadyUs=%llu,avgRead4UsPrimary=%llu,avgRead4UsSecondary=%llu,maxI2cReadUs=%llu,sweepRequestCount=%lu,sweepActuallyQueuedCount=%lu,outputMode=%s,rowRestartMethod=sleep,parallel=%u,readyMode=%s,intbHint=%s,configIntbDisabled=1\n",
            (unsigned long)agg->seqStart,
@@ -781,21 +897,21 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)(avgFpsX100 % 100ull),
            (unsigned long long)budgetUsePctAvg,
            (unsigned long)agg->overrunCount,
-           (unsigned long long)sensorarrayMeasureAvgU64(agg->rowUsTotal, agg->frames * SENSORARRAY_MATRIX_ROWS),
+           (unsigned long long)sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount),
            (unsigned long long)agg->rowUsMax,
            (unsigned)agg->slowRow,
-           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepBeforeRowSwitchUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSwitchWhileSleepingUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSettleUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->diffApplyWhileSleepingUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepTotalUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepExitToIntbUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->primaryJobUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryJobUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusWaitUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusSkewUs, agg->frames * SENSORARRAY_MATRIX_ROWS),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepBeforeRowSwitchUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSwitchWhileSleepingUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSettleUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->diffApplyWhileSleepingUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepTotalUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->sleepExitToIntbUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->primaryJobUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryJobUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusSkewUs, rowCount),
            (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyUs, agg->frames),
            (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyDiffWriteCount, agg->frames),
            (unsigned long long)sensorarrayMeasureAvgU64(t->i2cWriteCount, agg->frames),
@@ -819,15 +935,11 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)t->fallbackFailCount,
            (unsigned long)t->rowFullInvalidCount,
            (unsigned long)t->deviceFullInvalidCount,
-           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsPrimaryTotal,
-                                                        agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsSecondaryTotal,
-                                                        agg->frames * SENSORARRAY_MATRIX_ROWS),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsSecondaryTotal, rowCount),
            (unsigned long long)t->maxWaitReadyUs,
-           (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsPrimaryTotal,
-                                                        agg->frames * SENSORARRAY_MATRIX_ROWS),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsSecondaryTotal,
-                                                        agg->frames * SENSORARRAY_MATRIX_ROWS),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->read4UsSecondaryTotal, rowCount),
            (unsigned long long)t->maxI2cReadUs,
            (unsigned long)t->sweepRequestCount,
            (unsigned long)t->sweepActuallyQueuedCount,
@@ -898,16 +1010,50 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(secondaryJobUs);
     SENSORARRAY_FDC_AGG_ADD(dualBusWaitUs);
     SENSORARRAY_FDC_AGG_ADD(dualBusSkewUs);
+    SENSORARRAY_FDC_AGG_ADD(cacheApplySkippedCount);
+    SENSORARRAY_FDC_AGG_ADD(cacheApplyDirtyDeviceCount);
     SENSORARRAY_FDC_AGG_ADD(cacheApplyDiffWriteCount);
+    SENSORARRAY_FDC_AGG_ADD(cacheApplyFullWriteCount);
+    SENSORARRAY_FDC_AGG_ADD(cacheApplyNoDiffCount);
+    SENSORARRAY_FDC_AGG_ADD(diffRcountWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffSettleWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffClockDivWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffDriveWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffMuxWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffStatusConfigWrites);
+    SENSORARRAY_FDC_AGG_ADD(diffConfigWrites);
+    SENSORARRAY_FDC_AGG_ADD(appliedFingerprintChanges);
     SENSORARRAY_FDC_AGG_ADD(i2cWriteCount);
     SENSORARRAY_FDC_AGG_ADD(i2cReadCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cVerifyReadCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cRetryCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cNackCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cTimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cRecoveryCount);
     SENSORARRAY_FDC_AGG_ADD(i2cMeasuredUs);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0WriteCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0ReadCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0WriteBytes);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0ReadBytes);
     SENSORARRAY_FDC_AGG_ADD(i2cBus0TotalUs);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0RetryCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0NackCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0TimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1WriteCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1ReadCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1WriteBytes);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1ReadBytes);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1TotalUs);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1RetryCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1NackCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1TimeoutCount);
     SENSORARRAY_FDC_AGG_ADD(freshAmplitudeWarningCount);
     SENSORARRAY_FDC_AGG_ADD(staleAmplitudeWarningCount);
     SENSORARRAY_FDC_AGG_ADD(transientAmplitudeWarningCount);
+    SENSORARRAY_FDC_AGG_ADD(warningReapplySuppressedCount);
     SENSORARRAY_FDC_AGG_ADD(warningFastSweepRequestedCount);
+    SENSORARRAY_FDC_AGG_ADD(warningFastSweepSuppressedCooldownCount);
+    SENSORARRAY_FDC_AGG_ADD(degradedCellCount);
     SENSORARRAY_FDC_AGG_ADD(intbFreshDrdyCount);
     SENSORARRAY_FDC_AGG_ADD(intbTimeoutCount);
     SENSORARRAY_FDC_AGG_ADD(intbFalseEdgeCount);
@@ -924,6 +1070,8 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(waitReadyUsSecondaryTotal);
     SENSORARRAY_FDC_AGG_ADD(read4UsPrimaryTotal);
     SENSORARRAY_FDC_AGG_ADD(read4UsSecondaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(sweepUs);
+    SENSORARRAY_FDC_AGG_ADD(runtimeSweepCount);
     SENSORARRAY_FDC_AGG_ADD(sweepRequestCount);
     SENSORARRAY_FDC_AGG_ADD(sweepActuallyQueuedCount);
 #undef SENSORARRAY_FDC_AGG_ADD

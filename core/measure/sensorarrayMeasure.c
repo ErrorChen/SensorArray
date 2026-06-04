@@ -125,6 +125,21 @@
 #ifndef CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
 #define CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG 0
 #endif
+#ifndef CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE
+#define CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
+#endif
+#ifndef CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
+#define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ
+#define CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE
+#define CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
+#define CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ 0
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_ONCE_PER_FINGERPRINT
 #define CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_ONCE_PER_FINGERPRINT 1
 #endif
@@ -1063,12 +1078,14 @@ static bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
 
 static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
 {
-    return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply");
+    return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "cache_missing");
 }
 
 static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
 {
-    return sensorarrayMeasureFdcReasonEquals(reason, "cache_missing_and_hard_error") ||
+    return sensorarrayMeasureFdcReasonEquals(reason, "cache_missing") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "cache_missing_and_hard_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_apply_failed") ||
            sensorarrayMeasureFdcReasonEquals(reason, "no_unread_consecutive") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_raw_consecutive") ||
@@ -2189,7 +2206,10 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     bool sameBus = primaryBusEnabled &&
                    secondaryBusEnabled &&
                    primaryBus.Port == secondaryBus.Port;
-    bool parallelConfigEnabled = CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0;
+    bool parallelConfigEnabled =
+        CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0 &&
+        CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE != 0 &&
+        CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ == 0;
     bool parallelEligible = parallelConfigEnabled &&
                             primaryBusEnabled &&
                             secondaryBusEnabled &&
@@ -2334,33 +2354,39 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                               outFrame);
 
         bool rowPartial = rowValidMask8 != 0xFFu;
-        printf("FDC_ROW_COMMIT,row=%u,epoch=%lu,primaryValid=0x%X,secondaryValid=0x%X,rowValidMask=0x%02X,partial=%u\n",
+        uint8_t rowCacheMissMask8 = 0u;
+        uint8_t rowTimeoutMask8 = 0u;
+        for (uint8_t ch = 0u; ch < 4u; ++ch) {
+            if (!runtimeConfigs[SENSORARRAY_FDC_DEV_PRIMARY][ch].valid) {
+                rowCacheMissMask8 |= (uint8_t)(1u << ch);
+            }
+            if (!runtimeConfigs[SENSORARRAY_FDC_DEV_SECONDARY][ch].valid) {
+                rowCacheMissMask8 |= (uint8_t)(1u << (ch + 4u));
+            }
+            if (primarySamples.timeout) {
+                rowTimeoutMask8 |= (uint8_t)(1u << ch);
+            }
+            if (secondarySamples.timeout) {
+                rowTimeoutMask8 |= (uint8_t)(1u << (ch + 4u));
+            }
+        }
+#if CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
+        printf("FDC_ROW_SUMMARY,row=%u,epoch=%lu,primaryValid=0x%X,secondaryValid=0x%X,rowValidMask=0x%02X,rowWarnMask=0x%02X,rowErrorMask=0x%02X,cacheMissMask=0x%02X,timeoutMask=0x%02X,partial=%u,primaryStatus=0x%04X,primaryUnread=0x%X,secondaryStatus=0x%04X,secondaryUnread=0x%X\n",
                (unsigned)s,
                (unsigned long)epochId,
                (unsigned)(primarySamples.validMask & 0x0Fu),
                (unsigned)(secondarySamples.validMask & 0x0Fu),
                (unsigned)rowValidMask8,
-               rowPartial ? 1u : 0u);
-        if ((primarySamples.validMask & 0x0Fu) != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
-            printf("FDC_ROW_PARTIAL,row=%u,epoch=%lu,dev=primary,reason=%s,status=0x%04X,unread=0x%X,filledSentinel=%.6f\n",
-                   (unsigned)s,
-                   (unsigned long)epochId,
-                   (primarySamples.unreadMask & 0x0Fu) != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK ?
-                       "timeout_or_unread_missing" : "invalid_data",
-                   primarySamples.statusRaw,
-                   (unsigned)(primarySamples.unreadMask & 0x0Fu),
-                   SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF);
-        }
-        if ((secondarySamples.validMask & 0x0Fu) != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
-            printf("FDC_ROW_PARTIAL,row=%u,epoch=%lu,dev=secondary,reason=%s,status=0x%04X,unread=0x%X,filledSentinel=%.6f\n",
-                   (unsigned)s,
-                   (unsigned long)epochId,
-                   (secondarySamples.unreadMask & 0x0Fu) != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK ?
-                       "timeout_or_unread_missing" : "invalid_data",
-                   secondarySamples.statusRaw,
-                   (unsigned)(secondarySamples.unreadMask & 0x0Fu),
-                   SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF);
-        }
+               (unsigned)rowWarnMask8,
+               (unsigned)rowErrorMask8,
+               (unsigned)rowCacheMissMask8,
+               (unsigned)rowTimeoutMask8,
+               rowPartial ? 1u : 0u,
+               primarySamples.statusRaw,
+               (unsigned)(primarySamples.unreadMask & 0x0Fu),
+               secondarySamples.statusRaw,
+               (unsigned)(secondarySamples.unreadMask & 0x0Fu));
+#endif
 
 #if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
         printf("FDC_MATRIX_ROW,row=%u,d1=%lu,d2=%lu,d3=%lu,d4=%lu,d5=%lu,d6=%lu,d7=%lu,d8=%lu,validMask8=0x%02X,warnMask8=0x%02X,errorMask8=0x%02X\n",

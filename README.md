@@ -134,7 +134,7 @@ flowchart TD
 | `sensorarrayInitBoardAndRouting()` | app context state | runs `boardSupportInit()`, `tmuxSwitchInit()`, `sensorarrayBoardMapAudit()`, default TMUX route | board support failure returns fatal init error; TMUX failure returns error | `CONFIG_BOARD_I2C*`, `CONFIG_TMUX*` |
 | `sensorarrayInitFrontends()` | app context state | initialises ADS, assigns FDC I2C contexts, initialises primary/secondary FDC, logs parallel bus config, initialises engines and rescue context | engine init failure aborts init; individual FDC state is tracked in `state.fdcPrimary/Secondary.ready` | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ`, `CONFIG_ADS126X_*` |
 | `sensorarrayBuildDefaultScanPlan()` | app context | builds 8 rows x 8 cells with `SENSORARRAY_CELL_OP_FDC_CAP` | no error return | `CONFIG_SENSORARRAY_MATRIX_ROWS`, `CONFIG_SENSORARRAY_MATRIX_COLS` |
-| `sensorarrayRunBootCalibration()` | app context | checks FDC readiness, runs boot sweep, sets `fdcBootSweepOk` and `fdcDiagnosticMode` | primary missing is fatal; secondary missing is fatal only when dual FDC is required; boot sweep failure is fatal when required | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT`, `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED` |
+| `sensorarrayRunBootCalibration()` | app context | checks FDC readiness, runs boot sweep, stores `fdcBootSummary`, sets `fdcBootSweepOk`, `fdcDegradedMode` and `fdcDiagnosticMode` | primary missing is fatal; secondary missing is fatal only when dual FDC is required; required boot quality must be `OK` | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT`, `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED`, `CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS` |
 | `sensorarrayRunMainLoop()` | app context | consumes full-sweep requests, reads frames, prints diagnostics/output, ticks rescue, delays to frame period | diagnostic mode prints `MATRIXFDC_DIAG`; all-invalid frame triggers rescue tick; frame error logs `FRAME_ERROR` | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS`, rescue and timing configs |
 | `sensorarrayRunQueuedFullSweep()` | app context | runs queued full matrix rescue via `sensorarrayFdcMatrixEngineRunFullRescue()` | skips while running, inside cooldown, or after max failed full sweeps; can force diagnostic mode | `CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS`, `CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS` |
 | `sensorarrayRunOneFrame()` | app context | dispatches by `runtimeMode` | unsupported ADS mode returns `ESP_ERR_NOT_SUPPORTED`; unknown mode returns invalid state | runtime mode enum |
@@ -198,7 +198,9 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE` | bool | Kconfig/defaults: y | Enables per-row conversion epoch restart. | row epoch helpers | Keep enabled for current row isolation strategy. |
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP` | bool | Kconfig/defaults: y | Uses `CONFIG.SLEEP_MODE_EN` for row restart. | `sensorarrayMeasureFdcSetSleepMode()` | Current stable path uses sleep entry/exit rather than SD pin reset. |
 | `CONFIG_SENSORARRAY_FDC_DIFF_CACHE_APPLY` | bool | Kconfig/defaults: y | Applies only changed cached FDC row registers while devices are sleeping. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep enabled to reduce per-row I2C writes. |
-| `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Prints verbose no-diff/skipped cache logs. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
+| `CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ` | bool | Kconfig: n | Allows uncalibrated safe-default row configs during formal reads. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep disabled for normal operation. A missing cache now marks cells invalid, logs `FDC_CACHE_MISS`, and requests fast rescue. |
+| `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` | bool | Kconfig: n | Prints verbose cache apply details. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
+| `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | Kconfig: `0x0080` | Conservative default FDC SETTLECOUNT. | cache/sweep channel config | Lower only after valid conversions are stable. |
 | `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `500` | Safety margin after one autoscan cycle. | FDC wait/sweep helpers | Increase when DRDY/unread timing is marginal. |
 
@@ -207,6 +209,9 @@ flowchart TD
 | 配置项 / Option | 类型 / Type | 默认值 / Default | 作用 / Purpose | 影响的函数 / Affected functions | 调整建议 / Tuning notes |
 |---|---:|---:|---|---|---|
 | `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED` | bool | Kconfig: y | Requires boot sweep success before normal output. | `sensorarrayRunBootCalibration()`, `sensorarrayFdcSweepRunBoot()` | Disable only for degraded bring-up; normal operation should require a valid boot cache. |
+| `CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS` | int | Kconfig: `48` | Minimum accepted cells for an OK boot sweep. | `sensorarrayFdcSweepRunBoot()`, `sensorarrayRunBootCalibration()` | Raise for stricter production gating; lower only when intentionally accepting partial hardware. |
+| `CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED` | bool | Kconfig: y | Allows a non-zero but incomplete boot sweep to enter degraded mode instead of hard fail. | `sensorarrayFdcSweepRunBoot()`, `sensorarrayRunBootCalibration()` | With boot sweep required, degraded quality still enters diagnostic mode unless app policy accepts it. |
+| `CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK` | hex | Kconfig: `0xFF` | Required S-row mask for boot quality. | `sensorarrayFdcSweepRunBoot()` | Keep `0xFF` for the full 8-row matrix. |
 | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT` | bool | Kconfig/defaults: y | Requires both FDC devices at boot. | `sensorarrayRunBootCalibration()` | If disabled, secondary absence allows primary-only D1-D4 output while D5-D8 are invalid. |
 | `CONFIG_SENSORARRAY_FDC_SWEEP_STEP_TIMEOUT_MS` | int | Kconfig: `180` | Timeout per sweep candidate. | `sensorarrayFdcSweep.c` | Increase for slow/noisy oscillators; too high can block boot/rescue. |
 | `CONFIG_SENSORARRAY_FDC_SWEEP_TOTAL_TIMEOUT_MS` | int | Kconfig: `2500` | Bounded timeout per channel sweep. | `sensorarrayFdcSweep.c` | Higher values improve chance of finding a valid candidate but delay recovery. |
@@ -238,6 +243,8 @@ flowchart TD
 | `CONFIG_BOARD_I2C_FREQ_HZ`, `CONFIG_BOARD_I2C0_FREQ_HZ` | int | defaults: `337500` | Primary bus frequency. | `boardSupportInit()`, timing estimates | Higher is not always more stable; watch NACK, timeout, and SCL stretch. |
 | `CONFIG_BOARD_I2C1_ENABLE`, `CONFIG_BOARD_I2C1_PORT`, `CONFIG_BOARD_I2C1_SDA_GPIO`, `CONFIG_BOARD_I2C1_SCL_GPIO`, `CONFIG_BOARD_I2C1_FREQ_HZ` | bool/int | y, `1`, `11`, `12`, `337500` | Optional second I2C bus for secondary FDC. | `boardSupportIsI2c1Enabled()`, `sensorarrayLogFdcParallelCfg()` | True parallel worker mode needs a valid second bus on a different port. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ` | bool | Kconfig/defaults: y | Enables worker-based primary/secondary row reads when dual buses are available. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Same bus or worker init failure falls back to serial. |
+| `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE` | bool | Kconfig/defaults: y | Requires the guarded worker handoff before parallel row reads are used. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Keep enabled. Worker timeout/fallback now waits for the worker to go idle before serial fallback. |
+| `CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ` | bool | Kconfig: n | Forces serial row reads even when dual buses and workers are available. | `sensorarrayMeasureReadFdcMatrixFrame()` | Enable only to isolate worker scheduling or shared-handle issues. |
 | `CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK` | int | Kconfig: `6144` | Static worker stack bytes. | `sensorarrayMeasureEnsureFdcWorkers()` | Increase if worker stack logs show low margin. |
 | `CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO` | int | Kconfig: `CONFIG_SENSORARRAY_SCAN_TASK_PRIO` | Worker task priority. | worker task creation | Keep near scan priority to reduce skew. |
 | `CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE` | int | Kconfig: `-1` | Worker core affinity; `-1` means unpinned. | `sensorarrayMeasureEnsureFdcWorkers()` | `-1` uses unpinned static task creation; pinned mode needs valid CPU ID. |
@@ -258,6 +265,10 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE` | choice bool | default n | Emits separate cap and freq lines. | `sensorarrayFrameOutputPrintText()` | Doubles text output volume. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_INLINE_DEBUG` | choice bool | default n | Emits inline debug line with freq and cap. | `sensorarrayFrameOutputPrintText()` | Debug only; high serial load. |
 | `CONFIG_SENSORARRAY_FDC_RAW_DEBUG_LOG` | bool | defaults: n | Emits `DEBUGFDC_RAW`. | `sensorarrayFrameOutputPrintText()` | Enable only for raw-data debugging. |
+| `CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY` | bool | Kconfig: y | Emits compact `FDC_FRAME_SUMMARY` before text matrix output. | `sensorarrayFrameOutputPrintText()` | Keep enabled for host-side validity checks without parsing the full 64-cell array. |
+| `CONFIG_SENSORARRAY_LOG_ROW_SUMMARY` | bool | Kconfig: y | Emits compact per-row `FDC_ROW_SUMMARY`. | `sensorarrayMeasureFillFdcMatrixRow()`, row cache-miss path | Replaces hot `FDC_ROW_COMMIT`/`FDC_ROW_PARTIAL` spam. |
+| `CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES` | int | Kconfig: `10` | Emits aggregate `BOARD_I2C_STATS` lines. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to suppress the named I2C aggregate. |
+| `CONFIG_SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES` | int | Kconfig: `10` | Emits named aggregate `FDC_TIMING_STATS`, `FDC_CACHE_STATS`, `FDC_WORKER_STATS`, and `FDC_VALIDITY_STATS`. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to keep only legacy timing output. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `10` | Runtime summary interval variable default. | `sensorarrayMeasureFdcProfileSetSummaryEvery()` | Lower increases log density. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES` | int | Kconfig/defaults: `10` | Aggregate `SCAN_TIMING_10` period. | `sensorarrayMeasureUpdateFdcTimingAggregate()` | Set 0 to suppress aggregate summary. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE` | bool | Kconfig/defaults: y | Enables aggregate timing summaries. | timing aggregate functions | Keep enabled during performance work. |
@@ -265,6 +276,10 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME` | bool | defaults: n | Enables per-frame timing summary when profile summary is on. | `sensorarrayMeasurePrintFdcTimingSummary()` | High log volume; affects frame rate. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT`, `CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT` | bool | defaults: n | Default row/device timing logs. | `sensorarrayMeasurePrintFdcRowTiming()`, `sensorarrayMeasurePrintFdcDeviceTiming()` | Enable only when detailed timing is needed. |
 | `CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE` | int | defaults: `128` | Ring size for FDC I2C trace records. | `Fdc2214CapI2cTrace*()` | Larger rings use more RAM; trace dumps occur on errors/overruns when enabled. |
+| `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER` | bool | Kconfig: n | Prints board-level I2C transaction begin/end lines. | `boardSupportI2cWriteRead()`, `boardSupportI2cWrite()`, `boardSupportI2cRead()`, `boardSupportI2cProbeAddress()` | Keep disabled during normal matrix reads; I2C errors and recovery still log when disabled. |
+| `CONFIG_SENSORARRAY_LOG_FDC_REGISTER_TRACE` | bool | Kconfig: n | Project-level switch reserved for FDC register trace diagnostics. | FDC diagnostics | Keep disabled unless tracing register traffic. |
+| `CONFIG_SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE` | bool | Kconfig: n | Prints every sweep candidate line. | `sensorarrayFdcSweep.c` | Use only for sweep tuning; rejected best candidates are still logged compactly when this is disabled. |
+| `CONFIG_SENSORARRAY_LOG_WORKER_VERBOSE` | bool | Kconfig: n | Enables verbose worker logs. | row epoch workers | Keep disabled unless debugging worker scheduling. |
 | `CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE`, `CONFIG_FDC2214CAP_RAW_I2C_TRACE` | bool | component Kconfig: n | Driver-level I2C/register printf trace. | `components/fdc2214Cap/fdc2214Cap.c` | Avoid in normal matrix reads because printf can dominate timing. |
 
 ### ADS configuration / ADS 配置
@@ -334,8 +349,10 @@ flowchart TD
 | `fdcRescue` | Runtime all-invalid rescue context, reset during frontend init and ticked after each frame. |
 | `primaryAddrValid`, `secondaryAddrValid` | Results of FDC I2C address parsing during runtime init. |
 | `requestedFdcChannels` | Normalised FDC autoscan channel count; current matrix requires 4. |
-| `fdcBootSweepOk` | Set by `sensorarrayRunBootCalibration()`. Used in diagnostics. |
-| `fdcDiagnosticMode` | Set on primary/required-secondary/required-boot failures or after too many full rescue failures. |
+| `fdcBootSweepOk` | Set true only when boot transport succeeds and boot quality is `OK`. Used in diagnostics. |
+| `fdcBootSummary` | Last boot-sweep quality summary: valid/failed/cache-filled counts, row masks, quality and reason. |
+| `fdcDegradedMode` | Set when the boot path allows partial hardware or the boot sweep reports degraded quality. |
+| `fdcDiagnosticMode` | Set on primary/required-secondary/required-boot failures, non-OK required boot quality, or after too many full rescue failures. |
 | `fdcFrameCounter` | Incremented once per main-loop frame read attempt. Also gates periodic stack/memory logs. |
 | `failedRescueCount`, `rescueEpoch`, `lastFullRescueTimeUs`, `rescueRunning` | Full-sweep rescue throttle and diagnostic state used by `sensorarrayRunQueuedFullSweep()`. |
 
@@ -386,15 +403,15 @@ flowchart TD
 2. Take the global measurement mutex using `sensorarrayMeasureTakeLock()`.
 3. Run `sensorarrayMeasureCheckFdcMatrixReady()`: board, TMUX, ADS and primary FDC must be ready; secondary absence is logged and treated as primary-only degraded operation.
 4. Reset FDC I2C stats and read primary/secondary bus metadata.
-5. Decide parallel eligibility from `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ`, both buses, different ports and worker availability.
+5. Decide parallel eligibility from `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ`, `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE`, `CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ`, both buses, different ports and worker availability.
 6. Run `sensorarrayMeasureEnsureFdcMatrixPath(state, "fdc_matrix_frame")`; abort with `MATRIXFDC_DIAG,stage=read_abort` if route preparation fails.
-7. Initialise workers on first eligible parallel frame. On worker init/queue/read failure, print `FDC_PARALLEL_FALLBACK` and continue serial.
+7. Initialise workers on first eligible parallel frame. On worker init/queue/read failure, print `FDC_PARALLEL_FALLBACK`; worker timeout/fallback waits for the queued worker to become idle before serial fallback touches shared FDC handles or output buffers.
 8. Run the formal precheck once when secondary is available.
-9. For each row S1..S8, create one row epoch and read primary D1-D4 plus secondary D5-D8 by parallel or serial row-epoch helper.
+9. For each row S1..S8, create one row epoch, apply cached row config with diff writes, and read primary D1-D4 plus secondary D5-D8 by parallel or serial row-epoch helper. A missing formal cache logs `FDC_CACHE_MISS`, marks affected cells invalid, requests fast rescue, and skips the normal read for that device.
 10. Call `sensorarrayMeasureFillFdcMatrixRow()` to merge row samples into masks, raw values, frequencies and warning/error fields.
 11. Accumulate timing, warning, I2C and rescue health.
 12. Compute `capTotalPf` from `freqHz` and `CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH`.
-13. Print timing summaries/bottlenecks when profile settings require them.
+13. Print row, frame, timing, cache, I2C, worker and validity summaries when profile settings require them.
 14. Release the measurement mutex.
 15. If `validMask == 0`, print all-invalid diagnostics, report all-invalid frame to sweep/rescue, and return an error. Otherwise return the first row/path error, or `ESP_OK`.
 
@@ -478,6 +495,7 @@ This is a measurement-layer policy. The ADS driver does not decide when ADS must
 Default text output is capacitance:
 
 ```text
+FDC_FRAME_SUMMARY,seq=<n>,validCells=<n>,invalidCells=<n>,freshCells=<n>,capValidMask=0x...,validMask=0x...,warnMask=0x...,errorMask=0x...,firstBadRow=<n>,firstBadDevice=<n>
 FDC_FRAME_OUTPUT,seq=<n>,frameQuality=<full|partial>,partial=<0|1>,capValidMask=0x...,errorMask=0x...,invalidSentinel=-1.000000
 MATRIXFDC_CAP,seq=<n>,timestampUs=<us>,partial=<0|1>,frameQuality=<full|partial>,capValidMask=0x...,freshMask=0x...,warnMask=0x...,errorMask=0x...,invalidSentinel=-1.000000,capTotalPf=[...64 values...]
 ```
@@ -525,19 +543,26 @@ ROUTEMAP
 FDCMAP
 FDC_FATAL
 FDC_BUS_WARN
+FDC_BOOT_MATRIX_SWEEP_DONE
+FDC_SWEEP
+FDC_ROW_SWEEP_RESULT
+FDC_ROW_SWEEP_REJECT
 FDC_PATH
 FDC_PARALLEL_CFG
 FDC_PARALLEL_WARN
 FDC_PARALLEL_FALLBACK
+FDC_WORKER_TIMEOUT
+FDC_STALE_RESULT_DROPPED
 FDC_FORMAL_PRECHECK
 FDC_ROW_EPOCH
 FDC_READY
 FDC_DEVICE_READ4
-FDC_ROW_COMMIT
-FDC_ROW_PARTIAL
+FDC_CACHE_MISS
+FDC_ROW_SUMMARY
 FDC_RESCUE
 FDC_RESCUE_DECISION
 FDC_RESCUE_SUPPRESSED
+FDC_FRAME_SUMMARY
 FDC_FRAME_OUTPUT
 MATRIXFDC_CAP
 MATRIXFDC_FREQ
@@ -545,6 +570,11 @@ MATRIXFDC_DIAG
 DEBUGFDC_RAW
 SCAN_TIMING_FRAME
 SCAN_TIMING_10
+BOARD_I2C_STATS
+FDC_TIMING_STATS
+FDC_CACHE_STATS
+FDC_WORKER_STATS
+FDC_VALIDITY_STATS
 SCAN_TIMING_OVERRUN
 FRAME_ERROR
 ```
