@@ -150,7 +150,9 @@ static bool sensorarrayFrameRawAllZero(const sensorarrayFrame_t *frame)
 {
     return frame &&
            frame->freshCount == SENSORARRAY_MATRIX_CELL_COUNT &&
-           frame->hardwareZeroRawCount == SENSORARRAY_MATRIX_CELL_COUNT;
+           frame->hardwareZeroRawCount == SENSORARRAY_MATRIX_CELL_COUNT &&
+           frame->zeroBeforeReadyCount == 0u &&
+           frame->notReadyCount == 0u;
 }
 
 static void sensorarrayApplyTmuxDefaults(sensorarrayState_t *state)
@@ -697,13 +699,18 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         if (allInvalid) {
             uint8_t invalidSentinelCount =
                 (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - ctx->frame.validCount);
-            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
+            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
                    (unsigned long)ctx->frame.sequence,
                    (unsigned long long)ctx->frame.errorMask,
                    (unsigned long)err,
                    ctx->fdcBootSweepOk ? 1u : 0u,
                    (unsigned)ctx->frame.freshCount,
                    (unsigned)ctx->frame.hardwareZeroRawCount,
+                   (unsigned)ctx->frame.notReadyCount,
+                   (unsigned)ctx->frame.zeroBeforeReadyCount,
+                   (unsigned)ctx->frame.zeroAfterDrdyCount,
+                   (unsigned)ctx->frame.i2cErrorCount,
+                   (unsigned)ctx->frame.unreadWithoutDrdyCount,
                    (unsigned)invalidSentinelCount,
                    sensorarrayFrameRawAllZero(&ctx->frame) ? 1u : 0u);
         } else if (err != ESP_OK) {

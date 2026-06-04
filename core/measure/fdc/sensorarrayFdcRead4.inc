@@ -1,6 +1,7 @@
 // Split from core/measure/sensorarrayMeasure.c to keep FDC matrix internals isolated.
 static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDeviceState_t *fdcState,
                                                             uint8_t freshMask4,
+                                                            const sensorarrayFdcReadyState_t *ready,
                                                             sensorarrayFdcAutoscanSamples_t *outSamples)
 {
     if (!fdcState || !fdcState->handle || !outSamples) {
@@ -9,7 +10,10 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
 
     *outSamples = (sensorarrayFdcAutoscanSamples_t){0};
     freshMask4 &= 0x0Fu;
-    outSamples->freshMask = freshMask4;
+    bool readyForDataRead = ready && ready->readyForDataRead;
+    outSamples->dataReady = ready && ready->dataReady;
+    outSamples->unreadWithoutDrdy = ready && ready->unreadWithoutDataReady;
+    outSamples->freshMask = readyForDataRead ? freshMask4 : 0u;
     Fdc2214CapFastChannelSample_t fastSamples[4] = {0};
     esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsFast(fdcState->handle,
                                                             freshMask4,
@@ -17,7 +21,8 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
                                                             4u);
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         const Fdc2214CapFastChannelSample_t *sample = &fastSamples[ch];
-        bool requestedFresh = (freshMask4 & (uint8_t)(1u << ch)) != 0u;
+        uint8_t bit = (uint8_t)(1u << ch);
+        bool requestedFresh = readyForDataRead && (freshMask4 & bit) != 0u;
         outSamples->fresh[ch] = requestedFresh;
         outSamples->raw28[ch] = sample->raw28;
         outSamples->statusRaw = sample->statusRaw;
@@ -41,6 +46,22 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
             ((sample->errorMask & FDC2214CAP_FAST_ERROR_WATCHDOG) != 0u);
         outSamples->saturated[ch] = sample->raw28 >= SENSORARRAY_FDC_RAW28_SATURATED_THRESHOLD;
         outSamples->i2cError[ch] = (sample->errorMask & FDC2214CAP_FAST_ERROR_I2C) != 0u;
+        outSamples->notReady[ch] = !readyForDataRead && !outSamples->i2cError[ch];
+        outSamples->zeroBeforeReady[ch] = sample->raw28 == 0u &&
+                                          !readyForDataRead &&
+                                          !outSamples->i2cError[ch];
+        outSamples->zeroAfterDrdy[ch] = sample->raw28 == 0u &&
+                                        readyForDataRead &&
+                                        !outSamples->i2cError[ch];
+        if (outSamples->notReady[ch]) {
+            outSamples->notReadyMask |= bit;
+        }
+        if (outSamples->zeroBeforeReady[ch]) {
+            outSamples->zeroBeforeReadyMask |= bit;
+        }
+        if (outSamples->zeroAfterDrdy[ch]) {
+            outSamples->zeroAfterDrdyMask |= bit;
+        }
 
         bool i2cOk = !outSamples->i2cError[ch];
         bool readable = requestedFresh;
@@ -69,6 +90,7 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4ch(sensorarrayFdcDeviceState_
 {
     return sensorarrayMeasureReadFdcAutoscan4chMasked(fdcState,
                                                      SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK,
+                                                     NULL,
                                                      outSamples);
 }
 
@@ -86,11 +108,31 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
         outSamples->unreadMask = ready->unreadMask & 0x0Fu;
         outSamples->timeout = ready->timeout;
         outSamples->partial = ready->partial;
+        outSamples->dataReady = ready->dataReady;
+        outSamples->unreadWithoutDrdy = ready->unreadWithoutDataReady;
     }
     outSamples->i2cTransactionError = i2cError;
     outSamples->errorMask = 0x0Fu;
+    bool runtimeNotReady = ready &&
+                           !i2cError &&
+                           ready->err != ESP_ERR_NOT_FOUND &&
+                           !ready->readyForDataRead &&
+                           (ready->pollCount != 0u ||
+                            ready->timeout ||
+                            ready->unreadWithoutDataReady);
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        uint8_t bit = (uint8_t)(1u << ch);
         outSamples->i2cError[ch] = i2cError;
+        outSamples->notReady[ch] = runtimeNotReady;
+        outSamples->zeroBeforeReady[ch] = outSamples->notReady[ch] &&
+                                          ready &&
+                                          ready->unreadWithoutDataReady;
+        if (outSamples->notReady[ch]) {
+            outSamples->notReadyMask |= bit;
+        }
+        if (outSamples->zeroBeforeReady[ch]) {
+            outSamples->zeroBeforeReadyMask |= bit;
+        }
     }
 }
 
@@ -106,6 +148,18 @@ static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdc
     }
     if (read4->i2cError || read4->readyKind == SENSORARRAY_FDC_READY_I2C_ERROR) {
         return "i2c_error";
+    }
+    if (read4->zeroBeforeReadyMask4 != 0u) {
+        return "zero_before_ready";
+    }
+    if (read4->unreadWithoutDrdy) {
+        return "unread_without_drdy";
+    }
+    if (read4->notReadyMask4 != 0u) {
+        return "data_not_ready";
+    }
+    if (read4->zeroAfterDrdyMask4 != 0u) {
+        return "zero_after_drdy";
     }
     if (read4->readUs == 0u &&
         read4->unreadMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
@@ -143,6 +197,10 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .timeout = ready ? ready->timeout : false,
         .partial = ready ? ready->partial : false,
         .i2cError = samples ? samples->i2cTransactionError : false,
+        .notReadyMask4 = samples ? samples->notReadyMask : 0u,
+        .zeroBeforeReadyMask4 = samples ? samples->zeroBeforeReadyMask : 0u,
+        .zeroAfterDrdyMask4 = samples ? samples->zeroAfterDrdyMask : 0u,
+        .unreadWithoutDrdy = ready ? ready->unreadWithoutDataReady : false,
         .waitUs = ready ? ready->waitUs : 0u,
         .readUs = readUs,
         .pollCount = ready ? ready->pollCount : 0u,
@@ -185,6 +243,11 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             outRead4->errorMask4 |= (uint8_t)(1u << ch);
         }
     }
+    outRead4->rawAllZero =
+        outRead4->raw28[0] == 0u &&
+        outRead4->raw28[1] == 0u &&
+        outRead4->raw28[2] == 0u &&
+        outRead4->raw28[3] == 0u;
 
     if (outRead4->timeout && outRead4->freshMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
         outRead4->partial = outRead4->freshMask4 != 0u;
@@ -192,7 +255,10 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     }
 
     bool diagnostic = outRead4->readUs == 0u &&
-                      outRead4->unreadMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+                      (outRead4->notReadyMask4 != 0u ||
+                       outRead4->unreadMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK ||
+                       !ready ||
+                       !ready->readyForDataRead);
     const char *diagnosticName = sensorarrayMeasureFdcRead4DiagnosticName(outRead4);
     bool fullSuccess = outRead4->readErr == ESP_OK &&
                        !outRead4->timeout &&
@@ -202,11 +268,11 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     if (fullSuccess && !logNormal) {
         return;
     }
-    printf("FDC_DEVICE_READ4,dev=%s,row=%u,epoch=%lu,readMode=%s,diagnostic=%s,rawSource=%s,raw28=[%lu,%lu,%lu,%lu],freqHz=[%.3f,%.3f,%.3f,%.3f],freshMask=0x%X,validMask=0x%X,warnMask=0x%X,errorMask=0x%X,status=0x%04X,unread=0x%X,drdy=%u,partial=%u,timeout=%u,edgeDelta=%lu,waitUs=%lu,readUs=%lu,pollCount=%lu,readyMode=%s,err=0x%lx,errName=%s\n",
+    printf("FDC_DEVICE_READ4,dev=%s,row=%u,epoch=%lu,readMode=%s,diagnostic=%s,rawSource=%s,raw28=[%lu,%lu,%lu,%lu],freqHz=[%.3f,%.3f,%.3f,%.3f],freshMask=0x%X,validMask=0x%X,warnMask=0x%X,errorMask=0x%X,notReadyMask=0x%X,zeroBeforeReadyMask=0x%X,zeroAfterDrdyMask=0x%X,rawAllZero=%u,status=0x%04X,unread=0x%X,drdy=%u,partial=%u,timeout=%u,edgeDelta=%lu,waitUs=%lu,readUs=%lu,pollCount=%lu,readyMode=%s,err=0x%lx,errName=%s\n",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
-           diagnostic ? "skipped_no_full_unread" : "normal",
+           diagnostic ? "skipped_not_ready" : "normal",
            diagnosticName,
            diagnostic ? "not_read" : "device_data",
            (unsigned long)outRead4->raw28[0],
@@ -221,6 +287,10 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            (unsigned)outRead4->validMask4,
            (unsigned)outRead4->warnMask4,
            (unsigned)outRead4->errorMask4,
+           (unsigned)outRead4->notReadyMask4,
+           (unsigned)outRead4->zeroBeforeReadyMask4,
+           (unsigned)outRead4->zeroAfterDrdyMask4,
+           outRead4->rawAllZero ? 1u : 0u,
            outRead4->status,
            (unsigned)outRead4->unreadMask4,
            (unsigned)outRead4->drdy,
@@ -233,4 +303,25 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            SENSORARRAY_FDC_READY_MODE_NAME,
            (unsigned long)outRead4->readErr,
            sensorarrayMeasureEspErrName(outRead4->readErr));
+    if (outRead4->rawAllZero || diagnostic || outRead4->zeroBeforeReadyMask4 != 0u ||
+        outRead4->zeroAfterDrdyMask4 != 0u) {
+        const char *decision =
+            (outRead4->zeroBeforeReadyMask4 != 0u || outRead4->unreadWithoutDrdy) ? "rewait" :
+            (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
+            (outRead4->validMask4 != 0u) ? "accepted" :
+            "discard";
+        printf("FDC_READ_CONSISTENCY,dev=%s,row=%u,epoch=%lu,status=0x%04X,drdy=%u,unread=0x%X,rawAllZero=%u,validMask=0x%X,notReadyMask=0x%X,zeroBeforeReadyMask=0x%X,zeroAfterDrdyMask=0x%X,decision=%s\n",
+               sensorarrayMeasureFdcDeviceName(devId),
+               (unsigned)row,
+               (unsigned long)epochId,
+               outRead4->status,
+               (unsigned)outRead4->drdy,
+               (unsigned)outRead4->unreadMask4,
+               outRead4->rawAllZero ? 1u : 0u,
+               (unsigned)outRead4->validMask4,
+               (unsigned)outRead4->notReadyMask4,
+               (unsigned)outRead4->zeroBeforeReadyMask4,
+               (unsigned)outRead4->zeroAfterDrdyMask4,
+               decision);
+    }
 }

@@ -92,6 +92,11 @@ typedef struct {
     uint64_t errorMask;
     uint8_t hardwareZeroRawCount;
     uint8_t placeholderZeroCount;
+    uint8_t notReadyCount;
+    uint8_t zeroBeforeReadyCount;
+    uint8_t zeroAfterDrdyCount;
+    uint8_t i2cErrorCount;
+    uint8_t unreadWithoutDrdyCount;
     uint8_t validCount;
     uint8_t freshCount;
     esp_err_t firstReadErr;
@@ -175,6 +180,10 @@ typedef struct {
     uint32_t readyFullCount;
     uint32_t readyPartialCount;
     uint32_t readyNoneCount;
+    uint32_t unreadWithoutDrdyCount;
+    uint32_t dataNotReadyCount;
+    uint32_t zeroBeforeReadyCount;
+    uint32_t zeroAfterDrdyCount;
     uint32_t fallbackAttemptCount;
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;
@@ -328,6 +337,10 @@ typedef struct {
     uint32_t readyFullCount;
     uint32_t readyPartialCount;
     uint32_t readyNoneCount;
+    uint32_t unreadWithoutDrdyCount;
+    uint32_t dataNotReadyCount;
+    uint32_t zeroBeforeReadyCount;
+    uint32_t zeroAfterDrdyCount;
     uint32_t fallbackAttemptCount;
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;

@@ -422,7 +422,11 @@ bool sensorarrayFdcSweepIsRescueInProgress(void)
 
 void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint64_t errorMask,
-                                              uint32_t zeroRawCount)
+                                              uint32_t zeroRawCount,
+                                              uint32_t notReadyCount,
+                                              uint32_t zeroBeforeReadyCount,
+                                              uint32_t zeroAfterDrdyCount,
+                                              uint32_t i2cErrorCount)
 {
     if (validMask != 0u) {
         gAllInvalidSequence = 0u;
@@ -431,17 +435,48 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
 
     int64_t nowUs = esp_timer_get_time();
     gLastAllInvalidUs = nowUs;
+    bool runtimeReadyFault =
+        notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
+        zeroBeforeReadyCount != 0u;
+    if (runtimeReadyFault) {
+        gSuppressedFullSweepCount++;
+        printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu,zeroAfterDrdyCount=%lu,i2cErrorCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=all_invalid_due_to_not_ready\n",
+               (unsigned long)gFdcSweepRequestEpoch,
+               (unsigned long)gAllInvalidSequence,
+               (long long)gLastAllInvalidUs,
+               (unsigned long)zeroRawCount,
+               (unsigned long)notReadyCount,
+               (unsigned long)zeroBeforeReadyCount,
+               (unsigned long)zeroAfterDrdyCount,
+               (unsigned long)i2cErrorCount,
+               (unsigned long long)validMask,
+               (unsigned long long)errorMask);
+        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=runtime_ready_epoch_fault,status=not_queued,action=sleep_epoch_resync,suppressed=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu\n",
+               (unsigned long)gSuppressedFullSweepCount,
+               (unsigned long)notReadyCount,
+               (unsigned long)zeroBeforeReadyCount);
+        gAllInvalidSequence = 0u;
+        return;
+    }
+
     gAllInvalidSequence++;
     const char *reason =
-        (zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
-        "persistent_all_rows_hardware_zero" :
+        (zeroAfterDrdyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
+         zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
+        "persistent_all_rows_hardware_zero_after_drdy" :
+        (i2cErrorCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
+        "all_invalid_due_to_i2c" :
         "normal_path_invalid_after_boot_ok";
 
-    printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=%s\n",
+    printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu,zeroAfterDrdyCount=%lu,i2cErrorCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=%s\n",
            (unsigned long)gFdcSweepRequestEpoch,
            (unsigned long)gAllInvalidSequence,
            (long long)gLastAllInvalidUs,
            (unsigned long)zeroRawCount,
+           (unsigned long)notReadyCount,
+           (unsigned long)zeroBeforeReadyCount,
+           (unsigned long)zeroAfterDrdyCount,
+           (unsigned long)i2cErrorCount,
            (unsigned long long)validMask,
            (unsigned long long)errorMask,
            reason);
@@ -3265,7 +3300,7 @@ static esp_err_t sensorarrayFdcSweepWaitDeviceAutoscan(sensorarrayFdcDeviceState
         esp_err_t err = Fdc2214CapReadStatus(fdcState->handle, &status);
         if (err == ESP_OK) {
             uint8_t unreadMask = sensorarrayFdcSweepUnreadMaskFromStatus(&status);
-            if (status.DataReady || unreadMask == SENSORARRAY_FDC_SWEEP_AUTOSCAN_READY_MASK) {
+            if (status.DataReady && unreadMask == SENSORARRAY_FDC_SWEEP_AUTOSCAN_READY_MASK) {
                 if (outStatus) {
                     *outStatus = status.Raw;
                 }

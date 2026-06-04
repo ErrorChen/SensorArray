@@ -246,15 +246,23 @@ typedef struct {
     bool watchdogFault[4];
     bool saturated[4];
     bool i2cError[4];
+    bool notReady[4];
+    bool zeroBeforeReady[4];
+    bool zeroAfterDrdy[4];
     uint16_t statusRaw;
     uint8_t unreadMask;
     uint8_t freshMask;
     uint8_t validMask;
     uint8_t warnMask;
     uint8_t errorMask;
+    uint8_t notReadyMask;
+    uint8_t zeroBeforeReadyMask;
+    uint8_t zeroAfterDrdyMask;
     bool timeout;
     bool partial;
     bool i2cTransactionError;
+    bool dataReady;
+    bool unreadWithoutDrdy;
 } sensorarrayFdcAutoscanSamples_t;
 
 typedef struct {
@@ -267,6 +275,9 @@ typedef struct {
     bool watchdogSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool saturatedSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool zeroRawSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool notReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool zeroBeforeReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool zeroAfterDrdySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool placeholderZeroSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool i2cErrorSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     uint32_t lastRaw28[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
@@ -298,8 +309,20 @@ typedef enum {
 } sensorarrayFdcReadyKind_t;
 
 typedef struct {
+    uint16_t statusRaw;
+    uint8_t unreadMask;
+    bool dataReady;
+    bool unreadFull;
+    bool readyForDataRead;
+    bool unreadWithoutDataReady;
+} sensorarrayFdcReadyDecoded_t;
+
+typedef struct {
     bool ready;
     bool dataReady;
+    bool unreadFull;
+    bool readyForDataRead;
+    bool unreadWithoutDataReady;
     sensorarrayFdcReadyKind_t kind;
     uint16_t statusRaw;
     uint16_t errorStatus;
@@ -311,6 +334,7 @@ typedef struct {
     int finalIntbLevel;
     esp_err_t err;
     uint32_t pollCount;
+    uint32_t unreadWithoutDrdyCount;
     uint32_t timeoutCount;
     uint32_t waitUs;
     bool timeout;
@@ -329,6 +353,9 @@ typedef struct {
     uint8_t validMask4;
     uint8_t warnMask4;
     uint8_t errorMask4;
+    uint8_t notReadyMask4;
+    uint8_t zeroBeforeReadyMask4;
+    uint8_t zeroAfterDrdyMask4;
     uint16_t status;
     uint16_t errorStatus;
     uint8_t unreadMask4;
@@ -339,6 +366,8 @@ typedef struct {
     bool timeout;
     bool partial;
     bool i2cError;
+    bool unreadWithoutDrdy;
+    bool rawAllZero;
     bool staleRejected;
     uint32_t waitUs;
     uint32_t readUs;
@@ -1315,6 +1344,42 @@ static uint8_t sensorarrayMeasureFdcUnreadMaskFromStatus(const Fdc2214CapStatus_
     return unreadMask;
 }
 
+static sensorarrayFdcReadyDecoded_t sensorarrayMeasureFdcBuildReadyState(
+    const Fdc2214CapStatus_t *status,
+    uint8_t requiredMask)
+{
+    requiredMask &= 0x0Fu;
+    if (requiredMask == 0u) {
+        requiredMask = SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    }
+
+    sensorarrayFdcReadyDecoded_t ready = {
+        .statusRaw = status ? status->Raw : 0u,
+        .unreadMask = sensorarrayMeasureFdcUnreadMaskFromStatus(status),
+        .dataReady = status && status->DataReady,
+    };
+    ready.unreadFull = (ready.unreadMask & requiredMask) == requiredMask;
+    ready.readyForDataRead = ready.dataReady && ready.unreadFull;
+    ready.unreadWithoutDataReady = ready.unreadFull && !ready.dataReady;
+    return ready;
+}
+
+static void sensorarrayMeasureFdcApplyReadyDecoded(sensorarrayFdcReadyState_t *ready,
+                                                   const sensorarrayFdcReadyDecoded_t *decoded)
+{
+    if (!ready || !decoded) {
+        return;
+    }
+
+    ready->statusRaw = decoded->statusRaw;
+    ready->dataReady = decoded->dataReady;
+    ready->drdy = decoded->dataReady ? 1u : 0u;
+    ready->unreadMask = decoded->unreadMask;
+    ready->unreadFull = decoded->unreadFull;
+    ready->readyForDataRead = decoded->readyForDataRead;
+    ready->unreadWithoutDataReady = decoded->unreadWithoutDataReady;
+}
+
 static bool sensorarrayMeasureFdcDeglitchCodeValid(uint8_t deglitchCode)
 {
     switch (deglitchCode) {
@@ -1708,8 +1773,9 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitFdcAutoscanFrameR
     while (esp_timer_get_time() <= deadlineUs) {
         esp_err_t err = Fdc2214CapReadStatus(fdcState->handle, &status);
         if (err == ESP_OK) {
-            uint8_t unreadMask = sensorarrayMeasureFdcUnreadMaskFromStatus(&status);
-            if (status.DataReady || unreadMask == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
+            sensorarrayFdcReadyDecoded_t ready =
+                sensorarrayMeasureFdcBuildReadyState(&status, SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
+            if (ready.readyForDataRead) {
                 if (outStatus) {
                     *outStatus = status.Raw;
                 }
@@ -1718,7 +1784,7 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitFdcAutoscanFrameR
                        (unsigned)row,
                        sensorarrayMeasureFdcDeviceName(sensorarrayMeasureFdcDeviceIdFromState(fdcState)),
                        status.Raw,
-                       (unsigned)unreadMask,
+                       (unsigned)ready.unreadMask,
                        status.DataReady ? 1u : 0u,
                        (unsigned long)ESP_OK);
 #endif
@@ -1762,9 +1828,10 @@ static void __attribute__((unused)) sensorarrayMeasurePollFdcReady(sensorarrayFd
     }
     ready->statusRaw = status.Raw;
     ready->dataReady = status.DataReady;
-    ready->unreadMask = sensorarrayMeasureFdcUnreadMaskFromStatus(&status);
-    ready->ready = ready->dataReady ||
-                   ready->unreadMask == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    sensorarrayFdcReadyDecoded_t decoded =
+        sensorarrayMeasureFdcBuildReadyState(&status, SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
+    sensorarrayMeasureFdcApplyReadyDecoded(ready, &decoded);
+    ready->ready = ready->readyForDataRead;
 }
 
 static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitBothFdcAutoscanFrameReady(sensorarrayState_t *state,
@@ -2632,15 +2699,21 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     sensorarrayMeasureGiveLock();
     if (outFrame->validMask == 0u) {
         bool allZero = sensorarrayFdcMatrixFrameRawAllZero(outFrame);
+        bool runtimeReadyFault = outFrame->notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
+                                 outFrame->zeroBeforeReadyCount != 0u;
         uint32_t seq = s_fdcMatrixAllInvalidSequence++;
-        const char *reason = allZero ? "all_zero_raw" :
+        const char *reason = runtimeReadyFault ? "all_invalid_due_to_not_ready" :
+            allZero ? "all_zero_raw_after_drdy" :
+            (outFrame->zeroAfterDrdyCount != 0u ? "all_invalid_due_to_zero_after_drdy" :
+             outFrame->i2cErrorCount != 0u ? "all_invalid_due_to_i2c" :
             (outFrame->freshCount == 0u ? "all_invalid_no_fresh_data" :
-             "normal_path_no_valid_after_boot_ok");
-        if (allZero) {
+             "normal_path_no_valid_after_boot_ok"));
+        if (allZero && !runtimeReadyFault) {
             outFrame->errorMask = UINT64_MAX;
         }
-        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
-               allZero ? "all_invalid" : "all_status_invalid",
+        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
+               allZero ? "all_invalid" :
+               runtimeReadyFault ? "all_invalid_ready_fault" : "all_status_invalid",
                (unsigned long)seq,
                (unsigned long long)outFrame->errorMask,
                reason,
@@ -2648,13 +2721,22 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                (unsigned)outFrame->validCount,
                (unsigned)outFrame->hardwareZeroRawCount,
                (unsigned)outFrame->placeholderZeroCount,
+               (unsigned)outFrame->notReadyCount,
+               (unsigned)outFrame->zeroBeforeReadyCount,
+               (unsigned)outFrame->zeroAfterDrdyCount,
+               (unsigned)outFrame->i2cErrorCount,
+               (unsigned)outFrame->unreadWithoutDrdyCount,
                (unsigned)outFrame->firstBadRow,
                (unsigned)outFrame->firstBadDevice,
                outFrame->firstBadStatus,
                (unsigned)outFrame->firstBadUnread);
         sensorarrayFdcSweepReportAllInvalidFrame(outFrame->validMask,
-                                                 outFrame->errorMask,
-                                                 allZero ? outFrame->hardwareZeroRawCount : 0u);
+                                                  outFrame->errorMask,
+                                                  allZero ? outFrame->hardwareZeroRawCount : 0u,
+                                                  outFrame->notReadyCount,
+                                                  outFrame->zeroBeforeReadyCount,
+                                                  outFrame->zeroAfterDrdyCount,
+                                                  outFrame->i2cErrorCount);
         return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE;
     }
     return firstErr;

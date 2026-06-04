@@ -85,11 +85,16 @@ static void sensorarrayFrameOutputPrintText(const sensorarrayFrame_t *frame, con
     bool partial = frame->capValidMask != UINT64_MAX;
     const char *frameQuality = partial ? "partial" : "full";
 #if CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY
-    printf("FDC_FRAME_SUMMARY,seq=%lu,validCells=%u,invalidCells=%u,freshCells=%u,capValidMask=0x%016llX,validMask=0x%016llX,warnMask=0x%016llX,errorMask=0x%016llX,firstBadRow=%u,firstBadDevice=%u\n",
+    printf("FDC_FRAME_SUMMARY,seq=%lu,validCells=%u,invalidCells=%u,freshCells=%u,notReadyCells=%u,zeroBeforeReadyCells=%u,zeroAfterDrdyCells=%u,i2cErrorCells=%u,unreadWithoutDrdyCells=%u,capValidMask=0x%016llX,validMask=0x%016llX,warnMask=0x%016llX,errorMask=0x%016llX,firstBadRow=%u,firstBadDevice=%u\n",
            (unsigned long)frame->sequence,
            (unsigned)frame->validCount,
            (unsigned)(SENSORARRAY_MATRIX_CELL_COUNT - frame->validCount),
            (unsigned)frame->freshCount,
+           (unsigned)frame->notReadyCount,
+           (unsigned)frame->zeroBeforeReadyCount,
+           (unsigned)frame->zeroAfterDrdyCount,
+           (unsigned)frame->i2cErrorCount,
+           (unsigned)frame->unreadWithoutDrdyCount,
            (unsigned long long)frame->capValidMask,
            (unsigned long long)frame->validMask,
            (unsigned long long)frame->warnMask,
