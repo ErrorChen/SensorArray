@@ -203,6 +203,15 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | Kconfig: `0x0080` | Conservative default FDC SETTLECOUNT. | cache/sweep channel config | Lower only after valid conversions are stable. |
 | `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `500` | Safety margin after one autoscan cycle. | FDC wait/sweep helpers | Increase when DRDY/unread timing is marginal. |
+| `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` | choice bool | Kconfig/defaults: y | Default formal ready policy: wait INTB, verify STATUS once, then use bounded fallback only if needed. | `sensorarrayFdcWaitDeviceReady()` | Recommended production mode after INTB wiring/config validation. |
+| `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS` | choice bool | Kconfig/defaults: n | Wait INTB then verify STATUS once, without polling fallback. | `sensorarrayFdcWaitDeviceReady()` | Use to expose missed-INTB cases during timing validation. |
+| `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` | choice bool | Kconfig/defaults: n | Poll STATUS/unread directly instead of using INTB. | `sensorarrayFdcWaitDeviceReady()` | Debug/compatibility mode; not the default frame-rate path. |
+| `CONFIG_SENSORARRAY_FDC_INTB_WAIT_MARGIN_US` | int | Kconfig/defaults: `2000` | Extra INTB wait margin beyond row conversion budget. | `sensorarrayFdcWaitDeviceReady()` | Increase only if conversions are valid but INTB arrives late. |
+| `CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS` | int | Kconfig/defaults: `3` | Maximum STATUS polls in fallback/poll-only mode. | `sensorarrayFdcWaitDeviceReady()` | Keeps fallback bounded so a bad row cannot dominate frame time. |
+| `CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US` | int | Kconfig/defaults: `200` | Delay between fallback STATUS polls. | `sensorarrayFdcWaitDeviceReady()` | Lower increases I2C load; higher increases missed-frame latency. |
+| `CONFIG_SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID` | bool | Kconfig/defaults: y | Requires `DRDY=1` before data registers are accepted. | `sensorarrayFdcWaitDeviceReady()`, `sensorarrayMeasureReadFdcAutoscan4chMasked()` | Keep enabled. `unread=full && DRDY=0` is logged as unsafe and rejected. |
+| `CONFIG_SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB` | bool | Kconfig/defaults: y | Records suppression of pre-INTB STATUS reads in INTB modes. | `sensorarrayFdcWaitDeviceReady()` | Keep enabled to avoid long STATUS polling before INTB. |
+| `CONFIG_SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG` | bool | Kconfig/defaults: n | Forces INTB output disabled for debug builds. | `sensorarrayMeasureFdcConfigBaseWithoutSleep()`, bring-up/sweep config builders | Enable only when intentionally testing poll-only behaviour. |
 
 ### FDC sweep and rescue configuration / FDC 扫描与救援配置
 
@@ -275,6 +284,12 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG` | bool | Kconfig/defaults: y | Prints bottleneck on frame overrun. | `sensorarrayMeasurePrintFdcBottleneck()` | Useful when testing lower frame periods. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME` | bool | defaults: n | Enables per-frame timing summary when profile summary is on. | `sensorarrayMeasurePrintFdcTimingSummary()` | High log volume; affects frame rate. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT`, `CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT` | bool | defaults: n | Default row/device timing logs. | `sensorarrayMeasurePrintFdcRowTiming()`, `sensorarrayMeasurePrintFdcDeviceTiming()` | Enable only when detailed timing is needed. |
+| `CONFIG_SENSORARRAY_FDC_LOG_FORMAT_COMPACT` | choice bool | Kconfig/defaults: y | Enables short hot-path tokens such as `FRB`, `FRP`, `FRR`, `SRC`, `FPR`, and `FT10`. | row epoch and frame timing logs | Recommended while profiling 20 fps output because it reduces serial load. |
+| `CONFIG_SENSORARRAY_FDC_LOG_FORMAT_VERBOSE` | choice bool | Kconfig/defaults: n | Keeps longer diagnostic log names where available. | row epoch and frame timing logs | Use only when human-readable hot-path logs matter more than frame-rate impact. |
+| `CONFIG_SENSORARRAY_FDC_LOG_READY_EVERY_ROW` | bool | Kconfig/defaults: n | Emits compact ready diagnostics for every row/device. | `sensorarrayFdcWaitDeviceReady()` | Enable for INTB/STATUS bring-up; leave off for normal output. |
+| `CONFIG_SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING` | bool | Kconfig/defaults: y | Emits per-row primary/secondary timing skew via `FPR`. | row epoch parallel path | Keep enabled until worker skew and INTB timing are validated. |
+| `CONFIG_SENSORARRAY_FDC_LOG_FULL_CAP_FRAME` | bool | Kconfig/defaults: y | Emits full `MATRIXFDC_CAP` frame lines. | frame output | Disable only if host tooling uses compact frame logs instead. |
+| `CONFIG_SENSORARRAY_FDC_LOG_COMPACT_CAP_FRAME` | bool | Kconfig/defaults: n | Reserved compact frame-output switch. | frame output | Enable only for host-side parsers that understand compact matrix output. |
 | `CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE` | int | defaults: `128` | Ring size for FDC I2C trace records. | `Fdc2214CapI2cTrace*()` | Larger rings use more RAM; trace dumps occur on errors/overruns when enabled. |
 | `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER` | bool | Kconfig: n | Prints board-level I2C transaction begin/end lines. | `boardSupportI2cWriteRead()`, `boardSupportI2cWrite()`, `boardSupportI2cRead()`, `boardSupportI2cProbeAddress()` | Keep disabled during normal matrix reads; I2C errors and recovery still log when disabled. |
 | `CONFIG_SENSORARRAY_LOG_FDC_REGISTER_TRACE` | bool | Kconfig: n | Project-level switch reserved for FDC register trace diagnostics. | FDC diagnostics | Keep disabled unless tracing register traffic. |
@@ -452,9 +467,14 @@ flowchart LR
 
 ### INTB and STATUS / INTB 与 STATUS
 
-INTB is only a data-ready hint. It is not sufficient on its own. STATUS, unread bits, DRDY and register validity must still be checked. In the current source tree the formal matrix ready mode is `polling_only` and the FDC CONFIG INTB output is forced disabled by `sensorarrayMeasureFdcConfigBaseWithoutSleep()`, so STATUS/unread polling is the authoritative readiness path.
+The default formal matrix ready path is INTB-first with bounded STATUS fallback:
 
-中文：INTB 只是数据就绪提示，不等于该数据一定完整有效。当前正式矩阵读取以 STATUS/unread polling 为准。
+- FDC DRDY-to-INTB output is enabled for formal matrix reads unless `CONFIG_SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG` or poll-only ready policy is selected.
+- The authoritative ready gate is `DRDY=1` plus all required unread bits set. `unread=0xF` while `DRDY=0` is treated as unsafe and is not accepted as ready.
+- In INTB mode the worker arms INTB notification before `sleep_exit`, waits for INTB first, then performs one STATUS verify. Repeated STATUS polling before INTB is suppressed.
+- `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` keeps a small bounded fallback for missed INTB cases; `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS` disables that fallback; `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` is debug/compatibility mode.
+
+中文：默认正式矩阵读取已经切换为 INTB-first。INTB 只是唤醒提示，最终仍以 `DRDY=1 && required unread full` 为有效就绪条件；`DRDY=0` 时即使 unread 为满也会标记为 unsafe，不读取数据寄存器。
 
 ## 路由安全与 ADS/FDC 互斥 / Route safety and ADS/FDC mutual exclusion
 
@@ -554,11 +574,18 @@ FDC_PARALLEL_FALLBACK
 FDC_WORKER_TIMEOUT
 FDC_STALE_RESULT_DROPPED
 FDC_FORMAL_PRECHECK
+FDC_INTB_CFG
+FDC_INTB_CFG_ERR
 FDC_ROW_EPOCH
 FDC_READY
+FRB
+FRP
+FRR
+SRC
 FDC_DEVICE_READ4
 FDC_CACHE_MISS
 FDC_ROW_SUMMARY
+FDC_DEFERRED_REPAIR
 FDC_RESCUE
 FDC_RESCUE_DECISION
 FDC_RESCUE_SUPPRESSED
@@ -570,6 +597,8 @@ MATRIXFDC_DIAG
 DEBUGFDC_RAW
 SCAN_TIMING_FRAME
 SCAN_TIMING_10
+FPR
+FT10
 BOARD_I2C_STATS
 FDC_TIMING_STATS
 FDC_CACHE_STATS
@@ -578,6 +607,36 @@ FDC_VALIDITY_STATS
 SCAN_TIMING_OVERRUN
 FRAME_ERROR
 ```
+
+### Compact FDC log tokens / FDC 紧凑日志符号
+
+The compact tokens are intended for high-frame-rate timing work, where long log lines can distort the result:
+
+| Token | Meaning | Important fields |
+|---|---|---|
+| `FDC_INTB_CFG` | Formal precheck result for FDC INTB configuration. | `intbOut`, `statusCfg`, `config`, `usable` |
+| `FDC_INTB_CFG_ERR` | INTB output was expected but CONFIG/STATUS_CONFIG readback did not match, so that device degrades to polling policy. | `dev`, `config`, `statusCfg` |
+| `FRB` | Ready wait begins for one FDC device. | `row`, `dev`, `policy`, `timeoutUs` |
+| `FRP` | One STATUS observation used for ready verification or fallback. | `k`, `stat`, `unread`, `drdy`, `full`, `ready` |
+| `FRR` | Ready wait result. | `err`, `ready`, `kind`, `intbWaitUs`, `statusUs`, `fallbackUs` |
+| `SRC` | STATUS-read counters for the ready wait. | `bIntb` before-INTB reads, `aIntb` after-INTB verify reads, `fb` fallback reads, `supp` suppressed pre-INTB reads |
+| `FPR` | Per-row parallel primary/secondary timing alignment. | `span`, `ser`, `eff`, `sleepDx`, `readyDx`, `intbDx`, `statDx`, `drdyDx`, `readDx` |
+| `FT10` | Compact aggregate timing summary for the last timing window. | `fps`, `ready`, `worker`, `pWait`, `sWait`, `unsafeU`, `intbMiss`, `statBI`, `statAI`, `statFB`, `repairDef` |
+| `FDC_DEFERRED_REPAIR` | A failed secondary/primary device path was not repaired inline in the realtime row path; affected cells are marked invalid and rescue is requested later. | `row`, `dev`, `err`, `deferredRepair` |
+
+Readiness diagnostics:
+
+- `k=UNSAFE_U` or `unsafe_unread_no_drdy` means required unread bits were present while `DRDY=0`; the sample is rejected and no data register read is trusted.
+- `drdyPartialUnread` means `DRDY=1` but not all required unread bits were set.
+- `drdyFullUnreadReady` means the formal ready gate passed: `DRDY=1 && required unread full`.
+- `statBI/statAI/statFB` in `FT10` are STATUS reads before INTB, after INTB verify, and in fallback. In normal INTB-first operation `statBI` should stay at 0 and `statAI` should track one verify read per device/row.
+
+Parallel row epoch logic:
+
+- Both workers first enter FDC sleep and acknowledge the row epoch.
+- The scan task switches the row while both FDCs are sleeping, applies both cached row configs, then releases both workers.
+- Workers perform `sleep_exit -> INTB wait/status verify -> read4` in parallel, which keeps primary and secondary measurements in the same row epoch.
+- Runtime repair/resync is deferred out of the realtime row path; invalid cells are marked immediately and later rescue handles recovery.
 
 ### Console commands / 控制命令
 

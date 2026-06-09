@@ -217,8 +217,18 @@
     ((CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK + sizeof(StackType_t) - 1u) / sizeof(StackType_t))
 #define SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF (-1.0)
 #define SENSORARRAY_FDC_INVALID_FREQ_SENTINEL_HZ (-1.0)
-#define SENSORARRAY_FDC_READY_MODE_NAME "polling_only"
+#if CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
+#define SENSORARRAY_FDC_READY_MODE_NAME "POLL_ONLY"
+#elif CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
+#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_THEN_STATUS"
+#else
+#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_WITH_POLL_FALLBACK"
+#endif
+#if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
+#define SENSORARRAY_FDC_INTB_HINT_NAME "enabled"
+#else
 #define SENSORARRAY_FDC_INTB_HINT_NAME "disabled"
+#endif
 #define SENSORARRAY_FDC_NO_UNREAD_RESYNC_THRESHOLD 3u
 
 static SemaphoreHandle_t s_measureLock = NULL;
@@ -308,6 +318,12 @@ typedef enum {
     SENSORARRAY_FDC_READY_I2C_ERROR,
 } sensorarrayFdcReadyKind_t;
 
+typedef enum {
+    SENSORARRAY_FDC_READY_POLICY_POLL_ONLY = 0,
+    SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS = 1,
+    SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK = 2,
+} sensorarrayFdcReadyPolicy_t;
+
 typedef struct {
     uint16_t statusRaw;
     uint8_t unreadMask;
@@ -343,6 +359,13 @@ typedef struct {
     const char *diagnostic;
     uint8_t requiredUnreadMask;
     uint32_t estimatedRoundUs;
+    uint32_t intbWaitUs;
+    uint32_t statusVerifyUs;
+    uint32_t pollFallbackUs;
+    uint32_t statusReadsBeforeIntb;
+    uint32_t statusReadsAfterIntb;
+    uint32_t statusReadsInFallback;
+    uint32_t statusReadsSuppressedBeforeIntb;
 } sensorarrayFdcReadyState_t;
 
 typedef struct {
@@ -454,6 +477,9 @@ typedef struct {
     volatile int64_t lastEdgeUs;
     volatile uint32_t lastEpochSeen;
     volatile TaskHandle_t waitTask;
+    volatile uint32_t preparedEpoch;
+    volatile int preparedErr;
+    volatile bool rowConfigPrepared;
 } sensorarrayFdcWorkerContext_t;
 
 typedef struct {
@@ -483,6 +509,11 @@ static bool s_fdcParallelConfigLogged = false;
 static uint32_t s_fdcRowEpoch = 0u;
 static uint32_t s_fdcParallelCooldownFrames = 0u;
 static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
+#if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
+static bool s_fdcIntbRuntimeUsable[2] = {true, true};
+#else
+static bool s_fdcIntbRuntimeUsable[2] = {false, false};
+#endif
 static sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
 static SemaphoreHandle_t s_fdcGpioIsrServiceMutex = NULL;
 static portMUX_TYPE s_fdcGpioIsrServiceMux = portMUX_INITIALIZER_UNLOCKED;
@@ -1509,17 +1540,17 @@ static uint16_t sensorarrayMeasureFdcConfigBaseWithoutSleep(const sensorarrayFdc
             .RefClockSource = (fdcState && fdcState->refClockSource == FDC2214_REF_CLOCK_EXTERNAL) ?
                 FDC2214_REF_CLOCK_EXTERNAL :
                 FDC2214_REF_CLOCK_INTERNAL,
-            .IntbDisabled = (CONFIG_SENSORARRAY_FDC_INTB_ENABLE == 0),
+            .IntbDisabled = !SENSORARRAY_FDC_INTB_OUTPUT_ENABLE,
             .HighCurrentDrive = false,
         };
         config = Fdc2214CapBuildConfig(&fallbackOptions);
     }
     config &= (uint16_t)~SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK;
-    /*
-     * Formal matrix reads are polling-only in this revision. Keep the FDC INTB
-     * output disabled so CONFIG and the worker ready strategy do not disagree.
-     */
-    config |= SENSORARRAY_FDC_CONFIG_INTB_DIS_MASK;
+    if (SENSORARRAY_FDC_INTB_OUTPUT_ENABLE) {
+        config &= (uint16_t)~SENSORARRAY_FDC_CONFIG_INTB_DIS_MASK;
+    } else {
+        config |= SENSORARRAY_FDC_CONFIG_INTB_DIS_MASK;
+    }
     return config;
 }
 
@@ -1977,6 +2008,30 @@ static esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *s
     uint8_t rrSeq = (uint8_t)((mux & SENSORARRAY_FDC_MUX_RR_SEQUENCE_MASK) >>
                               SENSORARRAY_FDC_MUX_RR_SEQUENCE_SHIFT);
     bool sleep = (config & SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK) != 0u;
+    bool expectedIntbOutput = SENSORARRAY_FDC_INTB_OUTPUT_ENABLE != 0;
+    bool intbCfgOk = !expectedIntbOutput ||
+                     (!intbDisabled && drdyToIntb && firstErr == ESP_OK);
+    if (devId <= SENSORARRAY_FDC_DEV_SECONDARY) {
+        s_fdcIntbRuntimeUsable[(uint8_t)devId] = intbCfgOk && expectedIntbOutput;
+    }
+
+    printf("FDC_INTB_CFG,dev=%s,errCfg=0x%04X,config=0x%04X,drdy2int=%u,intbDis=%u,verified=%u,readyMode=%s\n",
+           sensorarrayMeasureFdcDeviceName(devId),
+           errorConfig,
+           config,
+           drdyToIntb ? 1u : 0u,
+           intbDisabled ? 1u : 0u,
+           intbCfgOk ? 1u : 0u,
+           SENSORARRAY_FDC_READY_MODE_NAME);
+    if (expectedIntbOutput && !intbCfgOk) {
+        printf("FDC_INTB_CFG_ERR,dev=%s,errCfg=0x%04X,config=0x%04X,drdy2int=%u,intbDis=%u,action=degrade_poll_only,err=0x%lx\n",
+               sensorarrayMeasureFdcDeviceName(devId),
+               errorConfig,
+               config,
+               drdyToIntb ? 1u : 0u,
+               intbDisabled ? 1u : 0u,
+               (unsigned long)firstErr);
+    }
 
     printf("FDC_FORMAL_PRECHECK,dev=%s,bus=%d,addr=0x%02X,intbGpio=%d,idMfg=0x%04X,idDev=0x%04X,config=0x%04X,mux=0x%04X,errorConfig=0x%04X,status=0x%04X,unread=0x%X,intbDisabled=%u,drdyToIntb=%u,autoscan=%u,rrSeq=%u,sleep=%u,readyMode=%s,intbHint=%s,idOk=%u,err=0x%lx,errName=%s\n",
            sensorarrayMeasureFdcDeviceName(devId),

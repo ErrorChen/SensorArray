@@ -188,6 +188,44 @@ config SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
     default 10000
     range 100 1000000
 
+choice SENSORARRAY_FDC_READY_POLICY
+    prompt "FDC matrix ready policy"
+    default SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
+config SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
+    bool "Debug: bounded STATUS polling only"
+config SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
+    bool "INTB hint, then one STATUS verify"
+config SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
+    bool "INTB hint, STATUS verify, bounded fallback polling"
+endchoice
+
+config SENSORARRAY_FDC_INTB_WAIT_MARGIN_US
+    int "Extra INTB wait margin after estimated conversion time (us)"
+    default 2000
+    range 0 100000
+
+config SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS
+    int "Maximum STATUS fallback polls per row-device"
+    default 3
+    range 0 100
+
+config SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US
+    int "Delay between fallback STATUS polls (us)"
+    default 200
+    range 0 10000
+
+config SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID
+    bool "Require DRDY plus unread bits before DATA_CHx reads"
+    default y
+
+config SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB
+    bool "Suppress repeated STATUS reads before INTB is ready"
+    default y
+
+config SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG
+    bool "Disable FDC INTB output for debug polling"
+    default n
+
 config SENSORARRAY_FDC_INTB_FALLBACK_POLLING
     bool "Fall back to STATUS polling when INTB is unavailable or late"
     default y
@@ -202,6 +240,31 @@ config SENSORARRAY_FDC_INTB_DEBUG_LOG
     bool "Print verbose FDC INTB diagnostics"
     default n
     depends on SENSORARRAY_FDC_INTB_ENABLE
+
+choice SENSORARRAY_FDC_LOG_FORMAT
+    prompt "FDC diagnostic log format"
+    default SENSORARRAY_FDC_LOG_FORMAT_COMPACT
+config SENSORARRAY_FDC_LOG_FORMAT_VERBOSE
+    bool "Verbose key=value diagnostics"
+config SENSORARRAY_FDC_LOG_FORMAT_COMPACT
+    bool "Compact token diagnostics"
+endchoice
+
+config SENSORARRAY_FDC_LOG_READY_EVERY_ROW
+    bool "Print FDC ready diagnostics for every row"
+    default y
+
+config SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING
+    bool "Print per-row FDC parallel overlap timing"
+    default y
+
+config SENSORARRAY_FDC_LOG_FULL_CAP_FRAME
+    bool "Print full MATRIXFDC_CAP frame output"
+    default y
+
+config SENSORARRAY_FDC_LOG_COMPACT_CAP_FRAME
+    bool "Print compact MATRIXFDC frame output"
+    default n
 
 config SENSORARRAY_FDC_DIFF_CACHE_APPLY
     bool "Apply only changed FDC row cache registers"

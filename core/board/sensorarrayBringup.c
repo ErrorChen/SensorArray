@@ -170,7 +170,7 @@ static uint16_t sensorarrayBringupFdcBuildFinalConfig(Fdc2214CapChannel_t active
         // Keep full activation drive during sensor wake-up for strict debug reproducibility.
         .SensorActivateSelLowPower = false,
         .RefClockSource = sensorarrayBringupFdcRefClockSource(),
-        .IntbDisabled = (CONFIG_SENSORARRAY_FDC_INTB_ENABLE == 0),
+        .IntbDisabled = !SENSORARRAY_FDC_INTB_OUTPUT_ENABLE,
         .HighCurrentDrive = false,
     };
     return Fdc2214CapBuildConfig(&config);

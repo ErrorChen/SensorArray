@@ -11,6 +11,25 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
     *outSamples = (sensorarrayFdcAutoscanSamples_t){0};
     freshMask4 &= 0x0Fu;
     bool readyForDataRead = ready && ready->readyForDataRead;
+    if (ready && !readyForDataRead) {
+        outSamples->statusRaw = ready->statusRaw;
+        outSamples->unreadMask = ready->unreadMask & 0x0Fu;
+        outSamples->dataReady = ready->dataReady;
+        outSamples->unreadWithoutDrdy = ready->unreadWithoutDataReady;
+        outSamples->timeout = ready->timeout;
+        outSamples->partial = ready->partial;
+        outSamples->errorMask = 0x0Fu;
+        for (uint8_t ch = 0u; ch < 4u; ++ch) {
+            uint8_t bit = (uint8_t)(1u << ch);
+            outSamples->notReady[ch] = true;
+            outSamples->notReadyMask |= bit;
+            if (ready->unreadWithoutDataReady) {
+                outSamples->zeroBeforeReady[ch] = true;
+                outSamples->zeroBeforeReadyMask |= bit;
+            }
+        }
+        return ESP_OK;
+    }
     outSamples->dataReady = ready && ready->dataReady;
     outSamples->unreadWithoutDrdy = ready && ready->unreadWithoutDataReady;
     outSamples->freshMask = readyForDataRead ? freshMask4 : 0u;
@@ -153,7 +172,7 @@ static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdc
         return "zero_before_ready";
     }
     if (read4->unreadWithoutDrdy) {
-        return "unread_without_drdy";
+        return "unsafe_unread_no_drdy";
     }
     if (read4->notReadyMask4 != 0u) {
         return "data_not_ready";
@@ -263,7 +282,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     bool fullSuccess = outRead4->readErr == ESP_OK &&
                        !outRead4->timeout &&
                        !outRead4->partial &&
-                       outRead4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL &&
+                       (outRead4->readyKind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
+                        outRead4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL) &&
                        outRead4->validMask4 == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
     if (fullSuccess && !logNormal) {
         return;

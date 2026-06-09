@@ -1452,7 +1452,7 @@ esp_err_t sensorarrayFdcSweepApplyDirectSafeLock(sensorarrayState_t *state,
 #else
                                                    FDC2214_REF_CLOCK_INTERNAL,
 #endif
-        .IntbDisabled = true,
+        .IntbDisabled = !SENSORARRAY_FDC_INTB_OUTPUT_ENABLE,
         .HighCurrentDrive = highCurrentApplied,
     };
     uint16_t configReq = Fdc2214CapBuildConfig(&config);
@@ -3219,7 +3219,7 @@ static esp_err_t sensorarrayFdcSweepApplyCandidateToDevice(sensorarrayState_t *s
 #else
                                                    FDC2214_REF_CLOCK_INTERNAL,
 #endif
-        .IntbDisabled = true,
+        .IntbDisabled = !SENSORARRAY_FDC_INTB_OUTPUT_ENABLE,
         .HighCurrentDrive = highCurrent,
     };
     uint16_t configReq = Fdc2214CapBuildConfig(&config);
