@@ -817,6 +817,158 @@ static void sensorarrayMeasurePrintFdcTimingSummary(const sensorarrayFdcTimingSu
            (unsigned long long)summary->measureLockHeldUs);
 }
 
+static uint8_t sensorarrayMeasureFdcProfileSlowestChannel(const sensorarrayFdcProfileSnapshot_t *snapshot)
+{
+    uint8_t slowCh = 0u;
+    uint32_t maxUs = 0u;
+    if (!snapshot) {
+        return 0u;
+    }
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        if (snapshot->chTotalUs[ch] > maxUs) {
+            maxUs = snapshot->chTotalUs[ch];
+            slowCh = ch;
+        }
+    }
+    return slowCh;
+}
+
+static void sensorarrayMeasureFdcPrintProfileSnapshotDetail(uint32_t sequence,
+                                                            uint8_t row,
+                                                            sensorarrayFdcDeviceId_t devId,
+                                                            const sensorarrayFdcProfileSnapshot_t *snapshot,
+                                                            const char *reason)
+{
+    if (!snapshot || !snapshot->valid) {
+        return;
+    }
+    printf("PR,s=%lu,d=%s,r=%u,src=%s,why=%s,rc=[%04X,%04X,%04X,%04X],sc=[%04X,%04X,%04X,%04X],cd=[%04X,%04X,%04X,%04X],dc=[%04X,%04X,%04X,%04X],dg=%X,fh=[%lu,%lu,%lu,%lu],su=[%lu,%lu,%lu,%lu],cu=[%lu,%lu,%lu,%lu],tu=[%lu,%lu,%lu,%lu],round=%lu,to=%lu\n",
+           (unsigned long)sequence,
+           sensorarrayMeasureFdcDeviceToken(devId),
+           (unsigned)row,
+           snapshot->sourceIsReadback ? "readback" : "shadow",
+           reason ? reason : "sampled",
+           snapshot->rCount[0],
+           snapshot->rCount[1],
+           snapshot->rCount[2],
+           snapshot->rCount[3],
+           snapshot->settleCount[0],
+           snapshot->settleCount[1],
+           snapshot->settleCount[2],
+           snapshot->settleCount[3],
+           snapshot->clockDividers[0],
+           snapshot->clockDividers[1],
+           snapshot->clockDividers[2],
+           snapshot->clockDividers[3],
+           snapshot->driveCurrent[0],
+           snapshot->driveCurrent[1],
+           snapshot->driveCurrent[2],
+           snapshot->driveCurrent[3],
+           (unsigned)snapshot->deglitchCode[0],
+           (unsigned long)snapshot->effectiveFclkHz[0],
+           (unsigned long)snapshot->effectiveFclkHz[1],
+           (unsigned long)snapshot->effectiveFclkHz[2],
+           (unsigned long)snapshot->effectiveFclkHz[3],
+           (unsigned long)snapshot->chSettleUs[0],
+           (unsigned long)snapshot->chSettleUs[1],
+           (unsigned long)snapshot->chSettleUs[2],
+           (unsigned long)snapshot->chSettleUs[3],
+           (unsigned long)snapshot->chConvertUs[0],
+           (unsigned long)snapshot->chConvertUs[1],
+           (unsigned long)snapshot->chConvertUs[2],
+           (unsigned long)snapshot->chConvertUs[3],
+           (unsigned long)snapshot->chTotalUs[0],
+           (unsigned long)snapshot->chTotalUs[1],
+           (unsigned long)snapshot->chTotalUs[2],
+           (unsigned long)snapshot->chTotalUs[3],
+           (unsigned long)snapshot->autoscanRoundUs,
+           (unsigned long)snapshot->expectedTimeoutUs);
+}
+
+static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
+{
+    uint32_t period = (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES;
+    if (period == 0u || sequence == 0u || (sequence % period) != 0u) {
+        return;
+    }
+
+    uint64_t roundTotalUs = 0u;
+    uint32_t validCount = 0u;
+    uint32_t maxRoundUs = 0u;
+    uint8_t slowRow = 0u;
+    sensorarrayFdcDeviceId_t slowDev = SENSORARRAY_FDC_DEV_PRIMARY;
+    const sensorarrayFdcProfileSnapshot_t *slowSnapshot = NULL;
+
+    for (uint8_t row = 0u; row < SENSORARRAY_MATRIX_ROWS; ++row) {
+        for (uint8_t dev = 0u; dev < 2u; ++dev) {
+            const sensorarrayFdcProfileSnapshot_t *snapshot =
+                &s_fdcProfileSnapshotByRow[row][dev];
+            if (!snapshot->valid) {
+                continue;
+            }
+            roundTotalUs += snapshot->autoscanRoundUs;
+            validCount++;
+            if (snapshot->autoscanRoundUs > maxRoundUs) {
+                maxRoundUs = snapshot->autoscanRoundUs;
+                slowRow = (uint8_t)(row + 1u);
+                slowDev = (sensorarrayFdcDeviceId_t)dev;
+                slowSnapshot = snapshot;
+            }
+        }
+    }
+
+    uint32_t avgRoundUs = validCount ? (uint32_t)(roundTotalUs / validCount) : 0u;
+    uint8_t slowCh = sensorarrayMeasureFdcProfileSlowestChannel(slowSnapshot);
+    bool profileTooSlow =
+        maxRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
+    uint32_t theoreticalMaxFpsX100 =
+        maxRoundUs ? (uint32_t)(100000000ull / ((uint64_t)maxRoundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
+    printf("P5,s=%lu,n=%lu,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,theoreticalMaxFps=%lu.%02lu",
+           (unsigned long)sequence,
+           (unsigned long)period,
+           (unsigned long)validCount,
+           (unsigned long)avgRoundUs,
+           (unsigned long)maxRoundUs,
+           (unsigned)slowRow,
+           sensorarrayMeasureFdcDeviceToken(slowDev),
+           (unsigned)slowCh,
+           (unsigned long)CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US,
+           (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
+           profileTooSlow ? 1u : 0u,
+           (unsigned long)(theoreticalMaxFpsX100 / 100u),
+           (unsigned long)(theoreticalMaxFpsX100 % 100u));
+    if (slowSnapshot) {
+        printf(",rc=[%04X,%04X,%04X,%04X],sc=[%04X,%04X,%04X,%04X],cd=[%04X,%04X,%04X,%04X],dc=[%04X,%04X,%04X,%04X],dg=%X,round=%lu",
+               slowSnapshot->rCount[0],
+               slowSnapshot->rCount[1],
+               slowSnapshot->rCount[2],
+               slowSnapshot->rCount[3],
+               slowSnapshot->settleCount[0],
+               slowSnapshot->settleCount[1],
+               slowSnapshot->settleCount[2],
+               slowSnapshot->settleCount[3],
+               slowSnapshot->clockDividers[0],
+               slowSnapshot->clockDividers[1],
+               slowSnapshot->clockDividers[2],
+               slowSnapshot->clockDividers[3],
+               slowSnapshot->driveCurrent[0],
+               slowSnapshot->driveCurrent[1],
+               slowSnapshot->driveCurrent[2],
+               slowSnapshot->driveCurrent[3],
+               (unsigned)slowSnapshot->deglitchCode[0],
+               (unsigned long)slowSnapshot->autoscanRoundUs);
+    }
+    printf("\n");
+
+    if (slowSnapshot && (profileTooSlow || s_fdcProfileRowEnabled)) {
+        sensorarrayMeasureFdcPrintProfileSnapshotDetail(sequence,
+                                                        slowRow,
+                                                        slowDev,
+                                                        slowSnapshot,
+                                                        profileTooSlow ? "profile_too_slow" : "sampled");
+    }
+}
+
 static uint64_t sensorarrayMeasureAvgU64(uint64_t total, uint32_t count)
 {
     return count ? (total / count) : 0u;
@@ -835,6 +987,80 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
         ((avgFrameUs * 100ull) / SENSORARRAY_FDC_TARGET_FRAME_US) :
         0ull;
     uint32_t rowCount = agg->frames * SENSORARRAY_MATRIX_ROWS;
+
+#if !CONFIG_SENSORARRAY_LOG_FORMAT_LEGACY
+    uint32_t bus0Ops = t->i2cBus0WriteCount + t->i2cBus0ReadCount;
+    uint32_t bus1Ops = t->i2cBus1WriteCount + t->i2cBus1ReadCount;
+    printf("T5,s0=%lu,s1=%lu,n=%lu,fps=%llu.%02llu,fa=%llu,rw=%llu,rmax=%llu,ww=%llu,rp=%llu,i2c=%llu,op=%llu,prof=%llu,pe=%u\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long long)(avgFpsX100 / 100ull),
+           (unsigned long long)(avgFpsX100 % 100ull),
+           (unsigned long long)avgFrameUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount),
+           (unsigned long long)agg->rowUsMax,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerDoneWaitUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
+           (unsigned long long)t->maxWaitReadyUs,
+           0u);
+    printf("R5,s0=%lu,s1=%lu,n=%lu,full=%lu,ar=%lu,part=%lu,none=%lu,it=%lu,ack=%lu,b=%lu,a=%lu,fb=%lu,supp=%lu,uwd=%lu,dp=%lu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)t->readyFullCount,
+           (unsigned long)t->drdyFullUnreadReadyCount,
+           (unsigned long)t->readyPartialCount,
+           (unsigned long)t->readyNoneCount,
+           (unsigned long)t->intbTimeoutCount,
+           (unsigned long)(t->statusReadsAfterIntbCount + t->statusReadsInFallbackCount +
+                           t->statusReadsBeforeIntbCount),
+           (unsigned long)t->statusReadsBeforeIntbCount,
+           (unsigned long)t->statusReadsAfterIntbCount,
+           (unsigned long)t->statusReadsInFallbackCount,
+           (unsigned long)t->statusReadSuppressedBeforeIntbCount,
+           (unsigned long)t->unsafeUnreadNoDrdyCount,
+           (unsigned long)t->drdyPartialUnreadCount);
+    printf("Q5,s0=%lu,s1=%lu,n=%lu,fw=%lu,sw=%lu,tw=%lu,z0=%lu,zd=%lu,nr=%lu,invRow=%lu,invDev=%lu,fs=%lu,sweepReq=%lu,sweepQ=%lu,def=%lu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)t->freshAmplitudeWarningCount,
+           (unsigned long)t->staleAmplitudeWarningCount,
+           (unsigned long)t->transientAmplitudeWarningCount,
+           (unsigned long)t->zeroBeforeReadyCount,
+           (unsigned long)t->zeroAfterDrdyCount,
+           (unsigned long)t->dataNotReadyCount,
+           (unsigned long)t->rowFullInvalidCount,
+           (unsigned long)t->deviceFullInvalidCount,
+           (unsigned long)t->warningFastSweepRequestedCount,
+           (unsigned long)t->sweepRequestCount,
+           (unsigned long)t->sweepActuallyQueuedCount,
+           (unsigned long)t->deferredRepairRequestCount);
+    printf("I5,s0=%lu,s1=%lu,n=%lu,w=%lu,r=%lu,vr=%lu,retry=%lu,nack=%lu,to=%lu,rec=%lu,b0=%lu/%lu/%llu,b1=%lu/%lu/%llu,avg0=%llu,avg1=%llu,maxRead=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)t->i2cWriteCount,
+           (unsigned long)t->i2cReadCount,
+           (unsigned long)t->i2cVerifyReadCount,
+           (unsigned long)t->i2cRetryCount,
+           (unsigned long)t->i2cNackCount,
+           (unsigned long)t->i2cTimeoutCount,
+           (unsigned long)t->i2cRecoveryCount,
+           (unsigned long)t->i2cBus0WriteCount,
+           (unsigned long)t->i2cBus0ReadCount,
+           (unsigned long long)t->i2cBus0TotalUs,
+           (unsigned long)t->i2cBus1WriteCount,
+           (unsigned long)t->i2cBus1ReadCount,
+           (unsigned long long)t->i2cBus1TotalUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus0TotalUs, bus0Ops),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, bus1Ops),
+           (unsigned long long)t->maxI2cReadUs);
+    return;
+#endif
 
 #if CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES > 0
     if (agg->frames >= CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES) {
@@ -1291,13 +1517,16 @@ static void sensorarrayMeasurePrintFdcBottleneck(const sensorarrayFdcTimingSumma
     }
 
     const char *hint =
-        (summary->cacheApplyDiffWriteCount > 64u) ? "excessive_diff_writes" :
-        (summary->workerTimeoutCount > 0u) ? "worker_sync_timeout" :
-        (summary->serialFallbackUs > 0u) ? "serial_fallback" :
-        (summary->intbTimeoutCount > 0u) ? "intb_timeout_or_polling_fallback" :
-        (summary->i2cMeasuredUs > SENSORARRAY_FDC_TARGET_FRAME_US) ? "i2c_transaction_budget" :
+        (summary->outputPrintfUs > (SENSORARRAY_FDC_TARGET_FRAME_US / 4u)) ? "text_output" :
+        (summary->workerTimeoutCount > 0u ||
+         summary->workerDoneWaitUs > SENSORARRAY_FDC_TARGET_FRAME_US) ? "worker_sync" :
+        (summary->intbTimeoutCount > 0u ||
+         summary->unreadWithoutDrdyCount > 0u ||
+         summary->drdyPartialUnreadCount > 0u) ? "ready_state" :
+        (summary->i2cMeasuredUs > (SENSORARRAY_FDC_TARGET_FRAME_US / 2u)) ? "i2c" :
+        (summary->rowMaxUs > SENSORARRAY_FDC_TARGET_ROW_US) ? "row_epoch" :
         "row_epoch_timing";
-    printf("SCAN_BOTTLENECK,seq=%lu,top1=%s:%llu,top2=%s:%llu,top3=%s:%llu,hint=%s\n",
+    printf("BN,s=%lu,t1=%s:%llu,t2=%s:%llu,t3=%s:%llu,h=%s\n",
            (unsigned long)sequence,
            items[0].name,
            (unsigned long long)items[0].us,

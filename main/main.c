@@ -140,7 +140,7 @@ static void sensorarrayDelayFramePeriodSince(int64_t frameStartUs, uint32_t sequ
         return;
     }
 
-    printf("SCAN_TIMING_OVERRUN,seq=%lu,frameUs=%lld,periodUs=%lld,overrun=1\n",
+    printf("OV,s=%lu,fu=%lld,pu=%lld,o=1\n",
            (unsigned long)sequence,
            (long long)elapsedUs,
            (long long)periodUs);

@@ -95,6 +95,33 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     expected.muxConfig = sensorarrayMeasureFdcBuildMuxConfig(expected.selectedDeglitch);
     expected.statusConfig = SENSORARRAY_FDC_STATUS_CONFIG_DEFAULT;
     expected.configBaseWithoutSleepBit = sensorarrayMeasureFdcConfigBaseWithoutSleep(fdcState);
+    sensorarrayFdcRuntimeChannelConfig_t snapshotConfigs[4] = {0};
+    uint32_t effectiveFclkHz =
+        (fdcState && fdcState->refClockKnown && fdcState->refClockHz != 0u) ?
+        fdcState->refClockHz :
+        sensorarrayMeasureFdcEffectiveFclkHz();
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        snapshotConfigs[ch] = (sensorarrayFdcRuntimeChannelConfig_t){
+            .valid = true,
+            .rCount = expected.rCount[ch],
+            .settleCount = expected.settleCount[ch],
+            .clockDividers = expected.clockDiv[ch],
+            .driveCurrent = expected.driveCurrent[ch],
+            .deglitchCode = expected.selectedDeglitch,
+            .effectiveFclkHz = effectiveFclkHz,
+        };
+    }
+    uint32_t expectedRoundUs = 0u;
+    (void)sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot(
+        snapshotConfigs,
+        SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK,
+        &expectedRoundUs,
+        &expected.profileSnapshot);
+    expected.profileSnapshot.muxConfig = expected.muxConfig;
+    expected.profileSnapshot.statusConfig = expected.statusConfig;
+    expected.profileSnapshot.config = expected.configBaseWithoutSleepBit;
+    expected.bootStableProfile = expected.profileSnapshot;
+    expected.formalFastProfile = expected.profileSnapshot;
     expected.fingerprint = sensorarrayMeasureFdcConfigFingerprint(&expected);
     if (timing) {
         timing->applyBuildConfigUs += sensorarrayMeasureElapsedUs(buildStartUs);
@@ -240,11 +267,16 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     }
 
     uint32_t previousFingerprint = applied->fingerprint;
+    uint32_t previousRoundUs = applied->profileSnapshot.valid ?
+        applied->profileSnapshot.autoscanRoundUs :
+        0u;
+    uint16_t previousDriveCurrent0 = applied->driveCurrent[0];
     uint32_t nextApplyCount = applied->applyCount + 1u;
     expected.applyCount = nextApplyCount;
     expected.lastAppliedTimestampUs = esp_timer_get_time();
     expected.dirty = false;
     *applied = expected;
+    s_fdcProfileSnapshotByRow[row - 1u][(uint8_t)devId] = applied->profileSnapshot;
     if (timing) {
         timing->cacheDiffWriteCount += diffWriteCount;
         timing->cacheFullWriteCount += fullWrite ? 1u : 0u;
@@ -266,6 +298,33 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
             cache->lastAppliedTimestampUs = applied->lastAppliedTimestampUs;
             cache->lastAppliedFingerprint = applied->fingerprint;
             cache->reapplyPending = false;
+        }
+    }
+
+    bool profileTooSlow =
+        applied->profileSnapshot.autoscanRoundUs >
+        (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
+    if (diffWriteCount != 0u ||
+        previousRoundUs != applied->profileSnapshot.autoscanRoundUs ||
+        profileTooSlow) {
+        printf("PFU,d=%s,r=%u,why=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,oldDc=0x%04X,newDc=0x%04X,profileTooSlow=%u\n",
+               sensorarrayMeasureFdcDeviceToken(devId),
+               (unsigned)row,
+               profileTooSlow ? "profile_too_slow" :
+               (previousRoundUs == 0u ? "shadow_profile_init" : "cache_profile_update"),
+               (unsigned long)previousRoundUs,
+               (unsigned long)applied->profileSnapshot.autoscanRoundUs,
+               (unsigned long)CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US,
+               (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
+               previousRoundUs ? previousDriveCurrent0 : 0u,
+               applied->driveCurrent[0],
+               profileTooSlow ? 1u : 0u);
+    }
+    if (profileTooSlow) {
+        for (uint8_t ch = 0u; ch < 4u; ++ch) {
+            uint8_t dIndex = (uint8_t)(1u + ch + ((devId == SENSORARRAY_FDC_DEV_SECONDARY) ? 4u : 0u));
+            uint8_t matrixIndex = (uint8_t)sensorarrayMatrixIndex(row, dIndex);
+            (void)sensorarrayMeasureRequestFdcCellRescue(state, matrixIndex, "profile_too_slow");
         }
     }
 

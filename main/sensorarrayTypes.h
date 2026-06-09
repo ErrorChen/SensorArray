@@ -413,6 +413,31 @@ typedef struct {
 } sensorarrayFdcDeviceTiming_t;
 
 typedef struct {
+    bool valid;
+    bool sourceIsShadow;
+    bool sourceIsReadback;
+
+    uint16_t rCount[4];
+    uint16_t settleCount[4];
+    uint16_t clockDividers[4];
+    uint16_t driveCurrent[4];
+    uint8_t deglitchCode[4];
+    uint32_t effectiveFclkHz[4];
+
+    uint32_t chSettleUs[4];
+    uint32_t chConvertUs[4];
+    uint32_t chSwitchUs[4];
+    uint32_t chTotalUs[4];
+
+    uint32_t autoscanRoundUs;
+    uint32_t expectedTimeoutUs;
+
+    uint16_t muxConfig;
+    uint16_t statusConfig;
+    uint16_t config;
+} sensorarrayFdcProfileSnapshot_t;
+
+typedef struct {
     uint8_t sColumn;
     uint8_t dLine;
     sensorarrayPath_t path;
@@ -521,6 +546,10 @@ typedef struct {
     int64_t lastAppliedTimestampUs;
 
     bool dirty;
+
+    sensorarrayFdcProfileSnapshot_t profileSnapshot;
+    sensorarrayFdcProfileSnapshot_t bootStableProfile;
+    sensorarrayFdcProfileSnapshot_t formalFastProfile;
 } sensorarrayFdcAppliedRowConfig_t;
 
 typedef struct {

@@ -324,24 +324,30 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                              outRead4->unreadWithoutDrdy ||
                              outRead4->readyKind ==
                                  SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY);
-    if (fullSuccess && !recoveredSuccess && !logNormal) {
+    uint32_t read4LogLevel = (uint32_t)CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL;
+    bool anomaly = diagnostic ||
+                   recoveredSuccess ||
+                   !fullSuccess ||
+                   outRead4->warnMask4 != 0u ||
+                   outRead4->errorMask4 != 0u ||
+                   outRead4->zeroBeforeReadyMask4 != 0u ||
+                   outRead4->zeroAfterDrdyMask4 != 0u ||
+                   outRead4->rawAllZero ||
+                   outRead4->readErr != ESP_OK;
+    if (read4LogLevel == 0u) {
         return;
     }
-    printf("FDC_DEVICE_READ4,dev=%s,row=%u,epoch=%lu,readMode=%s,diagnostic=%s,rawSource=%s,raw28=[%lu,%lu,%lu,%lu],freqHz=[%.3f,%.3f,%.3f,%.3f],freshMask=0x%X,validMask=0x%X,warnMask=0x%X,errorMask=0x%X,notReadyMask=0x%X,zeroBeforeReadyMask=0x%X,zeroAfterDrdyMask=0x%X,rawAllZero=%u,status=0x%04X,unread=0x%X,drdy=%u,partial=%u,timeout=%u,edgeDelta=%lu,waitUs=%lu,readUs=%lu,pollCount=%lu,readyMode=%s,err=0x%lx,errName=%s\n",
+    if (!anomaly && !logNormal && read4LogLevel < 4u) {
+        return;
+    }
+    bool includeRawFreq = read4LogLevel >= 3u ||
+                          (read4LogLevel >= 2u && anomaly);
+    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,er=0x%lx",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
            diagnostic ? "skipped_not_ready" : "normal",
            diagnosticName,
-           diagnostic ? "not_read" : "device_data",
-           (unsigned long)outRead4->raw28[0],
-           (unsigned long)outRead4->raw28[1],
-           (unsigned long)outRead4->raw28[2],
-           (unsigned long)outRead4->raw28[3],
-           outRead4->freqHz[0],
-           outRead4->freqHz[1],
-           outRead4->freqHz[2],
-           outRead4->freqHz[3],
            (unsigned)outRead4->freshMask4,
            (unsigned)outRead4->validMask4,
            (unsigned)outRead4->warnMask4,
@@ -360,8 +366,19 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            (unsigned long)outRead4->readUs,
            (unsigned long)outRead4->pollCount,
            SENSORARRAY_FDC_READY_MODE_NAME,
-           (unsigned long)outRead4->readErr,
-           sensorarrayMeasureEspErrName(outRead4->readErr));
+           (unsigned long)outRead4->readErr);
+    if (includeRawFreq) {
+        printf(",raw=[%lu,%lu,%lu,%lu],fq=[%.3f,%.3f,%.3f,%.3f]",
+               (unsigned long)outRead4->raw28[0],
+               (unsigned long)outRead4->raw28[1],
+               (unsigned long)outRead4->raw28[2],
+               (unsigned long)outRead4->raw28[3],
+               outRead4->freqHz[0],
+               outRead4->freqHz[1],
+               outRead4->freqHz[2],
+               outRead4->freqHz[3]);
+    }
+    printf("\n");
     if (outRead4->rawAllZero || diagnostic || outRead4->zeroBeforeReadyMask4 != 0u ||
         outRead4->zeroAfterDrdyMask4 != 0u) {
         const char *decision =
@@ -369,7 +386,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
             (outRead4->validMask4 != 0u) ? "accepted" :
             "discard";
-        printf("FDC_READ_CONSISTENCY,dev=%s,row=%u,epoch=%lu,status=0x%04X,drdy=%u,unread=0x%X,rawAllZero=%u,validMask=0x%X,notReadyMask=0x%X,zeroBeforeReadyMask=0x%X,zeroAfterDrdyMask=0x%X,decision=%s\n",
+        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,dec=%s\n",
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)row,
                (unsigned long)epochId,

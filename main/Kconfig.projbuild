@@ -200,14 +200,38 @@ config SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
 
 choice SENSORARRAY_FDC_READY_POLICY
     prompt "FDC matrix ready policy"
-    default SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
+    default SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
 config SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
     bool "Debug: bounded STATUS polling only"
 config SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
     bool "INTB hint, then one STATUS verify"
 config SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
-    bool "INTB hint, STATUS verify, bounded fallback polling"
+    bool "Legacy diagnostic: INTB hint, STATUS verify, bounded fallback polling"
+config SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+    bool "Production: INTB strict level, one STATUS ack after INTB"
 endchoice
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+    bool "Allow short after-INTB STATUS recheck when unread is full but DRDY is not closed"
+    default y
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX
+    int "Maximum after-INTB STATUS rechecks"
+    default 3
+    range 0 16
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US
+    int "Delay between after-INTB rechecks (us)"
+    default 250
+    range 0 10000
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US
+    int "Total after-INTB recheck deadline (us)"
+    default 1000
+    range 0 100000
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
 
 config SENSORARRAY_FDC_INTB_WAIT_MARGIN_US
     int "Extra INTB wait margin after estimated conversion time (us)"
@@ -253,8 +277,27 @@ config SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG
 
 config SENSORARRAY_FDC_INTB_FALLBACK_POLLING
     bool "Fall back to STATUS polling when INTB is unavailable or late"
-    default y
+    default n
     depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX
+    int "Maximum row-device watchdog retries"
+    default 1
+    range 0 4
+
+config SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER
+    int "Row-device watchdog multiplier of one row budget"
+    default 10
+    range 1 100
+
+config SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US
+    int "Override row-device watchdog hard timeout (us, 0=derive from frame budget)"
+    default 0
+    range 0 1000000
+
+config SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS
+    bool "Allow recovery soft timeout to reset only on real device progress"
+    default y
 
 config SENSORARRAY_FDC_INTB_WEAK_PULLUP
     bool "Enable weak pull-up on FDC INTB GPIOs"
@@ -275,13 +318,51 @@ config SENSORARRAY_FDC_LOG_FORMAT_COMPACT
     bool "Compact token diagnostics"
 endchoice
 
+choice SENSORARRAY_LOG_FORMAT
+    prompt "SensorArray runtime log format"
+    default SENSORARRAY_LOG_FORMAT_COMPACT_KV
+config SENSORARRAY_LOG_FORMAT_LEGACY
+    bool "Legacy verbose logs"
+config SENSORARRAY_LOG_FORMAT_COMPACT_KV
+    bool "Compact key=value logs"
+config SENSORARRAY_LOG_FORMAT_COMPACT_CSV
+    bool "Compact CSV logs"
+endchoice
+
+config SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG
+    bool "Keep MATRIXFDC_CAP tag for GUI compatibility"
+    default y
+
+config SENSORARRAY_LOG_OMIT_DEFAULT_FIELDS
+    bool "Omit default masks and sentinel fields from compact normal logs"
+    default y
+
+config SENSORARRAY_LOG_MASK_SHORT_FORM
+    bool "Use compact mask shorthand in logs"
+    default y
+
+config SENSORARRAY_FDC_CAP_PRINT_DECIMALS
+    int "Decimal places for MATRIXFDC capacitance output"
+    default 6
+    range 0 6
+
+config SENSORARRAY_FDC_ROW_LOG_LEVEL
+    int "FDC row log level (0 off, 1 anomaly, 2 sampled, 3 verbose compact, 4 legacy verbose)"
+    default 1
+    range 0 4
+
+config SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL
+    int "FDC read4 log level (0 off, 1 anomaly, 2 sampled, 3 sampled raw/freq, 4 every read)"
+    default 1
+    range 0 4
+
 config SENSORARRAY_FDC_LOG_READY_EVERY_ROW
     bool "Print FDC ready diagnostics for every row"
-    default y
+    default n
 
 config SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING
     bool "Print per-row FDC parallel overlap timing"
-    default y
+    default n
 
 config SENSORARRAY_FDC_LOG_FULL_CAP_FRAME
     bool "Print full MATRIXFDC_CAP frame output"
@@ -289,7 +370,7 @@ config SENSORARRAY_FDC_LOG_FULL_CAP_FRAME
 
 config SENSORARRAY_FDC_LOG_COMPACT_CAP_FRAME
     bool "Print compact MATRIXFDC frame output"
-    default n
+    default y
 
 config SENSORARRAY_FDC_DIFF_CACHE_APPLY
     bool "Apply only changed FDC row cache registers"
@@ -505,7 +586,7 @@ config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
 
 config SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
     int "Sample normal FDC row/device diagnostics every N frames"
-    default 10
+    default 5
     range 0 10000
     help
         0 disables sampled normal-path diagnostics. Exceptional timeout,
@@ -519,18 +600,31 @@ config SENSORARRAY_LOG_FRAME_SUMMARY
     bool "Print formal FDC frame summary"
     default y
 
+config SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES
+    int "Compact frame summary period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_LOG_FRAME_SUMMARY_ON_ANOMALY
+    bool "Print frame summary immediately on anomaly"
+    default y
+
+config SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY
+    bool "Print legacy FDC_FRAME_OUTPUT every frame"
+    default n
+
 config SENSORARRAY_LOG_ROW_SUMMARY
     bool "Print formal FDC row summary"
     default n
 
 config SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES
     int "BOARD_I2C_STATS aggregate period in MATRIXFDC frames"
-    default 10
+    default 5
     range 0 10000
 
 config SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES
     int "FDC_TIMING_STATS aggregate period in MATRIXFDC frames"
-    default 10
+    default 5
     range 0 10000
 
 config SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER
@@ -565,13 +659,38 @@ config SENSORARRAY_FDC_RAW_DEBUG_LOG
     default n
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
-    int "SCAN_TIMING_FRAME verbose output interval in MATRIXFDC frames"
-    default 10
+    int "FDC timing summary output interval in MATRIXFDC frames"
+    default 5
     range 0 10000
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES
-    int "SCAN_TIMING_10 aggregate period in MATRIXFDC frames"
-    default 10
+    int "FDC compact timing aggregate period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
+    int "FDC profile compact summary period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES
+    int "FDC ready compact summary period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
+    int "FDC compact timing summary period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES
+    int "FDC quality/sweep compact summary period in MATRIXFDC frames"
+    default 5
+    range 0 10000
+
+config SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
+    int "FDC I2C compact summary period in MATRIXFDC frames"
+    default 5
     range 0 10000
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
@@ -617,6 +736,20 @@ config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
         Experimental option for lower RCOUNT/SETTLECOUNT candidates. The
         normal boot/cache mechanism remains active; this is not the default
         stable profile.
+
+config SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
+    bool "Maintain formal fast profile metadata for runtime reads"
+    default y
+
+config SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
+    int "Formal fast profile target autoscan round time (us)"
+    default 4000
+    range 100 100000
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
+    int "Warn when profile autoscan round estimate exceeds this row budget (us)"
+    default 6250
+    range 100 1000000
 
 config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
     int "Deprecated alias for verbose timing output interval"

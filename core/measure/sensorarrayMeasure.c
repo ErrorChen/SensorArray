@@ -29,11 +29,11 @@
 #ifdef CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
 #define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
 #else
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES 10
+#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES 5
 #endif
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES 10
+#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES 5
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
 #define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE 1
@@ -137,6 +137,66 @@
 #ifndef CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US
 #define CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US 1000
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
+#define CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
+#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
+#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX
+#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX 3
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US
+#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US 250
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US
+#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US 1000
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX
+#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER
+#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER 10
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US
+#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS
+#define CONFIG_SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
+#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
+#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US 4000
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
+#define CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US SENSORARRAY_FDC_TARGET_ROW_US
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES 5
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES 5
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES 5
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES 5
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES 5
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG
 #define CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG 0
 #endif
@@ -153,7 +213,7 @@
 #define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 0
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES 10
+#define CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES 5
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS
 #define CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS 0
@@ -236,6 +296,8 @@
 #define SENSORARRAY_FDC_READY_MODE_NAME "POLL_ONLY"
 #elif CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
 #define SENSORARRAY_FDC_READY_MODE_NAME "INTB_THEN_STATUS"
+#elif CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_STRICT_LEVEL"
 #else
 #define SENSORARRAY_FDC_READY_MODE_NAME "INTB_WITH_POLL_FALLBACK"
 #endif
@@ -328,6 +390,10 @@ typedef enum {
     SENSORARRAY_FDC_READY_EDGE_WAKE,
     SENSORARRAY_FDC_READY_POLL_FULL,
     SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY,
+    SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL,
+    SENSORARRAY_FDC_READY_INTB_TIMEOUT,
+    SENSORARRAY_FDC_READY_DRDY_NOT_CLOSED_AFTER_INTB,
+    SENSORARRAY_FDC_READY_STATUS_INCONSISTENT,
     SENSORARRAY_FDC_READY_POLL_PARTIAL,
     SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL,
     SENSORARRAY_FDC_READY_TIMEOUT_NONE,
@@ -338,7 +404,21 @@ typedef enum {
     SENSORARRAY_FDC_READY_POLICY_POLL_ONLY = 0,
     SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS = 1,
     SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK = 2,
+    SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL = 3,
 } sensorarrayFdcReadyPolicy_t;
+
+typedef enum {
+    SENSORARRAY_FDC_WATCHDOG_INTB_TIMEOUT = 0,
+    SENSORARRAY_FDC_WATCHDOG_DRDY_NOT_CLOSED_AFTER_INTB,
+    SENSORARRAY_FDC_WATCHDOG_STATUS_INCONSISTENT,
+    SENSORARRAY_FDC_WATCHDOG_READ4_I2C_ERROR,
+    SENSORARRAY_FDC_WATCHDOG_ZERO_AFTER_DRDY,
+    SENSORARRAY_FDC_WATCHDOG_RAW_ALL_ZERO,
+    SENSORARRAY_FDC_WATCHDOG_AMPLITUDE_WARNING,
+    SENSORARRAY_FDC_WATCHDOG_SENSOR_WATCHDOG_FAULT,
+    SENSORARRAY_FDC_WATCHDOG_SATURATED,
+    SENSORARRAY_FDC_WATCHDOG_PROFILE_TOO_SLOW,
+} sensorarrayFdcWatchdogReason_t;
 
 typedef struct {
     uint16_t statusRaw;
@@ -380,8 +460,13 @@ typedef struct {
     uint32_t pollFallbackUs;
     uint32_t statusReadsBeforeIntb;
     uint32_t statusReadsAfterIntb;
+    uint32_t statusReadsAfterIntbRecheck;
     uint32_t statusReadsInFallback;
     uint32_t statusReadsSuppressedBeforeIntb;
+    uint32_t statusAckCount;
+    uint32_t statusReadsPollDiag;
+    int intbBeforeStatus;
+    int intbAfterStatus;
 } sensorarrayFdcReadyState_t;
 
 typedef struct {
@@ -525,6 +610,7 @@ static bool s_fdcParallelConfigLogged = false;
 static uint32_t s_fdcRowEpoch = 0u;
 static uint32_t s_fdcParallelCooldownFrames = 0u;
 static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
+static sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2] = {0};
 #if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
 static bool s_fdcIntbRuntimeUsable[2] = {true, true};
 #else
@@ -1217,6 +1303,15 @@ static bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
 static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
 {
     return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "status_inconsistent_after_intb") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "read4_i2c_error") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_missing");
 }
 
@@ -1233,7 +1328,16 @@ static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "manual_force_sweep") ||
            sensorarrayMeasureFdcReasonEquals(reason, "manual_rescue") ||
            sensorarrayMeasureFdcReasonEquals(reason, "i2c_read_error") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "read4_i2c_error") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "status_inconsistent_after_intb") ||
            sensorarrayMeasureFdcReasonEquals(reason, "watchdog_fault") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_raw_no_oscillation") ||
            sensorarrayMeasureFdcReasonEquals(reason, "invalid_streak") ||
            sensorarrayMeasureFdcReasonEquals(reason, "all_invalid_frame");
@@ -1678,6 +1782,13 @@ static bool __attribute__((unused)) sensorarrayMeasureFdcAutoscanConfigLooksCurr
            !highCurrent &&
            !sleeping;
 }
+
+static uint32_t sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot(
+    const sensorarrayFdcRuntimeChannelConfig_t configs[4],
+    uint8_t requiredUnreadMask,
+    uint32_t *outEstimatedRoundUs,
+    sensorarrayFdcProfileSnapshot_t *snapshot);
+static const char *sensorarrayMeasureFdcDeviceToken(sensorarrayFdcDeviceId_t devId);
 
 #include "fdc/sensorarrayFdcCacheApply.inc"
 
@@ -2789,6 +2900,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
 
     if (s_fdcProfileSummaryEnabled) {
+        sensorarrayMeasurePrintFdcProfileSummary(outFrame->sequence);
         if (CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME) {
             uint32_t timingEvery = s_fdcTimingSummaryEvery;
             if (timingEvery != 0u && (outFrame->sequence % timingEvery) == 0u) {
