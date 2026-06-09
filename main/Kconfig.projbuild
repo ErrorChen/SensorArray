@@ -168,6 +168,11 @@ config SENSORARRAY_FDC_INTB_ENABLE
     bool "Use FDC2214 INTB data-ready hint"
     default y
 
+config SENSORARRAY_FDC_INTB_ACTIVE_LOW
+    bool "Treat FDC2214 INTB as active-low"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
 config SENSORARRAY_FDC_INTB1_GPIO
     int "Primary FDC INTB GPIO"
     default 17
@@ -180,6 +185,11 @@ config SENSORARRAY_FDC_INTB2_GPIO
 
 config SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE
     bool "Use any-edge trigger for FDC INTB"
+    default n
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE
+    bool "Use falling-edge trigger for active-low FDC INTB"
     default y
     depends on SENSORARRAY_FDC_INTB_ENABLE
 
@@ -204,6 +214,11 @@ config SENSORARRAY_FDC_INTB_WAIT_MARGIN_US
     default 2000
     range 0 100000
 
+config SENSORARRAY_FDC_READY_GUARD_US
+    int "Guard time after estimated FDC conversion before STATUS polling (us)"
+    default 3000
+    range 0 100000
+
 config SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS
     int "Maximum STATUS fallback polls per row-device"
     default 3
@@ -211,7 +226,17 @@ config SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS
 
 config SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US
     int "Delay between fallback STATUS polls (us)"
-    default 200
+    default 1000
+    range 0 10000
+
+config SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY
+    int "Maximum short STATUS polls after unread-full before DRDY"
+    default 3
+    range 1 100
+
+config SENSORARRAY_FDC_READY_POLL_INTERVAL_US
+    int "Delay between guarded STATUS ready polls (us)"
+    default 1000
     range 0 10000
 
 config SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID
@@ -233,7 +258,7 @@ config SENSORARRAY_FDC_INTB_FALLBACK_POLLING
 
 config SENSORARRAY_FDC_INTB_WEAK_PULLUP
     bool "Enable weak pull-up on FDC INTB GPIOs"
-    default n
+    default y
     depends on SENSORARRAY_FDC_INTB_ENABLE
 
 config SENSORARRAY_FDC_INTB_DEBUG_LOG

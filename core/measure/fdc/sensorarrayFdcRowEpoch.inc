@@ -199,6 +199,8 @@ static __attribute__((unused)) const char *sensorarrayMeasureFdcReadyKindName(se
         return "edge_wake";
     case SENSORARRAY_FDC_READY_POLL_FULL:
         return "data_ready_full";
+    case SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY:
+        return "recovered_after_wait_drdy";
     case SENSORARRAY_FDC_READY_POLL_PARTIAL:
         return "poll_partial";
     case SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL:
@@ -230,13 +232,8 @@ static bool sensorarrayMeasureFdcShouldLogNormalPollSuccess(uint32_t frameSeq)
 
 static bool sensorarrayMeasureFdcRead4IsFullSuccess(const sensorarrayFdcDeviceRead4Result_t *read4)
 {
-    return read4 &&
-           read4->readErr == ESP_OK &&
-           !read4->timeout &&
-           !read4->partial &&
-           (read4->readyKind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
-            read4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL) &&
-           read4->validMask4 == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    return sensorarrayFdcRead4IsDataCompleteGood(read4,
+                                                 SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
 }
 
 static bool sensorarrayMeasureFdcWorkerResultIsGood(const sensorarrayFdcWorkerResult_t *result,
@@ -406,7 +403,7 @@ static const char *sensorarrayMeasureFdcReadyDiagnosticName(const sensorarrayFdc
         return "data_ready_full_unread";
     }
     if (ready->unreadWithoutDataReady) {
-        return "unsafe_unread_no_drdy";
+        return "wait_drdy_after_unread_full";
     }
     if (ready->dataReady && (ready->unreadMask & requiredUnreadMask) != 0u) {
         return "drdy_partial_unread";
@@ -454,6 +451,9 @@ static void sensorarrayMeasureFdcUpdateReadyTiming(const sensorarrayFdcReadyStat
         ready->readyForDataRead) {
         timing->readyFullCount++;
         timing->intbFreshDrdyCount++;
+    } else if (ready->kind == SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY &&
+               ready->readyForDataRead) {
+        timing->readyFullCount++;
     } else if (ready->kind == SENSORARRAY_FDC_READY_POLL_PARTIAL ||
                ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL) {
         timing->readyPartialCount++;
@@ -567,18 +567,18 @@ static const char *sensorarrayMeasureFdcReadyPollToken(const sensorarrayFdcReady
         return "FULL";
     }
     if (ready->unreadWithoutDataReady) {
-        return "UNSAFE_U";
+        return "WAIT_DRDY";
     }
     if (ready->dataReady && (ready->unreadMask & requiredUnreadMask) != requiredUnreadMask) {
-        return "DRDY_PART";
+        return "WAIT_UNREAD";
     }
     if (ready->dataReady) {
         return "DRDY_NO_U";
     }
     if ((ready->unreadMask & requiredUnreadMask) != 0u) {
-        return "PART_U";
+        return "PARTIAL_WAIT";
     }
-    return "NO_RDY";
+    return "NOT_READY";
 }
 
 static void sensorarrayMeasureFdcLogReadyCounts(sensorarrayFdcDeviceId_t devId,
@@ -751,7 +751,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
 
     if (useIntb && ctx && ctx->intbReady) {
         bool intbSeen = ready->initialIntbLevel == 0;
-        uint32_t waitBudgetUs = estimatedRoundUs + (uint32_t)CONFIG_SENSORARRAY_FDC_INTB_WAIT_MARGIN_US;
+        uint32_t waitBudgetUs = estimatedRoundUs + (uint32_t)CONFIG_SENSORARRAY_FDC_READY_GUARD_US;
         if (waitBudgetUs == 0u || waitBudgetUs > timeoutUs) {
             waitBudgetUs = timeoutUs;
         }
@@ -804,6 +804,9 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                 ready->kind = SENSORARRAY_FDC_READY_EDGE_WAKE;
                 ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
                 ready->diagnostic = "data_ready_full_unread";
+                ready->timeout = false;
+                ready->partial = false;
+                ready->err = ESP_OK;
                 if (timing) {
                     timing->drdyUs = (uint64_t)esp_timer_get_time();
                 }
@@ -825,9 +828,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                 return ESP_OK;
             }
         } else {
-            ready->timeout = true;
-            ready->timeoutCount++;
-            ready->diagnostic = "intb_timeout";
+            ready->diagnostic = "intb_hint_timeout_poll_fallback";
             if (ctx) {
                 ctx->timeoutCount++;
             }
@@ -837,10 +838,14 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
     if (fallbackAllowed) {
         fallbackAttempted = useIntb;
         int64_t fallbackStartUs = esp_timer_get_time();
-        uint32_t maxPolls = (uint32_t)CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS;
+        uint32_t maxPolls = (uint32_t)CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY;
+        if (maxPolls == 0u) {
+            maxPolls = (uint32_t)CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS;
+        }
+        uint32_t pollIntervalUs = (uint32_t)CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US;
         for (uint32_t poll = 0u; poll < maxPolls; ++poll) {
-            if (poll != 0u && CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US > 0) {
-                esp_rom_delay_us((uint32_t)CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US);
+            if (poll != 0u && pollIntervalUs > 0u) {
+                esp_rom_delay_us(pollIntervalUs);
             }
             esp_err_t statusErr = sensorarrayMeasureFdcReadStatusForReady(fdcState,
                                                                           devId,
@@ -864,11 +869,19 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                 return statusErr;
             }
             if (ready->readyForDataRead) {
+                bool recoveredAfterWaitDrdy = ready->unreadWithoutDrdyCount != 0u;
                 ready->ready = true;
-                ready->kind = SENSORARRAY_FDC_READY_POLL_FULL;
+                ready->kind = recoveredAfterWaitDrdy ?
+                    SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY :
+                    SENSORARRAY_FDC_READY_POLL_FULL;
                 ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
                 ready->pollFallbackUs += (uint32_t)sensorarrayMeasureElapsedUs(fallbackStartUs);
-                ready->diagnostic = useIntb ? "poll_fallback_ready" : "data_ready_full_unread";
+                ready->diagnostic = recoveredAfterWaitDrdy ?
+                    "recovered_after_wait_drdy" :
+                    (useIntb ? "poll_fallback_ready" : "data_ready_full_unread");
+                ready->timeout = false;
+                ready->partial = false;
+                ready->err = ESP_OK;
                 if (timing) {
                     timing->drdyUs = (uint64_t)esp_timer_get_time();
                 }
@@ -889,7 +902,19 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                        (unsigned)ready->drdy,
                        (unsigned long)ready->waitUs,
                        (unsigned long)ready->pollCount,
-                       useIntb ? "FB_FULL" : "FULL");
+                       recoveredAfterWaitDrdy ? "RECOVERED_WAIT_DRDY" :
+                       (useIntb ? "FB_FULL" : "FULL"));
+                if (recoveredAfterWaitDrdy) {
+                    printf("FDC_READY_RECOVERED,dev=%s,row=%u,epoch=%lu,reason=wait_drdy_after_unread_full,status=0x%04X,unread=0x%X,drdy=%u,waitUs=%lu,poll=%lu\n",
+                           sensorarrayMeasureFdcDeviceName(devId),
+                           (unsigned)row,
+                           (unsigned long)epochId,
+                           ready->statusRaw,
+                           (unsigned)ready->unreadMask,
+                           (unsigned)ready->drdy,
+                           (unsigned long)ready->waitUs,
+                           (unsigned long)ready->pollCount);
+                }
                 sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
                 return ESP_OK;
             }
@@ -916,9 +941,11 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
     ready->ready = false;
     ready->readyForDataRead = false;
     ready->err = ESP_ERR_TIMEOUT;
-    ready->diagnostic = useIntb ?
-        (fallbackAttempted ? "poll_fallback_timeout" : "intb_timeout") :
-        "poll_fallback_timeout";
+    ready->diagnostic = ready->unreadWithoutDataReady ?
+        "timeout_wait_drdy" :
+        (useIntb ?
+         (fallbackAttempted ? "poll_fallback_timeout" : "intb_timeout") :
+         "poll_fallback_timeout");
     sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, fallbackAttempted);
     printf("FRR,%s,%u,%lu,st=%04X,u=%X,d=%u,w=%lu,poll=%lu,k=%s,err=0x%lx\n",
            sensorarrayMeasureFdcDeviceToken(devId),
@@ -1266,7 +1293,7 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
             timing->deviceFullInvalidCount++;
         }
         printf("FDC_FALLBACK,stage=%s,row=%u,device=%s,status=0x%04X,unread=0x%X,drdy=%u,readyForDataRead=%u,err=0x%lx\n",
-               outReady->unreadWithoutDataReady ? "rewait_after_unsafe_unread_no_drdy" :
+               outReady->unreadWithoutDataReady ? "wait_drdy_after_unread_full" :
                (outReady->timeout ? "poll_timeout" : "data_not_ready"),
                (unsigned)row,
                sensorarrayMeasureFdcDeviceName(devId),
@@ -1422,23 +1449,27 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
     if (timing && outRead4->validMask4 == 0u) {
         timing->deviceFullInvalidCount++;
     }
+    const bool dataCompleteGood =
+        sensorarrayFdcRead4IsDataCompleteGood(outRead4,
+                                              SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
     const bool isFullPollSuccess =
-        outRead4->readErr == ESP_OK &&
+        dataCompleteGood &&
         !outRead4->timeout &&
         !outRead4->partial &&
         (outRead4->readyKind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
-         outRead4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL) &&
-        outRead4->validMask4 == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+         outRead4->readyKind == SENSORARRAY_FDC_READY_POLL_FULL);
     bool fallbackRelevant =
         !isFullPollSuccess &&
-        (outRead4->timeout ||
+        (dataCompleteGood ||
+         outRead4->timeout ||
          outRead4->partial ||
          outRead4->readyKind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
          outRead4->readErr != ESP_OK ||
          outRead4->validMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
     if (fallbackRelevant && outRead4->validMask4 != 0u) {
         printf("FDC_FALLBACK,stage=%s,row=%u,device=%s,validMask=0x%X,unread=0x%X,status=0x%04X\n",
-               outRead4->partial ? "poll_partial" : "recovered_partial",
+               dataCompleteGood ? "recovered_full" :
+               (outRead4->partial ? "poll_partial" : "recovered_partial"),
                (unsigned)row,
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)outRead4->validMask4,
@@ -2019,6 +2050,23 @@ static void sensorarrayMeasureFdcDeferDeviceRepairAfterParallel(sensorarrayState
                                                                 const char *reason)
 {
     if (!state || !samples || devId > SENSORARRAY_FDC_DEV_SECONDARY) {
+        return;
+    }
+    if (result &&
+        sensorarrayFdcRead4IsDataCompleteGood(&result->read4,
+                                              SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK)) {
+        printf("FDC_RESULT_MERGE_BUG,dev=%s,row=%u,epoch=%lu,validMask=0x%X,freshMask=0x%X,unread=0x%X,drdy=%u,timeout=%u,partial=%u,err=0x%lx,reason=%s,action=keep_recovered_samples\n",
+               sensorarrayMeasureFdcDeviceName(devId),
+               (unsigned)row,
+               (unsigned long)epochId,
+               (unsigned)(result->read4.validMask4 & 0x0Fu),
+               (unsigned)(result->read4.freshMask4 & 0x0Fu),
+               (unsigned)(result->read4.unreadMask4 & 0x0Fu),
+               (unsigned)result->read4.drdy,
+               result->read4.timeout ? 1u : 0u,
+               result->read4.partial ? 1u : 0u,
+               (unsigned long)result->read4.readErr,
+               reason ? reason : "parallel_device_result");
         return;
     }
 

@@ -104,6 +104,9 @@
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_ENABLE
 #define CONFIG_SENSORARRAY_FDC_INTB_ENABLE 1
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_INTB_ACTIVE_LOW
+#define CONFIG_SENSORARRAY_FDC_INTB_ACTIVE_LOW 1
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB1_GPIO
 #define CONFIG_SENSORARRAY_FDC_INTB1_GPIO 17
 #endif
@@ -111,7 +114,10 @@
 #define CONFIG_SENSORARRAY_FDC_INTB2_GPIO 18
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE
-#define CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE 1
+#define CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE
+#define CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE 1
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
 #define CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US 10000
@@ -120,7 +126,16 @@
 #define CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING 1
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP
-#define CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP 0
+#define CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP 1
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_GUARD_US
+#define CONFIG_SENSORARRAY_FDC_READY_GUARD_US 3000
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY
+#define CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY 3
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US
+#define CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US 1000
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG
 #define CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG 0
@@ -312,6 +327,7 @@ typedef enum {
     SENSORARRAY_FDC_READY_NONE = 0,
     SENSORARRAY_FDC_READY_EDGE_WAKE,
     SENSORARRAY_FDC_READY_POLL_FULL,
+    SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY,
     SENSORARRAY_FDC_READY_POLL_PARTIAL,
     SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL,
     SENSORARRAY_FDC_READY_TIMEOUT_NONE,
@@ -2015,19 +2031,19 @@ static esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *s
         s_fdcIntbRuntimeUsable[(uint8_t)devId] = intbCfgOk && expectedIntbOutput;
     }
 
-    printf("FDC_INTB_CFG,dev=%s,errCfg=0x%04X,config=0x%04X,drdy2int=%u,intbDis=%u,verified=%u,readyMode=%s\n",
+    printf("FDC_INTB_CFG,dev=%s,config=0x%04X,statusConfig=0x%04X,drdy2int=%u,intbDis=%u,verified=%u,readyMode=%s\n",
            sensorarrayMeasureFdcDeviceName(devId),
-           errorConfig,
            config,
+           errorConfig,
            drdyToIntb ? 1u : 0u,
            intbDisabled ? 1u : 0u,
            intbCfgOk ? 1u : 0u,
            SENSORARRAY_FDC_READY_MODE_NAME);
     if (expectedIntbOutput && !intbCfgOk) {
-        printf("FDC_INTB_CFG_ERR,dev=%s,errCfg=0x%04X,config=0x%04X,drdy2int=%u,intbDis=%u,action=degrade_poll_only,err=0x%lx\n",
+        printf("FDC_INTB_CONFIG_BAD,dev=%s,config=0x%04X,statusConfig=0x%04X,drdy2int=%u,intbDis=%u,action=degrade_poll_only,err=0x%lx\n",
                sensorarrayMeasureFdcDeviceName(devId),
-               errorConfig,
                config,
+               errorConfig,
                drdyToIntb ? 1u : 0u,
                intbDisabled ? 1u : 0u,
                (unsigned long)firstErr);
@@ -2154,12 +2170,25 @@ static esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *
         return ctx->intbReady ? ESP_OK : ESP_ERR_NOT_SUPPORTED;
     }
 
+    gpio_int_type_t intrType = GPIO_INTR_DISABLE;
+    const char *intrName = "disabled";
+    if (CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE) {
+        intrType = GPIO_INTR_ANYEDGE;
+        intrName = "anyedge";
+    } else if (CONFIG_SENSORARRAY_FDC_INTB_ACTIVE_LOW) {
+        intrType = GPIO_INTR_NEGEDGE;
+        intrName = "falling";
+    } else {
+        intrType = GPIO_INTR_POSEDGE;
+        intrName = "rising";
+    }
+
     gpio_config_t gpioConfig = {
         .pin_bit_mask = 1ULL << (uint32_t)ctx->intbGpio,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE ? GPIO_INTR_ANYEDGE : GPIO_INTR_NEGEDGE,
+        .intr_type = intrType,
     };
     esp_err_t err = gpio_config(&gpioConfig);
     if (err != ESP_OK) {
@@ -2184,15 +2213,14 @@ static esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *
     ctx->intbIsrAttached = true;
     ctx->lastLevel = gpio_get_level((gpio_num_t)ctx->intbGpio);
     ctx->intbReady = true;
-    printf("FDC_INTB,device=%s,gpio=%d,handler=%s,status=attached\n",
+    printf("FDC_INTB_GPIO,dev=%s,gpio=%d,level=%d,edgeCount=%lu,pullup=%u,intr=%s,handler=%s,status=ready\n",
            sensorarrayMeasureFdcDeviceName(ctx->devId),
            ctx->intbGpio,
+           ctx->lastLevel,
+           (unsigned long)ctx->edgeCount,
+           CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP ? 1u : 0u,
+           intrName,
            reattached ? "reattached" : "attached");
-    printf("FDC_INTB,device=%s,gpio=%d,trigger=%s,idleLevel=%d,status=ready\n",
-           sensorarrayMeasureFdcDeviceName(ctx->devId),
-           ctx->intbGpio,
-           CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE ? "anyedge" : "falling",
-           ctx->lastLevel);
     return ESP_OK;
 }
 
@@ -2577,6 +2605,34 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                            &rowValidMask8,
                                            &rowWarnMask8,
                                            &rowErrorMask8);
+        if ((primarySamples.validMask & 0x0Fu) == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK &&
+            (rowValidMask8 & 0x0Fu) != 0x0Fu) {
+            printf("FDC_RESULT_MERGE_BUG,dev=primary,row=%u,epoch=%lu,validMask=0x%X,freshMask=0x%X,unread=0x%X,drdy=%u,timeout=%u,partial=%u,err=0x%lx,rowHalfValid=0x%X\n",
+                   (unsigned)s,
+                   (unsigned long)epochId,
+                   (unsigned)(primarySamples.validMask & 0x0Fu),
+                   (unsigned)(primarySamples.freshMask & 0x0Fu),
+                   (unsigned)(primarySamples.unreadMask & 0x0Fu),
+                   primarySamples.dataReady ? 1u : 0u,
+                   primarySamples.timeout ? 1u : 0u,
+                   primarySamples.partial ? 1u : 0u,
+                   (unsigned long)(primarySamples.i2cTransactionError ? ESP_FAIL : ESP_OK),
+                   (unsigned)(rowValidMask8 & 0x0Fu));
+        }
+        if ((secondarySamples.validMask & 0x0Fu) == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK &&
+            (rowValidMask8 & 0xF0u) != 0xF0u) {
+            printf("FDC_RESULT_MERGE_BUG,dev=secondary,row=%u,epoch=%lu,validMask=0x%X,freshMask=0x%X,unread=0x%X,drdy=%u,timeout=%u,partial=%u,err=0x%lx,rowHalfValid=0x%X\n",
+                   (unsigned)s,
+                   (unsigned long)epochId,
+                   (unsigned)(secondarySamples.validMask & 0x0Fu),
+                   (unsigned)(secondarySamples.freshMask & 0x0Fu),
+                   (unsigned)(secondarySamples.unreadMask & 0x0Fu),
+                   secondarySamples.dataReady ? 1u : 0u,
+                   secondarySamples.timeout ? 1u : 0u,
+                   secondarySamples.partial ? 1u : 0u,
+                   (unsigned long)(secondarySamples.i2cTransactionError ? ESP_FAIL : ESP_OK),
+                   (unsigned)((rowValidMask8 >> 4u) & 0x0Fu));
+        }
         sensorarrayMeasureAccumulateFdcHealth(&frameHealth,
                                               s,
                                               &primarySamples,
