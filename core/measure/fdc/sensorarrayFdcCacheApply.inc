@@ -117,10 +117,103 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK,
         &expectedRoundUs,
         &expected.profileSnapshot);
+    sensorarrayFdcProfileSnapshot_t bootStableProfile = expected.profileSnapshot;
+    uint32_t initialRoundUs = expected.profileSnapshot.autoscanRoundUs;
+    uint16_t oldRcount[4] = {
+        expected.rCount[0],
+        expected.rCount[1],
+        expected.rCount[2],
+        expected.rCount[3],
+    };
+    uint16_t oldSettle[4] = {
+        expected.settleCount[0],
+        expected.settleCount[1],
+        expected.settleCount[2],
+        expected.settleCount[3],
+    };
+    uint32_t targetRoundUs = (uint32_t)CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US;
+    if (targetRoundUs == 0u || targetRoundUs > SENSORARRAY_FDC_TARGET_ROW_US) {
+        targetRoundUs = SENSORARRAY_FDC_TARGET_ROW_US;
+    }
+    bool initialProfileTooSlow =
+        initialRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US ||
+        initialRoundUs > targetRoundUs;
+    bool fastProfileApplied = false;
+    bool fastProfilePossible = true;
+    if (initialProfileTooSlow && CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE) {
+        const uint16_t minRuntimeRcount = 0x0100u;
+        for (uint8_t attempt = 0u;
+             attempt < 4u && expected.profileSnapshot.autoscanRoundUs > targetRoundUs;
+             ++attempt) {
+            uint32_t currentRoundUs = expected.profileSnapshot.autoscanRoundUs;
+            bool changedThisAttempt = false;
+            if (currentRoundUs == 0u) {
+                break;
+            }
+            for (uint8_t ch = 0u; ch < 4u; ++ch) {
+                uint64_t scaled =
+                    ((uint64_t)expected.rCount[ch] * (uint64_t)targetRoundUs) /
+                    (uint64_t)currentRoundUs;
+                if (scaled < minRuntimeRcount) {
+                    scaled = minRuntimeRcount;
+                }
+                if (scaled > UINT16_MAX) {
+                    scaled = UINT16_MAX;
+                }
+                uint16_t nextRcount = (uint16_t)scaled;
+                if (nextRcount != 0u && nextRcount < expected.rCount[ch]) {
+                    expected.rCount[ch] = nextRcount;
+                    snapshotConfigs[ch].rCount = nextRcount;
+                    changedThisAttempt = true;
+                    fastProfileApplied = true;
+                }
+            }
+            if (!changedThisAttempt) {
+                fastProfilePossible = false;
+                break;
+            }
+            (void)sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot(
+                snapshotConfigs,
+                SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK,
+                &expectedRoundUs,
+                &expected.profileSnapshot);
+        }
+        fastProfilePossible = fastProfilePossible &&
+                              expected.profileSnapshot.autoscanRoundUs <= targetRoundUs;
+        printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,chosenRound=%lu,oldRcount=[0x%04X,0x%04X,0x%04X,0x%04X],newRcount=[0x%04X,0x%04X,0x%04X,0x%04X],oldSettle=[0x%04X,0x%04X,0x%04X,0x%04X],newSettle=[0x%04X,0x%04X,0x%04X,0x%04X],decisionReason=%s\n",
+               sensorarrayMeasureFdcDeviceToken(devId),
+               (unsigned)row,
+               fastProfilePossible ? "apply_fast_profile" :
+               (fastProfileApplied ? "keep_slow_profile_with_reason" :
+                "enqueue_immediate_fast_sweep"),
+               (unsigned long)initialRoundUs,
+               (unsigned long)expected.profileSnapshot.autoscanRoundUs,
+               (unsigned long)targetRoundUs,
+               (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
+               (unsigned long)expected.profileSnapshot.autoscanRoundUs,
+               oldRcount[0],
+               oldRcount[1],
+               oldRcount[2],
+               oldRcount[3],
+               expected.rCount[0],
+               expected.rCount[1],
+               expected.rCount[2],
+               expected.rCount[3],
+               oldSettle[0],
+               oldSettle[1],
+               oldSettle[2],
+               oldSettle[3],
+               expected.settleCount[0],
+               expected.settleCount[1],
+               expected.settleCount[2],
+               expected.settleCount[3],
+               fastProfilePossible ? "round_within_target_after_rcount_reduce" :
+               "current_profile_cannot_meet_target_fps");
+    }
     expected.profileSnapshot.muxConfig = expected.muxConfig;
     expected.profileSnapshot.statusConfig = expected.statusConfig;
     expected.profileSnapshot.config = expected.configBaseWithoutSleepBit;
-    expected.bootStableProfile = expected.profileSnapshot;
+    expected.bootStableProfile = bootStableProfile;
     expected.formalFastProfile = expected.profileSnapshot;
     expected.fingerprint = sensorarrayMeasureFdcConfigFingerprint(&expected);
     if (timing) {

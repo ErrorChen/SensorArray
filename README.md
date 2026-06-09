@@ -202,7 +202,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` | bool | Kconfig: n | Prints verbose cache apply details. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
 | `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | Kconfig: `0x0080` | Conservative default FDC SETTLECOUNT. | cache/sweep channel config | Lower only after valid conversions are stable. |
-| `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `500` | Safety margin after one autoscan cycle. | FDC wait/sweep helpers | Increase when DRDY/unread timing is marginal. |
+| `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `2000` | Safety margin after one autoscan cycle. | FDC wait/sweep helpers | Keeps actual INTB wait at or above the estimated autoscan round plus margin unless clamped by the row-device hard deadline. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL` | choice bool | Kconfig/defaults: y | Default formal ready policy: wait for INTB low, then read STATUS once to ack/verify readiness. | `sensorarrayFdcWaitDeviceReady()` | Production path; no STATUS fallback before INTB and no legacy fallback recovery. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` | choice bool | Kconfig/defaults: n | Legacy diagnostic policy: wait INTB, verify STATUS, then allow bounded STATUS fallback. | `sensorarrayFdcWaitDeviceReady()` | Enable only to compare old fallback behaviour; fallback recovery appears as `src=FB`. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS` | choice bool | Kconfig/defaults: n | Wait INTB then verify STATUS once, without legacy fallback. | `sensorarrayFdcWaitDeviceReady()` | Diagnostic mode for missed-INTB validation. |
@@ -645,15 +645,18 @@ The compact tokens are intended for high-frame-rate timing work, where long log 
 | `I5` | Compact I2C summary. | `n`, `wr`, `rd`, `err`, `nack`, `to` |
 | `P5` | Compact profile summary. | `n`, `avg`, `max`, `target`, `rowBudget`, `slow`, `fpsMax` |
 | `PR` | Per-row/device profile detail when profile is slow or row profile logging is enabled. | `r`, `d`, `ch`, `round`, `rc`, `sc`, `cd`, `dc`, `dg` |
-| `PFU` | Cached profile update for a row/device. | `r`, `d`, `round`, `target`, `slow` |
+| `PFU` | Cached profile update for a row/device. | `r`, `d`, `action`, `oldRound`, `newRound`, `target`, `rowBudget`, `chosenRound`, `decisionReason` |
+| `FDC_EPOCH` | Sleep/row/cache/exit-sleep epoch diagnostic. | `stage`, `row`, `dev`, `cfg`, `mux`, `status`, `unread`, `drdy`, `intbLevel` |
+| `FDC_PARALLEL_FALLBACK` | Parallel worker fallback/join diagnostic. | `reason`, `workerDeadlineUs`, `workerJoinUs`, `parentWaitUs`, `workerTimedOut`, `workerLateDoneUs`, `staleDiscarded`, `rowHardDeadlineUs` |
 | `FDC_RESULT_MERGE_BUG` | A guard detected an attempt to invalidate or lose a row-device whose final read4 data is complete. | `dev`, `row`, `epoch`, `validMask`, `freshMask`, `unread`, `drdy` |
-| `FDC_DEFERRED_REPAIR` | A failed secondary/primary device path was not repaired inline in the realtime row path; affected cells are marked invalid and rescue is requested later. | `row`, `dev`, `err`, `deferredRepair` |
+| `FDC_DEFERRED_REPAIR` | A failed secondary/primary device path was not repaired inline in the realtime row path; affected cells are marked invalid and rescue is requested later. | `row`, `dev`, `reason`, `status`, `unread`, `drdy`, `action` |
 
 Readiness diagnostics:
 
 - `src=IL` or `src=IE` means INTB level/event arrived and one STATUS ack verified `DRDY=1` plus required unread bits.
 - `src=AR` means only the short after-INTB recheck path recovered `unread=0xF,DRDY=0`.
-- `src=IT` means INTB timed out in strict mode; the row-device watchdog decides retry/rescue handling.
+- `src=IT` means INTB timed out after final STATUS poll/retry did not prove readiness; `k` distinguishes `intb_timeout_before_estimated_round`, `wait_clamped_by_hard_deadline`, `intb_timeout_final_status_not_ready`, and final-poll I2C errors.
+- `src=FP` means an INTB timeout was recovered by the mandatory final STATUS poll. `src=FR` means the bounded retry recovered readiness.
 - `src=DI` means STATUS after INTB was inconsistent and is treated as a hard row-device fault.
 - `src=FB` should only appear when the legacy fallback policy is selected.
 - `bi` should stay at 0 in strict INTB mode; `ai` is the single after-INTB ack read, and `ar` counts bounded after-INTB rechecks.
@@ -779,8 +782,8 @@ The formal matrix read path now defaults to `SENSORARRAY_FDC_READY_POLICY_INTB_S
 - INTB is treated as level-latched active-low, not only as a falling edge.
 - The waiter arms the current task first, clears stale notifications, records the edge counter, then reads the initial INTB level.
 - If INTB is already low, the row-device is treated as latched-ready and the code reads STATUS once.
-- If INTB is high, the code waits for an edge or a final low level until the deadline.
-- If INTB never goes low, the strict path does not read STATUS to hunt for a missed interrupt. It reports `INTB_TIMEOUT` and enters row-device watchdog handling.
+- If INTB is high, the code waits for an edge or a final low level using `actualIntbWaitUs = max(CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US, estimatedRoundUs + CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US)`, clamped by the row-device hard deadline.
+- If INTB never goes low, the strict path still performs a final STATUS poll plus CONFIG/MUX_CONFIG/STATUS_CONFIG/INTB diagnostics. A final `DRDY=1` with the required unread mask is accepted and DATA is read; otherwise one bounded retry is allowed when the hard deadline still has room.
 - Once INTB is confirmed low, STATUS is read once as an acknowledge and verify operation. STATUS is not a harmless peek.
 - `DRDY=1` plus the required unread mask means DATA can be read.
 - `DRDY=0` plus the required unread mask is allowed only in the after-INTB micro recheck window.
@@ -796,14 +799,16 @@ After-INTB recheck defaults:
 | `CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US` | `250` | Delay between rechecks. |
 | `CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US` | `1000` | Total recheck deadline. |
 
-STATUS read accounting is visible in compact ready logs:
+STATUS read accounting and the actual wait budget are visible in compact ready logs:
 
 ```text
-RR,d=p,r=2,e=5050,src=AR,st=C04F,u=F,dr=1,wu=850,pc=2,k=AFTER_INTB_RECHECK_FULL,ack=2,ib0=0,ib1=1,err=0
-SR,d=p,r=2,e=5050,b=0,a=1,ar=1,fb=0,pd=0,supp=1,ack=2,ib0=0,ib1=1
+RB,d=p,r=2,e=5050,to=30088,iw=15544,est=13544,hard=62500,hardRemain=58000,waitSource=estimated_round,estKind=autoscan_4ch_round,req=F,lvl=1,edge=10,mode=INTB_STRICT_LEVEL,intb=1
+RR,d=p,r=2,e=5050,src=FP,st=C04F,u=F,dr=1,wu=15620,pc=1,k=intb_timeout_recovered_by_final_status,ack=1,ib0=1,ib1=1,err=0,iw=15544,est=13544,hardRemain=42000,elapsed=15620,fp=1,fr=0,fSt=C04F,fU=F,fDr=1,fCfg=1601,fMux=C20D,fErrCfg=0001,fIg=1
+SR,d=p,r=2,e=5050,b=0,a=0,ar=0,fb=0,fp=1,pd=0,supp=1,ack=1,ib0=1,ib1=1
 ```
 
 `ack=1` or higher means STATUS was read as an acknowledge. `ib0=0,ib1=1` means INTB was low before STATUS and high after STATUS, which is expected when STATUS clears the latch.
+`estKind=autoscan_4ch_round` is required for the normal `requestedMask=0xF` autoscan path; single-channel estimates must not be used for 4-channel unread waits.
 
 ### Row-Device Watchdog And Recovery
 
@@ -842,10 +847,10 @@ Watchdog reasons include:
 | `saturated` | Raw value reached the saturation threshold. |
 | `profile_too_slow` | The shadow profile round estimate exceeds the warn budget. |
 
-The compact watchdog line is:
+The compact watchdog line includes the configured retry limit and whether this row path had actually attempted a retry:
 
 ```text
-RWD,d=p,r=2,e=5050,why=intb_timeout,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1
+RWD,d=p,r=2,e=5050,why=intb_timeout,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1,retryActual=0
 ```
 
 ### FDC Profile Logging
@@ -880,7 +885,7 @@ Default profile logs:
 ```text
 P5,s=630,n=5,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
 PR,s=630,d=p,r=1,src=shadow,why=profile_too_slow,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,fh=[40000000,40000000,40000000,40000000],su=[...],cu=[...],tu=[...],round=13544,to=30088
-PFU,d=p,r=1,why=profile_too_slow,oldRound=13544,newRound=4200,target=4000,rowBudget=6250,oldDc=0x7800,newDc=0x6000,profileTooSlow=0
+PFU,d=p,r=1,why=profile_too_slow,action=apply_fast_profile,oldRound=13544,newRound=3980,target=4000,rowBudget=6250,chosenRound=3980,oldRcount=[0x2089,...],newRcount=[0x099A,...],decisionReason=round_within_target_after_rcount_reduce
 ```
 
 Readback verification is reserved for boot/init, cache writes, sweep updates, diagnostics, or non-hot-path checks. Do not add config register readbacks between confirmed INTB and DATA reads.
@@ -897,7 +902,13 @@ The firmware keeps formal fast profile metadata alongside the stable boot/cache 
 | `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | Default target is `4000 us`. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US` | Default warning budget is `6250 us`, the 20 fps row budget. |
 
-If `autoscanRoundUs` exceeds the warning budget, logs show `profileTooSlow=1`, `theoreticalMaxFps`, slow row/device/channel, and the source register values. The runtime queues quality-based rescue for `profile_too_slow` instead of waiting for a cell to become invalid.
+If `autoscanRoundUs` exceeds the warning budget, the cache-apply path must not continue using the slow profile as a 20 fps formal profile. It first tries a formal fast profile by reducing RCOUNT while preserving SETTLECOUNT; if it cannot meet the target, it logs `current_profile_cannot_meet_target_fps` and queues rescue/target downgrade handling. `profile_too_slow` means the current RCOUNT/SETTLE/profile cannot satisfy the target frame rate; it is not evidence that the FDC is physically bad.
+
+Example:
+
+```text
+PFU,d=p,r=1,why=profile_too_slow,action=apply_fast_profile,oldRound=13544,newRound=3980,target=4000,rowBudget=6250,chosenRound=3980,oldRcount=[0x2089,...],newRcount=[0x099A,...],decisionReason=round_within_target_after_rcount_reduce
+```
 
 ### Quality-Based Sweep
 
@@ -914,6 +925,8 @@ Runtime fast/full sweep decisions are quality based, not only invalid-frame base
 - `profile_too_slow`
 
 Full sweep remains reserved for broader or repeated failures, such as repeated fast sweep failure, multiple row/channel faults, large-area invalid/stale frames, or persistent profile quality loss. A single `unread=F,DRDY=0` after INTB does not directly force full sweep; it first goes through after-INTB recheck and row-device recovery.
+
+For all-invalid frames, escalation is deterministic: sequence 1 restores autoscan/exit-sleep state, sequence 2 forces a soft resync/cache dirty path, and sequence 3 or later queues a full sweep unless an explicit cooldown, pending request, max-fail, or manual-disable policy is active. `-1` in `MATRIXFDC_CAP` means no trustworthy fresh conversion was obtained, not a physical capacitance of `-1`; repeated `-1` frames drive this rescue escalation.
 
 ### Compact Log Dictionary
 

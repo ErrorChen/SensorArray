@@ -122,6 +122,9 @@
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
 #define CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US 10000
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US
+#define CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US 2000
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING
 #define CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING 1
 #endif
@@ -455,6 +458,14 @@ typedef struct {
     const char *diagnostic;
     uint8_t requiredUnreadMask;
     uint32_t estimatedRoundUs;
+    uint32_t actualIntbWaitUs;
+    uint32_t rowDeviceHardUs;
+    uint32_t hardDeadlineRemainingUs;
+    uint32_t hardDeadlineRemainingBeforeWaitUs;
+    const char *waitSource;
+    const char *estKind;
+    bool waitClampedByHardDeadline;
+    bool waitBudgetTooShort;
     uint32_t intbWaitUs;
     uint32_t statusVerifyUs;
     uint32_t pollFallbackUs;
@@ -465,6 +476,18 @@ typedef struct {
     uint32_t statusReadsSuppressedBeforeIntb;
     uint32_t statusAckCount;
     uint32_t statusReadsPollDiag;
+    uint32_t statusReadsFinalPoll;
+    bool finalPollAttempted;
+    bool finalRetryAttempted;
+    uint32_t finalRetryWaitUs;
+    uint16_t finalStatusRaw;
+    uint8_t finalUnreadMask;
+    uint8_t finalDrdy;
+    uint16_t finalConfig;
+    uint16_t finalMuxConfig;
+    uint16_t finalErrorConfig;
+    bool finalSleepBit;
+    bool finalAutoscan;
     int intbBeforeStatus;
     int intbAfterStatus;
 } sensorarrayFdcReadyState_t;
@@ -497,6 +520,18 @@ typedef struct {
     uint32_t readUs;
     uint32_t pollCount;
     uint32_t edgeDelta;
+    uint32_t estimatedRoundUs;
+    uint32_t actualIntbWaitUs;
+    const char *readyDiagnostic;
+    bool finalPollAttempted;
+    bool finalRetryAttempted;
+    uint16_t finalStatusRaw;
+    uint8_t finalUnreadMask;
+    uint8_t finalDrdy;
+    uint16_t finalConfig;
+    uint16_t finalMuxConfig;
+    uint16_t finalErrorConfig;
+    int finalIntbLevel;
 } sensorarrayFdcDeviceRead4Result_t;
 
 typedef struct {
@@ -527,6 +562,8 @@ typedef struct {
     uint32_t doneWaitUs;
     uint32_t workerRunUs;
     uint32_t waitWorkerIdleAfterTimeoutUs;
+    uint64_t workerDeadlineUs;
+    uint32_t rowHardDeadlineUs;
     esp_err_t err;
 } sensorarrayFdcWorkerTrace_t;
 
@@ -547,6 +584,7 @@ typedef struct {
     sensorarrayFdcWorkerResult_t *result;
     sensorarrayFdcWorkerTrace_t *trace;
     sensorarrayFdcFrameReadTracker_t *readTracker;
+    uint64_t rowDeviceDeadlineUs;
 } sensorarrayFdcWorkerJob_t;
 
 typedef struct {
@@ -1305,13 +1343,20 @@ static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
     return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply") ||
            sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_final_status_not_ready") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_recovered_by_retry") ||
            sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||
            sensorarrayMeasureFdcReasonEquals(reason, "status_inconsistent_after_intb") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "ready_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "data_not_ready") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "primary_parallel_invalid") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "secondary_parallel_invalid") ||
            sensorarrayMeasureFdcReasonEquals(reason, "read4_i2c_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
            sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
            sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
            sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_missing");
 }
 
@@ -1330,14 +1375,20 @@ static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "i2c_read_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "read4_i2c_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_final_status_not_ready") ||
            sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||
            sensorarrayMeasureFdcReasonEquals(reason, "status_inconsistent_after_intb") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "ready_timeout") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "data_not_ready") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "primary_parallel_invalid") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "secondary_parallel_invalid") ||
            sensorarrayMeasureFdcReasonEquals(reason, "watchdog_fault") ||
            sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
            sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
            sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
            sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_raw_no_oscillation") ||
            sensorarrayMeasureFdcReasonEquals(reason, "invalid_streak") ||
            sensorarrayMeasureFdcReasonEquals(reason, "all_invalid_frame");

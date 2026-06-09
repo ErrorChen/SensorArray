@@ -389,7 +389,7 @@ config SENSORARRAY_FDC_SETTLECOUNT_DEFAULT
 
 config SENSORARRAY_FDC_ROW_WAIT_SAFETY_US
     int "Safety margin after one FDC autoscan cycle (us)"
-    default 500
+    default 2000
     range 0 100000
 
 config SENSORARRAY_FDC_SWEEP_STEP_TIMEOUT_MS

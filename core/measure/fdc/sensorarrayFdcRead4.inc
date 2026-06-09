@@ -186,6 +186,11 @@ static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdc
     if (!read4) {
         return "invalid_read4_state";
     }
+    if (read4->readyDiagnostic &&
+        read4->readUs == 0u &&
+        strcmp(read4->readyDiagnostic, "not_started") != 0) {
+        return read4->readyDiagnostic;
+    }
     if (read4->readUs == 0u &&
         read4->pollCount == 0u &&
         read4->unreadMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
@@ -253,6 +258,18 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .readUs = readUs,
         .pollCount = ready ? ready->pollCount : 0u,
         .edgeDelta = ready ? ready->edgeDelta : 0u,
+        .estimatedRoundUs = ready ? ready->estimatedRoundUs : 0u,
+        .actualIntbWaitUs = ready ? ready->actualIntbWaitUs : 0u,
+        .readyDiagnostic = ready ? ready->diagnostic : NULL,
+        .finalPollAttempted = ready ? ready->finalPollAttempted : false,
+        .finalRetryAttempted = ready ? ready->finalRetryAttempted : false,
+        .finalStatusRaw = ready ? ready->finalStatusRaw : 0u,
+        .finalUnreadMask = ready ? ready->finalUnreadMask : 0u,
+        .finalDrdy = ready ? ready->finalDrdy : 0u,
+        .finalConfig = ready ? ready->finalConfig : 0u,
+        .finalMuxConfig = ready ? ready->finalMuxConfig : 0u,
+        .finalErrorConfig = ready ? ready->finalErrorConfig : 0u,
+        .finalIntbLevel = ready ? ready->finalIntbLevel : -1,
     };
 
     const double inductorUh = (double)CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH / 1000.0;
@@ -342,7 +359,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     }
     bool includeRawFreq = read4LogLevel >= 3u ||
                           (read4LogLevel >= 2u && anomaly);
-    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,er=0x%lx",
+    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,er=0x%lx,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
@@ -366,7 +383,18 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            (unsigned long)outRead4->readUs,
            (unsigned long)outRead4->pollCount,
            SENSORARRAY_FDC_READY_MODE_NAME,
-           (unsigned long)outRead4->readErr);
+           (unsigned long)outRead4->readErr,
+           outRead4->finalPollAttempted ? 1u : 0u,
+           outRead4->finalRetryAttempted ? 1u : 0u,
+           outRead4->finalStatusRaw,
+           (unsigned)outRead4->finalUnreadMask,
+           (unsigned)outRead4->finalDrdy,
+           outRead4->finalConfig,
+           outRead4->finalMuxConfig,
+           outRead4->finalErrorConfig,
+           outRead4->finalIntbLevel,
+           (unsigned long)outRead4->estimatedRoundUs,
+           (unsigned long)outRead4->actualIntbWaitUs);
     if (includeRawFreq) {
         printf(",raw=[%lu,%lu,%lu,%lu],fq=[%.3f,%.3f,%.3f,%.3f]",
                (unsigned long)outRead4->raw28[0],
@@ -386,7 +414,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
             (outRead4->validMask4 != 0u) ? "accepted" :
             "discard";
-        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,dec=%s\n",
+        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,dec=%s,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu\n",
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)row,
                (unsigned long)epochId,
@@ -398,6 +426,17 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                (unsigned)outRead4->notReadyMask4,
                (unsigned)outRead4->zeroBeforeReadyMask4,
                (unsigned)outRead4->zeroAfterDrdyMask4,
-               decision);
+               decision,
+               outRead4->finalPollAttempted ? 1u : 0u,
+               outRead4->finalRetryAttempted ? 1u : 0u,
+               outRead4->finalStatusRaw,
+               (unsigned)outRead4->finalUnreadMask,
+               (unsigned)outRead4->finalDrdy,
+               outRead4->finalConfig,
+               outRead4->finalMuxConfig,
+               outRead4->finalErrorConfig,
+               outRead4->finalIntbLevel,
+               (unsigned long)outRead4->estimatedRoundUs,
+               (unsigned long)outRead4->actualIntbWaitUs);
     }
 }

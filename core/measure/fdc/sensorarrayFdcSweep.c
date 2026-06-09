@@ -438,29 +438,9 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
     bool runtimeReadyFault =
         notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
         zeroBeforeReadyCount != 0u;
-    if (runtimeReadyFault) {
-        gSuppressedFullSweepCount++;
-        printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu,zeroAfterDrdyCount=%lu,i2cErrorCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=all_invalid_due_to_not_ready\n",
-               (unsigned long)gFdcSweepRequestEpoch,
-               (unsigned long)gAllInvalidSequence,
-               (long long)gLastAllInvalidUs,
-               (unsigned long)zeroRawCount,
-               (unsigned long)notReadyCount,
-               (unsigned long)zeroBeforeReadyCount,
-               (unsigned long)zeroAfterDrdyCount,
-               (unsigned long)i2cErrorCount,
-               (unsigned long long)validMask,
-               (unsigned long long)errorMask);
-        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=runtime_ready_epoch_fault,status=not_queued,action=sleep_epoch_resync,suppressed=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu\n",
-               (unsigned long)gSuppressedFullSweepCount,
-               (unsigned long)notReadyCount,
-               (unsigned long)zeroBeforeReadyCount);
-        gAllInvalidSequence = 0u;
-        return;
-    }
-
     gAllInvalidSequence++;
     const char *reason =
+        runtimeReadyFault ? "all_invalid_due_to_not_ready" :
         (zeroAfterDrdyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
          zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
         "persistent_all_rows_hardware_zero_after_drdy" :
@@ -481,8 +461,28 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
            (unsigned long long)errorMask,
            reason);
 
+    if (runtimeReadyFault && gAllInvalidSequence < 3u) {
+        const char *action = (gAllInvalidSequence == 1u) ?
+            "force_exit_sleep_restore_autoscan" :
+            "soft_resync_force_cache";
+        gSuppressedFullSweepCount++;
+        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=runtime_ready_epoch_fault,status=not_queued,allInvalidSequence=%lu,action=%s,fullSweepSuppressed=1,suppressedReason=%s,queuedFullSweep=0,suppressed=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu\n",
+               (unsigned long)gAllInvalidSequence,
+               action,
+               (gAllInvalidSequence == 1u) ?
+                   "first_runtime_ready_fault_restore" :
+                   "second_runtime_ready_fault_soft_resync",
+               (unsigned long)gSuppressedFullSweepCount,
+               (unsigned long)notReadyCount,
+               (unsigned long)zeroBeforeReadyCount);
+        return;
+    }
+
     uint32_t threshold = (uint32_t)CONFIG_SENSORARRAY_FDC_ALL_INVALID_FULL_SWEEP_THRESHOLD;
     if (threshold == 0u) {
+        threshold = 3u;
+    }
+    if (runtimeReadyFault) {
         threshold = 3u;
     }
     if (gAllInvalidSequence < threshold) {
@@ -499,7 +499,7 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                            (nowUs - gLastFullSweepRequestUs) >= cooldownUs;
     if (!cooldownElapsed) {
         gSuppressedFullSweepCount++;
-        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=cooldown,allInvalidSequence=%lu,suppressed=%lu,remainingUs=%lld\n",
+        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=cooldown,allInvalidSequence=%lu,fullSweepSuppressed=1,suppressedReason=cooldown,queuedFullSweep=0,suppressed=%lu,remainingUs=%lld\n",
                (unsigned long)gAllInvalidSequence,
                (unsigned long)gSuppressedFullSweepCount,
                (long long)(cooldownUs - (nowUs - gLastFullSweepRequestUs)));
@@ -508,7 +508,7 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
 
     if (gFdcForceFullSweepAllPending) {
         gSuppressedFullSweepCount++;
-        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=pending_exists,allInvalidSequence=%lu,suppressed=%lu\n",
+        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=pending_exists,allInvalidSequence=%lu,fullSweepSuppressed=1,suppressedReason=pending_exists,queuedFullSweep=0,suppressed=%lu\n",
                (unsigned long)gAllInvalidSequence,
                (unsigned long)gSuppressedFullSweepCount);
         return;
@@ -517,7 +517,7 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
     gFdcForceFullSweepAllPending = true;
     gLastFullSweepRequestUs = nowUs;
     uint32_t epoch = ++gFdcSweepRequestEpoch;
-    printf("FDC_SWEEP_REQUEST,stage=queue,scope=all,reason=%s,status=queued,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,allInvalidSequence=%lu,suppressed=%lu\n",
+    printf("FDC_SWEEP_REQUEST,stage=queue,scope=all,reason=%s,status=queued,epoch=%lu,validMask=0x%016llX,errorMask=0x%016llX,zeroRaw=%lu,allInvalidSequence=%lu,fullSweepSuppressed=0,suppressedReason=none,queuedFullSweep=1,suppressed=%lu\n",
            reason,
            (unsigned long)epoch,
            (unsigned long long)validMask,
