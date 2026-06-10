@@ -641,8 +641,9 @@ The compact tokens are intended for high-frame-rate timing work, where long log 
 | `RB` | Ready wait begins for one FDC device. | `r`, `d`, `pol`, `to` |
 | `RP` | One STATUS observation used after INTB, after-INTB recheck, legacy fallback, or poll-only diagnostics. | `k`, `st`, `u`, `drdy`, `full`, `ok` |
 | `RR` | Ready wait result. | `err`, `ok`, `kind`, `src`, `iw`, `su`, `fb` |
-| `SR` | STATUS-read counters for the ready wait. | `bi`, `ai`, `ar`, `pd`, `fb`, `supp` |
+| `SR` | STATUS-read counters for the ready wait. | `bi`, `ai`, `ar`, `fb`, `wd`, `pd`, `sr`, `ack`, `supp` |
 | `RWD` | Row-device watchdog/ready miss action. | `r`, `d`, `why`, `classification`, `rescueAction`, `consecutiveSoft`, `consecutiveStale`, `consecutiveHard` |
+| `RWD_DIAG_STATUS` | Diagnostic-only STATUS read after a proven watchdog/miss condition. | `st`, `u`, `dr`, `diagOnly=1`, `accepted=0`, `reason` |
 | `D4` | Read4 anomaly or sampled diagnostic. | `r`, `d`, `err`, `vm`, `fm`, `um`, `raw0` |
 | `D4C` | Read4 consistency detail. | `r`, `d`, `zm`, `sat`, `warn`, `drdy` |
 | `RE` | Per-row parallel primary/secondary timing alignment. | `span`, `ser`, `eff`, `sleepDx`, `readyDx`, `intbDx`, `statDx`, `readDx` |
@@ -667,19 +668,21 @@ Readiness diagnostics:
 
 - `src=IL` or `src=IE` means INTB level/event arrived and one STATUS ack verified `DRDY=1` plus required unread bits.
 - `src=AR` means only the short after-INTB recheck path recovered `unread=0xF,DRDY=0`.
-- `src=IT` means INTB timed out after final STATUS poll/retry did not prove formal readiness. `unread=full,DRDY=0` before `est+guard` is logged as `before_estimated_round_transient`; after `est+guard` it becomes `after_estimated_round_no_drdy` plus stale drain. Only hard deadline, I2C/config/DATA faults, or repeated hard classification should remain hard timeout.
-- `src=FP` means an INTB timeout was recovered by the mandatory final STATUS poll. `src=FR` means the bounded retry recovered readiness.
+- `src=IT` means INTB wait missed. Formal `INTB_STRICT_LEVEL` does not run a final STATUS poll/retry to recover the current sample; the row-device goes to watchdog handling.
+- Removed legacy success sources: `src=FP`, `src=FR`, and `src=GR` are not valid formal ready sources. Old `fp/fr` recovery counters are removed from firmware logs.
 - `src=DI` means STATUS after INTB was inconsistent and is treated as a hard row-device fault.
 - `src=FB` should only appear when the legacy fallback policy is selected.
-- `bi` should stay at 0 in strict INTB mode; `ai` is the single after-INTB ack read, and `ar` counts bounded after-INTB rechecks.
-- A final read4 result is data-complete-good only when read/I2C errors are clear, `DRDY=1`, required unread/fresh/valid masks are full, raw data is not all zero, and zero-before/after-DRDY masks are clear.
+- `bi` should stay at 0 in strict INTB mode; `ai` is the single after-INTB ack read, `ar` counts bounded after-INTB rechecks, `wd` counts diagnostic-only watchdog STATUS reads, and `sr` is the total STATUS read count.
+- `ack` means STATUS was read while INTB was low. A watchdog diagnostic STATUS read is never an ack and never changes the current epoch to ready.
+- A formal read4 result is data-complete-good only when the source is `IE`, `IL`, or `AR`, read/I2C errors are clear, `DRDY=1`, required unread/fresh/valid masks are full, raw data is not all zero, and zero-before/after-DRDY masks are clear.
+- DATA_CHx reads after invalid/missed INTB are discard-only drains when enabled; they are not written into `MATRIXFDC_CAP`.
 
 Parallel row epoch logic:
 
 - Both workers first enter FDC sleep and acknowledge the row epoch.
 - The scan task switches the row while both FDCs are sleeping, applies both cached row configs, then releases both workers.
 - Workers perform `sleep_exit -> INTB wait/status verify -> read4` in parallel, which keeps primary and secondary measurements in the same row epoch.
-- Parallel arbitration uses the final read4 data-complete-good predicate; hard ready/read4 faults are handled by the row-device watchdog before merge.
+- Parallel arbitration uses the strict read4 data-complete-good predicate; hard ready/read4 faults are handled by the row-device watchdog before merge.
 - Runtime repair/resync is deferred out of the realtime row path only for true hard faults; recovered full read4 samples are kept for frame fill.
 
 ### Console commands / 控制命令
@@ -795,7 +798,8 @@ The formal matrix read path now defaults to `SENSORARRAY_FDC_READY_POLICY_INTB_S
 - The waiter arms the current task first, clears stale notifications, records the edge counter, then reads the initial INTB level.
 - If INTB is already low, the row-device is treated as latched-ready and the code reads STATUS once.
 - If INTB is high, the code waits for an edge or a final low level using `actualIntbWaitUs = max(CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US, estimatedRoundUs + max(CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US, CONFIG_SENSORARRAY_FDC_READY_GUARD_US))`, clamped by the row-device hard deadline.
-- If INTB never goes low, the strict path still performs a final STATUS poll plus CONFIG/MUX_CONFIG/STATUS_CONFIG/INTB diagnostics. A final `DRDY=1` with the required unread mask is accepted and DATA is read; otherwise one bounded retry is allowed when the hard deadline still has room.
+- If INTB never goes low, the strict path reports `src=IT,k=intb_wait_miss`, marks the row-device for watchdog handling, and does not read DATA for the official frame.
+- A watchdog STATUS read may be emitted as `RWD_DIAG_STATUS`, but it is diagnostic-only (`diagOnly=1,accepted=0`) and never recovers the current row-device sample.
 - Once INTB is confirmed low, STATUS is read once as an acknowledge and verify operation. STATUS is not a harmless peek.
 - `DRDY=1` plus the required unread mask means DATA can be read.
 - `DRDY=0` plus the required unread mask is not a hard fault by itself. Before `estimatedRoundUs + guard`, it is `FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT`; after that boundary it is `FDC_READY_STALE_UNREAD_NO_DRDY` and the DATA registers are drained to a discard buffer if enabled.
@@ -815,11 +819,15 @@ STATUS read accounting and the actual wait budget are visible in compact ready l
 
 ```text
 RB,d=p,r=2,e=5050,to=30088,iw=15544,est=13544,hard=62500,hardRemain=58000,waitSource=estimated_round,estKind=autoscan_4ch_round,req=F,lvl=1,edge=10,mode=INTB_STRICT_LEVEL,intb=1
-RR,d=p,r=2,e=5050,src=FP,st=C04F,u=F,dr=1,wu=15620,pc=1,k=intb_timeout_recovered_by_final_status,ack=1,ib0=1,ib1=1,err=0,iw=15544,est=13544,hardRemain=42000,elapsed=15620,fp=1,fr=0,fSt=C04F,fU=F,fDr=1,fCfg=1601,fMux=C20D,fErrCfg=0001,fIg=1
-SR,d=p,r=2,e=5050,b=0,a=0,ar=0,fb=0,fp=1,pd=0,supp=1,ack=1,ib0=1,ib1=1
+RR,d=p,r=2,e=5050,src=IE,st=C04F,u=F,dr=1,wu=14066,pc=1,k=FULL,ack=1,ib0=0,ib1=1,err=0,iw=15544,est=13544,hardRemain=42000,elapsed=14066
+SR,d=p,r=2,e=5050,bi=0,ai=1,ar=0,fb=0,wd=0,pd=0,sr=1,supp=0,ack=1,ib0=0,ib1=1
+IM,d=p,r=2,e=5051,stage=wait_miss,armLevel=1,levelBeforeWait=1,levelAfterWait=1,edgeBefore=10,edgeAfter=10,lastEdgeUs=0,waitTaskSet=1,epochSeen=5051,currentEpoch=5051,action=watchdog
+RR,d=p,r=2,e=5051,src=IT,st=0000,u=0,dr=0,wu=15544,pc=0,k=intb_wait_miss,ack=0,ib0=-1,ib1=-1,err=0x107,iw=15544,est=13544,hardRemain=42000,elapsed=15544
+RWD_DIAG_STATUS,d=p,r=2,e=5051,st=C04F,u=F,dr=1,diagOnly=1,accepted=0,reason=after_intb_miss_not_recoverable,ib0=1,ib1=1,err=0x0
+SR,d=p,r=2,e=5051,bi=0,ai=0,ar=0,fb=0,wd=1,pd=0,sr=1,supp=1,ack=0,ib0=-1,ib1=-1
 ```
 
-`ack=1` or higher means STATUS was read as an acknowledge. `ib0=0,ib1=1` means INTB was low before STATUS and high after STATUS, which is expected when STATUS clears the latch.
+`ack=1` or higher means STATUS was read while INTB was low. `ib0=0,ib1=1` means INTB was low before STATUS and high after STATUS, which is expected when STATUS clears the latch.
 `estKind=autoscan_4ch_round` is required for the normal `requestedMask=0xF` autoscan path; single-channel estimates must not be used for 4-channel unread waits.
 
 `unread=0xF,DRDY=0` is interpreted in two stages:
@@ -855,7 +863,7 @@ Watchdog reasons include:
 
 | Reason | Typical source |
 |---|---|
-| `intb_timeout` | INTB did not go low before the strict wait/hard deadline and final STATUS did not prove a soft stale state. |
+| `intb_wait_miss` | INTB did not go low before the strict wait/hard deadline; watchdog diagnostic STATUS, if present, is not accepted for the current sample. |
 | `drdy_not_closed_after_intb` | INTB was confirmed but STATUS did not close to DRDY after the guarded recheck and the condition is not classed as soft stale. |
 | `status_inconsistent_after_intb` | STATUS after confirmed INTB did not match a valid read state. |
 | `read4_i2c_error` | DATA register read failed. |

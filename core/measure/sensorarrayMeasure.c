@@ -504,18 +504,10 @@ typedef struct {
     uint32_t statusReadsSuppressedBeforeIntb;
     uint32_t statusAckCount;
     uint32_t statusReadsPollDiag;
-    uint32_t statusReadsFinalPoll;
-    bool finalPollAttempted;
-    bool finalRetryAttempted;
-    uint32_t finalRetryWaitUs;
-    uint16_t finalStatusRaw;
-    uint8_t finalUnreadMask;
-    uint8_t finalDrdy;
-    uint16_t finalConfig;
-    uint16_t finalMuxConfig;
-    uint16_t finalErrorConfig;
-    bool finalSleepBit;
-    bool finalAutoscan;
+    uint32_t statusReadsWatchdogDiag;
+    bool intbMiss;
+    bool watchdogOnly;
+    bool diagOnly;
     int intbBeforeStatus;
     int intbAfterStatus;
 } sensorarrayFdcReadyState_t;
@@ -552,17 +544,8 @@ typedef struct {
     uint32_t estimatedRoundUs;
     uint32_t actualIntbWaitUs;
     const char *readyDiagnostic;
-    bool finalPollAttempted;
-    bool finalRetryAttempted;
-    uint16_t finalStatusRaw;
-    uint8_t finalUnreadMask;
-    uint8_t finalDrdy;
     uint8_t softInvalidMask4;
     uint8_t hardInvalidMask4;
-    uint16_t finalConfig;
-    uint16_t finalMuxConfig;
-    uint16_t finalErrorConfig;
-    int finalIntbLevel;
 } sensorarrayFdcDeviceRead4Result_t;
 
 typedef struct {
@@ -1386,9 +1369,9 @@ static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
 
     return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply") ||
            sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_wait_miss") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_final_status_not_ready") ||
-           sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_recovered_by_retry") ||
            sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||
            sensorarrayMeasureFdcReasonEquals(reason, "status_inconsistent_after_intb") ||
            sensorarrayMeasureFdcReasonEquals(reason, "ready_timeout") ||
@@ -1420,6 +1403,7 @@ static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "manual_rescue") ||
            sensorarrayMeasureFdcReasonEquals(reason, "i2c_read_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "read4_i2c_error") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "intb_wait_miss") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout_final_status_not_ready") ||
            sensorarrayMeasureFdcReasonEquals(reason, "drdy_not_closed_after_intb") ||

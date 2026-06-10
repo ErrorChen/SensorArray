@@ -25,6 +25,34 @@ static bool sensorarrayFdcRead4IsDataCompleteGood(const sensorarrayFdcDeviceRead
            ((read4->zeroAfterDrdyMask4 & reqMask) == 0u);
 }
 
+static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcReadyState_t *ready,
+                                                           uint8_t reqMask)
+{
+    if (!ready || !ready->readyForDataRead || ready->intbMiss ||
+        ready->watchdogOnly || ready->diagOnly || ready->timeout ||
+        ready->i2cError || ready->err != ESP_OK || !ready->dataReady) {
+        return false;
+    }
+
+    reqMask &= 0x0Fu;
+    if (reqMask == 0u) {
+        reqMask = SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    }
+    if ((ready->unreadMask & reqMask) != reqMask) {
+        return false;
+    }
+
+#if CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+    return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
+           ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL;
+#else
+    return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
+           ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
+           ready->kind == SENSORARRAY_FDC_READY_POLL_FULL ||
+           ready->kind == SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY;
+#endif
+}
+
 static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDeviceState_t *fdcState,
                                                             uint8_t freshMask4,
                                                             const sensorarrayFdcReadyState_t *ready,
@@ -36,7 +64,7 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
 
     *outSamples = (sensorarrayFdcAutoscanSamples_t){0};
     freshMask4 &= 0x0Fu;
-    bool readyForDataRead = ready && ready->readyForDataRead;
+    bool readyForDataRead = sensorarrayMeasureFdcReadyAllowsNormalDataRead(ready, freshMask4);
     if (ready && !readyForDataRead) {
         bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
         bool hardNotReady = !softNotReady &&
@@ -288,15 +316,6 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .estimatedRoundUs = ready ? ready->estimatedRoundUs : 0u,
         .actualIntbWaitUs = ready ? ready->actualIntbWaitUs : 0u,
         .readyDiagnostic = ready ? ready->diagnostic : NULL,
-        .finalPollAttempted = ready ? ready->finalPollAttempted : false,
-        .finalRetryAttempted = ready ? ready->finalRetryAttempted : false,
-        .finalStatusRaw = ready ? ready->finalStatusRaw : 0u,
-        .finalUnreadMask = ready ? ready->finalUnreadMask : 0u,
-        .finalDrdy = ready ? ready->finalDrdy : 0u,
-        .finalConfig = ready ? ready->finalConfig : 0u,
-        .finalMuxConfig = ready ? ready->finalMuxConfig : 0u,
-        .finalErrorConfig = ready ? ready->finalErrorConfig : 0u,
-        .finalIntbLevel = ready ? ready->finalIntbLevel : -1,
     };
 
     const double inductorUh = (double)CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH / 1000.0;
@@ -388,7 +407,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     }
     bool includeRawFreq = read4LogLevel >= 3u ||
                           (read4LogLevel >= 2u && anomaly);
-    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu",
+    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,est=%lu,iw=%lu",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
@@ -416,15 +435,6 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            SENSORARRAY_FDC_READY_MODE_NAME,
            sensorarrayMeasureFdcReadyResultName(outRead4->readyResult),
            (unsigned long)outRead4->readErr,
-           outRead4->finalPollAttempted ? 1u : 0u,
-           outRead4->finalRetryAttempted ? 1u : 0u,
-           outRead4->finalStatusRaw,
-           (unsigned)outRead4->finalUnreadMask,
-           (unsigned)outRead4->finalDrdy,
-           outRead4->finalConfig,
-           outRead4->finalMuxConfig,
-           outRead4->finalErrorConfig,
-           outRead4->finalIntbLevel,
            (unsigned long)outRead4->estimatedRoundUs,
            (unsigned long)outRead4->actualIntbWaitUs);
     if (includeRawFreq) {
@@ -446,7 +456,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
             (outRead4->validMask4 != 0u) ? "accepted" :
             "discard";
-        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,dec=%s,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu\n",
+        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,dec=%s,est=%lu,iw=%lu\n",
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)row,
                (unsigned long)epochId,
@@ -461,15 +471,6 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                (unsigned)outRead4->softInvalidMask4,
                (unsigned)outRead4->hardInvalidMask4,
                decision,
-               outRead4->finalPollAttempted ? 1u : 0u,
-               outRead4->finalRetryAttempted ? 1u : 0u,
-               outRead4->finalStatusRaw,
-               (unsigned)outRead4->finalUnreadMask,
-               (unsigned)outRead4->finalDrdy,
-               outRead4->finalConfig,
-               outRead4->finalMuxConfig,
-               outRead4->finalErrorConfig,
-               outRead4->finalIntbLevel,
                (unsigned long)outRead4->estimatedRoundUs,
                (unsigned long)outRead4->actualIntbWaitUs);
     }
