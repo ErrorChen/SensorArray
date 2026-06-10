@@ -42,12 +42,19 @@ esp_err_t sensorarrayFdcRescueTick(sensorarrayFdcMatrixEngine_t *engine,
     }
 
     ctx->allInvalidSequence++;
+    bool statusReadyRejectedFault =
+        frame->diagReadyButRejectedCount != 0u ||
+        frame->actualDataReadSkippedDespiteStatusReadyCount != 0u ||
+        frame->intbMissButStatusReadyCount != 0u;
+    bool waitBudgetFault = frame->waitBudgetTooShortCount != 0u;
     bool runtimeReadyFault =
         frame->notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
         frame->zeroBeforeReadyCount != 0u ||
         frame->unreadWithoutDrdyCount != 0u;
     bool zeroAfterDrdyFault = frame->zeroAfterDrdyCount != 0u;
-    const char *reason = runtimeReadyFault ? "all_invalid_due_to_not_ready" :
+    const char *reason = statusReadyRejectedFault ? "all_invalid_due_to_status_ready_rejected" :
+        waitBudgetFault ? "all_invalid_due_to_wait_budget_too_short" :
+        runtimeReadyFault ? "all_invalid_due_to_not_ready" :
         zeroAfterDrdyFault ? "all_invalid_due_to_zero_after_drdy" :
         (frame->i2cErrorCount != 0u ? "all_invalid_due_to_i2c" :
          (frame->freshCount == 0u ? "no_unread_after_poll" :
@@ -58,7 +65,13 @@ esp_err_t sensorarrayFdcRescueTick(sensorarrayFdcMatrixEngine_t *engine,
     bool fullSweepSuppressed = false;
     esp_err_t err = ESP_OK;
 
-    if (runtimeReadyFault) {
+    if (statusReadyRejectedFault || waitBudgetFault) {
+        action = "status_fallback_degraded";
+        fullSweepSuppressed = true;
+        suppressedReason = statusReadyRejectedFault ?
+            "status_ready_rejected_not_a_sweep_fault" :
+            "wait_budget_too_short_not_a_sweep_fault";
+    } else if (runtimeReadyFault) {
         if (ctx->allInvalidSequence == 1u) {
             action = "force_exit_sleep_restore_autoscan";
             esp_err_t primaryErr = sensorarrayFdcSweepRestoreAutoscan(engine->state,
@@ -120,7 +133,7 @@ esp_err_t sensorarrayFdcRescueTick(sensorarrayFdcMatrixEngine_t *engine,
         queuedFullSweep = err == ESP_OK;
     }
 
-    printf("FDC_RESCUE,stage=tick,allInvalidSequence=%lu,freshCount=%u,capValidCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,firstFailedRow=%u,firstFailedDevice=%u,reason=%s,action=%s,result=%s,fullSweepSuppressed=%u,suppressedReason=%s,queuedFullSweep=%u,err=0x%lx\n",
+    printf("FDC_RESCUE,stage=tick,allInvalidSequence=%lu,freshCount=%u,capValidCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,diagReadyButRejectedCount=%u,intbMissButStatusReadyCount=%u,statusFallbackAcceptedCount=%u,waitBudgetTooShortCount=%u,levelLowButEdgeMissCount=%u,actualDataReadSkippedDespiteStatusReadyCount=%u,firstFailedRow=%u,firstFailedDevice=%u,reason=%s,action=%s,result=%s,fullSweepSuppressed=%u,suppressedReason=%s,queuedFullSweep=%u,err=0x%lx\n",
            (unsigned long)ctx->allInvalidSequence,
            (unsigned)frame->freshCount,
            (unsigned)frame->validCount,
@@ -129,6 +142,12 @@ esp_err_t sensorarrayFdcRescueTick(sensorarrayFdcMatrixEngine_t *engine,
            (unsigned)frame->zeroAfterDrdyCount,
            (unsigned)frame->i2cErrorCount,
            (unsigned)frame->unreadWithoutDrdyCount,
+           (unsigned)frame->diagReadyButRejectedCount,
+           (unsigned)frame->intbMissButStatusReadyCount,
+           (unsigned)frame->statusFallbackAcceptedCount,
+           (unsigned)frame->waitBudgetTooShortCount,
+           (unsigned)frame->levelLowButEdgeMissCount,
+           (unsigned)frame->actualDataReadSkippedDespiteStatusReadyCount,
            (unsigned)sensorarrayFdcRescueFirstFailedRow(frame),
            (unsigned)frame->firstBadDevice,
            reason,

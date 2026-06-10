@@ -25,12 +25,35 @@ static bool sensorarrayFdcRead4IsDataCompleteGood(const sensorarrayFdcDeviceRead
            ((read4->zeroAfterDrdyMask4 & reqMask) == 0u);
 }
 
+static bool sensorarrayMeasureFdcReadyStatusSaysReadable(const sensorarrayFdcReadyState_t *ready,
+                                                         uint8_t reqMask)
+{
+    if (!ready || ready->i2cError) {
+        return false;
+    }
+
+    reqMask &= 0x0Fu;
+    if (reqMask == 0u) {
+        reqMask = SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK;
+    }
+
+    bool drdy = ready->dataReady || ready->drdy != 0u;
+    bool unreadFull = (ready->unreadMask & reqMask) == reqMask;
+    return drdy && unreadFull;
+}
+
 static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcReadyState_t *ready,
                                                            uint8_t reqMask)
 {
-    if (!ready || !ready->readyForDataRead || ready->intbMiss ||
-        ready->watchdogOnly || ready->diagOnly || ready->timeout ||
-        ready->i2cError || ready->err != ESP_OK || !ready->dataReady) {
+    if (!ready || ready->i2cError) {
+        return false;
+    }
+
+    if (sensorarrayMeasureFdcReadyStatusSaysReadable(ready, reqMask)) {
+        return true;
+    }
+
+    if (!ready->readyForDataRead || ready->err != ESP_OK || !ready->dataReady) {
         return false;
     }
 
@@ -44,12 +67,18 @@ static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcR
 
 #if CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
     return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
-           ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL;
+           ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
+           ready->kind == SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS ||
+           ready->kind == SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK ||
+           ready->kind == SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK;
 #else
     return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
            ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
            ready->kind == SENSORARRAY_FDC_READY_POLL_FULL ||
-           ready->kind == SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY;
+           ready->kind == SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY ||
+           ready->kind == SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS ||
+           ready->kind == SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK ||
+           ready->kind == SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK;
 #endif
 }
 
@@ -64,7 +93,13 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
 
     *outSamples = (sensorarrayFdcAutoscanSamples_t){0};
     freshMask4 &= 0x0Fu;
+    bool statusSaysReadable = sensorarrayMeasureFdcReadyStatusSaysReadable(ready, freshMask4);
     bool readyForDataRead = sensorarrayMeasureFdcReadyAllowsNormalDataRead(ready, freshMask4);
+    bool statusFallbackUsed = ready && ready->statusFallbackUsed;
+    if (!readyForDataRead && statusSaysReadable) {
+        readyForDataRead = true;
+        statusFallbackUsed = true;
+    }
     if (ready && !readyForDataRead) {
         bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
         bool hardNotReady = !softNotReady &&
@@ -82,6 +117,13 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
         outSamples->timeout = ready->timeout;
         outSamples->partial = ready->partial;
         outSamples->staleUnreadDrain = ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY;
+        outSamples->readyStatusReadable = statusSaysReadable;
+        outSamples->statusFallbackUsed = statusFallbackUsed;
+        outSamples->originalIntbMiss = ready->originalIntbMiss || ready->intbMiss;
+        outSamples->originalTimeout = ready->originalTimeout || ready->timeout;
+        outSamples->waitBudgetTooShort = ready->waitBudgetTooShort;
+        outSamples->levelLowButEdgeMiss = ready->recoveredByLevelLow;
+        outSamples->dataReadAttempted = false;
         outSamples->errorMask = hardNotReady ? 0x0Fu : 0u;
         for (uint8_t ch = 0u; ch < 4u; ++ch) {
             uint8_t bit = (uint8_t)(1u << ch);
@@ -100,9 +142,20 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
         }
         return ESP_OK;
     }
-    outSamples->dataReady = ready && ready->dataReady;
+    if (ready) {
+        outSamples->statusRaw = ready->statusRaw;
+        outSamples->unreadMask = ready->unreadMask & 0x0Fu;
+    }
+    outSamples->dataReady = ready && (ready->dataReady || ready->drdy != 0u);
     outSamples->unreadWithoutDrdy = ready && ready->unreadWithoutDataReady;
     outSamples->freshMask = readyForDataRead ? freshMask4 : 0u;
+    outSamples->readyStatusReadable = statusSaysReadable;
+    outSamples->statusFallbackUsed = statusFallbackUsed;
+    outSamples->originalIntbMiss = ready && (ready->originalIntbMiss || ready->intbMiss);
+    outSamples->originalTimeout = ready && (ready->originalTimeout || ready->timeout);
+    outSamples->waitBudgetTooShort = ready && ready->waitBudgetTooShort;
+    outSamples->levelLowButEdgeMiss = ready && ready->recoveredByLevelLow;
+    outSamples->dataReadAttempted = true;
     Fdc2214CapFastChannelSample_t fastSamples[4] = {0};
     esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsFast(fdcState->handle,
                                                             freshMask4,
@@ -114,7 +167,11 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
         bool requestedFresh = readyForDataRead && (freshMask4 & bit) != 0u;
         outSamples->fresh[ch] = requestedFresh;
         outSamples->raw28[ch] = sample->raw28;
-        outSamples->statusRaw = sample->statusRaw;
+        if (!ready && sample->statusRaw != 0u) {
+            outSamples->statusRaw = sample->statusRaw;
+        } else if (ready && outSamples->statusRaw == 0u && sample->statusRaw != 0u) {
+            outSamples->statusRaw = sample->statusRaw;
+        }
         if (requestedFresh || sample->unreadConversion) {
             outSamples->unreadMask |= (uint8_t)(1u << ch);
         }
@@ -200,6 +257,15 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
         outSamples->dataReady = ready->dataReady;
         outSamples->unreadWithoutDrdy = ready->unreadWithoutDataReady;
         outSamples->staleUnreadDrain = ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY;
+        outSamples->readyStatusReadable = sensorarrayMeasureFdcReadyStatusSaysReadable(
+            ready,
+            SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK);
+        outSamples->statusFallbackUsed = ready->statusFallbackUsed;
+        outSamples->originalIntbMiss = ready->originalIntbMiss || ready->intbMiss;
+        outSamples->originalTimeout = ready->originalTimeout || ready->timeout;
+        outSamples->waitBudgetTooShort = ready->waitBudgetTooShort;
+        outSamples->levelLowButEdgeMiss = ready->recoveredByLevelLow;
+        outSamples->dataReadAttempted = false;
     }
     outSamples->i2cTransactionError = i2cError;
     bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
@@ -252,6 +318,11 @@ static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdc
         return "i2c_error";
     }
     if (sensorarrayFdcRead4IsDataCompleteGood(read4, SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK)) {
+        if (read4->statusFallbackUsed) {
+            return read4->originalIntbMiss ?
+                "ok_status_fallback_after_intb_miss" :
+                "ok_status_fallback";
+        }
         return read4->unreadWithoutDrdy ? "recovered_wait_drdy" : "normal";
     }
     if (read4->zeroBeforeReadyMask4 != 0u) {
@@ -316,6 +387,21 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .estimatedRoundUs = ready ? ready->estimatedRoundUs : 0u,
         .actualIntbWaitUs = ready ? ready->actualIntbWaitUs : 0u,
         .readyDiagnostic = ready ? ready->diagnostic : NULL,
+        .readyStatusReadable = samples ? samples->readyStatusReadable :
+            (ready ? sensorarrayMeasureFdcReadyStatusSaysReadable(
+                ready,
+                SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) : false),
+        .statusFallbackUsed = samples ? samples->statusFallbackUsed :
+            (ready ? ready->statusFallbackUsed : false),
+        .originalIntbMiss = samples ? samples->originalIntbMiss :
+            (ready ? (ready->originalIntbMiss || ready->intbMiss) : false),
+        .originalTimeout = samples ? samples->originalTimeout :
+            (ready ? (ready->originalTimeout || ready->timeout) : false),
+        .waitBudgetTooShort = samples ? samples->waitBudgetTooShort :
+            (ready ? ready->waitBudgetTooShort : false),
+        .levelLowButEdgeMiss = samples ? samples->levelLowButEdgeMiss :
+            (ready ? ready->recoveredByLevelLow : false),
+        .dataReadAttempted = samples ? samples->dataReadAttempted : (readUs != 0u),
     };
 
     const double inductorUh = (double)CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH / 1000.0;
@@ -407,11 +493,13 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     }
     bool includeRawFreq = read4LogLevel >= 3u ||
                           (read4LogLevel >= 2u && anomaly);
-    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,est=%lu,iw=%lu",
+    const char *modeName = diagnostic ? "skipped_not_ready" :
+        (outRead4->statusFallbackUsed ? "status_fallback" : "normal");
+    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,est=%lu,iw=%lu,statusFallbackUsed=%u,originalIntbMiss=%u,originalTimeout=%u,readyStatusReadable=%u,dataReadAttempted=%u,waitBudgetTooShort=%u,levelLowButEdgeMiss=%u",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
-           diagnostic ? "skipped_not_ready" : "normal",
+           modeName,
            diagnosticName,
            (unsigned)outRead4->freshMask4,
            (unsigned)outRead4->validMask4,
@@ -436,7 +524,14 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            sensorarrayMeasureFdcReadyResultName(outRead4->readyResult),
            (unsigned long)outRead4->readErr,
            (unsigned long)outRead4->estimatedRoundUs,
-           (unsigned long)outRead4->actualIntbWaitUs);
+           (unsigned long)outRead4->actualIntbWaitUs,
+           outRead4->statusFallbackUsed ? 1u : 0u,
+           outRead4->originalIntbMiss ? 1u : 0u,
+           outRead4->originalTimeout ? 1u : 0u,
+           outRead4->readyStatusReadable ? 1u : 0u,
+           outRead4->dataReadAttempted ? 1u : 0u,
+           outRead4->waitBudgetTooShort ? 1u : 0u,
+           outRead4->levelLowButEdgeMiss ? 1u : 0u);
     if (includeRawFreq) {
         printf(",raw=[%lu,%lu,%lu,%lu],fq=[%.3f,%.3f,%.3f,%.3f]",
                (unsigned long)outRead4->raw28[0],
@@ -456,7 +551,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
             (outRead4->validMask4 != 0u) ? "accepted" :
             "discard";
-        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,dec=%s,est=%lu,iw=%lu\n",
+        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,dec=%s,est=%lu,iw=%lu,statusFallbackUsed=%u,readyStatusReadable=%u,dataReadAttempted=%u\n",
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)row,
                (unsigned long)epochId,
@@ -472,6 +567,9 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                (unsigned)outRead4->hardInvalidMask4,
                decision,
                (unsigned long)outRead4->estimatedRoundUs,
-               (unsigned long)outRead4->actualIntbWaitUs);
+               (unsigned long)outRead4->actualIntbWaitUs,
+               outRead4->statusFallbackUsed ? 1u : 0u,
+               outRead4->readyStatusReadable ? 1u : 0u,
+               outRead4->dataReadAttempted ? 1u : 0u);
     }
 }

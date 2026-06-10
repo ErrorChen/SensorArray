@@ -98,6 +98,30 @@ static void sensorarrayMeasureFillFdcMatrixRow(sensorarrayFdcMatrixFrame_t *fram
                 frame->staleUnreadDrainCount < UINT8_MAX) {
                 frame->staleUnreadDrainCount++;
             }
+            if (samples && samples->readyStatusReadable && !samples->dataReadAttempted && frame &&
+                frame->diagReadyButRejectedCount < UINT8_MAX) {
+                frame->diagReadyButRejectedCount++;
+            }
+            if (samples && samples->originalIntbMiss && samples->readyStatusReadable && frame &&
+                frame->intbMissButStatusReadyCount < UINT8_MAX) {
+                frame->intbMissButStatusReadyCount++;
+            }
+            if (samples && samples->statusFallbackUsed && frame &&
+                frame->statusFallbackAcceptedCount < UINT8_MAX) {
+                frame->statusFallbackAcceptedCount++;
+            }
+            if (samples && samples->waitBudgetTooShort && frame &&
+                frame->waitBudgetTooShortCount < UINT8_MAX) {
+                frame->waitBudgetTooShortCount++;
+            }
+            if (samples && samples->levelLowButEdgeMiss && frame &&
+                frame->levelLowButEdgeMissCount < UINT8_MAX) {
+                frame->levelLowButEdgeMissCount++;
+            }
+            if (samples && samples->readyStatusReadable && !samples->dataReadAttempted && frame &&
+                frame->actualDataReadSkippedDespiteStatusReadyCount < UINT8_MAX) {
+                frame->actualDataReadSkippedDespiteStatusReadyCount++;
+            }
         }
     }
 

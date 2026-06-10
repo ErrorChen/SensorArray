@@ -426,7 +426,13 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint32_t notReadyCount,
                                               uint32_t zeroBeforeReadyCount,
                                               uint32_t zeroAfterDrdyCount,
-                                              uint32_t i2cErrorCount)
+                                              uint32_t i2cErrorCount,
+                                              uint32_t diagReadyButRejectedCount,
+                                              uint32_t intbMissButStatusReadyCount,
+                                              uint32_t statusFallbackAcceptedCount,
+                                              uint32_t waitBudgetTooShortCount,
+                                              uint32_t levelLowButEdgeMissCount,
+                                              uint32_t actualDataReadSkippedDespiteStatusReadyCount)
 {
     if (validMask != 0u) {
         gAllInvalidSequence = 0u;
@@ -435,11 +441,18 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
 
     int64_t nowUs = esp_timer_get_time();
     gLastAllInvalidUs = nowUs;
+    bool statusReadyRejectedFault =
+        diagReadyButRejectedCount != 0u ||
+        actualDataReadSkippedDespiteStatusReadyCount != 0u ||
+        intbMissButStatusReadyCount != 0u;
+    bool waitBudgetFault = waitBudgetTooShortCount != 0u;
     bool runtimeReadyFault =
         notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
         zeroBeforeReadyCount != 0u;
     gAllInvalidSequence++;
     const char *reason =
+        statusReadyRejectedFault ? "all_invalid_due_to_status_ready_rejected" :
+        waitBudgetFault ? "all_invalid_due_to_wait_budget_too_short" :
         runtimeReadyFault ? "all_invalid_due_to_not_ready" :
         (zeroAfterDrdyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
          zeroRawCount >= SENSORARRAY_MATRIX_CELL_COUNT) ?
@@ -448,7 +461,7 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
         "all_invalid_due_to_i2c" :
         "normal_path_invalid_after_boot_ok";
 
-    printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu,zeroAfterDrdyCount=%lu,i2cErrorCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=%s\n",
+    printf("FDC_INVALID_FRAME,seq=%lu,allInvalidSequence=%lu,lastAllInvalidUs=%lld,freshCount=0,hardwareZeroRawCount=%lu,notReadyCount=%lu,zeroBeforeReadyCount=%lu,zeroAfterDrdyCount=%lu,i2cErrorCount=%lu,diagReadyButRejectedCount=%lu,intbMissButStatusReadyCount=%lu,statusFallbackAcceptedCount=%lu,waitBudgetTooShortCount=%lu,levelLowButEdgeMissCount=%lu,actualDataReadSkippedDespiteStatusReadyCount=%lu,validMask=0x%016llX,errorMask=0x%016llX,reason=%s\n",
            (unsigned long)gFdcSweepRequestEpoch,
            (unsigned long)gAllInvalidSequence,
            (long long)gLastAllInvalidUs,
@@ -457,9 +470,31 @@ void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
            (unsigned long)zeroBeforeReadyCount,
            (unsigned long)zeroAfterDrdyCount,
            (unsigned long)i2cErrorCount,
+           (unsigned long)diagReadyButRejectedCount,
+           (unsigned long)intbMissButStatusReadyCount,
+           (unsigned long)statusFallbackAcceptedCount,
+           (unsigned long)waitBudgetTooShortCount,
+           (unsigned long)levelLowButEdgeMissCount,
+           (unsigned long)actualDataReadSkippedDespiteStatusReadyCount,
            (unsigned long long)validMask,
            (unsigned long long)errorMask,
            reason);
+
+    if (statusReadyRejectedFault || waitBudgetFault) {
+        gSuppressedFullSweepCount++;
+        printf("FDC_SWEEP_REQUEST,stage=suppress,scope=all,reason=%s,status=not_queued,allInvalidSequence=%lu,action=status_fallback_degraded,fullSweepSuppressed=1,suppressedReason=%s,queuedFullSweep=0,suppressed=%lu,diagReadyButRejectedCount=%lu,intbMissButStatusReadyCount=%lu,waitBudgetTooShortCount=%lu,levelLowButEdgeMissCount=%lu\n",
+               reason,
+               (unsigned long)gAllInvalidSequence,
+               statusReadyRejectedFault ?
+                   "status_ready_rejected_not_a_sweep_fault" :
+                   "wait_budget_too_short_not_a_sweep_fault",
+               (unsigned long)gSuppressedFullSweepCount,
+               (unsigned long)diagReadyButRejectedCount,
+               (unsigned long)intbMissButStatusReadyCount,
+               (unsigned long)waitBudgetTooShortCount,
+               (unsigned long)levelLowButEdgeMissCount);
+        return;
+    }
 
     if (runtimeReadyFault && gAllInvalidSequence < 3u) {
         const char *action = (gAllInvalidSequence == 1u) ?

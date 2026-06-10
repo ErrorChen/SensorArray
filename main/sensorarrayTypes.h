@@ -100,6 +100,12 @@ typedef struct {
     uint8_t softInvalidCount;
     uint8_t hardInvalidCount;
     uint8_t staleUnreadDrainCount;
+    uint8_t diagReadyButRejectedCount;
+    uint8_t intbMissButStatusReadyCount;
+    uint8_t statusFallbackAcceptedCount;
+    uint8_t waitBudgetTooShortCount;
+    uint8_t levelLowButEdgeMissCount;
+    uint8_t actualDataReadSkippedDespiteStatusReadyCount;
     uint8_t validCount;
     uint8_t freshCount;
     esp_err_t firstReadErr;
@@ -214,6 +220,12 @@ typedef struct {
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;
     uint32_t fallbackFailCount;
+    uint32_t diagReadyButRejectedCount;
+    uint32_t intbMissButStatusReadyCount;
+    uint32_t statusFallbackAcceptedCount;
+    uint32_t waitBudgetTooShortCount;
+    uint32_t levelLowButEdgeMissCount;
+    uint32_t actualDataReadSkippedDespiteStatusReadyCount;
     uint32_t rowFullInvalidCount;
     uint32_t deviceFullInvalidCount;
     uint32_t workerTimeoutCount;

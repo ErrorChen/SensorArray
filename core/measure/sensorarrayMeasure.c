@@ -361,6 +361,13 @@ typedef struct {
     bool dataReady;
     bool unreadWithoutDrdy;
     bool staleUnreadDrain;
+    bool readyStatusReadable;
+    bool statusFallbackUsed;
+    bool originalIntbMiss;
+    bool originalTimeout;
+    bool waitBudgetTooShort;
+    bool levelLowButEdgeMiss;
+    bool dataReadAttempted;
 } sensorarrayFdcAutoscanSamples_t;
 
 typedef struct {
@@ -415,6 +422,9 @@ typedef enum {
     SENSORARRAY_FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT,
     SENSORARRAY_FDC_READY_STALE_UNREAD_NO_DRDY,
     SENSORARRAY_FDC_READY_HARD_TIMEOUT,
+    SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS,
+    SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK,
+    SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK,
     SENSORARRAY_FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
 } sensorarrayFdcReadyKind_t;
 
@@ -494,6 +504,15 @@ typedef struct {
     const char *estKind;
     bool waitClampedByHardDeadline;
     bool waitBudgetTooShort;
+    uint32_t plannedIntbWaitUs;
+    bool returnedBeforeEstimatedRound;
+    const char *waitReturnReason;
+    uint32_t notifyValue;
+    int rawLevelAfterArm;
+    int rawLevelAtWaitReturn;
+    bool activeLowConfigured;
+    bool levelActiveAfterArm;
+    bool levelActiveAtWaitReturn;
     uint32_t intbWaitUs;
     uint32_t statusVerifyUs;
     uint32_t pollFallbackUs;
@@ -508,6 +527,15 @@ typedef struct {
     bool intbMiss;
     bool watchdogOnly;
     bool diagOnly;
+    bool originalWaitMiss;
+    bool originalIntbMiss;
+    bool originalTimeout;
+    bool originalWatchdogOnly;
+    esp_err_t originalErr;
+    bool statusFallbackUsed;
+    bool recoveredByStatusReady;
+    bool recoveredByLevelLow;
+    bool acceptedByStatusFallback;
     int intbBeforeStatus;
     int intbAfterStatus;
 } sensorarrayFdcReadyState_t;
@@ -546,6 +574,13 @@ typedef struct {
     const char *readyDiagnostic;
     uint8_t softInvalidMask4;
     uint8_t hardInvalidMask4;
+    bool readyStatusReadable;
+    bool statusFallbackUsed;
+    bool originalIntbMiss;
+    bool originalTimeout;
+    bool waitBudgetTooShort;
+    bool levelLowButEdgeMiss;
+    bool dataReadAttempted;
 } sensorarrayFdcDeviceRead4Result_t;
 
 typedef struct {
@@ -665,6 +700,13 @@ static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
 static uint8_t s_fdcSoftReadyMissConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
 static uint8_t s_fdcStaleUnreadConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
 static uint8_t s_fdcHardReadyTimeoutConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+static uint16_t s_fdcLastDiagStatusRaw[2] = {0u, 0u};
+static uint8_t s_fdcLastDiagUnreadMask[2] = {0u, 0u};
+static uint8_t s_fdcLastDiagRow[2] = {0u, 0u};
+static uint32_t s_fdcLastDiagEpoch[2] = {0u, 0u};
+static bool s_fdcLastDiagDrdy[2] = {false, false};
+static bool s_fdcLastDiagStatusOk[2] = {false, false};
+static bool s_fdcLastDiagWasReady[2] = {false, false};
 static sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2] = {0};
 #if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
 static bool s_fdcIntbRuntimeUsable[2] = {true, true};
@@ -3007,6 +3049,13 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
     sensorarrayMeasureUpdateFdcRuntimeProfiles(state, &frameHealth);
     sensorarrayMeasureCountFdcFrameWarnings(&frameHealth, &timing);
+    timing.diagReadyButRejectedCount = outFrame->diagReadyButRejectedCount;
+    timing.intbMissButStatusReadyCount = outFrame->intbMissButStatusReadyCount;
+    timing.statusFallbackAcceptedCount = outFrame->statusFallbackAcceptedCount;
+    timing.waitBudgetTooShortCount = outFrame->waitBudgetTooShortCount;
+    timing.levelLowButEdgeMissCount = outFrame->levelLowButEdgeMissCount;
+    timing.actualDataReadSkippedDespiteStatusReadyCount =
+        outFrame->actualDataReadSkippedDespiteStatusReadyCount;
 
     timing.capComputeUs = sensorarrayMeasureComputeFdcFrameCapTotalPf(outFrame);
     timing.frameUs = sensorarrayMeasureElapsedUs(frameStartUs);
@@ -3052,10 +3101,16 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     sensorarrayMeasureGiveLock();
     if (outFrame->validMask == 0u) {
         bool allZero = sensorarrayFdcMatrixFrameRawAllZero(outFrame);
+        bool statusReadyRejectedFault =
+            outFrame->diagReadyButRejectedCount != 0u ||
+            outFrame->actualDataReadSkippedDespiteStatusReadyCount != 0u;
+        bool waitBudgetFault = outFrame->waitBudgetTooShortCount != 0u;
         bool runtimeReadyFault = outFrame->notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
                                  outFrame->zeroBeforeReadyCount != 0u;
         uint32_t seq = s_fdcMatrixAllInvalidSequence++;
-        const char *reason = runtimeReadyFault ? "all_invalid_due_to_not_ready" :
+        const char *reason = statusReadyRejectedFault ? "all_invalid_due_to_status_ready_rejected" :
+            waitBudgetFault ? "all_invalid_due_to_wait_budget_too_short" :
+            runtimeReadyFault ? "all_invalid_due_to_not_ready" :
             allZero ? "all_zero_raw_after_drdy" :
             (outFrame->zeroAfterDrdyCount != 0u ? "all_invalid_due_to_zero_after_drdy" :
              outFrame->i2cErrorCount != 0u ? "all_invalid_due_to_i2c" :
@@ -3064,9 +3119,10 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         if (allZero && !runtimeReadyFault) {
             outFrame->errorMask = UINT64_MAX;
         }
-        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
+        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,diagReadyButRejectedCount=%u,intbMissButStatusReadyCount=%u,statusFallbackAcceptedCount=%u,waitBudgetTooShortCount=%u,levelLowButEdgeMissCount=%u,actualDataReadSkippedDespiteStatusReadyCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
                allZero ? "all_invalid" :
-               runtimeReadyFault ? "all_invalid_ready_fault" : "all_status_invalid",
+               (statusReadyRejectedFault || waitBudgetFault || runtimeReadyFault) ?
+                   "all_invalid_ready_fault" : "all_status_invalid",
                (unsigned long)seq,
                (unsigned long long)outFrame->errorMask,
                reason,
@@ -3082,6 +3138,12 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                (unsigned)outFrame->softInvalidCount,
                (unsigned)outFrame->hardInvalidCount,
                (unsigned)outFrame->staleUnreadDrainCount,
+               (unsigned)outFrame->diagReadyButRejectedCount,
+               (unsigned)outFrame->intbMissButStatusReadyCount,
+               (unsigned)outFrame->statusFallbackAcceptedCount,
+               (unsigned)outFrame->waitBudgetTooShortCount,
+               (unsigned)outFrame->levelLowButEdgeMissCount,
+               (unsigned)outFrame->actualDataReadSkippedDespiteStatusReadyCount,
                (unsigned)outFrame->firstBadRow,
                (unsigned)outFrame->firstBadDevice,
                outFrame->firstBadStatus,
@@ -3092,7 +3154,13 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                   outFrame->notReadyCount,
                                                   outFrame->zeroBeforeReadyCount,
                                                   outFrame->zeroAfterDrdyCount,
-                                                  outFrame->i2cErrorCount);
+                                                  outFrame->i2cErrorCount,
+                                                  outFrame->diagReadyButRejectedCount,
+                                                  outFrame->intbMissButStatusReadyCount,
+                                                  outFrame->statusFallbackAcceptedCount,
+                                                  outFrame->waitBudgetTooShortCount,
+                                                  outFrame->levelLowButEdgeMissCount,
+                                                  outFrame->actualDataReadSkippedDespiteStatusReadyCount);
         return (firstErr != ESP_OK) ? firstErr : ESP_ERR_INVALID_RESPONSE;
     }
     return firstErr;

@@ -190,12 +190,18 @@ esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t d
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void);
 bool sensorarrayFdcSweepConsumeForceFullSweepAll(void);
 void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
-                                               uint64_t errorMask,
-                                               uint32_t zeroRawCount,
-                                               uint32_t notReadyCount,
-                                               uint32_t zeroBeforeReadyCount,
-                                               uint32_t zeroAfterDrdyCount,
-                                               uint32_t i2cErrorCount);
+                                              uint64_t errorMask,
+                                              uint32_t zeroRawCount,
+                                              uint32_t notReadyCount,
+                                              uint32_t zeroBeforeReadyCount,
+                                              uint32_t zeroAfterDrdyCount,
+                                              uint32_t i2cErrorCount,
+                                              uint32_t diagReadyButRejectedCount,
+                                              uint32_t intbMissButStatusReadyCount,
+                                              uint32_t statusFallbackAcceptedCount,
+                                              uint32_t waitBudgetTooShortCount,
+                                              uint32_t levelLowButEdgeMissCount,
+                                              uint32_t actualDataReadSkippedDespiteStatusReadyCount);
 bool sensorarrayFdcSweepIsRescueInProgress(void);
 esp_err_t sensorarrayFdcSweepDumpAllDeviceRegs(sensorarrayState_t *state,
                                                const char *stage,
