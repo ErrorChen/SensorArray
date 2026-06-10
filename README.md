@@ -205,7 +205,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` | bool | Kconfig: n | Prints verbose cache apply details. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
 | `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | Kconfig: `0x0080` | Conservative default FDC SETTLECOUNT. | cache/sweep channel config | Lower only after valid conversions are stable. |
-| `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `2000` | Safety margin after one autoscan cycle. | FDC wait/sweep helpers | Keeps actual INTB wait at or above the estimated autoscan round plus margin unless clamped by the row-device hard deadline. |
+| `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `2000` | Legacy safety margin after one autoscan cycle. | FDC wait/sweep helpers | Strict ready wait now uses the larger of this value and `CONFIG_SENSORARRAY_FDC_READY_GUARD_US`. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL` | choice bool | Kconfig/defaults: y | Default formal ready policy: wait for INTB low, then read STATUS once to ack/verify readiness. | `sensorarrayFdcWaitDeviceReady()` | Production path; no STATUS fallback before INTB and no legacy fallback recovery. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` | choice bool | Kconfig/defaults: n | Legacy diagnostic policy: wait INTB, verify STATUS, then allow bounded STATUS fallback. | `sensorarrayFdcWaitDeviceReady()` | Enable only to compare old fallback behaviour; fallback recovery appears as `src=FB`. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS` | choice bool | Kconfig/defaults: n | Wait INTB then verify STATUS once, without legacy fallback. | `sensorarrayFdcWaitDeviceReady()` | Diagnostic mode for missed-INTB validation. |
@@ -215,7 +215,11 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US` | int | Kconfig/defaults: `250` | Delay between after-INTB STATUS rechecks. | `sensorarrayFdcWaitDeviceReady()` | Lower increases I2C pressure; higher increases ready latency. |
 | `CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US` | int | Kconfig/defaults: `1000` | Total after-INTB recheck deadline. | `sensorarrayFdcWaitDeviceReady()` | Hard cap for the `src=AR` path. |
 | `CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING` | bool | Kconfig/defaults: n | Compatibility switch for legacy INTB-unavailable fallback handling. | `sensorarrayFdcWaitDeviceReady()` | Keep disabled for strict formal runs. |
-| `CONFIG_SENSORARRAY_FDC_READY_GUARD_US` | int | Kconfig/defaults: `3000` | Guard time used by poll-only and legacy fallback diagnostics. | `sensorarrayFdcWaitDeviceReady()` | Does not extend strict INTB hard timeout. |
+| `CONFIG_SENSORARRAY_FDC_READY_GUARD_US` | int | Kconfig/defaults: `3000` | Guard after the estimated autoscan round before no-DRDY is considered stale. | `sensorarrayFdcWaitDeviceReady()` | Strict INTB waits to `estimatedRoundUs + max(rowSafety, guard)` unless clamped by the row-device hard deadline. |
+| `CONFIG_SENSORARRAY_FDC_STALE_UNREAD_DRAIN_ENABLE` | bool | Kconfig/defaults: y | Reads DATA_CH0..CH3 to a discard buffer for stale `unread=full,DRDY=0`. | `sensorarrayMeasureFdcDrainStaleUnread()` | Keeps CHx_UNREADCONV sticky state from contaminating later row epochs; never emits discard data as MATRIXFDC data. |
+| `CONFIG_SENSORARRAY_FDC_STALE_UNREAD_HARD_THRESHOLD` | int | Kconfig/defaults: `3` | Consecutive stale unread/no-DRDY row-device misses before hard classification. | row-device ready/watchdog path | Below threshold, stale unread is soft invalid plus drain, not rescue. |
+| `CONFIG_SENSORARRAY_FDC_UNREAD_NO_DRDY_RESCUE_ENABLE` | bool | Kconfig/defaults: n | Allows repeated unread-full/no-DRDY stale events to request rescue. | row-device watchdog path | Keep disabled unless diagnostics prove repeated drain failures are true hard faults. |
+| `CONFIG_SENSORARRAY_FDC_DIAG_READ_UNREAD_FULL_WITHOUT_DRDY` | bool | Kconfig/defaults: n | Emits `FDC_UNREAD_ONLY_DIAG` for controlled discard reads when unread is full but DRDY is low. | stale unread drain path | Debug only; diagnostic DATA is not accepted into the formal frame. |
 | `CONFIG_SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS` | int | Kconfig/defaults: `3` | Maximum STATUS polls in fallback/poll-only mode. | `sensorarrayFdcWaitDeviceReady()` | Keeps fallback bounded so a bad row cannot dominate frame time. |
 | `CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY` | int | Kconfig/defaults: `3` | Maximum short guard polls after unread bits are full but `DRDY=0`. | `sensorarrayFdcWaitDeviceReady()` | Lets the intermediate `unread=full,DRDY=0` state recover without entering rescue. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US` | int | Kconfig/defaults: `1000` | Delay between guarded STATUS ready polls. | `sensorarrayFdcWaitDeviceReady()` | Lower increases I2C load; higher increases missed-frame latency. |
@@ -486,7 +490,7 @@ The default formal matrix ready path is strict INTB-level first, with STATUS use
 - Missed INTB in the formal strict path is `src=IT` and is handed to the row-device watchdog instead of silently recovering through STATUS polling.
 - `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` and `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` are legacy/debug policies. Formal strict logs should not show `src=FB`.
 
-中文：默认正式矩阵读取已经切换为 INTB-first。INTB 只是唤醒提示，最终仍以 `DRDY=1 && required unread full` 为有效就绪条件；`DRDY=0` 时即使 unread 为满也会标记为 unsafe，不读取数据寄存器。
+中文：默认正式矩阵读取是 INTB-first。INTB 只是唤醒提示，最终仍以 `DRDY=1 && required unread full` 为正式有效条件；`unread=0xF,DRDY=0` 先按 transient/stale 分层处理，必要时只 drain 到 discard buffer，不会直接并入 `MATRIXFDC_CAP`。
 
 ## 路由安全与 ADS/FDC 互斥 / Route safety and ADS/FDC mutual exclusion
 
@@ -550,7 +554,7 @@ Invalid policy:
 - `raw28 == 0` from a fresh sample increments `hardwareZeroRawCount` and is invalid for FDC capacitance.
 - `capValidMask` is set only after valid raw/frequency data successfully converts to pF.
 - `warnMask` marks degraded but still usable data, such as amplitude warning cases that remain fresh and non-zero.
-- `errorMask` marks cells with I2C errors, missing unread conversion, zero raw, watchdog fault, saturation, or failed capacitance conversion.
+- `errorMask` marks hard invalid cells such as I2C errors, missing unread conversion outside the soft stale path, zero raw after DRDY, watchdog fault, saturation, or failed capacitance conversion. Soft stale invalid cells are exposed through `softInvalidCount`, not promoted directly to hard `errorMask`.
 
 ## 调试日志与控制命令 / Diagnostic logs and console commands
 
@@ -638,13 +642,18 @@ The compact tokens are intended for high-frame-rate timing work, where long log 
 | `RP` | One STATUS observation used after INTB, after-INTB recheck, legacy fallback, or poll-only diagnostics. | `k`, `st`, `u`, `drdy`, `full`, `ok` |
 | `RR` | Ready wait result. | `err`, `ok`, `kind`, `src`, `iw`, `su`, `fb` |
 | `SR` | STATUS-read counters for the ready wait. | `bi`, `ai`, `ar`, `pd`, `fb`, `supp` |
-| `RWD` | Row-device watchdog action after a hard row-device fault. | `r`, `d`, `why`, `act`, `hard` |
+| `RWD` | Row-device watchdog/ready miss action. | `r`, `d`, `why`, `classification`, `rescueAction`, `consecutiveSoft`, `consecutiveStale`, `consecutiveHard` |
 | `D4` | Read4 anomaly or sampled diagnostic. | `r`, `d`, `err`, `vm`, `fm`, `um`, `raw0` |
 | `D4C` | Read4 consistency detail. | `r`, `d`, `zm`, `sat`, `warn`, `drdy` |
 | `RE` | Per-row parallel primary/secondary timing alignment. | `span`, `ser`, `eff`, `sleepDx`, `readyDx`, `intbDx`, `statDx`, `readDx` |
 | `T5` | Compact aggregate timing summary for the last timing window. | `n`, `fps`, `ready`, `worker`, `op`, `ov` |
-| `R5` | Compact ready-state summary. | `n`, `ok`, `it`, `ar`, `si`, `fb` |
-| `Q5` | Compact frame-quality/sweep summary. | `n`, `full`, `part`, `rescue`, `zero`, `sat` |
+| `R5` | Compact ready-state summary. | `full`, `rec`, `trans`, `staleDrain`, `hardTo`, `none`, `it` |
+| `Q5` | Compact frame-quality/sweep summary. | `nr`, `softInvalid`, `hardInvalid`, `drain`, `invRow`, `invDev`, `sweepReq` |
+| `FDC_READY_TRANSIENT` | `unread=full,DRDY=0` before `estimatedRoundUs+guard`. | `elapsed`, `est`, `guard`, `decision` |
+| `FDC_READY_STALE_UNREAD` | `unread=full,DRDY=0` after `estimatedRoundUs+guard`. | `elapsed`, `est`, `guard`, `decision` |
+| `FDC_STALE_UNREAD_DRAIN` | DATA_CH0..CH3 discard read used to clear stale unread bits. | `statusBefore`, `drainMask`, `readErr`, `rawNonZeroMask` |
+| `FDC_WORKER_LATE_GOOD_ACCEPTED` | Late worker result matched row/epoch/dev and passed final read4 validation. | `row`, `epoch`, `device`, `validMask` |
+| `FDC_WORKER_EPOCH_MISMATCH_DISCARD` | Worker result row/epoch/dev did not match current row epoch. | `resultRow`, `resultEpoch`, `resultDev`, `late` |
 | `I5` | Compact I2C summary. | `n`, `wr`, `rd`, `err`, `nack`, `to` |
 | `P5` | Compact profile summary. | `n`, `avg`, `max`, `target`, `rowBudget`, `profileTooSlow`, `profileTooSlowAction`, `fpsMax` |
 | `PR` | Per-row/device profile detail when profile is slow or row profile logging is enabled. | `r`, `d`, `ch`, `round`, `rc`, `sc`, `cd`, `dc`, `dg` |
@@ -658,7 +667,7 @@ Readiness diagnostics:
 
 - `src=IL` or `src=IE` means INTB level/event arrived and one STATUS ack verified `DRDY=1` plus required unread bits.
 - `src=AR` means only the short after-INTB recheck path recovered `unread=0xF,DRDY=0`.
-- `src=IT` means INTB timed out after final STATUS poll/retry did not prove readiness; `k` distinguishes `intb_timeout_before_estimated_round`, `wait_clamped_by_hard_deadline`, `intb_timeout_final_status_not_ready`, and final-poll I2C errors.
+- `src=IT` means INTB timed out after final STATUS poll/retry did not prove formal readiness. `unread=full,DRDY=0` before `est+guard` is logged as `before_estimated_round_transient`; after `est+guard` it becomes `after_estimated_round_no_drdy` plus stale drain. Only hard deadline, I2C/config/DATA faults, or repeated hard classification should remain hard timeout.
 - `src=FP` means an INTB timeout was recovered by the mandatory final STATUS poll. `src=FR` means the bounded retry recovered readiness.
 - `src=DI` means STATUS after INTB was inconsistent and is treated as a hard row-device fault.
 - `src=FB` should only appear when the legacy fallback policy is selected.
@@ -785,11 +794,11 @@ The formal matrix read path now defaults to `SENSORARRAY_FDC_READY_POLICY_INTB_S
 - INTB is treated as level-latched active-low, not only as a falling edge.
 - The waiter arms the current task first, clears stale notifications, records the edge counter, then reads the initial INTB level.
 - If INTB is already low, the row-device is treated as latched-ready and the code reads STATUS once.
-- If INTB is high, the code waits for an edge or a final low level using `actualIntbWaitUs = max(CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US, estimatedRoundUs + CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US)`, clamped by the row-device hard deadline.
+- If INTB is high, the code waits for an edge or a final low level using `actualIntbWaitUs = max(CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US, estimatedRoundUs + max(CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US, CONFIG_SENSORARRAY_FDC_READY_GUARD_US))`, clamped by the row-device hard deadline.
 - If INTB never goes low, the strict path still performs a final STATUS poll plus CONFIG/MUX_CONFIG/STATUS_CONFIG/INTB diagnostics. A final `DRDY=1` with the required unread mask is accepted and DATA is read; otherwise one bounded retry is allowed when the hard deadline still has room.
 - Once INTB is confirmed low, STATUS is read once as an acknowledge and verify operation. STATUS is not a harmless peek.
 - `DRDY=1` plus the required unread mask means DATA can be read.
-- `DRDY=0` plus the required unread mask is allowed only in the after-INTB micro recheck window.
+- `DRDY=0` plus the required unread mask is not a hard fault by itself. Before `estimatedRoundUs + guard`, it is `FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT`; after that boundary it is `FDC_READY_STALE_UNREAD_NO_DRDY` and the DATA registers are drained to a discard buffer if enabled.
 - Other STATUS states after INTB low are treated as inconsistent and go to row-device watchdog handling.
 - `INTB_WITH_POLL_FALLBACK` and `POLL_ONLY` remain available only as legacy or diagnostic modes.
 
@@ -812,6 +821,13 @@ SR,d=p,r=2,e=5050,b=0,a=0,ar=0,fb=0,fp=1,pd=0,supp=1,ack=1,ib0=1,ib1=1
 
 `ack=1` or higher means STATUS was read as an acknowledge. `ib0=0,ib1=1` means INTB was low before STATUS and high after STATUS, which is expected when STATUS clears the latch.
 `estKind=autoscan_4ch_round` is required for the normal `requestedMask=0xF` autoscan path; single-channel estimates must not be used for 4-channel unread waits.
+
+`unread=0xF,DRDY=0` is interpreted in two stages:
+
+- Before `estimatedRoundUs + CONFIG_SENSORARRAY_FDC_READY_GUARD_US`, it logs `FDC_READY_TRANSIENT` with `decision=wait_until_est_guard`. It does not set hard timeout error `0x107` and does not request rescue.
+- After `estimatedRoundUs + guard`, it logs `FDC_READY_STALE_UNREAD` and, by default, `FDC_STALE_UNREAD_DRAIN`. DATA_CH0..CH3 is read into a discard buffer only to clear sticky `CHx_UNREADCONV`; it is not written into `MATRIXFDC_CAP`.
+- The affected row-device can still output `-1` for that epoch, but this is soft stale invalid unless drain fails or repeated stale events cross the hard threshold. `-1` means the formal ready gate did not prove fresh data, not that the FDC has no DATA at all.
+- `CONFIG_SENSORARRAY_FDC_DIAG_READ_UNREAD_FULL_WITHOUT_DRDY=y` adds `FDC_UNREAD_ONLY_DIAG` to compare discard-read raw values during controlled debugging.
 
 ### Row-Device Watchdog And Recovery
 
@@ -839,8 +855,8 @@ Watchdog reasons include:
 
 | Reason | Typical source |
 |---|---|
-| `intb_timeout` | INTB did not go low before the strict wait deadline. |
-| `drdy_not_closed_after_intb` | INTB was confirmed but `unread=F,DRDY=0` did not close inside the micro recheck window. |
+| `intb_timeout` | INTB did not go low before the strict wait/hard deadline and final STATUS did not prove a soft stale state. |
+| `drdy_not_closed_after_intb` | INTB was confirmed but STATUS did not close to DRDY after the guarded recheck and the condition is not classed as soft stale. |
 | `status_inconsistent_after_intb` | STATUS after confirmed INTB did not match a valid read state. |
 | `read4_i2c_error` | DATA register read failed. |
 | `zero_after_drdy` | DATA returned zero after ready was confirmed. |
@@ -850,11 +866,18 @@ Watchdog reasons include:
 | `saturated` | Raw value reached the saturation threshold. |
 | `profile_too_slow` | The shadow profile round estimate exceeds the warn budget. This is a timing diagnostic by default, not an electrical failure or automatic rescue reason. |
 
-The compact watchdog line includes the configured retry limit and whether this row path had actually attempted a retry:
+The compact watchdog line includes classification, rescue action, and per row-device consecutive counters:
 
 ```text
-RWD,d=p,r=2,e=5050,why=intb_timeout,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1,retryActual=0,rescueAction=request_cell_rescue
+RWD,d=p,r=2,e=5050,why=after_estimated_round_no_drdy,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1,retryActual=0,classification=stale,rescueAction=drain_only,consecutiveSoft=1,consecutiveStale=1,consecutiveHard=0
 ```
+
+Runtime fast rescue is reserved for true hard faults or repeated hard classifications. The default policy is:
+
+- transient unread/no-DRDY: no hard error, no rescue, count a soft ready miss;
+- stale unread/no-DRDY: drain DATA_CH0..CH3 to discard, mark soft invalid for this row-device, no immediate rescue;
+- repeated stale unread/no-DRDY: count toward `CONFIG_SENSORARRAY_FDC_STALE_UNREAD_HARD_THRESHOLD`; rescue still requires `CONFIG_SENSORARRAY_FDC_UNREAD_NO_DRDY_RESCUE_ENABLE=y`;
+- I2C errors, config/readback mismatch, DATA error bits, all-zero invalid raw after DRDY, and other existing hard faults still go through watchdog/rescue.
 
 ### FDC Profile Logging
 
@@ -907,6 +930,8 @@ The firmware keeps formal fast profile metadata alongside the stable boot/cache 
 | `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE` | Disabled by default. Allows slow-profile diagnostics to request rescue only when explicitly enabled. |
 
 If `autoscanRoundUs` exceeds the warning budget, the default cache-apply path treats this as a timing diagnostic. It logs PFU with `action=disabled_diag_only` or `profile_too_slow_diag_only`, keeps the cached profile unchanged, does not reduce RCOUNT, and does not request rescue or sweep. `4000 us` is the formal fast target, not a measured round value; with fast profile disabled it is shown only for comparison and no longer forces a `13544 -> 4000` mutation.
+
+An autoscan round such as `13544 us` still limits the theoretical maximum frame rate, but a 1-2 s MATRIXFDC frame is usually a ready-state invalid storm, stale unread handling, worker sync, or I2C issue. Check `T5/R5/Q5/I5/BN` before treating `profile_too_slow` as a fault.
 
 Default example:
 

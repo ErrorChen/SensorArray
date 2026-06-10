@@ -246,6 +246,38 @@ config SENSORARRAY_FDC_READY_GUARD_US
     default 3000
     range 0 100000
 
+config SENSORARRAY_FDC_STALE_UNREAD_DRAIN_ENABLE
+    bool "Drain stale unread DATA_CHx when unread is full but DRDY is low"
+    default y
+    help
+        When the formal matrix ready gate sees CHx_UNREADCONV full with DRDY
+        still low after the estimated round plus guard, read DATA_CH0..CH3
+        into a discard buffer to clear sticky unread state. The discard buffer
+        is never emitted as MATRIXFDC data.
+
+config SENSORARRAY_FDC_STALE_UNREAD_HARD_THRESHOLD
+    int "Consecutive stale unread/no-DRDY misses before hard classification"
+    default 3
+    range 1 32
+    help
+        Per row-device threshold. Below this value, unread-full/no-DRDY is a
+        soft stale-risk/drain event and does not request cell rescue.
+
+config SENSORARRAY_FDC_UNREAD_NO_DRDY_RESCUE_ENABLE
+    bool "Allow unread-full/no-DRDY stale events to request rescue"
+    default n
+    help
+        Disabled by default. Leave off unless diagnostics prove that repeated
+        unread-full/no-DRDY after drain is a true hard device fault.
+
+config SENSORARRAY_FDC_DIAG_READ_UNREAD_FULL_WITHOUT_DRDY
+    bool "Diagnostic read of unread-full DATA_CHx while DRDY is low"
+    default n
+    help
+        Controlled diagnostic mode. Reads DATA_CH0..CH3 to a discard/diagnostic
+        buffer when unread is full but DRDY is low after est+guard, then logs
+        FDC_UNREAD_ONLY_DIAG. The data is not accepted into MATRIXFDC_CAP.
+
 config SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS
     int "Maximum STATUS fallback polls per row-device"
     default 3

@@ -38,24 +38,36 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
     freshMask4 &= 0x0Fu;
     bool readyForDataRead = ready && ready->readyForDataRead;
     if (ready && !readyForDataRead) {
-        bool hardNotReady = ready->timeout ||
-                            ready->i2cError ||
-                            ready->err == ESP_ERR_TIMEOUT ||
-                            ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
-                            ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_NONE ||
-                            ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR;
+        bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
+        bool hardNotReady = !softNotReady &&
+                            (ready->timeout ||
+                             ready->i2cError ||
+                             ready->err == ESP_ERR_TIMEOUT ||
+                             ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
+                             ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_NONE ||
+                             ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR ||
+                             ready->readyResult == FDC_READY_HARD_TIMEOUT);
         outSamples->statusRaw = ready->statusRaw;
         outSamples->unreadMask = ready->unreadMask & 0x0Fu;
         outSamples->dataReady = ready->dataReady;
         outSamples->unreadWithoutDrdy = ready->unreadWithoutDataReady;
         outSamples->timeout = ready->timeout;
         outSamples->partial = ready->partial;
+        outSamples->staleUnreadDrain = ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY;
         outSamples->errorMask = hardNotReady ? 0x0Fu : 0u;
         for (uint8_t ch = 0u; ch < 4u; ++ch) {
             uint8_t bit = (uint8_t)(1u << ch);
-            if (hardNotReady) {
-                outSamples->notReady[ch] = true;
+            outSamples->notReady[ch] = true;
+            if (outSamples->notReady[ch]) {
                 outSamples->notReadyMask |= bit;
+            }
+            outSamples->softInvalid[ch] = softNotReady;
+            outSamples->hardInvalid[ch] = hardNotReady;
+            if (softNotReady) {
+                outSamples->softInvalidMask |= bit;
+            }
+            if (hardNotReady) {
+                outSamples->hardInvalidMask |= bit;
             }
         }
         return ESP_OK;
@@ -159,9 +171,12 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
         outSamples->partial = ready->partial;
         outSamples->dataReady = ready->dataReady;
         outSamples->unreadWithoutDrdy = ready->unreadWithoutDataReady;
+        outSamples->staleUnreadDrain = ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY;
     }
     outSamples->i2cTransactionError = i2cError;
+    bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
     bool hardNotReady = ready &&
+                        !softNotReady &&
                         !i2cError &&
                         ready->err != ESP_ERR_NOT_FOUND &&
                         !ready->readyForDataRead &&
@@ -169,14 +184,23 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
                          ready->err == ESP_ERR_TIMEOUT ||
                          ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
                          ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_NONE ||
-                         ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR);
+                         ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR ||
+                         ready->readyResult == FDC_READY_HARD_TIMEOUT);
     outSamples->errorMask = (i2cError || hardNotReady || !ready) ? 0x0Fu : 0u;
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         uint8_t bit = (uint8_t)(1u << ch);
         outSamples->i2cError[ch] = i2cError;
-        outSamples->notReady[ch] = hardNotReady;
+        outSamples->notReady[ch] = ready && !ready->readyForDataRead;
         if (outSamples->notReady[ch]) {
             outSamples->notReadyMask |= bit;
+        }
+        outSamples->softInvalid[ch] = softNotReady;
+        outSamples->hardInvalid[ch] = i2cError || hardNotReady || !ready;
+        if (outSamples->softInvalid[ch]) {
+            outSamples->softInvalidMask |= bit;
+        }
+        if (outSamples->hardInvalid[ch]) {
+            outSamples->hardInvalidMask |= bit;
         }
     }
 }
@@ -243,6 +267,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .readErr = readErr,
         .i2cErr = (samples && samples->i2cTransactionError) ? readErr : ESP_OK,
         .readyKind = ready ? ready->kind : SENSORARRAY_FDC_READY_NONE,
+        .readyResult = ready ? ready->readyResult : FDC_READY_RESULT_NONE,
         .status = ready ? ready->statusRaw : (samples ? samples->statusRaw : 0u),
         .errorStatus = ready ? ready->errorStatus : 0u,
         .unreadMask4 = ready ? (ready->unreadMask & 0x0Fu) : (samples ? samples->unreadMask : 0u),
@@ -253,6 +278,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .notReadyMask4 = samples ? samples->notReadyMask : 0u,
         .zeroBeforeReadyMask4 = samples ? samples->zeroBeforeReadyMask : 0u,
         .zeroAfterDrdyMask4 = samples ? samples->zeroAfterDrdyMask : 0u,
+        .softInvalidMask4 = samples ? samples->softInvalidMask : 0u,
+        .hardInvalidMask4 = samples ? samples->hardInvalidMask : 0u,
         .unreadWithoutDrdy = ready ? ready->unreadWithoutDataReady : false,
         .waitUs = ready ? ready->waitUs : 0u,
         .readUs = readUs,
@@ -282,7 +309,9 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             0.0;
         bool valid = samples && samples->valid[ch] && configOk && freqHz > 0.0;
         bool warning = samples && samples->amplitudeWarning[ch];
-        bool error = !valid;
+        bool softInvalid = samples && samples->softInvalid[ch];
+        bool hardInvalid = samples && samples->hardInvalid[ch];
+        bool error = hardInvalid || (!softInvalid && !valid);
 
         outRead4->raw28[ch] = raw28;
         outRead4->freqHz[ch] = valid ? freqHz : SENSORARRAY_FDC_INVALID_FREQ_SENTINEL_HZ;
@@ -359,7 +388,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     }
     bool includeRawFreq = read4LogLevel >= 3u ||
                           (read4LogLevel >= 2u && anomaly);
-    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,er=0x%lx,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu",
+    printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,
            (unsigned long)epochId,
@@ -372,6 +401,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            (unsigned)outRead4->notReadyMask4,
            (unsigned)outRead4->zeroBeforeReadyMask4,
            (unsigned)outRead4->zeroAfterDrdyMask4,
+           (unsigned)outRead4->softInvalidMask4,
+           (unsigned)outRead4->hardInvalidMask4,
            outRead4->rawAllZero ? 1u : 0u,
            outRead4->status,
            (unsigned)outRead4->unreadMask4,
@@ -383,6 +414,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
            (unsigned long)outRead4->readUs,
            (unsigned long)outRead4->pollCount,
            SENSORARRAY_FDC_READY_MODE_NAME,
+           sensorarrayMeasureFdcReadyResultName(outRead4->readyResult),
            (unsigned long)outRead4->readErr,
            outRead4->finalPollAttempted ? 1u : 0u,
            outRead4->finalRetryAttempted ? 1u : 0u,
@@ -414,7 +446,7 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
             (outRead4->zeroAfterDrdyMask4 != 0u) ? "error" :
             (outRead4->validMask4 != 0u) ? "accepted" :
             "discard";
-        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,dec=%s,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu\n",
+        printf("D4C,d=%s,r=%u,e=%lu,st=%04X,dr=%u,u=%X,az=%u,vm=%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,dec=%s,fp=%u,fr=%u,fSt=%04X,fU=%X,fDr=%u,fCfg=%04X,fMux=%04X,fErrCfg=%04X,fIg=%d,est=%lu,iw=%lu\n",
                sensorarrayMeasureFdcDeviceName(devId),
                (unsigned)row,
                (unsigned long)epochId,
@@ -426,6 +458,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                (unsigned)outRead4->notReadyMask4,
                (unsigned)outRead4->zeroBeforeReadyMask4,
                (unsigned)outRead4->zeroAfterDrdyMask4,
+               (unsigned)outRead4->softInvalidMask4,
+               (unsigned)outRead4->hardInvalidMask4,
                decision,
                outRead4->finalPollAttempted ? 1u : 0u,
                outRead4->finalRetryAttempted ? 1u : 0u,

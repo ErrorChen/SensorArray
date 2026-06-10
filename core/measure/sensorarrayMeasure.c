@@ -342,6 +342,8 @@ typedef struct {
     bool notReady[4];
     bool zeroBeforeReady[4];
     bool zeroAfterDrdy[4];
+    bool softInvalid[4];
+    bool hardInvalid[4];
     uint16_t statusRaw;
     uint8_t unreadMask;
     uint8_t freshMask;
@@ -351,11 +353,14 @@ typedef struct {
     uint8_t notReadyMask;
     uint8_t zeroBeforeReadyMask;
     uint8_t zeroAfterDrdyMask;
+    uint8_t softInvalidMask;
+    uint8_t hardInvalidMask;
     bool timeout;
     bool partial;
     bool i2cTransactionError;
     bool dataReady;
     bool unreadWithoutDrdy;
+    bool staleUnreadDrain;
 } sensorarrayFdcAutoscanSamples_t;
 
 typedef struct {
@@ -371,6 +376,9 @@ typedef struct {
     bool notReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool zeroBeforeReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool zeroAfterDrdySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool softInvalidSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool hardInvalidSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+    bool staleUnreadDrainSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool placeholderZeroSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     bool i2cErrorSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
     uint32_t lastRaw28[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
@@ -404,7 +412,21 @@ typedef enum {
     SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL,
     SENSORARRAY_FDC_READY_TIMEOUT_NONE,
     SENSORARRAY_FDC_READY_I2C_ERROR,
+    SENSORARRAY_FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT,
+    SENSORARRAY_FDC_READY_STALE_UNREAD_NO_DRDY,
+    SENSORARRAY_FDC_READY_HARD_TIMEOUT,
+    SENSORARRAY_FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
 } sensorarrayFdcReadyKind_t;
+
+typedef enum {
+    FDC_READY_RESULT_NONE = 0,
+    FDC_READY_OK_DRDY_UNREAD_FULL,
+    FDC_READY_RECOVERED_AFTER_RETRY,
+    FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT,
+    FDC_READY_STALE_UNREAD_NO_DRDY,
+    FDC_READY_HARD_TIMEOUT,
+    FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
+} sensorarrayFdcReadyResult_t;
 
 typedef enum {
     SENSORARRAY_FDC_READY_POLICY_POLL_ONLY = 0,
@@ -442,6 +464,7 @@ typedef struct {
     bool readyForDataRead;
     bool unreadWithoutDataReady;
     sensorarrayFdcReadyKind_t kind;
+    sensorarrayFdcReadyResult_t readyResult;
     uint16_t statusRaw;
     uint16_t errorStatus;
     uint8_t unreadMask;
@@ -461,6 +484,8 @@ typedef struct {
     const char *diagnostic;
     uint8_t requiredUnreadMask;
     uint32_t estimatedRoundUs;
+    uint32_t guardMarginUs;
+    uint32_t guardDeadlineUs;
     uint32_t actualIntbWaitUs;
     uint32_t rowDeviceHardUs;
     uint32_t hardDeadlineRemainingUs;
@@ -513,6 +538,7 @@ typedef struct {
     esp_err_t readErr;
     esp_err_t i2cErr;
     sensorarrayFdcReadyKind_t readyKind;
+    sensorarrayFdcReadyResult_t readyResult;
     bool timeout;
     bool partial;
     bool i2cError;
@@ -531,6 +557,8 @@ typedef struct {
     uint16_t finalStatusRaw;
     uint8_t finalUnreadMask;
     uint8_t finalDrdy;
+    uint8_t softInvalidMask4;
+    uint8_t hardInvalidMask4;
     uint16_t finalConfig;
     uint16_t finalMuxConfig;
     uint16_t finalErrorConfig;
@@ -651,6 +679,9 @@ static bool s_fdcParallelConfigLogged = false;
 static uint32_t s_fdcRowEpoch = 0u;
 static uint32_t s_fdcParallelCooldownFrames = 0u;
 static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
+static uint8_t s_fdcSoftReadyMissConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+static uint8_t s_fdcStaleUnreadConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+static uint8_t s_fdcHardReadyTimeoutConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
 static sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2] = {0};
 #if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
 static bool s_fdcIntbRuntimeUsable[2] = {true, true};
@@ -2137,6 +2168,10 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitBothFdcAutoscanFr
     return err;
 }
 
+static const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result);
+static bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready);
+static uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs);
+
 #include "fdc/sensorarrayFdcRead4.inc"
 
 static sensorarrayFdcWorkerContext_t *sensorarrayMeasureFdcWorkerContext(sensorarrayFdcDeviceId_t devId)
@@ -2504,6 +2539,41 @@ static void sensorarrayMeasureCleanupFdcWorkers(void)
             ctx->done = NULL;
         }
     }
+}
+
+static const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result)
+{
+    switch (result) {
+    case FDC_READY_OK_DRDY_UNREAD_FULL:
+        return "ok_drdy_unread_full";
+    case FDC_READY_RECOVERED_AFTER_RETRY:
+        return "recovered_after_retry";
+    case FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT:
+        return "transient";
+    case FDC_READY_STALE_UNREAD_NO_DRDY:
+        return "stale";
+    case FDC_READY_HARD_TIMEOUT:
+        return "hard";
+    case FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT:
+        return "epoch_mismatch";
+    case FDC_READY_RESULT_NONE:
+    default:
+        return "none";
+    }
+}
+
+static bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready)
+{
+    return ready &&
+           (ready->readyResult == FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT ||
+            ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY);
+}
+
+static uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs)
+{
+    uint64_t value = (uint64_t)estimatedRoundUs +
+                     (uint32_t)CONFIG_SENSORARRAY_FDC_READY_GUARD_US;
+    return value > UINT32_MAX ? UINT32_MAX : (uint32_t)value;
 }
 
 static const char *sensorarrayMeasureFdcParallelFallbackReason(bool configEnabled,
@@ -3010,7 +3080,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         if (allZero && !runtimeReadyFault) {
             outFrame->errorMask = UINT64_MAX;
         }
-        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
+        printf("MATRIXFDC_DIAG,stage=%s,seq=%lu,errorMask=0x%016llX,reason=%s,freshCount=%u,validCount=%u,hardwareZeroRawCount=%u,placeholderZeroCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,firstBadRow=%u,firstBadDevice=%u,firstBadStatus=0x%04X,firstBadUnread=0x%X\n",
                allZero ? "all_invalid" :
                runtimeReadyFault ? "all_invalid_ready_fault" : "all_status_invalid",
                (unsigned long)seq,
@@ -3025,6 +3095,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                (unsigned)outFrame->zeroAfterDrdyCount,
                (unsigned)outFrame->i2cErrorCount,
                (unsigned)outFrame->unreadWithoutDrdyCount,
+               (unsigned)outFrame->softInvalidCount,
+               (unsigned)outFrame->hardInvalidCount,
+               (unsigned)outFrame->staleUnreadDrainCount,
                (unsigned)outFrame->firstBadRow,
                (unsigned)outFrame->firstBadDevice,
                outFrame->firstBadStatus,

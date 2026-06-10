@@ -699,7 +699,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         if (allInvalid) {
             uint8_t invalidSentinelCount =
                 (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - ctx->frame.validCount);
-            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
+            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
                    (unsigned long)ctx->frame.sequence,
                    (unsigned long long)ctx->frame.errorMask,
                    (unsigned long)err,
@@ -711,6 +711,9 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                    (unsigned)ctx->frame.zeroAfterDrdyCount,
                    (unsigned)ctx->frame.i2cErrorCount,
                    (unsigned)ctx->frame.unreadWithoutDrdyCount,
+                   (unsigned)ctx->frame.softInvalidCount,
+                   (unsigned)ctx->frame.hardInvalidCount,
+                   (unsigned)ctx->frame.staleUnreadDrainCount,
                    (unsigned)invalidSentinelCount,
                    sensorarrayFrameRawAllZero(&ctx->frame) ? 1u : 0u);
         } else if (err != ESP_OK) {

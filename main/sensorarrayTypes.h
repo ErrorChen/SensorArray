@@ -97,6 +97,9 @@ typedef struct {
     uint8_t zeroAfterDrdyCount;
     uint8_t i2cErrorCount;
     uint8_t unreadWithoutDrdyCount;
+    uint8_t softInvalidCount;
+    uint8_t hardInvalidCount;
+    uint8_t staleUnreadDrainCount;
     uint8_t validCount;
     uint8_t freshCount;
     esp_err_t firstReadErr;
@@ -142,6 +145,7 @@ typedef struct {
     uint64_t intbWaitOnlyUs;
     uint64_t statusVerifyAfterIntbUs;
     uint64_t pollFallbackUs;
+    uint64_t staleDrainUs;
     uint64_t primaryJobUs;
     uint64_t secondaryJobUs;
     uint64_t dualBusWaitUs;
@@ -181,8 +185,12 @@ typedef struct {
     uint32_t intbFreshDrdyCount;
     uint32_t intbStaleBeforeClearCount;
     uint32_t readyFullCount;
+    uint32_t recoveredAfterRetryCount;
     uint32_t readyPartialCount;
     uint32_t readyNoneCount;
+    uint32_t transientUnreadNoDrdyCount;
+    uint32_t staleUnreadDrainCount;
+    uint32_t hardReadyTimeoutCount;
     uint32_t statusReadsBeforeIntbCount;
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
@@ -195,6 +203,11 @@ typedef struct {
     uint32_t inlineRepairSuppressedCount;
     uint32_t unreadWithoutDrdyCount;
     uint32_t dataNotReadyCount;
+    uint32_t softInvalidCount;
+    uint32_t hardInvalidCount;
+    uint32_t drainCount;
+    uint32_t diagUnreadLikelyFreshCount;
+    uint32_t diagUnreadLikelyStaleCount;
     uint32_t zeroBeforeReadyCount;
     uint32_t zeroAfterDrdyCount;
     uint32_t fallbackAttemptCount;
@@ -205,6 +218,7 @@ typedef struct {
     uint32_t deviceFullInvalidCount;
     uint32_t workerTimeoutCount;
     uint32_t workerLateDoneCount;
+    uint32_t workerLateGoodAcceptedCount;
     uint32_t staleResultDiscardedCount;
     uint32_t duplicateReadCount;
     uint64_t waitReadyUsPrimaryTotal;
@@ -321,6 +335,7 @@ typedef struct {
     uint32_t readStartDeltaUs;
     uint32_t workerTimeoutCount;
     uint32_t workerLateDoneCount;
+    uint32_t workerLateGoodAcceptedCount;
     uint32_t staleResultDiscardedCount;
     uint32_t duplicateReadCount;
     uint32_t deferredRepairRequestCount;
@@ -352,6 +367,7 @@ typedef struct {
     uint64_t intbWaitOnlyUs;
     uint64_t statusVerifyAfterIntbUs;
     uint64_t pollFallbackUs;
+    uint64_t staleDrainUs;
     uint64_t applyStartUs;
     uint64_t applyDoneUs;
     uint64_t sleepExitStartUs;
@@ -389,8 +405,12 @@ typedef struct {
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
     uint32_t readyFullCount;
+    uint32_t recoveredAfterRetryCount;
     uint32_t readyPartialCount;
     uint32_t readyNoneCount;
+    uint32_t transientUnreadNoDrdyCount;
+    uint32_t staleUnreadDrainCount;
+    uint32_t hardReadyTimeoutCount;
     uint32_t statusReadsBeforeIntbCount;
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
@@ -401,6 +421,11 @@ typedef struct {
     uint32_t statusReadErrCount;
     uint32_t unreadWithoutDrdyCount;
     uint32_t dataNotReadyCount;
+    uint32_t softInvalidCount;
+    uint32_t hardInvalidCount;
+    uint32_t drainCount;
+    uint32_t diagUnreadLikelyFreshCount;
+    uint32_t diagUnreadLikelyStaleCount;
     uint32_t zeroBeforeReadyCount;
     uint32_t zeroAfterDrdyCount;
     uint32_t fallbackAttemptCount;
