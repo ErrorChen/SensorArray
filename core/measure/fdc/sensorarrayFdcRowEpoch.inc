@@ -667,13 +667,19 @@ static esp_err_t sensorarrayFdcHandleRowDeviceWatchdog(
     }
 
     uint8_t dBase = devId == SENSORARRAY_FDC_DEV_SECONDARY ? 5u : 1u;
+    bool requestRescue =
+        reason != SENSORARRAY_FDC_WATCHDOG_PROFILE_TOO_SLOW ||
+        CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE;
     for (uint8_t ch = 0u; state && ch < 4u; ++ch) {
+        if (!requestRescue) {
+            continue;
+        }
         uint8_t matrixIndex = (uint8_t)sensorarrayMatrixIndex(row, (uint8_t)(dBase + ch));
         (void)sensorarrayMeasureRequestFdcCellRescue(state,
                                                      matrixIndex,
                                                      sensorarrayMeasureFdcWatchdogReasonName(reason));
     }
-    printf("RWD,d=%s,r=%u,e=%lu,why=%s,rowBudget=%lu,mul=%lu,hard=%lu,override=%lu,retryMax=%lu,retryActual=%lu\n",
+    printf("RWD,d=%s,r=%u,e=%lu,why=%s,rowBudget=%lu,mul=%lu,hard=%lu,override=%lu,retryMax=%lu,retryActual=%lu,rescueAction=%s\n",
            sensorarrayMeasureFdcDeviceToken(devId),
            (unsigned)row,
            (unsigned long)epochId,
@@ -683,7 +689,8 @@ static esp_err_t sensorarrayFdcHandleRowDeviceWatchdog(
            (unsigned long)hardTimeoutUs,
            (unsigned long)CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US,
            (unsigned long)CONFIG_SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX,
-           timing ? (unsigned long)timing->fallbackAttemptCount : 0ul);
+           timing ? (unsigned long)timing->fallbackAttemptCount : 0ul,
+           requestRescue ? "request_cell_rescue" : "profile_too_slow_diag_only");
     return ESP_OK;
 }
 

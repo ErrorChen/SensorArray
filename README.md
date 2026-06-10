@@ -198,6 +198,9 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE` | bool | Kconfig/defaults: y | Enables per-row conversion epoch restart. | row epoch helpers | Keep enabled for current row isolation strategy. |
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP` | bool | Kconfig/defaults: y | Uses `CONFIG.SLEEP_MODE_EN` for row restart. | `sensorarrayMeasureFdcSetSleepMode()` | Current stable path uses sleep entry/exit rather than SD pin reset. |
 | `CONFIG_SENSORARRAY_FDC_DIFF_CACHE_APPLY` | bool | Kconfig/defaults: y | Applies only changed cached FDC row registers while devices are sleeping. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep enabled to reduce per-row I2C writes. |
+| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE` | bool | Kconfig/defaults: n | Enables experimental runtime RCOUNT reduction when cached profile timing is too slow. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep disabled for normal matrix reads; enable only for controlled fast-profile debugging. |
+| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | int | Kconfig/defaults: `4000` | Target round time for the optional formal fast profile. | PFU/P5 diagnostics, optional fast-profile tuning | With fast profile disabled, this is diagnostic only and does not mutate cached RCOUNT. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE` | bool | Kconfig/defaults: n | Allows `profile_too_slow` to request rescue/sweep. | `sensorarrayMeasureRequestFdcCellRescue()`, row watchdog/cache apply gates | Keep disabled unless running an explicit debug experiment; slow estimated timing is not an electrical failure. |
 | `CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ` | bool | Kconfig: n | Allows uncalibrated safe-default row configs during formal reads. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep disabled for normal operation. A missing cache now marks cells invalid, logs `FDC_CACHE_MISS`, and requests fast rescue. |
 | `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` | bool | Kconfig: n | Prints verbose cache apply details. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
 | `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
@@ -643,9 +646,9 @@ The compact tokens are intended for high-frame-rate timing work, where long log 
 | `R5` | Compact ready-state summary. | `n`, `ok`, `it`, `ar`, `si`, `fb` |
 | `Q5` | Compact frame-quality/sweep summary. | `n`, `full`, `part`, `rescue`, `zero`, `sat` |
 | `I5` | Compact I2C summary. | `n`, `wr`, `rd`, `err`, `nack`, `to` |
-| `P5` | Compact profile summary. | `n`, `avg`, `max`, `target`, `rowBudget`, `slow`, `fpsMax` |
+| `P5` | Compact profile summary. | `n`, `avg`, `max`, `target`, `rowBudget`, `profileTooSlow`, `profileTooSlowAction`, `fpsMax` |
 | `PR` | Per-row/device profile detail when profile is slow or row profile logging is enabled. | `r`, `d`, `ch`, `round`, `rc`, `sc`, `cd`, `dc`, `dg` |
-| `PFU` | Cached profile update for a row/device. | `r`, `d`, `action`, `oldRound`, `newRound`, `target`, `rowBudget`, `chosenRound`, `decisionReason` |
+| `PFU` | FDC Profile Update / Profile Fast or diagnostic Update for a row/device. | `r`, `d`, `why`, `action`, `round` or `oldRound/newRound`, `target`, `rowBudget`, `rCount`, `newRcount`, `decisionReason` |
 | `FDC_EPOCH` | Sleep/row/cache/exit-sleep epoch diagnostic. | `stage`, `row`, `dev`, `cfg`, `mux`, `status`, `unread`, `drdy`, `intbLevel` |
 | `FDC_PARALLEL_FALLBACK` | Parallel worker fallback/join diagnostic. | `reason`, `workerDeadlineUs`, `workerJoinUs`, `parentWaitUs`, `workerTimedOut`, `workerLateDoneUs`, `staleDiscarded`, `rowHardDeadlineUs` |
 | `FDC_RESULT_MERGE_BUG` | A guard detected an attempt to invalidate or lose a row-device whose final read4 data is complete. | `dev`, `row`, `epoch`, `validMask`, `freshMask`, `unread`, `drdy` |
@@ -845,12 +848,12 @@ Watchdog reasons include:
 | `amplitude_warning` | Fresh amplitude warning crossed policy threshold. |
 | `watchdog_fault` | FDC sensor watchdog fault was seen. |
 | `saturated` | Raw value reached the saturation threshold. |
-| `profile_too_slow` | The shadow profile round estimate exceeds the warn budget. |
+| `profile_too_slow` | The shadow profile round estimate exceeds the warn budget. This is a timing diagnostic by default, not an electrical failure or automatic rescue reason. |
 
 The compact watchdog line includes the configured retry limit and whether this row path had actually attempted a retry:
 
 ```text
-RWD,d=p,r=2,e=5050,why=intb_timeout,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1,retryActual=0
+RWD,d=p,r=2,e=5050,why=intb_timeout,rowBudget=6250,mul=10,hard=62500,override=0,retryMax=1,retryActual=0,rescueAction=request_cell_rescue
 ```
 
 ### FDC Profile Logging
@@ -883,9 +886,9 @@ This is how a line such as `est=13544` is explained: `P5` and `PR` show the regi
 Default profile logs:
 
 ```text
-P5,s=630,n=5,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
+P5,s=630,n=5,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,profileTooSlowAction=diag_only,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
 PR,s=630,d=p,r=1,src=shadow,why=profile_too_slow,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,fh=[40000000,40000000,40000000,40000000],su=[...],cu=[...],tu=[...],round=13544,to=30088
-PFU,d=p,r=1,why=profile_too_slow,action=apply_fast_profile,oldRound=13544,newRound=3980,target=4000,rowBudget=6250,chosenRound=3980,oldRcount=[0x2089,...],newRcount=[0x099A,...],decisionReason=round_within_target_after_rcount_reduce
+PFU,d=p,r=1,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
 ```
 
 Readback verification is reserved for boot/init, cache writes, sweep updates, diagnostics, or non-hot-path checks. Do not add config register readbacks between confirmed INTB and DATA reads.
@@ -898,17 +901,27 @@ The firmware keeps formal fast profile metadata alongside the stable boot/cache 
 |---|---|
 | `bootStableProfile` | Conservative profile derived from boot/full/fast calibration cache. |
 | `formalFastProfile` | Formal read profile metadata used to judge high-speed readiness. |
-| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE` | Enables the metadata path. |
-| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | Default target is `4000 us`. |
+| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE` | Disabled by default. When enabled, permits experimental runtime RCOUNT reduction. |
+| `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | Default target is `4000 us`; with fast profile disabled it is diagnostic only. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US` | Default warning budget is `6250 us`, the 20 fps row budget. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE` | Disabled by default. Allows slow-profile diagnostics to request rescue only when explicitly enabled. |
 
-If `autoscanRoundUs` exceeds the warning budget, the cache-apply path must not continue using the slow profile as a 20 fps formal profile. It first tries a formal fast profile by reducing RCOUNT while preserving SETTLECOUNT; if it cannot meet the target, it logs `current_profile_cannot_meet_target_fps` and queues rescue/target downgrade handling. `profile_too_slow` means the current RCOUNT/SETTLE/profile cannot satisfy the target frame rate; it is not evidence that the FDC is physically bad.
+If `autoscanRoundUs` exceeds the warning budget, the default cache-apply path treats this as a timing diagnostic. It logs PFU with `action=disabled_diag_only` or `profile_too_slow_diag_only`, keeps the cached profile unchanged, does not reduce RCOUNT, and does not request rescue or sweep. `4000 us` is the formal fast target, not a measured round value; with fast profile disabled it is shown only for comparison and no longer forces a `13544 -> 4000` mutation.
 
-Example:
+Default example:
 
 ```text
-PFU,d=p,r=1,why=profile_too_slow,action=apply_fast_profile,oldRound=13544,newRound=3980,target=4000,rowBudget=6250,chosenRound=3980,oldRcount=[0x2089,...],newRcount=[0x099A,...],decisionReason=round_within_target_after_rcount_reduce
+PFU,d=p,r=1,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
 ```
+
+When `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE=y`, PFU actions distinguish actual writes and cache promotion:
+
+- `apply_fast_profile_and_write`: fast profile changed the expected profile and wrote FDC registers.
+- `fast_profile_already_applied_no_write`: fast profile was computed but already matched applied registers.
+- `promote_fast_profile_cache_only`: the runtime fast profile was written back to per-cell cache without a register write.
+- `promote_fast_profile_and_write`: the runtime fast profile was written back to per-cell cache and registers were written.
+- `apply_cached_profile_write`: normal cached profile write, not fast profile.
+- `no_write_already_applied`: expected and applied profiles already matched.
 
 ### Quality-Based Sweep
 
@@ -922,7 +935,8 @@ Runtime fast/full sweep decisions are quality based, not only invalid-frame base
 - I2C/read4 error
 - repeated ready-state recovery or row-device watchdog activity
 - drive/current/profile margin issues
-- `profile_too_slow`
+
+`profile_too_slow` is excluded from automatic fast/full sweep by default. It can request rescue only when `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE=y`, which is intended for explicit debug experiments.
 
 Full sweep remains reserved for broader or repeated failures, such as repeated fast sweep failure, multiple row/channel faults, large-area invalid/stale frames, or persistent profile quality loss. A single `unread=F,DRDY=0` after INTB does not directly force full sweep; it first goes through after-INTB recheck and row-device recovery.
 

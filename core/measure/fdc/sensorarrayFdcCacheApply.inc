@@ -26,6 +26,147 @@ static void sensorarrayMeasureRuntimeConfigsFromApplied(sensorarrayState_t *stat
     }
 }
 
+static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
+                                            uint8_t row,
+                                            const char *action,
+                                            uint32_t roundUs,
+                                            uint32_t targetRoundUs,
+                                            uint32_t rowBudgetUs,
+                                            const uint16_t rCount[4],
+                                            const uint16_t settleCount[4])
+{
+    printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,round=%lu,target=%lu,rowBudget=%lu,rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X]\n",
+           sensorarrayMeasureFdcDeviceToken(devId),
+           (unsigned)row,
+           action ? action : "profile_too_slow_diag_only",
+           (unsigned long)roundUs,
+           (unsigned long)targetRoundUs,
+           (unsigned long)rowBudgetUs,
+           rCount[0],
+           rCount[1],
+           rCount[2],
+           rCount[3],
+           settleCount[0],
+           settleCount[1],
+           settleCount[2],
+           settleCount[3]);
+}
+
+static void sensorarrayMeasureLogFdcPfuFastProfile(sensorarrayFdcDeviceId_t devId,
+                                                   uint8_t row,
+                                                   const char *action,
+                                                   uint32_t oldRoundUs,
+                                                   uint32_t newRoundUs,
+                                                   uint32_t targetRoundUs,
+                                                   uint32_t rowBudgetUs,
+                                                   const uint16_t oldRcount[4],
+                                                   const uint16_t newRcount[4],
+                                                   const uint16_t oldSettle[4],
+                                                   const uint16_t newSettle[4],
+                                                   const char *decisionReason,
+                                                   uint32_t diffWriteCount)
+{
+    printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,chosenRound=%lu,oldRcount=[0x%04X,0x%04X,0x%04X,0x%04X],newRcount=[0x%04X,0x%04X,0x%04X,0x%04X],oldSettle=[0x%04X,0x%04X,0x%04X,0x%04X],newSettle=[0x%04X,0x%04X,0x%04X,0x%04X],diffWrites=%lu,decisionReason=%s\n",
+           sensorarrayMeasureFdcDeviceToken(devId),
+           (unsigned)row,
+           action ? action : SENSORARRAY_NA,
+           (unsigned long)oldRoundUs,
+           (unsigned long)newRoundUs,
+           (unsigned long)targetRoundUs,
+           (unsigned long)rowBudgetUs,
+           (unsigned long)newRoundUs,
+           oldRcount[0],
+           oldRcount[1],
+           oldRcount[2],
+           oldRcount[3],
+           newRcount[0],
+           newRcount[1],
+           newRcount[2],
+           newRcount[3],
+           oldSettle[0],
+           oldSettle[1],
+           oldSettle[2],
+           oldSettle[3],
+           newSettle[0],
+           newSettle[1],
+           newSettle[2],
+           newSettle[3],
+           (unsigned long)diffWriteCount,
+           decisionReason ? decisionReason : SENSORARRAY_NA);
+}
+
+static void sensorarrayMeasureLogFdcPfuApplyResult(sensorarrayFdcDeviceId_t devId,
+                                                   uint8_t row,
+                                                   const char *why,
+                                                   const char *action,
+                                                   uint32_t oldRoundUs,
+                                                   uint32_t newRoundUs,
+                                                   uint32_t targetRoundUs,
+                                                   uint32_t rowBudgetUs,
+                                                   uint16_t oldDriveCurrent0,
+                                                   uint16_t newDriveCurrent0,
+                                                   bool profileTooSlow,
+                                                   uint32_t diffWriteCount)
+{
+    printf("PFU,d=%s,r=%u,why=%s,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,oldDc=0x%04X,newDc=0x%04X,profileTooSlow=%u,diffWrites=%lu\n",
+           sensorarrayMeasureFdcDeviceToken(devId),
+           (unsigned)row,
+           why ? why : SENSORARRAY_NA,
+           action ? action : SENSORARRAY_NA,
+           (unsigned long)oldRoundUs,
+           (unsigned long)newRoundUs,
+           (unsigned long)targetRoundUs,
+           (unsigned long)rowBudgetUs,
+           oldDriveCurrent0,
+           newDriveCurrent0,
+           profileTooSlow ? 1u : 0u,
+           (unsigned long)diffWriteCount);
+}
+
+static bool sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(
+    sensorarrayState_t *state,
+    uint8_t row,
+    sensorarrayFdcDeviceId_t devId,
+    sensorarrayFdcAppliedRowConfig_t *expected,
+    uint32_t effectiveFclkHz)
+{
+    if (!state || !expected || row < 1u || row > SENSORARRAY_MATRIX_ROWS ||
+        devId > SENSORARRAY_FDC_DEV_SECONDARY) {
+        return false;
+    }
+
+    expected->fingerprint = sensorarrayMeasureFdcConfigFingerprint(expected);
+
+    bool promoted = false;
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        sensorarrayFdcCellConfigCache_t *cache =
+            sensorarrayMeasureFdcRowDeviceCache(state, row, devId, ch, NULL);
+        if (!cache || !cache->valid) {
+            continue;
+        }
+
+        bool changed =
+            cache->rCount != expected->rCount[ch] ||
+            cache->settleCount != expected->settleCount[ch] ||
+            cache->clockDiv != expected->clockDiv[ch] ||
+            cache->driveCurrent != expected->driveCurrent[ch] ||
+            cache->deglitchCode != expected->selectedDeglitch ||
+            cache->effectiveFclkHz != effectiveFclkHz ||
+            cache->lastAppliedFingerprint != expected->fingerprint;
+
+        cache->rCount = expected->rCount[ch];
+        cache->settleCount = expected->settleCount[ch];
+        cache->clockDiv = expected->clockDiv[ch];
+        cache->driveCurrent = expected->driveCurrent[ch];
+        cache->deglitchCode = expected->selectedDeglitch;
+        cache->effectiveFclkHz = effectiveFclkHz;
+        cache->lastAppliedFingerprint = expected->fingerprint;
+        promoted = promoted || changed;
+    }
+
+    return promoted;
+}
+
 static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *state,
                                                            uint8_t row,
                                                            sensorarrayFdcDeviceId_t devId,
@@ -135,12 +276,15 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     if (targetRoundUs == 0u || targetRoundUs > SENSORARRAY_FDC_TARGET_ROW_US) {
         targetRoundUs = SENSORARRAY_FDC_TARGET_ROW_US;
     }
+    const uint32_t rowBudgetUs = SENSORARRAY_FDC_TARGET_ROW_US;
     bool initialProfileTooSlow =
         initialRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US ||
         initialRoundUs > targetRoundUs;
     bool fastProfileApplied = false;
     bool fastProfilePossible = true;
-    if (initialProfileTooSlow && CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE) {
+    bool formalFastProfileEnabled = CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE != 0;
+    const char *fastProfileDecisionReason = "profile_within_budget";
+    if (initialProfileTooSlow && formalFastProfileEnabled) {
         const uint16_t minRuntimeRcount = 0x0100u;
         for (uint8_t attempt = 0u;
              attempt < 4u && expected.profileSnapshot.autoscanRoundUs > targetRoundUs;
@@ -180,35 +324,12 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         }
         fastProfilePossible = fastProfilePossible &&
                               expected.profileSnapshot.autoscanRoundUs <= targetRoundUs;
-        printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,chosenRound=%lu,oldRcount=[0x%04X,0x%04X,0x%04X,0x%04X],newRcount=[0x%04X,0x%04X,0x%04X,0x%04X],oldSettle=[0x%04X,0x%04X,0x%04X,0x%04X],newSettle=[0x%04X,0x%04X,0x%04X,0x%04X],decisionReason=%s\n",
-               sensorarrayMeasureFdcDeviceToken(devId),
-               (unsigned)row,
-               fastProfilePossible ? "apply_fast_profile" :
-               (fastProfileApplied ? "keep_slow_profile_with_reason" :
-                "enqueue_immediate_fast_sweep"),
-               (unsigned long)initialRoundUs,
-               (unsigned long)expected.profileSnapshot.autoscanRoundUs,
-               (unsigned long)targetRoundUs,
-               (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
-               (unsigned long)expected.profileSnapshot.autoscanRoundUs,
-               oldRcount[0],
-               oldRcount[1],
-               oldRcount[2],
-               oldRcount[3],
-               expected.rCount[0],
-               expected.rCount[1],
-               expected.rCount[2],
-               expected.rCount[3],
-               oldSettle[0],
-               oldSettle[1],
-               oldSettle[2],
-               oldSettle[3],
-               expected.settleCount[0],
-               expected.settleCount[1],
-               expected.settleCount[2],
-               expected.settleCount[3],
-               fastProfilePossible ? "round_within_target_after_rcount_reduce" :
-               "current_profile_cannot_meet_target_fps");
+        fastProfileDecisionReason = fastProfilePossible ?
+            "round_within_target_after_rcount_reduce" :
+            (fastProfileApplied ? "current_profile_cannot_meet_target_fps" :
+             "no_rCount_reduction_possible");
+    } else if (initialProfileTooSlow) {
+        fastProfileDecisionReason = "formal_fast_profile_disabled";
     }
     expected.profileSnapshot.muxConfig = expected.muxConfig;
     expected.profileSnapshot.statusConfig = expected.statusConfig;
@@ -250,6 +371,56 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     if (!forceWrite &&
         !reapplyRequested &&
         sensorarrayMeasureAppliedRowConfigMatches(applied, &expected)) {
+        bool fastProfileCachePromoted = false;
+        if (formalFastProfileEnabled && fastProfileApplied) {
+            fastProfileCachePromoted =
+                sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(state,
+                                                                       row,
+                                                                       devId,
+                                                                       &expected,
+                                                                       effectiveFclkHz);
+        }
+        if (initialProfileTooSlow) {
+            if (!formalFastProfileEnabled) {
+                sensorarrayMeasureLogFdcPfuDiag(devId,
+                                                row,
+                                                "disabled_diag_only",
+                                                initialRoundUs,
+                                                targetRoundUs,
+                                                rowBudgetUs,
+                                                oldRcount,
+                                                oldSettle);
+            } else if (fastProfileApplied) {
+                sensorarrayMeasureLogFdcPfuFastProfile(
+                    devId,
+                    row,
+                    fastProfileCachePromoted ? "promote_fast_profile_cache_only" :
+                    "fast_profile_already_applied_no_write",
+                    initialRoundUs,
+                    expected.profileSnapshot.autoscanRoundUs,
+                    targetRoundUs,
+                    rowBudgetUs,
+                    oldRcount,
+                    expected.rCount,
+                    oldSettle,
+                    expected.settleCount,
+                    fastProfileDecisionReason,
+                    0u);
+            } else {
+                sensorarrayMeasureLogFdcPfuApplyResult(devId,
+                                                       row,
+                                                       "profile_too_slow",
+                                                       "no_write_already_applied",
+                                                       applied->profileSnapshot.autoscanRoundUs,
+                                                       expected.profileSnapshot.autoscanRoundUs,
+                                                       targetRoundUs,
+                                                       rowBudgetUs,
+                                                       applied->driveCurrent[0],
+                                                       expected.driveCurrent[0],
+                                                       true,
+                                                       0u);
+            }
+        }
 #if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
         printf("FDC_CACHE,stage=hit,row=%u,device=%s,action=no_write\n",
                (unsigned)row,
@@ -368,6 +539,15 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     expected.applyCount = nextApplyCount;
     expected.lastAppliedTimestampUs = esp_timer_get_time();
     expected.dirty = false;
+    bool fastProfileCachePromoted = false;
+    if (formalFastProfileEnabled && fastProfileApplied) {
+        fastProfileCachePromoted =
+            sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(state,
+                                                                   row,
+                                                                   devId,
+                                                                   &expected,
+                                                                   effectiveFclkHz);
+    }
     *applied = expected;
     s_fdcProfileSnapshotByRow[row - 1u][(uint8_t)devId] = applied->profileSnapshot;
     if (timing) {
@@ -397,23 +577,54 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     bool profileTooSlow =
         applied->profileSnapshot.autoscanRoundUs >
         (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
+    if (initialProfileTooSlow && !formalFastProfileEnabled) {
+        sensorarrayMeasureLogFdcPfuDiag(devId,
+                                        row,
+                                        "disabled_diag_only",
+                                        initialRoundUs,
+                                        targetRoundUs,
+                                        rowBudgetUs,
+                                        oldRcount,
+                                        oldSettle);
+    }
     if (diffWriteCount != 0u ||
         previousRoundUs != applied->profileSnapshot.autoscanRoundUs ||
         profileTooSlow) {
-        printf("PFU,d=%s,r=%u,why=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,oldDc=0x%04X,newDc=0x%04X,profileTooSlow=%u\n",
-               sensorarrayMeasureFdcDeviceToken(devId),
-               (unsigned)row,
-               profileTooSlow ? "profile_too_slow" :
-               (previousRoundUs == 0u ? "shadow_profile_init" : "cache_profile_update"),
-               (unsigned long)previousRoundUs,
-               (unsigned long)applied->profileSnapshot.autoscanRoundUs,
-               (unsigned long)CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US,
-               (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
-               previousRoundUs ? previousDriveCurrent0 : 0u,
-               applied->driveCurrent[0],
-               profileTooSlow ? 1u : 0u);
+        if (formalFastProfileEnabled && fastProfileApplied) {
+            sensorarrayMeasureLogFdcPfuFastProfile(
+                devId,
+                row,
+                fastProfileCachePromoted ? "promote_fast_profile_and_write" :
+                "apply_fast_profile_and_write",
+                initialRoundUs,
+                applied->profileSnapshot.autoscanRoundUs,
+                targetRoundUs,
+                rowBudgetUs,
+                oldRcount,
+                applied->rCount,
+                oldSettle,
+                applied->settleCount,
+                fastProfileDecisionReason,
+                diffWriteCount);
+        } else {
+            sensorarrayMeasureLogFdcPfuApplyResult(
+                devId,
+                row,
+                profileTooSlow ? "profile_too_slow" :
+                (previousRoundUs == 0u ? "shadow_profile_init" : "cache_profile_update"),
+                diffWriteCount != 0u ? "apply_cached_profile_write" :
+                "no_write_already_applied",
+                previousRoundUs,
+                applied->profileSnapshot.autoscanRoundUs,
+                targetRoundUs,
+                rowBudgetUs,
+                previousRoundUs ? previousDriveCurrent0 : 0u,
+                applied->driveCurrent[0],
+                profileTooSlow,
+                diffWriteCount);
+        }
     }
-    if (profileTooSlow) {
+    if (profileTooSlow && CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE) {
         for (uint8_t ch = 0u; ch < 4u; ++ch) {
             uint8_t dIndex = (uint8_t)(1u + ch + ((devId == SENSORARRAY_FDC_DEV_SECONDARY) ? 4u : 0u));
             uint8_t matrixIndex = (uint8_t)sensorarrayMatrixIndex(row, dIndex);

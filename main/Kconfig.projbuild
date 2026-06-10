@@ -128,8 +128,11 @@ config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE
     default y
 
 config SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
-    bool "Force serial FDC formal row reads"
+    bool "Force single-thread FDC row read for debugging"
     default n
+    help
+        Debug-only option. Disable the secondary worker path to isolate
+        parallel worker scheduling and stale-result issues.
 
 config SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME
     bool "Disable FDC parallel reads for the rest of a frame after a worker timeout"
@@ -738,8 +741,12 @@ config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
         stable profile.
 
 config SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
-    bool "Maintain formal fast profile metadata for runtime reads"
-    default y
+    bool "Enable FDC formal fast profile runtime RCOUNT reduction"
+    default n
+    help
+        Disabled by default. Formal fast profile is an experimental runtime
+        optimisation. It must not mutate cached row profiles during normal
+        matrix measurement unless explicitly enabled for controlled debugging.
 
 config SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
     int "Formal fast profile target autoscan round time (us)"
@@ -750,6 +757,14 @@ config SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
     int "Warn when profile autoscan round estimate exceeds this row budget (us)"
     default 6250
     range 100 1000000
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE
+    bool "Request FDC rescue when cached profile is too slow"
+    default n
+    help
+        Disabled by default. A slow estimated profile is a timing/performance
+        diagnostic, not an electrical failure. Rescue should be requested only
+        for invalid data, cache missing, timeout, or explicit debug experiments.
 
 config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
     int "Deprecated alias for verbose timing output interval"

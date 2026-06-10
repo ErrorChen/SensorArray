@@ -923,7 +923,7 @@ static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
         maxRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
     uint32_t theoreticalMaxFpsX100 =
         maxRoundUs ? (uint32_t)(100000000ull / ((uint64_t)maxRoundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
-    printf("P5,s=%lu,n=%lu,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,theoreticalMaxFps=%lu.%02lu",
+    printf("P5,s=%lu,n=%lu,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,profileTooSlowAction=%s,theoreticalMaxFps=%lu.%02lu",
            (unsigned long)sequence,
            (unsigned long)period,
            (unsigned long)validCount,
@@ -935,6 +935,9 @@ static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
            (unsigned long)CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US,
            (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
            profileTooSlow ? 1u : 0u,
+           profileTooSlow ?
+           (CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE ? "rescue_enabled" : "diag_only") :
+           "none",
            (unsigned long)(theoreticalMaxFpsX100 / 100u),
            (unsigned long)(theoreticalMaxFpsX100 % 100u));
     if (slowSnapshot) {

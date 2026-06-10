@@ -177,13 +177,16 @@
 #define CONFIG_SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS 1
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
-#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE 1
+#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE 0
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
 #define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US 4000
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
 #define CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US SENSORARRAY_FDC_TARGET_ROW_US
+#endif
+#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE
+#define CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE 0
 #endif
 #ifndef CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
 #define CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES 5
@@ -1338,8 +1341,18 @@ static bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "fdc_rescue");
 }
 
+static bool sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(const char *reason)
+{
+    return sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
+           sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps");
+}
+
 static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
 {
+    if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(reason)) {
+        return CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE != 0;
+    }
+
     return sensorarrayMeasureFdcReasonEquals(reason, "persistent_fresh_amplitude_warning_after_cache_apply") ||
            sensorarrayMeasureFdcReasonEquals(reason, "amplitude_warning") ||
            sensorarrayMeasureFdcReasonEquals(reason, "intb_timeout") ||
@@ -1355,13 +1368,15 @@ static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
            sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
            sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
-           sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
-           sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_missing");
 }
 
 static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
 {
+    if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(reason)) {
+        return CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE != 0;
+    }
+
     return sensorarrayMeasureFdcReasonEquals(reason, "cache_missing") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_missing_and_hard_error") ||
            sensorarrayMeasureFdcReasonEquals(reason, "cache_apply_failed") ||
@@ -1387,8 +1402,6 @@ static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "saturated") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_after_drdy") ||
            sensorarrayMeasureFdcReasonEquals(reason, "raw_all_zero") ||
-           sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
-           sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps") ||
            sensorarrayMeasureFdcReasonEquals(reason, "zero_raw_no_oscillation") ||
            sensorarrayMeasureFdcReasonEquals(reason, "invalid_streak") ||
            sensorarrayMeasureFdcReasonEquals(reason, "all_invalid_frame");
@@ -1419,6 +1432,18 @@ esp_err_t sensorarrayMeasureRequestFdcCellRescue(sensorarrayState_t *state,
     }
 
     const char *source = reason ? reason : "runtime_cell_rescue";
+    if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(source) &&
+        !CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE) {
+        printf("FDC_RESCUE_SUPPRESSED,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,reason=%s,policy=profile_too_slow_diag_only\n",
+               (unsigned)target.sColumn,
+               (unsigned)target.dLine,
+               (unsigned)target.matrixIndex,
+               sensorarrayMeasureFdcDeviceName(target.devId),
+               (unsigned)target.fdcChannel,
+               source);
+        return ESP_OK;
+    }
+
     if (sensorarrayMeasureFdcReasonEquals(source, "amplitude_warning") && cache->valid) {
         cache->lastWarningTimestampUs = esp_timer_get_time();
         snprintf(cache->lastWarningReason, sizeof(cache->lastWarningReason), "%s", source);
