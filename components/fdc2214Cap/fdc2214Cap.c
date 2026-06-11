@@ -1703,10 +1703,11 @@ esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev,
     return Fdc2214CapReadSampleWithValidityMode(dev, ch, false, outSample);
 }
 
-esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
-                                             uint8_t channelMask,
-                                             Fdc2214CapFastChannelSample_t* outSamples,
-                                             size_t outSampleCount)
+static esp_err_t Fdc2214CapReadChannelsDataRegsFastImpl(Fdc2214CapDevice_t* dev,
+                                                        uint8_t channelMask,
+                                                        Fdc2214CapFastChannelSample_t* outSamples,
+                                                        size_t outSampleCount,
+                                                        bool readStatus)
 {
     if (!dev || !outSamples) {
         return ESP_ERR_INVALID_ARG;
@@ -1723,10 +1724,13 @@ esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
     }
 
     uint16_t statusRaw = 0u;
-    esp_err_t firstErr = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &statusRaw);
+    esp_err_t firstErr = ESP_OK;
     Fdc2214CapStatus_t status = {0};
-    if (firstErr == ESP_OK) {
-        Fdc2214CapDecodeStatusRaw(statusRaw, &status);
+    if (readStatus) {
+        firstErr = Fdc2214CapReadReg16(dev, FDC2214_REG_STATUS, &statusRaw);
+        if (firstErr == ESP_OK) {
+            Fdc2214CapDecodeStatusRaw(statusRaw, &status);
+        }
     }
 
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
@@ -1803,6 +1807,30 @@ esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
     }
 
     return firstErr;
+}
+
+esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
+                                             uint8_t channelMask,
+                                             Fdc2214CapFastChannelSample_t* outSamples,
+                                             size_t outSampleCount)
+{
+    return Fdc2214CapReadChannelsDataRegsFastImpl(dev,
+                                                  channelMask,
+                                                  outSamples,
+                                                  outSampleCount,
+                                                  true);
+}
+
+esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev,
+                                                 uint8_t channelMask,
+                                                 Fdc2214CapFastChannelSample_t* outSamples,
+                                                 size_t outSampleCount)
+{
+    return Fdc2214CapReadChannelsDataRegsFastImpl(dev,
+                                                  channelMask,
+                                                  outSamples,
+                                                  outSampleCount,
+                                                  false);
 }
 
 esp_err_t Fdc2214CapReadAutoscan4RawFast(Fdc2214CapDevice_t* dev,

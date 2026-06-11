@@ -49,10 +49,6 @@ static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcR
         return false;
     }
 
-    if (sensorarrayMeasureFdcReadyStatusSaysReadable(ready, reqMask)) {
-        return true;
-    }
-
     if (!ready->readyForDataRead || ready->err != ESP_OK || !ready->dataReady) {
         return false;
     }
@@ -66,13 +62,8 @@ static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcR
     }
 
 #if CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
-    return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
-           ready->kind == SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT ||
-           ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
-           ready->kind == SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS ||
-           ready->kind == SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT ||
-           ready->kind == SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK ||
-           ready->kind == SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK;
+    return ready->readyResult == FDC_READY_OK_INTB_DRDY_UNREAD_FULL ||
+           ready->readyResult == FDC_READY_OK_STATUS_READY_AFTER_TIMEOUT;
 #else
     return ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
            ready->kind == SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT ||
@@ -97,13 +88,15 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
 
     *outSamples = (sensorarrayFdcAutoscanSamples_t){0};
     freshMask4 &= 0x0Fu;
+    if (ready &&
+        (ready->readyResult == FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT ||
+         ready->readyResult == FDC_READY_INTERNAL_STATE_ERROR)) {
+        printf("RWS,result=internal_state_error,action=reject_non_terminal_ready_in_read4\n");
+        return ESP_ERR_INVALID_STATE;
+    }
     bool statusSaysReadable = sensorarrayMeasureFdcReadyStatusSaysReadable(ready, freshMask4);
     bool readyForDataRead = sensorarrayMeasureFdcReadyAllowsNormalDataRead(ready, freshMask4);
     bool statusFallbackUsed = ready && ready->statusFallbackUsed;
-    if (!readyForDataRead && statusSaysReadable) {
-        readyForDataRead = true;
-        statusFallbackUsed = true;
-    }
     if (ready && !readyForDataRead) {
         bool softNotReady = sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready);
         bool hardNotReady = !softNotReady &&
@@ -113,6 +106,9 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
                              ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
                              ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_NONE ||
                              ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR ||
+                             ready->readyResult == FDC_READY_INTB_ACTIVE_STATUS_MISMATCH ||
+                             ready->readyResult == FDC_READY_HARD_TIMEOUT_NO_DRDY ||
+                             ready->readyResult == FDC_READY_I2C_ERROR ||
                              ready->readyResult == FDC_READY_HARD_TIMEOUT);
         outSamples->statusRaw = ready->statusRaw;
         outSamples->unreadMask = ready->unreadMask & 0x0Fu;
@@ -161,10 +157,10 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
     outSamples->levelLowButEdgeMiss = ready && ready->recoveredByLevelLow;
     outSamples->dataReadAttempted = true;
     Fdc2214CapFastChannelSample_t fastSamples[4] = {0};
-    esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsFast(fdcState->handle,
-                                                            freshMask4,
-                                                            fastSamples,
-                                                            4u);
+    esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsOnlyFast(fdcState->handle,
+                                                                freshMask4,
+                                                                fastSamples,
+                                                                4u);
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         const Fdc2214CapFastChannelSample_t *sample = &fastSamples[ch];
         uint8_t bit = (uint8_t)(1u << ch);
@@ -283,6 +279,9 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
                          ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL ||
                          ready->kind == SENSORARRAY_FDC_READY_TIMEOUT_NONE ||
                          ready->kind == SENSORARRAY_FDC_READY_I2C_ERROR ||
+                         ready->readyResult == FDC_READY_INTB_ACTIVE_STATUS_MISMATCH ||
+                         ready->readyResult == FDC_READY_HARD_TIMEOUT_NO_DRDY ||
+                         ready->readyResult == FDC_READY_I2C_ERROR ||
                          ready->readyResult == FDC_READY_HARD_TIMEOUT);
     outSamples->errorMask = (i2cError || hardNotReady || !ready) ? 0x0Fu : 0u;
     for (uint8_t ch = 0u; ch < 4u; ++ch) {

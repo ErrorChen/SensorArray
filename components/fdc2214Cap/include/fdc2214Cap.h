@@ -324,9 +324,13 @@ esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev,
 esp_err_t Fdc2214CapReadAutoscan4RawFast(Fdc2214CapDevice_t* dev,
                                          Fdc2214CapFastChannelSample_t outSamples[4]);
 esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,
-                                             uint8_t channelMask,
-                                             Fdc2214CapFastChannelSample_t* outSamples,
-                                             size_t outSampleCount);
+                                              uint8_t channelMask,
+                                              Fdc2214CapFastChannelSample_t* outSamples,
+                                              size_t outSampleCount);
+esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev,
+                                                  uint8_t channelMask,
+                                                  Fdc2214CapFastChannelSample_t* outSamples,
+                                                  size_t outSampleCount);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

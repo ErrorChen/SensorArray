@@ -207,6 +207,13 @@ typedef struct {
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
     uint32_t statusReadSuppressedBeforeIntbCount;
+    uint32_t noStatusPollWaitCount;
+    uint32_t statusAfterIntbCount;
+    uint32_t statusAfterTimeoutCount;
+    uint32_t hardTimeoutStatusDiagCount;
+    uint32_t intbActiveStatusMismatchCount;
+    uint32_t suppressedRpCount;
+    uint32_t internalWaitStateLeakCount;
     uint32_t unsafeUnreadNoDrdyCount;
     uint32_t drdyPartialUnreadCount;
     uint32_t drdyFullUnreadReadyCount;
@@ -439,6 +446,13 @@ typedef struct {
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
     uint32_t statusReadSuppressedBeforeIntbCount;
+    uint32_t noStatusPollWaitCount;
+    uint32_t statusAfterIntbCount;
+    uint32_t statusAfterTimeoutCount;
+    uint32_t hardTimeoutStatusDiagCount;
+    uint32_t intbActiveStatusMismatchCount;
+    uint32_t suppressedRpCount;
+    uint32_t internalWaitStateLeakCount;
     uint32_t unsafeUnreadNoDrdyCount;
     uint32_t drdyPartialUnreadCount;
     uint32_t drdyFullUnreadReadyCount;

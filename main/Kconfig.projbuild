@@ -215,18 +215,18 @@ config SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
 endchoice
 
 config SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
-    bool "Allow short after-INTB STATUS recheck when unread is full but DRDY is not closed"
+    bool "Legacy alias: allow one short STATUS confirmation retry after active INTB"
     default y
 
 config SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX
-    int "Maximum after-INTB STATUS rechecks"
-    default 3
-    range 0 16
+    int "Legacy maximum after-INTB STATUS rechecks (matrix strict path clamps to one)"
+    default 1
+    range 0 1
     depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
 
 config SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US
-    int "Delay between after-INTB rechecks (us)"
-    default 250
+    int "Legacy delay before the single after-INTB STATUS confirmation retry (us)"
+    default 100
     range 0 10000
     depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
 
@@ -242,9 +242,30 @@ config SENSORARRAY_FDC_INTB_WAIT_MARGIN_US
     range 0 100000
 
 config SENSORARRAY_FDC_READY_GUARD_US
-    int "Guard time after estimated FDC conversion before STATUS polling (us)"
+    int "Guard time after estimated FDC conversion before one timeout STATUS diagnostic (us)"
     default 3000
     range 0 100000
+
+config SENSORARRAY_FDC_DISABLE_READY_STATUS_POLL
+    bool "Disable STATUS polling during normal FDC ready wait"
+    default y
+    help
+        Keep enabled for normal matrix frames. Explicit legacy poll-only or
+        INTB-with-poll-fallback diagnostics require this option to be disabled.
+
+config SENSORARRAY_FDC_STATUS_AFTER_TIMEOUT_FALLBACK
+    bool "Allow one STATUS fallback after estimated round plus guard"
+    default y
+
+config SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY
+    int "STATUS confirmation retries after active-low INTB"
+    default 1
+    range 0 1
+
+config SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY_US
+    int "Delay before the one STATUS confirmation retry after INTB (us)"
+    default 100
+    range 0 10000
 
 config SENSORARRAY_FDC_STALE_UNREAD_DRAIN_ENABLE
     bool "Drain stale unread DATA_CHx when unread is full but DRDY is low"
@@ -303,7 +324,7 @@ config SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID
     default y
 
 config SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB
-    bool "Suppress repeated STATUS reads before INTB is ready"
+    bool "Legacy compatibility: suppress STATUS reads before INTB is ready"
     default y
 
 config SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG
@@ -844,6 +865,11 @@ config SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE
         Disabled by default. A slow estimated profile is a timing/performance
         diagnostic, not an electrical failure. Rescue should be requested only
         for invalid data, cache missing, timeout, or explicit debug experiments.
+
+config SENSORARRAY_FDC_PFU_LOG_EVERY_N_FRAMES
+    int "Repeat unchanged PFU diagnostic every N row-device visits"
+    default 100
+    range 1 100000
 
 config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
     int "Deprecated alias for verbose timing output interval"

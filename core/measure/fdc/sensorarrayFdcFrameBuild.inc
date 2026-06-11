@@ -1094,7 +1094,7 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)t->statusReadSuppressedBeforeIntbCount,
            (unsigned long)t->unsafeUnreadNoDrdyCount,
            (unsigned long)t->drdyPartialUnreadCount);
-    printf("Q5,s0=%lu,s1=%lu,n=%lu,fw=%lu,sw=%lu,tw=%lu,z0=%lu,zd=%lu,nr=%lu,softInvalid=%lu,hardInvalid=%lu,drain=%lu,invRow=%lu,invDev=%lu,fs=%lu,sweepReq=%lu,sweepQ=%lu,def=%lu\n",
+    printf("Q5,s0=%lu,s1=%lu,n=%lu,fw=%lu,sw=%lu,tw=%lu,z0=%lu,zd=%lu,nr=%lu,softInvalid=%lu,hardInvalid=%lu,drain=%lu,invRow=%lu,invDev=%lu,fs=%lu,sweepReq=%lu,sweepQ=%lu,def=%lu,noStatusPollWait=%lu,statusAfterIntb=%lu,statusAfterTimeout=%lu,hardStatusDiag=%lu,intbStatusMismatch=%lu,suppressedRp=%lu,internalWaitLeak=%lu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
            (unsigned long)agg->frames,
@@ -1112,7 +1112,14 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)t->warningFastSweepRequestedCount,
            (unsigned long)t->sweepRequestCount,
            (unsigned long)t->sweepActuallyQueuedCount,
-           (unsigned long)t->deferredRepairRequestCount);
+           (unsigned long)t->deferredRepairRequestCount,
+           (unsigned long)t->noStatusPollWaitCount,
+           (unsigned long)t->statusAfterIntbCount,
+           (unsigned long)t->statusAfterTimeoutCount,
+           (unsigned long)t->hardTimeoutStatusDiagCount,
+           (unsigned long)t->intbActiveStatusMismatchCount,
+           (unsigned long)t->suppressedRpCount,
+           (unsigned long)t->internalWaitStateLeakCount);
     printf("I5,s0=%lu,s1=%lu,n=%lu,w=%lu,r=%lu,vr=%lu,retry=%lu,nack=%lu,to=%lu,rec=%lu,b0=%lu/%lu/%llu,b1=%lu/%lu/%llu,avg0=%llu,avg1=%llu,maxRead=%llu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
@@ -1534,6 +1541,13 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(statusReadsAfterIntbCount);
     SENSORARRAY_FDC_AGG_ADD(statusReadsInFallbackCount);
     SENSORARRAY_FDC_AGG_ADD(statusReadSuppressedBeforeIntbCount);
+    SENSORARRAY_FDC_AGG_ADD(noStatusPollWaitCount);
+    SENSORARRAY_FDC_AGG_ADD(statusAfterIntbCount);
+    SENSORARRAY_FDC_AGG_ADD(statusAfterTimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(hardTimeoutStatusDiagCount);
+    SENSORARRAY_FDC_AGG_ADD(intbActiveStatusMismatchCount);
+    SENSORARRAY_FDC_AGG_ADD(suppressedRpCount);
+    SENSORARRAY_FDC_AGG_ADD(internalWaitStateLeakCount);
     SENSORARRAY_FDC_AGG_ADD(unreadWithoutDrdyCount);
     SENSORARRAY_FDC_AGG_ADD(dataNotReadyCount);
     SENSORARRAY_FDC_AGG_ADD(softInvalidCount);

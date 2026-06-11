@@ -40,6 +40,26 @@ static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
                                             const uint16_t rCount[4],
                                             const uint16_t settleCount[4])
 {
+    static uint32_t s_lastFingerprint[2][SENSORARRAY_MATRIX_ROWS] = {{0}};
+    static uint32_t s_unchangedCount[2][SENSORARRAY_MATRIX_ROWS] = {{0}};
+    uint8_t devSlot = devId <= SENSORARRAY_FDC_DEV_SECONDARY ? (uint8_t)devId : 0u;
+    uint8_t rowSlot = (row > 0u && row <= SENSORARRAY_MATRIX_ROWS) ? (uint8_t)(row - 1u) : 0u;
+    uint32_t fingerprint = roundUs ^ targetRoundUs ^ rowBudgetUs;
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        fingerprint = (fingerprint * 16777619u) ^ rCount[ch];
+        fingerprint = (fingerprint * 16777619u) ^ settleCount[ch];
+    }
+    bool changed = s_lastFingerprint[devSlot][rowSlot] != fingerprint;
+    if (changed) {
+        s_lastFingerprint[devSlot][rowSlot] = fingerprint;
+        s_unchangedCount[devSlot][rowSlot] = 0u;
+    } else {
+        s_unchangedCount[devSlot][rowSlot]++;
+        uint32_t period = (uint32_t)CONFIG_SENSORARRAY_FDC_PFU_LOG_EVERY_N_FRAMES;
+        if (period != 0u && (s_unchangedCount[devSlot][rowSlot] % period) != 0u) {
+            return;
+        }
+    }
     uint32_t theoreticalMaxFpsX100 = sensorarrayMeasureFdcTheoreticalFrameFpsX100(roundUs);
     printf("PFU,d=%s,r=%u,profile=%s,why=profile_too_slow,action=%s,round=%lu,target=%lu,rowBudget=%lu,theoreticalMaxFps=%lu.%02lu,rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X]\n",
            sensorarrayMeasureFdcDeviceToken(devId),
