@@ -31,6 +31,17 @@ static uint32_t sensorarrayMeasureFdcTheoreticalFrameFpsX100(uint32_t roundUs)
     return roundUs ? (uint32_t)(100000000ull / ((uint64_t)roundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
 }
 
+static const char *sensorarrayMeasureFdcProfileTooSlowActionName(void)
+{
+#if CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_FORCE_TARGET_BUDGET
+    return "force_target_budget";
+#elif CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_DIAG_ONLY
+    return "diag_only";
+#else
+    return "auto_select_balanced";
+#endif
+}
+
 static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
                                             uint8_t row,
                                             const char *action,
@@ -207,6 +218,8 @@ static bool sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(
     return promoted;
 }
 
+static uint8_t s_fdcCacheMissLoggedMask[SENSORARRAY_MATRIX_ROWS][2];
+
 static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *state,
                                                            uint8_t row,
                                                            sensorarrayFdcDeviceId_t devId,
@@ -268,6 +281,27 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         (void)dIndex;
     }
 
+    uint16_t cachedRcount[4] = {
+        expected.rCount[0],
+        expected.rCount[1],
+        expected.rCount[2],
+        expected.rCount[3],
+    };
+    uint16_t runtimeRcount = SENSORARRAY_FDC_RUNTIME_RCOUNT;
+#if CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_FORCE_TARGET_BUDGET
+    if (runtimeRcount > 0x0900u) {
+        runtimeRcount = 0x0900u;
+    }
+#endif
+    bool runtimeProfileChanged = false;
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        if (expected.rCount[ch] != runtimeRcount) {
+            expected.rCount[ch] = runtimeRcount;
+            runtimeProfileChanged = true;
+        }
+        expected.settleCount[ch] = SENSORARRAY_FDC_SETTLECOUNT;
+    }
+
     expected.selectedDeglitch =
         sensorarrayFdcMergeDeglitchForRowDevice(state,
                                                 row,
@@ -301,10 +335,10 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     sensorarrayFdcProfileSnapshot_t bootStableProfile = expected.profileSnapshot;
     uint32_t initialRoundUs = expected.profileSnapshot.autoscanRoundUs;
     uint16_t oldRcount[4] = {
-        expected.rCount[0],
-        expected.rCount[1],
-        expected.rCount[2],
-        expected.rCount[3],
+        cachedRcount[0],
+        cachedRcount[1],
+        cachedRcount[2],
+        cachedRcount[3],
     };
     uint16_t oldSettle[4] = {
         expected.settleCount[0],
@@ -319,7 +353,7 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     const uint32_t rowBudgetUs = SENSORARRAY_FDC_TARGET_ROW_US;
     bool initialProfileTooSlow =
         initialRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US ||
-        initialRoundUs > targetRoundUs;
+        initialRoundUs > rowBudgetUs;
     bool fastProfileApplied = false;
     bool fastProfilePossible = true;
     bool formalFastProfileEnabled = CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE != 0;
@@ -381,11 +415,18 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         timing->applyBuildConfigUs += sensorarrayMeasureElapsedUs(buildStartUs);
     }
 
+    uint8_t rowSlot = (uint8_t)(row - 1u);
+    uint8_t devSlot = (uint8_t)devId;
+    bool logMissingChange = s_fdcCacheMissLoggedMask[rowSlot][devSlot] != missingMask;
+    s_fdcCacheMissLoggedMask[rowSlot][devSlot] = missingMask;
+
     if (missingMask != 0u && !CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ) {
-        printf("FDC_CACHE_MISS,row=%u,device=%s,missingMask=0x%X,action=mark_invalid_request_fast_sweep,reason=cache_missing\n",
-               (unsigned)row,
-               sensorarrayMeasureFdcDeviceName(devId),
-               (unsigned)missingMask);
+        if (logMissingChange) {
+            printf("FDC_CACHE_MISS,row=%u,device=%s,missingMask=0x%X,action=mark_invalid_request_fast_sweep,reason=cache_missing\n",
+                   (unsigned)row,
+                   sensorarrayMeasureFdcDeviceName(devId),
+                   (unsigned)missingMask);
+        }
         for (uint8_t ch = 0u; ch < 4u; ++ch) {
             if ((missingMask & (uint8_t)(1u << ch)) == 0u) {
                 continue;
@@ -400,7 +441,7 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         return ESP_ERR_NOT_FOUND;
     }
 
-    if (missingMask != 0u) {
+    if (missingMask != 0u && logMissingChange) {
         printf("FDC_CACHE_MISS,row=%u,device=%s,missingMask=0x%X,action=use_safe_default,reason=debug_safe_default_enabled\n",
                (unsigned)row,
                sensorarrayMeasureFdcDeviceName(devId),
@@ -602,6 +643,21 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         timing->diffStatusConfigWrites += diffStatusWrites;
         timing->diffConfigWrites += diffConfigWrites;
         timing->appliedFingerprintChanged += (previousFingerprint != expected.fingerprint) ? 1u : 0u;
+    }
+    if (CONFIG_SENSORARRAY_FDC_PROFILE_CHANGE_LOG &&
+        runtimeProfileChanged &&
+        diffWriteCount != 0u) {
+        printf("PR,d=%s,r=%u,oldProfile=high_precision,newProfile=%s,oldRoundUs=%lu,newRoundUs=%lu,oldRcount=%04X,newRcount=%04X,targetUs=%lu,rowBudgetUs=%lu,action=%s,reason=formal_runtime\n",
+               sensorarrayMeasureFdcDeviceToken(devId),
+               (unsigned)row,
+               SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
+               (unsigned long)initialRoundUs,
+               (unsigned long)applied->profileSnapshot.autoscanRoundUs,
+               cachedRcount[0],
+               applied->rCount[0],
+               (unsigned long)targetRoundUs,
+               (unsigned long)rowBudgetUs,
+               sensorarrayMeasureFdcProfileTooSlowActionName());
     }
 
     for (uint8_t ch = 0u; ch < 4u; ++ch) {

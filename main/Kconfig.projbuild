@@ -409,7 +409,7 @@ config SENSORARRAY_FDC_ROW_LOG_LEVEL
 
 config SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL
     int "FDC read4 log level (0 off, 1 anomaly, 2 sampled, 3 sampled raw/freq, 4 every read)"
-    default 1
+    default 0
     range 0 4
 
 config SENSORARRAY_FDC_LOG_READY_EVERY_ROW
@@ -419,6 +419,19 @@ config SENSORARRAY_FDC_LOG_READY_EVERY_ROW
 config SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING
     bool "Print per-row FDC parallel overlap timing"
     default n
+
+config SENSORARRAY_FDC_ROW_VERBOSE_LOG
+    bool "Print compact FE/FR row diagnostics"
+    default y
+
+config SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP
+    bool "Use legacy MATRIXFDC_CAP output tag"
+    default n
+
+config SENSORARRAY_FDC_CAP_DECIMALS
+    int "Cap output decimal places"
+    default 6
+    range 0 6
 
 config SENSORARRAY_FDC_LOG_FULL_CAP_FRAME
     bool "Print full MATRIXFDC_CAP frame output"
@@ -469,6 +482,58 @@ config SENSORARRAY_FDC_PROFILE_NAME
     default "balanced_20fps" if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
     default "fast_debug" if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
     default "high_precision"
+
+choice SENSORARRAY_FDC_RUNTIME_PROFILE
+    prompt "Formal continuous-frame FDC runtime profile"
+    default SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+
+config SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    bool "high_precision: preserve boot/full-sweep conversion count"
+
+config SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    bool "balanced_runtime: default continuous-frame profile"
+
+config SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
+    bool "fast_runtime: high dynamic response test profile"
+
+endchoice
+
+config SENSORARRAY_FDC_RUNTIME_PROFILE_NAME
+    string
+    default "high_precision" if SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    default "balanced_runtime" if SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    default "fast_runtime" if SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
+    default "balanced_runtime"
+
+config SENSORARRAY_FDC_RUNTIME_RCOUNT
+    hex
+    default 0x2089 if SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    default 0x0E00 if SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    default 0x0900 if SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
+    default 0x0E00
+
+choice SENSORARRAY_FDC_PROFILE_TOO_SLOW_ACTION
+    prompt "Action when formal runtime profile exceeds row budget"
+    default SENSORARRAY_FDC_PROFILE_TOO_SLOW_AUTO_SELECT_BALANCED
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_DIAG_ONLY
+    bool "diag_only"
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_AUTO_SELECT_BALANCED
+    bool "auto_select_balanced"
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_FORCE_TARGET_BUDGET
+    bool "force_target_budget"
+
+endchoice
+
+config SENSORARRAY_FDC_PROFILE_CHANGE_LOG
+    bool "Log formal runtime profile changes"
+    default y
+
+config SENSORARRAY_FDC_FORCE_HIGH_PRECISION_BOOT_SWEEP
+    bool "Force high precision for boot/full sweep"
+    default y
 
 config SENSORARRAY_FDC_RCOUNT_DEFAULT
     hex

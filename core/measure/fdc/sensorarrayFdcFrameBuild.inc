@@ -980,7 +980,7 @@ static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
     printf("P5,s=%lu,n=%lu,profile=%s,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,profileTooSlowAction=%s,theoreticalMaxFps=%lu.%02lu",
            (unsigned long)sequence,
            (unsigned long)period,
-           SENSORARRAY_FDC_PROFILE_NAME,
+           SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
            (unsigned long)validCount,
            (unsigned long)avgRoundUs,
            (unsigned long)maxRoundUs,
@@ -991,7 +991,9 @@ static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
            (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
            profileTooSlow ? 1u : 0u,
            profileTooSlow ?
-           (CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE ? "rescue_enabled" : "diag_only") :
+           (CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION ?
+            "user_forced_high_precision" :
+            sensorarrayMeasureFdcProfileTooSlowActionName()) :
            "none",
            (unsigned long)(theoreticalMaxFpsX100 / 100u),
            (unsigned long)(theoreticalMaxFpsX100 % 100u));
@@ -1120,7 +1122,7 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)t->intbActiveStatusMismatchCount,
            (unsigned long)t->suppressedRpCount,
            (unsigned long)t->internalWaitStateLeakCount);
-    printf("I5,s0=%lu,s1=%lu,n=%lu,w=%lu,r=%lu,vr=%lu,retry=%lu,nack=%lu,to=%lu,rec=%lu,b0=%lu/%lu/%llu,b1=%lu/%lu/%llu,avg0=%llu,avg1=%llu,maxRead=%llu\n",
+    printf("I5,s0=%lu,s1=%lu,n=%lu,w=%lu,r=%lu,vr=%lu,retry=%lu,nack=%lu,to=%lu,rec=%lu,b0=%lu/%lu/%llu,b1=%lu/%lu/%llu,avg0=%llu,avg1=%llu,maxRead=%llu,bw=%llu/%llu,gl=%llu,xs=%lu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
            (unsigned long)agg->frames,
@@ -1139,7 +1141,21 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)t->i2cBus1TotalUs,
            (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus0TotalUs, bus0Ops),
            (unsigned long long)sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, bus1Ops),
-           (unsigned long long)t->maxI2cReadUs);
+           (unsigned long long)t->maxI2cReadUs,
+           (unsigned long long)t->i2cBus0BusyWaitUs,
+           (unsigned long long)t->i2cBus1BusyWaitUs,
+           (unsigned long long)t->i2cGlobalLockWaitUs,
+           (unsigned long)t->i2cCrossBusSerializedCount);
+    printf("CA5,s0=%lu,s1=%lu,n=%lu,us=%llu,w=%lu,full=%lu,diff=%lu,skip=%lu,mis=%lu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyUs, agg->frames),
+           (unsigned long)t->cacheApplyDiffWriteCount,
+           (unsigned long)t->cacheApplyFullWriteCount,
+           (unsigned long)t->cacheApplyDiffWriteCount,
+           (unsigned long)t->cacheApplyNoDiffCount,
+           (unsigned long)t->appliedFingerprintChanges);
     return;
 #endif
 
@@ -1507,8 +1523,12 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(i2cBus0RetryCount);
     SENSORARRAY_FDC_AGG_ADD(i2cBus0NackCount);
     SENSORARRAY_FDC_AGG_ADD(i2cBus0TimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus0BusyWaitUs);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1WriteCount);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1ReadCount);
+    SENSORARRAY_FDC_AGG_ADD(i2cBus1BusyWaitUs);
+    SENSORARRAY_FDC_AGG_ADD(i2cGlobalLockWaitUs);
+    SENSORARRAY_FDC_AGG_ADD(i2cCrossBusSerializedCount);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1WriteBytes);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1ReadBytes);
     SENSORARRAY_FDC_AGG_ADD(i2cBus1TotalUs);

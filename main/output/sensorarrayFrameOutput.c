@@ -33,6 +33,12 @@
 #ifndef CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS
 #define CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS 6
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_CAP_DECIMALS
+#define CONFIG_SENSORARRAY_FDC_CAP_DECIMALS CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP
+#define CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP 0
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
 #define CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES 5
 #endif
@@ -82,10 +88,10 @@ static void sensorarrayFrameOutputPrintCapLine(const sensorarrayFrame_t *frame,
                                        sizeof(line),
                                        pos,
                                        "%s,s=%lu,t=%llu,q=%s",
-#if CONFIG_SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG
+#if CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP
                                        "MATRIXFDC_CAP",
 #else
-                                       "C",
+                                       "Cap",
 #endif
                                        (unsigned long)frame->sequence,
                                        (unsigned long long)frame->timestampUs,
@@ -142,7 +148,7 @@ static void sensorarrayFrameOutputPrintCapLine(const sensorarrayFrame_t *frame,
                                            pos,
                                            "%s%.*f",
                                            (i == 0u) ? "" : ",",
-                                           CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS,
+                                           CONFIG_SENSORARRAY_FDC_CAP_DECIMALS,
                                            frame->capTotalPf[i]);
     }
     (void)sensorarrayFrameOutputAppend(line, sizeof(line), pos, "]\n");

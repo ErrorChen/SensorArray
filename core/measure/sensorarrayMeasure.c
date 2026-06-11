@@ -233,6 +233,9 @@
 #ifndef CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
 #define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 0
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG
+#define CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG 1
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
 #define CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES 5
 #endif
@@ -616,9 +619,11 @@ typedef struct {
     esp_err_t err;
     sensorarrayFdcReadyState_t ready;
     sensorarrayFdcDeviceRead4Result_t read4;
+    uint32_t frameSeq;
     uint8_t row;
     sensorarrayFdcDeviceId_t devId;
     uint32_t epochId;
+    uint32_t generation;
 } sensorarrayFdcWorkerResult_t;
 
 typedef struct {
@@ -640,8 +645,12 @@ typedef struct {
     uint32_t doneWaitUs;
     uint32_t workerRunUs;
     uint32_t waitWorkerIdleAfterTimeoutUs;
+    uint64_t readyAckUs;
+    uint64_t workerStartUs;
+    uint64_t workerEndUs;
     uint64_t workerDeadlineUs;
     uint32_t rowHardDeadlineUs;
+    uint32_t generation;
     esp_err_t err;
 } sensorarrayFdcWorkerTrace_t;
 
@@ -663,6 +672,7 @@ typedef struct {
     sensorarrayFdcWorkerTrace_t *trace;
     sensorarrayFdcFrameReadTracker_t *readTracker;
     uint64_t rowDeviceDeadlineUs;
+    uint32_t generation;
 } sensorarrayFdcWorkerJob_t;
 
 typedef struct {
@@ -697,6 +707,7 @@ typedef struct {
     volatile uint32_t preparedEpoch;
     volatile int preparedErr;
     volatile bool rowConfigPrepared;
+    volatile uint32_t generation;
 } sensorarrayFdcWorkerContext_t;
 
 typedef struct {
@@ -1518,6 +1529,9 @@ esp_err_t sensorarrayMeasureRequestFdcCellRescue(sensorarrayState_t *state,
     }
 
     const char *source = reason ? reason : "runtime_cell_rescue";
+    if (cache->rescuePending && !sensorarrayMeasureFdcRescueReasonIsManual(source)) {
+        return ESP_OK;
+    }
     if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(source) &&
         !CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE) {
         printf("FDC_RESCUE_SUPPRESSED,scope=cell,s=%u,d=%u,index=%u,device=%s,ch=%u,reason=%s,policy=profile_too_slow_diag_only\n",
@@ -2982,8 +2996,8 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                 rowTimeoutMask8 |= (uint8_t)(1u << (ch + 4u));
             }
         }
-#if CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
-        printf("FDC_ROW_SUMMARY,row=%u,epoch=%lu,primaryValid=0x%X,secondaryValid=0x%X,rowValidMask=0x%02X,rowWarnMask=0x%02X,rowErrorMask=0x%02X,cacheMissMask=0x%02X,timeoutMask=0x%02X,partial=%u,primaryStatus=0x%04X,primaryUnread=0x%X,secondaryStatus=0x%04X,secondaryUnread=0x%X\n",
+#if CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG
+        printf("FR,r=%u,e=%lu,pv=%X,sv=%X,vm=%02X,wm=%02X,em=%02X,cm=%02X,tm=%02X,pt=%u,ps=%04X/%X,ss=%04X/%X\n",
                (unsigned)s,
                (unsigned long)epochId,
                (unsigned)(primarySamples.validMask & 0x0Fu),
@@ -3106,6 +3120,12 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     if (timing.rowMinUs == UINT64_MAX) {
         timing.rowMinUs = 0u;
     }
+    if (timing.cacheApplyUs > 10000u) {
+        printf("CAWARN,s=%lu,us=%llu,writes=%lu,reason=cache_apply_over_10ms\n",
+               (unsigned long)outFrame->sequence,
+               (unsigned long long)timing.cacheApplyUs,
+               (unsigned long)timing.cacheApplyDiffWriteCount);
+    }
 
     Fdc2214CapI2cStats_t primaryStats = {0};
     Fdc2214CapI2cStats_t secondaryStats = {0};
@@ -3113,6 +3133,14 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     if (sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary)) {
         Fdc2214CapGetI2cStats(state->fdcSecondary.handle, &secondaryStats);
     }
+    BoardSupportI2cBusInfo_t primaryBusAfter = {0};
+    BoardSupportI2cBusInfo_t secondaryBusAfter = {0};
+    (void)boardSupportGetI2cBusInfo(false, &primaryBusAfter);
+    (void)boardSupportGetI2cBusInfo(true, &secondaryBusAfter);
+    timing.i2cBus0BusyWaitUs = primaryBusAfter.BusyWaitUs - primaryBus.BusyWaitUs;
+    timing.i2cBus1BusyWaitUs = secondaryBusAfter.BusyWaitUs - secondaryBus.BusyWaitUs;
+    timing.i2cGlobalLockWaitUs = 0u;
+    timing.i2cCrossBusSerializedCount = 0u;
     sensorarrayMeasureMergeFdcI2cStats(&primaryStats, &secondaryStats, &primaryBus, &secondaryBus, &timing);
 
     if (CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG &&

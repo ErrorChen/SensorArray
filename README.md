@@ -1095,7 +1095,7 @@ Relevant defaults:
 | `CONFIG_SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG` | `y` |
 | `CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS` | `6` |
 | `CONFIG_SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY` | `n` |
-| `CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL` | `1` |
+| `CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL` | `0` |
 | `CONFIG_SENSORARRAY_FDC_ROW_LOG_LEVEL` | `1` |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION` | `y` |
 | `CONFIG_SENSORARRAY_FDC_RCOUNT_DEFAULT` | derived from profile, `0x2089` for `high_precision` |
@@ -1124,3 +1124,169 @@ Use these checks in monitor output:
 - `P5/R5/T5/Q5/I5` carry `n=5` by default. If Kconfig changes the period, trust the `n` field.
 - `OT` gives output `op`; falling `op` should correlate with lower `OV/BN` pressure.
 - `MATRIXFDC_CAP` still exists by default and `pf` uses 6 decimals unless `CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS` is changed.
+
+## 当前双总线并行读取与验收 / Current Dual-Bus Runtime
+
+### FDC formal frame pipeline
+
+正式连续帧主路径如下：
+
+```text
+sensorarrayRunMainLoop()
+  -> sensorarrayRunOneFrame()
+  -> sensorarrayFdcMatrixEngineReadFrame()
+  -> sensorarrayMeasureReadFdcMatrixFrame()
+     -> row select and settle while both FDCs sleep
+     -> apply primary and secondary diff-only cached row config
+     -> queue secondary worker and wait ready acknowledgement
+     -> release start barrier
+     -> parent runs primary wait INTB + STATUS ack + DATA burst
+        in parallel with secondary worker wait INTB + STATUS ack + DATA burst
+     -> parent waits only for the secondary tail
+     -> validate frame/row/epoch/device/generation and merge
+  -> sensorarrayFrameOutputPrint()
+```
+
+父任务直接执行 primary FDC；secondary worker 在收到 job 后先进入 ready-to-start，
+等待 parent release barrier。`workerDoneWaitUs`/`T5.ww` 只计算 primary 完成后的真实
+join 尾巴，不包含 worker 自己与 primary 重叠运行的时间。两颗 FDC 分别使用
+boardSupport bus0/bus1 context；每条 bus 有独立 mutex，同一 bus 内互斥，不同 bus
+可以并行。
+
+### WP worker parallel timing
+
+`WP` 每 5 帧或异常时输出：
+
+```text
+WP,r=<row>,e=<epoch>,q=<queueUs>,ack=<readyAckOffUs>,sg=<startGiveOffUs>,
+ps=<parentStartOffUs>,pe=<parentEndOffUs>,ws=<workerStartOffUs>,
+we=<workerEndOffUs>,jd=<joinWaitUs>,ov=<overlapUs>,pr=<parentRunUs>,
+wr=<workerRunUs>,mode=<par|fallback>,reason=<reason>
+```
+
+所有 `*OffUs` 以该 row 开始为零点。真并行应满足 `ws ~= ps`、
+`ov ~= min(pr,wr)`、`jd` 很小；正常目标是 `workerSyncUs < 20 ms/frame`，
+最好 `< 5 ms/frame`，且 `T5.ww < 2000 us/row`。
+
+常见 reason：
+
+- `worker_late_start`: secondary worker 明显晚于 parent。
+- `stale_done_or_join_bug`: done/result 与当前 generation 不匹配，或 worker 已结束但 join 仍异常。
+- `i2c_lock_serialized`: 两侧已启动但运行窗口几乎不重叠。
+- `queue_fail`, `ack_timeout`, `worker_deadline`: barrier/job deadline 失败。
+
+### FDC2214 DATA burst
+
+formal row read 使用 `Fdc2214CapReadDataBurst4()`。DATA 顺序固定为寄存器 `0x00..0x07`：
+
+```text
+DATA_CH0, DATA_LSB_CH0, DATA_CH1, DATA_LSB_CH1,
+DATA_CH2, DATA_LSB_CH2, DATA_CH3, DATA_LSB_CH3
+```
+
+该顺序满足每通道先 DATA_CHx/MSB、再 DATA_LSB_CHx 的 datasheet 要求，并保留
+DATA_CHx 的 watchdog/amplitude error bits。TI datasheet 的标准读时序只明确保证一次
+register pointer 对应一个 16-bit register；当前 boardSupport 因此在同一个 bus lock 和
+一个 I2C command link 中，对 `0x00..0x07` 依次执行 repeated-start register read。
+这避免 8 次 RTOS/driver transaction 和锁切换，同时不依赖芯片未定义的地址自动递增。
+
+generic bus adapter 没有 `ReadRegisters` callback 时，驱动仍会探测 `pointer=0x00` 后
+直接读取 16 bytes；若 CH1-CH3 与有序复读不一致，则记录 `FDC_BURST` 并安全回退。
+DATA read 失败会短重试一次；再次失败则当前 row-device 无效，不复用旧 epoch 数据。
+`I5.r` 应比逐寄存器读取明显下降，`dataReadUs` 目标 `< 15 ms/frame`；
+`retry/nack/to/rec` 应保持零。
+
+当前实板验证表明直接 16-byte read 只有首个 16-bit register 可靠，因此正式路径使用
+ordered compound read。它将 `I5.r` 从旧路径约 `1120/5frames` 降到 `160/5frames`
+（同时移除 row sleep readback），但无法消除线上每个 register 的 address phase；
+在当前 337.5 kHz 板级限制下，`dataReadUs` 仍约 `41 ms/frame`，balanced runtime
+实测约 `7.4 fps`。若必须达到 15-20 fps，需要允许更高且稳定的 bus rate、修改硬件
+signal integrity，或选用明确支持 multi-register auto-increment/burst 的器件。
+
+formal row 的 sleep enter/exit 使用 CONFIG write-only toggle，避免每 row/device 两次无必要
+readback；`CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL` 和启动/诊断路径仍可做完整读回验证。
+默认两条 FDC I2C bus 运行在当前板已验证稳定的 `337.5 kHz`；实板 400 kHz bring-up
+无法稳定识别两颗 FDC，因此不作为默认值。
+
+### Runtime profiles
+
+boot/full sweep 的默认基础配置仍为 `high_precision`：
+`RCOUNT=0x2089`, `SETTLECOUNT=0x0080`。formal continuous frame 使用独立 runtime profile：
+
+| Runtime profile | RCOUNT | SETTLECOUNT | 用途 |
+|---|---:|---:|---|
+| `high_precision` | `0x2089` | `0x0080` | 用户明确要求的低速高精度正式帧 |
+| `balanced_runtime` | `0x0E00` | `0x0080` | 默认连续帧，目标约 15-20 fps |
+| `fast_runtime` | `0x0900` | `0x0080` | 高动态响应测试 |
+
+相关配置为 `CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_*`、
+`CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_*`、
+`CONFIG_SENSORARRAY_FDC_PROFILE_CHANGE_LOG` 和
+`CONFIG_SENSORARRAY_FDC_FORCE_HIGH_PRECISION_BOOT_SWEEP`。默认 action 是
+`auto_select_balanced`。用户明确选择 runtime high precision 时，P5 使用
+`user_forced_high_precision` 说明，而不是把它误报为自动修复失败。`PR` 记录
+old/new profile、round、RCOUNT、target、row budget、action 和 reason。
+
+### Diff-only cache apply
+
+每个 device 保留 last-applied row shadow。cache apply 比较 RCOUNT、SETTLECOUNT、
+CLOCK_DIVIDERS、DRIVE_CURRENT、MUX_CONFIG、STATUS_CONFIG 和 CONFIG，仅写变化寄存器。
+默认 `startup_only` verify 不会在每 row 重读 CONFIG/MUX/STATUS_CONFIG；full verify
+模式仍可用于受控诊断。profile-too-slow 日志不会触发全量 apply。
+
+- `CA5`: 聚合 `cacheApplyUs`、writes、full/diff/no-diff 和 fingerprint change。
+- `CAWARN`: 单帧 cache apply 超过 `10 ms` 时输出。
+
+稳定运行时 cache apply 应为 0 到数 ms，不应连续出现 100 ms 级 `CAWARN`。
+Runtime profile 的 slow/action 判定使用 `rowBudgetUs`；`targetUs` 只作为性能目标展示，
+不会让满足 row budget 的 `balanced_runtime` 每 100 次 row-device visit 重复打印 PFU。
+`CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL` 默认 `0`，需要定位单 device 异常时可临时提高，
+避免 D4 长日志在 worker 并行窗口内扰动 I2C 时序。
+
+### Compact log dictionary
+
+| Tag | Meaning |
+|---|---|
+| `Cap` | 默认 64-cell capacitance frame；旧 GUI 可启用 `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP` |
+| `FE` | row/device cache/profile snapshot |
+| `FR` | compact row validity/status summary |
+| `WP` | parent/secondary worker barrier and overlap |
+| `T5` | timing aggregate；`ww` 是真实 join wait/row |
+| `R5` | ready/INTB aggregate |
+| `Q5` | strict-ready quality counters |
+| `I5` | I2C aggregate；`bw` per-bus lock wait，`gl` global lock wait，`xs` cross-bus serialisation |
+| `P5` / `PR` | profile summary / profile change |
+| `CA5` / `CAWARN` | cache apply aggregate / slow warning |
+| `S` | frame validity summary |
+| `OT` | output timing |
+| `OV` | frame-period overrun |
+
+`CONFIG_SENSORARRAY_FDC_CAP_DECIMALS` 默认 6；`CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG`
+控制 FE/FR row diagnostics。
+
+### Build, COM11 flash, and 100-frame validation
+
+Windows PowerShell 使用 ESP-IDF v5.5.1 环境后执行：
+
+```powershell
+idf fullclean
+idf build
+idf -p COM11 flash monitor
+```
+
+至少采集 100 个 `Cap`/legacy `MATRIXFDC_CAP` 正式帧，并检查：
+
+- 无 reset/watchdog；primary/secondary online。
+- `FR.vm=FF`, `wm=00`, `em=00`, `tm=00`, `pt=0` 长期稳定。
+- `R5`: `trueTo=0`, `hardTo=0`, `part=0`。
+- `Q5`: `noStatusPollWait`、`statusAfterIntb`、`suppressedRp` 按 row-device 数增长；
+  `statusAfterTimeout=0`, `internalWaitLeak=0`。
+- `I5`: `retry=0,nack=0,to=0,rec=0,xs=0`，且 burst 后 `r` 明显下降。
+- `WP`: `ws ~= ps`, overlap 接近较短 run window，reason 正常为 `ok`。
+- `T5`: `ww < 2000 us/row`，balanced runtime fps 明显高于 high precision。
+- `CA5/CAWARN`: cache apply 无持续 100 ms 级异常。
+
+若 `worker_late_start`，先检查 worker priority/core starvation；若
+`i2c_lock_serialized`，检查 primary/secondary 是否错误映射到同一 bus/context；
+若 `I5.r` 未下降，确认 formal path 调用了 DATA burst/ordered compound read；若 `CAWARN` 连续，
+检查 cache generation/reapplyPending/profile change 是否持续变化。

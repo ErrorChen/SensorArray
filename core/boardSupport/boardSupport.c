@@ -172,8 +172,17 @@ static esp_err_t boardSupportI2cLock(BoardSupportI2cCtx_t *ctx, TickType_t timeo
     if (!ctx->Mutex) {
         return ESP_ERR_INVALID_STATE;
     }
+    int64_t waitStartUs = esp_timer_get_time();
     if (xSemaphoreTake(ctx->Mutex, timeoutTicks) != pdTRUE) {
+        uint64_t waitUs = (uint64_t)(esp_timer_get_time() - waitStartUs);
+        ctx->BusyWaitUs += waitUs;
+        ctx->LockContentionCount++;
         return ESP_ERR_TIMEOUT;
+    }
+    uint64_t waitUs = (uint64_t)(esp_timer_get_time() - waitStartUs);
+    ctx->BusyWaitUs += waitUs;
+    if (waitUs > 100u) {
+        ctx->LockContentionCount++;
     }
     return ESP_OK;
 }
@@ -846,6 +855,8 @@ bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo
         .BusStuckCount = ctx->BusStuckCount,
         .RecoveryCount = ctx->RecoveryCount,
         .RecoveryFailCount = ctx->RecoveryFailCount,
+        .BusyWaitUs = ctx->BusyWaitUs,
+        .LockContentionCount = ctx->LockContentionCount,
     };
     return true;
 }
@@ -933,6 +944,69 @@ esp_err_t boardSupportI2cWrite(void *userCtx,
                                      txLen,
                                      boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
     return boardSupportI2cFinishTransaction(ctx, addr7, "write", err, startUs);
+}
+
+esp_err_t boardSupportI2cReadRegisters(void *userCtx,
+                                      uint8_t addr7,
+                                      const uint8_t *registers,
+                                      size_t registerCount,
+                                      uint8_t *rx)
+{
+    if (!userCtx || !registers || registerCount == 0u || !rx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    BoardSupportI2cCtx_t *ctx = boardSupportI2cWritableCtx((const BoardSupportI2cCtx_t *)userCtx);
+    esp_err_t err = boardSupportI2cEnsureMutex(ctx);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = boardSupportI2cLock(ctx, boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = boardSupportI2cCheckReadyLocked(ctx, addr7, "read_registers");
+    if (err != ESP_OK) {
+        boardSupportI2cUnlock(ctx);
+        return err;
+    }
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (!cmd) {
+        boardSupportI2cUnlock(ctx);
+        return ESP_ERR_NO_MEM;
+    }
+
+    ctx->TransactionCount++;
+    int64_t startUs = esp_timer_get_time();
+    for (size_t i = 0u; i < registerCount && err == ESP_OK; ++i) {
+        err = i2c_master_start(cmd);
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_WRITE), true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd, registers[i], true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_start(cmd);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_READ), true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_read_byte(cmd, &rx[i * 2u], I2C_MASTER_ACK);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_read_byte(cmd, &rx[i * 2u + 1u], I2C_MASTER_NACK);
+        }
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_stop(cmd);
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_cmd_begin(ctx->Port, cmd, boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
+    }
+    i2c_cmd_link_delete(cmd);
+    return boardSupportI2cFinishTransaction(ctx, addr7, "read_registers", err, startUs);
 }
 
 esp_err_t boardSupportI2cRead(void *userCtx,

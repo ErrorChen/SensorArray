@@ -282,6 +282,7 @@ typedef struct {
     uint32_t i2cBus0RetryCount;
     uint32_t i2cBus0NackCount;
     uint32_t i2cBus0TimeoutCount;
+    uint64_t i2cBus0BusyWaitUs;
 
     uint32_t i2cBus1WriteCount;
     uint32_t i2cBus1ReadCount;
@@ -291,6 +292,9 @@ typedef struct {
     uint32_t i2cBus1RetryCount;
     uint32_t i2cBus1NackCount;
     uint32_t i2cBus1TimeoutCount;
+    uint64_t i2cBus1BusyWaitUs;
+    uint64_t i2cGlobalLockWaitUs;
+    uint32_t i2cCrossBusSerializedCount;
 
     uint32_t i2cFreqHz;
     uint64_t i2cEstimatedBits;

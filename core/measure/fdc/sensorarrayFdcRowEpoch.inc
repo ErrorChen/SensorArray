@@ -24,8 +24,8 @@ static esp_err_t sensorarrayMeasureFdcSetSleepMode(sensorarrayFdcDeviceState_t *
     uint16_t baseConfig = sensorarrayMeasureFdcConfigBaseWithoutSleep(fdcState);
     int64_t startUs = esp_timer_get_time();
     esp_err_t err = enable ?
-        Fdc2214CapEnterSleep(fdcState->handle, baseConfig) :
-        Fdc2214CapExitSleep(fdcState->handle, baseConfig);
+        Fdc2214CapEnterSleepWriteOnly(fdcState->handle, baseConfig) :
+        Fdc2214CapExitSleepWriteOnly(fdcState->handle, baseConfig);
     uint64_t elapsedUs = sensorarrayMeasureElapsedUs(startUs);
     if (timing) {
         if (enable) {
@@ -2373,7 +2373,7 @@ static esp_err_t sensorarrayMeasureFdcPrepareDeviceWhileSleeping(sensorarrayStat
             applied->profileSnapshot.autoscanRoundUs >
             (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
         if (logNormal || profileTooSlow) {
-            printf("FDC_EPOCH,stage=after_cache_apply,row=%u,dev=%s,cfg=0x%04X,mux=0x%04X,statusConfig=0x%04X,roundUs=%lu,profileTooSlow=%u\n",
+            printf("FE,r=%u,d=%s,cfg=%04X,mux=%04X,sc=%04X,ru=%lu,slow=%u\n",
                    (unsigned)row,
                    sensorarrayMeasureFdcDeviceName(devId),
                    applied->configBaseWithoutSleepBit,
@@ -2597,10 +2597,12 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
             (uint64_t)esp_timer_get_time() +
             sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
     }
+#if CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL
     err = sensorarrayMeasureFdcVerifySleepExit(state, row, epochId, devId, timing);
     if (err != ESP_OK) {
         return err;
     }
+#endif
 
     int64_t waitStartUs = esp_timer_get_time();
     uint32_t estimatedRoundUs = 0u;
@@ -3118,9 +3120,11 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
 
         *job.result = (sensorarrayFdcWorkerResult_t){
             .err = ESP_ERR_TIMEOUT,
+            .frameSeq = job.frameSeq,
             .row = job.row,
             .devId = ctx->devId,
             .epochId = job.epochId,
+            .generation = job.generation,
         };
         if (job.trace) {
             job.trace->frameSeq = job.frameSeq;
@@ -3128,6 +3132,7 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
             job.trace->epochId = job.epochId;
             job.trace->devId = ctx->devId;
             job.trace->jobQueued = true;
+            job.trace->generation = job.generation;
         }
         sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(job.state, ctx->devId);
         esp_err_t err = ESP_ERR_INVALID_STATE;
@@ -3143,6 +3148,7 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
         job.result->err = err;
         if (job.trace) {
             job.trace->err = err;
+            job.trace->readyAckUs = (uint64_t)esp_timer_get_time();
         }
         xSemaphoreGive(ctx->sleepAck);
 
@@ -3161,6 +3167,9 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
                 job.trace->runStarted = true;
             }
             int64_t runStartUs = esp_timer_get_time();
+            if (job.trace) {
+                job.trace->workerStartUs = (uint64_t)runStartUs;
+            }
             err = sensorarrayMeasureFdcRunDeviceEpochAfterSleep(job.state,
                                                                 job.row,
                                                                 job.epochId,
@@ -3177,6 +3186,7 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
             job.result->err = err;
             if (job.trace) {
                 job.trace->workerRunUs = (uint32_t)sensorarrayMeasureElapsedUs(runStartUs);
+                job.trace->workerEndUs = (uint64_t)esp_timer_get_time();
                 job.trace->runCompleted = true;
                 job.trace->err = err;
             }
@@ -3656,7 +3666,7 @@ static void sensorarrayMeasureFdcLogWorkerTimeout(const sensorarrayFdcWorkerTrac
            (unsigned long)trace->err);
 }
 
-static void sensorarrayMeasureFdcLogLateDone(const sensorarrayFdcWorkerTrace_t *trace)
+static void __attribute__((unused)) sensorarrayMeasureFdcLogLateDone(const sensorarrayFdcWorkerTrace_t *trace)
 {
     if (!trace) {
         return;
@@ -3750,18 +3760,20 @@ static void sensorarrayMeasureFdcDeferDeviceRepairAfterParallel(sensorarrayState
             rowTiming->deferredRepairRequestCount++;
         }
     }
-    printf("FDC_DEFERRED_REPAIR,seq=%lu,row=%u,epoch=%lu,dev=%s,reason=%s,status=0x%04X,unread=0x%X,drdy=%u,err=0x%lx,classification=%s,action=%s\n",
-           (unsigned long)frameSeq,
-           (unsigned)row,
-           (unsigned long)epochId,
-           sensorarrayMeasureFdcDeviceName(devId),
-           reason ? reason : "parallel_device_result",
-           result ? result->ready.statusRaw : 0u,
-           result ? (unsigned)(result->ready.unreadMask & 0x0Fu) : 0u,
-           result ? (unsigned)result->ready.drdy : 0u,
-           result ? (unsigned long)result->err : (unsigned long)ESP_ERR_INVALID_RESPONSE,
-           softInvalid ? sensorarrayMeasureFdcReadyResultName(result->ready.readyResult) : "hard",
-           softInvalid ? "mark_soft_invalid_no_rescue" : "mark_invalid_defer_rescue");
+    if (sensorarrayMeasureFdcShouldLogNormalFrame(frameSeq)) {
+        printf("FDC_DEFERRED_REPAIR,seq=%lu,row=%u,epoch=%lu,dev=%s,reason=%s,status=0x%04X,unread=0x%X,drdy=%u,err=0x%lx,classification=%s,action=%s\n",
+               (unsigned long)frameSeq,
+               (unsigned)row,
+               (unsigned long)epochId,
+               sensorarrayMeasureFdcDeviceName(devId),
+               reason ? reason : "parallel_device_result",
+               result ? result->ready.statusRaw : 0u,
+               result ? (unsigned)(result->ready.unreadMask & 0x0Fu) : 0u,
+               result ? (unsigned)result->ready.drdy : 0u,
+               result ? (unsigned long)result->err : (unsigned long)ESP_ERR_INVALID_RESPONSE,
+               softInvalid ? sensorarrayMeasureFdcReadyResultName(result->ready.readyResult) : "hard",
+               softInvalid ? "mark_soft_invalid_no_rescue" : "mark_invalid_defer_rescue");
+    }
 }
 
 static uint32_t sensorarrayMeasureFdcAbsDeltaUs(uint64_t a, uint64_t b)
@@ -3909,13 +3921,10 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
 
     sensorarrayFdcWorkerContext_t *primaryCtx = sensorarrayMeasureFdcWorkerContext(SENSORARRAY_FDC_DEV_PRIMARY);
     sensorarrayFdcWorkerContext_t *secondaryCtx = sensorarrayMeasureFdcWorkerContext(SENSORARRAY_FDC_DEV_SECONDARY);
-    if (!primaryCtx || !secondaryCtx || !primaryCtx->initialized || !secondaryCtx->initialized) {
+    if (!primaryCtx || !secondaryCtx || !secondaryCtx->initialized) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    sensorarrayMeasureDrainSemaphore(primaryCtx->sleepAck);
-    sensorarrayMeasureDrainSemaphore(primaryCtx->start);
-    sensorarrayMeasureDrainSemaphore(primaryCtx->done);
     sensorarrayMeasureDrainSemaphore(secondaryCtx->sleepAck);
     sensorarrayMeasureDrainSemaphore(secondaryCtx->start);
     sensorarrayMeasureDrainSemaphore(secondaryCtx->done);
@@ -3930,19 +3939,24 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         *outWorkerTimeout = false;
     }
 
-    sensorarrayFdcWorkerResult_t primaryResult = {0};
-    sensorarrayFdcWorkerResult_t secondaryResult = {0};
+    const uint64_t rowStartUs = (uint64_t)esp_timer_get_time();
     uint32_t rowHardDeadlineUs = sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
-    uint64_t workerDeadlineUs = 0u;
-    sensorarrayFdcWorkerTrace_t primaryTrace = {
+    uint64_t workerDeadlineUs = rowStartUs + rowHardDeadlineUs;
+    uint32_t generation = secondaryCtx->generation + 1u;
+    if (generation == 0u) {
+        generation = 1u;
+    }
+    secondaryCtx->generation = generation;
+
+    sensorarrayFdcWorkerResult_t primaryResult = {
+        .err = ESP_ERR_TIMEOUT,
         .frameSeq = frameSeq,
         .row = row,
-        .epochId = epochId,
         .devId = SENSORARRAY_FDC_DEV_PRIMARY,
-        .workerDeadlineUs = workerDeadlineUs,
-        .rowHardDeadlineUs = rowHardDeadlineUs,
-        .err = ESP_ERR_TIMEOUT,
+        .epochId = epochId,
+        .generation = generation,
     };
+    sensorarrayFdcWorkerResult_t secondaryResult = {0};
     sensorarrayFdcWorkerTrace_t secondaryTrace = {
         .frameSeq = frameSeq,
         .row = row,
@@ -3950,20 +3964,8 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         .devId = SENSORARRAY_FDC_DEV_SECONDARY,
         .workerDeadlineUs = workerDeadlineUs,
         .rowHardDeadlineUs = rowHardDeadlineUs,
+        .generation = generation,
         .err = ESP_ERR_TIMEOUT,
-    };
-    sensorarrayFdcWorkerJob_t primaryJob = {
-        .state = state,
-        .frameSeq = frameSeq,
-        .row = row,
-        .epochId = epochId,
-        .outSamples = primarySamples,
-        .outConfigs = runtimeConfigs[SENSORARRAY_FDC_DEV_PRIMARY],
-        .timing = primaryTiming,
-        .result = &primaryResult,
-        .trace = &primaryTrace,
-        .readTracker = readTracker,
-        .rowDeviceDeadlineUs = 0u,
     };
     sensorarrayFdcWorkerJob_t secondaryJob = {
         .state = state,
@@ -3976,115 +3978,65 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         .result = &secondaryResult,
         .trace = &secondaryTrace,
         .readTracker = readTracker,
-        .rowDeviceDeadlineUs = 0u,
+        .rowDeviceDeadlineUs = workerDeadlineUs,
+        .generation = generation,
     };
 
     TickType_t syncTicks = pdMS_TO_TICKS((uint32_t)CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS);
     if (syncTicks == 0) {
         syncTicks = 1;
     }
+
     int64_t sleepStartUs = esp_timer_get_time();
     int64_t queueStartUs = esp_timer_get_time();
-    BaseType_t primaryQueued = xQueueSend(primaryCtx->queue, &primaryJob, syncTicks);
-    primaryTrace.queueSendUs = (uint32_t)sensorarrayMeasureElapsedUs(queueStartUs);
-    queueStartUs = esp_timer_get_time();
     BaseType_t secondaryQueued = xQueueSend(secondaryCtx->queue, &secondaryJob, syncTicks);
     secondaryTrace.queueSendUs = (uint32_t)sensorarrayMeasureElapsedUs(queueStartUs);
-    rowTiming->workerQueueSendUs = primaryTrace.queueSendUs + secondaryTrace.queueSendUs;
-    if (primaryQueued != pdTRUE || secondaryQueued != pdTRUE) {
+    rowTiming->workerQueueSendUs = secondaryTrace.queueSendUs;
+    if (secondaryQueued != pdTRUE) {
         if (outWorkerTimeout) {
             *outWorkerTimeout = true;
         }
-        if (primaryQueued == pdTRUE) {
-            (void)xSemaphoreTake(primaryCtx->sleepAck, syncTicks);
-            (void)xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
-        } else {
-            primaryTrace.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcLogWorkerTimeout(&primaryTrace, "queue_send", NULL);
-        }
-        if (secondaryQueued == pdTRUE) {
-            (void)xSemaphoreTake(secondaryCtx->sleepAck, syncTicks);
-            (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
-        } else {
-            secondaryTrace.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "queue_send", NULL);
-        }
-        printf("FDC_PARALLEL_FALLBACK,reason=queue_failed,row=%u,epoch=%lu,primaryQueued=%u,secondaryQueued=%u,workerDeadlineUs=%llu,rowHardDeadlineUs=%lu,workerTimedOut=1,err=0x%lx\n",
+        sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "queue_send", NULL);
+        printf("WP,r=%u,e=%lu,q=%lu,ack=0,sg=0,ps=0,pe=0,ws=0,we=0,jd=0,ov=0,pr=0,wr=0,mode=fallback,reason=queue_fail\n",
                (unsigned)row,
                (unsigned long)epochId,
-               primaryQueued == pdTRUE ? 1u : 0u,
-               secondaryQueued == pdTRUE ? 1u : 0u,
-               (unsigned long long)workerDeadlineUs,
-               (unsigned long)rowHardDeadlineUs,
-               (unsigned long)ESP_ERR_TIMEOUT);
+               (unsigned long)secondaryTrace.queueSendUs);
         return ESP_ERR_TIMEOUT;
     }
 
+    esp_err_t primarySleepErr =
+        sensorarrayMeasureFdcSetSleepMode(&state->fdcPrimary, true, primaryTiming);
     int64_t sleepAckStartUs = esp_timer_get_time();
-    BaseType_t primarySleep =
-        sensorarrayMeasureFdcTakeUntilDeadline(primaryCtx->sleepAck,
-                                               workerDeadlineUs,
-                                               (uint32_t)CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS * 1000u);
-    primaryTrace.sleepAckWaitUs = (uint32_t)sensorarrayMeasureElapsedUs(sleepAckStartUs);
-    primaryTrace.sleepAckReceived = primarySleep == pdTRUE;
-    sleepAckStartUs = esp_timer_get_time();
     BaseType_t secondarySleep =
         sensorarrayMeasureFdcTakeUntilDeadline(secondaryCtx->sleepAck,
                                                workerDeadlineUs,
                                                (uint32_t)CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS * 1000u);
     secondaryTrace.sleepAckWaitUs = (uint32_t)sensorarrayMeasureElapsedUs(sleepAckStartUs);
     secondaryTrace.sleepAckReceived = secondarySleep == pdTRUE;
-    rowTiming->workerSleepAckWaitUs =
-        primaryTrace.sleepAckWaitUs + secondaryTrace.sleepAckWaitUs;
+    rowTiming->workerSleepAckWaitUs = secondaryTrace.sleepAckWaitUs;
     rowTiming->sleepBeforeRowSwitchUs = sensorarrayMeasureElapsedUs(sleepStartUs);
-    esp_err_t firstErr = ESP_OK;
-    if (primarySleep != pdTRUE) {
-        primaryResult.err = ESP_ERR_TIMEOUT;
-        firstErr = ESP_ERR_TIMEOUT;
+    if (primarySleepErr != ESP_OK || secondarySleep != pdTRUE || secondaryResult.err != ESP_OK) {
         if (outWorkerTimeout) {
             *outWorkerTimeout = true;
         }
-    } else if (primaryResult.err != ESP_OK) {
-        firstErr = primaryResult.err;
-    }
-    if (secondarySleep != pdTRUE) {
-        secondaryResult.err = ESP_ERR_TIMEOUT;
-        if (outWorkerTimeout) {
-            *outWorkerTimeout = true;
-        }
-        if (firstErr == ESP_OK) {
-            firstErr = ESP_ERR_TIMEOUT;
-        }
-    } else if (secondaryResult.err != ESP_OK && firstErr == ESP_OK) {
-        firstErr = secondaryResult.err;
-    }
-    if (firstErr != ESP_OK) {
-        if (primaryQueued == pdTRUE) {
-            (void)xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
-        }
-        if (secondaryQueued == pdTRUE) {
-            (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
-        }
-        if (primarySleep != pdTRUE || primaryResult.err == ESP_ERR_TIMEOUT) {
-            primaryTrace.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcLogWorkerTimeout(&primaryTrace, "sleep_ack", NULL);
-        }
-        if (secondarySleep != pdTRUE || secondaryResult.err == ESP_ERR_TIMEOUT) {
-            secondaryTrace.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "sleep_ack", NULL);
-        }
-        return firstErr;
+        xSemaphoreGive(secondaryCtx->start);
+        (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
+        sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "ready_ack", &secondaryResult);
+        printf("WP,r=%u,e=%lu,q=%lu,ack=%llu,sg=0,ps=0,pe=0,ws=0,we=0,jd=0,ov=0,pr=0,wr=0,mode=fallback,reason=ack_timeout\n",
+               (unsigned)row,
+               (unsigned long)epochId,
+               (unsigned long)secondaryTrace.queueSendUs,
+               (unsigned long long)(secondaryTrace.readyAckUs >= rowStartUs ?
+                                    secondaryTrace.readyAckUs - rowStartUs : 0u));
+        return primarySleepErr != ESP_OK ? primarySleepErr : ESP_ERR_TIMEOUT;
     }
 
     sensorarrayMeasureFdcPrepareIntbEpoch(primaryCtx, epochId);
     sensorarrayMeasureFdcPrepareIntbEpoch(secondaryCtx, epochId);
 
     esp_err_t rowErr = sensorarrayMeasureSelectFdcRowWhileSleeping(state, row, epochId, frameSeq, rowTiming);
-    if (rowErr != ESP_OK && firstErr == ESP_OK) {
-        firstErr = rowErr;
-    }
     if (rowErr != ESP_OK) {
-        (void)xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
+        xSemaphoreGive(secondaryCtx->start);
         (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
         return rowErr;
     }
@@ -4111,120 +4063,44 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
     secondaryCtx->preparedEpoch = epochId;
     secondaryCtx->preparedErr = (int)secondaryPrepareErr;
     secondaryCtx->rowConfigPrepared = true;
-    if (primaryPrepareErr != ESP_OK && primaryPrepareErr != ESP_ERR_NOT_FOUND &&
-        firstErr == ESP_OK) {
-        firstErr = primaryPrepareErr;
-    }
-    if (secondaryPrepareErr != ESP_OK && secondaryPrepareErr != ESP_ERR_NOT_FOUND &&
-        firstErr == ESP_OK) {
-        firstErr = secondaryPrepareErr;
-    }
-    if (sensorarrayMeasureFdcShouldLogNormalFrame(frameSeq)) {
-        printf("FDC_ROW_EPOCH,stage=workers_armed,row=%u,epoch=%lu,mask=0x3\n",
-               (unsigned)row,
-               (unsigned long)epochId);
+    if ((primaryPrepareErr != ESP_OK && primaryPrepareErr != ESP_ERR_NOT_FOUND) ||
+        (secondaryPrepareErr != ESP_OK && secondaryPrepareErr != ESP_ERR_NOT_FOUND)) {
+        xSemaphoreGive(secondaryCtx->start);
+        (void)xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
+        return primaryPrepareErr != ESP_OK ? primaryPrepareErr : secondaryPrepareErr;
     }
 
-    int64_t dualStartUs = esp_timer_get_time();
     int64_t startGiveStartUs = esp_timer_get_time();
-    workerDeadlineUs = (uint64_t)startGiveStartUs + rowHardDeadlineUs;
-    primaryTrace.workerDeadlineUs = workerDeadlineUs;
-    secondaryTrace.workerDeadlineUs = workerDeadlineUs;
     rowTiming->workerReleaseUs = (uint64_t)startGiveStartUs;
-    if (sensorarrayMeasureFdcShouldLogNormalFrame(frameSeq)) {
-        printf("FDC_ROW_EPOCH,stage=workers_release,row=%u,epoch=%lu\n",
-               (unsigned)row,
-               (unsigned long)epochId);
-    }
-    xSemaphoreGive(primaryCtx->start);
-    primaryTrace.startGiven = true;
     xSemaphoreGive(secondaryCtx->start);
     secondaryTrace.startGiven = true;
     rowTiming->workerStartGiveUs = sensorarrayMeasureElapsedUs(startGiveStartUs);
-    int64_t doneOverallStartUs = startGiveStartUs;
-    int64_t doneStartUs = doneOverallStartUs;
-    /*
-     * The worker enforces rowDeviceDeadlineUs while waiting for FDC ready.
-     * A parent-side done timeout only caused a second, blocking join plus
-     * false worker-timeout classification for already valid results.
-     */
-    BaseType_t primaryDone = xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
-    primaryTrace.doneWaitUs = (uint32_t)sensorarrayMeasureElapsedUs(doneStartUs);
-    primaryTrace.doneReceived = primaryDone == pdTRUE;
-    doneStartUs = esp_timer_get_time();
-    BaseType_t secondaryDone = xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
-    secondaryTrace.doneWaitUs = (uint32_t)sensorarrayMeasureElapsedUs(doneStartUs);
-    secondaryTrace.doneReceived = secondaryDone == pdTRUE;
-    rowTiming->workerDoneWaitUs = sensorarrayMeasureElapsedUs(doneOverallStartUs);
+
+    uint64_t parentStartUs = (uint64_t)esp_timer_get_time();
+    primaryResult.err = sensorarrayMeasureFdcRunDeviceEpochAfterSleep(
+        state,
+        row,
+        epochId,
+        frameSeq,
+        SENSORARRAY_FDC_DEV_PRIMARY,
+        primarySamples,
+        runtimeConfigs[SENSORARRAY_FDC_DEV_PRIMARY],
+        &primaryResult.ready,
+        &primaryResult.read4,
+        primaryTiming,
+        readTracker,
+        "parent",
+        workerDeadlineUs);
+    uint64_t parentEndUs = (uint64_t)esp_timer_get_time();
+
+    int64_t joinStartUs = esp_timer_get_time();
+    BaseType_t secondaryDone =
+        sensorarrayMeasureFdcTakeUntilDeadline(secondaryCtx->done, workerDeadlineUs, 0u);
+    rowTiming->workerDoneWaitUs = sensorarrayMeasureElapsedUs(joinStartUs);
     rowTiming->parallelJoinWaitUs = rowTiming->workerDoneWaitUs;
-    rowTiming->dualBusWaitUs = sensorarrayMeasureElapsedUs(dualStartUs);
-    bool primaryLate = false;
+    secondaryTrace.doneWaitUs = (uint32_t)rowTiming->workerDoneWaitUs;
+    secondaryTrace.doneReceived = secondaryDone == pdTRUE;
     bool secondaryLate = false;
-    if (primaryDone != pdTRUE) {
-        int64_t idleStartUs = esp_timer_get_time();
-        primaryDone = xSemaphoreTake(primaryCtx->done, portMAX_DELAY);
-        primaryTrace.waitWorkerIdleAfterTimeoutUs =
-            (uint32_t)sensorarrayMeasureElapsedUs(idleStartUs);
-        rowTiming->workerIdleAfterTimeoutUs += primaryTrace.waitWorkerIdleAfterTimeoutUs;
-        primaryTrace.doneReceived = primaryDone == pdTRUE;
-        primaryTrace.lateDone = primaryDone == pdTRUE;
-        primaryLate = primaryDone == pdTRUE;
-        bool primaryLateGood =
-            primaryLate &&
-            sensorarrayMeasureFdcWorkerResultIsGood(&primaryResult,
-                                                    row,
-                                                    epochId,
-                                                    SENSORARRAY_FDC_DEV_PRIMARY);
-        bool primaryLateMismatch =
-            primaryLate &&
-            (primaryResult.epochId != epochId ||
-             primaryResult.row != row ||
-             primaryResult.devId != SENSORARRAY_FDC_DEV_PRIMARY);
-        if (primaryLateGood) {
-            rowTiming->workerLateGoodAcceptedCount++;
-            printf("FDC_WORKER_LATE_GOOD_ACCEPTED,seq=%lu,row=%u,epoch=%lu,device=primary,waitWorkerIdleAfterTimeoutUs=%lu,validMask=0x%X,status=%04X,unread=%X,drdy=%u\n",
-                   (unsigned long)frameSeq,
-                   (unsigned)row,
-                   (unsigned long)epochId,
-                   (unsigned long)primaryTrace.waitWorkerIdleAfterTimeoutUs,
-                   (unsigned)primaryResult.read4.validMask4,
-                   primaryResult.ready.statusRaw,
-                   (unsigned)primaryResult.ready.unreadMask,
-                   primaryResult.ready.dataReady ? 1u : 0u);
-        } else {
-            primaryTiming->timeoutCount++;
-            rowTiming->workerTimeoutCount++;
-            if (outWorkerTimeout) {
-                *outWorkerTimeout = true;
-            }
-            primaryResult.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcDiscardWorkerResult(&primaryResult,
-                                                     primarySamples,
-                                                     &primaryTrace,
-                                                     primaryLateMismatch ?
-                                                     "late_epoch_mismatch" :
-                                                     "late_done");
-            if (primaryLateMismatch) {
-                rowTiming->staleResultDiscardedCount++;
-                printf("FDC_WORKER_EPOCH_MISMATCH_DISCARD,seq=%lu,row=%u,epoch=%lu,device=primary,resultRow=%u,resultEpoch=%lu,resultDev=%s,late=1\n",
-                       (unsigned long)frameSeq,
-                       (unsigned)row,
-                       (unsigned long)epochId,
-                       (unsigned)primaryResult.row,
-                       (unsigned long)primaryResult.epochId,
-                       sensorarrayMeasureFdcDeviceName(primaryResult.devId));
-            }
-            sensorarrayMeasureFdcLogWorkerTimeout(&primaryTrace, "done_wait", &primaryResult);
-        }
-        if (primaryLate) {
-            rowTiming->workerLateDoneCount++;
-            rowTiming->workerLateDoneUs += primaryTrace.waitWorkerIdleAfterTimeoutUs;
-            sensorarrayMeasureFdcLogLateDone(&primaryTrace);
-        }
-        if (!primaryLateGood && firstErr == ESP_OK) {
-            firstErr = ESP_ERR_TIMEOUT;
-        }
-    }
     if (secondaryDone != pdTRUE) {
         int64_t idleStartUs = esp_timer_get_time();
         secondaryDone = xSemaphoreTake(secondaryCtx->done, portMAX_DELAY);
@@ -4234,140 +4110,63 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         secondaryTrace.doneReceived = secondaryDone == pdTRUE;
         secondaryTrace.lateDone = secondaryDone == pdTRUE;
         secondaryLate = secondaryDone == pdTRUE;
-        bool secondaryLateGood =
-            secondaryLate &&
-            sensorarrayMeasureFdcWorkerResultIsGood(&secondaryResult,
-                                                    row,
-                                                    epochId,
-                                                    SENSORARRAY_FDC_DEV_SECONDARY);
-        bool secondaryLateMismatch =
-            secondaryLate &&
-            (secondaryResult.epochId != epochId ||
-             secondaryResult.row != row ||
-             secondaryResult.devId != SENSORARRAY_FDC_DEV_SECONDARY);
-        if (secondaryLateGood) {
-            rowTiming->workerLateGoodAcceptedCount++;
-            printf("FDC_WORKER_LATE_GOOD_ACCEPTED,seq=%lu,row=%u,epoch=%lu,device=secondary,waitWorkerIdleAfterTimeoutUs=%lu,validMask=0x%X,status=%04X,unread=%X,drdy=%u\n",
-                   (unsigned long)frameSeq,
-                   (unsigned)row,
-                   (unsigned long)epochId,
-                   (unsigned long)secondaryTrace.waitWorkerIdleAfterTimeoutUs,
-                   (unsigned)secondaryResult.read4.validMask4,
-                   secondaryResult.ready.statusRaw,
-                   (unsigned)secondaryResult.ready.unreadMask,
-                   secondaryResult.ready.dataReady ? 1u : 0u);
-        } else {
-            secondaryTiming->timeoutCount++;
-            rowTiming->workerTimeoutCount++;
-            if (outWorkerTimeout) {
-                *outWorkerTimeout = true;
-            }
-            secondaryResult.err = ESP_ERR_TIMEOUT;
-            sensorarrayMeasureFdcDiscardWorkerResult(&secondaryResult,
-                                                     secondarySamples,
-                                                     &secondaryTrace,
-                                                     secondaryLateMismatch ?
-                                                     "late_epoch_mismatch" :
-                                                     "late_done");
-            if (secondaryLateMismatch) {
-                rowTiming->staleResultDiscardedCount++;
-                printf("FDC_WORKER_EPOCH_MISMATCH_DISCARD,seq=%lu,row=%u,epoch=%lu,device=secondary,resultRow=%u,resultEpoch=%lu,resultDev=%s,late=1\n",
-                       (unsigned long)frameSeq,
-                       (unsigned)row,
-                       (unsigned long)epochId,
-                       (unsigned)secondaryResult.row,
-                       (unsigned long)secondaryResult.epochId,
-                       sensorarrayMeasureFdcDeviceName(secondaryResult.devId));
-            }
-            sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "done_wait", &secondaryResult);
+        rowTiming->workerLateDoneCount++;
+        rowTiming->workerLateDoneUs += secondaryTrace.waitWorkerIdleAfterTimeoutUs;
+        rowTiming->workerTimeoutCount++;
+        if (outWorkerTimeout) {
+            *outWorkerTimeout = true;
         }
-        if (secondaryLate) {
-            rowTiming->workerLateDoneCount++;
-            rowTiming->workerLateDoneUs += secondaryTrace.waitWorkerIdleAfterTimeoutUs;
-            sensorarrayMeasureFdcLogLateDone(&secondaryTrace);
-        }
-        if (!secondaryLateGood && firstErr == ESP_OK) {
-            firstErr = ESP_ERR_TIMEOUT;
-        }
+        sensorarrayMeasureFdcLogWorkerTimeout(&secondaryTrace, "worker_deadline", &secondaryResult);
     }
-    bool primaryStale = false;
-    bool secondaryStale = false;
-    if (!primaryLate &&
-        primaryDone == pdTRUE &&
-        (primaryResult.epochId != epochId ||
-         primaryResult.row != row ||
-         primaryResult.devId != SENSORARRAY_FDC_DEV_PRIMARY)) {
-        primaryStale = true;
+
+    bool secondaryStale =
+        secondaryResult.frameSeq != frameSeq ||
+        secondaryResult.row != row ||
+        secondaryResult.epochId != epochId ||
+        secondaryResult.devId != SENSORARRAY_FDC_DEV_SECONDARY ||
+        secondaryResult.generation != generation;
+    if (secondaryStale) {
         rowTiming->staleResultDiscardedCount++;
-        printf("FDC_WORKER_EPOCH_MISMATCH_DISCARD,seq=%lu,row=%u,epoch=%lu,device=primary,resultRow=%u,resultEpoch=%lu,resultDev=%s,late=0\n",
+        printf("FDC_WORKER_EPOCH_MISMATCH_DISCARD,seq=%lu,row=%u,epoch=%lu,device=secondary,resultSeq=%lu,resultRow=%u,resultEpoch=%lu,resultDev=%s,g=%lu,resultG=%lu\n",
                (unsigned long)frameSeq,
                (unsigned)row,
                (unsigned long)epochId,
-               (unsigned)primaryResult.row,
-               (unsigned long)primaryResult.epochId,
-               sensorarrayMeasureFdcDeviceName(primaryResult.devId));
-        sensorarrayMeasureFdcDiscardWorkerResult(&primaryResult,
-                                                 primarySamples,
-                                                 &primaryTrace,
-                                                 "stale_result");
-    }
-    if (!secondaryLate &&
-        secondaryDone == pdTRUE &&
-        (secondaryResult.epochId != epochId ||
-         secondaryResult.row != row ||
-         secondaryResult.devId != SENSORARRAY_FDC_DEV_SECONDARY)) {
-        secondaryStale = true;
-        rowTiming->staleResultDiscardedCount++;
-        printf("FDC_WORKER_EPOCH_MISMATCH_DISCARD,seq=%lu,row=%u,epoch=%lu,device=secondary,resultRow=%u,resultEpoch=%lu,resultDev=%s,late=0\n",
-               (unsigned long)frameSeq,
-               (unsigned)row,
-               (unsigned long)epochId,
+               (unsigned long)secondaryResult.frameSeq,
                (unsigned)secondaryResult.row,
                (unsigned long)secondaryResult.epochId,
-               sensorarrayMeasureFdcDeviceName(secondaryResult.devId));
+               sensorarrayMeasureFdcDeviceName(secondaryResult.devId),
+               (unsigned long)generation,
+               (unsigned long)secondaryResult.generation);
         sensorarrayMeasureFdcDiscardWorkerResult(&secondaryResult,
                                                  secondarySamples,
                                                  &secondaryTrace,
                                                  "stale_result");
     }
 
-    bool primaryGood =
-                       !primaryStale &&
-                       sensorarrayMeasureFdcWorkerResultIsGood(&primaryResult,
+    bool primaryGood = sensorarrayMeasureFdcWorkerResultIsGood(&primaryResult,
                                                                row,
                                                                epochId,
                                                                SENSORARRAY_FDC_DEV_PRIMARY);
     bool secondaryGood =
-                         !secondaryStale &&
-                         sensorarrayMeasureFdcWorkerResultIsGood(&secondaryResult,
-                                                                 row,
-                                                                 epochId,
-                                                                 SENSORARRAY_FDC_DEV_SECONDARY);
-    if (!primaryGood || !secondaryGood) {
-        bool workerTimeout = outWorkerTimeout && *outWorkerTimeout;
-        printf("FDC_PARALLEL_FALLBACK,reason=%s,row=%u,epoch=%lu,primaryGood=%u,secondaryGood=%u,primaryErr=0x%lx,secondaryErr=0x%lx,primaryLate=%u,secondaryLate=%u,primaryStale=%u,secondaryStale=%u,primaryBus=%d,secondaryBus=%d,sameBus=0,workerDeadlineUs=%llu,workerJoinUs=%llu,parentWaitUs=%llu,workerTimedOut=%u,workerLateDoneUs=%llu,staleDiscarded=%lu,rowHardDeadlineUs=%lu,workerDoneWaitUs=%llu,workerIdleAfterTimeoutUs=%llu\n",
-               workerTimeout ? "timeout" : "device_result",
+        !secondaryStale && !secondaryLate &&
+        sensorarrayMeasureFdcWorkerResultIsGood(&secondaryResult,
+                                                row,
+                                                epochId,
+                                                SENSORARRAY_FDC_DEV_SECONDARY);
+    if ((!primaryGood || !secondaryGood) &&
+        sensorarrayMeasureFdcShouldLogNormalFrame(frameSeq)) {
+        printf("FDC_PARALLEL_FALLBACK,reason=%s,row=%u,epoch=%lu,primaryGood=%u,secondaryGood=%u,primaryErr=0x%lx,secondaryErr=0x%lx,secondaryLate=%u,secondaryStale=%u,g=%lu,workerJoinUs=%llu\n",
+               secondaryLate ? "worker_deadline" : (secondaryStale ? "stale_result" : "device_result"),
                (unsigned)row,
                (unsigned long)epochId,
                primaryGood ? 1u : 0u,
                secondaryGood ? 1u : 0u,
                (unsigned long)primaryResult.err,
                (unsigned long)secondaryResult.err,
-               primaryLate ? 1u : 0u,
                secondaryLate ? 1u : 0u,
-               primaryStale ? 1u : 0u,
                secondaryStale ? 1u : 0u,
-               0,
-               1,
-               (unsigned long long)workerDeadlineUs,
-               (unsigned long long)rowTiming->parallelJoinWaitUs,
-               (unsigned long long)rowTiming->workerDoneWaitUs,
-               workerTimeout ? 1u : 0u,
-               (unsigned long long)rowTiming->workerLateDoneUs,
-               (unsigned long)rowTiming->staleResultDiscardedCount,
-               (unsigned long)rowHardDeadlineUs,
-               (unsigned long long)rowTiming->workerDoneWaitUs,
-               (unsigned long long)rowTiming->workerIdleAfterTimeoutUs);
+               (unsigned long)generation,
+               (unsigned long long)rowTiming->workerDoneWaitUs);
     }
 
     if (!primaryGood) {
@@ -4401,6 +4200,54 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         (primaryTiming->deviceUs > secondaryTiming->deviceUs) ?
         (primaryTiming->deviceUs - secondaryTiming->deviceUs) :
         (secondaryTiming->deviceUs - primaryTiming->deviceUs);
+    uint64_t workerStartUs = secondaryTrace.workerStartUs;
+    uint64_t workerEndUs = secondaryTrace.workerEndUs;
+    uint64_t overlapStartUs = parentStartUs > workerStartUs ? parentStartUs : workerStartUs;
+    uint64_t overlapEndUs = parentEndUs < workerEndUs ? parentEndUs : workerEndUs;
+    uint64_t overlapUs = (workerStartUs != 0u && workerEndUs != 0u &&
+                          overlapEndUs > overlapStartUs) ?
+        (overlapEndUs - overlapStartUs) : 0u;
+    uint64_t parentRunUs = parentEndUs > parentStartUs ? parentEndUs - parentStartUs : 0u;
+    uint64_t workerRunUs = workerEndUs > workerStartUs ? workerEndUs - workerStartUs : 0u;
+    rowTiming->dualBusWaitUs =
+        ((parentEndUs > workerEndUs ? parentEndUs : workerEndUs) >
+         (uint64_t)startGiveStartUs) ?
+        ((parentEndUs > workerEndUs ? parentEndUs : workerEndUs) -
+         (uint64_t)startGiveStartUs) : 0u;
+
+    const char *wpReason = "ok";
+    if (secondaryLate) {
+        wpReason = "worker_deadline";
+    } else if (secondaryStale) {
+        wpReason = "stale_done_or_join_bug";
+    } else if (workerStartUs > parentStartUs + 1000u) {
+        wpReason = "worker_late_start";
+    } else if (workerEndUs <= parentEndUs && rowTiming->workerDoneWaitUs > 1000u) {
+        wpReason = "stale_done_or_join_bug";
+    } else if (parentRunUs != 0u && workerRunUs != 0u &&
+               overlapUs < ((parentRunUs < workerRunUs ? parentRunUs : workerRunUs) / 4u)) {
+        wpReason = "i2c_lock_serialized";
+    }
+    if (CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG ||
+        (frameSeq != 0u && (frameSeq % 5u) == 0u) ||
+        strcmp(wpReason, "ok") != 0) {
+        printf("WP,r=%u,e=%lu,q=%lu,ack=%llu,sg=%llu,ps=%llu,pe=%llu,ws=%llu,we=%llu,jd=%llu,ov=%llu,pr=%llu,wr=%llu,mode=par,reason=%s\n",
+               (unsigned)row,
+               (unsigned long)epochId,
+               (unsigned long)secondaryTrace.queueSendUs,
+               (unsigned long long)(secondaryTrace.readyAckUs >= rowStartUs ?
+                                    secondaryTrace.readyAckUs - rowStartUs : 0u),
+               (unsigned long long)((uint64_t)startGiveStartUs - rowStartUs),
+               (unsigned long long)(parentStartUs - rowStartUs),
+               (unsigned long long)(parentEndUs - rowStartUs),
+               (unsigned long long)(workerStartUs >= rowStartUs ? workerStartUs - rowStartUs : 0u),
+               (unsigned long long)(workerEndUs >= rowStartUs ? workerEndUs - rowStartUs : 0u),
+               (unsigned long long)rowTiming->workerDoneWaitUs,
+               (unsigned long long)overlapUs,
+               (unsigned long long)parentRunUs,
+               (unsigned long long)workerRunUs,
+               wpReason);
+    }
     sensorarrayMeasureFdcFinalizeParallelTiming(row,
                                                 epochId,
                                                 primaryTiming,
@@ -4408,8 +4255,6 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
                                                 rowTiming,
                                                 primaryResult.err,
                                                 secondaryResult.err);
-    (void)primaryGood;
-    (void)secondaryGood;
     return ESP_OK;
 }
 

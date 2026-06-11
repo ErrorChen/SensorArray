@@ -40,6 +40,8 @@ typedef struct {
     uint32_t BusStuckCount;
     uint32_t RecoveryCount;
     uint32_t RecoveryFailCount;
+    uint64_t BusyWaitUs;
+    uint32_t LockContentionCount;
     int64_t LastRecoveryUs;
     int64_t LastTransactionUs;
     SemaphoreHandle_t Mutex;
@@ -62,6 +64,8 @@ typedef struct {
     uint32_t BusStuckCount;
     uint32_t RecoveryCount;
     uint32_t RecoveryFailCount;
+    uint64_t BusyWaitUs;
+    uint32_t LockContentionCount;
 } BoardSupportI2cBusInfo_t;
 
 // Initialize board-level buses (I2C primary and optional secondary).
@@ -93,6 +97,13 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                               uint8_t addr7,
                               const uint8_t* tx,
                               size_t txLen);
+
+// Read an ordered list of 16-bit registers in one bus-locked I2C command.
+esp_err_t boardSupportI2cReadRegisters(void* userCtx,
+                                      uint8_t addr7,
+                                      const uint8_t* registers,
+                                      size_t registerCount,
+                                      uint8_t* rx);
 
 esp_err_t boardSupportI2cRead(void* userCtx,
                              uint8_t addr7,

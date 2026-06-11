@@ -37,11 +37,18 @@ typedef esp_err_t (*Fdc2214I2cWriteFn)(void* userCtx,
                                       const uint8_t* tx,
                                       size_t txLen);
 
+typedef esp_err_t (*Fdc2214I2cReadRegistersFn)(void* userCtx,
+                                               uint8_t addr7,
+                                               const uint8_t* registers,
+                                               size_t registerCount,
+                                               uint8_t* rx);
+
 typedef struct {
     uint8_t I2cAddress7;
     void* UserCtx;
     Fdc2214I2cWriteReadFn WriteRead;
     Fdc2214I2cWriteFn Write;
+    Fdc2214I2cReadRegistersFn ReadRegisters;
     int IntGpio;
 } Fdc2214CapBusConfig_t;
 
@@ -254,6 +261,9 @@ uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options);
 esp_err_t Fdc2214CapEnterSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
 // Exit sleep mode explicitly by writing CONFIG with SLEEP_MODE_EN=0.
 esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
+// Runtime row-path variants: write CONFIG without an immediate readback.
+esp_err_t Fdc2214CapEnterSleepWriteOnly(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
+esp_err_t Fdc2214CapExitSleepWriteOnly(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep);
 
 uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch);
 esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw,
@@ -331,6 +341,9 @@ esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev,
                                                   uint8_t channelMask,
                                                   Fdc2214CapFastChannelSample_t* outSamples,
                                                   size_t outSampleCount);
+// Read DATA_CH0..DATA_LSB_CH3 (0x00..0x07) as one ordered 16-byte burst.
+esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
+                                   Fdc2214CapFastChannelSample_t outSamples[4]);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);
