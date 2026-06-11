@@ -41,6 +41,9 @@
 #ifndef CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG
 #define CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG 1
 #endif
+#ifndef CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US
+#define CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US 250000
+#endif
 #ifndef CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME
 #define CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME 0
 #endif
@@ -2768,7 +2771,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                             (!s_fdcWorkersInitAttempted || s_fdcWorkersAvailable);
     if (!s_fdcParallelConfigLogged) {
         s_fdcParallelConfigLogged = true;
-        printf("FDC_PARALLEL_CONFIG,parallelEnabled=%u,forceSingleThread=%u,disableAfterTimeoutInFrame=%u,retryIntervalFrames=%lu,cooldownFrames=%lu,workerSyncTimeoutMs=%lu,primaryBus=%d,secondaryBus=%d,sameBus=%u,scanTaskCore=%d,scanTaskPriority=%d,workerTaskCore=%d,workerTaskPriority=%d\n",
+        printf("FDC_PARALLEL_CONFIG,parallelEnabled=%u,forceSingleThread=%u,disableAfterTimeoutInFrame=%u,retryIntervalFrames=%lu,cooldownFrames=%lu,workerSyncTimeoutMs=%lu,primaryBus=%d,secondaryBus=%d,sameBus=%u,scanTaskCore=%d,scanTaskPriority=%d,primaryWorkerCore=%d,secondaryWorkerCore=%d,workerTaskPriority=%d,logTaskCore=%d,logTaskPriority=%d\n",
                parallelConfigEnabled ? 1u : 0u,
                CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ ? 1u : 0u,
                CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME ? 1u : 0u,
@@ -2780,8 +2783,11 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                sameBus ? 1u : 0u,
                CONFIG_SENSORARRAY_SCAN_TASK_CORE,
                CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
-               CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
-               CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO);
+               CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE,
+               CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE,
+               CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+               CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE,
+               CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY);
     }
     bool parallelAllowedForFrame = parallelEligible && s_fdcParallelCooldownFrames == 0u;
     bool parallelDisabledForThisFrame = false;
@@ -2936,6 +2942,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         uint8_t rowValidMask8 = 0u;
         uint8_t rowWarnMask8 = 0u;
         uint8_t rowErrorMask8 = 0u;
+        int64_t mergeStartUs = esp_timer_get_time();
         sensorarrayMeasureFillFdcMatrixRow(outFrame,
                                            s,
                                            &primarySamples,
@@ -2944,6 +2951,8 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                            &rowValidMask8,
                                            &rowWarnMask8,
                                            &rowErrorMask8);
+        rowTiming.coordinatorMergeUs = sensorarrayMeasureElapsedUs(mergeStartUs);
+        timing.coordinatorMergeUs += rowTiming.coordinatorMergeUs;
         if ((primarySamples.validMask & 0x0Fu) == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK &&
             (rowValidMask8 & 0x0Fu) != 0x0Fu) {
             printf("FDC_RESULT_MERGE_BUG,dev=primary,row=%u,epoch=%lu,validMask=0x%X,freshMask=0x%X,unread=0x%X,drdy=%u,timeout=%u,partial=%u,err=0x%lx,rowHalfValid=0x%X\n",
@@ -2996,22 +3005,56 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                 rowTimeoutMask8 |= (uint8_t)(1u << (ch + 4u));
             }
         }
+        bool frNormal =
+            (primarySamples.validMask & 0x0Fu) == 0x0Fu &&
+            (secondarySamples.validMask & 0x0Fu) == 0x0Fu &&
+            rowValidMask8 == 0xFFu &&
+            rowWarnMask8 == 0u &&
+            rowErrorMask8 == 0u &&
+            rowCacheMissMask8 == 0u &&
+            rowTimeoutMask8 == 0u &&
+            !rowPartial;
+        if (frNormal) {
+            timing.frNormalRowCount++;
+        } else {
+            timing.frAnomRowCount++;
+        }
+        if (rowValidMask8 == 0xFFu) {
+            timing.frVmFullCount++;
+        }
+        if (rowWarnMask8 != 0u) {
+            timing.frWarnNonzeroCount++;
+        }
+        if (rowErrorMask8 != 0u) {
+            timing.frErrorNonzeroCount++;
+        }
+        if (rowCacheMissMask8 != 0u) {
+            timing.frCacheMissNonzeroCount++;
+        }
+        if (rowTimeoutMask8 != 0u) {
+            timing.frTimeoutNonzeroCount++;
+        }
+        if (rowPartial) {
+            timing.frPartialCount++;
+        }
 #if CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG
-        printf("FR,r=%u,e=%lu,pv=%X,sv=%X,vm=%02X,wm=%02X,em=%02X,cm=%02X,tm=%02X,pt=%u,ps=%04X/%X,ss=%04X/%X\n",
-               (unsigned)s,
-               (unsigned long)epochId,
-               (unsigned)(primarySamples.validMask & 0x0Fu),
-               (unsigned)(secondarySamples.validMask & 0x0Fu),
-               (unsigned)rowValidMask8,
-               (unsigned)rowWarnMask8,
-               (unsigned)rowErrorMask8,
-               (unsigned)rowCacheMissMask8,
-               (unsigned)rowTimeoutMask8,
-               rowPartial ? 1u : 0u,
-               primarySamples.statusRaw,
-               (unsigned)(primarySamples.unreadMask & 0x0Fu),
-               secondarySamples.statusRaw,
-               (unsigned)(secondarySamples.unreadMask & 0x0Fu));
+        if (!frNormal) {
+            printf("FR,r=%u,e=%lu,pv=%X,sv=%X,vm=%02X,wm=%02X,em=%02X,cm=%02X,tm=%02X,pt=%u,ps=%04X/%X,ss=%04X/%X\n",
+                   (unsigned)s,
+                   (unsigned long)epochId,
+                   (unsigned)(primarySamples.validMask & 0x0Fu),
+                   (unsigned)(secondarySamples.validMask & 0x0Fu),
+                   (unsigned)rowValidMask8,
+                   (unsigned)rowWarnMask8,
+                   (unsigned)rowErrorMask8,
+                   (unsigned)rowCacheMissMask8,
+                   (unsigned)rowTimeoutMask8,
+                   rowPartial ? 1u : 0u,
+                   primarySamples.statusRaw,
+                   (unsigned)(primarySamples.unreadMask & 0x0Fu),
+                   secondarySamples.statusRaw,
+                   (unsigned)(secondarySamples.unreadMask & 0x0Fu));
+        }
 #endif
 
 #if CONFIG_SENSORARRAY_FDC_VERBOSE_SCAN_LOG
@@ -3144,7 +3187,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     sensorarrayMeasureMergeFdcI2cStats(&primaryStats, &secondaryStats, &primaryBus, &secondaryBus, &timing);
 
     if (CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG &&
-        timing.frameUs > SENSORARRAY_FDC_TARGET_FRAME_US) {
+        timing.frameUs > (uint64_t)CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US) {
         sensorarrayMeasurePrintFdcBottleneck(&timing, outFrame->sequence);
     }
 

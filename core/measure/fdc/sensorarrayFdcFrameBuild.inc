@@ -1156,6 +1156,191 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)t->cacheApplyDiffWriteCount,
            (unsigned long)t->cacheApplyNoDiffCount,
            (unsigned long)t->appliedFingerprintChanges);
+    int64_t pMinusSStartAvgUs = rowCount ?
+        (t->primaryMinusSecondaryStartUs / (int64_t)rowCount) : 0;
+    int64_t pMinusSDoneAvgUs = rowCount ?
+        (t->primaryMinusSecondaryDoneUs / (int64_t)rowCount) : 0;
+    printf("WP20,s0=%lu,s1=%lu,n=%lu,okRows=%lu,anomRows=%lu,pRunAvg=%llu,sRunAvg=%llu,pRunMax=%llu,sRunMax=%llu,pFirstI2cAvg=%llu,sFirstI2cAvg=%llu,pMinusSStartAvg=%lld,pMinusSDoneAvg=%lld,barrierSkewAvg=%llu,barrierSkewMax=%llu,doneSkewAvg=%llu,doneSkewMax=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)t->wpOkRowCount,
+           (unsigned long)t->wpAnomRowCount,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->primaryWorkerRunUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryWorkerRunUs, rowCount),
+           (unsigned long long)t->primaryWorkerRunMaxUs,
+           (unsigned long long)t->secondaryWorkerRunMaxUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->primaryFirstI2cStartUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryFirstI2cStartUs, rowCount),
+           (long long)pMinusSStartAvgUs,
+           (long long)pMinusSDoneAvgUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerStartSkewUs, rowCount),
+           (unsigned long long)t->workerStartSkewMaxUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerDoneSkewUs, rowCount),
+           (unsigned long long)t->workerDoneSkewMaxUs);
+    printf("FR20,s0=%lu,s1=%lu,n=%lu,normalRows=%lu,anomRows=%lu,vmFull=%lu,wmNonzero=%lu,emNonzero=%lu,cmNonzero=%lu,tmNonzero=%lu,ptNonzero=%lu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)t->frNormalRowCount,
+           (unsigned long)t->frAnomRowCount,
+           (unsigned long)t->frVmFullCount,
+           (unsigned long)t->frWarnNonzeroCount,
+           (unsigned long)t->frErrorNonzeroCount,
+           (unsigned long)t->frCacheMissNonzeroCount,
+           (unsigned long)t->frTimeoutNonzeroCount,
+           (unsigned long)t->frPartialCount);
+    printf("READY20,s0=%lu,s1=%lu,n=%lu,pWaitIntbAvg=%llu,sWaitIntbAvg=%llu,pWaitIntbMax=%llu,sWaitIntbMax=%llu,pStatusReadAvg=%llu,sStatusReadAvg=%llu,pDataReadAvg=%llu,sDataReadAvg=%llu,pAlreadyLowCount=%lu,sAlreadyLowCount=%lu,statusAfterIntb=%lu,statusAfterTimeout=%lu,trueTimeout=%lu,hardTimeout=%lu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsSecondaryTotal, rowCount),
+           (unsigned long long)t->maxWaitReadyUsPrimary,
+           (unsigned long long)t->maxWaitReadyUsSecondary,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUsSecondaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUsSecondaryTotal, rowCount),
+           (unsigned long)t->alreadyLowPrimaryCount,
+           (unsigned long)t->alreadyLowSecondaryCount,
+           (unsigned long)t->statusAfterIntbCount,
+           (unsigned long)t->statusAfterTimeoutCount,
+           (unsigned long)t->trueTimeoutCount,
+           (unsigned long)t->hardReadyTimeoutCount);
+    printf("RW20,s0=%lu,s1=%lu,n=%lu,rowWallAvg=%llu,rowWallMax=%llu,routeAvg=%llu,cacheApplyAvg=%llu,profileAvg=%llu,coordinatorMergeAvg=%llu,workerBarrierSkewAvg=%llu,workerBarrierSkewMax=%llu,pRunAvg=%llu,sRunAvg=%llu,pDataAvg=%llu,sDataAvg=%llu,pStatusAvg=%llu,sStatusAvg=%llu,pWaitAvg=%llu,sWaitAvg=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long long)sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount),
+           (unsigned long long)agg->rowUsMax,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSwitchWhileSleepingUs + t->rowSettleUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->cacheApplyUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->diffApplyWhileSleepingUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->coordinatorMergeUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->workerStartSkewUs, rowCount),
+           (unsigned long long)t->workerStartSkewMaxUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->primaryWorkerRunUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->secondaryWorkerRunUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUsSecondaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUsSecondaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsPrimaryTotal, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUsSecondaryTotal, rowCount));
+    uint32_t i2cClk0 = CONFIG_BOARD_I2C0_FREQ_HZ;
+    uint32_t i2cClk1 = CONFIG_BOARD_I2C1_FREQ_HZ;
+    const uint32_t i2cReadGuardUs = 2u;
+    uint64_t expectedReadUs0 = i2cClk0 ? ((45ull * 1000000ull) / i2cClk0) + i2cReadGuardUs : 0u;
+    uint64_t expectedReadUs1 = i2cClk1 ? ((45ull * 1000000ull) / i2cClk1) + i2cReadGuardUs : 0u;
+    uint64_t measuredAvgReadUs0 = sensorarrayMeasureAvgU64(t->i2cBus0TotalUs, t->i2cBus0ReadCount);
+    uint64_t measuredAvgReadUs1 = sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, t->i2cBus1ReadCount);
+    int64_t overheadAvgReadUs0 = (int64_t)measuredAvgReadUs0 - (int64_t)expectedReadUs0;
+    int64_t overheadAvgReadUs1 = (int64_t)measuredAvgReadUs1 - (int64_t)expectedReadUs1;
+    printf("I2C_EXPECT20,s0=%lu,s1=%lu,n=%lu,clk0=%lu,clk1=%lu,read0=%lu,read1=%lu,expectedReadUs0=%llu,expectedReadUs1=%llu,measuredAvgReadUs0=%llu,measuredAvgReadUs1=%llu,overheadAvgReadUs0=%lld,overheadAvgReadUs1=%lld,expectedFrameI2cUs0=%llu,expectedFrameI2cUs1=%llu,measuredFrameI2cUs0=%llu,measuredFrameI2cUs1=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)i2cClk0,
+           (unsigned long)i2cClk1,
+           (unsigned long)t->i2cBus0ReadCount,
+           (unsigned long)t->i2cBus1ReadCount,
+           (unsigned long long)expectedReadUs0,
+           (unsigned long long)expectedReadUs1,
+           (unsigned long long)measuredAvgReadUs0,
+           (unsigned long long)measuredAvgReadUs1,
+           (long long)overheadAvgReadUs0,
+           (long long)overheadAvgReadUs1,
+           (unsigned long long)(expectedReadUs0 * (uint64_t)t->i2cBus0ReadCount),
+           (unsigned long long)(expectedReadUs1 * (uint64_t)t->i2cBus1ReadCount),
+           (unsigned long long)t->i2cBus0TotalUs,
+           (unsigned long long)t->i2cBus1TotalUs);
+    uint64_t roundTotalUs = 0u;
+    uint32_t profileCount = 0u;
+    uint32_t maxRoundUs = 0u;
+    for (uint8_t row = 0u; row < SENSORARRAY_MATRIX_ROWS; ++row) {
+        for (uint8_t dev = 0u; dev < 2u; ++dev) {
+            const sensorarrayFdcProfileSnapshot_t *snapshot = &s_fdcProfileSnapshotByRow[row][dev];
+            if (!snapshot->valid) {
+                continue;
+            }
+            roundTotalUs += snapshot->autoscanRoundUs;
+            profileCount++;
+            if (snapshot->autoscanRoundUs > maxRoundUs) {
+                maxRoundUs = snapshot->autoscanRoundUs;
+            }
+        }
+    }
+    uint32_t avgRoundUs = profileCount ? (uint32_t)(roundTotalUs / profileCount) : 0u;
+    uint64_t measuredRowWallAvgUs = sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount);
+    int64_t modelErrorUs = (int64_t)measuredRowWallAvgUs - (int64_t)maxRoundUs;
+    printf("P5_FULL,s=%lu,n=%lu,profile=%s,roundUs=%lu,rowBudgetUs=%lu,theoreticalMaxFps=%lu.%02lu,measuredRowWallAvgUs=%llu,measuredRowWallMaxUs=%llu,measuredFrameUs=%llu,measuredFps=%llu.%02llu,modelErrorUs=%lld,readyAvgUs=%llu,i2cAvgUs=%llu,routeProfileAvgUs=%llu,logOutUsAvg=%llu,avgRoundUs=%lu\n",
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
+           (unsigned long)maxRoundUs,
+           (unsigned long)SENSORARRAY_FDC_TARGET_ROW_US,
+           (unsigned long)(maxRoundUs ? (100000000ull / ((uint64_t)maxRoundUs * SENSORARRAY_MATRIX_ROWS)) / 100ull : 0ull),
+           (unsigned long)(maxRoundUs ? (100000000ull / ((uint64_t)maxRoundUs * SENSORARRAY_MATRIX_ROWS)) % 100ull : 0ull),
+           (unsigned long long)measuredRowWallAvgUs,
+           (unsigned long long)agg->rowUsMax,
+           (unsigned long long)avgFrameUs,
+           (unsigned long long)(avgFpsX100 / 100ull),
+           (unsigned long long)(avgFpsX100 % 100ull),
+           (long long)modelErrorUs,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->rowSwitchWhileSleepingUs + t->rowSettleUs + t->diffApplyWhileSleepingUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
+           (unsigned long)avgRoundUs);
+    struct BottleneckItem20 {
+        const char *name;
+        uint64_t us;
+    } bnItems[] = {
+        {"cacheApplyUs", sensorarrayMeasureAvgU64(t->cacheApplyUs, rowCount)},
+        {"i2cMeasuredUs", sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames)},
+        {"readyPollUs", sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount)},
+        {"read4I2cUs", sensorarrayMeasureAvgU64(t->readUs, rowCount)},
+        {"workerSpanUs", sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount)},
+        {"workerStartSkewUs", sensorarrayMeasureAvgU64(t->workerStartSkewUs, rowCount)},
+        {"coordinatorMergeUs", sensorarrayMeasureAvgU64(t->coordinatorMergeUs, rowCount)},
+        {"outputPrintfUs", sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames)},
+    };
+    for (size_t i = 0u; i < sizeof(bnItems) / sizeof(bnItems[0]); ++i) {
+        for (size_t j = i + 1u; j < sizeof(bnItems) / sizeof(bnItems[0]); ++j) {
+            if (bnItems[j].us > bnItems[i].us) {
+                struct BottleneckItem20 tmp = bnItems[i];
+                bnItems[i] = bnItems[j];
+                bnItems[j] = tmp;
+            }
+        }
+    }
+    printf("BN20,s0=%lu,s1=%lu,n=%lu,t1=%s:%llu,t2=%s:%llu,t3=%s:%llu,readyPollAvgUs=%llu,statusAvgUs=%llu,dataReadAvgUs=%llu,workerSpanAvgUs=%llu,mergeAvgUs=%llu,frameAvgUs=%llu,h=%s\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           bnItems[0].name,
+           (unsigned long long)bnItems[0].us,
+           bnItems[1].name,
+           (unsigned long long)bnItems[1].us,
+           bnItems[2].name,
+           (unsigned long long)bnItems[2].us,
+           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->coordinatorMergeUs, rowCount),
+           (unsigned long long)avgFrameUs,
+           bnItems[0].name);
+    printf("OV20,s0=%lu,s1=%lu,n=%lu,overrunFrames=%lu,avgFrameUs=%llu,maxFrameUs=%llu,targetFrameUs=%lu,budgetUsePctAvg=%llu\n",
+           (unsigned long)agg->seqStart,
+           (unsigned long)agg->seqEnd,
+           (unsigned long)agg->frames,
+           (unsigned long)agg->overrunCount,
+           (unsigned long long)avgFrameUs,
+           (unsigned long long)agg->frameUsMax,
+           (unsigned long)SENSORARRAY_FDC_TARGET_FRAME_US,
+           (unsigned long long)budgetUsePctAvg);
     return;
 #endif
 
@@ -1477,6 +1662,7 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(statusReadUs);
     SENSORARRAY_FDC_AGG_ADD(statusPrecheckUs);
     SENSORARRAY_FDC_AGG_ADD(dataReadUs);
+    SENSORARRAY_FDC_AGG_ADD(coordinatorMergeUs);
     SENSORARRAY_FDC_AGG_ADD(staleDrainUs);
     SENSORARRAY_FDC_AGG_ADD(primaryJobUs);
     SENSORARRAY_FDC_AGG_ADD(secondaryJobUs);
@@ -1488,6 +1674,24 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(workerDoneWaitUs);
     SENSORARRAY_FDC_AGG_ADD(workerLateDoneUs);
     SENSORARRAY_FDC_AGG_ADD(workerIdleAfterTimeoutUs);
+    SENSORARRAY_FDC_AGG_ADD(primaryWorkerRunUs);
+    SENSORARRAY_FDC_AGG_ADD(secondaryWorkerRunUs);
+    SENSORARRAY_FDC_AGG_ADD(workerStartSkewUs);
+    SENSORARRAY_FDC_AGG_ADD(workerDoneSkewUs);
+    SENSORARRAY_FDC_AGG_ADD(primaryFirstI2cStartUs);
+    SENSORARRAY_FDC_AGG_ADD(secondaryFirstI2cStartUs);
+    SENSORARRAY_FDC_AGG_ADD(primaryMinusSecondaryStartUs);
+    SENSORARRAY_FDC_AGG_ADD(primaryMinusSecondaryDoneUs);
+    SENSORARRAY_FDC_AGG_ADD(wpOkRowCount);
+    SENSORARRAY_FDC_AGG_ADD(wpAnomRowCount);
+    SENSORARRAY_FDC_AGG_ADD(frNormalRowCount);
+    SENSORARRAY_FDC_AGG_ADD(frAnomRowCount);
+    SENSORARRAY_FDC_AGG_ADD(frVmFullCount);
+    SENSORARRAY_FDC_AGG_ADD(frWarnNonzeroCount);
+    SENSORARRAY_FDC_AGG_ADD(frErrorNonzeroCount);
+    SENSORARRAY_FDC_AGG_ADD(frCacheMissNonzeroCount);
+    SENSORARRAY_FDC_AGG_ADD(frTimeoutNonzeroCount);
+    SENSORARRAY_FDC_AGG_ADD(frPartialCount);
     SENSORARRAY_FDC_AGG_ADD(serialFallbackUs);
     SENSORARRAY_FDC_AGG_ADD(repairPrimaryUs);
     SENSORARRAY_FDC_AGG_ADD(repairSecondaryUs);
@@ -1592,6 +1796,12 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(waitReadyUsSecondaryTotal);
     SENSORARRAY_FDC_AGG_ADD(read4UsPrimaryTotal);
     SENSORARRAY_FDC_AGG_ADD(read4UsSecondaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(statusReadUsPrimaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(statusReadUsSecondaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(dataReadUsPrimaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(dataReadUsSecondaryTotal);
+    SENSORARRAY_FDC_AGG_ADD(alreadyLowPrimaryCount);
+    SENSORARRAY_FDC_AGG_ADD(alreadyLowSecondaryCount);
     SENSORARRAY_FDC_AGG_ADD(sweepUs);
     SENSORARRAY_FDC_AGG_ADD(runtimeSweepCount);
     SENSORARRAY_FDC_AGG_ADD(sweepRequestCount);
@@ -1600,8 +1810,26 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     if (summary->maxWaitReadyUs > agg->totals.maxWaitReadyUs) {
         agg->totals.maxWaitReadyUs = summary->maxWaitReadyUs;
     }
+    if (summary->maxWaitReadyUsPrimary > agg->totals.maxWaitReadyUsPrimary) {
+        agg->totals.maxWaitReadyUsPrimary = summary->maxWaitReadyUsPrimary;
+    }
+    if (summary->maxWaitReadyUsSecondary > agg->totals.maxWaitReadyUsSecondary) {
+        agg->totals.maxWaitReadyUsSecondary = summary->maxWaitReadyUsSecondary;
+    }
     if (summary->maxI2cReadUs > agg->totals.maxI2cReadUs) {
         agg->totals.maxI2cReadUs = summary->maxI2cReadUs;
+    }
+    if (summary->primaryWorkerRunMaxUs > agg->totals.primaryWorkerRunMaxUs) {
+        agg->totals.primaryWorkerRunMaxUs = summary->primaryWorkerRunMaxUs;
+    }
+    if (summary->secondaryWorkerRunMaxUs > agg->totals.secondaryWorkerRunMaxUs) {
+        agg->totals.secondaryWorkerRunMaxUs = summary->secondaryWorkerRunMaxUs;
+    }
+    if (summary->workerStartSkewMaxUs > agg->totals.workerStartSkewMaxUs) {
+        agg->totals.workerStartSkewMaxUs = summary->workerStartSkewMaxUs;
+    }
+    if (summary->workerDoneSkewMaxUs > agg->totals.workerDoneSkewMaxUs) {
+        agg->totals.workerDoneSkewMaxUs = summary->workerDoneSkewMaxUs;
     }
 
     if (agg->frames >= period) {

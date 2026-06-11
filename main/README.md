@@ -95,7 +95,7 @@ flowchart TD
 8. 调用 `sensorarrayAsyncLogPublishFrameSnapshot(&ctx->frame, measureFrameUs)`。采样侧只复制二进制 `sensorarrayFrame_t`，不格式化 64 个 pF 字符串。
 9. `sensorarrayRuntimeRescueTick(ctx)` 对 FDC/mixed mode 调用 `sensorarrayFdcRescueTick()`。
 10. `sensorarrayRuntimeI2cFallbackTick(ctx)` 只在连续 I2C 错误超过阈值后触发 ICLK runtime re-probe。
-11. `sensorarrayDelayFramePeriodSince(ctx, frameStartUs, ctx->frame.sequence)` 按 `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` 延时；若超时发布 `OV` 事件。
+11. `sensorarrayDelayFramePeriodSince(ctx, frameStartUs, ctx->frame.sequence)` 按 `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` 延时；普通超预算进入 `OV20` 汇总，只有超过 `CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US` 的 hard overrun 才即时发布 `OV` 事件。
 
 ### 异步日志架构
 
@@ -105,13 +105,24 @@ flowchart TD
 - Drop policy：普通 Cap frame 队列满时默认丢旧保新，递增 `droppedOutputFrames`；采样任务不会因为日志落后而阻塞。
 - Event queue：异常事件走 `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN=32` 的非阻塞队列。队列满时递增 `droppedEventLogs`，后续 `LOG20` 汇报。
 - 为什么异步：Cap 每帧 64 个 6 位小数文本输出在实板上约 65 ms；同步输出会阻塞下一帧 FDC 读取。异步后用 `measureFps` 看采样帧率，用 `outputFps` 看串口输出帧率。
+- 调度隔离：scan/coordinator 默认在 `CONFIG_SENSORARRAY_SCAN_TASK_CORE=1`、优先级 12；log task 默认在 `CONFIG_SENSORARRAY_COMM_TASK_CORE=0`、优先级 7；FDC primary/secondary worker 分别由 `CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE` 和 `CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE` 固定，优先级继承 `CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO`，高于 log task。
+
+### FDC 双 worker row epoch
+
+- coordinator 只负责 row select、TMUX settle、cached row config/profile diff、barrier release、等待两个 worker done、merge row result；coordinator 不直接调用 `Fdc2214CapReadStatus()` 或 FDC DATA read。
+- `primaryFdcWorker` 和 `secondaryFdcWorker` 是常驻 task。每个 row epoch 都带 `epochId` 和 generation，避免 stale done 被当作当前结果。
+- 两个 worker 使用同一个 `sensorarrayMeasureFdcRunDeviceEpochAfterSleep()` read-row-device 路径，只是 device context 不同。这样 primary/bus0 与 secondary/bus1 的 `wait/status/data/run` timing 可以直接比较。
+- 正式数据读取仍保持 `DATA_CHx -> DATA_LSB_CHx` 顺序，不使用未经实板验证的 16-byte burst read，也不跳过 strict ready policy 下的 STATUS read。
 
 ### 日志策略和字段
 
-- `Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` 每个可输出 frame 输出一次，仍为 64 个 pF 值，仍使用 6 位小数。
-- `T/R/Q/I/CA/P/S/OT/BN` 类统计默认改为每 20 帧输出；`APP_STACK`/`APP_MEM` 仍按 100 帧级别输出。
-- 正常 `FR`/`WP`/`FDC_EPOCH` 不应高频输出；异常、timeout、I2C fault、ready mismatch、cache/config verify mismatch 等才即时输出。
+- Level 1 error：I2C timeout/NACK、bus stuck、ID mismatch、hard STATUS fault、worker queue/deadline、stale epoch、all-invalid frame、forced rescue/fallback 等真实异常允许同步即时输出，但必须带 row/device/epoch/status/unread/err/timing 等最小定位信息并限流。
+- Level 2 Cap：`Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` 每个可输出 frame 异步输出一次，仍为 64 个 pF 值，仍使用 6 位小数；measurement task 只发布 snapshot，log task 负责格式化。
+- Level 3 normal diagnostics：`T5/R5/Q5/I5/CA5/P5/LOG20/WP20/FR20/READY20/RW20/I2C_EXPECT20/P5_FULL/BN20/OV20` 默认每 20 帧聚合输出；`APP_STACK`/`APP_MEM` 仍按 100 帧级别输出。
+- normal `FR` 条件：`pv=F`、`sv=F`、`vm=FF`、`wm=00`、`em=00`、`cm=00`、`tm=00`、`pt=0`。normal FR 不再逐 row 输出，只进入 `FR20`；valid/warn/error/cache/timeout/partial 异常才输出 `FR,r=...`。
+- normal `WP` 条件：双 worker 正常启动、`mode=par`、`reason=ok`、无 stale/timeout/serialized/fallback。normal WP 不再每 5 帧逐 row 输出，只进入 `WP20`；queue/ack/deadline/stale/skew/serialization 异常才输出 `WP,r=...`。
 - `LOG20` 是异步日志任务汇总行，字段包括 `measureFps`、`outputFps`、`frameAgeAvgUs`、`frameAgeMaxUs`、`outputQueueDepth`、`qDepthMax`、`droppedOutputFrames`、`droppedEventLogs`、`outUsAvg`、`outUsMax`、`measureFrameUsAvg`。
+- `WP20` 看 primary/secondary worker 是否对等；`RW20` 看 row wall 组成；`READY20` 看 INTB/DRDY/STATUS ready 是否是瓶颈；`I2C_EXPECT20` 看 45 SCL/read 的理论线时与 measured read 的差值；`P5_FULL` 看 conversion-only profile round 与完整 row pipeline 的误差。
 - legacy `fu` 是主循环周期，不等于 FDC 转换时间；async 模式优先看 `measureFps`、`outputFps`、`frameAge*` 和 drop counters。
 
 ### I2C clock fallback
@@ -122,15 +133,16 @@ flowchart TD
 
 ### FDC2214 read constraint
 
-正式数据路径必须按 `DATA_CHx -> DATA_LSB_CHx` 顺序读取：CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -> 0x05`、CH3 `0x06 -> 0x07`。禁止把从 `0x00` 连续读 16 bytes 作为正式路径；旧 read-registers/burst 回调已删除。
+正式数据路径必须按 `DATA_CHx -> DATA_LSB_CHx` 顺序读取：CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -> 0x05`、CH3 `0x06 -> 0x07`。本次性能修复不通过减少 I2C transaction 数实现；`I2C_EXPECT20` 只用于记录理论 wire time 与 driver/wrapper measured time 的差值。禁止把从 `0x00` 连续读 16 bytes 作为正式路径；旧 read-registers/burst 回调已删除。
 
 ### 验证流程
 
 1. 在 PowerShell 设置 ESP-IDF 5.5.1 环境后运行 `idf build`。
 2. 运行 `idf -p COM11 flash monitor`，必要时先 `idf -p COM11 erase-flash`。
-3. monitor 至少观察 90 秒，确认 `APP_LOG_INIT,mode=async`、`ICLK ... locked`、`Cap` 每帧 64 个 6 位小数、`LOG20` 中 `measureFps`/`outputFps` 分离。
-4. 检查 `S20`/`S` 中 `vc=64`、`fc=64`、`ic=0`，`I20`/I2C 统计中 `retry/nack/to/recovery` 正常为 0，`droppedOutputFrames`/`droppedEventLogs` 可解释且不会阻塞采样。
-5. 已知限制：USB serial/JTAG 带宽不足时 `outputFps` 可能低于 `measureFps`；这不代表测量未加速，应同时看 `frameAge*` 和 drop counters。bus0 物理链路较慢时，测量上限仍可能被 bus0/I2C/row epoch 限制。
+3. monitor 至少观察 200 帧，确认 `APP_LOG_INIT,mode=async`、`ICLK ... locked`、`Cap` 每帧 64 个 6 位小数、`LOG20` 中 `measureFps`/`outputFps` 分离。
+4. 检查 `S20`/`S` 中 `vc=64`、`fc=64`、`ic=0`，`I5`/`I2C_EXPECT20` 中 `retry/nack/to/recovery` 正常为 0，`droppedOutputFrames`/`droppedEventLogs` 可解释且不会阻塞采样。
+5. 正常 200 帧内 `FR,r=...vm=FF,wm=00,em=00,cm=00,tm=00,pt=0` 和 `WP,r=...mode=par,reason=ok` 应为 0；用 `FR20`/`WP20` 确认 normal row 被聚合。
+6. 已知限制：USB serial/JTAG 带宽不足时 `outputFps` 可能低于 `measureFps`；这不代表测量未加速，应同时看 `frameAge*` 和 drop counters。bus0 物理链路较慢时，测量上限仍可能被 bus0/I2C/row epoch 限制。
 
 ### Failure behaviour
 
@@ -177,7 +189,7 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 
 `app_main()` clears `s_appContext`, runs `sensorarrayInitSystem()`, enters safe idle on init failure, runs `sensorarrayRunBootCalibration()`, marks diagnostic mode when a required boot sweep does not produce `OK` quality, then calls `sensorarrayRunMainLoop()`.
 
-The main loop consumes queued full sweeps, emits periodic memory/stack diagnostics, handles diagnostic mode, reads one frame, publishes anomaly events, publishes a binary frame snapshot, runs rescue and guarded I2C fallback ticks, then delays to the configured frame period. The log task formats and prints Cap text outside the measurement loop.
+The main loop consumes queued full sweeps, emits periodic memory/stack diagnostics, handles diagnostic mode, reads one frame, publishes anomaly events, publishes a binary frame snapshot, runs rescue and guarded I2C fallback ticks, then delays to the configured frame period. Normal frame-period overruns are rolled into `OV20`; only a hard overrun above `CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US` emits an immediate `OV` event. The log task formats and prints Cap text outside the measurement loop.
 
 ### Async log architecture
 
@@ -185,7 +197,25 @@ The main loop consumes queued full sweeps, emits periodic memory/stack diagnosti
 
 `LOG20` reports `measureFps`, `outputFps`, `frameAgeAvgUs`, `frameAgeMaxUs`, `outputQueueDepth`, `droppedOutputFrames`, `droppedEventLogs`, `outUsAvg`, `outUsMax`, and `measureFrameUsAvg`. Legacy `fu` is still a main-loop period metric, not an FDC conversion-time metric.
 
-Cap output remains `Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` with 64 pF values and six decimal places. The FDC2214 formal read path uses ordered `DATA_CHx -> DATA_LSB_CHx` reads and does not use a single 0x00-based 16-byte burst.
+Cap output remains `Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` with 64 pF values and six decimal places. The scan/coordinator task, log task, and primary/secondary FDC workers are pinned by separate Kconfig defaults so normal text output does not steal the worker slots that perform row reads.
+
+### FDC dual-worker row epoch
+
+The row coordinator selects the row, waits for TMUX settle, applies cached device configuration/profile diffs, releases a shared barrier, waits for both workers to finish, and merges the row result. It does not directly call `Fdc2214CapReadStatus()` or read FDC DATA registers in the parallel path.
+
+`primaryFdcWorker` and `secondaryFdcWorker` are persistent tasks. Every row job carries an `epochId` and generation so stale completions can be discarded instead of merged into the current row. Both workers call the same read-row-device path, which keeps primary/bus0 and secondary/bus1 timing directly comparable.
+
+The FDC2214 formal read path still uses ordered `DATA_CHx -> DATA_LSB_CHx` reads and does not use a single 0x00-based 16-byte burst. The performance fix must come from scheduling and log pressure reduction, not from removing the required DATA transactions.
+
+### Log strategy
+
+Level 1 errors such as I2C timeout/NACK, bus stuck, ID mismatch, hard STATUS fault, worker queue/deadline failure, stale epoch, all-invalid frame, forced rescue, and fallback may emit immediately, but they should include row/device/epoch/status/unread/error/timing context and remain rate-limited.
+
+Level 2 Cap output is asynchronous and frame based. Level 3 normal diagnostics are aggregated by default every 20 frames through `T5`, `R5`, `Q5`, `I5`, `CA5`, `P5`, `LOG20`, `WP20`, `FR20`, `READY20`, `RW20`, `I2C_EXPECT20`, `P5_FULL`, `BN20`, and `OV20`; `APP_STACK` and `APP_MEM` remain lower-rate health lines.
+
+Normal `FR` rows have `pv=F`, `sv=F`, `vm=FF`, `wm=00`, `em=00`, `cm=00`, `tm=00`, and `pt=0`. Normal `WP` rows have both workers launched in `mode=par` with `reason=ok` and no stale, timeout, fallback, or serialised path. These normal rows are suppressed as per-row text and counted in `FR20`/`WP20`; abnormal rows still emit `FR,r=...` or `WP,r=...`.
+
+`WP20` checks primary/secondary worker symmetry, `RW20` breaks down row-wall timing, `READY20` separates INTB/DRDY/STATUS readiness, `I2C_EXPECT20` compares the 45-SCL theoretical read time with measured driver/wrapper time, and `P5_FULL` compares the conversion-only profile model with the full row pipeline.
 
 ### Application-level failure model
 
@@ -212,6 +242,9 @@ For the full configuration table, see “Configuration options” in the root `R
 | `CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS` | Enters diagnostic mode after repeated full sweep failures. |
 | `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_REGS`, `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS`, `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS` | Controls optional register dumping from `sensorarrayRunDiagnosticTick()`. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ`, `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE`, `CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ` | Logged by app init through `sensorarrayLogFdcParallelCfg()` and used by measurement row epoch. |
+| `CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE`, `CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE`, `CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO` | Pin and prioritise the persistent primary/secondary FDC workers used by the row-epoch barrier path. |
+| `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES`, `CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES`, `CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES`, `CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES`, `CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES` | Control the 20-frame aggregate diagnostics such as `WP20`, `FR20`, `READY20`, `RW20`, `I2C_EXPECT20`, and `P5_FULL`. |
+| `CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US` | Suppresses normal immediate overrun spam; only frame overruns above this threshold emit immediate `OV`/`BN`, while ordinary over-budget timing is aggregated into `OV20`/`BN20`. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_*`, `CONFIG_SENSORARRAY_FDC_RAW_DEBUG_LOG` | Controls what `sensorarrayLogTask` formats through `sensorarrayFrameOutputPrint()` after the app publishes a frame snapshot. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | Enables async producer/consumer logging. Default `y`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS` | Fixed frame snapshot slot count. Default `4`. |

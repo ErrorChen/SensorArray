@@ -158,9 +158,21 @@ config SENSORARRAY_FDC_WORKER_TASK_CORE
     default -1
     range -1 1
     help
+        Legacy fallback used only when the per-worker core options are not set
+        by older sdkconfig files.
         -1 keeps the workers unpinned and must use the unpinned static task API.
         Pinned task creation only receives normalized core IDs in the valid CPU
         range.
+
+config SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE
+    int "Primary FDC worker task core (-1 means no affinity)"
+    default SENSORARRAY_SCAN_TASK_CORE
+    range -1 1
+
+config SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE
+    int "Secondary FDC worker task core (-1 means no affinity)"
+    default SENSORARRAY_COMM_TASK_CORE
+    range -1 1
 
 config SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
     int "FDC worker row synchronization timeout (ms)"
@@ -856,6 +868,14 @@ config SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
 config SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG
     bool "Print compact bottleneck on frame overrun"
     default y
+
+config SENSORARRAY_FDC_OVERRUN_HARD_US
+    int "Hard overrun threshold for immediate OV/BN output (us)"
+    default 250000
+    range 1000 5000000
+    help
+        Stable FDC frames above the target budget are summarized in OV20/BN20.
+        Only frames above this hard threshold use immediate synchronous output.
 
 config SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME
     bool "Print per-frame timing summary"

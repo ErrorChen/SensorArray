@@ -152,6 +152,9 @@ static void sensorarrayDelayFramePeriodSince(sensorarrayAppContext_t *ctx,
         return;
     }
 
+    if (elapsedUs <= (int64_t)CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US) {
+        return;
+    }
     if (ctx && ctx->asyncLogReady) {
         (void)sensorarrayAsyncLogPublishOverrun(sequence, elapsedUs, periodUs);
     } else {
@@ -470,15 +473,19 @@ static void sensorarrayLogFdcParallelCfg(void)
         printf("FDC_PARALLEL_WARN,reason=config_enabled_but_worker_not_available,detail=%s\n",
                reason);
     }
-    printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s\n",
+    printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s,scanCore=%d,logCore=%d,workerPrio=%d,logPrio=%d\n",
            enabled ? 1u : 0u,
            primaryAvailable ? (int)primaryBus.Port : -1,
            secondaryAvailable ? (int)secondaryBus.Port : -1,
            sameBus ? 1u : 0u,
-           CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
-           CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE,
+           CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE,
+           CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE,
            enabled ? "parallel" : "serial",
-           reason);
+           reason,
+           CONFIG_SENSORARRAY_SCAN_TASK_CORE,
+           CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE,
+           CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+           CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY);
 }
 
 static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)

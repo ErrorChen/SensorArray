@@ -137,6 +137,7 @@ typedef struct {
     uint64_t discardUs;
     uint64_t waitReadyUs;
     uint64_t readUs;
+    uint64_t coordinatorMergeUs;
     uint64_t emitUs;
     uint64_t capComputeUs;
 
@@ -163,6 +164,28 @@ typedef struct {
     uint64_t workerDoneWaitUs;
     uint64_t workerLateDoneUs;
     uint64_t workerIdleAfterTimeoutUs;
+    uint64_t primaryWorkerRunUs;
+    uint64_t secondaryWorkerRunUs;
+    uint64_t primaryWorkerRunMaxUs;
+    uint64_t secondaryWorkerRunMaxUs;
+    uint64_t workerStartSkewUs;
+    uint64_t workerStartSkewMaxUs;
+    uint64_t workerDoneSkewUs;
+    uint64_t workerDoneSkewMaxUs;
+    uint64_t primaryFirstI2cStartUs;
+    uint64_t secondaryFirstI2cStartUs;
+    int64_t primaryMinusSecondaryStartUs;
+    int64_t primaryMinusSecondaryDoneUs;
+    uint32_t wpOkRowCount;
+    uint32_t wpAnomRowCount;
+    uint32_t frNormalRowCount;
+    uint32_t frAnomRowCount;
+    uint32_t frVmFullCount;
+    uint32_t frWarnNonzeroCount;
+    uint32_t frErrorNonzeroCount;
+    uint32_t frCacheMissNonzeroCount;
+    uint32_t frTimeoutNonzeroCount;
+    uint32_t frPartialCount;
     uint64_t serialFallbackUs;
     uint64_t repairPrimaryUs;
     uint64_t repairSecondaryUs;
@@ -251,6 +274,14 @@ typedef struct {
     uint64_t read4UsPrimaryTotal;
     uint64_t read4UsSecondaryTotal;
     uint64_t maxWaitReadyUs;
+    uint64_t maxWaitReadyUsPrimary;
+    uint64_t maxWaitReadyUsSecondary;
+    uint64_t statusReadUsPrimaryTotal;
+    uint64_t statusReadUsSecondaryTotal;
+    uint64_t dataReadUsPrimaryTotal;
+    uint64_t dataReadUsSecondaryTotal;
+    uint32_t alreadyLowPrimaryCount;
+    uint32_t alreadyLowSecondaryCount;
     uint64_t maxI2cReadUs;
     uint32_t sweepRequestCount;
     uint32_t sweepActuallyQueuedCount;
@@ -316,6 +347,7 @@ typedef struct {
     uint64_t discardUs;
     uint64_t waitReadyUs;
     uint64_t readUs;
+    uint64_t coordinatorMergeUs;
 
     uint64_t sleepBeforeRowSwitchUs;
     uint64_t rowSwitchWhileSleepingUs;
@@ -333,6 +365,15 @@ typedef struct {
     uint64_t workerDoneWaitUs;
     uint64_t workerLateDoneUs;
     uint64_t workerIdleAfterTimeoutUs;
+    uint64_t primaryWorkerRunUs;
+    uint64_t secondaryWorkerRunUs;
+    uint64_t workerStartSkewUs;
+    uint64_t workerDoneSkewUs;
+    uint64_t primaryFirstI2cStartUs;
+    uint64_t secondaryFirstI2cStartUs;
+    int32_t primaryMinusSecondaryStartUs;
+    int32_t primaryMinusSecondaryDoneUs;
+    bool wpNormal;
     uint64_t serialFallbackUs;
     uint64_t repairPrimaryUs;
     uint64_t repairSecondaryUs;
@@ -431,6 +472,7 @@ typedef struct {
 
     uint32_t intbEdgeCount;
     uint32_t intbFalseEdgeCount;
+    uint32_t alreadyLowCount;
     uint32_t intbTimeoutCount;
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
