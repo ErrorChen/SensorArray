@@ -689,7 +689,7 @@ config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
 
 config SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
     int "Sample normal FDC row/device diagnostics every N frames"
-    default 5
+    default 0
     range 0 10000
     help
         0 disables sampled normal-path diagnostics. Exceptional timeout,

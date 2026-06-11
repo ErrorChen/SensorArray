@@ -489,6 +489,7 @@ The default formal matrix ready path treats INTB as a wake hint. The actual read
 - FDC DRDY-to-INTB output is enabled for formal matrix reads unless `CONFIG_SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG` or poll-only ready policy is selected.
 - The worker arms INTB notification before `sleep_exit`. The normal matrix wait reads only the active-low INTB GPIO/notification; it does not pre-read or poll STATUS.
 - After INTB becomes active-low, `STI` confirms STATUS once, with at most one short confirmation retry. Success is `RR src=IE`/`IL`; failure is terminal `STM` / `INTB_ACTIVE_STATUS_MISMATCH`.
+- Normal successful `STI`/`RR` row-device details are disabled by default (`CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES=0`) because hot-path serial output can disturb worker timing; mismatch, timeout, fallback, and I2C-error diagnostics remain immediate.
 - At `estimatedRoundUs + guardUs` with no INTB, strict mode permits one `STT` timeout diagnostic/fallback. If still not ready, it continues waiting for INTB only until the hard deadline. The final diagnostic is `STH`.
 - `RP` and `src=SP` were removed from the normal matrix path. `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` and `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` remain explicit legacy/debug policies only.
 
@@ -1099,6 +1100,7 @@ Relevant defaults:
 | `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION` | `y` |
 | `CONFIG_SENSORARRAY_FDC_RCOUNT_DEFAULT` | derived from profile, `0x2089` for `high_precision` |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | `0x0080` |
+| `CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES` | `0` |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES` | `5` |
 | `CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES` | `5` |
 | `CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES` | `5` |
