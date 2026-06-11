@@ -198,15 +198,17 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE` | bool | Kconfig/defaults: y | Enables per-row conversion epoch restart. | row epoch helpers | Keep enabled for current row isolation strategy. |
 | `CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP` | bool | Kconfig/defaults: y | Uses `CONFIG.SLEEP_MODE_EN` for row restart. | `sensorarrayMeasureFdcSetSleepMode()` | Current stable path uses sleep entry/exit rather than SD pin reset. |
 | `CONFIG_SENSORARRAY_FDC_DIFF_CACHE_APPLY` | bool | Kconfig/defaults: y | Applies only changed cached FDC row registers while devices are sleeping. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep enabled to reduce per-row I2C writes. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION`, `CONFIG_SENSORARRAY_FDC_PROFILE_BALANCED_20FPS`, `CONFIG_SENSORARRAY_FDC_PROFILE_FAST_DEBUG` | choice | default `high_precision` | Selects the fallback/default FDC matrix profile. | `sensorarrayConfig.h`, cache/sweep channel config | `high_precision` keeps existing 0x2089 timing; `balanced_20fps` targets the row budget; `fast_debug` is for controlled timing experiments. |
+| `CONFIG_SENSORARRAY_FDC_RCOUNT_DEFAULT` | hex | selected profile: `0x2089`, `0x0E00`, or `0x0900` | Default FDC RCOUNT used when no calibrated cache entry overrides it. | bring-up, cache apply, timing estimate | Lower values improve estimated fps but reduce conversion precision/noise margin. |
 | `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE` | bool | Kconfig/defaults: n | Enables experimental runtime RCOUNT reduction when cached profile timing is too slow. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep disabled for normal matrix reads; enable only for controlled fast-profile debugging. |
 | `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | int | Kconfig/defaults: `4000` | Target round time for the optional formal fast profile. | PFU/P5 diagnostics, optional fast-profile tuning | With fast profile disabled, this is diagnostic only and does not mutate cached RCOUNT. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE` | bool | Kconfig/defaults: n | Allows `profile_too_slow` to request rescue/sweep. | `sensorarrayMeasureRequestFdcCellRescue()`, row watchdog/cache apply gates | Keep disabled unless running an explicit debug experiment; slow estimated timing is not an electrical failure. |
 | `CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ` | bool | Kconfig: n | Allows uncalibrated safe-default row configs during formal reads. | `sensorarrayMeasureApplyFdcCachedRowConfig()` | Keep disabled for normal operation. A missing cache now marks cells invalid, logs `FDC_CACHE_MISS`, and requests fast rescue. |
 | `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` | bool | Kconfig: n | Prints verbose cache apply details. | `sensorarrayFdcCacheApply.inc` | Enable only when debugging cache fingerprints; it adds log load. |
 | `CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG` | bool | defaults: n | Legacy compatibility alias for cache apply logging. | compatibility fallback | Prefer `CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE` in new builds. |
-| `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | Kconfig: `0x0080` | Conservative default FDC SETTLECOUNT. | cache/sweep channel config | Lower only after valid conversions are stable. |
+| `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | hex | selected profile: `0x0080` | Default FDC SETTLECOUNT used when no calibrated cache entry overrides it. | cache/sweep channel config | Lower only after valid conversions are stable. |
 | `CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US` | int | Kconfig: `2000` | Legacy safety margin after one autoscan cycle. | FDC wait/sweep helpers | Strict ready wait now uses the larger of this value and `CONFIG_SENSORARRAY_FDC_READY_GUARD_US`. |
-| `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL` | choice bool | Kconfig/defaults: y | Default formal ready policy: wait for INTB low, then read STATUS once to ack/verify readiness. | `sensorarrayFdcWaitDeviceReady()` | Production path; no STATUS fallback before INTB and no legacy fallback recovery. |
+| `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL` | choice bool | Kconfig/defaults: y | Default formal ready policy: one STATUS pre-check, INTB wait, STATUS ack/verify, and one timeout STATUS classification. | `sensorarrayFdcWaitDeviceReady()` | Production path; no repeated pre-INTB polling and no legacy fallback recovery loop. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` | choice bool | Kconfig/defaults: n | Legacy diagnostic policy: wait INTB, verify STATUS, then allow bounded STATUS fallback. | `sensorarrayFdcWaitDeviceReady()` | Enable only to compare old fallback behaviour; fallback recovery appears as `src=FB`. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS` | choice bool | Kconfig/defaults: n | Wait INTB then verify STATUS once, without legacy fallback. | `sensorarrayFdcWaitDeviceReady()` | Diagnostic mode for missed-INTB validation. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` | choice bool | Kconfig/defaults: n | Poll STATUS/unread directly instead of using INTB. | `sensorarrayFdcWaitDeviceReady()` | Debug/compatibility mode; not the default frame-rate path. |
@@ -224,7 +226,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY` | int | Kconfig/defaults: `3` | Maximum short guard polls after unread bits are full but `DRDY=0`. | `sensorarrayFdcWaitDeviceReady()` | Lets the intermediate `unread=full,DRDY=0` state recover without entering rescue. |
 | `CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US` | int | Kconfig/defaults: `1000` | Delay between guarded STATUS ready polls. | `sensorarrayFdcWaitDeviceReady()` | Lower increases I2C load; higher increases missed-frame latency. |
 | `CONFIG_SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID` | bool | Kconfig/defaults: y | Requires `DRDY=1` before data registers are accepted. | `sensorarrayFdcWaitDeviceReady()`, `sensorarrayMeasureReadFdcAutoscan4chMasked()` | Keep enabled. `unread=full && DRDY=0` is `WAIT_DRDY`, not a hard invalid sample. |
-| `CONFIG_SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB` | bool | Kconfig/defaults: y | Records suppression of pre-INTB STATUS reads in INTB modes. | `sensorarrayFdcWaitDeviceReady()` | Keep enabled to avoid long STATUS polling before INTB. |
+| `CONFIG_SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB` | bool | Kconfig/defaults: y | Records suppression of repeated pre-INTB STATUS reads in INTB modes. | `sensorarrayFdcWaitDeviceReady()` | Keep enabled; the strict path still allows the single lightweight pre-check. |
 | `CONFIG_SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG` | bool | Kconfig/defaults: n | Forces INTB output disabled for debug builds. | `sensorarrayMeasureFdcConfigBaseWithoutSleep()`, bring-up/sweep config builders | Enable only when intentionally testing poll-only behaviour. |
 
 ### FDC sweep and rescue configuration / FDC 扫描与救援配置
@@ -344,7 +346,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS` | int | defaults: `5000` | Diagnostic register dump period. | `sensorarrayRunDiagnosticTick()` | Lower increases serial and I2C load. |
 | `CONFIG_SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS` | bool | defaults: y | Skips diagnostic dump when a bus is offline. | `sensorarrayRunDiagnosticTick()` | Keep enabled to avoid repeated offline-bus errors. |
 | `CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL`, `CONFIG_SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY`, `CONFIG_SENSORARRAY_FDC_VERIFY_MODE_NONE` | choice | default `STARTUP_ONLY` | Runtime register readback policy. | FDC cache/sweep apply paths | `FULL` is for debug; `NONE` is high-speed experimentation only. |
-| `CONFIG_SENSORARRAY_FDC_HIGH_SPEED_PROFILE` | bool | defaults: n | Experimental lower RCOUNT/SETTLECOUNT candidates. | `sensorarrayFdcSweep.c` | Can improve speed at the cost of noise, warnings, and invalid frames. |
+| `CONFIG_SENSORARRAY_FDC_HIGH_SPEED_PROFILE` | bool | defaults: n | Legacy sweep/debug gate for lower RCOUNT/SETTLECOUNT candidates. | `sensorarrayFdcSweep.c` | Use the explicit matrix profile choice for normal fallback timing; this flag does not rescue `profile_too_slow` by itself. |
 | `CONFIG_TMUX1108_*`, `CONFIG_TMUX1134_*` | int/bool | component Kconfig defaults | TMUX GPIO and default logic levels. | `tmuxSwitchInit()`, route functions | Board-specific; wrong polarity breaks FDC/ADS route safety. |
 | `CONFIG_POWER_*` | int | `-1` defaults | Optional power-control GPIO abstraction. | `core/powerCtrl` | Current main lifecycle does not actively manage charger/rail ICs through this layer. |
 
@@ -481,16 +483,15 @@ flowchart LR
 
 ### INTB and STATUS / INTB 与 STATUS
 
-The default formal matrix ready path is strict INTB-level first, with STATUS used only after INTB to acknowledge and verify readiness:
+The default formal matrix ready path treats INTB as a wake hint. The actual read gate is always STATUS `DRDY=1` plus all required unread bits:
 
 - FDC DRDY-to-INTB output is enabled for formal matrix reads unless `CONFIG_SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG` or poll-only ready policy is selected.
-- The authoritative ready gate is `DRDY=1` plus all required unread bits set after INTB low.
-- In strict INTB mode the worker arms INTB notification before `sleep_exit`, waits for INTB first, then performs one STATUS ack/verify. Repeated STATUS polling before INTB is suppressed.
-- If INTB arrives but STATUS shows `unread=0xF,DRDY=0`, a short after-INTB recheck can recover as `src=AR`.
-- Missed INTB in the formal strict path is `src=IT` and is handed to the row-device watchdog instead of silently recovering through STATUS polling.
-- `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` and `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` are legacy/debug policies. Formal strict logs should not show `src=FB`.
+- The worker arms INTB notification before `sleep_exit`, performs one lightweight STATUS pre-check before the long INTB wait, and skips the wait only when STATUS is already readable (`src=SP`, `ready_before_wait`).
+- Normal INTB wake still performs one STATUS ack/verify. If INTB arrives but STATUS shows `unread=0xF,DRDY=0`, a short after-INTB recheck can recover as `src=AR`.
+- If the INTB wait times out, strict mode performs one STATUS fallback to classify the miss. STATUS ready is `src=LT` / `lateStatusReady`, not a true timeout. STATUS not ready with inactive INTB is `true_timeout_not_ready`.
+- Repeated pre-INTB STATUS polling remains suppressed. `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` and `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` are legacy/debug policies. Formal strict logs should not show `src=FB`.
 
-中文：默认正式矩阵读取是 INTB-first。INTB 只是唤醒提示，最终仍以 `DRDY=1 && required unread full` 为正式有效条件；`unread=0xF,DRDY=0` 先按 transient/stale 分层处理，必要时只 drain 到 discard buffer，不会直接并入 `MATRIXFDC_CAP`。
+中文：默认正式矩阵读取中，INTB 只是唤醒提示，最终以 `DRDY=1 && required unread full` 为正式有效条件。等待前只做一次轻量 STATUS 预检；超时后只做一次 STATUS 分类。`unread=0xF,DRDY=0` 先按 transient/stale 分层处理，必要时只 drain 到 discard buffer，不会直接并入 `MATRIXFDC_CAP`。
 
 ## 路由安全与 ADS/FDC 互斥 / Route safety and ADS/FDC mutual exclusion
 
@@ -667,14 +668,16 @@ The compact tokens are intended for high-frame-rate timing work, where long log 
 Readiness diagnostics:
 
 - `src=IL` or `src=IE` means INTB level/event arrived and one STATUS ack verified `DRDY=1` plus required unread bits.
+- `src=SP` means the single STATUS pre-check before the long INTB wait already had `DRDY=1` and the required unread mask.
 - `src=AR` means only the short after-INTB recheck path recovered `unread=0xF,DRDY=0`.
-- `src=IT` means INTB wait missed. Formal `INTB_STRICT_LEVEL` does not run a final STATUS poll/retry to recover the current sample; the row-device goes to watchdog handling.
+- `src=LT` means the INTB wait timed out, but the one STATUS fallback proved the sample was ready. This is counted as `lateStatusReady`, not as a true timeout.
+- `src=IT` means INTB wait missed and the timeout STATUS check was still not ready. This is counted as `true_timeout_not_ready`.
 - Removed legacy success sources: `src=FP`, `src=FR`, and `src=GR` are not valid formal ready sources. Old `fp/fr` recovery counters are removed from firmware logs.
 - `src=DI` means STATUS after INTB was inconsistent and is treated as a hard row-device fault.
 - `src=FB` should only appear when the legacy fallback policy is selected.
-- `bi` should stay at 0 in strict INTB mode; `ai` is the single after-INTB ack read, `ar` counts bounded after-INTB rechecks, `wd` counts diagnostic-only watchdog STATUS reads, and `sr` is the total STATUS read count.
+- `pre` is the single STATUS pre-check count, `bi` should stay at 0 in strict INTB mode except for that pre-check accounting, `ai` is the single after-INTB ack read, `ar` counts bounded after-INTB rechecks, `wd` counts diagnostic-only watchdog STATUS reads, and `sr` is the total STATUS read count.
 - `ack` means STATUS was read while INTB was low. A watchdog diagnostic STATUS read is never an ack and never changes the current epoch to ready.
-- A formal read4 result is data-complete-good only when the source is `IE`, `IL`, or `AR`, read/I2C errors are clear, `DRDY=1`, required unread/fresh/valid masks are full, raw data is not all zero, and zero-before/after-DRDY masks are clear.
+- A formal read4 result is data-complete-good only when the source is `SP`, `IE`, `IL`, `AR`, or `LT`, read/I2C errors are clear, `DRDY=1`, required unread/fresh/valid masks are full, raw data is not all zero, and zero-before/after-DRDY masks are clear.
 - DATA_CHx reads after invalid/missed INTB are discard-only drains when enabled; they are not written into `MATRIXFDC_CAP`.
 
 Parallel row epoch logic:
@@ -917,9 +920,9 @@ This is how a line such as `est=13544` is explained: `P5` and `PR` show the regi
 Default profile logs:
 
 ```text
-P5,s=630,n=5,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,profileTooSlowAction=diag_only,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
+P5,s=630,n=5,profile=high_precision,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,profileTooSlowAction=diag_only,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
 PR,s=630,d=p,r=1,src=shadow,why=profile_too_slow,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,fh=[40000000,40000000,40000000,40000000],su=[...],cu=[...],tu=[...],round=13544,to=30088
-PFU,d=p,r=1,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
+PFU,d=p,r=1,profile=high_precision,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,theoreticalMaxFps=9.22,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
 ```
 
 Readback verification is reserved for boot/init, cache writes, sweep updates, diagnostics, or non-hot-path checks. Do not add config register readbacks between confirmed INTB and DATA reads.
@@ -932,6 +935,9 @@ The firmware keeps formal fast profile metadata alongside the stable boot/cache 
 |---|---|
 | `bootStableProfile` | Conservative profile derived from boot/full/fast calibration cache. |
 | `formalFastProfile` | Formal read profile metadata used to judge high-speed readiness. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION` | Default profile, `RCOUNT=0x2089`, `SETTLECOUNT=0x0080`. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_BALANCED_20FPS` | Explicit 20 fps target profile, `RCOUNT=0x0E00`, `SETTLECOUNT=0x0080`. |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_FAST_DEBUG` | Explicit debug profile, `RCOUNT=0x0900`, `SETTLECOUNT=0x0080`. |
 | `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE` | Disabled by default. When enabled, permits experimental runtime RCOUNT reduction. |
 | `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US` | Default target is `4000 us`; with fast profile disabled it is diagnostic only. |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US` | Default warning budget is `6250 us`, the 20 fps row budget. |
@@ -944,7 +950,7 @@ An autoscan round such as `13544 us` still limits the theoretical maximum frame 
 Default example:
 
 ```text
-PFU,d=p,r=1,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
+PFU,d=p,r=1,profile=high_precision,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,theoreticalMaxFps=9.22,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
 ```
 
 When `CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE=y`, PFU actions distinguish actual writes and cache promotion:
@@ -1039,7 +1045,7 @@ Field dictionary:
 | `round` | estimated autoscan round us |
 | `ack` | STATUS read acknowledge count |
 | `ib0`, `ib1` | INTB level before and after STATUS |
-| `src` | ready source: `IL`, `IE`, `AR`, `IT`, `FB`, `PD` |
+| `src` | ready source: `SP`, `IL`, `IE`, `AR`, `LT`, `IT`, `FB`, `PD` |
 
 Mask shorthand:
 
@@ -1059,11 +1065,14 @@ MATRIXFDC_CAP,s=631,t=813405664,q=F,pf=[100.302000,58.098000,56.765000,...,118.4
 Every 5 frames by default:
 
 ```text
-T5,s0=626,s1=630,n=5,fps=18.42,fa=54281,rw=6120,rmax=13544,ww=6040,rp=28120,i2c=22100,op=6400,prof=13544,pe=0
-R5,s0=626,s1=630,n=5,full=80,ar=2,part=0,none=0,it=0,ack=82,b=0,a=82,fb=0,supp=80,uwd=2,dp=0
+T5,s0=626,s1=630,n=5,fps=18.42,fa=54281,rw=6120,rmax=13544,ww=6040,rp=28120,sp=420,dr=3100,i2c=22100,op=6400,prof=13544,pe=0,frameEffectiveFps=18.42
+R5,s0=626,s1=630,n=5,full=80,pre=12,intb=66,late=2,trueTo=0,rec=0,ar=2,trans=0,staleDrain=0,hardTo=0,part=0,none=0,it=0,ack=82,b=12,bp=12,a=82,fb=0,supp=80,uwd=2,dp=0
 Q5,s0=626,s1=630,n=5,fw=0,sw=0,tw=0,z0=0,zd=0,nr=0,invRow=0,invDev=0,fs=0,sweepReq=0,sweepQ=0,def=0
 I5,s0=626,s1=630,n=5,w=120,r=240,vr=0,retry=0,nack=0,to=0,rec=0,b0=60/120/9000,b1=60/120/9100,avg0=50,avg1=50,maxRead=2300
+BN,s=630,t1=ready:28120,t2=i2c:22100,t3=output:6400,readyPollUs=28120,statusPrecheckUs=420,dataReadUs=3100,serialFallbackUs=0,staleDrainUs=0,workerSyncUs=6040,measureLockHeldUs=54281,frameEffectiveFps=18.42,h=ready_wait
 ```
+
+For ready-state diagnosis, `pre`, `intb`, `late`, and `trueTo` separate STATUS-ready-before-wait, INTB-confirmed ready, STATUS-ready-after-timeout, and true timeout-not-ready paths. `sp`/`statusPrecheckUs`, `dr`/`dataReadUs`, and `frameEffectiveFps` expose whether the frame-rate loss is dominated by ready waiting, data reads, output, or another bottleneck.
 
 ### Backward Compatibility
 
@@ -1077,6 +1086,9 @@ Relevant defaults:
 | `CONFIG_SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY` | `n` |
 | `CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL` | `1` |
 | `CONFIG_SENSORARRAY_FDC_ROW_LOG_LEVEL` | `1` |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION` | `y` |
+| `CONFIG_SENSORARRAY_FDC_RCOUNT_DEFAULT` | derived from profile, `0x2089` for `high_precision` |
+| `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | `0x0080` |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES` | `5` |
 | `CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES` | `5` |
 | `CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES` | `5` |
@@ -1093,6 +1105,8 @@ Use these checks in monitor output:
 - Strict INTB is active when startup/formal logs show `readyMode=INTB_STRICT_LEVEL`.
 - Formal path no longer recovers by `src=FB` unless legacy diagnostic policy is selected.
 - After-INTB recheck is only shown as `src=AR` after INTB was confirmed.
+- A ready sample can be accepted by `src=SP`, `src=IE`/`IL`, `src=AR`, or `src=LT`, but every accepted path must still have `DRDY=1`, required unread bits full, nonzero raw data, and no I2C error.
+- In `R5`, `pre`, `intb`, `late`, and `trueTo` should explain where ready decisions came from. `late` means timeout STATUS was ready; only `trueTo` means STATUS was not ready after the wait.
 - Row-device watchdog default is `rowBudget=6250,mul=10,hard=62500` at 20 fps and 8 rows.
 - `P5` explains slow estimates such as `13544 us` using `rc/sc/cd/dc/dg` and per-channel detail in `PR`.
 - `P5/R5/T5/Q5/I5` carry `n=5` by default. If Kconfig changes the period, trust the `n` field.

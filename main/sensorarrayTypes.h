@@ -147,6 +147,7 @@ typedef struct {
     uint64_t sleepTotalUs;
     uint64_t sleepExitToIntbUs;
     uint64_t statusReadUs;
+    uint64_t statusPrecheckUs;
     uint64_t dataReadUs;
     uint64_t intbWaitOnlyUs;
     uint64_t statusVerifyAfterIntbUs;
@@ -189,6 +190,10 @@ typedef struct {
     uint32_t intbTimeoutCount;
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
+    uint32_t preStatusReadyCount;
+    uint32_t intbReadyCount;
+    uint32_t lateStatusReadyCount;
+    uint32_t trueTimeoutCount;
     uint32_t intbStaleBeforeClearCount;
     uint32_t readyFullCount;
     uint32_t recoveredAfterRetryCount;
@@ -198,6 +203,7 @@ typedef struct {
     uint32_t staleUnreadDrainCount;
     uint32_t hardReadyTimeoutCount;
     uint32_t statusReadsBeforeIntbCount;
+    uint32_t statusReadsPrecheckCount;
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
     uint32_t statusReadSuppressedBeforeIntbCount;
@@ -375,6 +381,7 @@ typedef struct {
     uint64_t sleepExitUs;
     uint64_t sleepExitToIntbUs;
     uint64_t statusReadUs;
+    uint64_t statusPrecheckUs;
     uint64_t dataReadUs;
     uint64_t intbWaitOnlyUs;
     uint64_t statusVerifyAfterIntbUs;
@@ -416,6 +423,10 @@ typedef struct {
     uint32_t intbTimeoutCount;
     uint32_t intbFallbackPollCount;
     uint32_t intbFreshDrdyCount;
+    uint32_t preStatusReadyCount;
+    uint32_t intbReadyCount;
+    uint32_t lateStatusReadyCount;
+    uint32_t trueTimeoutCount;
     uint32_t readyFullCount;
     uint32_t recoveredAfterRetryCount;
     uint32_t readyPartialCount;
@@ -424,6 +435,7 @@ typedef struct {
     uint32_t staleUnreadDrainCount;
     uint32_t hardReadyTimeoutCount;
     uint32_t statusReadsBeforeIntbCount;
+    uint32_t statusReadsPrecheckCount;
     uint32_t statusReadsAfterIntbCount;
     uint32_t statusReadsInFallbackCount;
     uint32_t statusReadSuppressedBeforeIntbCount;

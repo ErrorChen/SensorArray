@@ -415,8 +415,55 @@ config SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
     bool "Print verbose cache no-diff/skipped logs"
     default n
 
+choice SENSORARRAY_FDC_DEFAULT_PROFILE
+    prompt "Default FDC matrix profile"
+    default SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    help
+        Selects the boot/cache fallback RCOUNT/SETTLECOUNT profile used when a
+        calibrated per-cell cache entry is missing. This does not enable
+        profile_too_slow rescue or runtime RCOUNT reduction by itself.
+
+config SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    bool "high_precision: conservative stable profile"
+    help
+        Existing stable profile. Uses RCOUNT 0x2089 and SETTLECOUNT 0x0080.
+
+config SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    bool "balanced_20fps: target about 20 fps"
+    help
+        Lower RCOUNT profile sized for the 50 ms / 8 row matrix budget. Uses
+        RCOUNT 0x0E00 and SETTLECOUNT 0x0080.
+
+config SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    bool "fast_debug: short conversion debug profile"
+    help
+        Aggressive debug profile for timing experiments. Uses RCOUNT 0x0900 and
+        SETTLECOUNT 0x0080; validate noise and data quality before trusting it.
+
+endchoice
+
+config SENSORARRAY_FDC_PROFILE_NAME
+    string
+    default "high_precision" if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default "balanced_20fps" if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default "fast_debug" if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    default "high_precision"
+
+config SENSORARRAY_FDC_RCOUNT_DEFAULT
+    hex
+    default 0x2089 if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default 0x0E00 if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default 0x0900 if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    default 0x2089
+    help
+        Default conversion count used by the selected profile and by safe
+        fallback cache entries. Calibrated cache entries still take precedence.
+
 config SENSORARRAY_FDC_SETTLECOUNT_DEFAULT
     hex "Default FDC SETTLECOUNT_CHx"
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
     default 0x0080
     help
         Conservative matrix default. The previous 0x000A was too aggressive for
@@ -768,9 +815,9 @@ config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
     bool "Enable experimental high-speed FDC profile candidates"
     default n
     help
-        Experimental option for lower RCOUNT/SETTLECOUNT candidates. The
-        normal boot/cache mechanism remains active; this is not the default
-        stable profile.
+        Legacy sweep/debug gate for lower RCOUNT/SETTLECOUNT candidates. Use
+        SENSORARRAY_FDC_DEFAULT_PROFILE to select the normal matrix fallback
+        profile. This option does not rescue profile_too_slow by itself.
 
 config SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
     bool "Enable FDC formal fast profile runtime RCOUNT reduction"

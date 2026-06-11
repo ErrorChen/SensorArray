@@ -409,6 +409,7 @@ typedef struct {
 typedef enum {
     SENSORARRAY_FDC_READY_NONE = 0,
     SENSORARRAY_FDC_READY_EDGE_WAKE,
+    SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT,
     SENSORARRAY_FDC_READY_POLL_FULL,
     SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY,
     SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL,
@@ -423,6 +424,7 @@ typedef enum {
     SENSORARRAY_FDC_READY_STALE_UNREAD_NO_DRDY,
     SENSORARRAY_FDC_READY_HARD_TIMEOUT,
     SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS,
+    SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT,
     SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK,
     SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK,
     SENSORARRAY_FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
@@ -515,7 +517,9 @@ typedef struct {
     bool levelActiveAtWaitReturn;
     uint32_t intbWaitUs;
     uint32_t statusVerifyUs;
+    uint32_t statusPrecheckUs;
     uint32_t pollFallbackUs;
+    uint32_t statusReadsPrecheck;
     uint32_t statusReadsBeforeIntb;
     uint32_t statusReadsAfterIntb;
     uint32_t statusReadsAfterIntbRecheck;
@@ -536,6 +540,9 @@ typedef struct {
     bool recoveredByStatusReady;
     bool recoveredByLevelLow;
     bool acceptedByStatusFallback;
+    bool preStatusReady;
+    bool lateStatusReady;
+    bool trueTimeoutNotReady;
     int intbBeforeStatus;
     int intbAfterStatus;
 } sensorarrayFdcReadyState_t;

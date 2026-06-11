@@ -213,6 +213,8 @@ static __attribute__((unused)) const char *sensorarrayMeasureFdcReadyKindName(se
     switch (kind) {
     case SENSORARRAY_FDC_READY_EDGE_WAKE:
         return "edge_wake";
+    case SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT:
+        return "ready_before_wait";
     case SENSORARRAY_FDC_READY_POLL_FULL:
         return "data_ready_full";
     case SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY:
@@ -241,6 +243,8 @@ static __attribute__((unused)) const char *sensorarrayMeasureFdcReadyKindName(se
         return "hard_timeout";
     case SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS:
         return "status_fallback_after_intb_miss";
+    case SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT:
+        return "status_ready_after_timeout";
     case SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK:
         return "level_active_fallback";
     case SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK:
@@ -510,6 +514,7 @@ static void sensorarrayMeasureFdcUpdateReadyTiming(const sensorarrayFdcReadyStat
         timing->hardReadyTimeoutCount++;
     }
     timing->statusReadsBeforeIntbCount += ready->statusReadsBeforeIntb;
+    timing->statusReadsPrecheckCount += ready->statusReadsPrecheck;
     timing->statusReadsAfterIntbCount += ready->statusReadsAfterIntb +
                                          ready->statusReadsAfterIntbRecheck;
     timing->statusReadsInFallbackCount += ready->statusReadsInFallback;
@@ -529,15 +534,33 @@ static void sensorarrayMeasureFdcUpdateReadyTiming(const sensorarrayFdcReadyStat
     if (ready->readyForDataRead) {
         timing->drdyFullUnreadReadyCount++;
     }
-    if ((ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
-         ready->kind == SENSORARRAY_FDC_READY_POLL_FULL ||
-         ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
-         ready->kind == SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS ||
-         ready->kind == SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK ||
-         ready->kind == SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK) &&
-        ready->readyForDataRead) {
+    bool preStatusReady =
+        ready->preStatusReady ||
+        ready->kind == SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT;
+    bool intbReady =
+        ready->kind == SENSORARRAY_FDC_READY_EDGE_WAKE ||
+        ready->kind == SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL ||
+        ready->kind == SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK;
+    bool lateStatusReady =
+        ready->lateStatusReady ||
+        ready->kind == SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT;
+    bool legacyStatusFallbackReady =
+        ready->kind == SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS ||
+        ready->kind == SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK;
+    if (preStatusReady && ready->readyForDataRead) {
+        timing->preStatusReadyCount++;
+        timing->readyFullCount++;
+    } else if (intbReady && ready->readyForDataRead) {
+        timing->intbReadyCount++;
         timing->readyFullCount++;
         timing->intbFreshDrdyCount++;
+    } else if (lateStatusReady && ready->readyForDataRead) {
+        timing->lateStatusReadyCount++;
+        timing->readyFullCount++;
+    } else if ((ready->kind == SENSORARRAY_FDC_READY_POLL_FULL ||
+                legacyStatusFallbackReady) &&
+               ready->readyForDataRead) {
+        timing->readyFullCount++;
     } else if (ready->kind == SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY &&
                ready->readyForDataRead) {
         timing->readyFullCount++;
@@ -555,6 +578,11 @@ static void sensorarrayMeasureFdcUpdateReadyTiming(const sensorarrayFdcReadyStat
     }
     if (ready->timeout && !sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready)) {
         timing->intbTimeoutCount++;
+    }
+    if (ready->trueTimeoutNotReady ||
+        (ready->timeout && !ready->readyForDataRead &&
+         !sensorarrayMeasureFdcReadyResultIsSoftInvalid(ready))) {
+        timing->trueTimeoutCount++;
     }
     if (fallbackAttempted) {
         timing->fallbackAttemptCount++;
@@ -895,10 +923,11 @@ static void sensorarrayMeasureFdcLogReadyCounts(sensorarrayFdcDeviceId_t devId,
                                 ready->statusReadsInFallback +
                                 ready->statusReadsWatchdogDiag +
                                 ready->statusReadsPollDiag;
-    printf("SR,d=%s,r=%u,e=%lu,bi=%lu,ai=%lu,ar=%lu,fb=%lu,wd=%lu,pd=%lu,sr=%lu,supp=%lu,ack=%lu,ib0=%d,ib1=%d\n",
+    printf("SR,d=%s,r=%u,e=%lu,pre=%lu,bi=%lu,ai=%lu,ar=%lu,fb=%lu,wd=%lu,pd=%lu,sr=%lu,supp=%lu,ack=%lu,ib0=%d,ib1=%d\n",
            sensorarrayMeasureFdcDeviceToken(devId),
            (unsigned)row,
            (unsigned long)epochId,
+           (unsigned long)ready->statusReadsPrecheck,
            (unsigned long)ready->statusReadsBeforeIntb,
            (unsigned long)ready->statusReadsAfterIntb,
            (unsigned long)ready->statusReadsAfterIntbRecheck,
@@ -920,6 +949,7 @@ static esp_err_t sensorarrayMeasureFdcReadStatusAndAckIntbForReady(sensorarrayFd
                                                                    bool afterIntb,
                                                                    bool afterIntbRecheck,
                                                                    bool fallback,
+                                                                   bool preWaitCheck,
                                                                    sensorarrayFdcReadyState_t *ready,
                                                                    sensorarrayFdcDeviceTiming_t *timing,
                                                                    bool *bestPartialSeen,
@@ -934,6 +964,9 @@ static esp_err_t sensorarrayMeasureFdcReadStatusAndAckIntbForReady(sensorarrayFd
     int intbAfterStatus = (ctx && ctx->intbReady) ? gpio_get_level((gpio_num_t)ctx->intbGpio) : -1;
     if (timing) {
         timing->statusReadUs += statusUs;
+        if (preWaitCheck) {
+            timing->statusPrecheckUs += statusUs;
+        }
     }
     ready->pollCount++;
     ready->intbBeforeStatus = intbBeforeStatus;
@@ -942,7 +975,11 @@ static esp_err_t sensorarrayMeasureFdcReadStatusAndAckIntbForReady(sensorarrayFd
     if ((afterIntb || afterIntbRecheck) && intbBeforeStatus == 0) {
         ready->statusAckCount++;
     }
-    if (fallback) {
+    if (preWaitCheck) {
+        ready->statusReadsPrecheck++;
+        ready->statusReadsBeforeIntb++;
+        ready->statusPrecheckUs += (uint32_t)statusUs;
+    } else if (fallback) {
         ready->statusReadsInFallback++;
     } else if (!afterIntb && !afterIntbRecheck) {
         ready->statusReadsPollDiag++;
@@ -1006,13 +1043,14 @@ static esp_err_t sensorarrayMeasureFdcReadStatusAndAckIntbForReady(sensorarrayFd
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayMeasureFdcReadStatusForWatchdogDiagOnly(sensorarrayFdcDeviceState_t *fdcState,
-                                                                    sensorarrayFdcDeviceId_t devId,
-                                                                    uint8_t row,
-                                                                    uint32_t epochId,
-                                                                    const char *reason,
-                                                                    sensorarrayFdcReadyState_t *ready,
-                                                                    sensorarrayFdcDeviceTiming_t *timing)
+static __attribute__((unused)) esp_err_t sensorarrayMeasureFdcReadStatusForWatchdogDiagOnly(
+    sensorarrayFdcDeviceState_t *fdcState,
+    sensorarrayFdcDeviceId_t devId,
+    uint8_t row,
+    uint32_t epochId,
+    const char *reason,
+    sensorarrayFdcReadyState_t *ready,
+    sensorarrayFdcDeviceTiming_t *timing)
 {
     if (!fdcState || !fdcState->handle || !ready || devId > SENSORARRAY_FDC_DEV_SECONDARY) {
         return ESP_ERR_INVALID_ARG;
@@ -1317,6 +1355,74 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
     ready->levelActiveAfterArm ? 1u : 0u, \
     ready->levelActiveAtWaitReturn ? 1u : 0u
 
+    if (useIntb && ctx && ctx->intbReady && ready->initialIntbLevel != 0) {
+        esp_err_t statusErr =
+            sensorarrayMeasureFdcReadStatusAndAckIntbForReady(fdcState,
+                                                               devId,
+                                                               row,
+                                                               epochId,
+                                                               requiredUnreadMask,
+                                                               false,
+                                                               false,
+                                                               false,
+                                                               true,
+                                                               ready,
+                                                               timing,
+                                                               &bestPartialSeen,
+                                                               &bestPartial);
+        if (statusErr != ESP_OK) {
+            ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
+            ready->waitReturnReason = "ready_before_wait_i2c_error";
+            sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+            if (ctx) {
+                ctx->waitTask = NULL;
+            }
+            sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
+            return statusErr;
+        }
+        if (ready->readyForDataRead) {
+            ready->ready = true;
+            ready->kind = SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT;
+            ready->readyResult = FDC_READY_OK_DRDY_UNREAD_FULL;
+            ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
+            ready->waitReturnReason = "ready_before_wait";
+            ready->diagnostic = "ready_before_wait";
+            ready->timeout = false;
+            ready->partial = false;
+            ready->err = ESP_OK;
+            ready->preStatusReady = true;
+            if (timing) {
+                timing->drdyUs = (uint64_t)esp_timer_get_time();
+            }
+            if (ctx) {
+                ctx->waitTask = NULL;
+            }
+            sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+            printf("RR,d=%s,r=%u,e=%lu,src=SP,st=%04X,u=%X,dr=%u,wu=%lu,pc=%lu,k=READY_BEFORE_WAIT,ack=%lu,ib0=%d,ib1=%d,err=0"
+                   SENSORARRAY_FDC_RR_TIMING_FMT "\n",
+                   sensorarrayMeasureFdcDeviceToken(devId),
+                   (unsigned)row,
+                   (unsigned long)epochId,
+                   ready->statusRaw,
+                   (unsigned)ready->unreadMask,
+                   (unsigned)ready->drdy,
+                   (unsigned long)ready->waitUs,
+                   (unsigned long)ready->pollCount,
+                   (unsigned long)ready->statusAckCount,
+                   ready->intbBeforeStatus,
+                   ready->intbAfterStatus,
+                   SENSORARRAY_FDC_RR_TIMING_ARGS);
+            sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
+            return ESP_OK;
+        }
+
+        sensorarrayMeasureFdcArmCurrentTaskForIntb(ctx, epochId);
+        edgeStart = ctx->edgeCount;
+        ready->rawLevelAfterArm = gpio_get_level((gpio_num_t)ctx->intbGpio);
+        ready->levelActiveAfterArm = ready->rawLevelAfterArm == 0;
+        ready->initialIntbLevel = ready->rawLevelAfterArm;
+    }
+
     if (useIntb && ctx && ctx->intbReady) {
         bool intbSeen = ready->initialIntbLevel == 0;
         if (!intbSeen) {
@@ -1336,9 +1442,8 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
             ready->returnedBeforeEstimatedRound =
                 estimatedRoundUs != 0u && ready->intbWaitUs < estimatedRoundUs;
             ready->waitReturnReason =
-                ready->levelActiveAtWaitReturn ? "raw_level_active" :
-                (notifyCount != 0u && ready->edgeDelta == 0u) ? "notify_without_edge" :
-                (notifyCount != 0u) ? "notify_edge" :
+                ready->levelActiveAtWaitReturn ? "intb_level_active" :
+                (notifyCount != 0u) ? "intb_notify" :
                 ready->waitBudgetTooShort ? "wait_budget_too_short" :
                 ready->waitClampedByHardDeadline ? "hard_deadline_clamp" :
                 "timeout";
@@ -1349,8 +1454,8 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
             ready->levelActiveAtWaitReturn = ready->rawLevelAtWaitReturn == 0;
             ready->hadEdge = 1u;
             ready->waitReturnReason = ready->levelActiveAfterArm ?
-                "level_active_after_arm" :
-                "already_seen";
+                "intb_level_active" :
+                "intb_notify";
         }
         if (intbSeen) {
             if (timing) {
@@ -1367,6 +1472,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                                                                    epochId,
                                                                    requiredUnreadMask,
                                                                    true,
+                                                                   false,
                                                                    false,
                                                                    false,
                                                                    ready,
@@ -1441,6 +1547,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                                                                            requiredUnreadMask,
                                                                            false,
                                                                            true,
+                                                                           false,
                                                                            false,
                                                                            ready,
                                                                            timing,
@@ -1580,6 +1687,98 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                 sensorarrayMeasureFdcRemainingDeadlineUs(rowDeviceDeadlineUs);
             if (policy == SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL ||
                 policy == SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS) {
+                uint32_t edgeAfter = ctx ? ctx->edgeCount : edgeStart;
+                int levelAfterWait = ready->finalIntbLevel;
+                uint32_t epochSeen = ctx ? ctx->lastEpochSeen : 0u;
+                uint32_t currentEpoch = ctx ? ctx->currentEpoch : epochId;
+                int64_t lastEdgeUs = ctx ? ctx->lastEdgeUs : 0;
+                bool waitTaskSet = ctx && ctx->waitTask != NULL;
+                esp_err_t statusErr =
+                    sensorarrayMeasureFdcReadStatusAndAckIntbForReady(fdcState,
+                                                                       devId,
+                                                                       row,
+                                                                       epochId,
+                                                                       requiredUnreadMask,
+                                                                       false,
+                                                                       false,
+                                                                       true,
+                                                                       false,
+                                                                       ready,
+                                                                       timing,
+                                                                       &bestPartialSeen,
+                                                                       &bestPartial);
+                if (statusErr != ESP_OK) {
+                    ready->waitReturnReason = "true_timeout_not_ready";
+                    ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
+                    sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+                    if (ctx) {
+                        ctx->waitTask = NULL;
+                    }
+                    sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
+                    return statusErr;
+                }
+                if (ready->readyForDataRead) {
+                    ready->ready = true;
+                    ready->kind = SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT;
+                    ready->readyResult = FDC_READY_OK_DRDY_UNREAD_FULL;
+                    ready->waitReturnReason = "status_ready_after_timeout";
+                    ready->diagnostic = "status_ready_after_timeout";
+                    ready->err = ESP_OK;
+                    ready->timeout = false;
+                    ready->partial = false;
+                    ready->i2cError = false;
+                    ready->intbMiss = false;
+                    ready->watchdogOnly = false;
+                    ready->diagOnly = false;
+                    ready->statusFallbackUsed = true;
+                    ready->acceptedByStatusFallback = true;
+                    ready->recoveredByStatusReady = true;
+                    ready->lateStatusReady = true;
+                    ready->originalIntbMiss = true;
+                    ready->originalWaitMiss = true;
+                    ready->originalTimeout = true;
+                    ready->originalErr = ESP_ERR_TIMEOUT;
+                    if (timing) {
+                        timing->drdyUs = (uint64_t)esp_timer_get_time();
+                    }
+                    if (ctx) {
+                        ctx->waitTask = NULL;
+                    }
+                    sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+                    printf("RR,d=%s,r=%u,e=%lu,src=LT,st=%04X,u=%X,dr=%u,wu=%lu,pc=%lu,k=STATUS_READY_AFTER_TIMEOUT,ack=%lu,ib0=%d,ib1=%d,err=0,statusFallbackUsed=%u,originalIntbMiss=%u,originalTimeout=%u"
+                           SENSORARRAY_FDC_RR_TIMING_FMT "\n",
+                           sensorarrayMeasureFdcDeviceToken(devId),
+                           (unsigned)row,
+                           (unsigned long)epochId,
+                           ready->statusRaw,
+                           (unsigned)ready->unreadMask,
+                           (unsigned)ready->drdy,
+                           (unsigned long)ready->waitUs,
+                           (unsigned long)ready->pollCount,
+                           (unsigned long)ready->statusAckCount,
+                           ready->intbBeforeStatus,
+                           ready->intbAfterStatus,
+                           ready->statusFallbackUsed ? 1u : 0u,
+                           ready->originalIntbMiss ? 1u : 0u,
+                           ready->originalTimeout ? 1u : 0u,
+                           SENSORARRAY_FDC_RR_TIMING_ARGS);
+                    sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
+                    return ESP_OK;
+                }
+                if (sensorarrayMeasureFdcReadyIsUnreadFullNoDrdy(ready, requiredUnreadMask) &&
+                    sensorarrayMeasureFdcClassifyUnreadFullNoDrdySoft(devId,
+                                                                      row,
+                                                                      epochId,
+                                                                      "status_after_timeout_no_drdy",
+                                                                      ready)) {
+                    if (ctx) {
+                        ctx->waitTask = NULL;
+                    }
+                    sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+                    sensorarrayMeasureFdcLogReadyCounts(devId, row, epochId, ready);
+                    return ESP_OK;
+                }
+
                 ready->kind = SENSORARRAY_FDC_READY_INTB_TIMEOUT;
                 ready->readyResult = FDC_READY_HARD_TIMEOUT;
                 ready->ready = false;
@@ -1589,13 +1788,14 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                 ready->intbMiss = true;
                 ready->watchdogOnly = true;
                 ready->diagOnly = true;
-                uint32_t edgeAfter = ctx ? ctx->edgeCount : edgeStart;
-                int levelAfterWait = ready->finalIntbLevel;
-                uint32_t epochSeen = ctx ? ctx->lastEpochSeen : 0u;
-                uint32_t currentEpoch = ctx ? ctx->currentEpoch : epochId;
-                int64_t lastEdgeUs = ctx ? ctx->lastEdgeUs : 0;
-                bool waitTaskSet = ctx && ctx->waitTask != NULL;
-                printf("IM,d=%s,r=%u,e=%lu,stage=wait_miss,armLevel=%d,levelBeforeWait=%d,levelAfterWait=%d,edgeBefore=%lu,edgeAfter=%lu,lastEdgeUs=%lld,waitTaskSet=%u,epochSeen=%lu,currentEpoch=%lu,action=watchdog,iwPlan=%lu,iwActual=%lu,est=%lu,hardRemainBeforeWait=%lu,waitBudgetTooShort=%u,waitClampedByHardDeadline=%u,returnedBeforeEstimatedRound=%u,waitReturnReason=%s,notifyValue=%lu,rawLevelAfterArm=%d,rawLevelAtWaitReturn=%d,activeLowConfigured=%u,levelActiveAfterArm=%u,levelActiveAtWaitReturn=%u\n",
+                ready->trueTimeoutNotReady = true;
+                ready->originalIntbMiss = true;
+                ready->originalWaitMiss = true;
+                ready->originalTimeout = true;
+                ready->originalErr = ESP_ERR_TIMEOUT;
+                ready->waitReturnReason = "true_timeout_not_ready";
+                ready->diagnostic = "true_timeout_not_ready";
+                printf("IM,d=%s,r=%u,e=%lu,stage=wait_miss,armLevel=%d,levelBeforeWait=%d,levelAfterWait=%d,edgeBefore=%lu,edgeAfter=%lu,lastEdgeUs=%lld,waitTaskSet=%u,epochSeen=%lu,currentEpoch=%lu,action=true_timeout_not_ready,iwPlan=%lu,iwActual=%lu,est=%lu,hardRemainBeforeWait=%lu,waitBudgetTooShort=%u,waitClampedByHardDeadline=%u,returnedBeforeEstimatedRound=%u,waitReturnReason=%s,notifyValue=%lu,rawLevelAfterArm=%d,rawLevelAtWaitReturn=%d,activeLowConfigured=%u,levelActiveAfterArm=%u,levelActiveAtWaitReturn=%u\n",
                        sensorarrayMeasureFdcDeviceToken(devId),
                        (unsigned)row,
                        (unsigned long)epochId,
@@ -1622,19 +1822,11 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                        ready->activeLowConfigured ? 1u : 0u,
                        ready->levelActiveAfterArm ? 1u : 0u,
                        ready->levelActiveAtWaitReturn ? 1u : 0u);
-                (void)sensorarrayMeasureFdcReadStatusForWatchdogDiagOnly(
-                    fdcState,
-                    devId,
-                    row,
-                    epochId,
-                    "after_intb_miss_not_recoverable",
-                    ready,
-                    timing);
                 if (ctx) {
                     ctx->waitTask = NULL;
                 }
                 sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
-                printf("RR,d=%s,r=%u,e=%lu,src=IT,st=%04X,u=%X,dr=%u,wu=%lu,pc=%lu,k=%s,ack=%lu,ib0=%d,ib1=%d,err=0x%lx,statusFallbackUsed=%u,originalIntbMiss=%u,originalTimeout=%u,recoveredByLevelLow=%u"
+                printf("RR,d=%s,r=%u,e=%lu,src=IT,st=%04X,u=%X,dr=%u,wu=%lu,pc=%lu,k=true_timeout_not_ready,ack=%lu,ib0=%d,ib1=%d,err=0x%lx,statusFallbackUsed=%u,originalIntbMiss=%u,originalTimeout=%u,recoveredByLevelLow=%u"
                        SENSORARRAY_FDC_RR_TIMING_FMT "\n",
                        sensorarrayMeasureFdcDeviceToken(devId),
                        (unsigned)row,
@@ -1644,7 +1836,6 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                        (unsigned)ready->drdy,
                        (unsigned long)ready->waitUs,
                        (unsigned long)ready->pollCount,
-                       ready->diagnostic ? ready->diagnostic : "intb_wait_miss",
                        (unsigned long)ready->statusAckCount,
                        ready->intbBeforeStatus,
                        ready->intbAfterStatus,
@@ -1681,6 +1872,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                                                                    false,
                                                                    false,
                                                                    useIntb,
+                                                                   false,
                                                                    ready,
                                                                    timing,
                                                                    &bestPartialSeen,
@@ -1761,7 +1953,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
         ready->estimatedRoundUs != 0u && ready->waitUs < ready->estimatedRoundUs;
     if (!ready->waitReturnReason || strcmp(ready->waitReturnReason, "not_started") == 0) {
         ready->waitReturnReason =
-            ready->levelActiveAtWaitReturn ? "raw_level_active" :
+            ready->levelActiveAtWaitReturn ? "intb_level_active" :
             ready->waitBudgetTooShort ? "wait_budget_too_short" :
             ready->waitClampedByHardDeadline ? "hard_deadline_clamp" :
             "timeout";
@@ -1792,6 +1984,8 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
     ready->readyForDataRead = false;
     ready->err = ESP_ERR_TIMEOUT;
     ready->readyResult = FDC_READY_HARD_TIMEOUT;
+    ready->trueTimeoutNotReady = true;
+    ready->waitReturnReason = "true_timeout_not_ready";
     ready->diagnostic = ready->unreadWithoutDataReady ?
         "timeout_wait_drdy" :
         (useIntb ?
@@ -2925,6 +3119,7 @@ static void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSumma
                              primaryTiming->sleepExitUs + secondaryTiming->sleepExitUs;
     summary->sleepExitToIntbUs += primaryTiming->sleepExitToIntbUs + secondaryTiming->sleepExitToIntbUs;
     summary->statusReadUs += primaryTiming->statusReadUs + secondaryTiming->statusReadUs;
+    summary->statusPrecheckUs += primaryTiming->statusPrecheckUs + secondaryTiming->statusPrecheckUs;
     summary->dataReadUs += primaryTiming->dataReadUs + secondaryTiming->dataReadUs;
     summary->intbWaitOnlyUs += primaryTiming->intbWaitOnlyUs + secondaryTiming->intbWaitOnlyUs;
     summary->statusVerifyAfterIntbUs += primaryTiming->statusVerifyAfterIntbUs +
@@ -2971,6 +3166,12 @@ static void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSumma
                                       secondaryTiming->intbFallbackPollCount;
     summary->intbFreshDrdyCount += primaryTiming->intbFreshDrdyCount +
                                    secondaryTiming->intbFreshDrdyCount;
+    summary->preStatusReadyCount += primaryTiming->preStatusReadyCount +
+                                    secondaryTiming->preStatusReadyCount;
+    summary->intbReadyCount += primaryTiming->intbReadyCount + secondaryTiming->intbReadyCount;
+    summary->lateStatusReadyCount += primaryTiming->lateStatusReadyCount +
+                                     secondaryTiming->lateStatusReadyCount;
+    summary->trueTimeoutCount += primaryTiming->trueTimeoutCount + secondaryTiming->trueTimeoutCount;
     summary->readyFullCount += primaryTiming->readyFullCount + secondaryTiming->readyFullCount;
     summary->recoveredAfterRetryCount += primaryTiming->recoveredAfterRetryCount +
                                          secondaryTiming->recoveredAfterRetryCount;
@@ -2984,6 +3185,8 @@ static void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSumma
                                       secondaryTiming->hardReadyTimeoutCount;
     summary->statusReadsBeforeIntbCount += primaryTiming->statusReadsBeforeIntbCount +
                                            secondaryTiming->statusReadsBeforeIntbCount;
+    summary->statusReadsPrecheckCount += primaryTiming->statusReadsPrecheckCount +
+                                         secondaryTiming->statusReadsPrecheckCount;
     summary->statusReadsAfterIntbCount += primaryTiming->statusReadsAfterIntbCount +
                                           secondaryTiming->statusReadsAfterIntbCount;
     summary->statusReadsInFallbackCount += primaryTiming->statusReadsInFallbackCount +

@@ -26,6 +26,11 @@ static void sensorarrayMeasureRuntimeConfigsFromApplied(sensorarrayState_t *stat
     }
 }
 
+static uint32_t sensorarrayMeasureFdcTheoreticalFrameFpsX100(uint32_t roundUs)
+{
+    return roundUs ? (uint32_t)(100000000ull / ((uint64_t)roundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
+}
+
 static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
                                             uint8_t row,
                                             const char *action,
@@ -35,13 +40,17 @@ static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
                                             const uint16_t rCount[4],
                                             const uint16_t settleCount[4])
 {
-    printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,round=%lu,target=%lu,rowBudget=%lu,rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X]\n",
+    uint32_t theoreticalMaxFpsX100 = sensorarrayMeasureFdcTheoreticalFrameFpsX100(roundUs);
+    printf("PFU,d=%s,r=%u,profile=%s,why=profile_too_slow,action=%s,round=%lu,target=%lu,rowBudget=%lu,theoreticalMaxFps=%lu.%02lu,rCount=[0x%04X,0x%04X,0x%04X,0x%04X],settle=[0x%04X,0x%04X,0x%04X,0x%04X]\n",
            sensorarrayMeasureFdcDeviceToken(devId),
            (unsigned)row,
+           SENSORARRAY_FDC_PROFILE_NAME,
            action ? action : "profile_too_slow_diag_only",
            (unsigned long)roundUs,
            (unsigned long)targetRoundUs,
            (unsigned long)rowBudgetUs,
+           (unsigned long)(theoreticalMaxFpsX100 / 100u),
+           (unsigned long)(theoreticalMaxFpsX100 % 100u),
            rCount[0],
            rCount[1],
            rCount[2],
@@ -66,15 +75,22 @@ static void sensorarrayMeasureLogFdcPfuFastProfile(sensorarrayFdcDeviceId_t devI
                                                    const char *decisionReason,
                                                    uint32_t diffWriteCount)
 {
-    printf("PFU,d=%s,r=%u,why=profile_too_slow,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,chosenRound=%lu,oldRcount=[0x%04X,0x%04X,0x%04X,0x%04X],newRcount=[0x%04X,0x%04X,0x%04X,0x%04X],oldSettle=[0x%04X,0x%04X,0x%04X,0x%04X],newSettle=[0x%04X,0x%04X,0x%04X,0x%04X],diffWrites=%lu,decisionReason=%s\n",
+    uint32_t oldTheoreticalMaxFpsX100 = sensorarrayMeasureFdcTheoreticalFrameFpsX100(oldRoundUs);
+    uint32_t newTheoreticalMaxFpsX100 = sensorarrayMeasureFdcTheoreticalFrameFpsX100(newRoundUs);
+    printf("PFU,d=%s,r=%u,profile=%s,why=profile_too_slow,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,chosenRound=%lu,oldTheoreticalMaxFps=%lu.%02lu,newTheoreticalMaxFps=%lu.%02lu,oldRcount=[0x%04X,0x%04X,0x%04X,0x%04X],newRcount=[0x%04X,0x%04X,0x%04X,0x%04X],oldSettle=[0x%04X,0x%04X,0x%04X,0x%04X],newSettle=[0x%04X,0x%04X,0x%04X,0x%04X],diffWrites=%lu,decisionReason=%s\n",
            sensorarrayMeasureFdcDeviceToken(devId),
            (unsigned)row,
+           SENSORARRAY_FDC_PROFILE_NAME,
            action ? action : SENSORARRAY_NA,
            (unsigned long)oldRoundUs,
            (unsigned long)newRoundUs,
            (unsigned long)targetRoundUs,
            (unsigned long)rowBudgetUs,
            (unsigned long)newRoundUs,
+           (unsigned long)(oldTheoreticalMaxFpsX100 / 100u),
+           (unsigned long)(oldTheoreticalMaxFpsX100 % 100u),
+           (unsigned long)(newTheoreticalMaxFpsX100 / 100u),
+           (unsigned long)(newTheoreticalMaxFpsX100 % 100u),
            oldRcount[0],
            oldRcount[1],
            oldRcount[2],
@@ -108,15 +124,19 @@ static void sensorarrayMeasureLogFdcPfuApplyResult(sensorarrayFdcDeviceId_t devI
                                                    bool profileTooSlow,
                                                    uint32_t diffWriteCount)
 {
-    printf("PFU,d=%s,r=%u,why=%s,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,oldDc=0x%04X,newDc=0x%04X,profileTooSlow=%u,diffWrites=%lu\n",
+    uint32_t newTheoreticalMaxFpsX100 = sensorarrayMeasureFdcTheoreticalFrameFpsX100(newRoundUs);
+    printf("PFU,d=%s,r=%u,profile=%s,why=%s,action=%s,oldRound=%lu,newRound=%lu,target=%lu,rowBudget=%lu,theoreticalMaxFps=%lu.%02lu,oldDc=0x%04X,newDc=0x%04X,profileTooSlow=%u,diffWrites=%lu\n",
            sensorarrayMeasureFdcDeviceToken(devId),
            (unsigned)row,
+           SENSORARRAY_FDC_PROFILE_NAME,
            why ? why : SENSORARRAY_NA,
            action ? action : SENSORARRAY_NA,
            (unsigned long)oldRoundUs,
            (unsigned long)newRoundUs,
            (unsigned long)targetRoundUs,
            (unsigned long)rowBudgetUs,
+           (unsigned long)(newTheoreticalMaxFpsX100 / 100u),
+           (unsigned long)(newTheoreticalMaxFpsX100 % 100u),
            oldDriveCurrent0,
            newDriveCurrent0,
            profileTooSlow ? 1u : 0u,

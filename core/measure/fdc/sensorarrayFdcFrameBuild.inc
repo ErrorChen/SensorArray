@@ -977,9 +977,10 @@ static void sensorarrayMeasurePrintFdcProfileSummary(uint32_t sequence)
         maxRoundUs > (uint32_t)CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US;
     uint32_t theoreticalMaxFpsX100 =
         maxRoundUs ? (uint32_t)(100000000ull / ((uint64_t)maxRoundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
-    printf("P5,s=%lu,n=%lu,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,profileTooSlowAction=%s,theoreticalMaxFps=%lu.%02lu",
+    printf("P5,s=%lu,n=%lu,profile=%s,cnt=%lu,avg=%lu,max=%lu,row=%u,d=%s,ch=%u,target=%lu,rowBudget=%lu,profileTooSlow=%u,profileTooSlowAction=%s,theoreticalMaxFps=%lu.%02lu",
            (unsigned long)sequence,
            (unsigned long)period,
+           SENSORARRAY_FDC_PROFILE_NAME,
            (unsigned long)validCount,
            (unsigned long)avgRoundUs,
            (unsigned long)maxRoundUs,
@@ -1048,7 +1049,7 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
 #if !CONFIG_SENSORARRAY_LOG_FORMAT_LEGACY
     uint32_t bus0Ops = t->i2cBus0WriteCount + t->i2cBus0ReadCount;
     uint32_t bus1Ops = t->i2cBus1WriteCount + t->i2cBus1ReadCount;
-    printf("T5,s0=%lu,s1=%lu,n=%lu,fps=%llu.%02llu,fa=%llu,rw=%llu,rmax=%llu,ww=%llu,rp=%llu,i2c=%llu,op=%llu,prof=%llu,pe=%u\n",
+    printf("T5,s0=%lu,s1=%lu,n=%lu,fps=%llu.%02llu,fa=%llu,rw=%llu,rmax=%llu,ww=%llu,rp=%llu,sp=%llu,dr=%llu,i2c=%llu,op=%llu,prof=%llu,pe=%u,frameEffectiveFps=%llu.%02llu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
            (unsigned long)agg->frames,
@@ -1059,15 +1060,23 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)agg->rowUsMax,
            (unsigned long long)sensorarrayMeasureAvgU64(t->workerDoneWaitUs, rowCount),
            (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->statusPrecheckUs, agg->frames),
+           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUs, agg->frames),
            (unsigned long long)sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames),
            (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
            (unsigned long long)t->maxWaitReadyUs,
-           0u);
-    printf("R5,s0=%lu,s1=%lu,n=%lu,full=%lu,rec=%lu,ar=%lu,trans=%lu,staleDrain=%lu,hardTo=%lu,part=%lu,none=%lu,it=%lu,ack=%lu,b=%lu,a=%lu,fb=%lu,supp=%lu,uwd=%lu,dp=%lu\n",
+           0u,
+           (unsigned long long)(avgFpsX100 / 100ull),
+           (unsigned long long)(avgFpsX100 % 100ull));
+    printf("R5,s0=%lu,s1=%lu,n=%lu,full=%lu,pre=%lu,intb=%lu,late=%lu,trueTo=%lu,rec=%lu,ar=%lu,trans=%lu,staleDrain=%lu,hardTo=%lu,part=%lu,none=%lu,it=%lu,ack=%lu,b=%lu,bp=%lu,a=%lu,fb=%lu,supp=%lu,uwd=%lu,dp=%lu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
            (unsigned long)agg->frames,
            (unsigned long)t->readyFullCount,
+           (unsigned long)t->preStatusReadyCount,
+           (unsigned long)t->intbReadyCount,
+           (unsigned long)t->lateStatusReadyCount,
+           (unsigned long)t->trueTimeoutCount,
            (unsigned long)t->recoveredAfterRetryCount,
            (unsigned long)t->drdyFullUnreadReadyCount,
            (unsigned long)t->transientUnreadNoDrdyCount,
@@ -1079,6 +1088,7 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long)(t->statusReadsAfterIntbCount + t->statusReadsInFallbackCount +
                            t->statusReadsBeforeIntbCount),
            (unsigned long)t->statusReadsBeforeIntbCount,
+           (unsigned long)t->statusReadsPrecheckCount,
            (unsigned long)t->statusReadsAfterIntbCount,
            (unsigned long)t->statusReadsInFallbackCount,
            (unsigned long)t->statusReadSuppressedBeforeIntbCount,
@@ -1442,6 +1452,7 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(sleepTotalUs);
     SENSORARRAY_FDC_AGG_ADD(sleepExitToIntbUs);
     SENSORARRAY_FDC_AGG_ADD(statusReadUs);
+    SENSORARRAY_FDC_AGG_ADD(statusPrecheckUs);
     SENSORARRAY_FDC_AGG_ADD(dataReadUs);
     SENSORARRAY_FDC_AGG_ADD(staleDrainUs);
     SENSORARRAY_FDC_AGG_ADD(primaryJobUs);
@@ -1505,6 +1516,10 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(warningFastSweepSuppressedCooldownCount);
     SENSORARRAY_FDC_AGG_ADD(degradedCellCount);
     SENSORARRAY_FDC_AGG_ADD(intbFreshDrdyCount);
+    SENSORARRAY_FDC_AGG_ADD(preStatusReadyCount);
+    SENSORARRAY_FDC_AGG_ADD(intbReadyCount);
+    SENSORARRAY_FDC_AGG_ADD(lateStatusReadyCount);
+    SENSORARRAY_FDC_AGG_ADD(trueTimeoutCount);
     SENSORARRAY_FDC_AGG_ADD(intbTimeoutCount);
     SENSORARRAY_FDC_AGG_ADD(intbFalseEdgeCount);
     SENSORARRAY_FDC_AGG_ADD(readyFullCount);
@@ -1514,6 +1529,11 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(transientUnreadNoDrdyCount);
     SENSORARRAY_FDC_AGG_ADD(staleUnreadDrainCount);
     SENSORARRAY_FDC_AGG_ADD(hardReadyTimeoutCount);
+    SENSORARRAY_FDC_AGG_ADD(statusReadsBeforeIntbCount);
+    SENSORARRAY_FDC_AGG_ADD(statusReadsPrecheckCount);
+    SENSORARRAY_FDC_AGG_ADD(statusReadsAfterIntbCount);
+    SENSORARRAY_FDC_AGG_ADD(statusReadsInFallbackCount);
+    SENSORARRAY_FDC_AGG_ADD(statusReadSuppressedBeforeIntbCount);
     SENSORARRAY_FDC_AGG_ADD(unreadWithoutDrdyCount);
     SENSORARRAY_FDC_AGG_ADD(dataNotReadyCount);
     SENSORARRAY_FDC_AGG_ADD(softInvalidCount);
@@ -1604,7 +1624,10 @@ static void sensorarrayMeasurePrintFdcBottleneck(const sensorarrayFdcTimingSumma
         (summary->i2cMeasuredUs > (SENSORARRAY_FDC_TARGET_FRAME_US / 2u)) ? "i2c" :
         (summary->rowMaxUs > SENSORARRAY_FDC_TARGET_ROW_US) ? "row_epoch" :
         "row_epoch_timing";
-    printf("BN,s=%lu,t1=%s:%llu,t2=%s:%llu,t3=%s:%llu,readyPollUs=%llu,serialFallbackUs=%llu,staleDrainUs=%llu,workerSyncUs=%llu,measureLockHeldUs=%llu,h=%s\n",
+    uint64_t frameEffectiveFpsX100 = summary->frameUs ?
+        (100000000ull / summary->frameUs) :
+        0ull;
+    printf("BN,s=%lu,t1=%s:%llu,t2=%s:%llu,t3=%s:%llu,readyPollUs=%llu,statusPrecheckUs=%llu,dataReadUs=%llu,serialFallbackUs=%llu,staleDrainUs=%llu,workerSyncUs=%llu,measureLockHeldUs=%llu,frameEffectiveFps=%llu.%02llu,h=%s\n",
            (unsigned long)sequence,
            items[0].name,
            (unsigned long long)items[0].us,
@@ -1613,10 +1636,14 @@ static void sensorarrayMeasurePrintFdcBottleneck(const sensorarrayFdcTimingSumma
            items[2].name,
            (unsigned long long)items[2].us,
            (unsigned long long)summary->waitReadyUs,
+           (unsigned long long)summary->statusPrecheckUs,
+           (unsigned long long)summary->dataReadUs,
            (unsigned long long)summary->serialFallbackUs,
            (unsigned long long)summary->staleDrainUs,
            (unsigned long long)summary->workerDoneWaitUs,
            (unsigned long long)summary->measureLockHeldUs,
+           (unsigned long long)(frameEffectiveFpsX100 / 100ull),
+           (unsigned long long)(frameEffectiveFpsX100 % 100ull),
            hint);
 }
 
