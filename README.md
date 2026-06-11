@@ -45,7 +45,7 @@ SensorArray firmware runs on ESP32-S3. The current main path reads an 8 x 8 FDC2
 | FDC2214 8 x 8 cap matrix | 主运行路径 / main runtime path | `sensorarrayFdcMatrixEngineReadFrame()` delegates to `sensorarrayMeasureReadFdcMatrixFrame()`. |
 | ADS1262/ADS1263 matrix | 初始化和 API 存在，frame read returns unsupported / initialisation and APIs exist, frame read returns unsupported | `sensorarrayAdsMatrixEngineReadFrame()` initialises an invalid frame and returns `ESP_ERR_NOT_SUPPORTED`. |
 | Mixed row mode | Thin pass-through to FDC path / thin pass-through to FDC path | `sensorarrayMixedRowEngineReadFrame()` currently calls the FDC matrix engine. |
-| Text output | 默认主输出 / default main output | `main/output/sensorarrayFrameOutput.c` prints `FDC_FRAME_OUTPUT`, `MATRIXFDC_CAP`, optionally `MATRIXFDC_FREQ` and `DEBUGFDC_RAW`. |
+| Text output | 异步主输出 / default async output | `main/output/sensorarrayAsyncLog.c` copies frame snapshots into `sensorarrayLogTask`; `main/output/sensorarrayFrameOutput.c` formats `Cap`/legacy `MATRIXFDC_CAP`, optionally `MATRIXFDC_FREQ` and `DEBUGFDC_RAW`. |
 | Binary transport | 非默认且未实现发送 / not default and send is unsupported | `sensorarrayFastSpeedSetEnabled(false)` runs at init; `sensorarrayTransportSendFdcMatrixFrame()` returns `ESP_ERR_NOT_SUPPORTED`. |
 | Runtime console commands | 当前源码树未发现注册 / not found in this source tree | No `esp_console_cmd_register` call is present. Profile and discard setters are C APIs, not serial commands. |
 
@@ -122,7 +122,9 @@ flowchart TD
     J --> L[sensorarrayRunOneFrame]
     L --> M[sensorarrayFdcMatrixEngineReadFrame]
     M --> N[sensorarrayMeasureReadFdcMatrixFrame]
-    J --> O[sensorarrayFrameOutputPrint]
+    J --> O[sensorarrayAsyncLogPublishFrameSnapshot]
+    O --> R[sensorarrayLogTask]
+    R --> S[sensorarrayFrameOutputPrint]
     J --> P[sensorarrayRuntimeRescueTick]
     J --> Q[sensorarrayDelayFramePeriodSince]
 ```
@@ -266,8 +268,10 @@ flowchart TD
 | 配置项 / Option | 类型 / Type | 默认值 / Default | 作用 / Purpose | 影响的函数 / Affected functions | 调整建议 / Tuning notes |
 |---|---:|---:|---|---|---|
 | `CONFIG_BOARD_I2C_PORT`, `CONFIG_BOARD_I2C_SDA_GPIO`, `CONFIG_BOARD_I2C_SCL_GPIO` | int | `0`, `9`, `10` | Primary I2C bus pins and port. | `boardSupportInit()` | Match board wiring. |
-| `CONFIG_BOARD_I2C_FREQ_HZ`, `CONFIG_BOARD_I2C0_FREQ_HZ` | int | defaults: `337500` | Primary bus frequency. | `boardSupportInit()`, timing estimates | Higher is not always more stable; watch NACK, timeout, and SCL stretch. |
-| `CONFIG_BOARD_I2C1_ENABLE`, `CONFIG_BOARD_I2C1_PORT`, `CONFIG_BOARD_I2C1_SDA_GPIO`, `CONFIG_BOARD_I2C1_SCL_GPIO`, `CONFIG_BOARD_I2C1_FREQ_HZ` | bool/int | y, `1`, `11`, `12`, `337500` | Optional second I2C bus for secondary FDC. | `boardSupportIsI2c1Enabled()`, `sensorarrayLogFdcParallelCfg()` | True parallel worker mode needs a valid second bus on a different port. |
+| `CONFIG_BOARD_I2C_FREQ_HZ`, `CONFIG_BOARD_I2C0_FREQ_HZ` | int | defaults: `350000` | Primary bus startup frequency before FDC probe/fallback. | `boardSupportInit()`, timing estimates | Runtime locks the highest level that passes FDC ID reads. |
+| `CONFIG_BOARD_I2C1_ENABLE`, `CONFIG_BOARD_I2C1_PORT`, `CONFIG_BOARD_I2C1_SDA_GPIO`, `CONFIG_BOARD_I2C1_SCL_GPIO`, `CONFIG_BOARD_I2C1_FREQ_HZ` | bool/int | y, `1`, `11`, `12`, `350000` | Optional second I2C bus startup frequency for secondary FDC. | `boardSupportIsI2c1Enabled()`, `sensorarrayLogFdcParallelCfg()` | True parallel worker mode needs a valid second bus on a different port. |
+| `CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE`, `CONFIG_BOARD_I2C_FALLBACK_LEVELS` | bool/string | y, `350000,337500,325000,300000` | Probe and lock each FDC bus to the highest stable clock. | `boardSupportSetI2cFrequency()`, FDC init/runtime fallback | Probe uses repeated FDC ID reads; fallback is logged with `ICLK`. |
+| `CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES` | int | `3` | Consecutive I2C-error frames before runtime fallback probe is retried. | `sensorarrayRuntimeI2cFallbackTick()` | Avoids dropping speed from a single transient error. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ` | bool | Kconfig/defaults: y | Enables worker-based primary/secondary row reads when dual buses are available. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Same bus or worker init failure falls back to serial. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE` | bool | Kconfig/defaults: y | Requires the guarded worker handoff before parallel row reads are used. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Keep enabled. Worker timeout/fallback now waits for the worker to go idle before serial fallback. |
 | `CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ` | bool | Kconfig: n | Forces serial row reads even when dual buses and workers are available. | `sensorarrayMeasureReadFdcMatrixFrame()` | Enable only to isolate worker scheduling or shared-handle issues. |
@@ -286,17 +290,22 @@ flowchart TD
 | 配置项 / Option | 类型 / Type | 默认值 / Default | 作用 / Purpose | 影响的函数 / Affected functions | 调整建议 / Tuning notes |
 |---|---:|---:|---|---|---|
 | `CONFIG_SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF` | bool | Kconfig/defaults: y | Legacy compatibility symbol. | Kconfig compatibility | Use text output unit choice for new builds. |
-| `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_CAP_TOTAL_PF` | choice bool | default selected | Emits `MATRIXFDC_CAP`. | `sensorarrayFrameOutputPrintText()` | Default host path. |
+| `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_CAP_TOTAL_PF` | choice bool | default selected | Emits `Cap` with 64 capacitance values. | `sensorarrayFrameOutputPrintText()` | Default host path. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ` | choice bool | default n | Emits only `MATRIXFDC_FREQ`. | `sensorarrayFrameOutputPrintText()` | Use for frequency diagnostics; pF output disabled in this mode. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE` | choice bool | default n | Emits separate cap and freq lines. | `sensorarrayFrameOutputPrintText()` | Doubles text output volume. |
 | `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_INLINE_DEBUG` | choice bool | default n | Emits inline debug line with freq and cap. | `sensorarrayFrameOutputPrintText()` | Debug only; high serial load. |
+| `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP` | bool | default n | Uses legacy `MATRIXFDC_CAP` tag instead of `Cap`. | `sensorarrayFrameOutputPrintCapLine()` | Enable only for older host tools that hard-code the old tag. |
 | `CONFIG_SENSORARRAY_FDC_RAW_DEBUG_LOG` | bool | defaults: n | Emits `DEBUGFDC_RAW`. | `sensorarrayFrameOutputPrintText()` | Enable only for raw-data debugging. |
 | `CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY` | bool | Kconfig: y | Emits compact `S` frame summary before text matrix output. | `sensorarrayFrameOutputPrintText()` | Keep enabled for host-side validity checks without parsing the full 64-cell array. |
 | `CONFIG_SENSORARRAY_LOG_ROW_SUMMARY` | bool | Kconfig: n | Enables compact per-row summaries when row-level logs are needed. | `sensorarrayMeasureFillFdcMatrixRow()`, row cache-miss path | Leave disabled for normal compact output. |
-| `CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES` | int | Kconfig/defaults: `5` | Compact I2C aggregate period. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to suppress periodic I2C aggregate output. |
-| `CONFIG_SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES` | int | Kconfig/defaults: `5` | Compact timing aggregate period. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to suppress periodic timing aggregate output. |
-| `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `5` | Runtime timing summary interval default. | `sensorarrayMeasureFdcProfileSetSummaryEvery()` | Lower increases log density. |
-| `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES` | int | Kconfig/defaults: `5` | Compact aggregate period for `T5/R5/Q5/I5`. | `sensorarrayMeasureUpdateFdcTimingAggregate()` | Set 0 to suppress aggregate summary. |
+| `CONFIG_SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Compact I2C aggregate period. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to suppress periodic I2C aggregate output. |
+| `CONFIG_SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Compact timing aggregate period. | `sensorarrayMeasurePrintFdcTimingAggregate()` | Set 0 to suppress periodic timing aggregate output. |
+| `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Runtime timing summary interval default. | `sensorarrayMeasureFdcProfileSetSummaryEvery()` | Lower increases log density. |
+| `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES` | int | Kconfig/defaults: `20` | Compact aggregate period for `T5/R5/Q5/I5`; tag names are historical and `n` carries the actual period. | `sensorarrayMeasureUpdateFdcTimingAggregate()` | Set 0 to suppress aggregate summary. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | bool | Kconfig/defaults: y | Enables non-blocking frame snapshot publishing to `sensorarrayLogTask`. | `sensorarrayAsyncLogInit()`, main loop | Default path; measurement never waits for serial printf. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Emits `LOG20` producer/consumer summary. | `sensorarrayAsyncLogMaybePrintSummary()` | Watch `droppedOutputFrames` and `frameAgeMaxUs`. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS`, `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | int | `4`, `32` | Fixed frame snapshot slots and non-blocking event queue. | async log producer/consumer | Slots are static; no per-frame heap allocation. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | int | `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE` | Log task stack, priority and affinity. | async log task creation | Keep lower than measurement priority unless profiling proves otherwise. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE` | bool | Kconfig/defaults: y | Enables aggregate timing summaries. | timing aggregate functions | Keep enabled during performance work. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG` | bool | Kconfig/defaults: y | Prints bottleneck on frame overrun. | `sensorarrayMeasurePrintFdcBottleneck()` | Useful when testing lower frame periods. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME` | bool | defaults: n | Enables per-frame timing summary when profile summary is on. | `sensorarrayMeasurePrintFdcTimingSummary()` | High log volume; affects frame rate. |
@@ -305,8 +314,6 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_LOG_FORMAT_VERBOSE` | choice bool | Kconfig/defaults: n | Keeps longer diagnostic log names where available. | row epoch and frame timing logs | Use only when human-readable hot-path logs matter more than frame-rate impact. |
 | `CONFIG_SENSORARRAY_FDC_LOG_READY_EVERY_ROW` | bool | Kconfig/defaults: n | Emits compact ready diagnostics for every row/device. | `sensorarrayFdcWaitDeviceReady()` | Enable for INTB/STATUS bring-up; leave off for normal output. |
 | `CONFIG_SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING` | bool | Kconfig/defaults: n | Emits sampled per-row primary/secondary timing skew when row log level allows it. | row epoch parallel path | Enable only when validating worker skew and INTB timing. |
-| `CONFIG_SENSORARRAY_FDC_LOG_FULL_CAP_FRAME` | bool | Kconfig/defaults: y | Emits full `MATRIXFDC_CAP` frame lines. | frame output | Disable only if host tooling uses compact frame logs instead. |
-| `CONFIG_SENSORARRAY_FDC_LOG_COMPACT_CAP_FRAME` | bool | Kconfig/defaults: n | Reserved compact frame-output switch. | frame output | Enable only for host-side parsers that understand compact matrix output. |
 | `CONFIG_SENSORARRAY_FDC_I2C_TRACE_RING_SIZE` | int | defaults: `128` | Ring size for FDC I2C trace records. | `Fdc2214CapI2cTrace*()` | Larger rings use more RAM; trace dumps occur on errors/overruns when enabled. |
 | `CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER` | bool | Kconfig: n | Prints board-level I2C transaction begin/end lines. | `boardSupportI2cWriteRead()`, `boardSupportI2cWrite()`, `boardSupportI2cRead()`, `boardSupportI2cProbeAddress()` | Keep disabled during normal matrix reads; I2C errors and recovery still log when disabled. |
 | `CONFIG_SENSORARRAY_LOG_FDC_REGISTER_TRACE` | bool | Kconfig: n | Project-level switch reserved for FDC register trace diagnostics. | FDC diagnostics | Keep disabled unless tracing register traffic. |
@@ -365,7 +372,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_AMPLITUDE_FAST_SWEEP_THRESHOLD`, `CONFIG_SENSORARRAY_FDC_WARNING_FAST_SWEEP_COOLDOWN_MS` | int | `4`, `1000` | Fresh amplitude warnings before fast sweep and its cooldown. | FDC warning rescue decision | Lower only when warnings are strong predictors of invalid data. |
 | `CONFIG_SENSORARRAY_FDC_RESCUE_HARD_ERROR_THRESHOLD` | int | `4` | Hard runtime errors before rescue scheduling. | `sensorarrayMeasureRequestFdcCellRescue()` | Lower makes rescue more aggressive. |
 | `CONFIG_SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES` | int | `6` | Direct-read quality sample count. | `sensorarrayFdcSweep.c` | More samples improve quality scoring but slow sweeps. |
-| `CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES` | int | deprecated alias, `10` | Deprecated timing interval alias. | compatibility fallback | Use `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES` instead. |
+| `CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES` | int | deprecated alias, `20` | Deprecated timing interval alias. | compatibility fallback | Use `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES` instead. |
 
 ## 关键数据结构 / Key data structures
 
@@ -479,7 +486,8 @@ flowchart LR
     FDC --> Freq[freqHz]
     Freq --> Cap[capTotalPf]
     Cap --> Frame[64-cell row-major frame]
-    Frame --> Text[MATRIXFDC_CAP printf output]
+    Frame --> AsyncLog[sensorarrayAsyncLogPublishFrameSnapshot]
+    AsyncLog --> Text[sensorarrayLogTask Cap printf output]
 ```
 
 ### INTB and STATUS / INTB 与 STATUS
@@ -493,7 +501,7 @@ The default formal matrix ready path treats INTB as a wake hint. The actual read
 - At `estimatedRoundUs + guardUs` with no INTB, strict mode permits one `STT` timeout diagnostic/fallback. If still not ready, it continues waiting for INTB only until the hard deadline. The final diagnostic is `STH`.
 - `RP` and `src=SP` were removed from the normal matrix path. `CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK` and `CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY` remain explicit legacy/debug policies only.
 
-中文：默认正式矩阵读取中，INTB 只是唤醒提示，最终以 `DRDY=1 && required unread full` 为正式有效条件。等待前只做一次轻量 STATUS 预检；超时后只做一次 STATUS 分类。`unread=0xF,DRDY=0` 先按 transient/stale 分层处理，必要时只 drain 到 discard buffer，不会直接并入 `MATRIXFDC_CAP`。
+中文：默认正式矩阵读取中，INTB 只是唤醒提示，最终以 `DRDY=1 && required unread full` 为正式有效条件。等待前只做一次轻量 STATUS 预检；超时后只做一次 STATUS 分类。`unread=0xF,DRDY=0` 先按 transient/stale 分层处理，必要时只 drain 到 discard buffer，不会直接并入 `Cap` 或 legacy `MATRIXFDC_CAP`。
 
 ## 路由安全与 ADS/FDC 互斥 / Route safety and ADS/FDC mutual exclusion
 
@@ -535,7 +543,7 @@ Default text output is capacitance:
 
 ```text
 S,s=<n>,vc=<n>,ic=<n>,fc=<n>,cm=0x...,vm=0x...,wm=0x...,em=0x...,br=<n>,bd=<n>
-MATRIXFDC_CAP,s=<n>,t=<us>,pa=<0|1>,q=<F|P>,cm=0x...,fm=0x...,wm=0x...,em=0x...,iv=-1.000000,pf=[...64 values with 6 decimals by default...]
+Cap,s=<n>,t=<us>,pa=<0|1>,q=<F|P>,cm=0x...,fm=0x...,wm=0x...,em=0x...,iv=-1.000000,pf=[...64 values with 6 decimals by default...]
 ```
 
 Optional frequency output is compiled when `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ` or `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE` is selected:
@@ -630,6 +638,7 @@ R5
 T5
 Q5
 I5
+Cap
 MATRIXFDC_CAP
 MATRIXFDC_FREQ
 MATRIXFDC_DIAG
@@ -688,7 +697,7 @@ Readiness diagnostics:
 - `pre` and `bi` must stay at 0 in strict INTB mode. `ai` is the after-INTB confirmation, `ar` is at most one retry, `fb` is the one `STT` read, `wd` includes `STH`, and `sr` is the total STATUS read count.
 - `ack` means STATUS was read while INTB was low. A watchdog diagnostic STATUS read is never an ack and never changes the current epoch to ready.
 - A formal read4 result is data-complete-good only when the ready result is `OK_INTB_DRDY_UNREAD_FULL` or `OK_STATUS_READY_AFTER_TIMEOUT`, read/I2C errors are clear, `DRDY=1`, required unread/fresh/valid masks are full, raw data is not all zero, and zero-before/after-DRDY masks are clear.
-- DATA_CHx reads after invalid/missed INTB are discard-only drains when enabled; they are not written into `MATRIXFDC_CAP`.
+- DATA_CHx reads after invalid/missed INTB are discard-only drains when enabled; they are not written into `Cap` or legacy `MATRIXFDC_CAP`.
 
 Parallel row epoch logic:
 
@@ -930,7 +939,7 @@ This is how a line such as `est=13544` is explained: `P5` and `PR` show the regi
 Default profile logs:
 
 ```text
-P5,s=630,n=5,profile=high_precision,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,profileTooSlowAction=diag_only,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
+P5,s=630,n=20,profile=high_precision,cnt=16,avg=13544,max=13544,row=1,d=p,ch=2,target=4000,rowBudget=6250,profileTooSlow=1,profileTooSlowAction=diag_only,theoreticalMaxFps=9.22,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,round=13544
 PR,s=630,d=p,r=1,src=shadow,why=profile_too_slow,rc=[2089,2089,2089,2089],sc=[0080,0080,0080,0080],cd=[1001,1001,1001,1001],dc=[7800,7800,7800,7800],dg=3,fh=[40000000,40000000,40000000,40000000],su=[...],cu=[...],tu=[...],round=13544,to=30088
 PFU,d=p,r=1,profile=high_precision,why=profile_too_slow,action=disabled_diag_only,round=13544,target=4000,rowBudget=6250,theoreticalMaxFps=9.22,rCount=[0x2089,0x2089,0x2089,0x2089],settle=[0x0080,0x0080,0x0080,0x0080]
 ```
@@ -990,17 +999,17 @@ Runtime fast/full sweep decisions are quality based, not only invalid-frame base
 
 Full sweep remains reserved for broader or repeated failures, such as repeated fast sweep failure, multiple row/channel faults, large-area invalid/stale frames, or persistent profile quality loss. A single `unread=F,DRDY=0` after INTB does not directly force full sweep; it first goes through after-INTB recheck and row-device recovery.
 
-For all-invalid frames, escalation is deterministic: sequence 1 restores autoscan/exit-sleep state, sequence 2 forces a soft resync/cache dirty path, and sequence 3 or later queues a full sweep unless an explicit cooldown, pending request, max-fail, or manual-disable policy is active. `-1` in `MATRIXFDC_CAP` means no trustworthy fresh conversion was obtained, not a physical capacitance of `-1`; repeated `-1` frames drive this rescue escalation.
+For all-invalid frames, escalation is deterministic: sequence 1 restores autoscan/exit-sleep state, sequence 2 forces a soft resync/cache dirty path, and sequence 3 or later queues a full sweep unless an explicit cooldown, pending request, max-fail, or manual-disable policy is active. `-1` in `Cap` or legacy `MATRIXFDC_CAP` means no trustworthy fresh conversion was obtained, not a physical capacitance of `-1`; repeated `-1` frames drive this rescue escalation.
 
 ### Compact Log Dictionary
 
-Default log format is compact key/value. `MATRIXFDC_CAP` is kept by default for GUI compatibility, but the field names are shorter. The `pf` array still defaults to the original 6 decimal places.
+Default log format is compact key/value. The normal capacitance frame tag is `Cap`; older GUIs can restore `MATRIXFDC_CAP` with `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP=y`. The `pf` array still defaults to the original 6 decimal places.
 
 Tag dictionary:
 
 | Legacy or concept | Compact tag |
 |---|---|
-| `MATRIXFDC_CAP` | `MATRIXFDC_CAP` by default, or `C` if legacy cap tag is disabled |
+| capacitance frame | `Cap` by default, or `MATRIXFDC_CAP` when `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP=y` |
 | `FDC_FRAME_OUTPUT` | `FO` in legacy mode only |
 | `FDC_FRAME_SUMMARY` | `S` |
 | `FDC_OUTPUT_TIMING` | `OT` |
@@ -1070,16 +1079,17 @@ Mask shorthand:
 Normal per-frame output:
 
 ```text
-MATRIXFDC_CAP,s=631,t=813405664,q=F,pf=[100.302000,58.098000,56.765000,...,118.495000]
+Cap,s=631,t=813405664,q=F,pf=[100.302000,58.098000,56.765000,...,118.495000]
 ```
 
-Every 5 frames by default:
+Every 20 frames by default. The `T5/R5/Q5/I5/P5` tag names are historical; trust the `n` field for the actual aggregation period.
 
 ```text
-T5,s0=626,s1=630,n=5,fps=18.42,fa=54281,rw=6120,rmax=13544,ww=6040,rp=28120,sp=420,dr=3100,i2c=22100,op=6400,prof=13544,pe=0,frameEffectiveFps=18.42
-R5,s0=626,s1=630,n=5,full=80,pre=12,intb=66,late=2,trueTo=0,rec=0,ar=2,trans=0,staleDrain=0,hardTo=0,part=0,none=0,it=0,ack=82,b=12,bp=12,a=82,fb=0,supp=80,uwd=2,dp=0
-Q5,s0=626,s1=630,n=5,fw=0,sw=0,tw=0,z0=0,zd=0,nr=0,invRow=0,invDev=0,fs=0,sweepReq=0,sweepQ=0,def=0
-I5,s0=626,s1=630,n=5,w=120,r=240,vr=0,retry=0,nack=0,to=0,rec=0,b0=60/120/9000,b1=60/120/9100,avg0=50,avg1=50,maxRead=2300
+T5,s0=611,s1=630,n=20,fps=18.42,fa=54281,rw=6120,rmax=13544,ww=6040,rp=28120,sp=420,dr=3100,i2c=22100,op=6400,prof=13544,pe=0,frameEffectiveFps=18.42
+R5,s0=611,s1=630,n=20,full=320,pre=48,intb=264,late=8,trueTo=0,rec=0,ar=8,trans=0,staleDrain=0,hardTo=0,part=0,none=0,it=0,ack=328,b=48,bp=48,a=328,fb=0,supp=320,uwd=8,dp=0
+Q5,s0=611,s1=630,n=20,fw=0,sw=0,tw=0,z0=0,zd=0,nr=0,invRow=0,invDev=0,fs=0,sweepReq=0,sweepQ=0,def=0
+I5,s0=611,s1=630,n=20,w=480,r=960,vr=0,retry=0,nack=0,to=0,rec=0,b0=240/480/9000,b1=240/480/9100,avg0=50,avg1=50,maxRead=2300
+LOG20,s0=611,s1=630,n=20,measureFps=18.40,outputFps=18.38,frameAgeAvgUs=1200,frameAgeMaxUs=2800,outputQueueDepth=0,qDepthMax=1,droppedOutputFrames=0,droppedEventLogs=0,outUsAvg=6400,outUsMax=9100,measureFrameUsAvg=54281,measureFrameUsMax=56800
 BN,s=630,t1=ready:28120,t2=i2c:22100,t3=output:6400,readyPollUs=28120,statusPrecheckUs=420,dataReadUs=3100,serialFallbackUs=0,staleDrainUs=0,workerSyncUs=6040,measureLockHeldUs=54281,frameEffectiveFps=18.42,h=ready_wait
 ```
 
@@ -1092,23 +1102,25 @@ Relevant defaults:
 | Option | Default |
 |---|---:|
 | `CONFIG_SENSORARRAY_LOG_FORMAT_COMPACT_KV` | `y` |
-| `CONFIG_SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG` | `y` |
+| `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP` | `n` |
 | `CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS` | `6` |
 | `CONFIG_SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY` | `n` |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | `y` |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | `20` |
 | `CONFIG_SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL` | `0` |
 | `CONFIG_SENSORARRAY_FDC_ROW_LOG_LEVEL` | `1` |
 | `CONFIG_SENSORARRAY_FDC_PROFILE_HIGH_PRECISION` | `y` |
 | `CONFIG_SENSORARRAY_FDC_RCOUNT_DEFAULT` | derived from profile, `0x2089` for `high_precision` |
 | `CONFIG_SENSORARRAY_FDC_SETTLECOUNT_DEFAULT` | `0x0080` |
 | `CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES` | `0` |
-| `CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES` | `5` |
-| `CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES` | `5` |
-| `CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES` | `5` |
-| `CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES` | `5` |
-| `CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES` | `5` |
-| `CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES` | `5` |
+| `CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES` | `20` |
+| `CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES` | `20` |
+| `CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES` | `20` |
+| `CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES` | `20` |
+| `CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES` | `20` |
+| `CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES` | `20` |
 
-To support an older GUI, keep `CONFIG_SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG=y`; the tag remains `MATRIXFDC_CAP`. To restore old verbose logs, select `CONFIG_SENSORARRAY_LOG_FORMAT_LEGACY=y` and enable `CONFIG_SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY`, `CONFIG_SENSORARRAY_FDC_LOG_READY_EVERY_ROW`, or higher read4/row log levels as needed.
+To support an older GUI, set `CONFIG_SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP=y`; the frame tag becomes `MATRIXFDC_CAP`. To restore old verbose logs, select `CONFIG_SENSORARRAY_LOG_FORMAT_LEGACY=y` and enable `CONFIG_SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY`, `CONFIG_SENSORARRAY_FDC_LOG_READY_EVERY_ROW`, or higher read4/row log levels as needed.
 
 ### Runtime Checks
 
@@ -1121,9 +1133,9 @@ Use these checks in monitor output:
 - In `R5`, `pre`, `intb`, `late`, and `trueTo` should explain where ready decisions came from. `late` means timeout STATUS was ready; only `trueTo` means STATUS was not ready after the wait.
 - Row-device watchdog default is `rowBudget=6250,mul=10,hard=62500` at 20 fps and 8 rows.
 - `P5` explains slow estimates such as `13544 us` using `rc/sc/cd/dc/dg` and per-channel detail in `PR`.
-- `P5/R5/T5/Q5/I5` carry `n=5` by default. If Kconfig changes the period, trust the `n` field.
+- `P5/R5/T5/Q5/I5` carry `n=20` by default. If Kconfig changes the period, trust the `n` field.
 - `OT` gives output `op`; falling `op` should correlate with lower `OV/BN` pressure.
-- `MATRIXFDC_CAP` still exists by default and `pf` uses 6 decimals unless `CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS` is changed.
+- `Cap` is the default frame tag and `pf` uses 6 decimals unless `CONFIG_SENSORARRAY_FDC_CAP_PRINT_DECIMALS` is changed. Legacy `MATRIXFDC_CAP` is opt-in.
 
 ## 当前双总线并行读取与验收 / Current Dual-Bus Runtime
 
@@ -1140,10 +1152,12 @@ sensorarrayRunMainLoop()
      -> apply primary and secondary diff-only cached row config
      -> queue secondary worker and wait ready acknowledgement
      -> release start barrier
-     -> parent runs primary wait INTB + STATUS ack + DATA burst
-        in parallel with secondary worker wait INTB + STATUS ack + DATA burst
+     -> parent runs primary wait INTB + STATUS ack + ordered DATA_CHx/DATA_LSB_CHx reads
+        in parallel with secondary worker wait INTB + STATUS ack + ordered DATA_CHx/DATA_LSB_CHx reads
      -> parent waits only for the secondary tail
      -> validate frame/row/epoch/device/generation and merge
+  -> sensorarrayAsyncLogPublishFrameSnapshot()
+  -> sensorarrayLogTask()
   -> sensorarrayFrameOutputPrint()
 ```
 
@@ -1175,9 +1189,11 @@ wr=<workerRunUs>,mode=<par|fallback>,reason=<reason>
 - `i2c_lock_serialized`: 两侧已启动但运行窗口几乎不重叠。
 - `queue_fail`, `ack_timeout`, `worker_deadline`: barrier/job deadline 失败。
 
-### FDC2214 DATA burst
+### FDC2214 ordered DATA reads
 
-formal row read 使用 `Fdc2214CapReadDataBurst4()`。DATA 顺序固定为寄存器 `0x00..0x07`：
+formal row read 使用 `Fdc2214CapReadDataBurst4()` 这个兼容函数名，但正式实现只走有序
+register read，不再使用 `pointer=0x00` 后直接读取 16 bytes 的 FDC2214 burst 路径。DATA
+顺序固定为寄存器 `0x00..0x07`：
 
 ```text
 DATA_CH0, DATA_LSB_CH0, DATA_CH1, DATA_LSB_CH1,
@@ -1186,27 +1202,19 @@ DATA_CH2, DATA_LSB_CH2, DATA_CH3, DATA_LSB_CH3
 
 该顺序满足每通道先 DATA_CHx/MSB、再 DATA_LSB_CHx 的 datasheet 要求，并保留
 DATA_CHx 的 watchdog/amplitude error bits。TI datasheet 的标准读时序只明确保证一次
-register pointer 对应一个 16-bit register；当前 boardSupport 因此在同一个 bus lock 和
-一个 I2C command link 中，对 `0x00..0x07` 依次执行 repeated-start register read。
-这避免 8 次 RTOS/driver transaction 和锁切换，同时不依赖芯片未定义的地址自动递增。
+register pointer 对应一个 16-bit register；当前驱动因此对每个通道执行
+`DATA_CHx -> DATA_LSB_CHx` 的 ordered read，并把两半组合成 raw28。DATA read 失败会短重试
+一次；再次失败则当前 row-device 无效，不复用旧 epoch 数据。`retry/nack/to/rec` 应保持零。
 
-generic bus adapter 没有 `ReadRegisters` callback 时，驱动仍会探测 `pointer=0x00` 后
-直接读取 16 bytes；若 CH1-CH3 与有序复读不一致，则记录 `FDC_BURST` 并安全回退。
-DATA read 失败会短重试一次；再次失败则当前 row-device 无效，不复用旧 epoch 数据。
-`I5.r` 应比逐寄存器读取明显下降，`dataReadUs` 目标 `< 15 ms/frame`；
-`retry/nack/to/rec` 应保持零。
-
-当前实板验证表明直接 16-byte read 只有首个 16-bit register 可靠，因此正式路径使用
-ordered compound read。它将 `I5.r` 从旧路径约 `1120/5frames` 降到 `160/5frames`
-（同时移除 row sleep readback），但无法消除线上每个 register 的 address phase；
-在当前 337.5 kHz 板级限制下，`dataReadUs` 仍约 `41 ms/frame`，balanced runtime
-实测约 `7.4 fps`。若必须达到 15-20 fps，需要允许更高且稳定的 bus rate、修改硬件
-signal integrity，或选用明确支持 multi-register auto-increment/burst 的器件。
+当前实板验证表明直接 16-byte read 只有首个 16-bit register 可靠，所以 16-byte direct burst
+不再保留为正式路径或 fallback。若要进一步降低 `I5.r`，需要硬件和器件层面支持稳定的更高
+bus rate 或明确的 multi-register auto-increment；软件不会再依赖 FDC2214 未定义的地址自动递增。
 
 formal row 的 sleep enter/exit 使用 CONFIG write-only toggle，避免每 row/device 两次无必要
 readback；`CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL` 和启动/诊断路径仍可做完整读回验证。
-默认两条 FDC I2C bus 运行在当前板已验证稳定的 `337.5 kHz`；实板 400 kHz bring-up
-无法稳定识别两颗 FDC，因此不作为默认值。
+默认两条 FDC I2C bus 先尝试 `350 kHz`，然后按 `350000,337500,325000,300000` 探测并锁定
+最高稳定频率。启动和运行期 fallback 都会输出 `ICLK` 日志；运行期只有连续 I2C-error 帧达到
+`CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES` 后才重新探测，避免单次瞬态错误触发降速。
 
 ### Runtime profiles
 
@@ -1281,12 +1289,12 @@ idf -p COM11 flash monitor
 - `R5`: `trueTo=0`, `hardTo=0`, `part=0`。
 - `Q5`: `noStatusPollWait`、`statusAfterIntb`、`suppressedRp` 按 row-device 数增长；
   `statusAfterTimeout=0`, `internalWaitLeak=0`。
-- `I5`: `retry=0,nack=0,to=0,rec=0,xs=0`，且 burst 后 `r` 明显下降。
+- `I5`: `retry=0,nack=0,to=0,rec=0,xs=0`，且 ordered read 路径没有退回逐寄存器慢路径。
 - `WP`: `ws ~= ps`, overlap 接近较短 run window，reason 正常为 `ok`。
 - `T5`: `ww < 2000 us/row`，balanced runtime fps 明显高于 high precision。
 - `CA5/CAWARN`: cache apply 无持续 100 ms 级异常。
 
 若 `worker_late_start`，先检查 worker priority/core starvation；若
 `i2c_lock_serialized`，检查 primary/secondary 是否错误映射到同一 bus/context；
-若 `I5.r` 未下降，确认 formal path 调用了 DATA burst/ordered compound read；若 `CAWARN` 连续，
+若 `I5.r` 异常升高，确认 formal path 仍调用 ordered `DATA_CHx -> DATA_LSB_CHx` read；若 `CAWARN` 连续，
 检查 cache generation/reapplyPending/profile change 是否持续变化。

@@ -385,10 +385,6 @@ config SENSORARRAY_LOG_FORMAT_COMPACT_CSV
     bool "Compact CSV logs"
 endchoice
 
-config SENSORARRAY_LOG_KEEP_LEGACY_CAP_TAG
-    bool "Keep MATRIXFDC_CAP tag for GUI compatibility"
-    default y
-
 config SENSORARRAY_LOG_OMIT_DEFAULT_FIELDS
     bool "Omit default masks and sentinel fields from compact normal logs"
     default y
@@ -432,14 +428,6 @@ config SENSORARRAY_FDC_CAP_DECIMALS
     int "Cap output decimal places"
     default 6
     range 0 6
-
-config SENSORARRAY_FDC_LOG_FULL_CAP_FRAME
-    bool "Print full MATRIXFDC_CAP frame output"
-    default y
-
-config SENSORARRAY_FDC_LOG_COMPACT_CAP_FRAME
-    bool "Print compact MATRIXFDC frame output"
-    default y
 
 config SENSORARRAY_FDC_DIFF_CACHE_APPLY
     bool "Apply only changed FDC row cache registers"
@@ -770,7 +758,7 @@ config SENSORARRAY_LOG_FRAME_SUMMARY
 
 config SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES
     int "Compact frame summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_LOG_FRAME_SUMMARY_ON_ANOMALY
@@ -787,12 +775,12 @@ config SENSORARRAY_LOG_ROW_SUMMARY
 
 config SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES
     int "BOARD_I2C_STATS aggregate period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES
     int "FDC_TIMING_STATS aggregate period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER
@@ -828,37 +816,37 @@ config SENSORARRAY_FDC_RAW_DEBUG_LOG
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
     int "FDC timing summary output interval in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES
     int "FDC compact timing aggregate period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
     int "FDC profile compact summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES
     int "FDC ready compact summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
     int "FDC compact timing summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES
     int "FDC quality/sweep compact summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
     int "FDC I2C compact summary period in MATRIXFDC frames"
-    default 5
+    default 20
     range 0 10000
 
 config SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
@@ -945,6 +933,61 @@ config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES
     int "Direct-read quality sample count"
     default 6
     range 4 8
+
+endmenu
+
+menu "Async logging"
+
+config SENSORARRAY_ASYNC_LOG_ENABLE
+    bool "Enable asynchronous frame/event logging"
+    default y
+    help
+        When enabled, the measurement loop publishes binary frame snapshots and
+        a lower-priority sensorarrayLogTask performs Cap formatting and printf.
+
+config SENSORARRAY_ASYNC_LOG_LEGACY_SYNC_OUTPUT
+    bool "Fallback to legacy synchronous frame output"
+    default n
+    help
+        Compatibility-only fallback. Normal builds should keep async logging on
+        and this option disabled so printf cannot back-pressure FDC sampling.
+
+config SENSORARRAY_ASYNC_LOG_FRAME_SLOTS
+    int "Async log frame snapshot slots"
+    default 4
+    range 2 16
+
+config SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN
+    int "Async log event queue length"
+    default 32
+    range 1 256
+
+config SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES
+    int "Async log summary period in measured frames"
+    default 20
+    range 1 10000
+
+config SENSORARRAY_ASYNC_LOG_TASK_STACK
+    int "Async log task stack bytes"
+    default 12288
+    range 4096 32768
+
+config SENSORARRAY_ASYNC_LOG_TASK_PRIORITY
+    int "Async log task priority"
+    default 7
+    range 1 24
+    help
+        Keep below SENSORARRAY_SCAN_TASK_PRIO so serial output cannot preempt
+        the FDC measurement producer.
+
+config SENSORARRAY_ASYNC_LOG_TASK_CORE
+    int "Async log task core (-1 means no affinity)"
+    default SENSORARRAY_COMM_TASK_CORE
+    range -1 1
+
+config SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
+    bool "Drop old normal frame snapshots when async log is behind"
+    default y
 
 endmenu
 

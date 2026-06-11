@@ -37,18 +37,11 @@ typedef esp_err_t (*Fdc2214I2cWriteFn)(void* userCtx,
                                       const uint8_t* tx,
                                       size_t txLen);
 
-typedef esp_err_t (*Fdc2214I2cReadRegistersFn)(void* userCtx,
-                                               uint8_t addr7,
-                                               const uint8_t* registers,
-                                               size_t registerCount,
-                                               uint8_t* rx);
-
 typedef struct {
     uint8_t I2cAddress7;
     void* UserCtx;
     Fdc2214I2cWriteReadFn WriteRead;
     Fdc2214I2cWriteFn Write;
-    Fdc2214I2cReadRegistersFn ReadRegisters;
     int IntGpio;
 } Fdc2214CapBusConfig_t;
 
@@ -341,7 +334,8 @@ esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev,
                                                   uint8_t channelMask,
                                                   Fdc2214CapFastChannelSample_t* outSamples,
                                                   size_t outSampleCount);
-// Read DATA_CH0..DATA_LSB_CH3 (0x00..0x07) as one ordered 16-byte burst.
+// Read DATA_CHx then DATA_LSB_CHx for CH0..CH3. The formal path must not use a
+// single 0x00-based 16-byte burst because that was unreliable on the target PCB.
 esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
                                    Fdc2214CapFastChannelSample_t outSamples[4]);
 

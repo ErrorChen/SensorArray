@@ -22,6 +22,18 @@
 #ifndef CONFIG_BOARD_I2C1_FREQ_HZ
 #define CONFIG_BOARD_I2C1_FREQ_HZ CONFIG_BOARD_I2C_FREQ_HZ
 #endif
+#ifndef CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE
+#define CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE 1
+#endif
+#ifndef CONFIG_BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT
+#define CONFIG_BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT 350000
+#endif
+#ifndef CONFIG_BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT
+#define CONFIG_BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT 350000
+#endif
+#ifndef CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES
+#define CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES 3
+#endif
 #ifndef CONFIG_BOARD_I2C1_ENABLE
 #define CONFIG_BOARD_I2C1_ENABLE 0
 #endif
@@ -47,6 +59,14 @@
 #define BOARD_SUPPORT_I2C1_ENABLE_REQUESTED 0
 #endif
 
+#if CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE
+#define BOARD_SUPPORT_I2C0_START_HZ CONFIG_BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT
+#define BOARD_SUPPORT_I2C1_START_HZ CONFIG_BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT
+#else
+#define BOARD_SUPPORT_I2C0_START_HZ CONFIG_BOARD_I2C0_FREQ_HZ
+#define BOARD_SUPPORT_I2C1_START_HZ CONFIG_BOARD_I2C1_FREQ_HZ
+#endif
+
 #define BOARD_SUPPORT_I2C_TIMEOUT_MS 100u
 #define BOARD_SUPPORT_I2C_LOCK_TIMEOUT_MS 1000u
 #define BOARD_SUPPORT_I2C_RECOVERY_PULSE_US 5u
@@ -59,7 +79,7 @@ static BoardSupportI2cCtx_t s_i2c0_ctx = {
     .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
     .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
     .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
-    .FrequencyHz = CONFIG_BOARD_I2C0_FREQ_HZ,
+    .FrequencyHz = BOARD_SUPPORT_I2C0_START_HZ,
     .Enabled = true,
 };
 
@@ -68,7 +88,7 @@ static BoardSupportI2cCtx_t s_i2c1_ctx = {
     .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
     .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
     .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
-    .FrequencyHz = CONFIG_BOARD_I2C1_FREQ_HZ,
+    .FrequencyHz = BOARD_SUPPORT_I2C1_START_HZ,
     .Enabled = BOARD_SUPPORT_I2C1_ENABLE_REQUESTED != 0,
 };
 
@@ -710,6 +730,56 @@ esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *userCtx)
     return err;
 }
 
+esp_err_t boardSupportSetI2cFrequency(const BoardSupportI2cCtx_t *userCtx, uint32_t frequencyHz)
+{
+    BoardSupportI2cCtx_t *ctx = boardSupportI2cWritableCtx(userCtx);
+    if (!ctx || frequencyHz == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = boardSupportI2cEnsureMutex(ctx);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = boardSupportI2cLock(ctx, boardSupportI2cMsToTicksAtLeastOne(BOARD_SUPPORT_I2C_LOCK_TIMEOUT_MS));
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (ctx->Installed && ctx->FrequencyHz == frequencyHz && !ctx->Offline) {
+        boardSupportI2cUnlock(ctx);
+        return ESP_OK;
+    }
+
+    uint32_t previousHz = ctx->FrequencyHz;
+    if (ctx->Installed) {
+        err = i2c_driver_delete(ctx->Port);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            printf("BOARD_I2C_FREQ,stage=driver_delete_failed,port=%d,from=%lu,to=%lu,err=%ld\n",
+                   (int)ctx->Port,
+                   (unsigned long)previousHz,
+                   (unsigned long)frequencyHz,
+                   (long)err);
+            boardSupportI2cUnlock(ctx);
+            return err;
+        }
+        ctx->Installed = false;
+        ctx->DeleteCount++;
+    }
+
+    ctx->FrequencyHz = frequencyHz;
+    ctx->Offline = false;
+    err = boardSupportInitI2cLocked(ctx);
+    printf("BOARD_I2C_FREQ,stage=reconfigure,port=%d,from=%lu,to=%lu,err=%ld,installCount=%lu,deleteCount=%lu\n",
+           (int)ctx->Port,
+           (unsigned long)previousHz,
+           (unsigned long)frequencyHz,
+           (long)err,
+           (unsigned long)ctx->InstallCount,
+           (unsigned long)ctx->DeleteCount);
+    boardSupportI2cUnlock(ctx);
+    return err;
+}
+
 esp_err_t boardSupportInit(void)
 {
     if (s_inited) {
@@ -721,7 +791,7 @@ esp_err_t boardSupportInit(void)
         .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
         .SdaGpio = CONFIG_BOARD_I2C_SDA_GPIO,
         .SclGpio = CONFIG_BOARD_I2C_SCL_GPIO,
-        .FrequencyHz = CONFIG_BOARD_I2C0_FREQ_HZ,
+        .FrequencyHz = BOARD_SUPPORT_I2C0_START_HZ,
         .Enabled = true,
         .Mutex = s_i2c0_ctx.Mutex,
     };
@@ -730,22 +800,29 @@ esp_err_t boardSupportInit(void)
         .TimeoutMs = BOARD_SUPPORT_I2C_TIMEOUT_MS,
         .SdaGpio = CONFIG_BOARD_I2C1_SDA_GPIO,
         .SclGpio = CONFIG_BOARD_I2C1_SCL_GPIO,
-        .FrequencyHz = CONFIG_BOARD_I2C1_FREQ_HZ,
+        .FrequencyHz = BOARD_SUPPORT_I2C1_START_HZ,
         .Enabled = boardSupportI2c1ConfiguredByPins(),
         .Mutex = s_i2c1_ctx.Mutex,
     };
 
-    printf("BOARD_I2C_CFG,primaryPort=%d,primarySda=%d,primaryScl=%d,primaryFreqHz=%lu,secondaryConfigured=%u,secondaryEnabled=%u,secondaryPort=%d,secondarySda=%d,secondaryScl=%d,secondaryFreqHz=%lu\n",
+    printf("BOARD_I2C_CFG,primaryPort=%d,primarySda=%d,primaryScl=%d,primaryFreqHz=%lu,secondaryConfigured=%u,secondaryEnabled=%u,secondaryPort=%d,secondarySda=%d,secondaryScl=%d,secondaryFreqHz=%lu,autoFallback=%u,fallbackLevels=%s\n",
            CONFIG_BOARD_I2C_PORT,
            CONFIG_BOARD_I2C_SDA_GPIO,
            CONFIG_BOARD_I2C_SCL_GPIO,
-           (unsigned long)CONFIG_BOARD_I2C0_FREQ_HZ,
+           (unsigned long)BOARD_SUPPORT_I2C0_START_HZ,
            boardSupportI2c1ConfiguredByPins() ? 1u : 0u,
            boardSupportIsI2c1Enabled() ? 1u : 0u,
            CONFIG_BOARD_I2C1_PORT,
            CONFIG_BOARD_I2C1_SDA_GPIO,
            CONFIG_BOARD_I2C1_SCL_GPIO,
-           (unsigned long)CONFIG_BOARD_I2C1_FREQ_HZ);
+           (unsigned long)BOARD_SUPPORT_I2C1_START_HZ,
+           CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE ? 1u : 0u,
+#ifdef CONFIG_BOARD_I2C_FALLBACK_LEVELS
+           CONFIG_BOARD_I2C_FALLBACK_LEVELS
+#else
+           "350000,337500,325000,300000"
+#endif
+           );
 
     esp_err_t err = boardSupportInitI2c(&s_i2c0_ctx);
     if (err != ESP_OK) {
@@ -944,69 +1021,6 @@ esp_err_t boardSupportI2cWrite(void *userCtx,
                                      txLen,
                                      boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
     return boardSupportI2cFinishTransaction(ctx, addr7, "write", err, startUs);
-}
-
-esp_err_t boardSupportI2cReadRegisters(void *userCtx,
-                                      uint8_t addr7,
-                                      const uint8_t *registers,
-                                      size_t registerCount,
-                                      uint8_t *rx)
-{
-    if (!userCtx || !registers || registerCount == 0u || !rx) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    BoardSupportI2cCtx_t *ctx = boardSupportI2cWritableCtx((const BoardSupportI2cCtx_t *)userCtx);
-    esp_err_t err = boardSupportI2cEnsureMutex(ctx);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = boardSupportI2cLock(ctx, boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = boardSupportI2cCheckReadyLocked(ctx, addr7, "read_registers");
-    if (err != ESP_OK) {
-        boardSupportI2cUnlock(ctx);
-        return err;
-    }
-
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    if (!cmd) {
-        boardSupportI2cUnlock(ctx);
-        return ESP_ERR_NO_MEM;
-    }
-
-    ctx->TransactionCount++;
-    int64_t startUs = esp_timer_get_time();
-    for (size_t i = 0u; i < registerCount && err == ESP_OK; ++i) {
-        err = i2c_master_start(cmd);
-        if (err == ESP_OK) {
-            err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_WRITE), true);
-        }
-        if (err == ESP_OK) {
-            err = i2c_master_write_byte(cmd, registers[i], true);
-        }
-        if (err == ESP_OK) {
-            err = i2c_master_start(cmd);
-        }
-        if (err == ESP_OK) {
-            err = i2c_master_write_byte(cmd, (uint8_t)((addr7 << 1u) | I2C_MASTER_READ), true);
-        }
-        if (err == ESP_OK) {
-            err = i2c_master_read_byte(cmd, &rx[i * 2u], I2C_MASTER_ACK);
-        }
-        if (err == ESP_OK) {
-            err = i2c_master_read_byte(cmd, &rx[i * 2u + 1u], I2C_MASTER_NACK);
-        }
-    }
-    if (err == ESP_OK) {
-        err = i2c_master_stop(cmd);
-    }
-    if (err == ESP_OK) {
-        err = i2c_master_cmd_begin(ctx->Port, cmd, boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
-    }
-    i2c_cmd_link_delete(cmd);
-    return boardSupportI2cFinishTransaction(ctx, addr7, "read_registers", err, startUs);
 }
 
 esp_err_t boardSupportI2cRead(void *userCtx,

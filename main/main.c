@@ -23,6 +23,7 @@
 #include "sensorarrayFdcRescue.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayFrame.h"
+#include "sensorarrayAsyncLog.h"
 #include "sensorarrayFrameOutput.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
@@ -57,6 +58,12 @@
 #ifndef CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS
 #define CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS 48
 #endif
+#ifndef CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE
+#define CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE 1
+#endif
+#ifndef CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES
+#define CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES 3
+#endif
 
 typedef enum {
     SENSORARRAY_RUNTIME_MODE_FDC_MATRIX = 0,
@@ -85,6 +92,9 @@ typedef struct {
     uint32_t rescueEpoch;
     int64_t lastFullRescueTimeUs;
     bool rescueRunning;
+    bool asyncLogReady;
+    bool legacySyncOutput;
+    uint32_t runtimeI2cErrorStreak;
 } sensorarrayAppContext_t;
 
 static sensorarrayAppContext_t s_appContext;
@@ -128,7 +138,9 @@ static uint32_t sensorarrayFdcFramePeriodMs(void)
     return periodMs == 0u ? 1u : periodMs;
 }
 
-static void sensorarrayDelayFramePeriodSince(int64_t frameStartUs, uint32_t sequence)
+static void sensorarrayDelayFramePeriodSince(sensorarrayAppContext_t *ctx,
+                                             int64_t frameStartUs,
+                                             uint32_t sequence)
 {
     uint32_t periodMs = sensorarrayFdcFramePeriodMs();
     int64_t periodUs = (int64_t)periodMs * 1000LL;
@@ -140,10 +152,14 @@ static void sensorarrayDelayFramePeriodSince(int64_t frameStartUs, uint32_t sequ
         return;
     }
 
-    printf("OV,s=%lu,fu=%lld,pu=%lld,o=1\n",
-           (unsigned long)sequence,
-           (long long)elapsedUs,
-           (long long)periodUs);
+    if (ctx && ctx->asyncLogReady) {
+        (void)sensorarrayAsyncLogPublishOverrun(sequence, elapsedUs, periodUs);
+    } else {
+        printf("OV,s=%lu,fu=%lld,pu=%lld,o=1\n",
+               (unsigned long)sequence,
+               (long long)elapsedUs,
+               (long long)periodUs);
+    }
 }
 
 static bool sensorarrayFrameRawAllZero(const sensorarrayFrame_t *frame)
@@ -187,6 +203,195 @@ static void sensorarrayApplyTmuxDefaults(sensorarrayState_t *state)
                           (int32_t)(tmuxErr == ESP_OK));
 }
 
+static bool sensorarrayAppFdcIdMatches(uint16_t manufacturerId, uint16_t deviceId)
+{
+    return manufacturerId == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID &&
+           deviceId == SENSORARRAY_FDC_EXPECTED_DEVICE_ID;
+}
+
+static esp_err_t sensorarrayProbeFdcIdsAtClock(sensorarrayFdcDeviceState_t *fdcState,
+                                               uint32_t clockHz,
+                                               uint32_t attempts,
+                                               uint32_t *outGoodCount,
+                                               uint32_t *outBadCount,
+                                               uint16_t *outLastManufacturerId,
+                                               uint16_t *outLastDeviceId,
+                                               const char **outReason)
+{
+    if (outGoodCount) {
+        *outGoodCount = 0u;
+    }
+    if (outBadCount) {
+        *outBadCount = 0u;
+    }
+    if (outLastManufacturerId) {
+        *outLastManufacturerId = 0u;
+    }
+    if (outLastDeviceId) {
+        *outLastDeviceId = 0u;
+    }
+    if (outReason) {
+        *outReason = "unknown";
+    }
+    if (!fdcState || !fdcState->i2cCtx || clockHz == 0u || attempts == 0u) {
+        if (outReason) {
+            *outReason = "invalid_arg";
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = boardSupportSetI2cFrequency(fdcState->i2cCtx, clockHz);
+    if (err != ESP_OK) {
+        if (outReason) {
+            *outReason = "bus_reconfigure_failed";
+        }
+        return err;
+    }
+
+    uint32_t goodCount = 0u;
+    uint32_t badCount = 0u;
+    esp_err_t firstErr = ESP_OK;
+    uint16_t lastManufacturerId = 0u;
+    uint16_t lastDeviceId = 0u;
+    for (uint32_t i = 0u; i < attempts; ++i) {
+        uint16_t manufacturerId = 0u;
+        uint16_t deviceId = 0u;
+        err = sensorarrayBringupReadFdcIdsRaw(fdcState->i2cCtx,
+                                              fdcState->i2cAddr,
+                                              &manufacturerId,
+                                              &deviceId);
+        lastManufacturerId = manufacturerId;
+        lastDeviceId = deviceId;
+        if (err == ESP_OK && sensorarrayAppFdcIdMatches(manufacturerId, deviceId)) {
+            goodCount++;
+        } else {
+            badCount++;
+            if (firstErr == ESP_OK) {
+                firstErr = (err != ESP_OK) ? err : ESP_FAIL;
+            }
+        }
+    }
+
+    if (outGoodCount) {
+        *outGoodCount = goodCount;
+    }
+    if (outBadCount) {
+        *outBadCount = badCount;
+    }
+    if (outLastManufacturerId) {
+        *outLastManufacturerId = lastManufacturerId;
+    }
+    if (outLastDeviceId) {
+        *outLastDeviceId = lastDeviceId;
+    }
+    if (goodCount == attempts) {
+        if (outReason) {
+            *outReason = "ok";
+        }
+        return ESP_OK;
+    }
+    if (outReason) {
+        *outReason = (firstErr == ESP_OK || firstErr == ESP_FAIL) ? "id_mismatch" :
+            (firstErr == ESP_ERR_TIMEOUT) ? "timeout" : "id_read_failed";
+    }
+    return (firstErr != ESP_OK) ? firstErr : ESP_FAIL;
+}
+
+static void sensorarrayProbeAndLockFdcI2cClock(sensorarrayFdcDeviceState_t *fdcState,
+                                               const char *mapLabel)
+{
+    if (!fdcState || !fdcState->i2cCtx) {
+        return;
+    }
+    BoardSupportI2cBusInfo_t busInfo = {0};
+    bool secondary = fdcState->i2cCtx == boardSupportGetI2c1Ctx();
+    (void)boardSupportGetI2cBusInfo(secondary, &busInfo);
+    int bus = (int)busInfo.Port;
+
+    if (!CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE) {
+        printf("ICLK,stage=disabled,bus=%d,addr=0x%02X,hz=%lu,map=%s\n",
+               bus,
+               fdcState->i2cAddr,
+               (unsigned long)busInfo.FrequencyHz,
+               mapLabel ? mapLabel : SENSORARRAY_NA);
+        return;
+    }
+
+    static const uint32_t clockCandidates[] = {350000u, 337500u, 325000u, 300000u};
+    const uint32_t attempts = 8u;
+    esp_err_t lastErr = ESP_FAIL;
+    const char *lastReason = "not_probed";
+    for (size_t i = 0u; i < sizeof(clockCandidates) / sizeof(clockCandidates[0]); ++i) {
+        uint32_t hz = clockCandidates[i];
+        uint32_t goodCount = 0u;
+        uint32_t badCount = 0u;
+        uint16_t manufacturerId = 0u;
+        uint16_t deviceId = 0u;
+        const char *reason = "unknown";
+        esp_err_t err = sensorarrayProbeFdcIdsAtClock(fdcState,
+                                                      hz,
+                                                      attempts,
+                                                      &goodCount,
+                                                      &badCount,
+                                                      &manufacturerId,
+                                                      &deviceId,
+                                                      &reason);
+        printf("ICLK,stage=probe,bus=%d,addr=0x%02X,hz=%lu,attempts=%lu,good=%lu,bad=%lu,err=0x%lx,idMfg=0x%04X,idDev=0x%04X,result=%s,map=%s\n",
+               bus,
+               fdcState->i2cAddr,
+               (unsigned long)hz,
+               (unsigned long)attempts,
+               (unsigned long)goodCount,
+               (unsigned long)badCount,
+               (unsigned long)err,
+               manufacturerId,
+               deviceId,
+               (err == ESP_OK) ? "ok" : reason,
+               mapLabel ? mapLabel : SENSORARRAY_NA);
+        if (err == ESP_OK) {
+            printf("ICLK,stage=locked,bus=%d,addr=0x%02X,hz=%lu,attempts=%lu,map=%s\n",
+                   bus,
+                   fdcState->i2cAddr,
+                   (unsigned long)hz,
+                   (unsigned long)attempts,
+                   mapLabel ? mapLabel : SENSORARRAY_NA);
+            if (fdcState->handle) {
+                Fdc2214CapCoreRegs_t regs = {0};
+                esp_err_t verifyErr = Fdc2214CapReadCoreRegs(fdcState->handle, &regs);
+                printf("ICLK,stage=verify,bus=%d,addr=0x%02X,hz=%lu,err=0x%lx,status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,map=%s\n",
+                       bus,
+                       fdcState->i2cAddr,
+                       (unsigned long)hz,
+                       (unsigned long)verifyErr,
+                       regs.Status,
+                       regs.StatusConfig,
+                       regs.Config,
+                       regs.MuxConfig,
+                       mapLabel ? mapLabel : SENSORARRAY_NA);
+            }
+            return;
+        }
+        lastErr = err;
+        lastReason = reason;
+        if ((i + 1u) < (sizeof(clockCandidates) / sizeof(clockCandidates[0]))) {
+            printf("ICLK,stage=fallback,bus=%d,addr=0x%02X,from=%lu,to=%lu,reason=%s,map=%s\n",
+                   bus,
+                   fdcState->i2cAddr,
+                   (unsigned long)hz,
+                   (unsigned long)clockCandidates[i + 1u],
+                   reason,
+                   mapLabel ? mapLabel : SENSORARRAY_NA);
+        }
+    }
+
+    printf("ICLK,stage=failed,bus=%d,addr=0x%02X,err=0x%lx,reason=%s,action=continue_init_at_last_frequency,map=%s\n",
+           bus,
+           fdcState->i2cAddr,
+           (unsigned long)lastErr,
+           lastReason,
+           mapLabel ? mapLabel : SENSORARRAY_NA);
+}
+
 static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                                      bool addressValid,
                                      uint8_t requestedChannels,
@@ -220,6 +425,7 @@ static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
         return;
     }
 
+    sensorarrayProbeAndLockFdcI2cClock(fdcState, mapLabel);
     sensorarrayBringupProbeFdcBus(fdcState);
 
     sensorarrayFdcInitDiag_t diag = {0};
@@ -427,6 +633,32 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     return ESP_OK;
 }
 
+static void sensorarrayInitAsyncLogging(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+
+    ctx->asyncLogReady = false;
+    ctx->legacySyncOutput = CONFIG_SENSORARRAY_ASYNC_LOG_LEGACY_SYNC_OUTPUT != 0;
+    if (!CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE) {
+        printf("APP_LOG_INIT,mode=async_disabled,legacySync=%u\n",
+               ctx->legacySyncOutput ? 1u : 0u);
+        return;
+    }
+
+    esp_err_t err = sensorarrayAsyncLogInit();
+    if (err == ESP_OK) {
+        ctx->asyncLogReady = true;
+        ctx->legacySyncOutput = false;
+        return;
+    }
+
+    ctx->legacySyncOutput = true;
+    printf("APP_LOG_INIT_FAIL,err=0x%lx,action=legacy_sync_output,warning=printf_blocks_measurement\n",
+           (unsigned long)err);
+}
+
 static void sensorarrayBuildDefaultScanPlan(sensorarrayAppContext_t *ctx)
 {
     if (ctx) {
@@ -576,6 +808,42 @@ static void sensorarrayRuntimeRescueTick(sensorarrayAppContext_t *ctx)
     }
 }
 
+static void sensorarrayRuntimeI2cFallbackTick(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx || !CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE) {
+        return;
+    }
+    bool frameHasI2cError =
+        ctx->frame.i2cErrorCount != 0u ||
+        ctx->frame.firstReadErr == ESP_ERR_TIMEOUT ||
+        ctx->frame.firstReadErr == ESP_FAIL;
+    if (!frameHasI2cError) {
+        ctx->runtimeI2cErrorStreak = 0u;
+        return;
+    }
+
+    if (ctx->runtimeI2cErrorStreak < UINT32_MAX) {
+        ctx->runtimeI2cErrorStreak++;
+    }
+    uint32_t threshold = (uint32_t)CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES;
+    if (threshold == 0u) {
+        threshold = 3u;
+    }
+    if (ctx->runtimeI2cErrorStreak < threshold) {
+        return;
+    }
+
+    printf("ICLK,stage=runtime_fallback_begin,streak=%lu,threshold=%lu,seq=%lu,i2cErrorCount=%u,firstReadErr=0x%lx\n",
+           (unsigned long)ctx->runtimeI2cErrorStreak,
+           (unsigned long)threshold,
+           (unsigned long)ctx->frame.sequence,
+           (unsigned)ctx->frame.i2cErrorCount,
+           (unsigned long)ctx->frame.firstReadErr);
+    sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcPrimary, "runtime_primary_reverify");
+    sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcSecondary, "runtime_secondary_reverify");
+    ctx->runtimeI2cErrorStreak = 0u;
+}
+
 static void sensorarrayRunQueuedFullSweep(sensorarrayAppContext_t *ctx)
 {
     if (!ctx || !sensorarrayFdcSweepConsumeForceFullSweepAll()) {
@@ -693,40 +961,61 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 
         int64_t frameStartUs = esp_timer_get_time();
         esp_err_t err = sensorarrayRunOneFrame(ctx);
+        uint64_t measureFrameUs = (uint64_t)(esp_timer_get_time() - frameStartUs);
         ctx->fdcFrameCounter++;
 
         bool allInvalid = ctx->frame.capValidMask == 0u;
         if (allInvalid) {
-            uint8_t invalidSentinelCount =
-                (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - ctx->frame.validCount);
-            printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
-                   (unsigned long)ctx->frame.sequence,
-                   (unsigned long long)ctx->frame.errorMask,
-                   (unsigned long)err,
-                   ctx->fdcBootSweepOk ? 1u : 0u,
-                   (unsigned)ctx->frame.freshCount,
-                   (unsigned)ctx->frame.hardwareZeroRawCount,
-                   (unsigned)ctx->frame.notReadyCount,
-                   (unsigned)ctx->frame.zeroBeforeReadyCount,
-                   (unsigned)ctx->frame.zeroAfterDrdyCount,
-                   (unsigned)ctx->frame.i2cErrorCount,
-                   (unsigned)ctx->frame.unreadWithoutDrdyCount,
-                   (unsigned)ctx->frame.softInvalidCount,
-                   (unsigned)ctx->frame.hardInvalidCount,
-                   (unsigned)ctx->frame.staleUnreadDrainCount,
-                   (unsigned)invalidSentinelCount,
-                   sensorarrayFrameRawAllZero(&ctx->frame) ? 1u : 0u);
+            bool rawAllZero = sensorarrayFrameRawAllZero(&ctx->frame);
+            if (ctx->asyncLogReady) {
+                (void)sensorarrayAsyncLogPublishFrameError(&ctx->frame,
+                                                           err,
+                                                           rawAllZero,
+                                                           ctx->fdcBootSweepOk);
+            } else {
+                uint8_t invalidSentinelCount =
+                    (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - ctx->frame.validCount);
+                printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
+                       (unsigned long)ctx->frame.sequence,
+                       (unsigned long long)ctx->frame.errorMask,
+                       (unsigned long)err,
+                       ctx->fdcBootSweepOk ? 1u : 0u,
+                       (unsigned)ctx->frame.freshCount,
+                       (unsigned)ctx->frame.hardwareZeroRawCount,
+                       (unsigned)ctx->frame.notReadyCount,
+                       (unsigned)ctx->frame.zeroBeforeReadyCount,
+                       (unsigned)ctx->frame.zeroAfterDrdyCount,
+                       (unsigned)ctx->frame.i2cErrorCount,
+                       (unsigned)ctx->frame.unreadWithoutDrdyCount,
+                       (unsigned)ctx->frame.softInvalidCount,
+                       (unsigned)ctx->frame.hardInvalidCount,
+                       (unsigned)ctx->frame.staleUnreadDrainCount,
+                       (unsigned)invalidSentinelCount,
+                       rawAllZero ? 1u : 0u);
+            }
         } else if (err != ESP_OK) {
-            ESP_LOGE("SensorArray",
-                     "FRAME_ERROR,err=0x%lx,validMask=0x%016llX,errorMask=0x%016llX",
-                     (unsigned long)err,
-                     (unsigned long long)ctx->frame.capValidMask,
-                     (unsigned long long)ctx->frame.errorMask);
+            if (ctx->asyncLogReady) {
+                (void)sensorarrayAsyncLogPublishFrameError(&ctx->frame,
+                                                           err,
+                                                           false,
+                                                           ctx->fdcBootSweepOk);
+            } else {
+                ESP_LOGE("SensorArray",
+                         "FRAME_ERROR,err=0x%lx,validMask=0x%016llX,errorMask=0x%016llX",
+                         (unsigned long)err,
+                         (unsigned long long)ctx->frame.capValidMask,
+                         (unsigned long long)ctx->frame.errorMask);
+            }
         }
 
-        (void)sensorarrayFrameOutputPrint(&ctx->frame);
+        if (ctx->asyncLogReady) {
+            (void)sensorarrayAsyncLogPublishFrameSnapshot(&ctx->frame, measureFrameUs);
+        } else if (ctx->legacySyncOutput) {
+            (void)sensorarrayFrameOutputPrint(&ctx->frame);
+        }
         sensorarrayRuntimeRescueTick(ctx);
-        sensorarrayDelayFramePeriodSince(frameStartUs, ctx->frame.sequence);
+        sensorarrayRuntimeI2cFallbackTick(ctx);
+        sensorarrayDelayFramePeriodSince(ctx, frameStartUs, ctx->frame.sequence);
     }
 }
 
@@ -759,6 +1048,7 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
     }
 
     sensorarrayBuildDefaultScanPlan(ctx);
+    sensorarrayInitAsyncLogging(ctx);
     return ESP_OK;
 }
 

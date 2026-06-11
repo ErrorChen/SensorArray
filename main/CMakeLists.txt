@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "main.c"
         "sensorarrayLog.c"
+        "output/sensorarrayAsyncLog.c"
         "output/sensorarrayFrameOutput.c"
         "../core/board/sensorarrayBoardMap.c"
         "../core/board/sensorarrayBringup.c"

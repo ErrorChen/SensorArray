@@ -20,6 +20,31 @@ config BOARD_I2C_FREQ_HZ
     help
         Compatibility fallback used when per-bus frequencies are not configured.
 
+config BOARD_I2C_AUTO_FALLBACK_ENABLE
+    bool "Enable I2C clock probe and fallback"
+    default y
+
+config BOARD_I2C_FALLBACK_LEVELS
+    string "Documented I2C fallback levels"
+    default "350000,337500,325000,300000"
+    help
+        The firmware probes these fixed levels in order during FDC bring-up.
+
+config BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT
+    int "Primary I2C probe starting frequency (Hz)"
+    default 350000
+    range 100000 1000000
+
+config BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT
+    int "Secondary I2C probe starting frequency (Hz)"
+    default 350000
+    range 100000 1000000
+
+config BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES
+    int "Consecutive runtime I2C error frames before fallback is allowed"
+    default 3
+    range 1 32
+
 config BOARD_I2C_FREQ_HZ_TEST_337500
     bool "Document/test 337500 Hz I2C setting"
     default y

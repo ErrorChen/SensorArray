@@ -123,7 +123,6 @@ typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
     SemaphoreHandle_t mutex;
     Fdc2214CapI2cStats_t i2cStats;
-    uint8_t burst4State;
 } Fdc2214CapDevice_t;
 
 typedef struct {
@@ -540,40 +539,6 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
     FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
                  dev->bus.I2cAddress7,
                  (long)err);
-    return err;
-}
-
-static esp_err_t Fdc2214CapReadRegisters(Fdc2214CapDevice_t* dev,
-                                         const uint8_t* registers,
-                                         size_t registerCount,
-                                         uint8_t* rx)
-{
-    if (!dev || !registers || registerCount == 0u || !rx) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    if (!dev->bus.ReadRegisters) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    esp_err_t err = Fdc2214CapLock(dev);
-    if (err != ESP_OK) {
-        return err;
-    }
-    int64_t startUs = esp_timer_get_time();
-    err = dev->bus.ReadRegisters(dev->bus.UserCtx,
-                                 dev->bus.I2cAddress7,
-                                 registers,
-                                 registerCount,
-                                 rx);
-    uint64_t elapsedUs = Fdc2214CapElapsedUs(startUs);
-    Fdc2214CapUnlock(dev);
-    Fdc2214CapAccumulateI2cStats(dev, true, registerCount, registerCount * 2u, elapsedUs, err);
-    Fdc2214CapTraceRecord("read_registers",
-                          dev->bus.I2cAddress7,
-                          registerCount,
-                          registerCount * 2u,
-                          elapsedUs,
-                          err);
     return err;
 }
 
@@ -1902,76 +1867,7 @@ esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
     if (!dev || !outSamples) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (dev->burst4State == 2u && !dev->bus.ReadRegisters) {
-        return Fdc2214CapReadDataOrderedRegisters(dev, outSamples);
-    }
-
-    memset(outSamples, 0, sizeof(Fdc2214CapFastChannelSample_t) * 4u);
-    const uint8_t tx = FDC2214_REG_DATA_MSB_BASE;
-    static const uint8_t dataRegisters[8] = {0x00u, 0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u};
-    uint8_t rx[16] = {0};
-    esp_err_t err = dev->bus.ReadRegisters ?
-        Fdc2214CapReadRegisters(dev, dataRegisters, sizeof(dataRegisters), rx) :
-        Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, sizeof(rx));
-    if (err != ESP_OK) {
-        dev->i2cStats.retryCount++;
-        err = dev->bus.ReadRegisters ?
-            Fdc2214CapReadRegisters(dev, dataRegisters, sizeof(dataRegisters), rx) :
-            Fdc2214CapWriteReadBytes(dev, &tx, sizeof(tx), rx, sizeof(rx));
-    }
-    if (err != ESP_OK) {
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            outSamples[ch].errorMask = FDC2214CAP_FAST_ERROR_I2C;
-        }
-        return err;
-    }
-
-    for (uint8_t ch = 0u; ch < 4u; ++ch) {
-        size_t offset = (size_t)ch * 4u;
-        uint16_t msb = (uint16_t)(((uint16_t)rx[offset] << 8u) | rx[offset + 1u]);
-        uint16_t lsb = (uint16_t)(((uint16_t)rx[offset + 2u] << 8u) | rx[offset + 3u]);
-        outSamples[ch].dataMsb = msb;
-        outSamples[ch].dataLsb = lsb;
-        outSamples[ch].raw28 = ((uint32_t)(msb & FDC2214_DATA_MSB_MASK) << 16u) | lsb;
-        outSamples[ch].errWatchdog = (msb & FDC2214_DATA_ERR_WD_MASK) != 0u;
-        outSamples[ch].errAmplitude = (msb & FDC2214_DATA_ERR_AW_MASK) != 0u;
-    }
-
-    if (dev->burst4State == 0u && !dev->bus.ReadRegisters) {
-        bool tailAllFf = true;
-        for (size_t i = 4u; i < sizeof(rx); ++i) {
-            if (rx[i] != 0xFFu) {
-                tailAllFf = false;
-                break;
-            }
-        }
-        if (!tailAllFf) {
-            dev->burst4State = 1u;
-        } else {
-            Fdc2214CapFastChannelSample_t probe[4] = {0};
-            esp_err_t probeErr = Fdc2214CapReadDataOrderedRegisters(dev, probe);
-            bool differs = probeErr == ESP_OK &&
-                           (probe[1].dataMsb != outSamples[1].dataMsb ||
-                            probe[1].dataLsb != outSamples[1].dataLsb ||
-                            probe[2].dataMsb != outSamples[2].dataMsb ||
-                            probe[2].dataLsb != outSamples[2].dataLsb ||
-                            probe[3].dataMsb != outSamples[3].dataMsb ||
-                            probe[3].dataLsb != outSamples[3].dataLsb);
-            dev->burst4State = differs ? 2u : 1u;
-            printf("FDC_BURST,probe=tail_ff,direct=%04X/%04X,%04X/%04X,%04X/%04X,action=%s\n",
-                   probe[1].dataMsb,
-                   probe[1].dataLsb,
-                   probe[2].dataMsb,
-                   probe[2].dataLsb,
-                   probe[3].dataMsb,
-                   probe[3].dataLsb,
-                   differs ? "fallback_ordered_registers" : "keep_burst");
-            if (differs) {
-                memcpy(outSamples, probe, sizeof(probe));
-            }
-        }
-    }
-    return ESP_OK;
+    return Fdc2214CapReadDataOrderedRegisters(dev, outSamples);
 }
 
 esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev,

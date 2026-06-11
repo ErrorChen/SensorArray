@@ -84,6 +84,9 @@ const BoardSupportI2cCtx_t* boardSupportGetI2c1Ctx(void);
 bool boardSupportGetI2cBusInfo(bool secondary, BoardSupportI2cBusInfo_t *outInfo);
 // Recover an initialized board-level I2C bus after a timed-out or failed transaction.
 esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx);
+// Reinstall an initialized I2C bus at a new frequency. The bus is locked during
+// delete/config/install and callers must re-verify attached devices afterwards.
+esp_err_t boardSupportSetI2cFrequency(const BoardSupportI2cCtx_t *ctx, uint32_t frequencyHz);
 
 // Convenience I2C callbacks matching Fdc2214Cap bus config signatures.
 esp_err_t boardSupportI2cWriteRead(void* userCtx,
@@ -97,13 +100,6 @@ esp_err_t boardSupportI2cWrite(void* userCtx,
                               uint8_t addr7,
                               const uint8_t* tx,
                               size_t txLen);
-
-// Read an ordered list of 16-bit registers in one bus-locked I2C command.
-esp_err_t boardSupportI2cReadRegisters(void* userCtx,
-                                      uint8_t addr7,
-                                      const uint8_t* registers,
-                                      size_t registerCount,
-                                      uint8_t* rx);
 
 esp_err_t boardSupportI2cRead(void* userCtx,
                              uint8_t addr7,
