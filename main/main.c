@@ -16,6 +16,7 @@
 #include "tmuxSwitch.h"
 
 #include "sensorarrayAdsMatrix.h"
+#include "sensorarrayAdsGap.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
@@ -28,6 +29,7 @@
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayMixedRow.h"
+#include "sensorarrayNetStatus.h"
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
 
@@ -102,6 +104,7 @@ typedef struct {
 
 static sensorarrayAppContext_t s_appContext;
 static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
+static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
 
 static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
 {
@@ -1067,6 +1070,17 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
         sensorarrayLogStartup("ads_matrix_engine", err, "init_failed", (int32_t)err);
         return err;
     }
+    esp_err_t adsGapErr = sensorarrayAdsGapInit(&ctx->state);
+    printf("ADS_PINMAP,start=%d,drdy=%d,cs=%d,sclk=%d,din=%d,dout=%d,core=%d,gapInit=0x%lx,dma=%u\n",
+           CONFIG_SENSORARRAY_ADS_START_GPIO,
+           CONFIG_SENSORARRAY_ADS_DRDY_GPIO,
+           CONFIG_BOARD_ADS126X_CS_GPIO,
+           CONFIG_BOARD_SPI_SCLK_GPIO,
+           CONFIG_BOARD_SPI_MOSI_GPIO,
+           CONFIG_BOARD_SPI_MISO_GPIO,
+           (int)xPortGetCoreID(),
+           (unsigned long)adsGapErr,
+           ctx->state.ads.spiDmaCapable ? 1u : 0u);
     sensorarrayFdcRescueReset(&ctx->fdcRescue);
     return ESP_OK;
 }
@@ -1462,10 +1476,40 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 static void sensorarrayScanTask(void *arg)
 {
     sensorarrayAppContext_t *ctx = (sensorarrayAppContext_t *)arg;
-    printf("APP_SCAN_TASK,stage=start,core=%d,priority=%u,stackBytes=%u\n",
+    printf("TASKCORE,name=acquisition,core=%d,expected=%d,priority=%u,stackBytes=%u\n",
            (int)xPortGetCoreID(),
+           CONFIG_SENSORARRAY_ADC_CORE,
            (unsigned)uxTaskPriorityGet(NULL),
            (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
+
+    esp_err_t initErr = sensorarrayInitSystem(ctx);
+    if (initErr != ESP_OK) {
+        printf("APP_FATAL,stage=acquisition_init,err=%ld,action=safe_idle_no_restart\n",
+               (long)initErr);
+        for (;;) {
+            vTaskDelay(portMAX_DELAY);
+        }
+    }
+
+    sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", ctx);
+    esp_err_t bootErr = sensorarrayRunBootCalibration(ctx);
+    sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", ctx);
+    if (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
+        (bootErr != ESP_OK || ctx->fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
+        ctx->fdcDiagnosticMode = true;
+        sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
+    }
+
+    esp_err_t netErr = sensorarrayNetStatusInit();
+    if (netErr != ESP_OK && netErr != ESP_ERR_NOT_SUPPORTED) {
+        printf("NET_WARN,stage=task_init,err=0x%lx,action=continue_acquisition\n",
+               (unsigned long)netErr);
+    }
+
+    sensorarrayFdcMapVerifyDebug();
+    if (sensorarrayFdcWaveDebugEnabled()) {
+        sensorarrayRunFdcWaveDebugLoop(ctx);
+    }
     sensorarrayRunMainLoop(ctx);
     vTaskDelete(NULL);
 }
@@ -1524,37 +1568,16 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
 
 void app_main(void)
 {
-    sensorarrayLogRuntimeMemoryDiag("app_main_entry_before_clear", &s_appContext);
     memset(&s_appContext, 0, sizeof(s_appContext));
-    sensorarrayLogRuntimeMemoryDiag("app_main_after_clear", &s_appContext);
-
-    esp_err_t initErr = sensorarrayInitSystem(&s_appContext);
-    if (initErr != ESP_OK) {
-        printf("APP_FATAL,stage=init,err=%ld,action=safe_idle_no_restart\n",
-               (long)initErr);
-        while (true) {
-            printf("APP_FATAL,stage=idle,err=%ld,boardReady=%u,frontendsReady=%u,fdcDiagnosticMode=%u\n",
-                   (long)initErr,
-                   s_appContext.state.boardReady ? 1u : 0u,
-                   (s_appContext.state.adsReady || s_appContext.state.fdcPrimary.ready || s_appContext.state.fdcSecondary.ready) ? 1u : 0u,
-                   s_appContext.fdcDiagnosticMode ? 1u : 0u);
-            vTaskDelay(pdMS_TO_TICKS(1000u));
-        }
-    }
-    sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", &s_appContext);
-    esp_err_t bootErr = sensorarrayRunBootCalibration(&s_appContext);
-    sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", &s_appContext);
-    if (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
-        (bootErr != ESP_OK ||
-         s_appContext.fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
-        s_appContext.fdcDiagnosticMode = true;
-        sensorarrayFdcMatrixEngineSetDiagnosticMode(&s_appContext.fdcEngine, true);
-    }
-
-    sensorarrayFdcMapVerifyDebug();
-    if (sensorarrayFdcWaveDebugEnabled()) {
-        sensorarrayRunFdcWaveDebugLoop(&s_appContext);
-    }
+    printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
+           CONFIG_SENSORARRAY_ADC_CORE,
+           CONFIG_SENSORARRAY_MISC_CORE,
+           CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE,
+           CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE,
+           CONFIG_SENSORARRAY_ADS_WORKER_CORE,
+           CONFIG_SENSORARRAY_LOG_TASK_CORE,
+           CONFIG_SENSORARRAY_OUTPUT_TASK_CORE,
+           CONFIG_SENSORARRAY_NET_TASK_CORE);
 
     esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
     if (scanErr != ESP_OK) {

@@ -10,11 +10,12 @@
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
+#include "freertos/event_groups.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #include "sensorarrayBoardMap.h"
+#include "sensorarrayAdsGap.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayLog.h"
@@ -806,15 +807,6 @@ typedef struct {
     bool intbIsrAttached;
     sensorarrayFdcDeviceId_t devId;
     int intbGpio;
-    QueueHandle_t queue;
-    StaticQueue_t queueStorage;
-    uint8_t queueBuffer[SENSORARRAY_FDC_WORKER_QUEUE_DEPTH * sizeof(sensorarrayFdcWorkerJob_t)];
-    SemaphoreHandle_t sleepAck;
-    StaticSemaphore_t sleepAckStorage;
-    SemaphoreHandle_t start;
-    StaticSemaphore_t startStorage;
-    SemaphoreHandle_t done;
-    StaticSemaphore_t doneStorage;
     TaskHandle_t task;
     StaticTask_t taskStorage;
     StackType_t stack[SENSORARRAY_FDC_WORKER_STACK_WORDS];
@@ -833,6 +825,7 @@ typedef struct {
     volatile int preparedErr;
     volatile bool rowConfigPrepared;
     volatile uint32_t generation;
+    volatile sensorarrayFdcWorkerJob_t *job;
 } sensorarrayFdcWorkerContext_t;
 
 typedef struct {
@@ -856,6 +849,8 @@ static sensorarrayFdcWorkerContext_t s_fdcWorkers[2] = {
 };
 static bool s_fdcWorkersInitAttempted = false;
 static bool s_fdcWorkersAvailable = false;
+static StaticEventGroup_t s_fdcWorkerEventStorage;
+static EventGroupHandle_t s_fdcWorkerEvents;
 static bool s_fdcFormalPrecheckDone = false;
 static bool s_fdcSecondaryUnavailableLogged = false;
 static bool s_fdcParallelConfigLogged = false;
@@ -2500,15 +2495,6 @@ static esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *stat
     return firstErr;
 }
 
-static void sensorarrayMeasureDrainSemaphore(SemaphoreHandle_t sem)
-{
-    if (!sem) {
-        return;
-    }
-    while (xSemaphoreTake(sem, 0) == pdTRUE) {
-    }
-}
-
 static esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void)
 {
     if (s_fdcGpioIsrServiceInstalled) {
@@ -2716,22 +2702,7 @@ static void sensorarrayMeasureCleanupFdcWorkers(void)
         }
         ctx->initialized = false;
         ctx->waitTask = NULL;
-        if (ctx->queue) {
-            vQueueDelete(ctx->queue);
-            ctx->queue = NULL;
-        }
-        if (ctx->sleepAck) {
-            vSemaphoreDelete(ctx->sleepAck);
-            ctx->sleepAck = NULL;
-        }
-        if (ctx->start) {
-            vSemaphoreDelete(ctx->start);
-            ctx->start = NULL;
-        }
-        if (ctx->done) {
-            vSemaphoreDelete(ctx->done);
-            ctx->done = NULL;
-        }
+        ctx->job = NULL;
     }
 }
 
@@ -3471,6 +3442,42 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         .cacheRestartRows = timing.cacheApplyRestartCount,
         .cacheSkipRows = timing.cacheApplyNoDiffCount,
     };
+
+    const sensorarrayFdcProfileSnapshot_t *slowProfile = NULL;
+    for (uint8_t profileRow = 0u; profileRow < SENSORARRAY_MATRIX_ROWS; ++profileRow) {
+        for (uint8_t profileDev = 0u; profileDev < 2u; ++profileDev) {
+            const sensorarrayFdcProfileSnapshot_t *candidate =
+                &s_fdcProfileSnapshotByRow[profileRow][profileDev];
+            if (candidate->valid &&
+                (!slowProfile || candidate->autoscanRoundUs > slowProfile->autoscanRoundUs)) {
+                slowProfile = candidate;
+            }
+        }
+    }
+    if (slowProfile) {
+        outFrame->fdcTheoryReadyUs = slowProfile->autoscanRoundUs;
+        outFrame->fdcTheoryFrameReadyUs = slowProfile->autoscanRoundUs * SENSORARRAY_MATRIX_ROWS;
+        outFrame->fdcRcount = slowProfile->rCount[0];
+        outFrame->fdcSettleCount = slowProfile->settleCount[0];
+        outFrame->fdcClockDividers = slowProfile->clockDividers[0];
+        outFrame->fdcDriveCurrent = slowProfile->driveCurrent[0];
+        outFrame->fdcDeglitch = slowProfile->deglitchCode[0];
+        outFrame->fdcFrefHz = (uint32_t)sensorarrayMeasureFdcFrefDividerFromClockDiv(
+            slowProfile->clockDividers[0]);
+        if (outFrame->fdcFrefHz != 0u) {
+            outFrame->fdcFrefHz = slowProfile->effectiveFclkHz[0] / outFrame->fdcFrefHz;
+        }
+        for (uint8_t profileCh = 0u; profileCh < 4u; ++profileCh) {
+            if (slowProfile->chSwitchUs[profileCh] > outFrame->fdcTheorySwitchDelayUs) {
+                outFrame->fdcTheorySwitchDelayUs = slowProfile->chSwitchUs[profileCh];
+            }
+        }
+    }
+    outFrame->fdcConfig = state->fdcAppliedRow[SENSORARRAY_FDC_DEV_PRIMARY].configBaseWithoutSleepBit;
+    outFrame->fdcMuxConfig = state->fdcAppliedRow[SENSORARRAY_FDC_DEV_PRIMARY].muxConfig;
+    outFrame->fdcSensorActivateFullCurrent = (outFrame->fdcConfig & (1u << 11)) == 0u;
+    outFrame->fdcHighCurrentDrive = (outFrame->fdcConfig & SENSORARRAY_FDC_CONFIG_HIGH_CURRENT_DRV_MASK) != 0u;
+    sensorarrayAdsGapCopySnapshot(&outFrame->adsGap, outFrame->sequence);
 
     if (CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG &&
         timing.frameUs > (uint64_t)CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US) {

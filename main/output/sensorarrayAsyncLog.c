@@ -8,13 +8,16 @@
 #include <string.h>
 
 #include "esp_timer.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "boardSupport.h"
+#include "sensorarrayAdsGap.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameOutput.h"
+#include "sensorarrayNetStatus.h"
 #include "sensorarrayTypes.h"
 
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE
@@ -146,6 +149,24 @@ typedef struct {
     uint32_t queueDepthMax;
     sensorarrayFdcFrameTelemetry_t telemetry;
     uint64_t cacheApplyI2cMaxUs;
+    sensorarrayAdsGapSnapshot_t adsGapStart;
+    sensorarrayAdsGapSnapshot_t adsGap;
+    uint32_t adsOffsetCount;
+    double adsOffsetMean;
+    double adsOffsetM2;
+    uint32_t fdcTheoryReadyUs;
+    uint32_t fdcTheoryFrameReadyUs;
+    uint32_t fdcTheorySwitchDelayUs;
+    uint32_t fdcFrefHz;
+    uint16_t fdcRcount;
+    uint16_t fdcSettleCount;
+    uint16_t fdcClockDividers;
+    uint16_t fdcDriveCurrent;
+    uint16_t fdcConfig;
+    uint16_t fdcMuxConfig;
+    uint8_t fdcDeglitch;
+    bool fdcSensorActivateFullCurrent;
+    bool fdcHighCurrentDrive;
 } sensorarrayAsyncLogSummary_t;
 
 typedef struct {
@@ -434,7 +455,7 @@ static void sensorarrayAsyncLogSummarySetBaseline(sensorarrayAsyncLogSummary_t *
 }
 
 static void sensorarrayAsyncLogSummaryBegin(sensorarrayAsyncLogSummary_t *summary,
-                                            const sensorarrayFrame_t *frame)
+                                             const sensorarrayFrame_t *frame)
 {
     if (!summary || !frame) {
         return;
@@ -480,6 +501,8 @@ static void sensorarrayAsyncLogSummaryBegin(sensorarrayAsyncLogSummary_t *summar
         .droppedEventStart = droppedEventStart,
         .lastFrameStartUs = lastFrameStartUs,
         .lastEmitUs = lastEmitUs,
+        .adsGapStart = frame->adsGap,
+        .adsGap = frame->adsGap,
     };
 }
 
@@ -634,6 +657,28 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
     if (frame->telemetry.cacheApplyI2cUs > summary->cacheApplyI2cMaxUs) {
         summary->cacheApplyI2cMaxUs = frame->telemetry.cacheApplyI2cUs;
     }
+    summary->adsGap = frame->adsGap;
+    if (frame->adsGap.initialized && frame->adsGap.jobsRun != 0u) {
+        summary->adsOffsetCount++;
+        double offsetUv = (double)frame->adsGap.ain9OffsetUv;
+        double delta = offsetUv - summary->adsOffsetMean;
+        summary->adsOffsetMean += delta / (double)summary->adsOffsetCount;
+        double delta2 = offsetUv - summary->adsOffsetMean;
+        summary->adsOffsetM2 += delta * delta2;
+    }
+    summary->fdcTheoryReadyUs = frame->fdcTheoryReadyUs;
+    summary->fdcTheoryFrameReadyUs = frame->fdcTheoryFrameReadyUs;
+    summary->fdcTheorySwitchDelayUs = frame->fdcTheorySwitchDelayUs;
+    summary->fdcFrefHz = frame->fdcFrefHz;
+    summary->fdcRcount = frame->fdcRcount;
+    summary->fdcSettleCount = frame->fdcSettleCount;
+    summary->fdcClockDividers = frame->fdcClockDividers;
+    summary->fdcDriveCurrent = frame->fdcDriveCurrent;
+    summary->fdcConfig = frame->fdcConfig;
+    summary->fdcMuxConfig = frame->fdcMuxConfig;
+    summary->fdcDeglitch = frame->fdcDeglitch;
+    summary->fdcSensorActivateFullCurrent = frame->fdcSensorActivateFullCurrent;
+    summary->fdcHighCurrentDrive = frame->fdcHighCurrentDrive;
 }
 
 static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *summary)
@@ -908,12 +953,118 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
            (unsigned long)s_precisionWindow.invalidCells,
            precisionGuardPass ? "pass" : "fail");
 
+    uint64_t readyWaitAvgUs = rowDeviceCount ?
+        telemetry->readyWaitUs / (rowDeviceCount * 2u) : 0u;
+    uint64_t dataReadAvgUs = rowDeviceCount ?
+        telemetry->dataReadUs / (rowDeviceCount * 2u) : 0u;
+    int64_t theoryGapUs = (int64_t)readyWaitAvgUs - (int64_t)summary->fdcTheoryReadyUs;
+    printf("FDCSPD20,rCnt=0x%04X,setCnt=0x%04X,act=%s,hiDrv=%u,idrive=0x%04X,deglitch=%u,fref=%lu,theoryReadyUs=%lu,theoryFrameUs=%lu,switchDelayUs=%lu,readyWaitUsAvg=%llu,dataReadUsAvg=%llu,coordUsAvg=%llu,gapUs=%lld,profile=%s,safeFast=%s,config=0x%04X,mux=0x%04X\n",
+           summary->fdcRcount,
+           summary->fdcSettleCount,
+           summary->fdcSensorActivateFullCurrent ? "full" : "low",
+           summary->fdcHighCurrentDrive ? 1u : 0u,
+           summary->fdcDriveCurrent,
+           (unsigned)summary->fdcDeglitch,
+           (unsigned long)summary->fdcFrefHz,
+           (unsigned long)summary->fdcTheoryReadyUs,
+           (unsigned long)summary->fdcTheoryFrameReadyUs,
+           (unsigned long)summary->fdcTheorySwitchDelayUs,
+           (unsigned long long)readyWaitAvgUs,
+           (unsigned long long)dataReadAvgUs,
+           (unsigned long long)coordinatorResidualAvgUs,
+           (long long)theoryGapUs,
+           CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
+           CONFIG_SENSORARRAY_FDC_SPEED_PROFILE_SAFE_FAST ? "report-only" : "off",
+           summary->fdcConfig,
+           summary->fdcMuxConfig);
+
+    const sensorarrayAdsGapSnapshot_t *ads = &summary->adsGap;
+    uint32_t gapWindows = ads->windows - summary->adsGapStart.windows;
+    uint32_t gapRun = ads->jobsRun - summary->adsGapStart.jobsRun;
+    uint32_t gapSkip = ads->jobsSkip - summary->adsGapStart.jobsSkip;
+    uint32_t gapOverrun = ads->overrunCount - summary->adsGapStart.overrunCount;
+    uint32_t dmaReads = ads->dmaReadCount - summary->adsGapStart.dmaReadCount;
+    uint64_t dmaReadUs = ads->dmaReadUs - summary->adsGapStart.dmaReadUs;
+    printf("ACQGAP20,windows=%lu,adsJobsRun=%lu,adsJobsSkip=%lu,adsOverrun=%lu,guardUs=%lu,avgSlackUs=%lu,minSlackUs=%lu,fallbackToBoundary=%u,fdcMask=0x%02X,adsMask=0x%02X\n",
+           (unsigned long)gapWindows,
+           (unsigned long)gapRun,
+           (unsigned long)gapSkip,
+           (unsigned long)gapOverrun,
+           (unsigned long)ads->guardUs,
+           (unsigned long)ads->avgSlackUs,
+           (unsigned long)ads->minSlackUs,
+           ads->fallbackToBoundary ? 1u : 0u,
+           (unsigned)SENSORARRAY_FDC_ROW_RESOURCE_MASK,
+           (unsigned)SENSORARRAY_ADS_DIRECT_RESOURCE_MASK);
+    printf("ADSDMA20,dmaReadUsAvg=%llu,pollReadUsAvg=0,selected=%s,spiErr=%lu,drdyTimeout=%lu\n",
+           (unsigned long long)(dmaReads ? dmaReadUs / dmaReads : 0u),
+           ads->dmaCapable ? "dma" : "unavailable",
+           (unsigned long)ads->spiErrorCount,
+           (unsigned long)ads->drdyTimeoutCount);
+    double adsOffsetStdUv = summary->adsOffsetCount > 1u ?
+        sqrt(summary->adsOffsetM2 / (double)(summary->adsOffsetCount - 1u)) : 0.0;
+    printf("ADS20,start=%d,drdy=%d,init=%u,type=ADS1263,id=0x%02X,adc=ADC1,dma=%u,rate=%lu,ain9OffsetUv=%ld,ain9StdUv=%.1f,ain8RawUv=%ld,battMv=%ld,battValid=%u,drdyTimeout=%lu,spiErr=%lu,diagAgeFrames=%lu,gapJobsRun=%lu,gapJobsSkip=%lu,gapOverrun=%lu\n",
+           CONFIG_SENSORARRAY_ADS_START_GPIO,
+           CONFIG_SENSORARRAY_ADS_DRDY_GPIO,
+           ads->initialized ? 1u : 0u,
+           ads->id,
+           ads->dmaCapable ? 1u : 0u,
+           (unsigned long)ads126xAdcDataRateCodeToSps(ads->rateCode),
+           (long)ads->ain9OffsetUv,
+           adsOffsetStdUv,
+           (long)ads->ain8RawUv,
+           (long)ads->batteryMv,
+           ads->batteryValid ? 1u : 0u,
+           (unsigned long)ads->drdyTimeoutCount,
+           (unsigned long)ads->spiErrorCount,
+           (unsigned long)ads->sampleAgeFrames,
+           (unsigned long)gapRun,
+           (unsigned long)gapSkip,
+           (unsigned long)gapOverrun);
+
+    sensorarrayNetStatus_t netStatus = {
+        .timestampUs = summary->lastFrameStartUs,
+        .sequence = summary->seqEnd,
+        .physFpsX100 = (uint32_t)physicalFpsX100,
+        .cellFreshFpsX100 = (uint32_t)cellFreshFpsX100,
+        .emitFpsX100 = (uint32_t)outputFpsX100,
+        .rowStepUsAvg = (uint32_t)rowStepAvgUs,
+        .readyWaitUsAvg = (uint32_t)readyWaitAvgUs,
+        .dataReadUsAvg = (uint32_t)dataReadAvgUs,
+        .coordinatorResidualUsAvg = (uint32_t)coordinatorResidualAvgUs,
+        .sequenceFallbacks = telemetry->i2cSequenceFallbackCount,
+        .sequenceErrors = telemetry->i2cSequenceErrorCount,
+        .nack = telemetry->i2cNackCount,
+        .timeout = telemetry->i2cTimeoutCount,
+        .recover = telemetry->i2cRecoveryCount,
+        .directValidRateX100 = (uint32_t)directValidRateX100,
+        .pfStdAvgNano = (uint32_t)(pfStdAvg * 1000000000.0),
+        .pfStdMaxNano = (uint32_t)(pfStdMax * 1000000000.0),
+        .adsAin8RawUv = ads->ain8RawUv,
+        .batteryMv = ads->batteryMv,
+        .adsAin9OffsetUv = ads->ain9OffsetUv,
+        .heapFree = esp_get_free_heap_size(),
+        .heapMin = esp_get_minimum_free_heap_size(),
+        .logStackHighWater = uxTaskGetStackHighWaterMark(NULL),
+        .rowFreshMask = rowFreshMaskBad == 0u ? 0xFFu : 0u,
+        .primaryFreshMask = primaryFreshMaskBad == 0u ? 0xFFu : 0u,
+        .secondaryFreshMask = secondaryFreshMaskBad == 0u ? 0xFFu : 0u,
+        .stale = staleFrames != 0u,
+        .mixed = mixedFrames != 0u,
+        .precisionPass = precisionGuardPass,
+        .batteryValid = ads->batteryValid,
+    };
+    (void)sensorarrayNetStatusPublish(&netStatus);
+
     sensorarrayAsyncLogSummarySetBaseline(summary, &stats);
 }
 
 static void sensorarrayAsyncLogTask(void *arg)
 {
     (void)arg;
+    printf("TASKCORE,name=log,core=%d,expected=%d\n",
+           (int)xPortGetCoreID(),
+           CONFIG_SENSORARRAY_LOG_TASK_CORE);
     sensorarrayAsyncLogSummary_t summary = {0};
     sensorarrayFrame_t frame;
     uint32_t framesSinceIdleYield = 0u;

@@ -1536,3 +1536,111 @@ work would require reducing lower-level I2C driver overhead or changing the
 hardware/routing protocol. Lowering RCOUNT or SETTLECOUNT could shorten the
 conversion wait, but that is an explicit user-selected precision trade-off and
 remains disabled by default.
+
+## Asynchronous heterogeneous acquisition architecture
+
+The current architecture assigns all acquisition ownership to Core 1 and all
+non-real-time work to Core 0:
+
+- **ADC / Acquisition Core (Core 1):** TMUX1108 row selection, TMUX1134 route
+  ownership, FDC primary/secondary workers, both FDC I2C buses, INTB waits,
+  ADS1263 ADC1 initialization, START/DRDY handling, SPI DMA reads, and raw
+  frame/sample commits.
+- **Misc Core (Core 0):** 20-frame statistics, precision guard, text/binary
+  output, USB logging, compact status formatting, Wi-Fi, BLE, and network send.
+
+Core 1 must not format strings, print periodic logs, allocate memory in the hot
+path, calculate window statistics, or wait for Core 0. FDC frames use fixed,
+preallocated asynchronous slots. Compact network status uses a two-slot queue
+with drop-old/keep-new behavior. Network and output backpressure therefore
+cannot block acquisition.
+
+At boot, `COREMAP` reports the configured mapping. Each important task reports
+its actual core once using `TASKCORE`. The default mapping is:
+
+```text
+COREMAP,acq=1,misc=0,fdcP=1,fdcS=1,ads=1,log=0,out=0,net=0
+```
+
+### FDC timing model and safe-fast policy
+
+The timing estimator is implemented in
+`core/measure/fdc/sensorarrayFdcRowEpoch.inc` by
+`sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot()`. For each
+enabled autoscan channel it calculates:
+
+```text
+fREF(channel)       = selected reference clock / CHx_FREF_DIVIDER
+sensor settle time  = SETTLECOUNT_CHx * 16 / fREF
+conversion time     = RCOUNT_CHx * 16 / fREF
+channel switch time = datasheet switch delay, rounded up with a 2 us floor
+device autoscan set = sum of the enabled channel times
+row ready lower bound = max(primary device set, secondary device set)
+```
+
+`FDCSPD20` combines the register snapshot (`RCOUNT`, `SETTLECOUNT`,
+`CLOCK_DIVIDERS`, activation mode, high-current drive, `DRIVE_CURRENT`,
+deglitch, MUX/CONFIG, and actual `fREF`) with measured ready, data-read, and
+coordinator timing. `SENSOR_ACTIVATE_SEL` full-current activation is reported
+as a safe-fast candidate. `CONFIG_SENSORARRAY_FDC_SPEED_PROFILE_SAFE_FAST` is
+disabled by default and is report-only in this release. It does not
+automatically lower RCOUNT or SETTLECOUNT because automatic precision
+qualification and rollback are not yet complete.
+
+### ADS1263 direct diagnostics and gap fill
+
+The direct diagnostic path uses ADS1263 ADC1 only:
+
+- START: GPIO48, controlled only by Core 1.
+- DRDY: GPIO13 falling-edge interrupt; the ISR only notifies the acquisition
+  task.
+- ADC1: 32-bit, 38400 SPS default, gain 1, chop/IDAC rotation/REFOUT/VBIAS off,
+  AVDD/AVSS reference.
+- SPI reads: preallocated DMA-capable buffers and queued DMA transactions.
+- AIN9-AINCOM: zero-offset, drift, and ADC health only. It is not an absolute
+  AINCOM voltage measurement.
+- AIN8-AINCOM: raw battery input. Battery millivolts are valid only when
+  `CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM` and `_DEN` describe the
+  board divider. With the default unknown ratio, `battValid=0`.
+
+FDC row work owns `ROW_MUX|TMUX1134|FDC_ROUTE|FDC_I2C0|FDC_I2C1`. Direct ADS
+jobs own only `ADS_SPI|ADS_START`, so AIN8/AIN9 jobs may run inside the
+estimated FDC-ready window. Admission requires:
+
+```text
+ADS worst-case time + guardUs < remaining FDC wait
+```
+
+The initial guard is 500 us. An overrun increases the guard; three overruns
+disable gap jobs and set `fallbackToBoundary=1`. Jobs requiring TMUX1134 or an
+ADS matrix route are never run inside an FDC row conversion. Frame-boundary ADS
+matrix diagnostics are not implemented in this release.
+
+### Compact Wi-Fi and BLE status
+
+`CONFIG_SENSORARRAY_NET_ENABLE` is disabled by default for pure acquisition
+testing. When enabled, networking runs only on Core 0 and sends compact status
+every 20 frames, not the full 8x8 high-rate frame.
+
+- Wi-Fi SoftAP: `SensorArray_<last3bytesMac>`, configurable password, UDP
+  broadcast compact text status on port `3333` while a station is connected.
+- BLE GATT service: `0x00FF`; read-only text status characteristic `0xFF01`;
+  20-byte binary status notify characteristic `0xFF02`.
+- BLE 2M PHY and BLE transmit power are separate settings. The firmware
+  requests 2M on connection and falls back to 1M if unsupported. Coded PHY is
+  disabled by default because it favors range, not throughput.
+
+Wi-Fi/BLE initialization or send failures are counted and never fail the FDC
+acquisition path. The Wi-Fi+BLE build uses the repository `partitions.csv`
+with a 3 MiB factory application partition.
+
+### Added status records
+
+- `COREMAP`: configured acquisition/misc/task core mapping.
+- `FDCSPD20`: FDC register timing model and measured-vs-theory timing.
+- `ACQGAP20`: gap windows, ADS jobs, skips, overruns, guard, and slack.
+- `ADSDMA20`: DMA read time and ADS SPI/DRDY errors.
+- `ADS20`: ADS setup, offset/drift, AIN8 raw input, battery validity, and gap
+  counters.
+- `NET20`: SoftAP/client/send/drop/error status.
+- `BLE20`: advertising/connection/subscription/MTU/PHY/TX power/notify status.

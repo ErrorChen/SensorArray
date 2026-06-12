@@ -6,7 +6,51 @@ config SENSORARRAY_ENABLE_WIRED
 
 config SENSORARRAY_ENABLE_BLE
     bool "Enable BLE transport"
-    default y
+    default n
+
+menu "Multicore acquisition architecture"
+
+config SENSORARRAY_ADC_CORE
+    int "ADC / acquisition core"
+    default 1
+    range 0 1
+
+config SENSORARRAY_MISC_CORE
+    int "Misc / log / output / network core"
+    default 0
+    range 0 1
+
+config SENSORARRAY_FDC_PRIMARY_WORKER_CORE
+    int "Primary FDC worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_FDC_SECONDARY_WORKER_CORE
+    int "Secondary FDC worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_ADS_WORKER_CORE
+    int "ADS worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_LOG_TASK_CORE
+    int "Log task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+config SENSORARRAY_OUTPUT_TASK_CORE
+    int "Output task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+config SENSORARRAY_NET_TASK_CORE
+    int "Network task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+endmenu
 
 choice SENSORARRAY_ADS126X_VARIANT
     prompt "ADS126x variant"
@@ -257,12 +301,12 @@ config SENSORARRAY_FDC_WORKER_TASK_CORE
 
 config SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE
     int "Primary FDC worker task core (-1 means no affinity)"
-    default SENSORARRAY_SCAN_TASK_CORE
+    default SENSORARRAY_FDC_PRIMARY_WORKER_CORE
     range -1 1
 
 config SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE
     int "Secondary FDC worker task core (-1 means no affinity)"
-    default SENSORARRAY_COMM_TASK_CORE
+    default SENSORARRAY_FDC_SECONDARY_WORKER_CORE
     range -1 1
 
 config SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
@@ -1019,6 +1063,15 @@ config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
         SENSORARRAY_FDC_DEFAULT_PROFILE to select the normal matrix fallback
         profile. This option does not rescue profile_too_slow by itself.
 
+config SENSORARRAY_FDC_SPEED_PROFILE_SAFE_FAST
+    bool "Report precision-guarded safe-fast FDC profile candidates"
+    default n
+    help
+        Report safe-fast candidate status in FDCSPD20. This release deliberately
+        does not mutate RCOUNT or SETTLECOUNT at runtime: profile changes require
+        a completed precision-guard and rollback controller before they can be
+        applied without risking the primary FDC acquisition path.
+
 config SENSORARRAY_FDC_PRECISION_SAFE_SEQUENCE_ENABLE
     bool "Enable precision-safe ordered DATA register sequence probe"
     default y
@@ -1133,7 +1186,7 @@ config SENSORARRAY_ASYNC_LOG_TASK_PRIORITY
 
 config SENSORARRAY_ASYNC_LOG_TASK_CORE
     int "Async log task core (-1 means no affinity)"
-    default SENSORARRAY_COMM_TASK_CORE
+    default SENSORARRAY_LOG_TASK_CORE
     range -1 1
 
 config SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
@@ -1154,12 +1207,12 @@ menu "Scheduling"
 
 config SENSORARRAY_SCAN_TASK_CORE
     int "Scan task core id (0 or 1)"
-    default 1
+    default SENSORARRAY_ADC_CORE
     range 0 1
 
 config SENSORARRAY_COMM_TASK_CORE
     int "Comm task core id (0 or 1)"
-    default 0
+    default SENSORARRAY_MISC_CORE
     range 0 1
 
 config SENSORARRAY_BLE_TASK_CORE
@@ -1207,6 +1260,136 @@ config SENSORARRAY_SPI_USE_DMA
 config SENSORARRAY_SPI_MAX_TRANSFER_BYTES
     int "SPI max transfer size (bytes)"
     default 64
+
+endmenu
+
+menu "ADS1263 direct diagnostics / gap fill"
+
+config SENSORARRAY_ADS_GAP_FILL_ENABLE
+    bool "Run AIN8/AIN9 direct diagnostics inside FDC ready windows"
+    default n
+
+config SENSORARRAY_ADS_START_GPIO
+    int "ADS1263 START GPIO"
+    default 48
+    range 0 48
+
+config SENSORARRAY_ADS_DRDY_GPIO
+    int "ADS1263 DRDY GPIO"
+    default 13
+    range 0 48
+
+config SENSORARRAY_ADS_DATA_RATE
+    int "ADS1263 ADC1 data-rate register code"
+    default 15
+    range 0 15
+    help
+        15 selects 38400 SPS. ADC2 remains disabled.
+
+config SENSORARRAY_ADS_GAP_GUARD_US
+    int "Initial FDC deadline guard for ADS gap-fill (us)"
+    default 500
+    range 100 10000
+
+config SENSORARRAY_ADS_JOB_WORST_CASE_US
+    int "ADS direct-job admission worst case (us)"
+    default 700
+    range 100 20000
+
+config SENSORARRAY_ADS_DRDY_TIMEOUT_US
+    int "ADS DRDY notification timeout (us)"
+    default 600
+    range 100 20000
+
+config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM
+    int "AIN8 battery divider numerator (0 means unknown)"
+    default 0
+    range 0 100000
+
+config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN
+    int "AIN8 battery divider denominator"
+    default 1
+    range 1 100000
+
+endmenu
+
+menu "Optional compact status networking"
+
+config SENSORARRAY_NET_ENABLE
+    bool "Enable Wi-Fi/BLE compact status networking"
+    default n
+
+config SENSORARRAY_WIFI_SOFTAP_ENABLE
+    bool "Enable SensorArray Wi-Fi SoftAP"
+    default n
+    depends on SENSORARRAY_NET_ENABLE
+
+config SENSORARRAY_WIFI_TX_POWER_DBM_X4
+    int "Wi-Fi TX power in quarter-dBm units"
+    default 80
+    range 8 84
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_WIFI_SOFTAP_PASSWORD
+    string "Wi-Fi SoftAP password (empty means open)"
+    default "SensorArray"
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_WIFI_STATUS_UDP_PORT
+    int "Wi-Fi compact status UDP port"
+    default 3333
+    range 1024 65535
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_BLE_ENABLE
+    bool "Enable SensorArray BLE status service"
+    default n
+    depends on SENSORARRAY_NET_ENABLE
+
+config SENSORARRAY_BLE_USE_2M_PHY
+    bool "Request BLE 2M PHY"
+    default y
+    depends on SENSORARRAY_BLE_ENABLE
+    select BT_BLE_50_FEATURES_SUPPORTED
+
+config SENSORARRAY_BLE_USE_CODED_PHY
+    bool "Request BLE coded PHY"
+    default n
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_HIGH_TX_POWER
+    bool "Request high BLE TX power"
+    default n
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_TX_POWER_LEVEL
+    int "BLE TX power level"
+    default 9
+    range -12 20
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_STATUS_NOTIFY_ENABLE
+    bool "Enable BLE compact status notifications"
+    default y
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_STATUS_NOTIFY_EVERY_N_FRAMES
+    int "BLE compact status notification period"
+    default 20
+    range 1 10000
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_NET_TASK_STACK
+    int "Compact status network task stack bytes"
+    default 8192
+    range 4096 24576
+    depends on SENSORARRAY_NET_ENABLE
+
+config SENSORARRAY_NET_TASK_PRIORITY
+    int "Compact status network task priority"
+    default 5
+    range 1 10
+    depends on SENSORARRAY_NET_ENABLE
 
 endmenu
 

@@ -141,6 +141,10 @@ config BOARD_ADS126X_DRDY_GPIO
     int "ADS126x DRDY GPIO (-1 if unused)"
     default 13
 
+config BOARD_ADS126X_START_GPIO
+    int "ADS126x START GPIO (-1 if unused)"
+    default 48
+
 config BOARD_ADS126X_RESET_GPIO
     int "ADS126x PWDN/RESET GPIO (-1 if unused)"
     default 38

@@ -10,6 +10,7 @@
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,27 @@ extern "C" {
 /* POWER register bits for ads126xAdcReadCoreRegisters()/ads126xAdcSetVbiasEnabled(). */
 #define ADS126X_POWER_INTREF (1u << 0)
 #define ADS126X_POWER_VBIAS (1u << 1)
+#define ADS126X_REFMUX_INTERNAL 0x00u
+#define ADS126X_REFMUX_AVDD_AVSS 0x24u
+
+typedef enum {
+    ADS126X_ADC1_DR_2P5_SPS = 0x0,
+    ADS126X_ADC1_DR_5_SPS = 0x1,
+    ADS126X_ADC1_DR_10_SPS = 0x2,
+    ADS126X_ADC1_DR_16P6_SPS = 0x3,
+    ADS126X_ADC1_DR_20_SPS = 0x4,
+    ADS126X_ADC1_DR_50_SPS = 0x5,
+    ADS126X_ADC1_DR_60_SPS = 0x6,
+    ADS126X_ADC1_DR_100_SPS = 0x7,
+    ADS126X_ADC1_DR_400_SPS = 0x8,
+    ADS126X_ADC1_DR_1200_SPS = 0x9,
+    ADS126X_ADC1_DR_2400_SPS = 0xA,
+    ADS126X_ADC1_DR_4800_SPS = 0xB,
+    ADS126X_ADC1_DR_7200_SPS = 0xC,
+    ADS126X_ADC1_DR_14400_SPS = 0xD,
+    ADS126X_ADC1_DR_19200_SPS = 0xE,
+    ADS126X_ADC1_DR_38400_SPS = 0xF,
+} ads126xAdc1DataRate_t;
 
 typedef enum {
     ADS126X_DEVICE_AUTO = 0,
@@ -71,6 +93,10 @@ typedef struct {
     uint8_t *spiTxBuf;
     uint8_t *spiRxBuf;
     size_t spiBufSize;
+    bool spiDmaCapable;
+    bool drdyNotificationReady;
+    volatile TaskHandle_t drdyWaitTask;
+    spi_transaction_t dmaTransaction;
 } ads126xAdcHandle_t;
 
 esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *cfg);
@@ -140,6 +166,16 @@ esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);
 
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs);
+esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs);
+esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
+                                   uint32_t drdyTimeoutUs,
+                                   int32_t *rawCode,
+                                   uint8_t *statusByteOptional,
+                                   uint32_t *outReadUs);
+uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
+uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 
 esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
                                 int32_t *rawCode,

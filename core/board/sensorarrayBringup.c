@@ -552,7 +552,7 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
     cfg.enableInternalRef = false;
     cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
     cfg.pgaGain = 1;
-    cfg.dataRateDr = 0;
+    cfg.dataRateDr = (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE;
 
     err = ads126xAdcInit(&state->ads, &cfg);
     if (err != ESP_OK) {

@@ -142,6 +142,35 @@ typedef struct {
 
 typedef struct {
     uint64_t timestampUs;
+    int32_t ain9OffsetRaw;
+    int32_t ain9OffsetUv;
+    int32_t ain8Raw;
+    int32_t ain8RawUv;
+    int32_t batteryMv;
+    uint32_t windows;
+    uint32_t jobsRun;
+    uint32_t jobsSkip;
+    uint32_t overrunCount;
+    uint32_t drdyTimeoutCount;
+    uint32_t spiErrorCount;
+    uint32_t dmaReadCount;
+    uint64_t dmaReadUs;
+    uint32_t pollReadCount;
+    uint64_t pollReadUs;
+    uint32_t guardUs;
+    uint32_t avgSlackUs;
+    uint32_t minSlackUs;
+    uint32_t sampleAgeFrames;
+    uint8_t id;
+    uint8_t rateCode;
+    bool initialized;
+    bool dmaCapable;
+    bool batteryValid;
+    bool fallbackToBoundary;
+} sensorarrayAdsGapSnapshot_t;
+
+typedef struct {
+    uint64_t timestampUs;
     uint32_t sequence;
     uint32_t physicalSweepId;
     uint64_t frameStartUs;
@@ -167,6 +196,21 @@ typedef struct {
     bool stale;
     bool freshFrame;
     sensorarrayFdcFrameTelemetry_t telemetry;
+    sensorarrayAdsGapSnapshot_t adsGap;
+
+    uint32_t fdcTheoryReadyUs;
+    uint32_t fdcTheoryFrameReadyUs;
+    uint32_t fdcTheorySwitchDelayUs;
+    uint32_t fdcFrefHz;
+    uint16_t fdcRcount;
+    uint16_t fdcSettleCount;
+    uint16_t fdcClockDividers;
+    uint16_t fdcDriveCurrent;
+    uint16_t fdcConfig;
+    uint16_t fdcMuxConfig;
+    uint8_t fdcDeglitch;
+    bool fdcSensorActivateFullCurrent;
+    bool fdcHighCurrentDrive;
 
     double freqHz[SENSORARRAY_MATRIX_CELL_COUNT];
     double capTotalPf[SENSORARRAY_MATRIX_CELL_COUNT];

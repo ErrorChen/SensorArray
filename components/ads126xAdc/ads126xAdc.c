@@ -4,8 +4,11 @@
 #include <string.h>
 
 #include "sdkconfig.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_memory_utils.h"
+#include "esp_timer.h"
 #include "driver/gpio.h"
 #include "freertos/task.h"
 
@@ -87,6 +90,9 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 
     handle->spiTxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
     handle->spiRxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
+    handle->spiDmaCapable = handle->spiTxBuf && handle->spiRxBuf &&
+                            esp_ptr_dma_capable(handle->spiTxBuf) &&
+                            esp_ptr_dma_capable(handle->spiRxBuf);
     if (!handle->spiTxBuf || !handle->spiRxBuf) {
         if (handle->spiTxBuf) {
             heap_caps_free(handle->spiTxBuf);
@@ -106,6 +112,7 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
             return ESP_ERR_NO_MEM;
         }
         ESP_LOGW(TAG, "DMA buffers unavailable; using non-DMA buffers");
+        handle->spiDmaCapable = false;
     }
 
     handle->spiBufSize = bufSize;
@@ -407,6 +414,9 @@ esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle)
         return ESP_ERR_INVALID_ARG;
     }
 
+    if (handle->drdyNotificationReady && handle->drdyGpio != GPIO_NUM_NC) {
+        (void)gpio_isr_handler_remove(handle->drdyGpio);
+    }
     if (handle->mutex) {
         vSemaphoreDelete(handle->mutex);
     }
@@ -477,6 +487,94 @@ esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr
 esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg)
 {
     return ads126xAdcReadRegisters(handle, ADS126X_REG_ID, idReg, 1);
+}
+
+static esp_err_t ads126xAdcSpiTransferDmaLocked(ads126xAdcHandle_t *handle,
+                                                const uint8_t *tx,
+                                                size_t txLen,
+                                                uint8_t *rx,
+                                                size_t rxLen)
+{
+    if (!handle || !handle->spiDevice || !handle->mutex || !handle->spiDmaCapable) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    size_t totalLen = txLen + rxLen;
+    if (totalLen == 0u || totalLen > handle->spiBufSize) {
+        return totalLen == 0u ? ESP_OK : ESP_ERR_INVALID_SIZE;
+    }
+    if (xSemaphoreTake(handle->mutex, portMAX_DELAY) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (txLen > 0u && tx) {
+        memcpy(handle->spiTxBuf, tx, txLen);
+    }
+    if (rxLen > 0u) {
+        memset(handle->spiTxBuf + txLen, ADS126X_SPI_DUMMY_BYTE, rxLen);
+    }
+    memset(handle->spiRxBuf, 0, totalLen);
+    handle->dmaTransaction = (spi_transaction_t){
+        .length = totalLen * 8u,
+        .rxlength = totalLen * 8u,
+        .tx_buffer = handle->spiTxBuf,
+        .rx_buffer = handle->spiRxBuf,
+    };
+
+    esp_err_t err = spi_device_queue_trans(handle->spiDevice,
+                                           &handle->dmaTransaction,
+                                           portMAX_DELAY);
+    spi_transaction_t *completed = NULL;
+    if (err == ESP_OK) {
+        err = spi_device_get_trans_result(handle->spiDevice, &completed, portMAX_DELAY);
+    }
+    if (err == ESP_OK && completed != &handle->dmaTransaction) {
+        err = ESP_ERR_INVALID_STATE;
+    }
+    if (err == ESP_OK && rx && rxLen > 0u) {
+        memcpy(rx, handle->spiRxBuf + txLen, rxLen);
+    }
+    xSemaphoreGive(handle->mutex);
+    return err;
+}
+
+static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
+                                          const uint8_t *frame,
+                                          size_t frameLen,
+                                          int32_t *rawCode,
+                                          uint8_t *statusByteOptional)
+{
+    if (!handle || !frame || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    size_t idx = 0u;
+    if (handle->enableStatusByte) {
+        if (frameLen < 5u) {
+            return ESP_ERR_INVALID_SIZE;
+        }
+        if (statusByteOptional) {
+            *statusByteOptional = frame[idx];
+        }
+        idx++;
+    }
+    if ((idx + 4u) > frameLen) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    const uint8_t *dataBytes = &frame[idx];
+    if (handle->crcMode != ADS126X_CRC_OFF) {
+        uint8_t expected = frame[frameLen - 1u];
+        uint8_t actual = (handle->crcMode == ADS126X_CRC_CRC8)
+                             ? ads126xAdcCrc8(dataBytes, 4u)
+                             : ads126xAdcChecksum(dataBytes, 4u);
+        if (expected != actual) {
+            return ESP_ERR_INVALID_CRC;
+        }
+    }
+    uint32_t raw = ((uint32_t)dataBytes[0] << 24) |
+                   ((uint32_t)dataBytes[1] << 16) |
+                   ((uint32_t)dataBytes[2] << 8) |
+                   (uint32_t)dataBytes[3];
+    *rawCode = (int32_t)raw;
+    return ESP_OK;
 }
 
 esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower)
@@ -836,6 +934,137 @@ esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
     return ESP_OK;
 }
 
+static void IRAM_ATTR ads126xAdcDrdyIsr(void *arg)
+{
+    ads126xAdcHandle_t *handle = (ads126xAdcHandle_t *)arg;
+    if (!handle) {
+        return;
+    }
+    TaskHandle_t task = (TaskHandle_t)handle->drdyWaitTask;
+    if (task) {
+        BaseType_t higherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(task, &higherPriorityTaskWoken);
+        if (higherPriorityTaskWoken == pdTRUE) {
+            portYIELD_FROM_ISR();
+        }
+    }
+}
+
+esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle)
+{
+    if (!handle || handle->drdyGpio == GPIO_NUM_NC) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (handle->drdyNotificationReady) {
+        return ESP_OK;
+    }
+    gpio_config_t config = {
+        .pin_bit_mask = 1ULL << (uint32_t)handle->drdyGpio,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_NEGEDGE,
+    };
+    esp_err_t err = gpio_config(&config);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = gpio_install_isr_service(0);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        return err;
+    }
+    err = gpio_isr_handler_add(handle->drdyGpio, ads126xAdcDrdyIsr, handle);
+    if (err == ESP_ERR_INVALID_STATE) {
+        (void)gpio_isr_handler_remove(handle->drdyGpio);
+        err = gpio_isr_handler_add(handle->drdyGpio, ads126xAdcDrdyIsr, handle);
+    }
+    if (err == ESP_OK) {
+        handle->drdyNotificationReady = true;
+    }
+    return err;
+}
+
+esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs)
+{
+    if (!handle || !handle->drdyNotificationReady || handle->drdyGpio == GPIO_NUM_NC) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (gpio_get_level(handle->drdyGpio) == 0) {
+        return ESP_OK;
+    }
+
+    TaskHandle_t current = xTaskGetCurrentTaskHandle();
+    handle->drdyWaitTask = current;
+    (void)xTaskNotifyStateClear(current);
+    while (ulTaskNotifyTake(pdTRUE, 0) != 0u) {
+    }
+    if (gpio_get_level(handle->drdyGpio) == 0) {
+        handle->drdyWaitTask = NULL;
+        return ESP_OK;
+    }
+    TickType_t ticks = pdMS_TO_TICKS((timeoutUs + 999u) / 1000u);
+    if (ticks == 0u) {
+        ticks = 1u;
+    }
+    uint32_t notified = ulTaskNotifyTake(pdTRUE, ticks);
+    handle->drdyWaitTask = NULL;
+    return (notified != 0u || gpio_get_level(handle->drdyGpio) == 0) ?
+        ESP_OK : ESP_ERR_TIMEOUT;
+}
+
+esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)
+{
+    uint8_t command[3] = {
+        (uint8_t)(ADS126X_CMD_WREG | ADS126X_REG_INPMUX),
+        0u,
+        (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu)),
+    };
+    return ads126xAdcSpiTransferLocked(handle, command, sizeof(command), NULL, 0u);
+}
+
+esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
+                                   uint32_t drdyTimeoutUs,
+                                   int32_t *rawCode,
+                                   uint8_t *statusByteOptional,
+                                   uint32_t *outReadUs)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcWaitDrdyNotificationUs(handle, drdyTimeoutUs);
+    if (err != ESP_OK) {
+        return err;
+    }
+    size_t frameLen = 4u + (handle->enableStatusByte ? 1u : 0u) +
+                      (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
+    uint8_t frame[6] = {0};
+    uint8_t cmd = ADS126X_CMD_RDATA1;
+    int64_t startUs = esp_timer_get_time();
+    err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen);
+    if (outReadUs) {
+        int64_t elapsedUs = esp_timer_get_time() - startUs;
+        *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
+    }
+    return err == ESP_OK ?
+        ads126xAdcParseAdc1Frame(handle, frame, frameLen, rawCode, statusByteOptional) :
+        err;
+}
+
+uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)
+{
+    static const uint32_t rates[] = {
+        3u, 5u, 10u, 17u, 20u, 50u, 60u, 100u,
+        400u, 1200u, 2400u, 4800u, 7200u, 14400u, 19200u, 38400u,
+    };
+    return rates[drCode & ADS126X_MODE2_DR_MASK];
+}
+
+uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode)
+{
+    uint32_t sps = ads126xAdcDataRateCodeToSps(drCode);
+    return sps ? (1000000u + sps - 1u) / sps : 0u;
+}
+
 esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
                                 int32_t *rawCode,
                                 uint8_t *statusByteOptional)
@@ -864,33 +1093,7 @@ esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
         return err;
     }
 
-    size_t idx = 0;
-    if (handle->enableStatusByte) {
-        if (statusByteOptional) {
-            *statusByteOptional = frame[idx];
-        }
-        idx++;
-    }
-
-    uint8_t *dataBytes = &frame[idx];
-    if (handle->crcMode != ADS126X_CRC_OFF) {
-        uint8_t expected = frame[frameLen - 1];
-        uint8_t actual = (handle->crcMode == ADS126X_CRC_CRC8)
-                             ? ads126xAdcCrc8(dataBytes, 4)
-                             : ads126xAdcChecksum(dataBytes, 4);
-        if (expected != actual) {
-            ESP_LOGW(TAG, "ADC1 CRC/CHK mismatch (exp=0x%02X calc=0x%02X)", expected, actual);
-            return ESP_ERR_INVALID_RESPONSE;
-        }
-    }
-
-    uint32_t raw = ((uint32_t)dataBytes[0] << 24) |
-                   ((uint32_t)dataBytes[1] << 16) |
-                   ((uint32_t)dataBytes[2] << 8) |
-                   (uint32_t)dataBytes[3];
-    *rawCode = (int32_t)raw;
-
-    return ESP_OK;
+    return ads126xAdcParseAdc1Frame(handle, frame, frameLen, rawCode, statusByteOptional);
 }
 
 int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode)

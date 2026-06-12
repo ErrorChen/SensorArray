@@ -4,6 +4,7 @@ idf_component_register(
         "sensorarrayLog.c"
         "output/sensorarrayAsyncLog.c"
         "output/sensorarrayFrameOutput.c"
+        "net/sensorarrayNetStatus.c"
         "../core/board/sensorarrayBoardMap.c"
         "../core/board/sensorarrayBringup.c"
         "../core/measure/sensorarrayMeasure.c"
@@ -13,10 +14,12 @@ idf_component_register(
         "../core/measure/fdc/sensorarrayFdcSweep.c"
         "../core/measure/fdc/sensorarrayFdcRescue.c"
         "../core/measure/ads/sensorarrayAdsMatrix.c"
+        "../core/measure/ads/sensorarrayAdsGap.c"
         "../core/measure/mixed/sensorarrayMixedRow.c"
     INCLUDE_DIRS
         "."
         "output"
+        "net"
         "../core/board"
         "../core/measure/include"
         "../core/measure"
@@ -34,6 +37,12 @@ idf_component_register(
         transportWire
         bleTransport
         matrixEngine
+        bt
+        esp_event
+        esp_netif
+        esp_wifi
+        nvs_flash
+        lwip
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE
