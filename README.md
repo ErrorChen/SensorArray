@@ -17,6 +17,7 @@
 - [编译、烧录和监视 / Build, flash, and monitor](#编译烧录和监视--build-flash-and-monitor)
 - [已知约束 / Known constraints](#已知约束--known-constraints)
 - [文件地图 / File map](#文件地图--file-map)
+- [Precision-safe 20 FPS optimisation](#precision-safe-20-fps-optimisation)
 
 ## 当前源码树状态 / Current source-tree status
 
@@ -305,7 +306,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES` | int | Kconfig/defaults: `20` | Compact aggregate period for `T5/R5/Q5/I5`; tag names are historical and `n` carries the actual period. | `sensorarrayMeasureUpdateFdcTimingAggregate()` | Set 0 to suppress aggregate summary. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | bool | Kconfig/defaults: y | Enables non-blocking frame snapshot publishing to `sensorarrayLogTask`. | `sensorarrayAsyncLogInit()`, main loop | Default path; measurement never waits for serial printf. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Emits `LOG20` producer/consumer summary. | `sensorarrayAsyncLogMaybePrintSummary()` | Watch `droppedOutputFrames` and `frameAgeMaxUs`. |
-| `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS`, `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | int | `4`, `32` | Fixed frame snapshot slots and non-blocking event queue. | async log producer/consumer | Slots are static; no per-frame heap allocation. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS`, `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | int | `16`, `32` | Fixed frame snapshot slots and non-blocking event queue. | async log producer/consumer | Slots are static; no per-frame heap allocation. The 16-frame depth absorbs the 20-frame diagnostic text burst without back-pressuring physical acquisition. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | int | `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE` | Log task stack, priority and affinity. | async log task creation | Keep lower than measurement priority unless profiling proves otherwise. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE` | bool | Kconfig/defaults: y | Enables aggregate timing summaries. | timing aggregate functions | Keep enabled during performance work. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG` | bool | Kconfig/defaults: y | Prints bottleneck on frame overrun. | `sensorarrayMeasurePrintFdcBottleneck()` | Useful when testing lower frame periods. |
@@ -1410,3 +1411,128 @@ eight ordered register transactions per device-row with substantial driver overh
 is also about `63.3..63.6 ms`, but it runs asynchronously and did not drop frames; selecting SAF1 can
 reduce host-output cost but cannot by itself reduce the `78.5 ms` physical sweep. Debug timing GPIOs and
 S8 isolation modes compile and remain default-off; this run did not assign pins or claim oscilloscope validation.
+
+## Precision-safe 20 FPS optimisation
+
+This path optimises software and I2C transaction overhead without changing the
+FDC2214 conversion profile. The default runtime remains `fast_runtime` with the
+same RCOUNT, SETTLECOUNT, clock divider, drive current, reference clock,
+autoscan channel count, CONFIG, MUX_CONFIG, and STATUS_CONFIG values.
+`FDC_PROFILE,name=precision_safe_fast,...,precisionAffecting=0` records those
+values at startup. The existing lower-RCOUNT option is identified as
+`experimental_precision_affecting_profile`, remains default-disabled, and is
+not part of the precision-safe result.
+
+### Why the bus sweep and burst policies are unchanged
+
+The real-load automatic I2C sweep remains the source of truth. On the COM11
+hardware both buses are stable through `355 kHz`, fail above that point, and
+select `345 kHz` after the configured margin. Forcing `400 kHz` or `355 kHz`
+would remove the measured stability margin and is not a valid performance fix.
+NACKs during the sweep are probe results, not runtime failures.
+
+The FDC2214 startup burst probe still rejects the candidate 16-byte
+auto-increment read. Ordered sequence read is different from burst read:
+
+- burst sends one starting DATA register address and assumes the device
+  auto-increments through all DATA registers;
+- ordered sequence explicitly sends register addresses `00,01,02,03,04,05,06,07`;
+- every channel remains MSB-before-LSB and channels remain CH0-through-CH3;
+- repeated-start operations are grouped into fewer ESP-IDF command
+  submissions, but the on-device register access order is unchanged.
+
+### Ordered sequence design and safety
+
+`Fdc2214CapReadDataOrderedRegistersSequence()` supports `seqPair4`,
+`seqQuad2`, and `seqAll1`. Startup probing exact-matches manufacturer/device
+IDs, STATUS_CONFIG, CONFIG, MUX_CONFIG, and all channel RCOUNT, SETTLECOUNT,
+CLOCK_DIVIDERS, and DRIVE_CURRENT registers. DATA comparison is performed while
+conversion is frozen in sleep mode. The fastest exact-match mode is selected;
+on COM11 both devices select `seqAll1`.
+
+The board-support `seqAll1` hot path reuses a statically allocated ESP-IDF
+command link and receive buffer. It performs no hot-path allocation. Any
+sequence error immediately disables sequence mode and retries the same row
+through ordered8, preserving a full-fresh frame where possible. A frame-level
+freshness/validity precision guard also forces ordered8 on any invalid, stale,
+or mixed frame. `PREC20` uses per-cell Welford mean/variance plus maximum raw
+jump and reports structural precision-guard status every 20 frames.
+
+### Row coordinator breakdown
+
+`ROWPIPE20` separates queue/notify, the worker sleep barrier, pre-release work,
+worker waits, join validation, merge, masks, bookkeeping, queue handoff, and
+the requested coordinator residual. The two-worker, dual-bus, pinned-task
+architecture remains parallel. The stable COM11 sequence result shows that
+queue notification and start release are only about `18 us` and `22 us` per
+row. The approximately `624 us` sleep barrier includes the required parallel
+CONFIG sleep writes before changing the matrix route; removing it would violate
+the routing/freshness contract. Consequently a direct-task-notification rewrite
+cannot recover the remaining millisecond-scale gap by itself.
+
+### COM11 ordered8 versus precision-safe sequence
+
+Both modes retained `precisionAffecting=0`, automatic `345 kHz` bus selection,
+64-cell full-fresh frames, `rf=pfmask=sfmask=FF`, `statusReads=0`,
+`directValidRate=100%`, and zero stale, mixed, NACK, timeout, recovery, or
+sequence fallback events.
+
+| Stable 20-frame metric | ordered8 baseline | precision-safe seqAll1 |
+|---|---:|---:|
+| `physFps` / `cellFreshFps` | `12.35` | `13.14` |
+| `physicalSweepUsAvg` | `78868 us` | `~74038 us` |
+| `rowStepUsAvg` | `9585 us` | `~8983 us` |
+| `readyWaitUsAvg` | `4272 us` | `~4277 us` |
+| `dataReadUsAvg` | `2385 us` | `~1795 us` |
+| `rowCoordinatorResidualUsAvg` | `1812 us` | `~1809 us` |
+| logical DATA register reads per bus / 20 frames | `1280` | `1280` |
+| hardware transactions per bus / 20 frames | `1600` | `480` |
+| measured I2C time per bus / 20 frames | `~464 ms` | `~365 ms` |
+| estimated wire time per bus / 20 frames | `209.623 ms` | `209.623 ms` |
+| `PREC20` | pass | pass |
+| representative `pfStdMax` / `pfStdAvg` | `0.0451 / 0.0070` | `0.0458 / 0.0067` |
+
+`I2C20` reports logical reads separately from hardware transactions. It also
+reports estimated `bus*WireUs`, total measured `bus*MeasuredUs`, and
+`bus*DriverUs = measured - estimated wire`.
+
+The final COM11 firmware used 16 static async frame slots and let IDLE0 run
+once per 40 emitted frames. A 120-second text-output capture contained 1316
+Cap frames with zero queue drops, bad masks, stale/mixed frames, watchdogs,
+runtime alerts, sequence fallbacks, NACKs, timeouts, or recoveries. Across 65
+reported windows, median `physFps=cellFreshFps=13.03`,
+`physicalSweepUsAvg=74589 us`, `rowStepUsAvg=9050 us`,
+`readyWaitUsAvg=4278 us`, `dataReadUsAvg=1818 us`, and
+`rowCoordinatorResidualUsAvg=1816 us`. `PREC20` passed in every window.
+The static output buffering affects only burst tolerance; it does not increase
+or substitute for physical FPS.
+
+### Precision-safe lower bound
+
+At 20 FPS the row budget is `50000 / 8 = 6250 us`. With the conversion profile
+unchanged, stable sequence-mode measurements give:
+
+```text
+ready wait                         4277 us
+DATA ordered sequence read         1795 us
+route + settle + cache + merge      373 us
+subtotal before coordinator        6445 us
+20 FPS row budget                  6250 us
+```
+
+This subtotal already exceeds the row budget by about `195 us` before the
+required sleep barrier, wake/worker plumbing, join validation, masks, and
+bookkeeping. The measured requested-formula coordinator residual is about
+`1809 us`, and the actual row step is about `8983 us`. Therefore this COM11
+hardware does **not** achieve precision-safe 20 FPS, and the firmware does not
+claim otherwise.
+
+The remaining function-level limits are the unchanged FDC conversion wait in
+the worker (`~4.277 ms`), the explicit ordered DATA sequence through the
+ESP-IDF I2C driver (`~1.795 ms` per device-row), the required
+`sensorarrayMeasureFdcSetSleepMode()` barrier (`~0.624 ms` per row), and
+coordinator/join/bookkeeping around the dual workers. Further precision-safe
+work would require reducing lower-level I2C driver overhead or changing the
+hardware/routing protocol. Lowering RCOUNT or SETTLECOUNT could shorten the
+conversion wait, but that is an explicit user-selected precision trade-off and
+remains disabled by default.

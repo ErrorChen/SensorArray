@@ -788,6 +788,88 @@ static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                burstProbe.reason ? burstProbe.reason : "unknown",
                mapLabel ? mapLabel : SENSORARRAY_NA);
         sensorarraySweepFdcI2cClockUnderLoad(fdcState, mapLabel);
+        Fdc2214CapSequenceProbeResult_t sequenceProbe = {0};
+        esp_err_t sequenceErr = ESP_ERR_NOT_SUPPORTED;
+        if (CONFIG_SENSORARRAY_FDC_PRECISION_SAFE_SEQUENCE_ENABLE) {
+            sequenceErr = Fdc2214CapProbeDataSequence4(fdcState->handle,
+                                                       5u,
+                                                       &sequenceProbe);
+        } else {
+            sequenceProbe.selectedMode = FDC_DATA_READ_MODE_ORDERED8;
+            sequenceProbe.reason = "config_disabled";
+        }
+        printf("SEQ_PROBE,device=%s,seqProbeOk=%u,dataReadMode=%s,trials=%lu,fixedMismatch=%lu,dataMismatch=%lu,testedMask=0x%lX,okMask=0x%lX,seqRegsPerTxn=%u,seqTxnPerRow=%u,selectedUs=%lu,err=0x%lx,reason=%s,map=%s\n",
+               fdcState->label ? fdcState->label : SENSORARRAY_NA,
+               sequenceProbe.supported ? 1u : 0u,
+               Fdc2214CapDataReadModeName(Fdc2214CapDataReadMode(fdcState->handle)),
+               (unsigned long)sequenceProbe.trials,
+               (unsigned long)sequenceProbe.fixedRegMismatchCount,
+               (unsigned long)sequenceProbe.dataMismatchCount,
+               (unsigned long)sequenceProbe.testedModeMask,
+               (unsigned long)sequenceProbe.modeOkMask,
+               (unsigned)Fdc2214CapDataReadModeRegsPerTransaction(
+                   Fdc2214CapDataReadMode(fdcState->handle)),
+               (unsigned)Fdc2214CapDataReadModeTransactionsPerRow(
+                   Fdc2214CapDataReadMode(fdcState->handle)),
+               (unsigned long)sequenceProbe.selectedElapsedUs,
+               (unsigned long)sequenceErr,
+               sequenceProbe.reason ? sequenceProbe.reason : "unknown",
+               mapLabel ? mapLabel : SENSORARRAY_NA);
+        uint16_t rcount[4] = {0};
+        uint16_t settle[4] = {0};
+        uint16_t clockDiv[4] = {0};
+        uint16_t drive[4] = {0};
+        uint16_t statusConfig = 0u;
+        uint16_t config = 0u;
+        uint16_t muxConfig = 0u;
+        esp_err_t profileErr = ESP_OK;
+        for (uint8_t ch = 0u; ch < 4u; ++ch) {
+            esp_err_t readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                                           (uint8_t)(0x08u + ch),
+                                                           &rcount[ch]);
+            if (profileErr == ESP_OK && readErr != ESP_OK) {
+                profileErr = readErr;
+            }
+            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                                 (uint8_t)(0x10u + ch),
+                                                 &settle[ch]);
+            if (profileErr == ESP_OK && readErr != ESP_OK) {
+                profileErr = readErr;
+            }
+            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                                 (uint8_t)(0x14u + ch),
+                                                 &clockDiv[ch]);
+            if (profileErr == ESP_OK && readErr != ESP_OK) {
+                profileErr = readErr;
+            }
+            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
+                                                 (uint8_t)(0x1Eu + ch),
+                                                 &drive[ch]);
+            if (profileErr == ESP_OK && readErr != ESP_OK) {
+                profileErr = readErr;
+            }
+        }
+        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x19u, &statusConfig);
+        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x1Au, &config);
+        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x1Bu, &muxConfig);
+        printf("FDC_PROFILE,device=%s,name=precision_safe_fast,conversionProfile=%s,runtimeRcount=0x%04X,startupRcount=[%04X,%04X,%04X,%04X],settle=[%04X,%04X,%04X,%04X],clockDiv=[%04X,%04X,%04X,%04X],drive=[%04X,%04X,%04X,%04X],config=0x%04X,mux=0x%04X,statusConfig=0x%04X,precisionAffecting=0,err=0x%lx\n",
+               fdcState->label ? fdcState->label : SENSORARRAY_NA,
+               CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
+               (unsigned)CONFIG_SENSORARRAY_FDC_RUNTIME_RCOUNT,
+               rcount[0], rcount[1], rcount[2], rcount[3],
+               settle[0], settle[1], settle[2], settle[3],
+               clockDiv[0], clockDiv[1], clockDiv[2], clockDiv[3],
+               drive[0], drive[1], drive[2], drive[3],
+               config,
+               muxConfig,
+               statusConfig,
+               (unsigned long)profileErr);
+        static bool experimentalProfileLogged = false;
+        if (!experimentalProfileLogged) {
+            experimentalProfileLogged = true;
+            printf("FDC_PROFILE,name=experimental_precision_affecting_profile,precisionAffecting=1,enabled=%u\n",
+                   CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE ? 1u : 0u);
+        }
     }
 }
 

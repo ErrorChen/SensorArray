@@ -3510,6 +3510,12 @@ static void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSumma
     summary->workerSleepAckWaitUs += rowTiming->workerSleepAckWaitUs;
     summary->workerStartGiveUs += rowTiming->workerStartGiveUs;
     summary->workerDoneWaitUs += rowTiming->workerDoneWaitUs;
+    summary->workerPreReleaseUs += rowTiming->workerPreReleaseUs;
+    summary->workerWaitPrimaryUs += rowTiming->workerWaitPrimaryUs;
+    summary->workerWaitSecondaryUs += rowTiming->workerWaitSecondaryUs;
+    summary->workerJoinUs += rowTiming->workerJoinUs;
+    summary->frameMaskUpdateUs += rowTiming->frameMaskUpdateUs;
+    summary->frameBookkeepingUs += rowTiming->frameBookkeepingUs;
     summary->workerLateDoneUs += rowTiming->workerLateDoneUs;
     summary->workerIdleAfterTimeoutUs += rowTiming->workerIdleAfterTimeoutUs;
     summary->primaryWorkerRunUs += rowTiming->primaryWorkerRunUs;
@@ -4373,6 +4379,9 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
 
     int64_t startGiveStartUs = esp_timer_get_time();
     rowTiming->workerReleaseUs = (uint64_t)startGiveStartUs;
+    rowTiming->workerPreReleaseUs =
+        rowTiming->workerReleaseUs >= rowStartUs ?
+        rowTiming->workerReleaseUs - rowStartUs : 0u;
     /*
      * Queueing, worker sleep entry, row routing, and first-use profile writes
      * happen before the read workers are released. They are coordinator work
@@ -4403,6 +4412,9 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         (rowTiming->workerDoneWaitUs >= primaryTrace.doneWaitUs) ?
         (uint32_t)(rowTiming->workerDoneWaitUs - primaryTrace.doneWaitUs) : 0u;
     secondaryTrace.doneReceived = secondaryDone == pdTRUE;
+    rowTiming->workerWaitPrimaryUs = primaryTrace.doneWaitUs;
+    rowTiming->workerWaitSecondaryUs = secondaryTrace.doneWaitUs;
+    int64_t workerJoinStartUs = esp_timer_get_time();
     bool primaryLate = false;
     bool secondaryLate = false;
     if (primaryDone != pdTRUE) {
@@ -4626,6 +4638,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
                (unsigned long long)secondaryRunUs,
                wpReason);
     }
+    rowTiming->workerJoinUs = sensorarrayMeasureElapsedUs(workerJoinStartUs);
     sensorarrayMeasureFdcFinalizeParallelTiming(row,
                                                 epochId,
                                                 primaryTiming,

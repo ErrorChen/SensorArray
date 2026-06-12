@@ -125,6 +125,8 @@ typedef struct Fdc2214CapDevice {
     Fdc2214CapI2cStats_t i2cStats;
     bool burstProbeDone;
     bool burstSupported;
+    bool sequenceProbeDone;
+    FdcDataReadMode dataReadMode;
 } Fdc2214CapDevice_t;
 
 typedef struct {
@@ -148,6 +150,57 @@ static uint32_t s_i2cTraceSequence = 0u;
 static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)
 {
     return (ch >= FDC2214_CH0) && (ch <= FDC2214_CH3);
+}
+
+const char *Fdc2214CapDataReadModeName(FdcDataReadMode mode)
+{
+    switch (mode) {
+    case FDC_DATA_READ_MODE_SEQ_PAIR4:
+        return "seqPair4";
+    case FDC_DATA_READ_MODE_SEQ_QUAD2:
+        return "seqQuad2";
+    case FDC_DATA_READ_MODE_SEQ_ALL1:
+        return "seqAll1";
+    case FDC_DATA_READ_MODE_ORDERED8:
+    default:
+        return "ordered8";
+    }
+}
+
+size_t Fdc2214CapDataReadModeRegsPerTransaction(FdcDataReadMode mode)
+{
+    switch (mode) {
+    case FDC_DATA_READ_MODE_SEQ_PAIR4:
+        return 2u;
+    case FDC_DATA_READ_MODE_SEQ_QUAD2:
+        return 4u;
+    case FDC_DATA_READ_MODE_SEQ_ALL1:
+        return 8u;
+    case FDC_DATA_READ_MODE_ORDERED8:
+    default:
+        return 1u;
+    }
+}
+
+size_t Fdc2214CapDataReadModeTransactionsPerRow(FdcDataReadMode mode)
+{
+    size_t regsPerTransaction = Fdc2214CapDataReadModeRegsPerTransaction(mode);
+    return regsPerTransaction != 0u ? (8u / regsPerTransaction) : 8u;
+}
+
+FdcDataReadMode Fdc2214CapDataReadMode(const Fdc2214CapDevice_t *dev)
+{
+    return dev ? dev->dataReadMode : FDC_DATA_READ_MODE_ORDERED8;
+}
+
+bool Fdc2214CapForceOrderedDataRead(Fdc2214CapDevice_t *dev)
+{
+    if (!dev || dev->dataReadMode == FDC_DATA_READ_MODE_ORDERED8) {
+        return false;
+    }
+    dev->dataReadMode = FDC_DATA_READ_MODE_ORDERED8;
+    dev->i2cStats.sequenceFallbackCount++;
+    return true;
 }
 
 static bool Fdc2214IsValidDeglitch(Fdc2214CapDeglitch_t deglitch)
@@ -632,6 +685,46 @@ static esp_err_t Fdc2214CapReadReg16UnlockedUntimed(Fdc2214CapDevice_t* dev,
     if (err == ESP_OK) {
         *outValue = (uint16_t)(((uint16_t)rx[0] << 8u) | rx[1]);
     }
+    return err;
+}
+
+static esp_err_t Fdc2214CapReadReg16SequenceUnlocked(Fdc2214CapDevice_t *dev,
+                                                      const uint8_t *regs,
+                                                      size_t regCount,
+                                                      uint16_t *outValues)
+{
+    if (!dev || !regs || !outValues || regCount == 0u ||
+        !dev->bus.readReg16Sequence ||
+        regCount > dev->bus.maxSequenceRegs) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int64_t startUs = esp_timer_get_time();
+    esp_err_t err = dev->bus.readReg16Sequence(dev->bus.UserCtx,
+                                               dev->bus.I2cAddress7,
+                                               regs,
+                                               regCount,
+                                               outValues,
+                                               (uint32_t)CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS);
+    uint64_t elapsedUs = Fdc2214CapElapsedUs(startUs);
+    dev->i2cStats.readCount += (uint32_t)regCount;
+    dev->i2cStats.writeBytes += (uint32_t)regCount;
+    dev->i2cStats.readBytes += (uint32_t)(regCount * 2u);
+    dev->i2cStats.totalUs += elapsedUs;
+    dev->i2cStats.sequenceTransactionCount++;
+    if (err == ESP_ERR_TIMEOUT) {
+        dev->i2cStats.timeoutCount++;
+    } else if (err == ESP_FAIL) {
+        dev->i2cStats.nackCount++;
+    } else if (err != ESP_OK) {
+        dev->i2cStats.retryCount++;
+    }
+    Fdc2214CapTraceRecord("read_sequence",
+                          dev->bus.I2cAddress7,
+                          regCount,
+                          regCount * 2u,
+                          elapsedUs,
+                          err);
     return err;
 }
 
@@ -1937,6 +2030,87 @@ static esp_err_t Fdc2214CapReadDataOrderedRegisters(Fdc2214CapDevice_t* dev,
     return firstErr;
 }
 
+static void Fdc2214CapDecodeDataRegisterValues(const uint16_t values[8],
+                                                Fdc2214CapFastChannelSample_t outSamples[4])
+{
+    memset(outSamples, 0, sizeof(Fdc2214CapFastChannelSample_t) * 4u);
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        outSamples[ch].dataMsb = values[ch * 2u];
+        outSamples[ch].dataLsb = values[ch * 2u + 1u];
+        outSamples[ch].raw28 =
+            ((uint32_t)(outSamples[ch].dataMsb & FDC2214_DATA_MSB_MASK) << 16u) |
+            outSamples[ch].dataLsb;
+        outSamples[ch].errWatchdog =
+            (outSamples[ch].dataMsb & FDC2214_DATA_ERR_WD_MASK) != 0u;
+        outSamples[ch].errAmplitude =
+            (outSamples[ch].dataMsb & FDC2214_DATA_ERR_AW_MASK) != 0u;
+    }
+}
+
+static esp_err_t Fdc2214CapReadRegisterListSequenceUnlocked(Fdc2214CapDevice_t *dev,
+                                                            const uint8_t *regs,
+                                                            size_t regCount,
+                                                            size_t regsPerTransaction,
+                                                            uint16_t *outValues)
+{
+    if (!dev || !regs || !outValues || regCount == 0u ||
+        regsPerTransaction == 0u ||
+        regsPerTransaction > dev->bus.maxSequenceRegs) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    for (size_t offset = 0u; offset < regCount; offset += regsPerTransaction) {
+        size_t count = regCount - offset;
+        if (count > regsPerTransaction) {
+            count = regsPerTransaction;
+        }
+        esp_err_t err = Fdc2214CapReadReg16SequenceUnlocked(dev,
+                                                            &regs[offset],
+                                                            count,
+                                                            &outValues[offset]);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+    return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapReadDataOrderedRegistersSequence(
+    Fdc2214CapDevice_t *dev,
+    FdcDataReadMode mode,
+    Fdc2214CapFastChannelSample_t outSamples[4])
+{
+    static const uint8_t dataRegs[8] = {
+        0x00u, 0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u,
+    };
+    if (!dev || !outSamples || mode == FDC_DATA_READ_MODE_ORDERED8) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t regsPerTransaction = Fdc2214CapDataReadModeRegsPerTransaction(mode);
+    if (!dev->bus.readReg16Sequence ||
+        regsPerTransaction > dev->bus.maxSequenceRegs) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    uint16_t values[8] = {0};
+    esp_err_t lockErr = Fdc2214CapLock(dev);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+    esp_err_t err = Fdc2214CapReadRegisterListSequenceUnlocked(dev,
+                                                               dataRegs,
+                                                               8u,
+                                                               regsPerTransaction,
+                                                               values);
+    Fdc2214CapUnlock(dev);
+    if (err == ESP_OK) {
+        Fdc2214CapDecodeDataRegisterValues(values, outSamples);
+    }
+    dev->i2cStats.sequenceDataReadCount++;
+    return err;
+}
+
 static esp_err_t Fdc2214CapReadDataBlockCandidate(Fdc2214CapDevice_t* dev,
                                                   Fdc2214CapFastChannelSample_t outSamples[4],
                                                   bool probeRead)
@@ -1992,6 +2166,239 @@ static bool Fdc2214CapDataReadSamplesMatch(
         }
     }
     return true;
+}
+
+static esp_err_t Fdc2214CapReadRegisterListOrdered(Fdc2214CapDevice_t *dev,
+                                                   const uint8_t *regs,
+                                                   size_t regCount,
+                                                   uint16_t *outValues)
+{
+    if (!dev || !regs || !outValues || regCount == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t lockErr = Fdc2214CapLock(dev);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+    esp_err_t firstErr = ESP_OK;
+    for (size_t i = 0u; i < regCount; ++i) {
+        esp_err_t err = Fdc2214CapReadReg16Unlocked(dev, regs[i], &outValues[i]);
+        if (firstErr == ESP_OK && err != ESP_OK) {
+            firstErr = err;
+        }
+    }
+    Fdc2214CapUnlock(dev);
+    return firstErr;
+}
+
+static esp_err_t Fdc2214CapReadRegisterListSequence(Fdc2214CapDevice_t *dev,
+                                                    const uint8_t *regs,
+                                                    size_t regCount,
+                                                    FdcDataReadMode mode,
+                                                    uint16_t *outValues)
+{
+    if (!dev || !regs || !outValues || mode == FDC_DATA_READ_MODE_ORDERED8) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t lockErr = Fdc2214CapLock(dev);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+    esp_err_t err = Fdc2214CapReadRegisterListSequenceUnlocked(
+        dev,
+        regs,
+        regCount,
+        Fdc2214CapDataReadModeRegsPerTransaction(mode),
+        outValues);
+    Fdc2214CapUnlock(dev);
+    return err;
+}
+
+static uint32_t Fdc2214CapRegisterListMismatchCount(const uint16_t *expected,
+                                                    const uint16_t *actual,
+                                                    size_t count)
+{
+    uint32_t mismatches = 0u;
+    for (size_t i = 0u; i < count; ++i) {
+        if (expected[i] != actual[i]) {
+            mismatches++;
+        }
+    }
+    return mismatches;
+}
+
+esp_err_t Fdc2214CapProbeDataSequence4(Fdc2214CapDevice_t *dev,
+                                       uint32_t trials,
+                                       Fdc2214CapSequenceProbeResult_t *outResult)
+{
+    static const uint8_t fixedRegs[] = {
+        FDC2214_REG_MANUFACTURER_ID,
+        FDC2214_REG_DEVICE_ID,
+        FDC2214_REG_STATUS_CONFIG,
+        FDC2214_REG_CONFIG,
+        FDC2214_REG_MUX_CONFIG,
+        FDC2214_REG_RCOUNT_BASE + 0u,
+        FDC2214_REG_RCOUNT_BASE + 1u,
+        FDC2214_REG_RCOUNT_BASE + 2u,
+        FDC2214_REG_RCOUNT_BASE + 3u,
+        FDC2214_REG_SETTLECOUNT_BASE + 0u,
+        FDC2214_REG_SETTLECOUNT_BASE + 1u,
+        FDC2214_REG_SETTLECOUNT_BASE + 2u,
+        FDC2214_REG_SETTLECOUNT_BASE + 3u,
+        FDC2214_REG_CLOCK_DIVIDERS_BASE + 0u,
+        FDC2214_REG_CLOCK_DIVIDERS_BASE + 1u,
+        FDC2214_REG_CLOCK_DIVIDERS_BASE + 2u,
+        FDC2214_REG_CLOCK_DIVIDERS_BASE + 3u,
+        FDC2214_REG_DRIVE_CURRENT_BASE + 0u,
+        FDC2214_REG_DRIVE_CURRENT_BASE + 1u,
+        FDC2214_REG_DRIVE_CURRENT_BASE + 2u,
+        FDC2214_REG_DRIVE_CURRENT_BASE + 3u,
+    };
+    static const FdcDataReadMode candidates[] = {
+        FDC_DATA_READ_MODE_SEQ_ALL1,
+        FDC_DATA_READ_MODE_SEQ_QUAD2,
+        FDC_DATA_READ_MODE_SEQ_PAIR4,
+    };
+    if (!dev || !outResult || trials == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapSequenceProbeResult_t result = {
+        .selectedMode = FDC_DATA_READ_MODE_ORDERED8,
+        .trials = trials,
+        .reason = "not_started",
+    };
+    dev->sequenceProbeDone = true;
+    dev->dataReadMode = FDC_DATA_READ_MODE_ORDERED8;
+    if (!dev->bus.readReg16Sequence || dev->bus.maxSequenceRegs < 2u) {
+        result.err = ESP_ERR_NOT_SUPPORTED;
+        result.reason = "sequence_callback_unavailable";
+        *outResult = result;
+        return result.err;
+    }
+
+    bool modeOk[4] = {false, false, false, false};
+    uint64_t modeElapsedUs[4] = {0u, 0u, 0u, 0u};
+    esp_err_t firstProbeErr = ESP_OK;
+    for (size_t candidateIndex = 0u;
+         candidateIndex < sizeof(candidates) / sizeof(candidates[0]);
+         ++candidateIndex) {
+        FdcDataReadMode mode = candidates[candidateIndex];
+        size_t regsPerTransaction = Fdc2214CapDataReadModeRegsPerTransaction(mode);
+        if (regsPerTransaction > dev->bus.maxSequenceRegs) {
+            continue;
+        }
+        result.testedModeMask |= (uint32_t)(1u << (uint32_t)mode);
+        uint16_t orderedValues[sizeof(fixedRegs)] = {0};
+        uint16_t sequenceValues[sizeof(fixedRegs)] = {0};
+        esp_err_t orderedErr = Fdc2214CapReadRegisterListOrdered(dev,
+                                                                 fixedRegs,
+                                                                 sizeof(fixedRegs),
+                                                                 orderedValues);
+        esp_err_t sequenceErr = Fdc2214CapReadRegisterListSequence(dev,
+                                                                   fixedRegs,
+                                                                   sizeof(fixedRegs),
+                                                                   mode,
+                                                                   sequenceValues);
+        if (orderedErr != ESP_OK || sequenceErr != ESP_OK) {
+            if (firstProbeErr == ESP_OK) {
+                firstProbeErr = orderedErr != ESP_OK ? orderedErr : sequenceErr;
+            }
+            continue;
+        }
+        uint32_t mismatches = Fdc2214CapRegisterListMismatchCount(orderedValues,
+                                                                  sequenceValues,
+                                                                  sizeof(fixedRegs));
+        result.fixedRegMismatchCount += mismatches;
+        modeOk[mode] = mismatches == 0u;
+    }
+
+    uint16_t originalConfig = 0u;
+    esp_err_t configErr = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &originalConfig);
+    if (configErr != ESP_OK) {
+        result.err = configErr;
+        result.reason = "config_read_error";
+        *outResult = result;
+        return result.err;
+    }
+    bool restoreActive = (originalConfig & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) == 0u;
+    if (restoreActive) {
+        uint16_t sleepConfig = Fdc2214CapApplyConfigReservedBits(
+            (uint16_t)(originalConfig | FDC2214_CONFIG_SLEEP_MODE_EN_MASK));
+        configErr = Fdc2214CapWriteReg16(dev, FDC2214_REG_CONFIG, sleepConfig);
+        if (configErr != ESP_OK) {
+            result.err = configErr;
+            result.reason = "sleep_enter_error";
+            *outResult = result;
+            return result.err;
+        }
+        esp_rom_delay_us(100u);
+    }
+
+    for (size_t candidateIndex = 0u;
+         candidateIndex < sizeof(candidates) / sizeof(candidates[0]);
+         ++candidateIndex) {
+        FdcDataReadMode mode = candidates[candidateIndex];
+        if (!modeOk[mode]) {
+            continue;
+        }
+        for (uint32_t trial = 0u; trial < trials; ++trial) {
+            Fdc2214CapFastChannelSample_t ordered[4] = {0};
+            Fdc2214CapFastChannelSample_t sequence[4] = {0};
+            esp_err_t orderedErr = Fdc2214CapReadDataOrderedRegisters(dev, ordered);
+            int64_t sequenceStartUs = esp_timer_get_time();
+            esp_err_t sequenceErr =
+                Fdc2214CapReadDataOrderedRegistersSequence(dev, mode, sequence);
+            modeElapsedUs[mode] += Fdc2214CapElapsedUs(sequenceStartUs);
+            if (orderedErr != ESP_OK || sequenceErr != ESP_OK) {
+                modeOk[mode] = false;
+                if (firstProbeErr == ESP_OK) {
+                    firstProbeErr = orderedErr != ESP_OK ? orderedErr : sequenceErr;
+                }
+                break;
+            }
+            if (!Fdc2214CapDataReadSamplesMatch(ordered, sequence)) {
+                result.dataMismatchCount++;
+                modeOk[mode] = false;
+                break;
+            }
+        }
+        if (modeOk[mode]) {
+            result.modeOkMask |= (uint32_t)(1u << (uint32_t)mode);
+        }
+    }
+
+    if (restoreActive) {
+        esp_err_t restoreErr = Fdc2214CapWriteReg16(dev,
+                                                    FDC2214_REG_CONFIG,
+                                                    originalConfig);
+        if (firstProbeErr == ESP_OK && restoreErr != ESP_OK) {
+            firstProbeErr = restoreErr;
+        }
+    }
+
+    uint64_t bestElapsedUs = UINT64_MAX;
+    for (size_t candidateIndex = 0u;
+         candidateIndex < sizeof(candidates) / sizeof(candidates[0]);
+         ++candidateIndex) {
+        FdcDataReadMode mode = candidates[candidateIndex];
+        if (modeOk[mode] && modeElapsedUs[mode] < bestElapsedUs) {
+            bestElapsedUs = modeElapsedUs[mode];
+            result.selectedMode = mode;
+        }
+    }
+    result.supported = result.selectedMode != FDC_DATA_READ_MODE_ORDERED8;
+    result.err = result.supported ? ESP_OK :
+        (firstProbeErr != ESP_OK ? firstProbeErr : ESP_ERR_INVALID_RESPONSE);
+    result.selectedElapsedUs =
+        result.supported ? (uint32_t)(bestElapsedUs / trials) : 0u;
+    result.reason = result.supported ? "fixed_and_frozen_data_match" :
+        (result.fixedRegMismatchCount != 0u ? "fixed_register_mismatch" :
+         result.dataMismatchCount != 0u ? "frozen_data_mismatch" :
+         firstProbeErr != ESP_OK ? "sequence_i2c_error" : "no_mode_passed");
+    dev->dataReadMode = result.selectedMode;
+    *outResult = result;
+    return result.err;
 }
 
 esp_err_t Fdc2214CapProbeDataBurst4(Fdc2214CapDevice_t* dev,
@@ -2086,6 +2493,17 @@ esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
 {
     if (!dev || !outSamples) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (dev->dataReadMode != FDC_DATA_READ_MODE_ORDERED8) {
+        esp_err_t sequenceErr =
+            Fdc2214CapReadDataOrderedRegistersSequence(dev, dev->dataReadMode, outSamples);
+        if (sequenceErr == ESP_OK) {
+            return ESP_OK;
+        }
+        dev->i2cStats.sequenceErrorCount++;
+        dev->i2cStats.sequenceFallbackCount++;
+        dev->dataReadMode = FDC_DATA_READ_MODE_ORDERED8;
+        return Fdc2214CapReadDataOrderedRegisters(dev, outSamples);
     }
     if (Fdc2214CapDataBurstSupported(dev)) {
         esp_err_t burstErr = Fdc2214CapReadDataBlockCandidate(dev, outSamples, false);

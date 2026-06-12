@@ -725,6 +725,14 @@ static void sensorarrayMeasureMergeFdcI2cStats(const Fdc2214CapI2cStats_t *prima
         primary.burstProbeReadCount + secondary.burstProbeReadCount;
     summary->i2cBurstFallbackCount =
         primary.burstFallbackCount + secondary.burstFallbackCount;
+    summary->i2cSequenceDataReadCount =
+        primary.sequenceDataReadCount + secondary.sequenceDataReadCount;
+    summary->i2cSequenceTransactionCount =
+        primary.sequenceTransactionCount + secondary.sequenceTransactionCount;
+    summary->i2cSequenceFallbackCount =
+        primary.sequenceFallbackCount + secondary.sequenceFallbackCount;
+    summary->i2cSequenceErrorCount =
+        primary.sequenceErrorCount + secondary.sequenceErrorCount;
 
     summary->i2cBus0WriteCount = primary.writeCount;
     summary->i2cBus0ReadCount = primary.readCount;

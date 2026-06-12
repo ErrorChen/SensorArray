@@ -1019,13 +1019,22 @@ config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
         SENSORARRAY_FDC_DEFAULT_PROFILE to select the normal matrix fallback
         profile. This option does not rescue profile_too_slow by itself.
 
+config SENSORARRAY_FDC_PRECISION_SAFE_SEQUENCE_ENABLE
+    bool "Enable precision-safe ordered DATA register sequence probe"
+    default y
+    help
+        Keeps the existing FDC conversion profile and explicitly addresses
+        DATA registers 0x00..0x07 in order, while combining repeated-start
+        operations into fewer ESP-IDF command submissions. Runtime errors
+        permanently fall back to ordered8 until reboot.
+
 config SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
-    bool "Enable FDC formal fast profile runtime RCOUNT reduction"
+    bool "Enable experimental_precision_affecting_profile runtime RCOUNT reduction"
     default n
     help
-        Disabled by default. Formal fast profile is an experimental runtime
-        optimisation. It must not mutate cached row profiles during normal
-        matrix measurement unless explicitly enabled for controlled debugging.
+        Disabled by default. This experimental_precision_affecting_profile
+        lowers runtime RCOUNT and can change conversion resolution, noise floor,
+        and stability. It is not part of the precision-safe 20 FPS path.
 
 config SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
     int "Formal fast profile target autoscan round time (us)"
@@ -1096,7 +1105,7 @@ config SENSORARRAY_ASYNC_LOG_LEGACY_SYNC_OUTPUT
 
 config SENSORARRAY_ASYNC_LOG_FRAME_SLOTS
     int "Async log frame snapshot slots"
-    default 4
+    default 16
     range 2 16
 
 config SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN

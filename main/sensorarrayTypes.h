@@ -88,6 +88,18 @@ typedef struct {
     uint64_t secondaryWorkerRunUs;
     uint64_t workerStartSkewUs;
     uint64_t workerDoneSkewUs;
+    uint64_t workerNotifyUs;
+    uint64_t rowSleepBarrierUs;
+    uint64_t workerPreReleaseUs;
+    uint64_t workerSleepAckWaitUs;
+    uint64_t workerStartGiveUs;
+    uint64_t workerWaitPrimaryUs;
+    uint64_t workerWaitSecondaryUs;
+    uint64_t parentWaitBothUs;
+    uint64_t workerJoinUs;
+    uint64_t frameMaskUpdateUs;
+    uint64_t frameBookkeepingUs;
+    uint64_t frameQueueUs;
 
     uint32_t i2cBus0ReadCount;
     uint32_t i2cBus1ReadCount;
@@ -99,12 +111,21 @@ typedef struct {
     uint32_t i2cBus1WriteBytes;
     uint64_t i2cBus0TotalUs;
     uint64_t i2cBus1TotalUs;
+    uint32_t i2cBus0TransactionCount;
+    uint32_t i2cBus1TransactionCount;
     uint32_t i2cOrderedDataReadCount;
     uint32_t i2cBurstDataReadCount;
     uint32_t i2cBurstFallbackCount;
+    uint32_t i2cSequenceDataReadCount;
+    uint32_t i2cSequenceTransactionCount;
+    uint32_t i2cSequenceFallbackCount;
+    uint32_t i2cSequenceErrorCount;
     uint32_t i2cNackCount;
     uint32_t i2cTimeoutCount;
     uint32_t i2cRecoveryCount;
+    uint8_t dataReadMode;
+    uint8_t sequenceRegsPerTransaction;
+    uint8_t sequenceTransactionsPerRow;
 
     uint32_t directDataReadCount;
     uint32_t directDataFallbackCount;
@@ -234,6 +255,13 @@ typedef struct {
     uint64_t workerSleepAckWaitUs;
     uint64_t workerStartGiveUs;
     uint64_t workerDoneWaitUs;
+    uint64_t workerPreReleaseUs;
+    uint64_t workerWaitPrimaryUs;
+    uint64_t workerWaitSecondaryUs;
+    uint64_t workerJoinUs;
+    uint64_t frameMaskUpdateUs;
+    uint64_t frameBookkeepingUs;
+    uint64_t frameQueueUs;
     uint64_t workerLateDoneUs;
     uint64_t workerIdleAfterTimeoutUs;
     uint64_t primaryWorkerRunUs;
@@ -385,6 +413,10 @@ typedef struct {
     uint32_t i2cBurstDataReadCount;
     uint32_t i2cBurstProbeReadCount;
     uint32_t i2cBurstFallbackCount;
+    uint32_t i2cSequenceDataReadCount;
+    uint32_t i2cSequenceTransactionCount;
+    uint32_t i2cSequenceFallbackCount;
+    uint32_t i2cSequenceErrorCount;
 
     uint32_t i2cBus0WriteCount;
     uint32_t i2cBus0ReadCount;
@@ -395,6 +427,7 @@ typedef struct {
     uint32_t i2cBus0NackCount;
     uint32_t i2cBus0TimeoutCount;
     uint64_t i2cBus0BusyWaitUs;
+    uint32_t i2cBus0TransactionCount;
 
     uint32_t i2cBus1WriteCount;
     uint32_t i2cBus1ReadCount;
@@ -405,6 +438,7 @@ typedef struct {
     uint32_t i2cBus1NackCount;
     uint32_t i2cBus1TimeoutCount;
     uint64_t i2cBus1BusyWaitUs;
+    uint32_t i2cBus1TransactionCount;
     uint64_t i2cGlobalLockWaitUs;
     uint32_t i2cCrossBusSerializedCount;
 
@@ -445,6 +479,12 @@ typedef struct {
     uint64_t workerSleepAckWaitUs;
     uint64_t workerStartGiveUs;
     uint64_t workerDoneWaitUs;
+    uint64_t workerPreReleaseUs;
+    uint64_t workerWaitPrimaryUs;
+    uint64_t workerWaitSecondaryUs;
+    uint64_t workerJoinUs;
+    uint64_t frameMaskUpdateUs;
+    uint64_t frameBookkeepingUs;
     uint64_t workerLateDoneUs;
     uint64_t workerIdleAfterTimeoutUs;
     uint64_t primaryWorkerRunUs;

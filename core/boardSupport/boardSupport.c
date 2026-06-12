@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "sdkconfig.h"
 #include "driver/gpio.h"
@@ -1061,6 +1062,169 @@ esp_err_t boardSupportI2cRead(void *userCtx,
                                       rxLen,
                                       boardSupportI2cMsToTicksAtLeastOne(ctx->TimeoutMs));
     return boardSupportI2cFinishTransaction(ctx, addr7, "read", err, startUs);
+}
+
+static bool boardSupportI2cIsDataAll1Sequence(const uint8_t *regs, size_t regCount)
+{
+    if (!regs || regCount != BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS) {
+        return false;
+    }
+    for (size_t i = 0u; i < regCount; ++i) {
+        if (regs[i] != (uint8_t)i) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static esp_err_t boardSupportI2cBuildReg16SequenceCommand(i2c_cmd_handle_t cmd,
+                                                           uint8_t addr7,
+                                                           const uint8_t *regs,
+                                                           size_t regCount,
+                                                           uint8_t *rx)
+{
+    if (!cmd || !regs || !rx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ESP_OK;
+    for (size_t i = 0u; i < regCount && err == ESP_OK; ++i) {
+        err = i2c_master_start(cmd);
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd,
+                                        (uint8_t)((addr7 << 1u) | I2C_MASTER_WRITE),
+                                        true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd, regs[i], true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_start(cmd);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_write_byte(cmd,
+                                        (uint8_t)((addr7 << 1u) | I2C_MASTER_READ),
+                                        true);
+        }
+        if (err == ESP_OK) {
+            err = i2c_master_read(cmd, &rx[i * 2u], 2u, I2C_MASTER_LAST_NACK);
+        }
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_stop(cmd);
+    }
+    return err;
+}
+
+esp_err_t boardSupportI2cReadReg16Sequence(void *userCtx,
+                                          uint8_t addr7,
+                                          const uint8_t *regs,
+                                          size_t regCount,
+                                          uint16_t *outValues,
+                                          uint32_t timeoutMs)
+{
+    if (!userCtx || !regs || !outValues || regCount == 0u ||
+        regCount > BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS || addr7 > 0x7fu) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    BoardSupportI2cCtx_t *ctx =
+        boardSupportI2cWritableCtx((const BoardSupportI2cCtx_t *)userCtx);
+    esp_err_t err = boardSupportI2cEnsureMutex(ctx);
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint32_t effectiveTimeoutMs = timeoutMs != 0u ? timeoutMs : ctx->TimeoutMs;
+    TickType_t timeoutTicks = boardSupportI2cMsToTicksAtLeastOne(effectiveTimeoutMs);
+    err = boardSupportI2cLock(ctx, timeoutTicks);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = boardSupportI2cCheckReadyLocked(ctx, addr7, "read_reg16_sequence");
+    if (err != ESP_OK) {
+        boardSupportI2cUnlock(ctx);
+        return err;
+    }
+
+    bool cachedDataSequence = boardSupportI2cIsDataAll1Sequence(regs, regCount);
+    uint8_t rx[BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS * 2u] = {0};
+    uint8_t cmdBuffer[I2C_LINK_RECOMMENDED_SIZE(BOARD_SUPPORT_I2C_SEQUENCE_LINK_TRANSACTIONS)] = {0};
+    uint8_t *activeRx = rx;
+    i2c_cmd_handle_t cmd = NULL;
+    if (cachedDataSequence) {
+        if (!ctx->DataSequenceCmdReady || ctx->DataSequenceAddr7 != addr7) {
+            ctx->DataSequenceCmdReady = false;
+            ctx->DataSequenceCmd = NULL;
+            memset(ctx->DataSequenceCmdBuffer, 0, sizeof(ctx->DataSequenceCmdBuffer));
+            memset(ctx->DataSequenceRx, 0, sizeof(ctx->DataSequenceRx));
+            ctx->DataSequenceCmd =
+                i2c_cmd_link_create_static(ctx->DataSequenceCmdBuffer,
+                                           sizeof(ctx->DataSequenceCmdBuffer));
+            if (ctx->DataSequenceCmd) {
+                err = boardSupportI2cBuildReg16SequenceCommand(ctx->DataSequenceCmd,
+                                                               addr7,
+                                                               regs,
+                                                               regCount,
+                                                               ctx->DataSequenceRx);
+            } else {
+                err = ESP_ERR_NO_MEM;
+            }
+            if (err == ESP_OK) {
+                ctx->DataSequenceAddr7 = addr7;
+                ctx->DataSequenceCmdReady = true;
+            }
+        }
+        cmd = ctx->DataSequenceCmdReady ? ctx->DataSequenceCmd : NULL;
+        activeRx = ctx->DataSequenceRx;
+    } else {
+        cmd = i2c_cmd_link_create_static(cmdBuffer, sizeof(cmdBuffer));
+        if (cmd) {
+            err = boardSupportI2cBuildReg16SequenceCommand(cmd,
+                                                           addr7,
+                                                           regs,
+                                                           regCount,
+                                                           rx);
+        } else {
+            err = ESP_ERR_NO_MEM;
+        }
+    }
+    if (!cmd || err != ESP_OK) {
+        if (!cachedDataSequence && cmd) {
+            i2c_cmd_link_delete_static(cmd);
+        }
+        boardSupportI2cUnlock(ctx);
+        return err != ESP_OK ? err : ESP_ERR_NO_MEM;
+    }
+
+    ctx->TransactionCount++;
+    int64_t startUs = esp_timer_get_time();
+    if (CONFIG_SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER) {
+        printf("BOARD_I2C_XFER,stage=begin,port=%d,addr=0x%02X,op=read_reg16_sequence,regs=%u,rxLen=%u,cached=%u,count=%lu\n",
+               (int)ctx->Port,
+               addr7,
+               (unsigned)regCount,
+               (unsigned)(regCount * 2u),
+               cachedDataSequence ? 1u : 0u,
+               (unsigned long)ctx->TransactionCount);
+    }
+    if (err == ESP_OK) {
+        err = i2c_master_cmd_begin(ctx->Port, cmd, timeoutTicks);
+    }
+    if (!cachedDataSequence) {
+        i2c_cmd_link_delete_static(cmd);
+    }
+
+    if (err == ESP_OK) {
+        for (size_t i = 0u; i < regCount; ++i) {
+            outValues[i] = (uint16_t)(((uint16_t)activeRx[i * 2u] << 8u) |
+                                      activeRx[i * 2u + 1u]);
+        }
+    }
+    return boardSupportI2cFinishTransaction(ctx,
+                                            addr7,
+                                            "read_reg16_sequence",
+                                            err,
+                                            startUs);
 }
 
 static bool boardSupportI2cExpectedSecondaryHighAddressNack(const BoardSupportI2cCtx_t *ctx, uint8_t addr7)

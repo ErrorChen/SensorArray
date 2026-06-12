@@ -37,13 +37,29 @@ typedef esp_err_t (*Fdc2214I2cWriteFn)(void* userCtx,
                                       const uint8_t* tx,
                                       size_t txLen);
 
+typedef esp_err_t (*Fdc2214CapReadReg16SequenceFn)(void *userCtx,
+                                                   uint8_t addr7,
+                                                   const uint8_t *regs,
+                                                   size_t regCount,
+                                                   uint16_t *outValues,
+                                                   uint32_t timeoutMs);
+
 typedef struct {
     uint8_t I2cAddress7;
     void* UserCtx;
     Fdc2214I2cWriteReadFn WriteRead;
     Fdc2214I2cWriteFn Write;
+    Fdc2214CapReadReg16SequenceFn readReg16Sequence;
+    size_t maxSequenceRegs;
     int IntGpio;
 } Fdc2214CapBusConfig_t;
+
+typedef enum {
+    FDC_DATA_READ_MODE_ORDERED8 = 0,
+    FDC_DATA_READ_MODE_SEQ_PAIR4,
+    FDC_DATA_READ_MODE_SEQ_QUAD2,
+    FDC_DATA_READ_MODE_SEQ_ALL1,
+} FdcDataReadMode;
 
 typedef enum {
     FDC2214_DEGLITCH_1MHZ = 0b001,
@@ -213,6 +229,10 @@ typedef struct {
     uint32_t burstDataReadCount;
     uint32_t burstProbeReadCount;
     uint32_t burstFallbackCount;
+    uint32_t sequenceDataReadCount;
+    uint32_t sequenceTransactionCount;
+    uint32_t sequenceFallbackCount;
+    uint32_t sequenceErrorCount;
 } Fdc2214CapI2cStats_t;
 
 typedef struct {
@@ -222,6 +242,19 @@ typedef struct {
     esp_err_t err;
     const char *reason;
 } Fdc2214CapBurstProbeResult_t;
+
+typedef struct {
+    bool supported;
+    FdcDataReadMode selectedMode;
+    uint32_t trials;
+    uint32_t fixedRegMismatchCount;
+    uint32_t dataMismatchCount;
+    uint32_t testedModeMask;
+    uint32_t modeOkMask;
+    uint32_t selectedElapsedUs;
+    esp_err_t err;
+    const char *reason;
+} Fdc2214CapSequenceProbeResult_t;
 
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
@@ -358,6 +391,14 @@ esp_err_t Fdc2214CapProbeDataBurst4(Fdc2214CapDevice_t* dev,
                                     uint32_t trials,
                                     Fdc2214CapBurstProbeResult_t* outResult);
 bool Fdc2214CapDataBurstSupported(const Fdc2214CapDevice_t* dev);
+esp_err_t Fdc2214CapProbeDataSequence4(Fdc2214CapDevice_t *dev,
+                                       uint32_t trials,
+                                       Fdc2214CapSequenceProbeResult_t *outResult);
+FdcDataReadMode Fdc2214CapDataReadMode(const Fdc2214CapDevice_t *dev);
+const char *Fdc2214CapDataReadModeName(FdcDataReadMode mode);
+size_t Fdc2214CapDataReadModeRegsPerTransaction(FdcDataReadMode mode);
+size_t Fdc2214CapDataReadModeTransactionsPerRow(FdcDataReadMode mode);
+bool Fdc2214CapForceOrderedDataRead(Fdc2214CapDevice_t *dev);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

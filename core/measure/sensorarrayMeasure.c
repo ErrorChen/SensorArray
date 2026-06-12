@@ -3087,6 +3087,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                            &rowErrorMask8);
         rowTiming.coordinatorMergeUs = sensorarrayMeasureElapsedUs(mergeStartUs);
         timing.coordinatorMergeUs += rowTiming.coordinatorMergeUs;
+        int64_t frameMaskStartUs = esp_timer_get_time();
         uint8_t rowSlot = (uint8_t)(s - 1u);
         bool primaryFresh = (primarySamples.freshMask & 0x0Fu) == 0x0Fu &&
                             (primarySamples.validMask & 0x0Fu) == 0x0Fu;
@@ -3116,6 +3117,8 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             primaryTiming.readDoneUs > secondaryTiming.readDoneUs ?
             primaryTiming.readDoneUs : secondaryTiming.readDoneUs;
         outFrame->rowMergeDoneUs[rowSlot] = (uint64_t)esp_timer_get_time();
+        rowTiming.frameMaskUpdateUs = sensorarrayMeasureElapsedUs(frameMaskStartUs);
+        int64_t frameBookkeepingStartUs = esp_timer_get_time();
         if ((primarySamples.validMask & 0x0Fu) == SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK &&
             (rowValidMask8 & 0x0Fu) != 0x0Fu) {
             printf("FDC_RESULT_MERGE_BUG,dev=primary,row=%u,epoch=%lu,validMask=0x%X,freshMask=0x%X,unread=0x%X,drdy=%u,timeout=%u,partial=%u,err=0x%lx,rowHalfValid=0x%X\n",
@@ -3248,6 +3251,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             outFrame->firstBadStatus = badSamples->statusRaw;
             outFrame->firstBadUnread = badSamples->unreadMask;
         }
+        rowTiming.frameBookkeepingUs = sensorarrayMeasureElapsedUs(frameBookkeepingStartUs);
         rowTiming.rowUs = sensorarrayMeasureElapsedUs(rowStartUs);
         rowTotalUs += rowTiming.rowUs;
         if (rowTiming.rowUs > timing.rowMaxUs) {
@@ -3304,7 +3308,6 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             sensorarrayMeasurePrintFdcDeviceTiming(outFrame->sequence, &primaryTiming);
             sensorarrayMeasurePrintFdcDeviceTiming(outFrame->sequence, &secondaryTiming);
         }
-        taskYIELD();
     }
     outFrame->frameEndUs = outFrame->rowMergeDoneUs[SENSORARRAY_MATRIX_ROWS - 1u];
     if (outFrame->frameEndUs == 0u) {
@@ -3344,6 +3347,27 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     if (outFrame->freshFrame) {
         outFrame->sequence = ++s_fdcFreshFrameSequence;
     }
+    bool precisionGuardPass = outFrame->freshFrame &&
+                              outFrame->validMask == UINT64_MAX &&
+                              outFrame->capValidMask == UINT64_MAX &&
+                              outFrame->freshMask == UINT64_MAX;
+    if (!precisionGuardPass) {
+        bool primaryFallback = Fdc2214CapForceOrderedDataRead(state->fdcPrimary.handle);
+        bool secondaryFallback = sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary) ?
+            Fdc2214CapForceOrderedDataRead(state->fdcSecondary.handle) : false;
+        if (primaryFallback || secondaryFallback) {
+            printf("PRECISION_GUARD_FALLBACK,seq=%lu,primary=%u,secondary=%u,validMask=0x%016llX,capValidMask=0x%016llX,freshMask=0x%016llX,rowFreshMask=0x%02X,stale=%u,mixed=%u,action=ordered8\n",
+                   (unsigned long)outFrame->sequence,
+                   primaryFallback ? 1u : 0u,
+                   secondaryFallback ? 1u : 0u,
+                   (unsigned long long)outFrame->validMask,
+                   (unsigned long long)outFrame->capValidMask,
+                   (unsigned long long)outFrame->freshMask,
+                   (unsigned)outFrame->rowFreshMask,
+                   outFrame->stale ? 1u : 0u,
+                   outFrame->mixedEpoch ? 1u : 0u);
+        }
+    }
     timing.frameUs = sensorarrayMeasureElapsedUs(frameStartUs);
     timing.measureLockHeldUs = timing.frameUs;
     timing.rowAvgUs = rowTotalUs / SENSORARRAY_MATRIX_ROWS;
@@ -3373,6 +3397,10 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     (void)boardSupportGetI2cBusInfo(true, &secondaryBusAfter);
     timing.i2cBus0BusyWaitUs = primaryBusAfter.BusyWaitUs - primaryBus.BusyWaitUs;
     timing.i2cBus1BusyWaitUs = secondaryBusAfter.BusyWaitUs - secondaryBus.BusyWaitUs;
+    timing.i2cBus0TransactionCount =
+        primaryBusAfter.TransactionCount - primaryBus.TransactionCount;
+    timing.i2cBus1TransactionCount =
+        secondaryBusAfter.TransactionCount - secondaryBus.TransactionCount;
     timing.i2cGlobalLockWaitUs = 0u;
     timing.i2cCrossBusSerializedCount = 0u;
     sensorarrayMeasureMergeFdcI2cStats(&primaryStats, &secondaryStats, &primaryBus, &secondaryBus, &timing);
@@ -3390,6 +3418,18 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         .secondaryWorkerRunUs = timing.secondaryWorkerRunUs,
         .workerStartSkewUs = timing.workerStartSkewUs,
         .workerDoneSkewUs = timing.workerDoneSkewUs,
+        .workerNotifyUs = timing.workerQueueSendUs,
+        .rowSleepBarrierUs = timing.sleepBeforeRowSwitchUs,
+        .workerPreReleaseUs = timing.workerPreReleaseUs,
+        .workerSleepAckWaitUs = timing.workerSleepAckWaitUs,
+        .workerStartGiveUs = timing.workerStartGiveUs,
+        .workerWaitPrimaryUs = timing.workerWaitPrimaryUs,
+        .workerWaitSecondaryUs = timing.workerWaitSecondaryUs,
+        .parentWaitBothUs = timing.workerDoneWaitUs,
+        .workerJoinUs = timing.workerJoinUs,
+        .frameMaskUpdateUs = timing.frameMaskUpdateUs,
+        .frameBookkeepingUs = timing.frameBookkeepingUs,
+        .frameQueueUs = timing.frameQueueUs,
         .i2cBus0ReadCount = timing.i2cBus0ReadCount,
         .i2cBus1ReadCount = timing.i2cBus1ReadCount,
         .i2cBus0WriteCount = timing.i2cBus0WriteCount,
@@ -3400,12 +3440,23 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         .i2cBus1WriteBytes = timing.i2cBus1WriteBytes,
         .i2cBus0TotalUs = timing.i2cBus0TotalUs,
         .i2cBus1TotalUs = timing.i2cBus1TotalUs,
+        .i2cBus0TransactionCount = timing.i2cBus0TransactionCount,
+        .i2cBus1TransactionCount = timing.i2cBus1TransactionCount,
         .i2cOrderedDataReadCount = timing.i2cOrderedDataReadCount,
         .i2cBurstDataReadCount = timing.i2cBurstDataReadCount,
         .i2cBurstFallbackCount = timing.i2cBurstFallbackCount,
+        .i2cSequenceDataReadCount = timing.i2cSequenceDataReadCount,
+        .i2cSequenceTransactionCount = timing.i2cSequenceTransactionCount,
+        .i2cSequenceFallbackCount = timing.i2cSequenceFallbackCount,
+        .i2cSequenceErrorCount = timing.i2cSequenceErrorCount,
         .i2cNackCount = timing.i2cNackCount,
         .i2cTimeoutCount = timing.i2cTimeoutCount,
         .i2cRecoveryCount = timing.i2cRecoveryCount,
+        .dataReadMode = (uint8_t)Fdc2214CapDataReadMode(state->fdcPrimary.handle),
+        .sequenceRegsPerTransaction = (uint8_t)Fdc2214CapDataReadModeRegsPerTransaction(
+            Fdc2214CapDataReadMode(state->fdcPrimary.handle)),
+        .sequenceTransactionsPerRow = (uint8_t)Fdc2214CapDataReadModeTransactionsPerRow(
+            Fdc2214CapDataReadMode(state->fdcPrimary.handle)),
         .directDataReadCount = timing.directDataReadCount,
         .directDataFallbackCount = timing.directDataFallbackCount,
         .directDataFallbackReasonMask = timing.directDataFallbackReasonMask,

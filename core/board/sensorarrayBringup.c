@@ -780,6 +780,8 @@ esp_err_t sensorarrayBringupInitFdcDevice(const BoardSupportI2cCtx_t *i2cCtx,
         .UserCtx = (void *)i2cCtx,
         .WriteRead = boardSupportI2cWriteRead,
         .Write = boardSupportI2cWrite,
+        .readReg16Sequence = boardSupportI2cReadReg16Sequence,
+        .maxSequenceRegs = 8u,
         .IntGpio = (CONFIG_SENSORARRAY_FDC_INTB_ENABLE != 0) ?
             ((i2cAddr == CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR) ?
                 CONFIG_SENSORARRAY_FDC_INTB2_GPIO :

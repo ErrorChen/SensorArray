@@ -22,6 +22,9 @@ typedef enum {
     BOARD_I2C_BUS_UNKNOWN,
 } BoardSupportI2cBusState_t;
 
+#define BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS 8u
+#define BOARD_SUPPORT_I2C_SEQUENCE_LINK_TRANSACTIONS (BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS * 2u)
+
 typedef struct {
     i2c_port_t Port;
     uint32_t TimeoutMs;
@@ -45,6 +48,11 @@ typedef struct {
     int64_t LastRecoveryUs;
     int64_t LastTransactionUs;
     SemaphoreHandle_t Mutex;
+    i2c_cmd_handle_t DataSequenceCmd;
+    uint8_t DataSequenceCmdBuffer[I2C_LINK_RECOMMENDED_SIZE(BOARD_SUPPORT_I2C_SEQUENCE_LINK_TRANSACTIONS)];
+    uint8_t DataSequenceRx[BOARD_SUPPORT_I2C_SEQUENCE_MAX_REGS * 2u];
+    uint8_t DataSequenceAddr7;
+    bool DataSequenceCmdReady;
 } BoardSupportI2cCtx_t;
 
 typedef struct {
@@ -105,6 +113,15 @@ esp_err_t boardSupportI2cRead(void* userCtx,
                              uint8_t addr7,
                              uint8_t* rx,
                              size_t rxLen);
+
+// Explicitly address each 16-bit register while submitting the ordered
+// repeated-start sequence through one ESP-IDF command link.
+esp_err_t boardSupportI2cReadReg16Sequence(void *userCtx,
+                                          uint8_t addr7,
+                                          const uint8_t *regs,
+                                          size_t regCount,
+                                          uint16_t *outValues,
+                                          uint32_t timeoutMs);
 
 // Probe I2C address with a START + address byte + STOP transaction.
 esp_err_t boardSupportI2cProbeAddress(const BoardSupportI2cCtx_t *i2cCtx, uint8_t addr7);
