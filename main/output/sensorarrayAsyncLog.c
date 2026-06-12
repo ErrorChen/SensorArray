@@ -11,6 +11,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include "boardSupport.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameOutput.h"
 #include "sensorarrayTypes.h"
@@ -38,6 +39,9 @@
 #endif
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
 #define CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES 1
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG
+#define CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG 0
 #endif
 
 enum {
@@ -93,11 +97,45 @@ typedef struct {
     bool active;
     uint32_t seqStart;
     uint32_t seqEnd;
+    uint32_t physicalSweepStart;
+    uint32_t physicalSweepEnd;
     int64_t windowStartUs;
     uint64_t publishedStart;
+    uint64_t freshFrameStart;
+    uint64_t staleFrameStart;
+    uint64_t mixedFrameStart;
+    uint64_t rowFreshMaskBadStart;
+    uint64_t primaryFreshMaskBadStart;
+    uint64_t secondaryFreshMaskBadStart;
+    uint64_t freshCellStart;
+    uint64_t physicalSweepTotalUsStart;
+    uint64_t rowStepTotalUsStart;
+    uint64_t frameStartIntervalTotalUsStart;
+    uint64_t frameStartIntervalCountStart;
+    uint64_t measureFrameTotalUsStart;
     uint64_t droppedFrameStart;
     uint64_t droppedEventStart;
+    uint64_t processedFrames;
     uint64_t outputFrames;
+    uint64_t freshFrames;
+    uint64_t staleFrames;
+    uint64_t mixedFrames;
+    uint64_t rowFreshMaskBad;
+    uint64_t primaryFreshMaskBad;
+    uint64_t secondaryFreshMaskBad;
+    uint64_t freshCells;
+    uint64_t physicalSweepTotalUs;
+    uint64_t physicalSweepMaxUs;
+    uint64_t rowStepTotalUs;
+    uint64_t rowStepMaxUs;
+    uint64_t frameStartIntervalTotalUs;
+    uint64_t frameStartIntervalCount;
+    uint64_t frameStartIntervalMaxUs;
+    uint64_t lastFrameStartUs;
+    uint64_t emitIntervalTotalUs;
+    uint64_t emitIntervalCount;
+    uint64_t emitIntervalMaxUs;
+    uint64_t lastEmitUs;
     uint64_t frameAgeTotalUs;
     uint64_t frameAgeMaxUs;
     uint64_t outTotalUs;
@@ -105,10 +143,29 @@ typedef struct {
     uint64_t measureFrameTotalUs;
     uint64_t measureFrameMaxUs;
     uint32_t queueDepthMax;
+    sensorarrayFdcFrameTelemetry_t telemetry;
+    uint64_t cacheApplyI2cMaxUs;
 } sensorarrayAsyncLogSummary_t;
 
 typedef struct {
     uint64_t publishedFrames;
+    uint64_t freshFrames;
+    uint64_t staleFrames;
+    uint64_t mixedFrames;
+    uint64_t rowFreshMaskBad;
+    uint64_t primaryFreshMaskBad;
+    uint64_t secondaryFreshMaskBad;
+    uint64_t freshCells;
+    uint64_t physicalSweepTotalUs;
+    uint64_t physicalSweepMaxUs;
+    uint64_t rowStepTotalUs;
+    uint64_t rowStepMaxUs;
+    uint64_t frameStartIntervalTotalUs;
+    uint64_t frameStartIntervalCount;
+    uint64_t frameStartIntervalMaxUs;
+    uint64_t lastFrameStartUs;
+    uint64_t measureFrameTotalUs;
+    uint64_t measureFrameMaxUs;
     uint64_t droppedOutputFrames;
     uint64_t droppedEventLogs;
 } sensorarrayAsyncLogSharedStats_t;
@@ -132,6 +189,17 @@ static uint64_t sensorarrayAsyncLogElapsedPositiveUs(int64_t startUs)
 {
     int64_t elapsedUs = esp_timer_get_time() - startUs;
     return elapsedUs > 0 ? (uint64_t)elapsedUs : 0u;
+}
+
+static uint64_t sensorarrayAsyncLogEstimateI2cBits(uint32_t writeCount,
+                                                   uint32_t readCount,
+                                                   uint32_t writeBytes,
+                                                   uint32_t readBytes)
+{
+    uint64_t dataBitsWithAck = ((uint64_t)writeBytes + readBytes) * 9ull;
+    uint64_t addressBitsWithAck = ((uint64_t)writeCount + ((uint64_t)readCount * 2ull)) * 9ull;
+    uint64_t framingBits = ((uint64_t)writeCount + readCount) * 2ull;
+    return dataBitsWithAck + addressBitsWithAck + framingBits;
 }
 
 static sensorarrayAsyncLogSharedStats_t sensorarrayAsyncLogReadStats(void)
@@ -277,10 +345,31 @@ static void sensorarrayAsyncLogSummarySetBaseline(sensorarrayAsyncLogSummary_t *
     if (!summary || !stats) {
         return;
     }
+    /*
+     * Keep the final production and emission timestamps across report windows.
+     * Otherwise the gap occupied by printing LOG20/FPS20/... is omitted from
+     * the next window and the reported host emission rate is biased high.
+     */
+    uint64_t lastFrameStartUs = summary->lastFrameStartUs;
+    uint64_t lastEmitUs = summary->lastEmitUs;
     *summary = (sensorarrayAsyncLogSummary_t){
         .publishedStart = stats->publishedFrames,
+        .freshFrameStart = stats->freshFrames,
+        .staleFrameStart = stats->staleFrames,
+        .mixedFrameStart = stats->mixedFrames,
+        .rowFreshMaskBadStart = stats->rowFreshMaskBad,
+        .primaryFreshMaskBadStart = stats->primaryFreshMaskBad,
+        .secondaryFreshMaskBadStart = stats->secondaryFreshMaskBad,
+        .freshCellStart = stats->freshCells,
+        .physicalSweepTotalUsStart = stats->physicalSweepTotalUs,
+        .rowStepTotalUsStart = stats->rowStepTotalUs,
+        .frameStartIntervalTotalUsStart = stats->frameStartIntervalTotalUs,
+        .frameStartIntervalCountStart = stats->frameStartIntervalCount,
+        .measureFrameTotalUsStart = stats->measureFrameTotalUs,
         .droppedFrameStart = stats->droppedOutputFrames,
         .droppedEventStart = stats->droppedEventLogs,
+        .lastFrameStartUs = lastFrameStartUs,
+        .lastEmitUs = lastEmitUs,
     };
 }
 
@@ -291,16 +380,46 @@ static void sensorarrayAsyncLogSummaryBegin(sensorarrayAsyncLogSummary_t *summar
         return;
     }
     uint64_t publishedStart = summary->publishedStart;
+    uint64_t freshFrameStart = summary->freshFrameStart;
+    uint64_t staleFrameStart = summary->staleFrameStart;
+    uint64_t mixedFrameStart = summary->mixedFrameStart;
+    uint64_t rowFreshMaskBadStart = summary->rowFreshMaskBadStart;
+    uint64_t primaryFreshMaskBadStart = summary->primaryFreshMaskBadStart;
+    uint64_t secondaryFreshMaskBadStart = summary->secondaryFreshMaskBadStart;
+    uint64_t freshCellStart = summary->freshCellStart;
+    uint64_t physicalSweepTotalUsStart = summary->physicalSweepTotalUsStart;
+    uint64_t rowStepTotalUsStart = summary->rowStepTotalUsStart;
+    uint64_t frameStartIntervalTotalUsStart = summary->frameStartIntervalTotalUsStart;
+    uint64_t frameStartIntervalCountStart = summary->frameStartIntervalCountStart;
+    uint64_t measureFrameTotalUsStart = summary->measureFrameTotalUsStart;
     uint64_t droppedFrameStart = summary->droppedFrameStart;
     uint64_t droppedEventStart = summary->droppedEventStart;
+    uint64_t lastFrameStartUs = summary->lastFrameStartUs;
+    uint64_t lastEmitUs = summary->lastEmitUs;
     *summary = (sensorarrayAsyncLogSummary_t){
         .active = true,
         .seqStart = frame->sequence,
         .seqEnd = frame->sequence,
+        .physicalSweepStart = frame->physicalSweepId,
+        .physicalSweepEnd = frame->physicalSweepId,
         .windowStartUs = esp_timer_get_time(),
         .publishedStart = publishedStart,
+        .freshFrameStart = freshFrameStart,
+        .staleFrameStart = staleFrameStart,
+        .mixedFrameStart = mixedFrameStart,
+        .rowFreshMaskBadStart = rowFreshMaskBadStart,
+        .primaryFreshMaskBadStart = primaryFreshMaskBadStart,
+        .secondaryFreshMaskBadStart = secondaryFreshMaskBadStart,
+        .freshCellStart = freshCellStart,
+        .physicalSweepTotalUsStart = physicalSweepTotalUsStart,
+        .rowStepTotalUsStart = rowStepTotalUsStart,
+        .frameStartIntervalTotalUsStart = frameStartIntervalTotalUsStart,
+        .frameStartIntervalCountStart = frameStartIntervalCountStart,
+        .measureFrameTotalUsStart = measureFrameTotalUsStart,
         .droppedFrameStart = droppedFrameStart,
         .droppedEventStart = droppedEventStart,
+        .lastFrameStartUs = lastFrameStartUs,
+        .lastEmitUs = lastEmitUs,
     };
 }
 
@@ -309,7 +428,8 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
                                              uint64_t measureFrameUs,
                                              uint64_t frameAgeUs,
                                              uint64_t outputUs,
-                                             uint32_t queueDepth)
+                                             uint32_t queueDepth,
+                                             bool emitted)
 {
     if (!summary || !frame) {
         return;
@@ -319,14 +439,63 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
     }
 
     summary->seqEnd = frame->sequence;
-    summary->outputFrames++;
-    summary->frameAgeTotalUs += frameAgeUs;
-    if (frameAgeUs > summary->frameAgeMaxUs) {
-        summary->frameAgeMaxUs = frameAgeUs;
+    summary->physicalSweepEnd = frame->physicalSweepId;
+    summary->processedFrames++;
+    summary->freshCells += frame->freshCount;
+    summary->physicalSweepTotalUs += frame->physicalSweepUs;
+    if (frame->physicalSweepUs > summary->physicalSweepMaxUs) {
+        summary->physicalSweepMaxUs = frame->physicalSweepUs;
     }
-    summary->outTotalUs += outputUs;
-    if (outputUs > summary->outMaxUs) {
-        summary->outMaxUs = outputUs;
+    summary->rowStepTotalUs += frame->rowStepUsAvg * SENSORARRAY_MATRIX_ROWS;
+    if (frame->rowStepUsMax > summary->rowStepMaxUs) {
+        summary->rowStepMaxUs = frame->rowStepUsMax;
+    }
+    if (summary->lastFrameStartUs != 0u && frame->frameStartUs > summary->lastFrameStartUs) {
+        uint64_t intervalUs = frame->frameStartUs - summary->lastFrameStartUs;
+        summary->frameStartIntervalTotalUs += intervalUs;
+        summary->frameStartIntervalCount++;
+        if (intervalUs > summary->frameStartIntervalMaxUs) {
+            summary->frameStartIntervalMaxUs = intervalUs;
+        }
+    }
+    summary->lastFrameStartUs = frame->frameStartUs;
+    if (frame->freshFrame) {
+        summary->freshFrames++;
+    }
+    if (frame->stale) {
+        summary->staleFrames++;
+    }
+    if (frame->mixedEpoch) {
+        summary->mixedFrames++;
+    }
+    if (frame->rowFreshMask != 0xFFu) {
+        summary->rowFreshMaskBad++;
+    }
+    if (frame->primaryFreshMask != 0xFFu) {
+        summary->primaryFreshMaskBad++;
+    }
+    if (frame->secondaryFreshMask != 0xFFu) {
+        summary->secondaryFreshMaskBad++;
+    }
+    if (emitted) {
+        summary->outputFrames++;
+        if (summary->lastEmitUs != 0u && frame->emitUs > summary->lastEmitUs) {
+            uint64_t intervalUs = frame->emitUs - summary->lastEmitUs;
+            summary->emitIntervalTotalUs += intervalUs;
+            summary->emitIntervalCount++;
+            if (intervalUs > summary->emitIntervalMaxUs) {
+                summary->emitIntervalMaxUs = intervalUs;
+            }
+        }
+        summary->lastEmitUs = frame->emitUs;
+        summary->frameAgeTotalUs += frameAgeUs;
+        if (frameAgeUs > summary->frameAgeMaxUs) {
+            summary->frameAgeMaxUs = frameAgeUs;
+        }
+        summary->outTotalUs += outputUs;
+        if (outputUs > summary->outMaxUs) {
+            summary->outMaxUs = outputUs;
+        }
     }
     summary->measureFrameTotalUs += measureFrameUs;
     if (measureFrameUs > summary->measureFrameMaxUs) {
@@ -334,6 +503,52 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
     }
     if (queueDepth > summary->queueDepthMax) {
         summary->queueDepthMax = queueDepth;
+    }
+
+#define SENSORARRAY_ASYNC_TELEMETRY_ADD(field) \
+    summary->telemetry.field += frame->telemetry.field
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(routeUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(settleUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheCompareUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheApplyI2cUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(readyWaitUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(statusReadUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(dataReadUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(mergeUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(primaryWorkerRunUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(secondaryWorkerRunUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(workerStartSkewUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(workerDoneSkewUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus0ReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus1ReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus0WriteCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus1WriteCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus0ReadBytes);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus1ReadBytes);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus0WriteBytes);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus1WriteBytes);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus0TotalUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBus1TotalUs);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cOrderedDataReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBurstDataReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cBurstFallbackCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cNackCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cTimeoutCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(i2cRecoveryCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(directDataReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(directDataFallbackCount);
+    summary->telemetry.directDataFallbackReasonMask |=
+        frame->telemetry.directDataFallbackReasonMask;
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(statusReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(statusSavedReadCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheCompareCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheDiffRows);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheWriteCount);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheRestartRows);
+    SENSORARRAY_ASYNC_TELEMETRY_ADD(cacheSkipRows);
+#undef SENSORARRAY_ASYNC_TELEMETRY_ADD
+    if (frame->telemetry.cacheApplyI2cUs > summary->cacheApplyI2cMaxUs) {
+        summary->cacheApplyI2cMaxUs = frame->telemetry.cacheApplyI2cUs;
     }
 }
 
@@ -348,21 +563,40 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
     if (every == 0u) {
         every = 20u;
     }
-    uint64_t measureFrames = stats.publishedFrames - summary->publishedStart;
+    uint64_t measureFrames = summary->processedFrames;
     if (measureFrames < every) {
         return;
     }
 
-    int64_t elapsedUsSigned = esp_timer_get_time() - summary->windowStartUs;
-    uint64_t elapsedUs = elapsedUsSigned > 0 ? (uint64_t)elapsedUsSigned : 1u;
-    uint64_t measureFpsX100 = (measureFrames * 100000000ull) / elapsedUs;
-    uint64_t outputFpsX100 = (summary->outputFrames * 100000000ull) / elapsedUs;
+    uint64_t frameStartIntervalAvgUs = summary->frameStartIntervalCount ?
+        summary->frameStartIntervalTotalUs / summary->frameStartIntervalCount : 0u;
+    uint64_t emitIntervalAvgUs = summary->emitIntervalCount ?
+        summary->emitIntervalTotalUs / summary->emitIntervalCount : 0u;
+    uint64_t measureFpsX100 = frameStartIntervalAvgUs ?
+        100000000ull / frameStartIntervalAvgUs : 0u;
+    uint64_t outputFpsX100 = emitIntervalAvgUs ?
+        100000000ull / emitIntervalAvgUs : 0u;
+    uint64_t physicalFpsX100 = measureFpsX100;
+    uint64_t freshFrames = summary->freshFrames;
+    uint64_t staleFrames = summary->staleFrames;
+    uint64_t mixedFrames = summary->mixedFrames;
+    uint64_t rowFreshMaskBad = summary->rowFreshMaskBad;
+    uint64_t primaryFreshMaskBad = summary->primaryFreshMaskBad;
+    uint64_t secondaryFreshMaskBad = summary->secondaryFreshMaskBad;
+    uint64_t cellFreshFpsX100 = measureFrames ?
+        (measureFpsX100 * summary->freshCells) /
+            (measureFrames * (uint64_t)SENSORARRAY_MATRIX_CELL_COUNT) : 0u;
     uint64_t frameAgeAvgUs = summary->outputFrames ?
         (summary->frameAgeTotalUs / summary->outputFrames) : 0u;
     uint64_t outAvgUs = summary->outputFrames ?
         (summary->outTotalUs / summary->outputFrames) : 0u;
-    uint64_t measureAvgUs = summary->outputFrames ?
-        (summary->measureFrameTotalUs / summary->outputFrames) : 0u;
+    uint64_t measureAvgUs = measureFrames ?
+        (summary->measureFrameTotalUs / measureFrames) : 0u;
+    uint64_t physicalSweepAvgUs = measureFrames ?
+        (summary->physicalSweepTotalUs / measureFrames) : 0u;
+    uint64_t capEmitIntervalAvgUs = emitIntervalAvgUs;
+    uint64_t rowSteps = measureFrames * SENSORARRAY_MATRIX_ROWS;
+    uint64_t rowStepAvgUs = rowSteps ? (summary->rowStepTotalUs / rowSteps) : 0u;
     uint64_t droppedFrames = stats.droppedOutputFrames - summary->droppedFrameStart;
     uint64_t droppedEvents = stats.droppedEventLogs - summary->droppedEventStart;
 
@@ -386,6 +620,124 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
            (unsigned long long)summary->measureFrameMaxUs,
            (unsigned)uxTaskGetStackHighWaterMark(NULL));
 
+    printf("FPS20,frame0=%lu,frame1=%lu,sweep0=%lu,sweep1=%lu,n=%llu,coreFps=%llu.%02llu,physFps=%llu.%02llu,emitFps=%llu.%02llu,cellFreshFps=%llu.%02llu,coreFrameUsAvg=%llu,physicalSweepUsAvg=%llu,capEmitIntervalUsAvg=%llu,outputUsAvg=%llu,queueDepth=%lu,dropped=%llu,staleFrames=%llu,mixedFrames=%llu\n",
+           (unsigned long)summary->seqStart,
+           (unsigned long)summary->seqEnd,
+           (unsigned long)summary->physicalSweepStart,
+           (unsigned long)summary->physicalSweepEnd,
+           (unsigned long long)measureFrames,
+           (unsigned long long)(measureFpsX100 / 100ull),
+           (unsigned long long)(measureFpsX100 % 100ull),
+           (unsigned long long)(physicalFpsX100 / 100ull),
+           (unsigned long long)(physicalFpsX100 % 100ull),
+           (unsigned long long)(outputFpsX100 / 100ull),
+           (unsigned long long)(outputFpsX100 % 100ull),
+           (unsigned long long)(cellFreshFpsX100 / 100ull),
+           (unsigned long long)(cellFreshFpsX100 % 100ull),
+           (unsigned long long)measureAvgUs,
+           (unsigned long long)physicalSweepAvgUs,
+           (unsigned long long)capEmitIntervalAvgUs,
+           (unsigned long long)outAvgUs,
+           (unsigned long)s_pendingCount,
+           (unsigned long long)droppedFrames,
+           (unsigned long long)staleFrames,
+           (unsigned long long)mixedFrames);
+    printf("PHY20,frameCount=%llu,rowSteps=%llu,rowStepUsAvg=%llu,rowStepUsMax=%llu,frameStartIntervalUsAvg=%llu,frameStartIntervalUsMax=%llu,physicalSweepUsAvg=%llu,physicalSweepUsMax=%llu\n",
+           (unsigned long long)measureFrames,
+           (unsigned long long)rowSteps,
+           (unsigned long long)rowStepAvgUs,
+           (unsigned long long)summary->rowStepMaxUs,
+           (unsigned long long)frameStartIntervalAvgUs,
+           (unsigned long long)summary->frameStartIntervalMaxUs,
+           (unsigned long long)physicalSweepAvgUs,
+           (unsigned long long)summary->physicalSweepMaxUs);
+    printf("FRESH20,frames=%llu,freshFrames=%llu,staleFrames=%llu,mixedEpochFrames=%llu,rowFreshMaskBad=%llu,primaryFreshMaskBad=%llu,secondaryFreshMaskBad=%llu,primarySecondaryEpochMismatch=%llu\n",
+           (unsigned long long)measureFrames,
+           (unsigned long long)freshFrames,
+           (unsigned long long)staleFrames,
+           (unsigned long long)mixedFrames,
+           (unsigned long long)rowFreshMaskBad,
+           (unsigned long long)primaryFreshMaskBad,
+           (unsigned long long)secondaryFreshMaskBad,
+           (unsigned long long)mixedFrames);
+
+    BoardSupportI2cBusInfo_t bus0 = {0};
+    BoardSupportI2cBusInfo_t bus1 = {0};
+    (void)boardSupportGetI2cBusInfo(false, &bus0);
+    (void)boardSupportGetI2cBusInfo(true, &bus1);
+    sensorarrayFdcFrameTelemetry_t *telemetry = &summary->telemetry;
+    uint64_t bus0Bits = sensorarrayAsyncLogEstimateI2cBits(telemetry->i2cBus0WriteCount,
+                                                           telemetry->i2cBus0ReadCount,
+                                                           telemetry->i2cBus0WriteBytes,
+                                                           telemetry->i2cBus0ReadBytes);
+    uint64_t bus1Bits = sensorarrayAsyncLogEstimateI2cBits(telemetry->i2cBus1WriteCount,
+                                                           telemetry->i2cBus1ReadCount,
+                                                           telemetry->i2cBus1WriteBytes,
+                                                           telemetry->i2cBus1ReadBytes);
+    uint64_t bus0WireUs = bus0.FrequencyHz ? (bus0Bits * 1000000ull) / bus0.FrequencyHz : 0u;
+    uint64_t bus1WireUs = bus1.FrequencyHz ? (bus1Bits * 1000000ull) / bus1.FrequencyHz : 0u;
+    printf("I2C20,bus0Hz=%lu,bus1Hz=%lu,bus0Reads=%lu,bus1Reads=%lu,bus0Writes=%lu,bus1Writes=%lu,bus0BytesRx=%lu,bus1BytesRx=%lu,bus0WireUs=%llu,bus1WireUs=%llu,bus0DriverUs=%llu,bus1DriverUs=%llu,burstReads=%lu,orderedReads=%lu,fallbackReads=%lu,nack=%lu,timeout=%lu,recover=%lu\n",
+           (unsigned long)bus0.FrequencyHz,
+           (unsigned long)bus1.FrequencyHz,
+           (unsigned long)telemetry->i2cBus0ReadCount,
+           (unsigned long)telemetry->i2cBus1ReadCount,
+           (unsigned long)telemetry->i2cBus0WriteCount,
+           (unsigned long)telemetry->i2cBus1WriteCount,
+           (unsigned long)telemetry->i2cBus0ReadBytes,
+           (unsigned long)telemetry->i2cBus1ReadBytes,
+           (unsigned long long)bus0WireUs,
+           (unsigned long long)bus1WireUs,
+           (unsigned long long)telemetry->i2cBus0TotalUs,
+           (unsigned long long)telemetry->i2cBus1TotalUs,
+           (unsigned long)telemetry->i2cBurstDataReadCount,
+           (unsigned long)telemetry->i2cOrderedDataReadCount,
+           (unsigned long)telemetry->i2cBurstFallbackCount,
+           (unsigned long)telemetry->i2cNackCount,
+           (unsigned long)telemetry->i2cTimeoutCount,
+           (unsigned long)telemetry->i2cRecoveryCount);
+
+    uint64_t directAccepted = telemetry->directDataReadCount >= telemetry->directDataFallbackCount ?
+        telemetry->directDataReadCount - telemetry->directDataFallbackCount : 0u;
+    uint64_t directValidRateX100 = telemetry->directDataReadCount ?
+        (directAccepted * 10000ull) / telemetry->directDataReadCount : 0u;
+    printf("FAST20,directDataReads=%lu,statusReads=%lu,fallbacks=%lu,fallbackReasonMask=0x%lX,directValidRate=%llu.%02llu,statusSavedReads=%lu\n",
+           (unsigned long)telemetry->directDataReadCount,
+           (unsigned long)telemetry->statusReadCount,
+           (unsigned long)telemetry->directDataFallbackCount,
+           (unsigned long)telemetry->directDataFallbackReasonMask,
+           (unsigned long long)(directValidRateX100 / 100ull),
+           (unsigned long long)(directValidRateX100 % 100ull),
+           (unsigned long)telemetry->statusSavedReadCount);
+
+    uint64_t cacheCompareAvgUs = telemetry->cacheCompareCount ?
+        telemetry->cacheCompareUs / telemetry->cacheCompareCount : 0u;
+    uint64_t cacheApplyAvgUs = telemetry->cacheRestartRows ?
+        telemetry->cacheApplyI2cUs / telemetry->cacheRestartRows : 0u;
+    printf("CACHE20,compare=%lu,compareUsAvg=%llu,diffRows=%lu,writes=%lu,applyUsAvg=%llu,applyUsMax=%llu,restartRows=%lu,skipRows=%lu\n",
+           (unsigned long)telemetry->cacheCompareCount,
+           (unsigned long long)cacheCompareAvgUs,
+           (unsigned long)telemetry->cacheDiffRows,
+           (unsigned long)telemetry->cacheWriteCount,
+           (unsigned long long)cacheApplyAvgUs,
+           (unsigned long long)summary->cacheApplyI2cMaxUs,
+           (unsigned long)telemetry->cacheRestartRows,
+           (unsigned long)telemetry->cacheSkipRows);
+
+    uint64_t rowDeviceCount = measureFrames * SENSORARRAY_MATRIX_ROWS;
+    printf("PIPE20,routeUsAvg=%llu,settleUsAvg=%llu,cacheCompareUsAvg=%llu,cacheApplyUsAvg=%llu,readyWaitUsAvg=%llu,statusReadUsAvg=%llu,dataReadUsAvg=%llu,mergeUsAvg=%llu,primaryRunUsAvg=%llu,secondaryRunUsAvg=%llu,barrierSkewUsAvg=%llu,doneSkewUsAvg=%llu\n",
+           (unsigned long long)(rowDeviceCount ? telemetry->routeUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->settleUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->cacheCompareUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->cacheApplyI2cUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->readyWaitUs / (rowDeviceCount * 2u) : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->statusReadUs / (rowDeviceCount * 2u) : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->dataReadUs / (rowDeviceCount * 2u) : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->mergeUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->primaryWorkerRunUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->secondaryWorkerRunUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->workerStartSkewUs / rowDeviceCount : 0u),
+           (unsigned long long)(rowDeviceCount ? telemetry->workerDoneSkewUs / rowDeviceCount : 0u));
+
     sensorarrayAsyncLogSummarySetBaseline(summary, &stats);
 }
 
@@ -408,15 +760,21 @@ static void sensorarrayAsyncLogTask(void *arg)
             int64_t outputStartUs = esp_timer_get_time();
             uint64_t frameAgeUs = (publishedUs > 0 && outputStartUs > publishedUs) ?
                 (uint64_t)(outputStartUs - publishedUs) : 0u;
-            (void)sensorarrayFrameOutputPrint(&frame);
-            uint64_t outputUs = sensorarrayAsyncLogElapsedPositiveUs(outputStartUs);
+            bool emitted = frame.freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
+            uint64_t outputUs = 0u;
+            if (emitted) {
+                frame.emitUs = (uint64_t)outputStartUs;
+                (void)sensorarrayFrameOutputPrint(&frame);
+                outputUs = sensorarrayAsyncLogElapsedPositiveUs(outputStartUs);
+            }
 
             sensorarrayAsyncLogUpdateSummary(&summary,
                                              &frame,
                                              measureFrameUs,
                                              frameAgeUs,
                                              outputUs,
-                                             queueDepth);
+                                             queueDepth,
+                                             emitted);
             sensorarrayAsyncLogMaybePrintSummary(&summary);
         }
         sensorarrayAsyncLogDrainEvents();
@@ -470,7 +828,8 @@ esp_err_t sensorarrayAsyncLogInit(void)
     }
 
     s_asyncLogStarted = true;
-    printf("APP_LOG_INIT,mode=async,frameSlots=%u,eventQueueLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u\n",
+    printf("APP_LOG_INIT,mode=async,frameFormat=%s,frameSlots=%u,eventQueueLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u\n",
+           CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1 ? "binary_v1" : "text",
            (unsigned)SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT,
            (unsigned)SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES,
@@ -501,6 +860,35 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
     uint8_t slot = UINT8_MAX;
     portENTER_CRITICAL(&s_asyncLogMux);
     s_sharedStats.publishedFrames++;
+    s_sharedStats.freshFrames += frame->freshFrame ? 1u : 0u;
+    s_sharedStats.staleFrames += frame->stale ? 1u : 0u;
+    s_sharedStats.mixedFrames += frame->mixedEpoch ? 1u : 0u;
+    s_sharedStats.rowFreshMaskBad += frame->rowFreshMask != 0xFFu ? 1u : 0u;
+    s_sharedStats.primaryFreshMaskBad += frame->primaryFreshMask != 0xFFu ? 1u : 0u;
+    s_sharedStats.secondaryFreshMaskBad += frame->secondaryFreshMask != 0xFFu ? 1u : 0u;
+    s_sharedStats.freshCells += frame->freshCount;
+    s_sharedStats.physicalSweepTotalUs += frame->physicalSweepUs;
+    if (frame->physicalSweepUs > s_sharedStats.physicalSweepMaxUs) {
+        s_sharedStats.physicalSweepMaxUs = frame->physicalSweepUs;
+    }
+    s_sharedStats.rowStepTotalUs += frame->rowStepUsAvg * SENSORARRAY_MATRIX_ROWS;
+    if (frame->rowStepUsMax > s_sharedStats.rowStepMaxUs) {
+        s_sharedStats.rowStepMaxUs = frame->rowStepUsMax;
+    }
+    if (s_sharedStats.lastFrameStartUs != 0u &&
+        frame->frameStartUs > s_sharedStats.lastFrameStartUs) {
+        uint64_t intervalUs = frame->frameStartUs - s_sharedStats.lastFrameStartUs;
+        s_sharedStats.frameStartIntervalTotalUs += intervalUs;
+        s_sharedStats.frameStartIntervalCount++;
+        if (intervalUs > s_sharedStats.frameStartIntervalMaxUs) {
+            s_sharedStats.frameStartIntervalMaxUs = intervalUs;
+        }
+    }
+    s_sharedStats.lastFrameStartUs = frame->frameStartUs;
+    s_sharedStats.measureFrameTotalUs += measureFrameUs;
+    if (measureFrameUs > s_sharedStats.measureFrameMaxUs) {
+        s_sharedStats.measureFrameMaxUs = measureFrameUs;
+    }
     slot = sensorarrayAsyncLogFindFreeSlotLocked();
     if (slot == UINT8_MAX && CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES) {
         (void)sensorarrayAsyncLogDropOldestQueuedFrameLocked();

@@ -209,7 +209,19 @@ typedef struct {
     uint32_t nackCount;
     uint32_t timeoutCount;
     uint32_t recoveryCount;
+    uint32_t orderedDataReadCount;
+    uint32_t burstDataReadCount;
+    uint32_t burstProbeReadCount;
+    uint32_t burstFallbackCount;
 } Fdc2214CapI2cStats_t;
+
+typedef struct {
+    bool supported;
+    uint32_t trials;
+    uint32_t mismatchCount;
+    esp_err_t err;
+    const char *reason;
+} Fdc2214CapBurstProbeResult_t;
 
 // Create a device handle; the I2C callbacks are used for all transactions.
 esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev);
@@ -334,10 +346,18 @@ esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev,
                                                   uint8_t channelMask,
                                                   Fdc2214CapFastChannelSample_t* outSamples,
                                                   size_t outSampleCount);
-// Read DATA_CHx then DATA_LSB_CHx for CH0..CH3. The formal path must not use a
-// single 0x00-based 16-byte burst because that was unreliable on the target PCB.
+// Read CH0..CH3 using the startup-probed block path when supported; otherwise
+// use ordered DATA_CHx then DATA_LSB_CHx register transactions.
 esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
                                    Fdc2214CapFastChannelSample_t outSamples[4]);
+esp_err_t Fdc2214CapReadDataOrdered4(Fdc2214CapDevice_t* dev,
+                                     Fdc2214CapFastChannelSample_t outSamples[4]);
+// Compare ordered register reads with a 16-byte auto-increment candidate read.
+// Burst mode is enabled only after every requested trial matches exactly.
+esp_err_t Fdc2214CapProbeDataBurst4(Fdc2214CapDevice_t* dev,
+                                    uint32_t trials,
+                                    Fdc2214CapBurstProbeResult_t* outResult);
+bool Fdc2214CapDataBurstSupported(const Fdc2214CapDevice_t* dev);
 
 // Read a raw 16-bit register value.
 esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue);

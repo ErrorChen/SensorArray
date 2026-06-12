@@ -46,7 +46,7 @@ SensorArray firmware runs on ESP32-S3. The current main path reads an 8 x 8 FDC2
 | ADS1262/ADS1263 matrix | 初始化和 API 存在，frame read returns unsupported / initialisation and APIs exist, frame read returns unsupported | `sensorarrayAdsMatrixEngineReadFrame()` initialises an invalid frame and returns `ESP_ERR_NOT_SUPPORTED`. |
 | Mixed row mode | Thin pass-through to FDC path / thin pass-through to FDC path | `sensorarrayMixedRowEngineReadFrame()` currently calls the FDC matrix engine. |
 | Text output | 异步主输出 / default async output | `main/output/sensorarrayAsyncLog.c` copies frame snapshots into `sensorarrayLogTask`; `main/output/sensorarrayFrameOutput.c` formats `Cap`/legacy `MATRIXFDC_CAP`, optionally `MATRIXFDC_FREQ` and `DEBUGFDC_RAW`. |
-| Binary transport | 非默认且未实现发送 / not default and send is unsupported | `sensorarrayFastSpeedSetEnabled(false)` runs at init; `sensorarrayTransportSendFdcMatrixFrame()` returns `ESP_ERR_NOT_SUPPORTED`. |
+| Binary transport | 可选 SAF1 compact binary v1 / optional compact binary | Enable `CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1`; async output emits one fixed 340-byte little-endian packet per fresh frame. |
 | Runtime console commands | 当前源码树未发现注册 / not found in this source tree | No `esp_console_cmd_register` call is present. Profile and discard setters are C APIs, not serial commands. |
 
 ## 硬件拓扑 / Hardware topology
@@ -167,7 +167,8 @@ flowchart TD
 | `CONFIG_COMPILER_STACK_CHECK_MODE_STRONG` | choice | sdkconfig defaults: strong | Compiler stack checking. | all compiled C code | Keep strong unless measuring release performance. |
 | `CONFIG_SENSORARRAY_ENABLE_WIRED` | bool | Kconfig: y | Enables wired transport option. | transport build paths | Current default output still uses printf text. |
 | `CONFIG_SENSORARRAY_ENABLE_BLE` | bool | Kconfig: y | Enables BLE transport option. | BLE transport build paths | Disable when BLE task/memory budget is not required. |
-| `CONFIG_SENSORARRAY_SCAN_TASK_CORE`, `CONFIG_SENSORARRAY_SCAN_TASK_STACK`, `CONFIG_SENSORARRAY_SCAN_TASK_PRIO` | int | `1`, `8192`, `12` | Scheduling defaults for scan work. | worker/task config defaults | Keep scan work away from comm/BLE unless core affinity needs debugging. |
+| `CONFIG_SENSORARRAY_SCAN_TASK_CORE`, `CONFIG_SENSORARRAY_SCAN_TASK_STACK`, `CONFIG_SENSORARRAY_SCAN_TASK_PRIO` | int | `1`, `16384`, `12` | Scheduling defaults for scan work. | scan task and worker/task config defaults | Keep scan work away from comm/BLE unless core affinity needs debugging. |
+| `CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE` | bool | n | Prints scan-task stack/heap diagnostics every 100 frames. | `sensorarrayRunMainLoop()` | Leave disabled for formal timing because synchronous printf introduces a frame gap. |
 | `CONFIG_SENSORARRAY_COMM_TASK_CORE`, `CONFIG_SENSORARRAY_COMM_TASK_STACK`, `CONFIG_SENSORARRAY_COMM_TASK_PRIO` | int | `0`, `4096`, `8` | Scheduling defaults for communication work. | transport/task config defaults | Increase stack if future transport code adds deeper call chains. |
 | `CONFIG_SENSORARRAY_BLE_TASK_CORE` | int | `0` | BLE task core when BLE is enabled. | BLE transport task config | Current BLE transport is placeholder only. |
 
@@ -270,7 +271,7 @@ flowchart TD
 | `CONFIG_BOARD_I2C_PORT`, `CONFIG_BOARD_I2C_SDA_GPIO`, `CONFIG_BOARD_I2C_SCL_GPIO` | int | `0`, `9`, `10` | Primary I2C bus pins and port. | `boardSupportInit()` | Match board wiring. |
 | `CONFIG_BOARD_I2C_FREQ_HZ`, `CONFIG_BOARD_I2C0_FREQ_HZ` | int | defaults: `350000` | Primary bus startup frequency before FDC probe/fallback. | `boardSupportInit()`, timing estimates | Runtime locks the highest level that passes FDC ID reads. |
 | `CONFIG_BOARD_I2C1_ENABLE`, `CONFIG_BOARD_I2C1_PORT`, `CONFIG_BOARD_I2C1_SDA_GPIO`, `CONFIG_BOARD_I2C1_SCL_GPIO`, `CONFIG_BOARD_I2C1_FREQ_HZ` | bool/int | y, `1`, `11`, `12`, `350000` | Optional second I2C bus startup frequency for secondary FDC. | `boardSupportIsI2c1Enabled()`, `sensorarrayLogFdcParallelCfg()` | True parallel worker mode needs a valid second bus on a different port. |
-| `CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE`, `CONFIG_BOARD_I2C_FALLBACK_LEVELS` | bool/string | y, `350000,337500,325000,300000` | Probe and lock each FDC bus to the highest stable clock. | `boardSupportSetI2cFrequency()`, FDC init/runtime fallback | Probe uses repeated FDC ID reads; fallback is logged with `ICLK`. |
+| `CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE`, `CONFIG_BOARD_I2C_FALLBACK_LEVELS` | bool/string | y, `350000,337500,325000,300000` | Early pre-handle ID fallback and runtime recovery levels. | `boardSupportSetI2cFrequency()`, FDC init/runtime fallback | Post-create startup selection additionally performs the 400-to-300 kHz real-load sweep. |
 | `CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES` | int | `3` | Consecutive I2C-error frames before runtime fallback probe is retried. | `sensorarrayRuntimeI2cFallbackTick()` | Avoids dropping speed from a single transient error. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ` | bool | Kconfig/defaults: y | Enables worker-based primary/secondary row reads when dual buses are available. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Same bus or worker init failure falls back to serial. |
 | `CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE` | bool | Kconfig/defaults: y | Requires the guarded worker handoff before parallel row reads are used. | `sensorarrayMeasureReadFdcMatrixFrame()`, row epoch workers | Keep enabled. Worker timeout/fallback now waits for the worker to go idle before serial fallback. |
@@ -1189,11 +1190,11 @@ wr=<workerRunUs>,mode=<par|fallback>,reason=<reason>
 - `i2c_lock_serialized`: 两侧已启动但运行窗口几乎不重叠。
 - `queue_fail`, `ack_timeout`, `worker_deadline`: barrier/job deadline 失败。
 
-### FDC2214 ordered DATA reads
+### FDC2214 probed DATA reads
 
-formal row read 使用 `Fdc2214CapReadDataBurst4()` 这个兼容函数名，但正式实现只走有序
-register read，不再使用 `pointer=0x00` 后直接读取 16 bytes 的 FDC2214 burst 路径。DATA
-顺序固定为寄存器 `0x00..0x07`：
+启动时 `Fdc2214CapProbeDataBurst4()` 对每颗 FDC 连续比较 ordered `0x00..0x07`
+读取与候选 16-byte block read。只有所有 trial 的 raw28、valid 和 error bits 完全一致时，
+该 device 才启用 block path；否则本次启动永久使用 ordered fallback。ordered 顺序为：
 
 ```text
 DATA_CH0, DATA_LSB_CH0, DATA_CH1, DATA_LSB_CH1,
@@ -1206,15 +1207,15 @@ register pointer 对应一个 16-bit register；当前驱动因此对每个通�
 `DATA_CHx -> DATA_LSB_CHx` 的 ordered read，并把两半组合成 raw28。DATA read 失败会短重试
 一次；再次失败则当前 row-device 无效，不复用旧 epoch 数据。`retry/nack/to/rec` 应保持零。
 
-当前实板验证表明直接 16-byte read 只有首个 16-bit register 可靠，所以 16-byte direct burst
-不再保留为正式路径或 fallback。若要进一步降低 `I5.r`，需要硬件和器件层面支持稳定的更高
-bus rate 或明确的 multi-register auto-increment；软件不会再依赖 FDC2214 未定义的地址自动递增。
+运行中若已启用的 block transaction 出现 I2C 错误，驱动立即关闭该 device 的 burst，
+并在同一次调用中退回 ordered read。`BURST_PROBE` 和 `I2C20` 分别报告启动判定与运行计数；
+软件不会在 probe mismatch 后继续依赖未证实的地址自动递增。
 
 formal row 的 sleep enter/exit 使用 CONFIG write-only toggle，避免每 row/device 两次无必要
 readback；`CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL` 和启动/诊断路径仍可做完整读回验证。
-默认两条 FDC I2C bus 先尝试 `350 kHz`，然后按 `350000,337500,325000,300000` 探测并锁定
-最高稳定频率。启动和运行期 fallback 都会输出 `ICLK` 日志；运行期只有连续 I2C-error 帧达到
-`CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES` 后才重新探测，避免单次瞬态错误触发降速。
+FDC handle 创建后会对每条 bus 从 `400 kHz` 到 `300 kHz` 以 `5 kHz` 步进执行真实负载测试，
+覆盖 ID、STATUS、ordered DATA，以及 probe 已确认时的 block DATA。最终频率为
+`maxStableHz - 10 kHz`，最低不低于 `300 kHz`；结果见 `I2C_SWEEP` / `I2C_SELECTED`。
 
 ### Runtime profiles
 
@@ -1300,12 +1301,112 @@ idf -p COM11 flash monitor
 - `R5`: `trueTo=0`, `hardTo=0`, `part=0`。
 - `Q5`: `noStatusPollWait`、`statusAfterIntb`、`suppressedRp` 按 row-device 数增长；
   `statusAfterTimeout=0`, `internalWaitLeak=0`。
-- `I5`: `retry=0,nack=0,to=0,rec=0,xs=0`，且 ordered read 路径没有退回逐寄存器慢路径。
+- `I5/I2C20`: `retry=0,nack=0,to=0,rec=0,xs=0`，burst/ordered 计数与 `BURST_PROBE` 判定一致。
 - `WP`: `ws ~= ps`, overlap 接近较短 run window，reason 正常为 `ok`。
 - `T5`: `ww < 2000 us/row`，balanced runtime fps 明显高于 high precision。
 - `CA5/CAWARN`: cache apply 无持续 100 ms 级异常。
 
 若 `worker_late_start`，先检查 worker priority/core starvation；若
 `i2c_lock_serialized`，检查 primary/secondary 是否错误映射到同一 bus/context；
-若 `I5.r` 异常升高，确认 formal path 仍调用 ordered `DATA_CHx -> DATA_LSB_CHx` read；若 `CAWARN` 连续，
+若 `I2C20` read 数异常升高，检查 burst 是否 unsupported/fallback 以及 STATUS 是否频繁回退；若 `CAWARN` 连续，
 检查 cache generation/reapplyPending/profile change 是否持续变化。
+
+## 2026-06-12 Fresh Matrix Timing Contract
+
+本节覆盖前文旧性能记录，定义当前正式验收口径。
+
+### FPS 与 fresh frame
+
+- `physicalSweepFps`: 完成一次 S1-S8 物理扫描的频率；示波器以 `FRAME_STROBE_GPIO` 复核。
+- `coreReadFps`: formal 8-row read 调用完成频率；它不能单独代表有效数据 FPS。
+- `capEmitFps`: async output 实际发送完整 fresh frame 的频率。
+- `cellFreshFps`: `freshCells / 64 / elapsed`；完整帧时应与 `capEmitFps` 接近。
+- `hostParseFps` / `guiRenderFps`: 固件不伪造这两个值，由上位机按成功解析和绘制事件计算。
+
+frame 内含 `frameId`, `physicalSweepId`, `frameStartUs`, `frameEndUs`, `emitUs`, 三个 row/device
+fresh mask、每 row epoch/cache fingerprint 及 route/ready/read/merge 时间戳。只有
+`rowFreshMask=primaryFreshMask=secondaryFreshMask=0xFF`、64 cell fresh 且无 mixed epoch 时，
+`frameId` 才递增并允许正式输出；非 fresh snapshot 默认只进入诊断统计。
+
+真实 20 FPS 条件是 `physicalSweepFps >= 20`、`capEmitFps >= 20`、
+`physicalSweepUsAvg <= 50000`、`capEmitIntervalUsAvg <= 50000`，并且
+`staleFrames=0`、`mixedEpochFrames=0`。`coreReadFps >= 20` 单独不算达标。
+
+### 20-frame logs
+
+| Log | Purpose |
+|---|---|
+| `FPS20` | `coreFps`, `physFps`, `emitFps`, `cellFreshFps`, sweep/emit/output time, queue/drop/stale/mixed counts. |
+| `PHY20` | row steps, row-step timing, frame-start interval and physical-sweep duration. |
+| `FRESH20` | fresh/stale/mixed frame counts and bad row/primary/secondary masks. |
+| `FAST20` | INTB direct DATA count, STATUS reads, fallbacks/reason mask and saved STATUS reads. |
+| `I2C20` | bus rates, reads/writes/bytes, estimated wire time, measured driver time, burst/ordered/fallback counts. |
+| `CACHE20` | memory compares, diff rows/writes, apply I2C time, restart and no-diff rows. |
+| `PIPE20` | route/settle/cache/ready/STATUS/DATA/merge timing plus worker runtime and start/done skew. |
+| `BURST_PROBE` | per-device ordered-versus-block startup comparison and enable decision. |
+| `I2C_SWEEP`, `I2C_SELECTED` | per-frequency real-load result and final margin-adjusted bus clock. |
+
+INTB 的新边沿/notify 且 arm 时并非 already-low 时，可直接读 DATA。DATA 的 I2C、valid/error、
+全零等校验失败会计入 `FAST20`，随后等待下一轮 conversion 并走 STATUS-confirmed fallback；
+already-low 不进入 direct path。row cache compare 始终保留为纯内存 fingerprint/字段 diff；
+稳态 diff=0 不写 I2C，只有 dirty register 才写并标记 conversion restart/epoch change。
+
+### Output protocols
+
+文本模式保留 `Cap` 兼容格式并增加 `ps/fs/fe/emit/rf/pfmask/sfmask/stale/mixed`。
+若文本格式化或串口带宽限制 `capEmitFps`，选择
+`CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1`。`SAF1` 是 340-byte little-endian packet：
+
+- bytes 0-3: magic `SAF1`; byte 4 version 1; byte 5 flags (`fresh/stale/mixed`).
+- bytes 6-11: header bytes `80`, packet bytes `340`, cell count `64`, row count `8`.
+- bytes 12-47: `frameId`, `physicalSweepId`, three uint64 timestamps, three fresh masks.
+- bytes 48-79: cap-valid/fresh/warn/error uint64 masks.
+- bytes 80-335: 64 row-major IEEE-754 float32 pF values, D1-D8 order per row.
+- bytes 336-339: standard reflected CRC32 over bytes 0-335.
+
+### Oscilloscope and S8 isolation
+
+Enable `CONFIG_SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE` and assign row/frame/primary/secondary
+GPIOs. The formal path pulses row/frame markers and holds each read-window pin high only around
+that device's DATA transaction. Default disabled has no GPIO work in the hot path.
+
+`CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_MODE` supplies `route_only`, `row_hold`, `primary_only`,
+`secondary_only`, and `single_channel`. Non-normal modes bypass formal frame publication and print
+`WAVE_DEBUG`; use row S8 plus the strobe/read-window pins to determine whether its envelope follows
+route A2, a device read, or a specific channel. `CONFIG_SENSORARRAY_FDC_MAP_VERIFY_DEBUG` checks the
+firmware D1-D8 ownership/channel table; a physical single-point injection is still required to prove
+PCB and GUI column wiring.
+
+### Runtime verification
+
+After `idf build`, run `idf -p COM11 flash monitor` for at least 60 seconds. A valid report must quote
+`FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`, confirm the three fresh masks are always `FF`, and report
+NACK/timeout/recovery. If 20 FPS is not reached, use `PIPE20/I2C20/CACHE20` and optional deep diagnostics to separate
+ready wait, DATA read, route/settle, cache apply, worker skew, merge, output, wire time and driver time;
+do not substitute `coreReadFps` for the physical/emit result.
+
+### 2026-06-12 COM11 validation result
+
+The firmware was built from base `cf63c186b8c80ab982a9791d673667aa696166fd`, flashed to the
+ESP32-S3 on COM11, and monitored for 65 seconds. The final capture contained 320 emitted Cap frames:
+
+- steady windows after startup reported `coreFps=physFps=emitFps=cellFreshFps=12.41..12.42`;
+- `physicalSweepUsAvg=78.52..78.61 ms` and `capEmitIntervalUsAvg=80.48..80.58 ms`;
+- every captured frame had `rf=pfmask=sfmask=FF`, `stale=0`, and `mixed=0`; queue drops, NACK,
+  timeout, recovery, direct-DATA fallback, and periodic scan-task diagnostic interruptions were all zero;
+- both FDC2214 devices rejected the 16-byte candidate burst read (`5/5` mismatches), so runtime safely
+  remained on ordered DATA reads; both real-load I2C sweeps selected `345 kHz` from a `355 kHz`
+  highest-stable result with the required `10 kHz` margin;
+- steady per-device-row averages were approximately `ready=4.276 ms`, `DATA=2.369 ms`, worker runtime
+  `7.38 ms`, route `45 us`, settle `57 us`, cache compare `20 us`, and merge `255 us`;
+- per bus and per 20 frames, estimated wire time was `209.623 ms` while measured driver/wrapper time
+  was about `464 ms`, or approximately `10.48 ms` versus `23.2 ms` per frame per bus;
+- row cache compare executed for all 320 device-row checks per window, while steady-state diff rows,
+  writes, apply restarts, stale frames, and mixed frames remained zero.
+
+Therefore the real fresh 20 FPS target is **not met**. The remaining physical bottleneck is the
+approximately `9.54 ms` row step (`8 * 9.54 ms` plus frame overhead), dominated by FDC ready wait and
+eight ordered register transactions per device-row with substantial driver overhead. Text Cap formatting
+is also about `63.3..63.6 ms`, but it runs asynchronously and did not drop frames; selecting SAF1 can
+reduce host-output cost but cannot by itself reduce the `78.5 ms` physical sweep. Debug timing GPIOs and
+S8 isolation modes compile and remain default-off; this run did not assign pins or claim oscilloscope validation.

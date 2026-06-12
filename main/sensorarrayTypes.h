@@ -76,8 +76,77 @@ typedef enum {
 } sensorarraySwPhysicalLevel_t;
 
 typedef struct {
+    uint64_t routeUs;
+    uint64_t settleUs;
+    uint64_t cacheCompareUs;
+    uint64_t cacheApplyI2cUs;
+    uint64_t readyWaitUs;
+    uint64_t statusReadUs;
+    uint64_t dataReadUs;
+    uint64_t mergeUs;
+    uint64_t primaryWorkerRunUs;
+    uint64_t secondaryWorkerRunUs;
+    uint64_t workerStartSkewUs;
+    uint64_t workerDoneSkewUs;
+
+    uint32_t i2cBus0ReadCount;
+    uint32_t i2cBus1ReadCount;
+    uint32_t i2cBus0WriteCount;
+    uint32_t i2cBus1WriteCount;
+    uint32_t i2cBus0ReadBytes;
+    uint32_t i2cBus1ReadBytes;
+    uint32_t i2cBus0WriteBytes;
+    uint32_t i2cBus1WriteBytes;
+    uint64_t i2cBus0TotalUs;
+    uint64_t i2cBus1TotalUs;
+    uint32_t i2cOrderedDataReadCount;
+    uint32_t i2cBurstDataReadCount;
+    uint32_t i2cBurstFallbackCount;
+    uint32_t i2cNackCount;
+    uint32_t i2cTimeoutCount;
+    uint32_t i2cRecoveryCount;
+
+    uint32_t directDataReadCount;
+    uint32_t directDataFallbackCount;
+    uint32_t directDataFallbackReasonMask;
+    uint32_t statusReadCount;
+    uint32_t statusSavedReadCount;
+
+    uint32_t cacheCompareCount;
+    uint32_t cacheDiffRows;
+    uint32_t cacheWriteCount;
+    uint32_t cacheRestartRows;
+    uint32_t cacheSkipRows;
+} sensorarrayFdcFrameTelemetry_t;
+
+typedef struct {
     uint64_t timestampUs;
     uint32_t sequence;
+    uint32_t physicalSweepId;
+    uint64_t frameStartUs;
+    uint64_t frameEndUs;
+    uint64_t emitUs;
+    uint64_t physicalSweepUs;
+    uint64_t rowStepUsAvg;
+    uint64_t rowStepUsMax;
+
+    uint8_t rowFreshMask;
+    uint8_t primaryFreshMask;
+    uint8_t secondaryFreshMask;
+    uint32_t rowEpoch[SENSORARRAY_MATRIX_ROWS];
+    uint32_t primaryEpoch[SENSORARRAY_MATRIX_ROWS];
+    uint32_t secondaryEpoch[SENSORARRAY_MATRIX_ROWS];
+    uint32_t primaryCacheFingerprint[SENSORARRAY_MATRIX_ROWS];
+    uint32_t secondaryCacheFingerprint[SENSORARRAY_MATRIX_ROWS];
+    uint64_t rowRouteSetUs[SENSORARRAY_MATRIX_ROWS];
+    uint64_t rowReadyUs[SENSORARRAY_MATRIX_ROWS];
+    uint64_t rowReadDoneUs[SENSORARRAY_MATRIX_ROWS];
+    uint64_t rowMergeDoneUs[SENSORARRAY_MATRIX_ROWS];
+    bool mixedEpoch;
+    bool stale;
+    bool freshFrame;
+    sensorarrayFdcFrameTelemetry_t telemetry;
+
     double freqHz[SENSORARRAY_MATRIX_CELL_COUNT];
     double capTotalPf[SENSORARRAY_MATRIX_CELL_COUNT];
     uint32_t raw28[SENSORARRAY_MATRIX_CELL_COUNT];
@@ -124,6 +193,9 @@ typedef struct {
 
     uint64_t pathEnsureUs;
     uint64_t cacheApplyUs;
+    uint64_t cacheCompareUs;
+    uint64_t cacheApplyI2cUs;
+    uint64_t cacheApplyI2cMaxUs;
 
     uint64_t applyBuildConfigUs;
     uint64_t applyChannelConfigWriteUs;
@@ -206,6 +278,7 @@ typedef struct {
     uint32_t diffStatusConfigWrites;
     uint32_t diffConfigWrites;
     uint32_t appliedFingerprintChanges;
+    uint32_t cacheApplyRestartCount;
 
     uint32_t intbEdgeCountPrimary;
     uint32_t intbEdgeCountSecondary;
@@ -262,6 +335,10 @@ typedef struct {
     uint32_t waitBudgetTooShortCount;
     uint32_t levelLowButEdgeMissCount;
     uint32_t actualDataReadSkippedDespiteStatusReadyCount;
+    uint32_t directDataReadCount;
+    uint32_t directDataFallbackCount;
+    uint32_t directDataFallbackReasonMask;
+    uint32_t statusSavedReadCount;
     uint32_t rowFullInvalidCount;
     uint32_t deviceFullInvalidCount;
     uint32_t workerTimeoutCount;
@@ -304,6 +381,10 @@ typedef struct {
     uint32_t i2cNackCount;
     uint32_t i2cTimeoutCount;
     uint32_t i2cRecoveryCount;
+    uint32_t i2cOrderedDataReadCount;
+    uint32_t i2cBurstDataReadCount;
+    uint32_t i2cBurstProbeReadCount;
+    uint32_t i2cBurstFallbackCount;
 
     uint32_t i2cBus0WriteCount;
     uint32_t i2cBus0ReadCount;
@@ -339,6 +420,7 @@ typedef struct {
     uint64_t rowUs;
     uint64_t rowSelectUs;
     uint64_t analogSettleUs;
+    uint64_t routeSetTimestampUs;
 
     uint64_t primaryTotalUs;
     uint64_t secondaryTotalUs;
@@ -422,6 +504,8 @@ typedef struct {
 
     uint64_t deviceUs;
     uint64_t applyUs;
+    uint64_t cacheCompareUs;
+    uint64_t cacheApplyI2cUs;
     uint64_t applyBuildConfigUs;
     uint64_t channelConfigWriteUs;
     uint64_t globalConfigWriteUs;
@@ -469,6 +553,7 @@ typedef struct {
     uint32_t diffStatusConfigWrites;
     uint32_t diffConfigWrites;
     uint32_t appliedFingerprintChanged;
+    uint32_t cacheApplyRestartCount;
 
     uint32_t intbEdgeCount;
     uint32_t intbFalseEdgeCount;
@@ -516,6 +601,10 @@ typedef struct {
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;
     uint32_t fallbackFailCount;
+    uint32_t directDataReadCount;
+    uint32_t directDataFallbackCount;
+    uint32_t directDataFallbackReasonMask;
+    uint32_t statusSavedReadCount;
     uint32_t deviceFullInvalidCount;
     uint64_t maxWaitReadyUs;
     uint64_t maxI2cReadUs;

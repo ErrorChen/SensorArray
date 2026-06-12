@@ -119,6 +119,97 @@ config SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US
     default 50
     range 0 100000
 
+config SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+    bool "Enable FDC physical timing debug GPIOs"
+    default n
+    help
+        Debug-only oscilloscope markers. When disabled, the scan hot path does
+        not configure or toggle any of the GPIOs below.
+
+config SENSORARRAY_FDC_ROW_STROBE_GPIO
+    int "Row strobe GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_FRAME_STROBE_GPIO
+    int "Physical sweep frame strobe GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_PRIMARY_READ_WINDOW_GPIO
+    int "Primary FDC data-read window GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_SECONDARY_READ_WINDOW_GPIO
+    int "Secondary FDC data-read window GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_DEBUG_STROBE_PULSE_US
+    int "Debug strobe pulse width (us)"
+    default 2
+    range 0 1000
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+choice SENSORARRAY_FDC_WAVE_DEBUG_MODE
+    prompt "FDC S8/wave isolation mode"
+    default SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+    help
+        Debug-only runtime modes for oscilloscope isolation. Any non-normal
+        selection bypasses formal matrix frame publication.
+
+config SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+    bool "Normal 8x8 formal measurement"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROUTE_ONLY
+    bool "Route-only row scan; both FDCs sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD
+    bool "Hold one row; both FDCs active"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_PRIMARY_ONLY
+    bool "Scan rows; primary active, secondary sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SECONDARY_ONLY
+    bool "Scan rows; secondary active, primary sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+    bool "Scan rows; one FDC single channel active"
+
+endchoice
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROW
+    int "Held row S index"
+    default 8
+    range 1 8
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL_SECONDARY
+    bool "Use secondary FDC for single-channel mode"
+    default n
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+
+config SENSORARRAY_FDC_WAVE_DEBUG_CHANNEL
+    int "Single-channel FDC channel index"
+    default 0
+    range 0 3
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+
+config SENSORARRAY_FDC_WAVE_DEBUG_STEP_MS
+    int "Wave debug row/read step period (ms)"
+    default 10
+    range 1 1000
+    depends on !SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+
+config SENSORARRAY_FDC_MAP_VERIFY_DEBUG
+    bool "Print and assert D1-D8 FDC ownership/channel map at startup"
+    default n
+
 config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ
     bool "Read primary and secondary FDC devices with dual worker tasks"
     default y
@@ -182,6 +273,17 @@ config SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
 config SENSORARRAY_FDC_INTB_ENABLE
     bool "Use FDC2214 INTB data-ready hint"
     default y
+
+config SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE
+    bool "Read DATA directly after a new INTB edge"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+    help
+        Skip the normal pre-DATA STATUS transaction only when a new INTB edge
+        belongs to the current row epoch. If DATA validation fails, firmware
+        waits for the next conversion and uses the existing STATUS-confirmed
+        path. An INTB level that was already low when armed is never accepted
+        by this fast path.
 
 config SENSORARRAY_FDC_INTB_ACTIVE_LOW
     bool "Treat FDC2214 INTB as active-low"
@@ -962,6 +1064,22 @@ endmenu
 
 menu "Async logging"
 
+choice SENSORARRAY_FRAME_OUTPUT_FORMAT
+    prompt "Host frame output format"
+    default SENSORARRAY_FRAME_OUTPUT_TEXT
+    help
+        Text preserves the existing Cap protocol. Compact binary v1 emits a
+        fixed little-endian SAF1 packet so a 64-cell frame is not limited by
+        decimal formatting and text serial bandwidth.
+
+config SENSORARRAY_FRAME_OUTPUT_TEXT
+    bool "Cap text (legacy-compatible)"
+
+config SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1
+    bool "SAF1 compact binary v1"
+
+endchoice
+
 config SENSORARRAY_ASYNC_LOG_ENABLE
     bool "Enable asynchronous frame/event logging"
     default y
@@ -1013,6 +1131,14 @@ config SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
     bool "Drop old normal frame snapshots when async log is behind"
     default y
 
+config SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG
+    bool "Allow stale or mixed frames in Cap output (debug only)"
+    default n
+    help
+        Keep disabled for formal operation. Non-fresh snapshots still feed
+        FRESH20 diagnostics, but only complete same-sweep frames are emitted as
+        host-facing Cap records.
+
 endmenu
 
 menu "Scheduling"
@@ -1035,11 +1161,23 @@ config SENSORARRAY_BLE_TASK_CORE
 
 config SENSORARRAY_SCAN_TASK_STACK
     int "Scan task stack bytes"
-    default 8192
+    default 16384
+    range 8192 32768
+    help
+        The scan task owns the complete FDC frame call stack and timing
+        aggregates. Keep this comparable to ESP_MAIN_TASK_STACK_SIZE.
 
 config SENSORARRAY_SCAN_TASK_PRIO
     int "Scan task priority"
     default 12
+
+config SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE
+    bool "Print scan-task stack and heap diagnostics every 100 frames"
+    default n
+    help
+        Enable only while diagnosing long-run memory or stack behavior. These
+        printf calls execute in the scan task and intentionally remain disabled
+        in the formal timing profile because they introduce a visible frame gap.
 
 config SENSORARRAY_COMM_TASK_STACK
     int "Comm task stack bytes"

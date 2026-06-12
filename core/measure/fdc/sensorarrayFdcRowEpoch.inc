@@ -1,4 +1,11 @@
 // Split from core/measure/sensorarrayMeasure.c to keep FDC matrix internals isolated.
+enum {
+    SENSORARRAY_FDC_DIRECT_FALLBACK_I2C = (1u << 0),
+    SENSORARRAY_FDC_DIRECT_FALLBACK_VALID_MASK = (1u << 1),
+    SENSORARRAY_FDC_DIRECT_FALLBACK_ERROR_MASK = (1u << 2),
+    SENSORARRAY_FDC_DIRECT_FALLBACK_RAW = (1u << 3),
+};
+
 static bool sensorarrayMeasureFdcDeviceReadyForIo(const sensorarrayFdcDeviceState_t *fdcState)
 {
     return fdcState && fdcState->ready && fdcState->handle && fdcState->i2cCtx;
@@ -1281,6 +1288,7 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
                                                uint32_t timeoutUs,
                                                uint32_t estimatedRoundUs,
                                                uint64_t rowDeviceDeadlineUs,
+                                               bool allowDirectData,
                                                sensorarrayFdcReadyState_t *ready,
                                                sensorarrayFdcDeviceTiming_t *timing)
 {
@@ -1465,6 +1473,40 @@ static esp_err_t sensorarrayFdcWaitDeviceReady(sensorarrayState_t *state,
         if (intbSeen) {
             if (timing) {
                 timing->intbSeenUs = (uint64_t)esp_timer_get_time();
+            }
+            bool newEpochEdge = ready->edgeDelta != 0u || ready->notifyValue != 0u;
+            if (CONFIG_SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE &&
+                allowDirectData &&
+                newEpochEdge &&
+                !ready->levelActiveAfterArm) {
+                ready->ready = true;
+                ready->dataReady = true;
+                ready->unreadFull = true;
+                ready->readyForDataRead = true;
+                ready->unreadWithoutDataReady = false;
+                ready->kind = SENSORARRAY_FDC_READY_EDGE_WAKE;
+                ready->readyResult = FDC_READY_OK_INTB_DRDY_UNREAD_FULL;
+                ready->statusRaw = 0u;
+                ready->unreadMask = requiredUnreadMask;
+                ready->drdy = 1u;
+                ready->waitUs = (uint32_t)sensorarrayMeasureElapsedUs(startUs);
+                ready->diagnostic = "intb_direct_data_candidate";
+                ready->timeout = false;
+                ready->partial = false;
+                ready->err = ESP_OK;
+                ready->directDataCandidate = true;
+                ready->waitReturnReason = "new_epoch_intb_edge";
+                if (timing) {
+                    timing->drdyUs = (uint64_t)esp_timer_get_time();
+                    timing->directDataReadCount++;
+                    timing->statusSavedReadCount++;
+                }
+                if (ctx) {
+                    ctx->freshDrdyCount++;
+                    ctx->waitTask = NULL;
+                }
+                sensorarrayMeasureFdcUpdateReadyTiming(ready, timing, false);
+                return ESP_OK;
             }
             int64_t verifyStartUs = esp_timer_get_time();
             if (timing) {
@@ -2308,6 +2350,7 @@ static esp_err_t sensorarrayMeasureFdcDeviceLevelResync(sensorarrayState_t *stat
                                             timeoutUs,
                                             estimatedRoundUs,
                                             rowDeviceDeadlineUs,
+                                            false,
                                             readyAfter,
                                             timing);
         uint64_t waitUs = sensorarrayMeasureElapsedUs(waitStartUs);
@@ -2625,6 +2668,7 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
                                         timeoutUs,
                                         estimatedRoundUs,
                                         rowDeviceDeadlineUs,
+                                        true,
                                         outReady,
                                         timing);
     uint64_t waitUs = sensorarrayMeasureElapsedUs(waitStartUs);
@@ -2884,7 +2928,9 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
     if (timing) {
         timing->readStartUs = (uint64_t)readStartUs;
     }
+    sensorarrayMeasureDebugReadWindow(devId, true);
     err = sensorarrayMeasureReadFdcAutoscan4chMasked(fdcState, freshMask, outReady, outSamples);
+    sensorarrayMeasureDebugReadWindow(devId, false);
     uint64_t readUs = sensorarrayMeasureElapsedUs(readStartUs);
     if (timing) {
         timing->readDoneUs = (uint64_t)esp_timer_get_time();
@@ -2907,6 +2953,105 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
                                           (uint32_t)readUs,
                                           logNormal,
                                           outRead4);
+    if (outReady->directDataCandidate &&
+        !sensorarrayFdcRead4IsDataCompleteGood(
+            outRead4,
+            SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK)) {
+        uint32_t fallbackReasonMask = 0u;
+        if (outRead4->readErr != ESP_OK || outRead4->i2cError) {
+            fallbackReasonMask |= SENSORARRAY_FDC_DIRECT_FALLBACK_I2C;
+        }
+        if (outRead4->validMask4 != SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK) {
+            fallbackReasonMask |= SENSORARRAY_FDC_DIRECT_FALLBACK_VALID_MASK;
+        }
+        if (outRead4->errorMask4 != 0u) {
+            fallbackReasonMask |= SENSORARRAY_FDC_DIRECT_FALLBACK_ERROR_MASK;
+        }
+        if (outRead4->rawAllZero || outRead4->zeroAfterDrdyMask4 != 0u) {
+            fallbackReasonMask |= SENSORARRAY_FDC_DIRECT_FALLBACK_RAW;
+        }
+        if (timing) {
+            timing->directDataFallbackCount++;
+            timing->directDataFallbackReasonMask |= fallbackReasonMask;
+            timing->fallbackAttemptCount++;
+            if (timing->statusSavedReadCount > 0u) {
+                timing->statusSavedReadCount--;
+            }
+        }
+
+        sensorarrayFdcReadyState_t fallbackReady = {0};
+        sensorarrayFdcAutoscanSamples_t fallbackSamples = {0};
+        sensorarrayFdcDeviceRead4Result_t fallbackRead4 = {0};
+        int64_t fallbackWaitStartUs = esp_timer_get_time();
+        uint64_t fallbackDeadlineUs =
+            (uint64_t)fallbackWaitStartUs + sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
+        esp_err_t fallbackErr = sensorarrayFdcWaitDeviceReady(
+            state,
+            devId,
+            row,
+            epochId,
+            frameSeq,
+            SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK,
+            timeoutUs,
+            estimatedRoundUs,
+            fallbackDeadlineUs,
+            false,
+            &fallbackReady,
+            timing);
+        uint64_t fallbackWaitUs = sensorarrayMeasureElapsedUs(fallbackWaitStartUs);
+        if (timing) {
+            timing->waitReadyUs += fallbackWaitUs;
+            if (fallbackWaitUs > timing->maxWaitReadyUs) {
+                timing->maxWaitReadyUs = fallbackWaitUs;
+            }
+        }
+        if (fallbackErr == ESP_OK &&
+            sensorarrayMeasureFdcReadyAllowsNormalDataRead(
+                &fallbackReady,
+                SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK)) {
+            fallbackReady.statusFallbackUsed = true;
+            uint8_t fallbackFreshMask = fallbackReady.unreadMask & 0x0Fu;
+            int64_t fallbackReadStartUs = esp_timer_get_time();
+            sensorarrayMeasureDebugReadWindow(devId, true);
+            fallbackErr = sensorarrayMeasureReadFdcAutoscan4chMasked(fdcState,
+                                                                      fallbackFreshMask,
+                                                                      &fallbackReady,
+                                                                      &fallbackSamples);
+            sensorarrayMeasureDebugReadWindow(devId, false);
+            uint64_t fallbackReadUs = sensorarrayMeasureElapsedUs(fallbackReadStartUs);
+            if (timing) {
+                timing->readRawUs += fallbackReadUs;
+                timing->dataReadUs += fallbackReadUs;
+                if (fallbackReadUs > timing->maxI2cReadUs) {
+                    timing->maxI2cReadUs = fallbackReadUs;
+                }
+            }
+            sensorarrayMeasureBuildFdcRead4Result(row,
+                                                  epochId,
+                                                  devId,
+                                                  &fallbackSamples,
+                                                  outConfigs,
+                                                  &fallbackReady,
+                                                  fallbackErr,
+                                                  (uint32_t)fallbackReadUs,
+                                                  true,
+                                                  &fallbackRead4);
+        }
+        if (fallbackErr == ESP_OK &&
+            sensorarrayFdcRead4IsDataCompleteGood(
+                &fallbackRead4,
+                SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK)) {
+            *outReady = fallbackReady;
+            *outSamples = fallbackSamples;
+            *outRead4 = fallbackRead4;
+            err = ESP_OK;
+            if (timing) {
+                timing->fallbackSuccessCount++;
+            }
+        } else if (timing) {
+            timing->fallbackFailCount++;
+        }
+    }
     if (err == ESP_OK &&
         outRead4->validMask4 == 0u &&
         outRead4->zeroAfterDrdyMask4 != 0u) {
@@ -2941,6 +3086,7 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
                                                            timeoutUs,
                                                            estimatedRoundUs,
                                                            rowDeviceDeadlineUs,
+                                                           false,
                                                            &retryReady,
                                                            timing);
         uint64_t retryWaitUs = sensorarrayMeasureElapsedUs(retryWaitStartUs);
@@ -2959,10 +3105,12 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
             if (timing) {
                 timing->readStartUs = (uint64_t)retryReadStartUs;
             }
+            sensorarrayMeasureDebugReadWindow(devId, true);
             retryErr = sensorarrayMeasureReadFdcAutoscan4chMasked(fdcState,
                                                                    retryFreshMask,
                                                                    &retryReady,
                                                                    &retrySamples);
+            sensorarrayMeasureDebugReadWindow(devId, false);
             uint64_t retryReadUs = sensorarrayMeasureElapsedUs(retryReadStartUs);
             if (timing) {
                 timing->readDoneUs = (uint64_t)esp_timer_get_time();
@@ -3483,6 +3631,15 @@ static void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSumma
     summary->fallbackSuccessCount += primaryTiming->fallbackSuccessCount + secondaryTiming->fallbackSuccessCount;
     summary->fallbackPartialCount += primaryTiming->fallbackPartialCount + secondaryTiming->fallbackPartialCount;
     summary->fallbackFailCount += primaryTiming->fallbackFailCount + secondaryTiming->fallbackFailCount;
+    summary->directDataReadCount +=
+        primaryTiming->directDataReadCount + secondaryTiming->directDataReadCount;
+    summary->directDataFallbackCount +=
+        primaryTiming->directDataFallbackCount + secondaryTiming->directDataFallbackCount;
+    summary->directDataFallbackReasonMask |=
+        primaryTiming->directDataFallbackReasonMask |
+        secondaryTiming->directDataFallbackReasonMask;
+    summary->statusSavedReadCount +=
+        primaryTiming->statusSavedReadCount + secondaryTiming->statusSavedReadCount;
     summary->deviceFullInvalidCount += primaryTiming->deviceFullInvalidCount +
                                        secondaryTiming->deviceFullInvalidCount;
     summary->workerTimeoutCount += rowTiming->workerTimeoutCount;
@@ -3540,7 +3697,9 @@ static esp_err_t sensorarrayMeasureSelectFdcRowWhileSleeping(sensorarrayState_t 
     if (rowTiming) {
         rowTiming->rowSelectUs = rowSelectUs;
         rowTiming->rowSwitchWhileSleepingUs += rowSelectUs;
+        rowTiming->routeSetTimestampUs = (uint64_t)esp_timer_get_time();
     }
+    sensorarrayMeasureDebugPulse(CONFIG_SENSORARRAY_FDC_ROW_STROBE_GPIO);
 
     int64_t settleStartUs = esp_timer_get_time();
     sensorarrayMeasureDelayUs((uint32_t)CONFIG_SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US);
@@ -4006,6 +4165,9 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
 
     const uint64_t rowStartUs = (uint64_t)esp_timer_get_time();
     uint32_t rowHardDeadlineUs = sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
+    if (CONFIG_SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE && rowHardDeadlineUs <= UINT32_MAX / 2u) {
+        rowHardDeadlineUs *= 2u;
+    }
     uint64_t workerDeadlineUs = rowStartUs + rowHardDeadlineUs;
     uint32_t generation =
         (primaryCtx->generation > secondaryCtx->generation) ?

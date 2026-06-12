@@ -64,6 +64,9 @@
 #ifndef CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES
 #define CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES 3
 #endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG
+#define CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG 0
+#endif
 
 typedef enum {
     SENSORARRAY_RUNTIME_MODE_FDC_MATRIX = 0,
@@ -172,6 +175,215 @@ static bool sensorarrayFrameRawAllZero(const sensorarrayFrame_t *frame)
            frame->hardwareZeroRawCount == SENSORARRAY_MATRIX_CELL_COUNT &&
            frame->zeroBeforeReadyCount == 0u &&
            frame->notReadyCount == 0u;
+}
+
+static bool sensorarrayFdcWaveDebugEnabled(void)
+{
+    return CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROUTE_ONLY ||
+           CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ||
+           CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_PRIMARY_ONLY ||
+           CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SECONDARY_ONLY ||
+           CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL;
+}
+
+static const char *sensorarrayFdcWaveDebugModeName(void)
+{
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROUTE_ONLY) {
+        return "route_only";
+    }
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD) {
+        return "row_hold";
+    }
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_PRIMARY_ONLY) {
+        return "primary_only";
+    }
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SECONDARY_ONLY) {
+        return "secondary_only";
+    }
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL) {
+        return "single_channel";
+    }
+    return "normal";
+}
+
+static esp_err_t sensorarrayFdcWaveDebugSetSleep(sensorarrayFdcDeviceState_t *fdcState,
+                                                 bool sleepEnabled)
+{
+    if (!fdcState || !fdcState->ready || !fdcState->handle) {
+        return ESP_OK;
+    }
+    return sleepEnabled ?
+        Fdc2214CapEnterSleepWriteOnly(fdcState->handle, fdcState->configReg) :
+        Fdc2214CapExitSleepWriteOnly(fdcState->handle, fdcState->configReg);
+}
+
+static esp_err_t sensorarrayFdcWaveDebugReadDevice(sensorarrayFdcDeviceState_t *fdcState,
+                                                   sensorarrayFdcDeviceId_t devId,
+                                                   bool singleChannel)
+{
+    if (!fdcState || !fdcState->ready || !fdcState->handle) {
+        return ESP_OK;
+    }
+
+    sensorarrayMeasureDebugSetReadWindow(devId, true);
+    esp_err_t err;
+    if (singleChannel) {
+        Fdc2214CapSample_t sample = {0};
+        err = Fdc2214CapReadSampleRelaxed(
+            fdcState->handle,
+            (Fdc2214CapChannel_t)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_CHANNEL,
+            &sample);
+    } else {
+        Fdc2214CapFastChannelSample_t samples[4] = {0};
+        err = Fdc2214CapReadDataBurst4(fdcState->handle, samples);
+    }
+    sensorarrayMeasureDebugSetReadWindow(devId, false);
+    return err;
+}
+
+static void sensorarrayFdcMapVerifyDebug(void)
+{
+    if (!CONFIG_SENSORARRAY_FDC_MAP_VERIFY_DEBUG) {
+        return;
+    }
+
+    uint32_t failureCount = 0u;
+    for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
+        const sensorarrayFdcDLineMap_t *map = sensorarrayBoardMapFindFdcByDLine(dLine);
+        sensorarrayFdcDeviceId_t expectedDev = (dLine <= 4u) ?
+            SENSORARRAY_FDC_DEV_PRIMARY : SENSORARRAY_FDC_DEV_SECONDARY;
+        uint8_t expectedChannel = (uint8_t)((dLine - 1u) % 4u);
+        bool ok = map && map->devId == expectedDev && (uint8_t)map->channel == expectedChannel;
+        if (!ok) {
+            failureCount++;
+        }
+        printf("MAP_VERIFY,d=%u,expectedDev=%s,expectedCh=%u,actualDev=%s,actualCh=%d,label=%s,ok=%u\n",
+               (unsigned)dLine,
+               expectedDev == SENSORARRAY_FDC_DEV_PRIMARY ? "primary" : "secondary",
+               (unsigned)expectedChannel,
+               map ? (map->devId == SENSORARRAY_FDC_DEV_PRIMARY ? "primary" : "secondary") : "missing",
+               map ? (int)map->channel : -1,
+               (map && map->mapLabel) ? map->mapLabel : SENSORARRAY_NA,
+               ok ? 1u : 0u);
+    }
+    printf("MAP_VERIFY,summary=1,failures=%lu,result=%s,physicalSinglePointCheckStillRequired=1\n",
+           (unsigned long)failureCount,
+           failureCount == 0u ? "pass" : "fail");
+}
+
+static void sensorarrayRunFdcWaveDebugLoop(sensorarrayAppContext_t *ctx)
+{
+    const char *mode = sensorarrayFdcWaveDebugModeName();
+    sensorarrayFdcDeviceState_t *primary = &ctx->state.fdcPrimary;
+    sensorarrayFdcDeviceState_t *secondary = &ctx->state.fdcSecondary;
+    bool readPrimary = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ||
+                       CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_PRIMARY_ONLY;
+    bool readSecondary = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ||
+                         CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SECONDARY_ONLY;
+    bool singleChannel = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL;
+    bool singleSecondary = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL_SECONDARY;
+    if (singleChannel) {
+        readPrimary = !singleSecondary;
+        readSecondary = singleSecondary;
+    }
+
+    esp_err_t firstErr = sensorarrayMeasurePrepareFdcMatrixPath(&ctx->state, "wave_debug");
+    if (CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROUTE_ONLY) {
+        esp_err_t primaryErr = sensorarrayFdcWaveDebugSetSleep(primary, true);
+        esp_err_t secondaryErr = sensorarrayFdcWaveDebugSetSleep(secondary, true);
+        if (firstErr == ESP_OK && primaryErr != ESP_OK) {
+            firstErr = primaryErr;
+        }
+        if (firstErr == ESP_OK && secondaryErr != ESP_OK) {
+            firstErr = secondaryErr;
+        }
+    } else {
+        esp_err_t primaryErr = sensorarrayFdcWaveDebugSetSleep(primary, !readPrimary);
+        esp_err_t secondaryErr = sensorarrayFdcWaveDebugSetSleep(secondary, !readSecondary);
+        if (firstErr == ESP_OK && primaryErr != ESP_OK) {
+            firstErr = primaryErr;
+        }
+        if (firstErr == ESP_OK && secondaryErr != ESP_OK) {
+            firstErr = secondaryErr;
+        }
+    }
+
+    if (singleChannel) {
+        sensorarrayFdcDeviceState_t *selected = singleSecondary ? secondary : primary;
+        if (selected->ready && selected->handle) {
+            esp_err_t singleErr = Fdc2214CapSetSingleChannelMode(
+                selected->handle,
+                (Fdc2214CapChannel_t)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_CHANNEL);
+            if (firstErr == ESP_OK && singleErr != ESP_OK) {
+                firstErr = singleErr;
+            }
+        }
+    }
+
+    sensorarrayMeasureDebugTimingGpioPrepare();
+    printf("WAVE_DEBUG,stage=start,mode=%s,row=%u,singleDevice=%s,singleChannel=%u,stepMs=%u,formalFrames=disabled,err=0x%lx\n",
+           mode,
+           (unsigned)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW,
+           singleSecondary ? "secondary" : "primary",
+           (unsigned)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_CHANNEL,
+           (unsigned)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_STEP_MS,
+           (unsigned long)firstErr);
+
+    uint32_t cycleCount = 0u;
+    uint32_t readOkCount = 0u;
+    uint32_t readErrorCount = 0u;
+    esp_err_t lastErr = firstErr;
+    while (true) {
+        uint8_t firstRow = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ?
+            (uint8_t)CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW : 1u;
+        uint8_t lastRow = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ? firstRow : SENSORARRAY_MATRIX_ROWS;
+        sensorarrayMeasureDebugPulseFrameStrobe();
+        for (uint8_t row = firstRow; row <= lastRow; ++row) {
+            esp_err_t rowErr = tmuxSwitchSelectRow((uint8_t)(row - 1u));
+            sensorarrayMeasureDebugPulseRowStrobe();
+            if (rowErr != ESP_OK) {
+                lastErr = rowErr;
+                readErrorCount++;
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_STEP_MS));
+            if (readPrimary) {
+                esp_err_t readErr = sensorarrayFdcWaveDebugReadDevice(primary,
+                                                                      SENSORARRAY_FDC_DEV_PRIMARY,
+                                                                      singleChannel);
+                if (readErr == ESP_OK) {
+                    readOkCount++;
+                } else {
+                    lastErr = readErr;
+                    readErrorCount++;
+                }
+            }
+            if (readSecondary) {
+                esp_err_t readErr = sensorarrayFdcWaveDebugReadDevice(secondary,
+                                                                      SENSORARRAY_FDC_DEV_SECONDARY,
+                                                                      singleChannel);
+                if (readErr == ESP_OK) {
+                    readOkCount++;
+                } else {
+                    lastErr = readErr;
+                    readErrorCount++;
+                }
+            }
+        }
+
+        cycleCount++;
+        uint32_t logEvery = CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD ? 100u : 20u;
+        if ((cycleCount % logEvery) == 0u) {
+            printf("WAVE_DEBUG,mode=%s,cycles=%lu,rowFirst=%u,rowLast=%u,readOk=%lu,readErr=%lu,lastErr=0x%lx\n",
+                   mode,
+                   (unsigned long)cycleCount,
+                   (unsigned)firstRow,
+                   (unsigned)lastRow,
+                   (unsigned long)readOkCount,
+                   (unsigned long)readErrorCount,
+                   (unsigned long)lastErr);
+        }
+    }
 }
 
 static void sensorarrayApplyTmuxDefaults(sensorarrayState_t *state)
@@ -395,6 +607,121 @@ static void sensorarrayProbeAndLockFdcI2cClock(sensorarrayFdcDeviceState_t *fdcS
            mapLabel ? mapLabel : SENSORARRAY_NA);
 }
 
+static void sensorarraySweepFdcI2cClockUnderLoad(sensorarrayFdcDeviceState_t *fdcState,
+                                                 const char *mapLabel)
+{
+    if (!CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE ||
+        !fdcState || !fdcState->i2cCtx || !fdcState->handle) {
+        return;
+    }
+
+    const uint32_t startHz = 400000u;
+    const uint32_t minHz = 300000u;
+    const uint32_t stepHz = 5000u;
+    const uint32_t marginHz = 10000u;
+    const uint32_t attempts = 3u;
+    uint32_t maxStableHz = 0u;
+    BoardSupportI2cBusInfo_t busInfo = {0};
+    bool secondary = fdcState->i2cCtx == boardSupportGetI2c1Ctx();
+    (void)boardSupportGetI2cBusInfo(secondary, &busInfo);
+
+    for (uint32_t testHz = startHz; testHz >= minHz; testHz -= stepHz) {
+        esp_err_t setErr = boardSupportSetI2cFrequency(fdcState->i2cCtx, testHz);
+        uint32_t idOk = 0u;
+        uint32_t statusOk = 0u;
+        uint32_t orderedOk = 0u;
+        uint32_t burstOk = 0u;
+        Fdc2214CapResetI2cStats(fdcState->handle);
+        esp_err_t firstErr = setErr;
+        for (uint32_t attempt = 0u; attempt < attempts && setErr == ESP_OK; ++attempt) {
+            uint16_t manufacturerId = 0u;
+            uint16_t deviceId = 0u;
+            esp_err_t err = Fdc2214CapReadId(fdcState->handle,
+                                             &manufacturerId,
+                                             &deviceId);
+            if (err == ESP_OK && sensorarrayAppFdcIdMatches(manufacturerId, deviceId)) {
+                idOk++;
+            } else if (firstErr == ESP_OK) {
+                firstErr = err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
+            }
+
+            Fdc2214CapStatus_t status = {0};
+            err = Fdc2214CapReadStatus(fdcState->handle, &status);
+            if (err == ESP_OK) {
+                statusOk++;
+            } else if (firstErr == ESP_OK) {
+                firstErr = err;
+            }
+
+            Fdc2214CapFastChannelSample_t ordered[4] = {0};
+            err = Fdc2214CapReadDataOrdered4(fdcState->handle, ordered);
+            if (err == ESP_OK) {
+                orderedOk++;
+            } else if (firstErr == ESP_OK) {
+                firstErr = err;
+            }
+
+            if (Fdc2214CapDataBurstSupported(fdcState->handle)) {
+                Fdc2214CapFastChannelSample_t burst[4] = {0};
+                err = Fdc2214CapReadDataBurst4(fdcState->handle, burst);
+                if (err == ESP_OK) {
+                    burstOk++;
+                } else if (firstErr == ESP_OK) {
+                    firstErr = err;
+                }
+            }
+        }
+        Fdc2214CapI2cStats_t stats = {0};
+        Fdc2214CapGetI2cStats(fdcState->handle, &stats);
+        bool burstRequired = Fdc2214CapDataBurstSupported(fdcState->handle);
+        bool ok = setErr == ESP_OK && firstErr == ESP_OK &&
+                  idOk == attempts && statusOk == attempts && orderedOk == attempts &&
+                  (!burstRequired || burstOk == attempts) &&
+                  stats.nackCount == 0u && stats.timeoutCount == 0u;
+        const char *reason = setErr != ESP_OK ? "bus_reconfigure_failed" :
+            (idOk != attempts ? "id_failed" :
+             statusOk != attempts ? "status_failed" :
+             orderedOk != attempts ? "ordered_failed" :
+             (burstRequired && burstOk != attempts) ? "burst_failed" :
+             stats.nackCount != 0u ? "nack" :
+             stats.timeoutCount != 0u ? "timeout" : "ok");
+        printf("I2C_SWEEP,bus=%d,testHz=%lu,ok=%u,idOk=%lu,statusOk=%lu,orderedOk=%lu,burstOk=%lu,nack=%lu,timeout=%lu,recover=%lu,reason=%s,map=%s\n",
+               (int)busInfo.Port,
+               (unsigned long)testHz,
+               ok ? 1u : 0u,
+               (unsigned long)idOk,
+               (unsigned long)statusOk,
+               (unsigned long)orderedOk,
+               (unsigned long)burstOk,
+               (unsigned long)stats.nackCount,
+               (unsigned long)stats.timeoutCount,
+               (unsigned long)stats.recoveryCount,
+               reason,
+               mapLabel ? mapLabel : SENSORARRAY_NA);
+        if (ok) {
+            maxStableHz = testHz;
+            break;
+        }
+        if (testHz == minHz) {
+            break;
+        }
+    }
+
+    uint32_t selectedHz = maxStableHz > (minHz + marginHz) ?
+        (maxStableHz - marginHz) : minHz;
+    const char *selectedReason = maxStableHz == 0u ?
+        "no_stable_workload_use_conservative" :
+        (maxStableHz <= minHz ? "stable_only_at_safe_floor" : "max_stable_minus_margin");
+    esp_err_t selectedErr = boardSupportSetI2cFrequency(fdcState->i2cCtx, selectedHz);
+    printf("I2C_SELECTED,bus=%d,hz=%lu,maxStableHz=%lu,marginKHz=10,err=0x%lx,reason=%s,map=%s\n",
+           (int)busInfo.Port,
+           (unsigned long)selectedHz,
+           (unsigned long)maxStableHz,
+           (unsigned long)selectedErr,
+           selectedReason,
+           mapLabel ? mapLabel : SENSORARRAY_NA);
+}
+
 static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                                      bool addressValid,
                                      uint8_t requestedChannels,
@@ -447,6 +774,21 @@ static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
                              diag.manufacturerId,
                              diag.deviceId,
                              mapLabel);
+    if (err == ESP_OK && fdcState->handle) {
+        Fdc2214CapBurstProbeResult_t burstProbe = {0};
+        esp_err_t burstErr = Fdc2214CapProbeDataBurst4(fdcState->handle,
+                                                       5u,
+                                                       &burstProbe);
+        printf("BURST_PROBE,device=%s,supported=%u,trials=%lu,mismatch=%lu,err=0x%lx,reason=%s,map=%s\n",
+               fdcState->label ? fdcState->label : SENSORARRAY_NA,
+               burstProbe.supported ? 1u : 0u,
+               (unsigned long)burstProbe.trials,
+               (unsigned long)burstProbe.mismatchCount,
+               (unsigned long)burstErr,
+               burstProbe.reason ? burstProbe.reason : "unknown",
+               mapLabel ? mapLabel : SENSORARRAY_NA);
+        sensorarraySweepFdcI2cClockUnderLoad(fdcState, mapLabel);
+    }
 }
 
 static void sensorarrayLogFdcParallelCfg(void)
@@ -500,7 +842,7 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     *ctx = (sensorarrayAppContext_t){0};
     sensorarrayLogRuntimeMemoryDiag("runtime_after_clear", ctx);
     sensorarrayLogSetAdsState(false, false);
-    sensorarrayFastSpeedSetEnabled(false);
+    sensorarrayFastSpeedSetEnabled(CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1 != 0);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
 
     ctx->requestedFdcChannels =
@@ -604,6 +946,13 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
                                  ctx->secondaryAddrValid,
                                  ctx->requestedFdcChannels,
                                  "D5..D8_secondary_ch0..ch3");
+        BoardSupportI2cBusInfo_t bus0Info = {0};
+        BoardSupportI2cBusInfo_t bus1Info = {0};
+        (void)boardSupportGetI2cBusInfo(false, &bus0Info);
+        (void)boardSupportGetI2cBusInfo(true, &bus1Info);
+        printf("I2C_SELECTED,bus0Hz=%lu,bus1Hz=%lu,marginKHz=10,reason=post_handle_real_load_sweep\n",
+               (unsigned long)bus0Info.FrequencyHz,
+               (unsigned long)bus1Info.FrequencyHz);
         sensorarrayLogFdcParallelCfg();
     } else {
         sensorarrayLogStartupFdc("fdc_init",
@@ -956,7 +1305,8 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
     while (true) {
         sensorarrayRunQueuedFullSweep(ctx);
 
-        if ((ctx->fdcFrameCounter % 100u) == 0u) {
+        if (CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE &&
+            (ctx->fdcFrameCounter % 100u) == 0u) {
             sensorarrayLogStackHighWater("fdc_matrix_loop");
             sensorarrayLogRuntimeMemoryDiag("main_loop_100", ctx);
         }
@@ -1017,13 +1367,44 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 
         if (ctx->asyncLogReady) {
             (void)sensorarrayAsyncLogPublishFrameSnapshot(&ctx->frame, measureFrameUs);
-        } else if (ctx->legacySyncOutput) {
+        } else if (ctx->legacySyncOutput &&
+                   (ctx->frame.freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG)) {
             (void)sensorarrayFrameOutputPrint(&ctx->frame);
         }
         sensorarrayRuntimeRescueTick(ctx);
         sensorarrayRuntimeI2cFallbackTick(ctx);
         sensorarrayDelayFramePeriodSince(ctx, frameStartUs, ctx->frame.sequence);
     }
+}
+
+static void sensorarrayScanTask(void *arg)
+{
+    sensorarrayAppContext_t *ctx = (sensorarrayAppContext_t *)arg;
+    printf("APP_SCAN_TASK,stage=start,core=%d,priority=%u,stackBytes=%u\n",
+           (int)xPortGetCoreID(),
+           (unsigned)uxTaskPriorityGet(NULL),
+           (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
+    sensorarrayRunMainLoop(ctx);
+    vTaskDelete(NULL);
+}
+
+static esp_err_t sensorarrayStartScanTask(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    TaskHandle_t scanTaskHandle = NULL;
+    BaseType_t taskOk = xTaskCreatePinnedToCore(sensorarrayScanTask,
+                                                "sensorarrayScanTask",
+                                                CONFIG_SENSORARRAY_SCAN_TASK_STACK,
+                                                ctx,
+                                                CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
+                                                &scanTaskHandle,
+                                                CONFIG_SENSORARRAY_SCAN_TASK_CORE);
+    if (taskOk != pdPASS || !scanTaskHandle) {
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
 }
 
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
@@ -1088,5 +1469,21 @@ void app_main(void)
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&s_appContext.fdcEngine, true);
     }
 
-    sensorarrayRunMainLoop(&s_appContext);
+    sensorarrayFdcMapVerifyDebug();
+    if (sensorarrayFdcWaveDebugEnabled()) {
+        sensorarrayRunFdcWaveDebugLoop(&s_appContext);
+    }
+
+    esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
+    if (scanErr != ESP_OK) {
+        printf("APP_FATAL,stage=scan_task_create,err=0x%lx,action=safe_idle_no_restart\n",
+               (unsigned long)scanErr);
+        while (true) {
+            vTaskDelay(pdMS_TO_TICKS(1000u));
+        }
+    }
+    printf("APP_SCAN_TASK,stage=created,targetCore=%d,priority=%u,stackBytes=%u\n",
+           CONFIG_SENSORARRAY_SCAN_TASK_CORE,
+           (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
+           (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
 }

@@ -156,6 +156,7 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
     outSamples->waitBudgetTooShort = ready && ready->waitBudgetTooShort;
     outSamples->levelLowButEdgeMiss = ready && ready->recoveredByLevelLow;
     outSamples->dataReadAttempted = true;
+    outSamples->directDataRead = ready && ready->directDataCandidate;
     Fdc2214CapFastChannelSample_t fastSamples[4] = {0};
     esp_err_t firstErr = Fdc2214CapReadChannelsDataRegsOnlyFast(fdcState->handle,
                                                                 freshMask4,
@@ -405,6 +406,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
         .levelLowButEdgeMiss = samples ? samples->levelLowButEdgeMiss :
             (ready ? ready->recoveredByLevelLow : false),
         .dataReadAttempted = samples ? samples->dataReadAttempted : (readUs != 0u),
+        .directDataRead = samples ? samples->directDataRead :
+            (ready ? ready->directDataCandidate : false),
     };
 
     const double inductorUh = (double)CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH / 1000.0;
@@ -497,7 +500,8 @@ static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
     bool includeRawFreq = read4LogLevel >= 3u ||
                           (read4LogLevel >= 2u && anomaly);
     const char *modeName = diagnostic ? "skipped_not_ready" :
-        (outRead4->statusFallbackUsed ? "status_fallback" : "normal");
+        (outRead4->directDataRead ? "direct_data" :
+         (outRead4->statusFallbackUsed ? "status_fallback" : "normal"));
     printf("D4,d=%s,r=%u,e=%lu,mode=%s,k=%s,m=%X/%X/%X/%X,nr=%X,z0=%X,zd=%X,si=%X,hi=%X,az=%u,st=%04X,u=%X,dr=%u,pa=%u,to=%u,ed=%lu,wu=%lu,ru=%lu,pc=%lu,rm=%s,rr=%s,er=0x%lx,est=%lu,iw=%lu,statusFallbackUsed=%u,originalIntbMiss=%u,originalTimeout=%u,readyStatusReadable=%u,dataReadAttempted=%u,waitBudgetTooShort=%u,levelLowButEdgeMiss=%u",
            sensorarrayMeasureFdcDeviceName(devId),
            (unsigned)row,

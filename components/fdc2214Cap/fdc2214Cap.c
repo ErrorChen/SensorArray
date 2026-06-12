@@ -123,6 +123,8 @@ typedef struct Fdc2214CapDevice {
     Fdc2214CapBusConfig_t bus;
     SemaphoreHandle_t mutex;
     Fdc2214CapI2cStats_t i2cStats;
+    bool burstProbeDone;
+    bool burstSupported;
 } Fdc2214CapDevice_t;
 
 typedef struct {
@@ -505,11 +507,11 @@ static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx
     return err;
 }
 
-static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
-                                          const uint8_t* tx,
-                                          size_t txLen,
-                                          uint8_t* rx,
-                                          size_t rxLen)
+static esp_err_t Fdc2214CapWriteReadBytesUnlocked(Fdc2214CapDevice_t* dev,
+                                                  const uint8_t* tx,
+                                                  size_t txLen,
+                                                  uint8_t* rx,
+                                                  size_t rxLen)
 {
     if (!dev || !tx || txLen == 0U || !rx || rxLen == 0U) {
         return ESP_ERR_INVALID_ARG;
@@ -522,23 +524,35 @@ static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
                  dev->bus.I2cAddress7,
                  (unsigned)txLen,
                  (unsigned)rxLen);
-    esp_err_t err = Fdc2214CapLock(dev);
-    if (err != ESP_OK) {
-        FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
-                     dev->bus.I2cAddress7,
-                     (long)err);
-        return err;
-    }
     int64_t startUs = esp_timer_get_time();
-    err = dev->bus.WriteRead(dev->bus.UserCtx, dev->bus.I2cAddress7, tx, txLen, rx, rxLen);
+    esp_err_t err = dev->bus.WriteRead(dev->bus.UserCtx,
+                                      dev->bus.I2cAddress7,
+                                      tx,
+                                      txLen,
+                                      rx,
+                                      rxLen);
     uint64_t elapsedUs = Fdc2214CapElapsedUs(startUs);
-    Fdc2214CapUnlock(dev);
     Fdc2214CapAccumulateI2cStats(dev, true, txLen, rxLen, elapsedUs, err);
     Fdc2214CapTraceRecord("write_read", dev->bus.I2cAddress7, txLen, rxLen, elapsedUs, err);
 
     FDCLOW_TRACE("FDCLOW,op=write_read_done,addr=0x%02X,err=%ld\n",
                  dev->bus.I2cAddress7,
                  (long)err);
+    return err;
+}
+
+static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev,
+                                          const uint8_t* tx,
+                                          size_t txLen,
+                                          uint8_t* rx,
+                                          size_t rxLen)
+{
+    esp_err_t err = Fdc2214CapLock(dev);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = Fdc2214CapWriteReadBytesUnlocked(dev, tx, txLen, rx, rxLen);
+    Fdc2214CapUnlock(dev);
     return err;
 }
 
@@ -581,6 +595,44 @@ static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint1
                  (long)ESP_OK,
                  *outValue);
     return ESP_OK;
+}
+
+static esp_err_t Fdc2214CapReadReg16Unlocked(Fdc2214CapDevice_t* dev,
+                                             uint8_t reg,
+                                             uint16_t* outValue)
+{
+    if (!outValue) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t rx[2] = {0};
+    esp_err_t err = Fdc2214CapWriteReadBytesUnlocked(dev, &reg, sizeof(reg), rx, sizeof(rx));
+    if (err == ESP_OK) {
+        *outValue = (uint16_t)(((uint16_t)rx[0] << 8u) | rx[1]);
+    }
+    return err;
+}
+
+static esp_err_t Fdc2214CapReadReg16UnlockedUntimed(Fdc2214CapDevice_t* dev,
+                                                    uint8_t reg,
+                                                    uint16_t* outValue)
+{
+    if (!dev || !dev->bus.WriteRead || !outValue) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t rx[2] = {0};
+    esp_err_t err = dev->bus.WriteRead(dev->bus.UserCtx,
+                                      dev->bus.I2cAddress7,
+                                      &reg,
+                                      sizeof(reg),
+                                      rx,
+                                      sizeof(rx));
+    Fdc2214CapAccumulateI2cStats(dev, true, sizeof(reg), sizeof(rx), 0u, err);
+    Fdc2214CapTraceRecord("write_read", dev->bus.I2cAddress7,
+                         sizeof(reg), sizeof(rx), 0u, err);
+    if (err == ESP_OK) {
+        *outValue = (uint16_t)(((uint16_t)rx[0] << 8u) | rx[1]);
+    }
+    return err;
 }
 
 static esp_err_t Fdc2214CapReadReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)
@@ -1838,15 +1890,34 @@ static esp_err_t Fdc2214CapReadChannelsDataRegsFastImpl(Fdc2214CapDevice_t* dev,
 static esp_err_t Fdc2214CapReadDataOrderedRegisters(Fdc2214CapDevice_t* dev,
                                                     Fdc2214CapFastChannelSample_t outSamples[4])
 {
+    if (!dev || !outSamples) {
+        return ESP_ERR_INVALID_ARG;
+    }
     memset(outSamples, 0, sizeof(Fdc2214CapFastChannelSample_t) * 4u);
+    esp_err_t lockErr = Fdc2214CapLock(dev);
+    if (lockErr != ESP_OK) {
+        return lockErr;
+    }
+    bool detailedTransactionTiming = s_i2cTraceEnabled ||
+                                     CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE ||
+                                     CONFIG_FDC2214CAP_RAW_I2C_TRACE;
+    int64_t dataGroupStartUs = detailedTransactionTiming ? 0 : esp_timer_get_time();
     esp_err_t firstErr = ESP_OK;
     for (uint8_t ch = 0u; ch < 4u; ++ch) {
         uint8_t msbReg = (uint8_t)(FDC2214_REG_DATA_MSB_BASE + (ch * 2u));
-        esp_err_t err = Fdc2214CapReadReg16(dev, msbReg, &outSamples[ch].dataMsb);
+        esp_err_t err = detailedTransactionTiming ?
+            Fdc2214CapReadReg16Unlocked(dev, msbReg, &outSamples[ch].dataMsb) :
+            Fdc2214CapReadReg16UnlockedUntimed(dev, msbReg, &outSamples[ch].dataMsb);
         if (firstErr == ESP_OK && err != ESP_OK) {
             firstErr = err;
         }
-        err = Fdc2214CapReadReg16(dev, (uint8_t)(msbReg + 1u), &outSamples[ch].dataLsb);
+        err = detailedTransactionTiming ?
+            Fdc2214CapReadReg16Unlocked(dev,
+                                       (uint8_t)(msbReg + 1u),
+                                       &outSamples[ch].dataLsb) :
+            Fdc2214CapReadReg16UnlockedUntimed(dev,
+                                              (uint8_t)(msbReg + 1u),
+                                              &outSamples[ch].dataLsb);
         if (firstErr == ESP_OK && err != ESP_OK) {
             firstErr = err;
         }
@@ -1858,7 +1929,156 @@ static esp_err_t Fdc2214CapReadDataOrderedRegisters(Fdc2214CapDevice_t* dev,
         outSamples[ch].errAmplitude =
             (outSamples[ch].dataMsb & FDC2214_DATA_ERR_AW_MASK) != 0u;
     }
+    if (!detailedTransactionTiming) {
+        dev->i2cStats.totalUs += Fdc2214CapElapsedUs(dataGroupStartUs);
+    }
+    Fdc2214CapUnlock(dev);
+    dev->i2cStats.orderedDataReadCount++;
     return firstErr;
+}
+
+static esp_err_t Fdc2214CapReadDataBlockCandidate(Fdc2214CapDevice_t* dev,
+                                                  Fdc2214CapFastChannelSample_t outSamples[4],
+                                                  bool probeRead)
+{
+    if (!dev || !outSamples) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t startReg = FDC2214_REG_DATA_MSB_BASE;
+    uint8_t rx[16] = {0};
+    esp_err_t err = Fdc2214CapWriteReadBytes(dev,
+                                             &startReg,
+                                             sizeof(startReg),
+                                             rx,
+                                             sizeof(rx));
+    if (probeRead) {
+        dev->i2cStats.burstProbeReadCount++;
+    } else {
+        dev->i2cStats.burstDataReadCount++;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    memset(outSamples, 0, sizeof(Fdc2214CapFastChannelSample_t) * 4u);
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        size_t offset = (size_t)ch * 4u;
+        outSamples[ch].dataMsb =
+            (uint16_t)(((uint16_t)rx[offset] << 8u) | rx[offset + 1u]);
+        outSamples[ch].dataLsb =
+            (uint16_t)(((uint16_t)rx[offset + 2u] << 8u) | rx[offset + 3u]);
+        outSamples[ch].raw28 =
+            ((uint32_t)(outSamples[ch].dataMsb & FDC2214_DATA_MSB_MASK) << 16u) |
+            outSamples[ch].dataLsb;
+        outSamples[ch].errWatchdog =
+            (outSamples[ch].dataMsb & FDC2214_DATA_ERR_WD_MASK) != 0u;
+        outSamples[ch].errAmplitude =
+            (outSamples[ch].dataMsb & FDC2214_DATA_ERR_AW_MASK) != 0u;
+    }
+    return ESP_OK;
+}
+
+static bool Fdc2214CapDataReadSamplesMatch(
+    const Fdc2214CapFastChannelSample_t ordered[4],
+    const Fdc2214CapFastChannelSample_t burst[4])
+{
+    for (uint8_t ch = 0u; ch < 4u; ++ch) {
+        if (ordered[ch].dataMsb != burst[ch].dataMsb ||
+            ordered[ch].dataLsb != burst[ch].dataLsb ||
+            ordered[ch].raw28 != burst[ch].raw28 ||
+            ordered[ch].errWatchdog != burst[ch].errWatchdog ||
+            ordered[ch].errAmplitude != burst[ch].errAmplitude) {
+            return false;
+        }
+    }
+    return true;
+}
+
+esp_err_t Fdc2214CapProbeDataBurst4(Fdc2214CapDevice_t* dev,
+                                    uint32_t trials,
+                                    Fdc2214CapBurstProbeResult_t* outResult)
+{
+    if (!dev || !outResult || trials == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Fdc2214CapBurstProbeResult_t result = {
+        .trials = trials,
+        .reason = "not_started",
+    };
+    dev->burstProbeDone = true;
+    dev->burstSupported = false;
+
+    /*
+     * Freeze DATA registers during the comparison.  Without this, an autoscan
+     * conversion can complete between the ordered and block transactions and
+     * produce a false mismatch even when register auto-increment is valid.
+     */
+    uint16_t originalConfig = 0u;
+    esp_err_t configErr = Fdc2214CapReadReg16(dev, FDC2214_REG_CONFIG, &originalConfig);
+    if (configErr != ESP_OK) {
+        result.err = configErr;
+        result.reason = "config_read_error";
+        *outResult = result;
+        return result.err;
+    }
+    bool restoreActive = (originalConfig & FDC2214_CONFIG_SLEEP_MODE_EN_MASK) == 0u;
+    if (restoreActive) {
+        uint16_t sleepConfig = Fdc2214CapApplyConfigReservedBits(
+            (uint16_t)(originalConfig | FDC2214_CONFIG_SLEEP_MODE_EN_MASK));
+        configErr = Fdc2214CapWriteReg16(dev, FDC2214_REG_CONFIG, sleepConfig);
+        if (configErr != ESP_OK) {
+            result.err = configErr;
+            result.reason = "sleep_enter_error";
+            *outResult = result;
+            return result.err;
+        }
+        esp_rom_delay_us(100u);
+    }
+
+    for (uint32_t trial = 0u; trial < trials; ++trial) {
+        Fdc2214CapFastChannelSample_t ordered[4] = {0};
+        Fdc2214CapFastChannelSample_t burst[4] = {0};
+        esp_err_t orderedErr = Fdc2214CapReadDataOrderedRegisters(dev, ordered);
+        esp_err_t burstErr = Fdc2214CapReadDataBlockCandidate(dev, burst, true);
+        if (orderedErr != ESP_OK || burstErr != ESP_OK) {
+            result.err = orderedErr != ESP_OK ? orderedErr : burstErr;
+            result.reason = orderedErr != ESP_OK ? "ordered_i2c_error" : "burst_i2c_error";
+            break;
+        }
+        if (!Fdc2214CapDataReadSamplesMatch(ordered, burst)) {
+            result.mismatchCount++;
+        }
+    }
+
+    if (restoreActive) {
+        esp_err_t restoreErr = Fdc2214CapWriteReg16(dev,
+                                                    FDC2214_REG_CONFIG,
+                                                    originalConfig);
+        if (result.err == ESP_OK && restoreErr != ESP_OK) {
+            result.err = restoreErr;
+            result.reason = "config_restore_error";
+        }
+    }
+
+    result.supported = result.err == ESP_OK && result.mismatchCount == 0u;
+    if (result.err == ESP_OK) {
+        result.reason = result.supported ? "matched_frozen_data" : "data_mismatch";
+    }
+    dev->burstSupported = result.supported;
+    *outResult = result;
+    return result.err;
+}
+
+bool Fdc2214CapDataBurstSupported(const Fdc2214CapDevice_t* dev)
+{
+    return dev && dev->burstProbeDone && dev->burstSupported;
+}
+
+esp_err_t Fdc2214CapReadDataOrdered4(Fdc2214CapDevice_t* dev,
+                                     Fdc2214CapFastChannelSample_t outSamples[4])
+{
+    return Fdc2214CapReadDataOrderedRegisters(dev, outSamples);
 }
 
 esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
@@ -1866,6 +2086,14 @@ esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev,
 {
     if (!dev || !outSamples) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (Fdc2214CapDataBurstSupported(dev)) {
+        esp_err_t burstErr = Fdc2214CapReadDataBlockCandidate(dev, outSamples, false);
+        if (burstErr == ESP_OK) {
+            return ESP_OK;
+        }
+        dev->burstSupported = false;
+        dev->i2cStats.burstFallbackCount++;
     }
     return Fdc2214CapReadDataOrderedRegisters(dev, outSamples);
 }

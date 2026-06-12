@@ -112,37 +112,37 @@ flowchart TD
 - coordinator 只负责 row select、TMUX settle、cached row config/profile diff、barrier release、等待两个 worker done、merge row result；coordinator 不直接调用 `Fdc2214CapReadStatus()` 或 FDC DATA read。
 - `primaryFdcWorker` 和 `secondaryFdcWorker` 是常驻 task。每个 row epoch 都带 `epochId` 和 generation，避免 stale done 被当作当前结果。
 - 两个 worker 使用同一个 `sensorarrayMeasureFdcRunDeviceEpochAfterSleep()` read-row-device 路径，只是 device context 不同。这样 primary/bus0 与 secondary/bus1 的 `wait/status/data/run` timing 可以直接比较。
-- 正式数据读取仍保持 `DATA_CHx -> DATA_LSB_CHx` 顺序，不使用未经实板验证的 16-byte burst read，也不跳过 strict ready policy 下的 STATUS read。
+- 每颗 FDC 启动时比较 ordered 与 16-byte candidate read；只有连续完全匹配才启用 burst。INTB 新边沿可走 direct DATA，校验失败再等待下一 conversion 并走 STATUS-confirmed fallback。
 
 ### 日志策略和字段
 
 - Level 1 error：I2C timeout/NACK、bus stuck、ID mismatch、hard STATUS fault、worker queue/deadline、stale epoch、all-invalid frame、forced rescue/fallback 等真实异常允许同步即时输出，但必须带 row/device/epoch/status/unread/err/timing 等最小定位信息并限流。
 - Level 2 Cap：`Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` 每个可输出 frame 异步输出一次，仍为 64 个 pF 值，仍使用 6 位小数；measurement task 只发布 snapshot，log task 负责格式化。
-- Level 3 normal diagnostics：`T5/R5/Q5/I5/CA5/P5/LOG20/WP20/FR20/READY20/RW20/I2C_EXPECT20/P5_FULL/BN20/OV20` 默认每 20 帧聚合输出；`APP_STACK`/`APP_MEM` 仍按 100 帧级别输出。
+- Level 3 normal diagnostics：正式默认由异步 log task 输出 `FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`；扫描任务内每 100 帧的同步 `APP_STACK`/`APP_MEM` 默认关闭，可用 `CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE` 临时开启。
 - normal `FR` 条件：`pv=F`、`sv=F`、`vm=FF`、`wm=00`、`em=00`、`cm=00`、`tm=00`、`pt=0`。normal FR 不再逐 row 输出，只进入 `FR20`；valid/warn/error/cache/timeout/partial 异常才输出 `FR,r=...`。
 - normal `WP` 条件：双 worker 正常启动、`mode=par`、`reason=ok`、无 stale/timeout/serialized/fallback。normal WP 不再每 5 帧逐 row 输出，只进入 `WP20`；queue/ack/deadline/stale/skew/serialization 异常才输出 `WP,r=...`。
 - `LOG20` 是异步日志任务汇总行，字段包括 `measureFps`、`outputFps`、`frameAgeAvgUs`、`frameAgeMaxUs`、`outputQueueDepth`、`qDepthMax`、`droppedOutputFrames`、`droppedEventLogs`、`outUsAvg`、`outUsMax`、`measureFrameUsAvg`。
 - `WP20` 看 primary/secondary worker 是否对等；`RW20` 看 row wall 组成；`READY20` 看 INTB/DRDY/STATUS ready 是否是瓶颈；`I2C_EXPECT20` 看 45 SCL/read 的理论线时与 measured read 的差值；`P5_FULL` 看 conversion-only profile round 与完整 row pipeline 的误差。
-- legacy `fu` 是主循环周期，不等于 FDC 转换时间；async 模式优先看 `measureFps`、`outputFps`、`frameAge*` 和 drop counters。
+- legacy `fu` 是主循环周期，不等于 FDC 转换时间；20 FPS 验收只看 `physFps`、`emitFps`、fresh/stale/mixed 和三组 fresh mask。
 
-### I2C clock fallback
+### I2C clock selection
 
-- bring-up 默认先尝试 350000 Hz，然后按 337500、325000、300000 回退。
-- bus0 和 bus1 独立锁定，日志格式为 `ICLK,stage=probe|fallback|locked|verify,...`；不会 silent fallback。
-- 每档会重复读取 FDC manufacturer/device ID 8 次，全部通过才锁定。runtime 只有连续 I2C 错误帧达到 `CONFIG_BOARD_I2C_RUNTIME_FALLBACK_ERROR_FRAMES` 后才重新 probe，单次错误不会降速。
+- FDC handle 创建前保留 ID-only 早期 fallback；创建后 bus0/bus1 分别从 400 kHz 到 300 kHz 按 5 kHz 做真实负载 sweep。
+- 每档覆盖 ID、STATUS、ordered DATA，以及 burst probe 已通过时的 block DATA；输出 `I2C_SWEEP`。
+- 最终使用 `maxStableHz - 10 kHz`，最低 300 kHz，并输出 `I2C_SELECTED`。runtime 连续 I2C 错误阈值仍防止单次瞬态误降速。
 
-### FDC2214 read constraint
+### FDC2214 read selection
 
-正式数据路径必须按 `DATA_CHx -> DATA_LSB_CHx` 顺序读取：CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -> 0x05`、CH3 `0x06 -> 0x07`。本次性能修复不通过减少 I2C transaction 数实现；`I2C_EXPECT20` 只用于记录理论 wire time 与 driver/wrapper measured time 的差值。禁止把从 `0x00` 连续读 16 bytes 作为正式路径；旧 read-registers/burst 回调已删除。
+ordered fallback 固定按 CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -> 0x05`、CH3 `0x06 -> 0x07`。候选 block path 只有在 5 次 ordered/block raw 和 error bits 完全匹配时才启用；运行时 block I2C 错误会永久关闭 burst 并立即 ordered retry。
 
 ### 验证流程
 
 1. 在 PowerShell 设置 ESP-IDF 5.5.1 环境后运行 `idf build`。
 2. 运行 `idf -p COM11 flash monitor`，必要时先 `idf -p COM11 erase-flash`。
-3. monitor 至少观察 200 帧，确认 `APP_LOG_INIT,mode=async`、`ICLK ... locked`、`Cap` 每帧 64 个 6 位小数、`LOG20` 中 `measureFps`/`outputFps` 分离。
-4. 检查 `S20`/`S` 中 `vc=64`、`fc=64`、`ic=0`，`I5`/`I2C_EXPECT20` 中 `retry/nack/to/recovery` 正常为 0，`droppedOutputFrames`/`droppedEventLogs` 可解释且不会阻塞采样。
+3. monitor 至少 60 秒，确认 `BURST_PROBE`、`I2C_SWEEP/I2C_SELECTED`、`FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`。
+4. 检查 emitted frame 的 `rf/pfmask/sfmask=FF`、`stale=0,mixed=0`，并确认 I2C retry/nack/timeout/recovery 正常为 0。
 5. 正常 200 帧内 `FR,r=...vm=FF,wm=00,em=00,cm=00,tm=00,pt=0` 和 `WP,r=...mode=par,reason=ok` 应为 0；用 `FR20`/`WP20` 确认 normal row 被聚合。
-6. 已知限制：USB serial/JTAG 带宽不足时 `outputFps` 可能低于 `measureFps`；这不代表测量未加速，应同时看 `frameAge*` 和 drop counters。bus0 物理链路较慢时，测量上限仍可能被 bus0/I2C/row epoch 限制。
+6. `physFps>=20`、`emitFps>=20`、stale/mixed 为 0 才算达标。文本吞吐不足时切换 `SAF1`，不能用较高的 `coreFps` 代替 emit 结果。
 
 ### Failure behaviour
 
@@ -189,15 +189,15 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 
 `app_main()` clears `s_appContext`, runs `sensorarrayInitSystem()`, enters safe idle on init failure, runs `sensorarrayRunBootCalibration()`, marks diagnostic mode when a required boot sweep does not produce `OK` quality, then calls `sensorarrayRunMainLoop()`.
 
-The main loop consumes queued full sweeps, emits periodic memory/stack diagnostics, handles diagnostic mode, reads one frame, publishes anomaly events, publishes a binary frame snapshot, runs rescue and guarded I2C fallback ticks, then delays to the configured frame period. Normal frame-period overruns are rolled into `OV20`; only a hard overrun above `CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US` emits an immediate `OV` event. The log task formats and prints Cap text outside the measurement loop.
+The main loop consumes queued full sweeps, handles diagnostic mode, reads one frame, publishes anomaly events, publishes a frame snapshot, runs rescue and guarded I2C fallback ticks, then delays to the configured frame period. Scan-task stack/heap printing every 100 frames is default-off because synchronous printf introduces a measurable frame gap; enable `CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE` only for focused diagnostics. The log task formats and prints Cap text outside the measurement loop.
 
 ### Async log architecture
 
 `sensorarrayLogTask` consumes fixed-slot frame snapshots and a small event queue from `main/output/sensorarrayAsyncLog.c`. The producer never waits for queue space and never formats the 64 capacitance values. When output falls behind, old normal frame snapshots can be dropped and the latest frame is kept; abnormal events are counted if their queue is full.
 
-`LOG20` reports `measureFps`, `outputFps`, `frameAgeAvgUs`, `frameAgeMaxUs`, `outputQueueDepth`, `droppedOutputFrames`, `droppedEventLogs`, `outUsAvg`, `outUsMax`, and `measureFrameUsAvg`. Legacy `fu` is still a main-loop period metric, not an FDC conversion-time metric.
+`LOG20` remains the queue/output health line. `FPS20`, `PHY20`, and `FRESH20` are the authoritative measurement/output/freshness split; legacy `fu` is still a main-loop period metric, not an FDC conversion-time metric.
 
-Cap output remains `Cap,s=<sequence>,t=<timestamp>,q=<quality>,pf=[...]` with 64 pF values and six decimal places. The scan/coordinator task, log task, and primary/secondary FDC workers are pinned by separate Kconfig defaults so normal text output does not steal the worker slots that perform row reads.
+Text output remains a 64-value `Cap` record and now carries physical-sweep, timestamp and freshness metadata. `CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1` selects the fixed 340-byte `SAF1` packet when text bandwidth limits emit FPS. Both formats are produced by the async log task.
 
 ### FDC dual-worker row epoch
 
@@ -207,19 +207,19 @@ The row coordinator selects the row, waits for TMUX settle, applies cached devic
 
 The start semaphore is a coordinator-owned barrier, so workers wait for its release while a cold runtime-profile update is applied. The device ready/read deadline starts from each worker's actual run start after release. Profile application remains part of row-wall timing but cannot consume the device watchdog before the read begins.
 
-The FDC2214 formal read path still uses ordered `DATA_CHx -> DATA_LSB_CHx` reads and does not use a single 0x00-based 16-byte burst. The performance fix must come from scheduling and log pressure reduction, not from removing the required DATA transactions.
+At startup each FDC compares ordered DATA reads with a candidate 16-byte block read. Only exact multi-trial matches enable burst for that device; mismatch keeps ordered mode, and a runtime burst I2C failure disables burst and immediately retries ordered.
 
 ### Log strategy
 
 Level 1 errors such as I2C timeout/NACK, bus stuck, ID mismatch, hard STATUS fault, worker queue/deadline failure, stale epoch, all-invalid frame, forced rescue, and fallback may emit immediately, but they should include row/device/epoch/status/unread/error/timing context and remain rate-limited.
 
-Level 2 Cap output is asynchronous and frame based. Level 3 normal diagnostics are aggregated by default every 20 frames through `T5`, `R5`, `Q5`, `I5`, `CA5`, `P5`, `LOG20`, `WP20`, `FR20`, `READY20`, `RW20`, `I2C_EXPECT20`, `P5_FULL`, `BN20`, and `OV20`; `APP_STACK` and `APP_MEM` remain lower-rate health lines.
+Level 2 Cap/SAF1 output is asynchronous and frame based. Level 3 normal diagnostics are aggregated by default every 20 frames through `FPS20`, `PHY20`, `FRESH20`, `FAST20`, `I2C20`, `CACHE20`, and `PIPE20`. Periodic scan-task `APP_STACK` and `APP_MEM` lines are disabled in the formal timing profile.
 
 Normal `FR` rows have `pv=F`, `sv=F`, `vm=FF`, `wm=00`, `em=00`, `cm=00`, `tm=00`, and `pt=0`. Normal `WP` rows have both workers launched in `mode=par` with `reason=ok` and no stale, timeout, fallback, or serialised path. These normal rows are suppressed as per-row text and counted in `FR20`/`WP20`; abnormal rows still emit `FR,r=...` or `WP,r=...`.
 
 `WP20` checks primary/secondary worker symmetry, `RW20` breaks down row-wall timing, `READY20` separates INTB/DRDY/STATUS readiness, `I2C_EXPECT20` compares the 45-SCL theoretical read time with measured driver/wrapper time, and `P5_FULL` compares the conversion-only profile model with the full row pipeline.
 
-The default formal continuous-frame profile is `fast_runtime` (`RCOUNT=0x0900`); boot and full sweeps remain high precision. A 2026-06-12 COM11 validation produced 200 consecutive full 64-cell frames at a steady `12.36 fps`. The 20 fps target was not met because row wall was about `9674 us` despite a `3904 us` conversion-only round, with measured per-bus I2C time around `24.6 ms/frame` versus a `9.36 ms/frame` wire-time model.
+The default formal continuous-frame profile is `fast_runtime` (`RCOUNT=0x0900`); boot and full sweeps remain high precision. The final 2026-06-12 COM11 validation produced 320 consecutive full 64-cell frames at a steady `12.41..12.42 fps`, with all fresh masks `FF`, zero stale/mixed frames, and zero queue drops. The 20 fps target was not met: physical sweep time was about `78.5 ms`, row step about `9.54 ms`, ready wait about `4.276 ms/device-row`, and DATA read about `2.369 ms/device-row`. Both devices rejected candidate burst mode, so ordered reads remained active; selected I2C frequency was `345 kHz` on both buses.
 
 ### Application-level failure model
 
@@ -256,13 +256,18 @@ For the full configuration table, see “Configuration options” in the root `R
 | `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | `LOG20` summary cadence. Default `20`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | Log task stack, priority and affinity. Defaults `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES` | Drops old normal frame snapshots instead of blocking measurement when output is behind. |
-| `CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE`, `CONFIG_BOARD_I2C_FALLBACK_LEVELS` | Enables and documents I2C probe/fallback levels: `350000,337500,325000,300000`. |
-| `CONFIG_BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT`, `CONFIG_BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT` | Independent bus probe starting frequencies. Default `350000`. |
+| `CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1` | Selects the 340-byte little-endian `SAF1` frame instead of Cap text. Default `n`. |
+| `CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG` | Allows explicitly marked stale/mixed output only for diagnostics. Default `n`. |
+| `CONFIG_SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE` and strobe GPIO options | Enables oscilloscope row/frame/read-window markers. Default `n`. |
+| `CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_MODE` | Selects normal, route-only, row-hold, primary-only, secondary-only, or single-channel isolation. Default normal. |
+| `CONFIG_SENSORARRAY_FDC_MAP_VERIFY_DEBUG` | Prints the D1-D8 firmware mapping check. Default `n`. |
+| `CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE` | Retains the early ID-only fallback before FDC handles exist; the post-create real-load sweep then tests 400 kHz down in 5 kHz steps and selects a 10 kHz margin. |
+| `CONFIG_BOARD_I2C_PRIMARY_CLK_HZ_DEFAULT`, `CONFIG_BOARD_I2C_SECONDARY_CLK_HZ_DEFAULT` | Initial board-support clocks before the startup real-load sweep. |
 
 ## 边界 / Boundaries
 
 - `main` calls `sensorarrayFdcMatrixEngineReadFrame()`; it does not read FDC registers.
 - `main` publishes frame snapshots; `sensorarrayLogTask` calls `sensorarrayFrameOutputPrint()` and formats matrix values.
 - `main` can set diagnostic mode; it does not decide row-level cache, warning, or rescue policy.
-- `main/output` is the current text output path. Binary output is not the default path in this source tree.
+- `main/output` owns both the default text output and optional `SAF1` compact binary output.
 - User-callable console commands are not registered in `main/main.c` or elsewhere in the current source tree.

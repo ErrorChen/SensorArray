@@ -56,6 +56,11 @@ esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame);
 
+void sensorarrayMeasureDebugTimingGpioPrepare(void);
+void sensorarrayMeasureDebugPulseRowStrobe(void);
+void sensorarrayMeasureDebugPulseFrameStrobe(void);
+void sensorarrayMeasureDebugSetReadWindow(sensorarrayFdcDeviceId_t devId, bool active);
+
 bool sensorarrayFastSpeedIsEnabled(void);
 void sensorarrayFastSpeedSetEnabled(bool enabled);
 void sensorarrayMeasureFdcProfileSetSummary(bool enabled);

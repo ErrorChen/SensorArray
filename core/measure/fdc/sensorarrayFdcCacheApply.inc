@@ -449,9 +449,12 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
     }
 
     sensorarrayFdcAppliedRowConfig_t *applied = &state->fdcAppliedRow[(uint8_t)devId];
-    if (!forceWrite &&
-        !reapplyRequested &&
-        sensorarrayMeasureAppliedRowConfigMatches(applied, &expected)) {
+    int64_t compareStartUs = esp_timer_get_time();
+    bool appliedMatches = sensorarrayMeasureAppliedRowConfigMatches(applied, &expected);
+    if (timing) {
+        timing->cacheCompareUs += sensorarrayMeasureElapsedUs(compareStartUs);
+    }
+    if (!forceWrite && !reapplyRequested && appliedMatches) {
         bool fastProfileCachePromoted = false;
         if (formalFastProfileEnabled && fastProfileApplied) {
             fastProfileCachePromoted =
@@ -536,6 +539,7 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
             uint64_t writeUs__ = sensorarrayMeasureElapsedUs(writeStartUs__); \
             if (timing) { \
                 timing->channelConfigWriteUs += writeUs__; \
+                timing->cacheApplyI2cUs += writeUs__; \
             } \
             if (writeErr__ != ESP_OK && firstErr == ESP_OK) { \
                 firstErr = writeErr__; \
@@ -643,6 +647,7 @@ static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *s
         timing->diffStatusConfigWrites += diffStatusWrites;
         timing->diffConfigWrites += diffConfigWrites;
         timing->appliedFingerprintChanged += (previousFingerprint != expected.fingerprint) ? 1u : 0u;
+        timing->cacheApplyRestartCount += (diffWriteCount != 0u) ? 1u : 0u;
     }
     if (CONFIG_SENSORARRAY_FDC_PROFILE_CHANGE_LOG &&
         runtimeProfileChanged &&

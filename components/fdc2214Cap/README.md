@@ -53,6 +53,8 @@
 | `Fdc2214CapSetSingleChannelMode()`, `Fdc2214CapSetAutoScanMode()`, `Fdc2214CapSetAutoScanModeWriteOnly()` | Configure conversion mode. |
 | `Fdc2214CapReadSample()`, `Fdc2214CapReadSampleRelaxed()`, `Fdc2214CapReadChannelRawWithStatus()` | Single-channel raw sample reads. |
 | `Fdc2214CapReadChannelsRaw()`, `Fdc2214CapReadAutoscan4RawFast()`, `Fdc2214CapReadChannelsDataRegsFast()`, `Fdc2214CapReadChannelsDataRegsOnlyFast()` | Multi-channel/autoscan raw reads. The `DataRegsOnly` variant never reads STATUS. |
+| `Fdc2214CapReadDataOrdered4()`, `Fdc2214CapReadDataBurst4()` | Ordered CH0-CH3 DATA read and runtime-selected probed block/ordered read. Both hold the device mutex once for the complete device-row DATA operation. |
+| `Fdc2214CapProbeDataBurst4()`, `Fdc2214CapDataBurstSupported()` | Compare ordered reads with a 16-byte candidate over multiple trials and expose the per-device decision. |
 | `Fdc2214CapReadRawRegisters()`, `Fdc2214CapWriteRawRegisters()` | Raw 16-bit register access. |
 | `Fdc2214CapResetI2cStats()`, `Fdc2214CapGetI2cStats()` | I2C profiling counters. |
 | `Fdc2214CapI2cTraceSetEnabled()`, `Fdc2214CapI2cTraceIsEnabled()`, `Fdc2214CapI2cTraceClear()`, `Fdc2214CapI2cTraceDump()` | Trace ring controls. |
@@ -110,7 +112,7 @@ It does not know rows, D-line meaning, primary/secondary board ownership, TMUX r
 
 The driver reports raw data and chip status. Frequency and pF conversion used by `MATRIXFDC_CAP` are measurement-layer responsibilities.
 
-`Fdc2214CapReadStatus()` and `Fdc2214CapDecodeStatusRaw()` only perform one STATUS read/decode operation. They do not decide when STATUS should be read and do not contain hidden ready-poll loops. `Fdc2214CapReadChannelsDataRegsOnlyFast()` reads DATA_CHx registers without a hidden STATUS read and is used by the normal matrix read4 path. In normal `INTB_STRICT_LEVEL` matrix frames, the measurement layer calls STATUS only after active-low INTB, once after the estimated-round guard timeout, or for the hard-timeout diagnostic. Polling APIs and repeated STATUS reads are reserved for explicit diagnostics and sweep flows.
+`Fdc2214CapReadStatus()` and `Fdc2214CapDecodeStatusRaw()` perform one STATUS read/decode operation and contain no hidden ready-poll loop. The measurement layer decides whether a new INTB event can go directly to DATA or needs STATUS-confirmed fallback. `Fdc2214CapReadDataBurst4()` uses the 16-byte transaction only after `Fdc2214CapProbeDataBurst4()` obtains exact ordered/block matches; a runtime block I2C failure disables burst and retries ordered immediately.
 
 Drive-current writes are masked to the FDC2214 drive-current field. The SensorArray default is `0x7800`; avoid documenting or tuning with `0x7C00` because the extra bit is discarded before the register write.
 
