@@ -1237,6 +1237,14 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
     uint64_t measuredAvgReadUs1 = sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, t->i2cBus1ReadCount);
     int64_t overheadAvgReadUs0 = (int64_t)measuredAvgReadUs0 - (int64_t)expectedReadUs0;
     int64_t overheadAvgReadUs1 = (int64_t)measuredAvgReadUs1 - (int64_t)expectedReadUs1;
+    uint64_t expectedFrameI2cUs0 = sensorarrayMeasureAvgU64(
+        expectedReadUs0 * (uint64_t)t->i2cBus0ReadCount,
+        agg->frames);
+    uint64_t expectedFrameI2cUs1 = sensorarrayMeasureAvgU64(
+        expectedReadUs1 * (uint64_t)t->i2cBus1ReadCount,
+        agg->frames);
+    uint64_t measuredFrameI2cUs0 = sensorarrayMeasureAvgU64(t->i2cBus0TotalUs, agg->frames);
+    uint64_t measuredFrameI2cUs1 = sensorarrayMeasureAvgU64(t->i2cBus1TotalUs, agg->frames);
     printf("I2C_EXPECT20,s0=%lu,s1=%lu,n=%lu,clk0=%lu,clk1=%lu,read0=%lu,read1=%lu,expectedReadUs0=%llu,expectedReadUs1=%llu,measuredAvgReadUs0=%llu,measuredAvgReadUs1=%llu,overheadAvgReadUs0=%lld,overheadAvgReadUs1=%lld,expectedFrameI2cUs0=%llu,expectedFrameI2cUs1=%llu,measuredFrameI2cUs0=%llu,measuredFrameI2cUs1=%llu\n",
            (unsigned long)agg->seqStart,
            (unsigned long)agg->seqEnd,
@@ -1251,10 +1259,10 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)measuredAvgReadUs1,
            (long long)overheadAvgReadUs0,
            (long long)overheadAvgReadUs1,
-           (unsigned long long)(expectedReadUs0 * (uint64_t)t->i2cBus0ReadCount),
-           (unsigned long long)(expectedReadUs1 * (uint64_t)t->i2cBus1ReadCount),
-           (unsigned long long)t->i2cBus0TotalUs,
-           (unsigned long long)t->i2cBus1TotalUs);
+           (unsigned long long)expectedFrameI2cUs0,
+           (unsigned long long)expectedFrameI2cUs1,
+           (unsigned long long)measuredFrameI2cUs0,
+           (unsigned long long)measuredFrameI2cUs1);
     uint64_t roundTotalUs = 0u;
     uint32_t profileCount = 0u;
     uint32_t maxRoundUs = 0u;
@@ -1273,6 +1281,19 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
     }
     uint32_t avgRoundUs = profileCount ? (uint32_t)(roundTotalUs / profileCount) : 0u;
     uint64_t measuredRowWallAvgUs = sensorarrayMeasureAvgU64(agg->rowUsTotal, rowCount);
+    uint32_t readyDeviceSamples = rowCount * 2u;
+    uint64_t readyAvgUs = sensorarrayMeasureAvgU64(
+        t->waitReadyUsPrimaryTotal + t->waitReadyUsSecondaryTotal,
+        readyDeviceSamples);
+    uint64_t statusAvgUs = sensorarrayMeasureAvgU64(
+        t->statusReadUsPrimaryTotal + t->statusReadUsSecondaryTotal,
+        readyDeviceSamples);
+    uint64_t dataReadAvgUs = sensorarrayMeasureAvgU64(
+        t->dataReadUsPrimaryTotal + t->dataReadUsSecondaryTotal,
+        readyDeviceSamples);
+    uint64_t read4AvgUs = sensorarrayMeasureAvgU64(
+        t->read4UsPrimaryTotal + t->read4UsSecondaryTotal,
+        readyDeviceSamples);
     int64_t modelErrorUs = (int64_t)measuredRowWallAvgUs - (int64_t)maxRoundUs;
     printf("P5_FULL,s=%lu,n=%lu,profile=%s,roundUs=%lu,rowBudgetUs=%lu,theoreticalMaxFps=%lu.%02lu,measuredRowWallAvgUs=%llu,measuredRowWallMaxUs=%llu,measuredFrameUs=%llu,measuredFps=%llu.%02llu,modelErrorUs=%lld,readyAvgUs=%llu,i2cAvgUs=%llu,routeProfileAvgUs=%llu,logOutUsAvg=%llu,avgRoundUs=%lu\n",
            (unsigned long)agg->seqEnd,
@@ -1288,7 +1309,7 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)(avgFpsX100 / 100ull),
            (unsigned long long)(avgFpsX100 % 100ull),
            (long long)modelErrorUs,
-           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount),
+           (unsigned long long)readyAvgUs,
            (unsigned long long)sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames),
            (unsigned long long)sensorarrayMeasureAvgU64(t->rowSwitchWhileSleepingUs + t->rowSettleUs + t->diffApplyWhileSleepingUs, rowCount),
            (unsigned long long)sensorarrayMeasureAvgU64(t->outputPrintfUs, agg->frames),
@@ -1299,8 +1320,8 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
     } bnItems[] = {
         {"cacheApplyUs", sensorarrayMeasureAvgU64(t->cacheApplyUs, rowCount)},
         {"i2cMeasuredUs", sensorarrayMeasureAvgU64(t->i2cMeasuredUs, agg->frames)},
-        {"readyPollUs", sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount)},
-        {"read4I2cUs", sensorarrayMeasureAvgU64(t->readUs, rowCount)},
+        {"readyPollUs", readyAvgUs},
+        {"read4I2cUs", read4AvgUs},
         {"workerSpanUs", sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount)},
         {"workerStartSkewUs", sensorarrayMeasureAvgU64(t->workerStartSkewUs, rowCount)},
         {"coordinatorMergeUs", sensorarrayMeasureAvgU64(t->coordinatorMergeUs, rowCount)},
@@ -1325,9 +1346,9 @@ static void sensorarrayMeasurePrintFdcTimingAggregate(const sensorarrayFdcTiming
            (unsigned long long)bnItems[1].us,
            bnItems[2].name,
            (unsigned long long)bnItems[2].us,
-           (unsigned long long)sensorarrayMeasureAvgU64(t->waitReadyUs, rowCount),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->statusReadUs, rowCount),
-           (unsigned long long)sensorarrayMeasureAvgU64(t->dataReadUs, rowCount),
+           (unsigned long long)readyAvgUs,
+           (unsigned long long)statusAvgUs,
+           (unsigned long long)dataReadAvgUs,
            (unsigned long long)sensorarrayMeasureAvgU64(t->dualBusWaitUs, rowCount),
            (unsigned long long)sensorarrayMeasureAvgU64(t->coordinatorMergeUs, rowCount),
            (unsigned long long)avgFrameUs,
@@ -1662,6 +1683,11 @@ static void sensorarrayMeasureUpdateFdcTimingAggregate(const sensorarrayFdcTimin
     SENSORARRAY_FDC_AGG_ADD(statusReadUs);
     SENSORARRAY_FDC_AGG_ADD(statusPrecheckUs);
     SENSORARRAY_FDC_AGG_ADD(dataReadUs);
+    SENSORARRAY_FDC_AGG_ADD(waitReadyUs);
+    SENSORARRAY_FDC_AGG_ADD(readUs);
+    SENSORARRAY_FDC_AGG_ADD(intbWaitOnlyUs);
+    SENSORARRAY_FDC_AGG_ADD(statusVerifyAfterIntbUs);
+    SENSORARRAY_FDC_AGG_ADD(pollFallbackUs);
     SENSORARRAY_FDC_AGG_ADD(coordinatorMergeUs);
     SENSORARRAY_FDC_AGG_ADD(staleDrainUs);
     SENSORARRAY_FDC_AGG_ADD(primaryJobUs);

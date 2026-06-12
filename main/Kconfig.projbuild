@@ -485,16 +485,20 @@ config SENSORARRAY_FDC_PROFILE_NAME
 
 choice SENSORARRAY_FDC_RUNTIME_PROFILE
     prompt "Formal continuous-frame FDC runtime profile"
-    default SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    default SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
 
 config SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
     bool "high_precision: preserve boot/full-sweep conversion count"
 
 config SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
-    bool "balanced_runtime: default continuous-frame profile"
+    bool "balanced_runtime: intermediate continuous-frame profile"
 
 config SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
-    bool "fast_runtime: high dynamic response test profile"
+    bool "fast_runtime: default continuous-frame profile"
+    help
+        Uses RCOUNT 0x0900 for the formal continuous-frame path. Boot and full
+        sweeps retain their high-precision profile. Select this after READY20
+        shows conversion-ready wait, rather than worker skew, dominates row wall.
 
 endchoice
 

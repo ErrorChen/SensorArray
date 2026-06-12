@@ -205,6 +205,8 @@ The row coordinator selects the row, waits for TMUX settle, applies cached devic
 
 `primaryFdcWorker` and `secondaryFdcWorker` are persistent tasks. Every row job carries an `epochId` and generation so stale completions can be discarded instead of merged into the current row. Both workers call the same read-row-device path, which keeps primary/bus0 and secondary/bus1 timing directly comparable.
 
+The start semaphore is a coordinator-owned barrier, so workers wait for its release while a cold runtime-profile update is applied. The device ready/read deadline starts from each worker's actual run start after release. Profile application remains part of row-wall timing but cannot consume the device watchdog before the read begins.
+
 The FDC2214 formal read path still uses ordered `DATA_CHx -> DATA_LSB_CHx` reads and does not use a single 0x00-based 16-byte burst. The performance fix must come from scheduling and log pressure reduction, not from removing the required DATA transactions.
 
 ### Log strategy
@@ -216,6 +218,8 @@ Level 2 Cap output is asynchronous and frame based. Level 3 normal diagnostics a
 Normal `FR` rows have `pv=F`, `sv=F`, `vm=FF`, `wm=00`, `em=00`, `cm=00`, `tm=00`, and `pt=0`. Normal `WP` rows have both workers launched in `mode=par` with `reason=ok` and no stale, timeout, fallback, or serialised path. These normal rows are suppressed as per-row text and counted in `FR20`/`WP20`; abnormal rows still emit `FR,r=...` or `WP,r=...`.
 
 `WP20` checks primary/secondary worker symmetry, `RW20` breaks down row-wall timing, `READY20` separates INTB/DRDY/STATUS readiness, `I2C_EXPECT20` compares the 45-SCL theoretical read time with measured driver/wrapper time, and `P5_FULL` compares the conversion-only profile model with the full row pipeline.
+
+The default formal continuous-frame profile is `fast_runtime` (`RCOUNT=0x0900`); boot and full sweeps remain high precision. A 2026-06-12 COM11 validation produced 200 consecutive full 64-cell frames at a steady `12.36 fps`. The 20 fps target was not met because row wall was about `9674 us` despite a `3904 us` conversion-only round, with measured per-bus I2C time around `24.6 ms/frame` versus a `9.36 ms/frame` wire-time model.
 
 ### Application-level failure model
 

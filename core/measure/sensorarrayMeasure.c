@@ -674,7 +674,7 @@ typedef struct {
     sensorarrayFdcWorkerResult_t *result;
     sensorarrayFdcWorkerTrace_t *trace;
     sensorarrayFdcFrameReadTracker_t *readTracker;
-    uint64_t rowDeviceDeadlineUs;
+    uint32_t rowDeviceBudgetUs;
     uint32_t generation;
 } sensorarrayFdcWorkerJob_t;
 

@@ -1224,8 +1224,14 @@ boot/full sweep 的默认基础配置仍为 `high_precision`：
 | Runtime profile | RCOUNT | SETTLECOUNT | 用途 |
 |---|---:|---:|---|
 | `high_precision` | `0x2089` | `0x0080` | 用户明确要求的低速高精度正式帧 |
-| `balanced_runtime` | `0x0E00` | `0x0080` | 默认连续帧，目标约 15-20 fps |
-| `fast_runtime` | `0x0900` | `0x0080` | 高动态响应测试 |
+| `balanced_runtime` | `0x0E00` | `0x0080` | 中间精度/速度连续帧配置 |
+| `fast_runtime` | `0x0900` | `0x0080` | 默认连续帧；boot/full sweep 仍使用 high precision |
+
+2026-06-12 的 COM11 实机验证中，`fast_runtime` 连续 200 帧均为 64-cell full frame，
+稳态 `P5_FULL` 为 `12.36 fps`。20 fps 目标未达到：conversion-only round 为
+`3904 us`，但完整 row wall 为 `9674 us`；每 bus 每帧 I2C measured time 约
+`24.6 ms`，高于 45-SCL 模型给出的 `9.36 ms`。因此当前限制来自 ready wait 和
+I2C driver/wrapper 开销，而不是双 worker skew、重试、NACK 或恢复路径。
 
 相关配置为 `CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_*`、
 `CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_*`、
@@ -1241,6 +1247,11 @@ old/new profile、round、RCOUNT、target、row budget、action 和 reason。
 CLOCK_DIVIDERS、DRIVE_CURRENT、MUX_CONFIG、STATUS_CONFIG 和 CONFIG，仅写变化寄存器。
 默认 `startup_only` verify 不会在每 row 重读 CONFIG/MUX/STATUS_CONFIG；full verify
 模式仍可用于受控诊断。profile-too-slow 日志不会触发全量 apply。
+
+worker 的 row-start semaphore 是 coordinator barrier，不是 ready/read watchdog。
+首次 runtime profile 写入期间 worker 会持续等待 barrier；barrier release 后才从各自
+`runStartUs` 启动 device deadline。这样首次 38-register profile apply 仍计入 row wall，
+但不会在正式读取开始前把首行误判为 worker timeout。
 
 - `CA5`: 聚合 `cacheApplyUs`、writes、full/diff/no-diff 和 fingerprint change。
 - `CAWARN`: 单帧 cache apply 超过 `10 ms` 时输出。

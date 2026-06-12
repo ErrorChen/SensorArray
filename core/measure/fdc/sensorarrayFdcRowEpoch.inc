@@ -2313,6 +2313,9 @@ static esp_err_t sensorarrayMeasureFdcDeviceLevelResync(sensorarrayState_t *stat
         uint64_t waitUs = sensorarrayMeasureElapsedUs(waitStartUs);
         if (timing) {
             timing->waitReadyUs += waitUs;
+            if (waitUs > timing->maxWaitReadyUs) {
+                timing->maxWaitReadyUs = waitUs;
+            }
         }
         sensorarrayMeasureRecordFirstErr(err, &firstErr);
     }
@@ -2627,6 +2630,9 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
     uint64_t waitUs = sensorarrayMeasureElapsedUs(waitStartUs);
     if (timing) {
         timing->waitReadyUs += waitUs;
+        if (waitUs > timing->maxWaitReadyUs) {
+            timing->maxWaitReadyUs = waitUs;
+        }
     }
     if (outReady->readyResult == FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT ||
         outReady->readyResult == FDC_READY_INTERNAL_STATE_ERROR) {
@@ -2940,6 +2946,9 @@ static esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_
         uint64_t retryWaitUs = sensorarrayMeasureElapsedUs(retryWaitStartUs);
         if (timing) {
             timing->waitReadyUs += retryWaitUs;
+            if (retryWaitUs > timing->maxWaitReadyUs) {
+                timing->maxWaitReadyUs = retryWaitUs;
+            }
         }
         if (retryErr == ESP_OK &&
             sensorarrayMeasureFdcReadyAllowsNormalDataRead(
@@ -3155,23 +3164,30 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
         }
         xSemaphoreGive(ctx->sleepAck);
 
-        uint32_t startWaitMs = (uint32_t)CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS;
-        if (startWaitMs < 100u) {
-            startWaitMs = 100u;
-        }
-        TickType_t waitTicks = pdMS_TO_TICKS(startWaitMs);
-        if (waitTicks == 0) {
-            waitTicks = 1;
-        }
+        /*
+         * This semaphore is the coordinator-controlled row-start barrier, not
+         * a device readiness watchdog. A cold runtime-profile transition can
+         * legitimately take longer than the normal worker synchronization
+         * timeout while both FDCs remain asleep. Every coordinator exit after
+         * a job is queued releases this barrier before waiting for completion,
+         * so the worker must wait for that release instead of invalidating the
+         * first row after an expensive profile update. The actual device
+         * watchdog begins below, from runStartUs, after the barrier is released.
+         */
         int64_t startWaitStartUs = esp_timer_get_time();
-        if (err == ESP_OK && xSemaphoreTake(ctx->start, waitTicks) == pdTRUE) {
+        if (err == ESP_OK && xSemaphoreTake(ctx->start, portMAX_DELAY) == pdTRUE) {
             if (job.trace) {
                 job.trace->startWaitUs = (uint32_t)sensorarrayMeasureElapsedUs(startWaitStartUs);
                 job.trace->runStarted = true;
             }
             int64_t runStartUs = esp_timer_get_time();
+            uint32_t rowDeviceBudgetUs = job.rowDeviceBudgetUs != 0u ?
+                job.rowDeviceBudgetUs : sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
+            uint64_t rowDeviceDeadlineUs = (uint64_t)runStartUs + rowDeviceBudgetUs;
             if (job.trace) {
                 job.trace->workerStartUs = (uint64_t)runStartUs;
+                job.trace->workerDeadlineUs = rowDeviceDeadlineUs;
+                job.trace->rowHardDeadlineUs = rowDeviceBudgetUs;
             }
             err = sensorarrayMeasureFdcRunDeviceEpochAfterSleep(job.state,
                                                                 job.row,
@@ -3185,7 +3201,7 @@ static void sensorarrayMeasureFdcWorkerTask(void *arg)
                                                                 job.timing,
                                                                 job.readTracker,
                                                                 "worker",
-                                                                job.rowDeviceDeadlineUs);
+                                                                rowDeviceDeadlineUs);
             job.result->err = err;
             if (job.trace) {
                 job.trace->workerRunUs = (uint32_t)sensorarrayMeasureElapsedUs(runStartUs);
@@ -4048,7 +4064,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         .result = &primaryResult,
         .trace = &primaryTrace,
         .readTracker = readTracker,
-        .rowDeviceDeadlineUs = workerDeadlineUs,
+        .rowDeviceBudgetUs = rowHardDeadlineUs,
         .generation = generation,
     };
     sensorarrayFdcWorkerJob_t secondaryJob = {
@@ -4062,7 +4078,7 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
         .result = &secondaryResult,
         .trace = &secondaryTrace,
         .readTracker = readTracker,
-        .rowDeviceDeadlineUs = workerDeadlineUs,
+        .rowDeviceBudgetUs = rowHardDeadlineUs,
         .generation = generation,
     };
 
@@ -4195,6 +4211,17 @@ static esp_err_t sensorarrayMeasureReadFdcMatrixRowParallelEpoch(sensorarrayStat
 
     int64_t startGiveStartUs = esp_timer_get_time();
     rowTiming->workerReleaseUs = (uint64_t)startGiveStartUs;
+    /*
+     * Queueing, worker sleep entry, row routing, and first-use profile writes
+     * happen before the read workers are released. They are coordinator work
+     * and must remain visible in row wall timing, but they must not consume the
+     * worker's ready/read watchdog budget. Rebase the join deadline at the
+     * barrier release; each worker independently uses the same duration from
+     * its actual run start.
+     */
+    workerDeadlineUs = rowTiming->workerReleaseUs + rowHardDeadlineUs;
+    primaryTrace.workerDeadlineUs = workerDeadlineUs;
+    secondaryTrace.workerDeadlineUs = workerDeadlineUs;
     xSemaphoreGive(primaryCtx->start);
     primaryTrace.startGiven = true;
     xSemaphoreGive(secondaryCtx->start);
