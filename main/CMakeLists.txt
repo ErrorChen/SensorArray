@@ -40,14 +40,9 @@ idf_component_register(
         protocolWire
         protocolUsb
         transportWire
-        bleTransport
         matrixEngine
-        bt
-        esp_event
-        esp_netif
-        esp_wifi
-        nvs_flash
-        lwip
+        config
+        transport
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

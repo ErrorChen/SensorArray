@@ -5,10 +5,11 @@ from text_protocol import TextProtocolParser
 
 
 class TextProtocolParserTest(unittest.TestCase):
-    def test_reassembles_64_values_and_validates_crc(self) -> None:
-        lines = ["C,seq=7,ts=123,rf=FF,pf=FF,sf=FF,bad=0/0/0,fmt=pf6,n=64"]
-        values = list(range(64))
-        for chunk in range(4):
+    def test_reassembles_dynamic_values_and_validates_crc(self) -> None:
+        lines = ["C,seq=7,ts=123,rows=5,cells=40,rf=1F,pf=1F,sf=1F,"
+                 "bad=0/0/0,fmt=pf6,n=40"]
+        values = list(range(40))
+        for chunk in range(3):
             start = chunk * 16
             lines.append("D%d,%s" % (chunk, ",".join(str(value)
                                                      for value in values[start:start + 16])))
@@ -22,6 +23,8 @@ class TextProtocolParserTest(unittest.TestCase):
 
         self.assertIsNotNone(frame)
         self.assertEqual(frame.values_fixed, values)
+        self.assertEqual(frame.rows, 5)
+        self.assertEqual(frame.cells, 40)
         self.assertTrue(frame.crc_ok)
         self.assertEqual(protocol.counters.cap_frames, 1)
 

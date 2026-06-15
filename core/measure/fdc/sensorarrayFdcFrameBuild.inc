@@ -519,6 +519,7 @@ static void sensorarrayMeasureInitFdcMatrixFrame(sensorarrayFdcMatrixFrame_t *fr
     frame->physicalSweepId = ++s_fdcMatrixSequence;
     frame->sequence = s_fdcFreshFrameSequence;
     frame->frameStartUs = frame->timestampUs;
+    frame->activeRows = SENSORARRAY_MATRIX_ROWS;
     frame->stale = true;
     for (size_t i = 0u; i < SENSORARRAY_MATRIX_CELL_COUNT; ++i) {
         frame->freqHz[i] = SENSORARRAY_FDC_INVALID_FREQ_SENTINEL_HZ;
@@ -531,8 +532,9 @@ static bool sensorarrayFdcMatrixFrameRawAllZero(const sensorarrayFdcMatrixFrame_
     if (!frame) {
         return true;
     }
-    return frame->freshCount == SENSORARRAY_MATRIX_CELL_COUNT &&
-           frame->hardwareZeroRawCount == SENSORARRAY_MATRIX_CELL_COUNT &&
+    uint8_t cells = (uint8_t)(frame->activeRows * SENSORARRAY_MATRIX_COLS);
+    return frame->freshCount == cells &&
+           frame->hardwareZeroRawCount == cells &&
            frame->notReadyCount == 0u &&
            frame->zeroBeforeReadyCount == 0u;
 }
@@ -546,7 +548,8 @@ static uint64_t sensorarrayMeasureComputeFdcFrameCapTotalPf(sensorarrayFdcMatrix
     int64_t startUs = esp_timer_get_time();
     frame->capValidMask = 0u;
     const double inductorUh = (double)CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH / 1000.0;
-    for (size_t i = 0u; i < SENSORARRAY_MATRIX_CELL_COUNT; ++i) {
+    size_t activeCells = (size_t)frame->activeRows * SENSORARRAY_MATRIX_COLS;
+    for (size_t i = 0u; i < activeCells; ++i) {
         uint64_t bit = 1ULL << i;
         frame->capTotalPf[i] = SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF;
         if ((frame->validMask & (1ULL << i)) == 0u) {

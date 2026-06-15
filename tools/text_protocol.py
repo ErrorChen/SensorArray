@@ -25,6 +25,8 @@ def parse_fields(line: str) -> dict[str, str]:
 class CapFrame:
     sequence: int
     timestamp_us: int
+    rows: int
+    cells: int
     values_fixed: list[int]
     crc_ok: bool
 
@@ -56,6 +58,8 @@ class TextProtocolParser:
         self._on_cap_frame = on_cap_frame
         self._current_sequence: Optional[int] = None
         self._current_timestamp_us = 0
+        self._current_rows = 8
+        self._current_cells = 64
         self._chunks: dict[int, list[int]] = {}
         self._crc_bytes = bytearray()
         self._last_sequence: Optional[int] = None
@@ -96,13 +100,22 @@ class TextProtocolParser:
         try:
             sequence = int(fields["seq"], 10)
             timestamp_us = int(fields.get("ts", "0"), 10)
+            rows = int(fields.get("rows", "8"), 10)
+            cells = int(fields.get("cells", fields.get("n", "64")), 10)
+            count = int(fields.get("n", str(cells)), 10)
         except (KeyError, ValueError):
+            self.counters.malformed += 1
+            self._current_sequence = None
+            return None
+        if not 1 <= rows <= 8 or cells != rows * 8 or count != cells:
             self.counters.malformed += 1
             self._current_sequence = None
             return None
 
         self._current_sequence = sequence
         self._current_timestamp_us = timestamp_us
+        self._current_rows = rows
+        self._current_cells = cells
         self._chunks = {}
         self._crc_bytes = bytearray((line + "\n").encode("ascii"))
         return None
@@ -142,12 +155,13 @@ class TextProtocolParser:
         values: list[int] = []
         for chunk_index in sorted(self._chunks):
             values.extend(self._chunks[chunk_index])
-        if len(values) != 64:
+        if len(values) != self._current_cells:
             self.counters.malformed += 1
             self._current_sequence = None
             return None
 
-        frame = CapFrame(sequence, self._current_timestamp_us, values, crc_ok)
+        frame = CapFrame(sequence, self._current_timestamp_us, self._current_rows,
+                         self._current_cells, values, crc_ok)
         self.counters.cap_frames += 1
         self._record_sequence(sequence)
         self._current_sequence = None
@@ -190,5 +204,6 @@ def format_cap_preview(frame: CapFrame) -> str:
     last = frame.values_pf[-1]
     first_text = "invalid" if first is None else f"{first:.6f}"
     last_text = "invalid" if last is None else f"{last:.6f}"
-    return (f"CAP,seq={frame.sequence},crc={int(frame.crc_ok)},"
-            f"cap0={first_text},cap63={last_text},mean={mean:.6f}")
+    return (f"CAP,seq={frame.sequence},rows={frame.rows},cells={frame.cells},"
+            f"crc={int(frame.crc_ok)},cap0={first_text},"
+            f"capLast={last_text},mean={mean:.6f}")

@@ -186,6 +186,7 @@ typedef struct {
     uint8_t fdcDeglitch;
     bool fdcSensorActivateFullCurrent;
     bool fdcHighCurrentDrive;
+    uint8_t activeRows;
     sensorarrayUsbSinkStats_t usbStatsStart;
     sensorarrayNetSinkStats_t netStatsStart;
 } sensorarrayAsyncLogSummary_t;
@@ -597,7 +598,8 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
     if (frame->physicalSweepUs > summary->physicalSweepMaxUs) {
         summary->physicalSweepMaxUs = frame->physicalSweepUs;
     }
-    summary->rowStepTotalUs += frame->rowStepUsAvg * SENSORARRAY_MATRIX_ROWS;
+    summary->activeRows = frame->activeRows ? frame->activeRows : SENSORARRAY_MATRIX_ROWS;
+    summary->rowStepTotalUs += frame->rowStepUsAvg * summary->activeRows;
     if (frame->rowStepUsMax > summary->rowStepMaxUs) {
         summary->rowStepMaxUs = frame->rowStepUsMax;
     }
@@ -619,13 +621,14 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
     if (frame->mixedEpoch) {
         summary->mixedFrames++;
     }
-    if (frame->rowFreshMask != 0xFFu) {
+    uint8_t expectedRowMask = (uint8_t)((1u << summary->activeRows) - 1u);
+    if (frame->rowFreshMask != expectedRowMask) {
         summary->rowFreshMaskBad++;
     }
-    if (frame->primaryFreshMask != 0xFFu) {
+    if (frame->primaryFreshMask != expectedRowMask) {
         summary->primaryFreshMaskBad++;
     }
-    if (frame->secondaryFreshMask != 0xFFu) {
+    if (frame->secondaryFreshMask != expectedRowMask) {
         summary->secondaryFreshMaskBad++;
     }
     if (emitted) {
@@ -754,20 +757,21 @@ static const char *sensorarrayBatteryReasonName(sensorarrayBatteryInvalidReason_
     case SENSORARRAY_BATTERY_INVALID_CAL:
         return "cal";
     case SENSORARRAY_BATTERY_INVALID_RAIL:
-        return "rail";
+        return "rail_invalid";
     case SENSORARRAY_BATTERY_INVALID_ZERO:
         return "zero";
-    case SENSORARRAY_BATTERY_INVALID_VREF:
-        return "vref";
     case SENSORARRAY_BATTERY_INVALID_ADC:
-        return "adc";
+        return "adc_fail";
     case SENSORARRAY_BATTERY_INVALID_DIV:
-        return "div";
-    case SENSORARRAY_BATTERY_INVALID_VBIAS:
-        return "vb";
+        return "divider_invalid";
+    case SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE:
+        return "no_aincom_gnd_reference";
+    case SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE:
+        return "out_of_range";
     case SENSORARRAY_BATTERY_INVALID_OVERFLOW:
-        return "of";
+        return "overflow";
     case SENSORARRAY_BATTERY_INVALID_NONE:
+        return "ok";
     case SENSORARRAY_BATTERY_INVALID_UNKNOWN:
     default:
         return "unk";
@@ -801,7 +805,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         summary->emitIntervalTotalUs / summary->emitIntervalCount : 0u;
     uint64_t captureFpsX100 = captureIntervalUs ? 100000000ull / captureIntervalUs : 0u;
     uint64_t emitFpsX100 = emitIntervalUs ? 100000000ull / emitIntervalUs : 0u;
-    uint64_t rowCount = frameCount * SENSORARRAY_MATRIX_ROWS;
+    uint8_t activeRows = summary->activeRows ? summary->activeRows : SENSORARRAY_MATRIX_ROWS;
+    uint64_t rowCount = frameCount * activeRows;
     const sensorarrayFdcFrameTelemetry_t *telemetry = &summary->telemetry;
     uint64_t readyWaitUs = rowCount ? telemetry->readyWaitUs / (rowCount * 2u) : 0u;
     uint64_t dataReadUs = rowCount ? telemetry->dataReadUs / (rowCount * 2u) : 0u;
@@ -812,7 +817,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     uint64_t coordinatorUs = rowStepUs > attributedUs ? rowStepUs - attributedUs : 0u;
     uint64_t validRate = frameCount ?
         (summary->freshCells * 100u) /
-            (frameCount * (uint64_t)SENSORARRAY_MATRIX_CELL_COUNT) : 0u;
+            (frameCount * (uint64_t)activeRows * SENSORARRAY_MATRIX_COLS) : 0u;
     uint64_t invalidFrames = frameCount > summary->freshFrames ?
         frameCount - summary->freshFrames : 0u;
 
@@ -886,22 +891,35 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         packet.data,
         sizeof(packet.data),
         position,
-        "A50,chip=%u,adc=%u,rail=%ld,z=%ld/%lu,a8=%ld,bt=%ld",
+        "A50,chip=%u,adc=%u,rail=%ld,rv=%u,rexp=%ld,rerr=%ld,z=%ld/%lu,a8d=%ld",
         ads->chip ? (unsigned)ads->chip : 1262u,
         ads->activeAdc ? (unsigned)ads->activeAdc : 1u,
         (long)(ads->railUv / 1000),
+        ads->railValid ? 1u : 0u,
+        (long)(ads->railExpectedUv / 1000),
+        (long)(ads->railErrorUv / 1000),
         (long)ads->zeroResidualUv,
         (unsigned long)zeroStdUv,
-        (long)ads->ain8RawUv,
-        ads->batteryValid ? (long)ads->batteryMv : -1L);
-    if (!ads->batteryValid) {
+        (long)ads->ain8DiffUv);
+    if (ads->aincomGndValid && ads->ain8GndValid) {
         position = sensorarrayAsyncLogTextAppend(
             packet.data,
             sizeof(packet.data),
             position,
-            ",br=%s",
-            sensorarrayBatteryReasonName(ads->batteryInvalidReason));
+            ",acom=%ld,a8g=%ld",
+            (long)ads->aincomGndUv,
+            (long)ads->ain8GndUv);
+    } else {
+        position = sensorarrayAsyncLogTextAppend(
+            packet.data, sizeof(packet.data), position, ",acom=na,a8g=na");
     }
+    position = sensorarrayAsyncLogTextAppend(
+        packet.data, sizeof(packet.data), position,
+        ",brat=%u/%u,bt=%ld,br=%s",
+        (unsigned)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM,
+        (unsigned)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN,
+        ads->batteryValid ? (long)ads->batteryMv : -1L,
+        sensorarrayBatteryReasonName(ads->batteryInvalidReason));
     position = sensorarrayAsyncLogTextAppend(
         packet.data,
         sizeof(packet.data),
@@ -942,7 +960,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     if (position < sizeof(packet.data) && position <= UINT16_MAX) {
         packet.length = (uint16_t)position;
         (void)sensorarrayUsbSinkPublish(&packet);
-        (void)sensorarrayNetTextPublish(&packet, true);
+        (void)sensorarrayNetLogPublish(&packet);
     }
     sensorarrayAsyncLogSummarySetBaseline(summary, &sharedStats);
 }
@@ -1361,11 +1379,12 @@ static void sensorarrayAsyncLogTask(void *arg)
             uint64_t outputUs = 0u;
             if (emitted) {
                 frame.emitUs = (uint64_t)outputStartUs;
-                uint32_t bleCapPeriod = sensorarrayCommandMailboxGetBleCapPeriod();
-                bool allowBleCap = bleCapPeriod != 0u &&
-                                   (frame.sequence % bleCapPeriod) == 0u;
-                (void)sensorarrayUsbSinkPublish(&textPacket);
-                (void)sensorarrayNetTextPublish(&textPacket, allowBleCap);
+                /* Serial data is a throttled debug/fallback sink. The queue is
+                 * non-blocking and network data remains the primary path. */
+                (void)sensorarrayNetTextPublish(&textPacket, true);
+                if ((frame.sequence % 10u) == 0u) {
+                    (void)sensorarrayUsbSinkPublish(&textPacket);
+                }
                 if (sensorarrayCommandMailboxTraceEnabled()) {
                     printf("E,fr=%lu,type=trace,age=%llu,q=%lu\n",
                            (unsigned long)frame.sequence,
@@ -1479,15 +1498,17 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
     s_sharedStats.freshFrames += frame->freshFrame ? 1u : 0u;
     s_sharedStats.staleFrames += frame->stale ? 1u : 0u;
     s_sharedStats.mixedFrames += frame->mixedEpoch ? 1u : 0u;
-    s_sharedStats.rowFreshMaskBad += frame->rowFreshMask != 0xFFu ? 1u : 0u;
-    s_sharedStats.primaryFreshMaskBad += frame->primaryFreshMask != 0xFFu ? 1u : 0u;
-    s_sharedStats.secondaryFreshMaskBad += frame->secondaryFreshMask != 0xFFu ? 1u : 0u;
+    uint8_t activeRows = frame->activeRows ? frame->activeRows : SENSORARRAY_MATRIX_ROWS;
+    uint8_t expectedRowMask = (uint8_t)((1u << activeRows) - 1u);
+    s_sharedStats.rowFreshMaskBad += frame->rowFreshMask != expectedRowMask ? 1u : 0u;
+    s_sharedStats.primaryFreshMaskBad += frame->primaryFreshMask != expectedRowMask ? 1u : 0u;
+    s_sharedStats.secondaryFreshMaskBad += frame->secondaryFreshMask != expectedRowMask ? 1u : 0u;
     s_sharedStats.freshCells += frame->freshCount;
     s_sharedStats.physicalSweepTotalUs += frame->physicalSweepUs;
     if (frame->physicalSweepUs > s_sharedStats.physicalSweepMaxUs) {
         s_sharedStats.physicalSweepMaxUs = frame->physicalSweepUs;
     }
-    s_sharedStats.rowStepTotalUs += frame->rowStepUsAvg * SENSORARRAY_MATRIX_ROWS;
+    s_sharedStats.rowStepTotalUs += frame->rowStepUsAvg * activeRows;
     if (frame->rowStepUsMax > s_sharedStats.rowStepMaxUs) {
         s_sharedStats.rowStepMaxUs = frame->rowStepUsMax;
     }

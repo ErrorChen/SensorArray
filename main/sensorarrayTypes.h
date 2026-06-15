@@ -145,10 +145,10 @@ typedef enum {
     SENSORARRAY_BATTERY_INVALID_CAL,
     SENSORARRAY_BATTERY_INVALID_RAIL,
     SENSORARRAY_BATTERY_INVALID_ZERO,
-    SENSORARRAY_BATTERY_INVALID_VREF,
     SENSORARRAY_BATTERY_INVALID_ADC,
     SENSORARRAY_BATTERY_INVALID_DIV,
-    SENSORARRAY_BATTERY_INVALID_VBIAS,
+    SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE,
+    SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE,
     SENSORARRAY_BATTERY_INVALID_OVERFLOW,
     SENSORARRAY_BATTERY_INVALID_UNKNOWN,
 } sensorarrayBatteryInvalidReason_t;
@@ -158,9 +158,14 @@ typedef struct {
     int32_t ain9OffsetRaw;
     int32_t ain9OffsetUv;
     int32_t ain8Raw;
-    int32_t ain8RawUv;
+    int32_t ain8RawUv; /* Deprecated alias for ain8DiffUv. */
+    int32_t ain8DiffUv; /* Raw ADC result: AIN8 - AINCOM, in uV. */
+    int32_t aincomGndUv;
+    int32_t ain8GndUv;
     int32_t batteryMv;
     int32_t railUv;
+    int32_t railExpectedUv;
+    int32_t railErrorUv;
     int32_t zeroResidualUv;
     uint32_t zeroResidualStdUv;
     uint32_t windows;
@@ -187,6 +192,8 @@ typedef struct {
     bool initialized;
     bool dmaCapable;
     bool batteryValid;
+    bool aincomGndValid;
+    bool ain8GndValid;
     bool hasAdc2;
     bool bootCalibrationDone;
     bool vbiasEnabled;
@@ -207,6 +214,7 @@ typedef struct {
     uint64_t physicalSweepUs;
     uint64_t rowStepUsAvg;
     uint64_t rowStepUsMax;
+    uint8_t activeRows;
 
     uint8_t rowFreshMask;
     uint8_t primaryFreshMask;

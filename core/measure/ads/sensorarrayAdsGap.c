@@ -23,7 +23,9 @@
 #define SENSORARRAY_ADS_RAIL_MAX_UV 6000000
 #define SENSORARRAY_ADS_BATTERY_PERIOD_FRAMES 10u
 #define SENSORARRAY_ADS_ADC2_DATA_RATE_800_SPS 3u
-#define SENSORARRAY_ADS_ADC2_TIMEOUT_US 2500u
+#define SENSORARRAY_ADS_ADC1_JOB_WORST_CASE_US 2500u
+#define SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US 1000u
+#define SENSORARRAY_ADS_CONVERSION_MARGIN_US 100u
 
 typedef enum {
     SENSORARRAY_ADS_JOB_NONE = 0,
@@ -45,6 +47,60 @@ static bool s_forceRail;
 static uint32_t s_zeroSampleCount;
 static double s_zeroMeanUv;
 static double s_zeroM2Uv;
+
+static bool sensorarrayAdsRailUsableAsReference(int64_t railUv)
+{
+    return railUv >= SENSORARRAY_ADS_RAIL_MIN_UV &&
+           railUv <= SENSORARRAY_ADS_RAIL_MAX_UV;
+}
+
+static bool sensorarrayAdsUpdateRail(int32_t monitorUv)
+{
+    int64_t railUv = (int64_t)monitorUv * SENSORARRAY_ADS_RAIL_SCALE;
+    int64_t expectedUv = (int64_t)CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV +
+                         (int64_t)CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV;
+    int64_t errorUv = railUv - expectedUv;
+    if (errorUv < 0) {
+        errorUv = -errorUv;
+    }
+    s_snapshot.railUv = railUv > INT32_MAX ? INT32_MAX : (int32_t)railUv;
+    s_snapshot.railExpectedUv =
+        expectedUv > INT32_MAX ? INT32_MAX : (int32_t)expectedUv;
+    s_snapshot.railErrorUv = errorUv > INT32_MAX ? INT32_MAX : (int32_t)errorUv;
+    s_snapshot.railValid =
+        sensorarrayAdsRailUsableAsReference(railUv) &&
+        errorUv <= CONFIG_SENSORARRAY_ADS_RAIL_EXPECTED_TOLERANCE_UV;
+    if (!s_snapshot.railValid) {
+        s_snapshot.aincomGndValid = false;
+        s_snapshot.ain8GndValid = false;
+        s_snapshot.batteryValid = false;
+        s_snapshot.batteryMv = -1;
+        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_RAIL;
+    }
+    return s_snapshot.railValid;
+}
+
+static bool sensorarrayAdsCalculateAincomGnd(int32_t *outUv)
+{
+    int64_t avddUv = CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV;
+    int64_t avssMagnitudeUv = CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV;
+    int64_t nominalRailUv = avddUv + avssMagnitudeUv;
+    if (!outUv || nominalRailUv <= 0 || !s_snapshot.railValid) {
+        return false;
+    }
+
+    /* VBIAS is the AVDD/AVSS midpoint. Scale the nominal positive/negative
+     * rail split by the validated measured rail before locating that midpoint
+     * relative to GND. */
+    int64_t midpointUv = (int64_t)s_snapshot.railUv *
+                         (avddUv - avssMagnitudeUv) /
+                         (2LL * nominalRailUv);
+    if (midpointUv < INT32_MIN || midpointUv > INT32_MAX) {
+        return false;
+    }
+    *outUv = (int32_t)midpointUv;
+    return true;
+}
 
 static uint32_t sensorarrayAdsGapRemainingUs(uint64_t deadlineUs)
 {
@@ -104,29 +160,19 @@ static void sensorarrayAdsUpdateZero(int32_t zeroUv, uint32_t frameSequence)
 static void sensorarrayAdsUpdateBatteryValidity(bool adcReadOk)
 {
     s_snapshot.batteryValid = false;
+    s_snapshot.aincomGndValid = false;
+    s_snapshot.ain8GndValid = false;
     s_snapshot.batteryMv = -1;
     if (!s_snapshot.bootCalibrationDone) {
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_CAL;
-        return;
-    }
-    if (!s_snapshot.vbiasEnabled) {
-        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_VBIAS;
-        return;
-    }
-    if (!s_snapshot.railValid) {
-        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_RAIL;
         return;
     }
     if (!s_snapshot.zeroValid) {
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_ZERO;
         return;
     }
-    if (!s_snapshot.vrefSynced) {
-        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_VREF;
-        return;
-    }
-    if (CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM != 2 ||
-        CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN != 1) {
+    if (CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM <= 0 ||
+        CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN <= 0) {
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_DIV;
         return;
     }
@@ -134,18 +180,45 @@ static void sensorarrayAdsUpdateBatteryValidity(bool adcReadOk)
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_ADC;
         return;
     }
-
-    int64_t vcmGndUv = (int64_t)s_snapshot.railUv / 2LL -
-                       (int64_t)CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV;
-    int64_t batteryUv = 2LL * ((int64_t)s_snapshot.ain8RawUv -
-                               (int64_t)s_snapshot.zeroResidualUv +
-                               vcmGndUv);
+    if (!s_snapshot.vbiasEnabled) {
+        s_snapshot.batteryInvalidReason =
+            SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE;
+        return;
+    }
+    if (!s_snapshot.railValid) {
+        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_RAIL;
+        return;
+    }
+    if (!sensorarrayAdsCalculateAincomGnd(&s_snapshot.aincomGndUv)) {
+        s_snapshot.batteryInvalidReason =
+            SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE;
+        return;
+    }
+    s_snapshot.aincomGndValid = true;
+    int64_t ain8GndUv = (int64_t)s_snapshot.ain8DiffUv -
+                        (int64_t)s_snapshot.zeroResidualUv +
+                        (int64_t)s_snapshot.aincomGndUv;
+    if (ain8GndUv < INT32_MIN || ain8GndUv > INT32_MAX) {
+        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_OVERFLOW;
+        return;
+    }
+    s_snapshot.ain8GndUv = (int32_t)ain8GndUv;
+    s_snapshot.ain8GndValid = true;
+    int64_t batteryUv = ain8GndUv *
+                        (int64_t)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM /
+                        (int64_t)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN;
     if (batteryUv < 0LL || batteryUv > (int64_t)INT32_MAX * 1000LL) {
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_OVERFLOW;
         return;
     }
 
     s_snapshot.batteryMv = (int32_t)(batteryUv / 1000LL);
+    if (s_snapshot.batteryMv < CONFIG_SENSORARRAY_ADS_BATTERY_MIN_MV ||
+        s_snapshot.batteryMv > CONFIG_SENSORARRAY_ADS_BATTERY_MAX_MV) {
+        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE;
+        s_snapshot.batteryMv = -1;
+        return;
+    }
     s_snapshot.batteryValid = true;
     s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_NONE;
 }
@@ -173,17 +246,25 @@ static esp_err_t sensorarrayAdsReadAdc2Uv(ads126xAdcHandle_t *ads,
                                           int32_t *outRaw,
                                           int32_t *outUv)
 {
-    esp_err_t err = ads126xAdcSetAdc2InputMux(ads, muxp, muxn);
+    esp_err_t err = ads126xAdcStopAdc2(ads);
+    if (err == ESP_OK) {
+        err = ads126xAdcSetAdc2InputMux(ads, muxp, muxn);
+    }
+    if (err == ESP_OK) {
+        esp_rom_delay_us(SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US);
+    }
     if (err == ESP_OK) {
         err = ads126xAdcStartAdc2(ads);
     }
     uint32_t dmaReadUs = 0u;
     if (err == ESP_OK) {
-        err = ads126xAdcReadAdc2RawDma(ads,
-                                       SENSORARRAY_ADS_ADC2_TIMEOUT_US,
-                                       outRaw,
-                                       NULL,
-                                       &dmaReadUs);
+        uint32_t conversionUs =
+            ads126xAdcAdc2ExpectedConversionPeriodUs(ads->adc2DataRate);
+        esp_rom_delay_us(conversionUs + SENSORARRAY_ADS_CONVERSION_MARGIN_US);
+        err = ads126xAdcReadAdc2RawDmaReady(ads,
+                                            outRaw,
+                                            NULL,
+                                            &dmaReadUs);
         s_snapshot.dmaReadCount++;
         s_snapshot.dmaReadUs += dmaReadUs;
     }
@@ -246,11 +327,8 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
                                        &railMonitorUv);
     }
     if (err == ESP_OK) {
-        int64_t railUv = (int64_t)railMonitorUv * SENSORARRAY_ADS_RAIL_SCALE;
-        s_snapshot.railUv = railUv > INT32_MAX ? INT32_MAX : (int32_t)railUv;
-        s_snapshot.railValid = s_snapshot.railUv >= SENSORARRAY_ADS_RAIL_MIN_UV &&
-                               s_snapshot.railUv <= SENSORARRAY_ADS_RAIL_MAX_UV;
-        if (!s_snapshot.railValid) {
+        (void)sensorarrayAdsUpdateRail(railMonitorUv);
+        if (!sensorarrayAdsRailUsableAsReference(s_snapshot.railUv)) {
             err = ESP_ERR_INVALID_RESPONSE;
         }
     }
@@ -452,6 +530,11 @@ static esp_err_t sensorarrayAdsReadDma(sensorarrayState_t *state,
     esp_err_t err = ads126xAdcSetInputMuxFast(&state->ads, muxp, muxn);
     uint32_t dmaReadUs = 0u;
     if (err == ESP_OK) {
+        /* Internal monitors and the external divider need more than one
+         * 38.4-kSPS period after a mux change. Match the proven boot read
+         * settling interval, consume the first available result, then read
+         * one complete conversion started after the change. */
+        esp_rom_delay_us(SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US);
         gpio_set_level((gpio_num_t)CONFIG_SENSORARRAY_ADS_START_GPIO, 1);
         int32_t discardRaw = 0;
         err = ads126xAdcReadAdc1RawDma(&state->ads,
@@ -461,12 +544,9 @@ static esp_err_t sensorarrayAdsReadDma(sensorarrayState_t *state,
                                        &dmaReadUs);
         s_snapshot.dmaReadCount++;
         s_snapshot.dmaReadUs += dmaReadUs;
-        /* DRDY's high release pulse can be narrower than task-level polling.
-         * After consuming the stale conversion, wait one complete ADC period
-         * and issue DMA RDATA directly instead of trying to observe that pulse. */
         uint32_t conversionUs = ads126xAdcExpectedConversionPeriodUs(
             (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE);
-        esp_rom_delay_us(conversionUs + 50u);
+        esp_rom_delay_us(conversionUs + SENSORARRAY_ADS_CONVERSION_MARGIN_US);
         dmaReadUs = 0u;
         if (err == ESP_OK) {
             err = ads126xAdcReadAdc1RawDmaReady(&state->ads,
@@ -526,15 +606,9 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
                                               &uv);
         }
         if (err == ESP_OK) {
-            int64_t railUv = (int64_t)uv * SENSORARRAY_ADS_RAIL_SCALE;
-            s_snapshot.railUv = railUv > INT32_MAX ? INT32_MAX : (int32_t)railUv;
-            s_snapshot.railValid = s_snapshot.railUv >= SENSORARRAY_ADS_RAIL_MIN_UV &&
-                                   s_snapshot.railUv <= SENSORARRAY_ADS_RAIL_MAX_UV;
-            if (!s_snapshot.railValid) {
-                err = ESP_ERR_INVALID_RESPONSE;
-            }
+            (void)sensorarrayAdsUpdateRail(uv);
         }
-        uint32_t restoreVref = s_snapshot.railValid ?
+        uint32_t restoreVref = sensorarrayAdsRailUsableAsReference(s_snapshot.railUv) ?
             (uint32_t)s_snapshot.railUv : SENSORARRAY_ADS_INTERNAL_VREF_UV;
         esp_err_t restoreErr = s_snapshot.hasAdc2 ?
             ads126xAdcSetAdc2Config(&state->ads,
@@ -545,7 +619,8 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
             ads126xAdcSetRefMuxWithVref(&state->ads,
                                         ADS126X_REFMUX_AVDD_AVSS,
                                         restoreVref);
-        s_snapshot.vrefSynced = restoreErr == ESP_OK && s_snapshot.railValid;
+        s_snapshot.vrefSynced =
+            restoreErr == ESP_OK && sensorarrayAdsRailUsableAsReference(s_snapshot.railUv);
         if (err == ESP_OK) {
             err = restoreErr;
         }
@@ -573,6 +648,7 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         if (err == ESP_OK) {
             s_snapshot.ain8Raw = raw;
             s_snapshot.ain8RawUv = uv;
+            s_snapshot.ain8DiffUv = uv;
             s_lastBatteryFrame = frameSequence;
         }
         sensorarrayAdsUpdateBatteryValidity(err == ESP_OK);
@@ -607,8 +683,10 @@ void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
         return;
     }
     uint32_t remainingBeforeUs = sensorarrayAdsGapRemainingUs(expectedFdcReadyUs);
-    uint32_t admissionUs = (uint32_t)CONFIG_SENSORARRAY_ADS_JOB_WORST_CASE_US +
-                           s_snapshot.guardUs;
+    uint32_t jobWorstCaseUs = s_snapshot.hasAdc2 ?
+        (uint32_t)CONFIG_SENSORARRAY_ADS_JOB_WORST_CASE_US :
+        SENSORARRAY_ADS_ADC1_JOB_WORST_CASE_US;
+    uint32_t admissionUs = jobWorstCaseUs + s_snapshot.guardUs;
     if (remainingBeforeUs <= admissionUs) {
         s_snapshot.jobsSkip++;
         return;

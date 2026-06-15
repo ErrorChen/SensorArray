@@ -22,6 +22,7 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayLog.h"
+#include "sensorarrayScanConfig.h"
 
 #ifndef CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE
 #define CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE 0
@@ -2815,7 +2816,12 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
         return ESP_ERR_INVALID_ARG;
     }
 
+    sensorarrayScanConfigApplyPendingAtFrameBoundary();
     sensorarrayMeasureInitFdcMatrixFrame(outFrame);
+    outFrame->activeRows = sensorarrayScanConfigGetActiveRows();
+    if (outFrame->activeRows < 1u || outFrame->activeRows > SENSORARRAY_MATRIX_ROWS) {
+        outFrame->activeRows = SENSORARRAY_MATRIX_ROWS;
+    }
 
     if (!state) {
         outFrame->errorMask = UINT64_MAX;
@@ -2940,7 +2946,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     sensorarrayFdcFrameReadTracker_t readTracker = {
         .frameSeq = outFrame->sequence,
     };
-    for (uint8_t s = 1u; s <= SENSORARRAY_MATRIX_ROWS; ++s) {
+    for (uint8_t s = 1u; s <= outFrame->activeRows; ++s) {
         sensorarrayFdcRowTiming_t rowTiming = {
             .row = s,
         };
@@ -3288,7 +3294,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             sensorarrayMeasurePrintFdcDeviceTiming(outFrame->sequence, &secondaryTiming);
         }
     }
-    outFrame->frameEndUs = outFrame->rowMergeDoneUs[SENSORARRAY_MATRIX_ROWS - 1u];
+    outFrame->frameEndUs = outFrame->rowMergeDoneUs[outFrame->activeRows - 1u];
     if (outFrame->frameEndUs == 0u) {
         outFrame->frameEndUs = (uint64_t)esp_timer_get_time();
     }
@@ -3307,7 +3313,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
 
     timing.capComputeUs = sensorarrayMeasureComputeFdcFrameCapTotalPf(outFrame);
     outFrame->mixedEpoch = false;
-    for (uint8_t rowSlot = 0u; rowSlot < SENSORARRAY_MATRIX_ROWS; ++rowSlot) {
+    for (uint8_t rowSlot = 0u; rowSlot < outFrame->activeRows; ++rowSlot) {
         bool rowEpochMatches = outFrame->rowEpoch[rowSlot] != 0u &&
                                outFrame->rowEpoch[rowSlot] == outFrame->primaryEpoch[rowSlot] &&
                                outFrame->rowEpoch[rowSlot] == outFrame->secondaryEpoch[rowSlot];
@@ -3317,19 +3323,23 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             break;
         }
     }
-    outFrame->stale = outFrame->rowFreshMask != 0xFFu ||
-                      outFrame->primaryFreshMask != 0xFFu ||
-                      outFrame->secondaryFreshMask != 0xFFu ||
-                      outFrame->freshMask != UINT64_MAX ||
-                      outFrame->capValidMask != UINT64_MAX;
+    uint8_t expectedRowMask = (uint8_t)((1u << outFrame->activeRows) - 1u);
+    uint8_t activeCells = (uint8_t)(outFrame->activeRows * SENSORARRAY_MATRIX_COLS);
+    uint64_t expectedCellMask = activeCells == 64u ?
+        UINT64_MAX : ((UINT64_C(1) << activeCells) - 1u);
+    outFrame->stale = outFrame->rowFreshMask != expectedRowMask ||
+                      outFrame->primaryFreshMask != expectedRowMask ||
+                      outFrame->secondaryFreshMask != expectedRowMask ||
+                      outFrame->freshMask != expectedCellMask ||
+                      outFrame->capValidMask != expectedCellMask;
     outFrame->freshFrame = !outFrame->stale && !outFrame->mixedEpoch;
     if (outFrame->freshFrame) {
         outFrame->sequence = ++s_fdcFreshFrameSequence;
     }
     bool precisionGuardPass = outFrame->freshFrame &&
-                              outFrame->validMask == UINT64_MAX &&
-                              outFrame->capValidMask == UINT64_MAX &&
-                              outFrame->freshMask == UINT64_MAX;
+                              outFrame->validMask == expectedCellMask &&
+                              outFrame->capValidMask == expectedCellMask &&
+                              outFrame->freshMask == expectedCellMask;
     if (!precisionGuardPass) {
         bool primaryFallback = Fdc2214CapForceOrderedDataRead(state->fdcPrimary.handle);
         bool secondaryFallback = sensorarrayMeasureFdcDeviceReadyForIo(&state->fdcSecondary) ?
@@ -3349,7 +3359,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
     timing.frameUs = sensorarrayMeasureElapsedUs(frameStartUs);
     timing.measureLockHeldUs = timing.frameUs;
-    timing.rowAvgUs = rowTotalUs / SENSORARRAY_MATRIX_ROWS;
+    timing.rowAvgUs = rowTotalUs / outFrame->activeRows;
     outFrame->physicalSweepUs = outFrame->frameEndUs > outFrame->frameStartUs ?
         outFrame->frameEndUs - outFrame->frameStartUs : 0u;
     outFrame->rowStepUsAvg = timing.rowAvgUs;

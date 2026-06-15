@@ -27,6 +27,7 @@ typedef struct {
 esp_err_t sensorarrayNetStatusInit(void);
 esp_err_t sensorarrayNetTextPublish(const sensorarrayTextPacket_t *packet,
                                     bool allowBle);
+esp_err_t sensorarrayNetLogPublish(const sensorarrayTextPacket_t *packet);
 void sensorarrayNetGetSinkStats(sensorarrayNetSinkStats_t *outStats);
 
 #ifdef __cplusplus

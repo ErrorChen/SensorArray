@@ -32,6 +32,7 @@
 #include "sensorarrayMeasure.h"
 #include "sensorarrayMixedRow.h"
 #include "sensorarrayNetStatus.h"
+#include "sensorarrayScanConfig.h"
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
 
@@ -1471,7 +1472,8 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                                                            ctx->fdcBootSweepOk);
             } else {
                 uint8_t invalidSentinelCount =
-                    (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - ctx->frame.validCount);
+                    (uint8_t)(ctx->frame.activeRows * SENSORARRAY_MATRIX_COLS -
+                              ctx->frame.validCount);
                 printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,invalidSentinelCount=%u,rawAllZero=%u\n",
                        (unsigned long)ctx->frame.sequence,
                        (unsigned long long)ctx->frame.errorMask,
@@ -1542,12 +1544,6 @@ static void sensorarrayScanTask(void *arg)
         (bootErr != ESP_OK || ctx->fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
         ctx->fdcDiagnosticMode = true;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
-    }
-
-    esp_err_t netErr = sensorarrayNetStatusInit();
-    if (netErr != ESP_OK && netErr != ESP_ERR_NOT_SUPPORTED) {
-        printf("NET_WARN,stage=task_init,err=0x%lx,action=continue_acquisition\n",
-               (unsigned long)netErr);
     }
 
     sensorarrayFdcMapVerifyDebug();
@@ -1628,6 +1624,14 @@ void app_main(void)
            CONFIG_SENSORARRAY_LOG_TASK_CORE,
            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE,
            CONFIG_SENSORARRAY_NET_TASK_CORE);
+
+    /* BLE controller memory must be reserved before Wi-Fi, board drivers,
+     * frame buses, and acquisition worker stacks consume internal RAM. */
+    esp_err_t netErr = sensorarrayNetStatusInit();
+    if (netErr != ESP_OK && netErr != ESP_ERR_NOT_SUPPORTED) {
+        printf("NET_WARN,stage=ble_first_init,err=0x%lx,name=%s,action=continue_acquisition\n",
+               (unsigned long)netErr, esp_err_to_name(netErr));
+    }
 
     esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
     if (scanErr != ESP_OK) {

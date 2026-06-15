@@ -2,6 +2,82 @@
 
 ## Current runtime architecture and text protocol
 
+### Current transport, ROWS, and battery contract
+
+This section supersedes historical FF01/FF02, single-port UDP, fixed-64-cell,
+and `transport/bleTransport` notes later in this file.
+
+| Layer | Responsibility |
+|---|---|
+| `components/sensorarrayBle` | BLE controller/Bluedroid, GAP/GATTS, subscriptions, congestion state, and notify primitives |
+| `components/sensorarrayWifi` | SoftAP, UDP sockets, control receive, and send primitives |
+| `core/transport` | Project data/log/control policy, source replies, command routing, and drop/backpressure statistics |
+| `core/config` | Single source of truth for active/pending scan row limit |
+| `main/net/sensorarrayNetStatus.c` | Deprecated thin compatibility glue into `core/transport` |
+
+The removed `transport/bleTransport` directory was an unused placeholder.
+BLE is initialized before Wi-Fi. BLE/Wi-Fi components do not parse `ROWS`.
+
+| Transport | DATA | LOG | CTRL |
+|---|---|---|---|
+| BLE service `0x00FF` | `0xFF20` DATA_TX notify | `0xFF30` LOG_TX notify | `0xFF10` CTRL_RX write, `0xFF11` CTRL_TX notify |
+| Wi-Fi UDP | 3333 | 3334 | 3335 |
+| Serial | throttled debug/fallback | logs | line RX and source-local ACK/ERR |
+
+All control sources use one parser: `ROWS?`, `ROWS=1..8`, `ROWLIMIT=1..8`,
+and `SCANROWS=1..8`. Pending rows apply at the next frame boundary. The FDC
+scan itself only visits row1 through rowN.
+
+```text
+ACK,cmd=ROWS,value=5,cells=40
+C,seq=101,ts=123456999,rows=5,cells=40,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
+D0,<16 values>
+D1,<16 values>
+D2,<8 values>
+K,seq=101,crc=<crc32>
+```
+
+CRC-32 covers C through the last D line, including each LF, and excludes K.
+DATA is queued to BLE/Wi-Fi first. Serial DATA is throttled and non-blocking.
+
+The board battery divider is `BAT -- R -- AIN8 -- R -- GND`, ratio 2/1.
+Measure BAT-GND, AIN8-GND, and AINCOM-GND when diagnosing it. The ADC reads
+`a8d = AIN8 - AINCOM`. With VBIAS enabled, firmware validates the ADS126x
+analog supply monitor against configured `AVDD_GND + |AVSS_GND|`, then uses:
+
+```text
+acom = rail * (AVDD_GND - |AVSS_GND|) / (2 * (AVDD_GND + |AVSS_GND|))
+a8g = a8d - zeroResidual + acom
+bt_uv = a8g * divider_num / divider_den
+```
+
+The rail monitor is configured in firmware as CCh/CCh, internal 2.5 V
+reference, PGA gain 1, chop disabled, and scale factor 4. MUX/reference changes
+get a 1 ms settling interval and a fresh conversion. `rail` is accepted only
+when it is within `CONFIG_SENSORARRAY_ADS_RAIL_EXPECTED_TOLERANCE_UV` of the
+nominal `AVDD_GND + |AVSS_GND|`; an invalid rail cannot generate a battery
+value.
+
+An invalid rail, VBIAS, ADC result, divider, or single-cell voltage produces
+`bt=-1` with an explicit `br`. A50 is LOG channel data. New fields are:
+`rail` measured AVDD-AVSS mV, `rv` rail validity, `rexp` nominal rail mV,
+`rerr` rail error mV, `a8d` AIN8-AINCOM uV, `acom` AINCOM-GND uV or `na`,
+`a8g` AIN8-GND uV or `na`, `brat` divider ratio, `bt` battery mV or -1, and
+`br` validity reason. The old unchecked battery formula is no longer used.
+
+Firmware build/flash uses ESP-IDF Python. Host receivers must use repository
+`.venv`, not system Python or ESP-IDF Python:
+
+```powershell
+$venvPython = "C:\ESP32\SensorArray\.venv\Scripts\python.exe"
+& $venvPython -m pip install --upgrade pip
+& $venvPython -m pip install bleak pyserial
+& $venvPython tools\receive_ble_text.py --name SensorArray --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\receive_wifi_text.py --data-port 3333 --log-port 3334 --ctrl-port 3335 --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\validate_battery_formula.py
+```
+
 This section is the source of truth for the current runtime transport. Older
 performance notes later in this file describe historical measurements only.
 
@@ -16,25 +92,26 @@ The cross-core contracts are:
 
 | Interface | Direction | Behaviour |
 |---|---|---|
-| `TextFrameBus` | Core 1 -> Core 0 | Fixed slots contain one already-formatted ASCII C/D0-D3/K packet. The producer never waits; when full it drops old normal frames and keeps the latest. All sinks reuse the same bytes. |
+| `TextFrameBus` | Core 1 -> Core 0 | Fixed slots contain one already-formatted dynamic ASCII C/D/K packet. The producer never waits; when full it drops old normal frames and keeps the latest. All sinks reuse the same bytes. |
 | `EventRing` | Core 1 -> Core 0 | Non-blocking error, overrun, state-change, and command-apply events. Queue overflow is counted rather than blocking acquisition. |
 | `CommandMailbox` | Core 0 -> Core 1 | Fixed command queue. BLE writes are parsed on Core 0; Core 1 applies commands only before the next frame. |
 
 USB, Wi-Fi, and BLE use ASCII compact text. The legacy binary frame mode is not
 part of this version.
 
-### Capacitance frame
+### Dynamic capacitance frame
 
 ```text
-C,seq=301,ts=123456789,rf=FF,pf=FF,sf=FF,bad=0/0/0,fmt=pf6,n=64
+C,seq=301,ts=123456789,rows=5,cells=40,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
 D0,100302000,58098000,...16 values
 D1,...16 values
-D2,...16 values
-D3,...16 values
+D2,...8 values
 K,seq=301,crc=89ABCDEF
 ```
 
-`D0` through `D3` each contain 16 row-major cells. A value is integer
+The frame contains exactly `rows * 8` row-major cells. Each D line contains up
+to 16 values, so the final D line may be short. No sentinel cells are appended
+for rows that were not scanned. A value is integer
 `capacitance_pF * 1,000,000`; divide by `1,000,000` to recover pF with six
 decimal places. `-1000000` is the invalid fixed-point sentinel. `K.crc` is
 standard reflected CRC-32 over the exact ASCII bytes from `C` through the last
@@ -42,8 +119,8 @@ standard reflected CRC-32 over the exact ASCII bytes from `C` through the last
 
 | Tag | Purpose |
 |---|---|
-| `C` | Cap frame header and freshness/invalid counts. |
-| `D0`-`D3` | 64 fixed-point pF values. The host parser also accepts `D0`-`D7`. |
+| `C` | Cap frame header with `rows`, `cells`, `n`, and freshness/invalid counts. |
+| `D0` onward | Exactly `cells` fixed-point pF values, up to 16 per line. |
 | `K` | Sequence-bound CRC-32. |
 | `S50` | 50-frame system rate and bad-frame summary. |
 | `F50` | FDC wait/read/coordinator and I2C error summary. |
@@ -55,7 +132,7 @@ standard reflected CRC-32 over the exact ASCII bytes from `C` through the last
 ```text
 S50,f=301-350,n=50,fps=12.38/12.38,bad=0/0/0
 F50,ft=4160/1900/2230,ie=0/0/0,rv=100
-A50,chip=1262,adc=1,rail=5088,z=18/84,a8=728000,bt=2940,ae=0/0/0
+A50,chip=1262,adc=1,rail=5171,rv=1,rexp=5100,rerr=71,z=111/445,a8d=1781658,acom=760441,a8g=2541988,brat=2/1,bt=-1,br=out_of_range,ae=0/0/0
 O50,out=8/14,q=0/1,sfps=12.4/2.0/12.4,sdrop=0/0/0,skb=17/2/17,blk=0/0/0,tdrop=0,edrop=0,wdt=0
 ```
 
@@ -64,13 +141,13 @@ O50,out=8/14,q=0/1,sfps=12.4/2.0/12.4,sdrop=0/0/0,skb=17/2/17,blk=0/0/0,tdrop=0,
 | `f`, `n`, `fps`, `bad` | frame range, count, capture/output FPS, stale/mixed/invalid-frame counts |
 | `ft` | average FDC ready wait / DATA read / coordinator time in us |
 | `ie` | I2C NACK / timeout / recovery counts |
-| `rv` | valid-cell percentage |
+| `F50.rv` | valid-cell percentage |
 | `chip`, `adc` | detected ADS1262/ADS1263 and active background ADC |
-| `rail` | measured `AVDD-AVSS` in mV |
+| `rail`, `A50.rv`, `rexp`, `rerr` | measured rail, rail validity, nominal rail, and rail error |
 | `z` | zero residual mean / standard deviation in uV |
-| `a8` | measured AIN8-AINCOM in uV |
+| `a8d`, `acom`, `a8g` | AIN8-AINCOM, calibrated AINCOM-GND, and derived AIN8-GND in uV |
 | `bt` | battery voltage in mV; `-1` means invalid |
-| `br` | invalid-battery reason, present only when `bt=-1` |
+| `br` | battery validity reason |
 | `ae` | ADS SPI error / DRDY timeout / deadline skip counts |
 | `sfps`, `sdrop`, `skb`, `blk` | USB/BLE/Wi-Fi tuples in that order |
 | `tdrop`, `edrop`, `wdt` | TextFrameBus drops, EventRing drops, and actual task-watchdog count |
@@ -94,21 +171,24 @@ and uses ADC2 for BAT/ZERO/RAIL gap jobs. ADS1262 uses the deadline-aware ADC1
 DMA path.
 
 ```text
-vcmGndUv = railUv / 2 - avssToGndUv
-battUv = 2 * (ain8AincomUv - zeroResidualUv + vcmGndUv)
-bt = battUv / 1000
+nominalRail = AVDD_GND + |AVSS_GND|
+aincomGnd = rail * (AVDD_GND - |AVSS_GND|) / (2 * nominalRail)
+ain8Gnd = ain8Diff - zeroResidual + aincomGnd
+battery = ain8Gnd * dividerNum / dividerDen
 ```
 
-An invalid calibration, rail, zero, VREF, ADC read, divider, VBIAS state, or
-overflow produces `bt=-1,br=<reason>`.
+AIN9-AINCOM is only a zero residual and never an absolute AINCOM-GND
+measurement. An invalid calibration, rail, zero, ADC read, divider, VBIAS
+state, overflow, or out-of-range single-cell result produces
+`bt=-1,br=<reason>`.
 
 ### Transport policy
 
 | Sink | Default content | Backpressure |
 |---|---|---|
-| USB Serial/JTAG | every fresh C/D0-D3/K packet plus summaries | independent latest-only queue; USB drops do not block Core 1 |
-| Wi-Fi SoftAP UDP port 3333 | every fresh C/D0-D3/K packet plus summaries | persistent non-blocking UDP socket; Wi-Fi drops are isolated |
-| BLE notify UUID `FF02` | S50/F50/A50/O50; cap frames disabled by default | MTU-aware line chunks, congestion drops isolated to BLE |
+| BLE `FF20` / `FF30` | DATA / LOG | non-blocking notify; complete DATA frame or normal LOG may drop under congestion |
+| Wi-Fi UDP 3333 / 3334 | DATA / LOG | non-blocking UDP; drops are isolated |
+| USB Serial/JTAG | throttled DATA plus LOG/CTRL | independent latest-only queue; never blocks acquisition |
 
 Wi-Fi requests maximum configured TX power, disables power save, enables
 802.11b/g/n, tries HT40, then falls back to HT20. BLE requests configured high
@@ -116,13 +196,16 @@ TX power, short connection intervals, and 2M PHY, then accepts peer/controller
 fallback to 1M. Unsupported high-speed settings are logged and do not stop
 acquisition.
 
-### BLE commands
+### Unified control commands
 
-Write ASCII to status characteristic UUID `FF01`:
+Write ASCII to Serial, BLE `FF10`, or Wi-Fi UDP 3335. ACK/ERR returns to the
+originating Serial, BLE `FF11`, or UDP control peer:
 
 | Command | Effect at next frame boundary |
 |---|---|
-| `BLECAP=N` or `CAP=N` | Send one BLE C/D/K packet every N frames; `0` disables BLE cap text. |
+| `ROWS?` | Return active rows and cells. |
+| `ROWS=N`, `ROWLIMIT=N`, `SCANROWS=N` | Scan rows 1 through N, where N is 1..8. |
+| `BLECAP=N` or `CAP=N` | Legacy low-rate cap control routed through the shared parser. |
 | `TRACE=0` / `TRACE=1` | Disable/enable the runtime trace state. |
 | `CAL=ZERO` | Schedule a zero-residual job in a safe ADS slack window. |
 | `CAL=RAIL` | Schedule a rail-monitor job. |
@@ -131,17 +214,15 @@ Write ASCII to status characteristic UUID `FF01`:
 ### Host validation tools
 
 ```powershell
-python tools/receive_udp_text.py --port 3333 --show-cap
-python tools/receive_serial_text.py --port COM11 --baud 115200 --show-cap
-python tools/receive_ble_text.py --name SensorArray
-python tools/receive_ble_text.py --name SensorArray --cap-period 50 --show-cap
+$venvPython = "C:\ESP32\SensorArray\.venv\Scripts\python.exe"
+& $venvPython tools\receive_ble_text.py --name SensorArray --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\receive_wifi_text.py --data-port 3333 --log-port 3334 --ctrl-port 3335 --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --set-rows 4 --show-cap --show-log
 ```
 
-All receivers share `tools/text_protocol.py`, parse S50/F50/A50/O50 and `bt`,
-and report malformed ASCII. UDP and serial also assemble 64-cell cap frames,
-check CRC, and report sequence gaps, missing frames, FPS, `cap[0]`, `cap[63]`,
-and mean. The BLE tool prints `BLE_TEST_SKIPPED reason=...` when bleak, an
-adapter, permission, or the device is unavailable.
+All receivers share `tools/text_protocol.py`, accept dynamic `rows/cells/n`,
+accept a short final D line, check CRC, and report sequence gaps, FPS, and
+channel counts. Host receiver commands must use repository `.venv`.
 
 ## 目录 / Table of contents
 
@@ -189,9 +270,9 @@ SensorArray firmware runs on ESP32-S3. The current main path reads an 8 x 8 FDC2
 | FDC2214 8 x 8 cap matrix | 主运行路径 / main runtime path | `sensorarrayFdcMatrixEngineReadFrame()` delegates to `sensorarrayMeasureReadFdcMatrixFrame()`. |
 | ADS1262/ADS1263 matrix | 初始化和 API 存在，frame read returns unsupported / initialisation and APIs exist, frame read returns unsupported | `sensorarrayAdsMatrixEngineReadFrame()` initialises an invalid frame and returns `ESP_ERR_NOT_SUPPORTED`. |
 | Mixed row mode | Thin pass-through to FDC path / thin pass-through to FDC path | `sensorarrayMixedRowEngineReadFrame()` currently calls the FDC matrix engine. |
-| Text output | 异步主输出 / default async output | Core 1 builds one C/D0-D3/K ASCII packet; independent Core 0 USB, Wi-Fi, and BLE sinks reuse it. |
+| Text output | 异步主输出 / default async output | Core 1 builds one dynamic C/D/K ASCII packet; independent Core 0 USB, Wi-Fi, and BLE sinks reuse it. |
 | Binary transport | 已移除 / removed | Runtime CapFrame transport is ASCII only. |
-| Runtime commands | BLE ASCII mailbox | Write `BLECAP=N`, `TRACE=0/1`, or `CAL=ZERO/RAIL/ALL` to BLE characteristic `FF01`; Core 1 applies them at a frame boundary. |
+| Runtime commands | Shared control parser | Serial, BLE `FF10`, and Wi-Fi UDP 3335 share ROWS and legacy command routing; frame-affecting changes apply at a frame boundary. |
 
 ## 硬件拓扑 / Hardware topology
 
@@ -1497,7 +1578,7 @@ already-low 不进入 direct path。row cache compare 始终保留为纯内存 f
 
 ### Output protocols
 
-当前运行期只使用 C/D0-D3/K compact ASCII。Core 1 只格式化一次，Core 0 的
+当前运行期只使用动态 C/D/K compact ASCII。Core 1 只格式化一次，Core 0 的
 USB/Wi-Fi/BLE sink 复用同一 packet；每个 sink 独立 drop-old/keep-latest，不能反压采集域。
 完整字段、CRC 和 host 工具见本文开头的 current runtime protocol 章节。
 
@@ -1730,14 +1811,16 @@ The direct diagnostic path uses ADS1263 ADC1 only:
 - START: GPIO48, controlled only by Core 1.
 - DRDY: GPIO13 falling-edge interrupt; the ISR only notifies the acquisition
   task.
-- ADC1: 32-bit, 38400 SPS default, gain 1, chop/IDAC rotation/REFOUT/VBIAS off,
-  AVDD/AVSS reference.
+- ADC1: 32-bit, 38400 SPS default, gain 1, chop and IDAC rotation off. VBIAS
+  is enabled for the AINCOM level shift; normal direct reads use AVDD/AVSS
+  reference and rail monitoring temporarily uses the internal 2.5 V reference.
 - SPI reads: preallocated DMA-capable buffers and queued DMA transactions.
 - AIN9-AINCOM: zero-offset, drift, and ADC health only. It is not an absolute
   AINCOM voltage measurement.
 - AIN8-AINCOM: raw battery input. Battery millivolts are valid only when
   `CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM` and `_DEN` describe the
-  board divider. With the default unknown ratio, `battValid=0`.
+  board divider and the validated rail plus configured nominal split establish
+  AINCOM-GND.
 
 FDC row work owns `ROW_MUX|TMUX1134|FDC_ROUTE|FDC_I2C0|FDC_I2C1`. Direct ADS
 jobs own only `ADS_SPI|ADS_START`, so AIN8/AIN9 jobs may run inside the
@@ -1752,16 +1835,15 @@ disable gap jobs and set `fallbackToBoundary=1`. Jobs requiring TMUX1134 or an
 ADS matrix route are never run inside an FDC row conversion. Frame-boundary ADS
 matrix diagnostics are not implemented in this release.
 
-### Compact Wi-Fi and BLE status
+### Wi-Fi and BLE transport
 
-`CONFIG_SENSORARRAY_NET_ENABLE` is disabled by default for pure acquisition
-testing. When enabled, networking runs only on Core 0 and sends compact status
-every 20 frames, not the full 8x8 high-rate frame.
+Networking runs on Core 0. BLE is initialized before Wi-Fi so controller
+allocation is not starved by Wi-Fi buffers.
 
-- Wi-Fi SoftAP: `SensorArray_<last3bytesMac>`, configurable password, UDP
-  broadcast compact text status on port `3333` while a station is connected.
-- BLE GATT service: `0x00FF`; read-only text status characteristic `0xFF01`;
-  20-byte binary status notify characteristic `0xFF02`.
+- Wi-Fi SoftAP: `SensorArray_<last3bytesMac>`, configurable password, UDP DATA
+  3333, LOG 3334, and CTRL 3335.
+- BLE GATT service `0x00FF`: CTRL_RX `0xFF10`, CTRL_TX `0xFF11`, DATA_TX
+  `0xFF20`, and LOG_TX `0xFF30`.
 - BLE 2M PHY and BLE transmit power are separate settings. The firmware
   requests 2M on connection and falls back to 1M if unsupported. Coded PHY is
   disabled by default because it favors range, not throughput.

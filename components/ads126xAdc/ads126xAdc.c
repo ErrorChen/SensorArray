@@ -1419,18 +1419,46 @@ esp_err_t ads126xAdcReadAdc2RawDma(ads126xAdcHandle_t *handle,
     if (err != ESP_OK) {
         return err;
     }
+    return ads126xAdcReadAdc2RawDmaReady(handle,
+                                         raw24,
+                                         statusOptional,
+                                         outReadUs);
+}
+
+esp_err_t ads126xAdcReadAdc2RawDmaReady(ads126xAdcHandle_t *handle,
+                                        int32_t *raw24,
+                                        uint8_t *statusOptional,
+                                        uint32_t *outReadUs)
+{
+    if (!handle || !raw24) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
     size_t frameLen = 4u + (handle->enableStatusByte ? 1u : 0u) +
                       (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
     uint8_t frame[6] = {0};
     uint8_t command = ADS126X_CMD_RDATA2;
     int64_t startUs = esp_timer_get_time();
-    err = ads126xAdcSpiTransferDmaLocked(handle, &command, 1u, frame, frameLen);
+    esp_err_t err = ads126xAdcSpiTransferDmaLocked(handle,
+                                                   &command,
+                                                   1u,
+                                                   frame,
+                                                   frameLen);
     if (outReadUs) {
         int64_t elapsedUs = esp_timer_get_time() - startUs;
         *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
     }
     return err == ESP_OK ?
         ads126xAdcParseAdc2Frame(handle, frame, frameLen, raw24, statusOptional) : err;
+}
+
+uint32_t ads126xAdcAdc2ExpectedConversionPeriodUs(uint8_t dataRate)
+{
+    static const uint32_t rates[] = {10u, 100u, 400u, 800u};
+    uint32_t sps = rates[dataRate & 0x03u];
+    return (1000000u + sps - 1u) / sps;
 }
 
 int32_t ads126xAdcAdc2RawToMicrovolts(const ads126xAdcHandle_t *handle,

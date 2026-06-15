@@ -4,8 +4,10 @@ cmake_minimum_required(VERSION 3.16)
 
 set(EXTRA_COMPONENT_DIRS
     core/boardSupport
+    core/config
     core/matrixEngine
     core/powerCtrl
+    core/transport
     transport
 )
 

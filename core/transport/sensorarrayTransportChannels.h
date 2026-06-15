@@ -1,0 +1,7 @@
+#pragma once
+
+typedef enum {
+    SENSORARRAY_TRANSPORT_CHANNEL_DATA = 0,
+    SENSORARRAY_TRANSPORT_CHANNEL_LOG = 1,
+    SENSORARRAY_TRANSPORT_CHANNEL_CTRL = 2,
+} sensorarrayTransportChannel_t;

@@ -227,6 +227,11 @@ esp_err_t ads126xAdcReadAdc2RawDma(ads126xAdcHandle_t *handle,
                                    int32_t *raw24,
                                    uint8_t *statusOptional,
                                    uint32_t *outReadUs);
+esp_err_t ads126xAdcReadAdc2RawDmaReady(ads126xAdcHandle_t *handle,
+                                        int32_t *raw24,
+                                        uint8_t *statusOptional,
+                                        uint32_t *outReadUs);
+uint32_t ads126xAdcAdc2ExpectedConversionPeriodUs(uint8_t dataRate);
 int32_t ads126xAdcAdc2RawToMicrovolts(const ads126xAdcHandle_t *handle,
                                       int32_t rawCode);
 esp_err_t ads126xAdcSystemOffsetCalAdc2(ads126xAdcHandle_t *handle);

@@ -66,29 +66,41 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
     *outPacket = (sensorarrayTextPacket_t){
         .sequence = frame->sequence,
     };
-    uint32_t invalidCount = SENSORARRAY_MATRIX_CELL_COUNT - frame->validCount;
+    uint8_t rows = frame->activeRows >= 1u && frame->activeRows <= SENSORARRAY_MATRIX_ROWS ?
+        frame->activeRows : SENSORARRAY_MATRIX_ROWS;
+    uint32_t cellCount = (uint32_t)rows * SENSORARRAY_MATRIX_COLS;
+    uint32_t invalidCount = cellCount - frame->validCount;
     size_t position = sensorarrayTextAppend(
         outPacket->data,
         sizeof(outPacket->data),
         0u,
-        "C,seq=%lu,ts=%llu,rf=%02X,pf=%02X,sf=%02X,bad=%u/%u/%lu,fmt=pf6,n=%u\n",
+        "C,seq=%lu,ts=%llu,rows=%u,cells=%lu,rf=%02X,pf=%02X,sf=%02X,"
+        "bad=%u/%u/%lu,fmt=pf6,n=%lu\n",
         (unsigned long)frame->sequence,
         (unsigned long long)frame->timestampUs,
+        (unsigned)rows,
+        (unsigned long)cellCount,
         (unsigned)frame->rowFreshMask,
         (unsigned)frame->primaryFreshMask,
         (unsigned)frame->secondaryFreshMask,
         frame->stale ? 1u : 0u,
         frame->mixedEpoch ? 1u : 0u,
         (unsigned long)invalidCount,
-        (unsigned)SENSORARRAY_MATRIX_CELL_COUNT);
+        (unsigned long)cellCount);
 
-    for (size_t chunk = 0u; chunk < 4u && position < sizeof(outPacket->data); ++chunk) {
+    size_t chunkCount = (cellCount + 15u) / 16u;
+    for (size_t chunk = 0u; chunk < chunkCount && position < sizeof(outPacket->data); ++chunk) {
         position = sensorarrayTextAppend(outPacket->data,
                                          sizeof(outPacket->data),
                                          position,
                                          "D%u",
                                          (unsigned)chunk);
-        for (size_t offset = 0u; offset < 16u && position < sizeof(outPacket->data); ++offset) {
+        size_t valuesInChunk = cellCount - chunk * 16u;
+        if (valuesInChunk > 16u) {
+            valuesInChunk = 16u;
+        }
+        for (size_t offset = 0u; offset < valuesInChunk &&
+                                position < sizeof(outPacket->data); ++offset) {
             size_t cell = chunk * 16u + offset;
             position = sensorarrayTextAppend(outPacket->data,
                                              sizeof(outPacket->data),

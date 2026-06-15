@@ -1,4 +1,5 @@
 idf_component_register(
-    SRC_DIRS "."
+    SRCS "sensorarrayBle.c"
     INCLUDE_DIRS "include"
+    REQUIRES bt heap
 )
