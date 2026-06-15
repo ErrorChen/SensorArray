@@ -5,45 +5,29 @@
 
 #include "esp_err.h"
 
+#include "sensorarrayTextProtocol.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    uint64_t timestampUs;
-    uint32_t sequence;
-    uint32_t physFpsX100;
-    uint32_t cellFreshFpsX100;
-    uint32_t emitFpsX100;
-    uint32_t rowStepUsAvg;
-    uint32_t readyWaitUsAvg;
-    uint32_t dataReadUsAvg;
-    uint32_t coordinatorResidualUsAvg;
-    uint32_t sequenceFallbacks;
-    uint32_t sequenceErrors;
-    uint32_t nack;
-    uint32_t timeout;
-    uint32_t recover;
-    uint32_t directValidRateX100;
-    uint32_t pfStdAvgNano;
-    uint32_t pfStdMaxNano;
-    int32_t adsAin8RawUv;
-    int32_t batteryMv;
-    int32_t adsAin9OffsetUv;
-    uint32_t heapFree;
-    uint32_t heapMin;
-    uint32_t logStackHighWater;
-    uint8_t rowFreshMask;
-    uint8_t primaryFreshMask;
-    uint8_t secondaryFreshMask;
-    bool stale;
-    bool mixed;
-    bool precisionPass;
-    bool batteryValid;
-} sensorarrayNetStatus_t;
+    uint32_t wifiSentPackets;
+    uint32_t wifiDroppedPackets;
+    uint32_t wifiBlockedCount;
+    uint64_t wifiSentBytes;
+    uint32_t bleSentPackets;
+    uint32_t bleDroppedPackets;
+    uint32_t bleBlockedCount;
+    uint64_t bleSentBytes;
+    uint32_t queueDepth;
+    uint32_t queueDepthMax;
+} sensorarrayNetSinkStats_t;
 
 esp_err_t sensorarrayNetStatusInit(void);
-esp_err_t sensorarrayNetStatusPublish(const sensorarrayNetStatus_t *status);
+esp_err_t sensorarrayNetTextPublish(const sensorarrayTextPacket_t *packet,
+                                    bool allowBle);
+void sensorarrayNetGetSinkStats(sensorarrayNetSinkStats_t *outStats);
 
 #ifdef __cplusplus
 }

@@ -24,6 +24,8 @@ extern "C" {
 #define ADS126X_POWER_VBIAS (1u << 1)
 #define ADS126X_REFMUX_INTERNAL 0x00u
 #define ADS126X_REFMUX_AVDD_AVSS 0x24u
+#define ADS126X_ADC2_REF_INTERNAL 0x00u
+#define ADS126X_ADC2_REF_AVDD_AVSS 0x04u
 
 typedef enum {
     ADS126X_ADC1_DR_2P5_SPS = 0x0,
@@ -87,6 +89,10 @@ typedef struct {
     uint32_t vrefMicrovolts;
     uint8_t pgaGain;
     uint8_t dataRateDr;
+    uint8_t adc2Gain;
+    uint8_t adc2DataRate;
+    uint8_t adc2Reference;
+    uint32_t adc2VrefMicrovolts;
     uint8_t idRegRaw;
     uint32_t drdyTimeoutMs;
     SemaphoreHandle_t mutex;
@@ -109,6 +115,10 @@ esp_err_t ads126xAdcReadRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr,
 esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, const uint8_t *data, size_t len);
 
 esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg);
+uint8_t ads126xAdcGetDevId(const ads126xAdcHandle_t *handle);
+uint8_t ads126xAdcGetRevId(const ads126xAdcHandle_t *handle);
+bool ads126xAdcHasAdc2(const ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcProbeAdc2(ads126xAdcHandle_t *handle, bool *outHasAdc2);
 esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower);
 esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power);
 esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
@@ -128,6 +138,9 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               uint8_t dataRateDr);
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
+esp_err_t ads126xAdcSetRefMuxWithVref(ads126xAdcHandle_t *handle,
+                                      uint8_t refmuxValue,
+                                      uint32_t vrefMicrovolts);
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
 
 /*
@@ -174,6 +187,10 @@ esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
                                    int32_t *rawCode,
                                    uint8_t *statusByteOptional,
                                    uint32_t *outReadUs);
+esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
+                                        int32_t *rawCode,
+                                        uint8_t *statusByteOptional,
+                                        uint32_t *outReadUs);
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
 uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 
@@ -188,12 +205,34 @@ esp_err_t ads126xAdcSelfGainCal(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcSystemOffsetCal(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcSystemGainCal(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcSelfCal(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcReadCalibrationRegisters(ads126xAdcHandle_t *handle,
+                                             uint8_t offsetCal[3],
+                                             uint8_t fullScaleCal[3]);
 
 esp_err_t ads126xAdcStartAdc2(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc2(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcSetAdc2Config(ads126xAdcHandle_t *handle,
+                                  uint8_t dataRate,
+                                  uint8_t reference,
+                                  uint8_t gain,
+                                  uint32_t vrefMicrovolts);
+esp_err_t ads126xAdcSetAdc2InputMux(ads126xAdcHandle_t *handle,
+                                    uint8_t muxp,
+                                    uint8_t muxn);
 esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
                                 int32_t *raw24,
                                 uint8_t *statusOptional);
+esp_err_t ads126xAdcReadAdc2RawDma(ads126xAdcHandle_t *handle,
+                                   uint32_t drdyTimeoutUs,
+                                   int32_t *raw24,
+                                   uint8_t *statusOptional,
+                                   uint32_t *outReadUs);
+int32_t ads126xAdcAdc2RawToMicrovolts(const ads126xAdcHandle_t *handle,
+                                      int32_t rawCode);
+esp_err_t ads126xAdcSystemOffsetCalAdc2(ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcReadAdc2CalibrationRegisters(ads126xAdcHandle_t *handle,
+                                                 uint8_t offsetCal[2],
+                                                 uint8_t fullScaleCal[2]);
 
 #if CONFIG_ADS126X_HELPER_CREATE_SPI
 esp_err_t ads126xAdcHelperCreateSpiDevice(spi_device_handle_t *outDevice);

@@ -16,6 +16,9 @@
 
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayAdsGap.h"
+#include "sensorarrayAcqEvent.h"
+
+#define printf sensorarrayAcqEventPrintf
 #include "sensorarrayConfig.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayLog.h"
@@ -1144,12 +1147,17 @@ static esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *stat
 
     esp_err_t err = ads126xAdcApplyPowerPolicy(&state->ads,
                                                true,
-                                               false,
                                                true,
-                                               false,
+                                               true,
+                                               true,
                                                NULL,
                                                NULL);
     if (err == ESP_OK) {
+        /*
+         * Keep INTREF and VBIAS settled for deadline-aware ADS jobs. adsRefReady
+         * describes whether the matrix route currently uses the ADS reference,
+         * not whether the internal reference block is powered.
+         */
         state->adsRefReady = false;
         sensorarrayLogSetAdsState(state->adsReady, state->adsRefReady);
     }
@@ -1223,7 +1231,6 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
     if (err != ESP_OK) {
         return err;
     }
-#if CONFIG_SENSORARRAY_ADS1263
     esp_err_t adc2Err = ads126xAdcStopAdc2(&state->ads);
     if (logNormal || (adc2Err != ESP_OK && adc2Err != ESP_ERR_NOT_SUPPORTED)) {
         printf("FDC_PATH,stage=ads_stop2,reason=%s,err=0x%lx\n", source, (unsigned long)adc2Err);
@@ -1231,7 +1238,6 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
     if (adc2Err != ESP_OK && adc2Err != ESP_ERR_NOT_SUPPORTED) {
         return adc2Err;
     }
-#endif
 
     err = sensorarrayMeasureForceAdsReferenceOff(state);
     if (logNormal || err != ESP_OK) {
@@ -1239,7 +1245,9 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
                source,
                (unsigned long)err,
                state->adsRefReady ? 1 : 0);
-        printf("FDC_PATH,stage=ads_vbias_off,reason=%s,err=0x%lx\n", source, (unsigned long)err);
+        printf("FDC_PATH,stage=ads_bias_kept,reason=%s,intref=1,vbias=1,err=0x%lx\n",
+               source,
+               (unsigned long)err);
     }
     if (err != ESP_OK) {
         return err;
@@ -1301,7 +1309,7 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
 
     bool ok = (err == ESP_OK) && sensorarrayMeasureFdcPathControlMatches(&ctrl);
     if (logNormal || !ok) {
-        printf("FDC_PATH,stage=prepare_done,reason=%s,ok=%d,err=0x%lx,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d,adsVbias=0\n",
+        printf("FDC_PATH,stage=prepare_done,reason=%s,ok=%d,err=0x%lx,sw=%d,sela=%d,selb=%d,en=%d,adsRef=%d,adsVbias=1\n",
                source,
                ok ? 1 : 0,
                (unsigned long)(ok ? ESP_OK : ESP_ERR_INVALID_STATE),

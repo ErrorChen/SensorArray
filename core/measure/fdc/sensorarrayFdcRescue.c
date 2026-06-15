@@ -1,8 +1,11 @@
 #include "sensorarrayFdcRescue.h"
+#include "sensorarrayAcqEvent.h"
 
 #include <stdio.h>
 
 #include "sensorarrayFdcSweep.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 void sensorarrayFdcRescueReset(sensorarrayFdcRescueContext_t *ctx)
 {

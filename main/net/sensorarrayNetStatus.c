@@ -20,6 +20,7 @@
 #include "nvs_flash.h"
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayCommandMailbox.h"
 
 #ifndef CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE
 #define CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE 0
@@ -57,9 +58,12 @@
 #ifndef CONFIG_SENSORARRAY_NET_TASK_PRIORITY
 #define CONFIG_SENSORARRAY_NET_TASK_PRIORITY 5
 #endif
+#ifndef CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES
+#define CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES 0
+#endif
 
-#define SENSORARRAY_NET_QUEUE_LEN 2u
-#define SENSORARRAY_NET_STATUS_TEXT_MAX 384u
+#define SENSORARRAY_NET_QUEUE_LEN 4u
+#define SENSORARRAY_NET_STATUS_TEXT_MAX 512u
 #define SENSORARRAY_BLE_APP_ID 0x53u
 #define SENSORARRAY_BLE_SERVICE_UUID 0x00FFu
 #define SENSORARRAY_BLE_STATUS_UUID 0xFF01u
@@ -75,15 +79,10 @@ enum {
     BLE_IDX_NOTIFY_CCCD,
 };
 
-typedef struct __attribute__((packed)) {
-    uint8_t version;
-    uint8_t flags;
-    uint16_t physFpsX100;
-    uint32_t sequence;
-    int32_t batteryMv;
-    int32_t ain9OffsetUv;
-    uint32_t netDropCount;
-} sensorarrayBleNotifyV1_t;
+typedef struct {
+    sensorarrayTextPacket_t packet;
+    bool allowBle;
+} sensorarrayNetTextItem_t;
 
 typedef struct {
     bool started;
@@ -93,6 +92,7 @@ typedef struct {
     bool bleAdvertising;
     bool bleConnected;
     bool bleSubscribed;
+    bool bleCongested;
     uint16_t bleConnId;
     uint16_t bleMtu;
     uint16_t bleHandles[SENSORARRAY_BLE_HANDLE_COUNT];
@@ -100,6 +100,7 @@ typedef struct {
     esp_bd_addr_t bleRemote;
     uint8_t bleTxPhy;
     uint8_t bleRxPhy;
+    int udpSocket;
     uint32_t publishDropCount;
     uint32_t udpSendOk;
     uint32_t udpSendDrop;
@@ -107,12 +108,12 @@ typedef struct {
     uint32_t bleNotifyDrop;
     uint32_t errorCount;
     char deviceName[32];
-    char statusText[SENSORARRAY_NET_STATUS_TEXT_MAX];
+    sensorarrayNetSinkStats_t sinkStats;
 } sensorarrayNetState_t;
 
 static sensorarrayNetState_t s_net;
 static StaticQueue_t s_statusQueueStruct;
-static uint8_t s_statusQueueStorage[SENSORARRAY_NET_QUEUE_LEN * sizeof(sensorarrayNetStatus_t)];
+static uint8_t s_statusQueueStorage[SENSORARRAY_NET_QUEUE_LEN * sizeof(sensorarrayNetTextItem_t)];
 static QueueHandle_t s_statusQueue;
 static TaskHandle_t s_netTask;
 
@@ -122,10 +123,10 @@ static uint16_t s_cccdUuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
 static uint16_t s_serviceUuid = SENSORARRAY_BLE_SERVICE_UUID;
 static uint16_t s_statusUuid = SENSORARRAY_BLE_STATUS_UUID;
 static uint16_t s_notifyUuid = SENSORARRAY_BLE_NOTIFY_UUID;
-static uint8_t s_statusProperties = ESP_GATT_CHAR_PROP_BIT_READ;
+static uint8_t s_statusProperties = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE;
 static uint8_t s_notifyProperties = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 static uint8_t s_initialStatus[] = "SensorArray status pending";
-static uint8_t s_initialNotify[sizeof(sensorarrayBleNotifyV1_t)];
+static uint8_t s_initialNotify[] = "SensorArray text notify pending\n";
 static uint8_t s_initialCccd[] = {0x00, 0x00};
 
 static const esp_gatts_attr_db_t s_gattDb[SENSORARRAY_BLE_HANDLE_COUNT] = {
@@ -141,7 +142,7 @@ static const esp_gatts_attr_db_t s_gattDb[SENSORARRAY_BLE_HANDLE_COUNT] = {
     },
     [BLE_IDX_STATUS_VALUE] = {
         {ESP_GATT_AUTO_RSP},
-        {ESP_UUID_LEN_16, (uint8_t *)&s_statusUuid, ESP_GATT_PERM_READ,
+        {ESP_UUID_LEN_16, (uint8_t *)&s_statusUuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
          SENSORARRAY_NET_STATUS_TEXT_MAX, sizeof(s_initialStatus) - 1u, s_initialStatus},
     },
     [BLE_IDX_NOTIFY_DECL] = {
@@ -152,7 +153,7 @@ static const esp_gatts_attr_db_t s_gattDb[SENSORARRAY_BLE_HANDLE_COUNT] = {
     [BLE_IDX_NOTIFY_VALUE] = {
         {ESP_GATT_AUTO_RSP},
         {ESP_UUID_LEN_16, (uint8_t *)&s_notifyUuid, ESP_GATT_PERM_READ,
-         sizeof(s_initialNotify), sizeof(s_initialNotify), s_initialNotify},
+         SENSORARRAY_NET_STATUS_TEXT_MAX, sizeof(s_initialNotify) - 1u, s_initialNotify},
     },
     [BLE_IDX_NOTIFY_CCCD] = {
         {ESP_GATT_AUTO_RSP},
@@ -203,6 +204,10 @@ static esp_ble_gap_ext_adv_params_t s_extAdvParams = {
     .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
     .tx_power = EXT_ADV_TX_PWR_NO_PREFERENCE,
 };
+#endif
+
+#if CONFIG_SENSORARRAY_BLE_ENABLE
+static esp_power_level_t sensorarrayBlePowerLevel(void);
 #endif
 
 static void sensorarrayNetBuildDeviceName(void)
@@ -292,8 +297,43 @@ static esp_err_t sensorarrayWifiInit(void)
         err = esp_wifi_start();
     }
     if (err == ESP_OK) {
-        if (esp_wifi_set_max_tx_power(CONFIG_SENSORARRAY_WIFI_TX_POWER_DBM_X4) != ESP_OK) {
+        esp_err_t powerErr = esp_wifi_set_max_tx_power(CONFIG_SENSORARRAY_WIFI_TX_POWER_DBM_X4);
+        if (powerErr != ESP_OK) {
             s_net.errorCount++;
+            printf("W,WIFI,txp=fail,err=0x%lx,fb=default\n", (unsigned long)powerErr);
+        } else {
+            printf("W,WIFI,txp=%d\n", CONFIG_SENSORARRAY_WIFI_TX_POWER_DBM_X4);
+        }
+
+        esp_err_t psErr = esp_wifi_set_ps(WIFI_PS_NONE);
+        if (psErr != ESP_OK) {
+            s_net.errorCount++;
+            printf("W,WIFI,ps=none_fail,err=0x%lx,fb=default\n", (unsigned long)psErr);
+        } else {
+            printf("W,WIFI,ps=none\n");
+        }
+
+        esp_err_t protocolErr = esp_wifi_set_protocol(
+            WIFI_IF_AP,
+            WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+        if (protocolErr != ESP_OK) {
+            s_net.errorCount++;
+            printf("W,WIFI,rate=11N_FAIL,err=0x%lx,fb=default\n",
+                   (unsigned long)protocolErr);
+        }
+        esp_err_t bandwidthErr = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT40);
+        if (bandwidthErr != ESP_OK) {
+            printf("W,WIFI,rate=HT40_FAIL,err=0x%lx,fb=HT20\n",
+                   (unsigned long)bandwidthErr);
+            bandwidthErr = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+        } else {
+            printf("W,WIFI,rate=HT40\n");
+        }
+        if (bandwidthErr != ESP_OK) {
+            s_net.errorCount++;
+            printf("W,WIFI,rate=HT20_FAIL,err=0x%lx,fb=wifi_disabled\n",
+                   (unsigned long)bandwidthErr);
+            return bandwidthErr;
         }
         s_net.wifiReady = true;
     }
@@ -399,6 +439,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
     case ESP_GATTS_CONNECT_EVT:
         s_net.bleConnected = true;
         s_net.bleSubscribed = false;
+        s_net.bleCongested = false;
         s_net.bleConnId = param->connect.conn_id;
         s_net.bleGattIf = gattsIf;
         memcpy(s_net.bleRemote, param->connect.remote_bda, sizeof(esp_bd_addr_t));
@@ -415,10 +456,35 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
             (void)esp_ble_gap_read_phy(s_net.bleRemote);
         }
 #endif
+        {
+            esp_ble_conn_update_params_t connParams = {0};
+            memcpy(connParams.bda, s_net.bleRemote, sizeof(esp_bd_addr_t));
+            connParams.min_int = 0x06;
+            connParams.max_int = 0x0C;
+            connParams.latency = 0u;
+            connParams.timeout = 400u;
+            esp_err_t connErr = esp_ble_gap_update_conn_params(&connParams);
+            if (connErr != ESP_OK) {
+                printf("W,BLE,conn=fast_fail,err=0x%lx,fb=peer\n",
+                       (unsigned long)connErr);
+            }
+        }
+#if CONFIG_SENSORARRAY_BLE_HIGH_TX_POWER
+        if (s_net.bleConnId <= 8u) {
+            esp_ble_power_type_t powerType =
+                (esp_ble_power_type_t)(ESP_BLE_PWR_TYPE_CONN_HDL0 + s_net.bleConnId);
+            esp_err_t powerErr = esp_ble_tx_power_set(powerType, sensorarrayBlePowerLevel());
+            if (powerErr != ESP_OK) {
+                printf("W,BLE,txp=conn_fail,err=0x%lx,fb=default\n",
+                       (unsigned long)powerErr);
+            }
+        }
+#endif
         break;
     case ESP_GATTS_DISCONNECT_EVT:
         s_net.bleConnected = false;
         s_net.bleSubscribed = false;
+        s_net.bleCongested = false;
 #if CONFIG_BT_BLE_50_FEATURES_SUPPORTED
         if (esp_ble_gap_ext_adv_start(1u, s_extAdvSet) != ESP_OK) {
             s_net.errorCount++;
@@ -438,6 +504,19 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
             uint16_t value = (uint16_t)param->write.value[0] |
                              ((uint16_t)param->write.value[1] << 8u);
             s_net.bleSubscribed = value == 1u;
+        } else if (param->write.handle == s_net.bleHandles[BLE_IDX_STATUS_VALUE]) {
+            esp_err_t commandErr = sensorarrayCommandMailboxPostText(param->write.value,
+                                                                      param->write.len);
+            printf("E,type=cmd,state=%s,err=0x%lx\n",
+                   commandErr == ESP_OK ? "queued" : "rejected",
+                   (unsigned long)commandErr);
+        }
+        break;
+    case ESP_GATTS_CONGEST_EVT:
+        s_net.bleCongested = param->congest.congested;
+        if (s_net.bleCongested) {
+            s_net.bleNotifyDrop++;
+            s_net.sinkStats.bleBlockedCount++;
         }
         break;
     default:
@@ -504,11 +583,19 @@ static esp_err_t sensorarrayBleInit(void)
     if (err == ESP_OK) {
         (void)esp_ble_gatt_set_local_mtu(247u);
 #if CONFIG_SENSORARRAY_BLE_HIGH_TX_POWER
-        if (esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, sensorarrayBlePowerLevel()) != ESP_OK) {
+        esp_power_level_t powerLevel = sensorarrayBlePowerLevel();
+        esp_err_t defaultPowerErr = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, powerLevel);
+        esp_err_t advPowerErr = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, powerLevel);
+        esp_err_t scanPowerErr = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, powerLevel);
+        if (defaultPowerErr != ESP_OK || advPowerErr != ESP_OK || scanPowerErr != ESP_OK) {
             s_net.errorCount++;
-        }
-        if (esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, sensorarrayBlePowerLevel()) != ESP_OK) {
-            s_net.errorCount++;
+            printf("W,BLE,txp=max_fail,err=%lx/%lx/%lx,fb=controller_default\n",
+                   (unsigned long)defaultPowerErr,
+                   (unsigned long)advPowerErr,
+                   (unsigned long)scanPowerErr);
+        } else {
+            printf("BLEBOOT,txp=max,mtu=247,phyReq=%s\n",
+                   CONFIG_SENSORARRAY_BLE_USE_2M_PHY ? "2M" : "1M");
         }
 #endif
 #if CONFIG_BT_BLE_50_FEATURES_SUPPORTED
@@ -518,7 +605,12 @@ static esp_err_t sensorarrayBleInit(void)
 #elif CONFIG_SENSORARRAY_BLE_USE_CODED_PHY
         mask = ESP_BLE_GAP_PHY_CODED_PREF_MASK;
 #endif
-        (void)esp_ble_gap_set_preferred_default_phy(mask, mask);
+        esp_err_t phyErr = esp_ble_gap_set_preferred_default_phy(mask, mask);
+        if (phyErr != ESP_OK && mask != ESP_BLE_GAP_PHY_1M_PREF_MASK) {
+            printf("W,BLE,phy=2M_FAIL,err=0x%lx,fb=1M\n", (unsigned long)phyErr);
+            (void)esp_ble_gap_set_preferred_default_phy(ESP_BLE_GAP_PHY_1M_PREF_MASK,
+                                                        ESP_BLE_GAP_PHY_1M_PREF_MASK);
+        }
 #endif
     }
     return err;
@@ -527,145 +619,122 @@ static esp_err_t sensorarrayBleInit(void)
 #endif
 }
 
-static size_t sensorarrayNetFormatStatus(const sensorarrayNetStatus_t *status)
-{
-    int length = snprintf(
-        s_net.statusText, sizeof(s_net.statusText),
-        "SA1,seq=%lu,ts=%llu,phys=%lu.%02lu,fresh=%lu.%02lu,emit=%lu.%02lu,"
-        "row=%lu,ready=%lu,read=%lu,coord=%lu,rf=%02X,pf=%02X,sf=%02X,"
-        "stale=%u,mixed=%u,nack=%lu,to=%lu,rec=%lu,fb=%lu,se=%lu,direct=%lu.%02lu,"
-        "prec=%u,stdA=%lu,stdM=%lu,ain8=%ld,batt=%ld,bv=%u,off=%ld,heap=%lu,min=%lu",
-        (unsigned long)status->sequence,
-        (unsigned long long)status->timestampUs,
-        (unsigned long)(status->physFpsX100 / 100u),
-        (unsigned long)(status->physFpsX100 % 100u),
-        (unsigned long)(status->cellFreshFpsX100 / 100u),
-        (unsigned long)(status->cellFreshFpsX100 % 100u),
-        (unsigned long)(status->emitFpsX100 / 100u),
-        (unsigned long)(status->emitFpsX100 % 100u),
-        (unsigned long)status->rowStepUsAvg,
-        (unsigned long)status->readyWaitUsAvg,
-        (unsigned long)status->dataReadUsAvg,
-        (unsigned long)status->coordinatorResidualUsAvg,
-        status->rowFreshMask, status->primaryFreshMask, status->secondaryFreshMask,
-        status->stale ? 1u : 0u, status->mixed ? 1u : 0u,
-        (unsigned long)status->nack, (unsigned long)status->timeout,
-        (unsigned long)status->recover, (unsigned long)status->sequenceFallbacks,
-        (unsigned long)status->sequenceErrors,
-        (unsigned long)(status->directValidRateX100 / 100u),
-        (unsigned long)(status->directValidRateX100 % 100u),
-        status->precisionPass ? 1u : 0u,
-        (unsigned long)status->pfStdAvgNano, (unsigned long)status->pfStdMaxNano,
-        (long)status->adsAin8RawUv, (long)status->batteryMv,
-        status->batteryValid ? 1u : 0u, (long)status->adsAin9OffsetUv,
-        (unsigned long)status->heapFree, (unsigned long)status->heapMin);
-    if (length <= 0) {
-        return 0u;
-    }
-    return (size_t)length < sizeof(s_net.statusText) ?
-        (size_t)length : sizeof(s_net.statusText) - 1u;
-}
-
-static void sensorarrayNetSendWifi(const char *text, size_t length)
+static void sensorarrayNetSendWifi(const sensorarrayTextPacket_t *packet)
 {
 #if CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE
-    if (!s_net.wifiReady || !s_net.wifiStationConnected || length == 0u) {
+    if (!packet || packet->length == 0u || !s_net.wifiReady || !s_net.wifiStationConnected) {
         return;
     }
-    int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (fd < 0) {
+    if (s_net.udpSocket < 0) {
+        s_net.udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+        if (s_net.udpSocket >= 0) {
+            int broadcast = 1;
+            (void)setsockopt(s_net.udpSocket, SOL_SOCKET, SO_BROADCAST,
+                             &broadcast, sizeof(broadcast));
+        }
+    }
+    if (s_net.udpSocket < 0) {
         s_net.udpSendDrop++;
+        s_net.sinkStats.wifiDroppedPackets++;
         return;
     }
-    int broadcast = 1;
-    (void)setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+
     struct sockaddr_in target = {
         .sin_family = AF_INET,
         .sin_port = htons(CONFIG_SENSORARRAY_WIFI_STATUS_UDP_PORT),
         .sin_addr.s_addr = inet_addr("192.168.4.255"),
     };
-    int sent = sendto(fd, text, length, 0, (struct sockaddr *)&target, sizeof(target));
-    close(fd);
-    if (sent == (int)length) {
+    int sent = sendto(s_net.udpSocket,
+                      packet->data,
+                      packet->length,
+                      MSG_DONTWAIT,
+                      (struct sockaddr *)&target,
+                      sizeof(target));
+    if (sent == (int)packet->length) {
         s_net.udpSendOk++;
+        s_net.sinkStats.wifiSentPackets++;
+        s_net.sinkStats.wifiSentBytes += (uint32_t)sent;
     } else {
         s_net.udpSendDrop++;
+        s_net.sinkStats.wifiDroppedPackets++;
+        s_net.sinkStats.wifiBlockedCount++;
     }
 #else
-    (void)text;
-    (void)length;
+    (void)packet;
 #endif
 }
 
-static void sensorarrayNetUpdateBle(const sensorarrayNetStatus_t *status,
-                                    const char *text,
-                                    size_t textLength)
+static size_t sensorarrayBleChunkLength(const char *data, size_t remaining, size_t maximum)
 {
-#if CONFIG_SENSORARRAY_BLE_ENABLE
-    if (!s_net.bleReady) {
-        return;
-    }
-    uint16_t attrLength = (uint16_t)(textLength < SENSORARRAY_NET_STATUS_TEXT_MAX ?
-                                     textLength : SENSORARRAY_NET_STATUS_TEXT_MAX - 1u);
-    if (esp_ble_gatts_set_attr_value(s_net.bleHandles[BLE_IDX_STATUS_VALUE],
-                                     attrLength, (const uint8_t *)text) != ESP_OK) {
-        s_net.errorCount++;
-    }
-
-    sensorarrayBleNotifyV1_t notify = {
-        .version = 1u,
-        .flags = (status->precisionPass ? 1u : 0u) |
-                 (status->stale ? 2u : 0u) |
-                 (status->mixed ? 4u : 0u) |
-                 (status->batteryValid ? 8u : 0u),
-        .physFpsX100 = (uint16_t)(status->physFpsX100 > UINT16_MAX ?
-                                  UINT16_MAX : status->physFpsX100),
-        .sequence = status->sequence,
-        .batteryMv = status->batteryMv,
-        .ain9OffsetUv = status->adsAin9OffsetUv,
-        .netDropCount = s_net.publishDropCount,
-    };
-    (void)esp_ble_gatts_set_attr_value(s_net.bleHandles[BLE_IDX_NOTIFY_VALUE],
-                                       sizeof(notify), (const uint8_t *)&notify);
-#if CONFIG_SENSORARRAY_BLE_STATUS_NOTIFY_ENABLE
-    if (s_net.bleConnected && s_net.bleSubscribed) {
-        esp_err_t err = esp_ble_gatts_send_indicate(s_net.bleGattIf,
-                                                    s_net.bleConnId,
-                                                    s_net.bleHandles[BLE_IDX_NOTIFY_VALUE],
-                                                    sizeof(notify),
-                                                    (uint8_t *)&notify,
-                                                    false);
-        if (err == ESP_OK) {
-            s_net.bleNotifyOk++;
-        } else {
-            s_net.bleNotifyDrop++;
+    size_t length = remaining < maximum ? remaining : maximum;
+    for (size_t index = length; index > 0u; --index) {
+        if (data[index - 1u] == '\n') {
+            return index;
         }
     }
-#endif
-#else
-    (void)status;
-    (void)text;
-    (void)textLength;
-#endif
+    return length;
 }
 
-static const char *sensorarrayBlePhyName(uint8_t phy)
+static void sensorarrayNetSendBle(const sensorarrayTextPacket_t *packet, bool allowBle)
 {
-    switch (phy) {
-    case ESP_BLE_GAP_PHY_2M:
-        return "2M";
-    case ESP_BLE_GAP_PHY_CODED:
-        return "coded";
-    case ESP_BLE_GAP_PHY_1M:
-    default:
-        return "1M";
+#if CONFIG_SENSORARRAY_BLE_ENABLE && CONFIG_SENSORARRAY_BLE_STATUS_NOTIFY_ENABLE
+    if (!packet || !allowBle || packet->length == 0u || !s_net.bleReady ||
+        !s_net.bleConnected || !s_net.bleSubscribed) {
+        return;
     }
+    if (s_net.bleCongested) {
+        s_net.bleNotifyDrop++;
+        s_net.sinkStats.bleDroppedPackets++;
+        s_net.sinkStats.bleBlockedCount++;
+        return;
+    }
+
+    size_t maximum = s_net.bleMtu > 3u ? (size_t)(s_net.bleMtu - 3u) : 20u;
+    if (maximum > SENSORARRAY_NET_STATUS_TEXT_MAX) {
+        maximum = SENSORARRAY_NET_STATUS_TEXT_MAX;
+    }
+    size_t offset = 0u;
+    bool complete = true;
+    while (offset < packet->length) {
+        size_t chunkLength = sensorarrayBleChunkLength(&packet->data[offset],
+                                                       packet->length - offset,
+                                                       maximum);
+        esp_err_t attrErr = esp_ble_gatts_set_attr_value(
+            s_net.bleHandles[BLE_IDX_NOTIFY_VALUE],
+            (uint16_t)chunkLength,
+            (const uint8_t *)&packet->data[offset]);
+        esp_err_t notifyErr = attrErr == ESP_OK ?
+            esp_ble_gatts_send_indicate(s_net.bleGattIf,
+                                        s_net.bleConnId,
+                                        s_net.bleHandles[BLE_IDX_NOTIFY_VALUE],
+                                        (uint16_t)chunkLength,
+                                        (uint8_t *)&packet->data[offset],
+                                        false) : attrErr;
+        if (notifyErr != ESP_OK) {
+            complete = false;
+            s_net.sinkStats.bleBlockedCount++;
+            break;
+        }
+        s_net.sinkStats.bleSentBytes += chunkLength;
+        offset += chunkLength;
+    }
+    if (complete) {
+        s_net.bleNotifyOk++;
+        s_net.sinkStats.bleSentPackets++;
+    } else {
+        s_net.bleNotifyDrop++;
+        s_net.sinkStats.bleDroppedPackets++;
+    }
+#else
+    (void)packet;
+    (void)allowBle;
+#endif
 }
 
 static void sensorarrayNetTask(void *arg)
 {
     (void)arg;
-    printf("TASKCORE,name=net,core=%d,expected=%d\n",
+    printf("TASKCORE,name=net_sink,core=%d,expected=%d\n",
            (int)xPortGetCoreID(), CONFIG_SENSORARRAY_NET_TASK_CORE);
     sensorarrayNetBuildDeviceName();
 
@@ -678,37 +747,26 @@ static void sensorarrayNetTask(void *arg)
     }
     esp_err_t wifiErr = nvsErr == ESP_OK ? sensorarrayWifiInit() : nvsErr;
     esp_err_t bleErr = nvsErr == ESP_OK ? sensorarrayBleInit() : nvsErr;
-    printf("NET_INIT,name=%s,wifi=%u,wifiErr=0x%lx,ssid=%s,udpPort=%u,ble=%u,bleErr=0x%lx\n",
-           s_net.deviceName, s_net.wifiReady ? 1u : 0u, (unsigned long)wifiErr,
-           s_net.deviceName, (unsigned)CONFIG_SENSORARRAY_WIFI_STATUS_UDP_PORT,
-           CONFIG_SENSORARRAY_BLE_ENABLE ? 1u : 0u, (unsigned long)bleErr);
+    printf("NET_INIT,name=%s,wifi=%u,wifiErr=0x%lx,ssid=%s,udpPort=%u,ble=%u,bleErr=0x%lx,protocol=ascii\n",
+           s_net.deviceName,
+           s_net.wifiReady ? 1u : 0u,
+           (unsigned long)wifiErr,
+           s_net.deviceName,
+           (unsigned)CONFIG_SENSORARRAY_WIFI_STATUS_UDP_PORT,
+           CONFIG_SENSORARRAY_BLE_ENABLE ? 1u : 0u,
+           (unsigned long)bleErr);
 
-    sensorarrayNetStatus_t status;
+    sensorarrayNetTextItem_t item;
     while (true) {
-        if (xQueueReceive(s_statusQueue, &status, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(s_statusQueue, &item, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        while (xQueueReceive(s_statusQueue, &status, 0) == pdTRUE) {
+        while (xQueueReceive(s_statusQueue, &item, 0) == pdTRUE) {
             s_net.publishDropCount++;
         }
-        size_t textLength = sensorarrayNetFormatStatus(&status);
-        sensorarrayNetSendWifi(s_net.statusText, textLength);
-        sensorarrayNetUpdateBle(&status, s_net.statusText, textLength);
-        printf("NET20,enable=1,ap=%u,client=%u,ssid=%s,udpPort=%u,sendOk=%lu,sendDrop=%lu,statusDrop=%lu,err=%lu\n",
-               s_net.wifiReady ? 1u : 0u, s_net.wifiStationConnected ? 1u : 0u,
-               s_net.deviceName, (unsigned)CONFIG_SENSORARRAY_WIFI_STATUS_UDP_PORT,
-               (unsigned long)s_net.udpSendOk, (unsigned long)s_net.udpSendDrop,
-               (unsigned long)s_net.publishDropCount, (unsigned long)s_net.errorCount);
-        printf("BLE20,adv=%u,conn=%u,sub=%u,mtu=%u,phyReq=%s,phyTx=%s,phyRx=%s,coded=%u,txPower=%d,notifyOk=%lu,notifyDrop=%lu,err=%lu\n",
-               s_net.bleAdvertising ? 1u : 0u, s_net.bleConnected ? 1u : 0u,
-               s_net.bleSubscribed ? 1u : 0u, (unsigned)s_net.bleMtu,
-               CONFIG_SENSORARRAY_BLE_USE_2M_PHY ? "2M" :
-                   (CONFIG_SENSORARRAY_BLE_USE_CODED_PHY ? "coded" : "1M"),
-               sensorarrayBlePhyName(s_net.bleTxPhy), sensorarrayBlePhyName(s_net.bleRxPhy),
-               CONFIG_SENSORARRAY_BLE_USE_CODED_PHY ? 1u : 0u,
-               CONFIG_SENSORARRAY_BLE_HIGH_TX_POWER ? CONFIG_SENSORARRAY_BLE_TX_POWER_LEVEL : 0,
-               (unsigned long)s_net.bleNotifyOk, (unsigned long)s_net.bleNotifyDrop,
-               (unsigned long)s_net.errorCount);
+        s_net.sinkStats.queueDepth = uxQueueMessagesWaiting(s_statusQueue);
+        sensorarrayNetSendWifi(&item.packet);
+        sensorarrayNetSendBle(&item.packet, item.allowBle);
     }
 }
 
@@ -721,20 +779,24 @@ esp_err_t sensorarrayNetStatusInit(void)
         return ESP_OK;
     }
     memset(&s_net, 0, sizeof(s_net));
+    s_net.udpSocket = -1;
     s_net.bleMtu = 23u;
     s_net.bleTxPhy = ESP_BLE_GAP_PHY_1M;
     s_net.bleRxPhy = ESP_BLE_GAP_PHY_1M;
     s_statusQueue = xQueueCreateStatic(SENSORARRAY_NET_QUEUE_LEN,
-                                       sizeof(sensorarrayNetStatus_t),
+                                       sizeof(sensorarrayNetTextItem_t),
                                        s_statusQueueStorage,
                                        &s_statusQueueStruct);
     if (!s_statusQueue) {
         return ESP_ERR_NO_MEM;
     }
-    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayNetTask, "sensorarrayNet",
-                                            CONFIG_SENSORARRAY_NET_TASK_STACK, NULL,
+    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayNetTask,
+                                            "sensorarrayNetSink",
+                                            CONFIG_SENSORARRAY_NET_TASK_STACK,
+                                            NULL,
                                             CONFIG_SENSORARRAY_NET_TASK_PRIORITY,
-                                            &s_netTask, CONFIG_SENSORARRAY_NET_TASK_CORE);
+                                            &s_netTask,
+                                            CONFIG_SENSORARRAY_NET_TASK_CORE);
     if (ok != pdPASS) {
         s_statusQueue = NULL;
         return ESP_ERR_NO_MEM;
@@ -744,21 +806,49 @@ esp_err_t sensorarrayNetStatusInit(void)
 #endif
 }
 
-esp_err_t sensorarrayNetStatusPublish(const sensorarrayNetStatus_t *status)
+esp_err_t sensorarrayNetTextPublish(const sensorarrayTextPacket_t *packet,
+                                    bool allowBle)
 {
 #if !CONFIG_SENSORARRAY_NET_ENABLE
-    (void)status;
+    (void)packet;
+    (void)allowBle;
     return ESP_ERR_NOT_SUPPORTED;
 #else
-    if (!status || !s_net.started || !s_statusQueue) {
+    if (!packet || packet->length == 0u || packet->length > SENSORARRAY_TEXT_PACKET_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_net.started || !s_statusQueue) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (xQueueSend(s_statusQueue, status, 0) == pdTRUE) {
-        return ESP_OK;
+    sensorarrayNetTextItem_t item = {
+        .packet = *packet,
+        .allowBle = allowBle,
+    };
+    if (xQueueSend(s_statusQueue, &item, 0) != pdTRUE) {
+        sensorarrayNetTextItem_t discarded;
+        (void)xQueueReceive(s_statusQueue, &discarded, 0);
+        s_net.publishDropCount++;
+        s_net.sinkStats.wifiDroppedPackets++;
+        if (allowBle) {
+            s_net.sinkStats.bleDroppedPackets++;
+        }
+        if (xQueueSend(s_statusQueue, &item, 0) != pdTRUE) {
+            return ESP_ERR_TIMEOUT;
+        }
     }
-    sensorarrayNetStatus_t discarded;
-    (void)xQueueReceive(s_statusQueue, &discarded, 0);
-    s_net.publishDropCount++;
-    return xQueueSend(s_statusQueue, status, 0) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+    uint32_t depth = uxQueueMessagesWaiting(s_statusQueue);
+    s_net.sinkStats.queueDepth = depth;
+    if (depth > s_net.sinkStats.queueDepthMax) {
+        s_net.sinkStats.queueDepthMax = depth;
+    }
+    return ESP_OK;
 #endif
+}
+
+void sensorarrayNetGetSinkStats(sensorarrayNetSinkStats_t *outStats)
+{
+    if (!outStats) {
+        return;
+    }
+    *outStats = s_net.sinkStats;
 }

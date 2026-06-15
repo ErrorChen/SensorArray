@@ -140,6 +140,19 @@ typedef struct {
     uint32_t cacheSkipRows;
 } sensorarrayFdcFrameTelemetry_t;
 
+typedef enum {
+    SENSORARRAY_BATTERY_INVALID_NONE = 0,
+    SENSORARRAY_BATTERY_INVALID_CAL,
+    SENSORARRAY_BATTERY_INVALID_RAIL,
+    SENSORARRAY_BATTERY_INVALID_ZERO,
+    SENSORARRAY_BATTERY_INVALID_VREF,
+    SENSORARRAY_BATTERY_INVALID_ADC,
+    SENSORARRAY_BATTERY_INVALID_DIV,
+    SENSORARRAY_BATTERY_INVALID_VBIAS,
+    SENSORARRAY_BATTERY_INVALID_OVERFLOW,
+    SENSORARRAY_BATTERY_INVALID_UNKNOWN,
+} sensorarrayBatteryInvalidReason_t;
+
 typedef struct {
     uint64_t timestampUs;
     int32_t ain9OffsetRaw;
@@ -147,6 +160,9 @@ typedef struct {
     int32_t ain8Raw;
     int32_t ain8RawUv;
     int32_t batteryMv;
+    int32_t railUv;
+    int32_t zeroResidualUv;
+    uint32_t zeroResidualStdUv;
     uint32_t windows;
     uint32_t jobsRun;
     uint32_t jobsSkip;
@@ -161,11 +177,23 @@ typedef struct {
     uint32_t avgSlackUs;
     uint32_t minSlackUs;
     uint32_t sampleAgeFrames;
+    uint32_t zeroAgeFrames;
     uint8_t id;
+    uint8_t devId;
+    uint8_t revId;
+    uint16_t chip;
+    uint8_t activeAdc;
     uint8_t rateCode;
     bool initialized;
     bool dmaCapable;
     bool batteryValid;
+    bool hasAdc2;
+    bool bootCalibrationDone;
+    bool vbiasEnabled;
+    bool railValid;
+    bool zeroValid;
+    bool vrefSynced;
+    sensorarrayBatteryInvalidReason_t batteryInvalidReason;
     bool fallbackToBoundary;
 } sensorarrayAdsGapSnapshot_t;
 

@@ -32,4 +32,4 @@ void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
                              uint8_t row);
 void sensorarrayAdsGapCopySnapshot(sensorarrayAdsGapSnapshot_t *outSnapshot,
                                    uint32_t frameSequence);
-
+void sensorarrayAdsGapRequestCalibration(bool requestZero, bool requestRail);

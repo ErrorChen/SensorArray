@@ -1,6 +1,7 @@
 #include "boardSupport.h"
 
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,6 +14,37 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+
+#define BOARD_SUPPORT_LOG_TEXT_MAX 384u
+
+static BoardSupportLogCallback_t s_logCallback;
+
+void boardSupportSetLogCallback(BoardSupportLogCallback_t callback)
+{
+    s_logCallback = callback;
+}
+
+static int boardSupportLogPrintf(const char *format, ...)
+{
+    char text[BOARD_SUPPORT_LOG_TEXT_MAX];
+    va_list args;
+    va_start(args, format);
+    int required = vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+    if (required < 0) {
+        return required;
+    }
+    size_t length = (size_t)required;
+    if (length >= sizeof(text)) {
+        length = sizeof(text) - 1u;
+    }
+    if (s_logCallback && s_logCallback(text, length) == ESP_OK) {
+        return required;
+    }
+    return (int)fwrite(text, 1u, length, stdout);
+}
+
+#define printf boardSupportLogPrintf
 
 #ifndef CONFIG_BOARD_I2C_FREQ_HZ
 #define CONFIG_BOARD_I2C_FREQ_HZ 337500

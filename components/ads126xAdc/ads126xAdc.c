@@ -56,7 +56,13 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_REG_MODE1 0x04
 #define ADS126X_REG_MODE2 0x05
 #define ADS126X_REG_INPMUX 0x06
+#define ADS126X_REG_OFCAL0 0x07
+#define ADS126X_REG_FSCAL0 0x0A
 #define ADS126X_REG_REFMUX 0x0F
+#define ADS126X_REG_ADC2CFG 0x15
+#define ADS126X_REG_ADC2MUX 0x16
+#define ADS126X_REG_ADC2OFC0 0x17
+#define ADS126X_REG_ADC2FSC0 0x19
 
 /* INTERFACE register bit definitions. */
 #define ADS126X_INTERFACE_STATUS (1u << 2)
@@ -279,6 +285,10 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
     handle->vrefMicrovolts = cfg->vrefMicrovolts ? cfg->vrefMicrovolts : ADS126X_ADC_DEFAULT_VREF_UV;
     handle->pgaGain = cfg->pgaGain;
     handle->dataRateDr = cfg->dataRateDr;
+    handle->adc2Gain = 1u;
+    handle->adc2DataRate = 0u;
+    handle->adc2Reference = ADS126X_ADC2_REF_INTERNAL;
+    handle->adc2VrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
     handle->drdyTimeoutMs = ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS;
 
     handle->mutex = xSemaphoreCreateMutex();
@@ -338,7 +348,17 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
         }
     }
 
-    if (handle->forcedType != ADS126X_DEVICE_AUTO) {
+    if (idReadOk && detectedType != ADS126X_DEVICE_AUTO) {
+        handle->deviceType = detectedType;
+        if (handle->forcedType != ADS126X_DEVICE_AUTO &&
+            handle->forcedType != detectedType) {
+            ESP_LOGW(TAG,
+                     "Configured device type %d mismatches ID 0x%02X; using detected type %d",
+                     (int)handle->forcedType,
+                     handle->idRegRaw,
+                     (int)detectedType);
+        }
+    } else if (handle->forcedType != ADS126X_DEVICE_AUTO) {
         handle->deviceType = handle->forcedType;
         if (!idReadOk) {
             ESP_LOGW(TAG,
@@ -349,12 +369,6 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
                      "Using forced device type %d with unknown ID 0x%02X",
                      (int)handle->forcedType,
                      handle->idRegRaw);
-        } else if (detectedType != handle->forcedType) {
-            ESP_LOGW(TAG,
-                     "Forced device type %d mismatches ID 0x%02X (detected type %d)",
-                     (int)handle->forcedType,
-                     handle->idRegRaw,
-                     (int)detectedType);
         }
     } else if (!idReadOk || detectedType == ADS126X_DEVICE_AUTO) {
         /* Keep AUTO when ID cannot be trusted to avoid mis-classifying as ADS1262. */
@@ -757,7 +771,29 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue)
 {
+    /* Register-only helper. Use ads126xAdcSetRefMuxWithVref() before voltage conversion. */
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_REFMUX, &refmuxValue, 1);
+}
+
+esp_err_t ads126xAdcSetRefMuxWithVref(ads126xAdcHandle_t *handle,
+                                      uint8_t refmuxValue,
+                                      uint32_t vrefMicrovolts)
+{
+    if (!handle || vrefMicrovolts == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcSetRefMux(handle, refmuxValue);
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_REFMUX, &readback, 1u);
+    }
+    if (err == ESP_OK && readback != refmuxValue) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK) {
+        handle->vrefMicrovolts = vrefMicrovolts;
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)
@@ -1035,12 +1071,26 @@ esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
     if (err != ESP_OK) {
         return err;
     }
+    return ads126xAdcReadAdc1RawDmaReady(handle,
+                                         rawCode,
+                                         statusByteOptional,
+                                         outReadUs);
+}
+
+esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
+                                        int32_t *rawCode,
+                                        uint8_t *statusByteOptional,
+                                        uint32_t *outReadUs)
+{
+    if (!handle || !rawCode) {
+        return ESP_ERR_INVALID_ARG;
+    }
     size_t frameLen = 4u + (handle->enableStatusByte ? 1u : 0u) +
                       (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
     uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA1;
     int64_t startUs = esp_timer_get_time();
-    err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen);
+    esp_err_t err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen);
     if (outReadUs) {
         int64_t elapsedUs = esp_timer_get_time() - startUs;
         *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
@@ -1147,6 +1197,72 @@ esp_err_t ads126xAdcSelfCal(ads126xAdcHandle_t *handle)
     return ads126xAdcWaitDrdy(handle, handle->drdyTimeoutMs);
 }
 
+esp_err_t ads126xAdcReadCalibrationRegisters(ads126xAdcHandle_t *handle,
+                                             uint8_t offsetCal[3],
+                                             uint8_t fullScaleCal[3])
+{
+    if (!handle || !offsetCal || !fullScaleCal) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_OFCAL0, offsetCal, 3u);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_FSCAL0, fullScaleCal, 3u);
+    }
+    return err;
+}
+
+uint8_t ads126xAdcGetDevId(const ads126xAdcHandle_t *handle)
+{
+    return handle ?
+        (uint8_t)((handle->idRegRaw & ADS126X_ID_DEV_ID_MASK) >> ADS126X_ID_DEV_ID_SHIFT) :
+        0xFFu;
+}
+
+uint8_t ads126xAdcGetRevId(const ads126xAdcHandle_t *handle)
+{
+    return handle ? (uint8_t)(handle->idRegRaw & 0x1Fu) : 0xFFu;
+}
+
+bool ads126xAdcHasAdc2(const ads126xAdcHandle_t *handle)
+{
+    return ads126xAdcIsAdc2Supported(handle);
+}
+
+esp_err_t ads126xAdcProbeAdc2(ads126xAdcHandle_t *handle, bool *outHasAdc2)
+{
+    if (!handle || !outHasAdc2) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (handle->deviceType == ADS126X_DEVICE_ADS1262) {
+        *outHasAdc2 = false;
+        return ESP_OK;
+    }
+    if (handle->deviceType == ADS126X_DEVICE_ADS1263) {
+        *outHasAdc2 = true;
+        return ESP_OK;
+    }
+
+#if CONFIG_ADS126X_HAS_ADC2
+    ads126xDeviceType_t previousType = handle->deviceType;
+    handle->deviceType = ADS126X_DEVICE_ADS1263;
+    int32_t raw = 0;
+    esp_err_t err = ads126xAdcStartAdc2(handle);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadAdc2Raw(handle, &raw, NULL);
+    }
+    esp_err_t stopErr = ads126xAdcStopAdc2(handle);
+    if (err == ESP_OK && stopErr != ESP_OK) {
+        err = stopErr;
+    }
+    *outHasAdc2 = err == ESP_OK;
+    handle->deviceType = *outHasAdc2 ? ADS126X_DEVICE_ADS1263 : previousType;
+    return ESP_OK;
+#else
+    *outHasAdc2 = false;
+    return ESP_OK;
+#endif
+}
+
 esp_err_t ads126xAdcStartAdc2(ads126xAdcHandle_t *handle)
 {
     if (!ads126xAdcIsAdc2Supported(handle)) {
@@ -1161,6 +1277,91 @@ esp_err_t ads126xAdcStopAdc2(ads126xAdcHandle_t *handle)
         return ESP_ERR_NOT_SUPPORTED;
     }
     return ads126xAdcSendCommand(handle, ADS126X_CMD_STOP2);
+}
+
+esp_err_t ads126xAdcSetAdc2Config(ads126xAdcHandle_t *handle,
+                                  uint8_t dataRate,
+                                  uint8_t reference,
+                                  uint8_t gain,
+                                  uint32_t vrefMicrovolts)
+{
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (dataRate > 3u || reference > 4u || gain > 7u || vrefMicrovolts == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t value = (uint8_t)((dataRate << 6u) | (reference << 3u) | gain);
+    esp_err_t err = ads126xAdcWriteRegisters(handle, ADS126X_REG_ADC2CFG, &value, 1u);
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_ADC2CFG, &readback, 1u);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (readback != value) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    handle->adc2DataRate = dataRate;
+    handle->adc2Reference = reference;
+    handle->adc2Gain = (uint8_t)(1u << gain);
+    handle->adc2VrefMicrovolts = vrefMicrovolts;
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcSetAdc2InputMux(ads126xAdcHandle_t *handle,
+                                    uint8_t muxp,
+                                    uint8_t muxn)
+{
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (muxp > 0x0Fu || muxn > 0x0Fu) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t value = (uint8_t)((muxp << 4u) | muxn);
+    return ads126xAdcWriteRegisters(handle, ADS126X_REG_ADC2MUX, &value, 1u);
+}
+
+static esp_err_t ads126xAdcParseAdc2Frame(ads126xAdcHandle_t *handle,
+                                           const uint8_t *frame,
+                                           size_t frameLen,
+                                           int32_t *raw24,
+                                           uint8_t *statusOptional)
+{
+    size_t idx = 0u;
+    if (handle->enableStatusByte) {
+        if (statusOptional) {
+            *statusOptional = frame[idx];
+        }
+        idx++;
+    }
+
+    const uint8_t *dataBytes = &frame[idx];
+    uint8_t padByte = dataBytes[3];
+    if (padByte != 0x00u) {
+        ESP_LOGW(TAG, "ADC2 pad byte unexpected: 0x%02X", padByte);
+    }
+    if (handle->crcMode != ADS126X_CRC_OFF) {
+        uint8_t expected = frame[frameLen - 1u];
+        uint8_t actual = handle->crcMode == ADS126X_CRC_CRC8 ?
+            ads126xAdcCrc8(dataBytes, 3u) : ads126xAdcChecksum(dataBytes, 3u);
+        if (expected != actual) {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+
+    uint32_t raw = ((uint32_t)dataBytes[0] << 16u) |
+                   ((uint32_t)dataBytes[1] << 8u) |
+                   (uint32_t)dataBytes[2];
+    if ((raw & 0x00800000u) != 0u) {
+        raw |= 0xFF000000u;
+    }
+    *raw24 = (int32_t)raw;
+    return ESP_OK;
 }
 
 esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
@@ -1199,41 +1400,79 @@ esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle,
         return err;
     }
 
-    size_t idx = 0;
-    if (handle->enableStatusByte) {
-        if (statusOptional) {
-            *statusOptional = frame[idx];
-        }
-        idx++;
-    }
+    return ads126xAdcParseAdc2Frame(handle, frame, frameLen, raw24, statusOptional);
+}
 
-    uint8_t *dataBytes = &frame[idx];
-    uint8_t padByte = dataBytes[3];
-    if (padByte != 0x00u) {
-        ESP_LOGW(TAG, "ADC2 pad byte unexpected: 0x%02X", padByte);
+esp_err_t ads126xAdcReadAdc2RawDma(ads126xAdcHandle_t *handle,
+                                   uint32_t drdyTimeoutUs,
+                                   int32_t *raw24,
+                                   uint8_t *statusOptional,
+                                   uint32_t *outReadUs)
+{
+    if (!handle || !raw24) {
+        return ESP_ERR_INVALID_ARG;
     }
-
-    if (handle->crcMode != ADS126X_CRC_OFF) {
-        uint8_t expected = frame[frameLen - 1];
-        uint8_t actual = (handle->crcMode == ADS126X_CRC_CRC8)
-                              ? ads126xAdcCrc8(dataBytes, 3)
-                              : ads126xAdcChecksum(dataBytes, 3);
-        if (expected != actual) {
-            ESP_LOGW(TAG, "ADC2 CRC/CHK mismatch (exp=0x%02X calc=0x%02X)", expected, actual);
-            return ESP_ERR_INVALID_RESPONSE;
-        }
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
-
-    uint32_t raw = ((uint32_t)dataBytes[0] << 16) |
-                   ((uint32_t)dataBytes[1] << 8) |
-                   (uint32_t)dataBytes[2];
-    /* ADC2 output code is 24-bit two's complement; sign-extend to int32_t. */
-    if (raw & 0x00800000u) {
-        raw |= 0xFF000000u;
+    esp_err_t err = ads126xAdcWaitDrdyNotificationUs(handle, drdyTimeoutUs);
+    if (err != ESP_OK) {
+        return err;
     }
-    *raw24 = (int32_t)raw;
+    size_t frameLen = 4u + (handle->enableStatusByte ? 1u : 0u) +
+                      (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
+    uint8_t frame[6] = {0};
+    uint8_t command = ADS126X_CMD_RDATA2;
+    int64_t startUs = esp_timer_get_time();
+    err = ads126xAdcSpiTransferDmaLocked(handle, &command, 1u, frame, frameLen);
+    if (outReadUs) {
+        int64_t elapsedUs = esp_timer_get_time() - startUs;
+        *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
+    }
+    return err == ESP_OK ?
+        ads126xAdcParseAdc2Frame(handle, frame, frameLen, raw24, statusOptional) : err;
+}
 
-    return ESP_OK;
+int32_t ads126xAdcAdc2RawToMicrovolts(const ads126xAdcHandle_t *handle,
+                                      int32_t rawCode)
+{
+    if (!handle || handle->adc2Gain == 0u || handle->adc2VrefMicrovolts == 0u) {
+        return 0;
+    }
+    int64_t numerator = (int64_t)rawCode * (int64_t)handle->adc2VrefMicrovolts;
+    int64_t denominator = (int64_t)handle->adc2Gain * (1LL << 23);
+    return (int32_t)(numerator / denominator);
+}
+
+esp_err_t ads126xAdcSystemOffsetCalAdc2(ads126xAdcHandle_t *handle)
+{
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    return ads126xAdcSendCommand(handle, ADS126X_CMD_SYOCAL2);
+}
+
+esp_err_t ads126xAdcReadAdc2CalibrationRegisters(ads126xAdcHandle_t *handle,
+                                                 uint8_t offsetCal[2],
+                                                 uint8_t fullScaleCal[2])
+{
+    if (!ads126xAdcIsAdc2Supported(handle)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (!offsetCal || !fullScaleCal) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcReadRegisters(handle,
+                                             ADS126X_REG_ADC2OFC0,
+                                             offsetCal,
+                                             2u);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle,
+                                      ADS126X_REG_ADC2FSC0,
+                                      fullScaleCal,
+                                      2u);
+    }
+    return err;
 }
 
 #if CONFIG_ADS126X_HELPER_CREATE_SPI

@@ -9,8 +9,11 @@
 #include "freertos/task.h"
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayAcqEvent.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 #define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
 #define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u

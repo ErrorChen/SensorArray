@@ -1,4 +1,5 @@
 #include "sensorarrayFdcSweep.h"
+#include "sensorarrayAcqEvent.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -12,6 +13,8 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayMeasure.h"
 #include "tmuxSwitch.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 #define SENSORARRAY_FDC_SWEEP_DRIVE_CURRENT_MASK 0xF800u
 #define SENSORARRAY_FDC_SWEEP_CONFIG_ACTIVE_CHAN_SHIFT 14u

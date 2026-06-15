@@ -20,11 +20,13 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
+#include "sensorarrayCommandMailbox.h"
 #include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFdcRescue.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayFrame.h"
 #include "sensorarrayAsyncLog.h"
+#include "sensorarrayAcqEvent.h"
 #include "sensorarrayFrameOutput.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
@@ -32,6 +34,8 @@
 #include "sensorarrayNetStatus.h"
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 #ifndef CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
 #define CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT 1
@@ -927,8 +931,13 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     *ctx = (sensorarrayAppContext_t){0};
     sensorarrayLogRuntimeMemoryDiag("runtime_after_clear", ctx);
     sensorarrayLogSetAdsState(false, false);
-    sensorarrayFastSpeedSetEnabled(CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1 != 0);
+    sensorarrayFastSpeedSetEnabled(false);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
+
+    esp_err_t mailboxErr = sensorarrayCommandMailboxInit();
+    if (mailboxErr != ESP_OK) {
+        return mailboxErr;
+    }
 
     ctx->requestedFdcChannels =
         sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
@@ -973,6 +982,38 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
                              0,
                              "D5..D8_secondary_ch0..ch3");
     return ESP_OK;
+}
+
+static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+
+    sensorarrayCommand_t command;
+    while (sensorarrayCommandMailboxTryReceive(&command)) {
+        switch (command.type) {
+        case SENSORARRAY_COMMAND_CALIBRATE_ZERO:
+            sensorarrayAdsGapRequestCalibration(true, false);
+            break;
+        case SENSORARRAY_COMMAND_CALIBRATE_RAIL:
+            sensorarrayAdsGapRequestCalibration(false, true);
+            break;
+        case SENSORARRAY_COMMAND_CALIBRATE_ALL:
+            sensorarrayAdsGapRequestCalibration(true, true);
+            break;
+        case SENSORARRAY_COMMAND_BLE_CAP_PERIOD:
+        case SENSORARRAY_COMMAND_TRACE_ENABLE:
+            break;
+        default:
+            continue;
+        }
+
+        sensorarrayCommandMailboxCommit(&command);
+        if (ctx->asyncLogReady) {
+            (void)sensorarrayAsyncLogPublishCommandApplied(ctx->frame.sequence, &command);
+        }
+    }
 }
 
 static esp_err_t sensorarrayInitBoardAndRouting(sensorarrayAppContext_t *ctx)
@@ -1399,6 +1440,9 @@ static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
 static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 {
     while (true) {
+        /* CommandMailbox is drained only here, before a new frame begins. No
+         * BLE callback or Core0 task can mutate acquisition state mid-row. */
+        sensorarrayApplyPendingCommands(ctx);
         sensorarrayRunQueuedFullSweep(ctx);
 
         if (CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE &&
@@ -1541,6 +1585,13 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
         return err;
     }
 
+    /* Bring up TextFrameBus/EventRing before hardware initialisation so Core 1
+     * startup and runtime diagnostics can be handed to Core 0 immediately. */
+    sensorarrayInitAsyncLogging(ctx);
+    if (ctx->asyncLogReady) {
+        boardSupportSetLogCallback(sensorarrayAsyncLogPublishTextEvent);
+    }
+
     sensorarrayLogRuntimeMemoryDiag("before_board_support_init", ctx);
     err = sensorarrayInitBoardAndRouting(ctx);
     sensorarrayLogRuntimeMemoryDiag("after_board_support_init", ctx);
@@ -1562,7 +1613,6 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
     }
 
     sensorarrayBuildDefaultScanPlan(ctx);
-    sensorarrayInitAsyncLogging(ctx);
     return ESP_OK;
 }
 

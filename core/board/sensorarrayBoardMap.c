@@ -4,6 +4,9 @@
 #include <string.h>
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayAcqEvent.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 static const sensorarrayRouteMap_t s_sensorarrayRouteMap[] = {
     // Board/application route recipes used by current debug workflows.

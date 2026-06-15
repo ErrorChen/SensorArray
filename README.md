@@ -1,5 +1,148 @@
 # SensorArray ESP32-S3 固件 / SensorArray ESP32-S3 Firmware
 
+## Current runtime architecture and text protocol
+
+This section is the source of truth for the current runtime transport. Older
+performance notes later in this file describe historical measurements only.
+
+### Two asynchronous domains
+
+| Domain | Core | Owns | Must not do |
+|---|---:|---|---|
+| Acquisition Async Domain | Core 1 | FDC row epochs, ADS gap jobs, frame assembly, one-time C/D/K formatting, safe-boundary command apply | USB writes, UDP sends, BLE notify, blocking host output |
+| Output/System Async Domain | Core 0 | text bus consumption, USB/Wi-Fi/BLE sinks, S50/F50/A50/O50 formatting, event output, host command parsing | mutate acquisition state directly |
+
+The cross-core contracts are:
+
+| Interface | Direction | Behaviour |
+|---|---|---|
+| `TextFrameBus` | Core 1 -> Core 0 | Fixed slots contain one already-formatted ASCII C/D0-D3/K packet. The producer never waits; when full it drops old normal frames and keeps the latest. All sinks reuse the same bytes. |
+| `EventRing` | Core 1 -> Core 0 | Non-blocking error, overrun, state-change, and command-apply events. Queue overflow is counted rather than blocking acquisition. |
+| `CommandMailbox` | Core 0 -> Core 1 | Fixed command queue. BLE writes are parsed on Core 0; Core 1 applies commands only before the next frame. |
+
+USB, Wi-Fi, and BLE use ASCII compact text. The legacy binary frame mode is not
+part of this version.
+
+### Capacitance frame
+
+```text
+C,seq=301,ts=123456789,rf=FF,pf=FF,sf=FF,bad=0/0/0,fmt=pf6,n=64
+D0,100302000,58098000,...16 values
+D1,...16 values
+D2,...16 values
+D3,...16 values
+K,seq=301,crc=89ABCDEF
+```
+
+`D0` through `D3` each contain 16 row-major cells. A value is integer
+`capacitance_pF * 1,000,000`; divide by `1,000,000` to recover pF with six
+decimal places. `-1000000` is the invalid fixed-point sentinel. `K.crc` is
+standard reflected CRC-32 over the exact ASCII bytes from `C` through the last
+`D` newline, excluding the `K` line.
+
+| Tag | Purpose |
+|---|---|
+| `C` | Cap frame header and freshness/invalid counts. |
+| `D0`-`D3` | 64 fixed-point pF values. The host parser also accepts `D0`-`D7`. |
+| `K` | Sequence-bound CRC-32. |
+| `S50` | 50-frame system rate and bad-frame summary. |
+| `F50` | FDC wait/read/coordinator and I2C error summary. |
+| `A50` | ADS identity, active ADC, rail, zero residual, AIN8, battery, and ADS errors. |
+| `O50` | USB/BLE/Wi-Fi sink rates, drops, bytes, blocking, queue depth, and watchdog count. |
+| `E`, `W`, `FX`, `AX`, `OX`, `RX` | Event, warning, and subsystem exception lines. |
+| `ADSBOOT`, `CALB` | One-time ADS identity and boot-calibration records. |
+
+```text
+S50,f=301-350,n=50,fps=12.38/12.38,bad=0/0/0
+F50,ft=4160/1900/2230,ie=0/0/0,rv=100
+A50,chip=1262,adc=1,rail=5088,z=18/84,a8=728000,bt=2940,ae=0/0/0
+O50,out=8/14,q=0/1,sfps=12.4/2.0/12.4,sdrop=0/0/0,skb=17/2/17,blk=0/0/0,tdrop=0,edrop=0,wdt=0
+```
+
+| Field | Meaning |
+|---|---|
+| `f`, `n`, `fps`, `bad` | frame range, count, capture/output FPS, stale/mixed/invalid-frame counts |
+| `ft` | average FDC ready wait / DATA read / coordinator time in us |
+| `ie` | I2C NACK / timeout / recovery counts |
+| `rv` | valid-cell percentage |
+| `chip`, `adc` | detected ADS1262/ADS1263 and active background ADC |
+| `rail` | measured `AVDD-AVSS` in mV |
+| `z` | zero residual mean / standard deviation in uV |
+| `a8` | measured AIN8-AINCOM in uV |
+| `bt` | battery voltage in mV; `-1` means invalid |
+| `br` | invalid-battery reason, present only when `bt=-1` |
+| `ae` | ADS SPI error / DRDY timeout / deadline skip counts |
+| `sfps`, `sdrop`, `skb`, `blk` | USB/BLE/Wi-Fi tuples in that order |
+| `tdrop`, `edrop`, `wdt` | TextFrameBus drops, EventRing drops, and actual task-watchdog count |
+
+Do not add the removed duplicate fields `bm`, `bv`, `uf`, `bf`, `wf`, `ud`,
+`bd`, or `wd` to new runtime records.
+
+### ADS identity, calibration, and battery
+
+The ID register is decoded as `dev=(id>>5)&7`, `rev=id&31`. Therefore `id=03`
+is `dev=0,rev=3,chip=1262,a2=0`, not ADS1263. A recognised hardware ID
+overrides a mismatching forced type; ADC2 probing is only a fallback for an
+unknown ID.
+
+Boot calibration enables INTREF and VBIAS, measures the analogue supply with
+the internal 2.5 V reference, switches the operating reference to AVDD/AVSS,
+synchronises the software VREF, runs ADC1 system-offset calibration on
+AIN9-AINCOM, verifies the residual, and reads calibration/core registers. On
+ADS1263 it also configures ADC2 at 800 SPS, runs ADC2 system-offset calibration,
+and uses ADC2 for BAT/ZERO/RAIL gap jobs. ADS1262 uses the deadline-aware ADC1
+DMA path.
+
+```text
+vcmGndUv = railUv / 2 - avssToGndUv
+battUv = 2 * (ain8AincomUv - zeroResidualUv + vcmGndUv)
+bt = battUv / 1000
+```
+
+An invalid calibration, rail, zero, VREF, ADC read, divider, VBIAS state, or
+overflow produces `bt=-1,br=<reason>`.
+
+### Transport policy
+
+| Sink | Default content | Backpressure |
+|---|---|---|
+| USB Serial/JTAG | every fresh C/D0-D3/K packet plus summaries | independent latest-only queue; USB drops do not block Core 1 |
+| Wi-Fi SoftAP UDP port 3333 | every fresh C/D0-D3/K packet plus summaries | persistent non-blocking UDP socket; Wi-Fi drops are isolated |
+| BLE notify UUID `FF02` | S50/F50/A50/O50; cap frames disabled by default | MTU-aware line chunks, congestion drops isolated to BLE |
+
+Wi-Fi requests maximum configured TX power, disables power save, enables
+802.11b/g/n, tries HT40, then falls back to HT20. BLE requests configured high
+TX power, short connection intervals, and 2M PHY, then accepts peer/controller
+fallback to 1M. Unsupported high-speed settings are logged and do not stop
+acquisition.
+
+### BLE commands
+
+Write ASCII to status characteristic UUID `FF01`:
+
+| Command | Effect at next frame boundary |
+|---|---|
+| `BLECAP=N` or `CAP=N` | Send one BLE C/D/K packet every N frames; `0` disables BLE cap text. |
+| `TRACE=0` / `TRACE=1` | Disable/enable the runtime trace state. |
+| `CAL=ZERO` | Schedule a zero-residual job in a safe ADS slack window. |
+| `CAL=RAIL` | Schedule a rail-monitor job. |
+| `CAL=ALL` | Schedule both rail and zero jobs. |
+
+### Host validation tools
+
+```powershell
+python tools/receive_udp_text.py --port 3333 --show-cap
+python tools/receive_serial_text.py --port COM11 --baud 115200 --show-cap
+python tools/receive_ble_text.py --name SensorArray
+python tools/receive_ble_text.py --name SensorArray --cap-period 50 --show-cap
+```
+
+All receivers share `tools/text_protocol.py`, parse S50/F50/A50/O50 and `bt`,
+and report malformed ASCII. UDP and serial also assemble 64-cell cap frames,
+check CRC, and report sequence gaps, missing frames, FPS, `cap[0]`, `cap[63]`,
+and mean. The BLE tool prints `BLE_TEST_SKIPPED reason=...` when bleak, an
+adapter, permission, or the device is unavailable.
+
 ## 目录 / Table of contents
 
 - [当前源码树状态 / Current source-tree status](#当前源码树状态--current-source-tree-status)
@@ -46,9 +189,9 @@ SensorArray firmware runs on ESP32-S3. The current main path reads an 8 x 8 FDC2
 | FDC2214 8 x 8 cap matrix | 主运行路径 / main runtime path | `sensorarrayFdcMatrixEngineReadFrame()` delegates to `sensorarrayMeasureReadFdcMatrixFrame()`. |
 | ADS1262/ADS1263 matrix | 初始化和 API 存在，frame read returns unsupported / initialisation and APIs exist, frame read returns unsupported | `sensorarrayAdsMatrixEngineReadFrame()` initialises an invalid frame and returns `ESP_ERR_NOT_SUPPORTED`. |
 | Mixed row mode | Thin pass-through to FDC path / thin pass-through to FDC path | `sensorarrayMixedRowEngineReadFrame()` currently calls the FDC matrix engine. |
-| Text output | 异步主输出 / default async output | `main/output/sensorarrayAsyncLog.c` copies frame snapshots into `sensorarrayLogTask`; `main/output/sensorarrayFrameOutput.c` formats `Cap`/legacy `MATRIXFDC_CAP`, optionally `MATRIXFDC_FREQ` and `DEBUGFDC_RAW`. |
-| Binary transport | 可选 SAF1 compact binary v1 / optional compact binary | Enable `CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1`; async output emits one fixed 340-byte little-endian packet per fresh frame. |
-| Runtime console commands | 当前源码树未发现注册 / not found in this source tree | No `esp_console_cmd_register` call is present. Profile and discard setters are C APIs, not serial commands. |
+| Text output | 异步主输出 / default async output | Core 1 builds one C/D0-D3/K ASCII packet; independent Core 0 USB, Wi-Fi, and BLE sinks reuse it. |
+| Binary transport | 已移除 / removed | Runtime CapFrame transport is ASCII only. |
+| Runtime commands | BLE ASCII mailbox | Write `BLECAP=N`, `TRACE=0/1`, or `CAL=ZERO/RAIL/ALL` to BLE characteristic `FF01`; Core 1 applies them at a frame boundary. |
 
 ## 硬件拓扑 / Hardware topology
 
@@ -541,28 +684,23 @@ This is a measurement-layer policy. The ADS driver does not decide when ADS must
 
 ## 帧格式与无效值策略 / Frame format and invalid data policy
 
-Default text output is capacitance:
+Default text output is compact fixed-point capacitance:
 
 ```text
-S,s=<n>,vc=<n>,ic=<n>,fc=<n>,cm=0x...,vm=0x...,wm=0x...,em=0x...,br=<n>,bd=<n>
-Cap,s=<n>,t=<us>,pa=<0|1>,q=<F|P>,cm=0x...,fm=0x...,wm=0x...,em=0x...,iv=-1.000000,pf=[...64 values with 6 decimals by default...]
+C,seq=<n>,ts=<us>,rf=<hex>,pf=<hex>,sf=<hex>,bad=<stale>/<mixed>/<invalid>,fmt=pf6,n=64
+D0,<16 signed fixed-point pF values>
+D1,<16 signed fixed-point pF values>
+D2,<16 signed fixed-point pF values>
+D3,<16 signed fixed-point pF values>
+K,seq=<n>,crc=<CRC32>
 ```
 
-Optional frequency output is compiled when `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ` or `CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE` is selected:
-
-```text
-MATRIXFDC_FREQ,seq=<n>,timestampUs=<us>,validMask=0x...,warnMask=0x...,errorMask=0x...,freqHz=[...64 values...]
-```
-
-Raw debug output is compiled only when `CONFIG_SENSORARRAY_FDC_RAW_DEBUG_LOG` is enabled:
-
-```text
-DEBUGFDC_RAW,seq=<n>,timestampUs=<us>,raw28=[...64 values...]
-```
+Each valid D value is `pF * 1,000,000`. The default runtime does not emit the
+old 64-float `Cap,[...]`, frequency array, or raw array records.
 
 Invalid policy:
 
-- `-1.000000` is the invalid sentinel for `capTotalPf` and invalid `freqHz` initialisation.
+- `-1000000` is the wire invalid sentinel for fixed-point cap text.
 - `0 pF` must not be treated as invalid unless a separate display layer explicitly documents it as a placeholder.
 - `raw28 == 0` from a fresh sample increments `hardwareZeroRawCount` and is invalid for FDC capacitance.
 - `capValidMask` is set only after valid raw/frequency data successfully converts to pF.
@@ -775,14 +913,14 @@ In normal cases the readback should not be all `FF`. ESP image headers commonly 
 
 ## 已知约束 / Known constraints
 
-- Current production output is text. Binary transport is not the default and the current send stub returns unsupported.
+- Current production output is compact ASCII text on every transport; binary CapFrame is not implemented.
 - Primary FDC absence is a serious boot error. Secondary FDC absence can be primary-only only when dual-FDC boot is not required.
 - ADS matrix read is not a production frame path in this source tree.
 - Mixed row mode currently delegates to FDC matrix read.
 - Formal FDC matrix readiness is `INTB_STRICT_LEVEL` by default; STATUS is read once after INTB as the ack/verify gate, and legacy fallback is disabled.
 - High-density text logs affect frame rate, serial stability, and timing measurements.
 - FDC pF values depend on `CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH`; raw28 does not.
-- Changing matrix dimensions, binary output, or mixed ADS/FDC scheduling is architecture work, not a README-level setting.
+- Changing matrix dimensions or mixed ADS/FDC scheduling is architecture work, not a README-level setting.
 
 ## 文件地图 / File map
 
@@ -1081,10 +1219,15 @@ Mask shorthand:
 Normal per-frame output:
 
 ```text
-Cap,s=631,t=813405664,q=F,pf=[100.302000,58.098000,56.765000,...,118.495000]
+C,seq=631,ts=813405664,rf=FF,pf=FF,sf=FF,bad=0/0/0,fmt=pf6,n=64
+D0,100302000,58098000,...16 values
+D1,...16 values
+D2,...16 values
+D3,...16 values
+K,seq=631,crc=89ABCDEF
 ```
 
-Every 20 frames by default. The `T5/R5/Q5/I5/P5` tag names are historical; trust the `n` field for the actual aggregation period.
+The following block documents legacy focused diagnostic windows. Normal runtime summaries are S50/F50/A50/O50 every 50 frames.
 
 ```text
 T5,s0=611,s1=630,n=20,fps=18.42,fa=54281,rw=6120,rmax=13544,ww=6040,rp=28120,sp=420,dr=3100,i2c=22100,op=6400,prof=13544,pe=0,frameEffectiveFps=18.42
@@ -1354,16 +1497,9 @@ already-low 不进入 direct path。row cache compare 始终保留为纯内存 f
 
 ### Output protocols
 
-文本模式保留 `Cap` 兼容格式并增加 `ps/fs/fe/emit/rf/pfmask/sfmask/stale/mixed`。
-若文本格式化或串口带宽限制 `capEmitFps`，选择
-`CONFIG_SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1`。`SAF1` 是 340-byte little-endian packet：
-
-- bytes 0-3: magic `SAF1`; byte 4 version 1; byte 5 flags (`fresh/stale/mixed`).
-- bytes 6-11: header bytes `80`, packet bytes `340`, cell count `64`, row count `8`.
-- bytes 12-47: `frameId`, `physicalSweepId`, three uint64 timestamps, three fresh masks.
-- bytes 48-79: cap-valid/fresh/warn/error uint64 masks.
-- bytes 80-335: 64 row-major IEEE-754 float32 pF values, D1-D8 order per row.
-- bytes 336-339: standard reflected CRC32 over bytes 0-335.
+当前运行期只使用 C/D0-D3/K compact ASCII。Core 1 只格式化一次，Core 0 的
+USB/Wi-Fi/BLE sink 复用同一 packet；每个 sink 独立 drop-old/keep-latest，不能反压采集域。
+完整字段、CRC 和 host 工具见本文开头的 current runtime protocol 章节。
 
 ### Oscilloscope and S8 isolation
 
@@ -1407,9 +1543,9 @@ ESP32-S3 on COM11, and monitored for 65 seconds. The final capture contained 320
 
 Therefore the real fresh 20 FPS target is **not met**. The remaining physical bottleneck is the
 approximately `9.54 ms` row step (`8 * 9.54 ms` plus frame overhead), dominated by FDC ready wait and
-eight ordered register transactions per device-row with substantial driver overhead. Text Cap formatting
-is also about `63.3..63.6 ms`, but it runs asynchronously and did not drop frames; selecting SAF1 can
-reduce host-output cost but cannot by itself reduce the `78.5 ms` physical sweep. Debug timing GPIOs and
+eight ordered register transactions per device-row with substantial driver overhead. The historical 64-float
+text formatter cost about `63.3..63.6 ms`; the current C/D fixed-point formatter and independent sinks remove
+that format from the runtime path, but cannot by themselves reduce the `78.5 ms` physical sweep. Debug timing GPIOs and
 S8 isolation modes compile and remain default-off; this run did not assign pins or claim oscilloscope validation.
 
 ## Precision-safe 20 FPS optimisation

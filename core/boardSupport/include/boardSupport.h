@@ -76,6 +76,10 @@ typedef struct {
     uint32_t LockContentionCount;
 } BoardSupportI2cBusInfo_t;
 
+typedef esp_err_t (*BoardSupportLogCallback_t)(const char *text, size_t length);
+
+void boardSupportSetLogCallback(BoardSupportLogCallback_t callback);
+
 // Initialize board-level buses (I2C primary and optional secondary).
 esp_err_t boardSupportInit(void);
 // Deinitialize buses initialized by boardSupportInit.

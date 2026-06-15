@@ -54,7 +54,9 @@ endmenu
 
 choice SENSORARRAY_ADS126X_VARIANT
     prompt "ADS126x variant"
-    default SENSORARRAY_ADS1262
+    default SENSORARRAY_ADS_AUTO
+config SENSORARRAY_ADS_AUTO
+    bool "Auto-detect ADS1262/ADS1263 from DEV_ID"
 config SENSORARRAY_ADS1262
     bool "ADS1262 (ADC1 only)"
 config SENSORARRAY_ADS1263
@@ -1126,28 +1128,20 @@ endmenu
 
 menu "Async logging"
 
-choice SENSORARRAY_FRAME_OUTPUT_FORMAT
-    prompt "Host frame output format"
-    default SENSORARRAY_FRAME_OUTPUT_TEXT
-    help
-        Text preserves the existing Cap protocol. Compact binary v1 emits a
-        fixed little-endian SAF1 packet so a 64-cell frame is not limited by
-        decimal formatting and text serial bandwidth.
-
 config SENSORARRAY_FRAME_OUTPUT_TEXT
-    bool "Cap text (legacy-compatible)"
-
-config SENSORARRAY_FRAME_OUTPUT_BINARY_COMPACT_V1
-    bool "SAF1 compact binary v1"
-
-endchoice
+    bool "Compact ASCII C/D/K frame output"
+    default y
+    help
+        Runtime transport is always human-readable ASCII. Each frame is built
+        once as C + D0..D3 + K lines using pF x 1,000,000 fixed-point values.
 
 config SENSORARRAY_ASYNC_LOG_ENABLE
     bool "Enable asynchronous frame/event logging"
     default y
     help
-        When enabled, the measurement loop publishes binary frame snapshots and
-        a lower-priority sensorarrayLogTask performs Cap formatting and printf.
+        When enabled, the Acquisition domain builds one compact ASCII packet
+        and publishes it through fixed TextFrameBus slots. The Core 0 output
+        hub forwards the same bytes to independent USB and network sinks.
 
 config SENSORARRAY_ASYNC_LOG_LEGACY_SYNC_OUTPUT
     bool "Fallback to legacy synchronous frame output"
@@ -1168,7 +1162,7 @@ config SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN
 
 config SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES
     int "Async log summary period in measured frames"
-    default 20
+    default 50
     range 1 10000
 
 config SENSORARRAY_ASYNC_LOG_TASK_STACK
@@ -1192,6 +1186,26 @@ config SENSORARRAY_ASYNC_LOG_TASK_CORE
 config SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
     bool "Drop old normal frame snapshots when async log is behind"
     default y
+
+config SENSORARRAY_USB_SINK_QUEUE_LEN
+    int "USB Serial/JTAG text sink queue length"
+    default 4
+    range 2 16
+
+config SENSORARRAY_USB_SINK_TASK_STACK
+    int "USB Serial/JTAG text sink task stack bytes"
+    default 6144
+    range 4096 16384
+
+config SENSORARRAY_USB_SINK_TASK_PRIORITY
+    int "USB Serial/JTAG text sink priority"
+    default 6
+    range 1 24
+
+config SENSORARRAY_USB_SINK_BLOCK_WARN_US
+    int "USB write duration counted as blocked (us)"
+    default 20000
+    range 1000 1000000
 
 config SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG
     bool "Allow stale or mixed frames in Cap output (debug only)"
@@ -1267,7 +1281,7 @@ menu "ADS1263 direct diagnostics / gap fill"
 
 config SENSORARRAY_ADS_GAP_FILL_ENABLE
     bool "Run AIN8/AIN9 direct diagnostics inside FDC ready windows"
-    default n
+    default y
 
 config SENSORARRAY_ADS_START_GPIO
     int "ADS1263 START GPIO"
@@ -1284,7 +1298,7 @@ config SENSORARRAY_ADS_DATA_RATE
     default 15
     range 0 15
     help
-        15 selects 38400 SPS. ADC2 remains disabled.
+        15 selects 38400 SPS for ADC1. ADS1263 background jobs use ADC2 at 800 SPS.
 
 config SENSORARRAY_ADS_GAP_GUARD_US
     int "Initial FDC deadline guard for ADS gap-fill (us)"
@@ -1293,7 +1307,7 @@ config SENSORARRAY_ADS_GAP_GUARD_US
 
 config SENSORARRAY_ADS_JOB_WORST_CASE_US
     int "ADS direct-job admission worst case (us)"
-    default 700
+    default 2500
     range 100 20000
 
 config SENSORARRAY_ADS_DRDY_TIMEOUT_US
@@ -1302,13 +1316,28 @@ config SENSORARRAY_ADS_DRDY_TIMEOUT_US
     range 100 20000
 
 config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM
-    int "AIN8 battery divider numerator (0 means unknown)"
-    default 0
+    int "Battery/input ratio numerator for the 1:1 divider"
+    default 2
     range 0 100000
 
 config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN
     int "AIN8 battery divider denominator"
     default 1
+    range 1 100000
+
+config SENSORARRAY_ADS_AVSS_TO_GND_UV
+    int "Magnitude of AVSS below GND (uV)"
+    default 1800000
+    range 0 5000000
+
+config SENSORARRAY_ADS_ZERO_PERIOD_FRAMES
+    int "AIN9-AINCOM residual measurement period"
+    default 100
+    range 1 100000
+
+config SENSORARRAY_ADS_RAIL_PERIOD_FRAMES
+    int "Analog supply monitor period"
+    default 500
     range 1 100000
 
 endmenu
@@ -1317,11 +1346,11 @@ menu "Optional compact status networking"
 
 config SENSORARRAY_NET_ENABLE
     bool "Enable Wi-Fi/BLE compact status networking"
-    default n
+    default y
 
 config SENSORARRAY_WIFI_SOFTAP_ENABLE
     bool "Enable SensorArray Wi-Fi SoftAP"
-    default n
+    default y
     depends on SENSORARRAY_NET_ENABLE
 
 config SENSORARRAY_WIFI_TX_POWER_DBM_X4
@@ -1343,7 +1372,7 @@ config SENSORARRAY_WIFI_STATUS_UDP_PORT
 
 config SENSORARRAY_BLE_ENABLE
     bool "Enable SensorArray BLE status service"
-    default n
+    default y
     depends on SENSORARRAY_NET_ENABLE
 
 config SENSORARRAY_BLE_USE_2M_PHY
@@ -1359,7 +1388,7 @@ config SENSORARRAY_BLE_USE_CODED_PHY
 
 config SENSORARRAY_BLE_HIGH_TX_POWER
     bool "Request high BLE TX power"
-    default n
+    default y
     depends on SENSORARRAY_BLE_ENABLE
 
 config SENSORARRAY_BLE_TX_POWER_LEVEL
@@ -1375,8 +1404,14 @@ config SENSORARRAY_BLE_STATUS_NOTIFY_ENABLE
 
 config SENSORARRAY_BLE_STATUS_NOTIFY_EVERY_N_FRAMES
     int "BLE compact status notification period"
-    default 20
+    default 50
     range 1 10000
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES
+    int "BLE cap text period (0 means summary only)"
+    default 0
+    range 0 100000
     depends on SENSORARRAY_BLE_ENABLE
 
 config SENSORARRAY_NET_TASK_STACK
