@@ -13,6 +13,27 @@ typedef enum {
     SENSORARRAY_TRANSPORT_REPLY_WIFI,
 } sensorarrayTransportReplyKind_t;
 
+typedef enum {
+    SENSORARRAY_TRANSPORT_TX_REL = 0,
+    SENSORARRAY_TRANSPORT_TX_RT,
+} sensorarrayTransportTxMode_t;
+
+typedef enum {
+    SENSORARRAY_TRANSPORT_STREAM_SER = 1u << 0,
+    SENSORARRAY_TRANSPORT_STREAM_BLE = 1u << 1,
+    SENSORARRAY_TRANSPORT_STREAM_WIFI = 1u << 2,
+    SENSORARRAY_TRANSPORT_STREAM_ALL = SENSORARRAY_TRANSPORT_STREAM_SER |
+                                       SENSORARRAY_TRANSPORT_STREAM_BLE |
+                                       SENSORARRAY_TRANSPORT_STREAM_WIFI,
+} sensorarrayTransportStream_t;
+
+typedef enum {
+    SENSORARRAY_TRANSPORT_WIFI_OFF = 0,
+    SENSORARRAY_TRANSPORT_WIFI_STA,
+    SENSORARRAY_TRANSPORT_WIFI_AP,
+    SENSORARRAY_TRANSPORT_WIFI_APSTA,
+} sensorarrayTransportWifiMode_t;
+
 typedef struct {
     sensorarrayTransportReplyKind_t kind;
     sensorarrayWifiPeer_t wifiPeer;
@@ -55,9 +76,22 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     const uint8_t *data,
     size_t length,
     const sensorarrayTransportReplyTarget_t *replyTarget);
+esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode);
 void sensorarrayTransportSetLegacyCommandCallback(
     sensorarrayTransportLegacyCommandCallback_t callback,
     void *context);
 void sensorarrayTransportGetStats(sensorarrayTransportStats_t *outStats);
 void sensorarrayTransportNoteSerialData(bool sent);
 void sensorarrayTransportNoteSerialLog(bool sent);
+void sensorarrayTransportSetTxMode(sensorarrayTransportTxMode_t mode);
+sensorarrayTransportTxMode_t sensorarrayTransportGetTxMode(void);
+void sensorarrayTransportSetStream(sensorarrayTransportStream_t stream);
+sensorarrayTransportStream_t sensorarrayTransportGetStream(void);
+void sensorarrayTransportSetWifiMode(sensorarrayTransportWifiMode_t mode);
+sensorarrayTransportWifiMode_t sensorarrayTransportGetWifiMode(void);
+bool sensorarrayTransportSerialSinkEnabled(void);
+bool sensorarrayTransportBleSinkEnabled(void);
+bool sensorarrayTransportWifiSinkEnabled(void);
+const char *sensorarrayTransportTxModeName(sensorarrayTransportTxMode_t mode);
+const char *sensorarrayTransportStreamName(sensorarrayTransportStream_t stream);
+const char *sensorarrayTransportWifiModeName(sensorarrayTransportWifiMode_t mode);

@@ -145,7 +145,7 @@ static void sensorarrayLogStackHighWater(const char *stage)
 
 static uint32_t sensorarrayFdcFramePeriodMs(void)
 {
-    uint32_t periodMs = (uint32_t)CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS;
+    uint32_t periodMs = (uint32_t)((SENSORARRAY_CFG_FRAME_PERIOD_US + 999u) / 1000u);
     return periodMs == 0u ? 1u : periodMs;
 }
 
@@ -1270,6 +1270,13 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
 {
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    sensorarrayScanConfigApplyPendingAtFrameBoundary();
+    if (ctx->runtimeMode == SENSORARRAY_RUNTIME_MODE_MIXED_ROW) {
+        sensorarrayScanPlanBuildMixedExample(&ctx->scanPlan);
+    } else {
+        sensorarrayScanPlanBuildDefaultFdcMatrix(&ctx->scanPlan);
     }
 
     switch (ctx->runtimeMode) {

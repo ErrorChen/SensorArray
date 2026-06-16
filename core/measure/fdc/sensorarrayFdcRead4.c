@@ -1,5 +1,7 @@
+#include "sensorarrayFdcInternal.h"
+
 // Split from core/measure/sensorarrayMeasure.c to keep FDC matrix internals isolated.
-static bool sensorarrayFdcRead4IsDataCompleteGood(const sensorarrayFdcDeviceRead4Result_t *read4,
+bool sensorarrayFdcRead4IsDataCompleteGood(const sensorarrayFdcDeviceRead4Result_t *read4,
                                                   uint8_t reqMask)
 {
     if (!read4) {
@@ -25,7 +27,7 @@ static bool sensorarrayFdcRead4IsDataCompleteGood(const sensorarrayFdcDeviceRead
            ((read4->zeroAfterDrdyMask4 & reqMask) == 0u);
 }
 
-static bool sensorarrayMeasureFdcReadyStatusSaysReadable(const sensorarrayFdcReadyState_t *ready,
+bool sensorarrayMeasureFdcReadyStatusSaysReadable(const sensorarrayFdcReadyState_t *ready,
                                                          uint8_t reqMask)
 {
     if (!ready || ready->i2cError) {
@@ -42,7 +44,7 @@ static bool sensorarrayMeasureFdcReadyStatusSaysReadable(const sensorarrayFdcRea
     return drdy && unreadFull;
 }
 
-static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcReadyState_t *ready,
+bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcReadyState_t *ready,
                                                            uint8_t reqMask)
 {
     if (!ready || ready->i2cError) {
@@ -61,7 +63,7 @@ static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcR
         return false;
     }
 
-#if CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+#if SENSORARRAY_CFG_FDC_READY_STRICT_ENABLED
     return ready->readyResult == FDC_READY_OK_INTB_DRDY_UNREAD_FULL ||
            ready->readyResult == FDC_READY_OK_STATUS_READY_AFTER_TIMEOUT;
 #else
@@ -77,7 +79,7 @@ static bool sensorarrayMeasureFdcReadyAllowsNormalDataRead(const sensorarrayFdcR
 #endif
 }
 
-static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDeviceState_t *fdcState,
+esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDeviceState_t *fdcState,
                                                             uint8_t freshMask4,
                                                             const sensorarrayFdcReadyState_t *ready,
                                                             sensorarrayFdcAutoscanSamples_t *outSamples)
@@ -232,7 +234,7 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4chMasked(sensorarrayFdcDevice
     return firstErr;
 }
 
-static esp_err_t sensorarrayMeasureReadFdcAutoscan4ch(sensorarrayFdcDeviceState_t *fdcState,
+esp_err_t sensorarrayMeasureReadFdcAutoscan4ch(sensorarrayFdcDeviceState_t *fdcState,
                                                       sensorarrayFdcAutoscanSamples_t *outSamples)
 {
     return sensorarrayMeasureReadFdcAutoscan4chMasked(fdcState,
@@ -241,7 +243,7 @@ static esp_err_t sensorarrayMeasureReadFdcAutoscan4ch(sensorarrayFdcDeviceState_
                                                      outSamples);
 }
 
-static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSamples_t *outSamples,
+void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSamples_t *outSamples,
                                                     const sensorarrayFdcReadyState_t *ready,
                                                     bool i2cError)
 {
@@ -303,7 +305,7 @@ static void sensorarrayMeasureMarkFdcNoFreshSamples(sensorarrayFdcAutoscanSample
     }
 }
 
-static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdcDeviceRead4Result_t *read4)
+const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdcDeviceRead4Result_t *read4)
 {
     if (!read4) {
         return "invalid_read4_state";
@@ -351,7 +353,7 @@ static const char *sensorarrayMeasureFdcRead4DiagnosticName(const sensorarrayFdc
     return "normal";
 }
 
-static void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
+void sensorarrayMeasureBuildFdcRead4Result(uint8_t row,
                                                   uint32_t epochId,
                                                   sensorarrayFdcDeviceId_t devId,
                                                   const sensorarrayFdcAutoscanSamples_t *samples,

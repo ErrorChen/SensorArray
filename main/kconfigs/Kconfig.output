@@ -1,0 +1,225 @@
+menu "Output"
+
+config SENSORARRAY_OUTPUT_USB_TEXT
+    bool "Enable USB/serial text output"
+    default y
+
+config SENSORARRAY_OUTPUT_WIFI_TEXT
+    bool "Enable Wi-Fi text output"
+    default n
+
+config SENSORARRAY_OUTPUT_BLE_STATUS
+    bool "Enable BLE status output"
+    default y
+
+config SENSORARRAY_OUTPUT_BLE_CAP_TEXT
+    bool "Enable BLE capacitance/data text output"
+    default y
+
+config SENSORARRAY_CAP_DECIMALS
+    int "Capacitance decimal places"
+    default 6
+    range 0 9
+
+choice SENSORARRAY_FDC_TEXT_OUTPUT_UNIT
+    prompt "FDC text output unit"
+    default SENSORARRAY_FDC_TEXT_CAP_TOTAL_PF
+config SENSORARRAY_FDC_TEXT_CAP_TOTAL_PF
+    bool "Total capacitance pF"
+config SENSORARRAY_FDC_TEXT_FREQ_HZ
+    bool "Frequency Hz"
+config SENSORARRAY_FDC_TEXT_BOTH_SEPARATE
+    bool "Both, separate lines"
+config SENSORARRAY_FDC_TEXT_BOTH_INLINE_DEBUG
+    bool "Both, inline debug"
+endchoice
+
+config SENSORARRAY_TRANSPORT_DEFAULT_MODE
+    string "Default transport mode"
+    default "rel"
+
+config SENSORARRAY_TRANSPORT_DEFAULT_STREAM
+    string "Default transport stream"
+    default "ser"
+
+config SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF
+    bool "Legacy: emit capTotalPf[64] in text output"
+    default y
+    help
+        Kept for compatibility with old sdkconfig files. New builds should use
+        SENSORARRAY_FDC_TEXT_OUTPUT_UNIT below.
+
+
+menu "Async logging"
+
+config SENSORARRAY_FRAME_OUTPUT_TEXT
+    bool "Compact ASCII C/D/K frame output"
+    default y
+    help
+        Runtime transport is always human-readable ASCII. Each frame is built
+        once as C + D0..D3 + K lines using pF x 1,000,000 fixed-point values.
+
+config SENSORARRAY_ASYNC_LOG_ENABLE
+    bool "Enable asynchronous frame/event logging"
+    default y
+    help
+        When enabled, the Acquisition domain builds one compact ASCII packet
+        and publishes it through fixed TextFrameBus slots. The Core 0 output
+        hub forwards the same bytes to independent USB and network sinks.
+
+config SENSORARRAY_ASYNC_LOG_LEGACY_SYNC_OUTPUT
+    bool "Fallback to legacy synchronous frame output"
+    default n
+    help
+        Compatibility-only fallback. Normal builds should keep async logging on
+        and this option disabled so printf cannot back-pressure FDC sampling.
+
+config SENSORARRAY_ASYNC_LOG_FRAME_SLOTS
+    int "Async log frame snapshot slots"
+    default 4
+    range 2 16
+
+config SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN
+    int "Async log event queue length"
+    default 16
+    range 1 256
+
+config SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES
+    int "Async log summary period in measured frames"
+    default 50
+    range 1 10000
+
+config SENSORARRAY_ASYNC_LOG_TASK_STACK
+    int "Async log task stack bytes"
+    default 12288
+    range 4096 32768
+
+config SENSORARRAY_ASYNC_LOG_TASK_PRIORITY
+    int "Async log task priority"
+    default 7
+    range 1 24
+    help
+        Keep below SENSORARRAY_SCAN_TASK_PRIO so serial output cannot preempt
+        the FDC measurement producer.
+
+config SENSORARRAY_ASYNC_LOG_TASK_CORE
+    int "Async log task core (-1 means no affinity)"
+    default SENSORARRAY_LOG_TASK_CORE
+    range -1 1
+
+config SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES
+    bool "Drop old normal frame snapshots when async log is behind"
+    default y
+
+config SENSORARRAY_USB_SINK_QUEUE_LEN
+    int "USB Serial/JTAG text sink queue length"
+    default 2
+    range 2 16
+
+config SENSORARRAY_USB_SINK_TASK_STACK
+    int "USB Serial/JTAG text sink task stack bytes"
+    default 6144
+    range 4096 16384
+
+config SENSORARRAY_USB_SINK_TASK_PRIORITY
+    int "USB Serial/JTAG text sink priority"
+    default 6
+    range 1 24
+
+config SENSORARRAY_USB_SINK_BLOCK_WARN_US
+    int "USB write duration counted as blocked (us)"
+    default 20000
+    range 1000 1000000
+
+config SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG
+    bool "Allow stale or mixed frames in Cap output (debug only)"
+    default n
+    help
+        Keep disabled for formal operation. Non-fresh snapshots still feed
+        FRESH20 diagnostics, but only complete same-sweep frames are emitted as
+        host-facing Cap records.
+
+endmenu
+
+menu "Optional compact status networking"
+
+config SENSORARRAY_NET_ENABLE
+    bool "Enable Wi-Fi/BLE compact status networking"
+    default y
+
+config SENSORARRAY_WIFI_SOFTAP_ENABLE
+    bool "Enable SensorArray Wi-Fi SoftAP"
+    default y
+    depends on SENSORARRAY_NET_ENABLE
+
+config SENSORARRAY_WIFI_TX_POWER_DBM_X4
+    int "Wi-Fi TX power in quarter-dBm units"
+    default 80
+    range 8 84
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_WIFI_SOFTAP_PASSWORD
+    string "Wi-Fi SoftAP password (empty means open)"
+    default "SensorArray"
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_WIFI_STATUS_UDP_PORT
+    int "Wi-Fi compact status UDP port"
+    default 3333
+    range 1024 65535
+    depends on SENSORARRAY_WIFI_SOFTAP_ENABLE
+
+config SENSORARRAY_BLE_USE_2M_PHY
+    bool "Request BLE 2M PHY"
+    default y
+    depends on SENSORARRAY_BLE_ENABLE
+    select BT_BLE_50_FEATURES_SUPPORTED
+
+config SENSORARRAY_BLE_USE_CODED_PHY
+    bool "Request BLE coded PHY"
+    default n
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_HIGH_TX_POWER
+    bool "Request high BLE TX power"
+    default y
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_TX_POWER_LEVEL
+    int "BLE TX power level"
+    default 9
+    range -12 20
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_STATUS_NOTIFY_ENABLE
+    bool "Enable BLE compact status notifications"
+    default y
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_STATUS_NOTIFY_EVERY_N_FRAMES
+    int "BLE compact status notification period"
+    default 50
+    range 1 10000
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES
+    int "BLE cap text period (0 means summary only)"
+    default 0
+    range 0 100000
+    depends on SENSORARRAY_BLE_ENABLE
+
+config SENSORARRAY_NET_TASK_STACK
+    int "Compact status network task stack bytes"
+    default 8192
+    range 4096 24576
+    depends on SENSORARRAY_NET_ENABLE
+
+config SENSORARRAY_NET_TASK_PRIORITY
+    int "Compact status network task priority"
+    default 5
+    range 1 10
+    depends on SENSORARRAY_NET_ENABLE
+
+endmenu
+
+endmenu

@@ -1,5 +1,6 @@
 #include "sensorarrayFdcMatrix.h"
 
+#include "sensorarrayFdcInternal.h"
 #include "sensorarrayFdcSweep.h"
 #include "sensorarrayMeasure.h"
 
@@ -40,12 +41,12 @@ esp_err_t sensorarrayFdcMatrixEngineReadFrame(sensorarrayFdcMatrixEngine_t *engi
                                               const sensorarrayScanPlan_t *plan,
                                               sensorarrayFrame_t *frame)
 {
-    (void)plan;
     if (!engine || !engine->state || !frame) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    return sensorarrayMeasureReadFdcMatrixFrame(engine->state, frame);
+    uint8_t planRows = plan ? plan->rowCount : 0u;
+    return sensorarrayMeasureReadFdcMatrixFrameRows(engine->state, frame, planRows);
 }
 
 esp_err_t sensorarrayFdcMatrixEngineRunFullRescue(sensorarrayFdcMatrixEngine_t *engine,

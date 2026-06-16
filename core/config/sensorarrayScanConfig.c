@@ -6,16 +6,28 @@
 #include <string.h>
 
 #include "freertos/FreeRTOS.h"
+#include "sdkconfig.h"
+
+#ifndef CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS
+#define CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS 8
+#endif
+
+static uint8_t sensorarrayScanConfigDefaultRows(void)
+{
+    uint8_t rows = (uint8_t)CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS;
+    return (rows >= 1u && rows <= 8u) ? rows : 8u;
+}
 
 static portMUX_TYPE s_scanConfigMux = portMUX_INITIALIZER_UNLOCKED;
-static uint8_t s_activeRows = 8u;
-static uint8_t s_pendingRows = 8u;
+static uint8_t s_activeRows = CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS;
+static uint8_t s_pendingRows = CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS;
 
 esp_err_t sensorarrayScanConfigInit(void)
 {
     portENTER_CRITICAL(&s_scanConfigMux);
-    s_activeRows = 8u;
-    s_pendingRows = 8u;
+    uint8_t rows = sensorarrayScanConfigDefaultRows();
+    s_activeRows = rows;
+    s_pendingRows = rows;
     portEXIT_CRITICAL(&s_scanConfigMux);
     return ESP_OK;
 }

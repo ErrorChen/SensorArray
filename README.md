@@ -1,5 +1,121 @@
 # SensorArray ESP32-S3 固件 / SensorArray ESP32-S3 Firmware
 
+## Refactor migration note - 2026-06-16
+
+Baseline: `4d90fa1ead203acce3c2c413c35e4460d197ff07`.
+
+### Configuration Source Of Truth
+
+`sdkconfig` is generated local state and must not be committed. Project
+defaults live in `sdkconfig.defaults` and `sdkconfig.defaults.esp32s3`; the
+previous tracked file is archived at `docs/archive/sdkconfig.last-known-good`.
+Legacy renames are in `sdkconfig.rename`.
+
+`main/Kconfig.projbuild` now only sources Board / Runtime / Output / Logging /
+Expert / Compat files under `main/kconfigs/`. The directory is `main/kconfigs`
+because this ESP-IDF/Kconfig setup on Windows rejects `main/kconfig` as a
+source path. Business code should use `SENSORARRAY_CFG_*` from
+`sensorarrayConfigDerived.h`; hidden compat symbols are only for migrating old
+sdkconfig files.
+
+### FDC Inc Split Map
+
+| Old include unit | New file |
+|---|---|
+| `sensorarrayFdcFrameBuild.inc` | `core/measure/fdc/sensorarrayFdcFrame.c` |
+| `sensorarrayFdcRowEpoch.inc` | `core/measure/fdc/sensorarrayFdcRowEpoch.c` |
+| `sensorarrayFdcRead4.inc` | `core/measure/fdc/sensorarrayFdcRead4.c` |
+| `sensorarrayFdcCacheApply.inc` | `core/measure/fdc/sensorarrayFdcCache.c` |
+| `sensorarrayFdcSampleConvert.inc` | `core/measure/fdc/sensorarrayFdcQuality.c` |
+
+Private cross-file declarations live in
+`core/measure/fdc/sensorarrayFdcInternal.h`. FDC ready/read/rescue,
+INTB/STATUS/DRDY semantics, and validity checks were not rewritten.
+
+### ROWS Full-Chain Semantics
+
+`ROWS?`, `ROWS=N`, `ROWLIMIT=N`, and `SCANROWS=N` target one active row config.
+Pending rows apply at a frame boundary. Active rows feed scan plan, physical
+FDC row loop, frame build, fresh masks, runtime profile/warning work, and C/D/K
+output. Inactive rows retain prior state and are not newly marked stale.
+
+```text
+R50,cmd=<cmdRows>,plan=<planRows>,ph=<physicalRowsVisited>,emit=<frameRows>,pc=<profileCellsTouched>,hc=<healthCellsTouched>,path=<min|full>
+T50,r=<rows>,tu=<routeUs>/<waitUs>/<readUs>/<fillUs>/<postUs>
+P50,prof=<runtimeProfileUs>,warn=<warningUs>,res=<rescueUs>,bg=<0|1>
+H50,e=<errDelta>,sat=<satDelta>,st=<staleDelta>,rc=<rescueDelta>,top=<cells|->
+```
+
+### Compact Log Format
+
+Tags: `S50` acquisition, `F50` FDC, `A50` ADS/BAT, `O50` output, `R50` ROWS,
+`T50` timing, `P50` post-processing, `H50` health, `HC` cell event, `BD/BW`
+battery diagnostic/window, `BL/BF` BLE link/fragments, `WF/NET` Wi-Fi/name,
+`ACK/ERR` command result.
+
+Fields: `r` rows, `f` frame/fps, `seq` sequence, `rf/pf/sf` fresh masks, `bad`
+bad tuple, `ft` FDC timing, `rv` valid percent, `q` queue depth, `dr` drop,
+`cf` CRC fail, `ms` missing, `bt` battery mV, `br` battery reason, `bs`
+battery state, `a8d` AIN8-AINCOM uV, `a8g` AIN8-GND uV, `ac` AINCOM-GND uV,
+`raw` raw code, `age` sample age, `src` source, `ph` physical rows, `pc/hc`
+profile/health cells, `top` top abnormal cells, `c` cell, `d` device, `ch`
+channel, `e` error mask, `sat` saturation, `st` stale, `rc` rescue.
+
+### ADS/BAT Status
+
+`A50` now includes freshness/source fields:
+
+```text
+A50,bt=<mV|-1>,br=<reason>,bs=<present|stale|unk>,src=adc1,age=<frames>,a8d=<uV>,ac=<uV|na>,a8g=<uV|na>,rail=<mV>,rv=<0|1>,rexp=<mV>,rerr=<mV>,z=<mean>/<std>,chip=<id>,brat=<num>/<den>,j=<run>/<skip>/<bat>/<zero>/<rail>,ae=<spi>/<drdy>/<skip>
+```
+
+Battery work remains a background ADS gap task and does not feed FDC bad-frame
+classification. `BAT?`/`BATD` verified readback and BQ24074 `BW` window state
+machine are reserved but not complete in this refactor.
+
+### BLE And Wi-Fi
+
+BLE service/characteristics stay `00FF`, `FF10` CTRL_RX, `FF11` CTRL_TX,
+`FF20` DATA_TX, `FF30` LOG_TX. DATA/LOG/CTRL notifications use:
+
+```text
+G,<ch>,<mid>,<i>,<n>,<len>,<crc>
+<payload>
+```
+
+Host tools reassemble by channel/message id and validate CRC before parsing.
+nRF Connect shows fragments; use `tools/receive_ble_text.py` for whole frames
+and whole log lines.
+
+Names: BLE `CscArray_xxxxxx`, SoftAP `CscArray_xxxxxx`, mDNS
+`cscarray-xxxxxx.local`. Default Wi-Fi is OFF. Runtime commands are
+`TX?`, `TX=rel`, `TX=rt`, `ST?`, `ST=ser|ble|wifi|all`, `WIFI?`,
+`WIFI=OFF`, and `WIFI=AP`. `WIFI=STA/APSTA` and serial STA provisioning
+commands currently return `ERR,cmd=WIFI,reason=sta_nyi`; the Wi-Fi backend is
+still AP/UDP, while BLE message reassembly is implemented.
+
+### Build And Validation
+
+Use ESP-IDF v5.5.1 for firmware and repository `.venv` for host tools:
+
+```powershell
+idf reconfigure
+idf build
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\audit_config_surface.py
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\check_no_legacy_config_usage.py
+```
+
+Validation order is fixed:
+
+```powershell
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_transports.py --port COM11 --rows 1,2,4,8 --duration 120 --serial --stream all --tx rel
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_transports.py --rows 1,2,4,8 --duration 120 --ble --stream all --tx rel
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_transports.py --rows 1,2,4,8 --duration 120 --wifi --wifi-host cscarray-xxxxxx.local --stream all --tx rel
+```
+
+Wi-Fi validation requires the device to already be reachable on the provided
+host/IP and does not switch the PC to the ESP SoftAP.
+
 ## Current runtime architecture and text protocol
 
 ### Current transport, ROWS, and battery contract

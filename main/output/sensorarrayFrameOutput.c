@@ -3,11 +3,15 @@
 #include <stdio.h>
 
 #include "sensorarrayTextProtocol.h"
+#include "sensorarrayTransport.h"
 
 esp_err_t sensorarrayFrameOutputPrint(const sensorarrayFrame_t *frame)
 {
     if (!frame) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayTransportSerialSinkEnabled()) {
+        return ESP_OK;
     }
 
     sensorarrayTextPacket_t packet;

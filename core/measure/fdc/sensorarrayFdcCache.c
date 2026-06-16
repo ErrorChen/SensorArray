@@ -1,5 +1,7 @@
+#include "sensorarrayFdcInternal.h"
+
 // Split from core/measure/sensorarrayMeasure.c to keep FDC matrix internals isolated.
-static void sensorarrayMeasureRuntimeConfigsFromApplied(sensorarrayState_t *state,
+void sensorarrayMeasureRuntimeConfigsFromApplied(sensorarrayState_t *state,
                                                         sensorarrayFdcDeviceId_t devId,
                                                         sensorarrayFdcRuntimeChannelConfig_t configs[4])
 {
@@ -26,12 +28,16 @@ static void sensorarrayMeasureRuntimeConfigsFromApplied(sensorarrayState_t *stat
     }
 }
 
-static uint32_t sensorarrayMeasureFdcTheoreticalFrameFpsX100(uint32_t roundUs)
+uint32_t sensorarrayMeasureFdcTheoreticalFrameFpsX100(uint32_t roundUs)
 {
-    return roundUs ? (uint32_t)(100000000ull / ((uint64_t)roundUs * SENSORARRAY_MATRIX_ROWS)) : 0u;
+    uint8_t rows = sensorarrayScanConfigGetActiveRows();
+    if (rows < 1u || rows > SENSORARRAY_MATRIX_ROWS) {
+        rows = SENSORARRAY_MATRIX_ROWS;
+    }
+    return roundUs ? (uint32_t)(100000000ull / ((uint64_t)roundUs * rows)) : 0u;
 }
 
-static const char *sensorarrayMeasureFdcProfileTooSlowActionName(void)
+const char *sensorarrayMeasureFdcProfileTooSlowActionName(void)
 {
 #if CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_FORCE_TARGET_BUDGET
     return "force_target_budget";
@@ -42,7 +48,7 @@ static const char *sensorarrayMeasureFdcProfileTooSlowActionName(void)
 #endif
 }
 
-static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
+void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
                                             uint8_t row,
                                             const char *action,
                                             uint32_t roundUs,
@@ -92,7 +98,7 @@ static void sensorarrayMeasureLogFdcPfuDiag(sensorarrayFdcDeviceId_t devId,
            settleCount[3]);
 }
 
-static void sensorarrayMeasureLogFdcPfuFastProfile(sensorarrayFdcDeviceId_t devId,
+void sensorarrayMeasureLogFdcPfuFastProfile(sensorarrayFdcDeviceId_t devId,
                                                    uint8_t row,
                                                    const char *action,
                                                    uint32_t oldRoundUs,
@@ -142,7 +148,7 @@ static void sensorarrayMeasureLogFdcPfuFastProfile(sensorarrayFdcDeviceId_t devI
            decisionReason ? decisionReason : SENSORARRAY_NA);
 }
 
-static void sensorarrayMeasureLogFdcPfuApplyResult(sensorarrayFdcDeviceId_t devId,
+void sensorarrayMeasureLogFdcPfuApplyResult(sensorarrayFdcDeviceId_t devId,
                                                    uint8_t row,
                                                    const char *why,
                                                    const char *action,
@@ -174,7 +180,7 @@ static void sensorarrayMeasureLogFdcPfuApplyResult(sensorarrayFdcDeviceId_t devI
            (unsigned long)diffWriteCount);
 }
 
-static bool sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(
+bool sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(
     sensorarrayState_t *state,
     uint8_t row,
     sensorarrayFdcDeviceId_t devId,
@@ -218,9 +224,9 @@ static bool sensorarrayMeasurePromoteFdcExpectedProfileToCellCache(
     return promoted;
 }
 
-static uint8_t s_fdcCacheMissLoggedMask[SENSORARRAY_MATRIX_ROWS][2];
+uint8_t s_fdcCacheMissLoggedMask[SENSORARRAY_MATRIX_ROWS][2];
 
-static esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *state,
+esp_err_t sensorarrayMeasureApplyFdcCachedRowConfig(sensorarrayState_t *state,
                                                            uint8_t row,
                                                            sensorarrayFdcDeviceId_t devId,
                                                            const char *reason,

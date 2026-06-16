@@ -1,0 +1,230 @@
+menu "Logging"
+
+choice SENSORARRAY_LOG_PROFILE
+    prompt "Log profile"
+    default SENSORARRAY_LOG_PROFILE_NORMAL
+config SENSORARRAY_LOG_PROFILE_QUIET
+    bool "Quiet"
+config SENSORARRAY_LOG_PROFILE_NORMAL
+    bool "Normal"
+config SENSORARRAY_LOG_PROFILE_DIAGNOSTIC
+    bool "Diagnostic"
+config SENSORARRAY_LOG_PROFILE_VERBOSE
+    bool "Verbose"
+endchoice
+
+config SENSORARRAY_LOG_PERIOD_FRAMES
+    int "Log summary period in frames"
+    default 50
+    range 1 1000
+
+config SENSORARRAY_LOG_SHORT_FIELDS
+    bool "Use compact short-field logs"
+    default y
+
+choice SENSORARRAY_FDC_LOG_FORMAT
+    prompt "FDC diagnostic log format"
+    default SENSORARRAY_FDC_LOG_FORMAT_COMPACT
+config SENSORARRAY_FDC_LOG_FORMAT_VERBOSE
+    bool "Verbose key=value diagnostics"
+config SENSORARRAY_FDC_LOG_FORMAT_COMPACT
+    bool "Compact token diagnostics"
+endchoice
+
+choice SENSORARRAY_LOG_FORMAT
+    prompt "SensorArray runtime log format"
+    default SENSORARRAY_LOG_FORMAT_COMPACT_KV
+config SENSORARRAY_LOG_FORMAT_LEGACY
+    bool "Legacy verbose logs"
+config SENSORARRAY_LOG_FORMAT_COMPACT_KV
+    bool "Compact key=value logs"
+config SENSORARRAY_LOG_FORMAT_COMPACT_CSV
+    bool "Compact CSV logs"
+endchoice
+
+config SENSORARRAY_LOG_OMIT_DEFAULT_FIELDS
+    bool "Omit default masks and sentinel fields from compact normal logs"
+    default y
+
+config SENSORARRAY_LOG_MASK_SHORT_FORM
+    bool "Use compact mask shorthand in logs"
+    default y
+
+config SENSORARRAY_FDC_ROW_LOG_LEVEL
+    int "FDC row log level (0 off, 1 anomaly, 2 sampled, 3 verbose compact, 4 legacy verbose)"
+    default 1
+    range 0 4
+
+config SENSORARRAY_FDC_DEVICE_READ4_LOG_LEVEL
+    int "FDC read4 log level (0 off, 1 anomaly, 2 sampled, 3 sampled raw/freq, 4 every read)"
+    default 0
+    range 0 4
+
+config SENSORARRAY_FDC_LOG_READY_EVERY_ROW
+    bool "Print FDC ready diagnostics for every row"
+    default n
+
+config SENSORARRAY_FDC_LOG_ROW_PARALLEL_TIMING
+    bool "Print per-row FDC parallel overlap timing"
+    default n
+
+config SENSORARRAY_FDC_ROW_VERBOSE_LOG
+    bool "Print compact FE/FR row diagnostics"
+    default y
+
+config SENSORARRAY_OUTPUT_LEGACY_MATRIXFDC_CAP
+    bool "Use legacy MATRIXFDC_CAP output tag"
+    default n
+
+config SENSORARRAY_FDC_DIFF_CACHE_APPLY
+    bool "Apply only changed FDC row cache registers"
+    default y
+
+config SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
+    bool "Print verbose cache no-diff/skipped logs"
+    default n
+
+
+config SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
+    int "Sample normal FDC row/device diagnostics every N frames"
+    default 0
+    range 0 10000
+    help
+        0 disables sampled normal-path diagnostics. Exceptional timeout,
+        stale, duplicate, I2C error and fallback diagnostics are still printed.
+
+config SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS
+    bool "Print normal full-poll success diagnostics"
+    default n
+
+config SENSORARRAY_LOG_FRAME_SUMMARY
+    bool "Print formal FDC frame summary"
+    default y
+
+config SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES
+    int "Compact frame summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_LOG_FRAME_SUMMARY_ON_ANOMALY
+    bool "Print frame summary immediately on anomaly"
+    default y
+
+config SENSORARRAY_LOG_FRAME_OUTPUT_LEGACY
+    bool "Print legacy FDC_FRAME_OUTPUT every frame"
+    default n
+
+config SENSORARRAY_LOG_ROW_SUMMARY
+    bool "Print formal FDC row summary"
+    default n
+
+config SENSORARRAY_LOG_I2C_STATS_EVERY_N_FRAMES
+    int "BOARD_I2C_STATS aggregate period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_LOG_TIMING_STATS_EVERY_N_FRAMES
+    int "FDC_TIMING_STATS aggregate period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_LOG_LOW_LEVEL_I2C_XFER
+    bool "Print every board-level I2C transaction"
+    default n
+
+config SENSORARRAY_LOG_FDC_REGISTER_TRACE
+    bool "Print FDC register trace"
+    default n
+
+config SENSORARRAY_LOG_SWEEP_CANDIDATE_VERBOSE
+    bool "Print every sweep candidate detail"
+    default n
+
+config SENSORARRAY_LOG_WORKER_VERBOSE
+    bool "Print verbose FDC worker logs"
+    default n
+
+config SENSORARRAY_LOG_CACHE_APPLY_VERBOSE
+    bool "Print verbose FDC cache apply details"
+    default n
+
+config SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ
+    bool "Allow safe-default FDC row configs in formal reads"
+    default n
+    help
+        Keep disabled for normal operation: uncalibrated cells are marked
+        invalid and scheduled for rescue instead of being read as normal data.
+
+config SENSORARRAY_FDC_RAW_DEBUG_LOG
+    bool "Print DEBUGFDC_RAW alongside MATRIXFDC"
+    default n
+
+config SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
+    int "FDC timing summary output interval in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES
+    int "FDC compact timing aggregate period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
+    int "FDC profile compact summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES
+    int "FDC ready compact summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
+    int "FDC compact timing summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES
+    int "FDC quality/sweep compact summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
+    int "FDC I2C compact summary period in MATRIXFDC frames"
+    default 20
+    range 0 10000
+
+config SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
+    bool "Aggregate FDC timing summary over multiple frames"
+    default y
+
+config SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG
+    bool "Print compact bottleneck on frame overrun"
+    default y
+
+config SENSORARRAY_FDC_OVERRUN_HARD_US
+    int "Hard overrun threshold for immediate OV/BN output (us)"
+    default 250000
+    range 1000 5000000
+    help
+        Stable FDC frames above the target budget are summarized in OV20/BN20.
+        Only frames above this hard threshold use immediate synchronous output.
+
+config SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME
+    bool "Print per-frame timing summary"
+    default n
+
+config SENSORARRAY_FDC_PROFILE_ROW_DEFAULT
+    bool "Print SCAN_ROW_TIMING by default"
+    default n
+
+config SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT
+    bool "Print SCAN_DEVICE_TIMING by default"
+    default n
+
+config SENSORARRAY_FDC_I2C_TRACE_RING_SIZE
+    int "FDC I2C trace ring size"
+    default 128
+    range 0 1024
+
+endmenu

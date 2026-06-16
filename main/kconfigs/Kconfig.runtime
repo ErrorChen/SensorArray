@@ -1,0 +1,760 @@
+menu "Runtime"
+
+choice SENSORARRAY_OPERATION_MODE
+    prompt "Operation mode"
+    default SENSORARRAY_OPERATION_FDC_WITH_ADS_GAP
+config SENSORARRAY_OPERATION_FDC_ONLY
+    bool "FDC only"
+config SENSORARRAY_OPERATION_FDC_WITH_ADS_GAP
+    bool "FDC with ADS gap tasks"
+config SENSORARRAY_OPERATION_MIXED_EXPERIMENTAL
+    bool "Mixed ADS/FDC experimental"
+endchoice
+
+config SENSORARRAY_TARGET_FPS
+    int "Target/reference FPS for budgets"
+    default 20
+    range 1 200
+    help
+        Used as a budget/profile target. It must not be used as an unconditional
+        frame-rate limiter unless an explicit runtime pacing option enables that.
+
+config SENSORARRAY_DEFAULT_ACTIVE_ROWS
+    int "Default active matrix rows"
+    default 8
+    range 1 8
+
+config SENSORARRAY_FDC_CORE
+    int "FDC acquisition core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+choice SENSORARRAY_FDC_READY_MODE
+    prompt "FDC ready mode"
+    default SENSORARRAY_FDC_READY_INTB_STRICT
+config SENSORARRAY_FDC_READY_INTB_STRICT
+    bool "INTB strict"
+config SENSORARRAY_FDC_READY_INTB_STATUS
+    bool "INTB plus status confirm"
+config SENSORARRAY_FDC_READY_POLL_ONLY
+    bool "Poll only"
+config SENSORARRAY_FDC_READY_LEGACY_FALLBACK
+    bool "Legacy fallback"
+endchoice
+
+choice SENSORARRAY_FDC_STALE_UNREAD_MODE
+    prompt "FDC stale unread mode"
+    default SENSORARRAY_FDC_STALE_UNREAD_DRAIN
+config SENSORARRAY_FDC_STALE_UNREAD_IGNORE
+    bool "Ignore"
+config SENSORARRAY_FDC_STALE_UNREAD_DRAIN
+    bool "Drain"
+config SENSORARRAY_FDC_STALE_UNREAD_DIAG
+    bool "Diagnostic only"
+config SENSORARRAY_FDC_STALE_UNREAD_RESCUE
+    bool "Rescue"
+endchoice
+
+choice SENSORARRAY_FDC_BOOT_PROFILE
+    prompt "FDC boot profile"
+    default SENSORARRAY_FDC_BOOT_PROFILE_BALANCED_20FPS
+config SENSORARRAY_FDC_BOOT_PROFILE_HIGH_PRECISION
+    bool "High precision"
+config SENSORARRAY_FDC_BOOT_PROFILE_BALANCED_20FPS
+    bool "Balanced 20 FPS"
+config SENSORARRAY_FDC_BOOT_PROFILE_FAST_DEBUG
+    bool "Fast debug"
+endchoice
+
+choice SENSORARRAY_FDC_RUNTIME_PROFILE
+    prompt "FDC runtime profile"
+    default SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED_20FPS
+config SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    bool "High precision"
+config SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED_20FPS
+    bool "Balanced 20 FPS"
+config SENSORARRAY_FDC_RUNTIME_PROFILE_FAST_RUNTIME
+    bool "Fast runtime"
+endchoice
+
+menu "Multicore acquisition architecture"
+
+config SENSORARRAY_ADC_CORE
+    int "ADC / acquisition core"
+    default 1
+    range 0 1
+
+config SENSORARRAY_MISC_CORE
+    int "Misc / log / output / network core"
+    default 0
+    range 0 1
+
+config SENSORARRAY_FDC_PRIMARY_WORKER_CORE
+    int "Primary FDC worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_FDC_SECONDARY_WORKER_CORE
+    int "Secondary FDC worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_ADS_WORKER_CORE
+    int "ADS worker core"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_LOG_TASK_CORE
+    int "Log task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+config SENSORARRAY_OUTPUT_TASK_CORE
+    int "Output task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+config SENSORARRAY_NET_TASK_CORE
+    int "Network task core"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+endmenu
+
+config SENSORARRAY_FDC_MATRIX_SETTLE_US
+    int "Settle time after row/path switching (us)"
+    default 1000
+    range 0 100000
+
+config SENSORARRAY_FDC_MATRIX_DISCARD_SAMPLES
+    int "Discarded sample groups after each row switch"
+    default 0
+    range 0 8
+
+config SENSORARRAY_FDC_DISCARD_FRAMES_AFTER_ROW_SWITCH
+    int "Autoscan frames discarded per FDC after each row switch"
+    default 0
+    range 0 8
+
+config SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE
+    bool "Restart each FDC row conversion epoch"
+    default y
+
+config SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP
+    bool "Use CONFIG.SLEEP_MODE_EN for row epoch restart"
+    default y
+    depends on SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE
+
+config SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US
+    int "Row switch settle time while FDC devices are sleeping (us)"
+    default 50
+    range 0 100000
+
+
+config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ
+    bool "Read primary and secondary FDC devices with dual worker tasks"
+    default y
+
+config SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE
+    bool "Require guarded FDC dual-worker result handoff"
+    default y
+
+config SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
+    bool "Force single-thread FDC row read for debugging"
+    default n
+    help
+        Debug-only option. Disable the secondary worker path to isolate
+        parallel worker scheduling and stale-result issues.
+
+config SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME
+    bool "Disable FDC parallel reads for the rest of a frame after a worker timeout"
+    default y
+
+config SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES
+    int "FDC parallel retry interval after an in-frame timeout"
+    default 10
+    range 0 10000
+
+config SENSORARRAY_FDC_WORKER_TASK_STACK
+    int "FDC worker task stack bytes"
+    default 6144
+    range 4096 32768
+
+config SENSORARRAY_FDC_WORKER_TASK_PRIO
+    int "FDC worker task priority"
+    default SENSORARRAY_SCAN_TASK_PRIO
+    range 1 24
+
+config SENSORARRAY_FDC_WORKER_TASK_CORE
+    int "FDC worker task core (-1 means no affinity)"
+    default -1
+    range -1 1
+    help
+        Legacy fallback used only when the per-worker core options are not set
+        by older sdkconfig files.
+        -1 keeps the workers unpinned and must use the unpinned static task API.
+        Pinned task creation only receives normalized core IDs in the valid CPU
+        range.
+
+config SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE
+    int "Primary FDC worker task core (-1 means no affinity)"
+    default SENSORARRAY_FDC_PRIMARY_WORKER_CORE
+    range -1 1
+
+config SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE
+    int "Secondary FDC worker task core (-1 means no affinity)"
+    default SENSORARRAY_FDC_SECONDARY_WORKER_CORE
+    range -1 1
+
+config SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
+    int "FDC worker row synchronization timeout (ms)"
+    default 25
+    range 1 1000
+
+config SENSORARRAY_FDC_INTB_ENABLE
+    bool "Use FDC2214 INTB data-ready hint"
+    default y
+
+config SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE
+    bool "Read DATA directly after a new INTB edge"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+    help
+        Skip the normal pre-DATA STATUS transaction only when a new INTB edge
+        belongs to the current row epoch. If DATA validation fails, firmware
+        waits for the next conversion and uses the existing STATUS-confirmed
+        path. An INTB level that was already low when armed is never accepted
+        by this fast path.
+
+config SENSORARRAY_FDC_INTB_ACTIVE_LOW
+    bool "Treat FDC2214 INTB as active-low"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_INTB1_GPIO
+    int "Primary FDC INTB GPIO"
+    default 17
+    range -1 48
+
+config SENSORARRAY_FDC_INTB2_GPIO
+    int "Secondary FDC INTB GPIO"
+    default 18
+    range -1 48
+
+config SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE
+    bool "Use any-edge trigger for FDC INTB"
+    default n
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE
+    bool "Use falling-edge trigger for active-low FDC INTB"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
+    int "INTB/DRDY wait timeout per row-device (us)"
+    default 10000
+    range 100 1000000
+
+choice SENSORARRAY_FDC_READY_POLICY
+    prompt "FDC matrix ready policy"
+    default SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+config SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
+    bool "Debug: bounded STATUS polling only"
+config SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
+    bool "INTB hint, then one STATUS verify"
+config SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
+    bool "Legacy diagnostic: INTB hint, STATUS verify, bounded fallback polling"
+config SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
+    bool "Production: INTB strict level, one STATUS ack after INTB"
+endchoice
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+    bool "Legacy alias: allow one short STATUS confirmation retry after active INTB"
+    default y
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX
+    int "Legacy maximum after-INTB STATUS rechecks (matrix strict path clamps to one)"
+    default 1
+    range 0 1
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US
+    int "Legacy delay before the single after-INTB STATUS confirmation retry (us)"
+    default 100
+    range 0 10000
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+
+config SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US
+    int "Total after-INTB recheck deadline (us)"
+    default 1000
+    range 0 100000
+    depends on SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
+
+config SENSORARRAY_FDC_INTB_WAIT_MARGIN_US
+    int "Extra INTB wait margin after estimated conversion time (us)"
+    default 2000
+    range 0 100000
+
+config SENSORARRAY_FDC_READY_GUARD_US
+    int "Guard time after estimated FDC conversion before one timeout STATUS diagnostic (us)"
+    default 3000
+    range 0 100000
+
+config SENSORARRAY_FDC_DISABLE_READY_STATUS_POLL
+    bool "Disable STATUS polling during normal FDC ready wait"
+    default y
+    help
+        Keep enabled for normal matrix frames. Explicit legacy poll-only or
+        INTB-with-poll-fallback diagnostics require this option to be disabled.
+
+config SENSORARRAY_FDC_STATUS_AFTER_TIMEOUT_FALLBACK
+    bool "Allow one STATUS fallback after estimated round plus guard"
+    default y
+
+config SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY
+    int "STATUS confirmation retries after active-low INTB"
+    default 1
+    range 0 1
+
+config SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY_US
+    int "Delay before the one STATUS confirmation retry after INTB (us)"
+    default 100
+    range 0 10000
+
+config SENSORARRAY_FDC_STALE_UNREAD_DRAIN_ENABLE
+    bool "Drain stale unread DATA_CHx when unread is full but DRDY is low"
+    default y
+    help
+        When the formal matrix ready gate sees CHx_UNREADCONV full with DRDY
+        still low after the estimated round plus guard, read DATA_CH0..CH3
+        into a discard buffer to clear sticky unread state. The discard buffer
+        is never emitted as MATRIXFDC data.
+
+config SENSORARRAY_FDC_STALE_UNREAD_HARD_THRESHOLD
+    int "Consecutive stale unread/no-DRDY misses before hard classification"
+    default 3
+    range 1 32
+    help
+        Per row-device threshold. Below this value, unread-full/no-DRDY is a
+        soft stale-risk/drain event and does not request cell rescue.
+
+config SENSORARRAY_FDC_UNREAD_NO_DRDY_RESCUE_ENABLE
+    bool "Allow unread-full/no-DRDY stale events to request rescue"
+    default n
+    help
+        Disabled by default. Leave off unless diagnostics prove that repeated
+        unread-full/no-DRDY after drain is a true hard device fault.
+
+config SENSORARRAY_FDC_DIAG_READ_UNREAD_FULL_WITHOUT_DRDY
+    bool "Diagnostic read of unread-full DATA_CHx while DRDY is low"
+    default n
+    help
+        Controlled diagnostic mode. Reads DATA_CH0..CH3 to a discard/diagnostic
+        buffer when unread is full but DRDY is low after est+guard, then logs
+        FDC_UNREAD_ONLY_DIAG. The data is not accepted into MATRIXFDC_CAP.
+
+config SENSORARRAY_FDC_POLL_FALLBACK_MAX_POLLS
+    int "Maximum STATUS fallback polls per row-device"
+    default 3
+    range 0 100
+
+config SENSORARRAY_FDC_POLL_FALLBACK_DELAY_US
+    int "Delay between fallback STATUS polls (us)"
+    default 1000
+    range 0 10000
+
+config SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY
+    int "Maximum short STATUS polls after unread-full before DRDY"
+    default 3
+    range 1 100
+
+config SENSORARRAY_FDC_READY_POLL_INTERVAL_US
+    int "Delay between guarded STATUS ready polls (us)"
+    default 1000
+    range 0 10000
+
+config SENSORARRAY_FDC_REQUIRE_DRDY_FOR_VALID
+    bool "Require DRDY plus unread bits before DATA_CHx reads"
+    default y
+
+config SENSORARRAY_FDC_SUPPRESS_STATUS_READ_BEFORE_INTB
+    bool "Legacy compatibility: suppress STATUS reads before INTB is ready"
+    default y
+
+config SENSORARRAY_FDC_DISABLE_INTB_FOR_DEBUG
+    bool "Disable FDC INTB output for debug polling"
+    default n
+
+config SENSORARRAY_FDC_INTB_FALLBACK_POLLING
+    bool "Fall back to STATUS polling when INTB is unavailable or late"
+    default n
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX
+    int "Maximum row-device watchdog retries"
+    default 1
+    range 0 4
+
+config SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER
+    int "Row-device watchdog multiplier of one row budget"
+    default 10
+    range 1 100
+
+config SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US
+    int "Override row-device watchdog hard timeout (us, 0=derive from frame budget)"
+    default 0
+    range 0 1000000
+
+config SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS
+    bool "Allow recovery soft timeout to reset only on real device progress"
+    default y
+
+config SENSORARRAY_FDC_INTB_WEAK_PULLUP
+    bool "Enable weak pull-up on FDC INTB GPIOs"
+    default y
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+config SENSORARRAY_FDC_INTB_DEBUG_LOG
+    bool "Print verbose FDC INTB diagnostics"
+    default n
+    depends on SENSORARRAY_FDC_INTB_ENABLE
+
+
+choice SENSORARRAY_FDC_DEFAULT_PROFILE
+    prompt "Default FDC matrix profile"
+    default SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    help
+        Selects the boot/cache fallback RCOUNT/SETTLECOUNT profile used when a
+        calibrated per-cell cache entry is missing. This does not enable
+        profile_too_slow rescue or runtime RCOUNT reduction by itself.
+
+config SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    bool "high_precision: conservative stable profile"
+    help
+        Existing stable profile. Uses RCOUNT 0x2089 and SETTLECOUNT 0x0080.
+
+config SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    bool "balanced_20fps: target about 20 fps"
+    help
+        Lower RCOUNT profile sized for the 50 ms / 8 row matrix budget. Uses
+        RCOUNT 0x0E00 and SETTLECOUNT 0x0080.
+
+config SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    bool "fast_debug: short conversion debug profile"
+    help
+        Aggressive debug profile for timing experiments. Uses RCOUNT 0x0900 and
+        SETTLECOUNT 0x0080; validate noise and data quality before trusting it.
+
+endchoice
+
+config SENSORARRAY_FDC_PROFILE_NAME
+    string
+    default "high_precision" if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default "balanced_20fps" if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default "fast_debug" if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    default "high_precision"
+
+
+config SENSORARRAY_FDC_RUNTIME_PROFILE_NAME
+    string
+    default "high_precision" if SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    default "balanced_runtime" if SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    default "fast_runtime" if SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
+    default "balanced_runtime"
+
+config SENSORARRAY_FDC_RUNTIME_RCOUNT
+    hex
+    default 0x2089 if SENSORARRAY_FDC_RUNTIME_PROFILE_HIGH_PRECISION
+    default 0x0E00 if SENSORARRAY_FDC_RUNTIME_PROFILE_BALANCED
+    default 0x0900 if SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
+    default 0x0E00
+
+choice SENSORARRAY_FDC_PROFILE_TOO_SLOW_ACTION
+    prompt "Action when formal runtime profile exceeds row budget"
+    default SENSORARRAY_FDC_PROFILE_TOO_SLOW_AUTO_SELECT_BALANCED
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_DIAG_ONLY
+    bool "diag_only"
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_AUTO_SELECT_BALANCED
+    bool "auto_select_balanced"
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_FORCE_TARGET_BUDGET
+    bool "force_target_budget"
+
+endchoice
+
+config SENSORARRAY_FDC_PROFILE_CHANGE_LOG
+    bool "Log formal runtime profile changes"
+    default y
+
+config SENSORARRAY_FDC_FORCE_HIGH_PRECISION_BOOT_SWEEP
+    bool "Force high precision for boot/full sweep"
+    default y
+
+config SENSORARRAY_FDC_RCOUNT_DEFAULT
+    hex
+    default 0x2089 if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default 0x0E00 if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default 0x0900 if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    default 0x2089
+    help
+        Default conversion count used by the selected profile and by safe
+        fallback cache entries. Calibrated cache entries still take precedence.
+
+config SENSORARRAY_FDC_SETTLECOUNT_DEFAULT
+    hex "Default FDC SETTLECOUNT_CHx"
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_HIGH_PRECISION
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_BALANCED_20FPS
+    default 0x0080 if SENSORARRAY_FDC_PROFILE_FAST_DEBUG
+    default 0x0080
+    help
+        Conservative matrix default. The previous 0x000A was too aggressive for
+        row switching; speed tuning should happen after valid conversions are stable.
+
+config SENSORARRAY_FDC_ROW_WAIT_SAFETY_US
+    int "Safety margin after one FDC autoscan cycle (us)"
+    default 2000
+    range 0 100000
+
+config SENSORARRAY_FDC_SWEEP_STEP_TIMEOUT_MS
+    int "FDC sweep timeout per candidate (ms)"
+    default 180
+    range 1 5000
+
+config SENSORARRAY_FDC_SWEEP_TOTAL_TIMEOUT_MS
+    int "FDC sweep bounded timeout per channel (ms)"
+    default 2500
+    range 10 60000
+
+config SENSORARRAY_FDC_SWEEP_SETTLE_MS
+    int "FDC sweep settle time after applying a candidate (ms)"
+    default 20
+    range 0 1000
+
+config SENSORARRAY_FDC_SWEEP_SAMPLE_TIMEOUT_MS
+    int "FDC sweep sample wait timeout (ms)"
+    default 80
+    range 1 5000
+
+config SENSORARRAY_FDC_SWEEP_SAMPLE_POLL_MS
+    int "FDC sweep sample polling interval (ms)"
+    default 2
+    range 1 1000
+
+config SENSORARRAY_FDC_DIRECT_FAIL_THRESHOLD
+    int "Direct-read failures before fast sweep"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_CELL_FAST_SWEEP_FAIL_THRESHOLD
+    int "Cell failures before a bounded fast sweep"
+    default 2
+    range 1 32
+
+config SENSORARRAY_FDC_FAST_FAIL_THRESHOLD
+    int "Fast-sweep failures before full rescue"
+    default 2
+    range 1 32
+
+config SENSORARRAY_FDC_FAST_SWEEP_COOLDOWN_MS
+    int "Cooldown between fast sweeps for a cell"
+    default 30000
+    range 0 600000
+
+config SENSORARRAY_FDC_FAST_SWEEP_MIN_COOLDOWN_MS
+    int "Minimum cooldown between automatic runtime fast sweeps for a cell"
+    default 30000
+    range 0 600000
+
+config SENSORARRAY_FDC_RUNTIME_FAST_SWEEP_ENABLE
+    bool "Allow automatic runtime fast sweeps"
+    default y
+
+config SENSORARRAY_FDC_REAPPLY_CACHE_ON_WARNING
+    bool "Reapply cached row config on amplitude warnings"
+    default n
+
+config SENSORARRAY_FDC_WARNING_REAPPLY_THRESHOLD
+    int "Amplitude warnings before forcing cached row reapply"
+    default 2
+    range 1 32
+
+config SENSORARRAY_FDC_RESCUE_HARD_ERROR_THRESHOLD
+    int "Hard runtime errors before rescue can be scheduled"
+    default 4
+    range 1 32
+
+config SENSORARRAY_FDC_WARNING_REAPPLY_ONCE_PER_FINGERPRINT
+    bool "Allow at most one amplitude-warning cache reapply per fingerprint"
+    default y
+
+config SENSORARRAY_FDC_AMPLITUDE_FAST_SWEEP_THRESHOLD
+    int "Fresh amplitude warnings before local fast sweep"
+    default 4
+    range 1 32
+
+config SENSORARRAY_FDC_WARNING_REAPPLY_COOLDOWN_FRAMES
+    int "Cooldown between amplitude-warning sanity reapply attempts"
+    default 50
+    range 0 100000
+
+config SENSORARRAY_FDC_WARNING_FAST_SWEEP_COOLDOWN_MS
+    int "Cooldown between amplitude-warning fast sweep requests"
+    default 1000
+    range 0 600000
+
+config SENSORARRAY_FDC_FULL_SWEEP_RESCUE_COOLDOWN_MS
+    int "Cooldown between full rescue sweeps for a cell"
+    default 10000
+    range 0 600000
+
+config SENSORARRAY_FDC_FULL_RESCUE_COOLDOWN_MS
+    int "Cooldown between full-matrix rescue sweeps"
+    default 3000
+    range 0 600000
+
+config SENSORARRAY_FDC_SUPPRESS_ALL_ZERO_FRAMES
+    bool "Suppress all-zero invalid MATRIXFDC frames"
+    default n
+
+config SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED
+    bool "Require at least one valid boot sweep sample before normal matrix output"
+    default y
+
+config SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS
+    int "Minimum valid FDC cells for normal boot quality"
+    default 48
+    range 1 64
+
+config SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED
+    bool "Allow explicit degraded FDC boot quality"
+    default y
+    help
+        When enabled, a boot sweep with some valid cells but fewer than the
+        required minimum is reported as degraded instead of transport failure.
+
+config SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK
+    hex "Required FDC boot row mask"
+    default 0xFF
+    range 0 0xFF
+
+config SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
+    bool "Require both primary and secondary FDC devices for normal boot"
+    default y
+    help
+        When enabled, a missing secondary FDC enters diagnostic/safe idle
+        instead of silently treating D5-D8 as generic invalid cells.
+
+config SENSORARRAY_FDC_NO_OSC_RESCUE_COOLDOWN_MS
+    int "Cooldown for no-oscillation rescue"
+    default 500
+    range 0 60000
+
+config SENSORARRAY_FDC_ALL_INVALID_RESTART_THRESHOLD
+    int "Failed all-invalid rescues before diagnostic mode/restart"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_ALL_INVALID_RESCUE_THRESHOLD
+    int "Consecutive all-invalid frames before full rescue"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_ALL_INVALID_FULL_SWEEP_THRESHOLD
+    int "Consecutive all-invalid frames before queuing a full sweep"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS
+    int "Cooldown between full sweep requests"
+    default 5000
+    range 0 600000
+
+config SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS
+    int "Full matrix rescue failures before diagnostic mode"
+    default 3
+    range 1 32
+
+config SENSORARRAY_FDC_ROW_RESCUE_FAIL_COUNT
+    int "Per-row fail count hint for rescue diagnostics"
+    default 4
+    range 1 8
+
+menu "Scheduling"
+
+config SENSORARRAY_SCAN_TASK_CORE
+    int "Scan task core id (0 or 1)"
+    default SENSORARRAY_ADC_CORE
+    range 0 1
+
+config SENSORARRAY_COMM_TASK_CORE
+    int "Comm task core id (0 or 1)"
+    default SENSORARRAY_MISC_CORE
+    range 0 1
+
+config SENSORARRAY_BLE_TASK_CORE
+    int "BLE task core id (0 or 1)"
+    default 0
+    range 0 1
+    depends on SENSORARRAY_ENABLE_BLE
+
+config SENSORARRAY_SCAN_TASK_STACK
+    int "Scan task stack bytes"
+    default 16384
+    range 8192 32768
+    help
+        The scan task owns the complete FDC frame call stack and timing
+        aggregates. Keep this comparable to ESP_MAIN_TASK_STACK_SIZE.
+
+config SENSORARRAY_SCAN_TASK_PRIO
+    int "Scan task priority"
+    default 12
+
+config SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE
+    bool "Print scan-task stack and heap diagnostics every 100 frames"
+    default n
+    help
+        Enable only while diagnosing long-run memory or stack behavior. These
+        printf calls execute in the scan task and intentionally remain disabled
+        in the formal timing profile because they introduce a visible frame gap.
+
+config SENSORARRAY_COMM_TASK_STACK
+    int "Comm task stack bytes"
+    default 4096
+
+config SENSORARRAY_COMM_TASK_PRIO
+    int "Comm task priority"
+    default 8
+
+endmenu
+
+menu "ADS read sequencing policy"
+
+config SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX
+    bool "Call STOP1 before INPMUX change"
+    default n
+
+config SENSORARRAY_ADS_READ_SETTLE_AFTER_MUX_MS
+    int "Delay after INPMUX change (ms)"
+    default 0
+    range 0 5000
+
+config SENSORARRAY_ADS_READ_START1_EVERY_READ
+    bool "Call START1 on every read"
+    default y
+
+config SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT
+    int "Base discard count before each final sample"
+    default 0
+    range 0 32
+
+config SENSORARRAY_ADS_READ_RETRY_COUNT
+    int "Retry count on timeout/error"
+    default 0
+    range 0 16
+
+endmenu
+
+endmenu

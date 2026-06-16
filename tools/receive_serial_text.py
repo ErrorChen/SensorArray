@@ -26,9 +26,14 @@ def main() -> int:
     parser.add_argument("--duration", type=float, default=120.0)
     parser.add_argument("--startup-wait", type=float, default=25.0)
     parser.add_argument("--set-rows", type=int, choices=range(1, 9))
+    parser.add_argument("--rows", default="")
+    parser.add_argument("--stream", choices=("data", "log", "all"))
+    parser.add_argument("--tx", choices=("rel", "rt"))
     parser.add_argument("--show-cap", action="store_true")
     parser.add_argument("--show-log", action="store_true")
     args = parser.parse_args()
+    show_cap = args.show_cap or args.stream in ("data", "all")
+    show_log = args.show_log or args.stream in ("log", "all")
     try:
         import serial
     except ImportError:
@@ -54,23 +59,33 @@ def main() -> int:
         return 2
     protocol = TextProtocolParser(
         on_cap_frame=(lambda frame: print(format_cap_preview(frame), flush=True))
-        if args.show_cap else None)
+        if show_cap else None)
     startup_deadline = time.monotonic() + args.startup_wait
     while time.monotonic() < startup_deadline:
         connection.readline()
     try:
+        if args.tx:
+            write_control(connection, f"TX={args.tx}\n".encode())
+        write_control(connection, b"ST=ser\n")
         write_control(connection, b"ROWS?\n")
         if args.set_rows:
             write_control(connection, f"ROWS={args.set_rows}\n".encode())
         started = time.monotonic()
+        rows = [int(item) for item in args.rows.split(",") if item] if args.rows else []
+        row_index = 0
+        next_row_at = started
         sent_rows_5 = False
         sent_rows_8 = False
         while time.monotonic() - started < args.duration:
             elapsed = time.monotonic() - started
-            if args.set_rows and not sent_rows_5 and elapsed >= args.duration / 3:
+            if rows and time.monotonic() >= next_row_at:
+                write_control(connection, f"ROWS={rows[row_index % len(rows)]}\n".encode())
+                row_index += 1
+                next_row_at = time.monotonic() + max(args.duration / max(len(rows), 1), 1.0)
+            if not rows and args.set_rows and not sent_rows_5 and elapsed >= args.duration / 3:
                 write_control(connection, b"ROWS=5\n")
                 sent_rows_5 = True
-            if args.set_rows and not sent_rows_8 and elapsed >= args.duration * 2 / 3:
+            if not rows and args.set_rows and not sent_rows_8 and elapsed >= args.duration * 2 / 3:
                 write_control(connection, b"ROWS=8\n")
                 sent_rows_8 = True
             raw = connection.readline()
@@ -78,7 +93,7 @@ def main() -> int:
                 continue
             line = raw.decode("ascii", errors="replace").rstrip()
             protocol.feed_line(line)
-            if args.show_log and not line.startswith(("C,", "D", "K,")):
+            if show_log and not line.startswith(("C,", "D", "K,")):
                 print(f"LOG,{line}", flush=True)
     finally:
         connection.close()

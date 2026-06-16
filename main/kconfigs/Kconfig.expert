@@ -1,0 +1,209 @@
+menu "Expert"
+
+config SENSORARRAY_EXPERT_MODE
+    bool "SensorArray expert mode"
+    default n
+
+if SENSORARRAY_EXPERT_MODE
+
+config SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+    bool "Enable FDC physical timing debug GPIOs"
+    default n
+    help
+        Debug-only oscilloscope markers. When disabled, the scan hot path does
+        not configure or toggle any of the GPIOs below.
+
+config SENSORARRAY_FDC_ROW_STROBE_GPIO
+    int "Row strobe GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_FRAME_STROBE_GPIO
+    int "Physical sweep frame strobe GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_PRIMARY_READ_WINDOW_GPIO
+    int "Primary FDC data-read window GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_SECONDARY_READ_WINDOW_GPIO
+    int "Secondary FDC data-read window GPIO"
+    default -1
+    range -1 48
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+config SENSORARRAY_FDC_DEBUG_STROBE_PULSE_US
+    int "Debug strobe pulse width (us)"
+    default 2
+    range 0 1000
+    depends on SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
+
+choice SENSORARRAY_FDC_WAVE_DEBUG_MODE
+    prompt "FDC S8/wave isolation mode"
+    default SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+    help
+        Debug-only runtime modes for oscilloscope isolation. Any non-normal
+        selection bypasses formal matrix frame publication.
+
+config SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+    bool "Normal 8x8 formal measurement"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROUTE_ONLY
+    bool "Route-only row scan; both FDCs sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD
+    bool "Hold one row; both FDCs active"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_PRIMARY_ONLY
+    bool "Scan rows; primary active, secondary sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SECONDARY_ONLY
+    bool "Scan rows; secondary active, primary sleeping"
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+    bool "Scan rows; one FDC single channel active"
+
+endchoice
+
+config SENSORARRAY_FDC_WAVE_DEBUG_ROW
+    int "Held row S index"
+    default 8
+    range 1 8
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_ROW_HOLD
+
+config SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL_SECONDARY
+    bool "Use secondary FDC for single-channel mode"
+    default n
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+
+config SENSORARRAY_FDC_WAVE_DEBUG_CHANNEL
+    int "Single-channel FDC channel index"
+    default 0
+    range 0 3
+    depends on SENSORARRAY_FDC_WAVE_DEBUG_SINGLE_CHANNEL
+
+config SENSORARRAY_FDC_WAVE_DEBUG_STEP_MS
+    int "Wave debug row/read step period (ms)"
+    default 10
+    range 1 1000
+    depends on !SENSORARRAY_FDC_WAVE_DEBUG_NORMAL
+
+config SENSORARRAY_FDC_MAP_VERIFY_DEBUG
+    bool "Print and assert D1-D8 FDC ownership/channel map at startup"
+    default n
+
+
+config SENSORARRAY_FDC_RESCUE_TASK_STACK
+    int "Reserved FDC rescue task stack bytes"
+    default 12288
+    range 4096 32768
+
+config SENSORARRAY_FDC_VERBOSE_REG_DUMP
+    bool "Dump FDC registers on boot/rescue failure"
+    default y
+
+config SENSORARRAY_FDC_DIAG_DUMP_REGS
+    bool "Dump FDC registers while in diagnostic mode"
+    default n
+
+config SENSORARRAY_FDC_DIAG_DUMP_INTERVAL_MS
+    int "Diagnostic FDC register dump interval (ms)"
+    default 5000
+    range 100 600000
+    depends on SENSORARRAY_FDC_DIAG_DUMP_REGS
+
+config SENSORARRAY_FDC_DIAG_DUMP_SKIP_OFFLINE_BUS
+    bool "Skip diagnostic FDC register dump when an I2C bus is offline"
+    default y
+    depends on SENSORARRAY_FDC_DIAG_DUMP_REGS
+
+config SENSORARRAY_FDC_VERBOSE_SCAN_LOG
+    bool "Print verbose per-row FDC scan diagnostics"
+    default n
+
+choice SENSORARRAY_FDC_VERIFY_MODE
+    prompt "Runtime FDC register readback verify mode"
+    default SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY
+config SENSORARRAY_FDC_VERIFY_MODE_FULL
+    bool "Full runtime verify"
+config SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY
+    bool "Startup/cache build verify only"
+config SENSORARRAY_FDC_VERIFY_MODE_NONE
+    bool "No runtime readback verify"
+endchoice
+
+config SENSORARRAY_FDC_HIGH_SPEED_PROFILE
+    bool "Enable experimental high-speed FDC profile candidates"
+    default n
+    help
+        Legacy sweep/debug gate for lower RCOUNT/SETTLECOUNT candidates. Use
+        SENSORARRAY_FDC_DEFAULT_PROFILE to select the normal matrix fallback
+        profile. This option does not rescue profile_too_slow by itself.
+
+config SENSORARRAY_FDC_SPEED_PROFILE_SAFE_FAST
+    bool "Report precision-guarded safe-fast FDC profile candidates"
+    default n
+    help
+        Report safe-fast candidate status in FDCSPD20. This release deliberately
+        does not mutate RCOUNT or SETTLECOUNT at runtime: profile changes require
+        a completed precision-guard and rollback controller before they can be
+        applied without risking the primary FDC acquisition path.
+
+config SENSORARRAY_FDC_PRECISION_SAFE_SEQUENCE_ENABLE
+    bool "Enable precision-safe ordered DATA register sequence probe"
+    default y
+    help
+        Keeps the existing FDC conversion profile and explicitly addresses
+        DATA registers 0x00..0x07 in order, while combining repeated-start
+        operations into fewer ESP-IDF command submissions. Runtime errors
+        permanently fall back to ordered8 until reboot.
+
+config SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
+    bool "Enable experimental_precision_affecting_profile runtime RCOUNT reduction"
+    default n
+    help
+        Disabled by default. This experimental_precision_affecting_profile
+        lowers runtime RCOUNT and can change conversion resolution, noise floor,
+        and stability. It is not part of the precision-safe 20 FPS path.
+
+config SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
+    int "Formal fast profile target autoscan round time (us)"
+    default 4000
+    range 100 100000
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
+    int "Warn when profile autoscan round estimate exceeds this row budget (us)"
+    default 6250
+    range 100 1000000
+
+config SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE
+    bool "Request FDC rescue when cached profile is too slow"
+    default n
+    help
+        Disabled by default. A slow estimated profile is a timing/performance
+        diagnostic, not an electrical failure. Rescue should be requested only
+        for invalid data, cache missing, timeout, or explicit debug experiments.
+
+config SENSORARRAY_FDC_PFU_LOG_EVERY_N_FRAMES
+    int "Repeat unchanged PFU diagnostic every N row-device visits"
+    default 100
+    range 1 100000
+
+config SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
+    int "Deprecated alias for verbose timing output interval"
+    default SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
+    range 0 10000
+
+config SENSORARRAY_FDC_DIRECT_QUALITY_SAMPLES
+    int "Direct-read quality sample count"
+    default 6
+    range 4 8
+
+endif
+
+endmenu

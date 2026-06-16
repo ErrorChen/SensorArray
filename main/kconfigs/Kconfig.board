@@ -1,0 +1,196 @@
+menu "Board"
+
+# Board-level hardware topology and electrical constants. Runtime policy lives in Runtime.
+# TMUX GPIO and polarity are defined by the tmuxSwitch component Kconfig.
+
+choice SENSORARRAY_ADS126X_VARIANT
+    prompt "ADS126x variant"
+    default SENSORARRAY_ADS_AUTO
+config SENSORARRAY_ADS_AUTO
+    bool "Auto-detect ADS1262/ADS1263 from DEV_ID"
+config SENSORARRAY_ADS1262
+    bool "ADS1262 (ADC1 only)"
+config SENSORARRAY_ADS1263
+    bool "ADS1263 (ADC1 + ADC2)"
+endchoice
+
+menu "FDC2214 matrix"
+
+config SENSORARRAY_FDC_PRIMARY_I2C_ADDR
+    hex "Primary FDC I2C address (D1..D4)"
+    default 0x2B
+
+config SENSORARRAY_FDC_SECONDARY_I2C_ADDR
+    hex "Secondary FDC I2C address (D5..D8)"
+    default 0x2A
+
+config SENSORARRAY_FDC_STARTUP_PROBE
+    bool "Probe FDC addresses on startup"
+    default y
+
+config SENSORARRAY_FDC_TANK_INDUCTOR_UH
+    int "Tank inductor value for optional conversion (uH, 0=unknown)"
+    default 0
+    range 0 1000000
+
+config SENSORARRAY_FDC_TANK_INDUCTOR_NH
+    int "Tank inductor value for MATRIXFDC capTotalPf (nH)"
+    default 18000
+    range 1 100000000
+    help
+        Default 18000 nH is 18.000 uH. capTotalPf is derived from freqHz
+        in CPU code and does not add FDC I2C transactions.
+
+
+config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    bool "Use external 40MHz CLKIN for FDC2214"
+    default y
+
+config SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL_VALUE
+    int
+    default 1 if SENSORARRAY_FDC_REF_CLOCK_USE_EXTERNAL
+    default 0
+
+config SENSORARRAY_FDC_EXTERNAL_CLOCK_HZ
+    int "FDC external CLKIN frequency Hz"
+    default 40000000
+    range 2000000 40000000
+
+endmenu
+
+
+menu "SPI DMA (ADS126x)"
+
+config SENSORARRAY_SPI_USE_DMA
+    bool "Enable SPI DMA where possible"
+    default y
+
+config SENSORARRAY_SPI_MAX_TRANSFER_BYTES
+    int "SPI max transfer size (bytes)"
+    default 64
+
+endmenu
+
+menu "ADS1263 direct diagnostics / gap fill"
+
+config SENSORARRAY_ADS_GAP_FILL_ENABLE
+    bool "Run AIN8/AIN9 direct diagnostics inside FDC ready windows"
+    default y
+
+config SENSORARRAY_ADS_START_GPIO
+    int "ADS1263 START GPIO"
+    default 48
+    range 0 48
+
+config SENSORARRAY_ADS_DRDY_GPIO
+    int "ADS1263 DRDY GPIO"
+    default 13
+    range 0 48
+
+config SENSORARRAY_ADS_DATA_RATE
+    int "ADS1263 ADC1 data-rate register code"
+    default 15
+    range 0 15
+    help
+        15 selects 38400 SPS for ADC1. ADS1263 background jobs use ADC2 at 800 SPS.
+
+config SENSORARRAY_ADS_GAP_GUARD_US
+    int "Initial FDC deadline guard for ADS gap-fill (us)"
+    default 500
+    range 100 10000
+
+config SENSORARRAY_ADS_JOB_WORST_CASE_US
+    int "ADS direct-job admission worst case (us)"
+    default 4000
+    range 100 20000
+
+config SENSORARRAY_ADS_DRDY_TIMEOUT_US
+    int "ADS DRDY notification timeout (us)"
+    default 600
+    range 100 20000
+
+config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM
+    int "Battery/input ratio numerator for the 1:1 divider"
+    default 2
+    range 0 100000
+
+config SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN
+    int "AIN8 battery divider denominator"
+    default 1
+    range 1 100000
+
+config SENSORARRAY_ADS_BATTERY_MIN_MV
+    int "Minimum plausible battery voltage (mV)"
+    default 2500
+    range 0 20000
+
+config SENSORARRAY_ADS_BATTERY_MAX_MV
+    int "Maximum plausible battery voltage (mV)"
+    default 5000
+    range 0 20000
+
+config SENSORARRAY_ADS_AVSS_TO_GND_UV
+    int "Magnitude of AVSS below GND (uV)"
+    default 1800000
+    range 0 5000000
+
+config SENSORARRAY_ADS_AVDD_TO_GND_UV
+    int "AVDD above GND (uV)"
+    default 3300000
+    range 0 5000000
+    help
+        With ADS126x AINCOM level shift enabled, AINCOM-to-GND is calculated
+        explicitly as the AVDD/AVSS midpoint. A validated measured rail scales
+        the nominal AVDD-to-GND and AVSS-to-GND split before that calculation.
+
+config SENSORARRAY_ADS_RAIL_EXPECTED_TOLERANCE_UV
+    int "Allowed rail-monitor error from configured AVDD-AVSS (uV)"
+    default 250000
+    range 10000 2000000
+    help
+        The ADS126x analog supply monitor is measured against the internal
+        reference and scaled by four. Battery calculation accepts this rail
+        only when it is close to AVDD_TO_GND + AVSS_TO_GND.
+
+config SENSORARRAY_ADS_ZERO_PERIOD_FRAMES
+    int "AIN9-AINCOM residual measurement period"
+    default 100
+    range 1 100000
+
+config SENSORARRAY_ADS_RAIL_PERIOD_FRAMES
+    int "Analog supply monitor period"
+    default 500
+    range 1 100000
+
+endmenu
+
+menu "Matrix defaults"
+
+config SENSORARRAY_MATRIX_ROWS
+    int "Matrix rows"
+    default 8
+
+config SENSORARRAY_MATRIX_COLS
+    int "Matrix cols"
+    default 8
+
+config SENSORARRAY_OVERSAMPLE
+    int "Oversample count per point"
+    default 1
+
+config SENSORARRAY_MEASURE_LOCK_TIMEOUT_MS
+    int "Measurement lock timeout (ms)"
+    default 5000
+    range 1 60000
+
+endmenu
+
+menu "I2C recovery"
+
+config SENSORARRAY_I2C_RECOVER_ON_TIMEOUT
+    bool "Recover I2C bus after timeout when pins look stuck"
+    default n
+
+endmenu
+
+endmenu

@@ -4,16 +4,21 @@
 #include <string.h>
 
 #include "esp_mac.h"
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 #include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
 #include "sensorarrayWifi.h"
 
-#ifndef CONFIG_SENSORARRAY_BLE_ENABLE
-#define CONFIG_SENSORARRAY_BLE_ENABLE 1
+#ifndef CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT
+#define CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT 0
+#endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_BLE_CAP_TEXT
+#define CONFIG_SENSORARRAY_OUTPUT_BLE_CAP_TEXT 1
 #endif
 #ifndef CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE
 #define CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE 1
@@ -24,6 +29,8 @@
 
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
 #define SENSORARRAY_TRANSPORT_QUEUE_COUNT 3u
+#define SENSORARRAY_CFG_OUTPUT_WIFI_TEXT (CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT != 0)
+#define SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT (CONFIG_SENSORARRAY_OUTPUT_BLE_CAP_TEXT != 0)
 
 typedef struct {
     sensorarrayTransportChannel_t channel;
@@ -38,6 +45,43 @@ static QueueHandle_t s_queue;
 static TaskHandle_t s_task;
 static bool s_started;
 static char s_deviceName[32];
+static char s_mdnsName[32];
+
+static void sensorarrayTransportBuildNames(const uint8_t mac[6])
+{
+    snprintf(s_deviceName, sizeof(s_deviceName), "CscArray_%02X%02X%02X",
+             mac[3], mac[4], mac[5]);
+    snprintf(s_mdnsName, sizeof(s_mdnsName), "cscarray-%02x%02x%02x.local",
+             mac[3], mac[4], mac[5]);
+}
+
+static void sensorarrayTransportBuildWifiConfig(sensorarrayWifiConfig_t *wifiConfig)
+{
+    if (!wifiConfig) {
+        return;
+    }
+    *wifiConfig = (sensorarrayWifiConfig_t){
+        .profile = SENSORARRAY_WIFI_PROFILE_HIGH,
+        .dataPort = 3333u,
+        .logPort = 3334u,
+        .ctrlPort = 3335u,
+    };
+    snprintf(wifiConfig->ssid, sizeof(wifiConfig->ssid), "%s", s_deviceName);
+    snprintf(wifiConfig->password, sizeof(wifiConfig->password), "%s",
+             CONFIG_SENSORARRAY_WIFI_SOFTAP_PASSWORD);
+}
+
+static esp_err_t sensorarrayTransportStartWifiAp(void)
+{
+    sensorarrayWifiConfig_t wifiConfig;
+    sensorarrayTransportBuildWifiConfig(&wifiConfig);
+    esp_err_t err = sensorarrayWifiInit(&wifiConfig);
+    if (err != ESP_OK) {
+        wifiConfig.profile = SENSORARRAY_WIFI_PROFILE_BLE_COMPAT;
+        err = sensorarrayWifiInit(&wifiConfig);
+    }
+    return err;
+}
 
 static void sensorarrayTransportStatResult(sensorarrayTransportChannel_t channel,
                                            bool ble,
@@ -118,22 +162,15 @@ static void sensorarrayTransportPrintNetInit(esp_err_t wifiErr)
     sensorarrayBleGetStats(&ble);
     sensorarrayWifiGetStats(&wifi);
     bool bleOk = ble.controllerReady && ble.hostReady && ble.gattReady && ble.advertising;
-    printf("NET_INIT,name=%s,wifiReq=%u,wifiOk=%u,wifiProfile=%s,"
-           "wifiDataPort=3333,wifiLogPort=3334,wifiCtrlPort=3335,"
-           "wifiErr=0x%lx,wifiErrName=%s,bleReq=%u,bleCtl=%u,bleHost=%u,"
-           "bleGatt=%u,bleAdv=%u,bleOk=%u,bleErr=0x%lx,bleErrName=%s,protocol=ascii\n",
+    printf("NET,ble=%s,ap=%s,mdns=%s,wifi=%s,wok=%u,werr=0x%lx,berr=0x%lx,bok=%u\n",
            s_deviceName,
-           CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE ? 1u : 0u,
+           s_deviceName,
+           s_mdnsName,
+           sensorarrayTransportWifiModeName(sensorarrayTransportGetWifiMode()),
            wifi.ready ? 1u : 0u,
-           wifi.profile == SENSORARRAY_WIFI_PROFILE_HIGH ? "HIGH" : "BLE_COMPAT",
-           (unsigned long)wifiErr, esp_err_to_name(wifiErr),
-           CONFIG_SENSORARRAY_BLE_ENABLE ? 1u : 0u,
-           ble.controllerReady ? 1u : 0u,
-           ble.hostReady ? 1u : 0u,
-           ble.gattReady ? 1u : 0u,
-           ble.advertising ? 1u : 0u,
-           bleOk ? 1u : 0u,
-           (unsigned long)ble.initError, esp_err_to_name(ble.initError));
+           (unsigned long)wifiErr,
+           (unsigned long)ble.initError,
+           bleOk ? 1u : 0u);
 }
 
 static void sensorarrayTransportTask(void *arg)
@@ -147,14 +184,18 @@ static void sensorarrayTransportTask(void *arg)
             SENSORARRAY_BLE_CH_DATA : SENSORARRAY_BLE_CH_LOG;
         sensorarrayWifiChannel_t wifiChannel = item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
             SENSORARRAY_WIFI_CH_DATA : SENSORARRAY_WIFI_CH_LOG;
-        esp_err_t bleErr = sensorarrayBleNotify(bleChannel,
-                                                (const uint8_t *)item.data,
-                                                item.length);
-        sensorarrayTransportStatResult(item.channel, true, bleErr);
-        esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
+        if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && sensorarrayTransportBleSinkEnabled()) {
+            esp_err_t bleErr = sensorarrayBleNotify(bleChannel,
                                                     (const uint8_t *)item.data,
                                                     item.length);
-        sensorarrayTransportStatResult(item.channel, false, sendWifiErr);
+            sensorarrayTransportStatResult(item.channel, true, bleErr);
+        }
+        if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
+            esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
+                                                        (const uint8_t *)item.data,
+                                                        item.length);
+            sensorarrayTransportStatResult(item.channel, false, sendWifiErr);
+        }
         if (sensorarrayBleIsCongested()) {
             portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
             g_sensorarrayTransportStats.bleCongested++;
@@ -172,6 +213,10 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
     }
     if (!s_queue) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if ((!SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT || !sensorarrayTransportBleSinkEnabled()) &&
+        !sensorarrayTransportWifiSinkEnabled()) {
+        return ESP_OK;
     }
     sensorarrayTransportItem_t item = {.channel = channel, .length = (uint16_t)length};
     memcpy(item.data, data, length);
@@ -192,8 +237,12 @@ esp_err_t sensorarrayTransportInit(void)
     (void)sensorarrayScanConfigInit();
     uint8_t mac[6] = {0};
     (void)esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
-    snprintf(s_deviceName, sizeof(s_deviceName), "SensorArray_%02X%02X%02X",
-             mac[3], mac[4], mac[5]);
+    sensorarrayTransportBuildNames(mac);
+    sensorarrayTransportSetStream(SENSORARRAY_TRANSPORT_STREAM_SER);
+    sensorarrayTransportSetTxMode(SENSORARRAY_TRANSPORT_TX_REL);
+    sensorarrayTransportSetWifiMode(SENSORARRAY_CFG_OUTPUT_WIFI_TEXT ?
+                                    SENSORARRAY_TRANSPORT_WIFI_AP :
+                                    SENSORARRAY_TRANSPORT_WIFI_OFF);
 
     esp_err_t nvsErr = nvs_flash_init();
     if (nvsErr == ESP_ERR_NVS_NO_FREE_PAGES || nvsErr == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -210,26 +259,13 @@ esp_err_t sensorarrayTransportInit(void)
         .preferredMtu = 247u,
     };
     snprintf(bleConfig.deviceName, sizeof(bleConfig.deviceName), "%s", s_deviceName);
-    esp_err_t bleErr = nvsErr == ESP_OK && CONFIG_SENSORARRAY_BLE_ENABLE ?
+    esp_err_t bleErr = nvsErr == ESP_OK && SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT ?
         sensorarrayBleInit(&bleConfig) : nvsErr;
 
     sensorarrayBleLogHeap("before_wifi_init");
     sensorarrayWifiSetControlRxCallback(sensorarrayTransportWifiControl, NULL);
-    sensorarrayWifiConfig_t wifiConfig = {
-        .profile = SENSORARRAY_WIFI_PROFILE_HIGH,
-        .dataPort = 3333u,
-        .logPort = 3334u,
-        .ctrlPort = 3335u,
-    };
-    snprintf(wifiConfig.ssid, sizeof(wifiConfig.ssid), "%s", s_deviceName);
-    snprintf(wifiConfig.password, sizeof(wifiConfig.password), "%s",
-             CONFIG_SENSORARRAY_WIFI_SOFTAP_PASSWORD);
-    esp_err_t wifiErr = nvsErr == ESP_OK && CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE ?
-        sensorarrayWifiInit(&wifiConfig) : nvsErr;
-    if (wifiErr != ESP_OK && bleErr == ESP_OK) {
-        wifiConfig.profile = SENSORARRAY_WIFI_PROFILE_BLE_COMPAT;
-        wifiErr = sensorarrayWifiInit(&wifiConfig);
-    }
+    esp_err_t wifiErr = nvsErr == ESP_OK && SENSORARRAY_CFG_OUTPUT_WIFI_TEXT ?
+        sensorarrayTransportStartWifiAp() : ESP_OK;
     sensorarrayBleLogHeap("after_wifi_init");
 
     s_queue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_QUEUE_COUNT,
@@ -250,6 +286,21 @@ esp_err_t sensorarrayTransportInit(void)
     }
     s_started = true;
     return bleErr == ESP_OK || wifiErr == ESP_OK ? ESP_OK : bleErr;
+}
+
+esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode)
+{
+    if (mode > SENSORARRAY_TRANSPORT_WIFI_APSTA) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayTransportSetWifiMode(mode);
+    if (mode == SENSORARRAY_TRANSPORT_WIFI_OFF) {
+        return ESP_OK;
+    }
+    if (mode == SENSORARRAY_TRANSPORT_WIFI_AP) {
+        return sensorarrayTransportStartWifiAp();
+    }
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length)

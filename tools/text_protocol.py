@@ -48,6 +48,88 @@ class ProtocolCounters:
     summary_lines: int = 0
 
 
+@dataclasses.dataclass
+class FragmentStats:
+    ok: int = 0
+    missing: int = 0
+    crc_fail: int = 0
+    dropped: int = 0
+
+
+class FragmentReassembler:
+    """Reassembles G,<ch>,<mid>,<i>,<n>,<len>,<crc> fragments."""
+
+    def __init__(self) -> None:
+        self.stats: dict[str, FragmentStats] = {
+            "D": FragmentStats(),
+            "L": FragmentStats(),
+            "C": FragmentStats(),
+        }
+        self._messages: dict[tuple[str, int], dict[str, object]] = {}
+        self._last_mid: dict[str, Optional[int]] = {"D": None, "L": None, "C": None}
+
+    def feed(self, fallback_channel: str, payload: bytes) -> list[tuple[str, bytes]]:
+        if not payload.startswith(b"G,"):
+            return [(fallback_channel, payload)]
+        header, sep, body = payload.partition(b"\n")
+        if not sep:
+            self._stat(fallback_channel).dropped += 1
+            return []
+        try:
+            fields = header.decode("ascii").split(",")
+            ch = fields[1]
+            mid = int(fields[2], 10)
+            frag_index = int(fields[3], 10)
+            frag_count = int(fields[4], 10)
+            payload_len = int(fields[5], 10)
+            expected_crc = int(fields[6], 16)
+        except (IndexError, ValueError, UnicodeDecodeError):
+            self._stat(fallback_channel).dropped += 1
+            return []
+        if ch not in self.stats or frag_count <= 0 or frag_index < 0 or frag_index >= frag_count:
+            self._stat(fallback_channel).dropped += 1
+            return []
+        if len(body) != payload_len:
+            self.stats[ch].dropped += 1
+            return []
+        key = (ch, mid)
+        item = self._messages.setdefault(
+            key,
+            {"n": frag_count, "crc": expected_crc, "parts": {}, "created": time.monotonic()},
+        )
+        if item["n"] != frag_count or item["crc"] != expected_crc:
+            self.stats[ch].dropped += 1
+            self._messages.pop(key, None)
+            return []
+        parts = item["parts"]
+        assert isinstance(parts, dict)
+        parts[frag_index] = bytes(body)
+        if len(parts) != frag_count:
+            return []
+        missing = [index for index in range(frag_count) if index not in parts]
+        self._messages.pop(key, None)
+        if missing:
+            self.stats[ch].missing += len(missing)
+            return []
+        assembled = b"".join(parts[index] for index in range(frag_count))
+        if (zlib.crc32(assembled) & 0xFFFFFFFF) != expected_crc:
+            self.stats[ch].crc_fail += 1
+            return []
+        last = self._last_mid[ch]
+        if last is not None and mid > last + 1:
+            self.stats[ch].missing += mid - last - 1
+        self._last_mid[ch] = mid
+        self.stats[ch].ok += 1
+        return [(ch, assembled)]
+
+    def _stat(self, fallback_channel: str) -> FragmentStats:
+        return self.stats.get(fallback_channel, self.stats["D"])
+
+    def summary(self, ch: str) -> str:
+        stats = self.stats[ch]
+        return f"BF,ch={ch},ok={stats.ok},ms={stats.missing},cf={stats.crc_fail},dr={stats.dropped}"
+
+
 class TextProtocolParser:
     """Line parser with C/D/K frame assembly and transport-independent stats."""
 

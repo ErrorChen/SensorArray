@@ -2,6 +2,9 @@
 
 #include <string.h>
 
+#include "sensorarrayScanConfig.h"
+#include "sensorarrayTypes.h"
+
 static void sensorarrayScanPlanBuildRows(sensorarrayScanPlan_t *plan,
                                          sensorarrayCellOpKind_t defaultOp)
 {
@@ -10,12 +13,16 @@ static void sensorarrayScanPlanBuildRows(sensorarrayScanPlan_t *plan,
     }
 
     memset(plan, 0, sizeof(*plan));
-    plan->rowCount = 8u;
-    for (uint8_t row = 1u; row <= 8u; ++row) {
+    uint8_t activeRows = sensorarrayScanConfigGetActiveRows();
+    if (activeRows < 1u || activeRows > SENSORARRAY_MATRIX_ROWS) {
+        activeRows = SENSORARRAY_MATRIX_ROWS;
+    }
+    plan->rowCount = activeRows;
+    for (uint8_t row = 1u; row <= activeRows; ++row) {
         sensorarrayRowPlan_t *rowPlan = &plan->rows[row - 1u];
         rowPlan->row = row;
-        rowPlan->cellCount = 8u;
-        for (uint8_t dLine = 1u; dLine <= 8u; ++dLine) {
+        rowPlan->cellCount = SENSORARRAY_MATRIX_COLS;
+        for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
             rowPlan->cells[dLine - 1u] = (sensorarrayCellOp_t){
                 .row = row,
                 .dLine = dLine,
@@ -37,7 +44,7 @@ void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan)
         return;
     }
 
-    for (uint8_t row = 1u; row <= 8u; ++row) {
+    for (uint8_t row = 1u; row <= plan->rowCount; ++row) {
         sensorarrayRowPlan_t *rowPlan = &plan->rows[row - 1u];
         rowPlan->cells[0].opKind = SENSORARRAY_CELL_OP_ADS_RESISTANCE;
         rowPlan->cells[1].opKind = SENSORARRAY_CELL_OP_ADS_RESISTANCE;
@@ -49,4 +56,3 @@ void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan)
         rowPlan->cells[7].opKind = SENSORARRAY_CELL_OP_FDC_CAP;
     }
 }
-

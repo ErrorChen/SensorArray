@@ -9,6 +9,7 @@
 #include "freertos/task.h"
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayTransport.h"
 
 #ifndef CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN
 #define CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN 4
@@ -105,6 +106,9 @@ esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
 {
     if (!packet || packet->length == 0u || packet->length > SENSORARRAY_TEXT_PACKET_MAX) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayTransportSerialSinkEnabled()) {
+        return ESP_OK;
     }
     if (!s_usbQueue || !s_usbTask) {
         return ESP_ERR_INVALID_STATE;

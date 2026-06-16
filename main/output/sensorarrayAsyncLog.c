@@ -784,7 +784,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         return;
     }
 
-    uint32_t every = (uint32_t)CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES;
+    uint32_t every = (uint32_t)SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
     if (every == 0u) {
         every = 50u;
     }
@@ -856,6 +856,10 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         zeroStdUv = (uint32_t)sqrt(summary->adsOffsetM2 /
                                   (double)(summary->adsOffsetCount - 1u));
     }
+    uint32_t adsJobsRunDelta = ads->jobsRun - summary->adsGapStart.jobsRun;
+    uint32_t adsJobsSkipDelta = ads->jobsSkip - summary->adsGapStart.jobsSkip;
+    const char *batteryState = ads->sampleAgeFrames > 200u ? "stale" :
+                               (ads->batteryValid ? "present" : "unk");
 
     sensorarrayTextPacket_t packet = {
         .sequence = summary->seqEnd,
@@ -891,35 +895,39 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         packet.data,
         sizeof(packet.data),
         position,
-        "A50,chip=%u,adc=%u,rail=%ld,rv=%u,rexp=%ld,rerr=%ld,z=%ld/%lu,a8d=%ld",
-        ads->chip ? (unsigned)ads->chip : 1262u,
+        "A50,bt=%ld,br=%s,bs=%s,src=adc%u,age=%lu,a8d=%ld",
+        ads->batteryValid ? (long)ads->batteryMv : -1L,
+        sensorarrayBatteryReasonName(ads->batteryInvalidReason),
+        batteryState,
         ads->activeAdc ? (unsigned)ads->activeAdc : 1u,
-        (long)(ads->railUv / 1000),
-        ads->railValid ? 1u : 0u,
-        (long)(ads->railExpectedUv / 1000),
-        (long)(ads->railErrorUv / 1000),
-        (long)ads->zeroResidualUv,
-        (unsigned long)zeroStdUv,
+        (unsigned long)ads->sampleAgeFrames,
         (long)ads->ain8DiffUv);
     if (ads->aincomGndValid && ads->ain8GndValid) {
         position = sensorarrayAsyncLogTextAppend(
             packet.data,
             sizeof(packet.data),
             position,
-            ",acom=%ld,a8g=%ld",
+            ",ac=%ld,a8g=%ld",
             (long)ads->aincomGndUv,
             (long)ads->ain8GndUv);
     } else {
         position = sensorarrayAsyncLogTextAppend(
-            packet.data, sizeof(packet.data), position, ",acom=na,a8g=na");
+            packet.data, sizeof(packet.data), position, ",ac=na,a8g=na");
     }
     position = sensorarrayAsyncLogTextAppend(
         packet.data, sizeof(packet.data), position,
-        ",brat=%u/%u,bt=%ld,br=%s",
+        ",rail=%ld,rv=%u,rexp=%ld,rerr=%ld,z=%ld/%lu,chip=%u,brat=%u/%u,j=%lu/%lu/0/0/0",
+        (long)(ads->railUv / 1000),
+        ads->railValid ? 1u : 0u,
+        (long)(ads->railExpectedUv / 1000),
+        (long)(ads->railErrorUv / 1000),
+        (long)ads->zeroResidualUv,
+        (unsigned long)zeroStdUv,
+        ads->chip ? (unsigned)ads->chip : 1262u,
         (unsigned)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM,
         (unsigned)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN,
-        ads->batteryValid ? (long)ads->batteryMv : -1L,
-        sensorarrayBatteryReasonName(ads->batteryInvalidReason));
+        (unsigned long)adsJobsRunDelta,
+        (unsigned long)adsJobsSkipDelta);
     position = sensorarrayAsyncLogTextAppend(
         packet.data,
         sizeof(packet.data),
@@ -927,7 +935,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         ",ae=%lu/%lu/%lu\n",
         (unsigned long)ads->spiErrorCount,
         (unsigned long)ads->drdyTimeoutCount,
-        (unsigned long)(ads->jobsSkip - summary->adsGapStart.jobsSkip));
+        (unsigned long)adsJobsSkipDelta);
     position = sensorarrayAsyncLogTextAppend(
         packet.data,
         sizeof(packet.data),

@@ -39,6 +39,7 @@ typedef struct {
     sensorarrayBleStats_t stats;
     bool initialized;
     bool subscribed[3];
+    uint32_t nextMessageId[3];
     esp_gatt_if_t gattsIf;
     uint16_t connId;
     uint16_t handles[BLE_IDX_COUNT];
@@ -186,6 +187,32 @@ static uint16_t sensorarrayBleValueHandle(sensorarrayBleChannel_t channel)
     default:
         return 0u;
     }
+}
+
+static char sensorarrayBleEnvelopeChannel(sensorarrayBleChannel_t channel)
+{
+    switch (channel) {
+    case SENSORARRAY_BLE_CH_DATA:
+        return 'D';
+    case SENSORARRAY_BLE_CH_LOG:
+        return 'L';
+    case SENSORARRAY_BLE_CH_CTRL:
+    default:
+        return 'C';
+    }
+}
+
+static uint32_t sensorarrayBleCrc32(const uint8_t *data, size_t length)
+{
+    uint32_t crc = 0xFFFFFFFFu;
+    for (size_t i = 0u; i < length; ++i) {
+        crc ^= data[i];
+        for (uint8_t bit = 0u; bit < 8u; ++bit) {
+            uint32_t mask = 0u - (crc & 1u);
+            crc = (crc >> 1u) ^ (0xEDB88320u & mask);
+        }
+    }
+    return ~crc;
 }
 
 static void sensorarrayBleStartAdvertising(void)
@@ -462,15 +489,46 @@ esp_err_t sensorarrayBleNotify(sensorarrayBleChannel_t channel,
         return ESP_ERR_TIMEOUT;
     }
     size_t maximum = s_ble.stats.mtu > 3u ? (size_t)s_ble.stats.mtu - 3u : 20u;
+    if (maximum > SENSORARRAY_BLE_ATTR_VALUE_MAX) {
+        maximum = SENSORARRAY_BLE_ATTR_VALUE_MAX;
+    }
+    size_t payloadMax = maximum > 64u ? maximum - 64u : 1u;
+    uint32_t fragmentCount = (uint32_t)((length + payloadMax - 1u) / payloadMax);
+    if (fragmentCount == 0u) {
+        fragmentCount = 1u;
+    }
+    uint32_t messageId = ++s_ble.nextMessageId[channel];
+    if (messageId == 0u) {
+        messageId = ++s_ble.nextMessageId[channel];
+    }
+    uint32_t crc = sensorarrayBleCrc32(data, length);
+    char envChannel = sensorarrayBleEnvelopeChannel(channel);
     uint16_t handle = sensorarrayBleValueHandle(channel);
-    for (size_t offset = 0u; offset < length;) {
+    uint8_t packet[SENSORARRAY_BLE_ATTR_VALUE_MAX];
+    uint32_t fragmentIndex = 0u;
+    for (size_t offset = 0u; offset < length; ++fragmentIndex) {
         size_t chunk = length - offset;
-        if (chunk > maximum) {
-            chunk = maximum;
+        if (chunk > payloadMax) {
+            chunk = payloadMax;
         }
+        int headerLen = snprintf((char *)packet,
+                                 sizeof(packet),
+                                 "G,%c,%lu,%lu,%lu,%u,%08lX\n",
+                                 envChannel,
+                                 (unsigned long)messageId,
+                                 (unsigned long)fragmentIndex,
+                                 (unsigned long)fragmentCount,
+                                 (unsigned)chunk,
+                                 (unsigned long)crc);
+        if (headerLen <= 0 || (size_t)headerLen >= sizeof(packet) ||
+            (size_t)headerLen + chunk > maximum) {
+            s_ble.stats.dropped[channel]++;
+            return ESP_ERR_INVALID_SIZE;
+        }
+        memcpy(packet + headerLen, data + offset, chunk);
         esp_err_t err = esp_ble_gatts_send_indicate(s_ble.gattsIf, s_ble.connId, handle,
-                                                     (uint16_t)chunk,
-                                                     (uint8_t *)&data[offset], false);
+                                                     (uint16_t)((size_t)headerLen + chunk),
+                                                     packet, false);
         if (err != ESP_OK) {
             s_ble.stats.dropped[channel]++;
             return err;

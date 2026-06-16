@@ -1,5 +1,9 @@
+#include "sensorarrayFdcInternal.h"
+
+/* Per-cell health helpers are intentionally kept in sensorarrayFdcFrame.c for locality. */
+
 // Split from core/measure/sensorarrayMeasure.c to keep measurement domains isolated.
-static sensorarrayFdcSampleStatus_t sensorarrayMeasureMapFdcStatus(Fdc2214CapSampleStatus_t sampleStatus)
+sensorarrayFdcSampleStatus_t sensorarrayMeasureMapFdcStatus(Fdc2214CapSampleStatus_t sampleStatus)
 {
     switch (sampleStatus) {
     case FDC2214_SAMPLE_STATUS_SAMPLE_VALID:
@@ -48,11 +52,7 @@ const char *sensorarrayMeasureFdcSampleStatusName(sensorarrayFdcSampleStatus_t s
     }
 }
 
-typedef esp_err_t (*sensorarrayFdcReadSampleFn_t)(Fdc2214CapDevice_t *dev,
-                                                   Fdc2214CapChannel_t ch,
-                                                   Fdc2214CapSample_t *outSample);
-
-static esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcReadSampleFn_t readFn,
+esp_err_t sensorarrayMeasureReadFdcSampleDiagWithReader(sensorarrayFdcReadSampleFn_t readFn,
                                                                Fdc2214CapDevice_t *dev,
                                                                Fdc2214CapChannel_t ch,
                                                                bool discardFirst,
@@ -440,3 +440,14 @@ bool sensorarrayMeasureFdcComputeCapacitancePf(double frequencyHz, double induct
     const double omega = 2.0 * SENSORARRAY_PI * frequencyHz;
     const double denom = omega * omega * inductorH;
     if (!isfinite(denom) || denom <= 0.0) {
+        return false;
+    }
+
+    const double cPf = (1.0 / denom) * 1e12;
+    if (!isfinite(cPf) || cPf <= 0.0) {
+        return false;
+    }
+
+    *outCapPf = cPf;
+    return true;
+}

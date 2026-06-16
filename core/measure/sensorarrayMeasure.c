@@ -24,369 +24,33 @@
 #include "sensorarrayLog.h"
 #include "sensorarrayScanConfig.h"
 
-#ifndef CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE
-#define CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_MATRIX_TARGET_FPS
-#define CONFIG_SENSORARRAY_FDC_MATRIX_TARGET_FPS 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES
-#ifdef CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES CONFIG_SENSORARRAY_FDC_TIMING_LOG_EVERY_N_FRAMES
-#else
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES 20
-#endif
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_PERIOD_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
-#define CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG
-#define CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US
-#define CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US 250000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME
-#define CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT
-#define CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT
-#define CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF
-#define CONFIG_SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH
-#define CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH 18000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ
-#define CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_FREQ_HZ 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_CAP_TOTAL_PF
-#define CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_CAP_TOTAL_PF 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE
-#define CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_SEPARATE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_INLINE_DEBUG
-#define CONFIG_SENSORARRAY_FDC_TEXT_OUTPUT_BOTH_INLINE_DEBUG 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE
-#define CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_ENABLE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP
-#define CONFIG_SENSORARRAY_FDC_ROW_EPOCH_RESTART_METHOD_SLEEP 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US
-#define CONFIG_SENSORARRAY_FDC_ROW_SWITCH_SETTLE_US 50
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ
-#define CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME
-#define CONFIG_SENSORARRAY_FDC_PARALLEL_DISABLE_AFTER_TIMEOUT_IN_FRAME 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES
-#define CONFIG_SENSORARRAY_FDC_PARALLEL_RETRY_INTERVAL_FRAMES 10
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK
-#define CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK 6144
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO
-#define CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO CONFIG_SENSORARRAY_SCAN_TASK_PRIO
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE
-#define CONFIG_SENSORARRAY_FDC_WORKER_TASK_CORE -1
-#endif
-#ifndef CONFIG_FREERTOS_UNICORE
-#define CONFIG_FREERTOS_UNICORE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS
-#define CONFIG_SENSORARRAY_FDC_WORKER_SYNC_TIMEOUT_MS 25
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_ENABLE
-#define CONFIG_SENSORARRAY_FDC_INTB_ENABLE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE
-#define CONFIG_SENSORARRAY_FDC_INTB_DIRECT_DATA_ENABLE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_ACTIVE_LOW
-#define CONFIG_SENSORARRAY_FDC_INTB_ACTIVE_LOW 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB1_GPIO
-#define CONFIG_SENSORARRAY_FDC_INTB1_GPIO 17
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB2_GPIO
-#define CONFIG_SENSORARRAY_FDC_INTB2_GPIO 18
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE
-#define CONFIG_SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_STROBE_GPIO
-#define CONFIG_SENSORARRAY_FDC_ROW_STROBE_GPIO -1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_FRAME_STROBE_GPIO
-#define CONFIG_SENSORARRAY_FDC_FRAME_STROBE_GPIO -1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PRIMARY_READ_WINDOW_GPIO
-#define CONFIG_SENSORARRAY_FDC_PRIMARY_READ_WINDOW_GPIO -1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_SECONDARY_READ_WINDOW_GPIO
-#define CONFIG_SENSORARRAY_FDC_SECONDARY_READ_WINDOW_GPIO -1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_DEBUG_STROBE_PULSE_US
-#define CONFIG_SENSORARRAY_FDC_DEBUG_STROBE_PULSE_US 2
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE
-#define CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE
-#define CONFIG_SENSORARRAY_FDC_INTB_TRIGGER_FALLING_EDGE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US
-#define CONFIG_SENSORARRAY_FDC_INTB_WAIT_TIMEOUT_US 10000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US
-#define CONFIG_SENSORARRAY_FDC_ROW_WAIT_SAFETY_US 2000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING
-#define CONFIG_SENSORARRAY_FDC_INTB_FALLBACK_POLLING 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP
-#define CONFIG_SENSORARRAY_FDC_INTB_WEAK_PULLUP 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_GUARD_US
-#define CONFIG_SENSORARRAY_FDC_READY_GUARD_US 3000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_DISABLE_READY_STATUS_POLL
-#define CONFIG_SENSORARRAY_FDC_DISABLE_READY_STATUS_POLL 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_STATUS_AFTER_TIMEOUT_FALLBACK
-#define CONFIG_SENSORARRAY_FDC_STATUS_AFTER_TIMEOUT_FALLBACK 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY
-#define CONFIG_SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY_US
-#define CONFIG_SENSORARRAY_FDC_INTB_STATUS_CONFIRM_RETRY_US 100
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY
-#define CONFIG_SENSORARRAY_FDC_READY_MAX_POLLS_AFTER_UNREAD_BEFORE_DRDY 3
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US
-#define CONFIG_SENSORARRAY_FDC_READY_POLL_INTERVAL_US 1000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
-#define CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
-#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK
-#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
-#define CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE
-#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_ENABLE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX
-#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_MAX 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US
-#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_INTERVAL_US 100
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US
-#define CONFIG_SENSORARRAY_FDC_AFTER_INTB_RECHECK_DEADLINE_US 1000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX
-#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_RETRY_MAX 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER
-#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_MULTIPLIER 10
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US
-#define CONFIG_SENSORARRAY_FDC_ROW_DEVICE_WATCHDOG_OVERRIDE_US 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS
-#define CONFIG_SENSORARRAY_FDC_RECOVERY_RESET_ON_PROGRESS 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE
-#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US
-#define CONFIG_SENSORARRAY_FDC_FORMAL_FAST_TARGET_ROUND_US 4000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US
-#define CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_WARN_US SENSORARRAY_FDC_TARGET_ROW_US
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE
-#define CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PFU_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_PFU_LOG_EVERY_N_FRAMES 100
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_PROFILE_LOG_EVERY_N_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_READY_LOG_EVERY_N_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_TIMING_COMPACT_EVERY_N_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_QUALITY_LOG_EVERY_N_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES 20
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG
-#define CONFIG_SENSORARRAY_FDC_INTB_DEBUG_LOG 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_DIFF_CACHE_APPLY
-#define CONFIG_SENSORARRAY_FDC_DIFF_CACHE_APPLY 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
-#define CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG 0
-#endif
-#ifndef CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE
-#define CONFIG_SENSORARRAY_LOG_CACHE_APPLY_VERBOSE CONFIG_SENSORARRAY_FDC_CACHE_APPLY_VERBOSE_LOG
-#endif
-#ifndef CONFIG_SENSORARRAY_LOG_ROW_SUMMARY
-#define CONFIG_SENSORARRAY_LOG_ROW_SUMMARY 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG
-#define CONFIG_SENSORARRAY_FDC_ROW_VERBOSE_LOG 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES
-#define CONFIG_SENSORARRAY_FDC_SAMPLE_DEVICE_LOG_EVERY_N_FRAMES 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS
-#define CONFIG_SENSORARRAY_FDC_LOG_NORMAL_POLL_SUCCESS 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ
-#define CONFIG_SENSORARRAY_FDC_ALLOW_SAFE_DEFAULT_FORMAL_READ 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE
-#define CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ_SAFE 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ
-#define CONFIG_SENSORARRAY_FDC_FORCE_SINGLE_THREAD_READ 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_ONCE_PER_FINGERPRINT
-#define CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_ONCE_PER_FINGERPRINT 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_AMPLITUDE_FAST_SWEEP_THRESHOLD
-#define CONFIG_SENSORARRAY_FDC_AMPLITUDE_FAST_SWEEP_THRESHOLD 4
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_COOLDOWN_FRAMES
-#define CONFIG_SENSORARRAY_FDC_WARNING_REAPPLY_COOLDOWN_FRAMES 50
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_WARNING_FAST_SWEEP_COOLDOWN_MS
-#define CONFIG_SENSORARRAY_FDC_WARNING_FAST_SWEEP_COOLDOWN_MS 1000
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL
-#define CONFIG_SENSORARRAY_FDC_VERIFY_MODE_FULL 0
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY
-#define CONFIG_SENSORARRAY_FDC_VERIFY_MODE_STARTUP_ONLY 1
-#endif
-#ifndef CONFIG_SENSORARRAY_FDC_VERIFY_MODE_NONE
-#define CONFIG_SENSORARRAY_FDC_VERIFY_MODE_NONE 0
-#endif
-#ifndef CONFIG_BOARD_I2C_FREQ_HZ
-#define CONFIG_BOARD_I2C_FREQ_HZ 337500
-#endif
-
-#if CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE
-#define FDCLOW_TRACE(...) printf(__VA_ARGS__)
-#else
-#define FDCLOW_TRACE(...) do { } while (0)
-#endif
-
-#define SENSORARRAY_FDC_RAW_SCALE_2P28 268435456.0
-#define SENSORARRAY_PI 3.14159265358979323846
-#define SENSORARRAY_FDC_AUTOSCAN_RR_SEQUENCE FDC2214_RR_SEQUENCE_CH0_CH1_CH2_CH3
-#define SENSORARRAY_FDC_AUTOSCAN_READY_UNREAD_MASK 0x0Fu
-#define SENSORARRAY_FDC_AUTOSCAN_READY_TIMEOUT_MS CONFIG_SENSORARRAY_FDC_SWEEP_SAMPLE_TIMEOUT_MS
-#define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
-#define SENSORARRAY_FDC_MUX_RR_SEQUENCE_SHIFT 13u
-#define SENSORARRAY_FDC_MUX_RR_SEQUENCE_MASK 0x6000u
-#define SENSORARRAY_FDC_MUX_DEGLITCH_MASK 0x0007u
-#define SENSORARRAY_FDC_CONFIG_HIGH_CURRENT_DRV_MASK 0x0040u
-#define SENSORARRAY_FDC_REG_RCOUNT_BASE 0x08u
-#define SENSORARRAY_FDC_REG_SETTLECOUNT_BASE 0x10u
-#define SENSORARRAY_FDC_REG_CLOCK_DIVIDERS_BASE 0x14u
-#define SENSORARRAY_FDC_REG_STATUS 0x18u
-#define SENSORARRAY_FDC_REG_STATUS_CONFIG 0x19u
-#define SENSORARRAY_FDC_REG_CONFIG 0x1Au
-#define SENSORARRAY_FDC_REG_MUX_CONFIG 0x1Bu
-#define SENSORARRAY_FDC_REG_DRIVE_CURRENT_BASE 0x1Eu
-#define SENSORARRAY_FDC_REG_DEVICE_ID 0x7Fu
-#define SENSORARRAY_FDC_RAW28_SATURATED_THRESHOLD 0x0FFFFF00u
-#define SENSORARRAY_FDC_AMPLITUDE_RESCUE_THRESHOLD 4u
-#define SENSORARRAY_FDC_CELL_ROUTE_DISCARD_COUNT 2u
-#define SENSORARRAY_FDC_TARGET_FRAME_US (1000000u / CONFIG_SENSORARRAY_FDC_MATRIX_TARGET_FPS)
-#define SENSORARRAY_FDC_TARGET_ROW_US (SENSORARRAY_FDC_TARGET_FRAME_US / SENSORARRAY_MATRIX_ROWS)
-#define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
-#define SENSORARRAY_FDC_CONFIG_INTB_DIS_MASK 0x0080u
-#define SENSORARRAY_FDC_STATUS_CONFIG_DRDY_2INT_MASK 0x0001u
-#define SENSORARRAY_FDC_DRIVE_CURRENT_MASK 0xF800u
-#define SENSORARRAY_FDC_MUX_FIXED_MASK 0x0208u
-#define SENSORARRAY_FDC_WORKER_QUEUE_DEPTH 1u
-#define SENSORARRAY_FDC_WORKER_STACK_WORDS \
-    ((CONFIG_SENSORARRAY_FDC_WORKER_TASK_STACK + sizeof(StackType_t) - 1u) / sizeof(StackType_t))
-#define SENSORARRAY_FDC_INVALID_CAP_SENTINEL_PF (-1.0)
-#define SENSORARRAY_FDC_INVALID_FREQ_SENTINEL_HZ (-1.0)
-#if CONFIG_SENSORARRAY_FDC_READY_POLICY_POLL_ONLY
-#define SENSORARRAY_FDC_READY_MODE_NAME "POLL_ONLY"
-#elif CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS
-#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_THEN_STATUS"
-#elif CONFIG_SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL
-#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_STRICT_LEVEL"
-#else
-#define SENSORARRAY_FDC_READY_MODE_NAME "INTB_WITH_POLL_FALLBACK"
-#endif
-#if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
-#define SENSORARRAY_FDC_INTB_HINT_NAME "enabled"
-#else
-#define SENSORARRAY_FDC_INTB_HINT_NAME "disabled"
-#endif
-#define SENSORARRAY_FDC_NO_UNREAD_RESYNC_THRESHOLD 3u
-
+#include "fdc/sensorarrayFdcInternal.h"
 static SemaphoreHandle_t s_measureLock = NULL;
 static portMUX_TYPE s_measureLockMux = portMUX_INITIALIZER_UNLOCKED;
-static uint32_t s_fdcMatrixSequence = 0u;
-static uint32_t s_fdcFreshFrameSequence = 0u;
+uint32_t s_fdcMatrixSequence = 0u;
+uint32_t s_fdcFreshFrameSequence = 0u;
 static bool s_fastSpeedEnabled = false;
-static uint32_t s_fdcMatrixAllInvalidSequence = 0u;
+uint32_t s_fdcMatrixAllInvalidSequence = 0u;
 /*
  * Verbose legacy timing reports print synchronously from the scan task and can
  * block on the global stdout lock while the async task emits a Cap line.  The
  * formal default therefore exports compact telemetry through frame snapshots;
  * this flag remains available for explicit deep diagnostics.
  */
-static bool s_fdcProfileSummaryEnabled = false;
-static bool s_fdcProfileRowEnabled = (CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT != 0);
-static bool s_fdcProfileDeviceEnabled = (CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT != 0);
-static uint32_t s_fdcTimingSummaryEvery = CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES;
-static uint8_t s_fdcDiscardFrames = (uint8_t)CONFIG_SENSORARRAY_FDC_DISCARD_FRAMES_AFTER_ROW_SWITCH;
-static bool s_fdcDebugTimingGpioInitAttempted = false;
-static bool s_fdcDebugTimingGpioReady = false;
+bool s_fdcProfileSummaryEnabled = false;
+bool s_fdcProfileRowEnabled = (CONFIG_SENSORARRAY_FDC_PROFILE_ROW_DEFAULT != 0);
+bool s_fdcProfileDeviceEnabled = (CONFIG_SENSORARRAY_FDC_PROFILE_DEVICE_DEFAULT != 0);
+uint32_t s_fdcTimingSummaryEvery = CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_EVERY_N_FRAMES;
+uint8_t s_fdcDiscardFrames = (uint8_t)CONFIG_SENSORARRAY_FDC_DISCARD_FRAMES_AFTER_ROW_SWITCH;
+bool s_fdcDebugTimingGpioInitAttempted = false;
+bool s_fdcDebugTimingGpioReady = false;
 
-static bool sensorarrayMeasureDebugGpioIsValid(int gpio)
+bool sensorarrayMeasureDebugGpioIsValid(int gpio)
 {
     return gpio >= 0 && gpio < GPIO_NUM_MAX;
 }
 
-static void sensorarrayMeasureDebugTimingGpioInit(void)
+void sensorarrayMeasureDebugTimingGpioInit(void)
 {
     if (s_fdcDebugTimingGpioInitAttempted) {
         return;
@@ -427,7 +91,7 @@ static void sensorarrayMeasureDebugTimingGpioInit(void)
            anyReady ? 1u : 0u);
 }
 
-static void sensorarrayMeasureDebugPulse(int gpio)
+void sensorarrayMeasureDebugPulse(int gpio)
 {
     if (!s_fdcDebugTimingGpioReady || !sensorarrayMeasureDebugGpioIsValid(gpio)) {
         return;
@@ -439,7 +103,7 @@ static void sensorarrayMeasureDebugPulse(int gpio)
     gpio_set_level((gpio_num_t)gpio, 0);
 }
 
-static void sensorarrayMeasureDebugReadWindow(sensorarrayFdcDeviceId_t devId, bool active)
+void sensorarrayMeasureDebugReadWindow(sensorarrayFdcDeviceId_t devId, bool active)
 {
     int gpio = (devId == SENSORARRAY_FDC_DEV_SECONDARY) ?
         CONFIG_SENSORARRAY_FDC_SECONDARY_READ_WINDOW_GPIO :
@@ -470,419 +134,45 @@ void sensorarrayMeasureDebugSetReadWindow(sensorarrayFdcDeviceId_t devId, bool a
     sensorarrayMeasureDebugReadWindow(devId, active);
 }
 
-static uint64_t sensorarrayMeasureElapsedUs(int64_t startUs);
-static uint64_t sensorarrayMeasureAvgU64(uint64_t total, uint32_t count);
+uint64_t sensorarrayMeasureElapsedUs(int64_t startUs);
+uint64_t sensorarrayMeasureAvgU64(uint64_t total, uint32_t count);
 
-typedef struct {
-    uint32_t raw28[4];
-    bool fresh[4];
-    bool valid[4];
-    bool amplitudeWarning[4];
-    bool freshAmplitudeWarning[4];
-    bool staleAmplitudeWarning[4];
-    bool transientAmplitudeWarning[4];
-    bool watchdogFault[4];
-    bool saturated[4];
-    bool i2cError[4];
-    bool notReady[4];
-    bool zeroBeforeReady[4];
-    bool zeroAfterDrdy[4];
-    bool softInvalid[4];
-    bool hardInvalid[4];
-    uint16_t statusRaw;
-    uint8_t unreadMask;
-    uint8_t freshMask;
-    uint8_t validMask;
-    uint8_t warnMask;
-    uint8_t errorMask;
-    uint8_t notReadyMask;
-    uint8_t zeroBeforeReadyMask;
-    uint8_t zeroAfterDrdyMask;
-    uint8_t softInvalidMask;
-    uint8_t hardInvalidMask;
-    bool timeout;
-    bool partial;
-    bool i2cTransactionError;
-    bool dataReady;
-    bool unreadWithoutDrdy;
-    bool staleUnreadDrain;
-    bool readyStatusReadable;
-    bool statusFallbackUsed;
-    bool originalIntbMiss;
-    bool originalTimeout;
-    bool waitBudgetTooShort;
-    bool levelLowButEdgeMiss;
-    bool dataReadAttempted;
-    bool directDataRead;
-} sensorarrayFdcAutoscanSamples_t;
-
-typedef struct {
-    bool validSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool invalidSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool amplitudeWarningSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool freshAmplitudeWarningSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool staleAmplitudeWarningSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool transientAmplitudeWarningSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool watchdogSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool saturatedSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool zeroRawSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool notReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool zeroBeforeReadySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool zeroAfterDrdySeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool softInvalidSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool hardInvalidSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool staleUnreadDrainSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool placeholderZeroSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    bool i2cErrorSeen[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    uint32_t lastRaw28[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    double lastFreqHz[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    uint16_t clockDividers[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    uint16_t driveCurrent[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    uint8_t deglitchCode[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-    uint32_t effectiveFclkHz[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
-} sensorarrayFdcFrameHealth_t;
-
-typedef struct {
-    bool valid;
-    uint16_t rCount;
-    uint16_t settleCount;
-    uint16_t clockDividers;
-    uint16_t driveCurrent;
-    uint8_t deglitchCode;
-    uint32_t effectiveFclkHz;
-} sensorarrayFdcRuntimeChannelConfig_t;
-
-typedef enum {
-    SENSORARRAY_FDC_READY_NONE = 0,
-    SENSORARRAY_FDC_READY_EDGE_WAKE,
-    SENSORARRAY_FDC_READY_STATUS_READY_BEFORE_WAIT,
-    SENSORARRAY_FDC_READY_POLL_FULL,
-    SENSORARRAY_FDC_READY_POLL_RECOVERED_AFTER_UNREAD_BEFORE_DRDY,
-    SENSORARRAY_FDC_READY_AFTER_INTB_RECHECK_FULL,
-    SENSORARRAY_FDC_READY_INTB_TIMEOUT,
-    SENSORARRAY_FDC_READY_DRDY_NOT_CLOSED_AFTER_INTB,
-    SENSORARRAY_FDC_READY_STATUS_INCONSISTENT,
-    SENSORARRAY_FDC_READY_POLL_PARTIAL,
-    SENSORARRAY_FDC_READY_TIMEOUT_PARTIAL,
-    SENSORARRAY_FDC_READY_TIMEOUT_NONE,
-    SENSORARRAY_FDC_READY_I2C_ERROR,
-    SENSORARRAY_FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT,
-    SENSORARRAY_FDC_READY_STALE_UNREAD_NO_DRDY,
-    SENSORARRAY_FDC_READY_HARD_TIMEOUT,
-    SENSORARRAY_FDC_READY_STATUS_FALLBACK_AFTER_INTB_MISS,
-    SENSORARRAY_FDC_READY_STATUS_READY_AFTER_TIMEOUT,
-    SENSORARRAY_FDC_READY_LEVEL_ACTIVE_FALLBACK,
-    SENSORARRAY_FDC_READY_WAIT_BUDGET_TOO_SHORT_STATUS_FALLBACK,
-    SENSORARRAY_FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
-} sensorarrayFdcReadyKind_t;
-
-typedef enum {
-    FDC_READY_RESULT_NONE = 0,
-    FDC_READY_OK_INTB_DRDY_UNREAD_FULL,
-    FDC_READY_OK_STATUS_READY_AFTER_TIMEOUT,
-    FDC_READY_INTB_ACTIVE_STATUS_MISMATCH,
-    FDC_READY_NOT_READY_AFTER_GUARD,
-    FDC_READY_HARD_TIMEOUT_NO_DRDY,
-    FDC_READY_I2C_ERROR,
-    FDC_READY_INTERNAL_STATE_ERROR,
-    FDC_READY_OK_DRDY_UNREAD_FULL,
-    FDC_READY_RECOVERED_AFTER_RETRY,
-    FDC_READY_UNREAD_FULL_NO_DRDY_TRANSIENT,
-    FDC_READY_STALE_UNREAD_NO_DRDY,
-    FDC_READY_HARD_TIMEOUT,
-    FDC_READY_EPOCH_MISMATCH_OR_STALE_WORKER_RESULT,
-} sensorarrayFdcReadyResult_t;
-
-typedef enum {
-    SENSORARRAY_FDC_READY_POLICY_POLL_ONLY = 0,
-    SENSORARRAY_FDC_READY_POLICY_INTB_THEN_STATUS = 1,
-    SENSORARRAY_FDC_READY_POLICY_INTB_WITH_POLL_FALLBACK = 2,
-    SENSORARRAY_FDC_READY_POLICY_INTB_STRICT_LEVEL = 3,
-} sensorarrayFdcReadyPolicy_t;
-
-typedef enum {
-    SENSORARRAY_FDC_WATCHDOG_INTB_TIMEOUT = 0,
-    SENSORARRAY_FDC_WATCHDOG_DRDY_NOT_CLOSED_AFTER_INTB,
-    SENSORARRAY_FDC_WATCHDOG_STATUS_INCONSISTENT,
-    SENSORARRAY_FDC_WATCHDOG_READ4_I2C_ERROR,
-    SENSORARRAY_FDC_WATCHDOG_ZERO_AFTER_DRDY,
-    SENSORARRAY_FDC_WATCHDOG_RAW_ALL_ZERO,
-    SENSORARRAY_FDC_WATCHDOG_AMPLITUDE_WARNING,
-    SENSORARRAY_FDC_WATCHDOG_SENSOR_WATCHDOG_FAULT,
-    SENSORARRAY_FDC_WATCHDOG_SATURATED,
-    SENSORARRAY_FDC_WATCHDOG_PROFILE_TOO_SLOW,
-} sensorarrayFdcWatchdogReason_t;
-
-typedef struct {
-    uint16_t statusRaw;
-    uint8_t unreadMask;
-    bool dataReady;
-    bool unreadFull;
-    bool readyForDataRead;
-    bool unreadWithoutDataReady;
-} sensorarrayFdcReadyDecoded_t;
-
-typedef struct {
-    bool ready;
-    bool dataReady;
-    bool unreadFull;
-    bool readyForDataRead;
-    bool unreadWithoutDataReady;
-    sensorarrayFdcReadyKind_t kind;
-    sensorarrayFdcReadyResult_t readyResult;
-    uint16_t statusRaw;
-    uint16_t errorStatus;
-    uint8_t unreadMask;
-    uint8_t drdy;
-    uint8_t hadEdge;
-    uint32_t edgeDelta;
-    int initialIntbLevel;
-    int finalIntbLevel;
-    esp_err_t err;
-    uint32_t pollCount;
-    uint32_t unreadWithoutDrdyCount;
-    uint32_t timeoutCount;
-    uint32_t waitUs;
-    bool timeout;
-    bool partial;
-    bool i2cError;
-    const char *diagnostic;
-    uint8_t requiredUnreadMask;
-    uint32_t estimatedRoundUs;
-    uint32_t guardMarginUs;
-    uint32_t guardDeadlineUs;
-    uint32_t actualIntbWaitUs;
-    uint32_t rowDeviceHardUs;
-    uint32_t hardDeadlineRemainingUs;
-    uint32_t hardDeadlineRemainingBeforeWaitUs;
-    const char *waitSource;
-    const char *estKind;
-    bool waitClampedByHardDeadline;
-    bool waitBudgetTooShort;
-    uint32_t plannedIntbWaitUs;
-    bool returnedBeforeEstimatedRound;
-    const char *waitReturnReason;
-    uint32_t notifyValue;
-    int rawLevelAfterArm;
-    int rawLevelAtWaitReturn;
-    bool activeLowConfigured;
-    bool levelActiveAfterArm;
-    bool levelActiveAtWaitReturn;
-    uint32_t intbWaitUs;
-    uint32_t statusVerifyUs;
-    uint32_t statusPrecheckUs;
-    uint32_t pollFallbackUs;
-    uint32_t statusReadsPrecheck;
-    uint32_t statusReadsBeforeIntb;
-    uint32_t statusReadsAfterIntb;
-    uint32_t statusReadsAfterIntbRecheck;
-    uint32_t statusReadsInFallback;
-    uint32_t statusReadsSuppressedBeforeIntb;
-    uint32_t statusAckCount;
-    uint32_t statusReadsPollDiag;
-    uint32_t statusReadsWatchdogDiag;
-    bool intbMiss;
-    bool watchdogOnly;
-    bool diagOnly;
-    bool originalWaitMiss;
-    bool originalIntbMiss;
-    bool originalTimeout;
-    bool originalWatchdogOnly;
-    esp_err_t originalErr;
-    bool statusFallbackUsed;
-    bool recoveredByStatusReady;
-    bool recoveredByLevelLow;
-    bool acceptedByStatusFallback;
-    bool preStatusReady;
-    bool lateStatusReady;
-    bool trueTimeoutNotReady;
-    bool directDataCandidate;
-    int intbBeforeStatus;
-    int intbAfterStatus;
-} sensorarrayFdcReadyState_t;
-
-typedef struct {
-    uint32_t raw28[4];
-    double freqHz[4];
-    double capTotalPf[4];
-    uint8_t freshMask4;
-    uint8_t validMask4;
-    uint8_t warnMask4;
-    uint8_t errorMask4;
-    uint8_t notReadyMask4;
-    uint8_t zeroBeforeReadyMask4;
-    uint8_t zeroAfterDrdyMask4;
-    uint16_t status;
-    uint16_t errorStatus;
-    uint8_t unreadMask4;
-    uint8_t drdy;
-    esp_err_t readErr;
-    esp_err_t i2cErr;
-    sensorarrayFdcReadyKind_t readyKind;
-    sensorarrayFdcReadyResult_t readyResult;
-    bool timeout;
-    bool partial;
-    bool i2cError;
-    bool unreadWithoutDrdy;
-    bool rawAllZero;
-    bool staleRejected;
-    uint32_t waitUs;
-    uint32_t readUs;
-    uint32_t pollCount;
-    uint32_t edgeDelta;
-    uint32_t estimatedRoundUs;
-    uint32_t actualIntbWaitUs;
-    const char *readyDiagnostic;
-    uint8_t softInvalidMask4;
-    uint8_t hardInvalidMask4;
-    bool readyStatusReadable;
-    bool statusFallbackUsed;
-    bool originalIntbMiss;
-    bool originalTimeout;
-    bool waitBudgetTooShort;
-    bool levelLowButEdgeMiss;
-    bool dataReadAttempted;
-    bool directDataRead;
-} sensorarrayFdcDeviceRead4Result_t;
-
-typedef struct {
-    esp_err_t err;
-    sensorarrayFdcReadyState_t ready;
-    sensorarrayFdcDeviceRead4Result_t read4;
-    uint32_t frameSeq;
-    uint8_t row;
-    sensorarrayFdcDeviceId_t devId;
-    uint32_t epochId;
-    uint32_t generation;
-} sensorarrayFdcWorkerResult_t;
-
-typedef struct {
-    uint32_t frameSeq;
-    uint8_t row;
-    uint32_t epochId;
-    sensorarrayFdcDeviceId_t devId;
-    bool jobQueued;
-    bool sleepAckReceived;
-    bool startGiven;
-    bool runStarted;
-    bool runCompleted;
-    bool doneReceived;
-    bool lateDone;
-    bool staleResultDiscarded;
-    uint32_t queueSendUs;
-    uint32_t sleepAckWaitUs;
-    uint32_t startWaitUs;
-    uint32_t doneWaitUs;
-    uint32_t workerRunUs;
-    uint32_t waitWorkerIdleAfterTimeoutUs;
-    uint64_t readyAckUs;
-    uint64_t workerStartUs;
-    uint64_t workerEndUs;
-    uint64_t workerDeadlineUs;
-    uint32_t rowHardDeadlineUs;
-    uint32_t generation;
-    esp_err_t err;
-} sensorarrayFdcWorkerTrace_t;
-
-typedef struct {
-    uint32_t frameSeq;
-    bool okRead[SENSORARRAY_MATRIX_ROWS][2];
-    uint32_t duplicateReadCount;
-} sensorarrayFdcFrameReadTracker_t;
-
-typedef struct {
-    sensorarrayState_t *state;
-    uint32_t frameSeq;
-    uint8_t row;
-    uint32_t epochId;
-    sensorarrayFdcAutoscanSamples_t *outSamples;
-    sensorarrayFdcRuntimeChannelConfig_t *outConfigs;
-    sensorarrayFdcDeviceTiming_t *timing;
-    sensorarrayFdcWorkerResult_t *result;
-    sensorarrayFdcWorkerTrace_t *trace;
-    sensorarrayFdcFrameReadTracker_t *readTracker;
-    uint32_t rowDeviceBudgetUs;
-    uint32_t generation;
-} sensorarrayFdcWorkerJob_t;
-
-typedef struct {
-    bool initialized;
-    bool intbReady;
-    bool intbIsrAttached;
-    sensorarrayFdcDeviceId_t devId;
-    int intbGpio;
-    TaskHandle_t task;
-    StaticTask_t taskStorage;
-    StackType_t stack[SENSORARRAY_FDC_WORKER_STACK_WORDS];
-    volatile uint32_t currentEpoch;
-    volatile uint32_t edgeCount;
-    volatile uint32_t falseEdgeCount;
-    volatile uint32_t timeoutCount;
-    volatile uint32_t fallbackPollCount;
-    volatile uint32_t freshDrdyCount;
-    volatile uint32_t staleBeforeClearCount;
-    volatile int lastLevel;
-    volatile int64_t lastEdgeUs;
-    volatile uint32_t lastEpochSeen;
-    volatile TaskHandle_t waitTask;
-    volatile uint32_t preparedEpoch;
-    volatile int preparedErr;
-    volatile bool rowConfigPrepared;
-    volatile uint32_t generation;
-    volatile sensorarrayFdcWorkerJob_t *job;
-} sensorarrayFdcWorkerContext_t;
-
-typedef struct {
-    bool active;
-    uint32_t frames;
-    uint32_t seqStart;
-    uint32_t seqEnd;
-    uint64_t frameUsTotal;
-    uint64_t frameUsMin;
-    uint64_t frameUsMax;
-    uint64_t rowUsTotal;
-    uint64_t rowUsMax;
-    uint8_t slowRow;
-    uint32_t overrunCount;
-    sensorarrayFdcTimingSummary_t totals;
-} sensorarrayFdcTimingAggregate_t;
-
-static sensorarrayFdcWorkerContext_t s_fdcWorkers[2] = {
+sensorarrayFdcWorkerContext_t s_fdcWorkers[2] = {
     {.devId = SENSORARRAY_FDC_DEV_PRIMARY, .intbGpio = CONFIG_SENSORARRAY_FDC_INTB1_GPIO},
     {.devId = SENSORARRAY_FDC_DEV_SECONDARY, .intbGpio = CONFIG_SENSORARRAY_FDC_INTB2_GPIO},
 };
-static bool s_fdcWorkersInitAttempted = false;
-static bool s_fdcWorkersAvailable = false;
-static StaticEventGroup_t s_fdcWorkerEventStorage;
-static EventGroupHandle_t s_fdcWorkerEvents;
-static bool s_fdcFormalPrecheckDone = false;
-static bool s_fdcSecondaryUnavailableLogged = false;
-static bool s_fdcParallelConfigLogged = false;
-static uint32_t s_fdcRowEpoch = 0u;
-static uint32_t s_fdcParallelCooldownFrames = 0u;
-static uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
-static uint8_t s_fdcSoftReadyMissConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
-static uint8_t s_fdcStaleUnreadConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
-static uint8_t s_fdcHardReadyTimeoutConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
-static uint16_t s_fdcLastDiagStatusRaw[2] = {0u, 0u};
-static uint8_t s_fdcLastDiagUnreadMask[2] = {0u, 0u};
-static uint8_t s_fdcLastDiagRow[2] = {0u, 0u};
-static uint32_t s_fdcLastDiagEpoch[2] = {0u, 0u};
-static bool s_fdcLastDiagDrdy[2] = {false, false};
-static bool s_fdcLastDiagStatusOk[2] = {false, false};
-static bool s_fdcLastDiagWasReady[2] = {false, false};
-static sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2] = {0};
+bool s_fdcWorkersInitAttempted = false;
+bool s_fdcWorkersAvailable = false;
+StaticEventGroup_t s_fdcWorkerEventStorage;
+EventGroupHandle_t s_fdcWorkerEvents;
+bool s_fdcFormalPrecheckDone = false;
+bool s_fdcSecondaryUnavailableLogged = false;
+bool s_fdcParallelConfigLogged = false;
+uint32_t s_fdcRowEpoch = 0u;
+uint32_t s_fdcParallelCooldownFrames = 0u;
+uint32_t s_fdcNoUnreadConsecutive[2] = {0u, 0u};
+uint8_t s_fdcSoftReadyMissConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+uint8_t s_fdcStaleUnreadConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+uint8_t s_fdcHardReadyTimeoutConsecutive[2][SENSORARRAY_MATRIX_ROWS] = {0};
+uint16_t s_fdcLastDiagStatusRaw[2] = {0u, 0u};
+uint8_t s_fdcLastDiagUnreadMask[2] = {0u, 0u};
+uint8_t s_fdcLastDiagRow[2] = {0u, 0u};
+uint32_t s_fdcLastDiagEpoch[2] = {0u, 0u};
+bool s_fdcLastDiagDrdy[2] = {false, false};
+bool s_fdcLastDiagStatusOk[2] = {false, false};
+bool s_fdcLastDiagWasReady[2] = {false, false};
+sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2] = {0};
 #if SENSORARRAY_FDC_INTB_OUTPUT_ENABLE
-static bool s_fdcIntbRuntimeUsable[2] = {true, true};
+bool s_fdcIntbRuntimeUsable[2] = {true, true};
 #else
-static bool s_fdcIntbRuntimeUsable[2] = {false, false};
+bool s_fdcIntbRuntimeUsable[2] = {false, false};
 #endif
-static sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
-static SemaphoreHandle_t s_fdcGpioIsrServiceMutex = NULL;
-static portMUX_TYPE s_fdcGpioIsrServiceMux = portMUX_INITIALIZER_UNLOCKED;
-static bool s_fdcGpioIsrServiceInstalled = false;
+sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
+SemaphoreHandle_t s_fdcGpioIsrServiceMutex = NULL;
+portMUX_TYPE s_fdcGpioIsrServiceMux = portMUX_INITIALIZER_UNLOCKED;
+bool s_fdcGpioIsrServiceInstalled = false;
 
-static esp_err_t sensorarrayMeasureEnsureLock(void)
+esp_err_t sensorarrayMeasureEnsureLock(void)
 {
     if (s_measureLock) {
         return ESP_OK;
@@ -897,7 +187,7 @@ static esp_err_t sensorarrayMeasureEnsureLock(void)
     return s_measureLock ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
-static esp_err_t sensorarrayMeasureTakeLock(void)
+esp_err_t sensorarrayMeasureTakeLock(void)
 {
     esp_err_t err = sensorarrayMeasureEnsureLock();
     if (err != ESP_OK) {
@@ -911,14 +201,14 @@ static esp_err_t sensorarrayMeasureTakeLock(void)
     return (xSemaphoreTake(s_measureLock, ticks) == pdTRUE) ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
-static void sensorarrayMeasureGiveLock(void)
+void sensorarrayMeasureGiveLock(void)
 {
     if (s_measureLock) {
         xSemaphoreGive(s_measureLock);
     }
 }
 
-static void sensorarrayDelayMs(uint32_t delayMs)
+void sensorarrayDelayMs(uint32_t delayMs)
 {
     if (delayMs > 0u) {
         vTaskDelay(pdMS_TO_TICKS(delayMs));
@@ -968,17 +258,17 @@ static const char *sensorarrayAdsVbiasPolicyName(sensorarrayAdsVbiasPolicy_t pol
     }
 }
 
-static bool sensorarrayAdsIntRefPolicyUpdates(sensorarrayAdsIntRefPolicy_t policy)
+bool sensorarrayAdsIntRefPolicyUpdates(sensorarrayAdsIntRefPolicy_t policy)
 {
     return policy != SENSORARRAY_ADS_INTREF_KEEP;
 }
 
-static bool sensorarrayAdsVbiasPolicyUpdates(sensorarrayAdsVbiasPolicy_t policy)
+bool sensorarrayAdsVbiasPolicyUpdates(sensorarrayAdsVbiasPolicy_t policy)
 {
     return policy != SENSORARRAY_ADS_VBIAS_KEEP;
 }
 
-static int sensorarrayReadResetGpioLevel(void)
+int sensorarrayReadResetGpioLevel(void)
 {
     if (CONFIG_BOARD_ADS126X_RESET_GPIO < 0) {
         return -1;
@@ -1063,7 +353,7 @@ esp_err_t sensorarrayMeasureApplyRefPolicy(sensorarrayState_t *state,
     return err;
 }
 
-static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
+esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
 {
     if (!state || !state->adsReady || !state->adsAdc1Running) {
         return ESP_OK;
@@ -1076,7 +366,7 @@ static esp_err_t sensorarrayMeasureStopAdsBeforeRoute(sensorarrayState_t *state)
     return err;
 }
 
-static tmux1108Source_t sensorarrayMeasureSourceForSwPhysicalLevel(sensorarraySwPhysicalLevel_t level)
+tmux1108Source_t sensorarrayMeasureSourceForSwPhysicalLevel(sensorarraySwPhysicalLevel_t level)
 {
     const bool refSourceIsHigh = (CONFIG_TMUX1108_SW_REF_LEVEL != 0);
     if (level == SENSORARRAY_SW_PHYSICAL_HIGH) {
@@ -1100,14 +390,14 @@ esp_err_t sensorarrayMeasureSetSwPhysicalLevel(sensorarrayState_t *state,
     return tmuxSwitchSet1108Source(sensorarrayMeasureSourceForSwPhysicalLevel(level));
 }
 
-static void sensorarrayMeasureDelayUs(uint32_t delayUs)
+void sensorarrayMeasureDelayUs(uint32_t delayUs)
 {
     if (delayUs > 0u) {
         esp_rom_delay_us(delayUs);
     }
 }
 
-static esp_err_t sensorarrayMeasureSetSelaPathQuiet(sensorarrayState_t *state,
+esp_err_t sensorarrayMeasureSetSelaPathQuiet(sensorarrayState_t *state,
                                                     sensorarraySelaRoute_t selaRoute,
                                                     uint32_t settleDelayUs)
 {
@@ -1127,7 +417,7 @@ static esp_err_t sensorarrayMeasureSetSelaPathQuiet(sensorarrayState_t *state,
     return err;
 }
 
-static esp_err_t sensorarrayMeasureSetFdcSelBPathQuiet(sensorarrayState_t *state)
+esp_err_t sensorarrayMeasureSetFdcSelBPathQuiet(sensorarrayState_t *state)
 {
     if (!state || !state->tmuxReady) {
         return ESP_ERR_INVALID_STATE;
@@ -1140,7 +430,7 @@ static esp_err_t sensorarrayMeasureSetFdcSelBPathQuiet(sensorarrayState_t *state
     return tmux1134SelectSelBLevel(selBLevel);
 }
 
-static esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state)
+esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state)
 {
     if (!state || !state->adsReady) {
         return ESP_ERR_INVALID_STATE;
@@ -1165,12 +455,12 @@ static esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *stat
     return err;
 }
 
-static int sensorarrayMeasureSwPhysicalReadbackFromControl(const tmuxSwitchControlState_t *ctrl)
+int sensorarrayMeasureSwPhysicalReadbackFromControl(const tmuxSwitchControlState_t *ctrl)
 {
     return ctrl ? ctrl->obsSwLevel : -1;
 }
 
-static void sensorarrayMeasureReadFdcPathControl(tmuxSwitchControlState_t *ctrl)
+void sensorarrayMeasureReadFdcPathControl(tmuxSwitchControlState_t *ctrl)
 {
     if (!ctrl || tmuxSwitchGetControlState(ctrl) != ESP_OK) {
         if (ctrl) {
@@ -1189,7 +479,7 @@ static void sensorarrayMeasureReadFdcPathControl(tmuxSwitchControlState_t *ctrl)
     }
 }
 
-static bool sensorarrayMeasureFdcPathControlMatches(const tmuxSwitchControlState_t *ctrl)
+bool sensorarrayMeasureFdcPathControlMatches(const tmuxSwitchControlState_t *ctrl)
 {
     if (!ctrl) {
         return false;
@@ -1364,7 +654,7 @@ esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayMeasureSetSwForRoute(sensorarrayState_t *state,
+esp_err_t sensorarrayMeasureSetSwForRoute(sensorarrayState_t *state,
                                                  const char *stage,
                                                  uint8_t sColumn,
                                                  uint8_t dLine,
@@ -1395,7 +685,7 @@ static esp_err_t sensorarrayMeasureSetSwForRoute(sensorarrayState_t *state,
     return err;
 }
 
-static esp_err_t sensorarrayMeasureWriteSela(sensorarrayState_t *state,
+esp_err_t sensorarrayMeasureWriteSela(sensorarrayState_t *state,
                                              sensorarraySelaRoute_t requestRoute,
                                              uint32_t settleDelayMs,
                                              const char *stage,
@@ -1474,12 +764,12 @@ sensorarrayFdcDeviceState_t *sensorarrayMeasureGetFdcStateForDLine(sensorarraySt
     return sensorarrayMeasureGetFdcState(state, map->devId);
 }
 
-static const char *sensorarrayMeasureFdcDeviceName(sensorarrayFdcDeviceId_t devId)
+const char *sensorarrayMeasureFdcDeviceName(sensorarrayFdcDeviceId_t devId)
 {
     return (devId == SENSORARRAY_FDC_DEV_SECONDARY) ? "secondary" : "primary";
 }
 
-static const char *sensorarrayMeasureEspErrName(esp_err_t err)
+const char *sensorarrayMeasureEspErrName(esp_err_t err)
 {
     switch (err) {
     case ESP_OK:
@@ -1549,15 +839,15 @@ sensorarrayFdcCellConfigCache_t *sensorarrayMeasureGetFdcCellCache(sensorarraySt
     return &state->fdcCellCache[target->sColumn - 1u][target->dLine - 1u];
 }
 
-static void sensorarrayMeasureMarkFdcAppliedCellDirty(sensorarrayState_t *state,
+void sensorarrayMeasureMarkFdcAppliedCellDirty(sensorarrayState_t *state,
                                                       const sensorarrayFdcCellTarget_t *target);
 
-static bool sensorarrayMeasureFdcReasonEquals(const char *reason, const char *expected)
+bool sensorarrayMeasureFdcReasonEquals(const char *reason, const char *expected)
 {
     return reason && expected && strcmp(reason, expected) == 0;
 }
 
-static bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
+bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
 {
     return sensorarrayMeasureFdcReasonEquals(reason, "manual_force_sweep") ||
            sensorarrayMeasureFdcReasonEquals(reason, "manual_force_full_sweep_all") ||
@@ -1566,13 +856,13 @@ static bool sensorarrayMeasureFdcRescueReasonIsManual(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "fdc_rescue");
 }
 
-static bool sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(const char *reason)
+bool sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(const char *reason)
 {
     return sensorarrayMeasureFdcReasonEquals(reason, "profile_too_slow") ||
            sensorarrayMeasureFdcReasonEquals(reason, "current_profile_cannot_meet_target_fps");
 }
 
-static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
+bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
 {
     if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(reason)) {
         return CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE != 0;
@@ -1596,7 +886,7 @@ static bool sensorarrayMeasureFdcRescueReasonIsFastSweep(const char *reason)
            sensorarrayMeasureFdcReasonEquals(reason, "cache_missing");
 }
 
-static bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
+bool sensorarrayMeasureFdcRescueReasonIsHard(const char *reason)
 {
     if (sensorarrayMeasureFdcRescueReasonIsProfileTooSlow(reason)) {
         return CONFIG_SENSORARRAY_FDC_PROFILE_TOO_SLOW_RESCUE_ENABLE != 0;
@@ -1777,7 +1067,7 @@ esp_err_t sensorarrayMeasureFdcDiscardStaleSamples(sensorarrayState_t *state,
     return firstErr;
 }
 
-static sensorarrayFdcDeviceId_t sensorarrayMeasureFdcDeviceIdFromState(const sensorarrayFdcDeviceState_t *fdcState)
+sensorarrayFdcDeviceId_t sensorarrayMeasureFdcDeviceIdFromState(const sensorarrayFdcDeviceState_t *fdcState)
 {
     if (fdcState && fdcState->label && strstr(fdcState->label, "secondary")) {
         return SENSORARRAY_FDC_DEV_SECONDARY;
@@ -1785,7 +1075,7 @@ static sensorarrayFdcDeviceId_t sensorarrayMeasureFdcDeviceIdFromState(const sen
     return SENSORARRAY_FDC_DEV_PRIMARY;
 }
 
-static uint8_t sensorarrayMeasureFdcUnreadMaskFromStatus(const Fdc2214CapStatus_t *status)
+uint8_t sensorarrayMeasureFdcUnreadMaskFromStatus(const Fdc2214CapStatus_t *status)
 {
     if (!status) {
         return 0u;
@@ -1800,7 +1090,7 @@ static uint8_t sensorarrayMeasureFdcUnreadMaskFromStatus(const Fdc2214CapStatus_
     return unreadMask;
 }
 
-static sensorarrayFdcReadyDecoded_t sensorarrayMeasureFdcBuildReadyState(
+sensorarrayFdcReadyDecoded_t sensorarrayMeasureFdcBuildReadyState(
     const Fdc2214CapStatus_t *status,
     uint8_t requiredMask)
 {
@@ -1820,7 +1110,7 @@ static sensorarrayFdcReadyDecoded_t sensorarrayMeasureFdcBuildReadyState(
     return ready;
 }
 
-static void sensorarrayMeasureFdcApplyReadyDecoded(sensorarrayFdcReadyState_t *ready,
+void sensorarrayMeasureFdcApplyReadyDecoded(sensorarrayFdcReadyState_t *ready,
                                                    const sensorarrayFdcReadyDecoded_t *decoded)
 {
     if (!ready || !decoded) {
@@ -1836,7 +1126,7 @@ static void sensorarrayMeasureFdcApplyReadyDecoded(sensorarrayFdcReadyState_t *r
     ready->unreadWithoutDataReady = decoded->unreadWithoutDataReady;
 }
 
-static bool sensorarrayMeasureFdcDeglitchCodeValid(uint8_t deglitchCode)
+bool sensorarrayMeasureFdcDeglitchCodeValid(uint8_t deglitchCode)
 {
     switch (deglitchCode) {
     case FDC2214_DEGLITCH_1MHZ:
@@ -1849,7 +1139,7 @@ static bool sensorarrayMeasureFdcDeglitchCodeValid(uint8_t deglitchCode)
     }
 }
 
-static Fdc2214CapDeglitch_t sensorarrayMeasureSelectedFdcDeglitch(const sensorarrayFdcDeviceState_t *fdcState)
+Fdc2214CapDeglitch_t sensorarrayMeasureSelectedFdcDeglitch(const sensorarrayFdcDeviceState_t *fdcState)
 {
     uint8_t selectedCode = (uint8_t)FDC2214_DEGLITCH_3P3MHZ;
     uint32_t selectedBandwidthHz = 3300000u;
@@ -1874,12 +1164,12 @@ static Fdc2214CapDeglitch_t sensorarrayMeasureSelectedFdcDeglitch(const sensorar
     return (Fdc2214CapDeglitch_t)selectedCode;
 }
 
-static uint8_t sensorarrayMeasureFdcRegForChannel(uint8_t base, Fdc2214CapChannel_t channel)
+uint8_t sensorarrayMeasureFdcRegForChannel(uint8_t base, Fdc2214CapChannel_t channel)
 {
     return (uint8_t)(base + (uint8_t)channel);
 }
 
-static uint32_t sensorarrayMeasureFdcDeglitchBandwidthHz(uint8_t deglitchCode)
+uint32_t sensorarrayMeasureFdcDeglitchBandwidthHz(uint8_t deglitchCode)
 {
     switch (deglitchCode) {
     case FDC2214_DEGLITCH_1MHZ:
@@ -1895,12 +1185,12 @@ static uint32_t sensorarrayMeasureFdcDeglitchBandwidthHz(uint8_t deglitchCode)
     }
 }
 
-static uint8_t sensorarrayMeasureFdcSafeDefaultDeglitch(void)
+uint8_t sensorarrayMeasureFdcSafeDefaultDeglitch(void)
 {
     return (uint8_t)FDC2214_DEGLITCH_10MHZ;
 }
 
-static void sensorarrayMeasureMarkFdcAppliedCellDirty(sensorarrayState_t *state,
+void sensorarrayMeasureMarkFdcAppliedCellDirty(sensorarrayState_t *state,
                                                       const sensorarrayFdcCellTarget_t *target)
 {
     if (!state || !target || target->devId > SENSORARRAY_FDC_DEV_SECONDARY || target->fdcChannel >= 4u) {
@@ -1915,7 +1205,7 @@ static void sensorarrayMeasureMarkFdcAppliedCellDirty(sensorarrayState_t *state,
     }
 }
 
-static bool sensorarrayMeasureAppliedRowConfigMatches(const sensorarrayFdcAppliedRowConfig_t *applied,
+bool sensorarrayMeasureAppliedRowConfigMatches(const sensorarrayFdcAppliedRowConfig_t *applied,
                                                       const sensorarrayFdcAppliedRowConfig_t *expected)
 {
     if (!applied || !expected ||
@@ -1942,7 +1232,7 @@ static bool sensorarrayMeasureAppliedRowConfigMatches(const sensorarrayFdcApplie
     return true;
 }
 
-static uint16_t sensorarrayMeasureFdcBuildMuxConfig(uint8_t deglitchCode)
+uint16_t sensorarrayMeasureFdcBuildMuxConfig(uint8_t deglitchCode)
 {
     uint8_t deglitch = sensorarrayMeasureFdcDeglitchCodeValid(deglitchCode) ?
         deglitchCode :
@@ -1954,7 +1244,7 @@ static uint16_t sensorarrayMeasureFdcBuildMuxConfig(uint8_t deglitchCode)
                       (uint16_t)(deglitch & SENSORARRAY_FDC_MUX_DEGLITCH_MASK));
 }
 
-static uint16_t sensorarrayMeasureFdcConfigBaseWithoutSleep(const sensorarrayFdcDeviceState_t *fdcState)
+uint16_t sensorarrayMeasureFdcConfigBaseWithoutSleep(const sensorarrayFdcDeviceState_t *fdcState)
 {
     uint16_t config = fdcState ? fdcState->configReg : 0u;
     if (config == 0u) {
@@ -1979,7 +1269,7 @@ static uint16_t sensorarrayMeasureFdcConfigBaseWithoutSleep(const sensorarrayFdc
     return config;
 }
 
-static uint32_t sensorarrayMeasureFdcConfigFingerprint(const sensorarrayFdcAppliedRowConfig_t *config)
+uint32_t sensorarrayMeasureFdcConfigFingerprint(const sensorarrayFdcAppliedRowConfig_t *config)
 {
     if (!config) {
         return 0u;
@@ -2003,11 +1293,11 @@ static uint32_t sensorarrayMeasureFdcConfigFingerprint(const sensorarrayFdcAppli
     return (fp == 0u) ? 1u : fp;
 }
 
-static sensorarrayFdcCellConfigCache_t *sensorarrayMeasureFdcRowDeviceCache(sensorarrayState_t *state,
-                                                                            uint8_t row,
-                                                                            sensorarrayFdcDeviceId_t devId,
-                                                                            uint8_t ch,
-                                                                            uint8_t *outDIndex)
+sensorarrayFdcCellConfigCache_t *sensorarrayMeasureFdcRowDeviceCache(sensorarrayState_t *state,
+                                                                     uint8_t row,
+                                                                     sensorarrayFdcDeviceId_t devId,
+                                                                     uint8_t ch,
+                                                                     uint8_t *outDIndex)
 {
     if (!state || row < 1u || row > SENSORARRAY_MATRIX_ROWS || ch >= 4u) {
         return NULL;
@@ -2024,7 +1314,7 @@ static sensorarrayFdcCellConfigCache_t *sensorarrayMeasureFdcRowDeviceCache(sens
     return sensorarrayMeasureGetFdcCellCache(state, &target);
 }
 
-static uint8_t sensorarrayFdcMergeDeglitchForRowDevice(sensorarrayState_t *state,
+uint8_t sensorarrayFdcMergeDeglitchForRowDevice(sensorarrayState_t *state,
                                                        uint8_t row,
                                                        sensorarrayFdcDeviceId_t devId,
                                                        uint8_t safeDefaultDeglitch)
@@ -2068,8 +1358,8 @@ static uint8_t sensorarrayFdcMergeDeglitchForRowDevice(sensorarrayState_t *state
     return selected;
 }
 
-static bool __attribute__((unused)) sensorarrayMeasureFdcAutoscanConfigLooksCurrent(const sensorarrayFdcDeviceState_t *fdcState,
-                                                                                   uint8_t expectedDeglitch)
+bool sensorarrayMeasureFdcAutoscanConfigLooksCurrent(const sensorarrayFdcDeviceState_t *fdcState,
+                                                     uint8_t expectedDeglitch)
 {
     if (!fdcState || !fdcState->configVerified) {
         return false;
@@ -2088,16 +1378,12 @@ static bool __attribute__((unused)) sensorarrayMeasureFdcAutoscanConfigLooksCurr
            !sleeping;
 }
 
-static uint32_t sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot(
+uint32_t sensorarrayMeasureFdcEstimateAutoscanReadyTimeoutUsWithSnapshot(
     const sensorarrayFdcRuntimeChannelConfig_t configs[4],
     uint8_t requiredUnreadMask,
     uint32_t *outEstimatedRoundUs,
     sensorarrayFdcProfileSnapshot_t *snapshot);
-static const char *sensorarrayMeasureFdcDeviceToken(sensorarrayFdcDeviceId_t devId);
-
-#include "fdc/sensorarrayFdcCacheApply.inc"
-
-static esp_err_t sensorarrayMeasureVerifyFdcChannelConfigApplied(sensorarrayFdcDeviceState_t *fdcState)
+esp_err_t sensorarrayMeasureVerifyFdcChannelConfigApplied(sensorarrayFdcDeviceState_t *fdcState)
 {
     if (!fdcState || !fdcState->handle) {
         return ESP_ERR_INVALID_STATE;
@@ -2151,8 +1437,8 @@ static esp_err_t sensorarrayMeasureVerifyFdcChannelConfigApplied(sensorarrayFdcD
     return firstErr;
 }
 
-static esp_err_t __attribute__((unused)) sensorarrayMeasureEnsureFdcAutoscan4ch(sensorarrayState_t *state,
-                                                                                sensorarrayFdcDeviceId_t devId)
+esp_err_t sensorarrayMeasureEnsureFdcAutoscan4ch(sensorarrayState_t *state,
+                                                 sensorarrayFdcDeviceId_t devId)
 {
     sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
     if (!fdcState || !fdcState->ready || !fdcState->handle) {
@@ -2218,10 +1504,10 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureEnsureFdcAutoscan4ch(
     return ESP_OK;
 }
 
-static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitFdcAutoscanFrameReady(sensorarrayFdcDeviceState_t *fdcState,
-                                                                                    uint8_t row,
-                                                                                    uint32_t timeoutMs,
-                                                                                    uint16_t *outStatus)
+esp_err_t sensorarrayMeasureWaitFdcAutoscanFrameReady(sensorarrayFdcDeviceState_t *fdcState,
+                                                      uint8_t row,
+                                                      uint32_t timeoutMs,
+                                                      uint16_t *outStatus)
 {
     if (!fdcState || !fdcState->handle) {
         return ESP_ERR_INVALID_STATE;
@@ -2271,8 +1557,8 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitFdcAutoscanFrameR
     return (lastErr == ESP_OK) ? ESP_ERR_TIMEOUT : lastErr;
 }
 
-static void __attribute__((unused)) sensorarrayMeasurePollFdcReady(sensorarrayFdcDeviceState_t *fdcState,
-                                                                  sensorarrayFdcReadyState_t *ready)
+void sensorarrayMeasurePollFdcReady(sensorarrayFdcDeviceState_t *fdcState,
+                                    sensorarrayFdcReadyState_t *ready)
 {
     if (!ready) {
         return;
@@ -2297,11 +1583,11 @@ static void __attribute__((unused)) sensorarrayMeasurePollFdcReady(sensorarrayFd
     ready->ready = ready->readyForDataRead;
 }
 
-static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitBothFdcAutoscanFrameReady(sensorarrayState_t *state,
-                                                                                        uint8_t row,
-                                                                                        uint32_t timeoutMs,
-                                                                                        sensorarrayFdcReadyState_t *primaryReady,
-                                                                                        sensorarrayFdcReadyState_t *secondaryReady)
+esp_err_t sensorarrayMeasureWaitBothFdcAutoscanFrameReady(sensorarrayState_t *state,
+                                                          uint8_t row,
+                                                          uint32_t timeoutMs,
+                                                          sensorarrayFdcReadyState_t *primaryReady,
+                                                          sensorarrayFdcReadyState_t *secondaryReady)
 {
     if (!state || !primaryReady || !secondaryReady) {
         return ESP_ERR_INVALID_ARG;
@@ -2366,25 +1652,24 @@ static esp_err_t __attribute__((unused)) sensorarrayMeasureWaitBothFdcAutoscanFr
     return err;
 }
 
-static const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result);
-static bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready);
-static uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs);
+const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result);
+bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready);
+uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs);
 
-#include "fdc/sensorarrayFdcRead4.inc"
 
-static sensorarrayFdcWorkerContext_t *sensorarrayMeasureFdcWorkerContext(sensorarrayFdcDeviceId_t devId)
+sensorarrayFdcWorkerContext_t *sensorarrayMeasureFdcWorkerContext(sensorarrayFdcDeviceId_t devId)
 {
     return (devId <= SENSORARRAY_FDC_DEV_SECONDARY) ? &s_fdcWorkers[(uint8_t)devId] : NULL;
 }
 
-static void sensorarrayMeasureRecordFirstErr(esp_err_t err, esp_err_t *firstErr)
+void sensorarrayMeasureRecordFirstErr(esp_err_t err, esp_err_t *firstErr)
 {
     if (firstErr && *firstErr == ESP_OK && err != ESP_OK) {
         *firstErr = err;
     }
 }
 
-static esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *state,
+esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *state,
                                                            sensorarrayFdcDeviceId_t devId)
 {
     sensorarrayFdcDeviceState_t *fdcState = sensorarrayMeasureGetFdcState(state, devId);
@@ -2494,7 +1779,7 @@ static esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *s
     return firstErr;
 }
 
-static esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *state)
+esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *state)
 {
     esp_err_t firstErr = sensorarrayMeasureFdcFormalPrecheckDevice(state,
                                                                    SENSORARRAY_FDC_DEV_PRIMARY);
@@ -2504,7 +1789,7 @@ static esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *stat
     return firstErr;
 }
 
-static esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void)
+esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void)
 {
     if (s_fdcGpioIsrServiceInstalled) {
         return ESP_OK;
@@ -2550,7 +1835,7 @@ static esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void)
     return err;
 }
 
-static void IRAM_ATTR sensorarrayMeasureFdcIntbIsr(void *arg)
+void IRAM_ATTR sensorarrayMeasureFdcIntbIsr(void *arg)
 {
     sensorarrayFdcWorkerContext_t *ctx = (sensorarrayFdcWorkerContext_t *)arg;
     if (!ctx) {
@@ -2572,7 +1857,7 @@ static void IRAM_ATTR sensorarrayMeasureFdcIntbIsr(void *arg)
     }
 }
 
-static esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *ctx)
+esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *ctx)
 {
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
@@ -2635,7 +1920,7 @@ static esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *
     return ESP_OK;
 }
 
-static void sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayFdcWorkerContext_t *ctx,
+void sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayFdcWorkerContext_t *ctx,
                                                   uint32_t epochId)
 {
     if (!ctx) {
@@ -2650,13 +1935,13 @@ static void sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayFdcWorkerContext_t 
     }
 }
 
-static uint32_t sensorarrayMeasureFdcWorkerEdgeCount(sensorarrayFdcDeviceId_t devId)
+uint32_t sensorarrayMeasureFdcWorkerEdgeCount(sensorarrayFdcDeviceId_t devId)
 {
     sensorarrayFdcWorkerContext_t *ctx = sensorarrayMeasureFdcWorkerContext(devId);
     return ctx ? ctx->edgeCount : 0u;
 }
 
-static bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
+bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
                                                 int configuredCore,
                                                 int defaultCore,
                                                 BaseType_t *outCore,
@@ -2701,7 +1986,7 @@ static bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
     return true;
 }
 
-static void sensorarrayMeasureCleanupFdcWorkers(void)
+void sensorarrayMeasureCleanupFdcWorkers(void)
 {
     for (uint8_t i = 0u; i < 2u; ++i) {
         sensorarrayFdcWorkerContext_t *ctx = &s_fdcWorkers[i];
@@ -2715,7 +2000,7 @@ static void sensorarrayMeasureCleanupFdcWorkers(void)
     }
 }
 
-static const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result)
+const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResult_t result)
 {
     switch (result) {
     case FDC_READY_OK_INTB_DRDY_UNREAD_FULL:
@@ -2750,13 +2035,13 @@ static const char *sensorarrayMeasureFdcReadyResultName(sensorarrayFdcReadyResul
     }
 }
 
-static bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready)
+bool sensorarrayMeasureFdcReadyResultIsSoftInvalid(const sensorarrayFdcReadyState_t *ready)
 {
     return ready &&
            ready->readyResult == FDC_READY_STALE_UNREAD_NO_DRDY;
 }
 
-static uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs)
+uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs)
 {
     uint64_t value = (uint64_t)estimatedRoundUs +
                      (uint32_t)CONFIG_SENSORARRAY_FDC_READY_GUARD_US;
@@ -2790,10 +2075,8 @@ static const char *sensorarrayMeasureFdcParallelFallbackReason(bool configEnable
     return "parallel_error";
 }
 
-#include "fdc/sensorarrayFdcRowEpoch.inc"
 
-#include "fdc/sensorarrayFdcFrameBuild.inc"
-static void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *before,
+void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *before,
                                                     const Fdc2214CapI2cStats_t *after,
                                                     sensorarrayFdcDeviceTiming_t *timing)
 {
@@ -2812,13 +2095,23 @@ static void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame)
 {
+    return sensorarrayMeasureReadFdcMatrixFrameRows(state, outFrame, 0u);
+}
+
+esp_err_t sensorarrayMeasureReadFdcMatrixFrameRows(sensorarrayState_t *state,
+                                                   sensorarrayFdcMatrixFrame_t *outFrame,
+                                                   uint8_t requestedRows)
+{
     if (!outFrame) {
         return ESP_ERR_INVALID_ARG;
     }
 
     sensorarrayScanConfigApplyPendingAtFrameBoundary();
     sensorarrayMeasureInitFdcMatrixFrame(outFrame);
-    outFrame->activeRows = sensorarrayScanConfigGetActiveRows();
+    outFrame->activeRows = requestedRows;
+    if (outFrame->activeRows < 1u || outFrame->activeRows > SENSORARRAY_MATRIX_ROWS) {
+        outFrame->activeRows = sensorarrayScanConfigGetActiveRows();
+    }
     if (outFrame->activeRows < 1u || outFrame->activeRows > SENSORARRAY_MATRIX_ROWS) {
         outFrame->activeRows = SENSORARRAY_MATRIX_ROWS;
     }
@@ -3301,8 +2594,14 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     if (s_fdcParallelCooldownFrames > 0u) {
         s_fdcParallelCooldownFrames--;
     }
-    sensorarrayMeasureUpdateFdcRuntimeProfiles(state, &frameHealth);
-    sensorarrayMeasureCountFdcFrameWarnings(&frameHealth, &timing);
+    int64_t profileStartUs = esp_timer_get_time();
+    uint32_t profileCellsTouched =
+        sensorarrayMeasureUpdateFdcRuntimeProfiles(state, &frameHealth, outFrame->activeRows);
+    uint64_t runtimeProfileUs = sensorarrayMeasureElapsedUs(profileStartUs);
+    int64_t warningStartUs = esp_timer_get_time();
+    uint32_t healthCellsTouched =
+        sensorarrayMeasureCountFdcFrameWarnings(&frameHealth, &timing, outFrame->activeRows);
+    uint64_t warningUs = sensorarrayMeasureElapsedUs(warningStartUs);
     timing.diagReadyButRejectedCount = outFrame->diagReadyButRejectedCount;
     timing.intbMissButStatusReadyCount = outFrame->intbMissButStatusReadyCount;
     timing.statusFallbackAcceptedCount = outFrame->statusFallbackAcceptedCount;
@@ -3454,7 +2753,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                            timing.statusReadsInFallbackCount +
                            timing.statusAfterTimeoutCount,
         .statusSavedReadCount = timing.statusSavedReadCount,
-        .cacheCompareCount = SENSORARRAY_MATRIX_ROWS * 2u,
+        .cacheCompareCount = outFrame->activeRows * 2u,
         .cacheDiffRows = timing.cacheApplyRestartCount,
         .cacheWriteCount = timing.cacheApplyDiffWriteCount,
         .cacheRestartRows = timing.cacheApplyRestartCount,
@@ -3462,7 +2761,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     };
 
     const sensorarrayFdcProfileSnapshot_t *slowProfile = NULL;
-    for (uint8_t profileRow = 0u; profileRow < SENSORARRAY_MATRIX_ROWS; ++profileRow) {
+    for (uint8_t profileRow = 0u; profileRow < outFrame->activeRows; ++profileRow) {
         for (uint8_t profileDev = 0u; profileDev < 2u; ++profileDev) {
             const sensorarrayFdcProfileSnapshot_t *candidate =
                 &s_fdcProfileSnapshotByRow[profileRow][profileDev];
@@ -3474,7 +2773,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     }
     if (slowProfile) {
         outFrame->fdcTheoryReadyUs = slowProfile->autoscanRoundUs;
-        outFrame->fdcTheoryFrameReadyUs = slowProfile->autoscanRoundUs * SENSORARRAY_MATRIX_ROWS;
+        outFrame->fdcTheoryFrameReadyUs = slowProfile->autoscanRoundUs * outFrame->activeRows;
         outFrame->fdcRcount = slowProfile->rCount[0];
         outFrame->fdcSettleCount = slowProfile->settleCount[0];
         outFrame->fdcClockDividers = slowProfile->clockDividers[0];
@@ -3500,6 +2799,52 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
     if (CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG &&
         timing.frameUs > (uint64_t)CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US) {
         sensorarrayMeasurePrintFdcBottleneck(&timing, outFrame->sequence);
+    }
+
+    uint32_t logPeriod = SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
+    bool compactPeriodicLog =
+        SENSORARRAY_CFG_LOG_SHORT_FIELDS &&
+        logPeriod != 0u &&
+        outFrame->physicalSweepId != 0u &&
+        (outFrame->physicalSweepId % logPeriod) == 0u;
+    if (compactPeriodicLog) {
+        uint32_t healthErr = timing.hardInvalidCount +
+                             timing.i2cTimeoutCount +
+                             timing.i2cNackCount +
+                             timing.zeroBeforeReadyCount +
+                             timing.zeroAfterDrdyCount;
+        uint32_t healthSat = 0u;
+        for (uint8_t s0 = 0u; s0 < outFrame->activeRows; ++s0) {
+            for (uint8_t d0 = 0u; d0 < SENSORARRAY_MATRIX_COLS; ++d0) {
+                healthSat += frameHealth.saturatedSeen[s0][d0] ? 1u : 0u;
+            }
+        }
+        uint32_t healthStale = timing.staleUnreadDrainCount + timing.staleAmplitudeWarningCount;
+        uint64_t routeUs = timing.rowSwitchWhileSleepingUs + timing.rowSettleUs;
+        uint64_t fillUs = timing.coordinatorMergeUs + timing.frameMaskUpdateUs + timing.frameBookkeepingUs;
+        uint64_t postUs = runtimeProfileUs + warningUs + timing.capComputeUs;
+        printf("R50,cmd=%u,plan=%u,ph=%u,emit=%u,pc=%lu,hc=%lu,path=%s\n",
+               (unsigned)sensorarrayScanConfigGetPendingRows(),
+               (unsigned)outFrame->activeRows,
+               (unsigned)outFrame->activeRows,
+               (unsigned)outFrame->activeRows,
+               (unsigned long)profileCellsTouched,
+               (unsigned long)healthCellsTouched,
+               outFrame->activeRows == SENSORARRAY_MATRIX_ROWS ? "full" : "min");
+        printf("T50,r=%u,tu=%llu/%llu/%llu/%llu/%llu\n",
+               (unsigned)outFrame->activeRows,
+               (unsigned long long)routeUs,
+               (unsigned long long)timing.waitReadyUs,
+               (unsigned long long)timing.readUs,
+               (unsigned long long)fillUs,
+               (unsigned long long)postUs);
+        printf("P50,prof=%llu,warn=%llu,res=0,bg=0\n",
+               (unsigned long long)runtimeProfileUs,
+               (unsigned long long)warningUs);
+        printf("H50,e=%lu,sat=%lu,st=%lu,rc=0,top=-\n",
+               (unsigned long)healthErr,
+               (unsigned long)healthSat,
+               (unsigned long)healthStale);
     }
 
     if (s_fdcProfileSummaryEnabled) {
@@ -3529,7 +2874,7 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
             outFrame->diagReadyButRejectedCount != 0u ||
             outFrame->actualDataReadSkippedDespiteStatusReadyCount != 0u;
         bool waitBudgetFault = outFrame->waitBudgetTooShortCount != 0u;
-        bool runtimeReadyFault = outFrame->notReadyCount >= SENSORARRAY_MATRIX_CELL_COUNT ||
+        bool runtimeReadyFault = outFrame->notReadyCount >= activeCells ||
                                  outFrame->zeroBeforeReadyCount != 0u;
         uint32_t seq = s_fdcMatrixAllInvalidSequence++;
         const char *reason = statusReadyRejectedFault ? "all_invalid_due_to_status_ready_rejected" :
@@ -3655,27 +3000,4 @@ uint8_t sensorarrayMeasureFdcDiscardFrames(void)
 }
 
 #include "ads/sensorarrayAdsMeasure.inc"
-            *outHaveMohm = true;
-        }
-        return "divider_model_ok";
-    }
-    if (resResult == SENSORARRAY_RES_CONVERT_SIGNED_INPUT) {
-        return "negative_uv";
-    }
-    return "divider_model_invalid";
-}
-
-#include "fdc/sensorarrayFdcSampleConvert.inc"
-        return false;
-    }
-
-    const double cPf = (1.0 / denom) * 1e12;
-    if (!isfinite(cPf) || cPf <= 0.0) {
-        return false;
-    }
-
-    *outCapPf = cPf;
-    return true;
-}
-
 #include "ads/sensorarrayAdsRegisters.inc"

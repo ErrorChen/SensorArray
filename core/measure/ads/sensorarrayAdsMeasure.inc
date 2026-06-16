@@ -651,3 +651,12 @@ const char *sensorarrayMeasureDividerModelStatus(int32_t uv, int32_t *outMohm, b
     sensorarrayResConvertResult_t resResult = sensorarrayMeasureTryResistanceMohm(uv, outMohm);
     if (resResult == SENSORARRAY_RES_CONVERT_OK) {
         if (outHaveMohm) {
+            *outHaveMohm = true;
+        }
+        return "divider_model_ok";
+    }
+    if (resResult == SENSORARRAY_RES_CONVERT_SIGNED_INPUT) {
+        return "negative_uv";
+    }
+    return "divider_model_invalid";
+}
