@@ -16,6 +16,9 @@ typedef enum {
     SENSORARRAY_COMMAND_CALIBRATE_ZERO,
     SENSORARRAY_COMMAND_CALIBRATE_RAIL,
     SENSORARRAY_COMMAND_CALIBRATE_ALL,
+    SENSORARRAY_COMMAND_ADS_GAP_MODE,
+    SENSORARRAY_COMMAND_CAPTURE_FPS_CAP,
+    SENSORARRAY_COMMAND_OUTPUT_FPS_CAP,
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -29,6 +32,8 @@ bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand);
 void sensorarrayCommandMailboxCommit(const sensorarrayCommand_t *command);
 uint32_t sensorarrayCommandMailboxGetBleCapPeriod(void);
 bool sensorarrayCommandMailboxTraceEnabled(void);
+uint32_t sensorarrayCommandMailboxGetCaptureFpsCap(void);
+uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void);
 const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type);
 
 #ifdef __cplusplus

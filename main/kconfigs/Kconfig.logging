@@ -194,6 +194,21 @@ config SENSORARRAY_FDC_I2C_LOG_EVERY_N_FRAMES
     default 20
     range 0 10000
 
+config SENSORARRAY_ADS_RAIL_INVALID_STREAK_LIMIT
+    int "Consecutive invalid rail samples before battery is invalid"
+    default 3
+    range 1 1000
+    help
+        A runtime rail monitor sample that is hardware-plausible but outside
+        the nominal tolerance reports rv=0, rs=hold and keeps the last-good rail
+        for battery math. Clearly out-of-range rail samples hold only until this
+        threshold or the age limit is exceeded.
+
+config SENSORARRAY_ADS_RAIL_LAST_GOOD_MAX_AGE_FRAMES
+    int "Maximum age of last-good rail for battery math"
+    default 500
+    range 1 100000
+
 config SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE
     bool "Aggregate FDC timing summary over multiple frames"
     default y

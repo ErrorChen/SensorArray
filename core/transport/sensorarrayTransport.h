@@ -14,11 +14,13 @@ typedef enum {
 } sensorarrayTransportReplyKind_t;
 
 typedef enum {
-    SENSORARRAY_TRANSPORT_TX_REL = 0,
-    SENSORARRAY_TRANSPORT_TX_RT,
+    SENSORARRAY_TRANSPORT_TX_SHORT = 0,
+    SENSORARRAY_TRANSPORT_TX_REL,
+    SENSORARRAY_TRANSPORT_TX_FULL,
 } sensorarrayTransportTxMode_t;
 
 typedef enum {
+    SENSORARRAY_TRANSPORT_STREAM_AUTO = 0u,
     SENSORARRAY_TRANSPORT_STREAM_SER = 1u << 0,
     SENSORARRAY_TRANSPORT_STREAM_BLE = 1u << 1,
     SENSORARRAY_TRANSPORT_STREAM_WIFI = 1u << 2,
@@ -64,6 +66,10 @@ typedef struct {
 typedef esp_err_t (*sensorarrayTransportLegacyCommandCallback_t)(const uint8_t *data,
                                                                  size_t length,
                                                                  void *context);
+typedef esp_err_t (*sensorarrayTransportRuntimeQueryCallback_t)(const char *command,
+                                                                char *response,
+                                                                size_t responseSize,
+                                                                void *context);
 
 esp_err_t sensorarrayTransportInit(void);
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length);
@@ -79,6 +85,9 @@ esp_err_t sensorarrayTransportHandleControlCommand(
 esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode);
 void sensorarrayTransportSetLegacyCommandCallback(
     sensorarrayTransportLegacyCommandCallback_t callback,
+    void *context);
+void sensorarrayTransportSetRuntimeQueryCallback(
+    sensorarrayTransportRuntimeQueryCallback_t callback,
     void *context);
 void sensorarrayTransportGetStats(sensorarrayTransportStats_t *outStats);
 void sensorarrayTransportNoteSerialData(bool sent);

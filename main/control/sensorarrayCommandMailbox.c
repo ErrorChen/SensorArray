@@ -19,6 +19,8 @@ static uint8_t s_commandQueueStorage[SENSORARRAY_COMMAND_QUEUE_LENGTH *
 static QueueHandle_t s_commandQueue;
 static portMUX_TYPE s_commandStateMux = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t s_bleCapPeriod;
+static uint32_t s_captureFpsCap;
+static uint32_t s_outputFpsCap;
 static bool s_traceEnabled;
 
 static void sensorarrayCommandNormalize(char *text)
@@ -60,6 +62,34 @@ static esp_err_t sensorarrayCommandParseUnsigned(const char *value,
         return ESP_ERR_INVALID_ARG;
     }
     *outValue = (uint32_t)parsed;
+    return ESP_OK;
+}
+
+static esp_err_t sensorarrayCommandParseFpsCap(const char *text,
+                                               const char *prefix,
+                                               sensorarrayCommandType_t type,
+                                               sensorarrayCommand_t *outCommand)
+{
+    size_t prefixLength = strlen(prefix);
+    if (strncmp(text, prefix, prefixLength) != 0) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    const char *value = text + prefixLength;
+    uint32_t fps = 0u;
+    if (strcmp(value, "OFF") == 0) {
+        fps = 0u;
+    } else if (strncmp(value, "ON,", 3u) == 0) {
+        esp_err_t err = sensorarrayCommandParseUnsigned(value + 3u, 200u, &fps);
+        if (err != ESP_OK || fps == 0u) {
+            return ESP_ERR_INVALID_ARG;
+        }
+    } else {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *outCommand = (sensorarrayCommand_t){
+        .type = type,
+        .value = fps,
+    };
     return ESP_OK;
 }
 
@@ -110,12 +140,51 @@ static esp_err_t sensorarrayCommandParse(const uint8_t *text,
         return ESP_OK;
     }
 
+    esp_err_t capErr = sensorarrayCommandParseFpsCap(commandText,
+                                                     "FPSCAP=",
+                                                     SENSORARRAY_COMMAND_CAPTURE_FPS_CAP,
+                                                     outCommand);
+    if (capErr != ESP_ERR_NOT_SUPPORTED) {
+        return capErr;
+    }
+    capErr = sensorarrayCommandParseFpsCap(commandText,
+                                           "OUTCAP=",
+                                           SENSORARRAY_COMMAND_OUTPUT_FPS_CAP,
+                                           outCommand);
+    if (capErr != ESP_ERR_NOT_SUPPORTED) {
+        return capErr;
+    }
+
+    if (strcmp(commandText, "ADSGAP=OFF") == 0 ||
+        strcmp(commandText, "ADSGAP=ON") == 0 ||
+        strcmp(commandText, "ADSGAP=RAIL") == 0 ||
+        strcmp(commandText, "ADSGAP=BAT") == 0 ||
+        strcmp(commandText, "ADSGAP=ZERO") == 0) {
+        uint32_t mode = 1u;
+        if (strcmp(commandText, "ADSGAP=OFF") == 0) {
+            mode = 0u;
+        } else if (strcmp(commandText, "ADSGAP=RAIL") == 0) {
+            mode = 2u;
+        } else if (strcmp(commandText, "ADSGAP=BAT") == 0) {
+            mode = 3u;
+        } else if (strcmp(commandText, "ADSGAP=ZERO") == 0) {
+            mode = 4u;
+        }
+        *outCommand = (sensorarrayCommand_t){
+            .type = SENSORARRAY_COMMAND_ADS_GAP_MODE,
+            .value = mode,
+        };
+        return ESP_OK;
+    }
+
     sensorarrayCommandType_t calibrationType;
     if (strcmp(commandText, "CAL=ZERO") == 0) {
         calibrationType = SENSORARRAY_COMMAND_CALIBRATE_ZERO;
-    } else if (strcmp(commandText, "CAL=RAIL") == 0) {
+    } else if (strcmp(commandText, "CAL=RAIL") == 0 ||
+               strcmp(commandText, "RAILCAL") == 0) {
         calibrationType = SENSORARRAY_COMMAND_CALIBRATE_RAIL;
-    } else if (strcmp(commandText, "CAL=ALL") == 0) {
+    } else if (strcmp(commandText, "CAL=ALL") == 0 ||
+               strcmp(commandText, "BATCAL") == 0) {
         calibrationType = SENSORARRAY_COMMAND_CALIBRATE_ALL;
     } else {
         return ESP_ERR_NOT_SUPPORTED;
@@ -144,6 +213,10 @@ esp_err_t sensorarrayCommandMailboxInit(void)
 
     portENTER_CRITICAL(&s_commandStateMux);
     s_bleCapPeriod = CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES;
+    s_captureFpsCap =
+        CONFIG_SENSORARRAY_CAPTURE_FPS_LIMIT_ENABLE ? CONFIG_SENSORARRAY_CAPTURE_FPS_LIMIT : 0u;
+    s_outputFpsCap =
+        CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE ? CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT : 0u;
     s_traceEnabled = false;
     portEXIT_CRITICAL(&s_commandStateMux);
     return ESP_OK;
@@ -190,6 +263,10 @@ void sensorarrayCommandMailboxCommit(const sensorarrayCommand_t *command)
         s_bleCapPeriod = command->value;
     } else if (command->type == SENSORARRAY_COMMAND_TRACE_ENABLE) {
         s_traceEnabled = command->value != 0u;
+    } else if (command->type == SENSORARRAY_COMMAND_CAPTURE_FPS_CAP) {
+        s_captureFpsCap = command->value;
+    } else if (command->type == SENSORARRAY_COMMAND_OUTPUT_FPS_CAP) {
+        s_outputFpsCap = command->value;
     }
     portEXIT_CRITICAL(&s_commandStateMux);
 }
@@ -210,6 +287,22 @@ bool sensorarrayCommandMailboxTraceEnabled(void)
     return enabled;
 }
 
+uint32_t sensorarrayCommandMailboxGetCaptureFpsCap(void)
+{
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t cap = s_captureFpsCap;
+    portEXIT_CRITICAL(&s_commandStateMux);
+    return cap;
+}
+
+uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void)
+{
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t cap = s_outputFpsCap;
+    portEXIT_CRITICAL(&s_commandStateMux);
+    return cap;
+}
+
 const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
 {
     switch (type) {
@@ -223,6 +316,12 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "cal_rail";
     case SENSORARRAY_COMMAND_CALIBRATE_ALL:
         return "cal_all";
+    case SENSORARRAY_COMMAND_ADS_GAP_MODE:
+        return "adsgap";
+    case SENSORARRAY_COMMAND_CAPTURE_FPS_CAP:
+        return "fpscap";
+    case SENSORARRAY_COMMAND_OUTPUT_FPS_CAP:
+        return "outcap";
     default:
         return "unknown";
     }

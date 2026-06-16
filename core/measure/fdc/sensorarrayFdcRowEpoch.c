@@ -1177,24 +1177,15 @@ esp_err_t sensorarrayMeasureEnsureFdcWorkers(void)
                (unsigned long)SENSORARRAY_FDC_WORKER_STACK_WORDS,
                CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
                (int)portNUM_PROCESSORS);
-        if (pinned) {
-            ctx->task = xTaskCreateStaticPinnedToCore(sensorarrayMeasureFdcWorkerTask,
-                                                      taskName,
-                                                      SENSORARRAY_FDC_WORKER_STACK_WORDS,
-                                                      ctx,
-                                                      CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
-                                                      ctx->stack,
-                                                      &ctx->taskStorage,
-                                                      resolvedCore);
-        } else {
-            ctx->task = xTaskCreateStatic(sensorarrayMeasureFdcWorkerTask,
-                                          taskName,
-                                          SENSORARRAY_FDC_WORKER_STACK_WORDS,
-                                          ctx,
-                                          CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
-                                          ctx->stack,
-                                          &ctx->taskStorage);
-        }
+        (void)pinned;
+        ctx->task = xTaskCreateStaticPinnedToCore(sensorarrayMeasureFdcWorkerTask,
+                                                  taskName,
+                                                  SENSORARRAY_FDC_WORKER_STACK_WORDS,
+                                                  ctx,
+                                                  CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
+                                                  ctx->stack,
+                                                  &ctx->taskStorage,
+                                                  resolvedCore);
         if (!ctx->task) {
             firstErr = ESP_FAIL;
             printf("FDC_WORKER_CREATE_FAIL,dev=%s,err=0x%lx,status=fallback_serial,reason=task_create_failed\n",

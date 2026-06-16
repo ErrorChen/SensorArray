@@ -28,7 +28,13 @@ def main() -> int:
     parser.add_argument("--set-rows", type=int, choices=range(1, 9))
     parser.add_argument("--rows", default="")
     parser.add_argument("--stream", choices=("data", "log", "all"))
-    parser.add_argument("--tx", choices=("rel", "rt"))
+    parser.add_argument("--tx", choices=("SHORT", "REL", "FULL", "short", "rel", "full", "rt"))
+    parser.add_argument("--fpscap", choices=("OFF", "off"))
+    parser.add_argument("--outcap", choices=("OFF", "off"))
+    parser.add_argument("--adsgap", choices=("OFF", "ON", "RAIL", "BAT", "ZERO",
+                                             "off", "on", "rail", "bat", "zero"))
+    parser.add_argument("--command", action="append", default=[],
+                        help="Additional raw control command to send after ST=SER.")
     parser.add_argument("--show-cap", action="store_true")
     parser.add_argument("--show-log", action="store_true")
     args = parser.parse_args()
@@ -64,9 +70,21 @@ def main() -> int:
     while time.monotonic() < startup_deadline:
         connection.readline()
     try:
-        if args.tx:
-            write_control(connection, f"TX={args.tx}\n".encode())
         write_control(connection, b"ST=ser\n")
+        if args.tx:
+            tx_mode = args.tx.upper()
+            if tx_mode == "RT":
+                tx_mode = "SHORT"
+            write_control(connection, f"TX={tx_mode}\n".encode())
+        if args.fpscap:
+            write_control(connection, b"FPSCAP=OFF\n")
+        if args.outcap:
+            write_control(connection, b"OUTCAP=OFF\n")
+        if args.adsgap:
+            write_control(connection, f"ADSGAP={args.adsgap.upper()}\n".encode())
+        for command in args.command:
+            text = command if command.endswith("\n") else command + "\n"
+            write_control(connection, text.encode("ascii"))
         write_control(connection, b"ROWS?\n")
         if args.set_rows:
             write_control(connection, f"ROWS={args.set_rows}\n".encode())

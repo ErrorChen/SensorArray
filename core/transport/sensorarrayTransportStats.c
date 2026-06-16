@@ -1,13 +1,18 @@
 #include "sensorarrayTransportInternal.h"
 
+#include "sensorarrayBle.h"
+#include "sensorarrayWifi.h"
+
 sensorarrayTransportStats_t g_sensorarrayTransportStats;
 portMUX_TYPE g_sensorarrayTransportStatsMux = portMUX_INITIALIZER_UNLOCKED;
 sensorarrayTransportLegacyCommandCallback_t g_sensorarrayTransportLegacyCallback;
 void *g_sensorarrayTransportLegacyContext;
+sensorarrayTransportRuntimeQueryCallback_t g_sensorarrayTransportRuntimeQueryCallback;
+void *g_sensorarrayTransportRuntimeQueryContext;
 
 static portMUX_TYPE s_runtimeMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayTransportTxMode_t s_txMode = SENSORARRAY_TRANSPORT_TX_REL;
-static sensorarrayTransportStream_t s_stream = SENSORARRAY_TRANSPORT_STREAM_SER;
+static sensorarrayTransportStream_t s_stream = SENSORARRAY_TRANSPORT_STREAM_AUTO;
 static sensorarrayTransportWifiMode_t s_wifiMode = SENSORARRAY_TRANSPORT_WIFI_OFF;
 
 static bool sensorarrayTransportStreamHas(sensorarrayTransportStream_t stream,
@@ -56,10 +61,17 @@ void sensorarrayTransportSetLegacyCommandCallback(
     g_sensorarrayTransportLegacyContext = context;
 }
 
+void sensorarrayTransportSetRuntimeQueryCallback(
+    sensorarrayTransportRuntimeQueryCallback_t callback,
+    void *context)
+{
+    g_sensorarrayTransportRuntimeQueryCallback = callback;
+    g_sensorarrayTransportRuntimeQueryContext = context;
+}
+
 void sensorarrayTransportSetTxMode(sensorarrayTransportTxMode_t mode)
 {
-    if (mode != SENSORARRAY_TRANSPORT_TX_REL &&
-        mode != SENSORARRAY_TRANSPORT_TX_RT) {
+    if (mode > SENSORARRAY_TRANSPORT_TX_FULL) {
         return;
     }
     portENTER_CRITICAL(&s_runtimeMux);
@@ -77,6 +89,12 @@ sensorarrayTransportTxMode_t sensorarrayTransportGetTxMode(void)
 
 void sensorarrayTransportSetStream(sensorarrayTransportStream_t stream)
 {
+    if (stream == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
+        portENTER_CRITICAL(&s_runtimeMux);
+        s_stream = stream;
+        portEXIT_CRITICAL(&s_runtimeMux);
+        return;
+    }
     uint32_t masked = (uint32_t)stream & (uint32_t)SENSORARRAY_TRANSPORT_STREAM_ALL;
     if (masked == 0u) {
         return;
@@ -114,18 +132,30 @@ sensorarrayTransportWifiMode_t sensorarrayTransportGetWifiMode(void)
 
 bool sensorarrayTransportSerialSinkEnabled(void)
 {
+    if (sensorarrayTransportGetStream() == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
+        return true;
+    }
     return sensorarrayTransportStreamHas(sensorarrayTransportGetStream(),
                                         SENSORARRAY_TRANSPORT_STREAM_SER);
 }
 
 bool sensorarrayTransportBleSinkEnabled(void)
 {
+    if (sensorarrayTransportGetStream() == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
+        return sensorarrayBleIsConnected() &&
+               (sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_DATA) ||
+                sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_LOG));
+    }
     return sensorarrayTransportStreamHas(sensorarrayTransportGetStream(),
                                         SENSORARRAY_TRANSPORT_STREAM_BLE);
 }
 
 bool sensorarrayTransportWifiSinkEnabled(void)
 {
+    if (sensorarrayTransportGetStream() == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
+        return sensorarrayTransportGetWifiMode() != SENSORARRAY_TRANSPORT_WIFI_OFF &&
+               sensorarrayWifiIsReady();
+    }
     return sensorarrayTransportStreamHas(sensorarrayTransportGetStream(),
                                         SENSORARRAY_TRANSPORT_STREAM_WIFI) &&
            sensorarrayTransportGetWifiMode() != SENSORARRAY_TRANSPORT_WIFI_OFF;
@@ -133,12 +163,23 @@ bool sensorarrayTransportWifiSinkEnabled(void)
 
 const char *sensorarrayTransportTxModeName(sensorarrayTransportTxMode_t mode)
 {
-    return mode == SENSORARRAY_TRANSPORT_TX_RT ? "rt" : "rel";
+    switch (mode) {
+    case SENSORARRAY_TRANSPORT_TX_SHORT:
+        return "short";
+    case SENSORARRAY_TRANSPORT_TX_FULL:
+        return "full";
+    case SENSORARRAY_TRANSPORT_TX_REL:
+    default:
+        return "rel";
+    }
 }
 
 const char *sensorarrayTransportStreamName(sensorarrayTransportStream_t stream)
 {
     uint32_t masked = (uint32_t)stream & (uint32_t)SENSORARRAY_TRANSPORT_STREAM_ALL;
+    if (stream == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
+        return "auto";
+    }
     if (masked == (uint32_t)SENSORARRAY_TRANSPORT_STREAM_SER) {
         return "ser";
     }

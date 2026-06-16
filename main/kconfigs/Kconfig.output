@@ -40,7 +40,62 @@ config SENSORARRAY_TRANSPORT_DEFAULT_MODE
 
 config SENSORARRAY_TRANSPORT_DEFAULT_STREAM
     string "Default transport stream"
-    default "ser"
+    default "auto"
+
+config SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE
+    bool "Enable explicit output FPS limiter"
+    default n
+
+config SENSORARRAY_OUTPUT_RATE_LIMIT
+    int "Explicit output FPS limit (0 means unlimited)"
+    default 0
+    range 0 200
+    depends on SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE
+
+config SENSORARRAY_BLE_DEBUG_RATE_HZ
+    int "BLE SHORT/debug output rate"
+    default 5
+    range 1 20
+
+choice SENSORARRAY_TRANSPORT_DEFAULT_TX_MODE
+    prompt "Default text payload mode"
+    default SENSORARRAY_TRANSPORT_TX_DEFAULT_REL
+config SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT
+    bool "SHORT"
+config SENSORARRAY_TRANSPORT_TX_DEFAULT_REL
+    bool "REL"
+config SENSORARRAY_TRANSPORT_TX_DEFAULT_FULL
+    bool "FULL"
+endchoice
+
+choice SENSORARRAY_BLE_TX_MODE_DEFAULT
+    prompt "Default BLE TX mode"
+    default SENSORARRAY_BLE_TX_MODE_FAST
+config SENSORARRAY_BLE_TX_MODE_FAST
+    bool "FAST notify"
+config SENSORARRAY_BLE_TX_MODE_SAFE
+    bool "SAFE indicate"
+endchoice
+
+config SENSORARRAY_BLE_TX_QUEUE_LEN
+    int "BLE TX message queue length"
+    default 4
+    range 2 16
+
+config SENSORARRAY_BLE_TX_TASK_STACK
+    int "BLE TX task stack bytes"
+    default 4096
+    range 3072 12288
+
+config SENSORARRAY_BLE_TX_TASK_PRIORITY
+    int "BLE TX task priority"
+    default 5
+    range 1 24
+
+config SENSORARRAY_BLE_TX_TASK_CORE
+    int "BLE TX task core"
+    default SENSORARRAY_OUTPUT_TASK_CORE
+    range 0 1
 
 config SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF
     bool "Legacy: emit capTotalPf[64] in text output"

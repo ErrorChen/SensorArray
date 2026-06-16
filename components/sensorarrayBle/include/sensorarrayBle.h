@@ -16,6 +16,11 @@ typedef enum {
     SENSORARRAY_BLE_CH_CTRL = 2,
 } sensorarrayBleChannel_t;
 
+typedef enum {
+    SENSORARRAY_BLE_TX_FAST = 0,
+    SENSORARRAY_BLE_TX_SAFE,
+} sensorarrayBleTxMode_t;
+
 typedef void (*sensorarrayBleControlRxCallback_t)(const uint8_t *data,
                                                   size_t length,
                                                   void *userContext);
@@ -40,6 +45,12 @@ typedef struct {
     uint8_t rxPhy;
     uint32_t sent[3];
     uint32_t dropped[3];
+    uint32_t messageQueued;
+    uint32_t messageSent;
+    uint32_t messageDropped;
+    uint32_t fragmentSent;
+    uint32_t fragmentError;
+    uint32_t tinyTailCount;
     uint32_t congestedCount;
     esp_err_t initError;
 } sensorarrayBleStats_t;
@@ -54,6 +65,9 @@ bool sensorarrayBleIsReady(void);
 bool sensorarrayBleIsConnected(void);
 bool sensorarrayBleIsSubscribed(sensorarrayBleChannel_t channel);
 bool sensorarrayBleIsCongested(void);
+void sensorarrayBleSetTxMode(sensorarrayBleTxMode_t mode);
+sensorarrayBleTxMode_t sensorarrayBleGetTxMode(void);
+const char *sensorarrayBleTxModeName(sensorarrayBleTxMode_t mode);
 void sensorarrayBleGetStats(sensorarrayBleStats_t *outStats);
 void sensorarrayBleLogHeap(const char *stage);
 

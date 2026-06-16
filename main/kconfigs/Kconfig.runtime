@@ -19,6 +19,21 @@ config SENSORARRAY_TARGET_FPS
         Used as a budget/profile target. It must not be used as an unconditional
         frame-rate limiter unless an explicit runtime pacing option enables that.
 
+config SENSORARRAY_CAPTURE_FPS_LIMIT_ENABLE
+    bool "Enable explicit capture FPS limiter"
+    default n
+    help
+        Disabled by default. When enabled, the acquisition loop may sleep after
+        a frame to enforce SENSORARRAY_CAPTURE_FPS_LIMIT. Output throttling
+        must use the Output limiter instead so Core 1 capture is not hidden by
+        a transport pacing policy.
+
+config SENSORARRAY_CAPTURE_FPS_LIMIT
+    int "Explicit capture FPS limit (0 means unlimited)"
+    default 0
+    range 0 200
+    depends on SENSORARRAY_CAPTURE_FPS_LIMIT_ENABLE
+
 config SENSORARRAY_DEFAULT_ACTIVE_ROWS
     int "Default active matrix rows"
     default 8
@@ -28,6 +43,21 @@ config SENSORARRAY_FDC_CORE
     int "FDC acquisition core"
     default SENSORARRAY_ADC_CORE
     range 0 1
+
+choice SENSORARRAY_ADS_GAP_DEFAULT_MODE
+    prompt "Default ADS gap job mode"
+    default SENSORARRAY_ADS_GAP_MODE_ON
+config SENSORARRAY_ADS_GAP_MODE_OFF
+    bool "Off"
+config SENSORARRAY_ADS_GAP_MODE_ON
+    bool "All jobs"
+config SENSORARRAY_ADS_GAP_MODE_RAIL
+    bool "Rail monitor only"
+config SENSORARRAY_ADS_GAP_MODE_BAT
+    bool "Battery only"
+config SENSORARRAY_ADS_GAP_MODE_ZERO
+    bool "Zero residual only"
+endchoice
 
 choice SENSORARRAY_FDC_READY_MODE
     prompt "FDC ready mode"

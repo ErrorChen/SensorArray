@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 
 INVALID_CAP_FIXED = -1_000_000
+SUMMARY_TAGS = {"S50", "F50", "A50", "O50", "SF50", "TR50", "AB50", "OT50", "BL50", "I2C50"}
 
 
 def parse_fields(line: str) -> dict[str, str]:
@@ -52,12 +53,16 @@ class ProtocolCounters:
 class FragmentStats:
     ok: int = 0
     missing: int = 0
+    gap: int = 0
     crc_fail: int = 0
     dropped: int = 0
+    tiny: int = 0
+    duplicate: int = 0
+    out_of_order: int = 0
 
 
 class FragmentReassembler:
-    """Reassembles G,<ch>,<mid>,<i>,<n>,<len>,<crc> fragments."""
+    """Reassembles legacy and current SensorArray G fragments."""
 
     def __init__(self) -> None:
         self.stats: dict[str, FragmentStats] = {
@@ -82,7 +87,12 @@ class FragmentReassembler:
             frag_index = int(fields[3], 10)
             frag_count = int(fields[4], 10)
             payload_len = int(fields[5], 10)
-            expected_crc = int(fields[6], 16)
+            if len(fields) >= 8:
+                message_len = int(fields[6], 10)
+                expected_crc = int(fields[7], 16)
+            else:
+                message_len = 0
+                expected_crc = int(fields[6], 16)
         except (IndexError, ValueError, UnicodeDecodeError):
             self._stat(fallback_channel).dropped += 1
             return []
@@ -92,15 +102,24 @@ class FragmentReassembler:
         if len(body) != payload_len:
             self.stats[ch].dropped += 1
             return []
+        if frag_count > 1 and payload_len <= 1:
+            self.stats[ch].tiny += 1
         key = (ch, mid)
         item = self._messages.setdefault(
             key,
-            {"n": frag_count, "crc": expected_crc, "parts": {}, "created": time.monotonic()},
+            {"n": frag_count, "crc": expected_crc, "mlen": message_len, "parts": {},
+             "created": time.monotonic(), "last_index": -1},
         )
-        if item["n"] != frag_count or item["crc"] != expected_crc:
+        if item["n"] != frag_count or item["crc"] != expected_crc or item["mlen"] != message_len:
             self.stats[ch].dropped += 1
             self._messages.pop(key, None)
             return []
+        last_index = int(item.get("last_index", -1))
+        if frag_index in item["parts"]:
+            self.stats[ch].duplicate += 1
+        if frag_index < last_index:
+            self.stats[ch].out_of_order += 1
+        item["last_index"] = frag_index
         parts = item["parts"]
         assert isinstance(parts, dict)
         parts[frag_index] = bytes(body)
@@ -112,12 +131,17 @@ class FragmentReassembler:
             self.stats[ch].missing += len(missing)
             return []
         assembled = b"".join(parts[index] for index in range(frag_count))
+        if message_len and len(assembled) != message_len:
+            self.stats[ch].dropped += 1
+            return []
         if (zlib.crc32(assembled) & 0xFFFFFFFF) != expected_crc:
             self.stats[ch].crc_fail += 1
             return []
         last = self._last_mid[ch]
         if last is not None and mid > last + 1:
-            self.stats[ch].missing += mid - last - 1
+            gap = mid - last - 1
+            self.stats[ch].missing += gap
+            self.stats[ch].gap += gap
         self._last_mid[ch] = mid
         self.stats[ch].ok += 1
         return [(ch, assembled)]
@@ -127,7 +151,9 @@ class FragmentReassembler:
 
     def summary(self, ch: str) -> str:
         stats = self.stats[ch]
-        return f"BF,ch={ch},ok={stats.ok},ms={stats.missing},cf={stats.crc_fail},dr={stats.dropped}"
+        return (f"BF,ch={ch},ok={stats.ok},ms={stats.missing},gap={stats.gap},"
+                f"cf={stats.crc_fail},tiny={stats.tiny},dup={stats.duplicate},"
+                f"ooo={stats.out_of_order},dr={stats.dropped}")
 
 
 class TextProtocolParser:
@@ -165,11 +191,11 @@ class TextProtocolParser:
             return None
         if tag == "K":
             return self._finish_cap_frame(line)
-        if tag in {"S50", "F50", "A50", "O50"}:
+        if tag in SUMMARY_TAGS:
             fields = parse_fields(line)
             self.latest_fields[tag] = fields
             self.counters.summary_lines += 1
-            if tag == "A50" and "bt" in fields:
+            if tag in {"A50", "AB50"} and "bt" in fields:
                 try:
                     self.latest_battery_mv = int(fields["bt"])
                 except ValueError:
@@ -275,7 +301,8 @@ class TextProtocolParser:
             f"{prefix},lines={self.counters.lines},cap={self.counters.cap_frames},"
             f"fps={self.cap_fps():.2f},gap={self.counters.sequence_gaps},"
             f"missing={self.counters.missing_frames},crc={self.counters.crc_errors},"
-            f"bad={self.counters.malformed},ascii={self.counters.non_ascii_chunks},bt={battery}"
+            f"bad={self.counters.malformed},ascii={self.counters.non_ascii_chunks},"
+            f"sum={self.counters.summary_lines},bt={battery}"
         )
 
 

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Validate SensorArray BLE control/data/log channels with bleak."""
+"""Receive and reassemble SensorArray BLE text streams with bleak."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import time
+from pathlib import Path
+from typing import TextIO
 
 from text_protocol import FragmentReassembler, TextProtocolParser, format_cap_preview
 
@@ -16,128 +19,196 @@ DATA_TX = "0000ff20-0000-1000-8000-00805f9b34fb"
 LOG_TX = "0000ff30-0000-1000-8000-00805f9b34fb"
 
 
+class BleTextReceiver:
+    def __init__(self, args: argparse.Namespace, log_file: TextIO | None) -> None:
+        self.args = args
+        self.log_file = log_file
+        self.reassembler = FragmentReassembler()
+        self.parser = TextProtocolParser(on_cap_frame=self._on_cap_frame)
+        self.buffers = {"D": bytearray(), "L": bytearray(), "C": bytearray()}
+        self.notify_count = {"D": 0, "L": 0, "C": 0}
+        self.bytes_rx = 0
+        self.started = time.monotonic()
+
+    def _write(self, line: str) -> None:
+        print(line, flush=True)
+        if self.log_file:
+            self.log_file.write(line + "\n")
+            self.log_file.flush()
+
+    def _on_cap_frame(self, frame) -> None:  # type: ignore[no-untyped-def]
+        if self.args.tail:
+            self._write(format_cap_preview(frame))
+
+    def process_message(self, channel: str, payload: bytes) -> None:
+        self.buffers[channel].extend(payload)
+        while b"\n" in self.buffers[channel]:
+            raw, _, remainder = self.buffers[channel].partition(b"\n")
+            self.buffers[channel][:] = remainder
+            line = raw.rstrip(b"\r").decode("ascii", errors="replace")
+            if channel == "D":
+                self.parser.feed_line(line)
+                if not self.args.tail:
+                    self._write(line)
+            elif channel == "L":
+                self._write(line)
+            else:
+                self._write(line)
+
+    def callback(self, fallback: str):
+        def receive(_sender: object, payload: bytearray) -> None:
+            payload_bytes = bytes(payload)
+            self.notify_count[fallback] += 1
+            self.bytes_rx += len(payload_bytes)
+            if self.args.show_fragments:
+                self._write(f"FRAG,ch={fallback},n={len(payload_bytes)},data={payload_bytes!r}")
+            for channel, message in self.reassembler.feed(fallback, payload_bytes):
+                self.process_message(channel, message)
+
+        return receive
+
+    def stats_line(self) -> str:
+        stats = list(self.reassembler.stats.values())
+        ok = sum(item.ok for item in stats)
+        missing = sum(item.missing for item in stats)
+        gap = sum(item.gap for item in stats)
+        crc = sum(item.crc_fail for item in stats)
+        tiny = sum(item.tiny for item in stats)
+        duplicate = sum(item.duplicate for item in stats)
+        elapsed = max(time.monotonic() - self.started, 0.001)
+        fps = self.parser.counters.cap_frames / elapsed
+        return (f"BRX,ok={ok},miss={missing},gap={gap},crc={crc},tiny={tiny},"
+                f"dup={duplicate},fps={fps:.2f},bytes={self.bytes_rx}")
+
+
+async def write_command(client, command: str) -> None:  # type: ignore[no-untyped-def]
+    if not command.endswith("\n"):
+        command += "\n"
+    await client.write_gatt_char(CTRL_RX, command.encode("ascii"), response=True)
+
+
+async def interactive_loop(client, stop_event: asyncio.Event) -> None:  # type: ignore[no-untyped-def]
+    while not stop_event.is_set():
+        try:
+            command = await asyncio.to_thread(input)
+        except (EOFError, KeyboardInterrupt):
+            stop_event.set()
+            return
+        command = command.strip()
+        if not command:
+            continue
+        if command.upper() in {"QUIT", "EXIT"}:
+            stop_event.set()
+            return
+        await write_command(client, command)
+
+
+async def stats_loop(receiver: BleTextReceiver, stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        await asyncio.sleep(5.0)
+        receiver._write(receiver.stats_line())
+
+
 async def run(args: argparse.Namespace) -> int:
     try:
         from bleak import BleakClient, BleakScanner
     except ImportError:
-        print("BLE_TEST_SKIPPED reason=venv_pip_install_failed")
+        print("BLE_TEST_SKIPPED reason=missing_bleak")
         return 2
 
-    protocol = TextProtocolParser(
-        on_cap_frame=(lambda frame: print(format_cap_preview(frame), flush=True))
-        if (args.show_cap or args.stream in ("data", "all")) else None)
-    show_log = args.show_log or args.stream in ("log", "all")
-    reassembler = FragmentReassembler()
-    buffers = {"D": bytearray(), "L": bytearray(), "C": bytearray()}
-    counts = {"data": 0, "log": 0, "ctrl": 0}
+    log_file: TextIO | None = None
+    if args.save_log:
+        Path(args.save_log).parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(args.save_log, "a", encoding="utf-8")
 
-    def process_message(channel: str, payload: bytes) -> None:
-        buffers[channel].extend(payload)
-        while b"\n" in buffers[channel]:
-            raw, _, remainder = buffers[channel].partition(b"\n")
-            buffers[channel][:] = remainder
-            line = raw.rstrip(b"\r").decode("ascii", errors="replace")
-            if channel == "D":
-                protocol.feed_line(line)
-            elif channel == "C" or (channel == "L" and show_log):
-                print(f"{channel},{line}", flush=True)
-
-    def callback(channel: str, fallback: str):
-        def receive(_sender: object, payload: bytearray) -> None:
-            counts[channel] += 1
-            for out_channel, message in reassembler.feed(fallback, bytes(payload)):
-                process_message(out_channel, message)
-        return receive
-
+    receiver = BleTextReceiver(args, log_file)
     try:
         devices = await BleakScanner.discover(timeout=args.scan_seconds)
     except Exception as error:
-        reason = "no_adapter" if "adapter" in str(error).lower() else "scan_failed"
-        print(f"BLE_TEST_SKIPPED reason={reason} detail={error}")
+        print(f"BLE_TEST_SKIPPED reason=scan_failed detail={error}")
+        if log_file:
+            log_file.close()
         return 2
+
     prefixes = [args.name_prefix]
-    if args.compat_prefix and args.compat_prefix not in prefixes:
-        prefixes.append(args.compat_prefix)
     device = next(
         (item for item in devices if any((item.name or "").startswith(prefix) for prefix in prefixes)),
         None,
     )
     if device is None:
         print("BLE_TEST_SKIPPED reason=device_not_found")
+        if log_file:
+            log_file.close()
         return 2
-    print(f"BLE_DEVICE,name={device.name},address={device.address}", flush=True)
 
-    started = time.monotonic()
+    receiver._write(f"BLE_DEVICE,name={device.name},address={device.address}")
+    stop_event = asyncio.Event()
     try:
         async with BleakClient(device, timeout=15.0,
                                winrt={"use_cached_services": False}) as client:
             uuids = {service.uuid.lower() for service in client.services}
             if SERVICE not in uuids:
-                services = ";".join(sorted(uuids)) or "none"
-                print(f"BLE_TEST_SKIPPED reason=service_missing services={services}")
+                receiver._write("BLE_TEST_SKIPPED reason=service_missing")
                 return 2
-            characteristics = {
-                characteristic.uuid.lower()
-                for service in client.services
-                for characteristic in service.characteristics
-            }
-            missing = sorted({CTRL_RX, CTRL_TX, DATA_TX, LOG_TX} - characteristics)
-            if missing:
-                print("BLE_TEST_SKIPPED reason=characteristic_missing missing=" +
-                      ";".join(missing))
-                return 2
-            await client.start_notify(CTRL_TX, callback("ctrl", "C"))
-            await client.start_notify(DATA_TX, callback("data", "D"))
-            await client.start_notify(LOG_TX, callback("log", "L"))
+
+            await client.start_notify(CTRL_TX, receiver.callback("C"))
+            await client.start_notify(DATA_TX, receiver.callback("D"))
+            await client.start_notify(LOG_TX, receiver.callback("L"))
             mtu = getattr(client, "mtu_size", 0)
-            print(f"BL,mtu={mtu},phy=unk,ci=unk,sub=DLC,ok=1", flush=True)
-            if args.show_cap:
-                print("BLECAP,service=00FF,ctrl=FF10/FF11,data=FF20,log=FF30")
-            if args.tx:
-                await client.write_gatt_char(CTRL_RX, f"TX={args.tx}\n".encode(), response=True)
-            await client.write_gatt_char(CTRL_RX, b"ST=ble\n", response=True)
-            if args.set_rows:
-                await client.write_gatt_char(CTRL_RX, f"ROWS={args.set_rows}\n".encode(), response=True)
-            rows = [int(item) for item in args.rows.split(",") if item] if args.rows else []
-            row_index = 0
-            next_row_at = started
-            restored_rows = False
-            while time.monotonic() - started < args.duration:
-                if rows and time.monotonic() >= next_row_at:
-                    await client.write_gatt_char(CTRL_RX, f"ROWS={rows[row_index % len(rows)]}\n".encode(), response=True)
-                    row_index += 1
-                    next_row_at = time.monotonic() + max(args.duration / max(len(rows), 1), 1.0)
-                if args.set_rows and not restored_rows and time.monotonic() - started >= args.duration / 2:
-                    await client.write_gatt_char(CTRL_RX, b"ROWS=8\n", response=True)
-                    restored_rows = True
-                await asyncio.sleep(0.2)
+            receiver._write(f"BL,mtu={mtu},sub=11/20/30,ok=1")
+
+            await write_command(client, "ST=AUTO")
+            await write_command(client, f"BTX={'SAFE' if args.safe else 'FAST'}")
+            await write_command(client, f"TX={args.tx}")
+            if args.rows:
+                await write_command(client, f"ROWS={args.rows}")
+
+            tasks = [asyncio.create_task(stats_loop(receiver, stop_event))]
+            if args.interactive:
+                tasks.append(asyncio.create_task(interactive_loop(client, stop_event)))
+
+            deadline = time.monotonic() + args.duration if args.duration > 0 else None
+            while not stop_event.is_set():
+                if deadline is not None and time.monotonic() >= deadline:
+                    stop_event.set()
+                    break
+                await asyncio.sleep(0.1)
+
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
     except Exception as error:
-        print(f"BLE_TEST_SKIPPED reason=connect_failed detail={error}")
+        receiver._write(f"BLE_TEST_SKIPPED reason=connect_failed detail={error}")
         return 2
-    elapsed = max(time.monotonic() - started, 0.001)
-    print(protocol.summary("BLE_DONE") +
-          f",dataNotify={counts['data']},logNotify={counts['log']},"
-          f"ctrlNotify={counts['ctrl']},notifyHz={sum(counts.values()) / elapsed:.2f}")
-    print(reassembler.summary("D"))
-    print(reassembler.summary("L"))
-    print(reassembler.summary("C"))
+    finally:
+        receiver._write(receiver.stats_line())
+        receiver._write(receiver.reassembler.summary("D"))
+        receiver._write(receiver.reassembler.summary("L"))
+        receiver._write(receiver.reassembler.summary("C"))
+        if log_file:
+            log_file.close()
     return 0
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--name-prefix", default="CscArray_")
-    parser.add_argument("--compat-prefix", default="SensorArray_")
+    parser.add_argument("--name-prefix", default="CscArray")
+    parser.add_argument("--rows", type=int, choices=range(1, 9))
+    parser.add_argument("--tx", choices=("SHORT", "REL", "FULL"), default="REL")
     parser.add_argument("--duration", type=float, default=120.0)
     parser.add_argument("--scan-seconds", type=float, default=10.0)
-    parser.add_argument("--set-rows", type=int, choices=range(1, 9))
-    parser.add_argument("--rows", default="")
-    parser.add_argument("--stream", choices=("data", "log", "all"))
-    parser.add_argument("--tx", choices=("rel", "rt"))
-    parser.add_argument("--show-cap", action="store_true")
-    parser.add_argument("--show-log", action="store_true")
-    args = parser.parse_args()
-    return asyncio.run(run(args))
+    parser.add_argument("--tail", action="store_true")
+    parser.add_argument("--show-fragments", action="store_true")
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--save-log")
+    parser.add_argument("--safe", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> int:
+    return asyncio.run(run(parse_args()))
 
 
 if __name__ == "__main__":

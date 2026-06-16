@@ -1973,9 +1973,10 @@ bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
     }
 
     if (configuredCore < 0) {
-        *outCore = (BaseType_t)-1;
-        *outPinned = false;
-        *outReason = "no_affinity_static";
+        int normalizedCore = (defaultCore >= 0 && defaultCore < processors) ? defaultCore : 0;
+        *outCore = (BaseType_t)normalizedCore;
+        *outPinned = true;
+        *outReason = "no_affinity_normalized";
         return true;
     }
 

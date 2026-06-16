@@ -34,6 +34,13 @@ class TextProtocolParserTest(unittest.TestCase):
         self.assertEqual(protocol.latest_battery_mv, -1)
         self.assertEqual(protocol.latest_fields["A50"]["br"], "rail")
 
+    def test_parses_current_ab50_battery_invalid_reason(self) -> None:
+        protocol = TextProtocolParser()
+        protocol.feed_line("AB50,chip=1262,bt=-1,br=rail,rs=hold")
+        self.assertEqual(protocol.latest_battery_mv, -1)
+        self.assertEqual(protocol.latest_fields["AB50"]["br"], "rail")
+        self.assertEqual(protocol.latest_fields["AB50"]["rs"], "hold")
+
 
 if __name__ == "__main__":
     unittest.main()

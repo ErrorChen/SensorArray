@@ -11,6 +11,11 @@
 #include "freertos/task.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
+#include "sdkconfig.h"
+
+#ifndef CONFIG_SENSORARRAY_NET_TASK_CORE
+#define CONFIG_SENSORARRAY_NET_TASK_CORE 0
+#endif
 
 #define SENSORARRAY_WIFI_CTRL_BUFFER 256u
 
@@ -249,8 +254,13 @@ esp_err_t sensorarrayWifiInit(const sensorarrayWifiConfig_t *config)
         err = sensorarrayWifiOpenSockets();
     }
     if (err == ESP_OK) {
-        BaseType_t ok = xTaskCreate(sensorarrayWifiControlTask, "wifiCtrl", 4096u, NULL, 5u,
-                                    &s_wifi.ctrlTask);
+        BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayWifiControlTask,
+                                                "wifiCtrl",
+                                                4096u,
+                                                NULL,
+                                                5u,
+                                                &s_wifi.ctrlTask,
+                                                CONFIG_SENSORARRAY_NET_TASK_CORE);
         if (ok != pdPASS) {
             err = ESP_ERR_NO_MEM;
         }

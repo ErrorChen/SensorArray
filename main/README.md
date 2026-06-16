@@ -100,11 +100,11 @@ flowchart TD
 ### 异步日志架构
 
 - Producer：`sensorarrayRunMainLoop()` / FDC measurement path。每帧完成后构造一次 C/D0-D3/K packet，不等待任何 sink。
-- Consumer：`sensorarrayLogTask`。Core 0 output hub 将同一 packet 发布到独立 USB 和 network latest-only queue，并负责 S50/F50/A50/O50 与 EventRing 输出。
+- Consumer：`sensorarrayLogTask`。Core 0 output hub 将同一 packet 发布到独立 USB 和 network latest-only queue，并负责 SF50/TR50/AB50/OT50/BL50/I2C50 与 EventRing 输出。
 - TextFrameBus slot：`main/output/sensorarrayAsyncLog.c` 使用固定大小 slot ring，slot 同时保留 frame telemetry 与已格式化的 `sensorarrayTextPacket_t`，所有 sink 不再重复格式化。
 - Drop policy：普通 Cap frame 队列满时默认丢旧保新，递增 `droppedOutputFrames`；采样任务不会因为日志落后而阻塞。
 - EventRing：异常、overrun、状态变化和命令应用走 `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN=32` 的非阻塞队列，满时只计数。
-- CommandMailbox：BLE `FF01` 写入由 Core 0 解析；Core 1 只在 frame boundary 应用 `BLECAP`、`TRACE` 和 `CAL`。
+- CommandMailbox：BLE `FF10` 写入由 Core 0 解析；Core 1 只在 frame boundary 应用 `ROWS`、`TX`、`BTX`、`FPSCAP`、`OUTCAP`、`ADSGAP`、`BLECAP`、`TRACE` 和 `CAL`。
 - 调度隔离：scan/coordinator 默认在 `CONFIG_SENSORARRAY_SCAN_TASK_CORE=1`、优先级 12；log task 默认在 `CONFIG_SENSORARRAY_COMM_TASK_CORE=0`、优先级 7；FDC primary/secondary worker 分别由 `CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE` 和 `CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE` 固定，优先级继承 `CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO`，高于 log task。
 
 ### FDC 双 worker row epoch
@@ -121,7 +121,7 @@ flowchart TD
 - Level 3 normal diagnostics：正式默认由异步 log task 输出 `FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`；扫描任务内每 100 帧的同步 `APP_STACK`/`APP_MEM` 默认关闭，可用 `CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE` 临时开启。
 - normal `FR` 条件：`pv=F`、`sv=F`、`vm=FF`、`wm=00`、`em=00`、`cm=00`、`tm=00`、`pt=0`。normal FR 不再逐 row 输出，只进入 `FR20`；valid/warn/error/cache/timeout/partial 异常才输出 `FR,r=...`。
 - normal `WP` 条件：双 worker 正常启动、`mode=par`、`reason=ok`、无 stale/timeout/serialized/fallback。normal WP 不再每 5 帧逐 row 输出，只进入 `WP20`；queue/ack/deadline/stale/skew/serialization 异常才输出 `WP,r=...`。
-- 正常运行汇总每 50 帧输出 `S50/F50/A50/O50`；`O50` 用 `sfps/sdrop/skb/blk` 的 USB/BLE/Wi-Fi tuple 表达各 sink 健康度。
+- 正常运行汇总每 50 帧输出 `SF50/TR50/AB50/OT50/BL50/I2C50`；`OT50` 和 `BL50` 表达 USB/BLE/Wi-Fi sink 与 BLE 分片健康度。
 - `WP20` 看 primary/secondary worker 是否对等；`RW20` 看 row wall 组成；`READY20` 看 INTB/DRDY/STATUS ready 是否是瓶颈；`I2C_EXPECT20` 看 45 SCL/read 的理论线时与 measured read 的差值；`P5_FULL` 看 conversion-only profile round 与完整 row pipeline 的误差。
 - legacy `fu` 是主循环周期，不等于 FDC 转换时间；20 FPS 验收只看 `physFps`、`emitFps`、fresh/stale/mixed 和三组 fresh mask。
 
@@ -142,7 +142,7 @@ ordered fallback 固定按 CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -
 3. monitor 至少 60 秒，确认 `BURST_PROBE`、`I2C_SWEEP/I2C_SELECTED`、`FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`。
 4. 检查 emitted frame 的 `rf/pfmask/sfmask=FF`、`stale=0,mixed=0`，并确认 I2C retry/nack/timeout/recovery 正常为 0。
 5. 正常 200 帧内 `FR,r=...vm=FF,wm=00,em=00,cm=00,tm=00,pt=0` 和 `WP,r=...mode=par,reason=ok` 应为 0；用 `FR20`/`WP20` 确认 normal row 被聚合。
-6. 同时检查 physical/output FPS、stale/mixed 和三个 fresh mask；任一 sink drop 只允许影响对应 `O50` tuple，不能反压 Core 1。
+6. 同时检查 physical/output FPS、stale/mixed 和三个 fresh mask；任一 sink drop 只允许影响对应 `OT50`/`BL50` tuple，不能反压 Core 1。
 
 ### Failure behaviour
 
@@ -195,9 +195,9 @@ The main loop applies pending mailbox commands at the frame boundary, consumes q
 
 `sensorarrayLogTask` consumes fixed TextFrameBus slots and the EventRing. Core 1 formats each C/D0-D3/K packet once after measurement; Core 0 forwards the same bytes to independent USB and network queues. Old normal packets can be dropped and the latest kept without blocking acquisition.
 
-`S50/F50/A50/O50` are emitted every 50 frames. `O50` is the authoritative per-sink rate/drop/byte/block view; `A50.bt` is battery mV and `bt=-1,br=...` is the only invalid form.
+`SF50/TR50/AB50/OT50/BL50/I2C50` are emitted every 50 frames. `OT50` is the authoritative per-sink rate/drop/byte/block view; `AB50.bt` is battery mV and `bt=-1,br=...` is the only invalid form.
 
-Every runtime transport is compact ASCII. USB and Wi-Fi normally receive every C/D0-D3/K packet; BLE receives summaries by default and can enable low-rate cap text with `BLECAP=N`.
+Every runtime transport is compact ASCII. USB and Wi-Fi normally receive every C/D0-D3/K packet. BLE can receive full C/D/K data, `TX=SHORT` `B20` summaries, or indication-confirmed sends with `BTX=SAFE`.
 
 ### FDC dual-worker row epoch
 
@@ -213,7 +213,7 @@ At startup each FDC compares ordered DATA reads with a candidate 16-byte block r
 
 Level 1 errors such as I2C timeout/NACK, bus stuck, ID mismatch, hard STATUS fault, worker queue/deadline failure, stale epoch, all-invalid frame, forced rescue, and fallback may emit immediately, but they should include row/device/epoch/status/unread/error/timing context and remain rate-limited.
 
-Level 2 C/D/K output is asynchronous and frame based. Normal runtime summaries are aggregated every 50 frames as `S50/F50/A50/O50`; detailed legacy diagnostic aggregates remain available for focused FDC work.
+Level 2 C/D/K output is asynchronous and frame based. Normal runtime summaries are aggregated every 50 frames as `SF50/TR50/AB50/OT50/BL50/I2C50`; detailed legacy diagnostic aggregates remain available for focused FDC work.
 
 Normal `FR` rows have `pv=F`, `sv=F`, `vm=FF`, `wm=00`, `em=00`, `cm=00`, `tm=00`, and `pt=0`. Normal `WP` rows have both workers launched in `mode=par` with `reason=ok` and no stale, timeout, fallback, or serialised path. These normal rows are suppressed as per-row text and counted in `FR20`/`WP20`; abnormal rows still emit `FR,r=...` or `WP,r=...`.
 
@@ -253,10 +253,10 @@ For the full configuration table, see “Configuration options” in the root `R
 | `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | Enables async producer/consumer logging. Default `y`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS` | Fixed TextFrameBus slot count. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | Non-blocking anomaly event queue length. Default `32`. |
-| `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | S50/F50/A50/O50 cadence. Default `50`. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | `SF50/TR50/AB50/OT50/BL50/I2C50` cadence. Default `50`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | Log task stack, priority and affinity. Defaults `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES` | Drops old normal frame snapshots instead of blocking measurement when output is behind. |
-| `CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES` | Initial BLE cap-text cadence; default `0` keeps BLE summary-only. Runtime `BLECAP=N` overrides it. |
+| `CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES` | Legacy BLE cap-text cadence. Current BLE payload size is primarily controlled by `TX=SHORT|REL|FULL`, while `BTX=FAST|SAFE` controls notify versus indication-confirmed sends. |
 | `CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG` | Allows explicitly marked stale/mixed output only for diagnostics. Default `n`. |
 | `CONFIG_SENSORARRAY_FDC_DEBUG_TIMING_GPIO_ENABLE` and strobe GPIO options | Enables oscilloscope row/frame/read-window markers. Default `n`. |
 | `CONFIG_SENSORARRAY_FDC_WAVE_DEBUG_MODE` | Selects normal, route-only, row-hold, primary-only, secondary-only, or single-channel isolation. Default normal. |
@@ -270,4 +270,4 @@ For the full configuration table, see “Configuration options” in the root `R
 - `main` publishes a frame snapshot plus one preformatted C/D/K packet; Core 0 sinks reuse the packet.
 - `main` can set diagnostic mode; it does not decide row-level cache, warning, or rescue policy.
 - `main/output` owns TextFrameBus, EventRing aggregation, summaries, and the USB sink; `main/net` owns Wi-Fi/BLE sinks.
-- BLE ASCII commands enter `CommandMailbox` through writable characteristic `FF01` and are applied by Core 1 at a safe boundary.
+- BLE ASCII commands enter `CommandMailbox` through writable characteristic `FF10` and are applied by Core 1 at a safe boundary.

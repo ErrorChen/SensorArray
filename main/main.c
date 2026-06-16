@@ -34,6 +34,7 @@
 #include "sensorarrayNetStatus.h"
 #include "sensorarrayScanConfig.h"
 #include "sensorarrayScanPlan.h"
+#include "sensorarrayTransport.h"
 #include "sensorarrayTypes.h"
 
 #define printf sensorarrayAcqEventPrintf
@@ -145,6 +146,16 @@ static void sensorarrayLogStackHighWater(const char *stage)
 
 static uint32_t sensorarrayFdcFramePeriodMs(void)
 {
+    uint32_t captureFpsCap = sensorarrayCommandMailboxGetCaptureFpsCap();
+    if (captureFpsCap == 0u) {
+        return 0u;
+    }
+    uint32_t periodMs = (1000u + captureFpsCap - 1u) / captureFpsCap;
+    return periodMs == 0u ? 1u : periodMs;
+}
+
+static uint32_t sensorarrayFdcReferenceFramePeriodMs(void)
+{
     uint32_t periodMs = (uint32_t)((SENSORARRAY_CFG_FRAME_PERIOD_US + 999u) / 1000u);
     return periodMs == 0u ? 1u : periodMs;
 }
@@ -154,6 +165,15 @@ static void sensorarrayDelayFramePeriodSince(sensorarrayAppContext_t *ctx,
                                              uint32_t sequence)
 {
     uint32_t periodMs = sensorarrayFdcFramePeriodMs();
+    if (periodMs == 0u) {
+        int64_t referenceUs = (int64_t)sensorarrayFdcReferenceFramePeriodMs() * 1000LL;
+        int64_t elapsedUs = esp_timer_get_time() - frameStartUs;
+        if (elapsedUs > (int64_t)CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US &&
+            ctx && ctx->asyncLogReady) {
+            (void)sensorarrayAsyncLogPublishOverrun(sequence, elapsedUs, referenceUs);
+        }
+        return;
+    }
     int64_t periodUs = (int64_t)periodMs * 1000LL;
     int64_t elapsedUs = esp_timer_get_time() - frameStartUs;
     int64_t remainingUs = periodUs - elapsedUs;
@@ -1003,8 +1023,13 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         case SENSORARRAY_COMMAND_CALIBRATE_ALL:
             sensorarrayAdsGapRequestCalibration(true, true);
             break;
+        case SENSORARRAY_COMMAND_ADS_GAP_MODE:
+            sensorarrayAdsGapSetMode((sensorarrayAdsGapMode_t)command.value);
+            break;
         case SENSORARRAY_COMMAND_BLE_CAP_PERIOD:
         case SENSORARRAY_COMMAND_TRACE_ENABLE:
+        case SENSORARRAY_COMMAND_CAPTURE_FPS_CAP:
+        case SENSORARRAY_COMMAND_OUTPUT_FPS_CAP:
             break;
         default:
             continue;
@@ -1015,6 +1040,47 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
             (void)sensorarrayAsyncLogPublishCommandApplied(ctx->frame.sequence, &command);
         }
     }
+}
+
+static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
+                                                char *response,
+                                                size_t responseSize,
+                                                void *context)
+{
+    sensorarrayAppContext_t *ctx = (sensorarrayAppContext_t *)context;
+    uint32_t frameSequence = ctx ? ctx->frame.sequence : 0u;
+    if (!command || !response || responseSize == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(command, "BAT?") == 0) {
+        return sensorarrayAdsGapFormatBattery(response, responseSize, frameSequence) > 0u ?
+            ESP_OK : ESP_FAIL;
+    }
+    if (strcmp(command, "RAIL?") == 0) {
+        return sensorarrayAdsGapFormatRail(response, responseSize, frameSequence) > 0u ?
+            ESP_OK : ESP_FAIL;
+    }
+    if (strcmp(command, "ADS?") == 0) {
+        return sensorarrayAdsGapFormatAds(response, responseSize) > 0u ?
+            ESP_OK : ESP_FAIL;
+    }
+    if (strcmp(command, "FPS?") == 0) {
+        uint32_t captureCap = sensorarrayCommandMailboxGetCaptureFpsCap();
+        uint32_t outputCap = sensorarrayCommandMailboxGetOutputFpsCap();
+        snprintf(response,
+                 responseSize,
+                 "FPS,cfcap=%lu,ofcap=%lu,adsgap=%s\n",
+                 (unsigned long)captureCap,
+                 (unsigned long)outputCap,
+                 sensorarrayAdsGapModeName(sensorarrayAdsGapGetMode()));
+        return ESP_OK;
+    }
+    if (strcmp(command, "ADSDBG=1") == 0 || strcmp(command, "ADSDBG=0") == 0) {
+        snprintf(response, responseSize, "ACK,cmd=ADSDBG,v=%c\n",
+                 command[7]);
+        return ESP_OK;
+    }
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 static esp_err_t sensorarrayInitBoardAndRouting(sensorarrayAppContext_t *ctx)
@@ -1113,6 +1179,9 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
         return err;
     }
     esp_err_t adsGapErr = sensorarrayAdsGapInit(&ctx->state);
+    if (adsGapErr == ESP_OK) {
+        sensorarrayTransportSetRuntimeQueryCallback(sensorarrayRuntimeQueryCommand, ctx);
+    }
     printf("ADS_PINMAP,start=%d,drdy=%d,cs=%d,sclk=%d,din=%d,dout=%d,core=%d,gapInit=0x%lx,dma=%u\n",
            CONFIG_SENSORARRAY_ADS_START_GPIO,
            CONFIG_SENSORARRAY_ADS_DRDY_GPIO,

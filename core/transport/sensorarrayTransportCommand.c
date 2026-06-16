@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
 
 static void sensorarrayTransportCommandNormalize(char *text)
@@ -50,10 +51,14 @@ static esp_err_t sensorarrayTransportHandleRuntimeCommand(const char *text,
                  sensorarrayTransportTxModeName(sensorarrayTransportGetTxMode()));
         return ESP_OK;
     }
-    if (strcmp(text, "TX=REL") == 0 || strcmp(text, "TX=RT") == 0) {
-        sensorarrayTransportTxMode_t mode =
-            strcmp(text, "TX=RT") == 0 ? SENSORARRAY_TRANSPORT_TX_RT :
-                                         SENSORARRAY_TRANSPORT_TX_REL;
+    if (strcmp(text, "TX=REL") == 0 || strcmp(text, "TX=RT") == 0 ||
+        strcmp(text, "TX=SHORT") == 0 || strcmp(text, "TX=FULL") == 0) {
+        sensorarrayTransportTxMode_t mode = SENSORARRAY_TRANSPORT_TX_REL;
+        if (strcmp(text, "TX=SHORT") == 0 || strcmp(text, "TX=RT") == 0) {
+            mode = SENSORARRAY_TRANSPORT_TX_SHORT;
+        } else if (strcmp(text, "TX=FULL") == 0) {
+            mode = SENSORARRAY_TRANSPORT_TX_FULL;
+        }
         sensorarrayTransportSetTxMode(mode);
         snprintf(response, responseSize, "ACK,cmd=TX,v=%s\n",
                  sensorarrayTransportTxModeName(mode));
@@ -65,10 +70,13 @@ static esp_err_t sensorarrayTransportHandleRuntimeCommand(const char *text,
                  sensorarrayTransportStreamName(sensorarrayTransportGetStream()));
         return ESP_OK;
     }
-    if (strcmp(text, "ST=SER") == 0 || strcmp(text, "ST=BLE") == 0 ||
+    if (strcmp(text, "ST=AUTO") == 0 ||
+        strcmp(text, "ST=SER") == 0 || strcmp(text, "ST=BLE") == 0 ||
         strcmp(text, "ST=WIFI") == 0 || strcmp(text, "ST=ALL") == 0) {
-        sensorarrayTransportStream_t stream = SENSORARRAY_TRANSPORT_STREAM_SER;
-        if (strcmp(text, "ST=BLE") == 0) {
+        sensorarrayTransportStream_t stream = SENSORARRAY_TRANSPORT_STREAM_AUTO;
+        if (strcmp(text, "ST=SER") == 0) {
+            stream = SENSORARRAY_TRANSPORT_STREAM_SER;
+        } else if (strcmp(text, "ST=BLE") == 0) {
             stream = SENSORARRAY_TRANSPORT_STREAM_BLE;
         } else if (strcmp(text, "ST=WIFI") == 0) {
             stream = SENSORARRAY_TRANSPORT_STREAM_WIFI;
@@ -78,6 +86,20 @@ static esp_err_t sensorarrayTransportHandleRuntimeCommand(const char *text,
         sensorarrayTransportSetStream(stream);
         snprintf(response, responseSize, "ACK,cmd=ST,v=%s\n",
                  sensorarrayTransportStreamName(stream));
+        return ESP_OK;
+    }
+
+    if (strcmp(text, "BTX?") == 0) {
+        snprintf(response, responseSize, "ACK,cmd=BTX,v=%s\n",
+                 sensorarrayBleTxModeName(sensorarrayBleGetTxMode()));
+        return ESP_OK;
+    }
+    if (strcmp(text, "BTX=FAST") == 0 || strcmp(text, "BTX=SAFE") == 0) {
+        sensorarrayBleTxMode_t mode = strcmp(text, "BTX=SAFE") == 0 ?
+            SENSORARRAY_BLE_TX_SAFE : SENSORARRAY_BLE_TX_FAST;
+        sensorarrayBleSetTxMode(mode);
+        snprintf(response, responseSize, "ACK,cmd=BTX,v=%s\n",
+                 sensorarrayBleTxModeName(mode));
         return ESP_OK;
     }
 
@@ -110,6 +132,14 @@ static esp_err_t sensorarrayTransportHandleRuntimeCommand(const char *text,
         strcmp(text, "WIFI_FORGET=1") == 0) {
         snprintf(response, responseSize, "ERR,cmd=WIFI,reason=sta_nyi\n");
         return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    if (g_sensorarrayTransportRuntimeQueryCallback) {
+        return g_sensorarrayTransportRuntimeQueryCallback(
+            text,
+            response,
+            responseSize,
+            g_sensorarrayTransportRuntimeQueryContext);
     }
 
     return ESP_ERR_NOT_SUPPORTED;

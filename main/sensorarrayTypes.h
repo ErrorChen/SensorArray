@@ -153,6 +153,12 @@ typedef enum {
     SENSORARRAY_BATTERY_INVALID_UNKNOWN,
 } sensorarrayBatteryInvalidReason_t;
 
+typedef enum {
+    SENSORARRAY_ADS_RAIL_STATUS_BAD = 0,
+    SENSORARRAY_ADS_RAIL_STATUS_OK,
+    SENSORARRAY_ADS_RAIL_STATUS_HOLD,
+} sensorarrayAdsRailStatus_t;
+
 typedef struct {
     uint64_t timestampUs;
     int32_t ain9OffsetRaw;
@@ -164,10 +170,17 @@ typedef struct {
     int32_t ain8GndUv;
     int32_t batteryMv;
     int32_t railUv;
+    int32_t railRawUv;
+    int32_t railMonitorUv;
+    int32_t railMonitorRaw;
+    int32_t railLastGoodUv;
     int32_t railExpectedUv;
     int32_t railErrorUv;
     int32_t zeroResidualUv;
     uint32_t zeroResidualStdUv;
+    uint32_t railAgeFrames;
+    uint16_t railValidStreak;
+    uint16_t railInvalidStreak;
     uint32_t windows;
     uint32_t jobsRun;
     uint32_t jobsSkip;
@@ -198,8 +211,10 @@ typedef struct {
     bool bootCalibrationDone;
     bool vbiasEnabled;
     bool railValid;
+    bool railUsableForBattery;
     bool zeroValid;
     bool vrefSynced;
+    sensorarrayAdsRailStatus_t railStatus;
     sensorarrayBatteryInvalidReason_t batteryInvalidReason;
     bool fallbackToBoundary;
 } sensorarrayAdsGapSnapshot_t;

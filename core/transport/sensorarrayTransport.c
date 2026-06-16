@@ -1,6 +1,7 @@
 #include "sensorarrayTransportInternal.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_mac.h"
@@ -26,6 +27,18 @@
 #ifndef CONFIG_SENSORARRAY_WIFI_SOFTAP_PASSWORD
 #define CONFIG_SENSORARRAY_WIFI_SOFTAP_PASSWORD ""
 #endif
+#ifndef CONFIG_SENSORARRAY_OUTPUT_TASK_CORE
+#define CONFIG_SENSORARRAY_OUTPUT_TASK_CORE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_COMM_TASK_CORE
+#define CONFIG_SENSORARRAY_COMM_TASK_CORE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT
+#define CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT 0
+#endif
+#ifndef CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_FULL
+#define CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_FULL 0
+#endif
 
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
 #define SENSORARRAY_TRANSPORT_QUEUE_COUNT 3u
@@ -46,6 +59,135 @@ static TaskHandle_t s_task;
 static bool s_started;
 static char s_deviceName[32];
 static char s_mdnsName[32];
+
+static bool sensorarrayTransportFindFieldU32(const char *line,
+                                             const char *key,
+                                             uint32_t *outValue)
+{
+    if (!line || !key || !outValue) {
+        return false;
+    }
+    const char *match = strstr(line, key);
+    if (!match) {
+        return false;
+    }
+    match += strlen(key);
+    char *end = NULL;
+    unsigned long parsed = strtoul(match, &end, 10);
+    if (end == match) {
+        return false;
+    }
+    *outValue = (uint32_t)parsed;
+    return true;
+}
+
+static bool sensorarrayTransportFindFieldHex8(const char *line,
+                                              const char *key,
+                                              uint32_t *outValue)
+{
+    if (!line || !key || !outValue) {
+        return false;
+    }
+    const char *match = strstr(line, key);
+    if (!match) {
+        return false;
+    }
+    match += strlen(key);
+    char *end = NULL;
+    unsigned long parsed = strtoul(match, &end, 16);
+    if (end == match) {
+        return false;
+    }
+    *outValue = (uint32_t)parsed;
+    return true;
+}
+
+static bool sensorarrayTransportBuildShortData(const char *data,
+                                               size_t length,
+                                               char *out,
+                                               size_t outSize)
+{
+    if (!data || length == 0u || !out || outSize == 0u) {
+        return false;
+    }
+    const char *firstLineEnd = memchr(data, '\n', length);
+    if (!firstLineEnd || data[0] != 'C' || data[1] != ',') {
+        return false;
+    }
+    char cLine[192];
+    size_t cLineLength = (size_t)(firstLineEnd - data);
+    if (cLineLength >= sizeof(cLine)) {
+        cLineLength = sizeof(cLine) - 1u;
+    }
+    memcpy(cLine, data, cLineLength);
+    cLine[cLineLength] = '\0';
+
+    uint32_t seq = 0u;
+    uint32_t rows = 0u;
+    uint32_t rf = 0u;
+    uint32_t pf = 0u;
+    uint32_t sf = 0u;
+    (void)sensorarrayTransportFindFieldU32(cLine, "seq=", &seq);
+    (void)sensorarrayTransportFindFieldU32(cLine, "rows=", &rows);
+    (void)sensorarrayTransportFindFieldHex8(cLine, "rf=", &rf);
+    (void)sensorarrayTransportFindFieldHex8(cLine, "pf=", &pf);
+    (void)sensorarrayTransportFindFieldHex8(cLine, "sf=", &sf);
+
+    const char *bad = strstr(cLine, "bad=");
+    char badText[24] = "na";
+    if (bad) {
+        bad += 4u;
+        size_t index = 0u;
+        while (bad[index] != '\0' && bad[index] != ',' && index + 1u < sizeof(badText)) {
+            badText[index] = bad[index];
+            index++;
+        }
+        badText[index] = '\0';
+    }
+
+    int32_t first = 0;
+    int32_t last = 0;
+    bool firstSet = false;
+    const char *cursor = firstLineEnd + 1;
+    const char *end = data + length;
+    while (cursor < end) {
+        const char *lineEnd = memchr(cursor, '\n', (size_t)(end - cursor));
+        if (!lineEnd) {
+            break;
+        }
+        if (cursor[0] == 'D') {
+            const char *value = strchr(cursor, ',');
+            while (value && value < lineEnd) {
+                value++;
+                char *valueEnd = NULL;
+                long parsed = strtol(value, &valueEnd, 10);
+                if (valueEnd == value || valueEnd > lineEnd) {
+                    break;
+                }
+                if (!firstSet) {
+                    first = (int32_t)parsed;
+                    firstSet = true;
+                }
+                last = (int32_t)parsed;
+                value = valueEnd < lineEnd ? strchr(valueEnd, ',') : NULL;
+            }
+        }
+        cursor = lineEnd + 1;
+    }
+
+    int written = snprintf(out,
+                           outSize,
+                           "B20,seq=%lu,rows=%lu,cfps=na,efps=na,rf=%02lX,pf=%02lX,sf=%02lX,bad=%s,d0=%ld,dl=%ld\n",
+                           (unsigned long)seq,
+                           (unsigned long)rows,
+                           (unsigned long)rf,
+                           (unsigned long)pf,
+                           (unsigned long)sf,
+                           badText,
+                           (long)first,
+                           (long)last);
+    return written > 0 && (size_t)written < outSize;
+}
 
 static void sensorarrayTransportBuildNames(const uint8_t mac[6])
 {
@@ -185,9 +327,21 @@ static void sensorarrayTransportTask(void *arg)
         sensorarrayWifiChannel_t wifiChannel = item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
             SENSORARRAY_WIFI_CH_DATA : SENSORARRAY_WIFI_CH_LOG;
         if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && sensorarrayTransportBleSinkEnabled()) {
+            char shortData[192];
+            const char *bleData = item.data;
+            size_t bleLength = item.length;
+            if (item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+                sensorarrayTransportGetTxMode() == SENSORARRAY_TRANSPORT_TX_SHORT &&
+                sensorarrayTransportBuildShortData(item.data,
+                                                   item.length,
+                                                   shortData,
+                                                   sizeof(shortData))) {
+                bleData = shortData;
+                bleLength = strlen(shortData);
+            }
             esp_err_t bleErr = sensorarrayBleNotify(bleChannel,
-                                                    (const uint8_t *)item.data,
-                                                    item.length);
+                                                    (const uint8_t *)bleData,
+                                                    bleLength);
             sensorarrayTransportStatResult(item.channel, true, bleErr);
         }
         if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
@@ -238,8 +392,14 @@ esp_err_t sensorarrayTransportInit(void)
     uint8_t mac[6] = {0};
     (void)esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
     sensorarrayTransportBuildNames(mac);
-    sensorarrayTransportSetStream(SENSORARRAY_TRANSPORT_STREAM_SER);
+    sensorarrayTransportSetStream(SENSORARRAY_TRANSPORT_STREAM_AUTO);
+#if CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT
+    sensorarrayTransportSetTxMode(SENSORARRAY_TRANSPORT_TX_SHORT);
+#elif CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_FULL
+    sensorarrayTransportSetTxMode(SENSORARRAY_TRANSPORT_TX_FULL);
+#else
     sensorarrayTransportSetTxMode(SENSORARRAY_TRANSPORT_TX_REL);
+#endif
     sensorarrayTransportSetWifiMode(SENSORARRAY_CFG_OUTPUT_WIFI_TEXT ?
                                     SENSORARRAY_TRANSPORT_WIFI_AP :
                                     SENSORARRAY_TRANSPORT_WIFI_OFF);
@@ -274,13 +434,23 @@ esp_err_t sensorarrayTransportInit(void)
     if (!s_queue) {
         return ESP_ERR_NO_MEM;
     }
-    BaseType_t ok = xTaskCreate(sensorarrayTransportTask, "transport", 6144u,
-                                (void *)(intptr_t)wifiErr, 5u, &s_task);
+    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayTransportTask,
+                                            "transport",
+                                            6144u,
+                                            (void *)(intptr_t)wifiErr,
+                                            5u,
+                                            &s_task,
+                                            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
     if (ok != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    ok = xTaskCreate(sensorarrayTransportSerialControlTask, "serialCtrl", 3072u,
-                     NULL, 4u, NULL);
+    ok = xTaskCreatePinnedToCore(sensorarrayTransportSerialControlTask,
+                                 "serialCtrl",
+                                 3072u,
+                                 NULL,
+                                 4u,
+                                 NULL,
+                                 CONFIG_SENSORARRAY_COMM_TASK_CORE);
     if (ok != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
