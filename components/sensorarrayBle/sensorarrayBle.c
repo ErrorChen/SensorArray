@@ -261,6 +261,29 @@ static void sensorarrayBleNoteDrop(sensorarrayBleChannel_t channel)
     s_ble.stats.messageDropped++;
 }
 
+static bool sensorarrayBleValidateAscii(sensorarrayBleChannel_t channel,
+                                        const uint8_t *data,
+                                        size_t length,
+                                        uint32_t messageId,
+                                        uint32_t fragmentIndex)
+{
+    if (!data) {
+        return false;
+    }
+    for (size_t offset = 0u; offset < length; ++offset) {
+        if (data[offset] > 0x7Fu) {
+            printf("BLX,ch=%c,reason=nonascii,mid=%lu,frag=%lu,off=%lu,byte=%02X\n",
+                   sensorarrayBleEnvelopeChannel(channel),
+                   (unsigned long)messageId,
+                   (unsigned long)fragmentIndex,
+                   (unsigned long)offset,
+                   (unsigned)data[offset]);
+            return false;
+        }
+    }
+    return true;
+}
+
 const char *sensorarrayBleTxModeName(sensorarrayBleTxMode_t mode)
 {
     return mode == SENSORARRAY_BLE_TX_SAFE ? "safe" : "fast";
@@ -385,6 +408,10 @@ static esp_err_t sensorarrayBleSendFragment(sensorarrayBleChannel_t channel,
         s_ble.stats.fragmentError++;
         return ESP_ERR_INVALID_SIZE;
     }
+    if (!sensorarrayBleValidateAscii(channel, data, chunk, messageId, fragmentIndex)) {
+        s_ble.stats.fragmentError++;
+        return ESP_ERR_INVALID_ARG;
+    }
     memcpy(packet + headerLen, data, chunk);
     if (confirm) {
         s_ble.confirmWaitTask = xTaskGetCurrentTaskHandle();
@@ -441,6 +468,14 @@ static esp_err_t sensorarrayBleSendMessage(const sensorarrayBleQueuedMessage_t *
         messageId = ++s_ble.nextMessageId[message->channel];
     }
     uint32_t crc = sensorarrayBleCrc32(message->data, message->length);
+    if (!sensorarrayBleValidateAscii(message->channel,
+                                     message->data,
+                                     message->length,
+                                     messageId,
+                                     0u)) {
+        sensorarrayBleNoteDrop(message->channel);
+        return ESP_ERR_INVALID_ARG;
+    }
     if (message->length <= maximum) {
         uint16_t handle = sensorarrayBleValueHandle(message->channel);
         bool confirm = sensorarrayBleGetTxMode() == SENSORARRAY_BLE_TX_SAFE;

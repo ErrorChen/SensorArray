@@ -21,6 +21,34 @@ static uint8_t sensorarrayScanConfigDefaultRows(void)
 static portMUX_TYPE s_scanConfigMux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t s_activeRows = CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS;
 static uint8_t s_pendingRows = CONFIG_SENSORARRAY_DEFAULT_ACTIVE_ROWS;
+static bool s_pendingRowsValid;
+static uint32_t s_nextRequestId = 1u;
+static uint32_t s_pendingRequestId;
+static uint32_t s_appliedRequestId;
+static uint32_t s_generation = 1u;
+
+static uint8_t sensorarrayScanConfigRowMask(uint8_t rows)
+{
+    if (rows >= SENSORARRAY_SCAN_CONFIG_MAX_ROWS) {
+        return 0xFFu;
+    }
+    return (uint8_t)((1u << rows) - 1u);
+}
+
+static sensorarrayFrameConfigSnapshot_t sensorarrayScanConfigMakeSnapshotLocked(void)
+{
+    uint8_t rows = s_activeRows;
+    if (rows < 1u || rows > SENSORARRAY_SCAN_CONFIG_MAX_ROWS) {
+        rows = sensorarrayScanConfigDefaultRows();
+    }
+    return (sensorarrayFrameConfigSnapshot_t){
+        .rows = rows,
+        .cells = (uint8_t)(rows * SENSORARRAY_SCAN_CONFIG_COLS_PER_ROW),
+        .rowMask = sensorarrayScanConfigRowMask(rows),
+        .generation = s_generation,
+        .requestId = s_appliedRequestId,
+    };
+}
 
 esp_err_t sensorarrayScanConfigInit(void)
 {
@@ -28,20 +56,40 @@ esp_err_t sensorarrayScanConfigInit(void)
     uint8_t rows = sensorarrayScanConfigDefaultRows();
     s_activeRows = rows;
     s_pendingRows = rows;
+    s_pendingRowsValid = false;
+    s_nextRequestId = 1u;
+    s_pendingRequestId = 0u;
+    s_appliedRequestId = 0u;
+    s_generation = 1u;
     portEXIT_CRITICAL(&s_scanConfigMux);
     return ESP_OK;
 }
 
-esp_err_t sensorarrayScanConfigRequestRows(uint8_t rows)
+esp_err_t sensorarrayScanConfigRequestRows(uint8_t rows,
+                                           sensorarrayScanConfigRequestResult_t *outResult)
 {
-    if (rows < 1u || rows > 8u) {
+    if (rows < 1u || rows > SENSORARRAY_SCAN_CONFIG_MAX_ROWS) {
         return ESP_ERR_INVALID_ARG;
     }
     portENTER_CRITICAL(&s_scanConfigMux);
+    uint32_t requestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) {
+        s_nextRequestId = 1u;
+    }
+    uint8_t oldRows = s_activeRows;
     s_pendingRows = rows;
+    s_pendingRowsValid = true;
+    s_pendingRequestId = requestId;
+    uint32_t activeGeneration = s_generation;
+    if (outResult) {
+        *outResult = (sensorarrayScanConfigRequestResult_t){
+            .requestId = requestId,
+            .oldRows = oldRows,
+            .requestedRows = rows,
+            .activeGeneration = activeGeneration,
+        };
+    }
     portEXIT_CRITICAL(&s_scanConfigMux);
-    printf("SCANCFG,rows=%u,cells=%u,apply=next_frame\n",
-           (unsigned)rows, (unsigned)(rows * 8u));
     return ESP_OK;
 }
 
@@ -61,11 +109,41 @@ uint8_t sensorarrayScanConfigGetPendingRows(void)
     return rows;
 }
 
-void sensorarrayScanConfigApplyPendingAtFrameBoundary(void)
+sensorarrayFrameConfigSnapshot_t sensorarrayScanConfigGetFrameSnapshot(void)
 {
     portENTER_CRITICAL(&s_scanConfigMux);
-    s_activeRows = s_pendingRows;
+    sensorarrayFrameConfigSnapshot_t snapshot = sensorarrayScanConfigMakeSnapshotLocked();
     portEXIT_CRITICAL(&s_scanConfigMux);
+    return snapshot;
+}
+
+void sensorarrayScanConfigApplyPendingAtFrameBoundary(sensorarrayScanConfigApplyResult_t *outResult)
+{
+    sensorarrayScanConfigApplyResult_t result = {0};
+
+    portENTER_CRITICAL(&s_scanConfigMux);
+    if (s_pendingRowsValid) {
+        uint8_t oldRows = s_activeRows;
+        s_activeRows = s_pendingRows;
+        s_appliedRequestId = s_pendingRequestId;
+        s_pendingRowsValid = false;
+        s_generation++;
+        if (s_generation == 0u) {
+            s_generation = 1u;
+        }
+        result = (sensorarrayScanConfigApplyResult_t){
+            .applied = true,
+            .requestId = s_appliedRequestId,
+            .oldRows = oldRows,
+            .newRows = s_activeRows,
+            .generation = s_generation,
+        };
+    }
+    portEXIT_CRITICAL(&s_scanConfigMux);
+
+    if (outResult) {
+        *outResult = result;
+    }
 }
 
 static void sensorarrayScanConfigNormalize(char *text)
@@ -97,9 +175,21 @@ esp_err_t sensorarrayScanConfigHandleCommand(const char *command,
     text[length] = '\0';
     sensorarrayScanConfigNormalize(text);
     if (strcmp(text, "ROWS?") == 0) {
-        uint8_t rows = sensorarrayScanConfigGetPendingRows();
-        snprintf(response, responseSize, "ACK,cmd=ROWS,value=%u,cells=%u\n",
-                 (unsigned)rows, (unsigned)(rows * 8u));
+        portENTER_CRITICAL(&s_scanConfigMux);
+        uint8_t activeRows = s_activeRows;
+        uint8_t pendingRows = s_pendingRowsValid ? s_pendingRows : s_activeRows;
+        uint32_t pendingRequestId = s_pendingRowsValid ? s_pendingRequestId : 0u;
+        uint32_t generation = s_generation;
+        uint32_t appliedRequestId = s_appliedRequestId;
+        portEXIT_CRITICAL(&s_scanConfigMux);
+        snprintf(response,
+                 responseSize,
+                 "ROWS,active=%u,pending=%u,requestId=%lu,appliedId=%lu,generation=%lu\n",
+                 (unsigned)activeRows,
+                 (unsigned)pendingRows,
+                 (unsigned long)pendingRequestId,
+                 (unsigned long)appliedRequestId,
+                 (unsigned long)generation);
         return ESP_OK;
     }
     const char *value = NULL;
@@ -118,12 +208,18 @@ esp_err_t sensorarrayScanConfigHandleCommand(const char *command,
         snprintf(response, responseSize, "ERR,cmd=ROWS,reason=parse\n");
         return ESP_ERR_INVALID_ARG;
     }
-    if (rows < 1u || rows > 8u) {
+    if (rows < 1u || rows > SENSORARRAY_SCAN_CONFIG_MAX_ROWS) {
         snprintf(response, responseSize, "ERR,cmd=ROWS,reason=range,min=1,max=8\n");
         return ESP_ERR_INVALID_ARG;
     }
-    (void)sensorarrayScanConfigRequestRows((uint8_t)rows);
-    snprintf(response, responseSize, "ACK,cmd=ROWS,value=%lu,cells=%lu\n",
-             rows, rows * 8u);
+    sensorarrayScanConfigRequestResult_t request = {0};
+    (void)sensorarrayScanConfigRequestRows((uint8_t)rows, &request);
+    snprintf(response,
+             responseSize,
+             "RCMD,id=%lu,old=%u,req=%lu,status=accepted,generation=%lu\n",
+             (unsigned long)request.requestId,
+             (unsigned)request.oldRows,
+             rows,
+             (unsigned long)request.activeGeneration);
     return ESP_OK;
 }

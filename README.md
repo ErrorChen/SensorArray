@@ -1,9 +1,10 @@
 # SensorArray ESP32-S3 固件 / SensorArray ESP32-S3 Firmware
 
-## Refactor migration note - 2026-06-16
+## Refactor migration note - 2026-06-17
 
 Refactor baseline: `4d90fa1ead203acce3c2c413c35e4460d197ff07`.
 Current rail/BLE/FPS-cap repair baseline: `da2efd9741ecb1d8a30906db699ebcf15f26e806`.
+Current function-level runtime repair baseline: `67a11ee6b38cbecee32dd38487522de3b38d72d9`.
 
 ### Configuration Source Of Truth
 
@@ -41,19 +42,25 @@ FDC row loop, frame build, fresh masks, runtime profile/warning work, and C/D/K
 output. Inactive rows retain prior state and are not newly marked stale.
 
 ```text
-R50,cmd=<cmdRows>,plan=<planRows>,ph=<physicalRowsVisited>,emit=<frameRows>,pc=<profileCellsTouched>,hc=<healthCellsTouched>,path=<min|full>
+RCMD,id=<requestId>,old=<oldRows>,req=<requestedRows>,status=accepted,generation=<activeGeneration>
+RAPP,id=<requestId>,seq=<frameSeq>,old=<oldRows>,new=<activeRows>,gen=<generation>,status=applied
+R50,rid=<requestId>,gen=<generation>,plan=<planRows>,ph=<physicalRowsVisited>,emit=<frameRows>,pc=<profileCellsTouched>,hc=<healthCellsTouched>,path=<min|full>
 T50,r=<rows>,tu=<routeUs>/<waitUs>/<readUs>/<fillUs>/<postUs>
+ROW50,r=<rows>,wall=<avg>/<max>,pWait=<avg>,sWait=<avg>,waitOverlap=<avg>,pStatus=<count>/<avgUs>,sStatus=<count>/<avgUs>,pRead=<avg>,sRead=<avg>,readOverlap=<avg>,dispatch=<avg>,ack=<avg>,join=<avg>,fill=<avg>,readDx=<avg>
+FB50,direct=<directDataFallbackCount>,zero=<zeroAfterDrdyCount>,status=<statusReadsInFallbackCount>,secondWait=<avg>/<max>,recovered=<fallbackSuccess>,failed=<fallbackFail>
 P50,prof=<runtimeProfileUs>,warn=<warningUs>,res=<rescueUs>,bg=<0|1>
 H50,e=<errDelta>,sat=<satDelta>,st=<staleDelta>,rc=<rescueDelta>,top=<cells|->
 ```
 
 ### Compact Log Format
 
-Tags: `SF50` acquisition/output rate, `TR50` row/FDC/ADS timing, `AB50`
+Tags: `RST` boot/reset breadcrumb, `SF50` acquisition/output rate, `TR50` row/FDC/ADS timing, `AB50`
 ADS/BAT, `OT50` transport/output, `BL50` BLE link/fragments, `I2C50` I2C
-health, `R50` ROWS, `T50` timing, `P50` post-processing, `H50` health, `HC`
+health, `RCMD/RAPP/R50` ROWS, `T50/ROW50/FB50` FDC timing/fallback, `P50`
+post-processing, `H50` health, `HC`
 cell event, `BD/BW` battery diagnostic/window, `BF` BLE fragment receiver
-summary, `WF/NET` Wi-Fi/name, `ACK/ERR` command result.
+summary, `BATD` forced VBIAS-on battery diagnostic, `BLX/WIFI_ASCII_ERR/SERIAL_ASCII_ERR`
+strict ASCII failures, `WF/NET` Wi-Fi/name, `ACK/ERR` command result.
 
 Fields: `r/rows` rows, `seq` sequence range, `cfps` capture FPS, `efps` emitted
 frame FPS, `ofps` USB/BLE/Wi-Fi output FPS, `rf/pf/sf` fresh masks, `bad`
@@ -73,12 +80,21 @@ AB50,bt=<mV|-1>,br=<reason>,bs=<present|stale|unk>,a8d=<uV>,ac=<uV|na>,a8g=<uV|n
 ```
 
 Battery work remains a background ADS gap task and does not feed FDC bad-frame
-classification. `BAT?` returns `ABAT`, `RAIL?` returns `ARL`, and `ADS?`
-returns the current ADS identity/reference/gap-mode line. Runtime rail
-monitoring uses ADC1 with the ADS126x internal analog-supply monitor and the
-internal 2.5 V reference; the result is scaled by four to recover AVDD-AVSS.
-One bad rail sample does not immediately poison battery output: a plausible but
-out-of-tolerance runtime rail sample keeps the last-good rail in `rs=hold`;
+classification. `BAT?` returns `ABAT`, `RAIL?` returns `ARL`, `ADS?` returns
+the current ADS identity/reference/gap-mode line, and `BATD` queues a one-shot
+VBIAS-on battery diagnostic. `BATD` stops ADC1/ADC2, explicitly enables ADS
+VBIAS, verifies the POWER readback, waits the configured settle window, discards
+one fresh ADC1 conversion, then prints the POWER before/requested/during/after
+tuple plus `AIN8-AINCOM`, zero residual, `AINCOM-GND`, `AIN8-GND`, and derived
+battery mV. Runtime rail monitoring uses ADC1 with the ADS126x internal
+analog-supply monitor and the internal 2.5 V reference; the result is scaled by
+four to recover AVDD-AVSS.
+
+FDC capacitance routing drives the matrix reference to GND and disables the ADS
+internal reference, but keeps ADS VBIAS on so `AINCOM` remains a valid midpoint
+for rail/battery diagnostics. One bad rail sample does not immediately poison
+battery output: a plausible but out-of-tolerance runtime rail sample keeps the
+last-good rail in `rs=hold`;
 clearly out-of-range samples are limited by the invalid-streak and age guards.
 
 ### BLE And Wi-Fi
@@ -94,10 +110,16 @@ G,<ch>,<mid>,<i>,<n>,<payloadLen>,<messageLen>,<messageCrc32>
 ```
 
 Single packets that fit the negotiated ATT payload are sent as raw ASCII on
-their characteristic. Host tools reassemble both current and legacy `G` headers
-by channel/message id and validate CRC before parsing. nRF Connect shows raw
-fragments and is useful for subscription checks, but `tools/receive_ble_text.py`
-is the supported whole-message receiver.
+their characteristic. Firmware rejects any non-ASCII byte before enqueueing a
+BLE raw or fragmented message and emits `BLX` with channel/message/fragment
+context. Host tools reassemble both current and legacy `G` headers by
+channel/message id, validate CRC before parsing, and fail strict ASCII checks
+instead of using replacement characters. `tools/receive_ble_text.py` records
+scan/connect/service/subscribe/control/stream phases and can run a serial
+sidecar with `--serial-port COM11` so a BLE drop can be classified as a device
+reboot (`RST` seen on serial) or a host/GATT transport failure. nRF Connect
+shows raw fragments and is useful for subscription checks, but
+`tools/receive_ble_text.py` is the supported whole-message receiver.
 
 Names: BLE `CscArray_xxxxxx`, SoftAP `CscArray_xxxxxx`, mDNS
 `cscarray-xxxxxx.local`. Default stream is `ST=AUTO`: Serial is always eligible,
@@ -106,7 +128,7 @@ when AP mode is ready. Runtime commands are `TX?`, `TX=SHORT|REL|FULL`,
 `ST?`, `ST=AUTO|SER|BLE|WIFI|ALL`, `BTX?`, `BTX=FAST|SAFE`, `WIFI?`,
 `WIFI=OFF`, `WIFI=AP`, `FPS?`, `FPSCAP=OFF`, `FPSCAP=ON,<fps>`,
 `OUTCAP=OFF`, `OUTCAP=ON,<fps>`, `ADSGAP=OFF|ON|RAIL|BAT|ZERO`, `BAT?`,
-`RAIL?`, and `ADS?`. `WIFI=STA/APSTA` and serial STA provisioning
+`BATD`, `RAIL?`, and `ADS?`. `WIFI=STA/APSTA` and serial STA provisioning
 commands currently return `ERR,cmd=WIFI,reason=sta_nyi`; the Wi-Fi backend is
 still AP/UDP, while BLE message reassembly is implemented.
 
@@ -115,6 +137,9 @@ still AP/UDP, while BLE message reassembly is implemented.
 Use ESP-IDF v5.5.1 for firmware and repository `.venv` for host tools:
 
 ```powershell
+git status --short
+git diff --check
+C:\ESP32\SensorArray\.venv\Scripts\python.exe -m py_compile tools\text_protocol.py tools\receive_serial_text.py tools\receive_ble_text.py tools\receive_wifi_text.py
 idf reconfigure
 idf build
 C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\audit_config_surface.py
@@ -124,9 +149,10 @@ C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\check_no_legacy_config_usage
 Validation order is fixed:
 
 ```powershell
-C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_transports.py --port COM11 --rows 1,2,4,8 --duration 120 --serial --stream all --tx rel
-C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_ble_text.py --name-prefix CscArray --rows 4 --tx REL --duration 120 --tail
-C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_transports.py --rows 1,2,4,8 --duration 120 --wifi --wifi-host cscarray-xxxxxx.local --stream all --tx rel
+idf -p COM11 flash
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --rows 1,2,4,8 --tx REL --stream all --show-cap --show-log --command BATD
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_ble_text.py --name-prefix CscArray --rows 4 --tx REL --duration 120 --tail --serial-port COM11
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_wifi_text.py --device 192.168.4.1 --duration 120 --rows 1,2,4,8 --tx rel --stream all --show-cap --show-log
 ```
 
 Wi-Fi validation requires the device to already be reachable on the provided
@@ -159,17 +185,20 @@ BLE is initialized before Wi-Fi. BLE/Wi-Fi components do not parse `ROWS`.
 All control sources use one parser. `ROWS?`, `ROWS=1..8`, `ROWLIMIT=1..8`,
 and `SCANROWS=1..8` control the active row count. `TX=SHORT|REL|FULL`,
 `ST=AUTO|SER|BLE|WIFI|ALL`, `BTX=FAST|SAFE`, `FPSCAP=OFF|ON,<fps>`,
-`OUTCAP=OFF|ON,<fps>`, and `ADSGAP=OFF|ON|RAIL|BAT|ZERO` are accepted at
-runtime. Frame-affecting commands apply at the next frame boundary. The FDC scan
-itself only visits row1 through rowN.
+`OUTCAP=OFF|ON,<fps>`, `ADSGAP=OFF|ON|RAIL|BAT|ZERO`, `BAT?`, `BATD`,
+`RAIL?`, and `ADS?` are accepted at runtime. Frame-affecting commands apply at
+the next frame boundary. `ROWS` returns an accepted `RCMD` immediately, then the
+acquisition task prints `RAPP` when the new immutable frame snapshot is actually
+used. The FDC scan itself only visits row1 through rowN.
 
 ```text
-ACK,cmd=ROWS,value=5,cells=40
-C,seq=101,ts=123456999,rows=5,cells=40,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
+RCMD,id=7,old=8,req=5,status=accepted,generation=3
+RAPP,id=7,seq=101,old=8,new=5,gen=4,status=applied
+C,seq=101,ts=123456999,rows=5,cells=40,gen=4,rid=7,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
 D0,<16 values>
 D1,<16 values>
 D2,<8 values>
-K,seq=101,crc=<crc32>
+K,seq=101,gen=4,rid=7,crc=<crc32>
 ```
 
 CRC-32 covers C through the last D line, including each LF, and excludes K.
@@ -205,7 +234,10 @@ An invalid rail, VBIAS, ADC result, divider, or single-cell voltage produces
 `rail` measured AVDD-AVSS mV, `rv` rail validity, `rexp` nominal rail mV,
 `rerr` rail error mV, `a8d` AIN8-AINCOM uV, `acom` AINCOM-GND uV or `na`,
 `a8g` AIN8-GND uV or `na`, `brat` divider ratio, `bt` battery mV or -1, and
-`br` validity reason. The old unchecked battery formula is no longer used.
+`br` validity reason. `BATD` is the forced A/B diagnostic path: it explicitly
+turns ADS VBIAS on, waits, discards the first conversion, and prints the POWER
+register transition plus the differential and ground-referenced battery terms.
+The old unchecked battery formula is no longer used.
 
 Firmware build/flash uses ESP-IDF Python. Host receivers must use repository
 `.venv`, not system Python or ESP-IDF Python:
@@ -244,11 +276,11 @@ part of this version.
 ### Dynamic capacitance frame
 
 ```text
-C,seq=301,ts=123456789,rows=5,cells=40,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
+C,seq=301,ts=123456789,rows=5,cells=40,gen=12,rid=9,rf=1F,pf=1F,sf=1F,bad=0/0/0,fmt=pf6,n=40
 D0,100302000,58098000,...16 values
 D1,...16 values
 D2,...8 values
-K,seq=301,crc=89ABCDEF
+K,seq=301,gen=12,rid=9,crc=89ABCDEF
 ```
 
 The frame contains exactly `rows * 8` row-major cells. Each D line contains up
@@ -257,13 +289,15 @@ for rows that were not scanned. A value is integer
 `capacitance_pF * 1,000,000`; divide by `1,000,000` to recover pF with six
 decimal places. `-1000000` is the invalid fixed-point sentinel. `K.crc` is
 standard reflected CRC-32 over the exact ASCII bytes from `C` through the last
-`D` newline, excluding the `K` line.
+`D` newline, excluding the `K` line. `gen` is the immutable scan-config
+generation used to build the frame and `rid` is the last accepted row request id
+that produced that generation.
 
 | Tag | Purpose |
 |---|---|
-| `C` | Cap frame header with `rows`, `cells`, `n`, and freshness/invalid counts. |
+| `C` | Cap frame header with `rows`, `cells`, `gen`, `rid`, `n`, and freshness/invalid counts. |
 | `D0` onward | Exactly `cells` fixed-point pF values, up to 16 per line. |
-| `K` | Sequence-bound CRC-32. |
+| `K` | Sequence/generation/request-bound CRC-32 trailer. |
 | `SF50` | 50-frame capture, emit, per-sink output rate, bad-frame, drop, and queue summary. |
 | `TR50` | Row/FDC timing, coordinator timing, and ADS gap-job timing summary. |
 | `AB50` | ADS identity, rail status, zero residual, AIN8, battery, and ADS errors. |
@@ -352,8 +386,8 @@ originating Serial, BLE `FF11`, or UDP control peer:
 
 | Command | Effect at next frame boundary |
 |---|---|
-| `ROWS?` | Return active rows and cells. |
-| `ROWS=N`, `ROWLIMIT=N`, `SCANROWS=N` | Scan rows 1 through N, where N is 1..8. |
+| `ROWS?` | Return active rows, pending rows, request id, applied id, and generation. |
+| `ROWS=N`, `ROWLIMIT=N`, `SCANROWS=N` | Accept a new row request and return `RCMD`; Core 1 applies it once at the next frame boundary and prints `RAPP`. |
 | `ST?`, `ST=AUTO|SER|BLE|WIFI|ALL` | Select transport sinks. `AUTO` keeps Serial eligible and enables BLE/Wi-Fi only when their link is ready. |
 | `TX?`, `TX=SHORT|REL|FULL` | Select text payload size. `SHORT` makes BLE DATA publish `B20` summaries instead of full C/D/K frames. |
 | `BTX?`, `BTX=FAST|SAFE` | Select BLE notify or indication-confirmed send mode. |
@@ -362,6 +396,7 @@ originating Serial, BLE `FF11`, or UDP control peer:
 | `OUTCAP=OFF`, `OUTCAP=ON,<fps>` | Output-side pacing in the Core 0 output hub; default is off and does not hide Core 1 capture timing. |
 | `ADSGAP=OFF|ON|RAIL|BAT|ZERO` | Select which ADS gap jobs may run between FDC work. |
 | `BAT?`, `RAIL?`, `ADS?` | Return `ABAT`, `ARL`, or `ADS` runtime status line. |
+| `BATD`, `BATD=VBIAS_ON` | Queue a forced VBIAS-on battery diagnostic; the result is a `BATD` log line after the ADS gap job runs. |
 | `BLECAP=N` or `CAP=N` | Legacy low-rate cap control routed through the shared parser. |
 | `TRACE=0` / `TRACE=1` | Disable/enable the runtime trace state. |
 | `CAL=ZERO` | Schedule a zero-residual job in a safe ADS slack window. |
@@ -372,14 +407,15 @@ originating Serial, BLE `FF11`, or UDP control peer:
 
 ```powershell
 $venvPython = "C:\ESP32\SensorArray\.venv\Scripts\python.exe"
-& $venvPython tools\receive_ble_text.py --name-prefix CscArray --duration 120 --rows 4 --tx REL --tail
+& $venvPython tools\receive_ble_text.py --name-prefix CscArray --duration 120 --rows 4 --tx REL --tail --serial-port COM11
 & $venvPython tools\receive_wifi_text.py --data-port 3333 --log-port 3334 --ctrl-port 3335 --duration 120 --set-rows 4 --show-cap --show-log
-& $venvPython tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --set-rows 4 --show-cap --show-log
+& $venvPython tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --rows 1,2,4,8 --tx REL --show-cap --show-log --command BATD
 ```
 
 All receivers share `tools/text_protocol.py`, accept dynamic `rows/cells/n`,
-accept a short final D line, check CRC, and report sequence gaps, FPS, and
-channel counts. Host receiver commands must use repository `.venv`.
+accept a short final D line, check CRC, enforce strict ASCII, and report
+sequence gaps, FPS, and channel counts. Host receiver commands must use
+repository `.venv`.
 
 ## 目录 / Table of contents
 

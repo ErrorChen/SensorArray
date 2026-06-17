@@ -45,8 +45,12 @@ esp_err_t sensorarrayFdcMatrixEngineReadFrame(sensorarrayFdcMatrixEngine_t *engi
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t planRows = plan ? plan->rowCount : 0u;
-    return sensorarrayMeasureReadFdcMatrixFrameRows(engine->state, frame, planRows);
+    if (plan) {
+        return sensorarrayMeasureReadFdcMatrixFrameSnapshot(engine->state,
+                                                           frame,
+                                                           &plan->configSnapshot);
+    }
+    return sensorarrayMeasureReadFdcMatrixFrame(engine->state, frame);
 }
 
 esp_err_t sensorarrayFdcMatrixEngineRunFullRescue(sensorarrayFdcMatrixEngine_t *engine,

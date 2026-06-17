@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "sensorarrayScanConfig.h"
+
 typedef enum {
     SENSORARRAY_CELL_OP_SKIP = 0,
     SENSORARRAY_CELL_OP_FDC_CAP,
@@ -25,8 +27,8 @@ typedef struct {
 typedef struct {
     sensorarrayRowPlan_t rows[8];
     uint8_t rowCount;
+    sensorarrayFrameConfigSnapshot_t configSnapshot;
 } sensorarrayScanPlan_t;
 
 void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan);
 void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan);
-

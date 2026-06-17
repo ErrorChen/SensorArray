@@ -848,6 +848,7 @@ uint32_t sensorarrayMeasureFdcReadyGuardDeadlineUs(uint32_t estimatedRoundUs);
 void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *before, const Fdc2214CapI2cStats_t *after, sensorarrayFdcDeviceTiming_t *timing);
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state, sensorarrayFdcMatrixFrame_t *outFrame);
 esp_err_t sensorarrayMeasureReadFdcMatrixFrameRows(sensorarrayState_t *state, sensorarrayFdcMatrixFrame_t *outFrame, uint8_t requestedRows);
+esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(sensorarrayState_t *state, sensorarrayFdcMatrixFrame_t *outFrame, const sensorarrayFrameConfigSnapshot_t *snapshot);
 bool sensorarrayFastSpeedIsEnabled(void);
 void sensorarrayFastSpeedSetEnabled(bool enabled);
 void sensorarrayMeasureFdcProfileSetSummary(bool enabled);

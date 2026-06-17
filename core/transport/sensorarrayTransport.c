@@ -1,5 +1,6 @@
 #include "sensorarrayTransportInternal.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,12 @@
 typedef struct {
     sensorarrayTransportChannel_t channel;
     uint16_t length;
+    bool hasFrameMeta;
+    uint32_t frameSeq;
+    uint32_t generation;
+    uint32_t requestId;
+    uint8_t rows;
+    uint8_t cells;
     char data[SENSORARRAY_TRANSPORT_TEXT_MAX];
 } sensorarrayTransportItem_t;
 
@@ -187,6 +194,36 @@ static bool sensorarrayTransportBuildShortData(const char *data,
                            (long)first,
                            (long)last);
     return written > 0 && (size_t)written < outSize;
+}
+
+static void sensorarrayTransportFillFrameMeta(sensorarrayTransportItem_t *item)
+{
+    if (!item || item->length == 0u || item->data[0] != 'C' || item->data[1] != ',') {
+        return;
+    }
+
+    uint32_t rows = 0u;
+    uint32_t cells = 0u;
+    uint32_t sequence = 0u;
+    uint32_t generation = 0u;
+    uint32_t requestId = 0u;
+    if (!sensorarrayTransportFindFieldU32(item->data, "seq=", &sequence) ||
+        !sensorarrayTransportFindFieldU32(item->data, "rows=", &rows) ||
+        !sensorarrayTransportFindFieldU32(item->data, "cells=", &cells)) {
+        return;
+    }
+    (void)sensorarrayTransportFindFieldU32(item->data, "gen=", &generation);
+    (void)sensorarrayTransportFindFieldU32(item->data, "rid=", &requestId);
+    if (rows < 1u || rows > 8u || cells != rows * 8u) {
+        return;
+    }
+
+    item->hasFrameMeta = true;
+    item->frameSeq = sequence;
+    item->generation = generation;
+    item->requestId = requestId;
+    item->rows = (uint8_t)rows;
+    item->cells = (uint8_t)cells;
 }
 
 static void sensorarrayTransportBuildNames(const uint8_t mac[6])
@@ -374,10 +411,20 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
     }
     sensorarrayTransportItem_t item = {.channel = channel, .length = (uint16_t)length};
     memcpy(item.data, data, length);
+    sensorarrayTransportFillFrameMeta(&item);
     if (xQueueSend(s_queue, &item, 0) != pdTRUE) {
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
         g_sensorarrayTransportStats.queueDrop++;
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        if (item.hasFrameMeta) {
+            printf("TXDROP,ch=%u,seq=%lu,rows=%u,cells=%u,gen=%lu,rid=%lu,reason=transport_queue_full\n",
+                   (unsigned)item.channel,
+                   (unsigned long)item.frameSeq,
+                   (unsigned)item.rows,
+                   (unsigned)item.cells,
+                   (unsigned long)item.generation,
+                   (unsigned long)item.requestId);
+        }
         return ESP_ERR_TIMEOUT;
     }
     return ESP_OK;

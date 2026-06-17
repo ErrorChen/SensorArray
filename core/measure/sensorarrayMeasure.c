@@ -2096,26 +2096,47 @@ void sensorarrayMeasureFillFdcDeviceI2cDelta(const Fdc2214CapI2cStats_t *before,
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame)
 {
-    return sensorarrayMeasureReadFdcMatrixFrameRows(state, outFrame, 0u);
+    sensorarrayFrameConfigSnapshot_t snapshot = sensorarrayScanConfigGetFrameSnapshot();
+    return sensorarrayMeasureReadFdcMatrixFrameSnapshot(state, outFrame, &snapshot);
 }
 
 esp_err_t sensorarrayMeasureReadFdcMatrixFrameRows(sensorarrayState_t *state,
                                                    sensorarrayFdcMatrixFrame_t *outFrame,
                                                    uint8_t requestedRows)
 {
+    sensorarrayFrameConfigSnapshot_t snapshot = sensorarrayScanConfigGetFrameSnapshot();
+    if (requestedRows >= 1u && requestedRows <= SENSORARRAY_MATRIX_ROWS) {
+        snapshot.rows = requestedRows;
+        snapshot.cells = (uint8_t)(requestedRows * SENSORARRAY_MATRIX_COLS);
+        snapshot.rowMask = requestedRows >= SENSORARRAY_MATRIX_ROWS ?
+            0xFFu : (uint8_t)((1u << requestedRows) - 1u);
+    }
+    return sensorarrayMeasureReadFdcMatrixFrameSnapshot(state, outFrame, &snapshot);
+}
+
+esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
+    sensorarrayState_t *state,
+    sensorarrayFdcMatrixFrame_t *outFrame,
+    const sensorarrayFrameConfigSnapshot_t *snapshot)
+{
     if (!outFrame) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    sensorarrayScanConfigApplyPendingAtFrameBoundary();
     sensorarrayMeasureInitFdcMatrixFrame(outFrame);
-    outFrame->activeRows = requestedRows;
-    if (outFrame->activeRows < 1u || outFrame->activeRows > SENSORARRAY_MATRIX_ROWS) {
-        outFrame->activeRows = sensorarrayScanConfigGetActiveRows();
+    sensorarrayFrameConfigSnapshot_t frameConfig =
+        snapshot ? *snapshot : sensorarrayScanConfigGetFrameSnapshot();
+    if (frameConfig.rows < 1u || frameConfig.rows > SENSORARRAY_MATRIX_ROWS) {
+        frameConfig.rows = SENSORARRAY_MATRIX_ROWS;
+        frameConfig.cells = SENSORARRAY_MATRIX_CELL_COUNT;
+        frameConfig.rowMask = 0xFFu;
+    } else {
+        frameConfig.cells = (uint8_t)(frameConfig.rows * SENSORARRAY_MATRIX_COLS);
+        frameConfig.rowMask = frameConfig.rows >= SENSORARRAY_MATRIX_ROWS ?
+            0xFFu : (uint8_t)((1u << frameConfig.rows) - 1u);
     }
-    if (outFrame->activeRows < 1u || outFrame->activeRows > SENSORARRAY_MATRIX_ROWS) {
-        outFrame->activeRows = SENSORARRAY_MATRIX_ROWS;
-    }
+    outFrame->configSnapshot = frameConfig;
+    outFrame->activeRows = frameConfig.rows;
 
     if (!state) {
         outFrame->errorMask = UINT64_MAX;
@@ -2824,9 +2845,10 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameRows(sensorarrayState_t *state,
         uint64_t routeUs = timing.rowSwitchWhileSleepingUs + timing.rowSettleUs;
         uint64_t fillUs = timing.coordinatorMergeUs + timing.frameMaskUpdateUs + timing.frameBookkeepingUs;
         uint64_t postUs = runtimeProfileUs + warningUs + timing.capComputeUs;
-        printf("R50,cmd=%u,plan=%u,ph=%u,emit=%u,pc=%lu,hc=%lu,path=%s\n",
-               (unsigned)sensorarrayScanConfigGetPendingRows(),
-               (unsigned)outFrame->activeRows,
+        printf("R50,rid=%lu,gen=%lu,plan=%u,ph=%u,emit=%u,pc=%lu,hc=%lu,path=%s\n",
+               (unsigned long)outFrame->configSnapshot.requestId,
+               (unsigned long)outFrame->configSnapshot.generation,
+               (unsigned)outFrame->configSnapshot.rows,
                (unsigned)outFrame->activeRows,
                (unsigned)outFrame->activeRows,
                (unsigned long)profileCellsTouched,
@@ -2839,6 +2861,37 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameRows(sensorarrayState_t *state,
                (unsigned long long)timing.readUs,
                (unsigned long long)fillUs,
                (unsigned long long)postUs);
+        uint64_t rowCountForAvg = outFrame->activeRows ? outFrame->activeRows : 1u;
+        printf("ROW50,r=%u,wall=%llu/%llu,pWait=%llu,sWait=%llu,waitOverlap=%llu,"
+               "pStatus=%lu/%llu,sStatus=%lu/%llu,pRead=%llu,sRead=%llu,readOverlap=%llu,"
+               "dispatch=%llu,ack=%llu,join=%llu,fill=%llu,readDx=%llu\n",
+               (unsigned)outFrame->activeRows,
+               (unsigned long long)timing.rowAvgUs,
+               (unsigned long long)timing.rowMaxUs,
+               (unsigned long long)(timing.waitReadyUsPrimaryTotal / rowCountForAvg),
+               (unsigned long long)(timing.waitReadyUsSecondaryTotal / rowCountForAvg),
+               (unsigned long long)(timing.waitOverlapUs / rowCountForAvg),
+               (unsigned long)timing.statusReadCountPrimary,
+               (unsigned long long)(timing.statusReadUsPrimaryTotal / rowCountForAvg),
+               (unsigned long)timing.statusReadCountSecondary,
+               (unsigned long long)(timing.statusReadUsSecondaryTotal / rowCountForAvg),
+               (unsigned long long)(timing.dataReadUsPrimaryTotal / rowCountForAvg),
+               (unsigned long long)(timing.dataReadUsSecondaryTotal / rowCountForAvg),
+               (unsigned long long)(timing.readOverlapUs / rowCountForAvg),
+               (unsigned long long)(timing.workerQueueSendUs / rowCountForAvg),
+               (unsigned long long)(timing.workerSleepAckWaitUs / rowCountForAvg),
+               (unsigned long long)(timing.workerJoinUs / rowCountForAvg),
+               (unsigned long long)(fillUs / rowCountForAvg),
+               (unsigned long long)(timing.readStartDeltaUsTotal / rowCountForAvg));
+        printf("FB50,direct=%lu,zero=%lu,status=%lu,secondWait=%llu/%llu,recovered=%lu,failed=%lu\n",
+               (unsigned long)timing.directDataFallbackCount,
+               (unsigned long)timing.zeroAfterDrdyCount,
+               (unsigned long)timing.statusReadsInFallbackCount,
+               (unsigned long long)(timing.fallbackSecondWaitCount ?
+                   timing.fallbackSecondWaitUs / timing.fallbackSecondWaitCount : 0u),
+               (unsigned long long)timing.fallbackSecondWaitMaxUs,
+               (unsigned long)timing.fallbackSuccessCount,
+               (unsigned long)timing.fallbackFailCount);
         printf("P50,prof=%llu,warn=%llu,res=0,bg=0\n",
                (unsigned long long)runtimeProfileUs,
                (unsigned long long)warningUs);

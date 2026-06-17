@@ -55,6 +55,10 @@ esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const
 
 esp_err_t sensorarrayMeasureReadFdcMatrixFrame(sensorarrayState_t *state,
                                                sensorarrayFdcMatrixFrame_t *outFrame);
+esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
+    sensorarrayState_t *state,
+    sensorarrayFdcMatrixFrame_t *outFrame,
+    const sensorarrayFrameConfigSnapshot_t *snapshot);
 
 void sensorarrayMeasureDebugTimingGpioPrepare(void);
 void sensorarrayMeasureDebugPulseRowStrobe(void);

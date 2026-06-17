@@ -41,6 +41,7 @@ void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
 void sensorarrayAdsGapCopySnapshot(sensorarrayAdsGapSnapshot_t *outSnapshot,
                                    uint32_t frameSequence);
 void sensorarrayAdsGapRequestCalibration(bool requestZero, bool requestRail);
+void sensorarrayAdsGapRequestBatteryDiagnostic(void);
 void sensorarrayAdsGapSetMode(sensorarrayAdsGapMode_t mode);
 sensorarrayAdsGapMode_t sensorarrayAdsGapGetMode(void);
 const char *sensorarrayAdsGapModeName(sensorarrayAdsGapMode_t mode);

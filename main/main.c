@@ -5,6 +5,7 @@
 
 #include "esp_check.h"
 #include "esp_err.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -111,6 +112,99 @@ typedef struct {
 static sensorarrayAppContext_t s_appContext;
 static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
+
+#define SENSORARRAY_BOOT_BREADCRUMB_MAGIC 0x53414252u
+#define SENSORARRAY_BOOT_BREADCRUMB_VERSION 1u
+#define SENSORARRAY_BOOT_BREADCRUMB_STAGE_MAX 32u
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t bootCount;
+    uint32_t resetReason;
+    char lastStage[SENSORARRAY_BOOT_BREADCRUMB_STAGE_MAX];
+    int32_t lastErr;
+    uint32_t lastFrameSeq;
+    uint32_t minFreeHeap;
+} sensorarrayBootBreadcrumb_t;
+
+RTC_NOINIT_ATTR static sensorarrayBootBreadcrumb_t s_bootBreadcrumb;
+
+static const char *sensorarrayResetReasonName(esp_reset_reason_t reason)
+{
+    switch (reason) {
+    case ESP_RST_POWERON:
+        return "poweron";
+    case ESP_RST_EXT:
+        return "external";
+    case ESP_RST_SW:
+        return "software";
+    case ESP_RST_PANIC:
+        return "panic";
+    case ESP_RST_INT_WDT:
+        return "int_wdt";
+    case ESP_RST_TASK_WDT:
+        return "task_wdt";
+    case ESP_RST_WDT:
+        return "wdt";
+    case ESP_RST_DEEPSLEEP:
+        return "deepsleep";
+    case ESP_RST_BROWNOUT:
+        return "brownout";
+    case ESP_RST_SDIO:
+        return "sdio";
+    default:
+        return "unknown";
+    }
+}
+
+static void sensorarrayBootBreadcrumbSetStage(const char *stage,
+                                              esp_err_t err,
+                                              const sensorarrayAppContext_t *ctx)
+{
+    if (s_bootBreadcrumb.magic != SENSORARRAY_BOOT_BREADCRUMB_MAGIC ||
+        s_bootBreadcrumb.version != SENSORARRAY_BOOT_BREADCRUMB_VERSION) {
+        return;
+    }
+
+    snprintf(s_bootBreadcrumb.lastStage,
+             sizeof(s_bootBreadcrumb.lastStage),
+             "%s",
+             stage ? stage : "unknown");
+    s_bootBreadcrumb.lastErr = (int32_t)err;
+    s_bootBreadcrumb.lastFrameSeq = ctx ? ctx->frame.sequence : 0u;
+    uint32_t freeHeap = esp_get_free_heap_size();
+    if (s_bootBreadcrumb.minFreeHeap == 0u || freeHeap < s_bootBreadcrumb.minFreeHeap) {
+        s_bootBreadcrumb.minFreeHeap = freeHeap;
+    }
+}
+
+static void sensorarrayBootBreadcrumbStart(void)
+{
+    sensorarrayBootBreadcrumb_t previous = s_bootBreadcrumb;
+    bool previousValid =
+        previous.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC &&
+        previous.version == SENSORARRAY_BOOT_BREADCRUMB_VERSION;
+    esp_reset_reason_t reason = esp_reset_reason();
+
+    printf("RST,reason=%s,code=%ld,boot=%lu,prevValid=%u,prevStage=%s,prevErr=0x%lx,prevSeq=%lu,prevHeap=%lu\n",
+           sensorarrayResetReasonName(reason),
+           (long)reason,
+           (unsigned long)(previousValid ? previous.bootCount + 1u : 1u),
+           previousValid ? 1u : 0u,
+           previousValid ? previous.lastStage : "none",
+           previousValid ? (unsigned long)(uint32_t)previous.lastErr : 0u,
+           previousValid ? (unsigned long)previous.lastFrameSeq : 0u,
+           previousValid ? (unsigned long)previous.minFreeHeap : 0u);
+
+    memset(&s_bootBreadcrumb, 0, sizeof(s_bootBreadcrumb));
+    s_bootBreadcrumb.magic = SENSORARRAY_BOOT_BREADCRUMB_MAGIC;
+    s_bootBreadcrumb.version = SENSORARRAY_BOOT_BREADCRUMB_VERSION;
+    s_bootBreadcrumb.bootCount = previousValid ? previous.bootCount + 1u : 1u;
+    s_bootBreadcrumb.resetReason = (uint32_t)reason;
+    s_bootBreadcrumb.minFreeHeap = esp_get_free_heap_size();
+    sensorarrayBootBreadcrumbSetStage("app_main", ESP_OK, NULL);
+}
 
 static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
 {
@@ -1056,6 +1150,13 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return sensorarrayAdsGapFormatBattery(response, responseSize, frameSequence) > 0u ?
             ESP_OK : ESP_FAIL;
     }
+    if (strcmp(command, "BATD") == 0 ||
+        strcmp(command, "BATD=VBIAS_ON") == 0 ||
+        strcmp(command, "BATD,MODE=VBIAS_ON") == 0) {
+        sensorarrayAdsGapRequestBatteryDiagnostic();
+        snprintf(response, responseSize, "ACK,cmd=BATD,mode=vbias_on,status=queued\n");
+        return ESP_OK;
+    }
     if (strcmp(command, "RAIL?") == 0) {
         return sensorarrayAdsGapFormatRail(response, responseSize, frameSequence) > 0u ?
             ESP_OK : ESP_FAIL;
@@ -1341,30 +1442,45 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         return ESP_ERR_INVALID_ARG;
     }
 
-    sensorarrayScanConfigApplyPendingAtFrameBoundary();
+    sensorarrayScanConfigApplyResult_t rowsApply = {0};
+    sensorarrayScanConfigApplyPendingAtFrameBoundary(&rowsApply);
     if (ctx->runtimeMode == SENSORARRAY_RUNTIME_MODE_MIXED_ROW) {
         sensorarrayScanPlanBuildMixedExample(&ctx->scanPlan);
     } else {
         sensorarrayScanPlanBuildDefaultFdcMatrix(&ctx->scanPlan);
     }
 
+    esp_err_t err = ESP_ERR_INVALID_STATE;
     switch (ctx->runtimeMode) {
     case SENSORARRAY_RUNTIME_MODE_FDC_MATRIX:
-        return sensorarrayFdcMatrixEngineReadFrame(&ctx->fdcEngine,
-                                                   &ctx->scanPlan,
-                                                   &ctx->frame);
-    case SENSORARRAY_RUNTIME_MODE_ADS_MATRIX:
-        return sensorarrayAdsMatrixEngineReadFrame(&ctx->adsEngine,
-                                                   &ctx->scanPlan,
-                                                   &ctx->frame);
-    case SENSORARRAY_RUNTIME_MODE_MIXED_ROW:
-        return sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
-                                                  &ctx->adsEngine,
+        err = sensorarrayFdcMatrixEngineReadFrame(&ctx->fdcEngine,
                                                   &ctx->scanPlan,
                                                   &ctx->frame);
+        break;
+    case SENSORARRAY_RUNTIME_MODE_ADS_MATRIX:
+        err = sensorarrayAdsMatrixEngineReadFrame(&ctx->adsEngine,
+                                                  &ctx->scanPlan,
+                                                  &ctx->frame);
+        break;
+    case SENSORARRAY_RUNTIME_MODE_MIXED_ROW:
+        err = sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
+                                                 &ctx->adsEngine,
+                                                 &ctx->scanPlan,
+                                                 &ctx->frame);
+        break;
     default:
-        return ESP_ERR_INVALID_STATE;
+        err = ESP_ERR_INVALID_STATE;
+        break;
     }
+    if (rowsApply.applied) {
+        printf("RAPP,id=%lu,seq=%lu,old=%u,new=%u,gen=%lu,status=applied\n",
+               (unsigned long)rowsApply.requestId,
+               (unsigned long)ctx->frame.sequence,
+               (unsigned)rowsApply.oldRows,
+               (unsigned)rowsApply.newRows,
+               (unsigned long)rowsApply.generation);
+    }
+    return err;
 }
 
 static void sensorarrayRuntimeRescueTick(sensorarrayAppContext_t *ctx)
@@ -1516,6 +1632,7 @@ static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
 
 static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 {
+    sensorarrayBootBreadcrumbSetStage("main_loop", ESP_OK, ctx);
     while (true) {
         /* CommandMailbox is drained only here, before a new frame begins. No
          * BLE callback or Core0 task can mutate acquisition state mid-row. */
@@ -1529,12 +1646,15 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         }
         if (ctx->fdcDiagnosticMode ||
             sensorarrayFdcMatrixEngineDiagnosticMode(&ctx->fdcEngine)) {
+            sensorarrayBootBreadcrumbSetStage("diagnostic_tick", ESP_OK, ctx);
             sensorarrayRunDiagnosticTick(ctx);
             continue;
         }
 
         int64_t frameStartUs = esp_timer_get_time();
+        sensorarrayBootBreadcrumbSetStage("frame_read", ESP_OK, ctx);
         esp_err_t err = sensorarrayRunOneFrame(ctx);
+        sensorarrayBootBreadcrumbSetStage("frame_done", err, ctx);
         uint64_t measureFrameUs = (uint64_t)(esp_timer_get_time() - frameStartUs);
         ctx->fdcFrameCounter++;
 
@@ -1598,14 +1718,17 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 static void sensorarrayScanTask(void *arg)
 {
     sensorarrayAppContext_t *ctx = (sensorarrayAppContext_t *)arg;
+    sensorarrayBootBreadcrumbSetStage("scan_task_start", ESP_OK, ctx);
     printf("TASKCORE,name=acquisition,core=%d,expected=%d,priority=%u,stackBytes=%u\n",
            (int)xPortGetCoreID(),
            CONFIG_SENSORARRAY_ADC_CORE,
            (unsigned)uxTaskPriorityGet(NULL),
            (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
 
+    sensorarrayBootBreadcrumbSetStage("init_system", ESP_OK, ctx);
     esp_err_t initErr = sensorarrayInitSystem(ctx);
     if (initErr != ESP_OK) {
+        sensorarrayBootBreadcrumbSetStage("init_failed", initErr, ctx);
         printf("APP_FATAL,stage=acquisition_init,err=%ld,action=safe_idle_no_restart\n",
                (long)initErr);
         for (;;) {
@@ -1613,8 +1736,10 @@ static void sensorarrayScanTask(void *arg)
         }
     }
 
+    sensorarrayBootBreadcrumbSetStage("boot_sweep", ESP_OK, ctx);
     sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", ctx);
     esp_err_t bootErr = sensorarrayRunBootCalibration(ctx);
+    sensorarrayBootBreadcrumbSetStage("boot_sweep_done", bootErr, ctx);
     sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", ctx);
     if (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
         (bootErr != ESP_OK || ctx->fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
@@ -1691,6 +1816,7 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
 void app_main(void)
 {
     memset(&s_appContext, 0, sizeof(s_appContext));
+    sensorarrayBootBreadcrumbStart();
     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
            CONFIG_SENSORARRAY_ADC_CORE,
            CONFIG_SENSORARRAY_MISC_CORE,
@@ -1711,6 +1837,7 @@ void app_main(void)
 
     esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
     if (scanErr != ESP_OK) {
+        sensorarrayBootBreadcrumbSetStage("scan_task_create_failed", scanErr, &s_appContext);
         printf("APP_FATAL,stage=scan_task_create,err=0x%lx,action=safe_idle_no_restart\n",
                (unsigned long)scanErr);
         while (true) {

@@ -6,6 +6,7 @@
 
 #include "esp_err.h"
 
+#include "sensorarrayScanConfig.h"
 #include "ads126xAdc.h"
 #include "boardSupport.h"
 #include "fdc2214Cap.h"
@@ -69,6 +70,12 @@ typedef enum {
     SENSORARRAY_ADS_VBIAS_ON,
     SENSORARRAY_ADS_VBIAS_KEEP,
 } sensorarrayAdsVbiasPolicy_t;
+
+typedef struct {
+    sensorarrayMatrixDSourcePolicy_t matrixRef;
+    sensorarrayAdsIntRefPolicy_t intRef;
+    sensorarrayAdsVbiasPolicy_t vbias;
+} sensorarrayAdsRoutePowerPolicy_t;
 
 typedef enum {
     SENSORARRAY_SW_PHYSICAL_LOW = 0,
@@ -229,6 +236,7 @@ typedef struct {
     uint64_t physicalSweepUs;
     uint64_t rowStepUsAvg;
     uint64_t rowStepUsMax;
+    sensorarrayFrameConfigSnapshot_t configSnapshot;
     uint8_t activeRows;
 
     uint8_t rowFreshMask;
@@ -367,6 +375,11 @@ typedef struct {
     uint64_t workerStartSkewMaxUs;
     uint64_t workerDoneSkewUs;
     uint64_t workerDoneSkewMaxUs;
+    uint64_t waitOverlapUs;
+    uint64_t readOverlapUs;
+    uint64_t waitSpanUs;
+    uint64_t readSpanUs;
+    uint64_t readStartDeltaUsTotal;
     uint64_t primaryFirstI2cStartUs;
     uint64_t secondaryFirstI2cStartUs;
     int64_t primaryMinusSecondaryStartUs;
@@ -437,6 +450,8 @@ typedef struct {
     uint32_t drdyPartialUnreadCount;
     uint32_t drdyFullUnreadReadyCount;
     uint32_t statusReadErrCount;
+    uint32_t statusReadCountPrimary;
+    uint32_t statusReadCountSecondary;
     uint32_t deferredRepairRequestCount;
     uint32_t inlineRepairSuppressedCount;
     uint32_t unreadWithoutDrdyCount;
@@ -452,6 +467,9 @@ typedef struct {
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;
     uint32_t fallbackFailCount;
+    uint64_t fallbackSecondWaitUs;
+    uint64_t fallbackSecondWaitMaxUs;
+    uint32_t fallbackSecondWaitCount;
     uint32_t diagReadyButRejectedCount;
     uint32_t intbMissButStatusReadyCount;
     uint32_t statusFallbackAcceptedCount;
@@ -736,6 +754,9 @@ typedef struct {
     uint32_t fallbackSuccessCount;
     uint32_t fallbackPartialCount;
     uint32_t fallbackFailCount;
+    uint64_t fallbackSecondWaitUs;
+    uint64_t fallbackSecondWaitMaxUs;
+    uint32_t fallbackSecondWaitCount;
     uint32_t directDataReadCount;
     uint32_t directDataFallbackCount;
     uint32_t directDataFallbackReasonMask;

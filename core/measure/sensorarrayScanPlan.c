@@ -13,11 +13,20 @@ static void sensorarrayScanPlanBuildRows(sensorarrayScanPlan_t *plan,
     }
 
     memset(plan, 0, sizeof(*plan));
-    uint8_t activeRows = sensorarrayScanConfigGetActiveRows();
+    sensorarrayFrameConfigSnapshot_t snapshot = sensorarrayScanConfigGetFrameSnapshot();
+    uint8_t activeRows = snapshot.rows;
     if (activeRows < 1u || activeRows > SENSORARRAY_MATRIX_ROWS) {
         activeRows = SENSORARRAY_MATRIX_ROWS;
+        snapshot = (sensorarrayFrameConfigSnapshot_t){
+            .rows = activeRows,
+            .cells = SENSORARRAY_MATRIX_CELL_COUNT,
+            .rowMask = 0xFFu,
+            .generation = snapshot.generation,
+            .requestId = snapshot.requestId,
+        };
     }
     plan->rowCount = activeRows;
+    plan->configSnapshot = snapshot;
     for (uint8_t row = 1u; row <= activeRows; ++row) {
         sensorarrayRowPlan_t *rowPlan = &plan->rows[row - 1u];
         rowPlan->row = row;

@@ -29,6 +29,8 @@
 #define SENSORARRAY_ADS_RAIL_REFERENCE_SETTLE_US 5000u
 #define SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS 1u
 #define SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT 4u
+#define SENSORARRAY_ADS_BATTERY_VBIAS_SETTLE_US 1000u
+#define SENSORARRAY_ADS_BATTERY_DISCARD_COUNT 1u
 #define SENSORARRAY_ADS_REG_MODE2 0x05u
 #define SENSORARRAY_ADS_REG_INTERFACE 0x02u
 #define SENSORARRAY_ADS_REG_INPMUX 0x06u
@@ -83,6 +85,25 @@ typedef struct {
     bool restored;
 } sensorarrayAdsRailDiag_t;
 
+typedef struct {
+    uint8_t powerBefore;
+    uint8_t powerRequested;
+    uint8_t powerDuring;
+    uint8_t powerAfter;
+    uint8_t inpmux;
+    uint8_t refmux;
+    uint32_t settleUs;
+    uint8_t discardCount;
+    int32_t raw;
+    int32_t ain8DiffUv;
+    int32_t zeroUv;
+    int32_t aincomGndUv;
+    int32_t ain8GndUv;
+    int32_t batteryMv;
+    bool collision;
+    const char *reason;
+} sensorarrayAdsBatteryDiag_t;
+
 static sensorarrayAdsGapSnapshot_t s_snapshot;
 static sensorarrayAdsRailState_t s_railState;
 static const uint8_t s_adsNeutralOffsetCal[3] = {0x00u, 0x00u, 0x00u};
@@ -111,6 +132,7 @@ static bool s_forceRail;
 static uint32_t s_zeroSampleCount;
 static double s_zeroMeanUv;
 static double s_zeroM2Uv;
+static bool s_forceBattery;
 
 static bool sensorarrayAdsRailUsableAsReference(int64_t railUv)
 {
@@ -850,6 +872,7 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
     s_zeroM2Uv = 0.0;
     s_forceZero = false;
     s_forceRail = false;
+    s_forceBattery = false;
 
     if (!state || !state->adsReady) {
         return ESP_ERR_NOT_SUPPORTED;
@@ -898,6 +921,9 @@ static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
     }
     if (s_forceRail) {
         return SENSORARRAY_ADS_JOB_RAIL;
+    }
+    if (s_forceBattery) {
+        return SENSORARRAY_ADS_JOB_BATTERY;
     }
     if (s_forceZero) {
         return SENSORARRAY_ADS_JOB_ZERO;
@@ -979,6 +1005,158 @@ static esp_err_t sensorarrayAdsReadPreferred(sensorarrayState_t *state,
     return sensorarrayAdsReadDma(state, muxp, muxn, outRaw, outUv);
 }
 
+static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *diag)
+{
+    if (!diag) {
+        return;
+    }
+    printf("BATD,mode=vbias_on,POWER=%02X/%02X/%02X/%02X,VBIAS=%u,INPMUX=%02X,REFMUX=%02X,"
+           "settleUs=%lu,discardCount=%u,raw=%ld,a8dUv=%ld,zeroUv=%ld,acUv=%ld,a8gUv=%ld,"
+           "batteryMv=%ld,collision=%u,reason=%s\n",
+           diag->powerBefore,
+           diag->powerRequested,
+           diag->powerDuring,
+           diag->powerAfter,
+           (diag->powerDuring & ADS126X_POWER_VBIAS) != 0u ? 1u : 0u,
+           diag->inpmux,
+           diag->refmux,
+           (unsigned long)diag->settleUs,
+           (unsigned)diag->discardCount,
+           (long)diag->raw,
+           (long)diag->ain8DiffUv,
+           (long)diag->zeroUv,
+           (long)diag->aincomGndUv,
+           (long)diag->ain8GndUv,
+           (long)diag->batteryMv,
+           diag->collision ? 1u : 0u,
+           diag->reason ? diag->reason : "unknown");
+}
+
+static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
+                                                      int32_t *outRaw,
+                                                      int32_t *outUv)
+{
+    if (!state || !outRaw || !outUv || !state->adsReady) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ads126xAdcHandle_t *ads = &state->ads;
+    sensorarrayAdsBatteryDiag_t diag = {
+        .settleUs = SENSORARRAY_ADS_BATTERY_VBIAS_SETTLE_US,
+        .discardCount = SENSORARRAY_ADS_BATTERY_DISCARD_COUNT,
+        .zeroUv = s_snapshot.zeroResidualUv,
+        .batteryMv = -1,
+        .reason = "begin",
+    };
+
+    esp_err_t err = ads126xAdcReadPowerRegister(ads, &diag.powerBefore);
+    if (err != ESP_OK) {
+        diag.reason = "power_before_read";
+        sensorarrayAdsPrintBatteryDiag(&diag);
+        return err;
+    }
+
+    if (ads126xAdcHasAdc2(ads)) {
+        (void)ads126xAdcStopAdc2(ads);
+    }
+    if (state->adsAdc1Running) {
+        err = ads126xAdcStopAdc1(ads);
+        if (err != ESP_OK) {
+            diag.reason = "stop_adc1";
+            sensorarrayAdsPrintBatteryDiag(&diag);
+            return err;
+        }
+        state->adsAdc1Running = false;
+    }
+
+    err = ads126xAdcSetVbiasEnabled(ads, true);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadPowerRegister(ads, &diag.powerDuring);
+    }
+    diag.powerRequested = (uint8_t)(diag.powerBefore | ADS126X_POWER_VBIAS);
+    s_snapshot.vbiasEnabled = (diag.powerDuring & ADS126X_POWER_VBIAS) != 0u;
+    if (err != ESP_OK || !s_snapshot.vbiasEnabled) {
+        diag.reason = (err == ESP_OK) ? "vbias_readback_off" : "vbias_on";
+        sensorarrayAdsPrintBatteryDiag(&diag);
+        return (err == ESP_OK) ? ESP_ERR_INVALID_RESPONSE : err;
+    }
+
+    esp_rom_delay_us(SENSORARRAY_ADS_BATTERY_VBIAS_SETTLE_US);
+
+    uint32_t refUv = s_snapshot.railUv > 0 ?
+        (uint32_t)s_snapshot.railUv :
+        (uint32_t)(CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV +
+                   CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV);
+    err = ads126xAdcSetRefMuxWithVref(ads, ADS126X_REFMUX_AVDD_AVSS, refUv);
+    if (err == ESP_OK) {
+        state->adsRefMux = ADS126X_REFMUX_AVDD_AVSS;
+        state->adsRefMuxValid = true;
+        err = ads126xAdcSetInputMux(ads, SENSORARRAY_ADS_MUX_AIN8, SENSORARRAY_ADS_MUX_AINCOM);
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcReadCoreRegisters(ads,
+                                          &diag.powerAfter,
+                                          NULL,
+                                          NULL,
+                                          &diag.inpmux,
+                                          &diag.refmux);
+    }
+    if (err != ESP_OK) {
+        diag.reason = "mux_or_ref";
+        sensorarrayAdsPrintBatteryDiag(&diag);
+        return err;
+    }
+
+    err = ads126xAdcStartAdc1(ads);
+    if (err == ESP_OK) {
+        state->adsAdc1Running = true;
+        uint32_t conversionUs = ads126xAdcExpectedConversionPeriodUs(ads->dataRateDr);
+        uint32_t sampleUs = conversionUs + SENSORARRAY_ADS_CONVERSION_MARGIN_US;
+        int32_t raw = 0;
+        for (uint8_t readIndex = 0u;
+             readIndex <= SENSORARRAY_ADS_BATTERY_DISCARD_COUNT;
+             ++readIndex) {
+            esp_rom_delay_us(sampleUs);
+            err = sensorarrayAdsReadAdc1Ready(ads, &raw);
+            if (err != ESP_OK) {
+                break;
+            }
+        }
+        if (err == ESP_OK) {
+            *outRaw = raw;
+            *outUv = ads126xAdcRawToMicrovolts(ads, raw);
+            diag.raw = raw;
+            diag.ain8DiffUv = *outUv;
+        }
+    }
+    if (err != ESP_OK) {
+        diag.reason = "fresh_conversion";
+        sensorarrayAdsPrintBatteryDiag(&diag);
+        return err;
+    }
+
+    int32_t aincomGndUv = 0;
+    if (sensorarrayAdsCalculateAincomGnd(&aincomGndUv)) {
+        int64_t ain8GndUv = (int64_t)(*outUv) -
+                            (int64_t)s_snapshot.zeroResidualUv +
+                            (int64_t)aincomGndUv;
+        if (ain8GndUv >= INT32_MIN && ain8GndUv <= INT32_MAX) {
+            diag.aincomGndUv = aincomGndUv;
+            diag.ain8GndUv = (int32_t)ain8GndUv;
+            int64_t batteryUv = ain8GndUv *
+                                (int64_t)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_NUM /
+                                (int64_t)CONFIG_SENSORARRAY_ADS_AIN8_BATTERY_DIVIDER_DEN;
+            if (batteryUv >= 0LL && batteryUv <= (int64_t)INT32_MAX * 1000LL) {
+                diag.batteryMv = (int32_t)(batteryUv / 1000LL);
+            }
+        }
+    }
+
+    diag.reason = "ok";
+    sensorarrayAdsPrintBatteryDiag(&diag);
+    return ESP_OK;
+}
+
 static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
                                       sensorarrayAdsJob_t job,
                                       uint32_t frameSequence)
@@ -1009,17 +1187,14 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
             s_forceZero = false;
         }
     } else if (job == SENSORARRAY_ADS_JOB_BATTERY) {
-        err = sensorarrayAdsReadPreferred(state,
-                                          SENSORARRAY_ADS_MUX_AIN8,
-                                          SENSORARRAY_ADS_MUX_AINCOM,
-                                          &raw,
-                                          &uv);
+        err = sensorarrayAdsReadBatteryTransaction(state, &raw, &uv);
         if (err == ESP_OK) {
             s_snapshot.ain8Raw = raw;
             s_snapshot.ain8RawUv = uv;
             s_snapshot.ain8DiffUv = uv;
             s_lastBatteryFrame = frameSequence;
         }
+        s_forceBattery = false;
         sensorarrayAdsUpdateBatteryValidity(err == ESP_OK);
     }
     return err;
@@ -1037,6 +1212,12 @@ void sensorarrayAdsGapRequestCalibration(bool requestZero, bool requestRail)
     }
     s_forceZero = s_forceZero || requestZero;
     s_forceRail = s_forceRail || requestRail;
+}
+
+void sensorarrayAdsGapRequestBatteryDiagnostic(void)
+{
+    s_snapshot.fallbackToBoundary = false;
+    s_forceBattery = true;
 }
 
 void sensorarrayAdsGapSetMode(sensorarrayAdsGapMode_t mode)

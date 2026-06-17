@@ -17,6 +17,36 @@ esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t *state,
     return sensorarrayMeasureWriteSela(state, selaRoute, settleDelayMs, stage, label);
 }
 
+esp_err_t sensorarrayMeasureApplyFdcCapAdsPolicy(sensorarrayState_t *state,
+                                                 const char *stage,
+                                                 const char *mode,
+                                                 const char *reason)
+{
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const sensorarrayAdsRoutePowerPolicy_t policy = {
+        .matrixRef = SENSORARRAY_MATRIX_D_SOURCE_GND,
+        .intRef = state->adsReady ? SENSORARRAY_ADS_INTREF_OFF : SENSORARRAY_ADS_INTREF_KEEP,
+        .vbias = state->adsReady ? SENSORARRAY_ADS_VBIAS_ON : SENSORARRAY_ADS_VBIAS_KEEP,
+    };
+
+    /*
+     * FDC CAP mode must isolate the matrix from the ADS reference, but VBIAS is
+     * the AINCOM bias source used by battery/rail diagnostics. KEEP is not
+     * sufficient here because an earlier bad CAP route may already have turned
+     * VBIAS off; the normal CAP path must explicitly drive it back on.
+     */
+    return sensorarrayMeasureApplyRefPolicy(state,
+                                            stage,
+                                            mode,
+                                            policy.matrixRef,
+                                            policy.intRef,
+                                            policy.vbias,
+                                            reason);
+}
+
 esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
                                              uint8_t sColumn,
                                              uint8_t dLine,
@@ -98,17 +128,10 @@ esp_err_t sensorarrayMeasureApplyRouteLevels(sensorarrayState_t *state,
             return err;
         }
         if (path == SENSORARRAY_ROUTE_PATH_CAPACITIVE) {
-            sensorarrayAdsIntRefPolicy_t intrefPolicy =
-                state->adsReady ? SENSORARRAY_ADS_INTREF_OFF : SENSORARRAY_ADS_INTREF_KEEP;
-            sensorarrayAdsVbiasPolicy_t vbiasPolicy =
-                state->adsReady ? SENSORARRAY_ADS_VBIAS_OFF : SENSORARRAY_ADS_VBIAS_KEEP;
-            err = sensorarrayMeasureApplyRefPolicy(state,
-                                                   "cap_fdc_ref_off",
-                                                   "route_apply_levels",
-                                                   SENSORARRAY_MATRIX_D_SOURCE_GND,
-                                                   intrefPolicy,
-                                                   vbiasPolicy,
-                                                   "fdc_cap_path_no_ads_ref");
+            err = sensorarrayMeasureApplyFdcCapAdsPolicy(state,
+                                                         "cap_fdc_ref_off",
+                                                         "route_apply_levels",
+                                                         "fdc_cap_path_no_ads_ref_vbias_on");
             if (err != ESP_OK) {
                 return err;
             }
@@ -273,17 +296,10 @@ esp_err_t sensorarrayMeasureApplyRoute(sensorarrayState_t *state,
             return err;
         }
         if (path == SENSORARRAY_PATH_CAPACITIVE) {
-            sensorarrayAdsIntRefPolicy_t intrefPolicy =
-                state->adsReady ? SENSORARRAY_ADS_INTREF_OFF : SENSORARRAY_ADS_INTREF_KEEP;
-            sensorarrayAdsVbiasPolicy_t vbiasPolicy =
-                state->adsReady ? SENSORARRAY_ADS_VBIAS_OFF : SENSORARRAY_ADS_VBIAS_KEEP;
-            err = sensorarrayMeasureApplyRefPolicy(state,
-                                                   "cap_fdc_ref_off",
-                                                   "route_apply",
-                                                   SENSORARRAY_MATRIX_D_SOURCE_GND,
-                                                   intrefPolicy,
-                                                   vbiasPolicy,
-                                                   "fdc_cap_path_no_ads_ref");
+            err = sensorarrayMeasureApplyFdcCapAdsPolicy(state,
+                                                         "cap_fdc_ref_off",
+                                                         "route_apply",
+                                                         "fdc_cap_path_no_ads_ref_vbias_on");
             if (err != ESP_OK) {
                 return err;
             }

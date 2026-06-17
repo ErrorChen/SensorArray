@@ -9,6 +9,18 @@ import time
 from text_protocol import TextProtocolParser, format_cap_preview
 
 
+def decode_ascii_line(raw: bytes, protocol: TextProtocolParser) -> str | None:
+    raw_line = raw.rstrip(b"\r\n")
+    try:
+        return raw_line.decode("ascii")
+    except UnicodeDecodeError as error:
+        value = raw_line[error.start] if error.start < len(raw_line) else 0
+        protocol.note_non_ascii()
+        print(f"SERIAL_ASCII_ERR,off={error.start},byte={value:02X},len={len(raw_line)}",
+              flush=True)
+        return None
+
+
 def write_control(connection: object, command: bytes) -> bool:
     try:
         connection.write(command)
@@ -109,7 +121,9 @@ def main() -> int:
             raw = connection.readline()
             if not raw:
                 continue
-            line = raw.decode("ascii", errors="replace").rstrip()
+            line = decode_ascii_line(raw, protocol)
+            if line is None:
+                continue
             protocol.feed_line(line)
             if show_log and not line.startswith(("C,", "D", "K,")):
                 print(f"LOG,{line}", flush=True)

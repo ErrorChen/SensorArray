@@ -74,12 +74,14 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
         outPacket->data,
         sizeof(outPacket->data),
         0u,
-        "C,seq=%lu,ts=%llu,rows=%u,cells=%lu,rf=%02X,pf=%02X,sf=%02X,"
+        "C,seq=%lu,ts=%llu,rows=%u,cells=%lu,gen=%lu,rid=%lu,rf=%02X,pf=%02X,sf=%02X,"
         "bad=%u/%u/%lu,fmt=pf6,n=%lu\n",
         (unsigned long)frame->sequence,
         (unsigned long long)frame->timestampUs,
         (unsigned)rows,
         (unsigned long)cellCount,
+        (unsigned long)frame->configSnapshot.generation,
+        (unsigned long)frame->configSnapshot.requestId,
         (unsigned)frame->rowFreshMask,
         (unsigned)frame->primaryFreshMask,
         (unsigned)frame->secondaryFreshMask,
@@ -124,8 +126,10 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
     position = sensorarrayTextAppend(outPacket->data,
                                      sizeof(outPacket->data),
                                      position,
-                                     "K,seq=%lu,crc=%08lX\n",
+                                     "K,seq=%lu,gen=%lu,rid=%lu,crc=%08lX\n",
                                      (unsigned long)frame->sequence,
+                                     (unsigned long)frame->configSnapshot.generation,
+                                     (unsigned long)frame->configSnapshot.requestId,
                                      (unsigned long)crc);
     if (position >= sizeof(outPacket->data) || position > UINT16_MAX) {
         outPacket->length = 0u;

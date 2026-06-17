@@ -11,6 +11,13 @@ import time
 from text_protocol import FragmentReassembler, TextProtocolParser, format_cap_preview
 
 
+def first_non_ascii(payload: bytes) -> tuple[int, int] | None:
+    for offset, value in enumerate(payload):
+        if value > 0x7F:
+            return offset, value
+    return None
+
+
 def receiver(port: int) -> socket.socket:
     result = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     result.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -45,11 +52,26 @@ def main() -> int:
     buffers = {"D": bytearray(), "L": bytearray(), "C": bytearray()}
 
     def process_message(ch: str, payload: bytes) -> None:
+        ascii_error = first_non_ascii(payload)
+        if ascii_error is not None:
+            offset, value = ascii_error
+            protocol.note_non_ascii()
+            print(f"WIFI_ASCII_ERR,ch={ch},stage=message,off={offset},byte={value:02X},len={len(payload)}",
+                  flush=True)
+            return
         buffers[ch].extend(payload)
         while b"\n" in buffers[ch]:
             raw, _, remainder = buffers[ch].partition(b"\n")
             buffers[ch][:] = remainder
-            line = raw.rstrip(b"\r").decode("ascii", errors="replace")
+            raw_line = raw.rstrip(b"\r")
+            try:
+                line = raw_line.decode("ascii")
+            except UnicodeDecodeError as error:
+                value = raw_line[error.start] if error.start < len(raw_line) else 0
+                protocol.note_non_ascii()
+                print(f"WIFI_ASCII_ERR,ch={ch},stage=line,off={error.start},"
+                      f"byte={value:02X},len={len(raw_line)}", flush=True)
+                continue
             if ch == "D":
                 protocol.feed_line(line)
             elif ch == "C" or (ch == "L" and show_log):
@@ -88,6 +110,12 @@ def main() -> int:
             payload, _ = sock.recvfrom(65535)
             channel = sockets[sock]
             counts[channel] += 1
+            ascii_error = first_non_ascii(payload)
+            if ascii_error is not None:
+                offset, value = ascii_error
+                protocol.note_non_ascii()
+                print(f"WIFI_ASCII_ERR,ch={channel},stage=datagram,off={offset},"
+                      f"byte={value:02X},len={len(payload)}", flush=True)
             fallback = {"data": "D", "log": "L", "ctrl": "C"}[channel]
             for out_channel, message in reassembler.feed(fallback, payload):
                 process_message(out_channel, message)

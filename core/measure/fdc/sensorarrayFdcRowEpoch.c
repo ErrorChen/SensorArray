@@ -717,8 +717,7 @@ esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_t *stat
         sensorarrayFdcAutoscanSamples_t fallbackSamples = {0};
         sensorarrayFdcDeviceRead4Result_t fallbackRead4 = {0};
         int64_t fallbackWaitStartUs = esp_timer_get_time();
-        uint64_t fallbackDeadlineUs =
-            (uint64_t)fallbackWaitStartUs + sensorarrayMeasureFdcRowDeviceWatchdogHardTimeoutUs();
+        uint64_t fallbackDeadlineUs = rowDeviceDeadlineUs;
         esp_err_t fallbackErr = sensorarrayFdcWaitDeviceReady(
             state,
             devId,
@@ -735,6 +734,11 @@ esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_t *stat
         uint64_t fallbackWaitUs = sensorarrayMeasureElapsedUs(fallbackWaitStartUs);
         if (timing) {
             timing->waitReadyUs += fallbackWaitUs;
+            timing->fallbackSecondWaitUs += fallbackWaitUs;
+            timing->fallbackSecondWaitCount++;
+            if (fallbackWaitUs > timing->fallbackSecondWaitMaxUs) {
+                timing->fallbackSecondWaitMaxUs = fallbackWaitUs;
+            }
             if (fallbackWaitUs > timing->maxWaitReadyUs) {
                 timing->maxWaitReadyUs = fallbackWaitUs;
             }
@@ -826,6 +830,11 @@ esp_err_t sensorarrayMeasureFdcRunDeviceEpochAfterSleep(sensorarrayState_t *stat
         uint64_t retryWaitUs = sensorarrayMeasureElapsedUs(retryWaitStartUs);
         if (timing) {
             timing->waitReadyUs += retryWaitUs;
+            timing->fallbackSecondWaitUs += retryWaitUs;
+            timing->fallbackSecondWaitCount++;
+            if (retryWaitUs > timing->fallbackSecondWaitMaxUs) {
+                timing->fallbackSecondWaitMaxUs = retryWaitUs;
+            }
             if (retryWaitUs > timing->maxWaitReadyUs) {
                 timing->maxWaitReadyUs = retryWaitUs;
             }
@@ -1213,6 +1222,25 @@ esp_err_t sensorarrayMeasureEnsureFdcWorkers(void)
     return ESP_OK;
 }
 
+static uint64_t sensorarrayMeasureFdcSummarySpanUs(uint64_t startA,
+                                                   uint64_t doneA,
+                                                   uint64_t startB,
+                                                   uint64_t doneB)
+{
+    if (startA == 0u || doneA == 0u || startB == 0u || doneB == 0u) {
+        return 0u;
+    }
+    uint64_t start = startA < startB ? startA : startB;
+    uint64_t done = doneA > doneB ? doneA : doneB;
+    return done >= start ? (done - start) : 0u;
+}
+
+static uint64_t sensorarrayMeasureFdcSummaryOverlapUs(uint64_t serialUs,
+                                                      uint64_t spanUs)
+{
+    return (serialUs > spanUs) ? (serialUs - spanUs) : 0u;
+}
+
 void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSummary_t *summary,
                                                        const sensorarrayFdcRowTiming_t *rowTiming,
                                                        const sensorarrayFdcDeviceTiming_t *primaryTiming,
@@ -1273,6 +1301,23 @@ void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSummary_t *s
     summary->secondaryFirstI2cStartUs += rowTiming->secondaryFirstI2cStartUs;
     summary->primaryMinusSecondaryStartUs += rowTiming->primaryMinusSecondaryStartUs;
     summary->primaryMinusSecondaryDoneUs += rowTiming->primaryMinusSecondaryDoneUs;
+    uint64_t waitSpanUs = sensorarrayMeasureFdcSummarySpanUs(primaryTiming->readyBeginUs,
+                                                             primaryTiming->drdyUs,
+                                                             secondaryTiming->readyBeginUs,
+                                                             secondaryTiming->drdyUs);
+    uint64_t readSpanUs = sensorarrayMeasureFdcSummarySpanUs(primaryTiming->readStartUs,
+                                                             primaryTiming->readDoneUs,
+                                                             secondaryTiming->readStartUs,
+                                                             secondaryTiming->readDoneUs);
+    summary->waitSpanUs += waitSpanUs;
+    summary->readSpanUs += readSpanUs;
+    summary->waitOverlapUs += sensorarrayMeasureFdcSummaryOverlapUs(
+        primaryTiming->waitReadyUs + secondaryTiming->waitReadyUs,
+        waitSpanUs);
+    summary->readOverlapUs += sensorarrayMeasureFdcSummaryOverlapUs(
+        primaryTiming->readRawUs + secondaryTiming->readRawUs,
+        readSpanUs);
+    summary->readStartDeltaUsTotal += rowTiming->readStartDeltaUs;
     if (rowTiming->primaryWorkerRunUs != 0u || rowTiming->secondaryWorkerRunUs != 0u) {
         if (rowTiming->wpNormal) {
             summary->wpOkRowCount++;
@@ -1359,6 +1404,16 @@ void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSummary_t *s
                                          secondaryTiming->drdyFullUnreadReadyCount;
     summary->statusReadErrCount += primaryTiming->statusReadErrCount +
                                    secondaryTiming->statusReadErrCount;
+    summary->statusReadCountPrimary += primaryTiming->statusReadsBeforeIntbCount +
+                                       primaryTiming->statusReadsPrecheckCount +
+                                       primaryTiming->statusReadsAfterIntbCount +
+                                       primaryTiming->statusReadsInFallbackCount +
+                                       primaryTiming->statusAfterTimeoutCount;
+    summary->statusReadCountSecondary += secondaryTiming->statusReadsBeforeIntbCount +
+                                         secondaryTiming->statusReadsPrecheckCount +
+                                         secondaryTiming->statusReadsAfterIntbCount +
+                                         secondaryTiming->statusReadsInFallbackCount +
+                                         secondaryTiming->statusAfterTimeoutCount;
     summary->unreadWithoutDrdyCount += primaryTiming->unreadWithoutDrdyCount +
                                        secondaryTiming->unreadWithoutDrdyCount;
     summary->softInvalidCount += primaryTiming->softInvalidCount + secondaryTiming->softInvalidCount;
@@ -1372,6 +1427,16 @@ void sensorarrayMeasureAccumulateRowEpochTiming(sensorarrayFdcTimingSummary_t *s
     summary->fallbackSuccessCount += primaryTiming->fallbackSuccessCount + secondaryTiming->fallbackSuccessCount;
     summary->fallbackPartialCount += primaryTiming->fallbackPartialCount + secondaryTiming->fallbackPartialCount;
     summary->fallbackFailCount += primaryTiming->fallbackFailCount + secondaryTiming->fallbackFailCount;
+    summary->fallbackSecondWaitUs += primaryTiming->fallbackSecondWaitUs +
+                                     secondaryTiming->fallbackSecondWaitUs;
+    summary->fallbackSecondWaitCount += primaryTiming->fallbackSecondWaitCount +
+                                        secondaryTiming->fallbackSecondWaitCount;
+    if (primaryTiming->fallbackSecondWaitMaxUs > summary->fallbackSecondWaitMaxUs) {
+        summary->fallbackSecondWaitMaxUs = primaryTiming->fallbackSecondWaitMaxUs;
+    }
+    if (secondaryTiming->fallbackSecondWaitMaxUs > summary->fallbackSecondWaitMaxUs) {
+        summary->fallbackSecondWaitMaxUs = secondaryTiming->fallbackSecondWaitMaxUs;
+    }
     summary->directDataReadCount +=
         primaryTiming->directDataReadCount + secondaryTiming->directDataReadCount;
     summary->directDataFallbackCount +=
