@@ -343,27 +343,11 @@ void sensorarrayLogDbg(const char *point,
 
 void sensorarrayLogStartup(const char *mode, esp_err_t err, const char *status, int32_t detailValue)
 {
-    char valueBuf[24];
-    sensorarrayLogDbg("INIT",
-                      "startup",
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      mode,
-                      sensorarrayLogFmtI32(valueBuf, sizeof(valueBuf), true, detailValue),
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      err,
-                      status);
+    printf("INIT,mode=%s,err=%ld,status=%s,v=%ld\n",
+           mode ? mode : SENSORARRAY_NA,
+           (long)err,
+           status ? status : SENSORARRAY_NA,
+           (long)detailValue);
 }
 
 void sensorarrayLogStartupFdc(const char *mode,
@@ -376,32 +360,22 @@ void sensorarrayLogStartupFdc(const char *mode,
                               uint16_t deviceId,
                               const char *map)
 {
-    char valueBuf[24];
     char portBuf[12];
     char addrBuf[12];
     char idMfgBuf[12];
     char idDevBuf[12];
 
-    sensorarrayLogDbg("INIT",
-                      "startup",
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      mode,
-                      sensorarrayLogFmtI32(valueBuf, sizeof(valueBuf), true, detailValue),
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      SENSORARRAY_NA,
-                      fdcState ? fdcState->label : SENSORARRAY_NA,
-                      sensorarrayLogFmtI2cPort(portBuf, sizeof(portBuf), fdcState ? fdcState->i2cCtx : NULL),
-                      sensorarrayLogFmtHexU8(addrBuf, sizeof(addrBuf), fdcState != NULL, fdcState ? fdcState->i2cAddr : 0),
-                      sensorarrayLogFmtHexU16(idMfgBuf, sizeof(idMfgBuf), hasIds, manufacturerId),
-                      sensorarrayLogFmtHexU16(idDevBuf, sizeof(idDevBuf), hasIds, deviceId),
-                      map,
-                      err,
-                      status);
+    printf("INIT,mode=%s,dev=%s,bus=%s,addr=%s,mfg=%s,id=%s,map=%s,err=%ld,status=%s,v=%ld\n",
+           mode ? mode : SENSORARRAY_NA,
+           fdcState ? fdcState->label : SENSORARRAY_NA,
+           sensorarrayLogFmtI2cPort(portBuf, sizeof(portBuf), fdcState ? fdcState->i2cCtx : NULL),
+           sensorarrayLogFmtHexU8(addrBuf, sizeof(addrBuf), fdcState != NULL, fdcState ? fdcState->i2cAddr : 0),
+           sensorarrayLogFmtHexU16(idMfgBuf, sizeof(idMfgBuf), hasIds, manufacturerId),
+           sensorarrayLogFmtHexU16(idDevBuf, sizeof(idDevBuf), hasIds, deviceId),
+           map ? map : SENSORARRAY_NA,
+           (long)err,
+           status ? status : SENSORARRAY_NA,
+           (long)detailValue);
 }
 
 void sensorarrayLogControlGpio(const char *stage, const char *point)

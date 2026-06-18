@@ -222,13 +222,35 @@ static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t 
 static void sensorarrayLogRuntimeMemoryDiag(const char *stage,
                                             const sensorarrayAppContext_t *ctx)
 {
-    printf("APP_MEM,stage=%s,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeHeap=%u,minFreeHeap=%u\n",
+    uint32_t freeHeap = esp_get_free_heap_size();
+    uint32_t minFreeHeap = esp_get_minimum_free_heap_size();
+    if (freeHeap >= 49152u && minFreeHeap >= 32768u) {
+        return;
+    }
+    printf("APP_MEM_WARN,stage=%s,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeHeap=%u,minFreeHeap=%u\n",
            stage ? stage : SENSORARRAY_NA,
            (const void *)ctx,
            (unsigned)sizeof(sensorarrayAppContext_t),
            (unsigned)uxTaskGetStackHighWaterMark(NULL),
-           (unsigned)esp_get_free_heap_size(),
-           (unsigned)esp_get_minimum_free_heap_size());
+           (unsigned)freeHeap,
+           (unsigned)minFreeHeap);
+}
+
+static void sensorarrayLogRuntimeMemorySummary(const sensorarrayAppContext_t *ctx,
+                                               uint32_t freeBefore,
+                                               uint32_t minFreeBefore)
+{
+    uint32_t freeAfter = esp_get_free_heap_size();
+    uint32_t minFreeAfter = esp_get_minimum_free_heap_size();
+    uint32_t minFreeHeap = minFreeBefore < minFreeAfter ? minFreeBefore : minFreeAfter;
+    printf("APP_MEM,stage=runtime,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeBefore=%u,freeAfter=%u,minFreeHeap=%u,delta=%ld\n",
+           (const void *)ctx,
+           (unsigned)sizeof(sensorarrayAppContext_t),
+           (unsigned)uxTaskGetStackHighWaterMark(NULL),
+           (unsigned)freeBefore,
+           (unsigned)freeAfter,
+           (unsigned)minFreeHeap,
+           (long)freeAfter - (long)freeBefore);
 }
 
 static void sensorarrayLogStackHighWater(const char *stage)
@@ -1036,15 +1058,15 @@ static void sensorarrayLogFdcParallelCfg(void)
 
 static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
 {
-    sensorarrayLogRuntimeMemoryDiag("runtime_entry", ctx);
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
     }
+    uint32_t freeBefore = esp_get_free_heap_size();
+    uint32_t minFreeBefore = esp_get_minimum_free_heap_size();
 
     sensorarrayLogDbgExtraReset();
-    sensorarrayLogRuntimeMemoryDiag("runtime_before_clear", ctx);
     *ctx = (sensorarrayAppContext_t){0};
-    sensorarrayLogRuntimeMemoryDiag("runtime_after_clear", ctx);
+    sensorarrayLogRuntimeMemorySummary(ctx, freeBefore, minFreeBefore);
     sensorarrayLogSetAdsState(false, false);
     sensorarrayFastSpeedSetEnabled(false);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
@@ -1808,6 +1830,7 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
     if (err != ESP_OK) {
         return err;
     }
+    sensorarrayBoardLogGpioIsrSummary();
 
     sensorarrayBuildDefaultScanPlan(ctx);
     return ESP_OK;

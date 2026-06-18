@@ -102,6 +102,7 @@ typedef struct {
     bool spiDmaCapable;
     bool drdyNotificationReady;
     volatile TaskHandle_t drdyWaitTask;
+    volatile uint32_t drdyGeneration;
     spi_transaction_t dmaTransaction;
 } ads126xAdcHandle_t;
 
@@ -181,6 +182,13 @@ esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs);
 esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs);
+void ads126xAdcClearDrdyNotifications(ads126xAdcHandle_t *handle);
+uint32_t ads126xAdcGetDrdyGeneration(const ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *handle,
+                                         uint32_t startGeneration,
+                                         uint32_t timeoutUs,
+                                         uint32_t *outGeneration);
+bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_t statusByte);
 esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
 esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
                                    uint32_t drdyTimeoutUs,

@@ -750,9 +750,6 @@ extern bool s_fdcLastDiagWasReady[2];
 extern sensorarrayFdcProfileSnapshot_t s_fdcProfileSnapshotByRow[SENSORARRAY_MATRIX_ROWS][2];
 extern bool s_fdcIntbRuntimeUsable[2];
 extern sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate;
-extern SemaphoreHandle_t s_fdcGpioIsrServiceMutex;
-extern portMUX_TYPE s_fdcGpioIsrServiceMux;
-extern bool s_fdcGpioIsrServiceInstalled;
 
 
 enum {
@@ -836,7 +833,6 @@ sensorarrayFdcWorkerContext_t *sensorarrayMeasureFdcWorkerContext(sensorarrayFdc
 void sensorarrayMeasureRecordFirstErr(esp_err_t err, esp_err_t *firstErr);
 esp_err_t sensorarrayMeasureFdcFormalPrecheckDevice(sensorarrayState_t *state, sensorarrayFdcDeviceId_t devId);
 esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *state);
-esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void);
 void sensorarrayMeasureFdcIntbIsr(void *arg);
 esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *ctx);
 void sensorarrayMeasureFdcPrepareIntbEpoch(sensorarrayFdcWorkerContext_t *ctx, uint32_t epochId);

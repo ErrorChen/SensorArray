@@ -7,6 +7,54 @@
 #include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
 
+#define SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX 32u
+#define SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX 48u
+
+static bool s_serialUnknownPrinted;
+static uint32_t s_serialUnknownSuppressed;
+
+static bool sensorarrayTransportSerialUnknownShouldReply(const uint8_t *data,
+                                                         size_t length,
+                                                         const char *reason)
+{
+    if (!data || length == 0u) {
+        return false;
+    }
+    if (s_serialUnknownPrinted) {
+        s_serialUnknownSuppressed++;
+        if ((s_serialUnknownSuppressed % 32u) == 0u) {
+            printf("CMDERR_SUM,src=serial,count=%lu,lastReason=%s\n",
+                   (unsigned long)s_serialUnknownSuppressed,
+                   reason ? reason : "unsupported");
+        }
+        return false;
+    }
+    s_serialUnknownPrinted = true;
+
+    char hex[(SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX * 2u) + 1u];
+    char ascii[SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX + 1u];
+    size_t hexLen = length < SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX ?
+        length : SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX;
+    for (size_t i = 0u; i < hexLen; ++i) {
+        (void)snprintf(&hex[i * 2u], 3u, "%02X", data[i]);
+    }
+    hex[hexLen * 2u] = '\0';
+    size_t asciiLen = length < SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX ?
+        length : SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX;
+    for (size_t i = 0u; i < asciiLen; ++i) {
+        uint8_t ch = data[i];
+        ascii[i] = (ch >= 0x20u && ch <= 0x7Eu) ? (char)ch : '.';
+    }
+    ascii[asciiLen] = '\0';
+    printf("CMDERR,src=serial,len=%lu,hex=%s,ascii=%s,reason=%s,trunc=%u\n",
+           (unsigned long)length,
+           hex,
+           ascii,
+           reason ? reason : "unsupported",
+           length > hexLen ? 1u : 0u);
+    return true;
+}
+
 static void sensorarrayTransportCommandNormalize(char *text)
 {
     char *read = text;
@@ -170,7 +218,18 @@ esp_err_t sensorarrayTransportHandleControlCommand(
         snprintf(response, sizeof(response),
                  err == ESP_OK ? "ACK,cmd=LEGACY,state=queued\n" :
                                  "ERR,cmd=UNKNOWN,reason=unsupported\n");
-    } else if (err == ESP_ERR_NOT_SUPPORTED) {
+    }
+    bool replyUnsupported = true;
+    if (err == ESP_ERR_NOT_SUPPORTED &&
+        replyTarget->kind == SENSORARRAY_TRANSPORT_REPLY_SERIAL) {
+        replyUnsupported = sensorarrayTransportSerialUnknownShouldReply(data,
+                                                                        length,
+                                                                        "unsupported");
+    }
+    if (!replyUnsupported) {
+        return err;
+    }
+    if (err == ESP_ERR_NOT_SUPPORTED) {
         snprintf(response, sizeof(response), "ERR,cmd=UNKNOWN,reason=unsupported\n");
     }
     esp_err_t replyErr = sensorarrayTransportPublishControlReply(replyTarget,

@@ -5,6 +5,7 @@
 Refactor baseline: `4d90fa1ead203acce3c2c413c35e4460d197ff07`.
 Current rail/BLE/FPS-cap repair baseline: `da2efd9741ecb1d8a30906db699ebcf15f26e806`.
 Current function-level runtime repair baseline: `67a11ee6b38cbecee32dd38487522de3b38d72d9`.
+Current main-branch regression repair baseline: `3820637e0262334f293d548e3daafd441fb853f7`.
 
 ### Configuration Source Of Truth
 
@@ -76,7 +77,7 @@ sent/error, `tiny` tiny-fragment counter, `nack/to/rec` I2C error counters.
 `AB50` now includes freshness/source fields:
 
 ```text
-AB50,bt=<mV|-1>,br=<reason>,bs=<present|stale|unk>,a8d=<uV>,ac=<uV|na>,a8g=<uV|na>,rail=<uV>,rv=<0|1>,rs=<ok|hold|bad>,re=<uV>,age=<frames>,z=<mean>/<std>,chip=<id>,j=<run>/<skip>,ae=<spi>/<drdy>/<skip>
+AB50,bt=<mV|-1>,br=<reason>,bs=<present|stale|unk>,a8d=<uV>,ac=<uV|na>,a8g=<uV|na>,rail=<uV>,rv=<0|1>,rs=<ok|hold|bad>,re=<uV>,age=<frames>,z=<mean>/<std>,fresh=<0|1>,status=0xNN,dg=<drdyGenDelta>,chip=<id>,j=<run>/<skip>,ae=<spi>/<drdy>/<stale>/<status>/<skip>
 ```
 
 Battery work remains a background ADS gap task and does not feed FDC bad-frame
@@ -84,9 +85,14 @@ classification. `BAT?` returns `ABAT`, `RAIL?` returns `ARL`, `ADS?` returns
 the current ADS identity/reference/gap-mode line, and `BATD` queues a one-shot
 VBIAS-on battery diagnostic. `BATD` stops ADC1/ADC2, explicitly enables ADS
 VBIAS, verifies the POWER readback, waits the configured settle window, discards
-one fresh ADC1 conversion, then prints the POWER before/requested/during/after
-tuple plus `AIN8-AINCOM`, zero residual, `AINCOM-GND`, `AIN8-GND`, and derived
-battery mV. Runtime rail monitoring uses ADC1 with the ADS126x internal
+one new DRDY-generation ADC1 conversion, then reads three fresh ADC1 conversions
+and uses the median raw code. `BATD` prints the POWER before/requested/during/after
+tuple plus `read`, `state`, `fresh`, `status`, `dg`, `AIN8-AINCOM`, zero residual,
+`AINCOM-GND`, `AIN8-GND`, and derived battery mV. `read=ok` only means the ADS
+transaction and freshness checks passed; `state`/`br` is the battery classifier.
+AIN8 ground voltage is `a8g = a8d + ac`; AIN9 zero residual is logged as a
+calibration health term and is not subtracted from the battery voltage. Runtime
+rail monitoring uses ADC1 with the ADS126x internal
 analog-supply monitor and the internal 2.5 V reference; the result is scaled by
 four to recover AVDD-AVSS.
 
@@ -96,6 +102,9 @@ for rail/battery diagnostics. One bad rail sample does not immediately poison
 battery output: a plausible but out-of-tolerance runtime rail sample keeps the
 last-good rail in `rs=hold`;
 clearly out-of-range samples are limited by the invalid-streak and age guards.
+Battery invalid reasons distinguish `adc_timeout`, `adc_stale`,
+`adc_status_error`, `rail_invalid`, `reference_invalid`, `absent_or_open`, and
+`range_error` instead of collapsing them into one ADC/range failure.
 
 ### BLE And Wi-Fi
 
@@ -121,6 +130,13 @@ reboot (`RST` seen on serial) or a host/GATT transport failure. nRF Connect
 shows raw fragments and is useful for subscription checks, but
 `tools/receive_ble_text.py` is the supported whole-message receiver.
 
+BLE keeps 1536-byte DATA/LOG payloads in fixed owner slots and queues only small
+descriptors to the TX task. CTRL_TX uses separate 256-byte slots, and CTRL_RX
+writes are copied into a small queue and handled by a dedicated control task
+instead of executing project command parsing on the Bluedroid BTC callback
+stack. `BL50` exposes slot allocation, stale-generation drops, CRC mismatches,
+and queued/dropped control writes.
+
 Names: BLE `CscArray_xxxxxx`, SoftAP `CscArray_xxxxxx`, mDNS
 `cscarray-xxxxxx.local`. Default stream is `ST=AUTO`: Serial is always eligible,
 BLE becomes eligible when connected/subscribed, and Wi-Fi becomes eligible only
@@ -131,6 +147,16 @@ when AP mode is ready. Runtime commands are `TX?`, `TX=SHORT|REL|FULL`,
 `BATD`, `RAIL?`, and `ADS?`. `WIFI=STA/APSTA` and serial STA provisioning
 commands currently return `ERR,cmd=WIFI,reason=sta_nyi`; the Wi-Fi backend is
 still AP/UDP, while BLE message reassembly is implemented.
+
+Serial control input normalizes printable ASCII commands, strips CR/LF and ANSI
+escape noise, and reports malformed startup/sweep bytes as `CMDERR` with a
+hex/ascii preview. Repeated unsupported serial commands are summarized with
+`CMDERR_SUM` instead of flooding `ERR,cmd=UNKNOWN` during boot.
+
+Board-level GPIO ISR service installation is owned by `boardSupport`. ADS DRDY
+and FDC INTB handlers call `sensorarrayBoardEnsureGpioIsrService()` and handler
+counts are reported once as `GPIOISR,...`, so `ESP_ERR_INVALID_STATE` from a
+duplicate `gpio_install_isr_service()` is no longer a normal frontend log.
 
 ### Build And Validation
 
@@ -213,7 +239,7 @@ uses:
 
 ```text
 acom = rail * (AVDD_GND - |AVSS_GND|) / (2 * (AVDD_GND + |AVSS_GND|))
-a8g = a8d - zeroResidual + acom
+a8g = a8d + acom
 bt_uv = a8g * divider_num / divider_den
 ```
 
@@ -231,13 +257,14 @@ and the invalid streak is below
 
 An invalid rail, VBIAS, ADC result, divider, or single-cell voltage produces
 `bt=-1` with an explicit `br`. `AB50` is LOG channel data. New fields are:
-`rail` measured AVDD-AVSS mV, `rv` rail validity, `rexp` nominal rail mV,
-`rerr` rail error mV, `a8d` AIN8-AINCOM uV, `acom` AINCOM-GND uV or `na`,
+`rail` measured AVDD-AVSS uV, `rv` rail validity, `re` rail error uV,
+`rs` rail status, `a8d` AIN8-AINCOM uV, `ac` AINCOM-GND uV or `na`,
 `a8g` AIN8-GND uV or `na`, `brat` divider ratio, `bt` battery mV or -1, and
 `br` validity reason. `BATD` is the forced A/B diagnostic path: it explicitly
 turns ADS VBIAS on, waits, discards the first conversion, and prints the POWER
 register transition plus the differential and ground-referenced battery terms.
-The old unchecked battery formula is no longer used.
+AIN9 zero residual is logged as a calibration health signal; it is not
+subtracted from AIN8-GND. The old unchecked battery formula is no longer used.
 
 Firmware build/flash uses ESP-IDF Python. Host receivers must use repository
 `.venv`, not system Python or ESP-IDF Python:
@@ -308,13 +335,19 @@ that produced that generation.
 | `ADSBOOT`, `CALB` | One-time ADS identity and boot-calibration records. |
 
 ```text
-SF50,seq=301-350,n=50,rows=8,cfps=12.40,efps=12.40,ofps=12.4/2.0/0.0,bad=0/0/0,drop=0/0/0,q=0/1
-TR50,r=8,fu=80500,rau=9700,rmu=10100,rt=80,wt=4300,rp=2350,rs=1175,co=120,ag=0,agn=1,ags=0,agf=0
-AB50,bt=-1,br=out_of_range,bs=unk,a8d=1781658,ac=760441,a8g=2541988,rail=5100000,rv=1,rs=ok,re=0,age=0,z=111/445,chip=1262,j=1/0,ae=0/0/0
-OT50,st=auto,tx=rel,out=8/14,q=0/1/0,ofps=12.4/2.0/0.0,drop=0/0/0,kb=17/2/0,blk=0/0/0,wdt=0
+SF50,seq=151-200,n=50,rows=8,cfps=11.11,efps=11.11,ofps=0.9/0.0/0.0,bad=0/0/0,drop=0/0/0,q=1/2
+TR50,r=8,fu=90000,rau=10278,rmu=11157,rt=51,wt=4366,rp=2622,rs=2622,co=9892,ag=8,agn=0,ags=0,agf=1
+AB50,bt=-1,br=range_error,bs=stale,a8d=1812236,ac=760468,a8g=2572704,rail=5171184,rv=1,rs=ok,re=71184,age=200,z=-48/0,fresh=1,status=0x61,dg=1,chip=1262,j=0/0,ae=0/0/0/0/0
+OT50,st=ser,tx=rel,out=2/2,q=1/2/0,ofps=0.9/0.0/0.0,drop=0/0/0,kb=2/0/0,blk=0/0/0,wdt=0
 BL50,conn=1,sub=111,mtu=247,phy=2/2,mode=fast,mq=50,ms=50,md=0,fs=75,fe=0,cg=0,tiny=0
 I2C50,p=0/1,a=2A/2B,ok=100,nack=0,to=0,rec=0,freq=na,bus=OK,rv=0,ed=0
 ```
+
+The 2026-06-18 COM11 regression run used `fast_runtime` (`RCOUNT=0x0900`) and
+measured stable 8-row windows at `cfps=11.10..11.11`. This restores the
+balanced-profile regression back above the observed `9..10 fps` range, but it
+does not claim the older `12..13 fps` timing from historical sequence-mode
+experiments.
 
 | Field | Meaning |
 |---|---|
@@ -328,7 +361,8 @@ I2C50,p=0/1,a=2A/2B,ok=100,nack=0,to=0,rec=0,freq=na,bus=OK,rv=0,ed=0
 | `a8d`, `ac`, `a8g` | AIN8-AINCOM, calibrated AINCOM-GND, and derived AIN8-GND in uV |
 | `bt` | battery voltage in mV; `-1` means invalid |
 | `br` | battery validity reason |
-| `ae` | ADS SPI error / DRDY timeout / deadline skip counts |
+| `fresh`, `status`, `dg` | ADS ADC1 freshness flag, output status byte, and DRDY generation delta for the latest ADC1 gap sample |
+| `ae` | ADS SPI error / DRDY timeout / ADC stale / ADC status error / deadline skip counts |
 | `st`, `tx`, `drop`, `kb`, `blk`, `wdt` | transport stream, payload mode, per-sink drops, per-sink kilobytes, blocked counts, and watchdog count |
 | `mq`, `ms`, `md`, `fs`, `fe`, `cg`, `tiny` | BLE queued/sent/dropped messages, sent/error fragments, congestion count, and tiny-tail count |
 | `rv`, `ed` on `I2C50` | TextFrameBus drops and EventRing drops |
@@ -356,13 +390,13 @@ deadline-aware ADC1 DMA path.
 ```text
 nominalRail = AVDD_GND + |AVSS_GND|
 aincomGnd = rail * (AVDD_GND - |AVSS_GND|) / (2 * nominalRail)
-ain8Gnd = ain8Diff - zeroResidual + aincomGnd
+ain8Gnd = ain8Diff + aincomGnd
 battery = ain8Gnd * dividerNum / dividerDen
 ```
 
 AIN9-AINCOM is only a zero residual and never an absolute AINCOM-GND
-measurement. An invalid calibration, rail, zero, ADC read, divider, VBIAS
-state, overflow, or out-of-range single-cell result produces
+measurement. An invalid calibration, rail, ADC read, reference, divider, VBIAS
+state, overflow, absent/open, or range-error single-cell result produces
 `bt=-1,br=<reason>`.
 
 ### Transport policy
@@ -394,9 +428,9 @@ originating Serial, BLE `FF11`, or UDP control peer:
 | `FPS?` | Return capture cap, output cap, and ADS gap mode. |
 | `FPSCAP=OFF`, `FPSCAP=ON,<fps>` | Optional acquisition-side frame pacing; default is off. Use only for deliberate capture throttling. |
 | `OUTCAP=OFF`, `OUTCAP=ON,<fps>` | Output-side pacing in the Core 0 output hub; default is off and does not hide Core 1 capture timing. |
-| `ADSGAP=OFF|ON|RAIL|BAT|ZERO` | Select which ADS gap jobs may run between FDC work. |
+| `ADSGAP=OFF|ON|RAIL|BAT|ZERO` | Select which periodic ADS gap jobs may run between FDC work. Explicit `BATD`/calibration requests still run once. |
 | `BAT?`, `RAIL?`, `ADS?` | Return `ABAT`, `ARL`, or `ADS` runtime status line. |
-| `BATD`, `BATD=VBIAS_ON` | Queue a forced VBIAS-on battery diagnostic; the result is a `BATD` log line after the ADS gap job runs. |
+| `BATD`, `BATD=VBIAS_ON` | Queue a forced VBIAS-on battery diagnostic; the result is a `BATD` log line after the ADS transaction runs, even when periodic ADS gap mode is off. |
 | `BLECAP=N` or `CAP=N` | Legacy low-rate cap control routed through the shared parser. |
 | `TRACE=0` / `TRACE=1` | Disable/enable the runtime trace state. |
 | `CAL=ZERO` | Schedule a zero-residual job in a safe ADS slack window. |

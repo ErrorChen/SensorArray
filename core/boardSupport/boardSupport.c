@@ -106,6 +106,10 @@ static int boardSupportLogPrintf(const char *format, ...)
 
 static bool s_inited = false;
 static portMUX_TYPE s_i2c_mutex_create_mux = portMUX_INITIALIZER_UNLOCKED;
+static SemaphoreHandle_t s_gpioIsrServiceMutex;
+static StaticSemaphore_t s_gpioIsrServiceMutexBuffer;
+static portMUX_TYPE s_gpioIsrServiceMux = portMUX_INITIALIZER_UNLOCKED;
+static BoardSupportGpioIsrInfo_t s_gpioIsrInfo;
 
 static BoardSupportI2cCtx_t s_i2c0_ctx = {
     .Port = (i2c_port_t)CONFIG_BOARD_I2C_PORT,
@@ -124,6 +128,96 @@ static BoardSupportI2cCtx_t s_i2c1_ctx = {
     .FrequencyHz = BOARD_SUPPORT_I2C1_START_HZ,
     .Enabled = BOARD_SUPPORT_I2C1_ENABLE_REQUESTED != 0,
 };
+
+esp_err_t sensorarrayBoardEnsureGpioIsrService(void)
+{
+    portENTER_CRITICAL(&s_gpioIsrServiceMux);
+    s_gpioIsrInfo.EnsureCount++;
+    if (!s_gpioIsrServiceMutex) {
+        s_gpioIsrServiceMutex = xSemaphoreCreateMutexStatic(&s_gpioIsrServiceMutexBuffer);
+    }
+    portEXIT_CRITICAL(&s_gpioIsrServiceMux);
+
+    if (!s_gpioIsrServiceMutex) {
+        return ESP_ERR_NO_MEM;
+    }
+    if (xSemaphoreTake(s_gpioIsrServiceMutex, pdMS_TO_TICKS(100u)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    if (s_gpioIsrInfo.Installed) {
+        xSemaphoreGive(s_gpioIsrServiceMutex);
+        return ESP_OK;
+    }
+
+    esp_err_t err = gpio_install_isr_service(0);
+    portENTER_CRITICAL(&s_gpioIsrServiceMux);
+    if (err == ESP_OK) {
+        s_gpioIsrInfo.Installed = true;
+        s_gpioIsrInfo.InstallCount++;
+    } else if (err == ESP_ERR_INVALID_STATE) {
+        s_gpioIsrInfo.Installed = true;
+        s_gpioIsrInfo.AlreadyInstalledCount++;
+    } else {
+        s_gpioIsrInfo.InstallFailCount++;
+    }
+    portEXIT_CRITICAL(&s_gpioIsrServiceMux);
+    if (err == ESP_ERR_INVALID_STATE) {
+        printf("GPIOISR,stage=ensure,status=already_installed,err=0x%lx\n",
+               (unsigned long)err);
+        err = ESP_OK;
+    } else if (err != ESP_OK) {
+        printf("GPIOISR,stage=ensure,status=failed,err=0x%lx\n",
+               (unsigned long)err);
+    }
+    xSemaphoreGive(s_gpioIsrServiceMutex);
+    return err;
+}
+
+void sensorarrayBoardNoteGpioIsrHandlerAdd(BoardSupportGpioIsrHandler_t handler)
+{
+    portENTER_CRITICAL(&s_gpioIsrServiceMux);
+    switch (handler) {
+    case BOARD_SUPPORT_GPIO_ISR_HANDLER_ADS:
+        s_gpioIsrInfo.AdsHandlerAddCount++;
+        break;
+    case BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_PRIMARY:
+        s_gpioIsrInfo.FdcPrimaryHandlerAddCount++;
+        break;
+    case BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_SECONDARY:
+        s_gpioIsrInfo.FdcSecondaryHandlerAddCount++;
+        break;
+    case BOARD_SUPPORT_GPIO_ISR_HANDLER_OTHER:
+    default:
+        s_gpioIsrInfo.OtherHandlerAddCount++;
+        break;
+    }
+    portEXIT_CRITICAL(&s_gpioIsrServiceMux);
+}
+
+void sensorarrayBoardGetGpioIsrInfo(BoardSupportGpioIsrInfo_t *outInfo)
+{
+    if (!outInfo) {
+        return;
+    }
+    portENTER_CRITICAL(&s_gpioIsrServiceMux);
+    *outInfo = s_gpioIsrInfo;
+    portEXIT_CRITICAL(&s_gpioIsrServiceMux);
+}
+
+void sensorarrayBoardLogGpioIsrSummary(void)
+{
+    BoardSupportGpioIsrInfo_t info = {0};
+    sensorarrayBoardGetGpioIsrInfo(&info);
+    printf("GPIOISR,install=%lu,already=%lu,ads=%lu,fdcP=%lu,fdcS=%lu,other=%lu,ensure=%lu,fail=%lu\n",
+           (unsigned long)info.InstallCount,
+           (unsigned long)info.AlreadyInstalledCount,
+           (unsigned long)info.AdsHandlerAddCount,
+           (unsigned long)info.FdcPrimaryHandlerAddCount,
+           (unsigned long)info.FdcSecondaryHandlerAddCount,
+           (unsigned long)info.OtherHandlerAddCount,
+           (unsigned long)info.EnsureCount,
+           (unsigned long)info.InstallFailCount);
+}
 
 static bool boardSupportI2cPortValid(int port)
 {

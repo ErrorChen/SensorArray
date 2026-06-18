@@ -14,6 +14,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include "boardSupport.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayAdsGap.h"
 #include "sensorarrayAcqEvent.h"
@@ -168,9 +169,6 @@ bool s_fdcIntbRuntimeUsable[2] = {true, true};
 bool s_fdcIntbRuntimeUsable[2] = {false, false};
 #endif
 sensorarrayFdcTimingAggregate_t s_fdcTimingAggregate = {0};
-SemaphoreHandle_t s_fdcGpioIsrServiceMutex = NULL;
-portMUX_TYPE s_fdcGpioIsrServiceMux = portMUX_INITIALIZER_UNLOCKED;
-bool s_fdcGpioIsrServiceInstalled = false;
 
 esp_err_t sensorarrayMeasureEnsureLock(void)
 {
@@ -1789,52 +1787,6 @@ esp_err_t sensorarrayMeasureRunFdcFormalPrecheck(sensorarrayState_t *state)
     return firstErr;
 }
 
-esp_err_t sensorarrayFdcEnsureGpioIsrServiceInstalled(void)
-{
-    if (s_fdcGpioIsrServiceInstalled) {
-        return ESP_OK;
-    }
-
-    portENTER_CRITICAL(&s_fdcGpioIsrServiceMux);
-    if (!s_fdcGpioIsrServiceMutex) {
-        s_fdcGpioIsrServiceMutex = xSemaphoreCreateMutex();
-    }
-    portEXIT_CRITICAL(&s_fdcGpioIsrServiceMux);
-
-    if (!s_fdcGpioIsrServiceMutex) {
-        return ESP_ERR_NO_MEM;
-    }
-
-    if (xSemaphoreTake(s_fdcGpioIsrServiceMutex, pdMS_TO_TICKS(100u)) != pdTRUE) {
-        return ESP_ERR_TIMEOUT;
-    }
-
-    if (s_fdcGpioIsrServiceInstalled) {
-        xSemaphoreGive(s_fdcGpioIsrServiceMutex);
-        return ESP_OK;
-    }
-
-    esp_err_t err = gpio_install_isr_service(0);
-    if (err == ESP_OK) {
-        s_fdcGpioIsrServiceInstalled = true;
-        printf("FDC_INTB_ISR_SERVICE,stage=install,status=installed,err=0x0\n");
-        xSemaphoreGive(s_fdcGpioIsrServiceMutex);
-        return ESP_OK;
-    }
-    if (err == ESP_ERR_INVALID_STATE) {
-        s_fdcGpioIsrServiceInstalled = true;
-        printf("FDC_INTB_ISR_SERVICE,stage=install,status=already_installed,err=0x%lx\n",
-               (unsigned long)err);
-        xSemaphoreGive(s_fdcGpioIsrServiceMutex);
-        return ESP_OK;
-    }
-
-    printf("FDC_INTB_ISR_SERVICE,stage=install,status=failed,err=0x%lx\n",
-           (unsigned long)err);
-    xSemaphoreGive(s_fdcGpioIsrServiceMutex);
-    return err;
-}
-
 void IRAM_ATTR sensorarrayMeasureFdcIntbIsr(void *arg)
 {
     sensorarrayFdcWorkerContext_t *ctx = (sensorarrayFdcWorkerContext_t *)arg;
@@ -1891,7 +1843,7 @@ esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *ctx)
         return err;
     }
 
-    err = sensorarrayFdcEnsureGpioIsrServiceInstalled();
+    err = sensorarrayBoardEnsureGpioIsrService();
     if (err != ESP_OK) {
         return err;
     }
@@ -1906,6 +1858,10 @@ esp_err_t sensorarrayMeasureEnsureFdcIntb(sensorarrayFdcWorkerContext_t *ctx)
     if (err != ESP_OK) {
         return err;
     }
+    sensorarrayBoardNoteGpioIsrHandlerAdd(
+        ctx->devId == SENSORARRAY_FDC_DEV_PRIMARY ?
+            BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_PRIMARY :
+            BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_SECONDARY);
     ctx->intbIsrAttached = true;
     ctx->lastLevel = gpio_get_level((gpio_num_t)ctx->intbGpio);
     ctx->intbReady = true;

@@ -76,6 +76,25 @@ typedef struct {
     uint32_t LockContentionCount;
 } BoardSupportI2cBusInfo_t;
 
+typedef enum {
+    BOARD_SUPPORT_GPIO_ISR_HANDLER_ADS = 0,
+    BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_PRIMARY,
+    BOARD_SUPPORT_GPIO_ISR_HANDLER_FDC_SECONDARY,
+    BOARD_SUPPORT_GPIO_ISR_HANDLER_OTHER,
+} BoardSupportGpioIsrHandler_t;
+
+typedef struct {
+    bool Installed;
+    uint32_t EnsureCount;
+    uint32_t InstallCount;
+    uint32_t AlreadyInstalledCount;
+    uint32_t InstallFailCount;
+    uint32_t AdsHandlerAddCount;
+    uint32_t FdcPrimaryHandlerAddCount;
+    uint32_t FdcSecondaryHandlerAddCount;
+    uint32_t OtherHandlerAddCount;
+} BoardSupportGpioIsrInfo_t;
+
 typedef esp_err_t (*BoardSupportLogCallback_t)(const char *text, size_t length);
 
 void boardSupportSetLogCallback(BoardSupportLogCallback_t callback);
@@ -99,6 +118,13 @@ esp_err_t boardSupportRecoverI2cBus(const BoardSupportI2cCtx_t *ctx);
 // Reinstall an initialized I2C bus at a new frequency. The bus is locked during
 // delete/config/install and callers must re-verify attached devices afterwards.
 esp_err_t boardSupportSetI2cFrequency(const BoardSupportI2cCtx_t *ctx, uint32_t frequencyHz);
+
+// Own the process-wide ESP-IDF GPIO ISR service at the board layer. Device
+// drivers may call this repeatedly before adding their own GPIO handlers.
+esp_err_t sensorarrayBoardEnsureGpioIsrService(void);
+void sensorarrayBoardNoteGpioIsrHandlerAdd(BoardSupportGpioIsrHandler_t handler);
+void sensorarrayBoardGetGpioIsrInfo(BoardSupportGpioIsrInfo_t *outInfo);
+void sensorarrayBoardLogGpioIsrSummary(void);
 
 // Convenience I2C callbacks matching Fdc2214Cap bus config signatures.
 esp_err_t boardSupportI2cWriteRead(void* userCtx,

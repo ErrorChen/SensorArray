@@ -29,6 +29,18 @@
 #ifndef CONFIG_SENSORARRAY_BLE_TX_MODE_SAFE
 #define CONFIG_SENSORARRAY_BLE_TX_MODE_SAFE 0
 #endif
+#ifndef CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK
+#define CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK 4096
+#endif
+#ifndef CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY
+#define CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY 6
+#endif
+#ifndef CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE
+#define CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE 0
+#endif
+#ifndef CONFIG_SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN
+#define CONFIG_SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN 4
+#endif
 
 #define SENSORARRAY_BLE_APP_ID 0x53u
 #define SENSORARRAY_BLE_SERVICE_UUID 0x00FFu
@@ -38,8 +50,12 @@
 #define SENSORARRAY_BLE_LOG_TX_UUID 0xFF30u
 #define SENSORARRAY_BLE_ATTR_VALUE_MAX 512u
 #define SENSORARRAY_BLE_MESSAGE_VALUE_MAX 1536u
+#define SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX 256u
+#define SENSORARRAY_BLE_CTRL_RX_MAX 128u
+#define SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT 2u
 #define SENSORARRAY_BLE_TINY_TAIL_MIN 8u
 #define SENSORARRAY_BLE_CONF_TIMEOUT_MS 1000u
+#define SENSORARRAY_BLE_HEAP_LOW_WATERMARK 49152u
 
 enum {
     BLE_IDX_SERVICE = 0,
@@ -58,26 +74,74 @@ enum {
 };
 
 typedef struct {
+    bool inUse;
+    uint32_t generation;
     sensorarrayBleChannel_t channel;
     uint16_t length;
+    uint32_t crc;
     uint8_t data[SENSORARRAY_BLE_MESSAGE_VALUE_MAX];
-} sensorarrayBleQueuedMessage_t;
+} sensorarrayBleDataSlot_t;
+
+typedef struct {
+    bool inUse;
+    uint32_t generation;
+    sensorarrayBleChannel_t channel;
+    uint16_t length;
+    uint32_t crc;
+    uint8_t data[SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX];
+} sensorarrayBleCtrlSlot_t;
+
+typedef struct {
+    uint8_t slotIndex;
+    uint8_t ctrlSlot;
+    sensorarrayBleChannel_t channel;
+    uint16_t length;
+    uint32_t generation;
+    uint32_t connectionGeneration;
+    uint32_t crc;
+} sensorarrayBleTxDescriptor_t;
+
+typedef struct {
+    uint16_t length;
+    uint16_t connId;
+    uint32_t connectionGeneration;
+    uint8_t data[SENSORARRAY_BLE_CTRL_RX_MAX];
+} sensorarrayBleControlCommand_t;
+
+_Static_assert(sizeof(sensorarrayBleControlCommand_t) <= 144u,
+               "BLE RX command must stay a small BTC-task object");
+_Static_assert(sizeof(sensorarrayBleTxDescriptor_t) <= 24u,
+               "BLE TX queue must store descriptors, not whole payloads");
 
 typedef struct {
     sensorarrayBleConfig_t config;
     sensorarrayBleStats_t stats;
     bool initialized;
     bool txTaskStarted;
+    bool controlTaskStarted;
+    bool bootSummaryPrinted;
     bool subscribed[3];
     uint32_t nextMessageId[3];
+    uint32_t connectionGeneration;
     esp_gatt_if_t gattsIf;
     uint16_t connId;
     uint16_t handles[BLE_IDX_COUNT];
     QueueHandle_t txQueue;
+    QueueHandle_t ctrlTxQueue;
+    QueueHandle_t ctrlRxQueue;
     StaticQueue_t txQueueStruct;
+    StaticQueue_t ctrlTxQueueStruct;
+    StaticQueue_t ctrlRxQueueStruct;
     uint8_t txQueueStorage[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN *
-                           sizeof(sensorarrayBleQueuedMessage_t)];
+                           sizeof(sensorarrayBleTxDescriptor_t)];
+    uint8_t ctrlTxQueueStorage[SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT *
+                               sizeof(sensorarrayBleTxDescriptor_t)];
+    uint8_t ctrlRxQueueStorage[CONFIG_SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN *
+                               sizeof(sensorarrayBleControlCommand_t)];
+    sensorarrayBleDataSlot_t dataSlots[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN];
+    sensorarrayBleCtrlSlot_t ctrlSlots[SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT];
     TaskHandle_t txTask;
+    TaskHandle_t controlTask;
     TaskHandle_t confirmWaitTask;
     sensorarrayBleTxMode_t txMode;
     esp_bd_addr_t remote;
@@ -160,6 +224,184 @@ static esp_ble_gap_ext_adv_params_t s_advParams = {
     .tx_power = EXT_ADV_TX_PWR_NO_PREFERENCE,
 };
 
+static uint32_t sensorarrayBleNextGeneration(uint32_t value)
+{
+    value++;
+    return value == 0u ? 1u : value;
+}
+
+static uint32_t sensorarrayBleCountUsedSlotsLocked(void)
+{
+    uint32_t used = 0u;
+    for (uint8_t i = 0u; i < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN; ++i) {
+        used += s_ble.dataSlots[i].inUse ? 1u : 0u;
+    }
+    for (uint8_t i = 0u; i < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT; ++i) {
+        used += s_ble.ctrlSlots[i].inUse ? 1u : 0u;
+    }
+    return used;
+}
+
+static void sensorarrayBleUpdateSlotUseLocked(void)
+{
+    uint32_t used = sensorarrayBleCountUsedSlotsLocked();
+    s_ble.stats.txSlotUsed = used;
+    if (used > s_ble.stats.txSlotHighWater) {
+        s_ble.stats.txSlotHighWater = used;
+    }
+}
+
+static bool sensorarrayBleAllocateTxDescriptor(sensorarrayBleChannel_t channel,
+                                               size_t length,
+                                               uint32_t crc,
+                                               sensorarrayBleTxDescriptor_t *outDesc)
+{
+    if (!outDesc || channel > SENSORARRAY_BLE_CH_CTRL || length == 0u) {
+        return false;
+    }
+    if (channel == SENSORARRAY_BLE_CH_CTRL &&
+        length > SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX) {
+        return false;
+    }
+
+    memset(outDesc, 0, sizeof(*outDesc));
+    portENTER_CRITICAL(&s_bleMux);
+    if (channel == SENSORARRAY_BLE_CH_CTRL) {
+        for (uint8_t i = 0u; i < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT; ++i) {
+            sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[i];
+            if (slot->inUse) {
+                continue;
+            }
+            slot->inUse = true;
+            slot->channel = channel;
+            slot->length = (uint16_t)length;
+            slot->crc = crc;
+            slot->generation = sensorarrayBleNextGeneration(slot->generation);
+            *outDesc = (sensorarrayBleTxDescriptor_t){
+                .slotIndex = i,
+                .ctrlSlot = 1u,
+                .channel = channel,
+                .length = (uint16_t)length,
+                .generation = slot->generation,
+                .connectionGeneration = s_ble.connectionGeneration,
+                .crc = crc,
+            };
+            sensorarrayBleUpdateSlotUseLocked();
+            portEXIT_CRITICAL(&s_bleMux);
+            return true;
+        }
+    } else {
+        for (uint8_t i = 0u; i < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN; ++i) {
+            sensorarrayBleDataSlot_t *slot = &s_ble.dataSlots[i];
+            if (slot->inUse) {
+                continue;
+            }
+            slot->inUse = true;
+            slot->channel = channel;
+            slot->length = (uint16_t)length;
+            slot->crc = crc;
+            slot->generation = sensorarrayBleNextGeneration(slot->generation);
+            *outDesc = (sensorarrayBleTxDescriptor_t){
+                .slotIndex = i,
+                .ctrlSlot = 0u,
+                .channel = channel,
+                .length = (uint16_t)length,
+                .generation = slot->generation,
+                .connectionGeneration = s_ble.connectionGeneration,
+                .crc = crc,
+            };
+            sensorarrayBleUpdateSlotUseLocked();
+            portEXIT_CRITICAL(&s_bleMux);
+            return true;
+        }
+    }
+    s_ble.stats.txSlotAllocFail++;
+    portEXIT_CRITICAL(&s_bleMux);
+    return false;
+}
+
+static uint8_t *sensorarrayBleDescriptorData(const sensorarrayBleTxDescriptor_t *desc)
+{
+    if (!desc) {
+        return NULL;
+    }
+    if (desc->ctrlSlot) {
+        return desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT ?
+            s_ble.ctrlSlots[desc->slotIndex].data : NULL;
+    }
+    return desc->slotIndex < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN ?
+        s_ble.dataSlots[desc->slotIndex].data : NULL;
+}
+
+static bool sensorarrayBleDescriptorCurrent(const sensorarrayBleTxDescriptor_t *desc)
+{
+    if (!desc) {
+        return false;
+    }
+    bool current = false;
+    portENTER_CRITICAL(&s_bleMux);
+    if (desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
+        const sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[desc->slotIndex];
+        current = slot->inUse &&
+                  slot->generation == desc->generation &&
+                  slot->channel == desc->channel &&
+                  slot->length == desc->length &&
+                  slot->crc == desc->crc &&
+                  desc->connectionGeneration == s_ble.connectionGeneration;
+    } else if (!desc->ctrlSlot && desc->slotIndex < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN) {
+        const sensorarrayBleDataSlot_t *slot = &s_ble.dataSlots[desc->slotIndex];
+        current = slot->inUse &&
+                  slot->generation == desc->generation &&
+                  slot->channel == desc->channel &&
+                  slot->length == desc->length &&
+                  slot->crc == desc->crc &&
+                  desc->connectionGeneration == s_ble.connectionGeneration;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
+    return current;
+}
+
+static void sensorarrayBleReleaseTxDescriptor(const sensorarrayBleTxDescriptor_t *desc)
+{
+    if (!desc) {
+        return;
+    }
+    bool released = false;
+    portENTER_CRITICAL(&s_bleMux);
+    if (desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
+        sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[desc->slotIndex];
+        if (slot->inUse && slot->generation == desc->generation) {
+            slot->inUse = false;
+            released = true;
+        }
+    } else if (!desc->ctrlSlot && desc->slotIndex < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN) {
+        sensorarrayBleDataSlot_t *slot = &s_ble.dataSlots[desc->slotIndex];
+        if (slot->inUse && slot->generation == desc->generation) {
+            slot->inUse = false;
+            released = true;
+        }
+    }
+    if (!released) {
+        s_ble.stats.txSlotReleaseMismatch++;
+    }
+    sensorarrayBleUpdateSlotUseLocked();
+    portEXIT_CRITICAL(&s_bleMux);
+}
+
+static void sensorarrayBleLogHeapDetail(const char *stage, const char *reason)
+{
+    printf("M,stage=%s,reason=%s,ih=%u,il=%u,im=%u,dh=%u,dl=%u,h8=%u,l8=%u\n",
+           stage ? stage : "unknown",
+           reason ? reason : "diag",
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+}
+
 static void sensorarrayBleLogBoot(const char *stage, esp_err_t err)
 {
     printf("BLEBOOT,stage=%s,err=0x%lx,name=%s\n",
@@ -170,15 +412,10 @@ static void sensorarrayBleLogBoot(const char *stage, esp_err_t err)
 
 void sensorarrayBleLogHeap(const char *stage)
 {
-    printf("M,stage=%s,ih=%u,il=%u,im=%u,dh=%u,dl=%u,h8=%u,l8=%u\n",
-           stage ? stage : "unknown",
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-           (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
-           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
-           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    uint32_t internalFree = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if (internalFree < SENSORARRAY_BLE_HEAP_LOW_WATERMARK) {
+        sensorarrayBleLogHeapDetail(stage, "low_heap");
+    }
 }
 
 static void sensorarrayBleBuildAdvData(void)
@@ -443,41 +680,56 @@ static esp_err_t sensorarrayBleSendFragment(sensorarrayBleChannel_t channel,
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayBleSendMessage(const sensorarrayBleQueuedMessage_t *message)
+static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
+                                           const uint8_t *data,
+                                           uint16_t length,
+                                           uint32_t enqueueCrc)
 {
-    if (!message || message->channel > SENSORARRAY_BLE_CH_CTRL || message->length == 0u) {
+    if (!data || channel > SENSORARRAY_BLE_CH_CTRL || length == 0u) {
         return ESP_ERR_INVALID_ARG;
     }
     if (!s_ble.stats.gattReady || !s_ble.stats.connected ||
-        !s_ble.subscribed[message->channel]) {
-        sensorarrayBleNoteDrop(message->channel);
+        !s_ble.subscribed[channel]) {
+        sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_STATE;
     }
     if (s_ble.stats.congested && sensorarrayBleGetTxMode() == SENSORARRAY_BLE_TX_FAST) {
         s_ble.stats.congestedCount++;
-        sensorarrayBleNoteDrop(message->channel);
+        sensorarrayBleNoteDrop(channel);
         return ESP_ERR_TIMEOUT;
     }
     size_t maximum = s_ble.stats.mtu > 3u ? (size_t)s_ble.stats.mtu - 3u : 20u;
     if (maximum > SENSORARRAY_BLE_ATTR_VALUE_MAX) {
         maximum = SENSORARRAY_BLE_ATTR_VALUE_MAX;
     }
-    char envChannel = sensorarrayBleEnvelopeChannel(message->channel);
-    uint32_t messageId = ++s_ble.nextMessageId[message->channel];
+    char envChannel = sensorarrayBleEnvelopeChannel(channel);
+    uint32_t messageId = ++s_ble.nextMessageId[channel];
     if (messageId == 0u) {
-        messageId = ++s_ble.nextMessageId[message->channel];
+        messageId = ++s_ble.nextMessageId[channel];
     }
-    uint32_t crc = sensorarrayBleCrc32(message->data, message->length);
-    if (!sensorarrayBleValidateAscii(message->channel,
-                                     message->data,
-                                     message->length,
+    uint32_t crc = sensorarrayBleCrc32(data, length);
+    if (crc != enqueueCrc) {
+        s_ble.stats.txCrcMismatch++;
+        printf("BLECORRUPT,ch=%c,mid=%lu,enqLen=%u,deqLen=%u,enqCrc=%08lX,deqCrc=%08lX\n",
+               envChannel,
+               (unsigned long)messageId,
+               (unsigned)length,
+               (unsigned)length,
+               (unsigned long)enqueueCrc,
+               (unsigned long)crc);
+        sensorarrayBleNoteDrop(channel);
+        return ESP_ERR_INVALID_CRC;
+    }
+    if (!sensorarrayBleValidateAscii(channel,
+                                     data,
+                                     length,
                                      messageId,
                                      0u)) {
-        sensorarrayBleNoteDrop(message->channel);
+        sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_ARG;
     }
-    if (message->length <= maximum) {
-        uint16_t handle = sensorarrayBleValueHandle(message->channel);
+    if (length <= maximum) {
+        uint16_t handle = sensorarrayBleValueHandle(channel);
         bool confirm = sensorarrayBleGetTxMode() == SENSORARRAY_BLE_TX_SAFE;
         if (confirm) {
             s_ble.confirmWaitTask = xTaskGetCurrentTaskHandle();
@@ -486,8 +738,8 @@ static esp_err_t sensorarrayBleSendMessage(const sensorarrayBleQueuedMessage_t *
         esp_err_t err = esp_ble_gatts_send_indicate(s_ble.gattsIf,
                                                     s_ble.connId,
                                                     handle,
-                                                    message->length,
-                                                    (uint8_t *)message->data,
+                                                    length,
+                                                    (uint8_t *)data,
                                                     confirm);
         if (err == ESP_OK && confirm) {
             uint32_t notified = ulTaskNotifyTake(pdTRUE,
@@ -501,62 +753,203 @@ static esp_err_t sensorarrayBleSendMessage(const sensorarrayBleQueuedMessage_t *
         }
         if (err == ESP_OK) {
             s_ble.stats.fragmentSent++;
-            s_ble.stats.sent[message->channel]++;
+            s_ble.stats.sent[channel]++;
             s_ble.stats.messageSent++;
         } else {
             s_ble.stats.fragmentError++;
-            sensorarrayBleNoteDrop(message->channel);
+            sensorarrayBleNoteDrop(channel);
         }
         return err;
     }
 
     uint32_t fragmentCount = 0u;
-    if (!sensorarrayBlePlanFragments(message->length,
+    if (!sensorarrayBlePlanFragments(length,
                                      maximum,
                                      envChannel,
                                      messageId,
                                      crc,
                                      &fragmentCount) ||
         fragmentCount == 0u) {
-        sensorarrayBleNoteDrop(message->channel);
+        sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_SIZE;
     }
 
-    size_t base = message->length / fragmentCount;
-    size_t extra = message->length % fragmentCount;
+    size_t base = length / fragmentCount;
+    size_t extra = length % fragmentCount;
     size_t offset = 0u;
     bool confirm = sensorarrayBleGetTxMode() == SENSORARRAY_BLE_TX_SAFE;
     for (uint32_t index = 0u; index < fragmentCount; ++index) {
         size_t chunk = base + (index < extra ? 1u : 0u);
-        esp_err_t err = sensorarrayBleSendFragment(message->channel,
+        esp_err_t err = sensorarrayBleSendFragment(channel,
                                                    envChannel,
                                                    messageId,
                                                    index,
                                                    fragmentCount,
-                                                   message->data + offset,
+                                                   data + offset,
                                                    chunk,
-                                                   message->length,
+                                                   length,
                                                    crc,
                                                    confirm);
         if (err != ESP_OK) {
-            sensorarrayBleNoteDrop(message->channel);
+            sensorarrayBleNoteDrop(channel);
             return err;
         }
         offset += chunk;
     }
-    s_ble.stats.sent[message->channel]++;
+    s_ble.stats.sent[channel]++;
     s_ble.stats.messageSent++;
     return ESP_OK;
+}
+
+static esp_err_t sensorarrayBleSendDescriptor(const sensorarrayBleTxDescriptor_t *desc)
+{
+    if (!desc) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayBleDescriptorCurrent(desc)) {
+        portENTER_CRITICAL(&s_bleMux);
+        s_ble.stats.txSlotStaleGenerationDrop++;
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(desc->channel);
+        return ESP_ERR_INVALID_STATE;
+    }
+    uint8_t *data = sensorarrayBleDescriptorData(desc);
+    if (!data) {
+        sensorarrayBleNoteDrop(desc->channel);
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayBleSendPayload(desc->channel, data, desc->length, desc->crc);
 }
 
 static void sensorarrayBleTxTask(void *arg)
 {
     (void)arg;
-    sensorarrayBleQueuedMessage_t message;
+    sensorarrayBleTxDescriptor_t desc;
     for (;;) {
-        if (xQueueReceive(s_ble.txQueue, &message, portMAX_DELAY) == pdTRUE) {
-            (void)sensorarrayBleSendMessage(&message);
+        if (s_ble.ctrlTxQueue &&
+            xQueueReceive(s_ble.ctrlTxQueue, &desc, 0) == pdTRUE) {
+            (void)sensorarrayBleSendDescriptor(&desc);
+            sensorarrayBleReleaseTxDescriptor(&desc);
+            continue;
         }
+        if (xQueueReceive(s_ble.txQueue, &desc, pdMS_TO_TICKS(20u)) == pdTRUE) {
+            (void)sensorarrayBleSendDescriptor(&desc);
+            sensorarrayBleReleaseTxDescriptor(&desc);
+        }
+    }
+}
+
+static esp_err_t sensorarrayBleQueueTxDescriptor(sensorarrayBleTxDescriptor_t *desc)
+{
+    if (!desc) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    QueueHandle_t queue = desc->ctrlSlot ? s_ble.ctrlTxQueue : s_ble.txQueue;
+    if (!queue) {
+        sensorarrayBleReleaseTxDescriptor(desc);
+        sensorarrayBleNoteDrop(desc->channel);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (xQueueSend(queue, desc, 0) == pdTRUE) {
+        s_ble.stats.messageQueued++;
+        return ESP_OK;
+    }
+
+    if (!desc->ctrlSlot) {
+        sensorarrayBleTxDescriptor_t discarded;
+        if (xQueueReceive(queue, &discarded, 0) == pdTRUE) {
+            sensorarrayBleNoteDrop(discarded.channel);
+            sensorarrayBleReleaseTxDescriptor(&discarded);
+        }
+        if (xQueueSend(queue, desc, 0) == pdTRUE) {
+            s_ble.stats.messageQueued++;
+            return ESP_OK;
+        }
+    }
+
+    sensorarrayBleReleaseTxDescriptor(desc);
+    sensorarrayBleNoteDrop(desc->channel);
+    return ESP_ERR_TIMEOUT;
+}
+
+static void sensorarrayBleDrainTxQueues(void)
+{
+    sensorarrayBleTxDescriptor_t desc;
+    while (s_ble.ctrlTxQueue &&
+           xQueueReceive(s_ble.ctrlTxQueue, &desc, 0) == pdTRUE) {
+        sensorarrayBleNoteDrop(desc.channel);
+        sensorarrayBleReleaseTxDescriptor(&desc);
+    }
+    while (s_ble.txQueue &&
+           xQueueReceive(s_ble.txQueue, &desc, 0) == pdTRUE) {
+        sensorarrayBleNoteDrop(desc.channel);
+        sensorarrayBleReleaseTxDescriptor(&desc);
+    }
+}
+
+static void sensorarrayBleDrainControlRxQueue(void)
+{
+    sensorarrayBleControlCommand_t command;
+    while (s_ble.ctrlRxQueue &&
+           xQueueReceive(s_ble.ctrlRxQueue, &command, 0) == pdTRUE) {
+        s_ble.stats.controlRxStale++;
+    }
+}
+
+static void sensorarrayBleControlTask(void *arg)
+{
+    (void)arg;
+    sensorarrayBleControlCommand_t command;
+    for (;;) {
+        if (xQueueReceive(s_ble.ctrlRxQueue, &command, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        bool current = false;
+        sensorarrayBleControlRxCallback_t callback = NULL;
+        void *callbackContext = NULL;
+        portENTER_CRITICAL(&s_bleMux);
+        current = s_ble.stats.connected &&
+                  command.connId == s_ble.connId &&
+                  command.connectionGeneration == s_ble.connectionGeneration;
+        callback = s_ble.controlCallback;
+        callbackContext = s_ble.controlContext;
+        if (!current) {
+            s_ble.stats.controlRxStale++;
+        }
+        portEXIT_CRITICAL(&s_bleMux);
+        if (current && callback) {
+            callback(command.data, command.length, callbackContext);
+        }
+    }
+}
+
+static void sensorarrayBleQueueControlCommand(const esp_ble_gatts_cb_param_t *param)
+{
+    if (!param || param->write.handle != s_ble.handles[BLE_IDX_CTRL_RX_VALUE]) {
+        return;
+    }
+    if (!s_ble.ctrlRxQueue || !s_ble.controlCallback) {
+        s_ble.stats.controlRxDropped++;
+        return;
+    }
+    if (param->write.len == 0u || param->write.len > SENSORARRAY_BLE_CTRL_RX_MAX) {
+        s_ble.stats.controlRxDropped++;
+        printf("BLERXERR,src=ctrl,len=%u,max=%u,reason=length\n",
+               (unsigned)param->write.len,
+               (unsigned)SENSORARRAY_BLE_CTRL_RX_MAX);
+        return;
+    }
+    sensorarrayBleControlCommand_t command;
+    command.length = param->write.len;
+    command.connId = param->write.conn_id;
+    command.connectionGeneration = s_ble.connectionGeneration;
+    memcpy(command.data, param->write.value, param->write.len);
+    if (xQueueSend(s_ble.ctrlRxQueue, &command, 0) == pdTRUE) {
+        s_ble.stats.controlRxQueued++;
+    } else {
+        s_ble.stats.controlRxDropped++;
+        printf("BLERXERR,src=ctrl,len=%u,reason=rx_queue_full\n",
+               (unsigned)param->write.len);
     }
 }
 
@@ -569,6 +962,28 @@ static void sensorarrayBleStartAdvertising(void)
     }
 }
 
+static void sensorarrayBleLogReadySummary(void)
+{
+    if (s_ble.bootSummaryPrinted ||
+        !s_ble.stats.controllerReady ||
+        !s_ble.stats.hostReady ||
+        !s_ble.stats.gattReady ||
+        !s_ble.stats.advertising) {
+        return;
+    }
+    s_ble.bootSummaryPrinted = true;
+    printf("BLEBOOT,status=ok,controller=%u,host=%u,gatt=%u,adv=%u,mtu=%u,phyReq=%s,txMode=%s,ctrlRxMax=%u,msgMax=%u\n",
+           s_ble.stats.controllerReady ? 1u : 0u,
+           s_ble.stats.hostReady ? 1u : 0u,
+           s_ble.stats.gattReady ? 1u : 0u,
+           s_ble.stats.advertising ? 1u : 0u,
+           s_ble.config.preferredMtu ? s_ble.config.preferredMtu : s_ble.stats.mtu,
+           s_ble.config.preferPhy2m ? "2M" : "1M",
+           sensorarrayBleTxModeName(s_ble.txMode),
+           (unsigned)SENSORARRAY_BLE_CTRL_RX_MAX,
+           (unsigned)SENSORARRAY_BLE_MESSAGE_VALUE_MAX);
+}
+
 static void sensorarrayBleGapCallback(esp_gap_ble_cb_event_t event,
                                       esp_ble_gap_cb_param_t *param)
 {
@@ -579,17 +994,28 @@ static void sensorarrayBleGapCallback(esp_gap_ble_cb_event_t event,
             if (err != ESP_OK) {
                 sensorarrayBleLogBoot("adv_data", err);
             }
+        } else {
+            s_ble.stats.initError = ESP_FAIL;
+            sensorarrayBleLogBoot("adv_params_async", ESP_FAIL);
         }
         break;
     case ESP_GAP_BLE_EXT_ADV_DATA_SET_COMPLETE_EVT:
         if (param->ext_adv_data_set.status == ESP_BT_STATUS_SUCCESS) {
             sensorarrayBleStartAdvertising();
+        } else {
+            s_ble.stats.initError = ESP_FAIL;
+            sensorarrayBleLogBoot("adv_data_async", ESP_FAIL);
         }
         break;
     case ESP_GAP_BLE_EXT_ADV_START_COMPLETE_EVT: {
         esp_err_t err = param->ext_adv_start.status == ESP_BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL;
         s_ble.stats.advertising = err == ESP_OK;
-        sensorarrayBleLogBoot("adv_start", err);
+        if (err == ESP_OK) {
+            sensorarrayBleLogReadySummary();
+        } else {
+            s_ble.stats.initError = err;
+            sensorarrayBleLogBoot("adv_start", err);
+        }
         break;
     }
     case ESP_GAP_BLE_READ_PHY_COMPLETE_EVT:
@@ -647,8 +1073,8 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.stats.gattReady = err == ESP_OK;
         if (err != ESP_OK) {
             s_ble.stats.initError = err;
+            sensorarrayBleLogBoot("gatt_start", err);
         }
-        sensorarrayBleLogBoot("gatt_start", err);
         break;
     }
     case ESP_GATTS_CONNECT_EVT: {
@@ -657,6 +1083,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.stats.congested = false;
         memset(s_ble.subscribed, 0, sizeof(s_ble.subscribed));
         s_ble.connId = param->connect.conn_id;
+        s_ble.connectionGeneration = sensorarrayBleNextGeneration(s_ble.connectionGeneration);
         s_ble.gattsIf = gattsIf;
         memcpy(s_ble.remote, param->connect.remote_bda, sizeof(s_ble.remote));
         esp_ble_gap_phy_mask_t phy = s_ble.config.preferPhy2m ?
@@ -684,7 +1111,10 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
     case ESP_GATTS_DISCONNECT_EVT:
         s_ble.stats.connected = false;
         s_ble.stats.congested = false;
+        s_ble.connectionGeneration = sensorarrayBleNextGeneration(s_ble.connectionGeneration);
         memset(s_ble.subscribed, 0, sizeof(s_ble.subscribed));
+        sensorarrayBleDrainControlRxQueue();
+        sensorarrayBleDrainTxQueues();
         sensorarrayBleStartAdvertising();
         break;
     case ESP_GATTS_MTU_EVT:
@@ -698,7 +1128,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
             s_ble.subscribed[channel] = (value & 0x0003u) != 0u;
         } else if (param->write.handle == s_ble.handles[BLE_IDX_CTRL_RX_VALUE] &&
                    s_ble.controlCallback) {
-            s_ble.controlCallback(param->write.value, param->write.len, s_ble.controlContext);
+            sensorarrayBleQueueControlCommand(param);
         }
         break;
     }
@@ -725,10 +1155,10 @@ static esp_power_level_t sensorarrayBleHighPower(void)
 
 static esp_err_t sensorarrayBleStep(const char *stage, esp_err_t err)
 {
-    sensorarrayBleLogBoot(stage, err);
     if (err != ESP_OK) {
         s_ble.stats.initError = err;
-        sensorarrayBleLogHeap(stage);
+        sensorarrayBleLogBoot(stage, err);
+        sensorarrayBleLogHeapDetail(stage, "init_fail");
     }
     return err;
 }
@@ -753,10 +1183,18 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     s_ble.txMode = CONFIG_SENSORARRAY_BLE_TX_MODE_SAFE ?
         SENSORARRAY_BLE_TX_SAFE : SENSORARRAY_BLE_TX_FAST;
     s_ble.txQueue = xQueueCreateStatic(CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN,
-                                       sizeof(sensorarrayBleQueuedMessage_t),
+                                       sizeof(sensorarrayBleTxDescriptor_t),
                                        s_ble.txQueueStorage,
                                        &s_ble.txQueueStruct);
-    if (!s_ble.txQueue) {
+    s_ble.ctrlTxQueue = xQueueCreateStatic(SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT,
+                                           sizeof(sensorarrayBleTxDescriptor_t),
+                                           s_ble.ctrlTxQueueStorage,
+                                           &s_ble.ctrlTxQueueStruct);
+    s_ble.ctrlRxQueue = xQueueCreateStatic(CONFIG_SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN,
+                                           sizeof(sensorarrayBleControlCommand_t),
+                                           s_ble.ctrlRxQueueStorage,
+                                           &s_ble.ctrlRxQueueStruct);
+    if (!s_ble.txQueue || !s_ble.ctrlTxQueue || !s_ble.ctrlRxQueue) {
         s_ble.stats.initError = ESP_ERR_NO_MEM;
         return ESP_ERR_NO_MEM;
     }
@@ -772,9 +1210,20 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
         return ESP_ERR_NO_MEM;
     }
     s_ble.txTaskStarted = true;
+    taskOk = xTaskCreatePinnedToCore(sensorarrayBleControlTask,
+                                     "bleCtrl",
+                                     CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK,
+                                     NULL,
+                                     CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY,
+                                     &s_ble.controlTask,
+                                     CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE);
+    if (taskOk != pdPASS || !s_ble.controlTask) {
+        s_ble.stats.initError = ESP_ERR_NO_MEM;
+        return ESP_ERR_NO_MEM;
+    }
+    s_ble.controlTaskStarted = true;
     sensorarrayBleBuildAdvData();
 
-    sensorarrayBleLogHeap("before_ble_classic_release");
     esp_err_t err = esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
     if (err == ESP_ERR_INVALID_STATE) {
         err = ESP_OK;
@@ -782,22 +1231,17 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     if (sensorarrayBleStep("classic_release", err) != ESP_OK) {
         return err;
     }
-    sensorarrayBleLogHeap("after_ble_classic_release");
-    sensorarrayBleLogHeap("before_ble_controller_init");
 
     esp_bt_controller_config_t controller = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     err = esp_bt_controller_init(&controller);
     if (sensorarrayBleStep("controller_init", err) != ESP_OK) {
-        sensorarrayBleLogHeap("ble_controller_init_fail");
         return err;
     }
-    sensorarrayBleLogHeap("after_ble_controller_init");
     err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (sensorarrayBleStep("controller_enable", err) != ESP_OK) {
         return err;
     }
     s_ble.stats.controllerReady = true;
-    sensorarrayBleLogHeap("after_ble_controller_enable");
 
     err = esp_bluedroid_init();
     if (sensorarrayBleStep("bluedroid_init", err) != ESP_OK) {
@@ -808,7 +1252,6 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
         return err;
     }
     s_ble.stats.hostReady = true;
-    sensorarrayBleLogHeap("after_bluedroid_enable");
 
     err = esp_ble_gap_register_callback(sensorarrayBleGapCallback);
     if (sensorarrayBleStep("gap_cb", err) != ESP_OK) {
@@ -823,7 +1266,9 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
         return err;
     }
     err = esp_ble_gatt_set_local_mtu(config->preferredMtu ? config->preferredMtu : 247u);
-    sensorarrayBleLogBoot("mtu", err);
+    if (err != ESP_OK) {
+        sensorarrayBleLogBoot("mtu", err);
+    }
 
     if (config->preferHighTxPower) {
         esp_power_level_t level = sensorarrayBleHighPower();
@@ -864,23 +1309,25 @@ esp_err_t sensorarrayBleNotify(sensorarrayBleChannel_t channel,
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_STATE;
     }
-    sensorarrayBleQueuedMessage_t message = {
-        .channel = channel,
-        .length = (uint16_t)length,
-    };
-    memcpy(message.data, data, length);
-    if (xQueueSend(s_ble.txQueue, &message, 0) != pdTRUE) {
-        sensorarrayBleQueuedMessage_t discarded;
-        if (xQueueReceive(s_ble.txQueue, &discarded, 0) == pdTRUE) {
-            sensorarrayBleNoteDrop(discarded.channel);
-        }
-        if (xQueueSend(s_ble.txQueue, &message, 0) != pdTRUE) {
-            sensorarrayBleNoteDrop(channel);
-            return ESP_ERR_TIMEOUT;
-        }
+    if (channel == SENSORARRAY_BLE_CH_CTRL &&
+        length > SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX) {
+        sensorarrayBleNoteDrop(channel);
+        return ESP_ERR_INVALID_SIZE;
     }
-    s_ble.stats.messageQueued++;
-    return ESP_OK;
+    uint32_t crc = sensorarrayBleCrc32(data, length);
+    sensorarrayBleTxDescriptor_t desc;
+    if (!sensorarrayBleAllocateTxDescriptor(channel, length, crc, &desc)) {
+        sensorarrayBleNoteDrop(channel);
+        return ESP_ERR_TIMEOUT;
+    }
+    uint8_t *slotData = sensorarrayBleDescriptorData(&desc);
+    if (!slotData) {
+        sensorarrayBleReleaseTxDescriptor(&desc);
+        sensorarrayBleNoteDrop(channel);
+        return ESP_ERR_INVALID_STATE;
+    }
+    memcpy(slotData, data, length);
+    return sensorarrayBleQueueTxDescriptor(&desc);
 }
 
 void sensorarrayBleSetControlRxCallback(sensorarrayBleControlRxCallback_t callback,

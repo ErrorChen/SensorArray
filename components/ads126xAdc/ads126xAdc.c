@@ -11,6 +11,7 @@
 #include "esp_timer.h"
 #include "driver/gpio.h"
 #include "freertos/task.h"
+#include "boardSupport.h"
 
 #ifndef CONFIG_ADS126X_LOG_LEVEL
 #define CONFIG_ADS126X_LOG_LEVEL 3
@@ -67,6 +68,9 @@ static const char *TAG = "ads126xAdc";
 /* INTERFACE register bit definitions. */
 #define ADS126X_INTERFACE_STATUS (1u << 2)
 #define ADS126X_INTERFACE_CRC_MASK 0x03u
+
+/* Optional ADS126x output status byte. Bit 6 marks new ADC1 data. */
+#define ADS126X_STATUS_ADC1_NEW_DATA (1u << 6)
 
 /* MODE2 register bit definitions. */
 #define ADS126X_MODE2_BYPASS (1u << 7)
@@ -976,6 +980,7 @@ static void IRAM_ATTR ads126xAdcDrdyIsr(void *arg)
     if (!handle) {
         return;
     }
+    handle->drdyGeneration++;
     TaskHandle_t task = (TaskHandle_t)handle->drdyWaitTask;
     if (task) {
         BaseType_t higherPriorityTaskWoken = pdFALSE;
@@ -1005,8 +1010,8 @@ esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle)
     if (err != ESP_OK) {
         return err;
     }
-    err = gpio_install_isr_service(0);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    err = sensorarrayBoardEnsureGpioIsrService();
+    if (err != ESP_OK) {
         return err;
     }
     err = gpio_isr_handler_add(handle->drdyGpio, ads126xAdcDrdyIsr, handle);
@@ -1016,8 +1021,27 @@ esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle)
     }
     if (err == ESP_OK) {
         handle->drdyNotificationReady = true;
+        sensorarrayBoardNoteGpioIsrHandlerAdd(BOARD_SUPPORT_GPIO_ISR_HANDLER_ADS);
     }
     return err;
+}
+
+void ads126xAdcClearDrdyNotifications(ads126xAdcHandle_t *handle)
+{
+    if (!handle) {
+        return;
+    }
+    TaskHandle_t current = xTaskGetCurrentTaskHandle();
+    if (current) {
+        (void)xTaskNotifyStateClear(current);
+        while (ulTaskNotifyTake(pdTRUE, 0) != 0u) {
+        }
+    }
+}
+
+uint32_t ads126xAdcGetDrdyGeneration(const ads126xAdcHandle_t *handle)
+{
+    return handle ? handle->drdyGeneration : 0u;
 }
 
 esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs)
@@ -1046,6 +1070,62 @@ esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t 
     handle->drdyWaitTask = NULL;
     return (notified != 0u || gpio_get_level(handle->drdyGpio) == 0) ?
         ESP_OK : ESP_ERR_TIMEOUT;
+}
+
+esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *handle,
+                                         uint32_t startGeneration,
+                                         uint32_t timeoutUs,
+                                         uint32_t *outGeneration)
+{
+    if (!handle || !handle->drdyNotificationReady || handle->drdyGpio == GPIO_NUM_NC) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint32_t currentGeneration = handle->drdyGeneration;
+    if (currentGeneration != startGeneration) {
+        if (outGeneration) {
+            *outGeneration = currentGeneration;
+        }
+        return ESP_OK;
+    }
+
+    TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
+    handle->drdyWaitTask = currentTask;
+    ads126xAdcClearDrdyNotifications(handle);
+    currentGeneration = handle->drdyGeneration;
+    if (currentGeneration != startGeneration) {
+        handle->drdyWaitTask = NULL;
+        if (outGeneration) {
+            *outGeneration = currentGeneration;
+        }
+        return ESP_OK;
+    }
+
+    TickType_t ticks = pdMS_TO_TICKS((timeoutUs + 999u) / 1000u);
+    if (ticks == 0u) {
+        ticks = 1u;
+    }
+    uint32_t notified = ulTaskNotifyTake(pdTRUE, ticks);
+    currentGeneration = handle->drdyGeneration;
+    handle->drdyWaitTask = NULL;
+    if (currentGeneration != startGeneration) {
+        if (outGeneration) {
+            *outGeneration = currentGeneration;
+        }
+        return ESP_OK;
+    }
+    return notified != 0u ? ESP_ERR_INVALID_RESPONSE : ESP_ERR_TIMEOUT;
+}
+
+bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_t statusByte)
+{
+    if (!handle) {
+        return false;
+    }
+    if (!handle->enableStatusByte) {
+        return true;
+    }
+    return (statusByte & ADS126X_STATUS_ADC1_NEW_DATA) != 0u;
 }
 
 esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)

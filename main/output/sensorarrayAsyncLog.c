@@ -765,10 +765,24 @@ static const char *sensorarrayBatteryReasonName(sensorarrayBatteryInvalidReason_
         return "zero";
     case SENSORARRAY_BATTERY_INVALID_ADC:
         return "adc_fail";
+    case SENSORARRAY_BATTERY_INVALID_ADC_TIMEOUT:
+        return "adc_timeout";
+    case SENSORARRAY_BATTERY_INVALID_ADC_STALE:
+        return "adc_stale";
+    case SENSORARRAY_BATTERY_INVALID_ADC_STATUS_ERROR:
+        return "adc_status_error";
     case SENSORARRAY_BATTERY_INVALID_DIV:
         return "divider_invalid";
     case SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE:
         return "no_aincom_gnd_reference";
+    case SENSORARRAY_BATTERY_INVALID_REFERENCE_INVALID:
+        return "reference_invalid";
+    case SENSORARRAY_BATTERY_INVALID_ABSENT_OR_OPEN:
+        return "absent_or_open";
+    case SENSORARRAY_BATTERY_INVALID_RANGE_ERROR:
+        return "range_error";
+    case SENSORARRAY_BATTERY_INVALID_UNSTABLE:
+        return "unstable";
     case SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE:
         return "out_of_range";
     case SENSORARRAY_BATTERY_INVALID_OVERFLOW:
@@ -939,7 +953,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     }
     position = sensorarrayAsyncLogTextAppend(
         packet.data, sizeof(packet.data), position,
-        ",rail=%ld,rv=%u,rs=%s,re=%ld,age=%lu,z=%ld/%lu,chip=%u,j=%lu/%lu",
+        ",rail=%ld,rv=%u,rs=%s,re=%ld,age=%lu,z=%ld/%lu,fresh=%u,status=0x%02X,dg=%lu,chip=%u,j=%lu/%lu",
         (long)ads->railUv,
         ads->railValid ? 1u : 0u,
         sensorarrayAdsRailStatusName(ads->railStatus),
@@ -947,6 +961,9 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)ads->railAgeFrames,
         (long)ads->zeroResidualUv,
         (unsigned long)zeroStdUv,
+        ads->adcFresh ? 1u : 0u,
+        (unsigned)ads->adcStatus,
+        (unsigned long)ads->drdyGenerationDelta,
         ads->chip ? (unsigned)ads->chip : 1262u,
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta);
@@ -954,9 +971,11 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         packet.data,
         sizeof(packet.data),
         position,
-        ",ae=%lu/%lu/%lu\n",
+        ",ae=%lu/%lu/%lu/%lu/%lu\n",
         (unsigned long)ads->spiErrorCount,
         (unsigned long)ads->drdyTimeoutCount,
+        (unsigned long)ads->adcStaleCount,
+        (unsigned long)ads->adcStatusErrorCount,
         (unsigned long)adsJobsSkipDelta);
     position = sensorarrayAsyncLogTextAppend(
         packet.data,

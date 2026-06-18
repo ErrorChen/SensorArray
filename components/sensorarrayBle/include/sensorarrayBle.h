@@ -52,6 +52,15 @@ typedef struct {
     uint32_t fragmentError;
     uint32_t tinyTailCount;
     uint32_t congestedCount;
+    uint32_t controlRxQueued;
+    uint32_t controlRxDropped;
+    uint32_t controlRxStale;
+    uint32_t txSlotUsed;
+    uint32_t txSlotHighWater;
+    uint32_t txSlotAllocFail;
+    uint32_t txSlotReleaseMismatch;
+    uint32_t txSlotStaleGenerationDrop;
+    uint32_t txCrcMismatch;
     esp_err_t initError;
 } sensorarrayBleStats_t;
 

@@ -153,8 +153,15 @@ typedef enum {
     SENSORARRAY_BATTERY_INVALID_RAIL,
     SENSORARRAY_BATTERY_INVALID_ZERO,
     SENSORARRAY_BATTERY_INVALID_ADC,
+    SENSORARRAY_BATTERY_INVALID_ADC_TIMEOUT,
+    SENSORARRAY_BATTERY_INVALID_ADC_STALE,
+    SENSORARRAY_BATTERY_INVALID_ADC_STATUS_ERROR,
     SENSORARRAY_BATTERY_INVALID_DIV,
     SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE,
+    SENSORARRAY_BATTERY_INVALID_REFERENCE_INVALID,
+    SENSORARRAY_BATTERY_INVALID_ABSENT_OR_OPEN,
+    SENSORARRAY_BATTERY_INVALID_RANGE_ERROR,
+    SENSORARRAY_BATTERY_INVALID_UNSTABLE,
     SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE,
     SENSORARRAY_BATTERY_INVALID_OVERFLOW,
     SENSORARRAY_BATTERY_INVALID_UNKNOWN,
@@ -185,6 +192,9 @@ typedef struct {
     int32_t railErrorUv;
     int32_t zeroResidualUv;
     uint32_t zeroResidualStdUv;
+    uint32_t drdyGenerationDelta;
+    uint32_t adcStaleCount;
+    uint32_t adcStatusErrorCount;
     uint32_t railAgeFrames;
     uint16_t railValidStreak;
     uint16_t railInvalidStreak;
@@ -209,8 +219,10 @@ typedef struct {
     uint16_t chip;
     uint8_t activeAdc;
     uint8_t rateCode;
+    uint8_t adcStatus;
     bool initialized;
     bool dmaCapable;
+    bool adcFresh;
     bool batteryValid;
     bool aincomGndValid;
     bool ain8GndValid;

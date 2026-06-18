@@ -1,6 +1,7 @@
 #include "sensorarrayTransportInternal.h"
 
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,9 @@
 
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
 #define SENSORARRAY_TRANSPORT_QUEUE_COUNT 3u
+#define SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX 96u
+#define SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX 32u
+#define SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX 48u
 #define SENSORARRAY_CFG_OUTPUT_WIFI_TEXT (CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT != 0)
 #define SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT (CONFIG_SENSORARRAY_OUTPUT_BLE_CAP_TEXT != 0)
 
@@ -66,6 +70,122 @@ static TaskHandle_t s_task;
 static bool s_started;
 static char s_deviceName[32];
 static char s_mdnsName[32];
+static bool s_serialCmdErrPrinted;
+static uint32_t s_serialCmdErrSuppressed;
+static const char *s_serialCmdErrLastReason = "none";
+
+static void sensorarrayTransportLogSerialCommandError(const uint8_t *data,
+                                                      size_t length,
+                                                      const char *reason)
+{
+    if (!data || length == 0u) {
+        return;
+    }
+    s_serialCmdErrLastReason = reason ? reason : "unknown";
+    if (s_serialCmdErrPrinted) {
+        s_serialCmdErrSuppressed++;
+        if ((s_serialCmdErrSuppressed % 32u) == 0u) {
+            printf("CMDERR_SUM,src=serial,count=%lu,lastReason=%s\n",
+                   (unsigned long)s_serialCmdErrSuppressed,
+                   s_serialCmdErrLastReason);
+        }
+        return;
+    }
+    s_serialCmdErrPrinted = true;
+    char hex[(SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX * 2u) + 1u];
+    char ascii[SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX + 1u];
+    size_t hexLen = length < SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX ?
+        length : SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX;
+    for (size_t i = 0u; i < hexLen; ++i) {
+        (void)snprintf(&hex[i * 2u], 3u, "%02X", data[i]);
+    }
+    hex[hexLen * 2u] = '\0';
+    size_t asciiLen = length < SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX ?
+        length : SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX;
+    for (size_t i = 0u; i < asciiLen; ++i) {
+        uint8_t ch = data[i];
+        ascii[i] = (ch >= 0x20u && ch <= 0x7Eu) ? (char)ch : '.';
+    }
+    ascii[asciiLen] = '\0';
+    printf("CMDERR,src=serial,len=%lu,hex=%s,ascii=%s,reason=%s,trunc=%u\n",
+           (unsigned long)length,
+           hex,
+           ascii,
+           s_serialCmdErrLastReason,
+           length > hexLen ? 1u : 0u);
+}
+
+static esp_err_t sensorarrayTransportNormaliseSerialCommand(const char *input,
+                                                            size_t inputLength,
+                                                            char *out,
+                                                            size_t outSize,
+                                                            const char **outReason)
+{
+    if (!input || !out || outSize == 0u) {
+        if (outReason) {
+            *outReason = "invalid_arg";
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+    size_t write = 0u;
+    for (size_t read = 0u; read < inputLength; ++read) {
+        unsigned char ch = (unsigned char)input[read];
+        if (ch == '\0') {
+            continue;
+        }
+        if (ch == '\r' || ch == '\n') {
+            break;
+        }
+        if (ch == 0x1Bu) {
+            read++;
+            if (read < inputLength && input[read] == '[') {
+                while (read + 1u < inputLength) {
+                    read++;
+                    unsigned char seq = (unsigned char)input[read];
+                    if (seq >= 0x40u && seq <= 0x7Eu) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        if (iscntrl(ch) && !isspace(ch)) {
+            if (outReason) {
+                *outReason = "control";
+            }
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+        if (write + 1u >= outSize) {
+            if (outReason) {
+                *outReason = "too_long";
+            }
+            return ESP_ERR_INVALID_SIZE;
+        }
+        out[write++] = (char)ch;
+    }
+    while (write > 0u && isspace((unsigned char)out[write - 1u])) {
+        write--;
+    }
+    out[write] = '\0';
+    char *start = out;
+    while (*start && isspace((unsigned char)*start)) {
+        start++;
+    }
+    if (start != out) {
+        memmove(out, start, strlen(start) + 1u);
+        write = strlen(out);
+    }
+    if (write == 0u) {
+        if (outReason) {
+            *outReason = "empty";
+        }
+        return ESP_ERR_NOT_FOUND;
+    }
+    if (outReason) {
+        *outReason = "ok";
+    }
+    return ESP_OK;
+}
 
 static bool sensorarrayTransportFindFieldU32(const char *line,
                                              const char *key,
@@ -322,11 +442,26 @@ static void sensorarrayTransportSerialControlTask(void *arg)
 {
     (void)arg;
     char line[128];
+    char command[SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX];
     sensorarrayTransportReplyTarget_t target = {.kind = SENSORARRAY_TRANSPORT_REPLY_SERIAL};
     for (;;) {
         if (fgets(line, sizeof(line), stdin)) {
-            (void)sensorarrayTransportHandleControlCommand((const uint8_t *)line,
-                                                           strlen(line), &target);
+            const char *reason = "ok";
+            size_t lineLength = strlen(line);
+            esp_err_t normaliseErr = sensorarrayTransportNormaliseSerialCommand(
+                line,
+                lineLength,
+                command,
+                sizeof(command),
+                &reason);
+            if (normaliseErr == ESP_OK) {
+                (void)sensorarrayTransportHandleControlCommand((const uint8_t *)command,
+                                                               strlen(command), &target);
+            } else if (normaliseErr != ESP_ERR_NOT_FOUND) {
+                sensorarrayTransportLogSerialCommandError((const uint8_t *)line,
+                                                          lineLength,
+                                                          reason);
+            }
         } else {
             clearerr(stdin);
             vTaskDelay(pdMS_TO_TICKS(10u));
