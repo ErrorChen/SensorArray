@@ -46,6 +46,14 @@ void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan)
     sensorarrayScanPlanBuildRows(plan, SENSORARRAY_CELL_OP_FDC_CAP);
 }
 
+void sensorarrayScanPlanBuildAdsMatrix(sensorarrayScanPlan_t *plan,
+                                       sensorarrayMeasurementMode_t mode)
+{
+    sensorarrayCellOpKind_t op = mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ?
+        SENSORARRAY_CELL_OP_ADS_VOLTAGE : SENSORARRAY_CELL_OP_ADS_RESISTANCE;
+    sensorarrayScanPlanBuildRows(plan, op);
+}
+
 void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan)
 {
     sensorarrayScanPlanBuildRows(plan, SENSORARRAY_CELL_OP_SKIP);

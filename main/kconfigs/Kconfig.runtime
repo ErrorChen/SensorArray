@@ -39,6 +39,153 @@ config SENSORARRAY_DEFAULT_ACTIVE_ROWS
     default 8
     range 1 8
 
+menu "ADS voltage and resistance matrix"
+
+config SENSORARRAY_ADS_VOLT_TARGET_FPS
+    int "Voltage-mode acquisition target FPS"
+    default 3
+    range 1 100
+    help
+        Paces Core 1 voltage scans independently from the FDC reference
+        budget. The mode may run more slowly when the configured ADS settle,
+        discard, oversample, or autorange work cannot meet this target.
+
+config SENSORARRAY_ADS_RES_TARGET_FPS
+    int "Resistance-mode acquisition target FPS"
+    default 3
+    range 1 100
+    help
+        Paces Core 1 resistance scans independently from capacitance mode so a
+        full 8x8 ADS scan does not continuously overrun the FDC frame budget.
+
+config SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US
+    int "Mode-route analog settle time (us)"
+    default 5000
+    range 100 500000
+
+config SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US
+    int "Row switch settle time (us)"
+    default 2000
+    range 10 500000
+
+config SENSORARRAY_ADS_MATRIX_MUX_SETTLE_US
+    int "ADS input/PGA settle time (us)"
+    default 500
+    range 10 100000
+
+config SENSORARRAY_ADS_MATRIX_DISCARD_COUNT
+    int "Fresh conversions discarded after route or PGA change"
+    default 2
+    range 1 16
+
+config SENSORARRAY_ADS_MATRIX_OVERSAMPLE
+    int "Samples used by robust median aggregation"
+    default 3
+    range 1 9
+
+config SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT
+    int "Bounded retry count for transient ADS fresh-data failures"
+    default 1
+    range 0 2
+    help
+        Restarts the same cell conversion after a DRDY timeout or stale-data
+        indication without increasing the timeout itself. Persistent failures
+        remain explicit invalid cells and are reported in telemetry.
+
+config SENSORARRAY_ADS_MATRIX_MAX_SPREAD_UV
+    int "Maximum stable aggregate spread (uV)"
+    default 5000
+    range 1 1000000
+
+config SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES
+    int "Maximum usable rail calibration age (frames)"
+    default 100
+    range 1 100000
+
+config SENSORARRAY_ADS_MATRIX_INTERNAL_REF_UV
+    int "Calibrated internal REFOUT span (uV)"
+    default 2500000
+    range 900000 5000000
+    help
+        Board-profile calibration value for REFOUT-to-AVSS. This is not AVDD
+        and is not inferred from the ADC reference mux selection.
+
+config SENSORARRAY_ADS_MATRIX_RREF_OHMS
+    int "Calibrated divider reference resistor (ohm)"
+    default 10000
+    range 1 100000000
+
+config SENSORARRAY_ADS_MATRIX_PATH_OFFSET_MOHM
+    int "Calibrated path/lead series offset (milliohm)"
+    default 0
+    range 0 2000000000
+
+config SENSORARRAY_ADS_MATRIX_RES_MIN_OHMS
+    int "Minimum valid resistance (ohm)"
+    default 1
+    range 0 100000000
+
+config SENSORARRAY_ADS_MATRIX_RES_MAX_OHMS
+    int "Maximum valid resistance (ohm)"
+    default 100000000
+    range 1 1000000000
+
+config SENSORARRAY_ADS_MATRIX_RES_SHORT_OHMS
+    int "Short-circuit classification threshold (ohm)"
+    default 10
+    range 0 1000000
+
+config SENSORARRAY_ADS_MATRIX_RES_OPEN_DENOM_UV
+    int "Open-circuit divider denominator threshold (uV)"
+    default 1000
+    range 1 1000000
+
+config SENSORARRAY_ADS_MATRIX_VOLT_MIN_UV
+    int "Minimum valid ground-referenced voltage (uV)"
+    default -2000000
+    range -10000000 10000000
+
+config SENSORARRAY_ADS_MATRIX_VOLT_MAX_UV
+    int "Maximum valid ground-referenced voltage (uV)"
+    default 3500000
+    range -10000000 10000000
+
+config SENSORARRAY_ADS_AUTORANGE_INCREASE_PERMILLE
+    int "Increase gain below this full-scale utilisation (permille)"
+    default 250
+    range 1 900
+
+config SENSORARRAY_ADS_AUTORANGE_DECREASE_PERMILLE
+    int "Decrease gain above this utilisation (permille)"
+    default 850
+    range 100 999
+
+config SENSORARRAY_ADS_AUTORANGE_SATURATION_PERMILLE
+    int "ADC saturation threshold (permille)"
+    default 980
+    range 500 1000
+
+config SENSORARRAY_ADS_AUTORANGE_MAX_ATTEMPTS
+    int "Maximum PGA decisions per cell"
+    default 6
+    range 1 12
+
+config SENSORARRAY_ADS_AUTORANGE_RAIL_MARGIN_UV
+    int "PGA output rail margin (uV)"
+    default 300000
+    range 200000 1000000
+
+config SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV
+    int "PGA-bypass absolute input margin beyond AVDD/AVSS (uV)"
+    default 50000
+    range 0 100000
+    help
+        Additional absolute-input tolerance used only after gain-1 PGA alarms
+        force a verified PGA-bypass retry. The ADS126x data sheet allows up to
+        100 mV beyond AVDD/AVSS; the smaller default retains safety margin.
+
+endmenu
+
 config SENSORARRAY_FDC_CORE
     int "FDC acquisition core"
     default SENSORARRAY_ADC_CORE

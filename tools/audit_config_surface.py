@@ -42,9 +42,20 @@ GROUPS = {
 }
 
 SOURCE_EXTS = {".c", ".h", ".inc", ".cmake", ".txt"}
+
+
+def is_generated_build_path(path: Path) -> bool:
+    """Exclude ESP-IDF output without hiding any source-tree configuration."""
+    relative_parts = path.relative_to(ROOT).parts
+    if not relative_parts:
+        return False
+    top_level = relative_parts[0]
+    return top_level == "build" or top_level.startswith(("build_", "build-"))
+
+
 SCAN_FILES = [
     path for path in sorted(ROOT.rglob("Kconfig*"))
-    if path.is_file() and "build" not in path.parts and ".git" not in path.parts
+    if path.is_file() and not is_generated_build_path(path) and ".git" not in path.parts
 ]
 SCAN_FILES.extend([
     ROOT / "sdkconfig.defaults",
@@ -63,6 +74,8 @@ def iter_source_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_EXTS:
+            continue
+        if is_generated_build_path(path):
             continue
         rp = rel(path)
         if rp.startswith(("build/", ".git/", ".venv/", "docs/archive/", "example/")):

@@ -57,6 +57,17 @@ components/tmuxSwitch
   only drives and observes GPIO-level control signals
 ```
 
+当前板级 `CONFIG_TMUX1108_SW_REF_LEVEL=n` 表示 logical REF 对应 SW low，GND
+对应 SW high。电路图中 SW high 使外部 Q1 将 TMUX1108 common/REFOUT 节点拉到
+GND；SW low 释放该节点供 REFOUT 激励。因此 CAP/VOLT 使用 high/GND/no
+excitation，RES 使用 low/REF/excitation。这个关系只由 `core/board` 的显式 mode
+profile 消费，primitive layer 不从 high/low 自行决定业务模式。
+
+TMUX1134 的板级真值为 SEL=1 选 A/FDC、SEL=0 选 B/ADS；SELA 管 D1..D4，
+SELB 管 D5..D8。TMUX1134 支持 break-before-make，但 measurement layer 仍先撤销
+激励、切 route、等待配置的 settle，再允许 conversion。GPIO readback 只证明 MCU
+脚的观测值，不能替代模拟路径或示波器验证。
+
 ## Australian English documentation
 
 ### Responsibility
@@ -75,13 +86,21 @@ It does not know business row names, ADS/FDC route meaning, D-line ownership, FD
 
 GPIO observations are MCU pin observations only. They are useful diagnostics but do not prove the external analogue path is conducting correctly.
 
+For this board, `CONFIG_TMUX1108_SW_REF_LEVEL=n` maps logical REF to physical
+low and GND to physical high. The external Q1 makes high a grounded/passive
+matrix state; low releases the REFOUT excitation path. The board map, not this
+component, assigns those levels to CAP/VOLT/RES. TMUX1134 SEL=1 selects the
+A/FDC branch and SEL=0 the B/ADS branch; SELA serves D1..D4 and SELB D5..D8.
+Measurement policy still removes excitation and waits for analogue settling
+around route changes even though the switch provides break-before-make.
+
 ## Kconfig
 
 | Option | Default | Notes |
 |---|---:|---|
 | `CONFIG_TMUX1108_A0_GPIO`, `CONFIG_TMUX1108_A1_GPIO`, `CONFIG_TMUX1108_A2_GPIO` | `4`, `5`, `6` | TMUX1108 address pins. |
 | `CONFIG_TMUX1108_SW_GPIO` | `7` | TMUX1108 SW source select pin. |
-| `CONFIG_TMUX1108_SW_REF_LEVEL` | n | Defines which physical SW level selects REF. |
+| `CONFIG_TMUX1108_SW_REF_LEVEL` | n | Current-board polarity: REF=low, GND=high. Change only with a reviewed board profile/schematic change. |
 | `CONFIG_TMUX1108_DEFAULT_SOURCE` | `0` | Default source, `0=GND`, `1=REF`. |
 | `CONFIG_TMUX1108_SWITCH_ROW_SAFE_MODE` | y | Optional safe row-switch policy in the primitive layer. |
 | `CONFIG_TMUX1108_SAFE_SOURCE` | `0` | Safe source when safe mode is enabled. |

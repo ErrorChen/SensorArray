@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 from typing import TextIO
 
-from text_protocol import FragmentReassembler, TextProtocolParser, format_cap_preview
+from text_protocol import (FragmentReassembler, TextProtocolParser,
+                           format_cap_preview, format_measurement_preview)
 
 SERVICE = "000000ff-0000-1000-8000-00805f9b34fb"
 CTRL_RX = "0000ff10-0000-1000-8000-00805f9b34fb"
@@ -106,7 +107,8 @@ class BleTextReceiver:
         self.args = args
         self.log_file = log_file
         self.reassembler = FragmentReassembler()
-        self.parser = TextProtocolParser(on_cap_frame=self._on_cap_frame)
+        self.parser = TextProtocolParser(on_cap_frame=self._on_cap_frame,
+                                         on_measurement_frame=self._on_measurement_frame)
         self.buffers = {"D": bytearray(), "L": bytearray(), "C": bytearray()}
         self.notify_count = {"D": 0, "L": 0, "C": 0}
         self.bytes_rx = 0
@@ -130,6 +132,10 @@ class BleTextReceiver:
     def _on_cap_frame(self, frame) -> None:  # type: ignore[no-untyped-def]
         if self.args.tail:
             self._write(format_cap_preview(frame))
+
+    def _on_measurement_frame(self, frame) -> None:  # type: ignore[no-untyped-def]
+        if self.args.tail:
+            self._write(format_measurement_preview(frame))
 
     def process_message(self, channel: str, payload: bytes) -> None:
         ascii_error = first_non_ascii(payload)

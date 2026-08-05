@@ -11,6 +11,7 @@
 #include "boardSupport.h"
 #include "fdc2214Cap.h"
 #include "tmuxSwitch.h"
+#include "sensorarrayMeasurementMode.h"
 
 typedef enum {
     SENSORARRAY_FDC_DEV_PRIMARY = 0,
@@ -268,6 +269,9 @@ typedef struct {
     bool freshFrame;
     sensorarrayFdcFrameTelemetry_t telemetry;
     sensorarrayAdsGapSnapshot_t adsGap;
+    /* Generic payload is populated only for VOLT/RES. CAP keeps the legacy
+     * FDC fields and byte-compatible C/D/K formatter as the authority. */
+    sensorarrayMeasurementPayload_t measurement;
 
     uint32_t fdcTheoryReadyUs;
     uint32_t fdcTheoryFrameReadyUs;

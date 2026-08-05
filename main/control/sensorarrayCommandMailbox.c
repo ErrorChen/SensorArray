@@ -22,6 +22,21 @@ static uint32_t s_bleCapPeriod;
 static uint32_t s_captureFpsCap;
 static uint32_t s_outputFpsCap;
 static bool s_traceEnabled;
+static uint32_t s_nextRequestId;
+
+static esp_err_t sensorarrayCommandMailboxQueue(const sensorarrayCommand_t *command)
+{
+    if (!s_commandQueue || !command) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (xQueueSend(s_commandQueue, command, 0) == pdTRUE) {
+        return ESP_OK;
+    }
+    sensorarrayCommand_t discarded;
+    (void)xQueueReceive(s_commandQueue, &discarded, 0);
+    return xQueueSend(s_commandQueue, command, 0) == pdTRUE ?
+        ESP_OK : ESP_ERR_TIMEOUT;
+}
 
 static void sensorarrayCommandNormalize(char *text)
 {
@@ -218,6 +233,7 @@ esp_err_t sensorarrayCommandMailboxInit(void)
     s_outputFpsCap =
         CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE ? CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT : 0u;
     s_traceEnabled = false;
+    s_nextRequestId = 1u;
     portEXIT_CRITICAL(&s_commandStateMux);
     return ESP_OK;
 }
@@ -234,16 +250,63 @@ esp_err_t sensorarrayCommandMailboxPostText(const uint8_t *text, size_t length)
         return err;
     }
 
-    if (xQueueSend(s_commandQueue, &command, 0) == pdTRUE) {
-        return ESP_OK;
-    }
-
     /* Commands are operator intent. If the host outruns Core1, discard the
      * oldest pending intent and retain the newest value instead of blocking a
      * BLE callback in the Output/System domain. */
-    sensorarrayCommand_t discarded;
-    (void)xQueueReceive(s_commandQueue, &discarded, 0);
-    return xQueueSend(s_commandQueue, &command, 0) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+    return sensorarrayCommandMailboxQueue(&command);
+}
+
+esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
+    sensorarrayMeasurementMode_t mode,
+    uint32_t *outRequestId)
+{
+    if (!s_commandQueue || !outRequestId ||
+        !sensorarrayMeasurementModeIsDataMode(mode)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t requestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) {
+        s_nextRequestId = 1u;
+    }
+    portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayCommand_t command = {
+        .type = SENSORARRAY_COMMAND_MEASUREMENT_MODE,
+        .value = (uint32_t)mode,
+        .requestId = requestId,
+    };
+    esp_err_t err = sensorarrayCommandMailboxQueue(&command);
+    if (err == ESP_OK) {
+        *outRequestId = requestId;
+    }
+    return err;
+}
+
+esp_err_t sensorarrayCommandMailboxPostRailCalibration(
+    int32_t avddUv,
+    int32_t avssUv,
+    uint32_t *outRequestId)
+{
+    if (!s_commandQueue || !outRequestId || avddUv <= 0 || avssUv >= 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t requestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) {
+        s_nextRequestId = 1u;
+    }
+    portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayCommand_t command = {
+        .type = SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION,
+        .requestId = requestId,
+        .signedValue = avddUv,
+        .signedValue2 = avssUv,
+    };
+    esp_err_t err = sensorarrayCommandMailboxQueue(&command);
+    if (err == ESP_OK) {
+        *outRequestId = requestId;
+    }
+    return err;
 }
 
 bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand)
@@ -322,6 +385,10 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "fpscap";
     case SENSORARRAY_COMMAND_OUTPUT_FPS_CAP:
         return "outcap";
+    case SENSORARRAY_COMMAND_MEASUREMENT_MODE:
+        return "mode";
+    case SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION:
+        return "rail_calibration";
     default:
         return "unknown";
     }

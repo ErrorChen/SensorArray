@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "sensorarrayScanConfig.h"
+#include "sensorarrayMeasurementMode.h"
 
 typedef enum {
     SENSORARRAY_CELL_OP_SKIP = 0,
@@ -31,4 +32,6 @@ typedef struct {
 } sensorarrayScanPlan_t;
 
 void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan);
+void sensorarrayScanPlanBuildAdsMatrix(sensorarrayScanPlan_t *plan,
+                                       sensorarrayMeasurementMode_t mode);
 void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan);

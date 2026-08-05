@@ -2,37 +2,53 @@
 
 ## 中文说明
 
-当前源码树采用分层结构：
+当前源码采用两个异步域和分层硬件所有权：
+
+```text
+Core 0: shared command parser -> CommandMailbox
+        TextFrameBus/EventRing -> Serial/BLE/Wi-Fi sinks and backpressure
+
+Core 1: complete-frame boundary -> mode/route owner -> FDC or ADS acquisition
+        -> frame assembly -> one C/V/R fixed-slot formatting operation
+```
 
 | 层 | 路径 | 责任 |
 |---|---|---|
-| 应用层 | `main/main.c` | 初始化编排、boot sweep 调用、主循环、safe idle、诊断模式和 frame output 调用。 |
-| 输出层 | `main/output` | 当前 text frame output。 |
-| 板级映射 | `core/board` | S/D、SELA/SELB、ADS mux 和 FDC D-line ownership 的硬件语义。 |
-| 资源层 | `core/boardSupport` | I2C/SPI/GPIO resource lifecycle、FDC I2C callbacks 和 guarded I2C recovery。 |
-| 测量层 | `core/measure` | ADS/FDC route policy、FDC row epoch、frame build、sweep/cache/rescue。 |
-| 芯片驱动 | `components/*` | FDC2214 I2C、ADS126x SPI、TMUX GPIO primitives。 |
-| transport | `transport/*` | protocol/transport scaffolding；当前不是默认 frame output。 |
+| 应用编排 | `main/main.c` | task 生命周期、mailbox 消费、帧边界 mode apply、engine dispatch、异步发布；不写 route GPIO 或芯片寄存器。 |
+| 控制/输出 | `main/control`, `main/output`, `main/net` | 共享命令、fixed TextFrameBus、EventRing 和 Core 0 sinks；callback 不切硬件。 |
+| 板级真源 | `core/board` | S/D、D->AIN、SELA/SELB、SW physical/logical、matrix REF、INTREF/VBIAS/REFMUX mode profiles。 |
+| 测量策略 | `core/measure` | 唯一 mode 状态机、安全 transition、route ownership、FDC/ADS frame semantics。 |
+| ADS 算法 | `core/measure/ads` | 动态行 ADC1 scan、rail/math/calibration、autorange、fresh/status/error。 |
+| FDC 生产路径 | `core/measure/fdc` | 原有双 worker row epoch、cache、freshness、sweep/rescue；不被 ADS 模式重写。 |
+| 资源 | `core/boardSupport` | SPI/I2C/GPIO lifecycle、ISR service 和 guarded recovery。 |
+| 芯片驱动 | `components/*` | ADS126x SPI、FDC2214 I2C、TMUX GPIO primitives；不知道 mode、cell 或 frame。 |
+| 通用同步引擎 | `core/matrixEngine` | 非生产 reusable executor；不接入双核异步 mode runtime。 |
 
-关键边界：
+`sensorarrayMeasurementModeContext_t` 是唯一权威模式状态。Core 0 对 MODE 请求
+立即发布 accepted 并写 mailbox；只有 Core 1 能在完整帧后进入 TRANSITION、先撤销
+矩阵激励、停止 conversion、切 TMUX/SELA/SELB、配置并 readback frontend、settle/
+discard、失效旧 payload/PGA cache、增加 generation 并发布 applied。transition
+期间不构造普通帧，所以一帧不会混入两个 mode。错误统一回到无激励 SAFE/
+DEGRADED。
 
-- `main` 不直接访问 FDC2214/ADS126x registers。
-- `components/fdc2214Cap` 不知道 rows、D-lines、TMUX route 或 rescue。
-- `components/ads126xAdc` 不决定 FDC mode 下 ADS 何时关闭。
-- `components/tmuxSwitch` 不知道 SELA/SELB 的板级业务含义。
-- `core/board` 是硬件语义真源。
-- `core/measure` 是测量策略真源。
+CAP 的双 FDC worker、row epoch、freshness、cache/rescue 和 C/D/K 字节保持原路径。
+VOLT/RES 使用 ADS1262 与 ADS1263 都具备的 ADC1；ADC2 能力由运行时 ID 决定。
+Core 1 只格式化一次，Core 0 sink 复用同一 slot；队列满时丢旧保新，不反压采集。
 
 ## Australian English Documentation
 
-The current source tree is layered:
+The firmware has two asynchronous domains. Core 0 owns the shared command
+parser, non-blocking mailbox, TextFrameBus/EventRing, and Serial/BLE/Wi-Fi
+sinks. Core 1 owns frame-boundary configuration, analogue routes, FDC/ADS
+conversion, frame assembly, and one fixed-slot formatting operation.
 
-- `main/main.c`: application lifecycle, boot sweep call, main loop, safe idle, diagnostic mode, and frame output call.
-- `main/output`: current text frame output.
-- `core/board`: hardware meaning for S/D, SELA/SELB, ADS mux, and FDC D-line ownership.
-- `core/boardSupport`: I2C/SPI/GPIO resource lifecycle, FDC I2C callbacks, and guarded I2C recovery.
-- `core/measure`: ADS/FDC route policy, FDC row epoch, frame build, sweep/cache/rescue.
-- `components/*`: chip-level FDC2214 I2C, ADS126x SPI, and TMUX GPIO primitives.
-- `transport/*`: protocol/transport scaffolding, not the default frame output path.
+Board meaning belongs in `core/board`; measurement policy and the single mode
+state belong in `core/measure`; chip drivers remain unaware of matrix modes and
+wire frames. CAP preserves the established dual-FDC worker epoch. VOLT/RES use
+the independent ADS ADC1 engine, fixed-point math, fresh-generation checks and
+autorange. A failed transition removes excitation and enters SAFE/DEGRADED;
+ordinary frames are suppressed during transition and never mix modes.
 
-The main rule is that board meaning belongs in `core/board`, measurement policy belongs in `core/measure`, and chip drivers stay unaware of matrix semantics.
+See [measurement modes](measurement-modes.md),
+[measurement protocol](measurement-protocol.md), and
+[software integration](software-integration.md).

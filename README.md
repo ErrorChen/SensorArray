@@ -1,5 +1,29 @@
 # SensorArray ESP32-S3 固件 / SensorArray ESP32-S3 Firmware
 
+## 三模式测量更新 / Three-mode measurement update - 2026-08-05
+
+当前固件保留原有 FDC2214 `CAP` 生产路径，并新增完整的 ADS126x `VOLT` 和
+`RES` 8×8 动态行扫描。Serial、BLE 与 Wi-Fi 共享 `MODE?`、`MODE=CAP`、
+`MODE=VOLT`、`MODE=RES` 命令解析器和一个权威模式状态；请求立即 `MACK`
+accepted，只由 Core 1 在完整帧边界安全应用并输出 `MAPP`。默认上电仍为 CAP，
+transition 失败会撤销矩阵激励并进入安全/降级状态。
+
+The existing FDC2214 `CAP` production path is retained. Complete ADS126x
+`VOLT` and `RES` row-major matrix scans now share one authoritative mode state
+and command parser across Serial, BLE, and Wi-Fi. Requests are accepted
+immediately and applied by Core 1 only at a safe complete-frame boundary. Boot
+still defaults to CAP; a transition failure removes matrix excitation and
+enters a safe/degraded state.
+
+关键说明 / Canonical details:
+
+- [测量模式与 REF/SW 语义 / modes and REF/SW semantics](docs/measurement-modes.md)
+- [V/R 文本协议 / V/R text protocol](docs/measurement-protocol.md)
+- [硬件验证 / hardware validation](docs/hardware-validation.md)
+- [上位机最小修改 / host integration](docs/software-integration.md)
+- [测量层职责 / measurement-core responsibilities](core/measure/README.md)
+- [ADS 算法、校准与自动 PGA / ADS math, calibration, and autorange](core/measure/ads/README.md)
+
 ## Refactor migration note - 2026-06-17
 
 Refactor baseline: `4d90fa1ead203acce3c2c413c35e4460d197ff07`.
@@ -96,9 +120,12 @@ rail monitoring uses ADC1 with the ADS126x internal
 analog-supply monitor and the internal 2.5 V reference; the result is scaled by
 four to recover AVDD-AVSS.
 
-FDC capacitance routing drives the matrix reference to GND and disables the ADS
-internal reference, but keeps ADS VBIAS on so `AINCOM` remains a valid midpoint
-for rail/battery diagnostics. One bad rail sample does not immediately poison
+FDC capacitance routing drives matrix excitation to GND, stops ADS conversions,
+turns ADS INTREF off, and keeps VBIAS on. INTREF must be off while SW high makes
+Q1 clamp REFOUT to GND; supply-monitor work is therefore not run while that
+clamp is active. VOLT requires a fresh externally supplied `RAILCFG` snapshot,
+whereas RES can refresh the supply monitor after releasing REFOUT. Matrix
+excitation, INTREF, REFMUX and VBIAS are independent states. One bad rail sample does not immediately poison
 battery output: a plausible but out-of-tolerance runtime rail sample keeps the
 last-good rail in `rs=hold`;
 clearly out-of-range samples are limited by the invalid-streak and age guards.
@@ -144,7 +171,8 @@ when AP mode is ready. Runtime commands are `TX?`, `TX=SHORT|REL|FULL`,
 `ST?`, `ST=AUTO|SER|BLE|WIFI|ALL`, `BTX?`, `BTX=FAST|SAFE`, `WIFI?`,
 `WIFI=OFF`, `WIFI=AP`, `FPS?`, `FPSCAP=OFF`, `FPSCAP=ON,<fps>`,
 `OUTCAP=OFF`, `OUTCAP=ON,<fps>`, `ADSGAP=OFF|ON|RAIL|BAT|ZERO`, `BAT?`,
-`BATD`, `RAIL?`, and `ADS?`. `WIFI=STA/APSTA` and serial STA provisioning
+`BATD`, `RAIL?`, `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>`, and `ADS?`.
+`WIFI=STA/APSTA` and serial STA provisioning
 commands currently return `ERR,cmd=WIFI,reason=sta_nyi`; the Wi-Fi backend is
 still AP/UDP, while BLE message reassembly is implemented.
 
@@ -165,7 +193,9 @@ Use ESP-IDF v5.5.1 for firmware and repository `.venv` for host tools:
 ```powershell
 git status --short
 git diff --check
-C:\ESP32\SensorArray\.venv\Scripts\python.exe -m py_compile tools\text_protocol.py tools\receive_serial_text.py tools\receive_ble_text.py tools\receive_wifi_text.py
+C:\ESP32\SensorArray\.venv\Scripts\python.exe -m py_compile tools\text_protocol.py tools\receive_serial_text.py tools\receive_ble_text.py tools\receive_wifi_text.py tools\test_text_protocol.py tools\test_measurement_logic.py tools\validate_measurement_modes.py
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\test_text_protocol.py
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\test_measurement_logic.py
 idf reconfigure
 idf build
 C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\audit_config_surface.py
@@ -175,7 +205,8 @@ C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\check_no_legacy_config_usage
 Validation order is fixed:
 
 ```powershell
-idf -p COM11 flash
+idf -p <PORT> flash
+C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\validate_measurement_modes.py --port <PORT> --baud 115200 --duration 240 --rows 1,2,4,8 --modes CAP,VOLT,RES --cycles 10 --rail-avdd-uv <measured-avdd-uv> --rail-avss-uv <measured-negative-avss-uv> --output-directory validation_artifacts\measurement-modes
 C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --rows 1,2,4,8 --tx REL --stream all --show-cap --show-log --command BATD
 C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_ble_text.py --name-prefix CscArray --rows 4 --tx REL --duration 120 --tail --serial-port COM11
 C:\ESP32\SensorArray\.venv\Scripts\python.exe tools\receive_wifi_text.py --device 192.168.4.1 --duration 120 --rows 1,2,4,8 --tx rel --stream all --show-cap --show-log
@@ -420,6 +451,9 @@ originating Serial, BLE `FF11`, or UDP control peer:
 
 | Command | Effect at next frame boundary |
 |---|---|
+| `MODE?`, `STATE?` | Return a read-only mode/route/reference/PGA/rail/heap/stack snapshot. |
+| `MODE=CAP|VOLT|RES` | Immediately emit `MACK` accepted; Core 1 applies at a complete-frame boundary and emits `MAPP` with requestId/generation/old/new/sequence. |
+| `CELL?=S1D1` | Return the selected cell from the last complete ADS frame, without touching acquisition hardware. |
 | `ROWS?` | Return active rows, pending rows, request id, applied id, and generation. |
 | `ROWS=N`, `ROWLIMIT=N`, `SCANROWS=N` | Accept a new row request and return `RCMD`; Core 1 applies it once at the next frame boundary and prints `RAPP`. |
 | `ST?`, `ST=AUTO|SER|BLE|WIFI|ALL` | Select transport sinks. `AUTO` keeps Serial eligible and enables BLE/Wi-Fi only when their link is ready. |
@@ -430,6 +464,7 @@ originating Serial, BLE `FF11`, or UDP control peer:
 | `OUTCAP=OFF`, `OUTCAP=ON,<fps>` | Output-side pacing in the Core 0 output hub; default is off and does not hide Core 1 capture timing. |
 | `ADSGAP=OFF|ON|RAIL|BAT|ZERO` | Select which periodic ADS gap jobs may run between FDC work. Explicit `BATD`/calibration requests still run once. |
 | `BAT?`, `RAIL?`, `ADS?` | Return `ABAT`, `ARL`, or `ADS` runtime status line. |
+| `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Queue a range-checked external rail snapshot; Core 1 applies it at a frame boundary and invalidates the ADS PGA cache. It is required before VOLT when no fresh validated rail snapshot exists. |
 | `BATD`, `BATD=VBIAS_ON` | Queue a forced VBIAS-on battery diagnostic; the result is a `BATD` log line after the ADS transaction runs, even when periodic ADS gap mode is off. |
 | `BLECAP=N` or `CAP=N` | Legacy low-rate cap control routed through the shared parser. |
 | `TRACE=0` / `TRACE=1` | Disable/enable the runtime trace state. |
@@ -444,6 +479,7 @@ $venvPython = "C:\ESP32\SensorArray\.venv\Scripts\python.exe"
 & $venvPython tools\receive_ble_text.py --name-prefix CscArray --duration 120 --rows 4 --tx REL --tail --serial-port COM11
 & $venvPython tools\receive_wifi_text.py --data-port 3333 --log-port 3334 --ctrl-port 3335 --duration 120 --set-rows 4 --show-cap --show-log
 & $venvPython tools\receive_serial_text.py --port COM11 --baud 115200 --duration 120 --rows 1,2,4,8 --tx REL --show-cap --show-log --command BATD
+& $venvPython tools\validate_measurement_modes.py --port $port --baud 115200 --duration 240 --rows 1,2,4,8 --modes CAP,VOLT,RES --cycles 10 --rail-avdd-uv $measuredAvddUv --rail-avss-uv $measuredAvssUv --output-directory validation_artifacts\measurement-modes
 ```
 
 All receivers share `tools/text_protocol.py`, accept dynamic `rows/cells/n`,
@@ -484,22 +520,23 @@ This document describes the firmware structure, runtime flow, configuration opti
 
 ### 中文
 
-SensorArray 固件运行在 ESP32-S3 上，当前主路径是读取 8 x 8 FDC2214 电容矩阵。固件把板级路由、芯片驱动、测量策略和应用调度拆开：板级映射定义硬件语义，组件驱动只访问芯片，`core/measure` 负责测量策略，`main` 负责生命周期编排和输出调用。
+SensorArray 固件运行在 ESP32-S3 上，支持 FDC2214 电容、ADS126x 电压和 ADS126x 电阻三种 8×8 动态行测量模式。固件把板级路由、芯片驱动、测量策略和应用调度拆开：板级映射定义硬件语义，组件驱动只访问芯片，`core/measure` 负责模式/路由/测量策略，`main` 负责生命周期编排和异步输出调用。
 
 ### Australian English
 
-SensorArray firmware runs on ESP32-S3. The current main path reads an 8 x 8 FDC2214 capacitance matrix. The firmware keeps board routing, chip drivers, measurement policy, and application scheduling separate: board mapping defines hardware meaning, component drivers only access chips, `core/measure` owns measurement policy, and `main` orchestrates lifecycle and output calls.
+SensorArray firmware runs on ESP32-S3 and supports dynamic-row 8×8 FDC2214 capacitance, ADS126x voltage, and ADS126x resistance modes. The firmware keeps board routing, chip drivers, measurement policy, and application scheduling separate: board mapping defines hardware meaning, component drivers only access chips, `core/measure` owns mode/route/measurement policy, and `main` orchestrates lifecycle and asynchronous output calls.
 
 ## 当前实现状态 / Current implementation status
 
 | 路径 / Path | 当前状态 / Current status | 说明 / Notes |
 |---|---|---|
 | FDC2214 8 x 8 cap matrix | 主运行路径 / main runtime path | `sensorarrayFdcMatrixEngineReadFrame()` delegates to `sensorarrayMeasureReadFdcMatrixFrame()`. |
-| ADS1262/ADS1263 matrix | 初始化和 API 存在，frame read returns unsupported / initialisation and APIs exist, frame read returns unsupported | `sensorarrayAdsMatrixEngineReadFrame()` initialises an invalid frame and returns `ESP_ERR_NOT_SUPPORTED`. |
-| Mixed row mode | Thin pass-through to FDC path / thin pass-through to FDC path | `sensorarrayMixedRowEngineReadFrame()` currently calls the FDC matrix engine. |
-| Text output | 异步主输出 / default async output | Core 1 builds one dynamic C/D/K ASCII packet; independent Core 0 USB, Wi-Fi, and BLE sinks reuse it. |
+| ADS1262/ADS1263 voltage matrix | 已实现 / implemented | ADC1 scans D1..D8 for 1..8 rows with bounded settle/discard/oversampling, status checks and automatic PGA. |
+| ADS1262/ADS1263 resistance matrix | 已实现 / implemented | Uses validated divider nodes, runtime-aged rails and configurable/calibrated Rref/reference/path offsets; invalids remain explicit. |
+| Mixed row mode | 非生产兼容层 / non-production compatibility layer | It still delegates to FDC and is not connected to the authoritative mode state; frames never mix frontends. |
+| Text output | 异步主输出 / default async output | Core 1 builds one dynamic C/V/R packet once; independent Core 0 USB, Wi-Fi, and BLE sinks reuse it. CAP C/D/K bytes remain compatible. |
 | Binary transport | 已移除 / removed | Runtime CapFrame transport is ASCII only. |
-| Runtime commands | Shared control parser | Serial, BLE `FF10`, and Wi-Fi UDP 3335 share ROWS and legacy command routing; frame-affecting changes apply at a frame boundary. |
+| Runtime commands | Shared control parser | Serial, BLE `FF10`, and Wi-Fi UDP 3335 share ROWS, MODE and legacy commands; frame-affecting changes apply at a frame boundary. |
 
 ## 硬件拓扑 / Hardware topology
 
@@ -518,7 +555,7 @@ The board map is the single source of truth for hardware meaning. D-line ownersh
 | TMUX1134 | 前端路由开关；SELA 选择 ADS1263 或 FDC2214 分支，SELB 按板级 FDC 策略选择，EN 使能路由。 / Front-end route switch; SELA selects ADS1263 or FDC2214 branch, SELB follows the board FDC policy, and EN enables the route. |
 | FDC2214 primary | D1-D4，CH0-CH3，默认 I2C 地址 `0x2B`。 / D1-D4, CH0-CH3, default I2C address `0x2B`. |
 | FDC2214 secondary | D5-D8，CH0-CH3，默认 I2C 地址 `0x2A`。 / D5-D8, CH0-CH3, default I2C address `0x2A`. |
-| ADS1262/ADS1263 | ADS 前端和 SPI driver 已存在；FDC matrix mode 下由 measurement layer 停止转换、关闭 internal reference 和 VBIAS。 / ADS frontend and SPI driver exist; in FDC matrix mode the measurement layer stops conversion and turns internal reference and VBIAS off. |
+| ADS1262/ADS1263 | ADC1 承担 VOLT/RES；运行时 ID 决定 ADC2 能力。CAP 停止 conversion，但 INTREF/VBIAS/REFMUX 由显式 board profile 独立配置。 / ADC1 serves VOLT/RES; runtime identity governs ADC2 capability. CAP stops conversions while explicit board profiles configure INTREF, VBIAS and REFMUX independently. |
 | LM27762 / negative rail | 原理图/资料中的模拟电源背景；当前源码树没有专用运行时 driver。 / Analogue power context from schematic/datasheets; no dedicated runtime driver in this source tree. |
 | TPS631000 / 3.3 V rail | 电源架构背景；`core/powerCtrl` 只提供 GPIO abstraction。 / Power architecture context; `core/powerCtrl` only provides GPIO abstraction. |
 | BQ24074 / charger | 充电器硬件背景；当前源码树没有 charger protocol driver。 / Charger hardware context; no charger protocol driver in this source tree. |
@@ -591,7 +628,7 @@ flowchart TD
 | `sensorarrayRunBootCalibration()` | app context | checks FDC readiness, runs boot sweep, stores `fdcBootSummary`, sets `fdcBootSweepOk`, `fdcDegradedMode` and `fdcDiagnosticMode` | primary missing is fatal; secondary missing is fatal only when dual FDC is required; required boot quality must be `OK` | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT`, `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED`, `CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS` |
 | `sensorarrayRunMainLoop()` | app context | consumes full-sweep requests, reads frames, prints diagnostics/output, ticks rescue, delays to frame period | diagnostic mode prints `MATRIXFDC_DIAG`; all-invalid frame triggers rescue tick; frame error logs `FRAME_ERROR` | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS`, rescue and timing configs |
 | `sensorarrayRunQueuedFullSweep()` | app context | runs queued full matrix rescue via `sensorarrayFdcMatrixEngineRunFullRescue()` | skips while running, inside cooldown, or after max failed full sweeps; can force diagnostic mode | `CONFIG_SENSORARRAY_FDC_FULL_SWEEP_REQUEST_COOLDOWN_MS`, `CONFIG_SENSORARRAY_FDC_MAX_CONSECUTIVE_FULL_SWEEP_FAILS` |
-| `sensorarrayRunOneFrame()` | app context | dispatches by `runtimeMode` | unsupported ADS mode returns `ESP_ERR_NOT_SUPPORTED`; unknown mode returns invalid state | runtime mode enum |
+| `sensorarrayRunOneFrame()` | app context | applies pending mode at the previous complete-frame boundary, rebuilds the plan and dispatches CAP/VOLT/RES | route/rail/ADS failure invalidates the payload, removes excitation and records a degraded/safe state | measurement mode snapshot |
 | `sensorarrayDelayFramePeriodSince()` | frame start timestamp, sequence | sleeps remaining period or prints compact `OV` overrun diagnostics | no return value | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` |
 
 ## 配置项 / Configuration options
@@ -787,12 +824,17 @@ flowchart TD
 | `CONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES` | int | `64` | ADS SPI transfer buffer size. | `ads126xAdcInit()` | Increase only if larger SPI transactions are added. |
 | `CONFIG_BOARD_SPI_HOST`, `CONFIG_BOARD_SPI_SCLK_GPIO`, `CONFIG_BOARD_SPI_MOSI_GPIO`, `CONFIG_BOARD_SPI_MISO_GPIO`, `CONFIG_BOARD_ADS126X_CS_GPIO`, `CONFIG_BOARD_ADS126X_DRDY_GPIO`, `CONFIG_BOARD_ADS126X_RESET_GPIO` | int | host `2`, SCLK `47`, MOSI `21`, MISO `14`, CS `-1`, DRDY `13`, RESET `38` | Board SPI and ADS control pins. | board bring-up and ADS init | Match board wiring. |
 | `CONFIG_SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX`, `CONFIG_SENSORARRAY_ADS_READ_SETTLE_AFTER_MUX_MS`, `CONFIG_SENSORARRAY_ADS_READ_START1_EVERY_READ`, `CONFIG_SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT`, `CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT` | bool/int | n, `0`, y, `0`, `0` | ADS read sequencing policy. | `sensorarrayMeasureReadAdsPairUv()`, `sensorarrayMeasureReadAdsUv()` | These affect ADS measurement paths, not the current FDC production frame. |
+| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | int | `3`, `3` | Independent Core 1 pacing targets for ADS voltage and resistance scans. | ADS-mode frame pacing | Reduce only when analogue settling/oversampling cannot meet the target; these do not alter CAP timing. |
+| `CONFIG_SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US`, `ROW_SETTLE_US`, `MUX_SETTLE_US`, `DISCARD_COUNT`, `OVERSAMPLE`, `IO_RETRY_COUNT`, `MAX_SPREAD_UV` | int | `5000`, `2000`, `500`, `2`, `3`, `1`, `5000` | Bounded ADS matrix settling, fresh-conversion discard, one same-cell restart retry and robust aggregation. | `sensorarrayAdsMatrixEngineReadFrame()` | Tune from hardware evidence; do not hide stale timing by globally increasing timeouts. Persistent failures remain invalid. |
+| `CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES`, `INTERNAL_REF_UV`, `RREF_OHMS`, `PATH_OFFSET_MOHM` | int | `100`, `2500000`, `10000`, `0` | Calibration/profile inputs with range and age checks. | ADS rail and divider math | Defaults are configuration values, not measured acceptance values. |
+| `CONFIG_SENSORARRAY_ADS_AUTORANGE_*` | int | thresholds `250/850/980`, attempts `6`, rail margin `300000 uV` | PGA utilisation hysteresis, saturation limit, bounded attempts and common-mode margin. | `sensorarrayAdsAutoRangeDecide()` | Gains are limited to driver-supported 1/2/4/8/16/32. |
+| `CONFIG_SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV` | int | `50000` | Bounded absolute-input allowance used only when a gain-1 PGA alarm forces verified PGA bypass. | ADS matrix fallback | Must stay within the ADS126x absolute-input allowance; bypass is reported as gain `00`. |
 
-### Mixed-mode configuration / 混合模式配置
+### Generic/mixed compatibility configuration / 通用与 mixed 兼容配置
 
 | 配置项 / Option | 类型 / Type | 默认值 / Default | 作用 / Purpose | 影响的函数 / Affected functions | 调整建议 / Tuning notes |
 |---|---:|---:|---|---|---|
-| `CONFIG_SENSORARRAY_MATRIX_ROWS`, `CONFIG_SENSORARRAY_MATRIX_COLS` | int | `8`, `8` | Shared scan-plan dimensions. | `sensorarrayScanPlanBuildMixedExample()` | Current mixed engine delegates to FDC read; changing dimensions needs frame redesign. |
+| `CONFIG_SENSORARRAY_MATRIX_ROWS`, `CONFIG_SENSORARRAY_MATRIX_COLS` | int | `8`, `8` | Maximum scan-plan dimensions. Runtime ROWS selects 1..8 active rows for every production mode. | scan-plan builders | Mixed remains a compatibility path, not a fourth wire mode. |
 | `CONFIG_SENSORARRAY_FRAME_PERIOD_MS`, `CONFIG_SENSORARRAY_OVERSAMPLE` | int | FDC period, `1` | Generic matrix defaults. | matrix/mixed Kconfig defaults | No separate mixed-mode runtime Kconfig was found in the current source tree. |
 | `CONFIG_MATRIX_ROWS`, `CONFIG_MATRIX_COLS`, `CONFIG_MATRIX_FRAME_PERIOD_MS`, `CONFIG_MATRIX_OVERSAMPLE`, `CONFIG_MATRIX_USE_RINGBUFFER` | int/bool | derive from SensorArray defaults, ringbuffer y | Legacy/shared matrix engine settings. | `core/matrixEngine` | Current production path does not use matrixEngine for FDC frame output. |
 
@@ -833,11 +875,13 @@ flowchart TD
 
 | 字段 / Field | 生命周期与含义 / Lifecycle and meaning |
 |---|---|
-| `runtimeMode` | Set in `sensorarrayInitRuntime()` to FDC matrix. Controls `sensorarrayRunOneFrame()` dispatch. |
+| `measurementMode` | Single authoritative state machine and accepted/applied/generation snapshot for CAP/VOLT/RES. |
+| `runtimeMode` | Compatibility dispatch shadow updated only by the Core 1 measurement-mode owner. |
 | `state` | Holds board, ADS, FDC and cache state. Updated by board/front-end init and measurement paths. |
-| `scanPlan` | Built by `sensorarrayBuildDefaultScanPlan()` as 8 rows x 8 FDC cap operations. |
+| `scanPlan` | Rebuilt at safe frame boundaries for the active mode and dynamic 1..8 rows. |
 | `frame` | Current `sensorarrayFrame_t`, filled by measurement path and printed by output path. |
-| `fdcEngine`, `adsEngine` | Engine facades initialised in `sensorarrayInitFrontends()`. FDC facade delegates to measurement/sweep code. |
+| `fdcEngine`, `adsEngine`, `routeController` | FDC production facade, ADS matrix context, and the safe route/readback owner. |
+| `lastMeasurement` | Seqlock snapshot for non-invasive `CELL?`; it never starts a conversion. |
 | `fdcRescue` | Runtime all-invalid rescue context, reset during frontend init and ticked after each frame. |
 | `primaryAddrValid`, `secondaryAddrValid` | Results of FDC I2C address parsing during runtime init. |
 | `requestedFdcChannels` | Normalised FDC autoscan channel count; current matrix requires 4. |
@@ -853,7 +897,7 @@ flowchart TD
 | 字段 / Field | 生命周期与含义 / Lifecycle and meaning |
 |---|---|
 | `spiDevice`, `ads` | ADS SPI device/handle owned by board bring-up and ADS driver. |
-| `adsReady`, `adsRefReady`, `adsAdc1Running`, `adsRefMuxValid`, `adsRefMux` | ADS state tracked so FDC route preparation can stop conversion and turn reference/VBIAS off. |
+| `adsReady`, `adsRefReady`, `adsAdc1Running`, `adsRefMuxValid`, `adsRefMux` | ADS state tracked so the route controller can independently verify conversion, INTREF, VBIAS and reference-mux policy. |
 | `fdcPrimary`, `fdcSecondary` | Per-device FDC state for D1-D4 and D5-D8. |
 | `fdcConfiguredChannels` | Requested/normalised FDC channel count. |
 | `fdcCellCache[8][8]` | Per-cell FDC cache built by sweep/rescue paths. |
@@ -958,27 +1002,38 @@ The default formal matrix ready path treats INTB as a wake hint. The actual read
 
 ## 路由安全与 ADS/FDC 互斥 / Route safety and ADS/FDC mutual exclusion
 
-`sensorarrayMeasurePrepareFdcMatrixPath()` and `sensorarrayMeasureEnsureFdcMatrixPath()` are the FDC capacitance route safety gate.
-
-FDC mode requires:
+`sensorarrayRouteController` owns production CAP/VOLT/RES transitions.
+`sensorarrayMeasurePrepareFdcMatrixPath()` and
+`sensorarrayMeasureEnsureFdcMatrixPath()` remain compatible FDC safety helpers.
+The explicit board profiles are:
 
 ```text
-SW -> GND source
-SELA -> FDC2214 path
-SELB -> board-defined FDC policy
-TMUX1134 EN -> enabled
-ADS conversion stopped
-ADS internal reference off
-ADS VBIAS off
+CAP:  SW high/GND, matrix excitation off, FDC route, INTREF off, VBIAS on, REFMUX AVDD/AVSS
+VOLT: SW high/GND, matrix excitation off, ADS route, INTREF off, VBIAS on, REFMUX AVDD/AVSS
+RES:  SW low/REF, matrix excitation on, ADS route, INTREF on, VBIAS on, REFMUX internal
 ```
 
-`sensorarrayMeasureEnsureFdcMatrixPath()` first reads the current commanded/observed control state and ADS ref state. It only calls `sensorarrayMeasurePrepareFdcMatrixPath()` when it finds a mismatch. Relevant logs include:
+Matrix excitation REF is the REFOUT path switched into the matrix. It is not
+the same state as ADS INTREF, ADS REFMUX, VBIAS, or the raw SW GPIO. On this
+board SW high drives the matrix common node to GND through Q1, while SW low
+releases REFOUT; callers use a named board profile and never infer this from a
+label or raw level.
+
+At a frame boundary the controller stops conversions, first removes matrix
+excitation, changes TMUX1134/TMUX1108 and SELA/SELB, configures the selected
+frontend, verifies MCU GPIO plus ADS POWER/MODE2/INPMUX/REFMUX readback, waits
+the configured analogue settle interval, and invalidates old payload/PGA state.
+Failure repeats the passive-safe sequence and suppresses valid output. Relevant
+new logs include `ROUTE`, `MACK`, `MAPP`, `MODE`, and per-cell error telemetry;
+legacy FDC helper diagnostics remain available.
+
+`sensorarrayMeasureEnsureFdcMatrixPath()` reads the current commanded/observed
+control state before restoring the CAP route. Legacy logs can include:
 
 ```text
 FDC_PATH,stage=ads_stop
 FDC_PATH,stage=ads_stop2
-FDC_PATH,stage=ads_ref_off
-FDC_PATH,stage=ads_vbias_off
+FDC_PATH,stage=ads_bias_keep
 FDC_PATH,stage=tmux1134_fdc
 FDC_PATH,stage=selb_fdc
 FDC_PATH,stage=sw_gnd
@@ -988,7 +1043,9 @@ FDC_PATH,stage=ensure_mismatch
 FDC_PATH,stage=ensure_ok        # only when verbose scan logging is enabled
 ```
 
-This is a measurement-layer policy. The ADS driver does not decide when ADS must be off for FDC; it only exposes `ads126xAdcStopAdc1()`, `ads126xAdcStopAdc2()`, `ads126xAdcSetRefMux()`, `ads126xAdcSetVbiasEnabled()` and related chip-level APIs.
+This is measurement-layer policy. The ADS driver exposes bounded chip
+operations and readback helpers; it does not know CAP/VOLT/RES, matrix cells, or
+frame format.
 
 ## 帧格式与无效值策略 / Frame format and invalid data policy
 
@@ -1223,12 +1280,17 @@ In normal cases the readback should not be all `FF`. ESP image headers commonly 
 
 - Current production output is compact ASCII text on every transport; binary CapFrame is not implemented.
 - Primary FDC absence is a serious boot error. Secondary FDC absence can be primary-only only when dual-FDC boot is not required.
-- ADS matrix read is not a production frame path in this source tree.
-- Mixed row mode currently delegates to FDC matrix read.
+- ADS ADC1 VOLT/RES are production frame paths; actual analogue accuracy and
+  the installed ADS identity still require current-board flash validation.
+- Mixed row mode remains a non-production compatibility facade; a normal frame
+  intentionally contains only one frontend/mode.
 - Formal FDC matrix readiness is `INTB_STRICT_LEVEL` by default; STATUS is read once after INTB as the ack/verify gate, and legacy fallback is disabled.
 - High-density text logs affect frame rate, serial stability, and timing measurements.
 - FDC pF values depend on `CONFIG_SENSORARRAY_FDC_TANK_INDUCTOR_NH`; raw28 does not.
-- Changing matrix dimensions or mixed ADS/FDC scheduling is architecture work, not a README-level setting.
+- Runtime rows 1..8 are supported. Changing the physical 8×8 maximum or mixing
+  ADS/FDC cells within one frame remains architecture work.
+- Calibration persistence is not implemented; only range-checked runtime/Kconfig
+  calibration inputs are available until a versioned CRC-protected store exists.
 
 ## 文件地图 / File map
 
@@ -1241,18 +1303,24 @@ In normal cases the readback should not be all `FF`. ESP image headers commonly 
 | `main/sensorarrayTypes.h` | Shared types, frame fields, board/FDC/ADS state. |
 | `core/board/` | Board map and bring-up helpers. |
 | `core/boardSupport/` | I2C/SPI/GPIO resource ownership and I2C recovery. |
-| `core/measure/sensorarrayMeasure.c` | Measurement route policy, FDC frame reader, ADS helper includes, profile setters. |
+| `core/measure/sensorarrayMeasure.c` | Existing measurement facade and FDC path; new mode/route/ADS algorithms are kept in focused modules. |
+| `core/measure/sensorarrayMeasurementMode.c` | Pure authoritative mode state and accepted/applied generation. |
+| `core/measure/sensorarrayRouteController.c` | Safe analogue transition, GPIO/ADS readback, and route snapshot. |
 | `core/measure/fdc/sensorarrayFdcMatrix.c` | Thin FDC engine facade. |
 | `core/measure/fdc/sensorarrayFdcSweep.c` | Boot sweep, cache calibration, rescue sweep implementation. |
 | `core/measure/fdc/sensorarrayFdcRescue.c` | Runtime all-invalid rescue policy. |
 | `core/measure/fdc/*.inc` | FDC row epoch, cache apply, read4, frame build, conversion helpers. |
-| `core/measure/ads/` | ADS measurement helpers and ADS matrix engine stub. |
-| `core/measure/mixed/` | Mixed row engine stub delegating to FDC path. |
+| `core/measure/ads/` | ADS matrix scanner, fixed-point math, calibration and hardware-independent automatic PGA logic. |
+| `core/measure/mixed/` | Non-production compatibility facade delegating to FDC. |
 | `components/fdc2214Cap/` | Chip-level FDC2214/FDC2212 I2C driver. |
 | `components/ads126xAdc/` | Chip-level ADS126x SPI driver. |
 | `components/tmuxSwitch/` | GPIO/control primitive layer for TMUX1108/TMUX1134. |
 | `transport/` | Transport/protocol scaffolding, not current default frame output. |
 | `docs/architecture.md` | Short architecture notes. |
+| `docs/measurement-modes.md` | Authoritative state, route and reference semantics. |
+| `docs/measurement-protocol.md` | Commands, V/R frames, scale, invalids and CRC. |
+| `docs/hardware-validation.md` | Build, flash and structured mode validation. |
+| `docs/software-integration.md` | Minimal host-software compatibility changes. |
 | `datasheets/` | Reference PDFs and schematic images. |
 | `example/` | Standalone examples, not part of main firmware lifecycle. |
 

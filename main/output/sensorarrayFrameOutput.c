@@ -15,7 +15,7 @@ esp_err_t sensorarrayFrameOutputPrint(const sensorarrayFrame_t *frame)
     }
 
     sensorarrayTextPacket_t packet;
-    esp_err_t err = sensorarrayTextProtocolBuildCapFrame(frame, &packet);
+    esp_err_t err = sensorarrayTextProtocolBuildFrame(frame, &packet);
     if (err != ESP_OK) {
         return err;
     }

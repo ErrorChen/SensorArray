@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse
 import time
 
-from text_protocol import TextProtocolParser, format_cap_preview
+from text_protocol import (TextProtocolParser, format_cap_preview,
+                           format_measurement_preview)
 
 
 def decode_ascii_line(raw: bytes, protocol: TextProtocolParser) -> str | None:
@@ -77,7 +78,10 @@ def main() -> int:
         return 2
     protocol = TextProtocolParser(
         on_cap_frame=(lambda frame: print(format_cap_preview(frame), flush=True))
-        if show_cap else None)
+        if show_cap else None,
+        on_measurement_frame=(
+            lambda frame: print(format_measurement_preview(frame), flush=True)
+        ) if show_cap else None)
     startup_deadline = time.monotonic() + args.startup_wait
     while time.monotonic() < startup_deadline:
         connection.readline()
@@ -125,7 +129,7 @@ def main() -> int:
             if line is None:
                 continue
             protocol.feed_line(line)
-            if show_log and not line.startswith(("C,", "D", "K,")):
+            if show_log and not line.startswith(("C,", "V,", "R,", "D", "P", "K,")):
                 print(f"LOG,{line}", flush=True)
     finally:
         connection.close()

@@ -9,6 +9,9 @@ set(SENSORARRAY_CORE_SRCS
     "../core/board/sensorarrayBoardMap.c"
     "../core/board/sensorarrayBringup.c"
     "../core/measure/sensorarrayMeasure.c"
+    "../core/measure/sensorarrayMeasurementMode.c"
+    "../core/measure/sensorarrayMeasurementSelfTest.c"
+    "../core/measure/sensorarrayRouteController.c"
     "../core/measure/sensorarrayScanPlan.c"
     "../core/measure/sensorarrayFrameBuilder.c"
 )
@@ -29,6 +32,8 @@ set(SENSORARRAY_FDC_SRCS
 
 set(SENSORARRAY_ADS_SRCS
     "../core/measure/ads/sensorarrayAdsMatrix.c"
+    "../core/measure/ads/sensorarrayAdsAutoRange.c"
+    "../core/measure/ads/sensorarrayAdsMath.c"
     "../core/measure/ads/sensorarrayAdsGap.c"
 )
 

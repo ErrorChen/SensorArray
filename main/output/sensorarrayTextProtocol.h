@@ -12,6 +12,14 @@ extern "C" {
 #endif
 
 #define SENSORARRAY_TEXT_PACKET_MAX 1536u
+#define SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX INT64_C(999999999999)
+
+/* Worst case: compact header, four 16-cell D chunks with signed 12-digit
+ * fixed-point values, four packed PGA chunks, and the K trailer. */
+#define SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE 1518u
+_Static_assert(SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE <=
+                   SENSORARRAY_TEXT_PACKET_MAX,
+               "measurement text frame does not fit the fixed TextFrameBus slot");
 
 typedef struct {
     uint32_t sequence;
@@ -21,6 +29,13 @@ typedef struct {
 
 esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
                                                 sensorarrayTextPacket_t *outPacket);
+esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
+    const sensorarrayFrame_t *frame,
+    sensorarrayTextPacket_t *outPacket);
+esp_err_t sensorarrayTextProtocolBuildFrame(const sensorarrayFrame_t *frame,
+                                            sensorarrayTextPacket_t *outPacket);
+bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
+                                     uint32_t *outChecks);
 
 #ifdef __cplusplus
 }

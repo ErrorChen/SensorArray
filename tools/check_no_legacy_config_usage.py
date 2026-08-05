@@ -30,6 +30,14 @@ SKIP_FILES = {
 }
 
 
+def is_generated_build_path(relative_path: Path) -> bool:
+    """Ignore ESP-IDF output directories such as build and build_modes."""
+    if not relative_path.parts:
+        return False
+    top_level = relative_path.parts[0]
+    return top_level == "build" or top_level.startswith(("build_", "build-"))
+
+
 def iter_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
@@ -37,6 +45,8 @@ def iter_files() -> list[Path]:
             continue
         rel = path.relative_to(ROOT)
         if rel in SKIP_FILES:
+            continue
+        if is_generated_build_path(rel):
             continue
         rel_posix = rel.as_posix()
         if any(rel_posix == d or rel_posix.startswith(d + "/") for d in SKIP_DIRS):

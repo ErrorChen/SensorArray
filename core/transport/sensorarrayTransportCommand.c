@@ -201,7 +201,9 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     if (!data || length == 0u || !replyTarget) {
         return ESP_ERR_INVALID_ARG;
     }
-    char response[128];
+    /* MODE?/STATE? intentionally report the complete immutable hardware
+     * snapshot (matrix excitation, ADS reference, VBIAS and PGA separately). */
+    char response[384];
     esp_err_t err = sensorarrayScanConfigHandleCommand((const char *)data, length,
                                                         response, sizeof(response));
     if (err == ESP_ERR_NOT_SUPPORTED) {

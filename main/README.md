@@ -7,18 +7,25 @@
 - [应用层相关配置 / Application-level configuration](#应用层相关配置--application-level-configuration)
 - [边界 / Boundaries](#边界--boundaries)
 
+当前三模式契约见 `docs/measurement-modes.md` 和
+`docs/measurement-protocol.md`。本文件以下内容以该契约为准；历史 FDC timing
+数据仍只描述 CAP。 / The current three-mode contract is defined in
+`docs/measurement-modes.md` and `docs/measurement-protocol.md`. Historical FDC
+timing results below apply to CAP only.
+
 ## 中文说明 / Chinese documentation
 
 ### 职责
 
 `main/main.c` 是 SensorArray 固件的应用层编排文件。它负责：
 
-- 初始化全局 `sensorarrayAppContext_t`。
+- 初始化全局 `sensorarrayAppContext_t` 并启动固定在 Core 1 的 acquisition task。
 - 顺序调用 runtime、board/routing、frontend 和 scan-plan 初始化。
-- 调用 FDC boot sweep。
+- 执行纯逻辑 `MSELF`、协议 `PSELF`、frontend 初始化和 FDC boot sweep。
 - 进入不返回的主循环。
 - 在 init fatal、boot fatal、diagnostic mode、all-invalid frame 和 frame error 时输出应用层日志。
-- 将当前帧发布给 `sensorarrayLogTask`，由异步日志任务调用 `sensorarrayFrameOutputPrint()` 输出文本。
+- 通过唯一 `CommandMailbox` 接受 Serial/BLE/Wi-Fi 模式请求，并只在完整帧边界应用。
+- 将当前帧和一次格式化的 C/V/R packet 发布给 Core 0 输出任务。
 
 它不直接实现 FDC 扫描算法、ADS 采样算法、板级映射或芯片寄存器访问。
 
@@ -26,12 +33,15 @@
 
 | 字段 | 含义与生命周期 |
 |---|---|
-| `runtimeMode` | `sensorarrayInitRuntime()` 设置为 `SENSORARRAY_RUNTIME_MODE_FDC_MATRIX`；`sensorarrayRunOneFrame()` 用它选择 FDC/ADS/mixed 分支。 |
+| `measurementMode` | CAP/VOLT/RES 的唯一权威状态、pending requestId、generation 和 applied frame snapshot。 |
+| `runtimeMode` | 兼容 dispatch shadow；只由 Core 1 模式所有者在安全切换后更新。 |
 | `state` | `sensorarrayState_t`，保存 board/TMUX/ADS/FDC readiness、FDC cache 和 applied row shadow。 |
-| `scanPlan` | `sensorarrayBuildDefaultScanPlan()` 构建默认 8 x 8 FDC cap scan plan。 |
-| `frame` | 当前输出帧，FDC 路径填充后由主循环复制到 async snapshot ring，`sensorarrayLogTask` 再格式化打印。 |
+| `scanPlan` | 按 active mode 和动态 rows 在安全边界重建，cell 始终 row-major。 |
+| `frame` | 当前输出帧；Core 1 填充后格式化一次并复制到固定 TextFrameBus slot。 |
 | `fdcEngine` | FDC matrix engine facade；read/boot/full-rescue 调用会转交 `core/measure/fdc` 和 `core/measure`。 |
-| `adsEngine` | ADS matrix engine facade；当前 read frame 返回 unsupported invalid frame。 |
+| `adsEngine` | VOLT/RES ADC1 matrix context、autorange cache 和运行时校准。 |
+| `routeController` | 安全路由顺序、GPIO/ADS readback 和只读 route snapshot。 |
+| `lastMeasurement` | `CELL?` 使用的最后完整 ADS 帧 seqlock snapshot；查询不启动转换。 |
 | `fdcRescue` | `sensorarrayFdcRescueContext_t`，主循环每帧后调用 `sensorarrayRuntimeRescueTick()` 更新。 |
 | `primaryAddrValid`, `secondaryAddrValid` | FDC I2C address 解析结果。 |
 | `requestedFdcChannels` | FDC autoscan 通道数，当前矩阵需要 4 通道。 |
@@ -49,7 +59,7 @@
 
 ```mermaid
 flowchart TD
-    A[app_main] --> B[memset s_appContext]
+    A[app_main] --> B[start Core 1 scan task]
     B --> C[sensorarrayInitSystem]
     C --> D{initErr == ESP_OK}
     D -- no --> E[APP_FATAL safe idle]
@@ -65,10 +75,10 @@ flowchart TD
 
 | 阶段 | 调用 | 成功副作用 | 失败表现 |
 |---|---|---|---|
-| Runtime | `sensorarrayInitRuntime(ctx)` | 清空 ctx，关闭 fast-speed output，设置 FDC matrix runtime mode，解析 FDC 地址和通道数。 | 返回错误，`app_main()` 进入 `APP_FATAL` safe idle。 |
-| Board/routing | `sensorarrayInitBoardAndRouting(ctx)` | 初始化 `boardSupport`、`tmuxSwitch`，打印 board map audit，应用默认 TMUX route。 | boardSupport 失败打印 `APP_INIT_FATAL`，整体 init 失败。 |
+| Runtime | `sensorarrayInitRuntime(ctx)` | 清空 ctx 后恢复 acquisition task handle，运行 MSELF/PSELF，初始化 mode/mailbox，解析 FDC 参数。 | self-test 或 mailbox 失败后 acquisition task 进入 `APP_FATAL` safe idle。 |
+| Board/routing | `sensorarrayInitBoardAndRouting(ctx)` | 初始化 `boardSupport`、`tmuxSwitch`，打印 board map audit，并先应用无激励 SAFE route。 | boardSupport/TMUX/readback 失败使整体 init 失败。 |
 | Frontends | `sensorarrayInitFrontends(ctx)` | 初始化 ADS，分配 primary/secondary FDC I2C context，初始化 FDC/ADS engines 和 rescue context。 | engine init 失败会整体 init 失败；单颗 FDC readiness 由 state 记录。 |
-| Scan plan | `sensorarrayBuildDefaultScanPlan(ctx)` | 构建 S1..S8、D1..D8 的 FDC cap scan plan。 | 无错误返回。 |
+| Scan plan | `sensorarrayBuildDefaultScanPlan(ctx)` | 构建默认 CAP plan；后续模式或 rows 变化在帧边界重建。 | 无错误返回。 |
 
 ### Boot calibration
 
@@ -89,22 +99,22 @@ flowchart TD
 2. 每 100 帧输出 `APP_STACK` 和 `APP_MEM`。
 3. 如果 `ctx->fdcDiagnosticMode` 或 engine diagnostic mode 为 true，调用 `sensorarrayRunDiagnosticTick(ctx)`，打印 `MATRIXFDC_DIAG,stage=diagnostic_mode`，然后延时 1 秒并跳过正常读帧。
 4. 记录 `frameStartUs`。
-5. `sensorarrayRunOneFrame(ctx)` 根据 runtime mode 分发。默认 FDC path 调用 `sensorarrayFdcMatrixEngineReadFrame()`，后者调用 `sensorarrayMeasureReadFdcMatrixFrame()`。
-6. `fdcFrameCounter++`。
-7. 如果 `ctx->frame.capValidMask == 0`，发布 `MATRIXFDC_DIAG,stage=all_invalid_frame` 事件；如果 frame read 返回错误但仍有有效 cell，发布 `FRAME_ERROR` 事件。异步日志未运行时才同步打印。
-8. 调用 `sensorarrayAsyncLogPublishFrameSnapshot(&ctx->frame, measureFrameUs)`。采样侧在保留 frame telemetry 的同时只格式化一次 C/D0-D3/K fixed-point ASCII packet，再发布到 `TextFrameBus`。
-9. `sensorarrayRuntimeRescueTick(ctx)` 对 FDC/mixed mode 调用 `sensorarrayFdcRescueTick()`。
-10. `sensorarrayRuntimeI2cFallbackTick(ctx)` 只在连续 I2C 错误超过阈值后触发 ICLK runtime re-probe。
-11. `sensorarrayDelayFramePeriodSince(ctx, frameStartUs, ctx->frame.sequence)` 按 `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` 延时；普通超预算进入 `OV20` 汇总，只有超过 `CONFIG_SENSORARRAY_FDC_OVERRUN_HARD_US` 的 hard overrun 才即时发布 `OV` 事件。
+5. 消费 pending mode request。Core 1 进入 TRANSITION，执行 safe route/readback/settle/cache invalidation，成功输出 `MAPP`；失败撤销激励并进入 DEGRADED/SAFE。
+6. `sensorarrayRunOneFrame(ctx)` 根据 active mode 分发到 FDC CAP 或 ADS VOLT/RES；一帧只含一个 mode。
+7. 更新 frame counter 和最后一个完整 ADS cell snapshot；ADS route/rail fatal 会先失效整帧再进入安全状态。
+8. 调用 `sensorarrayAsyncLogPublishFrameSnapshot()`，只格式化一次 C/D/K 或 V/R/D/P/K packet。
+9. FDC rescue 与 I2C fallback 只在 CAP 执行；VOLT/RES 不触碰双 FDC worker 状态。
+10. 记录 frame duration、heap、stack、queue/drop，再按目标 period 有界延时。
 
 ### 异步日志架构
 
-- Producer：`sensorarrayRunMainLoop()` / FDC measurement path。每帧完成后构造一次 C/D0-D3/K packet，不等待任何 sink。
+- Producer：Core 1 `sensorarrayRunMainLoop()`。每帧完成后构造一次 C/D/K 或 V/R/D/P/K packet，不等待任何 sink。
 - Consumer：`sensorarrayLogTask`。Core 0 output hub 将同一 packet 发布到独立 USB 和 network latest-only queue，并负责 SF50/TR50/AB50/OT50/BL50/I2C50 与 EventRing 输出。
 - TextFrameBus slot：`main/output/sensorarrayAsyncLog.c` 使用固定大小 slot ring，slot 同时保留 frame telemetry 与已格式化的 `sensorarrayTextPacket_t`，所有 sink 不再重复格式化。
-- Drop policy：普通 Cap frame 队列满时默认丢旧保新，递增 `droppedOutputFrames`；采样任务不会因为日志落后而阻塞。
+- Drop policy：普通数据 frame 队列满时默认丢旧保新，递增 `droppedOutputFrames`；采样任务不会因为日志落后而阻塞。
 - EventRing：异常、overrun、状态变化和命令应用走 `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN=32` 的非阻塞队列，满时只计数。
-- CommandMailbox：BLE `FF10` 写入由 Core 0 解析；Core 1 只在 frame boundary 应用 `ROWS`、`TX`、`BTX`、`FPSCAP`、`OUTCAP`、`ADSGAP`、`BLECAP`、`TRACE` 和 `CAL`。
+- Output congestion policy：纯决策函数区分可用 slot、回收最旧 queued frame 和丢弃 incoming frame；不会抢占仍由 producer 保留的 slot，并由 host test 覆盖满队列分支。
+- CommandMailbox：Serial、BLE `FF10` 和 Wi-Fi 共享解析器；Core 0 立即返回 MODE `MACK`，Core 1 只在 frame boundary 应用 MODE、ROWS 与其他硬件/帧配置并输出 `MAPP`/`RAPP`。
 - 调度隔离：scan/coordinator 默认在 `CONFIG_SENSORARRAY_SCAN_TASK_CORE=1`、优先级 12；log task 默认在 `CONFIG_SENSORARRAY_COMM_TASK_CORE=0`、优先级 7；FDC primary/secondary worker 分别由 `CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE` 和 `CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE` 固定，优先级继承 `CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO`，高于 log task。
 
 ### FDC 双 worker row epoch
@@ -167,12 +177,14 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 
 | Field | Meaning and lifecycle |
 |---|---|
-| `runtimeMode` | Set by `sensorarrayInitRuntime()` to `SENSORARRAY_RUNTIME_MODE_FDC_MATRIX`; used by `sensorarrayRunOneFrame()` dispatch. |
+| `measurementMode` | The single CAP/VOLT/RES state, pending request, generation and applied-frame snapshot. |
+| `runtimeMode` | Compatibility dispatch shadow changed only by the Core 1 mode owner. |
 | `state` | Board, TMUX, ADS, FDC readiness, FDC cache, and applied-row state. |
-| `scanPlan` | Default 8 x 8 FDC cap scan plan built during init. |
+| `scanPlan` | Rebuilt for the active mode and dynamic row count at a safe boundary. |
 | `frame` | Current output frame filled by the measurement layer and copied into the async output snapshot ring. |
 | `fdcEngine` | Thin FDC facade delegating boot/read/full-rescue work to `core/measure`. |
-| `adsEngine` | ADS facade; current frame read returns an unsupported invalid frame. |
+| `adsEngine` | VOLT/RES ADC1 scanner, calibration and per-mode/per-cell PGA cache. |
+| `routeController` | Safe transition order, readback and immutable route snapshots. |
 | `fdcRescue` | Runtime all-invalid rescue context ticked after each frame. |
 | `primaryAddrValid`, `secondaryAddrValid` | FDC I2C address parse results. |
 | `requestedFdcChannels` | Normalised FDC channel count; the matrix expects four channels per FDC. |
@@ -187,13 +199,13 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 
 ### Runtime lifecycle
 
-`app_main()` clears `s_appContext`, runs `sensorarrayInitSystem()`, enters safe idle on init failure, runs `sensorarrayRunBootCalibration()`, marks diagnostic mode when a required boot sweep does not produce `OK` quality, then calls `sensorarrayRunMainLoop()`.
+`app_main()` creates the Core 1 acquisition task. That task initialises the runtime, runs MSELF/PSELF, establishes a passive safe route, initialises frontends, applies the default CAP profile, runs FDC boot calibration, and enters the main loop. An init failure leaves it in safe idle without automatic restart.
 
-The main loop applies pending mailbox commands at the frame boundary, consumes queued full sweeps, reads one frame, publishes anomaly events and one preformatted C/D/K packet, runs rescue and guarded I2C fallback ticks, then delays to the configured frame period.
+The main loop applies pending mailbox commands at a complete-frame boundary, performs a safe mode transition if required, reads exactly one CAP/VOLT/RES frame, publishes one preformatted C/V/R packet and anomaly events, runs FDC rescue/I2C fallback only in CAP, then performs a bounded period delay.
 
 ### Async log architecture
 
-`sensorarrayLogTask` consumes fixed TextFrameBus slots and the EventRing. Core 1 formats each C/D0-D3/K packet once after measurement; Core 0 forwards the same bytes to independent USB and network queues. Old normal packets can be dropped and the latest kept without blocking acquisition.
+`sensorarrayLogTask` consumes fixed TextFrameBus slots and the EventRing. Core 1 formats each C/D/K or V/R/D/P/K packet once after measurement; Core 0 forwards the same bytes to independent USB and network queues. Old normal packets can be dropped and the latest kept without blocking acquisition.
 
 `SF50/TR50/AB50/OT50/BL50/I2C50` are emitted every 50 frames. `OT50` is the authoritative per-sink rate/drop/byte/block view; `AB50.bt` is battery mV and `bt=-1,br=...` is the only invalid form.
 
@@ -239,6 +251,9 @@ For the full configuration table, see “Configuration options” in the root `R
 | 配置项 / Option | 应用层影响 / Application-layer effect |
 |---|---|
 | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` | `sensorarrayDelayFramePeriodSince()` uses it as target frame period. Current defaults set `50 ms`; `250 ms` would be about `4 fps`. |
+| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | Independently pace ADS voltage and resistance acquisition. Both default to `3 fps`; CAP timing is unchanged. |
+| `CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT` | Allows one bounded same-cell stop/restart retry for transient timeout/stale conversion failures; it does not increase DRDY timeout or conceal persistent failures. |
+| `CONFIG_SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV` | Bounds the verified PGA-bypass fallback after a gain-1 PGA alarm. Bypass is exposed as gain `00` in telemetry. |
 | `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED` | Controls whether boot sweep failure leaves the app in diagnostic mode. |
 | `CONFIG_SENSORARRAY_FDC_BOOT_MIN_VALID_CELLS`, `CONFIG_SENSORARRAY_FDC_BOOT_ALLOW_DEGRADED`, `CONFIG_SENSORARRAY_FDC_BOOT_REQUIRED_ROWS_MASK` | Define the boot quality gate stored in `fdcBootSummary`. |
 | `CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT` | Controls whether secondary FDC absence is fatal or primary-only fallback. |
@@ -266,8 +281,8 @@ For the full configuration table, see “Configuration options” in the root `R
 
 ## 边界 / Boundaries
 
-- `main` calls `sensorarrayFdcMatrixEngineReadFrame()`; it does not read FDC registers.
-- `main` publishes a frame snapshot plus one preformatted C/D/K packet; Core 0 sinks reuse the packet.
+- `main` dispatches focused FDC/ADS engines; it does not read chip registers or write route GPIO directly.
+- `main` publishes a frame snapshot plus one preformatted C/V/R packet; Core 0 sinks reuse the packet.
 - `main` can set diagnostic mode; it does not decide row-level cache, warning, or rescue policy.
 - `main/output` owns TextFrameBus, EventRing aggregation, summaries, and the USB sink; `main/net` owns Wi-Fi/BLE sinks.
-- BLE ASCII commands enter `CommandMailbox` through writable characteristic `FF10` and are applied by Core 1 at a safe boundary.
+- Serial/BLE/Wi-Fi ASCII commands enter one parser and `CommandMailbox`; hardware-affecting requests are applied by Core 1 at a safe complete-frame boundary.

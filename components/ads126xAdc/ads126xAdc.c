@@ -69,13 +69,15 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_INTERFACE_STATUS (1u << 2)
 #define ADS126X_INTERFACE_CRC_MASK 0x03u
 
-/* Optional ADS126x output status byte. Bit 6 marks new ADC1 data. */
-#define ADS126X_STATUS_ADC1_NEW_DATA (1u << 6)
-
 /* MODE2 register bit definitions. */
 #define ADS126X_MODE2_BYPASS (1u << 7)
 #define ADS126X_MODE2_GAIN_SHIFT 4
+#define ADS126X_MODE2_GAIN_MASK (0x07u << ADS126X_MODE2_GAIN_SHIFT)
 #define ADS126X_MODE2_DR_MASK 0x0Fu
+
+#ifndef CONFIG_ADS126X_MUTEX_TIMEOUT_MS
+#define CONFIG_ADS126X_MUTEX_TIMEOUT_MS 100
+#endif
 
 /* ID register bits. */
 #define ADS126X_ID_DEV_ID_MASK 0xE0u
@@ -131,6 +133,9 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 
 static bool ads126xAdcGainToCode(uint8_t gain, uint8_t *code)
 {
+    if (!code) {
+        return false;
+    }
     switch (gain) {
     case 1:
         *code = 0;
@@ -176,6 +181,12 @@ static bool ads126xAdcIsValidForcedType(ads126xDeviceType_t forcedType)
     return forcedType == ADS126X_DEVICE_AUTO ||
            forcedType == ADS126X_DEVICE_ADS1262 ||
            forcedType == ADS126X_DEVICE_ADS1263;
+}
+
+static TickType_t ads126xAdcMutexTimeoutTicks(void)
+{
+    TickType_t ticks = pdMS_TO_TICKS(CONFIG_ADS126X_MUTEX_TIMEOUT_MS);
+    return ticks == 0u ? 1u : ticks;
 }
 
 static const char *ads126xAdcPowerReqName(bool update, bool enable)
@@ -231,7 +242,7 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_SIZE;
     }
 
-    if (xSemaphoreTake(handle->mutex, portMAX_DELAY) != pdTRUE) {
+    if (xSemaphoreTake(handle->mutex, ads126xAdcMutexTimeoutTicks()) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
     }
 
@@ -520,7 +531,7 @@ static esp_err_t ads126xAdcSpiTransferDmaLocked(ads126xAdcHandle_t *handle,
     if (totalLen == 0u || totalLen > handle->spiBufSize) {
         return totalLen == 0u ? ESP_OK : ESP_ERR_INVALID_SIZE;
     }
-    if (xSemaphoreTake(handle->mutex, portMAX_DELAY) != pdTRUE) {
+    if (xSemaphoreTake(handle->mutex, ads126xAdcMutexTimeoutTicks()) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
     }
 
@@ -608,6 +619,32 @@ esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
 }
 
+esp_err_t ads126xAdcClearResetFlag(ads126xAdcHandle_t *handle)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t power = 0u;
+    esp_err_t err = ads126xAdcReadPowerRegister(handle, &power);
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint8_t target = (uint8_t)(power & (uint8_t)~ADS126X_POWER_RESET);
+    if (target != power) {
+        err = ads126xAdcWritePowerRegister(handle, target);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+    uint8_t readback = 0u;
+    err = ads126xAdcReadPowerRegister(handle, &readback);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return (readback & ADS126X_POWER_RESET) == 0u ?
+        ESP_OK : ESP_ERR_INVALID_RESPONSE;
+}
+
 esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
                                      bool updateInternalRef,
                                      bool enableInternalRef,
@@ -692,15 +729,19 @@ esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
     }
     handle->enableInternalRef = (powerAfter & ADS126X_POWER_INTREF) != 0u;
 
-    printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=0x%02X,powerTarget=0x%02X,"
-           "powerAfter=0x%02X,err=%ld,status=%s\n",
-           ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
-           ads126xAdcPowerReqName(updateVbias, enableVbias),
-           powerBefore,
-           powerTarget,
-           powerAfter,
-           policyOk ? 0L : (long)ESP_ERR_INVALID_STATE,
-           policyOk ? "ok" : "policy_mismatch");
+    /* Successful policy changes are frequent during safe resistance row
+     * switching.  MODE?/STATE? provide the authoritative snapshot, so only a
+     * failed readback is logged here to avoid synchronous per-row output. */
+    if (!policyOk) {
+        printf("DBGADSPOWER,stage=apply_power_policy,intrefReq=%s,vbiasReq=%s,powerBefore=0x%02X,powerTarget=0x%02X,"
+               "powerAfter=0x%02X,err=%ld,status=policy_mismatch\n",
+               ads126xAdcPowerReqName(updateInternalRef, enableInternalRef),
+               ads126xAdcPowerReqName(updateVbias, enableVbias),
+               powerBefore,
+               powerTarget,
+               powerAfter,
+               (long)ESP_ERR_INVALID_STATE);
+    }
 
     return policyOk ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
@@ -764,6 +805,19 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return err;
     }
 
+    uint8_t ifaceReadback = 0u;
+    uint8_t mode2Readback = 0u;
+    err = ads126xAdcReadRegisters(handle, ADS126X_REG_INTERFACE, &ifaceReadback, 1u);
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &mode2Readback, 1u);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (ifaceReadback != iface || mode2Readback != mode2) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
     handle->enableInternalRef = enableInternalRef;
     handle->enableStatusByte = enableStatusByte;
     handle->crcMode = crcMode;
@@ -804,6 +858,108 @@ esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_
 {
     uint8_t value = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_INPMUX, &value, 1);
+}
+
+esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle,
+                                       uint8_t muxp,
+                                       uint8_t muxn)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t expected = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
+    esp_err_t err = ads126xAdcWriteRegisters(handle, ADS126X_REG_INPMUX, &expected, 1u);
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_INPMUX, &readback, 1u);
+    }
+    return err == ESP_OK && readback != expected ? ESP_ERR_INVALID_RESPONSE : err;
+}
+
+bool ads126xAdcPgaGainSupported(uint8_t gain)
+{
+    uint8_t code = 0u;
+    return ads126xAdcGainToCode(gain, &code);
+}
+
+bool ads126xAdcMode2PgaBypassed(uint8_t mode2)
+{
+    return (mode2 & ADS126X_MODE2_BYPASS) != 0u;
+}
+
+bool ads126xAdcMode2DecodePgaGain(uint8_t mode2, uint8_t *outGain)
+{
+    if (!outGain || (mode2 & ADS126X_MODE2_BYPASS) != 0u) {
+        return false;
+    }
+    uint8_t code = (uint8_t)((mode2 & ADS126X_MODE2_GAIN_MASK) >>
+                             ADS126X_MODE2_GAIN_SHIFT);
+    if (code >= 6u) {
+        return false;
+    }
+    *outGain = (uint8_t)(1u << code);
+    return true;
+}
+
+esp_err_t ads126xAdcSetPgaGain(ads126xAdcHandle_t *handle, uint8_t gain)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t gainCode = 0u;
+    if (!ads126xAdcGainToCode(gain, &gainCode)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t mode2 = 0u;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &mode2, 1u);
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint8_t expected = (uint8_t)((mode2 &
+        (uint8_t)~(ADS126X_MODE2_BYPASS | ADS126X_MODE2_GAIN_MASK)) |
+        (uint8_t)(gainCode << ADS126X_MODE2_GAIN_SHIFT));
+    err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &expected, 1u);
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &readback, 1u);
+    }
+    if (err == ESP_OK && readback != expected) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK) {
+        handle->pgaGain = gain;
+    }
+    return err;
+}
+
+esp_err_t ads126xAdcSetPgaBypass(ads126xAdcHandle_t *handle, bool bypass)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t mode2 = 0u;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &mode2, 1u);
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint8_t expected = bypass ?
+        (uint8_t)(mode2 | ADS126X_MODE2_BYPASS) :
+        (uint8_t)(mode2 & (uint8_t)~ADS126X_MODE2_BYPASS);
+    if (expected != mode2) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &expected, 1u);
+    }
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &readback, 1u);
+    }
+    if (err == ESP_OK && readback != expected) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK && bypass) {
+        /* PGA bypass has unity transfer; keep raw-to-voltage scaling explicit. */
+        handle->pgaGain = 1u;
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias)
@@ -1126,6 +1282,16 @@ bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_
         return true;
     }
     return (statusByte & ADS126X_STATUS_ADC1_NEW_DATA) != 0u;
+}
+
+bool ads126xAdcStatusByteHasReferenceAlarm(uint8_t statusByte)
+{
+    return (statusByte & ADS126X_STATUS_REFERENCE_ALARM) != 0u;
+}
+
+bool ads126xAdcStatusByteHasPgaAlarm(uint8_t statusByte)
+{
+    return (statusByte & ADS126X_STATUS_PGA_ALARM_MASK) != 0u;
 }
 
 esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)

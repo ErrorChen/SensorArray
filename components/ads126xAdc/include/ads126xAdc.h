@@ -20,8 +20,20 @@ extern "C" {
 #define ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS 1000u
 
 /* POWER register bits for ads126xAdcReadCoreRegisters()/ads126xAdcSetVbiasEnabled(). */
+#define ADS126X_POWER_RESET (1u << 4)
 #define ADS126X_POWER_INTREF (1u << 0)
 #define ADS126X_POWER_VBIAS (1u << 1)
+#define ADS126X_STATUS_ADC2_NEW_DATA (1u << 7)
+#define ADS126X_STATUS_ADC1_NEW_DATA (1u << 6)
+#define ADS126X_STATUS_EXTERNAL_CLOCK (1u << 5)
+#define ADS126X_STATUS_REFERENCE_ALARM (1u << 4)
+#define ADS126X_STATUS_PGA_LOW_ALARM (1u << 3)
+#define ADS126X_STATUS_PGA_HIGH_ALARM (1u << 2)
+#define ADS126X_STATUS_PGA_DIFFERENTIAL_ALARM (1u << 1)
+#define ADS126X_STATUS_RESET_OCCURRED (1u << 0)
+#define ADS126X_STATUS_PGA_ALARM_MASK \
+    (ADS126X_STATUS_PGA_LOW_ALARM | ADS126X_STATUS_PGA_HIGH_ALARM | \
+     ADS126X_STATUS_PGA_DIFFERENTIAL_ALARM)
 #define ADS126X_REFMUX_INTERNAL 0x00u
 #define ADS126X_REFMUX_AVDD_AVSS 0x24u
 #define ADS126X_ADC2_REF_INTERNAL 0x00u
@@ -122,6 +134,12 @@ bool ads126xAdcHasAdc2(const ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcProbeAdc2(ads126xAdcHandle_t *handle, bool *outHasAdc2);
 esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower);
 esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power);
+/*
+ * Clear POWER.RESET after the application has acknowledged a deliberate
+ * device reset. A later status-byte RESET bit can then be treated as a new,
+ * unexpected reset instead of a permanent power-on condition.
+ */
+esp_err_t ads126xAdcClearResetFlag(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle,
                                      bool updateInternalRef,
                                      bool enableInternalRef,
@@ -143,6 +161,14 @@ esp_err_t ads126xAdcSetRefMuxWithVref(ads126xAdcHandle_t *handle,
                                       uint8_t refmuxValue,
                                       uint32_t vrefMicrovolts);
 esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
+esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle,
+                                       uint8_t muxp,
+                                       uint8_t muxn);
+bool ads126xAdcPgaGainSupported(uint8_t gain);
+esp_err_t ads126xAdcSetPgaGain(ads126xAdcHandle_t *handle, uint8_t gain);
+esp_err_t ads126xAdcSetPgaBypass(ads126xAdcHandle_t *handle, bool bypass);
+bool ads126xAdcMode2PgaBypassed(uint8_t mode2);
+bool ads126xAdcMode2DecodePgaGain(uint8_t mode2, uint8_t *outGain);
 
 /*
  * Enable/disable internal AINCOM level shift (VBIAS) via POWER register bit1.
@@ -189,6 +215,8 @@ esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *handle,
                                          uint32_t timeoutUs,
                                          uint32_t *outGeneration);
 bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_t statusByte);
+bool ads126xAdcStatusByteHasReferenceAlarm(uint8_t statusByte);
+bool ads126xAdcStatusByteHasPgaAlarm(uint8_t statusByte);
 esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn);
 esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
                                    uint32_t drdyTimeoutUs,

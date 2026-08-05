@@ -428,7 +428,8 @@ esp_err_t sensorarrayMeasureSetFdcSelBPathQuiet(sensorarrayState_t *state)
     return tmux1134SelectSelBLevel(selBLevel);
 }
 
-esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state)
+esp_err_t sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(
+    sensorarrayState_t *state)
 {
     if (!state || !state->adsReady) {
         return ESP_ERR_INVALID_STATE;
@@ -436,21 +437,31 @@ esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state)
 
     esp_err_t err = ads126xAdcApplyPowerPolicy(&state->ads,
                                                true,
-                                               true,
+                                               false,
                                                true,
                                                true,
                                                NULL,
                                                NULL);
     if (err == ESP_OK) {
         /*
-         * Keep INTREF and VBIAS settled for deadline-aware ADS jobs. adsRefReady
-         * describes whether the matrix route currently uses the ADS reference,
-         * not whether the internal reference block is powered.
+         * SW high clamps REFOUT through Q1. Keep only VBIAS settled for
+         * deadline-aware ADS jobs; INTREF must remain disabled while the
+         * passive/FDC route owns the matrix.
          */
         state->adsRefReady = false;
         sensorarrayLogSetAdsState(state->adsReady, state->adsRefReady);
     }
     return err;
+}
+
+esp_err_t sensorarrayMeasureKeepAdsBiasForPassiveMatrix(sensorarrayState_t *state)
+{
+    return sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(state);
+}
+
+esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state)
+{
+    return sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(state);
 }
 
 int sensorarrayMeasureSwPhysicalReadbackFromControl(const tmuxSwitchControlState_t *ctrl)
@@ -528,14 +539,23 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
         return adc2Err;
     }
 
-    err = sensorarrayMeasureForceAdsReferenceOff(state);
+    err = sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(state);
     if (logNormal || err != ESP_OK) {
-        printf("FDC_PATH,stage=ads_ref_off,reason=%s,err=0x%lx,adsRefReady=%d\n",
+        uint8_t power = 0u;
+        uint8_t refmux = 0u;
+        esp_err_t readbackErr = ads126xAdcReadCoreRegisters(&state->ads,
+                                                            &power,
+                                                            NULL,
+                                                            NULL,
+                                                            NULL,
+                                                            &refmux);
+        printf("FDC_PATH,stage=passive_matrix,reason=%s,matrixRef=GND,intref=%u,vbias=%u,refmux=0x%02X,adsRefReady=%d,readback=0x%lx,err=0x%lx\n",
                source,
-               (unsigned long)err,
-               state->adsRefReady ? 1 : 0);
-        printf("FDC_PATH,stage=ads_bias_kept,reason=%s,intref=1,vbias=1,err=0x%lx\n",
-               source,
+               (power & ADS126X_POWER_INTREF) != 0u ? 1u : 0u,
+               (power & ADS126X_POWER_VBIAS) != 0u ? 1u : 0u,
+               refmux,
+               state->adsRefReady ? 1 : 0,
+               (unsigned long)readbackErr,
                (unsigned long)err);
     }
     if (err != ESP_OK) {

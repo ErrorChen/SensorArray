@@ -5,9 +5,31 @@
 #include "sensorarrayFrame.h"
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
+#include "sensorarrayAdsAutoRange.h"
+#include "sensorarrayRouteController.h"
+
+#define SENSORARRAY_ADS_MATRIX_CALIBRATION_VERSION 1u
+
+typedef struct {
+    uint32_t version;
+    uint32_t referenceResistorOhms;
+    uint32_t matrixReferenceSpanUv;
+    int64_t globalPathOffsetMilliohms;
+    int32_t bankOffsetMilliohms[2];
+    int32_t cellOffsetMilliohms[SENSORARRAY_MEASUREMENT_MAX_CELLS];
+    uint64_t cellOffsetValidMask;
+} sensorarrayAdsMatrixCalibration_t;
 
 typedef struct {
     sensorarrayState_t *state;
+    sensorarrayRouteController_t *routeController;
+    sensorarrayMeasurementMode_t mode;
+    sensorarrayAdsGainCache_t gainCache;
+    sensorarrayAdsMatrixCalibration_t calibration;
+    int32_t lastRailUv;
+    bool railFingerprintValid;
+    uint32_t frameSequenceHint;
+    uint32_t frameCount;
 } sensorarrayAdsMatrixEngine_t;
 
 esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,
@@ -15,4 +37,19 @@ esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,
 esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engine,
                                               const sensorarrayScanPlan_t *plan,
                                               sensorarrayFrame_t *frame);
-
+void sensorarrayAdsMatrixEngineBindRouteController(
+    sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayRouteController_t *routeController);
+esp_err_t sensorarrayAdsMatrixEngineSetMode(sensorarrayAdsMatrixEngine_t *engine,
+                                           sensorarrayMeasurementMode_t mode);
+void sensorarrayAdsMatrixEngineSetFrameSequenceHint(sensorarrayAdsMatrixEngine_t *engine,
+                                                    uint32_t sequence);
+void sensorarrayAdsMatrixEngineInvalidateGainCache(sensorarrayAdsMatrixEngine_t *engine);
+bool sensorarrayAdsMatrixCalibrationValid(
+    const sensorarrayAdsMatrixCalibration_t *calibration);
+esp_err_t sensorarrayAdsMatrixEngineSetCalibration(
+    sensorarrayAdsMatrixEngine_t *engine,
+    const sensorarrayAdsMatrixCalibration_t *calibration);
+bool sensorarrayAdsMatrixEngineGetCalibration(
+    const sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayAdsMatrixCalibration_t *outCalibration);

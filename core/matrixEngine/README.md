@@ -10,6 +10,13 @@
 
 `core/matrixEngine` 是一个可复用的同步矩形区域 I/O executor。它可以在 caller 提供配置后，按 row-major 顺序执行 voltage、raw capacitance 或 resistance 读取。当前 `main` 默认生命周期没有使用它；FDC production path 使用 `core/measure/fdc` 的 row epoch 实现。
 
+三模式实现也没有把它强行接入生产路径：这个模块的单 mutex、同步 callback
+执行模型无法保持既有双 FDC worker row epoch，也不提供模式 accepted/applied、
+route readback、fresh DRDY generation、ADS autorange 或单次 fixed-slot 输出契约。
+生产 CAP 继续走 `core/measure/fdc`，VOLT/RES 走
+`core/measure/ads/sensorarrayAdsMatrix`；此处只适合作为脱离生产并发域的通用 I/O
+工具。其默认 `col -> AIN` 假设不得取代 `core/board` 的正式映射。
+
 ### API
 
 | API | 作用 |
@@ -29,6 +36,14 @@
 ## Australian English documentation
 
 `core/matrixEngine` is a reusable synchronous rectangular region I/O executor. After a caller provides configuration, it can perform voltage, raw capacitance, or resistance reads in row-major order. It is not the default `main` lifecycle path; the production FDC path uses the row epoch implementation in `core/measure/fdc`.
+
+The three-mode runtime deliberately does not force this synchronous,
+single-mutex callback model into production. It does not preserve the dual-FDC
+worker epoch contract or provide accepted/applied mode state, route readback,
+fresh DRDY generations, ADS autorange, and one fixed-slot formatter. Production
+CAP therefore stays in `core/measure/fdc`, while VOLT/RES use
+`core/measure/ads/sensorarrayAdsMatrix`. Its default column mapping is not a
+substitute for the canonical board map.
 
 Use this module as a generic engine only. Do not put board-specific route meaning or rescue policy into it.
 

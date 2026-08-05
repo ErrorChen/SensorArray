@@ -782,6 +782,8 @@ void sensorarrayMeasureDelayUs(uint32_t delayUs);
 esp_err_t sensorarrayMeasureSetSelaPathQuiet(sensorarrayState_t *state, sensorarraySelaRoute_t selaRoute, uint32_t settleDelayUs);
 esp_err_t sensorarrayMeasureSetFdcSelBPathQuiet(sensorarrayState_t *state);
 esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state);
+esp_err_t sensorarrayMeasureKeepAdsBiasForPassiveMatrix(sensorarrayState_t *state);
+esp_err_t sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(sensorarrayState_t *state);
 int sensorarrayMeasureSwPhysicalReadbackFromControl(const tmuxSwitchControlState_t *ctrl);
 void sensorarrayMeasureReadFdcPathControl(tmuxSwitchControlState_t *ctrl);
 bool sensorarrayMeasureFdcPathControlMatches(const tmuxSwitchControlState_t *ctrl);

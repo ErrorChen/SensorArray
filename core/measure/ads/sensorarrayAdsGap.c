@@ -13,6 +13,7 @@
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayAcqEvent.h"
+#include "tmuxSwitch.h"
 
 #define printf sensorarrayAcqEventPrintf
 
@@ -22,7 +23,6 @@
 #define SENSORARRAY_ADS_RAIL_MIN_UV 3500000
 #define SENSORARRAY_ADS_RAIL_MAX_UV 6000000
 #define SENSORARRAY_ADS_BATTERY_PERIOD_FRAMES 10u
-#define SENSORARRAY_ADS_ADC2_DATA_RATE_800_SPS 3u
 #define SENSORARRAY_ADS_ADC1_JOB_WORST_CASE_US 2500u
 #define SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US 1000u
 #define SENSORARRAY_ADS_CONVERSION_MARGIN_US 100u
@@ -72,6 +72,12 @@ typedef struct {
     bool usableForBattery;
     bool diagnosticValid;
 } sensorarrayAdsRailState_t;
+
+typedef struct {
+    sensorarrayAdsRailSource_t source;
+    int32_t externalAvddUv;
+    int32_t externalAvssUv;
+} sensorarrayAdsRailCalibration_t;
 
 typedef struct {
     uint8_t powerBefore;
@@ -126,6 +132,7 @@ typedef struct {
 
 static sensorarrayAdsGapSnapshot_t s_snapshot;
 static sensorarrayAdsRailState_t s_railState;
+static sensorarrayAdsRailCalibration_t s_railCalibration;
 static const uint8_t s_adsNeutralOffsetCal[3] = {0x00u, 0x00u, 0x00u};
 static const uint8_t s_adsUnityFullScaleCal[3] = {0x00u, 0x00u, 0x40u};
 static sensorarrayAdsGapMode_t s_gapMode =
@@ -170,6 +177,19 @@ static bool sensorarrayAdsRailLastGoodFresh(uint32_t frameSequence)
     return age <= (uint32_t)CONFIG_SENSORARRAY_ADS_RAIL_LAST_GOOD_MAX_AGE_FRAMES;
 }
 
+static bool sensorarrayAdsInternalReferenceIsUnclamped(void)
+{
+    tmuxSwitchControlState_t control = {0};
+    if (tmuxSwitchGetControlState(&control) != ESP_OK) {
+        return false;
+    }
+    /* The schematic connects SW high to the gate of Q1, which clamps the
+     * shared REF/REFOUT node to GND. Only the observed low state is safe for
+     * enabling INTREF. Require both the logical command and GPIO readback. */
+    return control.cmdSource == TMUX1108_SOURCE_REF &&
+           control.cmdSwLevel == 0 && control.obsSwLevel == 0;
+}
+
 static bool sensorarrayAdsUpdateRail(int32_t rawCode,
                                      int32_t monitorUv,
                                      uint32_t frameSequence)
@@ -197,6 +217,9 @@ static bool sensorarrayAdsUpdateRail(int32_t rawCode,
         samplePlausible &&
         errorUv <= CONFIG_SENSORARRAY_ADS_RAIL_EXPECTED_TOLERANCE_UV;
     s_snapshot.railValid = sampleValid;
+    s_railCalibration.source = SENSORARRAY_ADS_RAIL_SOURCE_MONITOR;
+    s_railCalibration.externalAvddUv = 0;
+    s_railCalibration.externalAvssUv = 0;
     s_railState.lastRawRailUv = rawRailUv;
     s_railState.lastRailErrUv = s_snapshot.railErrorUv;
     s_railState.diagnosticValid = true;
@@ -252,6 +275,16 @@ static bool sensorarrayAdsUpdateRail(int32_t rawCode,
 
 static bool sensorarrayAdsCalculateAincomGnd(int32_t *outUv)
 {
+    if (outUv && s_snapshot.railUsableForBattery &&
+        s_railCalibration.source ==
+            SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION) {
+        int64_t midpointUv = ((int64_t)s_railCalibration.externalAvddUv +
+                              (int64_t)s_railCalibration.externalAvssUv) / 2LL;
+        if (midpointUv >= INT32_MIN && midpointUv <= INT32_MAX) {
+            *outUv = (int32_t)midpointUv;
+            return true;
+        }
+    }
     int64_t avddUv = CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV;
     int64_t avssMagnitudeUv = CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV;
     int64_t nominalRailUv = avddUv + avssMagnitudeUv;
@@ -526,23 +559,6 @@ static void sensorarrayAdsUpdateBatteryValidity(esp_err_t adcReadErr)
     s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_NONE;
 }
 
-static esp_err_t sensorarrayAdsBootReadUv(ads126xAdcHandle_t *ads,
-                                          uint8_t muxp,
-                                          uint8_t muxn,
-                                          int32_t *outRaw,
-                                          int32_t *outUv)
-{
-    return ads126xAdcReadSingleDiffUv(ads,
-                                      muxp,
-                                      muxn,
-                                      true,
-                                      1u,
-                                      1u,
-                                      outRaw,
-                                      outUv,
-                                      NULL);
-}
-
 static esp_err_t sensorarrayAdsReadAdc2Uv(ads126xAdcHandle_t *ads,
                                           uint8_t muxp,
                                           uint8_t muxn,
@@ -688,6 +704,11 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     if (!state || !outRaw || !outMonitorUv) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!sensorarrayAdsInternalReferenceIsUnclamped()) {
+        /* Never enable REFOUT while Q1 is commanded or observed clamping the
+         * same net. VOLT/CAP must use a fresh external rail calibration. */
+        return ESP_ERR_INVALID_STATE;
+    }
 
     ads126xAdcHandle_t *ads = &state->ads;
     sensorarrayAdsSavedState_t saved = {0};
@@ -820,7 +841,7 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
            s_snapshot.hasAdc2 ? 1u : 0u);
 
     esp_err_t err = ads126xAdcConfigure(ads,
-                                        true,
+                                        false,
                                         true,
                                         ADS126X_CRC_OFF,
                                         1u,
@@ -829,32 +850,15 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
         err = ads126xAdcSetVbiasEnabled(ads, true);
     }
     if (err == ESP_OK) {
-        vTaskDelay(pdMS_TO_TICKS(50u));
-        err = ads126xAdcSetRefMuxWithVref(ads,
-                                          ADS126X_REFMUX_INTERNAL,
-                                          SENSORARRAY_ADS_INTERNAL_VREF_UV);
-    }
-
-    int32_t railMonitorRaw = 0;
-    int32_t railMonitorUv = 0;
-    sensorarrayAdsRailDiag_t railDiag = {0};
-    if (err == ESP_OK) {
-        err = sensorarrayAdsReadRailMonitorUv(state,
-                                              &railMonitorRaw,
-                                              &railMonitorUv,
-                                              &railDiag);
-    }
-    if (err == ESP_OK) {
-        (void)sensorarrayAdsUpdateRail(railMonitorRaw, railMonitorUv, 0u);
-        if (!sensorarrayAdsRailUsableAsReference(s_snapshot.railUv)) {
-            err = ESP_ERR_INVALID_RESPONSE;
-        }
-    }
-    if (err == ESP_OK) {
         err = ads126xAdcSetRefMuxWithVref(ads,
                                           ADS126X_REFMUX_AVDD_AVSS,
-                                          (uint32_t)s_snapshot.railUv);
-        s_snapshot.vrefSynced = err == ESP_OK;
+                                          (uint32_t)(CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV +
+                                                     CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV));
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayAdsWriteCalibration(ads,
+                                             s_adsNeutralOffsetCal,
+                                             s_adsUnityFullScaleCal);
     }
     if (err == ESP_OK) {
         err = ads126xAdcSetInputMux(ads,
@@ -862,62 +866,7 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
                                     SENSORARRAY_ADS_MUX_AINCOM);
     }
     if (err == ESP_OK) {
-        err = ads126xAdcSystemOffsetCal(ads);
-    }
-    if (err == ESP_OK) {
-        err = ads126xAdcWaitDrdy(ads, ads->drdyTimeoutMs);
-    }
-
-    int32_t zeroRaw = 0;
-    int32_t zeroUv = 0;
-    if (err == ESP_OK) {
-        err = sensorarrayAdsBootReadUv(ads,
-                                       SENSORARRAY_ADS_MUX_AIN9,
-                                       SENSORARRAY_ADS_MUX_AINCOM,
-                                       &zeroRaw,
-                                       &zeroUv);
-    }
-    if (err == ESP_OK) {
-        s_snapshot.ain9OffsetRaw = zeroRaw;
-        sensorarrayAdsUpdateZero(zeroUv, 0u);
-    }
-
-    uint8_t adc2OffsetCal[2] = {0};
-    uint8_t adc2FullScaleCal[2] = {0};
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcSetAdc2Config(ads,
-                                      SENSORARRAY_ADS_ADC2_DATA_RATE_800_SPS,
-                                      ADS126X_ADC2_REF_AVDD_AVSS,
-                                      0u,
-                                      (uint32_t)s_snapshot.railUv);
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcSetAdc2InputMux(ads,
-                                        SENSORARRAY_ADS_MUX_AIN9,
-                                        SENSORARRAY_ADS_MUX_AINCOM);
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcStartAdc2(ads);
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcSystemOffsetCalAdc2(ads);
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcWaitDrdy(ads, ads->drdyTimeoutMs);
-    }
-    if (s_snapshot.hasAdc2) {
-        esp_err_t stopErr = ads126xAdcStopAdc2(ads);
-        if (err == ESP_OK) {
-            err = stopErr;
-        }
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        err = ads126xAdcReadAdc2CalibrationRegisters(ads,
-                                                     adc2OffsetCal,
-                                                     adc2FullScaleCal);
-    }
-    if (err == ESP_OK && s_snapshot.hasAdc2) {
-        s_snapshot.activeAdc = 2u;
+        err = ads126xAdcClearResetFlag(ads);
     }
 
     uint8_t offsetCal[3] = {0};
@@ -937,21 +886,19 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
                                           &refmux);
     }
     s_snapshot.vbiasEnabled = (power & ADS126X_POWER_VBIAS) != 0u;
+    s_snapshot.vrefSynced = false;
     s_snapshot.bootCalibrationDone = err == ESP_OK;
 
-    printf("CALB,chip=%u,adc=%u,rail=%ld,z=%ld/%lu,of=%02X%02X%02X,fs=%02X%02X%02X,a2of=%02X%02X,a2fs=%02X%02X,pw=%02X,im=%02X,rm=%02X,ok=%u,err=0x%lx\n",
+    printf("CALB,chip=%u,adc=%u,rail=invalid,z=deferred,of=%02X%02X%02X,fs=%02X%02X%02X,pw=%02X,im=%02X,rm=%02X,intref=%u,vbias=%u,mode=passive_deferred,ok=%u,err=0x%lx\n",
            s_snapshot.chip,
            s_snapshot.activeAdc,
-           (long)(s_snapshot.railUv / 1000),
-           (long)s_snapshot.zeroResidualUv,
-           (unsigned long)s_snapshot.zeroResidualStdUv,
            offsetCal[2], offsetCal[1], offsetCal[0],
            fullScaleCal[2], fullScaleCal[1], fullScaleCal[0],
-           adc2OffsetCal[1], adc2OffsetCal[0],
-           adc2FullScaleCal[1], adc2FullScaleCal[0],
            power,
            inpmux,
            refmux,
+           (power & ADS126X_POWER_INTREF) != 0u ? 1u : 0u,
+           (power & ADS126X_POWER_VBIAS) != 0u ? 1u : 0u,
            s_snapshot.bootCalibrationDone ? 1u : 0u,
            (unsigned long)err);
     return err;
@@ -961,6 +908,7 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
 {
     memset(&s_snapshot, 0, sizeof(s_snapshot));
     memset(&s_railState, 0, sizeof(s_railState));
+    memset(&s_railCalibration, 0, sizeof(s_railCalibration));
     s_snapshot.guardUs = (uint32_t)CONFIG_SENSORARRAY_ADS_GAP_GUARD_US;
     s_snapshot.rateCode = (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE;
     s_snapshot.minSlackUs = UINT32_MAX;
@@ -1028,6 +976,127 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
     return ESP_OK;
 }
 
+esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
+                                                 uint32_t frameSequence)
+{
+    if (!state || !state->adsReady || !s_snapshot.initialized) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    int32_t railMonitorRaw = 0;
+    int32_t railMonitorUv = 0;
+    sensorarrayAdsRailDiag_t railDiag = {0};
+    esp_err_t err = sensorarrayAdsReadRailMonitorUv(state,
+                                                    &railMonitorRaw,
+                                                    &railMonitorUv,
+                                                    &railDiag);
+    if (err == ESP_OK) {
+        (void)sensorarrayAdsUpdateRail(railMonitorRaw,
+                                      railMonitorUv,
+                                      frameSequence);
+        s_lastRailFrame = frameSequence;
+        s_lastSampleFrame = frameSequence;
+        s_snapshot.timestampUs = (uint64_t)esp_timer_get_time();
+        s_snapshot.vrefSynced = railDiag.restored;
+        if (!s_snapshot.railValid ||
+            s_snapshot.railStatus == SENSORARRAY_ADS_RAIL_STATUS_BAD) {
+            err = ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+    if (err == ESP_ERR_TIMEOUT) {
+        s_snapshot.drdyTimeoutCount++;
+    } else if (err != ESP_OK) {
+        s_snapshot.spiErrorCount++;
+    }
+    return err;
+}
+
+esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
+                                                       int32_t avssUv,
+                                                       uint32_t frameSequence)
+{
+    if (!s_snapshot.initialized || avddUv <= 0 || avssUv >= 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int64_t railUv = (int64_t)avddUv - (int64_t)avssUv;
+    if (!sensorarrayAdsRailUsableAsReference(railUv) || railUv > INT32_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    s_railCalibration = (sensorarrayAdsRailCalibration_t){
+        .source = SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION,
+        .externalAvddUv = avddUv,
+        .externalAvssUv = avssUv,
+    };
+    s_railState.lastGoodRailUv = (int32_t)railUv;
+    s_railState.lastGoodFrame = frameSequence;
+    s_railState.validStreak = 1u;
+    s_railState.invalidStreak = 0u;
+    s_railState.usableForBattery = true;
+    s_railState.diagnosticValid = true;
+    s_snapshot.railUv = (int32_t)railUv;
+    s_snapshot.railRawUv = (int32_t)railUv;
+    s_snapshot.railLastGoodUv = (int32_t)railUv;
+    s_snapshot.railExpectedUv = (int32_t)railUv;
+    s_snapshot.railErrorUv = 0;
+    s_snapshot.railMonitorRaw = 0;
+    s_snapshot.railMonitorUv = 0;
+    s_snapshot.railAgeFrames = 0u;
+    s_snapshot.railValidStreak = 1u;
+    s_snapshot.railInvalidStreak = 0u;
+    s_snapshot.railUsableForBattery = true;
+    s_snapshot.railValid = true;
+    s_snapshot.railStatus = SENSORARRAY_ADS_RAIL_STATUS_OK;
+    s_snapshot.timestampUs = (uint64_t)esp_timer_get_time();
+    s_lastRailFrame = frameSequence;
+    s_lastSampleFrame = frameSequence;
+    return ESP_OK;
+}
+
+bool sensorarrayAdsGapCopyRailSplit(uint32_t frameSequence,
+                                    uint32_t maximumAgeFrames,
+                                    sensorarrayAdsRailSplit_t *outRail)
+{
+    if (!outRail) {
+        return false;
+    }
+    sensorarrayAdsGapSnapshot_t snapshot = {0};
+    sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
+    if (!snapshot.railValid || snapshot.railAgeFrames > maximumAgeFrames) {
+        *outRail = (sensorarrayAdsRailSplit_t){0};
+        return false;
+    }
+    if (s_railCalibration.source ==
+        SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION) {
+        int64_t totalUv = (int64_t)s_railCalibration.externalAvddUv -
+                          (int64_t)s_railCalibration.externalAvssUv;
+        int64_t midpointUv = ((int64_t)s_railCalibration.externalAvddUv +
+                              (int64_t)s_railCalibration.externalAvssUv) / 2LL;
+        if (!sensorarrayAdsRailUsableAsReference(totalUv) ||
+            midpointUv < INT32_MIN || midpointUv > INT32_MAX) {
+            *outRail = (sensorarrayAdsRailSplit_t){0};
+            return false;
+        }
+        *outRail = (sensorarrayAdsRailSplit_t){
+            .avddUv = s_railCalibration.externalAvddUv,
+            .avssUv = s_railCalibration.externalAvssUv,
+            .aincomUv = (int32_t)midpointUv,
+            .ageFrames = snapshot.railAgeFrames,
+            .valid = true,
+        };
+        return true;
+    }
+
+    sensorarrayAdsRailInput_t input = {
+        .measuredRailUv = snapshot.railUv,
+        .nominalAvddToGroundUv = CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV,
+        .nominalAvssToGroundUv = CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV,
+        .ageFrames = snapshot.railAgeFrames,
+        .maximumAgeFrames = maximumAgeFrames,
+        .valid = snapshot.railValid,
+    };
+    return sensorarrayAdsMathSplitRail(&input, outRail);
+}
+
 static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
 {
     if (frameSequence == s_lastJobFrame) {
@@ -1046,7 +1115,8 @@ static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
         return SENSORARRAY_ADS_JOB_NONE;
     }
     if (s_gapMode == SENSORARRAY_ADS_GAP_MODE_RAIL) {
-        return SENSORARRAY_ADS_JOB_RAIL;
+        return sensorarrayAdsInternalReferenceIsUnclamped() ?
+            SENSORARRAY_ADS_JOB_RAIL : SENSORARRAY_ADS_JOB_NONE;
     }
     if (s_gapMode == SENSORARRAY_ADS_GAP_MODE_BAT) {
         return SENSORARRAY_ADS_JOB_BATTERY;
@@ -1056,7 +1126,9 @@ static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
     }
     if (frameSequence - s_lastRailFrame >=
         (uint32_t)CONFIG_SENSORARRAY_ADS_RAIL_PERIOD_FRAMES) {
-        return SENSORARRAY_ADS_JOB_RAIL;
+        if (sensorarrayAdsInternalReferenceIsUnclamped()) {
+            return SENSORARRAY_ADS_JOB_RAIL;
+        }
     }
     if (frameSequence - s_lastZeroFrame >= (uint32_t)CONFIG_SENSORARRAY_ADS_ZERO_PERIOD_FRAMES) {
         return SENSORARRAY_ADS_JOB_ZERO;
@@ -1310,8 +1382,10 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         }
         if (err == ESP_OK) {
             s_lastRailFrame = frameSequence;
-            s_forceRail = false;
         }
+        /* An unsafe clamped-reference request is terminal, not a reason to
+         * retry every frame and repeatedly attempt the same hardware action. */
+        s_forceRail = false;
     } else if (job == SENSORARRAY_ADS_JOB_ZERO) {
         err = sensorarrayAdsReadPreferred(state,
                                           SENSORARRAY_ADS_MUX_AIN9,
@@ -1418,6 +1492,19 @@ const char *sensorarrayAdsRailStatusName(sensorarrayAdsRailStatus_t status)
     case SENSORARRAY_ADS_RAIL_STATUS_BAD:
     default:
         return "bad";
+    }
+}
+
+const char *sensorarrayAdsRailSourceName(sensorarrayAdsRailSource_t source)
+{
+    switch (source) {
+    case SENSORARRAY_ADS_RAIL_SOURCE_MONITOR:
+        return "monitor";
+    case SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION:
+        return "external";
+    case SENSORARRAY_ADS_RAIL_SOURCE_NONE:
+    default:
+        return "none";
     }
 }
 
@@ -1548,17 +1635,28 @@ size_t sensorarrayAdsGapFormatRail(char *buffer,
     }
     sensorarrayAdsGapSnapshot_t snapshot = {0};
     sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
+    sensorarrayAdsRailSplit_t split = {0};
+    bool splitValid = sensorarrayAdsGapCopyRailSplit(
+        frameSequence,
+        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
+        &split);
     int written = snprintf(buffer,
                            bufferSize,
-                           "ARL,src=run,raw=%ld,mon=%ld,rail=%ld,exp=%ld,err=%ld,rv=%u,rs=%s,age=%lu,ref=restored,pwr=restored,mux=restored\n",
+                           "ARL,src=%s,raw=%ld,mon=%ld,rail=%ld,avdd=%ld,avss=%ld,exp=%ld,err=%ld,rv=%u,rs=%s,age=%lu,ref=%s,pwr=%s,mux=%s\n",
+                           sensorarrayAdsRailSourceName(s_railCalibration.source),
                            (long)snapshot.railMonitorRaw,
                            (long)snapshot.railMonitorUv,
                            (long)snapshot.railRawUv,
+                           splitValid ? (long)split.avddUv : 0L,
+                           splitValid ? (long)split.avssUv : 0L,
                            (long)snapshot.railExpectedUv,
                            (long)snapshot.railErrorUv,
                            snapshot.railValid ? 1u : 0u,
                            sensorarrayAdsRailStatusName(snapshot.railStatus),
-                           (unsigned long)snapshot.railAgeFrames);
+                           (unsigned long)snapshot.railAgeFrames,
+                           snapshot.vrefSynced ? "restored" : "unsynced",
+                           snapshot.vrefSynced ? "restored" : "unsynced",
+                           snapshot.vrefSynced ? "restored" : "unsynced");
     return written > 0 ? (size_t)written : 0u;
 }
 

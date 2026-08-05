@@ -20,7 +20,9 @@
 - FDC matrix scan/rescue 策略。
 - SensorArray 64-cell frame 格式。
 
-FDC matrix mode 下关闭 ADS conversion、internal reference 和 VBIAS 是 measurement-layer policy，不是 ADS driver 自己决定。
+CAP/VOLT/RES 下是否停止 conversion、开启 INTREF/VBIAS 以及选择哪个 REFMUX，
+都是 measurement-layer 的显式 board profile，不是 ADS driver 自己决定。矩阵
+激励 REF 也不是本 driver 的一个 bool。
 
 ### 主要类型
 
@@ -39,28 +41,34 @@ FDC matrix mode 下关闭 ADS conversion、internal reference 和 VBIAS 是 meas
 | `ads126xAdcHardwareReset()`, `ads126xAdcSendCommand()` | Reset and command helpers. |
 | `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()` | Raw register block access. |
 | `ads126xAdcGetIdRaw()`, `ads126xAdcReadPowerRegister()`, `ads126xAdcWritePowerRegister()` | Identity and POWER register access. |
+| `ads126xAdcClearResetFlag()` | Clear the POWER.RESET sticky bit and verify readback before normal conversions. |
 | `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()` | Internal reference and VBIAS control. |
 | `ads126xAdcConfigure()` | Core ADC configuration. |
 | `ads126xAdcSetRefMux()`, `ads126xAdcSetInputMux()` | Reference and input mux selection. |
-| `ads126xAdcReadCoreRegisters()` | Diagnostic register snapshot. |
+| `ads126xAdcSetPgaGain()`, `ads126xAdcSetPgaBypass()`, `ads126xAdcSetInputMuxVerified()` | Bounded write/readback for PGA, verified MODE2 bypass, and input-mux updates. |
+| `ads126xAdcReadCoreRegisters()` | Critical POWER/MODE2/INPMUX/REFMUX diagnostic/readback snapshot. |
+| `ads126xAdcStatusByteHasAdc1NewData()`, `ads126xAdcStatusByteHasReferenceAlarm()`, `ads126xAdcStatusByteHasPgaAlarm()` | Decode fresh conversion, reference, and PGA absolute/differential status. |
 | `ads126xAdcReadSingleDiffUv()` | One differential ADC1 read with mux/settle/discard/final conversion. |
 | `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()` | ADC1 conversion control and readout. |
 | `ads126xAdcRawToMicrovolts()` | Raw ADC code to microvolts. |
 | `ads126xAdcSelfOffsetCal()`, `ads126xAdcSelfGainCal()`, `ads126xAdcSystemOffsetCal()`, `ads126xAdcSystemGainCal()`, `ads126xAdcSelfCal()` | Calibration commands. |
 | `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()` | ADC2 APIs, useful on ADS1263; ADS1262 use may return not supported. |
 
-### FDC mode safety
+### Mode safety boundary
 
-`sensorarrayMeasurePrepareFdcMatrixPath()` uses ADS driver APIs as part of FDC route safety:
+`sensorarrayRouteController` uses ADS driver APIs as part of CAP/VOLT/RES route safety:
 
 ```text
 ads126xAdcStopAdc1()
 ads126xAdcStopAdc2() when ADS1263 support is compiled
-ads126xAdcApplyPowerPolicy() / related helpers to turn internal reference and VBIAS off
-ads126xAdcSetRefMux() in measurement-layer route policy where needed
+ads126xAdcApplyPowerPolicy() for the selected independent INTREF/VBIAS policy
+ads126xAdcSetRefMux() and critical-register readback
 ```
 
-The driver exposes chip operations. The measurement layer decides when those operations are required.
+The driver exposes chip operations. The measurement layer decides when they
+are required. VOLT/RES use ADC1, which is available on ADS1262 and ADS1263;
+ADC2 calls return an explicit unsupported result when the detected device lacks
+ADC2. Runtime `ADSBOOT` identity, not a compile-time label, is authoritative.
 
 ## Australian English documentation
 
@@ -70,14 +78,18 @@ The driver exposes chip operations. The measurement layer decides when those ope
 
 It does not know D-line mapping, SELA/SELB/SW route meaning, when ADS must be disabled for FDC, FDC matrix scan strategy, or SensorArray frame layout.
 
-Turning ADS conversion, internal reference, and VBIAS off during FDC matrix mode is a measurement-layer policy, not an ADS driver policy.
+Stopping conversion and independently selecting INTREF, VBIAS and REFMUX for
+CAP/VOLT/RES are measurement-layer policies, not driver policies. Matrix
+excitation REF is a separate board route outside this component.
 
 ### API groups
 
 - Lifecycle: `ads126xAdcInit()`, `ads126xAdcDeinit()`.
 - Register access: `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()`.
-- Power/reference: `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()`, `ads126xAdcSetRefMux()`.
-- Input selection: `ads126xAdcSetInputMux()`.
+- Power/reference: `ads126xAdcClearResetFlag()`, `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()`, `ads126xAdcSetRefMux()`.
+- Verification/status: critical-register readback, verified PGA updates, and
+  status helpers for reference and PGA absolute/differential alarms.
+- Input/PGA selection: `ads126xAdcSetInputMux()`, `ads126xAdcSetPgaGain()`, and verified `ads126xAdcSetPgaBypass()`.
 - ADC1 conversion: `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()`, `ads126xAdcReadSingleDiffUv()`.
 - ADC2 conversion: `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()`.
 - Conversion helpers: `ads126xAdcRawToMicrovolts()`.
@@ -89,7 +101,12 @@ Turning ADS conversion, internal reference, and VBIAS off during FDC matrix mode
 |---|---:|---|
 | `CONFIG_ADS126X_LOG_LEVEL` | `3` | Driver log level. |
 | `CONFIG_ADS126X_SPI_CLOCK_HZ` | `2000000` | SPI clock in Hz. |
+| `CONFIG_ADS126X_MUTEX_TIMEOUT_MS` | `100` | Finite maximum wait for the driver SPI mutex. |
 | `CONFIG_ADS126X_HAS_ADC2` | y | Builds ADC2 APIs. ADS1262 hardware does not provide ADC2. |
 | `CONFIG_ADS126X_HELPER_CREATE_SPI` | n | Optional helper SPI create/destroy functions for quick validation. |
 | `CONFIG_SENSORARRAY_SPI_USE_DMA` | y | Project SPI DMA option consumed by the ADS implementation. |
 | `CONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES` | `64` | SPI transfer buffer sizing. |
+
+The driver mutex uses a finite wait. It does not contain matrix coordinates,
+resistance math, autorange policy, or C/V/R frame formatting; those belong in
+`core/measure/ads`.

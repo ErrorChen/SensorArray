@@ -4,6 +4,7 @@
 
 #include "esp_err.h"
 
+#include "sensorarrayAdsMath.h"
 #include "sensorarrayTypes.h"
 
 enum {
@@ -33,7 +34,25 @@ typedef enum {
     SENSORARRAY_ADS_GAP_MODE_ZERO,
 } sensorarrayAdsGapMode_t;
 
+typedef enum {
+    SENSORARRAY_ADS_RAIL_SOURCE_NONE = 0,
+    SENSORARRAY_ADS_RAIL_SOURCE_MONITOR,
+    SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION,
+} sensorarrayAdsRailSource_t;
+
 esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state);
+/* Core 1 only: refreshes the rail monitor between complete matrix frames. */
+esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
+                                                 uint32_t frameSequence);
+/* Core 1 only: apply a volatile, externally measured AVDD/AVSS calibration at
+ * a frame boundary. AVSS is signed and must be below GND. The value is not
+ * persisted and remains subject to maximumAgeFrames. */
+esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
+                                                       int32_t avssUv,
+                                                       uint32_t frameSequence);
+bool sensorarrayAdsGapCopyRailSplit(uint32_t frameSequence,
+                                    uint32_t maximumAgeFrames,
+                                    sensorarrayAdsRailSplit_t *outRail);
 void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
                              uint64_t expectedFdcReadyUs,
                              uint32_t frameSequence,
@@ -46,6 +65,7 @@ void sensorarrayAdsGapSetMode(sensorarrayAdsGapMode_t mode);
 sensorarrayAdsGapMode_t sensorarrayAdsGapGetMode(void);
 const char *sensorarrayAdsGapModeName(sensorarrayAdsGapMode_t mode);
 const char *sensorarrayAdsRailStatusName(sensorarrayAdsRailStatus_t status);
+const char *sensorarrayAdsRailSourceName(sensorarrayAdsRailSource_t source);
 size_t sensorarrayAdsGapFormatBattery(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatRail(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatAds(char *buffer, size_t bufferSize);

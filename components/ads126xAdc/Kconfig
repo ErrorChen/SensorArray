@@ -9,6 +9,14 @@ config ADS126X_SPI_CLOCK_HZ
     int "SPI clock (Hz)"
     default 2000000
 
+config ADS126X_MUTEX_TIMEOUT_MS
+    int "Maximum ADS SPI mutex wait (ms)"
+    range 1 1000
+    default 100
+    help
+        Bounds every ADS SPI transaction mutex acquisition. A timeout is
+        returned to the measurement owner instead of blocking indefinitely.
+
 config ADS126X_HAS_ADC2
     bool "Enable ADC2 API (ADS1263 only)"
     default y

@@ -562,6 +562,15 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
         return err;
     }
 
+    /* POWER.RESET powers up asserted and is mirrored in every ADC status
+     * byte. Acknowledge only this deliberate bring-up reset so the matrix
+     * engine can detect any reset that happens later. */
+    err = ads126xAdcClearResetFlag(&state->ads);
+    if (err != ESP_OK) {
+        (void)ads126xAdcDeinit(&state->ads);
+        return err;
+    }
+
     state->adsAdc1Running = false;
     state->adsRefReady = false;
     state->adsRefMuxValid = false;

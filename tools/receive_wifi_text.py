@@ -8,7 +8,8 @@ import select
 import socket
 import time
 
-from text_protocol import FragmentReassembler, TextProtocolParser, format_cap_preview
+from text_protocol import (FragmentReassembler, TextProtocolParser,
+                           format_cap_preview, format_measurement_preview)
 
 
 def first_non_ascii(payload: bytes) -> tuple[int, int] | None:
@@ -46,7 +47,10 @@ def main() -> int:
 
     protocol = TextProtocolParser(
         on_cap_frame=(lambda frame: print(format_cap_preview(frame), flush=True))
-        if (args.show_cap or args.stream in ("data", "all")) else None)
+        if (args.show_cap or args.stream in ("data", "all")) else None,
+        on_measurement_frame=(
+            lambda frame: print(format_measurement_preview(frame), flush=True)
+        ) if (args.show_cap or args.stream in ("data", "all")) else None)
     show_log = args.show_log or args.stream in ("log", "all")
     reassembler = FragmentReassembler()
     buffers = {"D": bytearray(), "L": bytearray(), "C": bytearray()}

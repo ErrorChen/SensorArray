@@ -1,5 +1,7 @@
 # ESP-IDF build output
 build/
+build_*/
+validation_artifacts/
 *.map
 *.elf
 *.bin

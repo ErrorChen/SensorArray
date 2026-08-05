@@ -318,7 +318,10 @@ static bool sensorarrayTransportBuildShortData(const char *data,
 
 static void sensorarrayTransportFillFrameMeta(sensorarrayTransportItem_t *item)
 {
-    if (!item || item->length == 0u || item->data[0] != 'C' || item->data[1] != ',') {
+    bool frameTag = item && item->length >= 2u && item->data[1] == ',' &&
+                    (item->data[0] == 'C' || item->data[0] == 'V' ||
+                     item->data[0] == 'R');
+    if (!frameTag) {
         return;
     }
 

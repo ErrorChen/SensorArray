@@ -1,7 +1,6 @@
 #include "sensorarrayBoardMap.h"
 
 #include <stdio.h>
-#include <string.h>
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayAcqEvent.h"
@@ -176,9 +175,9 @@ sensorarrayRoutePathKind_t sensorarrayBoardMapPathToRoutePath(sensorarrayPath_t 
         return SENSORARRAY_ROUTE_PATH_CAPACITIVE;
     }
     if (swSource == TMUX1108_SOURCE_REF) {
-        return SENSORARRAY_ROUTE_PATH_VOLTAGE;
+        return SENSORARRAY_ROUTE_PATH_RESISTIVE;
     }
-    return SENSORARRAY_ROUTE_PATH_RESISTIVE;
+    return SENSORARRAY_ROUTE_PATH_VOLTAGE;
 }
 
 tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t *route)
@@ -189,10 +188,84 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
     if (route->path == SENSORARRAY_PATH_CAPACITIVE) {
         return TMUX1108_SOURCE_GND;
     }
-    if (route->mapLabel && strstr(route->mapLabel, "volt") != NULL) {
-        return TMUX1108_SOURCE_REF;
-    }
+    /* A sparse debug route does not carry a business measurement mode. Use
+     * the passive source here; production VOLT/RES callers must request an
+     * explicit board route profile instead of inspecting mapLabel text. */
     return TMUX1108_SOURCE_GND;
+}
+
+bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
+                                        sensorarrayBoardRouteProfile_t *outProfile)
+{
+    if (!outProfile) {
+        return false;
+    }
+    switch (mode) {
+    case SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE:
+        *outProfile = (sensorarrayBoardRouteProfile_t){
+            .mode = mode,
+            .selaRoute = SENSORARRAY_SELA_ROUTE_FDC2214,
+            .selBLevel = true,
+            .swLogicalSource = TMUX1108_SOURCE_GND,
+            .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_HIGH,
+            .matrixExcitationEnabled = false,
+            /* SW high turns Q1 on and clamps the shared REF/REFOUT net to
+             * GND. INTREF must therefore remain off in the passive CAP route. */
+            .intRef = SENSORARRAY_ADS_INTREF_OFF,
+            .vbias = SENSORARRAY_ADS_VBIAS_ON,
+            .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_AVDD_AVSS,
+            .adsRefMux = ADS126X_REFMUX_AVDD_AVSS,
+        };
+        return true;
+    case SENSORARRAY_MEASUREMENT_MODE_VOLTAGE:
+        *outProfile = (sensorarrayBoardRouteProfile_t){
+            .mode = mode,
+            .selaRoute = SENSORARRAY_SELA_ROUTE_ADS1263,
+            .selBLevel = false,
+            .swLogicalSource = TMUX1108_SOURCE_GND,
+            .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_HIGH,
+            .matrixExcitationEnabled = false,
+            .intRef = SENSORARRAY_ADS_INTREF_OFF,
+            .vbias = SENSORARRAY_ADS_VBIAS_ON,
+            .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_AVDD_AVSS,
+            .adsRefMux = ADS126X_REFMUX_AVDD_AVSS,
+        };
+        return true;
+    case SENSORARRAY_MEASUREMENT_MODE_RESISTANCE:
+        *outProfile = (sensorarrayBoardRouteProfile_t){
+            .mode = mode,
+            .selaRoute = SENSORARRAY_SELA_ROUTE_ADS1263,
+            .selBLevel = false,
+            .swLogicalSource = TMUX1108_SOURCE_REF,
+            .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_LOW,
+            .matrixExcitationEnabled = true,
+            .intRef = SENSORARRAY_ADS_INTREF_ON,
+            .vbias = SENSORARRAY_ADS_VBIAS_ON,
+            .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_INTERNAL,
+            .adsRefMux = ADS126X_REFMUX_INTERNAL,
+        };
+        return true;
+    case SENSORARRAY_MEASUREMENT_MODE_NONE:
+    default:
+        *outProfile = (sensorarrayBoardRouteProfile_t){
+            .mode = SENSORARRAY_MEASUREMENT_MODE_NONE,
+            .selaRoute = SENSORARRAY_SELA_ROUTE_FDC2214,
+            .selBLevel = true,
+            .swLogicalSource = TMUX1108_SOURCE_GND,
+            .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_HIGH,
+            .matrixExcitationEnabled = false,
+            .intRef = SENSORARRAY_ADS_INTREF_KEEP,
+            .vbias = SENSORARRAY_ADS_VBIAS_KEEP,
+            .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_NONE,
+            .adsRefMux = ADS126X_REFMUX_INTERNAL,
+        };
+        return true;
+    }
+}
+
+const char *sensorarrayBoardMapMatrixExcitationName(bool enabled)
+{
+    return enabled ? "REFOUT" : "GND";
 }
 
 void sensorarrayBoardMapAudit(void)

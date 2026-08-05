@@ -49,6 +49,12 @@ esp_err_t sensorarrayMeasureSetSwPhysicalLevel(sensorarrayState_t *state,
                                                sensorarraySwPhysicalLevel_t level,
                                                const char *reason);
 
+esp_err_t sensorarrayMeasureDisableIntrefKeepVbiasForPassiveMatrix(
+    sensorarrayState_t *state);
+/* Deprecated compatibility wrappers; prefer the explicit API above. */
+esp_err_t sensorarrayMeasureKeepAdsBiasForPassiveMatrix(sensorarrayState_t *state);
+esp_err_t sensorarrayMeasureForceAdsReferenceOff(sensorarrayState_t *state);
+
 esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, const char *reason);
 
 esp_err_t sensorarrayMeasureEnsureFdcMatrixPath(sensorarrayState_t *state, const char *reason);

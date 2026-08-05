@@ -21,6 +21,7 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameOutput.h"
 #include "sensorarrayNetStatus.h"
+#include "sensorarrayOutputPolicy.h"
 #include "sensorarrayTextProtocol.h"
 #include "sensorarrayTransport.h"
 #include "sensorarrayTypes.h"
@@ -90,9 +91,20 @@ typedef struct {
         } overrun;
         struct {
             esp_err_t readErr;
+            sensorarrayMeasurementMode_t measurementMode;
+            uint64_t measurementValidMask;
+            uint64_t measurementFreshMask;
             uint64_t capValidMask;
             uint64_t errorMask;
             uint64_t warnMask;
+            uint64_t frameDurationUs;
+            uint32_t gainChangeCount;
+            uint32_t overrangeCount;
+            uint32_t autorangeAttemptCount;
+            uint32_t drdyTimeoutCount;
+            uint32_t staleCount;
+            uint32_t spiErrorCount;
+            uint32_t statusErrorCount;
             uint8_t validCount;
             uint8_t freshCount;
             uint8_t hardwareZeroRawCount;
@@ -107,6 +119,7 @@ typedef struct {
             uint8_t invalidSentinelCount;
             bool allRawZero;
             bool bootOk;
+            bool adsFrame;
         } frameError;
         struct {
             sensorarrayCommandType_t type;
@@ -417,7 +430,27 @@ static void sensorarrayAsyncLogPrintEvent(const sensorarrayAsyncLogEvent_t *even
                (long long)event->data.overrun.periodUs);
         break;
     case SENSORARRAY_ASYNC_LOG_EVENT_FRAME_ERROR:
-        if (event->data.frameError.capValidMask == 0u) {
+        if (event->data.frameError.adsFrame) {
+            const char *stage = event->data.frameError.measurementValidMask == 0u ?
+                "all_invalid" : "io_error";
+            printf("ADSFRAME,stage=%s,mode=%s,seq=%lu,valid=0x%016llX,error=0x%016llX,fresh=0x%016llX,err=0x%lx,gainChanges=%lu,overrange=%lu,attempts=%lu,timeout=%lu,stale=%lu,spi=%lu,status=%lu,durationUs=%llu,async=1\n",
+                   stage,
+                   sensorarrayMeasurementModeName(
+                       event->data.frameError.measurementMode),
+                   (unsigned long)event->sequence,
+                   (unsigned long long)event->data.frameError.measurementValidMask,
+                   (unsigned long long)event->data.frameError.errorMask,
+                   (unsigned long long)event->data.frameError.measurementFreshMask,
+                   (unsigned long)event->data.frameError.readErr,
+                   (unsigned long)event->data.frameError.gainChangeCount,
+                   (unsigned long)event->data.frameError.overrangeCount,
+                   (unsigned long)event->data.frameError.autorangeAttemptCount,
+                   (unsigned long)event->data.frameError.drdyTimeoutCount,
+                   (unsigned long)event->data.frameError.staleCount,
+                   (unsigned long)event->data.frameError.spiErrorCount,
+                   (unsigned long)event->data.frameError.statusErrorCount,
+                   (unsigned long long)event->data.frameError.frameDurationUs);
+        } else if (event->data.frameError.capValidMask == 0u) {
             printf("MATRIXFDC_DIAG,stage=all_invalid_frame,seq=%lu,errorMask=0x%016llX,readErr=0x%lx,bootOk=%u,freshCount=%u,hardwareZeroRawCount=%u,notReadyCount=%u,zeroBeforeReadyCount=%u,zeroAfterDrdyCount=%u,i2cErrorCount=%u,unreadWithoutDrdyCount=%u,softInvalidCount=%u,hardInvalidCount=%u,staleUnreadDrainCount=%u,invalidSentinelCount=%u,rawAllZero=%u,async=1\n",
                    (unsigned long)event->sequence,
                    (unsigned long long)event->data.frameError.errorMask,
@@ -1611,7 +1644,13 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
         s_sharedStats.measureFrameMaxUs = measureFrameUs;
     }
     slot = sensorarrayAsyncLogFindFreeSlotLocked();
-    if (slot == UINT8_MAX && CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES) {
+    sensorarrayOutputCongestionDecision_t congestionDecision =
+        sensorarrayOutputCongestionDecide(
+            slot != UINT8_MAX,
+            s_pendingCount != 0u,
+            CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES != 0);
+    if (congestionDecision ==
+        SENSORARRAY_OUTPUT_CONGESTION_RECLAIM_OLDEST) {
         (void)sensorarrayAsyncLogDropOldestQueuedFrameLocked();
         slot = sensorarrayAsyncLogFindFreeSlotLocked();
     }
@@ -1635,7 +1674,7 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
             .measureFrameUs = measureFrameUs,
             .publishedUs = publishedUs,
         };
-        esp_err_t textErr = sensorarrayTextProtocolBuildCapFrame(
+        esp_err_t textErr = sensorarrayTextProtocolBuildFrame(
             frame,
             &s_frameSlots[slot].textPacket);
         if (textErr != ESP_OK) {
@@ -1705,14 +1744,27 @@ esp_err_t sensorarrayAsyncLogPublishFrameError(const sensorarrayFrame_t *frame,
     }
     uint8_t invalidSentinelCount =
         (uint8_t)(SENSORARRAY_MATRIX_CELL_COUNT - frame->validCount);
+    bool adsFrame = frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||
+                    frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE;
     sensorarrayAsyncLogEvent_t event = {
         .type = SENSORARRAY_ASYNC_LOG_EVENT_FRAME_ERROR,
         .sequence = frame->sequence,
         .data.frameError = {
             .readErr = readErr,
+            .measurementMode = frame->measurement.mode,
+            .measurementValidMask = frame->measurement.validMask,
+            .measurementFreshMask = frame->measurement.freshMask,
             .capValidMask = frame->capValidMask,
-            .errorMask = frame->errorMask,
+            .errorMask = adsFrame ? frame->measurement.errorMask : frame->errorMask,
             .warnMask = frame->warnMask,
+            .frameDurationUs = frame->measurement.frameDurationUs,
+            .gainChangeCount = frame->measurement.gainChangeCount,
+            .overrangeCount = frame->measurement.overrangeCount,
+            .autorangeAttemptCount = frame->measurement.autorangeAttemptCount,
+            .drdyTimeoutCount = frame->measurement.drdyTimeoutCount,
+            .staleCount = frame->measurement.staleCount,
+            .spiErrorCount = frame->measurement.spiErrorCount,
+            .statusErrorCount = frame->measurement.statusErrorCount,
             .validCount = frame->validCount,
             .freshCount = frame->freshCount,
             .hardwareZeroRawCount = frame->hardwareZeroRawCount,
@@ -1727,6 +1779,7 @@ esp_err_t sensorarrayAsyncLogPublishFrameError(const sensorarrayFrame_t *frame,
             .invalidSentinelCount = invalidSentinelCount,
             .allRawZero = allRawZero,
             .bootOk = bootOk,
+            .adsFrame = adsFrame,
         },
     };
     return sensorarrayAsyncLogPublishEvent(&event);

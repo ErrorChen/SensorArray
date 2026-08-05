@@ -97,6 +97,30 @@ config SENSORARRAY_BLE_TX_TASK_CORE
     default SENSORARRAY_OUTPUT_TASK_CORE
     range 0 1
 
+config SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN
+    int "BLE control RX command queue length"
+    default 4
+    range 2 16
+    help
+        Fixed small-command queue copied by the BLE callback and consumed by
+        the Core 0 control task. A full queue drops the new command; it never
+        blocks the BLE stack or acquisition task.
+
+config SENSORARRAY_BLE_CTRL_TASK_STACK
+    int "BLE control task stack bytes"
+    default 4096
+    range 3072 12288
+
+config SENSORARRAY_BLE_CTRL_TASK_PRIORITY
+    int "BLE control task priority"
+    default 6
+    range 1 24
+
+config SENSORARRAY_BLE_CTRL_TASK_CORE
+    int "BLE control task core"
+    default SENSORARRAY_OUTPUT_TASK_CORE
+    range 0 1
+
 config SENSORARRAY_FDC_EMIT_CAP_TOTAL_PF
     bool "Legacy: emit capTotalPf[64] in text output"
     default y
