@@ -42,3 +42,11 @@ do not change. Before VOLT, submit a measured microvolt AVDD/negative-AVSS pair
 through `RAILCFG` and wait for its applied event. Treat acceptance as queued and commit UI state only on the
 matching applied event. Render PGA `00` as bypass, retain the `ir` recovered-
 retry telemetry, and discard old-generation packets after a transition.
+
+For battery reliability dashboards, retain cumulative `validRun` and
+`invalidRun` rather than displaying only the latest `valid` bit. Parse
+`retry=<last>/<total>`, `unstable`, `timeout`, `spreadRaw`, and
+`spreadMaxRaw` from both ABAT/AB50. A retry means firmware waited for a later
+DRDY generation; it is not stale-value reuse. Treat any increase in
+`invalidRun`, `unstable`, `timeout`, or `restoreFail` as an event that remains
+visible even if a later sample is valid.

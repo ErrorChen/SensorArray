@@ -64,3 +64,16 @@ ordinary frames are suppressed during transition and never mix modes.
 See [measurement modes](measurement-modes.md),
 [measurement protocol](measurement-protocol.md), and
 [software integration](software-integration.md).
+
+## Auxiliary ADS ownership and deadline semantics
+
+The battery scheduler owns no SPI driver and creates no task. It only decides
+due/gap/boundary policy from `esp_timer_get_time()`; the existing Core 1
+`sensorarrayAdsGap` transaction acquires the shared ADS owner. Deadlines advance
+from the previous absolute due time, not job completion. CAP first attempts
+admission into an FDC conversion gap. If the complete measured duration plus
+guard cannot fit, the same complete frame boundary runs the job; VOLT/RES only
+offer complete matrix boundaries. Register shadow generation is saved and the
+restored POWER/MODE2/INPMUX/REFMUX state is read back before ownership returns.
+Restore failure invalidates matrix assumptions and enters SAFE/DEGRADED rather
+than publishing a normal valid frame.

@@ -277,7 +277,7 @@ For the full configuration table, see “Configuration options” in the root `R
 | `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS` | Fixed TextFrameBus slot count. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | Non-blocking anomaly event queue length. Default `32`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | `SF50/TR50/AB50/OT50/BL50/I2C50` cadence. Default `50`. |
-| `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | Log task stack, priority and affinity. Defaults `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE`. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | Log task stack, priority and affinity. Defaults `16384`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE`; 16 KiB is required by the verified compact-summary formatter/sink call chain. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES` | Drops old normal frame snapshots instead of blocking measurement when output is behind. |
 | `CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES` | Legacy BLE cap-text cadence. Current BLE payload size is primarily controlled by `TX=SHORT|REL|FULL`, while `BTX=FAST|SAFE` controls notify versus indication-confirmed sends. |
 | `CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG` | Allows explicitly marked stale/mixed output only for diagnostics. Default `n`. |

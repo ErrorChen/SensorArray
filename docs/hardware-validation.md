@@ -87,3 +87,38 @@ boundary. It waits for a fresh dual-FDC CAP frame after the bounded boot sweep,
 not merely for the earlier ADS identity line. The 2026-08-05 COM12 run passed all three modes and ten cycles, but
 resistor accuracy against simultaneous DMM values and real BLE/Wi-Fi links
 remain unverified. A missing port, board, or link must be reported as unverified.
+
+## 2026-08-06 COM12 strict acceptance
+
+The artifact `validation_artifacts/20260806_full_acceptance_strict_battery`
+was captured from ESP32-S3 revision 0.2 with ADS1262 ID `0x03` using ESP-IDF
+5.5.1. `ADSCHK=100` returned 100 fresh samples, 99 changed samples, zero
+SPI/timeout/stale/status/reset errors, and `restore=ok`. Ten full mode cycles
+completed with no reset, WDT, fatal event, CRC error, or stale frame marked
+fresh.
+
+The 100-frame performance windows measured 20.025 physical FPS / 45.854 ms
+mean for VOLT and 20.956 physical FPS / 44.351 ms mean for RES. Profile hit
+rates were 98.94% and 100%; non-precision attempts/cell were 1.01 and 1.00;
+ordinary raw conversions/frame were 72.2 and 64.0. All 3,200 expected cells per
+telemetry window were fresh.
+
+With `BATPERIOD=1000`, CAP produced 120/120 valid scheduled results, VOLT
+121/121, and RES 121/121 during their 120-second dwells. Each mode had zero
+invalid, unstable, terminal timeout, restore failure, CRC failure, and matrix
+freshness failure. The maximum observed three-sample spread was 1,094,416 raw
+codes. Three bounded DRDY retries were recovered across the full run and are
+visible in telemetry. Simultaneous DMM values for S1D1, S8D8, VBAT-GND,
+AIN8-GND, and AINCOM-GND were not supplied in this run, so absolute resistance
+and battery-voltage accuracy remain explicitly unverified; BLE and Wi-Fi
+physical links were also not exercised.
+
+The RES settle artifact reports both emitted and sequence-derived physical FPS.
+`adjacent_row_comparisons=0` means the fixture had no adjacent rows with two
+simultaneously valid resistance cells; in that case the crosstalk result is
+`null`/unverified, never a fabricated zero.
+
+The RESSETTLE regression is also a log-task stack acceptance: the former
+12,288-byte budget produced a reproducible Core 0 stack-canary panic in the
+expanded compact-summary call chain. The production default is now 16,384
+bytes, and a sweep is not accepted if the raw log contains any panic/reset/WDT.

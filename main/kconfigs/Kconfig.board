@@ -170,21 +170,23 @@ config SENSORARRAY_BATTERY_DATA_RATE
     help
         ADS1262 MODE2 data-rate code used only during the frame-boundary or
         admitted CAP-gap AIN8 transaction. The default 9 selects 1200 SPS,
-        trading a few milliseconds of periodic overhead for materially lower
-        noise than the 38.4 kSPS matrix path. The complete matrix register
-        snapshot is restored and verified afterwards.
+        trading a few milliseconds of periodic boundary overhead for the
+        materially lower noise verified on ADS1262. One genuinely fresh
+        discard plus a three-conversion median and raw spread gate remain
+        enabled. The complete matrix core state is restored and read back.
 
 config SENSORARRAY_BATTERY_MAX_SPREAD_RAW
     int "Maximum raw-code spread across three battery samples"
-    default 1000000
+    default 2000000
     range 1 2147483647
     help
         A larger three-sample spread marks the AIN8 result unstable. The
         transaction is still restored and reported, but battery valid remains
         false. This threshold is in ADC raw codes rather than battery volts.
-        On the validated 5.188 V reference, 1000000 codes is about 2.42 mV at
-        AIN8 or 4.84 mV after the default 2:1 divider, still below the 10 mV
-        hardware-acceptance floor.
+        On the validated 5.188 V reference, 2000000 codes is about 4.83 mV at
+        AIN8 or 9.66 mV after the default 2:1 divider. This keeps the complete
+        accepted spread below the 10 mV hardware-acceptance floor while
+        tolerating the measured FDC-coupled boundary noise in CAP mode.
 
 config SENSORARRAY_ADS_AVSS_TO_GND_UV
     int "Magnitude of AVSS below GND (uV)"

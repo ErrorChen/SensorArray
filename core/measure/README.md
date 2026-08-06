@@ -63,3 +63,14 @@ conversion, enters `DEGRADED`/`SAFE`, and suppresses apparently valid data.
 See [measurement modes](../../docs/measurement-modes.md),
 [wire protocol](../../docs/measurement-protocol.md), and
 [ADS implementation](ads/README.md).
+
+## Battery boundary policy verified on hardware
+
+`sensorarrayBatteryScheduler` advances absolute microsecond deadlines from the
+previous deadline, so transaction duration does not accumulate into a 1 Hz
+drift. CAP first evaluates a real FDC gap. If the complete job plus guard does
+not fit, `gapDeferred` authorises the immediately following complete-frame
+boundary; `maximumDeferMs` remains the fallback when no gap was evaluable.
+VOLT/RES permit battery, ADSCHK, rail, and zero ownership only after the full
+`activeRows * 8` matrix frame. The 2026-08-06 strict COM12 run observed no
+mixed frames, CRC failures, freshness failures, or restore failures.

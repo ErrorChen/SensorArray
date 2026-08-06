@@ -604,6 +604,30 @@ static int testBatteryTimeScheduler(void)
     CHECK(noDrift.runCount == 120u);
     CHECK(noDrift.nextDueUs == 121000000u);
 
+    /* CAP gives a due job one real conversion gap first. If the measured job
+     * plus guard cannot fit, it runs at that frame's complete boundary rather
+     * than missing three 1 Hz schedule slots. */
+    sensorarrayBatteryScheduler_t capFallback;
+    sensorarrayBatterySchedulerInit(&capFallback, true, 1000u, 3000u, 0u);
+    CHECK(sensorarrayBatterySchedulerEvaluateGap(&capFallback,
+                                                  1000000u,
+                                                  3000u,
+                                                  5500u,
+                                                  500u) ==
+          SENSORARRAY_BATTERY_DECISION_DEFER);
+    CHECK(sensorarrayBatterySchedulerEvaluateBoundary(&capFallback,
+                                                       1000100u,
+                                                       true) ==
+          SENSORARRAY_BATTERY_DECISION_RUN_BOUNDARY);
+    sensorarrayBatterySchedulerRecordRun(&capFallback,
+                                          1007000u,
+                                          6900u,
+                                          true,
+                                          true);
+    CHECK(capFallback.boundaryCount == 1u);
+    CHECK(!capFallback.gapDeferred);
+    CHECK(capFallback.nextDueUs == 2000000u);
+
     /* Calling the policy at a 3-FPS or 100-FPS cadence cannot change the
      * wall-clock due time: frame count is deliberately absent from its API. */
     sensorarrayBatteryScheduler_t slow;

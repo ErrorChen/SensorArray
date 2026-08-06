@@ -64,3 +64,13 @@ the normal RES-session row change keeps INTREF active and uses the device's
 break-before-make address transition plus a configurable, readback-checked
 settle. The clamp/restart sequence remains the fallback. VOLT/RES capture
 targets default to unlimited; output caps never pace Core 1 acquisition.
+
+## Frame-boundary auxiliary transactions
+
+CAP keeps both FDC workers active. VOLT and RES put both FDC devices to sleep
+once at the mode boundary and require CONFIG readback before acquisition; the
+mode snapshot exposes both sleep/active states and verification bits. AIN8,
+ADSCHK, rail, and zero jobs never run inside the VOLT/RES row/column loops.
+CAP offers a conversion gap first, then uses the immediately following full
+frame boundary if the measured job plus guard cannot fit. This boundary policy
+does not change the requested measurement mode or its generation.

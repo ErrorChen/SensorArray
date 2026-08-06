@@ -826,7 +826,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE` | bool | Kconfig/defaults: y | Enables non-blocking frame snapshot publishing to `sensorarrayLogTask`. | `sensorarrayAsyncLogInit()`, main loop | Default path; measurement never waits for serial printf. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES` | int | Kconfig/defaults: `20` | Emits `LOG20` producer/consumer summary. | `sensorarrayAsyncLogMaybePrintSummary()` | Watch `droppedOutputFrames` and `frameAgeMaxUs`. |
 | `CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS`, `CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN` | int | `16`, `32` | Fixed frame snapshot slots and non-blocking event queue. | async log producer/consumer | Slots are static; no per-frame heap allocation. The 16-frame depth absorbs the 20-frame diagnostic text burst without back-pressuring physical acquisition. |
-| `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | int | `12288`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE` | Log task stack, priority and affinity. | async log task creation | Keep lower than measurement priority unless profiling proves otherwise. |
+| `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY`, `CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE` | int | `16384`, `7`, `CONFIG_SENSORARRAY_COMM_TASK_CORE` | Log task stack, priority and affinity. | async log task creation | 16 KiB preserves formatter/sink headroom verified by the RESSETTLE sweep; keep priority below measurement. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_SUMMARY_AGGREGATE` | bool | Kconfig/defaults: y | Enables aggregate timing summaries. | timing aggregate functions | Keep enabled during performance work. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_OVERRUN_IMMEDIATE_LOG` | bool | Kconfig/defaults: y | Prints bottleneck on frame overrun. | `sensorarrayMeasurePrintFdcBottleneck()` | Useful when testing lower frame periods. |
 | `CONFIG_SENSORARRAY_FDC_TIMING_VERBOSE_PER_FRAME` | bool | defaults: n | Enables per-frame timing summary when profile summary is on. | `sensorarrayMeasurePrintFdcTimingSummary()` | High log volume; affects frame rate. |
@@ -2188,3 +2188,34 @@ with a 3 MiB factory application partition.
   counters.
 - `NET20`: SoftAP/client/send/drop/error status.
 - `BLE20`: advertising/connection/subscription/MTU/PHY/TX power/notify status.
+
+## 2026-08-06 strict ADS/battery hardware acceptance
+
+The final COM12 acceptance artifact is
+`validation_artifacts/20260806_full_acceptance_strict_battery`. It covers
+`ADSCHK=100`, ROWS 1/2/4/8, ten complete CAP/VOLT/RES cycles, 100-frame
+VOLT/RES performance windows, and 120-second battery dwells in all three
+modes. The battery validator now establishes a mode-local `BATNOW` baseline
+and requires every subsequent scheduled run to be valid; checking only the
+last cached value is not sufficient.
+
+Battery sampling remains one discard plus three genuinely fresh conversions
+at 1200 SPS. A timeout or cleared new-data indication gets at most one wait for
+a later DRDY generation; it never accepts an old generation or a two-sample
+result. The three-sample spread limit is 2,000,000 raw codes (about 9.66 mV at
+VBAT for the measured 5.188 V rail and default 2:1 divider). `ABAT` and `AB50`
+report last/maximum spread, last/total retry, valid/invalid run counts,
+unstable count, and terminal timeout count.
+
+CAP still offers the FDC conversion gap first. The measured complete battery
+transaction is about 6.1 ms and therefore cannot fit the approximately 3.9 ms
+FDC gap plus guard; after rejecting gap admission it runs at that same complete
+CAP frame boundary. VOLT/RES always run it after a complete matrix frame. This
+preserves wall-clock cadence without pre-empting an FDC deadline or inserting
+AIN8 into a matrix scan.
+
+The expanded compact telemetry makes the output-hub formatter's deepest
+static call chain exceed the old 12 KiB task-stack budget during RESSETTLE
+sweeps. The verified default is therefore 16 KiB. This changes only the Core 0
+log-task reservation; it does not allocate in or pace the ADS acquisition hot
+path.

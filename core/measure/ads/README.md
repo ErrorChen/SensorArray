@@ -120,3 +120,19 @@ milliohms using the confirmed divider nodes and calibrated Rref/reference/path
 data. Invalid samples carry an explicit reason instead of zero. Calibration
 persistence is deliberately not implemented until a versioned, range-checked,
 CRC-protected store is available.
+
+## Battery freshness and noise gate
+
+The ordinary AIN8 transaction uses ADS1262 ADC1 at 1200 SPS, confirms VBIAS
+and the AIN8/AINCOM/reference registers, discards one new conversion, and takes
+the median of three further new conversions. A timeout or stale new-data bit
+may wait once for a later DRDY generation; SPI/status/reference/reset alarms
+are never retried into validity. All three fresh samples are still mandatory.
+
+The raw spread gate defaults to 2,000,000 codes. At the measured 5.188 V rail
+this is about 4.83 mV at AIN8 and 9.66 mV after the default 2:1 divider. The
+gate therefore tolerates the observed CAP-boundary coupling while remaining
+below the 10 mV hardware acceptance floor. `batteryValidRunCount` and
+`batteryInvalidRunCount` are cumulative transaction outcomes; retry, unstable,
+terminal timeout, last spread, and maximum spread are independently retained
+for long-dwell auditing.

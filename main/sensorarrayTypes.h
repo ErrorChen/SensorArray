@@ -234,6 +234,14 @@ typedef struct {
     uint32_t batteryRestoreFailureCount;
     uint32_t batterySampleCount;
     uint32_t batteryShadowGeneration;
+    uint32_t batterySpreadRaw;
+    uint32_t batterySpreadRawMaximum;
+    uint32_t batteryValidRunCount;
+    uint32_t batteryInvalidRunCount;
+    uint32_t batteryRetryCount;
+    uint32_t batteryLastRetryCount;
+    uint32_t batteryUnstableCount;
+    uint32_t batteryTimeoutCount;
     uint8_t id;
     uint8_t devId;
     uint8_t revId;

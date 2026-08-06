@@ -418,6 +418,34 @@ class SerialValidator:
         self.result.battery_status = fields
         return fields
 
+    def run_battery_now(self, timeout: float) -> dict[str, str]:
+        """Run one battery transaction at the next complete frame boundary."""
+        self.write_command("BATNOW")
+        accepted = self.wait_line(
+            lambda item: item.startswith("ACK,cmd=BATNOW,"), timeout,
+            "BATNOW accepted",
+        )
+        request_id = parse_fields(accepted).get("id")
+        if request_id is None:
+            raise RuntimeError(f"BATNOW accepted without id: {accepted}")
+        completed = self.wait_line(
+            lambda item: item.startswith("BAPP,") and
+                         parse_fields(item).get("id") == request_id,
+            timeout,
+            "BATNOW completed",
+        )
+        completed_fields = parse_fields(completed)
+        if (completed_fields.get("status") != "complete" or
+                self._field_int(completed_fields, "err") != 0):
+            raise RuntimeError(f"BATNOW failed: {completed}")
+        snapshot = self.query_battery(timeout)
+        if snapshot.get("valid") != "1" or snapshot.get("restore") != "ok":
+            raise RuntimeError(
+                "BATNOW did not produce a valid restored result: " +
+                str(snapshot)
+            )
+        return snapshot
+
     @staticmethod
     def _field_int(fields: dict[str, str], name: str) -> int:
         try:
@@ -562,8 +590,15 @@ class SerialValidator:
             return
         self.switch_mode(mode, timeout)
         self.set_rows(8, timeout)
-        start = self.query_battery(timeout)
+        # Establish a valid result in the selected mode before taking counter
+        # baselines. A result left by the previous mode cannot prove this
+        # mode's battery transaction is reliable.
+        start = self.run_battery_now(timeout)
         start_run = self._field_int(start, "run")
+        start_valid_run = self._field_int(start, "validRun")
+        start_invalid_run = self._field_int(start, "invalidRun")
+        start_unstable = self._field_int(start, "unstable")
+        start_timeout = self._field_int(start, "timeout")
         start_restore_fail = self._field_int(start, "restoreFail")
         start_boundary = self._field_int(start, "boundary")
         period_ms = self._field_int(start, "periodMs")
@@ -591,9 +626,17 @@ class SerialValidator:
         end = self.query_battery(timeout)
         elapsed = time.monotonic() - started
         end_run = self._field_int(end, "run")
+        end_valid_run = self._field_int(end, "validRun")
+        end_invalid_run = self._field_int(end, "invalidRun")
+        end_unstable = self._field_int(end, "unstable")
+        end_timeout = self._field_int(end, "timeout")
         end_restore_fail = self._field_int(end, "restoreFail")
         end_boundary = self._field_int(end, "boundary")
         run_delta = max(0, end_run - start_run)
+        valid_run_delta = max(0, end_valid_run - start_valid_run)
+        invalid_run_delta = max(0, end_invalid_run - start_invalid_run)
+        unstable_delta = max(0, end_unstable - start_unstable)
+        timeout_delta = max(0, end_timeout - start_timeout)
         restore_fail_delta = max(0, end_restore_fail - start_restore_fail)
         boundary_delta = max(0, end_boundary - start_boundary)
         expected_runs = int(elapsed * 1000.0 / period_ms) if period_ms > 0 else 0
@@ -615,6 +658,10 @@ class SerialValidator:
             "period_ms": period_ms,
             "expected_runs": expected_runs,
             "run_delta": run_delta,
+            "valid_run_delta": valid_run_delta,
+            "invalid_run_delta": invalid_run_delta,
+            "unstable_delta": unstable_delta,
+            "timeout_delta": timeout_delta,
             "boundary_delta": boundary_delta,
             "restore_fail_delta": restore_fail_delta,
             "frames": len(frame_samples),
@@ -625,7 +672,11 @@ class SerialValidator:
             "start": start,
             "end": end,
             "mode_after": mode_snapshot,
-            "accepted": (interval_ok and restore_fail_delta == 0 and
+            "accepted": (interval_ok and valid_run_delta == run_delta and
+                         invalid_run_delta == 0 and unstable_delta == 0 and
+                         timeout_delta == 0 and end.get("valid") == "1" and
+                         end.get("restore") == "ok" and
+                         restore_fail_delta == 0 and
                          bad_crc == 0 and bad_fresh == 0 and
                          len(frame_samples) > 1),
         }
@@ -637,6 +688,15 @@ class SerialValidator:
         if restore_fail_delta:
             self.result.failures.append(
                 f"{mode} battery restore failures={restore_fail_delta}"
+            )
+        if (valid_run_delta != run_delta or invalid_run_delta or
+                unstable_delta or timeout_delta or end.get("valid") != "1" or
+                end.get("restore") != "ok"):
+            self.result.failures.append(
+                f"{mode} battery validity run={run_delta}, valid={valid_run_delta}, "
+                f"invalid={invalid_run_delta}, unstable={unstable_delta}, "
+                f"timeout={timeout_delta}, endValid={end.get('valid')}, "
+                f"restore={end.get('restore')}"
             )
         if bad_crc or bad_fresh or len(frame_samples) <= 1:
             self.result.failures.append(
@@ -735,14 +795,19 @@ class SerialValidator:
 
             frame_durations = [frame.frame_duration_us for _, frame in frames]
             elapsed = frames[-1][0] - frames[0][0]
-            fps = (len(frames) - 1) / elapsed if elapsed > 0 else 0.0
+            emitted_fps = (len(frames) - 1) / elapsed if elapsed > 0 else 0.0
+            physical_fps = (
+                (frames[-1][1].sequence - frames[0][1].sequence) / elapsed
+                if elapsed > 0 else 0.0
+            )
             open_count = sum(
                 reason == 13 for _, frame in frames for reason in frame.error_reasons
             )
             short_count = sum(
                 reason == 14 for _, frame in frames for reason in frame.error_reasons
             )
-            adjacent_row_delta_max = 0.0
+            adjacent_row_delta_max: Optional[float] = None
+            adjacent_row_comparisons = 0
             for _, frame in frames:
                 values = frame.values_si
                 for row in range(7):
@@ -750,18 +815,25 @@ class SerialValidator:
                         left = values[row * 8 + d_line]
                         right = values[(row + 1) * 8 + d_line]
                         if left is not None and right is not None:
-                            adjacent_row_delta_max = max(
-                                adjacent_row_delta_max, abs(float(left) - float(right))
-                            )
+                            delta = abs(float(left) - float(right))
+                            adjacent_row_delta_max = delta if (
+                                adjacent_row_delta_max is None
+                            ) else max(adjacent_row_delta_max, delta)
+                            adjacent_row_comparisons += 1
             entry: dict[str, object] = {
                 "settle_us": settle_us,
                 "frames": frame_count,
-                "fps": fps,
+                # Keep the legacy key as emitted FPS for artifact consumers,
+                # but publish the physical sequence-derived rate explicitly.
+                "fps": emitted_fps,
+                "emitted_fps": emitted_fps,
+                "physical_fps": physical_fps,
                 "frame_us_mean": statistics.fmean(frame_durations),
                 "frame_us_max": max(frame_durations),
                 "first_minus_later_mean_ohms": first_later,
                 "standard_deviation_ohms": standard_deviation,
                 "adjacent_row_delta_max_ohms": adjacent_row_delta_max,
+                "adjacent_row_comparisons": adjacent_row_comparisons,
                 "open_count": open_count,
                 "short_count": short_count,
                 "known_resistors": known_metrics,

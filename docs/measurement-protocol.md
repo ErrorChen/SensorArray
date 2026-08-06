@@ -104,3 +104,14 @@ means verified bypass, and header `ir` counts bounded recovered I/O retries.
 The acquisition task
 formats one fixed-slot packet, then Core 0 fans it out unchanged to the selected
 Serial/BLE/Wi-Fi sinks.
+
+## Battery audit fields
+
+`ABAT` and `AB50` additionally expose `validRun`, `invalidRun`,
+`retry=<last>/<total>`, `unstable`, `timeout`, `spreadRaw`, and
+`spreadMaxRaw`. `validRun + invalidRun` describes completed, non-colliding
+battery transactions; a recovered DRDY retry remains visible in `retry` but
+does not reduce the mandatory three fresh samples. `timeout` counts terminal
+battery timeouts after the bounded retry, while `reason` remains the latest
+result classifier. Hosts must use the `valid`, `fresh`, `ageMs`, and `restore`
+fields together and must not derive SOC from voltage.

@@ -27,6 +27,7 @@ typedef struct {
     uint32_t sampleDurationMaximumUs;
     bool enabled;
     bool forcePending;
+    bool gapDeferred;
 } sensorarrayBatteryScheduler_t;
 
 void sensorarrayBatterySchedulerInit(sensorarrayBatteryScheduler_t *scheduler,

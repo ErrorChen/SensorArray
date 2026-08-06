@@ -59,6 +59,7 @@ bool sensorarrayBatterySchedulerConfigure(sensorarrayBatteryScheduler_t *schedul
     }
     scheduler->dueSinceUs = 0u;
     scheduler->forcePending = false;
+    scheduler->gapDeferred = false;
     return true;
 }
 
@@ -121,6 +122,7 @@ sensorarrayBatteryDecision_t sensorarrayBatterySchedulerEvaluateGap(
      * consumes an FDC wait window even when that window is large enough. */
     if (scheduler->forcePending) {
         scheduler->deferCount++;
+        scheduler->gapDeferred = true;
         return SENSORARRAY_BATTERY_DECISION_DEFER;
     }
     uint64_t admissionUs = (uint64_t)estimatedJobUs + (uint64_t)guardUs;
@@ -129,6 +131,7 @@ sensorarrayBatteryDecision_t sensorarrayBatterySchedulerEvaluateGap(
     }
     scheduler->skipCount++;
     scheduler->deferCount++;
+    scheduler->gapDeferred = true;
     return SENSORARRAY_BATTERY_DECISION_DEFER;
 }
 
@@ -147,7 +150,13 @@ sensorarrayBatteryDecision_t sensorarrayBatterySchedulerEvaluateBoundary(
         return SENSORARRAY_BATTERY_DECISION_NOT_DUE;
     }
     sensorarrayBatterySchedulerMarkDue(scheduler, nowUs);
-    if (!capacitanceMode || scheduler->forcePending) {
+    if (!capacitanceMode || scheduler->forcePending || scheduler->gapDeferred) {
+        /* CAP always offers the conversion wait gap first. If admission says
+         * that the complete transaction plus guard cannot fit, the next
+         * complete frame boundary is the only way to preserve the requested
+         * wall-clock cadence without stealing an FDC ready deadline. The
+         * maximum-defer test below remains the safety fallback for a CAP path
+         * that produced no evaluable gap window. */
         return SENSORARRAY_BATTERY_DECISION_RUN_BOUNDARY;
     }
     uint64_t deferredUs = nowUs >= scheduler->dueSinceUs ?
@@ -191,6 +200,7 @@ void sensorarrayBatterySchedulerRecordRun(sensorarrayBatteryScheduler_t *schedul
     }
     scheduler->dueSinceUs = 0u;
     scheduler->forcePending = false;
+    scheduler->gapDeferred = false;
     scheduler->runCount++;
     if (boundaryFallback) {
         scheduler->boundaryCount++;

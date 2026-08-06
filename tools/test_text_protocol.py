@@ -71,12 +71,16 @@ class TextProtocolParserTest(unittest.TestCase):
         protocol = TextProtocolParser()
         protocol.feed_line(
             "AB50,bt=-1,valid=0,br=rail_invalid,bs=stale,ageMs=1001,"
-            "periodMs=1000,due=1,run=2,skip=3,defer=4,boundary=1,"
-            "restoreFail=0,sampleUs=800/900")
+            "periodMs=1000,due=1,run=2,validRun=1,invalidRun=1,skip=3,"
+            "defer=4,boundary=1,restoreFail=0,retry=0/1,unstable=1,"
+            "timeout=0,spreadRaw=1043571,spreadMaxRaw=1043571,"
+            "sampleUs=800/900")
         self.assertEqual(protocol.latest_battery_mv, -1)
         self.assertEqual(protocol.latest_fields["AB50"]["br"], "rail_invalid")
         self.assertEqual(protocol.latest_fields["AB50"]["periodMs"], "1000")
         self.assertEqual(protocol.latest_fields["AB50"]["boundary"], "1")
+        self.assertEqual(protocol.latest_fields["AB50"]["invalidRun"], "1")
+        self.assertEqual(protocol.latest_fields["AB50"]["spreadRaw"], "1043571")
 
     def test_parses_active_ads_check_and_cache_telemetry(self) -> None:
         protocol = TextProtocolParser()

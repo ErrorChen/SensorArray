@@ -32,6 +32,8 @@
 #define SENSORARRAY_ADS_ADC1_GAP_DISCARD_COUNT 1u
 #define SENSORARRAY_ADS_BATTERY_DISCARD_COUNT 1u
 #define SENSORARRAY_ADS_BATTERY_SAMPLE_COUNT 3u
+#define SENSORARRAY_ADS_BATTERY_FRESH_RETRY_COUNT 1u
+#define SENSORARRAY_ADS_BATTERY_FIXED_OVERHEAD_BUDGET_US 1500u
 #define SENSORARRAY_ADS_BATTERY_SATURATION_MARGIN 4096
 #define SENSORARRAY_ADS_REG_MODE2 0x05u
 #define SENSORARRAY_ADS_REG_INTERFACE 0x02u
@@ -117,6 +119,7 @@ typedef struct {
     uint8_t status;
     uint32_t generationDelta;
     uint32_t spreadRaw;
+    uint8_t retryCount;
     uint32_t dataRateSps;
     uint8_t sampleCount;
     uint32_t shadowGenerationBefore;
@@ -557,6 +560,42 @@ static esp_err_t sensorarrayAdsReadFreshAdc1(ads126xAdcHandle_t *ads,
 
     *outSample = sample;
     sensorarrayAdsRecordFreshSample(&sample, err);
+    return err;
+}
+
+static esp_err_t sensorarrayAdsReadBatteryFreshAdc1(
+    ads126xAdcHandle_t *ads,
+    uint32_t timeoutUs,
+    sensorarrayAdsFreshSample_t *outSample,
+    uint8_t *inOutRetryCount)
+{
+    if (!ads || !outSample || !inOutRetryCount) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ESP_FAIL;
+    for (uint8_t attempt = 0u;
+         attempt <= SENSORARRAY_ADS_BATTERY_FRESH_RETRY_COUNT;
+         ++attempt) {
+        *outSample = (sensorarrayAdsFreshSample_t){0};
+        err = sensorarrayAdsReadFreshAdc1(ads, timeoutUs, outSample);
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+
+        /* A timeout or a cleared ADC1-new-data bit may be retried only by
+         * waiting for a later DRDY generation. Transport/status failures are
+         * not hidden, and a failed retry still invalidates the battery job. */
+        bool retryable = err == ESP_ERR_TIMEOUT ||
+            (err == ESP_ERR_INVALID_RESPONSE && !outSample->fresh);
+        if (!retryable || attempt == SENSORARRAY_ADS_BATTERY_FRESH_RETRY_COUNT) {
+            return err;
+        }
+        if (*inOutRetryCount < UINT8_MAX) {
+            (*inOutRetryCount)++;
+        }
+        ads126xAdcClearDrdyNotifications(ads);
+    }
     return err;
 }
 
@@ -1362,7 +1401,7 @@ static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *di
         return;
     }
     printf("BATD,mode=vbias_on,POWER=%02X/%02X/%02X/%02X,VBIAS=%u,INPMUX=%02X,REFMUX=%02X,"
-           "settleUs=%lu,dr=%lu,discardCount=%u,samples=%u,read=%s,state=%s,fresh=%u,status=0x%02X,dg=%lu,spreadRaw=%lu,"
+           "settleUs=%lu,dr=%lu,discardCount=%u,samples=%u,retry=%u,read=%s,state=%s,fresh=%u,status=0x%02X,dg=%lu,spreadRaw=%lu,"
            "raw=%ld,a8dUv=%ld,zeroUv=%ld,acUv=%ld,a8gUv=%ld,batteryMv=%ld,collision=%u,err=0x%lx,reason=%s\n",
            diag->powerBefore,
            diag->powerRequested,
@@ -1375,6 +1414,7 @@ static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *di
            (unsigned long)diag->dataRateSps,
            (unsigned)diag->discardCount,
            (unsigned)diag->sampleCount,
+           (unsigned)diag->retryCount,
            diag->readErr == ESP_OK ? "ok" : "fail",
            diag->stateName ? diag->stateName : "unk",
            diag->fresh ? 1u : 0u,
@@ -1479,8 +1519,9 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         }
         goto restore;
     }
-    (void)sensorarrayAdsRegisterCacheNoteReadback(
-        s_registerCache, SENSORARRAY_ADS_REGISTER_POWER, diag.powerDuring);
+    sensorarrayAdsRegisterCacheNoteWrite(
+        s_registerCache, SENSORARRAY_ADS_REGISTER_POWER,
+        diag.powerDuring, true);
 
     uint32_t refUv = s_snapshot.railUv > 0 ?
         (uint32_t)s_snapshot.railUv : 0u;
@@ -1568,7 +1609,8 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
     for (uint8_t readIndex = 0u;
          readIndex < SENSORARRAY_ADS_BATTERY_DISCARD_COUNT;
          ++readIndex) {
-        err = sensorarrayAdsReadFreshAdc1(ads, batteryTimeoutUs, &discard);
+        err = sensorarrayAdsReadBatteryFreshAdc1(
+            ads, batteryTimeoutUs, &discard, &diag.retryCount);
         if (err != ESP_OK) {
             diag.reason = "discard_conversion";
             goto restore;
@@ -1579,8 +1621,8 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
     for (uint8_t sampleIndex = 0u;
          sampleIndex < SENSORARRAY_ADS_BATTERY_SAMPLE_COUNT;
          ++sampleIndex) {
-        err = sensorarrayAdsReadFreshAdc1(
-            ads, batteryTimeoutUs, &samples[sampleIndex]);
+        err = sensorarrayAdsReadBatteryFreshAdc1(
+            ads, batteryTimeoutUs, &samples[sampleIndex], &diag.retryCount);
         if (err != ESP_OK) {
             diag.reason = "fresh_conversion";
             goto restore;
@@ -1755,12 +1797,29 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         s_snapshot.batterySampleUs = diag.sampleUs;
         s_snapshot.batterySampleCount = diag.sampleCount;
         s_snapshot.batteryShadowGeneration = diag.shadowGenerationBefore;
+        s_snapshot.batterySpreadRaw = diag.spreadRaw;
+        if (diag.spreadRaw > s_snapshot.batterySpreadRawMaximum) {
+            s_snapshot.batterySpreadRawMaximum = diag.spreadRaw;
+        }
+        s_snapshot.batteryLastRetryCount = diag.retryCount;
+        s_snapshot.batteryRetryCount += diag.retryCount;
         s_snapshot.batteryBoundaryFallback = boundaryFallback;
         s_snapshot.batteryRestoreOk = diag.restoreOk;
         s_snapshot.batteryFresh = diag.fresh;
         s_batteryRestoreFailureLatched = s_batteryRestoreFailureLatched ||
             !diag.restoreOk;
         sensorarrayAdsUpdateBatteryValidity(err, &diag);
+        if (s_snapshot.batteryValid) {
+            s_snapshot.batteryValidRunCount++;
+        } else {
+            s_snapshot.batteryInvalidRunCount++;
+        }
+        if (diag.unstable) {
+            s_snapshot.batteryUnstableCount++;
+        }
+        if (err == ESP_ERR_TIMEOUT) {
+            s_snapshot.batteryTimeoutCount++;
+        }
         diag.aincomGndUv = s_snapshot.aincomGndUv;
         diag.ain8GndUv = s_snapshot.ain8GndUv;
         diag.batteryMv = s_snapshot.batteryMv;
@@ -1930,12 +1989,22 @@ void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
             (uint64_t)CONFIG_SENSORARRAY_BATTERY_VBIAS_SETTLE_US +
             (uint64_t)(SENSORARRAY_ADS_BATTERY_DISCARD_COUNT +
                        SENSORARRAY_ADS_BATTERY_SAMPLE_COUNT) * periodUs +
-            3500u;
+            SENSORARRAY_ADS_BATTERY_FIXED_OVERHEAD_BUDGET_US;
         if (estimatedUs > UINT32_MAX) {
             estimatedUs = UINT32_MAX;
         }
         if ((uint32_t)estimatedUs > jobWorstCaseUs) {
             jobWorstCaseUs = (uint32_t)estimatedUs;
+        }
+        if (s_snapshot.batterySampleUs != 0u) {
+            uint64_t observedBudgetUs =
+                (uint64_t)s_snapshot.batterySampleUs + 250u;
+            if (observedBudgetUs > UINT32_MAX) {
+                observedBudgetUs = UINT32_MAX;
+            }
+            if ((uint32_t)observedBudgetUs > jobWorstCaseUs) {
+                jobWorstCaseUs = (uint32_t)observedBudgetUs;
+            }
         }
         sensorarrayBatteryDecision_t decision =
             sensorarrayBatterySchedulerEvaluateGap(
@@ -2129,7 +2198,7 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
     sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
     int written = snprintf(buffer,
                            bufferSize,
-                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
+                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
                            snapshot.batteryValid ? (long)snapshot.batteryMv : -1L,
                            snapshot.batteryValid ? 1u : 0u,
                            snapshot.batteryFresh ? 1u : 0u,
@@ -2137,10 +2206,18 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
                            (unsigned long)snapshot.batteryPeriodMs,
                            snapshot.batteryDue ? 1u : 0u,
                            (unsigned long)snapshot.batteryRunCount,
+                           (unsigned long)snapshot.batteryValidRunCount,
+                           (unsigned long)snapshot.batteryInvalidRunCount,
                            (unsigned long)snapshot.batterySkipCount,
                            (unsigned long)snapshot.batteryDeferCount,
                            (unsigned long)snapshot.batteryBoundaryCount,
                            (unsigned long)snapshot.batteryRestoreFailureCount,
+                           (unsigned long)snapshot.batteryLastRetryCount,
+                           (unsigned long)snapshot.batteryRetryCount,
+                           (unsigned long)snapshot.batteryUnstableCount,
+                           (unsigned long)snapshot.batteryTimeoutCount,
+                           (unsigned long)snapshot.batterySpreadRaw,
+                           (unsigned long)snapshot.batterySpreadRawMaximum,
                            (long)snapshot.ain8Raw,
                            (long)snapshot.ain8DiffUv,
                            snapshot.aincomGndValid ? (long)snapshot.aincomGndUv : -1L,

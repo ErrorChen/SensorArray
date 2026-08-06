@@ -179,8 +179,14 @@ config SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES
 
 config SENSORARRAY_ASYNC_LOG_TASK_STACK
     int "Async log task stack bytes"
-    default 12288
+    default 16384
     range 4096 32768
+    help
+        The output-hub task owns a complete frame snapshot, one fixed text
+        packet, and the compact-summary formatter. Keep enough headroom for
+        the nested formatter/sink call chain; 12 KiB was proven insufficient
+        by the RESSETTLE hardware sweep after the expanded ADS/battery audit
+        telemetry.
 
 config SENSORARRAY_ASYNC_LOG_TASK_PRIORITY
     int "Async log task priority"
