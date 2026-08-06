@@ -6,6 +6,7 @@
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
 #include "sensorarrayAdsAutoRange.h"
+#include "sensorarrayAdsCache.h"
 #include "sensorarrayRouteController.h"
 
 #define SENSORARRAY_ADS_MATRIX_CALIBRATION_VERSION 1u
@@ -24,10 +25,13 @@ typedef struct {
     sensorarrayState_t *state;
     sensorarrayRouteController_t *routeController;
     sensorarrayMeasurementMode_t mode;
-    sensorarrayAdsGainCache_t gainCache;
+    sensorarrayAdsProfileCache_t profileCache;
+    sensorarrayAdsValueCache_t valueCache;
+    sensorarrayAdsRegisterCache_t registerCache;
+    sensorarrayAdsRailFingerprint_t railFingerprint;
     sensorarrayAdsMatrixCalibration_t calibration;
-    int32_t lastRailUv;
-    bool railFingerprintValid;
+    uint32_t calibrationGeneration;
+    uint8_t transitionSensitiveFrames;
     uint32_t frameSequenceHint;
     uint32_t frameCount;
 } sensorarrayAdsMatrixEngine_t;
@@ -45,6 +49,9 @@ esp_err_t sensorarrayAdsMatrixEngineSetMode(sensorarrayAdsMatrixEngine_t *engine
 void sensorarrayAdsMatrixEngineSetFrameSequenceHint(sensorarrayAdsMatrixEngine_t *engine,
                                                     uint32_t sequence);
 void sensorarrayAdsMatrixEngineInvalidateGainCache(sensorarrayAdsMatrixEngine_t *engine);
+void sensorarrayAdsMatrixEngineInvalidateCaches(sensorarrayAdsMatrixEngine_t *engine);
+sensorarrayAdsRegisterCache_t *sensorarrayAdsMatrixEngineRegisterCache(
+    sensorarrayAdsMatrixEngine_t *engine);
 bool sensorarrayAdsMatrixCalibrationValid(
     const sensorarrayAdsMatrixCalibration_t *calibration);
 esp_err_t sensorarrayAdsMatrixEngineSetCalibration(

@@ -28,6 +28,7 @@
 |---|---|
 | `tmuxSwitchInit()` | Configure TMUX GPIO and initial software-commanded state. |
 | `tmux1108SelectRow()`, `tmuxSwitchSelectRow()` | Select row index `0..7`. Measurement/board layers map this to S1..S8. |
+| `tmux1108SelectRowBreakBeforeMake()` | Change only A0..A2 while the current source is verified REF; used by the RES-session fast row route on a board whose TMUX1108 EN is not MCU-controlled. |
 | `tmux1108GetRow()` | Return last software-commanded row index. |
 | `tmux1108SetSource()`, `tmuxSwitchSet1108Source()` | Select `TMUX1108_SOURCE_GND` or `TMUX1108_SOURCE_REF`. |
 | `tmux1108GetSource()` | Return last software-commanded SW source. |
@@ -67,6 +68,11 @@ TMUX1134 的板级真值为 SEL=1 选 A/FDC、SEL=0 选 B/ADS；SELA 管 D1..D4�
 SELB 管 D5..D8。TMUX1134 支持 break-before-make，但 measurement layer 仍先撤销
 激励、切 route、等待配置的 settle，再允许 conversion。GPIO readback 只证明 MCU
 脚的观测值，不能替代模拟路径或示波器验证。
+
+2026-08-06 原理图审查确认 TMUX1108 EN 网只有 R25 10 kΩ 上拉到 3V3，没有 MCU
+连接；SW 经 R46 驱动 Q1 2N7002，可把 U5 common/REFOUT clamp 到 GND。因此 RES
+session 快速换行不能声称执行 EN disable，而是使用器件地址切换的 BBM 特性并保留
+可配置 settle/readback；完整 Q1 clamp 序列仍是回退路径。
 
 ## Australian English documentation
 

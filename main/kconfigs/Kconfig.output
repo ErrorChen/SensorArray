@@ -108,8 +108,17 @@ config SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN
 
 config SENSORARRAY_BLE_CTRL_TASK_STACK
     int "BLE control task stack bytes"
-    default 4096
-    range 3072 12288
+    default 6144
+    range 4096 12288
+
+config SENSORARRAY_SERIAL_CTRL_TASK_STACK
+    int "Serial control task stack bytes"
+    default 6144
+    range 4096 12288
+    help
+        The shared runtime query parser includes MODE/STATE, ADSCHK and battery
+        response formatting. Keep enough headroom for the bounded 512-byte
+        response and snapshot locals on the Core 0 control task.
 
 config SENSORARRAY_BLE_CTRL_TASK_PRIORITY
     int "BLE control task priority"

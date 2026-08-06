@@ -49,13 +49,6 @@ typedef struct {
     bool commonModeSafe;
 } sensorarrayAdsAutoRangeDecision_t;
 
-typedef struct {
-    uint8_t gain[3][SENSORARRAY_MEASUREMENT_MAX_CELLS];
-    uint8_t valid[3][SENSORARRAY_MEASUREMENT_MAX_CELLS];
-    uint8_t overrangeStreak[3][SENSORARRAY_MEASUREMENT_MAX_CELLS];
-    uint32_t generation;
-} sensorarrayAdsGainCache_t;
-
 bool sensorarrayAdsAutoRangeGainSupported(uint8_t gain);
 uint8_t sensorarrayAdsAutoRangeLowerGain(uint8_t gain);
 uint8_t sensorarrayAdsAutoRangeHigherGain(uint8_t gain);
@@ -68,20 +61,6 @@ bool sensorarrayAdsAutoRangeCommonModeSafe(int32_t positiveInputUv,
 sensorarrayAdsAutoRangeDecision_t sensorarrayAdsAutoRangeDecide(
     const sensorarrayAdsAutoRangeConfig_t *config,
     const sensorarrayAdsAutoRangeInput_t *input);
-
-void sensorarrayAdsGainCacheInit(sensorarrayAdsGainCache_t *cache);
-void sensorarrayAdsGainCacheInvalidate(sensorarrayAdsGainCache_t *cache);
-bool sensorarrayAdsGainCacheGet(const sensorarrayAdsGainCache_t *cache,
-                                sensorarrayMeasurementMode_t mode,
-                                uint8_t cellIndex,
-                                uint8_t *outGain);
-void sensorarrayAdsGainCacheStore(sensorarrayAdsGainCache_t *cache,
-                                  sensorarrayMeasurementMode_t mode,
-                                  uint8_t cellIndex,
-                                  uint8_t gain);
-void sensorarrayAdsGainCacheNoteOverrange(sensorarrayAdsGainCache_t *cache,
-                                         sensorarrayMeasurementMode_t mode,
-                                         uint8_t cellIndex);
 
 #ifdef __cplusplus
 }

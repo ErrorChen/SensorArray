@@ -205,3 +205,118 @@ sensorarrayCellError_t sensorarrayAdsMathClassifySampleHealth(
     }
     return SENSORARRAY_CELL_ERROR_NONE;
 }
+
+sensorarrayAdsBatteryMathResult_t sensorarrayAdsMathBatteryVoltage(
+    const sensorarrayAdsBatteryMathInput_t *input)
+{
+    sensorarrayAdsBatteryMathResult_t result = {
+        .batteryMv = -1,
+        .error = SENSORARRAY_ADS_BATTERY_MATH_REFERENCE,
+    };
+    if (!input) {
+        return result;
+    }
+    if (!input->restoreOk) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_RESTORE_FAILED;
+        return result;
+    }
+    if (input->adcTimedOut) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_ADC_TIMEOUT;
+        return result;
+    }
+    /* VBIAS and the rail split are transaction admission prerequisites, not
+     * conversion results. Check them before generic transport/freshness flags
+     * so a deliberately skipped conversion reports rail_invalid or
+     * vbias_invalid instead of manufacturing a misleading spi_error. */
+    if (!input->vbiasConfirmed) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_VBIAS;
+        return result;
+    }
+    if (!input->railValid || !input->railFresh) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_RAIL;
+        return result;
+    }
+    if (!input->adcTransportOk) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_SPI;
+        return result;
+    }
+    if (!input->adcFresh) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_ADC_STALE;
+        return result;
+    }
+    if (input->adcSaturated) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_SATURATED;
+        return result;
+    }
+    if (input->adcUnstable) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_UNSTABLE;
+        return result;
+    }
+    if (!input->adcStatusOk) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_ADC_STATUS;
+        return result;
+    }
+    if (!input->referenceValid) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_REFERENCE;
+        return result;
+    }
+    if (input->dividerNumerator <= 0 || input->dividerDenominator <= 0 ||
+        input->calibrationScalePpm <= 0 || input->minimumMv < 0 ||
+        input->maximumMv < input->minimumMv) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_DIVIDER;
+        return result;
+    }
+
+    int64_t ain8GroundUv = (int64_t)input->ain8DifferentialUv +
+                           (int64_t)input->aincomGroundUv;
+    if (ain8GroundUv < 0) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_NEGATIVE;
+        return result;
+    }
+    if (ain8GroundUv > INT32_MAX) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_OVERFLOW;
+        return result;
+    }
+    result.ain8GroundUv = (int32_t)ain8GroundUv;
+    result.ain8GroundValid = true;
+    if (ain8GroundUv != 0 &&
+        (int64_t)input->dividerNumerator > INT64_MAX / ain8GroundUv) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_OVERFLOW;
+        return result;
+    }
+    int64_t batteryUv = (ain8GroundUv * input->dividerNumerator) /
+                        input->dividerDenominator;
+    if (batteryUv != 0 &&
+        (int64_t)input->calibrationScalePpm > INT64_MAX / batteryUv) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_OVERFLOW;
+        return result;
+    }
+    batteryUv = (batteryUv * input->calibrationScalePpm) / 1000000LL;
+    if ((input->calibrationOffsetUv > 0 &&
+         batteryUv > INT64_MAX - input->calibrationOffsetUv) ||
+        (input->calibrationOffsetUv < 0 &&
+         batteryUv < INT64_MIN - input->calibrationOffsetUv)) {
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_OVERFLOW;
+        return result;
+    }
+    batteryUv += input->calibrationOffsetUv;
+    if (batteryUv < 0 || batteryUv > (int64_t)INT32_MAX * 1000LL) {
+        result.error = batteryUv < 0 ? SENSORARRAY_ADS_BATTERY_MATH_NEGATIVE :
+                                      SENSORARRAY_ADS_BATTERY_MATH_OVERFLOW;
+        return result;
+    }
+    result.batteryMv = (int32_t)(batteryUv / 1000LL);
+    if (result.batteryMv < input->minimumMv) {
+        result.batteryMv = -1;
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_BELOW_MINIMUM;
+        return result;
+    }
+    if (result.batteryMv > input->maximumMv) {
+        result.batteryMv = -1;
+        result.error = SENSORARRAY_ADS_BATTERY_MATH_ABOVE_MAXIMUM;
+        return result;
+    }
+    result.valid = true;
+    result.error = SENSORARRAY_ADS_BATTERY_MATH_OK;
+    return result;
+}

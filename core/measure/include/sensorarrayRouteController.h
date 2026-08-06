@@ -31,6 +31,10 @@ typedef struct {
     bool railValid;
     bool gpioReadbackValid;
     bool adsReadbackValid;
+    bool fdcPrimarySleeping;
+    bool fdcPrimaryVerified;
+    bool fdcSecondarySleeping;
+    bool fdcSecondaryVerified;
     bool safe;
 } sensorarrayRouteSnapshot_t;
 
@@ -38,6 +42,7 @@ typedef struct {
     sensorarrayState_t *state;
     volatile uint32_t snapshotVersion;
     sensorarrayRouteSnapshot_t snapshot;
+    uint32_t rowSettleUs;
 } sensorarrayRouteController_t;
 
 esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controller,
@@ -54,6 +59,10 @@ bool sensorarrayRouteControllerCopySnapshot(const sensorarrayRouteController_t *
                                             sensorarrayRouteSnapshot_t *outSnapshot);
 void sensorarrayRouteControllerUpdateRailSnapshot(sensorarrayRouteController_t *controller,
                                                   const sensorarrayAdsRailSplit_t *rail);
+bool sensorarrayRouteControllerSetRowSettleUs(sensorarrayRouteController_t *controller,
+                                              uint32_t settleUs);
+uint32_t sensorarrayRouteControllerGetRowSettleUs(
+    const sensorarrayRouteController_t *controller);
 
 #ifdef __cplusplus
 }

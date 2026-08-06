@@ -69,10 +69,49 @@ class TextProtocolParserTest(unittest.TestCase):
 
     def test_parses_current_ab50_battery_invalid_reason(self) -> None:
         protocol = TextProtocolParser()
-        protocol.feed_line("AB50,chip=1262,bt=-1,br=rail,rs=hold")
+        protocol.feed_line(
+            "AB50,bt=-1,valid=0,br=rail_invalid,bs=stale,ageMs=1001,"
+            "periodMs=1000,due=1,run=2,skip=3,defer=4,boundary=1,"
+            "restoreFail=0,sampleUs=800/900")
         self.assertEqual(protocol.latest_battery_mv, -1)
-        self.assertEqual(protocol.latest_fields["AB50"]["br"], "rail")
-        self.assertEqual(protocol.latest_fields["AB50"]["rs"], "hold")
+        self.assertEqual(protocol.latest_fields["AB50"]["br"], "rail_invalid")
+        self.assertEqual(protocol.latest_fields["AB50"]["periodMs"], "1000")
+        self.assertEqual(protocol.latest_fields["AB50"]["boundary"], "1")
+
+    def test_parses_active_ads_check_and_cache_telemetry(self) -> None:
+        protocol = TextProtocolParser()
+        protocol.feed_line(
+            "ADSCHK,id=7,ok=1,chip=1262,idreg=0x03,rev=0,adc1=1,adc2=0,"
+            "power=0x02,interface=0x04,mode0=0x00,mode1=0x00,mode2=0x0F,"
+            "inpmux=0x01,refmux=0x24,dr=38400,filter=sinc1,chop=0,"
+            "delayUs=0,pga=bypass,reference=avdd-avss,vbias=1")
+        protocol.feed_line(
+            "ADSCHKSTAT,id=7,samples=100,fresh=100,changed=99,"
+            "periodMinUs=25,periodAvgUs=26,periodMaxUs=28,spi=0,timeout=0,"
+            "stale=0,statusErr=0,reset=0,restore=ok,durationUs=3000")
+        protocol.feed_line(
+            "ADS50,mode=VOLT,n=50,frameUs=12000/13000,attemptsPerCell=1.02,"
+            "rawConversions=3264,profileHit=3136,profileMiss=64,bypassHit=3136,"
+            "gainHit=0,registerCacheHit=6300,registerWrites=3200,"
+            "registerReadbacks=13,singleSampleCells=3000,tripleSampleCells=200,"
+            "precisionFrame=1,precisionFrames=3,freshCells=3200")
+        self.assertEqual(protocol.latest_fields["ADSCHK"]["chip"], "1262")
+        self.assertEqual(protocol.latest_fields["ADSCHKSTAT"]["fresh"], "100")
+        self.assertEqual(protocol.latest_fields["ADS50"]["profileHit"], "3136")
+        self.assertEqual(protocol.counters.summary_lines, 3)
+
+    def test_parses_abat_time_scheduler_fields(self) -> None:
+        protocol = TextProtocolParser()
+        protocol.feed_line(
+            "ABAT,bt=4012,valid=1,fresh=1,ageMs=12,periodMs=1000,due=0,"
+            "run=12,skip=2,defer=1,boundary=4,restoreFail=0,"
+            "raw=123,a8d=100,ac=2005900,a8g=2006000,ratio=2/1,rail=5200000,"
+            "railState=ok,vbias=1,samples=3,sampleUs=820,restore=ok,reason=ok")
+        self.assertEqual(protocol.latest_battery_mv, 4012)
+        self.assertEqual(protocol.latest_fields["ABAT"]["restore"], "ok")
+        self.assertEqual(protocol.latest_fields["ABAT"]["ratio"], "2/1")
+        self.assertEqual(protocol.latest_fields["ABAT"]["run"], "12")
+        self.assertEqual(protocol.latest_fields["ABAT"]["restoreFail"], "0")
 
     def test_voltage_frame_crc_scale_invalid_and_pga(self) -> None:
         values = [str(index - 4) for index in range(16)]

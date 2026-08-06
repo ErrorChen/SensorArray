@@ -290,6 +290,29 @@ esp_err_t tmux1108SelectRow(uint8_t row)
     return ESP_OK;
 }
 
+esp_err_t tmux1108SelectRowBreakBeforeMake(uint8_t row)
+{
+    if (row > 7u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    portENTER_CRITICAL(&s_tmux_lock);
+    if (!s_inited || s_source != TMUX1108_SOURCE_REF) {
+        portEXIT_CRITICAL(&s_tmux_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_row != row) {
+        /* The schematic leaves EN pulled high and does not route it to the
+         * MCU. The TMUX1108 address transition is nevertheless specified as
+         * break-before-make, so changing only A[2:0] disconnects the previous
+         * row before connecting the next one without ever asserting Q1. */
+        tmux1108ApplyRowNoLock(row);
+        s_row = row;
+    }
+    portEXIT_CRITICAL(&s_tmux_lock);
+    return ESP_OK;
+}
+
 esp_err_t tmux1108GetRow(uint8_t *rowOut)
 {
     if (rowOut == NULL) {

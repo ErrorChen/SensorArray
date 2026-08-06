@@ -15,11 +15,19 @@
    `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>`；把 `RAPP` 当作帧边界应用确认。
 9. 将 `P` 值 `00` 显示为 PGA bypass，并记录 V/R header 的 `ir` recovered-retry
    telemetry；不要把它们解释成缺失字段。
+10. 把 `ADSCHK` 的 accepted ACK 与随后相同 requestId 的 `ADSCHK/ADSCHKSTAT`
+    关联；`ADS? chip=unknown,valid=0` 必须显示为未确认，不能回退成 ADS1262。
+11. 解析 `BAT?` 的 `ABAT`、压缩 `AB50` 和 `BATPERIOD/BATNOW` ACK；用 `ageMs`
+    和 `fresh/valid/reason/restore` 展示，不从电压推算 SOC。
+12. 将 `ADS50/ADST50/SF50/OT50` 分开：capture、emitted 与 per-sink FPS 是不同
+    指标，`OUTCAP` 不能被 UI 解释为采集频率设置。
 
 无需改变 BLE service/characteristic、UDP port、Serial framing、transport parser
 入口或 sink backpressure 策略。所有 sink 收到 Core 1 已格式化的同一 packet。
 `tools/text_protocol.py` 是参考 parser，`tools/test_text_protocol.py` 提供 CAP/VOLT/
-RES、CRC、invalid、PGA 和 worst-size golden tests。
+RES、CRC、invalid、PGA、ADSCHK、ABAT/AB50 cache telemetry 和 worst-size golden
+tests。Serial/BLE/Wi-Fi receiver 都可重复使用 `--command ADSCHK=100`、
+`--command BATNOW` 或 `--command BATPERIOD=1000`，不需要新增 transport endpoint。
 
 兼容限制：旧软件仍可读取默认 CAP，因为 CAP wire bytes 保持原样；旧软件无法
 理解 V/R，应忽略未知 header 而不是把它当电容。模式切换后的第一个数据帧必须

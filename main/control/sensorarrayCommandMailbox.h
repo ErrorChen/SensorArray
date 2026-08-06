@@ -22,6 +22,12 @@ typedef enum {
     SENSORARRAY_COMMAND_OUTPUT_FPS_CAP,
     SENSORARRAY_COMMAND_MEASUREMENT_MODE,
     SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION,
+    SENSORARRAY_COMMAND_ADS_CHECK,
+    SENSORARRAY_COMMAND_BATTERY_NOW,
+    SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC,
+    SENSORARRAY_COMMAND_BATTERY_PERIOD,
+    SENSORARRAY_COMMAND_RES_SETTLE,
+    SENSORARRAY_COMMAND_ADS_DEBUG,
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -41,10 +47,20 @@ esp_err_t sensorarrayCommandMailboxPostRailCalibration(
     int32_t avddUv,
     int32_t avssUv,
     uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
+                                                uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
+                                                  uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostBatteryPeriod(bool enabled,
+                                                     uint32_t periodMs,
+                                                     uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostResSettle(uint32_t settleUs,
+                                                 uint32_t *outRequestId);
 bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand);
 void sensorarrayCommandMailboxCommit(const sensorarrayCommand_t *command);
 uint32_t sensorarrayCommandMailboxGetBleCapPeriod(void);
 bool sensorarrayCommandMailboxTraceEnabled(void);
+bool sensorarrayCommandMailboxAdsDebugEnabled(void);
 uint32_t sensorarrayCommandMailboxGetCaptureFpsCap(void);
 uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void);
 const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type);

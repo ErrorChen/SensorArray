@@ -31,12 +31,23 @@ static void sensorarrayRouteRecordError(sensorarrayRouteController_t *controller
     sensorarrayRouteWriteEnd(controller);
 }
 
-static esp_err_t sensorarrayRouteStopFdc(sensorarrayFdcDeviceState_t *fdc)
+static esp_err_t sensorarrayRouteSetFdcSleep(sensorarrayFdcDeviceState_t *fdc,
+                                             bool sleep,
+                                             bool *outVerified)
 {
+    if (outVerified) {
+        *outVerified = false;
+    }
     if (!fdc || !fdc->ready || !fdc->handle) {
         return ESP_OK;
     }
-    return Fdc2214CapEnterSleepWriteOnly(fdc->handle, fdc->configReg);
+    esp_err_t err = sleep ?
+        Fdc2214CapEnterSleep(fdc->handle, fdc->configReg) :
+        Fdc2214CapExitSleep(fdc->handle, fdc->configReg);
+    if (outVerified) {
+        *outVerified = err == ESP_OK;
+    }
+    return err;
 }
 
 static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *controller)
@@ -59,14 +70,50 @@ static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *con
             }
         }
     }
-    esp_err_t err = sensorarrayRouteStopFdc(&state->fdcPrimary);
+    bool primaryVerified = false;
+    bool secondaryVerified = false;
+    esp_err_t err = sensorarrayRouteSetFdcSleep(&state->fdcPrimary,
+                                                true,
+                                                &primaryVerified);
     if (err != ESP_OK && firstErr == ESP_OK) {
         firstErr = err;
     }
-    err = sensorarrayRouteStopFdc(&state->fdcSecondary);
+    err = sensorarrayRouteSetFdcSleep(&state->fdcSecondary,
+                                      true,
+                                      &secondaryVerified);
     if (err != ESP_OK && firstErr == ESP_OK) {
         firstErr = err;
     }
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.fdcPrimarySleeping = primaryVerified;
+    controller->snapshot.fdcPrimaryVerified = primaryVerified;
+    controller->snapshot.fdcSecondarySleeping = secondaryVerified;
+    controller->snapshot.fdcSecondaryVerified = secondaryVerified;
+    sensorarrayRouteWriteEnd(controller);
+    return firstErr;
+}
+
+static esp_err_t sensorarrayRouteWakeFdcFrontends(
+    sensorarrayRouteController_t *controller)
+{
+    if (!controller || !controller->state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    bool primaryVerified = false;
+    bool secondaryVerified = false;
+    esp_err_t firstErr = sensorarrayRouteSetFdcSleep(
+        &controller->state->fdcPrimary, false, &primaryVerified);
+    esp_err_t err = sensorarrayRouteSetFdcSleep(
+        &controller->state->fdcSecondary, false, &secondaryVerified);
+    if (firstErr == ESP_OK && err != ESP_OK) {
+        firstErr = err;
+    }
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.fdcPrimarySleeping = false;
+    controller->snapshot.fdcPrimaryVerified = primaryVerified;
+    controller->snapshot.fdcSecondarySleeping = false;
+    controller->snapshot.fdcSecondaryVerified = secondaryVerified;
+    sensorarrayRouteWriteEnd(controller);
     return firstErr;
 }
 
@@ -287,6 +334,8 @@ esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controlle
     }
     memset(controller, 0, sizeof(*controller));
     controller->state = state;
+    controller->rowSettleUs =
+        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US;
     controller->snapshot.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;
     controller->snapshot.safe = true;
     return ESP_OK;
@@ -368,10 +417,21 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
     if (err == ESP_OK && mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
         err = sensorarrayMeasurePrepareFdcMatrixPath(controller->state,
                                                      "mode_capacitance");
+        if (err == ESP_OK) {
+            err = sensorarrayRouteWakeFdcFrontends(controller);
+        }
         if (err == ESP_OK && controller->state->adsReady) {
             err = sensorarrayRouteConfigureAds(controller, &profile, rail);
         }
     } else if (err == ESP_OK) {
+        sensorarrayRouteSnapshot_t stopped = {0};
+        if (!sensorarrayRouteControllerCopySnapshot(controller, &stopped) ||
+            !stopped.fdcPrimaryVerified || !stopped.fdcSecondaryVerified ||
+            !stopped.fdcPrimarySleeping || !stopped.fdcSecondarySleeping) {
+            err = ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+    if (err == ESP_OK && mode != SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
         err = sensorarrayRouteConfigureAds(controller, &profile, rail);
     }
     if (err == ESP_OK) {
@@ -413,19 +473,27 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
         return ESP_ERR_INVALID_STATE;
     }
     bool restoreExcitation = snapshot.profile.matrixExcitationEnabled;
+    bool useBreakBeforeMake = restoreExcitation &&
+        CONFIG_SENSORARRAY_ADS_RES_BBM_ROW_SWITCH_ENABLE;
     esp_err_t err = ESP_OK;
-    if (restoreExcitation) {
+    const char *failureStage = "none";
+    uint8_t observedPower = snapshot.power;
+    uint8_t observedRefmux = snapshot.refmux;
+    if (restoreExcitation && !useBreakBeforeMake) {
         /* REFOUT and the matrix REF net are the same physical node.  SW high
          * turns Q1 on and clamps that node to GND, so asserting SW while
          * INTREF is enabled would short the ADS reference output.  Stop the
          * converter and remove INTREF first, then clamp/select/release, and
          * only re-enable INTREF after the new row is connected. */
+        failureStage = "stop_adc1";
         err = ads126xAdcStopAdc1(&controller->state->ads);
         controller->state->adsAdc1Running = false;
         if (err == ESP_OK) {
+            failureStage = "disable_intref";
             err = sensorarrayRouteDisableMatrixReference(controller);
         }
         if (err == ESP_OK) {
+            failureStage = "clamp_gnd";
             err = tmux1108SetSource(TMUX1108_SOURCE_GND);
         }
         if (err == ESP_OK) {
@@ -433,24 +501,30 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
         }
     }
     if (err == ESP_OK) {
-        err = tmux1108SelectRow((uint8_t)(row - 1u));
+        failureStage = useBreakBeforeMake ? "bbm_select" : "safe_select";
+        err = useBreakBeforeMake ?
+            tmux1108SelectRowBreakBeforeMake((uint8_t)(row - 1u)) :
+            tmux1108SelectRow((uint8_t)(row - 1u));
     }
     if (err == ESP_OK) {
-        esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US);
+        esp_rom_delay_us(controller->rowSettleUs);
     }
-    if (err == ESP_OK && restoreExcitation) {
+    if (err == ESP_OK && restoreExcitation && !useBreakBeforeMake) {
+        failureStage = "release_ref";
         err = tmux1108SetSource(TMUX1108_SOURCE_REF);
         if (err == ESP_OK) {
             esp_rom_delay_us(CONFIG_TMUX1108_SWITCH_DELAY_US);
+            failureStage = "enable_intref";
             err = ads126xAdcSetInternalReference(&controller->state->ads, true);
         }
         if (err == ESP_OK) {
             controller->state->adsRefReady = true;
-            esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US);
+            esp_rom_delay_us(controller->rowSettleUs);
         }
     }
     tmuxSwitchControlState_t control = {0};
     if (err == ESP_OK) {
+        failureStage = "gpio_readback";
         err = tmuxSwitchGetControlState(&control);
     }
     if (err == ESP_OK &&
@@ -458,31 +532,78 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
          control.obsA1Level != (int)(((row - 1u) >> 1u) & 1u) ||
          control.obsA2Level != (int)(((row - 1u) >> 2u) & 1u) ||
          !sensorarrayRouteGpioMatches(&snapshot.profile, &control))) {
+        failureStage = "gpio_mismatch";
         err = ESP_ERR_INVALID_RESPONSE;
     }
-    if (err == ESP_OK && restoreExcitation) {
-        uint8_t power = 0u;
-        uint8_t refmux = 0u;
+    if (err == ESP_OK && restoreExcitation && !useBreakBeforeMake) {
+        /* The fast RES session does not modify POWER or REFMUX while changing
+         * A[2:0]. MODE entry and the periodic register-shadow health check
+         * verify those registers. Reading them on every row both wastes hot-
+         * path SPI time and, with CS tied low, exposed transient DOUT bits at
+         * 38.4 kSPS. The conservative path still verifies after it toggles
+         * INTREF for each row. */
+        failureStage = "ads_readback";
         err = ads126xAdcReadCoreRegisters(&controller->state->ads,
-                                          &power,
+                                          &observedPower,
                                           NULL,
                                           NULL,
                                           NULL,
-                                          &refmux);
+                                          &observedRefmux);
         if (err == ESP_OK &&
-            (((power & ADS126X_POWER_INTREF) == 0u) ||
-             refmux != snapshot.profile.adsRefMux)) {
-            err = ESP_ERR_INVALID_RESPONSE;
+            (((observedPower & ADS126X_POWER_INTREF) == 0u) ||
+             observedRefmux != snapshot.profile.adsRefMux)) {
+            uint8_t retryPower = 0u;
+            uint8_t retryRefmux = 0u;
+            esp_err_t retryErr = ads126xAdcReadCoreRegisters(
+                &controller->state->ads,
+                &retryPower,
+                NULL,
+                NULL,
+                NULL,
+                &retryRefmux);
+            if (retryErr == ESP_OK &&
+                (retryPower & ADS126X_POWER_INTREF) != 0u &&
+                retryRefmux == snapshot.profile.adsRefMux) {
+                printf("ROUTE_ROW_READBACK_RETRY,row=%u,firstPower=0x%02X,firstRefmux=0x%02X,retryPower=0x%02X,retryRefmux=0x%02X,result=recovered\n",
+                       (unsigned)row,
+                       observedPower,
+                       observedRefmux,
+                       retryPower,
+                       retryRefmux);
+                observedPower = retryPower;
+                observedRefmux = retryRefmux;
+            } else {
+                observedPower = retryPower;
+                observedRefmux = retryRefmux;
+                failureStage = retryErr == ESP_OK ?
+                    "ads_mismatch" : "ads_retry_read";
+                err = retryErr == ESP_OK ? ESP_ERR_INVALID_RESPONSE : retryErr;
+            }
         }
         if (err == ESP_OK) {
             sensorarrayRouteWriteBegin(controller);
-            controller->snapshot.power = power;
-            controller->snapshot.refmux = refmux;
+            controller->snapshot.power = observedPower;
+            controller->snapshot.refmux = observedRefmux;
             controller->snapshot.adsReadbackValid = true;
             sensorarrayRouteWriteEnd(controller);
         }
     }
     if (err != ESP_OK) {
+        tmux1108Source_t commandedSource = TMUX1108_SOURCE_GND;
+        (void)tmux1108GetSource(&commandedSource);
+        printf("ROUTE_ROW_FAIL,row=%u,stage=%s,err=0x%lx,bbm=%u,excitation=%u,cmdSource=%s,cmdRow=%u,obsSw=%d,power=0x%02X,intref=%u,refmux=0x%02X,expectedRefmux=0x%02X\n",
+               (unsigned)row,
+               failureStage,
+               (unsigned long)err,
+               useBreakBeforeMake ? 1u : 0u,
+               restoreExcitation ? 1u : 0u,
+               commandedSource == TMUX1108_SOURCE_REF ? "REF" : "GND",
+               (unsigned)control.cmdRow,
+               control.obsSwLevel,
+               observedPower,
+               (observedPower & ADS126X_POWER_INTREF) != 0u ? 1u : 0u,
+               observedRefmux,
+               snapshot.profile.adsRefMux);
         (void)sensorarrayRouteControllerEnterSafe(controller, "row_readback");
         sensorarrayRouteRecordError(controller, err);
         return err;
@@ -525,4 +646,20 @@ void sensorarrayRouteControllerUpdateRailSnapshot(sensorarrayRouteController_t *
     controller->snapshot.railAgeFrames = rail->ageFrames;
     controller->snapshot.railValid = rail->valid;
     sensorarrayRouteWriteEnd(controller);
+}
+
+bool sensorarrayRouteControllerSetRowSettleUs(sensorarrayRouteController_t *controller,
+                                              uint32_t settleUs)
+{
+    if (!controller || settleUs > 10000u) {
+        return false;
+    }
+    controller->rowSettleUs = settleUs;
+    return true;
+}
+
+uint32_t sensorarrayRouteControllerGetRowSettleUs(
+    const sensorarrayRouteController_t *controller)
+{
+    return controller ? controller->rowSettleUs : 0u;
 }

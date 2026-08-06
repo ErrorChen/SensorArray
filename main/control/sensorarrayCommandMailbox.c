@@ -22,6 +22,7 @@ static uint32_t s_bleCapPeriod;
 static uint32_t s_captureFpsCap;
 static uint32_t s_outputFpsCap;
 static bool s_traceEnabled;
+static bool s_adsDebugEnabled;
 static uint32_t s_nextRequestId;
 
 static esp_err_t sensorarrayCommandMailboxQueue(const sensorarrayCommand_t *command)
@@ -155,6 +156,21 @@ static esp_err_t sensorarrayCommandParse(const uint8_t *text,
         return ESP_OK;
     }
 
+    if (strncmp(commandText, "ADSDBG=", 7u) == 0) {
+        uint32_t enabled = 0u;
+        esp_err_t err = sensorarrayCommandParseUnsigned(&commandText[7],
+                                                         1u,
+                                                         &enabled);
+        if (err != ESP_OK) {
+            return err;
+        }
+        *outCommand = (sensorarrayCommand_t){
+            .type = SENSORARRAY_COMMAND_ADS_DEBUG,
+            .value = enabled,
+        };
+        return ESP_OK;
+    }
+
     esp_err_t capErr = sensorarrayCommandParseFpsCap(commandText,
                                                      "FPSCAP=",
                                                      SENSORARRAY_COMMAND_CAPTURE_FPS_CAP,
@@ -233,6 +249,7 @@ esp_err_t sensorarrayCommandMailboxInit(void)
     s_outputFpsCap =
         CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE ? CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT : 0u;
     s_traceEnabled = false;
+    s_adsDebugEnabled = false;
     s_nextRequestId = 1u;
     portEXIT_CRITICAL(&s_commandStateMux);
     return ESP_OK;
@@ -309,6 +326,81 @@ esp_err_t sensorarrayCommandMailboxPostRailCalibration(
     return err;
 }
 
+static esp_err_t sensorarrayCommandMailboxPostRequest(sensorarrayCommandType_t type,
+                                                       uint32_t value,
+                                                       int32_t signedValue,
+                                                       uint32_t *outRequestId)
+{
+    if (!s_commandQueue || !outRequestId) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t requestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) {
+        s_nextRequestId = 1u;
+    }
+    portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayCommand_t command = {
+        .type = type,
+        .value = value,
+        .requestId = requestId,
+        .signedValue = signedValue,
+    };
+    esp_err_t err = sensorarrayCommandMailboxQueue(&command);
+    if (err == ESP_OK) {
+        *outRequestId = requestId;
+    }
+    return err;
+}
+
+esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
+                                                uint32_t *outRequestId)
+{
+    if (sampleCount < 1u || sampleCount > 1000u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayCommandMailboxPostRequest(SENSORARRAY_COMMAND_ADS_CHECK,
+                                                 sampleCount,
+                                                 0,
+                                                 outRequestId);
+}
+
+esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
+                                                  uint32_t *outRequestId)
+{
+    return sensorarrayCommandMailboxPostRequest(
+        diagnostic ? SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC :
+                     SENSORARRAY_COMMAND_BATTERY_NOW,
+        1u,
+        0,
+        outRequestId);
+}
+
+esp_err_t sensorarrayCommandMailboxPostBatteryPeriod(bool enabled,
+                                                     uint32_t periodMs,
+                                                     uint32_t *outRequestId)
+{
+    if (enabled && (periodMs < 100u || periodMs > 600000u)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayCommandMailboxPostRequest(SENSORARRAY_COMMAND_BATTERY_PERIOD,
+                                                 periodMs,
+                                                 enabled ? 1 : 0,
+                                                 outRequestId);
+}
+
+esp_err_t sensorarrayCommandMailboxPostResSettle(uint32_t settleUs,
+                                                 uint32_t *outRequestId)
+{
+    if (settleUs > 10000u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayCommandMailboxPostRequest(SENSORARRAY_COMMAND_RES_SETTLE,
+                                                 settleUs,
+                                                 0,
+                                                 outRequestId);
+}
+
 bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand)
 {
     return s_commandQueue && outCommand &&
@@ -330,6 +422,8 @@ void sensorarrayCommandMailboxCommit(const sensorarrayCommand_t *command)
         s_captureFpsCap = command->value;
     } else if (command->type == SENSORARRAY_COMMAND_OUTPUT_FPS_CAP) {
         s_outputFpsCap = command->value;
+    } else if (command->type == SENSORARRAY_COMMAND_ADS_DEBUG) {
+        s_adsDebugEnabled = command->value != 0u;
     }
     portEXIT_CRITICAL(&s_commandStateMux);
 }
@@ -346,6 +440,14 @@ bool sensorarrayCommandMailboxTraceEnabled(void)
 {
     portENTER_CRITICAL(&s_commandStateMux);
     bool enabled = s_traceEnabled;
+    portEXIT_CRITICAL(&s_commandStateMux);
+    return enabled;
+}
+
+bool sensorarrayCommandMailboxAdsDebugEnabled(void)
+{
+    portENTER_CRITICAL(&s_commandStateMux);
+    bool enabled = s_adsDebugEnabled;
     portEXIT_CRITICAL(&s_commandStateMux);
     return enabled;
 }
@@ -389,6 +491,18 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "mode";
     case SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION:
         return "rail_calibration";
+    case SENSORARRAY_COMMAND_ADS_CHECK:
+        return "ads_check";
+    case SENSORARRAY_COMMAND_BATTERY_NOW:
+        return "battery_now";
+    case SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC:
+        return "battery_diagnostic";
+    case SENSORARRAY_COMMAND_BATTERY_PERIOD:
+        return "battery_period";
+    case SENSORARRAY_COMMAND_RES_SETTLE:
+        return "res_settle";
+    case SENSORARRAY_COMMAND_ADS_DEBUG:
+        return "ads_debug";
     default:
         return "unknown";
     }

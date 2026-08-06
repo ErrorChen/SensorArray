@@ -75,6 +75,40 @@ typedef enum {
 } sensorarrayAsyncLogEventType_t;
 
 typedef struct {
+    sensorarrayMeasurementMode_t mode;
+    uint64_t frames;
+    uint64_t precisionFrames;
+    uint64_t frameUs;
+    uint64_t frameUsMax;
+    uint64_t rowRouteUs;
+    uint64_t muxWriteUs;
+    uint64_t registerWriteUs;
+    uint64_t registerReadbackUs;
+    uint64_t drdyWaitUs;
+    uint64_t sampleReadUs;
+    uint64_t aggregationUs;
+    uint64_t autorangeUs;
+    uint64_t batteryUs;
+    uint64_t adsCheckUs;
+    uint64_t profileHits;
+    uint64_t profileMisses;
+    uint64_t bypassHits;
+    uint64_t gainHits;
+    uint64_t registerCacheHits;
+    uint64_t registerWrites;
+    uint64_t registerReadbacks;
+    uint64_t singleSampleCells;
+    uint64_t tripleSampleCells;
+    uint64_t freshCells;
+    uint64_t rawConversions;
+    uint64_t autorangeAttempts;
+    uint64_t profileInvalidations;
+    uint64_t railFingerprintHits;
+    uint64_t railFingerprintMisses;
+    uint64_t railInvalidations;
+} sensorarrayAdsPerformanceSummary_t;
+
+typedef struct {
     sensorarrayFrame_t frame;
     sensorarrayTextPacket_t textPacket;
     uint64_t measureFrameUs;
@@ -186,6 +220,7 @@ typedef struct {
     uint64_t cacheApplyI2cMaxUs;
     sensorarrayAdsGapSnapshot_t adsGapStart;
     sensorarrayAdsGapSnapshot_t adsGap;
+    sensorarrayAdsPerformanceSummary_t adsPerformance;
     uint32_t adsOffsetCount;
     double adsOffsetMean;
     double adsOffsetM2;
@@ -764,6 +799,52 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
         summary->cacheApplyI2cMaxUs = frame->telemetry.cacheApplyI2cUs;
     }
     summary->adsGap = frame->adsGap;
+    if (frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||
+        frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE) {
+        sensorarrayAdsPerformanceSummary_t *adsPerformance =
+            &summary->adsPerformance;
+        const sensorarrayMeasurementPayload_t *measurement = &frame->measurement;
+        adsPerformance->mode = measurement->mode;
+        adsPerformance->frames++;
+        adsPerformance->precisionFrames += measurement->precisionFrame ? 1u : 0u;
+        adsPerformance->frameUs += measurement->frameDurationUs;
+        if (measurement->frameDurationUs > adsPerformance->frameUsMax) {
+            adsPerformance->frameUsMax = measurement->frameDurationUs;
+        }
+#define SENSORARRAY_ADS_PERFORMANCE_ADD(target, source) \
+        adsPerformance->target += measurement->source
+        SENSORARRAY_ADS_PERFORMANCE_ADD(rowRouteUs, rowRouteUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(muxWriteUs, muxWriteUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(registerWriteUs, registerWriteUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(registerReadbackUs, registerReadbackUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(drdyWaitUs, drdyWaitUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(sampleReadUs, sampleReadUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(aggregationUs, aggregationUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(autorangeUs, autorangeUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(batteryUs, batteryUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(adsCheckUs, adsCheckUs);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(profileHits, profileHitCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(profileMisses, profileMissCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(bypassHits, bypassHitCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(gainHits, gainHitCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(registerCacheHits, registerCacheHitCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(registerWrites, registerWriteCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(registerReadbacks, registerReadbackCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(singleSampleCells, singleSampleCellCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(tripleSampleCells, tripleSampleCellCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(freshCells, freshCellCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(rawConversions, rawConversionCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(autorangeAttempts, autorangeAttemptCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(profileInvalidations,
+                                         profileInvalidationCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(railFingerprintHits,
+                                         railFingerprintHitCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(railFingerprintMisses,
+                                         railFingerprintMissCount);
+        SENSORARRAY_ADS_PERFORMANCE_ADD(railInvalidations,
+                                         railInvalidationCount);
+#undef SENSORARRAY_ADS_PERFORMANCE_ADD
+    }
     if (frame->adsGap.initialized && frame->adsGap.jobsRun != 0u) {
         summary->adsOffsetCount++;
         double offsetUv = (double)frame->adsGap.ain9OffsetUv;
@@ -790,6 +871,12 @@ static void sensorarrayAsyncLogUpdateSummary(sensorarrayAsyncLogSummary_t *summa
 static const char *sensorarrayBatteryReasonName(sensorarrayBatteryInvalidReason_t reason)
 {
     switch (reason) {
+    case SENSORARRAY_BATTERY_INVALID_DISABLED:
+        return "disabled";
+    case SENSORARRAY_BATTERY_INVALID_NOT_DUE:
+        return "not_due";
+    case SENSORARRAY_BATTERY_INVALID_DEFERRED:
+        return "deferred";
     case SENSORARRAY_BATTERY_INVALID_CAL:
         return "cal";
     case SENSORARRAY_BATTERY_INVALID_RAIL:
@@ -804,6 +891,12 @@ static const char *sensorarrayBatteryReasonName(sensorarrayBatteryInvalidReason_
         return "adc_stale";
     case SENSORARRAY_BATTERY_INVALID_ADC_STATUS_ERROR:
         return "adc_status_error";
+    case SENSORARRAY_BATTERY_INVALID_SPI_ERROR:
+        return "spi_error";
+    case SENSORARRAY_BATTERY_INVALID_RESTORE_FAILED:
+        return "restore_failed";
+    case SENSORARRAY_BATTERY_INVALID_VBIAS:
+        return "vbias_invalid";
     case SENSORARRAY_BATTERY_INVALID_DIV:
         return "divider_invalid";
     case SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE:
@@ -816,6 +909,8 @@ static const char *sensorarrayBatteryReasonName(sensorarrayBatteryInvalidReason_
         return "range_error";
     case SENSORARRAY_BATTERY_INVALID_UNSTABLE:
         return "unstable";
+    case SENSORARRAY_BATTERY_INVALID_SATURATED:
+        return "saturated";
     case SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE:
         return "out_of_range";
     case SENSORARRAY_BATTERY_INVALID_OVERFLOW:
@@ -837,6 +932,10 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     uint32_t every = (uint32_t)SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
     if (every == 0u) {
         every = 50u;
+    }
+    if (sensorarrayCommandMailboxAdsDebugEnabled() &&
+        summary->adsPerformance.frames != 0u) {
+        every = 1u;
     }
     uint64_t frameCount = summary->processedFrames;
     if (frameCount < every) {
@@ -913,8 +1012,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     }
     uint32_t adsJobsRunDelta = ads->jobsRun - summary->adsGapStart.jobsRun;
     uint32_t adsJobsSkipDelta = ads->jobsSkip - summary->adsGapStart.jobsSkip;
-    const char *batteryState = ads->sampleAgeFrames > 200u ? "stale" :
-                               (ads->batteryValid ? "present" : "unk");
+    const char *batteryState = !ads->batteryFresh ? "stale" :
+                                (ads->batteryValid ? "present" : "unk");
 
     sensorarrayTextPacket_t packet = {
         .sequence = summary->seqEnd,
@@ -963,29 +1062,102 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta,
         ads->fallbackToBoundary ? 1u : 0u);
-    position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
-        position,
-        "AB50,bt=%ld,br=%s,bs=%s,a8d=%ld",
+    /* This routine is owned by the single async-log task. Keeping the second
+     * fixed 1536-byte packet in static storage avoids placing two full wire
+     * slots on that task's stack while both summaries are assembled. */
+    static sensorarrayTextPacket_t adsPacket;
+    adsPacket = (sensorarrayTextPacket_t){
+        .sequence = summary->seqEnd,
+    };
+    size_t adsPosition = 0u;
+    const sensorarrayAdsPerformanceSummary_t *adsPerformance =
+        &summary->adsPerformance;
+    if (adsPerformance->frames != 0u) {
+        uint64_t adsFrames = adsPerformance->frames;
+        uint64_t attemptsX100 = adsPerformance->freshCells ?
+            (adsPerformance->autorangeAttempts * 100u) /
+                adsPerformance->freshCells : 0u;
+        adsPosition = sensorarrayAsyncLogTextAppend(
+            adsPacket.data,
+            sizeof(adsPacket.data),
+            adsPosition,
+            "ADS50,mode=%s,n=%llu,frameUs=%llu/%llu,attemptsPerCell=%llu.%02llu,rawConversions=%llu,profileHit=%llu,profileMiss=%llu,bypassHit=%llu,gainHit=%llu,registerCacheHit=%llu,registerWrites=%llu,registerReadbacks=%llu,singleSampleCells=%llu,tripleSampleCells=%llu,precisionFrame=%u,precisionFrames=%llu,freshCells=%llu,profileInvalidations=%llu,railFingerprintHit=%llu,railFingerprintMiss=%llu,railInvalidations=%llu\n",
+            sensorarrayMeasurementModeName(adsPerformance->mode),
+            (unsigned long long)adsFrames,
+            (unsigned long long)(adsPerformance->frameUs / adsFrames),
+            (unsigned long long)adsPerformance->frameUsMax,
+            (unsigned long long)(attemptsX100 / 100u),
+            (unsigned long long)(attemptsX100 % 100u),
+            (unsigned long long)adsPerformance->rawConversions,
+            (unsigned long long)adsPerformance->profileHits,
+            (unsigned long long)adsPerformance->profileMisses,
+            (unsigned long long)adsPerformance->bypassHits,
+            (unsigned long long)adsPerformance->gainHits,
+            (unsigned long long)adsPerformance->registerCacheHits,
+            (unsigned long long)adsPerformance->registerWrites,
+            (unsigned long long)adsPerformance->registerReadbacks,
+            (unsigned long long)adsPerformance->singleSampleCells,
+            (unsigned long long)adsPerformance->tripleSampleCells,
+            adsPerformance->precisionFrames != 0u ? 1u : 0u,
+            (unsigned long long)adsPerformance->precisionFrames,
+            (unsigned long long)adsPerformance->freshCells,
+            (unsigned long long)adsPerformance->profileInvalidations,
+            (unsigned long long)adsPerformance->railFingerprintHits,
+            (unsigned long long)adsPerformance->railFingerprintMisses,
+            (unsigned long long)adsPerformance->railInvalidations);
+        adsPosition = sensorarrayAsyncLogTextAppend(
+            adsPacket.data,
+            sizeof(adsPacket.data),
+            adsPosition,
+            "ADST50,mode=%s,n=%llu,rowRouteUs=%llu,muxWriteUs=%llu,registerWriteUs=%llu,registerReadbackUs=%llu,drdyWaitUs=%llu,sampleReadUs=%llu,aggregationUs=%llu,autorangeUs=%llu,batteryUs=%llu,adsCheckUs=%llu\n",
+            sensorarrayMeasurementModeName(adsPerformance->mode),
+            (unsigned long long)adsFrames,
+            (unsigned long long)(adsPerformance->rowRouteUs / adsFrames),
+            (unsigned long long)(adsPerformance->muxWriteUs / adsFrames),
+            (unsigned long long)(adsPerformance->registerWriteUs / adsFrames),
+            (unsigned long long)(adsPerformance->registerReadbackUs / adsFrames),
+            (unsigned long long)(adsPerformance->drdyWaitUs / adsFrames),
+            (unsigned long long)(adsPerformance->sampleReadUs / adsFrames),
+            (unsigned long long)(adsPerformance->aggregationUs / adsFrames),
+            (unsigned long long)(adsPerformance->autorangeUs / adsFrames),
+            (unsigned long long)(adsPerformance->batteryUs / adsFrames),
+            (unsigned long long)(adsPerformance->adsCheckUs / adsFrames));
+    }
+    adsPosition = sensorarrayAsyncLogTextAppend(
+        adsPacket.data,
+        sizeof(adsPacket.data),
+        adsPosition,
+        "AB50,bt=%ld,valid=%u,br=%s,bs=%s,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,sampleUs=%lu/%lu,a8d=%ld",
         ads->batteryValid ? (long)ads->batteryMv : -1L,
+        ads->batteryValid ? 1u : 0u,
         sensorarrayBatteryReasonName(ads->batteryInvalidReason),
         batteryState,
+        (unsigned long)ads->batteryAgeMs,
+        (unsigned long)ads->batteryPeriodMs,
+        ads->batteryDue ? 1u : 0u,
+        (unsigned long)ads->batteryRunCount,
+        (unsigned long)ads->batterySkipCount,
+        (unsigned long)ads->batteryDeferCount,
+        (unsigned long)ads->batteryBoundaryCount,
+        (unsigned long)ads->batteryRestoreFailureCount,
+        (unsigned long)ads->batterySampleUsAverage,
+        (unsigned long)ads->batterySampleUsMaximum,
         (long)ads->ain8DiffUv);
     if (ads->aincomGndValid && ads->ain8GndValid) {
-        position = sensorarrayAsyncLogTextAppend(
-            packet.data,
-            sizeof(packet.data),
-            position,
+        adsPosition = sensorarrayAsyncLogTextAppend(
+            adsPacket.data,
+            sizeof(adsPacket.data),
+            adsPosition,
             ",ac=%ld,a8g=%ld",
             (long)ads->aincomGndUv,
             (long)ads->ain8GndUv);
     } else {
-        position = sensorarrayAsyncLogTextAppend(
-            packet.data, sizeof(packet.data), position, ",ac=na,a8g=na");
+        adsPosition = sensorarrayAsyncLogTextAppend(
+            adsPacket.data, sizeof(adsPacket.data), adsPosition,
+            ",ac=na,a8g=na");
     }
-    position = sensorarrayAsyncLogTextAppend(
-        packet.data, sizeof(packet.data), position,
+    adsPosition = sensorarrayAsyncLogTextAppend(
+        adsPacket.data, sizeof(adsPacket.data), adsPosition,
         ",rail=%ld,rv=%u,rs=%s,re=%ld,age=%lu,z=%ld/%lu,fresh=%u,status=0x%02X,dg=%lu,chip=%u,j=%lu/%lu",
         (long)ads->railUv,
         ads->railValid ? 1u : 0u,
@@ -997,13 +1169,13 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         ads->adcFresh ? 1u : 0u,
         (unsigned)ads->adcStatus,
         (unsigned long)ads->drdyGenerationDelta,
-        ads->chip ? (unsigned)ads->chip : 1262u,
+        (unsigned)ads->chip,
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta);
-    position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
-        position,
+    adsPosition = sensorarrayAsyncLogTextAppend(
+        adsPacket.data,
+        sizeof(adsPacket.data),
+        adsPosition,
         ",ae=%lu/%lu/%lu/%lu/%lu\n",
         (unsigned long)ads->spiErrorCount,
         (unsigned long)ads->drdyTimeoutCount,
@@ -1077,11 +1249,21 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (void)sensorarrayUsbSinkPublish(&packet);
         (void)sensorarrayNetLogPublish(&packet);
     }
+    if (adsPosition != 0u && adsPosition < sizeof(adsPacket.data) &&
+        adsPosition <= UINT16_MAX) {
+        adsPacket.length = (uint16_t)adsPosition;
+        (void)sensorarrayUsbSinkPublish(&adsPacket);
+        (void)sensorarrayNetLogPublish(&adsPacket);
+    }
     sensorarrayAsyncLogSummarySetBaseline(summary, &sharedStats);
 }
 
 static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *summary)
 {
+    /* Compact summaries preserve the established low-volume wire contract.
+     * ADSDBG deliberately reduces their aggregation window to one frame; the
+     * validator enables that mode only long enough to prove it is active, then
+     * disables it before collecting performance or full-frame evidence. */
     sensorarrayAsyncLogPrintCompactSummary(summary);
     return;
     if (!summary || !summary->active) {
@@ -1404,11 +1586,14 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
            (unsigned long)ads->drdyTimeoutCount);
     double adsOffsetStdUv = summary->adsOffsetCount > 1u ?
         sqrt(summary->adsOffsetM2 / (double)(summary->adsOffsetCount - 1u)) : 0.0;
-    printf("ADS20,start=%d,drdy=%d,init=%u,type=ADS1263,id=0x%02X,adc=ADC1,dma=%u,rate=%lu,ain9OffsetUv=%ld,ain9StdUv=%.1f,ain8RawUv=%ld,battMv=%ld,battValid=%u,drdyTimeout=%lu,spiErr=%lu,diagAgeFrames=%lu,gapJobsRun=%lu,gapJobsSkip=%lu,gapOverrun=%lu\n",
+    printf("ADS20,start=%d,drdy=%d,init=%u,type=%s,id=0x%02X,adc=%s,dma=%u,rate=%lu,ain9OffsetUv=%ld,ain9StdUv=%.1f,ain8RawUv=%ld,battMv=%ld,battValid=%u,drdyTimeout=%lu,spiErr=%lu,diagAgeFrames=%lu,gapJobsRun=%lu,gapJobsSkip=%lu,gapOverrun=%lu\n",
            CONFIG_SENSORARRAY_ADS_START_GPIO,
            CONFIG_SENSORARRAY_ADS_DRDY_GPIO,
            ads->initialized ? 1u : 0u,
+           ads->chip == 1262u ? "ADS1262" :
+               (ads->chip == 1263u ? "ADS1263" : "unknown"),
            ads->id,
+           ads->chip ? "ADC1" : "unknown",
            ads->dmaCapable ? 1u : 0u,
            (unsigned long)ads126xAdcDataRateCodeToSps(ads->rateCode),
            (long)ads->ain9OffsetUv,

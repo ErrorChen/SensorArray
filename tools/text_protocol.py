@@ -10,7 +10,11 @@ from typing import Callable, Optional
 
 
 INVALID_CAP_FIXED = -1_000_000
-SUMMARY_TAGS = {"S50", "F50", "A50", "O50", "SF50", "TR50", "AB50", "OT50", "BL50", "I2C50"}
+SUMMARY_TAGS = {
+    "S50", "F50", "A50", "O50", "SF50", "TR50", "AB50", "OT50",
+    "BL50", "I2C50", "ADS50", "ADST50", "ADSCHK", "ADSCHKSTAT",
+    "ABAT", "BATPERIOD", "RESSETTLE",
+}
 
 
 def parse_fields(line: str) -> dict[str, str]:
@@ -266,7 +270,7 @@ class TextProtocolParser:
             fields = parse_fields(line)
             self.latest_fields[tag] = fields
             self.counters.summary_lines += 1
-            if tag in {"A50", "AB50"} and "bt" in fields:
+            if tag in {"A50", "AB50", "ABAT"} and "bt" in fields:
                 try:
                     self.latest_battery_mv = int(fields["bt"])
                 except ValueError:

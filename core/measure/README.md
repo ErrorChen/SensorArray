@@ -12,6 +12,16 @@
 - `VOLT`：ADS126x ADC1 按 S 行、D1..D8 顺序测量，输出整数微伏。
 - `RES`：ADS126x ADC1 测量分压节点并输出整数毫欧。
 
+VOLT/RES 永远按 `for row=1..activeRows`、`for dLine=1..8` 完整扫描；不存在四点
+模式、半列分组或把旧 cell 标成 fresh 的生产路径。ADS ownership 显式区分
+`MATRIX/BATTERY/ADSCHK/RAIL/ZERO/NONE`，因此 AIN8 电池事务和主动检查只能在
+完整矩阵帧后执行，不能插入 64-cell 帧中间。CAP 的两个 FDC worker 不变；进入
+VOLT/RES 时只在模式边界 sleep 并 readback 两颗 FDC，回 CAP 时恢复。
+
+Core 1 的 capture limiter 默认关闭（VOLT/RES Kconfig target `0`）；Core 0 的
+`OUTCAP` 只能限制 sink 输出。矩阵结果额外报告 `ADS50` cache 计数与 `ADST50`
+分阶段耗时，`SF50` 分开报告 physical capture、emitted frame 和各 transport FPS。
+
 `sensorarrayMeasurementModeContext_t` 是唯一权威模式状态。Serial、BLE 和
 Wi-Fi 均进入同一个 parser 和 `CommandMailbox`；Core 0 只接受请求，Core 1
 只在完整帧之后执行 `SAFE -> TRANSITION -> target`。切换会先停转换、撤销矩阵
@@ -25,7 +35,9 @@ readback、等待建立并丢弃新转换，最后增加 generation 并发布 `M
 - `sensorarrayRouteController.*`：有所有权的安全路由切换和只读状态 snapshot。
 - `sensorarrayRoutePolicy.h`：生产 controller 与 host fault injection 共用的纯 GPIO command/readback 判定。
 - `ads/sensorarrayAdsMatrix.*`：动态 1..8 行 ADS 扫描与 cell telemetry。
-- `ads/sensorarrayAdsAutoRange.*`：可脱离硬件测试的 PGA 决策和 per-mode/per-cell cache。
+- `ads/sensorarrayAdsAutoRange.*`：可脱离硬件测试的 PGA 决策。
+- `ads/sensorarrayAdsCache.*`：寄存器 shadow、mode/cell profile、value/noise 和 rail fingerprint cache。
+- `ads/sensorarrayBatteryScheduler.*`：基于微秒时钟的纯逻辑 due/defer/boundary admission。
 - `ads/sensorarrayAdsMath.*`：rail split、电压和分压电阻 fixed-point 算法及分类。
 - `fdc/*`：原有电容生产路径；本次模式扩展不改写 ready/read/rescue 算法。
 - `mixed/*`：仍不是生产模式；不要用它绕过统一状态机。

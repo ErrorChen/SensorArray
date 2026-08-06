@@ -35,6 +35,18 @@ CAP 的双 FDC worker、row epoch、freshness、cache/rescue 和 C/D/K 字节保
 VOLT/RES 使用 ADS1262 与 ADS1263 都具备的 ADC1；ADC2 能力由运行时 ID 决定。
 Core 1 只格式化一次，Core 0 sink 复用同一 slot；队列满时丢旧保新，不反压采集。
 
+ADS 访问由 `NONE/MATRIX/BATTERY/ADSCHK/RAIL/ZERO` owner 串行化。register shadow
+属于 ADS context；per-mode/per-cell profile 和 value/noise cache 属于 matrix engine；
+rail fingerprint 连接 rail 状态与 cache generation；time-based battery scheduler 只做
+due/admission 决策，仍调用现有 `sensorarrayAdsGap` transaction。外部 transaction
+保存完整 register/running snapshot，恢复并 readback 后更新 shadow；恢复失败则
+invalidate 所有硬件假设并阻止普通 valid frame。
+
+VOLT/RES 的物理 acquisition 默认 unlimited，输出 cap 位于 Core 0。Core 1 将每帧
+64-cell 数据格式化一次；cache/timing telemetry 使用独立固定 text slot，避免扩张
+V/R 1536-byte wire 上界。CAP gap battery 只有在预算大于估计 duration+guard 时
+admit；VOLT/RES battery 与 ADSCHK 只在完整帧之后运行。
+
 ## Australian English Documentation
 
 The firmware has two asynchronous domains. Core 0 owns the shared command

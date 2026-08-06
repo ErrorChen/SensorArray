@@ -74,6 +74,7 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_MODE2_GAIN_SHIFT 4
 #define ADS126X_MODE2_GAIN_MASK (0x07u << ADS126X_MODE2_GAIN_SHIFT)
 #define ADS126X_MODE2_DR_MASK 0x0Fu
+#define ADS126X_MODE1_FILTER_MASK 0xE0u
 
 #ifndef CONFIG_ADS126X_MUTEX_TIMEOUT_MS
 #define CONFIG_ADS126X_MUTEX_TIMEOUT_MS 100
@@ -92,6 +93,9 @@ static const char *TAG = "ads126xAdc";
 #define ADS126X_RESET_RELEASE_WAIT_MS 2u
 #define ADS126X_RESET_COMMAND_DELAY_MS 2u
 #define ADS126X_INTERNAL_REF_SETTLE_MS 50u
+
+static esp_err_t ads126xAdcNoteMode2(ads126xAdcHandle_t *handle,
+                                     uint8_t mode2);
 
 static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
 {
@@ -471,13 +475,30 @@ esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)
     vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_PULSE_LOW_MS));
     gpio_set_level(handle->resetGpio, 1);
     vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_RELEASE_WAIT_MS));
+    handle->adc1Running = false;
+    handle->adc2Running = false;
 
     return ESP_OK;
 }
 
 esp_err_t ads126xAdcSendCommand(ads126xAdcHandle_t *handle, uint8_t cmd)
 {
-    return ads126xAdcSpiTransferLocked(handle, &cmd, 1, NULL, 0);
+    esp_err_t err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, NULL, 0);
+    if (err == ESP_OK && handle) {
+        if (cmd == ADS126X_CMD_START1) {
+            handle->adc1Running = true;
+        } else if (cmd == ADS126X_CMD_STOP1) {
+            handle->adc1Running = false;
+        } else if (cmd == ADS126X_CMD_START2) {
+            handle->adc2Running = true;
+        } else if (cmd == ADS126X_CMD_STOP2) {
+            handle->adc2Running = false;
+        } else if (cmd == ADS126X_CMD_RESET) {
+            handle->adc1Running = false;
+            handle->adc2Running = false;
+        }
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcReadRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, uint8_t *data, size_t len)
@@ -765,8 +786,8 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t gainCode = 0;
-    if (!ads126xAdcGainToCode(pgaGain, &gainCode)) {
+    uint8_t mode2 = 0u;
+    if (!ads126xAdcBuildMode2(false, pgaGain, dataRateDr, &mode2)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -798,8 +819,12 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return err;
     }
 
-    uint8_t mode2 = (uint8_t)((gainCode << ADS126X_MODE2_GAIN_SHIFT) | (dataRateDr & ADS126X_MODE2_DR_MASK));
-    mode2 &= (uint8_t)~ADS126X_MODE2_BYPASS;
+    err = ads126xAdcConfigureAdc1Mode(handle,
+                                      ADS126X_MODE0_CONTINUOUS_CHOP_OFF_DELAY_0,
+                                      ADS126X_MODE1_FILTER_SINC1);
+    if (err != ESP_OK) {
+        return err;
+    }
     err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &mode2, 1);
     if (err != ESP_OK) {
         return err;
@@ -823,6 +848,7 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     handle->crcMode = crcMode;
     handle->pgaGain = pgaGain;
     handle->dataRateDr = dataRateDr;
+    handle->pgaBypassed = false;
 
     return ESP_OK;
 }
@@ -928,6 +954,7 @@ esp_err_t ads126xAdcSetPgaGain(ads126xAdcHandle_t *handle, uint8_t gain)
     }
     if (err == ESP_OK) {
         handle->pgaGain = gain;
+        handle->pgaBypassed = false;
     }
     return err;
 }
@@ -959,6 +986,9 @@ esp_err_t ads126xAdcSetPgaBypass(ads126xAdcHandle_t *handle, bool bypass)
         /* PGA bypass has unity transfer; keep raw-to-voltage scaling explicit. */
         handle->pgaGain = 1u;
     }
+    if (err == ESP_OK) {
+        handle->pgaBypassed = bypass;
+    }
     return err;
 }
 
@@ -982,28 +1012,25 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t power = 0u;
-    uint8_t iface = 0u;
-    uint8_t mode2 = 0u;
-    uint8_t inpmux = 0u;
-    uint8_t refmux = 0u;
-
-    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, &power, 1);
-    if (err == ESP_OK) {
-        err = ads126xAdcReadRegisters(handle, ADS126X_REG_INTERFACE, &iface, 1);
-    }
-    if (err == ESP_OK) {
-        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &mode2, 1);
-    }
-    if (err == ESP_OK) {
-        err = ads126xAdcReadRegisters(handle, ADS126X_REG_INPMUX, &inpmux, 1);
-    }
-    if (err == ESP_OK) {
-        err = ads126xAdcReadRegisters(handle, ADS126X_REG_REFMUX, &refmux, 1);
-    }
+    /* Read POWER..REFMUX under one command. The board ties CS low; five
+     * separate short RREG commands exposed the last REFMUX read to a
+     * repeatable one-bit DOUT error while ADC1 was converting at 38.4 kSPS.
+     * A block read is explicitly supported by the ADS126x and keeps the
+     * register snapshot atomic with fewer command boundaries. */
+    uint8_t registers[ADS126X_REG_REFMUX - ADS126X_REG_POWER + 1u] = {0};
+    esp_err_t err = ads126xAdcReadRegisters(handle,
+                                             ADS126X_REG_POWER,
+                                             registers,
+                                             sizeof(registers));
     if (err != ESP_OK) {
         return err;
     }
+
+    uint8_t power = registers[ADS126X_REG_POWER - ADS126X_REG_POWER];
+    uint8_t iface = registers[ADS126X_REG_INTERFACE - ADS126X_REG_POWER];
+    uint8_t mode2 = registers[ADS126X_REG_MODE2 - ADS126X_REG_POWER];
+    uint8_t inpmux = registers[ADS126X_REG_INPMUX - ADS126X_REG_POWER];
+    uint8_t refmux = registers[ADS126X_REG_REFMUX - ADS126X_REG_POWER];
 
     if (outPower) {
         *outPower = power;
@@ -1021,6 +1048,147 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
         *outRefmux = refmux;
     }
     return ESP_OK;
+}
+
+static void ads126xAdcDecodeAdc1RegisterSnapshot(
+    const uint8_t registers[16],
+    ads126xAdc1RegisterSnapshot_t *outSnapshot)
+{
+    *outSnapshot = (ads126xAdc1RegisterSnapshot_t){
+        .id = registers[0x00],
+        .power = registers[0x01],
+        .interface = registers[0x02],
+        .mode0 = registers[0x03],
+        .mode1 = registers[0x04],
+        .mode2 = registers[0x05],
+        .inpmux = registers[0x06],
+        .offsetCal = {registers[0x07], registers[0x08], registers[0x09]},
+        .fullScaleCal = {registers[0x0A], registers[0x0B], registers[0x0C]},
+        .refmux = registers[0x0F],
+    };
+}
+
+esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
+    ads126xAdcHandle_t *handle,
+    ads126xAdc1RegisterSnapshot_t *outSnapshot)
+{
+    if (!handle || !outSnapshot) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    /* CS is tied low on the production board, so an isolated DOUT bit error
+     * cannot be cleared by pulsing CS. Never use one unverified read as the
+     * source for a later transaction restore: read twice, and use a third
+     * read only to resolve a disagreement. This is outside the cell hot path. */
+    uint8_t first[16] = {0};
+    uint8_t second[16] = {0};
+    uint8_t third[16] = {0};
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
+                                             first, sizeof(first));
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
+                                   second, sizeof(second));
+    if (err != ESP_OK) {
+        return err;
+    }
+    const uint8_t *verified = NULL;
+    if (memcmp(first, second, sizeof(first)) == 0) {
+        verified = second;
+    } else {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
+                                       third, sizeof(third));
+        if (err != ESP_OK) {
+            return err;
+        }
+        if (memcmp(first, third, sizeof(first)) == 0) {
+            verified = first;
+        } else if (memcmp(second, third, sizeof(second)) == 0) {
+            verified = second;
+        } else {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+    ads126xAdcDecodeAdc1RegisterSnapshot(verified, outSnapshot);
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
+    ads126xAdcHandle_t *handle,
+    const ads126xAdc1RegisterSnapshot_t *snapshot,
+    uint32_t vrefMicrovolts,
+    bool adc1WasRunning)
+{
+    if (!handle || !snapshot || vrefMicrovolts == 0u ||
+        (snapshot->interface & ADS126X_INTERFACE_CRC_MASK) == 3u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcStopAdc1(handle);
+    if (err == ESP_OK) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER,
+                                       &snapshot->power, 1u);
+    }
+    uint8_t adc1Group[5] = {
+        snapshot->interface,
+        snapshot->mode0,
+        snapshot->mode1,
+        snapshot->mode2,
+        snapshot->inpmux,
+    };
+    if (err == ESP_OK) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_INTERFACE,
+                                       adc1Group, sizeof(adc1Group));
+    }
+    uint8_t calibration[6] = {
+        snapshot->offsetCal[0], snapshot->offsetCal[1], snapshot->offsetCal[2],
+        snapshot->fullScaleCal[0], snapshot->fullScaleCal[1],
+        snapshot->fullScaleCal[2],
+    };
+    if (err == ESP_OK) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_OFCAL0,
+                                       calibration, sizeof(calibration));
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_REFMUX,
+                                       &snapshot->refmux, 1u);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    handle->enableStatusByte =
+        (snapshot->interface & ADS126X_INTERFACE_STATUS) != 0u;
+    handle->crcMode = (ads126xCrcMode_t)(snapshot->interface &
+                                         ADS126X_INTERFACE_CRC_MASK);
+    handle->mode0 = snapshot->mode0;
+    handle->mode1 = snapshot->mode1;
+    handle->enableInternalRef =
+        (snapshot->power & ADS126X_POWER_INTREF) != 0u;
+    handle->vrefMicrovolts = vrefMicrovolts;
+    err = ads126xAdcNoteMode2(handle, snapshot->mode2);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    ads126xAdc1RegisterSnapshot_t readback = {0};
+    err = ads126xAdcReadAdc1RegisterSnapshot(handle, &readback);
+    bool registerMatch = err == ESP_OK &&
+        readback.id == snapshot->id &&
+        readback.power == snapshot->power &&
+        readback.interface == snapshot->interface &&
+        readback.mode0 == snapshot->mode0 &&
+        readback.mode1 == snapshot->mode1 &&
+        readback.mode2 == snapshot->mode2 &&
+        readback.inpmux == snapshot->inpmux &&
+        readback.refmux == snapshot->refmux &&
+        memcmp(readback.offsetCal, snapshot->offsetCal,
+               sizeof(readback.offsetCal)) == 0 &&
+        memcmp(readback.fullScaleCal, snapshot->fullScaleCal,
+               sizeof(readback.fullScaleCal)) == 0;
+    if (!registerMatch) {
+        return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
+    }
+    return adc1WasRunning ? ads126xAdcStartAdc1(handle) : ESP_OK;
 }
 
 esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
@@ -1094,12 +1262,25 @@ esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle)
 {
-    return ads126xAdcSendCommand(handle, ADS126X_CMD_START1);
+    esp_err_t err = ads126xAdcSendCommand(handle, ADS126X_CMD_START1);
+    if (err == ESP_OK && handle) {
+        handle->adc1Running = true;
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle)
 {
-    return ads126xAdcSendCommand(handle, ADS126X_CMD_STOP1);
+    esp_err_t err = ads126xAdcSendCommand(handle, ADS126X_CMD_STOP1);
+    if (err == ESP_OK && handle) {
+        handle->adc1Running = false;
+    }
+    return err;
+}
+
+bool ads126xAdcIsAdc1Running(const ads126xAdcHandle_t *handle)
+{
+    return handle && handle->adc1Running;
 }
 
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
@@ -1128,6 +1309,85 @@ esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
     }
 
     return ESP_OK;
+}
+
+esp_err_t ads126xAdcConfigureAdc1Mode(ads126xAdcHandle_t *handle,
+                                      uint8_t mode0,
+                                      uint8_t mode1)
+{
+    if (!handle || (mode1 & ADS126X_MODE1_FILTER_MASK) > ADS126X_MODE1_FILTER_FIR) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t expected[2] = {mode0, mode1};
+    esp_err_t err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE0,
+                                              expected, sizeof(expected));
+    uint8_t readback[2] = {0u, 0u};
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE0,
+                                      readback, sizeof(readback));
+    }
+    if (err == ESP_OK && memcmp(expected, readback, sizeof(expected)) != 0) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK) {
+        handle->mode0 = mode0;
+        handle->mode1 = mode1;
+    }
+    return err;
+}
+
+bool ads126xAdcBuildMode2(bool pgaBypassed,
+                          uint8_t gain,
+                          uint8_t dataRateDr,
+                          uint8_t *outMode2)
+{
+    if (!outMode2 || dataRateDr > ADS126X_MODE2_DR_MASK) {
+        return false;
+    }
+    uint8_t gainCode = 0u;
+    if (!ads126xAdcGainToCode(gain, &gainCode)) {
+        return false;
+    }
+    *outMode2 = (uint8_t)((pgaBypassed ? ADS126X_MODE2_BYPASS : 0u) |
+                          (gainCode << ADS126X_MODE2_GAIN_SHIFT) |
+                          dataRateDr);
+    return true;
+}
+
+static esp_err_t ads126xAdcNoteMode2(ads126xAdcHandle_t *handle, uint8_t mode2)
+{
+    if (!handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t gainCode = (uint8_t)((mode2 & ADS126X_MODE2_GAIN_MASK) >>
+                                 ADS126X_MODE2_GAIN_SHIFT);
+    if (gainCode >= 6u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    handle->pgaBypassed = ads126xAdcMode2PgaBypassed(mode2);
+    handle->pgaGain = (uint8_t)(1u << gainCode);
+    handle->dataRateDr = mode2 & ADS126X_MODE2_DR_MASK;
+    return ESP_OK;
+}
+
+esp_err_t ads126xAdcSetMode2Fast(ads126xAdcHandle_t *handle, uint8_t mode2)
+{
+    if (!handle || ((mode2 & ADS126X_MODE2_GAIN_MASK) >>
+                    ADS126X_MODE2_GAIN_SHIFT) >= 6u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = ads126xAdcWriteRegisters(handle, ADS126X_REG_MODE2, &mode2, 1u);
+    return err == ESP_OK ? ads126xAdcNoteMode2(handle, mode2) : err;
+}
+
+esp_err_t ads126xAdcSetMode2Verified(ads126xAdcHandle_t *handle, uint8_t mode2)
+{
+    esp_err_t err = ads126xAdcSetMode2Fast(handle, mode2);
+    uint8_t readback = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_MODE2, &readback, 1u);
+    }
+    return err == ESP_OK && readback != mode2 ? ESP_ERR_INVALID_RESPONSE : err;
 }
 
 static void IRAM_ATTR ads126xAdcDrdyIsr(void *arg)
@@ -1523,6 +1783,11 @@ esp_err_t ads126xAdcStopAdc2(ads126xAdcHandle_t *handle)
         return ESP_ERR_NOT_SUPPORTED;
     }
     return ads126xAdcSendCommand(handle, ADS126X_CMD_STOP2);
+}
+
+bool ads126xAdcIsAdc2Running(const ads126xAdcHandle_t *handle)
+{
+    return handle && ads126xAdcIsAdc2Supported(handle) && handle->adc2Running;
 }
 
 esp_err_t ads126xAdcSetAdc2Config(ads126xAdcHandle_t *handle,

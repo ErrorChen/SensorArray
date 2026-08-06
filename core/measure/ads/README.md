@@ -8,17 +8,52 @@ ADS1262 时仍可执行 VOLT/RES；ADC2 API 只在实际 ADS1263 上可用，不
 映射为 AIN0..AIN7 对 AINCOM，驱动层不知道 S/D 坐标或 frame 格式。
 
 每个 cell 的有界流程是：进入安全路由、选择 row、选择 D-line input mux、应用
-候选 PGA、核对寄存器、等待 settle、丢弃配置数量的真正新 DRDY generation、
-有限次 oversample、中位数聚合和 spread 检查。SPI、DRDY timeout、stale/reset、
+缓存的 PGA/bypass profile、记录当前 DRDY generation、等待并读取一个真正的新
+conversion，然后按 cell noise/status 决定是否再读两个 fresh conversion 并取中位数。
+SPI、DRDY timeout、stale/reset、
 ADS status reference/PGA alarm、full-scale saturation、rail/common-mode 和稳定性
 都必须通过后才设置 valid/fresh bit。无效值在内存中为 `INT64_MIN`，wire 上为
 `Xhh` 原因码，绝不伪装成 0。
 
-RES 换 row 时先停止 ADC1 和 INTREF，再用 SW high 钳住 REFOUT，完成 row 选择后
-才释放 SW、恢复 INTREF 并核对 POWER/REFMUX；这避免把工作中的 REFOUT 短接到
-GND。瞬态 timeout/stale 最多执行 `CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT`
-次同 cell restart，默认一次且不放大 DRDY timeout。VOLT/RES 分别按独立的默认
-3 FPS 目标 pacing；header `ir` 报告已恢复的 retry。
+原理图确认 TMUX1108 EN 仅由 10 kΩ 上拉、未连接 MCU；因此不能假装执行
+disable/address/enable。生产默认 RES 快路径依赖器件的 break-before-make，在
+SW 已为 REF、INTREF/REFOUT 已安全开启的整个 RES session 内只改 A0..A2，随后
+执行可配置 row settle，并核对 row/source/SW、POWER 和 REFMUX。若该能力关闭，
+保留原有 STOP1、关闭 INTREF、SW/Q1 clamp、换行、释放 clamp、恢复并 readback
+的保守路径。`RESSETTLE` sweep 只有在 S1D1/S8D8 同步万用表数据满足误差要求时
+才选择更短 settle，否则恢复原值。
+
+VOLT/RES Kconfig target 默认 `0`（unlimited）；只有显式 `FPSCAP=ON,<fps>` 才让
+Core 1 pacing。瞬态 timeout/stale 仍有有界同-cell恢复，header `ir` 报告成功
+恢复的次数。
+
+### Four cache layers and adaptive sampling
+
+1. register shadow 跟踪 POWER/INTERFACE/MODE0/1/2/INPMUX/REFMUX/OFCAL/FSCAL、
+   VREF、PGA 和 ADC running state；相同值不写，完整 readback 只在启动、transition、
+   ADSCHK、外部 transaction、错误/reset 和周期 health frame 执行。
+2. input profile 按 VOLT/RES 和 cell 隔离，结构化保存 PGA 或 bypass。确认过的
+   VOLT bypass 下帧直接命中，不再每帧从 gain 1 失败一次。
+3. rail fingerprint 使用可配置绝对阈值与 hysteresis；正常微伏抖动不会清空 profile。
+4. value/noise cache 保存 raw/node/value、noise estimate 和 streak。稳定 cell 的
+   dynamic raw threshold 为 `max(minRaw, noise*multiplier)`。
+
+cache miss、alarm/saturation、rail/reference/calibration/reset 变化或周期 precision
+frame 会强制三样本。默认每 16 帧的 precision frame 对所有活动 cell 三样本；其余
+稳定 cell 单样本，但每帧仍满足 `freshCells == activeRows*8`。
+
+### Active check and battery transaction
+
+`ADS?` 是轻量 snapshot，未知 ID 不默认成 ADS1262。`ADSCHK[=N]` 在 Core 1 帧边界
+主动读取全部关键寄存器、START ADC1、等待 N 个新 DRDY、检查 new-data/status/reset，
+统计 period/changed/SPI/timeout/stale，再恢复并完整回读；失败使 matrix cache 失效并
+进入 SAFE/DEGRADED。
+
+周期电池复用 `sensorarrayAdsGap` 和同一 driver/owner。scheduler 以
+`esp_timer_get_time()` 计时；CAP gap 不足则 defer，超过最大延迟才 boundary fallback；
+VOLT/RES 只在完整帧后保存/恢复 ADS。测量为 AIN8-AINCOM，加有效 rail/VBIAS 得到
+AINCOM-GND，再按 divider numerator/denominator、ppm/offset 做 checked int64 换算。
+restore failure 会 invalidate shadow/profile 并禁止下一普通有效矩阵帧。
 
 ### Voltage
 
@@ -72,12 +107,14 @@ The ADS matrix engine uses ADC1, which is available on both ADS1262 and
 ADS1263. ADC2 is used only when the detected part supports it. Board mapping,
 not the driver, maps D1..D8 to AIN0..AIN7 against AINCOM.
 
-Each cell has bounded route, settle, fresh-generation discard, oversampling,
-median, stability, status, rail, common-mode, saturation, and autorange checks.
-Resistance row changes stop ADC1 and INTREF before clamping REFOUT, then restore
-excitation only after the new row is selected. Transient fresh-data failures
-have a bounded same-cell restart, and gain-1 PGA alarms may use a readback-
-verified bypass only inside the configured absolute-input margin.
+Each cell obtains at least one new DRDY-generation conversion per frame. A
+stable cell uses that single sample; a changing, noisy, alarmed or precision-
+frame cell obtains two more fresh samples and uses the median. Four coherent
+caches cover registers, per-mode/cell PGA-or-bypass profiles, rail fingerprints,
+and cell values/noise. The default resistance route keeps INTREF active for the
+RES session and uses the TMUX1108 break-before-make address transition because
+the schematic shows its EN pin is not MCU-controlled. The old clamp-and-restart
+sequence remains the configurable safety fallback.
 Voltage is emitted as integer microvolts. Resistance is emitted as integer
 milliohms using the confirmed divider nodes and calibrated Rref/reference/path
 data. Invalid samples carry an explicit reason instead of zero. Calibration

@@ -35,6 +35,9 @@
 #ifndef CONFIG_SENSORARRAY_COMM_TASK_CORE
 #define CONFIG_SENSORARRAY_COMM_TASK_CORE 0
 #endif
+#ifndef CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK
+#define CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK 6144
+#endif
 #ifndef CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT
 #define CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT 0
 #endif
@@ -631,7 +634,7 @@ esp_err_t sensorarrayTransportInit(void)
     }
     ok = xTaskCreatePinnedToCore(sensorarrayTransportSerialControlTask,
                                  "serialCtrl",
-                                 3072u,
+                                 CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
                                  NULL,
                                  4u,
                                  NULL,

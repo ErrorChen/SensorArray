@@ -33,6 +33,8 @@ typedef struct {
     bool fresh;
     bool stable;
     bool pgaBypassed;
+    bool fullSample;
+    uint32_t spreadRaw;
 } sensorarrayAdsMatrixCellResult_t;
 
 static const sensorarrayAdsAutoRangeConfig_t s_sensorarrayAdsAutoRangeConfig = {
@@ -146,26 +148,36 @@ static void sensorarrayAdsMatrixSetCellValid(sensorarrayFrame_t *frame,
     }
 }
 
-static esp_err_t sensorarrayAdsMatrixReadFresh(ads126xAdcHandle_t *ads,
-                                               sensorarrayAdsMatrixSample_t *outSample)
+static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
+    ads126xAdcHandle_t *ads,
+    uint32_t startGeneration,
+    sensorarrayMeasurementPayload_t *telemetry,
+    sensorarrayAdsMatrixSample_t *outSample)
 {
-    if (!ads || !outSample) {
+    if (!ads || !telemetry || !outSample) {
         return ESP_ERR_INVALID_ARG;
     }
     memset(outSample, 0, sizeof(*outSample));
-    outSample->generationStart = ads126xAdcGetDrdyGeneration(ads);
+    outSample->generationStart = startGeneration;
+    int64_t waitStartUs = esp_timer_get_time();
     esp_err_t err = ads126xAdcWaitDrdyGenerationUs(
         ads,
         outSample->generationStart,
         (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US,
         &outSample->generationEnd);
+    int64_t waitEndUs = esp_timer_get_time();
+    if (waitEndUs > waitStartUs) {
+        telemetry->drdyWaitUs += (uint64_t)(waitEndUs - waitStartUs);
+    }
     if (err != ESP_OK) {
         return err;
     }
+    uint32_t readUs = 0u;
     err = ads126xAdcReadAdc1RawDmaReady(ads,
                                         &outSample->raw,
                                         &outSample->status,
-                                        NULL);
+                                        &readUs);
+    telemetry->sampleReadUs += readUs;
     if (err != ESP_OK) {
         return err;
     }
@@ -173,110 +185,344 @@ static esp_err_t sensorarrayAdsMatrixReadFresh(ads126xAdcHandle_t *ads,
         !ads126xAdcStatusByteHasAdc1NewData(ads, outSample->status)) {
         return ESP_ERR_INVALID_RESPONSE;
     }
+    telemetry->rawConversionCount++;
     outSample->differentialUv = ads126xAdcRawToMicrovolts(ads, outSample->raw);
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayAdsMatrixPrepareConversion(sensorarrayAdsMatrixEngine_t *engine,
-                                                       uint8_t muxp,
-                                                       uint8_t muxn,
-                                                       uint8_t gain,
-                                                       bool pgaBypassed)
+static bool sensorarrayAdsMatrixNoteRegisterSnapshot(
+    sensorarrayAdsRegisterCache_t *cache,
+    const ads126xAdc1RegisterSnapshot_t *snapshot)
 {
-    ads126xAdcHandle_t *ads = &engine->state->ads;
-    esp_err_t err = ads126xAdcStopAdc1(ads);
-    engine->state->adsAdc1Running = false;
-    if (err == ESP_OK) {
-        err = pgaBypassed ? ads126xAdcSetPgaBypass(ads, true) :
-                           ads126xAdcSetPgaGain(ads, gain);
+    if (!cache || !snapshot) {
+        return false;
     }
-    if (err == ESP_OK) {
-        err = ads126xAdcSetInputMuxVerified(ads, muxp, muxn);
-    }
-    if (err == ESP_OK) {
-        ads126xAdcClearDrdyNotifications(ads);
-        err = ads126xAdcStartAdc1(ads);
-    }
-    if (err == ESP_OK) {
-        engine->state->adsAdc1Running = true;
-        esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_MUX_SETTLE_US);
-        for (uint8_t discard = 0u;
-             discard < (uint8_t)CONFIG_SENSORARRAY_ADS_MATRIX_DISCARD_COUNT;
-             ++discard) {
-            sensorarrayAdsMatrixSample_t ignored;
-            err = sensorarrayAdsMatrixReadFresh(ads, &ignored);
-            if (err != ESP_OK) {
-                break;
-            }
+    const uint8_t values[SENSORARRAY_ADS_REGISTER_COUNT] = {
+        [SENSORARRAY_ADS_REGISTER_POWER] = snapshot->power,
+        [SENSORARRAY_ADS_REGISTER_INTERFACE] = snapshot->interface,
+        [SENSORARRAY_ADS_REGISTER_MODE0] = snapshot->mode0,
+        [SENSORARRAY_ADS_REGISTER_MODE1] = snapshot->mode1,
+        [SENSORARRAY_ADS_REGISTER_MODE2] = snapshot->mode2,
+        [SENSORARRAY_ADS_REGISTER_INPMUX] = snapshot->inpmux,
+        [SENSORARRAY_ADS_REGISTER_REFMUX] = snapshot->refmux,
+        [SENSORARRAY_ADS_REGISTER_OFCAL0] = snapshot->offsetCal[0],
+        [SENSORARRAY_ADS_REGISTER_OFCAL1] = snapshot->offsetCal[1],
+        [SENSORARRAY_ADS_REGISTER_OFCAL2] = snapshot->offsetCal[2],
+        [SENSORARRAY_ADS_REGISTER_FSCAL0] = snapshot->fullScaleCal[0],
+        [SENSORARRAY_ADS_REGISTER_FSCAL1] = snapshot->fullScaleCal[1],
+        [SENSORARRAY_ADS_REGISTER_FSCAL2] = snapshot->fullScaleCal[2],
+    };
+    bool match = true;
+    for (uint8_t index = 0u; index < SENSORARRAY_ADS_REGISTER_COUNT; ++index) {
+        if (!sensorarrayAdsRegisterCacheNoteReadback(
+                cache, (sensorarrayAdsRegisterId_t)index, values[index])) {
+            match = false;
         }
     }
-    return err;
+    return match;
 }
 
-static esp_err_t sensorarrayAdsMatrixReadAggregate(sensorarrayAdsMatrixEngine_t *engine,
-                                                   sensorarrayAdsMatrixCellResult_t *outResult)
+static esp_err_t sensorarrayAdsMatrixRefreshRegisterShadow(
+    sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayMeasurementPayload_t *telemetry)
 {
-    uint8_t sampleCount = (uint8_t)CONFIG_SENSORARRAY_ADS_MATRIX_OVERSAMPLE;
-    if (sampleCount < 1u) {
-        sampleCount = 1u;
-    } else if (sampleCount > 9u) {
-        sampleCount = 9u;
+    if (!engine || !engine->state || !telemetry) {
+        return ESP_ERR_INVALID_ARG;
     }
-    sensorarrayAdsMatrixSample_t samples[9] = {0};
-    int32_t differentialUv[9] = {0};
-    int32_t rawCode[9] = {0};
-    uint8_t status = 0u;
-    esp_err_t err = ESP_OK;
-    for (uint8_t index = 0u; index < sampleCount; ++index) {
-        err = sensorarrayAdsMatrixReadFresh(&engine->state->ads, &samples[index]);
+    ads126xAdc1RegisterSnapshot_t snapshot = {0};
+    int64_t readStartUs = esp_timer_get_time();
+    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads,
+                                                       &snapshot);
+    int64_t readEndUs = esp_timer_get_time();
+    if (readEndUs > readStartUs) {
+        telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
+    }
+    if (err != ESP_OK) {
+        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+        return err;
+    }
+    sensorarrayRouteSnapshot_t route = {0};
+    if (!engine->routeController ||
+        !sensorarrayRouteControllerCopySnapshot(engine->routeController, &route)) {
+        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+        return ESP_ERR_INVALID_STATE;
+    }
+    bool expectedIntref = route.profile.intRef == SENSORARRAY_ADS_INTREF_ON;
+    bool expectedVbias = route.profile.vbias == SENSORARRAY_ADS_VBIAS_ON;
+    bool routeRegistersMatch =
+        (((snapshot.power & ADS126X_POWER_INTREF) != 0u) == expectedIntref) &&
+        (((snapshot.power & ADS126X_POWER_VBIAS) != 0u) == expectedVbias) &&
+        snapshot.refmux == route.profile.adsRefMux;
+    if (!routeRegistersMatch) {
+        /* A block read is already duplicate-verified by the driver. One more
+         * verified snapshot distinguishes a recoverable DOUT read upset from
+         * persistent hardware state before declaring the route unsafe. */
+        ads126xAdc1RegisterSnapshot_t retry = {0};
+        readStartUs = esp_timer_get_time();
+        err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads, &retry);
+        readEndUs = esp_timer_get_time();
+        if (readEndUs > readStartUs) {
+            telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
+        }
+        bool retryMatches = err == ESP_OK &&
+            ((((retry.power & ADS126X_POWER_INTREF) != 0u) == expectedIntref)) &&
+            ((((retry.power & ADS126X_POWER_VBIAS) != 0u) == expectedVbias)) &&
+            retry.refmux == route.profile.adsRefMux;
+        if (!retryMatches) {
+            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+            sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+            sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+            return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
+        }
+        snapshot = retry;
+    }
+    bool expectedMode = snapshot.mode0 == (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE &&
+                        snapshot.mode1 == (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE;
+    if (!expectedMode) {
+        int64_t writeStartUs = esp_timer_get_time();
+        err = ads126xAdcConfigureAdc1Mode(&engine->state->ads,
+                                          (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE,
+                                          (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE);
+        int64_t writeEndUs = esp_timer_get_time();
+        if (writeEndUs > writeStartUs) {
+            telemetry->registerWriteUs += (uint64_t)(writeEndUs - writeStartUs);
+        }
         if (err != ESP_OK) {
+            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
             return err;
         }
-        differentialUv[index] = samples[index].differentialUv;
-        rawCode[index] = samples[index].raw;
-        status |= samples[index].status;
+        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_MODE0,
+                                              (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE,
+                                              true);
+        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_MODE1,
+                                              (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE,
+                                              true);
+        readStartUs = esp_timer_get_time();
+        err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads, &snapshot);
+        readEndUs = esp_timer_get_time();
+        if (readEndUs > readStartUs) {
+            telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
+        }
+        if (err != ESP_OK) {
+            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+            return err;
+        }
     }
-    int32_t medianUv = 0;
-    int32_t medianRaw = 0;
-    bool stable = sensorarrayAdsMathSamplesStable(
-        differentialUv,
-        sampleCount,
-        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_MAX_SPREAD_UV,
-        &medianUv);
-    (void)sensorarrayAdsMathSamplesStable(rawCode, sampleCount, UINT32_MAX, &medianRaw);
-    outResult->raw = medianRaw;
-    outResult->differentialUv = medianUv;
-    outResult->status = status;
-    outResult->fresh = true;
-    outResult->stable = stable;
+    bool snapshotMatches = sensorarrayAdsMatrixNoteRegisterSnapshot(
+        &engine->registerCache, &snapshot);
+    bool resetSeen = (snapshot.power & ADS126X_POWER_RESET) != 0u;
+    if (!snapshotMatches || resetSeen ||
+        snapshot.mode0 != (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE ||
+        snapshot.mode1 != (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE) {
+        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    engine->registerCache.vrefValid = engine->state->ads.vrefMicrovolts != 0u;
+    engine->registerCache.vrefUv = (int32_t)engine->state->ads.vrefMicrovolts;
+    engine->registerCache.pgaModeValid = true;
+    engine->registerCache.inputMode = ads126xAdcMode2PgaBypassed(snapshot.mode2) ?
+        SENSORARRAY_ADS_INPUT_BYPASS : SENSORARRAY_ADS_INPUT_PGA;
+    uint8_t gain = 1u;
+    if (!ads126xAdcMode2PgaBypassed(snapshot.mode2) &&
+        !ads126xAdcMode2DecodePgaGain(snapshot.mode2, &gain)) {
+        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    engine->registerCache.gain = gain;
+    engine->registerCache.adc1RunningValid = true;
+    engine->registerCache.adc1Running = ads126xAdcIsAdc1Running(&engine->state->ads);
     return ESP_OK;
 }
 
-static esp_err_t sensorarrayAdsMatrixAcquireWithBoundedRetry(
+static esp_err_t sensorarrayAdsMatrixApplyInputProfile(
     sensorarrayAdsMatrixEngine_t *engine,
     uint8_t muxp,
     uint8_t muxn,
+    sensorarrayAdsInputMode_t inputMode,
     uint8_t gain,
-    bool pgaBypassed,
-    uint8_t *ioRetries,
-    sensorarrayAdsMatrixCellResult_t *outSample)
+    sensorarrayMeasurementPayload_t *telemetry,
+    uint32_t *outStartGeneration)
 {
-    if (!engine || !ioRetries || !outSample) {
+    if (!engine || !engine->state || !telemetry || !outStartGeneration) {
         return ESP_ERR_INVALID_ARG;
     }
-    for (;;) {
-        esp_err_t err = sensorarrayAdsMatrixPrepareConversion(
-            engine, muxp, muxn, gain, pgaBypassed);
-        if (err == ESP_OK) {
-            err = sensorarrayAdsMatrixReadAggregate(engine, outSample);
+    ads126xAdcHandle_t *ads = &engine->state->ads;
+    uint8_t mode2 = 0u;
+    if (!ads126xAdcBuildMode2(inputMode == SENSORARRAY_ADS_INPUT_BYPASS,
+                              gain,
+                              (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE,
+                              &mode2)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (sensorarrayAdsRegisterCacheNeedsWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_MODE2,
+                                              mode2)) {
+        int64_t startUs = esp_timer_get_time();
+        esp_err_t err = ads126xAdcSetMode2Fast(ads, mode2);
+        int64_t endUs = esp_timer_get_time();
+        if (endUs > startUs) {
+            telemetry->registerWriteUs += (uint64_t)(endUs - startUs);
         }
-        bool retryable = err == ESP_ERR_TIMEOUT || err == ESP_ERR_INVALID_RESPONSE;
-        if (err == ESP_OK || !retryable ||
-            *ioRetries >= (uint8_t)CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT) {
+        if (err != ESP_OK) {
+            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
             return err;
         }
-        (*ioRetries)++;
+        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_MODE2,
+                                              mode2,
+                                              false);
+        engine->registerCache.pgaModeValid = true;
+        engine->registerCache.inputMode = inputMode;
+        engine->registerCache.gain = gain;
     }
+    uint8_t inpmux = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
+    if (sensorarrayAdsRegisterCacheNeedsWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_INPMUX,
+                                              inpmux)) {
+        int64_t startUs = esp_timer_get_time();
+        esp_err_t err = ads126xAdcSetInputMuxFast(ads, muxp, muxn);
+        int64_t endUs = esp_timer_get_time();
+        if (endUs > startUs) {
+            uint64_t elapsedUs = (uint64_t)(endUs - startUs);
+            telemetry->muxWriteUs += elapsedUs;
+            telemetry->registerWriteUs += elapsedUs;
+        }
+        if (err != ESP_OK) {
+            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+            return err;
+        }
+        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
+                                              SENSORARRAY_ADS_REGISTER_INPMUX,
+                                              inpmux,
+                                              false);
+    }
+    esp_err_t err = ESP_OK;
+    if (!ads126xAdcIsAdc1Running(ads)) {
+        ads126xAdcClearDrdyNotifications(ads);
+        err = ads126xAdcStartAdc1(ads);
+        if (err == ESP_OK) {
+            engine->state->adsAdc1Running = true;
+            engine->registerCache.adc1RunningValid = true;
+            engine->registerCache.adc1Running = true;
+        }
+    }
+    if (err == ESP_OK && CONFIG_SENSORARRAY_ADS_MATRIX_MUX_SETTLE_US > 0) {
+        esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_MUX_SETTLE_US);
+    }
+    /* Capture the generation only after every MODE2/INPMUX write and the
+     * optional analogue guard. A DRDY edge that occurred while the old route
+     * was being replaced must never satisfy the new cell's freshness test. */
+    *outStartGeneration = ads126xAdcGetDrdyGeneration(ads);
+    return err;
+}
+
+static uint32_t sensorarrayAdsMatrixRawSpread(const int32_t values[3])
+{
+    int32_t minimum = values[0];
+    int32_t maximum = values[0];
+    for (uint8_t index = 1u; index < 3u; ++index) {
+        if (values[index] < minimum) {
+            minimum = values[index];
+        }
+        if (values[index] > maximum) {
+            maximum = values[index];
+        }
+    }
+    int64_t spread = (int64_t)maximum - minimum;
+    return spread > UINT32_MAX ? UINT32_MAX : (uint32_t)spread;
+}
+
+static esp_err_t sensorarrayAdsMatrixReadAdaptive(
+    sensorarrayAdsMatrixEngine_t *engine,
+    uint32_t firstGeneration,
+    sensorarrayAdsCellValueCache_t *valueCache,
+    bool profileValid,
+    bool pgaBypassed,
+    bool precisionFrame,
+    bool transitionSensitive,
+    sensorarrayMeasurementPayload_t *telemetry,
+    sensorarrayAdsMatrixCellResult_t *outResult)
+{
+    if (!engine || !telemetry || !outResult) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayAdsMatrixSample_t samples[3] = {0};
+    esp_err_t err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+                                                        firstGeneration,
+                                                        telemetry,
+                                                        &samples[0]);
+    if (err != ESP_OK) {
+        return err;
+    }
+    outResult->raw = samples[0].raw;
+    outResult->differentialUv = samples[0].differentialUv;
+    outResult->status = samples[0].status;
+    outResult->fresh = true;
+    outResult->stable = false;
+    outResult->fullSample = false;
+    uint8_t statusErrorMask = (uint8_t)(ADS126X_STATUS_REFERENCE_ALARM |
+        ADS126X_STATUS_RESET_OCCURRED |
+        (pgaBypassed ? 0u : ADS126X_STATUS_PGA_ALARM_MASK));
+    bool statusClean = (samples[0].status & statusErrorMask) == 0u;
+    if (sensorarrayAdsValueCacheShouldFastAccept(
+            valueCache,
+            samples[0].raw,
+            (uint32_t)CONFIG_SENSORARRAY_ADS_ADAPTIVE_MIN_RAW_THRESHOLD,
+            (uint32_t)CONFIG_SENSORARRAY_ADS_ADAPTIVE_NOISE_MULTIPLIER,
+            (uint32_t)CONFIG_SENSORARRAY_ADS_ADAPTIVE_MIN_STABLE_STREAK,
+            profileValid,
+            statusClean,
+            true,
+            precisionFrame,
+            transitionSensitive)) {
+        outResult->raw = samples[0].raw;
+        outResult->differentialUv = samples[0].differentialUv;
+        outResult->status = samples[0].status;
+        outResult->fresh = true;
+        outResult->stable = true;
+        outResult->fullSample = false;
+        return ESP_OK;
+    }
+    for (uint8_t index = 1u; index < 3u; ++index) {
+        uint32_t generation = ads126xAdcGetDrdyGeneration(&engine->state->ads);
+        err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+                                                  generation,
+                                                  telemetry,
+                                                  &samples[index]);
+        if (err != ESP_OK) {
+            /* The first conversion remains genuinely fresh even if a stricter
+             * second or third sample fails. Preserve that fact while the cell
+             * itself is reported invalid. */
+            return err;
+        }
+    }
+    int64_t aggregationStartUs = esp_timer_get_time();
+    int32_t rawValues[3] = {samples[0].raw, samples[1].raw, samples[2].raw};
+    int32_t uvValues[3] = {samples[0].differentialUv,
+                           samples[1].differentialUv,
+                           samples[2].differentialUv};
+    int32_t medianRaw = 0;
+    int32_t medianUv = 0;
+    (void)sensorarrayAdsMathSamplesStable(rawValues, 3u, UINT32_MAX, &medianRaw);
+    bool stable = sensorarrayAdsMathSamplesStable(
+        uvValues, 3u, (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_MAX_SPREAD_UV, &medianUv);
+    outResult->raw = medianRaw;
+    outResult->differentialUv = medianUv;
+    outResult->status = (uint8_t)(samples[0].status | samples[1].status |
+                                  samples[2].status);
+    outResult->fresh = true;
+    outResult->stable = stable;
+    outResult->fullSample = true;
+    outResult->spreadRaw = sensorarrayAdsMatrixRawSpread(rawValues);
+    int64_t aggregationEndUs = esp_timer_get_time();
+    if (aggregationEndUs > aggregationStartUs) {
+        telemetry->aggregationUs += (uint64_t)(aggregationEndUs - aggregationStartUs);
+    }
+    return ESP_OK;
 }
 
 static sensorarrayCellError_t sensorarrayAdsMatrixIoError(esp_err_t err)
@@ -294,9 +540,12 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                                                  const sensorarrayAdsRailSplit_t *rail,
                                                  uint8_t row,
                                                  uint8_t dLine,
+                                                 bool precisionFrame,
+                                                 bool transitionSensitive,
+                                                 sensorarrayMeasurementPayload_t *telemetry,
                                                  sensorarrayAdsMatrixCellResult_t *outResult)
 {
-    if (!engine || !rail || !rail->valid || !outResult) {
+    if (!engine || !rail || !rail->valid || !telemetry || !outResult) {
         return ESP_ERR_INVALID_ARG;
     }
     memset(outResult, 0, sizeof(*outResult));
@@ -309,33 +558,82 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
         return ESP_ERR_NOT_FOUND;
     }
 
-    uint8_t gain = 1u;
-    bool pgaBypassed = false;
+    sensorarrayAdsCellProfile_t profile = {0};
+    bool profileHit = sensorarrayAdsProfileCacheGet(&engine->profileCache,
+                                                     engine->mode,
+                                                     (uint8_t)cellIndex,
+                                                     &profile);
+    sensorarrayAdsInputMode_t inputMode = profileHit ? profile.inputMode :
+        SENSORARRAY_ADS_INPUT_PGA;
+    uint8_t gain = profileHit ? profile.gain : 1u;
+    if (profileHit) {
+        telemetry->profileHitCount++;
+        if (inputMode == SENSORARRAY_ADS_INPUT_BYPASS) {
+            telemetry->bypassHitCount++;
+        } else {
+            telemetry->gainHitCount++;
+        }
+    } else {
+        telemetry->profileMissCount++;
+    }
+    sensorarrayAdsCellValueCache_t *valueCache = sensorarrayAdsValueCacheGet(
+        &engine->valueCache, engine->mode, (uint8_t)cellIndex);
     uint8_t ioRetries = 0u;
-    (void)sensorarrayAdsGainCacheGet(&engine->gainCache,
-                                     engine->mode,
-                                     (uint8_t)cellIndex,
-                                     &gain);
     for (uint8_t attempt = 0u;
          attempt < (uint8_t)CONFIG_SENSORARRAY_ADS_AUTORANGE_MAX_ATTEMPTS;
          ++attempt) {
         outResult->attempts = (uint8_t)(attempt + 1u);
         sensorarrayAdsMatrixCellResult_t sample = {0};
-        esp_err_t err = sensorarrayAdsMatrixAcquireWithBoundedRetry(
-            engine,
-            muxp,
-            muxn,
-            gain,
-            pgaBypassed,
-            &ioRetries,
-            &sample);
+        esp_err_t err = ESP_FAIL;
+        for (;;) {
+            uint32_t firstGeneration = 0u;
+            err = sensorarrayAdsMatrixApplyInputProfile(engine,
+                                                         muxp,
+                                                         muxn,
+                                                         inputMode,
+                                                         gain,
+                                                         telemetry,
+                                                         &firstGeneration);
+            if (err == ESP_OK) {
+                err = sensorarrayAdsMatrixReadAdaptive(
+                    engine,
+                    firstGeneration,
+                    valueCache,
+                    profileHit && attempt == 0u,
+                    inputMode == SENSORARRAY_ADS_INPUT_BYPASS,
+                    precisionFrame,
+                    transitionSensitive || attempt != 0u,
+                    telemetry,
+                    &sample);
+            }
+            bool retryable = err == ESP_ERR_TIMEOUT || err == ESP_ERR_INVALID_RESPONSE;
+            if (err == ESP_OK || !retryable ||
+                ioRetries >= (uint8_t)CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT) {
+                break;
+            }
+            ioRetries++;
+        }
         if (err != ESP_OK) {
+            if (sample.fresh) {
+                sample.gain = inputMode == SENSORARRAY_ADS_INPUT_BYPASS ? 0u : gain;
+                sample.pgaBypassed = inputMode == SENSORARRAY_ADS_INPUT_BYPASS;
+                sample.attempts = outResult->attempts;
+                sample.gainChanges = outResult->gainChanges;
+                sample.ioRetries = ioRetries;
+                *outResult = sample;
+            }
             outResult->ioRetries = ioRetries;
             outResult->error = sensorarrayAdsMatrixIoError(err);
+            sensorarrayAdsProfileCacheNoteFailure(
+                &engine->profileCache,
+                engine->mode,
+                (uint8_t)cellIndex,
+                false,
+                (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
             return err;
         }
-        sample.gain = pgaBypassed ? 0u : gain;
-        sample.pgaBypassed = pgaBypassed;
+        sample.gain = inputMode == SENSORARRAY_ADS_INPUT_BYPASS ? 0u : gain;
+        sample.pgaBypassed = inputMode == SENSORARRAY_ADS_INPUT_BYPASS;
         sample.attempts = outResult->attempts;
         sample.gainChanges = outResult->gainChanges;
         sample.ioRetries = ioRetries;
@@ -345,7 +643,7 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
             /* A reset invalidates register, reference, calibration and PGA
              * assumptions even when the conversion carries a data-ready bit. */
             outResult->error = SENSORARRAY_CELL_ERROR_READBACK;
-            sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
+            sensorarrayAdsMatrixEngineInvalidateCaches(engine);
             return ESP_ERR_INVALID_RESPONSE;
         }
 
@@ -361,7 +659,7 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
         uint64_t saturationLimit =
             ((uint64_t)INT32_MAX * CONFIG_SENSORARRAY_ADS_AUTORANGE_SATURATION_PERMILLE) /
             1000u;
-        if (pgaBypassed) {
+        if (inputMode == SENSORARRAY_ADS_INPUT_BYPASS) {
             int64_t marginUv = CONFIG_SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV;
             int64_t lowerUv = (int64_t)rail->avssUv - marginUv;
             int64_t upperUv = (int64_t)rail->avddUv + marginUv;
@@ -370,6 +668,9 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                               (int64_t)rail->aincomUv <= upperUv;
             if ((sample.status & ADS126X_STATUS_REFERENCE_ALARM) != 0u) {
                 outResult->error = SENSORARRAY_CELL_ERROR_REFERENCE_ALARM;
+                sensorarrayAdsProfileCacheNoteFailure(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                    (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
                 return ESP_ERR_INVALID_RESPONSE;
             }
             if (!inputsSafe || magnitude >= saturationLimit) {
@@ -381,17 +682,62 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                 if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE &&
                     sample.raw == INT32_MIN) {
                     outResult->error = SENSORARRAY_CELL_ERROR_OPEN;
+                    (void)sensorarrayAdsProfileCacheStore(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                        SENSORARRAY_ADS_INPUT_BYPASS, 1u, engine->frameCount);
+                    sensorarrayAdsValueCacheObserve(valueCache,
+                                                     sample.raw,
+                                                     outResult->nodeUv,
+                                                     SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                                                     sample.spreadRaw,
+                                                     engine->frameCount,
+                                                     sample.fullSample);
                 } else {
                     outResult->error = inputsSafe ? SENSORARRAY_CELL_ERROR_SATURATED :
                                                     SENSORARRAY_CELL_ERROR_RANGE;
+                    sensorarrayAdsProfileCacheNoteFailure(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                        (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
                 }
                 return ESP_ERR_INVALID_RESPONSE;
             }
             if (!outResult->stable) {
+                sensorarrayAdsValueCacheObserve(valueCache,
+                                                 sample.raw,
+                                                 outResult->nodeUv,
+                                                 SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                                                 sample.spreadRaw,
+                                                 engine->frameCount,
+                                                 sample.fullSample);
+                if (valueCache) {
+                    valueCache->stableStreak = 0u;
+                    if (valueCache->unstableStreak < UINT32_MAX) {
+                        valueCache->unstableStreak++;
+                    }
+                }
+                sensorarrayAdsProfileCacheNoteFailure(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                    (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
                 outResult->error = SENSORARRAY_CELL_ERROR_UNSTABLE;
                 return ESP_ERR_INVALID_RESPONSE;
             }
             outResult->error = SENSORARRAY_CELL_ERROR_NONE;
+            if (!profileHit || profile.inputMode != SENSORARRAY_ADS_INPUT_BYPASS) {
+                (void)sensorarrayAdsProfileCacheStore(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                    SENSORARRAY_ADS_INPUT_BYPASS, 1u, engine->frameCount);
+            } else {
+                sensorarrayAdsProfileCacheNoteSuccess(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                    engine->frameCount);
+            }
+            sensorarrayAdsValueCacheObserve(valueCache,
+                                             sample.raw,
+                                             outResult->nodeUv,
+                                             SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                                             sample.spreadRaw,
+                                             engine->frameCount,
+                                             sample.fullSample);
             return ESP_OK;
         }
         sensorarrayAdsAutoRangeInput_t rangeInput = {
@@ -409,9 +755,32 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                 (sample.status & ADS126X_STATUS_PGA_DIFFERENTIAL_ALARM) != 0u,
             .allowIncrease = true,
         };
-        sensorarrayAdsAutoRangeDecision_t decision = sensorarrayAdsAutoRangeDecide(
-            &s_sensorarrayAdsAutoRangeConfig,
-            &rangeInput);
+        bool statusAlarm = (sample.status & (ADS126X_STATUS_REFERENCE_ALARM |
+                                             ADS126X_STATUS_PGA_ALARM_MASK)) != 0u;
+        bool commonModeSafe = sensorarrayAdsAutoRangeCommonModeSafe(
+            outResult->nodeUv,
+            rail->aincomUv,
+            rail->avddUv,
+            rail->avssUv,
+            gain,
+            s_sensorarrayAdsAutoRangeConfig.pgaRailMarginUv);
+        bool shouldAutorange = !profileHit || precisionFrame || statusAlarm ||
+                               !commonModeSafe || magnitude >= saturationLimit;
+        sensorarrayAdsAutoRangeDecision_t decision = {
+            .action = SENSORARRAY_ADS_AUTORANGE_KEEP,
+            .error = SENSORARRAY_CELL_ERROR_NONE,
+            .nextGain = gain,
+            .commonModeSafe = commonModeSafe,
+        };
+        if (shouldAutorange) {
+            int64_t autorangeStartUs = esp_timer_get_time();
+            decision = sensorarrayAdsAutoRangeDecide(&s_sensorarrayAdsAutoRangeConfig,
+                                                      &rangeInput);
+            int64_t autorangeEndUs = esp_timer_get_time();
+            if (autorangeEndUs > autorangeStartUs) {
+                telemetry->autorangeUs += (uint64_t)(autorangeEndUs - autorangeStartUs);
+            }
+        }
         if (magnitude >= saturationLimit && decision.action == SENSORARRAY_ADS_AUTORANGE_KEEP) {
             decision.action = SENSORARRAY_ADS_AUTORANGE_FAIL;
             decision.error = SENSORARRAY_CELL_ERROR_SATURATED;
@@ -419,6 +788,8 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
         if (decision.action == SENSORARRAY_ADS_AUTORANGE_INCREASE ||
             decision.action == SENSORARRAY_ADS_AUTORANGE_DECREASE) {
             gain = decision.nextGain;
+            inputMode = SENSORARRAY_ADS_INPUT_PGA;
+            profileHit = false;
             outResult->gainChanges++;
             continue;
         }
@@ -430,26 +801,56 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
              * AVDD/AVSS. MODE2 readback, a new settle/discard cycle and fresh
              * status are required on the next attempt. Telemetry gain 0 means
              * bypass, not an unsupported programmable gain. */
-            pgaBypassed = true;
+            inputMode = SENSORARRAY_ADS_INPUT_BYPASS;
+            gain = 1u;
+            profileHit = false;
             outResult->gainChanges++;
             continue;
         }
         if (decision.action == SENSORARRAY_ADS_AUTORANGE_FAIL) {
             outResult->error = decision.error;
-            sensorarrayAdsGainCacheNoteOverrange(&engine->gainCache,
-                                                 engine->mode,
-                                                 (uint8_t)cellIndex);
+            sensorarrayAdsProfileCacheNoteFailure(
+                &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
             return ESP_ERR_INVALID_RESPONSE;
         }
         if (!outResult->stable) {
+            sensorarrayAdsValueCacheObserve(valueCache,
+                                             sample.raw,
+                                             outResult->nodeUv,
+                                             SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                                             sample.spreadRaw,
+                                             engine->frameCount,
+                                             sample.fullSample);
+            sensorarrayAdsProfileCacheNoteFailure(
+                &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
             outResult->error = SENSORARRAY_CELL_ERROR_UNSTABLE;
             return ESP_ERR_INVALID_RESPONSE;
         }
         outResult->error = SENSORARRAY_CELL_ERROR_NONE;
-        sensorarrayAdsGainCacheStore(&engine->gainCache,
-                                     engine->mode,
-                                     (uint8_t)cellIndex,
-                                     gain);
+        sensorarrayAdsCellProfile_t currentProfile = {0};
+        if (!sensorarrayAdsProfileCacheGet(&engine->profileCache,
+                                           engine->mode,
+                                           (uint8_t)cellIndex,
+                                           &currentProfile) ||
+            currentProfile.inputMode != SENSORARRAY_ADS_INPUT_PGA ||
+            currentProfile.gain != gain) {
+            (void)sensorarrayAdsProfileCacheStore(
+                &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                SENSORARRAY_ADS_INPUT_PGA, gain, engine->frameCount);
+        } else {
+            sensorarrayAdsProfileCacheNoteSuccess(
+                &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                engine->frameCount);
+        }
+        sensorarrayAdsValueCacheObserve(valueCache,
+                                         sample.raw,
+                                         outResult->nodeUv,
+                                         SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                                         sample.spreadRaw,
+                                         engine->frameCount,
+                                         sample.fullSample);
         return ESP_OK;
     }
     outResult->error = SENSORARRAY_CELL_ERROR_AUTORANGE;
@@ -499,7 +900,7 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
     /* A cell may be explicitly invalid while the frame is still coherent.
      * Route/rail failures are different: the analogue ownership contract was
      * lost, so no partially assembled frame may be published. */
-    frame->freshFrame = coherent;
+    frame->freshFrame = coherent && !frame->stale;
     frame->frameEndUs = (uint64_t)esp_timer_get_time();
     frame->physicalSweepUs = frame->frameEndUs - frame->frameStartUs;
     frame->measurement.frameDurationUs = frame->physicalSweepUs;
@@ -534,7 +935,12 @@ esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,
                 CONFIG_SENSORARRAY_ADS_MATRIX_PATH_OFFSET_MOHM,
         },
     };
-    sensorarrayAdsGainCacheInit(&engine->gainCache);
+    sensorarrayAdsProfileCacheInit(&engine->profileCache);
+    sensorarrayAdsValueCacheInit(&engine->valueCache);
+    sensorarrayAdsRegisterCacheInit(&engine->registerCache);
+    sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
+    engine->calibrationGeneration = 1u;
+    engine->transitionSensitiveFrames = 1u;
     return ESP_OK;
 }
 
@@ -552,8 +958,10 @@ esp_err_t sensorarrayAdsMatrixEngineSetCalibration(
         return ESP_ERR_INVALID_STATE;
     }
     engine->calibration = *calibration;
-    sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
-    engine->railFingerprintValid = false;
+    engine->calibrationGeneration++;
+    sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+    sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+    sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
     return ESP_OK;
 }
 
@@ -587,8 +995,11 @@ esp_err_t sensorarrayAdsMatrixEngineSetMode(sensorarrayAdsMatrixEngine_t *engine
     }
     if (engine->mode != mode) {
         engine->mode = mode;
-        sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
-        engine->railFingerprintValid = false;
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+        sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
+        engine->transitionSensitiveFrames = 1u;
     }
     return ESP_OK;
 }
@@ -604,8 +1015,28 @@ void sensorarrayAdsMatrixEngineSetFrameSequenceHint(sensorarrayAdsMatrixEngine_t
 void sensorarrayAdsMatrixEngineInvalidateGainCache(sensorarrayAdsMatrixEngine_t *engine)
 {
     if (engine) {
-        sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+        sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
     }
+}
+
+void sensorarrayAdsMatrixEngineInvalidateCaches(sensorarrayAdsMatrixEngine_t *engine)
+{
+    if (!engine) {
+        return;
+    }
+    sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+    sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+    sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+    sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
+    engine->transitionSensitiveFrames = 1u;
+}
+
+sensorarrayAdsRegisterCache_t *sensorarrayAdsMatrixEngineRegisterCache(
+    sensorarrayAdsMatrixEngine_t *engine)
+{
+    return engine ? &engine->registerCache : NULL;
 }
 
 esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engine,
@@ -644,11 +1075,22 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         engine->mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ?
             engine->calibration.referenceResistorOhms : 0u;
     frame->measurement.transitionDurationUs = route.transitionDurationUs;
+    uint32_t registerHitStart = engine->registerCache.cacheHitCount;
+    uint32_t registerWriteStart = engine->registerCache.writeCount;
+    uint32_t registerReadbackStart = engine->registerCache.readbackCount;
+    uint32_t profileInvalidationStart = engine->profileCache.invalidationCount;
+    uint32_t railHitStart = engine->railFingerprint.hitCount;
+    uint32_t railMissStart = engine->railFingerprint.missCount;
+    uint32_t railInvalidationStart = engine->railFingerprint.invalidationCount;
+    frame->measurement.precisionFrame =
+        CONFIG_SENSORARRAY_ADS_PRECISION_FRAME_INTERVAL > 0 &&
+        (engine->frameCount % CONFIG_SENSORARRAY_ADS_PRECISION_FRAME_INTERVAL) == 0u;
 
     sensorarrayAdsRailSplit_t rail = {0};
     if (!sensorarrayAdsMatrixGetRail(engine, &rail, &frame->adsGap)) {
-        sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
-        engine->railFingerprintValid = false;
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+        sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
         for (size_t index = 0u;
              index < (size_t)frame->activeRows * SENSORARRAY_MATRIX_COLS;
              ++index) {
@@ -662,15 +1104,36 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
         return ESP_ERR_INVALID_STATE;
     }
-    /* PGA choices are only valid for the rail/reference conditions under
-     * which their common-mode and output-swing checks were made. Treat a new
-     * measured rail value as a new fingerprint; this favours safety over
-     * retaining a stale per-cell shortcut when the analogue supply changes. */
-    if (!engine->railFingerprintValid || engine->lastRailUv != frame->adsGap.railUv) {
-        sensorarrayAdsGainCacheInvalidate(&engine->gainCache);
-        engine->lastRailUv = frame->adsGap.railUv;
-        engine->railFingerprintValid = true;
+    /* Monitor noise changes the measured rail by small amounts every sample.
+     * Use a thresholded fingerprint; only external calibration uses its exact
+     * AVDD/AVSS split as an identity field. */
+    int32_t fingerprintAvdd = frame->adsGap.railSource ==
+        SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION ?
+        rail.avddUv : CONFIG_SENSORARRAY_ADS_AVDD_TO_GND_UV;
+    int32_t fingerprintAvss = frame->adsGap.railSource ==
+        SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION ?
+        rail.avssUv : -CONFIG_SENSORARRAY_ADS_AVSS_TO_GND_UV;
+    sensorarrayAdsRailInvalidationReason_t railReason =
+        SENSORARRAY_ADS_RAIL_INVALIDATION_NONE;
+    bool railInvalidated = sensorarrayAdsRailFingerprintUpdate(
+        &engine->railFingerprint,
+        frame->adsGap.railValid,
+        frame->adsGap.railStatus != SENSORARRAY_ADS_RAIL_STATUS_BAD,
+        frame->adsGap.railUv,
+        fingerprintAvdd,
+        fingerprintAvss,
+        frame->adsGap.railSource,
+        (uint8_t)route.profile.adsReferenceSource,
+        engine->calibrationGeneration,
+        (uint32_t)CONFIG_SENSORARRAY_ADS_PROFILE_RAIL_INVALIDATE_UV,
+        (uint32_t)CONFIG_SENSORARRAY_ADS_PROFILE_RAIL_HYSTERESIS_UV,
+        false,
+        &railReason);
+    if (railInvalidated) {
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
     }
+    frame->measurement.railInvalidationReason = (uint8_t)railReason;
     sensorarrayRouteControllerUpdateRailSnapshot(engine->routeController, &rail);
     frame->measurement.avddUv = rail.avddUv;
     frame->measurement.avssUv = rail.avssUv;
@@ -681,10 +1144,44 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         engine->mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ?
         rail.avssUv + (int32_t)engine->calibration.matrixReferenceSpanUv : 0;
 
+    if (!sensorarrayAdsRegisterCacheAcquire(&engine->registerCache,
+                                             SENSORARRAY_ADS_OWNER_MATRIX)) {
+        (void)sensorarrayRouteControllerEnterSafe(engine->routeController,
+                                                  "ads_owner_collision");
+        sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
+        return ESP_ERR_INVALID_STATE;
+    }
+    bool healthReadbackDue =
+        !engine->registerCache.registers[SENSORARRAY_ADS_REGISTER_MODE0].valid ||
+        (engine->frameCount % CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL) == 0u;
+    if (healthReadbackDue &&
+        sensorarrayAdsMatrixRefreshRegisterShadow(engine, &frame->measurement) != ESP_OK) {
+        (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,
+                                                  SENSORARRAY_ADS_OWNER_MATRIX);
+        for (size_t index = 0u;
+             index < (size_t)frame->activeRows * SENSORARRAY_MATRIX_COLS;
+             ++index) {
+            sensorarrayAdsMatrixSetCellError(frame,
+                                             index,
+                                             SENSORARRAY_CELL_ERROR_READBACK,
+                                             false);
+        }
+        (void)sensorarrayRouteControllerEnterSafe(engine->routeController,
+                                                  "ads_register_health");
+        sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
     esp_err_t firstErr = ESP_OK;
     bool coherent = true;
+    bool transitionSensitive = engine->transitionSensitiveFrames != 0u || railInvalidated;
     for (uint8_t row = 1u; row <= frame->activeRows; ++row) {
+        int64_t rowStartUs = esp_timer_get_time();
         esp_err_t rowErr = sensorarrayRouteControllerSelectRow(engine->routeController, row);
+        int64_t rowEndUs = esp_timer_get_time();
+        if (rowEndUs > rowStartUs) {
+            frame->measurement.rowRouteUs += (uint64_t)(rowEndUs - rowStartUs);
+        }
         if (rowErr != ESP_OK) {
             for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
                 sensorarrayAdsMatrixSetCellError(frame,
@@ -696,6 +1193,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
             coherent = false;
             break;
         }
+        if (!engine->state->adsAdc1Running) {
+            engine->registerCache.adc1RunningValid = true;
+            engine->registerCache.adc1Running = false;
+        }
         for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
             size_t index = sensorarrayMatrixIndex(row, dLine);
             sensorarrayAdsMatrixCellResult_t result = {0};
@@ -703,6 +1204,9 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                                              &rail,
                                                              row,
                                                              dLine,
+                                                             frame->measurement.precisionFrame,
+                                                             transitionSensitive,
+                                                             &frame->measurement,
                                                              &result);
             frame->measurement.rawCode[index] = result.raw;
             frame->measurement.nodeUv[index] = result.nodeUv;
@@ -710,6 +1214,13 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
             frame->measurement.gainChangeCount += result.gainChanges;
             frame->measurement.autorangeAttemptCount += result.attempts;
             frame->measurement.ioRetryCount += result.ioRetries;
+            if (result.fresh) {
+                if (result.fullSample) {
+                    frame->measurement.tripleSampleCellCount++;
+                } else {
+                    frame->measurement.singleSampleCellCount++;
+                }
+            }
             if (!result.pgaBypassed &&
                 (result.status & ADS126X_STATUS_PGA_ALARM_MASK) != 0u) {
                 frame->measurement.overrangeCount++;
@@ -757,6 +1268,12 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                     continue;
                 }
                 result.nodeUv = nodeUv;
+                sensorarrayAdsCellValueCache_t *valueCache = sensorarrayAdsValueCacheGet(
+                    &engine->valueCache, engine->mode, (uint8_t)index);
+                if (valueCache) {
+                    valueCache->lastNodeUv = nodeUv;
+                    valueCache->lastValueFixed = nodeUv;
+                }
                 sensorarrayAdsMatrixSetCellValid(frame, index, nodeUv, &result);
             } else {
                 sensorarrayAdsResistanceConfig_t resistanceConfig =
@@ -786,6 +1303,11 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                     }
                     continue;
                 }
+                sensorarrayAdsCellValueCache_t *valueCache = sensorarrayAdsValueCacheGet(
+                    &engine->valueCache, engine->mode, (uint8_t)index);
+                if (valueCache) {
+                    valueCache->lastValueFixed = resistance.resistanceMilliohms;
+                }
                 sensorarrayAdsMatrixSetCellValid(frame,
                                                  index,
                                                  resistance.resistanceMilliohms,
@@ -793,8 +1315,11 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
             }
         }
     }
-    (void)ads126xAdcStopAdc1(&engine->state->ads);
-    engine->state->adsAdc1Running = false;
+    (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,
+                                              SENSORARRAY_ADS_OWNER_MATRIX);
+    if (engine->transitionSensitiveFrames > 0u) {
+        engine->transitionSensitiveFrames--;
+    }
     if (!coherent) {
         frame->measurement.validMask = 0u;
         frame->validCount = 0u;
@@ -805,6 +1330,21 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                 SENSORARRAY_MEASUREMENT_INVALID_FIXED;
         }
     }
+    frame->measurement.freshCellCount = frame->freshCount;
+    frame->measurement.registerCacheHitCount =
+        engine->registerCache.cacheHitCount - registerHitStart;
+    frame->measurement.registerWriteCount =
+        engine->registerCache.writeCount - registerWriteStart;
+    frame->measurement.registerReadbackCount =
+        engine->registerCache.readbackCount - registerReadbackStart;
+    frame->measurement.profileInvalidationCount =
+        engine->profileCache.invalidationCount - profileInvalidationStart;
+    frame->measurement.railFingerprintHitCount =
+        engine->railFingerprint.hitCount - railHitStart;
+    frame->measurement.railFingerprintMissCount =
+        engine->railFingerprint.missCount - railMissStart;
+    frame->measurement.railInvalidationCount =
+        engine->railFingerprint.invalidationCount - railInvalidationStart;
     sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, coherent);
     return firstErr;
 }

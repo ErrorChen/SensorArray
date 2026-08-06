@@ -55,6 +55,10 @@ typedef struct {
 esp_err_t tmuxSwitchInit(void);
 
 esp_err_t tmux1108SelectRow(uint8_t row);
+/* Select a new address without operating the board's SW/Q1 clamp. This is
+ * reserved for the RES session where REFOUT is already safely established;
+ * TMUX1108 itself provides break-before-make channel switching. */
+esp_err_t tmux1108SelectRowBreakBeforeMake(uint8_t row);
 /* Returns the last software-commanded row index (0..7). */
 esp_err_t tmux1108GetRow(uint8_t *rowOut);
 

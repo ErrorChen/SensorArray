@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -88,6 +89,16 @@ class ValidationResult:
     protocol_self_test: str = ""
     fdc_boot: str = ""
     rail_status: dict[str, str] = field(default_factory=dict)
+    ads_status: dict[str, str] = field(default_factory=dict)
+    ads_check: dict[str, str] = field(default_factory=dict)
+    ads_check_stats: dict[str, str] = field(default_factory=dict)
+    ads_cache_telemetry: list[dict[str, str]] = field(default_factory=list)
+    ads_timing_telemetry: list[dict[str, str]] = field(default_factory=list)
+    battery_summary_telemetry: list[dict[str, str]] = field(default_factory=list)
+    battery_status: dict[str, str] = field(default_factory=dict)
+    res_settle_sweep: list[dict[str, object]] = field(default_factory=list)
+    battery_dwell: list[dict[str, object]] = field(default_factory=list)
+    performance: list[dict[str, object]] = field(default_factory=list)
     mode_status: dict[str, dict[str, str]] = field(default_factory=dict)
     stages: list[StageResult] = field(default_factory=list)
     known_resistors: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -187,6 +198,12 @@ class SerialValidator:
             self.result.fdc_boot = line
         elif line.startswith("ADSFRAME,"):
             self.result.ads_frame_events.append(parse_fields(line))
+        elif line.startswith("ADS50,"):
+            self.result.ads_cache_telemetry.append(parse_fields(line))
+        elif line.startswith("ADST50,"):
+            self.result.ads_timing_telemetry.append(parse_fields(line))
+        elif line.startswith("AB50,"):
+            self.result.battery_summary_telemetry.append(parse_fields(line))
         lowered = line.lower()
         if line.startswith("RST,") or "rst:" in lowered:
             self.result.resets += 1
@@ -273,13 +290,19 @@ class SerialValidator:
         expected = {
             "CAP": {"active": "CAP", "sw": "HIGH", "source": "GND",
                     "matrixRef": "GND", "intref": "0", "vbias": "1",
-                    "refmux": "24"},
+                    "refmux": "24", "fdcPrimary": "active",
+                    "fdcPrimaryVerified": "1", "fdcSecondary": "active",
+                    "fdcSecondaryVerified": "1"},
             "VOLT": {"active": "VOLT", "sw": "HIGH", "source": "GND",
-                     "matrixRef": "GND", "intref": "0", "vbias": "1",
-                     "refmux": "24"},
+                      "matrixRef": "GND", "intref": "0", "vbias": "1",
+                      "refmux": "24", "fdcPrimary": "sleep",
+                      "fdcPrimaryVerified": "1", "fdcSecondary": "sleep",
+                      "fdcSecondaryVerified": "1"},
             "RES": {"active": "RES", "sw": "LOW", "source": "REF",
-                    "matrixRef": "REFOUT", "intref": "1", "vbias": "1",
-                    "refmux": "00"},
+                     "matrixRef": "REFOUT", "intref": "1", "vbias": "1",
+                     "refmux": "00", "fdcPrimary": "sleep",
+                     "fdcPrimaryVerified": "1", "fdcSecondary": "sleep",
+                     "fdcSecondaryVerified": "1"},
         }[mode]
         for key, value in expected.items():
             if fields.get(key) != value:
@@ -339,8 +362,430 @@ class SerialValidator:
         if int(parse_fields(applied)["new"], 10) != rows:
             raise RuntimeError(f"wrong applied row count: {applied}")
 
+    def run_active_ads_check(self, sample_count: int, timeout: float) -> None:
+        self.write_command("ADS?")
+        ads_line = self.wait_line(lambda line: line.startswith("ADS,"), timeout,
+                                  "ADS? snapshot")
+        self.result.ads_status = parse_fields(ads_line)
+        self.write_command(f"ADSCHK={sample_count}")
+        accepted = self.wait_line(
+            lambda line: line.startswith("ACK,cmd=ADSCHK,"), timeout,
+            "ADSCHK accepted",
+        )
+        request_id = parse_fields(accepted).get("id")
+        if request_id is None:
+            raise RuntimeError(f"ADSCHK accepted without id: {accepted}")
+        check_line = self.wait_line(
+            lambda line: line.startswith("ADSCHK,") and
+                         parse_fields(line).get("id") == request_id,
+            timeout,
+            "ADSCHK register result",
+        )
+        stats_line = self.wait_line(
+            lambda line: line.startswith("ADSCHKSTAT,") and
+                         parse_fields(line).get("id") == request_id,
+            timeout,
+            "ADSCHK conversion result",
+        )
+        check = parse_fields(check_line)
+        stats = parse_fields(stats_line)
+        self.result.ads_check = check
+        self.result.ads_check_stats = stats
+        required_check = {
+            "ok": "1", "chip": "1262", "adc1": "1", "adc2": "0",
+        }
+        for key, expected in required_check.items():
+            if check.get(key) != expected:
+                raise RuntimeError(
+                    f"ADSCHK expected {key}={expected}, got {check.get(key)}"
+                )
+        required_stats = {
+            "samples": str(sample_count), "fresh": str(sample_count),
+            "spi": "0", "timeout": "0", "stale": "0", "statusErr": "0",
+            "reset": "0", "restore": "ok",
+        }
+        for key, expected in required_stats.items():
+            if stats.get(key) != expected:
+                raise RuntimeError(
+                    f"ADSCHKSTAT expected {key}={expected}, got {stats.get(key)}"
+                )
+
+    def query_battery(self, timeout: float) -> dict[str, str]:
+        self.write_command("BAT?")
+        line = self.wait_line(lambda item: item.startswith("ABAT,"), timeout,
+                              "BAT? snapshot")
+        fields = parse_fields(line)
+        self.result.battery_status = fields
+        return fields
+
+    @staticmethod
+    def _field_int(fields: dict[str, str], name: str) -> int:
+        try:
+            return int(fields.get(name, "0"), 0)
+        except ValueError:
+            return 0
+
+    @staticmethod
+    def _mode_frame_is_clean(frame: Optional[Frame], mode: str,
+                             rows: int) -> bool:
+        if frame is None or frame.rows != rows or not frame.crc_ok:
+            return False
+        if mode == "CAP":
+            if not isinstance(frame, CapFrame):
+                return False
+            expected_rows = (1 << rows) - 1
+            return (frame.row_fresh_mask == expected_rows and
+                    frame.primary_fresh_mask == expected_rows and
+                    frame.secondary_fresh_mask == expected_rows)
+        if not isinstance(frame, MeasurementFrame) or frame.mode != mode:
+            return False
+        return frame.fresh_mask == (1 << (rows * 8)) - 1
+
+    def run_performance_acceptance(self, mode: str, frame_count: int,
+                                   timeout: float) -> None:
+        """Measure a warm 8x8 ADS window and enforce the live targets."""
+        if mode not in {"VOLT", "RES"}:
+            return
+        self.switch_mode(mode, timeout)
+        self.set_rows(8, timeout)
+        cache_start = len(self.result.ads_cache_telemetry)
+        timing_start = len(self.result.ads_timing_telemetry)
+        samples: list[tuple[float, MeasurementFrame]] = []
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and len(samples) < frame_count:
+            _, frame = self.read_once()
+            if (self._mode_frame_is_clean(frame, mode, 8) and
+                    isinstance(frame, MeasurementFrame)):
+                samples.append((time.monotonic(), frame))
+        if len(samples) != frame_count:
+            raise RuntimeError(
+                f"{mode} performance collected {len(samples)}/{frame_count} "
+                "clean 8x8 frames"
+            )
+
+        # ADS50 and ADST50 are deliberately separate packets so the fixed
+        # 1536-byte measurement slot cannot be consumed by diagnostics.
+        cache_candidates: list[dict[str, str]] = []
+        timing_candidates: list[dict[str, str]] = []
+        while time.monotonic() < deadline:
+            cache_candidates = [
+                fields for fields in self.result.ads_cache_telemetry[cache_start:]
+                if fields.get("mode") == mode
+            ]
+            timing_candidates = [
+                fields for fields in self.result.ads_timing_telemetry[timing_start:]
+                if fields.get("mode") == mode
+            ]
+            if cache_candidates and timing_candidates:
+                break
+            self.read_once()
+        if not cache_candidates or not timing_candidates:
+            raise RuntimeError(f"{mode} performance telemetry missing ADS50/ADST50")
+
+        cache = cache_candidates[-1]
+        timing = timing_candidates[-1]
+        telemetry_frames = self._field_int(cache, "n")
+        fresh_cells = self._field_int(cache, "freshCells")
+        raw_conversions = self._field_int(cache, "rawConversions")
+        profile_hits = self._field_int(cache, "profileHit")
+        profile_misses = self._field_int(cache, "profileMiss")
+        single_cells = self._field_int(cache, "singleSampleCells")
+        triple_cells = self._field_int(cache, "tripleSampleCells")
+        precision_frames = self._field_int(cache, "precisionFrames")
+        attempts_per_cell = float(cache.get("attemptsPerCell", "0"))
+        frame_parts = cache.get("frameUs", "0/0").split("/", 1)
+        frame_us_mean = int(frame_parts[0], 10)
+        frame_us_max = int(frame_parts[-1], 10)
+        profile_total = profile_hits + profile_misses
+        profile_hit_rate = profile_hits / profile_total if profile_total else 0.0
+        raw_per_frame = (raw_conversions / telemetry_frames
+                         if telemetry_frames else 0.0)
+        # A precision frame intentionally consumes three conversions for all
+        # 64 cells. Remove only its mandated two-extra-sample contribution when
+        # evaluating the ordinary-frame budget; otherwise enabling the required
+        # precision cadence would make the <=80 conversion acceptance
+        # mathematically impossible for some 50-frame windows.
+        precision_extra_conversions = precision_frames * 64 * 2
+        normalized_raw_conversions = max(
+            0, raw_conversions - precision_extra_conversions
+        )
+        ordinary_raw_per_frame = (
+            normalized_raw_conversions / telemetry_frames
+            if telemetry_frames else 0.0
+        )
+        elapsed = samples[-1][0] - samples[0][0]
+        emitted_fps = (len(samples) - 1) / elapsed if elapsed > 0 else 0.0
+        physical_fps = ((samples[-1][1].sequence - samples[0][1].sequence) /
+                        elapsed if elapsed > 0 else 0.0)
+
+        checks = {
+            "telemetry_has_frames": telemetry_frames > 0,
+            "all_cells_fresh": fresh_cells == telemetry_frames * 64,
+            "cell_accounting": single_cells + triple_cells == fresh_cells,
+            "profile_hit_rate": profile_hit_rate >= 0.95,
+            "attempts_per_cell": attempts_per_cell <= 1.25,
+            "raw_conversions": ordinary_raw_per_frame <= 80.0,
+            "precision_observed": precision_frames > 0,
+            "frame_duration": frame_us_mean < (50000 if mode == "VOLT" else 60000),
+        }
+        entry: dict[str, object] = {
+            "mode": mode,
+            "frames_collected": len(samples),
+            "telemetry_frames": telemetry_frames,
+            "frame_us_mean": frame_us_mean,
+            "frame_us_max": frame_us_max,
+            "emitted_fps": emitted_fps,
+            "physical_fps": physical_fps,
+            "attempts_per_cell": attempts_per_cell,
+            "raw_conversions_per_frame": raw_per_frame,
+            "ordinary_raw_conversions_per_frame": ordinary_raw_per_frame,
+            "profile_hit_rate": profile_hit_rate,
+            "single_sample_cells": single_cells,
+            "triple_sample_cells": triple_cells,
+            "fresh_cells": fresh_cells,
+            "precision_frames": precision_frames,
+            "timing_us_per_frame": timing,
+            "checks": checks,
+            "accepted": all(checks.values()),
+        }
+        self.result.performance.append(entry)
+        for name, accepted in checks.items():
+            if not accepted:
+                self.result.failures.append(
+                    f"{mode} performance acceptance failed: {name}"
+                )
+
+    def run_battery_dwell(self, mode: str, duration_seconds: float,
+                          timeout: float) -> None:
+        """Verify time-based battery scheduling without disturbing frame freshness."""
+        if duration_seconds <= 0:
+            return
+        self.switch_mode(mode, timeout)
+        self.set_rows(8, timeout)
+        start = self.query_battery(timeout)
+        start_run = self._field_int(start, "run")
+        start_restore_fail = self._field_int(start, "restoreFail")
+        start_boundary = self._field_int(start, "boundary")
+        period_ms = self._field_int(start, "periodMs")
+        frame_samples: list[tuple[float, Frame]] = []
+        bad_crc = 0
+        bad_fresh = 0
+        started = time.monotonic()
+        deadline = started + duration_seconds
+        while time.monotonic() < deadline:
+            _, frame = self.read_once()
+            if frame is None or frame.rows != 8:
+                continue
+            mode_matches = ((mode == "CAP" and isinstance(frame, CapFrame)) or
+                            (isinstance(frame, MeasurementFrame) and
+                             frame.mode == mode))
+            if not mode_matches:
+                continue
+            if not frame.crc_ok:
+                bad_crc += 1
+                continue
+            if not self._mode_frame_is_clean(frame, mode, 8):
+                bad_fresh += 1
+                continue
+            frame_samples.append((time.monotonic(), frame))
+        end = self.query_battery(timeout)
+        elapsed = time.monotonic() - started
+        end_run = self._field_int(end, "run")
+        end_restore_fail = self._field_int(end, "restoreFail")
+        end_boundary = self._field_int(end, "boundary")
+        run_delta = max(0, end_run - start_run)
+        restore_fail_delta = max(0, end_restore_fail - start_restore_fail)
+        boundary_delta = max(0, end_boundary - start_boundary)
+        expected_runs = int(elapsed * 1000.0 / period_ms) if period_ms > 0 else 0
+        minimum_runs = max(1, expected_runs - 2) if expected_runs else 0
+        maximum_runs = expected_runs + 2
+        interval_ok = (period_ms > 0 and minimum_runs <= run_delta <= maximum_runs)
+        elapsed_frames = (frame_samples[-1][0] - frame_samples[0][0]
+                          if len(frame_samples) > 1 else 0.0)
+        emitted_fps = ((len(frame_samples) - 1) / elapsed_frames
+                       if elapsed_frames > 0 else 0.0)
+        physical_fps = (
+            (frame_samples[-1][1].sequence - frame_samples[0][1].sequence) /
+            elapsed_frames if elapsed_frames > 0 else 0.0
+        )
+        mode_snapshot = self.query_mode(mode, timeout)
+        entry: dict[str, object] = {
+            "mode": mode,
+            "duration_seconds": elapsed,
+            "period_ms": period_ms,
+            "expected_runs": expected_runs,
+            "run_delta": run_delta,
+            "boundary_delta": boundary_delta,
+            "restore_fail_delta": restore_fail_delta,
+            "frames": len(frame_samples),
+            "bad_crc": bad_crc,
+            "bad_fresh": bad_fresh,
+            "emitted_fps": emitted_fps,
+            "physical_fps": physical_fps,
+            "start": start,
+            "end": end,
+            "mode_after": mode_snapshot,
+            "accepted": (interval_ok and restore_fail_delta == 0 and
+                         bad_crc == 0 and bad_fresh == 0 and
+                         len(frame_samples) > 1),
+        }
+        self.result.battery_dwell.append(entry)
+        if not interval_ok:
+            self.result.failures.append(
+                f"{mode} battery cadence run={run_delta}, expected={expected_runs}"
+            )
+        if restore_fail_delta:
+            self.result.failures.append(
+                f"{mode} battery restore failures={restore_fail_delta}"
+            )
+        if bad_crc or bad_fresh or len(frame_samples) <= 1:
+            self.result.failures.append(
+                f"{mode} battery dwell frame integrity crc={bad_crc}, "
+                f"fresh={bad_fresh}, frames={len(frame_samples)}"
+            )
+
+    def set_res_settle(self, settle_us: int, timeout: float) -> None:
+        self.write_command(f"RESSETTLE={settle_us}")
+        accepted = self.wait_line(
+            lambda line: line.startswith("ACK,cmd=RESSETTLE,"), timeout,
+            f"RESSETTLE={settle_us} accepted",
+        )
+        request_id = parse_fields(accepted).get("id")
+        if request_id is None:
+            raise RuntimeError(f"RESSETTLE accepted without id: {accepted}")
+        applied = self.wait_line(
+            lambda line: line.startswith("RESSETTLE,") and
+                         parse_fields(line).get("id") == request_id,
+            timeout,
+            f"RESSETTLE={settle_us} applied",
+        )
+        if (parse_fields(applied).get("status") != "applied" or
+                parse_fields(applied).get("settleUs") != str(settle_us)):
+            raise RuntimeError(f"RESSETTLE apply failed: {applied}")
+
+    def run_res_settle_sweep(
+            self, settle_values: list[int], frame_count: int,
+            known_resistors: dict[tuple[int, int], float],
+            tolerance_percent: float, timeout: float) -> None:
+        self.switch_mode("RES", timeout)
+        self.set_rows(8, timeout)
+        original_line = None
+        self.write_command("RESSETTLE?")
+        original_line = self.wait_line(
+            lambda line: line.startswith("RESSETTLE,") and
+                         "source=runtime" in line,
+            timeout, "RESSETTLE? snapshot",
+        )
+        original_us = int(parse_fields(original_line)["settleUs"], 10)
+        required_dmm = {(1, 1), (8, 8)}
+        have_required_dmm = required_dmm.issubset(known_resistors)
+        acceptable: list[int] = []
+
+        for settle_us in settle_values:
+            self.set_res_settle(settle_us, timeout)
+            frames: list[tuple[float, MeasurementFrame]] = []
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline and len(frames) < frame_count:
+                _, frame = self.read_once()
+                if (not isinstance(frame, MeasurementFrame) or
+                        frame.mode != "RES" or frame.rows != 8 or
+                        not frame.crc_ok or frame.fresh_mask != (1 << 64) - 1):
+                    continue
+                frames.append((time.monotonic(), frame))
+            if len(frames) != frame_count:
+                raise RuntimeError(
+                    f"RES settle {settle_us} collected {len(frames)}/{frame_count} "
+                    "fresh 8x8 frames"
+                )
+
+            values_by_cell: dict[str, list[float]] = {}
+            for coordinate in sorted(required_dmm | set(known_resistors)):
+                row, d_line = coordinate
+                index = (row - 1) * 8 + d_line - 1
+                values = [frame.values_si[index] for _, frame in frames]
+                values_by_cell[f"S{row}D{d_line}"] = [
+                    float(value) for value in values if value is not None
+                ]
+            known_metrics: dict[str, dict[str, object]] = {}
+            dmm_ok = have_required_dmm
+            for coordinate, expected in known_resistors.items():
+                key = f"S{coordinate[0]}D{coordinate[1]}"
+                values = values_by_cell.get(key, [])
+                mean_value = statistics.fmean(values) if values else None
+                error_percent = None if mean_value is None else (
+                    abs(mean_value - expected) / expected * 100.0
+                )
+                cell_ok = error_percent is not None and error_percent <= tolerance_percent
+                dmm_ok = dmm_ok and cell_ok
+                known_metrics[key] = {
+                    "dmm_ohms": expected,
+                    "mean_ohms": mean_value,
+                    "error_percent": error_percent,
+                    "accepted": cell_ok,
+                }
+
+            first_later: dict[str, Optional[float]] = {}
+            standard_deviation: dict[str, Optional[float]] = {}
+            for key, values in values_by_cell.items():
+                later_mean = statistics.fmean(values[1:]) if len(values) > 1 else None
+                first_later[key] = None if later_mean is None else values[0] - later_mean
+                standard_deviation[key] = (
+                    statistics.pstdev(values) if len(values) > 1 else None
+                )
+
+            frame_durations = [frame.frame_duration_us for _, frame in frames]
+            elapsed = frames[-1][0] - frames[0][0]
+            fps = (len(frames) - 1) / elapsed if elapsed > 0 else 0.0
+            open_count = sum(
+                reason == 13 for _, frame in frames for reason in frame.error_reasons
+            )
+            short_count = sum(
+                reason == 14 for _, frame in frames for reason in frame.error_reasons
+            )
+            adjacent_row_delta_max = 0.0
+            for _, frame in frames:
+                values = frame.values_si
+                for row in range(7):
+                    for d_line in range(8):
+                        left = values[row * 8 + d_line]
+                        right = values[(row + 1) * 8 + d_line]
+                        if left is not None and right is not None:
+                            adjacent_row_delta_max = max(
+                                adjacent_row_delta_max, abs(float(left) - float(right))
+                            )
+            entry: dict[str, object] = {
+                "settle_us": settle_us,
+                "frames": frame_count,
+                "fps": fps,
+                "frame_us_mean": statistics.fmean(frame_durations),
+                "frame_us_max": max(frame_durations),
+                "first_minus_later_mean_ohms": first_later,
+                "standard_deviation_ohms": standard_deviation,
+                "adjacent_row_delta_max_ohms": adjacent_row_delta_max,
+                "open_count": open_count,
+                "short_count": short_count,
+                "known_resistors": known_metrics,
+                "dmm_acceptance_available": have_required_dmm,
+                "accepted": dmm_ok,
+                "selected": False,
+            }
+            self.result.res_settle_sweep.append(entry)
+            if dmm_ok:
+                acceptable.append(settle_us)
+
+        selected_us = min(acceptable) if acceptable else original_us
+        self.set_res_settle(selected_us, timeout)
+        for entry in self.result.res_settle_sweep:
+            entry["selected"] = entry["settle_us"] == selected_us
+            if not have_required_dmm:
+                entry["selection_reason"] = "unverified_no_S1D1_S8D8_dmm_restore_original"
+        if have_required_dmm and not acceptable:
+            self.result.failures.append(
+                "no RES settle value met S1D1/S8D8 DMM tolerance"
+            )
+
     def sample_stage(self, mode: str, rows: int, timeout: float,
-                     frame_count: int = 2) -> StageResult:
+                     frame_count: int = 4) -> StageResult:
         expected = "RES" if mode == "RES" else mode
         samples: list[tuple[float, Frame]] = []
         stage = StageResult(mode=mode, rows=rows)
@@ -458,6 +903,19 @@ def main() -> int:
     parser.add_argument("--rail-avss-uv", type=int,
                         help="Externally measured signed AVSS below GND in microvolts.")
     parser.add_argument("--resistor-tolerance-percent", type=float, default=25.0)
+    parser.add_argument("--res-settle-values", default="2000,1000,500,200,100,50")
+    parser.add_argument("--res-settle-frames", type=int, default=6)
+    parser.add_argument("--skip-res-settle-sweep", action="store_true")
+    parser.add_argument(
+        "--performance-frames", type=int, default=70,
+        help=("Clean 8x8 frames collected for each VOLT/RES performance "
+              "acceptance window; use 0 only for a diagnostic run."),
+    )
+    parser.add_argument(
+        "--battery-dwell-seconds", type=float, default=120.0,
+        help=("Per-mode dwell used to verify the real-time battery cadence; "
+              "use 0 only for a diagnostic run."),
+    )
     parser.add_argument(
         "--no-reset",
         action="store_true",
@@ -467,6 +925,7 @@ def main() -> int:
     args = parser.parse_args()
     rows = [int(value) for value in args.rows.split(",") if value]
     modes = [value.strip().upper() for value in args.modes.split(",") if value]
+    settle_values = [int(value) for value in args.res_settle_values.split(",") if value]
     if any(value not in {1, 2, 4, 8} for value in rows):
         parser.error("--rows accepts a comma-separated subset of 1,2,4,8")
     if any(value not in {"CAP", "VOLT", "RES"} for value in modes):
@@ -481,6 +940,14 @@ def main() -> int:
         parser.error("rail calibration requires AVDD > 0 and signed AVSS < 0")
     if args.startup_timeout <= 0:
         parser.error("--startup-timeout must be positive")
+    if any(value < 0 or value > 10000 for value in settle_values):
+        parser.error("--res-settle-values entries must be in 0..10000 us")
+    if args.res_settle_frames < 3:
+        parser.error("--res-settle-frames must be at least 3")
+    if args.performance_frames != 0 and args.performance_frames < 50:
+        parser.error("--performance-frames must be 0 or at least 50")
+    if args.battery_dwell_seconds < 0:
+        parser.error("--battery-dwell-seconds must be non-negative")
     stamp = time.strftime("%Y%m%d-%H%M%S")
     output_dir = args.output_directory or Path("validation_artifacts") / stamp
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -565,22 +1032,76 @@ def main() -> int:
                                 "TX=FULL acknowledgement")
             validator.write_command("FPSCAP=OFF")
             validator.write_command("OUTCAP=OFF")
+            validator.write_command("ADSDBG=1")
+            validator.wait_line(
+                lambda line: line.startswith("ACK,cmd=ADSDBG,v=1"),
+                5.0,
+                "ADSDBG=1 acknowledgement",
+            )
+            validator.wait_line(
+                lambda line: line.startswith("E,") and
+                    "name=ads_debug" in line and "value=1" in line and
+                    "state=applied" in line,
+                5.0,
+                "ADSDBG=1 frame-boundary application",
+            )
+            validator.write_command("ADSDBG?")
+            validator.wait_line(
+                lambda line: line.startswith("ADSDBG,") and
+                    parse_fields(line).get("enabled") == "1" and
+                    parse_fields(line).get("summaryFrames") == "1",
+                5.0,
+                "ADSDBG active telemetry policy",
+            )
+            validator.write_command("ADSDBG=0")
+            validator.wait_line(
+                lambda line: line.startswith("ACK,cmd=ADSDBG,v=0"),
+                5.0,
+                "ADSDBG=0 acknowledgement",
+            )
+            validator.wait_line(
+                lambda line: line.startswith("E,") and
+                    "name=ads_debug" in line and "value=0" in line and
+                    "state=applied" in line,
+                5.0,
+                "ADSDBG=0 frame-boundary application",
+            )
+            validator.write_command("ADSDBG?")
+            validator.wait_line(
+                lambda line: line.startswith("ADSDBG,") and
+                    parse_fields(line).get("enabled") == "0",
+                5.0,
+                "ADSDBG disabled before performance validation",
+            )
+            validator.run_active_ads_check(100, 20.0)
+            validator.write_command("BATPERIOD=1000")
+            validator.wait_line(
+                lambda line: line.startswith("ACK,cmd=BATPERIOD,"),
+                5.0,
+                "BATPERIOD accepted",
+            )
+
+            stage_count = max(1, len(modes) * len(rows) + args.cycles * 4)
+            stage_timeout = max(5.0, args.duration / stage_count * 3.0)
+            if args.rail_avdd_uv is not None:
+                # RAILCFG is a persistent hardware calibration, not a VOLT-only
+                # convenience setting.  Apply it once before any ADS mode is
+                # exercised so RES, battery, and ADS health validation all use
+                # the same measured AVDD/AVSS split.
+                validator.set_rail_calibration(
+                    args.rail_avdd_uv, args.rail_avss_uv, stage_timeout
+                )
             validator.write_command("RAIL?")
             rail_line = validator.wait_line(
                 lambda line: line.startswith("ARL,"), 10.0, "RAIL? snapshot"
             )
             result.rail_status = parse_fields(rail_line)
 
-            stage_count = max(1, len(modes) * len(rows) + args.cycles * 4)
-            stage_timeout = max(5.0, args.duration / stage_count * 3.0)
             latest_frames: dict[str, Frame] = {}
             for mode in modes:
-                if mode == "VOLT" and args.rail_avdd_uv is not None:
-                    validator.set_rail_calibration(
-                        args.rail_avdd_uv, args.rail_avss_uv, stage_timeout
-                    )
                 validator.switch_mode(mode, stage_timeout)
                 validator.query_mode(mode, stage_timeout)
+                validator.query_battery(stage_timeout)
                 for row_count in rows:
                     validator.set_rows(row_count, stage_timeout)
                     validator.sample_stage(mode, row_count, stage_timeout)
@@ -593,6 +1114,22 @@ def main() -> int:
                     stage_timeout,
                     f"{mode} rows=8 acceptance frame",
                 )
+
+            if args.performance_frames:
+                for mode in modes:
+                    if mode in {"VOLT", "RES"}:
+                        # Performance is calculated from sequence deltas and
+                        # firmware frameUs telemetry, but the host still has to
+                        # receive N emitted frames.  OUTCAP is intentionally
+                        # independent of physical capture, so size this timeout
+                        # by emitted-frame count instead of the generic stage
+                        # budget.
+                        validator.run_performance_acceptance(
+                            mode, args.performance_frames,
+                            max(stage_timeout,
+                                args.performance_frames * 1.25,
+                                30.0),
+                        )
 
             cap_frame = latest_frames.get("CAP")
             if isinstance(cap_frame, CapFrame):
@@ -608,6 +1145,14 @@ def main() -> int:
                         result.failures.append(f"known capacitor {key} invalid in CAP")
 
             if "RES" in modes:
+                if not args.skip_res_settle_sweep:
+                    validator.run_res_settle_sweep(
+                        settle_values,
+                        args.res_settle_frames,
+                        dict(args.known_resistor),
+                        args.resistor_tolerance_percent,
+                        stage_timeout,
+                    )
                 validator.switch_mode("RES", stage_timeout)
                 validator.set_rows(8, stage_timeout)
                 validator.wait_frame(
@@ -647,15 +1192,20 @@ def main() -> int:
                             f"known resistor {key} outside tolerance or invalid"
                         )
 
+            cycle_modes = list(modes)
+            if cycle_modes and cycle_modes[-1] != "CAP":
+                cycle_modes.append("CAP")
             for _ in range(args.cycles):
-                for mode in ("CAP", "VOLT", "RES", "CAP"):
-                    if mode == "VOLT" and args.rail_avdd_uv is not None:
-                        validator.set_rail_calibration(
-                            args.rail_avdd_uv, args.rail_avss_uv, stage_timeout
-                        )
+                for mode in cycle_modes:
                     validator.switch_mode(mode, stage_timeout)
                     validator.query_mode(mode, stage_timeout)
                 result.cycles_completed += 1
+
+            if args.battery_dwell_seconds > 0:
+                for mode in modes:
+                    validator.run_battery_dwell(
+                        mode, args.battery_dwell_seconds, stage_timeout
+                    )
     except Exception as error:
         result.failures.append(str(error))
     finally:

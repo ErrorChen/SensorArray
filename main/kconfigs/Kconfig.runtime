@@ -42,21 +42,21 @@ config SENSORARRAY_DEFAULT_ACTIVE_ROWS
 menu "ADS voltage and resistance matrix"
 
 config SENSORARRAY_ADS_VOLT_TARGET_FPS
-    int "Voltage-mode acquisition target FPS"
-    default 3
-    range 1 100
+    int "Voltage-mode performance budget FPS (0 means no budget)"
+    default 0
+    range 0 200
     help
-        Paces Core 1 voltage scans independently from the FDC reference
-        budget. The mode may run more slowly when the configured ADS settle,
-        discard, oversample, or autorange work cannot meet this target.
+        Reporting and performance-budget reference only. This value never
+        sleeps or paces Core 1. Use the explicit capture limiter when a real
+        acquisition cap is required.
 
 config SENSORARRAY_ADS_RES_TARGET_FPS
-    int "Resistance-mode acquisition target FPS"
-    default 3
-    range 1 100
+    int "Resistance-mode performance budget FPS (0 means no budget)"
+    default 0
+    range 0 200
     help
-        Paces Core 1 resistance scans independently from capacitance mode so a
-        full 8x8 ADS scan does not continuously overrun the FDC frame budget.
+        Reporting and performance-budget reference only. This value never
+        sleeps or paces Core 1.
 
 config SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US
     int "Mode-route analog settle time (us)"
@@ -68,20 +68,89 @@ config SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US
     default 2000
     range 10 500000
 
+config SENSORARRAY_ADS_RES_BBM_ROW_SWITCH_ENABLE
+    bool "Keep INTREF active during RES row address changes"
+    default y
+    help
+        Use the TMUX1108 break-before-make address transition while keeping
+        REFOUT enabled for the whole RES session. The board's TMUX1108 EN is
+        only pulled high, so it cannot be driven by the MCU. Disable this to
+        restore the conservative per-row INTREF-off and Q1-clamp sequence.
+
 config SENSORARRAY_ADS_MATRIX_MUX_SETTLE_US
-    int "ADS input/PGA settle time (us)"
-    default 500
-    range 10 100000
+    int "Optional analogue MUX guard before DRDY wait (us)"
+    default 0
+    range 0 100000
+    help
+        Optional board-level guard only. Freshness is always established from
+        a new DRDY generation; this delay is never a replacement for DRDY.
 
 config SENSORARRAY_ADS_MATRIX_DISCARD_COUNT
-    int "Fresh conversions discarded after route or PGA change"
+    int "Legacy debug discard count"
+    default 0
+    range 0 16
+    help
+        Kept for diagnostic compatibility. The production adaptive matrix path
+        reads one fresh conversion and conditionally adds two fresh samples.
+
+config SENSORARRAY_ADS_MATRIX_OVERSAMPLE
+    int "Full/precision aggregate sample count"
+    default 3
+    range 3 3
+
+config SENSORARRAY_ADS_PRECISION_FRAME_INTERVAL
+    int "Full three-sample precision frame interval (0 disables for debug)"
+    default 16
+    range 0 100000
+
+config SENSORARRAY_ADS_ADAPTIVE_MIN_RAW_THRESHOLD
+    int "Minimum raw-code delta for adaptive fast acceptance"
+    default 4096
+    range 1 2147483647
+
+config SENSORARRAY_ADS_ADAPTIVE_NOISE_MULTIPLIER
+    int "Noise-estimate multiplier for adaptive fast acceptance"
+    default 4
+    range 1 32
+
+config SENSORARRAY_ADS_ADAPTIVE_MIN_STABLE_STREAK
+    int "Full samples required before one-sample fast acceptance"
+    default 2
+    range 1 255
+
+config SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT
+    int "Consecutive profile failures before invalidation"
     default 2
     range 1 16
 
-config SENSORARRAY_ADS_MATRIX_OVERSAMPLE
-    int "Samples used by robust median aggregation"
-    default 3
-    range 1 9
+config SENSORARRAY_ADS_PROFILE_RAIL_INVALIDATE_UV
+    int "Rail fingerprint profile-invalidation threshold (uV)"
+    default 25000
+    range 1000 1000000
+
+config SENSORARRAY_ADS_PROFILE_RAIL_HYSTERESIS_UV
+    int "Rail fingerprint hysteresis (uV)"
+    default 5000
+    range 0 999999
+
+config SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL
+    int "Periodic full ADS register readback interval (frames)"
+    default 64
+    range 1 100000
+
+config SENSORARRAY_ADS_MODE0_VALUE
+    hex "Explicit ADC1 MODE0 value"
+    default 0x00
+    range 0x00 0xFF
+
+config SENSORARRAY_ADS_MODE1_VALUE
+    hex "Explicit ADC1 MODE1 value"
+    default 0x00
+    range 0x00 0x9F
+    help
+        Default 0x00 selects continuous conversion, chop off, no conversion
+        delay, and Sinc1 filtering. Reserved filter encodings are rejected by
+        the ADS driver.
 
 config SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT
     int "Bounded retry count for transient ADS fresh-data failures"

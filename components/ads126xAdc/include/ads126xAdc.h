@@ -36,6 +36,13 @@ extern "C" {
      ADS126X_STATUS_PGA_DIFFERENTIAL_ALARM)
 #define ADS126X_REFMUX_INTERNAL 0x00u
 #define ADS126X_REFMUX_AVDD_AVSS 0x24u
+#define ADS126X_MODE0_CONTINUOUS_CHOP_OFF_DELAY_0 0x00u
+#define ADS126X_MODE1_FILTER_SINC1 0x00u
+#define ADS126X_MODE1_FILTER_SINC2 0x20u
+#define ADS126X_MODE1_FILTER_SINC3 0x40u
+#define ADS126X_MODE1_FILTER_SINC4 0x60u
+#define ADS126X_MODE1_FILTER_FIR 0x80u
+#define ADS126X_MODE2_DATA_RATE_MASK 0x0Fu
 #define ADS126X_ADC2_REF_INTERNAL 0x00u
 #define ADS126X_ADC2_REF_AVDD_AVSS 0x04u
 
@@ -101,6 +108,11 @@ typedef struct {
     uint32_t vrefMicrovolts;
     uint8_t pgaGain;
     uint8_t dataRateDr;
+    uint8_t mode0;
+    uint8_t mode1;
+    bool pgaBypassed;
+    bool adc1Running;
+    bool adc2Running;
     uint8_t adc2Gain;
     uint8_t adc2DataRate;
     uint8_t adc2Reference;
@@ -117,6 +129,19 @@ typedef struct {
     volatile uint32_t drdyGeneration;
     spi_transaction_t dmaTransaction;
 } ads126xAdcHandle_t;
+
+typedef struct {
+    uint8_t id;
+    uint8_t power;
+    uint8_t interface;
+    uint8_t mode0;
+    uint8_t mode1;
+    uint8_t mode2;
+    uint8_t inpmux;
+    uint8_t offsetCal[3];
+    uint8_t fullScaleCal[3];
+    uint8_t refmux;
+} ads126xAdc1RegisterSnapshot_t;
 
 esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *cfg);
 esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle);
@@ -155,6 +180,15 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
                               ads126xCrcMode_t crcMode,
                               uint8_t pgaGain,
                               uint8_t dataRateDr);
+esp_err_t ads126xAdcConfigureAdc1Mode(ads126xAdcHandle_t *handle,
+                                      uint8_t mode0,
+                                      uint8_t mode1);
+bool ads126xAdcBuildMode2(bool pgaBypassed,
+                          uint8_t gain,
+                          uint8_t dataRateDr,
+                          uint8_t *outMode2);
+esp_err_t ads126xAdcSetMode2Fast(ads126xAdcHandle_t *handle, uint8_t mode2);
+esp_err_t ads126xAdcSetMode2Verified(ads126xAdcHandle_t *handle, uint8_t mode2);
 
 esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue);
 esp_err_t ads126xAdcSetRefMuxWithVref(ads126xAdcHandle_t *handle,
@@ -186,6 +220,14 @@ esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle,
                                       uint8_t *outMode2,
                                       uint8_t *outInpmux,
                                       uint8_t *outRefmux);
+esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
+    ads126xAdcHandle_t *handle,
+    ads126xAdc1RegisterSnapshot_t *outSnapshot);
+esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
+    ads126xAdcHandle_t *handle,
+    const ads126xAdc1RegisterSnapshot_t *snapshot,
+    uint32_t vrefMicrovolts,
+    bool adc1WasRunning);
 
 /*
  * Read a single differential ADC1 sample in microvolts:
@@ -204,6 +246,7 @@ esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);
+bool ads126xAdcIsAdc1Running(const ads126xAdcHandle_t *handle);
 
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs);
 esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle);
@@ -247,6 +290,7 @@ esp_err_t ads126xAdcReadCalibrationRegisters(ads126xAdcHandle_t *handle,
 
 esp_err_t ads126xAdcStartAdc2(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc2(ads126xAdcHandle_t *handle);
+bool ads126xAdcIsAdc2Running(const ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcSetAdc2Config(ads126xAdcHandle_t *handle,
                                   uint8_t dataRate,
                                   uint8_t reference,

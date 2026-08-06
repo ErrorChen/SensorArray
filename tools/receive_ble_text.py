@@ -323,6 +323,9 @@ async def run(args: argparse.Namespace) -> int:
             if args.rows:
                 receiver.phase = "control_rows"
                 await write_command(client, receiver, f"ROWS={args.rows}")
+            for command in args.command:
+                receiver.phase = "control_command"
+                await write_command(client, receiver, command)
 
             tasks = [asyncio.create_task(stats_loop(receiver, stop_event))]
             if args.interactive:
@@ -379,6 +382,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tail", action="store_true")
     parser.add_argument("--show-fragments", action="store_true")
     parser.add_argument("--interactive", action="store_true")
+    parser.add_argument(
+        "--command", action="append", default=[],
+        help=("Additional control command, for example ADSCHK=100, BAT?, "
+              "BATNOW, or BATPERIOD=1000."),
+    )
     parser.add_argument("--save-log")
     parser.add_argument("--safe", action="store_true")
     parser.add_argument("--serial-port",

@@ -33,6 +33,8 @@ set(SENSORARRAY_FDC_SRCS
 set(SENSORARRAY_ADS_SRCS
     "../core/measure/ads/sensorarrayAdsMatrix.c"
     "../core/measure/ads/sensorarrayAdsAutoRange.c"
+        "../core/measure/ads/sensorarrayAdsCache.c"
+        "../core/measure/ads/sensorarrayBatteryScheduler.c"
     "../core/measure/ads/sensorarrayAdsMath.c"
     "../core/measure/ads/sensorarrayAdsGap.c"
 )

@@ -150,6 +150,9 @@ typedef struct {
 
 typedef enum {
     SENSORARRAY_BATTERY_INVALID_NONE = 0,
+    SENSORARRAY_BATTERY_INVALID_DISABLED,
+    SENSORARRAY_BATTERY_INVALID_NOT_DUE,
+    SENSORARRAY_BATTERY_INVALID_DEFERRED,
     SENSORARRAY_BATTERY_INVALID_CAL,
     SENSORARRAY_BATTERY_INVALID_RAIL,
     SENSORARRAY_BATTERY_INVALID_ZERO,
@@ -157,12 +160,16 @@ typedef enum {
     SENSORARRAY_BATTERY_INVALID_ADC_TIMEOUT,
     SENSORARRAY_BATTERY_INVALID_ADC_STALE,
     SENSORARRAY_BATTERY_INVALID_ADC_STATUS_ERROR,
+    SENSORARRAY_BATTERY_INVALID_SPI_ERROR,
+    SENSORARRAY_BATTERY_INVALID_RESTORE_FAILED,
+    SENSORARRAY_BATTERY_INVALID_VBIAS,
     SENSORARRAY_BATTERY_INVALID_DIV,
     SENSORARRAY_BATTERY_INVALID_NO_AINCOM_GND_REFERENCE,
     SENSORARRAY_BATTERY_INVALID_REFERENCE_INVALID,
     SENSORARRAY_BATTERY_INVALID_ABSENT_OR_OPEN,
     SENSORARRAY_BATTERY_INVALID_RANGE_ERROR,
     SENSORARRAY_BATTERY_INVALID_UNSTABLE,
+    SENSORARRAY_BATTERY_INVALID_SATURATED,
     SENSORARRAY_BATTERY_INVALID_OUT_OF_RANGE,
     SENSORARRAY_BATTERY_INVALID_OVERFLOW,
     SENSORARRAY_BATTERY_INVALID_UNKNOWN,
@@ -176,6 +183,7 @@ typedef enum {
 
 typedef struct {
     uint64_t timestampUs;
+    uint64_t batteryTimestampUs;
     int32_t ain9OffsetRaw;
     int32_t ain9OffsetUv;
     int32_t ain8Raw;
@@ -214,6 +222,18 @@ typedef struct {
     uint32_t minSlackUs;
     uint32_t sampleAgeFrames;
     uint32_t zeroAgeFrames;
+    uint32_t batteryAgeMs;
+    uint32_t batteryPeriodMs;
+    uint32_t batterySampleUs;
+    uint32_t batterySampleUsAverage;
+    uint32_t batterySampleUsMaximum;
+    uint32_t batteryRunCount;
+    uint32_t batterySkipCount;
+    uint32_t batteryDeferCount;
+    uint32_t batteryBoundaryCount;
+    uint32_t batteryRestoreFailureCount;
+    uint32_t batterySampleCount;
+    uint32_t batteryShadowGeneration;
     uint8_t id;
     uint8_t devId;
     uint8_t revId;
@@ -221,10 +241,16 @@ typedef struct {
     uint8_t activeAdc;
     uint8_t rateCode;
     uint8_t adcStatus;
+    uint8_t railSource;
     bool initialized;
     bool dmaCapable;
     bool adcFresh;
     bool batteryValid;
+    bool batteryEnabled;
+    bool batteryFresh;
+    bool batteryDue;
+    bool batteryBoundaryFallback;
+    bool batteryRestoreOk;
     bool aincomGndValid;
     bool ain8GndValid;
     bool hasAdc2;

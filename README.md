@@ -1,5 +1,32 @@
 # SensorArray ESP32-S3 固件 / SensorArray ESP32-S3 Firmware
 
+## ADS1262 实机优化契约 / ADS1262 hardware-optimised contract - 2026-08-06
+
+本轮实现以 `191db11789a86c5d46a2004bf238ee9d1571dd5c` 为固定祖先，保留完整
+`ROWS × 8` 扫描；默认 8 行即每帧 64 个真实新 conversion，不实现四点子帧、
+D1-D4/D5-D8 交替或列掩码。`FPSCAP=OFF` 和 VOLT/RES 默认 target `0` 表示
+Core 1 物理采集不限速；`OUTCAP` 只限制 Core 0 输出，不能反压采集。
+
+ADS 热路径现在使用四类一致性状态：寄存器 shadow、按 mode/cell 隔离且能表示
+PGA bypass 的 input profile、带阈值和滞回的 rail fingerprint，以及每 cell 的
+value/noise cache。每个 cell 每个普通帧先等待新的 DRDY generation 并读取一个
+fresh sample；稳定且状态干净时单样本接受，否则追加两个 fresh sample并取中位数。
+默认每 16 帧为 precision frame，所有活动 cell 强制三样本。任何失败都有明确
+valid/fresh/error，禁止用 0 或上帧值冒充本帧新数据。
+
+`ADS?` 仍是轻量 snapshot；`ADSCHK[=1..1000]` 由 Core 0 排队、Core 1 在完整帧
+边界主动读取寄存器并采集 fresh ADC1 conversions，最后恢复并回读。未知芯片报告
+`chip=unknown,valid=0`；恢复失败使系统进入 SAFE/DEGRADED。VOLT/RES 进入时仅在
+模式边界让两个 FDC sleep 并验证 CONFIG，返回 CAP 时按原安全流程恢复。
+
+电池继续复用 `sensorarrayAdsGap` 的 AIN8/AINCOM/rail/VBIAS transaction，不建立
+第二个 ADS owner。`BATPERIOD=ON,<ms>|<ms>|OFF`、`BATNOW`、`BAT?`、`BATD` 使用
+`esp_timer_get_time()` 调度；VOLT/RES 只在 8×8 帧后运行，CAP 先做 gap admission，
+超期才在帧边界 fallback。换算为
+`AIN8_GND = (AIN8-AINCOM) + AINCOM_GND`，再按可配置 divider ratio、ppm 和 offset
+计算 VBAT。`ADS50`/`ADST50`、`AB50`、`SF50` 分别报告 cache/timing、电池和
+physical/emitted/per-transport FPS。
+
 ## 三模式测量更新 / Three-mode measurement update - 2026-08-05
 
 当前固件保留原有 FDC2214 `CAP` 生产路径，并新增完整的 ADS126x `VOLT` 和
@@ -464,6 +491,10 @@ originating Serial, BLE `FF11`, or UDP control peer:
 | `OUTCAP=OFF`, `OUTCAP=ON,<fps>` | Output-side pacing in the Core 0 output hub; default is off and does not hide Core 1 capture timing. |
 | `ADSGAP=OFF|ON|RAIL|BAT|ZERO` | Select which periodic ADS gap jobs may run between FDC work. Explicit `BATD`/calibration requests still run once. |
 | `BAT?`, `RAIL?`, `ADS?` | Return `ABAT`, `ARL`, or `ADS` runtime status line. |
+| `ADSCHK`, `ADSCHK=<1..1000>` | Queue an active ADC1/register/DRDY check for the next safe complete-frame boundary; default sample count is 100. |
+| `BATNOW` | Queue one ordinary battery transaction at the next safe gap or complete-frame boundary. |
+| `BATPERIOD?`, `BATPERIOD=<100..600000>`, `BATPERIOD=ON,<ms>`, `BATPERIOD=OFF` | Query or configure the real-time battery scheduler. |
+| `RESSETTLE?`, `RESSETTLE=<0..10000>` | Query or frame-boundary-apply the resistance row-settle time used by the hardware sweep. |
 | `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Queue a range-checked external rail snapshot; Core 1 applies it at a frame boundary and invalidates the ADS PGA cache. It is required before VOLT when no fresh validated rail snapshot exists. |
 | `BATD`, `BATD=VBIAS_ON` | Queue a forced VBIAS-on battery diagnostic; the result is a `BATD` log line after the ADS transaction runs, even when periodic ADS gap mode is off. |
 | `BLECAP=N` or `CAP=N` | Legacy low-rate cap control routed through the shared parser. |
@@ -824,7 +855,7 @@ flowchart TD
 | `CONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES` | int | `64` | ADS SPI transfer buffer size. | `ads126xAdcInit()` | Increase only if larger SPI transactions are added. |
 | `CONFIG_BOARD_SPI_HOST`, `CONFIG_BOARD_SPI_SCLK_GPIO`, `CONFIG_BOARD_SPI_MOSI_GPIO`, `CONFIG_BOARD_SPI_MISO_GPIO`, `CONFIG_BOARD_ADS126X_CS_GPIO`, `CONFIG_BOARD_ADS126X_DRDY_GPIO`, `CONFIG_BOARD_ADS126X_RESET_GPIO` | int | host `2`, SCLK `47`, MOSI `21`, MISO `14`, CS `-1`, DRDY `13`, RESET `38` | Board SPI and ADS control pins. | board bring-up and ADS init | Match board wiring. |
 | `CONFIG_SENSORARRAY_ADS_READ_STOP1_BEFORE_MUX`, `CONFIG_SENSORARRAY_ADS_READ_SETTLE_AFTER_MUX_MS`, `CONFIG_SENSORARRAY_ADS_READ_START1_EVERY_READ`, `CONFIG_SENSORARRAY_ADS_READ_BASE_DISCARD_COUNT`, `CONFIG_SENSORARRAY_ADS_READ_RETRY_COUNT` | bool/int | n, `0`, y, `0`, `0` | ADS read sequencing policy. | `sensorarrayMeasureReadAdsPairUv()`, `sensorarrayMeasureReadAdsUv()` | These affect ADS measurement paths, not the current FDC production frame. |
-| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | int | `3`, `3` | Independent Core 1 pacing targets for ADS voltage and resistance scans. | ADS-mode frame pacing | Reduce only when analogue settling/oversampling cannot meet the target; these do not alter CAP timing. |
+| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | int | `0`, `0` | Optional Core 1 capture limit; `0` is unlimited and is the production default. | ADS-mode frame pacing | `FPSCAP=OFF` disables the runtime limiter; `OUTCAP` remains output-only. |
 | `CONFIG_SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US`, `ROW_SETTLE_US`, `MUX_SETTLE_US`, `DISCARD_COUNT`, `OVERSAMPLE`, `IO_RETRY_COUNT`, `MAX_SPREAD_UV` | int | `5000`, `2000`, `500`, `2`, `3`, `1`, `5000` | Bounded ADS matrix settling, fresh-conversion discard, one same-cell restart retry and robust aggregation. | `sensorarrayAdsMatrixEngineReadFrame()` | Tune from hardware evidence; do not hide stale timing by globally increasing timeouts. Persistent failures remain invalid. |
 | `CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES`, `INTERNAL_REF_UV`, `RREF_OHMS`, `PATH_OFFSET_MOHM` | int | `100`, `2500000`, `10000`, `0` | Calibration/profile inputs with range and age checks. | ADS rail and divider math | Defaults are configuration values, not measured acceptance values. |
 | `CONFIG_SENSORARRAY_ADS_AUTORANGE_*` | int | thresholds `250/850/980`, attempts `6`, rail margin `300000 uV` | PGA utilisation hysteresis, saturation limit, bounded attempts and common-mode margin. | `sensorarrayAdsAutoRangeDecide()` | Gains are limited to driver-supported 1/2/4/8/16/32. |

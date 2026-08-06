@@ -17,6 +17,25 @@ idf.py -B build_modes -D SDKCONFIG=build_modes\sdkconfig.validation -p <PORT> fl
   --output-directory validation_artifacts\measurement-modes
 ```
 
+当前验证器先执行 `ADS?`/`ADSCHK=100`，要求 ADS1262、ADC1 available、ADC2
+unavailable、100 fresh、0 stale/timeout/reset/status/SPI error、restore ok。随后对
+ROWS 1/2/4/8 和 CAP/VOLT/RES 收集完整 CRC/fresh frame，运行至少 10 个 mode cycle；
+8×8 VOLT/RES 另收集默认 70 帧，依据 `ADS50/ADST50` 检查 profile hit >=95%、
+attempts/cell <=1.25、raw conversions 接近 64、frameUs 分别 <50/60 ms，并保存
+各阶段耗时。默认还在每个模式运行 120 秒、`BATPERIOD=1000`，比较 scheduler
+run count、restore failure、mode 不变和每帧 freshness。可显式设置：
+
+```powershell
+--performance-frames 70 --battery-dwell-seconds 120 `
+--res-settle-values 2000,1000,500,200,100,50 --res-settle-frames 6
+```
+
+RES settle sweep 会记录 S1D1/S8D8 第一帧与后续均值、标准差、相邻行差、open/
+short 分类和 FPS。只有同时传入当次万用表值且满足 tolerance 时才选择最短档；
+缺少 DMM 时工具恢复原 settle 并标为未验证。电池准确度也必须同步记录
+VBAT-GND、AIN8-GND、AINCOM-GND 和实测 divider ratio；没有这三项只能验证调度、
+freshness 和 restore，不能宣称电压精度通过。
+
 `--rail-avdd-uv`/`--rail-avss-uv` 必须来自当前板的测量或明确的本次验证输入；验证器
 通过共享命令 parser 发送 `RAILCFG`，等待 Core 1 帧边界 `RAPP` 后才请求 VOLT。
 这两个值不是生产固件常量。若没有可靠 rail 输入，VOLT 应拒绝进入而不是使用

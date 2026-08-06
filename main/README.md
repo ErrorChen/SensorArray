@@ -13,6 +13,14 @@
 `docs/measurement-modes.md` and `docs/measurement-protocol.md`. Historical FDC
 timing results below apply to CAP only.
 
+2026-08-06 contract: Core 0 parses `ADSCHK`, `BATNOW`, `BATPERIOD` and
+`RESSETTLE` into the existing mailbox; only Core 1 consumes them after a
+complete frame. ADS ownership prevents matrix, battery, active-check, rail and
+zero transactions from overlapping. VOLT/RES default capture pacing is
+unlimited, while Core 0 `OUTCAP` remains output-only. `ADS50/ADST50`, `AB50`,
+`SF50` and `OT50` keep physical acquisition, emitted frames and each sink rate
+separate.
+
 ## 中文说明 / Chinese documentation
 
 ### 职责
@@ -183,7 +191,7 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 | `scanPlan` | Rebuilt for the active mode and dynamic row count at a safe boundary. |
 | `frame` | Current output frame filled by the measurement layer and copied into the async output snapshot ring. |
 | `fdcEngine` | Thin FDC facade delegating boot/read/full-rescue work to `core/measure`. |
-| `adsEngine` | VOLT/RES ADC1 scanner, calibration and per-mode/per-cell PGA cache. |
+| `adsEngine` | VOLT/RES ADC1 scanner, calibration, register shadow, per-mode/per-cell PGA-or-bypass profile and value/noise caches. |
 | `routeController` | Safe transition order, readback and immutable route snapshots. |
 | `fdcRescue` | Runtime all-invalid rescue context ticked after each frame. |
 | `primaryAddrValid`, `secondaryAddrValid` | FDC I2C address parse results. |
@@ -251,7 +259,7 @@ For the full configuration table, see “Configuration options” in the root `R
 | 配置项 / Option | 应用层影响 / Application-layer effect |
 |---|---|
 | `CONFIG_SENSORARRAY_FDC_MATRIX_PERIOD_MS` | `sensorarrayDelayFramePeriodSince()` uses it as target frame period. Current defaults set `50 ms`; `250 ms` would be about `4 fps`. |
-| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | Independently pace ADS voltage and resistance acquisition. Both default to `3 fps`; CAP timing is unchanged. |
+| `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS`, `CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` | Optional ADS capture limit. Both default to `0` (unlimited); only an explicit non-zero Kconfig value or runtime `FPSCAP=ON` paces Core 1. |
 | `CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT` | Allows one bounded same-cell stop/restart retry for transient timeout/stale conversion failures; it does not increase DRDY timeout or conceal persistent failures. |
 | `CONFIG_SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV` | Bounds the verified PGA-bypass fallback after a gain-1 PGA alarm. Bypass is exposed as gain `00` in telemetry. |
 | `CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED` | Controls whether boot sweep failure leaves the app in diagnostic mode. |

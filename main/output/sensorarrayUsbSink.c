@@ -35,6 +35,10 @@ static QueueHandle_t s_usbQueue;
 static TaskHandle_t s_usbTask;
 static portMUX_TYPE s_usbStatsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbSinkStats_t s_usbStats;
+/* Publish is owned by the single async-log task. A fixed discard slot avoids
+ * adding another 1536-byte packet to that caller's stack when the queue is
+ * full and the oldest summary is intentionally replaced. */
+static sensorarrayTextPacket_t s_usbDiscardPacket;
 
 static void sensorarrayUsbSinkTask(void *arg)
 {
@@ -114,8 +118,7 @@ esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
         return ESP_ERR_INVALID_STATE;
     }
     if (xQueueSend(s_usbQueue, packet, 0) != pdTRUE) {
-        sensorarrayTextPacket_t discarded;
-        (void)xQueueReceive(s_usbQueue, &discarded, 0);
+        (void)xQueueReceive(s_usbQueue, &s_usbDiscardPacket, 0);
         portENTER_CRITICAL(&s_usbStatsMux);
         s_usbStats.droppedPackets++;
         portEXIT_CRITICAL(&s_usbStatsMux);

@@ -1,7 +1,6 @@
 #include "sensorarrayAdsAutoRange.h"
 
 #include <limits.h>
-#include <string.h>
 
 static const uint8_t s_sensorarrayAdsGains[SENSORARRAY_ADS_GAIN_COUNT] = {
     1u, 2u, 4u, 8u, 16u, 32u,
@@ -15,21 +14,6 @@ static int sensorarrayAdsAutoRangeGainIndex(uint8_t gain)
         }
     }
     return -1;
-}
-
-static int sensorarrayAdsGainCacheModeIndex(sensorarrayMeasurementMode_t mode)
-{
-    switch (mode) {
-    case SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE:
-        return 0;
-    case SENSORARRAY_MEASUREMENT_MODE_VOLTAGE:
-        return 1;
-    case SENSORARRAY_MEASUREMENT_MODE_RESISTANCE:
-        return 2;
-    case SENSORARRAY_MEASUREMENT_MODE_NONE:
-    default:
-        return -1;
-    }
 }
 
 bool sensorarrayAdsAutoRangeGainSupported(uint8_t gain)
@@ -158,74 +142,4 @@ sensorarrayAdsAutoRangeDecision_t sensorarrayAdsAutoRangeDecide(
     decision.action = SENSORARRAY_ADS_AUTORANGE_KEEP;
     decision.error = SENSORARRAY_CELL_ERROR_NONE;
     return decision;
-}
-
-void sensorarrayAdsGainCacheInit(sensorarrayAdsGainCache_t *cache)
-{
-    if (!cache) {
-        return;
-    }
-    memset(cache, 0, sizeof(*cache));
-    cache->generation = 1u;
-}
-
-void sensorarrayAdsGainCacheInvalidate(sensorarrayAdsGainCache_t *cache)
-{
-    if (!cache) {
-        return;
-    }
-    memset(cache->valid, 0, sizeof(cache->valid));
-    memset(cache->overrangeStreak, 0, sizeof(cache->overrangeStreak));
-    cache->generation++;
-}
-
-bool sensorarrayAdsGainCacheGet(const sensorarrayAdsGainCache_t *cache,
-                                sensorarrayMeasurementMode_t mode,
-                                uint8_t cellIndex,
-                                uint8_t *outGain)
-{
-    int modeIndex = sensorarrayAdsGainCacheModeIndex(mode);
-    if (!cache || !outGain || modeIndex < 0 ||
-        cellIndex >= SENSORARRAY_MEASUREMENT_MAX_CELLS ||
-        cache->valid[modeIndex][cellIndex] == 0u) {
-        return false;
-    }
-    uint8_t gain = cache->gain[modeIndex][cellIndex];
-    if (!sensorarrayAdsAutoRangeGainSupported(gain)) {
-        return false;
-    }
-    *outGain = gain;
-    return true;
-}
-
-void sensorarrayAdsGainCacheStore(sensorarrayAdsGainCache_t *cache,
-                                  sensorarrayMeasurementMode_t mode,
-                                  uint8_t cellIndex,
-                                  uint8_t gain)
-{
-    int modeIndex = sensorarrayAdsGainCacheModeIndex(mode);
-    if (!cache || modeIndex < 0 || cellIndex >= SENSORARRAY_MEASUREMENT_MAX_CELLS ||
-        !sensorarrayAdsAutoRangeGainSupported(gain)) {
-        return;
-    }
-    cache->gain[modeIndex][cellIndex] = gain;
-    cache->valid[modeIndex][cellIndex] = 1u;
-    cache->overrangeStreak[modeIndex][cellIndex] = 0u;
-}
-
-void sensorarrayAdsGainCacheNoteOverrange(sensorarrayAdsGainCache_t *cache,
-                                         sensorarrayMeasurementMode_t mode,
-                                         uint8_t cellIndex)
-{
-    int modeIndex = sensorarrayAdsGainCacheModeIndex(mode);
-    if (!cache || modeIndex < 0 || cellIndex >= SENSORARRAY_MEASUREMENT_MAX_CELLS) {
-        return;
-    }
-    uint8_t *streak = &cache->overrangeStreak[modeIndex][cellIndex];
-    if (*streak < UINT8_MAX) {
-        (*streak)++;
-    }
-    if (*streak >= 2u) {
-        cache->valid[modeIndex][cellIndex] = 0u;
-    }
 }

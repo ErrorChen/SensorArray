@@ -129,6 +129,63 @@ config SENSORARRAY_ADS_BATTERY_MAX_MV
     default 5000
     range 0 20000
 
+config SENSORARRAY_BATTERY_ENABLE
+    bool "Enable periodic AIN8 battery measurement"
+    default y
+
+config SENSORARRAY_BATTERY_PERIOD_MS
+    int "Battery sampling period (ms)"
+    default 1000
+    range 100 600000
+
+config SENSORARRAY_BATTERY_MAX_DEFER_MS
+    int "Maximum battery gap deferral before frame-boundary fallback (ms)"
+    default 3000
+    range 100 600000
+
+config SENSORARRAY_BATTERY_MAX_AGE_MS
+    int "Maximum age of a fresh battery result (ms)"
+    default 5000
+    range 100 600000
+
+config SENSORARRAY_BATTERY_CALIBRATION_SCALE_PPM
+    int "Battery calibration scale (ppm, 1000000 is unity)"
+    default 1000000
+    range 500000 1500000
+
+config SENSORARRAY_BATTERY_CALIBRATION_OFFSET_UV
+    int "Battery calibration offset (uV)"
+    default 0
+    range -1000000 1000000
+
+config SENSORARRAY_BATTERY_VBIAS_SETTLE_US
+    int "Battery VBIAS and input-MUX settle guard (us)"
+    default 500
+    range 0 100000
+
+config SENSORARRAY_BATTERY_DATA_RATE
+    int "Battery ADC1 data-rate code"
+    default 9
+    range 0 15
+    help
+        ADS1262 MODE2 data-rate code used only during the frame-boundary or
+        admitted CAP-gap AIN8 transaction. The default 9 selects 1200 SPS,
+        trading a few milliseconds of periodic overhead for materially lower
+        noise than the 38.4 kSPS matrix path. The complete matrix register
+        snapshot is restored and verified afterwards.
+
+config SENSORARRAY_BATTERY_MAX_SPREAD_RAW
+    int "Maximum raw-code spread across three battery samples"
+    default 1000000
+    range 1 2147483647
+    help
+        A larger three-sample spread marks the AIN8 result unstable. The
+        transaction is still restored and reported, but battery valid remains
+        false. This threshold is in ADC raw codes rather than battery volts.
+        On the validated 5.188 V reference, 1000000 codes is about 2.42 mV at
+        AIN8 or 4.84 mV after the default 2:1 divider, still below the 10 mV
+        hardware-acceptance floor.
+
 config SENSORARRAY_ADS_AVSS_TO_GND_UV
     int "Magnitude of AVSS below GND (uV)"
     default 1800000

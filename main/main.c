@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_check.h"
@@ -144,6 +145,11 @@ typedef struct {
     uint32_t hostFrameSequence;
     uint32_t modeTransitionCount;
     uint32_t railCalibrationGeneration;
+    bool pendingAdsCheck;
+    uint32_t pendingAdsCheckRequestId;
+    uint32_t pendingAdsCheckSamples;
+    uint32_t pendingBatteryRequestId;
+    bool pendingBatteryDiagnostic;
     TaskHandle_t scanTaskHandle;
     volatile uint32_t lastMeasurementVersion;
     sensorarrayLastMeasurementSnapshot_t lastMeasurement;
@@ -302,17 +308,20 @@ static void sensorarrayLogStackHighWater(const char *stage)
 
 static uint32_t sensorarrayFrameTargetFps(sensorarrayMeasurementMode_t mode)
 {
-    uint32_t captureFpsCap = sensorarrayCommandMailboxGetCaptureFpsCap();
-    uint32_t modeFps = 0u;
+    (void)mode;
+    /* Only the explicit runtime capture cap is allowed to pace Core 1.
+     * VOLT/RES target values are performance budgets, never hidden sleeps. */
+    return sensorarrayCommandMailboxGetCaptureFpsCap();
+}
+
+static uint32_t sensorarrayFrameBudgetFps(sensorarrayMeasurementMode_t mode)
+{
     if (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
-        modeFps = (uint32_t)CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS;
-    } else if (mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE) {
-        modeFps = (uint32_t)CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS;
+        return (uint32_t)CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS;
     }
-    if (captureFpsCap != 0u && (modeFps == 0u || captureFpsCap < modeFps)) {
-        modeFps = captureFpsCap;
-    }
-    return modeFps;
+    return mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ?
+        (uint32_t)CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS :
+        (uint32_t)CONFIG_SENSORARRAY_TARGET_FPS;
 }
 
 static uint32_t sensorarrayFramePeriodMs(sensorarrayMeasurementMode_t mode)
@@ -1404,6 +1413,41 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         case SENSORARRAY_COMMAND_TRACE_ENABLE:
         case SENSORARRAY_COMMAND_CAPTURE_FPS_CAP:
         case SENSORARRAY_COMMAND_OUTPUT_FPS_CAP:
+        case SENSORARRAY_COMMAND_ADS_DEBUG:
+            break;
+        case SENSORARRAY_COMMAND_ADS_CHECK:
+            ctx->pendingAdsCheck = true;
+            ctx->pendingAdsCheckRequestId = command.requestId;
+            ctx->pendingAdsCheckSamples = command.value;
+            break;
+        case SENSORARRAY_COMMAND_BATTERY_NOW:
+            sensorarrayAdsGapRequestBatteryNow();
+            ctx->pendingBatteryRequestId = command.requestId;
+            ctx->pendingBatteryDiagnostic = false;
+            break;
+        case SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC:
+            sensorarrayAdsGapRequestBatteryDiagnostic();
+            ctx->pendingBatteryRequestId = command.requestId;
+            ctx->pendingBatteryDiagnostic = true;
+            break;
+        case SENSORARRAY_COMMAND_BATTERY_PERIOD: {
+            bool enabled = command.signedValue != 0;
+            bool applied = sensorarrayAdsGapConfigureBatteryPeriod(
+                enabled, command.value);
+            printf("BATPERIOD,id=%lu,enabled=%u,periodMs=%lu,status=%s\n",
+                   (unsigned long)command.requestId,
+                   enabled ? 1u : 0u,
+                   (unsigned long)command.value,
+                   applied ? "applied" : "rejected");
+            break;
+        }
+        case SENSORARRAY_COMMAND_RES_SETTLE:
+            printf("RESSETTLE,id=%lu,settleUs=%lu,status=%s\n",
+                   (unsigned long)command.requestId,
+                   (unsigned long)command.value,
+                   sensorarrayRouteControllerSetRowSettleUs(
+                       &ctx->routeController, command.value) ?
+                       "applied" : "rejected");
             break;
         case SENSORARRAY_COMMAND_MEASUREMENT_MODE:
             (void)sensorarrayApplyMeasurementMode(
@@ -1445,6 +1489,93 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         if (ctx->asyncLogReady) {
             (void)sensorarrayAsyncLogPublishCommandApplied(ctx->frame.sequence, &command);
         }
+        if (command.type == SENSORARRAY_COMMAND_ADS_CHECK) {
+            /* Preserve mailbox ordering and execute at most one intrusive ADS
+             * transaction after each complete frame. Remaining requests stay
+             * queued until the following frame boundary. */
+            return;
+        }
+    }
+}
+
+static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx || !ctx->pendingAdsCheck) {
+        return;
+    }
+
+    uint32_t requestId = ctx->pendingAdsCheckRequestId;
+    uint32_t sampleCount = ctx->pendingAdsCheckSamples;
+    ctx->pendingAdsCheck = false;
+    ctx->pendingAdsCheckRequestId = 0u;
+    ctx->pendingAdsCheckSamples = 0u;
+
+    sensorarrayAdsActiveCheckResult_t result = {0};
+    esp_err_t checkErr = sensorarrayAdsGapRunActiveCheck(
+        &ctx->state,
+        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine),
+        requestId,
+        sampleCount,
+        &result);
+    ctx->frame.measurement.adsCheckUs = result.durationUs;
+
+    char line[384];
+    if (sensorarrayAdsGapFormatActiveCheck(&result, line, sizeof(line)) != 0u) {
+        printf("%s", line);
+    }
+    if (sensorarrayAdsGapFormatActiveCheckTiming(&result, line, sizeof(line)) != 0u) {
+        printf("%s", line);
+    }
+
+    if (!result.restoreOk) {
+        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+        (void)sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+        sensorarrayMeasurementModeRecordRuntimeFault(
+            &ctx->measurementMode, (uint32_t)checkErr);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                   "ads_check_restore_failed");
+        printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
+               (unsigned long)requestId,
+               (unsigned long)checkErr);
+    }
+}
+
+static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
+                                          sensorarrayMeasurementMode_t frameMode)
+{
+    if (!ctx) {
+        return;
+    }
+    uint32_t durationUs = 0u;
+    bool ran = false;
+    esp_err_t batteryErr = sensorarrayAdsGapRunBatteryAtBoundary(
+        &ctx->state,
+        ctx->frame.sequence,
+        frameMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        &durationUs,
+        &ran);
+    ctx->frame.measurement.batteryUs = durationUs;
+    if (ran && ctx->pendingBatteryRequestId != 0u) {
+        printf("BAPP,id=%lu,cmd=%s,seq=%lu,err=0x%lx,durationUs=%lu,status=complete\n",
+               (unsigned long)ctx->pendingBatteryRequestId,
+               ctx->pendingBatteryDiagnostic ? "BATD" : "BATNOW",
+               (unsigned long)ctx->frame.sequence,
+               (unsigned long)batteryErr,
+               (unsigned long)durationUs);
+        ctx->pendingBatteryRequestId = 0u;
+        ctx->pendingBatteryDiagnostic = false;
+    }
+    if (sensorarrayAdsGapConsumeRestoreFailure()) {
+        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+        (void)sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+        sensorarrayMeasurementModeRecordRuntimeFault(
+            &ctx->measurementMode, (uint32_t)batteryErr);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                   "battery_restore_failed");
+        printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE\n",
+               (unsigned long)batteryErr);
     }
 }
 
@@ -1472,7 +1603,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         }
         snprintf(response,
                  responseSize,
-                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,targetFps=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu\n",
+                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu\n",
                  sensorarrayMeasurementStateName(mode.state),
                  sensorarrayMeasurementModeName(mode.activeMode),
                  mode.pending ? sensorarrayMeasurementModeName(mode.pendingMode) : "NONE",
@@ -1494,6 +1625,11 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  (unsigned)route.pgaGain,
                  route.railValid ? 1u : 0u,
                  (unsigned long)route.railAgeFrames,
+                 route.fdcPrimarySleeping ? "sleep" : "active",
+                 route.fdcPrimaryVerified ? 1u : 0u,
+                 route.fdcSecondarySleeping ? "sleep" : "active",
+                 route.fdcSecondaryVerified ? 1u : 0u,
+                 (unsigned long)sensorarrayFrameBudgetFps(mode.activeMode),
                  (unsigned long)sensorarrayFrameTargetFps(mode.activeMode),
                  (unsigned long long)route.transitionDurationUs,
                  (unsigned long)ctx->modeTransitionCount,
@@ -1616,11 +1752,101 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return sensorarrayAdsGapFormatBattery(response, responseSize, frameSequence) > 0u ?
             ESP_OK : ESP_FAIL;
     }
+    if (strcmp(command, "RESSETTLE?") == 0) {
+        snprintf(response, responseSize,
+                 "RESSETTLE,settleUs=%lu,phases=2,source=runtime\n",
+                 (unsigned long)sensorarrayRouteControllerGetRowSettleUs(
+                     &ctx->routeController));
+        return ESP_OK;
+    }
+    if (strncmp(command, "RESSETTLE=", 10u) == 0) {
+        char *end = NULL;
+        unsigned long parsed = strtoul(command + 10u, &end, 10);
+        if (end == command + 10u || *end != '\0' || parsed > 10000u) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=RESSETTLE,reason=range,max=10000\n");
+            return ESP_ERR_INVALID_ARG;
+        }
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostResSettle(
+            (uint32_t)parsed, &requestId);
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "ACK,cmd=RESSETTLE,id=%lu,settleUs=%lu,status=accepted\n",
+                 (unsigned long)requestId,
+                 parsed);
+        return ESP_OK;
+    }
     if (strcmp(command, "BATD") == 0 ||
         strcmp(command, "BATD=VBIAS_ON") == 0 ||
         strcmp(command, "BATD,MODE=VBIAS_ON") == 0) {
-        sensorarrayAdsGapRequestBatteryDiagnostic();
-        snprintf(response, responseSize, "ACK,cmd=BATD,mode=vbias_on,status=queued\n");
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostBatteryNow(
+            true, &requestId);
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "ACK,cmd=BATD,id=%lu,mode=vbias_on,status=accepted\n",
+                 (unsigned long)requestId);
+        return ESP_OK;
+    }
+    if (strcmp(command, "BATNOW") == 0) {
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostBatteryNow(
+            false, &requestId);
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "ACK,cmd=BATNOW,id=%lu,status=accepted\n",
+                 (unsigned long)requestId);
+        return ESP_OK;
+    }
+    if (strcmp(command, "BATPERIOD?") == 0) {
+        sensorarrayAdsGapSnapshot_t battery = {0};
+        sensorarrayAdsGapCopySnapshot(&battery, frameSequence);
+        snprintf(response, responseSize,
+                 "BATPERIOD,enabled=%u,periodMs=%lu,due=%u,ageMs=%lu\n",
+                 battery.batteryEnabled ? 1u : 0u,
+                 (unsigned long)battery.batteryPeriodMs,
+                 battery.batteryDue ? 1u : 0u,
+                 (unsigned long)battery.batteryAgeMs);
+        return ESP_OK;
+    }
+    if (strncmp(command, "BATPERIOD=", 10u) == 0) {
+        const char *value = command + 10u;
+        bool enabled = true;
+        uint32_t periodMs = 0u;
+        if (strcmp(value, "OFF") == 0) {
+            enabled = false;
+        } else {
+            if (strncmp(value, "ON,", 3u) == 0) {
+                value += 3u;
+            }
+            char *end = NULL;
+            unsigned long parsed = strtoul(value, &end, 10);
+            if (end == value || *end != '\0' || parsed < 100u ||
+                parsed > 600000u) {
+                snprintf(response, responseSize,
+                         "ERR,cmd=BATPERIOD,reason=period,range=100-600000\n");
+                return ESP_ERR_INVALID_ARG;
+            }
+            periodMs = (uint32_t)parsed;
+        }
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostBatteryPeriod(
+            enabled, periodMs, &requestId);
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "ACK,cmd=BATPERIOD,id=%lu,enabled=%u,periodMs=%lu,status=accepted\n",
+                 (unsigned long)requestId,
+                 enabled ? 1u : 0u,
+                 (unsigned long)periodMs);
         return ESP_OK;
     }
     if (strcmp(command, "RAIL?") == 0) {
@@ -1630,6 +1856,33 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "ADS?") == 0) {
         return sensorarrayAdsGapFormatAds(response, responseSize) > 0u ?
             ESP_OK : ESP_FAIL;
+    }
+    if (strcmp(command, "ADSCHK") == 0 || strncmp(command, "ADSCHK=", 7u) == 0) {
+        uint32_t sampleCount = 100u;
+        if (command[6] == '=') {
+            char *end = NULL;
+            unsigned long parsed = strtoul(command + 7u, &end, 10);
+            if (end == command + 7u || *end != '\0' || parsed < 1u || parsed > 1000u) {
+                snprintf(response, responseSize,
+                         "ERR,cmd=ADSCHK,reason=sample_count,range=1-1000\n");
+                return ESP_ERR_INVALID_ARG;
+            }
+            sampleCount = (uint32_t)parsed;
+        }
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostAdsCheck(sampleCount,
+                                                                  &requestId);
+        if (postErr != ESP_OK) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=ADSCHK,reason=mailbox,err=0x%lx\n",
+                     (unsigned long)postErr);
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "ACK,cmd=ADSCHK,id=%lu,samples=%lu,status=accepted\n",
+                 (unsigned long)requestId,
+                 (unsigned long)sampleCount);
+        return ESP_OK;
     }
     if (strcmp(command, "FPS?") == 0) {
         uint32_t captureCap = sensorarrayCommandMailboxGetCaptureFpsCap();
@@ -1642,8 +1895,20 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  sensorarrayAdsGapModeName(sensorarrayAdsGapGetMode()));
         return ESP_OK;
     }
+    if (strcmp(command, "ADSDBG?") == 0) {
+        snprintf(response, responseSize, "ADSDBG,enabled=%u,summaryFrames=%u\n",
+                 sensorarrayCommandMailboxAdsDebugEnabled() ? 1u : 0u,
+                 sensorarrayCommandMailboxAdsDebugEnabled() ? 1u :
+                     (unsigned)SENSORARRAY_CFG_LOG_PERIOD_FRAMES);
+        return ESP_OK;
+    }
     if (strcmp(command, "ADSDBG=1") == 0 || strcmp(command, "ADSDBG=0") == 0) {
-        snprintf(response, responseSize, "ACK,cmd=ADSDBG,v=%c\n",
+        esp_err_t postErr = sensorarrayCommandMailboxPostText(
+            (const uint8_t *)command, strlen(command));
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize, "ACK,cmd=ADSDBG,v=%c,status=accepted\n",
                  command[7]);
         return ESP_OK;
     }
@@ -1754,6 +2019,8 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     }
     sensorarrayAdsMatrixEngineBindRouteController(&ctx->adsEngine,
                                                    &ctx->routeController);
+    sensorarrayAdsGapBindRegisterCache(
+        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine));
     esp_err_t adsGapErr = sensorarrayAdsGapInit(&ctx->state);
     sensorarrayTransportSetRuntimeQueryCallback(sensorarrayRuntimeQueryCommand, ctx);
     printf("ADS_PINMAP,start=%d,drdy=%d,cs=%d,sclk=%d,din=%d,dout=%d,core=%d,gapInit=0x%lx,dma=%u\n",
@@ -2195,6 +2462,17 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         sensorarrayBootBreadcrumbSetStage("frame_done", err, ctx);
         uint64_t measureFrameUs = (uint64_t)(esp_timer_get_time() - frameStartUs);
         ctx->fdcFrameCounter++;
+
+        sensorarrayRunBatteryBoundary(ctx, ctx->frame.measurement.mode);
+        /* Intrusive ADS diagnostics run only after the complete acquisition
+         * frame. The finished frame remains coherent and the next frame cannot
+         * start until register restoration has been verified. */
+        sensorarrayMeasurementModeSnapshot_t postBoundaryMode = {0};
+        if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
+                                                    &postBoundaryMode) &&
+            sensorarrayMeasurementModeIsDataMode(postBoundaryMode.activeMode)) {
+            sensorarrayRunPendingAdsCheck(ctx);
+        }
 
         sensorarrayMeasurementMode_t frameMode = ctx->frame.measurement.mode;
         bool adsFrame = frameMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||

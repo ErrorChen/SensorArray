@@ -203,7 +203,10 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     }
     /* MODE?/STATE? intentionally report the complete immutable hardware
      * snapshot (matrix excitation, ADS reference, VBIAS and PGA separately). */
-    char response[384];
+    /* STATE now includes independently verified FDC sleep state in addition
+     * to the immutable ADS/route snapshot. Keep one bounded control response;
+     * data-frame slots and their 1536-byte contract are unchanged. */
+    char response[512];
     esp_err_t err = sensorarrayScanConfigHandleCommand((const char *)data, length,
                                                         response, sizeof(response));
     if (err == ESP_ERR_NOT_SUPPORTED) {

@@ -46,7 +46,11 @@ CAP/VOLT/RES 下是否停止 conversion、开启 INTREF/VBIAS 以及选择哪个
 | `ads126xAdcConfigure()` | Core ADC configuration. |
 | `ads126xAdcSetRefMux()`, `ads126xAdcSetInputMux()` | Reference and input mux selection. |
 | `ads126xAdcSetPgaGain()`, `ads126xAdcSetPgaBypass()`, `ads126xAdcSetInputMuxVerified()` | Bounded write/readback for PGA, verified MODE2 bypass, and input-mux updates. |
+| `ads126xAdcBuildMode2()`, `ads126xAdcSetMode2Fast()`, `ads126xAdcSetMode2Verified()` | Reuse the driver MODE2 encoder for cached hot-path writes or explicit readback verification. |
+| `ads126xAdcSetInputMuxFast()` | Write a changed matrix INPMUX without unconditional per-cell readback; the measurement shadow decides when verification is required. |
 | `ads126xAdcReadCoreRegisters()` | Critical POWER/MODE2/INPMUX/REFMUX diagnostic/readback snapshot. |
+| `ads126xAdcReadAdc1RegisterSnapshot()`, `ads126xAdcRestoreAdc1RegisterSnapshot()` | Save/restore and fully verify POWER, INTERFACE, MODE0/1/2, INPMUX, REFMUX, OFCAL and FSCAL around battery/ADSCHK transactions. |
+| `ads126xAdcIsAdc1Running()`, `ads126xAdcIsAdc2Running()` | Report driver-tracked running state so an ADS1263 transaction can preserve ADC2 while ADS1262 remains ADC1-only. |
 | `ads126xAdcStatusByteHasAdc1NewData()`, `ads126xAdcStatusByteHasReferenceAlarm()`, `ads126xAdcStatusByteHasPgaAlarm()` | Decode fresh conversion, reference, and PGA absolute/differential status. |
 | `ads126xAdcReadSingleDiffUv()` | One differential ADC1 read with mux/settle/discard/final conversion. |
 | `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()` | ADC1 conversion control and readout. |

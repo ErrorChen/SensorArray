@@ -40,6 +40,11 @@ def main() -> int:
     parser.add_argument("--rows", default="")
     parser.add_argument("--stream", choices=("data", "log", "all"))
     parser.add_argument("--tx", choices=("rel", "rt"))
+    parser.add_argument(
+        "--command", action="append", default=[],
+        help=("Additional control command, for example ADSCHK=100, BAT?, "
+              "BATNOW, or BATPERIOD=1000."),
+    )
     parser.add_argument("--show-cap", action="store_true")
     parser.add_argument("--show-log", action="store_true")
     args = parser.parse_args()
@@ -93,6 +98,9 @@ def main() -> int:
     if args.tx:
         ctrl.sendto(f"TX={args.tx}\n".encode(), (target, args.ctrl_port))
     ctrl.sendto(b"ST=wifi\n", (target, args.ctrl_port))
+    for command in args.command:
+        wire = command if command.endswith("\n") else command + "\n"
+        ctrl.sendto(wire.encode("ascii"), (target, args.ctrl_port))
     if args.set_rows:
         ctrl.sendto(f"ROWS={args.set_rows}\n".encode(), (target, args.ctrl_port))
     started = time.monotonic()

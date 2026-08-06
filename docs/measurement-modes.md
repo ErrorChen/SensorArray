@@ -34,11 +34,17 @@ payload/freshness 和 ADS PGA cache，但不破坏 FDC 生产校准 cache。
 停止 conversion 并退回安全状态。CAP、VOLT、RES 的模拟建立和转换时间不同，
 所以其 FPS 不保证相同；以运行时 `dur`、队列、drop、heap 和 stack telemetry 为准。
 
-RES 在每次换 row 时先停止 ADC1、关闭 INTREF、把 SW 拉高以钳住 REFOUT，再选择
-TMUX1108 row；随后 SW 拉低释放 REFOUT、重新开启 INTREF、核对 POWER/REFMUX 并
-执行有限 settle/discard。这样不会把仍在输出的 REFOUT 直接短接到 GND。VOLT/RES
-分别由 `CONFIG_SENSORARRAY_ADS_VOLT_TARGET_FPS` 和
-`CONFIG_SENSORARRAY_ADS_RES_TARGET_FPS` 独立限速，默认均为 3 FPS。
+进入 RES 时先按完整安全流程释放 Q1 clamp、开启 INTREF/REFOUT 并 readback。
+原理图显示 TMUX1108 EN 只有上拉、不可由 MCU 控制；session 内换 row 的默认快路径
+因此只在当前 source 已确认是 REF 时改变 A0..A2，依赖 TMUX1108 器件级
+break-before-make，再等待运行时 `RESSETTLE` 并核对 GPIO、POWER、REFMUX。配置关闭
+快路径时仍使用逐行 STOP1/INTREF-off/Q1-clamp 的保守序列。绝不能在 Q1 clamp
+REFOUT 到 GND 时开启 INTREF。
+
+VOLT/RES 始终扫描每个活动 row 的 D1..D8。两个 target FPS 默认 `0=unlimited`；
+`FPSCAP=OFF` 关闭 Core 1 limiter，`OUTCAP` 仅在 Core 0 丢弃/节流输出。进入
+VOLT/RES 时双 FDC 只在模式边界 sleep 并各 readback 一次，`MODE?`/`STATE?`
+报告 active/sleep 和 verified；返回 CAP 后才恢复 worker。
 
 ## Australian English
 
@@ -53,5 +59,8 @@ are separate states. The table above is the authoritative board profile. A
 failed readback or conversion removes excitation, stops conversion, invalidates
 old data, and enters a safe/degraded state. During a resistance row change,
 ADC1 and INTREF are stopped before REFOUT is clamped; excitation is restored
-only after the row has changed. Mode frame rates can differ and VOLT/RES use
-independent configurable 3 fps defaults.
+only after the row has changed. On this board TMUX1108 EN is pull-up only, so
+the normal RES-session row change keeps INTREF active and uses the device's
+break-before-make address transition plus a configurable, readback-checked
+settle. The clamp/restart sequence remains the fallback. VOLT/RES capture
+targets default to unlimited; output caps never pace Core 1 acquisition.

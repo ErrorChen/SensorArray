@@ -3,6 +3,7 @@
 #include <limits.h>
 
 #include "sensorarrayAdsAutoRange.h"
+#include "sensorarrayAdsCache.h"
 #include "sensorarrayAdsMath.h"
 #include "sensorarrayMeasurementMode.h"
 #include "sensorarrayRoutePolicy.h"
@@ -310,23 +311,32 @@ bool sensorarrayMeasurementSelfTestRun(
         range.action == SENSORARRAY_ADS_AUTORANGE_FAIL &&
         range.error == SENSORARRAY_CELL_ERROR_PGA_ABSOLUTE);
 
-    sensorarrayAdsGainCache_t gainCache;
-    sensorarrayAdsGainCacheInit(&gainCache);
-    sensorarrayAdsGainCacheStore(&gainCache,
-                                 SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
-                                 3u,
-                                 8u);
-    uint8_t gain = 0u;
+    sensorarrayAdsProfileCache_t profileCache;
+    sensorarrayAdsProfileCacheInit(&profileCache);
     SENSORARRAY_SELF_CHECK(outResult,
-        sensorarrayAdsGainCacheGet(&gainCache,
-                                   SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
-                                   3u,
-                                   &gain) && gain == 8u);
-    sensorarrayAdsGainCacheInvalidate(&gainCache);
+        sensorarrayAdsProfileCacheStore(&profileCache,
+                                        SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+                                        3u,
+                                        SENSORARRAY_ADS_INPUT_BYPASS,
+                                        1u,
+                                        7u));
+    sensorarrayAdsCellProfile_t profile = {0};
     SENSORARRAY_SELF_CHECK(outResult,
-        !sensorarrayAdsGainCacheGet(&gainCache,
-                                    SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
-                                    3u,
-                                    &gain));
+        sensorarrayAdsProfileCacheGet(&profileCache,
+                                      SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+                                      3u,
+                                      &profile) &&
+        profile.inputMode == SENSORARRAY_ADS_INPUT_BYPASS);
+    SENSORARRAY_SELF_CHECK(outResult,
+        !sensorarrayAdsProfileCacheGet(&profileCache,
+                                       SENSORARRAY_MEASUREMENT_MODE_RESISTANCE,
+                                       3u,
+                                       &profile));
+    sensorarrayAdsProfileCacheInvalidate(&profileCache);
+    SENSORARRAY_SELF_CHECK(outResult,
+        !sensorarrayAdsProfileCacheGet(&profileCache,
+                                       SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+                                       3u,
+                                       &profile));
     return true;
 }
