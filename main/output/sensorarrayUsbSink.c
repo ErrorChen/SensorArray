@@ -35,6 +35,8 @@ static QueueHandle_t s_usbQueue;
 static TaskHandle_t s_usbTask;
 static portMUX_TYPE s_usbStatsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbSinkStats_t s_usbStats;
+/* Owned exclusively by sensorarrayUsbSinkTask. */
+static sensorarrayTextPacket_t s_usbTaskPacket;
 /* Publish is owned by the single async-log task. A fixed discard slot avoids
  * adding another 1536-byte packet to that caller's stack when the queue is
  * full and the oldest summary is intentionally replaced. */
@@ -47,19 +49,21 @@ static void sensorarrayUsbSinkTask(void *arg)
            (int)xPortGetCoreID(),
            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
 
-    sensorarrayTextPacket_t packet;
     while (true) {
-        if (xQueueReceive(s_usbQueue, &packet, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(s_usbQueue, &s_usbTaskPacket, portMAX_DELAY) != pdTRUE) {
             continue;
         }
 
         int64_t startUs = esp_timer_get_time();
-        size_t written = fwrite(packet.data, 1u, packet.length, stdout);
+        size_t written = fwrite(s_usbTaskPacket.data,
+                                1u,
+                                s_usbTaskPacket.length,
+                                stdout);
         fflush(stdout);
         uint32_t writeUs = (uint32_t)(esp_timer_get_time() - startUs);
 
         portENTER_CRITICAL(&s_usbStatsMux);
-        if (written == packet.length) {
+        if (written == s_usbTaskPacket.length) {
             s_usbStats.sentPackets++;
             s_usbStats.sentBytes += written;
         } else {
@@ -145,4 +149,8 @@ void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats)
     portENTER_CRITICAL(&s_usbStatsMux);
     *outStats = s_usbStats;
     portEXIT_CRITICAL(&s_usbStatsMux);
+    outStats->taskConfiguredBytes = CONFIG_SENSORARRAY_USB_SINK_TASK_STACK;
+    outStats->taskMinimumRemainingBytes = s_usbTask ?
+        (uint32_t)uxTaskGetStackHighWaterMark(s_usbTask) *
+            (uint32_t)sizeof(StackType_t) : 0u;
 }

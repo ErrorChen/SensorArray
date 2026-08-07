@@ -120,6 +120,15 @@ config SENSORARRAY_SERIAL_CTRL_TASK_STACK
         response formatting. Keep enough headroom for the bounded 512-byte
         response and snapshot locals on the Core 0 control task.
 
+config SENSORARRAY_TRANSPORT_TASK_STACK
+    int "Transport descriptor consumer task stack bytes"
+    default 6144
+    range 4096 12288
+    help
+        The transport queue stores only small descriptors. Payloads live in a
+        preallocated static slot pool, so this task must never need a complete
+        1536-byte queue item on its stack.
+
 config SENSORARRAY_BLE_CTRL_TASK_PRIORITY
     int "BLE control task priority"
     default 6

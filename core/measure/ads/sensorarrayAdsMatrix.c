@@ -870,6 +870,16 @@ static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
         (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
         outRail);
     if (!valid) {
+        /* VOLT clamps the shared REF/REFOUT node through Q1.  Enabling INTREF
+         * there to refresh the rail monitor would violate the board route;
+         * VOLT therefore accepts only the non-expiring external RAILCFG that
+         * was checked before the route transition. */
+        if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+            if (outGap) {
+                *outGap = gap;
+            }
+            return false;
+        }
         if (sensorarrayAdsGapRefreshRailAtBoundary(engine->state, sequence) != ESP_OK) {
             if (outGap) {
                 *outGap = gap;

@@ -7,6 +7,8 @@
 #include "sensorarrayTransportChannels.h"
 #include "sensorarrayWifi.h"
 
+#define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
+
 typedef enum {
     SENSORARRAY_TRANSPORT_REPLY_SERIAL = 0,
     SENSORARRAY_TRANSPORT_REPLY_BLE,
@@ -60,8 +62,31 @@ typedef struct {
     uint32_t bleCtrlTx;
     uint32_t bleCongested;
     uint32_t queueDrop;
+    uint32_t queueDropData;
+    uint32_t queueDropLog;
+    uint32_t transportSlotUsed;
+    uint32_t transportSlotHighWater;
+    uint32_t transportSlotAllocFail;
+    uint32_t transportSlotReleaseMismatch;
+    uint32_t transportStaleDescriptor;
     uint32_t blockCount;
 } sensorarrayTransportStats_t;
+
+typedef struct {
+    uint32_t legacyItemBytes;
+    uint32_t payloadSlotBytes;
+    uint32_t descriptorBytes;
+    uint32_t legacyQueueStorageBytes;
+    uint32_t descriptorQueueStorageBytes;
+    uint32_t payloadPoolBytes;
+} sensorarrayTransportMemoryDiagnostics_t;
+
+typedef struct {
+    uint32_t transportConfiguredBytes;
+    uint32_t transportMinimumRemainingBytes;
+    uint32_t serialCtrlConfiguredBytes;
+    uint32_t serialCtrlMinimumRemainingBytes;
+} sensorarrayTransportTaskStackStats_t;
 
 typedef esp_err_t (*sensorarrayTransportLegacyCommandCallback_t)(const uint8_t *data,
                                                                  size_t length,
@@ -90,6 +115,10 @@ void sensorarrayTransportSetRuntimeQueryCallback(
     sensorarrayTransportRuntimeQueryCallback_t callback,
     void *context);
 void sensorarrayTransportGetStats(sensorarrayTransportStats_t *outStats);
+void sensorarrayTransportGetMemoryDiagnostics(
+    sensorarrayTransportMemoryDiagnostics_t *outDiagnostics);
+void sensorarrayTransportGetTaskStackStats(
+    sensorarrayTransportTaskStackStats_t *outStats);
 void sensorarrayTransportNoteSerialData(bool sent);
 void sensorarrayTransportNoteSerialLog(bool sent);
 void sensorarrayTransportSetTxMode(sensorarrayTransportTxMode_t mode);
@@ -100,6 +129,7 @@ void sensorarrayTransportSetWifiMode(sensorarrayTransportWifiMode_t mode);
 sensorarrayTransportWifiMode_t sensorarrayTransportGetWifiMode(void);
 bool sensorarrayTransportSerialSinkEnabled(void);
 bool sensorarrayTransportBleSinkEnabled(void);
+bool sensorarrayTransportBleChannelEnabled(sensorarrayTransportChannel_t channel);
 bool sensorarrayTransportWifiSinkEnabled(void);
 const char *sensorarrayTransportTxModeName(sensorarrayTransportTxMode_t mode);
 const char *sensorarrayTransportStreamName(sensorarrayTransportStream_t stream);

@@ -13,7 +13,8 @@ INVALID_CAP_FIXED = -1_000_000
 SUMMARY_TAGS = {
     "S50", "F50", "A50", "O50", "SF50", "TR50", "AB50", "OT50",
     "BL50", "I2C50", "ADS50", "ADST50", "ADSCHK", "ADSCHKSTAT",
-    "ABAT", "BATPERIOD", "RESSETTLE",
+    "ABAT", "BATPERIOD", "RESSETTLE", "R50", "T50", "ROW50", "FB50",
+    "P50", "H50", "STK50", "TXDROP", "BLECORRUPT", "CMDERR", "RST",
 }
 
 
@@ -95,6 +96,7 @@ class ProtocolCounters:
     malformed: int = 0
     sequence_gaps: int = 0
     missing_frames: int = 0
+    sequence_regressions: int = 0
     non_ascii_chunks: int = 0
     summary_lines: int = 0
 
@@ -121,7 +123,6 @@ class FragmentReassembler:
             "C": FragmentStats(),
         }
         self._messages: dict[tuple[str, int], dict[str, object]] = {}
-        self._last_mid: dict[str, Optional[int]] = {"D": None, "L": None, "C": None}
 
     def feed(self, fallback_channel: str, payload: bytes) -> list[tuple[str, bytes]]:
         if not payload.startswith(b"G,"):
@@ -187,12 +188,11 @@ class FragmentReassembler:
         if (zlib.crc32(assembled) & 0xFFFFFFFF) != expected_crc:
             self.stats[ch].crc_fail += 1
             return []
-        last = self._last_mid[ch]
-        if last is not None and mid > last + 1:
-            gap = mid - last - 1
-            self.stats[ch].missing += gap
-            self.stats[ch].gap += gap
-        self._last_mid[ch] = mid
+        # Raw messages and fragmented envelopes share the firmware's message
+        # ID counter, but raw ATT values do not carry that ID on the wire.
+        # Therefore only the indices/count/length/CRC inside one envelope are
+        # knowable; a jump between two observed fragmented IDs is not evidence
+        # that a BLE message was lost.
         self.stats[ch].ok += 1
         return [(ch, assembled)]
 
@@ -248,6 +248,20 @@ class TextProtocolParser:
             return self._start_cap_frame(line)
         if tag in {"V", "R"}:
             return self._start_measurement_frame(line, tag)
+        # Diagnostic names such as P50 intentionally share the leading
+        # letter used by packed PGA rows (P0..P3). Recognize the explicit
+        # summary registry first so valid P50 telemetry is not reported as an
+        # orphan measurement chunk.
+        if tag in SUMMARY_TAGS:
+            fields = parse_fields(line)
+            self.latest_fields[tag] = fields
+            self.counters.summary_lines += 1
+            if tag in {"A50", "AB50", "ABAT"} and "bt" in fields:
+                try:
+                    self.latest_battery_mv = int(fields["bt"])
+                except ValueError:
+                    self.counters.malformed += 1
+            return None
         if len(tag) >= 2 and tag[0] == "D" and tag[1:].isdigit():
             if self._current_tag == "C":
                 self._add_cap_chunk(line, int(tag[1:]))
@@ -265,16 +279,6 @@ class TextProtocolParser:
             if self._current_tag in {"V", "R"}:
                 return self._finish_measurement_frame(line)
             self.counters.malformed += 1
-            return None
-        if tag in SUMMARY_TAGS:
-            fields = parse_fields(line)
-            self.latest_fields[tag] = fields
-            self.counters.summary_lines += 1
-            if tag in {"A50", "AB50", "ABAT"} and "bt" in fields:
-                try:
-                    self.latest_battery_mv = int(fields["bt"])
-                except ValueError:
-                    self.counters.malformed += 1
             return None
         return None
 
@@ -543,6 +547,7 @@ class TextProtocolParser:
             self.counters.missing_frames += sequence - self._last_sequence - 1
         elif self._last_sequence is not None and sequence <= self._last_sequence:
             self.counters.sequence_gaps += 1
+            self.counters.sequence_regressions += 1
         self._last_sequence = sequence
 
     def cap_fps(self) -> float:

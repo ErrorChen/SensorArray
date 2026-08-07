@@ -1,79 +1,101 @@
-# SensorArray architecture / SensorArray 架构
+# 软件架构
 
-## 中文说明
+## 设计目标
 
-当前源码采用两个异步域和分层硬件所有权：
+固件把硬件采集与输出传输分成两个异步域：
 
 ```text
-Core 0: shared command parser -> CommandMailbox
-        TextFrameBus/EventRing -> Serial/BLE/Wi-Fi sinks and backpressure
-
-Core 1: complete-frame boundary -> mode/route owner -> FDC or ADS acquisition
-        -> frame assembly -> one C/V/R fixed-slot formatting operation
+Serial / BLE FF10 / Wi-Fi CTRL
+              |
+              v
+      共享 command handler                 Core 0
+              |
+              v
+      有界 CommandMailbox
+              |
+              v
+完整帧边界 -> mode/route owner -> FDC 或 ADS -> frame builder   Core 1
+                                           |
+                                           v
+                               TextFrameBus / EventRing
+                                           |
+                         +-----------------+----------------+
+                         v                 v                v
+                      USB sink      transport DATA/LOG   async log
+                                         |
+                                  BLE / Wi-Fi sinks          Core 0
 ```
 
-| 层 | 路径 | 责任 |
-|---|---|---|
-| 应用编排 | `main/main.c` | task 生命周期、mailbox 消费、帧边界 mode apply、engine dispatch、异步发布；不写 route GPIO 或芯片寄存器。 |
-| 控制/输出 | `main/control`, `main/output`, `main/net` | 共享命令、fixed TextFrameBus、EventRing 和 Core 0 sinks；callback 不切硬件。 |
-| 板级真源 | `core/board` | S/D、D->AIN、SELA/SELB、SW physical/logical、matrix REF、INTREF/VBIAS/REFMUX mode profiles。 |
-| 测量策略 | `core/measure` | 唯一 mode 状态机、安全 transition、route ownership、FDC/ADS frame semantics。 |
-| ADS 算法 | `core/measure/ads` | 动态行 ADC1 scan、rail/math/calibration、autorange、fresh/status/error。 |
-| FDC 生产路径 | `core/measure/fdc` | 原有双 worker row epoch、cache、freshness、sweep/rescue；不被 ADS 模式重写。 |
-| 资源 | `core/boardSupport` | SPI/I2C/GPIO lifecycle、ISR service 和 guarded recovery。 |
-| 芯片驱动 | `components/*` | ADS126x SPI、FDC2214 I2C、TMUX GPIO primitives；不知道 mode、cell 或 frame。 |
-| 通用同步引擎 | `core/matrixEngine` | 非生产 reusable executor；不接入双核异步 mode runtime。 |
+核心原则：
 
-`sensorarrayMeasurementModeContext_t` 是唯一权威模式状态。Core 0 对 MODE 请求
-立即发布 accepted 并写 mailbox；只有 Core 1 能在完整帧后进入 TRANSITION、先撤销
-矩阵激励、停止 conversion、切 TMUX/SELA/SELB、配置并 readback frontend、settle/
-discard、失效旧 payload/PGA cache、增加 generation 并发布 applied。transition
-期间不构造普通帧，所以一帧不会混入两个 mode。错误统一回到无激励 SAFE/
-DEGRADED。
+- Core 1 独占测量模式、矩阵路由与 ADS/FDC acquisition；
+- BLE callback、Serial control task 和 Wi-Fi control task 不能直接改硬件；
+- 一帧只属于一个 mode/generation/request ID；
+- DATA/LOG 发送有界且非阻塞，网络拥塞不能反压 acquisition；
+- control reply 使用独立路径，不与 measurement DATA 争抢通用 transport payload slot。
 
-CAP 的双 FDC worker、row epoch、freshness、cache/rescue 和 C/D/K 字节保持原路径。
-VOLT/RES 使用 ADS1262 与 ADS1263 都具备的 ADC1；ADC2 能力由运行时 ID 决定。
-Core 1 只格式化一次，Core 0 sink 复用同一 slot；队列满时丢旧保新，不反压采集。
+## 模块职责
 
-ADS 访问由 `NONE/MATRIX/BATTERY/ADSCHK/RAIL/ZERO` owner 串行化。register shadow
-属于 ADS context；per-mode/per-cell profile 和 value/noise cache 属于 matrix engine；
-rail fingerprint 连接 rail 状态与 cache generation；time-based battery scheduler 只做
-due/admission 决策，仍调用现有 `sensorarrayAdsGap` transaction。外部 transaction
-保存完整 register/running snapshot，恢复并 readback 后更新 shadow；恢复失败则
-invalidate 所有硬件假设并阻止普通 valid frame。
+| 模块 | 职责 | 不应承担 |
+| --- | --- | --- |
+| `core/board` | 引脚、D-line、SELA/SELB、SW、matrix REF 与 ADS profile 真源 | 文本协议与网络策略 |
+| `core/boardSupport` | I2C、SPI、GPIO、中断服务与资源生命周期 | mode 业务语义 |
+| `core/measure` | mode 状态机、安全 transition、FDC/ADS frame 语义 | BLE/Wi-Fi 发送 |
+| `core/measure/fdc` | 双 FDC worker、row epoch、freshness、cache/rescue | ADS 矩阵算法 |
+| `core/measure/ads` | ADS 矩阵、rail、battery、math、PGA/autorange | transport 选择 |
+| `core/config` | active/pending rows 与 generation | 直接执行 row scan |
+| `core/transport` | DATA/LOG sink 选择、slot/descriptor、统计与 control reply | 改变模拟路由 |
+| `components/sensorarrayBle` | GATT、CCCD、分片、BLE slot/descriptor 与连接生命周期 | 解析业务命令 |
+| `components/sensorarrayWifi` | SoftAP、UDP socket 与 peer reply | STA 配网持久化 |
+| `main/control` | 跨 transport 的命令 mailbox | 在 Core 0 应用硬件命令 |
+| `main/output` | 文本格式、异步日志、USB sink | 改变采集时序 |
+| `main/main.c` | 生命周期、帧边界 apply、engine 调度 | 重复芯片 driver 逻辑 |
 
-VOLT/RES 的物理 acquisition 默认 unlimited，输出 cap 位于 Core 0。Core 1 将每帧
-64-cell 数据格式化一次；cache/timing telemetry 使用独立固定 text slot，避免扩张
-V/R 1536-byte wire 上界。CAP gap battery 只有在预算大于估计 duration+guard 时
-admit；VOLT/RES battery 与 ADSCHK 只在完整帧之后运行。
+## 命令生命周期
 
-## Australian English Documentation
+命令按以下优先级解析：
 
-The firmware has two asynchronous domains. Core 0 owns the shared command
-parser, non-blocking mailbox, TextFrameBus/EventRing, and Serial/BLE/Wi-Fi
-sinks. Core 1 owns frame-boundary configuration, analogue routes, FDC/ADS
-conversion, frame assembly, and one fixed-slot formatting operation.
+1. `sensorarrayScanConfigHandleCommand()`：`ROWS*`；
+2. transport runtime handler：`TX/ST/BTX/WIFI`；
+3. main runtime query callback：`MODE/STATE/RAIL/CELL/BAT/ADS/...`；
+4. legacy mailbox callback：兼容性与低频诊断命令。
 
-Board meaning belongs in `core/board`; measurement policy and the single mode
-state belong in `core/measure`; chip drivers remain unaware of matrix modes and
-wire frames. CAP preserves the established dual-FDC worker epoch. VOLT/RES use
-the independent ADS ADC1 engine, fixed-point math, fresh-generation checks and
-autorange. A failed transition removes excitation and enters SAFE/DEGRADED;
-ordinary frames are suppressed during transition and never mix modes.
+查询通常立即读取 snapshot。会改变采集或诊断状态的命令先返回 accepted，再由 Core 1 在完整帧边界处理。CommandMailbox 满时保留最新 operator intent，不允许阻塞 BLE callback。
 
-See [measurement modes](measurement-modes.md),
-[measurement protocol](measurement-protocol.md), and
-[software integration](software-integration.md).
+## Transport payload 所有权
 
-## Auxiliary ADS ownership and deadline semantics
+通用 DATA/LOG transport 使用预分配静态 payload pool 和小 descriptor queue：
 
-The battery scheduler owns no SPI driver and creates no task. It only decides
-due/gap/boundary policy from `esp_timer_get_time()`; the existing Core 1
-`sensorarrayAdsGap` transaction acquires the shared ADS owner. Deadlines advance
-from the previous absolute due time, not job completion. CAP first attempts
-admission into an FDC conversion gap. If the complete measured duration plus
-guard cannot fit, the same complete frame boundary runs the job; VOLT/RES only
-offer complete matrix boundaries. Register shadow generation is saved and the
-restored POWER/MODE2/INPMUX/REFMUX state is read back before ownership returns.
-Restore failure invalidates matrix assumptions and enters SAFE/DEGRADED rather
-than publishing a normal valid frame.
+- 4 个 payload slot；
+- DATA descriptor queue 深度 2；
+- LOG descriptor queue 深度 2；
+- consumer 同时可独占 1 个 slot；
+- consumer 始终先取 DATA；
+- LOG 同时占用的 payload slot 硬上限为 2，因此 4-slot pool 始终至少为 measurement DATA 保留 2 个 slot；
+- enqueue 为 `xQueueSend(..., 0)`，pool/queue 满时按 channel 统计并丢弃，不等待网络。
+
+producer 在短临界区内只分配 `inUse/generation`，1536-byte copy 和 metadata 解析在临界区外完成。consumer 校验 slot index、generation、length 与 ownership，发送完毕后释放。禁止在 hot path 使用 `malloc(1536)`。
+
+BLE 组件内部继续使用自己的 fixed slot + descriptor queue；通用 transport 不复制或破坏 BLE 的连接 generation 所有权模型。
+
+## Async logger workspace
+
+`sensorarrayLogTask` 使用一个 task-owned 静态 workspace 保存 summary、frame 与 text packet scratch。只有该 task 可以直接访问 workspace；按对象生命周期 reset，不能每帧 `memset` 整个 workspace。这样可以避免多个 1536-byte packet 和 frame 同时常驻 task stack。
+
+## Backpressure 与优先级
+
+```text
+control reply > measurement DATA > diagnostic LOG
+```
+
+- control reply 使用 BLE CTRL slot 或源端 peer reply；
+- DATA/LOG 使用通用 transport pool，但 DATA 有独立 queue 并优先消费；
+- BLE/Wi-Fi/USB 各自统计 sent/drop；
+- disconnect 会清订阅、递增 connection generation，并 drain BLE queues；
+- stale descriptor、release mismatch 与 CRC mismatch 必须计数，不能静默忽略。
+
+## 状态一致性
+
+mode request 的 accepted 与 applied 是两个事件。Core 1 transition 会先撤销激励、停止 conversion、切换前端、配置并 readback，再更新 generation。失败时进入 SAFE/DEGRADED，不发布伪造的正常帧。
+
+`MODE?`/`STATE?` 读取不可变 snapshot，不触碰硬件；host 在切换后必须丢弃旧 generation 数据。

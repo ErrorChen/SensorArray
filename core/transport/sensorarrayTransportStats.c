@@ -1,6 +1,7 @@
 #include "sensorarrayTransportInternal.h"
 
 #include "sensorarrayBle.h"
+#include "sensorarrayTransportPolicy.h"
 #include "sensorarrayWifi.h"
 
 sensorarrayTransportStats_t g_sensorarrayTransportStats;
@@ -141,13 +142,23 @@ bool sensorarrayTransportSerialSinkEnabled(void)
 
 bool sensorarrayTransportBleSinkEnabled(void)
 {
-    if (sensorarrayTransportGetStream() == SENSORARRAY_TRANSPORT_STREAM_AUTO) {
-        return sensorarrayBleIsConnected() &&
-               (sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_DATA) ||
-                sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_LOG));
-    }
-    return sensorarrayTransportStreamHas(sensorarrayTransportGetStream(),
-                                        SENSORARRAY_TRANSPORT_STREAM_BLE);
+    return sensorarrayTransportBleChannelEnabled(SENSORARRAY_TRANSPORT_CHANNEL_DATA) ||
+           sensorarrayTransportBleChannelEnabled(SENSORARRAY_TRANSPORT_CHANNEL_LOG);
+}
+
+bool sensorarrayTransportBleChannelEnabled(sensorarrayTransportChannel_t channel)
+{
+    sensorarrayTransportStream_t stream = sensorarrayTransportGetStream();
+    bool streamWantsBle = stream == SENSORARRAY_TRANSPORT_STREAM_AUTO ||
+                          sensorarrayTransportStreamHas(
+                              stream,
+                              SENSORARRAY_TRANSPORT_STREAM_BLE);
+    return sensorarrayTransportBlePolicyAllows(
+        streamWantsBle,
+        sensorarrayBleIsConnected(),
+        sensorarrayBleCanSend(SENSORARRAY_BLE_CH_DATA),
+        sensorarrayBleCanSend(SENSORARRAY_BLE_CH_LOG),
+        channel);
 }
 
 bool sensorarrayTransportWifiSinkEnabled(void)

@@ -420,11 +420,12 @@ static esp_err_t boardSupportI2cValidateCtx(const BoardSupportI2cCtx_t *ctx)
 
 static void boardSupportI2cLogMem(const char *stage, const BoardSupportI2cCtx_t *ctx, esp_err_t err)
 {
-    printf("BOARD_I2C_MEM,stage=%s,port=%d,err=%ld,stackHighWaterWords=%u,freeHeap=%u,minFreeHeap=%u\n",
+    printf("BOARD_I2C_MEM,stage=%s,port=%d,err=%ld,stackHighWaterBytes=%lu,freeHeap=%u,minFreeHeap=%u\n",
            stage ? stage : "na",
            ctx ? (int)ctx->Port : -1,
            (long)err,
-           (unsigned)uxTaskGetStackHighWaterMark(NULL),
+           (unsigned long)((uint64_t)uxTaskGetStackHighWaterMark(NULL) *
+                           sizeof(StackType_t)),
            (unsigned)esp_get_free_heap_size(),
            (unsigned)esp_get_minimum_free_heap_size());
 }

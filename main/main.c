@@ -273,11 +273,12 @@ static void sensorarrayLogRuntimeMemoryDiag(const char *stage,
     if (freeHeap >= 49152u && minFreeHeap >= 32768u) {
         return;
     }
-    printf("APP_MEM_WARN,stage=%s,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeHeap=%u,minFreeHeap=%u\n",
+    printf("APP_MEM_WARN,stage=%s,ctx=%p,ctxSize=%u,stackHighWaterBytes=%lu,freeHeap=%u,minFreeHeap=%u\n",
            stage ? stage : SENSORARRAY_NA,
            (const void *)ctx,
            (unsigned)sizeof(sensorarrayAppContext_t),
-           (unsigned)uxTaskGetStackHighWaterMark(NULL),
+           (unsigned long)((uint64_t)uxTaskGetStackHighWaterMark(NULL) *
+                           sizeof(StackType_t)),
            (unsigned)freeHeap,
            (unsigned)minFreeHeap);
 }
@@ -289,10 +290,11 @@ static void sensorarrayLogRuntimeMemorySummary(const sensorarrayAppContext_t *ct
     uint32_t freeAfter = esp_get_free_heap_size();
     uint32_t minFreeAfter = esp_get_minimum_free_heap_size();
     uint32_t minFreeHeap = minFreeBefore < minFreeAfter ? minFreeBefore : minFreeAfter;
-    printf("APP_MEM,stage=runtime,ctx=%p,ctxSize=%u,stackHighWaterWords=%u,freeBefore=%u,freeAfter=%u,minFreeHeap=%u,delta=%ld\n",
+    printf("APP_MEM,stage=runtime,ctx=%p,ctxSize=%u,stackHighWaterBytes=%lu,freeBefore=%u,freeAfter=%u,minFreeHeap=%u,delta=%ld\n",
            (const void *)ctx,
            (unsigned)sizeof(sensorarrayAppContext_t),
-           (unsigned)uxTaskGetStackHighWaterMark(NULL),
+           (unsigned long)((uint64_t)uxTaskGetStackHighWaterMark(NULL) *
+                           sizeof(StackType_t)),
            (unsigned)freeBefore,
            (unsigned)freeAfter,
            (unsigned)minFreeHeap,
@@ -301,9 +303,10 @@ static void sensorarrayLogRuntimeMemorySummary(const sensorarrayAppContext_t *ct
 
 static void sensorarrayLogStackHighWater(const char *stage)
 {
-    printf("APP_STACK,stage=%s,freeWords=%lu\n",
+    printf("APP_STACK,stage=%s,freeBytes=%lu\n",
            stage ? stage : SENSORARRAY_NA,
-           (unsigned long)uxTaskGetStackHighWaterMark(NULL));
+           (unsigned long)((uint64_t)uxTaskGetStackHighWaterMark(NULL) *
+                           sizeof(StackType_t)));
 }
 
 static uint32_t sensorarrayFrameTargetFps(sensorarrayMeasurementMode_t mode)
@@ -1313,14 +1316,16 @@ static esp_err_t sensorarrayApplyMeasurementMode(sensorarrayAppContext_t *ctx,
     const sensorarrayAdsRailSplit_t *railPtr = NULL;
     esp_err_t err = ESP_OK;
     bool railAvailable = sensorarrayBuildAdsRailSplit(ctx, &rail);
-    if (railAvailable) {
-        railPtr = &rail;
-    } else if (targetMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
-        /* VOLT uses AVDD/AVSS as ADC reference while SW high clamps REFOUT,
-         * so it requires a fresh external (or previously validated) rail
-         * calibration. RES can establish a monitor value after its safe route
-         * has released the clamp. */
+    bool externalRail = sensorarrayAdsGapHasExternalRailCalibration();
+    if (targetMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE &&
+        (!railAvailable || !externalRail)) {
+        /* A monitor rail sampled in RES is usable only while INTREF can be
+         * refreshed. VOLT physically clamps REFOUT, so accepting that source
+         * would create a deterministic fault at age+1. Fail at the command
+         * boundary and require an explicit pre-VOLT RAILCFG instead. */
         err = ESP_ERR_INVALID_STATE;
+    } else if (railAvailable) {
+        railPtr = &rail;
     }
     uint64_t transitionUs = 0u;
     if (err == ESP_OK) {
@@ -1601,9 +1606,9 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                      "ERR,cmd=MODE,reason=snapshot_busy\n");
             return ESP_ERR_TIMEOUT;
         }
-        snprintf(response,
+        int written = snprintf(response,
                  responseSize,
-                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu\n",
+                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu,stackBytes=%lu,stackUnit=bytes\n",
                  sensorarrayMeasurementStateName(mode.state),
                  sensorarrayMeasurementModeName(mode.activeMode),
                  mode.pending ? sensorarrayMeasurementModeName(mode.pendingMode) : "NONE",
@@ -1636,7 +1641,16 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  (unsigned long)esp_get_free_heap_size(),
                  (unsigned long)esp_get_minimum_free_heap_size(),
                  (unsigned long)(ctx->scanTaskHandle ?
-                     uxTaskGetStackHighWaterMark(ctx->scanTaskHandle) : 0u));
+                     uxTaskGetStackHighWaterMark(ctx->scanTaskHandle) : 0u),
+                 (unsigned long)(ctx->scanTaskHandle ?
+                     uxTaskGetStackHighWaterMark(ctx->scanTaskHandle) *
+                         sizeof(StackType_t) : 0u));
+        if (written < 0 || (size_t)written >= responseSize) {
+            (void)snprintf(response,
+                           responseSize,
+                           "ERR,cmd=MODE,reason=response_too_long\n");
+            return ESP_ERR_INVALID_SIZE;
+        }
         return ESP_OK;
     }
     if (strncmp(command, "MODE=", 5u) == 0) {
@@ -1685,6 +1699,16 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                      responseSize,
                      "ERR,cmd=RAILCFG,reason=value,format=RAILCFG=<AVDD_UV>,<negative_AVSS_UV>\n");
             return ESP_ERR_INVALID_ARG;
+        }
+        sensorarrayMeasurementModeSnapshot_t activeMode = {0};
+        if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
+                                                   &activeMode) &&
+            activeMode.activeMode ==
+                SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+            snprintf(response,
+                     responseSize,
+                     "ERR,cmd=RAILCFG,reason=apply_before_volt\n");
+            return ESP_ERR_INVALID_STATE;
         }
         uint32_t requestId = 0u;
         esp_err_t postErr = sensorarrayCommandMailboxPostRailCalibration(

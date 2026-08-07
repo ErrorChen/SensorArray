@@ -19,6 +19,8 @@ typedef struct {
     uint32_t writeUsMax;
     uint32_t queueDepth;
     uint32_t queueDepthMax;
+    uint32_t taskConfiguredBytes;
+    uint32_t taskMinimumRemainingBytes;
 } sensorarrayUsbSinkStats_t;
 
 esp_err_t sensorarrayUsbSinkInit(void);

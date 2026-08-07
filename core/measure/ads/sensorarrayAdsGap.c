@@ -1256,6 +1256,13 @@ esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
     return ESP_OK;
 }
 
+bool sensorarrayAdsGapHasExternalRailCalibration(void)
+{
+    return s_snapshot.initialized && s_snapshot.railValid &&
+           s_railCalibration.source ==
+               SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION;
+}
+
 bool sensorarrayAdsGapCopyRailSplit(uint32_t frameSequence,
                                     uint32_t maximumAgeFrames,
                                     sensorarrayAdsRailSplit_t *outRail)
@@ -1337,7 +1344,13 @@ static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
     if (s_gapMode == SENSORARRAY_ADS_GAP_MODE_ZERO) {
         return SENSORARRAY_ADS_JOB_ZERO;
     }
-    if (frameSequence - s_lastRailFrame >=
+    /* An explicit RAILCFG is the active board calibration.  Periodic monitor
+     * samples are intentionally not allowed to silently replace its source.
+     * An explicit host rail-calibration request remains an intentional source
+     * replacement and is handled by the force branch above. */
+    if (s_railCalibration.source !=
+            SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION &&
+        frameSequence - s_lastRailFrame >=
         (uint32_t)CONFIG_SENSORARRAY_ADS_RAIL_PERIOD_FRAMES) {
         if (sensorarrayAdsInternalReferenceIsUnclamped()) {
             return SENSORARRAY_ADS_JOB_RAIL;

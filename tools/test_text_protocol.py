@@ -38,6 +38,14 @@ def measurement_lines(tag: str, sequence: int, rows: int,
 
 
 class TextProtocolParserTest(unittest.TestCase):
+    def test_p50_summary_is_not_parsed_as_pga_chunk(self) -> None:
+        protocol = TextProtocolParser()
+        self.assertIsNone(
+            protocol.feed_line("P50,prof=360,warn=72,res=0,bg=0"))
+        self.assertEqual(protocol.counters.malformed, 0)
+        self.assertEqual(protocol.counters.summary_lines, 1)
+        self.assertEqual(protocol.latest_fields["P50"]["prof"], "360")
+
     def test_reassembles_dynamic_values_and_validates_crc(self) -> None:
         lines = ["C,seq=7,ts=123,rows=5,cells=40,rf=1F,pf=1F,sf=1F,"
                  "bad=0/0/0,fmt=pf6,n=40"]

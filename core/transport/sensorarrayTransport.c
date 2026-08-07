@@ -15,6 +15,7 @@
 #include "sdkconfig.h"
 #include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
+#include "sensorarrayTransportPool.h"
 #include "sensorarrayWifi.h"
 
 #ifndef CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT
@@ -38,6 +39,9 @@
 #ifndef CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK
 #define CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK 6144
 #endif
+#ifndef CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK
+#define CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK 6144
+#endif
 #ifndef CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT
 #define CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_SHORT 0
 #endif
@@ -45,31 +49,39 @@
 #define CONFIG_SENSORARRAY_TRANSPORT_TX_DEFAULT_FULL 0
 #endif
 
-#define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
-#define SENSORARRAY_TRANSPORT_QUEUE_COUNT 3u
+#define SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT 2u
+#define SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT 2u
+#define SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES 1560u
+#define SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES \
+    (3u * SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES)
 #define SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX 96u
 #define SENSORARRAY_TRANSPORT_CMDERR_HEX_MAX 32u
 #define SENSORARRAY_TRANSPORT_CMDERR_ASCII_MAX 48u
 #define SENSORARRAY_CFG_OUTPUT_WIFI_TEXT (CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT != 0)
 #define SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT (CONFIG_SENSORARRAY_OUTPUT_BLE_CAP_TEXT != 0)
 
-typedef struct {
-    sensorarrayTransportChannel_t channel;
-    uint16_t length;
-    bool hasFrameMeta;
-    uint32_t frameSeq;
-    uint32_t generation;
-    uint32_t requestId;
-    uint8_t rows;
-    uint8_t cells;
-    char data[SENSORARRAY_TRANSPORT_TEXT_MAX];
-} sensorarrayTransportItem_t;
+_Static_assert(SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT >=
+                   SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT +
+                   SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT,
+               "Transport pool must cover the combined descriptor queues");
+_Static_assert(SENSORARRAY_TRANSPORT_TEXT_MAX ==
+                   SENSORARRAY_TRANSPORT_POOL_TEXT_MAX,
+               "Transport public and pool payload limits diverged");
+_Static_assert(SENSORARRAY_TRANSPORT_TEXT_MAX ==
+                   SENSORARRAY_BLE_MESSAGE_VALUE_MAX,
+               "Transport and BLE maximum text sizes diverged");
 
-static StaticQueue_t s_queueStruct;
-static uint8_t s_queueStorage[SENSORARRAY_TRANSPORT_QUEUE_COUNT *
-                              sizeof(sensorarrayTransportItem_t)];
-static QueueHandle_t s_queue;
+static StaticQueue_t s_dataQueueStruct;
+static StaticQueue_t s_logQueueStruct;
+static uint8_t s_dataQueueStorage[SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT *
+                                  sizeof(sensorarrayTransportDescriptor_t)];
+static uint8_t s_logQueueStorage[SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT *
+                                 sizeof(sensorarrayTransportDescriptor_t)];
+static QueueHandle_t s_dataQueue;
+static QueueHandle_t s_logQueue;
+static sensorarrayTransportPool_t s_pool;
 static TaskHandle_t s_task;
+static TaskHandle_t s_serialTask;
 static bool s_started;
 static char s_deviceName[32];
 static char s_mdnsName[32];
@@ -319,7 +331,59 @@ static bool sensorarrayTransportBuildShortData(const char *data,
     return written > 0 && (size_t)written < outSize;
 }
 
-static void sensorarrayTransportFillFrameMeta(sensorarrayTransportItem_t *item)
+static void sensorarrayTransportSyncPoolStatsLocked(void)
+{
+    g_sensorarrayTransportStats.transportSlotUsed = s_pool.stats.used;
+    g_sensorarrayTransportStats.transportSlotHighWater = s_pool.stats.highWater;
+    g_sensorarrayTransportStats.transportSlotAllocFail = s_pool.stats.allocFail;
+    g_sensorarrayTransportStats.transportSlotReleaseMismatch =
+        s_pool.stats.releaseMismatch;
+    g_sensorarrayTransportStats.transportStaleDescriptor =
+        s_pool.stats.staleDescriptor;
+}
+
+static bool sensorarrayTransportAllocateDescriptor(
+    sensorarrayTransportChannel_t channel,
+    size_t length,
+    sensorarrayTransportDescriptor_t *outDescriptor)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    bool allocated = sensorarrayTransportPoolAllocate(&s_pool,
+                                                       channel,
+                                                       length,
+                                                       outDescriptor);
+    sensorarrayTransportSyncPoolStatsLocked();
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    return allocated;
+}
+
+static bool sensorarrayTransportDescriptorCurrent(
+    const sensorarrayTransportDescriptor_t *descriptor)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    bool current = sensorarrayTransportPoolValidate(&s_pool, descriptor);
+    sensorarrayTransportSyncPoolStatsLocked();
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    return current;
+}
+
+static sensorarrayTransportPayloadSlot_t *sensorarrayTransportDescriptorSlot(
+    const sensorarrayTransportDescriptor_t *descriptor)
+{
+    return sensorarrayTransportPoolGetSlot(&s_pool, descriptor);
+}
+
+static bool sensorarrayTransportReleaseDescriptor(
+    const sensorarrayTransportDescriptor_t *descriptor)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    bool released = sensorarrayTransportPoolRelease(&s_pool, descriptor);
+    sensorarrayTransportSyncPoolStatsLocked();
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    return released;
+}
+
+static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t *item)
 {
     bool frameTag = item && item->length >= 2u && item->data[1] == ',' &&
                     (item->data[0] == 'C' || item->data[0] == 'V' ||
@@ -493,45 +557,86 @@ static void sensorarrayTransportPrintNetInit(esp_err_t wifiErr)
            bleOk ? 1u : 0u);
 }
 
+static void sensorarrayTransportProcessDescriptor(
+    const sensorarrayTransportDescriptor_t *descriptor)
+{
+    if (!sensorarrayTransportDescriptorCurrent(descriptor)) {
+        return;
+    }
+
+    sensorarrayTransportPayloadSlot_t *slot =
+        sensorarrayTransportDescriptorSlot(descriptor);
+    sensorarrayTransportChannel_t channel =
+        (sensorarrayTransportChannel_t)descriptor->channel;
+    sensorarrayBleChannel_t bleChannel =
+        channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+            SENSORARRAY_BLE_CH_DATA : SENSORARRAY_BLE_CH_LOG;
+    sensorarrayWifiChannel_t wifiChannel =
+        channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+            SENSORARRAY_WIFI_CH_DATA : SENSORARRAY_WIFI_CH_LOG;
+
+    if (slot && slot->bleConnectionGeneration != 0u &&
+        SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
+        sensorarrayTransportBleChannelEnabled(channel)) {
+        char shortData[192];
+        const char *bleData = slot->data;
+        size_t bleLength = slot->length;
+        if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+            sensorarrayTransportGetTxMode() == SENSORARRAY_TRANSPORT_TX_SHORT &&
+            sensorarrayTransportBuildShortData(slot->data,
+                                               slot->length,
+                                               shortData,
+                                               sizeof(shortData))) {
+            bleData = shortData;
+            bleLength = strlen(shortData);
+        }
+        esp_err_t bleErr = sensorarrayBleNotifyForGeneration(
+            bleChannel,
+            (const uint8_t *)bleData,
+            bleLength,
+            slot->bleConnectionGeneration);
+        sensorarrayTransportStatResult(channel, true, bleErr);
+    }
+    if (slot && sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
+        esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
+                                                    (const uint8_t *)slot->data,
+                                                    slot->length);
+        sensorarrayTransportStatResult(channel, false, sendWifiErr);
+    }
+    if (sensorarrayBleIsCongested()) {
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        g_sensorarrayTransportStats.bleCongested++;
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    }
+    (void)sensorarrayTransportReleaseDescriptor(descriptor);
+}
+
+static bool sensorarrayTransportReceiveNext(
+    sensorarrayTransportDescriptor_t *outDescriptor)
+{
+    if (!outDescriptor) {
+        return false;
+    }
+    /* Measurement data always wins the next consumer turn. LOG has a
+     * dedicated bounded queue, so diagnostics cannot occupy the complete
+     * pending descriptor budget. */
+    if (s_dataQueue && xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
+        return true;
+    }
+    return s_logQueue &&
+           xQueueReceive(s_logQueue, outDescriptor, 0) == pdTRUE;
+}
+
 static void sensorarrayTransportTask(void *arg)
 {
     esp_err_t wifiErr = (esp_err_t)(intptr_t)arg;
     vTaskDelay(pdMS_TO_TICKS(750u));
     sensorarrayTransportPrintNetInit(wifiErr);
-    sensorarrayTransportItem_t item;
-    while (xQueueReceive(s_queue, &item, portMAX_DELAY) == pdTRUE) {
-        sensorarrayBleChannel_t bleChannel = item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
-            SENSORARRAY_BLE_CH_DATA : SENSORARRAY_BLE_CH_LOG;
-        sensorarrayWifiChannel_t wifiChannel = item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
-            SENSORARRAY_WIFI_CH_DATA : SENSORARRAY_WIFI_CH_LOG;
-        if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && sensorarrayTransportBleSinkEnabled()) {
-            char shortData[192];
-            const char *bleData = item.data;
-            size_t bleLength = item.length;
-            if (item.channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
-                sensorarrayTransportGetTxMode() == SENSORARRAY_TRANSPORT_TX_SHORT &&
-                sensorarrayTransportBuildShortData(item.data,
-                                                   item.length,
-                                                   shortData,
-                                                   sizeof(shortData))) {
-                bleData = shortData;
-                bleLength = strlen(shortData);
-            }
-            esp_err_t bleErr = sensorarrayBleNotify(bleChannel,
-                                                    (const uint8_t *)bleData,
-                                                    bleLength);
-            sensorarrayTransportStatResult(item.channel, true, bleErr);
-        }
-        if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
-            esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
-                                                        (const uint8_t *)item.data,
-                                                        item.length);
-            sensorarrayTransportStatResult(item.channel, false, sendWifiErr);
-        }
-        if (sensorarrayBleIsCongested()) {
-            portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
-            g_sensorarrayTransportStats.bleCongested++;
-            portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    sensorarrayTransportDescriptor_t descriptor;
+    for (;;) {
+        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        while (sensorarrayTransportReceiveNext(&descriptor)) {
+            sensorarrayTransportProcessDescriptor(&descriptor);
         }
     }
 }
@@ -540,33 +645,71 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
                                            const char *data,
                                            size_t length)
 {
-    if (!data || length == 0u || length > SENSORARRAY_TRANSPORT_TEXT_MAX) {
+    if (channel > SENSORARRAY_TRANSPORT_CHANNEL_LOG || !data || length == 0u ||
+        length > SENSORARRAY_TRANSPORT_TEXT_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!s_queue) {
+    QueueHandle_t queue = channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+        s_dataQueue : s_logQueue;
+    if (!queue) {
         return ESP_ERR_INVALID_STATE;
     }
-    if ((!SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT || !sensorarrayTransportBleSinkEnabled()) &&
-        !sensorarrayTransportWifiSinkEnabled()) {
+    sensorarrayBleChannel_t bleChannel =
+        channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+            SENSORARRAY_BLE_CH_DATA : SENSORARRAY_BLE_CH_LOG;
+    uint32_t bleConnectionGeneration = 0u;
+    bool bleEnabled = SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
+                      sensorarrayTransportBleChannelEnabled(channel) &&
+                      sensorarrayBleGetSendGeneration(
+                          bleChannel, &bleConnectionGeneration);
+    bool wifiEnabled = sensorarrayTransportWifiSinkEnabled();
+    if (!bleEnabled && !wifiEnabled) {
         return ESP_OK;
     }
-    sensorarrayTransportItem_t item = {.channel = channel, .length = (uint16_t)length};
-    memcpy(item.data, data, length);
-    sensorarrayTransportFillFrameMeta(&item);
-    if (xQueueSend(s_queue, &item, 0) != pdTRUE) {
+
+    sensorarrayTransportDescriptor_t descriptor;
+    if (!sensorarrayTransportAllocateDescriptor(channel, length, &descriptor)) {
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
         g_sensorarrayTransportStats.queueDrop++;
-        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
-        if (item.hasFrameMeta) {
-            printf("TXDROP,ch=%u,seq=%lu,rows=%u,cells=%u,gen=%lu,rid=%lu,reason=transport_queue_full\n",
-                   (unsigned)item.channel,
-                   (unsigned long)item.frameSeq,
-                   (unsigned)item.rows,
-                   (unsigned)item.cells,
-                   (unsigned long)item.generation,
-                   (unsigned long)item.requestId);
+        if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA) {
+            g_sensorarrayTransportStats.queueDropData++;
+        } else {
+            g_sensorarrayTransportStats.queueDropLog++;
         }
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
         return ESP_ERR_TIMEOUT;
+    }
+
+    sensorarrayTransportPayloadSlot_t *slot =
+        sensorarrayTransportDescriptorSlot(&descriptor);
+    slot->bleConnectionGeneration = bleEnabled ?
+        bleConnectionGeneration : 0u;
+    memcpy(slot->data, data, length);
+    slot->data[length] = '\0';
+    sensorarrayTransportFillFrameMeta(slot);
+    if (xQueueSend(queue, &descriptor, 0) != pdTRUE) {
+        if (slot->hasFrameMeta) {
+            printf("TXDROP,ch=%u,seq=%lu,rows=%u,cells=%u,gen=%lu,rid=%lu,reason=transport_queue_full\n",
+                   (unsigned)slot->channel,
+                   (unsigned long)slot->frameSeq,
+                   (unsigned)slot->rows,
+                   (unsigned)slot->cells,
+                   (unsigned long)slot->generation,
+                   (unsigned long)slot->requestId);
+        }
+        (void)sensorarrayTransportReleaseDescriptor(&descriptor);
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        g_sensorarrayTransportStats.queueDrop++;
+        if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA) {
+            g_sensorarrayTransportStats.queueDropData++;
+        } else {
+            g_sensorarrayTransportStats.queueDropLog++;
+        }
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        return ESP_ERR_TIMEOUT;
+    }
+    if (s_task) {
+        xTaskNotifyGive(s_task);
     }
     return ESP_OK;
 }
@@ -607,24 +750,34 @@ esp_err_t sensorarrayTransportInit(void)
         .preferredMtu = 247u,
     };
     snprintf(bleConfig.deviceName, sizeof(bleConfig.deviceName), "%s", s_deviceName);
-    esp_err_t bleErr = nvsErr == ESP_OK && SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT ?
-        sensorarrayBleInit(&bleConfig) : nvsErr;
+    esp_err_t bleErr = ESP_OK;
+    if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT) {
+        bleErr = nvsErr == ESP_OK ? sensorarrayBleInit(&bleConfig) : nvsErr;
+    }
 
     sensorarrayBleLogHeap("before_wifi_init");
     sensorarrayWifiSetControlRxCallback(sensorarrayTransportWifiControl, NULL);
-    esp_err_t wifiErr = nvsErr == ESP_OK && SENSORARRAY_CFG_OUTPUT_WIFI_TEXT ?
-        sensorarrayTransportStartWifiAp() : ESP_OK;
+    esp_err_t wifiErr = ESP_OK;
+    if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT) {
+        wifiErr = nvsErr == ESP_OK ? sensorarrayTransportStartWifiAp() : nvsErr;
+    }
     sensorarrayBleLogHeap("after_wifi_init");
 
-    s_queue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_QUEUE_COUNT,
-                                 sizeof(sensorarrayTransportItem_t),
-                                 s_queueStorage, &s_queueStruct);
-    if (!s_queue) {
+    sensorarrayTransportPoolInit(&s_pool);
+    s_dataQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT,
+                                    sizeof(sensorarrayTransportDescriptor_t),
+                                    s_dataQueueStorage,
+                                    &s_dataQueueStruct);
+    s_logQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT,
+                                   sizeof(sensorarrayTransportDescriptor_t),
+                                   s_logQueueStorage,
+                                   &s_logQueueStruct);
+    if (!s_dataQueue || !s_logQueue) {
         return ESP_ERR_NO_MEM;
     }
     BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayTransportTask,
                                             "transport",
-                                            6144u,
+                                            CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
                                             (void *)(intptr_t)wifiErr,
                                             5u,
                                             &s_task,
@@ -637,13 +790,67 @@ esp_err_t sensorarrayTransportInit(void)
                                  CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
                                  NULL,
                                  4u,
-                                 NULL,
+                                 &s_serialTask,
                                  CONFIG_SENSORARRAY_COMM_TASK_CORE);
     if (ok != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     s_started = true;
-    return bleErr == ESP_OK || wifiErr == ESP_OK ? ESP_OK : bleErr;
+    /* Serial/transport tasks remain available when an optional network sink
+     * fails, but the caller must still receive the real initialization error.
+     * A disabled sink is not evidence that another enabled sink succeeded. */
+    if (nvsErr != ESP_OK) {
+        return nvsErr;
+    }
+    if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && bleErr != ESP_OK) {
+        return bleErr;
+    }
+    if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT && wifiErr != ESP_OK) {
+        return wifiErr;
+    }
+    return ESP_OK;
+}
+
+void sensorarrayTransportGetMemoryDiagnostics(
+    sensorarrayTransportMemoryDiagnostics_t *outDiagnostics)
+{
+    if (!outDiagnostics) {
+        return;
+    }
+    *outDiagnostics = (sensorarrayTransportMemoryDiagnostics_t){
+        .legacyItemBytes = SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES,
+        .payloadSlotBytes = sizeof(sensorarrayTransportPayloadSlot_t),
+        .descriptorBytes = sizeof(sensorarrayTransportDescriptor_t),
+        .legacyQueueStorageBytes = SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES,
+        .descriptorQueueStorageBytes = sizeof(s_dataQueueStorage) +
+                                       sizeof(s_logQueueStorage),
+        .payloadPoolBytes = sizeof(s_pool.slots),
+    };
+}
+
+static uint32_t sensorarrayTransportStackMinimumRemainingBytes(TaskHandle_t task)
+{
+    /* ESP-IDF 5.5.1's Xtensa port defines StackType_t as uint8_t. Keep the
+     * multiplication explicit so the reported field remains bytes if the
+     * port type ever changes. */
+    return task ? (uint32_t)uxTaskGetStackHighWaterMark(task) *
+                      (uint32_t)sizeof(StackType_t) : 0u;
+}
+
+void sensorarrayTransportGetTaskStackStats(
+    sensorarrayTransportTaskStackStats_t *outStats)
+{
+    if (!outStats) {
+        return;
+    }
+    *outStats = (sensorarrayTransportTaskStackStats_t){
+        .transportConfiguredBytes = CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
+        .transportMinimumRemainingBytes =
+            sensorarrayTransportStackMinimumRemainingBytes(s_task),
+        .serialCtrlConfiguredBytes = CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
+        .serialCtrlMinimumRemainingBytes =
+            sensorarrayTransportStackMinimumRemainingBytes(s_serialTask),
+    };
 }
 
 esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode)

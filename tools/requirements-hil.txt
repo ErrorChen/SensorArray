@@ -1,0 +1,5 @@
+# Host-only hardware-in-the-loop dependencies.  They are not firmware runtime
+# dependencies and intentionally remain compatible with the ESP-IDF Python 3.11
+# environment as well as Python 3.8 validation hosts.
+pyserial>=3.5,<4
+bleak>=0.22.3,<4

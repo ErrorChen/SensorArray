@@ -75,10 +75,12 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
                                                  uint32_t frameSequence);
 /* Core 1 only: apply a volatile, externally measured AVDD/AVSS calibration at
  * a frame boundary. AVSS is signed and must be below GND. The value is not
- * persisted and remains subject to maximumAgeFrames. */
+ * persisted, but remains active without a frame-age expiry until replaced or
+ * invalidated by a hardware/status fault. */
 esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
                                                        int32_t avssUv,
                                                        uint32_t frameSequence);
+bool sensorarrayAdsGapHasExternalRailCalibration(void);
 bool sensorarrayAdsGapCopyRailSplit(uint32_t frameSequence,
                                     uint32_t maximumAgeFrames,
                                     sensorarrayAdsRailSplit_t *outRail);

@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+/* Maximum complete DATA/LOG message accepted before ATT fragmentation. */
+#define SENSORARRAY_BLE_MESSAGE_VALUE_MAX 1536u
+
 typedef enum {
     SENSORARRAY_BLE_CH_DATA = 0,
     SENSORARRAY_BLE_CH_LOG = 1,
@@ -60,7 +63,16 @@ typedef struct {
     uint32_t txSlotAllocFail;
     uint32_t txSlotReleaseMismatch;
     uint32_t txSlotStaleGenerationDrop;
+    uint32_t txConnectionStaleDrop;
+    uint32_t staleConfirmation;
     uint32_t txCrcMismatch;
+    uint32_t controlTxRetry;
+    uint32_t controlTxRetryExhausted;
+    /* Configured and lifetime-minimum remaining stack sizes, all in bytes. */
+    uint32_t txTaskConfiguredBytes;
+    uint32_t txTaskMinimumRemainingBytes;
+    uint32_t ctrlTaskConfiguredBytes;
+    uint32_t ctrlTaskMinimumRemainingBytes;
     esp_err_t initError;
 } sensorarrayBleStats_t;
 
@@ -73,6 +85,17 @@ void sensorarrayBleSetControlRxCallback(sensorarrayBleControlRxCallback_t callba
 bool sensorarrayBleIsReady(void);
 bool sensorarrayBleIsConnected(void);
 bool sensorarrayBleIsSubscribed(sensorarrayBleChannel_t channel);
+bool sensorarrayBleCanSend(sensorarrayBleChannel_t channel);
+/* Capture the active connection generation for a specific sendable channel.
+ * A queued producer can later use NotifyForGeneration to guarantee that its
+ * payload is never delivered to a different reconnecting client. */
+bool sensorarrayBleGetSendGeneration(sensorarrayBleChannel_t channel,
+                                     uint32_t *outConnectionGeneration);
+esp_err_t sensorarrayBleNotifyForGeneration(
+    sensorarrayBleChannel_t channel,
+    const uint8_t *data,
+    size_t length,
+    uint32_t expectedConnectionGeneration);
 bool sensorarrayBleIsCongested(void);
 void sensorarrayBleSetTxMode(sensorarrayBleTxMode_t mode);
 sensorarrayBleTxMode_t sensorarrayBleGetTxMode(void);

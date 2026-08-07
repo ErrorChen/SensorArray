@@ -243,6 +243,14 @@ typedef struct {
 } sensorarrayAsyncLogSummary_t;
 
 typedef struct {
+    sensorarrayAsyncLogSummary_t summary;
+    sensorarrayFrame_t frame;
+    sensorarrayTextPacket_t framePacket;
+    sensorarrayTextPacket_t summaryPacket;
+    sensorarrayTextPacket_t adsPacket;
+} sensorarrayAsyncLogWorkspace_t;
+
+typedef struct {
     uint64_t publishedFrames;
     uint64_t freshFrames;
     uint64_t staleFrames;
@@ -292,6 +300,15 @@ static TaskHandle_t s_logTaskHandle;
 static bool s_asyncLogStarted;
 static sensorarrayAsyncLogSharedStats_t s_sharedStats;
 static sensorarrayPrecisionWindow_t s_precisionWindow;
+static uint32_t s_summaryTruncated;
+static uint32_t s_initialFreeHeap;
+/*
+ * Owned exclusively by sensorarrayLogTask. No producer, callback, or other
+ * task may read or write this workspace directly. Keeping the complete frame
+ * and wire packets here removes their overlapping lifetime from the task
+ * stack; individual fields are reset at their real lifecycle boundaries.
+ */
+static sensorarrayAsyncLogWorkspace_t s_asyncLogWorkspace;
 
 static uint64_t sensorarrayAsyncLogElapsedPositiveUs(int64_t startUs)
 {
@@ -441,12 +458,21 @@ static bool sensorarrayAsyncLogPopFrame(sensorarrayFrame_t *outFrame,
     s_pendingReadIndex = (uint8_t)((s_pendingReadIndex + 1u) %
                                    SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
     s_pendingCount--;
+    *outQueueDepth = s_pendingCount;
+    s_frameSlotState[slot] = 3u; /* exclusively owned by the consumer */
+    portEXIT_CRITICAL(&s_asyncLogMux);
+
+    /* Copy the two large snapshots after ownership has transferred and after
+     * leaving the critical section. Producers cannot reuse state=3 slots. */
     *outFrame = s_frameSlots[slot].frame;
     *outTextPacket = s_frameSlots[slot].textPacket;
     *outMeasureFrameUs = s_frameSlots[slot].measureFrameUs;
     *outPublishedUs = s_frameSlots[slot].publishedUs;
-    *outQueueDepth = s_pendingCount;
-    s_frameSlotState[slot] = 0u;
+
+    portENTER_CRITICAL(&s_asyncLogMux);
+    if (s_frameSlotState[slot] == 3u) {
+        s_frameSlotState[slot] = 0u;
+    }
     portEXIT_CRITICAL(&s_asyncLogMux);
     return true;
 }
@@ -946,10 +972,12 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     sensorarrayUsbSinkStats_t usbStats = {0};
     sensorarrayNetSinkStats_t netStats = {0};
     sensorarrayTransportStats_t transportStats = {0};
+    sensorarrayTransportTaskStackStats_t transportTaskStacks = {0};
     sensorarrayBleStats_t bleStats = {0};
     sensorarrayUsbSinkGetStats(&usbStats);
     sensorarrayNetGetSinkStats(&netStats);
     sensorarrayTransportGetStats(&transportStats);
+    sensorarrayTransportGetTaskStackStats(&transportTaskStacks);
     sensorarrayBleGetStats(&bleStats);
 
     uint64_t captureIntervalUs = summary->frameStartIntervalCount ?
@@ -1015,12 +1043,12 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     const char *batteryState = !ads->batteryFresh ? "stale" :
                                 (ads->batteryValid ? "present" : "unk");
 
-    sensorarrayTextPacket_t packet = {
-        .sequence = summary->seqEnd,
-    };
+    sensorarrayTextPacket_t *packet = &s_asyncLogWorkspace.summaryPacket;
+    packet->sequence = summary->seqEnd;
+    packet->length = 0u;
     size_t position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
+        packet->data,
+        sizeof(packet->data),
         0u,
         "SF50,seq=%lu-%lu,n=%llu,rows=%u,cfps=%llu.%02llu,efps=%llu.%02llu,ofps=%llu.%01llu/%llu.%01llu/%llu.%01llu,bad=%llu/%llu/%llu,drop=0/%llu/%llu,q=%lu/%lu\n",
         (unsigned long)summary->seqStart,
@@ -1045,8 +1073,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)queueCurrent,
         (unsigned long)queueMax);
     position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
+        packet->data,
+        sizeof(packet->data),
         position,
         "TR50,r=%u,fu=%llu,rau=%llu,rmu=%llu,rt=%llu,wt=%llu,rp=%llu,rs=%llu,co=%llu,ag=%llu,agn=%lu,ags=%lu,agf=%u\n",
         (unsigned)activeRows,
@@ -1062,13 +1090,9 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta,
         ads->fallbackToBoundary ? 1u : 0u);
-    /* This routine is owned by the single async-log task. Keeping the second
-     * fixed 1536-byte packet in static storage avoids placing two full wire
-     * slots on that task's stack while both summaries are assembled. */
-    static sensorarrayTextPacket_t adsPacket;
-    adsPacket = (sensorarrayTextPacket_t){
-        .sequence = summary->seqEnd,
-    };
+    sensorarrayTextPacket_t *adsPacket = &s_asyncLogWorkspace.adsPacket;
+    adsPacket->sequence = summary->seqEnd;
+    adsPacket->length = 0u;
     size_t adsPosition = 0u;
     const sensorarrayAdsPerformanceSummary_t *adsPerformance =
         &summary->adsPerformance;
@@ -1078,8 +1102,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
             (adsPerformance->autorangeAttempts * 100u) /
                 adsPerformance->freshCells : 0u;
         adsPosition = sensorarrayAsyncLogTextAppend(
-            adsPacket.data,
-            sizeof(adsPacket.data),
+            adsPacket->data,
+            sizeof(adsPacket->data),
             adsPosition,
             "ADS50,mode=%s,n=%llu,frameUs=%llu/%llu,attemptsPerCell=%llu.%02llu,rawConversions=%llu,profileHit=%llu,profileMiss=%llu,bypassHit=%llu,gainHit=%llu,registerCacheHit=%llu,registerWrites=%llu,registerReadbacks=%llu,singleSampleCells=%llu,tripleSampleCells=%llu,precisionFrame=%u,precisionFrames=%llu,freshCells=%llu,profileInvalidations=%llu,railFingerprintHit=%llu,railFingerprintMiss=%llu,railInvalidations=%llu\n",
             sensorarrayMeasurementModeName(adsPerformance->mode),
@@ -1106,8 +1130,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
             (unsigned long long)adsPerformance->railFingerprintMisses,
             (unsigned long long)adsPerformance->railInvalidations);
         adsPosition = sensorarrayAsyncLogTextAppend(
-            adsPacket.data,
-            sizeof(adsPacket.data),
+            adsPacket->data,
+            sizeof(adsPacket->data),
             adsPosition,
             "ADST50,mode=%s,n=%llu,rowRouteUs=%llu,muxWriteUs=%llu,registerWriteUs=%llu,registerReadbackUs=%llu,drdyWaitUs=%llu,sampleReadUs=%llu,aggregationUs=%llu,autorangeUs=%llu,batteryUs=%llu,adsCheckUs=%llu\n",
             sensorarrayMeasurementModeName(adsPerformance->mode),
@@ -1124,8 +1148,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
             (unsigned long long)(adsPerformance->adsCheckUs / adsFrames));
     }
     adsPosition = sensorarrayAsyncLogTextAppend(
-        adsPacket.data,
-        sizeof(adsPacket.data),
+        adsPacket->data,
+        sizeof(adsPacket->data),
         adsPosition,
         "AB50,bt=%ld,valid=%u,br=%s,bs=%s,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,sampleUs=%lu/%lu,a8d=%ld",
         ads->batteryValid ? (long)ads->batteryMv : -1L,
@@ -1153,19 +1177,19 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (long)ads->ain8DiffUv);
     if (ads->aincomGndValid && ads->ain8GndValid) {
         adsPosition = sensorarrayAsyncLogTextAppend(
-            adsPacket.data,
-            sizeof(adsPacket.data),
+            adsPacket->data,
+            sizeof(adsPacket->data),
             adsPosition,
             ",ac=%ld,a8g=%ld",
             (long)ads->aincomGndUv,
             (long)ads->ain8GndUv);
     } else {
         adsPosition = sensorarrayAsyncLogTextAppend(
-            adsPacket.data, sizeof(adsPacket.data), adsPosition,
+            adsPacket->data, sizeof(adsPacket->data), adsPosition,
             ",ac=na,a8g=na");
     }
     adsPosition = sensorarrayAsyncLogTextAppend(
-        adsPacket.data, sizeof(adsPacket.data), adsPosition,
+        adsPacket->data, sizeof(adsPacket->data), adsPosition,
         ",rail=%ld,rv=%u,rs=%s,re=%ld,age=%lu,z=%ld/%lu,fresh=%u,status=0x%02X,dg=%lu,chip=%u,j=%lu/%lu",
         (long)ads->railUv,
         ads->railValid ? 1u : 0u,
@@ -1181,8 +1205,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta);
     adsPosition = sensorarrayAsyncLogTextAppend(
-        adsPacket.data,
-        sizeof(adsPacket.data),
+        adsPacket->data,
+        sizeof(adsPacket->data),
         adsPosition,
         ",ae=%lu/%lu/%lu/%lu/%lu\n",
         (unsigned long)ads->spiErrorCount,
@@ -1191,8 +1215,8 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)ads->adcStatusErrorCount,
         (unsigned long)adsJobsSkipDelta);
     position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
+        packet->data,
+        sizeof(packet->data),
         position,
         "OT50,st=%s,tx=%s,out=%llu/%llu,q=%lu/%lu/%lu,ofps=%llu.%01llu/%llu.%01llu/%llu.%01llu,"
         "drop=%llu/%llu/%llu,kb=%llu/%llu/%llu,blk=%llu/%llu/%llu,wdt=0\n",
@@ -1219,10 +1243,10 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long long)bleBlocked,
         (unsigned long long)wifiBlocked);
     position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
+        packet->data,
+        sizeof(packet->data),
         position,
-        "BL50,conn=%u,sub=%u%u%u,mtu=%u,phy=%u/%u,mode=%s,mq=%lu,ms=%lu,md=%lu,fs=%lu,fe=%lu,cg=%lu,tiny=%lu\n",
+        "BL50,conn=%u,sub=%u%u%u,mtu=%u,phy=%u/%u,mode=%s,mq=%lu,ms=%lu,md=%lu,sentD=%lu,sentL=%lu,dropD=%lu,dropL=%lu,dropC=%lu,ctrlRetry=%lu,ctrlExhaust=%lu,fs=%lu,fe=%lu,cg=%lu,stale=%lu,conf=%lu,tiny=%lu\n",
         bleStats.connected ? 1u : 0u,
         sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_CTRL) ? 1u : 0u,
         sensorarrayBleIsSubscribed(SENSORARRAY_BLE_CH_DATA) ? 1u : 0u,
@@ -1234,13 +1258,22 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)bleStats.messageQueued,
         (unsigned long)bleStats.messageSent,
         (unsigned long)bleStats.messageDropped,
+        (unsigned long)bleStats.sent[SENSORARRAY_BLE_CH_DATA],
+        (unsigned long)bleStats.sent[SENSORARRAY_BLE_CH_LOG],
+        (unsigned long)bleStats.dropped[SENSORARRAY_BLE_CH_DATA],
+        (unsigned long)bleStats.dropped[SENSORARRAY_BLE_CH_LOG],
+        (unsigned long)bleStats.dropped[SENSORARRAY_BLE_CH_CTRL],
+        (unsigned long)bleStats.controlTxRetry,
+        (unsigned long)bleStats.controlTxRetryExhausted,
         (unsigned long)bleStats.fragmentSent,
         (unsigned long)bleStats.fragmentError,
         (unsigned long)bleStats.congestedCount,
+        (unsigned long)bleStats.txConnectionStaleDrop,
+        (unsigned long)bleStats.staleConfirmation,
         (unsigned long)bleStats.tinyTailCount);
     position = sensorarrayAsyncLogTextAppend(
-        packet.data,
-        sizeof(packet.data),
+        packet->data,
+        sizeof(packet->data),
         position,
         "I2C50,p=0/1,a=%02X/%02X,ok=%llu,nack=%lu,to=%lu,rec=%lu,freq=na,bus=OK,rv=%llu,ed=%llu\n",
         (unsigned)CONFIG_SENSORARRAY_FDC_PRIMARY_I2C_ADDR,
@@ -1252,16 +1285,70 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long long)textBusDrop,
         (unsigned long long)eventRingDrop);
 
-    if (position < sizeof(packet.data) && position <= UINT16_MAX) {
-        packet.length = (uint16_t)position;
-        (void)sensorarrayUsbSinkPublish(&packet);
-        (void)sensorarrayNetLogPublish(&packet);
+    uint32_t logMinimumRemainingBytes =
+        (uint32_t)uxTaskGetStackHighWaterMark(NULL) *
+        (uint32_t)sizeof(StackType_t);
+    position = sensorarrayAsyncLogTextAppend(
+        packet->data,
+        sizeof(packet->data),
+        position,
+        "STK50,unit=bytes,seq=%lu,log=%u/%lu,transport=%lu/%lu,usb=%lu/%lu,bleTx=%lu/%lu,bleCtrl=%lu/%lu,serialCtrl=%lu/%lu,heap=%lu/%lu/%lu,tSlot=%lu/%lu,ta=%lu,ts=%lu,tr=%lu,tq=%lu/%lu,bSlot=%lu/%lu,ba=%lu,bs=%lu,br=%lu,bc=%lu,bf=%lu,bg=%lu,bconf=%lu,trunc=%lu\n",
+        (unsigned long)summary->seqEnd,
+        (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
+        (unsigned long)logMinimumRemainingBytes,
+        (unsigned long)transportTaskStacks.transportConfiguredBytes,
+        (unsigned long)transportTaskStacks.transportMinimumRemainingBytes,
+        (unsigned long)usbStats.taskConfiguredBytes,
+        (unsigned long)usbStats.taskMinimumRemainingBytes,
+        (unsigned long)bleStats.txTaskConfiguredBytes,
+        (unsigned long)bleStats.txTaskMinimumRemainingBytes,
+        (unsigned long)bleStats.ctrlTaskConfiguredBytes,
+        (unsigned long)bleStats.ctrlTaskMinimumRemainingBytes,
+        (unsigned long)transportTaskStacks.serialCtrlConfiguredBytes,
+        (unsigned long)transportTaskStacks.serialCtrlMinimumRemainingBytes,
+        (unsigned long)s_initialFreeHeap,
+        (unsigned long)esp_get_free_heap_size(),
+        (unsigned long)esp_get_minimum_free_heap_size(),
+        (unsigned long)transportStats.transportSlotUsed,
+        (unsigned long)transportStats.transportSlotHighWater,
+        (unsigned long)transportStats.transportSlotAllocFail,
+        (unsigned long)transportStats.transportStaleDescriptor,
+        (unsigned long)transportStats.transportSlotReleaseMismatch,
+        (unsigned long)transportStats.queueDropData,
+        (unsigned long)transportStats.queueDropLog,
+        (unsigned long)bleStats.txSlotUsed,
+        (unsigned long)bleStats.txSlotHighWater,
+        (unsigned long)bleStats.txSlotAllocFail,
+        (unsigned long)bleStats.txSlotStaleGenerationDrop,
+        (unsigned long)bleStats.txSlotReleaseMismatch,
+        (unsigned long)bleStats.txCrcMismatch,
+        (unsigned long)bleStats.fragmentError,
+        (unsigned long)bleStats.txConnectionStaleDrop,
+        (unsigned long)bleStats.staleConfirmation,
+        (unsigned long)s_summaryTruncated);
+
+    if (position < sizeof(packet->data) && position <= UINT16_MAX) {
+        packet->length = (uint16_t)position;
+        (void)sensorarrayUsbSinkPublish(packet);
+        (void)sensorarrayNetLogPublish(packet);
+    } else {
+        s_summaryTruncated++;
+        printf("LOGTRUNC,packet=summary,seq=%lu,max=%u,count=%lu\n",
+               (unsigned long)summary->seqEnd,
+               (unsigned)sizeof(packet->data),
+               (unsigned long)s_summaryTruncated);
     }
-    if (adsPosition != 0u && adsPosition < sizeof(adsPacket.data) &&
+    if (adsPosition != 0u && adsPosition < sizeof(adsPacket->data) &&
         adsPosition <= UINT16_MAX) {
-        adsPacket.length = (uint16_t)adsPosition;
-        (void)sensorarrayUsbSinkPublish(&adsPacket);
-        (void)sensorarrayNetLogPublish(&adsPacket);
+        adsPacket->length = (uint16_t)adsPosition;
+        (void)sensorarrayUsbSinkPublish(adsPacket);
+        (void)sensorarrayNetLogPublish(adsPacket);
+    } else if (adsPosition != 0u) {
+        s_summaryTruncated++;
+        printf("LOGTRUNC,packet=ads,seq=%lu,max=%u,count=%lu\n",
+               (unsigned long)summary->seqEnd,
+               (unsigned)sizeof(adsPacket->data),
+               (unsigned long)s_summaryTruncated);
     }
     sensorarrayAsyncLogSummarySetBaseline(summary, &sharedStats);
 }
@@ -1320,7 +1407,7 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
     uint64_t droppedFrames = stats.droppedOutputFrames - summary->droppedFrameStart;
     uint64_t droppedEvents = stats.droppedEventLogs - summary->droppedEventStart;
 
-    printf("LOG20,s0=%lu,s1=%lu,n=%llu,measureFps=%llu.%02llu,outputFps=%llu.%02llu,frameAgeAvgUs=%llu,frameAgeMaxUs=%llu,outputQueueDepth=%lu,qDepthMax=%lu,droppedOutputFrames=%llu,droppedEventLogs=%llu,outUsAvg=%llu,outUsMax=%llu,measureFrameUsAvg=%llu,measureFrameUsMax=%llu,stackHighWaterWords=%u\n",
+    printf("LOG20,s0=%lu,s1=%lu,n=%llu,measureFps=%llu.%02llu,outputFps=%llu.%02llu,frameAgeAvgUs=%llu,frameAgeMaxUs=%llu,outputQueueDepth=%lu,qDepthMax=%lu,droppedOutputFrames=%llu,droppedEventLogs=%llu,outUsAvg=%llu,outUsMax=%llu,measureFrameUsAvg=%llu,measureFrameUsMax=%llu,stackHighWaterBytes=%lu\n",
            (unsigned long)summary->seqStart,
            (unsigned long)summary->seqEnd,
            (unsigned long long)measureFrames,
@@ -1338,7 +1425,8 @@ static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *s
            (unsigned long long)summary->outMaxUs,
            (unsigned long long)measureAvgUs,
            (unsigned long long)summary->measureFrameMaxUs,
-           (unsigned)uxTaskGetStackHighWaterMark(NULL));
+           (unsigned long)((uint64_t)uxTaskGetStackHighWaterMark(NULL) *
+                           sizeof(StackType_t)));
 
     printf("FPS20,frame0=%lu,frame1=%lu,sweep0=%lu,sweep1=%lu,n=%llu,coreFps=%llu.%02llu,physFps=%llu.%02llu,emitFps=%llu.%02llu,cellFreshFps=%llu.%02llu,coreFrameUsAvg=%llu,physicalSweepUsAvg=%llu,capEmitIntervalUsAvg=%llu,outputUsAvg=%llu,queueDepth=%lu,dropped=%llu,staleFrames=%llu,mixedFrames=%llu\n",
            (unsigned long)summary->seqStart,
@@ -1661,9 +1749,9 @@ static void sensorarrayAsyncLogTask(void *arg)
     printf("TASKCORE,name=output_hub,core=%d,expected=%d\n",
            (int)xPortGetCoreID(),
            CONFIG_SENSORARRAY_LOG_TASK_CORE);
-    sensorarrayAsyncLogSummary_t summary = {0};
-    sensorarrayFrame_t frame;
-    sensorarrayTextPacket_t textPacket;
+    sensorarrayAsyncLogWorkspace_t *workspace = &s_asyncLogWorkspace;
+    sensorarrayFrame_t *frame = &workspace->frame;
+    sensorarrayTextPacket_t *textPacket = &workspace->framePacket;
     uint32_t framesSinceIdleYield = 0u;
     int64_t lastOutputEmitUs = 0;
 
@@ -1674,8 +1762,8 @@ static void sensorarrayAsyncLogTask(void *arg)
         uint64_t measureFrameUs = 0u;
         int64_t publishedUs = 0;
         uint32_t queueDepth = 0u;
-        while (sensorarrayAsyncLogPopFrame(&frame,
-                                           &textPacket,
+        while (sensorarrayAsyncLogPopFrame(frame,
+                                           textPacket,
                                            &measureFrameUs,
                                            &publishedUs,
                                            &queueDepth)) {
@@ -1684,7 +1772,7 @@ static void sensorarrayAsyncLogTask(void *arg)
             int64_t outputStartUs = esp_timer_get_time();
             uint64_t frameAgeUs = (publishedUs > 0 && outputStartUs > publishedUs) ?
                 (uint64_t)(outputStartUs - publishedUs) : 0u;
-            bool emitted = frame.freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
+            bool emitted = frame->freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
             uint32_t outputFpsCap = sensorarrayCommandMailboxGetOutputFpsCap();
             if (emitted && outputFpsCap > 0u) {
                 int64_t minIntervalUs = 1000000LL / (int64_t)outputFpsCap;
@@ -1695,16 +1783,16 @@ static void sensorarrayAsyncLogTask(void *arg)
             }
             uint64_t outputUs = 0u;
             if (emitted) {
-                frame.emitUs = (uint64_t)outputStartUs;
+                frame->emitUs = (uint64_t)outputStartUs;
                 /* Serial data is a throttled debug/fallback sink. The queue is
                  * non-blocking and network data remains the primary path. */
-                (void)sensorarrayNetTextPublish(&textPacket, true);
-                if ((frame.sequence % 10u) == 0u) {
-                    (void)sensorarrayUsbSinkPublish(&textPacket);
+                (void)sensorarrayNetTextPublish(textPacket, true);
+                if ((frame->sequence % 10u) == 0u) {
+                    (void)sensorarrayUsbSinkPublish(textPacket);
                 }
                 if (sensorarrayCommandMailboxTraceEnabled()) {
                     printf("E,fr=%lu,type=trace,age=%llu,q=%lu\n",
-                           (unsigned long)frame.sequence,
+                           (unsigned long)frame->sequence,
                            (unsigned long long)frameAgeUs,
                            (unsigned long)queueDepth);
                 }
@@ -1712,14 +1800,14 @@ static void sensorarrayAsyncLogTask(void *arg)
                 lastOutputEmitUs = outputStartUs;
             }
 
-            sensorarrayAsyncLogUpdateSummary(&summary,
-                                             &frame,
+            sensorarrayAsyncLogUpdateSummary(&workspace->summary,
+                                             frame,
                                              measureFrameUs,
                                              frameAgeUs,
                                              outputUs,
                                              queueDepth,
                                              emitted);
-            sensorarrayAsyncLogMaybePrintSummary(&summary);
+            sensorarrayAsyncLogMaybePrintSummary(&workspace->summary);
             framesSinceIdleYield++;
             if (framesSinceIdleYield >= 40u) {
                 framesSinceIdleYield = 0u;
@@ -1745,6 +1833,12 @@ esp_err_t sensorarrayAsyncLogInit(void)
     s_pendingReadIndex = 0u;
     s_pendingCount = 0u;
     s_sharedStats = (sensorarrayAsyncLogSharedStats_t){0};
+    s_asyncLogWorkspace.summary.active = false;
+    s_asyncLogWorkspace.framePacket.length = 0u;
+    s_asyncLogWorkspace.summaryPacket.length = 0u;
+    s_asyncLogWorkspace.adsPacket.length = 0u;
+    s_summaryTruncated = 0u;
+    s_initialFreeHeap = esp_get_free_heap_size();
 
     esp_err_t usbErr = sensorarrayUsbSinkInit();
     if (usbErr != ESP_OK) {
@@ -1774,13 +1868,23 @@ esp_err_t sensorarrayAsyncLogInit(void)
     }
 
     s_asyncLogStarted = true;
-    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u\n",
+    sensorarrayTransportMemoryDiagnostics_t transportMemory = {0};
+    sensorarrayTransportGetMemoryDiagnostics(&transportMemory);
+    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u,stackBytes=%u,workspaceBytes=%u,summaryBytes=%u,frameBytes=%u,textPacketBytes=%u,transportLegacyItemBytes=%lu,transportSlotBytes=%lu,transportDescriptorBytes=%lu\n",
            (unsigned)SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT,
            (unsigned)SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY,
            (int)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE,
-           CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES ? 1u : 0u);
+           CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES ? 1u : 0u,
+           (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
+           (unsigned)sizeof(sensorarrayAsyncLogWorkspace_t),
+           (unsigned)sizeof(sensorarrayAsyncLogSummary_t),
+           (unsigned)sizeof(sensorarrayFrame_t),
+           (unsigned)sizeof(sensorarrayTextPacket_t),
+           (unsigned long)transportMemory.legacyItemBytes,
+           (unsigned long)transportMemory.payloadSlotBytes,
+           (unsigned long)transportMemory.descriptorBytes);
     return ESP_OK;
 }
 
@@ -1862,11 +1966,9 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
          * critical section short while still ensuring the consumer never sees a
          * partially copied frame.
          */
-        s_frameSlots[slot] = (sensorarrayAsyncLogFrameSlot_t){
-            .frame = *frame,
-            .measureFrameUs = measureFrameUs,
-            .publishedUs = publishedUs,
-        };
+        s_frameSlots[slot].frame = *frame;
+        s_frameSlots[slot].measureFrameUs = measureFrameUs;
+        s_frameSlots[slot].publishedUs = publishedUs;
         esp_err_t textErr = sensorarrayTextProtocolBuildFrame(
             frame,
             &s_frameSlots[slot].textPacket);
