@@ -47,7 +47,7 @@ RES frame formatting
 1. 写入的是 `FF10`；
 2. `FF11` CCCD 已启用；
 3. FAST 使用 Notify bit `0x0001`；
-4. SAFE 使用 Indicate bit `0x0002`；
+4. SAFE 优先使用 Indicate bit `0x0002`；只有 Notify 的 Ubuntu/BlueZ 客户端会使用 SAFE Notify fallback；
 5. 命令不超过 128 bytes；
 6. Serial 是否出现 `BLERXERR`；
 7. `BTX?` 与客户端 CCCD 是否一致。
@@ -79,9 +79,9 @@ LOG  -> connected + FF30 compatible CCCD
 
 ## SAFE 模式卡住
 
-SAFE 使用 Indicate confirmation。检查客户端是否启用了 Indicate 而不是只启用 Notify，并确认 `ESP_GATTS_CONF_EVT` 到达。confirmation timeout 必须有界并释放 slot；长期 queue 增长说明 lifecycle/CCCD 有问题。
+SAFE 在有 Indicate bit 时使用 confirmation；只有 Notify 的客户端使用有界 Notify fallback。Indicate 路径应检查 `ESP_GATTS_CONF_EVT` 是否到达；confirmation timeout 必须有界并释放 slot。长期 queue 增长说明 lifecycle/CCCD 有问题。
 
-一个容易误判的顺序是：FF11 只有 Notify (`0x0001`) 时发送 `BTX=SAFE`。firmware 先应用 SAFE，再按新模式的 Indicate gating 发送 ACK，所以命令可能已经生效但客户端收不到回复。恢复步骤：
+Ubuntu/BlueZ 的 Bleak `StartNotify` 无法在同时支持 Notify/Indicate 的 characteristic 上选择 CCCD 的 Indicate bit，因此不要把 Linux 上的 SAFE Notify fallback 误判为固件故障。具备 CCCD 写入选择能力的客户端应使用 `0x0003`。恢复步骤：
 
 1. 为 FF11 开启 Indicate，推荐 CCCD `0x0003`；
 2. SAFE 下要收 DATA/LOG 时，也为 FF20/FF30 开启 Indicate；

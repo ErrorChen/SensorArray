@@ -29,7 +29,7 @@ CCCD 小端值：
 | `0x0002` | Enable Indicate |
 | `0x0003` | Enable Notify + Indicate |
 
-`BTX=FAST` 使用 `confirm=false` 的 Notify，客户端应启用 Notify bit。`BTX=SAFE` 使用 `confirm=true` 的 Indicate，客户端应启用 Indicate bit。CCCD gating 按当前 TX mode 严格执行：`0x0001` 只允许 FAST，`0x0002` 只允许 SAFE，`0x0003` 同时允许两者。连接中需要往返切换 FAST/SAFE 时推荐使用 `0x0003`。
+`BTX=FAST` 使用 `confirm=false` 的 Notify，客户端应启用 Notify bit。`BTX=SAFE` 在 Indicate bit 可用时使用 `confirm=true` 的 Indicate；若客户端只启用了 Notify，固件使用 `confirm=false` 的有界 Notify fallback。CCCD gating 按当前 TX mode 执行：`0x0001` 允许 FAST 和 SAFE fallback，`0x0002` 只允许 SAFE，`0x0003` 同时允许 FAST 与带确认的 SAFE。连接中需要往返切换 FAST/SAFE 时推荐使用 `0x0003`。
 
 每个 TX characteristic 独立 gating：
 
@@ -43,7 +43,7 @@ CCCD 小端值：
 | Mode | GATT send | 特点 |
 | --- | --- | --- |
 | `BTX=FAST` | Notify | 无 per-packet confirmation；拥塞时有界 drop |
-| `BTX=SAFE` | Indicate | 等待 `ESP_GATTS_CONF_EVT`；超时有界，不能永久占用 slot |
+| `BTX=SAFE` | Indicate；Notify-only 时 fallback 为 Notify | Indicate 路径等待 `ESP_GATTS_CONF_EVT`；超时有界，不能永久占用 slot |
 
 安全切换流程：
 
@@ -51,12 +51,12 @@ CCCD 小端值：
 1. FF11 CCCD 先开启 Indicate（推荐 0x0003）
 2. SAFE 下需要 DATA/LOG 时，FF20/FF30 也先开启 Indicate
 3. FF10 <- BTX=SAFE\n
-4. FF11 -> ACK,cmd=BTX,v=SAFE（Indicate）
+4. FF11 -> ACK,cmd=BTX,v=SAFE（Indicate；Notify-only fallback 时为 Notify）
 5. FF10 <- BTX?\n
-6. FF11 -> ACK,cmd=BTX,v=SAFE（Indicate）
+6. FF11 -> ACK,cmd=BTX,v=SAFE（Indicate；Notify-only fallback 时为 Notify）
 ```
 
-`BTX=SAFE` 会先更新 firmware TX mode，再格式化并发送本条命令的 source-local 回复。因此，如果 FF11 当时只有 Notify bit `0x0001`，命令可能已经生效，但 ACK 会被新的 SAFE/Indicate gating 拒绝，客户端看起来像“写入后无回复”。无 ACK 不能直接推断命令失败；先为 FF11 开启 Indicate，再发送 `BTX?`，或从 Serial 查询当前模式。不要盲目重复会改变状态的 setter。
+`BTX=SAFE` 会先更新 firmware TX mode，再格式化并发送本条命令的 source-local 回复。FF11 有 Indicate bit 时 ACK 使用确认 Indicate；只有 Notify bit `0x0001` 时 ACK 使用 SAFE Notify fallback，不会因 CCCD 不匹配而丢失。不要盲目重复会改变状态的 setter。
 
 切回 FAST 也应在发送 `BTX=FAST` 前确保 FF11 Notify bit 已开启；使用 `0x0003` 可避免切换后的回复落入不兼容 CCCD。HIL 必须真实验证 Windows/Bleak 与 nRF Connect 对 Notify/Indicate 的订阅行为，不能只看 characteristic properties。
 

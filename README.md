@@ -84,11 +84,11 @@ MODE=CAP
 3. 为 `FF11`、`FF20`、`FF30` 同时开启 Notify 与 Indicate（CCCD `0x0003`）；
 4. 向 `FF10` 写入 `STATE?\n`；
 5. 在 `FF11` 收控制回复，在 `FF20` 收测量数据，在 `FF30` 收诊断日志；
-6. 向 `FF10` 写入 `BTX=SAFE\n`，确认 `FF11` 通过 Indicate 返回 ACK，再用 `BTX?` 核对状态。
+6. 向 `FF10` 写入 `BTX=SAFE\n`，确认 `FF11` 通过 Indicate（Linux/BlueZ fallback 时为 Notify）返回 ACK，再用 `BTX?` 核对状态。
 
-`BTX=FAST` 使用 Notify，`BTX=SAFE` 使用带确认的 Indicate。大于当前 ATT payload 的消息使用 `G,...` envelope 分片，主机必须完成重组、总长度检查和 CRC32 校验。
+`BTX=FAST` 使用 Notify；`BTX=SAFE` 优先使用带确认的 Indicate。若客户端（例如 Ubuntu/BlueZ 的 Bleak）只能通过 `StartNotify` 订阅 Notify，固件会在 SAFE 下有界降级为 Notify，以保证控制和数据流不被阻塞；支持 Indicate 的客户端仍使用确认路径。大于当前 ATT payload 的消息使用 `G,...` envelope 分片，主机必须完成重组、总长度检查和 CRC32 校验。
 
-不要在 FF11 只有 Notify bit 时直接切到 SAFE：firmware 会先应用新模式，再按 SAFE 的 Indicate gating 发送本条命令的回复，因此命令可能已经生效但 ACK 无法送达。切换前先开启 FF11 Indicate；需要在 SAFE 下接收 DATA/LOG 时，也要先为 FF20/FF30 开启 Indicate。完整 nRF Connect 验收顺序见 [验证](docs/validation.md)。
+推荐为 FF11、FF20、FF30 开启 `0x0003`，这样 SAFE 走确认 Indicate；只有 Notify 的客户端也可以切 SAFE，但会使用上述有界 Notify fallback。完整 nRF Connect 验收顺序见 [验证](docs/validation.md)。
 
 详见 [BLE 协议](docs/ble-protocol.md)。
 

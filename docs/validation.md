@@ -187,9 +187,9 @@ BTX?
 BTX=FAST
 ```
 
-FAST 使用 Notify bit，SAFE 使用 Indicate bit。SAFE 必须收到 confirmation，不能因 timeout 长期占用 slot。
+FAST 使用 Notify bit；有 Indicate bit 时 SAFE 使用 Indicate confirmation，不能因 timeout 长期占用 slot。只有 Notify 的 Ubuntu/BlueZ 客户端使用有界 SAFE Notify fallback。
 
-在发送 `BTX=SAFE` 前必须先把 FF11 CCCD 的 Indicate bit 打开；需要继续接收 DATA/LOG 时，FF20/FF30 也要先打开 Indicate。推荐三个 TX characteristic 都使用 `0x0003`。如果 FF11 只有 Notify，mode 会先切到 SAFE，而该 setter 的 ACK 会因新 mode gating 无法发送；此时先开启 Indicate，再用 `BTX?` 查询，不能把“无 ACK”直接记为 setter 被拒绝。
+在支持选择 CCCD 的客户端中，发送 `BTX=SAFE` 前应把 FF11 的 Indicate bit 打开；需要继续接收 DATA/LOG 时，FF20/FF30 也应先打开 Indicate。推荐三个 TX characteristic 都使用 `0x0003`。Ubuntu/BlueZ 的 Bleak 无法在 Notify/Indicate 并存时选择 Indicate，固件会为这种客户端启用 SAFE Notify fallback，ACK、DATA、LOG 仍应保持可验收。
 
 ### Stress
 
@@ -207,7 +207,7 @@ FAST 使用 Notify bit，SAFE 使用 Indicate bit。SAFE 必须收到 confirmati
 4. 为 `FF11`、`FF20`、`FF30` 同时开启 Notify 与 Indicate（CCCD `0x0003`，或在 UI 中分别点开两种订阅）；
 5. 写 `STATE?\n` 到 `FF10`，确认 `FF11` 收回复；
 6. 确认 `FF20` 持续 DATA、`FF30` 持续 LOG；
-7. 写 `BTX=SAFE\n`，确认 `FF11` 通过 Indicate 返回 `ACK,cmd=BTX,v=SAFE`；
+7. 写 `BTX=SAFE\n`，确认 `FF11` 通过 Indicate（Linux/BlueZ fallback 时为 Notify）返回 `ACK,cmd=BTX,v=SAFE`；
 8. 写 `BTX?\n`，确认仍为 SAFE；再写 `BTX=FAST\n` 并确认 Notify 回复；
 9. disable `FF30`，确认 `FF20` 继续 DATA；re-enable `FF30`；
 10. 切 RES 并运行数分钟；
@@ -367,7 +367,7 @@ S1D1/S8D8 数字只证明当前约 10 kΩ 调试件落在宽松 pipeline sanity 
 | Phase | 实测结果 |
 | --- | --- |
 | Subscription matrix | NONE 60.015 s；FF11 only；FF20 only 1000 DATA；FF30 only 4 LOG；FF11+20；FF11+30；FF20+30；FF11+20+30 全部 PASS |
-| TX modes | FAST/Notify → SAFE/Indicate → FAST/Notify，完成 DATA/LOG/CTRL，completed-fragment CRC error=0 |
+| TX modes | FAST/Notify → SAFE/Indicate（Linux/BlueZ 可为 Notify fallback）→ FAST/Notify，完成 DATA/LOG/CTRL，completed-fragment CRC error=0 |
 | Mode stress | 20 cycles、80 transitions、542 complete frames（CAP 265 / RES 142 / VOLT 135），stale=0、CRC/malformed/non-ASCII/regression=0 |
 | Subscribe stress | 100 cycles、200 subscription windows、200 unsubscribe quiet checks、grace notification=0 |
 | RES long-run | 2000 required frames，107.391 s，18.624 complete fps；S1D1=10050.302 Ω、S8D8=10046.572 Ω |

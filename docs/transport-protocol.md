@@ -114,7 +114,7 @@ CTRL 不使用 DATA/LOG transport pool：
 
 Core transport 的共享 5-slot pool 负责 network sink 排队、DATA reserve 与 lifecycle reserve；BLE 收到 eligible payload 后复制到自己的 `DATA 4 + LOG 2` pool，再把小 descriptor 放入容量 6 的普通 TX FIFO。CTRL 使用另一条优先 queue，所以这里的 BLE `4 + 2` 不能误写成“共享 6 个任意 channel slot”。
 
-BLE CTRL TX 仅在 reply 尚未被 Bluedroid 接受时进行 bounded retry：每 10 ms 一次，总窗口 500 ms，并且只重试 `ESP_FAIL`。其他 error 不重试。SAFE 下 `send_indicate(..., confirm=true)` 一旦返回 `ESP_OK`，reply 已被接受；随后等待 confirmation 即使 timeout 也不重发，以免一个 setter 的 source-local reply 在客户端重复出现。该机制不重新执行 command，只重试相同 reply bytes；DATA/LOG 仍保持单次、非阻塞发送。
+BLE CTRL TX 仅在 reply 尚未被 Bluedroid 接受时进行 bounded retry：每 10 ms 一次，总窗口 500 ms，并且只重试 `ESP_FAIL`。其他 error 不重试。SAFE 使用 Indicate bit 时，`send_indicate(..., confirm=true)` 一旦返回 `ESP_OK`，reply 已被接受；随后等待 confirmation 即使 timeout 也不重发，以免一个 setter 的 source-local reply 在客户端重复出现。只有 Notify 的客户端使用 SAFE Notify fallback，不等待 confirmation。该机制不重新执行 command，只重试相同 reply bytes；DATA/LOG 仍保持单次、非阻塞发送。
 
 ## Drop 与 telemetry
 

@@ -99,11 +99,11 @@ MODE=CAP
 3. 为 `FF11`、`FF20`、`FF30` 启用 Notify 与 Indicate（CCCD `0x0003`）；
 4. 向 `FF10` 写 `STATE?\n`；
 5. 确认 `FF11` 返回 `MODE,...`，`FF20` 有 DATA，`FF30` 有 LOG；
-6. 写 `BTX=SAFE\n`，确认 `FF11` 以 Indicate 返回 ACK，再写 `BTX?\n` 核对；
+6. 写 `BTX=SAFE\n`，确认 `FF11` 以 Indicate（Linux/BlueZ fallback 时为 Notify）返回 ACK，再写 `BTX?\n` 核对；
 7. disable `FF30`，确认 `FF20` 继续 DATA，再 re-enable `FF30`；
 8. 检查整个过程串口没有 panic/reset。
 
-切 SAFE 前必须先为 FF11 开启 Indicate bit；否则模式先变为 SAFE，而本条命令的 ACK 会因新模式的 CCCD gating 无法发送。FF20/FF30 在 SAFE 下也分别需要 Indicate bit。`0x0003` 是连接中往返 FAST/SAFE 最稳妥的设置。
+推荐为 FF11、FF20、FF30 开启 Indicate bit（CCCD `0x0003`），这样 SAFE 使用带确认的 Indicate。Ubuntu/BlueZ 的 Bleak 无法在同时支持 Notify/Indicate 的 characteristic 上选择 Indicate；此时 SAFE 会有界降级为 Notify，不会阻塞 ACK、DATA 或 LOG。`0x0003` 仍是连接中往返 FAST/SAFE 的最稳妥设置。
 
 Windows/Bleak 通常把 `FF10` 显示为 Bluetooth Base UUID：
 

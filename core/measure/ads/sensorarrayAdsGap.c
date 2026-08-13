@@ -116,6 +116,9 @@ typedef struct {
     int32_t aincomGndUv;
     int32_t ain8GndUv;
     int32_t batteryMv;
+    int32_t sampleRaw0;
+    int32_t sampleRaw1;
+    int32_t sampleRaw2;
     uint8_t status;
     uint32_t generationDelta;
     uint32_t spreadRaw;
@@ -1429,7 +1432,7 @@ static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *di
     }
     printf("BATD,mode=vbias_on,POWER=%02X/%02X/%02X/%02X,VBIAS=%u,INPMUX=%02X,REFMUX=%02X,"
            "settleUs=%lu,dr=%lu,discardCount=%u,samples=%u,retry=%u,read=%s,state=%s,fresh=%u,status=0x%02X,dg=%lu,spreadRaw=%lu,"
-           "raw=%ld,a8dUv=%ld,zeroUv=%ld,acUv=%ld,a8gUv=%ld,batteryMv=%ld,collision=%u,err=0x%lx,reason=%s\n",
+           "raw=%ld,raw3=%ld/%ld/%ld,a8dUv=%ld,zeroUv=%ld,acUv=%ld,a8gUv=%ld,batteryMv=%ld,collision=%u,err=0x%lx,reason=%s\n",
            diag->powerBefore,
            diag->powerRequested,
            diag->powerDuring,
@@ -1449,6 +1452,9 @@ static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *di
            (unsigned long)diag->generationDelta,
            (unsigned long)diag->spreadRaw,
            (long)diag->raw,
+           (long)diag->sampleRaw0,
+           (long)diag->sampleRaw1,
+           (long)diag->sampleRaw2,
            (long)diag->ain8DiffUv,
            (long)diag->zeroUv,
            (long)diag->aincomGndUv,
@@ -1661,6 +1667,13 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         }
         diag.sampleCount++;
         diag.fresh = true;
+        if (sampleIndex == 0u) {
+            diag.sampleRaw0 = samples[sampleIndex].raw;
+        } else if (sampleIndex == 1u) {
+            diag.sampleRaw1 = samples[sampleIndex].raw;
+        } else {
+            diag.sampleRaw2 = samples[sampleIndex].raw;
+        }
         diag.status |= samples[sampleIndex].status;
         if ((samples[sampleIndex].status &
              (ADS126X_STATUS_REFERENCE_ALARM |
@@ -1864,7 +1877,8 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         diag.ain8GndUv = s_snapshot.ain8GndUv;
         diag.batteryMv = s_snapshot.batteryMv;
         diag.stateName = sensorarrayAdsBatteryReasonName(s_snapshot.batteryInvalidReason);
-        if (!s_snapshot.batteryValid && !diag.collision) {
+        if (!s_snapshot.batteryValid && !diag.collision &&
+            s_snapshot.batteryInvalidReason != SENSORARRAY_BATTERY_INVALID_RAIL) {
             /* Battery absence/floating/PWM is a reportable diagnostic result,
              * not a matrix fault.  It is deliberately a normal diagnostic
              * event, not a reserved lifecycle event: the bounded zero-wait

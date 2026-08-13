@@ -1187,6 +1187,10 @@ async def startSubscriptions(client: Any, observer: BleObserver,
                 await client.start_notify(CHANNEL_UUIDS[channel],
                                           observer.callback(channel), **options)
                 started.add(channel)
+                # Bleak/BlueZ exposes StartNotify but has no API to choose
+                # Indicate when a characteristic supports both Notify and
+                # Indicate.  The firmware therefore prefers Indicate and
+                # uses a bounded Notify fallback for SAFE on Linux.
     except Exception:
         await stopSubscriptions(client, started)
         raise

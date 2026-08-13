@@ -196,4 +196,4 @@ validRun, invalidRun, retry, unstable, timeout, spreadRaw
 BATERR,seq=...,err=0x...,reason=range_error,valid=0,lastGoodMv=...,lastGoodValid=1,sampleUs=...,restore=ok,action=report_continue
 ```
 
-`BATERR` 是普通异步诊断事件：只报告电池诊断结果，不触发 SAFE，不进入高优先级 lifecycle 队列，也不让采集线程等待 transport；电池 transaction 的 ADS 状态仍必须完成 restore。电池切换后的 ADS126x 转换稳定 guard 默认是 50 us，另有一个 fresh discard conversion；`DRDY_TIMEOUT_US` 仍是独立的 600 us 故障上限。
+`BATERR` 是普通异步诊断事件：只报告电池诊断结果，不触发 SAFE，不进入高优先级 lifecycle 队列，也不让采集线程等待 transport；电池 transaction 的 ADS 状态仍必须完成 restore。电池切换后的 ADS126x 转换稳定 guard 默认是 50 us，矩阵 route/row 转换稳定 guard 分别是 500/200 us（原为 5000/2000 us），三者都仍要求 fresh discard/DRDY freshness；`DRDY_TIMEOUT_US` 仍是独立的 600 us 故障上限。

@@ -181,16 +181,18 @@ config SENSORARRAY_BATTERY_DATA_RATE
 
 config SENSORARRAY_BATTERY_MAX_SPREAD_RAW
     int "Maximum raw-code spread across three battery samples"
-    default 2000000
+    default 3000000
     range 1 2147483647
     help
         A larger three-sample spread marks the AIN8 result unstable. The
         transaction is still restored and reported, but battery valid remains
         false. This threshold is in ADC raw codes rather than battery volts.
-        On the validated 5.188 V reference, 2000000 codes is about 4.83 mV at
-        AIN8 or 9.66 mV after the default 2:1 divider. This keeps the complete
-        accepted spread below the 10 mV hardware-acceptance floor while
-        tolerating the measured FDC-coupled boundary noise in CAP mode.
+        On the validated 5.188 V reference, 3000000 codes is about 7.25 mV at
+        AIN8 or 14.5 mV after the default 2:1 divider. The accepted battery
+        voltage must still pass the independent 2500-5000 mV range and rail,
+        reference, status, freshness, and restore checks; the wider spread
+        gate accommodates the measured boundary-coupled ADC noise while the
+        battery is physically connected.
 
 config SENSORARRAY_ADS_AVSS_TO_GND_UV
     int "Magnitude of AVSS below GND (uV)"

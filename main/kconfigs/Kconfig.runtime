@@ -60,13 +60,22 @@ config SENSORARRAY_ADS_RES_TARGET_FPS
 
 config SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US
     int "Mode-route analog settle time (us)"
-    default 5000
+    default 500
     range 100 500000
+    help
+        ADS matrix route/reference stabilization guard before readback and
+        conversion. The default is 500 us, ten times shorter than the
+        previous 5000 us guard; fresh DRDY generation/readback remains
+        mandatory.
 
 config SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US
     int "Row switch settle time (us)"
-    default 2000
+    default 200
     range 10 500000
+    help
+        ADS matrix row analog stabilization guard after row switching. The
+        default is 200 us, ten times shorter than the previous 2000 us guard;
+        conversion freshness is still established from a new DRDY generation.
 
 config SENSORARRAY_ADS_RES_BBM_ROW_SWITCH_ENABLE
     bool "Keep INTREF active during RES row address changes"

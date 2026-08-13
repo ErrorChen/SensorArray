@@ -68,8 +68,12 @@
 #define SENSORARRAY_BLE_CCCD_ALLOWS_MODE(cccdValue, txModeValue) \
     ((((uint16_t)(cccdValue)) & \
       ((txModeValue) == SENSORARRAY_BLE_TX_SAFE ? \
-           SENSORARRAY_BLE_CCCD_INDICATE_BIT : \
+           SENSORARRAY_BLE_CCCD_SUPPORTED_MASK : \
            SENSORARRAY_BLE_CCCD_NOTIFY_BIT)) != 0u)
+
+#define SENSORARRAY_BLE_MODE_USES_CONFIRM(cccdValue, txModeValue) \
+    ((txModeValue) == SENSORARRAY_BLE_TX_SAFE && \
+     (((uint16_t)(cccdValue)) & SENSORARRAY_BLE_CCCD_INDICATE_BIT) != 0u)
 
 _Static_assert(SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS > 0u &&
                    SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS >=
@@ -83,9 +87,11 @@ _Static_assert(!SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0000u,
                "disabled CCCD must reject FAST and SAFE sends");
 _Static_assert(SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0001u,
                                                  SENSORARRAY_BLE_TX_FAST) &&
-                   !SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0001u,
-                                                     SENSORARRAY_BLE_TX_SAFE),
-               "notify-only CCCD must allow FAST only");
+                   SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0001u,
+                                                     SENSORARRAY_BLE_TX_SAFE) &&
+                   !SENSORARRAY_BLE_MODE_USES_CONFIRM(0x0001u,
+                                                      SENSORARRAY_BLE_TX_SAFE),
+               "notify-only CCCD must allow FAST and SAFE fallback");
 _Static_assert(!SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0002u,
                                                   SENSORARRAY_BLE_TX_FAST) &&
                    SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0002u,
@@ -186,6 +192,7 @@ typedef struct {
     uint16_t connId;
     uint16_t mtu;
     sensorarrayBleTxMode_t txMode;
+    bool confirm;
     bool congested;
 } sensorarrayBleSendContext_t;
 
@@ -764,9 +771,10 @@ static bool sensorarrayBleSnapshotSendContext(
 
     portENTER_CRITICAL(&s_bleMux);
     sensorarrayBleTxMode_t mode = s_ble.txMode;
+    uint16_t cccd = s_ble.cccd[channel];
     bool canSend = s_ble.stats.gattReady &&
                    s_ble.stats.connected &&
-                   SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[channel], mode) &&
+                   SENSORARRAY_BLE_CCCD_ALLOWS_MODE(cccd, mode) &&
                    (expectedConnectionGeneration == 0u ||
                     expectedConnectionGeneration == s_ble.connectionGeneration);
     if (canSend && outContext) {
@@ -776,6 +784,7 @@ static bool sensorarrayBleSnapshotSendContext(
             .connId = s_ble.connId,
             .mtu = s_ble.stats.mtu,
             .txMode = mode,
+            .confirm = SENSORARRAY_BLE_MODE_USES_CONFIRM(cccd, mode),
             .congested = s_ble.stats.congested,
         };
     }
@@ -792,14 +801,16 @@ static bool sensorarrayBleSendContextMatches(
         return false;
     }
     portENTER_CRITICAL(&s_bleMux);
+    uint16_t cccd = s_ble.cccd[channel];
+    bool confirm = SENSORARRAY_BLE_MODE_USES_CONFIRM(cccd, s_ble.txMode);
     bool current = s_ble.stats.gattReady &&
                    s_ble.stats.connected &&
                    s_ble.connectionGeneration == context->connectionGeneration &&
                    s_ble.gattsIf == context->gattsIf &&
                    s_ble.connId == context->connId &&
                    s_ble.txMode == context->txMode &&
-                   SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[channel],
-                                                    context->txMode);
+                   confirm == context->confirm &&
+                   SENSORARRAY_BLE_CCCD_ALLOWS_MODE(cccd, context->txMode);
     if (outCongested) {
         *outCongested = s_ble.stats.congested;
     }
@@ -1173,7 +1184,7 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
     }
     if (length <= maximum) {
         uint16_t handle = sensorarrayBleValueHandle(channel);
-        bool confirm = context.txMode == SENSORARRAY_BLE_TX_SAFE;
+        bool confirm = context.confirm;
         esp_err_t err = sensorarrayBleSendGattValue(&context,
                                                     channel,
                                                     handle,
@@ -1208,7 +1219,7 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
     size_t base = length / fragmentCount;
     size_t extra = length % fragmentCount;
     size_t offset = 0u;
-    bool confirm = context.txMode == SENSORARRAY_BLE_TX_SAFE;
+    bool confirm = context.confirm;
     for (uint32_t index = 0u; index < fragmentCount; ++index) {
         size_t chunk = base + (index < extra ? 1u : 0u);
         esp_err_t err = sensorarrayBleSendFragment(&context,

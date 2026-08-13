@@ -25,7 +25,7 @@
 | `ST=WIFI` | Config | 是 | 是 | 是 | 无 | `ACK,cmd=ST,v=wifi` | Core 0 立即 | 否 | 支持 | 只选择 Wi-Fi 且要求 mode 非 OFF；producer 不以 ready 为前置，consumer 发送前才检查 ready。先用 `WIFI?` 确认 `ok=1`。 |
 | `ST=ALL` | Config | 是 | 是 | 是 | 无 | `ACK,cmd=ST,v=all` | Core 0 立即 | 否 | 支持 | Serial + BLE + Wi-Fi；BLE 严格按 channel/CCCD gating，Wi-Fi mode 非 OFF 即可入队并在 consumer 发送前检查 ready。 |
 | `BTX?` | Query | 是 | 是 | 是 | 无 | `ACK,cmd=BTX,v=<FAST|SAFE>` | 立即 snapshot | - | 支持 | 查询 BLE TX mode。 |
-| `BTX=FAST` / `BTX=SAFE` | Config | 是 | 是 | 是 | 枚举值 | `ACK,cmd=BTX,v=<FAST|SAFE>` | Core 0 立即 | 否 | 支持 | FAST=Notify；SAFE=Indicate + confirmation。客户端 CCCD 必须匹配。 |
+| `BTX=FAST` / `BTX=SAFE` | Config | 是 | 是 | 是 | 枚举值 | `ACK,cmd=BTX,v=<FAST|SAFE>` | Core 0 立即 | 否 | 支持 | FAST=Notify；SAFE 优先 Indicate + confirmation，Notify-only 客户端使用有界 Notify fallback。 |
 | `WIFI?` | Query | 是 | 是 | 是 | 无 | `ACK,cmd=WIFI,v=<OFF|AP>,ok=<0|1>` | 立即 snapshot | - | 支持 | `ok` 表示 Wi-Fi backend ready，不等于 STA 已连接。 |
 | `WIFI=AP` | Config | 是 | 是 | 是 | 无 | `ACK,cmd=WIFI,v=AP,ok=1` 或 `ERR,...` | 调用时初始化/启用 SoftAP | 否 | 支持 | DATA/LOG/CTRL 使用 UDP 3333/3334/3335。 |
 | `WIFI=OFF` | Config | 是 | 是 | 是 | 无 | `ACK,cmd=WIFI,v=OFF,ok=1` | Core 0 立即 | 否 | 支持但语义有限 | 关闭 transport 的 Wi-Fi eligibility；当前实现不会销毁已经启动的 AP driver/socket。 |
