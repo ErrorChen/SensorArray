@@ -122,6 +122,16 @@ class TextProtocolParserTest(unittest.TestCase):
         self.assertEqual(protocol.latest_fields["AB50"]["invalidRun"], "1")
         self.assertEqual(protocol.latest_fields["AB50"]["spreadRaw"], "1043571")
 
+    def test_parses_nonblocking_battery_error_event(self) -> None:
+        protocol = TextProtocolParser()
+        protocol.feed_line(
+            "BATERR,seq=42,err=0x103,reason=range_error,valid=0,lastGoodMv=4153,"
+            "lastGoodValid=1,sampleUs=620,restore=ok,action=report_continue")
+        self.assertEqual(protocol.counters.malformed, 0)
+        self.assertEqual(protocol.counters.summary_lines, 1)
+        self.assertEqual(protocol.latest_fields["BATERR"]["reason"], "range_error")
+        self.assertEqual(protocol.latest_fields["BATERR"]["action"], "report_continue")
+
     def test_parses_active_ads_check_and_cache_telemetry(self) -> None:
         protocol = TextProtocolParser()
         protocol.feed_line(

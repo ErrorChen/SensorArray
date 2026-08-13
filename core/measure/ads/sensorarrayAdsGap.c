@@ -1864,6 +1864,22 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         diag.ain8GndUv = s_snapshot.ain8GndUv;
         diag.batteryMv = s_snapshot.batteryMv;
         diag.stateName = sensorarrayAdsBatteryReasonName(s_snapshot.batteryInvalidReason);
+        if (!s_snapshot.batteryValid && !diag.collision) {
+            /* Battery absence/floating/PWM is a reportable diagnostic result,
+             * not a matrix fault.  It is deliberately a normal diagnostic
+             * event, not a reserved lifecycle event: the bounded zero-wait
+             * enqueue must never let a battery problem outrank acquisition,
+             * control, or deferred command-application events. */
+            printf("BATERR,seq=%lu,err=0x%lx,reason=%s,valid=0,lastGoodMv=%ld,lastGoodValid=%u,sampleUs=%lu,restore=%s,action=report_continue\n",
+                   (unsigned long)frameSequence,
+                   (unsigned long)err,
+                   diag.stateName ? diag.stateName : "unknown",
+                   s_snapshot.batteryLastGoodValid ?
+                       (long)s_snapshot.batteryLastGoodMv : -1L,
+                   s_snapshot.batteryLastGoodValid ? 1u : 0u,
+                   (unsigned long)diag.sampleUs,
+                   diag.restoreOk ? "ok" : "fail");
+        }
         if (s_batteryDiagnosticRequested) {
             sensorarrayAdsPrintBatteryDiag(&diag);
         }

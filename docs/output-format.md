@@ -189,3 +189,11 @@ validRun, invalidRun, retry, unstable, timeout, spreadRaw
 ```
 
 无效 battery 使用 `bt=-1,valid=0,reason=<name>`；不能把 -1 或 0 当作真实电压，也不能仅由电压推导 SOC。`lastGoodMv/lastGoodValid/lastGoodFresh/lastGoodAgeMs/lastGoodFrame` 是独立的 last-known-good 记录：电池断开时 AIN8 的浮动、长周期 PWM 或异常范围只更新 latest invalid reason，不清除 last-good，也不使矩阵 frame invalid。
+
+每次实际检测到无效电池时，固件还会立即尝试发布一条普通异步诊断事件 `BATERR`，例如：
+
+```text
+BATERR,seq=...,err=0x...,reason=range_error,valid=0,lastGoodMv=...,lastGoodValid=1,sampleUs=...,restore=ok,action=report_continue
+```
+
+`BATERR` 是普通异步诊断事件：只报告电池诊断结果，不触发 SAFE，不进入高优先级 lifecycle 队列，也不让采集线程等待 transport；电池 transaction 的 ADS 状态仍必须完成 restore。电池切换后的 ADS126x 转换稳定 guard 默认是 50 us，另有一个 fresh discard conversion；`DRDY_TIMEOUT_US` 仍是独立的 600 us 故障上限。

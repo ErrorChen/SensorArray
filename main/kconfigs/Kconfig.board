@@ -160,8 +160,12 @@ config SENSORARRAY_BATTERY_CALIBRATION_OFFSET_UV
 
 config SENSORARRAY_BATTERY_VBIAS_SETTLE_US
     int "Battery VBIAS and input-MUX settle guard (us)"
-    default 500
+    default 50
     range 0 100000
+    help
+        ADS126x battery conversion stabilization guard after VBIAS, reference,
+        and AIN8 mux changes. The default is 50 us; one fresh discard
+        conversion remains enabled before the three-sample battery result.
 
 config SENSORARRAY_BATTERY_DATA_RATE
     int "Battery ADC1 data-rate code"
