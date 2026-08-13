@@ -462,6 +462,43 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
     return ESP_OK;
 }
 
+esp_err_t sensorarrayRouteControllerEnterSafeRailMonitor(
+    sensorarrayRouteController_t *controller,
+    uint64_t *outTransitionDurationUs)
+{
+    if (!controller || !controller->state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayBoardRouteProfile_t profile;
+    if (!sensorarrayBoardMapGetSafeRailMonitorProfile(&profile)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    int64_t startUs = esp_timer_get_time();
+    esp_err_t err = sensorarrayRouteStopFrontends(controller);
+    if (err == ESP_OK) {
+        err = sensorarrayRouteApplyControlProfile(controller, &profile);
+    }
+    if (err == ESP_OK) {
+        err = tmux1108SetSource(TMUX1108_SOURCE_REF);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayRouteConfigureAds(controller, &profile, NULL);
+    }
+    if (err == ESP_OK) {
+        esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US);
+        err = sensorarrayRouteCaptureAndVerify(controller, &profile, NULL, true);
+    }
+    uint64_t durationUs = (uint64_t)(esp_timer_get_time() - startUs);
+    if (outTransitionDurationUs) {
+        *outTransitionDurationUs = durationUs;
+    }
+    if (err != ESP_OK) {
+        (void)sensorarrayRouteControllerEnterSafe(controller, "rail_monitor_prepare_failed");
+        return err;
+    }
+    return ESP_OK;
+}
+
 esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *controller,
                                              uint8_t row)
 {

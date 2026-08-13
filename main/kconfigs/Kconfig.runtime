@@ -952,7 +952,8 @@ config SENSORARRAY_SCAN_TASK_STACK
     range 8192 32768
     help
         The scan task owns the complete FDC frame call stack and timing
-        aggregates. Keep this comparable to ESP_MAIN_TASK_STACK_SIZE.
+        aggregates. Keep enough headroom for the measured boot sweep while
+        leaving internal heap for the Core 0 async logger and transport tasks.
 
 config SENSORARRAY_SCAN_TASK_PRIO
     int "Scan task priority"

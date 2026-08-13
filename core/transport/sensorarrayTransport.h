@@ -64,6 +64,9 @@ typedef struct {
     uint32_t queueDrop;
     uint32_t queueDropData;
     uint32_t queueDropLog;
+    uint32_t queueDropLifecycle;
+    uint32_t lifecyclePublished;
+    uint32_t lifecycleDropped;
     uint32_t transportSlotUsed;
     uint32_t transportSlotHighWater;
     uint32_t transportSlotAllocFail;
@@ -99,6 +102,7 @@ typedef esp_err_t (*sensorarrayTransportRuntimeQueryCallback_t)(const char *comm
 esp_err_t sensorarrayTransportInit(void);
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length);
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length);
+esp_err_t sensorarrayTransportPublishLifecycle(const char *data, size_t length);
 esp_err_t sensorarrayTransportPublishControlReply(
     const sensorarrayTransportReplyTarget_t *target,
     const char *data,

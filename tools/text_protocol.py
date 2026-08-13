@@ -87,6 +87,33 @@ class MeasurementFrame:
 
 
 @dataclasses.dataclass
+class MixedRow:
+    row: int
+    mode: str
+    unit: str
+    scale: int
+    values_fixed: list[Optional[int]]
+    valid_mask: int
+    fresh_mask: int
+    error_mask: int
+
+
+@dataclasses.dataclass
+class MixedFrame:
+    sequence: int
+    timestamp_us: int
+    rows: int
+    cells: int
+    profile: str
+    generation: int
+    request_id: int
+    profile_generation: int
+    profile_request_id: int
+    row_frames: dict[int, MixedRow]
+    crc_ok: bool
+
+
+@dataclasses.dataclass
 class ProtocolCounters:
     lines: int = 0
     cap_frames: int = 0
@@ -229,6 +256,7 @@ class TextProtocolParser:
         self._measurement_chunks: dict[int, list[Optional[int]]] = {}
         self._error_chunks: dict[int, list[int]] = {}
         self._pga_chunks: dict[int, list[int]] = {}
+        self._mixed_rows: dict[int, MixedRow] = {}
         self._crc_bytes = bytearray()
         self._last_sequence: Optional[int] = None
         self._first_frame_time: Optional[float] = None
@@ -237,7 +265,7 @@ class TextProtocolParser:
     def note_non_ascii(self) -> None:
         self.counters.non_ascii_chunks += 1
 
-    def feed_line(self, line: str) -> Optional[CapFrame | MeasurementFrame]:
+    def feed_line(self, line: str) -> Optional[CapFrame | MeasurementFrame | MixedFrame]:
         line = line.rstrip("\r\n")
         if not line:
             return None
@@ -246,6 +274,8 @@ class TextProtocolParser:
 
         if tag == "C":
             return self._start_cap_frame(line)
+        if tag == "M":
+            return self._start_mixed_frame(line)
         if tag in {"V", "R"}:
             return self._start_measurement_frame(line, tag)
         # Diagnostic names such as P50 intentionally share the leading
@@ -270,6 +300,9 @@ class TextProtocolParser:
             else:
                 self.counters.malformed += 1
             return None
+        if tag == "MR":
+            self._add_mixed_row(line)
+            return None
         if len(tag) >= 2 and tag[0] == "P" and tag[1:].isdigit():
             self._add_pga_chunk(line, int(tag[1:]))
             return None
@@ -278,9 +311,105 @@ class TextProtocolParser:
                 return self._finish_cap_frame(line)
             if self._current_tag in {"V", "R"}:
                 return self._finish_measurement_frame(line)
+            if self._current_tag == "M":
+                return self._finish_mixed_frame(line)
             self.counters.malformed += 1
             return None
         return None
+
+    def _start_mixed_frame(self, line: str) -> None:
+        fields = parse_fields(line)
+        try:
+            sequence = int(fields["seq"], 10)
+            timestamp_us = int(fields.get("ts", "0"), 10)
+            rows = int(fields["rows"], 10)
+            cells = int(fields["cells"], 10)
+            generation = int(fields.get("rgen", "0"), 10)
+            request_id = int(fields.get("rrid", "0"), 10)
+            profile_generation = int(fields.get("pgen", "0"), 10)
+            profile_request_id = int(fields.get("prid", "0"), 10)
+            profile = fields["profile"]
+        except (KeyError, ValueError):
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        if (not 1 <= rows <= 8 or cells != rows * 8 or
+                len(profile) != 8 or any(char not in "CVR" for char in profile)):
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        self._current_sequence = sequence
+        self._current_tag = "M"
+        self._current_fields = fields
+        self._current_timestamp_us = timestamp_us
+        self._current_rows = rows
+        self._current_cells = cells
+        self._mixed_rows = {}
+        self._crc_bytes = bytearray((line + "\n").encode("ascii"))
+        return None
+
+    def _add_mixed_row(self, line: str) -> None:
+        if self._current_tag != "M":
+            self.counters.malformed += 1
+            return
+        fields = parse_fields(line)
+        try:
+            row = int(fields["s"], 10)
+            mode = fields["m"]
+            unit = fields["unit"]
+            scale = int(fields["scale"], 10)
+            valid_mask = int(fields["valid"], 16)
+            fresh_mask = int(fields["fresh"], 16)
+            error_mask = int(fields["error"], 16)
+            values: list[Optional[int]] = []
+            for token in line.split(",D=", 1)[1].split(","):
+                if token.startswith("X") and len(token) == 3:
+                    values.append(None)
+                else:
+                    values.append(int(token, 10))
+        except (KeyError, ValueError, IndexError):
+            self.counters.malformed += 1
+            return
+        if (row < 1 or row > self._current_rows or mode not in {"CAP", "VOLT", "RES"} or
+                len(values) != 8):
+            self.counters.malformed += 1
+            return
+        self._mixed_rows[row] = MixedRow(row, mode, unit, scale, values,
+                                         valid_mask, fresh_mask, error_mask)
+        self._crc_bytes.extend((line + "\n").encode("ascii"))
+
+    def _finish_mixed_frame(self, line: str) -> Optional[MixedFrame]:
+        fields = parse_fields(line)
+        try:
+            sequence = int(fields["seq"], 10)
+            expected_crc = int(fields["crc"], 16)
+            if sequence != self._current_sequence:
+                raise ValueError
+        except (KeyError, ValueError):
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        crc_ok = (zlib.crc32(self._crc_bytes) & 0xFFFFFFFF) == expected_crc
+        if not crc_ok:
+            self.counters.crc_errors += 1
+        if len(self._mixed_rows) != self._current_rows:
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        header = self._current_fields
+        frame = MixedFrame(
+            sequence, self._current_timestamp_us, self._current_rows,
+            self._current_cells, header["profile"], int(header.get("rgen", "0")),
+            int(header.get("rrid", "0")), int(header.get("pgen", "0")),
+            int(header.get("prid", "0")), self._mixed_rows, crc_ok)
+        self._record_sequence(sequence)
+        self._current_sequence = None
+        self._current_tag = None
+        return frame
 
     def _start_cap_frame(self, line: str) -> None:
         fields = parse_fields(line)

@@ -29,9 +29,17 @@ typedef struct {
     sensorarrayRowPlan_t rows[8];
     uint8_t rowCount;
     sensorarrayFrameConfigSnapshot_t configSnapshot;
+    sensorarrayMeasurementMode_t rowModes[8];
+    uint32_t rowProfileGeneration;
+    uint32_t rowProfileRequestId;
 } sensorarrayScanPlan_t;
 
 void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan);
 void sensorarrayScanPlanBuildAdsMatrix(sensorarrayScanPlan_t *plan,
                                        sensorarrayMeasurementMode_t mode);
 void sensorarrayScanPlanBuildMixedExample(sensorarrayScanPlan_t *plan);
+void sensorarrayScanPlanBuildRowProfile(
+    sensorarrayScanPlan_t *plan,
+    const sensorarrayMeasurementMode_t rowModes[8],
+    uint32_t profileGeneration,
+    uint32_t profileRequestId);

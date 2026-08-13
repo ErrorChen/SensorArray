@@ -10,6 +10,7 @@
 
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -28,7 +29,7 @@
 #include "sensorarrayUsbSink.h"
 
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE
-#define CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE 1
+#define CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE 0
 #endif
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS
 #define CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS 8
@@ -57,6 +58,9 @@
 #ifndef CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES
 #define CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES 0
 #endif
+#ifndef CONFIG_SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_LEN
+#define CONFIG_SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_LEN 8
+#endif
 
 #define SENSORARRAY_ASYNC_EVENT_TEXT_MAX 384u
 
@@ -65,6 +69,8 @@ enum {
         (CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS < 2) ? 2 : CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS,
     SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT =
         (CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN < 1) ? 1 : CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN,
+    SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT =
+        (CONFIG_SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_LEN < 1) ? 1 : CONFIG_SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_LEN,
 };
 
 typedef enum {
@@ -72,6 +78,7 @@ typedef enum {
     SENSORARRAY_ASYNC_LOG_EVENT_FRAME_ERROR,
     SENSORARRAY_ASYNC_LOG_EVENT_COMMAND_APPLIED,
     SENSORARRAY_ASYNC_LOG_EVENT_TEXT,
+    SENSORARRAY_ASYNC_LOG_EVENT_PROTOCOL,
 } sensorarrayAsyncLogEventType_t;
 
 typedef struct {
@@ -296,8 +303,14 @@ static StaticQueue_t s_eventQueueStruct;
 static uint8_t s_eventQueueStorage[SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT *
                                    sizeof(sensorarrayAsyncLogEvent_t)];
 static QueueHandle_t s_eventQueue;
+static StaticQueue_t s_protocolQueueStruct;
+static uint8_t s_protocolQueueStorage[SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT *
+                                      sizeof(sensorarrayAsyncLogEvent_t)];
+static QueueHandle_t s_protocolQueue;
 static TaskHandle_t s_logTaskHandle;
 static bool s_asyncLogStarted;
+static bool s_asyncLogAcquisitionReady;
+static volatile bool s_asyncLogUsbReady;
 static sensorarrayAsyncLogSharedStats_t s_sharedStats;
 static sensorarrayPrecisionWindow_t s_precisionWindow;
 static uint32_t s_summaryTruncated;
@@ -552,6 +565,22 @@ static void sensorarrayAsyncLogPrintEvent(const sensorarrayAsyncLogEvent_t *even
                      event->data.text.length,
                      stdout);
         break;
+    case SENSORARRAY_ASYNC_LOG_EVENT_PROTOCOL: {
+        (void)fwrite(event->data.text.bytes,
+                     1u,
+                     event->data.text.length,
+                     stdout);
+        esp_err_t transportErr = sensorarrayTransportPublishLifecycle(
+            event->data.text.bytes, event->data.text.length);
+        if (transportErr != ESP_OK && transportErr != ESP_ERR_INVALID_STATE) {
+            portENTER_CRITICAL(&s_asyncLogMux);
+            s_sharedStats.droppedEventLogs++;
+            portEXIT_CRITICAL(&s_asyncLogMux);
+            printf("PROTOCOL_EVENT_DROP,err=0x%lx\n",
+                   (unsigned long)transportErr);
+        }
+        break;
+    }
     default:
         printf("ASYNC_LOG_EVENT_UNKNOWN,type=%u,s=%lu\n",
                (unsigned)event->type,
@@ -568,6 +597,17 @@ static void sensorarrayAsyncLogDrainEvents(void)
 
     sensorarrayAsyncLogEvent_t event;
     while (xQueueReceive(s_eventQueue, &event, 0) == pdTRUE) {
+        sensorarrayAsyncLogPrintEvent(&event);
+    }
+}
+
+static void sensorarrayAsyncLogDrainProtocolEvents(void)
+{
+    if (!s_protocolQueue) {
+        return;
+    }
+    sensorarrayAsyncLogEvent_t event;
+    while (xQueueReceive(s_protocolQueue, &event, 0) == pdTRUE) {
         sensorarrayAsyncLogPrintEvent(&event);
     }
 }
@@ -1151,12 +1191,17 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         adsPacket->data,
         sizeof(adsPacket->data),
         adsPosition,
-        "AB50,bt=%ld,valid=%u,br=%s,bs=%s,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,sampleUs=%lu/%lu,a8d=%ld",
+        "AB50,bt=%ld,valid=%u,br=%s,bs=%s,ageMs=%lu,lastGoodMv=%ld,lastGoodValid=%u,lastGoodFresh=%u,lastGoodAgeMs=%lu,lastGoodFrame=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,sampleUs=%lu/%lu,a8d=%ld",
         ads->batteryValid ? (long)ads->batteryMv : -1L,
         ads->batteryValid ? 1u : 0u,
         sensorarrayBatteryReasonName(ads->batteryInvalidReason),
         batteryState,
         (unsigned long)ads->batteryAgeMs,
+        ads->batteryLastGoodValid ? (long)ads->batteryLastGoodMv : -1L,
+        ads->batteryLastGoodValid ? 1u : 0u,
+        ads->batteryLastGoodFresh ? 1u : 0u,
+        (unsigned long)ads->batteryLastGoodAgeMs,
+        (unsigned long)ads->batteryLastGoodFrame,
         (unsigned long)ads->batteryPeriodMs,
         ads->batteryDue ? 1u : 0u,
         (unsigned long)ads->batteryRunCount,
@@ -1218,7 +1263,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         packet->data,
         sizeof(packet->data),
         position,
-        "OT50,st=%s,tx=%s,out=%llu/%llu,q=%lu/%lu/%lu,ofps=%llu.%01llu/%llu.%01llu/%llu.%01llu,"
+        "OT50,st=%s,tx=%s,out=%llu/%llu,q=%lu/%lu/%lu,life=%lu/%lu/%lu,ofps=%llu.%01llu/%llu.%01llu/%llu.%01llu,"
         "drop=%llu/%llu/%llu,kb=%llu/%llu/%llu,blk=%llu/%llu/%llu,wdt=0\n",
         sensorarrayTransportStreamName(sensorarrayTransportGetStream()),
         sensorarrayTransportTxModeName(sensorarrayTransportGetTxMode()),
@@ -1227,6 +1272,9 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)queueCurrent,
         (unsigned long)queueMax,
         (unsigned long)transportStats.queueDrop,
+        (unsigned long)transportStats.lifecyclePublished,
+        (unsigned long)transportStats.lifecycleDropped,
+        (unsigned long)transportStats.queueDropLifecycle,
         (unsigned long long)(usbFpsX10 / 10u),
         (unsigned long long)(usbFpsX10 % 10u),
         (unsigned long long)(bleFpsX10 / 10u),
@@ -1749,6 +1797,9 @@ static void sensorarrayAsyncLogTask(void *arg)
     printf("TASKCORE,name=output_hub,core=%d,expected=%d\n",
            (int)xPortGetCoreID(),
            CONFIG_SENSORARRAY_LOG_TASK_CORE);
+    while (!s_asyncLogUsbReady) {
+        vTaskDelay(1u);
+    }
     sensorarrayAsyncLogWorkspace_t *workspace = &s_asyncLogWorkspace;
     sensorarrayFrame_t *frame = &workspace->frame;
     sensorarrayTextPacket_t *textPacket = &workspace->framePacket;
@@ -1757,6 +1808,7 @@ static void sensorarrayAsyncLogTask(void *arg)
 
     while (true) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000u));
+        sensorarrayAsyncLogDrainProtocolEvents();
         sensorarrayAsyncLogDrainEvents();
 
         uint64_t measureFrameUs = 0u;
@@ -1767,6 +1819,7 @@ static void sensorarrayAsyncLogTask(void *arg)
                                            &measureFrameUs,
                                            &publishedUs,
                                            &queueDepth)) {
+            sensorarrayAsyncLogDrainProtocolEvents();
             sensorarrayAsyncLogDrainEvents();
 
             int64_t outputStartUs = esp_timer_get_time();
@@ -1814,6 +1867,7 @@ static void sensorarrayAsyncLogTask(void *arg)
                 vTaskDelay(1u);
             }
         }
+        sensorarrayAsyncLogDrainProtocolEvents();
         sensorarrayAsyncLogDrainEvents();
     }
 }
@@ -1838,12 +1892,9 @@ esp_err_t sensorarrayAsyncLogInit(void)
     s_asyncLogWorkspace.summaryPacket.length = 0u;
     s_asyncLogWorkspace.adsPacket.length = 0u;
     s_summaryTruncated = 0u;
+    s_asyncLogAcquisitionReady = false;
+    s_asyncLogUsbReady = false;
     s_initialFreeHeap = esp_get_free_heap_size();
-
-    esp_err_t usbErr = sensorarrayUsbSinkInit();
-    if (usbErr != ESP_OK) {
-        return usbErr;
-    }
 
     s_eventQueue = xQueueCreateStatic(SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT,
                                       sizeof(sensorarrayAsyncLogEvent_t),
@@ -1852,25 +1903,55 @@ esp_err_t sensorarrayAsyncLogInit(void)
     if (!s_eventQueue) {
         return ESP_ERR_NO_MEM;
     }
+    s_protocolQueue = xQueueCreateStatic(SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT,
+                                         sizeof(sensorarrayAsyncLogEvent_t),
+                                         s_protocolQueueStorage,
+                                         &s_protocolQueueStruct);
+    if (!s_protocolQueue) {
+        s_eventQueue = NULL;
+        return ESP_ERR_NO_MEM;
+    }
 
+    /* Allocate only the large formatter/task stack here. The USB sink is
+     * started after the acquisition task has been created so its smaller
+     * stack cannot fragment the block needed by acquisition. */
     int logTaskCore = CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE >= 0 ?
         CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE : CONFIG_SENSORARRAY_COMM_TASK_CORE;
-    BaseType_t taskOk = xTaskCreatePinnedToCore(sensorarrayAsyncLogTask,
-                                                "sensorarrayLogTask",
-                                                CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
-                                                NULL,
-                                                CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY,
-                                                &s_logTaskHandle,
-                                                logTaskCore);
+    BaseType_t taskOk;
+    bool taskUsesPsramStack = false;
+#if CONFIG_SPIRAM && CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+    /* The acquisition task and the legacy I2C driver need a large internal
+     * heap block. Keep the formatter's large stack in PSRAM so enabling
+     * asynchronous telemetry cannot starve that hardware path. */
+    taskOk = xTaskCreatePinnedToCoreWithCaps(
+        sensorarrayAsyncLogTask,
+        "sensorarrayLogTask",
+        CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
+        NULL,
+        CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY,
+        &s_logTaskHandle,
+        logTaskCore,
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    taskUsesPsramStack = taskOk == pdPASS && s_logTaskHandle != NULL;
+#else
+    taskOk = xTaskCreatePinnedToCore(sensorarrayAsyncLogTask,
+                                     "sensorarrayLogTask",
+                                     CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
+                                     NULL,
+                                     CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY,
+                                     &s_logTaskHandle,
+                                     logTaskCore);
+#endif
     if (taskOk != pdPASS || !s_logTaskHandle) {
         s_eventQueue = NULL;
+        s_protocolQueue = NULL;
         return ESP_ERR_NO_MEM;
     }
 
     s_asyncLogStarted = true;
     sensorarrayTransportMemoryDiagnostics_t transportMemory = {0};
     sensorarrayTransportGetMemoryDiagnostics(&transportMemory);
-    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u,stackBytes=%u,workspaceBytes=%u,summaryBytes=%u,frameBytes=%u,textPacketBytes=%u,transportLegacyItemBytes=%lu,transportSlotBytes=%lu,transportDescriptorBytes=%lu\n",
+    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u,stackBytes=%u,stackMemory=%s,workspaceBytes=%u,summaryBytes=%u,frameBytes=%u,textPacketBytes=%u,transportLegacyItemBytes=%lu,transportSlotBytes=%lu,transportDescriptorBytes=%lu\n",
            (unsigned)SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT,
            (unsigned)SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES,
@@ -1878,6 +1959,7 @@ esp_err_t sensorarrayAsyncLogInit(void)
            (int)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE,
            CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES ? 1u : 0u,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
+           taskUsesPsramStack ? "psram" : "internal",
            (unsigned)sizeof(sensorarrayAsyncLogWorkspace_t),
            (unsigned)sizeof(sensorarrayAsyncLogSummary_t),
            (unsigned)sizeof(sensorarrayFrame_t),
@@ -1888,9 +1970,40 @@ esp_err_t sensorarrayAsyncLogInit(void)
     return ESP_OK;
 }
 
+esp_err_t sensorarrayAsyncLogStartUsbSink(void)
+{
+    if (!s_asyncLogStarted || !s_logTaskHandle) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_asyncLogUsbReady) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = sensorarrayUsbSinkInit();
+    if (err == ESP_OK) {
+        s_asyncLogUsbReady = true;
+        printf("APP_LOG_SINK_INIT,usb=ready\n");
+    } else {
+        s_asyncLogUsbReady = true;
+        printf("APP_LOG_SINK_INIT_FAIL,usb=0x%lx\n", (unsigned long)err);
+    }
+    return err;
+}
+
+void sensorarrayAsyncLogEnableAcquisition(void)
+{
+    if (s_asyncLogStarted && s_logTaskHandle) {
+        s_asyncLogAcquisitionReady = true;
+    }
+}
+
 bool sensorarrayAsyncLogIsRunning(void)
 {
-    return s_asyncLogStarted && s_logTaskHandle != NULL;
+    /* Keep startup FDC/I2C diagnostics on the known-good synchronous path.
+     * The acquisition domain is switched to the bounded async queues only
+     * after boot calibration has completed. */
+    return s_asyncLogStarted && s_logTaskHandle != NULL &&
+           s_asyncLogAcquisitionReady;
 }
 
 esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *frame,
@@ -2111,4 +2224,28 @@ esp_err_t sensorarrayAsyncLogPublishTextEvent(const char *text, size_t length)
     memcpy(event.data.text.bytes, text, length);
     event.data.text.length = (uint16_t)length;
     return sensorarrayAsyncLogPublishEvent(&event);
+}
+
+esp_err_t sensorarrayAsyncLogPublishProtocolEvent(const char *text, size_t length)
+{
+    if (!text || length == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!sensorarrayAsyncLogIsRunning() || !s_protocolQueue) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    sensorarrayAsyncLogEvent_t event = {
+        .type = SENSORARRAY_ASYNC_LOG_EVENT_PROTOCOL,
+    };
+    if (length > sizeof(event.data.text.bytes)) {
+        length = sizeof(event.data.text.bytes);
+    }
+    memcpy(event.data.text.bytes, text, length);
+    event.data.text.length = (uint16_t)length;
+    if (xQueueSend(s_protocolQueue, &event, 0) != pdTRUE) {
+        sensorarrayAsyncLogIncrementDroppedEvent();
+        return ESP_ERR_TIMEOUT;
+    }
+    sensorarrayAsyncLogNotifyTask();
+    return ESP_OK;
 }

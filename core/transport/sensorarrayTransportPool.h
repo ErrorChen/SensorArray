@@ -7,8 +7,10 @@
 #include "sensorarrayTransportChannels.h"
 
 #define SENSORARRAY_TRANSPORT_POOL_TEXT_MAX 1536u
-#define SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT 4u
+#define SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT 5u
 #define SENSORARRAY_TRANSPORT_POOL_LOG_SLOT_LIMIT 2u
+#define SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX \
+    (SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT - 1u)
 
 typedef struct {
     uint32_t slotGeneration;
@@ -51,6 +53,9 @@ _Static_assert(sizeof(sensorarrayTransportDescriptor_t) <= 32u,
 _Static_assert(SENSORARRAY_TRANSPORT_POOL_LOG_SLOT_LIMIT <
                    SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT,
                "Transport pool must reserve payload capacity for DATA");
+_Static_assert(SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX <
+                   SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT,
+               "Lifecycle slot must be inside the transport pool");
 
 /* These functions intentionally do not lock. Firmware callers protect only
  * the short state transition with their portMUX; payload copy/parse occurs

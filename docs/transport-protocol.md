@@ -2,13 +2,14 @@
 
 ## 通道模型
 
-固件区分三类逻辑通道：
+固件区分四类逻辑通道：
 
 | Channel | 内容 | 优先级 |
 | --- | --- | ---: |
 | CTRL | 命令与 source-local reply | 最高；独立路径 |
 | DATA | CAP/VOLT/RES measurement message | 高 |
 | LOG | summary、health、diagnostic event | 低 |
+| LIFECYCLE | MAPP/RAPP/BAPP/RMAPP/MERR/MFAULT 等 deferred protocol event | 高于 LOG，低于 DATA |
 
 同一条控制命令在 Serial、BLE `FF10` 和 Wi-Fi UDP `3335` 进入 `sensorarrayTransportHandleControlCommand()`。回复回到命令来源，不广播到其他 transport。
 
@@ -27,13 +28,14 @@ DATA/LOG 最大完整 message 为 1536 bytes，BLE CTRL TX 最大完整 reply �
 通用网络 transport 不在 FreeRTOS queue 中复制 1536-byte object，而使用：
 
 ```text
-4 个静态 payload slots
+5 个静态 payload slots（4 个普通 slot + 1 个 lifecycle 保留 slot）
         +
 DATA descriptor queue（depth=2）
+LIFECYCLE descriptor queue（depth=1，保留 slot）
 LOG descriptor queue（depth=2）
 ```
 
-4 个 slot 覆盖旧设计“最多 3 个排队 payload 加 1 个 consumer-owned payload”的峰值容量。descriptor 只携带 slot index、channel、length 与 slot generation；payload 与 frame metadata 只保留一份。LOG 同时占用的 slot 硬上限为 2，因此即使两条 compact summary LOG 合法排队，也始终至少为 DATA 保留 2 个 slot。
+4 个普通 slot 覆盖旧设计“最多 3 个排队 payload 加 1 个 consumer-owned payload”的峰值容量，第 5 个 slot 专供 lifecycle descriptor。descriptor 只携带 slot index、channel、length 与 slot generation；payload 与 frame metadata 只保留一份。LOG 同时占用的普通 slot 硬上限为 2，因此即使两条 compact summary LOG 合法排队，也不会挤占 DATA 或 lifecycle。
 
 producer：
 
@@ -47,7 +49,7 @@ xQueueSend(..., 0)
 consumer：
 
 ```text
-优先收 DATA descriptor，再收 LOG descriptor
+    优先收 DATA descriptor，再收 LIFECYCLE，最后收 LOG descriptor
 校验 index / inUse / generation / length
 发送到当前 eligible sinks
 release slot
@@ -56,7 +58,7 @@ release slot
 设计结果：
 
 - acquisition/logger 不等待 BLE/Wi-Fi；
-- LOG 同时占用的 slot 不超过 2 个，pool 始终至少为 DATA 保留 2 个 slot；
+- LOG 同时占用的普通 slot 不超过 2 个，lifecycle 有独立 reserved slot；
 - DATA queue 始终先消费；
 - measurement DATA 不会被 `SF50/ADS50/...` LOG 全部挤出；
 - stale descriptor、double/mismatched release 和 pool full 都有统计；
@@ -107,10 +109,10 @@ CTRL 不使用 DATA/LOG transport pool：
 
 | 层级 | DATA | LOG | CTRL |
 | --- | --- | --- | --- |
-| Core transport | 4 个共享 1536-byte slot；LOG 最多同时占 2 个 | 同左 | 独立 source-local 路径 |
+| Core transport | 5 个共享 1536-byte slot；其中 lifecycle 专用 1 个，LOG 普通 slot 最多同时占 2 个 | 同左 | 独立 source-local 路径 |
 | BLE component | 4 个独立 1536-byte slot | 2 个独立 1536-byte slot | 2 个独立 512-byte slot |
 
-Core transport 的共享 4-slot pool 负责 network sink 排队与 DATA reserve；BLE 收到 eligible payload 后复制到自己的 `DATA 4 + LOG 2` pool，再把小 descriptor 放入容量 6 的普通 TX FIFO。CTRL 使用另一条优先 queue，所以这里的 BLE `4 + 2` 不能误写成“共享 6 个任意 channel slot”。
+Core transport 的共享 5-slot pool 负责 network sink 排队、DATA reserve 与 lifecycle reserve；BLE 收到 eligible payload 后复制到自己的 `DATA 4 + LOG 2` pool，再把小 descriptor 放入容量 6 的普通 TX FIFO。CTRL 使用另一条优先 queue，所以这里的 BLE `4 + 2` 不能误写成“共享 6 个任意 channel slot”。
 
 BLE CTRL TX 仅在 reply 尚未被 Bluedroid 接受时进行 bounded retry：每 10 ms 一次，总窗口 500 ms，并且只重试 `ESP_FAIL`。其他 error 不重试。SAFE 下 `send_indicate(..., confirm=true)` 一旦返回 `ESP_OK`，reply 已被接受；随后等待 confirmation 即使 timeout 也不重发，以免一个 setter 的 source-local reply 在客户端重复出现。该机制不重新执行 command，只重试相同 reply bytes；DATA/LOG 仍保持单次、非阻塞发送。
 
@@ -127,7 +129,7 @@ BLE CTRL TX 仅在 reply 尚未被 Bluedroid 接受时进行 bounded retry：每
 - BLE/Wi-Fi 各 channel sent/drop；
 - BLE congestion、fragment error 与 CRC mismatch。
 
-`TXDROP` 表示有界 drop，不应通过把 send 改为 `portMAX_DELAY` 来消除。长跑验收应在 warmup 后比较 free heap、minimum free heap、slot high-water 与 drops，确认不存在随 frame count 持续增长的 leak。
+`TXDROP` 表示有界 drop，不应通过把 send 改为 `portMAX_DELAY` 来消除。LIFECYCLE 使用独立 queue/reserved slot，普通 LOG 不能挤掉 MAPP/RAPP/BAPP；`eventPublished/eventDropped` 与 `queueDropLifecycle` 应在长跑中观察。长跑验收应在 warmup 后比较 free heap、minimum free heap、slot high-water 与 drops，确认不存在随 frame count 持续增长的 leak。
 
 ## Wi-Fi 现状
 

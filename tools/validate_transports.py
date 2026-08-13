@@ -23,7 +23,7 @@ def run_stage(name: str, command: list[str], timeout_s: float) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", default="COM11")
-    parser.add_argument("--rows", default="1,2,4,8")
+    parser.add_argument("--rows", default="1,2,3,4,5,6,7,8")
     parser.add_argument("--duration", type=float, default=120.0)
     parser.add_argument("--serial", action="store_true")
     parser.add_argument("--ble", action="store_true")

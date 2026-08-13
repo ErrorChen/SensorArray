@@ -2108,11 +2108,21 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
         frameConfig.rowMask = 0xFFu;
     } else {
         frameConfig.cells = (uint8_t)(frameConfig.rows * SENSORARRAY_MATRIX_COLS);
-        frameConfig.rowMask = frameConfig.rows >= SENSORARRAY_MATRIX_ROWS ?
+        uint8_t configuredRows = frameConfig.rows >= SENSORARRAY_MATRIX_ROWS ?
             0xFFu : (uint8_t)((1u << frameConfig.rows) - 1u);
+        frameConfig.rowMask &= configuredRows;
+        if (frameConfig.rowMask == 0u) {
+            frameConfig.rowMask = configuredRows;
+        }
     }
     outFrame->configSnapshot = frameConfig;
     outFrame->activeRows = frameConfig.rows;
+    uint32_t activeCells = 0u;
+    for (uint8_t row = 0u; row < frameConfig.rows; ++row) {
+        if ((frameConfig.rowMask & (uint8_t)(1u << row)) != 0u) {
+            activeCells += SENSORARRAY_MATRIX_COLS;
+        }
+    }
 
     if (!state) {
         outFrame->errorMask = UINT64_MAX;
@@ -2238,6 +2248,9 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
         .frameSeq = outFrame->sequence,
     };
     for (uint8_t s = 1u; s <= outFrame->activeRows; ++s) {
+        if ((frameConfig.rowMask & (uint8_t)(1u << (s - 1u))) == 0u) {
+            continue;
+        }
         sensorarrayFdcRowTiming_t rowTiming = {
             .row = s,
         };
@@ -2620,10 +2633,14 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
             break;
         }
     }
-    uint8_t expectedRowMask = (uint8_t)((1u << outFrame->activeRows) - 1u);
-    uint8_t activeCells = (uint8_t)(outFrame->activeRows * SENSORARRAY_MATRIX_COLS);
-    uint64_t expectedCellMask = activeCells == 64u ?
-        UINT64_MAX : ((UINT64_C(1) << activeCells) - 1u);
+    uint8_t expectedRowMask = frameConfig.rowMask;
+    uint64_t expectedCellMask = 0u;
+    for (uint8_t row = 0u; row < outFrame->activeRows; ++row) {
+        if ((expectedRowMask & (uint8_t)(1u << row)) != 0u) {
+            expectedCellMask |= UINT64_C(0xFF) <<
+                (row * SENSORARRAY_MATRIX_COLS);
+        }
+    }
     outFrame->stale = outFrame->rowFreshMask != expectedRowMask ||
                       outFrame->primaryFreshMask != expectedRowMask ||
                       outFrame->secondaryFreshMask != expectedRowMask ||

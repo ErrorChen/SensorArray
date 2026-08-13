@@ -52,11 +52,12 @@ from text_protocol import MeasurementFrame
 
 class SerialSequenceTests(unittest.TestCase):
     def testAcceptsNonBlockingUsbPublicationDrops(self):
-        self.assertEqual(serialMissingEmissions(100, 110), 0)
-        self.assertEqual(serialMissingEmissions(100, 130), 2)
+        self.assertEqual(serialMissingEmissions(100, 101), 0)
+        self.assertEqual(serialMissingEmissions(100, 110), 9)
+        self.assertEqual(serialMissingEmissions(100, 130), 29)
 
-    def testRejectsStaleOrNonIntegralStride(self):
-        for current in (100, 90, 115):
+    def testRejectsStaleOrDuplicateSequence(self):
+        for current in (100, 90):
             with self.subTest(current=current):
                 with self.assertRaises(HilFailure):
                     serialMissingEmissions(100, current)
@@ -627,6 +628,7 @@ class GattAndProfileTest(unittest.TestCase):
         self.assertEqual(profile.subscribeCycles, 100)
         self.assertEqual(profile.reconnectCycles, 30)
         self.assertEqual(profile.longRunFrames, 2000)
+        self.assertEqual(profile.longRunSeconds, 120.0)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,9 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
 esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
     const sensorarrayFrame_t *frame,
     sensorarrayTextPacket_t *outPacket);
+esp_err_t sensorarrayTextProtocolBuildMixedFrame(
+    const sensorarrayFrame_t *frame,
+    sensorarrayTextPacket_t *outPacket);
 esp_err_t sensorarrayTextProtocolBuildFrame(const sensorarrayFrame_t *frame,
                                             sensorarrayTextPacket_t *outPacket);
 bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,

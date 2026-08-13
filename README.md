@@ -20,6 +20,7 @@ SensorArray 是面向 8×8 高精度检测矩阵的 ESP-IDF 固件，目标芯�
 | Serial 控制、数据、日志 | 支持 | USB Serial/JTAG 文本通道 |
 | BLE 控制、数据、日志 | 支持 | Service `0x00FF`；`FF10/FF11/FF20/FF30` |
 | Wi-Fi SoftAP + UDP | 支持 | DATA `3333`、LOG `3334`、CTRL `3335` |
+| `ROWMODES` mixed-row | 支持 | 每个 S 行独立选择 `C`/`V`/`R`，输出 `M/MR/K` |
 | Wi-Fi STA/APSTA 与配网保存 | 未实现 | 命令明确返回 `ERR,cmd=WIFI,reason=sta_nyi` |
 
 ## 快速开始
@@ -63,14 +64,16 @@ BTX?
 WIFI?
 MODE=CAP
 MODE=RES
-RAILCFG=<DMM_AVDD_UV>,<DMM_AVSS_UV_NEGATIVE>
+ROWMODES?
+ROWMODES=CVVRRVVC
+RAILCFG=<AVDD_UV>,<negative_AVSS_UV>   # 可选 debug override
 MODE=VOLT
 MODE=CAP
 ```
 
 `MODE=<name>` 会先返回 `MACK ... state=accepted`，再由 Core 1 在完整帧边界应用并输出 `MAPP ... state=applied`。主机必须等待匹配的 request ID，不能把 accepted 当作已经切换。
 
-进入 `VOLT` 前，必须在当前供电和接线状态下用外部 DMM 同步测量 `AVDD -> GND` 与 `AVSS -> GND`，将结果换算成 µV（AVDD 为正、AVSS 为负），并在仍处于非 VOLT 模式时发送成对的 `RAILCFG`。只有看到匹配的 `RACK ... state=accepted` 和 `RAPP ... source=external,state=applied` 后才能发送 `MODE=VOLT`。`RAILCFG` 在 VOLT 内会返回 `ERR,cmd=RAILCFG,reason=apply_before_volt`；ADS 内部 supply-monitor rail 只用于运行健康判断，不能冒充外部 DMM 精度校准。
+进入 `VOLT` 时固件会在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口通过 ADS126x internal analog supply monitor 自动获取 rail span，再恢复目标 route；普通用户不需要先发 `RAILCFG`。`RAILCFG` 仅作为可选的、易失的外部 DMM debug override，且不能在 VOLT route 内应用。电池断开时 AIN8 的 PWM/浮动/异常电压只应表现为 `valid=0,reason=...`，不会清除 last-good 或污染 CAP/VOLT/RES frame。
 
 ### 4. BLE 快速检查
 

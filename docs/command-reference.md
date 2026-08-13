@@ -35,12 +35,14 @@
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `ROWS?` | Query | 是 | 是 | 是 | 无 | `ROWS,active=...,pending=...,requestId=...,appliedId=...,generation=...` | 立即 snapshot | - | 支持 | 不触碰硬件。 |
-| `ROWS=<N>` / `ROWLIMIT=<N>` / `SCANROWS=<N>` | Config | 是 | 是 | 是 | `N=1..8`；正式 HIL 使用 1/2/4/8 | `RCMD,...status=accepted`，随后 `RAPP,...status=applied` | 下一完整帧开始 | 否 | 支持；后两者为 alias | `RAPP` 后的新 frame 才使用新 rows/generation。 |
+| `ROWS=<N>` / `ROWLIMIT=<N>` / `SCANROWS=<N>` | Config | 是 | 是 | 是 | `N=1..8` | `RCMD,...status=accepted`，随后 `RAPP,...status=applied` | 下一完整帧开始 | 否 | 支持；后两者为 alias | `RAPP` 后的新 frame 才使用新 rows/generation。 |
+| `ROWMODES?` | Query | 是 | 是 | 是 | 无 | `ROWMODES,active=...,pending=...,gen=...,rid=...,rows=8,state=...` | 立即 seqlock snapshot | - | 支持 | 查询每个物理 S 行的当前/待应用 profile。 |
+| `ROWMODES=<8 chars>` | Config | 是 | 是 | 是 | 每字节为 `C`/`V`/`R`，例如 `CVVRRVVC` | `RMACK,...state=accepted`，随后 `RMAPP,...profile=...,state=applied` 或 `RMERR` | 下一完整帧开始 | 否 | 支持 | profile 原子切换；同一帧不会混用旧/新 profile。 |
 | `MODE?` / `STATE?` | Query | 是 | 是 | 是 | 无 | `MODE,state=...,active=...,route=...` | 立即 seqlock snapshot | - | 支持 | 两个命令当前返回同一完整 snapshot；不发起新 conversion。 |
 | `MODE=CAP` / `MODE=CAPACITANCE` | Config | 是 | 是 | 是 | CAP alias | `MACK,...state=accepted`，随后 `MAPP,...state=applied` | 完整帧边界 | 否 | 支持 | 切到双 FDC CAP。 |
-| `MODE=VOLT` / `MODE=VOLTAGE` | Config | 是 | 是 | 是 | VOLT alias | `MACK`；已有 external rail 时随后 `MAPP`，否则帧边界输出 `MERR,...state=SAFE` | 完整帧边界 | 否 | 支持 | 必须仍在 CAP/RES 时先用同步外部 DMM 值完成 `RAILCFG` 并等待匹配 `RACK`/`RAPP,source=external`；RES monitor rail 不能代替。 |
+| `MODE=VOLT` / `MODE=VOLTAGE` | Config | 是 | 是 | 是 | VOLT alias | `MACK`，随后自动 monitor rail 并输出 `MAPP`；失败输出 `MERR,...state=SAFE` | 完整帧边界 | 否 | 支持 | 不要求普通用户 `RAILCFG`；`SAFE_RAIL_MONITOR` 使用 ADS126x internal analog supply monitor。 |
 | `MODE=RES` / `MODE=RESISTANCE` | Config | 是 | 是 | 是 | RES alias | `MACK`，随后 `MAPP` | 完整帧边界 | 否 | 支持 | 切到 ADS + REFOUT 电阻路径。 |
-| `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Config | 是 | 是 | 是 | AVDD 正数；AVSS 负数 | `RACK,...state=accepted`，随后 `RAPP,...state=applied`；已在 VOLT 时返回 `ERR,cmd=RAILCFG,reason=apply_before_volt` | 完整帧边界 | 否 | 支持 | 必须在进入 VOLT 前应用外部实测 rail；应用后使相关 ADS cache 失效。 |
+| `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Config | 是 | 是 | 是 | AVDD 正数；AVSS 负数 | `RACK,...state=accepted`，随后 `RAPP,...state=applied`；已在 VOLT 时返回 `ERR,cmd=RAILCFG,reason=apply_before_volt` | 完整帧边界 | 否 | 支持 | 可选外部 DMM debug override；不再是普通 VOLT 前置条件。 |
 | `CELL?=S<row>D<col>` | Query | 是 | 是 | 是 | row/col 都为 1..8，例如 `CELL?=S1D1` | `CELL,seq=...,mode=...,value=...,valid=...` | 立即读取最后完整 snapshot | - | 支持 | 不触发新测量。 |
 | `RESSETTLE?` | Query | 是 | 是 | 是 | 无 | `RESSETTLE,settleUs=...,phases=2,source=runtime` | 立即 snapshot | - | 支持 | 查询 RES row settle。 |
 | `RESSETTLE=<microseconds>` | Config | 是 | 是 | 是 | `0..10000` | `ACK,cmd=RESSETTLE,...status=accepted`，随后 `RESSETTLE,...status=applied|rejected` | 完整帧边界 | 否 | 支持 | 不应把调试 sweep 结果固化为生产校准。 |
@@ -49,7 +51,7 @@
 
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `BAT?` | Query | 是 | 是 | 是 | 无 | `ABAT,...` | 立即读取 cache | - | 支持 | 使用 `valid/fresh/ageMs/reason/restore`，不能只看 mV。 |
+| `BAT?` | Query | 是 | 是 | 是 | 无 | `ABAT,...` | 立即读取 cache | - | 支持 | 使用 latest `valid/fresh/ageMs/reason` 与 `lastGoodMv/lastGoodFresh/lastGoodAgeMs`，不能只看 mV。断电池的浮动/PWM AIN8 属于可解释 invalid diagnostic。 |
 | `RAIL?` | Query | 是 | 是 | 是 | 无 | `ARL,...` | 立即读取 cache | - | 支持 | 不发起 rail transaction。 |
 | `ADS?` | Query | 是 | 是 | 是 | 无 | `ADS,...` | 立即读取 identity/register snapshot | - | 支持 | 未确认芯片时必须是 `chip=unknown,valid=0`。 |
 | `ADSCHK` / `ADSCHK=<samples>` | Action | 是 | 是 | 是 | 默认 100；范围 `1..1000` | `ACK,cmd=ADSCHK,id=...,status=accepted`，随后 `ADSCHK` 与 `ADSCHKSTAT` | 下一完整帧之后 | 否 | 支持 | 主动读 SPI/DRDY 并验证 restore，不复用 measurement cache。 |

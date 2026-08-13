@@ -58,6 +58,8 @@ ST?
 BTX?
 WIFI?
 ROWS?
+ROWMODES?
+ROWMODES=CVVRRVVC
 ```
 
 随后验证模式切换：
@@ -65,14 +67,14 @@ ROWS?
 ```text
 MODE=CAP
 MODE=RES
-RAILCFG=<DMM_AVDD_UV>,<DMM_AVSS_UV_NEGATIVE>
+RAILCFG=<AVDD_UV>,<negative_AVSS_UV>   # optional external-DMM override
 MODE=VOLT
 MODE=CAP
 ```
 
-`DMM_AVDD_UV` 与 `DMM_AVSS_UV_NEGATIVE` 不是标称电源值或 firmware monitor 值。应在当前供电、接线和负载状态下，用外部 DMM 紧邻本次 VOLT 测试测量 `AVDD -> GND` 与 `AVSS -> GND`，换算为 µV 后成对输入；AVDD 必须为正，AVSS 必须为负。发送 `RAILCFG` 时设备必须不在 VOLT。
+普通 `MODE=VOLT` 会先在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口通过 ADS126x internal analog supply monitor 自动取得 rail span，不需要先发 `RAILCFG`。`RAILCFG` 只用于可选的外部 DMM debug override，且必须在非-VOLT route 下发送。
 
-正确顺序为：
+使用外部 DMM override 时顺序为：
 
 1. 在 CAP 或 RES 下发送 `RAILCFG`；
 2. 等待匹配 request ID 的 `RACK ... source=external,state=accepted`；
@@ -80,7 +82,7 @@ MODE=CAP
 4. 再发送 `MODE=VOLT`；
 5. 等待匹配的 `MACK`、`MAPP` 和首个完整 VOLT frame。
 
-如果已经在 VOLT 内发送 `RAILCFG`，firmware 会拒绝并返回 `ERR,cmd=RAILCFG,reason=apply_before_volt`。先切回 CAP/RES，再重新测量并应用。ADS supply-monitor rail 可用于运行健康检查或 RES 内部流程，但它不是外部 DMM 精度校准，不能复制成 `RAILCFG` 值。
+如果已经在 VOLT 内发送 `RAILCFG`，firmware 会拒绝并返回 `ERR,cmd=RAILCFG,reason=apply_before_volt`。电池断开时 AIN8 的浮动、长周期 PWM 或异常值会报告 `valid=0` 和原因，同时保留 `lastGood*`；不会把矩阵采集判为故障。
 
 每次切换都必须看到：
 

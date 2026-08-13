@@ -48,6 +48,7 @@ static void testAllocateReleaseAndPriorityReserve(void)
     sensorarrayTransportDescriptor_t logRejected;
     sensorarrayTransportDescriptor_t dataA;
     sensorarrayTransportDescriptor_t dataB;
+    sensorarrayTransportDescriptor_t lifecycle;
     assert(sensorarrayTransportPoolAllocate(
         &pool, SENSORARRAY_TRANSPORT_CHANNEL_LOG, 100u, &logA));
     assert(sensorarrayTransportPoolAllocate(
@@ -60,8 +61,10 @@ static void testAllocateReleaseAndPriorityReserve(void)
         &pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 200u, &dataA));
     assert(sensorarrayTransportPoolAllocate(
         &pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 201u, &dataB));
-    assert(pool.stats.used == 4u);
-    assert(pool.stats.highWater == 4u);
+    assert(sensorarrayTransportPoolAllocate(
+        &pool, SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE, 202u, &lifecycle));
+    assert(pool.stats.used == 5u);
+    assert(pool.stats.highWater == 5u);
 
     sensorarrayTransportPayloadSlot_t *slot =
         sensorarrayTransportPoolGetSlot(&pool, &dataA);
@@ -74,10 +77,11 @@ static void testAllocateReleaseAndPriorityReserve(void)
     /* This models xQueueSend(..., 0) failure cleanup: ownership is released
      * immediately, so a full descriptor queue cannot leak a payload slot. */
     assert(sensorarrayTransportPoolRelease(&pool, &dataB));
-    assert(pool.stats.used == 3u);
+    assert(pool.stats.used == 4u);
     assert(sensorarrayTransportPoolRelease(&pool, &dataA));
     assert(sensorarrayTransportPoolRelease(&pool, &logA));
     assert(sensorarrayTransportPoolRelease(&pool, &logB));
+    assert(sensorarrayTransportPoolRelease(&pool, &lifecycle));
     assert(pool.stats.used == 0u);
 }
 

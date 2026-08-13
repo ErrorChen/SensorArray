@@ -16,7 +16,7 @@ sensorarrayAsyncLogTask
 旧通用 transport item 把 1536-byte payload 与 metadata 放在一个 1560-byte object 中；producer stack、FreeRTOS queue storage 与 consumer stack 都保存完整 object。BLE 全局 gating 还会使仅订阅 DATA 的连接错误地把 LOG 送入通用 queue。修复后的检查点：
 
 - queue item 必须是小 descriptor；
-- payload 位于 4-slot 静态 pool；
+- payload 位于 5-slot 静态 pool，其中 1 个 slot 专供 lifecycle event；
 - FF20 与 FF30 独立 gating；
 - DATA/LOG drop 与 slot high-water 可见；
 - log task minimum remaining >= 2048 bytes。
@@ -100,7 +100,7 @@ SAFE 使用 Indicate confirmation。检查客户端是否启用了 Indicate 而�
 
 ## VOLT 无法进入或 `RAILCFG` 被拒绝
 
-VOLT 必须使用当前供电/接线下同步外部 DMM 测得的 rail split。正确顺序是在 CAP/RES 下测量 `AVDD -> GND` 和 `AVSS -> GND`，按正/负 µV 发送成对 `RAILCFG`，等待匹配的 `RACK` 与 `RAPP,source=external,state=applied`，再发送 `MODE=VOLT`。
+普通 VOLT 会自动进入 `SAFE_RAIL_MONITOR`，通过 ADS126x internal analog supply monitor 获取 rail span；不需要 `RAILCFG`。只有需要外部 DMM debug override 时，才在 CAP/RES 下按正/负 µV 发送成对 `RAILCFG`，并等待匹配的 `RACK`/`RAPP`。
 
 在 VOLT 内发送 `RAILCFG` 会按设计返回：
 
@@ -110,7 +110,11 @@ ERR,cmd=RAILCFG,reason=apply_before_volt
 
 先回 CAP/RES，再重新测量和应用。若未应用 external rail 就发送 `MODE=VOLT`，`MACK` 仍可能只表示请求已排队，随后帧边界会输出 `MERR` 并进入 SAFE。
 
-不要把 `RAIL?`、`AB50.rail` 或 ADS supply-monitor 值复制成 `RAILCFG`。monitor rail 是内部运行健康数据，在 VOLT clamp 条件下不能刷新，也没有外部 DMM 的同步性和精度证据。若读数异常，应检查 DMM 接地、AVDD/AVSS 符号、单位是否为 µV、供电或接线是否在 DMM 测量后发生变化。
+`RAIL?` 和 `AB50.rail` 是内部 monitor/reference telemetry，不是外部 DMM 精度证据。若自动 monitor 失败，应检查 ADS、TMUX readback、供电与隔离 route；若 override 异常，再检查 DMM 接地、AVDD/AVSS 符号和 µV 单位。
+
+## 电池已断开
+
+AIN8 的浮动、长周期 PWM 或异常范围属于预期的 battery diagnostic invalid。看 `valid=0,reason=...` 与 `lastGoodValid/lastGoodFresh/lastGoodAgeMs`；不要把 `bt=-1`、异常 raw 或 `reason=absent_or_open` 当作矩阵采集、ADS route 或 transport 故障。
 
 ## RES 值不合理
 

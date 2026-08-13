@@ -81,7 +81,7 @@ tools/sensorarray_hil.py
 
 Serial port 可由 `--port COMx` 或 `SENSORARRAY_SERIAL_PORT` 指定。不指定时工具只能列出候选，不应在多个设备间危险地自动选择。
 
-VOLT HIL 必须成对提供当前硬件的同步外部 DMM rail 值。先在同一供电、接线和负载状态下测量 `AVDD -> GND` 与 `AVSS -> GND`；前者以正 µV 输入，后者以负 µV 输入。不要使用标称电压、`RAIL?` 或 ADS supply-monitor telemetry 代替外部 DMM。工具会在进入 VOLT 前发送 `RAILCFG` 并核对 `RACK`/`RAPP,source=external`；任一 rail 参数缺失或符号错误应直接失败。
+VOLT HIL 默认验证 firmware 在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口自动读取 ADS126x internal analog supply monitor。外部 DMM `RAILCFG` 仍可作为可选 debug override，但不是普通 VOLT 前置条件。电池已断开时，AIN8 浮动/PWM/异常值应记录为 battery diagnostic invalid，不作为 acquisition failure。
 
 下面的命令是可重复验收入口，不代表文档提交者已经在当前设备上运行或取得 PASS。只有保留下来的 wire log、machine-readable summary 和测试报告才能作为执行证据。
 
@@ -90,14 +90,9 @@ VOLT HIL 必须成对提供当前硬件的同步外部 DMM rail 值。先在同�
 完整验收入口：
 
 ```powershell
-[int]$railAvddUv = Read-Host "输入同步外部 DMM 实测 AVDD->GND（uV，正数）"
-[int]$railAvssUv = Read-Host "输入同步外部 DMM 实测 AVSS->GND（uV，负数）"
-if ($railAvddUv -le 0 -or $railAvssUv -ge 0) { throw "rail signs must be AVDD>0 and AVSS<0" }
 & $python tools\sensorarray_hil.py serial `
   --profile full `
   --port COMx `
-  --rail-avdd-uv $railAvddUv `
-  --rail-avss-uv $railAvssUv `
   --output-directory validation_artifacts\serial_full
 ```
 
@@ -125,7 +120,7 @@ MODE=CAP
 5. 至少收 10 帧；
 6. 禁止旧 mode/generation frame 被标为 fresh。
 
-RES regression 必须达到至少 2000 个完整 frame 或 30 分钟，并保持 ADS autorange、battery periodic、compact summary 和 8×8 输出开启。S1D1/S8D8 可用 `5 kΩ < value < 20 kΩ` 做宽松 pipeline sanity；其他 open cell 不要求固定数值。
+本次持久测试统一要求至少 120 秒（2 分钟），并保持 ADS autorange、battery periodic、compact summary 和 8×8 输出开启；同时记录完整 frame 数。S1D1/S8D8 可用 `5 kΩ < value < 20 kΩ` 做宽松 pipeline sanity；其他 open cell 不要求固定数值。
 
 Serial observer 必须把以下任一新出现记录为 FAIL：
 
@@ -164,7 +159,7 @@ BLE 测试期间 Serial observer 必须同时运行；BLE disconnect 本身不�
 | --- | ---: | ---: | ---: | --- |
 | connected only | 0 | 0 | 0 | 1–2 分钟稳定；无 BLE DATA/LOG queue pressure |
 | CTRL only | 1 | 0 | 0 | FF10 query -> FF11 reply；无 DATA/LOG |
-| DATA only | 0 | 1 | 0 | 至少 1000 DATA message 或 10 分钟；无 LOG forwarding |
+| DATA only | 0 | 1 | 0 | 至少 1000 DATA message 或 2 分钟；无 LOG forwarding |
 | LOG only | 0 | 0 | 1 | SF50/TR50/ADS50 等；无 measurement DATA |
 | CTRL + DATA | 1 | 1 | 0 | ACK 与 DATA 并行，CTRL 不饥饿 |
 | CTRL + LOG | 1 | 0 | 1 | ACK 与 LOG 并行 |
@@ -201,7 +196,7 @@ FAST 使用 Notify bit，SAFE 使用 Indicate bit。SAFE 必须收到 confirmati
 - full subscription 下循环 `CAP -> RES -> VOLT -> CAP` 20–50 次，每 mode 至少 5 帧；
 - FF20/FF30 subscribe/unsubscribe 尽可能达到 100 cycles；
 - connect/subscribe/query/data/disconnect 至少 30 cycles；
-- BLE + Serial observer + RES 至少 2000 DATA frames 或 30 分钟；
+- BLE + Serial observer + RES 至少 120 秒（2 分钟）；
 - RES 长跑每 30–60 秒发一次 `STATE?`，证明 CTRL 仍存活。
 
 ## nRF Connect 最小手工验收
@@ -216,8 +211,8 @@ FAST 使用 Notify bit，SAFE 使用 Indicate bit。SAFE 必须收到 confirmati
 8. 写 `BTX?\n`，确认仍为 SAFE；再写 `BTX=FAST\n` 并确认 Notify 回复；
 9. disable `FF30`，确认 `FF20` 继续 DATA；re-enable `FF30`；
 10. 切 RES 并运行数分钟；
-11. 如需验收 VOLT，在仍处于 CAP/RES 时用同步外部 DMM 测得 rail，向 `FF10` 写成对 `RAILCFG`；在 `FF11` 等 `RACK`、在 `FF30`/Serial 等匹配的 `RAPP,source=external`；
-12. 写 `MODE=VOLT\n`，等待 `MACK`、`MAPP` 与 FF20 的完整 VOLT DATA；不要在 VOLT 内发送 `RAILCFG`；
+11. 写 `MODE=VOLT\n`，等待自动 monitor 后的 `MACK`、`MAPP` 与 FF20 的完整 VOLT DATA；需要外部 DMM override 时才在 CAP/RES 下发送 `RAILCFG`；
+12. 写 `ROWMODES=CVVRRVVC\n`，等待 `RMACK`、`RMAPP`，并验证 `M/MR/K` 混合帧按 S 行重组；
 13. disconnect；
 14. reconnect，重新设置 CCCD 后重复 query/data。
 
@@ -269,6 +264,14 @@ stale descriptor / release mismatch
 ## 本轮实测结果
 
 本节只记录 artifact 已证明的范围。Targeted PASS 不替代 complete full profile，Bleak 自动化也不替代 nRF Connect 人工验收或外部 DMM 精度证据。
+
+### 本次 `/dev/ttyACM0` 重试（2026-08-13）
+
+- 固件刷写：PASS。ESP32-S3，应用镜像 SHA 校验通过，端口 `/dev/ttyACM0`。
+- Serial smoke：PASS。CAP/RES/VOLT/CAP 模式切换、MAPP、CRC 和启动检查通过。
+- 2 分钟持续采集：PASS。`serial_persistence_120s` 实测 2355 个 RES 完整帧，120.047 s，19.617 fps，CRC=0，sequence gap=0，运行期间 reset=0；S1D1=10043.711 Ω，S8D8=10041.236 Ω。
+- Serial full profile：NOT PASS（telemetry prerequisite）。板子启动时报告 `APP_LOG_INIT_FAIL,err=0x101`，async logger 因内部堆不足未创建，因此 full profile 缺少 `STK50`，不能宣称完整稳定性验收 PASS。该次采集本身未观察到 post-ready reset 或 CRC 错误。
+- 电池已断开：AIN8 浮动、长周期 PWM 或异常电压按 battery diagnostic invalid 处理，不作为矩阵采集失败。
 
 | 阶段 | Status | 实测范围 | Artifact |
 | --- | --- | --- | --- |

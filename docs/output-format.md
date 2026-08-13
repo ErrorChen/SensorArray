@@ -83,6 +83,20 @@ Xhh
 
 `hh` 是 `sensorarrayCellError_t` 的两位十六进制错误码，例如当前 open 为 `X0D`。host 必须保留未知错误码并显示 invalid，不得把它转换为数值 0。
 
+## Mixed-row frame
+
+当 `ROWMODES` 不是全行同一模式时，DATA 使用独立的混合帧：
+
+```text
+M,seq=...,ts=...,rows=8,cells=64,rgen=...,rrid=...,pgen=...,prid=...,profile=CVVRRVVC,fmt=mix1
+MR,s=1,m=CAP,unit=pf,scale=-6,valid=...,fresh=...,error=...,fmt=pf6,D=...
+MR,s=2,m=VOLT,unit=V,scale=-6,valid=...,fresh=...,error=...,fmt=uv-x,D=...
+...
+K,seq=...,rgen=...,rrid=...,pgen=...,prid=...,crc=...
+```
+
+每个 `MR` 只承载一个物理行的 8 个 cell；CAP/VOLT/RES 可在同一 `M` 中并存，`D` 使用正常数值或 `Xhh` invalid token。CRC 覆盖 `M` 与所有 `MR` 行，不包括 `K`。主机应按 `s` 放回矩阵，不要按 mode 或 `MR` 到达顺序重排。
+
 ### `P` chunk
 
 每个 cell 使用两个十六进制字符表示 literal PGA gain：
@@ -174,4 +188,4 @@ valid, fresh, ageMs, periodMs, reason, restore,
 validRun, invalidRun, retry, unstable, timeout, spreadRaw
 ```
 
-无效 battery 使用 `bt=-1,valid=0,reason=<name>`；不能把 -1 或 0 当作真实电压，也不能仅由电压推导 SOC。
+无效 battery 使用 `bt=-1,valid=0,reason=<name>`；不能把 -1 或 0 当作真实电压，也不能仅由电压推导 SOC。`lastGoodMv/lastGoodValid/lastGoodFresh/lastGoodAgeMs/lastGoodFrame` 是独立的 last-known-good 记录：电池断开时 AIN8 的浮动、长周期 PWM 或异常范围只更新 latest invalid reason，不清除 last-good，也不使矩阵 frame invalid。

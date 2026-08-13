@@ -263,6 +263,30 @@ bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
     }
 }
 
+bool sensorarrayBoardMapGetSafeRailMonitorProfile(
+    sensorarrayBoardRouteProfile_t *outProfile)
+{
+    if (!outProfile) {
+        return false;
+    }
+    /* Internal SAFE_RAIL_MONITOR is distinct from RES: REFOUT is not connected
+     * to the matrix and matrix excitation remains disabled while the ADS
+     * supply monitor is sampled. */
+    *outProfile = (sensorarrayBoardRouteProfile_t){
+        .mode = SENSORARRAY_MEASUREMENT_MODE_NONE,
+        .selaRoute = SENSORARRAY_SELA_ROUTE_ADS1263,
+        .selBLevel = false,
+        .swLogicalSource = TMUX1108_SOURCE_REF,
+        .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_LOW,
+        .matrixExcitationEnabled = false,
+        .intRef = SENSORARRAY_ADS_INTREF_ON,
+        .vbias = SENSORARRAY_ADS_VBIAS_ON,
+        .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_INTERNAL,
+        .adsRefMux = ADS126X_REFMUX_INTERNAL,
+    };
+    return true;
+}
+
 const char *sensorarrayBoardMapMatrixExcitationName(bool enabled)
 {
     return enabled ? "REFOUT" : "GND";

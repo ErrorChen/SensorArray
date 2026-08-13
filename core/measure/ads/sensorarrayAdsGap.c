@@ -714,7 +714,8 @@ static void sensorarrayAdsUpdateZero(int32_t zeroUv, uint32_t frameSequence)
 
 static void sensorarrayAdsUpdateBatteryValidity(
     esp_err_t adcReadErr,
-    const sensorarrayAdsBatteryDiag_t *diag)
+    const sensorarrayAdsBatteryDiag_t *diag,
+    uint32_t frameSequence)
 {
     s_snapshot.batteryValid = false;
     s_snapshot.aincomGndValid = false;
@@ -755,6 +756,17 @@ static void sensorarrayAdsUpdateBatteryValidity(
     s_snapshot.batteryMv = result.batteryMv;
     s_snapshot.batteryValid = result.valid;
     s_snapshot.batteryInvalidReason = sensorarrayAdsBatteryMathReason(result.error);
+    /* A disconnected battery is an expected invalid diagnostic result. Keep
+     * the latest attempt separate from the last known-good value so a noisy,
+     * floating or PWM-driven AIN8 pin cannot erase useful history or turn the
+     * acquisition frame into a transport/route fault. */
+    if (result.valid) {
+        s_snapshot.batteryLastGoodMv = result.batteryMv;
+        s_snapshot.batteryLastGoodValid = true;
+        s_snapshot.batteryLastGoodTimestampUs =
+            (uint64_t)esp_timer_get_time();
+        s_snapshot.batteryLastGoodFrame = frameSequence;
+    }
 }
 
 static esp_err_t sensorarrayAdsReadAdc2Uv(ads126xAdcHandle_t *ads,
@@ -1101,6 +1113,8 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
     s_snapshot.railStatus = SENSORARRAY_ADS_RAIL_STATUS_BAD;
     s_snapshot.railAgeFrames = UINT32_MAX;
     s_snapshot.batteryMv = -1;
+    s_snapshot.batteryLastGoodMv = -1;
+    s_snapshot.batteryLastGoodFrame = UINT32_MAX;
     s_snapshot.batteryEnabled = CONFIG_SENSORARRAY_BATTERY_ENABLE != 0;
     s_snapshot.batteryPeriodMs = (uint32_t)CONFIG_SENSORARRAY_BATTERY_PERIOD_MS;
     s_snapshot.batteryAgeMs = UINT32_MAX;
@@ -1163,7 +1177,7 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
         err = sensorarrayAdsBootCalibration(state);
     }
     if (err != ESP_OK) {
-        sensorarrayAdsUpdateBatteryValidity(err, NULL);
+        sensorarrayAdsUpdateBatteryValidity(err, NULL, 0u);
         return err;
     }
 
@@ -1462,6 +1476,11 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         .discardCount = SENSORARRAY_ADS_BATTERY_DISCARD_COUNT,
         .zeroUv = s_snapshot.zeroResidualUv,
         .batteryMv = -1,
+        /* No register has been modified yet.  A snapshot/owner/setup failure
+         * therefore needs no restore and must not be reported as a hardware
+         * restore failure.  This becomes false only after a real restore
+         * attempt fails below. */
+        .restoreOk = true,
         .reason = "begin",
     };
     int64_t transactionStartUs = esp_timer_get_time();
@@ -1701,7 +1720,15 @@ restore:
     (void)ads126xAdcStopAdc1(ads);
     if (snapshotValid) {
         esp_err_t restoreErr = ESP_FAIL;
-        if (snapshotFromShadow && transactionCoreKnown && err == ESP_OK) {
+        /* Once the battery transaction has verified the temporary core
+         * registers, restore that known register set even when the AIN8
+         * conversion itself is invalid (open/floating/PWM input, status alarm,
+         * or an unstable sample).  Those are expected battery-diagnostic
+         * outcomes and must not force the slower full-snapshot path or turn an
+         * invalid battery reading into a matrix SAFE fault.  A transport or
+         * setup failure before this point still uses the conservative full
+         * snapshot restore below. */
+        if (snapshotFromShadow && transactionCoreKnown) {
             restoreErr = sensorarrayAdsRestoreBatteryCoreState(
                 ads,
                 &saved,
@@ -1821,7 +1848,7 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         s_snapshot.batteryFresh = diag.fresh;
         s_batteryRestoreFailureLatched = s_batteryRestoreFailureLatched ||
             !diag.restoreOk;
-        sensorarrayAdsUpdateBatteryValidity(err, &diag);
+        sensorarrayAdsUpdateBatteryValidity(err, &diag, frameSequence);
         if (s_snapshot.batteryValid) {
             s_snapshot.batteryValidRunCount++;
         } else {
@@ -2181,6 +2208,18 @@ void sensorarrayAdsGapCopySnapshot(sensorarrayAdsGapSnapshot_t *outSnapshot,
     outSnapshot->batteryPeriodMs = s_batteryScheduler.periodMs;
     outSnapshot->batteryAgeMs = sensorarrayBatterySchedulerAgeMs(
         &s_batteryScheduler, nowUs);
+    if (outSnapshot->batteryLastGoodTimestampUs != 0u &&
+        nowUs >= outSnapshot->batteryLastGoodTimestampUs) {
+        uint64_t ageUs = nowUs - outSnapshot->batteryLastGoodTimestampUs;
+        uint64_t ageMs = ageUs / 1000u;
+        outSnapshot->batteryLastGoodAgeMs = ageMs > UINT32_MAX ?
+            UINT32_MAX : (uint32_t)ageMs;
+    } else {
+        outSnapshot->batteryLastGoodAgeMs = UINT32_MAX;
+    }
+    outSnapshot->batteryLastGoodFresh = outSnapshot->batteryLastGoodValid &&
+        outSnapshot->batteryLastGoodAgeMs <=
+            (uint32_t)CONFIG_SENSORARRAY_BATTERY_MAX_AGE_MS;
     outSnapshot->batteryFresh = outSnapshot->batteryFresh &&
         outSnapshot->batteryTimestampUs != 0u &&
         outSnapshot->batteryAgeMs <=
@@ -2211,11 +2250,17 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
     sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
     int written = snprintf(buffer,
                            bufferSize,
-                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
+                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,lastGoodMv=%ld,lastGoodValid=%u,lastGoodFresh=%u,lastGoodAgeMs=%lu,lastGoodFrame=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
                            snapshot.batteryValid ? (long)snapshot.batteryMv : -1L,
                            snapshot.batteryValid ? 1u : 0u,
                            snapshot.batteryFresh ? 1u : 0u,
                            (unsigned long)snapshot.batteryAgeMs,
+                           snapshot.batteryLastGoodValid ?
+                               (long)snapshot.batteryLastGoodMv : -1L,
+                           snapshot.batteryLastGoodValid ? 1u : 0u,
+                           snapshot.batteryLastGoodFresh ? 1u : 0u,
+                           (unsigned long)snapshot.batteryLastGoodAgeMs,
+                           (unsigned long)snapshot.batteryLastGoodFrame,
                            (unsigned long)snapshot.batteryPeriodMs,
                            snapshot.batteryDue ? 1u : 0u,
                            (unsigned long)snapshot.batteryRunCount,

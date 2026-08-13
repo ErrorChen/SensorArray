@@ -1,6 +1,7 @@
 #include "sensorarrayAcqEvent.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 
@@ -8,6 +9,24 @@
 #include "sensorarrayConfig.h"
 
 #define SENSORARRAY_ACQ_EVENT_TEXT_MAX 384u
+
+static bool sensorarrayAcqEventIsProtocolLifecycle(const char *text)
+{
+    static const char *const prefixes[] = {
+        "MAPP,", "MERR,", "MFAULT,", "RAPP,", "RERR,", "BAPP,",
+        "ADSCHK,", "ADSCHKSTAT,", "BATPERIOD,", "RESSETTLE,",
+    };
+    if (!text) {
+        return false;
+    }
+    for (size_t index = 0u; index < sizeof(prefixes) / sizeof(prefixes[0]); ++index) {
+        size_t prefixLength = strlen(prefixes[index]);
+        if (strncmp(text, prefixes[index], prefixLength) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 int sensorarrayAcqEventPrintf(const char *format, ...)
 {
@@ -41,6 +60,10 @@ int sensorarrayAcqEventPrintf(const char *format, ...)
         !sensorarrayAsyncLogIsRunning()) {
         return (int)fwrite(text, 1u, length, stdout);
     }
-    (void)sensorarrayAsyncLogPublishTextEvent(text, length);
+    if (sensorarrayAcqEventIsProtocolLifecycle(text)) {
+        (void)sensorarrayAsyncLogPublishProtocolEvent(text, length);
+    } else {
+        (void)sensorarrayAsyncLogPublishTextEvent(text, length);
+    }
     return required;
 }

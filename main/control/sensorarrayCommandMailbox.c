@@ -8,6 +8,7 @@
 #include "freertos/queue.h"
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayRowModeProfile.h"
 
 #define SENSORARRAY_COMMAND_QUEUE_LENGTH 8u
 #define SENSORARRAY_COMMAND_TEXT_MAX 48u
@@ -156,6 +157,22 @@ static esp_err_t sensorarrayCommandParse(const uint8_t *text,
         return ESP_OK;
     }
 
+    if (strncmp(commandText, "ROWMODES=", 9u) == 0) {
+        sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+        const char *profile = commandText + 9u;
+        if (!sensorarrayRowModeProfileParse(profile,
+                                            strlen(profile),
+                                            modes)) {
+            return ESP_ERR_INVALID_ARG;
+        }
+        *outCommand = (sensorarrayCommand_t){
+            .type = SENSORARRAY_COMMAND_ROW_MODES,
+        };
+        memcpy(outCommand->rowModes, profile, 8u);
+        outCommand->rowModes[8] = '\0';
+        return ESP_OK;
+    }
+
     if (strncmp(commandText, "ADSDBG=", 7u) == 0) {
         uint32_t enabled = 0u;
         esp_err_t err = sensorarrayCommandParseUnsigned(&commandText[7],
@@ -292,6 +309,35 @@ esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
         .value = (uint32_t)mode,
         .requestId = requestId,
     };
+    esp_err_t err = sensorarrayCommandMailboxQueue(&command);
+    if (err == ESP_OK) {
+        *outRequestId = requestId;
+    }
+    return err;
+}
+
+esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
+                                                uint32_t *outRequestId)
+{
+    sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+    if (!s_commandQueue || !outRequestId ||
+        !sensorarrayRowModeProfileParse(profile,
+                                        profile ? strlen(profile) : 0u,
+                                        modes)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&s_commandStateMux);
+    uint32_t requestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) {
+        s_nextRequestId = 1u;
+    }
+    portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayCommand_t command = {
+        .type = SENSORARRAY_COMMAND_ROW_MODES,
+        .requestId = requestId,
+    };
+    memcpy(command.rowModes, profile, 8u);
+    command.rowModes[8] = '\0';
     esp_err_t err = sensorarrayCommandMailboxQueue(&command);
     if (err == ESP_OK) {
         *outRequestId = requestId;
@@ -503,6 +549,8 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "res_settle";
     case SENSORARRAY_COMMAND_ADS_DEBUG:
         return "ads_debug";
+    case SENSORARRAY_COMMAND_ROW_MODES:
+        return "rowmodes";
     default:
         return "unknown";
     }

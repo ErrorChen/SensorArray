@@ -88,12 +88,6 @@ bool sensorarrayAdsMatrixCalibrationValid(
     return true;
 }
 
-static uint64_t sensorarrayAdsMatrixActiveMask(uint8_t rows)
-{
-    uint8_t cells = (uint8_t)(rows * SENSORARRAY_MATRIX_COLS);
-    return cells >= 64u ? UINT64_MAX : ((UINT64_C(1) << cells) - 1u);
-}
-
 static void sensorarrayAdsMatrixSetCellError(sensorarrayFrame_t *frame,
                                              size_t index,
                                              sensorarrayCellError_t error,
@@ -870,10 +864,10 @@ static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
         (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
         outRail);
     if (!valid) {
-        /* VOLT clamps the shared REF/REFOUT node through Q1.  Enabling INTREF
-         * there to refresh the rail monitor would violate the board route;
-         * VOLT therefore accepts only the non-expiring external RAILCFG that
-         * was checked before the route transition. */
+        /* VOLT clamps the shared REF/REFOUT node through Q1. The caller must
+         * refresh the monitor in the isolated SAFE_RAIL_MONITOR window before
+         * entering this route; never release the clamp from inside a live
+         * VOLT frame. */
         if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
             if (outGap) {
                 *outGap = gap;
@@ -903,7 +897,18 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
                                             int64_t startUs,
                                             bool coherent)
 {
-    uint64_t activeMask = sensorarrayAdsMatrixActiveMask(rows);
+    uint8_t rowMask = frame->configSnapshot.rowMask;
+    if (rowMask == 0u) {
+        rowMask = rows >= SENSORARRAY_MATRIX_ROWS ? 0xFFu :
+            (uint8_t)((1u << rows) - 1u);
+    }
+    uint64_t activeMask = 0u;
+    for (uint8_t row = 0u; row < rows; ++row) {
+        if ((rowMask & (uint8_t)(1u << row)) != 0u) {
+            activeMask |= UINT64_C(0xFF) <<
+                (row * SENSORARRAY_MATRIX_COLS);
+        }
+    }
     frame->measurement.errorMask &= activeMask;
     frame->errorMask &= activeMask;
     frame->stale = (frame->measurement.freshMask & activeMask) != activeMask;
@@ -916,8 +921,11 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
     frame->measurement.frameDurationUs = frame->physicalSweepUs;
     frame->rowFreshMask = 0u;
     for (uint8_t row = 0u; row < rows; ++row) {
-        uint64_t rowMask = UINT64_C(0xFF) << (row * SENSORARRAY_MATRIX_COLS);
-        if ((frame->measurement.freshMask & rowMask) == rowMask) {
+        if ((rowMask & (uint8_t)(1u << row)) == 0u) {
+            continue;
+        }
+        uint64_t cellMask = UINT64_C(0xFF) << (row * SENSORARRAY_MATRIX_COLS);
+        if ((frame->measurement.freshMask & cellMask) == cellMask) {
             frame->rowFreshMask |= (uint8_t)(1u << row);
         }
     }
@@ -1186,6 +1194,9 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
     bool coherent = true;
     bool transitionSensitive = engine->transitionSensitiveFrames != 0u || railInvalidated;
     for (uint8_t row = 1u; row <= frame->activeRows; ++row) {
+        if ((plan->configSnapshot.rowMask & (uint8_t)(1u << (row - 1u))) == 0u) {
+            continue;
+        }
         int64_t rowStartUs = esp_timer_get_time();
         esp_err_t rowErr = sensorarrayRouteControllerSelectRow(engine->routeController, row);
         int64_t rowEndUs = esp_timer_get_time();

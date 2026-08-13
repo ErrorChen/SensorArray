@@ -1,7 +1,7 @@
 set(SENSORARRAY_MAIN_SRCS
     "main.c"
     "sensorarrayLog.c"
-    "control/sensorarrayCommandMailbox.c"
+        "control/sensorarrayCommandMailbox.c"
     "net/sensorarrayNetStatus.c"
 )
 
@@ -10,6 +10,7 @@ set(SENSORARRAY_CORE_SRCS
     "../core/board/sensorarrayBringup.c"
     "../core/measure/sensorarrayMeasure.c"
     "../core/measure/sensorarrayMeasurementMode.c"
+    "../core/measure/sensorarrayRowModeProfile.c"
     "../core/measure/sensorarrayMeasurementSelfTest.c"
     "../core/measure/sensorarrayRouteController.c"
     "../core/measure/sensorarrayScanPlan.c"

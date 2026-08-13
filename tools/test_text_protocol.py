@@ -38,6 +38,38 @@ def measurement_lines(tag: str, sequence: int, rows: int,
 
 
 class TextProtocolParserTest(unittest.TestCase):
+    def test_reassembles_mixed_row_frame_and_crc(self) -> None:
+        profile = "CVVRRVVC"
+        lines = [
+            "M,seq=21,ts=99,rows=8,cells=64,rgen=4,rrid=5,pgen=7,prid=8,"
+            f"profile={profile},fmt=mix1"
+        ]
+        for row, mode in enumerate(profile, start=1):
+            unit, scale, fmt = {
+                "C": ("pF", -6, "pf6"),
+                "V": ("V", -6, "uv-x"),
+                "R": ("ohm", -3, "mohm-x"),
+            }[mode]
+            lines.append(
+                f"MR,s={row},m={'CAP' if mode == 'C' else ('VOLT' if mode == 'V' else 'RES')},"
+                f"unit={unit},scale={scale},valid=FF,fresh=FF,error=00,fmt={fmt},D="
+                + ",".join(str(row * 100 + index) for index in range(8))
+            )
+        crc_payload = "".join(line + "\n" for line in lines).encode("ascii")
+        lines.append(
+            "K,seq=21,rgen=4,rrid=5,pgen=7,prid=8,"
+            f"crc={zlib.crc32(crc_payload) & 0xFFFFFFFF:08X}"
+        )
+        protocol = TextProtocolParser()
+        frame = None
+        for line in lines:
+            frame = protocol.feed_line(line) or frame
+        self.assertIsNotNone(frame)
+        self.assertEqual(frame.profile, profile)
+        self.assertTrue(frame.crc_ok)
+        self.assertEqual(frame.row_frames[2].mode, "VOLT")
+        self.assertEqual(frame.row_frames[8].values_fixed[-1], 807)
+
     def test_p50_summary_is_not_parsed_as_pga_chunk(self) -> None:
         protocol = TextProtocolParser()
         self.assertIsNone(

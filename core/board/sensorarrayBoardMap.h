@@ -44,6 +44,8 @@ tmux1108Source_t sensorarrayBoardMapDefaultSwSource(const sensorarrayRouteMap_t 
 
 bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
                                         sensorarrayBoardRouteProfile_t *outProfile);
+bool sensorarrayBoardMapGetSafeRailMonitorProfile(
+    sensorarrayBoardRouteProfile_t *outProfile);
 const char *sensorarrayBoardMapMatrixExcitationName(bool enabled);
 
 void sensorarrayBoardMapAudit(void);

@@ -51,6 +51,7 @@
 
 #define SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT 2u
+#define SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT 1u
 #define SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES 1560u
 #define SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES \
     (3u * SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES)
@@ -73,12 +74,16 @@ _Static_assert(SENSORARRAY_TRANSPORT_TEXT_MAX ==
 
 static StaticQueue_t s_dataQueueStruct;
 static StaticQueue_t s_logQueueStruct;
+static StaticQueue_t s_lifecycleQueueStruct;
 static uint8_t s_dataQueueStorage[SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT *
                                   sizeof(sensorarrayTransportDescriptor_t)];
 static uint8_t s_logQueueStorage[SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT *
                                  sizeof(sensorarrayTransportDescriptor_t)];
+static uint8_t s_lifecycleQueueStorage[SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT *
+                                       sizeof(sensorarrayTransportDescriptor_t)];
 static QueueHandle_t s_dataQueue;
 static QueueHandle_t s_logQueue;
+static QueueHandle_t s_lifecycleQueue;
 static sensorarrayTransportPool_t s_pool;
 static TaskHandle_t s_task;
 static TaskHandle_t s_serialTask;
@@ -575,13 +580,16 @@ static void sensorarrayTransportProcessDescriptor(
         channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
             SENSORARRAY_WIFI_CH_DATA : SENSORARRAY_WIFI_CH_LOG;
 
+    sensorarrayTransportChannel_t sinkChannel =
+        channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
+            SENSORARRAY_TRANSPORT_CHANNEL_LOG : channel;
     if (slot && slot->bleConnectionGeneration != 0u &&
         SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
-        sensorarrayTransportBleChannelEnabled(channel)) {
+        sensorarrayTransportBleChannelEnabled(sinkChannel)) {
         char shortData[192];
         const char *bleData = slot->data;
         size_t bleLength = slot->length;
-        if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+        if (sinkChannel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
             sensorarrayTransportGetTxMode() == SENSORARRAY_TRANSPORT_TX_SHORT &&
             sensorarrayTransportBuildShortData(slot->data,
                                                slot->length,
@@ -595,13 +603,13 @@ static void sensorarrayTransportProcessDescriptor(
             (const uint8_t *)bleData,
             bleLength,
             slot->bleConnectionGeneration);
-        sensorarrayTransportStatResult(channel, true, bleErr);
+        sensorarrayTransportStatResult(sinkChannel, true, bleErr);
     }
     if (slot && sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
         esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
                                                     (const uint8_t *)slot->data,
                                                     slot->length);
-        sensorarrayTransportStatResult(channel, false, sendWifiErr);
+        sensorarrayTransportStatResult(sinkChannel, false, sendWifiErr);
     }
     if (sensorarrayBleIsCongested()) {
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
@@ -617,10 +625,13 @@ static bool sensorarrayTransportReceiveNext(
     if (!outDescriptor) {
         return false;
     }
-    /* Measurement data always wins the next consumer turn. LOG has a
-     * dedicated bounded queue, so diagnostics cannot occupy the complete
-     * pending descriptor budget. */
+    /* DATA remains the highest-throughput stream. Lifecycle events then win
+     * over ordinary diagnostics so MAPP/RAPP/RMAPP cannot sit behind LOG. */
     if (s_dataQueue && xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
+        return true;
+    }
+    if (s_lifecycleQueue &&
+        xQueueReceive(s_lifecycleQueue, outDescriptor, 0) == pdTRUE) {
         return true;
     }
     return s_logQueue &&
@@ -645,21 +656,28 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
                                            const char *data,
                                            size_t length)
 {
-    if (channel > SENSORARRAY_TRANSPORT_CHANNEL_LOG || !data || length == 0u ||
+    if ((channel != SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+         channel != SENSORARRAY_TRANSPORT_CHANNEL_LOG &&
+         channel != SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) ||
+        !data || length == 0u ||
         length > SENSORARRAY_TRANSPORT_TEXT_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
     QueueHandle_t queue = channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
-        s_dataQueue : s_logQueue;
+        s_dataQueue : (channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
+            s_lifecycleQueue : s_logQueue);
     if (!queue) {
         return ESP_ERR_INVALID_STATE;
     }
+    sensorarrayTransportChannel_t bleSinkChannel =
+        channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
+            SENSORARRAY_TRANSPORT_CHANNEL_LOG : channel;
     sensorarrayBleChannel_t bleChannel =
-        channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+        bleSinkChannel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
             SENSORARRAY_BLE_CH_DATA : SENSORARRAY_BLE_CH_LOG;
     uint32_t bleConnectionGeneration = 0u;
     bool bleEnabled = SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
-                      sensorarrayTransportBleChannelEnabled(channel) &&
+                      sensorarrayTransportBleChannelEnabled(bleSinkChannel) &&
                       sensorarrayBleGetSendGeneration(
                           bleChannel, &bleConnectionGeneration);
     bool wifiEnabled = sensorarrayTransportWifiSinkEnabled();
@@ -673,8 +691,11 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
         g_sensorarrayTransportStats.queueDrop++;
         if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA) {
             g_sensorarrayTransportStats.queueDropData++;
-        } else {
+        } else if (channel == SENSORARRAY_TRANSPORT_CHANNEL_LOG) {
             g_sensorarrayTransportStats.queueDropLog++;
+        } else {
+            g_sensorarrayTransportStats.queueDropLifecycle++;
+            g_sensorarrayTransportStats.lifecycleDropped++;
         }
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
         return ESP_ERR_TIMEOUT;
@@ -702,14 +723,22 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
         g_sensorarrayTransportStats.queueDrop++;
         if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA) {
             g_sensorarrayTransportStats.queueDropData++;
-        } else {
+        } else if (channel == SENSORARRAY_TRANSPORT_CHANNEL_LOG) {
             g_sensorarrayTransportStats.queueDropLog++;
+        } else {
+            g_sensorarrayTransportStats.queueDropLifecycle++;
+            g_sensorarrayTransportStats.lifecycleDropped++;
         }
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
         return ESP_ERR_TIMEOUT;
     }
     if (s_task) {
         xTaskNotifyGive(s_task);
+    }
+    if (channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) {
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        g_sensorarrayTransportStats.lifecyclePublished++;
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
     }
     return ESP_OK;
 }
@@ -772,7 +801,11 @@ esp_err_t sensorarrayTransportInit(void)
                                    sizeof(sensorarrayTransportDescriptor_t),
                                    s_logQueueStorage,
                                    &s_logQueueStruct);
-    if (!s_dataQueue || !s_logQueue) {
+    s_lifecycleQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT,
+                                          sizeof(sensorarrayTransportDescriptor_t),
+                                          s_lifecycleQueueStorage,
+                                          &s_lifecycleQueueStruct);
+    if (!s_dataQueue || !s_logQueue || !s_lifecycleQueue) {
         return ESP_ERR_NO_MEM;
     }
     BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayTransportTask,
@@ -823,7 +856,8 @@ void sensorarrayTransportGetMemoryDiagnostics(
         .descriptorBytes = sizeof(sensorarrayTransportDescriptor_t),
         .legacyQueueStorageBytes = SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES,
         .descriptorQueueStorageBytes = sizeof(s_dataQueueStorage) +
-                                       sizeof(s_logQueueStorage),
+                                       sizeof(s_logQueueStorage) +
+                                       sizeof(s_lifecycleQueueStorage),
         .payloadPoolBytes = sizeof(s_pool.slots),
     };
 }
@@ -876,6 +910,13 @@ esp_err_t sensorarrayTransportPublishData(const char *data, size_t length)
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length)
 {
     return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LOG, data, length);
+}
+
+esp_err_t sensorarrayTransportPublishLifecycle(const char *data, size_t length)
+{
+    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE,
+                                     data,
+                                     length);
 }
 
 esp_err_t sensorarrayTransportPublishControlReply(

@@ -20,9 +20,39 @@ bool sensorarrayTransportPoolAllocate(sensorarrayTransportPool_t *pool,
                                       size_t length,
                                       sensorarrayTransportDescriptor_t *outDescriptor)
 {
-    if (!pool || !outDescriptor || channel > SENSORARRAY_TRANSPORT_CHANNEL_LOG ||
+    if (!pool || !outDescriptor ||
+        (channel != SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+         channel != SENSORARRAY_TRANSPORT_CHANNEL_LOG &&
+         channel != SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) ||
         length == 0u || length > SENSORARRAY_TRANSPORT_POOL_TEXT_MAX) {
         return false;
+    }
+
+    if (channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) {
+        sensorarrayTransportPayloadSlot_t *slot =
+            &pool->slots[SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX];
+        if (slot->inUse) {
+            pool->stats.allocFail++;
+            return false;
+        }
+        slot->inUse = true;
+        slot->slotGeneration =
+            sensorarrayTransportPoolNextGeneration(slot->slotGeneration);
+        slot->channel = (uint8_t)channel;
+        slot->length = (uint16_t)length;
+        slot->bleConnectionGeneration = 0u;
+        slot->hasFrameMeta = false;
+        *outDescriptor = (sensorarrayTransportDescriptor_t){
+            .slotIndex = SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX,
+            .channel = (uint8_t)channel,
+            .length = (uint16_t)length,
+            .slotGeneration = slot->slotGeneration,
+        };
+        pool->stats.used++;
+        if (pool->stats.used > pool->stats.highWater) {
+            pool->stats.highWater = pool->stats.used;
+        }
+        return true;
     }
 
     uint8_t logSlotsUsed = 0u;
@@ -40,6 +70,9 @@ bool sensorarrayTransportPoolAllocate(sensorarrayTransportPool_t *pool,
     }
 
     for (uint8_t index = 0u; index < SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT; ++index) {
+        if (index == SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX) {
+            continue;
+        }
         sensorarrayTransportPayloadSlot_t *slot = &pool->slots[index];
         if (slot->inUse) {
             continue;
@@ -73,7 +106,9 @@ bool sensorarrayTransportPoolValidate(sensorarrayTransportPool_t *pool,
 {
     if (!pool || !descriptor ||
         descriptor->slotIndex >= SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT ||
-        descriptor->channel > SENSORARRAY_TRANSPORT_CHANNEL_LOG ||
+        (descriptor->channel != SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
+         descriptor->channel != SENSORARRAY_TRANSPORT_CHANNEL_LOG &&
+         descriptor->channel != SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) ||
         descriptor->length == 0u ||
         descriptor->length > SENSORARRAY_TRANSPORT_POOL_TEXT_MAX) {
         if (pool) {

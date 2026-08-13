@@ -53,6 +53,9 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
                                               sensorarrayMeasurementMode_t mode,
                                               const sensorarrayAdsRailSplit_t *rail,
                                               uint64_t *outTransitionDurationUs);
+esp_err_t sensorarrayRouteControllerEnterSafeRailMonitor(
+    sensorarrayRouteController_t *controller,
+    uint64_t *outTransitionDurationUs);
 esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *controller,
                                              uint8_t row);
 bool sensorarrayRouteControllerCopySnapshot(const sensorarrayRouteController_t *controller,

@@ -35,6 +35,7 @@
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayMeasurementMode.h"
+#include "sensorarrayRowModeProfile.h"
 #include "sensorarrayMeasurementSelfTest.h"
 #include "sensorarrayMixedRow.h"
 #include "sensorarrayNetStatus.h"
@@ -124,6 +125,7 @@ typedef struct {
     sensorarrayFdcMatrixEngine_t fdcEngine;
     sensorarrayAdsMatrixEngine_t adsEngine;
     sensorarrayMeasurementModeContext_t measurementMode;
+    sensorarrayRowModeProfile_t rowModeProfile;
     sensorarrayRouteController_t routeController;
     sensorarrayFdcRescueContext_t fdcRescue;
 
@@ -1145,6 +1147,8 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     sensorarrayFastSpeedSetEnabled(false);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
     sensorarrayMeasurementModeInit(&ctx->measurementMode);
+    sensorarrayRowModeProfileInit(
+        &ctx->rowModeProfile, SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE);
     sensorarrayMeasurementSelfTestResult_t selfTest = {0};
     if (!sensorarrayMeasurementSelfTestRun(&selfTest)) {
         printf("MSELF,passed=0,checks=%lu,line=%lu,action=safe_stop\n",
@@ -1228,6 +1232,60 @@ static bool sensorarrayBuildAdsRailSplit(sensorarrayAppContext_t *ctx,
      * obtain a rail value. RES may measure it after its route owns the matrix;
      * VOLT requires an explicit fresh calibration before acceptance. */
     return false;
+}
+
+static esp_err_t sensorarrayRefreshVoltageRailIfNeeded(
+    sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayMeasurementModeSnapshot_t mode = {0};
+    if (!sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode) ||
+        mode.activeMode != SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||
+        mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION) {
+        return ESP_OK;
+    }
+
+    sensorarrayAdsRailSplit_t rail = {0};
+    if (sensorarrayBuildAdsRailSplit(ctx, &rail)) {
+        return ESP_OK;
+    }
+
+    /* VOLT cannot refresh the rail from inside a live ADS frame: the monitor
+     * shares REF/REFOUT with the matrix and must first enter the isolated
+     * SAFE_RAIL_MONITOR route.  Re-apply the existing VOLT route at this
+     * frame boundary without creating a user-visible mode transition (and
+     * therefore without changing the MODE generation/request correlation). */
+    uint64_t monitorTransitionUs = 0u;
+    esp_err_t err = sensorarrayRouteControllerEnterSafeRailMonitor(
+        &ctx->routeController, &monitorTransitionUs);
+    if (err == ESP_OK) {
+        err = sensorarrayAdsGapRefreshRailAtBoundary(
+            &ctx->state, ctx->hostFrameSequence + 1u);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayBuildAdsRailSplit(ctx, &rail) ?
+            ESP_OK : ESP_ERR_INVALID_STATE;
+    }
+    uint64_t routeTransitionUs = 0u;
+    if (err == ESP_OK) {
+        err = sensorarrayRouteControllerApplyMode(
+            &ctx->routeController,
+            SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+            &rail,
+            &routeTransitionUs);
+    }
+    if (err == ESP_OK) {
+        err = sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_VOLTAGE);
+    }
+    printf("RAIL_REFRESH,mode=VOLT,seq=%lu,err=0x%lx,monitorUs=%llu,routeUs=%llu\n",
+           (unsigned long)(ctx->hostFrameSequence + 1u),
+           (unsigned long)err,
+           (unsigned long long)monitorTransitionUs,
+           (unsigned long long)routeTransitionUs);
+    return err;
 }
 
 static void sensorarrayPublishLastMeasurement(sensorarrayAppContext_t *ctx)
@@ -1319,11 +1377,29 @@ static esp_err_t sensorarrayApplyMeasurementMode(sensorarrayAppContext_t *ctx,
     bool externalRail = sensorarrayAdsGapHasExternalRailCalibration();
     if (targetMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE &&
         (!railAvailable || !externalRail)) {
-        /* A monitor rail sampled in RES is usable only while INTREF can be
-         * refreshed. VOLT physically clamps REFOUT, so accepting that source
-         * would create a deterministic fault at age+1. Fail at the command
-         * boundary and require an explicit pre-VOLT RAILCFG instead. */
-        err = ESP_ERR_INVALID_STATE;
+        /* VOLT no longer depends on a host RAILCFG. The monitor is measured in
+         * a controller-owned, matrix-isolated SAFE_RAIL_MONITOR window and
+         * the requested target route is restored before the transaction ends. */
+        uint64_t railTransitionUs = 0u;
+        err = sensorarrayRouteControllerEnterSafeRailMonitor(
+            &ctx->routeController, &railTransitionUs);
+        if (err == ESP_OK) {
+            err = sensorarrayAdsGapRefreshRailAtBoundary(
+                &ctx->state, ctx->hostFrameSequence + 1u);
+        }
+        if (err == ESP_OK) {
+            railAvailable = sensorarrayBuildAdsRailSplit(ctx, &rail);
+            externalRail = sensorarrayAdsGapHasExternalRailCalibration();
+        }
+        if (err == ESP_OK && (!railAvailable || (!externalRail && !rail.valid))) {
+            err = ESP_ERR_INVALID_STATE;
+        }
+        if (err == ESP_OK && railAvailable) {
+            railPtr = &rail;
+        }
+        if (err != ESP_OK) {
+            (void)railTransitionUs;
+        }
     } else if (railAvailable) {
         railPtr = &rail;
     }
@@ -1455,12 +1531,45 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
                        "applied" : "rejected");
             break;
         case SENSORARRAY_COMMAND_MEASUREMENT_MODE:
-            (void)sensorarrayApplyMeasurementMode(
+        {
+            sensorarrayMeasurementMode_t requested =
+                (sensorarrayMeasurementMode_t)command.value;
+            esp_err_t modeErr = sensorarrayApplyMeasurementMode(
                 ctx,
-                (sensorarrayMeasurementMode_t)command.value,
+                requested,
                 command.requestId,
                 true);
+            if (modeErr == ESP_OK) {
+                sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+                for (size_t row = 0u; row < SENSORARRAY_ROW_MODE_PROFILE_ROWS; ++row) {
+                    modes[row] = requested;
+                }
+                if (sensorarrayRowModeProfileAccept(&ctx->rowModeProfile,
+                                                    modes,
+                                                    command.requestId)) {
+                    (void)sensorarrayRowModeProfileCompleteTransition(
+                        &ctx->rowModeProfile,
+                        ctx->hostFrameSequence + 1u,
+                        0u);
+                }
+            }
             continue;
+        }
+        case SENSORARRAY_COMMAND_ROW_MODES: {
+            sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+            if (!sensorarrayRowModeProfileParse(command.rowModes,
+                                                SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH,
+                                                modes) ||
+                !sensorarrayRowModeProfileAccept(&ctx->rowModeProfile,
+                                                 modes,
+                                                 command.requestId)) {
+                printf("RMERR,id=%lu,profile=%s,state=rejected,err=0x%lx,reason=profile\n",
+                       (unsigned long)command.requestId,
+                       command.rowModes,
+                       (unsigned long)ESP_ERR_INVALID_ARG);
+            }
+            break;
+        }
         case SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION: {
             uint32_t appliedSequence = ctx->hostFrameSequence + 1u;
             esp_err_t railErr = sensorarrayAdsGapSetExternalRailCalibration(
@@ -1594,21 +1703,50 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (!command || !response || responseSize == 0u) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (strcmp(command, "ROWMODES?") == 0) {
+        sensorarrayRowModeProfile_t profile = {0};
+        char active[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
+        char pending[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
+        if (!ctx || !sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile) ||
+            !sensorarrayRowModeProfileFormat(profile.modes, active)) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=ROWMODES,reason=snapshot_busy\n");
+            return ESP_ERR_TIMEOUT;
+        }
+        const char *pendingText = "none";
+        if (profile.pending && sensorarrayRowModeProfileFormat(profile.pendingModes, pending)) {
+            pendingText = pending;
+        }
+        snprintf(response, responseSize,
+                 "ROWMODES,active=%s,pending=%s,gen=%lu,rid=%lu,rows=%u,state=%s\n",
+                 active,
+                 pendingText,
+                 (unsigned long)profile.generation,
+                 (unsigned long)profile.appliedRequestId,
+                 (unsigned)sensorarrayScanConfigGetActiveRows(),
+                 sensorarrayRowModeProfileStateName(profile.state));
+        return ESP_OK;
+    }
     if (strcmp(command, "MODE?") == 0 || strcmp(command, "STATE?") == 0) {
         sensorarrayMeasurementModeSnapshot_t mode = {0};
+        sensorarrayRowModeProfile_t rowProfile = {0};
+        char profileText[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
         sensorarrayRouteSnapshot_t route = {0};
         bool modeOk = ctx && sensorarrayMeasurementModeCopySnapshot(
             &ctx->measurementMode, &mode);
         bool routeOk = ctx && sensorarrayRouteControllerCopySnapshot(
             &ctx->routeController, &route);
-        if (!modeOk || !routeOk) {
+        bool profileOk = ctx && sensorarrayRowModeProfileCopy(
+            &ctx->rowModeProfile, &rowProfile) &&
+            sensorarrayRowModeProfileFormat(rowProfile.modes, profileText);
+        if (!modeOk || !routeOk || !profileOk) {
             snprintf(response, responseSize,
                      "ERR,cmd=MODE,reason=snapshot_busy\n");
             return ESP_ERR_TIMEOUT;
         }
         int written = snprintf(response,
                  responseSize,
-                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu,stackBytes=%lu,stackUnit=bytes\n",
+                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,layout=%s,profile=%s,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu,stackBytes=%lu,stackUnit=bytes\n",
                  sensorarrayMeasurementStateName(mode.state),
                  sensorarrayMeasurementModeName(mode.activeMode),
                  mode.pending ? sensorarrayMeasurementModeName(mode.pendingMode) : "NONE",
@@ -1616,6 +1754,9 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  (unsigned long)mode.generation,
                  (unsigned long)mode.appliedRequestId,
                  (unsigned long)mode.appliedFrameSequence,
+                 sensorarrayRowModeProfileIsHomogeneous(rowProfile.modes) ?
+                     "HOMOGENEOUS" : "MIXED",
+                 profileText,
                  route.safe ? "SAFE" : sensorarrayMeasurementModeName(route.mode),
                  (unsigned)route.row,
                  route.profile.swPhysicalLevel == SENSORARRAY_SW_PHYSICAL_HIGH ?
@@ -1651,6 +1792,31 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                            "ERR,cmd=MODE,reason=response_too_long\n");
             return ESP_ERR_INVALID_SIZE;
         }
+        return ESP_OK;
+    }
+    if (strncmp(command, "ROWMODES=", 9u) == 0) {
+        const char *profile = command + 9u;
+        sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+        if (!sensorarrayRowModeProfileParse(profile, strlen(profile), modes)) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=ROWMODES,reason=value,format=ROWMODES=<8 chars C|V|R>\n");
+            return ESP_ERR_INVALID_ARG;
+        }
+        sensorarrayRowModeProfile_t current = {0};
+        char oldProfile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
+        (void)sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &current);
+        (void)sensorarrayRowModeProfileFormat(current.modes, oldProfile);
+        uint32_t requestId = 0u;
+        esp_err_t postErr = sensorarrayCommandMailboxPostRowModes(profile, &requestId);
+        if (postErr != ESP_OK) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=ROWMODES,reason=mailbox,err=0x%lx\n",
+                     (unsigned long)postErr);
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "RMACK,id=%lu,old=%s,new=%s,state=accepted\n",
+                 (unsigned long)requestId, oldProfile, profile);
         return ESP_OK;
     }
     if (strncmp(command, "MODE=", 5u) == 0) {
@@ -2217,51 +2383,149 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
     sensorarrayScanConfigApplyResult_t rowsApply = {0};
     sensorarrayScanConfigApplyPendingAtFrameBoundary(&rowsApply);
     sensorarrayMeasurementModeSnapshot_t mode = {0};
+    sensorarrayRowModeProfile_t rowProfile = {0};
     if (!sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode) ||
         !sensorarrayMeasurementModeIsDataMode(mode.activeMode) ||
-        mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION) {
+        mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION ||
+        !sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &rowProfile)) {
         sensorarrayFrameBuilderInitInvalid(&ctx->frame);
         return ESP_ERR_INVALID_STATE;
     }
 
     uint32_t frameSequence = ctx->hostFrameSequence + 1u;
-    if (mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
-        sensorarrayScanPlanBuildDefaultFdcMatrix(&ctx->scanPlan);
-    } else {
-        sensorarrayScanPlanBuildAdsMatrix(&ctx->scanPlan, mode.activeMode);
+    sensorarrayMeasurementMode_t effectiveModes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
+    memcpy(effectiveModes,
+           rowProfile.pending ? rowProfile.pendingModes : rowProfile.modes,
+           sizeof(effectiveModes));
+    bool mixedProfile = !sensorarrayRowModeProfileIsHomogeneous(effectiveModes);
+    esp_err_t err = ESP_ERR_INVALID_STATE;
+    if (mixedProfile) {
+        bool voltageRowPresent = false;
+        for (size_t row = 0u; row < SENSORARRAY_ROW_MODE_PROFILE_ROWS; ++row) {
+            voltageRowPresent = voltageRowPresent ||
+                effectiveModes[row] == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
+        }
+        if (voltageRowPresent && !sensorarrayAdsGapCopyRailSplit(
+                frameSequence,
+                (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
+                &(sensorarrayAdsRailSplit_t){0})) {
+            /* Mixed profiles can enter VOLT without a prior MODE=VOLT
+             * transition. Acquire the rail in the isolated monitor route
+             * before the first group owns the matrix. */
+            uint64_t monitorTransitionUs = 0u;
+            err = sensorarrayRouteControllerEnterSafeRailMonitor(
+                &ctx->routeController, &monitorTransitionUs);
+            if (err == ESP_OK) {
+                err = sensorarrayAdsGapRefreshRailAtBoundary(
+                    &ctx->state, frameSequence);
+            }
+            (void)monitorTransitionUs;
+        } else {
+            err = ESP_OK;
+        }
+        sensorarrayScanPlanBuildRowProfile(&ctx->scanPlan,
+                                           effectiveModes,
+                                           rowProfile.pending ? rowProfile.generation + 1u :
+                                               rowProfile.generation,
+                                           rowProfile.pending ? rowProfile.pendingRequestId :
+                                               rowProfile.appliedRequestId);
         sensorarrayAdsMatrixEngineSetFrameSequenceHint(&ctx->adsEngine,
                                                        frameSequence);
-    }
-
-    esp_err_t err = ESP_ERR_INVALID_STATE;
-    switch (mode.activeMode) {
-    case SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE:
-        err = sensorarrayFdcMatrixEngineReadFrame(&ctx->fdcEngine,
-                                                  &ctx->scanPlan,
-                                                  &ctx->frame);
-        break;
-    case SENSORARRAY_MEASUREMENT_MODE_VOLTAGE:
-    case SENSORARRAY_MEASUREMENT_MODE_RESISTANCE:
-        err = sensorarrayAdsMatrixEngineReadFrame(&ctx->adsEngine,
-                                                  &ctx->scanPlan,
-                                                  &ctx->frame);
-        break;
-    default:
-        err = ESP_ERR_INVALID_STATE;
-        break;
+        if (err == ESP_OK) {
+            err = sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
+                                                     &ctx->adsEngine,
+                                                     &ctx->scanPlan,
+                                                     &ctx->frame);
+        } else {
+            sensorarrayFrameBuilderInitInvalid(&ctx->frame);
+            ctx->frame.mixedProfile = true;
+        }
+        ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_MIXED_ROW;
+    } else {
+        sensorarrayMeasurementMode_t targetMode = effectiveModes[0];
+        if (rowProfile.pending) {
+            /* ROWMODES homogeneous is still a profile transaction, but it
+             * uses the legacy fast path and does not emit user MAPP. */
+            err = sensorarrayApplyMeasurementMode(ctx,
+                                                  targetMode,
+                                                  rowProfile.pendingRequestId,
+                                                  false);
+            if (err != ESP_OK) {
+                sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
+                                                        (uint32_t)err,
+                                                        0u);
+            }
+        }
+        if (err == ESP_OK || !rowProfile.pending) {
+            if (targetMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
+                sensorarrayScanPlanBuildDefaultFdcMatrix(&ctx->scanPlan);
+                err = sensorarrayFdcMatrixEngineReadFrame(&ctx->fdcEngine,
+                                                          &ctx->scanPlan,
+                                                          &ctx->frame);
+            } else {
+                sensorarrayScanPlanBuildAdsMatrix(&ctx->scanPlan, targetMode);
+                sensorarrayAdsMatrixEngineSetFrameSequenceHint(&ctx->adsEngine,
+                                                               frameSequence);
+                err = sensorarrayAdsMatrixEngineReadFrame(&ctx->adsEngine,
+                                                          &ctx->scanPlan,
+                                                          &ctx->frame);
+            }
+        }
     }
     ctx->hostFrameSequence = frameSequence;
     ctx->frame.sequence = frameSequence;
-    ctx->frame.measurement.mode = mode.activeMode;
-    ctx->frame.measurement.modeGeneration = mode.generation;
-    ctx->frame.measurement.modeRequestId = mode.appliedRequestId;
-    if (mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
+    if (mixedProfile) {
+        ctx->frame.rowProfileGeneration = rowProfile.pending ? rowProfile.generation + 1u :
+            rowProfile.generation;
+        ctx->frame.rowProfileRequestId = rowProfile.pending ? rowProfile.pendingRequestId :
+            rowProfile.appliedRequestId;
+        bool mixedProfileApplied = err == ESP_OK || ctx->frame.freshFrame;
+        if (rowProfile.pending && mixedProfileApplied) {
+            char appliedProfile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u];
+            (void)sensorarrayRowModeProfileFormat(effectiveModes,
+                                                  appliedProfile);
+            (void)sensorarrayRowModeProfileCompleteTransition(
+                &ctx->rowModeProfile, frameSequence, ctx->frame.physicalSweepUs);
+            printf("RMAPP,id=%lu,gen=%lu,seq=%lu,profile=%s,state=applied\n",
+                   (unsigned long)rowProfile.pendingRequestId,
+                   (unsigned long)(rowProfile.generation + 1u),
+                   (unsigned long)frameSequence,
+                   appliedProfile);
+        } else if (rowProfile.pending) {
+            char rejectedProfile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u];
+            (void)sensorarrayRowModeProfileFormat(
+                effectiveModes, rejectedProfile);
+            sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
+                                                    (uint32_t)err,
+                                                    ctx->frame.physicalSweepUs);
+            printf("RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
+                   (unsigned long)rowProfile.pendingRequestId,
+                   (unsigned long)(rowProfile.generation + 1u),
+                   (unsigned long)frameSequence,
+                   rejectedProfile,
+                   (unsigned long)err);
+        }
+        if (!ctx->frame.freshFrame) {
+            sensorarrayMeasurementModeRecordRuntimeFault(
+                &ctx->measurementMode, (uint32_t)err);
+            (void)sensorarrayRouteControllerEnterSafe(
+                &ctx->routeController, "mixed_profile_fault");
+            printf("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
+                   (unsigned long)frameSequence,
+                   (unsigned long)err);
+        }
+    } else {
+        ctx->frame.measurement.mode = mode.activeMode;
+        ctx->frame.measurement.modeGeneration = mode.generation;
+        ctx->frame.measurement.modeRequestId = mode.appliedRequestId;
+    }
+    if (!mixedProfile && mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
         ctx->frame.measurement.unit = SENSORARRAY_MEASUREMENT_UNIT_PF;
         ctx->frame.measurement.decimalScale = -6;
         ctx->frame.measurement.validMask = ctx->frame.capValidMask;
         ctx->frame.measurement.freshMask = ctx->frame.freshMask;
         ctx->frame.measurement.errorMask = ctx->frame.errorMask;
-    } else if (!ctx->frame.freshFrame) {
+    } else if (!mixedProfile && !ctx->frame.freshFrame) {
         /* A coherent ADS frame may contain explicitly invalid cells. A false
          * frame freshness flag instead means route/rail ownership failed. */
         sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
@@ -2293,8 +2557,11 @@ static void sensorarrayRuntimeRescueTick(sensorarrayAppContext_t *ctx)
         return;
     }
     sensorarrayMeasurementModeSnapshot_t mode = {0};
+    sensorarrayRowModeProfile_t profile = {0};
     if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode) &&
-        mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
+        mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE &&
+        sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile) &&
+        sensorarrayRowModeProfileIsHomogeneous(profile.modes)) {
         (void)sensorarrayFdcRescueTick(&ctx->fdcEngine, &ctx->frame, &ctx->fdcRescue);
     }
 }
@@ -2454,6 +2721,20 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         sensorarrayApplyPendingCommands(ctx);
         sensorarrayRunQueuedFullSweep(ctx);
 
+        esp_err_t railRefreshErr = sensorarrayRefreshVoltageRailIfNeeded(ctx);
+        if (railRefreshErr != ESP_OK) {
+            sensorarrayMeasurementModeRecordRuntimeFault(
+                &ctx->measurementMode, (uint32_t)railRefreshErr);
+            (void)sensorarrayAdsMatrixEngineSetMode(
+                &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+            (void)sensorarrayRouteControllerEnterSafe(
+                &ctx->routeController, "volt_rail_refresh_failed");
+            printf("MFAULT,mode=VOLT,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
+                   (unsigned long)(ctx->hostFrameSequence + 1u),
+                   (unsigned long)railRefreshErr);
+            continue;
+        }
+
         sensorarrayMeasurementModeSnapshot_t loopMode = {0};
         (void)sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
                                                      &loopMode);
@@ -2466,6 +2747,11 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         }
         bool capacitanceActive =
             loopMode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE;
+        sensorarrayRowModeProfile_t loopProfile = {0};
+        if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &loopProfile) &&
+            !sensorarrayRowModeProfileIsHomogeneous(loopProfile.modes)) {
+            capacitanceActive = false;
+        }
 
         if (CONFIG_SENSORARRAY_RUNTIME_PERIODIC_DIAG_ENABLE &&
             (ctx->fdcFrameCounter % 100u) == 0u) {
@@ -2499,21 +2785,25 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         }
 
         sensorarrayMeasurementMode_t frameMode = ctx->frame.measurement.mode;
+        bool mixedFrame = ctx->frame.mixedProfile;
         bool adsFrame = frameMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||
                         frameMode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE;
-        uint64_t validMask = adsFrame ? ctx->frame.measurement.validMask :
-                                       ctx->frame.capValidMask;
-        uint64_t errorMask = adsFrame ? ctx->frame.measurement.errorMask :
-                                       ctx->frame.errorMask;
+        uint64_t validMask = mixedFrame ?
+            (ctx->frame.capValidMask | ctx->frame.measurement.validMask) :
+            (adsFrame ? ctx->frame.measurement.validMask : ctx->frame.capValidMask);
+        uint64_t errorMask = mixedFrame ?
+            (ctx->frame.errorMask | ctx->frame.measurement.errorMask) :
+            (adsFrame ? ctx->frame.measurement.errorMask : ctx->frame.errorMask);
         bool allInvalid = validMask == 0u;
         if (allInvalid) {
-            bool rawAllZero = !adsFrame && sensorarrayFrameRawAllZero(&ctx->frame);
+            bool rawAllZero = !adsFrame && !mixedFrame &&
+                              sensorarrayFrameRawAllZero(&ctx->frame);
             if (ctx->asyncLogReady) {
                 (void)sensorarrayAsyncLogPublishFrameError(&ctx->frame,
                                                            err,
                                                            rawAllZero,
                                                            ctx->fdcBootSweepOk);
-            } else if (adsFrame) {
+            } else if (adsFrame || mixedFrame) {
                 printf("ADSFRAME,stage=all_invalid,mode=%s,seq=%lu,valid=0x%016llX,error=0x%016llX,fresh=0x%016llX,err=0x%lx,timeout=%lu,stale=%lu,spi=%lu,status=%lu,durationUs=%llu\n",
                        sensorarrayMeasurementModeName(frameMode),
                        (unsigned long)ctx->frame.sequence,
@@ -2620,6 +2910,10 @@ static void sensorarrayScanTask(void *arg)
     sensorarrayBootBreadcrumbSetStage("boot_sweep", ESP_OK, ctx);
     sensorarrayLogRuntimeMemoryDiag("before_boot_sweep", ctx);
     esp_err_t bootErr = sensorarrayRunBootCalibration(ctx);
+    sensorarrayAsyncLogEnableAcquisition();
+    if (ctx->asyncLogReady) {
+        boardSupportSetLogCallback(sensorarrayAsyncLogPublishTextEvent);
+    }
     sensorarrayBootBreadcrumbSetStage("boot_sweep_done", bootErr, ctx);
     sensorarrayLogRuntimeMemoryDiag("after_boot_sweep", ctx);
     if (CONFIG_SENSORARRAY_FDC_BOOT_SWEEP_REQUIRED &&
@@ -2652,7 +2946,17 @@ static esp_err_t sensorarrayStartScanTask(sensorarrayAppContext_t *ctx)
     if (taskOk != pdPASS || !scanTaskHandle) {
         return ESP_ERR_NO_MEM;
     }
+    ctx->scanTaskHandle = scanTaskHandle;
     return ESP_OK;
+}
+
+static void sensorarrayLogBootHeap(const char *stage)
+{
+    printf("APP_BOOT_MEM,stage=%s,internalFree=%u,internalLargest=%u,internalMin=%u\n",
+           stage ? stage : SENSORARRAY_NA,
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
 }
 
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
@@ -2666,9 +2970,10 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
     /* Bring up TextFrameBus/EventRing before hardware initialisation so Core 1
      * startup and runtime diagnostics can be handed to Core 0 immediately. */
     sensorarrayInitAsyncLogging(ctx);
-    if (ctx->asyncLogReady) {
-        boardSupportSetLogCallback(sensorarrayAsyncLogPublishTextEvent);
-    }
+    /* Keep board-support/I2C diagnostics on synchronous stdout during
+     * hardware bring-up.  The acquisition-side event path remains
+     * asynchronous; the board callback is installed after FDC boot
+     * calibration so startup bus probing keeps the known-good timing. */
 
     sensorarrayLogRuntimeMemoryDiag("before_board_support_init", ctx);
     err = sensorarrayInitBoardAndRouting(ctx);
@@ -2716,6 +3021,21 @@ void app_main(void)
         printf("NET_WARN,stage=ble_first_init,err=0x%lx,name=%s,action=continue_acquisition\n",
                (unsigned long)netErr, esp_err_to_name(netErr));
     }
+    sensorarrayLogBootHeap("after_net_init");
+
+    /* Reserve the Core 0 output/logger tasks before the large Core 1
+     * acquisition task.  The logger owns the bounded frame workspace and
+     * must be present for STK50/full-HIL telemetry; creating it after the
+     * acquisition stack can leave no suitable internal heap block even when
+     * the aggregate free heap appears sufficient.  sensorarrayInitSystem()
+     * calls the same initializer idempotently after its runtime reset. */
+    sensorarrayInitAsyncLogging(&s_appContext);
+    sensorarrayLogBootHeap("after_async_log_init");
+    /* sensorarrayInitRuntime() deliberately resets the shared application
+     * context in the acquisition task.  Keep the result of the pre-created
+     * logger in a local value so that a fast Core 1 start cannot make Core 0
+     * skip the USB sink initialization below. */
+    bool asyncLogStartedBeforeScan = s_appContext.asyncLogReady;
 
     esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
     if (scanErr != ESP_OK) {
@@ -2726,8 +3046,19 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(1000u));
         }
     }
-    printf("APP_SCAN_TASK,stage=created,targetCore=%d,priority=%u,stackBytes=%u\n",
+    printf("APP_SCAN_TASK,stage=created,targetCore=%d,priority=%u,stackBytes=%u,stackMemory=internal\n",
            CONFIG_SENSORARRAY_SCAN_TASK_CORE,
            (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_PRIO,
-           (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK);
+           (unsigned)CONFIG_SENSORARRAY_SCAN_TASK_STACK
+    );
+    sensorarrayLogBootHeap("after_scan_task_create");
+
+    if (asyncLogStartedBeforeScan) {
+        esp_err_t logSinkErr = sensorarrayAsyncLogStartUsbSink();
+        if (logSinkErr != ESP_OK) {
+            printf("APP_LOG_WARN,stage=usb_sink,err=0x%lx,action=continue_network_logging\n",
+                   (unsigned long)logSinkErr);
+        }
+    }
+    sensorarrayLogBootHeap("after_async_log_sink_init");
 }

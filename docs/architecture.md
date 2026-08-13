@@ -66,12 +66,13 @@ Serial / BLE FF10 / Wi-Fi CTRL
 
 通用 DATA/LOG transport 使用预分配静态 payload pool 和小 descriptor queue：
 
-- 4 个 payload slot；
+- 5 个 payload slot：4 个普通 DATA/LOG slot 加 1 个 lifecycle 保留 slot；
 - DATA descriptor queue 深度 2；
+- LIFECYCLE descriptor queue 深度 1；
 - LOG descriptor queue 深度 2；
 - consumer 同时可独占 1 个 slot；
-- consumer 始终先取 DATA；
-- LOG 同时占用的 payload slot 硬上限为 2，因此 4-slot pool 始终至少为 measurement DATA 保留 2 个 slot；
+- consumer 按 DATA -> LIFECYCLE -> LOG 优先级取 descriptor；
+- LOG 同时占用的普通 payload slot 硬上限为 2，lifecycle 使用独立保留 slot；
 - enqueue 为 `xQueueSend(..., 0)`，pool/queue 满时按 channel 统计并丢弃，不等待网络。
 
 producer 在短临界区内只分配 `inUse/generation`，1536-byte copy 和 metadata 解析在临界区外完成。consumer 校验 slot index、generation、length 与 ownership，发送完毕后释放。禁止在 hot path 使用 `malloc(1536)`。

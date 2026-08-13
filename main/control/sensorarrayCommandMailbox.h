@@ -28,6 +28,7 @@ typedef enum {
     SENSORARRAY_COMMAND_BATTERY_PERIOD,
     SENSORARRAY_COMMAND_RES_SETTLE,
     SENSORARRAY_COMMAND_ADS_DEBUG,
+    SENSORARRAY_COMMAND_ROW_MODES,
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -36,6 +37,7 @@ typedef struct {
     uint32_t requestId;
     int32_t signedValue;
     int32_t signedValue2;
+    char rowModes[9];
 } sensorarrayCommand_t;
 
 esp_err_t sensorarrayCommandMailboxInit(void);
@@ -43,6 +45,8 @@ esp_err_t sensorarrayCommandMailboxPostText(const uint8_t *text, size_t length);
 esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
     sensorarrayMeasurementMode_t mode,
     uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
+                                                uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostRailCalibration(
     int32_t avddUv,
     int32_t avssUv,

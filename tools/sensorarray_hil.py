@@ -79,7 +79,6 @@ FULL_LOG_CASE_REQUIRED_TAGS = frozenset(
     ("SF50", "TR50", "ADS50", "ADST50", "AB50"))
 BLE_UNSUBSCRIBE_SETTLE_SECONDS = 0.15
 BLE_UNSUBSCRIBE_QUIET_SECONDS = 0.20
-SERIAL_FRAME_EMIT_STRIDE = 10
 
 
 class HilFailure(RuntimeError):
@@ -94,11 +93,11 @@ def serialMissingEmissions(previousSequence: int, currentSequence: int) -> int:
     """Return omitted USB publications while rejecting stale sequencing."""
 
     sequenceDelta = currentSequence - previousSequence
-    if sequenceDelta <= 0 or sequenceDelta % SERIAL_FRAME_EMIT_STRIDE != 0:
+    if sequenceDelta <= 0:
         raise HilFailure(
-            "invalid sequence %d -> %d; base stride=%d" %
-            (previousSequence, currentSequence, SERIAL_FRAME_EMIT_STRIDE))
-    return sequenceDelta // SERIAL_FRAME_EMIT_STRIDE - 1
+            "invalid sequence %d -> %d; sequence must advance" %
+            (previousSequence, currentSequence))
+    return sequenceDelta - 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -901,12 +900,10 @@ def collectSerialLongRun(monitor: SerialMonitor, mode: str,
                           initialEvidence["generation"],
                           initialEvidence["appliedSequence"])
         if lastSequence is not None:
-            # The USB text sink intentionally publishes only every tenth
-            # acquisition frame and remains non-blocking.  A saturated host
-            # link may therefore omit one or more complete publications.  A
-            # positive integral stride is a bounded transport drop; a
-            # duplicate, reversal, or non-integral stride is stale/corrupt
-            # sequencing and remains a hard failure.
+            # The USB text sink may publish every acquisition frame or omit
+            # complete publications under backpressure. A positive sequence
+            # delta is therefore valid; duplicate/reversed sequencing remains
+            # a hard failure and skipped sequence numbers are counted.
             try:
                 missing = serialMissingEmissions(lastSequence,
                                                   record.frame.sequence)
@@ -1589,7 +1586,7 @@ def applySerialProfile(args: argparse.Namespace) -> None:
     if args.longRunFrames is None:
         args.longRunFrames = 2000 if full else 20
     if args.longRunSeconds is None:
-        args.longRunSeconds = 0.0
+        args.longRunSeconds = 120.0 if full else 0.0
     if args.longRunMaximumSeconds is None:
         args.longRunMaximumSeconds = 2400.0 if full else 180.0
 
@@ -1796,7 +1793,7 @@ def buildBleProfile(args: argparse.Namespace) -> BleProfile:
         "subscribeCycles": 100 if full else 2,
         "reconnectCycles": 30 if full else 2,
         "longRunFrames": 2000 if full else 20,
-        "longRunSeconds": 0.0,
+        "longRunSeconds": 120.0 if full else 0.0,
         "longRunMaximumSeconds": 2400.0 if full else 180.0,
     }
     values = {}
@@ -2600,11 +2597,6 @@ def validateArguments(parser: argparse.ArgumentParser,
             value = getattr(args, fieldName)
             if value is not None and value < 0:
                 parser.error("serial long-run values must be non-negative")
-        if ("VOLT" in args.modes or
-                (args.longRunMode == "VOLT" and
-                 ((args.longRunFrames or 0) > 0 or
-                  (args.longRunSeconds or 0.0) > 0.0))) and args.railAvddUv is None:
-            parser.error("VOLT HIL requires --rail-avdd-uv and --rail-avss-uv")
     else:
         numericFields = (
             "connectedIdleSeconds", "caseDataFrames", "ff20OnlyFrames",
@@ -2616,8 +2608,6 @@ def validateArguments(parser: argparse.ArgumentParser,
             value = getattr(args, fieldName)
             if value is not None and value < 0:
                 parser.error("BLE profile overrides must be non-negative")
-        if "mode-stress" in args.phases and args.railAvddUv is None:
-            parser.error("BLE mode-stress requires --rail-avdd-uv and --rail-avss-uv")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

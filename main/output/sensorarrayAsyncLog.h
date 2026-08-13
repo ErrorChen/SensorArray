@@ -14,6 +14,8 @@ extern "C" {
 #endif
 
 esp_err_t sensorarrayAsyncLogInit(void);
+esp_err_t sensorarrayAsyncLogStartUsbSink(void);
+void sensorarrayAsyncLogEnableAcquisition(void);
 bool sensorarrayAsyncLogIsRunning(void);
 
 esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *frame,
@@ -28,6 +30,7 @@ esp_err_t sensorarrayAsyncLogPublishFrameError(const sensorarrayFrame_t *frame,
 esp_err_t sensorarrayAsyncLogPublishCommandApplied(uint32_t sequence,
                                                    const sensorarrayCommand_t *command);
 esp_err_t sensorarrayAsyncLogPublishTextEvent(const char *text, size_t length);
+esp_err_t sensorarrayAsyncLogPublishProtocolEvent(const char *text, size_t length);
 
 #ifdef __cplusplus
 }

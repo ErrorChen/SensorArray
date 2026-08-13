@@ -8,7 +8,7 @@
 S1D1, S1D2, ... S1D8, S2D1, ... S8D8
 ```
 
-`ROWS=1/2/4/8` 分别启用 8/16/32/64 个 cell。未启用的行不属于当前 frame。
+`ROWS=1..8` 启用对应数量的物理行和 `rows*8` 个 cell。未启用的行不属于当前 frame；mixed-row profile 则通过 `ROWMODES=<8 chars C|V|R>` 为每个 S 行选择独立测量模式。
 
 ## FDC 与 D-line 映射
 

@@ -181,6 +181,14 @@ config SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN
     default 16
     range 1 256
 
+config SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_LEN
+    int "Protocol lifecycle event queue length"
+    default 8
+    range 1 64
+    help
+        Bounded queue for deferred protocol lifecycle events such as MAPP,
+        RAPP, RMAPP and BAPP. It is separate from diagnostic log events.
+
 config SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES
     int "Async log summary period in measured frames"
     default 50
@@ -221,7 +229,7 @@ config SENSORARRAY_USB_SINK_QUEUE_LEN
 
 config SENSORARRAY_USB_SINK_TASK_STACK
     int "USB Serial/JTAG text sink task stack bytes"
-    default 6144
+    default 4096
     range 4096 16384
 
 config SENSORARRAY_USB_SINK_TASK_PRIORITY

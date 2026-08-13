@@ -68,16 +68,11 @@ TRANSITION 期间不产生普通数据帧，所以单帧不会混入两个 mode�
 - 合法负电压不是无效值；
 - 无效 cell 使用 `Xhh` 并在 masks 中给出原因。
 
-### VOLT 的外部 rail 前置条件
+### VOLT 的自动 rail monitor
 
-VOLT 的 rail split 必须来自与本次测量同步的外部 DMM，而不是标称电源值或 ADS 内部 supply-monitor。每次准备进入 VOLT 的验收流程都应：
+普通 `MODE=VOLT` 不要求主机预先发送 `RAILCFG`。在完整帧边界，route controller 会先进入矩阵隔离的 `SAFE_RAIL_MONITOR`：SW/SELA/ADS reference 组合被设置为只读 internal analog supply monitor，完成 settle、采样和 readback 后再恢复 VOLT route。monitor 得到的 rail span 会写入当前 frame 的 `avdd/avss/rail/age`。
 
-1. 保持设备处于 CAP 或 RES，并保持即将测试的供电、接线和负载不变；
-2. 用外部 DMM 测量 `AVDD -> GND` 和 `AVSS -> GND`；
-3. 换算为整数 µV：AVDD 为正数，AVSS 为负数；
-4. 发送 `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>`；
-5. 等待同一 request ID 的 `RACK ... source=external,state=accepted` 和 `RAPP ... source=external,state=applied`；
-6. 再发送 `MODE=VOLT`，并等待 `MACK`、`MAPP` 与第一帧完整 VOLT 数据。
+`RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` 仍保留为易失外部 DMM debug override，用于需要绝对校准证据的实验；它不是普通用户前置条件。VOLT 内仍拒绝改变该 override：
 
 firmware 会拒绝在 VOLT 内更新 rail：
 
@@ -87,7 +82,11 @@ ERR,cmd=RAILCFG,reason=apply_before_volt
 
 需要更新时先切回 CAP/RES，重新同步 DMM 值并应用。缺少有效 external rail 时，`MODE=VOLT` 即使先返回 queued 的 `MACK`，在帧边界也会以 `MERR` 失败并进入 SAFE；不能把 `MACK` 当作已经进入 VOLT。
 
-ADS supply-monitor rail 是内部运行健康信息。在 RES 中物理条件允许时它可以刷新 rail 状态，但 VOLT 的 REFOUT clamp 条件下不能安全执行同一 monitor transaction。该 monitor 读数既不是同步外部测量，也不是 DMM 精度证据，禁止把它复制为 `RAILCFG` 来绕过前置条件。
+ADS supply-monitor rail 是内部运行 health/reference 数据，不是同步外部 DMM 精度证据；若需要绝对精度报告，仍应单独保留外部 DMM 记录。
+
+## Mixed-row profile
+
+`ROWMODES=CVVRRVVC` 为 8 个物理 S 行建立原子 profile：每行只能为 `C`/`V`/`R`。应用帧按 CAP、VOLT、RES 分组，每组只对属于该组的物理行执行 route 与 FDC/ADS row subset read，输出 `M` header、多个 `MR` row records 和 `K` CRC trailer。`ROWMODES?`/`MODE?` 会同时报告 active/pending profile、generation、request ID 与 `layout=MIXED`。
 
 ## RES
 

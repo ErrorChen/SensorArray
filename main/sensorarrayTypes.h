@@ -184,6 +184,7 @@ typedef enum {
 typedef struct {
     uint64_t timestampUs;
     uint64_t batteryTimestampUs;
+    uint64_t batteryLastGoodTimestampUs;
     int32_t ain9OffsetRaw;
     int32_t ain9OffsetUv;
     int32_t ain8Raw;
@@ -192,6 +193,7 @@ typedef struct {
     int32_t aincomGndUv;
     int32_t ain8GndUv;
     int32_t batteryMv;
+    int32_t batteryLastGoodMv;
     int32_t railUv;
     int32_t railRawUv;
     int32_t railMonitorUv;
@@ -223,6 +225,8 @@ typedef struct {
     uint32_t sampleAgeFrames;
     uint32_t zeroAgeFrames;
     uint32_t batteryAgeMs;
+    uint32_t batteryLastGoodAgeMs;
+    uint32_t batteryLastGoodFrame;
     uint32_t batteryPeriodMs;
     uint32_t batterySampleUs;
     uint32_t batterySampleUsAverage;
@@ -254,6 +258,8 @@ typedef struct {
     bool dmaCapable;
     bool adcFresh;
     bool batteryValid;
+    bool batteryLastGoodValid;
+    bool batteryLastGoodFresh;
     bool batteryEnabled;
     bool batteryFresh;
     bool batteryDue;
@@ -303,6 +309,13 @@ typedef struct {
     bool freshFrame;
     sensorarrayFdcFrameTelemetry_t telemetry;
     sensorarrayAdsGapSnapshot_t adsGap;
+    /* Mixed row output keeps unit/scale attached to the physical S row. */
+    sensorarrayMeasurementMode_t rowMode[SENSORARRAY_MATRIX_ROWS];
+    sensorarrayMeasurementUnit_t rowUnit[SENSORARRAY_MATRIX_ROWS];
+    int8_t rowScale[SENSORARRAY_MATRIX_ROWS];
+    uint32_t rowProfileGeneration;
+    uint32_t rowProfileRequestId;
+    bool mixedProfile;
     /* Generic payload is populated only for VOLT/RES. CAP keeps the legacy
      * FDC fields and byte-compatible C/D/K formatter as the authority. */
     sensorarrayMeasurementPayload_t measurement;

@@ -960,7 +960,7 @@ def main() -> int:
         help=("Bounded wait for self-tests, ADS identity, FDC boot calibration, "
               "and the first fresh dual-FDC CAP frame."),
     )
-    parser.add_argument("--rows", default="1,2,4,8")
+    parser.add_argument("--rows", default="1,2,3,4,5,6,7,8")
     parser.add_argument("--modes", default="CAP,VOLT,RES")
     parser.add_argument("--cycles", type=int, default=10)
     parser.add_argument("--known-resistor", action="append", default=[],
@@ -998,14 +998,12 @@ def main() -> int:
     rows = [int(value) for value in args.rows.split(",") if value]
     modes = [value.strip().upper() for value in args.modes.split(",") if value]
     settle_values = [int(value) for value in args.res_settle_values.split(",") if value]
-    if any(value not in {1, 2, 4, 8} for value in rows):
-        parser.error("--rows accepts a comma-separated subset of 1,2,4,8")
+    if any(value not in set(range(1, 9)) for value in rows):
+        parser.error("--rows accepts a comma-separated subset of 1..8")
     if any(value not in {"CAP", "VOLT", "RES"} for value in modes):
         parser.error("--modes accepts CAP,VOLT,RES")
     if (args.rail_avdd_uv is None) != (args.rail_avss_uv is None):
         parser.error("--rail-avdd-uv and --rail-avss-uv must be supplied together")
-    if "VOLT" in modes and args.rail_avdd_uv is None:
-        parser.error("VOLT validation requires explicit --rail-avdd-uv and --rail-avss-uv")
     if args.rail_avdd_uv is not None and (
             args.rail_avdd_uv <= 0 or args.rail_avss_uv is None or
             args.rail_avss_uv >= 0):
