@@ -12,12 +12,19 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameBuilder.h"
 
+/* Bounded high-Z confirmation: exactly three fresh conversions per decision.
+ * The sample's confirmationConversions telemetry reports this bound. Never
+ * grow the loop without re-validating frame timing and DRDY handling. */
+#define SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT 3u
+#define SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_MARGIN_FACTOR 3u
+
 typedef struct {
     int32_t raw;
     int32_t differentialUv;
     uint8_t status;
     uint32_t generationStart;
     uint32_t generationEnd;
+    uint32_t configurationGeneration;
 } sensorarrayAdsMatrixSample_t;
 
 typedef struct {
@@ -35,6 +42,9 @@ typedef struct {
     bool pgaBypassed;
     bool fullSample;
     uint32_t spreadRaw;
+    uint32_t configurationGeneration;
+    uint8_t confirmationConversions;
+    sensorarrayAdsOpenSemantic_t openSemantic;
 } sensorarrayAdsMatrixCellResult_t;
 
 static const sensorarrayAdsAutoRangeConfig_t s_sensorarrayAdsAutoRangeConfig = {
@@ -57,6 +67,8 @@ static const sensorarrayAdsResistanceConfig_t s_sensorarrayAdsResistanceLimits =
     .maximumOhms = CONFIG_SENSORARRAY_ADS_MATRIX_RES_MAX_OHMS,
     .shortThresholdOhms = CONFIG_SENSORARRAY_ADS_MATRIX_RES_SHORT_OHMS,
     .openDenominatorUv = CONFIG_SENSORARRAY_ADS_MATRIX_RES_OPEN_DENOM_UV,
+    .openConfirmMarginUv = CONFIG_SENSORARRAY_ADS_MATRIX_RES_OPEN_DENOM_UV *
+        SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_MARGIN_FACTOR,
 };
 
 bool sensorarrayAdsMatrixCalibrationValid(
@@ -86,6 +98,19 @@ bool sensorarrayAdsMatrixCalibrationValid(
         }
     }
     return true;
+}
+
+static uint32_t sensorarrayAdsMatrixConfigurationGeneration(
+    const sensorarrayAdsMatrixEngine_t *engine)
+{
+    if (!engine) {
+        return 0u;
+    }
+    uint32_t generation = engine->calibrationGeneration +
+                          engine->profileCache.generation +
+                          engine->registerCache.generation +
+                          engine->valueCache.generation;
+    return generation == 0u ? 1u : generation;
 }
 
 static void sensorarrayAdsMatrixSetCellError(sensorarrayFrame_t *frame,
@@ -145,6 +170,7 @@ static void sensorarrayAdsMatrixSetCellValid(sensorarrayFrame_t *frame,
 static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     ads126xAdcHandle_t *ads,
     uint32_t startGeneration,
+    uint32_t configurationGeneration,
     sensorarrayMeasurementPayload_t *telemetry,
     sensorarrayAdsMatrixSample_t *outSample)
 {
@@ -153,6 +179,7 @@ static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     }
     memset(outSample, 0, sizeof(*outSample));
     outSample->generationStart = startGeneration;
+    outSample->configurationGeneration = configurationGeneration;
     int64_t waitStartUs = esp_timer_get_time();
     esp_err_t err = ads126xAdcWaitDrdyGenerationUs(
         ads,
@@ -339,6 +366,7 @@ static esp_err_t sensorarrayAdsMatrixApplyInputProfile(
     sensorarrayAdsInputMode_t inputMode,
     uint8_t gain,
     sensorarrayMeasurementPayload_t *telemetry,
+    bool forceRoute,
     uint32_t *outStartGeneration)
 {
     if (!engine || !engine->state || !telemetry || !outStartGeneration) {
@@ -374,9 +402,10 @@ static esp_err_t sensorarrayAdsMatrixApplyInputProfile(
         engine->registerCache.gain = gain;
     }
     uint8_t inpmux = (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu));
-    if (sensorarrayAdsRegisterCacheNeedsWrite(&engine->registerCache,
-                                              SENSORARRAY_ADS_REGISTER_INPMUX,
-                                              inpmux)) {
+    if (forceRoute || sensorarrayAdsRegisterCacheNeedsWrite(
+                          &engine->registerCache,
+                          SENSORARRAY_ADS_REGISTER_INPMUX,
+                          inpmux)) {
         int64_t startUs = esp_timer_get_time();
         esp_err_t err = ads126xAdcSetInputMuxFast(ads, muxp, muxn);
         int64_t endUs = esp_timer_get_time();
@@ -444,9 +473,12 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
     if (!engine || !telemetry || !outResult) {
         return ESP_ERR_INVALID_ARG;
     }
+    uint32_t configurationGeneration =
+        sensorarrayAdsMatrixConfigurationGeneration(engine);
     sensorarrayAdsMatrixSample_t samples[3] = {0};
     esp_err_t err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
                                                         firstGeneration,
+                                                        configurationGeneration,
                                                         telemetry,
                                                         &samples[0]);
     if (err != ESP_OK) {
@@ -458,6 +490,7 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
     outResult->fresh = true;
     outResult->stable = false;
     outResult->fullSample = false;
+    outResult->configurationGeneration = configurationGeneration;
     uint8_t statusErrorMask = (uint8_t)(ADS126X_STATUS_REFERENCE_ALARM |
         ADS126X_STATUS_RESET_OCCURRED |
         (pgaBypassed ? 0u : ADS126X_STATUS_PGA_ALARM_MASK));
@@ -479,12 +512,19 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
         outResult->fresh = true;
         outResult->stable = true;
         outResult->fullSample = false;
+        if (!sensorarrayAdsMathConfigurationGenerationCurrent(
+                configurationGeneration,
+                sensorarrayAdsMatrixConfigurationGeneration(engine))) {
+            outResult->error = SENSORARRAY_CELL_ERROR_STALE;
+            return ESP_ERR_INVALID_RESPONSE;
+        }
         return ESP_OK;
     }
     for (uint8_t index = 1u; index < 3u; ++index) {
         uint32_t generation = ads126xAdcGetDrdyGeneration(&engine->state->ads);
         err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
                                                   generation,
+                                                  configurationGeneration,
                                                   telemetry,
                                                   &samples[index]);
         if (err != ESP_OK) {
@@ -493,6 +533,12 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
              * itself is reported invalid. */
             return err;
         }
+    }
+    if (!sensorarrayAdsMathConfigurationGenerationCurrent(
+            configurationGeneration,
+            sensorarrayAdsMatrixConfigurationGeneration(engine))) {
+        outResult->error = SENSORARRAY_CELL_ERROR_STALE;
+        return ESP_ERR_INVALID_RESPONSE;
     }
     int64_t aggregationStartUs = esp_timer_get_time();
     int32_t rawValues[3] = {samples[0].raw, samples[1].raw, samples[2].raw};
@@ -528,6 +574,158 @@ static sensorarrayCellError_t sensorarrayAdsMatrixIoError(esp_err_t err)
         return SENSORARRAY_CELL_ERROR_STALE;
     }
     return SENSORARRAY_CELL_ERROR_SPI;
+}
+
+static esp_err_t sensorarrayAdsMatrixConfirmHighZ(
+    sensorarrayAdsMatrixEngine_t *engine,
+    const sensorarrayAdsRailSplit_t *rail,
+    uint8_t muxp,
+    uint8_t muxn,
+    sensorarrayAdsInputMode_t inputMode,
+    uint8_t gain,
+    sensorarrayMeasurementPayload_t *telemetry,
+    sensorarrayAdsMatrixCellResult_t *sample)
+{
+    if (!engine || !engine->state || !rail || !rail->valid || !telemetry ||
+        !sample) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (sample->error != SENSORARRAY_CELL_ERROR_NONE) {
+        /* The triggering sample already carries a classified error. A clean
+         * confirmation must not overwrite it with a fresh-sample decision. */
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    /* Re-apply the cell route and discard every conversion from the old
+     * epoch. The forced INPMUX write creates a fresh DRDY boundary even when
+     * the register shadow already holds the same mux value. */
+    uint32_t firstGeneration = 0u;
+    esp_err_t err = sensorarrayAdsMatrixApplyInputProfile(engine,
+                                                          muxp,
+                                                          muxn,
+                                                          inputMode,
+                                                          gain,
+                                                          telemetry,
+                                                          true,
+                                                          &firstGeneration);
+    if (err != ESP_OK) {
+        sample->fresh = false;
+        sample->error = sensorarrayAdsMatrixIoError(err);
+        return err;
+    }
+
+    uint32_t configurationGeneration =
+        sensorarrayAdsMatrixConfigurationGeneration(engine);
+    sensorarrayAdsMatrixSample_t confirmSamples[
+        SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT] = {0};
+    uint8_t confirmStatuses[SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT] = {0};
+    for (uint8_t index = 0u;
+         index < SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT;
+         ++index) {
+        err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+                                                 firstGeneration,
+                                                 configurationGeneration,
+                                                 telemetry,
+                                                 &confirmSamples[index]);
+        if (err != ESP_OK) {
+            sample->fresh = false;
+            sample->error = sensorarrayAdsMatrixIoError(err);
+            return err;
+        }
+        confirmStatuses[index] = confirmSamples[index].status;
+        firstGeneration = confirmSamples[index].generationEnd;
+    }
+    if (!sensorarrayAdsMathConfigurationGenerationCurrent(
+            configurationGeneration,
+            sensorarrayAdsMatrixConfigurationGeneration(engine))) {
+        sample->fresh = false;
+        sample->error = SENSORARRAY_CELL_ERROR_STALE;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    int32_t rawValues[SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT];
+    int32_t uvValues[SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT];
+    int32_t nodeUvValues[SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT];
+    for (uint8_t index = 0u;
+         index < SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT;
+         ++index) {
+        int64_t nodeUv64 =
+            (int64_t)confirmSamples[index].differentialUv + rail->aincomUv;
+        nodeUvValues[index] = nodeUv64 < INT32_MIN ? INT32_MIN :
+            (nodeUv64 > INT32_MAX ? INT32_MAX : (int32_t)nodeUv64);
+        rawValues[index] = confirmSamples[index].raw;
+        uvValues[index] = confirmSamples[index].differentialUv;
+    }
+
+    /* Retain every alarm observed in the triggering sample: a clean set of
+     * confirmation conversions must not mask RESET/REFERENCE/PGA bits. */
+    uint8_t combinedStatus = sensorarrayAdsMathCombineStatusBytes(
+        sample->status,
+        confirmStatuses,
+        SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT);
+    sample->status = combinedStatus;
+    sample->fresh = true;
+    if ((combinedStatus & ADS126X_STATUS_RESET_OCCURRED) != 0u) {
+        sample->error = SENSORARRAY_CELL_ERROR_READBACK;
+        sensorarrayAdsMatrixEngineInvalidateCaches(engine);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    if ((combinedStatus & ADS126X_STATUS_REFERENCE_ALARM) != 0u) {
+        sample->error = SENSORARRAY_CELL_ERROR_REFERENCE_ALARM;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    if (inputMode == SENSORARRAY_ADS_INPUT_PGA) {
+        if ((combinedStatus & ADS126X_STATUS_PGA_DIFFERENTIAL_ALARM) != 0u) {
+            sample->error = SENSORARRAY_CELL_ERROR_PGA_DIFFERENTIAL;
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+        if ((combinedStatus & (ADS126X_STATUS_PGA_LOW_ALARM |
+                               ADS126X_STATUS_PGA_HIGH_ALARM)) != 0u) {
+            sample->error = SENSORARRAY_CELL_ERROR_PGA_ABSOLUTE;
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+
+    int32_t medianRaw = 0;
+    int32_t medianUv = 0;
+    int32_t medianNodeUv = 0;
+    (void)sensorarrayAdsMathSamplesStable(rawValues,
+                                          SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT,
+                                          UINT32_MAX,
+                                          &medianRaw);
+    (void)sensorarrayAdsMathSamplesStable(uvValues,
+                                          SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT,
+                                          UINT32_MAX,
+                                          &medianUv);
+    sensorarrayAdsOpenConfirm_t decision = sensorarrayAdsMathConfirmOpenSet(
+        nodeUvValues,
+        SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT,
+        rail->avssUv,
+        &s_sensorarrayAdsResistanceLimits,
+        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_MAX_SPREAD_UV,
+        &medianNodeUv);
+
+    sample->raw = medianRaw;
+    sample->differentialUv = medianUv;
+    sample->nodeUv = medianNodeUv;
+    sample->status = combinedStatus;
+    sample->fresh = true;
+    sample->fullSample = true;
+    sample->spreadRaw = sensorarrayAdsMatrixRawSpread(rawValues);
+    sample->configurationGeneration = configurationGeneration;
+    sample->confirmationConversions =
+        SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT;
+    if (decision == SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z) {
+        sample->openSemantic = SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED;
+        sample->stable = false;
+        sample->error = SENSORARRAY_CELL_ERROR_OPEN;
+        return ESP_OK;
+    }
+    sample->openSemantic = SENSORARRAY_ADS_OPEN_SEMANTIC_NONE;
+    sample->stable = decision == SENSORARRAY_ADS_OPEN_CONFIRM_NONE;
+    sample->error = sample->stable ? SENSORARRAY_CELL_ERROR_NONE :
+                                     SENSORARRAY_CELL_ERROR_UNSTABLE;
+    return sample->stable ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }
 
 static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *engine,
@@ -587,6 +785,7 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                                                          inputMode,
                                                          gain,
                                                          telemetry,
+                                                         false,
                                                          &firstGeneration);
             if (err == ESP_OK) {
                 err = sensorarrayAdsMatrixReadAdaptive(
@@ -653,6 +852,23 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
         uint64_t saturationLimit =
             ((uint64_t)INT32_MAX * CONFIG_SENSORARRAY_ADS_AUTORANGE_SATURATION_PERMILLE) /
             1000u;
+        sensorarrayAdsHighZCandidateInput_t highZInput = {
+            .nodeUv = outResult->nodeUv,
+            .avssUv = rail->avssUv,
+            .rawCode = sample.raw,
+            .magnitude = magnitude,
+            .saturationLimit = saturationLimit,
+            .openDenominatorUv =
+                s_sensorarrayAdsResistanceLimits.openDenominatorUv,
+            .openConfirmMarginUv =
+                s_sensorarrayAdsResistanceLimits.openConfirmMarginUv,
+        };
+        uint64_t cellBit = UINT64_C(1) << cellIndex;
+        bool highZCandidate =
+            engine->mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE &&
+            sensorarrayAdsMathHighZOpenCandidate(&highZInput);
+        bool highZLatched = (engine->highZOpenMask & cellBit) != 0u;
+        bool shouldConfirmHighZ = highZCandidate || highZLatched;
         if (inputMode == SENSORARRAY_ADS_INPUT_BYPASS) {
             int64_t marginUv = CONFIG_SENSORARRAY_ADS_BYPASS_INPUT_MARGIN_UV;
             int64_t lowerUv = (int64_t)rail->avssUv - marginUv;
@@ -666,6 +882,66 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
                     &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
                     (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
                 return ESP_ERR_INVALID_RESPONSE;
+            }
+            if (shouldConfirmHighZ) {
+                esp_err_t confirmErr = sensorarrayAdsMatrixConfirmHighZ(
+                    engine, rail, muxp, muxn, inputMode, gain, telemetry, &sample);
+                if (confirmErr != ESP_OK) {
+                    *outResult = sample;
+                    outResult->error = sample.error != SENSORARRAY_CELL_ERROR_NONE ?
+                        sample.error : sensorarrayAdsMatrixIoError(confirmErr);
+                    if (outResult->error == SENSORARRAY_CELL_ERROR_UNSTABLE &&
+                        sample.fresh) {
+                        sensorarrayAdsValueCacheObserve(
+                            valueCache, sample.raw, sample.nodeUv,
+                            SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                            sample.spreadRaw, engine->frameCount, true);
+                        if (valueCache) {
+                            valueCache->stableStreak = 0u;
+                            if (valueCache->unstableStreak < UINT32_MAX) {
+                                valueCache->unstableStreak++;
+                            }
+                        }
+                    }
+                    sensorarrayAdsProfileCacheNoteFailure(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                        (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                    return confirmErr;
+                }
+                *outResult = sample;
+                engine->highZOpenMask = sensorarrayAdsMathHighZLatchUpdate(
+                    engine->highZOpenMask, cellIndex, sample.openSemantic);
+                if (sample.openSemantic ==
+                    SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) {
+                    (void)sensorarrayAdsProfileCacheStore(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                        SENSORARRAY_ADS_INPUT_BYPASS, 1u, engine->frameCount);
+                    sensorarrayAdsValueCacheObserve(
+                        valueCache, sample.raw, sample.nodeUv,
+                        SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                        sample.spreadRaw, engine->frameCount, true);
+                    if (valueCache) {
+                        valueCache->stableStreak = 0u;
+                        if (valueCache->unstableStreak < UINT32_MAX) {
+                            valueCache->unstableStreak++;
+                        }
+                    }
+                    return ESP_OK;
+                }
+                nodeUv64 = sample.nodeUv;
+                magnitude = sample.raw == INT32_MIN ?
+                    (uint64_t)INT32_MAX + 1u :
+                    (uint64_t)(sample.raw < 0 ? -sample.raw : sample.raw);
+                inputsSafe = nodeUv64 >= lowerUv && nodeUv64 <= upperUv &&
+                             (int64_t)rail->aincomUv >= lowerUv &&
+                             (int64_t)rail->aincomUv <= upperUv;
+                if ((sample.status & ADS126X_STATUS_REFERENCE_ALARM) != 0u) {
+                    outResult->error = SENSORARRAY_CELL_ERROR_REFERENCE_ALARM;
+                    sensorarrayAdsProfileCacheNoteFailure(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                        (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                    return ESP_ERR_INVALID_RESPONSE;
+                }
             }
             if (!inputsSafe || magnitude >= saturationLimit) {
                 /* In the confirmed resistance divider, an open/high-Z cell
@@ -802,11 +1078,125 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
             continue;
         }
         if (decision.action == SENSORARRAY_ADS_AUTORANGE_FAIL) {
-            outResult->error = decision.error;
-            sensorarrayAdsProfileCacheNoteFailure(
-                &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
-                (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
-            return ESP_ERR_INVALID_RESPONSE;
+            if (shouldConfirmHighZ) {
+                esp_err_t confirmErr = sensorarrayAdsMatrixConfirmHighZ(
+                    engine, rail, muxp, muxn, inputMode, gain, telemetry, &sample);
+                if (confirmErr != ESP_OK) {
+                    *outResult = sample;
+                    outResult->error = sample.error != SENSORARRAY_CELL_ERROR_NONE ?
+                        sample.error : sensorarrayAdsMatrixIoError(confirmErr);
+                    if (outResult->error == SENSORARRAY_CELL_ERROR_UNSTABLE &&
+                        sample.fresh) {
+                        sensorarrayAdsValueCacheObserve(
+                            valueCache, sample.raw, sample.nodeUv,
+                            SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                            sample.spreadRaw, engine->frameCount, true);
+                        if (valueCache) {
+                            valueCache->stableStreak = 0u;
+                            if (valueCache->unstableStreak < UINT32_MAX) {
+                                valueCache->unstableStreak++;
+                            }
+                        }
+                    }
+                    sensorarrayAdsProfileCacheNoteFailure(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                        (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                    return confirmErr;
+                }
+                *outResult = sample;
+                engine->highZOpenMask = sensorarrayAdsMathHighZLatchUpdate(
+                    engine->highZOpenMask, cellIndex, sample.openSemantic);
+                if (sample.openSemantic ==
+                    SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) {
+                    (void)sensorarrayAdsProfileCacheStore(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                        SENSORARRAY_ADS_INPUT_BYPASS, 1u, engine->frameCount);
+                    sensorarrayAdsValueCacheObserve(
+                        valueCache, sample.raw, sample.nodeUv,
+                        SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                        sample.spreadRaw, engine->frameCount, true);
+                    if (valueCache) {
+                        valueCache->stableStreak = 0u;
+                        if (valueCache->unstableStreak < UINT32_MAX) {
+                            valueCache->unstableStreak++;
+                        }
+                    }
+                    return ESP_OK;
+                }
+                magnitude = sample.raw == INT32_MIN ?
+                    (uint64_t)INT32_MAX + 1u :
+                    (uint64_t)(sample.raw < 0 ? -sample.raw : sample.raw);
+                if (magnitude >= saturationLimit) {
+                    outResult->error = SENSORARRAY_CELL_ERROR_SATURATED;
+                    sensorarrayAdsProfileCacheNoteFailure(
+                        &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                        (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                    return ESP_ERR_INVALID_RESPONSE;
+                }
+            } else {
+                outResult->error = decision.error;
+                sensorarrayAdsProfileCacheNoteFailure(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                    (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                return ESP_ERR_INVALID_RESPONSE;
+            }
+        }
+        if (decision.action == SENSORARRAY_ADS_AUTORANGE_KEEP &&
+            shouldConfirmHighZ) {
+            esp_err_t confirmErr = sensorarrayAdsMatrixConfirmHighZ(
+                engine, rail, muxp, muxn, inputMode, gain, telemetry, &sample);
+            if (confirmErr != ESP_OK) {
+                *outResult = sample;
+                outResult->error = sample.error != SENSORARRAY_CELL_ERROR_NONE ?
+                    sample.error : sensorarrayAdsMatrixIoError(confirmErr);
+                if (outResult->error == SENSORARRAY_CELL_ERROR_UNSTABLE &&
+                    sample.fresh) {
+                    sensorarrayAdsValueCacheObserve(
+                        valueCache, sample.raw, sample.nodeUv,
+                        SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                        sample.spreadRaw, engine->frameCount, true);
+                    if (valueCache) {
+                        valueCache->stableStreak = 0u;
+                        if (valueCache->unstableStreak < UINT32_MAX) {
+                            valueCache->unstableStreak++;
+                        }
+                    }
+                }
+                sensorarrayAdsProfileCacheNoteFailure(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
+                    (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                return confirmErr;
+            }
+            *outResult = sample;
+            engine->highZOpenMask = sensorarrayAdsMathHighZLatchUpdate(
+                engine->highZOpenMask, cellIndex, sample.openSemantic);
+            if (sample.openSemantic ==
+                SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) {
+                (void)sensorarrayAdsProfileCacheStore(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex,
+                    SENSORARRAY_ADS_INPUT_BYPASS, 1u, engine->frameCount);
+                sensorarrayAdsValueCacheObserve(
+                    valueCache, sample.raw, sample.nodeUv,
+                    SENSORARRAY_MEASUREMENT_INVALID_FIXED,
+                    sample.spreadRaw, engine->frameCount, true);
+                if (valueCache) {
+                    valueCache->stableStreak = 0u;
+                    if (valueCache->unstableStreak < UINT32_MAX) {
+                        valueCache->unstableStreak++;
+                    }
+                }
+                return ESP_OK;
+            }
+            magnitude = sample.raw == INT32_MIN ?
+                (uint64_t)INT32_MAX + 1u :
+                (uint64_t)(sample.raw < 0 ? -sample.raw : sample.raw);
+            if (magnitude >= saturationLimit) {
+                outResult->error = SENSORARRAY_CELL_ERROR_SATURATED;
+                sensorarrayAdsProfileCacheNoteFailure(
+                    &engine->profileCache, engine->mode, (uint8_t)cellIndex, true,
+                    (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
+                return ESP_ERR_INVALID_RESPONSE;
+            }
         }
         if (!outResult->stable) {
             sensorarrayAdsValueCacheObserve(valueCache,
@@ -902,15 +1292,38 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
         rowMask = rows >= SENSORARRAY_MATRIX_ROWS ? 0xFFu :
             (uint8_t)((1u << rows) - 1u);
     }
-    uint64_t activeMask = 0u;
-    for (uint8_t row = 0u; row < rows; ++row) {
-        if ((rowMask & (uint8_t)(1u << row)) != 0u) {
-            activeMask |= UINT64_C(0xFF) <<
-                (row * SENSORARRAY_MATRIX_COLS);
-        }
-    }
+    uint64_t activeMask = sensorarrayFrameBuilderActiveCellMask(rowMask);
+    frame->expectedMask = activeMask;
+    frame->acquiredMask = frame->measurement.freshMask & activeMask;
+    frame->measurement.validMask &= activeMask;
+    frame->measurement.freshMask &= activeMask;
+    frame->validMask &= activeMask;
+    frame->freshMask &= activeMask;
     frame->measurement.errorMask &= activeMask;
     frame->errorMask &= activeMask;
+    /* Cells that never completed a conversion/read this sweep must not keep
+     * payload from an earlier sweep. Preserve a specific acquisition-failure
+     * reason when one was recorded; otherwise classify the cell as STALE. */
+    uint64_t unacquiredMask = activeMask & ~frame->acquiredMask;
+    for (size_t index = 0u; index < SENSORARRAY_MATRIX_CELL_COUNT; ++index) {
+        uint64_t bit = UINT64_C(1) << index;
+        if ((unacquiredMask & bit) == 0u) {
+            continue;
+        }
+        frame->measurement.valuesFixed[index] = SENSORARRAY_MEASUREMENT_INVALID_FIXED;
+        frame->measurement.validMask &= ~bit;
+        frame->measurement.freshMask &= ~bit;
+        frame->validMask &= ~bit;
+        frame->freshMask &= ~bit;
+        frame->measurement.errorMask |= bit;
+        frame->errorMask |= bit;
+        if (frame->measurement.errorReason[index] ==
+                SENSORARRAY_CELL_ERROR_NONE ||
+            frame->measurement.errorReason[index] ==
+                SENSORARRAY_CELL_ERROR_UNSUPPORTED) {
+            frame->measurement.errorReason[index] = SENSORARRAY_CELL_ERROR_STALE;
+        }
+    }
     frame->stale = (frame->measurement.freshMask & activeMask) != activeMask;
     /* A cell may be explicitly invalid while the frame is still coherent.
      * Route/rail failures are different: the analogue ownership contract was
@@ -934,6 +1347,20 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
     if (startUs > 0 && (int64_t)frame->frameEndUs > startUs) {
         frame->measurement.frameDurationUs = (uint64_t)((int64_t)frame->frameEndUs - startUs);
     }
+    if (startUs > 0) {
+        if (frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+            frame->voltStartUs = (uint64_t)startUs;
+            frame->voltEndUs = frame->frameEndUs;
+        } else if (frame->measurement.mode ==
+                   SENSORARRAY_MEASUREMENT_MODE_RESISTANCE) {
+            frame->resStartUs = (uint64_t)startUs;
+            frame->resEndUs = frame->frameEndUs;
+        }
+    }
+    frame->maxSkewUs = sensorarrayFrameBuilderMaxGroupSkewUs(
+        frame->capStartUs, frame->capEndUs,
+        frame->voltStartUs, frame->voltEndUs,
+        frame->resStartUs, frame->resEndUs);
 }
 
 esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,
@@ -977,6 +1404,7 @@ esp_err_t sensorarrayAdsMatrixEngineSetCalibration(
     }
     engine->calibration = *calibration;
     engine->calibrationGeneration++;
+    engine->highZOpenMask = 0u;
     sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
     sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
     sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
@@ -1013,6 +1441,7 @@ esp_err_t sensorarrayAdsMatrixEngineSetMode(sensorarrayAdsMatrixEngine_t *engine
     }
     if (engine->mode != mode) {
         engine->mode = mode;
+        engine->highZOpenMask = 0u;
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
         sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
         sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
@@ -1033,6 +1462,7 @@ void sensorarrayAdsMatrixEngineSetFrameSequenceHint(sensorarrayAdsMatrixEngine_t
 void sensorarrayAdsMatrixEngineInvalidateGainCache(sensorarrayAdsMatrixEngine_t *engine)
 {
     if (engine) {
+        engine->highZOpenMask = 0u;
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
         sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
         sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
@@ -1044,6 +1474,7 @@ void sensorarrayAdsMatrixEngineInvalidateCaches(sensorarrayAdsMatrixEngine_t *en
     if (!engine) {
         return;
     }
+    engine->highZOpenMask = 0u;
     sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
     sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
     sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
@@ -1268,12 +1699,24 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                     frame->measurement.spiErrorCount++;
                 }
                 sensorarrayAdsMatrixSetCellError(frame, index, error, result.fresh);
-                if (firstErr == ESP_OK) {
+                if (error != SENSORARRAY_CELL_ERROR_OPEN && firstErr == ESP_OK) {
                     firstErr = err;
                 }
                 continue;
             }
 
+            if (!sensorarrayAdsMathConfigurationGenerationCurrent(
+                    result.configurationGeneration,
+                    sensorarrayAdsMatrixConfigurationGeneration(engine))) {
+                sensorarrayAdsMatrixSetCellError(frame,
+                                                 index,
+                                                 SENSORARRAY_CELL_ERROR_STALE,
+                                                 false);
+                if (firstErr == ESP_OK) {
+                    firstErr = ESP_ERR_INVALID_RESPONSE;
+                }
+                continue;
+            }
             if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
                 int32_t nodeUv = 0;
                 sensorarrayCellError_t voltageError = SENSORARRAY_CELL_ERROR_NONE;
@@ -1314,12 +1757,32 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                         result.nodeUv,
                         rail.avssUv,
                         &resistanceConfig);
+                resistance.configurationGeneration =
+                    result.configurationGeneration;
+                if (result.openSemantic ==
+                    SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) {
+                    /* Consume the bounded confirmation on the resistance
+                     * decision itself. The latch path has already retained
+                     * the cell; a transient finite median must still publish
+                     * OPEN with the same wire error code as a raw open. */
+                    resistance.openSemantic =
+                        SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED;
+                    resistance.open = true;
+                    resistance.error = SENSORARRAY_CELL_ERROR_OPEN;
+                    resistance.valid = false;
+                    sensorarrayAdsMatrixSetCellError(frame,
+                                                     index,
+                                                     SENSORARRAY_CELL_ERROR_OPEN,
+                                                     true);
+                    continue;
+                }
                 if (!resistance.valid) {
                     sensorarrayAdsMatrixSetCellError(frame,
                                                      index,
                                                      resistance.error,
                                                      true);
-                    if (firstErr == ESP_OK) {
+                    if (resistance.error != SENSORARRAY_CELL_ERROR_OPEN &&
+                        firstErr == ESP_OK) {
                         firstErr = ESP_ERR_INVALID_RESPONSE;
                     }
                     continue;

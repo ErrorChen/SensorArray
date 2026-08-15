@@ -18,6 +18,7 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayAdsGap.h"
 #include "sensorarrayAcqEvent.h"
+#include "sensorarrayFrameBuilder.h"
 
 #define printf sensorarrayAcqEventPrintf
 #include "sensorarrayConfig.h"
@@ -2117,6 +2118,8 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
     }
     outFrame->configSnapshot = frameConfig;
     outFrame->activeRows = frameConfig.rows;
+    outFrame->expectedMask = sensorarrayFrameBuilderActiveCellMask(
+        frameConfig.rowMask);
     uint32_t activeCells = 0u;
     for (uint8_t row = 0u; row < frameConfig.rows; ++row) {
         if ((frameConfig.rowMask & (uint8_t)(1u << row)) != 0u) {
@@ -2641,15 +2644,25 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
                 (row * SENSORARRAY_MATRIX_COLS);
         }
     }
-    outFrame->stale = outFrame->rowFreshMask != expectedRowMask ||
-                      outFrame->primaryFreshMask != expectedRowMask ||
-                      outFrame->secondaryFreshMask != expectedRowMask ||
-                      outFrame->freshMask != expectedCellMask ||
-                      outFrame->capValidMask != expectedCellMask;
-    outFrame->freshFrame = !outFrame->stale && !outFrame->mixedEpoch;
+    /* Freshness is acquisition completeness, not electrical validity. A cell
+     * whose conversion/read completed is acquired even when it is OPEN/SHORT/
+     * RANGE/SATURATED; those cells stay invalid through validMask/errorMask
+     * without making the sweep stale. */
+    outFrame->acquiredMask = outFrame->freshMask & expectedCellMask;
+    outFrame->stale =
+        !sensorarrayFrameBuilderAcquisitionComplete(outFrame->acquiredMask,
+                                                    expectedCellMask) ||
+        outFrame->mixedEpoch;
+    outFrame->freshFrame = !outFrame->stale;
     if (outFrame->freshFrame) {
         outFrame->sequence = ++s_fdcFreshFrameSequence;
     }
+    outFrame->capStartUs = outFrame->frameStartUs;
+    outFrame->capEndUs = outFrame->frameEndUs;
+    outFrame->maxSkewUs = sensorarrayFrameBuilderMaxGroupSkewUs(
+        outFrame->capStartUs, outFrame->capEndUs,
+        outFrame->voltStartUs, outFrame->voltEndUs,
+        outFrame->resStartUs, outFrame->resEndUs);
     bool precisionGuardPass = outFrame->freshFrame &&
                               outFrame->validMask == expectedCellMask &&
                               outFrame->capValidMask == expectedCellMask &&

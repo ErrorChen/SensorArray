@@ -15,6 +15,7 @@
 #include "sdkconfig.h"
 #include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
+#include "sensorarrayTransportGuaranteedText.h"
 #include "sensorarrayTransportPool.h"
 #include "sensorarrayWifi.h"
 
@@ -71,6 +72,9 @@ _Static_assert(SENSORARRAY_TRANSPORT_TEXT_MAX ==
 _Static_assert(SENSORARRAY_TRANSPORT_TEXT_MAX ==
                    SENSORARRAY_BLE_MESSAGE_VALUE_MAX,
                "Transport and BLE maximum text sizes diverged");
+_Static_assert(SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX <=
+                   SENSORARRAY_TRANSPORT_TEXT_MAX,
+               "CTRL replies must fit inside the transport text slot");
 
 static StaticQueue_t s_dataQueueStruct;
 static StaticQueue_t s_logQueueStruct;
@@ -392,7 +396,7 @@ static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t 
 {
     bool frameTag = item && item->length >= 2u && item->data[1] == ',' &&
                     (item->data[0] == 'C' || item->data[0] == 'V' ||
-                     item->data[0] == 'R');
+                     item->data[0] == 'R' || item->data[0] == 'M');
     if (!frameTag) {
         return;
     }
@@ -407,8 +411,13 @@ static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t 
         !sensorarrayTransportFindFieldU32(item->data, "cells=", &cells)) {
         return;
     }
-    (void)sensorarrayTransportFindFieldU32(item->data, "gen=", &generation);
-    (void)sensorarrayTransportFindFieldU32(item->data, "rid=", &requestId);
+    if (item->data[0] == 'M') {
+        (void)sensorarrayTransportFindFieldU32(item->data, "rgen=", &generation);
+        (void)sensorarrayTransportFindFieldU32(item->data, "rrid=", &requestId);
+    } else {
+        (void)sensorarrayTransportFindFieldU32(item->data, "gen=", &generation);
+        (void)sensorarrayTransportFindFieldU32(item->data, "rid=", &requestId);
+    }
     if (rows < 1u || rows > 8u || cells != rows * 8u) {
         return;
     }
@@ -619,23 +628,75 @@ static void sensorarrayTransportProcessDescriptor(
     (void)sensorarrayTransportReleaseDescriptor(descriptor);
 }
 
-static bool sensorarrayTransportReceiveNext(
-    sensorarrayTransportDescriptor_t *outDescriptor)
+static void sensorarrayTransportNotifyTask(void)
 {
-    if (!outDescriptor) {
+    if (s_task) {
+        xTaskNotifyGive(s_task);
+    }
+}
+
+static void sensorarrayTransportDrainGuaranteedText(void)
+{
+    char text[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX];
+    size_t length = 0u;
+    if (!sensorarrayTransportGuaranteedTextTakeDrain(text, sizeof(text), &length)) {
+        return;
+    }
+
+    size_t written = fwrite(text, 1u, length, stdout);
+    (void)fflush(stdout);
+    sensorarrayTransportNoteSerialLog(written == length);
+
+    uint32_t bleConnectionGeneration = 0u;
+    if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
+        sensorarrayTransportBleChannelEnabled(SENSORARRAY_TRANSPORT_CHANNEL_LOG) &&
+        sensorarrayBleGetSendGeneration(SENSORARRAY_BLE_CH_LOG,
+                                        &bleConnectionGeneration)) {
+        esp_err_t bleErr = sensorarrayBleNotifyForGeneration(
+            SENSORARRAY_BLE_CH_LOG,
+            (const uint8_t *)text,
+            length,
+            bleConnectionGeneration);
+        sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_LOG,
+                                       true,
+                                       bleErr);
+    }
+    if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
+        esp_err_t wifiErr = sensorarrayWifiSend(SENSORARRAY_WIFI_CH_LOG,
+                                                (const uint8_t *)text,
+                                                length);
+        sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_LOG,
+                                       false,
+                                       wifiErr);
+    }
+}
+
+static bool sensorarrayTransportReceiveNext(
+    sensorarrayTransportDescriptor_t *outDescriptor,
+    uint32_t *dataBudget)
+{
+    if (!outDescriptor || !dataBudget) {
         return false;
     }
-    /* DATA remains the highest-throughput stream. Lifecycle events then win
-     * over ordinary diagnostics so MAPP/RAPP/RMAPP cannot sit behind LOG. */
-    if (s_dataQueue && xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
+    /* DATA remains the highest-throughput stream, but only in bounded batches
+     * so a continuously refilled DATA queue cannot starve LIFECYCLE or LOG.
+     * Lifecycle events then win over ordinary diagnostics so MAPP/RAPP/RMAPP
+     * cannot sit behind LOG. */
+    if (*dataBudget > 0u && s_dataQueue &&
+        xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
+        (*dataBudget)--;
         return true;
     }
     if (s_lifecycleQueue &&
         xQueueReceive(s_lifecycleQueue, outDescriptor, 0) == pdTRUE) {
+        *dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
         return true;
     }
-    return s_logQueue &&
-           xQueueReceive(s_logQueue, outDescriptor, 0) == pdTRUE;
+    if (s_logQueue && xQueueReceive(s_logQueue, outDescriptor, 0) == pdTRUE) {
+        *dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
+        return true;
+    }
+    return false;
 }
 
 static void sensorarrayTransportTask(void *arg)
@@ -646,7 +707,9 @@ static void sensorarrayTransportTask(void *arg)
     sensorarrayTransportDescriptor_t descriptor;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        while (sensorarrayTransportReceiveNext(&descriptor)) {
+        sensorarrayTransportDrainGuaranteedText();
+        uint32_t dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
+        while (sensorarrayTransportReceiveNext(&descriptor, &dataBudget)) {
             sensorarrayTransportProcessDescriptor(&descriptor);
         }
     }
@@ -661,6 +724,12 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
          channel != SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) ||
         !data || length == 0u ||
         length > SENSORARRAY_TRANSPORT_TEXT_MAX) {
+        if (length > SENSORARRAY_TRANSPORT_TEXT_MAX) {
+            printf("TXDROP,ch=%u,len=%lu,max=%u,reason=payload_too_large\n",
+                   (unsigned)channel,
+                   (unsigned long)length,
+                   (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
+        }
         return ESP_ERR_INVALID_ARG;
     }
     QueueHandle_t queue = channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
@@ -710,13 +779,25 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
     sensorarrayTransportFillFrameMeta(slot);
     if (xQueueSend(queue, &descriptor, 0) != pdTRUE) {
         if (slot->hasFrameMeta) {
-            printf("TXDROP,ch=%u,seq=%lu,rows=%u,cells=%u,gen=%lu,rid=%lu,reason=transport_queue_full\n",
+            uint32_t profileGeneration = 0u;
+            uint32_t profileRequestId = 0u;
+            if (slot->data[0] == 'M') {
+                (void)sensorarrayTransportFindFieldU32(slot->data,
+                                                        "pgen=",
+                                                        &profileGeneration);
+                (void)sensorarrayTransportFindFieldU32(slot->data,
+                                                        "prid=",
+                                                        &profileRequestId);
+            }
+            printf("TXDROP,ch=%u,seq=%lu,rows=%u,cells=%u,gen=%lu,rid=%lu,pgen=%lu,prid=%lu,reason=transport_queue_full\n",
                    (unsigned)slot->channel,
                    (unsigned long)slot->frameSeq,
                    (unsigned)slot->rows,
                    (unsigned)slot->cells,
                    (unsigned long)slot->generation,
-                   (unsigned long)slot->requestId);
+                   (unsigned long)slot->requestId,
+                   (unsigned long)profileGeneration,
+                   (unsigned long)profileRequestId);
         }
         (void)sensorarrayTransportReleaseDescriptor(&descriptor);
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
@@ -818,6 +899,7 @@ esp_err_t sensorarrayTransportInit(void)
     if (ok != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
+    sensorarrayTransportGuaranteedTextSetNotify(sensorarrayTransportNotifyTask);
     ok = xTaskCreatePinnedToCore(sensorarrayTransportSerialControlTask,
                                  "serialCtrl",
                                  CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
@@ -926,6 +1008,12 @@ esp_err_t sensorarrayTransportPublishControlReply(
 {
     if (!target || !data || length == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (length > SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX) {
+        printf("CTRLDROP,ch=ctrl,len=%lu,max=%u,reason=reply_too_large\n",
+               (unsigned long)length,
+               (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX);
+        return ESP_ERR_INVALID_SIZE;
     }
     esp_err_t err;
     if (target->kind == SENSORARRAY_TRANSPORT_REPLY_BLE) {

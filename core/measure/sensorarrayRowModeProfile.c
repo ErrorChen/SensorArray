@@ -95,6 +95,9 @@ bool sensorarrayRowModeProfileAccept(sensorarrayRowModeProfile_t *profile,
             return false;
         }
     }
+    if (profile->pending) {
+        return false;
+    }
     sensorarrayRowModeProfileWriteBegin(profile);
     memcpy(profile->pendingModes, modes, sizeof(profile->pendingModes));
     profile->pendingRequestId = requestId;

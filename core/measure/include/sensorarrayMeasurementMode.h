@@ -27,9 +27,26 @@ typedef enum {
     SENSORARRAY_MEASUREMENT_STATE_VOLTAGE,
     SENSORARRAY_MEASUREMENT_STATE_RESISTANCE,
     SENSORARRAY_MEASUREMENT_STATE_TRANSITION,
+    SENSORARRAY_MEASUREMENT_STATE_RECOVERY,
     SENSORARRAY_MEASUREMENT_STATE_DEGRADED,
     SENSORARRAY_MEASUREMENT_STATE_FAULT,
 } sensorarrayMeasurementState_t;
+
+typedef enum {
+    SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE = 0,
+    SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_ADS_RESTORE,
+    SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE,
+} sensorarrayMeasurementRecoveryTrigger_t;
+
+typedef enum {
+    SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_NONE = 0,
+    SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_STARTED,
+    SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_ATTEMPT,
+    SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_RESUMED,
+    SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_FAILED,
+} sensorarrayMeasurementRecoveryOutcome_t;
+
+#define SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS 3u
 
 typedef enum {
     SENSORARRAY_MEASUREMENT_UNIT_PF = 0,
@@ -158,7 +175,32 @@ typedef struct {
     sensorarrayMeasurementModeSnapshot_t snapshot;
 } sensorarrayMeasurementModeContext_t;
 
+/*
+ * Bounded in-place recovery bookkeeping. The acquisition owner drives one
+ * verified hardware restore attempt per frame boundary and resumes the saved
+ * measurement mode only after a successful attempt, or records a terminal
+ * exhausted outcome after SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS.
+ */
+typedef struct {
+    bool active;
+    bool terminal;
+    uint8_t maximumAttempts;
+    uint8_t attempt;
+    uint8_t completedAttempts;
+    uint32_t session;
+    sensorarrayMeasurementRecoveryTrigger_t trigger;
+    sensorarrayMeasurementRecoveryOutcome_t outcome;
+    sensorarrayMeasurementMode_t resumeMode;
+    uint32_t resumeRequestId;
+    uint32_t triggerRequestId;
+    uint32_t triggerError;
+    uint32_t lastError;
+    uint32_t triggerSequence;
+} sensorarrayMeasurementRecovery_t;
+
 void sensorarrayMeasurementModeInit(sensorarrayMeasurementModeContext_t *context);
+void sensorarrayMeasurementModeEnterRecovery(sensorarrayMeasurementModeContext_t *context,
+                                             uint32_t errorCode);
 bool sensorarrayMeasurementModeAccept(sensorarrayMeasurementModeContext_t *context,
                                       sensorarrayMeasurementMode_t requestedMode,
                                       uint32_t requestId);
@@ -174,6 +216,32 @@ void sensorarrayMeasurementModeRecordRuntimeFault(sensorarrayMeasurementModeCont
 bool sensorarrayMeasurementModeCopySnapshot(
     const sensorarrayMeasurementModeContext_t *context,
     sensorarrayMeasurementModeSnapshot_t *outSnapshot);
+
+void sensorarrayMeasurementRecoveryInit(sensorarrayMeasurementRecovery_t *recovery);
+bool sensorarrayMeasurementRecoveryStart(
+    sensorarrayMeasurementRecovery_t *recovery,
+    sensorarrayMeasurementMode_t resumeMode,
+    uint32_t resumeRequestId,
+    sensorarrayMeasurementRecoveryTrigger_t trigger,
+    uint32_t error,
+    uint32_t sequence,
+    uint32_t triggerRequestId);
+bool sensorarrayMeasurementRecoveryIsActive(
+    const sensorarrayMeasurementRecovery_t *recovery);
+bool sensorarrayMeasurementRecoveryIsTerminal(
+    const sensorarrayMeasurementRecovery_t *recovery);
+bool sensorarrayMeasurementRecoveryBeginAttempt(
+    sensorarrayMeasurementRecovery_t *recovery);
+void sensorarrayMeasurementRecoveryComplete(
+    sensorarrayMeasurementRecovery_t *recovery,
+    bool success,
+    uint32_t error);
+const char *sensorarrayMeasurementRecoveryTriggerName(
+    sensorarrayMeasurementRecoveryTrigger_t trigger);
+const char *sensorarrayMeasurementRecoveryOutcomeName(
+    sensorarrayMeasurementRecoveryOutcome_t outcome);
+sensorarrayMeasurementRecoveryTrigger_t sensorarrayMeasurementRecoveryTriggerForBattery(
+    bool restoreFailed);
 
 bool sensorarrayMeasurementModeIsDataMode(sensorarrayMeasurementMode_t mode);
 uint8_t sensorarrayMeasurementCellCount(uint8_t rows);

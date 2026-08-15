@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,10 +21,13 @@
 
 #include "sensorarrayAdsMatrix.h"
 #include "sensorarrayAdsGap.h"
+#include "sensorarrayAdsFault.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayCommandMailbox.h"
+#include "sensorarrayCalibration.h"
+#include "sensorarrayEarlyRecovery.h"
 #include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFdcRescue.h"
 #include "sensorarrayFdcSweep.h"
@@ -32,6 +36,7 @@
 #include "sensorarrayAsyncLog.h"
 #include "sensorarrayAcqEvent.h"
 #include "sensorarrayFrameOutput.h"
+#include "sensorarrayUsbSink.h"
 #include "sensorarrayLog.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayMeasurementMode.h"
@@ -45,6 +50,7 @@
 #include "sensorarrayTransport.h"
 #include "sensorarrayTextProtocol.h"
 #include "sensorarrayTypes.h"
+#include "esp_rtc_time.h"
 
 #define printf sensorarrayAcqEventPrintf
 
@@ -122,9 +128,13 @@ typedef struct {
     sensorarrayState_t state;
     sensorarrayScanPlan_t scanPlan;
     sensorarrayFrame_t frame;
+    /* Reusable mixed-mode segment frame owned by the Core 1 scan task.  The
+     * frame is CPU-only scratch and must never sit on the acquisition stack. */
+    sensorarrayFrame_t *mixedSegmentWorkspace;
     sensorarrayFdcMatrixEngine_t fdcEngine;
     sensorarrayAdsMatrixEngine_t adsEngine;
     sensorarrayMeasurementModeContext_t measurementMode;
+    sensorarrayMeasurementRecovery_t adsRestoreRecovery;
     sensorarrayRowModeProfile_t rowModeProfile;
     sensorarrayRouteController_t routeController;
     sensorarrayFdcRescueContext_t fdcRescue;
@@ -155,28 +165,78 @@ typedef struct {
     TaskHandle_t scanTaskHandle;
     volatile uint32_t lastMeasurementVersion;
     sensorarrayLastMeasurementSnapshot_t lastMeasurement;
+    volatile bool systemReady;
 } sensorarrayAppContext_t;
 
 static sensorarrayAppContext_t s_appContext;
 static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
+static bool sensorarrayCalibrationMatrixPayloadValid(const void *payload,
+                                                     size_t payloadLength);
+static void sensorarrayCalibrationLogOutcome(
+    const char *tag,
+    const char *state,
+    const char *reason,
+    const sensorarrayCalibrationStatus_t *status,
+    esp_err_t err);
+static const char *sensorarrayCalibrationLoadReason(
+    const sensorarrayCalibrationStatus_t *status,
+    esp_err_t err);
+
+#define SENSORARRAY_PAYLOAD_TOO_LARGE_RATE_LIMIT_US (1000000LL)
+static int64_t s_lastPayloadTooLargeDropUs;
+static uint32_t s_payloadTooLargeDropCount;
+
+#define SENSORARRAY_ROW_MODES_TERMINAL_TEXT_MAX 192u
 
 #define SENSORARRAY_BOOT_BREADCRUMB_MAGIC 0x53414252u
-#define SENSORARRAY_BOOT_BREADCRUMB_VERSION 1u
+#define SENSORARRAY_BOOT_BREADCRUMB_VERSION 2u
 #define SENSORARRAY_BOOT_BREADCRUMB_STAGE_MAX 32u
+#define SENSORARRAY_BOOT_RESTART_KIND_NONE 0u
+#define SENSORARRAY_BOOT_RESTART_KIND_MANUAL 1u
+#define SENSORARRAY_BOOT_RESTART_KIND_AUTO 2u
+#define SENSORARRAY_BOOT_GUARD_NORMAL 0u
+#define SENSORARRAY_BOOT_GUARD_RECOVERY_SAFE 1u
+#define SENSORARRAY_BOOT_AUTO_RESTART_MAX 3u
+#define SENSORARRAY_BOOT_AUTO_RESTART_WINDOW_US (30ULL * 1000000ULL)
 
 typedef struct {
     uint32_t magic;
     uint32_t version;
+    uint32_t bootId;
     uint32_t bootCount;
     uint32_t resetReason;
     char lastStage[SENSORARRAY_BOOT_BREADCRUMB_STAGE_MAX];
     int32_t lastErr;
     uint32_t lastFrameSeq;
     uint32_t minFreeHeap;
+    char prevStage[SENSORARRAY_BOOT_BREADCRUMB_STAGE_MAX];
+    int32_t prevErr;
+    uint32_t prevHeap;
+    uint32_t restartKind;
+    uint32_t guardState;
+    uint32_t autoRestartCount;
+    uint64_t autoRestartWindowStartUs;
 } sensorarrayBootBreadcrumb_t;
 
 RTC_NOINIT_ATTR static sensorarrayBootBreadcrumb_t s_bootBreadcrumb;
+static portMUX_TYPE s_bootBreadcrumbMux = portMUX_INITIALIZER_UNLOCKED;
+
+#define SENSORARRAY_RECOVERY_LEVEL_NONE 0xFFu
+#define SENSORARRAY_RECOVERY_LEVEL_SOFT 0u
+#define SENSORARRAY_RECOVERY_LEVEL_FULL 1u
+#define SENSORARRAY_RECOVERY_LEVEL_RESTART 2u
+#define SENSORARRAY_RECOVERY_LEVEL_MAX 2u
+#define SENSORARRAY_PROTOCOL_VERSION 1u
+#define SENSORARRAY_ADS_RECOVERY_CHECK_SAMPLES 1u
+#define SENSORARRAY_ADS_RECOVERY_ATTEMPT_DELAY_MS 20u
+
+static portMUX_TYPE s_recoveryRequestMux = portMUX_INITIALIZER_UNLOCKED;
+static volatile uint32_t s_recoveryRequestLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
+static volatile uint32_t s_recoveryRequestId;
+static volatile uint32_t s_restartRequested;
+static volatile uint32_t s_restartRequestId;
+static uint32_t s_recoveryRequestSeq;
 
 static const char *sensorarrayResetReasonName(esp_reset_reason_t reason)
 {
@@ -220,8 +280,10 @@ static void sensorarrayBootBreadcrumbSetStage(const char *stage,
                                               esp_err_t err,
                                               const sensorarrayAppContext_t *ctx)
 {
+    portENTER_CRITICAL(&s_bootBreadcrumbMux);
     if (s_bootBreadcrumb.magic != SENSORARRAY_BOOT_BREADCRUMB_MAGIC ||
         s_bootBreadcrumb.version != SENSORARRAY_BOOT_BREADCRUMB_VERSION) {
+        portEXIT_CRITICAL(&s_bootBreadcrumbMux);
         return;
     }
 
@@ -235,6 +297,7 @@ static void sensorarrayBootBreadcrumbSetStage(const char *stage,
     if (s_bootBreadcrumb.minFreeHeap == 0u || freeHeap < s_bootBreadcrumb.minFreeHeap) {
         s_bootBreadcrumb.minFreeHeap = freeHeap;
     }
+    portEXIT_CRITICAL(&s_bootBreadcrumbMux);
 }
 
 static void sensorarrayBootBreadcrumbStart(void)
@@ -243,25 +306,341 @@ static void sensorarrayBootBreadcrumbStart(void)
     bool previousValid =
         previous.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC &&
         previous.version == SENSORARRAY_BOOT_BREADCRUMB_VERSION;
+    bool previousV1 =
+        previous.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC &&
+        previous.version == 1u;
     esp_reset_reason_t reason = esp_reset_reason();
 
-    printf("RST,reason=%s,code=%ld,boot=%lu,prevValid=%u,prevStage=%s,prevErr=0x%lx,prevSeq=%lu,prevHeap=%lu\n",
+    uint32_t nextBootId = previousValid ? previous.bootId + 1u : 1u;
+    uint32_t nextBootCount = previousValid ? previous.bootCount + 1u :
+        (previousV1 ? previous.bootCount + 1u : 1u);
+    uint32_t guardState = previousValid ?
+        previous.guardState : SENSORARRAY_BOOT_GUARD_NORMAL;
+    uint32_t autoRestartCount = previousValid ? previous.autoRestartCount : 0u;
+    uint64_t autoRestartWindowStartUs = previousValid ?
+        previous.autoRestartWindowStartUs : 0u;
+    if (reason == ESP_RST_POWERON) {
+        guardState = SENSORARRAY_BOOT_GUARD_NORMAL;
+        autoRestartCount = 0u;
+        autoRestartWindowStartUs = 0u;
+    }
+
+    printf("RST,reason=%s,code=%ld,boot=%lu,bootId=%lu,prevValid=%u,prevKind=%s,prevStage=%s,prevErr=0x%lx,prevSeq=%lu,prevHeap=%lu,guard=%s,autoRestarts=%lu\n",
            sensorarrayResetReasonName(reason),
            (long)reason,
-           (unsigned long)(previousValid ? previous.bootCount + 1u : 1u),
+           (unsigned long)nextBootCount,
+           (unsigned long)nextBootId,
            previousValid ? 1u : 0u,
+           previousValid ?
+               (previous.restartKind == SENSORARRAY_BOOT_RESTART_KIND_MANUAL ? "manual" :
+                previous.restartKind == SENSORARRAY_BOOT_RESTART_KIND_AUTO ? "auto" : "none") :
+               "none",
            previousValid ? previous.lastStage : "none",
            previousValid ? (unsigned long)(uint32_t)previous.lastErr : 0u,
            previousValid ? (unsigned long)previous.lastFrameSeq : 0u,
-           previousValid ? (unsigned long)previous.minFreeHeap : 0u);
+           previousValid ? (unsigned long)previous.minFreeHeap : 0u,
+           guardState == SENSORARRAY_BOOT_GUARD_RECOVERY_SAFE ?
+               "recovery_safe" : "normal",
+           (unsigned long)autoRestartCount);
 
+    portENTER_CRITICAL(&s_bootBreadcrumbMux);
     memset(&s_bootBreadcrumb, 0, sizeof(s_bootBreadcrumb));
     s_bootBreadcrumb.magic = SENSORARRAY_BOOT_BREADCRUMB_MAGIC;
     s_bootBreadcrumb.version = SENSORARRAY_BOOT_BREADCRUMB_VERSION;
-    s_bootBreadcrumb.bootCount = previousValid ? previous.bootCount + 1u : 1u;
+    s_bootBreadcrumb.bootId = nextBootId;
+    s_bootBreadcrumb.bootCount = nextBootCount;
     s_bootBreadcrumb.resetReason = (uint32_t)reason;
+    s_bootBreadcrumb.guardState = guardState;
+    s_bootBreadcrumb.autoRestartCount = autoRestartCount;
+    s_bootBreadcrumb.autoRestartWindowStartUs = autoRestartWindowStartUs;
+    s_bootBreadcrumb.restartKind = SENSORARRAY_BOOT_RESTART_KIND_NONE;
+    if (previousValid) {
+        snprintf(s_bootBreadcrumb.prevStage,
+                 sizeof(s_bootBreadcrumb.prevStage),
+                 "%s",
+                 previous.lastStage);
+        s_bootBreadcrumb.prevErr = previous.lastErr;
+        s_bootBreadcrumb.prevHeap = previous.minFreeHeap;
+    }
     s_bootBreadcrumb.minFreeHeap = esp_get_free_heap_size();
+    portEXIT_CRITICAL(&s_bootBreadcrumbMux);
     sensorarrayBootBreadcrumbSetStage("app_main", ESP_OK, NULL);
+}
+
+static bool sensorarrayBootBreadcrumbCopy(sensorarrayBootBreadcrumb_t *outCopy)
+{
+    if (!outCopy) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_bootBreadcrumbMux);
+    *outCopy = s_bootBreadcrumb;
+    portEXIT_CRITICAL(&s_bootBreadcrumbMux);
+    return outCopy->magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC &&
+           outCopy->version == SENSORARRAY_BOOT_BREADCRUMB_VERSION;
+}
+
+static void sensorarrayAdsFaultSink(const char *line,
+                                    size_t length,
+                                    void *context)
+{
+    (void)length;
+    (void)context;
+    printf("%s", line);
+}
+
+static void sensorarrayAdsFaultFillContext(sensorarrayAppContext_t *ctx,
+                                           sensorarrayAdsFaultEvent_t *event)
+{
+    if (!ctx || !event) {
+        return;
+    }
+    sensorarrayMeasurementModeSnapshot_t mode = {0};
+    if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode)) {
+        event->modeGeneration = mode.generation;
+        event->mode = sensorarrayMeasurementModeName(mode.activeMode);
+    }
+    sensorarrayRowModeProfile_t profile = {0};
+    if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile)) {
+        event->profileGeneration = profile.generation;
+        event->rowGeneration = profile.generation;
+        event->rowRequestId = profile.pending ?
+            profile.pendingRequestId : profile.appliedRequestId;
+    }
+    sensorarrayRouteSnapshot_t route = {0};
+    if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route)) {
+        event->route = route.safe ? "SAFE" :
+            sensorarrayMeasurementModeName(route.mode);
+    }
+    sensorarrayAdsRegisterCache_t *registerCache =
+        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine);
+    if (registerCache) {
+        event->configGeneration = registerCache->generation;
+    }
+    event->drdyGeneration = ads126xAdcGetDrdyGeneration(&ctx->state.ads);
+    if (ctx->frame.measurement.railValid) {
+        event->railValid = true;
+        event->railUv = ctx->frame.measurement.avddUv;
+        event->reference = sensorarrayAdsReferenceSourceName(
+            ctx->frame.measurement.referenceSource);
+    }
+}
+
+static void sensorarrayEmitAdsFault(sensorarrayAppContext_t *ctx,
+                                    sensorarrayAdsFaultEvent_t *event)
+{
+    if (!ctx || !event) {
+        return;
+    }
+    sensorarrayBootBreadcrumb_t boot = {0};
+    if (sensorarrayBootBreadcrumbCopy(&boot)) {
+        event->bootId = boot.bootId;
+        event->bootCount = boot.bootCount;
+    }
+    (void)sensorarrayAdsFaultEmit(
+        event,
+        (uint64_t)esp_timer_get_time(),
+        sensorarrayAdsFaultSink,
+        NULL);
+}
+
+static bool sensorarrayAdsRegisterCacheIsVerified(
+    const sensorarrayAdsRegisterCache_t *cache)
+{
+    if (!cache || !cache->vrefValid || !cache->pgaModeValid ||
+        !cache->adc1RunningValid) {
+        return false;
+    }
+    for (uint8_t index = 0u; index < SENSORARRAY_ADS_REGISTER_COUNT; ++index) {
+        const sensorarrayAdsRegisterShadowValue_t *entry =
+            &cache->registers[index];
+        if (!entry->valid ||
+            entry->verifiedGeneration != cache->generation) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static const char *sensorarrayAdsRecoveryOwner(
+    const sensorarrayMeasurementRecovery_t *recovery)
+{
+    if (!recovery ||
+        recovery->trigger == SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE) {
+        return sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_BATTERY);
+    }
+    return sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_CHECK);
+}
+
+static void sensorarrayEmitAdsRecoveryFault(
+    sensorarrayAppContext_t *ctx,
+    sensorarrayAdsFaultStage_t stage,
+    uint32_t attempt,
+    sensorarrayAdsFaultOutcome_t outcome,
+    esp_err_t err,
+    uint32_t sequence)
+{
+    if (!ctx) {
+        return;
+    }
+    sensorarrayAdsFaultEvent_t fault = {
+        .stage = stage,
+        .err = err,
+        .seq = sequence,
+        .attempt = attempt,
+        .outcome = outcome,
+        .owner = sensorarrayAdsRecoveryOwner(&ctx->adsRestoreRecovery),
+    };
+    sensorarrayAdsFaultFillContext(ctx, &fault);
+    fault.mode = sensorarrayMeasurementModeName(
+        ctx->adsRestoreRecovery.resumeMode);
+    sensorarrayEmitAdsFault(ctx, &fault);
+}
+
+static bool sensorarrayBeginAdsRestoreRecovery(
+    sensorarrayAppContext_t *ctx,
+    sensorarrayMeasurementRecoveryTrigger_t trigger,
+    esp_err_t error,
+    uint32_t triggerRequestId)
+{
+    if (!ctx) {
+        return false;
+    }
+    sensorarrayMeasurementModeSnapshot_t mode = {0};
+    if (!sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode) ||
+        !sensorarrayMeasurementRecoveryStart(
+            &ctx->adsRestoreRecovery,
+            mode.activeMode,
+            mode.appliedRequestId,
+            trigger,
+            (uint32_t)error,
+            ctx->frame.sequence,
+            triggerRequestId)) {
+        return false;
+    }
+    sensorarrayMeasurementModeEnterRecovery(&ctx->measurementMode,
+                                            (uint32_t)error);
+    (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                              "ads_restore_recovery");
+    sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+    (void)sensorarrayAdsMatrixEngineSetMode(
+        &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+    sensorarrayEmitAdsRecoveryFault(
+        ctx,
+        SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_START,
+        0u,
+        SENSORARRAY_ADS_FAULT_OUTCOME_STARTED,
+        error,
+        ctx->frame.sequence);
+    return true;
+}
+
+static void sensorarrayBootBreadcrumbMarkStableReady(void)
+{
+    portENTER_CRITICAL(&s_bootBreadcrumbMux);
+    if (s_bootBreadcrumb.magic != SENSORARRAY_BOOT_BREADCRUMB_MAGIC ||
+        s_bootBreadcrumb.version != SENSORARRAY_BOOT_BREADCRUMB_VERSION) {
+        portEXIT_CRITICAL(&s_bootBreadcrumbMux);
+        return;
+    }
+    s_bootBreadcrumb.guardState = SENSORARRAY_BOOT_GUARD_NORMAL;
+    s_bootBreadcrumb.autoRestartCount = 0u;
+    s_bootBreadcrumb.autoRestartWindowStartUs = 0u;
+    portEXIT_CRITICAL(&s_bootBreadcrumbMux);
+}
+
+static bool sensorarrayBootPrepareRestart(uint32_t restartKind)
+{
+    bool allowed = true;
+    uint64_t nowUs = esp_rtc_get_time_us();
+    portENTER_CRITICAL(&s_bootBreadcrumbMux);
+    if (restartKind == SENSORARRAY_BOOT_RESTART_KIND_AUTO) {
+        if (s_bootBreadcrumb.guardState == SENSORARRAY_BOOT_GUARD_RECOVERY_SAFE) {
+            allowed = false;
+        } else {
+            uint64_t windowStartUs = s_bootBreadcrumb.autoRestartWindowStartUs;
+            if (windowStartUs == 0u ||
+                nowUs < windowStartUs ||
+                (nowUs - windowStartUs) > SENSORARRAY_BOOT_AUTO_RESTART_WINDOW_US) {
+                s_bootBreadcrumb.autoRestartWindowStartUs = nowUs;
+                s_bootBreadcrumb.autoRestartCount = 0u;
+            }
+            if (s_bootBreadcrumb.autoRestartCount >= SENSORARRAY_BOOT_AUTO_RESTART_MAX) {
+                s_bootBreadcrumb.guardState = SENSORARRAY_BOOT_GUARD_RECOVERY_SAFE;
+                allowed = false;
+            } else {
+                s_bootBreadcrumb.autoRestartCount++;
+            }
+        }
+    }
+    if (allowed) {
+        s_bootBreadcrumb.restartKind = restartKind;
+    }
+    portEXIT_CRITICAL(&s_bootBreadcrumbMux);
+    return allowed;
+}
+
+static void sensorarrayBootEmitRestartMarker(const char *marker)
+{
+    if (!marker || marker[0] == '\0') {
+        return;
+    }
+    (void)fwrite(marker, 1u, strlen(marker), stdout);
+    (void)fflush(stdout);
+}
+
+static void sensorarrayRecoveryPost(uint32_t level, uint32_t *outRequestId)
+{
+    portENTER_CRITICAL(&s_recoveryRequestMux);
+    s_recoveryRequestSeq++;
+    s_recoveryRequestLevel = level;
+    s_recoveryRequestId = s_recoveryRequestSeq;
+    if (outRequestId) {
+        *outRequestId = s_recoveryRequestSeq;
+    }
+    portEXIT_CRITICAL(&s_recoveryRequestMux);
+}
+
+static bool sensorarrayRecoveryTake(uint32_t *outLevel, uint32_t *outRequestId)
+{
+    portENTER_CRITICAL(&s_recoveryRequestMux);
+    uint32_t level = s_recoveryRequestLevel;
+    uint32_t requestId = s_recoveryRequestId;
+    s_recoveryRequestLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
+    s_recoveryRequestId = 0u;
+    portEXIT_CRITICAL(&s_recoveryRequestMux);
+    if (outLevel) {
+        *outLevel = level;
+    }
+    if (outRequestId) {
+        *outRequestId = requestId;
+    }
+    return level != SENSORARRAY_RECOVERY_LEVEL_NONE;
+}
+
+static void sensorarrayRestartPost(uint32_t *outRequestId)
+{
+    portENTER_CRITICAL(&s_recoveryRequestMux);
+    s_recoveryRequestSeq++;
+    s_restartRequested = 1u;
+    s_restartRequestId = s_recoveryRequestSeq;
+    if (outRequestId) {
+        *outRequestId = s_recoveryRequestSeq;
+    }
+    portEXIT_CRITICAL(&s_recoveryRequestMux);
+}
+
+static bool sensorarrayRestartTake(uint32_t *outRequestId)
+{
+    portENTER_CRITICAL(&s_recoveryRequestMux);
+    bool pending = s_restartRequested != 0u;
+    uint32_t requestId = s_restartRequestId;
+    s_restartRequested = 0u;
+    s_restartRequestId = 0u;
+    portEXIT_CRITICAL(&s_recoveryRequestMux);
+    if (outRequestId) {
+        *outRequestId = requestId;
+    }
+    return pending;
 }
 
 static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
@@ -1148,15 +1527,49 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     uint32_t minFreeBefore = esp_get_minimum_free_heap_size();
 
     sensorarrayLogDbgExtraReset();
+    if (ctx->mixedSegmentWorkspace != NULL) {
+        heap_caps_free(ctx->mixedSegmentWorkspace);
+        ctx->mixedSegmentWorkspace = NULL;
+    }
     *ctx = (sensorarrayAppContext_t){0};
     /* The runtime reset owns the whole context, so restore the acquisition
      * task handle immediately afterwards for immutable status snapshots. */
     ctx->scanTaskHandle = xTaskGetCurrentTaskHandle();
     sensorarrayLogRuntimeMemorySummary(ctx, freeBefore, minFreeBefore);
+    /* Mixed profiles would exceed the bounded acquisition stack if the full
+     * per-group segment frame remained an automatic in the scan task.  Hold
+     * one reusable CPU-only workspace instead, preferring PSRAM so internal
+     * RAM stays reserved for tasks/stacks.  A missing workspace is an
+     * explicit init failure and never silently falls back to a stack frame. */
+    ctx->mixedSegmentWorkspace = heap_caps_aligned_alloc(
+        8u,
+        sizeof(sensorarrayFrame_t),
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    bool mixedWorkspacePsram = ctx->mixedSegmentWorkspace != NULL;
+    if (!mixedWorkspacePsram) {
+        ctx->mixedSegmentWorkspace = heap_caps_aligned_alloc(
+            8u, sizeof(sensorarrayFrame_t), MALLOC_CAP_8BIT);
+    }
+    if (ctx->mixedSegmentWorkspace == NULL) {
+        printf("APP_MEM,stage=mixed_workspace,action=alloc_failed,size=%u,psramFree=%u,internalFree=%u,internalMin=%u,err=0x%lx\n",
+               (unsigned)sizeof(sensorarrayFrame_t),
+               (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+               (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+               (unsigned long)ESP_ERR_NO_MEM);
+        return ESP_ERR_NO_MEM;
+    }
+    printf("APP_MEM,stage=mixed_workspace,action=allocated,ptr=%p,size=%u,heap=%s,psramFree=%u,internalFree=%u\n",
+           (const void *)ctx->mixedSegmentWorkspace,
+           (unsigned)sizeof(sensorarrayFrame_t),
+           mixedWorkspacePsram ? "psram" : "internal",
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     sensorarrayLogSetAdsState(false, false);
     sensorarrayFastSpeedSetEnabled(false);
     ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_FDC_MATRIX;
     sensorarrayMeasurementModeInit(&ctx->measurementMode);
+    sensorarrayMeasurementRecoveryInit(&ctx->adsRestoreRecovery);
     sensorarrayRowModeProfileInit(
         &ctx->rowModeProfile, SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE);
     sensorarrayMeasurementSelfTestResult_t selfTest = {0};
@@ -1479,6 +1892,50 @@ static esp_err_t sensorarrayApplyMeasurementMode(sensorarrayAppContext_t *ctx,
     return ESP_OK;
 }
 
+static void sensorarrayEmitRowModesTerminal(uint32_t requestId,
+                                            const char *format,
+                                            ...)
+{
+    char text[SENSORARRAY_ROW_MODES_TERMINAL_TEXT_MAX];
+    va_list args;
+    va_start(args, format);
+    int written = vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+    if (written <= 0 || (size_t)written >= sizeof(text)) {
+        printf("RMTERM_FMT,id=%lu,state=truncated\n",
+               (unsigned long)requestId);
+        /* Keep the accepted transaction terminable: replace an unprintable
+         * terminal with a short diagnostic one instead of stranding the
+         * reservation and guaranteed-text lane forever. */
+        char fallback[SENSORARRAY_ROW_MODES_TERMINAL_TEXT_MAX];
+        int fallbackLength = snprintf(
+            fallback, sizeof(fallback),
+            "RMERR,id=%lu,state=rejected,reason=terminal_too_long\n",
+            (unsigned long)requestId);
+        if (fallbackLength <= 0 || (size_t)fallbackLength >= sizeof(fallback)) {
+            (void)sensorarrayCommandMailboxCancelRowModesAck(requestId);
+            printf("RMTERM_FMT_FATAL,id=%lu,state=cancelled\n",
+                   (unsigned long)requestId);
+            return;
+        }
+        esp_err_t emitErr = sensorarrayCommandMailboxEmitRowModesTerminal(
+            requestId, fallback, (size_t)fallbackLength);
+        if (emitErr != ESP_OK) {
+            printf("RMTERM_DROP,id=%lu,err=0x%lx,state=not_emitted\n",
+                   (unsigned long)requestId,
+                   (unsigned long)emitErr);
+        }
+        return;
+    }
+    esp_err_t emitErr = sensorarrayCommandMailboxEmitRowModesTerminal(
+        requestId, text, (size_t)written);
+    if (emitErr != ESP_OK) {
+        printf("RMTERM_DROP,id=%lu,err=0x%lx,state=not_emitted\n",
+               (unsigned long)requestId,
+               (unsigned long)emitErr);
+    }
+}
+
 static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 {
     if (!ctx) {
@@ -1497,6 +1954,65 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         case SENSORARRAY_COMMAND_CALIBRATE_ALL:
             sensorarrayAdsGapRequestCalibration(true, true);
             break;
+        case SENSORARRAY_COMMAND_CALIBRATE_SAVE: {
+            sensorarrayAdsMatrixCalibration_t calibration = {0};
+            sensorarrayCalibrationStatus_t status = {0};
+            if (!sensorarrayAdsMatrixEngineGetCalibration(&ctx->adsEngine,
+                                                          &calibration)) {
+                printf("CALSV,state=rejected,reason=engine_invalid\n");
+                continue;
+            }
+            esp_err_t saveErr = sensorarrayCalibrationSave(
+                &calibration,
+                sizeof(calibration),
+                &status);
+            printf("CALSV,state=%s,reason=%s,source=%lu,schema=%lu,valid=%u,boardId=%08lX,hardwareRev=%lu,payloadLength=%lu,err=0x%lx\n",
+                   saveErr == ESP_OK ? "saved" : "rejected",
+                   saveErr == ESP_OK ? "persisted" : "nvs_error",
+                   (unsigned long)status.source,
+                   (unsigned long)status.schemaVersion,
+                   status.valid ? 1u : 0u,
+                   (unsigned long)status.boardId,
+                   (unsigned long)status.hardwareRevision,
+                   (unsigned long)status.payloadLength,
+                   (unsigned long)saveErr);
+            continue;
+        }
+        case SENSORARRAY_COMMAND_CALIBRATE_LOAD: {
+            if (ctx->adsEngine.mode != SENSORARRAY_MEASUREMENT_MODE_NONE) {
+                printf("CALLD,state=rejected,reason=not_safe\n");
+                continue;
+            }
+            sensorarrayAdsMatrixCalibration_t calibration = {0};
+            sensorarrayCalibrationStatus_t status = {0};
+            esp_err_t loadErr = sensorarrayCalibrationLoad(
+                sensorarrayCalibrationMatrixPayloadValid,
+                &calibration,
+                sizeof(calibration),
+                NULL,
+                &status);
+            const char *state = "default";
+            const char *reason = sensorarrayCalibrationLoadReason(&status,
+                                                                  loadErr);
+            if (loadErr == ESP_OK) {
+                esp_err_t applyErr = sensorarrayAdsMatrixEngineSetCalibration(
+                    &ctx->adsEngine,
+                    &calibration);
+                if (applyErr == ESP_OK) {
+                    state = "applied";
+                } else {
+                    reason = "apply_failed";
+                    loadErr = applyErr;
+                }
+            }
+            sensorarrayCalibrationLogOutcome(
+                "CALLD",
+                state,
+                reason,
+                &status,
+                loadErr);
+            continue;
+        }
         case SENSORARRAY_COMMAND_ADS_GAP_MODE:
             sensorarrayAdsGapSetMode((sensorarrayAdsGapMode_t)command.value);
             break;
@@ -1544,6 +2060,20 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         {
             sensorarrayMeasurementMode_t requested =
                 (sensorarrayMeasurementMode_t)command.value;
+            sensorarrayRowModeProfile_t rowSnapshot = {0};
+            if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &rowSnapshot) &&
+                rowSnapshot.pending) {
+                sensorarrayMeasurementModeSnapshot_t beforeMode = {0};
+                (void)sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
+                                                             &beforeMode);
+                printf("MERR,id=%lu,old=%s,new=%s,seq=%lu,state=rejected,err=0x%lx,transitionUs=0\n",
+                       (unsigned long)command.requestId,
+                       sensorarrayMeasurementModeName(beforeMode.activeMode),
+                       sensorarrayMeasurementModeName(requested),
+                       (unsigned long)(ctx->hostFrameSequence + 1u),
+                       (unsigned long)ESP_ERR_INVALID_STATE);
+                continue;
+            }
             esp_err_t modeErr = sensorarrayApplyMeasurementMode(
                 ctx,
                 requested,
@@ -1569,14 +2099,24 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
             sensorarrayMeasurementMode_t modes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
             if (!sensorarrayRowModeProfileParse(command.rowModes,
                                                 SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH,
-                                                modes) ||
-                !sensorarrayRowModeProfileAccept(&ctx->rowModeProfile,
+                                                modes)) {
+                sensorarrayEmitRowModesTerminal(
+                    command.requestId,
+                    "RMERR,id=%lu,profile=%s,state=rejected,err=0x%lx,reason=profile\n",
+                    (unsigned long)command.requestId,
+                    command.rowModes,
+                    (unsigned long)ESP_ERR_INVALID_ARG);
+                break;
+            }
+            if (!sensorarrayRowModeProfileAccept(&ctx->rowModeProfile,
                                                  modes,
                                                  command.requestId)) {
-                printf("RMERR,id=%lu,profile=%s,state=rejected,err=0x%lx,reason=profile\n",
-                       (unsigned long)command.requestId,
-                       command.rowModes,
-                       (unsigned long)ESP_ERR_INVALID_ARG);
+                sensorarrayEmitRowModesTerminal(
+                    command.requestId,
+                    "RMERR,id=%lu,profile=%s,state=rejected,err=0x%lx,reason=pending\n",
+                    (unsigned long)command.requestId,
+                    command.rowModes,
+                    (unsigned long)ESP_ERR_INVALID_STATE);
             }
             break;
         }
@@ -1652,6 +2192,13 @@ static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
     }
 
     if (!result.restoreOk) {
+        if (sensorarrayBeginAdsRestoreRecovery(
+                ctx,
+                SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_ADS_RESTORE,
+                checkErr,
+                requestId)) {
+            return;
+        }
         sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
         (void)sensorarrayAdsMatrixEngineSetMode(
             &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
@@ -1659,6 +2206,18 @@ static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
             &ctx->measurementMode, (uint32_t)checkErr);
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                    "ads_check_restore_failed");
+        sensorarrayAdsFaultEvent_t fault = {
+            .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK,
+            .err = checkErr,
+            .seq = ctx->frame.sequence,
+            .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
+        };
+        sensorarrayAdsFaultFillContext(ctx, &fault);
+        fault.rowRequestId = requestId;
+        fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_CHECK);
+        fault.restoreExpectedValid = true;
+        fault.restoreExpected = (int32_t)result.registers.power;
+        sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
                (unsigned long)requestId,
                (unsigned long)checkErr);
@@ -1671,6 +2230,7 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
     if (!ctx) {
         return;
     }
+    uint32_t batteryRequestId = ctx->pendingBatteryRequestId;
     uint32_t durationUs = 0u;
     bool ran = false;
     esp_err_t batteryErr = sensorarrayAdsGapRunBatteryAtBoundary(
@@ -1690,7 +2250,17 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
         ctx->pendingBatteryRequestId = 0u;
         ctx->pendingBatteryDiagnostic = false;
     }
-    if (sensorarrayAdsGapConsumeRestoreFailure()) {
+    sensorarrayMeasurementRecoveryTrigger_t batteryRecoveryTrigger =
+        sensorarrayMeasurementRecoveryTriggerForBattery(
+            sensorarrayAdsGapConsumeRestoreFailure());
+    if (batteryRecoveryTrigger != SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE) {
+        if (sensorarrayBeginAdsRestoreRecovery(
+                ctx,
+                batteryRecoveryTrigger,
+                batteryErr,
+                batteryRequestId)) {
+            return;
+        }
         sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
         (void)sensorarrayAdsMatrixEngineSetMode(
             &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
@@ -1698,8 +2268,287 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
             &ctx->measurementMode, (uint32_t)batteryErr);
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                    "battery_restore_failed");
+        sensorarrayAdsFaultEvent_t fault = {
+            .stage = SENSORARRAY_ADS_FAULT_STAGE_BATTERY_RESTORE,
+            .err = batteryErr,
+            .seq = ctx->frame.sequence,
+            .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
+        };
+        sensorarrayAdsFaultFillContext(ctx, &fault);
+        fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_BATTERY);
+        sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE\n",
                (unsigned long)batteryErr);
+    }
+}
+
+static void sensorarrayFinishAdsRestoreRecovery(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+    uint32_t error = ctx->adsRestoreRecovery.lastError;
+    uint32_t attempt = ctx->adsRestoreRecovery.attempt;
+    sensorarrayMeasurementModeRecordRuntimeFault(
+        &ctx->measurementMode, error);
+    (void)sensorarrayRouteControllerEnterSafe(
+        &ctx->routeController, "ads_restore_recovery_failed");
+    sensorarrayEmitAdsRecoveryFault(
+        ctx,
+        SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_FAILED,
+        attempt,
+        SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
+        (esp_err_t)error,
+        ctx->hostFrameSequence + 1u);
+    if (ctx->adsRestoreRecovery.trigger ==
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE) {
+        printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE,attempt=%lu\n",
+               (unsigned long)error,
+               (unsigned long)attempt);
+    } else {
+        printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE,attempt=%lu\n",
+               (unsigned long)ctx->adsRestoreRecovery.triggerRequestId,
+               (unsigned long)error,
+               (unsigned long)attempt);
+    }
+}
+
+static void sensorarrayRunAdsRestoreRecoveryAttempt(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx ||
+        !sensorarrayMeasurementRecoveryIsActive(&ctx->adsRestoreRecovery)) {
+        return;
+    }
+    if (!sensorarrayMeasurementRecoveryBeginAttempt(&ctx->adsRestoreRecovery)) {
+        sensorarrayFinishAdsRestoreRecovery(ctx);
+        return;
+    }
+    uint32_t attempt = ctx->adsRestoreRecovery.attempt;
+    uint32_t sequence = ctx->hostFrameSequence + 1u;
+
+    memset(&ctx->frame, 0, sizeof(ctx->frame));
+    ctx->state.fdcAppliedRow[SENSORARRAY_FDC_DEV_PRIMARY].valid = false;
+    ctx->state.fdcAppliedRow[SENSORARRAY_FDC_DEV_SECONDARY].valid = false;
+    sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+    sensorarrayFdcRescueReset(&ctx->fdcRescue);
+
+    sensorarrayAdsRegisterCache_t *registerCache =
+        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine);
+    uint32_t generationBefore = registerCache ? registerCache->generation : 0u;
+    sensorarrayAdsActiveCheckResult_t check = {0};
+    esp_err_t checkErr = sensorarrayAdsGapRunActiveCheck(
+        &ctx->state,
+        registerCache,
+        ctx->adsRestoreRecovery.session,
+        SENSORARRAY_ADS_RECOVERY_CHECK_SAMPLES,
+        &check);
+    uint32_t generationAfter = registerCache ? registerCache->generation : 0u;
+    bool verified = check.ok && checkErr == ESP_OK &&
+        generationAfter > generationBefore &&
+        sensorarrayAdsRegisterCacheIsVerified(registerCache);
+    esp_err_t attemptErr = verified ? ESP_OK :
+        (checkErr != ESP_OK ? checkErr : ESP_ERR_INVALID_RESPONSE);
+
+    if (verified) {
+        esp_err_t resumeErr = sensorarrayApplyMeasurementMode(
+            ctx,
+            ctx->adsRestoreRecovery.resumeMode,
+            ctx->adsRestoreRecovery.resumeRequestId,
+            false);
+        sensorarrayMeasurementRecoveryComplete(
+            &ctx->adsRestoreRecovery,
+            resumeErr == ESP_OK,
+            (uint32_t)(resumeErr == ESP_OK ? ESP_OK : resumeErr));
+        attemptErr = resumeErr;
+        if (resumeErr == ESP_OK) {
+            sensorarrayEmitAdsRecoveryFault(
+                ctx,
+                SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_RESUME,
+                attempt,
+                SENSORARRAY_ADS_FAULT_OUTCOME_RESUMED,
+                ESP_OK,
+                sequence);
+            printf("MRECOVER,stage=resume,attempt=%lu,state=resumed,mode=%s,seq=%lu,err=0\n",
+                   (unsigned long)attempt,
+                   sensorarrayMeasurementModeName(
+                       ctx->adsRestoreRecovery.resumeMode),
+                   (unsigned long)sequence);
+            return;
+        }
+    } else {
+        sensorarrayMeasurementRecoveryComplete(
+            &ctx->adsRestoreRecovery, false, (uint32_t)attemptErr);
+    }
+
+    if (sensorarrayMeasurementRecoveryIsTerminal(&ctx->adsRestoreRecovery)) {
+        sensorarrayFinishAdsRestoreRecovery(ctx);
+        return;
+    }
+    sensorarrayMeasurementModeEnterRecovery(
+        &ctx->measurementMode, (uint32_t)attemptErr);
+    sensorarrayEmitAdsRecoveryFault(
+        ctx,
+        SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_ATTEMPT,
+        attempt,
+        SENSORARRAY_ADS_FAULT_OUTCOME_ATTEMPT,
+        attemptErr,
+        sequence);
+    vTaskDelay(pdMS_TO_TICKS(SENSORARRAY_ADS_RECOVERY_ATTEMPT_DELAY_MS));
+}
+
+static esp_err_t sensorarrayFormatBootReply(char *response,
+                                            size_t responseSize,
+                                            const sensorarrayAppContext_t *ctx)
+{
+    if (!response || responseSize == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayBootBreadcrumb_t boot = {0};
+    if (!sensorarrayBootBreadcrumbCopy(&boot)) {
+        snprintf(response, responseSize,
+                 "ERR,cmd=BOOT,reason=breadcrumb_unavailable\n");
+        return ESP_ERR_INVALID_STATE;
+    }
+    uint64_t nowUs = esp_rtc_get_time_us();
+    uint64_t windowAgeS = boot.autoRestartWindowStartUs != 0u &&
+                          nowUs >= boot.autoRestartWindowStartUs ?
+        (nowUs - boot.autoRestartWindowStartUs) / 1000000ULL : 0u;
+    int written = snprintf(response,
+             responseSize,
+             "BOOT,boot=%lu,bootId=%lu,reset=%s,stage=%s,err=0x%lx,seq=%lu,heap=%lu,heapMin=%lu,prevStage=%s,prevErr=0x%lx,prevHeap=%lu,guard=%s,autoRestarts=%lu,windowAgeS=%llu,ready=%u\n",
+             (unsigned long)boot.bootCount,
+             (unsigned long)boot.bootId,
+             sensorarrayResetReasonName((esp_reset_reason_t)boot.resetReason),
+             boot.lastStage,
+             (unsigned long)(uint32_t)boot.lastErr,
+             (unsigned long)boot.lastFrameSeq,
+             (unsigned long)esp_get_free_heap_size(),
+             (unsigned long)boot.minFreeHeap,
+             boot.prevStage[0] != '\0' ? boot.prevStage : "none",
+             (unsigned long)(uint32_t)boot.prevErr,
+             (unsigned long)boot.prevHeap,
+             boot.guardState == SENSORARRAY_BOOT_GUARD_RECOVERY_SAFE ?
+                 "recovery_safe" : "normal",
+             (unsigned long)boot.autoRestartCount,
+             (unsigned long long)windowAgeS,
+             ctx && ctx->systemReady ? 1u : 0u);
+    if (written < 0 || (size_t)written >= responseSize) {
+        (void)snprintf(response, responseSize,
+                       "ERR,cmd=BOOT,reason=response_too_long\n");
+        return ESP_ERR_INVALID_SIZE;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
+                                                     char *response,
+                                                     size_t responseSize,
+                                                     void *context)
+{
+    (void)context;
+    if (!command || !response || responseSize == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_FULL;
+    sensorarrayEarlyRecoveryKind_t kind =
+        sensorarrayEarlyRecoveryParse(command, &recoveryLevel);
+    switch (kind) {
+    case SENSORARRAY_EARLY_KIND_BOOT_QUERY:
+        return sensorarrayFormatBootReply(response, responseSize, NULL);
+    case SENSORARRAY_EARLY_KIND_STATE_QUERY:
+    case SENSORARRAY_EARLY_KIND_MODE_QUERY: {
+        sensorarrayBootBreadcrumb_t boot = {0};
+        (void)sensorarrayBootBreadcrumbCopy(&boot);
+        snprintf(response,
+                 responseSize,
+                 "%s,ready=0,state=INIT,active=NONE,stage=%s,reason=acquisition_not_ready\n",
+                 kind == SENSORARRAY_EARLY_KIND_STATE_QUERY ? "STATE" : "MODE",
+                 boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
+                     boot.lastStage : "boot");
+        return ESP_OK;
+    }
+    case SENSORARRAY_EARLY_KIND_READY_QUERY: {
+        sensorarrayBootBreadcrumb_t boot = {0};
+        (void)sensorarrayBootBreadcrumbCopy(&boot);
+        snprintf(response,
+                 responseSize,
+                 "READY,ready=0,stage=%s,err=0x%lx,bootId=%lu,boot=%lu\n",
+                 boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
+                     boot.lastStage : "unknown",
+                 (unsigned long)(boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
+                     (uint32_t)boot.lastErr : 0u),
+                 (unsigned long)boot.bootId,
+                 (unsigned long)boot.bootCount);
+        return ESP_OK;
+    }
+    case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
+        snprintf(response,
+                 responseSize,
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE\n",
+                 (unsigned)SENSORARRAY_PROTOCOL_VERSION,
+                 (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
+                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
+        return ESP_OK;
+    case SENSORARRAY_EARLY_KIND_RECOVER: {
+        uint32_t requestId = 0u;
+        sensorarrayRecoveryPost(recoveryLevel, &requestId);
+        snprintf(response, responseSize,
+                 "RACK,cmd=RECOVER,id=%lu,level=%u,state=accepted\n",
+                 (unsigned long)requestId,
+                 (unsigned)recoveryLevel);
+        return ESP_OK;
+    }
+    case SENSORARRAY_EARLY_KIND_RECOVER_INVALID:
+        snprintf(response, responseSize,
+                 "ERR,cmd=RECOVER,reason=level,range=0-%u\n",
+                 (unsigned)SENSORARRAY_RECOVERY_LEVEL_MAX);
+        return ESP_ERR_INVALID_ARG;
+    case SENSORARRAY_EARLY_KIND_RESTART: {
+        uint32_t requestId = 0u;
+        sensorarrayRestartPost(&requestId);
+        snprintf(response, responseSize,
+                 "RACK,cmd=RESTART,id=%lu,state=accepted\n",
+                 (unsigned long)requestId);
+        return ESP_OK;
+    }
+    case SENSORARRAY_EARLY_KIND_ROW_MODES_REJECT:
+        snprintf(response, responseSize,
+                 "ERR,cmd=ROWMODES,reason=not_ready\n");
+        return ESP_ERR_INVALID_STATE;
+    default:
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+}
+
+static void sensorarrayControlReplyPublished(const char *data, size_t length)
+{
+    if (!data || length == 0u) {
+        return;
+    }
+    unsigned long requestId = 0u;
+    if (sscanf(data, "RMACK,id=%lu", &requestId) == 1) {
+        if (!sensorarrayCommandMailboxCommitRowModesAck(
+                (uint32_t)requestId)) {
+            printf("RMACK_TERM,id=%lu,state=unknown_reservation\n",
+                   requestId);
+        }
+    }
+}
+
+static void sensorarrayControlReplyFailed(esp_err_t error,
+                                          const char *data,
+                                          size_t length)
+{
+    if (!data || length == 0u) {
+        return;
+    }
+    unsigned long requestId = 0u;
+    if (sscanf(data, "RMACK,id=%lu", &requestId) == 1) {
+        if (sensorarrayCommandMailboxCancelRowModesAck((uint32_t)requestId)) {
+            printf("RMACK_CANCEL,id=%lu,state=cancelled,reason=ack_publish_failed,err=0x%lx\n",
+                   requestId,
+                   (unsigned long)error);
+        }
     }
 }
 
@@ -1820,7 +2669,8 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         esp_err_t postErr = sensorarrayCommandMailboxPostRowModes(profile, &requestId);
         if (postErr != ESP_OK) {
             snprintf(response, responseSize,
-                     "ERR,cmd=ROWMODES,reason=mailbox,err=0x%lx\n",
+                     "ERR,cmd=ROWMODES,reason=%s,err=0x%lx\n",
+                     postErr == ESP_ERR_NO_MEM ? "capacity" : "mailbox",
                      (unsigned long)postErr);
             return postErr;
         }
@@ -2084,6 +2934,36 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  (unsigned long)sampleCount);
         return ESP_OK;
     }
+    if (strcmp(command, "CAL=SAVE") == 0 || strcmp(command, "CAL=LOAD") == 0) {
+        esp_err_t postErr = sensorarrayCommandMailboxPostText(
+            (const uint8_t *)command, strlen(command));
+        if (postErr != ESP_OK) {
+            return postErr;
+        }
+        snprintf(response, responseSize, "ACK,cmd=CAL,v=%s,status=accepted\n",
+                 command[4] == 'S' ? "SAVE" : "LOAD");
+        return ESP_OK;
+    }
+    if (strcmp(command, "CAL?") == 0) {
+        sensorarrayCalibrationStatus_t status = {0};
+        esp_err_t queryErr = sensorarrayCalibrationQuery(&status);
+        if (queryErr != ESP_OK) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=CAL,reason=query,err=0x%lx\n",
+                     (unsigned long)queryErr);
+            return queryErr;
+        }
+        snprintf(response,
+                 responseSize,
+                 "CAL,source=%lu,schema=%lu,valid=%u,boardId=%08lX,hardwareRev=%lu,payloadLength=%lu\n",
+                 (unsigned long)status.source,
+                 (unsigned long)status.schemaVersion,
+                 status.valid ? 1u : 0u,
+                 (unsigned long)status.boardId,
+                 (unsigned long)status.hardwareRevision,
+                 (unsigned long)status.payloadLength);
+        return ESP_OK;
+    }
     if (strcmp(command, "FPS?") == 0) {
         uint32_t captureCap = sensorarrayCommandMailboxGetCaptureFpsCap();
         uint32_t outputCap = sensorarrayCommandMailboxGetOutputFpsCap();
@@ -2110,6 +2990,147 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         }
         snprintf(response, responseSize, "ACK,cmd=ADSDBG,v=%c,status=accepted\n",
                  command[7]);
+        return ESP_OK;
+    }
+    if (strcmp(command, "BOOT?") == 0) {
+        return sensorarrayFormatBootReply(response, responseSize, ctx);
+    }
+    if (strcmp(command, "READY?") == 0) {
+        sensorarrayBootBreadcrumb_t boot = {0};
+        (void)sensorarrayBootBreadcrumbCopy(&boot);
+        bool ready = ctx && ctx->systemReady;
+        snprintf(response,
+                 responseSize,
+                 "READY,ready=%u,stage=%s,err=0x%lx,bootId=%lu,boot=%lu\n",
+                 ready ? 1u : 0u,
+                 boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
+                     boot.lastStage : "unknown",
+                 (unsigned long)(boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
+                     (uint32_t)boot.lastErr : 0u),
+                 (unsigned long)boot.bootId,
+                 (unsigned long)boot.bootCount);
+        return ESP_OK;
+    }
+    if (strcmp(command, "PROTO?") == 0) {
+        snprintf(response,
+                 responseSize,
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE\n",
+                 (unsigned)SENSORARRAY_PROTOCOL_VERSION,
+                 (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
+                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
+        return ESP_OK;
+    }
+    if (strcmp(command, "BUILD?") == 0) {
+        snprintf(response,
+                 responseSize,
+                 "BUILD,idf=%s,target=%s,project=SensorArray,proto=%u\n",
+                 esp_get_idf_version(),
+                 CONFIG_IDF_TARGET,
+                 (unsigned)SENSORARRAY_PROTOCOL_VERSION);
+        return ESP_OK;
+    }
+    if (strcmp(command, "PERF?") == 0) {
+        sensorarrayAsyncLogStats_t asyncStats = {0};
+        sensorarrayUsbSinkStats_t usbStats = {0};
+        sensorarrayTransportStats_t transportStats = {0};
+        sensorarrayAsyncLogGetStats(&asyncStats);
+        sensorarrayUsbSinkGetStats(&usbStats);
+        sensorarrayTransportGetStats(&transportStats);
+        int written = snprintf(response,
+                 responseSize,
+                 "PERF,pub=%llu,fresh=%llu,stale=%llu,mixed=%llu,dropOut=%llu,dropEvent=%llu,startAvgUs=%llu,startN=%lu,usbSent=%lu,usbDrop=%lu,usbBlock=%lu,usbBytes=%llu,usbWriteMaxUs=%lu,usbQMax=%lu,usbStackMin=%lu,lifePub=%lu,lifeDrop=%lu,queueDrop=%lu,frames=%lu,heap=%lu,heapMin=%lu\n",
+                 (unsigned long long)asyncStats.publishedFrames,
+                 (unsigned long long)asyncStats.freshFrames,
+                 (unsigned long long)asyncStats.staleFrames,
+                 (unsigned long long)asyncStats.mixedFrames,
+                 (unsigned long long)asyncStats.droppedOutputFrames,
+                 (unsigned long long)asyncStats.droppedEventLogs,
+                 (unsigned long long)asyncStats.frameStartIntervalAvgUs,
+                 (unsigned long)asyncStats.frameStartIntervalCount,
+                 (unsigned long)usbStats.sentPackets,
+                 (unsigned long)usbStats.droppedPackets,
+                 (unsigned long)usbStats.blockedCount,
+                 (unsigned long long)usbStats.sentBytes,
+                 (unsigned long)usbStats.writeUsMax,
+                 (unsigned long)usbStats.queueDepthMax,
+                 (unsigned long)usbStats.taskMinimumRemainingBytes,
+                 (unsigned long)transportStats.lifecyclePublished,
+                 (unsigned long)transportStats.lifecycleDropped,
+                 (unsigned long)transportStats.queueDrop,
+                 (unsigned long)(ctx ? ctx->fdcFrameCounter : 0u),
+                 (unsigned long)esp_get_free_heap_size(),
+                 (unsigned long)esp_get_minimum_free_heap_size());
+        if (written < 0 || (size_t)written >= responseSize) {
+            (void)snprintf(response, responseSize,
+                           "ERR,cmd=PERF,reason=response_too_long\n");
+            return ESP_ERR_INVALID_SIZE;
+        }
+        return ESP_OK;
+    }
+    if (strcmp(command, "USBSTREAM?") == 0) {
+        sensorarrayUsbStreamProfile_t profile = sensorarrayUsbSinkGetStreamProfile();
+        snprintf(response,
+                 responseSize,
+                 "USBSTREAM,v=%s,dataEvery=%lu,diagEvery=%lu\n",
+                 sensorarrayUsbStreamModeName(profile.mode),
+                 (unsigned long)profile.dataEvery,
+                 (unsigned long)profile.diagEvery);
+        return ESP_OK;
+    }
+    if (strcmp(command, "USBSTREAM=DEBUG") == 0 ||
+        strcmp(command, "USBSTREAM=FULL") == 0) {
+        sensorarrayUsbStreamMode_t mode = command[10] == 'D' ?
+            SENSORARRAY_USB_STREAM_DEBUG : SENSORARRAY_USB_STREAM_FULL;
+        esp_err_t setErr = sensorarrayUsbSinkSetStreamProfile(mode, 0u, 0u);
+        if (setErr != ESP_OK) {
+            snprintf(response,
+                     responseSize,
+                     "ERR,cmd=USBSTREAM,reason=apply,err=0x%lx\n",
+                     (unsigned long)setErr);
+            return setErr;
+        }
+        sensorarrayUsbStreamProfile_t profile = sensorarrayUsbSinkGetStreamProfile();
+        snprintf(response,
+                 responseSize,
+                 "USBSTREAM,v=%s,dataEvery=%lu,diagEvery=%lu,state=applied\n",
+                 sensorarrayUsbStreamModeName(profile.mode),
+                 (unsigned long)profile.dataEvery,
+                 (unsigned long)profile.diagEvery);
+        return ESP_OK;
+    }
+    if (strcmp(command, "RECOVER") == 0 || strncmp(command, "RECOVER=", 8u) == 0) {
+        uint32_t level = SENSORARRAY_RECOVERY_LEVEL_FULL;
+        if (command[7] == '=') {
+            char *end = NULL;
+            unsigned long parsed = strtoul(command + 8u, &end, 10);
+            if (end == command + 8u || *end != '\0' ||
+                parsed > SENSORARRAY_RECOVERY_LEVEL_MAX) {
+                snprintf(response, responseSize,
+                         "ERR,cmd=RECOVER,reason=level,range=0-%u\n",
+                         (unsigned)SENSORARRAY_RECOVERY_LEVEL_MAX);
+                return ESP_ERR_INVALID_ARG;
+            }
+            level = (uint32_t)parsed;
+        }
+        if (!ctx || !ctx->systemReady) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=RECOVER,reason=not_ready\n");
+            return ESP_ERR_INVALID_STATE;
+        }
+        uint32_t requestId = 0u;
+        sensorarrayRecoveryPost(level, &requestId);
+        snprintf(response, responseSize,
+                 "RACK,cmd=RECOVER,id=%lu,level=%u,state=accepted\n",
+                 (unsigned long)requestId,
+                 (unsigned)level);
+        return ESP_OK;
+    }
+    if (strcmp(command, "RESTART") == 0) {
+        uint32_t requestId = 0u;
+        sensorarrayRestartPost(&requestId);
+        snprintf(response, responseSize,
+                 "RACK,cmd=RESTART,id=%lu,state=accepted\n",
+                 (unsigned long)requestId);
         return ESP_OK;
     }
     return ESP_ERR_NOT_SUPPORTED;
@@ -2144,6 +3165,93 @@ static esp_err_t sensorarrayInitBoardAndRouting(sensorarrayAppContext_t *ctx)
     sensorarrayBoardMapAudit();
     sensorarrayApplyTmuxDefaults(&ctx->state);
     return ESP_OK;
+}
+
+static bool sensorarrayCalibrationMatrixPayloadValid(const void *payload,
+                                                     size_t payloadLength)
+{
+    if (!payload || payloadLength != sizeof(sensorarrayAdsMatrixCalibration_t)) {
+        return false;
+    }
+    return sensorarrayAdsMatrixCalibrationValid(
+        (const sensorarrayAdsMatrixCalibration_t *)payload);
+}
+
+static void sensorarrayCalibrationLogOutcome(
+    const char *tag,
+    const char *state,
+    const char *reason,
+    const sensorarrayCalibrationStatus_t *status,
+    esp_err_t err)
+{
+    if (!tag || !state || !reason || !status) {
+        return;
+    }
+    printf("%s,state=%s,reason=%s,source=%lu,schema=%lu,valid=%u,boardId=%08lX,hardwareRev=%lu,payloadLength=%lu,err=0x%lx\n",
+           tag,
+           state,
+           reason,
+           (unsigned long)status->source,
+           (unsigned long)status->schemaVersion,
+           status->valid ? 1u : 0u,
+           (unsigned long)status->boardId,
+           (unsigned long)status->hardwareRevision,
+           (unsigned long)status->payloadLength,
+           (unsigned long)err);
+}
+
+static const char *sensorarrayCalibrationLoadReason(
+    const sensorarrayCalibrationStatus_t *status,
+    esp_err_t err)
+{
+    if (err == ESP_OK) {
+        return "persisted";
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        return "missing";
+    }
+    if (status->hardwareRevision != 0u &&
+        status->hardwareRevision != SENSORARRAY_CALIBRATION_HARDWARE_REVISION) {
+        return "hardware_revision";
+    }
+    if (status->boardId != 0u &&
+        status->boardId != SENSORARRAY_CALIBRATION_BOARD_ID) {
+        return "board_id";
+    }
+    if (status->schemaVersion != 0u &&
+        status->schemaVersion != SENSORARRAY_CALIBRATION_SCHEMA_VERSION) {
+        return "schema_version";
+    }
+    return "invalid_record";
+}
+
+static void sensorarrayLoadPersistedMatrixCalibration(
+    sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+    sensorarrayAdsMatrixCalibration_t calibration = {0};
+    sensorarrayCalibrationStatus_t status = {0};
+    esp_err_t err = sensorarrayCalibrationLoad(
+        sensorarrayCalibrationMatrixPayloadValid,
+        &calibration,
+        sizeof(calibration),
+        NULL,
+        &status);
+    const char *state = "default";
+    const char *reason = sensorarrayCalibrationLoadReason(&status, err);
+    if (err == ESP_OK) {
+        err = sensorarrayAdsMatrixEngineSetCalibration(&ctx->adsEngine,
+                                                       &calibration);
+        if (err == ESP_OK) {
+            state = "loaded";
+            reason = "persisted";
+        } else {
+            reason = "apply_failed";
+        }
+    }
+    sensorarrayCalibrationLogOutcome("CALBOOT", state, reason, &status, err);
 }
 
 static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
@@ -2219,10 +3327,10 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     }
     sensorarrayAdsMatrixEngineBindRouteController(&ctx->adsEngine,
                                                    &ctx->routeController);
+    sensorarrayLoadPersistedMatrixCalibration(ctx);
     sensorarrayAdsGapBindRegisterCache(
         sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine));
     esp_err_t adsGapErr = sensorarrayAdsGapInit(&ctx->state);
-    sensorarrayTransportSetRuntimeQueryCallback(sensorarrayRuntimeQueryCommand, ctx);
     printf("ADS_PINMAP,start=%d,drdy=%d,cs=%d,sclk=%d,din=%d,dout=%d,core=%d,gapInit=0x%lx,dma=%u\n",
            CONFIG_SENSORARRAY_ADS_START_GPIO,
            CONFIG_SENSORARRAY_ADS_DRDY_GPIO,
@@ -2241,6 +3349,11 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     if (defaultModeErr != ESP_OK) {
         return defaultModeErr;
     }
+    /* Install the acquisition command surface only after the default mode
+     * has applied successfully.  From here on sensorarrayInitSystem() cannot
+     * fail, so an accepted ROWMODES can never be stranded in a mailbox that
+     * a failed-bring-up fatal loop would never drain. */
+    sensorarrayTransportSetRuntimeQueryCallback(sensorarrayRuntimeQueryCommand, ctx);
     sensorarrayFdcRescueReset(&ctx->fdcRescue);
     return ESP_OK;
 }
@@ -2408,6 +3521,7 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
            rowProfile.pending ? rowProfile.pendingModes : rowProfile.modes,
            sizeof(effectiveModes));
     bool mixedProfile = !sensorarrayRowModeProfileIsHomogeneous(effectiveModes);
+    bool homogeneousProfileFaultTerminal = false;
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (mixedProfile) {
         bool voltageRowPresent = false;
@@ -2445,26 +3559,57 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
             err = sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
                                                      &ctx->adsEngine,
                                                      &ctx->scanPlan,
-                                                     &ctx->frame);
+                                                     &ctx->frame,
+                                                     ctx->mixedSegmentWorkspace);
         } else {
             sensorarrayFrameBuilderInitInvalid(&ctx->frame);
             ctx->frame.mixedProfile = true;
         }
         ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_MIXED_ROW;
     } else {
+        char profileText[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
         sensorarrayMeasurementMode_t targetMode = effectiveModes[0];
+        bool homogeneousApplyOk = false;
         if (rowProfile.pending) {
             /* ROWMODES homogeneous is still a profile transaction, but it
-             * uses the legacy fast path and does not emit user MAPP. */
+             * uses the legacy fast path and does not emit user MAPP. The
+             * terminal is deferred until the first frame proves the applied
+             * route is readable, so an accepted request cannot end in both
+             * RMAPP and MFAULT for the same frame. */
             err = sensorarrayApplyMeasurementMode(ctx,
                                                   targetMode,
                                                   rowProfile.pendingRequestId,
                                                   false);
             if (err != ESP_OK) {
+                (void)sensorarrayRowModeProfileFormat(effectiveModes, profileText);
                 sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
                                                         (uint32_t)err,
                                                         0u);
+                /* The readback block is skipped on this path, so invalidate
+                 * the frame now.  A stale freshFrame from the previous frame
+                 * must not be republished under the new sequence number. */
+                sensorarrayFrameBuilderInitInvalid(&ctx->frame);
+                sensorarrayEmitRowModesTerminal(
+                    rowProfile.pendingRequestId,
+                    "RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
+                    (unsigned long)rowProfile.pendingRequestId,
+                    (unsigned long)rowProfile.generation,
+                    (unsigned long)frameSequence,
+                    profileText,
+                    (unsigned long)err);
+                homogeneousProfileFaultTerminal = true;
+            } else {
+                homogeneousApplyOk = true;
             }
+        }
+        if (homogeneousApplyOk) {
+            /* `mode` was snapshotted before this function applied the pending
+             * homogeneous profile. Refresh it so the trailing frame metadata
+             * (mode/generation/requestId) and the CAP unit/mask branch below
+             * describe the actually applied mode, not the pre-apply one.
+             * Non-pending MODE frames and mixed frames are unaffected. */
+            (void)sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
+                                                         &mode);
         }
         if (err == ESP_OK || !rowProfile.pending) {
             if (targetMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
@@ -2481,48 +3626,110 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
                                                           &ctx->frame);
             }
         }
+        if (rowProfile.pending && homogeneousApplyOk) {
+            /* The first acquisition/readback decides the transaction
+             * terminal: RMAPP only on a fresh frame, RMERR when the applied
+             * profile cannot produce one. */
+            if (err != ESP_OK || !ctx->frame.freshFrame) {
+                uint32_t readErr = err == ESP_OK ?
+                    (uint32_t)ESP_ERR_INVALID_STATE : (uint32_t)err;
+                sensorarrayMeasurementModeRecordRuntimeFault(
+                    &ctx->measurementMode, readErr);
+                (void)sensorarrayAdsMatrixEngineSetMode(
+                    &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+                (void)sensorarrayRouteControllerEnterSafe(
+                    &ctx->routeController, "rowmodes_readback_fault");
+                (void)sensorarrayRowModeProfileFormat(effectiveModes, profileText);
+                sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
+                                                        readErr,
+                                                        ctx->frame.physicalSweepUs);
+                sensorarrayEmitRowModesTerminal(
+                    rowProfile.pendingRequestId,
+                    "RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
+                    (unsigned long)rowProfile.pendingRequestId,
+                    (unsigned long)rowProfile.generation,
+                    (unsigned long)frameSequence,
+                    profileText,
+                    (unsigned long)readErr);
+                homogeneousProfileFaultTerminal = true;
+            } else {
+                (void)sensorarrayRowModeProfileFormat(effectiveModes, profileText);
+                (void)sensorarrayRowModeProfileCompleteTransition(
+                    &ctx->rowModeProfile, frameSequence, ctx->frame.physicalSweepUs);
+                sensorarrayEmitRowModesTerminal(
+                    rowProfile.pendingRequestId,
+                    "RMAPP,id=%lu,gen=%lu,seq=%lu,profile=%s,state=applied\n",
+                    (unsigned long)rowProfile.pendingRequestId,
+                    (unsigned long)(rowProfile.generation + 1u),
+                    (unsigned long)frameSequence,
+                    profileText);
+            }
+        }
     }
     ctx->hostFrameSequence = frameSequence;
     ctx->frame.sequence = frameSequence;
     if (mixedProfile) {
-        ctx->frame.rowProfileGeneration = rowProfile.pending ? rowProfile.generation + 1u :
+        bool mixedProfileApplied = ctx->frame.freshFrame;
+        bool mixedRequestFailed = rowProfile.pending && !mixedProfileApplied;
+        uint32_t mixedFailureErr = err == ESP_OK ?
+            (uint32_t)ESP_ERR_INVALID_STATE : (uint32_t)err;
+        ctx->frame.rowProfileGeneration = rowProfile.pending ?
+            (mixedProfileApplied ? rowProfile.generation + 1u : rowProfile.generation) :
             rowProfile.generation;
         ctx->frame.rowProfileRequestId = rowProfile.pending ? rowProfile.pendingRequestId :
             rowProfile.appliedRequestId;
-        bool mixedProfileApplied = err == ESP_OK || ctx->frame.freshFrame;
         if (rowProfile.pending && mixedProfileApplied) {
             char appliedProfile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u];
             (void)sensorarrayRowModeProfileFormat(effectiveModes,
                                                   appliedProfile);
             (void)sensorarrayRowModeProfileCompleteTransition(
                 &ctx->rowModeProfile, frameSequence, ctx->frame.physicalSweepUs);
-            printf("RMAPP,id=%lu,gen=%lu,seq=%lu,profile=%s,state=applied\n",
-                   (unsigned long)rowProfile.pendingRequestId,
-                   (unsigned long)(rowProfile.generation + 1u),
-                   (unsigned long)frameSequence,
-                   appliedProfile);
-        } else if (rowProfile.pending) {
+            sensorarrayEmitRowModesTerminal(
+                rowProfile.pendingRequestId,
+                "RMAPP,id=%lu,gen=%lu,seq=%lu,profile=%s,state=applied\n",
+                (unsigned long)rowProfile.pendingRequestId,
+                (unsigned long)(rowProfile.generation + 1u),
+                (unsigned long)frameSequence,
+                appliedProfile);
+        } else if (mixedRequestFailed) {
             char rejectedProfile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u];
             (void)sensorarrayRowModeProfileFormat(
                 effectiveModes, rejectedProfile);
             sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
-                                                    (uint32_t)err,
+                                                    mixedFailureErr,
                                                     ctx->frame.physicalSweepUs);
-            printf("RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
-                   (unsigned long)rowProfile.pendingRequestId,
-                   (unsigned long)(rowProfile.generation + 1u),
-                   (unsigned long)frameSequence,
-                   rejectedProfile,
-                   (unsigned long)err);
+            sensorarrayEmitRowModesTerminal(
+                rowProfile.pendingRequestId,
+                "RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
+                (unsigned long)rowProfile.pendingRequestId,
+                (unsigned long)rowProfile.generation,
+                (unsigned long)frameSequence,
+                rejectedProfile,
+                (unsigned long)mixedFailureErr);
         }
         if (!ctx->frame.freshFrame) {
             sensorarrayMeasurementModeRecordRuntimeFault(
-                &ctx->measurementMode, (uint32_t)err);
+                &ctx->measurementMode,
+                mixedRequestFailed ? mixedFailureErr : (uint32_t)err);
             (void)sensorarrayRouteControllerEnterSafe(
                 &ctx->routeController, "mixed_profile_fault");
-            printf("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
-                   (unsigned long)frameSequence,
-                   (unsigned long)err);
+            if (!mixedRequestFailed) {
+                sensorarrayAdsFaultEvent_t fault = {
+                    .stage = SENSORARRAY_ADS_FAULT_STAGE_PROFILE_TRANSITION,
+                    .err = err,
+                    .seq = frameSequence,
+                };
+                sensorarrayAdsFaultFillContext(ctx, &fault);
+                fault.rowGeneration = rowProfile.generation;
+                fault.rowRequestId = rowProfile.pending ?
+                    rowProfile.pendingRequestId : rowProfile.appliedRequestId;
+                fault.owner = sensorarrayAdsOwnerName(
+                    SENSORARRAY_ADS_OWNER_MATRIX);
+                sensorarrayEmitAdsFault(ctx, &fault);
+                printf("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
+                       (unsigned long)frameSequence,
+                       (unsigned long)err);
+            }
         }
     } else {
         ctx->frame.measurement.mode = mode.activeMode;
@@ -2535,7 +3742,8 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         ctx->frame.measurement.validMask = ctx->frame.capValidMask;
         ctx->frame.measurement.freshMask = ctx->frame.freshMask;
         ctx->frame.measurement.errorMask = ctx->frame.errorMask;
-    } else if (!mixedProfile && !ctx->frame.freshFrame) {
+    } else if (!mixedProfile && !ctx->frame.freshFrame &&
+               !homogeneousProfileFaultTerminal) {
         /* A coherent ADS frame may contain explicitly invalid cells. A false
          * frame freshness flag instead means route/rail ownership failed. */
         sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
@@ -2544,6 +3752,14 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
             &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                   "ads_frame_fault");
+        sensorarrayAdsFaultEvent_t fault = {
+            .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE,
+            .err = err,
+            .seq = frameSequence,
+        };
+        sensorarrayAdsFaultFillContext(ctx, &fault);
+        fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_MATRIX);
+        sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,mode=%s,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
                sensorarrayMeasurementModeName(mode.activeMode),
                (unsigned long)frameSequence,
@@ -2722,10 +3938,128 @@ static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
     vTaskDelay(pdMS_TO_TICKS(1000u));
 }
 
+static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
+                                             uint32_t level)
+{
+    if (!ctx) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayMeasurementModeSnapshot_t mode = {0};
+    sensorarrayRowModeProfile_t profile = {0};
+    if (!sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode) ||
+        !sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile) ||
+        !sensorarrayMeasurementModeIsDataMode(mode.activeMode) ||
+        mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION ||
+        mode.pending || profile.pending ||
+        !sensorarrayRowModeProfileIsHomogeneous(profile.modes)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (level >= SENSORARRAY_RECOVERY_LEVEL_FULL) {
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                  "recover_full");
+        sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcPrimary,
+                                           "recover_full");
+        sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcSecondary,
+                                           "recover_full");
+        if (mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
+            (void)sensorarrayFdcMatrixEngineRunFullRescue(&ctx->fdcEngine,
+                                                          "recover_full");
+        }
+        sensorarrayFdcRescueReset(&ctx->fdcRescue);
+    }
+    return sensorarrayApplyMeasurementMode(ctx, mode.activeMode, 0u, false);
+}
+
+static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
+{
+    if (!ctx) {
+        return false;
+    }
+
+    uint32_t restartId = 0u;
+    if (sensorarrayRestartTake(&restartId)) {
+        char marker[96];
+        (void)snprintf(marker, sizeof(marker),
+                       "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
+                       (unsigned long)restartId);
+        (void)sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
+        sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
+        sensorarrayBootEmitRestartMarker(marker);
+        esp_restart();
+        return true;
+    }
+
+    uint32_t level = SENSORARRAY_RECOVERY_LEVEL_NONE;
+    uint32_t requestId = 0u;
+    if (!sensorarrayRecoveryTake(&level, &requestId)) {
+        return false;
+    }
+
+    if (level == SENSORARRAY_RECOVERY_LEVEL_RESTART) {
+        if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+            char marker[96];
+            (void)snprintf(marker, sizeof(marker),
+                           "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
+                           (unsigned long)requestId);
+            sensorarrayBootBreadcrumbSetStage("auto_restart", ESP_ERR_INVALID_STATE, ctx);
+            sensorarrayBootEmitRestartMarker(marker);
+            esp_restart();
+        }
+        sensorarrayBootBreadcrumbSetStage("recovery_safe_idle",
+                                          ESP_ERR_INVALID_STATE,
+                                          ctx);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                  "recovery_safe_idle");
+        printf("RAPP,cmd=RECOVER,id=%lu,level=2,state=safe,reason=restart_guard\n",
+               (unsigned long)requestId);
+        return true;
+    }
+
+    esp_err_t recoverErr = sensorarrayRunRecoveryLevel(ctx, level);
+    printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=%s,err=0x%lx\n",
+           (unsigned long)requestId,
+           (unsigned)level,
+           recoverErr == ESP_OK ? "applied" : "rejected",
+           (unsigned long)recoverErr);
+    return true;
+}
+
+static void sensorarrayEmitPayloadTooLargeDrop(uint32_t sequence)
+{
+    int64_t nowUs = esp_timer_get_time();
+    int64_t sinceUs = nowUs - s_lastPayloadTooLargeDropUs;
+    if (s_lastPayloadTooLargeDropUs != 0 &&
+        sinceUs >= 0 &&
+        sinceUs < SENSORARRAY_PAYLOAD_TOO_LARGE_RATE_LIMIT_US) {
+        return;
+    }
+    s_lastPayloadTooLargeDropUs = nowUs;
+    if (s_payloadTooLargeDropCount < UINT32_MAX) {
+        s_payloadTooLargeDropCount++;
+    }
+    char event[128];
+    int written = snprintf(event,
+                           sizeof(event),
+                           "TXDROP,ch=0,seq=%lu,drop=%lu,reason=payload_too_large\n",
+                           (unsigned long)sequence,
+                           (unsigned long)s_payloadTooLargeDropCount);
+    if (written > 0 && (size_t)written < sizeof(event)) {
+        (void)sensorarrayAsyncLogPublishProtocolEvent(event, (size_t)written);
+    }
+}
+
 static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 {
     sensorarrayBootBreadcrumbSetStage("main_loop", ESP_OK, ctx);
     while (true) {
+        if (sensorarrayRunRecoveryBoundary(ctx)) {
+            continue;
+        }
+        if (sensorarrayMeasurementRecoveryIsActive(&ctx->adsRestoreRecovery)) {
+            sensorarrayRunAdsRestoreRecoveryAttempt(ctx);
+            continue;
+        }
         /* CommandMailbox is drained only here, before a new frame begins. No
          * BLE callback or Core0 task can mutate acquisition state mid-row. */
         sensorarrayApplyPendingCommands(ctx);
@@ -2739,6 +4073,14 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                 &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
             (void)sensorarrayRouteControllerEnterSafe(
                 &ctx->routeController, "volt_rail_refresh_failed");
+            sensorarrayAdsFaultEvent_t fault = {
+                .stage = SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR,
+                .err = railRefreshErr,
+                .seq = ctx->hostFrameSequence + 1u,
+            };
+            sensorarrayAdsFaultFillContext(ctx, &fault);
+            fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_RAIL);
+            sensorarrayEmitAdsFault(ctx, &fault);
             printf("MFAULT,mode=VOLT,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE\n",
                    (unsigned long)(ctx->hostFrameSequence + 1u),
                    (unsigned long)railRefreshErr);
@@ -2752,6 +4094,24 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
             loopMode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION) {
             /* SAFE/DEGRADED remains command-responsive without attempting to
              * fabricate ordinary frames or spin after a route/readback fault. */
+            sensorarrayRowModeProfile_t stalledProfile = {0};
+            if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &stalledProfile) &&
+                stalledProfile.pending) {
+                char stalledText[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};
+                (void)sensorarrayRowModeProfileFormat(stalledProfile.pendingModes,
+                                                      stalledText);
+                sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
+                                                        (uint32_t)ESP_ERR_INVALID_STATE,
+                                                        0u);
+                sensorarrayEmitRowModesTerminal(
+                    stalledProfile.pendingRequestId,
+                    "RMERR,id=%lu,gen=%lu,seq=%lu,profile=%s,err=0x%lx,state=rejected,route=SAFE\n",
+                    (unsigned long)stalledProfile.pendingRequestId,
+                    (unsigned long)stalledProfile.generation,
+                    (unsigned long)(ctx->hostFrameSequence + 1u),
+                    stalledText,
+                    (unsigned long)ESP_ERR_INVALID_STATE);
+            }
             vTaskDelay(pdMS_TO_TICKS(50u));
             continue;
         }
@@ -2882,7 +4242,11 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         }
 
         if (ctx->asyncLogReady) {
-            (void)sensorarrayAsyncLogPublishFrameSnapshot(&ctx->frame, measureFrameUs);
+            esp_err_t snapshotErr = sensorarrayAsyncLogPublishFrameSnapshot(
+                &ctx->frame, measureFrameUs);
+            if (snapshotErr == ESP_ERR_INVALID_SIZE) {
+                sensorarrayEmitPayloadTooLargeDrop(ctx->frame.sequence);
+            }
         } else if (ctx->legacySyncOutput &&
                    (ctx->frame.freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG)) {
             (void)sensorarrayFrameOutputPrint(&ctx->frame);
@@ -2910,10 +4274,49 @@ static void sensorarrayScanTask(void *arg)
     esp_err_t initErr = sensorarrayInitSystem(ctx);
     if (initErr != ESP_OK) {
         sensorarrayBootBreadcrumbSetStage("init_failed", initErr, ctx);
-        printf("APP_FATAL,stage=acquisition_init,err=%ld,action=safe_idle_no_restart\n",
+        if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+            sensorarrayBootBreadcrumbSetStage("auto_restart", initErr, ctx);
+            sensorarrayBootEmitRestartMarker(
+                "RAPP,cmd=RECOVER,id=0,level=2,state=restarting,kind=auto\n");
+            esp_restart();
+        }
+        sensorarrayBootBreadcrumbSetStage("recovery_safe_idle", initErr, ctx);
+        printf("APP_FATAL,stage=acquisition_init,err=%ld,action=recovery_safe_no_restart\n",
                (long)initErr);
         for (;;) {
-            vTaskDelay(portMAX_DELAY);
+            uint32_t restartId = 0u;
+            if (sensorarrayRestartTake(&restartId)) {
+                char marker[96];
+                (void)snprintf(marker, sizeof(marker),
+                               "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
+                               (unsigned long)restartId);
+                (void)sensorarrayBootPrepareRestart(
+                    SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
+                sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
+                sensorarrayBootEmitRestartMarker(marker);
+                esp_restart();
+            }
+            uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
+            uint32_t recoveryId = 0u;
+            if (sensorarrayRecoveryTake(&recoveryLevel, &recoveryId)) {
+                if (recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
+                    sensorarrayBootPrepareRestart(
+                        SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+                    char marker[96];
+                    (void)snprintf(marker, sizeof(marker),
+                                   "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
+                                   (unsigned long)recoveryId);
+                    sensorarrayBootBreadcrumbSetStage("auto_restart",
+                                                      ESP_ERR_INVALID_STATE,
+                                                      ctx);
+                    sensorarrayBootEmitRestartMarker(marker);
+                    esp_restart();
+                }
+                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=safe,reason=acquisition_init_failed\n",
+                       (unsigned long)recoveryId,
+                       (unsigned)recoveryLevel);
+            }
+            vTaskDelay(pdMS_TO_TICKS(250u));
         }
     }
 
@@ -2930,6 +4333,33 @@ static void sensorarrayScanTask(void *arg)
         (bootErr != ESP_OK || ctx->fdcBootSummary.quality != SENSORARRAY_FDC_BOOT_QUALITY_OK)) {
         ctx->fdcDiagnosticMode = true;
         sensorarrayFdcMatrixEngineSetDiagnosticMode(&ctx->fdcEngine, true);
+    }
+
+    ctx->systemReady = initErr == ESP_OK && bootErr == ESP_OK;
+    if (ctx->systemReady) {
+        sensorarrayBootBreadcrumb_t boot = {0};
+        char readyEvent[96];
+        int readyLength = 0;
+        if (sensorarrayBootBreadcrumbCopy(&boot)) {
+            readyLength = snprintf(readyEvent,
+                                   sizeof(readyEvent),
+                                   "READY,bootId=%lu,boot=%lu,state=ok,quality=%s\n",
+                                   (unsigned long)boot.bootId,
+                                   (unsigned long)boot.bootCount,
+                                   sensorarrayAppFdcBootQualityName(
+                                       ctx->fdcBootSummary.quality));
+        } else {
+            readyLength = snprintf(readyEvent,
+                                   sizeof(readyEvent),
+                                   "READY,bootId=0,boot=0,state=ok,quality=%s\n",
+                                   sensorarrayAppFdcBootQualityName(
+                                       ctx->fdcBootSummary.quality));
+        }
+        if (readyLength > 0 && (size_t)readyLength < sizeof(readyEvent)) {
+            (void)sensorarrayAsyncLogPublishProtocolEvent(
+                readyEvent, (size_t)readyLength);
+        }
+        sensorarrayBootBreadcrumbMarkStableReady();
     }
 
     sensorarrayFdcMapVerifyDebug();
@@ -3024,6 +4454,21 @@ void app_main(void)
            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE,
            CONFIG_SENSORARRAY_NET_TASK_CORE);
 
+    /* The transport is live as soon as sensorarrayNetStatusInit() runs, but
+     * the full acquisition runtime callback is only installed after hardware
+     * bring-up.  Keep the pre-acquisition window recovery-safe: BOOT/STATE
+     * remain queryable and RECOVER/RESTART remain receivable without
+     * touching measurement hardware.  The full callback replaces this one
+     * from sensorarrayInitFrontends().  ROWMODES uses a two-phase acceptance:
+     * the command is handed to Core 1 only after its RMACK publish succeeds,
+     * while a failed publish cancels the reservation before it can apply. */
+    sensorarrayTransportSetRuntimeQueryCallback(
+        sensorarrayEarlyRuntimeQueryCommand, &s_appContext);
+    sensorarrayTransportSetControlReplyPublishedCallback(
+        sensorarrayControlReplyPublished);
+    sensorarrayTransportSetControlReplyFailedCallback(
+        sensorarrayControlReplyFailed);
+
     /* BLE controller memory must be reserved before Wi-Fi, board drivers,
      * frame buses, and acquisition worker stacks consume internal RAM. */
     esp_err_t netErr = sensorarrayNetStatusInit();
@@ -3053,6 +4498,38 @@ void app_main(void)
         printf("APP_FATAL,stage=scan_task_create,err=0x%lx,action=safe_idle_no_restart\n",
                (unsigned long)scanErr);
         while (true) {
+            uint32_t restartId = 0u;
+            if (sensorarrayRestartTake(&restartId)) {
+                char marker[96];
+                (void)snprintf(marker, sizeof(marker),
+                               "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
+                               (unsigned long)restartId);
+                (void)sensorarrayBootPrepareRestart(
+                    SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
+                sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, NULL);
+                sensorarrayBootEmitRestartMarker(marker);
+                esp_restart();
+            }
+            uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
+            uint32_t recoveryId = 0u;
+            if (sensorarrayRecoveryTake(&recoveryLevel, &recoveryId)) {
+                if (recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
+                    sensorarrayBootPrepareRestart(
+                        SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+                    char marker[96];
+                    (void)snprintf(marker, sizeof(marker),
+                                   "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
+                                   (unsigned long)recoveryId);
+                    sensorarrayBootBreadcrumbSetStage("auto_restart",
+                                                      ESP_ERR_INVALID_STATE,
+                                                      NULL);
+                    sensorarrayBootEmitRestartMarker(marker);
+                    esp_restart();
+                }
+                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=safe,reason=scan_task_create_failed\n",
+                       (unsigned long)recoveryId,
+                       (unsigned)recoveryLevel);
+            }
             vTaskDelay(pdMS_TO_TICKS(1000u));
         }
     }

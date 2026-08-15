@@ -14,6 +14,7 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayAcqEvent.h"
 #include "sensorarrayBatteryScheduler.h"
+#include "sensorarrayAdsFault.h"
 #include "tmuxSwitch.h"
 
 #define printf sensorarrayAcqEventPrintf
@@ -183,6 +184,15 @@ static sensorarrayBatteryScheduler_t s_batteryScheduler;
 static sensorarrayAdsBatteryDiag_t s_lastBatteryDiag;
 static bool s_batteryDiagnosticRequested;
 static bool s_batteryRestoreFailureLatched;
+
+static void sensorarrayAdsFaultSink(const char *line,
+                                    size_t length,
+                                    void *context)
+{
+    (void)length;
+    (void)context;
+    printf("%s", line);
+}
 
 static void sensorarrayAdsPopulateRestoredRegisterCache(
     sensorarrayAdsRegisterCache_t *cache,
@@ -1879,6 +1889,29 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         diag.stateName = sensorarrayAdsBatteryReasonName(s_snapshot.batteryInvalidReason);
         if (!s_snapshot.batteryValid && !diag.collision &&
             s_snapshot.batteryInvalidReason != SENSORARRAY_BATTERY_INVALID_RAIL) {
+            sensorarrayAdsFaultEvent_t fault = {
+                .stage = SENSORARRAY_ADS_FAULT_STAGE_BATTERY_GAP,
+                .err = err,
+                .seq = frameSequence,
+                .owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_BATTERY),
+                .drdyGeneration = diag.generationDelta,
+                .configGeneration = diag.shadowGenerationBefore,
+                .railValid = s_snapshot.railValid,
+                .railUv = s_snapshot.railUv,
+                .reference = s_snapshot.railValid ?
+                    sensorarrayAdsRailSourceName(
+                        (sensorarrayAdsRailSource_t)s_snapshot.railSource) :
+                    "unknown",
+                .restoreExpectedValid = true,
+                .restoreExpected = diag.powerBefore,
+                .restoreActualValid = true,
+                .restoreActual = diag.powerAfter,
+            };
+            (void)sensorarrayAdsFaultEmit(
+                &fault,
+                (uint64_t)esp_timer_get_time(),
+                sensorarrayAdsFaultSink,
+                NULL);
             /* Battery absence/floating/PWM is a reportable diagnostic result,
              * not a matrix fault.  It is deliberately a normal diagnostic
              * event, not a reserved lifecycle event: the bounded zero-wait
@@ -2319,7 +2352,11 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
                            (unsigned long)snapshot.batterySampleUs,
                            snapshot.batteryRestoreOk ? "ok" : "fail",
                            sensorarrayAdsBatteryReasonName(snapshot.batteryInvalidReason));
-    return written > 0 ? (size_t)written : 0u;
+    if (written < 0 || (size_t)written >= bufferSize) {
+        buffer[0] = '\0';
+        return 0u;
+    }
+    return (size_t)written;
 }
 
 size_t sensorarrayAdsGapFormatRail(char *buffer,
@@ -2353,7 +2390,11 @@ size_t sensorarrayAdsGapFormatRail(char *buffer,
                            snapshot.vrefSynced ? "restored" : "unsynced",
                            snapshot.vrefSynced ? "restored" : "unsynced",
                            snapshot.vrefSynced ? "restored" : "unsynced");
-    return written > 0 ? (size_t)written : 0u;
+    if (written < 0 || (size_t)written >= bufferSize) {
+        buffer[0] = '\0';
+        return 0u;
+    }
+    return (size_t)written;
 }
 
 size_t sensorarrayAdsGapFormatAds(char *buffer, size_t bufferSize)
@@ -2376,7 +2417,11 @@ size_t sensorarrayAdsGapFormatAds(char *buffer, size_t bufferSize)
                            s_snapshot.vbiasEnabled ? 1u : 0u,
                            (unsigned)s_snapshot.rateCode,
                            sensorarrayAdsGapModeName(s_gapMode));
-    return written > 0 ? (size_t)written : 0u;
+    if (written < 0 || (size_t)written >= bufferSize) {
+        buffer[0] = '\0';
+        return 0u;
+    }
+    return (size_t)written;
 }
 
 static void sensorarrayAdsPopulateRestoredRegisterCache(

@@ -206,7 +206,7 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     /* STATE now includes independently verified FDC sleep state in addition
      * to the immutable ADS/route snapshot. Keep one bounded control response;
      * data-frame slots and their 1536-byte contract are unchanged. */
-    char response[512];
+    char response[512] = {0};
     esp_err_t err = sensorarrayScanConfigHandleCommand((const char *)data, length,
                                                         response, sizeof(response));
     if (err == ESP_ERR_NOT_SUPPORTED) {
@@ -237,8 +237,30 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     if (err == ESP_ERR_NOT_SUPPORTED) {
         snprintf(response, sizeof(response), "ERR,cmd=UNKNOWN,reason=unsupported\n");
     }
+    if (err != ESP_OK && response[0] == '\0') {
+        if (err == ESP_FAIL) {
+            printf("CTRLDROP,ch=ctrl,len=%lu,max=%u,reason=reply_too_large\n",
+                   (unsigned long)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
+                   (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX);
+            return ESP_ERR_INVALID_SIZE;
+        }
+        return err;
+    }
     esp_err_t replyErr = sensorarrayTransportPublishControlReply(replyTarget,
                                                                  response,
                                                                  strlen(response));
+    /* The published hook closes the ROWMODES ACK/terminal ordering barrier,
+     * so it must only run when the ACK actually left the device.  A failed
+     * publish reports through the separate failure hook instead of being
+     * treated as an accepted, acknowledged transaction. */
+    if (replyErr == ESP_OK && g_sensorarrayTransportControlReplyPublishedCallback) {
+        g_sensorarrayTransportControlReplyPublishedCallback(response,
+                                                             strlen(response));
+    } else if (replyErr != ESP_OK &&
+               g_sensorarrayTransportControlReplyFailedCallback) {
+        g_sensorarrayTransportControlReplyFailedCallback(replyErr,
+                                                         response,
+                                                         strlen(response));
+    }
     return replyErr == ESP_OK ? err : replyErr;
 }

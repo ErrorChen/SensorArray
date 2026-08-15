@@ -14,9 +14,10 @@ extern "C" {
 #define SENSORARRAY_TEXT_PACKET_MAX 1536u
 #define SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX INT64_C(999999999999)
 
-/* Worst case: compact header, four 16-cell D chunks with signed 12-digit
- * fixed-point values, four packed PGA chunks, and the K trailer. */
-#define SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE 1518u
+/* Worst legal frame: maximum sequence/timestamp/generation fields, four
+ * 16-cell D chunks with signed 12-digit fixed-point values, four packed PGA
+ * chunks, the K trailer, and the expected/acquired acquisition masks. */
+#define SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE 1522u
 _Static_assert(SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE <=
                    SENSORARRAY_TEXT_PACKET_MAX,
                "measurement text frame does not fit the fixed TextFrameBus slot");

@@ -1,9 +1,11 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "sensorarrayAdsAutoRange.h"
 #include "sensorarrayAdsCache.h"
+#include "sensorarrayAdsFault.h"
 #include "sensorarrayAdsMath.h"
 #include "sensorarrayBatteryScheduler.h"
 #include "sensorarrayMeasurementMode.h"
@@ -65,6 +67,12 @@ static int testModeState(void)
     CHECK(snapshot.state == SENSORARRAY_MEASUREMENT_STATE_SAFE);
     CHECK(snapshot.activeMode == SENSORARRAY_MEASUREMENT_MODE_NONE);
     CHECK(snapshot.lastError == 0x55u && !snapshot.pending);
+
+    sensorarrayMeasurementModeEnterRecovery(&context, 0x66u);
+    CHECK(sensorarrayMeasurementModeCopySnapshot(&context, &snapshot));
+    CHECK(snapshot.state == SENSORARRAY_MEASUREMENT_STATE_RECOVERY);
+    CHECK(snapshot.activeMode == SENSORARRAY_MEASUREMENT_MODE_NONE);
+    CHECK(snapshot.lastError == 0x66u && !snapshot.pending);
 
     CHECK(sensorarrayMeasurementCellCount(1u) == 8u);
     CHECK(sensorarrayMeasurementCellCount(2u) == 16u);
@@ -189,6 +197,166 @@ static int testStabilityAndInjectedErrors(void)
     health.commonModeSafe = false;
     CHECK(sensorarrayAdsMathClassifySampleHealth(&health) ==
           SENSORARRAY_CELL_ERROR_COMMON_MODE);
+    return 0;
+}
+
+static sensorarrayAdsResistanceConfig_t testHighZConfig(void)
+{
+    return (sensorarrayAdsResistanceConfig_t){
+        .referenceResistorOhms = 10000u,
+        .minimumOhms = 1u,
+        .maximumOhms = 100000000u,
+        .shortThresholdOhms = 10u,
+        .openDenominatorUv = 1000u,
+        .openConfirmMarginUv = 3000u,
+    };
+}
+
+static sensorarrayAdsHighZCandidateInput_t testHighZCandidateInput(void)
+{
+    return (sensorarrayAdsHighZCandidateInput_t){
+        .nodeUv = -1000000,
+        .avssUv = -1800000,
+        .rawCode = 0,
+        .magnitude = 0u,
+        .saturationLimit = 2000000000u,
+        .openDenominatorUv = 1000u,
+        .openConfirmMarginUv = 3000u,
+    };
+}
+
+static int testHighZMath(void)
+{
+    sensorarrayAdsResistanceConfig_t config = testHighZConfig();
+    const int32_t avssUv = -1800000;
+    int32_t median = 123;
+
+    CHECK(!sensorarrayAdsMathHighZOpenCandidate(NULL));
+    sensorarrayAdsHighZCandidateInput_t candidate = testHighZCandidateInput();
+    CHECK(!sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate.nodeUv = avssUv + 4000;
+    CHECK(sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate.nodeUv = avssUv + 4001;
+    CHECK(!sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate = testHighZCandidateInput();
+    candidate.nodeUv = avssUv - 100;
+    CHECK(sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate = testHighZCandidateInput();
+    candidate.magnitude = candidate.saturationLimit;
+    CHECK(sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate = testHighZCandidateInput();
+    candidate.rawCode = INT32_MIN;
+    CHECK(sensorarrayAdsMathHighZOpenCandidate(&candidate));
+    candidate = testHighZCandidateInput();
+    candidate.nodeUv = avssUv + 100000;
+    CHECK(!sensorarrayAdsMathHighZOpenCandidate(&candidate));
+
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              NULL, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE);
+    CHECK(median == 0);
+    int32_t empty[1] = {avssUv};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              empty, 0u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE);
+    int32_t tooMany[10] = {0};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              tooMany, 10u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE);
+    int32_t one[1] = {avssUv};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              one, 1u, avssUv, NULL, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE);
+
+    int32_t atOpenLimit[3] = {avssUv + 1000, avssUv + 2000, avssUv + 3000};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              atOpenLimit, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    int32_t nearOpen[3] = {avssUv + 3000, avssUv + 3002, avssUv + 3001};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              nearOpen, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    CHECK(median == avssUv + 3001);
+    int32_t finiteStable[3] = {avssUv + 5000, avssUv + 5002, avssUv + 5001};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              finiteStable, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_NONE);
+    CHECK(median == avssUv + 5001);
+    int32_t negative[3] = {avssUv - 500, avssUv - 500, avssUv - 500};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              negative, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    int32_t unstable[3] = {avssUv + 5000, avssUv + 9000, avssUv + 5000};
+    CHECK(sensorarrayAdsMathConfirmOpenSet(
+              unstable, 3u, avssUv, &config, 100u, &median) ==
+          SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE);
+
+    sensorarrayAdsResistanceResult_t result = sensorarrayAdsMathResistanceDivider(
+        700000, avssUv - 100, avssUv, &config);
+    CHECK(!result.valid && result.open &&
+          result.error == SENSORARRAY_CELL_ERROR_OPEN &&
+          result.openSemantic == SENSORARRAY_ADS_OPEN_SEMANTIC_RAW);
+    result = sensorarrayAdsMathResistanceDivider(
+        700000, avssUv + 1001, avssUv, &config);
+    CHECK(result.valid && result.error == SENSORARRAY_CELL_ERROR_NONE &&
+          result.openSemantic == SENSORARRAY_ADS_OPEN_SEMANTIC_NONE);
+
+    CHECK(!sensorarrayAdsMathConfigurationGenerationCurrent(1u, 2u));
+    CHECK(sensorarrayAdsMathConfigurationGenerationCurrent(2u, 2u));
+    CHECK(!sensorarrayAdsMathConfigurationGenerationCurrent(1u, 0u));
+    CHECK(!sensorarrayAdsMathConfigurationGenerationCurrent(0u, 1u));
+    sensorarrayAdsSampleHealth_t health = {
+        .transportOk = true,
+        .generationAdvanced = true,
+        .statusNewData = true,
+        .commonModeSafe = true,
+        .configurationGeneration = 4u,
+        .expectedConfigurationGeneration = 5u,
+    };
+    CHECK(sensorarrayAdsMathClassifySampleHealth(&health) ==
+          SENSORARRAY_CELL_ERROR_STALE);
+    health.configurationGeneration = 5u;
+    CHECK(sensorarrayAdsMathClassifySampleHealth(&health) ==
+          SENSORARRAY_CELL_ERROR_NONE);
+
+    const uint8_t triggerAlarm = 0x01u | 0x10u;
+    uint8_t cleanConfirmations[3] = {0u, 0u, 0u};
+    CHECK(sensorarrayAdsMathCombineStatusBytes(
+              triggerAlarm, cleanConfirmations, 3u) == triggerAlarm);
+    CHECK(sensorarrayAdsMathCombineStatusBytes(0xA5u, NULL, 3u) == 0xA5u);
+    uint8_t alarmConfirmations[3] = {0x02u, 0x00u, 0x04u};
+    CHECK(sensorarrayAdsMathCombineStatusBytes(
+              0x01u, alarmConfirmations, 3u) == 0x07u);
+
+    uint64_t latch = sensorarrayAdsMathHighZLatchUpdate(
+        0u, 3u, SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED);
+    CHECK(latch == (UINT64_C(1) << 3u));
+    latch = sensorarrayAdsMathHighZLatchUpdate(
+        latch, 3u, SENSORARRAY_ADS_OPEN_SEMANTIC_NONE);
+    CHECK(latch == 0u);
+    latch = sensorarrayAdsMathHighZLatchUpdate(
+        0u, 63u, SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED);
+    CHECK(latch == (UINT64_C(1) << 63u));
+    CHECK(sensorarrayAdsMathHighZLatchUpdate(
+              latch, 63u, SENSORARRAY_ADS_OPEN_SEMANTIC_RAW) == latch);
+    CHECK(sensorarrayAdsMathHighZLatchUpdate(
+              0u, 64u, SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) == 0u);
+
+    sensorarrayAdsOpenConfirm_t decision = sensorarrayAdsMathConfirmOpenSet(
+        atOpenLimit, 3u, avssUv, &config, 100u, &median);
+    CHECK(decision == SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    uint64_t recoveryLatch = sensorarrayAdsMathHighZLatchUpdate(
+        0u, 2u,
+        decision == SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z ?
+            SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED :
+            SENSORARRAY_ADS_OPEN_SEMANTIC_NONE);
+    CHECK((recoveryLatch & (UINT64_C(1) << 2u)) != 0u);
+    decision = sensorarrayAdsMathConfirmOpenSet(
+        finiteStable, 3u, avssUv, &config, 100u, &median);
+    CHECK(decision == SENSORARRAY_ADS_OPEN_CONFIRM_NONE);
+    recoveryLatch = sensorarrayAdsMathHighZLatchUpdate(
+        recoveryLatch, 2u, SENSORARRAY_ADS_OPEN_SEMANTIC_NONE);
+    CHECK(recoveryLatch == 0u);
     return 0;
 }
 
@@ -681,12 +849,283 @@ static int testBatteryTimeScheduler(void)
     return 0;
 }
 
+typedef struct {
+    char text[512];
+    size_t length;
+    unsigned calls;
+} sensorarrayAdsFaultTestSink_t;
+
+static void sensorarrayAdsFaultTestSink(const char *line,
+                                        size_t length,
+                                        void *context)
+{
+    sensorarrayAdsFaultTestSink_t *sink =
+        (sensorarrayAdsFaultTestSink_t *)context;
+    if (!sink) {
+        return;
+    }
+    sink->calls++;
+    if (sink->length == 0u && length < sizeof(sink->text)) {
+        memcpy(sink->text, line, length);
+        sink->text[length] = '\0';
+        sink->length = length;
+    }
+}
+
+static int testAdsFaultStageNames(void)
+{
+    static const char *const expected[] = {
+        "MATRIX_ROUTE",
+        "MATRIX_READ",
+        "MATRIX_READBACK",
+        "MATRIX_DRDY",
+        "BATTERY_GAP",
+        "BATTERY_RESTORE",
+        "RAIL_MONITOR",
+        "PROFILE_TRANSITION",
+        "RECOVERY_START",
+        "RECOVERY_ATTEMPT",
+        "RECOVERY_RESUME",
+        "RECOVERY_FAILED",
+        "UNKNOWN",
+    };
+    for (size_t index = 0u;
+         index < SENSORARRAY_ADS_FAULT_STAGE_COUNT;
+         ++index) {
+        CHECK(strcmp(sensorarrayAdsFaultStageName(
+                         (sensorarrayAdsFaultStage_t)index),
+                     expected[index]) == 0);
+    }
+    CHECK(strcmp(sensorarrayAdsFaultStageName(
+                     (sensorarrayAdsFaultStage_t)99u),
+                 "UNKNOWN") == 0);
+    return 0;
+}
+
+static int testAdsFaultFormatRequiredFields(void)
+{
+    sensorarrayAdsFaultEvent_t event = {
+        .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK,
+        .err = ESP_ERR_INVALID_RESPONSE,
+        .bootId = 7u,
+        .bootCount = 3u,
+        .seq = 42u,
+        .modeGeneration = 2u,
+        .profileGeneration = 3u,
+        .rowGeneration = 4u,
+        .rowRequestId = 5u,
+        .mode = "RESISTANCE",
+        .profile = "VVVVVVRR",
+        .route = "SAFE",
+        .owner = "MATRIX",
+        .drdyGeneration = 6u,
+        .configGeneration = 8u,
+        .railUv = 5200000,
+        .reference = "internal",
+        .restoreExpected = 1,
+        .restoreActual = 2,
+        .attempt = 2u,
+        .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_RESUMED,
+        .railValid = true,
+        .restoreExpectedValid = true,
+        .restoreActualValid = true,
+    };
+    char line[SENSORARRAY_ADS_FAULT_LINE_MAX + 1u];
+    size_t length = sensorarrayAdsFaultFormat(&event, line, sizeof(line));
+    CHECK(length > 0u);
+    CHECK(length <= SENSORARRAY_ADS_FAULT_LINE_MAX);
+    CHECK(length == strlen(line));
+    CHECK(line[length - 1u] == '\n');
+    CHECK(strstr(line, "ADSFAULT,stage=MATRIX_READBACK,") != NULL);
+    CHECK(strstr(line, "err=0x10c") != NULL);
+    CHECK(strstr(line, "boot=3,bootId=7") != NULL);
+    CHECK(strstr(line, "seq=42") != NULL);
+    CHECK(strstr(line, "mode=RESISTANCE,modeGen=2") != NULL);
+    CHECK(strstr(line, "profileGen=3") != NULL);
+    CHECK(strstr(line, "rowGen=4,rowReq=5") != NULL);
+    CHECK(strstr(line, "profile=VVVVVVRR") != NULL);
+    CHECK(strstr(line, "route=SAFE,owner=MATRIX") != NULL);
+    CHECK(strstr(line, "drdyGen=6,cfgGen=8") != NULL);
+    CHECK(strstr(line, "rail=5200000,ref=internal") != NULL);
+    CHECK(strstr(line, "restoreExp=1,restoreAct=2") != NULL);
+    CHECK(strstr(line, "attempt=2,outcome=resumed") != NULL);
+    return 0;
+}
+
+static int testAdsFaultTruncationAndBound(void)
+{
+    sensorarrayAdsFaultEvent_t event = {
+        .stage = SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR,
+        .err = ESP_ERR_TIMEOUT,
+        .seq = 1u,
+        .mode = "a-very-long-mode-name-that-must-not-blow-the-line",
+        .profile = "123456789012345678901234567890",
+        .route = "a-very-long-route-name-that-must-not-blow-the-line",
+        .owner = "a-very-long-owner-name-that-must-not-blow-the-line",
+        .reference = "a-very-long-reference-name-that-must-not-blow-the-line",
+    };
+    char small[8];
+    CHECK(sensorarrayAdsFaultFormat(&event, small, sizeof(small)) == 0u);
+    CHECK(small[0] == '\0');
+
+    char line[SENSORARRAY_ADS_FAULT_LINE_MAX + 1u];
+    size_t length = sensorarrayAdsFaultFormat(&event, line, sizeof(line));
+    CHECK(length > 0u);
+    CHECK(length <= SENSORARRAY_ADS_FAULT_LINE_MAX);
+    CHECK(length == strlen(line));
+    CHECK(strstr(line, "profile=12345678") != NULL);
+    return 0;
+}
+
+static int testAdsFaultOnePerFault(void)
+{
+    sensorarrayAdsFaultEvent_t event = {
+        .stage = SENSORARRAY_ADS_FAULT_STAGE_BATTERY_RESTORE,
+        .err = ESP_FAIL,
+        .seq = 99u,
+        .owner = "BATTERY",
+    };
+    sensorarrayAdsFaultTestSink_t sink = {0};
+    size_t length = sensorarrayAdsFaultEmit(
+        &event, 1000000u, sensorarrayAdsFaultTestSink, &sink);
+    CHECK(length > 0u);
+    CHECK(sink.calls == 1u);
+    CHECK(sink.length == length);
+    CHECK(strncmp(sink.text, "ADSFAULT,stage=BATTERY_RESTORE,", 31u) == 0);
+    CHECK(sink.text[sink.length - 1u] == '\n');
+
+    size_t suppressed = sensorarrayAdsFaultEmit(
+        &event, 1000001u, sensorarrayAdsFaultTestSink, &sink);
+    CHECK(suppressed == 0u);
+    CHECK(sink.calls == 1u);
+    return 0;
+}
+
+static int testMeasurementRecoverySuccessOnLaterAttempt(void)
+{
+    sensorarrayMeasurementRecovery_t recovery;
+    sensorarrayMeasurementRecoveryInit(&recovery);
+    CHECK(recovery.maximumAttempts == SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS);
+    CHECK(!sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+
+    CHECK(sensorarrayMeasurementRecoveryStart(
+        &recovery,
+        SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+        71u,
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_ADS_RESTORE,
+        0x102u,
+        9u,
+        70u));
+    CHECK(sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    CHECK(recovery.resumeMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE);
+    CHECK(recovery.resumeRequestId == 71u);
+    CHECK(recovery.triggerRequestId == 70u);
+    CHECK(recovery.triggerError == 0x102u);
+    CHECK(recovery.outcome == SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_STARTED);
+
+    CHECK(sensorarrayMeasurementRecoveryBeginAttempt(&recovery));
+    CHECK(recovery.attempt == 1u);
+    sensorarrayMeasurementRecoveryComplete(&recovery, false, 0x103u);
+    CHECK(sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    CHECK(recovery.outcome == SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_ATTEMPT);
+
+    CHECK(sensorarrayMeasurementRecoveryBeginAttempt(&recovery));
+    CHECK(recovery.attempt == 2u);
+    sensorarrayMeasurementRecoveryComplete(&recovery, true, ESP_OK);
+    CHECK(!sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    CHECK(recovery.completedAttempts == 2u);
+    CHECK(recovery.outcome == SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_RESUMED);
+    CHECK(recovery.resumeMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE);
+    return 0;
+}
+
+static int testMeasurementRecoveryExhaustion(void)
+{
+    sensorarrayMeasurementRecovery_t recovery;
+    sensorarrayMeasurementRecoveryInit(&recovery);
+    CHECK(sensorarrayMeasurementRecoveryStart(
+        &recovery,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        0u,
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE,
+        0x104u,
+        5u,
+        6u));
+    CHECK(!sensorarrayMeasurementRecoveryStart(
+        &recovery,
+        SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+        0u,
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_ADS_RESTORE,
+        0u,
+        0u,
+        0u));
+
+    for (uint32_t attempt = 1u;
+         attempt <= SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS;
+         ++attempt) {
+        CHECK(sensorarrayMeasurementRecoveryBeginAttempt(&recovery));
+        CHECK(recovery.attempt == attempt);
+        sensorarrayMeasurementRecoveryComplete(
+            &recovery, false, 0x200u + attempt);
+    }
+    CHECK(!sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    CHECK(recovery.completedAttempts ==
+          SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS);
+    CHECK(recovery.outcome == SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_FAILED);
+    CHECK(recovery.lastError ==
+          0x200u + SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS);
+    CHECK(!sensorarrayMeasurementRecoveryBeginAttempt(&recovery));
+    CHECK(sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    return 0;
+}
+
+static int testMeasurementRecoveryIgnoresOrdinaryInvalidBattery(void)
+{
+    CHECK(sensorarrayMeasurementRecoveryTriggerForBattery(true) ==
+          SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE);
+    CHECK(sensorarrayMeasurementRecoveryTriggerForBattery(false) ==
+          SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE);
+
+    sensorarrayMeasurementRecovery_t recovery;
+    sensorarrayMeasurementRecoveryInit(&recovery);
+    CHECK(!sensorarrayMeasurementRecoveryStart(
+        &recovery,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        0u,
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE,
+        ESP_ERR_INVALID_RESPONSE,
+        1u,
+        0u));
+    CHECK(!sensorarrayMeasurementRecoveryIsActive(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryIsTerminal(&recovery));
+    CHECK(!sensorarrayMeasurementRecoveryBeginAttempt(&recovery));
+
+    sensorarrayAdsBatteryMathInput_t input = testBatteryMathInput();
+    input.ain8DifferentialUv = 100000;
+    input.aincomGroundUv = 800000;
+    sensorarrayAdsBatteryMathResult_t result =
+        sensorarrayAdsMathBatteryVoltage(&input);
+    CHECK(!result.valid);
+    CHECK(result.error != SENSORARRAY_ADS_BATTERY_MATH_RESTORE_FAILED);
+    input.restoreOk = false;
+    result = sensorarrayAdsMathBatteryVoltage(&input);
+    CHECK(!result.valid);
+    CHECK(result.error == SENSORARRAY_ADS_BATTERY_MATH_RESTORE_FAILED);
+    return 0;
+}
+
 int main(void)
 {
     CHECK(testModeState() == 0);
     CHECK(testVoltageAndRailMath() == 0);
     CHECK(testResistanceMath() == 0);
     CHECK(testStabilityAndInjectedErrors() == 0);
+    CHECK(testHighZMath() == 0);
     CHECK(testAutoRangeAndCache() == 0);
     CHECK(testProfileAndValueCaches() == 0);
     CHECK(testRailFingerprint() == 0);
@@ -695,6 +1134,13 @@ int main(void)
     CHECK(testBatteryMath() == 0);
     CHECK(testOutputCongestionPolicy() == 0);
     CHECK(testRouteReadbackMismatch() == 0);
+    CHECK(testAdsFaultStageNames() == 0);
+    CHECK(testAdsFaultFormatRequiredFields() == 0);
+    CHECK(testAdsFaultTruncationAndBound() == 0);
+    CHECK(testAdsFaultOnePerFault() == 0);
+    CHECK(testMeasurementRecoverySuccessOnLaterAttempt() == 0);
+    CHECK(testMeasurementRecoveryExhaustion() == 0);
+    CHECK(testMeasurementRecoveryIgnoresOrdinaryInvalidBattery() == 0);
     puts("MEASUREMENT_LOGIC_TESTS,passed=1");
     return 0;
 }

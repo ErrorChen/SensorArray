@@ -34,6 +34,10 @@ typedef struct {
     uint8_t transitionSensitiveFrames;
     uint32_t frameSequenceHint;
     uint32_t frameCount;
+    /* Cells whose bounded re-route confirmation resolved to HIGH_Z_OPEN.
+     * A latched cell cannot publish a transient finite resistance: its clean
+     * samples must pass another bounded confirmation before the bit clears. */
+    uint64_t highZOpenMask;
 } sensorarrayAdsMatrixEngine_t;
 
 esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,

@@ -13,10 +13,22 @@
 extern "C" {
 #endif
 
+typedef struct {
+    uint64_t publishedFrames;
+    uint64_t freshFrames;
+    uint64_t staleFrames;
+    uint64_t mixedFrames;
+    uint64_t droppedOutputFrames;
+    uint64_t droppedEventLogs;
+    uint64_t frameStartIntervalAvgUs;
+    uint32_t frameStartIntervalCount;
+} sensorarrayAsyncLogStats_t;
+
 esp_err_t sensorarrayAsyncLogInit(void);
 esp_err_t sensorarrayAsyncLogStartUsbSink(void);
 void sensorarrayAsyncLogEnableAcquisition(void);
 bool sensorarrayAsyncLogIsRunning(void);
+void sensorarrayAsyncLogGetStats(sensorarrayAsyncLogStats_t *outStats);
 
 esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *frame,
                                                   uint64_t measureFrameUs);

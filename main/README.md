@@ -155,7 +155,7 @@ ordered fallback 固定按 CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -
 
 ### 验证流程
 
-1. 在 PowerShell 设置 ESP-IDF 5.5.1 环境后运行 `idf build`。
+1. 在 PowerShell 设置 ESP-IDF 5.5.5 环境后运行 `idf build`。
 2. 运行 `idf -p COM11 flash monitor`，必要时先 `idf -p COM11 erase-flash`。
 3. monitor 至少 60 秒，确认 `BURST_PROBE`、`I2C_SWEEP/I2C_SELECTED`、`FPS20/PHY20/FRESH20/FAST20/I2C20/CACHE20/PIPE20`。
 4. 检查 emitted frame 的 `rf/pfmask/sfmask=FF`、`stale=0,mixed=0`，并确认 I2C retry/nack/timeout/recovery 正常为 0。
@@ -166,7 +166,7 @@ ordered fallback 固定按 CH0 `0x00 -> 0x01`、CH1 `0x02 -> 0x03`、CH2 `0x04 -
 
 | 场景 | 行为 |
 |---|---|
-| init failure | `APP_FATAL,stage=init`，进入 1 秒 safe idle heartbeat，不重启。 |
+| init failure | `APP_FATAL,stage=init`，先按 reboot-loop guard 尝试有界自动恢复；达到上限后进入 `RECOVERY_SAFE`，保持 transport、`BOOT?`、`STATE?`、`DIAG`、`RECOVER` 和 `RESTART` 可用。 |
 | primary FDC missing | boot fatal，diagnostic mode。 |
 | secondary FDC missing | 如果 required dual FDC 则 boot fatal；否则 primary-only degraded operation。 |
 | boot sweep failure | required 时 diagnostic mode；not required 时 warning 并继续。 |
@@ -207,7 +207,7 @@ It does not implement the FDC scan algorithm, ADS sampling algorithm, board map,
 
 ### Runtime lifecycle
 
-`app_main()` creates the Core 1 acquisition task. That task initialises the runtime, runs MSELF/PSELF, establishes a passive safe route, initialises frontends, applies the default CAP profile, runs FDC boot calibration, and enters the main loop. An init failure leaves it in safe idle without automatic restart.
+`app_main()` creates the Core 1 acquisition task. That task initialises the runtime, runs MSELF/PSELF, establishes a passive safe route, initialises frontends, applies the default CAP profile, runs FDC boot calibration, and enters the main loop. An init failure records the breadcrumb, performs only bounded automatic restart attempts, and then remains diagnostically alive in `RECOVERY_SAFE`; it is not a silent permanent `safe_idle_no_restart` state.
 
 The main loop applies pending mailbox commands at a complete-frame boundary, performs a safe mode transition if required, reads exactly one CAP/VOLT/RES frame, publishes one preformatted C/V/R packet and anomaly events, runs FDC rescue/I2C fallback only in CAP, then performs a bounded period delay.
 
@@ -243,7 +243,7 @@ The default formal continuous-frame profile is `fast_runtime` (`RCOUNT=0x0900`);
 
 ### Application-level failure model
 
-- Init failure enters safe idle with `APP_FATAL`; there is no automatic restart.
+- Init failure emits `APP_FATAL`, records the boot breadcrumb, and follows the bounded recovery/restart guard; after the guard trips, transport and recovery commands remain alive in `RECOVERY_SAFE`.
 - Primary FDC missing is a serious boot failure.
 - Secondary FDC missing is fatal only when dual-FDC boot is required.
 - Required boot sweep quality must be `OK`; degraded or failed quality sets diagnostic mode when boot sweep is required.

@@ -17,6 +17,8 @@ typedef enum {
     SENSORARRAY_COMMAND_CALIBRATE_ZERO,
     SENSORARRAY_COMMAND_CALIBRATE_RAIL,
     SENSORARRAY_COMMAND_CALIBRATE_ALL,
+    SENSORARRAY_COMMAND_CALIBRATE_SAVE,
+    SENSORARRAY_COMMAND_CALIBRATE_LOAD,
     SENSORARRAY_COMMAND_ADS_GAP_MODE,
     SENSORARRAY_COMMAND_CAPTURE_FPS_CAP,
     SENSORARRAY_COMMAND_OUTPUT_FPS_CAP,
@@ -47,6 +49,19 @@ esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
     uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
                                                 uint32_t *outRequestId);
+/* Close the second acceptance phase only after the RMACK has actually been
+ * published: mark the ACK complete, hand the stored command to Core 1, and
+ * release the guaranteed-text lane.  Returns false when the reservation is
+ * unknown or was already canceled. */
+bool sensorarrayCommandMailboxCommitRowModesAck(uint32_t requestId);
+/* Bounded recovery for a failed RMACK publish: the stored command never
+ * reaches Core 1, the reservation is cleared, and the guaranteed-text lane
+ * is force-released so a later ROWMODES can reserve it again. */
+bool sensorarrayCommandMailboxCancelRowModesAck(uint32_t requestId);
+esp_err_t sensorarrayCommandMailboxEmitRowModesTerminal(uint32_t requestId,
+                                                        const char *text,
+                                                        size_t length);
+uint32_t sensorarrayCommandMailboxRowModesOutstanding(void);
 esp_err_t sensorarrayCommandMailboxPostRailCalibration(
     int32_t avddUv,
     int32_t avssUv,

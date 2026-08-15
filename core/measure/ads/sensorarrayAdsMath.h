@@ -39,13 +39,28 @@ typedef struct {
     uint32_t maximumOhms;
     uint32_t shortThresholdOhms;
     uint32_t openDenominatorUv;
+    uint32_t openConfirmMarginUv;
 } sensorarrayAdsResistanceConfig_t;
+
+typedef enum {
+    SENSORARRAY_ADS_OPEN_SEMANTIC_NONE = 0,
+    SENSORARRAY_ADS_OPEN_SEMANTIC_RAW,
+    SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED,
+} sensorarrayAdsOpenSemantic_t;
+
+typedef enum {
+    SENSORARRAY_ADS_OPEN_CONFIRM_NONE = 0,
+    SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z,
+    SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE,
+} sensorarrayAdsOpenConfirm_t;
 
 typedef struct {
     int64_t resistanceMilliohms;
     int64_t numeratorUv;
     int64_t denominatorUv;
     sensorarrayCellError_t error;
+    sensorarrayAdsOpenSemantic_t openSemantic;
+    uint32_t configurationGeneration;
     bool valid;
     bool open;
     bool shorted;
@@ -63,7 +78,19 @@ typedef struct {
     bool pgaDifferentialAlarm;
     bool fullScaleSaturated;
     bool commonModeSafe;
+    uint32_t configurationGeneration;
+    uint32_t expectedConfigurationGeneration;
 } sensorarrayAdsSampleHealth_t;
+
+typedef struct {
+    int32_t nodeUv;
+    int32_t avssUv;
+    int32_t rawCode;
+    uint64_t magnitude;
+    uint64_t saturationLimit;
+    uint32_t openDenominatorUv;
+    uint32_t openConfirmMarginUv;
+} sensorarrayAdsHighZCandidateInput_t;
 
 typedef enum {
     SENSORARRAY_ADS_BATTERY_MATH_OK = 0,
@@ -130,6 +157,29 @@ bool sensorarrayAdsMathSamplesStable(const int32_t *samples,
                                      size_t sampleCount,
                                      uint32_t maximumSpreadUv,
                                      int32_t *outMedianUv);
+bool sensorarrayAdsMathConfigurationGenerationCurrent(
+    uint32_t sampleConfigurationGeneration,
+    uint32_t currentConfigurationGeneration);
+/* High-Z denominator rule shared by divider, candidate, and confirmation:
+ * nodeUv - avssUv <= limit is open-range, including negative denominators.
+ * A denominator at or below the open limit is never a finite resistance. */
+bool sensorarrayAdsMathHighZOpenCandidate(
+    const sensorarrayAdsHighZCandidateInput_t *input);
+sensorarrayAdsOpenConfirm_t sensorarrayAdsMathConfirmOpenSet(
+    const int32_t *nodeUvSamples,
+    size_t sampleCount,
+    int32_t avssUv,
+    const sensorarrayAdsResistanceConfig_t *config,
+    uint32_t maximumSpreadUv,
+    int32_t *outMedianNodeUv);
+uint8_t sensorarrayAdsMathCombineStatusBytes(
+    uint8_t primaryStatus,
+    const uint8_t *additionalStatus,
+    size_t additionalCount);
+uint64_t sensorarrayAdsMathHighZLatchUpdate(
+    uint64_t latchMask,
+    size_t cellIndex,
+    sensorarrayAdsOpenSemantic_t openSemantic);
 sensorarrayCellError_t sensorarrayAdsMathClassifySampleHealth(
     const sensorarrayAdsSampleHealth_t *health);
 sensorarrayAdsBatteryMathResult_t sensorarrayAdsMathBatteryVoltage(

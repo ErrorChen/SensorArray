@@ -346,6 +346,23 @@ typedef struct {
     uint64_t freshMask;
     uint64_t warnMask;
     uint64_t errorMask;
+    /* Acquisition contract for this sweep. expectedMask lists every cell
+     * this frame is expected to acquire; acquiredMask lists the cells whose
+     * conversion/read acquisition actually completed. Both are independent
+     * of validMask (electrical/semantic validity), freshMask (new sample
+     * this sweep), and errorMask (classification/acquisition errors). */
+    uint64_t expectedMask;
+    uint64_t acquiredMask;
+    /* Actual per-mode-group timing for this sweep. Only groups that ran
+     * record a non-zero start/end pair. maxSkewUs is the maximum pairwise
+     * span among the present (non-zero) group timestamps. */
+    uint64_t capStartUs;
+    uint64_t capEndUs;
+    uint64_t voltStartUs;
+    uint64_t voltEndUs;
+    uint64_t resStartUs;
+    uint64_t resEndUs;
+    uint64_t maxSkewUs;
     uint8_t hardwareZeroRawCount;
     uint8_t placeholderZeroCount;
     uint8_t notReadyCount;

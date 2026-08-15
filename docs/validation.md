@@ -16,9 +16,29 @@ STACK / HEAP / SLOT
 
 build、boot log 或 BLE connect 不能替代端到端验收。缺少串口、硬件或 BLE adapter 时，写明 `NOT RUN` 与原因，不能写 PASS。
 
+## 状态模板与证据边界
+
+任何结论必须落在下列状态之一，不能用“大概通过”“与上次相同”代替：
+
+| Status | 含义 |
+| --- | --- |
+| `PASS` | 本次 freshly run 的 wire log / machine-readable summary 证明门槛全部满足 |
+| `FAIL` | 本次 run 触发失败门槛（CRC、reboot/panic、超时、缺帧等） |
+| `NOT RUN` | 未执行，写明原因（如无 BLE adapter） |
+| `BLOCKED` | 缺少前置条件或外部授权，无法在当前环境执行，写明原因 |
+| `NOT VERIFIED` | 没有同步外部标准/DMM 或未覆盖，不能宣称精度/范围已证明 |
+
+规则：
+
+- 当前硬件证明只来自本次 freshly run；历史 artifact 只保留在“历史实测结果”章节，不能转成当前 PASS。
+- Serial stage 必须在 `/dev/ttyACM0`（或 `--port` 指定端口）先完成；本轮最终验收门槛是当前已烧录 image 的连续 1200 秒（20 分钟）Serial HIL。只有该 stage 返回 PASS 后才启动 BLE，BLE 最终门槛为 600 秒（10 分钟）。120 秒仅用于 smoke/快速回归，不能替代本轮最终门槛。
+- 串口不可用或 serial stage 无法完成时，BLE 直接标 `BLOCKED`/`NOT RUN`，不启动 BLE stage。
+- 自动 HIL 未执行受控 reset 时，`RECOVER`/`RECOVER=0|1|2`/`RESTART` 的 reboot/recovery 验收保持 `BLOCKED`；只有显式受控 reset 与重启后恢复检查才能标 PASS/FAIL。
+- 没有同步 DMM/标准件时，VOLT/RES accuracy 一律 `NOT VERIFIED`，不能因 pipeline sanity 数字写成 PASS。
+
 ## Clean build
 
-在 ESP-IDF 5.5.1 环境中：
+在 ESP-IDF 5.5.5 环境中：
 
 ```powershell
 idf.py --version
@@ -85,6 +105,41 @@ VOLT HIL 默认验证 firmware 在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口自�
 
 下面的命令是可重复验收入口，不代表文档提交者已经在当前设备上运行或取得 PASS。只有保留下来的 wire log、machine-readable summary 和测试报告才能作为执行证据。
 
+## Transport 验收顺序（Serial -> BLE）
+
+可执行契约入口是 `tools/validate_transports.py`。Ubuntu 下默认串口为 `/dev/ttyACM0`，可用 `--port` 覆盖；同一 flashed image 必须先完成 serial stage，serial 返回非零或超时时立即中止，不启动 BLE。BLE stage 至少 60 秒，并把同一个 `/dev/ttyACM0` 作为 reset/panic sidecar 传给 `receive_ble_text.py`（`--serial-port`）。
+
+串口不可用时（端口不存在、打开失败或 serial stage 超时/FAIL），serial stage 记录 `NOT RUN`/`FAIL`，BLE stage 记录 `BLOCKED`/`NOT RUN` 并立即中止；任何情况下都不允许跳过 serial stage 直接运行 BLE。
+
+时长规则：
+
+- `--serial-duration`：serial stage 秒数，默认 120；
+- `--ble-duration`：BLE stage 秒数，默认 60；小于 60 被拒绝；
+- `--duration`：legacy 兼容项，未给 stage-specific 参数时同时作为 serial/BLE/Wi-Fi duration；推荐改用独立参数。
+
+Linux/bash 可重复入口：
+
+```bash
+set -o pipefail
+mkdir -p validation_artifacts
+# 同一已刷写 image、串口 /dev/ttyACM0、BLE adapter 已就绪
+python3 tools/test_text_protocol.py 2>&1 | tee validation_artifacts/transport_host_text.log
+python3 tools/test_validate_transports.py 2>&1 | tee validation_artifacts/transport_validate_host.log
+python3 tools/test_sensorarray_hil.py 2>&1 | tee validation_artifacts/transport_hil_host.log
+python3 tools/check_command_docs.py 2>&1 | tee validation_artifacts/transport_command_docs.log
+python3 tools/validate_transports.py \
+  --port /dev/ttyACM0 \
+  --ble \
+  --serial-duration 120 \
+  --ble-duration 60 2>&1 | tee validation_artifacts/transport_serial_ble.log
+```
+
+Serial 成功门槛：serial stage 返回 0 后还必须看到 `SERIAL_DONE` summary，且 `lines` 与 frame count（`cap+volt+res`）> 0、`crc/bad/ascii/gap/missing` 均为 0；输出中出现 `ESP-ROM`、`rst:`、`RST,reason=`、`Guru Meditation`、`Stack canary`、`panic'ed`、`LoadProhibited`、`Watchdog` 任一标志即拒绝进入 BLE（`VAL,stage=serial,state=fail,reason=...`）。BLE 成功门槛：必须看到 `SER_SIDE,port=/dev/ttyACM0,...status=open` 与 `SER_SIDE_DONE,resets=0,lastError=none`，`BRX` 的 `ok > 0`（至少收到一个完整可解析消息/帧）、`crc=0`、`miss=0`，且存在 `BF` 行时 `cf/ms/dr` 均为 0；`BLE_TEST_SKIPPED` 或 `BLE_TEST_FAILED` 一律不算 PASS。
+
+`validate_transports.py` 会原样回显子进程输出，但不会自动保存 wire log；需要保留输出时使用上面的 `set -o pipefail` + `tee` 管道，并以管道退出码为准。完整 full-profile artifact（summary JSON、wire log）仍用 `sensorarray_hil.py --output-directory` 生成。
+
+BUILD、HOST/PROTOCOL TESTS、SERIAL HIL、BLE HIL 的证据都必须来自本次验证：不能拿历史 artifact 或旧 commit 的 PASS 替代当前 firmware 的 serial/BLE 验收。`validate_transports.py` 是可执行顺序契约；完整 full profile 仍需按下面的 `sensorarray_hil.py` 入口运行并单独报告。本文档不声明本次 HIL 已通过；未运行或无 BLE adapter 必须写 `NOT RUN`。
+
 ## Serial HIL
 
 完整验收入口：
@@ -120,7 +175,7 @@ MODE=CAP
 5. 至少收 10 帧；
 6. 禁止旧 mode/generation frame 被标为 fresh。
 
-本次持久测试统一要求至少 120 秒（2 分钟），并保持 ADS autorange、battery periodic、compact summary 和 8×8 输出开启；同时记录完整 frame 数。S1D1/S8D8 可用 `5 kΩ < value < 20 kΩ` 做宽松 pipeline sanity；其他 open cell 不要求固定数值。
+快速回归持久测试至少 120 秒（2 分钟），并保持 ADS autorange、battery periodic、compact summary 和 8×8 输出开启；本轮最终 acceptance 仍必须使用 1200 秒 Serial 与 600 秒 BLE。所有阶段同时记录完整 frame 数。S1D1/S8D8 可用 `5 kΩ < value < 20 kΩ` 做宽松 pipeline sanity；其他 open cell 不要求固定数值。
 
 Serial observer 必须把以下任一新出现记录为 FAIL：
 
@@ -261,11 +316,13 @@ stale descriptor / release mismatch
 
 分别记录 CAP/RES/VOLT physical FPS 与 emitted FPS。与同硬件、同 rows、同日志配置的 baseline 比较；下降超过 5% 必须调查，不能通过关闭 8×8、battery、ADS50/AB50、autorange 或 FF30 规避。
 
-## 本轮实测结果
+## 历史实测结果（不作为当前 HEAD 证据）
 
-本节只记录 artifact 已证明的范围。Targeted PASS 不替代 complete full profile，Bleak 自动化也不替代 nRF Connect 人工验收或外部 DMM 精度证据。
+> 本节所有条目均为此前 commit/日期留下的历史记录，provenance 指向当时的 flash image 与 validation artifact。当前 HEAD 的 BUILD/HOST/SERIAL/BLE 验收必须重新运行并保存本次 artifact；历史目录、旧 commit 的 PASS 与旧 wire log 不能作为当前 firmware 验收证据。
 
-### 本次 `/dev/ttyACM0` 重试（2026-08-13）
+本节只记录历史 artifact 已证明的范围。Targeted PASS 不替代 complete full profile，Bleak 自动化也不替代 nRF Connect 人工验收或外部 DMM 精度证据。
+
+### 2026-08-13 `/dev/ttyACM0` 重试（历史）
 
 - 固件刷写：PASS。ESP32-S3，应用镜像 SHA 校验通过，端口 `/dev/ttyACM0`。
 - Serial smoke：PASS。CAP/RES/VOLT/CAP 模式切换、MAPP、CRC 和启动检查通过。
@@ -407,11 +464,13 @@ FAST/non-blocking 设计允许在 unsubscribe/reconnect 或 BLE slot 满时有�
 
 ## 发布结果格式
 
-Serial 与 BLE 分开给结论：
+Serial 与 BLE 分开给结论，并使用统一状态模板：
 
 ```text
-SERIAL PASS / FAIL / NOT RUN
-BLE PASS / FAIL / NOT RUN
+SERIAL PASS / FAIL / NOT RUN / BLOCKED
+BLE PASS / FAIL / NOT RUN / BLOCKED
+REBOOT / RECOVERY HIL PASS / FAIL / NOT RUN / BLOCKED
+ACCURACY VERIFIED / NOT VERIFIED
 ```
 
 每个 PASS 都要附 frame/message 数、duration、CRC、reset count、mode cycles、stack minimum、heap 与 drop counters。没有 BLE adapter 时应写：
@@ -420,4 +479,4 @@ BLE PASS / FAIL / NOT RUN
 BLE HIL NOT RUN: reason=host BLE adapter unavailable
 ```
 
-这不影响继续完成 build、host tests、Serial HIL 与 BLE HIL 工具测试。
+历史章节的 PASS 不进入当前状态模板；当前结论只能来自本次 freshly run 的证据。未做受控 reset 时 reboot/recovery 写 `BLOCKED: reason=no controlled reset procedure`；没有同步 DMM/标准件时 accuracy 写 `NOT VERIFIED: reason=no synchronized DMM/standard`。这不影响继续完成 build、host tests、Serial HIL 与 BLE HIL 工具测试。

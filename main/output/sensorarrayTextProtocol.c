@@ -65,10 +65,18 @@ static uint8_t sensorarrayTextMixedRowMask(uint64_t mask, uint8_t row)
     return (uint8_t)((mask >> ((size_t)(row - 1u) * SENSORARRAY_MATRIX_COLS)) & 0xFFu);
 }
 
-static char sensorarrayTextMixedModeChar(sensorarrayMeasurementMode_t mode)
+static char sensorarrayTextMixedProfileChar(sensorarrayMeasurementMode_t mode)
 {
     return mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ? 'C' :
-        (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ? 'V' : 'R');
+        (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ? 'V' :
+         (mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ? 'R' : 'N'));
+}
+
+static const char *sensorarrayTextMixedModeName(sensorarrayMeasurementMode_t mode)
+{
+    return mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ? "CAP" :
+        (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ? "VOLT" :
+         (mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ? "RES" : NULL));
 }
 
 static int64_t sensorarrayTextMixedValue(const sensorarrayFrame_t *frame,
@@ -83,6 +91,13 @@ static int64_t sensorarrayTextMixedValue(const sensorarrayFrame_t *frame,
         frame->measurement.valuesFixed[index] : INT64_MIN;
 }
 
+static uint64_t sensorarrayTextActiveMask(uint8_t rows)
+{
+    uint32_t cells = (uint32_t)rows * SENSORARRAY_MATRIX_COLS;
+    return cells >= SENSORARRAY_MATRIX_CELL_COUNT ? UINT64_MAX :
+        ((UINT64_C(1) << cells) - 1u);
+}
+
 esp_err_t sensorarrayTextProtocolBuildMixedFrame(
     const sensorarrayFrame_t *frame,
     sensorarrayTextPacket_t *outPacket)
@@ -94,13 +109,16 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
     *outPacket = (sensorarrayTextPacket_t){.sequence = frame->sequence};
     char profile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u];
     for (uint8_t row = 0u; row < SENSORARRAY_ROW_MODE_PROFILE_ROWS; ++row) {
-        sensorarrayMeasurementMode_t mode = frame->rowMode[row];
-        profile[row] = sensorarrayTextMixedModeChar(mode);
+        profile[row] = row < frame->activeRows ?
+            sensorarrayTextMixedProfileChar(frame->rowMode[row]) : 'N';
     }
     profile[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH] = '\0';
+    uint64_t activeMask = sensorarrayTextActiveMask(frame->activeRows);
+    uint64_t expectedMask = frame->expectedMask & activeMask;
+    uint64_t acquiredMask = frame->acquiredMask & activeMask;
     size_t position = sensorarrayTextAppend(
         outPacket->data, sizeof(outPacket->data), 0u,
-        "M,seq=%lu,ts=%llu,rows=%u,cells=%u,rgen=%lu,rrid=%lu,pgen=%lu,prid=%lu,profile=%s,fmt=mix1\n",
+        "M,seq=%lu,ts=%llu,rows=%u,cells=%u,rgen=%lu,rrid=%lu,pgen=%lu,prid=%lu,profile=%s,expected=%016llX,acquired=%016llX,fmt=mix1\n",
         (unsigned long)frame->sequence,
         (unsigned long long)frame->timestampUs,
         (unsigned)frame->activeRows,
@@ -109,9 +127,15 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
         (unsigned long)frame->configSnapshot.requestId,
         (unsigned long)frame->rowProfileGeneration,
         (unsigned long)frame->rowProfileRequestId,
-        profile);
+        profile,
+        (unsigned long long)expectedMask,
+        (unsigned long long)acquiredMask);
     for (uint8_t row = 1u; row <= frame->activeRows && position < sizeof(outPacket->data); ++row) {
         sensorarrayMeasurementMode_t mode = frame->rowMode[row - 1u];
+        const char *modeName = sensorarrayTextMixedModeName(mode);
+        if (!modeName) {
+            continue;
+        }
         uint64_t valid = mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ?
             frame->capValidMask : frame->measurement.validMask;
         uint64_t fresh = mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ?
@@ -124,9 +148,11 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
             (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ? "uv-x" : "mohm-x");
         position = sensorarrayTextAppend(
             outPacket->data, sizeof(outPacket->data), position,
-            "MR,s=%u,m=%c,unit=%s,scale=%d,valid=%02X,fresh=%02X,error=%02X,fmt=%s,D=",
-            (unsigned)row, sensorarrayTextMixedModeChar(mode), unit,
+            "MR,s=%u,m=%s,unit=%s,scale=%d,expected=%02X,acquired=%02X,valid=%02X,fresh=%02X,error=%02X,fmt=%s,D=",
+            (unsigned)row, modeName, unit,
             (int)frame->rowScale[row - 1u],
+            (unsigned)sensorarrayTextMixedRowMask(expectedMask, row),
+            (unsigned)sensorarrayTextMixedRowMask(acquiredMask, row),
             (unsigned)sensorarrayTextMixedRowMask(valid, row),
             (unsigned)sensorarrayTextMixedRowMask(fresh, row),
             (unsigned)sensorarrayTextMixedRowMask(errors, row), fmt);
@@ -142,6 +168,12 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
                                                  dLine == 1u ? "X%02X" : ",X%02X",
                                                  (unsigned)error);
             } else {
+                if (mode != SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE &&
+                    (value < -SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX ||
+                     value > SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX)) {
+                    outPacket->length = 0u;
+                    return ESP_ERR_INVALID_SIZE;
+                }
                 position = sensorarrayTextAppend(outPacket->data,
                                                  sizeof(outPacket->data), position,
                                                  dLine == 1u ? "%lld" : ",%lld",
@@ -155,6 +187,8 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
         outPacket->length = 0u;
         return ESP_ERR_INVALID_SIZE;
     }
+    /* An 8-row all-V/R frame with 12-digit worst-case values can exceed the
+     * 1536-byte DATA slot, so the builder rejects instead of truncating. */
     uint32_t crc = sensorarrayTextCrc32((const uint8_t *)outPacket->data, position);
     position = sensorarrayTextAppend(outPacket->data, sizeof(outPacket->data), position,
                                      "K,seq=%lu,rgen=%lu,rrid=%lu,pgen=%lu,prid=%lu,crc=%08lX\n",
@@ -186,11 +220,14 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
         frame->activeRows : SENSORARRAY_MATRIX_ROWS;
     uint32_t cellCount = (uint32_t)rows * SENSORARRAY_MATRIX_COLS;
     uint32_t invalidCount = cellCount - frame->validCount;
+    uint64_t activeMask = sensorarrayTextActiveMask(rows);
+    uint64_t expectedMask = frame->expectedMask & activeMask;
+    uint64_t acquiredMask = frame->acquiredMask & activeMask;
     size_t position = sensorarrayTextAppend(
         outPacket->data,
         sizeof(outPacket->data),
         0u,
-        "C,seq=%lu,ts=%llu,rows=%u,cells=%lu,gen=%lu,rid=%lu,rf=%02X,pf=%02X,sf=%02X,"
+        "C,seq=%lu,ts=%llu,rows=%u,cells=%lu,gen=%lu,rid=%lu,rf=%02X,pf=%02X,sf=%02X,expected=%016llX,acquired=%016llX,"
         "bad=%u/%u/%lu,fmt=pf6,n=%lu\n",
         (unsigned long)frame->sequence,
         (unsigned long long)frame->timestampUs,
@@ -201,6 +238,8 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
         (unsigned)frame->rowFreshMask,
         (unsigned)frame->primaryFreshMask,
         (unsigned)frame->secondaryFreshMask,
+        (unsigned long long)expectedMask,
+        (unsigned long long)acquiredMask,
         frame->stale ? 1u : 0u,
         frame->mixedEpoch ? 1u : 0u,
         (unsigned long)invalidCount,
@@ -280,11 +319,12 @@ esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
                    frame->activeRows <= SENSORARRAY_MATRIX_ROWS ?
         frame->activeRows : SENSORARRAY_MATRIX_ROWS;
     uint32_t cellCount = (uint32_t)rows * SENSORARRAY_MATRIX_COLS;
-    uint64_t activeMask = cellCount == 64u ? UINT64_MAX :
-        ((UINT64_C(1) << cellCount) - 1u);
+    uint64_t activeMask = sensorarrayTextActiveMask(rows);
     uint64_t validMask = frame->measurement.validMask & activeMask;
     uint64_t freshMask = frame->measurement.freshMask & activeMask;
     uint64_t errorMask = frame->measurement.errorMask & activeMask;
+    uint64_t expectedMask = frame->expectedMask & activeMask;
+    uint64_t acquiredMask = frame->acquiredMask & activeMask;
     char tag = frame->measurement.mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ?
         'V' : 'R';
     const char *format = frame->measurement.mode ==
@@ -293,7 +333,7 @@ esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
         outPacket->data,
         sizeof(outPacket->data),
         0u,
-        "%c,seq=%lu,ts=%llu,rows=%u,cells=%lu,gen=%lu,rid=%lu,mode=%s,unit=%s,scale=%d,valid=%016llX,fresh=%016llX,error=%016llX,ref=%s,rail=%u,age=%lu,avdd=%ld,avss=%ld,vexc=%ld,rref=%lu,dur=%llu,tr=%llu,gc=%lu,ov=%lu,aa=%lu,fb=%lu,ir=%lu,to=%lu,st=%lu,spi=%lu,fmt=%s-x,n=%lu,bad=%lu\n",
+        "%c,seq=%lu,ts=%llu,rows=%u,cells=%lu,gen=%lu,rid=%lu,mode=%s,unit=%s,scale=%d,valid=%016llX,fresh=%016llX,error=%016llX,expected=%016llX,acquired=%016llX,ref=%s,rail=%u,age=%lu,avdd=%ld,avss=%ld,vexc=%ld,rref=%lu,dur=%llu,tr=%llu,gc=%lu,ov=%lu,aa=%lu,fb=%lu,ir=%lu,to=%lu,st=%lu,spi=%lu,fmt=%s-x,n=%lu,bad=%lu\n",
         tag,
         (unsigned long)frame->sequence,
         (unsigned long long)frame->timestampUs,
@@ -307,6 +347,8 @@ esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
         (unsigned long long)validMask,
         (unsigned long long)freshMask,
         (unsigned long long)errorMask,
+        (unsigned long long)expectedMask,
+        (unsigned long long)acquiredMask,
         sensorarrayAdsReferenceSourceName(frame->measurement.referenceSource),
         frame->measurement.railValid ? 1u : 0u,
         (unsigned long)frame->measurement.railAgeFrames,
@@ -465,6 +507,8 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     scratchFrame->activeRows = 1u;
     scratchFrame->validCount = 8u;
     scratchFrame->capValidMask = UINT64_C(0xFF);
+    scratchFrame->expectedMask = UINT64_C(0xFF);
+    scratchFrame->acquiredMask = UINT64_C(0xFF);
     for (size_t index = 0u; index < 8u; ++index) {
         scratchFrame->capTotalPf[index] = (double)index + 0.25;
     }
@@ -473,7 +517,9 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     SENSORARRAY_PROTOCOL_CHECK(packet.length > 0u &&
                                strncmp(packet.data, "C,", 2u) == 0 &&
                                strstr(packet.data, "rows=1,cells=8") != NULL &&
-                               strstr(packet.data, "fmt=pf6") != NULL);
+                               strstr(packet.data, "fmt=pf6") != NULL &&
+                               strstr(packet.data, "expected=00000000000000FF") != NULL &&
+                               strstr(packet.data, "acquired=00000000000000FF") != NULL);
 
     const uint8_t rowCases[] = {1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u};
     for (size_t rowCase = 0u; rowCase < sizeof(rowCases); ++rowCase) {
@@ -493,6 +539,8 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
             ((UINT64_C(1) << cells) - 1u);
         scratchFrame->measurement.freshMask =
             scratchFrame->measurement.validMask;
+        scratchFrame->expectedMask = scratchFrame->measurement.validMask;
+        scratchFrame->acquiredMask = scratchFrame->expectedMask;
         for (size_t index = 0u; index < cells; ++index) {
             scratchFrame->measurement.valuesFixed[index] = (int64_t)index - 4LL;
             scratchFrame->measurement.pgaGain[index] = 1u;
@@ -512,18 +560,56 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
                                    packet.length <= SENSORARRAY_TEXT_PACKET_MAX &&
                                    packet.data[0] == 'V' &&
                                    strstr(packet.data, expectedCells) != NULL &&
+                                   strstr(packet.data, "expected=") != NULL &&
+                                   strstr(packet.data, "acquired=") != NULL &&
                                    strstr(packet.data, ",X0D") != NULL);
     }
 
     memset(scratchFrame, 0, sizeof(*scratchFrame));
+    scratchFrame->sequence = 41u;
+    scratchFrame->activeRows = 3u;
+    scratchFrame->measurement.mode = SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
+    scratchFrame->measurement.unit = SENSORARRAY_MEASUREMENT_UNIT_VOLT;
+    scratchFrame->measurement.decimalScale = -6;
+    scratchFrame->measurement.referenceSource =
+        SENSORARRAY_ADS_REFERENCE_AVDD_AVSS;
+    scratchFrame->measurement.modeGeneration = 2u;
+    scratchFrame->measurement.modeRequestId = 7u;
+    scratchFrame->measurement.railValid = true;
+    scratchFrame->expectedMask = UINT64_C(0xFFFFFF);
+    scratchFrame->acquiredMask = UINT64_C(0xFFFFFE);
+    scratchFrame->measurement.validMask = UINT64_C(0xFFFFFE);
+    scratchFrame->measurement.freshMask = UINT64_C(0xFFFFFE);
+    scratchFrame->measurement.errorMask = UINT64_C(0x1);
+    for (size_t index = 0u; index < 24u; ++index) {
+        scratchFrame->measurement.valuesFixed[index] = (int64_t)index;
+        scratchFrame->measurement.pgaGain[index] = 1u;
+    }
+    scratchFrame->measurement.valuesFixed[0] =
+        SENSORARRAY_MEASUREMENT_INVALID_FIXED;
+    scratchFrame->measurement.errorReason[0] = SENSORARRAY_CELL_ERROR_STALE;
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMeasurementFrame(scratchFrame, &packet) == ESP_OK);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length > 0u &&
+                               strstr(packet.data, "expected=0000000000FFFFFF") != NULL &&
+                               strstr(packet.data, "acquired=0000000000FFFFFE") != NULL &&
+                               strstr(packet.data, ",X04") != NULL);
+
+    memset(scratchFrame, 0, sizeof(*scratchFrame));
     scratchFrame->activeRows = 8u;
+    scratchFrame->sequence = UINT32_MAX;
+    scratchFrame->timestampUs = UINT64_MAX;
     scratchFrame->measurement.mode = SENSORARRAY_MEASUREMENT_MODE_RESISTANCE;
     scratchFrame->measurement.unit = SENSORARRAY_MEASUREMENT_UNIT_OHM;
     scratchFrame->measurement.decimalScale = -3;
     scratchFrame->measurement.referenceSource = SENSORARRAY_ADS_REFERENCE_INTERNAL;
     scratchFrame->measurement.railValid = true;
+    scratchFrame->measurement.modeGeneration = UINT32_MAX;
+    scratchFrame->measurement.modeRequestId = UINT32_MAX;
     scratchFrame->measurement.validMask = UINT64_MAX;
     scratchFrame->measurement.freshMask = UINT64_MAX;
+    scratchFrame->expectedMask = UINT64_MAX;
+    scratchFrame->acquiredMask = UINT64_MAX;
     scratchFrame->measurement.frameDurationUs = UINT64_MAX;
     scratchFrame->measurement.transitionDurationUs = UINT64_MAX;
     scratchFrame->measurement.gainChangeCount = UINT32_MAX;
@@ -544,6 +630,22 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     SENSORARRAY_PROTOCOL_CHECK(packet.length <=
                                SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE);
 
+    /* Legal value ranges are not enough: with every diagnostic header field
+     * at its maximum and all 64 cells at the 12-digit fixed-point maximum,
+     * the frame exceeds the 1536-byte DATA contract and must be rejected
+     * instead of truncated. */
+    scratchFrame->measurement.referenceSource =
+        SENSORARRAY_ADS_REFERENCE_AVDD_AVSS;
+    scratchFrame->measurement.avddUv = INT32_MAX;
+    scratchFrame->measurement.avssUv = INT32_MIN;
+    scratchFrame->measurement.matrixReferenceUv = INT32_MAX;
+    scratchFrame->measurement.referenceResistorOhms = UINT32_MAX;
+    scratchFrame->measurement.railAgeFrames = UINT32_MAX;
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMeasurementFrame(scratchFrame, &packet) ==
+            ESP_ERR_INVALID_SIZE);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length == 0u);
+
     memset(scratchFrame, 0, sizeof(*scratchFrame));
     scratchFrame->sequence = 42u;
     scratchFrame->activeRows = SENSORARRAY_MATRIX_ROWS;
@@ -552,6 +654,8 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     scratchFrame->configSnapshot.requestId = 4u;
     scratchFrame->rowProfileGeneration = 5u;
     scratchFrame->rowProfileRequestId = 6u;
+    scratchFrame->expectedMask = UINT64_MAX;
+    scratchFrame->acquiredMask = UINT64_MAX;
     static const sensorarrayMeasurementMode_t mixedModes[8] = {
         SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
         SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
@@ -589,8 +693,101 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
         sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) == ESP_OK);
     SENSORARRAY_PROTOCOL_CHECK(packet.data[0] == 'M' &&
                                strstr(packet.data, "MR,s=8") != NULL &&
+                               strstr(packet.data, "m=CAP") != NULL &&
+                               strstr(packet.data, "m=VOLT") != NULL &&
+                               strstr(packet.data, "m=RES") != NULL &&
+                               strstr(packet.data, "expected=FFFFFFFFFFFFFFFF") != NULL &&
+                               strstr(packet.data, "acquired=FFFFFFFFFFFFFFFF") != NULL &&
+                               strstr(packet.data, "MR,s=1,m=CAP,unit=pF,scale=-6,expected=FF,acquired=FF") != NULL &&
                                strstr(packet.data, "fmt=mix1") != NULL &&
                                strstr(packet.data, "K,seq=42") != NULL);
+
+    memset(scratchFrame, 0, sizeof(*scratchFrame));
+    scratchFrame->sequence = 43u;
+    scratchFrame->activeRows = 3u;
+    scratchFrame->mixedProfile = true;
+    scratchFrame->configSnapshot.generation = 7u;
+    scratchFrame->configSnapshot.requestId = 8u;
+    scratchFrame->rowProfileGeneration = 9u;
+    scratchFrame->rowProfileRequestId = 10u;
+    scratchFrame->expectedMask = UINT64_C(0xFFFFFF);
+    scratchFrame->acquiredMask = UINT64_C(0xFFFFFF);
+    static const sensorarrayMeasurementMode_t shortModes[8] = {
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
+        SENSORARRAY_MEASUREMENT_MODE_RESISTANCE,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+        SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
+    };
+    for (uint8_t row = 0u; row < SENSORARRAY_MATRIX_ROWS; ++row) {
+        scratchFrame->rowMode[row] = shortModes[row];
+        scratchFrame->rowScale[row] = shortModes[row] ==
+            SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ? -3 : -6;
+        uint64_t rowMask = UINT64_C(0xFF) <<
+            ((size_t)row * SENSORARRAY_MATRIX_COLS);
+        if (shortModes[row] == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
+            scratchFrame->capValidMask |= rowMask;
+            scratchFrame->freshMask |= rowMask;
+            for (uint8_t cell = 0u; cell < SENSORARRAY_MATRIX_COLS; ++cell) {
+                scratchFrame->capTotalPf[row * SENSORARRAY_MATRIX_COLS + cell] =
+                    1.0 + (double)cell;
+            }
+        } else if (shortModes[row] != SENSORARRAY_MEASUREMENT_MODE_NONE) {
+            scratchFrame->measurement.validMask |= rowMask;
+            scratchFrame->measurement.freshMask |= rowMask;
+            for (uint8_t cell = 0u; cell < SENSORARRAY_MATRIX_COLS; ++cell) {
+                scratchFrame->measurement.valuesFixed[
+                    row * SENSORARRAY_MATRIX_COLS + cell] =
+                    (int64_t)(row * 100u + cell);
+            }
+        }
+    }
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) == ESP_OK);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length > 0u &&
+                               packet.length <= SENSORARRAY_TEXT_PACKET_MAX &&
+                               strstr(packet.data, "rows=3,cells=24") != NULL &&
+                               strstr(packet.data, "profile=CVRNNNNN") != NULL &&
+                               strstr(packet.data, "expected=0000000000FFFFFF") != NULL &&
+                               strstr(packet.data, "acquired=0000000000FFFFFF") != NULL &&
+                               strstr(packet.data, "MR,s=2,m=VOLT,unit=V,scale=-6,expected=FF,acquired=FF") != NULL &&
+                               strstr(packet.data, "MR,s=3,m=RES") != NULL &&
+                               strstr(packet.data, "MR,s=4") == NULL);
+
+    memset(scratchFrame, 0, sizeof(*scratchFrame));
+    scratchFrame->sequence = 44u;
+    scratchFrame->activeRows = SENSORARRAY_MATRIX_ROWS;
+    scratchFrame->mixedProfile = true;
+    scratchFrame->expectedMask = UINT64_MAX;
+    scratchFrame->acquiredMask = UINT64_MAX;
+    scratchFrame->measurement.validMask = UINT64_MAX;
+    scratchFrame->measurement.freshMask = UINT64_MAX;
+    for (uint8_t row = 0u; row < SENSORARRAY_MATRIX_ROWS; ++row) {
+        scratchFrame->rowMode[row] = SENSORARRAY_MEASUREMENT_MODE_RESISTANCE;
+        scratchFrame->rowScale[row] = -3;
+        for (uint8_t cell = 0u; cell < SENSORARRAY_MATRIX_COLS; ++cell) {
+            scratchFrame->measurement.valuesFixed[
+                row * SENSORARRAY_MATRIX_COLS + cell] =
+                SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX;
+        }
+    }
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) ==
+            ESP_ERR_INVALID_SIZE);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length == 0u);
+
+    for (uint8_t cell = 0u; cell < SENSORARRAY_MATRIX_CELL_COUNT; ++cell) {
+        scratchFrame->measurement.valuesFixed[cell] =
+            SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX + 1;
+    }
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) ==
+            ESP_ERR_INVALID_SIZE);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length == 0u);
+
     memset(scratchFrame, 0, sizeof(*scratchFrame));
     if (outChecks) {
         *outChecks = checks;

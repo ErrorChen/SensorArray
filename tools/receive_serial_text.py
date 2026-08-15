@@ -10,6 +10,29 @@ from text_protocol import (TextProtocolParser, format_cap_preview,
                            format_measurement_preview)
 
 
+DEFAULT_ROWMODES = (
+    "CCCCCCCC",
+    "VVVVVVVV",
+    "RRRRRRRR",
+    "CVVRRVVC",
+    "RVRCCVVR",
+)
+
+
+def parse_rowmodes(value: str) -> list[str]:
+    """Parse comma-separated 8-character C/V/R ROWMODES profiles."""
+
+    profiles: list[str] = []
+    for item in value.split(","):
+        profile = item.strip().upper()
+        if not profile:
+            continue
+        if len(profile) != 8 or any(char not in "CVR" for char in profile):
+            raise ValueError(f"invalid ROWMODES profile {profile!r}")
+        profiles.append(profile)
+    return profiles
+
+
 def decode_ascii_line(raw: bytes, protocol: TextProtocolParser) -> str | None:
     raw_line = raw.rstrip(b"\r\n")
     try:
@@ -48,11 +71,23 @@ def main() -> int:
                                              "off", "on", "rail", "bat", "zero"))
     parser.add_argument("--command", action="append", default=[],
                         help="Additional raw control command to send after ST=SER.")
+    parser.add_argument("--rowmodes", default="",
+                        help="Comma-separated ROWMODES profiles to apply and validate.")
+    parser.add_argument("--require-rowmodes", action="store_true",
+                        help="Require ROWMODES ACK -> exactly one RMAPP/RMERR terminal "
+                             "for every sent profile and fail on lifecycle errors.")
     parser.add_argument("--show-cap", action="store_true")
     parser.add_argument("--show-log", action="store_true")
     args = parser.parse_args()
     show_cap = args.show_cap or args.stream in ("data", "all")
     show_log = args.show_log or args.stream in ("log", "all")
+    try:
+        rowmodes = parse_rowmodes(args.rowmodes)
+    except ValueError as error:
+        print(f"SERIAL_TEST_SKIPPED reason=invalid_rowmodes detail={error}")
+        return 2
+    if args.require_rowmodes and not rowmodes:
+        rowmodes = list(DEFAULT_ROWMODES)
     try:
         import serial
     except ImportError:
@@ -110,12 +145,22 @@ def main() -> int:
         next_row_at = started
         sent_rows_5 = False
         sent_rows_8 = False
+        next_profile_at = started
+        sent_profiles = 0
         while time.monotonic() - started < args.duration:
             elapsed = time.monotonic() - started
             if rows and time.monotonic() >= next_row_at:
                 write_control(connection, f"ROWS={rows[row_index % len(rows)]}\n".encode())
                 row_index += 1
                 next_row_at = time.monotonic() + max(args.duration / max(len(rows), 1), 1.0)
+            if rowmodes and sent_profiles < len(rowmodes) and time.monotonic() >= next_profile_at:
+                profile = rowmodes[sent_profiles]
+                write_control(connection, f"ROWMODES={profile}\n".encode())
+                sent_profiles += 1
+                print(f"SERIAL_ROWMODES,phase=send,index={sent_profiles},"
+                      f"count={len(rowmodes)},profile={profile}", flush=True)
+                next_profile_at = time.monotonic() + max(
+                    args.duration / max(len(rowmodes), 1), 1.0)
             if not rows and args.set_rows and not sent_rows_5 and elapsed >= args.duration / 3:
                 write_control(connection, b"ROWS=5\n")
                 sent_rows_5 = True
@@ -134,7 +179,26 @@ def main() -> int:
     finally:
         connection.close()
     print(protocol.summary("SERIAL_DONE"))
-    return 0
+    status = 0
+    if rowmodes:
+        lifecycle = protocol.rowmode_lifecycle_errors()
+        failure = None
+        if sent_profiles < len(rowmodes):
+            failure = f"not_all_sent={sent_profiles}/{len(rowmodes)}"
+        elif protocol.counters.rmack <= 0:
+            failure = "no_ack"
+        elif lifecycle["unterminated"]:
+            failure = f"missing_terminal={lifecycle['unterminated']}"
+        elif lifecycle["duplicate"]:
+            failure = f"duplicate_terminal={lifecycle['duplicate']}"
+        elif lifecycle["terminal_without_ack"]:
+            failure = f"terminal_without_ack={lifecycle['terminal_without_ack']}"
+        elif protocol.counters.rmack < sent_profiles:
+            failure = f"ack_count={protocol.counters.rmack}/{sent_profiles}"
+        if failure is not None:
+            print(f"SERIAL_ROWMODES_FAIL reason={failure}", flush=True)
+            status = 1
+    return status
 
 
 if __name__ == "__main__":

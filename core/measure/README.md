@@ -40,7 +40,8 @@ readback、等待建立并丢弃新转换，最后增加 generation 并发布 `M
 - `ads/sensorarrayBatteryScheduler.*`：基于微秒时钟的纯逻辑 due/defer/boundary admission。
 - `ads/sensorarrayAdsMath.*`：rail split、电压和分压电阻 fixed-point 算法及分类。
 - `fdc/*`：原有电容生产路径；本次模式扩展不改写 ready/read/rescue 算法。
-- `mixed/*`：仍不是生产模式；不要用它绕过统一状态机。
+- `mixed/*`：Mixed Row 生产路径；它通过统一 frame-boundary 状态机逐行调度
+  CAP/VOLT/RES，并把每个子段的 acquired/fresh/valid/error 语义合并到同一帧。
 
 模式、reference、rail、校准、路由、ADS reset 或连续 overrange 会使旧 ADS gain
 cache 和旧 measurement payload 失效。热路径使用固定 context/slot 和有边界的

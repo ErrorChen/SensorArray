@@ -158,13 +158,11 @@ class BleTextReceiver:
                 self._write(f"BLX,ch={channel},reason=nonascii_line,phase={self.phase},"
                             f"off={error.start},byte={value:02X},len={len(raw_line)}")
                 continue
-            if channel == "D":
-                self.parser.feed_line(line)
-                if not self.args.tail:
-                    self._write(line)
-            elif channel == "L":
-                self._write(line)
-            else:
+            # The shared parser owns protocol accounting (frames, summaries,
+            # ROWMODES lifecycle).  CTRL carries RMACK and LOG carries
+            # RMAPP/RMERR, so every decoded logical channel must feed it once.
+            self.parser.feed_line(line)
+            if channel != "D" or not self.args.tail:
                 self._write(line)
 
     def callback(self, fallback: str):
@@ -203,8 +201,14 @@ class BleTextReceiver:
         duplicate = sum(item.duplicate for item in stats)
         elapsed = max(time.monotonic() - self.started, 0.001)
         fps = self.parser.counters.cap_frames / elapsed
+        counters = self.parser.counters
+        lifecycle = self.parser.rowmode_lifecycle_errors()
         return (f"BRX,ok={ok},miss={missing},gap={gap},crc={crc},tiny={tiny},"
-                f"dup={duplicate},fps={fps:.2f},bytes={self.bytes_rx},phase={self.phase}")
+                f"dup={duplicate},fps={fps:.2f},bytes={self.bytes_rx},phase={self.phase},"
+                f"mix={counters.mixed_frames},rmack={counters.rmack},"
+                f"rmapp={counters.rmapp},rmerr={counters.rmerr},"
+                f"rmbad={counters.lifecycle_duplicate_terminal + counters.lifecycle_terminal_without_ack},"
+                f"rmopen={lifecycle['unterminated']}")
 
     def classify_error(self, error: Exception, sidecar: SerialSidecar) -> str:
         if sidecar.reset_count > 0:

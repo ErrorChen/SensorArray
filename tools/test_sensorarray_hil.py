@@ -10,6 +10,8 @@ from sensorarray_hil import (
     DATA_TX_UUID,
     LOG_TX_UUID,
     SERVICE_UUID,
+    BLE_ROWMODES_PROFILES,
+    SERIAL_ROWMODES_PROFILES,
     BleObserver,
     FaultDetector,
     HilFailure,
@@ -19,8 +21,10 @@ from sensorarray_hil import (
     LineRecord,
     SerialCandidate,
     assertBleChannelQuietAfterUnsubscribe,
+    buildSerialRowmodePlan,
     buildArgumentParser,
     buildBleProfile,
+    bleRowmodesForProfile,
     checkKnownResistances,
     expectedCommandPrefix,
     fastHighLoadIncompleteAssemblyBudget,
@@ -33,7 +37,11 @@ from sensorarray_hil import (
     parseSubscriptionCase,
     parseSubscriptionCases,
     requiredLogTagsForSubscription,
+    resolveBlePhases,
+    runBleRowmodesPhase,
     selectSerialPort,
+    serialRowCountsForProfile,
+    serialRowmodesForProfile,
     serialMissingEmissions,
     startSubscriptions,
     stopSubscriptions,
@@ -42,12 +50,14 @@ from sensorarray_hil import (
     validateBleFirmwareCounters,
     validateGatt,
     validateModeFrame,
+    validateMixedProfileFrame,
+    validateRowmodesTerminal,
     validateArguments,
     validateStackTelemetry,
     waitBleCommand,
     waitForBleTraffic,
 )
-from text_protocol import MeasurementFrame
+from text_protocol import MeasurementFrame, MixedFrame, MixedRow
 
 
 class SerialSequenceTests(unittest.TestCase):
@@ -104,6 +114,50 @@ def capPayload(sequence=7, generation=3, requestId=9, corruptInnerCrc=False):
     lines.append("K,seq=%d,gen=%d,rid=%d,crc=%08X" %
                  (sequence, generation, requestId, crc))
     return "".join(item + "\n" for item in lines).encode("ascii")
+
+
+def mixedPayload(profile="CVVRRVVC", sequence=32, generation=4, requestId=21):
+    modes = {"C": "CAP", "V": "VOLT", "R": "RES"}
+    units = {"CAP": "pF", "VOLT": "V", "RES": "ohm"}
+    scales = {"CAP": -6, "VOLT": -6, "RES": -3}
+    lines = [
+        ("M,seq=%d,ts=0,rows=8,cells=64,rgen=%d,rrid=%d,pgen=%d,prid=%d,"
+         "profile=%s") % (sequence, generation, requestId, generation,
+                          requestId, profile),
+    ]
+    for index, char in enumerate(profile, start=1):
+        mode = modes[char]
+        lines.append(
+            "MR,s=%d,m=%s,unit=%s,scale=%d,valid=FF,fresh=FF,error=00,"
+            "fmt=pf6,D=%s" %
+            (index, mode, units[mode], scales[mode],
+             ",".join(str(index * 1000) for _ in range(8))))
+    crc = zlib.crc32(
+        "".join(line + "\n" for line in lines).encode("ascii")) & 0xFFFFFFFF
+    lines.append("K,seq=%d,crc=%08X" % (sequence, crc))
+    return "".join(line + "\n" for line in lines).encode("ascii")
+
+
+def measurementPayload(mode, sequence=32, generation=4, requestId=21):
+    tag, unit, scale = (("V", "V", -6) if mode == "VOLT" else
+                        ("R", "ohm", -3))
+    values = [str(index + 1) for index in range(64)]
+    lines = [
+        ("%s,seq=%d,ts=0,rows=8,cells=64,gen=%d,rid=%d,mode=%s,unit=%s,"
+         "scale=%d,valid=FFFFFFFFFFFFFFFF,fresh=FFFFFFFFFFFFFFFF,error=0,"
+         "ref=INTREF,rail=1,age=0,dur=1000,tr=0,gc=0,ov=0,aa=0,fb=0,ir=0,"
+         "to=0,st=0,spi=0,fmt=pf6,n=64") %
+        (tag, sequence, generation, requestId, mode, unit, scale),
+    ]
+    for chunk in range(4):
+        start = chunk * 16
+        lines.append("D%d,%s" % (chunk, ",".join(values[start:start + 16])))
+    for chunk in range(4):
+        lines.append("P%d,%s" % (chunk, "01" * 16))
+    crc = zlib.crc32("".join(line + "\n" for line in lines).encode("ascii")) & 0xFFFFFFFF
+    lines.append("K,seq=%d,gen=%d,rid=%d,crc=%08X" %
+                 (sequence, generation, requestId, crc))
+    return "".join(line + "\n" for line in lines).encode("ascii")
 
 
 def resistanceFrame(valueOhms=10000.0, requestId=5, generation=2):
@@ -271,8 +325,14 @@ class FrameContractTest(unittest.TestCase):
     def test_command_reply_contracts(self):
         self.assertEqual(expectedCommandPrefix("STATE?"), "MODE,")
         self.assertEqual(expectedCommandPrefix("MODE?"), "MODE,")
+        self.assertEqual(expectedCommandPrefix("ROWS?"), "ROWS,")
+        self.assertEqual(expectedCommandPrefix("ROWMODES?"), "ROWMODES,")
+        self.assertEqual(expectedCommandPrefix("BAT?"), "ABAT,")
+        self.assertEqual(expectedCommandPrefix("RAIL?"), "ARL,")
         self.assertEqual(expectedCommandPrefix("BTX=SAFE"), "ACK,cmd=BTX")
         self.assertEqual(expectedCommandPrefix("WIFI?"), "ACK,cmd=WIFI")
+        self.assertEqual(expectedCommandPrefix("USBSTREAM=DEBUG"), "USBSTREAM,")
+        self.assertEqual(expectedCommandPrefix("USBSTREAM=FULL"), "USBSTREAM,")
         parsed = parseKnownResistance("s8d8:5000:20000")
         self.assertEqual(parsed.index, 63)
 
@@ -458,6 +518,79 @@ class FakeNotifyClient:
         self.stopped.append(characteristicUuid)
 
 
+class FakeRowmodesClient:
+    """Feeds deterministic ROWMODES lifecycle replies and matching frames."""
+
+    def __init__(self, observer, terminalMode="applied"):
+        self.observer = observer
+        self.terminalMode = terminalMode
+        self.commands = []
+        self.started = []
+        self.stopped = []
+        self.sequence = 30
+        self.nextRequestId = 21
+        self.lastProfile = ""
+        self.duplicateSent = False
+
+    async def start_notify(self, characteristicUuid, callback, **options):
+        self.started.append((characteristicUuid, callback, options))
+
+    async def stop_notify(self, characteristicUuid):
+        self.stopped.append(characteristicUuid)
+
+    async def write_gatt_char(self, characteristicUuid, payload, response):
+        command = bytes(payload).decode("ascii").strip()
+        self.commands.append(command)
+        if command.startswith("ROWMODES="):
+            profile = command.split("=", 1)[1]
+            self.lastProfile = profile
+            requestId = self.nextRequestId
+            self.nextRequestId += 1
+            self.observer.feedNotification(
+                "C",
+                ("RMACK,id=%d,old=CCCCCCCC,new=%s,state=accepted\n" %
+                 (requestId, profile)).encode("ascii"))
+            if self.terminalMode == "missing":
+                return
+            if self.terminalMode == "wrong-id":
+                self.observer.feedNotification(
+                    "L",
+                    ("RMAPP,id=999,gen=4,seq=%d,profile=%s,state=applied\n" %
+                     (self.sequence, profile)).encode("ascii"))
+                return
+            terminal = "RMAPP" if self.terminalMode != "rejected" else "RMERR"
+            state = ("applied" if self.terminalMode != "rejected"
+                     else "rejected")
+            self.observer.feedNotification(
+                "L",
+                ("%s,id=%d,gen=4,seq=%d,profile=%s,state=%s\n" %
+                 (terminal, requestId, self.sequence, profile, state)).encode(
+                     "ascii"))
+            if self.terminalMode == "duplicate" and not self.duplicateSent:
+                self.observer.feedNotification(
+                    "L",
+                    ("RMAPP,id=%d,gen=4,seq=%d,profile=%s,state=applied\n" %
+                     (requestId, self.sequence, profile)).encode("ascii"))
+                self.duplicateSent = True
+            if profile in ("CVVRRVVC", "RVRCCVVR"):
+                payload = mixedPayload(profile, self.sequence)
+            elif profile == "VVVVVVVV":
+                payload = measurementPayload("VOLT", self.sequence,
+                                             requestId=requestId)
+            elif profile == "RRRRRRRR":
+                payload = measurementPayload("RES", self.sequence,
+                                             requestId=requestId)
+            else:
+                payload = capPayload(sequence=self.sequence)
+            self.observer.feedNotification("D", payload)
+            self.sequence += 1
+        elif command == "ROWMODES?":
+            self.observer.feedNotification(
+                "C",
+                ("ROWMODES,active=%s,pending=none,state=applied\n" %
+                 self.lastProfile).encode("ascii"))
+
+
 class BleCommandCorrelationTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.output = HilOutput(None)
@@ -629,6 +762,233 @@ class GattAndProfileTest(unittest.TestCase):
         self.assertEqual(profile.reconnectCycles, 30)
         self.assertEqual(profile.longRunFrames, 2000)
         self.assertEqual(profile.longRunSeconds, 120.0)
+
+
+class SerialRowmodePlanTest(unittest.TestCase):
+    def test_full_serial_profile_plans_rows_1_to_8_and_profiles(self):
+        self.assertEqual(serialRowCountsForProfile("full"),
+                         tuple(range(1, 9)))
+        self.assertEqual(serialRowmodesForProfile("full"),
+                         SERIAL_ROWMODES_PROFILES)
+        plan = buildSerialRowmodePlan("full")
+        self.assertEqual(
+            [step["kind"] for step in plan[:8]],
+            ["rows"] * 8,
+        )
+        self.assertEqual(
+            [step["rows"] for step in plan[:8]],
+            list(range(1, 9)),
+        )
+        self.assertEqual(
+            [step["profile"] for step in plan[8:]],
+            list(SERIAL_ROWMODES_PROFILES),
+        )
+
+    def test_smoke_serial_profile_plans_endpoints_and_mixed_profiles(self):
+        self.assertEqual(serialRowCountsForProfile("smoke"), (1, 8))
+        self.assertEqual(serialRowmodesForProfile("smoke"),
+                         ("CVVRRVVC", "RVRCCVVR"))
+        plan = buildSerialRowmodePlan("smoke")
+        self.assertEqual([step["rows"] for step in plan[:2]], [1, 8])
+        self.assertEqual([step["profile"] for step in plan[2:]],
+                         ["CVVRRVVC", "RVRCCVVR"])
+
+    def test_rowmodes_terminal_state_checks(self):
+        ack = "RMACK,id=21,old=CCCCCCCC,new=CVVRRVVC,state=accepted"
+        applied = ("RMAPP,id=21,gen=4,seq=31,profile=CVVRRVVC,"
+                   "state=applied")
+        self.assertEqual(validateRowmodesTerminal(ack, applied, "CVVRRVVC"),
+                         {"requestId": 21, "generation": 4,
+                          "appliedSequence": 31})
+        with self.assertRaisesRegex(HilFailure, "id mismatch"):
+            validateRowmodesTerminal(
+                ack,
+                "RMAPP,id=22,gen=4,seq=31,profile=CVVRRVVC,state=applied",
+                "CVVRRVVC",
+            )
+        with self.assertRaisesRegex(HilFailure, "rejected"):
+            validateRowmodesTerminal(
+                ack,
+                "RMERR,id=21,gen=4,seq=31,profile=CVVRRVVC,state=rejected",
+                "CVVRRVVC",
+            )
+
+    def test_mixed_frame_profile_validation(self):
+        def row(rowIndex, mode):
+            unit = {"CAP": "pF", "VOLT": "V", "RES": "ohm"}[mode]
+            scale = {"CAP": -6, "VOLT": -6, "RES": -3}[mode]
+            return MixedRow(rowIndex, mode, unit, scale, [rowIndex] * 8,
+                            valid_mask=0xFF, fresh_mask=0xFF, error_mask=0)
+
+        profile = "CVVRRVVC"
+        modes = {"C": "CAP", "V": "VOLT", "R": "RES"}
+        frame = MixedFrame(
+            sequence=32,
+            timestamp_us=0,
+            rows=8,
+            cells=64,
+            profile=profile,
+            generation=1,
+            request_id=2,
+            profile_generation=3,
+            profile_request_id=4,
+            row_frames={index: row(index, modes[char])
+                        for index, char in enumerate(profile, start=1)},
+            crc_ok=True,
+        )
+        validateMixedProfileFrame(frame, profile)
+        frame.row_frames[2].mode = "RES"
+        with self.assertRaisesRegex(HilFailure, "row 2 mode"):
+            validateMixedProfileFrame(frame, profile)
+
+
+class BleRowmodesTest(unittest.TestCase):
+    def setUp(self):
+        self.output = HilOutput(None)
+        self.detector = FaultDetector()
+
+    def tearDown(self):
+        self.output.close()
+
+    def test_ble_profile_rowmode_selection(self):
+        self.assertEqual(BLE_ROWMODES_PROFILES, SERIAL_ROWMODES_PROFILES)
+        self.assertEqual(bleRowmodesForProfile("full"),
+                         BLE_ROWMODES_PROFILES)
+        self.assertEqual(bleRowmodesForProfile("smoke"),
+                         ("CVVRRVVC", "RVRCCVVR"))
+
+    def test_rowmodes_phase_is_selectable(self):
+        parser = buildArgumentParser()
+        args = parser.parse_args(["ble", "--phases", "rowmodes"])
+        self.assertIn("rowmodes", args.phases)
+
+    def test_full_ble_profile_includes_rowmodes_by_default(self):
+        self.assertEqual(resolveBlePhases("smoke", {"matrix"}),
+                         {"matrix"})
+        self.assertEqual(resolveBlePhases("full", {"matrix"}),
+                         {"matrix", "rowmodes"})
+
+    def test_observer_feeds_ctrl_ack_and_log_terminal_to_parser(self):
+        observer = BleObserver(self.output, self.detector)
+        observer.feedNotification(
+            "C", b"RMACK,id=21,old=CCCCCCCC,new=CVVRRVVC,state=accepted\n")
+        observer.feedNotification(
+            "L", b"RMAPP,id=21,gen=4,seq=31,profile=CVVRRVVC,state=applied\n")
+        self.assertEqual(observer.protocol.counters.rmack, 1)
+        self.assertEqual(observer.protocol.counters.rmapp, 1)
+        self.assertEqual(observer.protocol.rowmode_lifecycle_errors(),
+                         {"unterminated": 0, "duplicate": 0,
+                          "terminal_without_ack": 0})
+        observer.feedNotification("D", capPayload())
+        self.assertEqual(len(observer.frames), 1)
+        validateBleWindow(observer)
+
+    def test_observer_rejects_duplicate_terminal(self):
+        observer = BleObserver(self.output, self.detector)
+        observer.feedNotification(
+            "C", b"RMACK,id=21,old=CCCCCCCC,new=CVVRRVVC,state=accepted\n")
+        for _ in range(2):
+            observer.feedNotification(
+                "L",
+                b"RMAPP,id=21,gen=4,seq=31,profile=CVVRRVVC,state=applied\n")
+        lifecycle = observer.protocol.rowmode_lifecycle_errors()
+        self.assertEqual(lifecycle["duplicate"], 1)
+        self.assertEqual(
+            observer.protocol.counters.lifecycle_duplicate_terminal, 1)
+
+    def test_observer_rejects_terminal_without_ack(self):
+        observer = BleObserver(self.output, self.detector)
+        observer.feedNotification(
+            "L", b"RMAPP,id=9,gen=4,seq=31,profile=CVVRRVVC,state=applied\n")
+        lifecycle = observer.protocol.rowmode_lifecycle_errors()
+        self.assertEqual(lifecycle["terminal_without_ack"], 1)
+
+
+class BleRowmodesPhaseTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.output = HilOutput(None)
+        self.detector = FaultDetector()
+        self.detector.arm()
+        self.observer = BleObserver(self.output, self.detector)
+
+    async def asyncTearDown(self):
+        self.output.close()
+
+    async def test_smoke_phase_transactions_are_sequential_and_correlated(self):
+        client = FakeRowmodesClient(self.observer)
+        result = await runBleRowmodesPhase(
+            client, self.observer, self.detector, "smoke", 0.2, 0.2)
+        self.assertEqual(
+            [item["profile"] for item in result["profiles"]],
+            ["CVVRRVVC", "RVRCCVVR"],
+        )
+        self.assertEqual(result["profiles"][0]["requestId"], 21)
+        self.assertEqual(result["profiles"][0]["generation"], 4)
+        self.assertEqual(result["profiles"][0]["appliedSequence"], 30)
+        self.assertEqual(result["profiles"][1]["requestId"], 22)
+        self.assertEqual(result["profiles"][1]["appliedSequence"], 31)
+        self.assertEqual(
+            client.commands,
+            ["ROWMODES=CVVRRVVC", "ROWMODES?",
+             "ROWMODES=RVRCCVVR", "ROWMODES?",
+             "ROWMODES=CCCCCCCC"],
+        )
+        self.assertEqual(result["lifecycle"],
+                         {"unterminated": 0, "duplicate": 0,
+                          "terminal_without_ack": 0})
+
+    async def test_full_phase_exercises_all_five_profiles(self):
+        client = FakeRowmodesClient(self.observer)
+        result = await runBleRowmodesPhase(
+            client, self.observer, self.detector, "full", 0.2, 0.2)
+        self.assertEqual(
+            [item["profile"] for item in result["profiles"]],
+            ["CCCCCCCC", "VVVVVVVV", "RRRRRRRR", "CVVRRVVC", "RVRCCVVR"],
+        )
+        self.assertEqual(
+            client.commands,
+            ["ROWMODES=CCCCCCCC", "ROWMODES?",
+             "ROWMODES=VVVVVVVV", "ROWMODES?",
+             "ROWMODES=RRRRRRRR", "ROWMODES?",
+             "ROWMODES=CVVRRVVC", "ROWMODES?",
+             "ROWMODES=RVRCCVVR", "ROWMODES?",
+             "ROWMODES=CCCCCCCC"],
+        )
+        self.assertEqual(
+            [item["requestId"] for item in result["profiles"]],
+            [21, 22, 23, 24, 25],
+        )
+        self.assertEqual(result["lifecycle"],
+                         {"unterminated": 0, "duplicate": 0,
+                          "terminal_without_ack": 0})
+
+    async def test_duplicate_terminal_fails_phase_lifecycle_check(self):
+        client = FakeRowmodesClient(self.observer, terminalMode="duplicate")
+        with self.assertRaisesRegex(HilFailure, "duplicate=1"):
+            await runBleRowmodesPhase(
+                client, self.observer, self.detector, "smoke", 0.2, 0.2)
+
+    async def test_rejected_terminal_fails_transaction(self):
+        client = FakeRowmodesClient(self.observer, terminalMode="rejected")
+        with self.assertRaisesRegex(HilFailure, "rejected"):
+            await runBleRowmodesPhase(
+                client, self.observer, self.detector, "smoke", 0.2, 0.2)
+
+    async def test_missing_terminal_fails_transaction(self):
+        client = FakeRowmodesClient(self.observer, terminalMode="missing")
+        with self.assertRaisesRegex(HilFailure,
+                                    "timeout waiting for ROWMODES=CVVRRVVC "
+                                    "BLE terminal"):
+            await runBleRowmodesPhase(
+                client, self.observer, self.detector, "smoke", 0.05, 0.05)
+
+    async def test_unknown_terminal_fails_transaction(self):
+        client = FakeRowmodesClient(self.observer, terminalMode="wrong-id")
+        with self.assertRaisesRegex(HilFailure,
+                                    "timeout waiting for ROWMODES=CVVRRVVC "
+                                    "BLE terminal"):
+            await runBleRowmodesPhase(
+                client, self.observer, self.detector, "smoke", 0.05, 0.05)
 
 
 if __name__ == "__main__":

@@ -6,14 +6,16 @@
 - 每行以 LF 结束，host 应兼容 CRLF；
 - cell 顺序为 row-major；
 - `rows * 8 == cells == n`；
-- DATA message 最大 1536 bytes；
+- DATA 与 LOG 完整 message 最大 1536 bytes；CTRL reply 最大 512 bytes；BLE CTRL RX command 上限 128 bytes；
+- 超限不截断：DATA/LOG 超限发布 `TXDROP,...reason=payload_too_large`，CTRL reply 超限发布 `CTRLDROP,...reason=reply_too_large`，builder 直接拒绝而不是截断；
+- transport 轮转使用有界 DATA batch：每轮先发送有限数量的 DATA，再让 LIFECYCLE 与 LOG 通过，且 LIFECYCLE 优先于普通 LOG；不是 DATA-always-first；
 - frame 内部使用 IEEE CRC-32；
 - BLE 分片外层还有一层完整 message CRC，见 [BLE 协议](ble-protocol.md)。
 
 ## CAP frame
 
 ```text
-C,seq=<n>,ts=<us>,rows=<1..8>,cells=<rows*8>,gen=<g>,rid=<r>,rf=<hex>,pf=<hex>,sf=<hex>,bad=<stale>/<mixed>/<invalid>,fmt=pf6,n=<cells>
+C,seq=<n>,ts=<us>,rows=<1..8>,cells=<rows*8>,gen=<g>,rid=<r>,rf=<hex>,pf=<hex>,sf=<hex>,expected=<hex>,acquired=<hex>,bad=<stale>/<mixed>/<invalid>,fmt=pf6,n=<cells>
 D0,<最多16个值>
 D1,<最多16个值>
 ...
@@ -33,13 +35,14 @@ CAP `D` 值是 `pF * 1,000,000` 的有符号整数。无效 sentinel 为 `-10000
 | `rid` | 已应用 row request ID |
 | `rf` | row fresh mask |
 | `pf` / `sf` | primary/secondary FDC fresh mask |
+| `expected` / `acquired` | acquisition contract mask：expected 是本帧计划采集的 cell，acquired 是本帧实际完成读取的 cell；只覆盖 active cells，acquired 必须是 expected 的子集 |
 | `bad` | stale frame / mixed epoch / invalid cell count |
 | `fmt=pf6` | fixed-point pF，六位小数 |
 
 ## VOLT / RES frame
 
 ```text
-V,seq=...,ts=...,rows=...,cells=...,gen=...,rid=...,mode=VOLT,unit=V,scale=-6,valid=...,fresh=...,error=...,ref=...,rail=...,age=...,avdd=...,avss=...,vexc=...,rref=...,dur=...,tr=...,gc=...,ov=...,aa=...,fb=...,ir=...,to=...,st=...,spi=...,fmt=uv-x,n=...,bad=...
+V,seq=...,ts=...,rows=...,cells=...,gen=...,rid=...,mode=VOLT,unit=V,scale=-6,valid=...,fresh=...,error=...,expected=...,acquired=...,ref=...,rail=...,age=...,avdd=...,avss=...,vexc=...,rref=...,dur=...,tr=...,gc=...,ov=...,aa=...,fb=...,ir=...,to=...,st=...,spi=...,fmt=uv-x,n=...,bad=...
 D0,<integer-µV-or-Xhh>,...
 P0,<每个cell两个十六进制字符>
 K,seq=...,gen=...,rid=...,crc=...
@@ -60,6 +63,7 @@ VOLT 有效值是整数 µV；物理 V = value × `10^-6`。RES 有效值是整�
 | `valid` | 本帧可用 cell bitmask |
 | `fresh` | 本帧获得新 conversion 的 cell bitmask |
 | `error` | 有错误原因的 cell bitmask |
+| `expected` / `acquired` | acquisition contract mask：expected 是本帧计划采集的 cell，acquired 是本帧实际完成读取的 cell；只覆盖 active cells，acquired 必须是 expected 的子集 |
 | `ref` | ADS reference source |
 | `rail` / `age` | rail 是否有效及 age |
 | `avdd` / `avss` | rail split，µV |
@@ -73,6 +77,12 @@ VOLT 有效值是整数 µV；物理 V = value × `10^-6`。RES 有效值是整�
 | `to` / `st` / `spi` | DRDY timeout / stale / SPI error count |
 | `bad` | invalid cell count |
 
+### Acquisition 语义
+
+- `expected` 与 `acquired` 独立于 `valid` / `fresh` / `error`：OPEN/SHORT 等 cell 只要完成 conversion/read，就是 acquired 且可以是 fresh，同时保持 `valid=0`、`error=1`；
+- 未完成 acquisition 的 cell 必须 `acquired=0` 且不得声称 `fresh`；
+- 两个 mask 都只允许覆盖 active cells（`rows*8`）；`acquired` 中任何不在 `expected` 内的 bit 都是协议错误。
+
 ### `Xhh`
 
 无效 VOLT/RES cell 不输出 0，而输出：
@@ -81,21 +91,41 @@ VOLT 有效值是整数 µV；物理 V = value × `10^-6`。RES 有效值是整�
 Xhh
 ```
 
-`hh` 是 `sensorarrayCellError_t` 的两位十六进制错误码，例如当前 open 为 `X0D`。host 必须保留未知错误码并显示 invalid，不得把它转换为数值 0。
+`hh` 是 `sensorarrayCellError_t` 的两位十六进制错误码，例如 `X0D` 为 open、`X08` 为 saturated。host 必须保留未知错误码并显示 invalid，不得把它转换为数值 0。
 
 ## Mixed-row frame
 
-当 `ROWMODES` 不是全行同一模式时，DATA 使用独立的混合帧：
+当 `ROWMODES` 不是全行同一模式时，DATA 使用独立的混合帧。`profile` 始终是恰好 8 个字符，每字符对应一个物理 S 行；行数少于 8 时，非活动行输出尾随 `N`（例如 `rows=3` 时 `profile=CVRNNNNN`）。只有非 `N` 行会输出 `MR`，`N` 行永远没有 `MR`。
 
 ```text
-M,seq=...,ts=...,rows=8,cells=64,rgen=...,rrid=...,pgen=...,prid=...,profile=CVVRRVVC,fmt=mix1
-MR,s=1,m=CAP,unit=pf,scale=-6,valid=...,fresh=...,error=...,fmt=pf6,D=...
-MR,s=2,m=VOLT,unit=V,scale=-6,valid=...,fresh=...,error=...,fmt=uv-x,D=...
+M,seq=...,ts=...,rows=8,cells=64,rgen=...,rrid=...,pgen=...,prid=...,profile=CVVRRVVC,expected=<hex>,acquired=<hex>,fmt=mix1
+MR,s=1,m=CAP,unit=pf,scale=-6,expected=<hex>,acquired=<hex>,valid=...,fresh=...,error=...,fmt=pf6,D=...
+MR,s=2,m=VOLT,unit=V,scale=-6,expected=<hex>,acquired=<hex>,valid=...,fresh=...,error=...,fmt=uv-x,D=...
 ...
 K,seq=...,rgen=...,rrid=...,pgen=...,prid=...,crc=...
 ```
 
-每个 `MR` 只承载一个物理行的 8 个 cell；CAP/VOLT/RES 可在同一 `M` 中并存，`D` 使用正常数值或 `Xhh` invalid token。CRC 覆盖 `M` 与所有 `MR` 行，不包括 `K`。主机应按 `s` 放回矩阵，不要按 mode 或 `MR` 到达顺序重排。
+字段：
+
+| Field | 含义 |
+| --- | --- |
+| `rows` / `cells` | 当前活动物理行数（1..8）与期望 cell 数（`rows*8`） |
+| `rgen` / `rrid` | row configuration（`ROWS`）generation / request ID |
+| `pgen` / `prid` | ROWMODES profile generation / request ID |
+| `profile` | 8 字符，每字符一行的期望 mode；非活动行尾随 `N` |
+| `expected` / `acquired` | M header 为 64-bit 全局 mask；每个 `MR` 为该物理行的 8-bit mask；语义与 C/V/R 一致 |
+| `MR.s` | 物理行号（1..rows），仅非 `N` 行存在 |
+
+语义：
+
+- expected：host 必须收到与 profile 非 `N` 行数量相等的 `MR` 行，每行恰好 8 个值；期望 cell 数由 `rows*8` 给出；
+- acquired：`MR` 行携带实际获得的 cell；缺失 `MR` 行或 `D` 不足 8 个值均视为 malformed；
+- M header 的 `expected`/`acquired` 必须与各 `MR` 行 mask 按 row-major 拼装结果一致，否则视为 malformed；
+- `valid` / `fresh` / `error` 是每行 8-bit mask：`valid` 表示本行可用 cell，`fresh` 表示本帧获得新 conversion 的 cell，`error` 表示带显式错误原因的 cell；未获得新 conversion 的 cell 不得声称 fresh；
+- `valid=0` 的 cell 输出 `Xhh`：VOLT/RES 行输出具体 `errorReason`（如 `X08` saturated、`X0D` open），CAP 行无效 cell 输出 `X14`（unsupported）；
+- CRC 覆盖 `M` header 与全部 `MR` 行（每行含末尾 LF），不包括 `K`；host 还应确认 `K.seq/rgen/rrid/pgen/prid` 与 header 一致。
+
+每个 `MR` 只承载一个物理行的 8 个 cell；CAP/VOLT/RES 可在同一 `M` 中并存，`D` 使用正常数值或 `Xhh` invalid token。主机应按 `s` 放回矩阵，不要按 mode 或 `MR` 到达顺序重排。
 
 ### `P` chunk
 
@@ -117,9 +147,10 @@ CRC 覆盖：
 - 包括每一行末尾 LF；
 - CAP 覆盖所有 `D` 行；
 - V/R 覆盖所有 `D` 与 `P` 行；
+- M 混合帧覆盖 `M` header 与全部 `MR` 行；
 - 不包括 `K` 行。
 
-host 还应确认 `K.seq/gen/rid` 与 header 一致。
+host 还应确认 `K.seq/gen/rid`（混合帧为 `K.seq/rgen/rrid/pgen/prid`）与 header 一致。
 
 ## 控制事件
 
@@ -128,11 +159,13 @@ host 还应确认 `K.seq/gen/rid` 与 header 一致。
 | `RCMD` / `RAPP` | rows accepted / applied |
 | `MACK` / `MAPP` | mode accepted / applied |
 | `RACK` / `RAPP` | external rail accepted / applied |
+| `RMACK` | ROWMODES 的 source-local CTRL reply（`RMACK,id=...,old=...,new=...,state=accepted`），只回复给请求来源 |
+| `RMAPP` / `RMERR` | ROWMODES 的 LIFECYCLE 事件，在 Serial、BLE `FF30` 与 Wi-Fi `LOG` 通道广播；每个 `RMACK` 必须且只能对应一个 terminal |
 | `ACK` / `ERR` | source-local command reply |
 | `BAPP` | battery request complete |
 | `E,type=cmd` | legacy/runtime mailbox command applied event |
 
-accepted 与 applied 不能合并处理。
+accepted 与 applied 不能合并处理。`RMACK` 是 CTRL reply，不广播；`RMAPP`/`RMERR` 是 LIFECYCLE 事件，不是 CTRL reply。host 必须以 request id 关联：每个 `RMACK` 恰好跟随一个 `RMAPP` 或 `RMERR`（exact-one terminal），缺少 terminal、重复 terminal 或无前置 `RMACK` 的 terminal 都是协议错误。
 
 ## 周期诊断日志
 
@@ -169,7 +202,8 @@ compact summary 有意拆成两条独立合法 LOG message：第一条承载 `SF
 
 | Tag | 含义 |
 | --- | --- |
-| `TXDROP` | transport pool/queue 有界 drop，包含 channel 与 frame metadata |
+| `TXDROP` | transport pool/queue 有界 drop 或 payload 超限拒绝，包含 channel、len/max 与 frame metadata（`seq/rows/cells/gen/rid/pgen/prid`） |
+| `CTRLDROP` | CTRL reply 超过 512-byte contract 时拒绝发布，绝不截断 |
 | `BLECORRUPT` | BLE slot enqueue/dequeue length 或 CRC 不一致 |
 | `CMDERR` / `CMDERR_SUM` | malformed/unsupported Serial command 与限流 summary |
 | `LOGTRUNC` | compact summary 超过单条 1536-byte contract；该条不作为有效 LOG 发布 |

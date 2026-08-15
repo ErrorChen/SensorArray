@@ -104,9 +104,12 @@ sensorarrayAdsResistanceResult_t sensorarrayAdsMathResistanceDivider(
 
     result.numeratorUv = (int64_t)matrixReferenceUv - nodeUv;
     result.denominatorUv = (int64_t)nodeUv - avssUv;
+    /* Signed boundary: a denominator at or below the open limit, including a
+     * negative value (node below AVSS), is an open/high-Z cell. */
     if (result.denominatorUv <= (int64_t)config->openDenominatorUv) {
         result.error = SENSORARRAY_CELL_ERROR_OPEN;
         result.open = true;
+        result.openSemantic = SENSORARRAY_ADS_OPEN_SEMANTIC_RAW;
         return result;
     }
     if (result.numeratorUv < 0 || result.denominatorUv < 0) {
@@ -173,6 +176,101 @@ bool sensorarrayAdsMathSamplesStable(const int32_t *samples,
     return spread >= 0 && (uint64_t)spread <= maximumSpreadUv;
 }
 
+bool sensorarrayAdsMathConfigurationGenerationCurrent(
+    uint32_t sampleConfigurationGeneration,
+    uint32_t currentConfigurationGeneration)
+{
+    return currentConfigurationGeneration != 0u &&
+           sampleConfigurationGeneration == currentConfigurationGeneration;
+}
+
+bool sensorarrayAdsMathHighZOpenCandidate(
+    const sensorarrayAdsHighZCandidateInput_t *input)
+{
+    if (!input) {
+        return false;
+    }
+    int64_t denominatorUv = (int64_t)input->nodeUv - (int64_t)input->avssUv;
+    int64_t nearOpenLimitUv = (int64_t)input->openDenominatorUv +
+                              (int64_t)input->openConfirmMarginUv;
+    bool nearOpenBoundary = denominatorUv <= nearOpenLimitUv;
+    bool rawSentinel = input->rawCode == INT32_MIN;
+    bool saturationBoundary = input->magnitude >= input->saturationLimit;
+    return nearOpenBoundary || rawSentinel || saturationBoundary;
+}
+
+sensorarrayAdsOpenConfirm_t sensorarrayAdsMathConfirmOpenSet(
+    const int32_t *nodeUvSamples,
+    size_t sampleCount,
+    int32_t avssUv,
+    const sensorarrayAdsResistanceConfig_t *config,
+    uint32_t maximumSpreadUv,
+    int32_t *outMedianNodeUv)
+{
+    if (outMedianNodeUv) {
+        *outMedianNodeUv = 0;
+    }
+    if (!nodeUvSamples || !config || sampleCount == 0u || sampleCount > 9u) {
+        return SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE;
+    }
+
+    int64_t openLimitUv = (int64_t)config->openDenominatorUv;
+    int64_t nearOpenLimitUv = openLimitUv + (int64_t)config->openConfirmMarginUv;
+    for (size_t index = 0u; index < sampleCount; ++index) {
+        int64_t denominatorUv = (int64_t)nodeUvSamples[index] - avssUv;
+        if (denominatorUv <= openLimitUv) {
+            return SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z;
+        }
+    }
+
+    int32_t medianNodeUv = 0;
+    bool stable = sensorarrayAdsMathSamplesStable(nodeUvSamples,
+                                                   sampleCount,
+                                                   maximumSpreadUv,
+                                                   &medianNodeUv);
+    int64_t medianDenominatorUv = (int64_t)medianNodeUv - avssUv;
+    if (outMedianNodeUv) {
+        *outMedianNodeUv = medianNodeUv;
+    }
+    if (medianDenominatorUv <= nearOpenLimitUv) {
+        return SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z;
+    }
+    return stable ? SENSORARRAY_ADS_OPEN_CONFIRM_NONE :
+                    SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE;
+}
+
+uint8_t sensorarrayAdsMathCombineStatusBytes(
+    uint8_t primaryStatus,
+    const uint8_t *additionalStatus,
+    size_t additionalCount)
+{
+    uint8_t combined = primaryStatus;
+    if (additionalStatus) {
+        for (size_t index = 0u; index < additionalCount; ++index) {
+            combined |= additionalStatus[index];
+        }
+    }
+    return combined;
+}
+
+uint64_t sensorarrayAdsMathHighZLatchUpdate(
+    uint64_t latchMask,
+    size_t cellIndex,
+    sensorarrayAdsOpenSemantic_t openSemantic)
+{
+    if (cellIndex >= 64u) {
+        return latchMask;
+    }
+    uint64_t bit = UINT64_C(1) << cellIndex;
+    if (openSemantic == SENSORARRAY_ADS_OPEN_SEMANTIC_HIGH_Z_CONFIRMED) {
+        return latchMask | bit;
+    }
+    if (openSemantic == SENSORARRAY_ADS_OPEN_SEMANTIC_NONE) {
+        return latchMask & ~bit;
+    }
+    return latchMask;
+}
+
 sensorarrayCellError_t sensorarrayAdsMathClassifySampleHealth(
     const sensorarrayAdsSampleHealth_t *health)
 {
@@ -182,7 +280,10 @@ sensorarrayCellError_t sensorarrayAdsMathClassifySampleHealth(
     if (health->drdyTimedOut) {
         return SENSORARRAY_CELL_ERROR_DRDY_TIMEOUT;
     }
-    if (!health->generationAdvanced || !health->statusNewData) {
+    if (!health->generationAdvanced || !health->statusNewData ||
+        (health->expectedConfigurationGeneration != 0u &&
+         health->configurationGeneration !=
+             health->expectedConfigurationGeneration)) {
         return SENSORARRAY_CELL_ERROR_STALE;
     }
     if (health->resetOccurred) {

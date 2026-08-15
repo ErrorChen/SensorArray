@@ -13,7 +13,8 @@
 static bool sensorarrayAcqEventIsProtocolLifecycle(const char *text)
 {
     static const char *const prefixes[] = {
-        "MAPP,", "MERR,", "MFAULT,", "RAPP,", "RERR,", "BAPP,",
+        "MAPP,", "MERR,", "MFAULT,", "RAPP,", "RERR,",
+        "RMAPP,", "RMERR,", "BAPP,",
         "ADSCHK,", "ADSCHKSTAT,", "BATPERIOD,", "RESSETTLE,",
     };
     if (!text) {

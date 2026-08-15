@@ -10,6 +10,10 @@ sensorarrayTransportLegacyCommandCallback_t g_sensorarrayTransportLegacyCallback
 void *g_sensorarrayTransportLegacyContext;
 sensorarrayTransportRuntimeQueryCallback_t g_sensorarrayTransportRuntimeQueryCallback;
 void *g_sensorarrayTransportRuntimeQueryContext;
+sensorarrayTransportControlReplyPublishedCallback_t
+    g_sensorarrayTransportControlReplyPublishedCallback;
+sensorarrayTransportControlReplyFailedCallback_t
+    g_sensorarrayTransportControlReplyFailedCallback;
 
 static portMUX_TYPE s_runtimeMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayTransportTxMode_t s_txMode = SENSORARRAY_TRANSPORT_TX_REL;
@@ -68,6 +72,18 @@ void sensorarrayTransportSetRuntimeQueryCallback(
 {
     g_sensorarrayTransportRuntimeQueryCallback = callback;
     g_sensorarrayTransportRuntimeQueryContext = context;
+}
+
+void sensorarrayTransportSetControlReplyPublishedCallback(
+    sensorarrayTransportControlReplyPublishedCallback_t callback)
+{
+    g_sensorarrayTransportControlReplyPublishedCallback = callback;
+}
+
+void sensorarrayTransportSetControlReplyFailedCallback(
+    sensorarrayTransportControlReplyFailedCallback_t callback)
+{
+    g_sensorarrayTransportControlReplyFailedCallback = callback;
 }
 
 void sensorarrayTransportSetTxMode(sensorarrayTransportTxMode_t mode)

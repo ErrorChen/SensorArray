@@ -1,5 +1,7 @@
 idf_component_register(
-    SRCS "sensorarrayScanConfig.c"
+    SRCS
+        "sensorarrayCalibration.c"
+        "sensorarrayScanConfig.c"
     INCLUDE_DIRS "."
-    REQUIRES freertos
+    REQUIRES freertos nvs_flash
 )

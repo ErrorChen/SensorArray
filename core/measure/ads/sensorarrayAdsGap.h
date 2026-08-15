@@ -119,6 +119,8 @@ sensorarrayAdsGapMode_t sensorarrayAdsGapGetMode(void);
 const char *sensorarrayAdsGapModeName(sensorarrayAdsGapMode_t mode);
 const char *sensorarrayAdsRailStatusName(sensorarrayAdsRailStatus_t status);
 const char *sensorarrayAdsRailSourceName(sensorarrayAdsRailSource_t source);
+/* Reply formatters return the number of bytes written (including the trailing
+ * newline) or 0 with an empty buffer when the reply would not fit. */
 size_t sensorarrayAdsGapFormatBattery(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatRail(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatAds(char *buffer, size_t bufferSize);

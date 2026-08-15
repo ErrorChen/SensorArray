@@ -2,6 +2,7 @@ set(SENSORARRAY_MAIN_SRCS
     "main.c"
     "sensorarrayLog.c"
         "control/sensorarrayCommandMailbox.c"
+        "control/sensorarrayEarlyRecovery.c"
     "net/sensorarrayNetStatus.c"
 )
 
@@ -38,6 +39,7 @@ set(SENSORARRAY_ADS_SRCS
         "../core/measure/ads/sensorarrayBatteryScheduler.c"
     "../core/measure/ads/sensorarrayAdsMath.c"
     "../core/measure/ads/sensorarrayAdsGap.c"
+    "../core/measure/ads/sensorarrayAdsFault.c"
 )
 
 set(SENSORARRAY_MIXED_SRCS

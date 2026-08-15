@@ -54,6 +54,23 @@ void sensorarrayMeasurementModeInit(sensorarrayMeasurementModeContext_t *context
     };
 }
 
+void sensorarrayMeasurementModeEnterRecovery(sensorarrayMeasurementModeContext_t *context,
+                                             uint32_t errorCode)
+{
+    if (!context) {
+        return;
+    }
+    sensorarrayMeasurementModeWriteBegin(context);
+    context->snapshot.oldMode = context->snapshot.activeMode;
+    context->snapshot.activeMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
+    context->snapshot.state = SENSORARRAY_MEASUREMENT_STATE_RECOVERY;
+    context->snapshot.lastError = errorCode;
+    context->snapshot.pending = false;
+    context->snapshot.pendingMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
+    context->snapshot.pendingRequestId = 0u;
+    sensorarrayMeasurementModeWriteEnd(context);
+}
+
 bool sensorarrayMeasurementModeAccept(sensorarrayMeasurementModeContext_t *context,
                                       sensorarrayMeasurementMode_t requestedMode,
                                       uint32_t requestId)
@@ -160,6 +177,134 @@ bool sensorarrayMeasurementModeCopySnapshot(
     return false;
 }
 
+void sensorarrayMeasurementRecoveryInit(sensorarrayMeasurementRecovery_t *recovery)
+{
+    if (!recovery) {
+        return;
+    }
+    memset(recovery, 0, sizeof(*recovery));
+    recovery->maximumAttempts = SENSORARRAY_MEASUREMENT_RECOVERY_MAX_ATTEMPTS;
+}
+
+bool sensorarrayMeasurementRecoveryStart(
+    sensorarrayMeasurementRecovery_t *recovery,
+    sensorarrayMeasurementMode_t resumeMode,
+    uint32_t resumeRequestId,
+    sensorarrayMeasurementRecoveryTrigger_t trigger,
+    uint32_t error,
+    uint32_t sequence,
+    uint32_t triggerRequestId)
+{
+    if (!recovery || recovery->active || recovery->terminal ||
+        trigger == SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE ||
+        !sensorarrayMeasurementModeIsDataMode(resumeMode)) {
+        return false;
+    }
+    recovery->active = true;
+    recovery->terminal = false;
+    recovery->attempt = 0u;
+    recovery->completedAttempts = 0u;
+    recovery->session++;
+    recovery->trigger = trigger;
+    recovery->outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_STARTED;
+    recovery->resumeMode = resumeMode;
+    recovery->resumeRequestId = resumeRequestId;
+    recovery->triggerRequestId = triggerRequestId;
+    recovery->triggerError = error;
+    recovery->lastError = error;
+    recovery->triggerSequence = sequence;
+    return true;
+}
+
+bool sensorarrayMeasurementRecoveryIsActive(
+    const sensorarrayMeasurementRecovery_t *recovery)
+{
+    return recovery && recovery->active;
+}
+
+bool sensorarrayMeasurementRecoveryIsTerminal(
+    const sensorarrayMeasurementRecovery_t *recovery)
+{
+    return recovery && recovery->terminal;
+}
+
+bool sensorarrayMeasurementRecoveryBeginAttempt(
+    sensorarrayMeasurementRecovery_t *recovery)
+{
+    if (!recovery || !recovery->active || recovery->terminal ||
+        recovery->completedAttempts >= recovery->maximumAttempts) {
+        return false;
+    }
+    recovery->attempt = (uint8_t)(recovery->completedAttempts + 1u);
+    recovery->outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_ATTEMPT;
+    return true;
+}
+
+void sensorarrayMeasurementRecoveryComplete(
+    sensorarrayMeasurementRecovery_t *recovery,
+    bool success,
+    uint32_t error)
+{
+    if (!recovery || !recovery->active) {
+        return;
+    }
+    recovery->lastError = error;
+    recovery->completedAttempts = recovery->attempt;
+    if (success) {
+        recovery->active = false;
+        recovery->terminal = false;
+        recovery->outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_RESUMED;
+        return;
+    }
+    if (recovery->attempt >= recovery->maximumAttempts) {
+        recovery->active = false;
+        recovery->terminal = true;
+        recovery->outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_FAILED;
+    } else {
+        recovery->outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_ATTEMPT;
+    }
+}
+
+const char *sensorarrayMeasurementRecoveryTriggerName(
+    sensorarrayMeasurementRecoveryTrigger_t trigger)
+{
+    switch (trigger) {
+    case SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_ADS_RESTORE:
+        return "ads_restore";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE:
+        return "battery_restore";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE:
+    default:
+        return "none";
+    }
+}
+
+const char *sensorarrayMeasurementRecoveryOutcomeName(
+    sensorarrayMeasurementRecoveryOutcome_t outcome)
+{
+    switch (outcome) {
+    case SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_STARTED:
+        return "started";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_ATTEMPT:
+        return "attempt";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_RESUMED:
+        return "resumed";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_FAILED:
+        return "failed";
+    case SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_NONE:
+    default:
+        return "none";
+    }
+}
+
+sensorarrayMeasurementRecoveryTrigger_t sensorarrayMeasurementRecoveryTriggerForBattery(
+    bool restoreFailed)
+{
+    return restoreFailed ?
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE :
+        SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_NONE;
+}
+
 const char *sensorarrayMeasurementModeName(sensorarrayMeasurementMode_t mode)
 {
     switch (mode) {
@@ -190,6 +335,8 @@ const char *sensorarrayMeasurementStateName(sensorarrayMeasurementState_t state)
         return "RESISTANCE";
     case SENSORARRAY_MEASUREMENT_STATE_TRANSITION:
         return "TRANSITION";
+    case SENSORARRAY_MEASUREMENT_STATE_RECOVERY:
+        return "RECOVERY";
     case SENSORARRAY_MEASUREMENT_STATE_DEGRADED:
         return "DEGRADED";
     case SENSORARRAY_MEASUREMENT_STATE_FAULT:

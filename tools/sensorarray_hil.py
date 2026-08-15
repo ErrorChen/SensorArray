@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, TextIO, Tuple
 
 from text_protocol import (CapFrame, FragmentReassembler, MeasurementFrame,
-                           TextProtocolParser, parse_fields)
+                           MixedFrame, TextProtocolParser, parse_fields)
 
 
 EXIT_PASS = 0
@@ -75,6 +75,9 @@ CHANNEL_ALIASES = {
 
 MODE_NAMES = {"CAP", "RES", "VOLT"}
 DEFAULT_QUERY_COMMANDS = ("TX?", "ST?", "BTX?", "WIFI?", "MODE?", "STATE?")
+SERIAL_ROWMODES_PROFILES = (
+    "CCCCCCCC", "VVVVVVVV", "RRRRRRRR", "CVVRRVVC", "RVRCCVVR")
+BLE_ROWMODES_PROFILES = SERIAL_ROWMODES_PROFILES
 FULL_LOG_CASE_REQUIRED_TAGS = frozenset(
     ("SF50", "TR50", "ADS50", "ADST50", "AB50"))
 BLE_UNSUBSCRIBE_SETTLE_SECONDS = 0.15
@@ -401,6 +404,34 @@ def expectedCommandPrefix(command: str) -> str:
     text = command.strip().upper()
     if text in {"MODE?", "STATE?"}:
         return "MODE,"
+    # These queries are formatted by their owning subsystem rather than by
+    # the generic ACK formatter.  Matching the actual wire prefix matters
+    # under DATA load: the response may already be in the monitor history
+    # when the command waiter starts scanning it.
+    directQueryPrefixes = {
+        "ROWS?": "ROWS,",
+        "ROWMODES?": "ROWMODES,",
+        "RESSETTLE?": "RESSETTLE,",
+        "BAT?": "ABAT,",
+        "BATPERIOD?": "BATPERIOD,",
+        "RAIL?": "ARL,",
+        "ADS?": "ADS,",
+        "CAL?": "CAL,",
+        "FPS?": "FPS,",
+        "ADSDBG?": "ADSDBG,",
+        "BOOT?": "BOOT,",
+        "READY?": "READY,",
+        "PROTO?": "PROTO,",
+        "BUILD?": "BUILD,",
+        "PERF?": "PERF,",
+        "USBSTREAM?": "USBSTREAM,",
+    }
+    if text in directQueryPrefixes:
+        return directQueryPrefixes[text]
+    # USBSTREAM setters return the owning profile record rather than the
+    # generic ACK envelope used by most legacy setters.
+    if text in {"USBSTREAM=DEBUG", "USBSTREAM=FULL"}:
+        return "USBSTREAM,"
     stem = re.split(r"[=?]", text, maxsplit=1)[0]
     return "ACK,cmd=%s" % stem
 
@@ -1012,10 +1043,13 @@ class BleObserver:
                 self.output.emit("HIL_FAULT,source=ble-%s,kind=%s,line=%s" %
                                  (channel, event.kind, _safeField(event.line)))
             self.lines[channel].append(LineRecord(observedAt, channel, line))
-            if channel == "D":
-                frame = self.protocol.feed_line(line)
-                if frame is not None:
-                    self.frames.append(FrameRecord(observedAt, channel, frame))
+            # CTRL and LOG carry lifecycle/protocol lines (RMACK on C,
+            # RMAPP/RMERR on L) that the shared parser must observe exactly
+            # once.  Frame acceptance remains DATA-only to preserve the
+            # existing frame window semantics.
+            frame = self.protocol.feed_line(line)
+            if frame is not None and channel == "D":
+                self.frames.append(FrameRecord(observedAt, channel, frame))
 
     def lineCount(self, channel: str) -> int:
         return len(self.lines[channel])
@@ -1538,6 +1572,192 @@ def setSerialRows(monitor: SerialMonitor, rows: int, timeout: float) -> Dict[str
     return parse_fields(applied.line)
 
 
+def serialRowCountsForProfile(profileName: str) -> Tuple[int, ...]:
+    """Return the serial ROWS counts exercised by a HIL profile."""
+
+    if profileName == "full":
+        return tuple(range(1, 9))
+    return (1, 8)
+
+
+def serialRowmodesForProfile(profileName: str) -> Tuple[str, ...]:
+    """Return the serial ROWMODES profiles exercised by a HIL profile."""
+
+    if profileName == "full":
+        return SERIAL_ROWMODES_PROFILES
+    return ("CVVRRVVC", "RVRCCVVR")
+
+
+def bleRowmodesForProfile(profileName: str) -> Tuple[str, ...]:
+    """Return the BLE ROWMODES profiles exercised by a HIL profile."""
+
+    if profileName == "full":
+        return BLE_ROWMODES_PROFILES
+    return ("CVVRRVVC", "RVRCCVVR")
+
+
+def buildSerialRowmodePlan(profileName: str) -> List[Dict[str, Any]]:
+    """Build the deterministic serial rows + ROWMODES command plan."""
+
+    plan: List[Dict[str, Any]] = [
+        {"kind": "rows", "rows": rows}
+        for rows in serialRowCountsForProfile(profileName)
+    ]
+    plan.extend(
+        {"kind": "rowmodes", "profile": profile}
+        for profile in serialRowmodesForProfile(profileName)
+    )
+    return plan
+
+
+def validateRowmodesTerminal(ackLine: str, terminalLine: str,
+                             profile: str) -> Dict[str, int]:
+    """Verify RMACK/RMAPP|RMERR id/profile correlation for ROWMODES."""
+
+    ackFields = parse_fields(ackLine)
+    terminalFields = parse_fields(terminalLine)
+    if ackFields.get("new") != profile:
+        raise HilFailure("ROWMODES=%s ack mismatch: %s" % (profile, ackLine))
+    if terminalFields.get("profile") != profile:
+        raise HilFailure("ROWMODES=%s terminal profile mismatch: %s" %
+                         (profile, terminalLine))
+    if terminalFields.get("id") != ackFields.get("id"):
+        raise HilFailure("ROWMODES=%s terminal id mismatch: %s" %
+                         (profile, terminalLine))
+    if terminalLine.startswith("RMERR,"):
+        raise HilFailure("ROWMODES=%s rejected: %s" % (profile, terminalLine))
+    try:
+        requestId = int(ackFields["id"], 10)
+        generation = int(terminalFields.get("gen", "0"), 10)
+        appliedSequence = int(terminalFields.get("seq", "0"), 10)
+    except (KeyError, ValueError) as error:
+        raise HilFailure("ROWMODES=%s invalid id/gen/seq: %s" %
+                         (profile, terminalLine)) from error
+    return {
+        "requestId": requestId,
+        "generation": generation,
+        "appliedSequence": appliedSequence,
+    }
+
+
+def validateMixedProfileFrame(frame: Any, profile: str) -> None:
+    """Validate an M/MR/K mixed frame against the requested ROWMODES profile."""
+
+    if not isinstance(frame, MixedFrame):
+        raise HilFailure("ROWMODES=%s expected M frame, got %s seq=%s" %
+                         (profile, type(frame).__name__,
+                          getattr(frame, "sequence", "na")))
+    if frame.profile != profile:
+        raise HilFailure("ROWMODES=%s mixed frame profile mismatch: %s" %
+                         (profile, frame.profile))
+    if not frame.crc_ok:
+        raise HilFailure("ROWMODES=%s mixed frame CRC failed seq=%d" %
+                         (profile, frame.sequence))
+    if frame.rows != 8 or frame.cells != 64:
+        raise HilFailure("ROWMODES=%s mixed frame rows/cells=%d/%d" %
+                         (profile, frame.rows, frame.cells))
+    expectedModes = {
+        "C": "CAP", "V": "VOLT", "R": "RES",
+    }
+    for row, char in enumerate(profile, start=1):
+        rowFrame = frame.row_frames.get(row)
+        if rowFrame is None:
+            raise HilFailure("ROWMODES=%s missing mixed row %d" % (profile, row))
+        if rowFrame.mode != expectedModes[char]:
+            raise HilFailure("ROWMODES=%s row %d mode=%s expected %s" %
+                             (profile, row, rowFrame.mode, expectedModes[char]))
+        if len(rowFrame.values_fixed) != 8:
+            raise HilFailure("ROWMODES=%s row %d cell count=%d" %
+                             (profile, row, len(rowFrame.values_fixed)))
+
+
+def setSerialRowmodes(monitor: SerialMonitor, profile: str,
+                      timeout: float) -> Dict[str, int]:
+    """Apply one ROWMODES profile and verify its lifecycle terminal."""
+
+    startIndex = monitor.lineCount()
+    monitor.send("ROWMODES=%s" % profile)
+    ackRecord, _ = monitor.waitLine(
+        lambda line: (line.startswith("RMACK,") and
+                      parse_fields(line).get("new") == profile),
+        startIndex, timeout, "ROWMODES=%s RMACK" % profile)
+    requestId = parse_fields(ackRecord.line).get("id")
+    terminalRecord, _ = monitor.waitLine(
+        lambda line: ((line.startswith("RMAPP,") or line.startswith("RMERR,")) and
+                      parse_fields(line).get("id") == requestId),
+        startIndex, timeout, "ROWMODES=%s terminal" % profile)
+    return validateRowmodesTerminal(ackRecord.line, terminalRecord.line, profile)
+
+
+def runSerialRowmodesAndRows(monitor: SerialMonitor,
+                             args: argparse.Namespace) -> List[Dict[str, Any]]:
+    """Exercise ROWS=1..8 and ROWMODES profiles on the serial target."""
+
+    results: List[Dict[str, Any]] = []
+    for step in buildSerialRowmodePlan(args.profile):
+        if step["kind"] == "rows":
+            rows = int(step["rows"])
+            setSerialRows(monitor, rows, args.modeTimeout)
+            state = parse_fields(waitSerialCommand(
+                monitor, "ROWS?", args.commandTimeout))
+            if state.get("active") != str(rows):
+                raise HilFailure("ROWS? active=%s after ROWS=%d" %
+                                 (state.get("active"), rows))
+            cursor = monitor.frameCount()
+            record, cursor = monitor.waitFrame(
+                lambda frame: (getattr(frame, "rows", -1) == rows and
+                               bool(getattr(frame, "crc_ok", False))),
+                cursor, args.modeTimeout, "ROWS=%d frame" % rows)
+            if record.frame.cells != rows * 8:
+                raise HilFailure("ROWS=%d frame cells=%d" %
+                                 (rows, record.frame.cells))
+            results.append({
+                "kind": "rows",
+                "rows": rows,
+                "sequence": record.frame.sequence,
+                "cells": record.frame.cells,
+                "state": state,
+            })
+            continue
+
+        profile = step["profile"]
+        evidence = setSerialRowmodes(monitor, profile, args.modeTimeout)
+        state = parse_fields(waitSerialCommand(
+            monitor, "ROWMODES?", args.commandTimeout))
+        if (state.get("active") != profile or state.get("state") != "applied"):
+            raise HilFailure("ROWMODES? active=%s state=%s after %s" %
+                             (state.get("active"), state.get("state"), profile))
+        cursor = monitor.frameCount()
+        if len(set(profile)) == 1:
+            mode = {"C": "CAP", "V": "VOLT", "R": "RES"}[profile[0]]
+            record, cursor = monitor.waitFrame(
+                lambda frame: (frameMode(frame) == mode and
+                               bool(getattr(frame, "crc_ok", False)) and
+                               getattr(frame, "sequence", 0) >=
+                               evidence["appliedSequence"]),
+                cursor, args.modeTimeout, "ROWMODES=%s frame" % profile)
+            validateModeFrame(record.frame, mode, evidence["requestId"],
+                              evidence["generation"],
+                              evidence["appliedSequence"])
+        else:
+            record, cursor = monitor.waitFrame(
+                lambda frame: (isinstance(frame, MixedFrame) and
+                               frame.profile == profile and frame.crc_ok),
+                cursor, args.modeTimeout, "ROWMODES=%s M frame" % profile)
+            validateMixedProfileFrame(record.frame, profile)
+        results.append({
+            "kind": "rowmodes",
+            "profile": profile,
+            "sequence": record.frame.sequence,
+            "state": state,
+            **evidence,
+        })
+    # Restore the documented default homogeneous CAP profile and full rows.
+    setSerialRowmodes(monitor, "CCCCCCCC", args.modeTimeout)
+    setSerialRows(monitor, 8, args.modeTimeout)
+    return results
+
+
 async def setBleRows(client: Any, observer: BleObserver, rows: int,
                      timeout: float,
                      sidecar: Optional[SerialMonitor] = None) -> Dict[str, str]:
@@ -1567,6 +1787,36 @@ async def setBleRows(client: Any, observer: BleObserver, rows: int,
             "L", appliedPredicate, logStart, timeout,
             "ROWS=%d BLE applied" % rows)
     return parse_fields(applied.line)
+
+
+async def setBleRowmodes(client: Any, observer: BleObserver, profile: str,
+                         timeout: float) -> Dict[str, int]:
+    """Apply one ROWMODES profile over FF10 and correlate its terminal.
+
+    The next profile is never written until the current request has an RMACK
+    on CTRL and exactly one matching RMAPP/RMERR terminal on LOG.
+    """
+
+    controlStart = observer.lineCount("C")
+    logStart = observer.lineCount("L")
+    wire = "ROWMODES=%s\n" % profile
+    observer.output.wire("HOST_BLE", wire.rstrip("\n"))
+    await client.write_gatt_char(CTRL_RX_UUID, wire.encode("ascii"),
+                                 response=False)
+    ackRecord, _ = await observer.waitLine(
+        "C",
+        lambda line: (line.startswith("RMACK,") and
+                      parse_fields(line).get("new") == profile),
+        controlStart, timeout, "ROWMODES=%s BLE RMACK" % profile)
+    requestId = parse_fields(ackRecord.line).get("id")
+    terminalRecord, _ = await observer.waitLine(
+        "L",
+        lambda line: ((line.startswith("RMAPP,") or line.startswith("RMERR,")) and
+                      parse_fields(line).get("id") == requestId and
+                      parse_fields(line).get("profile") == profile),
+        logStart, timeout, "ROWMODES=%s BLE terminal" % profile)
+    return validateRowmodesTerminal(ackRecord.line, terminalRecord.line,
+                                    profile)
 
 
 def writeSummary(outputDirectory: Optional[Path], name: str,
@@ -1680,6 +1930,8 @@ def runSerialHil(args: argparse.Namespace) -> int:
         resistanceEvidence = checkKnownResistances(
             allResistanceFrames, args.knownResistor) if allResistanceFrames else {}
 
+        rowmodesResults = runSerialRowmodesAndRows(monitor, args)
+
         longRun = None
         if args.longRunFrames > 0 or args.longRunSeconds > 0.0:
             _, evidence = switchSerialMode(monitor, args.longRunMode, 1,
@@ -1731,6 +1983,7 @@ def runSerialHil(args: argparse.Namespace) -> int:
             "railCalibration": railCalibration,
             "modes": modeResults,
             "knownResistanceOhms": resistanceEvidence,
+            "rowmodes": rowmodesResults,
             "longRun": longRun,
             "protocol": dataclasses.asdict(monitor.protocol.counters),
             "postReadyWireErrors": {
@@ -1740,8 +1993,9 @@ def runSerialHil(args: argparse.Namespace) -> int:
             },
             "unexpectedFaults": [],
         })
-        output.emit("SERIAL_HIL_PASS,modes=%d,longFrames=%d,crcErrors=0,resets=0" %
-                    (len(modeResults), longRun["frames"] if longRun else 0))
+        output.emit("SERIAL_HIL_PASS,modes=%d,rowmodes=%d,longFrames=%d,crcErrors=0,resets=0" %
+                    (len(modeResults), len(rowmodesResults),
+                     longRun["frames"] if longRun else 0))
         writeSummary(outputDirectory, "serial_hil", summary)
         return EXIT_PASS
     except HilSkipped as error:
@@ -2003,6 +2257,80 @@ async def runCommandParity(client: Any, observer: BleObserver,
     return {key: serialFields.get(key, "") for key in stableKeys}
 
 
+async def runBleRowmodesPhase(client: Any, observer: BleObserver,
+                              detector: FaultDetector, profileName: str,
+                              commandTimeout: float,
+                              modeTimeout: float) -> Dict[str, Any]:
+    """Exercise the ROWMODES lifecycle and mixed-profile frames over BLE.
+
+    Transactions are strictly sequential: each profile waits for its RMACK
+    on CTRL and its RMAPP/RMERR terminal on LOG before the next command is
+    written.  The shared parser's lifecycle counters then reject duplicate,
+    missing, or unacknowledged terminals for the whole phase.
+    """
+
+    channels = {"C", "D", "L"}
+    await resetBleWindowAfterUnsubscribe(observer)
+    await startSubscriptions(client, observer, channels)
+    results: List[Dict[str, Any]] = []
+    try:
+        for profile in bleRowmodesForProfile(profileName):
+            cursor = observer.frameCount()
+            evidence = await setBleRowmodes(client, observer, profile,
+                                            modeTimeout)
+            state = parse_fields(await waitBleCommand(
+                client, observer, "ROWMODES?", commandTimeout))
+            if (state.get("active") != profile or
+                    state.get("state") != "applied"):
+                raise HilFailure("ROWMODES? active=%s state=%s after %s" %
+                                 (state.get("active"), state.get("state"),
+                                  profile))
+            if len(set(profile)) == 1:
+                mode = {"C": "CAP", "V": "VOLT", "R": "RES"}[profile[0]]
+                record, cursor = await observer.waitFrame(
+                    lambda frame: (frameMode(frame) == mode and
+                                   bool(getattr(frame, "crc_ok", False)) and
+                                   getattr(frame, "sequence", 0) >=
+                                   evidence["appliedSequence"]),
+                    cursor, modeTimeout, "ROWMODES=%s BLE frame" % profile)
+                validateModeFrame(record.frame, mode, evidence["requestId"],
+                                  evidence["generation"],
+                                  evidence["appliedSequence"])
+            else:
+                record, cursor = await observer.waitFrame(
+                    lambda frame: (isinstance(frame, MixedFrame) and
+                                   frame.profile == profile and frame.crc_ok),
+                    cursor, modeTimeout, "ROWMODES=%s BLE M frame" % profile)
+                validateMixedProfileFrame(record.frame, profile)
+            results.append({
+                "kind": "rowmodes",
+                "profile": profile,
+                "sequence": record.frame.sequence,
+                "state": state,
+                **evidence,
+            })
+            detector.assertHealthy()
+        # Restore the documented default homogeneous CAP profile.
+        await setBleRowmodes(client, observer, "CCCCCCCC", modeTimeout)
+        lifecycle = observer.protocol.rowmode_lifecycle_errors()
+        if (lifecycle["unterminated"] or lifecycle["duplicate"] or
+                lifecycle["terminal_without_ack"]):
+            raise HilFailure(
+                "BLE ROWMODES lifecycle errors unterminated=%d duplicate=%d "
+                "terminalWithoutAck=%d" %
+                (lifecycle["unterminated"], lifecycle["duplicate"],
+                 lifecycle["terminal_without_ack"]))
+        stats = validateBleWindow(observer, strictSequence=False)
+        detector.assertHealthy()
+        return {
+            "profiles": results,
+            "lifecycle": lifecycle,
+            "wire": stats,
+        }
+    finally:
+        await stopSubscriptions(client, channels)
+
+
 async def runBleLongRunPhase(client: Any, observer: BleObserver,
                              sidecar: SerialMonitor, profile: BleProfile,
                              detector: FaultDetector, commandTimeout: float,
@@ -2191,7 +2519,7 @@ async def runReconnectStress(device: Any, BleakClient: Any, output: HilOutput,
 def parsePhases(value: str) -> Set[str]:
     allowed = {
         "matrix", "tx-modes", "mode-stress", "subscribe-stress",
-        "reconnect", "long-run",
+        "rowmodes", "reconnect", "long-run",
     }
     phases = {item.strip().lower() for item in value.split(",") if item.strip()}
     if not phases:
@@ -2203,8 +2531,20 @@ def parsePhases(value: str) -> Set[str]:
     return phases
 
 
+def resolveBlePhases(profile: str, phases: Set[str]) -> Set[str]:
+    """Return the effective BLE HIL phase set for a profile."""
+
+    effective = set(phases)
+    if profile == "full":
+        effective.add("rowmodes")
+    return effective
+
+
 async def runBleHil(args: argparse.Namespace) -> int:
     profile = buildBleProfile(args)
+    # Full-profile acceptance includes the ROWMODES lifecycle phase.  Shorter
+    # profiles keep their default phase set unless rowmodes is explicit.
+    args.phases = resolveBlePhases(args.profile, args.phases)
     output, outputDirectory = resolveOutput(args, "ble_hil")
     summary: Dict[str, Any] = {
         "kind": "ble",
@@ -2374,6 +2714,14 @@ async def runBleHil(args: argparse.Namespace) -> int:
                 summary["phases"]["subscribeStress"] = result
                 output.emit("BLE_SUBSCRIBE_STRESS_PASS,cycles=%d,windows=%d" %
                             (result["cycles"], result["subscriptionWindows"]))
+
+            if "rowmodes" in args.phases:
+                result = await runBleRowmodesPhase(
+                    client, observer, detector, args.profile,
+                    args.commandTimeout, args.modeTimeout)
+                summary["phases"]["rowmodes"] = result
+                output.emit("BLE_ROWMODES_PASS,profiles=%d,lifecycleErrors=0" %
+                            len(result["profiles"]))
 
             if "long-run" in args.phases:
                 result = await runBleLongRunPhase(

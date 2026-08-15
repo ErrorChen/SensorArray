@@ -40,6 +40,8 @@ class CapFrame:
     row_fresh_mask: int
     primary_fresh_mask: int
     secondary_fresh_mask: int
+    expected_mask: int = 0
+    acquired_mask: int = 0
 
     @property
     def values_pf(self) -> list[Optional[float]]:
@@ -78,6 +80,8 @@ class MeasurementFrame:
     stale_count: int
     spi_error_count: int
     crc_ok: bool
+    expected_mask: int = 0
+    acquired_mask: int = 0
 
     @property
     def values_si(self) -> list[Optional[float]]:
@@ -96,6 +100,8 @@ class MixedRow:
     valid_mask: int
     fresh_mask: int
     error_mask: int
+    expected_mask: int = 0
+    acquired_mask: int = 0
 
 
 @dataclasses.dataclass
@@ -111,6 +117,8 @@ class MixedFrame:
     profile_request_id: int
     row_frames: dict[int, MixedRow]
     crc_ok: bool
+    expected_mask: int = 0
+    acquired_mask: int = 0
 
 
 @dataclasses.dataclass
@@ -119,6 +127,7 @@ class ProtocolCounters:
     cap_frames: int = 0
     voltage_frames: int = 0
     resistance_frames: int = 0
+    mixed_frames: int = 0
     crc_errors: int = 0
     malformed: int = 0
     sequence_gaps: int = 0
@@ -126,6 +135,11 @@ class ProtocolCounters:
     sequence_regressions: int = 0
     non_ascii_chunks: int = 0
     summary_lines: int = 0
+    rmack: int = 0
+    rmapp: int = 0
+    rmerr: int = 0
+    lifecycle_duplicate_terminal: int = 0
+    lifecycle_terminal_without_ack: int = 0
 
 
 @dataclasses.dataclass
@@ -261,9 +275,35 @@ class TextProtocolParser:
         self._last_sequence: Optional[int] = None
         self._first_frame_time: Optional[float] = None
         self._last_frame_time: Optional[float] = None
+        self._rowmode_ack_ids: set[int] = set()
+        self._rowmode_terminal_counts: dict[int, int] = {}
+        self._frame_expected_mask = 0
+        self._frame_acquired_mask = 0
 
     def note_non_ascii(self) -> None:
         self.counters.non_ascii_chunks += 1
+
+    @staticmethod
+    def _active_mask(cells: int) -> int:
+        return (1 << cells) - 1
+
+    @classmethod
+    def _parse_frame_masks(cls, fields: dict[str, str],
+                           cells: int) -> Optional[tuple[int, int]]:
+        active = cls._active_mask(cells)
+        expected = int(fields["expected"], 16) if "expected" in fields else active
+        acquired = int(fields["acquired"], 16) if "acquired" in fields else 0
+        if expected & ~active or acquired & ~active or acquired & ~expected:
+            return None
+        return expected, acquired
+
+    @classmethod
+    def _parse_row_masks(cls, fields: dict[str, str]) -> Optional[tuple[int, int]]:
+        expected = int(fields["expected"], 16) if "expected" in fields else 0xFF
+        acquired = int(fields["acquired"], 16) if "acquired" in fields else 0
+        if expected & ~0xFF or acquired & ~0xFF or acquired & ~expected:
+            return None
+        return expected, acquired
 
     def feed_line(self, line: str) -> Optional[CapFrame | MeasurementFrame | MixedFrame]:
         line = line.rstrip("\r\n")
@@ -303,6 +343,9 @@ class TextProtocolParser:
         if tag == "MR":
             self._add_mixed_row(line)
             return None
+        if tag in {"RMACK", "RMAPP", "RMERR"}:
+            self._observe_rowmodes_event(tag, line)
+            return None
         if len(tag) >= 2 and tag[0] == "P" and tag[1:].isdigit():
             self._add_pga_chunk(line, int(tag[1:]))
             return None
@@ -335,11 +378,19 @@ class TextProtocolParser:
             self._current_tag = None
             return None
         if (not 1 <= rows <= 8 or cells != rows * 8 or
-                len(profile) != 8 or any(char not in "CVR" for char in profile)):
+                len(profile) != 8 or any(char not in "CVRN" for char in profile) or
+                any(char != "N" for char in profile[rows:])):
             self.counters.malformed += 1
             self._current_sequence = None
             self._current_tag = None
             return None
+        masks = self._parse_frame_masks(fields, cells)
+        if masks is None:
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        self._frame_expected_mask, self._frame_acquired_mask = masks
         self._current_sequence = sequence
         self._current_tag = "M"
         self._current_fields = fields
@@ -363,6 +414,10 @@ class TextProtocolParser:
             valid_mask = int(fields["valid"], 16)
             fresh_mask = int(fields["fresh"], 16)
             error_mask = int(fields["error"], 16)
+            row_masks = self._parse_row_masks(fields)
+            if row_masks is None:
+                raise ValueError
+            expected_mask, acquired_mask = row_masks
             values: list[Optional[int]] = []
             for token in line.split(",D=", 1)[1].split(","):
                 if token.startswith("X") and len(token) == 3:
@@ -371,13 +426,21 @@ class TextProtocolParser:
                     values.append(int(token, 10))
         except (KeyError, ValueError, IndexError):
             self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
             return
-        if (row < 1 or row > self._current_rows or mode not in {"CAP", "VOLT", "RES"} or
-                len(values) != 8):
+        profile = self._current_fields.get("profile", "")
+        expected_mode = {"C": "CAP", "V": "VOLT", "R": "RES"}.get(
+            profile[row - 1] if 1 <= row <= len(profile) else "N", None)
+        if (row < 1 or row > self._current_rows or expected_mode is None or
+                mode != expected_mode or row in self._mixed_rows or len(values) != 8):
             self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
             return
         self._mixed_rows[row] = MixedRow(row, mode, unit, scale, values,
-                                         valid_mask, fresh_mask, error_mask)
+                                         valid_mask, fresh_mask, error_mask,
+                                         expected_mask, acquired_mask)
         self._crc_bytes.extend((line + "\n").encode("ascii"))
 
     def _finish_mixed_frame(self, line: str) -> Optional[MixedFrame]:
@@ -395,21 +458,90 @@ class TextProtocolParser:
         crc_ok = (zlib.crc32(self._crc_bytes) & 0xFFFFFFFF) == expected_crc
         if not crc_ok:
             self.counters.crc_errors += 1
-        if len(self._mixed_rows) != self._current_rows:
+        expected_rows = sum(
+            1 for char in self._current_fields.get("profile", "") if char != "N")
+        if len(self._mixed_rows) != expected_rows:
             self.counters.malformed += 1
             self._current_sequence = None
             self._current_tag = None
             return None
         header = self._current_fields
+        expected_mask = 0
+        acquired_mask = 0
+        for row_index, row_frame in self._mixed_rows.items():
+            row_shift = (row_index - 1) * 8
+            expected_mask |= row_frame.expected_mask << row_shift
+            acquired_mask |= row_frame.acquired_mask << row_shift
+        if "expected" in header:
+            if (expected_mask != self._frame_expected_mask or
+                    acquired_mask != self._frame_acquired_mask):
+                self.counters.malformed += 1
+                self._current_sequence = None
+                self._current_tag = None
+                return None
+        else:
+            self._frame_expected_mask = expected_mask
+            self._frame_acquired_mask = acquired_mask
         frame = MixedFrame(
             sequence, self._current_timestamp_us, self._current_rows,
             self._current_cells, header["profile"], int(header.get("rgen", "0")),
             int(header.get("rrid", "0")), int(header.get("pgen", "0")),
-            int(header.get("prid", "0")), self._mixed_rows, crc_ok)
+            int(header.get("prid", "0")), self._mixed_rows, crc_ok,
+            self._frame_expected_mask, self._frame_acquired_mask)
+        self.counters.mixed_frames += 1
         self._record_sequence(sequence)
         self._current_sequence = None
         self._current_tag = None
         return frame
+
+    def _observe_rowmodes_event(self, tag: str, line: str) -> None:
+        """Count and validate ROWMODES lifecycle terminals.
+
+        Contract: every RMACK must be followed by exactly one terminal
+        (RMAPP or RMERR) carrying the same request id.  A second terminal
+        for the same id, or a terminal with no preceding ack, is recorded as
+        a lifecycle protocol error so HIL and transport gates can reject it.
+        """
+
+        fields = parse_fields(line)
+        try:
+            request_id = int(fields["id"], 10)
+        except (KeyError, ValueError):
+            self.counters.malformed += 1
+            return
+        if tag == "RMACK":
+            self.counters.rmack += 1
+            self._rowmode_ack_ids.add(request_id)
+            return
+        if tag == "RMAPP":
+            self.counters.rmapp += 1
+        else:
+            self.counters.rmerr += 1
+        terminal_count = self._rowmode_terminal_counts.get(request_id, 0)
+        if terminal_count > 0:
+            self.counters.lifecycle_duplicate_terminal += 1
+        if request_id not in self._rowmode_ack_ids:
+            self.counters.lifecycle_terminal_without_ack += 1
+        self._rowmode_terminal_counts[request_id] = terminal_count + 1
+
+    def rowmode_lifecycle_errors(self) -> dict[str, int]:
+        """Return ROWMODES lifecycle validation counts.
+
+        ``unterminated`` is the number of acknowledged request ids with no
+        terminal yet, ``duplicate`` is the number of request ids with more
+        than one terminal, and ``terminal_without_ack`` is the number of
+        terminals observed without a preceding RMACK.
+        """
+
+        return {
+            "unterminated": sum(
+                1 for request_id in self._rowmode_ack_ids
+                if self._rowmode_terminal_counts.get(request_id, 0) == 0),
+            "duplicate": sum(
+                1 for terminal_count in self._rowmode_terminal_counts.values()
+                if terminal_count > 1),
+            "terminal_without_ack": self.counters.lifecycle_terminal_without_ack,
+        }
 
     def _start_cap_frame(self, line: str) -> None:
         fields = parse_fields(line)
@@ -429,6 +561,13 @@ class TextProtocolParser:
             self._current_sequence = None
             self._current_tag = None
             return None
+        masks = self._parse_frame_masks(fields, cells)
+        if masks is None:
+            self.counters.malformed += 1
+            self._current_sequence = None
+            self._current_tag = None
+            return None
+        self._frame_expected_mask, self._frame_acquired_mask = masks
 
         self._current_sequence = sequence
         self._current_tag = "C"
@@ -497,7 +636,8 @@ class TextProtocolParser:
             return None
         frame = CapFrame(sequence, self._current_timestamp_us, self._current_rows,
                          self._current_cells, values, crc_ok, generation,
-                         request_id, row_fresh, primary_fresh, secondary_fresh)
+                         request_id, row_fresh, primary_fresh, secondary_fresh,
+                         self._frame_expected_mask, self._frame_acquired_mask)
         self.counters.cap_frames += 1
         self._record_sequence(sequence)
         self._current_sequence = None
@@ -518,6 +658,10 @@ class TextProtocolParser:
             int(fields["valid"], 16)
             int(fields["fresh"], 16)
             int(fields["error"], 16)
+            masks = self._parse_frame_masks(fields, cells)
+            if masks is None:
+                raise ValueError
+            self._frame_expected_mask, self._frame_acquired_mask = masks
         except (KeyError, ValueError):
             self.counters.malformed += 1
             self._current_sequence = None
@@ -654,6 +798,8 @@ class TextProtocolParser:
             stale_count=int(header.get("st", "0"), 10),
             spi_error_count=int(header.get("spi", "0"), 10),
             crc_ok=crc_ok,
+            expected_mask=self._frame_expected_mask,
+            acquired_mask=self._frame_acquired_mask,
         )
         if self._current_tag == "V":
             self.counters.voltage_frames += 1
@@ -685,12 +831,25 @@ class TextProtocolParser:
             return 0.0
         return (self.counters.cap_frames - 1) / (self._last_frame_time - self._first_frame_time)
 
+    def frame_fps(self) -> float:
+        if (self._first_frame_time is None or self._last_frame_time is None or
+                self._last_frame_time <= self._first_frame_time):
+            return 0.0
+        total = (self.counters.cap_frames + self.counters.voltage_frames +
+                 self.counters.resistance_frames + self.counters.mixed_frames)
+        return (total - 1) / (self._last_frame_time - self._first_frame_time)
+
     def summary(self, prefix: str) -> str:
         battery = "na" if self.latest_battery_mv is None else str(self.latest_battery_mv)
+        lifecycle_errors = (self.counters.lifecycle_duplicate_terminal +
+                            self.counters.lifecycle_terminal_without_ack)
         return (
             f"{prefix},lines={self.counters.lines},cap={self.counters.cap_frames},"
             f"volt={self.counters.voltage_frames},res={self.counters.resistance_frames},"
-            f"fps={self.cap_fps():.2f},gap={self.counters.sequence_gaps},"
+            f"mix={self.counters.mixed_frames},"
+            f"rmack={self.counters.rmack},rmapp={self.counters.rmapp},"
+            f"rmerr={self.counters.rmerr},rmbad={lifecycle_errors},"
+            f"fps={self.frame_fps():.2f},gap={self.counters.sequence_gaps},"
             f"missing={self.counters.missing_frames},crc={self.counters.crc_errors},"
             f"bad={self.counters.malformed},ascii={self.counters.non_ascii_chunks},"
             f"sum={self.counters.summary_lines},bt={battery}"

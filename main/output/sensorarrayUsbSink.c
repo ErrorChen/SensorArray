@@ -35,6 +35,8 @@ static QueueHandle_t s_usbQueue;
 static TaskHandle_t s_usbTask;
 static portMUX_TYPE s_usbStatsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbSinkStats_t s_usbStats;
+static portMUX_TYPE s_usbProfileMux = portMUX_INITIALIZER_UNLOCKED;
+static sensorarrayUsbStreamProfile_t s_usbStreamProfile;
 /* Owned exclusively by sensorarrayUsbSinkTask. */
 static sensorarrayTextPacket_t s_usbTaskPacket;
 /* Publish is owned by the single async-log task. A fixed discard slot avoids
@@ -88,6 +90,16 @@ esp_err_t sensorarrayUsbSinkInit(void)
     }
 
     memset(&s_usbStats, 0, sizeof(s_usbStats));
+    portENTER_CRITICAL(&s_usbProfileMux);
+    /* USBSTREAM is intentionally a volatile per-boot default and is never
+     * persisted. DEBUG preserves the low-volume USB fallback contract while
+     * FULL re-enables per-frame USB measurement data on demand. */
+    s_usbStreamProfile = (sensorarrayUsbStreamProfile_t){
+        .mode = SENSORARRAY_USB_STREAM_DEBUG,
+        .dataEvery = SENSORARRAY_USB_STREAM_DEBUG_DATA_EVERY,
+        .diagEvery = SENSORARRAY_USB_STREAM_DIAG_EVERY,
+    };
+    portEXIT_CRITICAL(&s_usbProfileMux);
     s_usbQueue = xQueueCreateStatic(SENSORARRAY_USB_SINK_QUEUE_COUNT,
                                     sizeof(sensorarrayTextPacket_t),
                                     s_usbQueueStorage,
@@ -153,4 +165,73 @@ void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats)
     outStats->taskMinimumRemainingBytes = s_usbTask ?
         (uint32_t)uxTaskGetStackHighWaterMark(s_usbTask) *
             (uint32_t)sizeof(StackType_t) : 0u;
+}
+
+esp_err_t sensorarrayUsbSinkSetStreamProfile(sensorarrayUsbStreamMode_t mode,
+                                             uint32_t dataEvery,
+                                             uint32_t diagEvery)
+{
+    if (mode != SENSORARRAY_USB_STREAM_DEBUG &&
+        mode != SENSORARRAY_USB_STREAM_FULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (dataEvery == 0u) {
+        dataEvery = mode == SENSORARRAY_USB_STREAM_FULL ?
+            1u : SENSORARRAY_USB_STREAM_DEBUG_DATA_EVERY;
+    }
+    if (diagEvery == 0u) {
+        diagEvery = SENSORARRAY_USB_STREAM_DIAG_EVERY;
+    }
+    if (dataEvery > SENSORARRAY_USB_STREAM_DATA_EVERY_MAX ||
+        diagEvery > SENSORARRAY_USB_STREAM_DIAG_EVERY_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /* FULL means every complete frame; DEBUG always decimates USB DATA
+     * only. Core 1 capture pacing and BLE/Wi-Fi policies are unchanged. */
+    if (mode == SENSORARRAY_USB_STREAM_FULL) {
+        dataEvery = 1u;
+    }
+
+    portENTER_CRITICAL(&s_usbProfileMux);
+    s_usbStreamProfile = (sensorarrayUsbStreamProfile_t){
+        .mode = mode,
+        .dataEvery = dataEvery,
+        .diagEvery = diagEvery,
+    };
+    portEXIT_CRITICAL(&s_usbProfileMux);
+    return ESP_OK;
+}
+
+sensorarrayUsbStreamProfile_t sensorarrayUsbSinkGetStreamProfile(void)
+{
+    sensorarrayUsbStreamProfile_t profile;
+    portENTER_CRITICAL(&s_usbProfileMux);
+    profile = s_usbStreamProfile;
+    portEXIT_CRITICAL(&s_usbProfileMux);
+    return profile;
+}
+
+bool sensorarrayUsbSinkShouldEmitData(uint32_t sequence)
+{
+    sensorarrayUsbStreamProfile_t profile = sensorarrayUsbSinkGetStreamProfile();
+    if (profile.mode == SENSORARRAY_USB_STREAM_FULL) {
+        return true;
+    }
+    if (profile.dataEvery < 2u) {
+        return true;
+    }
+    return (sequence % profile.dataEvery) == 0u;
+}
+
+const char *sensorarrayUsbStreamModeName(sensorarrayUsbStreamMode_t mode)
+{
+    switch (mode) {
+    case SENSORARRAY_USB_STREAM_FULL:
+        return "FULL";
+    case SENSORARRAY_USB_STREAM_DEBUG:
+    default:
+        return "DEBUG";
+    }
 }

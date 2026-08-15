@@ -62,6 +62,14 @@ TX?
 ST?
 BTX?
 WIFI?
+BOOT?
+READY?
+PROTO?
+BUILD?
+PERF?
+USBSTREAM?
+USBSTREAM=DEBUG
+USBSTREAM=FULL
 MODE=CAP
 MODE=RES
 ROWMODES?
@@ -69,9 +77,15 @@ ROWMODES=CVVRRVVC
 RAILCFG=<AVDD_UV>,<negative_AVSS_UV>   # 可选 debug override
 MODE=VOLT
 MODE=CAP
+RECOVER          # 或 RECOVER=0|1|2（0=soft，1=full，2=restart）
+RESTART
 ```
 
 `MODE=<name>` 会先返回 `MACK ... state=accepted`，再由 Core 1 在完整帧边界应用并输出 `MAPP ... state=applied`。主机必须等待匹配的 request ID，不能把 accepted 当作已经切换。
+
+`ROWMODES=<8 chars>` 会先返回 CTRL reply `RMACK,id=...,old=...,new=...,state=accepted`，随后在完整帧边界广播唯一的 LIFECYCLE terminal `RMAPP`（applied）或 `RMERR`（rejected）；`RMAPP`/`RMERR` 会在 Serial、BLE `FF30` 与 Wi-Fi `LOG` 通道发布，每个 `RMACK` 只能对应一个 terminal。混合帧 `M/MR/K` 的 `profile` 始终为 8 字符，非活动行以尾随 `N` 表示且不产生 `MR`，详见 [测量帧与诊断日志格式](docs/output-format.md)。
+
+`RECOVER` 默认 full（level 1）；`RECOVER=2` 与 `RESTART` 会真正重启设备，重启后的 `RST`/boot breadcrumb 是预期结果。自动 HIL 未执行受控 reset 流程时，reboot/recovery 验收必须标 `BLOCKED`/`NOT RUN`，见 [验证](docs/validation.md)。
 
 进入 `VOLT` 时固件会在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口通过 ADS126x internal analog supply monitor 自动获取 rail span，再恢复目标 route；普通用户不需要先发 `RAILCFG`。`RAILCFG` 仅作为可选的、易失的外部 DMM debug override，且不能在 VOLT route 内应用。电池断开时 AIN8 的 PWM/浮动/异常电压只应表现为 `valid=0,reason=...`，不会清除 last-good 或污染 CAP/VOLT/RES frame。
 
@@ -141,6 +155,8 @@ docs/                       用户和集成文档
 - 命令入口仍为 Serial、BLE `FF10` 和 Wi-Fi UDP `3335`；
 - CAP `C/D/K`、VOLT/RES `V|R/D/P/K` 格式保持稳定；
 - BLE `G,<channel>,...` 分片 envelope 保持稳定；
+- DATA/LOG 完整 message 最大 1536 bytes、CTRL reply 最大 512 bytes；超限时发布 `TXDROP`/`CTRLDROP`，不截断；
+- transport 使用有界 DATA batch 轮转，LIFECYCLE 优先于普通 LOG，不是 DATA-always-first；
 - 所有运行时设置均为易失状态，重启后恢复编译配置默认值。
 
 ## 已知限制
@@ -149,6 +165,7 @@ docs/                       用户和集成文档
 - `RAILCFG`、模式、输出选择、BLE TX 模式和校准请求不会写入 NVS。
 - 测量精度必须结合当前硬件、校准值和 DMM/标准件验收；固件中的调试板标称值不是生产校准。
 - 编译通过不等于 Serial/BLE HIL 通过。发布报告必须分别给出链路、CRC、重启检测、长跑和 stack high-water 证据。
+- 当前硬件证明只来自本次 freshly run 的 wire log/summary；历史 artifact 不能转成当前 PASS。结论必须使用状态模板 `PASS / FAIL / NOT RUN / BLOCKED / NOT VERIFIED`：串口不可用时 BLE 标 `BLOCKED`/`NOT RUN`，未做受控 reset 时 reboot/recovery 标 `BLOCKED`，没有同步 DMM/标准件时 accuracy 标 `NOT VERIFIED`。完整规则见 [验证](docs/validation.md)。
 
 ## 协作与贡献
 

@@ -48,6 +48,7 @@ def main() -> int:
         root / "core" / "measure" / "ads" / "sensorarrayAdsAutoRange.c",
         root / "core" / "measure" / "ads" / "sensorarrayAdsCache.c",
         root / "core" / "measure" / "ads" / "sensorarrayBatteryScheduler.c",
+        root / "core" / "measure" / "ads" / "sensorarrayAdsFault.c",
     ]
     with tempfile.TemporaryDirectory(prefix="sensorarray-measure-test-") as temp_dir:
         common = [
@@ -63,6 +64,8 @@ def main() -> int:
             str(root / "core" / "measure" / "ads"),
             "-I",
             str(root / "main" / "output"),
+            "-I",
+            str(root / "tests" / "host" / "include"),
         ]
         if not native:
             for index, source in enumerate(sources):

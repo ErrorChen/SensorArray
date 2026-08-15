@@ -10,6 +10,22 @@
 extern "C" {
 #endif
 
+#define SENSORARRAY_USB_STREAM_DEBUG_DATA_EVERY 50u
+#define SENSORARRAY_USB_STREAM_DIAG_EVERY 15u
+#define SENSORARRAY_USB_STREAM_DATA_EVERY_MAX 10000u
+#define SENSORARRAY_USB_STREAM_DIAG_EVERY_MAX 10000u
+
+typedef enum {
+    SENSORARRAY_USB_STREAM_DEBUG = 0,
+    SENSORARRAY_USB_STREAM_FULL,
+} sensorarrayUsbStreamMode_t;
+
+typedef struct {
+    sensorarrayUsbStreamMode_t mode;
+    uint32_t dataEvery;
+    uint32_t diagEvery;
+} sensorarrayUsbStreamProfile_t;
+
 typedef struct {
     uint32_t sentPackets;
     uint32_t droppedPackets;
@@ -26,6 +42,12 @@ typedef struct {
 esp_err_t sensorarrayUsbSinkInit(void);
 esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet);
 void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats);
+esp_err_t sensorarrayUsbSinkSetStreamProfile(sensorarrayUsbStreamMode_t mode,
+                                             uint32_t dataEvery,
+                                             uint32_t diagEvery);
+sensorarrayUsbStreamProfile_t sensorarrayUsbSinkGetStreamProfile(void);
+bool sensorarrayUsbSinkShouldEmitData(uint32_t sequence);
+const char *sensorarrayUsbStreamModeName(sensorarrayUsbStreamMode_t mode);
 
 #ifdef __cplusplus
 }

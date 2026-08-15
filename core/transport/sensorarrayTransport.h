@@ -8,6 +8,9 @@
 #include "sensorarrayWifi.h"
 
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
+/* CTRL replies are capped at 512 bytes; oversized replies are rejected,
+ * never truncated. */
+#define SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX 512u
 
 typedef enum {
     SENSORARRAY_TRANSPORT_REPLY_SERIAL = 0,
@@ -98,6 +101,13 @@ typedef esp_err_t (*sensorarrayTransportRuntimeQueryCallback_t)(const char *comm
                                                                 char *response,
                                                                 size_t responseSize,
                                                                 void *context);
+typedef void (*sensorarrayTransportControlReplyPublishedCallback_t)(
+    const char *data,
+    size_t length);
+typedef void (*sensorarrayTransportControlReplyFailedCallback_t)(
+    esp_err_t error,
+    const char *data,
+    size_t length);
 
 esp_err_t sensorarrayTransportInit(void);
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length);
@@ -118,6 +128,10 @@ void sensorarrayTransportSetLegacyCommandCallback(
 void sensorarrayTransportSetRuntimeQueryCallback(
     sensorarrayTransportRuntimeQueryCallback_t callback,
     void *context);
+void sensorarrayTransportSetControlReplyPublishedCallback(
+    sensorarrayTransportControlReplyPublishedCallback_t callback);
+void sensorarrayTransportSetControlReplyFailedCallback(
+    sensorarrayTransportControlReplyFailedCallback_t callback);
 void sensorarrayTransportGetStats(sensorarrayTransportStats_t *outStats);
 void sensorarrayTransportGetMemoryDiagnostics(
     sensorarrayTransportMemoryDiagnostics_t *outDiagnostics);

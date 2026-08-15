@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "sensorarrayTransport.c"
         "sensorarrayTransportCommand.c"
+        "sensorarrayTransportGuaranteedText.c"
         "sensorarrayTransportPool.c"
         "sensorarrayTransportPolicy.c"
         "sensorarrayTransportStats.c"

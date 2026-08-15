@@ -64,6 +64,23 @@
 | `ADSDBG?` | Query | 是 | 是 | 是 | 无 | `ADSDBG,enabled=...,summaryFrames=...` | 立即 snapshot | - | 支持；诊断 | 查询 ADS debug summary。 |
 | `ADSDBG=0` / `ADSDBG=1` | Config | 是 | 是 | 是 | bool | `ACK,cmd=ADSDBG,v=<0|1>,status=accepted`，随后 applied event | 完整帧边界 | 否 | 支持；诊断 | 不应作为规避 stack/transport 问题的发布配置。 |
 
+## Lifecycle / 系统命令
+
+| Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `BOOT?` | Query | 是 | 是 | 是 | 无 | `BOOT,boot=...,bootId=...,reset=...,stage=...,err=0x...,seq=...,heap=...,heapMin=...,prevStage=...,prevErr=0x...,prevHeap=...,guard=...,autoRestarts=...,windowAgeS=...,ready=...` | 立即 snapshot | - | 支持 | boot breadcrumb 与 auto-restart guard 状态；`guard=recovery_safe` 表示上次恢复处于 SAFE。 |
+| `READY?` | Query | 是 | 是 | 是 | 无 | `READY,ready=<0|1>,stage=...,err=0x...,bootId=...,boot=...` | 立即 snapshot | - | 支持 | 只反映系统 readiness，不发起任何初始化。 |
+| `PROTO?` | Query | 是 | 是 | 是 | 无 | `PROTO,version=...,wires=ascii,ctrlMax=...,dataMax=...,channels=CTRL/DATA/LOG/LIFECYCLE` | 立即 snapshot | - | 支持 | 返回当前协议版本与 wire 上限；`ctrlMax`/`dataMax` 是完整 message byte 上限。 |
+| `BUILD?` | Query | 是 | 是 | 是 | 无 | `BUILD,idf=...,target=...,project=SensorArray,proto=...` | 立即 snapshot | - | 支持 | 报告构建时的 ESP-IDF 版本、target 与协议版本。 |
+| `PERF?` | Query | 是 | 是 | 是 | 无 | `PERF,pub=...,fresh=...,stale=...,mixed=...,dropOut=...,dropEvent=...,startAvgUs=...,startN=...,usbSent=...,usbDrop=...,usbBlock=...,usbBytes=...,usbWriteMaxUs=...,usbQMax=...,usbStackMin=...,lifePub=...,lifeDrop=...,queueDrop=...,frames=...,heap=...,heapMin=...` | 立即 snapshot | - | 支持 | 运行时 async log、USB sink 与 transport 统计快照。 |
+| `USBSTREAM?` | Query | 是 | 是 | 是 | 无 | `USBSTREAM,v=<DEBUG|FULL>,dataEvery=...,diagEvery=...` | 立即 snapshot | - | 支持 | 查询 USB 文本发布 profile。 |
+| `USBSTREAM=DEBUG` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=DEBUG,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | DEBUG 只按 `dataEvery` 发布测量 DATA，DIAG 按 `diagEvery`。 |
+| `USBSTREAM=FULL` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=FULL,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | FULL 发布全部测量 DATA；运行时 profile 不写 NVS。 |
+| `RECOVER` / `RECOVER=<level>` | Action | 是 | 是 | 是 | 默认 full；`0..2`（0=soft，1=full，2=restart） | `RACK,cmd=RECOVER,id=...,level=...,state=accepted`，随后 `RAPP,cmd=RECOVER,id=...,level=...,state=applied|rejected|restarting|safe` | 下一安全完整帧边界 | 否 | 支持 | 未 ready 返回 `ERR,cmd=RECOVER,reason=not_ready`；`RECOVER=2` 会重启设备。 |
+| `RESTART` | Action | 是 | 是 | 是 | 无 | `RACK,cmd=RESTART,id=...,state=accepted`，随后 `RAPP,cmd=RESTART,id=...,state=restarting,kind=manual` | 下一安全完整帧边界 | 否 | 支持 | 受控重启；自动 HIL 未执行受控 reset 流程时 reboot/recovery 必须标 `NOT RUN`/`BLOCKED`。 |
+
+`RACK/RAPP` 用于 `RECOVER`/`RESTART` 的 deferred lifecycle：`RACK` 只表示已接受，`RAPP` 才表示在安全边界实际执行。`RECOVER=2` 与 `RESTART` 会真正重启，host 必须把重启后的 `RST`/boot breadcrumb 当作该命令的预期结果，不能与意外复位混淆。
+
 ## Legacy / 低频诊断命令
 
 这些命令仍由共享 control handler 接收，但经 legacy mailbox callback 排队。立即回复通常是：
@@ -84,6 +101,22 @@ ACK,cmd=LEGACY,state=queued
 | `CAL=ZERO` | Action | 是 | 是 | 是 | 无 | generic legacy ACK | 请求在安全 ADS slack/boundary 执行 | 否 | 诊断 | zero residual calibration request。 |
 | `CAL=RAIL` / `RAILCAL` | Action | 是 | 是 | 是 | alias | generic legacy ACK | 安全 ADS slack/boundary | 否 | 兼容/诊断 | rail calibration request。 |
 | `CAL=ALL` / `BATCAL` | Action | 是 | 是 | 是 | alias | generic legacy ACK | 安全 ADS slack/boundary | 否 | 兼容/诊断 | 请求 zero + rail；`BATCAL` 名称保留但不是持久 battery calibration。 |
+
+## 校准持久化命令
+
+matrix calibration 显式持久化到独立 `calib` NVS 分区。记录包含
+`magic/schemaVersion/boardId/hardwareRevision/source/payloadLength/payload/CRC32`；
+固件没有 board revision source，因此当前固定使用
+`boardId=0x53415231`、`hardwareRevision=1`。`CAL=LOAD` 对缺失、CRC、
+schema、board/hardware revision 或 payload 校验失败一律保持
+default/uncalibrated，不会安装半有效记录；保存只发生在显式 `CAL=SAVE`，
+绝不在每帧自动写 NVS。
+
+| Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `CAL?` | Query | 是 | 是 | 是 | 无 | `CAL,source=...,schema=...,valid=...,boardId=...,hardwareRev=...,payloadLength=...` | 立即 | 否 | 支持 | 只读查询 calib 记录状态；无记录时 `source=0`、`valid=0`。 |
+| `CAL=SAVE` | Action | 是 | 是 | 是 | 无 | `ACK,cmd=CAL,v=SAVE,status=accepted`，随后 `CALSV,...` | 完整帧边界（acquisition core） | 是 | 支持 | 显式将当前 matrix calibration 写入 calib NVS。 |
+| `CAL=LOAD` | Action | 是 | 是 | 是 | 无 | `ACK,cmd=CAL,v=LOAD,status=accepted`，随后 `CALLD,...` | 完整帧边界（acquisition core） | 否 | 支持 | 从 calib NVS 加载并应用；任何 mismatch 保持 default/uncalibrated。 |
 
 ## 明确未实现的 Wi-Fi STA 命令
 

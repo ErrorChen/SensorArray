@@ -7,11 +7,13 @@
 | Channel | 内容 | 优先级 |
 | --- | --- | ---: |
 | CTRL | 命令与 source-local reply | 最高；独立路径 |
-| DATA | CAP/VOLT/RES measurement message | 高 |
+| DATA | CAP/VOLT/RES/Mixed measurement message（header 含 `expected`/`acquired` acquisition mask） | 高 |
 | LOG | summary、health、diagnostic event | 低 |
-| LIFECYCLE | MAPP/RAPP/BAPP/RMAPP/MERR/MFAULT 等 deferred protocol event | 高于 LOG，低于 DATA |
+| LIFECYCLE | MAPP/RAPP/BAPP/RMAPP/RMERR/MERR/MFAULT 等 deferred protocol event | 高于 LOG，低于 DATA |
 
 同一条控制命令在 Serial、BLE `FF10` 和 Wi-Fi UDP `3335` 进入 `sensorarrayTransportHandleControlCommand()`。回复回到命令来源，不广播到其他 transport。
+
+`RMAPP`/`RMERR` 是 ROWMODES 的 LIFECYCLE 事件，在 Serial、BLE `FF30` 与 Wi-Fi `LOG` 通道上都按 lifecycle 规则发布；它们不是 DATA，也不应被普通 LOG 挤占。每个 `RMACK` 必须且只能对应一个 `RMAPP` 或 `RMERR`，host 校验器以 request id 关联，缺少或重复 terminal 均为失败。
 
 ## Transport 映射
 
@@ -49,7 +51,7 @@ xQueueSend(..., 0)
 consumer：
 
 ```text
-    优先收 DATA descriptor，再收 LIFECYCLE，最后收 LOG descriptor
+    优先收 DATA descriptor，但每轮 DATA 有界批量消费，随后才收 LIFECYCLE，最后收 LOG descriptor
 校验 index / inUse / generation / length
 发送到当前 eligible sinks
 release slot
@@ -60,6 +62,7 @@ release slot
 - acquisition/logger 不等待 BLE/Wi-Fi；
 - LOG 同时占用的普通 slot 不超过 2 个，lifecycle 有独立 reserved slot；
 - DATA queue 始终先消费；
+- DATA 只按有界 batch 消费；持续补满的 DATA 不能饿死 LIFECYCLE/LOG；
 - measurement DATA 不会被 `SF50/ADS50/...` LOG 全部挤出；
 - stale descriptor、double/mismatched release 和 pool full 都有统计；
 - hot path 不进行 heap allocation。
@@ -130,6 +133,8 @@ BLE CTRL TX 仅在 reply 尚未被 Bluedroid 接受时进行 bounded retry：每
 - BLE congestion、fragment error 与 CRC mismatch。
 
 `TXDROP` 表示有界 drop，不应通过把 send 改为 `portMAX_DELAY` 来消除。LIFECYCLE 使用独立 queue/reserved slot，普通 LOG 不能挤掉 MAPP/RAPP/BAPP；`eventPublished/eventDropped` 与 `queueDropLifecycle` 应在长跑中观察。长跑验收应在 warmup 后比较 free heap、minimum free heap、slot high-water 与 drops，确认不存在随 frame count 持续增长的 leak。
+
+`TXDROP` 记录 channel 与 frame metadata（`seq`，以及可用时的 `gen`/`rid`/`pgen`/`prid`），host 应把任何非零 drop 计入验收统计；只有显式允许的有界丢包预算内才可接受。
 
 ## Wi-Fi 现状
 

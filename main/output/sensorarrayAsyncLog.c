@@ -413,6 +413,25 @@ static sensorarrayAsyncLogSharedStats_t sensorarrayAsyncLogReadStats(void)
     return stats;
 }
 
+void sensorarrayAsyncLogGetStats(sensorarrayAsyncLogStats_t *outStats)
+{
+    if (!outStats) {
+        return;
+    }
+    sensorarrayAsyncLogSharedStats_t stats = sensorarrayAsyncLogReadStats();
+    *outStats = (sensorarrayAsyncLogStats_t){
+        .publishedFrames = stats.publishedFrames,
+        .freshFrames = stats.freshFrames,
+        .staleFrames = stats.staleFrames,
+        .mixedFrames = stats.mixedFrames,
+        .droppedOutputFrames = stats.droppedOutputFrames,
+        .droppedEventLogs = stats.droppedEventLogs,
+        .frameStartIntervalAvgUs = stats.frameStartIntervalCount != 0u ?
+            stats.frameStartIntervalTotalUs / stats.frameStartIntervalCount : 0u,
+        .frameStartIntervalCount = stats.frameStartIntervalCount,
+    };
+}
+
 static void sensorarrayAsyncLogNotifyTask(void)
 {
     if (s_logTaskHandle) {
@@ -995,16 +1014,27 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         return;
     }
 
-    uint32_t every = (uint32_t)SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
-    if (every == 0u) {
-        every = 50u;
+    uint32_t netEvery = (uint32_t)SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
+    if (netEvery == 0u) {
+        netEvery = 20u;
+    }
+    sensorarrayUsbStreamProfile_t usbProfile =
+        sensorarrayUsbSinkGetStreamProfile();
+    uint32_t usbEvery = usbProfile.diagEvery;
+    if (usbEvery == 0u || usbEvery > netEvery) {
+        usbEvery = netEvery;
     }
     if (sensorarrayCommandMailboxAdsDebugEnabled() &&
         summary->adsPerformance.frames != 0u) {
-        every = 1u;
+        netEvery = 1u;
+        usbEvery = 1u;
     }
     uint64_t frameCount = summary->processedFrames;
-    if (frameCount < every) {
+    bool usbDue = frameCount >= usbEvery &&
+                  (frameCount % usbEvery) == 0u;
+    bool netDue = frameCount >= netEvery &&
+                  (frameCount % netEvery) == 0u;
+    if (!usbDue && !netDue) {
         return;
     }
 
@@ -1377,8 +1407,12 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
 
     if (position < sizeof(packet->data) && position <= UINT16_MAX) {
         packet->length = (uint16_t)position;
-        (void)sensorarrayUsbSinkPublish(packet);
-        (void)sensorarrayNetLogPublish(packet);
+        if (usbDue) {
+            (void)sensorarrayUsbSinkPublish(packet);
+        }
+        if (netDue) {
+            (void)sensorarrayNetLogPublish(packet);
+        }
     } else {
         s_summaryTruncated++;
         printf("LOGTRUNC,packet=summary,seq=%lu,max=%u,count=%lu\n",
@@ -1389,8 +1423,12 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     if (adsPosition != 0u && adsPosition < sizeof(adsPacket->data) &&
         adsPosition <= UINT16_MAX) {
         adsPacket->length = (uint16_t)adsPosition;
-        (void)sensorarrayUsbSinkPublish(adsPacket);
-        (void)sensorarrayNetLogPublish(adsPacket);
+        if (usbDue) {
+            (void)sensorarrayUsbSinkPublish(adsPacket);
+        }
+        if (netDue) {
+            (void)sensorarrayNetLogPublish(adsPacket);
+        }
     } else if (adsPosition != 0u) {
         s_summaryTruncated++;
         printf("LOGTRUNC,packet=ads,seq=%lu,max=%u,count=%lu\n",
@@ -1398,7 +1436,9 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
                (unsigned)sizeof(adsPacket->data),
                (unsigned long)s_summaryTruncated);
     }
-    sensorarrayAsyncLogSummarySetBaseline(summary, &sharedStats);
+    if (netDue) {
+        sensorarrayAsyncLogSummarySetBaseline(summary, &sharedStats);
+    }
 }
 
 static void sensorarrayAsyncLogMaybePrintSummary(sensorarrayAsyncLogSummary_t *summary)
@@ -1837,10 +1877,11 @@ static void sensorarrayAsyncLogTask(void *arg)
             uint64_t outputUs = 0u;
             if (emitted) {
                 frame->emitUs = (uint64_t)outputStartUs;
-                /* Serial data is a throttled debug/fallback sink. The queue is
+                /* USB Serial/JTAG data follows the per-sink USBSTREAM profile
+                 * (DEBUG decimates, FULL emits every frame). The queue stays
                  * non-blocking and network data remains the primary path. */
                 (void)sensorarrayNetTextPublish(textPacket, true);
-                if ((frame->sequence % 10u) == 0u) {
+                if (sensorarrayUsbSinkShouldEmitData(frame->sequence)) {
                     (void)sensorarrayUsbSinkPublish(textPacket);
                 }
                 if (sensorarrayCommandMailboxTraceEnabled()) {
