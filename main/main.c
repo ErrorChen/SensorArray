@@ -2074,6 +2074,21 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
                        (unsigned long)ESP_ERR_INVALID_STATE);
                 continue;
             }
+            sensorarrayRouteSnapshot_t routeSnapshot = {0};
+            if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController,
+                                                       &routeSnapshot) &&
+                routeSnapshot.fdcSdHigh) {
+                sensorarrayMeasurementModeSnapshot_t beforeMode = {0};
+                (void)sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode,
+                                                             &beforeMode);
+                printf("MERR,id=%lu,old=%s,new=%s,seq=%lu,state=rejected,err=0x%lx,reason=fdc_restart_required,transitionUs=0\n",
+                       (unsigned long)command.requestId,
+                       sensorarrayMeasurementModeName(beforeMode.activeMode),
+                       sensorarrayMeasurementModeName(requested),
+                       (unsigned long)(ctx->hostFrameSequence + 1u),
+                       (unsigned long)ESP_ERR_INVALID_STATE);
+                continue;
+            }
             esp_err_t modeErr = sensorarrayApplyMeasurementMode(
                 ctx,
                 requested,
@@ -2108,6 +2123,18 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
                     (unsigned long)ESP_ERR_INVALID_ARG);
                 break;
             }
+            sensorarrayRouteSnapshot_t routeSnapshot = {0};
+            if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController,
+                                                       &routeSnapshot) &&
+                routeSnapshot.fdcSdHigh) {
+                sensorarrayEmitRowModesTerminal(
+                    command.requestId,
+                    "RMERR,id=%lu,profile=%s,state=rejected,err=0x%lx,reason=fdc_restart_required\n",
+                    (unsigned long)command.requestId,
+                    command.rowModes,
+                    (unsigned long)ESP_ERR_INVALID_STATE);
+                break;
+            }
             if (!sensorarrayRowModeProfileAccept(&ctx->rowModeProfile,
                                                  modes,
                                                  command.requestId)) {
@@ -2117,6 +2144,66 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
                     (unsigned long)command.requestId,
                     command.rowModes,
                     (unsigned long)ESP_ERR_INVALID_STATE);
+            }
+            break;
+        }
+        case SENSORARRAY_COMMAND_FDC_ISOLATE: {
+            uint32_t appliedSequence = ctx->hostFrameSequence + 1u;
+            if (command.value == 0u) {
+                printf("FERR,id=%lu,seq=%lu,sd=low,state=rejected,reason=restart_required,restartRequired=1\n",
+                       (unsigned long)command.requestId,
+                       (unsigned long)appliedSequence);
+                continue;
+            }
+            sensorarrayMeasurementModeSnapshot_t mode = {0};
+            sensorarrayRowModeProfile_t profile = {0};
+            sensorarrayRouteSnapshot_t route = {0};
+            bool modeOk = sensorarrayMeasurementModeCopySnapshot(
+                &ctx->measurementMode, &mode);
+            bool profileOk = sensorarrayRowModeProfileCopy(
+                &ctx->rowModeProfile, &profile);
+            bool routeOk = sensorarrayRouteControllerCopySnapshot(
+                &ctx->routeController, &route);
+            bool routeConsistent =
+                routeOk && !route.safe && route.mode == mode.activeMode;
+            bool homogeneousAds =
+                mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ||
+                mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
+            if (!modeOk || !profileOk || !routeConsistent || !homogeneousAds ||
+                mode.pending ||
+                mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION ||
+                profile.pending ||
+                !sensorarrayRowModeProfileIsHomogeneous(profile.modes)) {
+                printf("FERR,id=%lu,seq=%lu,active=%s,state=rejected,reason=not_homogeneous_ads\n",
+                       (unsigned long)command.requestId,
+                       (unsigned long)appliedSequence,
+                       sensorarrayMeasurementModeName(mode.activeMode));
+                continue;
+            }
+            if (route.fdcSdHigh) {
+                printf("FERR,id=%lu,seq=%lu,sd=high,state=rejected,reason=already_applied,restartRequired=1\n",
+                       (unsigned long)command.requestId,
+                       (unsigned long)appliedSequence);
+                continue;
+            }
+            bool verified = false;
+            esp_err_t err = sensorarrayRouteControllerForceFdcShutdown(
+                &ctx->routeController, &verified);
+            if (err == ESP_OK && verified) {
+                printf("FAPP,id=%lu,seq=%lu,sd=high,verified=1,restartRequired=1,state=applied\n",
+                       (unsigned long)command.requestId,
+                       (unsigned long)appliedSequence);
+            } else {
+                const char *reason =
+                    err == ESP_ERR_NOT_SUPPORTED ? "sd_gpio_unavailable" :
+                    err == ESP_ERR_INVALID_RESPONSE ? "readback_failed" :
+                    "sleep_verify_failed";
+                printf("FERR,id=%lu,seq=%lu,sd=low,err=0x%lx,state=rejected,reason=%s\n",
+                       (unsigned long)command.requestId,
+                       (unsigned long)appliedSequence,
+                       (unsigned long)err,
+                       reason);
+                continue;
             }
             break;
         }
@@ -2605,7 +2692,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         }
         int written = snprintf(response,
                  responseSize,
-                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,layout=%s,profile=%s,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu,stackBytes=%lu,stackUnit=bytes\n",
+                 "MODE,state=%s,active=%s,pending=%s,pid=%lu,gen=%lu,rid=%lu,seq=%lu,layout=%s,profile=%s,route=%s,row=%u,sw=%s,source=%s,matrixRef=%s,intref=%u,vbias=%u,refmux=%02X,pga=%u,rail=%u,age=%lu,fdcPrimary=%s,fdcPrimaryVerified=%u,fdcSecondary=%s,fdcSecondaryVerified=%u,fdcSd=%s,fdcSdVerified=%u,fdcRestartRequired=%u,budgetFps=%lu,captureCap=%lu,transitionUs=%llu,transitions=%lu,heap=%lu,heapMin=%lu,stackWords=%lu,stackBytes=%lu,stackUnit=bytes\n",
                  sensorarrayMeasurementStateName(mode.state),
                  sensorarrayMeasurementModeName(mode.activeMode),
                  mode.pending ? sensorarrayMeasurementModeName(mode.pendingMode) : "NONE",
@@ -2634,6 +2721,9 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  route.fdcPrimaryVerified ? 1u : 0u,
                  route.fdcSecondarySleeping ? "sleep" : "active",
                  route.fdcSecondaryVerified ? 1u : 0u,
+                 route.fdcSdHigh ? "high" : "low",
+                 route.fdcSdVerified ? 1u : 0u,
+                 route.fdcSdHigh ? 1u : 0u,
                  (unsigned long)sensorarrayFrameBudgetFps(mode.activeMode),
                  (unsigned long)sensorarrayFrameTargetFps(mode.activeMode),
                  (unsigned long long)route.transitionDurationUs,
@@ -2992,6 +3082,86 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  command[7]);
         return ESP_OK;
     }
+    if (strcmp(command, "FDCISO?") == 0) {
+        sensorarrayRouteSnapshot_t route = {0};
+        if (!ctx || !sensorarrayRouteControllerCopySnapshot(
+                         &ctx->routeController, &route)) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=FDCISO,reason=snapshot_busy\n");
+            return ESP_ERR_TIMEOUT;
+        }
+        snprintf(response, responseSize,
+                 "FDCISO,sd=%s,verified=%u,restartRequired=%u\n",
+                 route.fdcSdHigh ? "high" : "low",
+                 route.fdcSdVerified ? 1u : 0u,
+                 route.fdcSdHigh ? 1u : 0u);
+        return ESP_OK;
+    }
+    if (strcmp(command, "FDCISO=ON") == 0) {
+        sensorarrayRouteSnapshot_t route = {0};
+        sensorarrayMeasurementModeSnapshot_t mode = {0};
+        sensorarrayRowModeProfile_t profile = {0};
+        bool routeOk = ctx && sensorarrayRouteControllerCopySnapshot(
+                                  &ctx->routeController, &route);
+        bool modeOk = ctx && sensorarrayMeasurementModeCopySnapshot(
+                                 &ctx->measurementMode, &mode);
+        bool profileOk = ctx && sensorarrayRowModeProfileCopy(
+                                    &ctx->rowModeProfile, &profile);
+        if (!routeOk || !modeOk || !profileOk) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=FDCISO,reason=snapshot_busy\n");
+            return ESP_ERR_TIMEOUT;
+        }
+        bool routeConsistent =
+            routeOk && !route.safe && route.mode == mode.activeMode;
+        if (route.fdcSdHigh) {
+            snprintf(response, responseSize,
+                     "FERR,cmd=FDCISO,sd=high,reason=already_applied,state=rejected,restartRequired=1\n");
+            return ESP_ERR_INVALID_STATE;
+        }
+        bool homogeneousAds =
+            mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ||
+            mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
+        if (!routeConsistent || !homogeneousAds || mode.pending ||
+            mode.state == SENSORARRAY_MEASUREMENT_STATE_TRANSITION ||
+            profile.pending ||
+            !sensorarrayRowModeProfileIsHomogeneous(profile.modes)) {
+            snprintf(response, responseSize,
+                     "FERR,cmd=FDCISO,reason=not_homogeneous_ads,active=%s,state=rejected\n",
+                     sensorarrayMeasurementModeName(mode.activeMode));
+            return ESP_ERR_INVALID_STATE;
+        }
+        uint32_t requestId = 0u;
+        esp_err_t postErr =
+            sensorarrayCommandMailboxPostFdcIsolation(true, &requestId);
+        if (postErr != ESP_OK) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=FDCISO,reason=mailbox,err=0x%lx\n",
+                     (unsigned long)postErr);
+            return postErr;
+        }
+        snprintf(response, responseSize,
+                 "FACK,id=%lu,sd=low,state=accepted,restartRequired=0\n",
+                 (unsigned long)requestId);
+        return ESP_OK;
+    }
+    if (strcmp(command, "FDCISO=OFF") == 0) {
+        sensorarrayRouteSnapshot_t route = {0};
+        if (!ctx || !sensorarrayRouteControllerCopySnapshot(
+                         &ctx->routeController, &route)) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=FDCISO,reason=snapshot_busy\n");
+            return ESP_ERR_TIMEOUT;
+        }
+        if (route.fdcSdHigh) {
+            snprintf(response, responseSize,
+                     "FERR,cmd=FDCISO,sd=high,reason=restart_required,state=rejected,restartRequired=1\n");
+            return ESP_ERR_INVALID_STATE;
+        }
+        snprintf(response, responseSize,
+                 "FACK,cmd=FDCISO,sd=low,state=unchanged,restartRequired=0\n");
+        return ESP_OK;
+    }
     if (strcmp(command, "BOOT?") == 0) {
         return sensorarrayFormatBootReply(response, responseSize, ctx);
     }
@@ -3115,6 +3285,14 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         if (!ctx || !ctx->systemReady) {
             snprintf(response, responseSize,
                      "ERR,cmd=RECOVER,reason=not_ready\n");
+            return ESP_ERR_INVALID_STATE;
+        }
+        sensorarrayRouteSnapshot_t recoveryRoute = {0};
+        if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController,
+                                                   &recoveryRoute) &&
+            recoveryRoute.fdcSdHigh) {
+            snprintf(response, responseSize,
+                     "ERR,cmd=RECOVER,reason=fdc_restart_required,restartRequired=1\n");
             return ESP_ERR_INVALID_STATE;
         }
         uint32_t requestId = 0u;
@@ -3259,6 +3437,11 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
     }
+
+    /* The shared FDC SD net must be driven low before either FDC2214 is
+     * probed or configured.  The route controller owns this pin; a failed
+     * prepare is logged here and keeps FDCISO rejected for this boot. */
+    (void)sensorarrayRouteControllerPrepareFdcSdGpio();
 
     esp_err_t err = sensorarrayBringupInitAds(&ctx->state);
     ctx->state.adsReady = (err == ESP_OK);
@@ -3994,6 +4177,19 @@ static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
     uint32_t requestId = 0u;
     if (!sensorarrayRecoveryTake(&level, &requestId)) {
         return false;
+    }
+
+    sensorarrayRouteSnapshot_t recoveryRoute = {0};
+    if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController,
+                                               &recoveryRoute) &&
+        recoveryRoute.fdcSdHigh) {
+        /* FDC SD high has already put both FDC2214 frontends into shutdown.
+         * Any FDC probe/recovery would touch the dead I2C path; CAP is only
+         * recoverable through an explicit device restart. */
+        printf("RERR,cmd=RECOVER,id=%lu,level=%u,state=rejected,reason=fdc_restart_required,restartRequired=1\n",
+               (unsigned long)requestId,
+               (unsigned)level);
+        return true;
     }
 
     if (level == SENSORARRAY_RECOVERY_LEVEL_RESTART) {

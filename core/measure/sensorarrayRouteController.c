@@ -4,11 +4,56 @@
 
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
+#include "driver/gpio.h"
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayRoutePolicy.h"
 #include "tmuxSwitch.h"
+
+static bool s_fdcSdGpioReady;
+
+static bool sensorarrayRouteFdcSdGpioValid(void)
+{
+    int gpio = CONFIG_SENSORARRAY_FDC_SD_GPIO;
+    return gpio >= 0 && gpio <= 48;
+}
+
+esp_err_t sensorarrayRouteControllerPrepareFdcSdGpio(void)
+{
+    if (s_fdcSdGpioReady) {
+        return ESP_OK;
+    }
+    if (!sensorarrayRouteFdcSdGpioValid()) {
+        printf("FDC_SD,stage=init,gpio=%d,ready=0,verified=0,reason=disabled\n",
+               CONFIG_SENSORARRAY_FDC_SD_GPIO);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    gpio_config_t sdConfig = {
+        .pin_bit_mask = 1ULL << CONFIG_SENSORARRAY_FDC_SD_GPIO,
+        .mode = GPIO_MODE_INPUT_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    esp_err_t sdErr = gpio_config(&sdConfig);
+    if (sdErr == ESP_OK) {
+        sdErr = gpio_set_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO, 0);
+    }
+    bool ready = sdErr == ESP_OK;
+    bool verified =
+        ready && gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO) == 0;
+    s_fdcSdGpioReady = ready && verified;
+    printf("FDC_SD,stage=init,gpio=%d,sd=low,ready=%u,verified=%u,err=0x%lx\n",
+           CONFIG_SENSORARRAY_FDC_SD_GPIO,
+           ready ? 1u : 0u,
+           verified ? 1u : 0u,
+           (unsigned long)sdErr);
+    if (!ready) {
+        return sdErr;
+    }
+    return verified ? ESP_OK : ESP_FAIL;
+}
 
 static void sensorarrayRouteWriteBegin(sensorarrayRouteController_t *controller)
 {
@@ -50,39 +95,59 @@ static esp_err_t sensorarrayRouteSetFdcSleep(sensorarrayFdcDeviceState_t *fdc,
     return err;
 }
 
-static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *controller)
+static esp_err_t sensorarrayRouteSleepFdcFrontends(
+    sensorarrayRouteController_t *controller,
+    const char **outStage)
 {
     if (!controller || !controller->state) {
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayState_t *state = controller->state;
     esp_err_t firstErr = ESP_OK;
-    if (state->adsReady) {
-        esp_err_t err = ads126xAdcStopAdc1(&state->ads);
-        if (err != ESP_OK && firstErr == ESP_OK) {
-            firstErr = err;
-        }
-        state->adsAdc1Running = false;
-        if (ads126xAdcHasAdc2(&state->ads)) {
-            err = ads126xAdcStopAdc2(&state->ads);
-            if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED && firstErr == ESP_OK) {
-                firstErr = err;
-            }
-        }
-    }
     bool primaryVerified = false;
     bool secondaryVerified = false;
-    esp_err_t err = sensorarrayRouteSetFdcSleep(&state->fdcPrimary,
-                                                true,
-                                                &primaryVerified);
-    if (err != ESP_OK && firstErr == ESP_OK) {
-        firstErr = err;
-    }
-    err = sensorarrayRouteSetFdcSleep(&state->fdcSecondary,
-                                      true,
-                                      &secondaryVerified);
-    if (err != ESP_OK && firstErr == ESP_OK) {
-        firstErr = err;
+    if (controller->snapshot.fdcSdHigh) {
+        /* SD high is a deeper state than register sleep: both devices are
+         * already shutdown and must not be touched over their now-dead I2C
+         * paths until a device restart restores normal operation. */
+        primaryVerified = true;
+        secondaryVerified = true;
+    } else {
+        /* EnterSleep() verifies CONFIG by readback, which fails on a device
+         * already in register sleep.  Skip the redundant transaction only
+         * when this snapshot already confirms sleeping and verified. */
+        bool primaryAlreadySleeping =
+            controller->snapshot.fdcPrimarySleeping &&
+            controller->snapshot.fdcPrimaryVerified;
+        if (primaryAlreadySleeping) {
+            primaryVerified = true;
+        } else {
+            esp_err_t err = sensorarrayRouteSetFdcSleep(&state->fdcPrimary,
+                                                        true,
+                                                        &primaryVerified);
+            if (err != ESP_OK && firstErr == ESP_OK) {
+                firstErr = err;
+                if (outStage && (*outStage)[0] == '\0') {
+                    *outStage = "fdc_primary_sleep";
+                }
+            }
+        }
+        bool secondaryAlreadySleeping =
+            controller->snapshot.fdcSecondarySleeping &&
+            controller->snapshot.fdcSecondaryVerified;
+        if (secondaryAlreadySleeping) {
+            secondaryVerified = true;
+        } else {
+            esp_err_t err = sensorarrayRouteSetFdcSleep(&state->fdcSecondary,
+                                                        true,
+                                                        &secondaryVerified);
+            if (err != ESP_OK && firstErr == ESP_OK) {
+                firstErr = err;
+                if (outStage && (*outStage)[0] == '\0') {
+                    *outStage = "fdc_secondary_sleep";
+                }
+            }
+        }
     }
     sensorarrayRouteWriteBegin(controller);
     controller->snapshot.fdcPrimarySleeping = primaryVerified;
@@ -93,11 +158,55 @@ static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *con
     return firstErr;
 }
 
+static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *controller,
+                                                const char **outStage)
+{
+    if (!controller || !controller->state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sensorarrayState_t *state = controller->state;
+    esp_err_t firstErr = ESP_OK;
+    if (outStage) {
+        *outStage = "";
+    }
+    if (state->adsReady) {
+        esp_err_t err = ads126xAdcStopAdc1(&state->ads);
+        if (err != ESP_OK && firstErr == ESP_OK) {
+            firstErr = err;
+            if (outStage && (*outStage)[0] == '\0') {
+                *outStage = "ads_stop";
+            }
+        }
+        state->adsAdc1Running = false;
+        if (ads126xAdcHasAdc2(&state->ads)) {
+            err = ads126xAdcStopAdc2(&state->ads);
+            if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED && firstErr == ESP_OK) {
+                firstErr = err;
+                if (outStage && (*outStage)[0] == '\0') {
+                    *outStage = "ads_stop";
+                }
+            }
+        }
+    }
+    esp_err_t err = sensorarrayRouteSleepFdcFrontends(controller, outStage);
+    if (err != ESP_OK && firstErr == ESP_OK) {
+        firstErr = err;
+    }
+    return firstErr;
+}
+
 static esp_err_t sensorarrayRouteWakeFdcFrontends(
     sensorarrayRouteController_t *controller)
 {
     if (!controller || !controller->state) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (controller->snapshot.fdcSdHigh) {
+        printf("FDCISO,sd=high,reason=wake_after_isolation,restartRequired=1\n");
+        /* SD shutdown resets every FDC register, so wake would both fail on
+         * the dead I2C path and be insufficient even if it succeeded.  CAP
+         * is recoverable only through a device restart. */
+        return ESP_ERR_INVALID_STATE;
     }
     bool primaryVerified = false;
     bool secondaryVerified = false;
@@ -338,6 +447,10 @@ esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controlle
         (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US;
     controller->snapshot.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;
     controller->snapshot.safe = true;
+    (void)sensorarrayRouteControllerPrepareFdcSdGpio();
+    controller->snapshot.fdcSdVerified =
+        sensorarrayRouteFdcSdGpioValid() && s_fdcSdGpioReady &&
+        gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO) == 0;
     return ESP_OK;
 }
 
@@ -351,7 +464,7 @@ esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *cont
     sensorarrayBoardRouteProfile_t safeProfile;
     (void)sensorarrayBoardMapGetRouteProfile(SENSORARRAY_MEASUREMENT_MODE_NONE,
                                              &safeProfile);
-    esp_err_t firstErr = sensorarrayRouteStopFrontends(controller);
+    esp_err_t firstErr = sensorarrayRouteStopFrontends(controller, NULL);
     esp_err_t err = sensorarrayRouteDisableMatrixReference(controller);
     if (firstErr == ESP_OK && err != ESP_OK) {
         firstErr = err;
@@ -404,7 +517,7 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    esp_err_t err = sensorarrayRouteStopFrontends(controller);
+    esp_err_t err = sensorarrayRouteStopFrontends(controller, NULL);
     if (err == ESP_OK) {
         err = sensorarrayRouteApplyControlProfile(controller, &profile);
     }
@@ -474,7 +587,7 @@ esp_err_t sensorarrayRouteControllerEnterSafeRailMonitor(
         return ESP_ERR_NOT_SUPPORTED;
     }
     int64_t startUs = esp_timer_get_time();
-    esp_err_t err = sensorarrayRouteStopFrontends(controller);
+    esp_err_t err = sensorarrayRouteStopFrontends(controller, NULL);
     if (err == ESP_OK) {
         err = sensorarrayRouteApplyControlProfile(controller, &profile);
     }
@@ -699,4 +812,71 @@ uint32_t sensorarrayRouteControllerGetRowSettleUs(
     const sensorarrayRouteController_t *controller)
 {
     return controller ? controller->rowSettleUs : 0u;
+}
+
+esp_err_t sensorarrayRouteControllerForceFdcShutdown(
+    sensorarrayRouteController_t *controller,
+    bool *outVerified)
+{
+    if (outVerified) {
+        *outVerified = false;
+    }
+    if (!controller || !controller->state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_fdcSdGpioReady) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    sensorarrayRouteSnapshot_t before = {0};
+    if (!sensorarrayRouteControllerCopySnapshot(controller, &before)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (before.fdcSdHigh) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    const char *stage = "";
+    esp_err_t err = sensorarrayRouteStopFrontends(controller, &stage);
+    sensorarrayRouteSnapshot_t stopped = {0};
+    bool stoppedOk =
+        sensorarrayRouteControllerCopySnapshot(controller, &stopped);
+    if (err != ESP_OK || !stoppedOk ||
+        !stopped.fdcPrimaryVerified || !stopped.fdcSecondaryVerified ||
+        !stopped.fdcPrimarySleeping || !stopped.fdcSecondarySleeping) {
+        if (stage[0] == '\0') {
+            stage = stoppedOk ? "sleep_verify" : "snapshot";
+        }
+        printf("FDCISO_ERR,stage=%s,err=0x%lx,sd=low,primarySleeping=%u,primaryVerified=%u,secondarySleeping=%u,secondaryVerified=%u\n",
+               stage,
+               (unsigned long)err,
+               stopped.fdcPrimarySleeping ? 1u : 0u,
+               stopped.fdcPrimaryVerified ? 1u : 0u,
+               stopped.fdcSecondarySleeping ? 1u : 0u,
+               stopped.fdcSecondaryVerified ? 1u : 0u);
+        return err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
+    }
+
+    err = gpio_set_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO, 1);
+    if (err != ESP_OK) {
+        printf("FDCISO_ERR,stage=fdc_sd_gpio,err=0x%lx,sd=low,readback=0,reason=command_failed\n",
+               (unsigned long)err);
+        return err;
+    }
+    bool sdHigh =
+        gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO) == 1;
+    if (!sdHigh) {
+        /* Pin readback is MCU-side evidence only, but a mismatch must not
+         * leave a half-commanded level: restore the safe low state. */
+        (void)gpio_set_level((gpio_num_t)CONFIG_SENSORARRAY_FDC_SD_GPIO, 0);
+        printf("FDCISO_ERR,stage=fdc_sd_gpio,err=0x%lx,sd=low,readback=0,reason=readback_mismatch\n",
+               (unsigned long)ESP_ERR_INVALID_RESPONSE);
+    }
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.fdcSdHigh = sdHigh;
+    controller->snapshot.fdcSdVerified = sdHigh;
+    sensorarrayRouteWriteEnd(controller);
+    if (outVerified) {
+        *outVerified = sdHigh;
+    }
+    return sdHigh ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }

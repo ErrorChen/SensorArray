@@ -292,17 +292,20 @@ class SerialValidator:
                     "matrixRef": "GND", "intref": "0", "vbias": "1",
                     "refmux": "24", "fdcPrimary": "active",
                     "fdcPrimaryVerified": "1", "fdcSecondary": "active",
-                    "fdcSecondaryVerified": "1"},
+                    "fdcSecondaryVerified": "1", "fdcSd": "low",
+                    "fdcSdVerified": "1", "fdcRestartRequired": "0"},
             "VOLT": {"active": "VOLT", "sw": "HIGH", "source": "GND",
                       "matrixRef": "GND", "intref": "0", "vbias": "1",
                       "refmux": "24", "fdcPrimary": "sleep",
                       "fdcPrimaryVerified": "1", "fdcSecondary": "sleep",
-                      "fdcSecondaryVerified": "1"},
+                      "fdcSecondaryVerified": "1", "fdcSd": "low",
+                      "fdcSdVerified": "1", "fdcRestartRequired": "0"},
             "RES": {"active": "RES", "sw": "LOW", "source": "REF",
                      "matrixRef": "REFOUT", "intref": "1", "vbias": "1",
                      "refmux": "00", "fdcPrimary": "sleep",
                      "fdcPrimaryVerified": "1", "fdcSecondary": "sleep",
-                     "fdcSecondaryVerified": "1"},
+                     "fdcSecondaryVerified": "1", "fdcSd": "low",
+                     "fdcSdVerified": "1", "fdcRestartRequired": "0"},
         }[mode]
         for key, value in expected.items():
             if fields.get(key) != value:

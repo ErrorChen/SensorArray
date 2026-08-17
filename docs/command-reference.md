@@ -38,7 +38,7 @@
 | `ROWS=<N>` / `ROWLIMIT=<N>` / `SCANROWS=<N>` | Config | 是 | 是 | 是 | `N=1..8` | `RCMD,...status=accepted`，随后 `RAPP,...status=applied` | 下一完整帧开始 | 否 | 支持；后两者为 alias | `RAPP` 后的新 frame 才使用新 rows/generation。 |
 | `ROWMODES?` | Query | 是 | 是 | 是 | 无 | `ROWMODES,active=...,pending=...,gen=...,rid=...,rows=8,state=...` | 立即 seqlock snapshot | - | 支持 | 查询每个物理 S 行的当前/待应用 profile。 |
 | `ROWMODES=<8 chars>` | Config | 是 | 是 | 是 | 每字节为 `C`/`V`/`R`，例如 `CVVRRVVC` | `RMACK,...state=accepted`，随后 `RMAPP,...profile=...,state=applied` 或 `RMERR` | 下一完整帧开始 | 否 | 支持 | profile 原子切换；同一帧不会混用旧/新 profile。 |
-| `MODE?` / `STATE?` | Query | 是 | 是 | 是 | 无 | `MODE,state=...,active=...,route=...` | 立即 seqlock snapshot | - | 支持 | 两个命令当前返回同一完整 snapshot；不发起新 conversion。 |
+| `MODE?` / `STATE?` | Query | 是 | 是 | 是 | 无 | `MODE,state=...,active=...,route=...,fdcSd=<high|low>,fdcSdVerified=<0|1>,fdcRestartRequired=<0|1>` | 立即 seqlock snapshot | - | 支持 | 两个命令当前返回同一完整 snapshot；不发起新 conversion。`fdcSd` 与 `FDCISO?` 一致；高电平表示共享 FDC SD 已关断，必须 `RESTART` 才能恢复 CAP。 |
 | `MODE=CAP` / `MODE=CAPACITANCE` | Config | 是 | 是 | 是 | CAP alias | `MACK,...state=accepted`，随后 `MAPP,...state=applied` | 完整帧边界 | 否 | 支持 | 切到双 FDC CAP。 |
 | `MODE=VOLT` / `MODE=VOLTAGE` | Config | 是 | 是 | 是 | VOLT alias | `MACK`，随后自动 monitor rail 并输出 `MAPP`；失败输出 `MERR,...state=SAFE` | 完整帧边界 | 否 | 支持 | 不要求普通用户 `RAILCFG`；`SAFE_RAIL_MONITOR` 使用 ADS126x internal analog supply monitor。 |
 | `MODE=RES` / `MODE=RESISTANCE` | Config | 是 | 是 | 是 | RES alias | `MACK`，随后 `MAPP` | 完整帧边界 | 否 | 支持 | 切到 ADS + REFOUT 电阻路径。 |
@@ -46,6 +46,9 @@
 | `CELL?=S<row>D<col>` | Query | 是 | 是 | 是 | row/col 都为 1..8，例如 `CELL?=S1D1` | `CELL,seq=...,mode=...,value=...,valid=...` | 立即读取最后完整 snapshot | - | 支持 | 不触发新测量。 |
 | `RESSETTLE?` | Query | 是 | 是 | 是 | 无 | `RESSETTLE,settleUs=...,phases=2,source=runtime` | 立即 snapshot | - | 支持 | 查询 RES row settle。 |
 | `RESSETTLE=<microseconds>` | Config | 是 | 是 | 是 | `0..10000` | `ACK,cmd=RESSETTLE,...status=accepted`，随后 `RESSETTLE,...status=applied|rejected` | 完整帧边界 | 否 | 支持 | 不应把调试 sweep 结果固化为生产校准。 |
+| `FDCISO?` | Query | 是 | 是 | 是 | 无 | `FDCISO,sd=<high|low>,verified=<0|1>,restartRequired=<0|1>` | 立即 seqlock snapshot | - | 支持；实验诊断 | 只记录命令施加的 FDC SD 电平；不能证明模拟隔离。 |
+| `FDCISO=ON` | Config | 是 | 是 | 是 | 无 | `FACK,id=...,sd=low,state=accepted,restartRequired=0`，随后 `FAPP,id=...,seq=...,sd=high,verified=1,restartRequired=1,state=applied` 或 `FERR` | 完整帧边界 | 否 | 支持；实验诊断 | 仅在 route 非 SAFE、route.mode 与 active homogeneous RES/VOLT 一致且无 pending row profile 时允许；先停止 ADS 并 read-back 验证 FDC sleep，再驱动共享 SD=GPIO8 高。Schematic 显示 U8/U9 SD 与 ESP32 IO8 共享 SD 网，未看到 pull-down；SD 高请求 FDC shutdown，恢复 CAP 必须 `RESTART`。 |
+| `FDCISO=OFF` | Config | 是 | 是 | 是 | 无 | SD 高时 `FERR,cmd=FDCISO,sd=high,reason=restart_required,state=rejected,restartRequired=1`；SD 低时 `FACK,...state=unchanged` | 无硬件动作 | 否 | 支持；显式拒绝 | 不假装可在不重新初始化 FDC 的情况下恢复 CAP；只能 `RESTART`。 |
 
 ## ADS、rail 与 battery
 
@@ -76,7 +79,7 @@
 | `USBSTREAM?` | Query | 是 | 是 | 是 | 无 | `USBSTREAM,v=<DEBUG|FULL>,dataEvery=...,diagEvery=...` | 立即 snapshot | - | 支持 | 查询 USB 文本发布 profile。 |
 | `USBSTREAM=DEBUG` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=DEBUG,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | DEBUG 只按 `dataEvery` 发布测量 DATA，DIAG 按 `diagEvery`。 |
 | `USBSTREAM=FULL` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=FULL,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | FULL 发布全部测量 DATA；运行时 profile 不写 NVS。 |
-| `RECOVER` / `RECOVER=<level>` | Action | 是 | 是 | 是 | 默认 full；`0..2`（0=soft，1=full，2=restart） | `RACK,cmd=RECOVER,id=...,level=...,state=accepted`，随后 `RAPP,cmd=RECOVER,id=...,level=...,state=applied|rejected|restarting|safe` | 下一安全完整帧边界 | 否 | 支持 | 未 ready 返回 `ERR,cmd=RECOVER,reason=not_ready`；`RECOVER=2` 会重启设备。 |
+| `RECOVER` / `RECOVER=<level>` | Action | 是 | 是 | 是 | 默认 full；`0..2`（0=soft，1=full，2=restart） | `RACK,cmd=RECOVER,id=...,level=...,state=accepted`，随后 `RAPP,cmd=RECOVER,id=...,level=...,state=applied|rejected|restarting|safe` | 下一安全完整帧边界 | 否 | 支持 | 未 ready 返回 `ERR,cmd=RECOVER,reason=not_ready`；`RECOVER=2` 会重启设备。`FDCISO=ON` 隔离后 RECOVER 直接拒绝（`reason=fdc_restart_required`），只能 `RESTART`。 |
 | `RESTART` | Action | 是 | 是 | 是 | 无 | `RACK,cmd=RESTART,id=...,state=accepted`，随后 `RAPP,cmd=RESTART,id=...,state=restarting,kind=manual` | 下一安全完整帧边界 | 否 | 支持 | 受控重启；自动 HIL 未执行受控 reset 流程时 reboot/recovery 必须标 `NOT RUN`/`BLOCKED`。 |
 
 `RACK/RAPP` 用于 `RECOVER`/`RESTART` 的 deferred lifecycle：`RACK` 只表示已接受，`RAPP` 才表示在安全边界实际执行。`RECOVER=2` 与 `RESTART` 会真正重启，host 必须把重启后的 `RST`/boot breadcrumb 当作该命令的预期结果，不能与意外复位混淆。

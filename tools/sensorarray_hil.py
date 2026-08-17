@@ -2248,7 +2248,8 @@ async def runCommandParity(client: Any, observer: BleObserver,
         "state", "active", "pending", "pid", "gen", "rid", "route",
         "sw", "source", "matrixRef", "intref", "vbias", "refmux", "pga",
         "fdcPrimary", "fdcPrimaryVerified", "fdcSecondary",
-        "fdcSecondaryVerified",
+        "fdcSecondaryVerified", "fdcSd", "fdcSdVerified",
+        "fdcRestartRequired",
     )
     mismatches = [key for key in stableKeys
                   if serialFields.get(key) != bleFields.get(key)]

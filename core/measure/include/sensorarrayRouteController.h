@@ -35,6 +35,8 @@ typedef struct {
     bool fdcPrimaryVerified;
     bool fdcSecondarySleeping;
     bool fdcSecondaryVerified;
+    bool fdcSdHigh;
+    bool fdcSdVerified;
     bool safe;
 } sensorarrayRouteSnapshot_t;
 
@@ -47,6 +49,11 @@ typedef struct {
 
 esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controller,
                                          sensorarrayState_t *state);
+/* Configure and drive the shared FDC2214 SD pin low before any FDC
+ * bring-up.  Idempotent and owned by the route controller; returns ESP_OK
+ * only when the pin is configured, driven low, and MCU readback confirms
+ * the low level.  FDCISO must reject when this is not ready. */
+esp_err_t sensorarrayRouteControllerPrepareFdcSdGpio(void);
 esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *controller,
                                               const char *reason);
 esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *controller,
@@ -66,6 +73,18 @@ bool sensorarrayRouteControllerSetRowSettleUs(sensorarrayRouteController_t *cont
                                               uint32_t settleUs);
 uint32_t sensorarrayRouteControllerGetRowSettleUs(
     const sensorarrayRouteController_t *controller);
+/* Debug-only FDC electrical isolation experiment.  At a complete-frame
+ * boundary, stops the active ADS through the normal route-stop primitive,
+ * sleeps and read-back-verifies both FDC frontends, then drives the shared
+ * SD pin high.  Sleep is idempotent: a frontend already confirmed sleeping
+ * is skipped instead of re-entering sleep.  SD high requests FDC shutdown
+ * and resets FDC register state, so CAP is not recoverable without a device
+ * restart.  Returns
+ * ESP_ERR_INVALID_STATE when the pin is already forced high and
+ * ESP_ERR_NOT_SUPPORTED when the board did not configure an SD GPIO. */
+esp_err_t sensorarrayRouteControllerForceFdcShutdown(
+    sensorarrayRouteController_t *controller,
+    bool *outVerified);
 
 #ifdef __cplusplus
 }

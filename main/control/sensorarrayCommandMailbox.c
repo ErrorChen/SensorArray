@@ -563,6 +563,15 @@ esp_err_t sensorarrayCommandMailboxPostResSettle(uint32_t settleUs,
                                                  outRequestId);
 }
 
+esp_err_t sensorarrayCommandMailboxPostFdcIsolation(bool enabled,
+                                                    uint32_t *outRequestId)
+{
+    return sensorarrayCommandMailboxPostRequest(SENSORARRAY_COMMAND_FDC_ISOLATE,
+                                                enabled ? 1u : 0u,
+                                                0,
+                                                outRequestId);
+}
+
 bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand)
 {
     if (!s_commandQueue || !outCommand) {
@@ -686,6 +695,8 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "ads_debug";
     case SENSORARRAY_COMMAND_ROW_MODES:
         return "rowmodes";
+    case SENSORARRAY_COMMAND_FDC_ISOLATE:
+        return "fdc_isolate";
     default:
         return "unknown";
     }

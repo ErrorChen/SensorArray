@@ -496,6 +496,17 @@ config SENSORARRAY_FDC_INTB2_GPIO
     default 18
     range -1 48
 
+config SENSORARRAY_FDC_SD_GPIO
+    int "Shared FDC2214 SD (shutdown) GPIO"
+    default 8
+    range -1 48
+    help
+        Both FDC2214 SD pins share this net (schematic: ESP32 IO8 labeled
+        SD; U8/U9 SD labeled SD; no pull-down visible). The pin must be
+        driven low for normal operation and is used only by the debug
+        FDCISO runtime experiment. Driving it high requests FDC shutdown;
+        FDC register state is not assumed restored until a device restart.
+
 config SENSORARRAY_FDC_INTB_TRIGGER_ANYEDGE
     bool "Use any-edge trigger for FDC INTB"
     default n

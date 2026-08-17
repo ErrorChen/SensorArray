@@ -57,7 +57,7 @@ from sensorarray_hil import (
     waitBleCommand,
     waitForBleTraffic,
 )
-from text_protocol import MeasurementFrame, MixedFrame, MixedRow
+from text_protocol import MeasurementFrame, MixedFrame, MixedRow, parse_fields
 
 
 class SerialSequenceTests(unittest.TestCase):
@@ -81,6 +81,31 @@ class SnapshotBusyTests(unittest.TestCase):
         self.assertFalse(isTransientSnapshotBusy("TX?", line))
         self.assertFalse(isTransientSnapshotBusy(
             "STATE?", "ERR,cmd=MODE,reason=response_too_long"))
+
+
+class ModeReplyFdcTelemetryTests(unittest.TestCase):
+    def testModeReplyExposesFdcSdShutdownState(self):
+        normal = (
+            "MODE,state=CAPACITANCE,active=CAP,pending=NONE,pid=1,gen=2,rid=3,"
+            "seq=4,layout=HOMOGENEOUS,profile=CCCCCCCC,route=CAP,row=8,sw=HIGH,"
+            "source=GND,matrixRef=GND,intref=0,vbias=1,refmux=24,pga=128,rail=1,"
+            "age=0,fdcPrimary=active,fdcPrimaryVerified=1,fdcSecondary=active,"
+            "fdcSecondaryVerified=1,fdcSd=low,fdcSdVerified=1,"
+            "fdcRestartRequired=0,budgetFps=20,captureCap=0,transitionUs=0,"
+            "transitions=0,heap=100,heapMin=100,stackWords=1,stackBytes=4,"
+            "stackUnit=bytes")
+        isolated = normal.replace(
+            "fdcSd=low,fdcSdVerified=1,fdcRestartRequired=0",
+            "fdcSd=high,fdcSdVerified=1,fdcRestartRequired=1")
+        for line, expectedSd, expectedRestart in (
+                (normal, "low", "0"), (isolated, "high", "1")):
+            with self.subTest(sd=expectedSd):
+                fields = parse_fields(line)
+                self.assertEqual(fields["fdcSd"], expectedSd)
+                self.assertEqual(fields["fdcSdVerified"], "1")
+                self.assertEqual(fields["fdcRestartRequired"], expectedRestart)
+                self.assertEqual(fields["fdcPrimary"], "active")
+                self.assertEqual(fields["fdcSecondary"], "active")
 
 
 def fragmentMessage(channel, messageId, payload, fragmentCount, crcOverride=None):

@@ -31,6 +31,7 @@ typedef enum {
     SENSORARRAY_COMMAND_RES_SETTLE,
     SENSORARRAY_COMMAND_ADS_DEBUG,
     SENSORARRAY_COMMAND_ROW_MODES,
+    SENSORARRAY_COMMAND_FDC_ISOLATE,
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -75,6 +76,8 @@ esp_err_t sensorarrayCommandMailboxPostBatteryPeriod(bool enabled,
                                                      uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostResSettle(uint32_t settleUs,
                                                  uint32_t *outRequestId);
+esp_err_t sensorarrayCommandMailboxPostFdcIsolation(bool enabled,
+                                                    uint32_t *outRequestId);
 bool sensorarrayCommandMailboxTryReceive(sensorarrayCommand_t *outCommand);
 void sensorarrayCommandMailboxCommit(const sensorarrayCommand_t *command);
 uint32_t sensorarrayCommandMailboxGetBleCapPeriod(void);
