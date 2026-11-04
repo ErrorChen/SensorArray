@@ -1,0 +1,1 @@
+CONFIG,session=AAB1D8C652036904,bootId=8,rev=11,boundary=4156,state=RESISTANCE,mode=RES,rows=8,profile=RRRRRRRR,err=0x0,mgen=6,mrid=9,rgen=4,rrid=6,pgen=7,prid=9,mtermId=9,mterm=applied,merr=0x0,ptermId=9,pterm=applied,perr=0x0,rtermId=6,rterm=applied,rerr=0x0

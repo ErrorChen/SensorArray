@@ -80,6 +80,11 @@ bool sensorarrayAdsMatrixEngineGetCalibration(
     sensorarrayAdsMatrixCalibration_t *outCalibration);
 
 /* 本轮新增: pre-cleanup diagnosis, preserved until the next acquisition. */
+/* MIXED preflight only: no samples attempted/acquired; replaces stale sequence
+ * evidence and preserves the first condition/cleanup for the current sequence. */
+void sensorarrayAdsMatrixEngineRecordMixedBoundaryFault(
+    sensorarrayAdsMatrixEngine_t *engine, uint32_t sequence,
+    esp_err_t originalError, esp_err_t cleanupError);
 bool sensorarrayAdsMatrixEngineCopyFaultContext(
     const sensorarrayAdsMatrixEngine_t *engine,
     sensorarrayAdsMatrixFaultContext_t *outContext);

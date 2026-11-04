@@ -13,6 +13,7 @@ static void sensorarrayScanPlanBuildRows(sensorarrayScanPlan_t *plan,
     }
 
     memset(plan, 0, sizeof(*plan));
+    plan->auxiliaryTransactionsAllowed = true;
     sensorarrayFrameConfigSnapshot_t snapshot = sensorarrayScanConfigGetFrameSnapshot();
     uint8_t activeRows = snapshot.rows;
     if (activeRows < 1u || activeRows > SENSORARRAY_MATRIX_ROWS) {

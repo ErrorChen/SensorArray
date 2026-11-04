@@ -1,9 +1,11 @@
 #include "sensorarraySerialIo.h"
 
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "driver/usb_serial_jtag.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -21,6 +23,10 @@
 #define SERIAL_IO_QUEUE_COUNT 4u
 #define SERIAL_IO_DEADLINE_US 20000u
 #define SERIAL_IO_CHUNK 64u
+#define SERIAL_IO_VFS_PATH "/dev/saout"
+#define SERIAL_IO_VFS_DEVICE 0x5341u
+_Static_assert(sizeof(SERIAL_IO_VFS_PATH) - 1u <= ESP_VFS_PATH_MAX,
+               "Serial output VFS path exceeds ESP-IDF's registration limit");
 /* DATA has five slots (four queued + consumer); priority has four smaller
  * slots. No producer allocates a full payload on its task stack. */
 static char (*s_dataBytes)[SENSORARRAY_TRANSPORT_TEXT_MAX];
@@ -40,15 +46,22 @@ static TaskHandle_t s_task;
 
 static portMUX_TYPE s_statsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarraySerialIoStats_t s_stats;
-static bool s_vfsReady;
+static atomic_bool s_vfsReady;
 static bool s_vfsRegistered;
+static bool s_stdoutBound;
+static bool s_stderrBound;
 
 esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)
 {
     if (!data || !length || length > (priority ? SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX : SENSORARRAY_TRANSPORT_TEXT_MAX)) {
         return ESP_ERR_INVALID_SIZE;
     }
-    if (!s_task || !s_queues[priority ? 1 : 0]) {
+    /* A running driver/task alone is not a single-writer guarantee. Until
+     * both shared stdio streams have moved off the native console VFS, keep
+     * protocol/DATA TX closed. Registration failure leaves the early console
+     * intact; command RX does not depend on this output gate. */
+    if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire) ||
+        !s_task || !s_queues[priority ? 1 : 0]) {
         return ESP_ERR_INVALID_STATE;
     }
     uint8_t index = UINT8_MAX;
@@ -93,7 +106,23 @@ static int sensorarraySerialFstat(int fd, struct stat *st)
     (void)fd;
     memset(st, 0, sizeof(*st));
     st->st_mode = S_IFCHR;
+    st->st_dev = SERIAL_IO_VFS_DEVICE;
     return 0;
+}
+
+static bool sensorarraySerialStreamBound(FILE *stream)
+{
+    struct stat st;
+    return stream && fstat(fileno(stream), &st) == 0 &&
+        S_ISCHR(st.st_mode) && st.st_dev == SERIAL_IO_VFS_DEVICE;
+}
+
+static esp_err_t sensorarraySerialInitResult(esp_err_t err)
+{
+    portENTER_CRITICAL(&s_statsMux);
+    s_stats.initError = err;
+    portEXIT_CRITICAL(&s_statsMux);
+    return err;
 }
 static ssize_t sensorarraySerialWrite(int fd, const void *data, size_t size)
 {
@@ -175,7 +204,7 @@ static void sensorarraySerialTxTask(void *arg)
 
 esp_err_t sensorarraySerialIoInit(void)
 {
-    if (s_task && s_vfsReady) { return ESP_OK; }
+    if (atomic_load_explicit(&s_vfsReady, memory_order_acquire)) { return ESP_OK; }
     if (!s_dataBytes) {
         /* CPU-only payload: the driver copies each 64-byte chunk into its own
          * internal ring buffer. Allocate once, outside every producer path. */
@@ -188,40 +217,58 @@ esp_err_t sensorarraySerialIoInit(void)
                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
             if (s_dataBytes) { s_dataMemory = SENSORARRAY_SERIAL_MEMORY_INTERNAL; }
         }
-        if (!s_dataBytes) { return ESP_ERR_NO_MEM; }
+        if (!s_dataBytes) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
     }
     if (!usb_serial_jtag_is_driver_installed()) {
         usb_serial_jtag_driver_config_t config = {.tx_buffer_size = 1024, .rx_buffer_size = 512};
         esp_err_t err = usb_serial_jtag_driver_install(&config);
-        if (err != ESP_OK) { return err; }
+        if (err != ESP_OK) { return sensorarraySerialInitResult(err); }
     }
     if (!s_task) {
         for (unsigned i = 0; i < 2u; ++i) {
             s_queues[i] = xQueueCreateStatic(SERIAL_IO_QUEUE_COUNT, sizeof(uint8_t),
                                             s_queueBytes[i], &s_queueStorage[i]);
-            if (!s_queues[i]) { return ESP_ERR_NO_MEM; }
+            if (!s_queues[i]) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
         }
         if (xTaskCreatePinnedToCore(sensorarraySerialTxTask, "serialTx", 4096, NULL, 4, &s_task,
                                    CONFIG_SENSORARRAY_OUTPUT_TASK_CORE) != pdPASS) {
-            return ESP_ERR_NO_MEM;
+            return sensorarraySerialInitResult(ESP_ERR_NO_MEM);
         }
     }
-    if (!s_vfsReady) {
+    if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire)) {
         const esp_vfs_t vfs = {.flags = ESP_VFS_FLAG_DEFAULT, .open = sensorarraySerialOpen,
             .write = sensorarraySerialWrite, .close = sensorarraySerialClose, .fstat = sensorarraySerialFstat};
         if (!s_vfsRegistered) {
-            esp_err_t err = esp_vfs_register("/dev/sensorarray", &vfs, NULL);
-            if (err != ESP_OK) { return err; }
+            esp_err_t err = esp_vfs_register(SERIAL_IO_VFS_PATH, &vfs, NULL);
+            if (err != ESP_OK) { return sensorarraySerialInitResult(err); }
             s_vfsRegistered = true;
         }
-        if (!freopen("/dev/sensorarray", "w", stdout) || !freopen("/dev/sensorarray", "w", stderr)) {
-            return ESP_FAIL;
+        /* ESP-IDF's esp_reent_init gives every task the same global FILE
+         * objects. freopen changes those objects in place; do not replace only
+         * this task's stdout pointer. Verify the resulting VFS fd, too. */
+        if (!s_stdoutBound) {
+            if (!freopen(SERIAL_IO_VFS_PATH, "w", stdout) ||
+                !sensorarraySerialStreamBound(stdout)) {
+                return sensorarraySerialInitResult(ESP_FAIL);
+            }
+            setvbuf(stdout, NULL, _IONBF, 0);
+            s_stdoutBound = true;
         }
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
-        s_vfsReady = true;
+        if (!s_stderrBound) {
+            if (!freopen(SERIAL_IO_VFS_PATH, "w", stderr) ||
+                !sensorarraySerialStreamBound(stderr)) {
+                return sensorarraySerialInitResult(ESP_FAIL);
+            }
+            setvbuf(stderr, NULL, _IONBF, 0);
+            s_stderrBound = true;
+        }
+        /* A stream bound on a previous attempt may have observed EAGAIN while
+         * the other stream was unavailable. Clear that local FILE error now. */
+        clearerr(stdout);
+        clearerr(stderr);
+        atomic_store_explicit(&s_vfsReady, true, memory_order_release);
     }
-    return ESP_OK;
+    return sensorarraySerialInitResult(ESP_OK);
 }
 
 int sensorarraySerialIoRead(void *buffer, size_t length)
@@ -258,4 +305,5 @@ void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats)
     outStats->taskStackMinBytes = s_task ? (uint32_t)uxTaskGetStackHighWaterMark(s_task) * sizeof(StackType_t) : 0u;
     outStats->driverInstalled = usb_serial_jtag_is_driver_installed();
     outStats->sofPresent = usb_serial_jtag_is_connected();
+    outStats->stdioBound = atomic_load_explicit(&s_vfsReady, memory_order_acquire);
 }

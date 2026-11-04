@@ -1,10 +1,55 @@
 #!/usr/bin/env python3
 """Execute actual SerialIo queue/TX/VFS code with synthetic driver results."""
 from pathlib import Path
+import argparse
+import json
 import os
+import re
 import subprocess
 import tempfile
 root = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser()
+parser.add_argument("--baseline", help="Also reproduce VFS/64-byte corruption using this unmodified git revision")
+args = parser.parse_args()
+fixture = root / "tests/fixtures/serial_io"
+captured_config = (fixture / "config_complete.rx.txt").read_bytes()
+captured_corruption = (fixture / "config_interleaving.rx.txt").read_bytes()
+assert captured_corruption.index(b"PR,") == 64
+captured_pr = captured_corruption[64:captured_corruption.index(b"\n", 64) + 1]
+assert captured_config.startswith(b"CONFIG,") and len(captured_config) > 64
+# Use the project's actual installed IDF validator when available. The fallback
+# is the same public 15-byte constraint so ordinary host CI needs no SDK install.
+idf = Path(os.environ["IDF_PATH"]) if os.environ.get("IDF_PATH") else None
+description = root / "build/project_description.json"
+if idf is None and description.exists():
+    idf = Path(json.loads(description.read_text())["idf_path"])
+validator = '''static bool is_path_prefix_valid(const char *path, size_t length) {
+    return (length >= 2) && (length <= ESP_VFS_PATH_MAX)
+        && (path[0] == '/') && (path[length - 1] != '/');
+}'''
+path_max = 15
+validator_source = "public-idf-contract"
+reent_init = '''void esp_reent_init(struct _reent* r)
+{
+    memset(r, 0, sizeof(*r));
+    _REENT_STDIN(r) = _REENT_STDIN(_GLOBAL_REENT);
+    _REENT_STDOUT(r) = _REENT_STDOUT(_GLOBAL_REENT);
+    _REENT_STDERR(r) = _REENT_STDERR(_GLOBAL_REENT);
+    _REENT_CLEANUP(r) = _REENT_CLEANUP(_GLOBAL_REENT);
+    _REENT_SDIDINIT(r) = _REENT_SDIDINIT(_GLOBAL_REENT);
+}'''
+if idf and (idf / "components/vfs/vfs.c").exists():
+    source = (idf / "components/vfs/vfs.c").read_text()
+    begin = source.index("static bool is_path_prefix_valid(")
+    end = source.index("\n}", begin) + 2
+    validator = source[begin:end]
+    header = (idf / "components/vfs/include/esp_vfs.h").read_text()
+    path_max = int(re.search(r"#define ESP_VFS_PATH_MAX\s+(\d+)", header).group(1))
+    validator_source = str(idf / "components/vfs/vfs.c")
+    reent_source = (idf / "components/newlib/src/reent_init.c").read_text()
+    begin = reent_source.index("void esp_reent_init(")
+    reent_init = reent_source[begin:reent_source.index("\n}", begin) + 2]
+print(f"SERIAL_IO_VALIDATOR,source={validator_source},pathMax={path_max}", flush=True)
 with tempfile.TemporaryDirectory(prefix="sensorarray-serial-io-") as temp:
     temp = Path(temp)
     (temp / "freertos").mkdir()
@@ -58,11 +103,35 @@ typedef struct esp_vfs esp_vfs_t;
 esp_err_t esp_vfs_register(const char *path, const esp_vfs_t *vfs, void *context);
 '''
     (temp / "common.h").write_text(common)
+    with (temp / "common.h").open("a") as file:
+        file.write(f"\n#define ESP_VFS_PATH_MAX {path_max}\n")
+    (temp / "idf_vfs_prefix.h").write_text(validator + "\n")
+    (temp / "idf_reent_init.h").write_text('''
+struct _reent { FILE *_stdin, *_stdout, *_stderr; void (*cleanup)(void); int sdidinit; };
+static struct _reent testGlobalReent;
+#define _GLOBAL_REENT (&testGlobalReent)
+#define _REENT_STDIN(r) ((r)->_stdin)
+#define _REENT_STDOUT(r) ((r)->_stdout)
+#define _REENT_STDERR(r) ((r)->_stderr)
+#define _REENT_CLEANUP(r) ((r)->cleanup)
+#define _REENT_SDIDINIT(r) ((r)->sdidinit)
+''' + reent_init + "\n")
+    (temp / "serial_capture.h").write_text(
+        "/* Verbatim capture slices; scheduling injection is synthetic. */\n"
+        + "static const char capturedConfig[] = " + json.dumps(captured_config.decode("ascii")) + ";\n"
+        + "static const char capturedPr[] = " + json.dumps(captured_pr.decode("ascii")) + ";\n")
     for file in ["freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h", "driver/usb_serial_jtag.h", "esp_timer.h", "esp_vfs.h"]:
         (temp / file).write_text('#include "common.h"\n')
     (temp / "esp_heap_caps.h").write_text("#include <stddef.h>\n#include <stdint.h>\n#define MALLOC_CAP_8BIT 1u\n#define MALLOC_CAP_SPIRAM 2u\n#define MALLOC_CAP_INTERNAL 4u\nvoid *heap_caps_calloc(size_t count, size_t size, uint32_t caps);\n")
     (temp / "sdkconfig.h").write_text("#define CONFIG_SENSORARRAY_OUTPUT_TASK_CORE 0\n")
     exe = temp / "test"
-    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Dfreopen=test_freopen", "-Dsetvbuf=test_setvbuf", "-Dclearerr=test_clearerr", "-I", str(temp), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c"), "-o", str(exe)], check=True)
-    for allocation in ["psram", "internal", "failure_retry"]:
+    compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c")]
+    if args.baseline:
+        baseline = temp / "baselineSerialIo.c"
+        baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
+        baseline_exe = temp / "baseline"
+        subprocess.run(compile_args + ["-DSERIAL_IO_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
+        subprocess.run([str(baseline_exe)], check=True)
+    subprocess.run(compile_args + ["-o", str(exe)], check=True)
+    for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry"]:
         subprocess.run([str(exe), allocation], check=True)

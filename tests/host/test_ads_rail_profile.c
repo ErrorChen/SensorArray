@@ -12,6 +12,7 @@
 #define SENSORARRAY_ADS_INTERNAL_VREF_UV 2500000u
 #define SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS 1u
 #define SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT 4u
+#define SENSORARRAY_ADS_RAIL_CRC_RETRY_COUNT 1u
 #define CONFIG_SENSORARRAY_ADS_DATA_RATE 15u
 #define CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US 600u
 
@@ -35,10 +36,15 @@ static esp_err_t s_powerError, s_configError, s_mode2Error, s_sampleError, s_res
 static unsigned s_failSnapshotRead, s_failStopCall;
 static uint8_t s_profileMismatchReg, s_status;
 static uint32_t s_delayMs;
+static int64_t s_nowUs;
+static unsigned s_waitCalls, s_timeoutWaitCall;
+static esp_err_t s_sampleErrors[8];
+static uint32_t s_readGenerations[8];
 
 bool sensorarrayBoardMapHasIsolatedRailMonitor(void) { return s_isolated; }
 static bool sensorarrayAdsInternalReferenceIsUnclamped(void) { return s_unclamped; }
-void vTaskDelay(TickType_t ticks) { s_delayMs += ticks; }
+void vTaskDelay(TickType_t ticks) { s_delayMs += ticks; s_nowUs += ticks * 1000u; }
+int64_t esp_timer_get_time(void) { return s_nowUs; }
 esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *ads, uint8_t *value)
 { (void)ads; *value = s_physical.power; return s_powerError; }
 bool ads126xAdcHasAdc2(const ads126xAdcHandle_t *ads) { (void)ads; return false; }
@@ -91,19 +97,43 @@ esp_err_t ads126xAdcReadAdc1RegisterSnapshot(ads126xAdcHandle_t *ads, ads126xAdc
 void ads126xAdcClearDrdyNotifications(ads126xAdcHandle_t *ads) { (void)ads; }
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *ads)
 { (void)ads; assert(s_snapshotReads == 2u); s_running = true; return ESP_OK; }
-static esp_err_t sensorarrayAdsReadFreshAdc1(ads126xAdcHandle_t *ads, uint32_t timeout,
-                                           sensorarrayAdsFreshSample_t *sample)
-{ assert(timeout == 600u && s_running);
+uint32_t ads126xAdcGetDrdyGeneration(const ads126xAdcHandle_t *ads) { return ads->drdyGeneration; }
+bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *ads) { return ads->spiQuarantined; }
+bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *ads, uint8_t status)
+{ (void)ads; return (status & ADS126X_STATUS_ADC1_NEW_DATA) != 0u; }
+esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *ads, uint32_t generation,
+                                      uint32_t timeout, uint32_t *outGeneration)
+{ assert(timeout == 600u && s_running && generation == ads->drdyGeneration);
+  ++s_waitCalls;
+  if (s_waitCalls == s_timeoutWaitCall || (uint64_t)s_nowUs + 100u > ads->transactionDeadlineUs) {
+      uint64_t remaining = ads->transactionDeadlineUs > (uint64_t)s_nowUs ?
+          ads->transactionDeadlineUs - (uint64_t)s_nowUs : 0u;
+      s_nowUs += remaining < timeout ? remaining : timeout; return ESP_ERR_TIMEOUT;
+  }
+  s_nowUs += 100u; *outGeneration = ++ads->drdyGeneration; return ESP_OK; }
+esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *ads, int32_t *raw,
+                                     uint8_t *status, uint32_t *readUs)
+{
   assert(s_physical.mode0 == 0u && s_physical.mode1 == 0u && s_physical.mode2 == 0x0Fu);
   assert(!ads->pgaBypassed && ads->pgaGain == 1u && ads->vrefMicrovolts == 2500000u);
   assert(s_physical.inpmux == 0xCCu && s_physical.refmux == 0u);
   assert(!memcmp(s_physical.offsetCal, s_adsNeutralOffsetCal, 3u));
   assert(!memcmp(s_physical.fullScaleCal, s_adsUnityFullScaleCal, 3u));
-  ++s_samples; *sample = (sensorarrayAdsFreshSample_t){.raw=1109871204,.uv=1292050,
-      .status=s_status,.fresh=true,.generationStart=s_samples,.generationEnd=s_samples+1u};
-  return s_sampleError; }
+  assert(s_samples < 8u); s_readGenerations[s_samples] = ads->drdyGeneration;
+  esp_err_t err = s_sampleErrors[s_samples] != ESP_OK ? s_sampleErrors[s_samples] : s_sampleError;
+  ++s_samples; s_nowUs += 100u; *readUs = 100u;
+  if (err == ESP_ERR_INVALID_CRC) {
+      ads->lastAdc1CrcFault = (ads126xAdcCrcFault_t){.bytes={0x60u,0x42u,0x23u,0x54u,0x68u,0x21u},
+          .length=6u,.received=0x21u,.computed=0x20u,.configurationGeneration=ads->configurationGeneration,
+          .drdyGeneration=ads->drdyGeneration,.timestampUs=(uint64_t)s_nowUs};
+      ads->adc1CrcErrorCount++;
+  }
+  if (err == ESP_OK) { *raw = 1109871204; *status = s_status; }
+  return err; }
+int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *ads, int32_t raw)
+{ assert(ads->pgaGain == 1u && raw == 1109871204); return 1292050; }
 static void sensorarrayAdsRecordFreshSample(const sensorarrayAdsFreshSample_t *sample, esp_err_t err)
-{ assert(sample && err == ESP_ERR_INVALID_RESPONSE); }
+{ (void)err; assert(sample); }
 esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(ads126xAdcHandle_t *ads,
     const ads126xAdc1RegisterSnapshot_t *saved, uint32_t uv, bool running)
 { ++s_restoreCalls; if (s_restoreError != ESP_OK) return s_restoreError;
@@ -129,11 +159,14 @@ static sensorarrayState_t reset(uint8_t mode0, uint8_t mode1, uint8_t mode2)
     s_snapshotReads = s_samples = s_restoreCalls = s_stopCalls = s_cachePopulated = s_delayMs = 0u;
     s_failSnapshotRead = s_failStopCall = 0u; s_profileMismatchReg = UINT8_MAX;
     s_status = ADS126X_STATUS_ADC1_NEW_DATA;
+    s_nowUs = 1000000; s_waitCalls = s_timeoutWaitCall = 0u;
+    memset(s_sampleErrors,0,sizeof(s_sampleErrors)); memset(s_readGenerations,0,sizeof(s_readGenerations));
     s_powerError = s_configError = s_mode2Error = s_sampleError = s_restoreError = ESP_OK;
     return (sensorarrayState_t){.ads={.pgaGain=(uint8_t)(1u << ((mode2 >> 4u) & 7u)),
         .pgaBypassed=(mode2 & 0x80u) != 0u,.dataRateDr=(uint8_t)(mode2 & 15u),
         .vrefMicrovolts=5167748u,.crcMode=ADS126X_CRC_CRC8,.enableStatusByte=true,
-        .enableInternalRef=true,.mode0=mode0,.mode1=mode1}};
+        .enableInternalRef=true,.mode0=mode0,.mode1=mode1,
+        .transactionDeadlineUs=1250000u,.spiDmaCapable=true}};
 }
 
 int main(void)
@@ -148,6 +181,8 @@ int main(void)
         diag = (sensorarrayAdsRailDiag_t){0}; raw = uv = -1;
         assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_OK);
         assert(raw == 1109871204 && uv == 1292050 && s_samples == 5u);
+        assert(diag.acceptedSamples == 5u && diag.crcErrors == 0u);
+        assert(state.ads.transactionDeadlineUs == 1250000u);
         assert(diag.profileVerified && diag.configuredKnown && diag.restored);
         assert(diag.configured.mode2 == 0x0Fu && diag.originalError == ESP_OK && diag.cleanupError == ESP_OK);
         assert(!memcmp(&s_physical,&before,sizeof(before)) && !memcmp(&s_restoredCache,&before,sizeof(before)));
@@ -202,6 +237,44 @@ int main(void)
     state = reset(0u,0u,0x8Fu); s_failSnapshotRead = 1u;
     assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_FAIL);
     assert(s_samples == 0u && s_stopCalls == 0u && s_restoreCalls == 0u);
-    puts("ADS_RAIL_PROFILE_TESTS,passed=1,cases=27,source=production_functions,fixture=synthetic");
+
+    /* A bad read cannot consume one of the four discards or the final sample. */
+    state = reset(0u,0u,0x8Fu); s_sampleErrors[0] = ESP_ERR_INVALID_CRC;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_OK);
+    assert(s_samples == 6u && diag.acceptedSamples == 5u && diag.samplesRead == 5u);
+    assert(diag.crcErrors == 1u && diag.crcRetries == 1u && diag.originalError == ESP_OK);
+    assert(diag.firstCrc.received == 0x21u && diag.firstCrc.computed == 0x20u);
+    assert(s_readGenerations[1] != s_readGenerations[0] && state.ads.adc1CrcRetryCount == 1u);
+    assert(state.ads.transactionDeadlineUs == 1250000u && raw == 1109871204);
+
+    /* The retry budget is shared across all logical reads, not reset per discard. */
+    state = reset(0u,0u,0x8Fu); s_sampleErrors[0] = s_sampleErrors[3] = ESP_ERR_INVALID_CRC;
+    raw = uv = -1;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_ERR_INVALID_CRC);
+    assert(s_samples == 4u && diag.acceptedSamples == 2u && diag.crcRetries == 1u && diag.crcErrors == 2u);
+    assert(diag.firstCrc.drdyGeneration == s_readGenerations[0] && raw == -1 && uv == -1 && diag.restored);
+
+    state = reset(0u,0u,0x8Fu); s_sampleError = ESP_ERR_INVALID_CRC; raw = uv = -1;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_ERR_INVALID_CRC);
+    assert(s_samples == 2u && diag.acceptedSamples == 0u && diag.crcRetries == 1u && diag.crcErrors == 2u);
+    assert(raw == -1 && uv == -1 && diag.cleanupError == ESP_OK && diag.restored);
+
+    state = reset(0u,0u,0x8Fu); s_sampleErrors[0] = ESP_ERR_INVALID_CRC; s_timeoutWaitCall = 2u;
+    raw = uv = -1;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_ERR_INVALID_CRC);
+    assert(s_samples == 1u && diag.sampleTerminalError == ESP_ERR_TIMEOUT && diag.originalError == ESP_ERR_INVALID_CRC);
+    assert(diag.restored && diag.cleanupError == ESP_OK && raw == -1 && uv == -1);
+    assert(state.ads.transactionDeadlineUs == 1250000u && s_nowUs < 1250000);
+
+    state = reset(0u,0u,0x8Fu); s_sampleErrors[0] = ESP_ERR_INVALID_CRC;
+    state.ads.transactionDeadlineUs = 1001250u; raw = uv = -1;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_ERR_INVALID_CRC);
+    assert(diag.sampleTerminalError == ESP_ERR_TIMEOUT && s_samples == 1u && s_nowUs == 1001250);
+    assert(state.ads.transactionDeadlineUs == 1001250u && raw == -1 && uv == -1);
+
+    state = reset(0u,0u,0x8Fu); s_sampleErrors[4] = ESP_ERR_INVALID_CRC;
+    assert(sensorarrayAdsReadRailMonitorUv(&state,&raw,&uv,&diag) == ESP_OK);
+    assert(diag.acceptedSamples == 5u && s_samples == 6u && diag.crcRetries == 1u && diag.restored);
+    puts("ADS_RAIL_PROFILE_TESTS,passed=1,cases=33,source=production_functions_and_fresh_driver,fixture=synthetic");
     return 0;
 }

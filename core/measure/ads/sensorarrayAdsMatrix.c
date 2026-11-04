@@ -239,6 +239,30 @@ static void sensorarrayAdsMatrixCaptureFault(sensorarrayAdsMatrixEngine_t *engin
     sensorarrayAdsGapCopyTransactionEvidence(&fault->rail, &fault->battery, &fault->check);
 }
 
+void sensorarrayAdsMatrixEngineRecordMixedBoundaryFault(
+    sensorarrayAdsMatrixEngine_t *engine, uint32_t sequence,
+    esp_err_t originalError, esp_err_t cleanupError)
+{
+    if (!engine || !engine->state) { return; }
+    if (engine->faultContext.valid && engine->faultContext.sequence == sequence) {
+        if (engine->faultContext.cleanupError == ESP_OK) {
+            engine->faultContext.cleanupError = cleanupError;
+        }
+        return; /* The first condition for this sequence remains authoritative. */
+    }
+    engine->faultContext = (sensorarrayAdsMatrixFaultContext_t){0};
+    engine->frameSequenceHint = sequence;
+    sensorarrayAdsMatrixCaptureFault(engine,
+        SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR, originalError,
+        UINT8_MAX, 0u, 0u, 0u);
+    /* No child engine has started. Its old mode/route are not evidence of
+     * this boundary's physical state, especially after failed restoration. */
+    engine->faultContext.mode = "MIXED";
+    engine->faultContext.route = "unknown";
+    engine->faultContext.owner = "RAIL";
+    engine->faultContext.cleanupError = cleanupError;
+}
+
 bool sensorarrayAdsMatrixEngineCopyFaultContext(
     const sensorarrayAdsMatrixEngine_t *engine,
     sensorarrayAdsMatrixFaultContext_t *outContext)
@@ -1334,10 +1358,13 @@ static void sensorarrayAdsMatrixLogCrcEvidence(sensorarrayAdsMatrixEngine_t *eng
         (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration);
 }
 
-static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
+static esp_err_t sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
                                         sensorarrayAdsRailSplit_t *outRail,
-                                        sensorarrayAdsGapSnapshot_t *outGap)
+                                        sensorarrayAdsGapSnapshot_t *outGap,
+                                        esp_err_t *outCleanupError,
+                                        bool allowRefresh)
 {
+    *outCleanupError = ESP_OK;
     uint32_t sequence = engine->frameSequenceHint ?
         engine->frameSequenceHint : (engine->frameCount + 1u);
     sensorarrayAdsGapSnapshot_t gap = {0};
@@ -1347,21 +1374,27 @@ static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
         (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
         outRail);
     if (!valid) {
-        /* VOLT clamps the shared REF/REFOUT node through Q1. The caller must
-         * refresh the monitor in the isolated SAFE_RAIL_MONITOR window before
-         * entering this route; never release the clamp from inside a live
-         * VOLT frame. */
-        if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+        /* A mixed segment is not a complete-frame boundary. Its caller
+         * prepares rail before any group runs. VOLT must use a legal rail
+         * calibration here; never release its clamp inside a live frame. */
+        if (!allowRefresh || engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
             if (outGap) {
                 *outGap = gap;
             }
-            return false;
+            return ESP_ERR_INVALID_STATE;
         }
-        if (sensorarrayAdsGapRefreshRailAtBoundary(engine->state, sequence) != ESP_OK) {
+        sensorarrayAdsTransactionEvidence_t before = {0}, after = {0};
+        sensorarrayAdsGapCopyTransactionEvidence(&before, NULL, NULL);
+        esp_err_t refreshErr = sensorarrayAdsGapRefreshRailAtBoundary(engine->state, sequence);
+        sensorarrayAdsGapCopyTransactionEvidence(&after, NULL, NULL);
+        if (after.id != before.id) {
+            *outCleanupError = after.cleanupError;
+        }
+        if (refreshErr != ESP_OK) {
             if (outGap) {
                 *outGap = gap;
             }
-            return false;
+            return refreshErr;
         }
         sensorarrayAdsGapCopySnapshot(&gap, sequence);
         valid = sensorarrayAdsGapCopyRailSplit(
@@ -1372,7 +1405,7 @@ static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
     if (outGap) {
         *outGap = gap;
     }
-    return valid;
+    return valid ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
@@ -1645,7 +1678,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
 
     engine->faultContext.precisionFrame = frame->measurement.precisionFrame;
     sensorarrayAdsRailSplit_t rail = {0};
-    if (!sensorarrayAdsMatrixGetRail(engine, &rail, &frame->adsGap)) {
+    esp_err_t railCleanupError = ESP_OK;
+    esp_err_t railError = sensorarrayAdsMatrixGetRail(engine, &rail, &frame->adsGap,
+        &railCleanupError, plan->auxiliaryTransactionsAllowed);
+    if (railError != ESP_OK) {
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
         sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
         sensorarrayAdsRailFingerprintInit(&engine->railFingerprint);
@@ -1658,11 +1694,13 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                              false);
         }
         sensorarrayAdsMatrixCaptureFault(engine,
-            SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR, ESP_ERR_INVALID_STATE, 0u, 0u, 0u, 0u);
-        engine->faultContext.cleanupError = sensorarrayRouteControllerEnterSafe(
+            SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR, railError, UINT8_MAX, 0u, 0u, 0u);
+        esp_err_t safeError = sensorarrayRouteControllerEnterSafe(
             engine->routeController, "rail_invalid");
+        engine->faultContext.cleanupError = railCleanupError != ESP_OK ?
+            railCleanupError : safeError;
         sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
-        return ESP_ERR_INVALID_STATE;
+        return railError;
     }
     /* Monitor noise changes the measured rail by small amounts every sample.
      * Use a thresholded fingerprint; only external calibration uses its exact

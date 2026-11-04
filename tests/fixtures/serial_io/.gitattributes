@@ -1,0 +1,2 @@
+# These are exact byte slices of captured wire output, including CRLF/LF.
+*.rx.txt -text

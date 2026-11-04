@@ -29,6 +29,8 @@ typedef struct {
     int64_t lastTxUs;
     bool driverInstalled;
     bool sofPresent;
+    bool stdioBound;
+    esp_err_t initError;
 } sensorarraySerialIoStats_t;
 
 esp_err_t sensorarraySerialIoInit(void);

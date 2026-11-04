@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 
 #include "sensorarrayAdsGap.h"
+#include "sensorarrayAcqEvent.h"
 #include "sensorarrayFrameBuilder.h"
 
 static uint64_t sensorarrayMixedExpectedMask(uint8_t activeRows)
@@ -199,6 +200,104 @@ static uint32_t sensorarrayMixedCountCells(uint64_t mask, uint8_t activeRows)
     return count;
 }
 
+esp_err_t sensorarrayMixedRowPrepareRailAtBoundary(
+    sensorarrayAdsMatrixEngine_t *adsEngine, const sensorarrayScanPlan_t *plan,
+    uint32_t frameSequence, esp_err_t *outCleanupError)
+{
+    if (outCleanupError) { *outCleanupError = ESP_OK; }
+    if (!adsEngine || !adsEngine->state || !adsEngine->routeController || !plan ||
+        plan->rowCount < 1u || plan->rowCount > SENSORARRAY_MATRIX_ROWS) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    bool needsRail = false;
+    uint8_t firstResistanceRow = 0u;
+    for (uint8_t row = 0u; row < plan->rowCount; ++row) {
+        if (plan->configSnapshot.rowMask != 0u &&
+            (plan->configSnapshot.rowMask & (1u << row)) == 0u) { continue; }
+        sensorarrayMeasurementMode_t mode = plan->rowModes[row];
+        needsRail |= mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE ||
+                     mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE;
+        if (mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE && firstResistanceRow == 0u) {
+            firstResistanceRow = (uint8_t)(row + 1u);
+        }
+    }
+    if (!needsRail) { return ESP_OK; }
+    sensorarrayAdsRailSplit_t rail = {0};
+    uint32_t maximumAge = (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
+    /* Schedule before expiry without extending validity or reusing a failed
+     * refresh as new evidence. External measured calibration ignores age. */
+    uint32_t prepareAge = maximumAge > 0u ? maximumAge - 1u : 0u;
+    if (sensorarrayAdsGapCopyRailSplit(frameSequence, prepareAge, &rail)) {
+        return ESP_OK;
+    }
+    if (!plan->auxiliaryTransactionsAllowed) { return ESP_ERR_INVALID_STATE; }
+    if (firstResistanceRow == 0u && !sensorarrayBoardMapHasIsolatedRailMonitor()) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    sensorarrayRouteSnapshot_t before = {0};
+    if (!sensorarrayRouteControllerCopySnapshot(adsEngine->routeController, &before) ||
+        before.safe || !before.applied || !before.known || !before.verified ||
+        !sensorarrayMeasurementModeIsDataMode(before.mode) ||
+        before.row < 1u || before.row > SENSORARRAY_MATRIX_ROWS) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    uint64_t startedUs = (uint64_t)esp_timer_get_time();
+    uint64_t transitionUs = 0u;
+    esp_err_t err;
+    if (firstResistanceRow != 0u) {
+        /* Select an intended RES row while the preceding passive route still
+         * owns the matrix. ApplyMode removes reference before clamping and
+         * only enables it after the intended RES route is established. */
+        err = sensorarrayRouteControllerSelectRow(adsEngine->routeController,
+                                                 firstResistanceRow);
+        if (err == ESP_OK) {
+            err = sensorarrayRouteControllerApplyMode(adsEngine->routeController,
+                SENSORARRAY_MEASUREMENT_MODE_RESISTANCE, NULL, &transitionUs);
+        }
+    } else {
+        err = sensorarrayRouteControllerEnterSafeRailMonitor(
+            adsEngine->routeController, &transitionUs);
+    }
+    esp_err_t cleanupError = ESP_OK;
+    if (err == ESP_OK) {
+        sensorarrayAdsTransactionEvidence_t previous = {0}, completed = {0};
+        sensorarrayAdsGapCopyTransactionEvidence(&previous, NULL, NULL);
+        err = sensorarrayAdsGapRefreshRailAtBoundary(adsEngine->state, frameSequence);
+        sensorarrayAdsGapCopyTransactionEvidence(&completed, NULL, NULL);
+        if (completed.id != previous.id) { cleanupError = completed.cleanupError; }
+    }
+    bool railAvailable = sensorarrayAdsGapCopyRailSplit(frameSequence, maximumAge, &rail);
+    if (err == ESP_OK && !railAvailable) { err = ESP_ERR_INVALID_STATE; }
+    esp_err_t originalError = err;
+    /* A failed monitor never starts a sample. Restore the previous route as
+     * cleanup, retaining both errors; all GPIO/reference ordering stays in
+     * RouteController. No MODE/profile generation is applied here. */
+    esp_err_t routeRestoreError = sensorarrayRouteControllerApplyMode(
+        adsEngine->routeController, before.mode, railAvailable ? &rail : NULL, &transitionUs);
+    if (routeRestoreError == ESP_OK) {
+        routeRestoreError = sensorarrayRouteControllerSelectRow(
+            adsEngine->routeController, before.row);
+    }
+    if (routeRestoreError == ESP_OK) {
+        routeRestoreError = ads126xAdcWaitReferenceReady(&adsEngine->state->ads);
+    }
+    if (cleanupError == ESP_OK) { cleanupError = routeRestoreError; }
+    sensorarrayAdsMatrixEngineInvalidateCaches(adsEngine);
+    if (cleanupError != ESP_OK) {
+        (void)sensorarrayRouteControllerEnterSafe(adsEngine->routeController,
+                                                "mixed_rail_restore_failed");
+    }
+    if (outCleanupError) { *outCleanupError = cleanupError; }
+    sensorarrayAcqEventPrintf(
+        "MIXED_RAIL_BOUNDARY,seq=%lu,firstRes=%u,restoreMode=%s,restoreRow=%u,originalError=0x%lx,cleanupError=0x%lx,restored=%u,startUs=%llu,endUs=%llu\n",
+        (unsigned long)frameSequence, firstResistanceRow,
+        sensorarrayMeasurementModeName(before.mode), before.row,
+        (unsigned long)(uint32_t)originalError, (unsigned long)(uint32_t)cleanupError,
+        routeRestoreError == ESP_OK ? 1u : 0u, (unsigned long long)startedUs,
+        (unsigned long long)esp_timer_get_time());
+    return originalError != ESP_OK ? originalError : cleanupError;
+}
+
 esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEngine,
                                              sensorarrayAdsMatrixEngine_t *adsEngine,
                                              const sensorarrayScanPlan_t *plan,
@@ -233,7 +332,19 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
         frame->rowScale[row] = rowMode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE ? -3 : -6;
     }
 
-    esp_err_t firstErr = ESP_OK;
+    esp_err_t boundaryCleanupError = ESP_OK;
+    esp_err_t firstErr = sensorarrayMixedRowPrepareRailAtBoundary(
+        adsEngine, plan, adsEngine->frameSequenceHint, &boundaryCleanupError);
+    if (firstErr != ESP_OK) {
+        /* InitInvalid kept every cell unacquired. No group has begun. */
+        sensorarrayAdsMatrixEngineRecordMixedBoundaryFault(adsEngine,
+            adsEngine->frameSequenceHint, firstErr, boundaryCleanupError);
+        frame->stale = true;
+        frame->freshFrame = false;
+        frame->frameEndUs = (uint64_t)esp_timer_get_time();
+        frame->physicalSweepUs = frame->frameEndUs - frame->frameStartUs;
+        return firstErr;
+    }
     const sensorarrayMeasurementMode_t modes[] = {
         SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,
         SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
@@ -267,13 +378,22 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
          * child segment can never fold stale data from a previous group. */
         sensorarrayFrameBuilderInitInvalid(segmentWorkspace);
         sensorarrayScanPlan_t segmentPlan = *plan;
+        segmentPlan.auxiliaryTransactionsAllowed = false;
         /* The engines keep the full matrix index space but only visit the
          * physical rows assigned to this mode. This prevents a CAP/VOLT/RES
          * route from sampling rows owned by another profile. */
         segmentPlan.configSnapshot.rowMask = rowMask;
         uint64_t transitionUs = 0u;
-        esp_err_t err = sensorarrayRouteControllerApplyMode(
-            adsEngine->routeController, mode, railPtr, &transitionUs);
+        esp_err_t err = ESP_OK;
+        if (mode == SENSORARRAY_MEASUREMENT_MODE_RESISTANCE) {
+            uint8_t firstRow = 1u;
+            while ((rowMask & (1u << (firstRow - 1u))) == 0u) { firstRow++; }
+            err = sensorarrayRouteControllerSelectRow(adsEngine->routeController, firstRow);
+        }
+        if (err == ESP_OK) {
+            err = sensorarrayRouteControllerApplyMode(
+                adsEngine->routeController, mode, railPtr, &transitionUs);
+        }
         if (err == ESP_OK) {
             err = sensorarrayAdsMatrixEngineSetMode(
                 adsEngine, mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ?

@@ -699,7 +699,9 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
 esp_err_t sensorarrayTransportInit(void)
 {
     if (s_started) {
-        return ESP_OK;
+        /* Network/control initialization can succeed before optional Serial
+         * binding. Retry that binding and retain its error until it succeeds. */
+        return sensorarraySerialIoInit();
     }
     esp_err_t serialErr = sensorarraySerialIoInit();
     /* A failed optional USB driver must not suppress BLE/Wi-Fi control. */

@@ -21,6 +21,7 @@ static uint8_t dataFrames[4][6];
 static unsigned dataFrameCount, dataFrameLimit, blockCompletionAfterRead;
 static uint32_t dataFrameGeneration[4];
 static bool forceFinalRegisterBit;
+static bool forceFinalDataBit;
 static uint8_t corruptReadRegister = UINT8_MAX;
 static unsigned lastRegisterStart, lastRegisterCount;
 
@@ -120,8 +121,15 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
         uint8_t reg = tx[0] & 0x1Fu;
         memcpy(registers + reg, tx + 2, tx[1] + 1u);
     } else if (tx[0] == ADS126X_CMD_RDATA1) {
-        assert(bytes == 7u && dataFrameCount < dataFrameLimit);
-        memcpy(rx + 1u, dataFrames[dataFrameCount], 6u);
+        size_t payload = 4u + (notifyHandle->enableStatusByte ? 1u : 0u) +
+            (notifyHandle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
+        assert(bytes == payload + 2u && dataFrameCount < dataFrameLimit);
+        for (size_t i = 1u; i < bytes; ++i) { assert(tx[i] == 0x00u); }
+        memcpy(rx + 1u, dataFrames[dataFrameCount], payload);
+        /* Synthetic host transaction-tail fault. The trailing byte is the
+         * response during NOP, not part of the ADC data or its CRC. */
+        rx[bytes - 1u] = 0xA4u;
+        if (forceFinalDataBit) { rx[bytes - 1u] |= 1u; }
         dataFrameGeneration[dataFrameCount] = notifyHandle->drdyGeneration;
         ++dataFrameCount;
         if (blockCompletionAfterRead == dataFrameCount) { completionBlocked = true; }
@@ -139,7 +147,7 @@ static ads126xAdcHandle_t handle(void)
     notifyHandle = NULL; notifyEdge = notifyConfigChange = false;
     notifyEdgesRemaining = notifyEdgeCount = configChangeOnEdge = 0u;
     dataFrameCount = dataFrameLimit = blockCompletionAfterRead = 0u;
-    forceFinalRegisterBit = false; corruptReadRegister = UINT8_MAX;
+    forceFinalRegisterBit = forceFinalDataBit = false; corruptReadRegister = UINT8_MAX;
     lastRegisterStart = lastRegisterCount = 0u;
     memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
@@ -335,6 +343,61 @@ static void setDataFrame(unsigned index, uint32_t raw, uint8_t status, bool corr
     if (dataFrameLimit <= index) { dataFrameLimit = index + 1u; }
 }
 
+static void testDataReadNopTail(void)
+{
+    for (unsigned statusEnabled = 0u; statusEnabled <= 1u; ++statusEnabled) {
+        for (unsigned crcMode = 0u; crcMode <= ADS126X_CRC_CRC8; ++crcMode) {
+            ads126xAdcHandle_t ads = handle();
+            notifyHandle = &ads; forceFinalDataBit = true;
+            ads.enableStatusByte = statusEnabled != 0u;
+            ads.crcMode = (ads126xCrcMode_t)crcMode;
+            size_t payload = 0u;
+            if (statusEnabled) { dataFrames[0][payload++] = 0x40u; }
+            const uint8_t data[] = {0x12u, 0x34u, 0x56u, 0x78u};
+            memcpy(dataFrames[0] + payload, data, sizeof(data)); payload += sizeof(data);
+            if (crcMode) {
+                dataFrames[0][payload++] = crcMode == ADS126X_CRC_CRC8 ?
+                    crcPolynomialDivision(0x12345678u) : (uint8_t)(0x9Bu + 0x12u + 0x34u + 0x56u + 0x78u);
+            }
+            dataFrameLimit = 1u;
+            int32_t raw = 42; uint8_t status = 0x55u;
+            assert(ads126xAdcReadAdc1RawDmaReady(&ads, &raw, &status, NULL) == ESP_OK);
+            assert(raw == 0x12345678 && status == (statusEnabled ? 0x40u : 0x55u));
+            assert(ads.dmaTransaction.length == (payload + 2u) * 8u);
+            assert(ads.adc1CrcErrorCount == 0u && !ads.spiInFlight);
+            if (crcMode == ADS126X_CRC_CRC8) { assert(ads.adc1CrcValidEvenCount == 1u); }
+            if (crcMode) {
+                dataFrameCount = 0u; dataFrames[0][payload - 1u] ^= 1u;
+                raw = 42;
+                assert(ads126xAdcReadAdc1RawDmaReady(&ads, &raw, &status, NULL) == ESP_ERR_INVALID_CRC);
+                assert(raw == 42 && ads.adc1CrcErrorCount == 1u);
+                assert(ads.lastAdc1CrcFault.length == payload); /* NOP RX excluded */
+            }
+            assert(ads126xAdcDeinit(&ads) == ESP_OK);
+        }
+    }
+
+    /* Legacy blocking entry uses the same wire sequence and full CRC. */
+    ads126xAdcHandle_t ads = handle(); notifyHandle = &ads;
+    forceFinalDataBit = true; notifyEdge = true; ads.drdyTimeoutMs = 10u;
+    setDataFrame(0u, 0x12345678u, 0x40u, false);
+    int32_t raw = 42; uint8_t status = 0u;
+    assert(ads126xAdcReadAdc1Raw(&ads, &raw, &status) == ESP_OK);
+    assert(raw == 0x12345678 && ads.dmaTransaction.length == 64u);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    /* NOP does not change timeout ownership: all 64 bits remain persistent. */
+    ads = handle(); notifyHandle = &ads; completionBlocked = true;
+    assert(ads126xAdcReadAdc1RawDmaReady(&ads, &raw, &status, NULL) == ESP_ERR_TIMEOUT);
+    assert(ads.spiQuarantined && pending == &ads.dmaTransaction);
+    assert(pending->length == 64u && pending->rx_buffer == ads.spiRxBuf);
+    unsigned queued = queueCalls;
+    assert(ads126xAdcReadAdc1RawDmaReady(&ads, &raw, &status, NULL) == ESP_ERR_INVALID_STATE);
+    assert(queueCalls == queued && ads126xAdcDeinit(&ads) == ESP_ERR_INVALID_STATE);
+    completionBlocked = false; setDataFrame(0u, 0x12345678u, 0x40u, false);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+}
+
 static void testFreshCrcRetry(void)
 {
     ads126xAdcHandle_t ads = handle();
@@ -480,6 +543,7 @@ int main(void)
     testSpiDeadlineAndLifetime();
     testCrcAndLength();
     testReferenceAndFreshness();
+    testDataReadNopTail();
     testFreshCrcRetry();
     testSnapshots();
     puts("ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic");

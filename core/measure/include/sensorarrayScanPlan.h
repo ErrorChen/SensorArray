@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "sensorarrayScanConfig.h"
@@ -32,6 +33,8 @@ typedef struct {
     sensorarrayMeasurementMode_t rowModes[8];
     uint32_t rowProfileGeneration;
     uint32_t rowProfileRequestId;
+    /* 本轮新增: false for a segment inside an already-started mixed frame. */
+    bool auxiliaryTransactionsAllowed;
 } sensorarrayScanPlan_t;
 
 void sensorarrayScanPlanBuildDefaultFdcMatrix(sensorarrayScanPlan_t *plan);

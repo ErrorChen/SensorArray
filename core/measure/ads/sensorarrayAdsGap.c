@@ -31,6 +31,7 @@
 
 #define SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS 1u
 #define SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT 4u
+#define SENSORARRAY_ADS_RAIL_CRC_RETRY_COUNT 1u
 #define SENSORARRAY_ADS_ADC1_GAP_DISCARD_COUNT 1u
 #define SENSORARRAY_ADS_BATTERY_DISCARD_COUNT 1u
 #define SENSORARRAY_ADS_BATTERY_SAMPLE_COUNT 3u
@@ -115,6 +116,11 @@ typedef struct {
     int32_t sampleUv;
     uint8_t sampleStatus;
     uint8_t samplesRead;
+    uint8_t acceptedSamples;
+    uint8_t crcErrors;
+    uint8_t crcRetries;
+    esp_err_t sampleTerminalError;
+    ads126xAdcCrcFault_t firstCrc;
     const char *failureStage;
     bool restored;
     esp_err_t originalError;
@@ -1089,6 +1095,36 @@ static esp_err_t sensorarrayAdsVerifyRailMonitorProfile(
     return ESP_OK;
 }
 
+/* 本轮新增: one shared CRC retry for the complete rail transaction, using
+ * its existing owner deadline. A rejected wire frame does not count toward
+ * settling discards, and must be followed by a newer DRDY generation. */
+static esp_err_t sensorarrayAdsReadRailFreshAdc1(
+    ads126xAdcHandle_t *ads, uint8_t *retryBudget,
+    sensorarrayAdsRailDiag_t *diag, sensorarrayAdsFreshSample_t *outSample)
+{
+    sensorarrayAdsFreshSample_t sample = {0};
+    sample.generationStart = ads126xAdcGetDrdyGeneration(ads);
+    ads126xAdcFreshReadReport_t report = {0};
+    esp_err_t err = ads126xAdcReadAdc1FreshChecked(ads, sample.generationStart,
+        (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, retryBudget,
+        &sample.raw, &sample.status, &report);
+    sample.generationEnd = report.generationEnd;
+    sample.readUs = report.readUs > UINT32_MAX ? UINT32_MAX : (uint32_t)report.readUs;
+    if (report.crcErrors != 0u && diag->crcErrors == 0u) {
+        diag->firstCrc = report.firstCrcFault;
+    }
+    diag->crcErrors += report.crcErrors;
+    diag->crcRetries += report.crcRetries;
+    diag->sampleTerminalError = report.terminalError;
+    if (err == ESP_OK) {
+        sample.uv = ads126xAdcRawToMicrovolts(ads, sample.raw);
+        sample.fresh = true; /* FreshChecked verified NEW_DATA/config generation. */
+    }
+    *outSample = sample;
+    sensorarrayAdsRecordFreshSample(&sample, err);
+    return err;
+}
+
 static esp_err_t sensorarrayAdsReadRailMonitorUv(
     sensorarrayState_t *state,
     int32_t *outRaw,
@@ -1130,6 +1166,7 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     diag.compareRegister = UINT8_MAX;
     diag.failureStage = "CONFIGURE";
     uint8_t monitorMode2 = 0u;
+    uint8_t crcRetryBudget = SENSORARRAY_ADS_RAIL_CRC_RETRY_COUNT;
     sensorarrayAdsFreshSample_t sample = {0};
 
     if (ads126xAdcHasAdc2(ads)) {
@@ -1192,8 +1229,8 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
         diag.failureStage = "SAMPLE";
         uint8_t readCount = (uint8_t)(SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT + 1u);
         for (uint8_t readIdx = 0u; readIdx < readCount; ++readIdx) {
-            err = sensorarrayAdsReadFreshAdc1(
-                ads, (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, &sample);
+            err = sensorarrayAdsReadRailFreshAdc1(ads, &crcRetryBudget,
+                                                  &diag, &sample);
             diag.sampleRaw = sample.raw;
             diag.sampleUv = sample.uv;
             diag.sampleStatus = sample.status;
@@ -1204,11 +1241,13 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
                      ADS126X_STATUS_PGA_ALARM_MASK)) != 0u) {
                 err = ESP_ERR_INVALID_RESPONSE;
                 diag.failureStage = "SAMPLE_STATUS";
+                diag.sampleTerminalError = err;
                 sensorarrayAdsRecordFreshSample(&sample, err);
             }
             if (err != ESP_OK) {
                 break;
             }
+            diag.acceptedSamples++;
         }
     }
     esp_err_t stopErr = ads126xAdcStopAdc1(ads);
@@ -1482,11 +1521,24 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
            railDiag.restored ? 1u : 0u,
            railDiag.failureStage ? railDiag.failureStage : "ADMISSION",
            (unsigned long)err, (unsigned long)railDiag.cleanupError);
-    printf("RAILSAMPLE,seq=%lu,txn=%lu,n=%u,raw=%ld,monitorUv=%ld,status=%02X,reg=%u,expected=%02X,actual=%02X,mask=%02X\n",
+    printf("RAILSAMPLE,seq=%lu,txn=%lu,n=%u,raw=%ld,monitorUv=%ld,status=%02X,reg=%u,expected=%02X,actual=%02X,mask=%02X,accepted=%u,crcErrors=%u,crcRetries=%u,terminalError=0x%lx\n",
            (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
            railDiag.samplesRead, (long)railDiag.sampleRaw, (long)railDiag.sampleUv,
            railDiag.sampleStatus, railDiag.compareRegister,
-           railDiag.compareExpected, railDiag.compareActual, railDiag.compareMask);
+           railDiag.compareExpected, railDiag.compareActual, railDiag.compareMask,
+           railDiag.acceptedSamples, railDiag.crcErrors, railDiag.crcRetries,
+           (unsigned long)(uint32_t)railDiag.sampleTerminalError);
+    if (railDiag.crcErrors != 0u) {
+        const ads126xAdcCrcFault_t *crc = &railDiag.firstCrc;
+        printf("RAILCRC,seq=%lu,txn=%lu,firstUs=%llu,bytes=%02X%02X%02X%02X%02X%02X,len=%u,received=%02X,computed=%02X,physicalGen=%lu,drdyGen=%lu\n",
+               (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
+               (unsigned long long)crc->timestampUs,
+               crc->bytes[0], crc->bytes[1], crc->bytes[2],
+               crc->bytes[3], crc->bytes[4], crc->bytes[5], crc->length,
+               crc->received, crc->computed,
+               (unsigned long)crc->configurationGeneration,
+               (unsigned long)crc->drdyGeneration);
+    }
     return err;
 }
 

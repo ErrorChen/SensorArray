@@ -1,10 +1,16 @@
 #include <assert.h>
+#include <errno.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "esp_heap_caps.h"
 #include "common.h"
+#include "sensorarraySerialIo.h"
+#include "idf_vfs_prefix.h"
+#include "idf_reent_init.h"
+#include "serial_capture.h"
 static int64_t nowUs;
 static unsigned allocationCalls, allocationsToFail;
 static bool psramUnavailable;
@@ -16,6 +22,44 @@ static jmp_buf taskExit;
 static char output[20000];
 static size_t outputLength;
 static esp_vfs_t registeredVfs;
+static unsigned registrationFailures, stdoutBindFailures, stderrBindFailures, routeProbeFailures;
+static unsigned registrationCalls, stdoutBindCalls, stderrBindCalls;
+static bool registered;
+static bool injectConcurrentLog, injectedConcurrentLog;
+typedef struct { bool queued, closed; FILE *stream; } stdioRoute_t;
+static stdioRoute_t stdoutRoute, stderrRoute;
+static FILE *test_stdout, *test_stderr;
+/* ESP-IDF's esp_reent_init shares these FILE objects with tasks created before
+ * and after Init. The cookie preserves FILE identity, just as freopen does. */
+static FILE *preInitTaskStdout, *postInitTaskStderr;
+
+static ssize_t stdioCookieWrite(void *context, const char *data, size_t length)
+{
+    stdioRoute_t *route = context;
+    if (route->closed) { errno = EBADF; return -1; }
+    if (route->queued) { return registeredVfs.write(0, data, length); }
+    /* Original native console VFS: a direct physical writer, with CRLF. */
+    for (size_t i = 0; i < length; ++i) {
+        if (data[i] == '\n' && (i == 0 || data[i - 1] != '\r')) { output[outputLength++] = '\r'; }
+        output[outputLength++] = data[i];
+    }
+    return (ssize_t)length;
+}
+
+static void initStdio(void)
+{
+    cookie_io_functions_t io = {.write = stdioCookieWrite};
+    test_stdout = stdoutRoute.stream = fopencookie(&stdoutRoute, "w", io);
+    test_stderr = stderrRoute.stream = fopencookie(&stderrRoute, "w", io);
+    assert(test_stdout && test_stderr);
+    assert(setvbuf(test_stdout, NULL, _IONBF, 0) == 0);
+    assert(setvbuf(test_stderr, NULL, _IONBF, 0) == 0);
+    testGlobalReent._stdout = test_stdout;
+    testGlobalReent._stderr = test_stderr;
+    struct _reent preInitTask;
+    esp_reent_init(&preInitTask);
+    preInitTaskStdout = preInitTask._stdout;
+}
 
 void *heap_caps_calloc(size_t count, size_t size, uint32_t caps)
 {
@@ -68,6 +112,15 @@ int usb_serial_jtag_write_bytes(const void *data, size_t length, TickType_t tick
     if (writeBudget > 0 && length > (size_t)writeBudget) { length = (size_t)writeBudget; }
     memcpy(output + outputLength, data, length); outputLength += length;
     if (writeBudget > 0) { writeBudget -= (int)length; }
+    if (injectConcurrentLog && !injectedConcurrentLog) {
+        assert(length == 64); /* the observed physical insertion boundary */
+        injectedConcurrentLog = true;
+        assert(fwrite(capturedPr, 1, sizeof(capturedPr) - 1, preInitTaskStdout) == sizeof(capturedPr) - 1);
+        if (postInitTaskStderr) {
+            assert(fwrite("STDERR,concurrent=1\n", 1, 20, postInitTaskStderr) == 20);
+            assert(sensorarraySerialIoQueue("CTRL,concurrent=1\n", 18, true) == ESP_OK);
+        }
+    }
     return (int)length;
 }
 int usb_serial_jtag_read_bytes(void *data, uint32_t length, TickType_t ticks)
@@ -75,12 +128,60 @@ int usb_serial_jtag_read_bytes(void *data, uint32_t length, TickType_t ticks)
     assert(ticks > 0); memcpy(data, "MODE?\n", 6); readCount++; return 6;
 }
 esp_err_t usb_serial_jtag_wait_tx_done(TickType_t ticks) { assert(ticks == 0); return ESP_OK; }
-esp_err_t esp_vfs_register(const char *path, const esp_vfs_t *vfs, void *context) { registeredVfs = *vfs; return ESP_OK; }
-FILE *test_freopen(const char *path, const char *mode, FILE *stream) { return stream; }
-int test_setvbuf(FILE *stream, char *buffer, int mode, size_t size) { return 0; }
-void test_clearerr(FILE *stream) { clearCount++; }
+esp_err_t esp_vfs_register(const char *path, const esp_vfs_t *vfs, void *context)
+{
+    registrationCalls++;
+    if (!is_path_prefix_valid(path, strlen(path))) { return ESP_ERR_INVALID_ARG; }
+    if (registrationFailures) { registrationFailures--; return ESP_ERR_NO_MEM; }
+    registeredVfs = *vfs; registered = true; return ESP_OK;
+}
+FILE *test_freopen(const char *path, const char *mode, FILE *stream)
+{
+    assert(registered && is_path_prefix_valid(path, strlen(path)));
+    if (stream == test_stdout) {
+        stdoutBindCalls++;
+        if (stdoutBindFailures) { stdoutBindFailures--; stdoutRoute.closed = true; return NULL; }
+        stdoutRoute.queued = true; stdoutRoute.closed = false;
+    } else {
+        assert(stream == test_stderr);
+        stderrBindCalls++;
+        if (stderrBindFailures) { stderrBindFailures--; stderrRoute.closed = true; return NULL; }
+        stderrRoute.queued = true; stderrRoute.closed = false;
+    }
+    return stream;
+}
+int test_setvbuf(FILE *stream, char *buffer, int mode, size_t size) { return setvbuf(stream, buffer, mode, size); }
+void test_clearerr(FILE *stream) { clearCount++; clearerr(stream); }
+int test_fileno(FILE *stream) { assert(stream == test_stdout || stream == test_stderr); return stream == test_stdout ? 1 : 2; }
+int test_fstat(int fd, struct stat *st)
+{
+    stdioRoute_t *route = fd == 1 ? &stdoutRoute : &stderrRoute;
+    if (route->closed) { errno = EBADF; return -1; }
+    if (route->queued && !routeProbeFailures) { return registeredVfs.fstat(0, st); }
+    if (routeProbeFailures) { routeProbeFailures--; }
+    memset(st, 0, sizeof(*st)); st->st_mode = S_IFCHR; return 0;
+}
 
-#include "../../core/transport/sensorarraySerialIo.c"
+#define freopen test_freopen
+#define setvbuf test_setvbuf
+#define clearerr test_clearerr
+#define fileno(stream) test_fileno(stream)
+#define fstat(fd, st) test_fstat(fd, st)
+#undef stdout
+#undef stderr
+#define stdout test_stdout
+#define stderr test_stderr
+#ifndef SERIAL_IO_SOURCE
+#define SERIAL_IO_SOURCE "../../core/transport/sensorarraySerialIo.c"
+#endif
+#include SERIAL_IO_SOURCE
+#undef freopen
+#undef setvbuf
+#undef clearerr
+#undef fileno
+#undef fstat
+#undef stdout
+#undef stderr
 
 static void drain(void)
 {
@@ -89,6 +190,23 @@ static void drain(void)
 }
 int main(int argc, char **argv)
 {
+    initStdio();
+#ifdef SERIAL_IO_BASELINE
+    /* Compile the unmodified captured firmware source against IDF's actual
+     * prefix validator. This is the real defect, not an invented timeout. */
+    assert(sensorarraySerialIoInit() == ESP_ERR_INVALID_ARG);
+    assert(txTask && installed && !registered && !stdoutBindCalls);
+    assert(sensorarraySerialIoQueue(capturedConfig, sizeof(capturedConfig) - 1, true) == ESP_OK);
+    injectConcurrentLog = true;
+    drain();
+    assert(memcmp(output, capturedConfig, 64) == 0);
+    assert(memcmp(output + 64, capturedPr, sizeof(capturedPr) - 1) == 0);
+    assert(memcmp(output + 64 + sizeof(capturedPr) - 1,
+                  capturedConfig + 64, sizeof(capturedConfig) - 1 - 64) == 0);
+    printf("SERIAL_IO_BASELINE_REPRODUCED,pathBytes=16,idfPathMax=%u,initError=0x102,configBytes=%zu,insertionByte=64,directConsole=1\n",
+           ESP_VFS_PATH_MAX, sizeof(capturedConfig) - 1);
+    return 0;
+#else
     const char *allocation = argc > 1 ? argv[1] : "psram";
     psramUnavailable = strcmp(allocation, "internal") == 0;
     if (strcmp(allocation, "failure_retry") == 0) {
@@ -96,7 +214,48 @@ int main(int argc, char **argv)
         assert(sensorarraySerialIoInit() == ESP_ERR_NO_MEM);
         assert(installCount == 0 && txTask == NULL && s_dataBytes == NULL);
     }
+    if (strcmp(allocation, "registration_retry") == 0) {
+        registrationFailures = 1;
+        assert(sensorarraySerialIoInit() == ESP_ERR_NO_MEM);
+        assert(txTask && installed && !registered);
+        assert(sensorarraySerialIoQueue("UNSAFE\n", 7, true) == ESP_ERR_INVALID_STATE);
+        assert(fwrite("EARLY\n", 1, 6, test_stdout) == 6);
+        assert(outputLength == 7 && memcmp(output, "EARLY\r\n", 7) == 0);
+        char rx[64]; assert(sensorarraySerialIoRead(rx, sizeof(rx)) == 6);
+        sensorarraySerialIoStats_t failed;
+        sensorarraySerialIoGetStats(&failed);
+        assert(!failed.stdioBound && failed.initError == ESP_ERR_NO_MEM);
+        outputLength = 0; readCount = 0; s_stats.rxBytes = 0;
+    }
+    if (strcmp(allocation, "stderr_retry") == 0) {
+        stderrBindFailures = 1;
+        assert(sensorarraySerialIoInit() == ESP_FAIL);
+        assert(s_stdoutBound && !s_stderrBound);
+        assert(sensorarraySerialIoQueue("UNSAFE\n", 7, true) == ESP_ERR_INVALID_STATE);
+        assert(stderrRoute.closed);
+        (void)fwrite("WAIT\n", 1, 5, test_stdout);
+        assert(ferror(test_stdout) && outputLength == 0);
+    }
+    if (strcmp(allocation, "stdout_retry") == 0) {
+        stdoutBindFailures = 1;
+        assert(sensorarraySerialIoInit() == ESP_FAIL);
+        assert(stdoutRoute.closed && !s_stdoutBound && !s_stderrBound);
+        assert(sensorarraySerialIoQueue("UNSAFE\n", 7, true) == ESP_ERR_INVALID_STATE);
+    }
+    if (strcmp(allocation, "route_probe_retry") == 0) {
+        routeProbeFailures = 1;
+        assert(sensorarraySerialIoInit() == ESP_FAIL);
+        assert(!s_stdoutBound && !s_stderrBound);
+        assert(sensorarraySerialIoQueue("UNSAFE\n", 7, true) == ESP_ERR_INVALID_STATE);
+    }
     assert(sensorarraySerialIoInit() == ESP_OK);
+    struct _reent postInitTask;
+    esp_reent_init(&postInitTask);
+    postInitTaskStderr = postInitTask._stderr;
+    assert(preInitTaskStdout == test_stdout && stdoutRoute.queued && stderrRoute.queued);
+    assert(stdoutBindCalls == (strcmp(allocation, "route_probe_retry") == 0 || strcmp(allocation, "stdout_retry") == 0 ? 2u : 1u));
+    assert(stderrBindCalls == (strcmp(allocation, "stderr_retry") == 0 ? 2u : 1u));
+    assert(!stdoutRoute.closed && !stderrRoute.closed && !ferror(test_stdout) && !ferror(test_stderr));
     unsigned allocationsAfterInit = allocationCalls;
     assert(sensorarraySerialIoInit() == ESP_OK && installCount == 1);
     assert(sensorarraySerialIoQueue("DATA\n", 5, false) == ESP_OK);
@@ -116,6 +275,7 @@ int main(int argc, char **argv)
     char rx[64]; assert(sensorarraySerialIoRead(rx, sizeof(rx)) == 6 && readCount == 1);
     sensorarraySerialIoStats_t stats;
     sensorarraySerialIoGetStats(&stats);
+    assert(stats.stdioBound && stats.initError == ESP_OK);
     assert(stats.normalBufferBytes == 5u * SENSORARRAY_TRANSPORT_TEXT_MAX);
     assert(stats.normalBufferMemory == (psramUnavailable ? SENSORARRAY_SERIAL_MEMORY_INTERNAL : SENSORARRAY_SERIAL_MEMORY_PSRAM));
     assert(stats.timeout == 1 && stats.rxBytes == 6 && !stats.sofPresent);
@@ -134,7 +294,20 @@ int main(int argc, char **argv)
     for (unsigned i = 0; i < 4; ++i) { assert(registeredVfs.write(0, "LOG\n", 4) == 4); }
     assert(registeredVfs.write(0, "LOG\n", 4) == -1 && errno == EAGAIN);
     drain(); assert(registeredVfs.write(0, "RECOVERED\n", 10) == 10); drain();
+    /* Reproduce the captured 64-byte scheduling boundary with real libc
+     * fwrite calls on pre-/post-Init task stream aliases. Their VFS callbacks
+     * must queue; neither logs nor a new CTRL may splice into CONFIG. */
+    outputLength = 0; injectConcurrentLog = true;
+    assert(sensorarraySerialIoQueue(capturedConfig, sizeof(capturedConfig) - 1, true) == ESP_OK);
+    drain();
+    assert(memcmp(output, capturedConfig, sizeof(capturedConfig) - 1) == 0);
+    size_t offset = sizeof(capturedConfig) - 1;
+    assert(memcmp(output + offset, "CTRL,concurrent=1\n", 18) == 0); offset += 18;
+    assert(memcmp(output + offset, capturedPr, sizeof(capturedPr) - 1) == 0); offset += sizeof(capturedPr) - 1;
+    assert(memcmp(output + offset, "STDERR,concurrent=1\n", 20) == 0); offset += 20;
+    assert(outputLength == offset);
     assert(allocationCalls == allocationsAfterInit); /* no hot path allocations */
-    printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1\n", allocation);
+    printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=%zu,concurrentAtByte=64\n", allocation, sizeof(capturedConfig) - 1);
     return 0;
+#endif
 }

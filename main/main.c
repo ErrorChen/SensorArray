@@ -1775,7 +1775,7 @@ static esp_err_t sensorarrayRefreshVoltageRailIfNeeded(
     }
     sensorarrayRowModeProfile_t nextProfile = {0};
     if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &nextProfile) &&
-        nextProfile.pending) {
+        (nextProfile.pending || !sensorarrayRowModeProfileIsHomogeneous(nextProfile.modes))) {
         /* The pending profile's actual active rows decide rail requirements
          * in RunOneFrame. Do not refresh an outgoing VOLT configuration. */
         return ESP_OK;
@@ -3451,7 +3451,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         sensorarraySerialIoGetStats(&stats);
         int written = snprintf(response,
                  responseSize,
-                 "USBSTREAM,v=%s,dataEvery=%lu,diagEvery=%lu,sinkQueued=%lu,sinkDropped=%lu,priorityQueued=%lu,driverAcceptedBytes=%llu,rxBytes=%llu,partialWrite=%lu,timeout=%lu,driverDrained=%lu,rxOversize=%lu,lastRxUs=%lld,lastTxUs=%lld,driverInstalled=%u,sofPresent=%u,txStackBytes=%lu,txStackMinBytes=%lu,bufferMemory=%u,bufferBytes=%lu,enumerated=unknown\n",
+                 "USBSTREAM,v=%s,dataEvery=%lu,diagEvery=%lu,sinkQueued=%lu,sinkDropped=%lu,priorityQueued=%lu,driverAcceptedBytes=%llu,rxBytes=%llu,partialWrite=%lu,timeout=%lu,driverDrained=%lu,rxOversize=%lu,lastRxUs=%lld,lastTxUs=%lld,driverInstalled=%u,sofPresent=%u,stdioBound=%u,initError=0x%lx,txStackBytes=%lu,txStackMinBytes=%lu,bufferMemory=%u,bufferBytes=%lu,enumerated=unknown\n",
                  sensorarrayUsbStreamModeName(profile.mode),
                  (unsigned long)profile.dataEvery,
                  (unsigned long)profile.diagEvery,
@@ -3468,6 +3468,8 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
                  (long long)stats.lastTxUs,
                  stats.driverInstalled ? 1u : 0u,
                  stats.sofPresent ? 1u : 0u,
+                 stats.stdioBound ? 1u : 0u,
+                 (unsigned long)stats.initError,
                  (unsigned long)stats.taskStackConfiguredBytes,
                  (unsigned long)stats.taskStackMinBytes,
                  (unsigned)stats.normalBufferMemory,
@@ -3946,31 +3948,6 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
     bool homogeneousProfileFaultTerminal = false;
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (mixedProfile) {
-        bool voltageRowPresent = false;
-        sensorarrayFrameConfigSnapshot_t activeConfig = sensorarrayScanConfigGetFrameSnapshot();
-        for (size_t row = 0u; row < activeConfig.rows &&
-                              row < SENSORARRAY_ROW_MODE_PROFILE_ROWS; ++row) {
-            voltageRowPresent = voltageRowPresent ||
-                effectiveModes[row] == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
-        }
-        if (voltageRowPresent && !sensorarrayAdsGapCopyRailSplit(
-                frameSequence,
-                (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
-                &(sensorarrayAdsRailSplit_t){0})) {
-            /* Active mixed rows can enter VOLT without MODE=VOLT.
-             * Reject unavailable isolation before touching hardware; external
-             * calibration is the supported path on this board. */
-            uint64_t monitorTransitionUs = 0u;
-            err = sensorarrayRouteControllerEnterSafeRailMonitor(
-                &ctx->routeController, &monitorTransitionUs);
-            if (err == ESP_OK) {
-                err = sensorarrayAdsGapRefreshRailAtBoundary(
-                    &ctx->state, frameSequence);
-            }
-            (void)monitorTransitionUs;
-        } else {
-            err = ESP_OK;
-        }
         sensorarrayScanPlanBuildRowProfile(&ctx->scanPlan,
                                            effectiveModes,
                                            rowProfile.pending ? (rowProfile.generation == UINT32_MAX ? 1u : rowProfile.generation + 1u) :
@@ -3979,17 +3956,14 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
                                                rowProfile.appliedRequestId);
         sensorarrayAdsMatrixEngineSetFrameSequenceHint(&ctx->adsEngine,
                                                        frameSequence);
-        if (err == ESP_OK) {
-            sensorarrayCaptureFrameIdentity(ctx, &mode, &rowProfile, frameSequence, &frameIdentity);
-            err = sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
-                                                     &ctx->adsEngine,
-                                                     &ctx->scanPlan,
-                                                     &ctx->frame,
-                                                     ctx->mixedSegmentWorkspace);
-        } else {
-            sensorarrayFrameBuilderInitInvalid(&ctx->frame);
-            ctx->frame.mixedProfile = true;
-        }
+        sensorarrayCaptureFrameIdentity(ctx, &mode, &rowProfile, frameSequence, &frameIdentity);
+        /* Mixed engine prepares all active rows' rail dependency before its
+         * first segment; an outgoing MODE=VOLT does not own that decision. */
+        err = sensorarrayMixedRowEngineReadFrame(&ctx->fdcEngine,
+                                                 &ctx->adsEngine,
+                                                 &ctx->scanPlan,
+                                                 &ctx->frame,
+                                                 ctx->mixedSegmentWorkspace);
         ctx->runtimeMode = SENSORARRAY_RUNTIME_MODE_MIXED_ROW;
     } else {
         char profileText[SENSORARRAY_ROW_MODE_PROFILE_TEXT_LENGTH + 1u] = {0};

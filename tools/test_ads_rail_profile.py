@@ -26,9 +26,12 @@ def main():
         "static esp_err_t sensorarrayAdsWriteCalibration(",
         "static esp_err_t sensorarrayAdsRestoreState(",
         "static esp_err_t sensorarrayAdsVerifyRailMonitorProfile(",
+        "static esp_err_t sensorarrayAdsReadRailFreshAdc1(",
         "static esp_err_t sensorarrayAdsReadRailMonitorUv(",
     )
-    harness = harness.replace("/* INSERT_PRODUCTION_FUNCTIONS */", "\n".join(function(source, name) for name in names))
+    driver = (root / "components/ads126xAdc/ads126xAdc.c").read_text()
+    driver_function = function(driver, "esp_err_t ads126xAdcReadAdc1FreshChecked(")
+    harness = harness.replace("/* INSERT_PRODUCTION_FUNCTIONS */", driver_function + "\n" + "\n".join(function(source, name) for name in names))
     compiler = os.environ.get("CC") or shutil.which("gcc") or shutil.which("clang")
     if not compiler:
         raise RuntimeError("native C compiler required")

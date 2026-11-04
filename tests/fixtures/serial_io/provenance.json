@@ -1,0 +1,20 @@
+{
+  "kind": "verbatim_capture_slices",
+  "source": "docs/audit/artifacts/reference_fixture/rail-fixed-switch50-01.rx.bin",
+  "source_sha256": "c577707f598a776dcf68d0f4d985ffa6789fc9f82a6e1702c0bca600ee6bd649",
+  "source_firmware_head": "8d6d656a6272af7f19e338b594e98d582762737e",
+  "slices": [
+    {
+      "file": "config_interleaving.rx.txt",
+      "offset": 24293,
+      "length": 1024,
+      "inserted_log_offset": 64
+    },
+    {
+      "file": "config_complete.rx.txt",
+      "offset": 18540,
+      "length": 261
+    }
+  ],
+  "note": "No lines or CRC were repaired. The corrupt CONFIG remains corrupt. Host regression injects synthetic concurrent writes while replaying the separate complete CONFIG."
+}
