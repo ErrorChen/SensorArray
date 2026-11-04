@@ -1,0 +1,4 @@
+COMMAND python3 tools/test_measurement_logic.py
+CC=/usr/bin/gcc
+EXIT 0
+MEASUREMENT_LOGIC_TESTS,passed=1

@@ -1,5 +1,33 @@
 # SensorArray 固件可靠性修复报告
 
+> 当前交付状态（2026-11-05）：已按用户授权烧录并完成下述实机测试，**完整可靠性与精度验收未通过**。后续发现、失败记录与原始数据见 [参考夹具 HIL 记录](reference_fixture_hil_20261104.md)。本节之后的首次离线审计保留历史状态，其“未烧录 / NOT_RUN / 24 个测试”不能覆盖本节的后续结果。
+
+## 当前已烧录版本、结果与剩余阻塞
+
+最终交付前在已提交的 `ebabe7e` 上再次实际运行全部34个测试入口，全部退出0，见 [已提交源码回归清单](artifacts/reference_fixture/final-committed-test-results.json)。此前 `serial-lines-final` 清单记录提交前的 `bd49168 + dirty`，仍原样保留；此次重跑消除版本对应歧义，不改变已有HIL失败结论。
+
+生产源码 commit 为 `ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d`，BUILD 为 `ebabe7e-dirty`；dirty 是文档/证据，153 个构建源码文件与最终工作树逐 SHA 校验一致。app SHA256 为 `2dfd717ec374c3d046c20316320b3e2199e3eeda22c4dd94d193336a1aad8ba2`，1534288 bytes。实际 ESP-IDF v5.5.5 构建、app-only 烧录和全部 **34 个 `tools/test_*.py` 入口通过**，见 [build](artifacts/reference_fixture/serial-lines-final-build-manifest.json)、[flash](artifacts/reference_fixture/serial-lines-final-flash-result.json)、[测试退出码](artifacts/reference_fixture/serial-lines-final-test-results.json)、[源码复核](artifacts/reference_fixture/final-source-verification.json)。文档提交不改变板上 BUILD。
+
+实机为 ESP32-S3 rev0.2 / Flash16MB / PSRAM8MB、ADS1262 ID03；连接是 USB Serial/JTAG `/dev/ttyACM0`，并完成 Linux BLE 实收。初始板上为 IDF v5.5.1 / PROTO1，不能等同于原审计基线。最终设备 PROTO2，停留 **CAP / 8 行 / USB DEBUG**，CONFIG session `26888A60879294CC` / boot10 / rev95。没有写 NVS/calib、执行 CAL=SAVE、push 或发布。
+
+| 后续实测发现 | 函数与实际修改 | 验证和限制 |
+|---|---|---|
+| rail 继承末点 PGA bypass，RES 数值随刷新跳变约1100 Ω | `sensorarrayAdsReadRailMonitorUv` 使用手册要求的 PGA1/chop OFF 专用配置，物理核验后采样、完整恢复后发布 | `8d6d656` RES8 139.683 s 未再见该大台阶；最终 MIXED8 139.632 s /807帧无 MFAULT。独立轨电压未知，不能当作 VOLT 因果闭环或精度 PASS |
+| RREG 健康回读及辅助 CRC 错误丢失原因 | 合法尾寄存器 guard；`sensorarrayAdsMatrixGetRail` 保留 esp_err_t，原错误/cleanup 独立；rail 整事务共用一次新鲜 CRC 重试 | 健康边界128/256/384/512及累计超过2048有实录；最终 RES 故障明确为非健康回读的 MATRIX_CRC/0x109 |
+| MIXED 辅助事务发生于已有 CAP 点之后 | 本轮新增 `sensorarrayMixedRowPrepareRailAtBoundary`，在任意采样前完成 rail，选择真实 RES 行；子段禁止辅助事务 | 8次完整预备约120 ms、100帧间隔；恢复成功且第一错误完整保存。不把局部monitorUs当整个事务耗时 |
+| USB VFS 路径超限导致双输出者，修复后仍有 printf 碎片穿插 | 短路径、stdio绑定核验与ready门禁；`sensorarraySerialIo` stdout/stderr分别组完整行后入队，整行丢弃计数；科学帧直接完整packet入队 | 两个历史生产反例均复现后回归；最终50次控制身份和CONFIG核验通过。CAP1并行测试USB仍有78个数据包缺口，与逐层计数相符，不能称无背压 |
+| RDATA CRC 末位错误持续 | 保存CRC原字节、有限重试；duty64与RDATA+NOP实机候选均失败，均已撤回，保留所有校验位 | 最终RES8仅26帧/2.075 s后MFAULT，**FAIL**。没有示波器证据，不能断言硬件原因或已根治 |
+
+最终 CAP8 139.867 s /1615帧全部点有效、ASCII CRC/identity/gap为0；33pF两点发布的是总电容，缺各自卸载基线，仍为 BASELINE_REQUIRED。最终 MIXED8 的 S1D1均值9988.021 Ω，S8D8全部OPEN；用户尚未确认后者接线，夹具评估FAIL。严格50切换测试在第29次参考点X02停止，失败原样保留；另一次分项测试50次控制身份通过，不代表精度通过。
+
+BLE140 s实收9131个完整C帧，校验、缺片和序号缺口为0；与Serial共有9049帧、3511654字节完全一致，Serial缺少的78个共同范围数据帧都在BLE中。稳态CAP1 capture约65.37 FPS、BLE提交约65.4 FPS，不冒充用户VOLT1的97.99 FPS。DIRAM链接占用286999/341760，运行heap/stack实测见HIL报告；CPU、最大连续块、Windows重枚举、Wi-Fi端到端、多transport同时变更配置、危险硬件故障注入仍NOT_RUN。
+
+用户暂无独立AVDD/AVSS万用表读数，因此不以内部估算填写外部RAILCFG，不执行无物理隔离前提的rail-on组合。最终CAP电池仍报告rail_invalid，lastGood真实时间保留。还需SPI时序取证、S8D8接线核验、33pF同点基线及误差限，才能继续完成可靠性和精度验收。
+
+全部最终实录、lossless gzip和SHA见 [证据索引](artifacts/reference_fixture/release-evidence-index-final.json)；分析器实际重跑 [退出码](artifacts/reference_fixture/final-analysis-command-results.json) 中，退出0但REVIEW_REQUIRED不等于PASS。精确 [文件清单](artifacts/reference_fixture/firmware-final-changed-files.txt) 和 [函数级diff](artifacts/reference_fixture/firmware-final-function-diff.patch) 对应 baseline→`ebabe7e`。实录黄金帧见 [reference_capture](../../tests/fixtures/reference_capture/)，生成式协议反例仍单独标明 synthetic。
+
+## 首次离线审计记录（ba8346b，历史）
+
 本轮在 `ErrorChen/SensorArray` 工作树修改、编译并执行回归。审计基线与开始时 HEAD 均为 `8045e9e9ec9599533c52c15dfcb6002f79fd15f1`，开始时 clean。固件/测试修复 commit 为 `ba8346b7b643e54985699630f608aba3386810e9`；报告/契约/故障回放由随后的本地文档提交交付。未 push、未发布、未烧录；不得把基线或此修复 commit 当成用户已烧录版本。最终构建输入、二进制 hash、dirty diff hash、命令和退出码见 [验证清单](artifacts/reliability_fix/final-manifest.json)。只有源码/host 回归已验证；E1 的现场因果及物理性能验收仍未完成。
 
 ## 环境、材料和证据边界

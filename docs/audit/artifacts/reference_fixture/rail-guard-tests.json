@@ -1,0 +1,50 @@
+[
+  {
+    "command": [
+      "python3",
+      "tools/test_ads_driver_reliability.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_ads_driver_reliability-rail-guard-final.txt"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/test_ads_rail_profile.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_ads_rail_profile-rail-guard-final.txt"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/test_battery_snapshot_evidence.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_battery_snapshot_evidence-rail-guard-final.txt"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/test_battery_validity.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_battery_validity-rail-guard-final.txt"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/test_measurement_logic.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_measurement_logic-rail-guard-final.txt"
+  },
+  {
+    "command": [
+      "python3",
+      "tools/test_summarize_reference_capture.py"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/reference_fixture/test_summarize_reference_capture-rail-guard-final.txt"
+  }
+]

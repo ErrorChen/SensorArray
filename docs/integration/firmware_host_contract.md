@@ -1,6 +1,12 @@
 # 固件与上位机契约：配置身份与可靠性修复
 
-本轮修复基于 `8045e9e9ec9599533c52c15dfcb6002f79fd15f1`。**固件修复 commit：`ba8346b7b643e54985699630f608aba3386810e9`**；后续本地文档提交附本契约、报告与故障回放。本文件描述该修复及配套夹具，准确构建输入/dirty hash 见 `docs/audit/firmware_reliability_fix_report.md` 的验证记录。此协议交给 ErrorChen/SensorArray_Software 的独立任务实现；本轮未修改软件仓库。协议格式是实际 `main/output/sensorarrayTextProtocol.c` encoder 的输出。
+本轮审计基线为 `8045e9e9ec9599533c52c15dfcb6002f79fd15f1`，首批固件修复为 `ba8346b7b643e54985699630f608aba3386810e9`。**当前已烧录源码 commit：`ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d`；BUILD 版本：`ebabe7e-dirty`；app SHA256：`2dfd717ec374c3d046c20316320b3e2199e3eeda22c4dd94d193336a1aad8ba2`。** 此处 dirty 为文档/证据改动，源码已提交；准确构建输入、逐文件 hash 和 diff hash 见 [最终构建清单](../audit/artifacts/reference_fixture/serial-lines-final-build-manifest.json)，烧录校验见 [最终烧录结果](../audit/artifacts/reference_fixture/serial-lines-final-flash-result.json)。本文按版本保留后续修复记录；当前状态以本段及 [最新 HIL 记录](../audit/reference_fixture_hil_20261104.md) 为准。
+
+ADC SPI CRC 错误**尚未根治**，NOP 候选已撤回，不能将有限重试、诊断完善或 ASCII 帧 CRC 通过视为 ADC 链路无误。`release-switch50-identity-01` 的 [50 次控制/身份测试](../audit/artifacts/reference_fixture/release-switch50-identity-01.summary.json) 为 PASS，但测量状态是 `NOT_PRECISION_ACCEPTED`，没有写入校准；它不替代或改写此前严格“切换且参考点有效”测试的失败记录。
+
+此协议交给 ErrorChen/SensorArray_Software 的独立任务实现；本轮未修改软件仓库。协议格式来自实际 `main/output/sensorarrayTextProtocol.c` encoder，完整修改及验证记录见 [固件可靠性报告](../audit/firmware_reliability_fix_report.md)。
+
+2026-11-04 实机追加修复 commit **`a0460b8`** 保持 PROTO2 和测量帧字段语义，补充 ADC CRC 有限恢复与诊断。该镜像的构建/烧录/实录见 [夹具 HIL 记录](../audit/reference_fixture_hil_20261104.md)。
 
 ## 能力协商与兼容边界
 
@@ -98,7 +104,7 @@ TX=SHORT/RT 的 B20 是 `previewOnly=1` 摘要，保留来自原队列 payload �
 | ABAT | 旧 UINT_MAX sentinel 保留；新增 lastGoodKnown，unknown 不是实测年龄 |
 | ARL | split=unknown/estimated/external_measured、aincom=estimated、uncertaintyUv=unknown、calUs |
 
-各故障行保持有界（<384 bytes）。ADC 数据 CRC8 在生产路径启用，但 ADC STATUS 不在该芯片数据 CRC 保护范围；软件仍需检查状态和配置 freshness。完整实现证据见 `docs/audit/artifacts/reliability_fix/ads_notes.md`。不能通过相同名字的 rail 字段猜 AVDD 或 span。
+上述 ADS 故障格式化行保持有界（<384 bytes）；这不是全部协议行的长度上限，USBSTREAM 控制回复使用下文的 512-byte 容量规则。ADC 数据 CRC8 在生产路径启用，但 ADC STATUS 不在该芯片数据 CRC 保护范围；软件仍需检查状态和配置 freshness。完整实现证据见 `docs/audit/artifacts/reliability_fix/ads_notes.md`。不能通过相同名字的 rail 字段猜 AVDD 或 span。
 
 Serial 为 ESP32-S3 USB Serial/JTAG，不是 TinyUSB CDC。波特率设置不是 Native USB 的真实线速上限。USBSTREAM/DATA 限流不关闭命令 RX 或关键终态。USBSTREAM? 的 bufferMemory=0/1/2 分别为未分配/内部RAM/PSRAM，bufferBytes 是普通队列的总容量；txStackBytes/txStackMinBytes 是实际TX任务预算/水位。driverAcceptedBytes 只证明驱动接收，不证明 PC 已读；没有驱动枚举证据时 bus 状态为 unknown。COM8 不存在只能说明该次系统打开失败，Host 需自己查询 OS 枚举。
 
@@ -108,4 +114,89 @@ BLE notify 成功排队不等于接收确认；SAFE 的 Indicate/Notify fallback
 
 `python3 tools/test_config_identity.py` 真正编译并运行 C 状态机和实际 encoder，生成 `tests/fixtures/config_identity/*.frame` 与 `.config`。这些是**合成输入，经真实 encoder/formatter 输出**，不是现场原始日志；CRC 从 encoder 产生并由 Python zlib 独立验证。覆盖 1/8 行 CAP/VOLT/RES/mixed、健康前转换失败、50 次模式切换、rows 域与 mode 域分离、失败 appliedId、恢复后 CAP、boot/session 和回绕。R 极值 1844 bytes、mixed 极值 2085 bytes 均小于 2304。
 
-`python3 tools/test_rowmodes_ack_guard.py` 执行真实 mailbox/config/guaranteed lane 测试，含 MODE/ROWS/ROWMODES 仲裁、ACK 前不可见、ACK 失败取消、满队列回退及终态有界存储。`python3 tools/test_main_config_commit.py` 从当前 main 抽取实际 commit/terminal 分支，7 个硬件边界 stub 场景检查 snapshot/preAccept 失败不发 MAPP、成功 mode/profile 同 revision、mixed RMERR 发布最终故障状态。目标芯片 build 与全套实际测试结果由根审计报告记录。没有本轮实机、Windows 枚举、示波器或 BLE 接收证据的 2 分钟/HIL/重插拔/吞吐/物理准确度项全部是 **NOT_RUN**，不能由这些 host 测试推导 PASS。
+`python3 tools/test_rowmodes_ack_guard.py` 执行真实 mailbox/config/guaranteed lane 测试，含 MODE/ROWS/ROWMODES 仲裁、ACK 前不可见、ACK 失败取消、满队列回退及终态有界存储。`python3 tools/test_main_config_commit.py` 从当前 main 抽取实际 commit/terminal 分支，7 个硬件边界 stub 场景检查 snapshot/preAccept 失败不发 MAPP、成功 mode/profile 同 revision、mixed RMERR 发布最终故障状态。目标芯片 build 与全套实际测试结果由根审计报告记录。首批仅完成 host 回归时，缺少对应实机证据的项目记为 **NOT_RUN**；这是当时的范围，不是对当前所有 HIL 的结论。后续已执行的逐配置采样、控制切换及 BLE 接收按 [最新 HIL 记录](../audit/reference_fixture_hil_20261104.md) 分别判定 PASS/FAIL/未验收；仍未执行的 Windows 枚举、示波器或其它场景继续保留 NOT_RUN。不能由这些 host 测试推导物理准确度 PASS。
+
+## 实机追加诊断：CRC 与健康边界
+
+- `0x109` 是实际 ESP-IDF 的 `ESP_ERR_INVALID_CRC`；`MATRIX_CRC` 区别于路由、寄存器比较和 DRDY 故障。`ADSFAULT` 的 modeGen/profileGen/rowGen/rowReq 分别属于 MODE/profile/ROWS/ROWS；辅助事务 ID 不再借用 rowReq。只有同一 frame sequence 的 engine context 才可附着到当前 fault。
+- `ADSSPI` 是可限频的诊断事件：crcFailures/crcRetries/crcRecoveredReads 属该帧，crcTotal/retryTotal 是本次设备启动内的驱动累计计数。读取时必须做同 boot 增量；日志缺失不等于无错误，恢复成功也保留累计数。`firstS/firstD` 指该帧第一个被拒绝 CRC 样本所在测点，firstError/terminalError/frameError 分别说明首次失败、最终重试失败和整帧结果。正常结束时 terminalError=0。
+- `ADSSPIBYTES` 给出同 seq 的首个坏样本，bytes 最多 6 字节，按 STATUS（若启用）+ 4 字节数据 + CRC 排列，len 指实际有效长度；received 是线上 CRC，computed 是从 4 个数据字节计算的 CRC。STATUS 不受芯片 CRC 保护。firstUs 为设备单调 µs；physicalGen/drdyGen 是当时配置/转换域。
+- 每 cell 的 CRC 重试共享现有 `CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT` 预算（当前 1），且受同一个 100 ms cell 总截止时间约束。每次重试等待新的 DRDY；坏样本不进入 PGA/cache。DMA 不能收回时仍隔离，不能把超时当取消。
+- `ADSFAULTREG` 在 MATRIX_CRC 时 reg=255 表示没有寄存器可比较，expected/computed 与 actual/received 是 CRC 字节；cell 只从 ADSSPI 读取，不能把 reg 当 cell index。
+- `ADSHEALTH` 是健康回读事务退出后的诊断，字段为 seq、engineFrameCount、modeEntryFrameCount、healthInterval、healthReadbackDue、precisionFrame、err。它用于核验实际累计 engine 边界，不能拿 host seq 或模式区间长度替代 engineFrameCount。
+- 电池 admission 已明确因 rail 不存在/过期拒绝且未改状态或恢复已验证时，reason 保留 rail_invalid；不再泛化成 spi_error。真实 SPI/CRC、restore failure 仍单独报告。LastGood 时间不因拒绝测量而刷新。
+
+这些都是可忽略的追加诊断标签，不是新的有效测量点；不要将 ADSSPI/ADSHEALTH 当 C/V/R/M 数据，也不从诊断事件推导 PC 已收齐测量帧。
+
+## 2026-11-05 追加诊断契约：8d6d656
+
+本节记录 **`8d6d656a6272af7f19e338b594e98d582762737e`** 引入的诊断，当前已烧录版本见文首；该历史版本继承 `a0460b8` 的 CRC/故障域修复、`8b0e651` 的电池入场诊断和 SPI 时序试验、`6a8f502` 的 CRC 末位覆盖计数。以下字段在当前版本继续保留，保持 PROTO2、测量帧 CRC 与字段域不变；诊断新增字段由 Host 按标签解析并容忍未知字段。该版本号或新增日志本身不表示所有 HIL 项通过，也不表示 SPI 电气问题已排除。前文 NOT_RUN 条目仍以各自的实际证据为准。
+
+### 电池：入场状态与恢复结果分开
+
+`BATREG/BATRAW/BATCTX/BATCMP` 以 **当前 session + seq + txn** 关联；这些行本身没有 session，Host 必须从同一连接的 BUILD/CONFIG 与启动事件建立上下文，断连后不得仅凭 txn 拼接。`txn` 属 BATTERY 辅助事务，不是配置 request ID。`BATCTX` 在事务返回错误或 continuation gate 失败时输出；`BATCMP` 仅在保存了具体比较差异时输出。没有某行可能是没有该证据或日志丢失，不能反推测量成功。
+
+| 字段 | 当前生产语义 |
+| --- | --- |
+| BATREG `phase` | saved/configured/restored；故障时另有 shadow。新增 ID、INTERFACE；各寄存器为无 `0x` 前缀的十六进制。OCAL/FSCAL 按高字节在前显示，不改变其实际寄存器写入顺序。 |
+| BATREG `known`；BATCTX `*Known` | 该组快照是否取得；shadowKnown 仅说明软件 shadow 完整。savedKnown/configuredKnown/restoredKnown 不等于“匹配预期”或“模拟稳定”；known=0 时的零字节是未填充内容，不是实际寄存器值。 |
+| BATCTX `stage/cleanupStage` | 首个事务失败所在步骤与收尾步骤分别记录。snapshot_shadow_mismatch 是稳定物理读数与 shadow 不一致；snapshot_inconsistent 是驱动未取得一致读数；snapshot_read 是快照读取失败；reset_observed 是读取到了 POWER.RESET。不能把上述几种情况统称为芯片复位或执行过恢复。 |
+| BATCTX `originalError/cleanupError` | 保留首个事务错误，收尾错误单列；如果仅收尾失败，两者可以相同。入场即发现未知状态、未执行恢复时 cleanupError=0，不再用虚构的恢复错误替代原始条件。 |
+| BATCTX `modified/restoreAttempted` | modified=1 表示已经开始可能修改硬件的命令，失败命令也不能假定未生效；restoreAttempted=1 才表示执行过恢复流程。 |
+| BATCTX `restore`；BATERR `restoreState` | unchanged：无需恢复且允许继续；verified：恢复路径成功；failed：执行恢复但失败；unknown：入场状态未知，未执行恢复。verified 是软件/寄存器恢复判定，不是模拟节点实测。 |
+| BATCTX `snapshotRead` | 入场快照驱动诊断：0 无该次读取失败、1 读取/SPI 错误、2 有界多次读数不一致。必须结合 savedKnown/stage，未调用读取时的默认 0 不证明读成功。 |
+| BATCMP `phase/reg/expected/actual/mask` | phase=admission 或 restore；每阶段保留首个差异。reg 是**芯片寄存器地址的十六进制**，其余三字段也是十六进制。shadow mismatch 时 expected 来自 shadow；读数不一致时 expected/actual 是驱动保留的两次读数；恢复比较时 expected 来自 saved。 |
+
+比较只排除手册规定的保留位：POWER mask=13（包含 RESET）、INTERFACE=0F、REFMUX=3F，其余被比较的 ID/MODE/MUX/校准字节 mask=FF。RESET 单独观察时 mask=10；INTREF 是配置位，仍比较。日志中的稳定差异不证明 shadow 或芯片哪一方正确，当前行为是保留证据并隔离，不自动用读数覆盖预期。
+
+`BATERR` 保留旧 `restore=ok/fail` continuation gate，新增 `restoreState/stage/cleanupError` 供精确解释。`restore=fail` 也可能是入场发现未知状态，不能仅凭旧字段称“恢复操作失败”。`action=isolate_ads` 表示不得继续使用 ADS 并交给有界恢复；仅允许继续的电池无效结果使用 `action=report_continue`。LastGood 的值、frame 与实际测量时间不因这些失败刷新。`BATRAW.timeUs` 的零槽位不代表采到了零值；结合样本数、错误和阶段解释，不能把未开始转换计作三次有效采样。
+
+### Rail：专用采样配置与能力边界
+
+`PROTO?/ROUTE?` 的 `railMonitor=unavailable` 指当前板型没有已验证的**透明隔离辅助监测能力**。它不表示 RES 中所有内部 rail 读取都被禁用：已选择 RES、参考本来就有意开启时，内部 monitor 可复用该状态。生产入口要求物理 POWER.INTREF 已开启，REF source 命令正确且 Q1 钳位命令/回读均释放；这仍不是模拟隔离实测。CAP/VOLT 不能为内部监测偷偷开启参考，受限 VOLT 继续使用合法外部实测 rail 校准。
+
+`8d6d656` 为内部 supply monitor 显式设置 PGA enabled/gain 1、chop off、连续转换、SINC1、当前配置的 ADC data rate、INPMUX=CC、REFMUX=00、neutral OCAL/unity FSCAL，再读回验证；不再继承上一个矩阵点的 PGA bypass/gain/filter。当前 sdkconfig 的 DR=15 对应 MODE0/1/2=`00/00/0F`，Host 不应把这组常量当未来所有 BUILD 的固定值。事务结束恢复完整原配置；配置验证、采样成功和恢复成功是不同条件。
+
+| 报文/字段 | 当前生产语义 |
+| --- | --- |
+| RAILPROFILE `before/configured` | 三个十六进制字节依次为 MODE0/MODE1/MODE2。configured 是物理读取值；known=0 时不可解释其零值。before 在入场/保存失败时也可能未取得。 |
+| RAILPROFILE `mux/ref/known/verified/restored` | mux/ref 是配置快照的 INPMUX/REFMUX；known 为快照取得，verified 为专用 profile 比较通过，restored 为完整原配置恢复成功。restored=1 不排除先前 STOP 失败，仍须检查 cleanup。 |
+| RAILPROFILE `stage/err/cleanup` | stage 为 ADMISSION/CONFIGURE/PROFILE_READ/PROFILE_COMPARE/START/SAMPLE/SAMPLE_STATUS/RESTORE_VERIFY/NONE。ADMISSION 也覆盖尚未填充诊断前的读取/保存错误，不能仅凭此判断隔离拒绝。err 是边界函数最终结果，可能还包含 rail 合法性拒绝；stage=NONE 单独不代表整个边界事务成功。cleanup 单列 STOP/恢复错误。 |
+| RAILSAMPLE `n/raw/monitorUv/status` | n 是已尝试的 fresh-read 调用数，**包含失败的那次**，当前最多 5（4 次丢弃加最终 1 次）。raw/monitorUv/status 只记录最近一次尝试，不是全部原始样本，也不保证 CRC/状态通过。monitorUv 为内部约 `(AVDD−AVSS)/4` 通路的 µV，不能直接当 railSpanUv 或对地电压。 |
+| RAILSAMPLE `reg/expected/actual/mask` | PROFILE_COMPARE 时给出首个差异；这里 reg 是**十进制**地址，与 BATCMP 的显示进制不同，后三字段为十六进制。255 表示已初始化但无寄存器差异；早期 ADMISSION 的默认零值也不是有效比较证据。 |
+
+以上两行按当前 session + seq + RAIL txn 关联，不与相同数值的 BATTERY txn 合并。样本只有在整笔事务成功、profile/状态/恢复检查通过且后续 rail 合法性验证通过后才更新有效 rail；诊断原始值不能直接写入测量/校准。Span、来源或采样 profile 变化应划分分析区间，不能把跳变前后总均值拟合成一个固定 offset。完整事务起止仍看 ADSFAULTTXN/对应事务证据，不能从 RAILSAMPLE 或单独采样耗时推断全部等待时间。
+
+### CRC 覆盖计数与有界日志
+
+`ADSHEALTH` 追加 `crcValidEven/crcValidOdd/crcErrors/crcRetries`。前两者是 CRC8 **校验通过的 CRC 字节最低位**为 0/1 的累计次数，不是数据值奇偶、bit population parity、健康检查次数或有效测量点数；checksum/off 模式不计入它们。计数发生在数据解析层，随后仍可能被 STATUS、freshness、generation 或电气合法性检查拒绝，且包含共用 ADC1 驱动的辅助读取。crcErrors/crcRetries 同样为驱动累计值，而 ADSSPI 的 crcFailures/crcRetries 是对应帧值，不能直接混算。
+
+这些 uint32 计数属于当前驱动 handle 生命周期，通常跨模式保留；重启或驱动重新初始化会归零，回绕按同一生命周期的无符号差值处理，无法确认连续性时重建基准。Host 应在同 session 的有界时间窗比较增量。只有 odd 增长不能覆盖“末位被强制为 1”的反例；even/odd 都增长只证明该窗观察到两类通过校验的 CRC，不能证明线路完全可靠。
+
+BATCTX/BATCMP、RAILPROFILE/RAILSAMPLE、ADSHEALTH 均是普通诊断事件，没有独立科学帧 CRC，也没有终态送达保证。这些采集侧事件的格式化缓冲为 **384 bytes（含结尾 NUL）**，不适用于 USBSTREAM 查询回复或完整科学帧；当前上述固定格式按有界字段输出，事件队列零等待提交，背压记入 droppedEventLogs。通用格式化器仍有截断后补换行的兜底路径，因此“有换行”不证明字段完整，Host 必须拒绝缺必需字段的诊断记录，保留原字节，不能补成完整原始行。下文串口整行队列处理的是 VFS 片段与队列边界，不能补回源格式化器已丢失的内容。
+
+对应的纯主机回归为 `tools/test_battery_snapshot_evidence.py`（实际入场/比较/日志函数）、`tools/test_battery_validity.py`（错误分类与 LastGood）、`tools/test_ads_rail_profile.py`（实际 rail 配置/保存/恢复函数配合合成寄存器 bank）、`tools/test_ads_driver_reliability.py`（驱动校验和边界）。这些测试的合成输入不冒充实录；目标构建、烧录、逐配置 HIL 结果及未通过项以根审计报告追加的证据为准。
+
+### 后续边界补丁：rail CRC、MIXED、USB 输出绑定
+
+本节对应 `8d6d656` 之后的完整帧边界与传输补丁，已包含在文首关联的 `ebabe7e` 镜像中；不能把下面新增字段归到未包含这些改动的旧镜像。旧字段和测量 CRC 覆盖范围保持不变。
+
+- `RAILSAMPLE` 追加 `accepted/crcErrors/crcRetries/terminalError`。accepted 是通过 CRC、freshness、配置 generation 和 STATUS 检查的采样数；成功需 5 个合格转换，其中前 4 个丢弃。n 仍是外层 fresh-read 调用数，内部 CRC 重试不另外增加 n。crcErrors/crcRetries 是本笔 rail 事务的计数；整个 5 次转换共享 **1 次** CRC 重试预算，不能每个样本重置预算。坏帧不计入 accepted 或有效丢弃数，每次重试等待新 DRDY，沿用同一 **250 ms ADS owner 截止时间**。terminalError 只描述最后采样结果；其为 0 不排除 RAILPROFILE 的后续合法性或 cleanup 错误。
+- `RAILCRC` 仅在本次 rail 事务发生 CRC 错误时输出，与 RAILPROFILE/RAILSAMPLE 按 session + seq + txn 关联。firstUs 是首个坏帧的单调 µs；bytes/len/received/computed/physicalGen/drdyGen 与 ADSSPIBYTES 的 ADC 响应语义一致，最多保留 6 字节，不是全部重试样本。即使后来恢复成功，仍保留这条首错证据；日志缺失不能清零错误计数。
+- `MIXED_RAIL_BOUNDARY` 记录完整混合帧**首点之前**的预备事务。firstRes 是活动 profile 中用于建立 RES 激励的首个物理 S 行；restoreMode/restoreRow 是进入前要恢复的路由。originalError 与 cleanupError 分开，restored 仅表示原路由及 reference-ready 等待成功，不取代 cleanupError。startUs/endUs 包含选行、受控 RES 路由建立、内部 rail 事务、原路由/行恢复和参考等待；这是**外层完整预备耗时**，不能声称整体受内部 250 ms 单一截止时间限制，也不能把 monitor 采样耗时当全部暂停时间。有效 rail 无需预备或早期拒绝时可能没有该行。
+- MIXED 只对活动 profile 中明确的 RES 行建立参考；先选中目标行再进入 RES。无 RES 且无真实隔离能力时，不为 CAP/VOLT 额外开启参考。预备失败时 CAP/ADS 子段均未开始，整帧 acquired=0；标准 ADSFAULTCTX 同时保留当前 seq 的原错与 cleanup，attempted=0/acquired=0。该上下文的 mode=MIXED、route=unknown 表示没有保存收尾前路由证据，不能拿恢复后的 SAFE/CAP 冒充首次故障路由。
+- 内部新增 `sensorarrayMixedRowPrepareRailAtBoundary`、`sensorarrayAdsMatrixEngineRecordMixedBoundaryFault` 及 plan 的 `auxiliaryTransactionsAllowed`，都不是 Host 命令。普通 plan 明确允许完整帧边界事务，MIXED 子段明确禁止 fallback 刷新；当前预备调度比 rail 最大帧龄提前 1 帧，不延长合法帧龄，也不把失败前旧 rail 重记为新测量。battery/ADSCHK 继续在完整 RunOneFrame 返回后串行执行。新 mask/plan 标记不重解释 gen/rid 或科学数据单位。
+
+`USBSTREAM?` 追加 `stdioBound/initError`。stdioBound=1 表示固件已经验证共享 stdout/stderr FILE 指向它自己的有界 USB 输出 VFS，协议和普通日志可由同一 TX owner 排队；它不表示 PC 已读、COM 已枚举或所有排队数据已送达。initError 是最近一次初始化返回的 ESP-IDF 错误码；默认 0 单独不能证明完成初始化，应与 stdioBound、driverInstalled 一起看。stdioBound=0 时队列拒绝提交，不能静默退回第二个直接 USB writer；此初始化门禁的拒绝发生在 sinkQueued/sinkDropped 更新之前，不能只看这两个计数判断初始化成功。命令 RX 仍由唯一 Serial reader 使用 USB Serial/JTAG 驱动读取，不依赖 stdout/stderr 绑定；enumerated 继续明确 unknown。
+
+`3fb2a19` 曾试验完整 RDATA1 后追加 NOP（DIN=00h），实机 `final-res8-01` 仍出现末位 CRC 错误，候选已撤回。当前 RDATA1 使用原响应长度：4 字节数据，加可选 STATUS 和校验字节，最多 6 字节；所有 ADC CRC 位继续验证。该历史试验也未改变 CRC 位置、ADSSPIBYTES/RAILCRC 的 bytes/len 或 ASCII frame CRC；Host 不需要添加 ADC 字节或改变校验范围。CRC 的底层物理/控制器原因仍未确认，不能从一次软件尝试推导其已解决。
+
+`tools/test_mixed_rail_boundary.py` 使用**合成硬件边界**运行完整生产 MIXED 引擎和真实 ADS fault formatter，验证首点前刷新、已知 rail 的无切换路径、无 RES 拒绝激励、失败 acquired=0、恢复错误独立保留，以及旧 seq 上下文不附着当前故障。它是 host 回归，不是实机采样记录；未覆盖的 HIL 项继续标 NOT_RUN。
+
+### 完整串口记录边界（ebabe7e）
+
+stdout/stderr 的VFS write可以是同一printf的多个片段。固件按两个流分别组到LF后才把整行交给唯一TX owner；它从现有normal pool暂借槽，不增加永久大缓冲。中途priority回复不会进入半行。槽不足、队列满或超出2304B时，整条诊断丢弃并持续丢到LF重同步，不发布前缀；两个未完成流最多各占一个槽，其余数据与priority仍可工作。legacy同步科学帧也直接按完整packet入队，保留真实queue错误，不能由stdio的本地消费返回值推定已提交。
+
+`USBSTREAM?` 新增lineDropped（整行诊断丢弃次数）、lineOversize（其中超长行次数）、discardBytes（丢弃诊断字节）。它们不同于driver partialWrite/timeout；sinkDropped包括队列或整行丢弃，不能将这些计数简单相加成科学帧损失。VFS返回size只确认有界本地消费（包括已计数的丢弃），sinkQueued才是完整记录本地入队，driverAcceptedBytes仍不证明PC收到。无效的非换行packet和驱动部分写还使用有界delimiter恢复，下条控制回复保持行边界；断连不保证终态送达。
+
+USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回复约414B，所有字段类型同时取极值可能超容量，此时明确返回ERR,reason=response_too_long，不输出截断的伪完整统计。不能把一次query失败或计数缺失当零；CONFIG?的原子配置身份独立于这一统计查询。

@@ -1,0 +1,10 @@
+{
+  "head": "ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d",
+  "build_head": "ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d",
+  "app_sha256": "2dfd717ec374c3d046c20316320b3e2199e3eeda22c4dd94d193336a1aad8ba2",
+  "source_files_checked": 153,
+  "mismatches": [],
+  "dirty_diff_sha256": "cb0a72aca78c86a720fd384b3615a71531af73417905ec0bd00beb64186a9359",
+  "status": " M docs/audit/artifacts/reliability_fix/fdc_usb_notes.md\n M docs/audit/firmware_reliability_fix_report.md\n M docs/hardware/reliability_revision_notes.md\n M docs/integration/firmware_host_contract.md\n M docs/validation.md\n?? docs/audit/artifacts/reference_fixture/\n?? docs/audit/artifacts/reliability_fix/serial_stdio_line_test.json\n?? docs/audit/artifacts/reliability_fix/serial_vfs_interleaving_test.json\n?? docs/audit/reference_fixture_hil_20261104.md\n?? docs/validation/\n?? tests/fixtures/reference_capture/\n",
+  "no_source_mutation_since_final_build": true
+}

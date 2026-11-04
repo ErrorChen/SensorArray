@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "tools/test_serial_io.py",
+    "--baseline",
+    "8d6d656a6272af7f19e338b594e98d582762737e"
+  ],
+  "exit_code": 0,
+  "head": "8d6d656a6272af7f19e338b594e98d582762737e",
+  "file_sha256": {
+    "core/transport/sensorarraySerialIo.c": "9d16882af3208a8d33666c4540311bd371c6b2fba84ec94a5b54a32823588948",
+    "core/transport/sensorarraySerialIo.h": "23b178ed6bf1bd4ccf9dd2103c2eeaf3882eb186ad48013bd23777fa0c6df219",
+    "core/transport/sensorarrayTransport.c": "91b1bb2354fc98f056cb3932a5085d884eb87ea33492000e38132f1d57577f73",
+    "tests/host/test_serial_io.c": "d72492d981db58813aeea05f2956a27dd2349f5e70edc62ee007f0a7936553be",
+    "tools/test_serial_io.py": "03791c6e3db8b7830ecb61eaae6141bc0d1442fa6314785baf2d0b2ea31fa951"
+  },
+  "stdout": "SERIAL_IO_VALIDATOR,source=/home/csc/esp/esp-idf-v5.5.5/components/vfs/vfs.c,pathMax=15\nSERIAL_IO_BASELINE_REPRODUCED,pathBytes=16,idfPathMax=15,initError=0x102,configBytes=261,insertionByte=64,directConsole=1\nSERIAL_IO_PASS,allocation=psram,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=internal,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=failure_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=registration_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=stdout_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=stderr_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\nSERIAL_IO_PASS,allocation=route_probe_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1,stdioBound=1,configBytes=261,concurrentAtByte=64\n",
+  "stderr": "",
+  "evidence": "Real unmodified 8d6 SerialIo and local ESP-IDF VFS prefix predicate; hardware is not run by this worker."
+}

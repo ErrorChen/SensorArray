@@ -1,0 +1,3 @@
+# Original captures remain local; tracked gzip archives preserve exact bytes.
+*.notifications.jsonl
+*.logical.jsonl

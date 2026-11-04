@@ -1,0 +1,59 @@
+{"t": 6.929996743565425e-06, "type": "opened", "phase": "prepare", "port": "/dev/ttyACM0", "baud_setting": 115200, "ownership": "flock+TIOCEXCL", "existing_readers": "unverified", "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "hupcl": false, "duration_total_seconds": 45}
+{"t": 5.91529969824478e-05, "type": "tx_begin", "phase": "prepare", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.00011178299973835237, "type": "tx_complete", "phase": "prepare", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.007501519998186268, "type": "rx", "phase": "prepare", "offset": 0, "length": 128}
+{"t": 0.007581632999063004, "type": "rx", "phase": "prepare", "offset": 128, "length": 133}
+{"t": 0.007624671998200938, "type": "reply", "phase": "prepare", "command": "CONFIG?", "line": "CONFIG,session=AAB1D8C652036904,bootId=8,rev=6,boundary=4145,state=DEGRADED,mode=NONE,rows=8,profile=RCCCCCCR,err=0x103,mgen=2,mrid=1,rgen=3,rrid=3,pgen=3,prid=4,mtermId=1,mterm=applied,merr=0x0,ptermId=4,pterm=applied,perr=0x0,rtermId=3,rterm=applied,rerr=0x0"}
+{"t": 0.007698006997088669, "type": "tx_begin", "phase": "prepare", "command": "MODE?", "wire_ascii": "\nMODE?\n"}
+{"t": 0.007746158997179009, "type": "tx_complete", "phase": "prepare", "command": "MODE?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.009138374000031035, "type": "rx", "phase": "prepare", "offset": 261, "length": 256}
+{"t": 0.009205313999700593, "type": "rx", "phase": "prepare", "offset": 517, "length": 128}
+{"t": 0.009280176000174833, "type": "rx", "phase": "prepare", "offset": 645, "length": 50}
+{"t": 0.009328402997198282, "type": "rx", "phase": "prepare", "offset": 695, "length": 27}
+{"t": 0.009350112999527482, "type": "reply", "phase": "prepare", "command": "MODE?", "line": "MODE,state=DEGRADED,active=NONE,pending=NONE,pid=0,gen=2,rid=1,seq=610,layout=MIXED,profile=RCCCCCCR,route=SAFE,row=7,sw=HIGH,source=GND,matrixRef=GND,intref=0,vbias=1,refmux=00,pga=0,rail=1,age=100,fdcPrimary=sleep,fdcPrimaryVerified=1,fdcSecondary=sleep,fdcSecondaryVerified=1,fdcSd=low,fdcSdVerified=1,fdcRestartRequired=0,budgetFps=20,captureCap=0,transitionUs=5496,transitions=2,heap=8350952,heapMin=8337836,stackWords=2932,stackBytes=2932,stackUnit=bytes"}
+{"t": 0.009396126999490662, "type": "tx_begin", "phase": "prepare", "command": "ROWS?", "wire_ascii": "\nROWS?\n"}
+{"t": 0.009433015999093186, "type": "tx_complete", "phase": "prepare", "command": "ROWS?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.009831719999056077, "type": "rx", "phase": "prepare", "offset": 722, "length": 61}
+{"t": 0.009846006996667711, "type": "reply", "phase": "prepare", "command": "ROWS?", "line": "ROWS,active=8,pending=8,requestId=0,appliedId=3,generation=3"}
+{"t": 0.00986230999842519, "type": "tx_begin", "phase": "prepare", "command": "ROWMODES?", "wire_ascii": "\nROWMODES?\n"}
+{"t": 0.009898812997562345, "type": "tx_complete", "phase": "prepare", "command": "ROWMODES?", "accepted_bytes": 11, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.010415720997116296, "type": "rx", "phase": "prepare", "offset": 783, "length": 71}
+{"t": 0.010436794997076504, "type": "reply", "phase": "prepare", "command": "ROWMODES?", "line": "ROWMODES,active=RCCCCCCR,pending=none,gen=3,rid=4,rows=8,state=applied"}
+{"t": 0.010460061999765458, "type": "tx_begin", "phase": "prepare", "command": "CELL?=S1D1", "wire_ascii": "\nCELL?=S1D1\n"}
+{"t": 0.010494225000002189, "type": "tx_complete", "phase": "prepare", "command": "CELL?=S1D1", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.011540858999069314, "type": "rx", "phase": "prepare", "offset": 854, "length": 167}
+{"t": 0.011573815998417558, "type": "reply", "phase": "prepare", "command": "CELL?=S1D1", "line": "CELL,seq=4145,cell=S1D1,mode=NONE,value=-9223372036854775808,unit=pF,scale=0,raw=0,nodeUv=0,vref=0,vss=0,rref=0,pga=0,valid=0,fresh=0,error=rail,rail=0,age=0,ref=NONE"}
+{"t": 0.011611575999268098, "type": "tx_begin", "phase": "prepare", "command": "CELL?=S8D8", "wire_ascii": "\nCELL?=S8D8\n"}
+{"t": 0.01165521499933675, "type": "tx_complete", "phase": "prepare", "command": "CELL?=S8D8", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.012471424997784197, "type": "rx", "phase": "prepare", "offset": 1021, "length": 167}
+{"t": 0.012494047998188762, "type": "reply", "phase": "prepare", "command": "CELL?=S8D8", "line": "CELL,seq=4145,cell=S8D8,mode=NONE,value=-9223372036854775808,unit=pF,scale=0,raw=0,nodeUv=0,vref=0,vss=0,rref=0,pga=0,valid=0,fresh=0,error=rail,rail=0,age=0,ref=NONE"}
+{"t": 0.012520453998149605, "type": "tx_begin", "phase": "prepare", "command": "CELL?=S4D4", "wire_ascii": "\nCELL?=S4D4\n"}
+{"t": 0.012554331999126589, "type": "tx_complete", "phase": "prepare", "command": "CELL?=S4D4", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.013341456997295609, "type": "rx", "phase": "prepare", "offset": 1188, "length": 174}
+{"t": 0.013365508999413578, "type": "reply", "phase": "prepare", "command": "CELL?=S4D4", "line": "CELL,seq=4145,cell=S4D4,mode=NONE,value=-9223372036854775808,unit=pF,scale=0,raw=0,nodeUv=0,vref=0,vss=0,rref=0,pga=0,valid=0,fresh=0,error=unsupported,rail=0,age=0,ref=NONE"}
+{"t": 0.013398213999607833, "type": "tx_begin", "phase": "prepare", "command": "CELL?=S5D5", "wire_ascii": "\nCELL?=S5D5\n"}
+{"t": 0.013448887999402359, "type": "tx_complete", "phase": "prepare", "command": "CELL?=S5D5", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.014226441999198869, "type": "rx", "phase": "prepare", "offset": 1362, "length": 174}
+{"t": 0.014250449999963166, "type": "reply", "phase": "prepare", "command": "CELL?=S5D5", "line": "CELL,seq=4145,cell=S5D5,mode=NONE,value=-9223372036854775808,unit=pF,scale=0,raw=0,nodeUv=0,vref=0,vss=0,rref=0,pga=0,valid=0,fresh=0,error=unsupported,rail=0,age=0,ref=NONE"}
+{"t": 0.014281337997090304, "type": "tx_begin", "phase": "prepare", "command": "RAIL?", "wire_ascii": "\nRAIL?\n"}
+{"t": 0.014316210999822943, "type": "tx_complete", "phase": "prepare", "command": "RAIL?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.015229285996610997, "type": "rx", "phase": "prepare", "offset": 1536, "length": 211}
+{"t": 0.015254084999469342, "type": "reply", "phase": "prepare", "command": "RAIL?", "line": "ARL,src=monitor,raw=1109690174,mon=1291849,rail=5167396,avdd=0,avss=0,exp=5100000,err=67396,rv=1,rs=ok,age=101,ref=restored,pwr=restored,mux=restored,split=unknown,aincom=estimated,uncertaintyUv=unknown,calUs=0"}
+{"t": 0.01528964399767574, "type": "tx_begin", "phase": "prepare", "command": "BAT?", "wire_ascii": "\nBAT?\n"}
+{"t": 0.015335404998040758, "type": "tx_complete", "phase": "prepare", "command": "BAT?", "accepted_bytes": 6, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.01637249499981408, "type": "rx", "phase": "prepare", "offset": 1747, "length": 128}
+{"t": 0.016430882998974994, "type": "rx", "phase": "prepare", "offset": 1875, "length": 128}
+{"t": 0.01662731999749667, "type": "rx", "phase": "prepare", "offset": 2003, "length": 191}
+{"t": 0.016653546997986268, "type": "reply", "phase": "prepare", "command": "BAT?", "line": "ABAT,bt=4055,valid=1,fresh=0,ageMs=67409,lastGoodMv=4055,lastGoodValid=1,lastGoodFresh=0,lastGoodAgeMs=67409,lastGoodFrame=4140,lastGoodKnown=1,periodMs=1000,due=1,run=316,validRun=310,invalidRun=6,skip=0,defer=0,boundary=316,restoreFail=0,retry=0/0,unstable=0,timeout=0,spreadRaw=1049254,spreadMaxRaw=1081057,raw=526902495,a8d=1267862,ac=759911,a8g=2027773,ratio=2/1,rail=5167396,railState=ok,vbias=1,samples=3,sampleUs=7323,restore=ok,reason=ok"}
+{"t": 0.016706774997146567, "type": "tx_begin", "phase": "prepare", "command": "USBSTREAM?", "wire_ascii": "\nUSBSTREAM?\n"}
+{"t": 0.016743046999181388, "type": "tx_complete", "phase": "prepare", "command": "USBSTREAM?", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.017718668997986242, "type": "rx", "phase": "prepare", "offset": 2194, "length": 128}
+{"t": 0.01782431899846415, "type": "rx", "phase": "prepare", "offset": 2322, "length": 128}
+{"t": 0.017886443998577306, "type": "rx", "phase": "prepare", "offset": 2450, "length": 95}
+{"t": 0.017902589999721386, "type": "reply", "phase": "prepare", "command": "USBSTREAM?", "line": "USBSTREAM,v=DEBUG,dataEvery=50,diagEvery=15,sinkQueued=2411,sinkDropped=321,priorityQueued=48,driverAcceptedBytes=2006491,rxBytes=424,partialWrite=2,timeout=321,driverDrained=12,rxOversize=0,lastRxUs=458719126,lastTxUs=458718435,driverInstalled=1,sofPresent=1,txStackBytes=4096,txStackMinBytes=3092,bufferMemory=2,bufferBytes=11520,enumerated=unknown"}
+{"t": 0.017932037997525185, "type": "tx_begin", "phase": "prepare", "command": "PERF?", "wire_ascii": "\nPERF?\n"}
+{"t": 0.01796657899831189, "type": "tx_complete", "phase": "prepare", "command": "PERF?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.018811288999131648, "type": "rx", "phase": "prepare", "offset": 2545, "length": 128}
+{"t": 0.018850392996682785, "type": "rx", "phase": "prepare", "offset": 2673, "length": 70}
+{"t": 0.01897687299788231, "type": "rx", "phase": "prepare", "offset": 2743, "length": 75}
+{"t": 0.018988511998031754, "type": "reply", "phase": "prepare", "command": "PERF?", "line": "PERF,pub=4145,fresh=4144,stale=1,mixed=0,dropOut=0,dropEvent=0,startAvgUs=89384,startN=4144,usbStage=queued,usbSent=2363,usbDrop=0,usbBlock=0,usbBytes=2266073,usbWriteMaxUs=0,usbQMax=0,usbStackMin=0,lifePub=0,lifeDrop=0,queueDrop=0,frames=4145,heap=8350952,heapMin=8337836"}

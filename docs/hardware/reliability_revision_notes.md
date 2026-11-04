@@ -1,6 +1,6 @@
 # Reliability hardware revision notes
 
-Status: **HARDWARE_CHANGE_REQUIRED / as-built revision NOT_VERIFIED**. Audited repository schematic: `datasheets/circuit.pdf`, V1.0, sheets 1–4 (2025-11-28 to 2025-12-05). This is a design review, not an implemented PCB modification or a claim about the user's populated board. No board, oscilloscope, DMM, Windows enumerator or safe input fixture was exposed to this task. All electrical measurements below are NOT_RUN.
+Status: **HARDWARE_CHANGE_REQUIRED / as-built revision NOT_VERIFIED**. Audited repository schematic: `datasheets/circuit.pdf`, V1.0, sheets 1–4 (2025-11-28 to 2025-12-05). This is a design review, not an implemented PCB modification or a claim about the user's populated board. The initial audit had no hardware access. The subsequent [reference-fixture HIL](../audit/reference_fixture_hil_20261104.md) accessed the ESP32-S3/ADS1262 board over native USB and recorded its passive fixture. It did not provide an oscilloscope, independent DMM or Windows enumerator. The electrical procedures in HW01–HW06 below remain NOT_RUN.
 
 ## Connectivity and firmware limits
 
@@ -37,3 +37,13 @@ To make internal rail monitoring transparent, a future revision must expose a re
 Local ADS126x manual `datasheets/ads1263.pdf`: pin/function and recommended supply tables; internal reference §9.3.8.1 and startup §11.3 (1 µF minimum 50 ms guidance); POWER/RESET/INTERFACE registers; ADC1 data integrity. Sheet 3 C42 is 1 µF to AVSS, but the populated value is NOT_VERIFIED. Reference startup, input RC/PGA setup, digital filter latency and a fresh conversion are separate conditions.
 
 Primary manufacturer references additionally consulted 2026-11-04: [TI TMUX1108 datasheet](https://www.ti.com/lit/ds/symlink/tmux1108.pdf), [TI LM27762 datasheet](https://www.ti.com/lit/ds/symlink/lm27762.pdf), [Espressif ESP32-S3 schematic checklist](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html). These support switch/enable behavior and USB pin/layout review; they do not prove the board's actual condition.
+
+## Observations from the 2026-11-04/05 passive-fixture run
+
+No HW01–HW06 change was performed. The user has no independent AVDD/AVSS DMM readings, and has not yet confirmed the S8D8 resistor connection. S8D8 repeatedly reports fresh OPEN; this does not identify whether the resistor, contact or board path is responsible. No coordinate remap, calibration coefficient or fixed offset was used to hide it.
+
+The ADS internal supply monitor inherited PGA bypass from the last matrix cell, contrary to ADS1262 §9.3.5. Firmware `8d6d656` gives that monitor its own verified PGA-enabled/gain-1, chop-OFF profile and restores the prior profile. This corrects a software prerequisite; it does not establish independent AVDD/AVSS accuracy or add physical isolation. CAP/VOLT transparent internal monitoring remains unavailable. RES already intentionally enables REFOUT and may monitor under that existing safe admission policy.
+
+SPI CRC rejection remains observable with received CRC differing from computed CRC in the final bit. The 2 MHz duty64 experiment failed and was reverted to duty128; the firmware keeps all eight CRC bits and bounded fresh-conversion retry. The protected register read adds one legal trailing register so requested configuration bytes are not the last response byte. This mitigates the tested end-of-read corruption mechanism but does not prove its electrical origin or repair the RDATA CRC byte. Scope SCLK/MISO at the ADS and MCU pads, verify mode-1 setup/hold and output timing, and inspect the actual SPI route before assigning a hardware cause. No unverified sampling-delay setting or unsupported ADC2 is claimed as a fix.
+
+The subsequent complete-RDATA-plus-NOP experiment also reproduced CRC rejection and was removed in `bd49168`. Final flashed firmware `ebabe7e` still failed the RES screening after 26 complete frames. Successful CAP operation or bounded recovery does not clear this ADC-link finding. The USB VFS path and fragmented-stdio defects were separately reproduced and fixed in software; the Linux serial/BLE recordings do not clear HW05 or establish Windows enumeration reliability. No PCB rework, independent rail measurement, scope capture or HW01–HW06 electrical acceptance was performed.

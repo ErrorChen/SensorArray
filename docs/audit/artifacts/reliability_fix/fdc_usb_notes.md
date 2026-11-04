@@ -34,14 +34,49 @@ The runtime test compiles the **complete actual production worker and coordinato
 
 ## USB / transport
 
+2026-11-05 HIL follow-up (firmware `8d6d656a6272af7f19e338b594e98d582762737e`): the earlier single-owner claim was **not implemented successfully on the target**. In `rail-fixed-switch50-01.rx.bin`, byte offset 24293 starts a CONFIG reply; exactly 64 bytes later, native-console PR/PFU/FDC_CACHE_APPLY logs interrupt it. CONFIG resumes after those logs. The interrupting console lines have CRLF while the queued CONFIG uses LF. This is independent of packet timeout/delimiter recovery; another RES capture showed interleaving with no increase in partial/timeout/drop counters.
+
+Confirmed root cause: `sensorarraySerialIoInit()` registered `/dev/sensorarray` (16 bytes), but the actual ESP-IDF 5.5.5 `ESP_VFS_PATH_MAX` is 15 and `is_path_prefix_valid()` rejects it with `ESP_ERR_INVALID_ARG` (0x102). Driver installation and TX task creation had already succeeded. `sensorarraySerialIoQueue()` admitted packets based only on that task, while stdout/stderr still used `/dev/console` and the USB VFS default direct FIFO writer. There were therefore two hardware writers. The old host mock accepted every VFS path and missed this integration requirement.
+
+The follow-up uses `/dev/saout` with a compile-time path-limit assertion. Protocol/DATA admission remains closed until both shared stdio FILE objects are reopened and their actual `fstat` route carries the custom VFS device tag. `esp_vfs_fstat()` directly dispatches the registered callback and does not overwrite that tag. This observes software routing only, not USB enumeration. ESP-IDF `esp_reent_init()` shares the global FILE objects with every new task; `freopen` updates those objects in place. A failed registration preserves early console output. A failed `freopen` can close that stream; it leaves TX closed, retains the real initialization error, and a later Init retries the failed stream without reinitializing the driver/task or the already bound stream. Independent command RX and optional network initialization remain available. Transport Init now retries Serial binding even when network/control tasks already started. `USBSTREAM?` adds `stdioBound` and `initError`; a driver/task alone is no longer advertised as output readiness.
+
+Executed regression command (exit 0):
+
+```text
+python3 tools/test_serial_io.py --baseline 8d6d656a6272af7f19e338b594e98d582762737e
+SERIAL_IO_BASELINE_REPRODUCED,pathBytes=16,idfPathMax=15,initError=0x102,configBytes=261,insertionByte=64,directConsole=1
+SERIAL_IO_PASS: psram, internal, failure_retry, registration_retry, stdout_retry, stderr_retry, route_probe_retry
+```
+
+The optional baseline compiles the original production module from that exact commit. The test extracts the installed IDF's actual prefix validator and `esp_reent_init()` function; libc `fwrite` calls use cookie-backed shared FILE objects to reach the actual SerialIo VFS callback. A real, separately captured 261-byte complete CONFIG receives concurrent stdout/stderr and a new priority reply at the original 64-byte boundary. The fixed module keeps CONFIG contiguous, then transmits the queued reply/logs. The shim models a failed reopen as a closed stream and verifies recovery, FILE-error clearing, unchanged allocations, bounded no-host behavior, and independent RX. It is not an emulation of Xtensa newlib or electrical USB. HIL verification remains with the root hardware owner.
+
+`tests/fixtures/serial_io/` contains verbatim capture slices and source SHA-256/offset metadata. The corrupt 1024-byte slice remains corrupt; no missing bytes or CRC were fabricated. `serial_vfs_interleaving_test.json` records the executed command, exit code, HEAD and changed-source hashes.
+
+Second HIL follow-up (`3fb2a19a19b054ca9621ef089d961806a4740478`): `final-res8-01.rx.bin` confirms `stdioBound=1/initError=0`, but its final line is a 128-byte ADSFRAME prefix immediately followed by a USBSTREAM applied reply. `sinkDropped` increased while `partialWrite/timeout` did not. Newlib can call VFS write several times for one printf; the old VFS queued each fragment separately. A later queue rejection could discard the remaining fragment and its LF after the prefix had already reached the wire. Single hardware ownership was necessary but insufficient for record integrity.
+
+The VFS now maps `/out` and `/err` to separate local descriptors and assembles each stream through LF before publishing. Each unfinished line temporarily borrows one of the existing five normal slots; no additional payload allocation, PSRAM buffer, task, or queue is added. Two unfinished streams leave three normal slots. Within each stream, the shared newlib FILE lock serializes writers; the two streams use independent assembly state. Copies occur outside the short pool/metrics locks. Queue admission uses zero wait and never waits for USB. Pool exhaustion, queue rejection, or a line longer than 2304 bytes discards the entire line, including its retained prefix, then resynchronizes at LF. An unfinished line stays bounded and unpublished. A direct caller's packet without LF causes the TX owner to insert a delimiter before the next packet within its existing deadline.
+
+Diagnostic VFS write return values now mean **local fragment consumption**, including explicitly counted line discard; they do not mean queue acceptance or delivery. This avoids stdio retrying a consumed suffix as a new record. Protocol/DATA continue using `sensorarraySerialIoQueue()` and its real admission result. The legacy synchronous scientific-frame output was changed from fwrite/fflush to that direct API, keeping its entire encoded multi-line frame and CRC together and propagating admission errors. `USBSTREAM?` adds `lineDropped`, `lineOversize`, and `discardBytes`. At captured values the expanded response is 414 bytes; a conservative all-type-max expansion is 603 bytes and is rejected by the existing explicit `response_too_long` guard instead of being truncated. Arbitrary maximum counters therefore do not have a complete response guarantee in the current 512-byte CTRL contract.
+
+Executed with both original production sources and the fixed source (exit 0):
+
+```text
+python3 tools/test_serial_io.py --baseline 8d6d656a6272af7f19e338b594e98d582762737e --fragment-baseline 3fb2a19a19b054ca9621ef089d961806a4740478
+SERIAL_IO_BASELINE_REPRODUCED,pathBytes=16,idfPathMax=15,initError=0x102,configBytes=261,insertionByte=64,directConsole=1
+SERIAL_IO_FRAGMENT_BASELINE_REPRODUCED,stdioBound=1,initError=0,prefixBytes=128,queueDrop=1,partialWriteDelta=0,timeoutDelta=0
+SERIAL_IO_PASS: seven allocation/initialization cases, each with 32 concurrent dual-FILE fragment iterations, priority interposition, whole-line queue/pool/oversize drops, LF recovery, and legacy scientific-frame atomic queue admission
+```
+
+The threaded test uses actual libc FILE writers, pthread mutexes for the RTOS pool/queue/metrics shim, and the actual production module. The legacy frame function is extracted verbatim; its encoder stub replays an existing real-encoder golden frame whose CRC is checked before compilation. The new 186-byte capture fixture remains exactly the original corrupt line; the missing ADSFRAME suffix is not reconstructed. The regression's extra suffix is explicitly named `synthetic_suffix`. `serial_stdio_line_test.json` records the executed command and source hashes. Target build and HIL remain with the root owner; `stdioBound` alone is not acceptance evidence.
+
 Baseline configuration is ESP32-S3 native USB Serial/JTAG (`CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, TinyUSB CDC console disabled, power management disabled). Baseline had no explicit USB driver installation: `stdin/stdout` used the console VFS; Serial control used `fgets(stdin)`. USB DATA used a separate `fwrite`/`fflush` task, but guaranteed lifecycle and Serial CTRL replies also called `fwrite`/`fflush` from transport/control tasks, so those paths could wait on USB. A successful stdio write did not prove driver acceptance, much less PC receipt.
 
 New `core/transport/sensorarraySerialIo.[ch]` (this round):
 
 - Install native Serial/JTAG driver once; do not initialize TinyUSB or reconfigure GPIO19/20. One `serialCtrl` task reads that driver; one `serialTx` task owns physical TX. `stdin` is no longer a second consumer.
-- Register a nonblocking VFS for stdout/stderr. Normal printf/log writes enqueue to the same physical owner. CTRL and guaranteed lifecycle use a separate priority queue. `USBSTREAM` and DATA eligibility do not disable command RX or priority TX.
+- Register a nonblocking VFS for stdout/stderr. Normal printf/log fragments assemble into complete LF-terminated records for the same physical owner. CTRL and guaranteed lifecycle use a separate priority queue. `USBSTREAM` and DATA eligibility do not disable command RX or priority TX.
 - No acquisition/BLE/Wi-Fi/control task waits for USB transfer completion. Queue admission is nonblocking. USB writes are zero-wait chunks (64 bytes) within one 20 ms packet deadline. Partial acceptance and timeout are counted; an incomplete packet gets a delimiter before the next packet, so a truncated message cannot silently become a complete scientific frame.
-- The next queue drain clears stdio error flags left by VFS EAGAIN, permitting later output attempts. VFS rejects full queues rather than returning a fabricated accepted length.
+- The next queue drain clears stdio error flags left by initialization-time VFS EAGAIN. At runtime, diagnostic fragment consumption and whole-line discard are distinct from queue acceptance; only complete records increment `sinkQueued`.
 - Priority is checked before each DATA packet. A packet already being written can take up to its bounded deadline; no exactly-once or remote-delivery guarantee is claimed.
 - The old `main/output/sensorarrayUsbSink.c` queue, two scratch packets and second USB task were removed. Its API still implements DATA profile and submission statistics. SerialIo has five 2304-byte normal buffers allocated once (PSRAM preferred, internal fallback), four 512-byte internal priority buffers, nine small queue indices/lengths and one 4096-byte task. Producer payload copying is outside the pool spinlock and does not allocate a large stack packet. The old standalone USB task reports configured stack 0; SerialIo reports its actual configured/minimum remaining bytes.
 - USB installation failure is reported after optional network transports are initialized, so it does not prevent BLE/Wi-Fi initialization.
@@ -52,7 +87,10 @@ Statistics are local observations:
 | --- | --- |
 | `sinkQueued` | Number of locally accepted stdout/DATA/priority packets |
 | `priorityQueued` | Subset accepted in the priority queue |
-| `sinkDropped` | Queue rejection or packet remainder dropped at TX deadline |
+| `sinkDropped` | Direct queue rejection, complete diagnostic line discarded, or packet remainder dropped at TX deadline |
+| `lineDropped` | Diagnostic lines discarded before publication, including unfinished lines closed without LF |
+| `lineOversize` | Subset discarded because their complete length exceeds 2304 bytes |
+| `discardBytes` | Bytes discarded by line assembly, including retained prefixes and subsequent bytes consumed through the discarded line's LF |
 | `driverAcceptedBytes` | Bytes accepted by `usb_serial_jtag_write_bytes`, including resynchronizing delimiters |
 | `driverDrained` | Observed transitions with `usb_serial_jtag_wait_tx_done(0)==ESP_OK`; not PC application acknowledgement |
 | `partialWrite` | Packets with a nonzero accepted prefix and a dropped remainder |

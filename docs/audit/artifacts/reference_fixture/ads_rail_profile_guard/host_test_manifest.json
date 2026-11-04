@@ -1,0 +1,81 @@
+{
+  "fixture": "synthetic; no serial or HIL access by this harness",
+  "head": "6a8f5029feadd455a66f5dedb226d6e554073079",
+  "dirty_diff_sha256": "c46cf6dc8c2c513e8d740ab5d3890faafe761e96c32ba4c98a1ecbfedc1d631c",
+  "source_sha256": {
+    "components/ads126xAdc/ads126xAdc.c": "aa06628ef4cc8f885a5b94b47543b864c34e61a1d431099b39eac391389fbb02",
+    "components/ads126xAdc/include/ads126xAdc.h": "9903ad31e2964461ac8ba95a471ae444ed06392327d0d01badd509f28363a24f",
+    "core/measure/ads/sensorarrayAdsGap.c": "605174dc7d2be65c8a10de596c657a7a3be3d6fd5e364678ba280e8fd3638e7f",
+    "tests/host/test_ads_driver_reliability.c": "0f6bf3774ecc545969e6a7f1a1c3fc718a0239c6f58ff5bc65c074495e144234",
+    "tests/host/test_ads_rail_profile.c": "b751df82e5f3dbf134fce8b2564cc2b2b2482f1cc438e706f56f54c7c471faae",
+    "tools/test_ads_rail_profile.py": "db7facdc4ed8543a842150b612bb6edf7373727cc4a1c20177808762323bd9fa",
+    "datasheets/ads1263.pdf": "8b3290ca6ac01d2da9352d62b73c268e20ccdce54475c0a35444cce9e366b1f0"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_driver_reliability.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.296493,
+      "log": "01_test_ads_driver_reliability.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_profile.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.087268,
+      "log": "02_test_ads_rail_profile.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_battery_snapshot_evidence.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.083964,
+      "log": "03_test_battery_snapshot_evidence.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_fault_fixtures.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.076412,
+      "log": "04_test_ads_fault_fixtures.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_matrix_diagnostics.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.05976,
+      "log": "05_test_ads_matrix_diagnostics.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_measurement_logic.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.270679,
+      "log": "06_test_measurement_logic.log"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.009049,
+      "log": "07_--check.log"
+    }
+  ],
+  "hardware_result": "NOT_RUN in host tests; root owns subsequent HIL"
+}

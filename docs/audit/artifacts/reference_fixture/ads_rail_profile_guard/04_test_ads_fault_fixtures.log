@@ -1,0 +1,4 @@
+COMMAND python3 tools/test_ads_fault_fixtures.py
+CC=/usr/bin/gcc
+EXIT 0
+ADS_FAULT_FIXTURES,passed=1,count=11,fixture=synthetic,producer=actual_C_formatter

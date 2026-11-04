@@ -1,0 +1,2 @@
+RECOVERY_IDENTITY_PASS,productionFunctions=post+take,singlePending=1,copyOutsideMux=1,revisionOnlyAllowed=1,staleSessionAndDomains=7,knownTransitions=1,unknownBootRecovery=1,idWrap=1
+RESTART_BUDGET_PASS,productionFunctions=7,readyBlock=actual,frameCaller=actual,maxAuto=3,slowBootWindowReset=0,stableHealthyUs=120000000,minHealthyFrames=128,maxGapUs=30000000,stallAndSparseDoNotClear=1,failBreaksStreak=1,clockRollback=1,powerOnReset=1

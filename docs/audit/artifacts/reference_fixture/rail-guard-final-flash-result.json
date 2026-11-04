@@ -1,0 +1,59 @@
+{
+  "head": "8d6d656a6272af7f19e338b594e98d582762737e",
+  "build_version": "8d6d656-dirty",
+  "app_sha256": "0414c6b4fdbdaa5f964280e608cae15011c9bf22b547d8026b761f2680f5e34f",
+  "app_bytes": 1531360,
+  "nvs_or_calibration_written": false,
+  "partition_written": false,
+  "bootloader_written": false,
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "flash_id"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/reference_fixture/rail-guard-final-flash-identity.txt"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "write_flash",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "16MB",
+        "0x10000",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/reference_fixture/rail-guard-final-flash-app.txt"
+    }
+  ]
+}

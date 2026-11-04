@@ -1,0 +1,414 @@
+{
+  "head": "ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d",
+  "dirty_diff_sha256": "ebfdb2950cca763a3039123270c25ccefc6440714d2f8bed5e1d38dd685f0d3b",
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_driver_reliability.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.31466640699727577,
+      "log": "docs/audit/artifacts/reference_fixture/test_ads_driver_reliability-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_fault_fixtures.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11520948500037775,
+      "log": "docs/audit/artifacts/reference_fixture/test_ads_fault_fixtures-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_matrix_diagnostics.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.06462483299765154,
+      "log": "docs/audit/artifacts/reference_fixture/test_ads_matrix_diagnostics-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_error_chain.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11434717100200942,
+      "log": "docs/audit/artifacts/reference_fixture/test_ads_rail_error_chain-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_profile.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11527355699945474,
+      "log": "docs/audit/artifacts/reference_fixture/test_ads_rail_profile-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_async_log_storage.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.06426890200236812,
+      "log": "docs/audit/artifacts/reference_fixture/test_async_log_storage-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_audit_config_surface.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11445370199726312,
+      "log": "docs/audit/artifacts/reference_fixture/test_audit_config_surface-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_battery_snapshot_evidence.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.1145382700015034,
+      "log": "docs/audit/artifacts/reference_fixture/test_battery_snapshot_evidence-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_battery_validity.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11434492099942872,
+      "log": "docs/audit/artifacts/reference_fixture/test_battery_validity-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_calibration_persistence.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11456993499814416,
+      "log": "docs/audit/artifacts/reference_fixture/test_calibration_persistence-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_capture_reference_fixture.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.8723549809983524,
+      "log": "docs/audit/artifacts/reference_fixture/test_capture_reference_fixture-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_config_identity.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.2654659539985005,
+      "log": "docs/audit/artifacts/reference_fixture/test_config_identity-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ctrl_reply_guard.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11544388599941158,
+      "log": "docs/audit/artifacts/reference_fixture/test_ctrl_reply_guard-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_fdc_iso_mailbox.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11524214100063546,
+      "log": "docs/audit/artifacts/reference_fixture/test_fdc_iso_mailbox-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_fdc_worker_lifecycle.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.0642197489978571,
+      "log": "docs/audit/artifacts/reference_fixture/test_fdc_worker_lifecycle-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_fdc_worker_runtime.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.3686289159995795,
+      "log": "docs/audit/artifacts/reference_fixture/test_fdc_worker_runtime-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_frame_semantics.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.1152428979985416,
+      "log": "docs/audit/artifacts/reference_fixture/test_frame_semantics-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_main_config_commit.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.1651320710006985,
+      "log": "docs/audit/artifacts/reference_fixture/test_main_config_commit-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_main_fault_context.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.21466119900287595,
+      "log": "docs/audit/artifacts/reference_fixture/test_main_fault_context-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_measurement_logic.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.3158324630021525,
+      "log": "docs/audit/artifacts/reference_fixture/test_measurement_logic-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_mixed_rail_boundary.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.21531869400132564,
+      "log": "docs/audit/artifacts/reference_fixture/test_mixed_rail_boundary-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_receive_ble_text.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11440880500231287,
+      "log": "docs/audit/artifacts/reference_fixture/test_receive_ble_text-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_reference_fixture.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.21455464499740629,
+      "log": "docs/audit/artifacts/reference_fixture/test_reference_fixture-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_restart_budget.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11492827800248051,
+      "log": "docs/audit/artifacts/reference_fixture/test_restart_budget-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_route_safety.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.21576144400023622,
+      "log": "docs/audit/artifacts/reference_fixture/test_route_safety-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_rowmodes_ack_guard.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.16483765999873867,
+      "log": "docs/audit/artifacts/reference_fixture/test_rowmodes_ack_guard-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_rowmodes_frame_metadata.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11534302599829971,
+      "log": "docs/audit/artifacts/reference_fixture/test_rowmodes_frame_metadata-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_sensorarray_hil.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.3713772119990608,
+      "log": "docs/audit/artifacts/reference_fixture/test_sensorarray_hil-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.1646912930009421,
+      "log": "docs/audit/artifacts/reference_fixture/test_serial_io-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_summarize_reference_capture.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.16552716400110512,
+      "log": "docs/audit/artifacts/reference_fixture/test_summarize_reference_capture-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.06533112400211394,
+      "log": "docs/audit/artifacts/reference_fixture/test_text_protocol-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11484859700067318,
+      "log": "docs/audit/artifacts/reference_fixture/test_transport_frame_metadata-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11528564300169819,
+      "log": "docs/audit/artifacts/reference_fixture/test_transport_pool-final-committed.txt"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_validate_transports.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/cc"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.11435430499841459,
+      "log": "docs/audit/artifacts/reference_fixture/test_validate_transports-final-committed.txt"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "file": "tests/fixtures/reference_capture/cap8_total.recorded.txt",
+    "provenance": "recorded_unmodified_device_encoder_output",
+    "source": "docs/audit/artifacts/reference_fixture/repaired-cap8-01.rx.bin",
+    "source_sha256": "fa63102bd36b1c2884bfb73530714b55de060d47d12023b6da3a39e3cdc06805",
+    "offset": 3663,
+    "length": 889,
+    "sha256": "e785b8a50dc30e0583b88763c57afdce1a29bdc5b7971c09df8edd71eaef6c97",
+    "sequence": 985,
+    "actual_parser_crc_ok": true
+  },
+  {
+    "file": "tests/fixtures/reference_capture/res8_first.recorded.txt",
+    "provenance": "recorded_unmodified_device_encoder_output",
+    "source": "docs/audit/artifacts/reference_fixture/repaired-res8-01.rx.bin",
+    "source_sha256": "f0dd870ec6fc056f7fddad82719a13e007b06dfe288a68dc950ca6ea6619c901",
+    "offset": 5124,
+    "length": 935,
+    "sha256": "27f33bbbb9c0bcc769b7f2cf7bc1d755e4f02fccccda6af404ed6bb119396142",
+    "sequence": 4218,
+    "actual_parser_crc_ok": true
+  },
+  {
+    "file": "tests/fixtures/reference_capture/res8_crc_rejected.recorded.txt",
+    "provenance": "recorded_unmodified_device_encoder_output",
+    "source": "docs/audit/artifacts/reference_fixture/timing-res8-01.rx.bin",
+    "source_sha256": "e3838f3a3af7bccd72e408b72fe75c925cadc05a6d8a7490c8d1e10cc58cb1cc",
+    "offset": 84172,
+    "length": 926,
+    "sha256": "5731d4ea9e5fe51d2bbe2a9a526771f2d698b04b66003978f8454d70c3014bf8",
+    "sequence": 613,
+    "actual_parser_crc_ok": true
+  }
+]

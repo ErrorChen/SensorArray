@@ -1,0 +1,86 @@
+{
+  "firmware_commit": "ba8346b7b643e54985699630f608aba3386810e9",
+  "app_sha256": "e8c9bbdb4c515ce70573581ead256b406ea762fdb1761fea6ca9bab930e991cf",
+  "device_serial": "80:B5:4E:CD:D9:AC",
+  "backup_path": "/home/csc/esp/workspace/SensorArray/validation_artifacts/device-backup-20261104T122029Z/flash_before_0x000000_0x320000.bin",
+  "backup_sha256": "e25f56491f33db37654074f7088a9bea778c803913ee54c13ea08e244ea316ec",
+  "backup_bytes": 3276800,
+  "partition_identical": true,
+  "nvs_or_calibration_written": false,
+  "partition_table_written": false,
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "flash_id"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/reference_fixture/20261104T122029Z-flash-id.txt"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "read_flash",
+        "0",
+        "0x320000",
+        "/home/csc/esp/workspace/SensorArray/validation_artifacts/device-backup-20261104T122029Z/flash_before_0x000000_0x320000.bin"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/reference_fixture/20261104T122029Z-backup.txt"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "write_flash",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "16MB",
+        "0x0",
+        "/home/csc/esp/workspace/SensorArray/build/bootloader/bootloader.bin",
+        "0x10000",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/reference_fixture/20261104T122029Z-flash.txt"
+    }
+  ]
+}

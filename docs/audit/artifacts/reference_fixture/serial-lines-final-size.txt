@@ -1,0 +1,54 @@
+Activating ESP-IDF 5.5
+Setting IDF_PATH to '/home/csc/esp/esp-idf-v5.5.5'.
+* Checking python version ... 3.12.3
+* Checking python dependencies ... OK
+* Deactivating the current ESP-IDF environment (if any) ... OK
+* Establishing a new ESP-IDF environment ... OK
+* Identifying shell ... bash
+* Detecting outdated tools in system ... Found tools that are not used by active ESP-IDF version.
+For removing old versions of components, esp-clang, riscv32-esp-elf, python, esp-clang-libs, xtensa-esp-elf use command 'python /home/csc/esp/esp-idf-v5.5.5/tools/idf_tools.py uninstall'
+To free up even more space, remove installation packages of those tools.
+Use option python /home/csc/esp/esp-idf-v5.5.5/tools/idf_tools.py uninstall --remove-archives.
+* Shell completion ... Autocompletion code generated
+Executing action: size
+Running ninja in directory /home/csc/esp/workspace/SensorArray/build
+Executing "ninja all"...
+[1/4] cd /home/csc/esp/workspace/SensorArray/build/esp-idf/esptool_py && /home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python /home/csc/esp/esp-idf-v5.5.5/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/csc/esp/workspace/SensorArray/build/partition_table/partition-table.bin /home/csc/esp/workspace/SensorArray/build/SensorArray.bin
+SensorArray.bin binary size 0x176950 bytes. Smallest app partition is 0x300000 bytes. 0x1896b0 bytes (51%) free.
+[2/4] Performing build step for 'bootloader'
+[1/1] cd /home/csc/esp/workspace/SensorArray/build/bootloader/esp-idf/esptool_py && /home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python /home/csc/esp/esp-idf-v5.5.5/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/csc/esp/workspace/SensorArray/build/bootloader/bootloader.bin
+Bootloader binary size 0x5170 bytes. 0x2e90 bytes (36%) free.
+[3/4] No install step for 'bootloader'
+[4/4] Completed 'bootloader'
+Running ninja in directory /home/csc/esp/workspace/SensorArray/build
+Executing "ninja size"...
+[0/1] cd /home/csc/esp/workspace/SensorArray/build && /usr/bin/cmake -D "IDF_SIZE_TOOL=/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python;-m;esp_idf_size" -D MAP_FILE=/home/csc/esp/workspace/SensorArray/build/SensorArray.map -D OUTPUT_JSON= -P /home/csc/esp/esp-idf-v5.5.5/tools/cmake/run_size_tool.cmake
+                           Memory Type Usage Summary                            
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Memory            ┃              ┃          ┃                ┃               ┃
+┃ Type/Section      ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ Flash Code        │      1094402 │          │                │               │
+│    .text          │      1094402 │          │                │               │
+│ DIRAM             │       286999 │    83.98 │          54761 │        341760 │
+│    .text          │       122395 │    35.81 │                │               │
+│    .bss           │       121088 │    35.43 │                │               │
+│    .data          │        43516 │    12.73 │                │               │
+│ Flash Data        │       257444 │          │                │               │
+│    .rodata        │       257188 │          │                │               │
+│    .appdesc       │          256 │          │                │               │
+│ IRAM              │        16384 │    100.0 │              0 │         16384 │
+│    .text          │        15356 │    93.73 │                │               │
+│    .vectors       │         1028 │     6.27 │                │               │
+│ RTC SLOW          │          160 │     1.95 │           8032 │          8192 │
+│    .rtc_noinit    │          128 │     1.56 │                │               │
+│    .force_slow    │           32 │     0.39 │                │               │
+│ RTC FAST          │           24 │     0.29 │           8168 │          8192 │
+│    .rtc_reserved  │           24 │     0.29 │                │               │
+└───────────────────┴──────────────┴──────────┴────────────────┴───────────────┘
+Total image size: 1534173 bytes (.bin may be padded larger)
+Note: The reported total sizes may be smaller than those in the technical 
+reference manual due to reserved memory and application configuration. The total
+flash size available for the application is not included by default, as it 
+cannot be reliably determined due to the presence of other data like the 
+bootloader, partition table, and application partition size.

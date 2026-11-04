@@ -1,5 +1,8 @@
 # 构建、自动测试与 HIL 验证
 
+本轮指定的 S1D1/S8D8=10 kΩ、S4D4/S5D5=33 pF、其余悬空夹具，见
+[参考夹具验收](validation/reference_fixture_10k_33pf.md)。其精度判定不沿用旧宽松 HIL sanity 阈值。
+
 ## 验证原则
 
 以下项目必须分开报告：

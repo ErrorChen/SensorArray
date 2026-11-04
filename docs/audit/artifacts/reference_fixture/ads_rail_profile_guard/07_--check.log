@@ -1,0 +1,3 @@
+COMMAND git diff --check
+CC=/usr/bin/gcc
+EXIT 0

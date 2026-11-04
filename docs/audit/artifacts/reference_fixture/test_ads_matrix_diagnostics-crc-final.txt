@@ -1,0 +1,1 @@
+ADS_MATRIX_DIAGNOSTICS,passed=1,maxRecordBytes=219,fixture=synthetic,producer=production_function

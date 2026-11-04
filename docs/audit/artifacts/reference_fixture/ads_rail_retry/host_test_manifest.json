@@ -1,0 +1,80 @@
+{
+  "head": "8d6d656a6272af7f19e338b594e98d582762737e",
+  "dirty_diff_sha256": "05fc913b9dd08555da57b7a76c8c4a5f5696e83e96f9cb859858bcb992f10f34",
+  "source_sha256": {
+    "core/measure/ads/sensorarrayAdsGap.c": "bb61ebe9cb26f4f2710c8adf69370e1814c1c637d30cde745ed2e77da83e3f4f",
+    "core/measure/ads/sensorarrayAdsMatrix.c": "ae9a7fa26f5311d3da58880970b626bd2c67cf158efab1715880f98350d76ddf",
+    "components/ads126xAdc/ads126xAdc.c": "ef2d39276d55a9ca147830496d53e38289c3077c6bc5a7cdb936c0b376158d35",
+    "tests/host/test_ads_rail_profile.c": "f2d5bcac0cce4ccb85571a35c852296f82c70be481b905c8779065df6255699e",
+    "tools/test_ads_rail_profile.py": "6b269adaaa1a6adb94f160dee394e6c10a67886c8cbe09988fec8c035b5431b0",
+    "tools/test_ads_rail_error_chain.py": "f4db8d24984b4d8cfd3421eba77ad217c66c878c95a1bc85b7450b28a1b587e3"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_profile.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.097566,
+      "log": "01_test_ads_rail_profile.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_error_chain.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.068008,
+      "log": "02_test_ads_rail_error_chain.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_battery_snapshot_evidence.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.082581,
+      "log": "03_test_battery_snapshot_evidence.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_fault_fixtures.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.079776,
+      "log": "04_test_ads_fault_fixtures.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_matrix_diagnostics.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.060734,
+      "log": "05_test_ads_matrix_diagnostics.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_measurement_logic.py"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.275454,
+      "log": "06_test_measurement_logic.log"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "duration_s": 0.015715,
+      "log": "07_--check.log"
+    }
+  ],
+  "fixture": "Synthetic production-function regression; hardware capture is separate",
+  "serial_access": "none"
+}

@@ -1,0 +1,4 @@
+$ CC=/usr/bin/gcc python3 tools/test_ads_driver_reliability.py
+ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic
+
+exit_code=0
