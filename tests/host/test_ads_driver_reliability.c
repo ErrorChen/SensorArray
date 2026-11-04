@@ -16,6 +16,10 @@ static spi_transaction_t *pending;
 static int64_t completeAtUs;
 static ads126xAdcHandle_t *notifyHandle;
 static bool notifyEdge, notifyConfigChange;
+static unsigned notifyEdgesRemaining, notifyEdgeCount, configChangeOnEdge;
+static uint8_t dataFrames[4][6];
+static unsigned dataFrameCount, dataFrameLimit, blockCompletionAfterRead;
+static uint32_t dataFrameGeneration[4];
 
 int64_t esp_timer_get_time(void) { return nowUs; }
 void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }
@@ -37,10 +41,14 @@ uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks)
 {
     (void)clear;
     if (!ticks) { return 0u; }
-    if (notifyEdge && notifyHandle) {
+    if ((notifyEdge || notifyEdgesRemaining != 0u) && notifyHandle) {
         nowUs += 100u;
         ++notifyHandle->drdyGeneration;
-        if (notifyConfigChange) { ++notifyHandle->configurationGeneration; }
+        ++notifyEdgeCount;
+        if (notifyConfigChange || configChangeOnEdge == notifyEdgeCount) {
+            ++notifyHandle->configurationGeneration;
+        }
+        if (notifyEdgesRemaining != 0u) { --notifyEdgesRemaining; }
         notifyEdge = false;
         return 1u;
     }
@@ -102,6 +110,12 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
     } else if ((tx[0] & 0xE0u) == 0x40u) {
         uint8_t reg = tx[0] & 0x1Fu;
         memcpy(registers + reg, tx + 2, tx[1] + 1u);
+    } else if (tx[0] == ADS126X_CMD_RDATA1) {
+        assert(bytes == 7u && dataFrameCount < dataFrameLimit);
+        memcpy(rx + 1u, dataFrames[dataFrameCount], 6u);
+        dataFrameGeneration[dataFrameCount] = notifyHandle->drdyGeneration;
+        ++dataFrameCount;
+        if (blockCompletionAfterRead == dataFrameCount) { completionBlocked = true; }
     }
     *out = pending; pending = NULL;
     return ESP_OK;
@@ -114,6 +128,9 @@ static ads126xAdcHandle_t handle(void)
     mutexAvailable = true; completionBlocked = wrongDescriptor = useSnapshots = false;
     queueError = ESP_OK; pending = NULL; snapshotReads = 0u;
     notifyHandle = NULL; notifyEdge = notifyConfigChange = false;
+    notifyEdgesRemaining = notifyEdgeCount = configChangeOnEdge = 0u;
+    dataFrameCount = dataFrameLimit = blockCompletionAfterRead = 0u;
+    memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
     registers[1] = 2u; registers[2] = 6u; registers[5] = 0x8Fu; registers[15] = 0x24u;
     ads126xAdcHandle_t result = {0};
@@ -232,6 +249,126 @@ static void testReferenceAndFreshness(void)
     assert(ads126xAdcDeinit(&ads) == ESP_OK);
 }
 
+static void setDataFrame(unsigned index, uint32_t raw, uint8_t status, bool corrupt)
+{
+    assert(index < 4u);
+    uint8_t *frame = dataFrames[index];
+    frame[0] = status; frame[1] = raw >> 24u; frame[2] = raw >> 16u;
+    frame[3] = raw >> 8u; frame[4] = raw;
+    frame[5] = crcPolynomialDivision(raw) ^ (corrupt ? 1u : 0u);
+    if (dataFrameLimit <= index) { dataFrameLimit = index + 1u; }
+}
+
+static void testFreshCrcRetry(void)
+{
+    ads126xAdcHandle_t ads = handle();
+    notifyHandle = &ads; notifyEdgesRemaining = 2u;
+    setDataFrame(0u, 0x12345678u, 0x40u, true);
+    setDataFrame(1u, 0x23456789u, 0x40u, false);
+    uint8_t budget = 1u, status = 0x55u;
+    int32_t raw = 42;
+    ads126xAdcFreshReadReport_t report;
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_STATE); /* owner required */
+    assert(dataFrameCount == 0u && raw == 42 && status == 0x55u);
+    assert(ads126xAdcBeginTransaction(&ads, 100000u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_OK);
+    assert((uint32_t)raw == 0x23456789u && status == 0x40u && budget == 0u);
+    assert(report.firstError == ESP_ERR_INVALID_CRC && report.terminalError == ESP_OK);
+    assert(report.crcErrors == 1u && report.crcRetries == 1u);
+    assert(ads.adc1CrcErrorCount == 1u && ads.adc1CrcRetryCount == 1u);
+    assert(memcmp(report.firstCrcFault.bytes, dataFrames[0], 6u) == 0);
+    assert(report.firstCrcFault.received != report.firstCrcFault.computed);
+    assert(dataFrameCount == 2u && dataFrameGeneration[1] != dataFrameGeneration[0]);
+    /* Another adaptive/high-Z read shares the exhausted cell budget. */
+    setDataFrame(2u, 0x3456789Au, 0x40u, true);
+    notifyEdgesRemaining = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, ads.drdyGeneration, 600u,
+        &budget, &raw, &status, &report) == ESP_ERR_INVALID_CRC);
+    assert(dataFrameCount == 3u && raw == 42 && status == 0x55u && report.crcRetries == 0u);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 2u;
+    setDataFrame(0u, 0x12345678u, 0x40u, true);
+    setDataFrame(1u, 0x23456789u, 0x40u, true);
+    budget = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcBeginTransaction(&ads, 100000u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_CRC);
+    assert(report.crcErrors == 2u && report.crcRetries == 1u && dataFrameCount == 2u);
+    assert(memcmp(report.firstCrcFault.bytes, dataFrames[0], 6u) == 0);
+    assert(raw == 42 && status == 0x55u && !ads126xAdcIsQuarantined(&ads));
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    /* No new edge after CRC: retain CRC as first cause, expose retry timeout. */
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 1u;
+    setDataFrame(0u, 0x12345678u, 0x40u, true);
+    budget = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcBeginTransaction(&ads, 1200u) == ESP_OK);
+    int64_t started = nowUs;
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 100000u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_CRC);
+    assert(report.firstError == ESP_ERR_INVALID_CRC && report.terminalError == ESP_ERR_TIMEOUT);
+    assert(nowUs - started <= 1200u + 1000u && dataFrameCount == 1u); /* one RTOS tick */
+    assert(raw == 42 && status == 0x55u);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    /* A retry SPI completion timeout retains DMA ownership and quarantines. */
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 2u;
+    setDataFrame(0u, 0x12345678u, 0x40u, true);
+    setDataFrame(1u, 0x23456789u, 0x40u, false);
+    blockCompletionAfterRead = 1u; budget = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcBeginTransaction(&ads, 2500u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_CRC);
+    assert(report.terminalError == ESP_ERR_TIMEOUT && ads126xAdcIsQuarantined(&ads));
+    assert(pending == &ads.dmaTransaction && raw == 42 && status == 0x55u);
+    unsigned queued = queueCalls;
+    assert(ads126xAdcReadAdc1RawDmaReady(&ads, &raw, &status, NULL) == ESP_ERR_INVALID_STATE);
+    assert(queueCalls == queued);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_ERR_INVALID_STATE);
+    completionBlocked = false;
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 2u;
+    configChangeOnEdge = 2u;
+    setDataFrame(0u, 0x12345678u, 0x40u, true);
+    budget = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcBeginTransaction(&ads, 100000u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_CRC);
+    assert(report.terminalError == ESP_ERR_INVALID_STATE && dataFrameCount == 1u);
+    assert(raw == 42 && status == 0x55u);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 1u;
+    setDataFrame(0u, 0x12345678u, 0u, false);
+    budget = 1u; raw = 42; status = 0x55u;
+    assert(ads126xAdcBeginTransaction(&ads, 100000u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
+        &raw, &status, &report) == ESP_ERR_INVALID_RESPONSE);
+    assert(budget == 1u && raw == 42 && status == 0x55u); /* no NEW_DATA */
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    ads = handle(); notifyHandle = &ads; notifyEdgesRemaining = 1u;
+    ads.drdyGeneration = ads.configuredDrdyGeneration = UINT32_MAX;
+    setDataFrame(0u, 0x12345678u, 0x40u, false);
+    budget = 1u;
+    assert(ads126xAdcBeginTransaction(&ads, 100000u) == ESP_OK);
+    assert(ads126xAdcReadAdc1FreshChecked(&ads, UINT32_MAX, 600u, &budget,
+        &raw, &status, &report) == ESP_OK);
+    assert(report.generationEnd == 0u && (uint32_t)raw == 0x12345678u);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+}
+
 static void testSnapshots(void)
 {
     ads126xAdcHandle_t ads = handle();
@@ -261,6 +398,7 @@ int main(void)
     testSpiDeadlineAndLifetime();
     testCrcAndLength();
     testReferenceAndFreshness();
+    testFreshCrcRetry();
     testSnapshots();
     puts("ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic");
     return 0;

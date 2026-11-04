@@ -779,6 +779,18 @@ static void sensorarrayAdsUpdateBatteryValidity(
         s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_CAL;
         return;
     }
+    /* Admission can reject a stale/missing rail before changing registers;
+     * the last rail snapshot may still say valid/OK. Preserve that explicit
+     * reason only when the transaction left the hardware unchanged or
+     * verified its restore. Do not relabel SPI/CRC or cleanup failures. */
+    if (adcReadErr == ESP_ERR_INVALID_STATE && diag && diag->reason &&
+        strcmp(diag->reason, "rail_invalid") == 0 &&
+        diag->restoreOk && s_snapshot.batteryRestoreOk &&
+        diag->cleanupError == ESP_OK && !diag->fresh) {
+        s_snapshot.batteryFresh = false;
+        s_snapshot.batteryInvalidReason = SENSORARRAY_BATTERY_INVALID_RAIL;
+        return;
+    }
     bool aincomValid = sensorarrayAdsCalculateAincomGnd(&s_snapshot.aincomGndUv);
     sensorarrayAdsBatteryMathInput_t input = {
         .ain8DifferentialUv = s_snapshot.ain8DiffUv,

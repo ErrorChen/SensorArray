@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "reference_10k_33pf",
+  "description": "User-specified fixture: two nominal 10 kohm precision resistors, two nominal 33 pF capacitors, and 60 unpopulated cells.",
+  "source": "user_nominal",
+  "minimum_screening_seconds": 120.0,
+  "references": {
+    "S1D1": {"kind": "resistor", "unit": "ohm", "nominal": 10000.0, "measured": null, "reference_tolerance_abs": null, "acceptance_abs": null},
+    "S8D8": {"kind": "resistor", "unit": "ohm", "nominal": 10000.0, "measured": null, "reference_tolerance_abs": null, "acceptance_abs": null},
+    "S4D4": {"kind": "capacitor", "unit": "pF", "nominal": 33.0, "measured": null, "reference_tolerance_abs": null, "acceptance_abs": null},
+    "S5D5": {"kind": "capacitor", "unit": "pF", "nominal": 33.0, "measured": null, "reference_tolerance_abs": null, "acceptance_abs": null}
+  },
+  "remaining_cells": "floating",
+  "notes": [
+    "Nominal values are not traceable measurements. Tolerance and allowed device error are unknown until supplied.",
+    "CAP reports total LC capacitance. Compare each capacitor only after subtracting that same cell's unloaded baseline under matching wiring and measurement conditions.",
+    "Floating cells are expected OPEN (X0D) only in RES, with fresh acquired data. They are not zero pF or zero V.",
+    "No automatic coefficient fitting, NVS write, or extrapolation from four reference cells to all 64 cells."
+  ]
+}

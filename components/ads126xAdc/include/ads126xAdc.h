@@ -101,6 +101,31 @@ typedef struct {
  * Handle is semi-opaque. Do not modify fields after init unless noted.
  * drdyTimeoutMs can be adjusted after init if a different default is needed.
  */
+/* A rejected ADC1 wire frame is diagnostic evidence, never a sample. */
+typedef struct {
+    uint8_t bytes[6];
+    uint8_t length;
+    uint8_t received;
+    uint8_t computed;
+    uint8_t crcMode;
+    bool statusEnabled;
+    uint32_t configurationGeneration;
+    uint32_t drdyGeneration;
+    uint64_t timestampUs;
+} ads126xAdcCrcFault_t;
+
+typedef struct {
+    uint32_t generationStart;
+    uint32_t generationEnd;
+    uint64_t waitUs;
+    uint64_t readUs;
+    esp_err_t firstError;
+    esp_err_t terminalError;
+    uint8_t crcErrors;
+    uint8_t crcRetries;
+    ads126xAdcCrcFault_t firstCrcFault;
+} ads126xAdcFreshReadReport_t;
+
 typedef struct {
     spi_device_handle_t spiDevice;
     gpio_num_t drdyGpio;
@@ -148,6 +173,9 @@ typedef struct {
     uint8_t snapshotMismatchRegister;
     uint8_t snapshotExpected;
     uint8_t snapshotActual;
+    uint32_t adc1CrcErrorCount;
+    uint32_t adc1CrcRetryCount;
+    ads126xAdcCrcFault_t lastAdc1CrcFault;
 } ads126xAdcHandle_t;
 
 typedef struct {
@@ -296,6 +324,12 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
                                         int32_t *rawCode,
                                         uint8_t *statusByteOptional,
                                         uint32_t *outReadUs);
+/* 本轮新增: caller owns an active transaction deadline. The shared per-cell
+ * CRC retry budget only buys a NEW conversion, never reuse of the bad frame.
+ * Failure leaves raw/status untouched; firstError survives a failed retry. */
+esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report);
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
 uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 

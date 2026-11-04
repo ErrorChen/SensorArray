@@ -16,6 +16,7 @@ int main(void)
         SENSORARRAY_ADS_FAULT_STAGE_ROW_GPIO_COMPARE,
         SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
         SENSORARRAY_ADS_FAULT_STAGE_RESTORE_VERIFY,
+        SENSORARRAY_ADS_FAULT_STAGE_MATRIX_CRC,
     };
     for (size_t i = 0u; i < sizeof(stages) / sizeof(stages[0]); ++i) {
         sensorarrayAdsMatrixFaultContext_t context = {
@@ -43,6 +44,16 @@ int main(void)
         if (i == 6u) { context.registerId = 5u; context.expected = 0x08u; context.actual = 0x18u; context.compareMask = 0xFFu; }
         if (i == 7u) { context.registerId = 1u; context.expected = 0u; context.actual = 1u; context.compareMask = 0x07u; }
         if (i == 8u) { context.expected = 0u; context.actual = 3u; context.compareMask = 0xFFu; }
+        if (stages[i] == SENSORARRAY_ADS_FAULT_STAGE_MATRIX_CRC) {
+            context.originalError = ESP_ERR_INVALID_CRC;
+            context.cleanupError = ESP_ERR_INVALID_STATE;
+            context.mode = context.route = "RES";
+            context.sequence = 512u;
+            context.attempted = context.acquired = true;
+            context.healthReadbackDue = false;
+            context.registerId = UINT8_MAX; /* no ADS register for a data CRC */
+            context.expected = 0x21u; context.actual = 0x20u; context.compareMask = 0xFFu;
+        }
         sensorarrayAdsFaultEvent_t event = {
             /* Deliberately post-cleanup values: captured context must win. */
             .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE,

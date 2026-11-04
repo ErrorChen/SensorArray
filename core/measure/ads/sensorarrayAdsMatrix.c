@@ -11,6 +11,7 @@
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameBuilder.h"
+#include "sensorarrayAcqEvent.h"
 
 /* Bounded high-Z confirmation: exactly three fresh conversions per decision.
  * The sample's confirmationConversions telemetry reports this bound. Never
@@ -168,46 +169,43 @@ static void sensorarrayAdsMatrixSetCellValid(sensorarrayFrame_t *frame,
 }
 
 static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
-    ads126xAdcHandle_t *ads,
+    sensorarrayAdsMatrixEngine_t *engine,
     uint32_t startGeneration,
     uint32_t configurationGeneration,
     sensorarrayMeasurementPayload_t *telemetry,
     sensorarrayAdsMatrixSample_t *outSample)
 {
-    if (!ads || !telemetry || !outSample) {
+    if (!engine || !engine->state || !telemetry || !outSample) {
         return ESP_ERR_INVALID_ARG;
     }
+    ads126xAdcHandle_t *ads = &engine->state->ads;
     memset(outSample, 0, sizeof(*outSample));
     outSample->generationStart = startGeneration;
     outSample->configurationGeneration = configurationGeneration;
-    uint32_t physicalGeneration = ads->configurationGeneration;
-    int64_t waitStartUs = esp_timer_get_time();
-    esp_err_t err = ads126xAdcWaitDrdyGenerationUs(
-        ads,
-        outSample->generationStart,
+    ads126xAdcFreshReadReport_t report;
+    esp_err_t err = ads126xAdcReadAdc1FreshChecked(ads, startGeneration,
         (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US,
-        &outSample->generationEnd);
-    int64_t waitEndUs = esp_timer_get_time();
-    if (waitEndUs > waitStartUs) {
-        telemetry->drdyWaitUs += (uint64_t)(waitEndUs - waitStartUs);
+        &engine->cellCrcRetryBudget, &outSample->raw, &outSample->status, &report);
+    outSample->generationEnd = report.generationEnd;
+    telemetry->drdyWaitUs += report.waitUs;
+    telemetry->sampleReadUs += report.readUs;
+    telemetry->ioRetryCount += report.crcRetries;
+    if (report.crcErrors != 0u) {
+        if (engine->frameCrcErrors == 0u) {
+            engine->frameFirstCrc = report.firstCrcFault;
+            engine->frameFirstCrcCell = engine->currentCell;
+        }
+        engine->frameCrcErrors += report.crcErrors;
+        engine->frameCrcRetries += report.crcRetries;
+        engine->frameCrcRecovered += err == ESP_OK ? 1u : 0u;
+        if (err != ESP_OK && engine->frameCrcTerminalError == ESP_OK) {
+            engine->frameCrcTerminalError = report.terminalError;
+        }
+        if (err == ESP_ERR_INVALID_CRC) {
+            engine->cellFailedCrc = report.firstCrcFault;
+        }
     }
-    if (err != ESP_OK) {
-        return err;
-    }
-    uint32_t readUs = 0u;
-    err = ads126xAdcReadAdc1RawDmaReady(ads,
-                                        &outSample->raw,
-                                        &outSample->status,
-                                        &readUs);
-    telemetry->sampleReadUs += readUs;
-    if (err != ESP_OK) {
-        return err;
-    }
-    if (ads->configurationGeneration != physicalGeneration ||
-        outSample->generationEnd == outSample->generationStart ||
-        !ads126xAdcStatusByteHasAdc1NewData(ads, outSample->status)) {
-        return ESP_ERR_INVALID_RESPONSE;
-    }
+    if (err != ESP_OK) { return err; }
     telemetry->rawConversionCount++;
     outSample->differentialUv = ads126xAdcRawToMicrovolts(ads, outSample->raw);
     return ESP_OK;
@@ -227,6 +225,7 @@ static void sensorarrayAdsMatrixCaptureFault(sensorarrayAdsMatrixEngine_t *engin
     fault->mode = sensorarrayMeasurementModeName(engine->mode);
     fault->route = fault->mode;
     fault->owner = sensorarrayAdsOwnerName(engine->registerCache.owner);
+    fault->sequence = engine->frameSequenceHint;
     fault->engineFrameCount = engine->frameCount;
     fault->modeEntryFrameCount = engine->modeEntryFrameCount;
     fault->healthInterval = CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL;
@@ -495,7 +494,7 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
     uint32_t configurationGeneration =
         sensorarrayAdsMatrixConfigurationGeneration(engine);
     sensorarrayAdsMatrixSample_t samples[3] = {0};
-    esp_err_t err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+    esp_err_t err = sensorarrayAdsMatrixReadFreshAfter(engine,
                                                         firstGeneration,
                                                         configurationGeneration,
                                                         telemetry,
@@ -541,7 +540,7 @@ static esp_err_t sensorarrayAdsMatrixReadAdaptive(
     }
     for (uint8_t index = 1u; index < 3u; ++index) {
         uint32_t generation = ads126xAdcGetDrdyGeneration(&engine->state->ads);
-        err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+        err = sensorarrayAdsMatrixReadFreshAfter(engine,
                                                   generation,
                                                   configurationGeneration,
                                                   telemetry,
@@ -641,7 +640,7 @@ static esp_err_t sensorarrayAdsMatrixConfirmHighZ(
     for (uint8_t index = 0u;
          index < SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT;
          ++index) {
-        err = sensorarrayAdsMatrixReadFreshAfter(&engine->state->ads,
+        err = sensorarrayAdsMatrixReadFreshAfter(engine,
                                                  firstGeneration,
                                                  configurationGeneration,
                                                  telemetry,
@@ -818,6 +817,8 @@ static esp_err_t sensorarrayAdsMatrixMeasureCellImpl(sensorarrayAdsMatrixEngine_
                     telemetry,
                     &sample);
             }
+            /* CRC has its own fresh-conversion retry sharing this cell's
+             * deadline and CRC budget. Never restart that exhausted budget. */
             bool retryable = err == ESP_ERR_TIMEOUT || err == ESP_ERR_INVALID_RESPONSE;
             if (err == ESP_OK || !retryable ||
                 ioRetries >= (uint8_t)CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT) {
@@ -1267,12 +1268,70 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
     sensorarrayMeasurementPayload_t *telemetry, sensorarrayAdsMatrixCellResult_t *outResult)
 {
     if (!engine || !engine->state) { return ESP_ERR_INVALID_ARG; }
+    engine->cellCrcRetryBudget = CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT;
+    engine->currentCell = (uint8_t)sensorarrayMatrixIndex(row, dLine);
+    memset(&engine->cellFailedCrc, 0, sizeof(engine->cellFailedCrc));
     esp_err_t err = ads126xAdcBeginTransaction(&engine->state->ads, 100000u);
-    if (err != ESP_OK) { return err; }
+    if (err != ESP_OK) {
+        sensorarrayAdsMatrixCaptureFault(engine, SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
+            err, 0u, 0u, 0u, 0u);
+        return err;
+    }
     err = sensorarrayAdsMatrixMeasureCellImpl(engine, rail, row, dLine,
         precisionFrame, transitionSensitive, telemetry, outResult);
     ads126xAdcEndTransaction(&engine->state->ads);
+    if (err != ESP_OK && outResult->error != SENSORARRAY_CELL_ERROR_OPEN) {
+        sensorarrayAdsFaultStage_t stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READ;
+        if (err == ESP_ERR_INVALID_CRC) {
+            stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_CRC;
+        } else if ((outResult->status & ADS126X_STATUS_RESET_OCCURRED) != 0u) {
+            stage = SENSORARRAY_ADS_FAULT_STAGE_RESET_OBSERVED;
+        } else if (outResult->error == SENSORARRAY_CELL_ERROR_DRDY_TIMEOUT) {
+            stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_DRDY;
+        } else if (outResult->error == SENSORARRAY_CELL_ERROR_READBACK ||
+                   outResult->error == SENSORARRAY_CELL_ERROR_STALE) {
+            stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK;
+        }
+        /* Sample/CRC evidence is not an ADS register address. S/D live in
+         * ADSSPI; 255 explicitly means register not applicable here. */
+        sensorarrayAdsMatrixCaptureFault(engine, stage, err, UINT8_MAX,
+            err == ESP_ERR_INVALID_CRC ? engine->cellFailedCrc.computed : 0u,
+            err == ESP_ERR_INVALID_CRC ? engine->cellFailedCrc.received : outResult->status,
+            err == ESP_ERR_INVALID_CRC ? 0xFFu : 0u);
+    }
     return err;
+}
+
+/* Queue diagnostic copies only after the cell transaction has ended. Rate
+ * limiting affects text, not cumulative integrity/retry counters or Xhh. */
+static void sensorarrayAdsMatrixLogCrcEvidence(sensorarrayAdsMatrixEngine_t *engine,
+    uint32_t sequence, esp_err_t frameError)
+{
+    if (engine->frameCrcErrors == 0u) { return; }
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    if (engine->frameCrcTerminalError == ESP_OK && engine->lastCrcEmitUs != 0u &&
+        nowUs - engine->lastCrcEmitUs < 1000000u) {
+        return;
+    }
+    engine->lastCrcEmitUs = nowUs;
+    const ads126xAdcCrcFault_t *crc = &engine->frameFirstCrc;
+    sensorarrayAcqEventPrintf(
+        "ADSSPI,seq=%lu,mode=%s,crcFailures=%lu,crcRetries=%lu,crcRecoveredReads=%lu,crcTotal=%lu,retryTotal=%lu,firstS=%u,firstD=%u,firstError=0x%x,terminalError=0x%lx,frameError=0x%lx\n",
+        (unsigned long)sequence, sensorarrayMeasurementModeName(engine->mode),
+        (unsigned long)engine->frameCrcErrors, (unsigned long)engine->frameCrcRetries,
+        (unsigned long)engine->frameCrcRecovered,
+        (unsigned long)engine->state->ads.adc1CrcErrorCount,
+        (unsigned long)engine->state->ads.adc1CrcRetryCount,
+        engine->frameFirstCrcCell / SENSORARRAY_MATRIX_COLS + 1u,
+        engine->frameFirstCrcCell % SENSORARRAY_MATRIX_COLS + 1u,
+        ESP_ERR_INVALID_CRC, (unsigned long)(uint32_t)engine->frameCrcTerminalError,
+        (unsigned long)(uint32_t)frameError);
+    sensorarrayAcqEventPrintf(
+        "ADSSPIBYTES,seq=%lu,firstUs=%llu,bytes=%02X%02X%02X%02X%02X%02X,len=%u,received=%02X,computed=%02X,crcMode=%u,statusEnabled=%u,physicalGen=%lu,drdyGen=%lu\n",
+        (unsigned long)sequence, (unsigned long long)crc->timestampUs,
+        crc->bytes[0], crc->bytes[1], crc->bytes[2], crc->bytes[3], crc->bytes[4], crc->bytes[5],
+        crc->length, crc->received, crc->computed, crc->crcMode, crc->statusEnabled ? 1u : 0u,
+        (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration);
 }
 
 static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
@@ -1533,6 +1592,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         return ESP_ERR_INVALID_STATE;
     }
     memset(&engine->faultContext, 0, sizeof(engine->faultContext));
+    engine->frameCrcErrors = 0u;
+    engine->frameCrcRetries = 0u;
+    engine->frameCrcRecovered = 0u;
+    engine->frameCrcTerminalError = ESP_OK;
     uint32_t helperGeneration = sensorarrayAdsGapTransactionGeneration();
     if (engine->helperGeneration != helperGeneration) {
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
@@ -1665,6 +1728,13 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
             sensorarrayAdsMatrixCaptureFault(engine, SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
                 healthError, 0u, 0u, 0u, 0u);
         }
+        sensorarrayAcqEventPrintf(
+            "ADSHEALTH,seq=%lu,engineFrameCount=%lu,modeEntryFrameCount=%lu,healthInterval=%u,healthReadbackDue=1,precisionFrame=%u,err=0x%lx\n",
+            (unsigned long)frame->sequence, (unsigned long)engine->frameCount,
+            (unsigned long)engine->modeEntryFrameCount,
+            CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL,
+            frame->measurement.precisionFrame ? 1u : 0u,
+            (unsigned long)(uint32_t)healthError);
     }
     if (healthError != ESP_OK) {
         (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,
@@ -1721,7 +1791,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                                  SENSORARRAY_CELL_ERROR_ROUTE,
                                                  false);
             }
-            firstErr = rowErr;
+            if (firstErr == ESP_OK) { firstErr = rowErr; }
             coherent = false;
             break;
         }
@@ -1782,6 +1852,12 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                 sensorarrayAdsMatrixSetCellError(frame, index, error, result.fresh);
                 if (error != SENSORARRAY_CELL_ERROR_OPEN && firstErr == ESP_OK) {
                     firstErr = err;
+                }
+                if (ads126xAdcIsQuarantined(&engine->state->ads)) {
+                    /* DMA may still own its buffers. Do not route another row
+                     * or issue another ADS operation until controlled recovery. */
+                    coherent = false;
+                    break;
                 }
                 continue;
             }
@@ -1879,6 +1955,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                                  &result);
             }
         }
+        if (!coherent) { break; }
     }
     (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,
                                               SENSORARRAY_ADS_OWNER_MATRIX);
@@ -1912,6 +1989,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         engine->railFingerprint.invalidationCount - railInvalidationStart;
     engine->faultContext.acquired = frame->measurement.freshMask != 0u;
     sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, coherent);
+    sensorarrayAdsMatrixLogCrcEvidence(engine, frame->sequence, firstErr);
     if (frame->measurement.validMask != 0u) {
         sensorarrayAdsGapNoteFirstValidFrame(frame->frameEndUs);
     }

@@ -272,6 +272,7 @@ static int testHighZMath(void)
     CHECK(sensorarrayAdsMathConfirmOpenSet(
               atOpenLimit, 3u, avssUv, &config, 100u, &median) ==
           SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    CHECK(median == avssUv + 2000); /* early HIGH_Z still reports measured median */
     int32_t nearOpen[3] = {avssUv + 3000, avssUv + 3002, avssUv + 3001};
     CHECK(sensorarrayAdsMathConfirmOpenSet(
               nearOpen, 3u, avssUv, &config, 100u, &median) ==
@@ -286,6 +287,7 @@ static int testHighZMath(void)
     CHECK(sensorarrayAdsMathConfirmOpenSet(
               negative, 3u, avssUv, &config, 100u, &median) ==
           SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z);
+    CHECK(median == avssUv - 500);
     int32_t unstable[3] = {avssUv + 5000, avssUv + 9000, avssUv + 5000};
     CHECK(sensorarrayAdsMathConfirmOpenSet(
               unstable, 3u, avssUv, &config, 100u, &median) ==
@@ -897,6 +899,7 @@ static int testAdsFaultStageNames(void)
         "ROW_GPIO_COMPARE",
         "OWNER_ACQUIRE",
         "RESTORE_VERIFY",
+        "MATRIX_CRC",
         "UNKNOWN",
     };
     for (size_t index = 0u;

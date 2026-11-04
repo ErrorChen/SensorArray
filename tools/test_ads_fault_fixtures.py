@@ -36,20 +36,24 @@ def main():
         assert len(records) == 8, (name, len(records))
         assert all(len(line.encode("ascii")) < 384 for line in records[1:])
         fields = dict(part.split("=", 1) for part in records[1].strip().split(",")[1:])
-        assert fields["stage"] == name and fields["mode"] == "VOLT"
-        assert fields["route"] == "VOLT" and fields["owner"] == "MATRIX"
-        assert fields["err"] == ("0x107" if name == "REGISTER_HEALTH_READ" else "0x108")
-        assert "attempted=0,acquired=0" in text
+        crc = name == "MATRIX_CRC"
+        mode = "RES" if crc else "VOLT"
+        assert fields["stage"] == name and fields["mode"] == mode
+        assert fields["route"] == mode and fields["owner"] == "MATRIX"
+        assert fields["err"] == ("0x109" if crc else "0x107" if name == "REGISTER_HEALTH_READ" else "0x108")
+        assert ("attempted=1,acquired=1" if crc else "attempted=0,acquired=0") in text
         assert "railSpanUv=5200000,avddUv=3400000,avssUv=-1800000" in text
         if name in ("POWER_COMPARE", "RESTORE_VERIFY"):
             assert "originalError=0x108,cleanupError=0x103" in text
+        if crc:
+            assert "originalError=0x109,cleanupError=0x103" in text
         if args.update:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
         else:
             assert path.read_text() == text, f"fixture drift: {path}"
         count += 1
-    assert count == 10
+    assert count == 11
     print(f"ADS_FAULT_FIXTURES,passed=1,count={count},fixture=synthetic,producer=actual_C_formatter")
     return 0
 

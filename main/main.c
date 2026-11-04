@@ -403,17 +403,36 @@ static void sensorarrayAdsFaultFillContext(sensorarrayAppContext_t *ctx,
     if (!ctx || !event) {
         return;
     }
-    sensorarrayMeasurementModeSnapshot_t mode = {0};
-    if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode)) {
-        event->modeGeneration = mode.generation;
-        event->mode = sensorarrayMeasurementModeName(mode.activeMode);
-    }
-    sensorarrayRowModeProfile_t profile = {0};
-    if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile)) {
-        event->profileGeneration = profile.generation;
-        event->rowGeneration = profile.generation;
-        event->rowRequestId = profile.pending ?
-            profile.pendingRequestId : profile.appliedRequestId;
+    const sensorarrayConfigIdentity_t *identity = &ctx->frame.identity;
+    bool frameContext =
+        (event->stage == SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE ||
+         event->stage == SENSORARRAY_ADS_FAULT_STAGE_PROFILE_TRANSITION) &&
+        event->seq == ctx->frame.sequence && identity->revision != 0u &&
+        identity->sessionId == s_configSessionId;
+    event->profile = NULL; /* Unknown unless backed by persistent frame storage. */
+    if (frameContext) {
+        /* These are three independent configuration domains. In particular,
+         * rowGen/rowReq are ROWS, never ROWMODES or an auxiliary request ID. */
+        event->modeGeneration = identity->modeGeneration;
+        event->mode = ctx->frame.mixedProfile ? "MIXED" :
+            sensorarrayMeasurementModeName(identity->mode);
+        event->profileGeneration = identity->profileGeneration;
+        event->rowGeneration = identity->rowsGeneration;
+        event->rowRequestId = identity->rowsRequestId;
+        event->profile = identity->profile; /* Frame-owned, consumed synchronously. */
+    } else {
+        sensorarrayMeasurementModeSnapshot_t mode = {0};
+        if (sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode)) {
+            event->modeGeneration = mode.generation;
+            event->mode = sensorarrayMeasurementModeName(mode.activeMode);
+        }
+        sensorarrayRowModeProfile_t profile = {0};
+        if (sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile)) {
+            event->profileGeneration = profile.generation;
+        }
+        sensorarrayFrameConfigSnapshot_t rows = sensorarrayScanConfigGetFrameSnapshot();
+        event->rowGeneration = rows.generation;
+        event->rowRequestId = rows.requestId;
     }
     sensorarrayRouteSnapshot_t route = {0};
     if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route)) {
@@ -451,7 +470,8 @@ static void sensorarrayEmitAdsFault(sensorarrayAppContext_t *ctx,
     sensorarrayAdsMatrixFaultContext_t captured = {0};
     if ((event->stage == SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE ||
          event->stage == SENSORARRAY_ADS_FAULT_STAGE_PROFILE_TRANSITION) &&
-        sensorarrayAdsMatrixEngineCopyFaultContext(&ctx->adsEngine, &captured)) {
+        sensorarrayAdsMatrixEngineCopyFaultContext(&ctx->adsEngine, &captured) &&
+        captured.sequence == event->seq) {
         event->context = &captured;
         event->stage = captured.stage;
         event->err = captured.originalError;
@@ -2443,14 +2463,6 @@ static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
                 requestId)) {
             return;
         }
-        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
-        (void)sensorarrayAdsMatrixEngineSetMode(
-            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
-        sensorarrayMeasurementModeRecordRuntimeFault(
-            &ctx->measurementMode, (uint32_t)checkErr);
-    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
-                                                   "ads_check_restore_failed");
         sensorarrayAdsFaultEvent_t fault = {
             .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK,
             .err = checkErr,
@@ -2458,10 +2470,17 @@ static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
             .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
         };
         sensorarrayAdsFaultFillContext(ctx, &fault);
-        fault.rowRequestId = requestId;
         fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_CHECK);
         fault.restoreExpectedValid = true;
         fault.restoreExpected = (int32_t)result.registers.power;
+        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+        (void)sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+        sensorarrayMeasurementModeRecordRuntimeFault(
+            &ctx->measurementMode, (uint32_t)checkErr);
+        (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                   "ads_check_restore_failed");
         sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                (unsigned long)requestId,
@@ -2506,14 +2525,6 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
                 batteryRequestId)) {
             return;
         }
-        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
-        (void)sensorarrayAdsMatrixEngineSetMode(
-            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
-        sensorarrayMeasurementModeRecordRuntimeFault(
-            &ctx->measurementMode, (uint32_t)batteryErr);
-    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
-                                                   "battery_restore_failed");
         sensorarrayAdsFaultEvent_t fault = {
             .stage = SENSORARRAY_ADS_FAULT_STAGE_BATTERY_RESTORE,
             .err = batteryErr,
@@ -2522,6 +2533,14 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
         };
         sensorarrayAdsFaultFillContext(ctx, &fault);
         fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_BATTERY);
+        sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+        (void)sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+        sensorarrayMeasurementModeRecordRuntimeFault(
+            &ctx->measurementMode, (uint32_t)batteryErr);
+        (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                   "battery_restore_failed");
         sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                (unsigned long)batteryErr);
@@ -4124,22 +4143,19 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         }
         if (!ctx->frame.freshFrame) {
             if (!mixedRequestFailed) {
-                sensorarrayMeasurementModeRecordRuntimeFault(
-                    &ctx->measurementMode, (uint32_t)err);
-                (void)sensorarrayRouteControllerEnterSafe(
-                    &ctx->routeController, "mixed_profile_fault");
-                (void)sensorarrayPublishConfigAuthority(ctx, frameSequence);
                 sensorarrayAdsFaultEvent_t fault = {
                     .stage = SENSORARRAY_ADS_FAULT_STAGE_PROFILE_TRANSITION,
                     .err = err,
                     .seq = frameSequence,
                 };
                 sensorarrayAdsFaultFillContext(ctx, &fault);
-                fault.rowGeneration = rowProfile.generation;
-                fault.rowRequestId = rowProfile.pending ?
-                    rowProfile.pendingRequestId : rowProfile.appliedRequestId;
                 fault.owner = sensorarrayAdsOwnerName(
                     SENSORARRAY_ADS_OWNER_MATRIX);
+                sensorarrayMeasurementModeRecordRuntimeFault(
+                    &ctx->measurementMode, (uint32_t)err);
+                (void)sensorarrayRouteControllerEnterSafe(
+                    &ctx->routeController, "mixed_profile_fault");
+                (void)sensorarrayPublishConfigAuthority(ctx, frameSequence);
                 sensorarrayEmitAdsFault(ctx, &fault);
                 printf("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                        (unsigned long)frameSequence,
@@ -4161,13 +4177,6 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
                !homogeneousProfileFaultTerminal) {
         /* A coherent ADS frame may contain explicitly invalid cells. A false
          * frame freshness flag instead means route/rail ownership failed. */
-        sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
-                                                      (uint32_t)err);
-    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-        (void)sensorarrayAdsMatrixEngineSetMode(
-            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
-        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
-                                                  "ads_frame_fault");
         sensorarrayAdsFaultEvent_t fault = {
             .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE,
             .err = err,
@@ -4175,6 +4184,13 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         };
         sensorarrayAdsFaultFillContext(ctx, &fault);
         fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_MATRIX);
+        sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
+                                                      (uint32_t)err);
+        (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+        (void)sensorarrayAdsMatrixEngineSetMode(
+            &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
+                                                  "ads_frame_fault");
         sensorarrayEmitAdsFault(ctx, &fault);
         printf("MFAULT,mode=%s,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                sensorarrayMeasurementModeName(mode.activeMode),
@@ -4549,13 +4565,6 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
         esp_err_t railRefreshErr = sensorarrayRefreshVoltageRailIfNeeded(ctx);
         if (railRefreshErr != ESP_OK) {
             sensorarrayBootBreadcrumbMarkStableProgress(false);
-            sensorarrayMeasurementModeRecordRuntimeFault(
-                &ctx->measurementMode, (uint32_t)railRefreshErr);
-    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-            (void)sensorarrayAdsMatrixEngineSetMode(
-                &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
-            (void)sensorarrayRouteControllerEnterSafe(
-                &ctx->routeController, "volt_rail_refresh_failed");
             sensorarrayAdsFaultEvent_t fault = {
                 .stage = SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR,
                 .err = railRefreshErr,
@@ -4563,6 +4572,13 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
             };
             sensorarrayAdsFaultFillContext(ctx, &fault);
             fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_RAIL);
+            sensorarrayMeasurementModeRecordRuntimeFault(
+                &ctx->measurementMode, (uint32_t)railRefreshErr);
+            (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+            (void)sensorarrayAdsMatrixEngineSetMode(
+                &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+            (void)sensorarrayRouteControllerEnterSafe(
+                &ctx->routeController, "volt_rail_refresh_failed");
             sensorarrayEmitAdsFault(ctx, &fault);
             printf("MFAULT,mode=VOLT,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                    (unsigned long)(ctx->hostFrameSequence + 1u),

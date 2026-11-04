@@ -681,6 +681,18 @@ static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
                              ? ads126xAdcCrc8(dataBytes, 4u)
                              : ads126xAdcChecksum(dataBytes, 4u);
         if (expected != actual) {
+            ads126xAdcCrcFault_t *fault = &handle->lastAdc1CrcFault;
+            memset(fault, 0, sizeof(*fault));
+            memcpy(fault->bytes, frame, frameLen);
+            fault->length = (uint8_t)frameLen;
+            fault->received = expected;
+            fault->computed = actual;
+            fault->crcMode = (uint8_t)handle->crcMode;
+            fault->statusEnabled = handle->enableStatusByte;
+            fault->configurationGeneration = handle->configurationGeneration;
+            fault->drdyGeneration = handle->drdyGeneration;
+            fault->timestampUs = (uint64_t)esp_timer_get_time();
+            handle->adc1CrcErrorCount++;
             return ESP_ERR_INVALID_CRC;
         }
     }
@@ -1724,6 +1736,72 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
     return err == ESP_OK ?
         ads126xAdcParseAdc1Frame(handle, frame, frameLen, rawCode, statusByteOptional) :
         err;
+}
+
+esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)
+{
+    if (!handle || !crcRetryBudget || !rawCode || !statusByte || !report) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    memset(report, 0, sizeof(*report));
+    report->generationStart = startGeneration;
+    if (handle->transactionDeadlineUs == 0u) {
+        report->firstError = report->terminalError = ESP_ERR_INVALID_STATE;
+        return ESP_ERR_INVALID_STATE;
+    }
+    const uint32_t physicalGeneration = handle->configurationGeneration;
+    uint32_t afterGeneration = startGeneration;
+    for (;;) {
+        int64_t startedUs = esp_timer_get_time();
+        esp_err_t err = ads126xAdcWaitDrdyGenerationUs(handle, afterGeneration,
+            drdyTimeoutUs, &report->generationEnd);
+        int64_t elapsedUs = esp_timer_get_time() - startedUs;
+        if (elapsedUs > 0) { report->waitUs += (uint64_t)elapsedUs; }
+        int32_t candidateRaw = 0;
+        uint8_t candidateStatus = 0u;
+        if (err == ESP_OK && handle->configurationGeneration != physicalGeneration) {
+            err = ESP_ERR_INVALID_STATE;
+        }
+        if (err == ESP_OK) {
+            uint32_t readUs = 0u;
+            err = ads126xAdcReadAdc1RawDmaReady(handle, &candidateRaw,
+                &candidateStatus, &readUs);
+            report->readUs += readUs;
+        }
+        if (err == ESP_ERR_INVALID_CRC) {
+            if (report->crcErrors == 0u) {
+                report->firstCrcFault = handle->lastAdc1CrcFault;
+            }
+            if (report->crcErrors < UINT8_MAX) { report->crcErrors++; }
+            if (report->firstError == ESP_OK) { report->firstError = err; }
+            if (*crcRetryBudget != 0u && !ads126xAdcIsQuarantined(handle) &&
+                handle->configurationGeneration == physicalGeneration) {
+                --*crcRetryBudget;
+                report->crcRetries++;
+                handle->adc1CrcRetryCount++;
+                /* RDATA1 consumes DRDY/new-data status even on bad CRC. Wait
+                 * beyond all edges seen during that read before trying again. */
+                afterGeneration = ads126xAdcGetDrdyGeneration(handle);
+                continue;
+            }
+        }
+        if (err == ESP_OK &&
+            (handle->configurationGeneration != physicalGeneration ||
+             report->generationEnd == afterGeneration ||
+             !ads126xAdcStatusByteHasAdc1NewData(handle, candidateStatus))) {
+            err = ESP_ERR_INVALID_RESPONSE;
+        }
+        report->terminalError = err;
+        if (err != ESP_OK) {
+            if (report->firstError == ESP_OK) { report->firstError = err; }
+            return report->firstError;
+        }
+        *rawCode = candidateRaw;
+        *statusByte = candidateStatus;
+        return ESP_OK;
+    }
 }
 
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)

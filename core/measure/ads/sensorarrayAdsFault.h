@@ -36,6 +36,7 @@ typedef enum {
     SENSORARRAY_ADS_FAULT_STAGE_ROW_GPIO_COMPARE,
     SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
     SENSORARRAY_ADS_FAULT_STAGE_RESTORE_VERIFY,
+    SENSORARRAY_ADS_FAULT_STAGE_MATRIX_CRC,
     SENSORARRAY_ADS_FAULT_STAGE_UNKNOWN,
 } sensorarrayAdsFaultStage_t;
 
@@ -67,6 +68,7 @@ typedef struct {
     const char *mode;
     const char *route;
     const char *owner;
+    uint32_t sequence;
     uint32_t engineFrameCount;
     uint32_t modeEntryFrameCount;
     uint32_t healthInterval;

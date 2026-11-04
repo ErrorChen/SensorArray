@@ -216,6 +216,13 @@ sensorarrayAdsOpenConfirm_t sensorarrayAdsMathConfirmOpenSet(
         return SENSORARRAY_ADS_OPEN_CONFIRM_UNSTABLE;
     }
 
+    /* Diagnostic voltage remains the median of measured samples even when
+     * the first threshold branch resolves HIGH_Z. Do not manufacture 0 V. */
+    int32_t medianNodeUv = 0;
+    bool stable = sensorarrayAdsMathSamplesStable(nodeUvSamples,
+        sampleCount, maximumSpreadUv, &medianNodeUv);
+    if (outMedianNodeUv) { *outMedianNodeUv = medianNodeUv; }
+
     int64_t openLimitUv = (int64_t)config->openDenominatorUv;
     int64_t nearOpenLimitUv = openLimitUv + (int64_t)config->openConfirmMarginUv;
     for (size_t index = 0u; index < sampleCount; ++index) {
@@ -225,15 +232,7 @@ sensorarrayAdsOpenConfirm_t sensorarrayAdsMathConfirmOpenSet(
         }
     }
 
-    int32_t medianNodeUv = 0;
-    bool stable = sensorarrayAdsMathSamplesStable(nodeUvSamples,
-                                                   sampleCount,
-                                                   maximumSpreadUv,
-                                                   &medianNodeUv);
     int64_t medianDenominatorUv = (int64_t)medianNodeUv - avssUv;
-    if (outMedianNodeUv) {
-        *outMedianNodeUv = medianNodeUv;
-    }
     if (medianDenominatorUv <= nearOpenLimitUv) {
         return SENSORARRAY_ADS_OPEN_CONFIRM_HIGH_Z;
     }

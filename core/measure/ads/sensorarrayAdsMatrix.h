@@ -38,6 +38,16 @@ typedef struct {
     uint32_t modeEntryFrameCount;
     uint32_t helperGeneration;
     sensorarrayAdsMatrixFaultContext_t faultContext;
+    uint8_t cellCrcRetryBudget;
+    uint8_t currentCell;
+    uint8_t frameFirstCrcCell;
+    uint32_t frameCrcErrors;
+    uint32_t frameCrcRetries;
+    uint32_t frameCrcRecovered;
+    esp_err_t frameCrcTerminalError;
+    ads126xAdcCrcFault_t frameFirstCrc;
+    ads126xAdcCrcFault_t cellFailedCrc;
+    uint64_t lastCrcEmitUs;
     /* Cells whose bounded re-route confirmation resolved to HIGH_Z_OPEN.
      * A latched cell cannot publish a transient finite resistance: its clean
      * samples must pass another bounded confirmation before the bit clears. */
