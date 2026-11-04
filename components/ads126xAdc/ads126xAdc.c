@@ -261,15 +261,10 @@ static uint8_t ads126xAdcCrc8(const uint8_t *data, size_t len)
 
 uint16_t ads126xAdcSpiDutyCycleForClock(uint32_t clockHz)
 {
-#if CONFIG_IDF_TARGET_ESP32S3
-    /* ADS126x table 7.6: high/low >= 40 ns; table 7.7: output valid <= 60 ns.
-     * Do not apply a 25% duty at a higher configured frequency. This remains
-     * a timing candidate until the paired hardware capture verifies it. */
-    return clockHz == 2000000u ? 64u : 128u;
-#else
+    /* The 2 MHz / 25% high A/B capture still had final-bit CRC faults and a
+     * REFMUX readback fault. Retain the normal 50% duty, not that candidate. */
     (void)clockHz;
     return 128u;
-#endif
 }
 
 static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
@@ -600,12 +595,31 @@ esp_err_t ads126xAdcReadRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr,
         return ESP_ERR_INVALID_ARG;
     }
 
+    /* ADS1262/3 9.5.6: RREG count selects actual consecutive registers.
+     * 00h..10h are common to both chips (9.6; 10h is TDACP). Include one
+     * additional register when the requested block ends at/before REFMUX.
+     * Requested data then finish before the serial output's final bit; the
+     * extra byte is discarded, never cached or treated as requested data.
+     * This does not alter RDATA1, repair bits, or bypass ADC CRC validation. */
+    bool guard = startAddr <= ADS126X_REG_REFMUX &&
+        len <= (size_t)(ADS126X_REG_REFMUX + 1u - startAddr);
+    size_t readLen = len + (guard ? 1u : 0u);
     uint8_t cmd[2] = {
         (uint8_t)(ADS126X_CMD_RREG | (startAddr & 0x1Fu)),
-        (uint8_t)(len - 1u),
+        (uint8_t)(readLen - 1u),
     };
-
-    return ads126xAdcSpiTransferLocked(handle, cmd, sizeof(cmd), data, len);
+    if (!guard) {
+        return ads126xAdcSpiTransferLocked(handle, cmd, sizeof(cmd), data, len);
+    }
+    /* SPI owns persistent DMA storage; this local copy is filled only after
+     * the driver returns the exact completed descriptor. */
+    uint8_t received[ADS126X_REG_REFMUX + 2u];
+    esp_err_t err = ads126xAdcSpiTransferLocked(handle, cmd, sizeof(cmd),
+                                               received, readLen);
+    if (err == ESP_OK) {
+        memcpy(data, received, len);
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, const uint8_t *data, size_t len)

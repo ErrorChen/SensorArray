@@ -19,9 +19,8 @@ extern "C" {
 #define ADS126X_ADC_DEFAULT_VREF_UV 2500000u
 #define ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS 1000u
 
-/* 本轮新增: bounded A/B timing candidate for the observed S3 mode-1 final-bit
- * corruption. Only the verified 2 MHz clock gets 25% high duty (125 ns high,
- * 375 ns low). Other clocks/targets retain 50%; no sampling-mode workaround. */
+/* 本轮新增: observable SPI duty selection. The 25% high A/B candidate failed
+ * hardware validation; all clocks/targets retain the normal 50% duty. */
 uint16_t ads126xAdcSpiDutyCycleForClock(uint32_t clockHz);
 
 /* POWER register bits for ads126xAdcReadCoreRegisters()/ads126xAdcSetVbiasEnabled(). */

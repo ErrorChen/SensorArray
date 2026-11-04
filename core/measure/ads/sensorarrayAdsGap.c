@@ -97,11 +97,25 @@ typedef struct {
     uint8_t refmuxAfter;
     uint8_t inpmuxBefore;
     uint8_t inpmuxAfter;
+    uint8_t mode0Before;
+    uint8_t mode1Before;
     uint8_t mode2Before;
     uint8_t mode2After;
     uint32_t vrefBeforeUv;
     uint32_t vrefDuringUv;
     uint32_t vrefAfterUv;
+    ads126xAdc1RegisterSnapshot_t configured;
+    bool configuredKnown;
+    bool profileVerified;
+    uint8_t compareRegister;
+    uint8_t compareExpected;
+    uint8_t compareActual;
+    uint8_t compareMask;
+    int32_t sampleRaw;
+    int32_t sampleUv;
+    uint8_t sampleStatus;
+    uint8_t samplesRead;
+    const char *failureStage;
     bool restored;
     esp_err_t originalError;
     esp_err_t cleanupError;
@@ -1035,6 +1049,46 @@ static esp_err_t sensorarrayAdsRestoreState(ads126xAdcHandle_t *ads,
     return firstErr;
 }
 
+/* 本轮新增. ADS1262/3 9.3.5 requires PGA enabled, gain 1 and chop off
+ * for the internal supply divider. Verify the complete intended profile;
+ * a previous matrix cell's bypass/gain/filter must not define rail scaling. */
+static esp_err_t sensorarrayAdsVerifyRailMonitorProfile(
+    ads126xAdcHandle_t *ads, const sensorarrayAdsSavedState_t *saved,
+    uint8_t mode2, sensorarrayAdsRailDiag_t *diag)
+{
+    ads126xAdc1RegisterSnapshot_t expected = {
+        .id = saved->id,
+        .power = (uint8_t)((saved->power & ~ADS126X_POWER_RESET) |
+                          ADS126X_POWER_INTREF | ADS126X_POWER_VBIAS),
+        .interface = saved->interface,
+        .mode0 = ADS126X_MODE0_CONTINUOUS_CHOP_OFF_DELAY_0,
+        .mode1 = ADS126X_MODE1_FILTER_SINC1,
+        .mode2 = mode2,
+        .inpmux = 0xCCu,
+        .offsetCal = {0u, 0u, 0u},
+        .fullScaleCal = {0u, 0u, 0x40u},
+        .refmux = ADS126X_REFMUX_INTERNAL,
+    };
+    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(ads, &diag->configured);
+    diag->configuredKnown = err == ESP_OK;
+    if (err != ESP_OK) {
+        diag->failureStage = "PROFILE_READ";
+        return err;
+    }
+    sensorarrayAdsBatteryCompare_t comparison = {0};
+    if (!sensorarrayAdsBatterySnapshotsMatch(&expected, &diag->configured,
+                                             &comparison)) {
+        diag->compareRegister = comparison.reg;
+        diag->compareExpected = comparison.expected;
+        diag->compareActual = comparison.actual;
+        diag->compareMask = comparison.mask;
+        diag->failureStage = "PROFILE_COMPARE";
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    diag->profileVerified = true;
+    return ESP_OK;
+}
+
 static esp_err_t sensorarrayAdsReadRailMonitorUv(
     sensorarrayState_t *state,
     int32_t *outRaw,
@@ -1069,8 +1123,14 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     diag.powerBefore = saved.power;
     diag.refmuxBefore = saved.refmux;
     diag.inpmuxBefore = saved.inpmux;
+    diag.mode0Before = saved.mode0;
+    diag.mode1Before = saved.mode1;
     diag.mode2Before = saved.mode2;
     diag.vrefBeforeUv = saved.vrefMicrovolts;
+    diag.compareRegister = UINT8_MAX;
+    diag.failureStage = "CONFIGURE";
+    uint8_t monitorMode2 = 0u;
+    sensorarrayAdsFreshSample_t sample = {0};
 
     if (ads126xAdcHasAdc2(ads)) {
         err = ads126xAdcStopAdc2(ads);
@@ -1089,6 +1149,18 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
         err = ads126xAdcWaitReferenceReady(ads);
     }
     if (err == ESP_OK) {
+        err = ads126xAdcConfigureAdc1Mode(ads,
+            ADS126X_MODE0_CONTINUOUS_CHOP_OFF_DELAY_0,
+            ADS126X_MODE1_FILTER_SINC1);
+    }
+    if (err == ESP_OK && !ads126xAdcBuildMode2(false, 1u,
+            (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE, &monitorMode2)) {
+        err = ESP_ERR_INVALID_ARG;
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcSetMode2Verified(ads, monitorMode2);
+    }
+    if (err == ESP_OK) {
         /* System-offset calibration is intentionally tied to the board's AIN9
          * zero path. The internal analog supply monitor is a different source,
          * so read it with neutral ADC1 calibration and restore the board
@@ -1104,63 +1176,76 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
                                     SENSORARRAY_ADS_MUX_ANALOG_MONITOR,
                                     SENSORARRAY_ADS_MUX_ANALOG_MONITOR);
     }
+    if (err == ESP_OK) {
+        err = sensorarrayAdsVerifyRailMonitorProfile(ads, &saved,
+                                                     monitorMode2, &diag);
+    }
     if (err == ESP_OK && SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS > 0u) {
         vTaskDelay(pdMS_TO_TICKS(SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS));
     }
     if (err == ESP_OK) {
+        diag.failureStage = "START";
         ads126xAdcClearDrdyNotifications(ads);
         err = ads126xAdcStartAdc1(ads);
     }
     if (err == ESP_OK) {
+        diag.failureStage = "SAMPLE";
         uint8_t readCount = (uint8_t)(SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT + 1u);
-        sensorarrayAdsFreshSample_t sample = {0};
         for (uint8_t readIdx = 0u; readIdx < readCount; ++readIdx) {
             err = sensorarrayAdsReadFreshAdc1(
                 ads, (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, &sample);
+            diag.sampleRaw = sample.raw;
+            diag.sampleUv = sample.uv;
+            diag.sampleStatus = sample.status;
+            diag.samplesRead++;
+            if (err == ESP_OK && (sample.status &
+                    (ADS126X_STATUS_RESET_OCCURRED |
+                     ADS126X_STATUS_REFERENCE_ALARM |
+                     ADS126X_STATUS_PGA_ALARM_MASK)) != 0u) {
+                err = ESP_ERR_INVALID_RESPONSE;
+                diag.failureStage = "SAMPLE_STATUS";
+                sensorarrayAdsRecordFreshSample(&sample, err);
+            }
             if (err != ESP_OK) {
                 break;
             }
         }
-        if (err == ESP_OK) {
-            *outRaw = sample.raw;
-            *outMonitorUv = sample.uv;
-        }
     }
-    (void)ads126xAdcStopAdc1(ads);
-
+    esp_err_t stopErr = ads126xAdcStopAdc1(ads);
     esp_err_t restoreErr = sensorarrayAdsRestoreState(ads, &saved);
     diag.originalError = err;
-    diag.cleanupError = restoreErr;
+    diag.cleanupError = stopErr != ESP_OK ? stopErr : restoreErr;
     diag.restored = restoreErr == ESP_OK;
-    uint8_t powerAfter = 0u;
-    uint8_t mode2After = 0u;
-    uint8_t inpmuxAfter = 0u;
-    uint8_t refmuxAfter = 0u;
-    if (ads126xAdcReadCoreRegisters(ads,
-                                    &powerAfter,
-                                    NULL,
-                                    &mode2After,
-                                    &inpmuxAfter,
-                                    &refmuxAfter) == ESP_OK) {
-        diag.powerAfter = powerAfter;
-        diag.mode2After = mode2After;
-        diag.inpmuxAfter = inpmuxAfter;
-        diag.refmuxAfter = refmuxAfter;
+    if (diag.restored) {
+        /* RestoreAdc1RegisterSnapshot already verifies these physical fields
+         * and all calibration bytes. Do not perform an unaccounted extra
+         * SPI transaction after that verified restore. */
+        diag.powerAfter = saved.power;
+        diag.mode2After = saved.mode2;
+        diag.inpmuxAfter = saved.inpmux;
+        diag.refmuxAfter = saved.refmux;
         diag.vrefAfterUv = ads->vrefMicrovolts;
+    }
+    if (err == ESP_OK) {
+        diag.failureStage = diag.cleanupError == ESP_OK ? "NONE" : "RESTORE_VERIFY";
     }
     if (outDiag) {
         *outDiag = diag;
     }
-    if (restoreErr != ESP_OK) {
+    if (diag.cleanupError != ESP_OK) {
         s_snapshot.fallbackToBoundary = true;
         printf("ERR,mod=ads,code=rail_restore,ctx=power/refmux/inpmux/mode,act=gap_pause,seq=0,err=0x%lx\n",
-               (unsigned long)restoreErr);
+               (unsigned long)diag.cleanupError);
         s_batteryRestoreFailureLatched = true;
-        return err != ESP_OK ? err : restoreErr;
+        return err != ESP_OK ? err : diag.cleanupError;
     }
     state->adsRefMux = saved.refmux;
     state->adsRefMuxValid = true;
     state->adsAdc1Running = saved.adc1WasRunning;
+    if (err == ESP_OK) {
+        *outRaw = sample.raw;
+        *outMonitorUv = sample.uv;
+    }
     return err;
 }
 
@@ -1388,6 +1473,20 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
     ads126xAdcEndTransaction(&state->ads);
     sensorarrayAdsTransactionEnd(&s_railTransaction, err, railDiag.cleanupError);
     (void)sensorarrayAdsRegisterCacheRelease(s_registerCache, SENSORARRAY_ADS_OWNER_RAIL);
+    printf("RAILPROFILE,seq=%lu,txn=%lu,before=%02X/%02X/%02X,configured=%02X/%02X/%02X,mux=%02X,ref=%02X,known=%u,verified=%u,restored=%u,stage=%s,err=0x%lx,cleanup=0x%lx\n",
+           (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
+           railDiag.mode0Before, railDiag.mode1Before, railDiag.mode2Before,
+           railDiag.configured.mode0, railDiag.configured.mode1, railDiag.configured.mode2,
+           railDiag.configured.inpmux, railDiag.configured.refmux,
+           railDiag.configuredKnown ? 1u : 0u, railDiag.profileVerified ? 1u : 0u,
+           railDiag.restored ? 1u : 0u,
+           railDiag.failureStage ? railDiag.failureStage : "ADMISSION",
+           (unsigned long)err, (unsigned long)railDiag.cleanupError);
+    printf("RAILSAMPLE,seq=%lu,txn=%lu,n=%u,raw=%ld,monitorUv=%ld,status=%02X,reg=%u,expected=%02X,actual=%02X,mask=%02X\n",
+           (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
+           railDiag.samplesRead, (long)railDiag.sampleRaw, (long)railDiag.sampleUv,
+           railDiag.sampleStatus, railDiag.compareRegister,
+           railDiag.compareExpected, railDiag.compareActual, railDiag.compareMask);
     return err;
 }
 

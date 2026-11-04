@@ -20,6 +20,9 @@ static unsigned notifyEdgesRemaining, notifyEdgeCount, configChangeOnEdge;
 static uint8_t dataFrames[4][6];
 static unsigned dataFrameCount, dataFrameLimit, blockCompletionAfterRead;
 static uint32_t dataFrameGeneration[4];
+static bool forceFinalRegisterBit;
+static uint8_t corruptReadRegister = UINT8_MAX;
+static unsigned lastRegisterStart, lastRegisterCount;
 
 int64_t esp_timer_get_time(void) { return nowUs; }
 void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }
@@ -101,12 +104,18 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
     if ((tx[0] & 0xE0u) == 0x20u) {
         uint8_t reg = tx[0] & 0x1Fu;
         size_t len = tx[1] + 1u;
+        assert(bytes == len + 2u);
+        lastRegisterStart = reg; lastRegisterCount = len;
         const uint8_t *values = registers;
-        if (useSnapshots && reg == 0u && len == 16u) {
+        if (useSnapshots && reg == 0u && len == 17u) {
             values = snapshots[snapshotReads < 3u ? snapshotReads : 2u];
             ++snapshotReads;
         }
         memcpy(rx + 2, values + reg, len);
+        if (forceFinalRegisterBit) { rx[bytes - 1u] |= 1u; }
+        if (corruptReadRegister >= reg && corruptReadRegister < reg + len) {
+            rx[2u + corruptReadRegister - reg] ^= 1u;
+        }
     } else if ((tx[0] & 0xE0u) == 0x40u) {
         uint8_t reg = tx[0] & 0x1Fu;
         memcpy(registers + reg, tx + 2, tx[1] + 1u);
@@ -130,6 +139,8 @@ static ads126xAdcHandle_t handle(void)
     notifyHandle = NULL; notifyEdge = notifyConfigChange = false;
     notifyEdgesRemaining = notifyEdgeCount = configChangeOnEdge = 0u;
     dataFrameCount = dataFrameLimit = blockCompletionAfterRead = 0u;
+    forceFinalRegisterBit = false; corruptReadRegister = UINT8_MAX;
+    lastRegisterStart = lastRegisterCount = 0u;
     memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
     registers[1] = 2u; registers[2] = 6u; registers[5] = 0x8Fu; registers[15] = 0x24u;
@@ -186,16 +197,67 @@ static void testSpiDeadlineAndLifetime(void)
 
 static void testSpiTimingSelection(void)
 {
-#if CONFIG_IDF_TARGET_ESP32S3
-    assert(ads126xAdcSpiDutyCycleForClock(2000000u) == 64u);
-#else
     assert(ads126xAdcSpiDutyCycleForClock(2000000u) == 128u);
-#endif
     const uint32_t otherClocks[] = {0u, 500000u, 1000000u, 1999999u,
         2000001u, 4000000u, 8000000u, 20000000u};
     for (size_t i = 0u; i < sizeof(otherClocks) / sizeof(otherClocks[0]); ++i) {
         assert(ads126xAdcSpiDutyCycleForClock(otherClocks[i]) == 128u);
     }
+}
+
+static void testRegisterReadGuard(void)
+{
+    ads126xAdcHandle_t ads = handle();
+    forceFinalRegisterBit = true;
+    uint8_t bytes[18]; memset(bytes, 0xA5, sizeof(bytes));
+    assert(ads126xAdcReadRegisters(&ads, ADS126X_REG_POWER, bytes, 1u) == ESP_OK);
+    assert(bytes[0] == 2u && bytes[1] == 0xA5u); /* guard isn't returned */
+    assert(lastRegisterStart == 1u && lastRegisterCount == 2u);
+    registers[ADS126X_REG_REFMUX] = 0u;
+    assert(ads126xAdcReadRegisters(&ads, ADS126X_REG_REFMUX, bytes, 1u) == ESP_OK);
+    assert(bytes[0] == 0u && bytes[1] == 0xA5u && lastRegisterCount == 2u);
+    assert(ads126xAdcReadRegisters(&ads, ADS126X_REG_ID, bytes, 16u) == ESP_OK);
+    assert(bytes[15] == 0u && bytes[16] == 0xA5u && lastRegisterCount == 17u);
+    ads126xAdc1RegisterSnapshot_t snapshot = {0};
+    for (unsigned i = 0u; i < 3u; ++i) { memcpy(snapshots[i], registers, sizeof(registers)); }
+    useSnapshots = true;
+    assert(ads126xAdcReadAdc1RegisterSnapshot(&ads, &snapshot) == ESP_OK);
+    assert(snapshot.power == 2u && snapshot.refmux == 0u && snapshotReads == 2u);
+
+    /* The guard does not mask a real mismatch in any requested byte. */
+    useSnapshots = false; corruptReadRegister = ADS126X_REG_MODE2;
+    assert(ads126xAdcSetMode2Verified(&ads, 0x0Fu) == ESP_ERR_INVALID_RESPONSE);
+    corruptReadRegister = UINT8_MAX;
+    useSnapshots = true; snapshotReads = 0u;
+    snapshots[0][15] = 0u; snapshots[1][15] = 1u; snapshots[2][15] = 2u;
+    assert(ads126xAdcReadAdc1RegisterSnapshot(&ads, &snapshot) == ESP_ERR_INVALID_RESPONSE);
+    assert(snapshotReads == 3u && ads.snapshotMismatchRegister == 15u);
+
+    /* No extension into ADC2-only/unsupported address ranges. */
+    useSnapshots = false;
+    assert(ads126xAdcReadRegisters(&ads, 0x10u, bytes, 1u) == ESP_OK);
+    assert(lastRegisterStart == 0x10u && lastRegisterCount == 1u);
+    assert(bytes[0] == 1u); /* deliberately injected final bit, no invented repair */
+    assert(ads126xAdcReadRegisters(&ads, ADS126X_REG_ADC2CFG, bytes, 2u) == ESP_OK);
+    assert(lastRegisterStart == ADS126X_REG_ADC2CFG && lastRegisterCount == 2u);
+    assert(ads126xAdcReadRegisters(&ads, 0x0Fu, bytes, 2u) == ESP_OK);
+    assert(lastRegisterCount == 2u);
+    unsigned queued = queueCalls;
+    assert(ads126xAdcReadRegisters(&ads, 0u, bytes, 0u) == ESP_ERR_INVALID_ARG);
+    assert(ads126xAdcReadRegisters(&ads, 0u, bytes, 33u) == ESP_ERR_INVALID_ARG);
+    assert(queueCalls == queued);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
+
+    /* Guard bytes still use persistent DMA storage, even on timeout. */
+    ads = handle(); completionBlocked = true; bytes[0] = 0xA5u;
+    assert(ads126xAdcReadRegisters(&ads, 1u, bytes, 1u) == ESP_ERR_TIMEOUT);
+    assert(bytes[0] == 0xA5u && ads.spiQuarantined && pending == &ads.dmaTransaction);
+    assert(pending->rx_buffer == ads.spiRxBuf && pending->length == 32u);
+    uint8_t prior[64]; memcpy(prior, ads.spiTxBuf, sizeof(prior)); queued = queueCalls;
+    assert(ads126xAdcReadRegisters(&ads, 1u, bytes, 1u) == ESP_ERR_INVALID_STATE);
+    assert(queueCalls == queued && memcmp(prior, ads.spiTxBuf, sizeof(prior)) == 0);
+    completionBlocked = false;
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
 }
 
 static uint8_t crcPolynomialDivision(uint32_t value)
@@ -414,6 +476,7 @@ static void testSnapshots(void)
 int main(void)
 {
     testSpiTimingSelection();
+    testRegisterReadGuard();
     testSpiDeadlineAndLifetime();
     testCrcAndLength();
     testReferenceAndFreshness();
