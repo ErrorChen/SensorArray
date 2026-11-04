@@ -7,9 +7,11 @@ import os
 import re
 import subprocess
 import tempfile
+import zlib
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--baseline", help="Also reproduce VFS/64-byte corruption using this unmodified git revision")
+parser.add_argument("--fragment-baseline", help="Also reproduce printf fragment/priority concatenation using this unmodified git revision")
 args = parser.parse_args()
 fixture = root / "tests/fixtures/serial_io"
 captured_config = (fixture / "config_complete.rx.txt").read_bytes()
@@ -17,6 +19,15 @@ captured_corruption = (fixture / "config_interleaving.rx.txt").read_bytes()
 assert captured_corruption.index(b"PR,") == 64
 captured_pr = captured_corruption[64:captured_corruption.index(b"\n", 64) + 1]
 assert captured_config.startswith(b"CONFIG,") and len(captured_config) > 64
+captured_fragment = (fixture / "stdio_fragment_interleaving.rx.txt").read_bytes()
+reply_offset = captured_fragment.index(b"USBSTREAM,")
+assert reply_offset == 128
+captured_ads_prefix = captured_fragment[:reply_offset]
+captured_usb_reply = captured_fragment[reply_offset:]
+encoded_frame = (root / "tests/fixtures/config_identity/cap_8.frame").read_bytes()
+trailer_offset = encoded_frame.index(b"K,")
+expected_crc = int(re.search(rb",crc=([0-9A-F]{8})", encoded_frame[trailer_offset:]).group(1), 16)
+assert zlib.crc32(encoded_frame[:trailer_offset]) & 0xFFFFFFFF == expected_crc
 # Use the project's actual installed IDF validator when available. The fallback
 # is the same public 15-byte constraint so ordinary host CI needs no SDK install.
 idf = Path(os.environ["IDF_PATH"]) if os.environ.get("IDF_PATH") else None
@@ -60,17 +71,18 @@ with tempfile.TemporaryDirectory(prefix="sensorarray-serial-io-") as temp:
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include "esp_err.h"
 typedef uint32_t TickType_t;
 typedef uint8_t StackType_t;
 typedef int BaseType_t;
-typedef struct { unsigned length, count, read, write; uint8_t *data; } StaticQueue_t;
+typedef struct { unsigned length, count, read, write; uint8_t *data; pthread_mutex_t lock; } StaticQueue_t;
 typedef StaticQueue_t *QueueHandle_t;
 typedef void *TaskHandle_t;
-typedef int portMUX_TYPE;
-#define portMUX_INITIALIZER_UNLOCKED 0
-#define portENTER_CRITICAL(p) ((void)(p))
-#define portEXIT_CRITICAL(p) ((void)(p))
+typedef pthread_mutex_t portMUX_TYPE;
+#define portMUX_INITIALIZER_UNLOCKED PTHREAD_MUTEX_INITIALIZER
+#define portENTER_CRITICAL(p) pthread_mutex_lock(p)
+#define portEXIT_CRITICAL(p) pthread_mutex_unlock(p)
 #define pdTRUE 1
 #define pdPASS 1
 #define portMAX_DELAY UINT32_MAX
@@ -119,18 +131,29 @@ static struct _reent testGlobalReent;
     (temp / "serial_capture.h").write_text(
         "/* Verbatim capture slices; scheduling injection is synthetic. */\n"
         + "static const char capturedConfig[] = " + json.dumps(captured_config.decode("ascii")) + ";\n"
-        + "static const char capturedPr[] = " + json.dumps(captured_pr.decode("ascii")) + ";\n")
+        + "static const char capturedPr[] = " + json.dumps(captured_pr.decode("ascii")) + ";\n"
+        + "static const char capturedAdsPrefix[] = " + json.dumps(captured_ads_prefix.decode("ascii")) + ";\n"
+        + "static const char capturedUsbReply[] = " + json.dumps(captured_usb_reply.decode("ascii")) + ";\n"
+        + "static const char encodedFrame[] = " + json.dumps(encoded_frame.decode("ascii")) + ";\n")
+    frame_output = (root / "main/output/sensorarrayFrameOutput.c").read_text()
+    (temp / "frame_output_function.h").write_text(frame_output[frame_output.index("esp_err_t sensorarrayFrameOutputPrint("):])
     for file in ["freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h", "driver/usb_serial_jtag.h", "esp_timer.h", "esp_vfs.h"]:
         (temp / file).write_text('#include "common.h"\n')
     (temp / "esp_heap_caps.h").write_text("#include <stddef.h>\n#include <stdint.h>\n#define MALLOC_CAP_8BIT 1u\n#define MALLOC_CAP_SPIRAM 2u\n#define MALLOC_CAP_INTERNAL 4u\nvoid *heap_caps_calloc(size_t count, size_t size, uint32_t caps);\n")
     (temp / "sdkconfig.h").write_text("#define CONFIG_SENSORARRAY_OUTPUT_TASK_CORE 0\n")
     exe = temp / "test"
-    compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c")]
+    compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c")]
     if args.baseline:
         baseline = temp / "baselineSerialIo.c"
         baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
         baseline_exe = temp / "baseline"
         subprocess.run(compile_args + ["-DSERIAL_IO_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
+        subprocess.run([str(baseline_exe)], check=True)
+    if args.fragment_baseline:
+        baseline = temp / "fragmentBaselineSerialIo.c"
+        baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.fragment_baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
+        baseline_exe = temp / "fragment_baseline"
+        subprocess.run(compile_args + ["-DSERIAL_IO_FRAGMENT_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
         subprocess.run([str(baseline_exe)], check=True)
     subprocess.run(compile_args + ["-o", str(exe)], check=True)
     for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry"]:

@@ -24,6 +24,8 @@
 #define SERIAL_IO_DEADLINE_US 20000u
 #define SERIAL_IO_CHUNK 64u
 #define SERIAL_IO_VFS_PATH "/dev/saout"
+#define SERIAL_IO_STDOUT_PATH SERIAL_IO_VFS_PATH "/out"
+#define SERIAL_IO_STDERR_PATH SERIAL_IO_VFS_PATH "/err"
 #define SERIAL_IO_VFS_DEVICE 0x5341u
 _Static_assert(sizeof(SERIAL_IO_VFS_PATH) - 1u <= ESP_VFS_PATH_MAX,
                "Serial output VFS path exceeds ESP-IDF's registration limit");
@@ -51,34 +53,46 @@ static bool s_vfsRegistered;
 static bool s_stdoutBound;
 static bool s_stderrBound;
 
-esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)
+/* Each stream borrows at most one existing normal slot while a line is
+ * incomplete. Two unfinished streams therefore still leave three slots for
+ * DATA/complete logs. ESP-IDF shares each FILE across tasks; its FILE lock
+ * serializes writes/close within that stream, while stdout/stderr stay distinct.
+ * No formatter holds a queue/pool lock across a USB operation. */
+typedef struct {
+    size_t length;
+    uint8_t index;
+    bool discarding;
+} sensorarraySerialLine_t;
+static sensorarraySerialLine_t s_lines[2] = {
+    {.index = UINT8_MAX}, {.index = UINT8_MAX},
+};
+
+static uint8_t sensorarraySerialClaimSlot(bool priority)
 {
-    if (!data || !length || length > (priority ? SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX : SENSORARRAY_TRANSPORT_TEXT_MAX)) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-    /* A running driver/task alone is not a single-writer guarantee. Until
-     * both shared stdio streams have moved off the native console VFS, keep
-     * protocol/DATA TX closed. Registration failure leaves the early console
-     * intact; command RX does not depend on this output gate. */
-    if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire) ||
-        !s_task || !s_queues[priority ? 1 : 0]) {
-        return ESP_ERR_INVALID_STATE;
-    }
     uint8_t index = UINT8_MAX;
     portENTER_CRITICAL(&s_poolMux);
     for (unsigned i = priority ? 5u : 0u; i < (priority ? 9u : 5u); ++i) {
         if (!s_inUse[i]) { s_inUse[i] = true; index = (uint8_t)i; break; }
     }
     portEXIT_CRITICAL(&s_poolMux);
+    return index;
+}
+
+static void sensorarraySerialReleaseSlot(uint8_t index)
+{
+    portENTER_CRITICAL(&s_poolMux);
+    s_inUse[index] = false;
+    portEXIT_CRITICAL(&s_poolMux);
+}
+
+static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, bool priority)
+{
     bool queued = false;
     if (index != UINT8_MAX) {
         s_lengths[index] = (uint16_t)length;
-        memcpy(sensorarraySerialBytes(index), data, length);
         queued = xQueueSend(s_queues[priority ? 1 : 0], &index, 0) == pdTRUE;
         if (!queued) {
-            portENTER_CRITICAL(&s_poolMux);
-            s_inUse[index] = false;
-            portEXIT_CRITICAL(&s_poolMux);
+            sensorarraySerialReleaseSlot(index);
         }
     }
     portENTER_CRITICAL(&s_statsMux);
@@ -95,12 +109,53 @@ esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priorit
     return queued ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
+esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)
+{
+    if (!data || !length || length > (priority ? SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX : SENSORARRAY_TRANSPORT_TEXT_MAX)) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    /* A running driver/task alone is not a single-writer guarantee. Until
+     * both shared stdio streams have moved off the native console VFS, keep
+     * protocol/DATA TX closed. Registration failure leaves the early console
+     * intact; command RX does not depend on this output gate. */
+    if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire) ||
+        !s_task || !s_queues[priority ? 1 : 0]) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    uint8_t index = sensorarraySerialClaimSlot(priority);
+    if (index != UINT8_MAX) { memcpy(sensorarraySerialBytes(index), data, length); }
+    return sensorarraySerialPublishSlot(index, length, priority);
+}
+
+static void sensorarraySerialLineDrop(size_t bytes, bool oversize, bool sinkCounted)
+{
+    portENTER_CRITICAL(&s_statsMux);
+    s_stats.lineDropped++;
+    s_stats.lineOversize += oversize ? 1u : 0u;
+    s_stats.discardBytes += bytes;
+    s_stats.sinkDropped += sinkCounted ? 0u : 1u;
+    portEXIT_CRITICAL(&s_statsMux);
+}
+
 static int sensorarraySerialOpen(const char *path, int flags, int mode)
 {
-    (void)path; (void)flags; (void)mode;
+    (void)flags; (void)mode;
+    if (strcmp(path, "/out") == 0) { return 0; }
+    if (strcmp(path, "/err") == 0) { return 1; }
+    errno = ENOENT;
+    return -1;
+}
+static int sensorarraySerialClose(int fd)
+{
+    if (fd < 0 || fd >= 2) { errno = EBADF; return -1; }
+    sensorarraySerialLine_t *line = &s_lines[fd];
+    if (line->index != UINT8_MAX) {
+        sensorarraySerialReleaseSlot(line->index);
+        sensorarraySerialLineDrop(line->length, false, false);
+    }
+    *line = (sensorarraySerialLine_t){.index = UINT8_MAX};
     return 0;
 }
-static int sensorarraySerialClose(int fd) { (void)fd; return 0; }
 static int sensorarraySerialFstat(int fd, struct stat *st)
 {
     (void)fd;
@@ -126,15 +181,52 @@ static esp_err_t sensorarraySerialInitResult(esp_err_t err)
 }
 static ssize_t sensorarraySerialWrite(int fd, const void *data, size_t size)
 {
-    (void)fd;
-    if (size == 0u) {
-        return 0;
-    }
-    esp_err_t err = sensorarraySerialIoQueue(data, size, false);
-    if (err != ESP_OK) {
-        errno = err == ESP_ERR_INVALID_SIZE ? EMSGSIZE : EAGAIN;
+    if (fd < 0 || fd >= 2) { errno = EBADF; return -1; }
+    if (size == 0u) { return 0; }
+    if (!data) { errno = EINVAL; return -1; }
+    if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire)) {
+        errno = EAGAIN;
         return -1;
     }
+    sensorarraySerialLine_t *line = &s_lines[fd];
+    const char *bytes = data;
+    size_t offset = 0u;
+    while (offset < size) {
+        const char *newline = memchr(bytes + offset, '\n', size - offset);
+        size_t part = newline ? (size_t)(newline - bytes - offset) + 1u : size - offset;
+        if (line->discarding) {
+            portENTER_CRITICAL(&s_statsMux);
+            s_stats.discardBytes += part;
+            portEXIT_CRITICAL(&s_statsMux);
+            line->discarding = newline == NULL;
+        } else {
+            if (line->index == UINT8_MAX) { line->index = sensorarraySerialClaimSlot(false); }
+            if (line->index == UINT8_MAX) {
+                sensorarraySerialLineDrop(part, false, false);
+                line->discarding = newline == NULL;
+            } else if (part > SENSORARRAY_TRANSPORT_TEXT_MAX - line->length) {
+                sensorarraySerialReleaseSlot(line->index);
+                sensorarraySerialLineDrop(line->length + part, true, false);
+                *line = (sensorarraySerialLine_t){.index = UINT8_MAX, .discarding = newline == NULL};
+            } else {
+                memcpy(sensorarraySerialBytes(line->index) + line->length, bytes + offset, part);
+                line->length += part;
+                if (newline) {
+                    uint8_t index = line->index;
+                    size_t length = line->length;
+                    *line = (sensorarraySerialLine_t){.index = UINT8_MAX};
+                    if (sensorarraySerialPublishSlot(index, length, false) != ESP_OK) {
+                        sensorarraySerialLineDrop(length, false, true);
+                    }
+                }
+            }
+        }
+        offset += part;
+    }
+    /* This acknowledges bounded local consumption, including counted whole
+     * line discard. It is not queue admission or USB delivery. Returning an
+     * error after consuming a fragment lets stdio retry a suffix as a new line.
+     * Direct protocol/DATA callers still receive actual queue admission errors. */
     return (ssize_t)size;
 }
 
@@ -182,12 +274,14 @@ static void sensorarraySerialTxTask(void *arg)
                 s_stats.sinkDropped++;
                 s_stats.partialWrite += offset != 0u ? 1u : 0u;
                 needsDelimiter |= offset != 0u;
+            } else {
+                /* Defence for a direct caller that omitted LF. VFS fragments
+                 * never arrive here; they are assembled into whole lines. */
+                needsDelimiter = packetData[packetLength - 1u] != '\n';
             }
             uint64_t acceptedTotal = s_stats.driverAcceptedBytes;
             portEXIT_CRITICAL(&s_statsMux);
-            portENTER_CRITICAL(&s_poolMux);
-            s_inUse[index] = false;
-            portEXIT_CRITICAL(&s_poolMux);
+            sensorarraySerialReleaseSlot(index);
             if (acceptedTotal != lastDrainBytes && usb_serial_jtag_wait_tx_done(0) == ESP_OK) {
                 lastDrainBytes = acceptedTotal;
                 portENTER_CRITICAL(&s_statsMux);
@@ -247,7 +341,7 @@ esp_err_t sensorarraySerialIoInit(void)
          * objects. freopen changes those objects in place; do not replace only
          * this task's stdout pointer. Verify the resulting VFS fd, too. */
         if (!s_stdoutBound) {
-            if (!freopen(SERIAL_IO_VFS_PATH, "w", stdout) ||
+            if (!freopen(SERIAL_IO_STDOUT_PATH, "w", stdout) ||
                 !sensorarraySerialStreamBound(stdout)) {
                 return sensorarraySerialInitResult(ESP_FAIL);
             }
@@ -255,7 +349,7 @@ esp_err_t sensorarraySerialIoInit(void)
             s_stdoutBound = true;
         }
         if (!s_stderrBound) {
-            if (!freopen(SERIAL_IO_VFS_PATH, "w", stderr) ||
+            if (!freopen(SERIAL_IO_STDERR_PATH, "w", stderr) ||
                 !sensorarraySerialStreamBound(stderr)) {
                 return sensorarraySerialInitResult(ESP_FAIL);
             }

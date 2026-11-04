@@ -1,0 +1,10 @@
+{
+  "kind": "verbatim_capture_slice",
+  "source": "docs/audit/artifacts/reference_fixture/final-res8-01.rx.bin",
+  "source_sha256": "4b8d9b9dc907dc3e9d27ad5e4455d5bfa24823860f5505138e3daefae59b92cd",
+  "source_firmware_head": "3fb2a19a19b054ca9621ef089d961806a4740478",
+  "offset": 275562,
+  "length": 186,
+  "inserted_reply_offset": 128,
+  "note": "The ADSFRAME is truncated in the source. No missing suffix was reconstructed. Host test suffixes are explicitly synthetic."
+}

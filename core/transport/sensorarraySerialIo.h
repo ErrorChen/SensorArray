@@ -19,6 +19,9 @@ typedef struct {
     uint32_t timeout;
     uint32_t driverDrained;
     uint32_t rxOversize;
+    uint32_t lineDropped;
+    uint32_t lineOversize;
+    uint64_t discardBytes;
     uint32_t taskStackMinBytes;
     uint32_t taskStackConfiguredBytes;
     uint32_t normalBufferBytes;
