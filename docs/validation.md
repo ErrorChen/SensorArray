@@ -101,7 +101,7 @@ tools/sensorarray_hil.py
 
 Serial port 可由 `--port COMx` 或 `SENSORARRAY_SERIAL_PORT` 指定。不指定时工具只能列出候选，不应在多个设备间危险地自动选择。
 
-VOLT HIL 默认验证 firmware 在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口自动读取 ADS126x internal analog supply monitor。外部 DMM `RAILCFG` 仍可作为可选 debug override，但不是普通 VOLT 前置条件。电池已断开时，AIN8 浮动/PWM/异常值应记录为 battery diagnostic invalid，不作为 acquisition failure。
+当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。 内部 rail 开的对照组合在当前板型标 NOT_RUN；先用外部合法校准开展 battery 开/关对照。
 
 下面的命令是可重复验收入口，不代表文档提交者已经在当前设备上运行或取得 PASS。只有保留下来的 wire log、machine-readable summary 和测试报告才能作为执行证据。
 

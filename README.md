@@ -87,7 +87,7 @@ RESTART
 
 `RECOVER` 默认 full（level 1）；`RECOVER=2` 与 `RESTART` 会真正重启设备，重启后的 `RST`/boot breadcrumb 是预期结果。自动 HIL 未执行受控 reset 流程时，reboot/recovery 验收必须标 `BLOCKED`/`NOT RUN`，见 [验证](docs/validation.md)。
 
-进入 `VOLT` 时固件会在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口通过 ADS126x internal analog supply monitor 自动获取 rail span，再恢复目标 route；普通用户不需要先发 `RAILCFG`。`RAILCFG` 仅作为可选的、易失的外部 DMM debug override，且不能在 VOLT route 内应用。电池断开时 AIN8 的 PWM/浮动/异常电压只应表现为 `valid=0,reason=...`，不会清除 last-good 或污染 CAP/VOLT/RES frame。
+当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。 电池无效且恢复已验证时只报告 unavailable；恢复失败则隔离 ADS，保留 last-good 的实际测量时间。
 
 ### 4. BLE 快速检查
 
@@ -155,7 +155,7 @@ docs/                       用户和集成文档
 - 命令入口仍为 Serial、BLE `FF10` 和 Wi-Fi UDP `3335`；
 - CAP `C/D/K`、VOLT/RES `V|R/D/P/K` 格式保持稳定；
 - BLE `G,<channel>,...` 分片 envelope 保持稳定；
-- DATA/LOG 完整 message 最大 1536 bytes、CTRL reply 最大 512 bytes；超限时发布 `TXDROP`/`CTRLDROP`，不截断；
+- DATA/LOG 完整 message 最大 2304 bytes、CTRL reply 最大 512 bytes；超限时发布 `TXDROP`/`CTRLDROP`，不截断；
 - transport 使用有界 DATA batch 轮转，LIFECYCLE 优先于普通 LOG，不是 DATA-always-first；
 - 所有运行时设置均为易失状态，重启后恢复编译配置默认值。
 

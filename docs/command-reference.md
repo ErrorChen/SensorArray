@@ -34,15 +34,17 @@
 
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `CONFIG?` | Query | 是 | 是 | 是 | 无 | `CONFIG,session=...,bootId=...,rev=...,boundary=...,mgen=...,rgen=...,pgen=...` | 原子权威 snapshot | - | 支持 | 本轮新增。用于终态丢失/迟到后的重建；各域 ID 和最后 MODE/profile 终态来自同一 revision。 |
+| `ROUTE?` | Query | 是 | 是 | 是 | 无 | `ROUTE,requested=...,applied=...,known=...,verified=...,physicalSafe=unknown` | route snapshot | - | 支持 | 本轮新增。verified 只表示寄存器/GPIO 证据；不表示模拟隔离实测。包含 originalError、cleanupError 和 railMonitor capability。 |
 | `ROWS?` | Query | 是 | 是 | 是 | 无 | `ROWS,active=...,pending=...,requestId=...,appliedId=...,generation=...` | 立即 snapshot | - | 支持 | 不触碰硬件。 |
 | `ROWS=<N>` / `ROWLIMIT=<N>` / `SCANROWS=<N>` | Config | 是 | 是 | 是 | `N=1..8` | `RCMD,...status=accepted`，随后 `RAPP,...status=applied` | 下一完整帧开始 | 否 | 支持；后两者为 alias | `RAPP` 后的新 frame 才使用新 rows/generation。 |
 | `ROWMODES?` | Query | 是 | 是 | 是 | 无 | `ROWMODES,active=...,pending=...,gen=...,rid=...,rows=8,state=...` | 立即 seqlock snapshot | - | 支持 | 查询每个物理 S 行的当前/待应用 profile。 |
 | `ROWMODES=<8 chars>` | Config | 是 | 是 | 是 | 每字节为 `C`/`V`/`R`，例如 `CVVRRVVC` | `RMACK,...state=accepted`，随后 `RMAPP,...profile=...,state=applied` 或 `RMERR` | 下一完整帧开始 | 否 | 支持 | profile 原子切换；同一帧不会混用旧/新 profile。 |
 | `MODE?` / `STATE?` | Query | 是 | 是 | 是 | 无 | `MODE,state=...,active=...,route=...,fdcSd=<high|low>,fdcSdVerified=<0|1>,fdcRestartRequired=<0|1>` | 立即 seqlock snapshot | - | 支持 | 两个命令当前返回同一完整 snapshot；不发起新 conversion。`fdcSd` 与 `FDCISO?` 一致；高电平表示共享 FDC SD 已关断，必须 `RESTART` 才能恢复 CAP。 |
 | `MODE=CAP` / `MODE=CAPACITANCE` | Config | 是 | 是 | 是 | CAP alias | `MACK,...state=accepted`，随后 `MAPP,...state=applied` | 完整帧边界 | 否 | 支持 | 切到双 FDC CAP。 |
-| `MODE=VOLT` / `MODE=VOLTAGE` | Config | 是 | 是 | 是 | VOLT alias | `MACK`，随后自动 monitor rail 并输出 `MAPP`；失败输出 `MERR,...state=SAFE` | 完整帧边界 | 否 | 支持 | 不要求普通用户 `RAILCFG`；`SAFE_RAIL_MONITOR` 使用 ADS126x internal analog supply monitor。 |
+| `MODE=VOLT` / `MODE=VOLTAGE` | Config | 是 | 是 | 是 | VOLT alias | `MACK`，随后 `MAPP` 或 `MERR` | 完整帧边界 | 否 | 支持 | 当前板型无透明 monitor 隔离能力；需合法外部 rail 校准，不能秘密施加参考。 |
 | `MODE=RES` / `MODE=RESISTANCE` | Config | 是 | 是 | 是 | RES alias | `MACK`，随后 `MAPP` | 完整帧边界 | 否 | 支持 | 切到 ADS + REFOUT 电阻路径。 |
-| `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Config | 是 | 是 | 是 | AVDD 正数；AVSS 负数 | `RACK,...state=accepted`，随后 `RAPP,...state=applied`；已在 VOLT 时返回 `ERR,cmd=RAILCFG,reason=apply_before_volt` | 完整帧边界 | 否 | 支持 | 可选外部 DMM debug override；不再是普通 VOLT 前置条件。 |
+| `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` | Config | 是 | 是 | 是 | AVDD 正数；AVSS 负数 | `RACK,...state=accepted`，随后 `RAPP,...state=applied`；已在 VOLT 时返回 `ERR,cmd=RAILCFG,reason=apply_before_volt` | 完整帧边界 | 否 | 支持 | 外部 DMM 实测校准；当前板型进入 VOLT 的安全路径，不按帧数自动过期，掉电丢失。 |
 | `CELL?=S<row>D<col>` | Query | 是 | 是 | 是 | row/col 都为 1..8，例如 `CELL?=S1D1` | `CELL,seq=...,mode=...,value=...,valid=...` | 立即读取最后完整 snapshot | - | 支持 | 不触发新测量。 |
 | `RESSETTLE?` | Query | 是 | 是 | 是 | 无 | `RESSETTLE,settleUs=...,phases=2,source=runtime` | 立即 snapshot | - | 支持 | 查询 RES row settle。 |
 | `RESSETTLE=<microseconds>` | Config | 是 | 是 | 是 | `0..10000` | `ACK,cmd=RESSETTLE,...status=accepted`，随后 `RESSETTLE,...status=applied|rejected` | 完整帧边界 | 否 | 支持 | 不应把调试 sweep 结果固化为生产校准。 |
@@ -161,3 +163,9 @@ python tools/check_command_docs.py
 ```
 
 新增、删除或重命名 command literal 后，未同步本页会使检查失败。
+
+## Reliability extension (PROTO version 2)
+
+`PROTO?` 公布 `config_identity_v1/config_query_v1/session64`、`legacyGen=tag_domain`、`dataMax=2304`、`railMonitor=unavailable` 和 `adcCrc=crc8`。旧 `gen/rid` 含义不变；请按 [固件主机契约](integration/firmware_host_contract.md) 更新接收端，禁止跨域/跨 session 比较大小。`MACK`/`RCMD`/`RMACK` 是接受，Applied 是配置边界，均不等于首个有效数据或 PC 已收到。
+
+`USBSTREAM?` 追加 sinkQueued、sinkDropped、priorityQueued、driverAcceptedBytes、rxBytes、partialWrite、timeout、driverDrained、rxOversize、lastRxUs/lastTxUs、driverInstalled、sofPresent。SOF 只表示驱动观察到 USB 帧活动；enumerated 和 pcReceived 保持 unknown。计数取差值比较同一 session 的区间，不能把历史累计 drop 当作每帧实时丢弃。DEBUG/FULL 只影响 DATA 频率，不关闭命令 RX 或关键终态。

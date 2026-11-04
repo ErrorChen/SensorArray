@@ -1,0 +1,79 @@
+{
+  "created_utc": "2026-11-04T11:27:02.985120+00:00",
+  "audit_baseline": "8045e9e9ec9599533c52c15dfcb6002f79fd15f1",
+  "firmware_fix_commit": "ba8346b7b643e54985699630f608aba3386810e9",
+  "build_input": {
+    "timestamp_utc": "2026-11-04T11:26:01.183836+00:00",
+    "build_head": "ba8346b7b643e54985699630f608aba3386810e9",
+    "dirty_status": " M README.md\n M docs/architecture.md\n M docs/ble-protocol.md\n M docs/command-reference.md\n M docs/getting-started.md\n M docs/measurement-modes.md\n M docs/output-format.md\n M docs/transport-protocol.md\n M docs/troubleshooting.md\n M docs/validation.md\nA  tests/fixtures/ads_fault/cache_compare.synthetic.log\nA  tests/fixtures/ads_fault/mode_compare.synthetic.log\nA  tests/fixtures/ads_fault/owner_acquire.synthetic.log\nA  tests/fixtures/ads_fault/power_compare.synthetic.log\nA  tests/fixtures/ads_fault/refmux_compare.synthetic.log\nA  tests/fixtures/ads_fault/register_health_read.synthetic.log\nA  tests/fixtures/ads_fault/register_read_unstable.synthetic.log\nA  tests/fixtures/ads_fault/reset_observed.synthetic.log\nA  tests/fixtures/ads_fault/restore_verify.synthetic.log\nA  tests/fixtures/ads_fault/row_gpio_compare.synthetic.log\n?? docs/audit/\n?? docs/hardware/\n?? docs/integration/\n",
+    "dirty_tracked_diff_sha256": "fccbafde0eb33b6340d966225009e0bc095ff0afc64ea47a23d441031ab4b9d9",
+    "source_inputs_sha256": "800e0d44bb56d9fe6d33c1fd4608d3bb647c0ee2c06167280e13148273e0a0d1",
+    "idf_version": "v5.5.5",
+    "command": "source /home/csc/esp/esp-idf-v5.5.5/export.sh && idf.py build size",
+    "flashed": false
+  },
+  "source_unchanged_after_build": true,
+  "source_inputs_file": "source-inputs.json",
+  "build_exit": 0,
+  "size_exit": 0,
+  "project_version": "ba8346b-dirty",
+  "target": "esp32s3",
+  "flash_config": {
+    "size": "16MB",
+    "mode": "dio",
+    "frequency": "80m"
+  },
+  "psram_config": {
+    "mode": "octal",
+    "frequency_mhz": 80,
+    "type": "auto",
+    "actual_capacity": "NOT_RUN"
+  },
+  "device": {
+    "chip_id": "NOT_RUN",
+    "BUILD": "NOT_RUN",
+    "PROTO": "NOT_RUN",
+    "flashed": false
+  },
+  "artifacts": {
+    "build/SensorArray.bin": {
+      "size_bytes": 1526736,
+      "sha256": "e8c9bbdb4c515ce70573581ead256b406ea762fdb1761fea6ca9bab930e991cf"
+    },
+    "build/SensorArray.elf": {
+      "size_bytes": 13927656,
+      "sha256": "db203fb19048f144e430979ca6ba40b91c9bac12cbc26a769716edb67840c437"
+    },
+    "build/bootloader/bootloader.bin": {
+      "size_bytes": 20848,
+      "sha256": "4445c92dad7587d1f8a6c8b558b749889efb4dadf550106e8ac52bb59e5907be"
+    },
+    "build/partition_table/partition-table.bin": {
+      "size_bytes": 3072,
+      "sha256": "e2c31616c5ab1b9a4d69a709a91e067c8d7a9e68a81a8555f8bfa4c0ca8703f3"
+    }
+  },
+  "verification": {
+    "test_entrypoints": 24,
+    "additional_checks": 5,
+    "failures": 0,
+    "test_results": "test-results.json",
+    "tested_source_inputs_sha256": "800e0d44bb56d9fe6d33c1fd4608d3bb647c0ee2c06167280e13148273e0a0d1",
+    "tests_preceded_commit_but_sources_unchanged": true
+  },
+  "memory": {
+    "baseline_diram_static_bytes": 313511,
+    "final_diram_static_bytes": 286791,
+    "total_diram_link_region_bytes": 341760,
+    "final_diram_link_remaining_bytes": 54969,
+    "final_bss_bytes": 120896,
+    "new_cpu_only_psram_preferred_bytes": 53664,
+    "runtime_heap_cpu_stack_fps": "NOT_RUN"
+  },
+  "performance": {
+    "baseline_binary_bytes": 1502336,
+    "final_binary_bytes": 1526736,
+    "hardware_capture_emitted_transport_completion_cpu_heap_stack_recovery": "NOT_RUN"
+  },
+  "disposition": "Local firmware commit plus a subsequent documentation/fixture commit. No push, publish or flash. Build HEAD and dirty state are recorded above; documentation does not alter compiled sources."
+}

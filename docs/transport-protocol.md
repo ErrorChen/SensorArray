@@ -23,11 +23,11 @@
 | BLE | `FF20` | `FF30` | `FF10` Write / Write Without Response | `FF11` Notify/Indicate |
 | Wi-Fi SoftAP | UDP `3333` | UDP `3334` | UDP `3335` | 回复原 UDP peer |
 
-DATA/LOG 最大完整 message 为 1536 bytes，BLE CTRL TX 最大完整 reply 为 512 bytes，BLE CTRL RX command 上限为 128 bytes。Serial 与 Wi-Fi 收到完整文本 message；BLE 根据 ATT payload 决定 raw 或 `G,...` 分片，详见 [BLE 协议](ble-protocol.md)。
+DATA/LOG 最大完整 message 为 2304 bytes，BLE CTRL TX 最大完整 reply 为 512 bytes，BLE CTRL RX command 上限为 128 bytes。Serial 与 Wi-Fi 收到完整文本 message；BLE 根据 ATT payload 决定 raw 或 `G,...` 分片，详见 [BLE 协议](ble-protocol.md)。
 
 ## 非阻塞所有权模型
 
-通用网络 transport 不在 FreeRTOS queue 中复制 1536-byte object，而使用：
+通用网络 transport 不在 FreeRTOS queue 中复制 2304-byte object，而使用：
 
 ```text
 5 个静态 payload slots（4 个普通 slot + 1 个 lifecycle 保留 slot）
@@ -112,8 +112,8 @@ CTRL 不使用 DATA/LOG transport pool：
 
 | 层级 | DATA | LOG | CTRL |
 | --- | --- | --- | --- |
-| Core transport | 5 个共享 1536-byte slot；其中 lifecycle 专用 1 个，LOG 普通 slot 最多同时占 2 个 | 同左 | 独立 source-local 路径 |
-| BLE component | 4 个独立 1536-byte slot | 2 个独立 1536-byte slot | 2 个独立 512-byte slot |
+| Core transport | 5 个共享 2304-byte slot；其中 lifecycle 专用 1 个，LOG 普通 slot 最多同时占 2 个 | 同左 | 独立 source-local 路径 |
+| BLE component | 4 个独立 2304-byte slot | 2 个独立 2304-byte slot | 2 个独立 512-byte slot |
 
 Core transport 的共享 5-slot pool 负责 network sink 排队、DATA reserve 与 lifecycle reserve；BLE 收到 eligible payload 后复制到自己的 `DATA 4 + LOG 2` pool，再把小 descriptor 放入容量 6 的普通 TX FIFO。CTRL 使用另一条优先 queue，所以这里的 BLE `4 + 2` 不能误写成“共享 6 个任意 channel slot”。
 

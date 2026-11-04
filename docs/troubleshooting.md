@@ -100,7 +100,7 @@ Ubuntu/BlueZ 的 Bleak `StartNotify` 无法在同时支持 Notify/Indicate 的 c
 
 ## VOLT 无法进入或 `RAILCFG` 被拒绝
 
-普通 VOLT 会自动进入 `SAFE_RAIL_MONITOR`，通过 ADS126x internal analog supply monitor 获取 rail span；不需要 `RAILCFG`。只有需要外部 DMM debug override 时，才在 CAP/RES 下按正/负 µV 发送成对 `RAILCFG`，并等待匹配的 `RACK`/`RAPP`。
+当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。
 
 在 VOLT 内发送 `RAILCFG` 会按设计返回：
 

@@ -63,7 +63,7 @@ CCCD 小端值：
 ## MTU 与 message 上限
 
 - GATT attribute value 上限：512 bytes；
-- DATA/LOG 完整 message 上限：1536 bytes；
+- DATA/LOG 完整 message 上限：2304 bytes；
 - CTRL TX 完整 message 上限：512 bytes；
 - CTRL RX 命令上限：128 bytes；
 - 实际单次 payload 由 negotiated MTU 的 ATT payload 决定。
@@ -76,8 +76,8 @@ BLE component 在通用 transport pool 之后拥有自己的静态 payload pools
 
 | Channel | Payload slot | 数量 | Queue |
 | --- | ---: | ---: | --- |
-| DATA / `FF20` | 1536 bytes | 4 | DATA/LOG 共用普通 descriptor FIFO，总容量 6 |
-| LOG / `FF30` | 1536 bytes | 2 | 同上 |
+| DATA / `FF20` | 2304 bytes | 4 | DATA/LOG 共用普通 descriptor FIFO，总容量 6 |
+| LOG / `FF30` | 2304 bytes | 2 | 同上 |
 | CTRL TX / `FF11` | 512 bytes | 2 | 独立高优先级 descriptor queue |
 
 DATA 与 LOG 是 `4 + 2` 两个独立 pool，不会因 FF20 流量占用 FF30 的两个 slot，也不会因连续 compact-summary/ADS LOG 占用四个 DATA slot。queue 中只保存不超过 24 bytes 的 descriptor；payload 由 slot 独占，发送结束、drop、stale generation 或断连 drain 后释放。CTRL 不使用 DATA/LOG slot。

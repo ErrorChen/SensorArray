@@ -72,7 +72,7 @@ MODE=VOLT
 MODE=CAP
 ```
 
-普通 `MODE=VOLT` 会先在矩阵隔离的 `SAFE_RAIL_MONITOR` 窗口通过 ADS126x internal analog supply monitor 自动取得 rail span，不需要先发 `RAILCFG`。`RAILCFG` 只用于可选的外部 DMM debug override，且必须在非-VOLT route 下发送。
+当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。
 
 使用外部 DMM override 时顺序为：
 

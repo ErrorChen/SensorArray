@@ -70,7 +70,7 @@ TRANSITION 期间不产生普通数据帧，所以单帧不会混入两个 mode�
 
 ### VOLT 的自动 rail monitor
 
-普通 `MODE=VOLT` 不要求主机预先发送 `RAILCFG`。在完整帧边界，route controller 会先进入矩阵隔离的 `SAFE_RAIL_MONITOR`：SW/SELA/ADS reference 组合被设置为只读 internal analog supply monitor，完成 settle、采样和 readback 后再恢复 VOLT route。monitor 得到的 rail span 会写入当前 frame 的 `avdd/avss/rail/age`。
+当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。
 
 `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>` 仍保留为易失外部 DMM debug override，用于需要绝对校准证据的实验；它不是普通用户前置条件。VOLT 内仍拒绝改变该 override：
 

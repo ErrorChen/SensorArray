@@ -6,7 +6,7 @@
 - 每行以 LF 结束，host 应兼容 CRLF；
 - cell 顺序为 row-major；
 - `rows * 8 == cells == n`；
-- DATA 与 LOG 完整 message 最大 1536 bytes；CTRL reply 最大 512 bytes；BLE CTRL RX command 上限 128 bytes；
+- DATA 与 LOG 完整 message 最大 2304 bytes；CTRL reply 最大 512 bytes；BLE CTRL RX command 上限 128 bytes；
 - 超限不截断：DATA/LOG 超限发布 `TXDROP,...reason=payload_too_large`，CTRL reply 超限发布 `CTRLDROP,...reason=reply_too_large`，builder 直接拒绝而不是截断；
 - transport 轮转使用有界 DATA batch：每轮先发送有限数量的 DATA，再让 LIFECYCLE 与 LOG 通过，且 LIFECYCLE 优先于普通 LOG；不是 DATA-always-first；
 - frame 内部使用 IEEE CRC-32；
@@ -196,7 +196,7 @@ accepted 与 applied 不能合并处理。`RMACK` 是 CTRL reply，不广播；`
 | `bc` / `bf` | BLE slot CRC mismatch / fragment error |
 | `trunc` | compact summary overflow/truncation counter；非零必须调查 |
 
-compact summary 有意拆成两条独立合法 LOG message：第一条承载 `SF50/TR50/OT50/BL50/I2C50/STK50`，第二条承载 `ADS50/ADST50/AB50`。任一 message 都不得超过 1536 bytes；builder 超限时不发布半截 message，而是输出 `LOGTRUNC` 并增加 `trunc`。
+compact summary 有意拆成两条独立合法 LOG message：第一条承载 `SF50/TR50/OT50/BL50/I2C50/STK50`，第二条承载 `ADS50/ADST50/AB50`。任一 message 都不得超过 2304 bytes；builder 超限时不发布半截 message，而是输出 `LOGTRUNC` 并增加 `trunc`。
 
 ## 异常与审计日志
 
@@ -206,7 +206,7 @@ compact summary 有意拆成两条独立合法 LOG message：第一条承载 `SF
 | `CTRLDROP` | CTRL reply 超过 512-byte contract 时拒绝发布，绝不截断 |
 | `BLECORRUPT` | BLE slot enqueue/dequeue length 或 CRC 不一致 |
 | `CMDERR` / `CMDERR_SUM` | malformed/unsupported Serial command 与限流 summary |
-| `LOGTRUNC` | compact summary 超过单条 1536-byte contract；该条不作为有效 LOG 发布 |
+| `LOGTRUNC` | compact summary 超过单条 2304-byte contract；该条不作为有效 LOG 发布 |
 | `RST` | boot/reset breadcrumb；运行测试中出现新的 `RST` 视为 unexpected reboot |
 | `BLERXERR` | BLE CTRL RX 长度或 queue full |
 | `MFAULT` | mode/runtime fault，已进入 SAFE/DEGRADED |

@@ -1,0 +1,8 @@
+# fixture=CACHE_COMPARE; synthetic=1; producer=sensorarrayAdsFaultFormat; not_field_capture=1
+ADSFAULT,stage=CACHE_COMPARE,err=0x108,boot=7,bootId=123456,seq=512,mode=VOLT,modeGen=4,profileGen=3,rowGen=2,rowReq=1,profile=VVVVVVVV,route=VOLT,owner=MATRIX,drdyGen=100,cfgGen=42,attempt=0,outcome=none
+ADSFAULTRAIL,bootId=123456,seq=512,railSpanUv=5200000,avddUv=3400000,avssUv=-1800000,source=external_calibration,valid=1,ref=avdd-avss,restoreExp=0,restoreAct=0
+ADSFAULTCTX,bootId=123456,seq=512,originalError=0x108,cleanupError=0x0,engineFrameCount=128,modeEntryFrameCount=65,healthInterval=64,healthReadbackDue=1,precisionFrame=1,attempted=0,acquired=0
+ADSFAULTREG,bootId=123456,seq=512,reg=5,expected=08,actual=18,mask=FF,cacheGen=14,physicalGen=29,configGen=42
+ADSFAULTTXN,bootId=123456,seq=512,kind=rail,id=4,startUs=1000000,completeUs=1004900,firstValidFrameUs=1018200,originalError=0x0,cleanupError=0x0
+ADSFAULTTXN,bootId=123456,seq=512,kind=battery,id=19,startUs=2000000,completeUs=2005600,firstValidFrameUs=0,originalError=0x108,cleanupError=0x0
+ADSFAULTTXN,bootId=123456,seq=512,kind=ADSCHK,id=2,startUs=3000000,completeUs=3001000,firstValidFrameUs=0,originalError=0x0,cleanupError=0x0

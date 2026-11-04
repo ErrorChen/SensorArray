@@ -1,0 +1,147 @@
+[
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_ads_driver_reliability.py",
+    "exit_code": 0,
+    "log": "test_ads_driver_reliability.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_ads_fault_fixtures.py",
+    "exit_code": 0,
+    "log": "test_ads_fault_fixtures.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_async_log_storage.py",
+    "exit_code": 0,
+    "log": "test_async_log_storage.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_audit_config_surface.py",
+    "exit_code": 0,
+    "log": "test_audit_config_surface.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_calibration_persistence.py",
+    "exit_code": 0,
+    "log": "test_calibration_persistence.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_config_identity.py",
+    "exit_code": 0,
+    "log": "test_config_identity.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_ctrl_reply_guard.py",
+    "exit_code": 0,
+    "log": "test_ctrl_reply_guard.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_fdc_iso_mailbox.py",
+    "exit_code": 0,
+    "log": "test_fdc_iso_mailbox.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_fdc_worker_lifecycle.py",
+    "exit_code": 0,
+    "log": "test_fdc_worker_lifecycle.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_fdc_worker_runtime.py",
+    "exit_code": 0,
+    "log": "test_fdc_worker_runtime.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_frame_semantics.py",
+    "exit_code": 0,
+    "log": "test_frame_semantics.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_main_config_commit.py",
+    "exit_code": 0,
+    "log": "test_main_config_commit.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_measurement_logic.py",
+    "exit_code": 0,
+    "log": "test_measurement_logic.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_receive_ble_text.py",
+    "exit_code": 0,
+    "log": "test_receive_ble_text.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_restart_budget.py",
+    "exit_code": 0,
+    "log": "test_restart_budget.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_route_safety.py",
+    "exit_code": 0,
+    "log": "test_route_safety.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_rowmodes_ack_guard.py",
+    "exit_code": 0,
+    "log": "test_rowmodes_ack_guard.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_rowmodes_frame_metadata.py",
+    "exit_code": 0,
+    "log": "test_rowmodes_frame_metadata.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_sensorarray_hil.py",
+    "exit_code": 0,
+    "log": "test_sensorarray_hil.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_serial_io.py",
+    "exit_code": 0,
+    "log": "test_serial_io.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_text_protocol.py",
+    "exit_code": 0,
+    "log": "test_text_protocol.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_transport_frame_metadata.py",
+    "exit_code": 0,
+    "log": "test_transport_frame_metadata.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_transport_pool.py",
+    "exit_code": 0,
+    "log": "test_transport_pool.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/test_validate_transports.py",
+    "exit_code": 0,
+    "log": "test_validate_transports.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/check_command_docs.py",
+    "exit_code": 0,
+    "log": "check_command_docs.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/check_no_legacy_config_usage.py",
+    "exit_code": 0,
+    "log": "check_no_legacy_config_usage.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/audit_config_surface.py",
+    "exit_code": 0,
+    "log": "audit_config_surface.txt"
+  },
+  {
+    "command": "CC=/usr/bin/cc python3 tools/validate_battery_formula.py",
+    "exit_code": 0,
+    "log": "validate_battery_formula.txt"
+  },
+  {
+    "command": "git diff --check",
+    "exit_code": 0,
+    "log": "git-diff-check.txt"
+  }
+]

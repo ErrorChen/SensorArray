@@ -75,13 +75,13 @@ Serial / BLE FF10 / Wi-Fi CTRL
 - LOG 同时占用的普通 payload slot 硬上限为 2，lifecycle 使用独立保留 slot；
 - enqueue 为 `xQueueSend(..., 0)`，pool/queue 满时按 channel 统计并丢弃，不等待网络。
 
-producer 在短临界区内只分配 `inUse/generation`，1536-byte copy 和 metadata 解析在临界区外完成。consumer 校验 slot index、generation、length 与 ownership，发送完毕后释放。禁止在 hot path 使用 `malloc(1536)`。
+producer 在短临界区内只分配 `inUse/generation`，2304-byte copy 和 metadata 解析在临界区外完成。consumer 校验 slot index、generation、length 与 ownership，发送完毕后释放。禁止在 hot path 使用 `malloc(2304)`。
 
 BLE 组件内部继续使用自己的 fixed slot + descriptor queue；通用 transport 不复制或破坏 BLE 的连接 generation 所有权模型。
 
 ## Async logger workspace
 
-`sensorarrayLogTask` 使用一个 task-owned 静态 workspace 保存 summary、frame 与 text packet scratch。只有该 task 可以直接访问 workspace；按对象生命周期 reset，不能每帧 `memset` 整个 workspace。这样可以避免多个 1536-byte packet 和 frame 同时常驻 task stack。
+`sensorarrayLogTask` 使用一个 task-owned 静态 workspace 保存 summary、frame 与 text packet scratch。只有该 task 可以直接访问 workspace；按对象生命周期 reset，不能每帧 `memset` 整个 workspace。这样可以避免多个 2304-byte packet 和 frame 同时常驻 task stack。
 
 ## Backpressure 与优先级
 
