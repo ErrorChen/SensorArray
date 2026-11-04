@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -10,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_RE = re.compile(r"\bCONFIG_([A-Z0-9_]+)\b")
-KCONFIG_DEF_RE = re.compile(r"^\s*config\s+([A-Z0-9_]+)\b")
+KCONFIG_DEF_RE = re.compile(r"^\s*(?:menuconfig|config)\s+([A-Z0-9_]+)\b")
 FALLBACK_RE = re.compile(r"^\s*#\s*ifndef\s+CONFIG_([A-Z0-9_]+)")
 
 LEGACY = {
@@ -41,7 +43,24 @@ GROUPS = {
     "Wi-Fi enable/mode": ("WIFI", "WI_FI"),
 }
 
-SOURCE_EXTS = {".c", ".h", ".inc", ".cmake", ".txt"}
+SOURCE_EXTS = {".c", ".h", ".inc", ".cmake"}
+C_SOURCE_EXTS = {".c", ".h", ".inc"}
+# Match whole C literals/comments before looking for identifiers. Replacing
+# with spaces preserves diagnostic line numbers; continued // comments remain
+# comments after the C translation phase that splices backslash-newline.
+C_NON_CODE_RE = re.compile(
+    r'//(?:\\\r?\n|[^\n])*|/\*[\s\S]*?\*/'
+    r'|"(?:\\[\s\S]|[^"\\])*"'
+    r"|'(?:\\[\s\S]|[^'\\])*'"
+)
+SDK_COMPAT_PREFIXES = (
+    "IDF_", "ESP_", "FREERTOS_", "SOC_", "LWIP_", "BT_", "NVS_",
+    "PARTITION_", "LOG_", "COMPILER_",
+)
+# Exact SDK symbol, not a SPIRAM_* or project-prefix exemption. Used only
+# without an installed SDK. Verified against ESP-IDF v5.5.5:
+# components/esp_psram/esp32s3/Kconfig.spiram:1 (config SPIRAM).
+SDK_COMPAT_NAMES = {"SPIRAM"}
 
 
 def is_generated_build_path(path: Path) -> bool:
@@ -73,7 +92,7 @@ def rel(path: Path) -> str:
 def iter_source_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
-        if not path.is_file() or path.suffix not in SOURCE_EXTS:
+        if not path.is_file() or (path.suffix not in SOURCE_EXTS and path.name != "CMakeLists.txt"):
             continue
         if is_generated_build_path(path):
             continue
@@ -86,6 +105,48 @@ def iter_source_files() -> list[Path]:
 
 def load_text(path: Path) -> str:
     return path.read_text(errors="ignore") if path.exists() else ""
+
+
+def source_code(path: Path) -> str:
+    text = load_text(path)
+    if path.suffix in C_SOURCE_EXTS:
+        return C_NON_CODE_RE.sub(
+            lambda match: "".join("\n" if char == "\n" else " " for char in match.group()),
+            text,
+        )
+    return text
+
+
+def find_sdk_root() -> Path | None:
+    candidates: list[Path] = []
+    if os.environ.get("IDF_PATH"):
+        candidates.append(Path(os.environ["IDF_PATH"]))
+    try:
+        description = json.loads(load_text(ROOT / "build" / "project_description.json"))
+        if isinstance(description, dict) and description.get("idf_path"):
+            candidates.append(Path(description["idf_path"]))
+    except (ValueError, TypeError):
+        pass
+    for candidate in candidates:
+        if (candidate / "components").is_dir() and (candidate / "Kconfig").is_file():
+            return candidate
+    return None
+
+
+def collect_sdk_defined(sdk_root: Path | None) -> set[str]:
+    """Recognise declared SDK symbols; enabled values are not declarations."""
+    defined: set[str] = set()
+    if sdk_root is not None:
+        paths = [sdk_root / "Kconfig"]
+        paths.extend((sdk_root / "components").rglob("Kconfig*"))
+        for path in paths:
+            if not path.is_file():
+                continue
+            for line in load_text(path).splitlines():
+                match = KCONFIG_DEF_RE.match(line)
+                if match:
+                    defined.add(match.group(1))
+    return defined
 
 
 def collect_defined() -> dict[str, list[str]]:
@@ -119,7 +180,7 @@ def collect_used() -> dict[str, list[str]]:
         rp = rel(path)
         if rp.startswith("main/kconfig") or rp.startswith("main/kconfigs"):
             continue
-        for lineno, line in enumerate(load_text(path).splitlines(), 1):
+        for lineno, line in enumerate(source_code(path).splitlines(), 1):
             for name in CONFIG_RE.findall(line):
                 used[name].append(f"{rp}:{lineno}")
     return used
@@ -128,7 +189,7 @@ def collect_used() -> dict[str, list[str]]:
 def collect_fallbacks() -> dict[str, list[str]]:
     fallbacks: dict[str, list[str]] = defaultdict(list)
     for path in iter_source_files():
-        for lineno, line in enumerate(load_text(path).splitlines(), 1):
+        for lineno, line in enumerate(source_code(path).splitlines(), 1):
             match = FALLBACK_RE.match(line)
             if match:
                 fallbacks[match.group(1)].append(f"{rel(path)}:{lineno}")
@@ -149,16 +210,19 @@ def main() -> int:
     used = collect_used()
     fallbacks = collect_fallbacks()
 
+    sdk_root = find_sdk_root()
+    sdk_defined = collect_sdk_defined(sdk_root)
     defined_names = set(defined)
     used_names = set(used)
     fallback_names = set(fallbacks)
 
     defined_but_not_used = sorted(defined_names - used_names - defaults)
     used_but_not_defined = sorted(
-        name for name in used_names - defined_names
-        if not name.startswith(("IDF_", "ESP_", "FREERTOS_", "SOC_", "LWIP_", "BT_", "NVS_", "PARTITION_", "LOG_", "COMPILER_"))
+        name for name in used_names - defined_names - sdk_defined
+        if sdk_root is not None or
+        (name not in SDK_COMPAT_NAMES and not name.startswith(SDK_COMPAT_PREFIXES))
     )
-    fallback_but_not_defined = sorted(fallback_names - defined_names)
+    fallback_but_not_defined = sorted(fallback_names - defined_names - sdk_defined)
     defaults_only = sorted(defaults - defined_names)
 
     legacy_hits = []
@@ -169,6 +233,7 @@ def main() -> int:
                     continue
                 legacy_hits.append(f"CONFIG_{name} {where}")
 
+    print(f"sdkConfigSource: {sdk_root if sdk_root else 'unavailable (SDK compatibility exceptions)'}")
     print("configFilesSummary:")
     for path in SCAN_FILES:
         if path.exists():

@@ -1,6 +1,7 @@
 #include "sensorarrayRouteController.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
@@ -9,7 +10,10 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayMeasure.h"
 #include "sensorarrayRoutePolicy.h"
+#include "sensorarrayAcqEvent.h"
 #include "tmuxSwitch.h"
+
+#define printf sensorarrayAcqEventPrintf
 
 static bool s_fdcSdGpioReady;
 
@@ -103,6 +107,12 @@ static esp_err_t sensorarrayRouteSleepFdcFrontends(
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayState_t *state = controller->state;
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        if (outStage) {
+            *outStage = "fdc_worker_ownership";
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
     esp_err_t firstErr = ESP_OK;
     bool primaryVerified = false;
     bool secondaryVerified = false;
@@ -164,6 +174,12 @@ static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *con
     if (!controller || !controller->state) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        if (outStage) {
+            *outStage = "fdc_worker_ownership";
+        }
+        return ESP_ERR_INVALID_STATE;
+    }
     sensorarrayState_t *state = controller->state;
     esp_err_t firstErr = ESP_OK;
     if (outStage) {
@@ -177,7 +193,9 @@ static esp_err_t sensorarrayRouteStopFrontends(sensorarrayRouteController_t *con
                 *outStage = "ads_stop";
             }
         }
-        state->adsAdc1Running = false;
+        if (err == ESP_OK) {
+            state->adsAdc1Running = false;
+        }
         if (ads126xAdcHasAdc2(&state->ads)) {
             err = ads126xAdcStopAdc2(&state->ads);
             if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED && firstErr == ESP_OK) {
@@ -234,12 +252,21 @@ static esp_err_t sensorarrayRouteDisableMatrixReference(
     }
     sensorarrayState_t *state = controller->state;
     if (!state->adsReady) {
-        return ESP_OK;
+        /* No SPI evidence of INTREF=0: asserting Q1 could short REFOUT. */
+        return ESP_ERR_INVALID_STATE;
     }
     /* On this board ADS REFOUT and the matrix REF net are the same node. SW
      * high turns Q1 on and clamps that node to GND, so INTREF must be disabled
      * before asserting the clamp. */
     esp_err_t err = ads126xAdcSetInternalReference(&state->ads, false);
+    uint8_t power = 0u;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadCoreRegisters(&state->ads, &power,
+                                         NULL, NULL, NULL, NULL);
+    }
+    if (err == ESP_OK && (power & ADS126X_POWER_INTREF) != 0u) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
     if (err == ESP_OK) {
         state->adsRefReady = false;
         esp_rom_delay_us(CONFIG_SENSORARRAY_ADS_MATRIX_MODE_SETTLE_US);
@@ -291,7 +318,7 @@ static bool sensorarrayRouteAdsMatches(const sensorarrayBoardRouteProfile_t *pro
     uint8_t gain = 0u;
     return ((power & ADS126X_POWER_INTREF) != 0u) == expectedIntRef &&
            ((power & ADS126X_POWER_VBIAS) != 0u) == expectedVbias &&
-           refmux == profile->adsRefMux &&
+           (refmux & 0x3Fu) == (profile->adsRefMux & 0x3Fu) &&
            ads126xAdcMode2DecodePgaGain(mode2, &gain) && gain == expectedGain;
 }
 
@@ -339,7 +366,7 @@ static esp_err_t sensorarrayRouteConfigureAds(sensorarrayRouteController_t *cont
     esp_err_t err = ads126xAdcConfigure(&state->ads,
                                         intRefEnabled,
                                         true,
-                                        ADS126X_CRC_OFF,
+                                        ADS126X_CRC_CRC8,
                                         1u,
                                         (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE);
     if (err == ESP_OK) {
@@ -391,7 +418,7 @@ static esp_err_t sensorarrayRouteCaptureAndVerify(sensorarrayRouteController_t *
     uint8_t mode2 = 0u;
     uint8_t inpmux = 0u;
     uint8_t refmux = 0u;
-    bool adsValid = !verifyAds;
+    bool adsValid = false;
     /* Always capture the registers when ADS is present so MODE?/STATE? is an
      * accurate snapshot even in SAFE/CAP. Verification is mode-dependent:
      * CAP does not consume ADS conversions and may survive a stale rail
@@ -406,6 +433,9 @@ static esp_err_t sensorarrayRouteCaptureAndVerify(sensorarrayRouteController_t *
         if (verifyAds) {
             adsValid = err == ESP_OK &&
                        sensorarrayRouteAdsMatches(profile, power, mode2, refmux, 1u);
+        } else {
+            /* SAFE still requires proof that Q1 is not clamping INTREF. */
+            adsValid = err == ESP_OK && (power & ADS126X_POWER_INTREF) == 0u;
         }
     }
 
@@ -420,7 +450,9 @@ static esp_err_t sensorarrayRouteCaptureAndVerify(sensorarrayRouteController_t *
     controller->snapshot.pgaGain = verifyAds ? controller->state->ads.pgaGain : 0u;
     controller->snapshot.gpioReadbackValid = gpioValid;
     controller->snapshot.adsReadbackValid = adsValid;
-    controller->snapshot.safe = profile->mode == SENSORARRAY_MEASUREMENT_MODE_NONE;
+    controller->snapshot.known = err == ESP_OK && gpioValid && adsValid;
+    controller->snapshot.verified = controller->snapshot.known;
+    controller->snapshot.analogIsolationVerified = false;
     if (rail) {
         controller->snapshot.avddUv = rail->avddUv;
         controller->snapshot.avssUv = rail->avssUv;
@@ -446,7 +478,7 @@ esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controlle
     controller->rowSettleUs =
         (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_ROW_SETTLE_US;
     controller->snapshot.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;
-    controller->snapshot.safe = true;
+    controller->snapshot.safe = false;
     (void)sensorarrayRouteControllerPrepareFdcSdGpio();
     controller->snapshot.fdcSdVerified =
         sensorarrayRouteFdcSdGpioValid() && s_fdcSdGpioReady &&
@@ -464,6 +496,21 @@ esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *cont
     sensorarrayBoardRouteProfile_t safeProfile;
     (void)sensorarrayBoardMapGetRouteProfile(SENSORARRAY_MEASUREMENT_MODE_NONE,
                                              &safeProfile);
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.requestedMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
+    controller->snapshot.safe = false;
+    controller->snapshot.applied = false;
+    controller->snapshot.known = false;
+    controller->snapshot.verified = false;
+    sensorarrayRouteWriteEnd(controller);
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        sensorarrayRouteRecordError(controller, ESP_ERR_INVALID_STATE);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (ads126xAdcIsQuarantined(&controller->state->ads)) {
+        sensorarrayRouteRecordError(controller, ESP_ERR_INVALID_STATE);
+        return ESP_ERR_INVALID_STATE;
+    }
     esp_err_t firstErr = sensorarrayRouteStopFrontends(controller, NULL);
     esp_err_t err = sensorarrayRouteDisableMatrixReference(controller);
     if (firstErr == ESP_OK && err != ESP_OK) {
@@ -496,7 +543,10 @@ esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *cont
         firstErr = err;
     }
     sensorarrayRouteWriteBegin(controller);
-    controller->snapshot.safe = true;
+    controller->snapshot.safe = firstErr == ESP_OK && controller->snapshot.verified;
+    controller->snapshot.applied = controller->snapshot.safe;
+    controller->snapshot.known = controller->snapshot.safe;
+    controller->snapshot.verified = controller->snapshot.safe;
     controller->snapshot.lastError = (uint32_t)firstErr;
     sensorarrayRouteWriteEnd(controller);
     return firstErr;
@@ -512,6 +562,27 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
         return ESP_ERR_INVALID_ARG;
     }
     int64_t startUs = esp_timer_get_time();
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.requestedMode = mode;
+    controller->snapshot.applied = false;
+    controller->snapshot.safe = false;
+    controller->snapshot.cleanupError = 0u;
+    controller->snapshot.failureStage = "none";
+    sensorarrayRouteWriteEnd(controller);
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.failureStage = "owner_acquire";
+        sensorarrayRouteWriteEnd(controller);
+        sensorarrayRouteRecordError(controller, ESP_ERR_INVALID_STATE);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (ads126xAdcIsQuarantined(&controller->state->ads)) {
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.failureStage = "owner_acquire";
+        sensorarrayRouteWriteEnd(controller);
+        sensorarrayRouteRecordError(controller, ESP_ERR_INVALID_STATE);
+        return ESP_ERR_INVALID_STATE;
+    }
     sensorarrayBoardRouteProfile_t profile;
     if (!sensorarrayBoardMapGetRouteProfile(mode, &profile)) {
         return ESP_ERR_NOT_SUPPORTED;
@@ -562,7 +633,11 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
         *outTransitionDurationUs = durationUs;
     }
     if (err != ESP_OK) {
-        (void)sensorarrayRouteControllerEnterSafe(controller, "transition_failed");
+        esp_err_t cleanupErr = sensorarrayRouteControllerEnterSafe(controller, "transition_failed");
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.cleanupError = (uint32_t)cleanupErr;
+        controller->snapshot.requestedMode = mode;
+        sensorarrayRouteWriteEnd(controller);
         sensorarrayRouteRecordError(controller, err);
         return err;
     }
@@ -571,6 +646,7 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *cont
     controller->snapshot.transitionDurationUs = durationUs;
     controller->snapshot.lastError = 0u;
     controller->snapshot.safe = false;
+    controller->snapshot.applied = true;
     sensorarrayRouteWriteEnd(controller);
     return ESP_OK;
 }
@@ -581,6 +657,12 @@ esp_err_t sensorarrayRouteControllerEnterSafeRailMonitor(
 {
     if (!controller || !controller->state) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (outTransitionDurationUs) {
+        *outTransitionDurationUs = 0u;
+    }
+    if (!sensorarrayBoardMapHasIsolatedRailMonitor()) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
     sensorarrayBoardRouteProfile_t profile;
     if (!sensorarrayBoardMapGetSafeRailMonitorProfile(&profile)) {
@@ -619,7 +701,9 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayRouteSnapshot_t snapshot;
-    if (!sensorarrayRouteControllerCopySnapshot(controller, &snapshot) || snapshot.safe) {
+    if (!sensorarrayRouteControllerCopySnapshot(controller, &snapshot) ||
+        snapshot.safe || !snapshot.applied || !snapshot.known || !snapshot.verified ||
+        !sensorarrayMeasureFdcWorkersQuiescent()) {
         return ESP_ERR_INVALID_STATE;
     }
     bool restoreExcitation = snapshot.profile.matrixExcitationEnabled;
@@ -637,7 +721,9 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
          * only re-enable INTREF after the new row is connected. */
         failureStage = "stop_adc1";
         err = ads126xAdcStopAdc1(&controller->state->ads);
-        controller->state->adsAdc1Running = false;
+        if (err == ESP_OK) {
+            controller->state->adsAdc1Running = false;
+        }
         if (err == ESP_OK) {
             failureStage = "disable_intref";
             err = sensorarrayRouteDisableMatrixReference(controller);
@@ -701,7 +787,7 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
                                           &observedRefmux);
         if (err == ESP_OK &&
             (((observedPower & ADS126X_POWER_INTREF) == 0u) ||
-             observedRefmux != snapshot.profile.adsRefMux)) {
+             (observedRefmux & 0x3Fu) != (snapshot.profile.adsRefMux & 0x3Fu))) {
             uint8_t retryPower = 0u;
             uint8_t retryRefmux = 0u;
             esp_err_t retryErr = ads126xAdcReadCoreRegisters(
@@ -713,7 +799,7 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
                 &retryRefmux);
             if (retryErr == ESP_OK &&
                 (retryPower & ADS126X_POWER_INTREF) != 0u &&
-                retryRefmux == snapshot.profile.adsRefMux) {
+                (retryRefmux & 0x3Fu) == (snapshot.profile.adsRefMux & 0x3Fu)) {
                 printf("ROUTE_ROW_READBACK_RETRY,row=%u,firstPower=0x%02X,firstRefmux=0x%02X,retryPower=0x%02X,retryRefmux=0x%02X,result=recovered\n",
                        (unsigned)row,
                        observedPower,
@@ -726,7 +812,8 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
                 observedPower = retryPower;
                 observedRefmux = retryRefmux;
                 failureStage = retryErr == ESP_OK ?
-                    "ads_mismatch" : "ads_retry_read";
+                    ((retryPower & ADS126X_POWER_INTREF) == 0u ?
+                        "power_mismatch" : "refmux_mismatch") : "ads_retry_read";
                 err = retryErr == ESP_OK ? ESP_ERR_INVALID_RESPONSE : retryErr;
             }
         }
@@ -739,6 +826,22 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
         }
     }
     if (err != ESP_OK) {
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.failureStage = failureStage;
+        controller->snapshot.failureExpected =
+            strcmp(failureStage, "gpio_mismatch") == 0 ? (uint8_t)(row - 1u) :
+            strcmp(failureStage, "power_mismatch") == 0 ? ADS126X_POWER_INTREF :
+            snapshot.profile.adsRefMux;
+        controller->snapshot.failureActual =
+            strcmp(failureStage, "gpio_mismatch") == 0 ?
+                (uint8_t)((control.obsA0Level & 1) |
+                          ((control.obsA1Level & 1) << 1) |
+                          ((control.obsA2Level & 1) << 2)) :
+            strcmp(failureStage, "power_mismatch") == 0 ? observedPower : observedRefmux;
+        controller->snapshot.failureMask =
+            strcmp(failureStage, "gpio_mismatch") == 0 ? 0x07u :
+            strcmp(failureStage, "power_mismatch") == 0 ? ADS126X_POWER_INTREF : 0x3Fu;
+        sensorarrayRouteWriteEnd(controller);
         tmux1108Source_t commandedSource = TMUX1108_SOURCE_GND;
         (void)tmux1108GetSource(&commandedSource);
         printf("ROUTE_ROW_FAIL,row=%u,stage=%s,err=0x%lx,bbm=%u,excitation=%u,cmdSource=%s,cmdRow=%u,obsSw=%d,power=0x%02X,intref=%u,refmux=0x%02X,expectedRefmux=0x%02X\n",
@@ -754,7 +857,10 @@ esp_err_t sensorarrayRouteControllerSelectRow(sensorarrayRouteController_t *cont
                (observedPower & ADS126X_POWER_INTREF) != 0u ? 1u : 0u,
                observedRefmux,
                snapshot.profile.adsRefMux);
-        (void)sensorarrayRouteControllerEnterSafe(controller, "row_readback");
+        esp_err_t cleanupErr = sensorarrayRouteControllerEnterSafe(controller, "row_readback");
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.cleanupError = (uint32_t)cleanupErr;
+        sensorarrayRouteWriteEnd(controller);
         sensorarrayRouteRecordError(controller, err);
         return err;
     }
@@ -875,6 +981,14 @@ esp_err_t sensorarrayRouteControllerForceFdcShutdown(
     controller->snapshot.fdcSdHigh = sdHigh;
     controller->snapshot.fdcSdVerified = sdHigh;
     sensorarrayRouteWriteEnd(controller);
+    if (sdHigh) {
+        /* SD destroys register configuration; GPIO evidence is not proof
+         * that the analogue pins are isolated. Never reuse old shadows. */
+        controller->state->fdcPrimary.ready = false;
+        controller->state->fdcSecondary.ready = false;
+        controller->state->fdcAppliedRow[SENSORARRAY_FDC_DEV_PRIMARY].valid = false;
+        controller->state->fdcAppliedRow[SENSORARRAY_FDC_DEV_SECONDARY].valid = false;
+    }
     if (outVerified) {
         *outVerified = sdHigh;
     }

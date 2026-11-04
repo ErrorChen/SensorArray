@@ -12,6 +12,7 @@
 #include "fdc2214Cap.h"
 #include "tmuxSwitch.h"
 #include "sensorarrayMeasurementMode.h"
+#include "sensorarrayConfigIdentity.h"
 
 typedef enum {
     SENSORARRAY_FDC_DEV_PRIMARY = 0,
@@ -290,6 +291,7 @@ typedef struct {
     uint64_t rowStepUsAvg;
     uint64_t rowStepUsMax;
     sensorarrayFrameConfigSnapshot_t configSnapshot;
+    sensorarrayConfigIdentity_t identity; /* 本轮新增: captured before acquisition. */
     uint8_t activeRows;
 
     uint8_t rowFreshMask;

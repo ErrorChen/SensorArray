@@ -15,6 +15,10 @@ typedef struct {
     uint8_t rowMask;
     uint32_t generation;
     uint32_t requestId;
+    uint32_t lastRequestId;
+    uint32_t lastError;
+    bool lastTerminal;
+    bool lastApplied;
 } sensorarrayFrameConfigSnapshot_t;
 
 typedef struct {
@@ -43,3 +47,17 @@ esp_err_t sensorarrayScanConfigHandleCommand(const char *command,
                                              size_t length,
                                              char *response,
                                              size_t responseSize);
+
+/* 本轮新增: one arbiter/ID namespace for MODE, ROWS, ROWMODES across sources.
+ * A busy configuration request is rejected before ACK, never superseded. */
+uint32_t sensorarrayScanConfigAllocateRequestId(void);
+esp_err_t sensorarrayScanConfigBeginConfigurationRequest(uint32_t *outRequestId);
+void sensorarrayScanConfigEndConfigurationRequest(uint32_t requestId);
+
+/* 本轮新增: transport writes stage through the Core 1 command mailbox. */
+typedef esp_err_t (*sensorarrayScanConfigRequestCallback_t)(uint8_t rows,
+    sensorarrayScanConfigRequestResult_t *outResult);
+void sensorarrayScanConfigSetRequestCallback(sensorarrayScanConfigRequestCallback_t callback);
+esp_err_t sensorarrayScanConfigStageAcceptedRows(uint8_t rows, uint32_t requestId);
+
+void sensorarrayScanConfigRecordRejected(uint32_t requestId, uint32_t errorCode);

@@ -124,6 +124,9 @@ bool sensorarrayRowModeProfileCompleteTransition(sensorarrayRowModeProfile_t *pr
     sensorarrayRowModeProfileWriteBegin(profile);
     memcpy(profile->modes, profile->pendingModes, sizeof(profile->modes));
     profile->appliedRequestId = profile->pendingRequestId;
+    profile->lastRequestId = profile->pendingRequestId;
+    profile->lastOutcome = SENSORARRAY_CONFIG_OUTCOME_APPLIED;
+    profile->lastRequestError = 0u;
     profile->appliedFrameSequence = appliedFrameSequence;
     profile->transitionDurationUs = transitionDurationUs;
     profile->generation++;
@@ -137,6 +140,17 @@ bool sensorarrayRowModeProfileCompleteTransition(sensorarrayRowModeProfile_t *pr
     return true;
 }
 
+void sensorarrayRowModeProfileRejectRequest(sensorarrayRowModeProfile_t *profile,
+                                            uint32_t requestId, uint32_t errorCode)
+{
+    if (!profile) { return; }
+    sensorarrayRowModeProfileWriteBegin(profile);
+    profile->lastRequestId = requestId;
+    profile->lastRequestError = errorCode;
+    profile->lastOutcome = SENSORARRAY_CONFIG_OUTCOME_REJECTED;
+    sensorarrayRowModeProfileWriteEnd(profile);
+}
+
 void sensorarrayRowModeProfileFailTransition(sensorarrayRowModeProfile_t *profile,
                                              uint32_t errorCode,
                                              uint64_t transitionDurationUs)
@@ -147,7 +161,9 @@ void sensorarrayRowModeProfileFailTransition(sensorarrayRowModeProfile_t *profil
     sensorarrayRowModeProfileWriteBegin(profile);
     profile->lastError = errorCode;
     profile->transitionDurationUs = transitionDurationUs;
-    profile->appliedRequestId = profile->pendingRequestId;
+    profile->lastRequestId = profile->pendingRequestId;
+    profile->lastOutcome = SENSORARRAY_CONFIG_OUTCOME_REJECTED;
+    profile->lastRequestError = errorCode;
     profile->pending = false;
     profile->pendingRequestId = 0u;
     profile->state = SENSORARRAY_ROW_PROFILE_STATE_DEGRADED;

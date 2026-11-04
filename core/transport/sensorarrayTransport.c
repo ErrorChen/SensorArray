@@ -1,3 +1,5 @@
+#include "sensorarraySerialIo.h"
+#include "sensorarrayTransportFrameMeta.h"
 #include "sensorarrayTransportInternal.h"
 
 #include <stdbool.h>
@@ -219,6 +221,9 @@ static bool sensorarrayTransportFindFieldU32(const char *line,
         return false;
     }
     const char *match = strstr(line, key);
+    while (match && match != line && match[-1] != ',') {
+        match = strstr(match + 1, key);
+    }
     if (!match) {
         return false;
     }
@@ -230,114 +235,6 @@ static bool sensorarrayTransportFindFieldU32(const char *line,
     }
     *outValue = (uint32_t)parsed;
     return true;
-}
-
-static bool sensorarrayTransportFindFieldHex8(const char *line,
-                                              const char *key,
-                                              uint32_t *outValue)
-{
-    if (!line || !key || !outValue) {
-        return false;
-    }
-    const char *match = strstr(line, key);
-    if (!match) {
-        return false;
-    }
-    match += strlen(key);
-    char *end = NULL;
-    unsigned long parsed = strtoul(match, &end, 16);
-    if (end == match) {
-        return false;
-    }
-    *outValue = (uint32_t)parsed;
-    return true;
-}
-
-static bool sensorarrayTransportBuildShortData(const char *data,
-                                               size_t length,
-                                               char *out,
-                                               size_t outSize)
-{
-    if (!data || length == 0u || !out || outSize == 0u) {
-        return false;
-    }
-    const char *firstLineEnd = memchr(data, '\n', length);
-    if (!firstLineEnd || data[0] != 'C' || data[1] != ',') {
-        return false;
-    }
-    char cLine[192];
-    size_t cLineLength = (size_t)(firstLineEnd - data);
-    if (cLineLength >= sizeof(cLine)) {
-        cLineLength = sizeof(cLine) - 1u;
-    }
-    memcpy(cLine, data, cLineLength);
-    cLine[cLineLength] = '\0';
-
-    uint32_t seq = 0u;
-    uint32_t rows = 0u;
-    uint32_t rf = 0u;
-    uint32_t pf = 0u;
-    uint32_t sf = 0u;
-    (void)sensorarrayTransportFindFieldU32(cLine, "seq=", &seq);
-    (void)sensorarrayTransportFindFieldU32(cLine, "rows=", &rows);
-    (void)sensorarrayTransportFindFieldHex8(cLine, "rf=", &rf);
-    (void)sensorarrayTransportFindFieldHex8(cLine, "pf=", &pf);
-    (void)sensorarrayTransportFindFieldHex8(cLine, "sf=", &sf);
-
-    const char *bad = strstr(cLine, "bad=");
-    char badText[24] = "na";
-    if (bad) {
-        bad += 4u;
-        size_t index = 0u;
-        while (bad[index] != '\0' && bad[index] != ',' && index + 1u < sizeof(badText)) {
-            badText[index] = bad[index];
-            index++;
-        }
-        badText[index] = '\0';
-    }
-
-    int32_t first = 0;
-    int32_t last = 0;
-    bool firstSet = false;
-    const char *cursor = firstLineEnd + 1;
-    const char *end = data + length;
-    while (cursor < end) {
-        const char *lineEnd = memchr(cursor, '\n', (size_t)(end - cursor));
-        if (!lineEnd) {
-            break;
-        }
-        if (cursor[0] == 'D') {
-            const char *value = strchr(cursor, ',');
-            while (value && value < lineEnd) {
-                value++;
-                char *valueEnd = NULL;
-                long parsed = strtol(value, &valueEnd, 10);
-                if (valueEnd == value || valueEnd > lineEnd) {
-                    break;
-                }
-                if (!firstSet) {
-                    first = (int32_t)parsed;
-                    firstSet = true;
-                }
-                last = (int32_t)parsed;
-                value = valueEnd < lineEnd ? strchr(valueEnd, ',') : NULL;
-            }
-        }
-        cursor = lineEnd + 1;
-    }
-
-    int written = snprintf(out,
-                           outSize,
-                           "B20,seq=%lu,rows=%lu,cfps=na,efps=na,rf=%02lX,pf=%02lX,sf=%02lX,bad=%s,d0=%ld,dl=%ld\n",
-                           (unsigned long)seq,
-                           (unsigned long)rows,
-                           (unsigned long)rf,
-                           (unsigned long)pf,
-                           (unsigned long)sf,
-                           badText,
-                           (long)first,
-                           (long)last);
-    return written > 0 && (size_t)written < outSize;
 }
 
 static void sensorarrayTransportSyncPoolStatsLocked(void)
@@ -394,40 +291,7 @@ static bool sensorarrayTransportReleaseDescriptor(
 
 static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t *item)
 {
-    bool frameTag = item && item->length >= 2u && item->data[1] == ',' &&
-                    (item->data[0] == 'C' || item->data[0] == 'V' ||
-                     item->data[0] == 'R' || item->data[0] == 'M');
-    if (!frameTag) {
-        return;
-    }
-
-    uint32_t rows = 0u;
-    uint32_t cells = 0u;
-    uint32_t sequence = 0u;
-    uint32_t generation = 0u;
-    uint32_t requestId = 0u;
-    if (!sensorarrayTransportFindFieldU32(item->data, "seq=", &sequence) ||
-        !sensorarrayTransportFindFieldU32(item->data, "rows=", &rows) ||
-        !sensorarrayTransportFindFieldU32(item->data, "cells=", &cells)) {
-        return;
-    }
-    if (item->data[0] == 'M') {
-        (void)sensorarrayTransportFindFieldU32(item->data, "rgen=", &generation);
-        (void)sensorarrayTransportFindFieldU32(item->data, "rrid=", &requestId);
-    } else {
-        (void)sensorarrayTransportFindFieldU32(item->data, "gen=", &generation);
-        (void)sensorarrayTransportFindFieldU32(item->data, "rid=", &requestId);
-    }
-    if (rows < 1u || rows > 8u || cells != rows * 8u) {
-        return;
-    }
-
-    item->hasFrameMeta = true;
-    item->frameSeq = sequence;
-    item->generation = generation;
-    item->requestId = requestId;
-    item->rows = (uint8_t)rows;
-    item->cells = (uint8_t)cells;
+    sensorarrayTransportParseFrameMeta(item);
 }
 
 static void sensorarrayTransportBuildNames(const uint8_t mac[6])
@@ -525,30 +389,40 @@ static void sensorarrayTransportWifiControl(const uint8_t *data,
 static void sensorarrayTransportSerialControlTask(void *arg)
 {
     (void)arg;
-    char line[128];
+    char line[SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX];
     char command[SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX];
+    uint8_t bytes[64];
+    size_t used = 0;
+    bool overflow = false;
     sensorarrayTransportReplyTarget_t target = {.kind = SENSORARRAY_TRANSPORT_REPLY_SERIAL};
     for (;;) {
-        if (fgets(line, sizeof(line), stdin)) {
-            const char *reason = "ok";
-            size_t lineLength = strlen(line);
-            esp_err_t normaliseErr = sensorarrayTransportNormaliseSerialCommand(
-                line,
-                lineLength,
-                command,
-                sizeof(command),
-                &reason);
-            if (normaliseErr == ESP_OK) {
-                (void)sensorarrayTransportHandleControlCommand((const uint8_t *)command,
-                                                               strlen(command), &target);
-            } else if (normaliseErr != ESP_ERR_NOT_FOUND) {
-                sensorarrayTransportLogSerialCommandError((const uint8_t *)line,
-                                                          lineLength,
-                                                          reason);
+        int count = sensorarraySerialIoRead(bytes, sizeof(bytes));
+        if (count == 0) { vTaskDelay(1); }
+        for (int i = 0; i < count; ++i) {
+            uint8_t ch = bytes[i];
+            if (ch == '\r' || ch == '\n') {
+                if (overflow) {
+                    sensorarraySerialIoNoteOversize();
+                    (void)sensorarrayTransportPublishControlReply(&target,
+                        "ERR,cmd=SERIAL,reason=too_long\n", sizeof("ERR,cmd=SERIAL,reason=too_long\n") - 1u);
+                } else if (used) {
+                    const char *reason = "ok";
+                    line[used] = '\0';
+                    esp_err_t err = sensorarrayTransportNormaliseSerialCommand(line, used,
+                        command, sizeof(command), &reason);
+                    if (err == ESP_OK) {
+                        (void)sensorarrayTransportHandleControlCommand((const uint8_t *)command,
+                            strlen(command), &target);
+                    } else if (err != ESP_ERR_NOT_FOUND) {
+                        sensorarrayTransportLogSerialCommandError((const uint8_t *)line, used, reason);
+                    }
+                }
+                used = 0;
+                overflow = false;
+            } else if (!overflow) {
+                if (used + 1u < sizeof(line)) { line[used++] = (char)ch; }
+                else { overflow = true; }
             }
-        } else {
-            clearerr(stdin);
-            vTaskDelay(pdMS_TO_TICKS(10u));
         }
     }
 }
@@ -595,13 +469,12 @@ static void sensorarrayTransportProcessDescriptor(
     if (slot && slot->bleConnectionGeneration != 0u &&
         SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
         sensorarrayTransportBleChannelEnabled(sinkChannel)) {
-        char shortData[192];
+        char shortData[384];
         const char *bleData = slot->data;
         size_t bleLength = slot->length;
         if (sinkChannel == SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
             sensorarrayTransportGetTxMode() == SENSORARRAY_TRANSPORT_TX_SHORT &&
-            sensorarrayTransportBuildShortData(slot->data,
-                                               slot->length,
+            sensorarrayTransportBuildPreview(slot,
                                                shortData,
                                                sizeof(shortData))) {
             bleData = shortData;
@@ -643,9 +516,8 @@ static void sensorarrayTransportDrainGuaranteedText(void)
         return;
     }
 
-    size_t written = fwrite(text, 1u, length, stdout);
-    (void)fflush(stdout);
-    sensorarrayTransportNoteSerialLog(written == length);
+    esp_err_t serialErr = sensorarraySerialIoQueue(text, length, true);
+    sensorarrayTransportNoteSerialLog(serialErr == ESP_OK);
 
     uint32_t bleConnectionGeneration = 0u;
     if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
@@ -829,6 +701,8 @@ esp_err_t sensorarrayTransportInit(void)
     if (s_started) {
         return ESP_OK;
     }
+    esp_err_t serialErr = sensorarraySerialIoInit();
+    /* A failed optional USB driver must not suppress BLE/Wi-Fi control. */
     (void)sensorarrayScanConfigInit();
     uint8_t mac[6] = {0};
     (void)esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
@@ -873,47 +747,57 @@ esp_err_t sensorarrayTransportInit(void)
     }
     sensorarrayBleLogHeap("after_wifi_init");
 
-    sensorarrayTransportPoolInit(&s_pool);
-    s_dataQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT,
-                                    sizeof(sensorarrayTransportDescriptor_t),
-                                    s_dataQueueStorage,
-                                    &s_dataQueueStruct);
-    s_logQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT,
-                                   sizeof(sensorarrayTransportDescriptor_t),
-                                   s_logQueueStorage,
-                                   &s_logQueueStruct);
-    s_lifecycleQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT,
-                                          sizeof(sensorarrayTransportDescriptor_t),
-                                          s_lifecycleQueueStorage,
-                                          &s_lifecycleQueueStruct);
+    if (!s_dataQueue && !s_logQueue && !s_lifecycleQueue) {
+        sensorarrayTransportPoolInit(&s_pool);
+        s_dataQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT,
+                                        sizeof(sensorarrayTransportDescriptor_t),
+                                        s_dataQueueStorage,
+                                        &s_dataQueueStruct);
+        s_logQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT,
+                                       sizeof(sensorarrayTransportDescriptor_t),
+                                       s_logQueueStorage,
+                                       &s_logQueueStruct);
+        s_lifecycleQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT,
+                                              sizeof(sensorarrayTransportDescriptor_t),
+                                              s_lifecycleQueueStorage,
+                                              &s_lifecycleQueueStruct);
+    }
     if (!s_dataQueue || !s_logQueue || !s_lifecycleQueue) {
         return ESP_ERR_NO_MEM;
     }
-    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayTransportTask,
-                                            "transport",
-                                            CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
-                                            (void *)(intptr_t)wifiErr,
-                                            5u,
-                                            &s_task,
-                                            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
-    if (ok != pdPASS) {
-        return ESP_ERR_NO_MEM;
+    BaseType_t ok = pdPASS;
+    if (!s_task) {
+        ok = xTaskCreatePinnedToCore(sensorarrayTransportTask,
+                                                "transport",
+                                                CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
+                                                (void *)(intptr_t)wifiErr,
+                                                5u,
+                                                &s_task,
+                                                CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
+        if (ok != pdPASS) {
+            return ESP_ERR_NO_MEM;
+        }
     }
     sensorarrayTransportGuaranteedTextSetNotify(sensorarrayTransportNotifyTask);
-    ok = xTaskCreatePinnedToCore(sensorarrayTransportSerialControlTask,
-                                 "serialCtrl",
-                                 CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
-                                 NULL,
-                                 4u,
-                                 &s_serialTask,
-                                 CONFIG_SENSORARRAY_COMM_TASK_CORE);
-    if (ok != pdPASS) {
-        return ESP_ERR_NO_MEM;
+    if (!s_serialTask) {
+        ok = xTaskCreatePinnedToCore(sensorarrayTransportSerialControlTask,
+                                     "serialCtrl",
+                                     CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
+                                     NULL,
+                                     4u,
+                                     &s_serialTask,
+                                     CONFIG_SENSORARRAY_COMM_TASK_CORE);
+        if (ok != pdPASS) {
+            return ESP_ERR_NO_MEM;
+        }
     }
     s_started = true;
     /* Serial/transport tasks remain available when an optional network sink
      * fails, but the caller must still receive the real initialization error.
      * A disabled sink is not evidence that another enabled sink succeeded. */
+    if (serialErr != ESP_OK) {
+        return serialErr;
+    }
     if (nvsErr != ESP_OK) {
         return nvsErr;
     }
@@ -1035,7 +919,5 @@ esp_err_t sensorarrayTransportPublishControlReply(
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
         return err;
     }
-    size_t written = fwrite(data, 1u, length, stdout);
-    fflush(stdout);
-    return written == length ? ESP_OK : ESP_FAIL;
+    return sensorarraySerialIoQueue(data, length, true);
 }

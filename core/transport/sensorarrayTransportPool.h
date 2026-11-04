@@ -6,7 +6,7 @@
 
 #include "sensorarrayTransportChannels.h"
 
-#define SENSORARRAY_TRANSPORT_POOL_TEXT_MAX 1536u
+#define SENSORARRAY_TRANSPORT_POOL_TEXT_MAX 2304u
 #define SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT 5u
 #define SENSORARRAY_TRANSPORT_POOL_LOG_SLOT_LIMIT 2u
 #define SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX \
@@ -18,6 +18,15 @@ typedef struct {
     uint32_t generation;
     uint32_t requestId;
     uint32_t bleConnectionGeneration;
+    uint64_t sessionId;
+    uint32_t bootId;
+    uint32_t configRevision;
+    uint32_t modeGeneration;
+    uint32_t modeRequestId;
+    uint32_t rowsGeneration;
+    uint32_t rowsRequestId;
+    uint32_t profileGeneration;
+    uint32_t profileRequestId;
     uint16_t length;
     uint8_t channel;
     uint8_t rows;

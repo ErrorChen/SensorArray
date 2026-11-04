@@ -6,6 +6,7 @@
 #include "sensorarrayScanPlan.h"
 #include "sensorarrayTypes.h"
 #include "sensorarrayAdsAutoRange.h"
+#include "sensorarrayAdsFault.h"
 #include "sensorarrayAdsCache.h"
 #include "sensorarrayRouteController.h"
 
@@ -34,6 +35,9 @@ typedef struct {
     uint8_t transitionSensitiveFrames;
     uint32_t frameSequenceHint;
     uint32_t frameCount;
+    uint32_t modeEntryFrameCount;
+    uint32_t helperGeneration;
+    sensorarrayAdsMatrixFaultContext_t faultContext;
     /* Cells whose bounded re-route confirmation resolved to HIGH_Z_OPEN.
      * A latched cell cannot publish a transient finite resistance: its clean
      * samples must pass another bounded confirmation before the bit clears. */
@@ -64,3 +68,8 @@ esp_err_t sensorarrayAdsMatrixEngineSetCalibration(
 bool sensorarrayAdsMatrixEngineGetCalibration(
     const sensorarrayAdsMatrixEngine_t *engine,
     sensorarrayAdsMatrixCalibration_t *outCalibration);
+
+/* 本轮新增: pre-cleanup diagnosis, preserved until the next acquisition. */
+bool sensorarrayAdsMatrixEngineCopyFaultContext(
+    const sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayAdsMatrixFaultContext_t *outContext);

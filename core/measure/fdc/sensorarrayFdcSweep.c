@@ -298,6 +298,17 @@ bool sensorarrayFdcSweepConsumeForceFullSweepAll(void)
     return true;
 }
 
+void sensorarrayFdcSweepDiscardPendingForConfigChange(void)
+{
+    bool discarded = gFdcForceFullSweepAllPending || gFdcForceFullSweepPending;
+    gFdcForceFullSweepAllPending = false;
+    gFdcForceFullSweepPending = false;
+    if (discarded) {
+        printf("FDC_SWEEP_REQUEST,stage=discard,reason=config_changed,epoch=%lu\n",
+               (unsigned long)gFdcSweepRequestEpoch);
+    }
+}
+
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex)
 {
     if (!sensorarrayMatrixIndexIsValid(sIndex, dIndex)) {

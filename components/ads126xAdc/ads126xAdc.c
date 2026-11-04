@@ -187,10 +187,41 @@ static bool ads126xAdcIsValidForcedType(ads126xDeviceType_t forcedType)
            forcedType == ADS126X_DEVICE_ADS1263;
 }
 
-static TickType_t ads126xAdcMutexTimeoutTicks(void)
+/* One monotonic deadline covers mutex, queue and completion. Round up to
+ * a tick; the only permitted overrun is one scheduler tick, never a new budget. */
+static TickType_t ads126xAdcRemainingTicks(int64_t deadlineUs)
 {
-    TickType_t ticks = pdMS_TO_TICKS(CONFIG_ADS126X_MUTEX_TIMEOUT_MS);
-    return ticks == 0u ? 1u : ticks;
+    int64_t remainingUs = deadlineUs - esp_timer_get_time();
+    if (remainingUs <= 0) {
+        return 0u;
+    }
+    uint64_t ticks = ((uint64_t)remainingUs * configTICK_RATE_HZ + 999999u) / 1000000u;
+    return ticks >= portMAX_DELAY ? portMAX_DELAY - 1u : (TickType_t)ticks;
+}
+
+esp_err_t ads126xAdcBeginTransaction(ads126xAdcHandle_t *handle, uint32_t budgetUs)
+{
+    if (!handle || !budgetUs || handle->transactionDeadlineUs ||
+        ads126xAdcIsQuarantined(handle)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    handle->transactionDeadlineUs = (uint64_t)esp_timer_get_time() + budgetUs;
+    return ESP_OK;
+}
+
+void ads126xAdcEndTransaction(ads126xAdcHandle_t *handle)
+{
+    if (handle) { handle->transactionDeadlineUs = 0u; }
+}
+
+static int64_t ads126xAdcOperationDeadline(const ads126xAdcHandle_t *handle,
+                                          uint32_t budgetUs)
+{
+    uint64_t deadline = (uint64_t)esp_timer_get_time() + budgetUs;
+    if (handle->transactionDeadlineUs && handle->transactionDeadlineUs < deadline) {
+        deadline = handle->transactionDeadlineUs;
+    }
+    return (int64_t)deadline;
 }
 
 static const char *ads126xAdcPowerReqName(bool update, bool enable)
@@ -237,41 +268,67 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
     if (!handle || !handle->spiDevice || !handle->mutex) {
         return ESP_ERR_INVALID_ARG;
     }
-
     size_t totalLen = txLen + rxLen;
-    if (totalLen == 0) {
+    if (totalLen == 0u) {
         return ESP_OK;
     }
     if (totalLen > handle->spiBufSize || !handle->spiTxBuf || !handle->spiRxBuf) {
         return ESP_ERR_INVALID_SIZE;
     }
-
-    if (xSemaphoreTake(handle->mutex, ads126xAdcMutexTimeoutTicks()) != pdTRUE) {
+    int64_t deadlineUs = ads126xAdcOperationDeadline(handle,
+        CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u);
+    if (xSemaphoreTake(handle->mutex, ads126xAdcRemainingTicks(deadlineUs)) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
     }
-
-    if (txLen > 0 && tx) {
+    if (handle->spiQuarantined || handle->spiInFlight) {
+        xSemaphoreGive(handle->mutex);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (txLen > 0u && tx) {
         memcpy(handle->spiTxBuf, tx, txLen);
     }
-    if (rxLen > 0) {
+    if (rxLen > 0u) {
         memset(handle->spiTxBuf + txLen, ADS126X_SPI_DUMMY_BYTE, rxLen);
     }
     memset(handle->spiRxBuf, 0, totalLen);
-
-    spi_transaction_t trans = {0};
-    trans.length = totalLen * 8;
-    trans.rxlength = totalLen * 8;
-    trans.tx_buffer = handle->spiTxBuf;
-    trans.rx_buffer = handle->spiRxBuf;
-
-    /* Keep CS asserted for the full command + data phase. */
-    esp_err_t err = spi_device_transmit(handle->spiDevice, &trans);
-    if (err == ESP_OK && rx && rxLen > 0) {
-        memcpy(rx, handle->spiRxBuf + txLen, rxLen);
+    handle->dmaTransaction = (spi_transaction_t){
+        .length = totalLen * 8u,
+        .rxlength = totalLen * 8u,
+        .tx_buffer = handle->spiTxBuf,
+        .rx_buffer = handle->spiRxBuf,
+    };
+    esp_err_t err = esp_timer_get_time() >= deadlineUs ? ESP_ERR_TIMEOUT :
+        spi_device_queue_trans(handle->spiDevice, &handle->dmaTransaction,
+                               ads126xAdcRemainingTicks(deadlineUs));
+    if (err == ESP_OK) {
+        handle->spiInFlight = true;
+        spi_transaction_t *completed = NULL;
+        err = spi_device_get_trans_result(handle->spiDevice, &completed,
+                                          ads126xAdcRemainingTicks(deadlineUs));
+        if (err == ESP_OK && completed == &handle->dmaTransaction) {
+            handle->spiInFlight = false;
+            if (rx && rxLen > 0u) {
+                memcpy(rx, handle->spiRxBuf + txLen, rxLen);
+            }
+        } else {
+            /* No cancellation API: keep DMA memory alive and isolate ADS.
+             * A later controlled deinit may reclaim only a returned descriptor. */
+            handle->spiQuarantined = true;
+            if (err == ESP_OK) {
+                err = ESP_ERR_INVALID_STATE;
+            }
+        }
     }
-
+    if (err == ESP_ERR_TIMEOUT) {
+        handle->spiTimeoutCount++;
+    }
     xSemaphoreGive(handle->mutex);
     return err;
+}
+
+bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle)
+{
+    return handle && (handle->spiQuarantined || handle->spiInFlight);
 }
 
 static bool ads126xAdcIsAdc2Supported(const ads126xAdcHandle_t *handle)
@@ -293,6 +350,9 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
         return ESP_ERR_INVALID_ARG;
     }
 
+    if (ads126xAdcIsQuarantined(handle)) {
+        return ESP_ERR_INVALID_STATE;
+    }
     memset(handle, 0, sizeof(*handle));
     handle->spiDevice = cfg->spiDevice;
     handle->drdyGpio = cfg->drdyGpio;
@@ -447,6 +507,14 @@ esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle)
         return ESP_ERR_INVALID_ARG;
     }
 
+    if (handle->spiInFlight) {
+        spi_transaction_t *completed = NULL;
+        esp_err_t err = spi_device_get_trans_result(handle->spiDevice, &completed, 0u);
+        if (err != ESP_OK || completed != &handle->dmaTransaction) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        handle->spiInFlight = false;
+    }
     if (handle->drdyNotificationReady && handle->drdyGpio != GPIO_NUM_NC) {
         (void)gpio_isr_handler_remove(handle->drdyGpio);
     }
@@ -470,6 +538,12 @@ esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)
         return ESP_ERR_NOT_SUPPORTED;
     }
 
+    if (ads126xAdcIsQuarantined(handle)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    handle->configurationGeneration++;
+    handle->referenceStateKnown = false;
+    handle->referenceReadyAtUs = 0u;
     /* RESET/PWDN is active low; hold low briefly then release high. */
     gpio_set_level(handle->resetGpio, 0);
     vTaskDelay(pdMS_TO_TICKS(ADS126X_RESET_PULSE_LOW_MS));
@@ -496,6 +570,12 @@ esp_err_t ads126xAdcSendCommand(ads126xAdcHandle_t *handle, uint8_t cmd)
         } else if (cmd == ADS126X_CMD_RESET) {
             handle->adc1Running = false;
             handle->adc2Running = false;
+            handle->referenceStateKnown = false;
+            handle->referenceReadyAtUs = 0u;
+        }
+        if (cmd == ADS126X_CMD_START1 || cmd == ADS126X_CMD_RESET) {
+            handle->configurationGeneration++;
+            handle->configuredDrdyGeneration = handle->drdyGeneration;
         }
     }
     return err;
@@ -531,7 +611,23 @@ esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr
     memcpy(temp, cmd, sizeof(cmd));
     memcpy(temp + sizeof(cmd), data, len);
 
-    return ads126xAdcSpiTransferLocked(handle, temp, sizeof(cmd) + len, NULL, 0);
+    esp_err_t err = ads126xAdcSpiTransferLocked(handle, temp, sizeof(cmd) + len, NULL, 0);
+    if (err == ESP_OK) {
+        handle->configurationGeneration++;
+        handle->configuredDrdyGeneration = handle->drdyGeneration;
+        if (startAddr <= ADS126X_REG_POWER && startAddr + len > ADS126X_REG_POWER) {
+            bool enabled = (data[ADS126X_REG_POWER - startAddr] & ADS126X_POWER_INTREF) != 0u;
+            if (enabled && (!handle->referenceStateKnown || !handle->enableInternalRef)) {
+                handle->referenceReadyAtUs = (uint64_t)esp_timer_get_time() +
+                    ADS126X_INTERNAL_REF_SETTLE_MS * 1000u;
+            } else if (!enabled) {
+                handle->referenceReadyAtUs = 0u;
+            }
+            handle->enableInternalRef = enabled;
+            handle->referenceStateKnown = true;
+        }
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg)
@@ -545,46 +641,10 @@ static esp_err_t ads126xAdcSpiTransferDmaLocked(ads126xAdcHandle_t *handle,
                                                 uint8_t *rx,
                                                 size_t rxLen)
 {
-    if (!handle || !handle->spiDevice || !handle->mutex || !handle->spiDmaCapable) {
+    if (!handle || !handle->spiDmaCapable) {
         return ESP_ERR_INVALID_STATE;
     }
-    size_t totalLen = txLen + rxLen;
-    if (totalLen == 0u || totalLen > handle->spiBufSize) {
-        return totalLen == 0u ? ESP_OK : ESP_ERR_INVALID_SIZE;
-    }
-    if (xSemaphoreTake(handle->mutex, ads126xAdcMutexTimeoutTicks()) != pdTRUE) {
-        return ESP_ERR_TIMEOUT;
-    }
-
-    if (txLen > 0u && tx) {
-        memcpy(handle->spiTxBuf, tx, txLen);
-    }
-    if (rxLen > 0u) {
-        memset(handle->spiTxBuf + txLen, ADS126X_SPI_DUMMY_BYTE, rxLen);
-    }
-    memset(handle->spiRxBuf, 0, totalLen);
-    handle->dmaTransaction = (spi_transaction_t){
-        .length = totalLen * 8u,
-        .rxlength = totalLen * 8u,
-        .tx_buffer = handle->spiTxBuf,
-        .rx_buffer = handle->spiRxBuf,
-    };
-
-    esp_err_t err = spi_device_queue_trans(handle->spiDevice,
-                                           &handle->dmaTransaction,
-                                           portMAX_DELAY);
-    spi_transaction_t *completed = NULL;
-    if (err == ESP_OK) {
-        err = spi_device_get_trans_result(handle->spiDevice, &completed, portMAX_DELAY);
-    }
-    if (err == ESP_OK && completed != &handle->dmaTransaction) {
-        err = ESP_ERR_INVALID_STATE;
-    }
-    if (err == ESP_OK && rx && rxLen > 0u) {
-        memcpy(rx, handle->spiRxBuf + txLen, rxLen);
-    }
-    xSemaphoreGive(handle->mutex);
-    return err;
+    return ads126xAdcSpiTransferLocked(handle, tx, txLen, rx, rxLen);
 }
 
 static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
@@ -595,6 +655,11 @@ static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
 {
     if (!handle || !frame || !rawCode) {
         return ESP_ERR_INVALID_ARG;
+    }
+    size_t expectedLength = 4u + (handle->enableStatusByte ? 1u : 0u) +
+        (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
+    if (frameLen != expectedLength) {
+        return ESP_ERR_INVALID_SIZE;
     }
     size_t idx = 0u;
     if (handle->enableStatusByte) {
@@ -632,11 +697,24 @@ esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPo
     if (!outPower) {
         return ESP_ERR_INVALID_ARG;
     }
-    return ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, outPower, 1);
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, outPower, 1);
+    if (err == ESP_OK && handle) {
+        bool enabled = (*outPower & ADS126X_POWER_INTREF) != 0u;
+        if (enabled && (!handle->referenceStateKnown || !handle->enableInternalRef)) {
+            handle->referenceReadyAtUs = (uint64_t)esp_timer_get_time() +
+                ADS126X_INTERNAL_REF_SETTLE_MS * 1000u;
+        } else if (!enabled) {
+            handle->referenceReadyAtUs = 0u;
+        }
+        handle->enableInternalRef = enabled;
+        handle->referenceStateKnown = true;
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power)
 {
+    power &= ADS126X_POWER_READ_MASK;
     return ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER, &power, 1);
 }
 
@@ -1068,48 +1146,73 @@ static void ads126xAdcDecodeAdc1RegisterSnapshot(
     };
 }
 
+static uint8_t ads126xAdcSnapshotMask(uint8_t reg)
+{
+    if (reg == ADS126X_REG_POWER) {
+        return ADS126X_POWER_READ_MASK; /* RESET remains evidence. */
+    }
+    if (reg == ADS126X_REG_INTERFACE) {
+        return ADS126X_INTERFACE_CONFIG_MASK;
+    }
+    if (reg == ADS126X_REG_REFMUX) {
+        return ADS126X_REFMUX_CONFIG_MASK;
+    }
+    return 0xFFu;
+}
+
+static bool ads126xAdcSnapshotBytesEqual(const uint8_t first[16],
+                                         const uint8_t second[16],
+                                         ads126xAdcHandle_t *handle)
+{
+    for (uint8_t reg = 0u; reg < 16u; ++reg) {
+        if (((first[reg] ^ second[reg]) & ads126xAdcSnapshotMask(reg)) != 0u) {
+            handle->snapshotMismatchRegister = reg;
+            handle->snapshotExpected = first[reg];
+            handle->snapshotActual = second[reg];
+            return false;
+        }
+    }
+    return true;
+}
+
 esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
-    ads126xAdcHandle_t *handle,
-    ads126xAdc1RegisterSnapshot_t *outSnapshot)
+    ads126xAdcHandle_t *handle, ads126xAdc1RegisterSnapshot_t *outSnapshot)
 {
     if (!handle || !outSnapshot) {
         return ESP_ERR_INVALID_ARG;
     }
-    /* CS is tied low on the production board, so an isolated DOUT bit error
-     * cannot be cleared by pulsing CS. Never use one unverified read as the
-     * source for a later transaction restore: read twice, and use a third
-     * read only to resolve a disagreement. This is outside the cell hot path. */
-    uint8_t first[16] = {0};
-    uint8_t second[16] = {0};
-    uint8_t third[16] = {0};
-    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
-                                             first, sizeof(first));
+    /* RREG has no CRC. Majority of three bounded reads detects instability;
+     * RESET is not masked away, and reserved bits cannot create false faults. */
+    uint8_t first[16] = {0}, second[16] = {0}, third[16] = {0};
+    handle->snapshotReadFailure = 1u;
+    esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID, first, sizeof(first));
     if (err != ESP_OK) {
         return err;
     }
-    err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
-                                   second, sizeof(second));
+    err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID, second, sizeof(second));
     if (err != ESP_OK) {
         return err;
     }
-    const uint8_t *verified = NULL;
-    if (memcmp(first, second, sizeof(first)) == 0) {
-        verified = second;
-    } else {
-        err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID,
-                                       third, sizeof(third));
+    const uint8_t *verified = second;
+    if (!ads126xAdcSnapshotBytesEqual(first, second, handle)) {
+        err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID, third, sizeof(third));
         if (err != ESP_OK) {
             return err;
         }
-        if (memcmp(first, third, sizeof(first)) == 0) {
+        if (ads126xAdcSnapshotBytesEqual(first, third, handle)) {
             verified = first;
-        } else if (memcmp(second, third, sizeof(second)) == 0) {
+        } else if (ads126xAdcSnapshotBytesEqual(second, third, handle)) {
             verified = second;
         } else {
+            handle->snapshotReadFailure = 2u;
             return ESP_ERR_INVALID_RESPONSE;
         }
     }
     ads126xAdcDecodeAdc1RegisterSnapshot(verified, outSnapshot);
+    outSnapshot->power &= ADS126X_POWER_READ_MASK;
+    outSnapshot->interface &= ADS126X_INTERFACE_CONFIG_MASK;
+    outSnapshot->refmux &= ADS126X_REFMUX_CONFIG_MASK;
+    handle->snapshotReadFailure = 0u;
     return ESP_OK;
 }
 
@@ -1125,8 +1228,13 @@ esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
     }
     esp_err_t err = ads126xAdcStopAdc1(handle);
     if (err == ESP_OK) {
-        err = ads126xAdcWriteRegisters(handle, ADS126X_REG_POWER,
-                                       &snapshot->power, 1u);
+        /* Do not replay RESET=1 as configuration; an unexpected reset must
+         * survive as a fault until an explicit recovery acknowledges it. */
+        if ((snapshot->power & ADS126X_POWER_RESET) != 0u) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        err = ads126xAdcWritePowerRegister(handle,
+            snapshot->power & ADS126X_POWER_CONFIG_MASK);
     }
     uint8_t adc1Group[5] = {
         snapshot->interface,
@@ -1174,13 +1282,14 @@ esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
     err = ads126xAdcReadAdc1RegisterSnapshot(handle, &readback);
     bool registerMatch = err == ESP_OK &&
         readback.id == snapshot->id &&
-        readback.power == snapshot->power &&
-        readback.interface == snapshot->interface &&
+        (readback.power & ADS126X_POWER_RESET) == 0u &&
+        ((readback.power ^ snapshot->power) & ADS126X_POWER_CONFIG_MASK) == 0u &&
+        ((readback.interface ^ snapshot->interface) & ADS126X_INTERFACE_CONFIG_MASK) == 0u &&
         readback.mode0 == snapshot->mode0 &&
         readback.mode1 == snapshot->mode1 &&
         readback.mode2 == snapshot->mode2 &&
         readback.inpmux == snapshot->inpmux &&
-        readback.refmux == snapshot->refmux &&
+        ((readback.refmux ^ snapshot->refmux) & ADS126X_REFMUX_CONFIG_MASK) == 0u &&
         memcmp(readback.offsetCal, snapshot->offsetCal,
                sizeof(readback.offsetCal)) == 0 &&
         memcmp(readback.fullScaleCal, snapshot->fullScaleCal,
@@ -1188,7 +1297,9 @@ esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
     if (!registerMatch) {
         return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
     }
-    return adc1WasRunning ? ads126xAdcStartAdc1(handle) : ESP_OK;
+    ads126xAdcClearDrdyNotifications(handle);
+    err = ads126xAdcWaitReferenceReady(handle);
+    return err == ESP_OK && adc1WasRunning ? ads126xAdcStartAdc1(handle) : err;
 }
 
 esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
@@ -1260,9 +1371,36 @@ esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
     return ESP_OK;
 }
 
+esp_err_t ads126xAdcWaitReferenceReady(ads126xAdcHandle_t *handle)
+{
+    if (!handle || ads126xAdcIsQuarantined(handle)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    /* C42 is 1 uF REFOUT-to-AVSS on circuit.pdf sheet 3. Datasheet 11.3
+     * specifies >=50 ms. This clock starts at the actual POWER OFF->ON write,
+     * not each MUX/PGA change. Larger/revised capacitors need board validation. */
+    while (handle->enableInternalRef) {
+        uint64_t nowUs = (uint64_t)esp_timer_get_time();
+        if (nowUs >= handle->referenceReadyAtUs) {
+            break;
+        }
+        if (handle->transactionDeadlineUs &&
+            handle->referenceReadyAtUs >= handle->transactionDeadlineUs) {
+            return ESP_ERR_TIMEOUT;
+        }
+        uint64_t remaining = handle->referenceReadyAtUs - nowUs;
+        TickType_t ticks = (TickType_t)((remaining * configTICK_RATE_HZ + 999999u) / 1000000u);
+        vTaskDelay(ticks ? ticks : 1u);
+    }
+    return ESP_OK;
+}
+
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle)
 {
-    esp_err_t err = ads126xAdcSendCommand(handle, ADS126X_CMD_START1);
+    esp_err_t err = ads126xAdcWaitReferenceReady(handle);
+    if (err == ESP_OK) {
+        err = ads126xAdcSendCommand(handle, ADS126X_CMD_START1);
+    }
     if (err == ESP_OK && handle) {
         handle->adc1Running = true;
     }
@@ -1285,30 +1423,19 @@ bool ads126xAdcIsAdc1Running(const ads126xAdcHandle_t *handle)
 
 esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)
 {
-    if (!handle) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
+    if (!handle) { return ESP_ERR_INVALID_ARG; }
     if (handle->drdyGpio == GPIO_NUM_NC) {
-        if (timeoutMs > 0) {
-            vTaskDelay(pdMS_TO_TICKS(timeoutMs));
-        }
-        return ESP_OK;
+        return ESP_ERR_NOT_SUPPORTED; /* Elapsed time cannot prove new data. */
     }
-
-    TickType_t start = xTaskGetTickCount();
-    TickType_t timeoutTicks = (timeoutMs > 0) ? pdMS_TO_TICKS(timeoutMs) : 0;
+    uint64_t timeoutUs = (uint64_t)timeoutMs * 1000u;
+    if (timeoutUs > UINT32_MAX) { timeoutUs = UINT32_MAX; }
+    int64_t deadlineUs = ads126xAdcOperationDeadline(handle, (uint32_t)timeoutUs);
     while (gpio_get_level(handle->drdyGpio) != 0) {
-        if (timeoutTicks == 0) {
-            return ESP_ERR_TIMEOUT;
-        }
-        if ((xTaskGetTickCount() - start) >= timeoutTicks) {
-            return ESP_ERR_TIMEOUT;
-        }
-        vTaskDelay(pdMS_TO_TICKS(1));
+        if (esp_timer_get_time() >= deadlineUs) { return ESP_ERR_TIMEOUT; }
+        vTaskDelay(1u);
     }
-
-    return ESP_OK;
+    return handle->transactionDeadlineUs &&
+        (uint64_t)esp_timer_get_time() >= handle->transactionDeadlineUs ? ESP_ERR_TIMEOUT : ESP_OK;
 }
 
 esp_err_t ads126xAdcConfigureAdc1Mode(ads126xAdcHandle_t *handle,
@@ -1450,8 +1577,7 @@ void ads126xAdcClearDrdyNotifications(ads126xAdcHandle_t *handle)
     TaskHandle_t current = xTaskGetCurrentTaskHandle();
     if (current) {
         (void)xTaskNotifyStateClear(current);
-        while (ulTaskNotifyTake(pdTRUE, 0) != 0u) {
-        }
+        (void)ulTaskNotifyTake(pdTRUE, 0);
     }
 }
 
@@ -1493,44 +1619,31 @@ esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *handle,
                                          uint32_t timeoutUs,
                                          uint32_t *outGeneration)
 {
-    if (!handle || !handle->drdyNotificationReady || handle->drdyGpio == GPIO_NUM_NC) {
+    if (!handle || !handle->drdyNotificationReady || handle->drdyGpio == GPIO_NUM_NC ||
+        ads126xAdcIsQuarantined(handle)) {
         return ESP_ERR_INVALID_STATE;
     }
-
-    uint32_t currentGeneration = handle->drdyGeneration;
-    if (currentGeneration != startGeneration) {
-        if (outGeneration) {
-            *outGeneration = currentGeneration;
-        }
-        return ESP_OK;
-    }
-
+    int64_t deadlineUs = ads126xAdcOperationDeadline(handle, timeoutUs);
+    uint32_t configurationGeneration = handle->configurationGeneration;
     TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
     handle->drdyWaitTask = currentTask;
     ads126xAdcClearDrdyNotifications(handle);
-    currentGeneration = handle->drdyGeneration;
-    if (currentGeneration != startGeneration) {
-        handle->drdyWaitTask = NULL;
-        if (outGeneration) {
-            *outGeneration = currentGeneration;
+    esp_err_t err = ESP_ERR_TIMEOUT;
+    while (esp_timer_get_time() < deadlineUs) {
+        if (configurationGeneration != handle->configurationGeneration) {
+            err = ESP_ERR_INVALID_STATE;
+            break;
         }
-        return ESP_OK;
+        uint32_t generation = handle->drdyGeneration;
+        if (generation != startGeneration && generation != handle->configuredDrdyGeneration) {
+            if (outGeneration) { *outGeneration = generation; }
+            err = ESP_OK;
+            break;
+        }
+        (void)ulTaskNotifyTake(pdTRUE, ads126xAdcRemainingTicks(deadlineUs));
     }
-
-    TickType_t ticks = pdMS_TO_TICKS((timeoutUs + 999u) / 1000u);
-    if (ticks == 0u) {
-        ticks = 1u;
-    }
-    uint32_t notified = ulTaskNotifyTake(pdTRUE, ticks);
-    currentGeneration = handle->drdyGeneration;
     handle->drdyWaitTask = NULL;
-    if (currentGeneration != startGeneration) {
-        if (outGeneration) {
-            *outGeneration = currentGeneration;
-        }
-        return ESP_OK;
-    }
-    return notified != 0u ? ESP_ERR_INVALID_RESPONSE : ESP_ERR_TIMEOUT;
+    return err;
 }
 
 bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_t statusByte)
@@ -1561,7 +1674,12 @@ esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, ui
         0u,
         (uint8_t)(((muxp & 0x0Fu) << 4) | (muxn & 0x0Fu)),
     };
-    return ads126xAdcSpiTransferLocked(handle, command, sizeof(command), NULL, 0u);
+    esp_err_t err = ads126xAdcSpiTransferLocked(handle, command, sizeof(command), NULL, 0u);
+    if (err == ESP_OK) {
+        handle->configurationGeneration++;
+        handle->configuredDrdyGeneration = handle->drdyGeneration;
+    }
+    return err;
 }
 
 esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
@@ -1570,17 +1688,19 @@ esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
                                    uint8_t *statusByteOptional,
                                    uint32_t *outReadUs)
 {
-    if (!handle || !rawCode) {
-        return ESP_ERR_INVALID_ARG;
+    if (!handle || !rawCode) { return ESP_ERR_INVALID_ARG; }
+    bool ownDeadline = handle->transactionDeadlineUs == 0u;
+    esp_err_t err = ownDeadline ? ads126xAdcBeginTransaction(handle,
+        drdyTimeoutUs + CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u) : ESP_OK;
+    if (err == ESP_OK) {
+        err = ads126xAdcWaitDrdyGenerationUs(handle, handle->drdyGeneration,
+                                            drdyTimeoutUs, NULL);
     }
-    esp_err_t err = ads126xAdcWaitDrdyNotificationUs(handle, drdyTimeoutUs);
-    if (err != ESP_OK) {
-        return err;
+    if (err == ESP_OK) {
+        err = ads126xAdcReadAdc1RawDmaReady(handle, rawCode, statusByteOptional, outReadUs);
     }
-    return ads126xAdcReadAdc1RawDmaReady(handle,
-                                         rawCode,
-                                         statusByteOptional,
-                                         outReadUs);
+    if (ownDeadline) { ads126xAdcEndTransaction(handle); }
+    return err;
 }
 
 esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,

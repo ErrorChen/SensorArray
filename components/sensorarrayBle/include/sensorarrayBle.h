@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /* Maximum complete DATA/LOG message accepted before ATT fragmentation. */
-#define SENSORARRAY_BLE_MESSAGE_VALUE_MAX 1536u
+#define SENSORARRAY_BLE_MESSAGE_VALUE_MAX 2304u
 
 typedef enum {
     SENSORARRAY_BLE_CH_DATA = 0,

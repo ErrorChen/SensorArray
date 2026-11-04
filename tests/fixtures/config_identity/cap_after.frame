@@ -1,0 +1,3 @@
+C,seq=9199,ts=123456789,rows=1,cells=8,gen=2,rid=1,rf=00,pf=00,sf=00,expected=00000000000000FF,acquired=00000000000000FF,bad=0/0/0,fmt=pf6,n=8,session=AABBCCDDEE112233,bootId=7,rev=8,mgen=4,mrid=3,rgen=2,rrid=1,pgen=5,prid=3
+D0,12250000,13250000,14250000,15250000,16250000,17250000,18250000,19250000
+K,seq=9199,gen=2,rid=1,crc=DFDE098D,session=AABBCCDDEE112233,bootId=7,rev=8

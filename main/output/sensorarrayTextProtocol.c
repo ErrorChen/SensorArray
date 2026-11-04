@@ -30,6 +30,38 @@ static size_t sensorarrayTextAppend(char *buffer,
     return position + (size_t)written;
 }
 
+/* 本轮新增: extend only from the immutable frame, never from live state.
+ * K repeats the session/revision; its CRC covers the complete extended header. */
+static size_t sensorarrayTextAppendIdentity(char *buffer, size_t size, size_t position,
+                                            const sensorarrayFrame_t *frame,
+                                            bool trailer)
+{
+    if (frame->identity.revision == 0u || position == 0u || position >= size) {
+        return position;
+    }
+    if (buffer[position - 1u] != '\n') {
+        return size;
+    }
+    position--;
+    const sensorarrayConfigIdentity_t *id = &frame->identity;
+    position = sensorarrayTextAppend(buffer, size, position,
+        ",session=%016llX,bootId=%lu,rev=%lu",
+        (unsigned long long)id->sessionId, (unsigned long)id->bootId,
+        (unsigned long)id->revision);
+    if (!trailer) {
+        position = sensorarrayTextAppend(buffer, size, position,
+            ",mgen=%lu,mrid=%lu", (unsigned long)id->modeGeneration,
+            (unsigned long)id->modeRequestId);
+        if (!frame->mixedProfile) {
+            position = sensorarrayTextAppend(buffer, size, position,
+                ",rgen=%lu,rrid=%lu,pgen=%lu,prid=%lu",
+                (unsigned long)id->rowsGeneration, (unsigned long)id->rowsRequestId,
+                (unsigned long)id->profileGeneration, (unsigned long)id->profileRequestId);
+        }
+    }
+    return sensorarrayTextAppend(buffer, size, position, "\n");
+}
+
 static uint32_t sensorarrayTextCrc32(const uint8_t *data, size_t length)
 {
     uint32_t crc = UINT32_MAX;
@@ -130,6 +162,8 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
         profile,
         (unsigned long long)expectedMask,
         (unsigned long long)acquiredMask);
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, false);
     for (uint8_t row = 1u; row <= frame->activeRows && position < sizeof(outPacket->data); ++row) {
         sensorarrayMeasurementMode_t mode = frame->rowMode[row - 1u];
         const char *modeName = sensorarrayTextMixedModeName(mode);
@@ -187,8 +221,8 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
         outPacket->length = 0u;
         return ESP_ERR_INVALID_SIZE;
     }
-    /* An 8-row all-V/R frame with 12-digit worst-case values can exceed the
-     * 1536-byte DATA slot, so the builder rejects instead of truncating. */
+    /* The fixed 2304-byte DATA slot includes maximum-width mixed values and
+     * configuration identity. Overflow is rejected, never truncated. */
     uint32_t crc = sensorarrayTextCrc32((const uint8_t *)outPacket->data, position);
     position = sensorarrayTextAppend(outPacket->data, sizeof(outPacket->data), position,
                                      "K,seq=%lu,rgen=%lu,rrid=%lu,pgen=%lu,prid=%lu,crc=%08lX\n",
@@ -198,6 +232,8 @@ esp_err_t sensorarrayTextProtocolBuildMixedFrame(
                                      (unsigned long)frame->rowProfileGeneration,
                                      (unsigned long)frame->rowProfileRequestId,
                                      (unsigned long)crc);
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, true);
     if (position >= sizeof(outPacket->data) || position > UINT16_MAX) {
         outPacket->length = 0u;
         return ESP_ERR_INVALID_SIZE;
@@ -245,6 +281,8 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
         (unsigned long)invalidCount,
         (unsigned long)cellCount);
 
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, false);
     size_t chunkCount = (cellCount + 15u) / 16u;
     for (size_t chunk = 0u; chunk < chunkCount && position < sizeof(outPacket->data); ++chunk) {
         position = sensorarrayTextAppend(outPacket->data,
@@ -286,6 +324,8 @@ esp_err_t sensorarrayTextProtocolBuildCapFrame(const sensorarrayFrame_t *frame,
                                      (unsigned long)frame->configSnapshot.generation,
                                      (unsigned long)frame->configSnapshot.requestId,
                                      (unsigned long)crc);
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, true);
     if (position >= sizeof(outPacket->data) || position > UINT16_MAX) {
         outPacket->length = 0u;
         return ESP_ERR_INVALID_SIZE;
@@ -370,6 +410,8 @@ esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
         (unsigned long)cellCount,
         (unsigned long)(cellCount - sensorarrayTextCountBits64(validMask)));
 
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, false);
     size_t chunkCount = (cellCount + 15u) / 16u;
     for (size_t chunk = 0u; chunk < chunkCount &&
                            position < sizeof(outPacket->data); ++chunk) {
@@ -456,6 +498,8 @@ esp_err_t sensorarrayTextProtocolBuildMeasurementFrame(
                                      (unsigned long)frame->measurement.modeGeneration,
                                      (unsigned long)frame->measurement.modeRequestId,
                                      (unsigned long)crc);
+    position = sensorarrayTextAppendIdentity(outPacket->data, sizeof(outPacket->data),
+                                             position, frame, true);
     if (position >= sizeof(outPacket->data) || position > UINT16_MAX) {
         outPacket->length = 0u;
         return ESP_ERR_INVALID_SIZE;
@@ -630,10 +674,8 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     SENSORARRAY_PROTOCOL_CHECK(packet.length <=
                                SENSORARRAY_TEXT_MEASUREMENT_WORST_CASE);
 
-    /* Legal value ranges are not enough: with every diagnostic header field
-     * at its maximum and all 64 cells at the 12-digit fixed-point maximum,
-     * the frame exceeds the 1536-byte DATA contract and must be rejected
-     * instead of truncated. */
+    /* Maximum-width diagnostics and legal data fit the advertised bounded
+     * slot. Values outside the wire range still fail without truncation. */
     scratchFrame->measurement.referenceSource =
         SENSORARRAY_ADS_REFERENCE_AVDD_AVSS;
     scratchFrame->measurement.avddUv = INT32_MAX;
@@ -641,6 +683,9 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
     scratchFrame->measurement.matrixReferenceUv = INT32_MAX;
     scratchFrame->measurement.referenceResistorOhms = UINT32_MAX;
     scratchFrame->measurement.railAgeFrames = UINT32_MAX;
+    SENSORARRAY_PROTOCOL_CHECK(
+        sensorarrayTextProtocolBuildMeasurementFrame(scratchFrame, &packet) == ESP_OK);
+    scratchFrame->measurement.valuesFixed[0] = SENSORARRAY_TEXT_MEASUREMENT_VALUE_MAX + 1;
     SENSORARRAY_PROTOCOL_CHECK(
         sensorarrayTextProtocolBuildMeasurementFrame(scratchFrame, &packet) ==
             ESP_ERR_INVALID_SIZE);
@@ -775,9 +820,8 @@ bool sensorarrayTextProtocolSelfTest(sensorarrayFrame_t *scratchFrame,
         }
     }
     SENSORARRAY_PROTOCOL_CHECK(
-        sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) ==
-            ESP_ERR_INVALID_SIZE);
-    SENSORARRAY_PROTOCOL_CHECK(packet.length == 0u);
+        sensorarrayTextProtocolBuildMixedFrame(scratchFrame, &packet) == ESP_OK);
+    SENSORARRAY_PROTOCOL_CHECK(packet.length < SENSORARRAY_TEXT_PACKET_MAX);
 
     for (uint8_t cell = 0u; cell < SENSORARRAY_MATRIX_CELL_COUNT; ++cell) {
         scratchFrame->measurement.valuesFixed[cell] =

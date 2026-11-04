@@ -1,0 +1,3 @@
+M,seq=9198,ts=123456789,rows=1,cells=8,rgen=2,rrid=1,pgen=5,prid=3,profile=CNNNNNNN,expected=00000000000000FF,acquired=00000000000000FF,fmt=mix1,session=AABBCCDDEE112233,bootId=7,rev=8,mgen=4,mrid=3
+MR,s=1,m=CAP,unit=pF,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=pf6,D=12250000,13250000,14250000,15250000,16250000,17250000,18250000,19250000
+K,seq=9198,rgen=2,rrid=1,pgen=5,prid=3,crc=3AE39DDF,session=AABBCCDDEE112233,bootId=7,rev=8

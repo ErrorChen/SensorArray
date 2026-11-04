@@ -63,6 +63,7 @@ def writeFakeHeaders(fakeDir: Path) -> None:
         "UBaseType_t uxQueueSpacesAvailable(const QueueHandle_t queue);\n",
         encoding="ascii",
     )
+    (fakeDir / "sdkconfig.h").write_text("#pragma once\n", encoding="ascii")
     (fakeDir / "sensorarrayConfig.h").write_text(
         "#pragma once\n"
         "#define CONFIG_SENSORARRAY_BLE_CAP_TEXT_EVERY_N_FRAMES 1u\n"
@@ -100,6 +101,8 @@ def main() -> int:
             str(fakeDir),
             "-I",
             str(root / "core" / "transport"),
+            "-I",
+            str(root / "core" / "config"),
             "-I",
             str(root / "core" / "measure" / "include"),
             "-I",

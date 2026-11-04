@@ -150,22 +150,10 @@ sensorarrayBatteryDecision_t sensorarrayBatterySchedulerEvaluateBoundary(
         return SENSORARRAY_BATTERY_DECISION_NOT_DUE;
     }
     sensorarrayBatterySchedulerMarkDue(scheduler, nowUs);
-    if (!capacitanceMode || scheduler->forcePending || scheduler->gapDeferred) {
-        /* CAP always offers the conversion wait gap first. If admission says
-         * that the complete transaction plus guard cannot fit, the next
-         * complete frame boundary is the only way to preserve the requested
-         * wall-clock cadence without stealing an FDC ready deadline. The
-         * maximum-defer test below remains the safety fallback for a CAP path
-         * that produced no evaluable gap window. */
-        return SENSORARRAY_BATTERY_DECISION_RUN_BOUNDARY;
-    }
-    uint64_t deferredUs = nowUs >= scheduler->dueSinceUs ?
-        nowUs - scheduler->dueSinceUs : 0u;
-    if (deferredUs >=
-        sensorarrayBatteryMillisecondsToMicroseconds(scheduler->maximumDeferMs)) {
-        return SENSORARRAY_BATTERY_DECISION_RUN_BOUNDARY;
-    }
-    return SENSORARRAY_BATTERY_DECISION_DEFER;
+    (void)capacitanceMode;
+    /* The complete auxiliary save/execute/restore transaction is admitted only
+     * here. CAP uses the same boundary rule as ADS and mixed-row modes. */
+    return SENSORARRAY_BATTERY_DECISION_RUN_BOUNDARY;
 }
 
 void sensorarrayBatterySchedulerRecordRun(sensorarrayBatteryScheduler_t *scheduler,
@@ -223,4 +211,34 @@ uint32_t sensorarrayBatterySchedulerAgeMs(
     }
     uint64_t ageMs = (nowUs - scheduler->lastRunUs) / 1000ULL;
     return ageMs > UINT32_MAX ? UINT32_MAX : (uint32_t)ageMs;
+}
+
+void sensorarrayBatterySchedulerRecordValidity(sensorarrayBatteryScheduler_t *scheduler,
+    bool valid, uint8_t reason, uint64_t completedUs)
+{
+    if (!scheduler) { return; }
+    if (valid) {
+        scheduler->repeatedFailureCount = 0u;
+        scheduler->lastFailureReason = 0u;
+        return;
+    }
+    if (scheduler->lastFailureReason == reason) {
+        if (scheduler->repeatedFailureCount < UINT32_MAX) {
+            ++scheduler->repeatedFailureCount;
+        }
+    } else {
+        scheduler->lastFailureReason = reason;
+        scheduler->repeatedFailureCount = 1u;
+    }
+    /* 1, 2, 4, 8, 16, 32 periods, capped at 30 s unless the user already
+     * requested a longer period. A change of reason restarts the probe budget. */
+    if (scheduler->enabled && scheduler->repeatedFailureCount > 1u) {
+        uint32_t shift = scheduler->repeatedFailureCount - 1u;
+        if (shift > 5u) { shift = 5u; }
+        uint64_t periodUs = sensorarrayBatteryMillisecondsToMicroseconds(scheduler->periodMs);
+        uint64_t delayUs = periodUs << shift;
+        uint64_t capUs = periodUs > 30000000u ? periodUs : 30000000u;
+        if (delayUs > capUs) { delayUs = capUs; }
+        scheduler->nextDueUs = sensorarrayBatteryAddSaturating(completedUs, delayUs);
+    }
 }

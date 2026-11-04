@@ -201,3 +201,8 @@ esp_err_t sensorarrayMeasureAdsReadRegister(sensorarrayState_t *state, uint8_t r
 esp_err_t sensorarrayMeasureReadAdsKeyRegisterSnapshot(sensorarrayState_t *state,
                                                        sensorarrayAdsRegSnapshot_t *outSnapshot);
 esp_err_t sensorarrayMeasureDumpAdsKeyRegisters(sensorarrayState_t *state, const char *stage);
+
+/* Added in this repair. False means a worker may still own I2C/state.
+ * Quarantine is latched until restart; a late release does not permit slot reuse. */
+bool sensorarrayMeasureFdcWorkersQuiescent(void);
+bool sensorarrayMeasureFdcWorkersQuarantined(void);

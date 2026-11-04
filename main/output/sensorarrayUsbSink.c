@@ -10,6 +10,7 @@
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayTransport.h"
+#include "sensorarraySerialIo.h"
 
 #ifndef CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN
 #define CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN 4
@@ -24,68 +25,15 @@
 #define CONFIG_SENSORARRAY_USB_SINK_BLOCK_WARN_US 20000
 #endif
 
-enum {
-    SENSORARRAY_USB_SINK_QUEUE_COUNT =
-        CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN < 2 ? 2 : CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN,
-};
-
-static StaticQueue_t s_usbQueueStruct;
-static uint8_t s_usbQueueStorage[SENSORARRAY_USB_SINK_QUEUE_COUNT * sizeof(sensorarrayTextPacket_t)];
-static QueueHandle_t s_usbQueue;
-static TaskHandle_t s_usbTask;
 static portMUX_TYPE s_usbStatsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbSinkStats_t s_usbStats;
 static portMUX_TYPE s_usbProfileMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbStreamProfile_t s_usbStreamProfile;
-/* Owned exclusively by sensorarrayUsbSinkTask. */
-static sensorarrayTextPacket_t s_usbTaskPacket;
-/* Publish is owned by the single async-log task. A fixed discard slot avoids
- * adding another 1536-byte packet to that caller's stack when the queue is
- * full and the oldest summary is intentionally replaced. */
-static sensorarrayTextPacket_t s_usbDiscardPacket;
-
-static void sensorarrayUsbSinkTask(void *arg)
-{
-    (void)arg;
-    printf("TASKCORE,name=usb_sink,core=%d,expected=%d\n",
-           (int)xPortGetCoreID(),
-           CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
-
-    while (true) {
-        if (xQueueReceive(s_usbQueue, &s_usbTaskPacket, portMAX_DELAY) != pdTRUE) {
-            continue;
-        }
-
-        int64_t startUs = esp_timer_get_time();
-        size_t written = fwrite(s_usbTaskPacket.data,
-                                1u,
-                                s_usbTaskPacket.length,
-                                stdout);
-        fflush(stdout);
-        uint32_t writeUs = (uint32_t)(esp_timer_get_time() - startUs);
-
-        portENTER_CRITICAL(&s_usbStatsMux);
-        if (written == s_usbTaskPacket.length) {
-            s_usbStats.sentPackets++;
-            s_usbStats.sentBytes += written;
-        } else {
-            s_usbStats.droppedPackets++;
-        }
-        if (writeUs >= (uint32_t)CONFIG_SENSORARRAY_USB_SINK_BLOCK_WARN_US) {
-            s_usbStats.blockedCount++;
-        }
-        s_usbStats.writeUsTotal += writeUs;
-        if (writeUs > s_usbStats.writeUsMax) {
-            s_usbStats.writeUsMax = writeUs;
-        }
-        s_usbStats.queueDepth = uxQueueMessagesWaiting(s_usbQueue);
-        portEXIT_CRITICAL(&s_usbStatsMux);
-    }
-}
+static bool s_usbInitialized;
 
 esp_err_t sensorarrayUsbSinkInit(void)
 {
-    if (s_usbTask) {
+    if (s_usbInitialized) {
         return ESP_OK;
     }
 
@@ -100,25 +48,8 @@ esp_err_t sensorarrayUsbSinkInit(void)
         .diagEvery = SENSORARRAY_USB_STREAM_DIAG_EVERY,
     };
     portEXIT_CRITICAL(&s_usbProfileMux);
-    s_usbQueue = xQueueCreateStatic(SENSORARRAY_USB_SINK_QUEUE_COUNT,
-                                    sizeof(sensorarrayTextPacket_t),
-                                    s_usbQueueStorage,
-                                    &s_usbQueueStruct);
-    if (!s_usbQueue) {
-        return ESP_ERR_NO_MEM;
-    }
-
-    BaseType_t ok = xTaskCreatePinnedToCore(sensorarrayUsbSinkTask,
-                                            "sensorarrayUsbSink",
-                                            CONFIG_SENSORARRAY_USB_SINK_TASK_STACK,
-                                            NULL,
-                                            CONFIG_SENSORARRAY_USB_SINK_TASK_PRIORITY,
-                                            &s_usbTask,
-                                            CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
-    if (ok != pdPASS || !s_usbTask) {
-        s_usbQueue = NULL;
-        return ESP_ERR_NO_MEM;
-    }
+    /* SerialIo is the single physical TX owner; no duplicate DATA queue/task. */
+    s_usbInitialized = true;
     return ESP_OK;
 }
 
@@ -130,27 +61,20 @@ esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
     if (!sensorarrayTransportSerialSinkEnabled()) {
         return ESP_OK;
     }
-    if (!s_usbQueue || !s_usbTask) {
+    if (!s_usbInitialized) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (xQueueSend(s_usbQueue, packet, 0) != pdTRUE) {
-        (void)xQueueReceive(s_usbQueue, &s_usbDiscardPacket, 0);
-        portENTER_CRITICAL(&s_usbStatsMux);
-        s_usbStats.droppedPackets++;
-        portEXIT_CRITICAL(&s_usbStatsMux);
-        if (xQueueSend(s_usbQueue, packet, 0) != pdTRUE) {
-            return ESP_ERR_TIMEOUT;
-        }
-    }
-
-    uint32_t depth = uxQueueMessagesWaiting(s_usbQueue);
+    esp_err_t err = sensorarraySerialIoQueue(packet->data, packet->length, false);
     portENTER_CRITICAL(&s_usbStatsMux);
-    s_usbStats.queueDepth = depth;
-    if (depth > s_usbStats.queueDepthMax) {
-        s_usbStats.queueDepthMax = depth;
+    if (err == ESP_OK) {
+        /* Legacy sent means sink submission; SerialIo reports driver bytes. */
+        s_usbStats.sentPackets++;
+        s_usbStats.sentBytes += packet->length;
+    } else {
+        s_usbStats.droppedPackets++;
     }
     portEXIT_CRITICAL(&s_usbStatsMux);
-    return ESP_OK;
+    return err;
 }
 
 void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats)
@@ -161,10 +85,9 @@ void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats)
     portENTER_CRITICAL(&s_usbStatsMux);
     *outStats = s_usbStats;
     portEXIT_CRITICAL(&s_usbStatsMux);
-    outStats->taskConfiguredBytes = CONFIG_SENSORARRAY_USB_SINK_TASK_STACK;
-    outStats->taskMinimumRemainingBytes = s_usbTask ?
-        (uint32_t)uxTaskGetStackHighWaterMark(s_usbTask) *
-            (uint32_t)sizeof(StackType_t) : 0u;
+    /* The old USB task was consolidated into SerialIo; no second stack. */
+    outStats->taskConfiguredBytes = 0u;
+    outStats->taskMinimumRemainingBytes = 0u;
 }
 
 esp_err_t sensorarrayUsbSinkSetStreamProfile(sensorarrayUsbStreamMode_t mode,

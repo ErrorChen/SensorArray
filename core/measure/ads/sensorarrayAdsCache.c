@@ -462,6 +462,22 @@ void sensorarrayAdsRegisterCacheNoteWrite(sensorarrayAdsRegisterCache_t *cache,
     cache->writeCount++;
 }
 
+uint8_t sensorarrayAdsRegisterCompareMask(sensorarrayAdsRegisterId_t registerId)
+{
+    switch (registerId) {
+    case SENSORARRAY_ADS_REGISTER_POWER: return 0x03u;
+    case SENSORARRAY_ADS_REGISTER_INTERFACE: return 0x0Fu;
+    case SENSORARRAY_ADS_REGISTER_REFMUX: return 0x3Fu;
+    default: return 0xFFu;
+    }
+}
+
+bool sensorarrayAdsRegisterHealthDue(uint32_t frameCount, uint32_t interval,
+                                     bool mode0Valid)
+{
+    return !mode0Valid || (interval != 0u && frameCount % interval == 0u);
+}
+
 bool sensorarrayAdsRegisterCacheNoteReadback(sensorarrayAdsRegisterCache_t *cache,
                                              sensorarrayAdsRegisterId_t registerId,
                                              uint8_t value)
@@ -471,7 +487,8 @@ bool sensorarrayAdsRegisterCacheNoteReadback(sensorarrayAdsRegisterCache_t *cach
     }
     sensorarrayAdsRegisterShadowValue_t *entry = &cache->registers[registerId];
     cache->readbackCount++;
-    if (entry->valid && entry->value != value) {
+    if (entry->valid && ((entry->value ^ value) &
+        sensorarrayAdsRegisterCompareMask(registerId)) != 0u) {
         entry->valid = false;
         return false;
     }
@@ -513,4 +530,40 @@ const char *sensorarrayAdsOwnerName(sensorarrayAdsOwner_t owner)
     case SENSORARRAY_ADS_OWNER_NONE:
     default: return "NONE";
     }
+}
+
+sensorarrayAdsHealthComparison_t sensorarrayAdsRegisterHealthCompare(
+    const sensorarrayAdsRegisterCache_t *cache,
+    const uint8_t actual[SENSORARRAY_ADS_REGISTER_COUNT],
+    uint8_t expectedPower, uint8_t expectedRefmux,
+    uint8_t expectedMode0, uint8_t expectedMode1)
+{
+    sensorarrayAdsHealthComparison_t result = {0};
+    if (!cache || !actual) {
+        result.reason = SENSORARRAY_ADS_HEALTH_CACHE;
+        return result;
+    }
+    const sensorarrayAdsRegisterId_t regs[] = {
+        SENSORARRAY_ADS_REGISTER_POWER, SENSORARRAY_ADS_REGISTER_POWER,
+        SENSORARRAY_ADS_REGISTER_REFMUX, SENSORARRAY_ADS_REGISTER_MODE0,
+        SENSORARRAY_ADS_REGISTER_MODE1};
+    const uint8_t expected[] = {0u, expectedPower, expectedRefmux, expectedMode0, expectedMode1};
+    const uint8_t masks[] = {0x10u, 0x03u, 0x3Fu, 0xFFu, 0xFFu};
+    const sensorarrayAdsHealthReason_t reasons[] = {
+        SENSORARRAY_ADS_HEALTH_RESET, SENSORARRAY_ADS_HEALTH_POWER,
+        SENSORARRAY_ADS_HEALTH_REFMUX, SENSORARRAY_ADS_HEALTH_MODE, SENSORARRAY_ADS_HEALTH_MODE};
+    for (size_t i = 0u; i < sizeof(regs) / sizeof(regs[0]); ++i) {
+        if (((actual[regs[i]] ^ expected[i]) & masks[i]) != 0u) {
+            return (sensorarrayAdsHealthComparison_t){reasons[i], regs[i], expected[i], actual[regs[i]], masks[i]};
+        }
+    }
+    for (uint8_t i = 0u; i < SENSORARRAY_ADS_REGISTER_COUNT; ++i) {
+        uint8_t mask = sensorarrayAdsRegisterCompareMask((sensorarrayAdsRegisterId_t)i);
+        if (cache->registers[i].valid &&
+            ((cache->registers[i].value ^ actual[i]) & mask) != 0u) {
+            return (sensorarrayAdsHealthComparison_t){SENSORARRAY_ADS_HEALTH_CACHE,
+                (sensorarrayAdsRegisterId_t)i, cache->registers[i].value, actual[i], mask};
+        }
+    }
+    return result;
 }

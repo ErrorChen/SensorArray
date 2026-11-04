@@ -25,6 +25,8 @@ typedef struct {
     uint32_t boundaryCount;
     uint32_t restoreFailureCount;
     uint32_t sampleDurationMaximumUs;
+    uint32_t repeatedFailureCount;
+    uint8_t lastFailureReason;
     bool enabled;
     bool forcePending;
     bool gapDeferred;
@@ -61,3 +63,7 @@ void sensorarrayBatterySchedulerRecordRun(sensorarrayBatteryScheduler_t *schedul
 uint32_t sensorarrayBatterySchedulerAgeMs(
     const sensorarrayBatteryScheduler_t *scheduler,
     uint64_t nowUs);
+
+/* 本轮新增: bounded repeated-failure backoff; BATNOW remains an explicit probe. */
+void sensorarrayBatterySchedulerRecordValidity(sensorarrayBatteryScheduler_t *scheduler,
+    bool valid, uint8_t reason, uint64_t completedUs);

@@ -18,6 +18,12 @@ typedef struct {
     sensorarrayBoardRouteProfile_t profile;
     uint32_t generation;
     uint32_t lastError;
+    uint32_t cleanupError;
+    const char *failureStage; /* Static string, preserved across SAFE cleanup. */
+    uint8_t failureExpected;
+    uint8_t failureActual;
+    uint8_t failureMask;
+    sensorarrayMeasurementMode_t requestedMode;
     uint64_t transitionDurationUs;
     uint8_t row;
     uint8_t power;
@@ -38,6 +44,11 @@ typedef struct {
     bool fdcSdHigh;
     bool fdcSdVerified;
     bool safe;
+    /* Register/GPIO evidence only. Never a measurement of an analogue node. */
+    bool applied;
+    bool known;
+    bool verified;
+    bool analogIsolationVerified;
 } sensorarrayRouteSnapshot_t;
 
 typedef struct {

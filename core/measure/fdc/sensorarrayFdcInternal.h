@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sensorarrayFdcWorkerLifecycle.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -674,6 +676,7 @@ typedef struct {
     sensorarrayFdcWorkerTrace_t *trace;
     sensorarrayFdcFrameReadTracker_t *readTracker;
     uint32_t rowDeviceBudgetUs;
+    uint64_t deadlineUs;
     uint32_t generation;
 } sensorarrayFdcWorkerJob_t;
 
@@ -701,7 +704,17 @@ typedef struct {
     volatile int preparedErr;
     volatile bool rowConfigPrepared;
     volatile uint32_t generation;
-    volatile sensorarrayFdcWorkerJob_t *job;
+    sensorarrayFdcWorkerJob_t *job;
+    sensorarrayFdcJobLifecycle_t lifecycle;
+    esp_err_t acknowledgedError;
+    /* Never expose coordinator stack objects to a worker. */
+    sensorarrayFdcWorkerJob_t persistentJob;
+    sensorarrayFdcWorkerResult_t persistentResult;
+    sensorarrayFdcWorkerTrace_t persistentTrace;
+    sensorarrayFdcAutoscanSamples_t persistentSamples;
+    sensorarrayFdcRuntimeChannelConfig_t persistentConfigs[4];
+    sensorarrayFdcDeviceTiming_t persistentTiming;
+    sensorarrayFdcFrameReadTracker_t persistentReadTracker;
 } sensorarrayFdcWorkerContext_t;
 
 typedef struct {

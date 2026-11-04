@@ -46,6 +46,8 @@ bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
                                         sensorarrayBoardRouteProfile_t *outProfile);
 bool sensorarrayBoardMapGetSafeRailMonitorProfile(
     sensorarrayBoardRouteProfile_t *outProfile);
+/* 本轮新增: circuit.pdf V1.0 has no MCU-controlled REF-to-matrix isolation. */
+bool sensorarrayBoardMapHasIsolatedRailMonitor(void);
 const char *sensorarrayBoardMapMatrixExcitationName(bool enabled);
 
 void sensorarrayBoardMapAudit(void);

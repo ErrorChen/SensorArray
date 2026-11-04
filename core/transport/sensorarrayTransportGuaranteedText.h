@@ -6,7 +6,7 @@
 
 #include "esp_err.h"
 
-#define SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX 192u
+#define SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX 384u
 
 typedef void (*sensorarrayTransportGuaranteedTextNotify_t)(void);
 

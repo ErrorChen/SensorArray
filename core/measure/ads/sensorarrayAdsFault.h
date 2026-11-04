@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define SENSORARRAY_ADS_FAULT_LINE_MAX 384u
+#define SENSORARRAY_ADS_FAULT_LINE_MAX 1536u
 #define SENSORARRAY_ADS_FAULT_RATE_LIMIT_US 1000000u
 
 typedef enum {
@@ -26,6 +26,16 @@ typedef enum {
     SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_ATTEMPT,
     SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_RESUME,
     SENSORARRAY_ADS_FAULT_STAGE_RECOVERY_FAILED,
+    SENSORARRAY_ADS_FAULT_STAGE_REGISTER_HEALTH_READ,
+    SENSORARRAY_ADS_FAULT_STAGE_REGISTER_READ_UNSTABLE,
+    SENSORARRAY_ADS_FAULT_STAGE_POWER_COMPARE,
+    SENSORARRAY_ADS_FAULT_STAGE_REFMUX_COMPARE,
+    SENSORARRAY_ADS_FAULT_STAGE_MODE_COMPARE,
+    SENSORARRAY_ADS_FAULT_STAGE_RESET_OBSERVED,
+    SENSORARRAY_ADS_FAULT_STAGE_CACHE_COMPARE,
+    SENSORARRAY_ADS_FAULT_STAGE_ROW_GPIO_COMPARE,
+    SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
+    SENSORARRAY_ADS_FAULT_STAGE_RESTORE_VERIFY,
     SENSORARRAY_ADS_FAULT_STAGE_UNKNOWN,
 } sensorarrayAdsFaultStage_t;
 
@@ -39,6 +49,43 @@ typedef enum {
     SENSORARRAY_ADS_FAULT_OUTCOME_RESUMED,
     SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
 } sensorarrayAdsFaultOutcome_t;
+
+/* 本轮新增: captured before cleanup, never inferred from post-SAFE globals. */
+typedef struct {
+    uint32_t id;
+    uint64_t startedUs;
+    uint64_t completedUs;
+    uint64_t firstValidFrameUs;
+    esp_err_t originalError;
+    esp_err_t cleanupError;
+} sensorarrayAdsTransactionEvidence_t;
+
+typedef struct {
+    sensorarrayAdsFaultStage_t stage;
+    esp_err_t originalError;
+    esp_err_t cleanupError;
+    const char *mode;
+    const char *route;
+    const char *owner;
+    uint32_t engineFrameCount;
+    uint32_t modeEntryFrameCount;
+    uint32_t healthInterval;
+    uint32_t cacheGeneration;
+    uint32_t physicalGeneration;
+    uint32_t configGeneration;
+    uint8_t registerId;
+    uint8_t expected;
+    uint8_t actual;
+    uint8_t compareMask;
+    bool valid;
+    bool healthReadbackDue;
+    bool precisionFrame;
+    bool attempted;
+    bool acquired;
+    sensorarrayAdsTransactionEvidence_t rail;
+    sensorarrayAdsTransactionEvidence_t battery;
+    sensorarrayAdsTransactionEvidence_t check;
+} sensorarrayAdsMatrixFaultContext_t;
 
 typedef struct {
     sensorarrayAdsFaultStage_t stage;
@@ -59,7 +106,12 @@ typedef struct {
     const char *reference;
     uint32_t drdyGeneration;
     uint32_t configGeneration;
-    int32_t railUv;
+    int32_t railUv; /* deprecated input; never emitted under ambiguous rail= */
+    int32_t railSpanUv;
+    int32_t avddUv;
+    int32_t avssUv;
+    const char *railSource;
+    const sensorarrayAdsMatrixFaultContext_t *context;
     int32_t restoreExpected;
     int32_t restoreActual;
     bool railValid;

@@ -254,7 +254,7 @@ bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
             .swLogicalSource = TMUX1108_SOURCE_GND,
             .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_HIGH,
             .matrixExcitationEnabled = false,
-            .intRef = SENSORARRAY_ADS_INTREF_KEEP,
+            .intRef = SENSORARRAY_ADS_INTREF_OFF,
             .vbias = SENSORARRAY_ADS_VBIAS_KEEP,
             .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_NONE,
             .adsRefMux = ADS126X_REFMUX_INTERNAL,
@@ -266,25 +266,20 @@ bool sensorarrayBoardMapGetRouteProfile(sensorarrayMeasurementMode_t mode,
 bool sensorarrayBoardMapGetSafeRailMonitorProfile(
     sensorarrayBoardRouteProfile_t *outProfile)
 {
-    if (!outProfile) {
-        return false;
+    /* R25 holds U5 EN high, D is REF, and Q1 only shunts REF to ground.
+     * Releasing Q1 connects REFOUT to the selected S row. A software flag
+     * cannot make that an isolated monitor route. Never return a recipe
+     * which energises a supposedly passive matrix. */
+    if (outProfile) {
+        (void)sensorarrayBoardMapGetRouteProfile(
+            SENSORARRAY_MEASUREMENT_MODE_NONE, outProfile);
     }
-    /* Internal SAFE_RAIL_MONITOR is distinct from RES: REFOUT is not connected
-     * to the matrix and matrix excitation remains disabled while the ADS
-     * supply monitor is sampled. */
-    *outProfile = (sensorarrayBoardRouteProfile_t){
-        .mode = SENSORARRAY_MEASUREMENT_MODE_NONE,
-        .selaRoute = SENSORARRAY_SELA_ROUTE_ADS1263,
-        .selBLevel = false,
-        .swLogicalSource = TMUX1108_SOURCE_REF,
-        .swPhysicalLevel = SENSORARRAY_SW_PHYSICAL_LOW,
-        .matrixExcitationEnabled = false,
-        .intRef = SENSORARRAY_ADS_INTREF_ON,
-        .vbias = SENSORARRAY_ADS_VBIAS_ON,
-        .adsReferenceSource = SENSORARRAY_ADS_REFERENCE_INTERNAL,
-        .adsRefMux = ADS126X_REFMUX_INTERNAL,
-    };
-    return true;
+    return false;
+}
+
+bool sensorarrayBoardMapHasIsolatedRailMonitor(void)
+{
+    return false;
 }
 
 const char *sensorarrayBoardMapMatrixExcitationName(bool enabled)

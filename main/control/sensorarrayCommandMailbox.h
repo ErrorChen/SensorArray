@@ -6,6 +6,7 @@
 
 #include "esp_err.h"
 #include "sensorarrayMeasurementMode.h"
+#include "sensorarrayScanConfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +33,7 @@ typedef enum {
     SENSORARRAY_COMMAND_ADS_DEBUG,
     SENSORARRAY_COMMAND_ROW_MODES,
     SENSORARRAY_COMMAND_FDC_ISOLATE,
+    SENSORARRAY_COMMAND_ROWS,
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -48,6 +50,9 @@ esp_err_t sensorarrayCommandMailboxPostText(const uint8_t *text, size_t length);
 esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
     sensorarrayMeasurementMode_t mode,
     uint32_t *outRequestId);
+/* 本轮新增: ROWS uses the same ACK/terminal reservation and ID arbiter. */
+esp_err_t sensorarrayCommandMailboxPostRows(uint8_t rows,
+    sensorarrayScanConfigRequestResult_t *outResult);
 esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
                                                 uint32_t *outRequestId);
 /* Close the second acceptance phase only after the RMACK has actually been
@@ -86,6 +91,12 @@ bool sensorarrayCommandMailboxAdsDebugEnabled(void);
 uint32_t sensorarrayCommandMailboxGetCaptureFpsCap(void);
 uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void);
 const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type);
+
+/* 本轮新增: MODE / ROWMODES share one accepted transaction reservation. */
+bool sensorarrayCommandMailboxCommitConfigAck(uint32_t requestId);
+bool sensorarrayCommandMailboxCancelConfigAck(uint32_t requestId);
+esp_err_t sensorarrayCommandMailboxEmitConfigTerminal(uint32_t requestId,
+                                                      const char *text, size_t length);
 
 #ifdef __cplusplus
 }

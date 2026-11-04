@@ -51,6 +51,8 @@ bool sensorarrayAdsMathSplitRail(const sensorarrayAdsRailInput_t *input,
     outSplit->avssUv = (int32_t)avssUv;
     outSplit->aincomUv = (int32_t)aincomUv;
     outSplit->valid = true;
+    outSplit->avddAvssEstimated = true;
+    outSplit->aincomEstimated = true;
     return true;
 }
 

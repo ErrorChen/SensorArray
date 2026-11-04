@@ -1,0 +1,4 @@
+R,seq=9198,ts=123456789,rows=1,cells=8,gen=4,rid=3,mode=RES,unit=ohm,scale=-3,valid=00000000000000FF,fresh=00000000000000FF,error=0000000000000000,expected=00000000000000FF,acquired=00000000000000FF,ref=NONE,rail=0,age=0,avdd=0,avss=0,vexc=0,rref=0,dur=0,tr=0,gc=0,ov=0,aa=0,fb=0,ir=0,to=0,st=0,spi=0,fmt=mohm-x,n=8,bad=0,session=AABBCCDDEE112233,bootId=7,rev=8,mgen=4,mrid=3,rgen=2,rrid=1,pgen=5,prid=3
+D0,50000,50001,50002,50003,50004,50005,50006,50007
+P0,0101010101010101
+K,seq=9198,gen=4,rid=3,crc=3087F73A,session=AABBCCDDEE112233,bootId=7,rev=8

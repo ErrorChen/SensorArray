@@ -16,18 +16,19 @@
 #include "sensorarrayBatteryScheduler.h"
 #include "sensorarrayAdsFault.h"
 #include "tmuxSwitch.h"
+#include "sensorarrayBoardMap.h"
 
 #define printf sensorarrayAcqEventPrintf
 
 #define SENSORARRAY_ADS_MUX_ANALOG_MONITOR 0x0Cu
 #define SENSORARRAY_ADS_INTERNAL_VREF_UV 2500000u
 #define SENSORARRAY_ADS_RAIL_SCALE 4
-#define SENSORARRAY_ADS_RAIL_MIN_UV 3500000
-#define SENSORARRAY_ADS_RAIL_MAX_UV 6000000
+#define SENSORARRAY_ADS_RAIL_MIN_UV 4750000
+#define SENSORARRAY_ADS_RAIL_MAX_UV 5250000
 #define SENSORARRAY_ADS_ADC1_JOB_WORST_CASE_US 2500u
 #define SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US 1000u
 #define SENSORARRAY_ADS_CONVERSION_MARGIN_US 100u
-#define SENSORARRAY_ADS_RAIL_REFERENCE_SETTLE_US 5000u
+
 #define SENSORARRAY_ADS_RAIL_MONITOR_SETTLE_MS 1u
 #define SENSORARRAY_ADS_RAIL_MONITOR_DISCARD_COUNT 4u
 #define SENSORARRAY_ADS_ADC1_GAP_DISCARD_COUNT 1u
@@ -67,6 +68,7 @@ typedef struct {
     bool enableInternalRef;
     bool enableStatusByte;
     bool adc1WasRunning;
+    bool adc2WasRunning;
 } sensorarrayAdsSavedState_t;
 
 typedef struct {
@@ -84,6 +86,7 @@ typedef struct {
     sensorarrayAdsRailSource_t source;
     int32_t externalAvddUv;
     int32_t externalAvssUv;
+    uint64_t appliedUs;
 } sensorarrayAdsRailCalibration_t;
 
 typedef struct {
@@ -100,6 +103,8 @@ typedef struct {
     uint32_t vrefDuringUv;
     uint32_t vrefAfterUv;
     bool restored;
+    esp_err_t originalError;
+    esp_err_t cleanupError;
 } sensorarrayAdsRailDiag_t;
 
 typedef struct {
@@ -129,6 +134,15 @@ typedef struct {
     uint32_t shadowGenerationBefore;
     uint32_t sampleUs;
     esp_err_t readErr;
+    esp_err_t cleanupError;
+    ads126xAdc1RegisterSnapshot_t saved;
+    ads126xAdc1RegisterSnapshot_t configured;
+    ads126xAdc1RegisterSnapshot_t restored;
+    uint32_t generationSaved;
+    uint32_t generationConfigured;
+    uint32_t generationRestored;
+    uint64_t sampleTimestampUs[3];
+    uint8_t sampleStatus[3];
     bool fresh;
     bool referenceValid;
     bool saturated;
@@ -168,8 +182,6 @@ static sensorarrayAdsGapMode_t s_gapMode =
 #else
     SENSORARRAY_ADS_GAP_MODE_ON;
 #endif
-static uint32_t s_slackSamples;
-static uint64_t s_slackTotalUs;
 static uint32_t s_lastSampleFrame;
 static uint32_t s_lastJobFrame;
 static uint32_t s_lastZeroFrame;
@@ -184,6 +196,63 @@ static sensorarrayBatteryScheduler_t s_batteryScheduler;
 static sensorarrayAdsBatteryDiag_t s_lastBatteryDiag;
 static bool s_batteryDiagnosticRequested;
 static bool s_batteryRestoreFailureLatched;
+static sensorarrayAdsTransactionEvidence_t s_railTransaction;
+static sensorarrayAdsTransactionEvidence_t s_batteryTransaction;
+static sensorarrayAdsTransactionEvidence_t s_checkTransaction;
+static uint32_t s_transactionGeneration;
+static uint32_t s_bootId;
+static uint32_t s_bootCount;
+
+void sensorarrayAdsGapBindBootIdentity(uint32_t bootId, uint32_t bootCount)
+{
+    s_bootId = bootId;
+    s_bootCount = bootCount;
+}
+
+uint32_t sensorarrayAdsGapTransactionGeneration(void)
+{
+    return s_transactionGeneration;
+}
+
+void sensorarrayAdsGapCopyTransactionEvidence(
+    sensorarrayAdsTransactionEvidence_t *rail,
+    sensorarrayAdsTransactionEvidence_t *battery,
+    sensorarrayAdsTransactionEvidence_t *check)
+{
+    if (rail) { *rail = s_railTransaction; }
+    if (battery) { *battery = s_batteryTransaction; }
+    if (check) { *check = s_checkTransaction; }
+}
+
+void sensorarrayAdsGapNoteFirstValidFrame(uint64_t frameEndUs)
+{
+    sensorarrayAdsTransactionEvidence_t *transactions[] = {
+        &s_railTransaction, &s_batteryTransaction, &s_checkTransaction};
+    for (size_t i = 0u; i < 3u; ++i) {
+        sensorarrayAdsTransactionEvidence_t *t = transactions[i];
+        if (t->id && t->completedUs && !t->firstValidFrameUs &&
+            frameEndUs > t->completedUs && t->cleanupError == ESP_OK) {
+            t->firstValidFrameUs = frameEndUs;
+        }
+    }
+}
+
+static void sensorarrayAdsTransactionBegin(sensorarrayAdsTransactionEvidence_t *t)
+{
+    uint32_t id = t->id + 1u;
+    *t = (sensorarrayAdsTransactionEvidence_t){
+        .id = id ? id : 1u, .startedUs = (uint64_t)esp_timer_get_time()};
+}
+
+static void sensorarrayAdsTransactionEnd(sensorarrayAdsTransactionEvidence_t *t,
+    esp_err_t originalError, esp_err_t cleanupError)
+{
+    t->originalError = originalError;
+    t->cleanupError = cleanupError;
+    t->completedUs = (uint64_t)esp_timer_get_time();
+    ++s_transactionGeneration;
+}
+
 
 static void sensorarrayAdsFaultSink(const char *line,
                                     size_t length,
@@ -244,8 +313,10 @@ static bool sensorarrayAdsCoreRegistersMatch(
     uint8_t inpmux,
     uint8_t refmux)
 {
-    return expected && power == expected->power && mode2 == expected->mode2 &&
-           inpmux == expected->inpmux && refmux == expected->refmux;
+    return expected && (power & ADS126X_POWER_RESET) == 0u &&
+           ((power ^ expected->power) & ADS126X_POWER_CONFIG_MASK) == 0u &&
+           mode2 == expected->mode2 && inpmux == expected->inpmux &&
+           ((refmux ^ expected->refmux) & ADS126X_REFMUX_CONFIG_MASK) == 0u;
 }
 
 static esp_err_t sensorarrayAdsRestoreBatteryCoreState(
@@ -304,7 +375,9 @@ static esp_err_t sensorarrayAdsRestoreBatteryCoreState(
     if (outPowerAfter) {
         *outPowerAfter = power;
     }
-    return adc1WasRunning ? ads126xAdcStartAdc1(ads) : ESP_OK;
+    ads126xAdcClearDrdyNotifications(ads);
+    err = ads126xAdcWaitReferenceReady(ads);
+    return err == ESP_OK && adc1WasRunning ? ads126xAdcStartAdc1(ads) : err;
 }
 
 static bool sensorarrayAdsRailUsableAsReference(int64_t railUv)
@@ -450,38 +523,6 @@ static bool sensorarrayAdsCalculateAincomGnd(int32_t *outUv)
     }
     *outUv = (int32_t)midpointUv;
     return true;
-}
-
-static uint32_t sensorarrayAdsGapRemainingUs(uint64_t deadlineUs)
-{
-    int64_t nowUs = esp_timer_get_time();
-    if (deadlineUs <= (uint64_t)nowUs) {
-        return 0u;
-    }
-    uint64_t remaining = deadlineUs - (uint64_t)nowUs;
-    return remaining > UINT32_MAX ? UINT32_MAX : (uint32_t)remaining;
-}
-
-static void sensorarrayAdsGapRecordSlack(uint32_t slackUs)
-{
-    s_slackTotalUs += slackUs;
-    s_slackSamples++;
-    s_snapshot.avgSlackUs = s_slackSamples ?
-        (uint32_t)(s_slackTotalUs / s_slackSamples) : 0u;
-    if (s_snapshot.minSlackUs == 0u || slackUs < s_snapshot.minSlackUs) {
-        s_snapshot.minSlackUs = slackUs;
-    }
-}
-
-static void sensorarrayAdsGapRecordOverrun(void)
-{
-    s_snapshot.overrunCount++;
-    if (s_snapshot.guardUs < 5000u) {
-        s_snapshot.guardUs += 100u;
-    }
-    if (s_snapshot.overrunCount >= 3u) {
-        s_snapshot.fallbackToBoundary = true;
-    }
 }
 
 static uint16_t sensorarrayAdsChipValue(const ads126xAdcHandle_t *ads)
@@ -782,44 +823,6 @@ static void sensorarrayAdsUpdateBatteryValidity(
     }
 }
 
-static esp_err_t sensorarrayAdsReadAdc2Uv(ads126xAdcHandle_t *ads,
-                                          uint8_t muxp,
-                                          uint8_t muxn,
-                                          int32_t *outRaw,
-                                          int32_t *outUv)
-{
-    esp_err_t err = ads126xAdcStopAdc2(ads);
-    if (err == ESP_OK) {
-        err = ads126xAdcSetAdc2InputMux(ads, muxp, muxn);
-    }
-    if (err == ESP_OK) {
-        esp_rom_delay_us(SENSORARRAY_ADS_DIAGNOSTIC_SETTLE_US);
-    }
-    if (err == ESP_OK) {
-        err = ads126xAdcStartAdc2(ads);
-    }
-    uint32_t dmaReadUs = 0u;
-    if (err == ESP_OK) {
-        uint32_t conversionUs =
-            ads126xAdcAdc2ExpectedConversionPeriodUs(ads->adc2DataRate);
-        esp_rom_delay_us(conversionUs + SENSORARRAY_ADS_CONVERSION_MARGIN_US);
-        err = ads126xAdcReadAdc2RawDmaReady(ads,
-                                            outRaw,
-                                            NULL,
-                                            &dmaReadUs);
-        s_snapshot.dmaReadCount++;
-        s_snapshot.dmaReadUs += dmaReadUs;
-    }
-    esp_err_t stopErr = ads126xAdcStopAdc2(ads);
-    if (err == ESP_OK) {
-        err = stopErr;
-    }
-    if (err == ESP_OK) {
-        *outUv = ads126xAdcAdc2RawToMicrovolts(ads, *outRaw);
-    }
-    return err;
-}
-
 static esp_err_t sensorarrayAdsSaveState(ads126xAdcHandle_t *ads,
                                          sensorarrayAdsSavedState_t *saved)
 {
@@ -848,6 +851,7 @@ static esp_err_t sensorarrayAdsSaveState(ads126xAdcHandle_t *ads,
         saved->enableInternalRef = ads->enableInternalRef;
         saved->enableStatusByte = ads->enableStatusByte;
         saved->adc1WasRunning = ads126xAdcIsAdc1Running(ads);
+        saved->adc2WasRunning = ads126xAdcIsAdc2Running(ads);
     }
     return err;
 }
@@ -897,6 +901,9 @@ static esp_err_t sensorarrayAdsRestoreState(ads126xAdcHandle_t *ads,
         &snapshot,
         saved->vrefMicrovolts,
         saved->adc1WasRunning);
+    if (firstErr == ESP_OK && saved->adc2WasRunning) {
+        firstErr = ads126xAdcStartAdc2(ads);
+    }
     if (firstErr == ESP_OK) {
         ads->enableInternalRef = saved->enableInternalRef;
         ads->enableStatusByte = saved->enableStatusByte;
@@ -904,6 +911,11 @@ static esp_err_t sensorarrayAdsRestoreState(ads126xAdcHandle_t *ads,
         ads->pgaGain = saved->pgaGain;
         ads->dataRateDr = saved->dataRateDr;
         ads->vrefMicrovolts = saved->vrefMicrovolts;
+        sensorarrayAdsPopulateRestoredRegisterCache(s_registerCache, &snapshot,
+            saved->vrefMicrovolts, saved->adc1WasRunning);
+    } else {
+        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
+        s_batteryRestoreFailureLatched = true;
     }
     return firstErr;
 }
@@ -917,7 +929,16 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     if (!state || !outRaw || !outMonitorUv) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!sensorarrayAdsInternalReferenceIsUnclamped()) {
+    /* No isolation exists on this board. Monitoring may use an already
+     * intentional RES excitation, never turn REFOUT on for CAP/VOLT. */
+    uint8_t physicalPower = 0u;
+    esp_err_t powerErr = ads126xAdcReadPowerRegister(&state->ads, &physicalPower);
+    if (powerErr != ESP_OK) {
+        return powerErr;
+    }
+    if ((!sensorarrayBoardMapHasIsolatedRailMonitor() &&
+         (physicalPower & ADS126X_POWER_INTREF) == 0u) ||
+        !sensorarrayAdsInternalReferenceIsUnclamped()) {
         /* Never enable REFOUT while Q1 is commanded or observed clamping the
          * same net. VOLT/CAP must use a fresh external rail calibration. */
         return ESP_ERR_INVALID_STATE;
@@ -937,10 +958,10 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     diag.vrefBeforeUv = saved.vrefMicrovolts;
 
     if (ads126xAdcHasAdc2(ads)) {
-        (void)ads126xAdcStopAdc2(ads);
+        err = ads126xAdcStopAdc2(ads);
     }
-    (void)ads126xAdcStopAdc1(ads);
-    err = ads126xAdcSetInternalReference(ads, true);
+    if (err == ESP_OK) { err = ads126xAdcStopAdc1(ads); }
+    if (err == ESP_OK) { err = ads126xAdcSetInternalReference(ads, true); }
     if (err == ESP_OK) {
         err = ads126xAdcSetVbiasEnabled(ads, true);
     }
@@ -950,13 +971,7 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
                                           SENSORARRAY_ADS_INTERNAL_VREF_UV);
     }
     if (err == ESP_OK) {
-        /* The boot calibration path already lets the internal reference settle
-         * before measuring the analog supply monitor. Runtime rail jobs switch
-         * from AVDD/AVSS reference back to the internal 2.5 V reference, so
-         * give the reference mux and monitor source their own small settling
-         * window before consuming DRDY. Without this, the first periodic rail
-         * sample can be biased high even after normal conversion discards. */
-        esp_rom_delay_us(SENSORARRAY_ADS_RAIL_REFERENCE_SETTLE_US);
+        err = ads126xAdcWaitReferenceReady(ads);
     }
     if (err == ESP_OK) {
         /* System-offset calibration is intentionally tied to the board's AIN9
@@ -999,6 +1014,8 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
     (void)ads126xAdcStopAdc1(ads);
 
     esp_err_t restoreErr = sensorarrayAdsRestoreState(ads, &saved);
+    diag.originalError = err;
+    diag.cleanupError = restoreErr;
     diag.restored = restoreErr == ESP_OK;
     uint8_t powerAfter = 0u;
     uint8_t mode2After = 0u;
@@ -1023,8 +1040,12 @@ static esp_err_t sensorarrayAdsReadRailMonitorUv(
         s_snapshot.fallbackToBoundary = true;
         printf("ERR,mod=ads,code=rail_restore,ctx=power/refmux/inpmux/mode,act=gap_pause,seq=0,err=0x%lx\n",
                (unsigned long)restoreErr);
-        return restoreErr;
+        s_batteryRestoreFailureLatched = true;
+        return err != ESP_OK ? err : restoreErr;
     }
+    state->adsRefMux = saved.refmux;
+    state->adsRefMuxValid = true;
+    state->adsAdc1Running = saved.adc1WasRunning;
     return err;
 }
 
@@ -1054,7 +1075,7 @@ static esp_err_t sensorarrayAdsBootCalibration(sensorarrayState_t *state)
     esp_err_t err = ads126xAdcConfigure(ads,
                                         false,
                                         true,
-                                        ADS126X_CRC_OFF,
+                                        ADS126X_CRC_CRC8,
                                         1u,
                                         (uint8_t)CONFIG_SENSORARRAY_ADS_DATA_RATE);
     if (err == ESP_OK) {
@@ -1136,8 +1157,6 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
         SENSORARRAY_BATTERY_INVALID_NOT_DUE :
         SENSORARRAY_BATTERY_INVALID_DISABLED;
     s_railState.lastGoodFrame = UINT32_MAX;
-    s_slackSamples = 0u;
-    s_slackTotalUs = 0u;
     s_lastSampleFrame = 0u;
     s_lastJobFrame = UINT32_MAX;
     s_lastZeroFrame = 0u;
@@ -1150,6 +1169,10 @@ esp_err_t sensorarrayAdsGapInit(sensorarrayState_t *state)
     memset(&s_lastBatteryDiag, 0, sizeof(s_lastBatteryDiag));
     s_batteryDiagnosticRequested = false;
     s_batteryRestoreFailureLatched = false;
+    memset(&s_railTransaction, 0, sizeof(s_railTransaction));
+    memset(&s_batteryTransaction, 0, sizeof(s_batteryTransaction));
+    memset(&s_checkTransaction, 0, sizeof(s_checkTransaction));
+    s_transactionGeneration = 0u;
     sensorarrayBatterySchedulerInit(
         &s_batteryScheduler,
         s_snapshot.batteryEnabled,
@@ -1212,6 +1235,16 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
     if (!state || !state->adsReady || !s_snapshot.initialized) {
         return ESP_ERR_INVALID_STATE;
     }
+    if (!s_registerCache ||
+        !sensorarrayAdsRegisterCacheAcquire(s_registerCache, SENSORARRAY_ADS_OWNER_RAIL)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t deadlineErr = ads126xAdcBeginTransaction(&state->ads, 250000u);
+    if (deadlineErr != ESP_OK) {
+        (void)sensorarrayAdsRegisterCacheRelease(s_registerCache, SENSORARRAY_ADS_OWNER_RAIL);
+        return deadlineErr;
+    }
+    sensorarrayAdsTransactionBegin(&s_railTransaction);
     int32_t railMonitorRaw = 0;
     int32_t railMonitorUv = 0;
     sensorarrayAdsRailDiag_t railDiag = {0};
@@ -1237,6 +1270,9 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
     } else if (err != ESP_OK) {
         s_snapshot.spiErrorCount++;
     }
+    ads126xAdcEndTransaction(&state->ads);
+    sensorarrayAdsTransactionEnd(&s_railTransaction, err, railDiag.cleanupError);
+    (void)sensorarrayAdsRegisterCacheRelease(s_registerCache, SENSORARRAY_ADS_OWNER_RAIL);
     return err;
 }
 
@@ -1244,7 +1280,9 @@ esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
                                                        int32_t avssUv,
                                                        uint32_t frameSequence)
 {
-    if (!s_snapshot.initialized || avddUv <= 0 || avssUv >= 0) {
+    /* Datasheet 7.3: AVSS relative to DGND must be -2.6 V..0 V.
+     * This board uses a negative rail; allow no positive AVSS calibration. */
+    if (!s_snapshot.initialized || avddUv <= 0 || avssUv >= 0 || avssUv < -2600000) {
         return ESP_ERR_INVALID_ARG;
     }
     int64_t railUv = (int64_t)avddUv - (int64_t)avssUv;
@@ -1256,6 +1294,7 @@ esp_err_t sensorarrayAdsGapSetExternalRailCalibration(int32_t avddUv,
         .source = SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION,
         .externalAvddUv = avddUv,
         .externalAvssUv = avssUv,
+        .appliedUs = (uint64_t)esp_timer_get_time(),
     };
     s_snapshot.railSource = SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION;
     s_railState.lastGoodRailUv = (int32_t)railUv;
@@ -1328,6 +1367,8 @@ bool sensorarrayAdsGapCopyRailSplit(uint32_t frameSequence,
             .aincomUv = (int32_t)midpointUv,
             .ageFrames = snapshot.railAgeFrames,
             .valid = true,
+            .avddAvssEstimated = false,
+            .aincomEstimated = true,
         };
         return true;
     }
@@ -1396,6 +1437,7 @@ static esp_err_t sensorarrayAdsReadDma(sensorarrayState_t *state,
                                        int32_t *outUv)
 {
     esp_err_t err = ads126xAdcSetInputMuxFast(&state->ads, muxp, muxn);
+    if (err == ESP_OK) { err = ads126xAdcWaitReferenceReady(&state->ads); }
     if (err == ESP_OK) {
         /* Internal monitors and the external divider need more than one
          * 38.4-kSPS period after a mux change. Match the proven boot-read
@@ -1429,9 +1471,8 @@ static esp_err_t sensorarrayAdsReadPreferred(sensorarrayState_t *state,
                                              int32_t *outRaw,
                                              int32_t *outUv)
 {
-    if (s_snapshot.hasAdc2) {
-        return sensorarrayAdsReadAdc2Uv(&state->ads, muxp, muxn, outRaw, outUv);
-    }
+    /* Boundary diagnostics use ADC1 on both chips so the saved ADC1 snapshot
+     * fully covers every modified register. ADC2 settings remain untouched. */
     return sensorarrayAdsReadDma(state, muxp, muxn, outRaw, outUv);
 }
 
@@ -1476,6 +1517,7 @@ static void sensorarrayAdsPrintBatteryDiag(const sensorarrayAdsBatteryDiag_t *di
 }
 
 static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
+                                                       uint32_t frameSequence,
                                                        int32_t *outRaw,
                                                        int32_t *outUv,
                                                        sensorarrayAdsBatteryDiag_t *outDiag)
@@ -1522,22 +1564,51 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         err = ESP_ERR_INVALID_STATE;
         goto finish;
     }
+    err = ads126xAdcBeginTransaction(ads, 250000u);
+    if (err != ESP_OK) { goto release; }
+    sensorarrayAdsTransactionBegin(&s_batteryTransaction);
+    diag.generationSaved = ads->drdyGeneration;
     diag.shadowGenerationBefore = s_registerCache->generation;
 
     snapshotFromShadow = sensorarrayAdsSnapshotFromRegisterCache(
         s_registerCache, ads, &saved);
-    if (snapshotFromShadow) {
-        vrefBeforeUv = (uint32_t)s_registerCache->vrefUv;
-    } else {
-        err = ads126xAdcReadAdc1RegisterSnapshot(ads, &saved);
-        if (err != ESP_OK) {
-            diag.reason = "snapshot_read";
-            sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
-            goto release;
-        }
+    ads126xAdc1RegisterSnapshot_t physicalSaved = {0};
+    err = ads126xAdcReadAdc1RegisterSnapshot(ads, &physicalSaved);
+    if (err != ESP_OK) {
+        diag.reason = "snapshot_read";
+        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
+        goto release;
+    }
+    /* A cached snapshot is never proof of current physical configuration. */
+    if (snapshotFromShadow && memcmp(&saved, &physicalSaved, sizeof(saved)) != 0) {
+        diag.reason = "snapshot_shadow_mismatch";
+        diag.restoreOk = false;
+        diag.cleanupError = ESP_ERR_INVALID_STATE;
+        err = ESP_ERR_INVALID_RESPONSE;
+        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
+        goto release;
+    }
+    saved = physicalSaved;
+    if ((saved.power & ADS126X_POWER_RESET) != 0u) {
+        diag.reason = "reset_observed";
+        diag.restoreOk = false;
+        diag.cleanupError = ESP_ERR_INVALID_STATE;
+        err = ESP_ERR_INVALID_RESPONSE;
+        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
+        goto release;
     }
     snapshotValid = true;
+    diag.saved = saved;
     diag.powerBefore = saved.power;
+    sensorarrayAdsRailSplit_t batteryRail = {0};
+    if (!sensorarrayAdsGapCopyRailSplit(frameSequence,
+            CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES, &batteryRail)) {
+        diag.reason = "rail_invalid";
+        err = ESP_ERR_INVALID_STATE;
+        /* No hardware has changed. Do not disturb CAP merely to discover an
+         * absent/stale rail dependency; an external calibration can unlock it. */
+        goto release;
+    }
 
     if (ads126xAdcHasAdc2(ads)) {
         err = ads126xAdcStopAdc2(ads);
@@ -1615,6 +1686,12 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         goto restore;
     }
     diag.referenceValid = true;
+    err = ads126xAdcReadAdc1RegisterSnapshot(ads, &diag.configured);
+    if (err != ESP_OK) {
+        diag.reason = "configured_snapshot";
+        goto restore;
+    }
+    diag.generationConfigured = ads->drdyGeneration;
     transactionCoreKnown = true;
     sensorarrayAdsRegisterCacheNoteWrite(
         s_registerCache, SENSORARRAY_ADS_REGISTER_REFMUX,
@@ -1677,6 +1754,8 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         }
         diag.sampleCount++;
         diag.fresh = true;
+        diag.sampleTimestampUs[sampleIndex] = (uint64_t)esp_timer_get_time();
+        diag.sampleStatus[sampleIndex] = samples[sampleIndex].status;
         if (sampleIndex == 0u) {
             diag.sampleRaw0 = samples[sampleIndex].raw;
         } else if (sampleIndex == 1u) {
@@ -1772,11 +1851,19 @@ restore:
                 (void)ads126xAdcReadPowerRegister(ads, &diag.powerAfter);
             }
         }
+        if (restoreErr == ESP_OK) {
+            restoreErr = ads126xAdcReadAdc1RegisterSnapshot(ads, &diag.restored);
+            if (restoreErr == ESP_OK && memcmp(&saved, &diag.restored, sizeof(saved)) != 0) {
+                restoreErr = ESP_ERR_INVALID_RESPONSE;
+            }
+        }
         if (restoreErr == ESP_OK && adc2WasRunning) {
             restoreErr = ads126xAdcStartAdc2(ads);
         }
         diag.restoreOk = restoreErr == ESP_OK;
+        diag.cleanupError = restoreErr;
         if (diag.restoreOk) {
+            diag.generationRestored = ads->drdyGeneration;
             sensorarrayAdsPopulateRestoredRegisterCache(s_registerCache,
                                                          &saved,
                                                          vrefBeforeUv,
@@ -1789,11 +1876,15 @@ restore:
             state->adsRefMuxValid = false;
             state->adsAdc1Running = false;
             diag.reason = "restore_failed";
-            err = restoreErr;
+            if (err == ESP_OK) {
+                err = restoreErr;
+            }
         }
     }
 
 release:
+    ads126xAdcEndTransaction(ads);
+    sensorarrayAdsTransactionEnd(&s_batteryTransaction, err, diag.cleanupError);
     (void)sensorarrayAdsRegisterCacheRelease(s_registerCache,
                                               SENSORARRAY_ADS_OWNER_BATTERY);
 finish:
@@ -1810,6 +1901,19 @@ finish:
     return err;
 }
 
+static void sensorarrayAdsLogBatteryRegisters(uint32_t seq,
+    const char *phase, const ads126xAdc1RegisterSnapshot_t *r, uint32_t generation,
+    bool known)
+{
+    printf("BATREG,seq=%lu,txn=%lu,phase=%s,known=%u,POWER=%02X,MODE0=%02X,MODE1=%02X,MODE2=%02X,INPMUX=%02X,REFMUX=%02X,OCAL=%02X%02X%02X,FSCAL=%02X%02X%02X,VBIAS=%u,INTREF=%u,drdyGen=%lu\n",
+        (unsigned long)seq, (unsigned long)s_batteryTransaction.id, phase, known ? 1u : 0u,
+        r->power, r->mode0, r->mode1, r->mode2, r->inpmux, r->refmux,
+        r->offsetCal[2], r->offsetCal[1], r->offsetCal[0],
+        r->fullScaleCal[2], r->fullScaleCal[1], r->fullScaleCal[0],
+        (r->power & ADS126X_POWER_VBIAS) != 0u,
+        (r->power & ADS126X_POWER_INTREF) != 0u, (unsigned long)generation);
+}
+
 static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
                                        sensorarrayAdsJob_t job,
                                        uint32_t frameSequence,
@@ -1819,12 +1923,7 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
     int32_t uv = 0;
     esp_err_t err = ESP_OK;
     if (job == SENSORARRAY_ADS_JOB_RAIL) {
-        sensorarrayAdsRailDiag_t railDiag = {0};
-        err = sensorarrayAdsReadRailMonitorUv(state, &raw, &uv, &railDiag);
-        if (err == ESP_OK) {
-            (void)sensorarrayAdsUpdateRail(raw, uv, frameSequence);
-            s_snapshot.vrefSynced = railDiag.restored;
-        }
+        err = sensorarrayAdsGapRefreshRailAtBoundary(state, frameSequence);
         if (err == ESP_OK) {
             s_lastRailFrame = frameSequence;
         }
@@ -1832,25 +1931,55 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
          * retry every frame and repeatedly attempt the same hardware action. */
         s_forceRail = false;
     } else if (job == SENSORARRAY_ADS_JOB_ZERO) {
-        err = sensorarrayAdsReadPreferred(state,
-                                          SENSORARRAY_ADS_MUX_AIN9,
-                                          SENSORARRAY_ADS_MUX_AINCOM,
-                                          &raw,
-                                          &uv);
+        if (!s_registerCache || !sensorarrayAdsRegisterCacheAcquire(
+                s_registerCache, SENSORARRAY_ADS_OWNER_ZERO)) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        sensorarrayAdsSavedState_t saved = {0};
+        err = ads126xAdcBeginTransaction(&state->ads, 250000u);
+        if (err == ESP_OK) { err = sensorarrayAdsSaveState(&state->ads, &saved); }
+        if (err == ESP_OK) {
+            err = sensorarrayAdsReadPreferred(state,
+                SENSORARRAY_ADS_MUX_AIN9, SENSORARRAY_ADS_MUX_AINCOM, &raw, &uv);
+            esp_err_t restoreErr = sensorarrayAdsRestoreState(&state->ads, &saved);
+            state->adsRefMux = saved.refmux;
+            state->adsRefMuxValid = restoreErr == ESP_OK;
+            state->adsAdc1Running = restoreErr == ESP_OK && saved.adc1WasRunning;
+            if (err == ESP_OK) { err = restoreErr; }
+            ++s_transactionGeneration;
+        }
+        ads126xAdcEndTransaction(&state->ads);
+        (void)sensorarrayAdsRegisterCacheRelease(s_registerCache, SENSORARRAY_ADS_OWNER_ZERO);
+        s_forceZero = false;
         if (err == ESP_OK) {
             s_snapshot.ain9OffsetRaw = raw;
             sensorarrayAdsUpdateZero(uv, frameSequence);
-            s_forceZero = false;
         }
     } else if (job == SENSORARRAY_ADS_JOB_BATTERY) {
         sensorarrayAdsBatteryDiag_t diag = {0};
-        err = sensorarrayAdsReadBatteryTransaction(state, &raw, &uv, &diag);
+        err = sensorarrayAdsReadBatteryTransaction(state, frameSequence, &raw, &uv, &diag);
         diag.diagnostic = s_batteryDiagnosticRequested;
         diag.boundaryFallback = boundaryFallback;
         s_lastBatteryDiag = diag;
         if (diag.collision) {
             return err;
         }
+        sensorarrayAdsLogBatteryRegisters(frameSequence, "saved", &diag.saved,
+            diag.generationSaved, diag.saved.id == state->ads.idRegRaw && diag.saved.interface != 0u);
+        sensorarrayAdsLogBatteryRegisters(frameSequence, "configured", &diag.configured,
+            diag.generationConfigured, diag.configured.interface != 0u);
+        sensorarrayAdsLogBatteryRegisters(frameSequence, "restored", &diag.restored,
+            diag.generationRestored, diag.restoreOk && diag.restored.interface != 0u);
+        printf("BATRAW,seq=%lu,txn=%lu,raw=%ld/%ld/%ld,status=%02X/%02X/%02X,timeUs=%llu/%llu/%llu,transactionStartUs=%llu,transactionEndUs=%llu,originalError=0x%lx,cleanupError=0x%lx\n",
+            (unsigned long)frameSequence, (unsigned long)s_batteryTransaction.id,
+            (long)diag.sampleRaw0, (long)diag.sampleRaw1, (long)diag.sampleRaw2,
+            diag.sampleStatus[0], diag.sampleStatus[1], diag.sampleStatus[2],
+            (unsigned long long)diag.sampleTimestampUs[0],
+            (unsigned long long)diag.sampleTimestampUs[1],
+            (unsigned long long)diag.sampleTimestampUs[2],
+            (unsigned long long)s_batteryTransaction.startedUs,
+            (unsigned long long)s_batteryTransaction.completedUs,
+            (unsigned long)(uint32_t)err, (unsigned long)(uint32_t)diag.cleanupError);
         if (diag.fresh) {
             s_snapshot.ain8Raw = raw;
             s_snapshot.ain8RawUv = uv;
@@ -1890,14 +2019,19 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         if (!s_snapshot.batteryValid && !diag.collision &&
             s_snapshot.batteryInvalidReason != SENSORARRAY_BATTERY_INVALID_RAIL) {
             sensorarrayAdsFaultEvent_t fault = {
-                .stage = SENSORARRAY_ADS_FAULT_STAGE_BATTERY_GAP,
+                .stage = diag.restoreOk ? SENSORARRAY_ADS_FAULT_STAGE_BATTERY_GAP :
+                    SENSORARRAY_ADS_FAULT_STAGE_RESTORE_VERIFY,
                 .err = err,
+                .bootId = s_bootId,
+                .bootCount = s_bootCount,
                 .seq = frameSequence,
                 .owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_BATTERY),
                 .drdyGeneration = diag.generationDelta,
                 .configGeneration = diag.shadowGenerationBefore,
                 .railValid = s_snapshot.railValid,
-                .railUv = s_snapshot.railUv,
+                .railSpanUv = s_snapshot.railUv,
+                .railSource = sensorarrayAdsRailSourceName(
+                    (sensorarrayAdsRailSource_t)s_snapshot.railSource),
                 .reference = s_snapshot.railValid ?
                     sensorarrayAdsRailSourceName(
                         (sensorarrayAdsRailSource_t)s_snapshot.railSource) :
@@ -1933,21 +2067,6 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
         s_batteryDiagnosticRequested = false;
     }
     return err;
-}
-
-static bool sensorarrayAdsJobIsExplicitRequest(sensorarrayAdsJob_t job)
-{
-    switch (job) {
-    case SENSORARRAY_ADS_JOB_RAIL:
-        return s_forceRail;
-    case SENSORARRAY_ADS_JOB_ZERO:
-        return s_forceZero;
-    case SENSORARRAY_ADS_JOB_BATTERY:
-        return s_batteryScheduler.forcePending;
-    case SENSORARRAY_ADS_JOB_NONE:
-    default:
-        return false;
-    }
 }
 
 void sensorarrayAdsGapRequestCalibration(bool requestZero, bool requestRail)
@@ -2067,117 +2186,33 @@ void sensorarrayAdsGapTryRun(sensorarrayState_t *state,
                              uint32_t frameSequence,
                              uint8_t row)
 {
-    (void)row;
-    s_snapshot.windows++;
-    if (!CONFIG_SENSORARRAY_ADS_GAP_FILL_ENABLE || !state || !state->adsReady ||
-        !s_snapshot.initialized) {
-        s_snapshot.jobsSkip++;
-        return;
-    }
+    /* Compatibility only: row gaps cannot prove an auxiliary restore has
+     * completed before FDC resumes. Every caller must use a frame boundary. */
+    (void)state; (void)expectedFdcReadyUs; (void)frameSequence; (void)row;
+}
 
+esp_err_t sensorarrayAdsGapRunPendingAtBoundary(sensorarrayState_t *state,
+                                                uint32_t frameSequence)
+{
+    if (!state || !state->adsReady || !s_snapshot.initialized ||
+        ads126xAdcIsQuarantined(&state->ads)) {
+        return ESP_ERR_INVALID_STATE;
+    }
     sensorarrayAdsJob_t job = sensorarrayAdsSelectJob(frameSequence);
-    if (job == SENSORARRAY_ADS_JOB_NONE) {
-        return;
+    /* Battery has its own wall-clock scheduler, still on this same owner. */
+    if (job == SENSORARRAY_ADS_JOB_NONE || job == SENSORARRAY_ADS_JOB_BATTERY) {
+        return ESP_OK;
     }
-    bool explicitRequest = sensorarrayAdsJobIsExplicitRequest(job);
-    uint32_t remainingBeforeUs = sensorarrayAdsGapRemainingUs(expectedFdcReadyUs);
-    uint32_t jobWorstCaseUs = s_snapshot.hasAdc2 ?
-        (uint32_t)CONFIG_SENSORARRAY_ADS_JOB_WORST_CASE_US :
-        SENSORARRAY_ADS_ADC1_JOB_WORST_CASE_US;
-    uint32_t admissionUs = jobWorstCaseUs + s_snapshot.guardUs;
-    if (job == SENSORARRAY_ADS_JOB_BATTERY) {
-        uint32_t periodUs = ads126xAdcExpectedConversionPeriodUs(
-            (uint8_t)CONFIG_SENSORARRAY_BATTERY_DATA_RATE);
-        uint64_t estimatedUs =
-            (uint64_t)CONFIG_SENSORARRAY_BATTERY_VBIAS_SETTLE_US +
-            (uint64_t)(SENSORARRAY_ADS_BATTERY_DISCARD_COUNT +
-                       SENSORARRAY_ADS_BATTERY_SAMPLE_COUNT) * periodUs +
-            SENSORARRAY_ADS_BATTERY_FIXED_OVERHEAD_BUDGET_US;
-        if (estimatedUs > UINT32_MAX) {
-            estimatedUs = UINT32_MAX;
-        }
-        if ((uint32_t)estimatedUs > jobWorstCaseUs) {
-            jobWorstCaseUs = (uint32_t)estimatedUs;
-        }
-        if (s_snapshot.batterySampleUs != 0u) {
-            uint64_t observedBudgetUs =
-                (uint64_t)s_snapshot.batterySampleUs + 250u;
-            if (observedBudgetUs > UINT32_MAX) {
-                observedBudgetUs = UINT32_MAX;
-            }
-            if ((uint32_t)observedBudgetUs > jobWorstCaseUs) {
-                jobWorstCaseUs = (uint32_t)observedBudgetUs;
-            }
-        }
-        sensorarrayBatteryDecision_t decision =
-            sensorarrayBatterySchedulerEvaluateGap(
-                &s_batteryScheduler,
-                (uint64_t)esp_timer_get_time(),
-                remainingBeforeUs,
-                jobWorstCaseUs,
-                s_snapshot.guardUs);
-        if (decision != SENSORARRAY_BATTERY_DECISION_RUN_GAP) {
-            if (s_snapshot.batteryTimestampUs == 0u) {
-                s_snapshot.batteryInvalidReason =
-                    decision == SENSORARRAY_BATTERY_DECISION_DISABLED ?
-                        SENSORARRAY_BATTERY_INVALID_DISABLED :
-                        SENSORARRAY_BATTERY_INVALID_DEFERRED;
-            }
-            return;
-        }
-    }
-    if (remainingBeforeUs <= admissionUs) {
-        /*
-         * Periodic ADS work is opportunistic and must not steal the FDC ready
-         * window. Explicit commands such as BATD are different: the host has
-         * asked for a diagnostic transaction and needs a terminal BATD result,
-         * even on an 8-row frame where no gap is large enough. Run that single
-         * forced job at the frame-boundary wait point and expose the timing
-         * cost through fallbackToBoundary/overrun counters instead of silently
-         * keeping the request queued forever.
-         */
-        if (!explicitRequest) {
-            s_snapshot.jobsSkip++;
-            return;
-        }
-        s_snapshot.fallbackToBoundary = true;
-    }
-
     s_lastJobFrame = frameSequence;
-    int64_t jobStartUs = esp_timer_get_time();
-    esp_err_t err = sensorarrayAdsRunJob(state, job, frameSequence, false);
-    if (err == ESP_ERR_TIMEOUT) {
-        s_snapshot.drdyTimeoutCount++;
-    } else if (err != ESP_OK) {
-        s_snapshot.spiErrorCount++;
-    }
+    esp_err_t err = sensorarrayAdsRunJob(state, job, frameSequence, true);
     if (err == ESP_OK) {
-        s_snapshot.jobsRun++;
+        ++s_snapshot.jobsRun;
         s_snapshot.timestampUs = (uint64_t)esp_timer_get_time();
         s_lastSampleFrame = frameSequence;
     } else {
-        s_snapshot.jobsSkip++;
+        ++s_snapshot.jobsSkip;
     }
-
-    uint32_t slackUs = sensorarrayAdsGapRemainingUs(expectedFdcReadyUs);
-    sensorarrayAdsGapRecordSlack(slackUs);
-    uint32_t runUs = 0u;
-    int64_t jobEndUs = esp_timer_get_time();
-    if (jobEndUs > jobStartUs) {
-        uint64_t elapsed = (uint64_t)(jobEndUs - jobStartUs);
-        runUs = elapsed > UINT32_MAX ? UINT32_MAX : (uint32_t)elapsed;
-    }
-    if (job == SENSORARRAY_ADS_JOB_BATTERY && !s_lastBatteryDiag.collision) {
-        sensorarrayBatterySchedulerRecordRun(
-            &s_batteryScheduler,
-            (uint64_t)jobEndUs,
-            runUs,
-            false,
-            s_lastBatteryDiag.restoreOk);
-    }
-    if (slackUs < s_snapshot.guardUs || runUs > jobWorstCaseUs + s_snapshot.guardUs) {
-        sensorarrayAdsGapRecordOverrun();
-    }
+    return err;
 }
 
 esp_err_t sensorarrayAdsGapRunBatteryAtBoundary(sensorarrayState_t *state,
@@ -2236,6 +2271,9 @@ esp_err_t sensorarrayAdsGapRunBatteryAtBoundary(sensorarrayState_t *state,
             durationUs,
             true,
             s_lastBatteryDiag.restoreOk);
+        sensorarrayBatterySchedulerRecordValidity(&s_batteryScheduler,
+            s_snapshot.batteryValid, (uint8_t)s_snapshot.batteryInvalidReason,
+            (uint64_t)completedUsSigned);
     }
     return err;
 }
@@ -2313,7 +2351,7 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
     sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
     int written = snprintf(buffer,
                            bufferSize,
-                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,lastGoodMv=%ld,lastGoodValid=%u,lastGoodFresh=%u,lastGoodAgeMs=%lu,lastGoodFrame=%lu,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
+                           "ABAT,bt=%ld,valid=%u,fresh=%u,ageMs=%lu,lastGoodMv=%ld,lastGoodValid=%u,lastGoodFresh=%u,lastGoodAgeMs=%lu,lastGoodFrame=%lu,lastGoodKnown=%u,periodMs=%lu,due=%u,run=%lu,validRun=%lu,invalidRun=%lu,skip=%lu,defer=%lu,boundary=%lu,restoreFail=%lu,retry=%lu/%lu,unstable=%lu,timeout=%lu,spreadRaw=%lu,spreadMaxRaw=%lu,raw=%ld,a8d=%ld,ac=%ld,a8g=%ld,ratio=%u/%u,rail=%ld,railState=%s,vbias=%u,samples=%lu,sampleUs=%lu,restore=%s,reason=%s\n",
                            snapshot.batteryValid ? (long)snapshot.batteryMv : -1L,
                            snapshot.batteryValid ? 1u : 0u,
                            snapshot.batteryFresh ? 1u : 0u,
@@ -2324,6 +2362,7 @@ size_t sensorarrayAdsGapFormatBattery(char *buffer,
                            snapshot.batteryLastGoodFresh ? 1u : 0u,
                            (unsigned long)snapshot.batteryLastGoodAgeMs,
                            (unsigned long)snapshot.batteryLastGoodFrame,
+                           snapshot.batteryLastGoodValid ? 1u : 0u,
                            (unsigned long)snapshot.batteryPeriodMs,
                            snapshot.batteryDue ? 1u : 0u,
                            (unsigned long)snapshot.batteryRunCount,
@@ -2375,7 +2414,7 @@ size_t sensorarrayAdsGapFormatRail(char *buffer,
         &split);
     int written = snprintf(buffer,
                            bufferSize,
-                           "ARL,src=%s,raw=%ld,mon=%ld,rail=%ld,avdd=%ld,avss=%ld,exp=%ld,err=%ld,rv=%u,rs=%s,age=%lu,ref=%s,pwr=%s,mux=%s\n",
+                           "ARL,src=%s,raw=%ld,mon=%ld,rail=%ld,avdd=%ld,avss=%ld,exp=%ld,err=%ld,rv=%u,rs=%s,age=%lu,ref=%s,pwr=%s,mux=%s,split=%s,aincom=estimated,uncertaintyUv=unknown,calUs=%llu\n",
                            sensorarrayAdsRailSourceName(s_railCalibration.source),
                            (long)snapshot.railMonitorRaw,
                            (long)snapshot.railMonitorUv,
@@ -2389,7 +2428,10 @@ size_t sensorarrayAdsGapFormatRail(char *buffer,
                            (unsigned long)snapshot.railAgeFrames,
                            snapshot.vrefSynced ? "restored" : "unsynced",
                            snapshot.vrefSynced ? "restored" : "unsynced",
-                           snapshot.vrefSynced ? "restored" : "unsynced");
+                           snapshot.vrefSynced ? "restored" : "unsynced",
+                           !splitValid ? "unknown" :
+                               (split.avddAvssEstimated ? "estimated" : "external_measured"),
+                           (unsigned long long)s_railCalibration.appliedUs);
     if (written < 0 || (size_t)written >= bufferSize) {
         buffer[0] = '\0';
         return 0u;
@@ -2487,6 +2529,12 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
         return ESP_ERR_INVALID_STATE;
     }
 
+    esp_err_t deadlineErr = ads126xAdcBeginTransaction(&state->ads, 1500000u);
+    if (deadlineErr != ESP_OK) {
+        (void)sensorarrayAdsRegisterCacheRelease(registerCache, SENSORARRAY_ADS_OWNER_CHECK);
+        return deadlineErr;
+    }
+    sensorarrayAdsTransactionBegin(&s_checkTransaction);
     ads126xAdcHandle_t *ads = &state->ads;
     bool adc1WasRunning = ads126xAdcIsAdc1Running(ads);
     bool adc2WasRunning = ads126xAdcIsAdc2Running(ads);
@@ -2496,6 +2544,8 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
                                                        &outResult->registers);
     if (err != ESP_OK) {
         outResult->spiErrors++;
+        ads126xAdcEndTransaction(ads);
+        sensorarrayAdsTransactionEnd(&s_checkTransaction, err, ESP_OK);
         (void)sensorarrayAdsRegisterCacheRelease(registerCache,
                                                   SENSORARRAY_ADS_OWNER_CHECK);
         return err;
@@ -2526,6 +2576,7 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
         ads126xAdcClearDrdyNotifications(ads);
         err = ads126xAdcStartAdc1(ads);
     }
+    esp_err_t firstCheckError = err;
     uint64_t periodTotalUs = 0u;
     uint32_t periodCount = 0u;
     uint32_t priorGeneration = ads126xAdcGetDrdyGeneration(ads);
@@ -2544,6 +2595,7 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
             &generation);
         int64_t drdyUs = esp_timer_get_time();
         if (waitErr != ESP_OK) {
+            if (firstCheckError == ESP_OK) { firstCheckError = waitErr; }
             if (waitErr == ESP_ERR_TIMEOUT) {
                 outResult->drdyTimeouts++;
             } else {
@@ -2576,6 +2628,7 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
         esp_err_t readErr = ads126xAdcReadAdc1RawDmaReady(
             ads, &raw, &status, NULL);
         if (readErr != ESP_OK) {
+            if (firstCheckError == ESP_OK) { firstCheckError = readErr; }
             outResult->spiErrors++;
             continue;
         }
@@ -2628,8 +2681,14 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
         outResult->drdyTimeouts == 0u && outResult->staleSamples == 0u &&
         outResult->statusErrors == 0u && outResult->resetFlags == 0u &&
         outResult->restoreOk;
-    return outResult->ok ? ESP_OK :
-        (restoreErr != ESP_OK ? restoreErr : ESP_ERR_INVALID_RESPONSE);
+    esp_err_t originalError = firstCheckError != ESP_OK ? firstCheckError :
+        (outResult->ok ? ESP_OK : ESP_ERR_INVALID_RESPONSE);
+    ads126xAdcEndTransaction(ads);
+    sensorarrayAdsTransactionEnd(&s_checkTransaction, originalError, restoreErr);
+    if (restoreErr != ESP_OK) {
+        s_batteryRestoreFailureLatched = true;
+    }
+    return originalError;
 }
 
 static const char *sensorarrayAdsFilterName(uint8_t mode1)

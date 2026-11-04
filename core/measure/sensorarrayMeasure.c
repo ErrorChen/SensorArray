@@ -525,6 +525,9 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
         return ESP_ERR_INVALID_STATE;
     }
 
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        return ESP_ERR_INVALID_STATE;
+    }
     esp_err_t err = sensorarrayMeasureStopAdsBeforeRoute(state);
     if (logNormal || err != ESP_OK) {
         printf("FDC_PATH,stage=ads_stop,reason=%s,err=0x%lx\n", source, (unsigned long)err);
@@ -596,6 +599,13 @@ esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t *state, cons
         return err;
     }
 
+    /* This boot/rescue path can bypass RouteController. A software flag is
+     * insufficient evidence for asserting Q1 across REFOUT. */
+    uint8_t clampPower = 0u;
+    err = ads126xAdcReadCoreRegisters(&state->ads, &clampPower, NULL, NULL, NULL, NULL);
+    if (err != ESP_OK || (clampPower & ADS126X_POWER_INTREF) != 0u) {
+        return err != ESP_OK ? err : ESP_ERR_INVALID_STATE;
+    }
     err = tmuxSwitchSet1108Source(TMUX1108_SOURCE_GND);
     sensorarrayMeasureReadFdcPathControl(&ctrl);
     if (logNormal || err != ESP_OK) {
@@ -1966,6 +1976,10 @@ bool sensorarrayMeasureResolveWorkerCore(const char *workerName,
 
 void sensorarrayMeasureCleanupFdcWorkers(void)
 {
+    /* An accepted worker can still own an I2C mutex. Never delete it in flight. */
+    if (!sensorarrayMeasureFdcWorkersQuiescent()) {
+        return;
+    }
     for (uint8_t i = 0u; i < 2u; ++i) {
         sensorarrayFdcWorkerContext_t *ctx = &s_fdcWorkers[i];
         if (ctx->task) {
@@ -2125,6 +2139,11 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
         if ((frameConfig.rowMask & (uint8_t)(1u << row)) != 0u) {
             activeCells += SENSORARRAY_MATRIX_COLS;
         }
+    }
+
+    if (sensorarrayMeasureFdcWorkersQuarantined() || !sensorarrayMeasureFdcWorkersQuiescent()) {
+        outFrame->errorMask = UINT64_MAX;
+        return ESP_ERR_INVALID_STATE;
     }
 
     if (!state) {
@@ -2325,6 +2344,11 @@ esp_err_t sensorarrayMeasureReadFdcMatrixFrameSnapshot(
                        sameBus ? 1u : 0u);
                 parallelDisabledForThisFrame = true;
             }
+        }
+        if (sensorarrayMeasureFdcWorkersQuarantined()) {
+            outFrame->errorMask = UINT64_MAX;
+            sensorarrayMeasureGiveLock();
+            return rowErr != ESP_OK ? rowErr : ESP_ERR_INVALID_STATE;
         }
         if (!rowHandledByParallel) {
             bool serialFallback = useParallelThisRow || parallelDisabledForThisFrame;

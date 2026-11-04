@@ -550,7 +550,7 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
 #else
     cfg.forcedType = ADS126X_DEVICE_AUTO;
 #endif
-    cfg.crcMode = ADS126X_CRC_OFF;
+    cfg.crcMode = ADS126X_CRC_CRC8;
     cfg.enableStatusByte = false;
     cfg.enableInternalRef = false;
     cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
@@ -599,7 +599,7 @@ esp_err_t sensorarrayBringupAttachAdsNoReset(sensorarrayState_t *state)
 #else
     cfg.forcedType = ADS126X_DEVICE_AUTO;
 #endif
-    cfg.crcMode = ADS126X_CRC_OFF;
+    cfg.crcMode = ADS126X_CRC_CRC8;
     cfg.enableStatusByte = false;
     cfg.enableInternalRef = false;
     cfg.skipResetOnInit = true;
@@ -623,7 +623,17 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = ads126xAdcConfigure(&state->ads, true, false, ADS126X_CRC_OFF, 1, 0);
+    tmuxSwitchControlState_t control = {0};
+    esp_err_t controlErr = tmuxSwitchGetControlState(&control);
+    if (controlErr != ESP_OK) {
+        return controlErr;
+    }
+    if (control.cmdSource != TMUX1108_SOURCE_REF ||
+        control.cmdSwLevel != 0 || control.obsSwLevel != 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = ads126xAdcConfigure(&state->ads, true, false, ADS126X_CRC_CRC8, 1, 0);
     if (err != ESP_OK) {
         return err;
     }

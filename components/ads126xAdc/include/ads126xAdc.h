@@ -20,6 +20,11 @@ extern "C" {
 #define ADS126X_ADC_DEFAULT_DRDY_TIMEOUT_MS 1000u
 
 /* POWER register bits for ads126xAdcReadCoreRegisters()/ads126xAdcSetVbiasEnabled(). */
+/* Datasheet 9.6: reserved bits excluded; RESET is checked separately. */
+#define ADS126X_POWER_CONFIG_MASK 0x03u
+#define ADS126X_POWER_READ_MASK 0x13u
+#define ADS126X_INTERFACE_CONFIG_MASK 0x0Fu
+#define ADS126X_REFMUX_CONFIG_MASK 0x3Fu
 #define ADS126X_POWER_RESET (1u << 4)
 #define ADS126X_POWER_INTREF (1u << 0)
 #define ADS126X_POWER_VBIAS (1u << 1)
@@ -127,7 +132,22 @@ typedef struct {
     bool drdyNotificationReady;
     volatile TaskHandle_t drdyWaitTask;
     volatile uint32_t drdyGeneration;
+    /* Persistent until IDF returns the exact descriptor. A timeout does not
+     * cancel DMA; quarantine prohibits buffer/descriptor reuse and deinit. */
     spi_transaction_t dmaTransaction;
+    bool spiInFlight;
+    bool spiQuarantined;
+    uint32_t spiTimeoutCount;
+    uint32_t configurationGeneration;
+    uint32_t configuredDrdyGeneration;
+    bool referenceStateKnown;
+    uint64_t referenceReadyAtUs;
+    uint64_t transactionDeadlineUs;
+    /* 0=stable, 1=SPI error, 2=three snapshots disagree. */
+    uint8_t snapshotReadFailure;
+    uint8_t snapshotMismatchRegister;
+    uint8_t snapshotExpected;
+    uint8_t snapshotActual;
 } ads126xAdcHandle_t;
 
 typedef struct {
@@ -244,6 +264,12 @@ esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
                                      int32_t *outUv,
                                      uint8_t *outStatus);
 
+/* 本轮新增: owner-scoped total deadline covers retries and cleanup. */
+esp_err_t ads126xAdcBeginTransaction(ads126xAdcHandle_t *handle, uint32_t budgetUs);
+void ads126xAdcEndTransaction(ads126xAdcHandle_t *handle);
+/* 本轮新增: waits only for an actual internal reference OFF->ON edge. */
+esp_err_t ads126xAdcWaitReferenceReady(ads126xAdcHandle_t *handle);
+bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle);
 esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle);
 bool ads126xAdcIsAdc1Running(const ads126xAdcHandle_t *handle);

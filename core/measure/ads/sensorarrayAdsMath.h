@@ -25,6 +25,8 @@ typedef struct {
     int32_t aincomUv;
     uint32_t ageFrames;
     bool valid;
+    bool avddAvssEstimated;
+    bool aincomEstimated;
 } sensorarrayAdsRailSplit_t;
 
 typedef struct {

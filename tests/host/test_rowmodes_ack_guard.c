@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "sensorarrayScanConfig.c"
 #include "sensorarrayCommandMailbox.c"
 #include "sensorarrayTransportGuaranteedText.c"
 
@@ -216,6 +217,61 @@ static int testFullQueueFallsBackToReservationExactlyOnce(void)
     return 0;
 }
 
+static int testRowsControlAckAndTerminal(void)
+{
+    char response[256];
+    CHECK(sensorarrayScanConfigHandleCommand("ROWS=3",6,response,sizeof(response)) == ESP_OK);
+    unsigned long requestId=0;
+    CHECK(sscanf(response,"RCMD,id=%lu",&requestId)==1);
+    sensorarrayCommand_t command;
+    CHECK(!sensorarrayCommandMailboxTryReceive(&command));
+    CHECK(sensorarrayCommandMailboxCommitConfigAck((uint32_t)requestId));
+    CHECK(sensorarrayCommandMailboxTryReceive(&command));
+    CHECK(command.type==SENSORARRAY_COMMAND_ROWS && command.value==3u);
+    CHECK(sensorarrayScanConfigStageAcceptedRows(3u,command.requestId)==ESP_OK);
+    sensorarrayScanConfigApplyResult_t applied;
+    sensorarrayScanConfigApplyPendingAtFrameBoundary(&applied);
+    CHECK(applied.applied && applied.requestId==command.requestId);
+    sensorarrayFrameConfigSnapshot_t snapshot=sensorarrayScanConfigGetFrameSnapshot();
+    CHECK(snapshot.rows==3u && snapshot.lastTerminal && snapshot.lastApplied);
+    CHECK(snapshot.requestId==snapshot.lastRequestId);
+    const char terminal[]="RAPP,id=1,status=applied\n";
+    CHECK(sensorarrayCommandMailboxEmitConfigTerminal(command.requestId,terminal,strlen(terminal))==ESP_OK);
+    char drained[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX];size_t length;
+    CHECK(sensorarrayTransportGuaranteedTextTakeDrain(drained,sizeof(drained),&length));
+    return 0;
+}
+
+static int testModeAndRowsShareArbiter(void)
+{
+    uint32_t id = 0u, other = 0u;
+    CHECK(sensorarrayCommandMailboxPostMeasurementMode(SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE, &id) == ESP_OK);
+    CHECK(sensorarrayCommandMailboxPostRowModes("VVVVVVVV", &other) != ESP_OK);
+    sensorarrayScanConfigRequestResult_t rows;
+    CHECK(sensorarrayScanConfigRequestRows(1u, &rows) == ESP_ERR_INVALID_STATE);
+    sensorarrayCommand_t command;
+    CHECK(!sensorarrayCommandMailboxTryReceive(&command));
+    CHECK(sensorarrayCommandMailboxCommitConfigAck(id));
+    CHECK(sensorarrayCommandMailboxTryReceive(&command));
+    CHECK(command.type == SENSORARRAY_COMMAND_MEASUREMENT_MODE && command.requestId == id);
+    const char terminal[] = "MAPP,id=1,state=applied\n";
+    CHECK(sensorarrayCommandMailboxEmitConfigTerminal(id, terminal, strlen(terminal)) == ESP_OK);
+    char drained[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX]; size_t length;
+    CHECK(sensorarrayTransportGuaranteedTextTakeDrain(drained, sizeof(drained), &length));
+    CHECK(sensorarrayScanConfigRequestRows(1u, &rows) == ESP_OK);
+    CHECK(rows.requestId != id);
+    CHECK(sensorarrayCommandMailboxPostMeasurementMode(SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE, &other) == ESP_ERR_INVALID_STATE);
+    CHECK(sensorarrayScanConfigRequestRows(8u, NULL) == ESP_ERR_INVALID_STATE);
+    sensorarrayScanConfigApplyResult_t applied;
+    sensorarrayScanConfigApplyPendingAtFrameBoundary(&applied);
+    CHECK(applied.applied && applied.requestId == rows.requestId);
+    CHECK(sensorarrayScanConfigGetFrameSnapshot().requestId == rows.requestId);
+    CHECK(sensorarrayCommandMailboxPostMeasurementMode(SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE, &other) == ESP_OK);
+    CHECK(other != id && other != rows.requestId);
+    CHECK(sensorarrayCommandMailboxCancelConfigAck(other));
+    return 0;
+}
+
 int main(void)
 {
     CHECK(sensorarrayCommandMailboxInit() == ESP_OK);
@@ -223,6 +279,8 @@ int main(void)
     CHECK(testFailedAckCancelsBeforeApplyAndReusesLane() == 0);
     CHECK(testUnknownRequestsDoNotTouchLane() == 0);
     CHECK(testOversizeTerminalBoundedCancel() == 0);
+    CHECK(testRowsControlAckAndTerminal() == 0);
+    CHECK(testModeAndRowsShareArbiter() == 0);
     CHECK(testFullQueueFallsBackToReservationExactlyOnce() == 0);
     printf("ROWMODES_ACK_GUARD,passed=1\n");
     return 0;

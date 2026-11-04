@@ -7,7 +7,7 @@
 #include "sensorarrayTransportChannels.h"
 #include "sensorarrayWifi.h"
 
-#define SENSORARRAY_TRANSPORT_TEXT_MAX 1536u
+#define SENSORARRAY_TRANSPORT_TEXT_MAX 2304u
 /* CTRL replies are capped at 512 bytes; oversized replies are rejected,
  * never truncated. */
 #define SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX 512u

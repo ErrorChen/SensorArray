@@ -180,6 +180,7 @@ static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     memset(outSample, 0, sizeof(*outSample));
     outSample->generationStart = startGeneration;
     outSample->configurationGeneration = configurationGeneration;
+    uint32_t physicalGeneration = ads->configurationGeneration;
     int64_t waitStartUs = esp_timer_get_time();
     esp_err_t err = ads126xAdcWaitDrdyGenerationUs(
         ads,
@@ -202,7 +203,8 @@ static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     if (err != ESP_OK) {
         return err;
     }
-    if (outSample->generationEnd == outSample->generationStart ||
+    if (ads->configurationGeneration != physicalGeneration ||
+        outSample->generationEnd == outSample->generationStart ||
         !ads126xAdcStatusByteHasAdc1NewData(ads, outSample->status)) {
         return ESP_ERR_INVALID_RESPONSE;
     }
@@ -211,10 +213,49 @@ static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     return ESP_OK;
 }
 
+static void sensorarrayAdsMatrixCaptureFault(sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayAdsFaultStage_t stage, esp_err_t originalError,
+    uint8_t reg, uint8_t expected, uint8_t actual, uint8_t mask)
+{
+    if (!engine || engine->faultContext.valid) {
+        return; /* Preserve the first condition before any cleanup. */
+    }
+    sensorarrayAdsMatrixFaultContext_t *fault = &engine->faultContext;
+    fault->valid = true;
+    fault->stage = stage;
+    fault->originalError = originalError;
+    fault->mode = sensorarrayMeasurementModeName(engine->mode);
+    fault->route = fault->mode;
+    fault->owner = sensorarrayAdsOwnerName(engine->registerCache.owner);
+    fault->engineFrameCount = engine->frameCount;
+    fault->modeEntryFrameCount = engine->modeEntryFrameCount;
+    fault->healthInterval = CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL;
+    fault->cacheGeneration = engine->registerCache.generation;
+    fault->physicalGeneration = engine->state->ads.configurationGeneration;
+    fault->configGeneration = sensorarrayAdsMatrixConfigurationGeneration(engine);
+    fault->registerId = reg;
+    fault->expected = expected;
+    fault->actual = actual;
+    fault->compareMask = mask;
+    sensorarrayAdsGapCopyTransactionEvidence(&fault->rail, &fault->battery, &fault->check);
+}
+
+bool sensorarrayAdsMatrixEngineCopyFaultContext(
+    const sensorarrayAdsMatrixEngine_t *engine,
+    sensorarrayAdsMatrixFaultContext_t *outContext)
+{
+    if (!engine || !outContext || !engine->faultContext.valid) {
+        return false;
+    }
+    *outContext = engine->faultContext;
+    return true;
+}
+
 static bool sensorarrayAdsMatrixNoteRegisterSnapshot(
-    sensorarrayAdsRegisterCache_t *cache,
+    sensorarrayAdsMatrixEngine_t *engine,
     const ads126xAdc1RegisterSnapshot_t *snapshot)
 {
+    sensorarrayAdsRegisterCache_t *cache = engine ? &engine->registerCache : NULL;
     if (!cache || !snapshot) {
         return false;
     }
@@ -235,8 +276,13 @@ static bool sensorarrayAdsMatrixNoteRegisterSnapshot(
     };
     bool match = true;
     for (uint8_t index = 0u; index < SENSORARRAY_ADS_REGISTER_COUNT; ++index) {
+        uint8_t expected = cache->registers[index].value;
         if (!sensorarrayAdsRegisterCacheNoteReadback(
                 cache, (sensorarrayAdsRegisterId_t)index, values[index])) {
+            sensorarrayAdsMatrixCaptureFault(engine,
+                SENSORARRAY_ADS_FAULT_STAGE_CACHE_COMPARE, ESP_ERR_INVALID_RESPONSE,
+                index, expected, values[index],
+                sensorarrayAdsRegisterCompareMask((sensorarrayAdsRegisterId_t)index));
             match = false;
         }
     }
@@ -250,113 +296,86 @@ static esp_err_t sensorarrayAdsMatrixRefreshRegisterShadow(
     if (!engine || !engine->state || !telemetry) {
         return ESP_ERR_INVALID_ARG;
     }
+    ads126xAdcHandle_t *ads = &engine->state->ads;
     ads126xAdc1RegisterSnapshot_t snapshot = {0};
     int64_t readStartUs = esp_timer_get_time();
-    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads,
-                                                       &snapshot);
+    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(ads, &snapshot);
     int64_t readEndUs = esp_timer_get_time();
     if (readEndUs > readStartUs) {
         telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
     }
     if (err != ESP_OK) {
-        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-        return err;
+        sensorarrayAdsMatrixCaptureFault(engine,
+            ads->snapshotReadFailure == 2u ?
+                SENSORARRAY_ADS_FAULT_STAGE_REGISTER_READ_UNSTABLE :
+                SENSORARRAY_ADS_FAULT_STAGE_REGISTER_HEALTH_READ,
+            err,
+            ads->snapshotReadFailure == 2u ? ads->snapshotMismatchRegister : 0u,
+            ads->snapshotReadFailure == 2u ? ads->snapshotExpected : 0u,
+            ads->snapshotReadFailure == 2u ? ads->snapshotActual : 0u,
+            ads->snapshotReadFailure == 2u ? 0xFFu : 0u);
+        goto failed;
     }
     sensorarrayRouteSnapshot_t route = {0};
     if (!engine->routeController ||
         !sensorarrayRouteControllerCopySnapshot(engine->routeController, &route)) {
-        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-        return ESP_ERR_INVALID_STATE;
+        err = ESP_ERR_INVALID_STATE;
+        sensorarrayAdsMatrixCaptureFault(engine,
+            SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE, err, 0u, 0u, 0u, 0u);
+        goto failed;
     }
-    bool expectedIntref = route.profile.intRef == SENSORARRAY_ADS_INTREF_ON;
-    bool expectedVbias = route.profile.vbias == SENSORARRAY_ADS_VBIAS_ON;
-    bool routeRegistersMatch =
-        (((snapshot.power & ADS126X_POWER_INTREF) != 0u) == expectedIntref) &&
-        (((snapshot.power & ADS126X_POWER_VBIAS) != 0u) == expectedVbias) &&
-        snapshot.refmux == route.profile.adsRefMux;
-    if (!routeRegistersMatch) {
-        /* A block read is already duplicate-verified by the driver. One more
-         * verified snapshot distinguishes a recoverable DOUT read upset from
-         * persistent hardware state before declaring the route unsafe. */
-        ads126xAdc1RegisterSnapshot_t retry = {0};
-        readStartUs = esp_timer_get_time();
-        err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads, &retry);
-        readEndUs = esp_timer_get_time();
-        if (readEndUs > readStartUs) {
-            telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
-        }
-        bool retryMatches = err == ESP_OK &&
-            ((((retry.power & ADS126X_POWER_INTREF) != 0u) == expectedIntref)) &&
-            ((((retry.power & ADS126X_POWER_VBIAS) != 0u) == expectedVbias)) &&
-            retry.refmux == route.profile.adsRefMux;
-        if (!retryMatches) {
-            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-            sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
-            sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
-            return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
-        }
-        snapshot = retry;
+    uint8_t expectedPower =
+        (route.profile.intRef == SENSORARRAY_ADS_INTREF_ON ? ADS126X_POWER_INTREF : 0u) |
+        (route.profile.vbias == SENSORARRAY_ADS_VBIAS_ON ? ADS126X_POWER_VBIAS : 0u);
+    const uint8_t values[SENSORARRAY_ADS_REGISTER_COUNT] = {
+        snapshot.power, snapshot.interface, snapshot.mode0, snapshot.mode1,
+        snapshot.mode2, snapshot.inpmux, snapshot.refmux,
+        snapshot.offsetCal[0], snapshot.offsetCal[1], snapshot.offsetCal[2],
+        snapshot.fullScaleCal[0], snapshot.fullScaleCal[1], snapshot.fullScaleCal[2]};
+    sensorarrayAdsHealthComparison_t comparison = sensorarrayAdsRegisterHealthCompare(
+        &engine->registerCache, values, expectedPower, route.profile.adsRefMux,
+        (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE, (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE);
+    if (comparison.reason != SENSORARRAY_ADS_HEALTH_OK) {
+        const sensorarrayAdsFaultStage_t stages[] = {
+            SENSORARRAY_ADS_FAULT_STAGE_UNKNOWN,
+            SENSORARRAY_ADS_FAULT_STAGE_RESET_OBSERVED,
+            SENSORARRAY_ADS_FAULT_STAGE_POWER_COMPARE,
+            SENSORARRAY_ADS_FAULT_STAGE_REFMUX_COMPARE,
+            SENSORARRAY_ADS_FAULT_STAGE_MODE_COMPARE,
+            SENSORARRAY_ADS_FAULT_STAGE_CACHE_COMPARE};
+        sensorarrayAdsMatrixCaptureFault(engine, stages[comparison.reason],
+            ESP_ERR_INVALID_RESPONSE, (uint8_t)comparison.reg,
+            comparison.expected, comparison.actual, comparison.mask);
+        err = ESP_ERR_INVALID_RESPONSE;
+        goto failed;
     }
-    bool expectedMode = snapshot.mode0 == (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE &&
-                        snapshot.mode1 == (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE;
-    if (!expectedMode) {
-        int64_t writeStartUs = esp_timer_get_time();
-        err = ads126xAdcConfigureAdc1Mode(&engine->state->ads,
-                                          (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE,
-                                          (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE);
-        int64_t writeEndUs = esp_timer_get_time();
-        if (writeEndUs > writeStartUs) {
-            telemetry->registerWriteUs += (uint64_t)(writeEndUs - writeStartUs);
-        }
-        if (err != ESP_OK) {
-            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-            return err;
-        }
-        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
-                                              SENSORARRAY_ADS_REGISTER_MODE0,
-                                              (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE,
-                                              true);
-        sensorarrayAdsRegisterCacheNoteWrite(&engine->registerCache,
-                                              SENSORARRAY_ADS_REGISTER_MODE1,
-                                              (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE,
-                                              true);
-        readStartUs = esp_timer_get_time();
-        err = ads126xAdcReadAdc1RegisterSnapshot(&engine->state->ads, &snapshot);
-        readEndUs = esp_timer_get_time();
-        if (readEndUs > readStartUs) {
-            telemetry->registerReadbackUs += (uint64_t)(readEndUs - readStartUs);
-        }
-        if (err != ESP_OK) {
-            sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-            return err;
-        }
+    if (!sensorarrayAdsMatrixNoteRegisterSnapshot(engine, &snapshot)) {
+        err = ESP_ERR_INVALID_RESPONSE;
+        goto failed;
     }
-    bool snapshotMatches = sensorarrayAdsMatrixNoteRegisterSnapshot(
-        &engine->registerCache, &snapshot);
-    bool resetSeen = (snapshot.power & ADS126X_POWER_RESET) != 0u;
-    if (!snapshotMatches || resetSeen ||
-        snapshot.mode0 != (uint8_t)CONFIG_SENSORARRAY_ADS_MODE0_VALUE ||
-        snapshot.mode1 != (uint8_t)CONFIG_SENSORARRAY_ADS_MODE1_VALUE) {
-        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
-        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-    engine->registerCache.vrefValid = engine->state->ads.vrefMicrovolts != 0u;
-    engine->registerCache.vrefUv = (int32_t)engine->state->ads.vrefMicrovolts;
+    engine->registerCache.vrefValid = ads->vrefMicrovolts != 0u;
+    engine->registerCache.vrefUv = (int32_t)ads->vrefMicrovolts;
     engine->registerCache.pgaModeValid = true;
     engine->registerCache.inputMode = ads126xAdcMode2PgaBypassed(snapshot.mode2) ?
         SENSORARRAY_ADS_INPUT_BYPASS : SENSORARRAY_ADS_INPUT_PGA;
     uint8_t gain = 1u;
     if (!ads126xAdcMode2PgaBypassed(snapshot.mode2) &&
         !ads126xAdcMode2DecodePgaGain(snapshot.mode2, &gain)) {
-        sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
-        return ESP_ERR_INVALID_RESPONSE;
+        sensorarrayAdsMatrixCaptureFault(engine,
+            SENSORARRAY_ADS_FAULT_STAGE_MODE_COMPARE, ESP_ERR_INVALID_RESPONSE,
+            SENSORARRAY_ADS_REGISTER_MODE2, 0u, snapshot.mode2, 0x70u);
+        err = ESP_ERR_INVALID_RESPONSE;
+        goto failed;
     }
     engine->registerCache.gain = gain;
     engine->registerCache.adc1RunningValid = true;
-    engine->registerCache.adc1Running = ads126xAdcIsAdc1Running(&engine->state->ads);
+    engine->registerCache.adc1Running = ads126xAdcIsAdc1Running(ads);
     return ESP_OK;
+failed:
+    sensorarrayAdsRegisterCacheInvalidate(&engine->registerCache);
+    sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+    sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+    return err;
 }
 
 static esp_err_t sensorarrayAdsMatrixApplyInputProfile(
@@ -728,7 +747,7 @@ static esp_err_t sensorarrayAdsMatrixConfirmHighZ(
     return sample->stable ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }
 
-static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *engine,
+static esp_err_t sensorarrayAdsMatrixMeasureCellImpl(sensorarrayAdsMatrixEngine_t *engine,
                                                  const sensorarrayAdsRailSplit_t *rail,
                                                  uint8_t row,
                                                  uint8_t dLine,
@@ -1241,6 +1260,21 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
     return ESP_ERR_TIMEOUT;
 }
 
+/* 本轮新增: one cell budget includes every range retry, DRDY and SPI call. */
+static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *engine,
+    const sensorarrayAdsRailSplit_t *rail, uint8_t row, uint8_t dLine,
+    bool precisionFrame, bool transitionSensitive,
+    sensorarrayMeasurementPayload_t *telemetry, sensorarrayAdsMatrixCellResult_t *outResult)
+{
+    if (!engine || !engine->state) { return ESP_ERR_INVALID_ARG; }
+    esp_err_t err = ads126xAdcBeginTransaction(&engine->state->ads, 100000u);
+    if (err != ESP_OK) { return err; }
+    err = sensorarrayAdsMatrixMeasureCellImpl(engine, rail, row, dLine,
+        precisionFrame, transitionSensitive, telemetry, outResult);
+    ads126xAdcEndTransaction(&engine->state->ads);
+    return err;
+}
+
 static bool sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,
                                         sensorarrayAdsRailSplit_t *outRail,
                                         sensorarrayAdsGapSnapshot_t *outGap)
@@ -1441,6 +1475,7 @@ esp_err_t sensorarrayAdsMatrixEngineSetMode(sensorarrayAdsMatrixEngine_t *engine
     }
     if (engine->mode != mode) {
         engine->mode = mode;
+        engine->modeEntryFrameCount = engine->frameCount;
         engine->highZOpenMask = 0u;
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
         sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
@@ -1497,10 +1532,20 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
          engine->mode != SENSORARRAY_MEASUREMENT_MODE_RESISTANCE)) {
         return ESP_ERR_INVALID_STATE;
     }
+    memset(&engine->faultContext, 0, sizeof(engine->faultContext));
+    uint32_t helperGeneration = sensorarrayAdsGapTransactionGeneration();
+    if (engine->helperGeneration != helperGeneration) {
+        sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
+        sensorarrayAdsValueCacheInvalidate(&engine->valueCache);
+        engine->transitionSensitiveFrames = 1u;
+        engine->helperGeneration = helperGeneration;
+    }
     sensorarrayRouteSnapshot_t route;
     if (!sensorarrayRouteControllerCopySnapshot(engine->routeController, &route) ||
         route.safe || route.mode != engine->mode || !route.gpioReadbackValid ||
         !route.adsReadbackValid) {
+        sensorarrayAdsMatrixCaptureFault(engine,
+            SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE, ESP_ERR_INVALID_STATE, 0u, 0u, 0u, 0u);
         sensorarrayFrameBuilderInitInvalid(frame);
         return ESP_ERR_INVALID_STATE;
     }
@@ -1535,6 +1580,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         CONFIG_SENSORARRAY_ADS_PRECISION_FRAME_INTERVAL > 0 &&
         (engine->frameCount % CONFIG_SENSORARRAY_ADS_PRECISION_FRAME_INTERVAL) == 0u;
 
+    engine->faultContext.precisionFrame = frame->measurement.precisionFrame;
     sensorarrayAdsRailSplit_t rail = {0};
     if (!sensorarrayAdsMatrixGetRail(engine, &rail, &frame->adsGap)) {
         sensorarrayAdsProfileCacheInvalidate(&engine->profileCache);
@@ -1548,8 +1594,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                              SENSORARRAY_CELL_ERROR_RAIL_INVALID,
                                              false);
         }
-        (void)sensorarrayRouteControllerEnterSafe(engine->routeController,
-                                                  "rail_invalid");
+        sensorarrayAdsMatrixCaptureFault(engine,
+            SENSORARRAY_ADS_FAULT_STAGE_RAIL_MONITOR, ESP_ERR_INVALID_STATE, 0u, 0u, 0u, 0u);
+        engine->faultContext.cleanupError = sensorarrayRouteControllerEnterSafe(
+            engine->routeController, "rail_invalid");
         sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
         return ESP_ERR_INVALID_STATE;
     }
@@ -1595,16 +1643,30 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
 
     if (!sensorarrayAdsRegisterCacheAcquire(&engine->registerCache,
                                              SENSORARRAY_ADS_OWNER_MATRIX)) {
-        (void)sensorarrayRouteControllerEnterSafe(engine->routeController,
-                                                  "ads_owner_collision");
+        sensorarrayAdsMatrixCaptureFault(engine,
+            SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE, ESP_ERR_INVALID_STATE, 0u,
+            SENSORARRAY_ADS_OWNER_NONE, engine->registerCache.owner, 0xFFu);
+        engine->faultContext.cleanupError = sensorarrayRouteControllerEnterSafe(
+            engine->routeController, "ads_owner_collision");
         sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
         return ESP_ERR_INVALID_STATE;
     }
-    bool healthReadbackDue =
-        !engine->registerCache.registers[SENSORARRAY_ADS_REGISTER_MODE0].valid ||
-        (engine->frameCount % CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL) == 0u;
-    if (healthReadbackDue &&
-        sensorarrayAdsMatrixRefreshRegisterShadow(engine, &frame->measurement) != ESP_OK) {
+    bool healthReadbackDue = sensorarrayAdsRegisterHealthDue(engine->frameCount,
+        CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL,
+        engine->registerCache.registers[SENSORARRAY_ADS_REGISTER_MODE0].valid);
+    engine->faultContext.healthReadbackDue = healthReadbackDue;
+    esp_err_t healthError = ESP_OK;
+    if (healthReadbackDue) {
+        healthError = ads126xAdcBeginTransaction(&engine->state->ads, 100000u);
+        if (healthError == ESP_OK) {
+            healthError = sensorarrayAdsMatrixRefreshRegisterShadow(engine, &frame->measurement);
+            ads126xAdcEndTransaction(&engine->state->ads);
+        } else {
+            sensorarrayAdsMatrixCaptureFault(engine, SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
+                healthError, 0u, 0u, 0u, 0u);
+        }
+    }
+    if (healthError != ESP_OK) {
         (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,
                                                   SENSORARRAY_ADS_OWNER_MATRIX);
         for (size_t index = 0u;
@@ -1615,10 +1677,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                              SENSORARRAY_CELL_ERROR_READBACK,
                                              false);
         }
-        (void)sensorarrayRouteControllerEnterSafe(engine->routeController,
-                                                  "ads_register_health");
+        engine->faultContext.cleanupError = sensorarrayRouteControllerEnterSafe(
+            engine->routeController, "ads_register_health");
         sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, false);
-        return ESP_ERR_INVALID_RESPONSE;
+        return healthError;
     }
 
     esp_err_t firstErr = ESP_OK;
@@ -1635,6 +1697,24 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
             frame->measurement.rowRouteUs += (uint64_t)(rowEndUs - rowStartUs);
         }
         if (rowErr != ESP_OK) {
+            sensorarrayRouteSnapshot_t failedRoute = {0};
+            sensorarrayRouteControllerCopySnapshot(engine->routeController, &failedRoute);
+            const char *stage = failedRoute.failureStage ? failedRoute.failureStage : "unknown";
+            sensorarrayAdsFaultStage_t faultStage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE;
+            if (strcmp(stage, "gpio_mismatch") == 0 || strcmp(stage, "gpio_readback") == 0) {
+                faultStage = SENSORARRAY_ADS_FAULT_STAGE_ROW_GPIO_COMPARE;
+            } else if (strcmp(stage, "power_mismatch") == 0) {
+                faultStage = SENSORARRAY_ADS_FAULT_STAGE_POWER_COMPARE;
+            } else if (strcmp(stage, "refmux_mismatch") == 0) {
+                faultStage = SENSORARRAY_ADS_FAULT_STAGE_REFMUX_COMPARE;
+            } else if (strcmp(stage, "ads_readback") == 0 || strcmp(stage, "ads_retry_read") == 0) {
+                faultStage = SENSORARRAY_ADS_FAULT_STAGE_REGISTER_HEALTH_READ;
+            }
+            sensorarrayAdsMatrixCaptureFault(engine, faultStage, rowErr,
+                faultStage == SENSORARRAY_ADS_FAULT_STAGE_REFMUX_COMPARE ?
+                    SENSORARRAY_ADS_REGISTER_REFMUX : row,
+                failedRoute.failureExpected, failedRoute.failureActual, failedRoute.failureMask);
+            engine->faultContext.cleanupError = failedRoute.cleanupError;
             for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
                 sensorarrayAdsMatrixSetCellError(frame,
                                                  sensorarrayMatrixIndex(row, dLine),
@@ -1652,6 +1732,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         for (uint8_t dLine = 1u; dLine <= SENSORARRAY_MATRIX_COLS; ++dLine) {
             size_t index = sensorarrayMatrixIndex(row, dLine);
             sensorarrayAdsMatrixCellResult_t result = {0};
+            engine->faultContext.attempted = true;
             esp_err_t err = sensorarrayAdsMatrixMeasureCell(engine,
                                                              &rail,
                                                              row,
@@ -1829,6 +1910,10 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         engine->railFingerprint.missCount - railMissStart;
     frame->measurement.railInvalidationCount =
         engine->railFingerprint.invalidationCount - railInvalidationStart;
+    engine->faultContext.acquired = frame->measurement.freshMask != 0u;
     sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, coherent);
+    if (frame->measurement.validMask != 0u) {
+        sensorarrayAdsGapNoteFirstValidFrame(frame->frameEndUs);
+    }
     return firstErr;
 }

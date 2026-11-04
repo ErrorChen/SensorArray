@@ -26,6 +26,13 @@ static uint32_t s_nextRequestId = 1u;
 static uint32_t s_pendingRequestId;
 static uint32_t s_appliedRequestId;
 static uint32_t s_generation = 1u;
+static uint32_t s_configurationRequestId;
+static uint32_t s_lastRowsRequestId;
+static uint32_t s_lastRowsError;
+static bool s_lastRowsApplied;
+static bool s_lastRowsTerminal;
+static bool s_initialized;
+static sensorarrayScanConfigRequestCallback_t s_requestCallback;
 
 static uint8_t sensorarrayScanConfigRowMask(uint8_t rows)
 {
@@ -47,12 +54,19 @@ static sensorarrayFrameConfigSnapshot_t sensorarrayScanConfigMakeSnapshotLocked(
         .rowMask = sensorarrayScanConfigRowMask(rows),
         .generation = s_generation,
         .requestId = s_appliedRequestId,
+        .lastRequestId = s_lastRowsRequestId, .lastError = s_lastRowsError,
+        .lastTerminal = s_lastRowsTerminal, .lastApplied = s_lastRowsApplied,
     };
 }
 
 esp_err_t sensorarrayScanConfigInit(void)
 {
     portENTER_CRITICAL(&s_scanConfigMux);
+    if (s_initialized) {
+        portEXIT_CRITICAL(&s_scanConfigMux);
+        return ESP_OK;
+    }
+    s_initialized = true;
     uint8_t rows = sensorarrayScanConfigDefaultRows();
     s_activeRows = rows;
     s_pendingRows = rows;
@@ -72,10 +86,15 @@ esp_err_t sensorarrayScanConfigRequestRows(uint8_t rows,
         return ESP_ERR_INVALID_ARG;
     }
     portENTER_CRITICAL(&s_scanConfigMux);
+    if (s_configurationRequestId != 0u) {
+        portEXIT_CRITICAL(&s_scanConfigMux);
+        return ESP_ERR_INVALID_STATE;
+    }
     uint32_t requestId = s_nextRequestId++;
     if (s_nextRequestId == 0u) {
         s_nextRequestId = 1u;
     }
+    s_configurationRequestId = requestId;
     uint8_t oldRows = s_activeRows;
     s_pendingRows = rows;
     s_pendingRowsValid = true;
@@ -126,7 +145,14 @@ void sensorarrayScanConfigApplyPendingAtFrameBoundary(sensorarrayScanConfigApply
         uint8_t oldRows = s_activeRows;
         s_activeRows = s_pendingRows;
         s_appliedRequestId = s_pendingRequestId;
+        s_lastRowsRequestId = s_appliedRequestId;
+        s_lastRowsError = 0u;
+        s_lastRowsTerminal = true;
+        s_lastRowsApplied = true;
         s_pendingRowsValid = false;
+        if (s_configurationRequestId == s_appliedRequestId) {
+            s_configurationRequestId = 0u;
+        }
         s_generation++;
         if (s_generation == 0u) {
             s_generation = 1u;
@@ -213,7 +239,14 @@ esp_err_t sensorarrayScanConfigHandleCommand(const char *command,
         return ESP_ERR_INVALID_ARG;
     }
     sensorarrayScanConfigRequestResult_t request = {0};
-    (void)sensorarrayScanConfigRequestRows((uint8_t)rows, &request);
+    portENTER_CRITICAL(&s_scanConfigMux);
+    sensorarrayScanConfigRequestCallback_t callback = s_requestCallback;
+    portEXIT_CRITICAL(&s_scanConfigMux);
+    esp_err_t err = callback ? callback((uint8_t)rows, &request) : ESP_ERR_INVALID_STATE;
+    if (err != ESP_OK) {
+        snprintf(response, responseSize, "ERR,cmd=ROWS,reason=config_busy\n");
+        return err;
+    }
     snprintf(response,
              responseSize,
              "RCMD,id=%lu,old=%u,req=%lu,status=accepted,generation=%lu\n",
@@ -222,4 +255,69 @@ esp_err_t sensorarrayScanConfigHandleCommand(const char *command,
              rows,
              (unsigned long)request.activeGeneration);
     return ESP_OK;
+}
+
+uint32_t sensorarrayScanConfigAllocateRequestId(void)
+{
+    portENTER_CRITICAL(&s_scanConfigMux);
+    uint32_t id = s_nextRequestId++;
+    if (s_nextRequestId == 0u) { s_nextRequestId = 1u; }
+    portEXIT_CRITICAL(&s_scanConfigMux);
+    return id;
+}
+
+esp_err_t sensorarrayScanConfigBeginConfigurationRequest(uint32_t *outRequestId)
+{
+    if (!outRequestId) { return ESP_ERR_INVALID_ARG; }
+    portENTER_CRITICAL(&s_scanConfigMux);
+    if (s_configurationRequestId != 0u) {
+        portEXIT_CRITICAL(&s_scanConfigMux);
+        return ESP_ERR_INVALID_STATE;
+    }
+    s_configurationRequestId = s_nextRequestId++;
+    if (s_nextRequestId == 0u) { s_nextRequestId = 1u; }
+    *outRequestId = s_configurationRequestId;
+    portEXIT_CRITICAL(&s_scanConfigMux);
+    return ESP_OK;
+}
+
+void sensorarrayScanConfigEndConfigurationRequest(uint32_t requestId)
+{
+    portENTER_CRITICAL(&s_scanConfigMux);
+    if (requestId != 0u && s_configurationRequestId == requestId) {
+        s_configurationRequestId = 0u;
+    }
+    portEXIT_CRITICAL(&s_scanConfigMux);
+}
+
+void sensorarrayScanConfigSetRequestCallback(sensorarrayScanConfigRequestCallback_t callback)
+{
+    portENTER_CRITICAL(&s_scanConfigMux);
+    s_requestCallback = callback;
+    portEXIT_CRITICAL(&s_scanConfigMux);
+}
+
+esp_err_t sensorarrayScanConfigStageAcceptedRows(uint8_t rows, uint32_t requestId)
+{
+    if (rows < 1u || rows > 8u || requestId == 0u) { return ESP_ERR_INVALID_ARG; }
+    portENTER_CRITICAL(&s_scanConfigMux);
+    if (s_configurationRequestId != requestId || s_pendingRowsValid) {
+        portEXIT_CRITICAL(&s_scanConfigMux);
+        return ESP_ERR_INVALID_STATE;
+    }
+    s_pendingRows = rows;
+    s_pendingRowsValid = true;
+    s_pendingRequestId = requestId;
+    portEXIT_CRITICAL(&s_scanConfigMux);
+    return ESP_OK;
+}
+
+void sensorarrayScanConfigRecordRejected(uint32_t requestId, uint32_t errorCode)
+{
+    portENTER_CRITICAL(&s_scanConfigMux);
+    s_lastRowsRequestId = requestId;
+    s_lastRowsError = errorCode;
+    s_lastRowsTerminal = true;
+    s_lastRowsApplied = false;
+    portEXIT_CRITICAL(&s_scanConfigMux);
 }

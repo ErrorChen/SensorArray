@@ -11,6 +11,7 @@ set(SENSORARRAY_CORE_SRCS
     "../core/board/sensorarrayBringup.c"
     "../core/measure/sensorarrayMeasure.c"
     "../core/measure/sensorarrayMeasurementMode.c"
+    "../core/measure/sensorarrayConfigIdentity.c"
     "../core/measure/sensorarrayRowModeProfile.c"
     "../core/measure/sensorarrayMeasurementSelfTest.c"
     "../core/measure/sensorarrayRouteController.c"

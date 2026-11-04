@@ -6,6 +6,7 @@
 
 #include "sensorarrayAdsMath.h"
 #include "sensorarrayAdsCache.h"
+#include "sensorarrayAdsFault.h"
 #include "sensorarrayTypes.h"
 
 enum {
@@ -124,3 +125,16 @@ const char *sensorarrayAdsRailSourceName(sensorarrayAdsRailSource_t source);
 size_t sensorarrayAdsGapFormatBattery(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatRail(char *buffer, size_t bufferSize, uint32_t frameSequence);
 size_t sensorarrayAdsGapFormatAds(char *buffer, size_t bufferSize);
+
+/* 本轮新增. All writers run on the acquisition owner at frame boundaries. */
+uint32_t sensorarrayAdsGapTransactionGeneration(void);
+void sensorarrayAdsGapCopyTransactionEvidence(
+    sensorarrayAdsTransactionEvidence_t *rail,
+    sensorarrayAdsTransactionEvidence_t *battery,
+    sensorarrayAdsTransactionEvidence_t *check);
+void sensorarrayAdsGapNoteFirstValidFrame(uint64_t frameEndUs);
+
+/* 本轮新增: execute pending zero/rail diagnostics at a full frame boundary. */
+esp_err_t sensorarrayAdsGapRunPendingAtBoundary(sensorarrayState_t *state,
+                                                uint32_t frameSequence);
+void sensorarrayAdsGapBindBootIdentity(uint32_t bootId, uint32_t bootCount);

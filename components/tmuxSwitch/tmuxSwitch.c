@@ -194,7 +194,10 @@ esp_err_t tmuxSwitchInit(void)
         return err;
     }
 
-    const tmux1108Source_t default_source = tmux1108SourceFromConfig(CONFIG_TMUX1108_DEFAULT_SOURCE);
+    /* Before ADS bring-up POWER.INTREF is unknown (reset default is ON).
+     * Keep Q1 released. The route owner may clamp only after SPI confirms
+     * INTREF=0. This cannot isolate the matrix during hardware power-up. */
+    const tmux1108Source_t default_source = TMUX1108_SOURCE_REF;
     bool sela_default = CONFIG_TMUX1134_DEFAULT_SELA_ENABLED;
     bool selb_default = CONFIG_TMUX1134_DEFAULT_SELB_ENABLED;
     const bool all_off = CONFIG_TMUX1134_DEFAULT_ALL_OFF;

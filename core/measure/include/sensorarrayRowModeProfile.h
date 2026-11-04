@@ -21,6 +21,9 @@ typedef struct {
     sensorarrayMeasurementMode_t pendingModes[SENSORARRAY_ROW_MODE_PROFILE_ROWS];
     uint32_t pendingRequestId;
     uint32_t appliedRequestId;
+    uint32_t lastRequestId;
+    uint32_t lastRequestError;
+    sensorarrayConfigOutcome_t lastOutcome;
     uint32_t generation;
     uint32_t appliedFrameSequence;
     uint32_t lastError;
@@ -45,6 +48,9 @@ bool sensorarrayRowModeProfileBeginTransition(sensorarrayRowModeProfile_t *profi
 bool sensorarrayRowModeProfileCompleteTransition(sensorarrayRowModeProfile_t *profile,
                                                   uint32_t appliedFrameSequence,
                                                   uint64_t transitionDurationUs);
+/* 本轮新增: cache a rejected request without changing applied profile/state. */
+void sensorarrayRowModeProfileRejectRequest(sensorarrayRowModeProfile_t *profile,
+                                            uint32_t requestId, uint32_t errorCode);
 void sensorarrayRowModeProfileFailTransition(sensorarrayRowModeProfile_t *profile,
                                              uint32_t errorCode,
                                              uint64_t transitionDurationUs);

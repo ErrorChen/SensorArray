@@ -1,4 +1,5 @@
 #include "sensorarrayAsyncLog.h"
+#include "sensorarrayAsyncLogStorage.h"
 
 #include <inttypes.h>
 #include <math.h>
@@ -27,6 +28,7 @@
 #include "sensorarrayTransport.h"
 #include "sensorarrayTypes.h"
 #include "sensorarrayUsbSink.h"
+#include "sensorarraySerialIo.h"
 
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE
 #define CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE 0
@@ -293,7 +295,10 @@ typedef struct {
 } sensorarrayPrecisionWindow_t;
 
 static portMUX_TYPE s_asyncLogMux = portMUX_INITIALIZER_UNLOCKED;
-static sensorarrayAsyncLogFrameSlot_t s_frameSlots[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
+/* CPU-only immutable snapshots; slot ownership bytes and mux remain internal.
+ * No DMA driver or ISR receives these frame/text addresses. */
+static sensorarrayAsyncLogStorage_t s_frameSlotStorage;
+static sensorarrayAsyncLogFrameSlot_t *s_frameSlots;
 static uint8_t s_frameSlotState[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static uint8_t s_pendingSlots[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static uint8_t s_pendingReadIndex;
@@ -318,10 +323,12 @@ static uint32_t s_initialFreeHeap;
 /*
  * Owned exclusively by sensorarrayLogTask. No producer, callback, or other
  * task may read or write this workspace directly. Keeping the complete frame
- * and wire packets here removes their overlapping lifetime from the task
- * stack; individual fields are reset at their real lifecycle boundaries.
+ * and wire packets in a permanent CPU-only PSRAM allocation removes them
+ * from internal BSS and task stack. Internal heap is a bounded fallback.
+ * Individual fields are reset only at their real lifecycle boundaries.
  */
-static sensorarrayAsyncLogWorkspace_t s_asyncLogWorkspace;
+static sensorarrayAsyncLogStorage_t s_asyncLogStorage;
+static sensorarrayAsyncLogWorkspace_t *s_asyncLogWorkspace;
 
 static uint64_t sensorarrayAsyncLogElapsedPositiveUs(int64_t startUs)
 {
@@ -585,10 +592,8 @@ static void sensorarrayAsyncLogPrintEvent(const sensorarrayAsyncLogEvent_t *even
                      stdout);
         break;
     case SENSORARRAY_ASYNC_LOG_EVENT_PROTOCOL: {
-        (void)fwrite(event->data.text.bytes,
-                     1u,
-                     event->data.text.length,
-                     stdout);
+        (void)sensorarraySerialIoQueue(event->data.text.bytes,
+                                      event->data.text.length, true);
         esp_err_t transportErr = sensorarrayTransportPublishLifecycle(
             event->data.text.bytes, event->data.text.length);
         if (transportErr != ESP_OK && transportErr != ESP_ERR_INVALID_STATE) {
@@ -1113,7 +1118,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     const char *batteryState = !ads->batteryFresh ? "stale" :
                                 (ads->batteryValid ? "present" : "unk");
 
-    sensorarrayTextPacket_t *packet = &s_asyncLogWorkspace.summaryPacket;
+    sensorarrayTextPacket_t *packet = &s_asyncLogWorkspace->summaryPacket;
     packet->sequence = summary->seqEnd;
     packet->length = 0u;
     size_t position = sensorarrayAsyncLogTextAppend(
@@ -1160,7 +1165,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         (unsigned long)adsJobsRunDelta,
         (unsigned long)adsJobsSkipDelta,
         ads->fallbackToBoundary ? 1u : 0u);
-    sensorarrayTextPacket_t *adsPacket = &s_asyncLogWorkspace.adsPacket;
+    sensorarrayTextPacket_t *adsPacket = &s_asyncLogWorkspace->adsPacket;
     adsPacket->sequence = summary->seqEnd;
     adsPacket->length = 0u;
     size_t adsPosition = 0u;
@@ -1294,7 +1299,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         sizeof(packet->data),
         position,
         "OT50,st=%s,tx=%s,out=%llu/%llu,q=%lu/%lu/%lu,life=%lu/%lu/%lu,ofps=%llu.%01llu/%llu.%01llu/%llu.%01llu,"
-        "drop=%llu/%llu/%llu,kb=%llu/%llu/%llu,blk=%llu/%llu/%llu,wdt=0\n",
+        "drop=%llu/%llu/%llu,kb=%llu/%llu/%llu,blk=%llu/%llu/%llu,wdt=unknown\n",
         sensorarrayTransportStreamName(sensorarrayTransportGetStream()),
         sensorarrayTransportTxModeName(sensorarrayTransportGetTxMode()),
         (unsigned long long)outputAvgMs,
@@ -1840,7 +1845,8 @@ static void sensorarrayAsyncLogTask(void *arg)
     while (!s_asyncLogUsbReady) {
         vTaskDelay(1u);
     }
-    sensorarrayAsyncLogWorkspace_t *workspace = &s_asyncLogWorkspace;
+    sensorarrayAsyncLogWorkspace_t *workspace = s_asyncLogWorkspace;
+    configASSERT(workspace != NULL && s_frameSlots != NULL);
     sensorarrayFrame_t *frame = &workspace->frame;
     sensorarrayTextPacket_t *textPacket = &workspace->framePacket;
     uint32_t framesSinceIdleYield = 0u;
@@ -1921,17 +1927,37 @@ esp_err_t sensorarrayAsyncLogInit(void)
     if (s_asyncLogStarted) {
         return ESP_OK;
     }
+    /* main startup is the sole Init caller. Never reset live task storage,
+     * including the interval before the successful create call is published. */
+    if (s_logTaskHandle) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    bool preferPsram = false;
+#if CONFIG_SPIRAM
+    preferPsram = true;
+#endif
+    if (!sensorarrayAsyncLogStorageEnsure(&s_asyncLogStorage,
+            sizeof(sensorarrayAsyncLogWorkspace_t), preferPsram)) {
+        return ESP_ERR_NO_MEM;
+    }
+    s_asyncLogWorkspace = (sensorarrayAsyncLogWorkspace_t *)s_asyncLogStorage.memory;
+    const size_t frameSlotBytes = sizeof(*s_frameSlots) * SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT;
+    if (!sensorarrayAsyncLogStorageEnsure(&s_frameSlotStorage, frameSlotBytes, preferPsram)) {
+        /* Retain the already allocated workspace for a bounded Init retry. */
+        return ESP_ERR_NO_MEM;
+    }
+    s_frameSlots = (sensorarrayAsyncLogFrameSlot_t *)s_frameSlotStorage.memory;
 
-    memset(s_frameSlots, 0, sizeof(s_frameSlots));
+    memset(s_frameSlots, 0, sizeof(*s_frameSlots) * SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
     memset(s_frameSlotState, 0, sizeof(s_frameSlotState));
     memset(s_pendingSlots, 0, sizeof(s_pendingSlots));
     s_pendingReadIndex = 0u;
     s_pendingCount = 0u;
     s_sharedStats = (sensorarrayAsyncLogSharedStats_t){0};
-    s_asyncLogWorkspace.summary.active = false;
-    s_asyncLogWorkspace.framePacket.length = 0u;
-    s_asyncLogWorkspace.summaryPacket.length = 0u;
-    s_asyncLogWorkspace.adsPacket.length = 0u;
+    s_asyncLogWorkspace->summary.active = false;
+    s_asyncLogWorkspace->framePacket.length = 0u;
+    s_asyncLogWorkspace->summaryPacket.length = 0u;
+    s_asyncLogWorkspace->adsPacket.length = 0u;
     s_summaryTruncated = 0u;
     s_asyncLogAcquisitionReady = false;
     s_asyncLogUsbReady = false;
@@ -1992,7 +2018,7 @@ esp_err_t sensorarrayAsyncLogInit(void)
     s_asyncLogStarted = true;
     sensorarrayTransportMemoryDiagnostics_t transportMemory = {0};
     sensorarrayTransportGetMemoryDiagnostics(&transportMemory);
-    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u,stackBytes=%u,stackMemory=%s,workspaceBytes=%u,summaryBytes=%u,frameBytes=%u,textPacketBytes=%u,transportLegacyItemBytes=%lu,transportSlotBytes=%lu,transportDescriptorBytes=%lu\n",
+    printf("APP_LOG_INIT,mode=async_domains,frameFormat=ascii_pf6,frameSlots=%u,eventRingLen=%u,summaryEvery=%u,taskPrio=%u,taskCore=%d,dropOldFrames=%u,stackBytes=%u,stackMemory=%s,workspaceBytes=%u,workspaceMemory=%s,frameSlotsBytes=%u,frameSlotsMemory=%s,summaryBytes=%u,frameBytes=%u,textPacketBytes=%u,transportLegacyItemBytes=%lu,transportSlotBytes=%lu,transportDescriptorBytes=%lu\n",
            (unsigned)SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT,
            (unsigned)SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT,
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_SUMMARY_EVERY_N_FRAMES,
@@ -2002,6 +2028,9 @@ esp_err_t sensorarrayAsyncLogInit(void)
            (unsigned)CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK,
            taskUsesPsramStack ? "psram" : "internal",
            (unsigned)sizeof(sensorarrayAsyncLogWorkspace_t),
+           s_asyncLogStorage.usesPsram ? "psram" : "internal",
+           (unsigned)(sizeof(*s_frameSlots) * SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT),
+           s_frameSlotStorage.usesPsram ? "psram" : "internal",
            (unsigned)sizeof(sensorarrayAsyncLogSummary_t),
            (unsigned)sizeof(sensorarrayFrame_t),
            (unsigned)sizeof(sensorarrayTextPacket_t),

@@ -189,6 +189,8 @@ esp_err_t sensorarrayFdcSweepRunCellSweepTarget(sensorarrayState_t *state,
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepCell(uint8_t sIndex, uint8_t dIndex);
 esp_err_t sensorarrayFdcSweepRequestForceFullSweepAll(void);
 bool sensorarrayFdcSweepConsumeForceFullSweepAll(void);
+/* 本轮新增: Core 1 clears queued rescue work at a configuration transition. */
+void sensorarrayFdcSweepDiscardPendingForConfigChange(void);
 void sensorarrayFdcSweepReportAllInvalidFrame(uint64_t validMask,
                                               uint64_t errorMask,
                                               uint32_t zeroRawCount,

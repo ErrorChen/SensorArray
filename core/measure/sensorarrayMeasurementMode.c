@@ -75,7 +75,8 @@ bool sensorarrayMeasurementModeAccept(sensorarrayMeasurementModeContext_t *conte
                                       sensorarrayMeasurementMode_t requestedMode,
                                       uint32_t requestId)
 {
-    if (!context || !sensorarrayMeasurementModeIsDataMode(requestedMode)) {
+    if (!context || context->snapshot.pending ||
+        !sensorarrayMeasurementModeIsDataMode(requestedMode)) {
         return false;
     }
     sensorarrayMeasurementModeWriteBegin(context);
@@ -113,9 +114,15 @@ bool sensorarrayMeasurementModeCompleteTransition(sensorarrayMeasurementModeCont
     context->snapshot.state = sensorarrayMeasurementStateForMode(
         context->snapshot.activeMode);
     context->snapshot.appliedRequestId = context->snapshot.pendingRequestId;
+    context->snapshot.lastRequestId = context->snapshot.pendingRequestId;
+    context->snapshot.lastOutcome = SENSORARRAY_CONFIG_OUTCOME_APPLIED;
+    context->snapshot.lastRequestError = 0u;
     context->snapshot.appliedFrameSequence = appliedFrameSequence;
     context->snapshot.transitionDurationUs = transitionDurationUs;
     context->snapshot.generation++;
+    if (context->snapshot.generation == 0u) {
+        context->snapshot.generation = 1u;
+    }
     context->snapshot.pending = false;
     context->snapshot.pendingMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
     context->snapshot.pendingRequestId = 0u;
@@ -135,10 +142,23 @@ void sensorarrayMeasurementModeFailTransition(sensorarrayMeasurementModeContext_
     context->snapshot.state = SENSORARRAY_MEASUREMENT_STATE_SAFE;
     context->snapshot.lastError = errorCode;
     context->snapshot.transitionDurationUs = transitionDurationUs;
-    context->snapshot.appliedRequestId = context->snapshot.pendingRequestId;
+    context->snapshot.lastRequestId = context->snapshot.pendingRequestId;
+    context->snapshot.lastOutcome = SENSORARRAY_CONFIG_OUTCOME_REJECTED;
+    context->snapshot.lastRequestError = errorCode;
     context->snapshot.pending = false;
     context->snapshot.pendingMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
     context->snapshot.pendingRequestId = 0u;
+    sensorarrayMeasurementModeWriteEnd(context);
+}
+
+void sensorarrayMeasurementModeRejectRequest(sensorarrayMeasurementModeContext_t *context,
+                                             uint32_t requestId, uint32_t errorCode)
+{
+    if (!context) { return; }
+    sensorarrayMeasurementModeWriteBegin(context);
+    context->snapshot.lastRequestId = requestId;
+    context->snapshot.lastOutcome = SENSORARRAY_CONFIG_OUTCOME_REJECTED;
+    context->snapshot.lastRequestError = errorCode;
     sensorarrayMeasurementModeWriteEnd(context);
 }
 

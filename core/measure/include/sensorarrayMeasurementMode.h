@@ -156,6 +156,13 @@ typedef struct {
     bool referenceValid;
 } sensorarrayMeasurementPayload_t;
 
+/* 本轮新增: the last request outcome is independent of last successful apply. */
+typedef enum {
+    SENSORARRAY_CONFIG_OUTCOME_NONE = 0,
+    SENSORARRAY_CONFIG_OUTCOME_APPLIED,
+    SENSORARRAY_CONFIG_OUTCOME_REJECTED,
+} sensorarrayConfigOutcome_t;
+
 typedef struct {
     sensorarrayMeasurementState_t state;
     sensorarrayMeasurementMode_t activeMode;
@@ -163,6 +170,9 @@ typedef struct {
     sensorarrayMeasurementMode_t pendingMode;
     uint32_t pendingRequestId;
     uint32_t appliedRequestId;
+    uint32_t lastRequestId;
+    uint32_t lastRequestError;
+    sensorarrayConfigOutcome_t lastOutcome;
     uint32_t generation;
     uint32_t appliedFrameSequence;
     uint32_t lastError;
@@ -211,6 +221,9 @@ bool sensorarrayMeasurementModeCompleteTransition(sensorarrayMeasurementModeCont
 void sensorarrayMeasurementModeFailTransition(sensorarrayMeasurementModeContext_t *context,
                                               uint32_t errorCode,
                                               uint64_t transitionDurationUs);
+/* 本轮新增: rejection before hardware mutation retains applied configuration. */
+void sensorarrayMeasurementModeRejectRequest(sensorarrayMeasurementModeContext_t *context,
+                                             uint32_t requestId, uint32_t errorCode);
 void sensorarrayMeasurementModeRecordRuntimeFault(sensorarrayMeasurementModeContext_t *context,
                                                   uint32_t errorCode);
 bool sensorarrayMeasurementModeCopySnapshot(

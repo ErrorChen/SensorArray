@@ -8,6 +8,7 @@
 #include "freertos/queue.h"
 
 #include "sensorarrayConfig.h"
+#include "sensorarrayScanConfig.h"
 #include "sensorarrayRowModeProfile.h"
 #include "sensorarrayTransportGuaranteedText.h"
 
@@ -25,7 +26,6 @@ static uint32_t s_captureFpsCap;
 static uint32_t s_outputFpsCap;
 static bool s_traceEnabled;
 static bool s_adsDebugEnabled;
-static uint32_t s_nextRequestId;
 
 typedef struct {
     bool inUse;
@@ -268,8 +268,8 @@ esp_err_t sensorarrayCommandMailboxInit(void)
         CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT_ENABLE ? CONFIG_SENSORARRAY_OUTPUT_RATE_LIMIT : 0u;
     s_traceEnabled = false;
     s_adsDebugEnabled = false;
-    s_nextRequestId = 1u;
     portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayScanConfigSetRequestCallback(sensorarrayCommandMailboxPostRows);
     return ESP_OK;
 }
 
@@ -291,30 +291,50 @@ esp_err_t sensorarrayCommandMailboxPostText(const uint8_t *text, size_t length)
     return sensorarrayCommandMailboxQueue(&command);
 }
 
-esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
-    sensorarrayMeasurementMode_t mode,
-    uint32_t *outRequestId)
+static esp_err_t sensorarrayCommandMailboxPostReservedConfig(sensorarrayCommandType_t type,
+                                                             uint32_t value, uint32_t *outRequestId)
 {
-    if (!s_commandQueue || !outRequestId ||
-        !sensorarrayMeasurementModeIsDataMode(mode)) {
-        return ESP_ERR_INVALID_ARG;
+    if (!s_commandQueue || !outRequestId) { return ESP_ERR_INVALID_STATE; }
+    esp_err_t slotErr = sensorarrayTransportGuaranteedTextReserve();
+    if (slotErr != ESP_OK) { return slotErr; }
+    uint32_t requestId = 0u;
+    esp_err_t err = sensorarrayScanConfigBeginConfigurationRequest(&requestId);
+    if (err != ESP_OK) {
+        (void)sensorarrayTransportGuaranteedTextCancel();
+        return err;
     }
     portENTER_CRITICAL(&s_commandStateMux);
-    uint32_t requestId = s_nextRequestId++;
-    if (s_nextRequestId == 0u) {
-        s_nextRequestId = 1u;
-    }
-    portEXIT_CRITICAL(&s_commandStateMux);
-    sensorarrayCommand_t command = {
-        .type = SENSORARRAY_COMMAND_MEASUREMENT_MODE,
-        .value = (uint32_t)mode,
-        .requestId = requestId,
+    s_rowModesReservation = (sensorarrayRowModesReservation_t){
+        .inUse = true, .requestId = requestId, .commandPending = true,
+        .command = {.type = type, .value = value, .requestId = requestId},
     };
-    esp_err_t err = sensorarrayCommandMailboxQueue(&command);
-    if (err == ESP_OK) {
-        *outRequestId = requestId;
-    }
-    return err;
+    portEXIT_CRITICAL(&s_commandStateMux);
+    *outRequestId = requestId;
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayCommandMailboxPostMeasurementMode(
+    sensorarrayMeasurementMode_t mode, uint32_t *outRequestId)
+{
+    if (!sensorarrayMeasurementModeIsDataMode(mode)) { return ESP_ERR_INVALID_ARG; }
+    return sensorarrayCommandMailboxPostReservedConfig(SENSORARRAY_COMMAND_MEASUREMENT_MODE,
+                                                       (uint32_t)mode, outRequestId);
+}
+
+esp_err_t sensorarrayCommandMailboxPostRows(uint8_t rows,
+    sensorarrayScanConfigRequestResult_t *outResult)
+{
+    if (rows < 1u || rows > 8u || !outResult) { return ESP_ERR_INVALID_ARG; }
+    uint32_t requestId;
+    esp_err_t err = sensorarrayCommandMailboxPostReservedConfig(SENSORARRAY_COMMAND_ROWS,
+                                                               rows, &requestId);
+    if (err != ESP_OK) { return err; }
+    sensorarrayFrameConfigSnapshot_t active = sensorarrayScanConfigGetFrameSnapshot();
+    *outResult = (sensorarrayScanConfigRequestResult_t){
+        .requestId = requestId, .oldRows = active.rows,
+        .requestedRows = rows, .activeGeneration = active.generation,
+    };
+    return ESP_OK;
 }
 
 esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
@@ -339,13 +359,14 @@ esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
         .type = SENSORARRAY_COMMAND_ROW_MODES,
     };
     uint32_t requestId = 0u;
+    esp_err_t beginErr = sensorarrayScanConfigBeginConfigurationRequest(&requestId);
+    if (beginErr != ESP_OK) {
+        (void)sensorarrayTransportGuaranteedTextCancel();
+        return beginErr;
+    }
     bool accepted = false;
     portENTER_CRITICAL(&s_commandStateMux);
     if (!s_rowModesReservation.inUse) {
-        requestId = s_nextRequestId++;
-        if (s_nextRequestId == 0u) {
-            s_nextRequestId = 1u;
-        }
         memcpy(command.rowModes, profile, 8u);
         command.rowModes[8] = '\0';
         command.requestId = requestId;
@@ -359,6 +380,7 @@ esp_err_t sensorarrayCommandMailboxPostRowModes(const char *profile,
     }
     portEXIT_CRITICAL(&s_commandStateMux);
     if (!accepted) {
+        sensorarrayScanConfigEndConfigurationRequest(requestId);
         (void)sensorarrayTransportGuaranteedTextCancel();
         return ESP_ERR_NO_MEM;
     }
@@ -404,6 +426,7 @@ bool sensorarrayCommandMailboxCancelRowModesAck(uint32_t requestId)
     }
     portEXIT_CRITICAL(&s_commandStateMux);
     if (known) {
+        sensorarrayScanConfigEndConfigurationRequest(requestId);
         (void)sensorarrayTransportGuaranteedTextAbort();
     }
     return known;
@@ -450,6 +473,7 @@ esp_err_t sensorarrayCommandMailboxEmitRowModesTerminal(uint32_t requestId,
         }
     }
     portEXIT_CRITICAL(&s_commandStateMux);
+    sensorarrayScanConfigEndConfigurationRequest(requestId);
     return ESP_OK;
 }
 
@@ -470,10 +494,7 @@ esp_err_t sensorarrayCommandMailboxPostRailCalibration(
         return ESP_ERR_INVALID_ARG;
     }
     portENTER_CRITICAL(&s_commandStateMux);
-    uint32_t requestId = s_nextRequestId++;
-    if (s_nextRequestId == 0u) {
-        s_nextRequestId = 1u;
-    }
+    uint32_t requestId = sensorarrayScanConfigAllocateRequestId();
     portEXIT_CRITICAL(&s_commandStateMux);
     sensorarrayCommand_t command = {
         .type = SENSORARRAY_COMMAND_SET_RAIL_CALIBRATION,
@@ -497,10 +518,7 @@ static esp_err_t sensorarrayCommandMailboxPostRequest(sensorarrayCommandType_t t
         return ESP_ERR_INVALID_ARG;
     }
     portENTER_CRITICAL(&s_commandStateMux);
-    uint32_t requestId = s_nextRequestId++;
-    if (s_nextRequestId == 0u) {
-        s_nextRequestId = 1u;
-    }
+    uint32_t requestId = sensorarrayScanConfigAllocateRequestId();
     portEXIT_CRITICAL(&s_commandStateMux);
     sensorarrayCommand_t command = {
         .type = type,
@@ -695,9 +713,20 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "ads_debug";
     case SENSORARRAY_COMMAND_ROW_MODES:
         return "rowmodes";
+    case SENSORARRAY_COMMAND_ROWS:
+        return "ROWS";
     case SENSORARRAY_COMMAND_FDC_ISOLATE:
         return "fdc_isolate";
     default:
         return "unknown";
     }
 }
+
+/* 本轮新增: MODE and ROWMODES share the bounded terminal reservation. */
+bool sensorarrayCommandMailboxCommitConfigAck(uint32_t requestId)
+{ return sensorarrayCommandMailboxCommitRowModesAck(requestId); }
+bool sensorarrayCommandMailboxCancelConfigAck(uint32_t requestId)
+{ return sensorarrayCommandMailboxCancelRowModesAck(requestId); }
+esp_err_t sensorarrayCommandMailboxEmitConfigTerminal(uint32_t requestId,
+                                                      const char *text, size_t length)
+{ return sensorarrayCommandMailboxEmitRowModesTerminal(requestId, text, length); }

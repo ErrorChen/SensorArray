@@ -131,6 +131,30 @@ typedef struct {
     uint32_t invalidationCount;
 } sensorarrayAdsRegisterCache_t;
 
+/* 本轮新增: pure health decision shared with fault-injection host tests. */
+typedef enum {
+    SENSORARRAY_ADS_HEALTH_OK = 0,
+    SENSORARRAY_ADS_HEALTH_RESET,
+    SENSORARRAY_ADS_HEALTH_POWER,
+    SENSORARRAY_ADS_HEALTH_REFMUX,
+    SENSORARRAY_ADS_HEALTH_MODE,
+    SENSORARRAY_ADS_HEALTH_CACHE,
+} sensorarrayAdsHealthReason_t;
+
+typedef struct {
+    sensorarrayAdsHealthReason_t reason;
+    sensorarrayAdsRegisterId_t reg;
+    uint8_t expected;
+    uint8_t actual;
+    uint8_t mask;
+} sensorarrayAdsHealthComparison_t;
+
+sensorarrayAdsHealthComparison_t sensorarrayAdsRegisterHealthCompare(
+    const sensorarrayAdsRegisterCache_t *cache,
+    const uint8_t actual[SENSORARRAY_ADS_REGISTER_COUNT],
+    uint8_t expectedPower, uint8_t expectedRefmux,
+    uint8_t expectedMode0, uint8_t expectedMode1);
+
 void sensorarrayAdsProfileCacheInit(sensorarrayAdsProfileCache_t *cache);
 void sensorarrayAdsProfileCacheInvalidate(sensorarrayAdsProfileCache_t *cache);
 void sensorarrayAdsProfileCacheInvalidateCell(sensorarrayAdsProfileCache_t *cache,
@@ -215,6 +239,10 @@ void sensorarrayAdsRegisterCacheNoteWrite(sensorarrayAdsRegisterCache_t *cache,
                                           sensorarrayAdsRegisterId_t registerId,
                                           uint8_t value,
                                           bool verified);
+/* 本轮新增: register masks are datasheet-defined, RESET checked separately. */
+uint8_t sensorarrayAdsRegisterCompareMask(sensorarrayAdsRegisterId_t registerId);
+bool sensorarrayAdsRegisterHealthDue(uint32_t frameCount, uint32_t interval,
+                                     bool mode0Valid);
 bool sensorarrayAdsRegisterCacheNoteReadback(sensorarrayAdsRegisterCache_t *cache,
                                              sensorarrayAdsRegisterId_t registerId,
                                              uint8_t value);

@@ -1,0 +1,10 @@
+M,seq=9198,ts=123456789,rows=8,cells=64,rgen=2,rrid=1,pgen=5,prid=3,profile=CVRCVRCV,expected=FFFFFFFFFFFFFFFF,acquired=FFFFFFFFFFFFFFFF,fmt=mix1,session=AABBCCDDEE112233,bootId=7,rev=8,mgen=4,mrid=3
+MR,s=1,m=CAP,unit=pF,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=pf6,D=12250000,13250000,14250000,15250000,16250000,17250000,18250000,19250000
+MR,s=2,m=VOLT,unit=V,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=uv-x,D=50008,50009,50010,50011,50012,50013,50014,50015
+MR,s=3,m=RES,unit=ohm,scale=-3,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=mohm-x,D=50016,50017,50018,50019,50020,50021,50022,50023
+MR,s=4,m=CAP,unit=pF,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=pf6,D=36250000,37250000,38250000,39250000,40250000,41250000,42250000,43250000
+MR,s=5,m=VOLT,unit=V,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=uv-x,D=50032,50033,50034,50035,50036,50037,50038,50039
+MR,s=6,m=RES,unit=ohm,scale=-3,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=mohm-x,D=50040,50041,50042,50043,50044,50045,50046,50047
+MR,s=7,m=CAP,unit=pF,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=pf6,D=60250000,61250000,62250000,63250000,64250000,65250000,66250000,67250000
+MR,s=8,m=VOLT,unit=V,scale=-6,expected=FF,acquired=FF,valid=FF,fresh=FF,error=00,fmt=uv-x,D=50056,50057,50058,50059,50060,50061,50062,50063
+K,seq=9198,rgen=2,rrid=1,pgen=5,prid=3,crc=7EC96D00,session=AABBCCDDEE112233,bootId=7,rev=8
