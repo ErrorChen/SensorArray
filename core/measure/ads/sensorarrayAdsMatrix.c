@@ -1729,12 +1729,16 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                 healthError, 0u, 0u, 0u, 0u);
         }
         sensorarrayAcqEventPrintf(
-            "ADSHEALTH,seq=%lu,engineFrameCount=%lu,modeEntryFrameCount=%lu,healthInterval=%u,healthReadbackDue=1,precisionFrame=%u,err=0x%lx\n",
+            "ADSHEALTH,seq=%lu,engineFrameCount=%lu,modeEntryFrameCount=%lu,healthInterval=%u,healthReadbackDue=1,precisionFrame=%u,err=0x%lx,crcValidEven=%lu,crcValidOdd=%lu,crcErrors=%lu,crcRetries=%lu\n",
             (unsigned long)frame->sequence, (unsigned long)engine->frameCount,
             (unsigned long)engine->modeEntryFrameCount,
             CONFIG_SENSORARRAY_ADS_REGISTER_HEALTH_INTERVAL,
             frame->measurement.precisionFrame ? 1u : 0u,
-            (unsigned long)(uint32_t)healthError);
+            (unsigned long)(uint32_t)healthError,
+            (unsigned long)engine->state->ads.adc1CrcValidEvenCount,
+            (unsigned long)engine->state->ads.adc1CrcValidOddCount,
+            (unsigned long)engine->state->ads.adc1CrcErrorCount,
+            (unsigned long)engine->state->ads.adc1CrcRetryCount);
     }
     if (healthError != ESP_OK) {
         (void)sensorarrayAdsRegisterCacheRelease(&engine->registerCache,

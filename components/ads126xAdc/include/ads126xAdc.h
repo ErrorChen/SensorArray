@@ -180,6 +180,8 @@ typedef struct {
     uint8_t snapshotActual;
     uint32_t adc1CrcErrorCount;
     uint32_t adc1CrcRetryCount;
+    uint32_t adc1CrcValidEvenCount;
+    uint32_t adc1CrcValidOddCount;
     ads126xAdcCrcFault_t lastAdc1CrcFault;
 } ads126xAdcHandle_t;
 

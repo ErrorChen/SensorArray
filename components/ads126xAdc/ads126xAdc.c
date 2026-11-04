@@ -708,6 +708,12 @@ static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
             handle->adc1CrcErrorCount++;
             return ESP_ERR_INVALID_CRC;
         }
+        if (handle->crcMode == ADS126X_CRC_CRC8) {
+            /* Only accepted CRCs count here. Saturated OPEN codes have odd
+             * CRCs and cannot expose a final wire bit forced to one. */
+            if ((actual & 1u) != 0u) { handle->adc1CrcValidOddCount++; }
+            else { handle->adc1CrcValidEvenCount++; }
+        }
     }
     uint32_t raw = ((uint32_t)dataBytes[0] << 24) |
                    ((uint32_t)dataBytes[1] << 16) |

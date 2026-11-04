@@ -292,6 +292,8 @@ static void testFreshCrcRetry(void)
     assert(report.firstError == ESP_ERR_INVALID_CRC && report.terminalError == ESP_OK);
     assert(report.crcErrors == 1u && report.crcRetries == 1u);
     assert(ads.adc1CrcErrorCount == 1u && ads.adc1CrcRetryCount == 1u);
+    assert(ads.adc1CrcValidEvenCount + ads.adc1CrcValidOddCount == 1u);
+    assert(ads.adc1CrcValidEvenCount != 0u); /* bad first CRC was not counted valid */
     assert(memcmp(report.firstCrcFault.bytes, dataFrames[0], 6u) == 0);
     assert(report.firstCrcFault.received != report.firstCrcFault.computed);
     assert(dataFrameCount == 2u && dataFrameGeneration[1] != dataFrameGeneration[0]);
@@ -301,6 +303,7 @@ static void testFreshCrcRetry(void)
     assert(ads126xAdcReadAdc1FreshChecked(&ads, ads.drdyGeneration, 600u,
         &budget, &raw, &status, &report) == ESP_ERR_INVALID_CRC);
     assert(dataFrameCount == 3u && raw == 42 && status == 0x55u && report.crcRetries == 0u);
+    assert(ads.adc1CrcValidEvenCount + ads.adc1CrcValidOddCount == 1u);
     ads126xAdcEndTransaction(&ads);
     assert(ads126xAdcDeinit(&ads) == ESP_OK);
 
@@ -312,6 +315,7 @@ static void testFreshCrcRetry(void)
     assert(ads126xAdcReadAdc1FreshChecked(&ads, 0u, 600u, &budget,
         &raw, &status, &report) == ESP_ERR_INVALID_CRC);
     assert(report.crcErrors == 2u && report.crcRetries == 1u && dataFrameCount == 2u);
+    assert(ads.adc1CrcValidEvenCount == 0u && ads.adc1CrcValidOddCount == 0u);
     assert(memcmp(report.firstCrcFault.bytes, dataFrames[0], 6u) == 0);
     assert(raw == 42 && status == 0x55u && !ads126xAdcIsQuarantined(&ads));
     ads126xAdcEndTransaction(&ads);
