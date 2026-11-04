@@ -1758,17 +1758,10 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
     }
     size_t frameLen = 4u + (handle->enableStatusByte ? 1u : 0u) +
                       (handle->crcMode != ADS126X_CRC_OFF ? 1u : 0u);
-    /* ADS1262/3 9.5 and 9.5.1 allow a complete NOP (DIN=00h) after
-     * RDATA1 finishes with CS still low. Keep the original response length
-     * and CRC position, then clock one NOP in the same host transaction so
-     * the CRC bit is not the ESP SPI transaction's final sampled bit.
-     * The NOP receive byte has no defined meaning and is never parsed.
-     * This is not an extension of the ADC's RDATA response or bit repair. */
-    _Static_assert(ADS126X_SPI_DUMMY_BYTE == 0x00, "RDATA tail must transmit NOP");
-    uint8_t frame[7] = {0};
+    uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA1;
     int64_t startUs = esp_timer_get_time();
-    esp_err_t err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen + 1u);
+    esp_err_t err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen);
     if (outReadUs) {
         int64_t elapsedUs = esp_timer_get_time() - startUs;
         *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
@@ -1880,10 +1873,9 @@ esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
         frameLen += 1;
     }
 
-    /* Same complete RDATA1 + trailing NOP sequence as the DMA-ready path. */
-    uint8_t frame[7] = {0};
+    uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA1;
-    err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen + 1u);
+    err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen);
     if (err != ESP_OK) {
         return err;
     }
