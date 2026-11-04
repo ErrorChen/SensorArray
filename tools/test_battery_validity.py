@@ -13,7 +13,7 @@ def main():
     source = (root / "core/measure/ads/sensorarrayAdsGap.c").read_text()
     harness = (root / "tests/host/test_battery_validity.c").read_text()
     definitions = []
-    for name in ("sensorarrayAdsRailCalibration_t", "sensorarrayAdsBatteryDiag_t"):
+    for name in ("sensorarrayAdsRailCalibration_t", "sensorarrayAdsBatteryCompare_t", "sensorarrayAdsBatteryDiag_t"):
         end = source.index("} " + name + ";") + len("} " + name + ";")
         start = source.rindex("typedef struct {", 0, end)
         definitions.append(source[start:end])

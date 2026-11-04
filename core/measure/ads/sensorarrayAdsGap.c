@@ -107,6 +107,15 @@ typedef struct {
     esp_err_t cleanupError;
 } sensorarrayAdsRailDiag_t;
 
+/* 本轮新增: first differing documented register bit, owned by the transaction. */
+typedef struct {
+    bool valid;
+    uint8_t reg;
+    uint8_t expected;
+    uint8_t actual;
+    uint8_t mask;
+} sensorarrayAdsBatteryCompare_t;
+
 typedef struct {
     uint8_t powerBefore;
     uint8_t powerRequested;
@@ -135,6 +144,7 @@ typedef struct {
     uint32_t sampleUs;
     esp_err_t readErr;
     esp_err_t cleanupError;
+    ads126xAdc1RegisterSnapshot_t shadow;
     ads126xAdc1RegisterSnapshot_t saved;
     ads126xAdc1RegisterSnapshot_t configured;
     ads126xAdc1RegisterSnapshot_t restored;
@@ -151,7 +161,17 @@ typedef struct {
     bool restoreOk;
     bool diagnostic;
     bool boundaryFallback;
+    bool shadowKnown;
+    bool savedKnown;
+    bool configuredKnown;
+    bool restoredKnown;
+    bool hardwareModified;
+    bool restoreAttempted;
+    uint8_t snapshotReadFailure;
+    sensorarrayAdsBatteryCompare_t firstCompare;
+    sensorarrayAdsBatteryCompare_t cleanupCompare;
     const char *reason;
+    const char *cleanupReason;
     const char *stateName;
 } sensorarrayAdsBatteryDiag_t;
 
@@ -304,6 +324,89 @@ static bool sensorarrayAdsSnapshotFromRegisterCache(
         .refmux = cache->registers[SENSORARRAY_ADS_REGISTER_REFMUX].value,
     };
     return true;
+}
+
+/* 本轮新增. ADS1262/3 datasheet 9.6.2/3/12: RESET is evidence,
+ * POWER[7:5,3:2], INTERFACE[7:4] and REFMUX[7:6] are reserved.
+ * All MODE/MUX/calibration/ID bits remain compared; INTREF is not volatile. */
+static uint8_t sensorarrayAdsBatteryRegisterMask(uint8_t reg)
+{
+    if (reg == 0x01u) { return ADS126X_POWER_READ_MASK; }
+    if (reg == 0x02u) { return ADS126X_INTERFACE_CONFIG_MASK; }
+    if (reg == 0x0Fu) { return ADS126X_REFMUX_CONFIG_MASK; }
+    return 0xFFu;
+}
+
+static bool sensorarrayAdsBatterySnapshotsMatch(
+    const ads126xAdc1RegisterSnapshot_t *expected,
+    const ads126xAdc1RegisterSnapshot_t *actual,
+    sensorarrayAdsBatteryCompare_t *comparison)
+{
+    if (!expected || !actual) { return false; }
+    const uint8_t registers[] = {0x00u,0x01u,0x02u,0x03u,0x04u,0x05u,0x06u,
+                                0x07u,0x08u,0x09u,0x0Au,0x0Bu,0x0Cu,0x0Fu};
+    const uint8_t wanted[] = {expected->id,expected->power,expected->interface,
+        expected->mode0,expected->mode1,expected->mode2,expected->inpmux,
+        expected->offsetCal[0],expected->offsetCal[1],expected->offsetCal[2],
+        expected->fullScaleCal[0],expected->fullScaleCal[1],expected->fullScaleCal[2],expected->refmux};
+    const uint8_t observed[] = {actual->id,actual->power,actual->interface,
+        actual->mode0,actual->mode1,actual->mode2,actual->inpmux,
+        actual->offsetCal[0],actual->offsetCal[1],actual->offsetCal[2],
+        actual->fullScaleCal[0],actual->fullScaleCal[1],actual->fullScaleCal[2],actual->refmux};
+    for (size_t i = 0u; i < sizeof(registers); ++i) {
+        uint8_t mask = sensorarrayAdsBatteryRegisterMask(registers[i]);
+        if (((wanted[i] ^ observed[i]) & mask) != 0u) {
+            if (comparison && !comparison->valid) {
+                *comparison = (sensorarrayAdsBatteryCompare_t){
+                    .valid=true,.reg=registers[i],.expected=wanted[i],.actual=observed[i],.mask=mask,
+                };
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+/* 本轮新增: read-only admission. A stable mismatch is unresolved evidence of
+ * physical/shadow disagreement, not permission to overwrite either state. */
+static esp_err_t sensorarrayAdsBatterySaveVerifiedState(
+    ads126xAdcHandle_t *ads, const sensorarrayAdsRegisterCache_t *cache,
+    ads126xAdc1RegisterSnapshot_t *saved, sensorarrayAdsBatteryDiag_t *diag)
+{
+    diag->shadowKnown = sensorarrayAdsSnapshotFromRegisterCache(cache, ads, &diag->shadow);
+    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(ads, saved);
+    diag->snapshotReadFailure = ads->snapshotReadFailure;
+    if (err != ESP_OK) {
+        diag->reason = ads->snapshotReadFailure == 2u ? "snapshot_inconsistent" : "snapshot_read";
+        if (ads->snapshotReadFailure == 2u) {
+            diag->firstCompare = (sensorarrayAdsBatteryCompare_t){
+                .valid=true,.reg=ads->snapshotMismatchRegister,
+                .expected=ads->snapshotExpected,.actual=ads->snapshotActual,
+                .mask=sensorarrayAdsBatteryRegisterMask(ads->snapshotMismatchRegister),
+            };
+        }
+        return err;
+    }
+    /* Capture the real bytes before any comparison can reject admission. */
+    diag->saved = *saved;
+    diag->savedKnown = true;
+    diag->powerBefore = saved->power;
+    if ((saved->power & ADS126X_POWER_RESET) != 0u) {
+        diag->reason = "reset_observed";
+        diag->restoreOk = false; /* Legacy safety gate: physical state unknown. */
+        diag->firstCompare = (sensorarrayAdsBatteryCompare_t){
+            .valid=true,.reg=0x01u,.expected=(uint8_t)(saved->power & ~ADS126X_POWER_RESET),
+            .actual=saved->power,.mask=ADS126X_POWER_RESET,
+        };
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    if (diag->shadowKnown && !sensorarrayAdsBatterySnapshotsMatch(
+            &diag->shadow, saved, &diag->firstCompare)) {
+        diag->reason = "snapshot_shadow_mismatch";
+        diag->restoreOk = false; /* No restore was attempted; isolate unknown state. */
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    return ESP_OK;
 }
 
 static bool sensorarrayAdsCoreRegistersMatch(
@@ -1582,36 +1685,13 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
     diag.generationSaved = ads->drdyGeneration;
     diag.shadowGenerationBefore = s_registerCache->generation;
 
-    snapshotFromShadow = sensorarrayAdsSnapshotFromRegisterCache(
-        s_registerCache, ads, &saved);
-    ads126xAdc1RegisterSnapshot_t physicalSaved = {0};
-    err = ads126xAdcReadAdc1RegisterSnapshot(ads, &physicalSaved);
+    err = sensorarrayAdsBatterySaveVerifiedState(ads, s_registerCache, &saved, &diag);
+    snapshotFromShadow = diag.shadowKnown;
     if (err != ESP_OK) {
-        diag.reason = "snapshot_read";
-        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
-        goto release;
-    }
-    /* A cached snapshot is never proof of current physical configuration. */
-    if (snapshotFromShadow && memcmp(&saved, &physicalSaved, sizeof(saved)) != 0) {
-        diag.reason = "snapshot_shadow_mismatch";
-        diag.restoreOk = false;
-        diag.cleanupError = ESP_ERR_INVALID_STATE;
-        err = ESP_ERR_INVALID_RESPONSE;
-        sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
-        goto release;
-    }
-    saved = physicalSaved;
-    if ((saved.power & ADS126X_POWER_RESET) != 0u) {
-        diag.reason = "reset_observed";
-        diag.restoreOk = false;
-        diag.cleanupError = ESP_ERR_INVALID_STATE;
-        err = ESP_ERR_INVALID_RESPONSE;
         sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
         goto release;
     }
     snapshotValid = true;
-    diag.saved = saved;
-    diag.powerBefore = saved.power;
     sensorarrayAdsRailSplit_t batteryRail = {0};
     if (!sensorarrayAdsGapCopyRailSplit(frameSequence,
             CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES, &batteryRail)) {
@@ -1622,6 +1702,8 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         goto release;
     }
 
+    /* From the first command onward, even an error may have changed hardware. */
+    diag.hardwareModified = true;
     if (ads126xAdcHasAdc2(ads)) {
         err = ads126xAdcStopAdc2(ads);
         if (err != ESP_OK) {
@@ -1703,6 +1785,7 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
         diag.reason = "configured_snapshot";
         goto restore;
     }
+    diag.configuredKnown = true;
     diag.generationConfigured = ads->drdyGeneration;
     transactionCoreKnown = true;
     sensorarrayAdsRegisterCacheNoteWrite(
@@ -1833,6 +1916,7 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
 restore:
     (void)ads126xAdcStopAdc1(ads);
     if (snapshotValid) {
+        diag.restoreAttempted = true;
         esp_err_t restoreErr = ESP_FAIL;
         /* Once the battery transaction has verified the temporary core
          * registers, restore that known register set even when the AIN8
@@ -1865,8 +1949,23 @@ restore:
         }
         if (restoreErr == ESP_OK) {
             restoreErr = ads126xAdcReadAdc1RegisterSnapshot(ads, &diag.restored);
-            if (restoreErr == ESP_OK && memcmp(&saved, &diag.restored, sizeof(saved)) != 0) {
-                restoreErr = ESP_ERR_INVALID_RESPONSE;
+            diag.restoredKnown = restoreErr == ESP_OK;
+            if (restoreErr == ESP_OK) {
+                if (!sensorarrayAdsBatterySnapshotsMatch(
+                        &saved, &diag.restored, &diag.cleanupCompare)) {
+                    diag.cleanupReason = "restore_snapshot_mismatch";
+                    restoreErr = ESP_ERR_INVALID_RESPONSE;
+                }
+            } else {
+                diag.cleanupReason = ads->snapshotReadFailure == 2u ?
+                    "restore_snapshot_inconsistent" : "restore_snapshot_read";
+                if (ads->snapshotReadFailure == 2u && !diag.cleanupCompare.valid) {
+                    diag.cleanupCompare = (sensorarrayAdsBatteryCompare_t){
+                        .valid=true,.reg=ads->snapshotMismatchRegister,
+                        .expected=ads->snapshotExpected,.actual=ads->snapshotActual,
+                        .mask=sensorarrayAdsBatteryRegisterMask(ads->snapshotMismatchRegister),
+                    };
+                }
             }
         }
         if (restoreErr == ESP_OK && adc2WasRunning) {
@@ -1887,8 +1986,9 @@ restore:
             sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
             state->adsRefMuxValid = false;
             state->adsAdc1Running = false;
-            diag.reason = "restore_failed";
+            if (!diag.cleanupReason) { diag.cleanupReason = "restore_failed"; }
             if (err == ESP_OK) {
+                diag.reason = "restore_failed";
                 err = restoreErr;
             }
         }
@@ -1917,13 +2017,46 @@ static void sensorarrayAdsLogBatteryRegisters(uint32_t seq,
     const char *phase, const ads126xAdc1RegisterSnapshot_t *r, uint32_t generation,
     bool known)
 {
-    printf("BATREG,seq=%lu,txn=%lu,phase=%s,known=%u,POWER=%02X,MODE0=%02X,MODE1=%02X,MODE2=%02X,INPMUX=%02X,REFMUX=%02X,OCAL=%02X%02X%02X,FSCAL=%02X%02X%02X,VBIAS=%u,INTREF=%u,drdyGen=%lu\n",
+    printf("BATREG,seq=%lu,txn=%lu,phase=%s,known=%u,ID=%02X,INTERFACE=%02X,POWER=%02X,MODE0=%02X,MODE1=%02X,MODE2=%02X,INPMUX=%02X,REFMUX=%02X,OCAL=%02X%02X%02X,FSCAL=%02X%02X%02X,VBIAS=%u,INTREF=%u,drdyGen=%lu\n",
         (unsigned long)seq, (unsigned long)s_batteryTransaction.id, phase, known ? 1u : 0u,
-        r->power, r->mode0, r->mode1, r->mode2, r->inpmux, r->refmux,
+        r->id, r->interface, r->power, r->mode0, r->mode1, r->mode2, r->inpmux, r->refmux,
         r->offsetCal[2], r->offsetCal[1], r->offsetCal[0],
         r->fullScaleCal[2], r->fullScaleCal[1], r->fullScaleCal[0],
         (r->power & ADS126X_POWER_VBIAS) != 0u,
         (r->power & ADS126X_POWER_INTREF) != 0u, (unsigned long)generation);
+}
+
+/* 本轮新增: restoreOk is the legacy continuation gate. It is false also when
+ * admission found an unknown physical state before any restore was attempted. */
+static const char *sensorarrayAdsBatteryRestoreName(const sensorarrayAdsBatteryDiag_t *diag)
+{
+    if (!diag->restoreAttempted) { return diag->restoreOk ? "unchanged" : "unknown"; }
+    return diag->restoreOk ? "verified" : "failed";
+}
+
+static void sensorarrayAdsLogBatteryEvidence(uint32_t seq,
+    const sensorarrayAdsBatteryDiag_t *diag)
+{
+    printf("BATCTX,seq=%lu,txn=%lu,stage=%s,cleanupStage=%s,originalError=0x%lx,cleanupError=0x%lx,modified=%u,restoreAttempted=%u,restore=%s,snapshotRead=%u,shadowKnown=%u,savedKnown=%u,configuredKnown=%u,restoredKnown=%u\n",
+        (unsigned long)seq, (unsigned long)s_batteryTransaction.id,
+        diag->reason ? diag->reason : "unknown",
+        diag->cleanupReason ? diag->cleanupReason : "none",
+        (unsigned long)(uint32_t)diag->readErr, (unsigned long)(uint32_t)diag->cleanupError,
+        diag->hardwareModified ? 1u : 0u, diag->restoreAttempted ? 1u : 0u,
+        sensorarrayAdsBatteryRestoreName(diag), (unsigned)diag->snapshotReadFailure,
+        diag->shadowKnown ? 1u : 0u, diag->savedKnown ? 1u : 0u,
+        diag->configuredKnown ? 1u : 0u, diag->restoredKnown ? 1u : 0u);
+    const sensorarrayAdsBatteryCompare_t *comparisons[] = {
+        &diag->firstCompare, &diag->cleanupCompare,
+    };
+    for (unsigned i = 0u; i < 2u; ++i) {
+        const sensorarrayAdsBatteryCompare_t *comparison = comparisons[i];
+        if (!comparison->valid) { continue; }
+        printf("BATCMP,seq=%lu,txn=%lu,phase=%s,reg=%02X,expected=%02X,actual=%02X,mask=%02X\n",
+            (unsigned long)seq, (unsigned long)s_batteryTransaction.id,
+            i == 0u ? "admission" : "restore", comparison->reg,
+            comparison->expected, comparison->actual, comparison->mask);
+    }
 }
 
 static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
@@ -1977,11 +2110,16 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
             return err;
         }
         sensorarrayAdsLogBatteryRegisters(frameSequence, "saved", &diag.saved,
-            diag.generationSaved, diag.saved.id == state->ads.idRegRaw && diag.saved.interface != 0u);
+            diag.generationSaved, diag.savedKnown);
         sensorarrayAdsLogBatteryRegisters(frameSequence, "configured", &diag.configured,
-            diag.generationConfigured, diag.configured.interface != 0u);
+            diag.generationConfigured, diag.configuredKnown);
         sensorarrayAdsLogBatteryRegisters(frameSequence, "restored", &diag.restored,
-            diag.generationRestored, diag.restoreOk && diag.restored.interface != 0u);
+            diag.generationRestored, diag.restoredKnown);
+        if (err != ESP_OK || !diag.restoreOk) {
+            sensorarrayAdsLogBatteryRegisters(frameSequence, "shadow", &diag.shadow,
+                diag.shadowGenerationBefore, diag.shadowKnown);
+            sensorarrayAdsLogBatteryEvidence(frameSequence, &diag);
+        }
         printf("BATRAW,seq=%lu,txn=%lu,raw=%ld/%ld/%ld,status=%02X/%02X/%02X,timeUs=%llu/%llu/%llu,transactionStartUs=%llu,transactionEndUs=%llu,originalError=0x%lx,cleanupError=0x%lx\n",
             (unsigned long)frameSequence, (unsigned long)s_batteryTransaction.id,
             (long)diag.sampleRaw0, (long)diag.sampleRaw1, (long)diag.sampleRaw2,
@@ -2048,9 +2186,9 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
                     sensorarrayAdsRailSourceName(
                         (sensorarrayAdsRailSource_t)s_snapshot.railSource) :
                     "unknown",
-                .restoreExpectedValid = true,
+                .restoreExpectedValid = diag.savedKnown,
                 .restoreExpected = diag.powerBefore,
-                .restoreActualValid = true,
+                .restoreActualValid = diag.restoredKnown,
                 .restoreActual = diag.powerAfter,
             };
             (void)sensorarrayAdsFaultEmit(
@@ -2063,7 +2201,7 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
              * event, not a reserved lifecycle event: the bounded zero-wait
              * enqueue must never let a battery problem outrank acquisition,
              * control, or deferred command-application events. */
-            printf("BATERR,seq=%lu,err=0x%lx,reason=%s,valid=0,lastGoodMv=%ld,lastGoodValid=%u,sampleUs=%lu,restore=%s,action=report_continue\n",
+            printf("BATERR,seq=%lu,err=0x%lx,reason=%s,valid=0,lastGoodMv=%ld,lastGoodValid=%u,sampleUs=%lu,restore=%s,action=%s,restoreState=%s,stage=%s,cleanupError=0x%lx\n",
                    (unsigned long)frameSequence,
                    (unsigned long)err,
                    diag.stateName ? diag.stateName : "unknown",
@@ -2071,7 +2209,11 @@ static esp_err_t sensorarrayAdsRunJob(sensorarrayState_t *state,
                        (long)s_snapshot.batteryLastGoodMv : -1L,
                    s_snapshot.batteryLastGoodValid ? 1u : 0u,
                    (unsigned long)diag.sampleUs,
-                   diag.restoreOk ? "ok" : "fail");
+                   diag.restoreOk ? "ok" : "fail",
+                   diag.restoreOk ? "report_continue" : "isolate_ads",
+                   sensorarrayAdsBatteryRestoreName(&diag),
+                   diag.reason ? diag.reason : "unknown",
+                   (unsigned long)(uint32_t)diag.cleanupError);
         }
         if (s_batteryDiagnosticRequested) {
             sensorarrayAdsPrintBatteryDiag(&diag);

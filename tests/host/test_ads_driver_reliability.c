@@ -184,6 +184,20 @@ static void testSpiDeadlineAndLifetime(void)
     assert(ads126xAdcDeinit(&ads) == ESP_OK);
 }
 
+static void testSpiTimingSelection(void)
+{
+#if CONFIG_IDF_TARGET_ESP32S3
+    assert(ads126xAdcSpiDutyCycleForClock(2000000u) == 64u);
+#else
+    assert(ads126xAdcSpiDutyCycleForClock(2000000u) == 128u);
+#endif
+    const uint32_t otherClocks[] = {0u, 500000u, 1000000u, 1999999u,
+        2000001u, 4000000u, 8000000u, 20000000u};
+    for (size_t i = 0u; i < sizeof(otherClocks) / sizeof(otherClocks[0]); ++i) {
+        assert(ads126xAdcSpiDutyCycleForClock(otherClocks[i]) == 128u);
+    }
+}
+
 static uint8_t crcPolynomialDivision(uint32_t value)
 {
     uint64_t dividend = (uint64_t)value << 8u;
@@ -395,6 +409,7 @@ static void testSnapshots(void)
 
 int main(void)
 {
+    testSpiTimingSelection();
     testSpiDeadlineAndLifetime();
     testCrcAndLength();
     testReferenceAndFreshness();

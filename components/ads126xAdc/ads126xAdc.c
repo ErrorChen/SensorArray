@@ -259,6 +259,19 @@ static uint8_t ads126xAdcCrc8(const uint8_t *data, size_t len)
     return crc;
 }
 
+uint16_t ads126xAdcSpiDutyCycleForClock(uint32_t clockHz)
+{
+#if CONFIG_IDF_TARGET_ESP32S3
+    /* ADS126x table 7.6: high/low >= 40 ns; table 7.7: output valid <= 60 ns.
+     * Do not apply a 25% duty at a higher configured frequency. This remains
+     * a timing candidate until the paired hardware capture verifies it. */
+    return clockHz == 2000000u ? 64u : 128u;
+#else
+    (void)clockHz;
+    return 128u;
+#endif
+}
+
 static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
                                              const uint8_t *tx,
                                              size_t txLen,
@@ -2246,11 +2259,16 @@ esp_err_t ads126xAdcHelperCreateSpiDevice(spi_device_handle_t *outDevice)
     spi_device_interface_config_t devCfg = {
         .clock_speed_hz = CONFIG_ADS126X_SPI_CLOCK_HZ,
         .mode = 1,
+        .duty_cycle_pos = ads126xAdcSpiDutyCycleForClock(CONFIG_ADS126X_SPI_CLOCK_HZ),
         .spics_io_num = CONFIG_BOARD_ADS126X_CS_GPIO,
         .queue_size = 1,
     };
 
-    return spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
+    err = spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
+    ESP_LOGI(TAG, "ADS_SPI_TIMING,path=helper,requestedClockHz=%d,mode=%u,dutyCyclePos=%u,cs=%d,candidate=%u,err=0x%x",
+        devCfg.clock_speed_hz, devCfg.mode, devCfg.duty_cycle_pos, devCfg.spics_io_num,
+        devCfg.duty_cycle_pos == 64u ? 1u : 0u, err);
+    return err;
 }
 
 esp_err_t ads126xAdcHelperDestroySpiDevice(spi_device_handle_t device)

@@ -92,11 +92,16 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
     spi_device_interface_config_t devCfg = {
         .clock_speed_hz = CONFIG_ADS126X_SPI_CLOCK_HZ,
         .mode = 1,
+        .duty_cycle_pos = ads126xAdcSpiDutyCycleForClock(CONFIG_ADS126X_SPI_CLOCK_HZ),
         .spics_io_num = CONFIG_BOARD_ADS126X_CS_GPIO,
         .queue_size = 1,
     };
 
-    return spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
+    err = spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
+    printf("ADS_SPI_TIMING,path=board,requestedClockHz=%d,mode=%u,dutyCyclePos=%u,cs=%d,candidate=%u,err=0x%x\n",
+        devCfg.clock_speed_hz, devCfg.mode, devCfg.duty_cycle_pos, devCfg.spics_io_num,
+        devCfg.duty_cycle_pos == 64u ? 1u : 0u, err);
+    return err;
 }
 
 static Fdc2214CapRefClockSource_t sensorarrayBringupFdcRefClockSource(void)
