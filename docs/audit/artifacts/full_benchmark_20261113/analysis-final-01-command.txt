@@ -1,0 +1,1 @@
+{"output": "docs/audit/artifacts/full_benchmark_20261113/benchmark-final.json", "captures": 38, "configuration_statuses": {"RECORDED": 27, "INCOMPLETE_OR_ERROR": 1, "RECORDED_WITH_ERRORS": 4}, "precision_acceptance": "NOT_EVALUATED"}

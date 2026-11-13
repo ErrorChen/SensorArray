@@ -23,3 +23,7 @@ __pycache__/
 Thumbs.db
 
 *.log
+
+# Full benchmark originals remain local; verified lossless .gz archives are tracked.
+/docs/audit/artifacts/full_benchmark_20261113/*.events.jsonl
+/docs/audit/artifacts/full_benchmark_20261113/*.ble.notifications.jsonl

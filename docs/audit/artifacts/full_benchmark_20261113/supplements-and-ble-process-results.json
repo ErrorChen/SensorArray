@@ -1,0 +1,51 @@
+{
+  "recorded_utc": "2026-11-13T11:28:42.223193+00:00",
+  "monotonic": 76218.295793387,
+  "processes": [
+    {
+      "label": "retry-01-volt1",
+      "session_id": 89130,
+      "exit_code": 1,
+      "command": [
+        "python3",
+        "tools/run_firmware_benchmark_retry.py",
+        "--port",
+        "/dev/ttyACM0",
+        "--output-directory",
+        "docs/audit/artifacts/full_benchmark_20261113",
+        "--label",
+        "retry-01-volt1",
+        "--mode",
+        "VOLT",
+        "--rows",
+        "1"
+      ]
+    },
+    {
+      "label": "retry-01-volt2",
+      "session_id": 99500,
+      "exit_code": 1,
+      "command": [
+        "python3",
+        "tools/run_firmware_benchmark_retry.py",
+        "--port",
+        "/dev/ttyACM0",
+        "--output-directory",
+        "docs/audit/artifacts/full_benchmark_20261113",
+        "--label",
+        "retry-01-volt2",
+        "--mode",
+        "VOLT",
+        "--rows",
+        "2"
+      ]
+    },
+    {
+      "label": "suite-01.ble",
+      "session_id": 8107,
+      "exit_code": 0,
+      "stop": "Explicit stop file after all planned configurations attempted; native IDLE0 watchdog failed VOLT1 before120s"
+    }
+  ],
+  "attempt_policy": "Original full windows retained even when errors; supplements only for initial0s. VOLT1 failed at15.065s on native WDT; no shortened-window success claim or further stress rerun."
+}

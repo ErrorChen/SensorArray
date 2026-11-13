@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_transport_diagnosis",
+  "scope": "Completed suite-01 VOLT1/2/3 only; no hardware access or running-code changes",
+  "conclusions": [
+    "VOLT1/2 did not enter capture. MODE/ROWS ACK+terminal+CONFIG succeeded; no MFAULT/RST/FATAL was recorded. One or more read-only query replies were not observed before their bounded deadline.",
+    "Device RX bytes and priority queue admissions account for all issued commands and applied events; firmware accepted-byte deltas plus final query bytes exactly equal recorded raw bytes. This supports loss after priority queue admission and before driver acceptance, rather than a collector read/parser omission. Per-class/per-packet TX loss counters are absent, so attribution to each missing reply is aggregate evidence plus the production code path.",
+    "VOLT3 recorded 120.00009842999862 seconds with 3766 CRC-valid parsed frames. Two actual K lines ended after comma-ses, omitting session/bootId/rev. Headers matched CONFIG. The strict identity failure is valid; the more precise category is transport/trailer truncation, not configuration domain inconsistency.",
+    "SerialIo uses one 20ms whole-packet deadline for both priority and normal queues, 64-byte nonblocking writes, and vTaskDelay(1) on backpressure. At 100Hz this retry delay is 10ms. An expired packet is discarded; a partially emitted packet is delimited by LF before the next packet. This explains the observed wire shape. Which scheduler/bus contention caused an individual timeout is not proven by these logs."
+  ],
+  "source_map": [
+    {
+      "path": "core/transport/sensorarrayTransport.c",
+      "function": "sensorarrayTransportSerialControlTask",
+      "line": 389
+    },
+    {
+      "path": "core/transport/sensorarrayTransport.c",
+      "function": "sensorarrayTransportPublishControlReply",
+      "line": 890
+    },
+    {
+      "path": "core/transport/sensorarraySerialIo.c",
+      "function": "sensorarraySerialTxTask",
+      "line": 233
+    },
+    {
+      "path": "tools/capture_reference_fixture.py",
+      "function": "Collector.query",
+      "line": 221
+    },
+    {
+      "path": "tools/run_firmware_benchmark.py",
+      "function": "BenchmarkCollector.observe",
+      "line": 174
+    }
+  ],
+  "minimal_harness_followup": [
+    "Use a separate retry runner; preserve the currently running runner SHA and all original ERROR records.",
+    "Only known read-only queries retry, at most three attempts sharing the original phase and overall deadline. Require complete critical fields and retain CONFIG revision consistency checks. Never replay MODE/ROWS/ROWMODES/USBSTREAM setters automatically.",
+    "Use new labels to supplement configurations with no full 120-second capture. Keep VOLT3 as a full-duration failed transport window, without a favorable replacement."
+  ],
+  "records": [
+    {
+      "label": "suite-01-volt1",
+      "evidence": {
+        "summary": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.summary.json",
+          "bytes": 11376,
+          "sha256": "24765debc41e749e95974be49de8d18a926bbefdb83c21f381aba92af30a148f"
+        },
+        "events": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.events.jsonl",
+          "bytes": 56153,
+          "sha256": "265cdeea89e694e1c8709eac279b75ad6c20040ac3c1dddf251efde185bfca4a"
+        },
+        "raw": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.rx.bin",
+          "bytes": 45112,
+          "sha256": "6f97614a3043cff06a4c7477a812bca58fb10fd3d1322acac76f451d14b57107"
+        }
+      },
+      "status": "ERROR",
+      "error": "reply_deadline_expired;end_queries:reply_deadline_expired",
+      "capture_seconds": 0.0,
+      "firmware_faults": [],
+      "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+      "raw_summary_hash_matches": true,
+      "rx_chunk_bytes": 45112,
+      "USB_counter_delta_entire_record": {
+        "sinkQueued": 131,
+        "sinkDropped": 1361,
+        "priorityQueued": 35,
+        "driverAcceptedBytes": 44668,
+        "rxBytes": 278,
+        "partialWrite": 7,
+        "timeout": 11,
+        "lineDropped": 367,
+        "driverDrained": 21
+      },
+      "accounting": {
+        "host_tx_bytes": 290,
+        "first_query_bytes_already_in_start_RX_counter": 12,
+        "device_RX_delta": 278,
+        "host_tx_minus_initial_equals_RX_delta": true,
+        "commands": 31,
+        "applied_events": 5,
+        "expected_priority_queue_delta": 35,
+        "observed_priority_queue_delta": 35,
+        "final_USB_reply_bytes_not_yet_in_own_snapshot": 444,
+        "driver_accepted_delta_plus_final_reply_equals_raw": true
+      },
+      "missing_query_replies": [
+        {
+          "command": "USBSTREAM?",
+          "send_t": 5.330680779996328,
+          "deadline_t": 9.33124745299574,
+          "rx_chunks_while_waiting": 101,
+          "rx_bytes_while_waiting": 11541,
+          "complete_reply_observed": false
+        },
+        {
+          "command": "SPI?",
+          "send_t": 11.34980343800271,
+          "deadline_t": 14.331395463988883,
+          "rx_chunks_while_waiting": 19,
+          "rx_bytes_while_waiting": 2141,
+          "complete_reply_observed": false
+        }
+      ],
+      "truncated_trailers": [],
+      "parser_counters": {}
+    },
+    {
+      "label": "suite-01-volt2",
+      "evidence": {
+        "summary": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.summary.json",
+          "bytes": 19702,
+          "sha256": "7fae9f41e58d2469bba857a5078fbeb979c4b83bf1a59f5373dcdde94a2c47f6"
+        },
+        "events": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.events.jsonl",
+          "bytes": 250541,
+          "sha256": "073d28570d7cec615e57edf006916481c42986f1458c64de36294646184d2437"
+        },
+        "raw": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.rx.bin",
+          "bytes": 301734,
+          "sha256": "bc71be5a0773a63f4f0fb4e5d0ea88e78062463d1d67bcfeae2de4b506c3759b"
+        }
+      },
+      "status": "ERROR",
+      "error": "reply_deadline_expired",
+      "capture_seconds": 0.0,
+      "firmware_faults": [],
+      "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+      "raw_summary_hash_matches": true,
+      "rx_chunk_bytes": 301734,
+      "USB_counter_delta_entire_record": {
+        "sinkQueued": 609,
+        "sinkDropped": 133,
+        "priorityQueued": 36,
+        "driverAcceptedBytes": 301290,
+        "rxBytes": 281,
+        "partialWrite": 37,
+        "timeout": 60,
+        "lineDropped": 37,
+        "driverDrained": 71
+      },
+      "accounting": {
+        "host_tx_bytes": 293,
+        "first_query_bytes_already_in_start_RX_counter": 12,
+        "device_RX_delta": 281,
+        "host_tx_minus_initial_equals_RX_delta": true,
+        "commands": 32,
+        "applied_events": 5,
+        "expected_priority_queue_delta": 36,
+        "observed_priority_queue_delta": 36,
+        "final_USB_reply_bytes_not_yet_in_own_snapshot": 444,
+        "driver_accepted_delta_plus_final_reply_equals_raw": true
+      },
+      "missing_query_replies": [
+        {
+          "command": "CONFIG?",
+          "send_t": 5.248792730009882,
+          "deadline_t": 9.248875489007332,
+          "rx_chunks_while_waiting": 1064,
+          "rx_bytes_while_waiting": 128669,
+          "complete_reply_observed": false
+        }
+      ],
+      "truncated_trailers": [],
+      "parser_counters": {}
+    },
+    {
+      "label": "suite-01-volt3",
+      "evidence": {
+        "summary": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.summary.json",
+          "bytes": 29490,
+          "sha256": "45eb2662bdc9c12c3d84cbab9580154150425b52fb90b6440d6e07a550f675ba"
+        },
+        "events": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.events.jsonl",
+          "bytes": 3166135,
+          "sha256": "eda173848178ee036f2f586b4be03e49900b9ac1f7c7c23263e2b3188bc50fca"
+        },
+        "raw": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.rx.bin",
+          "bytes": 4135081,
+          "sha256": "ce1ef0ffe2009553bbeba0852bbe97e7cba5a756f698aacce42dfa55374da9b7"
+        }
+      },
+      "status": "ERROR",
+      "error": "capture_frame_identity_mismatch",
+      "capture_seconds": 120.00009842999862,
+      "firmware_faults": [],
+      "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+      "raw_summary_hash_matches": true,
+      "rx_chunk_bytes": 4135081,
+      "USB_counter_delta_entire_record": {
+        "sinkQueued": 7235,
+        "sinkDropped": 343,
+        "priorityQueued": 44,
+        "driverAcceptedBytes": 4134636,
+        "rxBytes": 346,
+        "partialWrite": 179,
+        "timeout": 199,
+        "lineDropped": 90,
+        "driverDrained": 341
+      },
+      "accounting": {
+        "host_tx_bytes": 358,
+        "first_query_bytes_already_in_start_RX_counter": 12,
+        "device_RX_delta": 346,
+        "host_tx_minus_initial_equals_RX_delta": true,
+        "commands": 40,
+        "applied_events": 5,
+        "expected_priority_queue_delta": 44,
+        "observed_priority_queue_delta": 44,
+        "final_USB_reply_bytes_not_yet_in_own_snapshot": 445,
+        "driver_accepted_delta_plus_final_reply_equals_raw": true
+      },
+      "missing_query_replies": [],
+      "truncated_trailers": [
+        {
+          "seq": 186354,
+          "raw_offset": 648119,
+          "raw_end": 648164,
+          "host_t": 19.70489902800182,
+          "verbatim_ascii": "K,seq=186354,gen=87,rid=118,crc=7118BB42,ses\n",
+          "header_identity_matches_CONFIG": true,
+          "missing_trailer_fields": [
+            "session",
+            "bootId",
+            "rev"
+          ],
+          "payload_crc_valid": true
+        },
+        {
+          "seq": 189101,
+          "raw_offset": 3423932,
+          "raw_end": 3423977,
+          "host_t": 104.13407710999309,
+          "verbatim_ascii": "K,seq=189101,gen=87,rid=118,crc=4C04D733,ses\n",
+          "header_identity_matches_CONFIG": true,
+          "missing_trailer_fields": [
+            "session",
+            "bootId",
+            "rev"
+          ],
+          "payload_crc_valid": true
+        }
+      ],
+      "parser_counters": {
+        "lines": 27298,
+        "cap_frames": 0,
+        "voltage_frames": 3766,
+        "resistance_frames": 0,
+        "mixed_frames": 0,
+        "crc_errors": 0,
+        "malformed": 15,
+        "sequence_gaps": 105,
+        "missing_frames": 134,
+        "sequence_regressions": 0,
+        "non_ascii_chunks": 0,
+        "summary_lines": 2040,
+        "rmack": 0,
+        "rmapp": 0,
+        "rmerr": 0,
+        "lifecycle_duplicate_terminal": 0,
+        "lifecycle_terminal_without_ack": 0
+      },
+      "USB_before_after_window_delta": {
+        "sinkQueued": 6872,
+        "sinkDropped": 333,
+        "priorityQueued": 9,
+        "driverAcceptedBytes": 3948837,
+        "rxBytes": 74,
+        "partialWrite": 177,
+        "timeout": 197,
+        "lineDropped": 83,
+        "driverDrained": 328
+      }
+    }
+  ],
+  "raw_or_original_summary_modified": false
+}

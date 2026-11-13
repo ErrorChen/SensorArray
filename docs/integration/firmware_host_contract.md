@@ -86,6 +86,10 @@ ADC SPI CRC 错误**尚未根治**，NOP 候选已撤回，不能将有限重试
 | RAILCFG 的 RAPP `avdd/avss/source` | rail 校准事务；不是 ROWS | 不能用来推进 ROWS generation |
 | RECOVER/RESTART 的 RAPP `cmd/level/state` | 恢复生命周期；不是 ROWS/MODE 成功 | 查询 CONFIG 重建 |
 
+布局同质性检查完整的 **8 项配置 profile**，不是仅检查活动行。`ROWMODES=CVRCVRCV` 加 `ROWS=1` 仍走 MIXED engine，输出 `M(profile=CNNNNNNN)`、一个 CAP `MR` 和 `K`；CONFIG 保留完整 `CVRCVRCV`。这里只有活动测点全为 CAP，不能按普通 C 帧或其旧 `gen/rid` 域解析。2026-11-13 的 120 秒实录确认了这一点；首次 benchmark 工具预期 C 帧属于工具误报，原始记录保留。
+
+Layout homogeneity examines the complete **eight-entry configured profile**, not only active rows. `ROWMODES=CVRCVRCV` with `ROWS=1` still uses the MIXED engine and emits `M(profile=CNNNNNNN)`, one CAP `MR`, and `K`; CONFIG retains `CVRCVRCV`. Only the active measurements are all CAP. Do not parse this as an ordinary C frame or assign C's legacy identity domain. A 120-second capture on 2026-11-13 confirms this; the initial benchmark expectation of a C frame was a harness error, whose original evidence is retained.
+
 采样 owner 在每次 engine 调用之前，从已选定的 mode、rows、profile 和 plan 捕获 `sensorarrayConfigIdentity_t`（本轮新增）。engine 对 frame 的清零不会使它丢失：调度器在返回后复制同一局部 snapshot，encoder 和 transport descriptor 仅解析/携带该 frame。发送阶段不得读取最新全局配置盖章。`rev` 在完整配置或安全状态改变时前进；正常逐帧不前进。profile 准备期间采样使用候选 identity，只有成功应用后发布相同 revision 的权威快照；失败帧无效，权威状态保留真实失败状态。
 
 因此现场反例 `CAP gen=2/rid=1` 与此前 `VOLT gen=4/rid=3` **不属于同一域**。新 CAP 明确携带 `mgen/mrid`，Host 必须使用它进行 MODE 关联。

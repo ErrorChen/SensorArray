@@ -10,7 +10,7 @@
 
 表中“BLE FF10=是”只代表命令可以写入；客户端还必须为 `FF11` 配置兼容的 CCCD，才能收到回复。Wi-Fi CTRL 目前只在 SoftAP/UDP backend 可达时可用。
 
-所有 setter 都是易失状态，重启后恢复编译配置默认值；当前没有命令把运行时配置写入 NVS。
+MODE、ROWS、ROWMODES、RAILCFG 和运行时输出设置均为易失状态，重启后恢复启动默认值。校准持久化是显式例外：`CAL=SAVE` 写入 `calib` NVS，`CAL=LOAD` 读取；普通测量与查询不会隐式保存校准。具体以各命令的 Persistent 列及校准章节为准。
 
 ## Transport 与输出
 

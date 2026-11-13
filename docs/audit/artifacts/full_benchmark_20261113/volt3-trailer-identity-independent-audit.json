@@ -1,0 +1,420 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_completed_capture_identity_audit",
+  "created_host_monotonic_ns": 73861632847229,
+  "sources": {
+    "rx.bin": {
+      "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.rx.bin",
+      "bytes": 4135081,
+      "sha256": "ce1ef0ffe2009553bbeba0852bbe97e7cba5a756f698aacce42dfa55374da9b7"
+    },
+    "events.jsonl": {
+      "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.events.jsonl",
+      "bytes": 3166135,
+      "sha256": "eda173848178ee036f2f586b4be03e49900b9ac1f7c7c23263e2b3188bc50fca"
+    },
+    "summary.json": {
+      "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt3.summary.json",
+      "bytes": 29490,
+      "sha256": "45eb2662bdc9c12c3d84cbab9580154150425b52fb90b6440d6e07a550f675ba"
+    }
+  },
+  "capture_start_event": {
+    "t": 5.303816050000023,
+    "type": "capture_start",
+    "phase": "capture",
+    "monotonic": 72979.012722294,
+    "offset": 179910,
+    "requested_seconds": 120.0
+  },
+  "capture_end_event": {
+    "t": 125.30396067000402,
+    "type": "capture_end",
+    "phase": "capture",
+    "monotonic": 73099.012820724,
+    "offset": 4123765,
+    "frame_trailers": 3766,
+    "actual_seconds": 120.00009842999862
+  },
+  "capture_duration_seconds": 120.00009842999862,
+  "parsed_capture_frames": 3766,
+  "capture_header_identity_groups": [
+    {
+      "identity": {
+        "session": "0DCB1029EC3CCA0D",
+        "bootId": "7",
+        "rev": "118",
+        "mgen": "87",
+        "mrid": "118",
+        "rgen": "31",
+        "rrid": "117",
+        "pgen": "88",
+        "prid": "118"
+      },
+      "frames": 3766
+    }
+  ],
+  "bad_K_records": [
+    {
+      "sequence": 186354,
+      "byte_offset": 648119,
+      "line_number": 4454,
+      "capture_relative_seconds": 14.401082978001796,
+      "host_monotonic_seconds": 72993.41380527201,
+      "raw_K_ascii_with_newline": "K,seq=186354,gen=87,rid=118,crc=7118BB42,ses\n",
+      "raw_K_hex": "4b2c7365713d3138363335342c67656e3d38372c7269643d3131382c6372633d37313138424234322c7365730a",
+      "raw_K_bytes": 45,
+      "received_scientific_frame_bytes": 769,
+      "received_prefix_without_final_LF_bytes": 768,
+      "header_identity": {
+        "session": "0DCB1029EC3CCA0D",
+        "bootId": "7",
+        "rev": "118",
+        "mgen": "87",
+        "mrid": "118",
+        "rgen": "31",
+        "rrid": "117",
+        "pgen": "88",
+        "prid": "118"
+      },
+      "header_mismatches_against_before_CONFIG": {},
+      "missing_K_identity_keys": [
+        "session",
+        "bootId",
+        "rev"
+      ],
+      "body_ascii_crc_valid": true,
+      "raw_frame_prefix_sha256": "c116169b5ff05f1edce8eb73d80a2bb72f72ba99a7248bddf953d9475f86d340"
+    },
+    {
+      "sequence": 189101,
+      "byte_offset": 3423932,
+      "line_number": 23664,
+      "capture_relative_seconds": 98.83026105999306,
+      "host_monotonic_seconds": 73077.842983354,
+      "raw_K_ascii_with_newline": "K,seq=189101,gen=87,rid=118,crc=4C04D733,ses\n",
+      "raw_K_hex": "4b2c7365713d3138393130312c67656e3d38372c7269643d3131382c6372633d34433034443733332c7365730a",
+      "raw_K_bytes": 45,
+      "received_scientific_frame_bytes": 769,
+      "received_prefix_without_final_LF_bytes": 768,
+      "header_identity": {
+        "session": "0DCB1029EC3CCA0D",
+        "bootId": "7",
+        "rev": "118",
+        "mgen": "87",
+        "mrid": "118",
+        "rgen": "31",
+        "rrid": "117",
+        "pgen": "88",
+        "prid": "118"
+      },
+      "header_mismatches_against_before_CONFIG": {},
+      "missing_K_identity_keys": [
+        "session",
+        "bootId",
+        "rev"
+      ],
+      "body_ascii_crc_valid": true,
+      "raw_frame_prefix_sha256": "8081123f792e4a54543284579525524a36b77d925e6957e015947e01d3969fb4"
+    }
+  ],
+  "control_records": [
+    {
+      "line_number": 5,
+      "byte_offset": 812,
+      "receipt_relative_seconds": 0.00697225600015372,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=115,boundary=185728,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=85,mrid=114,rgen=30,rrid=115,pgen=86,prid=114,mtermId=114,mterm=applied,merr=0x0,ptermId=114,pterm=applied,perr=0x0,rtermId=115,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 6,
+      "byte_offset": 1092,
+      "receipt_relative_seconds": 0.0076516239932971075,
+      "phase": "before",
+      "line": "MACK,id=116,old=CAP,new=CAP,state=accepted"
+    },
+    {
+      "line_number": 7,
+      "byte_offset": 1135,
+      "receipt_relative_seconds": 0.08768899599090219,
+      "phase": "before",
+      "line": "MAPP,id=116,gen=86,old=CAP,new=CAP,seq=185729,state=applied,transitionUs=10441,session=0DCB1029EC3CCA0D,bootId=7,rev=116,boundary=185729,identityKnown=1"
+    },
+    {
+      "line_number": 9,
+      "byte_offset": 1436,
+      "receipt_relative_seconds": 0.09575931799190585,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=116,boundary=185729,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=86,mrid=116,rgen=30,rrid=115,pgen=87,prid=116,mtermId=116,mterm=applied,merr=0x0,ptermId=116,pterm=applied,perr=0x0,rtermId=115,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 15,
+      "byte_offset": 2662,
+      "receipt_relative_seconds": 0.20166166999842972,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=117,boundary=185730,state=CAPACITANCE,mode=CAP,rows=3,profile=CCCCCCCC,err=0x0,mgen=86,mrid=116,rgen=31,rrid=117,pgen=87,prid=116,mtermId=116,mterm=applied,merr=0x0,ptermId=116,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 16,
+      "byte_offset": 2942,
+      "receipt_relative_seconds": 0.2023669429909205,
+      "phase": "before",
+      "line": "MACK,id=118,old=CAP,new=VOLT,state=accepted"
+    },
+    {
+      "line_number": 17,
+      "byte_offset": 2986,
+      "receipt_relative_seconds": 0.23059354799624998,
+      "phase": "before",
+      "line": "MAPP,id=118,gen=87,old=CAP,new=VOLT,seq=185731,state=applied,transitionUs=6191,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,identityKnown=1"
+    },
+    {
+      "line_number": 28,
+      "byte_offset": 5126,
+      "receipt_relative_seconds": 0.24223247899499256,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,state=VOLTAGE,mode=VOLT,rows=3,profile=VVVVVVVV,err=0x0,mgen=87,mrid=118,rgen=31,rrid=117,pgen=88,prid=118,mtermId=118,mterm=applied,merr=0x0,ptermId=118,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 1194,
+      "byte_offset": 174417,
+      "receipt_relative_seconds": 5.246098219999112,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,state=VOLTAGE,mode=VOLT,rows=3,profile=VVVVVVVV,err=0x0,mgen=87,mrid=118,rgen=31,rrid=117,pgen=88,prid=118,mtermId=118,mterm=applied,merr=0x0,ptermId=118,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 1219,
+      "byte_offset": 179633,
+      "receipt_relative_seconds": 5.303751989995362,
+      "phase": "before",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,state=VOLTAGE,mode=VOLT,rows=3,profile=VVVVVVVV,err=0x0,mgen=87,mrid=118,rgen=31,rrid=117,pgen=88,prid=118,mtermId=118,mterm=applied,merr=0x0,ptermId=118,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 28524,
+      "byte_offset": 4124286,
+      "receipt_relative_seconds": 125.31182736500341,
+      "phase": "after",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,state=VOLTAGE,mode=VOLT,rows=3,profile=VVVVVVVV,err=0x0,mgen=87,mrid=118,rgen=31,rrid=117,pgen=88,prid=118,mtermId=118,mterm=applied,merr=0x0,ptermId=118,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 28543,
+      "byte_offset": 4128709,
+      "receipt_relative_seconds": 125.347791881999,
+      "phase": "after",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=118,boundary=185731,state=VOLTAGE,mode=VOLT,rows=3,profile=VVVVVVVV,err=0x0,mgen=87,mrid=118,rgen=31,rrid=117,pgen=88,prid=118,mtermId=118,mterm=applied,merr=0x0,ptermId=118,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 28544,
+      "byte_offset": 4128986,
+      "receipt_relative_seconds": 125.34907370599103,
+      "phase": "after",
+      "line": "MACK,id=119,old=VOLT,new=CAP,state=accepted"
+    },
+    {
+      "line_number": 28545,
+      "byte_offset": 4129030,
+      "receipt_relative_seconds": 125.40879693400348,
+      "phase": "after",
+      "line": "MAPP,id=119,gen=88,old=VOLT,new=CAP,seq=189796,state=applied,transitionUs=8326,session=0DCB1029EC3CCA0D,bootId=7,rev=119,boundary=189796,identityKnown=1"
+    },
+    {
+      "line_number": 28563,
+      "byte_offset": 4132177,
+      "receipt_relative_seconds": 125.419998501995,
+      "phase": "after",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=119,boundary=189796,state=CAPACITANCE,mode=CAP,rows=3,profile=CCCCCCCC,err=0x0,mgen=88,mrid=119,rgen=31,rrid=117,pgen=89,prid=119,mtermId=119,mterm=applied,merr=0x0,ptermId=119,pterm=applied,perr=0x0,rtermId=117,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 28573,
+      "byte_offset": 4133538,
+      "receipt_relative_seconds": 125.46458238099876,
+      "phase": "after",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=120,boundary=189797,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=88,mrid=119,rgen=32,rrid=120,pgen=89,prid=119,mtermId=119,mterm=applied,merr=0x0,ptermId=119,pterm=applied,perr=0x0,rtermId=120,rterm=applied,rerr=0x0"
+    },
+    {
+      "line_number": 28575,
+      "byte_offset": 4134298,
+      "receipt_relative_seconds": 125.46783937099099,
+      "phase": "after",
+      "line": "CONFIG,session=0DCB1029EC3CCA0D,bootId=7,rev=120,boundary=189797,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=88,mrid=119,rgen=32,rrid=120,pgen=89,prid=119,mtermId=119,mterm=applied,merr=0x0,ptermId=119,pterm=applied,perr=0x0,rtermId=120,rterm=applied,rerr=0x0"
+    }
+  ],
+  "USB_before_after_query_delta": {
+    "sinkQueued": 6872,
+    "sinkDropped": 333,
+    "partialWrite": 177,
+    "timeout": 197,
+    "lineDropped": 83,
+    "discardBytes": 16395,
+    "driverAcceptedBytes": 3948837
+  },
+  "BLE_targeted_scan": {
+    "source_path": "docs/audit/artifacts/full_benchmark_20261113/suite-01.ble.notifications.jsonl",
+    "source_size_at_open": 99719116,
+    "scanned_prefix_bytes": 51411918,
+    "scanned_prefix_sha256": "b1ee16afedde39485446d6d604bd13d0fa48111f9d991471e9bc72d5f97cce98",
+    "last_scanned_monotonic_ns": 73077813513275,
+    "stop_reason": "all_targets_found",
+    "is_complete_session_analysis": false,
+    "observations": {
+      "186354": {
+        "BLE_host_monotonic_ns": 72993393490833,
+        "body_ascii_crc_valid": true,
+        "header_K_identity_matches": true,
+        "raw_K_ascii_with_newline": "K,seq=186354,gen=87,rid=118,crc=7118BB42,session=0DCB1029EC3CCA0D,bootId=7,rev=118\n",
+        "BLE_complete_frame_bytes": 807,
+        "BLE_complete_frame_sha256": "19cbe454557415eef703153e1526ae064565bba471e962d51a681ffa950f8eb5",
+        "USB_prefix_without_injected_LF_bytes": 768,
+        "USB_prefix_equals_BLE_prefix": true,
+        "BLE_bytes_following_USB_cut_ascii": "sion=0DCB1029EC3CCA0D,bootId=7,rev=118\n",
+        "BLE_body_equals_USB_body_before_K": true
+      },
+      "189101": {
+        "BLE_host_monotonic_ns": 73077813513275,
+        "body_ascii_crc_valid": true,
+        "header_K_identity_matches": true,
+        "raw_K_ascii_with_newline": "K,seq=189101,gen=87,rid=118,crc=4C04D733,session=0DCB1029EC3CCA0D,bootId=7,rev=118\n",
+        "BLE_complete_frame_bytes": 807,
+        "BLE_complete_frame_sha256": "c374451dea75ab8c8536c6bb5dc5104b3c987ad1ee2cf9eb9e9a8aaf80ade4d4",
+        "USB_prefix_without_injected_LF_bytes": 768,
+        "USB_prefix_equals_BLE_prefix": true,
+        "BLE_bytes_following_USB_cut_ascii": "sion=0DCB1029EC3CCA0D,bootId=7,rev=118\n",
+        "BLE_body_equals_USB_body_before_K": true
+      }
+    },
+    "fragment_stats_for_target_time_slice": {
+      "D": {
+        "ok": 2808,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      },
+      "L": {
+        "ok": 0,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      },
+      "C": {
+        "ok": 0,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      }
+    }
+  },
+  "supporting_VOLT1_2": [
+    {
+      "label": "suite-01-volt1",
+      "sources": {
+        "rx.bin": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.rx.bin",
+          "bytes": 45112,
+          "sha256": "6f97614a3043cff06a4c7477a812bca58fb10fd3d1322acac76f451d14b57107"
+        },
+        "events.jsonl": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.events.jsonl",
+          "bytes": 56153,
+          "sha256": "265cdeea89e694e1c8709eac279b75ad6c20040ac3c1dddf251efde185bfca4a"
+        },
+        "summary.json": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt1.summary.json",
+          "bytes": 11376,
+          "sha256": "24765debc41e749e95974be49de8d18a926bbefdb83c21f381aba92af30a148f"
+        }
+      },
+      "status": "ERROR",
+      "error": "reply_deadline_expired;end_queries:reply_deadline_expired",
+      "capture_seconds": 0.0,
+      "unconfirmed_queries": [
+        {
+          "command": "USBSTREAM?",
+          "phase": "before",
+          "sent_relative_seconds": 5.330680779996328,
+          "next_event": {
+            "type": "error",
+            "t": 9.33124745299574,
+            "reason": "reply_deadline_expired",
+            "command": null
+          }
+        },
+        {
+          "command": "SPI?",
+          "phase": "after",
+          "sent_relative_seconds": 11.34980343800271,
+          "next_event": {
+            "type": "tx_begin",
+            "t": 14.331395463988883,
+            "reason": null,
+            "command": "MODE=CAP"
+          }
+        }
+      ],
+      "firmware_faults": [],
+      "reset_observations": [],
+      "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+      "usb_restore": "VERIFIED_QUERY"
+    },
+    {
+      "label": "suite-01-volt2",
+      "sources": {
+        "rx.bin": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.rx.bin",
+          "bytes": 301734,
+          "sha256": "bc71be5a0773a63f4f0fb4e5d0ea88e78062463d1d67bcfeae2de4b506c3759b"
+        },
+        "events.jsonl": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.events.jsonl",
+          "bytes": 250541,
+          "sha256": "073d28570d7cec615e57edf006916481c42986f1458c64de36294646184d2437"
+        },
+        "summary.json": {
+          "path": "docs/audit/artifacts/full_benchmark_20261113/suite-01-volt2.summary.json",
+          "bytes": 19702,
+          "sha256": "7fae9f41e58d2469bba857a5078fbeb979c4b83bf1a59f5373dcdde94a2c47f6"
+        }
+      },
+      "status": "ERROR",
+      "error": "reply_deadline_expired",
+      "capture_seconds": 0.0,
+      "unconfirmed_queries": [
+        {
+          "command": "CONFIG?",
+          "phase": "before",
+          "sent_relative_seconds": 5.248792730009882,
+          "next_event": {
+            "type": "error",
+            "t": 9.248875489007332,
+            "reason": "reply_deadline_expired",
+            "command": null
+          }
+        }
+      ],
+      "firmware_faults": [],
+      "reset_observations": [],
+      "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+      "usb_restore": "VERIFIED_QUERY"
+    }
+  ],
+  "findings": [
+    "Exactly two capture-window trailers lack required session/bootId/rev; all 3766 headers match the before CONFIG identity.",
+    "Do not complete or repair the recorded ,ses suffix.",
+    "CRC covers the scientific body before K; a truncated K suffix can retain a correct body CRC.",
+    "Each affected USB frame contains a 768-byte prefix followed by LF; the bounded USB TX path uses 64-byte writes and a delimiter after a partial-write timeout.",
+    "Before/after CONFIG rev118 is unchanged; actual CAP recovery begins after capture_end.",
+    "VOLT1/2 formal capture duration is zero; observed query deadlines are not a 120-second test or proof of a device reset."
+  ],
+  "interpretation": "USB TX truncation is supported by raw prefixes and partial/timeout counters; the independent BLE result, when present and CRC/identity-valid, separates it from an encoder truncation. No production or collector edits, no device access."
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "firmware_benchmark_v1",
+  "status": "ERROR",
+  "port": "/dev/ttyACM0",
+  "one_port_session": true,
+  "plan": [
+    {
+      "label": "retry-01-volt1",
+      "mode": "VOLT",
+      "rows": 1,
+      "profile": "CVRCVRCV",
+      "seconds": 120.0,
+      "kind": "configuration"
+    }
+  ],
+  "results": [
+    {
+      "label": "retry-01-volt1",
+      "summary_file": "docs/audit/artifacts/full_benchmark_20261113/retry-01-volt1.summary.json",
+      "status": "ERROR",
+      "error": "firmware_fault_or_reset_during_capture;end_queries:readonly_query_failed:PERF?:attempts=1:reply_deadline_expired",
+      "capture_seconds": 15.065057333995355
+    }
+  ],
+  "measurement_acceptance": "NOT_EVALUATED",
+  "automatic_retry": false,
+  "session_monotonic_start": 75828.928093861,
+  "session_monotonic_end": 75880.954332016,
+  "not_run": []
+}

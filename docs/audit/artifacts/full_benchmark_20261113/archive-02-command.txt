@@ -1,0 +1,1 @@
+{"verified": 39, "indexed": 39, "skipped": [], "archive_errors": [], "index": "docs/audit/artifacts/full_benchmark_20261113/evidence-index-02.json", "measurement_acceptance": "NOT_INFERRED"}

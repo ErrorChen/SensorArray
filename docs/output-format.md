@@ -97,6 +97,8 @@ Xhh
 
 当 `ROWMODES` 不是全行同一模式时，DATA 使用独立的混合帧。`profile` 始终是恰好 8 个字符，每字符对应一个物理 S 行；行数少于 8 时，非活动行输出尾随 `N`（例如 `rows=3` 时 `profile=CVRNNNNN`）。只有非 `N` 行会输出 `MR`，`N` 行永远没有 `MR`。
 
+“全行同一模式”检查完整 8 项配置，不随 `ROWS` 缩短。因此 `ROWMODES=CVRCVRCV, ROWS=1` 仍输出 `M(profile=CNNNNNNN)` + CAP `MR` + `K`，不是普通 C 帧；CONFIG 中仍为完整 `CVRCVRCV`。 / Homogeneity is checked over all eight configured entries, independent of ROWS. Thus `ROWMODES=CVRCVRCV, ROWS=1` still emits M (profile=CNNNNNNN), one CAP MR, and K, rather than an ordinary C frame; CONFIG retains the complete CVRCVRCV profile.
+
 ```text
 M,seq=...,ts=...,rows=8,cells=64,rgen=...,rrid=...,pgen=...,prid=...,profile=CVVRRVVC,expected=<hex>,acquired=<hex>,fmt=mix1
 MR,s=1,m=CAP,unit=pf,scale=-6,expected=<hex>,acquired=<hex>,valid=...,fresh=...,error=...,fmt=pf6,D=...
