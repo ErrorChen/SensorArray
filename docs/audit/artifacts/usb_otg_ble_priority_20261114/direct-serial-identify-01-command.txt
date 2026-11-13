@@ -1,0 +1,28 @@
+esptool.py v4.12.0
+Serial port /dev/serial/by-id/usb-SensorArray_development_SensorArray_OTG_data_80B54ECDD9AC-if02
+Connecting...Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/__main__.py", line 9, in <module>
+    esptool._main()
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/__init__.py", line 1382, in _main
+    main()
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/__init__.py", line 816, in main
+    esp = esp or get_default_connected_device(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/__init__.py", line 1263, in get_default_connected_device
+    _esp.connect(before, connect_attempts)
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 788, in connect
+    last_error = self._connect_attempt(reset_strategy, mode)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 664, in _connect_attempt
+    reset_strategy()  # Reset the chip to bootloader (download mode)
+    ^^^^^^^^^^^^^^^^
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/reset.py", line 47, in __call__
+    self.reset()
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/reset.py", line 114, in reset
+    self._setDTRandRTS(False, False)
+  File "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/esptool/reset.py", line 89, in _setDTRandRTS
+    fcntl.ioctl(self.port.fileno(), TIOCMSET, struct.pack("I", status))
+OSError: [Errno 71] Protocol error
+

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-13T16:49:58.609961+00:00",
+  "result": "PASS_NARROW_SOURCE_REVIEW_AFTER_DEADLINE_FIX",
+  "base_commit": "3dc0c48e92f080cad334cce50614d07c3df6e38c",
+  "before_owner_sha256": "ef697e12882587d5fa05adf6ca7b6cec48fca8773d972c4fbe13e0bc841f151a",
+  "after_owner_sha256": "3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100",
+  "source_before_reconstruction": "Removed only the final deadline check block from after source; result SHA exactly matches the frozen source independently observed during initial failure.",
+  "finding_fixed": "Late owner cleanup ACK previously returned ESP_OK and armed ROM after absolute deadline; final check returns TIMEOUT, preserves confirmed cleanup state, leaves ROM flag clear.",
+  "executed_command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/replay_late_ack.py"
+  ],
+  "command_exit_code": 0,
+  "negative_replays": 2,
+  "positive_replays": 2,
+  "scope_checks": {
+    "first_detach_disables_irq_and_keeps_existing_phy": true,
+    "dwell_O1_monotonic_poll_no_USB_event_processing": true,
+    "zero_start_time_represented_by_separate_boolean": true,
+    "twenty_ms_is_engineering_margin_not_HIL_causal_proof": true,
+    "persistent_dma_guard_retained_until_held_reset_readback": true,
+    "panic_during_dwell_keeps_emergency_Core_Reset_path": true,
+    "absolute_deadline_checked_before_ROM_arm": true,
+    "late_cleanup_evidence_not_falsely_discarded": true
+  },
+  "harness_correction": "First archived replay-harness-01 attempt compiled the test beside a saved header while owner.c included a second copied header; pragma-once did not reliably coalesce distinct paths. No production change was involved. Replay now copies the test beside the generated owner/header; all four cases compiled and produced expected outcomes. Failed harness attempt retained.",
+  "limits": [
+    "Synthetic host schedule only; no target build, device access, bus waveform measurement or HIL.",
+    "Old4041 device persistence is not proven caused by missing detach dwell.",
+    "RTOS polling may observe completion after deadline; that completion now returns TIMEOUT rather than on-time success."
+  ],
+  "files": {
+    "initial-observed-failure.json": "f5c3ad93505bc40d2d525f49dee5b9bdb087090af2495f0f11ffaee30c75afa3",
+    "replay-harness-01-result.json": "fcadc9fe74d0119a8c46527fb27fb521c1efdad0605d81a6c150317208393f6e",
+    "replay_late_ack.py": "af2feca4f6efd209ec63391fdd131625054d5cbfc641e3509ec7055b131517a7",
+    "fixture-hashes.json": "c2712508990282037110e66e783f45dc75b80f49d9badb60663644f30b67b039",
+    "replay-harness-01-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "replay-result.json": "e49d3cf4f3605e7cf68be5db7c957a1e228b77b9ac5757f9ef8af3d6b1a29f3d",
+    "fixtures/tusb_config.h": "3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462",
+    "fixtures/descriptors.c": "a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e",
+    "fixtures/sensorarrayUsbOtg.h": "b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356",
+    "fixtures/runner-template.py": "cd478afa4c75e8aa6dccea2af1cf86a5d472a683ae55cc057619667fa8108b29",
+    "fixtures/test_usb_otg_owner.c": "e0791e0689583618c101372d0c6b4a100f8909f00ab02ded51eb950b0b016a2c",
+    "fixtures/owner-before.c": "ef697e12882587d5fa05adf6ca7b6cec48fca8773d972c4fbe13e0bc841f151a",
+    "fixtures/owner-after.c": "3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100",
+    "fixtures/common.h": "ecdaaa9b3a0d30f02a113755dd388ceed91d217e0a2450a9a6117251bb685d5d"
+  }
+}

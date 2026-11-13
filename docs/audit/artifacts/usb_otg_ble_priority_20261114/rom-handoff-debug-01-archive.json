@@ -1,0 +1,25 @@
+{
+  "schema": "cdc_debug_archive_v1",
+  "status": "VERIFIED",
+  "scientific_DATA": false,
+  "source_summary": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rom-handoff-debug-01.debug.summary.json",
+  "summary_sha256": "29f39c756f3e4b928cefb9457028d9f90151fa2c22950abd9d861d01bd6939c6",
+  "originals_retained": true,
+  "files": [
+    {
+      "source": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rom-handoff-debug-01.debug.rx.bin",
+      "gzip": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rom-handoff-debug-01.debug.rx.bin.gz",
+      "bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "source": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rom-handoff-debug-01.debug.events.jsonl",
+      "gzip": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rom-handoff-debug-01.debug.events.jsonl.gz",
+      "bytes": 645,
+      "uncompressed_sha256": "10e9c97d89d22a62fa02b06861c44b0786b749820271a83434cec072df87fa0a",
+      "gzip_sha256": "531967a95ec4cfd97e0e089551407f3022d5f0dd6a9e1f86e1b3783a25f5bed6"
+    }
+  ],
+  "source_rx_bytes": 0
+}

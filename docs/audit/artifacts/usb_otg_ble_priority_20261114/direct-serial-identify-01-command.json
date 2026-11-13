@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "-m",
+    "esptool",
+    "--chip",
+    "esp32s3",
+    "--port",
+    "/dev/serial/by-id/usb-SensorArray_development_SensorArray_OTG_data_80B54ECDD9AC-if02",
+    "--baud",
+    "115200",
+    "--before",
+    "default_reset",
+    "--after",
+    "no_reset",
+    "--connect-attempts",
+    "2",
+    "--no-stub",
+    "flash_id"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "3dc0c48e92f080cad334cce50614d07c3df6e38c",
+  "dirty_diff_sha256": "d302395dedd31b6ea64741bb713e0cdb29639a757c09b7b8af4d749a155f0dd1",
+  "started_utc": "2026-11-13T16:49:02.153129+00:00",
+  "started_monotonic": 95434.281661468,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/direct-serial-identify-01-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-13T16:49:03.271875+00:00",
+  "finished_monotonic": 95435.400416738,
+  "log_sha256": "00640dbcb40844ae30cca6c477fe975ff001eb3008391ed9213ec334e8cbc68f"
+}

@@ -1,0 +1,37 @@
+{
+  "scope": "read_only_sysfs_cache_not_live_USB_control_transfer",
+  "monotonic": 95005.608188065,
+  "uid": 1000,
+  "groups": [
+    4,
+    20,
+    24,
+    27,
+    30,
+    46,
+    100,
+    114,
+    1000
+  ],
+  "sudo_used": false,
+  "devices": [
+    {
+      "sysfs": "/sys/bus/usb/devices/3-1",
+      "idVendor": "303a",
+      "idProduct": "4041",
+      "serial": "80B54ECDD9AC",
+      "product": "SensorArray OTG data",
+      "busnum": "3",
+      "devnum": "11",
+      "speed": "12"
+    }
+  ],
+  "tty_nodes": [
+    {
+      "path": "/dev/ttyACM0",
+      "uid": 0,
+      "gid": 20,
+      "mode": "0o660"
+    }
+  ]
+}

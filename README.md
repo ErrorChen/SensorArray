@@ -30,6 +30,8 @@ Discovery verifies VID/PID, the board's MAC-derived USB serial, interface number
 
 Completed and pending checks are recorded in the [stage report](docs/audit/usb_otg_ble_priority_20261114.md) and command manifests. The fixture remains 10 kΩ at S1D1/S8D8 and 33 pF at S4D4/S5D5; floating-port capacitances are environmental-background proxies. User-supplied AVDD/AVSS readings support only explicitly sourced temporary RAM calibration. No CAL=SAVE is performed, and background subtraction is not absolute accuracy validation.
 
+最新候选已通过完整 57 个 host 测试入口和目标构建，但尚未烧录：旧镜像 USBBOOT 后没有观察到 ROM 重枚举；直接串口自动复位报 USB Protocol error，不复位同步也未收到数据。已增加包含在原 250 ms 总期限内的 20 ms detach 窗口，并修复迟到清理 ACK 仍误置 ROM 标志的已复现错误。56 个 owner 场景通过；实际枚举恢复、USB+BLE 120 s 筛查、600 s 稳定性和 32 配置长测仍待设备连接恢复。/ The latest candidate passed all 57 host entries and the target build but is not yet flashed. The earlier image did not produce observed ROM re-enumeration after USBBOOT; direct serial reset returned a USB protocol error and no-reset sync received no data. A 20 ms detach window now fits within the original 250 ms deadline, and a reproduced late-cleanup-ACK error no longer arms ROM after expiry. All 56 owner cases pass; enumeration recovery, the 120 s USB+BLE screen, 600 s stability and 32-configuration suite still await a usable device connection.
+
 ## 历史 Serial/JTAG 修复与失败基线 / Historical Serial/JTAG repairs and failed baselines
 
 以下“当前”表述保留当时阶段语境，均不是本轮 OTG CDC 的版本或验收结论。 / The following historical references to “current” describe their original stages, not the present OTG CDC image or acceptance outcome.

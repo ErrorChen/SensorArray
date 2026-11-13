@@ -1,0 +1,7 @@
+esptool.py v4.12.0
+Serial port /dev/serial/by-id/usb-SensorArray_development_SensorArray_OTG_data_80B54ECDD9AC-if02
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting........
+
+A fatal error occurred: Failed to connect to ESP32-S3: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html

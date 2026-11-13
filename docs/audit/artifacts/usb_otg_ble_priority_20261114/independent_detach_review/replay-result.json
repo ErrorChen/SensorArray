@@ -1,0 +1,83 @@
+{
+  "result": "PASS_REPLAY",
+  "hardware": "NOT_RUN",
+  "schedule": "100 Hz synthetic; owner first runs at10ms, detach completes at30ms, caller deadline25ms",
+  "results": [
+    {
+      "version": "before",
+      "backend": "vendor",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-before.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "vendor"
+      ],
+      "exit_code": 1,
+      "expected_failure": true,
+      "expected_outcome_observed": true,
+      "stdout": "",
+      "stderr": "LATE_ACK_OBSERVED,result=0,nowUs=30000,deadlineUs=25000,romFlag=1,quiesced=1,dmaMayOwn=0\nowner_test: /tmp/sensorarray-usb-otg-host-o_xfmp6v/test_usb_otg_owner.c:262: stopAck: Assertion `result==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py\", line 107, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py\", line 99, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-o_xfmp6v/owner_test', 'stop_ack']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "version": "before",
+      "backend": "cdc",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-before.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "cdc"
+      ],
+      "exit_code": 1,
+      "expected_failure": true,
+      "expected_outcome_observed": true,
+      "stdout": "",
+      "stderr": "LATE_ACK_OBSERVED,result=0,nowUs=30000,deadlineUs=25000,romFlag=1,quiesced=1,dmaMayOwn=0\nowner_test: /tmp/sensorarray-usb-otg-host-w2_ke5st/test_usb_otg_owner.c:262: stopAck: Assertion `result==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py\", line 107, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py\", line 99, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-w2_ke5st/owner_test', 'stop_ack']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "version": "after",
+      "backend": "vendor",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-after.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "vendor"
+      ],
+      "exit_code": 0,
+      "expected_failure": false,
+      "expected_outcome_observed": true,
+      "stdout": "USB_OTG_OWNER,stop_ack,PASS\n{\"suite\": \"USB_OTG_OWNER\", \"result\": \"PASS\", \"scenarios\": 1, \"backends\": [\"vendor\"], \"source_sha256\": {\"owner\": \"3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100\", \"descriptors\": \"a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e\", \"config\": \"3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462\", \"header\": \"b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356\"}, \"tinyusb\": \"0.21.0~1\", \"hardware\": \"NOT_RUN\", \"model\": \"synthetic SDK/RTOS events; actual production C and TinyUSB descriptors\"}\n",
+      "stderr": "LATE_ACK_OBSERVED,result=263,nowUs=30000,deadlineUs=25000,romFlag=0,quiesced=1,dmaMayOwn=0\n"
+    },
+    {
+      "version": "after",
+      "backend": "cdc",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-mqwhl3wh/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-after.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "cdc"
+      ],
+      "exit_code": 0,
+      "expected_failure": false,
+      "expected_outcome_observed": true,
+      "stdout": "USB_OTG_OWNER,stop_ack,PASS\n{\"suite\": \"USB_OTG_OWNER\", \"result\": \"PASS\", \"scenarios\": 1, \"backends\": [\"cdc\"], \"source_sha256\": {\"owner\": \"3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100\", \"descriptors\": \"a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e\", \"config\": \"3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462\", \"header\": \"b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356\"}, \"tinyusb\": \"0.21.0~1\", \"hardware\": \"NOT_RUN\", \"model\": \"synthetic SDK/RTOS events; actual production C and TinyUSB descriptors\"}\n",
+      "stderr": "LATE_ACK_OBSERVED,result=263,nowUs=30000,deadlineUs=25000,romFlag=0,quiesced=1,dmaMayOwn=0\n"
+    }
+  ]
+}

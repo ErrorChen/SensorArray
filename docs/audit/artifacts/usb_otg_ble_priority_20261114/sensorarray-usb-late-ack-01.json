@@ -1,0 +1,70 @@
+{
+  "recorded_utc": "2026-11-13T16:48:25.015167+00:00",
+  "head": "3dc0c48e92f080cad334cce50614d07c3df6e38c",
+  "baseline_owner_sha256": "ef697e12882587d5fa05adf6ca7b6cec48fca8773d972c4fbe13e0bc841f151a",
+  "fixed_source_sha256": {
+    "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100",
+    "tests/host/test_usb_otg_owner.c": "a4183172df4f7d131f9febc9e557f4e9a8b16d884eb3815d0cf725d97fce7092",
+    "tools/test_usb_otg_owner.py": "cd478afa4c75e8aa6dccea2af1cf86a5d472a683ae55cc057619667fa8108b29"
+  },
+  "original_independent_reproduction": "/tmp/sensorarray-late-ack-review-yu65voft/result.json",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py",
+        "--source",
+        "/tmp/sensorarray-before-late-ack.c",
+        "--backend",
+        "cdc",
+        "--scenario",
+        "late_cleanup_ack"
+      ],
+      "env": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "expected_pass": false,
+      "exit_code": 1,
+      "elapsed_seconds": 0.3020738920022268,
+      "stdout": "",
+      "stderr": "owner_test: /home/csc/esp/workspace/SensorArray/tests/host/test_usb_otg_owner.c:306: void lateCleanupAck(void): Assertion `sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 106, in <module>\n    main()\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 98, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-14ml_u0j/owner_test', 'late_cleanup_ack']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "expected_pass": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.30398278900247533,
+      "stdout": "USB_OTG_OWNER,normal_commands,PASS\nUSB_OTG_OWNER,reset_event17,PASS\nUSB_OTG_OWNER,reset_during_read,PASS\nUSB_OTG_OWNER,unmount_old_command,PASS\nUSB_OTG_OWNER,partial_command_reset,PASS\nUSB_OTG_OWNER,queued_receive_reset,PASS\nUSB_OTG_OWNER,epoch_wrap,PASS\nUSB_OTG_OWNER,rx_bounds,PASS\nUSB_OTG_OWNER,endpoint_independence,PASS\nUSB_OTG_OWNER,cdc_line_state,PASS\nUSB_OTG_OWNER,stop_ack,PASS\nUSB_OTG_OWNER,stop_timeout,PASS\nUSB_OTG_OWNER,detach_window,PASS\nUSB_OTG_OWNER,detach_deadline,PASS\nUSB_OTG_OWNER,late_cleanup_ack,PASS\nUSB_OTG_OWNER,reset_not_latched,PASS\nUSB_OTG_OWNER,restart_fallback,PASS\nUSB_OTG_OWNER,recovery_boot,PASS\nUSB_OTG_OWNER,efuse_gates,PASS\nUSB_OTG_OWNER,dma_required,PASS\nUSB_OTG_OWNER,descriptors,PASS\nUSB_OTG_OWNER,panic_cpu0,PASS\nUSB_OTG_OWNER,panic_cpu1,PASS\nUSB_OTG_OWNER,panic_no_dma,PASS\nUSB_OTG_OWNER,panic_quiesced,PASS\nUSB_OTG_OWNER,panic_during_detach,PASS\nUSB_OTG_OWNER,panic_init_failed,PASS\nUSB_OTG_OWNER,panic_phy_failed,PASS\nUSB_OTG_OWNER,normal_commands,PASS\nUSB_OTG_OWNER,reset_event17,PASS\nUSB_OTG_OWNER,reset_during_read,PASS\nUSB_OTG_OWNER,unmount_old_command,PASS\nUSB_OTG_OWNER,partial_command_reset,PASS\nUSB_OTG_OWNER,queued_receive_reset,PASS\nUSB_OTG_OWNER,epoch_wrap,PASS\nUSB_OTG_OWNER,rx_bounds,PASS\nUSB_OTG_OWNER,endpoint_independence,PASS\nUSB_OTG_OWNER,cdc_line_state,PASS\nUSB_OTG_OWNER,stop_ack,PASS\nUSB_OTG_OWNER,stop_timeout,PASS\nUSB_OTG_OWNER,detach_window,PASS\nUSB_OTG_OWNER,detach_deadline,PASS\nUSB_OTG_OWNER,late_cleanup_ack,PASS\nUSB_OTG_OWNER,reset_not_latched,PASS\nUSB_OTG_OWNER,restart_fallback,PASS\nUSB_OTG_OWNER,recovery_boot,PASS\nUSB_OTG_OWNER,efuse_gates,PASS\nUSB_OTG_OWNER,dma_required,PASS\nUSB_OTG_OWNER,descriptors,PASS\nUSB_OTG_OWNER,panic_cpu0,PASS\nUSB_OTG_OWNER,panic_cpu1,PASS\nUSB_OTG_OWNER,panic_no_dma,PASS\nUSB_OTG_OWNER,panic_quiesced,PASS\nUSB_OTG_OWNER,panic_during_detach,PASS\nUSB_OTG_OWNER,panic_init_failed,PASS\nUSB_OTG_OWNER,panic_phy_failed,PASS\n{\"suite\": \"USB_OTG_OWNER\", \"result\": \"PASS\", \"scenarios\": 56, \"backends\": [\"vendor\", \"cdc\"], \"source_sha256\": {\"owner\": \"3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100\", \"descriptors\": \"a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e\", \"config\": \"3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462\", \"header\": \"b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356\"}, \"tinyusb\": \"0.21.0~1\", \"hardware\": \"NOT_RUN\", \"model\": \"synthetic SDK/RTOS events; actual production C and TinyUSB descriptors\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c",
+        "tests/host/test_usb_otg_owner.c",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "expected_pass": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.0043127660028403625,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "fix": "Check absolute deadline after a cleanup ACK and before ROM flag. Late verified cleanup stays quiesced, but returns ESP_ERR_TIMEOUT and does not arm ROM. No init-path, DMA proof, reset kind or watchdog changes.",
+  "regression": "100Hz: detach begins10ms, ACK30ms, deadline25ms => timeout/ROMflag0. Equality expired. Previous owner exactSHA ef697 returnsOK, caught by new actual production test.",
+  "other_tests": "SerialIo and WorkBudget unchanged since /tmp/sensorarray-usb-detach-01.json (allpass). Root owns next fullsuite/build."
+}

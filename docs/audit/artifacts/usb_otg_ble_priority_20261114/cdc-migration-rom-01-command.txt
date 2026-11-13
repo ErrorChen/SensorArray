@@ -1,0 +1,5 @@
+BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2
+PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_vendor_bulk_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8
+USB,backend=otg_bulk_v1,init=1,err=0x0,mounted=1,suspended=0,dma=1,epoch=2,resets=2,mounts=1,unmounts=0,rxBytes=0,rxDrop=0,rxOver=0,lastRxUs=0,lastTxUs=276973790,romAvailable=1,quiesced=0,pcReceipt=unknown
+RACK,cmd=RESTART,id=1,state=accepted,target=rom_download
+{"status": "OBSERVED", "error": null, "report": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-migration-rom-01.ble-control.json"}

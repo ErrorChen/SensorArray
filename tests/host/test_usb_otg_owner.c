@@ -253,7 +253,8 @@ static void cdcLineState(void)
 }
 static void stopAck(void)
 {
-    initialize();ownerProgress=true;assert(sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_OK);
+    initialize();ownerProgress=true;assert(sensorarrayUsbOtgPrepareRestart(50000,true)==ESP_OK);
+    assert(s_detachStarted&&nowUs-s_detachedAtUs>=USB_DETACH_DWELL_US);
     assert(atomic_load(&s_quiesced));assert(registers[SYSTEM_PERIP_RST_EN0_REG]&SYSTEM_USB_RST);
     assert(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT);assert(irqDisabled==1&&switches==1);
     unsigned calls=pollCount;sensorarrayUsbOtgOwnerPoll();assert(pollCount==calls);assert(sensorarrayUsbOtgOwnerWrite(1,"X",1)==0);
@@ -267,6 +268,49 @@ static void stopTimeout(void)
     initialize();usb_phy_handle_t saved=s_phy;assert(sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_ERR_TIMEOUT);
     assert(nowUs==30000&&delayCount==3);assert(!atomic_load(&s_quiesced));assert(s_phy==saved&&s_owner);
     assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));assert(switches==0);
+}
+static void detachWindow(void)
+{
+    initialize();atomic_store(&s_stopRequested,true);
+    sensorarrayUsbOtgOwnerPoll();
+    assert(s_detachStarted&&s_detachedAtUs==0&&nowUs==0);
+    assert(irqDisabled==1&&sequenceCount==2&&sequence[0]==TRACE_IRQ&&sequence[1]==TRACE_DISCONNECT);
+    assert(!atomic_load(&s_quiesced)&&atomic_load(&s_hardwareMayOwnDma)==1u);
+    assert(!(registers[SYSTEM_PERIP_RST_EN0_REG]&SYSTEM_USB_RST)&&switches==0);
+    /* Repeated polling at zero cannot re-arm the timestamp or report ACK. */
+    sensorarrayUsbOtgOwnerPoll();assert(s_detachedAtUs==0&&sequenceCount==2);
+    nowUs=USB_DETACH_DWELL_US-1;sensorarrayUsbOtgOwnerPoll();
+    assert(!atomic_load(&s_quiesced)&&atomic_load(&s_hardwareMayOwnDma)==1u&&switches==0&&sequenceCount==2);
+    nowUs=USB_DETACH_DWELL_US;sensorarrayUsbOtgOwnerPoll();
+    assert(atomic_load(&s_quiesced)&&atomic_load(&s_hardwareMayOwnDma)==0u&&switches==1);
+    assert(registers[SYSTEM_PERIP_RST_EN0_REG]&SYSTEM_USB_RST);
+    assert(sequenceCount==5&&sequence[2]==TRACE_PERSIST&&sequence[3]==TRACE_RESET&&sequence[4]==TRACE_USJ);
+}
+static void detachDeadline(void)
+{
+    initialize();ownerProgress=true;
+    usb_phy_handle_t phy=s_phy;TaskHandle_t owner=s_owner;
+    assert(sensorarrayUsbOtgPrepareRestart(10000,true)==ESP_ERR_TIMEOUT);
+    assert(nowUs==10000&&s_detachStarted&&s_detachedAtUs==10000);
+    assert(s_phy==phy&&s_owner==owner&&!atomic_load(&s_quiesced));
+    assert(atomic_load(&s_hardwareMayOwnDma)==1u&&USB_DWC.gahbcfg_reg.dmaen==1u);
+    assert(switches==0&&!(registers[SYSTEM_PERIP_RST_EN0_REG]&SYSTEM_USB_RST));
+    assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    assert(sequenceCount==2);
+}
+static void lateCleanupAck(void)
+{
+    initialize();ownerProgress=true;
+    /* 100 Hz: first owner service at10ms, complete20ms detach at30ms.
+     * ACK is real, but arrives after the caller's25ms absolute deadline. */
+    assert(sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_ERR_TIMEOUT);
+    assert(nowUs==30000&&s_detachedAtUs==10000&&delayCount==3);
+    assert(atomic_load(&s_quiesced)&&s_stats.quiesced&&atomic_load(&s_hardwareMayOwnDma)==0u);
+    assert(registers[SYSTEM_PERIP_RST_EN0_REG]&SYSTEM_USB_RST);
+    assert(switches==1&&!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    /* Equality is expired as well, even when cleanup was already ACKed. */
+    assert(sensorarrayUsbOtgPrepareRestart(nowUs,true)==ESP_ERR_TIMEOUT);
+    assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT)&&delayCount==3);
 }
 static void resetNotLatched(void)
 {
@@ -321,12 +365,21 @@ static void panicNoDma(void)
 }
 static void panicQuiesced(void)
 {
-    initialize();ownerProgress=true;assert(sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_OK);
+    initialize();ownerProgress=true;assert(sensorarrayUsbOtgPrepareRestart(50000,true)==ESP_OK);
     assert(atomic_load(&s_hardwareMayOwnDma)==0u);
     int reset=setjmp(restartJump);if(reset==0)__wrap_esp_restart_noos();
     assert(reset==3&&realRestarts==1);assert(!interruptsOff);
     assert(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT);
     assert(!s_recoveryMagic&&!s_recoveryInverse);
+}
+static void panicDuringDetach(void)
+{
+    initialize();atomic_store(&s_stopRequested,true);sensorarrayUsbOtgOwnerPoll();
+    assert(s_detachStarted&&!atomic_load(&s_quiesced)&&atomic_load(&s_hardwareMayOwnDma)==1u);
+    int reset=setjmp(restartJump);if(reset==0)__wrap_esp_restart_noos();
+    assert(reset==2);assertEmergencyReset();
+    assert(switches==0&&!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    assert(realRestarts==0&&delayCount==0&&pollCount==0);
 }
 static void panicInitFailed(void)
 {
@@ -378,10 +431,13 @@ int main(int argc,char **argv)
         {"normal_commands",normalCommands},{"reset_event17",resetEvent17},{"reset_during_read",resetDuringRead},
         {"unmount_old_command",unmountOldCommand},{"partial_command_reset",partialCommandReset},{"queued_receive_reset",queuedReceiveReset},
         {"epoch_wrap",epochWrap},{"rx_bounds",rxBounds},{"endpoint_independence",endpointIndependence},{"cdc_line_state",cdcLineState},
-        {"stop_ack",stopAck},{"stop_timeout",stopTimeout},{"reset_not_latched",resetNotLatched},{"restart_fallback",restartFallback},
+        {"stop_ack",stopAck},{"stop_timeout",stopTimeout},{"detach_window",detachWindow},{"detach_deadline",detachDeadline},
+        {"late_cleanup_ack",lateCleanupAck},
+        {"reset_not_latched",resetNotLatched},{"restart_fallback",restartFallback},
         {"recovery_boot",recoveryBoot},{"efuse_gates",efuseGates},{"dma_required",dmaRequired},{"descriptors",descriptors},
         {"panic_cpu0",panicCpu0},{"panic_cpu1",panicCpu1},{"panic_no_dma",panicNoDma},
-        {"panic_quiesced",panicQuiesced},{"panic_init_failed",panicInitFailed},{"panic_phy_failed",panicPhyFailed},
+        {"panic_quiesced",panicQuiesced},{"panic_during_detach",panicDuringDetach},
+        {"panic_init_failed",panicInitFailed},{"panic_phy_failed",panicPhyFailed},
     };
     for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++)if(strcmp(argv[1],cases[i].name)==0){cases[i].test();printf("USB_OTG_OWNER,%s,PASS\n",cases[i].name);return 0;}
     return 2;

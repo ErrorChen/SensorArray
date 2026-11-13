@@ -19,9 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = (
     "normal_commands", "reset_event17", "reset_during_read", "unmount_old_command",
     "partial_command_reset", "queued_receive_reset", "epoch_wrap", "rx_bounds",
-    "endpoint_independence", "cdc_line_state", "stop_ack", "stop_timeout", "reset_not_latched",
+    "endpoint_independence", "cdc_line_state", "stop_ack", "stop_timeout", "detach_window", "detach_deadline", "late_cleanup_ack", "reset_not_latched",
     "restart_fallback", "recovery_boot", "efuse_gates", "dma_required", "descriptors",
-    "panic_cpu0", "panic_cpu1", "panic_no_dma", "panic_quiesced",
+    "panic_cpu0", "panic_cpu1", "panic_no_dma", "panic_quiesced", "panic_during_detach",
     "panic_init_failed", "panic_phy_failed",
 )
 

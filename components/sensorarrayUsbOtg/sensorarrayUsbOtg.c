@@ -29,6 +29,9 @@
 #define USB_COMMAND_MAX 192u
 #define USB_COMMAND_SLOTS 4u
 #define USB_RECOVERY_MAGIC 0x53415552u
+/* Engineering detach margin, not a claim of measured D+/D- signaling or a
+ * USB-specified 20 ms minimum. Included in PrepareRestart's total deadline. */
+#define USB_DETACH_DWELL_US 20000
 typedef struct { uint32_t epoch; uint16_t size; char bytes[USB_COMMAND_MAX]; } usbCommand_t;
 static DRAM_ATTR atomic_uint s_epoch;
 static DRAM_ATTR atomic_uint s_resets;
@@ -39,6 +42,9 @@ static DRAM_ATTR atomic_uint s_hardwareMayOwnDma;
 static TaskHandle_t s_owner;
 static usb_phy_handle_t s_phy;
 static bool s_irqInstalled;
+/* Owner-only final-handoff phase. A separate flag permits a real start at t=0. */
+static bool s_detachStarted;
+static int64_t s_detachedAtUs;
 static portMUX_TYPE s_statsMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayUsbOtgStats_t s_stats;
 static StaticQueue_t s_rxStorage;
@@ -230,7 +236,17 @@ static void sensorarrayUsbOtgOwnerQuiesce(void)
      * concurrently here. Hardware module reset stops the DMA master. */
     if (s_irqInstalled) { dcd_int_disable(0); s_irqInstalled = false; }
     if (s_phy) {
-        tud_disconnect();
+        if (!s_detachStarted) {
+            /* DWC2 disconnect holds the internal PHY in its detached state.
+             * Do not immediately reset USB_WRAP or select USJ's pull-up:
+             * the host needs an opportunity to observe the detach. IRQ is
+             * disabled, but DMA may still own its persistent buffers. */
+            tud_disconnect();
+            s_detachedAtUs = esp_timer_get_time();
+            s_detachStarted = true;
+            return;
+        }
+        if (esp_timer_get_time() - s_detachedAtUs < USB_DETACH_DWELL_US) { return; }
         chip_usb_set_persist_flags(0);
         REG_CLR_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
         PERIPH_RCC_ATOMIC() {
@@ -362,6 +378,10 @@ esp_err_t sensorarrayUsbOtgPrepareRestart(int64_t deadlineUs, bool romDownload)
             vTaskDelay(1u);
         }
     }
+    /* A tick or delayed caller can observe a valid but late cleanup ACK.
+     * Keep that cleanup evidence; never turn it into on-time success or arm
+     * ROM download after this transaction's absolute deadline. */
+    if (esp_timer_get_time() >= deadlineUs) { return ESP_ERR_TIMEOUT; }
     if (romDownload) { REG_SET_BIT(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT); }
     return ESP_OK;
 }

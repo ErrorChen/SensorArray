@@ -1,0 +1,83 @@
+{
+  "result": "FAIL_REPLAY",
+  "hardware": "NOT_RUN",
+  "schedule": "100 Hz synthetic; owner first runs at10ms, detach completes at30ms, caller deadline25ms",
+  "results": [
+    {
+      "version": "before",
+      "backend": "vendor",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-8quymgzf/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-before.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "vendor"
+      ],
+      "exit_code": 1,
+      "expected_failure": true,
+      "expected_outcome_observed": true,
+      "stdout": "",
+      "stderr": "LATE_ACK_OBSERVED,result=0,nowUs=30000,deadlineUs=25000,romFlag=1,quiesced=1,dmaMayOwn=0\nowner_test: /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:262: stopAck: Assertion `result==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 106, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 98, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-dq7nkxzm/owner_test', 'stop_ack']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "version": "before",
+      "backend": "cdc",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-8quymgzf/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-before.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "cdc"
+      ],
+      "exit_code": 1,
+      "expected_failure": true,
+      "expected_outcome_observed": true,
+      "stdout": "",
+      "stderr": "LATE_ACK_OBSERVED,result=0,nowUs=30000,deadlineUs=25000,romFlag=1,quiesced=1,dmaMayOwn=0\nowner_test: /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:262: stopAck: Assertion `result==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 106, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 98, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-8m33k7l2/owner_test', 'stop_ack']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "version": "after",
+      "backend": "vendor",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-8quymgzf/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-after.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "vendor"
+      ],
+      "exit_code": 1,
+      "expected_failure": false,
+      "expected_outcome_observed": false,
+      "stdout": "",
+      "stderr": "In file included from /tmp/sensorarray-usb-otg-host-2mul__dn/owner.c:1,\n                 from /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:147:\n/tmp/sensorarray-usb-otg-host-2mul__dn/sensorarrayUsbOtg.h:11:8: error: redeclaration of enumerator \u2018SENSORARRAY_USB_DATA\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |        ^~~~~~~~~~~~~~~~~~~~\nIn file included from /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:8:\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:8: note: previous definition of \u2018SENSORARRAY_USB_DATA\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |        ^~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-2mul__dn/sensorarrayUsbOtg.h:11:34: error: redeclaration of enumerator \u2018SENSORARRAY_USB_CTRL\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                  ^~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:34: note: previous definition of \u2018SENSORARRAY_USB_CTRL\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                  ^~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-2mul__dn/sensorarrayUsbOtg.h:11:60: error: redeclaration of enumerator \u2018SENSORARRAY_USB_DEBUG\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                                            ^~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:60: note: previous definition of \u2018SENSORARRAY_USB_DEBUG\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                                            ^~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-2mul__dn/sensorarrayUsbOtg.h:20:3: error: conflicting types for \u2018sensorarrayUsbOtgStats_t\u2019; have \u2018struct <anonymous>\u2019\n   20 | } sensorarrayUsbOtgStats_t;\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:20:3: note: previous declaration of \u2018sensorarrayUsbOtgStats_t\u2019 with type \u2018sensorarrayUsbOtgStats_t\u2019\n   20 | } sensorarrayUsbOtgStats_t;\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-2mul__dn/sensorarrayUsbOtg.h:31:6: error: conflicting types for \u2018sensorarrayUsbOtgGetStats\u2019; have \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:31:6: note: previous declaration of \u2018sensorarrayUsbOtgGetStats\u2019 with type \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-2mul__dn/owner.c:356:6: error: conflicting types for \u2018sensorarrayUsbOtgGetStats\u2019; have \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n  356 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out)\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:31:6: note: previous declaration of \u2018sensorarrayUsbOtgGetStats\u2019 with type \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 106, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 96, in main\n    subprocess.run(build, check=True)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-I', '/tmp/sensorarray-usb-otg-host-2mul__dn', '-I', '/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures', '-I', '/home/csc/esp/workspace/SensorArray/managed_components/espressif__tinyusb/src', '/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c', '-o', '/tmp/sensorarray-usb-otg-host-2mul__dn/owner_test']' returned non-zero exit status 1.\n"
+    },
+    {
+      "version": "after",
+      "backend": "cdc",
+      "command": [
+        "python3",
+        "/tmp/sensorarray-detach-replay-8quymgzf/runner.py",
+        "--source",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/owner-after.c",
+        "--scenario",
+        "stop_ack",
+        "--backend",
+        "cdc"
+      ],
+      "exit_code": 1,
+      "expected_failure": false,
+      "expected_outcome_observed": false,
+      "stdout": "",
+      "stderr": "In file included from /tmp/sensorarray-usb-otg-host-ievff3uw/owner.c:1,\n                 from /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:147:\n/tmp/sensorarray-usb-otg-host-ievff3uw/sensorarrayUsbOtg.h:11:8: error: redeclaration of enumerator \u2018SENSORARRAY_USB_DATA\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |        ^~~~~~~~~~~~~~~~~~~~\nIn file included from /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c:8:\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:8: note: previous definition of \u2018SENSORARRAY_USB_DATA\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |        ^~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-ievff3uw/sensorarrayUsbOtg.h:11:34: error: redeclaration of enumerator \u2018SENSORARRAY_USB_CTRL\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                  ^~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:34: note: previous definition of \u2018SENSORARRAY_USB_CTRL\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                  ^~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-ievff3uw/sensorarrayUsbOtg.h:11:60: error: redeclaration of enumerator \u2018SENSORARRAY_USB_DEBUG\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                                            ^~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:11:60: note: previous definition of \u2018SENSORARRAY_USB_DEBUG\u2019 with type \u2018enum <anonymous>\u2019\n   11 | enum { SENSORARRAY_USB_DATA = 0, SENSORARRAY_USB_CTRL = 1, SENSORARRAY_USB_DEBUG = 2 };\n      |                                                            ^~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-ievff3uw/sensorarrayUsbOtg.h:20:3: error: conflicting types for \u2018sensorarrayUsbOtgStats_t\u2019; have \u2018struct <anonymous>\u2019\n   20 | } sensorarrayUsbOtgStats_t;\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:20:3: note: previous declaration of \u2018sensorarrayUsbOtgStats_t\u2019 with type \u2018sensorarrayUsbOtgStats_t\u2019\n   20 | } sensorarrayUsbOtgStats_t;\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-ievff3uw/sensorarrayUsbOtg.h:31:6: error: conflicting types for \u2018sensorarrayUsbOtgGetStats\u2019; have \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:31:6: note: previous declaration of \u2018sensorarrayUsbOtgGetStats\u2019 with type \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/tmp/sensorarray-usb-otg-host-ievff3uw/owner.c:356:6: error: conflicting types for \u2018sensorarrayUsbOtgGetStats\u2019; have \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n  356 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out)\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\n/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/sensorarrayUsbOtg.h:31:6: note: previous declaration of \u2018sensorarrayUsbOtgGetStats\u2019 with type \u2018void(sensorarrayUsbOtgStats_t *)\u2019\n   31 | void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *stats);\n      |      ^~~~~~~~~~~~~~~~~~~~~~~~~\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 106, in <module>\n    main()\n  File \"/tmp/sensorarray-detach-replay-8quymgzf/runner.py\", line 96, in main\n    subprocess.run(build, check=True)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-I', '/tmp/sensorarray-usb-otg-host-ievff3uw', '-I', '/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures', '-I', '/home/csc/esp/workspace/SensorArray/managed_components/espressif__tinyusb/src', '/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_detach_review/fixtures/test_usb_otg_owner.c', '-o', '/tmp/sensorarray-usb-otg-host-ievff3uw/owner_test', '-DCONFIG_SENSORARRAY_USB_OTG_CDC=1']' returned non-zero exit status 1.\n"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "/tmp/sensorarray-late-ack-review-yu65voft/run.py",
+    "--scenario",
+    "stop_ack",
+    "--backend",
+    "cdc"
+  ],
+  "exit_code": 1,
+  "stdout": "",
+  "stderr": "LATE_ACK_OBSERVED,result=0,nowUs=30000,deadlineUs=25000,romFlag=1\nowner_test: /tmp/sensorarray-late-ack-review-yu65voft/test_usb_otg_owner.c:256: stopAck: Assertion `result==ESP_ERR_TIMEOUT' failed.\nTraceback (most recent call last):\n  File \"/tmp/sensorarray-late-ack-review-yu65voft/run.py\", line 106, in <module>\n    main()\n  File \"/tmp/sensorarray-late-ack-review-yu65voft/run.py\", line 98, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-hh_ihmgk/owner_test', 'stop_ack']' died with <Signals.SIGABRT: 6>.\n",
+  "production_owner_sha256": "ef697e12882587d5fa05adf6ca7b6cec48fca8773d972c4fbe13e0bc841f151a",
+  "test_kind": "single synthetic RTOS late-ACK schedule; actual production C unchanged",
+  "temporary_harness": "/tmp/sensorarray-late-ack-review-yu65voft/test_usb_otg_owner.c"
+}

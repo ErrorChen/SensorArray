@@ -1,0 +1,10 @@
+{
+  "tusb_config.h": "3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462",
+  "descriptors.c": "a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e",
+  "sensorarrayUsbOtg.h": "b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356",
+  "runner-template.py": "cd478afa4c75e8aa6dccea2af1cf86a5d472a683ae55cc057619667fa8108b29",
+  "test_usb_otg_owner.c": "e0791e0689583618c101372d0c6b4a100f8909f00ab02ded51eb950b0b016a2c",
+  "owner-before.c": "ef697e12882587d5fa05adf6ca7b6cec48fca8773d972c4fbe13e0bc841f151a",
+  "owner-after.c": "3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100",
+  "common.h": "ecdaaa9b3a0d30f02a113755dd388ceed91d217e0a2450a9a6117251bb685d5d"
+}

@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-13T16:38:58.729529+00:00",
+  "result": "PASS_READ_ONLY_CDC_TARGET_REFRESH",
+  "head": "3dc0c48e92f080cad334cce50614d07c3df6e38c",
+  "build_version": "3dc0c48",
+  "build_manifest": "docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-candidate-03-build-manifest.json",
+  "build_manifest_sha256": "a250bde5416946dcd88f22a003a8a84793b34c08be4df4db2702c478d6cb9e5f",
+  "prior_review": "docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_cdc_candidate02/review.json",
+  "app_sha256": "f6269390ea581e85dddb417ea2bf192893cf39926e00a2fd76f8cc97f7fcb3f3",
+  "app_bytes": 1590544,
+  "elf_sha256": "191f000eed55227521aa9cb5ef4166c8d88c83ed7068afe2316146d68d5d63a0",
+  "map_sha256": "54b2b12e9e74e41b69932d6198be8a785a637ecde0b80d0bfe024e2e08ca0f82",
+  "binary_app_header": {
+    "version": "3dc0c48",
+    "idf": "v5.5.5",
+    "embedded_elf_sha256": "191f000eed55227521aa9cb5ef4166c8d88c83ed7068afe2316146d68d5d63a0"
+  },
+  "checks": {
+    "production_inputs_identical_to_candidate02": true,
+    "all_179_current_inputs_match_manifest": true,
+    "code_sections_identical_to_candidate02": true,
+    "reviewed_symbol_addresses_sizes_identical_to_candidate02": true,
+    "actual_panic_restart_and_esp_restart_call_wrapper": true,
+    "emergency_fence_inline_memw": true,
+    "emergency_rom_reset": true,
+    "no_clock_cache_lock_helpers": true,
+    "dma_buffers_internal_four_byte_aligned": true,
+    "actual_binary_elf_sha_matches_elf": true
+  },
+  "code_sections": {
+    ".iram0.text": {
+      "address": "0x40374404",
+      "size": 137851,
+      "sha256": "8bd3ca0524ecf4bf473b691b97b8bdb47acc2a914b3fcae44b20012f1237beb5",
+      "unchanged_by_decode_copy": true,
+      "identical_to_candidate02": true
+    },
+    ".flash.text": {
+      "address": "0x42000020",
+      "size": 1140418,
+      "sha256": "2ec5460823a87e526c42dfaf7a03af4bacaf73eda15a168b8135b3171d0d8994",
+      "unchanged_by_decode_copy": true,
+      "identical_to_candidate02": true
+    }
+  },
+  "buffers_and_guard": {
+    "_cdcd_epbuf": {
+      "address": "0x3fcadbac",
+      "size": 1152,
+      "internal_dram": true,
+      "four_byte_aligned": true
+    },
+    "_ctrl_epbuf": {
+      "address": "0x3fcae044",
+      "size": 64,
+      "internal_dram": true,
+      "four_byte_aligned": true
+    },
+    "s_hardwareMayOwnDma": {
+      "address": "0x3fcad978",
+      "size": 4,
+      "internal_dram": true,
+      "four_byte_aligned": true
+    }
+  },
+  "functions": {
+    "sensorarrayUsbEmergencyCoreReset": {
+      "address": "0x403774d0",
+      "size": 82,
+      "kind": "t"
+    },
+    "__wrap_esp_restart_noos": {
+      "address": "0x40377524",
+      "size": 28,
+      "kind": "T"
+    },
+    "panic_restart": {
+      "address": "0x42004524",
+      "size": 9,
+      "kind": "T"
+    },
+    "esp_restart": {
+      "address": "0x420036cc",
+      "size": 38,
+      "kind": "T"
+    },
+    "esp_cpu_unstall": {
+      "address": "0x40381388",
+      "size": 85,
+      "kind": "T"
+    },
+    "xt_ints_off": {
+      "address": "0x40395e64",
+      "size": 27,
+      "kind": "T"
+    }
+  },
+  "descriptor": {
+    "vid": "0x303a",
+    "pid": "0x4042",
+    "configuration_bytes": 141,
+    "interfaces": 4,
+    "endpoints": [
+      {
+        "address": "0x81",
+        "attributes": 3,
+        "max_packet_size": 8
+      },
+      {
+        "address": "0x2",
+        "attributes": 2,
+        "max_packet_size": 64
+      },
+      {
+        "address": "0x82",
+        "attributes": 2,
+        "max_packet_size": 64
+      },
+      {
+        "address": "0x83",
+        "attributes": 3,
+        "max_packet_size": 8
+      },
+      {
+        "address": "0x4",
+        "attributes": 2,
+        "max_packet_size": 64
+      },
+      {
+        "address": "0x84",
+        "attributes": 2,
+        "max_packet_size": 64
+      }
+    ],
+    "vendor_endpoint_buffer_present": false
+  },
+  "map_cross_reference": "__wrap_esp_restart_noos                           esp-idf/sensorarrayUsbOtg/libsensorarrayUsbOtg.a(sensorarrayUsbOtg.c.obj)\n                                                  esp-idf/esp_system/libesp_system.a(panic_handler.c.obj)\n                                                  esp-idf/esp_system/libesp_system.a(cpu_start.c.obj)\n                                                  esp-idf/esp_system/libesp_system.a(esp_system.c.obj)",
+  "host_tests": "Parent CDC candidate02 57-test evidence retained; not rerun. Production inputs unchanged.",
+  "command_log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/independent_cdc_candidate03/commands.json",
+  "command_log_sha256": "5b13c1c7c54c0539a7963096c54bda8b03bb42134a894f15c9638ad07a1746a7",
+  "limits": [
+    "No production edits, target build, flash, device access or HIL.",
+    "Temporary disassembly copy removes Xtensa metadata only; original code bytes, VMA and target files remain unchanged.",
+    "CDC enumeration, throughput, DTR behavior and ROM handoff require distinct HIL evidence."
+  ]
+}
