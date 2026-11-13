@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/analyze_load_diagnostics.py",
+    "--self-test"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "dirty_diff_sha256": "3dd6f7e4639d423db1e1b8d02d2b621b01b0b64a77be3778b2e612eb2c769a28",
+  "started_utc": "2026-11-13T13:21:23.743774+00:00",
+  "started_monotonic": 82978.373578487,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/diagnostic-classes-self-test-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T13:21:23.858013+00:00",
+  "finished_monotonic": 82978.487810818,
+  "log_sha256": "ce7e900ec313f40bbb43e91e08c3b100f3b9b652882ab3d75566eb8277d4c7f5"
+}

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-restart-routing-review.py"
+  ],
+  "exitCode": 0,
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "timestampUtc": "2026-11-13T12:27:25.681288+00:00",
+  "sourceShaBefore": {
+    "main/control/sensorarrayRestartControl.c": "3b631243c4f501a0493e47d95a4a711dc054db9458a985612141a25eec0429da",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "core/transport/sensorarrayTransport.c": "f750ae09b64de572278e14c42de3a3d1855b5e745a0f403e41b2ec07846e2f25"
+  },
+  "sourceShaAfter": {
+    "main/control/sensorarrayRestartControl.c": "3b631243c4f501a0493e47d95a4a711dc054db9458a985612141a25eec0429da",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "core/transport/sensorarrayTransport.c": "f750ae09b64de572278e14c42de3a3d1855b5e745a0f403e41b2ec07846e2f25"
+  },
+  "sourceChangedDuringRun": false,
+  "scope": "Independent 16-case cross product of Serial success/failure, BLE/Wi-Fi sink enablement, network queue success/failure. Actual production restart/main/transport queue; hardware and queue boundaries synthetic."
+}

@@ -1,0 +1,16 @@
+{
+  "classification": "independent regression of confirmed expired backlog P1",
+  "timestampUtc": "2026-11-13T12:16:49.641346+00:00",
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-expired-backlog-fixed.py"
+  ],
+  "exitCode": 0,
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "productionSource": "core/transport/sensorarraySerialIo.c",
+  "productionSha256": "c2cdbbb1f0a5c92c687715c27bc1f82a51b6bb2a43679230e291233b9557eae1",
+  "diffSha256": "5549def1bb0fd387933ebd6ceebbf9e43b233eee4bb3b020af9588afb9473075",
+  "stdoutLog": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-expired-backlog-fixed.log",
+  "hardware": "NOT_RUN",
+  "scope": "actual SerialIo TX production task with RTOS/driver boundary mocks; no hardware reliability claim"
+}

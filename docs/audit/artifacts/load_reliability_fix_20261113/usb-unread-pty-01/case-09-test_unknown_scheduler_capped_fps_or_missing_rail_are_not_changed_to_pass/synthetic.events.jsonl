@@ -1,0 +1,89 @@
+{"t": 1.2981996405869722e-05, "type": "opened", "phase": "prepare", "port": "/dev/pts/0", "baud_setting": 115200, "ownership": "flock+TIOCEXCL", "existing_readers": "unverified", "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "hupcl": false, "duration_total_seconds": 2.5}
+{"t": 6.255399785004556e-05, "type": "segment", "phase": "prepare", "label": "synthetic", "benchmark_kind": "usb_application_unread", "benchmark_mode": "VOLT", "rows": 1, "port_session": "continuous", "carry_prefix_bytes": 0}
+{"t": 0.0001382769987685606, "type": "runner_variant", "phase": "prepare", "variant": "bounded_readonly_query_retry_v1", "original_source_sha256": "d37a55d0fa2a00bd8ba3acb759beeeff969982f4730cd72355931dcf739595ef", "max_query_attempts": 3, "setters_retried": false, "phase_deadlines_extended": false, "capture_window_changed": false}
+{"t": 0.0001555579947307706, "type": "load_runner_variant", "phase": "prepare", "variant": "load_reliability_diagnostics_v1", "required_capabilities": ["config_query_v1", "serial_sink_v1", "work_budget_v1"], "scheduler_workers": ["bt", "tr", "log", "ser", "bc", "sc", "wc"], "fault_policy": "unchanged_fail_fast"}
+{"t": 0.00018621099297888577, "type": "readonly_query_attempt", "phase": "prepare", "command": "USBSTREAM?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.00020566998864524066, "type": "tx_begin", "phase": "prepare", "command": "USBSTREAM?", "wire_ascii": "\nUSBSTREAM?\n"}
+{"t": 0.0002341859944863245, "type": "tx_complete", "phase": "prepare", "command": "USBSTREAM?", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.001033585998811759, "type": "rx", "phase": "prepare", "offset": 0, "length": 263}
+{"t": 0.0010641400003805757, "type": "reply", "phase": "prepare", "command": "USBSTREAM?", "line": "USBSTREAM,v=DEBUG,dataEvery=10,diagEvery=50,sinkDropped=0,driverAcceptedBytes=0,sinkQueued=0,priorityQueued=0,rxBytes=0,partialWrite=0,timeout=0,driverDrained=0,lineDropped=0,lineOversize=0,discardBytes=0,stdioBound=0,initError=0,bufferBytes=0,enumerated=unknown"}
+{"t": 0.0011055579961976036, "type": "readonly_query_attempt", "phase": "prepare", "command": "BUILD?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.0011218579893466085, "type": "tx_begin", "phase": "prepare", "command": "BUILD?", "wire_ascii": "\nBUILD?\n"}
+{"t": 0.001142912995419465, "type": "tx_complete", "phase": "prepare", "command": "BUILD?", "accepted_bytes": 8, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0011955899972235784, "type": "rx", "phase": "prepare", "offset": 263, "length": 59}
+{"t": 0.0012192789872642606, "type": "reply", "phase": "prepare", "command": "BUILD?", "line": "BUILD,idf=synthetic,target=pty,proto=2,project=SensorArray"}
+{"t": 0.001244493992999196, "type": "readonly_query_attempt", "phase": "prepare", "command": "PROTO?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.0012594009895110503, "type": "tx_begin", "phase": "prepare", "command": "PROTO?", "wire_ascii": "\nPROTO?\n"}
+{"t": 0.0012785039871232584, "type": "tx_complete", "phase": "prepare", "command": "PROTO?", "accepted_bytes": 8, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0013253609940875322, "type": "rx", "phase": "prepare", "offset": 322, "length": 170}
+{"t": 0.0013475539890350774, "type": "reply", "phase": "prepare", "command": "PROTO?", "line": "PROTO,version=2,caps=config_query_v1/config_identity_v1/serial_sink_v1/work_budget_v1/recovery_query_v1/restart_query_v1,wires=ascii,ctrlMax=512,dataMax=2304,adcCrc=crc8"}
+{"t": 0.0013786259951302782, "type": "readonly_query_attempt", "phase": "prepare", "command": "CONFIG?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.0013916780008003116, "type": "tx_begin", "phase": "prepare", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.0014110679912846535, "type": "tx_complete", "phase": "prepare", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0014715959987370297, "type": "rx", "phase": "prepare", "offset": 492, "length": 258}
+{"t": 0.001501064994954504, "type": "reply", "phase": "prepare", "command": "CONFIG?", "line": "CONFIG,session=AABBCCDDEE112233,bootId=1,rev=1,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=1,mrid=1,rgen=1,rrid=1,pgen=1,prid=1,mtermId=1,mterm=applied,merr=0x0,ptermId=1,pterm=applied,perr=0x0,rtermId=1,rterm=applied,rerr=0x0"}
+{"t": 0.0015535359998466447, "type": "tx_begin", "phase": "prepare", "command": "MODE=CAP", "wire_ascii": "\nMODE=CAP\n"}
+{"t": 0.0015715479967184365, "type": "tx_complete", "phase": "prepare", "command": "MODE=CAP", "accepted_bytes": 10, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0016213189956033602, "type": "rx", "phase": "prepare", "offset": 750, "length": 67}
+{"t": 0.0016548079875065014, "type": "accepted", "phase": "prepare", "command": "MODE=CAP", "line": "MACK,id=11,new=CAP,state=accepted"}
+{"t": 0.0016658529930282384, "type": "applied", "phase": "prepare", "command": "MODE=CAP", "line": "MAPP,id=11,new=CAP,state=applied"}
+{"t": 0.0016817189898574725, "type": "readonly_query_attempt", "phase": "prepare", "command": "CONFIG?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.001696337989415042, "type": "tx_begin", "phase": "prepare", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.0017148349870694801, "type": "tx_complete", "phase": "prepare", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0017683199985185638, "type": "rx", "phase": "prepare", "offset": 817, "length": 262}
+{"t": 0.0017897809884743765, "type": "reply", "phase": "prepare", "command": "CONFIG?", "line": "CONFIG,session=AABBCCDDEE112233,bootId=1,rev=2,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=2,mrid=11,rgen=1,rrid=1,pgen=2,prid=11,mtermId=11,mterm=applied,merr=0x0,ptermId=11,pterm=applied,perr=0x0,rtermId=1,rterm=applied,rerr=0x0"}
+{"t": 0.0018295949994353577, "type": "transition_verified", "phase": "prepare", "command": "MODE=CAP", "request_id": "11", "verification": "ACK_TERMINAL_CONFIG"}
+{"t": 0.0018494010000722483, "type": "readonly_query_attempt", "phase": "prepare", "command": "MODE?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.0018650549900485203, "type": "tx_begin", "phase": "prepare", "command": "MODE?", "wire_ascii": "\nMODE?\n"}
+{"t": 0.001883741992060095, "type": "tx_complete", "phase": "prepare", "command": "MODE?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0019306679896544665, "type": "rx", "phase": "prepare", "offset": 1079, "length": 141}
+{"t": 0.0019528619886841625, "type": "reply", "phase": "prepare", "command": "MODE?", "line": "MODE,state=CAPACITANCE,active=CAP,intref=0,refmux=24,profile=CCCCCCCC,route=CAP,pending=NONE,gen=2,rid=11,layout=HOMOGENEOUS,stackUnit=bytes"}
+{"t": 0.0019791239901678637, "type": "cap_reference_query_verified", "phase": "prepare", "evidence": "MODE_cached_route_readback", "analog_isolation": "not_claimed"}
+{"t": 0.0019931519927922636, "type": "readonly_query_attempt", "phase": "prepare", "command": "RAIL?", "attempt": 1, "phase_deadline": 85733.80656715101}
+{"t": 0.0020085229916730896, "type": "tx_begin", "phase": "prepare", "command": "RAIL?", "wire_ascii": "\nRAIL?\n"}
+{"t": 0.002026343994657509, "type": "tx_complete", "phase": "prepare", "command": "RAIL?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.002070294998702593, "type": "rx", "phase": "prepare", "offset": 1220, "length": 66}
+{"t": 0.002091435992042534, "type": "reply", "phase": "prepare", "command": "RAIL?", "line": "ARL,rv=0,rs=rail_invalid,src=unknown,rail=0,avdd=0,avss=0,split=0"}
+{"t": 0.002117994998116046, "type": "test_error", "phase": "prepare", "error": "existing_external_rail_required_no_calibration_written"}
+{"t": 0.002136805996997282, "type": "tx_begin", "phase": "cleanup", "command": "MODE=CAP", "wire_ascii": "\nMODE=CAP\n"}
+{"t": 0.0021560669993050396, "type": "tx_complete", "phase": "cleanup", "command": "MODE=CAP", "accepted_bytes": 10, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0022010609973222017, "type": "rx", "phase": "cleanup", "offset": 1286, "length": 67}
+{"t": 0.002233236999018118, "type": "accepted", "phase": "cleanup", "command": "MODE=CAP", "line": "MACK,id=12,new=CAP,state=accepted"}
+{"t": 0.0022438229934778064, "type": "applied", "phase": "cleanup", "command": "MODE=CAP", "line": "MAPP,id=12,new=CAP,state=applied"}
+{"t": 0.002258937995065935, "type": "readonly_query_attempt", "phase": "cleanup", "command": "CONFIG?", "attempt": 1, "phase_deadline": 85733.65869426199}
+{"t": 0.002274161990499124, "type": "tx_begin", "phase": "cleanup", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.002292041986947879, "type": "tx_complete", "phase": "cleanup", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.002343674990697764, "type": "rx", "phase": "cleanup", "offset": 1353, "length": 262}
+{"t": 0.0023649509967071936, "type": "reply", "phase": "cleanup", "command": "CONFIG?", "line": "CONFIG,session=AABBCCDDEE112233,bootId=1,rev=3,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=3,mrid=12,rgen=1,rrid=1,pgen=3,prid=12,mtermId=12,mterm=applied,merr=0x0,ptermId=12,pterm=applied,perr=0x0,rtermId=1,rterm=applied,rerr=0x0"}
+{"t": 0.002403038990451023, "type": "transition_verified", "phase": "cleanup", "command": "MODE=CAP", "request_id": "12", "verification": "ACK_TERMINAL_CONFIG"}
+{"t": 0.0024224179942393675, "type": "tx_begin", "phase": "cleanup", "command": "ROWS=8", "wire_ascii": "\nROWS=8\n"}
+{"t": 0.0024451499921269715, "type": "tx_complete", "phase": "cleanup", "command": "ROWS=8", "accepted_bytes": 8, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0024901319993659854, "type": "rx", "phase": "cleanup", "offset": 1615, "length": 65}
+{"t": 0.002522328999475576, "type": "accepted", "phase": "cleanup", "command": "ROWS=8", "line": "RCMD,id=13,req=8,status=accepted"}
+{"t": 0.0025324549933429807, "type": "applied", "phase": "cleanup", "command": "ROWS=8", "line": "RAPP,id=13,new=8,status=applied"}
+{"t": 0.002547433992731385, "type": "readonly_query_attempt", "phase": "cleanup", "command": "CONFIG?", "attempt": 1, "phase_deadline": 85733.65869426199}
+{"t": 0.0025619389925850555, "type": "tx_begin", "phase": "cleanup", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.002579749998403713, "type": "tx_complete", "phase": "cleanup", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0026307119987905025, "type": "rx", "phase": "cleanup", "offset": 1680, "length": 264}
+{"t": 0.0026521539984969422, "type": "reply", "phase": "cleanup", "command": "CONFIG?", "line": "CONFIG,session=AABBCCDDEE112233,bootId=1,rev=4,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=3,mrid=12,rgen=2,rrid=13,pgen=3,prid=12,mtermId=12,mterm=applied,merr=0x0,ptermId=12,pterm=applied,perr=0x0,rtermId=13,rterm=applied,rerr=0x0"}
+{"t": 0.002689457993255928, "type": "transition_verified", "phase": "cleanup", "command": "ROWS=8", "request_id": "13", "verification": "ACK_TERMINAL_CONFIG"}
+{"t": 0.00270676999934949, "type": "readonly_query_attempt", "phase": "cleanup", "command": "MODE?", "attempt": 1, "phase_deadline": 85733.65869426199}
+{"t": 0.002722879988141358, "type": "tx_begin", "phase": "cleanup", "command": "MODE?", "wire_ascii": "\nMODE?\n"}
+{"t": 0.0027415419899625704, "type": "tx_complete", "phase": "cleanup", "command": "MODE?", "accepted_bytes": 7, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0027865239972015843, "type": "rx", "phase": "cleanup", "offset": 1944, "length": 141}
+{"t": 0.0028075789887225255, "type": "reply", "phase": "cleanup", "command": "MODE?", "line": "MODE,state=CAPACITANCE,active=CAP,intref=0,refmux=24,profile=CCCCCCCC,route=CAP,pending=NONE,gen=3,rid=12,layout=HOMOGENEOUS,stackUnit=bytes"}
+{"t": 0.002833216989529319, "type": "cap_reference_query_verified", "phase": "cleanup", "evidence": "MODE_cached_route_readback", "analog_isolation": "not_claimed"}
+{"t": 0.0028467160009313375, "type": "readonly_query_attempt", "phase": "cleanup", "command": "CONFIG?", "attempt": 1, "phase_deadline": 85733.65869426199}
+{"t": 0.0028657919901888818, "type": "tx_begin", "phase": "cleanup", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n"}
+{"t": 0.002886962000047788, "type": "tx_complete", "phase": "cleanup", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0029369529947871342, "type": "rx", "phase": "cleanup", "offset": 2085, "length": 264}
+{"t": 0.0029582360002677888, "type": "reply", "phase": "cleanup", "command": "CONFIG?", "line": "CONFIG,session=AABBCCDDEE112233,bootId=1,rev=4,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=3,mrid=12,rgen=2,rrid=13,pgen=3,prid=12,mtermId=12,mterm=applied,merr=0x0,ptermId=12,pterm=applied,perr=0x0,rtermId=13,rterm=applied,rerr=0x0"}
+{"t": 0.0029963519918965176, "type": "tx_begin", "phase": "cleanup", "command": "USBSTREAM=DEBUG", "wire_ascii": "\nUSBSTREAM=DEBUG\n"}
+{"t": 0.003012763991137035, "type": "tx_complete", "phase": "cleanup", "command": "USBSTREAM=DEBUG", "accepted_bytes": 17, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.003050717990845442, "type": "rx", "phase": "cleanup", "offset": 2349, "length": 58}
+{"t": 0.0030767369898967445, "type": "reply", "phase": "cleanup", "command": "USBSTREAM=DEBUG", "line": "USBSTREAM,v=DEBUG,dataEvery=10,diagEvery=50,state=applied"}
+{"t": 0.0030923169979359955, "type": "readonly_query_attempt", "phase": "cleanup", "command": "USBSTREAM?", "attempt": 1, "phase_deadline": 85733.65869426199}
+{"t": 0.003107913988060318, "type": "tx_begin", "phase": "cleanup", "command": "USBSTREAM?", "wire_ascii": "\nUSBSTREAM?\n"}
+{"t": 0.0031260379910236225, "type": "tx_complete", "phase": "cleanup", "command": "USBSTREAM?", "accepted_bytes": 12, "acceptance": "OS_write_only_not_device_or_PC_ack"}
+{"t": 0.0031744969892315567, "type": "rx", "phase": "cleanup", "offset": 2407, "length": 266}
+{"t": 0.003195639990735799, "type": "reply", "phase": "cleanup", "command": "USBSTREAM?", "line": "USBSTREAM,v=DEBUG,dataEvery=10,diagEvery=50,sinkDropped=0,driverAcceptedBytes=2407,sinkQueued=0,priorityQueued=0,rxBytes=0,partialWrite=0,timeout=0,driverDrained=0,lineDropped=0,lineOversize=0,discardBytes=0,stdioBound=0,initError=0,bufferBytes=0,enumerated=unknown"}

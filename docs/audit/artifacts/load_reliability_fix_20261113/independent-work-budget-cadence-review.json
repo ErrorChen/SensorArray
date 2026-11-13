@@ -1,0 +1,67 @@
+{
+  "timestampUtc": "2026-11-13T12:48:52.438212+00:00",
+  "head": "fd0190a3a175938e92e702a111ae9d35982d678f",
+  "sourceSha256": "f3f490fddcba98bf0a4d41ec8bf397f8b4ef0f9a9fa42575c78f1f45024afc99",
+  "command": [
+    "/usr/bin/gcc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-I",
+    "/home/csc/esp/workspace/SensorArray/tests/host/work_budget_stubs",
+    "-I",
+    "/home/csc/esp/workspace/SensorArray/tests/host/include",
+    "-I",
+    "/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-cadence-repro.c",
+    "-o",
+    "/tmp/sa-cadence-review-3a12zajp/repro"
+  ],
+  "compileExitCode": 0,
+  "runExitCode": 0,
+  "finding": "Real idle generation advances before every low-priority unit, but age-based trigger still yields every unit at age=2 ticks. This is a deterministic cadence reproduction, not a measured hardware scheduler trace.",
+  "completedCapture": "repair-screen-01.summary.json",
+  "captureSha256": "51924c343ea394a512f81e2382e51659f626adb19e1c386fbad75a00a8050f6d",
+  "schedulerSnapshotWindowSeconds": 120.43838517299446,
+  "schedulerDeltas": {
+    "bt": {
+      "checkpoints": 13622,
+      "yields": 6002,
+      "ratio": 0.4406107766847746
+    },
+    "tr": {
+      "checkpoints": 17444,
+      "yields": 3489,
+      "ratio": 0.2000114652602614
+    },
+    "log": {
+      "checkpoints": 9741,
+      "yields": 2984,
+      "ratio": 0.3063340519453855
+    },
+    "ser": {
+      "checkpoints": 5933,
+      "yields": 5900,
+      "ratio": 0.9944378897690882
+    },
+    "bc": {
+      "checkpoints": 0,
+      "yields": 0,
+      "ratio": null
+    },
+    "sc": {
+      "checkpoints": 22,
+      "yields": 22,
+      "ratio": 1.0
+    },
+    "wc": {
+      "checkpoints": 0,
+      "yields": 0,
+      "ratio": null
+    }
+  },
+  "idleGenerationDelta": 52887,
+  "captureHostFps": 46.60829325408405,
+  "causalBoundary": "Matches current per-record yield signature; fixed-firmware A/B HIL still needed. No capture cap, raw bytes, production or hardware modified."
+}

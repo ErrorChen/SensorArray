@@ -1,0 +1,25 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/archive_benchmark.py",
+    "--only",
+    "repair-07-boot",
+    "--only",
+    "repair-screen-03",
+    "--only",
+    "repair-ble-03",
+    "--index",
+    "evidence-index-screen-03.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "4b665acf355adb4b145114abf5ecaa4325090be5",
+  "dirty_diff_sha256": "f3e610038d1036a102cb0a76ee316ca449b5460823b33f6ae235cd9502fe245d",
+  "started_utc": "2026-11-13T13:39:42.920610+00:00",
+  "started_monotonic": 84078.770760296,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/screen-archive-03-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T13:39:43.636124+00:00",
+  "finished_monotonic": 84079.486280783,
+  "log_sha256": "db1ca300df98c668f34cbd62a5f60e6212daf96151623fa1cc09abcf6b62f055"
+}

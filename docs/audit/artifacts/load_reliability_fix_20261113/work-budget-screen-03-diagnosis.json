@@ -1,0 +1,666 @@
+{
+  "schema_version": 1,
+  "evidence_type": "READ_ONLY_COMPLETED_HIL_PLUS_SOURCE_AND_SYNTHETIC_MODEL_DIAGNOSIS",
+  "head_reviewed": "4b665acf355adb4b145114abf5ecaa4325090be5",
+  "sources": [
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-03.summary.json",
+      "bytes": 106194,
+      "sha256": "41005110f24fb826bc44bae9bb09cd0119ac3cd8ce06f4ca0df605e5efa35b44"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-03.rx.bin",
+      "bytes": 5617767,
+      "sha256": "6fe2968e26806586cae1c75a27ca9c000e32d6329aecb9fff76be6820b2d5291"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-03.ble.summary.json",
+      "bytes": 1984,
+      "sha256": "5d3ba4209160015be477349cffde86afb729fec055bb2224fdba47bfa8255f20"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-04.json",
+      "bytes": 365038,
+      "sha256": "75dae54f05c588a6a2cc848b2325224fb150aae80e1e2634ff6aa135abcc85f2"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/screen-diagnostics-03.json",
+      "bytes": 31443,
+      "sha256": "6886d99473284d4866ebefddef767fb2a8667e6e7a10636793127b50222360af"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/work-budget-before-local-quantum-01.c.txt",
+      "bytes": 11008,
+      "sha256": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/work-budget-local-quantum-model-01.json",
+      "bytes": 12242,
+      "sha256": "40debe382c967ec6453aeb62172b6acdc193d2485ed558aed28c2ef5bfe4d87a"
+    },
+    {
+      "path": "docs/audit/artifacts/load_reliability_fix_20261113/work-budget-local-quantum-model-02.json",
+      "bytes": 15637,
+      "sha256": "249d335df5af2d2c2f1fb7a9fce2dd9ba183c417692e84033e501518a74a5f6f"
+    }
+  ],
+  "capture_seconds": 120.00012313199113,
+  "identity": {
+    "session": "1F72136EC756734E",
+    "bootId": "10",
+    "rev": "4",
+    "mgen": "3",
+    "mrid": "4",
+    "rgen": "2",
+    "rrid": "3",
+    "pgen": "3",
+    "prid": "4"
+  },
+  "USB": {
+    "counts": {
+      "trusted_complete_frames": 7371,
+      "integrity_valid_frames": 7371,
+      "ordered_integrity_valid_frames": 7371,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 7371,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 58968,
+      "reported_valid_points": 54280,
+      "unit_errors": 0,
+      "usable_numeric_points": 54280,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 4688,
+      "not_fresh_points": 14,
+      "unacquired_points": 14,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 4670,
+      "frames_with_partial_freshness": 14,
+      "frames_with_unacquired_points": 14,
+      "fully_valid_fresh_acquired_frames": 2701,
+      "sequence_gaps": 912,
+      "missing_frames": 1120
+    },
+    "rates": [
+      {
+        "device_span_seconds": 120.147232,
+        "host_receipt_span_seconds": 119.98954081599368,
+        "capture_fps": 70.66330084075511,
+        "host_complete_receive_fps": 61.422020201761086,
+        "host_parsed_frame_fps": 61.422020201761086,
+        "host_parsed_receipt_span_seconds": 119.98954081599368,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      }
+    ]
+  },
+  "BLE": {
+    "counts": {
+      "trusted_complete_frames": 4796,
+      "integrity_valid_frames": 4796,
+      "ordered_integrity_valid_frames": 4796,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 4796,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 38368,
+      "reported_valid_points": 35327,
+      "unit_errors": 0,
+      "usable_numeric_points": 35327,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 3041,
+      "not_fresh_points": 9,
+      "unacquired_points": 9,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 3027,
+      "frames_with_partial_freshness": 9,
+      "frames_with_unacquired_points": 9,
+      "fully_valid_fresh_acquired_frames": 1769,
+      "sequence_gaps": 2716,
+      "missing_frames": 3687
+    },
+    "rates": [
+      {
+        "device_span_seconds": 120.033877,
+        "host_receipt_span_seconds": 119.97053918699385,
+        "capture_fps": 70.66338447103563,
+        "host_complete_receive_fps": 39.96814578390952,
+        "host_parsed_frame_fps": 39.96814578390952,
+        "host_parsed_receipt_span_seconds": 119.97053918699385,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      }
+    ],
+    "fragments": {
+      "D": {
+        "ok": 4796,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      },
+      "L": {
+        "ok": 340,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      }
+    },
+    "firmware_counter_window": {
+      "status": "OBSERVED",
+      "first": {
+        "host_seconds": 5.88103453500662,
+        "phase": "capture",
+        "byte_offset": 250638,
+        "fields": {
+          "conn": "1",
+          "sub": "111",
+          "mtu": "247",
+          "phy": "1/1",
+          "mode": "fast",
+          "mq": "400",
+          "ms": "398",
+          "md": "175",
+          "sentD": "372",
+          "sentL": "26",
+          "dropD": "175",
+          "dropL": "0",
+          "dropC": "0",
+          "ctrlRetry": "0",
+          "ctrlExhaust": "0",
+          "fs": "1523",
+          "fe": "0",
+          "cg": "0",
+          "stale": "0",
+          "conf": "0",
+          "tiny": "0"
+        }
+      },
+      "last": {
+        "host_seconds": 125.50868240000273,
+        "phase": "capture",
+        "byte_offset": 5579914,
+        "fields": {
+          "conn": "1",
+          "sub": "111",
+          "mtu": "247",
+          "phy": "1/1",
+          "mode": "fast",
+          "mq": "5529",
+          "ms": "5525",
+          "md": "3809",
+          "sentD": "5159",
+          "sentL": "366",
+          "dropD": "3809",
+          "dropL": "0",
+          "dropC": "0",
+          "ctrlRetry": "0",
+          "ctrlExhaust": "0",
+          "fs": "17415",
+          "fe": "0",
+          "cg": "0",
+          "stale": "0",
+          "conf": "0",
+          "tiny": "0"
+        }
+      },
+      "elapsed_seconds": 119.6276478649961,
+      "window": "first_last_BL50_receipts_not_exact_capture_boundaries",
+      "counters": {
+        "mq": {
+          "before": 400,
+          "after": 5529,
+          "delta": 5129,
+          "unavailable": null
+        },
+        "ms": {
+          "before": 398,
+          "after": 5525,
+          "delta": 5127,
+          "unavailable": null
+        },
+        "md": {
+          "before": 175,
+          "after": 3809,
+          "delta": 3634,
+          "unavailable": null
+        },
+        "sentD": {
+          "before": 372,
+          "after": 5159,
+          "delta": 4787,
+          "unavailable": null
+        },
+        "sentL": {
+          "before": 26,
+          "after": 366,
+          "delta": 340,
+          "unavailable": null
+        },
+        "dropD": {
+          "before": 175,
+          "after": 3809,
+          "delta": 3634,
+          "unavailable": null
+        },
+        "dropL": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "dropC": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "ctrlRetry": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "ctrlExhaust": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "fs": {
+          "before": 1523,
+          "after": 17415,
+          "delta": 15892,
+          "unavailable": null
+        },
+        "fe": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "cg": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "stale": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "conf": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        },
+        "tiny": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unavailable": null
+        }
+      }
+    }
+  },
+  "query_windows": {
+    "SCHED?": {
+      "before_host_monotonic": 83797.845521885,
+      "after_host_monotonic": 83918.185633871,
+      "elapsed_seconds": 120.34011198600638,
+      "before_fields": {
+        "initError": "0x0",
+        "registered": "1",
+        "idleKnown": "1",
+        "tickHz": "100",
+        "budgetTicks": "2",
+        "maxUnits": "32",
+        "graceUnits": "2",
+        "backstopTicks": "4",
+        "idleGen": "22039",
+        "idleAgeTicks": "0",
+        "maxIdleGapTicks": "5",
+        "bt": "4754/386/3",
+        "tr": "1097/269/6",
+        "log": "1271/170/7",
+        "ser": "5280/271/32",
+        "bc": "1/0/1",
+        "sc": "76/12/4",
+        "wc": "0/0/0"
+      },
+      "after_fields": {
+        "initError": "0x0",
+        "registered": "1",
+        "idleKnown": "1",
+        "tickHz": "100",
+        "budgetTicks": "2",
+        "maxUnits": "32",
+        "graceUnits": "2",
+        "backstopTicks": "4",
+        "idleGen": "81830",
+        "idleAgeTicks": "3",
+        "maxIdleGapTicks": "6",
+        "bt": "14352/5338/3",
+        "tr": "17373/5878/7",
+        "log": "10628/3585/7",
+        "ser": "14293/4958/32",
+        "bc": "1/0/1",
+        "sc": "98/21/4",
+        "wc": "0/0/0"
+      },
+      "counter_deltas": {
+        "idleGen": 59791
+      },
+      "gauge_semantics": "Other before/after fields are endpoint observations, not accumulated counters."
+    },
+    "SERIAL?": {
+      "before_host_monotonic": 83797.826768302,
+      "after_host_monotonic": 83918.156194271,
+      "elapsed_seconds": 120.32942596900102,
+      "before_fields": {
+        "normalSubmitted": "2997",
+        "prioritySubmitted": "42",
+        "dataSubmitted": "330",
+        "logSubmitted": "2667",
+        "dataRejected": "67",
+        "logRejected": "88",
+        "normalExpired": "67",
+        "priorityExpired": "0",
+        "priorityRejected": "0",
+        "driverShortWrite": "0",
+        "driverWriteError": "0",
+        "txYield": "268",
+        "maxQueueAgeUs": "207261",
+        "driverTxBufferBytes": "2304",
+        "driverAcceptedBytes": "660618",
+        "partialWrite": "0"
+      },
+      "after_fields": {
+        "normalSubmitted": "12000",
+        "prioritySubmitted": "53",
+        "dataSubmitted": "7715",
+        "logSubmitted": "4285",
+        "dataRejected": "1191",
+        "logRejected": "346",
+        "normalExpired": "143",
+        "priorityExpired": "0",
+        "priorityRejected": "0",
+        "driverShortWrite": "0",
+        "driverWriteError": "0",
+        "txYield": "4956",
+        "maxQueueAgeUs": "250488",
+        "driverTxBufferBytes": "2304",
+        "driverAcceptedBytes": "6022080",
+        "partialWrite": "0"
+      },
+      "counter_deltas": {
+        "normalSubmitted": 9003,
+        "prioritySubmitted": 11,
+        "dataSubmitted": 7385,
+        "logSubmitted": 1618,
+        "dataRejected": 1124,
+        "logRejected": 258,
+        "normalExpired": 76,
+        "priorityExpired": 0,
+        "priorityRejected": 0,
+        "driverShortWrite": 0,
+        "driverWriteError": 0,
+        "txYield": 4688,
+        "driverAcceptedBytes": 5361462,
+        "partialWrite": 0
+      },
+      "gauge_semantics": "Other before/after fields are endpoint observations, not accumulated counters."
+    },
+    "PERF?": {
+      "before_host_monotonic": 83797.512178388,
+      "after_host_monotonic": 83917.912864125,
+      "elapsed_seconds": 120.40068573699682,
+      "before_fields": {
+        "pub": "1078",
+        "fresh": "1077",
+        "stale": "1",
+        "mixed": "0",
+        "dropOut": "0",
+        "dropEvent": "0",
+        "startAvgUs": "62483",
+        "startN": "1077",
+        "usbStage": "queued",
+        "usbSent": "460",
+        "usbDrop": "54",
+        "usbBlock": "0",
+        "usbBytes": "290732",
+        "usbWriteMaxUs": "0",
+        "usbQMax": "0",
+        "usbStackMin": "0",
+        "lifePub": "1",
+        "lifeDrop": "0",
+        "queueDrop": "3",
+        "frames": "1079",
+        "heap": "8326684",
+        "heapMin": "8323004"
+      },
+      "after_fields": {
+        "pub": "9591",
+        "fresh": "9576",
+        "stale": "15",
+        "mixed": "0",
+        "dropOut": "0",
+        "dropEvent": "0",
+        "startAvgUs": "19578",
+        "startN": "9590",
+        "usbStage": "queued",
+        "usbSent": "8788",
+        "usbDrop": "1261",
+        "usbBlock": "0",
+        "usbBytes": "5546222",
+        "usbWriteMaxUs": "0",
+        "usbQMax": "0",
+        "usbStackMin": "0",
+        "lifePub": "1",
+        "lifeDrop": "0",
+        "queueDrop": "51",
+        "frames": "9591",
+        "heap": "8327188",
+        "heapMin": "8323004"
+      },
+      "counter_deltas": {
+        "pub": 8513,
+        "fresh": 8499,
+        "stale": 14,
+        "mixed": 0,
+        "dropOut": 0,
+        "dropEvent": 0,
+        "usbSent": 8328,
+        "usbDrop": 1207,
+        "usbBlock": 0,
+        "usbBytes": 5255490,
+        "lifePub": 0,
+        "lifeDrop": 0,
+        "queueDrop": 48,
+        "frames": 8512
+      },
+      "gauge_semantics": "Other before/after fields are endpoint observations, not accumulated counters."
+    },
+    "USBSTREAM?": {
+      "before_host_monotonic": 83797.541087202,
+      "after_host_monotonic": 83917.930959309,
+      "elapsed_seconds": 120.38987210699997,
+      "before_fields": {
+        "v": "FULL",
+        "dataEvery": "1",
+        "diagEvery": "15",
+        "sinkQueued": "3097",
+        "sinkDropped": "210",
+        "priorityQueued": "36",
+        "driverAcceptedBytes": "652661",
+        "rxBytes": "304",
+        "partialWrite": "0",
+        "timeout": "67",
+        "driverDrained": "673",
+        "rxOversize": "0",
+        "lineDropped": "88",
+        "lineOversize": "0",
+        "discardBytes": "8261",
+        "lastRxUs": "89824977",
+        "lastTxUs": "89798032",
+        "driverInstalled": "1",
+        "sofPresent": "1",
+        "stdioBound": "1",
+        "initError": "0x0",
+        "txStackBytes": "4096",
+        "txStackMinBytes": "3156",
+        "bufferMemory": "2",
+        "bufferBytes": "23040",
+        "enumerated": "unknown"
+      },
+      "after_fields": {
+        "v": "FULL",
+        "dataEvery": "1",
+        "diagEvery": "15",
+        "sinkQueued": "12182",
+        "sinkDropped": "1672",
+        "priorityQueued": "47",
+        "driverAcceptedBytes": "6011879",
+        "rxBytes": "395",
+        "partialWrite": "0",
+        "timeout": "141",
+        "driverDrained": "1000",
+        "rxOversize": "0",
+        "lineDropped": "270",
+        "lineOversize": "0",
+        "discardBytes": "42060",
+        "lastRxUs": "210274977",
+        "lastTxUs": "210259194",
+        "driverInstalled": "1",
+        "sofPresent": "1",
+        "stdioBound": "1",
+        "initError": "0x0",
+        "txStackBytes": "4096",
+        "txStackMinBytes": "3140",
+        "bufferMemory": "2",
+        "bufferBytes": "23040",
+        "enumerated": "unknown"
+      },
+      "counter_deltas": {
+        "sinkQueued": 9085,
+        "sinkDropped": 1462,
+        "priorityQueued": 11,
+        "driverAcceptedBytes": 5359218,
+        "rxBytes": 91,
+        "partialWrite": 0,
+        "timeout": 74,
+        "driverDrained": 327,
+        "rxOversize": 0,
+        "lineDropped": 182,
+        "lineOversize": 0,
+        "discardBytes": 33799
+      },
+      "gauge_semantics": "Other before/after fields are endpoint observations, not accumulated counters."
+    }
+  },
+  "worker_deltas": {
+    "bt": {
+      "checkpoints_delta": 9598,
+      "yields_delta": 4952,
+      "yield_fraction": 0.5159408210043759,
+      "maxBurstUnits_before": 3,
+      "maxBurstUnits_after": 3
+    },
+    "tr": {
+      "checkpoints_delta": 16276,
+      "yields_delta": 5609,
+      "yield_fraction": 0.3446178422216761,
+      "maxBurstUnits_before": 6,
+      "maxBurstUnits_after": 7
+    },
+    "log": {
+      "checkpoints_delta": 9357,
+      "yields_delta": 3415,
+      "yield_fraction": 0.36496740408250505,
+      "maxBurstUnits_before": 7,
+      "maxBurstUnits_after": 7
+    },
+    "ser": {
+      "checkpoints_delta": 9013,
+      "yields_delta": 4687,
+      "yield_fraction": 0.5200266282037057,
+      "maxBurstUnits_before": 32,
+      "maxBurstUnits_after": 32
+    },
+    "bc": {
+      "checkpoints_delta": 0,
+      "yields_delta": 0,
+      "yield_fraction": null,
+      "maxBurstUnits_before": 1,
+      "maxBurstUnits_after": 1
+    },
+    "sc": {
+      "checkpoints_delta": 22,
+      "yields_delta": 9,
+      "yield_fraction": 0.4090909090909091,
+      "maxBurstUnits_before": 4,
+      "maxBurstUnits_after": 4
+    },
+    "wc": {
+      "checkpoints_delta": 0,
+      "yields_delta": 0,
+      "yield_fraction": null,
+      "maxBurstUnits_before": 0,
+      "maxBurstUnits_after": 0
+    }
+  },
+  "first_condition": "Current pre-fix Checkpoint: idleAge>=2 and idleEpochUnits>=2 is sticky until a genuinely new idle generation is observed; own delay resets only units.",
+  "causal_scope": "Source and old-function replay prove an unnecessary per-record yield mechanism; aggregate HIL counters do not identify individual scheduling intervals or prove it accounts for all measured throughput loss.",
+  "counterexample": {
+    "same_real_idle_callbacks": 50000,
+    "four_units_in_each_of_100_bursts_after_2tick_other_work": true,
+    "old": {
+      "checkpoints": 400,
+      "yields": 300
+    },
+    "candidate": {
+      "checkpoints": 400,
+      "yields": 0
+    }
+  },
+  "candidate": "Separate per-worker local elapsed2ticks/MAX32 from unchanged global real-idle hardbackstop4ticks; own block resets only local ledger, never shared idle time.",
+  "model_limits": [
+    "Seven continuously-ready task priorities are synthetic, SDK callbacks/radio capacity are not modeled by that saturation case.",
+    "At500/1000us units, saturated low-priority shares decline even while total work rises; no universal throughput improvement claim.",
+    "Finite 7x100Hz input with SDK20ms/50ms busy: all4 phase/cost cases serve200/200 per worker.100us removes273--351 forced blocks;500us retains273 backstop yields.",
+    "Yield counts are not CPU utilization, total sleep milliseconds, or proof of watchdog safety.",
+    "vTaskDelay(1) lasts until a subsequent tick plus scheduling latency; it is not necessarily exactly10ms.",
+    "Unknown/no-progress paths never fabricate idle or feed the watchdog.",
+    "ASCII frame integrity is separate from ADC sample validity: USB reports48X02 and4640X12; this is not precision PASS."
+  ],
+  "hardware_actions": false,
+  "final_acceptance": "NOT_ESTABLISHED_REQUIRES_POST_CHANGE_HIL"
+}

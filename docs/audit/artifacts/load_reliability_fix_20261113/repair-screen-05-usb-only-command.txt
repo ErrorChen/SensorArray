@@ -1,0 +1,8 @@
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 20.002, "capture_seconds": 14.774, "requested_capture_seconds": 120.0, "rx_bytes": 1235384, "capture_trailers": 1393}
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 40.007, "capture_seconds": 34.78, "requested_capture_seconds": 120.0, "rx_bytes": 2472481, "capture_trailers": 3280}
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 60.013, "capture_seconds": 54.786, "requested_capture_seconds": 120.0, "rx_bytes": 3709627, "capture_trailers": 5168}
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 80.025, "capture_seconds": 74.797, "requested_capture_seconds": 120.0, "rx_bytes": 4946662, "capture_trailers": 7053}
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 100.033, "capture_seconds": 94.805, "requested_capture_seconds": 120.0, "rx_bytes": 6185097, "capture_trailers": 8940}
+{"type": "benchmark_progress", "label": "repair-screen-05-usb-only", "phase": "capture", "elapsed_seconds": 120.033, "capture_seconds": 114.805, "requested_capture_seconds": 120.0, "rx_bytes": 7422229, "capture_trailers": 10826}
+{"type": "benchmark_configuration_finished", "label": "repair-screen-05-usb-only", "summary_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-05-usb-only.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00020298999152}
+{"status": "COMPLETE", "completed": 1, "not_run": []}

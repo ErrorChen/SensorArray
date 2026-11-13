@@ -1,0 +1,23 @@
+/* Same synthetic scheduling boundary, compiled against actual old/new C. */
+#include <assert.h>
+#include <stdio.h>
+#include WORK_BUDGET_SOURCE
+static uint32_t tick, waits;
+static esp_freertos_idle_cb_t idle;
+TickType_t xTaskGetTickCount(void) { return tick; }
+int xPortGetCoreID(void) { return 0; }
+void vTaskDelay(TickType_t amount) { assert(amount == 1u); tick++; waits++; }
+esp_err_t esp_register_freertos_idle_hook_for_cpu(esp_freertos_idle_cb_t cb, UBaseType_t cpu)
+{ assert(cpu == 0u); idle=cb; return ESP_OK; }
+int main(void)
+{
+    assert(sensorarrayWorkBudgetInit() == ESP_OK);
+    for (unsigned i=0u;i<100u;i++) {
+        tick++;
+        assert(idle());
+        tick+=2u;
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX);
+    }
+    printf("REAL_IDLE_EPOCH_REPLAY,checkpoints=100,yields=%u,synthetic=1\n", waits);
+    return waits == 0u ? 0 : 1;
+}

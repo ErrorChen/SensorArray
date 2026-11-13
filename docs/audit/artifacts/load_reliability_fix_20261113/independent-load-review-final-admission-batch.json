@@ -1,0 +1,75 @@
+{
+  "review_utc": "2026-11-13T13:28:19.561415+00:00",
+  "reviewed_HEAD": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "production_source_hashes": {
+    "core/transport/sensorarraySerialIo.c": "e41723bc670d704dbd07876901a65fd102de5db52cc771d0b8255fcbfd4e4c9d",
+    "core/transport/sensorarraySerialIo.h": "2c1337f7207c42503a8f26f731b9fdbcadb568705aab1d9a047ac2646b8e065f",
+    "main/output/sensorarrayUsbSink.c": "cfa71e9d866bf0e0a9b61dc58ffb99716424742b1ee289fde44e167c3fb7c055",
+    "main/output/sensorarrayUsbSink.h": "e40f08fb14bb6d3c150ee7f386b34ed97293035d93115ab5cdfd986099dd185e",
+    "main/output/sensorarrayAsyncLog.c": "4ed9db735efae5b28972761307c04355e8ffced1157fed5d03649ad5e49b45ab",
+    "main/output/sensorarrayFrameOutput.c": "7619272b04b12f99679d02f99b68c867c42b7395d0d72c878295d14122f6b3f9",
+    "main/main.c": "4a473d893f49371796c90a87a5dec1949d8f8488f29405e39c716cb4cf906728",
+    "components/sensorarrayBle/sensorarrayBle.c": "e1751b2a60c5dbd7379deed78aea2fbcc72734a21494f453eb41489bcd49d9c4",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d"
+  },
+  "scoped_production_diff_sha256": "51ab8198efaa396ccda6bb366befe60b717d1a19b572aeef04854310fb38474a",
+  "reviewer_modified_production": false,
+  "hardware_actions": false,
+  "USB": {
+    "command": "python3 docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-log-capacity-preserved.py",
+    "exit_code": 0,
+    "production_source_unchanged_during_test": true,
+    "script": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-log-capacity-preserved.py",
+    "script_sha256": "a7c8f476e7fba00cfa66d781e0cbc4501cdca36295aed886c539d305550adfb2",
+    "runner_dependency": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-data-log-fixed.py",
+    "runner_dependency_sha256": "2d149622bf914b745670e870ae036b599d3038e9242ab40721fdd94d6ad10e2f",
+    "log": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-log-capacity-preserved.log",
+    "log_sha256": "ec75a42de0e9152757c933e1878bc6130be53d65aead0130a6aeb381923a4dcc",
+    "additional_schedule_executions": 27,
+    "allocation_retry_variants": 9,
+    "cases": [
+      "Two unfinished stdio streams and three queued LOG records do not consume four DATA or four CTRL entries: sixteen rounds submit64 DATA,64 CTRL and48 LOG; DATA rejected count stays unchanged.",
+      "Seven synthetic fault-like records retain the first four complete records (including original error, cleanup error and register mask) and count three whole tail drops. Independent DATA and MFAULT-priority records remain admitted.",
+      "A LOG short prefix plus nohost expires normal DATA/LOG and old CTRL under their original deadlines. Fresh CTRL on the next wake of the same TX invocation is preceded by the retained delimiter; all14 slots are released."
+    ],
+    "capacity": {
+      "DATA": {
+        "slots": 5,
+        "queue": 4
+      },
+      "LOG": {
+        "slots": 5,
+        "queue": 4
+      },
+      "CTRL": {
+        "slots": 4,
+        "queue": 4
+      },
+      "normal_payload_bytes": 23040,
+      "allocation": "One persistent PSRAM-preferred CPU-only block; internal fallback; no hot-path allocation."
+    },
+    "inspection": "CTRL remains first at record boundaries, DATA wins over LOG until four completed DATA records, then one waiting LOG is served. Any positive short prefix retains ownership across all lanes. No locks are held over USB writes or WorkBudget waits. The earlier expiry progress fix applies to every lane.",
+    "diagnostic_boundary": "LOG retains the original baseline capacity. This removes the rejected two-slot diagnostic-capacity regression; it does not establish absolute diagnostic or PC delivery."
+  },
+  "BLE": {
+    "details": "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-review.json",
+    "details_sha256": "c8dd70d32205d4afe7f5332748f53804886bf04cb7ee20ab75bd1ca19b6bc160",
+    "independent_scenarios": 9,
+    "baseline_exit_code": 0,
+    "candidate_exit_code": 0,
+    "source_unchanged_during_test": true,
+    "result": "600-byte/3-fragment message:3 to1 checkpoints;2304-byte/11-fragment message:11 to3. Slow SDK/tick-wrap cases remain per-fragment. Connection changes at fragments1..4 prevent the next fragment; fifth-fragment error is preserved.",
+    "boundary": "Synthetic scheduler/GATT boundary, not a radio throughput proof. Batch work-unit granularity changes; checkpoint/yield rates are not CPU utilization."
+  },
+  "old_two_slot_candidate": {
+    "status": "REJECTED_AND_SUPERSEDED",
+    "evidence_preserved": [
+      "independent-usb-data-log-fixed.log",
+      "independent-usb-data-log-fixed-review.json"
+    ],
+    "reason": "The independent six-record burst showed only two diagnostic records retained. Root required retaining the original five-slot/four-queue LOG capacity."
+  },
+  "diff_check_exit_code": 0,
+  "diff_check_output": "",
+  "verdict": "No additional confirmed P0/P1 in the final reviewed USB admission separation and BLE batching changes. Root-owned target build, complete-suite checks and new HIL performance/stability acceptance remain required."
+}

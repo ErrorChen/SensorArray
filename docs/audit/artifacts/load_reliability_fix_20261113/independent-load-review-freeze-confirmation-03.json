@@ -1,0 +1,52 @@
+{
+  "recordedAtUtc": "2026-11-13T12:56:28.845157+00:00",
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "sourceSha256": {
+    "core/transport/sensorarraySerialIo.c": "c2cdbbb1f0a5c92c687715c27bc1f82a51b6bb2a43679230e291233b9557eae1",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "bc86f0e0fcc13a1dd6deb0054b69023b8b5bf85751114a0c3b2e8f1d8af5edbe",
+    "components/sensorarrayBle/sensorarrayBle.c": "e815f7ba5495add8a99969dc8751b0c64de750079aa9b1e7d991d8633ca73660",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "fbf9e8417e9fa4def8f1372514f5c2d81f15e844b3ac5097e74d20dace5ece2a",
+    "core/transport/sensorarrayTransport.c": "f750ae09b64de572278e14c42de3a3d1855b5e745a0f403e41b2ec07846e2f25",
+    "core/transport/sensorarrayTransport.h": "8d8cc1e15492d127ea3b1aa262e916e0cb9c58ee140198e99b8facbe8512c649",
+    "core/transport/sensorarrayTransportCommand.c": "cc6045ec92757fe772e93edfba326d9f7d8304d108cdc12ff0ad4931009b5630",
+    "main/output/sensorarrayAsyncLog.c": "f16a23af937af9ec19c9e7576c32462a9f70328beeb3fd482960fcd06e268408",
+    "main/control/sensorarrayRecoveryControl.c": "d1741f785b7942f09dc0b0492cad071f20f7b0554eaac46a2c21fba3b5a76e4e",
+    "main/control/sensorarrayRestartControl.c": "3b631243c4f501a0493e47d95a4a711dc054db9458a985612141a25eec0429da",
+    "main/main.c": "eb39d847941fdbd54bcf34636619ead0047bcac26816ae65090185eb7ad215c0"
+  },
+  "changedSincePriorFreeze": [
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h",
+    "main/main.c"
+  ],
+  "mainDelta": "Only SCHED formatter adds graceUnits/backstopTicks; no acquisition/control transition paths changed.",
+  "changePurpose": "Remove deterministic per-record yield cadence despite real idle progress, while retaining bounded no-idle behavior.",
+  "reviewedInvariants": [
+    "2-unit epoch grace is renewed only by a real nonzero changed idle generation",
+    "Initial generation zero explicitly has no grace, including failed hook registration",
+    "Own vTaskDelay resets only maximum-work burst count and never renews idle epoch grace",
+    "Age >=4 ticks immediately yields even for first unit in a newly observed idle epoch",
+    "Maximum 32-unit bound remains; one vTaskDelay(1) maximum per checkpoint; real idle fields are unchanged",
+    "No capture cap, raw-data transformation, watchdog feed, hardware lock or transport deadline changed",
+    "Shared fields stay aligned internal DRAM; additional epoch count remains private to its worker",
+    "SCHED extrema 484 B fit 512 B per author/root executed real formatter test"
+  ],
+  "independentExecutedEvidence": [
+    "independent-work-budget-cadence-fixed.json",
+    "independent-work-budget-grace-model.json"
+  ],
+  "baselineEvidence": [
+    "independent-work-budget-cadence-review.json",
+    "repair-screen-01.summary.json"
+  ],
+  "results": "Six independent production-component scenarios PASS; 13 budget + 15 drain + 5 BLE production-body scenarios PASS. Seven continually ready worker models passed 100/500/1000 us unit costs at 0/9500 us phases with observed maximum idle gaps of 2/3 ticks.",
+  "gitDiffCheckExitCode": 0,
+  "remainingConfirmedP0P1": 0,
+  "limits": [
+    "Synthetic scheduler is not actual SDK/hardware execution timing",
+    "No target build/serial/hardware access by reviewer",
+    "Same-configuration HIL A/B still required for actual throughput improvement and WDT result; parent owns build/flash/capture"
+  ]
+}

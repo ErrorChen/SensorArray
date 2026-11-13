@@ -1,0 +1,25 @@
+MFAULT,source=FRONTEND_LOSS,seq=1,err=0x103,state=DEGRADED,route=UNKNOWN,reason=synthetic_gpio_failure,gpioErr=0xffffffff,physicalSafe=unknown,restartRequired=1
+FRONTEND_HELD_QUERY_DISPATCH,queries=4,with_context_and_null=1,hardware_side_effects=0
+MFAULT,source=FRONTEND_LOSS,seq=1,err=0x103,state=DEGRADED,route=UNKNOWN,reason=identity_unavailable_or_reset,gpioErr=0x0,physicalSafe=unknown,restartRequired=1
+FRONTEND_PROBE,phase=restart_required,round=0,known=0,present=0,absentRun=0,presentRun=0,ownerFree=0,lowSpeed=0,startUs=0,endUs=0,physicalSafe=unknown
+FRONTEND_CLOCKS,round=0,pProbeHz=0,pRestoredHz=0,sProbeHz=0,sRestoredHz=0,aProbeHz=0,aRestoredHz=0,unknownHz=0
+FRONTEND_IDS,round=0,pMfg1=0000,pDev1=0000,pMfg2=0000,pDev2=0000,pReadMask=0x0,pErr=0x0,pCleanup=0x0,sMfg1=0000,sDev1=0000,sMfg2=0000,sDev2=0000,sReadMask=0x0,sErr=0x0,sCleanup=0x0
+FRONTEND_PROBE,phase=restart_required,round=0,known=0,present=0,absentRun=0,presentRun=0,ownerFree=0,lowSpeed=0,startUs=0,endUs=0,physicalSafe=unknown
+FRONTEND_CLOCKS,round=0,pProbeHz=0,pRestoredHz=0,sProbeHz=0,sRestoredHz=0,aProbeHz=0,aRestoredHz=0,unknownHz=0
+FRONTEND_IDS,round=0,pMfg1=0000,pDev1=0000,pMfg2=0000,pDev2=0000,pReadMask=0x0,pErr=0x0,pCleanup=0x0,sMfg1=0000,sDev1=0000,sMfg2=0000,sDev2=0000,sReadMask=0x0,sErr=0x0,sCleanup=0x0
+FRONTEND_PROBE,phase=restart_required,round=0,known=0,present=0,absentRun=0,presentRun=0,ownerFree=0,lowSpeed=0,startUs=0,endUs=0,physicalSafe=unknown
+FRONTEND_CLOCKS,round=0,pProbeHz=0,pRestoredHz=0,sProbeHz=0,sRestoredHz=0,aProbeHz=0,aRestoredHz=0,unknownHz=0
+FRONTEND_IDS,round=0,pMfg1=0000,pDev1=0000,pMfg2=0000,pDev2=0000,pReadMask=0x0,pErr=0x0,pCleanup=0x0,sMfg1=0000,sDev1=0000,sMfg2=0000,sDev2=0000,sReadMask=0x0,sErr=0x0,sCleanup=0x0
+MFAULT,source=FRONTEND_LOSS,seq=1,err=0x103,state=DEGRADED,route=UNKNOWN,reason=presence_restore_failed,gpioErr=0x0,physicalSafe=unknown,restartRequired=1
+FRONTEND_PROBE,phase=restart_required,round=0,known=0,present=0,absentRun=0,presentRun=0,ownerFree=0,lowSpeed=0,startUs=0,endUs=0,physicalSafe=unknown
+FRONTEND_CLOCKS,round=0,pProbeHz=0,pRestoredHz=0,sProbeHz=0,sRestoredHz=0,aProbeHz=0,aRestoredHz=0,unknownHz=0
+FRONTEND_IDS,round=0,pMfg1=0000,pDev1=0000,pMfg2=0000,pDev2=0000,pReadMask=0x0,pErr=0x0,pCleanup=0xFFFFFFFF,sMfg1=0000,sDev1=0000,sMfg2=0000,sDev2=0000,sReadMask=0x0,sErr=0x0,sCleanup=0x0
+MFAULT,source=FRONTEND_LOSS,seq=1,err=0x103,state=DEGRADED,route=UNKNOWN,reason=startup_unqualified,gpioErr=0x0,physicalSafe=unknown,restartRequired=1
+APP_FATAL,stage=acquisition_init,err=-1,action=wait_frontends
+APP_FATAL,stage=acquisition_init,err=-1,action=recovery_safe_no_restart
+APP_FATAL,stage=acquisition_init,err=257,action=recovery_safe_no_restart
+APP_FATAL,stage=acquisition_init,err=-1,action=recovery_safe_no_restart
+FRONTENDS_QUERY_MAX,length=481,capacity=512
+FRONTEND_IDS_MAX,length=220,capacity=384
+frontend production main hold/lifecycle/query: PASS
+frontend main ownership/hold/terminal/restart/query integration: PASS

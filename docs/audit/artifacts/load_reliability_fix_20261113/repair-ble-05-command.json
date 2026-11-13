@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/capture_benchmark_ble.py",
+    "--address",
+    "80:B5:4E:CD:D9:AE",
+    "--name",
+    "CscArray_CDD9AD",
+    "--adapter",
+    "hci0",
+    "--output-directory",
+    "docs/audit/artifacts/load_reliability_fix_20261113",
+    "--label",
+    "repair-ble-05",
+    "--duration",
+    "6000",
+    "--stop-file",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-05.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 6100.0,
+  "head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "dirty_diff_sha256": "1121c932e0e0348440872319f4cd337ef86b239f1e17df725c8dca7ad4191913",
+  "started_utc": "2026-11-13T14:09:14.293181+00:00",
+  "started_monotonic": 85847.660906854,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-05-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T14:11:46.722245+00:00",
+  "finished_monotonic": 86000.089979729,
+  "log_sha256": "9724a8eab90888db347c0e2513848e6a159a0cbab3af817eb06ef22c6c80862c"
+}

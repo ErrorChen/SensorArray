@@ -1,0 +1,114 @@
+{
+  "firmware_head": "d31488848844667dfa88502bf1b894d7bfe571a2",
+  "app_sha256": "e63e383eec05460e613e1cf81664c1e5c0ef0ce7a7aa68592b8905ff756e3fc7",
+  "status": "FAIL_LOAD_ACCEPTANCE",
+  "reason": "USB DATA queue rejects persist/increase while checkpoint waits decrease; strict task-priority service requires further repair. Full long suite not started.",
+  "USB": {
+    "rates": {
+      "device_span_seconds": 119.976854,
+      "host_receipt_span_seconds": 119.96460118998948,
+      "capture_fps": 69.01331151756987,
+      "host_complete_receive_fps": 42.8209650933984,
+      "host_parsed_frame_fps": 42.8209650933984,
+      "host_parsed_receipt_span_seconds": 119.96460118998948,
+      "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+      "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+    },
+    "counts": {
+      "trusted_complete_frames": 5138,
+      "integrity_valid_frames": 5138,
+      "ordered_integrity_valid_frames": 5138,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 5138,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 41104,
+      "reported_valid_points": 37833,
+      "unit_errors": 0,
+      "usable_numeric_points": 37833,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 3271,
+      "not_fresh_points": 11,
+      "unacquired_points": 11,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 3262,
+      "frames_with_partial_freshness": 11,
+      "frames_with_unacquired_points": 11,
+      "fully_valid_fresh_acquired_frames": 1876,
+      "sequence_gaps": 1594,
+      "missing_frames": 3143
+    }
+  },
+  "BLE": {
+    "rates": {
+      "device_span_seconds": 119.91615,
+      "host_receipt_span_seconds": 119.95289496099576,
+      "capture_fps": 69.01489082162828,
+      "host_complete_receive_fps": 43.30033053132145,
+      "host_parsed_frame_fps": 43.30033053132145,
+      "host_parsed_receipt_span_seconds": 119.95289496099576,
+      "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+      "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+    },
+    "counts": {
+      "trusted_complete_frames": 5195,
+      "integrity_valid_frames": 5195,
+      "ordered_integrity_valid_frames": 5195,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 5195,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 41560,
+      "reported_valid_points": 38321,
+      "unit_errors": 0,
+      "usable_numeric_points": 38321,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 3239,
+      "not_fresh_points": 11,
+      "unacquired_points": 11,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 3230,
+      "frames_with_partial_freshness": 11,
+      "frames_with_unacquired_points": 11,
+      "fully_valid_fresh_acquired_frames": 1965,
+      "sequence_gaps": 2168,
+      "missing_frames": 3082
+    }
+  },
+  "faults_and_resets": {
+    "FAULT": {
+      "counts_by_receipt_phase": {},
+      "examples": []
+    },
+    "RESET": {
+      "counts_by_receipt_phase": {},
+      "examples": []
+    }
+  },
+  "measurement_precision_PASS": false,
+  "provenance": {
+    "repair-screen-04.summary.json": "c48d0f7ab9cf767ddf6b82b0ab1a14828f73bcfbaa94fc9c63e60b5a62809e16",
+    "repair-screen-04-command.json": "8df809fa26d56cedc2ce5af9b5c48c26bed0354dab5d4642ec259eed93ea47f7",
+    "screen-analysis-05.json": "e43cfb88ab0e4d35002b59e9c28b830838dbedb7a416671ab719fc1ad6118d6e",
+    "screen-diagnostics-04.json": "2125942f3a355b4a23deee8e44e9d3db44f26f086c0e8c49c5c00d2cdcc4c522",
+    "repair-09-build-manifest.json": "4b88fd0d68ed41726822613d8738aa47c951ddcbb25906f792a884c93cf293b4"
+  }
+}

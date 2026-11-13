@@ -1,0 +1,37 @@
+{
+  "command": [
+    "python3",
+    "tools/test_serial_io.py",
+    "--admission-baseline",
+    "b44c37b51067e376e73aa44535ea47d175846b67",
+    "--tx-baseline",
+    "1f82b73a1019930f419492e3e742a96bd43f374e"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "started_utc": "2026-11-13T13:15:47.144853+00:00",
+  "started_monotonic": 82643.391027178,
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "source_sha256_before": {
+    "core/transport/sensorarraySerialIo.c": "733a77c5213e69d20f7da57b3adc60c7914a18e6b35bed63fbb6c5cc13eeec43",
+    "core/transport/sensorarraySerialIo.h": "2c1337f7207c42503a8f26f731b9fdbcadb568705aab1d9a047ac2646b8e065f",
+    "main/output/sensorarrayUsbSink.c": "cfa71e9d866bf0e0a9b61dc58ffb99716424742b1ee289fde44e167c3fb7c055",
+    "main/output/sensorarrayUsbSink.h": "e40f08fb14bb6d3c150ee7f386b34ed97293035d93115ab5cdfd986099dd185e",
+    "main/output/sensorarrayFrameOutput.c": "7619272b04b12f99679d02f99b68c867c42b7395d0d72c878295d14122f6b3f9",
+    "main/output/sensorarrayAsyncLog.c": "4ed9db735efae5b28972761307c04355e8ffced1157fed5d03649ad5e49b45ab",
+    "tests/host/test_serial_io.c": "cf8a397c91bbaf9e1276e7f8356ec120bd3d94ca48d8a96e9ee22bb01cdc55c4",
+    "tools/test_serial_io.py": "1592da4d727e8b7121c983c69e4c8628c7f9210d51389ef67e9f9aa4a94fab96"
+  },
+  "kind": "actual_production_functions_with_synthetic_scheduler_no_HIL",
+  "exit_code": 0,
+  "finished_monotonic": 82643.792076329,
+  "source_sha256_after": {
+    "core/transport/sensorarraySerialIo.c": "733a77c5213e69d20f7da57b3adc60c7914a18e6b35bed63fbb6c5cc13eeec43",
+    "core/transport/sensorarraySerialIo.h": "2c1337f7207c42503a8f26f731b9fdbcadb568705aab1d9a047ac2646b8e065f",
+    "main/output/sensorarrayUsbSink.c": "cfa71e9d866bf0e0a9b61dc58ffb99716424742b1ee289fde44e167c3fb7c055",
+    "main/output/sensorarrayUsbSink.h": "e40f08fb14bb6d3c150ee7f386b34ed97293035d93115ab5cdfd986099dd185e",
+    "main/output/sensorarrayFrameOutput.c": "7619272b04b12f99679d02f99b68c867c42b7395d0d72c878295d14122f6b3f9",
+    "main/output/sensorarrayAsyncLog.c": "4ed9db735efae5b28972761307c04355e8ffced1157fed5d03649ad5e49b45ab",
+    "tests/host/test_serial_io.c": "cf8a397c91bbaf9e1276e7f8356ec120bd3d94ca48d8a96e9ee22bb01cdc55c4",
+    "tools/test_serial_io.py": "1592da4d727e8b7121c983c69e4c8628c7f9210d51389ef67e9f9aa4a94fab96"
+  }
+}

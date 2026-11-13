@@ -1,0 +1,309 @@
+{
+  "opened": [
+    {
+      "fd": 7,
+      "time": 85766.013571741
+    }
+  ],
+  "closed": [
+    {
+      "fd": 7,
+      "time": 85766.195728551
+    }
+  ],
+  "read_calls": [
+    {
+      "fd": 7,
+      "monotonic": 85766.014216577
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.014350189
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.01444526
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.014578653
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.014697561
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.014813046
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.01495036
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015066721
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015157554
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015271567
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015380072
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015486207
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015621701
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015729995
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.015838091
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.01596923
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.016086719
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.016198378
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.01629707
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.016394942
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.01650101
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.016624577
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.025077258
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.033515058
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.041892194
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.050271808
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.058726232
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.067163532
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.075628276
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.084082239
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.09242055
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.187453087
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.190524938
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.19112838
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.191706009
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.192442325
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.193097629
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.193842905
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.194528561
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.194965239
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.195445104
+    }
+  ],
+  "commands_during_pause": [],
+  "synthetic_frame_generation": [
+    {
+      "monotonic": 85766.016559796,
+      "sequence": 1,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.024944728,
+      "sequence": 2,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.033363367,
+      "sequence": 3,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.041782882,
+      "sequence": 4,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.050145403,
+      "sequence": 5,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.058581815,
+      "sequence": 6,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.067043353,
+      "sequence": 7,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.075411445,
+      "sequence": 8,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.083833869,
+      "sequence": 9,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.092263357,
+      "sequence": 10,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.10072766,
+      "sequence": 11,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.109151969,
+      "sequence": 12,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.117662291,
+      "sequence": 13,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.126253021,
+      "sequence": 14,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.134858516,
+      "sequence": 15,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.143459595,
+      "sequence": 16,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.152128333,
+      "sequence": 17,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.1607911,
+      "sequence": 18,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.169320154,
+      "sequence": 19,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.178048979,
+      "sequence": 20,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.186832246,
+      "sequence": 21,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    }
+  ]
+}

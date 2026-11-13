@@ -1,0 +1,12 @@
+INDEPENDENT_QUANTUM_PASS,case=0,delayCalls=20,idleGeneration=0,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=1,delayCalls=20,idleGeneration=0,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=2,delayCalls=21,idleGeneration=1,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=3,delayCalls=5,idleGeneration=1,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=4,delayCalls=0,idleGeneration=100,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=5,delayCalls=2,idleGeneration=1,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=6,delayCalls=20,idleGeneration=0,synthetic=1
+INDEPENDENT_QUANTUM_PASS,case=7,delayCalls=2,idleGeneration=1,synthetic=1
+MODEL,phase=8,idles=49,maxGap=4,work=49/49/856/49/1151/49/49
+INDEPENDENT_QUANTUM_PASS,case=8,delayCalls=394,idleGeneration=50,synthetic=1
+MODEL,phase=9,idles=50,maxGap=4,work=50/50/850/50/1151/50/50
+INDEPENDENT_QUANTUM_PASS,case=9,delayCalls=400,idleGeneration=51,synthetic=1

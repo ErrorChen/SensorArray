@@ -1,0 +1,30 @@
+{
+  "schema": "firmware_benchmark_v1",
+  "status": "COMPLETE",
+  "port": "/dev/ttyACM0",
+  "one_port_session": true,
+  "plan": [
+    {
+      "label": "repair-screen-02",
+      "mode": "VOLT",
+      "rows": 1,
+      "profile": "CVRCVRCV",
+      "seconds": 120.0,
+      "kind": "configuration"
+    }
+  ],
+  "results": [
+    {
+      "label": "repair-screen-02",
+      "summary_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.summary.json",
+      "status": "CAPTURED",
+      "error": null,
+      "capture_seconds": 120.0001104450057
+    }
+  ],
+  "measurement_acceptance": "NOT_EVALUATED",
+  "automatic_retry": false,
+  "session_monotonic_start": 81623.183856562,
+  "session_monotonic_end": 81749.34174739,
+  "not_run": []
+}

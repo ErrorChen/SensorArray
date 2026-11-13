@@ -1,0 +1,305 @@
+{
+  "opened": [
+    {
+      "fd": 7,
+      "time": 85733.439801985
+    }
+  ],
+  "closed": [
+    {
+      "fd": 7,
+      "time": 85733.627715184
+    }
+  ],
+  "read_calls": [
+    {
+      "fd": 7,
+      "monotonic": 85733.440581086
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.440925324
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.441233151
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.441539048
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.441835935
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.442265478
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.442637364
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.442995629
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.443335536
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.443744284
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.444115442
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.444512515
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.444928026
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.445395075
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.446055687
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.446378706
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.446667758
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.446931211
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.447183535
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.447431177
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.447786676
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.456346258
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.464919532
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.473455998
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.482205637
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.490769965
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.499761332
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.508337107
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.517112487
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.525762892
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.619152396
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.621902323
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.623305156
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.624034675
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.624174699
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.624651801
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.625306465
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.626156163
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.626722421
+    },
+    {
+      "fd": 7,
+      "monotonic": 85733.627353258
+    }
+  ],
+  "commands_during_pause": [],
+  "synthetic_frame_generation": [
+    {
+      "monotonic": 85733.447669297,
+      "sequence": 1,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.456098115,
+      "sequence": 2,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.464588826,
+      "sequence": 3,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.473044177,
+      "sequence": 4,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.481742787,
+      "sequence": 5,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.490420006,
+      "sequence": 6,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.499295663,
+      "sequence": 7,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.507961824,
+      "sequence": 8,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.516633184,
+      "sequence": 9,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.525344733,
+      "sequence": 10,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85733.534259199,
+      "sequence": 11,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.542957238,
+      "sequence": 12,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.551776969,
+      "sequence": 13,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.560408054,
+      "sequence": 14,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.569280886,
+      "sequence": 15,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.57806132,
+      "sequence": 16,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.586690014,
+      "sequence": 17,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.595264579,
+      "sequence": 18,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.603926081,
+      "sequence": 19,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.612678146,
+      "sequence": 20,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85733.621363526,
+      "sequence": 21,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": false
+    }
+  ]
+}

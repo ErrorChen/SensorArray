@@ -1,0 +1,15 @@
+{
+  "recordedAtUtc": "2026-11-13T12:55:10.277562+00:00",
+  "command": [
+    "python3",
+    "tools/test_work_budget.py"
+  ],
+  "environmentOverride": {
+    "CC": "/usr/bin/gcc"
+  },
+  "exitCode": 0,
+  "sourceShaBefore": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+  "sourceShaAfter": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+  "sourceChangedDuringRun": false,
+  "scope": "Actual production budget/drain/fragment functions, including 7 continually ready workers at 100/500/1000 us unit costs and phases 0/9500 us. Finite synthetic models only; no target SDK latency guarantee."
+}

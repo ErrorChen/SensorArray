@@ -1,0 +1,12 @@
+SERIAL_IO_VALIDATOR,source=/home/csc/esp/esp-idf-v5.5.5/components/vfs/vfs.c,pathMax=15
+IDF_USB_DRIVER_RECORD_PASS,actualDriverWrite=1,actualByteBufferFitCopy=1,capacity=2304,emptyWrapped=1,allOrZero=1,smallerRingRejected=1
+/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c:8:10: fatal error: esp_attr.h: No such file or directory
+    8 | #include "esp_attr.h"
+      |          ^~~~~~~~~~~~
+compilation terminated.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_serial_io.py", line 195, in <module>
+    subprocess.run(compile_args + source_override + ["-o", str(exe)], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/cc', '-std=c11', '-D_GNU_SOURCE', '-pthread', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-I', '/tmp/sensorarray-serial-io-9t3mo7mw', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWifi/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include', '-I', '/home/csc/esp/workspace/SensorArray/core/transport', '/home/csc/esp/workspace/SensorArray/tests/host/test_serial_io.c', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c', '-o', '/tmp/sensorarray-serial-io-9t3mo7mw/test']' returned non-zero exit status 1.

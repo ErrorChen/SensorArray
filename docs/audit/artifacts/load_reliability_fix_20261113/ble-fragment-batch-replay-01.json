@@ -1,0 +1,55 @@
+{
+  "status": "REPRODUCED_AND_FIXED",
+  "global_work_budget_revision": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "reference_frame_sha256": "c9dd91c22535375e137e6ff1c777bc6590a4799eb8ac818aa846c1aa58cd3ddc",
+  "reference_frame_kind": "Synthetic fixture from real firmware encoder, original ASCII CRC retained",
+  "results": {
+    "before": {
+      "source": "docs/audit/artifacts/load_reliability_fix_20261113/ble-before-fragment-batch-01.c.txt",
+      "sha256": "e815f7ba5495add8a99969dc8751b0c64de750079aa9b1e7d991d8633ca73660",
+      "compile_command": [
+        "/usr/bin/clang-18",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-I",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6",
+        "-I",
+        "/home/csc/esp/workspace/SensorArray/tests/host/work_budget_stubs",
+        "-I",
+        "/home/csc/esp/workspace/SensorArray/tests/host/include",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6/before.c",
+        "-o",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6/before"
+      ],
+      "compile_exit_code": 0,
+      "run_exit_code": 1,
+      "output": "BLE_BATCH_REPLAY,bytes=548,fragments=3,checkpoints=3,yields=2,synthetic=1\n"
+    },
+    "after": {
+      "source": "components/sensorarrayBle/sensorarrayBle.c",
+      "sha256": "e1751b2a60c5dbd7379deed78aea2fbcc72734a21494f453eb41489bcd49d9c4",
+      "compile_command": [
+        "/usr/bin/clang-18",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-I",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6",
+        "-I",
+        "/home/csc/esp/workspace/SensorArray/tests/host/work_budget_stubs",
+        "-I",
+        "/home/csc/esp/workspace/SensorArray/tests/host/include",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6/after.c",
+        "-o",
+        "/tmp/sensorarray-ble-batch-replay-xanzwql6/after"
+      ],
+      "compile_exit_code": 0,
+      "run_exit_code": 0,
+      "output": "BLE_BATCH_REPLAY,bytes=548,fragments=3,checkpoints=1,yields=0,synthetic=1\n"
+    }
+  },
+  "limits": "Same global WorkBudget; only actual BLE source bodies differ. Synthetic no-radio SDK acceptances and idleAge2, not HIL throughput."
+}

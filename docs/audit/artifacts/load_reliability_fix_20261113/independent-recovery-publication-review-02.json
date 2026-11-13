@@ -1,0 +1,25 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-recovery-publication-review.py"
+  ],
+  "exitCode": 0,
+  "timestampUtc": "2026-11-13T12:21:38.067885+00:00",
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "sourceShaBefore": {
+    "main/control/sensorarrayRecoveryControl.c": "d1741f785b7942f09dc0b0492cad071f20f7b0554eaac46a2c21fba3b5a76e4e",
+    "main/control/sensorarrayRestartControl.c": "36702f15fc5b7f69950e056774a451f37e95e7634662d277c53b3b828ede7555",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "core/transport/sensorarrayTransportGuaranteedText.c": "aed02f8698f9820b7575849f32f36cd5f245e2100eedc660e2ed43221cfeff64",
+    "core/transport/sensorarrayTransportCommand.c": "5384693d7a2ba98484962f7b323c1566119a4b542d7b46c75dfb7493791257da"
+  },
+  "sourceShaAfter": {
+    "main/control/sensorarrayRecoveryControl.c": "d1741f785b7942f09dc0b0492cad071f20f7b0554eaac46a2c21fba3b5a76e4e",
+    "main/control/sensorarrayRestartControl.c": "36702f15fc5b7f69950e056774a451f37e95e7634662d277c53b3b828ede7555",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "core/transport/sensorarrayTransportGuaranteedText.c": "aed02f8698f9820b7575849f32f36cd5f245e2100eedc660e2ed43221cfeff64",
+    "core/transport/sensorarrayTransportCommand.c": "5384693d7a2ba98484962f7b323c1566119a4b542d7b46c75dfb7493791257da"
+  },
+  "sourceChangedDuringRun": false,
+  "scope": "Independent forced terminal publisher failure and late old ACK; production state machine/main/cache/slot. Hardware and admission-failure boundary synthetic, not HIL."
+}

@@ -1,0 +1,16 @@
+{
+  "created_utc": "2026-11-13T11:43:39.030689+00:00",
+  "head": "334fb2a081d70731985a6c2d5c2b6f02548ec56e",
+  "status": " M .gitignore\n M README.md\n M docs/command-reference.md\n M docs/integration/firmware_host_contract.md\n M docs/output-format.md\n?? docs/audit/artifacts/full_benchmark_20261113/\n?? tools/analyze_firmware_benchmark.py\n?? tools/capture_benchmark_ble.py\n?? tools/plot_firmware_benchmark.py\n?? tools/run_firmware_benchmark.py\n?? tools/run_firmware_benchmark_retry.py\n?? tools/test_analyze_firmware_benchmark.py\n?? tools/test_capture_benchmark_ble.py\n?? tools/test_firmware_benchmark.py\n?? tools/test_firmware_benchmark_mixed_wire.py\n?? tools/test_firmware_benchmark_retry.py\n",
+  "dirty_diff_sha256": "1710b8099045d3c32134870ca006b32bccd400e306540b595417b89983b5c053",
+  "baseline_firmware_source": "0d8f60fd9c29b9ce12e64ed2e6534ee37db41704",
+  "baseline_evidence": "docs/audit/artifacts/full_benchmark_20261113/benchmark-final-v2.json",
+  "requirements": [
+    "No known unresolved blocking/P0/P1 software defects",
+    "Watchdog remains enabled; no substitute feed",
+    "No permanent capture throttling, no relaxed sample quality",
+    "Fix then actual build/flash/HIL using existing authorization",
+    "Hardware limitations remain explicit; no fabricated physical verification"
+  ],
+  "baseline_device_state": "postflight-01: same session 0DCB1029EC3CCA0D boot7, CAP8 USBDEBUG, BLE disconnected"
+}

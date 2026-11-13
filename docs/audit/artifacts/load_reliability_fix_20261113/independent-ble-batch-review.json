@@ -1,0 +1,66 @@
+{
+  "reviewed_HEAD": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "production_source": "components/sensorarrayBle/sensorarrayBle.c",
+  "production_sha256": "e1751b2a60c5dbd7379deed78aea2fbcc72734a21494f453eb41489bcd49d9c4",
+  "budget_sha256": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+  "production_modified_by_reviewer": false,
+  "hardware_actions": false,
+  "command_baseline": "python3 docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-review.py --baseline b44c37b51067e376e73aa44535ea47d175846b67",
+  "command_candidate": "python3 docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-review.py",
+  "baseline_exit_code": 0,
+  "candidate_exit_code": 0,
+  "source_unchanged_during_run": true,
+  "evidence_hashes": {
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-review.py": "4a5f867e56af9971b1f5eec5fd1db91ef8a2be7fa8f2d5f1471a9a59c2e083d5",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-review.c": "030ba492f68d537b7c9cf831dfc46176fda6db1af53eac05de65933630610f4f",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-baseline.log": "0c3fe494bbef6c8d1339ebef3b935441fa96a4fcd30b49c20d1b22cf4ecc2a0e",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-fixed.log": "591dcabdfbd601371d693a248c0f938df49f6f7b26aa6d5d40bcf5b04c21c961",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-model-error-01.log": "d3e8801dc9894740c2b43b92a19c94ffa11d194b6370224996b8ba09e5dfb900"
+  },
+  "test_layer": "Exact production CRC, payload, fragment and planner functions plus current production WorkBudget. Scheduler ticks, connection state and GATT acceptance are simulated. The real TX task descriptor checkpoint is represented explicitly; full task release paths are reviewed in source, not claimed as hardware execution.",
+  "scenarios": [
+    {
+      "case": "600-byte payload, MTU247, 3 fragments, constant SDK tick",
+      "baseline_checkpoints": 3,
+      "candidate_checkpoints": 1
+    },
+    {
+      "case": "2304-byte payload, MTU247, 11 fragments, constant SDK tick",
+      "baseline_checkpoints": 11,
+      "candidate_checkpoints": 3
+    },
+    {
+      "case": "SDK consumes one tick per fragment",
+      "baseline_checkpoints": 3,
+      "candidate_checkpoints": 3
+    },
+    {
+      "case": "uint32 tick wrap while sending",
+      "baseline_checkpoints": 3,
+      "candidate_checkpoints": 3
+    },
+    {
+      "case": "Connection generation changes after fragment1,2,3,4",
+      "scenario_count": 4,
+      "result": "Next fragment is rejected in each case even within a batch; no completed message or premature slot release."
+    },
+    {
+      "case": "GATT fails at fragment5, after one full batch",
+      "result": "First send error returned, message dropped, slot retained until caller returns."
+    }
+  ],
+  "review_findings": [
+    "Every fragment still calls the original connection validation before touching the GATT boundary.",
+    "At most four successful fast fragments run before a scheduling checkpoint while more fragments remain. One elapsed tick triggers a checkpoint sooner; unsigned subtraction handles tick wrap.",
+    "The final fragment returns to the unchanged descriptor loop checkpoint. No complete message or fast-failure path can permanently bypass the global budget.",
+    "The payload slot and shared fragment scratch remain owned by the same TX worker; no new allocator, release, task or concurrent sender was introduced.",
+    "This is a local scheduling unit change. Neither notification acceptance, fragmentSent, zero fragmentError nor connected state establishes PC receipt or unlimited radio capacity.",
+    "Existing SDK call execution time is not bounded by this gate; it can only act between returns. No watchdog is fed or disabled."
+  ],
+  "model_correction": {
+    "log": "docs/audit/artifacts/load_reliability_fix_20261113/independent-ble-batch-model-error-01.log",
+    "description": "Initial test expected idle-unknown blocking immediately at Init, before two ticks elapsed. The independent model was corrected to advance two ticks after Init. The failed assertion was in the model, not a production defect.",
+    "original_exit_code": 1
+  },
+  "verdict": "No new confirmed P0/P1 in the reviewed batching increment. Target build and HIL throughput/idle-progress verification remain root-owned."
+}

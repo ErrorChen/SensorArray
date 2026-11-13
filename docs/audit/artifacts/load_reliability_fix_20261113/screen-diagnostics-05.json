@@ -1,0 +1,1128 @@
+{
+  "schema": "sensorarray_load_diagnostics_v1",
+  "notes": [
+    "SERIAL and SCHED deltas use their separate host monotonic query windows, not the capture interval.",
+    "Device sampling time is only bounded by request/reply times; transport latency and read-only retries are retained.",
+    "Counter deltas are forward modular differences within one observed boot/session; complete counter cycles are unobservable.",
+    "Maximum values and gauges are endpoints only. Maximums are boot-lifetime observations, not maxima measured only in this window.",
+    "SCHED fields are independently sampled. Checkpoints/yields and idle progress are not CPU utilization or proof of watchdog safety.",
+    "SERIAL submission/driver acceptance counters do not prove PC delivery. This report does not change capture acceptance."
+  ],
+  "inputs_rejected": 0,
+  "results": [
+    {
+      "analysis_status": "ANALYZED_NOT_ACCEPTANCE",
+      "source_status": "CAPTURED",
+      "source_error": null,
+      "benchmark_mode": "VOLT",
+      "rows_requested": 1,
+      "capture": {
+        "capture_requested_seconds": 120.0,
+        "capture_seconds": 120.00008788899868,
+        "capture_monotonic_start": 85867.567317153,
+        "capture_monotonic_end": 85987.567405042
+      },
+      "source_faults": [],
+      "source_reset_observations": [],
+      "source_diagnostic_observation_accepted": true,
+      "configuration_context": {
+        "phases": {
+          "before": {
+            "opening": {
+              "session": "8758F7BF3FF31DAE",
+              "bootId": "12",
+              "rev": "4",
+              "boundary": "691",
+              "state": "VOLTAGE",
+              "mode": "VOLT",
+              "rows": "1",
+              "profile": "VVVVVVVV",
+              "err": "0x0",
+              "mgen": "3",
+              "mrid": "4",
+              "rgen": "2",
+              "rrid": "3",
+              "pgen": "3",
+              "prid": "4",
+              "mtermId": "4",
+              "mterm": "applied",
+              "merr": "0x0",
+              "ptermId": "4",
+              "pterm": "applied",
+              "perr": "0x0",
+              "rtermId": "3",
+              "rterm": "applied",
+              "rerr": "0x0"
+            },
+            "closing": {
+              "session": "8758F7BF3FF31DAE",
+              "bootId": "12",
+              "rev": "4",
+              "boundary": "691",
+              "state": "VOLTAGE",
+              "mode": "VOLT",
+              "rows": "1",
+              "profile": "VVVVVVVV",
+              "err": "0x0",
+              "mgen": "3",
+              "mrid": "4",
+              "rgen": "2",
+              "rrid": "3",
+              "pgen": "3",
+              "prid": "4",
+              "mtermId": "4",
+              "mterm": "applied",
+              "merr": "0x0",
+              "ptermId": "4",
+              "pterm": "applied",
+              "perr": "0x0",
+              "rtermId": "3",
+              "rterm": "applied",
+              "rerr": "0x0"
+            },
+            "coherent": true,
+            "boot_identity_valid": true
+          },
+          "after": {
+            "opening": {
+              "session": "8758F7BF3FF31DAE",
+              "bootId": "12",
+              "rev": "4",
+              "boundary": "691",
+              "state": "VOLTAGE",
+              "mode": "VOLT",
+              "rows": "1",
+              "profile": "VVVVVVVV",
+              "err": "0x0",
+              "mgen": "3",
+              "mrid": "4",
+              "rgen": "2",
+              "rrid": "3",
+              "pgen": "3",
+              "prid": "4",
+              "mtermId": "4",
+              "mterm": "applied",
+              "merr": "0x0",
+              "ptermId": "4",
+              "pterm": "applied",
+              "perr": "0x0",
+              "rtermId": "3",
+              "rterm": "applied",
+              "rerr": "0x0"
+            },
+            "closing": {
+              "session": "8758F7BF3FF31DAE",
+              "bootId": "12",
+              "rev": "4",
+              "boundary": "691",
+              "state": "VOLTAGE",
+              "mode": "VOLT",
+              "rows": "1",
+              "profile": "VVVVVVVV",
+              "err": "0x0",
+              "mgen": "3",
+              "mrid": "4",
+              "rgen": "2",
+              "rrid": "3",
+              "pgen": "3",
+              "prid": "4",
+              "mtermId": "4",
+              "mterm": "applied",
+              "merr": "0x0",
+              "ptermId": "4",
+              "pterm": "applied",
+              "perr": "0x0",
+              "rtermId": "3",
+              "rterm": "applied",
+              "rerr": "0x0"
+            },
+            "coherent": true,
+            "boot_identity_valid": true
+          }
+        },
+        "same_boot_session": true,
+        "same_configuration": true,
+        "issues": []
+      },
+      "SERIAL": {
+        "before": {
+          "collection_window": {
+            "started_monotonic": 85867.516064547,
+            "finished_monotonic": 85867.537752436,
+            "duration_seconds": 0.02168788899143692
+          },
+          "sample_time_bounds": {
+            "started_monotonic": 85867.516073839,
+            "finished_monotonic": 85867.53774862,
+            "duration_seconds": 0.021674781004549004
+          },
+          "sample_time_bounds_source": "successful_readonly_query_attempt",
+          "raw_fields": {
+            "normalSubmitted": "2820",
+            "prioritySubmitted": "42",
+            "dataSubmitted": "390",
+            "logSubmitted": "2430",
+            "dataRejected": "0",
+            "logRejected": "371",
+            "normalExpired": "23",
+            "priorityExpired": "0",
+            "priorityRejected": "0",
+            "driverShortWrite": "0",
+            "driverWriteError": "0",
+            "txYield": "190",
+            "maxQueueAgeUs": "154066",
+            "driverTxBufferBytes": "2304",
+            "driverAcceptedBytes": "639103",
+            "partialWrite": "0"
+          },
+          "successful_attempt": {
+            "index": 20,
+            "attempt": 1
+          }
+        },
+        "after": {
+          "collection_window": {
+            "started_monotonic": 85987.919224977,
+            "finished_monotonic": 85988.019220898,
+            "duration_seconds": 0.09999592100211885
+          },
+          "sample_time_bounds": {
+            "started_monotonic": 85987.919233938,
+            "finished_monotonic": 85988.01921672,
+            "duration_seconds": 0.09998278200509958
+          },
+          "sample_time_bounds_source": "successful_readonly_query_attempt",
+          "raw_fields": {
+            "normalSubmitted": "12201",
+            "prioritySubmitted": "53",
+            "dataSubmitted": "8731",
+            "logSubmitted": "3470",
+            "dataRejected": "0",
+            "logRejected": "1289",
+            "normalExpired": "23",
+            "priorityExpired": "0",
+            "priorityRejected": "0",
+            "driverShortWrite": "0",
+            "driverWriteError": "0",
+            "txYield": "2827",
+            "maxQueueAgeUs": "154066",
+            "driverTxBufferBytes": "2304",
+            "driverAcceptedBytes": "6110644",
+            "partialWrite": "0"
+          },
+          "successful_attempt": {
+            "index": 31,
+            "attempt": 1
+          }
+        },
+        "sample_interval_bounds": {
+          "minimum_seconds": 120.38148531799379,
+          "maximum_seconds": 120.50314288100344,
+          "reply_end_to_end_seconds": 120.48146809999889,
+          "scope": "separate_diagnostic_query_samples_NOT_capture_only"
+        },
+        "queries_bracket_capture": true,
+        "delta_context_valid": true,
+        "issues": [],
+        "counters": {
+          "normalSubmitted": {
+            "kind": "counter",
+            "before": {
+              "raw": "2820",
+              "value": 2820,
+              "known": true
+            },
+            "after": {
+              "raw": "12201",
+              "value": 12201,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 9381,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "prioritySubmitted": {
+            "kind": "counter",
+            "before": {
+              "raw": "42",
+              "value": 42,
+              "known": true
+            },
+            "after": {
+              "raw": "53",
+              "value": 53,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 11,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "normalExpired": {
+            "kind": "counter",
+            "before": {
+              "raw": "23",
+              "value": 23,
+              "known": true
+            },
+            "after": {
+              "raw": "23",
+              "value": 23,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "priorityExpired": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "priorityRejected": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "driverShortWrite": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "driverWriteError": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "txYield": {
+            "kind": "counter",
+            "before": {
+              "raw": "190",
+              "value": 190,
+              "known": true
+            },
+            "after": {
+              "raw": "2827",
+              "value": 2827,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 2637,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "driverAcceptedBytes": {
+            "kind": "counter",
+            "before": {
+              "raw": "639103",
+              "value": 639103,
+              "known": true
+            },
+            "after": {
+              "raw": "6110644",
+              "value": 6110644,
+              "known": true
+            },
+            "bits": 64,
+            "modulus": 18446744073709551616,
+            "delta": 5471541,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "partialWrite": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "dataSubmitted": {
+            "kind": "counter",
+            "before": {
+              "raw": "390",
+              "value": 390,
+              "known": true
+            },
+            "after": {
+              "raw": "8731",
+              "value": 8731,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 8341,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "logSubmitted": {
+            "kind": "counter",
+            "before": {
+              "raw": "2430",
+              "value": 2430,
+              "known": true
+            },
+            "after": {
+              "raw": "3470",
+              "value": 3470,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 1040,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "dataRejected": {
+            "kind": "counter",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 0,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          },
+          "logRejected": {
+            "kind": "counter",
+            "before": {
+              "raw": "371",
+              "value": 371,
+              "known": true
+            },
+            "after": {
+              "raw": "1289",
+              "value": 1289,
+              "known": true
+            },
+            "bits": 32,
+            "modulus": 4294967296,
+            "delta": 918,
+            "wrap_observed": false,
+            "zero_reserved_unknown": false
+          }
+        },
+        "endpoints": {
+          "maxQueueAgeUs": {
+            "kind": "maximum",
+            "before": {
+              "raw": "154066",
+              "value": 154066,
+              "known": true
+            },
+            "after": {
+              "raw": "154066",
+              "value": 154066,
+              "known": true
+            }
+          },
+          "driverTxBufferBytes": {
+            "kind": "gauge",
+            "before": {
+              "raw": "2304",
+              "value": 2304,
+              "known": true
+            },
+            "after": {
+              "raw": "2304",
+              "value": 2304,
+              "known": true
+            }
+          }
+        }
+      },
+      "SCHED": {
+        "before": {
+          "collection_window": {
+            "started_monotonic": 85867.537758273,
+            "finished_monotonic": 85867.548579863,
+            "duration_seconds": 0.010821589996339753
+          },
+          "sample_time_bounds": {
+            "started_monotonic": 85867.537767363,
+            "finished_monotonic": 85867.548575654,
+            "duration_seconds": 0.010808291001012549
+          },
+          "sample_time_bounds_source": "successful_readonly_query_attempt",
+          "raw_fields": {
+            "initError": "0x0",
+            "registered": "1",
+            "idleKnown": "1",
+            "tickHz": "100",
+            "budgetTicks": "4",
+            "maxUnits": "32",
+            "graceUnits": "0",
+            "backstopTicks": "4",
+            "quantumTicks": "2",
+            "idleGen": "18384",
+            "idleAgeTicks": "0",
+            "maxIdleGapTicks": "6",
+            "bt": "4750/152/5",
+            "tr": "1060/186/7",
+            "log": "1243/127/6",
+            "ser": "4877/191/32",
+            "bc": "1/0/1",
+            "sc": "76/7/4",
+            "wc": "0/0/0"
+          },
+          "successful_attempt": {
+            "index": 21,
+            "attempt": 1
+          }
+        },
+        "after": {
+          "collection_window": {
+            "started_monotonic": 85988.019227567,
+            "finished_monotonic": 85988.095674349,
+            "duration_seconds": 0.07644678199721966
+          },
+          "sample_time_bounds": {
+            "started_monotonic": 85988.01924054,
+            "finished_monotonic": 85988.095669191,
+            "duration_seconds": 0.07642865099478513
+          },
+          "sample_time_bounds_source": "successful_readonly_query_attempt",
+          "raw_fields": {
+            "initError": "0x0",
+            "registered": "1",
+            "idleKnown": "1",
+            "tickHz": "100",
+            "budgetTicks": "4",
+            "maxUnits": "32",
+            "graceUnits": "0",
+            "backstopTicks": "4",
+            "quantumTicks": "2",
+            "idleGen": "32656",
+            "idleAgeTicks": "4",
+            "maxIdleGapTicks": "6",
+            "bt": "14943/3367/5",
+            "tr": "17297/4039/8",
+            "log": "10454/2731/7",
+            "ser": "14277/2830/32",
+            "bc": "1/0/1",
+            "sc": "98/17/4",
+            "wc": "0/0/0"
+          },
+          "successful_attempt": {
+            "index": 32,
+            "attempt": 1
+          }
+        },
+        "sample_interval_bounds": {
+          "minimum_seconds": 120.47066488600103,
+          "maximum_seconds": 120.55790182799683,
+          "reply_end_to_end_seconds": 120.54709353699582,
+          "scope": "separate_diagnostic_query_samples_NOT_capture_only"
+        },
+        "queries_bracket_capture": true,
+        "delta_context_valid": true,
+        "issues": [],
+        "health": {
+          "before": {
+            "usable_diagnostic_state": true,
+            "reasons": [],
+            "is_firmware_acceptance": false
+          },
+          "after": {
+            "usable_diagnostic_state": true,
+            "reasons": [],
+            "is_firmware_acceptance": false
+          }
+        },
+        "state_endpoints": {
+          "initError": {
+            "before": "0x0",
+            "after": "0x0"
+          },
+          "registered": {
+            "before": "1",
+            "after": "1"
+          },
+          "idleKnown": {
+            "before": "1",
+            "after": "1"
+          }
+        },
+        "endpoints": {
+          "tickHz": {
+            "kind": "gauge",
+            "before": {
+              "raw": "100",
+              "value": 100,
+              "known": true
+            },
+            "after": {
+              "raw": "100",
+              "value": 100,
+              "known": true
+            }
+          },
+          "budgetTicks": {
+            "kind": "gauge",
+            "before": {
+              "raw": "4",
+              "value": 4,
+              "known": true
+            },
+            "after": {
+              "raw": "4",
+              "value": 4,
+              "known": true
+            }
+          },
+          "maxUnits": {
+            "kind": "gauge",
+            "before": {
+              "raw": "32",
+              "value": 32,
+              "known": true
+            },
+            "after": {
+              "raw": "32",
+              "value": 32,
+              "known": true
+            }
+          },
+          "graceUnits": {
+            "kind": "gauge",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            }
+          },
+          "backstopTicks": {
+            "kind": "gauge",
+            "before": {
+              "raw": "4",
+              "value": 4,
+              "known": true
+            },
+            "after": {
+              "raw": "4",
+              "value": 4,
+              "known": true
+            }
+          },
+          "quantumTicks": {
+            "kind": "gauge",
+            "before": {
+              "raw": "2",
+              "value": 2,
+              "known": true
+            },
+            "after": {
+              "raw": "2",
+              "value": 2,
+              "known": true
+            }
+          },
+          "idleAgeTicks": {
+            "kind": "gauge",
+            "before": {
+              "raw": "0",
+              "value": 0,
+              "known": true
+            },
+            "after": {
+              "raw": "4",
+              "value": 4,
+              "known": true
+            }
+          },
+          "maxIdleGapTicks": {
+            "kind": "maximum",
+            "before": {
+              "raw": "6",
+              "value": 6,
+              "known": true
+            },
+            "after": {
+              "raw": "6",
+              "value": 6,
+              "known": true
+            }
+          }
+        },
+        "idle_generation": {
+          "kind": "counter",
+          "before": {
+            "raw": "18384",
+            "value": 18384,
+            "known": true
+          },
+          "after": {
+            "raw": "32656",
+            "value": 32656,
+            "known": true
+          },
+          "bits": 32,
+          "modulus": 4294967295,
+          "delta": 14272,
+          "wrap_observed": false,
+          "zero_reserved_unknown": true
+        },
+        "workers": {
+          "bt": {
+            "before_raw": "4750/152/5",
+            "after_raw": "14943/3367/5",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "4750",
+                "value": 4750,
+                "known": true
+              },
+              "after": {
+                "raw": "14943",
+                "value": 14943,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 10193,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "152",
+                "value": 152,
+                "known": true
+              },
+              "after": {
+                "raw": "3367",
+                "value": 3367,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 3215,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "5",
+                "value": 5,
+                "known": true
+              },
+              "after": {
+                "raw": "5",
+                "value": 5,
+                "known": true
+              }
+            }
+          },
+          "tr": {
+            "before_raw": "1060/186/7",
+            "after_raw": "17297/4039/8",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "1060",
+                "value": 1060,
+                "known": true
+              },
+              "after": {
+                "raw": "17297",
+                "value": 17297,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 16237,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "186",
+                "value": 186,
+                "known": true
+              },
+              "after": {
+                "raw": "4039",
+                "value": 4039,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 3853,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "7",
+                "value": 7,
+                "known": true
+              },
+              "after": {
+                "raw": "8",
+                "value": 8,
+                "known": true
+              }
+            }
+          },
+          "log": {
+            "before_raw": "1243/127/6",
+            "after_raw": "10454/2731/7",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "1243",
+                "value": 1243,
+                "known": true
+              },
+              "after": {
+                "raw": "10454",
+                "value": 10454,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 9211,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "127",
+                "value": 127,
+                "known": true
+              },
+              "after": {
+                "raw": "2731",
+                "value": 2731,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 2604,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "6",
+                "value": 6,
+                "known": true
+              },
+              "after": {
+                "raw": "7",
+                "value": 7,
+                "known": true
+              }
+            }
+          },
+          "ser": {
+            "before_raw": "4877/191/32",
+            "after_raw": "14277/2830/32",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "4877",
+                "value": 4877,
+                "known": true
+              },
+              "after": {
+                "raw": "14277",
+                "value": 14277,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 9400,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "191",
+                "value": 191,
+                "known": true
+              },
+              "after": {
+                "raw": "2830",
+                "value": 2830,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 2639,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "32",
+                "value": 32,
+                "known": true
+              },
+              "after": {
+                "raw": "32",
+                "value": 32,
+                "known": true
+              }
+            }
+          },
+          "bc": {
+            "before_raw": "1/0/1",
+            "after_raw": "1/0/1",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "1",
+                "value": 1,
+                "known": true
+              },
+              "after": {
+                "raw": "1",
+                "value": 1,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 0,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "after": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 0,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "1",
+                "value": 1,
+                "known": true
+              },
+              "after": {
+                "raw": "1",
+                "value": 1,
+                "known": true
+              }
+            }
+          },
+          "sc": {
+            "before_raw": "76/7/4",
+            "after_raw": "98/17/4",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "76",
+                "value": 76,
+                "known": true
+              },
+              "after": {
+                "raw": "98",
+                "value": 98,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 22,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "7",
+                "value": 7,
+                "known": true
+              },
+              "after": {
+                "raw": "17",
+                "value": 17,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 10,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "4",
+                "value": 4,
+                "known": true
+              },
+              "after": {
+                "raw": "4",
+                "value": 4,
+                "known": true
+              }
+            }
+          },
+          "wc": {
+            "before_raw": "0/0/0",
+            "after_raw": "0/0/0",
+            "checkpoints": {
+              "kind": "counter",
+              "before": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "after": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 0,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "yields": {
+              "kind": "counter",
+              "before": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "after": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "bits": 32,
+              "modulus": 4294967296,
+              "delta": 0,
+              "wrap_observed": false,
+              "zero_reserved_unknown": false
+            },
+            "maxBurstUnits": {
+              "kind": "maximum",
+              "before": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              },
+              "after": {
+                "raw": "0",
+                "value": 0,
+                "known": true
+              }
+            }
+          }
+        }
+      },
+      "source_summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-05.summary.json",
+      "source_summary_sha256": "9b16d64f6c46fc3c6372a0db6df993ad38ff54a8ffa250a70723e4f9c8dd6907",
+      "source_summary_bytes": 106464,
+      "source_raw_sha256": "08a9049f926e693479f53973c86397887346e13bf7ed7c73c2853aba018bc39c",
+      "raw_file_not_opened": true
+    }
+  ],
+  "analyzer_source_sha256": "157e7ac0c0c2be5a5a199b21b6480a84792e35235e085ecd9ad1a7e321480e32"
+}

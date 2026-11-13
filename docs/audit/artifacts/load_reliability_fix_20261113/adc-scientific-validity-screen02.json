@@ -1,0 +1,714 @@
+{
+  "source_HEAD_after_review": "4b665acf355adb4b145114abf5ecaa4325090be5",
+  "read_only_hardware": true,
+  "captures_are_completed_and_unchanged": true,
+  "parser_source_sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01",
+  "results": [
+    {
+      "label": "repair-screen-02",
+      "summary_sha256": "5a48be00d9b23faa8101bd85e1f20118a5fc2ac14c94f606dfebf7dbee246047",
+      "raw": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.rx.bin",
+      "raw_sha256": "a3dbc379015933ee6a024f8cc998b4940416880b33150b1bae153b87a9971c2d",
+      "events_sha256": "38b78c0594bdea9bc075a3b267cdf34e6cca7fc5912fba8244c6bcde3c7bfc0f",
+      "capture_offsets": [
+        262872,
+        6028947
+      ],
+      "capture_seconds": 120.0001104450057,
+      "complete_frames": 8083,
+      "invalid_reason_counts": {
+        "X12": 5142,
+        "X02": 16
+      },
+      "invalid_by_cell_and_gain": [
+        {
+          "cell": 1,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 2,
+          "error": "X02",
+          "pga": 0,
+          "count": 8
+        },
+        {
+          "cell": 2,
+          "error": "X12",
+          "pga": 0,
+          "count": 5142
+        },
+        {
+          "cell": 3,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 4,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 5,
+          "error": "X02",
+          "pga": 0,
+          "count": 2
+        },
+        {
+          "cell": 6,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 7,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 8,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        }
+      ],
+      "mask_semantics": [
+        {
+          "error": "X12",
+          "valid": false,
+          "fresh": true,
+          "acquired": true,
+          "valueIsNone": true,
+          "count": 5142
+        },
+        {
+          "error": "X02",
+          "valid": false,
+          "fresh": true,
+          "acquired": true,
+          "valueIsNone": true,
+          "count": 12
+        },
+        {
+          "error": "X02",
+          "valid": false,
+          "fresh": false,
+          "acquired": false,
+          "valueIsNone": true,
+          "count": 4
+        }
+      ],
+      "violations": [],
+      "examples": [
+        {
+          "seq": 1295,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 262805,
+          "trailerEndOffset": 263397,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 1930,
+          "cell": 2,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 692345,
+          "trailerEndOffset": 692939,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 1932,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 694733,
+          "trailerEndOffset": 695326,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 1936,
+          "cell": 2,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 697839,
+          "trailerEndOffset": 698432,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 1938,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 699031,
+          "trailerEndOffset": 699624,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 2163,
+          "cell": 4,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 853567,
+          "trailerEndOffset": 854156,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000F5",
+          "fresh": "00000000000000FF"
+        }
+      ],
+      "rail_query": {
+        "src": "external",
+        "raw": "0",
+        "mon": "0",
+        "rail": "5145000",
+        "avdd": "3350000",
+        "avss": "-1795000",
+        "exp": "5145000",
+        "err": "0",
+        "rv": "1",
+        "rs": "ok",
+        "age": "0",
+        "ref": "unsynced",
+        "pwr": "unsynced",
+        "mux": "unsynced",
+        "split": "external_measured",
+        "aincom": "estimated",
+        "uncertaintyUv": "unknown",
+        "calUs": "103222477"
+      },
+      "rail_events_in_capture": [],
+      "observed_health": {
+        "count": 118,
+        "first": {
+          "offset": 265368,
+          "seq": "1300",
+          "engineFrameCount": "384",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "4338",
+          "crcValidOdd": "4472",
+          "crcErrors": "186",
+          "crcRetries": "80"
+        },
+        "last": {
+          "offset": 6011708,
+          "seq": "9748",
+          "engineFrameCount": "8832",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "58295",
+          "crcValidOdd": "60090",
+          "crcErrors": "2020",
+          "crcRetries": "1864"
+        },
+        "all_errors_zero": true,
+        "all_interval64_due_precision": true,
+        "logged_engine512_boundaries": [
+          512,
+          1024,
+          1536,
+          2048,
+          2560,
+          3072,
+          3584,
+          4096,
+          4608,
+          5120,
+          6144,
+          6656,
+          7168,
+          8192,
+          8704
+        ],
+        "log_completeness": "Diagnostics are best effort; missing health text is not filled or declared observed."
+      },
+      "observed_driver_crc_window": {
+        "first_seq": "1300",
+        "last_seq": "9748",
+        "good_crc": 109575,
+        "failed_crc": 1834,
+        "crc_checked_reads": 111409,
+        "failed_crc_fraction": 0.01646186573795654,
+        "scope": "Difference between two received ADSHEALTH cumulative driver counter samples; not exactly the capture window and not the final invalid-point rate. Includes successful retry reads and auxiliary ADC reads."
+      },
+      "disposition": {
+        "records": 46,
+        "all_abort_zero": true,
+        "all_crc_sweep_max_observed": 0
+      },
+      "battery": {
+        "before": {
+          "bt": "-1",
+          "valid": "0",
+          "fresh": "0",
+          "ageMs": "25780",
+          "lastGoodMv": "-1",
+          "lastGoodValid": "0",
+          "lastGoodFresh": "0",
+          "lastGoodAgeMs": "4294967295",
+          "lastGoodFrame": "4294967295",
+          "lastGoodKnown": "0",
+          "periodMs": "1000",
+          "due": "0",
+          "run": "7",
+          "validRun": "0",
+          "invalidRun": "7",
+          "skip": "0",
+          "defer": "0",
+          "boundary": "7",
+          "restoreFail": "0",
+          "retry": "0/0",
+          "unstable": "0",
+          "timeout": "0",
+          "spreadRaw": "0",
+          "spreadMaxRaw": "0",
+          "raw": "0",
+          "a8d": "0",
+          "ac": "-1",
+          "a8g": "-1",
+          "ratio": "2/1",
+          "rail": "5145000",
+          "railState": "ok",
+          "vbias": "1",
+          "samples": "0",
+          "sampleUs": "836",
+          "restore": "ok",
+          "reason": "rail_invalid"
+        },
+        "after": {
+          "bt": "4117",
+          "valid": "1",
+          "fresh": "1",
+          "ageMs": "996",
+          "lastGoodMv": "4117",
+          "lastGoodValid": "1",
+          "lastGoodFresh": "1",
+          "lastGoodAgeMs": "996",
+          "lastGoodFrame": "9720",
+          "lastGoodKnown": "1",
+          "periodMs": "1000",
+          "due": "1",
+          "run": "123",
+          "validRun": "116",
+          "invalidRun": "7",
+          "skip": "0",
+          "defer": "0",
+          "boundary": "123",
+          "restoreFail": "0",
+          "retry": "0/0",
+          "unstable": "0",
+          "timeout": "0",
+          "spreadRaw": "413224",
+          "spreadMaxRaw": "579738",
+          "raw": "534798295",
+          "a8d": "1281284",
+          "ac": "777500",
+          "a8g": "2058784",
+          "ratio": "2/1",
+          "rail": "5145000",
+          "railState": "ok",
+          "vbias": "1",
+          "samples": "3",
+          "sampleUs": "9424",
+          "restore": "ok",
+          "reason": "ok"
+        },
+        "validRun_delta": 116,
+        "invalidRun_delta": 0,
+        "restoreFail_delta": 0,
+        "BATREG_records": 334,
+        "observed_intref_values": [
+          "0"
+        ],
+        "observed_known_values": [
+          "1"
+        ],
+        "saved_restored_pairs_observed": 104,
+        "pair_mismatches": []
+      },
+      "firmware_faults": [],
+      "reset_observations": []
+    },
+    {
+      "label": "repair-screen-02-usb-only",
+      "summary_sha256": "98d6fd00181c07f1fbe7f543aecee119141423069a7bf81ac810bebe6f56df93",
+      "raw": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.rx.bin",
+      "raw_sha256": "912e2fa9e4f63eb32fb99ca19c44aafd3ab1d573e49635a42007ae792ba93f48",
+      "events_sha256": "fa1d45e1371a8d9f30ef56deb46573e8d425782e1dd9fe88b124cef4425732ee",
+      "capture_offsets": [
+        339278,
+        8211521
+      ],
+      "capture_seconds": 120.00035054299224,
+      "complete_frames": 10913,
+      "invalid_reason_counts": {
+        "X12": 7102,
+        "X02": 5
+      },
+      "invalid_by_cell_and_gain": [
+        {
+          "cell": 1,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        },
+        {
+          "cell": 2,
+          "error": "X02",
+          "pga": 0,
+          "count": 2
+        },
+        {
+          "cell": 2,
+          "error": "X02",
+          "pga": 1,
+          "count": 1
+        },
+        {
+          "cell": 2,
+          "error": "X12",
+          "pga": 0,
+          "count": 7102
+        },
+        {
+          "cell": 3,
+          "error": "X02",
+          "pga": 0,
+          "count": 1
+        }
+      ],
+      "mask_semantics": [
+        {
+          "error": "X12",
+          "valid": false,
+          "fresh": true,
+          "acquired": true,
+          "valueIsNone": true,
+          "count": 7102
+        },
+        {
+          "error": "X02",
+          "valid": false,
+          "fresh": true,
+          "acquired": true,
+          "valueIsNone": true,
+          "count": 3
+        },
+        {
+          "error": "X02",
+          "valid": false,
+          "fresh": false,
+          "acquired": false,
+          "valueIsNone": true,
+          "count": 2
+        }
+      ],
+      "violations": [],
+      "examples": [
+        {
+          "seq": 13204,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 339278,
+          "trailerEndOffset": 339874,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 14601,
+          "cell": 2,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 1347794,
+          "trailerEndOffset": 1348390,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 14603,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 1348991,
+          "trailerEndOffset": 1349587,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 14816,
+          "cell": 2,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 1504104,
+          "trailerEndOffset": 1504700,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 14818,
+          "cell": 2,
+          "code": "X12",
+          "pga": 0,
+          "headerOffset": 1505301,
+          "trailerEndOffset": 1505897,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FF",
+          "valid": "00000000000000FD",
+          "fresh": "00000000000000FF"
+        },
+        {
+          "seq": 15396,
+          "cell": 3,
+          "code": "X02",
+          "pga": 0,
+          "headerOffset": 1923153,
+          "trailerEndOffset": 1923744,
+          "expected": "00000000000000FF",
+          "acquired": "00000000000000FB",
+          "valid": "00000000000000F9",
+          "fresh": "00000000000000FB"
+        }
+      ],
+      "rail_query": {
+        "src": "external",
+        "raw": "0",
+        "mon": "0",
+        "rail": "5145000",
+        "avdd": "3350000",
+        "avss": "-1795000",
+        "exp": "5145000",
+        "err": "0",
+        "rv": "1",
+        "rs": "ok",
+        "age": "2950",
+        "ref": "unsynced",
+        "pwr": "unsynced",
+        "mux": "unsynced",
+        "split": "external_measured",
+        "aincom": "estimated",
+        "uncertaintyUv": "unknown",
+        "calUs": "103222477"
+      },
+      "rail_events_in_capture": [],
+      "observed_health": {
+        "count": 158,
+        "first": {
+          "offset": 341669,
+          "seq": "13208",
+          "engineFrameCount": "9344",
+          "modeEntryFrameCount": "8883",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "62088",
+          "crcValidOdd": "64123",
+          "crcErrors": "2263",
+          "crcRetries": "2106"
+        },
+        "last": {
+          "offset": 8190362,
+          "seq": "24088",
+          "engineFrameCount": "20224",
+          "modeEntryFrameCount": "8883",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "130149",
+          "crcValidOdd": "136422",
+          "crcErrors": "7665",
+          "crcRetries": "7502"
+        },
+        "all_errors_zero": true,
+        "all_interval64_due_precision": true,
+        "logged_engine512_boundaries": [
+          9728,
+          10240,
+          11264,
+          11776,
+          12288,
+          12800,
+          13312,
+          13824,
+          14336,
+          14848,
+          15360,
+          15872,
+          16384,
+          16896,
+          17408,
+          17920,
+          18944,
+          19456,
+          19968
+        ],
+        "log_completeness": "Diagnostics are best effort; missing health text is not filled or declared observed."
+      },
+      "observed_driver_crc_window": {
+        "first_seq": "13208",
+        "last_seq": "24088",
+        "good_crc": 140360,
+        "failed_crc": 5402,
+        "crc_checked_reads": 145762,
+        "failed_crc_fraction": 0.037060413550856874,
+        "scope": "Difference between two received ADSHEALTH cumulative driver counter samples; not exactly the capture window and not the final invalid-point rate. Includes successful retry reads and auxiliary ADC reads."
+      },
+      "disposition": {
+        "records": 5,
+        "all_abort_zero": true,
+        "all_crc_sweep_max_observed": 0
+      },
+      "battery": {
+        "before": {
+          "bt": "4117",
+          "valid": "1",
+          "fresh": "1",
+          "ageMs": "259",
+          "lastGoodMv": "4117",
+          "lastGoodValid": "1",
+          "lastGoodFresh": "1",
+          "lastGoodAgeMs": "259",
+          "lastGoodFrame": "13180",
+          "lastGoodKnown": "1",
+          "periodMs": "1000",
+          "due": "0",
+          "run": "396",
+          "validRun": "389",
+          "invalidRun": "7",
+          "skip": "0",
+          "defer": "0",
+          "boundary": "396",
+          "restoreFail": "0",
+          "retry": "0/0",
+          "unstable": "0",
+          "timeout": "0",
+          "spreadRaw": "530941",
+          "spreadMaxRaw": "584666",
+          "raw": "534747245",
+          "a8d": "1281162",
+          "ac": "777500",
+          "a8g": "2058662",
+          "ratio": "2/1",
+          "rail": "5145000",
+          "railState": "ok",
+          "vbias": "1",
+          "samples": "3",
+          "sampleUs": "8529",
+          "restore": "ok",
+          "reason": "ok"
+        },
+        "after": {
+          "bt": "4117",
+          "valid": "1",
+          "fresh": "1",
+          "ageMs": "465",
+          "lastGoodMv": "4117",
+          "lastGoodValid": "1",
+          "lastGoodFresh": "1",
+          "lastGoodAgeMs": "465",
+          "lastGoodFrame": "24078",
+          "lastGoodKnown": "1",
+          "periodMs": "1000",
+          "due": "0",
+          "run": "516",
+          "validRun": "509",
+          "invalidRun": "7",
+          "skip": "0",
+          "defer": "0",
+          "boundary": "516",
+          "restoreFail": "0",
+          "retry": "0/0",
+          "unstable": "0",
+          "timeout": "0",
+          "spreadRaw": "546564",
+          "spreadMaxRaw": "584666",
+          "raw": "534768892",
+          "a8d": "1281213",
+          "ac": "777500",
+          "a8g": "2058713",
+          "ratio": "2/1",
+          "rail": "5145000",
+          "railState": "ok",
+          "vbias": "1",
+          "samples": "3",
+          "sampleUs": "8542",
+          "restore": "ok",
+          "reason": "ok"
+        },
+        "validRun_delta": 120,
+        "invalidRun_delta": 0,
+        "restoreFail_delta": 0,
+        "BATREG_records": 360,
+        "observed_intref_values": [
+          "0"
+        ],
+        "observed_known_values": [
+          "1"
+        ],
+        "saved_restored_pairs_observed": 120,
+        "pair_mismatches": []
+      },
+      "firmware_faults": [],
+      "reset_observations": []
+    }
+  ],
+  "definitions": {
+    "X12": "SENSORARRAY_CELL_ERROR_UNSTABLE=18: fresh CRC-accepted sample set fails the5000uV spread test. It is not a route fault or a valid voltage.",
+    "X02": "SENSORARRAY_CELL_ERROR_SPI=2 is also the compatible wire code for a locally exhausted CRC retry. The first successful sample can leave acquired/fresh set even when later samples fail; valid remains clear.",
+    "pga=0": "PGA bypass, not gain zero or missing channel.",
+    "fresh_vs_valid": "Fresh/acquired records a completed contemporary conversion. The separate valid bit and Xhh token control scientific usability.",
+    "unknown_sentinel": "LastGoodKnown=0 makes4294967295 an unavailable sentinel, not a measured multi-year age."
+  },
+  "review_conclusions": [
+    "The recorded X12 points are all S1D2/PGA bypass; they remain invalid without invented zero values. The recordings do not identify whether the physical cause is floating input, settling, source noise or another analog effect.",
+    "The ordinary value/pga cache cannot ingest rejected CRC data. The fresh-read wrapper also requires current physical/configuration generation and a new DRDY/NEW_DATA result; later timeout/configuration failures remain fatal rather than being waived as CRC.",
+    "A separate PGA-only cache-stability defect was confirmed and fixed with an executed production-function regression; it is not attributed to these recorded bypass X12 points. See ads-stability-fix-review.json.",
+    "External rail calibration remains explicit configuration, not a time-refreshed internal measurement. Its AINCOM midpoint remains estimated and uncertainty unknown. Neither large frame age nor valid ADC point proves absolute voltage accuracy or correct source loading.",
+    "No rail refresh appears in these capture receipt windows. The board reports no isolated internal rail-monitor capability; CAP/VOLT paths cannot use a transparent INTREF-on monitor. Observed battery POWER/INTREF records stay INTREF=0 and matched saved/restored core pairs agree. This is register evidence, not an oscilloscope measurement of isolation.",
+    "Battery valid runs increased116/120 with no new invalid runs or restore failures in the query windows. The earlier rail_invalid state did not fabricate a last-good sample.",
+    "Observed periodic register-health reads remain at engine interval64 and include many cumulative512 boundaries across a nonzero mode-entry count. Diagnostic logs are not claimed complete.",
+    "Runtime driver CRC rate exceeds2.5% in the USB-only observed health window (about3.71%). Boot qualification must not replace this runtime evidence; this remains a separate acceptance/diagnosis item."
+  ],
+  "acceptable_scope": "Invalid-point semantics and bounded error isolation can be accepted from these records and executed regressions. Do not accept absolute analog accuracy, unknown-input interpretation, zero runtime CRC errors, or the new unflashed PGA repair as HIL-verified.",
+  "known_blocker_status": {
+    "PGA_cache": "Fixed in source and host regression; root target/HIL integration pending.",
+    "runtime_crc_over_user_tolerance": "Unresolved. Exact counter/byte/timing qualification analysis requested next; no threshold or clock change made by this review."
+  }
+}

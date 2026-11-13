@@ -1,0 +1,334 @@
+{
+  "schema": "serial_admission_diagnosis_v1",
+  "baseline_firmware_commit": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "created_utc": "2026-11-13T13:16:39.680952+00:00",
+  "scope": "completed records only; no hardware; counter queries have their own windows, not capture-only",
+  "repair-screen-02": {
+    "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.summary.json",
+    "summary_sha256": "5a48be00d9b23faa8101bd85e1f20118a5fc2ac14c94f606dfebf7dbee246047",
+    "status": "CAPTURED",
+    "error": null,
+    "capture_seconds": 120.0001104450057,
+    "capture_frames": 8083,
+    "host_frame_fps": 67.35827133846115,
+    "raw_sha256": "a3dbc379015933ee6a024f8cc998b4940416880b33150b1bae153b87a9971c2d",
+    "queries": {
+      "PERF?": {
+        "before_started": 81628.561216914,
+        "before_finished": 81628.58020479,
+        "after_started": 81748.858096485,
+        "after_finished": 81748.883699018,
+        "delta": {
+          "pub": 8498,
+          "fresh": 8486,
+          "stale": 12,
+          "dropOut": 0,
+          "dropEvent": 0,
+          "usbSent": 9007,
+          "usbDrop": 511
+        }
+      },
+      "USBSTREAM?": {
+        "before_started": 81628.580210741,
+        "before_finished": 81628.632075792,
+        "after_started": 81748.883701593,
+        "after_finished": 81748.944426564,
+        "delta": {
+          "sinkQueued": 9851,
+          "sinkDropped": 659,
+          "lineDropped": 149,
+          "timeout": 0,
+          "partialWrite": 0
+        }
+      },
+      "SERIAL?": {
+        "before_started": 81628.771253177,
+        "before_finished": 81628.787111666,
+        "after_started": 81749.080668534,
+        "after_finished": 81749.101520604,
+        "delta": {
+          "normalSubmitted": 9840,
+          "normalExpired": 0,
+          "prioritySubmitted": 11,
+          "priorityExpired": 0,
+          "priorityRejected": 0,
+          "driverShortWrite": 0,
+          "driverWriteError": 0,
+          "txYield": 3089,
+          "driverAcceptedBytes": 5780366
+        }
+      }
+    },
+    "capture_offsets": {
+      "start": 262872,
+      "end": 6028947
+    },
+    "capture_raw_bytes": 5766075,
+    "capture_raw_bytes_per_second": 48050.58077544443,
+    "frame_completion_window_count": 8083,
+    "complete_frame_both_ends_inside": 8082,
+    "gap_events": 380,
+    "missing_sequences": 397,
+    "gaps_with_compact_summary": 263,
+    "gaps_with_ads_summary": 243,
+    "gap_size_counts": {
+      "1": 363,
+      "2": 17
+    },
+    "received_tag_counts": {
+      "D0": 8083,
+      "P0": 8083,
+      "K": 8083,
+      "SF50": 499,
+      "TR50": 499,
+      "OT50": 499,
+      "BL50": 499,
+      "I2C50": 499,
+      "STK50": 499,
+      "V": 8082,
+      "ADSHEALTH": 118,
+      "ADS50": 409,
+      "ADST50": 409,
+      "AB50": 409,
+      "ADSSPI": 128,
+      "ADSSPIBYTES": 125,
+      "ADSDISPOSITION": 46,
+      "BATREG": 334,
+      "BATRAW": 48,
+      "ADSFRAME": 19,
+      "TXDROP": 13
+    },
+    "representative_gaps": [
+      {
+        "previous": 1295,
+        "next": 1297,
+        "missing": 1,
+        "previous_trailer_end": 263397,
+        "next_header_offset": 264178,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 264037,
+          "length": 384,
+          "host_monotonic": 81628.850511171
+        }
+      },
+      {
+        "previous": 1298,
+        "next": 1300,
+        "missing": 1,
+        "previous_trailer_end": 265368,
+        "next_header_offset": 265556,
+        "intervening_tags": [
+          "ADSHEALTH"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 265556,
+          "length": 256,
+          "host_monotonic": 81628.898385734
+        }
+      },
+      {
+        "previous": 1330,
+        "next": 1332,
+        "missing": 1,
+        "previous_trailer_end": 285755,
+        "next_header_offset": 287539,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50",
+          "ADS50",
+          "ADST50",
+          "AB50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 287433,
+          "length": 128,
+          "host_monotonic": 81629.328074683
+        }
+      },
+      {
+        "previous": 1345,
+        "next": 1347,
+        "missing": 1,
+        "previous_trailer_end": 295857,
+        "next_header_offset": 297640,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50",
+          "ADS50",
+          "ADST50",
+          "AB50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 297432,
+          "length": 256,
+          "host_monotonic": 81629.528291957
+        }
+      },
+      {
+        "previous": 1348,
+        "next": 1350,
+        "missing": 1,
+        "previous_trailer_end": 299146,
+        "next_header_offset": 299146,
+        "intervening_tags": [],
+        "next_header_receive_chunk": {
+          "offset": 299065,
+          "length": 384,
+          "host_monotonic": 81629.579786107
+        }
+      },
+      {
+        "previous": 1365,
+        "next": 1367,
+        "missing": 1,
+        "previous_trailer_end": 308842,
+        "next_header_offset": 310621,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50",
+          "ADS50",
+          "ADST50",
+          "AB50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 310517,
+          "length": 128,
+          "host_monotonic": 81629.798475507
+        }
+      },
+      {
+        "previous": 1380,
+        "next": 1382,
+        "missing": 1,
+        "previous_trailer_end": 318939,
+        "next_header_offset": 320724,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50",
+          "ADS50",
+          "ADST50",
+          "AB50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 320600,
+          "length": 128,
+          "host_monotonic": 81629.999989281
+        }
+      },
+      {
+        "previous": 1430,
+        "next": 1432,
+        "missing": 1,
+        "previous_trailer_end": 353592,
+        "next_header_offset": 355378,
+        "intervening_tags": [
+          "SF50",
+          "TR50",
+          "OT50",
+          "BL50",
+          "I2C50",
+          "STK50",
+          "ADS50",
+          "ADST50",
+          "AB50"
+        ],
+        "next_header_receive_chunk": {
+          "offset": 355288,
+          "length": 128,
+          "host_monotonic": 81630.710715733
+        }
+      }
+    ],
+    "window_boundary_note": "The online 8083 frame count includes one frame whose header starts 67 bytes before capture_start. Complete headers-and-trailers strictly inside are 8082; no missing/truncated raw bytes are reconstructed."
+  },
+  "repair-screen-02-usb-only": {
+    "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json",
+    "summary_sha256": "98d6fd00181c07f1fbe7f543aecee119141423069a7bf81ac810bebe6f56df93",
+    "status": "CAPTURED",
+    "error": null,
+    "capture_seconds": 120.00035054299224,
+    "capture_frames": 10913,
+    "host_frame_fps": 90.94140100940976,
+    "raw_sha256": "912e2fa9e4f63eb32fb99ca19c44aafd3ab1d573e49635a42007ae792ba93f48",
+    "queries": {
+      "PERF?": {
+        "before_started": 82021.560275403,
+        "before_finished": 82021.562936704,
+        "after_started": 82141.589089122,
+        "after_finished": 82141.592441172,
+        "delta": {
+          "pub": 10916,
+          "fresh": 10914,
+          "stale": 2,
+          "dropOut": 0,
+          "dropEvent": 0,
+          "usbSent": 12226,
+          "usbDrop": 0
+        }
+      },
+      "USBSTREAM?": {
+        "before_started": 82021.562943513,
+        "before_finished": 82021.566656553,
+        "after_started": 82141.592460447,
+        "after_finished": 82141.595663705,
+        "delta": {
+          "sinkQueued": 13126,
+          "sinkDropped": 13,
+          "lineDropped": 13,
+          "timeout": 0,
+          "partialWrite": 0
+        }
+      },
+      "SERIAL?": {
+        "before_started": 82021.577646234,
+        "before_finished": 82021.57985858,
+        "after_started": 82141.609138124,
+        "after_finished": 82141.611144208,
+        "delta": {
+          "normalSubmitted": 13116,
+          "normalExpired": 0,
+          "prioritySubmitted": 11,
+          "priorityExpired": 0,
+          "priorityRejected": 0,
+          "driverShortWrite": 0,
+          "driverWriteError": 0,
+          "txYield": 1,
+          "driverAcceptedBytes": 7877379
+        }
+      }
+    }
+  },
+  "conclusions": [
+    "No normal TX expiry, driver short-write or driver error increment in the dual-link query window; loss is before USB driver admission.",
+    "UsbSink droppedPackets combines scientific DATA and both compact/ADS diagnostic packet calls. +511 must not be called +511 scientific-frame drops.",
+    "Serial sinkDropped +659 and lineDropped +149 localize the losses to admission; differing query windows account for the one-count difference from UsbSink +511.",
+    "The real old source permits priority-7 AsyncLog to enqueue science, two summary packets and diagnostic lines into one four-record FIFO before priority-4 serialTx can run. Production host reproduction rejects the next science record with timeout/partial counters unchanged.",
+    "Observed diagnostic adjacency supports the burst mechanism but raw RX alone cannot reconstruct scheduler timing of a rejected packet.",
+    "The same firmware USB-only control captures 10913 frames without a sequence gap per root analyzer and usbDrop delta0; native USB bandwidth is not established as the dual-link bottleneck.",
+    "New class-specific dataRejected/logRejected make the next HIL evidence distinguish science admission from diagnostic refusal."
+  ]
+}

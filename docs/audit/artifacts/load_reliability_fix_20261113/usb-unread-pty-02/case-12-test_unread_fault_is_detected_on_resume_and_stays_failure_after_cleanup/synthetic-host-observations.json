@@ -1,0 +1,305 @@
+{
+  "opened": [
+    {
+      "fd": 7,
+      "time": 85766.461265788
+    }
+  ],
+  "closed": [
+    {
+      "fd": 7,
+      "time": 85766.645666305
+    }
+  ],
+  "read_calls": [
+    {
+      "fd": 7,
+      "monotonic": 85766.463122831
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.463469193
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.463716655
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.463990834
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.464259976
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.464558786
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.464853713
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.465121651
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.465339672
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.465659825
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.465982103
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.466320587
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.466698506
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.46702334
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.467330545
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.467707881
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.468036675
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.468332333
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.46860138
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.468956123
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.469629711
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.478138783
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.486764292
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.495272227
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.504811449
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.513682413
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.522376724
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.531122011
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.539844853
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.54863307
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.640668291
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.642526089
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.642997062
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.643474899
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.643909986
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.644302471
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.644735073
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.645111784
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.645357644
+    },
+    {
+      "fd": 7,
+      "monotonic": 85766.645554256
+    }
+  ],
+  "commands_during_pause": [],
+  "synthetic_frame_generation": [
+    {
+      "monotonic": 85766.469386556,
+      "sequence": 1,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.47790491,
+      "sequence": 2,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.486406634,
+      "sequence": 3,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.494981152,
+      "sequence": 4,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.504342649,
+      "sequence": 5,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.513204827,
+      "sequence": 6,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.522018325,
+      "sequence": 7,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.530749702,
+      "sequence": 8,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.539372342,
+      "sequence": 9,
+      "bytes_accepted_by_pty": 672,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.548148487,
+      "sequence": 10,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": false
+    },
+    {
+      "monotonic": 85766.556966963,
+      "sequence": 11,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.565654373,
+      "sequence": 12,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.574409944,
+      "sequence": 13,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.583211961,
+      "sequence": 14,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.591957867,
+      "sequence": 15,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.600563754,
+      "sequence": 16,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.609213462,
+      "sequence": 17,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.618056548,
+      "sequence": 18,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.626721095,
+      "sequence": 19,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.635294254,
+      "sequence": 20,
+      "bytes_accepted_by_pty": 674,
+      "during_application_unread": true
+    },
+    {
+      "monotonic": 85766.64332971,
+      "sequence": 21,
+      "bytes_accepted_by_pty": 342,
+      "during_application_unread": false
+    }
+  ]
+}

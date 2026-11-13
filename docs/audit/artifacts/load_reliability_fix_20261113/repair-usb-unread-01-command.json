@@ -1,0 +1,23 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_usb_unread.py",
+    "--port",
+    "/dev/ttyACM0",
+    "--output-directory",
+    "docs/audit/artifacts/load_reliability_fix_20261113",
+    "--label",
+    "repair-usb-unread-01"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 150.0,
+  "head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "dirty_diff_sha256": "62f16e9bf8e1ce43696ef66664ebb8148f0cfc04377db1498eb4dde65980b347",
+  "started_utc": "2026-11-13T14:19:17.906400+00:00",
+  "started_monotonic": 86451.27412375,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-usb-unread-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T14:20:07.572788+00:00",
+  "finished_monotonic": 86502.381632693,
+  "log_sha256": "36aeb7c566337b405834d9804bad2eecb34d6d236c31dc16b4f8450a701eb07c"
+}

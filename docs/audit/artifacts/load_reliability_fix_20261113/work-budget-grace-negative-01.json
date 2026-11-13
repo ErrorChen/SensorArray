@@ -1,0 +1,15 @@
+{
+  "status": "REPRODUCED",
+  "head": "fd0190a3a175938e92e702a111ae9d35982d678f",
+  "command": [
+    "python3",
+    "tools/test_work_budget.py"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 0.283275263995165,
+  "assertion": "yielded == 0u",
+  "evidence": "Actual production WorkBudget included in native harness; after every real idle callback worker sees age=2 and is incorrectly delayed on its first unit. Synthetic timing, not HIL.",
+  "source_sha256": "f3f490fddcba98bf0a4d41ec8bf397f8b4ef0f9a9fa42575c78f1f45024afc99",
+  "source_copy": "docs/audit/artifacts/load_reliability_fix_20261113/work-budget-before-grace-01.c.txt",
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/work-budget-grace-negative-01.txt"
+}

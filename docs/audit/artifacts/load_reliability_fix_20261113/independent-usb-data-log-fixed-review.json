@@ -1,0 +1,51 @@
+{
+  "reviewed_HEAD": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "source_hashes": {
+    "core/transport/sensorarraySerialIo.c": "733a77c5213e69d20f7da57b3adc60c7914a18e6b35bed63fbb6c5cc13eeec43",
+    "core/transport/sensorarraySerialIo.h": "2c1337f7207c42503a8f26f731b9fdbcadb568705aab1d9a047ac2646b8e065f",
+    "main/output/sensorarrayUsbSink.c": "cfa71e9d866bf0e0a9b61dc58ffb99716424742b1ee289fde44e167c3fb7c055",
+    "main/output/sensorarrayUsbSink.h": "e40f08fb14bb6d3c150ee7f386b34ed97293035d93115ab5cdfd986099dd185e",
+    "main/output/sensorarrayAsyncLog.c": "4ed9db735efae5b28972761307c04355e8ffced1157fed5d03649ad5e49b45ab",
+    "main/output/sensorarrayFrameOutput.c": "7619272b04b12f99679d02f99b68c867c42b7395d0d72c878295d14122f6b3f9",
+    "main/main.c": "4a473d893f49371796c90a87a5dec1949d8f8488f29405e39c716cb4cf906728"
+  },
+  "production_changed_by_reviewer": false,
+  "hardware_actions": false,
+  "tests": {
+    "command": "python3 docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-data-log-fixed.py",
+    "exit_code": 0,
+    "source_unchanged_during_run": true,
+    "script_sha256": "2d149622bf914b745670e870ae036b599d3038e9242ab40721fdd94d6ad10e2f",
+    "log_sha256": "217e9b241985e24f1f8bd116bf3b4b90d9cb59a8aacf98c0b3c254cc1d9a6652",
+    "new_schedules": 3,
+    "init_memory_variants": 9,
+    "schedule_executions": 27,
+    "new_cases": [
+      "Two unfinished LOG streams across16wake/drain rounds:64DATA+64CTRL accepted/submitted,0DATA rejected,16LOG rejected,allDATA/CTRL slots freed each round.",
+      "Six diagnostic TEXT records without intermediateTX service:2LOGaccepted+4wholeLOGrejected,DATA andMFAULTpriority preserved. This is a measured limitation,not guaranteed fault diagnostic delivery.",
+      "LOG positive short prefix followed by nohost expiresLOG+DATA atnormal deadline andoldCTRL atpriority deadline;nextwake in SAME TX invocation retains delimiter and emits complete freshCTRL;allslotsreclaimed."
+    ],
+    "boundaries": "Actual SerialIo, WorkBudget and output facade functions; RTOS and driver boundaries are synthetic. Does not establish USB or radio throughput."
+  },
+  "diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "inspection": [
+    "DATA0..4,CTRL5..8,LOG9..10 pools aredisjoint;payloadLOG9/10 mapsPSRAMslots5/6within7allocation.",
+    "Init allocates once;retry retains successful allocation;no producer allocates payload ordoesphysicalUSBwrite.",
+    "Any positiveprefixwins across all3lanes;atwhole-record boundariesCTRLwins andwaitingLOGgetsserviceafteratmost4completedDATA.",
+    "All3lane originalenqueue deadlines apply;expirationcountsnormal(DATA+LOG) separatelyfrompriority;drainProgresspreventsstrandedqueuedslotswithoutfutureproducerwake.",
+    "Unchanged lockorder:stdioFILE->boundedpool/queue/stats;TXneverwaitsFILE;noappspinlockheldacrossUSBdriverorWorkBudget.",
+    "Data/log rejectedcounters describeadmissionfailure;data/log submittedcounters describecompleteddrivercopy,notPCreceipt.",
+    "Actualcallsiteaudit:FrameOutputPrint/UsbSinkPublish science useQueueData;onlytwoAsyncLogsummarycallsusePublishDiagnostic;directstdout/stderruseLOG;criticalprotocol/repliesusepriority.",
+    "SERIALformatter maximum435bytes withuint32max/uint64max,below512limit."
+  ],
+  "verdict": "No additional confirmed P0/P1 in reviewed DATA/LOG separation. HIL verification of throughput andscientificframegaps remainsrequired.",
+  "limitations": [
+    "LOGremainsbest-effort:unservicedfaultcontextburstmaydropaftertwofullLOGslots. MFAULTterminalhasindependentprioritybutnetwork/PCreceiptisnotguaranteed.",
+    "ContinuousCTRLcanconsumephysicalUSBservice aheadDATA/LOG;theiroriginaldeadlinesboundretention.",
+    "Oldnormal aggregatecountersemantics retained;PERFusbDropstillincludesscience+diagnostics.",
+    "No claim thatallcapture/transportperformancevariationwascausedbyqueuecontensionorWorkBudget."
+  ]
+}

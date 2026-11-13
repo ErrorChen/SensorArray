@@ -1,0 +1,25 @@
+{
+  "command": [
+    "python3",
+    "tools/analyze_firmware_benchmark.py",
+    "--directory",
+    "docs/audit/artifacts/load_reliability_fix_20261113",
+    "--output",
+    "docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-03.json",
+    "--ble-journal",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.notifications.jsonl",
+    "--selection-output",
+    "docs/audit/artifacts/load_reliability_fix_20261113/screen-selection-03.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "dirty_diff_sha256": "6a0742713872aeaf2e9e7738ef88324ef649c23a20ccb3184168b51104087a2a",
+  "started_utc": "2026-11-13T13:09:45.000741+00:00",
+  "started_monotonic": 82281.47548969,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-03-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T13:09:50.378997+00:00",
+  "finished_monotonic": 82286.85376401,
+  "log_sha256": "c4f4b1cf32846ec5cccf9cada55a2f7f8b3ab36407cf914fe0ce45b971d36f60"
+}

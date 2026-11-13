@@ -1,0 +1,541 @@
+{
+  "evidence_type": "READ_ONLY_SOURCE_AND_COMPLETED_RECORDING_AUDIT",
+  "hardware_actions": false,
+  "production_modified": false,
+  "build_invoked": false,
+  "capture_firmware": {
+    "commit": "b44c37b51067e376e73aa44535ea47d175846b67",
+    "app_sha256": "d29289eeb6f93de96adfb59f7cf8a2e2142ecc9e46baf510355ce76a01ddb531",
+    "not_current_new_firmware_HIL": true
+  },
+  "current_head_reported_by_root": "d314888",
+  "source_hashes": {
+    "components/ads126xAdc/ads126xAdc.c": {
+      "current_sha256": "6bed581d19eaad1fb11fd2c76051d0fbdbcf0f11abc64119fd3125f085418cd9",
+      "matches_recorded_repair05_input": true
+    },
+    "core/board/sensorarrayAdsSpiProbe.c": {
+      "current_sha256": "5814b419862cee20e5ff037e8366251868960cf5b251cba4b721ddf1e596e7cc",
+      "matches_recorded_repair05_input": true
+    },
+    "core/board/sensorarrayBringup.c": {
+      "current_sha256": "82faa959c7893dcebdd30691fc15ed8e81e98830c2e3804db355c8000d1b71ec",
+      "matches_recorded_repair05_input": true
+    },
+    "core/measure/sensorarrayRouteController.c": {
+      "current_sha256": "77428327ea44b0b022004bb70bbca1e09042b20fcd0c91bd3b0a5a388092d0a6",
+      "matches_recorded_repair05_input": true
+    },
+    "core/measure/ads/sensorarrayAdsGap.c": {
+      "current_sha256": "bb61ebe9cb26f4f2710c8adf69370e1814c1c637d30cde745ed2e77da83e3f4f",
+      "matches_recorded_repair05_input": true
+    },
+    "core/board/sensorarrayFrontendStartup.c": {
+      "current_sha256": "37d4090cf9920be0bb35e343cf9144a2a7a376709a7158458af2294c6858024c",
+      "matches_recorded_repair05_input": true
+    },
+    "core/measure/ads/sensorarrayAdsMatrix.c": {
+      "current_sha256": "79521281d85f3c136e41a7d073e0ef3faff87e8ec32fc44d87ad47e2e62624eb",
+      "matches_recorded_repair05_input": false
+    },
+    "sdkconfig": {
+      "current_sha256": "38d231ad6641c38f86205c05123f83f208abe29ee99623c5c9149a993de90ab1",
+      "matches_recorded_repair05_input": true
+    }
+  },
+  "window_evidence": [
+    {
+      "label": "repair-screen-02-usb-only",
+      "source": "screen-analysis-03.json:captures[label].adc_counter_windows.health",
+      "window_kind": "periodic_ADSHEALTH_first_last_receipts_inside_capture_not_active_queries",
+      "host_receipt_span_seconds": 119.61224447999848,
+      "crc_valid_even_delta": 68061,
+      "crc_valid_odd_delta": 72299,
+      "crc_errors_delta": 5402,
+      "crc_retries_delta": 5396,
+      "checked_wire_frames": 145762,
+      "rejected_checked_wire_fraction": 0.037060413550856874,
+      "threshold_fraction": 0.025,
+      "exceeds_threshold": true
+    },
+    {
+      "label": "repair-screen-02",
+      "source": "screen-analysis-03.json:captures[label].adc_counter_windows.health",
+      "window_kind": "periodic_ADSHEALTH_first_last_receipts_inside_capture_not_active_queries",
+      "host_receipt_span_seconds": 119.59078506399237,
+      "crc_valid_even_delta": 53957,
+      "crc_valid_odd_delta": 55618,
+      "crc_errors_delta": 1834,
+      "crc_retries_delta": 1784,
+      "checked_wire_frames": 111409,
+      "rejected_checked_wire_fraction": 0.01646186573795654,
+      "threshold_fraction": 0.025,
+      "exceeds_threshold": false
+    }
+  ],
+  "counter_semantics": [
+    "adc1CrcValidEven/Odd increment only on CRC-8 equality, classified by computed CRC LSB; this is CRC validity before later freshness/configuration/status/scientific acceptance.",
+    "adc1CrcErrorCount counts rejected ADC1 wire checks including retry reads. Denominator=delta_even+delta_odd+delta_errors; do not add retries again.",
+    "This is not rejected scientific-point fraction, first-attempt error fraction, or fraction of every ADC conversion. ADC1 helper reads can contribute.",
+    "Counters are cumulative for the ADC handle, not reset by MODE. Compare modulo uint32 only within the same boot/session without handle reinitialization.",
+    "The119.61224448-second health receipt window is inside the120.00035054-second USB-only capture, not its exact boundaries. The analyzer generic query_snapshots label does not mean active health queries."
+  ],
+  "crc_algorithm_review": {
+    "datasheet": "datasheets/ads1263.pdf, ZHCSDN4C May2021, sections9.4.7.2/9.4.7.3.4 pp70/73-74",
+    "adc1_data_bytes": 4,
+    "optional_status_bytes": 1,
+    "crc_bytes": 1,
+    "response_bytes": 6,
+    "rdata_opcode": 18,
+    "transaction_bits": 56,
+    "polynomial": 263,
+    "initial_remainder": 0,
+    "msb_first": true,
+    "status_excluded_from_crc": true,
+    "independent_method_executed": "Python integer polynomial long division of (four data bytes <<8) by0x107",
+    "whole_raw_diagnostic_records_checked": 126,
+    "logged_computed_crc_mismatches": 0,
+    "capture_diagnostic_records": 121,
+    "capture_xor01_count": 121,
+    "whole_raw_xor01_count": 126,
+    "direction": "computed CRC bit0=0, received bit0=1",
+    "single_payload_bit_syndrome01_positions": [],
+    "interpretation": "Under a single-bit-error assumption, syndrome01 points to the final CRC bit rather than one of the32 data bits. Rate-limited first-error records do not cover all5402 rejects; multi-bit corruption and exact electrical timing remain unproven."
+  },
+  "serial_timing_review": {
+    "configured_mode": 1,
+    "configured_duty_cycle_pos": 128,
+    "configured_cs_gpio": -1,
+    "requested_hz": 750000,
+    "idf_reported_actual_hz": 754000,
+    "actual_hz_source": "IDF rounded kHz, not oscilloscope",
+    "datasheet": "tables7.6/7.7 pp10: period>=125ns; high/low>=40ns; DOUT valid<=60ns after rising; last falling to CS rising>=40ns",
+    "nominal_period_ns_from_reported_clock": 1326.2599469496022,
+    "nominal_half_cycle_ns": 663.1299734748011,
+    "nominal_timing_violation_found": false,
+    "physical_waveform_verified": false,
+    "cs_hold_conclusion": "This configuration has no software CS output. IDF5.5.5 spi_bus_add_device maps cs_ena_posttrans=0 to hal cs_hold=1 clock; absent explicit field does not prove a hold-time violation.",
+    "miso_delay_conclusion": "ESP32-S3 spi_ll_set_miso_delay is empty in this IDF. Do not assume input_delay_ns or a sample-point assignment changes physical final-bit sampling in this path.",
+    "historical_25_percent_high_candidate": "reference_fixture/ads_crc_timing_ab/notes.md retains failed2MHz/duty64 A/B; current duty128 is intentional. No repeat experiment performed."
+  },
+  "conversion_overlap_review": {
+    "configured_rate_code": 15,
+    "configured_rate_sps": 38400,
+    "nominal_conversion_period_us": 26.041666666666668,
+    "nominal_rdata_duration_us": 74.27055702917772,
+    "datasheet_sections": "9.4.7,9.4.7.1 p69 and9.4.7.2 p70",
+    "conclusion": "Production uses command RDATA1, not direct read. The datasheet describes output-shift and holding registers: new conversions during ongoing data/register operations update holding only. The next-DRDY-minus16fCLK completion requirement belongs to direct read. A74.27us command transaction crossing26.04us conversion intervals does not by itself prove overwrite or protocol violation; unread intermediate conversions can be lost.",
+    "unknown": "Exact command-mode final-CRC-bit to DOUT/DRDY transition timing is not specified sufficiently here to prove the electrical cause."
+  },
+  "boot_qualification": {
+    "source": "sensorarrayAdsSpiProbePass/Run",
+    "sample_policy": {
+      "screen_total_per_candidate": 400,
+      "screen_required_per_profile": 200,
+      "screen_max_crc_per_profile": 5,
+      "confirm_total_per_candidate": 1600,
+      "confirm_required_per_profile": 800,
+      "confirm_max_crc_per_profile": 20,
+      "profiles": [
+        "PGA enabled gain1",
+        "PGA bypass gain1"
+      ],
+      "minimum_valid_even_per_pass": 32,
+      "minimum_valid_odd_per_pass": 32,
+      "crc_retry_budget_per_read": 0,
+      "nonconstant_unsaturated_raw_required": true,
+      "stop_candidate_after_first_failed_pass": true
+    },
+    "boot_raw_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.rx.bin",
+    "boot_raw_sha256": "30d9fd3def68cf60118fc73d7dcf79f2e6d19c17b3eca25e647ffba5fb91a03e",
+    "complete_pass_records": [
+      {
+        "byte_offset": 14949,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=2000000,actualHz=2000000,actualSource=idf_khz,required=200,attempted=121,valid=115,even=51,odd=64,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "2000000",
+          "actualHz": "2000000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "121",
+          "valid": "115",
+          "even": "51",
+          "odd": "64",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 23640,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1900000,actualHz=1904000,actualSource=idf_khz,required=200,attempted=117,valid=111,even=45,odd=66,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "1900000",
+          "actualHz": "1904000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "117",
+          "valid": "111",
+          "even": "45",
+          "odd": "66",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 43943,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1600000,actualHz=1600000,actualSource=idf_khz,required=200,attempted=75,valid=69,even=38,odd=31,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "1600000",
+          "actualHz": "1600000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "75",
+          "valid": "69",
+          "even": "38",
+          "odd": "31",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 84653,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1300000,actualHz=1290000,actualSource=idf_khz,required=200,attempted=47,valid=41,even=18,odd=23,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "1300000",
+          "actualHz": "1290000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "47",
+          "valid": "41",
+          "even": "18",
+          "odd": "23",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 96193,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1100000,actualHz=1111000,actualSource=idf_khz,required=200,attempted=200,valid=195,even=90,odd=105,crc=5,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=ok,err=0x0",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "1100000",
+          "actualHz": "1111000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "200",
+          "valid": "195",
+          "even": "90",
+          "odd": "105",
+          "crc": "5",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "ok",
+          "err": "0x0"
+        }
+      },
+      {
+        "byte_offset": 118840,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1000000,actualHz=1000000,actualSource=idf_khz,required=200,attempted=136,valid=130,even=66,odd=64,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "1000000",
+          "actualHz": "1000000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "136",
+          "valid": "130",
+          "even": "66",
+          "odd": "64",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 160613,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=800000,actualHz=800000,actualSource=idf_khz,required=200,attempted=176,valid=170,even=78,odd=92,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "800000",
+          "actualHz": "800000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "176",
+          "valid": "170",
+          "even": "78",
+          "odd": "92",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 160851,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=800000,actualHz=800000,actualSource=idf_khz,required=200,attempted=176,valid=170,even=78,odd=92,crc=6,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=crc_rate,err=0x109",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "pga1",
+          "requestedHz": "800000",
+          "actualHz": "800000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "176",
+          "valid": "170",
+          "even": "78",
+          "odd": "92",
+          "crc": "6",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "crc_rate",
+          "err": "0x109"
+        }
+      },
+      {
+        "byte_offset": 181445,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=bypass,requestedHz=750000,actualHz=754000,actualSource=idf_khz,required=200,attempted=200,valid=199,even=101,odd=98,crc=1,maxCrc=5,permille=25,status=0,register=0,timeout=0,reason=ok,err=0x0",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "screen",
+          "profile": "bypass",
+          "requestedHz": "750000",
+          "actualHz": "754000",
+          "actualSource": "idf_khz",
+          "required": "200",
+          "attempted": "200",
+          "valid": "199",
+          "even": "101",
+          "odd": "98",
+          "crc": "1",
+          "maxCrc": "5",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "ok",
+          "err": "0x0"
+        }
+      },
+      {
+        "byte_offset": 181826,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=confirm,profile=pga1,requestedHz=750000,actualHz=754000,actualSource=idf_khz,required=800,attempted=800,valid=800,even=394,odd=406,crc=0,maxCrc=20,permille=25,status=0,register=0,timeout=0,reason=ok,err=0x0",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "confirm",
+          "profile": "pga1",
+          "requestedHz": "750000",
+          "actualHz": "754000",
+          "actualSource": "idf_khz",
+          "required": "800",
+          "attempted": "800",
+          "valid": "800",
+          "even": "394",
+          "odd": "406",
+          "crc": "0",
+          "maxCrc": "20",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "ok",
+          "err": "0x0"
+        }
+      },
+      {
+        "byte_offset": 182210,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=confirm,profile=bypass,requestedHz=750000,actualHz=754000,actualSource=idf_khz,required=800,attempted=800,valid=800,even=423,odd=377,crc=0,maxCrc=20,permille=25,status=0,register=0,timeout=0,reason=ok,err=0x0",
+        "fields": {
+          "owner": "BOOT",
+          "phase": "confirm",
+          "profile": "bypass",
+          "requestedHz": "750000",
+          "actualHz": "754000",
+          "actualSource": "idf_khz",
+          "required": "800",
+          "attempted": "800",
+          "valid": "800",
+          "even": "423",
+          "odd": "377",
+          "crc": "0",
+          "maxCrc": "20",
+          "permille": "25",
+          "status": "0",
+          "register": "0",
+          "timeout": "0",
+          "reason": "ok",
+          "err": "0x0"
+        }
+      }
+    ],
+    "malformed_pass_lines": [
+      {
+        "byte_offset": 32184,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1800000,actualHz=1818000,actualSource=idf_khz,required=200,attempted=BOARD_I2C_ERR,port=0,addr=0x2B,op=write_read,err=0xffffffff,kind=nack,busState=OK,recoverAction=no_recover_device_nack",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 36918,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1700000,actualHz=1702000,actualSource=idf_khz,required=200,attempted=BOARD_I2C_INIT,stage=begin,port=0,sda=9,scl=10,requestedFreqHz=385000",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 69347,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=bypass,requestedHz=1500000,actualHz=1509000,actualSource=idf_khz,required=200,attempteBOARD_I2C_XFER,stage=end,port=0,addr=0x2B,op=write_read,err=0xffffffff,elapsedUs=393,sda=1,scl=1,busState=OK,nackCount=197,timeoutCount=0,offline=0",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 80176,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profild: -1",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 92026,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=1200000,actualHz=1212000,actualSource=idf_khz,required=200,attempted=utCount=0,offline=0",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 107197,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=bypass,requestedHz=1100000,actualHz=1111000,actualSource=idf_khz,required=200,attempteBOARD_I2C_XFER,stage=end,port=1,addr=0x2A,op=write_read,err=0xffffffff,elapsedUs=400,sda=1,scl=1,busState=OK,nackCount=34,timeoutCount=0,offline=0",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 126690,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=950000,actualHz=952000,actualSource=idf_khz,required=200,attempted=93BOARD_I2C_ERR,port=1,addr=0x2A,op=write_read,err=0xffffffff,kind=nack,busState=OK,recoverAction=no_recover_device_nack",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 136030,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=900000,actualHz=909000,actualSource=idf_khz,required=200,attempted=12ope=raw_link_only",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 146869,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=850000,actualHz=851000,actualSource=idf_khz,required=200,attempted=13BOARD_I2C_XFER,stage=end,port=1,addr=0x2A,op=write_read,err=0xffffffff,elapsedUs=390,sda=1,scl=1,busState=OK,nackCount=166,timeoutCount=0,offline=0",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      },
+      {
+        "byte_offset": 175674,
+        "original_line": "SPI_SWEEP,owner=BOOT,phase=screen,profile=pga1,requestedHz=750000,actualHz=754000,actualSource=idf_khz,required=200,attempted=20BOARD_I2C_ERR,port=1,addr=0x2A,op=write_read,err=0xffffffff,kind=nack,busState=OK,recoverAction=no_recover_device_nack",
+        "classification": "MALFORMED_OR_INTERLEAVED_DO_NOT_RECONSTRUCT"
+      }
+    ],
+    "selected_records": [
+      {
+        "byte_offset": 182598,
+        "original_line": "SPI_SELECTED,owner=BOOT,qualified=1,restored=1,selectedHz=750000,actualHz=754000,actualSource=idf_khz,candidates=16,err=0x0,cleanup=0x0,firstCandidateError=0x109,startUs=128616,endUs=1572273,scope=boot_link_samples"
+      }
+    ],
+    "selected_screen_pga1_raw_result": "unknown: line interleaved after attempted=20; source predicates are not reconstructed raw evidence",
+    "cumulative_SPI_query_scope": "all_candidates including rejected candidates;104 CRC/4146 attempts is not selected-candidate qualification rate",
+    "record_count_warning": "Complete records include a duplicated 800kHz pass in raw output. Do not sum recorded lines as unique qualification attempts; source summary scope and original offsets are preserved."
+  },
+  "boot_vs_runtime": {
+    "same_path": "ReadAdc1FreshChecked -> ReadAdc1RawDmaReady -> SpiTransferDmaLocked -> SpiTransferLocked -> queue_trans/get_trans_result, command+6byte response, persistent DMA storage. No separate boot polling-SPI format.",
+    "same_configured_features": [
+      "MODE0 continuous/chopoff/delay0",
+      "MODE1 SINC1",
+      "DR0xF38.4kSPS",
+      "STATUS+CRC8",
+      "VOLT/boot INTREFoff and AVDD/AVSS reference"
+    ],
+    "different_conditions": [
+      "boot INPMUXAA ties both inputs to AINCOM; matrix AIN0..7 versus AINCOM and external row routing",
+      "boot25ms VBIAS guard and stationary continuous200/800 reads perprofile; matrix percellMODE2/INPMUX writes, caches/adaptive/precision and post-write generations",
+      "boot no CRC retry and delay1 every32attempts; runtime shared percell budget permits one fresh CRC retry",
+      "boot workerCore0 overlapsI2C startup; matrix callerCore1 overlapsactiveUSB/BLE/output",
+      "Input bit patterns, intercommand intervals and DRDY/SCLK phase are not equivalent despite sameSPIformat"
+    ],
+    "historical_source_limit": "Current Matrix changed in parallel and differs from repair05 input hash; old runtime PGA behavior is not inferred from new Matrix. Driver/probe/route/gap/bringup/startup/sdkconfig hashes match."
+  },
+  "runtime_policy": {
+    "rolling_crc_rate_gate_found": false,
+    "runtime_spi_requalification_found": false,
+    "probe_only_caller": "sensorarrayFrontendStartup.c:sensorarrayBootSpiTask",
+    "existing_bounds": [
+      "finite percell new-conversion CRC retry",
+      "X02 invalid local samples without successfulcache/PGA update",
+      "three entirely CRC-rejected ADS sweeps fail global disposition; scattered3.7%rejects need not reach that condition"
+    ],
+    "limitation": "Finite stationary boot qualification does not certify runtime rate under different input/scheduling conditions."
+  },
+  "boot_log_integrity": {
+    "observed": "SPI_SWEEP lines contain BOARD_I2C text; incomplete fields are not repaired",
+    "SPI_source": "one plain printf call in sensorarrayAdsSpiProbe.c",
+    "I2C_source": "boardSupportLogPrintf vsnprintf into384B then callback or fwrite; AsyncLog emits whole text events",
+    "IDF_evidence": "newlib shared global stdout and stream/VFS locks exist; source alone does not prove exact interleave lock boundary",
+    "conclusion": "Distinct formatting/output paths are confirmed, exact target interleave mechanism remains unproven. Preserve damaged lines and retain future perpass structured results."
+  },
+  "minimal_direction_not_implemented": [
+    "Add bounded runtime wire-check windows with boot/session/configrevision/clock and distinct first-attempt/retry counts; retain2.5% and scientific invalid handling.",
+    "If2.5%is a runtime acceptance criterion, completed USB-only baseline fails it. Evaluate new firmware separately; never relabel old evidence.",
+    "Do not run boot probe ad hoc in a frame: it changesMODE/reference/MUX/START and waits25msbias. Any requalification must be at full-frame boundary under oneowner, bounded, save/verify/restore, with physical-reference restrictions.",
+    "Compare representative active-route read sequences under real output load before selecting an actually tested clock; do not blindly lower clocks or increase thresholds. Budget failed requalification and publish a queryable degraded state instead of indefinite retry.",
+    "Use waveform evidence to distinguish final-bit sampling/return-to-DRDY from other corruption. Do not claimCS hold/PGA/CRC algorithm causality fromxor01 alone."
+  ],
+  "validation_executed": {
+    "independent_crc_long_division_checked_records": 126,
+    "crc_long_division_mismatches": 0,
+    "capture_byte_boundary_counter_recalculation": "matches screen-analysis-03.json exactly",
+    "json_schema_parse": "PASS",
+    "first_json_writer_attempt": "Python syntax error before execution; no evidence file was created by that attempt; corrected writer completed",
+    "no_new_HIL_or_protocol_PASS_claim": true
+  }
+}

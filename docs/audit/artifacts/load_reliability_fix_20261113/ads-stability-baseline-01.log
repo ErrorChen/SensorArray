@@ -1,0 +1,14 @@
+ADS_CELL_STABILITY_SOURCE,revision=4b665acf355adb4b145114abf5ecaa4325090be5,sha256=3865764e24688b7ecddafe474f69a7c668c477c6f1991fd101c4efac69c3c904
+/usr/bin/ld: /tmp/ccldF1QZ.o: in function `sensorarrayAdsMatrixMeasureCellImpl':
+/tmp/sensorarray-cell-stability-eavwcpgd/test.c:436:(.text+0x1231): undefined reference to `sensorarrayAdsMatrixEngineInvalidateCaches'
+collect2: error: ld returned 1 exit status
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_cell_stability.py", line 64, in <module>
+    if __name__=='__main__':raise SystemExit(main())
+                                             ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_cell_stability.py", line 60, in main
+    subprocess.run(command,check=True);subprocess.run([str(exe)],check=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/gcc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g', '-I', '/tmp/sensorarray-cell-stability-eavwcpgd/fake', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/frame_stubs', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/main', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/include', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/ads', '-I', '/home/csc/esp/workspace/SensorArray/core/config', '-I', '/home/csc/esp/workspace/SensorArray/core/board', '-I', '/home/csc/esp/workspace/SensorArray/core/boardSupport/include', '-I', '/home/csc/esp/workspace/SensorArray/components/ads126xAdc/include', '-I', '/home/csc/esp/workspace/SensorArray/components/fdc2214Cap/include', '-I', '/home/csc/esp/workspace/SensorArray/components/tmuxSwitch/include', '-DEXPECT_PGA_STABILITY_BUG', '/tmp/sensorarray-cell-stability-eavwcpgd/test.c', '/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsCache.c', '/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsAutoRange.c', '/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsMath.c', '-o', '/tmp/sensorarray-cell-stability-eavwcpgd/test']' returned non-zero exit status 1.

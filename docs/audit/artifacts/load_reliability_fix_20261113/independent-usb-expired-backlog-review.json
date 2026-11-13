@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-13T12:11:32.354384+00:00",
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-expired-backlog-repro.py"
+  ],
+  "exit_code": 1,
+  "output": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-expired-backlog-repro.log",
+  "output_sha256": "1aa01cfaef35db245a0befba83c0a201b48fdc78af8ef9c39038fe64b6493e7d",
+  "source_snapshot": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-expired-backlog-source.c",
+  "source_snapshot_sha256": "d2537e300fee190fc9ef455025151e49d0bf4ec361ff487840e71a1b70aadb6a",
+  "source_sha256_before": {
+    "core/transport/sensorarraySerialIo.c": "d2537e300fee190fc9ef455025151e49d0bf4ec361ff487840e71a1b70aadb6a",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "tests/host/test_serial_io.c": "4c32d952ff94b69ee0331cd9e39b285e13f897181d84752966b70e93b8bf3867",
+    "tools/test_serial_io.py": "2dabdef121ff7797a61c0427761a07df6cffef30ff3ea56c679123eed39da421",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "67e323565a789186c0871856d29faee9751f7a68549d532efd4438cae5b83534"
+  },
+  "source_sha256_after": {
+    "core/transport/sensorarraySerialIo.c": "d2537e300fee190fc9ef455025151e49d0bf4ec361ff487840e71a1b70aadb6a",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "tests/host/test_serial_io.c": "4c32d952ff94b69ee0331cd9e39b285e13f897181d84752966b70e93b8bf3867",
+    "tools/test_serial_io.py": "2dabdef121ff7797a61c0427761a07df6cffef30ff3ea56c679123eed39da421",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "67e323565a789186c0871856d29faee9751f7a68549d532efd4438cae5b83534"
+  },
+  "diff_sha256": "c40b76002effa86236ba0d27157d8dc85caf6df0947f9ae81effd3c5c2c022c5",
+  "finding": "P1: no-host backlog remains queued after current pending expiry and notification-count clearing; accepted expired records lack bounded reclamation",
+  "expected_failure": true,
+  "no_hardware": true,
+  "scope": "added independent counterexample to actual production SerialIo host harness; no production/test originals changed"
+}

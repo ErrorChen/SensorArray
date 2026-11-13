@@ -1,0 +1,1 @@
+BENCHMARK_MIXED_WIRE,passed=8,source=actual_main+mixed+encoder,fixture=synthetic,full_profile_domain=verified

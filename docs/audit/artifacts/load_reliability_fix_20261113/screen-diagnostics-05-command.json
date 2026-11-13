@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/analyze_load_diagnostics.py",
+    "--summary",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-05.summary.json",
+    "--output",
+    "docs/audit/artifacts/load_reliability_fix_20261113/screen-diagnostics-05.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "dirty_diff_sha256": "62f16e9bf8e1ce43696ef66664ebb8148f0cfc04377db1498eb4dde65980b347",
+  "started_utc": "2026-11-13T14:11:59.119238+00:00",
+  "started_monotonic": 86012.486958395,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/screen-diagnostics-05-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T14:11:59.183209+00:00",
+  "finished_monotonic": 86012.550930156,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

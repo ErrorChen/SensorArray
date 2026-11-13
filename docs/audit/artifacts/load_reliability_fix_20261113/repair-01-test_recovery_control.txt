@@ -1,0 +1,9 @@
+RECOVERY_QUERY_EXTREMA_PASS,bytes=450,capacity=512,terminal_bytes=330,terminal_capacity=384
+RECOVERY_TERMINAL_EXTREMA_PASS,bytes=335,capacity=384,legacy_rerr=3
+SERIAL_QUERY_EXTREMA_PASS,bytes=339,capacity=512,one_snapshot=1
+SCHED_QUERY_EXTREMA_PASS,bytes=437,capacity=512,one_snapshot=1
+RESTART_QUERY_EXTREMA_PASS,bytes=413,capacity=512,terminal_bytes=191,terminal_capacity=384,state_bytes=80
+RESTART_CONTROL_PASS,overwrite_blocked=1,ack_failure_cancels=1,before_ack_blocked=1,late_ack_fenced=1,lost_terminal_query=1,independent_escape=1,config_change_allowed=1,multitransport=3,wrap=1,new_boot_reset=1,synthetic_reset=1
+TERMINAL_SINK_ROUTING_PASS,production_queue=1,production_guaranteed_drain=1,restart_serial_only=1,usb_reject=1,network_reject=1,no_network_not_queued=1,recover_serial_preserved=1
+RECOVERY_STATIC_STATE,bytes=264
+RECOVERY_CONTROL_PASS,production_modules=6,main_functions=19,budget_stop=1,safe_failure=1,first_cleanup=1,rescue_error=1,lost_terminal_query=1,ack_fence=1,stale_identity=10,multitransport=3,wrap=1,future_mode=1,synthetic_hardware=1

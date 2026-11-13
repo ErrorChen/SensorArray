@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "RECORDED",
+  "error": null,
+  "stop_reason": "stop_file",
+  "cleanup_errors": [],
+  "selected_device": {
+    "address": "80:B5:4E:CD:D9:AE",
+    "name": "CscArray_CDD9AD"
+  },
+  "address_requested": "80:B5:4E:CD:D9:AE",
+  "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+  "characteristics": {
+    "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+    "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+    "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+  },
+  "subscribed_channels": [
+    "C",
+    "D",
+    "L"
+  ],
+  "connected_monotonic_ns": 84935614789940,
+  "ready_monotonic_ns": 84935785057341,
+  "recording_end_monotonic_ns": 85135005564999,
+  "disconnected_monotonic_ns": 85137018302274,
+  "unexpected_disconnect": false,
+  "reconnect_attempted": false,
+  "notification_counts": {
+    "D": 20347,
+    "L": 1688
+  },
+  "notification_payload_bytes": {
+    "D": 4576689,
+    "L": 385372
+  },
+  "maximum_observed_notification_bytes": 235,
+  "first_notification_monotonic_ns": 84935755031868,
+  "last_notification_monotonic_ns": 85135005924186,
+  "mtu_reported_by_backend": 23,
+  "negotiated_mtu_verified": false,
+  "mtu_note": "Backend value may be 23 on BlueZ without proving negotiated MTU; unknown remains null.",
+  "application_commands_sent": 0,
+  "serial_opened": false,
+  "mode_or_rate_settings_written": false,
+  "recording_seconds": 199.220507658,
+  "elapsed_seconds": 202.4009175960091,
+  "measurement_acceptance": "NOT_EVALUATED",
+  "unconnected_windows": "NOT_RUN_not_zero_FPS",
+  "journal_cost": "base64 + buffered file write in callback; no frame duplication or fsync; host I/O can affect callback latency",
+  "journal_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-04.ble.notifications.jsonl",
+  "journal_sha256": "a3a8549cfe37827d967de4de970eabce5d58343a110a2802cb5bc76d255eb12a",
+  "journal_bytes": 11488241,
+  "ready_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-04.ble.ready.json"
+}

@@ -1,0 +1,82 @@
+diff --git a/core/transport/sensorarraySerialIo.c b/core/transport/sensorarraySerialIo.c
+index 5898f03..1714d11 100644
+--- a/core/transport/sensorarraySerialIo.c
++++ b/core/transport/sensorarraySerialIo.c
+@@ -30,6 +30,9 @@
+ #define SERIAL_IO_SLOT_COUNT (SERIAL_IO_LOG_FIRST_SLOT + SERIAL_IO_LOG_SLOT_COUNT)
+ #define SERIAL_IO_NORMAL_SLOT_COUNT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT)
+ #define SERIAL_IO_DATA_BURST_MAX 4u
++/* Drain the bounded consumer above transport/BLE TX (5), below output hub (7).
++ * Driver waits block only this owner; WorkBudget still bounds ready bursts. */
++#define SERIAL_IO_TX_TASK_PRIORITY 6u
+ enum { SERIAL_IO_DATA = 0, SERIAL_IO_PRIORITY, SERIAL_IO_LOG, SERIAL_IO_LANE_COUNT };
+ /* IDF 5.5.5 BYTEBUF has xMaxItemSize == xSize; write_bytes copies the entire
+  * item or returns zero. Give it room for the largest complete protocol packet,
+@@ -472,7 +475,7 @@ esp_err_t sensorarraySerialIoInit(void)
+                                             s_queueBytes[i], &s_queueStorage[i]);
+             if (!s_queues[i]) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
+         }
+-        if (xTaskCreatePinnedToCore(sensorarraySerialTxTask, "serialTx", 4096, NULL, 4, &s_task,
++        if (xTaskCreatePinnedToCore(sensorarraySerialTxTask, "serialTx", 4096, NULL, SERIAL_IO_TX_TASK_PRIORITY, &s_task,
+                                    CONFIG_SENSORARRAY_OUTPUT_TASK_CORE) != pdPASS) {
+             return sensorarraySerialInitResult(ESP_ERR_NO_MEM);
+         }
+diff --git a/tools/test_serial_io.py b/tools/test_serial_io.py
+index 16c6fbe..fd19dd8 100644
+--- a/tools/test_serial_io.py
++++ b/tools/test_serial_io.py
+@@ -235,3 +235,54 @@ static struct _reent testGlobalReent;
+     subprocess.run(compile_args + source_override + ["-o", str(exe)], check=True)
+     for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry", "queue_retry", "task_retry", "foreign_driver"]:
+         subprocess.run([str(exe), allocation], check=True)
++    # Only the scheduling dependency is synthetic: run the actual queue/slot/TX
++    # bodies and WorkBudget. Existing tests above cover the full VFS/driver API.
++    priority_dir = temp / "priority"
++    priority_dir.mkdir()
++    serial_source = (args.source if args.source else root / "core/transport/sensorarraySerialIo.c").read_text()
++    start = serial_source.index("#define SERIAL_IO_QUEUE_COUNT")
++    end = serial_source.index("#define SERIAL_IO_VFS_PATH", start)
++    constants = serial_source[start:end]
++    priority_token = re.search(r'xTaskCreatePinnedToCore\(sensorarraySerialTxTask,\s*"serialTx",\s*4096,\s*NULL,\s*(\w+)', serial_source).group(1)
++    if priority_token.isdigit():
++        serial_priority = int(priority_token)
++    else:
++        serial_priority = int(re.search(rf"#define {priority_token}\s+(\d+)u?", serial_source).group(1))
++    sdk = (root / "sdkconfig").read_text()
++    def configured(name):
++        return int(re.search(rf"^{name}=(\d+)$", sdk, re.M).group(1))
++    transport_header = (root / "core/transport/sensorarrayTransport.h").read_text()
++    transport_source = (root / "core/transport/sensorarrayTransport.c").read_text()
++    def created_priority(task):
++        return int(re.search(rf'xTaskCreatePinnedToCore\({task},\s*"[^"]+",\s*\w+,\s*[^,]+,\s*(\d+)u?', transport_source).group(1))
++    for name in ("SENSORARRAY_TRANSPORT_TEXT_MAX", "SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX"):
++        constants += re.search(rf"^#define {name}\s+\d+u$", transport_header, re.M).group() + "\n"
++    for name, value in {
++        "ACTUAL_SERIAL_PRIORITY": serial_priority,
++        "ACTUAL_OUTPUT_CORE": configured("CONFIG_SENSORARRAY_OUTPUT_TASK_CORE"),
++        "ACTUAL_LOG_PRIORITY": configured("CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY"),
++        "ACTUAL_BLE_PRIORITY": configured("CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY"),
++        "ACTUAL_CONTROL_PRIORITY": configured("CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY"),
++        "ACTUAL_SERIAL_CONTROL_PRIORITY": created_priority("sensorarrayTransportSerialControlTask"),
++        "ACTUAL_TRANSPORT_PRIORITY": created_priority("sensorarrayTransportTask"),
++    }.items():
++        constants += f"#define {name} {value}u\n"
++    (priority_dir / "serial_priority_config.h").write_text(constants)
++    (priority_dir / "serial_priority_source.h").write_text("\n".join(actual_function(serial_source, signature) for signature in (
++        "static char *sensorarraySerialBytes(unsigned index)",
++        "static uint8_t sensorarraySerialClaimSlot(unsigned lane)",
++        "static void sensorarraySerialReleaseSlot(uint8_t index)",
++        "static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsigned lane)",
++        "static esp_err_t sensorarraySerialQueueRecord(const char *data, size_t length, unsigned lane)",
++        "esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length)",
++        "static void sensorarraySerialTxCheckpoint(void)",
++        "static void sensorarraySerialTxTask(void *arg)")))
++    priority_exe = priority_dir / "priority"
++    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
++                    "-I", str(priority_dir), "-I", str(root / "tests/host/work_budget_stubs"),
++                    "-I", str(root / "tests/host/include"),
++                    "-I", str(root / "components/sensorarrayWorkBudget/include"),
++                    "-I", str(root / "components/sensorarrayWorkBudget"),
++                    "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io_priority.c"),
++                    "-o", str(priority_exe)], check=True)
++    subprocess.run([str(priority_exe)], check=True, timeout=10)

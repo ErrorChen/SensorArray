@@ -1,0 +1,16 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.ready.json", "schema_version": 1, "monotonic_ns": 81606824440969, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.990388288002578, "notifications": {"D": 1275, "L": 69}, "payload_bytes": {"D": 270503, "L": 14531}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 41.07838680299756, "notifications": {"D": 3444, "L": 329}, "payload_bytes": {"D": 763586, "L": 73758}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 61.14801544700458, "notifications": {"D": 5622, "L": 581}, "payload_bytes": {"D": 1261147, "L": 131616}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 81.22055284499947, "notifications": {"D": 7794, "L": 842}, "payload_bytes": {"D": 1757444, "L": 191687}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 101.30618864799908, "notifications": {"D": 9961, "L": 1094}, "payload_bytes": {"D": 2252655, "L": 249772}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.39020798599813, "notifications": {"D": 12126, "L": 1349}, "payload_bytes": {"D": 2747333, "L": 308638}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.46638989700295, "notifications": {"D": 14320, "L": 1607}, "payload_bytes": {"D": 3248543, "L": 368298}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.54945854999823, "notifications": {"D": 15506, "L": 1652}, "payload_bytes": {"D": 3499856, "L": 378045}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 181.63841303199297, "notifications": {"D": 16573, "L": 1687}, "payload_bytes": {"D": 3722425, "L": 385398}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 201.7180418229982, "notifications": {"D": 17638, "L": 1715}, "payload_bytes": {"D": 3944584, "L": 391284}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 221.72238817700418, "notifications": {"D": 18693, "L": 1743}, "payload_bytes": {"D": 4164657, "L": 397168}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 241.7240975140012, "notifications": {"D": 19748, "L": 1771}, "payload_bytes": {"D": 4384730, "L": 403051}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 19883, "L": 1778}, "journal_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.notifications.jsonl", "journal_sha256": "ff010cbfb1248fefce0c7b2dda323d580d6c7291a3ec71537661b72c7d3baa0f"}

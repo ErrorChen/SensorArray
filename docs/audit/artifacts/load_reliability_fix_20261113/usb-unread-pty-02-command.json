@@ -1,0 +1,19 @@
+{
+  "command": [
+    "env",
+    "SENSORARRAY_UNREAD_PTY_ARTIFACT_DIR=docs/audit/artifacts/load_reliability_fix_20261113/usb-unread-pty-02",
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/test_capture_usb_unread.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "dirty_diff_sha256": "f3e610038d1036a102cb0a76ee316ca449b5460823b33f6ae235cd9502fe245d",
+  "started_utc": "2026-11-13T14:07:51.145953+00:00",
+  "started_monotonic": 85764.513672487,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/usb-unread-pty-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T14:07:53.315356+00:00",
+  "finished_monotonic": 85766.683077671,
+  "log_sha256": "1a6b970b9af3f6388b2e8302eba9e02c9f2e1dcfd596ff539bf1f074b1e9c65d"
+}

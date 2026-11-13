@@ -1,0 +1,13 @@
+/tmp/sensorarray-recovery-control-gs3k2onh/unit.c:149:13: error: ‘sensorarrayRestartPost’ defined but not used [-Werror=unused-function]
+  149 | static bool sensorarrayRestartPost(uint32_t *outRequestId)
+      |             ^~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/load_reliability_fix_20261113/independent-recovery-publication-review.py", line 64, in <module>
+    exec(compile(script, str(root / "tools/test_recovery_control.py"), "exec"),
+  File "/home/csc/esp/workspace/SensorArray/tools/test_recovery_control.py", line 64, in <module>
+    subprocess.run([str(exe)], check=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/gcc', '-std=c11', '-D_XOPEN_SOURCE=700', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/sensorarray-recovery-control-gs3k2onh/fake', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/include', '-I', '/home/csc/esp/workspace/SensorArray/core/config', '-I', '/home/csc/esp/workspace/SensorArray/core/transport', '-I', '/home/csc/esp/workspace/SensorArray/main/control', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include', '/tmp/sensorarray-recovery-control-gs3k2onh/unit.c', '-o', '/tmp/sensorarray-recovery-control-gs3k2onh/test']' returned non-zero exit status 1.

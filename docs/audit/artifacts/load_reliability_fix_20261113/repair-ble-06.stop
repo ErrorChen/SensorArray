@@ -1,0 +1,1 @@
+User explicitly changes final USB interface to USB-OTG and BLE service priority; stop old-interface suite, preserve partial evidence.

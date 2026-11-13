@@ -1,0 +1,10 @@
+SERIAL_IO_VALIDATOR,source=/home/csc/esp/esp-idf-v5.5.5/components/vfs/vfs.c,pathMax=15
+IDF_USB_DRIVER_RECORD_PASS,actualDriverWrite=1,actualByteBufferFitCopy=1,capacity=2304,emptyWrapped=1,allOrZero=1,smallerRingRejected=1
+SERIAL_EXPIRY_STRANDED,nowUs=1000000,normalQueued=0,priorityQueued=3,retained=3,normalExpiredDelta=4,priorityExpiredDelta=1,notifyDelta=0
+test: /home/csc/esp/workspace/SensorArray/tests/host/test_serial_io.c:759: main: Assertion `s_queues[0]->count == 0 && s_queues[1]->count == 0 && retained == 0' failed.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_serial_io.py", line 195, in <module>
+    subprocess.run([str(exe), allocation], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-serial-io-la400qs7/test', 'psram']' died with <Signals.SIGABRT: 6>.

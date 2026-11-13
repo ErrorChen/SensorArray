@@ -1,0 +1,1 @@
+BATTERY_VALIDITY,passed=10,source=production_classification_and_math

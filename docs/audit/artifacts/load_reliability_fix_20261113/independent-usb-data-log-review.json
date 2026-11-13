@@ -1,0 +1,432 @@
+{
+  "evidence": "independent read-only production review and completed capture analysis",
+  "baseline_head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "hardware_access": false,
+  "production_modified": false,
+  "reproducer": {
+    "path": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-data-log-baseline.py",
+    "sha256": "029d57ba33a82080c18d691468ef06b9c052ba93658951581d84b9fedadea4a5",
+    "command": "python3 docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-data-log-baseline.py",
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/load_reliability_fix_20261113/independent-usb-data-log-baseline.log",
+    "log_sha256": "1a7bb7cdf78beb7618bfec463a17c4bbd1e6b5f1071a9f331b18f8b26857ac58",
+    "actual_production_cases": [
+      "four complete LOG records fill shared normal queue and reject complete DATA (0x107); CTRL still admitted",
+      "two unfinished stdout/stderr records hold two shared slots; three summaries consume remaining slots and reject DATA despite one queue entry free"
+    ],
+    "synthetic_schedule_not_raw_capture": true
+  },
+  "dual_capture": {
+    "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.summary.json",
+    "summary_sha256": "5a48be00d9b23faa8101bd85e1f20118a5fc2ac14c94f606dfebf7dbee246047",
+    "raw_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.rx.bin",
+    "raw_sha256": "a3dbc379015933ee6a024f8cc998b4940416880b33150b1bae153b87a9971c2d",
+    "events_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.events.jsonl",
+    "events_sha256": "38b78c0594bdea9bc075a3b267cdf34e6cca7fc5912fba8244c6bcde3c7bfc0f",
+    "capture_offsets": [
+      262872,
+      6028947
+    ],
+    "complete_crc_checked_frames": 8083,
+    "first_frame": {
+      "seq": 1295,
+      "headerOffset": 262805,
+      "trailerEndOffset": 263397
+    },
+    "last_frame": {
+      "seq": 9774,
+      "headerOffset": 6028354,
+      "trailerEndOffset": 6028947
+    },
+    "frame_sequence_gaps": 380,
+    "missing_frames": 397,
+    "gap_diag_contingency": {
+      "gap=False,intervening_diag=True": 478,
+      "gap=True,intervening_diag=True": 361,
+      "gap=False,intervening_diag=False": 7225,
+      "gap=True,intervening_diag=False": 19
+    },
+    "gap_examples": [
+      {
+        "previous": 1295,
+        "next": 1297,
+        "missing": 1,
+        "trailerOffset": 264700,
+        "intervening": [
+          {
+            "tag": "SF50",
+            "offset": 263397
+          },
+          {
+            "tag": "TR50",
+            "offset": 263497
+          },
+          {
+            "tag": "OT50",
+            "offset": 263576
+          },
+          {
+            "tag": "BL50",
+            "offset": 263686
+          },
+          {
+            "tag": "I2C50",
+            "offset": 263864
+          },
+          {
+            "tag": "STK50",
+            "offset": 263934
+          }
+        ]
+      },
+      {
+        "previous": 1298,
+        "next": 1300,
+        "missing": 1,
+        "trailerOffset": 266078,
+        "intervening": [
+          {
+            "tag": "ADSHEALTH",
+            "offset": 265368
+          }
+        ]
+      },
+      {
+        "previous": 1330,
+        "next": 1332,
+        "missing": 1,
+        "trailerOffset": 288061,
+        "intervening": [
+          {
+            "tag": "SF50",
+            "offset": 285755
+          },
+          {
+            "tag": "TR50",
+            "offset": 285855
+          },
+          {
+            "tag": "OT50",
+            "offset": 285935
+          },
+          {
+            "tag": "BL50",
+            "offset": 286045
+          },
+          {
+            "tag": "I2C50",
+            "offset": 286223
+          },
+          {
+            "tag": "STK50",
+            "offset": 286293
+          },
+          {
+            "tag": "ADS50",
+            "offset": 286537
+          },
+          {
+            "tag": "ADST50",
+            "offset": 286913
+          },
+          {
+            "tag": "AB50",
+            "offset": 287100
+          }
+        ]
+      },
+      {
+        "previous": 1345,
+        "next": 1347,
+        "missing": 1,
+        "trailerOffset": 298161,
+        "intervening": [
+          {
+            "tag": "SF50",
+            "offset": 295857
+          },
+          {
+            "tag": "TR50",
+            "offset": 295957
+          },
+          {
+            "tag": "OT50",
+            "offset": 296037
+          },
+          {
+            "tag": "BL50",
+            "offset": 296147
+          },
+          {
+            "tag": "I2C50",
+            "offset": 296325
+          },
+          {
+            "tag": "STK50",
+            "offset": 296395
+          },
+          {
+            "tag": "ADS50",
+            "offset": 296639
+          },
+          {
+            "tag": "ADST50",
+            "offset": 297015
+          },
+          {
+            "tag": "AB50",
+            "offset": 297201
+          }
+        ]
+      },
+      {
+        "previous": 1348,
+        "next": 1350,
+        "missing": 1,
+        "trailerOffset": 299667,
+        "intervening": []
+      },
+      {
+        "previous": 1365,
+        "next": 1367,
+        "missing": 1,
+        "trailerOffset": 311137,
+        "intervening": [
+          {
+            "tag": "SF50",
+            "offset": 308842
+          },
+          {
+            "tag": "TR50",
+            "offset": 308941
+          },
+          {
+            "tag": "OT50",
+            "offset": 309021
+          },
+          {
+            "tag": "BL50",
+            "offset": 309129
+          },
+          {
+            "tag": "I2C50",
+            "offset": 309307
+          },
+          {
+            "tag": "STK50",
+            "offset": 309377
+          },
+          {
+            "tag": "ADS50",
+            "offset": 309621
+          },
+          {
+            "tag": "ADST50",
+            "offset": 309995
+          },
+          {
+            "tag": "AB50",
+            "offset": 310182
+          }
+        ]
+      }
+    ],
+    "parser_sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01",
+    "existing_ble_crosscheck": {
+      "USB_unique_integrity_valid_frames": 8083,
+      "common_identity_sequence_frames": 4092,
+      "same_wire_bytes_sha256": 4092,
+      "different_wire_bytes_sha256": 0,
+      "USB_frames_without_BLE_match": 3991,
+      "BLE_frames_without_USB_match": 240,
+      "mismatch_examples": [],
+      "unmatched_meaning": "No trusted fingerprint match; a partial or identity-rejected frame may still exist in the other raw recording. This is not a literal byte-absence or independent loss count.",
+      "basis": "SHA256 of original scientific header/data/PGA/row/K bytes including line endings, after both CRC and identity checks; no CRC rewriting or sample reconstruction",
+      "scope": "full_capture_window"
+    },
+    "counter_deltas": {
+      "PERF?": {
+        "pub": {
+          "value": 8498,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "fresh": {
+          "value": 8486,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "usbSent": {
+          "value": 9007,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "usbDrop": {
+          "value": 511,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "dropOut": {
+          "value": 0,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "dropEvent": {
+          "value": 0,
+          "reply_interval_seconds": 120.3034942279919,
+          "scope": "separate query windows, not exact capture interval"
+        }
+      },
+      "SERIAL?": {
+        "normalSubmitted": {
+          "value": 9840,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "prioritySubmitted": {
+          "value": 11,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "normalExpired": {
+          "value": 0,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "priorityExpired": {
+          "value": 0,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "priorityRejected": {
+          "value": 0,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "driverShortWrite": {
+          "value": 0,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "driverWriteError": {
+          "value": 0,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "txYield": {
+          "value": 3089,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "driverAcceptedBytes": {
+          "value": 5780366,
+          "reply_interval_seconds": 120.31440893800755,
+          "scope": "separate query windows, not exact capture interval"
+        }
+      },
+      "USBSTREAM?": {
+        "sinkQueued": {
+          "value": 9851,
+          "reply_interval_seconds": 120.31235077200108,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "sinkDropped": {
+          "value": 659,
+          "reply_interval_seconds": 120.31235077200108,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "lineDropped": {
+          "value": 149,
+          "reply_interval_seconds": 120.31235077200108,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "timeout": {
+          "value": 0,
+          "reply_interval_seconds": 120.31235077200108,
+          "scope": "separate query windows, not exact capture interval"
+        }
+      }
+    }
+  },
+  "usb_only_control": {
+    "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json",
+    "raw_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.rx.bin",
+    "raw_sha256": "912e2fa9e4f63eb32fb99ca19c44aafd3ab1d573e49635a42007ae792ba93f48",
+    "capture_seconds": 120.00035054299224,
+    "complete_crc_checked_frames": 10913,
+    "parser_counters": {
+      "lines": 50437,
+      "cap_frames": 0,
+      "voltage_frames": 10913,
+      "resistance_frames": 0,
+      "mixed_frames": 0,
+      "crc_errors": 0,
+      "malformed": 0,
+      "sequence_gaps": 0,
+      "missing_frames": 0,
+      "sequence_regressions": 0,
+      "non_ascii_chunks": 0,
+      "summary_lines": 5895,
+      "rmack": 0,
+      "rmapp": 0,
+      "rmerr": 0,
+      "lifecycle_duplicate_terminal": 0,
+      "lifecycle_terminal_without_ack": 0
+    },
+    "counter_deltas": {
+      "PERF?": {
+        "pub": {
+          "value": 10916,
+          "reply_interval_seconds": 120.02950446800969,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "usbSent": {
+          "value": 12226,
+          "reply_interval_seconds": 120.02950446800969,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "usbDrop": {
+          "value": 0,
+          "reply_interval_seconds": 120.02950446800969,
+          "scope": "separate query windows, not exact capture interval"
+        }
+      },
+      "SERIAL?": {
+        "normalSubmitted": {
+          "value": 13116,
+          "reply_interval_seconds": 120.03128562800703,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "txYield": {
+          "value": 1,
+          "reply_interval_seconds": 120.03128562800703,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "driverAcceptedBytes": {
+          "value": 7877379,
+          "reply_interval_seconds": 120.03128562800703,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "normalExpired": {
+          "value": 0,
+          "reply_interval_seconds": 120.03128562800703,
+          "scope": "separate query windows, not exact capture interval"
+        },
+        "priorityExpired": {
+          "value": 0,
+          "reply_interval_seconds": 120.03128562800703,
+          "scope": "separate query windows, not exact capture interval"
+        }
+      }
+    }
+  },
+  "interpretation": [
+    "usbDrop counts science plus two multiline summary packets; it is not an exact science loss counter.",
+    "Actual shared queue and pool allow LOG bursts/unfinished stdio to reject science before USB driver admission; no short write or expiry is needed.",
+    "361/380 gaps have intervening diagnostics in received wire order. Association does not reconstruct missing records or independently prove a producer-side schedule.",
+    "The shared parser carries the first frame header from completed pre-capture bytes; no truncated line is repaired.",
+    "Same baseline and selected SPI750 USB-only control received10913 complete frames/120s with zero sequence gaps, supporting available nativeUSB/host throughput under that load.",
+    "Dual-transport capture rate and output rate differ. BLE CPU work and scheduler competition remain possible contributors; do not attribute all variation to Serial scheduling.",
+    "SERIAL owner has no fixed per-record sleep; driver wait is bounded, wait_tx_done is zero-wait, and real idle evidence gates WorkBudget. New DATA/LOG isolation should be evaluated with HIL before further scheduler changes."
+  ]
+}

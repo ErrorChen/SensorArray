@@ -1,0 +1,1 @@
+TRANSPORT_FRAME_METADATA_PASS,domains=rows;mode;profile;session,exact_fields=1,immutable=1

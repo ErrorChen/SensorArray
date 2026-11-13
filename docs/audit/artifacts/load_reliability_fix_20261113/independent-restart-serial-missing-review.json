@@ -1,0 +1,20 @@
+{
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "sourceSha": {
+    "main/control/sensorarrayRestartControl.c": "36702f15fc5b7f69950e056774a451f37e95e7634662d277c53b3b828ede7555",
+    "core/transport/sensorarrayTransport.c": "97c8caada9f2e413ed3efa4d3c144d5a362431b7ebb252dd20b049e2ebe54a12",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47"
+  },
+  "finding": "Manual RESTART terminal loses Serial path and can report terminalQueued=1 with no sink queued",
+  "condition": "USB-only control; BLE disabled/disconnected, Wi-Fi sink off; local RACK successfully admitted",
+  "path": [
+    "PerformManualRestart calls RestartControlPublish only",
+    "RestartControlPublish calls TransportPublishLifecycle only",
+    "TransportQueue returns ESP_OK without descriptor when !bleEnabled && !wifiEnabled",
+    "ProcessDescriptor has BLE/Wi-Fi calls but no Serial call",
+    "RestartControlPublish records terminalQueued=true from ESP_OK"
+  ],
+  "impact": "Old explicit Serial restart marker is removed; new RAM cache disappears at reset. No terminal attempted on Serial. This is distinct from normal possible packet loss.",
+  "classification": "confirmed source-path regression; hardware NOT_RUN",
+  "recommendedRegression": "Execute actual publish path with Serial-only and inspect Serial admission calls; include USB rejection, network-disabled no-op and per-sink status"
+}

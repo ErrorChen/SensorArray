@@ -1,0 +1,977 @@
+{
+  "schema": "firmware_benchmark_evidence_v1",
+  "path_base": "repository_root",
+  "scope": "nonrecursive load_reliability_fix_20261113 finalized serial captures and BLE journals only",
+  "compression": {
+    "format": "gzip",
+    "level": 9,
+    "mtime": 0,
+    "filename_header": ""
+  },
+  "originals_deleted_or_overwritten": false,
+  "archive_script": {
+    "path": "docs/audit/artifacts/load_reliability_fix_20261113/scripts/archive_benchmark.py",
+    "sha256": "7f676b671aabccd770a8abb3e9a74ba014440352aa0f9bb6a2d6e076e752c5f9"
+  },
+  "archive_command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/archive_benchmark.py",
+    "--only",
+    "repair-05-boot",
+    "--only",
+    "repair-ble-02",
+    "--only",
+    "repair-screen-02",
+    "--only",
+    "repair-screen-02-usb-only",
+    "--index",
+    "docs/audit/artifacts/load_reliability_fix_20261113/evidence-index-screen-02.json"
+  ],
+  "exit_0_meaning": "Archive integrity only, NOT firmware, transport or scientific measurement acceptance. ERROR captures remain ERROR; absent status remains unknown.",
+  "records": [
+    {
+      "label": "repair-05-boot",
+      "kind": "serial_capture",
+      "summary": {
+        "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.summary.json",
+        "sha256": "8ff3d89288531c7b3e2410c88926b014e804537332b8a3f015a269a8abba1896",
+        "bytes": 6689,
+        "status_present": false,
+        "status": null,
+        "error_present": true,
+        "error": null,
+        "measurement_acceptance": null
+      },
+      "capture": {
+        "benchmark_kind": null,
+        "benchmark_mode": null,
+        "mode_requested": null,
+        "rows_requested": null,
+        "rowmodes_requested": null,
+        "capture_requested_seconds": null,
+        "capture_seconds": null,
+        "capture_duration_satisfied": null,
+        "capture_monotonic_start": null,
+        "capture_monotonic_end": null,
+        "safe_cap_recovery": null,
+        "usb_restore": null,
+        "connected_monotonic_ns": null,
+        "ready_monotonic_ns": null,
+        "recording_end_monotonic_ns": null,
+        "unexpected_disconnect": null,
+        "stop_reason": null
+      },
+      "commands": {
+        "source": "unchanged_events_jsonl_tx_begin_records",
+        "count": 12,
+        "commands": [
+          {
+            "line": 2850,
+            "t": 55.00016025699733,
+            "phase": "post_flash_boot_observation",
+            "command": "BUILD?"
+          },
+          {
+            "line": 2854,
+            "t": 55.004230977996485,
+            "phase": "post_flash_boot_observation",
+            "command": "PROTO?"
+          },
+          {
+            "line": 2858,
+            "t": 55.00714732799679,
+            "phase": "post_flash_boot_observation",
+            "command": "SPI?"
+          },
+          {
+            "line": 2864,
+            "t": 55.008356095000636,
+            "phase": "post_flash_boot_observation",
+            "command": "FRONTENDS?"
+          },
+          {
+            "line": 2870,
+            "t": 55.00958331399306,
+            "phase": "post_flash_boot_observation",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 2876,
+            "t": 55.01108394899347,
+            "phase": "post_flash_boot_observation",
+            "command": "BOOT?"
+          },
+          {
+            "line": 2881,
+            "t": 55.012772114001564,
+            "phase": "post_flash_boot_observation",
+            "command": "PERF?"
+          },
+          {
+            "line": 2886,
+            "t": 55.01490883099905,
+            "phase": "post_flash_boot_observation",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 2892,
+            "t": 55.017652971990174,
+            "phase": "post_flash_boot_observation",
+            "command": "SERIAL?"
+          },
+          {
+            "line": 2897,
+            "t": 55.01952626899583,
+            "phase": "post_flash_boot_observation",
+            "command": "SCHED?"
+          },
+          {
+            "line": 2902,
+            "t": 55.020562352001434,
+            "phase": "post_flash_boot_observation",
+            "command": "RECOVERY?"
+          },
+          {
+            "line": 2908,
+            "t": 55.02158811400295,
+            "phase": "post_flash_boot_observation",
+            "command": "RESTART?"
+          }
+        ],
+        "interpretation": "Host command intent; not proof of device application or delivery."
+      },
+      "files": [
+        {
+          "role": "serial_rx",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.rx.bin",
+            "sha256": "30d9fd3def68cf60118fc73d7dcf79f2e6d19c17b3eca25e647ffba5fb91a03e",
+            "bytes": 417228,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.rx.bin.gz",
+            "sha256": "17cb21518b78e380efb8b99933829be913cf85261e2e9f7d2f53427b3678a1fc",
+            "bytes": 58263,
+            "mtime": 0,
+            "uncompressed_sha256": "30d9fd3def68cf60118fc73d7dcf79f2e6d19c17b3eca25e647ffba5fb91a03e",
+            "uncompressed_bytes": 417228,
+            "round_trip_verified": true
+          }
+        },
+        {
+          "role": "serial_events",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.events.jsonl",
+            "sha256": "e19e7f095bd999a9131c6690c40ee2b6c8ea06f9cb76e3b3a78419ed0290e015",
+            "bytes": 331222,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.events.jsonl.gz",
+            "sha256": "fc12b1b64e70a3f2aa50c10f5e7635ddf0812d71b34de79d20ed080dcc6c6ad9",
+            "bytes": 46100,
+            "mtime": 0,
+            "uncompressed_sha256": "e19e7f095bd999a9131c6690c40ee2b6c8ea06f9cb76e3b3a78419ed0290e015",
+            "uncompressed_bytes": 331222,
+            "round_trip_verified": true
+          }
+        }
+      ],
+      "byte_count_scope_review": null,
+      "acceptance_inferred_from_archive": false
+    },
+    {
+      "label": "repair-ble-02",
+      "kind": "ble_journal",
+      "summary": {
+        "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.summary.json",
+        "sha256": "5ec2689e873ce3b9ea4bd912586223e8a5ac96cd78e220eb6e6a602f4332423e",
+        "bytes": 1983,
+        "status_present": true,
+        "status": "RECORDED",
+        "error_present": true,
+        "error": null,
+        "measurement_acceptance": "NOT_EVALUATED"
+      },
+      "capture": {
+        "benchmark_kind": null,
+        "benchmark_mode": null,
+        "mode_requested": null,
+        "rows_requested": null,
+        "rowmodes_requested": null,
+        "capture_requested_seconds": null,
+        "capture_seconds": null,
+        "capture_duration_satisfied": null,
+        "capture_monotonic_start": null,
+        "capture_monotonic_end": null,
+        "safe_cap_recovery": null,
+        "usb_restore": null,
+        "connected_monotonic_ns": 81606655436721,
+        "ready_monotonic_ns": 81606824440969,
+        "recording_end_monotonic_ns": 81850175114859,
+        "unexpected_disconnect": false,
+        "stop_reason": "stop_file"
+      },
+      "commands": {
+        "source": "summary_application_command_declaration",
+        "declared_application_commands_sent": 0,
+        "subscribed_channels": [
+          "C",
+          "D",
+          "L"
+        ],
+        "note": "CCCD subscriptions are separate from application commands; declaration is not inferred from exit status."
+      },
+      "files": [
+        {
+          "role": "ble_notifications",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.notifications.jsonl",
+            "sha256": "ff010cbfb1248fefce0c7b2dda323d580d6c7291a3ec71537661b72c7d3baa0f",
+            "bytes": 11214514,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.notifications.jsonl.gz",
+            "sha256": "5e58b60e182edd1c83bc375116ceef1bfd505e6cf7cc362b8a1ba37c5631b3fe",
+            "bytes": 1437485,
+            "mtime": 0,
+            "uncompressed_sha256": "ff010cbfb1248fefce0c7b2dda323d580d6c7291a3ec71537661b72c7d3baa0f",
+            "uncompressed_bytes": 11214514,
+            "round_trip_verified": true
+          }
+        }
+      ],
+      "byte_count_scope_review": null,
+      "acceptance_inferred_from_archive": false
+    },
+    {
+      "label": "repair-screen-02-usb-only",
+      "kind": "serial_capture",
+      "summary": {
+        "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json",
+        "sha256": "98d6fd00181c07f1fbe7f543aecee119141423069a7bf81ac810bebe6f56df93",
+        "bytes": 102865,
+        "status_present": true,
+        "status": "CAPTURED",
+        "error_present": true,
+        "error": null,
+        "measurement_acceptance": "NOT_EVALUATED"
+      },
+      "capture": {
+        "benchmark_kind": "configuration",
+        "benchmark_mode": "VOLT",
+        "mode_requested": "VOLT",
+        "rows_requested": 1,
+        "rowmodes_requested": null,
+        "capture_requested_seconds": 120.0,
+        "capture_seconds": 120.00035054299224,
+        "capture_duration_satisfied": true,
+        "capture_monotonic_start": 82021.584817309,
+        "capture_monotonic_end": 82141.585167852,
+        "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+        "usb_restore": "VERIFIED_QUERY",
+        "connected_monotonic_ns": null,
+        "ready_monotonic_ns": null,
+        "recording_end_monotonic_ns": null,
+        "unexpected_disconnect": null,
+        "stop_reason": null
+      },
+      "commands": {
+        "source": "unchanged_events_jsonl_tx_begin_records",
+        "count": 44,
+        "commands": [
+          {
+            "line": 6,
+            "t": 0.00017083599232137203,
+            "phase": "prepare",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 35,
+            "t": 0.004101832993910648,
+            "phase": "prepare",
+            "command": "BUILD?"
+          },
+          {
+            "line": 40,
+            "t": 0.00611951899190899,
+            "phase": "prepare",
+            "command": "PROTO?"
+          },
+          {
+            "line": 46,
+            "t": 0.0073973349935840815,
+            "phase": "prepare",
+            "command": "CAL?"
+          },
+          {
+            "line": 51,
+            "t": 0.008270163991255686,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 56,
+            "t": 0.00953685599961318,
+            "phase": "prepare",
+            "command": "MODE=CAP"
+          },
+          {
+            "line": 72,
+            "t": 0.04092374400352128,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 78,
+            "t": 0.04320363199803978,
+            "phase": "prepare",
+            "command": "MODE?"
+          },
+          {
+            "line": 87,
+            "t": 0.04584021799382754,
+            "phase": "prepare",
+            "command": "RAIL?"
+          },
+          {
+            "line": 93,
+            "t": 0.04728853199048899,
+            "phase": "prepare",
+            "command": "ROWS=1"
+          },
+          {
+            "line": 100,
+            "t": 0.13550011299957987,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 106,
+            "t": 0.137769566004863,
+            "phase": "prepare",
+            "command": "MODE=VOLT"
+          },
+          {
+            "line": 114,
+            "t": 0.15555060299811885,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 121,
+            "t": 0.1611442699941108,
+            "phase": "prepare",
+            "command": "USBSTREAM=FULL"
+          },
+          {
+            "line": 1847,
+            "t": 5.163226536998991,
+            "phase": "before",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 1853,
+            "t": 5.17348943700199,
+            "phase": "before",
+            "command": "PERF?"
+          },
+          {
+            "line": 1859,
+            "t": 5.176113505993271,
+            "phase": "before",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 1867,
+            "t": 5.17986926100275,
+            "phase": "before",
+            "command": "FPS?"
+          },
+          {
+            "line": 1875,
+            "t": 5.181192126998212,
+            "phase": "before",
+            "command": "FRONTENDS?"
+          },
+          {
+            "line": 1882,
+            "t": 5.183153806996415,
+            "phase": "before",
+            "command": "SPI?"
+          },
+          {
+            "line": 1888,
+            "t": 5.185366885998519,
+            "phase": "before",
+            "command": "MODE?"
+          },
+          {
+            "line": 1896,
+            "t": 5.1883443590049865,
+            "phase": "before",
+            "command": "BAT?"
+          },
+          {
+            "line": 1904,
+            "t": 5.190847705991473,
+            "phase": "before",
+            "command": "SERIAL?"
+          },
+          {
+            "line": 1910,
+            "t": 5.19303517100343,
+            "phase": "before",
+            "command": "SCHED?"
+          },
+          {
+            "line": 1916,
+            "t": 5.194887543999357,
+            "phase": "before",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42291,
+            "t": 125.19851280200237,
+            "phase": "after",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42296,
+            "t": 125.20227251999313,
+            "phase": "after",
+            "command": "PERF?"
+          },
+          {
+            "line": 42302,
+            "t": 125.20563938599662,
+            "phase": "after",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 42307,
+            "t": 125.20884865699918,
+            "phase": "after",
+            "command": "FPS?"
+          },
+          {
+            "line": 42312,
+            "t": 125.21092296700226,
+            "phase": "after",
+            "command": "FRONTENDS?"
+          },
+          {
+            "line": 42318,
+            "t": 125.21323613999994,
+            "phase": "after",
+            "command": "SPI?"
+          },
+          {
+            "line": 42324,
+            "t": 125.21667762799188,
+            "phase": "after",
+            "command": "MODE?"
+          },
+          {
+            "line": 42333,
+            "t": 125.21972380499938,
+            "phase": "after",
+            "command": "BAT?"
+          },
+          {
+            "line": 42339,
+            "t": 125.22231551499863,
+            "phase": "after",
+            "command": "SERIAL?"
+          },
+          {
+            "line": 42344,
+            "t": 125.2243232710025,
+            "phase": "after",
+            "command": "SCHED?"
+          },
+          {
+            "line": 42349,
+            "t": 125.22673401200154,
+            "phase": "after",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42355,
+            "t": 125.22998162599106,
+            "phase": "cleanup",
+            "command": "MODE=CAP"
+          },
+          {
+            "line": 42365,
+            "t": 125.25099095099722,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42370,
+            "t": 125.25401130100363,
+            "phase": "cleanup",
+            "command": "ROWS=8"
+          },
+          {
+            "line": 42386,
+            "t": 125.28157210299105,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42393,
+            "t": 125.28400705599051,
+            "phase": "cleanup",
+            "command": "MODE?"
+          },
+          {
+            "line": 42401,
+            "t": 125.28689388999192,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 42405,
+            "t": 125.28847725699598,
+            "phase": "cleanup",
+            "command": "USBSTREAM=DEBUG"
+          },
+          {
+            "line": 42410,
+            "t": 125.29031633600243,
+            "phase": "cleanup",
+            "command": "USBSTREAM?"
+          }
+        ],
+        "interpretation": "Host command intent; not proof of device application or delivery."
+      },
+      "files": [
+        {
+          "role": "serial_rx",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.rx.bin",
+            "sha256": "912e2fa9e4f63eb32fb99ca19c44aafd3ab1d573e49635a42007ae792ba93f48",
+            "bytes": 8221552,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.rx.bin.gz",
+            "sha256": "70b1752dafee49a70b4a7e7af32c8d3eb135004012b6050d0ab3e0f89e5aac48",
+            "bytes": 759735,
+            "mtime": 0,
+            "uncompressed_sha256": "912e2fa9e4f63eb32fb99ca19c44aafd3ab1d573e49635a42007ae792ba93f48",
+            "uncompressed_bytes": 8221552,
+            "round_trip_verified": true
+          }
+        },
+        {
+          "role": "serial_events",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.events.jsonl",
+            "sha256": "fa1d45e1371a8d9f30ef56deb46573e8d425782e1dd9fe88b124cef4425732ee",
+            "bytes": 3964362,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.events.jsonl.gz",
+            "sha256": "2b721757578fa90fa6ed6501a4ef6c273a9359b8286c0732dde4c4ac99db14ec",
+            "bytes": 594610,
+            "mtime": 0,
+            "uncompressed_sha256": "fa1d45e1371a8d9f30ef56deb46573e8d425782e1dd9fe88b124cef4425732ee",
+            "uncompressed_bytes": 3964362,
+            "round_trip_verified": true
+          }
+        }
+      ],
+      "byte_count_scope_review": null,
+      "acceptance_inferred_from_archive": false
+    },
+    {
+      "label": "repair-screen-02",
+      "kind": "serial_capture",
+      "summary": {
+        "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.summary.json",
+        "sha256": "5a48be00d9b23faa8101bd85e1f20118a5fc2ac14c94f606dfebf7dbee246047",
+        "bytes": 105205,
+        "status_present": true,
+        "status": "CAPTURED",
+        "error_present": true,
+        "error": null,
+        "measurement_acceptance": "NOT_EVALUATED"
+      },
+      "capture": {
+        "benchmark_kind": "configuration",
+        "benchmark_mode": "VOLT",
+        "mode_requested": "VOLT",
+        "rows_requested": 1,
+        "rowmodes_requested": null,
+        "capture_requested_seconds": 120.0,
+        "capture_seconds": 120.0001104450057,
+        "capture_duration_satisfied": true,
+        "capture_monotonic_start": 81628.830652394,
+        "capture_monotonic_end": 81748.830762839,
+        "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+        "usb_restore": "VERIFIED_QUERY",
+        "connected_monotonic_ns": null,
+        "ready_monotonic_ns": null,
+        "recording_end_monotonic_ns": null,
+        "unexpected_disconnect": null,
+        "stop_reason": null
+      },
+      "commands": {
+        "source": "unchanged_events_jsonl_tx_begin_records",
+        "count": 47,
+        "commands": [
+          {
+            "line": 6,
+            "t": 0.00019434100249782205,
+            "phase": "prepare",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 31,
+            "t": 0.008039255000767298,
+            "phase": "prepare",
+            "command": "BUILD?"
+          },
+          {
+            "line": 36,
+            "t": 0.008829233993310481,
+            "phase": "prepare",
+            "command": "PROTO?"
+          },
+          {
+            "line": 43,
+            "t": 0.010313571998267435,
+            "phase": "prepare",
+            "command": "CAL?"
+          },
+          {
+            "line": 48,
+            "t": 0.012074358994141221,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 52,
+            "t": 0.013626640997244976,
+            "phase": "prepare",
+            "command": "MODE=CAP"
+          },
+          {
+            "line": 60,
+            "t": 0.10310949699487537,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 66,
+            "t": 0.11551784799667075,
+            "phase": "prepare",
+            "command": "MODE?"
+          },
+          {
+            "line": 75,
+            "t": 0.11829727700387593,
+            "phase": "prepare",
+            "command": "RAIL?"
+          },
+          {
+            "line": 80,
+            "t": 0.12072851799894124,
+            "phase": "prepare",
+            "command": "MODE?"
+          },
+          {
+            "line": 87,
+            "t": 0.12401529199269135,
+            "phase": "prepare",
+            "command": "RAILCFG=3350000,-1795000"
+          },
+          {
+            "line": 93,
+            "t": 0.1961239869997371,
+            "phase": "prepare",
+            "command": "RAIL?"
+          },
+          {
+            "line": 98,
+            "t": 0.1980670359916985,
+            "phase": "prepare",
+            "command": "ROWS=1"
+          },
+          {
+            "line": 105,
+            "t": 0.28575877399998717,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 110,
+            "t": 0.3127724060032051,
+            "phase": "prepare",
+            "command": "MODE=VOLT"
+          },
+          {
+            "line": 124,
+            "t": 0.35808834299677983,
+            "phase": "prepare",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 132,
+            "t": 0.3657957809919026,
+            "phase": "prepare",
+            "command": "USBSTREAM=FULL"
+          },
+          {
+            "line": 1761,
+            "t": 5.368072052995558,
+            "phase": "before",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 1767,
+            "t": 5.3772516649914905,
+            "phase": "before",
+            "command": "PERF?"
+          },
+          {
+            "line": 1773,
+            "t": 5.39623147599923,
+            "phase": "before",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 1789,
+            "t": 5.44810758800304,
+            "phase": "before",
+            "command": "FPS?"
+          },
+          {
+            "line": 1795,
+            "t": 5.463256728995475,
+            "phase": "before",
+            "command": "FRONTENDS?"
+          },
+          {
+            "line": 1803,
+            "t": 5.4894100689998595,
+            "phase": "before",
+            "command": "SPI?"
+          },
+          {
+            "line": 1820,
+            "t": 5.52188394300174,
+            "phase": "before",
+            "command": "MODE?"
+          },
+          {
+            "line": 1832,
+            "t": 5.544563343995833,
+            "phase": "before",
+            "command": "BAT?"
+          },
+          {
+            "line": 1851,
+            "t": 5.587311358001898,
+            "phase": "before",
+            "command": "SERIAL?"
+          },
+          {
+            "line": 1861,
+            "t": 5.603174976000446,
+            "phase": "before",
+            "command": "SCHED?"
+          },
+          {
+            "line": 1867,
+            "t": 5.63053761300398,
+            "phase": "before",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 35787,
+            "t": 125.64686335799342,
+            "phase": "after",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 35803,
+            "t": 125.67410916699737,
+            "phase": "after",
+            "command": "PERF?"
+          },
+          {
+            "line": 35814,
+            "t": 125.69970702000137,
+            "phase": "after",
+            "command": "USBSTREAM?"
+          },
+          {
+            "line": 35835,
+            "t": 125.76043590500194,
+            "phase": "after",
+            "command": "FPS?"
+          },
+          {
+            "line": 35847,
+            "t": 125.77568474000145,
+            "phase": "after",
+            "command": "FRONTENDS?"
+          },
+          {
+            "line": 35866,
+            "t": 125.81417518299713,
+            "phase": "after",
+            "command": "SPI?"
+          },
+          {
+            "line": 35878,
+            "t": 125.83302010499756,
+            "phase": "after",
+            "command": "MODE?"
+          },
+          {
+            "line": 35891,
+            "t": 125.85717750799085,
+            "phase": "after",
+            "command": "BAT?"
+          },
+          {
+            "line": 35913,
+            "t": 125.89675909999642,
+            "phase": "after",
+            "command": "SERIAL?"
+          },
+          {
+            "line": 35922,
+            "t": 125.91753368799982,
+            "phase": "after",
+            "command": "SCHED?"
+          },
+          {
+            "line": 35935,
+            "t": 125.95751800299331,
+            "phase": "after",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 35946,
+            "t": 125.9742453959916,
+            "phase": "cleanup",
+            "command": "MODE=CAP"
+          },
+          {
+            "line": 35968,
+            "t": 126.01605685999675,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 35974,
+            "t": 126.03479954499926,
+            "phase": "cleanup",
+            "command": "ROWS=8"
+          },
+          {
+            "line": 35991,
+            "t": 126.09452999799396,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 35999,
+            "t": 126.11536871199496,
+            "phase": "cleanup",
+            "command": "MODE?"
+          },
+          {
+            "line": 36007,
+            "t": 126.13678390800487,
+            "phase": "cleanup",
+            "command": "CONFIG?"
+          },
+          {
+            "line": 36011,
+            "t": 126.14368176799326,
+            "phase": "cleanup",
+            "command": "USBSTREAM=DEBUG"
+          },
+          {
+            "line": 36016,
+            "t": 126.14485238199995,
+            "phase": "cleanup",
+            "command": "USBSTREAM?"
+          }
+        ],
+        "interpretation": "Host command intent; not proof of device application or delivery."
+      },
+      "files": [
+        {
+          "role": "serial_rx",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.rx.bin",
+            "sha256": "a3dbc379015933ee6a024f8cc998b4940416880b33150b1bae153b87a9971c2d",
+            "bytes": 6049411,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.rx.bin.gz",
+            "sha256": "b55190884325657543b044cf2b72911be99c44cd0c82dff66ce8e27267ffdaed",
+            "bytes": 605608,
+            "mtime": 0,
+            "uncompressed_sha256": "a3dbc379015933ee6a024f8cc998b4940416880b33150b1bae153b87a9971c2d",
+            "uncompressed_bytes": 6049411,
+            "round_trip_verified": true
+          }
+        },
+        {
+          "role": "serial_events",
+          "original": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.events.jsonl",
+            "sha256": "38b78c0594bdea9bc075a3b267cdf34e6cca7fc5912fba8244c6bcde3c7bfc0f",
+            "bytes": 3369856,
+            "preserved": true
+          },
+          "gzip": {
+            "path": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.events.jsonl.gz",
+            "sha256": "5e0ea1bd78c561cf9d84b5bfee7c5f95cde395d6c655a5a63e567fc00e352890",
+            "bytes": 504840,
+            "mtime": 0,
+            "uncompressed_sha256": "38b78c0594bdea9bc075a3b267cdf34e6cca7fc5912fba8244c6bcde3c7bfc0f",
+            "uncompressed_bytes": 3369856,
+            "round_trip_verified": true
+          }
+        }
+      ],
+      "byte_count_scope_review": null,
+      "acceptance_inferred_from_archive": false
+    }
+  ],
+  "verified_this_run": [
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-boot.summary.json",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-02.ble.summary.json",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json",
+    "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02.summary.json"
+  ],
+  "skipped": [
+    {
+      "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-03-boot.summary.json",
+      "reason": "excluded_before_read"
+    },
+    {
+      "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-ble-01.ble.summary.json",
+      "reason": "excluded_before_read"
+    },
+    {
+      "summary": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-01.summary.json",
+      "reason": "excluded_before_read"
+    }
+  ],
+  "archive_errors": []
+}

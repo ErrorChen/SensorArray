@@ -1,0 +1,405 @@
+{
+  "schema_version": 1,
+  "status": "FIX_CANDIDATE_HOST_VALIDATED_HIL_PENDING",
+  "sources": {
+    "repair-screen-02.summary.json": {
+      "sha256": "5a48be00d9b23faa8101bd85e1f20118a5fc2ac14c94f606dfebf7dbee246047",
+      "bytes": 105205
+    },
+    "repair-screen-02-usb-only.summary.json": {
+      "sha256": "98d6fd00181c07f1fbe7f543aecee119141423069a7bf81ac810bebe6f56df93",
+      "bytes": 102865
+    },
+    "screen-analysis-02.json": {
+      "sha256": "0a36521d79f30c5ff60d370cd0edb817f9dd876bf777f859403df87bf736b7fc",
+      "bytes": 195674
+    },
+    "ble-before-fragment-batch-01.c.txt": {
+      "sha256": "e815f7ba5495add8a99969dc8751b0c64de750079aa9b1e7d991d8633ca73660",
+      "bytes": 75962
+    }
+  },
+  "capture_window": {
+    "capture_start_seconds": 5.646646740991855,
+    "capture_end_seconds": 125.64676425699145,
+    "capture_window_status": "EXPLICIT",
+    "events": 36021,
+    "rx_bytes": 6049411,
+    "observed_seconds": 120.00011751599959,
+    "requested_seconds_met": true,
+    "capture_monotonic_start": 81628.830652394,
+    "capture_monotonic_end": 81748.830762839,
+    "received_raw_bytes_by_phase": {
+      "warmup": 262872,
+      "capture": 5766075,
+      "cleanup": 20464
+    },
+    "complete_frame_phases": {
+      "warmup": 361,
+      "capture": 8083,
+      "cleanup": 22
+    },
+    "rule": "header and K receipts both inside explicit capture window; straddlers excluded"
+  },
+  "dual_USB_rates": {
+    "device_span_seconds": 119.949583,
+    "host_receipt_span_seconds": 119.98746369799483,
+    "capture_fps": 70.68803232104608,
+    "host_complete_receive_fps": 67.35703673462233,
+    "host_parsed_frame_fps": 67.35703673462233,
+    "host_parsed_receipt_span_seconds": 119.98746369799483,
+    "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+    "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+  },
+  "dual_BLE_rates": {
+    "device_span_seconds": 119.89379,
+    "host_receipt_span_seconds": 119.96481291799864,
+    "capture_fps": 70.68756438511119,
+    "host_complete_receive_fps": 36.10225277440672,
+    "host_parsed_frame_fps": 36.10225277440672,
+    "host_parsed_receipt_span_seconds": 119.96481291799864,
+    "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+    "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+  },
+  "dual_USB_counts": {
+    "trusted_complete_frames": 8083,
+    "integrity_valid_frames": 8083,
+    "ordered_integrity_valid_frames": 8083,
+    "rejected_untrusted_frames": 0,
+    "complete_frames": 8083,
+    "wire_contract_errors": 0,
+    "ascii_crc_errors": 0,
+    "identity_errors": 0,
+    "header_identity_missing": 0,
+    "header_identity_invalid": 0,
+    "trailer_identity_missing": 0,
+    "trailer_identity_invalid": 0,
+    "trailer_header_identity_mismatch": 0,
+    "header_config_identity_mismatch": 0,
+    "identity_value_mismatch": 0,
+    "observed_points": 64664,
+    "reported_valid_points": 59506,
+    "unit_errors": 0,
+    "usable_numeric_points": 59506,
+    "open_points": 0,
+    "inconsistent_points": 0,
+    "invalid_points": 5158,
+    "not_fresh_points": 4,
+    "unacquired_points": 4,
+    "unknown_masks_points": 0,
+    "frames_with_invalid_points": 5151,
+    "frames_with_partial_freshness": 4,
+    "frames_with_unacquired_points": 4,
+    "fully_valid_fresh_acquired_frames": 2932,
+    "sequence_gaps": 380,
+    "missing_frames": 397
+  },
+  "dual_BLE_counts": {
+    "trusted_complete_frames": 4332,
+    "integrity_valid_frames": 4332,
+    "ordered_integrity_valid_frames": 4332,
+    "rejected_untrusted_frames": 0,
+    "complete_frames": 4332,
+    "wire_contract_errors": 0,
+    "ascii_crc_errors": 0,
+    "identity_errors": 0,
+    "header_identity_missing": 0,
+    "header_identity_invalid": 0,
+    "trailer_identity_missing": 0,
+    "trailer_identity_invalid": 0,
+    "trailer_header_identity_mismatch": 0,
+    "header_config_identity_mismatch": 0,
+    "identity_value_mismatch": 0,
+    "observed_points": 34656,
+    "reported_valid_points": 31910,
+    "unit_errors": 0,
+    "usable_numeric_points": 31910,
+    "open_points": 0,
+    "inconsistent_points": 0,
+    "invalid_points": 2746,
+    "not_fresh_points": 5,
+    "unacquired_points": 5,
+    "unknown_masks_points": 0,
+    "frames_with_invalid_points": 2738,
+    "frames_with_partial_freshness": 5,
+    "frames_with_unacquired_points": 5,
+    "fully_valid_fresh_acquired_frames": 1594,
+    "sequence_gaps": 2541,
+    "missing_frames": 4144
+  },
+  "BLE_fragment_receiver_counts": {
+    "D": {
+      "ok": 4332,
+      "missing": 0,
+      "gap": 0,
+      "crc_fail": 0,
+      "dropped": 0,
+      "tiny": 0,
+      "duplicate": 0,
+      "out_of_order": 0
+    },
+    "L": {
+      "ok": 340,
+      "missing": 0,
+      "gap": 0,
+      "crc_fail": 0,
+      "dropped": 0,
+      "tiny": 0,
+      "duplicate": 0,
+      "out_of_order": 0
+    }
+  },
+  "BLE_notifications": {
+    "notifications_D": 12997,
+    "notification_bytes_D": 2967396,
+    "logical_messages_D": 4332,
+    "malformed_lines": 0,
+    "notifications_L": 1530,
+    "notification_bytes_L": 352029,
+    "logical_messages_L": 340,
+    "boundary_straddling_frames_excluded": 1
+  },
+  "BLE_firmware_first_last_window": {
+    "status": "OBSERVED",
+    "first": {
+      "host_seconds": 5.6661349200003315,
+      "phase": "capture",
+      "byte_offset": 263686,
+      "fields": {
+        "conn": "1",
+        "sub": "111",
+        "mtu": "247",
+        "phy": "1/1",
+        "mode": "fast",
+        "mq": "403",
+        "ms": "400",
+        "md": "182",
+        "sentD": "374",
+        "sentL": "26",
+        "dropD": "182",
+        "dropL": "0",
+        "dropC": "0",
+        "ctrlRetry": "0",
+        "ctrlExhaust": "0",
+        "fs": "1571",
+        "fe": "0",
+        "cg": "0",
+        "stale": "0",
+        "conf": "0",
+        "tiny": "0"
+      }
+    },
+    "last": {
+      "host_seconds": 125.52282104099868,
+      "phase": "capture",
+      "byte_offset": 6022670,
+      "fields": {
+        "conn": "1",
+        "sub": "111",
+        "mtu": "247",
+        "phy": "1/1",
+        "mode": "fast",
+        "mq": "5072",
+        "ms": "5067",
+        "md": "4302",
+        "sentD": "4702",
+        "sentL": "365",
+        "dropD": "4302",
+        "dropL": "0",
+        "dropC": "0",
+        "ctrlRetry": "0",
+        "ctrlExhaust": "0",
+        "fs": "16084",
+        "fe": "0",
+        "cg": "0",
+        "stale": "0",
+        "conf": "0",
+        "tiny": "0"
+      }
+    },
+    "elapsed_seconds": 119.85668612099835,
+    "window": "first_last_BL50_receipts_not_exact_capture_boundaries",
+    "counters": {
+      "mq": {
+        "before": 403,
+        "after": 5072,
+        "delta": 4669,
+        "unavailable": null
+      },
+      "ms": {
+        "before": 400,
+        "after": 5067,
+        "delta": 4667,
+        "unavailable": null
+      },
+      "md": {
+        "before": 182,
+        "after": 4302,
+        "delta": 4120,
+        "unavailable": null
+      },
+      "sentD": {
+        "before": 374,
+        "after": 4702,
+        "delta": 4328,
+        "unavailable": null
+      },
+      "sentL": {
+        "before": 26,
+        "after": 365,
+        "delta": 339,
+        "unavailable": null
+      },
+      "dropD": {
+        "before": 182,
+        "after": 4302,
+        "delta": 4120,
+        "unavailable": null
+      },
+      "dropL": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "dropC": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "ctrlRetry": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "ctrlExhaust": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "fs": {
+        "before": 1571,
+        "after": 16084,
+        "delta": 14513,
+        "unavailable": null
+      },
+      "fe": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "cg": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "stale": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "conf": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "tiny": {
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "unavailable": null
+      }
+    }
+  },
+  "SCHED_before_after_window": {
+    "elapsed_seconds": 120.32703279300767,
+    "bt_checkpoints_delta": 14567,
+    "bt_yields_delta": 5968,
+    "yield_ratio": 0.4096931420333631,
+    "idle_generation_delta": 72303,
+    "before_fields": {
+      "initError": "0x0",
+      "registered": "1",
+      "idleKnown": "1",
+      "tickHz": "100",
+      "budgetTicks": "2",
+      "maxUnits": "32",
+      "graceUnits": "2",
+      "backstopTicks": "4",
+      "idleGen": "25373",
+      "idleAgeTicks": "2",
+      "maxIdleGapTicks": "3",
+      "bt": "6442/445/5",
+      "tr": "1136/158/5",
+      "log": "1489/70/7",
+      "ser": "6863/213/32",
+      "bc": "1/0/1",
+      "sc": "76/8/4",
+      "wc": "0/0/0"
+    },
+    "after_fields": {
+      "initError": "0x0",
+      "registered": "1",
+      "idleKnown": "1",
+      "tickHz": "100",
+      "budgetTicks": "2",
+      "maxUnits": "32",
+      "graceUnits": "2",
+      "backstopTicks": "4",
+      "idleGen": "97676",
+      "idleAgeTicks": "2",
+      "maxIdleGapTicks": "4",
+      "bt": "21009/6413/5",
+      "tr": "17999/3859/7",
+      "log": "10910/1937/7",
+      "ser": "16716/3303/32",
+      "bc": "1/0/1",
+      "sc": "98/15/4",
+      "wc": "0/0/0"
+    }
+  },
+  "USB_only_comparison": {
+    "capture_seconds": 120.00035054299224,
+    "complete_frames": 10913,
+    "host_complete_frame_fps": 90.94140100940976,
+    "parser_counters": {
+      "lines": 50437,
+      "cap_frames": 0,
+      "voltage_frames": 10913,
+      "resistance_frames": 0,
+      "mixed_frames": 0,
+      "crc_errors": 0,
+      "malformed": 0,
+      "sequence_gaps": 0,
+      "missing_frames": 0,
+      "sequence_regressions": 0,
+      "non_ascii_chunks": 0,
+      "summary_lines": 5895,
+      "rmack": 0,
+      "rmapp": 0,
+      "rmerr": 0,
+      "lifecycle_duplicate_terminal": 0,
+      "lifecycle_terminal_without_ack": 0
+    },
+    "limitation": "Separate completed window with same firmware under root control. The complete dual-vs-USB-only acquisition-rate difference is not attributed solely to this budget branch."
+  },
+  "causal_scope": "Call graph counts one descriptor checkpoint plus n-1 fragment checkpoints, so a successful n-fragment message consumes n work units. In the documented synthetic encoder VOLT1 frame, n=3 at firmware MTU247: at idleAge2 the descriptor consumes first grace unit and the first internal checkpoint consumes the second, then waits between fragments. Actual SCHED +14567 checkpoints vs BL50 +14513 fragment successes (slightly different observation windows) corroborates fine-grained accounting, but is not a CPU-time measurement.",
+  "fix_scope": "Keep descriptor checkpoint, replace per-fragment accounting with at most four-fragment batches or one elapsed tick. Per-fragment connection checks, payload CRC, queue/slot ownership, error classification and global WorkBudget policy unchanged.",
+  "counter_contract": "SCHED.bt retains checkpoints/yields/maxBurstUnits fields, but checkpoint unit changes to descriptor boundary or bounded fragment batch; counts across firmware versions are not comparable as raw fragment counts.",
+  "limits": [
+    "fe/cg/stale/ctrlRetry zero means no such reported event, not proof of unlimited radio bandwidth.",
+    "Firmware BL50 and SCHED counters have distinct receipt/query windows; do not force equal deltas.",
+    "vTaskDelay(1) count is not measured blocked duration or CPU utilization.",
+    "Frames valid at transport CRC/identity can still contain ADC X codes.",
+    "No post-change HIL result exists in this report."
+  ],
+  "negative_reproduction": "ble-fragment-budget-negative-01.json",
+  "new_tests": "ble-fragment-batch-host-01.json"
+}

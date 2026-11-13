@@ -1,0 +1,30 @@
+{
+  "schema": "firmware_benchmark_v1",
+  "status": "COMPLETE",
+  "port": "/dev/ttyACM0",
+  "one_port_session": true,
+  "plan": [
+    {
+      "label": "repair-screen-05-usb-only",
+      "mode": "VOLT",
+      "rows": 1,
+      "profile": "CVRCVRCV",
+      "seconds": 120.0,
+      "kind": "configuration"
+    }
+  ],
+  "results": [
+    {
+      "label": "repair-screen-05-usb-only",
+      "summary_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-05-usb-only.summary.json",
+      "status": "CAPTURED",
+      "error": null,
+      "capture_seconds": 120.00020298999152
+    }
+  ],
+  "measurement_acceptance": "NOT_EVALUATED",
+  "automatic_retry": false,
+  "session_monotonic_start": 86153.903855462,
+  "session_monotonic_end": 86279.22432432,
+  "not_run": []
+}

@@ -1,0 +1,13 @@
+{
+  "observed_utc": "2026-11-13T12:51:39.954891+00:00",
+  "source": "/sys/bus/usb/devices/3-1",
+  "fields": {
+    "idVendor": "303a",
+    "idProduct": "1001",
+    "speed": "12",
+    "product": "USB JTAG/serial debug unit"
+  },
+  "speed_unit": "Mbit/s",
+  "actual_payload_throughput_measured": false,
+  "interpretation": "Native USB Serial/JTAG negotiated Full Speed; tty baud is not a physical UART rate. Firmware queue/scheduling loss is separate from USB bus bandwidth."
+}

@@ -1,0 +1,10 @@
+{"source": "/home/csc/esp/workspace/SensorArray/components/sensorarrayBle/sensorarrayBle.c", "baseline": "b44c37b51067e376e73aa44535ea47d175846b67", "source_sha256": "e815f7ba5495add8a99969dc8751b0c64de750079aa9b1e7d991d8633ca73660", "harness_sha256": "030ba492f68d537b7c9cf831dfc46176fda6db1af53eac05de65933630610f4f", "budget_sha256": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d", "hardware_access": false, "model": "synthetic scheduler and GATT boundary"}
+BLE_BATCH_REVIEW,case=typical600_baseline,bytes=600,mtu=247,fragments=3,checkpoints=3,delays=3,wireCrcPreserved=1,slotRetained=1
+BLE_BATCH_REVIEW,case=maximum_baseline,bytes=2304,mtu=247,fragments=11,checkpoints=11,delays=11,wireCrcPreserved=1,slotRetained=1
+BLE_BATCH_REVIEW,case=sdk_crosses_tick,bytes=600,mtu=247,fragments=3,checkpoints=3,delays=3,wireCrcPreserved=1,slotRetained=1
+BLE_BATCH_REVIEW,case=tick_wrap,bytes=600,mtu=247,fragments=3,checkpoints=3,delays=3,wireCrcPreserved=1,slotRetained=1
+BLE_BATCH_REVIEW,case=disconnect_after_1,nextFragmentBlocked=1,slotRetained=1
+BLE_BATCH_REVIEW,case=disconnect_after_2,nextFragmentBlocked=1,slotRetained=1
+BLE_BATCH_REVIEW,case=disconnect_after_3,nextFragmentBlocked=1,slotRetained=1
+BLE_BATCH_REVIEW,case=disconnect_after_4,nextFragmentBlocked=1,slotRetained=1
+BLE_BATCH_REVIEW,case=failure_after_batch,firstErrorPreserved=1,slotRetained=1

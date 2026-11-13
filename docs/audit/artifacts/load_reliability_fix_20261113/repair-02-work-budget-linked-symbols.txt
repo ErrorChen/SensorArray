@@ -1,0 +1,8 @@
+3fcada4c d s_workers
+3fcadad8 d s_maxIdleGapTicks
+3fcadadc d s_idleTick
+3fcadae0 d s_idleGeneration
+3fcadae4 d s_initError
+3fcadae8 d s_initTick
+3fcadaec d s_initState
+42083498 t sensorarrayWorkBudgetIdleHook

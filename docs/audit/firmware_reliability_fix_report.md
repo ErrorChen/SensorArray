@@ -1,5 +1,9 @@
 # SensorArray 固件可靠性修复报告
 
+> **2026-11-13 当前负载修复（待验收）**：USB/CPU0 工作预算及 RECOVER/RESTART 的已确认 P0/P1 修复已提交为 `fd0190a`；最终已提交目标构建 PASS，50 个 host 入口全部 exit 0，输入 hash 与构建逐项相符。WorkBudget 的 Xtensa/include 适配已完成，repair-01/02 失败历史保留。app-only 烧录/启动观察由主任务执行，新镜像 HIL 待验证。完整中英文机制、证据和剩余边界见 [负载可靠性修复](load_reliability_fix_20261113.md)。下文历史版本/实测不被改写。
+>
+> **Current load repair, 2026-11-13 — acceptance pending:** the confirmed USB/CPU0-budget and RECOVER/RESTART P0/P1 fixes are committed as `fd0190a`. The final committed-source target build passes and all 50 host entries exit 0, with input hashes matching the build. Xtensa/include adaptation is complete; repair-01/02 failures remain preserved. The main task owns app-only flash/startup observation, and new-image HIL validation is pending. See the [complete bilingual report](load_reliability_fix_20261113.md); historical results below remain unchanged.
+
 > 2026-11-13 启动选速率/恢复更新：已实现独立前端启动模块、SPI 与 I²C 并行资格扫描、细档位及各阶段 2.5% CRC 门限、三前端失联的低速探测和受控重启。已实际构建、执行 42 个 host 测试入口、app-only 烧录 `0d8f60f`。旧版 `e339a1d` 的 VOLT 失败实录促成运行期 CRC 分类修复；新版 VOLT1/VOLT8/RES8/CAP8/MIXED8 各约140秒均无MFAULT，50次控制身份切换通过。VOLT1仍有25个实收帧缺口，RES参考点仍有X02，不能宣称无背压或精度通过。**SPI 电气 CRC 错误尚未根治，不能把选速成功当作完整验收通过。** 后续修订及实测见 [启动/恢复验收](frontend_startup_recovery_20261113.md)，其版本/结果优先于下文历史记录。
 
 > 2026-11-13 先前夹具复测（历史）：[接触修复与外部轨对照](reference_fixture_recheck_20261113.md)。S8D8松动修复后两只电阻均不再OPEN；用户提供了轨电压范围，已临时输入RAM。外部rail且周期电池关闭时仍观察到CRC错误，因此完整验收仍未通过。本轮未改/重烧生产固件；新增悬空口近似背景工具按用户授权保留三种方法，不冒充同点精度校准。以下2026-11-05状态为此前记录。

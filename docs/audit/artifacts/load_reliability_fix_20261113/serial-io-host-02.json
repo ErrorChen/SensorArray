@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-11-13T12:15:11.071526+00:00",
+  "finished_utc": "2026-11-13T12:15:11.688474+00:00",
+  "elapsed_seconds": 0.6169477479998022,
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "dirty_status": " M components/sensorarrayBle/CMakeLists.txt\n M components/sensorarrayBle/sensorarrayBle.c\n M core/transport/CMakeLists.txt\n M core/transport/sensorarraySerialIo.c\n M core/transport/sensorarraySerialIo.h\n M core/transport/sensorarrayTransport.c\n M core/transport/sensorarrayTransportCommand.c\n M docs/command-reference.md\n M docs/integration/firmware_host_contract.md\n M main/CMakeLists.txt\n M main/main.c\n M main/output/sensorarrayAsyncLog.c\n M tests/host/test_restart_budget.c\n M tests/host/test_serial_io.c\n M tools/test_restart_budget.py\n M tools/test_serial_io.py\n?? components/sensorarrayWorkBudget/\n?? docs/audit/artifacts/load_reliability_fix_20261113/\n?? main/control/sensorarrayRecoveryControl.c\n?? main/control/sensorarrayRecoveryControl.h\n?? tests/host/test_recovery_control.c\n?? tests/host/test_usb_driver_record.c\n?? tests/host/test_work_budget.c\n?? tests/host/test_work_budget_ble_fragments.c\n?? tests/host/test_work_budget_drains.c\n?? tests/host/work_budget_stubs/\n?? tools/test_recovery_control.py\n?? tools/test_work_budget.py\n",
+  "source_sha256_before": {
+    "core/transport/sensorarraySerialIo.c": "c2cdbbb1f0a5c92c687715c27bc1f82a51b6bb2a43679230e291233b9557eae1",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "tests/host/test_serial_io.c": "10b8571c12184f0d8b2951e29397eedde7790f2e6dc644ff6cf35e8c7eabb275",
+    "tests/host/test_usb_driver_record.c": "dc09fdff9b82ef0eceda11ca3d1f86d87e4a103dd52a1be9bb47d7bf4fc23e2e",
+    "tools/test_serial_io.py": "fd71745ff9a3109eb330cc01e23c6814f39a7161db2a8aeb2063163e764817a6",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "67e323565a789186c0871856d29faee9751f7a68549d532efd4438cae5b83534",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "58f115c6a7f50eb6671a07ca71ce41a562508ed4e6338bbedec50dffc8972835"
+  },
+  "source_sha256_after": {
+    "core/transport/sensorarraySerialIo.c": "c2cdbbb1f0a5c92c687715c27bc1f82a51b6bb2a43679230e291233b9557eae1",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "tests/host/test_serial_io.c": "10b8571c12184f0d8b2951e29397eedde7790f2e6dc644ff6cf35e8c7eabb275",
+    "tests/host/test_usb_driver_record.c": "dc09fdff9b82ef0eceda11ca3d1f86d87e4a103dd52a1be9bb47d7bf4fc23e2e",
+    "tools/test_serial_io.py": "fd71745ff9a3109eb330cc01e23c6814f39a7161db2a8aeb2063163e764817a6",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "67e323565a789186c0871856d29faee9751f7a68549d532efd4438cae5b83534",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "58f115c6a7f50eb6671a07ca71ce41a562508ed4e6338bbedec50dffc8972835"
+  },
+  "sources_stable": true,
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py",
+        "--source",
+        "docs/audit/artifacts/load_reliability_fix_20261113/serial-io-expiry-before.c.txt"
+      ],
+      "exit_code": 1,
+      "expected_failure": true,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/serial-io-expiry-failure-02.txt",
+      "log_sha256": "405e86abc12f70805c43dee0afd829bc2b2f5c30171c7126dc1892e1984f98ef"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py",
+        "--tx-baseline",
+        "1f82b73a1019930f419492e3e742a96bd43f374e"
+      ],
+      "exit_code": 0,
+      "expected_failure": false,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/serial-io-host-02.txt",
+      "log_sha256": "8545a1c28a69fb40eea26b076dae800fbd3f4e24c0043fe73fadca030dfed9b9"
+    }
+  ],
+  "pre_fix_source": {
+    "path": "docs/audit/artifacts/load_reliability_fix_20261113/serial-io-expiry-before.c.txt",
+    "sha256": "d2537e300fee190fc9ef455025151e49d0bf4ec361ff487840e71a1b70aadb6a",
+    "provenance": "Inverse of the minimal expiry-drain patch; byte hash verified identical to the source hash captured during failure-01 before production edit."
+  },
+  "coverage": [
+    "Four normal records expire with no future producer/notification: all slots released",
+    "Four priority records expire with no future producer/notification: all slots released",
+    "Four normal plus four priority expire: exact normal/priority/timeout/drop counts and empty queues",
+    "Partial priority expires before a younger queued priority: newline then next item, without future notification",
+    "All existing SerialIo/WorkBudget/VFS/driver record and 100Hz lifecycle regressions"
+  ],
+  "production_change": "Treat pending expiry/release as drain progress and inspect queues again before a blocking notification wait. No extra producer notification, no deadline reset.",
+  "hardware_access": false,
+  "target_build": "Root owns target build/HIL"
+}

@@ -1,0 +1,1 @@
+INDEPENDENT_GUARANTEED_SINK_PASS,scenarios=6,serial_unconditional_priority=1,ble_generation=1,wifi_actual_ready=1,each_failure_counted=1,no_early_abort=1,publish_release_barrier=1,real_slot_drain=1,sink_boundaries_synthetic=1,host_receipt_not_asserted=1

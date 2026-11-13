@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_load_benchmark.py",
+    "--port",
+    "/dev/ttyACM0",
+    "--output-directory",
+    "docs/audit/artifacts/load_reliability_fix_20261113",
+    "--label",
+    "repair-screen-02-usb-only",
+    "--mode",
+    "VOLT",
+    "--rows",
+    "1"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 260.0,
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "dirty_diff_sha256": "6940eeefd78e2ed31d277b41c799d514be64e6a8e51235b49dbf010e2aa9ef9b",
+  "started_utc": "2026-11-13T13:05:19.870284+00:00",
+  "started_monotonic": 82016.34503068,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T13:07:25.250236+00:00",
+  "finished_monotonic": 82141.724983064,
+  "log_sha256": "0983b4a968a05e27abc89deabad02ed0019a29ac74417b15fc8e3140d5f091e6"
+}

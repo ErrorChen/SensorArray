@@ -1,0 +1,59 @@
+{
+  "head": "b44c37b51067e376e73aa44535ea47d175846b67",
+  "build_version": "b44c37b-dirty",
+  "app_sha256": "d29289eeb6f93de96adfb59f7cf8a2e2142ecc9e46baf510355ce76a01ddb531",
+  "app_bytes": 1561568,
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "flash_id"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-flash-identity.txt"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "write_flash",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "16MB",
+        "0x10000",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-05-flash-app.txt"
+    }
+  ],
+  "nvs_or_calibration_written": false,
+  "partition_written": false,
+  "bootloader_written": false
+}

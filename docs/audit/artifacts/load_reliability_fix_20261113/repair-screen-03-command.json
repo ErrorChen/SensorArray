@@ -1,0 +1,33 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_load_benchmark.py",
+    "--port",
+    "/dev/ttyACM0",
+    "--output-directory",
+    "docs/audit/artifacts/load_reliability_fix_20261113",
+    "--label",
+    "repair-screen-03",
+    "--mode",
+    "VOLT",
+    "--rows",
+    "1",
+    "--rail-avdd-uv",
+    "3350000",
+    "--rail-avss-uv",
+    "-1795000",
+    "--rail-source-note",
+    "User DMM range at ADS supply pins provided earlier: AVDD 3.33-3.37 V, AVSS -1.795 +/-0.005 V; nominal RAM values, measurement age and uncertainty unknown; not fresh calibration"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 300.0,
+  "head": "4b665acf355adb4b145114abf5ecaa4325090be5",
+  "dirty_diff_sha256": "6940eeefd78e2ed31d277b41c799d514be64e6a8e51235b49dbf010e2aa9ef9b",
+  "started_utc": "2026-11-13T13:34:55.961145+00:00",
+  "started_monotonic": 83791.985859297,
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-03-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T13:37:04.033777+00:00",
+  "finished_monotonic": 83918.414968526,
+  "log_sha256": "14fb22671a4fe77e99e46b4bb710abcb6a222672343cff7a66bc37f6d24afd86"
+}

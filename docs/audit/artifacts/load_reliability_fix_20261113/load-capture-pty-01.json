@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-11-13T12:28:01.016333+00:00",
+  "finished_utc": "2026-11-13T12:28:02.790339+00:00",
+  "elapsed_seconds": 1.774007978005102,
+  "command": [
+    "python3",
+    "tools/test_load_benchmark_capture.py"
+  ],
+  "exit_code": 0,
+  "tests": 8,
+  "source_sha256_before": {
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_load_benchmark.py": "eda5841598e6f2f2809af1dc6720ea117d4e33fe8d5b937a71cfcaadc99d4bc8",
+    "tools/test_load_benchmark_capture.py": "62607cc36fc0621983c4c64294b866d8ff07e28678fbb9b887c19c3bb5da43c4",
+    "tools/run_firmware_benchmark.py": "d37a55d0fa2a00bd8ba3acb759beeeff969982f4730cd72355931dcf739595ef",
+    "tools/run_firmware_benchmark_retry.py": "6d026e60d04ed1f0c46e12fc444aac685f109f6a3a537b911d078c1a2b427e1c",
+    "tools/capture_reference_fixture.py": "c2b2ba329ce67f67ebd6c91dcc4ddcb642881279fd426eec0e12e59403ebe3a6",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "f077aacbc1d80168afcac04a9f30f7f142224b660ea710b03782704e2d92c586"
+  },
+  "source_sha256_after": {
+    "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_load_benchmark.py": "eda5841598e6f2f2809af1dc6720ea117d4e33fe8d5b937a71cfcaadc99d4bc8",
+    "tools/test_load_benchmark_capture.py": "62607cc36fc0621983c4c64294b866d8ff07e28678fbb9b887c19c3bb5da43c4",
+    "tools/run_firmware_benchmark.py": "d37a55d0fa2a00bd8ba3acb759beeeff969982f4730cd72355931dcf739595ef",
+    "tools/run_firmware_benchmark_retry.py": "6d026e60d04ed1f0c46e12fc444aac685f109f6a3a537b911d078c1a2b427e1c",
+    "tools/capture_reference_fixture.py": "c2b2ba329ce67f67ebd6c91dcc4ddcb642881279fd426eec0e12e59403ebe3a6",
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "f077aacbc1d80168afcac04a9f30f7f142224b660ea710b03782704e2d92c586"
+  },
+  "sources_stable": true,
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/load-capture-pty-01.txt",
+  "log_sha256": "358875502655fb42d1b56c544729d33e0b9c13ca070c76a43b0f2be17e1c5b3e",
+  "frozen_collectors_modified": false,
+  "hardware_access": false,
+  "coverage": [
+    "full SERIAL and seven-worker SCHED schema",
+    "per-query real monotonic start/end and enclosing CONFIG identity",
+    "unknown/unregistered/initError/sentinel refused without rewriting fields",
+    "exact capability token verification before new queries",
+    "truncated SERIAL/SCHED replies retry up to 3 within original deadline",
+    "deadline exhaustion never extends phase or retries setter",
+    "revision changes during new queries cannot form authoritative snapshot",
+    "watchdog remains fail-fast",
+    "original 120/600/5 defaults and frozen source/process context preserved"
+  ]
+}

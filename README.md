@@ -1,3 +1,5 @@
+> **2026-11-14 调试状态 / Debug status:** 正式 USB 正在从 Serial/JTAG 迁移到 USB-OTG vendor bulk；BLE 正式数据优先。当前工作尚未完成新的 10 分钟及 32 配置 USB+BLE 验收。下方历史测试不得当作新接口通过。 / Formal USB is being migrated to USB-OTG vendor bulk, with BLE data priority. The new 10-minute and 32-configuration USB+BLE acceptance runs are not complete; historical results below do not validate the new interface. [旧阶段实测与中止说明 / Previous phase evidence](docs/audit/load_reliability_fix_20261113.md).
+
 # SensorArray — ESP32-S3 固件 / ESP32-S3 Firmware
 
 SensorArray 面向 8×8 测量矩阵，支持 **1–8 个活动 S 行、每行 8 个 D 通道**。每行可选择电容 `CAP/C`、电压 `VOLT/V` 或电阻 `RES/R`；`ROWMODES` 可将不同模式组合在同一帧。模式切换的最小单位是一行，不是固定四点。
@@ -6,7 +8,47 @@ SensorArray is firmware for an 8×8 measurement matrix with **1–8 active S row
 
 仓库 / Repository: [ErrorChen/SensorArray](https://github.com/ErrorChen/SensorArray). 上位机兼容改动属于独立的 `ErrorChen/SensorArray_Software` 任务。 / Host compatibility changes belong to the separate `ErrorChen/SensorArray_Software` task.
 
-## 当前失败基线与验收边界 / Current failed baseline and acceptance limits
+## 当前修复与历史失败基线 / Current repair and historical failed baseline
+
+**当前修复源码为 `d314888`；51 个 host 测试入口与目标构建通过，但 screen-04 仍为负载验收 FAIL，完整长测尚未开始。** 已完成 app-only 烧录和 VOLT1 同步 USB+BLE 120 s 筛查：Capture 69.013312 FPS，USB 42.820965 FPS、BLE 43.300331 FPS，分别有 3,143 / 3,082 个未观察到的序号。该窗口未观察到 watchdog、MFAULT、reset、完整帧 ASCII CRC 或 identity 错误；这不能消除 DATA 排队拒绝、吞吐不足或测量有效性问题，也不是精度 PASS。
+
+**Current repair source is `d314888`; all 51 host test entries and the target build passed, but screen-04 still failed load acceptance and the full long suite has not started.** App-only flashing and a 120 s simultaneous VOLT1 USB+BLE screen completed: capture 69.013312 FPS, USB 42.820965 FPS and BLE 43.300331 FPS, with 3,143 / 3,082 missing sequence observations respectively. No watchdog, MFAULT, reset, complete-frame ASCII CRC or identity error was observed in this window. This does not remove DATA admission rejection, insufficient throughput or measurement-validity issues, and is not an accuracy pass.
+
+当前源码 / current source: `d31488848844667dfa88502bf1b894d7bfe571a2`；app `d314888-dirty`，1,562,224 B，SHA256 `e63e383eec05460e613e1cf81664c1e5c0ef0ce7a7aa68592b8905ff756e3fc7`。repair-08 的 51/51 host 入口 exit 0，manifest 为提交前 `4b665ac+dirty`；其 166 个构建输入与 51 个测试输入 hash 均与 repair-09 已提交构建一致。 / All 51 repair-08 host entries exited 0 under pre-commit `4b665ac+dirty`; its 166 build-input and 51 test-input hashes match the repair-09 committed-source build. 证据 / Evidence: [repair-08 tests](docs/audit/artifacts/load_reliability_fix_20261113/repair-08-tests-manifest.json)、[repair-09 build](docs/audit/artifacts/load_reliability_fix_20261113/repair-09-build-manifest.json)、[repair-09 app-only flash](docs/audit/artifacts/load_reliability_fix_20261113/repair-09-flash-result.json)。
+
+| 已完成筛查 / Completed screen | Capture FPS | USB FPS；可信完整帧 / trusted complete frames | BLE FPS；可信完整帧 / trusted complete frames | USB / BLE 缺失序号 / missing sequences | 原判定 / Recorded outcome |
+| --- | ---: | ---: | ---: | ---: | --- |
+| screen-03：`4b665ac`，120 s | 70.663301 | 61.422020；7,371 | 39.968146；4,796 | 1,120 / 3,687 | FAIL |
+| screen-04：`d314888`，120 s | 69.013312 | 42.820965；5,138 | 43.300331；5,195 | 3,143 / 3,082 | FAIL |
+
+Capture 按有序可信帧的设备 sequence/timestamp 推算；实收 FPS 按各端首末可信完整帧接收跨度计算，缺失序号亦限定在各自范围，不是 gap 事件数，不能将两端直接相减。screen-04 的 USB 有效/无效点为 37,833/3,271，BLE 为 38,321/3,239；两端各有 11 点 fresh/acquired=0，未填零或伪装有效。来源：[screen-03 判定](docs/audit/artifacts/load_reliability_fix_20261113/iteration-03-evaluation.json)、[screen-04 独立分析](docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-05.json)、[分层诊断](docs/audit/artifacts/load_reliability_fix_20261113/screen-diagnostics-04.json)、[判定](docs/audit/artifacts/load_reliability_fix_20261113/iteration-04-evaluation.json)与[无损归档](docs/audit/artifacts/load_reliability_fix_20261113/evidence-index-screen-04.json)。
+
+Capture is inferred from ordered trusted-frame device sequence/timestamp progression. Receive FPS uses each receiver's first-to-last trusted complete-frame receipt span; missing sequences also use each receiver's own range. They are not gap-event counts and cannot be directly subtracted between receivers. Screen-04 contains 37,833 valid / 3,271 invalid USB points and 38,321 / 3,239 BLE points. Each receiver has 11 points with fresh/acquired=0; none is zero-filled or relabeled valid. The linked decisions, independent analysis, layered diagnostics and lossless archive retain the evidence.
+
+当前待修的调度服务问题是 USB TX 任务优先级 4 低于同核 BLE/transport 的 5；减少 checkpoint 等待后 DATA 容量拒绝仍增加。下一步是优先级 6 候选的最小模型验证与新镜像筛查，**不是 d314888 已实施或已验收的修复**。用户接受 Serial 输出 FPS 低于 capture：后续判据是差额有分层计数、控制通路不饥饿、等待有界且无已确认阻塞/P0/P1，而非强迫 USB/BLE FPS 都等于 capture。此口径不倒改历史 FAIL，也不放宽 ADC CRC 的 2.5% 要求。
+
+The remaining scheduling-service issue is USB TX priority 4 below same-core BLE/transport priority 5; DATA capacity rejection increased despite fewer checkpoint waits. Next comes minimal-model validation of a priority-6 candidate and a new-image screen; **this is not an implemented or accepted d314888 repair**. The user accepts Serial output FPS below capture. Subsequent acceptance requires layered accounting of the difference, a control path that is not starved, bounded waits, and no confirmed blocker/P0/P1; it does not require USB and BLE FPS to equal capture. This criterion does not retrospectively change historical FAIL results or relax the ADC CRC 2.5% requirement.
+
+历史增量仍保留：repair-06 候选 50/50 host 入口与构建通过，repair-07 完成 `4b665ac` 构建/烧录后得到上表 screen-03 FAIL。 / Historical increments remain: the repair-06 candidate passed 50/50 host entries and its build; repair-07 built/flashed `4b665ac`, followed by screen-03 FAIL above. [repair-06 tests](docs/audit/artifacts/load_reliability_fix_20261113/repair-06-tests-manifest.json)、[repair-06 build](docs/audit/artifacts/load_reliability_fix_20261113/repair-06-build-manifest.json)、[repair-07 build](docs/audit/artifacts/load_reliability_fix_20261113/repair-07-build-manifest.json)、[repair-07 flash](docs/audit/artifacts/load_reliability_fix_20261113/repair-07-flash-result.json)。
+
+以下镜像表对应已完成历史筛查的 `b44c37b`，不是尚未完成验收的新镜像。 / The image table below identifies the completed historical `b44c37b` screening, not a newly accepted image.
+
+| 上次实机筛查镜像 / Previous screened image | 关联记录 / Association |
+| --- | --- |
+| 源码 / Source | `b44c37b51067e376e73aa44535ea47d175846b67` |
+| app | `b44c37b-dirty`，1,561,568 bytes |
+| app SHA256 | `d29289eeb6f93de96adfb59f7cf8a2e2142ecc9e46baf510355ce76a01ddb531` |
+| 构建与烧录 / Build and flash | [repair-05 build manifest](docs/audit/artifacts/load_reliability_fix_20261113/repair-05-build-manifest.json)、[repair-05 flash result](docs/audit/artifacts/load_reliability_fix_20261113/repair-05-flash-result.json)。仅写 app；未写 NVS、校准、分区表或 bootloader。 / App only; NVS, calibration, partition table, and bootloader were not written. |
+
+前一修复版 **`fd0190a` 已通过 ESP-IDF 构建及 50 个 host 测试入口，但未通过性能验收**：其 VOLT1 USB+BLE 120 秒筛查没有 watchdog/帧 CRC/身份错误，却暴露了调度造成的吞吐回退。`b44c37b` 随后加入仅由真实 idle 更新的两 work-unit 宽限；不能把 fd0190a 的首次筛查当作本版结果。两次启动选中的 SPI 都是 requested 750 kHz / IDF actual 754 kHz；这项相同条件不等于新性能已验证。机制及历史证据见 [负载修复报告](docs/audit/load_reliability_fix_20261113.md) 和 [首次调度诊断](docs/audit/artifacts/load_reliability_fix_20261113/work-budget-screen-01-diagnosis.json)。
+
+The preceding repair **`fd0190a` passed the ESP-IDF build and 50 host test entries but failed performance acceptance**: its 120-second VOLT1 USB+BLE screening had no watchdog/frame CRC/identity error, yet exposed a scheduling-related throughput regression. `b44c37b` subsequently added a two-work-unit grace renewed only by actual idle progress; the first fd0190a screening is not a result for this version. Both startups selected requested 750 kHz / IDF actual 754 kHz SPI; matching this condition does not establish new performance. See the [load repair report](docs/audit/load_reliability_fix_20261113.md) and [first scheduling diagnosis](docs/audit/artifacts/load_reliability_fix_20261113/work-budget-screen-01-diagnosis.json).
+
+`b44c37b` 的第二次同步 VOLT1 USB+BLE 120 s 窗口已完成分析：Capture 70.6880 FPS、USB 67.3570 FPS（8,083 可信完整帧、397 个缺失序号）、BLE 36.1023 FPS（4,332 可信完整帧、4,144 个缺失序号），两端 ASCII CRC/identity 错误均为 0；吞吐与背压仍需修复。随后同镜像 USB-only 的 collector 在 120.000351 s 记录 10,913 个完整 CRC 通过帧、窗口均值 90.9414 FPS、identity 错误 0；它与双输出不是相同负载，也不是精度验收。详见[第二次独立分析](docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-02.json)与 [USB-only 原 summary](docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json)。这两次均早于 DATA/LOG 分离与 BLE 批次修复，不能用来宣称新版本已通过。
+
+Analysis of the second `b44c37b` simultaneous VOLT1 USB+BLE 120 s window is complete: capture 70.6880 FPS, USB 67.3570 FPS (8,083 trusted complete frames and 397 missing sequence observations), and BLE 36.1023 FPS (4,332 trusted complete frames and 4,144 missing sequence observations), with zero ASCII CRC/identity errors on both receivers. Throughput and backpressure still require repair. The later same-image USB-only collector recorded 10,913 complete CRC-valid frames over 120.000351 s, averaging 90.9414 FPS over the window, with zero identity errors. This differs from simultaneous-output load and is not accuracy acceptance. See the [second independent analysis](docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-02.json) and [original USB-only summary](docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-02-usb-only.summary.json). Both precede DATA/LOG isolation and BLE batching and cannot establish acceptance of the new version.
+
+### 0d8f60f 历史失败基线（原记录保留） / Historical 0d8f60f failed baseline (original record retained)
 
 **修复待验收：以下记录0d8f60f烧录镜像的修复前基线，未宣告任务完成。USB截断与CPU0 IDLE0看门狗问题需修复后以新版本重测；本页保留旧证据供对照。** / **Fixes await acceptance: this records the pre-fix baseline of the flashed 0d8f60f image, not task completion. USB truncation and the CPU0 IDLE0 watchdog issue require fixes and new-version retesting; prior evidence remains for comparison.**
 
@@ -40,7 +82,9 @@ idf.py -p PORT flash
 idf.py -p PORT monitor
 ```
 
-`PORT` 替换为实际端口，如 `COMx` 或 `/dev/ttyACM*`。一次只让一个程序读取同一串口，采集前关闭 monitor；多候选设备先确认身份。Native USB Serial/JTAG 的波特率设置不是外部 UART 的吞吐上限。 / Replace `PORT` with the actual device, such as `COMx` or `/dev/ttyACM*`. Use one reader per serial port and close the monitor before capture; identify the device if multiple ports exist. The native USB Serial/JTAG baud setting is not an external UART throughput limit.
+`PORT` 替换为实际端口，如 `COMx` 或 `/dev/ttyACM*`。一次只让一个程序读取同一串口，采集前关闭 monitor；多候选设备先确认身份。这里使用 ESP32-S3 原生 USB Serial/JTAG，不是外部 UART 或 TinyUSB CDC。[Linux sysfs 实录](docs/audit/artifacts/load_reliability_fix_20261113/usb-enumerated-speed-01.json)识别 `303a:1001`、`USB JTAG/serial debug unit`，协商速率为 **12 Mbit/s（USB Full Speed）**。tty 的 baud 设置不是这条 USB 链路的物理速率；12 Mbit/s 也不是科学帧净吞吐或 PC 收包保证。
+
+Replace `PORT` with the actual device, such as `COMx` or `/dev/ttyACM*`. Use one reader per serial port and close the monitor before capture; identify the device if multiple ports exist. This uses native ESP32-S3 USB Serial/JTAG, not an external UART or TinyUSB CDC. The [Linux sysfs observation](docs/audit/artifacts/load_reliability_fix_20261113/usb-enumerated-speed-01.json) identifies `303a:1001`, `USB JTAG/serial debug unit`, at **12 Mbit/s (USB Full Speed)**. The tty baud setting is not this USB link's physical rate; 12 Mbit/s is neither net scientific-frame throughput nor a guarantee of PC receipt.
 
 ### Serial 查询与配置 / Serial queries and configuration
 
@@ -61,6 +105,10 @@ READY?
 BOOT?
 PERF?
 USBSTREAM?
+SERIAL?
+SCHED?
+RECOVERY?
+RESTART?
 TX?
 ST?
 BTX?
@@ -79,7 +127,9 @@ setter 应逐条发送，等待匹配终态并确认后再发下一配置请求�
 
 `MODE=VOLT`、`MODE=RES` 与 `ROWMODES=CVRCVRCV` 仅在对应电气条件满足后使用。VOLT 需要合法 rail：在非 VOLT 状态以**真实 DMM 读数**发送 `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>`，等待结果并核对 `ROUTE?/CONFIG?`。这是数值模板，不是通用标称校准。 / Use `MODE=VOLT`, `MODE=RES`, and `ROWMODES=CVRCVRCV` only with their required electrical conditions. VOLT needs valid rails: outside VOLT, supply **actual DMM readings** through `RAILCFG=<AVDD_UV>,<negative_AVSS_UV>`, wait for the result, and check `ROUTE?/CONFIG?`. This is a value template, not a universal nominal calibration.
 
-`RECOVER` 默认 full/level 1，也支持 `RECOVER=0|1|2`；level 2 和 `RESTART` 会真实重启。新 session 需重新查询，RAM RAILCFG 需重新提供；显式重启后的 boot 变化不是未解释的崩溃。 / `RECOVER` defaults to full/level 1 and accepts `RECOVER=0|1|2`; level 2 and `RESTART` perform a real restart. Re-query the new session and reapply RAM RAILCFG. A boot change after an explicit restart is not an unexplained crash.
+`RECOVER` 默认 full/level 1，也支持 `RECOVER=0|1|2`；level 2 请求受预算约束的重启，`RESTART` 是独立的显式重启请求。两者都须先成功提交本地接受回复才允许执行；接受回复不证明 PC 已收到。丢失终态时使用无副作用的 `RECOVERY?` / `RESTART?`，不要为查询结果而重发动作。真实重启后需按新 session 重新查询，RAM RAILCFG 需重新提供；显式重启后的 boot 变化不是未解释的崩溃。
+
+`RECOVER` defaults to full/level 1 and accepts `RECOVER=0|1|2`; level 2 requests a budgeted restart, while `RESTART` is an independent explicit restart request. Both require successful local acceptance-reply submission before execution; that reply does not prove PC receipt. If a terminal result is lost, use the side-effect-free `RECOVERY?` / `RESTART?` instead of resending the action to discover its result. After an actual restart, query the new session and reapply RAM RAILCFG. A boot change after an explicit restart is not an unexplained crash.
 
 ### BLE 与 Wi-Fi / BLE and Wi-Fi
 
@@ -128,6 +178,28 @@ For each CAP row, two FDC2214 devices on separate I²C buses acquire four channe
 
 正常路径保留 `INTB → 必要 STATUS → DRDY → read4`，不用常规 STATUS 轮询提前清中断，unread 位也不单独证明新数据。启动创建失败与运行中 quarantine 不同；后者不能用串行回退掩盖仍在运行的旧 worker。 / The normal path retains `INTB → necessary STATUS → DRDY → read4`; routine STATUS polling must not clear interrupts early, and unread bits alone do not prove new data. Startup creation failure differs from runtime quarantine; the latter cannot be hidden by serial fallback while an old worker may still run.
 
+### CPU0 工作预算与真实 idle / CPU0 work budgets and actual idle progress
+
+七个应用 worker 共用工作预算观测：BLE TX、transport、异步日志、Serial TX，以及 BLE/Serial/Wi-Fi CTRL。它们在不持硬件、队列或 stdio 锁的工作单元边界检查 CPU0 idle hook 的真实 generation。`SCHED?` 的 `bt/tr/log/ser/bc/sc/wc` 依次对应这七个 worker，每组为 `checkpoints/yields/maxBurstUnits`；idle generation、年龄和最大间隔是实际 idle 进度观测，**不是 CPU 使用率，也不是替采集任务喂 watchdog**。未知时输出 `idleKnown=0` / `unknown`。
+
+Seven application workers share the work-budget observation: BLE TX, transport, async logging, Serial TX, and BLE/Serial/Wi-Fi CTRL. At work-unit boundaries outside hardware, queue, and stdio locks, they check the actual generation from the CPU0 idle hook. `SCHED?` maps `bt/tr/log/ser/bc/sc/wc` to these workers, each as `checkpoints/yields/maxBurstUnits`. Idle generation, age, and maximum gap observe actual idle progress; **they are not CPU utilization and do not feed the watchdog on behalf of acquisition**. Unavailable observations report `idleKnown=0` / `unknown`.
+
+`d314888` 的 `work_quantum_v2` 将每个 worker 的本地时间片与真实 idle 失联保护分开：当前 100 Hz 下，本地工作跨度达到 **2 ticks（约 20 ms）**或累计 **32 work units** 即在检查点请求一次 `vTaskDelay(1)`；真实 CPU0 idle 年龄达到 **4 ticks（约 40 ms）**则独立触发 backstop。本地时间片在让出后重新开始，不把自己的 delay 计作真实 idle；仅 idle hook 更新共享 generation。新真实 idle 也可重置本地 burst。旧两 work-unit 宽限已取消，兼容字段 `graceUnits=0`；这里的“2”是 ticks，不是允许两条记录。
+
+In `d314888`, `work_quantum_v2` separates each worker's local time slice from protection against absent actual idle progress. At the current 100 Hz, **2 ticks (about 20 ms)** of local work or **32 work units** requests one `vTaskDelay(1)` at a checkpoint. An actual CPU0 idle age of **4 ticks (about 40 ms)** independently triggers the backstop. A local slice restarts after yielding without treating that delay as actual idle; only the idle hook updates the shared generation. Newly observed actual idle can also reset the local burst. The former two-work-unit grace is removed, with legacy `graceUnits=0`; “2” now means ticks, not two permitted records.
+
+每次检查最多请求 1 tick 延时，不循环等 idle，不重启原事务 deadline，也不永久逐记录限速或限制 Core1 FPS。它针对旧全局 idle 年龄与低优先级服务相位耦合的过度让出；screen-04 说明仍不能仅靠该修复保证输出吞吐。单次 SDK 调用、格式化单元和 SDK 自有任务没有因此获得硬执行时间上限。新机制的[独立 10 场景审阅](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-quantum-review.json)为 host 证据；原[两 unit 宽限模型](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-grace-model.json)作为已替代设计保留。
+
+Each check requests at most one tick of delay, without repeatedly waiting for idle, renewing transaction deadlines, permanently throttling each record or capping Core1 FPS. This addresses excessive yielding caused by coupling global idle age to lower-priority service timing; screen-04 shows it does not by itself establish output throughput. Individual SDK calls, formatting units and SDK-owned tasks do not acquire a hard execution-time bound. The [independent ten-scenario review](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-quantum-review.json) is host evidence; the [two-unit grace model](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-grace-model.json) remains as superseded-design history.
+
+共享观测量采用对齐的片内 DRAM 32-bit 原子访问，并核对 Xtensa 目标实现；idle hook 不打印、不分配、不取应用锁。初始化失败和内存放置异常有明确状态与有界回退，不能把“注册成功”伪装成“idle 已运行”。实现与回归见 [WorkBudget](components/sensorarrayWorkBudget/sensorarrayWorkBudget.c)、[目标审阅](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-target-fix-review.json)。
+
+Shared observations use aligned 32-bit atomics in internal DRAM, with the Xtensa target implementation checked. The idle hook does not print, allocate, or take application locks. Initialization failure and invalid memory placement have explicit status and bounded fallback; successful registration is not presented as proof that idle has run. See [WorkBudget](components/sensorarrayWorkBudget/sensorarrayWorkBudget.c), the [target review](docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-target-fix-review.json).
+
+`4b665ac` 保留 BLE TX 每个 descriptor 的检查点；同一大消息的分片之间，在已发最多 4 片或自上次检查经过至少 1 tick、且仍有下一片时，再检查共享预算。普通快速三片消息不再把每个分片重复计为独立预算工作单元。每一片仍检查连接 generation，暂停仍保留原 descriptor/slot；单次 SDK 调用时间仍无硬上限。**`SCHED.bt` 的工作单元现在是 descriptor/分片批次，不是每个 BLE 分片**，跨版本的 checkpoint 数不能直接当同一吞吐单位比较。
+
+`4b665ac` retains the BLE TX checkpoint at every descriptor. Within a larger message, another shared-budget check occurs between fragments after at most four transmitted fragments or at least one elapsed tick, when another fragment remains. Ordinary fast three-fragment messages no longer count every fragment as a separate budget work unit. Each fragment still checks connection generation, and a pause retains the original descriptor/slot; a single SDK call still has no hard execution-time bound. **The `SCHED.bt` work unit is now a descriptor/fragment batch, not each BLE fragment**; checkpoint counts across versions are not directly comparable throughput units.
+
 ### ADS shadow、cache、PGA 与新鲜度 / ADS shadow, caches, PGA, and freshness
 
 | 层 / Layer | 机制与边界 / Mechanism and boundary |
@@ -141,6 +213,10 @@ For each CAP row, two FDC2214 devices on separate I²C buses acquire four channe
 
 实机 ADS1262 只使用 ADC1，不能借不存在的 ADC2 解决并发。SPI owner、lock、queue/result、DRDY 和有限 retry 消耗相应事务 deadline。超时不等于 DMA 已取消；持久描述符/缓冲在驱动确认回收前不能释放或复用，完成状态未知则隔离并受控升级。 / The actual ADS1262 uses ADC1; a nonexistent ADC2 cannot solve concurrency. SPI ownership, locking, queue/result completion, DRDY, and bounded retries consume the applicable transaction deadline. Timeout does not cancel DMA. Persistent descriptors/buffers cannot be freed or reused before driver-confirmed reclamation; unknown completion requires quarantine and controlled escalation.
 
+`d314888` 另修复 PGA 不稳定分支的 cache 训练错误：三笔新鲜、CRC 通过的样本即使 spread 超限，中位数重复仍可能增加 stableStreak，导致下一组尚不稳定的数据只读一笔便快速接纳。新增九行在该分支清零 stableStreak、饱和递增 unstableStreak，保留诊断历史；新的稳定全样本序列才重新允许快速路径。生产函数的旧版反例与修复后 10 场景已实跑，CRC 拒绝不污染有效 cache/PGA，未提高 spread 阈值。此前 screen-02 的 X12 均在 bypass，不能把此 PGA 缺陷追认为那些实录的根因。见 [PGA 稳定性修复与原失败](docs/audit/artifacts/load_reliability_fix_20261113/ads-stability-fix-review.json)和 [repair-08 实跑](docs/audit/artifacts/load_reliability_fix_20261113/repair-08-test_ads_cell_stability.txt)。
+
+`d314888` also fixes cache training in the unstable PGA branch: three fresh CRC-valid samples could exceed the spread limit while their repeated median increased stableStreak, allowing the next still-unstable set to be accepted after one read. Nine added lines reset stableStreak and saturating-increment unstableStreak in that branch while retaining diagnostic history; a new stable full-sample streak must qualify the fast path again. The actual production-function counterexample and ten repaired scenarios were executed. CRC rejection does not train valid caches/PGA, and the spread threshold is unchanged. All screen-02 X12 observations used bypass, so this PGA defect is not retrospectively claimed as their cause. The linked review retains the original failure and repaired test output.
+
 ### CRC 部分帧与全局故障 / CRC partial frames and global faults
 
 ADC 数据 CRC8 与 ASCII 测量帧 CRC32 各自验证不同层，不能互相替代；ADC STATUS 不受该数据 CRC8 保护。当前每 cell 共用一次 I/O retry，受100 ms cell 总deadline约束，坏样本不更新PGA/有效cache。originalError 与 cleanupError 分开，`ADSFAULT*` 保存清理前上下文。
@@ -152,6 +228,14 @@ ADC data CRC8 and ASCII measurement-frame CRC32 protect different layers and can
 The `boundedCrcFailure` disposition in 0d8f60f permits a partial frame only when **the sweep completed, software-checked route/owner/register state remains coherent, and missing conversions are due solely to sample CRC rejection**. This permission is not measured proof of analogue isolation or supply integrity. Points remain X02 with truthful valid/fresh/acquired bits. Failure before a trusted conversion may have fresh=0, while failure after a new conversion may retain fresh=1; neither is a valid value. A later timeout, RESET, configuration change, reference/owner/route error, or unreclaimed DMA revokes permission. An initial CRC error must not hide a later fault.
 
 连续三次活动点全因CRC拒绝的 **ADS engine扫段**停止继续发布；这不是三个主机 MIXED 帧。CAP/SetMode 不清预算，完成非CRC的ADS测量结论（含合法OPEN）才可清除。`ADSDISPOSITION` 公开 scope=ads_sweep、拒绝位图、真实 acquired/expected、allCrcRun 和 firstError/abortError。 / Three consecutive **ADS engine sweeps** whose active points are all CRC-rejected stop continuation; this is not three host MIXED frames. CAP/SetMode does not clear the budget; a completed non-CRC ADS conclusion, including legitimate OPEN, can clear it. ADSDISPOSITION exposes sweep scope, rejection masks, actual acquired/expected masks, allCrcRun, and firstError/abortError.
+
+运行期 CRC 风险仍未闭环。历史 `b44c37b` USB-only screen-02 的周期 ADSHEALTH 首末接收跨度 119.612244 s 内，CRC 通过计数增加 140,360、拒绝增加 5,402，拒绝率为 **5,402 / (140,360 + 5,402) = 3.706041%**。分母是已校验 ADC1 数据响应，包含 retry/辅助读取；不能再加 retry，也不是科学点无效率或所有 ADC 产生转换的比例。对应双输出窗口为 1.646187%，不能互相替代。启动每个 PGA/bypass confirm 各 800 笔、各 0 CRC 拒绝，仅证明当时固定 MUX/负载的有限资格，不代表运行期已满足 2.5%。
+
+Runtime CRC risk remains open. In the historical `b44c37b` USB-only screen-02, periodic ADSHEALTH endpoints span 119.612244 s and increase CRC-valid responses by 140,360 and rejections by 5,402: **5,402 / (140,360 + 5,402) = 3.706041%** rejected. The denominator counts checked ADC1 responses, including retry/helper reads; retries must not be added again. This is neither the invalid-scientific-point fraction nor the fraction of all ADC-generated conversions. The corresponding dual-output window is 1.646187%, a different condition. Boot confirmation passed 800 reads in each PGA/bypass profile with zero CRC rejection, establishing only finite qualification at that fixed MUX/load, not runtime compliance with 2.5%.
+
+只读核验确认启动与矩阵使用同一命令式 RDATA/DMA 长度和 CRC 算法；手册的 holding/shift 双缓冲允许 command read 跨后续转换，不能仅凭 754 kHz 读取慢于 38.4 kSPS 就认定覆盖。有限原始诊断中，收到 CRC 与按 DATA 重算的 CRC 仅 bit0 不同（xor=01，重算为 0、收到为 1）；这不能单独证明故障发生在最后一个时钟或排除 DATA 多位差错。限频样本不能代表全部错误，电气/采样根因仍 **unknown**；未证明 CS 配置违规，也未通过旧 duty-cycle A/B 根治。当前没有运行期滚动 CRC 比率门禁或自动重新资格。详见[运行期 CRC 只读证据](docs/audit/artifacts/load_reliability_fix_20261113/adc-runtime-crc-readonly-review-01.json)。
+
+Read-only verification found the same command-mode RDATA/DMA length and CRC algorithm in startup and matrix paths. Datasheet holding/shift buffers permit command reads across later conversions; reading at 754 kHz slower than the 38.4 kSPS conversion interval alone does not establish overwrite. In the bounded raw diagnostics, received CRC differs from CRC recomputed over DATA only at bit0 (xor=01, recomputed 0 and received 1). This alone does not prove failure on the final clock or exclude multiple DATA-bit errors. Rate-limited examples do not represent every rejection; the electrical/sampling cause remains **unknown**; no CS timing violation is proven, and earlier duty-cycle A/B testing did not resolve it. There is currently no runtime rolling-CRC-rate gate or automatic requalification. See the [runtime CRC read-only evidence](docs/audit/artifacts/load_reliability_fix_20261113/adc-runtime-crc-readonly-review-01.json).
 
 ### 逐行 C/V/R、参考与辅助事务 / Per-row C/V/R, reference, and auxiliary transactions
 
@@ -226,6 +310,20 @@ An immutable snapshot is captured at acquisition start and retained by data/trai
 
 session是随机64-bit启动nonce，不承诺绝对唯一；跨session不比序号/generation。32-bit配置计数回绕跳零，帧序号模运算可到零；排序限同域同session且距离<2³¹，否则重新查询。 / Session is a random 64-bit boot nonce, not an absolute uniqueness guarantee. Do not compare sequence/generation across sessions. Configuration counters skip zero on 32-bit wrap, while frame sequence wraps through zero. Ordering requires the same domain/session and distance <2³¹; otherwise re-query.
 
+### RECOVER/RESTART 的有界终态 / Bounded RECOVER/RESTART terminal results
+
+`RECOVER` 有一个待执行槽和最后结果缓存，接受时捕获同 boot/session 的完整配置身份，包括 revision 和 mode/rows/profile 各域；执行前不匹配则以 `stale_config` 淘汰旧请求，不触碰新配置。它与配置命令共用终态保留仲裁；先预留空间并成功提交本地 ACK，再允许执行。忙时明确拒绝，不覆盖已接受请求；ACK 发布失败也记录拒绝结果，不悄悄执行。终态先缓存再进入保留槽，由优先路径投递给 Serial 和已启用网络；`RECOVERY?` 只读快照，可在终态丢失后重建结果。这里 `terminalQueued` 只证明终态进入本地保留槽，不证明每个 sink 已接纳或 PC 已收到。
+
+`RECOVER` has one pending slot and a last-result cache. Acceptance captures the complete configuration identity within the boot/session, including revision and the mode/rows/profile domains. A mismatch before execution rejects the old request as `stale_config` without touching the newer configuration. Recovery shares terminal reservation arbitration with configuration commands: reserve space and successfully submit the local ACK before allowing execution. Busy requests are rejected without overwriting an accepted request; ACK publication failure is cached as rejection and does not silently execute. Results are cached before entering the reserved slot for priority delivery to Serial and enabled networks. `RECOVERY?` reads the snapshot without side effects so a lost terminal can be reconstructed. Here, `terminalQueued` proves only local reserved-slot admission, not acceptance by every sink or PC receipt.
+
+恢复实际触碰硬件后失败，或 `RECOVER=2` 的重启预算耗尽，会保留 `originalError` 与首个 `cleanupError`，停止矩阵并发布 `NONE/DEGRADED` 的 CONFIG 权威状态；SAFE 动作失败不会标成 applied/known/verified 成功，也不会继续下一帧。软件/寄存器验证不证明模拟节点物理安全，`physicalSafe=unknown`。未触碰硬件的预检查拒绝不破坏原有合法配置；之后合法的 MODE 或显式 RESTART 仍可使用。
+
+If recovery fails after touching hardware, or `RECOVER=2` exhausts its restart budget, it preserves `originalError` and the first `cleanupError`, stops matrix acquisition, and publishes authoritative CONFIG state `NONE/DEGRADED`. Failed SAFE actions are not reported as successfully applied/known/verified, and acquisition does not continue into the next frame. Software/register verification does not establish physical analogue safety: `physicalSafe=unknown`. Precondition rejection before hardware access leaves a valid existing configuration intact; a later valid MODE request or explicit RESTART remains available.
+
+`RESTART` 有独立待执行槽与同 boot 最后结果，作为 quarantine/降级时的显式逃生路径，不因普通配置仲裁忙而永久拒绝。它同样不覆盖 pending、必须通过本地 ACK 栅栏；请求接受与实际执行的 revision 分别记录，整体重启不因期间配置 revision 改变而被误判为旧恢复请求。执行前缓存 restarting，分别提交 Serial priority 和网络 lifecycle，并给出有界发送机会；网络全关的 no-op 不能算已发送。`RESTART?` 可读各 sink 的接纳/错误，不把 `terminalQueued` 解释为 PC 确认。真实重启产生新 session，RAM 结果缓存和请求计数重新开始；两类请求 ID 各自成域，不能跨命令或跨 boot 比大小，也不提供跨重启网络 exactly-once。
+
+`RESTART` has an independent pending slot and same-boot last result as an explicit escape from quarantine/degraded states; ordinary configuration arbitration cannot permanently block it. It also preserves pending requests and requires the local ACK fence. Acceptance and execution revisions are recorded separately; a whole-device restart is not incorrectly rejected as stale recovery merely because configuration changed in between. Before resetting, it caches `restarting`, explicitly submits to Serial priority and network lifecycle paths, and allows a bounded transmission opportunity. A no-op with all network sinks disabled does not count as a send. `RESTART?` exposes per-sink admission/errors, and `terminalQueued` is not PC acknowledgment. A real restart creates a new session and resets RAM result caches and request counters. Each command has its own request-ID domain, so IDs are not ordered across commands or boots, and no cross-restart network exactly-once guarantee is offered.
+
 ### rail、电池、校准与无效点 / Rails, battery, calibration, and invalid points
 
 RAILCFG外部AVDD/AVSS来自实际测量，RAM保存、不按帧龄过期、重启丢失。内部monitor实测span；比例推算AVDD/AVSS与AINCOM标estimated，不是两个独立实测轨。AIN9接AINCOM，不是GND。来源/时间/不确定度/rail合法性影响换算，不把异常rail clamp成合法值。
@@ -248,7 +346,9 @@ Mode/rows/output/BTX/RAILCFG are volatile, but **matrix calibration has explicit
 
 ## 传输与分层背压 / Transport and layered backpressure
 
-PROTO2保留原域/单位，扩展配置身份/查询、session64、启动SPI资格和frontend presence。先协商PROTO?/BUILD?/CONFIG?。完整DATA/LOG message最大2304 bytes、CTRL reply 512 bytes，旧1536-byte Host缓冲须升级。容量拒绝、驱动timeout、接收缺口与无效点独立计数，不相加成一个“丢包率”。 / PROTO2 retains existing domains/units and adds configuration identity/query, session64, boot SPI qualification, and frontend presence. Negotiate PROTO?/BUILD?/CONFIG? first. Complete DATA/LOG messages are bounded at 2304 bytes and CTRL at 512 bytes; old 1536-byte host buffers need upgrading. Capacity rejection, driver timeout, receive gaps, and invalid points are separate counts, not one combined loss rate.
+PROTO2保留原域/单位，扩展配置身份/查询、session64、启动SPI资格和frontend presence，并明确协商 `recovery_query_v1`、`restart_query_v1`、`serial_sink_v1`、`serial_classes_v1`、`work_budget_v1`、`work_quantum_v2`。先查询 PROTO?/BUILD?/CONFIG?。完整 DATA/LOG message 容量为 2304 bytes、CTRL reply 为 512 bytes，旧 1536-byte Host 缓冲须升级。容量拒绝、驱动 timeout、接收缺口与无效点独立计数，不相加成一个“丢包率”。
+
+PROTO2 retains existing domains/units and extends configuration identity/query, session64, boot SPI qualification, and frontend presence, with explicit `recovery_query_v1`, `restart_query_v1`, `serial_sink_v1`, `serial_classes_v1`, `work_budget_v1`, and `work_quantum_v2` capabilities. Query PROTO?/BUILD?/CONFIG? first. Complete DATA/LOG message capacity is 2304 bytes and CTRL reply capacity is 512 bytes; old 1536-byte host buffers need upgrading. Capacity rejection, driver timeout, receive gaps, and invalid points are separate counts, not one combined loss rate.
 
 | 层 / Layer | 可证明的事实与限制 / Evidence and limits |
 | --- | --- |
@@ -256,11 +356,33 @@ PROTO2保留原域/单位，扩展配置身份/查询、session64、启动SPI资
 | Emitted/frame bus | 编码/本地队列接纳；原identity保留。 / Encoding/local admission; original identity retained. |
 | USB | 唯一RX reader/TX owner；stdout/stderr分别组到LF后整行排队。拥塞/超长整行丢弃，lineDropped/lineOversize/discardBytes与partialWrite/timeout分开。 / One RX reader/TX owner; stdout/stderr separately assemble to LF before whole-line queuing. Congested/oversize lines are dropped; lineDropped/lineOversize/discardBytes differ from partialWrite/timeout. |
 | USBSTREAM? | sinkQueued是本地提交，driverAcceptedBytes是驱动接收；stdioBound/driverInstalled/SOF不证明PC接收或COM枚举，enumerated=unknown。超过512B明确response_too_long，不截断伪统计。 / sinkQueued is local admission, driverAcceptedBytes is driver acceptance; stdioBound/driverInstalled/SOF do not prove PC receipt or COM enumeration, which remains unknown. Over-512B replies report response_too_long instead of truncated statistics. |
+| SERIAL? | 独立有界 sink 统计：normalSubmitted/prioritySubmitted 是整条记录已提交驱动，normal 包括日志；normalExpired/priorityExpired/priorityRejected、driverShortWrite/driverWriteError、txYield、maxQueueAgeUs、driverTxBufferBytes 与 driverAcceptedBytes/partialWrite 分层保留。都不是 PC 实收计数。 / Separate bounded sink statistics: normalSubmitted/prioritySubmitted count complete records submitted to the driver; normal includes logs. Expiry/rejection, short-write/error, yield, queue age, ring size, accepted bytes, and partial writes remain distinct. None counts PC receipt. |
+| SCHED? | 独立 512 B 缓冲；当前极值字符串 508 B，另留 NUL。含真实 idle、quantumTicks=2、budgetTicks/backstopTicks=4、maxUnits=32、graceUnits=0 与七 worker 三元组；计数独立采样，不是 CONFIG 原子状态或 CPU 利用率。 / A separate 512 B buffer holds the current 508 B extreme string plus NUL: actual idle, quantumTicks=2, budgetTicks/backstopTicks=4, maxUnits=32, graceUnits=0 and seven worker triples. Independently sampled counters are not CONFIG atomic state or CPU utilization. |
 | BLE | 有界队列、分片、独立DATA/LOG/CTRL计数；Notify排队≠PC接收，Indicate确认≠应用处理。B20预览保留原identity，不替完整科学帧。 / Bounded queues, fragments, and separate DATA/LOG/CTRL counts; queued Notify is not PC receipt, nor Indicate acknowledgment application processing. Identity-preserving B20 previews do not replace scientific frames. |
 | Wi-Fi UDP | 有界按通道提交，不保证送达/顺序/exactly-once。 / Bounded per-channel submission without guaranteed delivery/order/exactly-once. |
 | Host接收 / Host receive | 原字节、完整帧CRC/identity、序号缺口与接收时间；与同窗口设备计数比较。 / Raw bytes, complete-frame CRC/identity, sequence gaps, receive times; compare with device counts from the same window. |
 
-整行/整帧本地入队**不保证线上原子交付**。USB driver分块写入达到deadline后，已经接收的前缀不能撤回，尾部可被丢弃；随后补LF只恢复下一条的边界，不修复前帧。Host必须拒绝并保留截断帧，不能补CRC/identity，也不能把缺少trailer字段直接解释为固件配置域发生了变化。 / Whole-line/frame local queuing **does not guarantee atomic wire delivery**. If chunked USB driver writes reach their deadline, an accepted prefix cannot be withdrawn and the tail may be lost. A following LF restores the next record boundary, not the damaged frame. The host must reject and preserve truncated frames without inventing CRC/identity fields or treating a missing trailer field as direct proof of a firmware configuration change.
+`4b665ac` 将 USB **DATA 与 LOG 各保留 5 个 payload slots、4 项 queue**，CTRL 独立 4 个较小 slots/queue entries；stdout/stderr 的未完成行只占 LOG，不再占 DATA。普通 payload 总容量 23,040 B，启动时优先 PSRAM、失败才尝试片内内存；比前版增加 11,520 B，无热路径 payload 分配。完整记录边界先选 CTRL，再选 DATA；LOG 等待时最多完成 4 条 DATA 就服务一条 LOG。已发生正短写的当前记录先完成或到期，不能为抢占而交织字节。该公平性是 DATA/LOG 间的有界轮转，不是持续 CTRL 洪流下的绝对带宽保证。
+
+`4b665ac` gives USB **DATA and LOG five payload slots and four queue entries each**, with four independent smaller CTRL slots/queue entries. Incomplete stdout/stderr lines occupy LOG only, leaving DATA capacity available. Normal payload capacity totals 23,040 B, allocated once at startup with PSRAM preferred and internal memory as fallback, an increase of 11,520 B over the preceding version; there is no hot-path payload allocation. Whole-record boundaries select CTRL first, then DATA; a waiting LOG is served after at most four completed DATA records. A record with an accepted short-write prefix finishes or expires before another record can interleave bytes. This is bounded DATA/LOG rotation, not an absolute bandwidth guarantee under continuous CTRL flooding.
+
+`serial_classes_v1` 为 `SERIAL?` 新增 `dataSubmitted/logSubmitted/dataRejected/logRejected`。submitted 只计驱动已接纳整条记录；rejected 只计相应 slots/queue 容量拒绝，不含非法长度调用或超长诊断行。旧 `normalSubmitted` 仍包括 DATA+LOG，`normalExpired` 仍为两类合计，不静默改变旧字段语义。新旧计数都不是 Host 实收。
+
+`serial_classes_v1` adds `dataSubmitted/logSubmitted/dataRejected/logRejected` to `SERIAL?`. Submitted counts whole-record driver admission only; rejected counts the respective slot/queue capacity rejection, excluding invalid-size calls and oversized diagnostic lines. Legacy `normalSubmitted` still includes DATA+LOG, and `normalExpired` remains their combined expiry count; existing fields are not silently reinterpreted. Neither old nor new counters measure host receipt.
+
+最终容量方案的生产回归与独立审阅见 [serial-admission-host-02](docs/audit/artifacts/load_reliability_fix_20261113/serial-admission-host-02.json) 和 [final admission/batch review](docs/audit/artifacts/load_reliability_fix_20261113/independent-load-review-final-admission-batch.json)。旧两 LOG slots 候选已被替代，不代表当前实现；这些 host 证据不代替新版本 HIL。 / See these records for production regressions and independent review of the final capacity design. The earlier two-LOG-slot candidate was superseded and does not describe the current implementation; host evidence does not substitute for new-version HIL.
+
+原生 USB Serial/JTAG 为 Full-Speed **12 Mbit/s**，本板 sysfs 枚举已有[实录](docs/audit/artifacts/load_reliability_fix_20261113/usb-enumerated-speed-01.json)；它不是 UART 桥，波特率设置不等于线上吞吐上限。对当前 ESP32-S3 / IDF v5.5.5 路径，**没有已支持的 Serial/JTAG DMA/GDMA 开关**：CPU 通过中断从软件 ring 向最多 64 B 的端点 FIFO 搬运。独立 USB-OTG 控制器具有内部 DMA 硬件，但不是当前 Serial/JTAG 的配置选项；更换控制器还需验证实际驱动/栈是否启用 DMA、PHY 所有权、枚举身份和调试共存，尚未实施。依据：[DMA 能力核验](docs/audit/artifacts/load_reliability_fix_20261113/usb-serial-jtag-dma-capability-review-01.json)与 [ESP32-S3 TRM](datasheets/esp32-s3_technical_reference_manual_en.pdf) §3.4.2、§33.2/33.3.3、§32.3.5。
+
+Native USB Serial/JTAG is Full-Speed **12 Mbit/s**, as [recorded by this board's sysfs enumeration](docs/audit/artifacts/load_reliability_fix_20261113/usb-enumerated-speed-01.json). It is not a UART bridge, and baud-rate settings do not define its wire-throughput limit. The current ESP32-S3 / IDF v5.5.5 path has **no supported Serial/JTAG DMA/GDMA switch**: interrupt-driven CPU copies move bytes from the software ring into endpoint FIFOs of at most 64 B. The separate USB-OTG controller has internal DMA hardware, not a configuration option for current Serial/JTAG. Migration would require proof that the actual driver/stack enables DMA and validation of PHY ownership, enumeration identity and debug coexistence; none is implemented. See the [DMA capability review](docs/audit/artifacts/load_reliability_fix_20261113/usb-serial-jtag-dma-capability-review-01.json) and [ESP32-S3 TRM](datasheets/esp32-s3_technical_reference_manual_en.pdf) §3.4.2, §33.2/33.3.3 and §32.3.5.
+
+当前 Serial TX owner 将完整记录交给 **2304-byte 驱动 TX ring**；已核对的 IDF v5.5.5 BYTEBUF 路径整条接纳或返回 0，避免旧版按 64 bytes 应用分块后在 deadline 丢尾。2304 bytes 是软件 ring/记录容量，不是 USB 端点物理包长。普通记录从本地入队开始有 **250 ms** 绝对期限，优先控制/生命周期记录为 **1000 ms**；排队、驱动等待与调度让出共用此期限，不在重试时续期。每次驱动等待最多 1 tick，临近期限用零等待。过期记录继续有界清理，不依赖未来生产者再发通知才回收槽位。
+
+The current Serial TX owner submits complete records to a **2304-byte driver TX ring**. The verified IDF v5.5.5 BYTEBUF path admits an entire record or returns zero, avoiding the old application-level 64-byte chunking that could lose a tail at deadline. The 2304 bytes describe software ring/record capacity, not a physical USB endpoint packet length. Normal records have a **250 ms** absolute lifetime from local enqueue, and priority control/lifecycle records have **1000 ms**. Queue residence, driver waits, and scheduling yields share that deadline; retries do not renew it. Each driver wait is at most 1 tick and becomes nonblocking near expiry. Expired records continue through bounded cleanup without depending on a future producer notification to reclaim slots.
+
+整行/整帧本地入队及整条 driver 接纳仍**不保证线上原子交付或 PC 确认**。防御性短写路径保留游标，不把部分写当成功，也不在一条已开始的记录中插入另一条；达到绝对期限后计数并回收。已经被驱动接收的前缀无法撤回，必要时补 LF 只恢复下一条的边界。Host 仍须保存并拒绝截断帧，不能补 CRC/identity 或将缺 trailer 直接解释成配置域变化。下文 0d8f60f 旧截断实录完整保留，不能据新实现提前宣告 HIL 已无截断。
+
+Whole-record local queuing and whole-record driver admission still **do not guarantee atomic wire delivery or PC acknowledgment**. Defensive short-write handling retains its cursor, never counts a partial write as success, and does not interleave another record inside one already started; absolute expiry is counted and the slot reclaimed. An accepted prefix cannot be withdrawn, and an LF when needed only restores the next record boundary. The host must still preserve and reject truncated frames without inventing CRC/identity fields or interpreting a missing trailer as direct proof of a configuration-domain change. The historical 0d8f60f truncation captures below remain intact; the new implementation alone does not establish truncation-free HIL results.
 
 控制/生命周期有保留优先路径，DATA有界轮转。无USB主机或慢BLE不能造成无限TX等待，但共享CPU/缓冲/链路仍会产生背压。比较同session同窗口的**增量**；累计drop不等于当前每帧丢失。COM不存在只证明此次打开失败，不证明整机死亡。 / Control/lifecycle has reserved priority paths and DATA uses bounded rotation. An absent USB host or slow BLE must not cause infinite TX waiting, but shared CPU/buffers/link capacity still cause backpressure. Compare **deltas** from the same session/window; accumulated drops do not mean every current frame is lost. A missing COM port proves that open failed, not that the whole device died.
 

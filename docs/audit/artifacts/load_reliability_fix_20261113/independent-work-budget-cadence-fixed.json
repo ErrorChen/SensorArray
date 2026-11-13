@@ -1,0 +1,21 @@
+{
+  "recordedAtUtc": "2026-11-13T12:54:39.450412+00:00",
+  "head": "fd0190a3a175938e92e702a111ae9d35982d678f",
+  "command": [
+    "python3",
+    "docs/audit/artifacts/load_reliability_fix_20261113/independent-work-budget-cadence-fixed.py"
+  ],
+  "exitCode": 0,
+  "sourceShaBefore": {
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "bc86f0e0fcc13a1dd6deb0054b69023b8b5bf85751114a0c3b2e8f1d8af5edbe",
+    "main/main.c": "eb39d847941fdbd54bcf34636619ead0047bcac26816ae65090185eb7ad215c0"
+  },
+  "sourceShaAfter": {
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "052ecdd401a261cc99cad723b1ea44e73a6297739f6f3df82c3ce6d2609a0e3d",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "bc86f0e0fcc13a1dd6deb0054b69023b8b5bf85751114a0c3b2e8f1d8af5edbe",
+    "main/main.c": "eb39d847941fdbd54bcf34636619ead0047bcac26816ae65090185eb7ad215c0"
+  },
+  "sourceChangedDuringRun": false,
+  "scope": "Six independent actual-production tests: periodic real idle + aged low-priority record, never-idle initial state, no refill from own delay, age4 hard backstop, tick/gen wrap, hook-registration failure. Synthetic scheduling only; HIL A/B parent-owned."
+}

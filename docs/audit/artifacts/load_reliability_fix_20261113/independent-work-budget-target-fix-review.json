@@ -1,0 +1,53 @@
+{
+  "timestampUtc": "2026-11-13T12:36:12.435846+00:00",
+  "sourceSha256": "f3f490fddcba98bf0a4d41ec8bf397f8b4ef0f9a9fa42575c78f1f45024afc99",
+  "reviewedFix": [
+    "FreeRTOS/task headers now precede esp_freertos_hooks",
+    "Shared uint32/esp_err and worker state have WORD_ALIGNED_ATTR DRAM_ATTR; size/alignment target assertions retained",
+    "Init validates whole object start/end DRAM addresses before accessing atomics or registering hook",
+    "Checkpoint/CopySnapshot refuse unsafe storage without touching lock-backed atomics",
+    "Idle hook still only uses xTaskGetTickCount plus 32-bit atomic loads/stores; actual SDK non-EXTRAM helper disassembly proves no lock/call/loop",
+    "Worker counters use atomic load/store under established single-task writer ownership; init compare_exchange remains outside idle hook",
+    "Global SDK PSRAM workaround and compiler flags remain enabled"
+  ],
+  "newConfirmedP0P1": [],
+  "targetBuild": "Parent-owned unified build in progress; reviewer does not invoke target build",
+  "objectAvailable": true,
+  "objectNewerThanSource": true,
+  "objectSha256": "4dfc45f8c8cae59c10587ba05153fd5b7148e953d679a7a6a6374a6ba7d591b9",
+  "objectSymbolCommand": [
+    "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+    "-t",
+    "/home/csc/esp/workspace/SensorArray/build/esp-idf/sensorarrayWorkBudget/CMakeFiles/__idf_sensorarrayWorkBudget.dir/sensorarrayWorkBudget.c.obj"
+  ],
+  "objectSymbolExit": 0,
+  "objectSymbols": "00000000 l     O .dram1.0\t00000004 s_initState\n00000000 l     O .dram1.1\t00000004 s_initTick\n00000000 l     O .dram1.2\t00000004 s_initError\n00000000 l     O .dram1.3\t00000004 s_idleGeneration\n00000000 l     O .dram1.4\t00000004 s_idleTick\n00000000 l     O .dram1.5\t00000004 s_maxIdleGapTicks\n00000000 l     O .dram1.6\t0000008c s_workers\n00000000 l    d  .text.sensorarrayWorkBudgetIdleHook\t00000000 .text.sensorarrayWorkBudgetIdleHook\n00000000 l     F .text.sensorarrayWorkBudgetIdleHook\t00000057 sensorarrayWorkBudgetIdleHook\n00000000 l    d  .literal.sensorarrayWorkBudgetIdleHook\t00000000 .literal.sensorarrayWorkBudgetIdleHook",
+  "actualIdleCode": "In this exact target object, idle stores inline as MEMW/S32I; Load helper is entry/MEMW/L32I/retw. Other idle call xTaskGetTickCount is entry/literal/MEMW/L32I/retw. No hidden library call, lock, CAS loop or yield is on the callback path.",
+  "disassemblyCommands": [
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-dr",
+        "-j",
+        ".text.sensorarrayWorkBudgetIdleHook",
+        "-j",
+        ".literal.sensorarrayWorkBudgetIdleHook",
+        "-j",
+        ".text.sensorarrayWorkBudgetLoad",
+        "/home/csc/esp/workspace/SensorArray/build/esp-idf/sensorarrayWorkBudget/CMakeFiles/__idf_sensorarrayWorkBudget.dir/sensorarrayWorkBudget.c.obj"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-dr",
+        "-j",
+        ".text.xTaskGetTickCount",
+        "/home/csc/esp/workspace/SensorArray/build/esp-idf/freertos/CMakeFiles/__idf_freertos.dir/FreeRTOS-Kernel/tasks.c.obj"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "headerSha256": "b5ded227d8ee8deeec999be1e1e07ed40b2ca7505cadaa7886a56c27f740b081"
+}

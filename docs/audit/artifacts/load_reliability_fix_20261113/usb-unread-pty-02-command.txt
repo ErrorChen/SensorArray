@@ -1,0 +1,12 @@
+test_data_gaps_and_rejected_crc_records_remain_visible_not_lossless_pass (__main__.UnreadTests.test_data_gaps_and_rejected_crc_records_remain_visible_not_lossless_pass) ... ok
+test_fault_while_reading_is_fail_fast_before_unread (__main__.UnreadTests.test_fault_while_reading_is_fail_fast_before_unread) ... ok
+test_one_open_fd_true_no_read_window_and_buffered_device_frames (__main__.UnreadTests.test_one_open_fd_true_no_read_window_and_buffered_device_frames) ... ok
+test_phase_deadline_and_total_ceiling_are_real (__main__.UnreadTests.test_phase_deadline_and_total_ceiling_are_real) ... ok
+test_query_retries_share_deadline_and_snapshot_revision_change_is_rejected (__main__.UnreadTests.test_query_retries_share_deadline_and_snapshot_revision_change_is_rejected) ... ok
+test_unknown_scheduler_capped_fps_or_missing_rail_are_not_changed_to_pass (__main__.UnreadTests.test_unknown_scheduler_capped_fps_or_missing_rail_are_not_changed_to_pass) ... ok
+test_unread_fault_is_detected_on_resume_and_stays_failure_after_cleanup (__main__.UnreadTests.test_unread_fault_is_detected_on_resume_and_stays_failure_after_cleanup) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.061s
+
+OK

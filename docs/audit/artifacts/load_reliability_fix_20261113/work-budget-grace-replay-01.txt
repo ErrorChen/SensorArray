@@ -1,0 +1,6 @@
+before
+REAL_IDLE_EPOCH_REPLAY,checkpoints=100,yields=100,synthetic=1
+exit_code=1
+after
+REAL_IDLE_EPOCH_REPLAY,checkpoints=100,yields=0,synthetic=1
+exit_code=0

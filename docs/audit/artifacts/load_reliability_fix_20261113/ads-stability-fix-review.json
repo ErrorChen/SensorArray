@@ -1,0 +1,110 @@
+{
+  "finding": "P1: a known unstable PGA sample set could train the single-sample fast-accept path",
+  "baseline_revision": "4b665acf355adb4b145114abf5ecaa4325090be5",
+  "baseline_ads_matrix_sha256": "3865764e24688b7ecddafe474f69a7c668c477c6f1991fd101c4efac69c3c904",
+  "source_and_test_hashes": {
+    "core/measure/ads/sensorarrayAdsMatrix.c": "79521281d85f3c136e41a7d073e0ef3faff87e8ec32fc44d87ad47e2e62624eb",
+    "tests/host/test_ads_cell_stability.c": "7a926417d90df8a6ac31eff5b1b5b2ac080605c05c2598e8208ab9ab42c094de",
+    "tools/test_ads_cell_stability.py": "25523bbde635e0bb8fefe1bda45d2325b3d6466797af323c1aa183aac38704bf"
+  },
+  "production_diff": "diff --git a/core/measure/ads/sensorarrayAdsMatrix.c b/core/measure/ads/sensorarrayAdsMatrix.c\nindex fcbc01c..25d530d 100644\n--- a/core/measure/ads/sensorarrayAdsMatrix.c\n+++ b/core/measure/ads/sensorarrayAdsMatrix.c\n@@ -1264,6 +1264,15 @@ static esp_err_t sensorarrayAdsMatrixMeasureCellImpl(sensorarrayAdsMatrixEngine_\n                                              sample.spreadRaw,\n                                              engine->frameCount,\n                                              sample.fullSample);\n+            /* A repeatable median does not make the three conversions stable.\n+             * Match bypass: retain diagnostic history, but require a new\n+             * stable streak before permitting the single-sample fast path. */\n+            if (valueCache) {\n+                valueCache->stableStreak = 0u;\n+                if (valueCache->unstableStreak < UINT32_MAX) {\n+                    valueCache->unstableStreak++;\n+                }\n+            }\n             sensorarrayAdsProfileCacheNoteFailure(\n                 &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,\n                 (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);\n",
+  "production_diff_sha256": "fa324fd15b875caead6b687a80a3e4190b575ee4b0033a0a658ff1b6ba2d48fb",
+  "production_scope": "Only nine lines in the existing PGA !stable branch of sensorarrayAdsMatrixMeasureCellImpl. No thresholds, ADC driver, clock, cache interfaces or main changes.",
+  "root_cause": [
+    "The three fresh CRC-checked conversions exceed the existing5000uV spread limit, but their median can remain unchanged.",
+    "sensorarrayAdsValueCacheObserve increments stableStreak when the median delta is small; the PGA !stable branch failed to clear it. The bypass branch already clears it.",
+    "After one failure the profile remains valid because the current invalidation threshold is2. The next nonprecision, nontransition sample can pass ShouldFastAccept without collecting the remaining two conversions."
+  ],
+  "actual_counterexample": {
+    "production_functions": [
+      "sensorarrayAdsMatrixMeasureCellImpl",
+      "sensorarrayAdsMatrixReadAdaptive",
+      "sensorarrayAdsMatrixReadFreshAfter",
+      "sensorarrayAdsValueCacheObserve",
+      "sensorarrayAdsValueCacheShouldFastAccept",
+      "sensorarrayAdsProfileCacheNoteFailure",
+      "sensorarrayAdsAutoRangeDecide",
+      "sensorarrayAdsMathSamplesStable",
+      "ads126xAdcRawToMicrovolts"
+    ],
+    "hardware_boundaries": "Synthetic ADC FreshChecked results and ApplyInputProfile; real cache/range/math/stability control flow. No HIL claim.",
+    "configuration_source": "Current sdkconfig numeric values, including spread5000uV, minimum stable streak2 and profile invalidation after2 failures.",
+    "sample_sets": {
+      "first_precision": [
+        -702500000,
+        -700000000,
+        -697500000
+      ],
+      "next_nonprecision": [
+        -700000000,
+        -697500000,
+        -702500000
+      ]
+    },
+    "result_before": "Both VOLT and RES PGA paths returned X12 for the first set, left stableStreak=3, then returned ESP_OK/stable from only one read on the next still-unstable set. Normal regression failed the priorStreak==0 assertion.",
+    "result_after": "PGA and bypass both reset stableStreak; the next set requires three reads and remains X12. After two genuinely stable full sample sets, one-sample fast acceptance returns."
+  },
+  "tests": {
+    "before_expected_failure": {
+      "command": "CC=/usr/bin/gcc python3 tools/test_ads_cell_stability.py",
+      "exit_code": 1,
+      "log": "ads-stability-regression-before-01.log"
+    },
+    "immutable_reproducer": {
+      "command": "CC=/usr/bin/gcc python3 tools/test_ads_cell_stability.py --baseline 4b665acf355adb4b145114abf5ecaa4325090be5",
+      "exit_code": 0,
+      "cases": 8,
+      "log": "ads-stability-baseline-02.log"
+    },
+    "after": {
+      "command": "CC=/usr/bin/gcc python3 tools/test_ads_cell_stability.py",
+      "exit_code": 0,
+      "cases": 10,
+      "log": "ads-stability-regression-after-01.log"
+    },
+    "regressions": [
+      "CRC disposition19 production cases PASS",
+      "Measurement logic PASS",
+      "CRC frame flow actual main/mixed/output/encoder PASS,11 acquisition cases"
+    ],
+    "initial_harness_error": "baseline-01 is retained: link failed because the initial harness omitted the production InvalidateCaches body. Adding that actual function resolved the harness error; production was unchanged at that point.",
+    "evidence": {
+      "ads-stability-baseline-01.log": {
+        "exit_code": 1,
+        "sha256": "8489533db2a5a52d0de282cfbe29a30f1e12548778a054b7c8d9d00588c1cf64"
+      },
+      "ads-stability-baseline-02.log": {
+        "exit_code": 0,
+        "sha256": "5358d28acc7124033c46728bfe8751566de856eddb9c25744223cc928bbbcc8d"
+      },
+      "ads-stability-regression-before-01.log": {
+        "exit_code": 1,
+        "sha256": "19289df700f37936309244fc90c542333ef7140aa4c025923f1cf6e022b527bf"
+      },
+      "ads-stability-regression-after-01.log": {
+        "exit_code": 0,
+        "sha256": "037dab1936ee0bd90e4dd726d7643ad1de8d952a33771023f232e046424bf208"
+      },
+      "ads-stability-test_ads_crc_disposition-01.log": {
+        "exit_code": 0,
+        "sha256": "6046496e9a18037e83967b77a11817f7f7d36e184ca3f6c0c45dc981d5240a41"
+      },
+      "ads-stability-test_measurement_logic-01.log": {
+        "exit_code": 0,
+        "sha256": "d2d36b4f8967405646f3b66f8287941c6a55a976ac95e13a4e02bc308ce8773a"
+      },
+      "ads-stability-test_ads_crc_frame_flow-01.log": {
+        "exit_code": 0,
+        "sha256": "5c1cf24ef083ec5a47d4bfe25e5cc8d60c1293d7d9122a7f6fb15d8c17cada4c"
+      }
+    }
+  },
+  "capture_relation": "All observed X12 points in the two completed screen02 recordings used PGA bypass. This PGA defect is not asserted to cause those recorded S1D2 invalid points. Existing recordings remain evidence of the pre-fix firmware.",
+  "target_build": "NOT_RUN by this agent; root owns target validation",
+  "hardware": "NOT_RUN",
+  "diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "status": "Production fix frozen; no remaining known blocker for this specific cache defect after executed host regression."
+}

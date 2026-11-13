@@ -1,0 +1,1 @@
+ARCHIVE_BENCHMARK_SELF_TEST,PASS,synthetic_only=1,lossless=1,idempotent=1,no_overwrite=1,active_skipped=1,concurrent_change_rejected=1,scope_checked=1,ERROR_preserved=1,legacy_restore_scope_verified=1,arbitrary_count_mismatch_rejected=1,separate_index_preserved=1

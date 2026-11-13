@@ -1,0 +1,12 @@
+{
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "main_sha256": "aac194d57771b1325416a7cc4b8615011bdd8ade533d0f43bd7697998a81d8e7",
+  "source_functions": [
+    "static void sensorarrayRestartPost(uint32_t *outRequestId)\n{\n    portENTER_CRITICAL(&s_recoveryRequestMux);\n    s_recoveryRequestSeq++;\n    if (s_recoveryRequestSeq == 0u) { s_recoveryRequestSeq = 1u; }\n    s_restartRequested = 1u;\n    s_restartRequestId = s_recoveryRequestSeq;\n    if (outRequestId) {\n        *outRequestId = s_recoveryRequestSeq;\n    }\n    portEXIT_CRITICAL(&s_recoveryRequestMux);\n}",
+    "static bool sensorarrayRestartTake(uint32_t *outRequestId)\n{\n    portENTER_CRITICAL(&s_recoveryRequestMux);\n    bool pending = s_restartRequested != 0u;\n    uint32_t requestId = s_restartRequestId;\n    s_restartRequested = 0u;\n    s_restartRequestId = 0u;\n    portEXIT_CRITICAL(&s_recoveryRequestMux);\n    if (outRequestId) {\n        *outRequestId = requestId;\n    }\n    return pending;\n}",
+    "static void sensorarrayControlReplyFailed(esp_err_t error,\n                                          const char *data,\n                                          size_t length)\n{\n    if (!data || length == 0u) {\n        return;\n    }\n    unsigned long requestId = 0u;\n    if (sscanf(data, \"RACK,cmd=RECOVER,id=%lu\", &requestId) == 1) {\n        (void)sensorarrayRecoveryControlAck((uint32_t)requestId, error);\n        return;\n    }\n    if (sscanf(data, \"RMACK,id=%lu\", &requestId) == 1 ||\n        sscanf(data, \"MACK,id=%lu\", &requestId) == 1 ||\n        sscanf(data, \"RCMD,id=%lu\", &requestId) == 1) {\n        if (sensorarrayCommandMailboxCancelConfigAck((uint32_t)requestId)) {\n            printf(\"RMACK_CANCEL,id=%lu,state=cancelled,reason=ack_publish_failed,err=0x%lx\\n\",\n                   requestId,\n                   (unsigned long)error);\n        }\n    }\n}"
+  ],
+  "exit_code": 0,
+  "provenance": "actual pre-fix production functions, synthetic command interleaving and ACK error; no hardware",
+  "log": "docs/audit/artifacts/load_reliability_fix_20261113/restart-control-before-01.txt"
+}

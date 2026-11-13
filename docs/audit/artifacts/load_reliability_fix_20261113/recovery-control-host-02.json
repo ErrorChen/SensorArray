@@ -1,0 +1,107 @@
+{
+  "started_utc": "2026-11-13T12:26:35.370057+00:00",
+  "head": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "dirty_diff_sha256": "1e25339b75fed56b2eb9a0ba3d0b502a797b8f23ac37d9b27df74619a5853cf2",
+  "dirty_status": " M components/sensorarrayBle/CMakeLists.txt\n M components/sensorarrayBle/sensorarrayBle.c\n M components/sensorarrayWifi/CMakeLists.txt\n M components/sensorarrayWifi/sensorarrayWifi.c\n M core/transport/CMakeLists.txt\n M core/transport/sensorarraySerialIo.c\n M core/transport/sensorarraySerialIo.h\n M core/transport/sensorarrayTransport.c\n M core/transport/sensorarrayTransport.h\n M core/transport/sensorarrayTransportCommand.c\n M docs/command-reference.md\n M docs/integration/firmware_host_contract.md\n M main/CMakeLists.txt\n M main/main.c\n M main/output/sensorarrayAsyncLog.c\n M tests/host/test_restart_budget.c\n M tests/host/test_serial_io.c\n M tools/test_restart_budget.py\n M tools/test_serial_io.py\n?? components/sensorarrayWorkBudget/\n?? docs/audit/artifacts/load_reliability_fix_20261113/\n?? main/control/sensorarrayRecoveryControl.c\n?? main/control/sensorarrayRecoveryControl.h\n?? main/control/sensorarrayRestartControl.c\n?? main/control/sensorarrayRestartControl.h\n?? tests/host/test_recovery_control.c\n?? tests/host/test_usb_driver_record.c\n?? tests/host/test_work_budget.c\n?? tests/host/test_work_budget_ble_fragments.c\n?? tests/host/test_work_budget_drains.c\n?? tests/host/work_budget_stubs/\n?? tools/test_load_benchmark_capture.py\n?? tools/test_recovery_control.py\n?? tools/test_work_budget.py\n",
+  "source_sha256_before": {
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "main/control/sensorarrayRecoveryControl.c": "d1741f785b7942f09dc0b0492cad071f20f7b0554eaac46a2c21fba3b5a76e4e",
+    "main/control/sensorarrayRecoveryControl.h": "1d55cc930f703907f56281e9e8ea2a7b812358ddc409d954f3a5605e7ac80ab2",
+    "main/control/sensorarrayRestartControl.c": "3b631243c4f501a0493e47d95a4a711dc054db9458a985612141a25eec0429da",
+    "main/control/sensorarrayRestartControl.h": "a24d4c33828abfff02e6f1a31cd4f78b9e49ae9302e4b131fbf347aacf37d7af",
+    "main/CMakeLists.txt": "45cc74894eed82b7d1b0930bfaa233dfd79bbbebe2221d0941e9cd4aca78f783",
+    "core/transport/sensorarrayTransport.c": "f750ae09b64de572278e14c42de3a3d1855b5e745a0f403e41b2ec07846e2f25",
+    "core/transport/sensorarrayTransport.h": "8d8cc1e15492d127ea3b1aa262e916e0cb9c58ee140198e99b8facbe8512c649",
+    "core/transport/sensorarrayTransportCommand.c": "cc6045ec92757fe772e93edfba326d9f7d8304d108cdc12ff0ad4931009b5630",
+    "core/transport/sensorarrayTransportGuaranteedText.c": "aed02f8698f9820b7575849f32f36cd5f245e2100eedc660e2ed43221cfeff64",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "f077aacbc1d80168afcac04a9f30f7f142224b660ea710b03782704e2d92c586",
+    "tools/test_recovery_control.py": "bfb004263e1a1ce27389b7418899b2454c7095956bf277fa3ed7faa93b2d6d5c",
+    "tests/host/test_recovery_control.c": "20a2e3535a2a028d541f0d71ff09a4862a1e2bdf84f93added7b6484163e740d",
+    "tools/test_restart_budget.py": "73df4d6f32663f0c11f76addd111e5abb87d25fdaf070c09182d14a429f94003",
+    "tests/host/test_restart_budget.c": "21b80e4bbc42cd823e6b7eca9701ef331578a75dcfae0c9fd9b9e9ecafab28a9"
+  },
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.2145581700024195,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-test_recovery_control.txt",
+      "log_sha256": "69d1f35197a554caabfcc50394ef1666ef7d58d9c95944924ec8680b3ec4ab87"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_restart_budget.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.1154296019958565,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-test_restart_budget.txt",
+      "log_sha256": "daf6539ac8a7781c1b1ac6e6f6e9be623d07784cc416d23d9c7a2ad47d4e414c"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_main_config_commit.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.21538574500300456,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-test_main_config_commit.txt",
+      "log_sha256": "6966fa740ff98b28f0e10fa48122d1229b04d1752f79e44b8da00ec10f6db520"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_rowmodes_ack_guard.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.11434286400617566,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-test_rowmodes_ack_guard.txt",
+      "log_sha256": "8fb86a9699e573aa82a01bcc98bbc30b839f6915873b7e32eb50e69c7fffd636"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.11416601900418755,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-test_transport_pool.txt",
+      "log_sha256": "4aa8a04e055f4b54b8802978a2aa6ee36a097a986fe4156f30a3d6c92f5bff97"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/check_command_docs.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.06518285200581886,
+      "log": "docs/audit/artifacts/load_reliability_fix_20261113/recovery-02-check_command_docs.txt",
+      "log_sha256": "2629e5ee084fe96aa8c604cbc08da1cce46bbea30834bc0b5a119676d8314d69"
+    }
+  ],
+  "provenance": "actual production functions; synthetic hardware, reset and sink boundaries; no hardware access",
+  "source_sha256_after": {
+    "main/main.c": "a882f8eea8dfc58da243d79d5cbda893743f576d3d4ee65935b5ae53a02cde47",
+    "main/control/sensorarrayRecoveryControl.c": "d1741f785b7942f09dc0b0492cad071f20f7b0554eaac46a2c21fba3b5a76e4e",
+    "main/control/sensorarrayRecoveryControl.h": "1d55cc930f703907f56281e9e8ea2a7b812358ddc409d954f3a5605e7ac80ab2",
+    "main/control/sensorarrayRestartControl.c": "3b631243c4f501a0493e47d95a4a711dc054db9458a985612141a25eec0429da",
+    "main/control/sensorarrayRestartControl.h": "a24d4c33828abfff02e6f1a31cd4f78b9e49ae9302e4b131fbf347aacf37d7af",
+    "main/CMakeLists.txt": "45cc74894eed82b7d1b0930bfaa233dfd79bbbebe2221d0941e9cd4aca78f783",
+    "core/transport/sensorarrayTransport.c": "f750ae09b64de572278e14c42de3a3d1855b5e745a0f403e41b2ec07846e2f25",
+    "core/transport/sensorarrayTransport.h": "8d8cc1e15492d127ea3b1aa262e916e0cb9c58ee140198e99b8facbe8512c649",
+    "core/transport/sensorarrayTransportCommand.c": "cc6045ec92757fe772e93edfba326d9f7d8304d108cdc12ff0ad4931009b5630",
+    "core/transport/sensorarrayTransportGuaranteedText.c": "aed02f8698f9820b7575849f32f36cd5f245e2100eedc660e2ed43221cfeff64",
+    "core/transport/sensorarraySerialIo.h": "4eabf3b5c0c80c93f028d59ed3642cd7ca34cc4ee36cffe74e3e9128961d2fa6",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "f077aacbc1d80168afcac04a9f30f7f142224b660ea710b03782704e2d92c586",
+    "tools/test_recovery_control.py": "bfb004263e1a1ce27389b7418899b2454c7095956bf277fa3ed7faa93b2d6d5c",
+    "tests/host/test_recovery_control.c": "20a2e3535a2a028d541f0d71ff09a4862a1e2bdf84f93added7b6484163e740d",
+    "tools/test_restart_budget.py": "73df4d6f32663f0c11f76addd111e5abb87d25fdaf070c09182d14a429f94003",
+    "tests/host/test_restart_budget.c": "21b80e4bbc42cd823e6b7eca9701ef331578a75dcfae0c9fd9b9e9ecafab28a9"
+  },
+  "source_changed_during_run": false,
+  "finished_utc": "2026-11-13T12:26:36.231173+00:00"
+}

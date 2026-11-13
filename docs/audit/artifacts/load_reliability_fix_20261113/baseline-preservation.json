@@ -1,0 +1,10 @@
+{
+  "recorded_utc": "2026-11-13T11:51:16.708656+00:00",
+  "baseline_commit": "1f82b73a1019930f419492e3e742a96bd43f374e",
+  "branch": "codex/load-reliability-p0p1-20261113",
+  "pushed": false,
+  "firmware_code_in_baseline_commit_changed": false,
+  "baseline_raw_preserved": true,
+  "baseline_results": "31 of32 configurations completed120s; VOLT1 nativeIDLE0 WDT failure15.065s; USB tail truncation; mixed1 harness false positive revalidated",
+  "validation": "47 host entry points pass; analyzer updated39 tests pass; baseline v2 replay/plot/integrity pass. Whole baseline git diff whitespace check reports intentional generatedSVG whitespace and patch context spaces; raw/derived evidence bytes preserved."
+}
