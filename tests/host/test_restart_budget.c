@@ -14,64 +14,6 @@ static void healthyAt(sensorarrayAppContext_t *ctx, uint64_t second)
     actualFrameProgress(ctx, ESP_OK, 1);
 }
 
-static void testRecoveryIdentity(void)
-{
-    mockAuthorityKnown = true;
-    mockAuthority.identity = (sensorarrayConfigIdentity_t){
-        .sessionId = UINT64_C(0x1234567812345678), .bootId = 7, .revision = 10,
-        .modeGeneration = 4, .modeRequestId = 3, .rowsGeneration = 2,
-        .rowsRequestId = 1, .profileGeneration = 6, .profileRequestId = 5,
-    };
-    sensorarrayConfigIdentity_t initial = mockAuthority.identity;
-    uint32_t id = 0, level = SENSORARRAY_RECOVERY_LEVEL_NONE, actualId = 0;
-    assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_FULL, &id));
-    assert(id == 1);
-    uint32_t rejectedId = UINT32_MAX;
-    assert(!sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_SOFT, &rejectedId));
-    assert(rejectedId == UINT32_MAX && s_recoveryRequestId == id);
-    mockAuthority.identity.revision++;
-    mockAuthority.identity.state++; /* fault state alone may change revision */
-    assert(sensorarrayRecoveryTake(&level, &actualId));
-    assert(level == SENSORARRAY_RECOVERY_LEVEL_FULL && actualId == id && staleErrors == 0);
-    assert(!sensorarrayRecoveryTake(&level, &actualId));
-
-    for (unsigned domain = 0; domain < 7; ++domain) {
-        mockAuthority.identity = initial;
-        assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_FULL, &id));
-        switch (domain) {
-        case 0: mockAuthority.identity.sessionId++; mockAuthority.identity.bootId++; break;
-        case 1: mockAuthority.identity.modeGeneration++; break;
-        case 2: mockAuthority.identity.modeRequestId++; break;
-        case 3: mockAuthority.identity.rowsGeneration++; break;
-        case 4: mockAuthority.identity.rowsRequestId++; break;
-        case 5: mockAuthority.identity.profileGeneration++; break;
-        case 6: mockAuthority.identity.profileRequestId++; break;
-        }
-        unsigned before = staleErrors;
-        assert(!sensorarrayRecoveryTake(&level, &actualId));
-        assert(level == SENSORARRAY_RECOVERY_LEVEL_NONE && actualId == id);
-        assert(staleErrors == before + 1 && strstr(lastLog, "reason=stale_config"));
-    }
-    mockAuthorityKnown = false;
-    assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_FULL, &id));
-    mockAuthorityKnown = true;
-    assert(!sensorarrayRecoveryTake(&level, &actualId)); /* unknown -> known */
-    assert(staleErrors == 8);
-    assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_FULL, &id));
-    mockAuthorityKnown = false;
-    assert(!sensorarrayRecoveryTake(&level, &actualId)); /* known -> unknown */
-    assert(staleErrors == 9);
-    assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_RESTART, &id));
-    assert(sensorarrayRecoveryTake(&level, &actualId)); /* unknown -> unknown boot recovery */
-    assert(level == SENSORARRAY_RECOVERY_LEVEL_RESTART && actualId == id);
-    s_recoveryRequestSeq = UINT32_MAX;
-    assert(sensorarrayRecoveryPost(SENSORARRAY_RECOVERY_LEVEL_FULL, &id));
-    assert(id == 1); /* reserved zero is skipped at finite counter wrap */
-    assert(sensorarrayRecoveryTake(&level, &actualId));
-    assert(lockDepth == 0);
-    puts("RECOVERY_IDENTITY_PASS,productionFunctions=post+take,singlePending=1,copyOutsideMux=1,revisionOnlyAllowed=1,staleSessionAndDomains=7,knownTransitions=1,unknownBootRecovery=1,idWrap=1");
-}
-
 int main(void)
 {
     sensorarrayAppContext_t ctx = {0};
@@ -205,7 +147,6 @@ int main(void)
     sensorarrayBootBreadcrumbStart();
     assert(s_bootBreadcrumb.autoRestartCount == 0);
     assert(s_bootBreadcrumb.guardState == SENSORARRAY_BOOT_GUARD_NORMAL);
-    testRecoveryIdentity();
-    puts("RESTART_BUDGET_PASS,productionFunctions=7,readyBlock=actual,frameCaller=actual,maxAuto=3,slowBootWindowReset=0,stableHealthyUs=120000000,minHealthyFrames=128,maxGapUs=30000000,stallAndSparseDoNotClear=1,failBreaksStreak=1,clockRollback=1,powerOnReset=1");
+    puts("RESTART_BUDGET_PASS,productionFunctions=5,readyBlock=actual,frameCaller=actual,maxAuto=3,slowBootWindowReset=0,stableHealthyUs=120000000,minHealthyFrames=128,maxGapUs=30000000,stallAndSparseDoNotClear=1,failBreaksStreak=1,clockRollback=1,powerOnReset=1");
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "sensorarrayBle.h"
+#include "sensorarrayWorkBudget.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1238,6 +1239,12 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
             return err;
         }
         offset += chunk;
+        if (index + 1u < fragmentCount) {
+            /* Retain this descriptor/slot until all fragments finish. The
+             * next fragment rechecks connection generation after this bounded
+             * scheduling point; no BLE mux or SDK lock is held here. */
+            (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
+        }
     }
     sensorarrayBleStatsNoteMessageSent(channel, false);
     return ESP_OK;
@@ -1272,6 +1279,10 @@ static void sensorarrayBleTxTask(void *arg)
     (void)arg;
     sensorarrayBleTxDescriptor_t desc;
     for (;;) {
+        /* Successful notify, congestion, stale descriptors and short failures
+         * all consume the same persistent budget. A CTRL flood cannot bypass
+         * this checkpoint through the continue below. */
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
         if (s_ble.ctrlTxQueue &&
             xQueueReceive(s_ble.ctrlTxQueue, &desc, 0) == pdTRUE) {
             (void)sensorarrayBleSendDescriptor(&desc);
@@ -1347,6 +1358,7 @@ static void sensorarrayBleControlTask(void *arg)
     (void)arg;
     sensorarrayBleControlCommand_t command;
     for (;;) {
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_CTRL);
         if (xQueueReceive(s_ble.ctrlRxQueue, &command, portMAX_DELAY) != pdTRUE) {
             continue;
         }
@@ -1693,6 +1705,11 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     }
     if (s_ble.initialized) {
         return ESP_OK;
+    }
+    esp_err_t budgetErr = sensorarrayWorkBudgetInit();
+    if (budgetErr != ESP_OK) {
+        printf("WORKBUDGET,owner=ble_tx,err=0x%lx,fallback=bounded\n",
+               (unsigned long)budgetErr);
     }
     sensorarrayBleControlRxCallback_t controlCallback = s_ble.controlCallback;
     void *controlContext = s_ble.controlContext;

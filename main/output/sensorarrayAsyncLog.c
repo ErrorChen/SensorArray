@@ -29,6 +29,7 @@
 #include "sensorarrayTypes.h"
 #include "sensorarrayUsbSink.h"
 #include "sensorarraySerialIo.h"
+#include "sensorarrayWorkBudget.h"
 
 #ifndef CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE
 #define CONFIG_SENSORARRAY_ASYNC_LOG_ENABLE 0
@@ -620,8 +621,15 @@ static void sensorarrayAsyncLogDrainEvents(void)
     }
 
     sensorarrayAsyncLogEvent_t event;
-    while (xQueueReceive(s_eventQueue, &event, 0) == pdTRUE) {
+    unsigned drained = 0u;
+    while (drained < SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT &&
+           xQueueReceive(s_eventQueue, &event, 0) == pdTRUE) {
         sensorarrayAsyncLogPrintEvent(&event);
+        drained++;
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_ASYNC_LOG);
+    }
+    if (drained == SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT && s_logTaskHandle) {
+        xTaskNotifyGive(s_logTaskHandle);
     }
 }
 
@@ -631,8 +639,15 @@ static void sensorarrayAsyncLogDrainProtocolEvents(void)
         return;
     }
     sensorarrayAsyncLogEvent_t event;
-    while (xQueueReceive(s_protocolQueue, &event, 0) == pdTRUE) {
+    unsigned drained = 0u;
+    while (drained < SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT &&
+           xQueueReceive(s_protocolQueue, &event, 0) == pdTRUE) {
         sensorarrayAsyncLogPrintEvent(&event);
+        drained++;
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_ASYNC_LOG);
+    }
+    if (drained == SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT && s_logTaskHandle) {
+        xTaskNotifyGive(s_logTaskHandle);
     }
 }
 
@@ -1849,7 +1864,6 @@ static void sensorarrayAsyncLogTask(void *arg)
     configASSERT(workspace != NULL && s_frameSlots != NULL);
     sensorarrayFrame_t *frame = &workspace->frame;
     sensorarrayTextPacket_t *textPacket = &workspace->framePacket;
-    uint32_t framesSinceIdleYield = 0u;
     int64_t lastOutputEmitUs = 0;
 
     while (true) {
@@ -1860,7 +1874,9 @@ static void sensorarrayAsyncLogTask(void *arg)
         uint64_t measureFrameUs = 0u;
         int64_t publishedUs = 0;
         uint32_t queueDepth = 0u;
-        while (sensorarrayAsyncLogPopFrame(frame,
+        unsigned processed = 0u;
+        while (processed < SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT &&
+               sensorarrayAsyncLogPopFrame(frame,
                                            textPacket,
                                            &measureFrameUs,
                                            &publishedUs,
@@ -1909,14 +1925,14 @@ static void sensorarrayAsyncLogTask(void *arg)
                                              queueDepth,
                                              emitted);
             sensorarrayAsyncLogMaybePrintSummary(&workspace->summary);
-            framesSinceIdleYield++;
-            if (framesSinceIdleYield >= 40u) {
-                framesSinceIdleYield = 0u;
-                vTaskDelay(1u);
-            }
+            processed++;
+            (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_ASYNC_LOG);
         }
         sensorarrayAsyncLogDrainProtocolEvents();
         sensorarrayAsyncLogDrainEvents();
+        if (processed == SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT) {
+            xTaskNotifyGive(s_logTaskHandle);
+        }
     }
 }
 
@@ -1932,6 +1948,11 @@ esp_err_t sensorarrayAsyncLogInit(void)
      * including the interval before the successful create call is published. */
     if (s_logTaskHandle) {
         return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t budgetErr = sensorarrayWorkBudgetInit();
+    if (budgetErr != ESP_OK) {
+        printf("WORKBUDGET,owner=async_log,err=0x%lx,fallback=bounded\n",
+               (unsigned long)budgetErr);
     }
     bool preferPsram = false;
 #if CONFIG_SPIRAM

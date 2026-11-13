@@ -86,7 +86,7 @@ MODE、ROWS、ROWMODES、RAILCFG 和运行时输出设置均为易失状态，�
 
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `BOOT?` | Query | 是 | 是 | 是 | 无 | `BOOT,boot=...,bootId=...,reset=...,stage=...,err=0x...,seq=...,heap=...,heapMin=...,prevStage=...,prevErr=0x...,prevHeap=...,guard=...,autoRestarts=...,windowAgeS=...,ready=...` | 立即 snapshot | - | 支持 | boot breadcrumb 与 auto-restart guard 状态；`guard=recovery_safe` 表示上次恢复处于 SAFE。 |
+| `BOOT?` | Query | 是 | 是 | 是 | 无 | `BOOT,boot=...,bootId=...,reset=...,stage=...,err=0x...,seq=...,heap=...,heapMin=...,prevStage=...,prevErr=0x...,prevHeap=...,guard=...,autoRestarts=...,windowAgeS=...,ready=...` | 立即 snapshot | - | 支持 | boot breadcrumb 与 auto-restart guard 状态；`guard=recovery_safe` 是自动重启预算耗尽的历史 guard 名称；不证明 GPIO/模拟节点已安全。 |
 | `READY?` | Query | 是 | 是 | 是 | 无 | `READY,ready=<0|1>,stage=...,err=0x...,bootId=...,boot=...` | 立即 snapshot | - | 支持 | 只反映系统 readiness，不发起任何初始化。 |
 | `PROTO?` | Query | 是 | 是 | 是 | 无 | `PROTO,version=...,wires=ascii,ctrlMax=...,dataMax=...,channels=CTRL/DATA/LOG/LIFECYCLE` | 立即 snapshot | - | 支持 | 返回当前协议版本与 wire 上限；`ctrlMax`/`dataMax` 是完整 message byte 上限。 |
 | `BUILD?` | Query | 是 | 是 | 是 | 无 | `BUILD,idf=...,target=...,project=SensorArray,proto=...` | 立即 snapshot | - | 支持 | 报告构建时的 ESP-IDF 版本、target 与协议版本。 |
@@ -94,10 +94,18 @@ MODE、ROWS、ROWMODES、RAILCFG 和运行时输出设置均为易失状态，�
 | `USBSTREAM?` | Query | 是 | 是 | 是 | 无 | `USBSTREAM,v=<DEBUG|FULL>,dataEvery=...,diagEvery=...` | 立即 snapshot | - | 支持 | 查询 USB 文本发布 profile。 |
 | `USBSTREAM=DEBUG` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=DEBUG,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | DEBUG 只按 `dataEvery` 发布测量 DATA，DIAG 按 `diagEvery`。 |
 | `USBSTREAM=FULL` | Config | 是 | 是 | 是 | 无 | `USBSTREAM,v=FULL,dataEvery=...,diagEvery=...,state=applied` | Core 0 立即 | 否 | 支持 | FULL 发布全部测量 DATA；运行时 profile 不写 NVS。 |
-| `RECOVER` / `RECOVER=<level>` | Action | 是 | 是 | 是 | 默认 full；`0..2`（0=soft，1=full，2=restart） | `RACK,cmd=RECOVER,id=...,level=...,state=accepted`，随后 `RAPP,cmd=RECOVER,id=...,level=...,state=applied|rejected|restarting|safe` | 下一安全完整帧边界 | 否 | 支持 | 未 ready 返回 `ERR,cmd=RECOVER,reason=not_ready`；`RECOVER=2` 会重启设备。`FDCISO=ON` 隔离后 RECOVER 直接拒绝（`reason=fdc_restart_required`），只能 `RESTART`。 |
-| `RESTART` | Action | 是 | 是 | 是 | 无 | `RACK,cmd=RESTART,id=...,state=accepted`，随后 `RAPP,cmd=RESTART,id=...,state=restarting,kind=manual` | 下一安全完整帧边界 | 否 | 支持 | 受控重启；自动 HIL 未执行受控 reset 流程时 reboot/recovery 必须标 `NOT RUN`/`BLOCKED`。 |
+| `RECOVER` / `RECOVER=<level>` | Action | 是 | 是 | 是 | 默认 full；`0..2`（0=soft，1=full，2=restart） | `RACK,cmd=RECOVER,id=...,level=...,state=accepted`，随后 `RAPP,cmd=RECOVER,id=...,level=...,state=applied|rejected|restarting` | 下一安全完整帧边界 | 否 | 支持 | 仅同一 session/boot/配置 revision 的已接受请求可执行；`RECOVER=2` 受重启预算约束，耗尽则 DEGRADED/NONE 并记录 cleanup，不能保证重启。`FDCISO=ON` 隔离后 RECOVER 直接拒绝（`reason=fdc_restart_required`），只能 `RESTART`。 |
+| `RECOVERY?` | Query | 是 | 是 | 是 | 无 | `RECOVERY,session=...,bootId=...,busy=...,phase=...,pendingId=...,lastId=...,last=...,originalError=...,cleanupError=...` | 立即 cache snapshot | 否 | 本轮新增 `recovery_query_v1` | 无副作用；同一 boot 最后一个已接受 RECOVER 的终态与当前 pending/running；终态丢失后可查询，不能跨 session 比较 ID。 |
+| `SERIAL?` | Query | 是 | 是 | 是 | 无 | `SERIAL,normalSubmitted=...,prioritySubmitted=...,normalExpired=...,priorityExpired=...,priorityRejected=...,driverShortWrite=...,driverWriteError=...,txYield=...,maxQueueAgeUs=...,driverTxBufferBytes=...,driverAcceptedBytes=...,partialWrite=...` | 立即统计 snapshot | 否 | 本轮新增 `serial_sink_v1` | 单次原子串口统计；submitted/accepted 只表示本地驱动接受，非 PC 接收。独立于 USBSTREAM，极值 339 B。 |
+| `SCHED?` | Query | 是 | 是 | 是 | 无 | `SCHED,initError=...,registered=...,idleKnown=...,tickHz=...,budgetTicks=...,maxUnits=...,idleGen=...,idleAgeTicks=...,maxIdleGapTicks=...,bt=.../.../...,tr=.../.../...,log=.../.../...,ser=.../.../...,bc=.../.../...,sc=.../.../...,wc=.../.../...` | 立即观测 snapshot | 否 | 本轮新增 `work_budget_v1` | CPU0 真实 idle hook 与各 worker 的 checkpoint/yield/maxBurst 三元组；字段独立取样，不是 CPU 利用率或原子配置。未知 idle 年龄为 unknown。极值 437 B。 |
+| `RESTART?` | Query | 是 | 是 | 是 | 无 | `RESTART,session=...,bootId=...,busy=...,phase=...,pendingId=...,lastId=...,last=...,reason=...,originalError=...,publishError=...,terminalQueued=...,serialQueued=...,serialError=...,netQueued=...,netError=...` | 立即 cache snapshot | 否 | 本轮新增 `restart_query_v1` | 无副作用；独立的显式重启请求/最后结果，不占 MODE/RECOVER 槽。极值 413 B。新 boot 清缓存，restarting 不是 reset/Host 接收证明。 |
+| `RESTART` | Action | 是 | 是 | 是 | 无 | `RACK,cmd=RESTART,id=...,state=accepted`，随后 `RAPP,cmd=RESTART,id=...,state=restarting,kind=manual` | 下一安全完整帧边界 | 否 | 支持 | 独立单 pending，重复返回 `ERR,cmd=RESTART,reason=pending`；本地 ACK 发布失败则取消，查询 RESTART? 可见拒绝原因。受控重启；自动 HIL 未执行受控 reset 流程时 reboot/recovery 必须标 `NOT RUN`/`BLOCKED`。 |
 
-`RACK/RAPP` 用于 `RECOVER`/`RESTART` 的 deferred lifecycle：`RACK` 只表示已接受，`RAPP` 才表示在安全边界实际执行。`RECOVER=2` 与 `RESTART` 会真正重启，host 必须把重启后的 `RST`/boot breadcrumb 当作该命令的预期结果，不能与意外复位混淆。
+`RACK/RAPP` 用于 `RECOVER`/`RESTART` 的 deferred lifecycle：RACK 的本地排队成功才开放 RECOVER 执行，RAPP（或既有前置拒绝 RERR）的 `applied/rejected/restarting` 是终态或重启意图，均不证明 Host 已收到。RECOVER 在 ACK 前与 MODE/ROWS/ROWMODES 共用一个有界终态保留槽；占用时后续请求返回 busy/pending，不覆盖已接受请求。同一 RECOVER 文本再次提交是新请求，忙时拒绝；查询结果应使用无副作用 `RECOVERY?`，不能用重发 RECOVER 代替查询。
+
+RECOVERY 缓存只保留当前请求和本 boot 最后一个已接受请求的结果；`acceptedRev` 属于接受时配置，`rev/boundary` 属于完成时原子配置。任何 session/boot/revision 或 mode/rows/profile 域变化使旧请求终结为 `stale_config`，不操作更新配置。`terminalQueued=1` 仅说明终态曾进入固件保留槽；槽已排空、断连或对端丢失后仍保持 1，不能当接收确认。失败和预算耗尽分别保存 `originalError` 与 `cleanupError`，`physicalSafe=unknown`；cleanup 失败时结果的 routeApplied/routeKnown/routeVerified 都为 0。`BOOT.guard=recovery_safe` 是兼容旧字段，不能代替这些错误与 route 证据。
+
+`RECOVER=2` 只有预算允许才请求重启，`RESTART` 是显式手动重启。`state=restarting` 只是有界排队后发起重启的意图，不能保证对端在 reset 前收到；新 session 的 RST/BOOT/CONFIG 才是重启后的权威身份。所有查询回复检查完整 snprintf 结果，容量不足返回错误，不输出截断统计。新字段详细单位和回绕规则见 [firmware_host_contract.md](integration/firmware_host_contract.md)。
 
 ## Legacy / 低频诊断命令
 

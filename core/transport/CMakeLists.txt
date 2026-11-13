@@ -9,5 +9,5 @@ idf_component_register(
         "sensorarrayTransportPolicy.c"
         "sensorarrayTransportStats.c"
     INCLUDE_DIRS "."
-    REQUIRES sensorarrayBle sensorarrayWifi config nvs_flash esp_system esp_timer esp_driver_usb_serial_jtag vfs freertos
+    REQUIRES sensorarrayBle sensorarrayWifi sensorarrayWorkBudget config nvs_flash esp_system esp_timer esp_driver_usb_serial_jtag vfs freertos
 )

@@ -113,6 +113,11 @@ esp_err_t sensorarrayTransportInit(void);
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length);
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length);
 esp_err_t sensorarrayTransportPublishLifecycle(const char *data, size_t length);
+/* 本轮新增: network descriptor admission only; ESP_OK can be a disabled-sink
+ * no-op, represented by outQueued=false. Does not queue Serial or prove receipt. */
+esp_err_t sensorarrayTransportPublishLifecycleObserved(const char *data,
+                                                        size_t length,
+                                                        bool *outQueued);
 esp_err_t sensorarrayTransportPublishControlReply(
     const sensorarrayTransportReplyTarget_t *target,
     const char *data,

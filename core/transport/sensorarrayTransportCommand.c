@@ -249,10 +249,9 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     esp_err_t replyErr = sensorarrayTransportPublishControlReply(replyTarget,
                                                                  response,
                                                                  strlen(response));
-    /* The published hook closes the ROWMODES ACK/terminal ordering barrier,
-     * so it must only run when the ACK actually left the device.  A failed
-     * publish reports through the separate failure hook instead of being
-     * treated as an accepted, acknowledged transaction. */
+    /* The published hook opens the configuration/recovery/restart ACK barrier only
+     * after local control-sink admission. This is not host receipt. A failed
+     * admission invokes the separate failure hook and cancels that request. */
     if (replyErr == ESP_OK && g_sensorarrayTransportControlReplyPublishedCallback) {
         g_sensorarrayTransportControlReplyPublishedCallback(response,
                                                              strlen(response));

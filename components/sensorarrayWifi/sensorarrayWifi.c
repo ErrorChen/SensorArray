@@ -1,4 +1,5 @@
 #include "sensorarrayWifi.h"
+#include "sensorarrayWorkBudget.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -168,6 +169,10 @@ static void sensorarrayWifiControlTask(void *arg)
     (void)arg;
     uint8_t buffer[SENSORARRAY_WIFI_CTRL_BUFFER];
     while (true) {
+        /* recvfrom may return immediately under UDP flood, for an empty
+         * datagram, or on a persistent socket error. This is our task boundary,
+         * outside LWIP/SDK callbacks and locks; all paths share one budget. */
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_WIFI_CTRL);
         struct sockaddr_in source = {0};
         socklen_t sourceLength = sizeof(source);
         int received = recvfrom(s_wifi.ctrlSocket, buffer, sizeof(buffer), 0,
@@ -191,6 +196,11 @@ esp_err_t sensorarrayWifiInit(const sensorarrayWifiConfig_t *config)
     if (!config || config->ssid[0] == '\0' || config->dataPort == 0u ||
         config->logPort == 0u || config->ctrlPort == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t budgetErr = sensorarrayWorkBudgetInit();
+    if (budgetErr != ESP_OK) {
+        printf("WORKBUDGET,owner=wifi_ctrl,err=0x%lx,fallback=bounded\n",
+               (unsigned long)budgetErr);
     }
     if (s_wifi.initialized) {
         esp_err_t err = sensorarrayWifiApplyProfile(config->profile);

@@ -140,6 +140,24 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 { assert(ctx); mockDrain++; }
 static esp_err_t sensorarrayFrontendStartupFormatSpi(char *text, size_t capacity)
 { snprintf(text, capacity, "SPI,mock=1\n"); return ESP_OK; }
+/* Formatting has separate production-module extrema tests. These four
+ * boundary stubs let this test execute the actual main dispatch while held. */
+static unsigned mockDiagnosticQueryCalls[4];
+static esp_err_t mockDiagnosticQuery(unsigned which, char *text, size_t capacity)
+{
+    static const char *tags[] = {"RECOVERY", "RESTART", "SERIAL", "SCHED"};
+    assert(which < 4); mockDiagnosticQueryCalls[which]++;
+    int n = snprintf(text, capacity, "%s,mock=1\n", tags[which]);
+    return n > 0 && (size_t)n < capacity ? ESP_OK : ESP_ERR_INVALID_SIZE;
+}
+static esp_err_t sensorarrayRecoveryControlFormat(char *text, size_t capacity)
+{ return mockDiagnosticQuery(0, text, capacity); }
+static esp_err_t sensorarrayRestartControlFormat(char *text, size_t capacity)
+{ return mockDiagnosticQuery(1, text, capacity); }
+static esp_err_t sensorarrayFormatSerialReply(char *text, size_t capacity)
+{ return mockDiagnosticQuery(2, text, capacity); }
+static esp_err_t sensorarrayFormatSchedulerReply(char *text, size_t capacity)
+{ return mockDiagnosticQuery(3, text, capacity); }
 /* ACTUAL_FUNCTIONS */
 
 static void reset(sensorarrayAppContext_t *ctx)
@@ -213,6 +231,20 @@ static void testCommands(void)
     for (unsigned i = 0; i < 4; ++i) {
         assert(sensorarrayRuntimeQueryCommand(rejected[i], reply, sizeof(reply), &ctx) == ESP_ERR_INVALID_STATE);
     }
+    const char *newQueries[] = {"RECOVERY?", "RESTART?", "SERIAL?", "SCHED?"};
+    const char *expected[] = {"RECOVERY,mock=1\n", "RESTART,mock=1\n", "SERIAL,mock=1\n", "SCHED,mock=1\n"};
+    unsigned readsBefore = mockDriverRead, routesBefore = mockRoute;
+    unsigned resetsBefore = mockRestart, terminalsBefore = mockTerminals, postsBefore = mockRowsPost;
+    memset(mockDiagnosticQueryCalls, 0, sizeof(mockDiagnosticQueryCalls));
+    for (unsigned i = 0; i < 4; ++i) {
+        assert(sensorarrayRuntimeQueryCommand(newQueries[i], reply, sizeof(reply), &ctx) == ESP_OK);
+        assert(strcmp(reply, expected[i]) == 0 && mockDiagnosticQueryCalls[i] == 1);
+        assert(sensorarrayRuntimeQueryCommand(newQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
+        assert(strcmp(reply, expected[i]) == 0 && mockDiagnosticQueryCalls[i] == 2);
+    }
+    assert(mockDriverRead == readsBefore && mockRoute == routesBefore && mockRestart == resetsBefore);
+    assert(mockTerminals == terminalsBefore && mockRowsPost == postsBefore && s_frontendHold == 1);
+    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=4,with_context_and_null=1,hardware_side_effects=0");
     const char *allowed[] = {"SPI?", "FRONTENDS?", "CONFIG?", "USBSTREAM?", "USBSTREAM=DEBUG", "RESTART", "RECOVER=2"};
     for (unsigned i = 0; i < 7; ++i) {
         assert(sensorarrayRuntimeQueryCommand(allowed[i], reply, sizeof(reply), &ctx) == ESP_OK);

@@ -31,6 +31,8 @@
 #include "sensorarrayCommandMailbox.h"
 #include "sensorarrayCalibration.h"
 #include "sensorarrayEarlyRecovery.h"
+#include "sensorarrayRecoveryControl.h"
+#include "sensorarrayRestartControl.h"
 #include "sensorarrayFdcMatrix.h"
 #include "sensorarrayFdcRescue.h"
 #include "sensorarrayFdcSweep.h"
@@ -52,6 +54,7 @@
 #include "sensorarrayRouteController.h"
 #include "sensorarrayTransport.h"
 #include "sensorarraySerialIo.h"
+#include "sensorarrayWorkBudget.h"
 #include "sensorarrayTextProtocol.h"
 #include "sensorarrayTypes.h"
 #include "esp_rtc_time.h"
@@ -262,14 +265,6 @@ static uint64_t s_configSessionId;
 #define SENSORARRAY_ADS_RECOVERY_CHECK_SAMPLES 1u
 #define SENSORARRAY_ADS_RECOVERY_ATTEMPT_DELAY_MS 20u
 
-static portMUX_TYPE s_recoveryRequestMux = portMUX_INITIALIZER_UNLOCKED;
-static volatile uint32_t s_recoveryRequestLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
-static volatile uint32_t s_recoveryRequestId;
-static sensorarrayConfigIdentity_t s_recoveryRequestIdentity;
-static bool s_recoveryRequestIdentityKnown;
-static volatile uint32_t s_restartRequested;
-static volatile uint32_t s_restartRequestId;
-static uint32_t s_recoveryRequestSeq;
 
 static const char *sensorarrayResetReasonName(esp_reset_reason_t reason)
 {
@@ -691,84 +686,39 @@ static bool sensorarrayRecoveryPost(uint32_t level, uint32_t *outRequestId)
 {
     sensorarrayConfigAuthority_t authority = {0};
     bool known = sensorarrayConfigIdentityCopy(&authority);
-    portENTER_CRITICAL(&s_recoveryRequestMux);
-    if (s_recoveryRequestLevel != SENSORARRAY_RECOVERY_LEVEL_NONE) {
-        portEXIT_CRITICAL(&s_recoveryRequestMux);
-        return false;
-    }
-    s_recoveryRequestSeq++;
-    if (s_recoveryRequestSeq == 0u) { s_recoveryRequestSeq = 1u; }
-    s_recoveryRequestLevel = level;
-    s_recoveryRequestId = s_recoveryRequestSeq;
-    s_recoveryRequestIdentity = authority.identity;
-    s_recoveryRequestIdentityKnown = known;
-    if (outRequestId) {
-        *outRequestId = s_recoveryRequestSeq;
-    }
-    portEXIT_CRITICAL(&s_recoveryRequestMux);
-    return true;
+    return sensorarrayRecoveryControlPost(level, &authority, known,
+                                          outRequestId) == ESP_OK;
 }
 
 static bool sensorarrayRecoveryTake(uint32_t *outLevel, uint32_t *outRequestId)
 {
-    portENTER_CRITICAL(&s_recoveryRequestMux);
-    uint32_t level = s_recoveryRequestLevel;
-    uint32_t requestId = s_recoveryRequestId;
-    sensorarrayConfigIdentity_t accepted = s_recoveryRequestIdentity;
-    bool known = s_recoveryRequestIdentityKnown;
-    s_recoveryRequestLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
-    s_recoveryRequestId = 0u;
-    portEXIT_CRITICAL(&s_recoveryRequestMux);
-    sensorarrayConfigAuthority_t current = {0};
-    bool currentKnown = sensorarrayConfigIdentityCopy(&current);
-    const sensorarrayConfigIdentity_t *actual = &current.identity;
-    bool stale = known != currentKnown || (known &&
-        (accepted.sessionId != actual->sessionId ||
-         accepted.modeGeneration != actual->modeGeneration ||
-         accepted.modeRequestId != actual->modeRequestId ||
-         accepted.rowsGeneration != actual->rowsGeneration ||
-         accepted.rowsRequestId != actual->rowsRequestId ||
-         accepted.profileGeneration != actual->profileGeneration ||
-         accepted.profileRequestId != actual->profileRequestId));
-    if (level != SENSORARRAY_RECOVERY_LEVEL_NONE && stale) {
-        printf("RERR,cmd=RECOVER,id=%lu,state=rejected,reason=stale_config,acceptedRev=%lu,currentRev=%lu\n",
-               (unsigned long)requestId, (unsigned long)accepted.revision,
-               (unsigned long)actual->revision);
-        level = SENSORARRAY_RECOVERY_LEVEL_NONE;
+    sensorarrayConfigAuthority_t authority = {0};
+    bool known = sensorarrayConfigIdentityCopy(&authority);
+    sensorarrayRecoverRequest_t request = {0};
+    sensorarrayRecoverTake_t result = sensorarrayRecoveryControlTake(
+        &authority, known, &request);
+    if (result == SENSORARRAY_RECOVER_TAKE_STALE) {
+        /* A stale request must not stop or relabel the newer configuration. */
+        (void)sensorarrayRecoveryControlComplete(request.id,
+            SENSORARRAY_RECOVER_REJECTED, "stale_config", ESP_ERR_INVALID_STATE,
+            ESP_OK, &authority, known, false, false, false);
     }
-    if (outLevel) {
-        *outLevel = level;
-    }
-    if (outRequestId) {
-        *outRequestId = requestId;
-    }
-    return level != SENSORARRAY_RECOVERY_LEVEL_NONE;
+    if (outLevel) { *outLevel = result == SENSORARRAY_RECOVER_TAKE_READY ?
+        request.level : SENSORARRAY_RECOVERY_LEVEL_NONE; }
+    if (outRequestId) { *outRequestId = request.id; }
+    return result == SENSORARRAY_RECOVER_TAKE_READY;
 }
 
-static void sensorarrayRestartPost(uint32_t *outRequestId)
+static bool sensorarrayRestartPost(uint32_t *outRequestId)
 {
-    portENTER_CRITICAL(&s_recoveryRequestMux);
-    s_recoveryRequestSeq++;
-    s_restartRequested = 1u;
-    s_restartRequestId = s_recoveryRequestSeq;
-    if (outRequestId) {
-        *outRequestId = s_recoveryRequestSeq;
-    }
-    portEXIT_CRITICAL(&s_recoveryRequestMux);
+    sensorarrayConfigAuthority_t authority = {0};
+    bool known = sensorarrayConfigIdentityCopy(&authority);
+    return sensorarrayRestartControlPost(&authority, known, outRequestId) == ESP_OK;
 }
 
 static bool sensorarrayRestartTake(uint32_t *outRequestId)
 {
-    portENTER_CRITICAL(&s_recoveryRequestMux);
-    bool pending = s_restartRequested != 0u;
-    uint32_t requestId = s_restartRequestId;
-    s_restartRequested = 0u;
-    s_restartRequestId = 0u;
-    portEXIT_CRITICAL(&s_recoveryRequestMux);
-    if (outRequestId) {
-        *outRequestId = requestId;
-    }
-    return pending;
+    return sensorarrayRestartControlTake(outRequestId);
 }
 
 static const char *sensorarrayAppFdcBootQualityName(sensorarrayFdcBootQuality_t quality)
@@ -2469,6 +2419,75 @@ static esp_err_t sensorarrayFormatFrontendReply(char *response, size_t responseS
         ESP_OK : ESP_ERR_INVALID_SIZE;
 }
 
+/* 本轮新增: separate bounded sink counters; these are local queue/driver
+ * observations and never a statement that a PC received the bytes. */
+static esp_err_t sensorarrayFormatSerialReply(char *response, size_t responseSize)
+{
+    if (!response || responseSize == 0u) { return ESP_ERR_INVALID_ARG; }
+    sensorarraySerialIoStats_t serial = {0};
+    sensorarraySerialIoGetStats(&serial);
+    int n = snprintf(response, responseSize,
+        "SERIAL,normalSubmitted=%lu,prioritySubmitted=%lu,normalExpired=%lu,priorityExpired=%lu,priorityRejected=%lu,driverShortWrite=%lu,driverWriteError=%lu,txYield=%lu,maxQueueAgeUs=%lu,driverTxBufferBytes=%lu,driverAcceptedBytes=%llu,partialWrite=%lu\n",
+        (unsigned long)serial.normalSubmitted, (unsigned long)serial.prioritySubmitted,
+        (unsigned long)serial.normalExpired, (unsigned long)serial.priorityExpired,
+        (unsigned long)serial.priorityRejected, (unsigned long)serial.driverShortWrite,
+        (unsigned long)serial.driverWriteError, (unsigned long)serial.txYield,
+        (unsigned long)serial.maxQueueAgeUs, (unsigned long)serial.driverTxBufferBytes,
+        (unsigned long long)serial.driverAcceptedBytes, (unsigned long)serial.partialWrite);
+    if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
+    return ESP_OK;
+}
+
+/* 本轮新增: real CPU0 idle progress and bounded worker checkpoints. These
+ * independently sampled counters are neither CPU load nor configuration state. */
+static esp_err_t sensorarrayFormatSchedulerReply(char *response, size_t responseSize)
+{
+    if (!response || responseSize == 0u) { return ESP_ERR_INVALID_ARG; }
+    sensorarrayWorkBudgetSnapshot_t snapshot = {0};
+    sensorarrayWorkBudgetCopySnapshot(&snapshot);
+    char age[11], gap[11];
+    if (!snapshot.idleKnown || snapshot.idleAgeTicks == UINT32_MAX) {
+        memcpy(age, "unknown", sizeof("unknown"));
+    } else {
+        (void)snprintf(age, sizeof(age), "%lu", (unsigned long)snapshot.idleAgeTicks);
+    }
+    if (!snapshot.idleKnown || snapshot.maxIdleGapTicks == UINT32_MAX) {
+        memcpy(gap, "unknown", sizeof("unknown"));
+    } else {
+        (void)snprintf(gap, sizeof(gap), "%lu", (unsigned long)snapshot.maxIdleGapTicks);
+    }
+    const sensorarrayWorkBudgetWorkerSnapshot_t *w = snapshot.workers;
+    int n = snprintf(response, responseSize,
+        "SCHED,initError=0x%lX,registered=%u,idleKnown=%u,tickHz=%lu,budgetTicks=%lu,maxUnits=%lu,idleGen=%lu,idleAgeTicks=%s,maxIdleGapTicks=%s,bt=%lu/%lu/%lu,tr=%lu/%lu/%lu,log=%lu/%lu/%lu,ser=%lu/%lu/%lu,bc=%lu/%lu/%lu,sc=%lu/%lu/%lu,wc=%lu/%lu/%lu\n",
+        (unsigned long)(uint32_t)snapshot.initError, snapshot.registered ? 1u : 0u,
+        snapshot.idleKnown ? 1u : 0u, (unsigned long)snapshot.tickHz,
+        (unsigned long)snapshot.idleBudgetTicks, (unsigned long)snapshot.maxWorkUnits,
+        (unsigned long)snapshot.idleGeneration, age, gap,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_TX].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_TX].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_TRANSPORT].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_TRANSPORT].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_TRANSPORT].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_ASYNC_LOG].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_ASYNC_LOG].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_ASYNC_LOG].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_TX].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_TX].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_TX].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_CTRL].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_CTRL].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_CTRL].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_CTRL].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_CTRL].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_SERIAL_CTRL].maxBurstUnits,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_WIFI_CTRL].checkpoints,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_WIFI_CTRL].yields,
+        (unsigned long)w[SENSORARRAY_WORK_BUDGET_WIFI_CTRL].maxBurstUnits);
+    if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
+    return ESP_OK;
+}
+
 static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
                                                      char *response,
                                                      size_t responseSize,
@@ -2477,6 +2496,18 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     (void)context;
     if (!command || !response || responseSize == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(command, "RECOVERY?") == 0) {
+        return sensorarrayRecoveryControlFormat(response, responseSize);
+    }
+    if (strcmp(command, "RESTART?") == 0) {
+        return sensorarrayRestartControlFormat(response, responseSize);
+    }
+    if (strcmp(command, "SERIAL?") == 0) {
+        return sensorarrayFormatSerialReply(response, responseSize);
+    }
+    if (strcmp(command, "SCHED?") == 0) {
+        return sensorarrayFormatSchedulerReply(response, responseSize);
     }
     if (strcmp(command, "SPI?") == 0) {
         return sensorarrayFrontendStartupFormatSpi(response, responseSize);
@@ -2520,7 +2551,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
@@ -2544,7 +2575,10 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
         return ESP_ERR_INVALID_ARG;
     case SENSORARRAY_EARLY_KIND_RESTART: {
         uint32_t requestId = 0u;
-        sensorarrayRestartPost(&requestId);
+        if (!sensorarrayRestartPost(&requestId)) {
+            snprintf(response, responseSize, "ERR,cmd=RESTART,reason=pending\n");
+            return ESP_ERR_INVALID_STATE;
+        }
         snprintf(response, responseSize,
                  "RACK,cmd=RESTART,id=%lu,state=accepted\n",
                  (unsigned long)requestId);
@@ -2565,6 +2599,14 @@ static void sensorarrayControlReplyPublished(const char *data, size_t length)
         return;
     }
     unsigned long requestId = 0u;
+    if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
+        (void)sensorarrayRecoveryControlAck((uint32_t)requestId, ESP_OK);
+        return;
+    }
+    if (sscanf(data, "RACK,cmd=RESTART,id=%lu", &requestId) == 1) {
+        (void)sensorarrayRestartControlAck((uint32_t)requestId, ESP_OK);
+        return;
+    }
     if (sscanf(data, "RMACK,id=%lu", &requestId) == 1 ||
         sscanf(data, "MACK,id=%lu", &requestId) == 1 ||
         sscanf(data, "RCMD,id=%lu", &requestId) == 1) {
@@ -2584,6 +2626,14 @@ static void sensorarrayControlReplyFailed(esp_err_t error,
         return;
     }
     unsigned long requestId = 0u;
+    if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
+        (void)sensorarrayRecoveryControlAck((uint32_t)requestId, error);
+        return;
+    }
+    if (sscanf(data, "RACK,cmd=RESTART,id=%lu", &requestId) == 1) {
+        (void)sensorarrayRestartControlAck((uint32_t)requestId, error);
+        return;
+    }
     if (sscanf(data, "RMACK,id=%lu", &requestId) == 1 ||
         sscanf(data, "MACK,id=%lu", &requestId) == 1 ||
         sscanf(data, "RCMD,id=%lu", &requestId) == 1) {
@@ -2604,6 +2654,18 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     uint32_t frameSequence = ctx ? ctx->frame.sequence : 0u;
     if (!command || !response || responseSize == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(command, "RECOVERY?") == 0) {
+        return sensorarrayRecoveryControlFormat(response, responseSize);
+    }
+    if (strcmp(command, "RESTART?") == 0) {
+        return sensorarrayRestartControlFormat(response, responseSize);
+    }
+    if (strcmp(command, "SERIAL?") == 0) {
+        return sensorarrayFormatSerialReply(response, responseSize);
+    }
+    if (strcmp(command, "SCHED?") == 0) {
+        return sensorarrayFormatSchedulerReply(response, responseSize);
     }
     if (strcmp(command, "SPI?") == 0) {
         return sensorarrayFrontendStartupFormatSpi(response, responseSize);
@@ -3175,7 +3237,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
@@ -3327,7 +3389,10 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "RESTART") == 0) {
         uint32_t requestId = 0u;
-        sensorarrayRestartPost(&requestId);
+        if (!sensorarrayRestartPost(&requestId)) {
+            snprintf(response, responseSize, "ERR,cmd=RESTART,reason=pending\n");
+            return ESP_ERR_INVALID_STATE;
+        }
         snprintf(response, responseSize,
                  "RACK,cmd=RESTART,id=%lu,state=accepted\n",
                  (unsigned long)requestId);
@@ -4109,9 +4174,57 @@ static void sensorarrayRunDiagnosticTick(sensorarrayAppContext_t *ctx)
     vTaskDelay(pdMS_TO_TICKS(1000u));
 }
 
-static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
-                                             uint32_t level)
+/* 本轮新增: explicit RECOVER results are cached before priority publication.
+ * Route verification below is software/register evidence, never physical safety. */
+static void sensorarrayCompleteRecoveryRequest(sensorarrayAppContext_t *ctx,
+    uint32_t requestId, sensorarrayRecoverState_t outcome, const char *reason,
+    esp_err_t originalError, esp_err_t cleanupError)
 {
+    sensorarrayConfigAuthority_t authority = {0};
+    bool known = sensorarrayConfigIdentityCopy(&authority);
+    sensorarrayRouteSnapshot_t route = {0};
+    bool routeCopied = ctx && sensorarrayRouteControllerCopySnapshot(
+        &ctx->routeController, &route);
+    bool cleanupOk = cleanupError == ESP_OK;
+    (void)sensorarrayRecoveryControlComplete(requestId, outcome, reason,
+        originalError, cleanupError, &authority, known,
+        routeCopied && cleanupOk && route.applied,
+        routeCopied && cleanupOk && route.known,
+        routeCopied && cleanupOk && route.verified);
+}
+
+/* 本轮新增: a failed recovery cannot leave CAP active and implicitly rebuild
+ * its route next frame. Preserve the first cleanup failure, even if a later
+ * SAFE action succeeds. An explicit later MODE/RESTART can recover. */
+static esp_err_t sensorarrayStopAfterRecoveryFailure(sensorarrayAppContext_t *ctx,
+    esp_err_t originalError, esp_err_t cleanupError, const char *reason)
+{
+    if (!ctx) { return cleanupError == ESP_OK ? ESP_ERR_INVALID_ARG : cleanupError; }
+    sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
+        (uint32_t)originalError);
+    if (ctx->adsRestoreRecovery.active) {
+        ctx->adsRestoreRecovery.active = false;
+        ctx->adsRestoreRecovery.terminal = true;
+        ctx->adsRestoreRecovery.outcome = SENSORARRAY_MEASUREMENT_RECOVERY_OUTCOME_FAILED;
+        ctx->adsRestoreRecovery.lastError = (uint32_t)originalError;
+    }
+    esp_err_t err = sensorarrayAdsMatrixEngineSetMode(
+        &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+    if (cleanupError == ESP_OK && err != ESP_OK) { cleanupError = err; }
+    err = sensorarrayRouteControllerEnterSafe(&ctx->routeController, reason);
+    if (cleanupError == ESP_OK && err != ESP_OK) { cleanupError = err; }
+    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+    sensorarrayBootBreadcrumbMarkStableProgress(false);
+    return cleanupError;
+}
+
+static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
+                                             uint32_t level,
+                                             bool *outHardwareTouched,
+                                             esp_err_t *outCleanupError)
+{
+    *outHardwareTouched = false;
+    *outCleanupError = ESP_OK;
     if (!ctx) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -4131,6 +4244,7 @@ static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
         return ESP_ERR_INVALID_STATE;
     }
 
+    *outHardwareTouched = true;
     if (level >= SENSORARRAY_RECOVERY_LEVEL_FULL) {
         esp_err_t safeErr = sensorarrayRouteControllerEnterSafe(
             &ctx->routeController, "recover_full");
@@ -4142,95 +4256,95 @@ static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
                                                "recover_full");
             sensorarrayFrontendStartupRecheckFdcClock(&ctx->state.fdcSecondary,
                                                "recover_full");
-            (void)sensorarrayFdcMatrixEngineRunFullRescue(&ctx->fdcEngine,
-                                                          "recover_full");
+            esp_err_t rescueErr = sensorarrayFdcMatrixEngineRunFullRescue(
+                &ctx->fdcEngine, "recover_full");
+            if (rescueErr != ESP_OK) { return rescueErr; }
         }
         sensorarrayFdcRescueReset(&ctx->fdcRescue);
     }
-    return sensorarrayApplyMeasurementMode(ctx, mode.activeMode, 0u, false);
+    esp_err_t err = sensorarrayApplyMeasurementMode(ctx, mode.activeMode, 0u, false);
+    if (err != ESP_OK) {
+        sensorarrayRouteSnapshot_t route = {0};
+        if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route)) {
+            *outCleanupError = (esp_err_t)route.cleanupError;
+            /* ApplyMeasurementMode already attempted SAFE. Its final failed
+             * SAFE readback is cleanup evidence, not a replacement first error. */
+            if (*outCleanupError == ESP_OK && !route.safe && route.lastError != 0u) {
+                *outCleanupError = (esp_err_t)route.lastError;
+            }
+        }
+    }
+    return err;
+}
+
+/* 本轮新增: independent manual-reset escape path. It never borrows the
+ * config/RECOVER terminal slot or enters a frontend hardware lock. */
+static void sensorarrayPerformManualRestart(sensorarrayAppContext_t *ctx,
+                                            uint32_t requestId)
+{
+    (void)sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
+    sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
+    sensorarrayConfigAuthority_t authority = {0};
+    bool known = sensorarrayConfigIdentityCopy(&authority);
+    (void)sensorarrayRestartControlPublish(requestId, &authority, known);
+    /* Bounded opportunity for local priority publication, not a host ACK. */
+    vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
+    esp_restart();
 }
 
 static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
 {
-    if (!ctx) {
-        return false;
-    }
-
+    if (!ctx) { return false; }
     uint32_t restartId = 0u;
     if (sensorarrayRestartTake(&restartId)) {
-        char marker[96];
-        (void)snprintf(marker, sizeof(marker),
-                       "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
-                       (unsigned long)restartId);
-        (void)sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
-        sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
-        sensorarrayBootEmitRestartMarker(marker);
-        esp_restart();
+        sensorarrayPerformManualRestart(ctx, restartId);
         return true;
     }
-
     uint32_t level = SENSORARRAY_RECOVERY_LEVEL_NONE;
     uint32_t requestId = 0u;
-    if (!sensorarrayRecoveryTake(&level, &requestId)) {
-        return false;
-    }
-
-    if (sensorarrayFrontendsHeld()) {
-        if (level == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
-            sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
-            sensorarrayBootBreadcrumbSetStage("frontend_manual_recovery",
-                                               ESP_OK, ctx);
-            char marker[128];
-            (void)snprintf(marker, sizeof(marker),
-                "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,reason=frontend_wait\n",
-                (unsigned long)requestId);
-            sensorarrayBootEmitRestartMarker(marker);
-            esp_restart();
-        }
-        printf("RERR,cmd=RECOVER,id=%lu,level=%u,state=rejected,reason=wait_frontends,route=UNKNOWN\n",
-            (unsigned long)requestId, (unsigned)level);
+    if (!sensorarrayRecoveryTake(&level, &requestId)) { return false; }
+    if (sensorarrayFrontendsHeld() && level != SENSORARRAY_RECOVERY_LEVEL_RESTART) {
+        sensorarrayCompleteRecoveryRequest(ctx, requestId, SENSORARRAY_RECOVER_REJECTED,
+            "wait_frontends", ESP_ERR_INVALID_STATE, ESP_OK);
         return true;
     }
-
     sensorarrayRouteSnapshot_t recoveryRoute = {0};
-    if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController,
-                                               &recoveryRoute) &&
+    if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &recoveryRoute) &&
         recoveryRoute.fdcSdHigh) {
-        /* FDC SD high has already put both FDC2214 frontends into shutdown.
-         * Any FDC probe/recovery would touch the dead I2C path; CAP is only
-         * recoverable through an explicit device restart. */
-        printf("RERR,cmd=RECOVER,id=%lu,level=%u,state=rejected,reason=fdc_restart_required,restartRequired=1\n",
-               (unsigned long)requestId,
-               (unsigned)level);
+        sensorarrayCompleteRecoveryRequest(ctx, requestId, SENSORARRAY_RECOVER_REJECTED,
+            "fdc_restart_required", ESP_ERR_INVALID_STATE, ESP_OK);
         return true;
     }
-
     if (level == SENSORARRAY_RECOVERY_LEVEL_RESTART) {
         if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
-            char marker[96];
-            (void)snprintf(marker, sizeof(marker),
-                           "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
-                           (unsigned long)requestId);
-            sensorarrayBootBreadcrumbSetStage("auto_restart", ESP_ERR_INVALID_STATE, ctx);
-            sensorarrayBootEmitRestartMarker(marker);
+            sensorarrayBootBreadcrumbSetStage("auto_restart", ESP_OK, ctx);
+            sensorarrayCompleteRecoveryRequest(ctx, requestId, SENSORARRAY_RECOVER_RESTARTING,
+                "auto_restart", ESP_OK, ESP_OK);
+            /* A bounded opportunity for the reserved terminal to drain. This
+             * is not host acknowledgment; a new session supersedes old IDs. */
+            vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
             esp_restart();
+            return true;
         }
-        sensorarrayBootBreadcrumbSetStage("recovery_safe_idle",
-                                          ESP_ERR_INVALID_STATE,
-                                          ctx);
-        (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
-                                                  "recovery_safe_idle");
-        printf("RAPP,cmd=RECOVER,id=%lu,level=2,state=safe,reason=restart_guard\n",
-               (unsigned long)requestId);
+        esp_err_t originalError = ESP_ERR_INVALID_STATE;
+        esp_err_t cleanupError = sensorarrayStopAfterRecoveryFailure(ctx,
+            originalError, ESP_OK, "recovery_restart_guard");
+        sensorarrayBootBreadcrumbSetStage("recovery_safe_idle", originalError, ctx);
+        sensorarrayCompleteRecoveryRequest(ctx, requestId, SENSORARRAY_RECOVER_REJECTED,
+            "restart_guard", originalError, cleanupError);
         return true;
     }
-
-    esp_err_t recoverErr = sensorarrayRunRecoveryLevel(ctx, level);
-    printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=%s,err=0x%lx\n",
-           (unsigned long)requestId,
-           (unsigned)level,
-           recoverErr == ESP_OK ? "applied" : "rejected",
-           (unsigned long)recoverErr);
+    bool hardwareTouched = false;
+    esp_err_t cleanupError = ESP_OK;
+    esp_err_t recoverErr = sensorarrayRunRecoveryLevel(ctx, level,
+        &hardwareTouched, &cleanupError);
+    if (recoverErr != ESP_OK && hardwareTouched) {
+        cleanupError = sensorarrayStopAfterRecoveryFailure(ctx, recoverErr,
+            cleanupError, "recovery_failed");
+    }
+    sensorarrayCompleteRecoveryRequest(ctx, requestId,
+        recoverErr == ESP_OK ? SENSORARRAY_RECOVER_APPLIED : SENSORARRAY_RECOVER_REJECTED,
+        recoverErr == ESP_OK ? "recovered" : "recovery_failed", recoverErr, cleanupError);
     return true;
 }
 
@@ -4589,15 +4703,7 @@ static void sensorarrayScanTask(void *arg)
             }
             uint32_t restartId = 0u;
             if (sensorarrayRestartTake(&restartId)) {
-                char marker[96];
-                (void)snprintf(marker, sizeof(marker),
-                               "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
-                               (unsigned long)restartId);
-                (void)sensorarrayBootPrepareRestart(
-                    SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
-                sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
-                sensorarrayBootEmitRestartMarker(marker);
-                esp_restart();
+                sensorarrayPerformManualRestart(ctx, restartId);
             }
             uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
             uint32_t recoveryId = 0u;
@@ -4605,20 +4711,21 @@ static void sensorarrayScanTask(void *arg)
                 if (recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
                     sensorarrayBootPrepareRestart(
                         SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
-                    char marker[96];
-                    (void)snprintf(marker, sizeof(marker),
-                                   "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
-                                   (unsigned long)recoveryId);
                     sensorarrayBootBreadcrumbSetStage("auto_restart",
                                                       ESP_ERR_INVALID_STATE,
                                                       ctx);
-                    sensorarrayBootEmitRestartMarker(marker);
+                    sensorarrayCompleteRecoveryRequest(&s_appContext, recoveryId,
+                        SENSORARRAY_RECOVER_RESTARTING, "auto_restart", ESP_OK, ESP_OK);
+                    vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
                     esp_restart();
                 }
-                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=%s,route=UNKNOWN,reason=acquisition_init_failed\n",
-                       (unsigned long)recoveryId,
-                       (unsigned)recoveryLevel,
-                       frontendWait ? "waiting_frontends" : "unavailable");
+                esp_err_t cleanupError = sensorarrayStopAfterRecoveryFailure(ctx,
+                    ESP_ERR_INVALID_STATE, ESP_OK, "recovery_init_failed");
+                sensorarrayCompleteRecoveryRequest(ctx, recoveryId,
+                    SENSORARRAY_RECOVER_REJECTED,
+                    recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART ?
+                        "restart_guard" : "acquisition_init_failed",
+                    ESP_ERR_INVALID_STATE, cleanupError);
             }
             vTaskDelay(pdMS_TO_TICKS(250u));
         }
@@ -4752,6 +4859,8 @@ void app_main(void)
         (uint64_t)esp_timer_get_time());
     sensorarrayBootBreadcrumbStart();
     esp_fill_random(&s_configSessionId, sizeof(s_configSessionId));
+    sensorarrayRecoveryControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
+    sensorarrayRestartControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
            CONFIG_SENSORARRAY_ADC_CORE,
            CONFIG_SENSORARRAY_MISC_CORE,
@@ -4808,15 +4917,7 @@ void app_main(void)
         while (true) {
             uint32_t restartId = 0u;
             if (sensorarrayRestartTake(&restartId)) {
-                char marker[96];
-                (void)snprintf(marker, sizeof(marker),
-                               "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual\n",
-                               (unsigned long)restartId);
-                (void)sensorarrayBootPrepareRestart(
-                    SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
-                sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, NULL);
-                sensorarrayBootEmitRestartMarker(marker);
-                esp_restart();
+                sensorarrayPerformManualRestart(&s_appContext, restartId);
             }
             uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_NONE;
             uint32_t recoveryId = 0u;
@@ -4824,19 +4925,21 @@ void app_main(void)
                 if (recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
                     sensorarrayBootPrepareRestart(
                         SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
-                    char marker[96];
-                    (void)snprintf(marker, sizeof(marker),
-                                   "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,kind=auto\n",
-                                   (unsigned long)recoveryId);
                     sensorarrayBootBreadcrumbSetStage("auto_restart",
                                                       ESP_ERR_INVALID_STATE,
                                                       NULL);
-                    sensorarrayBootEmitRestartMarker(marker);
+                    sensorarrayCompleteRecoveryRequest(&s_appContext, recoveryId,
+                        SENSORARRAY_RECOVER_RESTARTING, "auto_restart", ESP_OK, ESP_OK);
+                    vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
                     esp_restart();
                 }
-                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=safe,reason=scan_task_create_failed\n",
-                       (unsigned long)recoveryId,
-                       (unsigned)recoveryLevel);
+                esp_err_t cleanupError = sensorarrayStopAfterRecoveryFailure(&s_appContext,
+                    ESP_ERR_NO_MEM, ESP_OK, "recovery_no_scan_task");
+                sensorarrayCompleteRecoveryRequest(&s_appContext, recoveryId,
+                    SENSORARRAY_RECOVER_REJECTED,
+                    recoveryLevel == SENSORARRAY_RECOVERY_LEVEL_RESTART ?
+                        "restart_guard" : "scan_task_create_failed",
+                    ESP_ERR_NO_MEM, cleanupError);
             }
             vTaskDelay(pdMS_TO_TICKS(1000u));
         }

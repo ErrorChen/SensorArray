@@ -3,6 +3,8 @@ set(SENSORARRAY_MAIN_SRCS
     "sensorarrayLog.c"
         "control/sensorarrayCommandMailbox.c"
         "control/sensorarrayEarlyRecovery.c"
+        "control/sensorarrayRecoveryControl.c"
+        "control/sensorarrayRestartControl.c"
     "net/sensorarrayNetStatus.c"
 )
 
@@ -88,6 +90,7 @@ idf_component_register(
         ads126xAdc
         fdc2214Cap
         sensorarrayBle
+        sensorarrayWorkBudget
         sensorarrayWifi
         config
         transport

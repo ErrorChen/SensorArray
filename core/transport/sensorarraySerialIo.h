@@ -21,6 +21,18 @@ typedef struct {
     uint32_t rxOversize;
     uint32_t lineDropped;
     uint32_t lineOversize;
+    /* Whole records admitted by the driver, not PC delivery. Normal includes
+     * DATA and diagnostic lines. Expiry includes time spent in our queue. */
+    uint32_t normalSubmitted;
+    uint32_t prioritySubmitted;
+    uint32_t normalExpired;
+    uint32_t priorityExpired;
+    uint32_t priorityRejected;
+    uint32_t driverShortWrite;
+    uint32_t driverWriteError;
+    uint32_t txYield;
+    uint32_t maxQueueAgeUs;
+    uint32_t driverTxBufferBytes;
     uint64_t discardBytes;
     uint32_t taskStackMinBytes;
     uint32_t taskStackConfiguredBytes;

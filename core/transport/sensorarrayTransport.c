@@ -20,6 +20,7 @@
 #include "sensorarrayTransportGuaranteedText.h"
 #include "sensorarrayTransportPool.h"
 #include "sensorarrayWifi.h"
+#include "sensorarrayWorkBudget.h"
 
 #ifndef CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT
 #define CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT 0
@@ -55,6 +56,7 @@
 #define SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT 1u
+#define SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT 8u
 #define SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES 1560u
 #define SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES \
     (3u * SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES)
@@ -397,7 +399,11 @@ static void sensorarrayTransportSerialControlTask(void *arg)
     sensorarrayTransportReplyTarget_t target = {.kind = SENSORARRAY_TRANSPORT_REPLY_SERIAL};
     for (;;) {
         int count = sensorarraySerialIoRead(bytes, sizeof(bytes));
-        if (count == 0) { vTaskDelay(1); }
+        if (count <= 0) {
+            /* An unbound/failed driver is also a bounded idle condition. */
+            vTaskDelay(1u);
+            continue;
+        }
         for (int i = 0; i < count; ++i) {
             uint8_t ch = bytes[i];
             if (ch == '\r' || ch == '\n') {
@@ -417,6 +423,9 @@ static void sensorarrayTransportSerialControlTask(void *arg)
                         sensorarrayTransportLogSerialCommandError((const uint8_t *)line, used, reason);
                     }
                 }
+                if (overflow || used != 0u) {
+                    (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_CTRL);
+                }
                 used = 0;
                 overflow = false;
             } else if (!overflow) {
@@ -424,6 +433,7 @@ static void sensorarrayTransportSerialControlTask(void *arg)
                 else { overflow = true; }
             }
         }
+        (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_CTRL);
     }
 }
 
@@ -550,18 +560,17 @@ static bool sensorarrayTransportReceiveNext(
     if (!outDescriptor || !dataBudget) {
         return false;
     }
-    /* DATA remains the highest-throughput stream, but only in bounded batches
-     * so a continuously refilled DATA queue cannot starve LIFECYCLE or LOG.
-     * Lifecycle events then win over ordinary diagnostics so MAPP/RAPP/RMAPP
-     * cannot sit behind LOG. */
-    if (*dataBudget > 0u && s_dataQueue &&
-        xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
-        (*dataBudget)--;
-        return true;
-    }
+    /* Lifecycle wins at every descriptor boundary. DATA retains its bounded
+     * throughput batch ahead of ordinary diagnostics. Neither queue activity
+     * nor a notification resets the independent CPU work budget. */
     if (s_lifecycleQueue &&
         xQueueReceive(s_lifecycleQueue, outDescriptor, 0) == pdTRUE) {
         *dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
+        return true;
+    }
+    if (*dataBudget > 0u && s_dataQueue &&
+        xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
+        (*dataBudget)--;
         return true;
     }
     if (s_logQueue && xQueueReceive(s_logQueue, outDescriptor, 0) == pdTRUE) {
@@ -579,18 +588,32 @@ static void sensorarrayTransportTask(void *arg)
     sensorarrayTransportDescriptor_t descriptor;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        sensorarrayTransportDrainGuaranteedText();
         uint32_t dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
-        while (sensorarrayTransportReceiveNext(&descriptor, &dataBudget)) {
+        unsigned processed = 0u;
+        for (; processed < SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT; ++processed) {
+            (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT);
+            /* At most one guaranteed terminal per iteration; it stays ahead
+             * of ordinary data even when all queues are continuously refilled. */
+            sensorarrayTransportDrainGuaranteedText();
+            if (!sensorarrayTransportReceiveNext(&descriptor, &dataBudget)) {
+                break;
+            }
             sensorarrayTransportProcessDescriptor(&descriptor);
+        }
+        if (processed == SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT) {
+            /* ulTaskNotifyTake(pdTRUE) consumed previous wakeups. Retain work
+             * after a full batch without relying on a future producer wakeup. */
+            sensorarrayTransportNotifyTask();
         }
     }
 }
 
 static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel,
                                            const char *data,
-                                           size_t length)
+                                           size_t length,
+                                           bool *outQueued)
 {
+    if (outQueued) { *outQueued = false; }
     if ((channel != SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
          channel != SENSORARRAY_TRANSPORT_CHANNEL_LOG &&
          channel != SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE) ||
@@ -693,11 +716,17 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
         g_sensorarrayTransportStats.lifecyclePublished++;
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
     }
+    if (outQueued) { *outQueued = true; }
     return ESP_OK;
 }
 
 esp_err_t sensorarrayTransportInit(void)
 {
+    esp_err_t budgetErr = sensorarrayWorkBudgetInit();
+    if (budgetErr != ESP_OK) {
+        printf("WORKBUDGET,owner=transport,err=0x%lx,fallback=bounded\n",
+               (unsigned long)budgetErr);
+    }
     if (s_started) {
         /* Network/control initialization can succeed before optional Serial
          * binding. Retry that binding and retain its error until it succeeds. */
@@ -872,19 +901,31 @@ esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode)
 
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length)
 {
-    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_DATA, data, length);
+    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_DATA, data, length, NULL);
 }
 
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length)
 {
-    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LOG, data, length);
+    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LOG, data, length, NULL);
 }
 
 esp_err_t sensorarrayTransportPublishLifecycle(const char *data, size_t length)
 {
     return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE,
                                      data,
-                                     length);
+                                     length,
+                                     NULL);
+}
+
+/* 本轮新增: distinguish an actual network descriptor from the established
+ * ESP_OK no-op when both BLE/Wi-Fi sinks are disabled. Serial is separate. */
+esp_err_t sensorarrayTransportPublishLifecycleObserved(const char *data,
+                                                        size_t length,
+                                                        bool *outQueued)
+{
+    if (!outQueued) { return ESP_ERR_INVALID_ARG; }
+    return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE,
+                                     data, length, outQueued);
 }
 
 esp_err_t sensorarrayTransportPublishControlReply(

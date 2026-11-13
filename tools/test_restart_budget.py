@@ -77,35 +77,11 @@ static esp_err_t sensorarrayAsyncLogPublishProtocolEvent(const char *text, size_
 functions = "\n\n".join(function(name) for name in [
     "sensorarrayBootBreadcrumbSetStage", "sensorarrayBootBreadcrumbStart",
     "sensorarrayBootBreadcrumbCopy", "sensorarrayBootBreadcrumbMarkStableProgress",
-    "sensorarrayBootPrepareRestart", "sensorarrayRecoveryPost", "sensorarrayRecoveryTake",
+    "sensorarrayBootPrepareRestart",
 ])
-identity_header = (root / "core/measure/include/sensorarrayConfigIdentity.h").read_text()
-identity_types = identity_header[identity_header.index("typedef struct {"):identity_header.index("/* Capture does not claim")]
-identity_types = "typedef unsigned sensorarrayMeasurementState_t, sensorarrayMeasurementMode_t, sensorarrayRowModeProfileState_t, sensorarrayConfigOutcome_t;\n" + identity_types
-recovery_defines = "\n".join(re.findall(r"^#define SENSORARRAY_RECOVERY_[^\n]+", source, re.M))
-recovery_globals = "\n".join(re.findall(r"^static [^\n]+\bs_recoveryRequest\w+[^\n]+", source, re.M))
-identity_shim = r'''
-static sensorarrayConfigAuthority_t mockAuthority;
-static bool mockAuthorityKnown;
-static unsigned staleErrors;
-static char lastLog[512];
-static bool sensorarrayConfigIdentityCopy(sensorarrayConfigAuthority_t *out)
-{
-    assert(lockDepth == 0); /* Never copy the authority inside the request spinlock. */
-    *out = mockAuthority;
-    return mockAuthorityKnown;
-}
-static int testPrintf(const char *format, ...)
-{
-    va_list ap; va_start(ap, format);
-    int length = vsnprintf(lastLog, sizeof(lastLog), format, ap);
-    va_end(ap);
-    if (strstr(lastLog, "reason=stale_config")) { staleErrors++; }
-    return length;
-}
-#define printf testPrintf
-'''
-unit_text = prelude + rtc_types + identity_types + recovery_defines + "\n" + recovery_globals + identity_shim + functions
+# RECOVER admission/cache/identity regression now executes its real module and
+# the actual main boundary in tools/test_recovery_control.py.
+unit_text = prelude + rtc_types + functions
 unit_text += "\nstatic void actualReadyBlock(sensorarrayAppContext_t *ctx, esp_err_t initErr, esp_err_t bootErr)\n{\n" + ready + "}\n"
 unit_text += "\nstatic void actualFrameProgress(sensorarrayAppContext_t *ctx, esp_err_t err, uint64_t validMask)\n{\n" + frame_match.group(0) + "\n}\n"
 unit_text += "\n#undef printf\n" + (root / "tests/host/test_restart_budget.c").read_text()

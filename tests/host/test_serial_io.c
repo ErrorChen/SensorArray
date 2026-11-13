@@ -8,6 +8,8 @@
 #include "esp_heap_caps.h"
 #include "common.h"
 #include "sensorarraySerialIo.h"
+#include "sensorarrayTransport.h"
+#include "sensorarrayWorkBudget.h"
 #include "idf_vfs_prefix.h"
 #include "idf_reent_init.h"
 #include "serial_capture.h"
@@ -15,11 +17,35 @@ static int64_t nowUs;
 static unsigned allocationCalls, allocationsToFail;
 static bool psramUnavailable;
 static int installCount, clearCount, writeBudget = -1, scenario, readCount;
+static unsigned notificationsGiven, notificationsPending;
+static unsigned driverCapacity, driverCalls, delayCalls;
+static TickType_t lastDriverWaitTicks;
+static int64_t lastDriverAttemptUs;
+static int64_t releaseAfterUs;
+static bool injectPriorityOnBlocked, injectPriorityAfterShort, injectedPriority;
+static bool injectRxOnDelay;
+static unsigned refillNormalRemaining;
+static char refillPacket[SENSORARRAY_TRANSPORT_TEXT_MAX];
+static bool injectControlOnIdle;
+static bool (*idleCallback)(void);
+static bool observeIdle = true;
+TickType_t xTaskGetTickCount(void) { return (TickType_t)(nowUs / (portTICK_PERIOD_MS * 1000)); }
+int xPortGetCoreID(void) { return 0; }
+esp_err_t esp_register_freertos_idle_hook_for_cpu(bool (*callback)(void), unsigned cpu)
+{
+    assert(cpu == 0); idleCallback = callback; return ESP_OK;
+}
+static void resetClock(void)
+{
+    nowUs = 0;
+    if (idleCallback && observeIdle) { assert(idleCallback()); }
+}
 static bool installed;
 static void (*txTask)(void *);
 static bool taskEntered;
 static jmp_buf taskExit;
-static char output[20000];
+/* Bytes accepted into the mock driver, not a claim of PC receipt. */
+static char output[128000];
 static size_t outputLength;
 static esp_vfs_t registeredVfs;
 static unsigned registrationFailures, stdoutBindFailures, stderrBindFailures, routeProbeFailures;
@@ -95,31 +121,80 @@ int xTaskCreatePinnedToCore(void (*fn)(void *), const char *name, unsigned stack
 {
     txTask = fn; *task = (void *)1; return pdPASS;
 }
-int xTaskNotifyGive(TaskHandle_t task) { return 1; }
+int xTaskNotifyGive(TaskHandle_t task) { notificationsGiven++; notificationsPending++; return 1; }
 uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
 {
-    if (taskEntered) { longjmp(taskExit, 1); }
-    taskEntered = true; return 1;
+    if (taskEntered && injectControlOnIdle) {
+        injectControlOnIdle = false;
+        scenario = 0; writeBudget = -1;
+        assert(sensorarraySerialIoQueue("IDLE_RECOVERED\n", 15, true) == ESP_OK);
+        return 1;
+    }
+    if (taskEntered && notificationsPending == 0u) { longjmp(taskExit, 1); }
+    taskEntered = true;
+    uint32_t taken = notificationsPending;
+    notificationsPending = 0u; /* pdTRUE consumes the complete wake count. */
+    return taken ? taken : 1u;
 }
-void vTaskDelay(TickType_t ticks) { nowUs += ticks * 1000; }
+void vTaskDelay(TickType_t ticks)
+{
+    assert(ticks > 0); delayCalls++; nowUs += ticks * portTICK_PERIOD_MS * 1000;
+    if (idleCallback && observeIdle) { assert(idleCallback()); }
+    if (injectRxOnDelay) {
+        injectRxOnDelay = false;
+        char input[64]; assert(sensorarraySerialIoRead(input, sizeof(input)) == 6);
+    }
+}
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t task) { return 2048; }
 int64_t esp_timer_get_time(void) { return nowUs; }
 esp_err_t usb_serial_jtag_driver_install(usb_serial_jtag_driver_config_t *config)
 {
+    driverCapacity = config->tx_buffer_size;
     installed = true; installCount++; return ESP_OK;
 }
 bool usb_serial_jtag_is_driver_installed(void) { return installed; }
 bool usb_serial_jtag_is_connected(void) { return scenario != 1; }
 int usb_serial_jtag_write_bytes(const void *data, size_t length, TickType_t ticks)
 {
-    assert(ticks == 0 && length <= 64);
-    if (scenario == 2 && nowUs >= 20000) { writeBudget = -1; }
-    if (writeBudget == 0) { return 0; }
+    assert(ticks <= 1 && length <= driverCapacity); driverCalls++;
+    lastDriverWaitTicks = ticks;
+    lastDriverAttemptUs = nowUs;
+    if (scenario == 4) { scenario = 0; return -1; }
+    if (scenario == 5) { return 0; } /* broken driver: no wait despite requested ticks */
+    if (scenario == 2 && nowUs >= releaseAfterUs) { writeBudget = -1; }
+    /* IDF BYTEBUF commits the whole requested item or none. A host that frees
+     * space after 30ms reproduces the original 64B/20ms cutoff, but permits a
+     * retained complete record with a bounded blocking wait to succeed. */
+    bool atomicBlocked = scenario == 3 && nowUs < releaseAfterUs &&
+                         (writeBudget == 0 || length > (size_t)writeBudget);
+    if (writeBudget == 0 || atomicBlocked) {
+        nowUs += ticks * portTICK_PERIOD_MS * 1000;
+        if (ticks && idleCallback && observeIdle) { assert(idleCallback()); }
+        if (injectPriorityOnBlocked && !injectedPriority) {
+            injectedPriority = true;
+            assert(sensorarraySerialIoQueue("CTRL,blocked=1\n", 15, true) == ESP_OK);
+        }
+        if (scenario == 3 && nowUs >= releaseAfterUs) { writeBudget = -1; }
+        else { return 0; }
+    }
     if (writeBudget > 0 && length > (size_t)writeBudget) { length = (size_t)writeBudget; }
+    assert(outputLength + length < sizeof(output));
     memcpy(output + outputLength, data, length); outputLength += length;
     if (writeBudget > 0) { writeBudget -= (int)length; }
+    if (injectPriorityAfterShort && !injectedPriority) {
+        injectedPriority = true;
+        assert(sensorarraySerialIoQueue("AFTER\n", 6, true) == ESP_OK);
+    }
+    if (refillNormalRemaining) {
+        refillNormalRemaining--;
+        assert(sensorarraySerialIoQueue(refillPacket, sizeof(refillPacket), false) == ESP_OK);
+    }
     if (injectConcurrentLog && !injectedConcurrentLog) {
-        assert(length == 64); /* the observed physical insertion boundary */
+#if defined(SERIAL_IO_BASELINE)
+        assert(length == 64); /* the observed old physical insertion boundary */
+#else
+        assert(length == sizeof(capturedConfig) - 1); /* now one complete record */
+#endif
         injectedConcurrentLog = true;
         assert(fwrite(capturedPr, 1, sizeof(capturedPr) - 1, preInitTaskStdout) == sizeof(capturedPr) - 1);
         if (postInitTaskStderr) {
@@ -202,7 +277,7 @@ static void drain(void)
     taskEntered = false;
     if (setjmp(taskExit) == 0) { txTask(NULL); }
 }
-#if !defined(SERIAL_IO_BASELINE) && !defined(SERIAL_IO_FRAGMENT_BASELINE)
+#if !defined(SERIAL_IO_BASELINE) && !defined(SERIAL_IO_FRAGMENT_BASELINE) && !defined(SERIAL_IO_TX_BASELINE)
 typedef struct { int unused; } sensorarrayFrame_t;
 typedef struct { uint32_t sequence; uint16_t length; char data[SENSORARRAY_TRANSPORT_TEXT_MAX]; } sensorarrayTextPacket_t;
 static bool serialSinkEnabled = true;
@@ -238,6 +313,7 @@ static void *concurrentFragments(void *context)
 #endif
 int main(int argc, char **argv)
 {
+    resetClock();
     initStdio();
 #ifdef SERIAL_IO_BASELINE
     /* Compile the unmodified captured firmware source against IDF's actual
@@ -271,8 +347,27 @@ int main(int argc, char **argv)
     assert(after.sinkDropped > before.sinkDropped && after.timeout == before.timeout && after.partialWrite == before.partialWrite);
     printf("SERIAL_IO_FRAGMENT_BASELINE_REPRODUCED,stdioBound=1,initError=0,prefixBytes=128,queueDrop=1,partialWriteDelta=0,timeoutDelta=0\n");
     return 0;
+#elif defined(SERIAL_IO_TX_BASELINE)
+    assert(sensorarraySerialIoInit() == ESP_OK);
+    scenario = 3; writeBudget = 64; releaseAfterUs = 30000; nowUs = 0;
+    assert(sensorarraySerialIoQueue(capturedConfig, sizeof(capturedConfig) - 1, true) == ESP_OK);
+    drain();
+    sensorarraySerialIoStats_t stats;
+    sensorarraySerialIoGetStats(&stats);
+    assert(outputLength == 64 && memcmp(output, capturedConfig, 64) == 0);
+    assert(nowUs == 20000 && stats.partialWrite == 1 && stats.timeout == 1);
+    printf("SERIAL_IO_TX_BASELINE_REPRODUCED,tickHz=100,driverAtomicItem=1,hostReadyUs=30000,packetBudgetUs=20000,configPrefixBytes=64,priorityTailLost=1\n");
+    return 0;
 #else
     const char *allocation = argc > 1 ? argv[1] : "psram";
+    if (strcmp(allocation, "foreign_driver") == 0) {
+        installed = true;
+        assert(sensorarraySerialIoInit() == ESP_ERR_INVALID_STATE);
+        assert(!txTask && !s_driverOwned && installCount == 0);
+        assert(sensorarraySerialIoQueue("UNSAFE\n", 7, true) == ESP_ERR_INVALID_STATE);
+        printf("SERIAL_IO_PASS,foreignDriverNotRemovedOrAssumed=1\n");
+        return 0;
+    }
     psramUnavailable = strcmp(allocation, "internal") == 0;
     if (strcmp(allocation, "failure_retry") == 0) {
         allocationsToFail = 2;
@@ -323,6 +418,7 @@ int main(int argc, char **argv)
     assert(!stdoutRoute.closed && !stderrRoute.closed && !ferror(test_stdout) && !ferror(test_stderr));
     unsigned allocationsAfterInit = allocationCalls;
     assert(sensorarraySerialIoInit() == ESP_OK && installCount == 1);
+    assert(driverCapacity == SENSORARRAY_TRANSPORT_TEXT_MAX);
     assert(sensorarraySerialIoQueue("DATA\n", 5, false) == ESP_OK);
     assert(sensorarraySerialIoQueue("MAPP\n", 5, true) == ESP_OK);
     drain();
@@ -332,28 +428,42 @@ int main(int argc, char **argv)
     assert(sensorarraySerialIoQueue("DROP\n", 5, false) == ESP_ERR_TIMEOUT);
     assert(sensorarraySerialIoQueue("CTRL\n", 5, true) == ESP_OK);
     drain();
-    assert(clearCount >= 4);
+    assert(clearCount >= 2); /* binding retries clear ferror; TX takes no FILE lock */
     /* No host: bounded TX + a still functional independent command RX. */
-    scenario = 1; writeBudget = 0; nowUs = 0;
+    scenario = 1; writeBudget = 0; resetClock();
+    injectRxOnDelay = true;
     assert(sensorarraySerialIoQueue("DATA\n", 5, false) == ESP_OK);
-    drain(); assert(nowUs == 20000);
-    char rx[64]; assert(sensorarraySerialIoRead(rx, sizeof(rx)) == 6 && readCount == 1);
+    drain(); assert(nowUs == SERIAL_IO_NORMAL_LIFETIME_US);
+    assert(readCount == 1 && !injectRxOnDelay); /* RX progressed while TX waited. */
     sensorarraySerialIoStats_t stats;
     sensorarraySerialIoGetStats(&stats);
     assert(stats.stdioBound && stats.initError == ESP_OK);
     assert(stats.normalBufferBytes == 5u * SENSORARRAY_TRANSPORT_TEXT_MAX);
     assert(stats.normalBufferMemory == (psramUnavailable ? SENSORARRAY_SERIAL_MEMORY_INTERNAL : SENSORARRAY_SERIAL_MEMORY_PSRAM));
     assert(stats.timeout == 1 && stats.rxBytes == 6 && !stats.sofPresent);
-    /* Real partial driver return: retain prefix count, discard remainder,
-     * delimit next packet, then resume once host reads again. */
-    scenario = 2; writeBudget = 80; nowUs = 0; outputLength = 0;
+    assert(stats.normalExpired == 1 && stats.priorityExpired == 0);
+    /* Exact original CONFIG example: 64B free until 30ms, then sufficient
+     * driver space. Full-item admission emits no prefix during the stall. */
+    scenario = 3; writeBudget = 64; releaseAfterUs = 30000; resetClock(); outputLength = 0;
+    assert(sensorarraySerialIoQueue(capturedConfig, sizeof(capturedConfig) - 1, true) == ESP_OK);
+    drain();
+    assert(nowUs == 30000 && outputLength == sizeof(capturedConfig) - 1);
+    assert(memcmp(output, capturedConfig, outputLength) == 0);
+    sensorarraySerialIoGetStats(&stats);
+    assert(stats.partialWrite == 0 && stats.timeout == 1 && stats.prioritySubmitted >= 1);
+    /* If a future driver returns an actual positive short count, ownership
+     * and cursor remain live until completion or bounded cancellation. */
+    scenario = 2; writeBudget = 80; releaseAfterUs = SERIAL_IO_NORMAL_LIFETIME_US;
+    resetClock(); outputLength = 0;
+    injectPriorityAfterShort = true; injectedPriority = false;
     char packet[160]; memset(packet, 'A', sizeof(packet));
     assert(sensorarraySerialIoQueue(packet, sizeof(packet), false) == ESP_OK);
-    assert(sensorarraySerialIoQueue("AFTER\n", 6, false) == ESP_OK);
     drain();
     assert(outputLength == 87 && memcmp(output + 80, "\nAFTER\n", 7) == 0);
     sensorarraySerialIoGetStats(&stats);
-    assert(stats.partialWrite == 1 && stats.timeout == 2 && stats.driverAcceptedBytes > 80);
+    assert(stats.partialWrite == 1 && stats.timeout == 2 && stats.normalExpired == 2);
+    assert(stats.driverShortWrite == 1 && stats.driverAcceptedBytes > 80);
+    injectPriorityAfterShort = false;
     /* VFS consumes complete lines, but a full queue is a counted whole-line
      * drop. Its return value is not protocol/DATA queue admission. */
     scenario = 0; writeBudget = -1;
@@ -363,7 +473,7 @@ int main(int argc, char **argv)
     sensorarraySerialIoGetStats(&stats);
     assert(stats.lineDropped == droppedBefore + 1u);
     drain(); assert(registeredVfs.write(0, "RECOVERED\n", 10) == 10); drain();
-    /* Reproduce the captured 64-byte scheduling boundary with real libc
+    /* Replay the captured CONFIG record with concurrent real libc
      * fwrite calls on pre-/post-Init task stream aliases. Their VFS callbacks
      * must queue; neither logs nor a new CTRL may splice into CONFIG. */
     outputLength = 0; injectConcurrentLog = true;
@@ -491,8 +601,196 @@ int main(int argc, char **argv)
     for (unsigned i = 0; i < 4; ++i) { assert(sensorarraySerialIoQueue("FILL\n", 5, false) == ESP_OK); }
     assert(sensorarrayFrameOutputPrint(&frame) == ESP_ERR_TIMEOUT);
     drain();
+
+    /* A not-yet-started DATA record does not sit in front of a newly arrived
+     * critical reply while waiting for host capacity. */
+    outputLength = 0; resetClock(); scenario = 3; writeBudget = 64; releaseAfterUs = 30000;
+    injectPriorityOnBlocked = true; injectedPriority = false;
+    assert(sensorarraySerialIoQueue(encodedFrame, sizeof(encodedFrame) - 1, false) == ESP_OK);
+    drain();
+    assert(outputLength == 15 + sizeof(encodedFrame) - 1);
+    assert(memcmp(output, "CTRL,blocked=1\n", 15) == 0);
+    assert(memcmp(output + 15, encodedFrame, sizeof(encodedFrame) - 1) == 0);
+    injectPriorityOnBlocked = false;
+
+    /* Positive short writes before the deadline resume the same packet and
+     * cannot admit a priority record into its suffix. */
+    outputLength = 0; resetClock(); scenario = 2; writeBudget = 80; releaseAfterUs = 30000;
+    injectPriorityAfterShort = true; injectedPriority = false;
+    packet[sizeof(packet) - 1] = '\n';
+    sensorarraySerialIoGetStats(&stats);
+    uint32_t priorAborts = stats.partialWrite, priorSubmitted = stats.normalSubmitted;
+    assert(sensorarraySerialIoQueue(packet, sizeof(packet), false) == ESP_OK);
+    drain();
+    assert(outputLength == sizeof(packet) + 6 && memcmp(output, packet, sizeof(packet)) == 0);
+    assert(memcmp(output + sizeof(packet), "AFTER\n", 6) == 0);
+    sensorarraySerialIoGetStats(&stats);
+    assert(stats.partialWrite == priorAborts && stats.normalSubmitted == priorSubmitted + 1);
+    injectPriorityAfterShort = false;
+
+    /* Queue residence is part of the deadline. Expired whole packets never
+     * enter the driver, whereas retained priority survives a slower host. */
+    outputLength = 0; resetClock(); scenario = 0; writeBudget = -1;
+    assert(sensorarraySerialIoQueue("EXPIRED\n", 8, false) == ESP_OK);
+    assert(sensorarraySerialIoQueue("PRIORITY\n", 9, true) == ESP_OK);
+    nowUs = SERIAL_IO_NORMAL_LIFETIME_US + 1;
+    unsigned callsBefore = driverCalls;
+    drain();
+    assert(driverCalls == callsBefore + 1 && outputLength == 9 && memcmp(output, "PRIORITY\n", 9) == 0);
+    outputLength = 0;
+    assert(sensorarraySerialIoQueue("STALE_CTRL\n", 11, true) == ESP_OK);
+    nowUs += SERIAL_IO_PRIORITY_LIFETIME_US;
+    callsBefore = driverCalls;
+    drain(); assert(outputLength == 0 && driverCalls == callsBefore);
+    sensorarraySerialIoGetStats(&stats); assert(stats.priorityExpired == 1);
+
+    /* No reader: priority is retained for its finite lifetime. Both lanes
+     * release slots, and no zero-wait ready loop can burn the entire interval. */
+    resetClock(); scenario = 1; writeBudget = 0;
+    unsigned delaysBefore = delayCalls;
+    assert(sensorarraySerialIoQueue("NOHOST_DATA\n", 12, false) == ESP_OK);
+    assert(sensorarraySerialIoQueue("NOHOST_CTRL\n", 12, true) == ESP_OK);
+    drain(); assert(nowUs == SERIAL_IO_PRIORITY_LIFETIME_US && delayCalls > delaysBefore);
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
+    sensorarraySerialIoGetStats(&stats); assert(stats.priorityExpired == 2);
+
+    /* A prefix cancelled while nobody can read is still remembered when the
+     * owner later sleeps for work. The next wake starts at a line boundary. */
+    outputLength = 0; resetClock(); scenario = 2; writeBudget = 80;
+    releaseAfterUs = INT64_MAX; injectControlOnIdle = true;
+    assert(sensorarraySerialIoQueue(packet, sizeof(packet), false) == ESP_OK);
+    drain();
+    assert(!injectControlOnIdle && outputLength == 80 + 1 + 15);
+    assert(memcmp(output + 80, "\nIDLE_RECOVERED\n", 16) == 0);
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
+
+    /* Less than two ticks remaining cannot authorize even a single tick for
+     * each of the driver's mutex and ring waits. No partial acceptance occurs. */
+    outputLength = 0; resetClock(); scenario = 1; writeBudget = 0;
+    assert(sensorarraySerialIoQueue("NEAR_DEADLINE\n", 14, true) == ESP_OK);
+    nowUs = SERIAL_IO_PRIORITY_LIFETIME_US - SERIAL_IO_TICK_US;
+    callsBefore = driverCalls;
+    drain();
+    assert(nowUs == SERIAL_IO_PRIORITY_LIFETIME_US && driverCalls >= callsBefore + 1 && driverCalls <= callsBefore + 32);
+    assert(lastDriverWaitTicks == 0 && outputLength == 0);
+
+    /* Invalid driver results never become record-submitted counts. A later
+     * control record is separated even when the failure's byte count is unknown. */
+    outputLength = 0; resetClock(); scenario = 4; writeBudget = -1;
+    sensorarraySerialIoGetStats(&stats); priorSubmitted = stats.prioritySubmitted;
+    assert(sensorarraySerialIoQueue("UNKNOWN\n", 8, true) == ESP_OK);
+    assert(sensorarraySerialIoQueue("AFTER\n", 6, true) == ESP_OK);
+    drain();
+    assert(outputLength == 7 && memcmp(output, "\nAFTER\n", 7) == 0);
+    sensorarraySerialIoGetStats(&stats);
+    assert(stats.driverWriteError == 1 && stats.prioritySubmitted == priorSubmitted + 1);
+
+    /* Priority capacity and expiry are distinct, observable failure layers. */
+    uint32_t rejectedBefore = stats.priorityRejected;
+    for (unsigned i = 0; i < 4; ++i) { assert(sensorarraySerialIoQueue("CTRL\n", 5, true) == ESP_OK); }
+    assert(sensorarraySerialIoQueue("REJECTED\n", 9, true) == ESP_ERR_TIMEOUT);
+    sensorarraySerialIoGetStats(&stats); assert(stats.priorityRejected == rejectedBefore + 1);
+    drain();
+
+    /* A continually writable host plus a refilling producer must also yield.
+     * Every 2304-byte packet is admitted in one driver call, including maximum
+     * BYTEBUF item size. No hot-path allocations or per-frame FPS cap. */
+    resetClock(); outputLength = 0; scenario = 0; writeBudget = -1;
+    memset(refillPacket, 'B', sizeof(refillPacket)); refillPacket[sizeof(refillPacket) - 1] = '\n';
+    for (unsigned i = 0; i < 4; ++i) { assert(sensorarraySerialIoQueue(refillPacket, sizeof(refillPacket), false) == ESP_OK); }
+    refillNormalRemaining = 36;
+    delaysBefore = delayCalls; callsBefore = driverCalls;
+    drain();
+    assert(refillNormalRemaining == 0 && outputLength == 40 * sizeof(refillPacket));
+    assert(driverCalls == callsBefore + 40 && delayCalls >= delaysBefore + 1);
+    for (unsigned i = 0; i < 40; ++i) { assert(memcmp(output + i * sizeof(refillPacket), refillPacket, sizeof(refillPacket)) == 0); }
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
+
+    /* No CPU0 idle observation may return while an SDK task is busy. Shared
+     * checkpoints still return after one tick, allowing the original packet
+     * deadlines to expire; they never trap an accepted record waiting for idle. */
+    resetClock(); outputLength = 0; scenario = 1; writeBudget = 0;
+    sensorarrayWorkBudgetSnapshot_t budgetBefore, budgetAfter;
+    sensorarrayWorkBudgetCopySnapshot(&budgetBefore);
+    observeIdle = false;
+    assert(sensorarraySerialIoQueue("NO_IDLE_DATA\n", 13, false) == ESP_OK);
+    assert(sensorarraySerialIoQueue("NO_IDLE_CTRL\n", 13, true) == ESP_OK);
+    drain();
+    sensorarrayWorkBudgetCopySnapshot(&budgetAfter);
+    assert(budgetAfter.idleGeneration == budgetBefore.idleGeneration);
+    assert(nowUs >= SERIAL_IO_PRIORITY_LIFETIME_US && (uint64_t)nowUs <= SERIAL_IO_PRIORITY_LIFETIME_US + SERIAL_IO_TICK_US);
+    assert(lastDriverAttemptUs < SERIAL_IO_PRIORITY_LIFETIME_US && outputLength == 0);
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
+    observeIdle = true;
+
+    /* A zero-returning driver that does not actually block is also bounded by
+     * real RTOS delays, rather than an always-ready retry loop. */
+    resetClock(); scenario = 5; writeBudget = 0;
+    callsBefore = driverCalls; delaysBefore = delayCalls;
+    assert(sensorarraySerialIoQueue("BROKEN_DRIVER\n", 14, true) == ESP_OK);
+    drain();
+    assert(nowUs == SERIAL_IO_PRIORITY_LIFETIME_US && delayCalls >= delaysBefore + 100);
+    assert(driverCalls <= callsBefore + 3200 && lastDriverAttemptUs < SERIAL_IO_PRIORITY_LIFETIME_US);
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
+
+    /* Fill both actual queue capacities before the single wake. No producer
+     * or notification occurs after that: expiry must drain every retained
+     * and queued slot, rather than waiting forever with stale wake counts. */
+    sensorarraySerialIoStats_t burstBefore, burstAfter;
+    unsigned notificationsBeforeDrain;
+    for (unsigned lanes = 1; lanes <= 3; ++lanes) {
+        resetClock(); outputLength = 0; scenario = 1; writeBudget = 0;
+        unsigned normalCount = lanes & 1u ? SERIAL_IO_QUEUE_COUNT : 0u;
+        unsigned priorityCount = lanes & 2u ? SERIAL_IO_QUEUE_COUNT : 0u;
+        sensorarraySerialIoGetStats(&burstBefore);
+        for (unsigned i = 0; i < SERIAL_IO_QUEUE_COUNT; ++i) {
+            if (normalCount) { assert(sensorarraySerialIoQueue("EXPIRE_DATA\n", 12, false) == ESP_OK); }
+            if (priorityCount) { assert(sensorarraySerialIoQueue("EXPIRE_CTRL\n", 12, true) == ESP_OK); }
+        }
+        assert(s_queues[0]->count == normalCount && s_queues[1]->count == priorityCount);
+        notificationsBeforeDrain = notificationsGiven;
+        drain();
+        sensorarraySerialIoGetStats(&burstAfter);
+        unsigned retained = 0;
+        for (unsigned i = 0; i < 9; ++i) { retained += s_inUse[i] ? 1u : 0u; }
+        if (s_queues[0]->count || s_queues[1]->count || retained) {
+            fprintf(stderr, "SERIAL_EXPIRY_STRANDED,lanes=%u,nowUs=%lld,normalQueued=%u,priorityQueued=%u,retained=%u,normalExpiredDelta=%u,priorityExpiredDelta=%u,notifyDelta=%u\n",
+                    lanes, (long long)nowUs, s_queues[0]->count, s_queues[1]->count, retained,
+                    burstAfter.normalExpired - burstBefore.normalExpired,
+                    burstAfter.priorityExpired - burstBefore.priorityExpired,
+                    notificationsGiven - notificationsBeforeDrain);
+        }
+        assert(s_queues[0]->count == 0 && s_queues[1]->count == 0 && retained == 0);
+        assert(notificationsGiven == notificationsBeforeDrain && notificationsPending == 0);
+        assert(burstAfter.normalExpired == burstBefore.normalExpired + normalCount);
+        assert(burstAfter.priorityExpired == burstBefore.priorityExpired + priorityCount);
+        assert(burstAfter.timeout == burstBefore.timeout + normalCount + priorityCount);
+        assert(burstAfter.sinkDropped == burstBefore.sinkDropped + normalCount + priorityCount);
+        assert(burstAfter.partialWrite == burstBefore.partialWrite && outputLength == 0);
+        uint64_t maximumLifetime = priorityCount ? SERIAL_IO_PRIORITY_LIFETIME_US : SERIAL_IO_NORMAL_LIFETIME_US;
+        assert((uint64_t)nowUs <= maximumLifetime + SERIAL_IO_TICK_US);
+    }
+
+    /* An expired partial priority record must advance to a younger queued
+     * record in the same lane, without a future producer waking the task. */
+    resetClock(); outputLength = 0; scenario = 2; writeBudget = 80;
+    releaseAfterUs = SERIAL_IO_PRIORITY_LIFETIME_US;
+    sensorarraySerialIoGetStats(&burstBefore);
+    assert(sensorarraySerialIoQueue(packet, sizeof(packet), true) == ESP_OK);
+    nowUs = SERIAL_IO_PRIORITY_LIFETIME_US / 2;
+    assert(sensorarraySerialIoQueue("NEXT_PRIORITY\n", 14, true) == ESP_OK);
+    notificationsBeforeDrain = notificationsGiven;
+    drain();
+    sensorarraySerialIoGetStats(&burstAfter);
+    assert(notificationsGiven == notificationsBeforeDrain && notificationsPending == 0);
+    assert(outputLength == 95 && memcmp(output + 80, "\nNEXT_PRIORITY\n", 15) == 0);
+    assert(burstAfter.priorityExpired == burstBefore.priorityExpired + 1);
+    assert(burstAfter.partialWrite == burstBefore.partialWrite + 1);
+    assert(burstAfter.prioritySubmitted == burstBefore.prioritySubmitted + 1);
+    assert(s_queues[0]->count == 0 && s_queues[1]->count == 0);
+    for (unsigned i = 0; i < 9; ++i) { assert(!s_inUse[i]); }
     assert(allocationCalls == allocationsAfterInit); /* no hot path allocations */
-    printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,stdioBound=1,configBytes=%zu,concurrentAtByte=64\n", allocation, sizeof(capturedConfig) - 1);
+    printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=%zu\n", allocation, sizeof(capturedConfig) - 1);
     return 0;
 #endif
 }

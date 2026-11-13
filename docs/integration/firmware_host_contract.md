@@ -254,3 +254,70 @@ stdout/stderr 的VFS write可以是同一printf的多个片段。固件按两个
 `USBSTREAM?` 新增lineDropped（整行诊断丢弃次数）、lineOversize（其中超长行次数）、discardBytes（丢弃诊断字节）。它们不同于driver partialWrite/timeout；sinkDropped包括队列或整行丢弃，不能将这些计数简单相加成科学帧损失。VFS返回size只确认有界本地消费（包括已计数的丢弃），sinkQueued才是完整记录本地入队，driverAcceptedBytes仍不证明PC收到。无效的非换行packet和驱动部分写还使用有界delimiter恢复，下条控制回复保持行边界；断连不保证终态送达。
 
 USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回复约414B，所有字段类型同时取极值可能超容量，此时明确返回ERR,reason=response_too_long，不输出截断的伪完整统计。不能把一次query失败或计数缺失当零；CONFIG?的原子配置身份独立于这一统计查询。
+
+### 2026-11-13 待验收补丁：RECOVER 终态与独立 I/O 观测
+
+本节描述 `0d8f60f` 失败基线之后、本轮新增的源代码接口；不把它追溯为旧镜像已有能力，也不把 host 回归等同于新镜像 HIL 通过。对应能力必须从 `PROTO?` 的 `recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1` 协商；修复提交、实际烧录 SHA 和新 HIL 结果由后续构建记录关联。旧基线的 VOLT1 IDLE0 watchdog 与 USB 截断证据继续保留。
+
+**RECOVER 的有界请求与结果。** 新增内部模块 `sensorarrayRecoveryControl`，对所有 transport 使用一个请求槽及一个最后结果缓存。RECOVER 与 MODE/ROWS/ROWMODES 共用已有 GuaranteedText 终态保留槽；先保留终态空间再 ACK，只有 ACK 被本地 control sink 接受后，采集 owner 才能在完整帧边界取走请求。该 ACK 只是本地提交证据。并发或重复文本在槽忙时明确拒绝，闲时再次提交是新请求；不会将有副作用的 RECOVER 重发当查询或去重令牌。ACK 本地发布失败时不运行硬件，缓存 `rejected/ack_publish_failed` 并释放保留槽。
+
+请求保存接受时完整不可变 identity。执行前逐一比较 known、session、bootId、revision，以及 mode/rows/profile 的 generation 和 requestId；任何变化均终结为 `rejected/stale_config`，不碰较新配置。未发布配置的早期启动允许 unknown→unknown 的重启请求，unknown→known 或 known→unknown 必须拒绝。RECOVER 的 ID 独立于 MODE/ROWS/ROWMODES 和 RESTART；uint32 加一、跳过 0，同 boot 内不按不同域 ID 的大小推断顺序。跨完整计数回绕或身份不明确时重新查询；跨 session 不比较 ID，缓存也不跨启动保存。
+
+完成后先写最后结果，再将 `RAPP,cmd=RECOVER,...` 放入保留的优先终态槽。既有三类前置拒绝仍用 RERR：stale_config 保留 currentRev，wait_frontends 保留 route=UNKNOWN，fdc_restart_required 保留 restartRequired=1；新增公共结果字段与 RECOVERY? 的 rejected 语义一致。`state=applied` 表示恢复动作成功；`rejected` 表示拒绝或动作失败；`restarting` 只表示有界等待后准备请求 reset，不能证明 reset 已发生或终态已到达 Host。重启后的新 session/BOOT/CONFIG 才建立新身份。`RAPP` 的旧 `err` 仍是原始错误，新增 `cleanupError` 单独保留首个收尾错误；`physicalSafe=unknown` 始终明确没有模拟节点实测保证。`routeApplied/routeKnown/routeVerified` 只来自 route 的软件与寄存器快照，任何本次 cleanup 错误都使结果中的三个字段为 0。
+
+新增无副作用 `RECOVERY?` 返回单次原子缓存副本，不运行探测、不增加请求 ID、不改变恢复状态。其字段为：
+
+| 字段 | 归属与解释 |
+| --- | --- |
+| session / bootId | 当前启动身份；session 为 16 位十六进制随机标识，沿用前文碰撞及复位边界 |
+| busy / phase | 是否有已接受请求；phase 为 none/pending/running，不代表硬件已安全 |
+| pendingId / pendingLevel / pendingKnown / pendingRev | 当前请求的 RECOVER ID、0..2 级别和接受时配置；空闲时为 0 |
+| lastId / lastLevel / last / reason | 本 boot 最后一个已接受请求的结果；尚无结果为 lastId=0、last=none、reason=none；不保留无限历史 |
+| acceptedKnown / acceptedRev | 最后结果对应请求的接受时配置，不能当完成时配置 |
+| resultKnown / rev / boundary | 完成时原子配置快照的 revision 与 appliedFrameBoundary；known=0 时数字 0 是未知占位，不是合法已应用边界 |
+| originalError / cleanupError | ESP-IDF 首错及独立首个收尾错误；完整 uint32 十六进制，不把所有 0x108 叫 timeout |
+| routeApplied / routeKnown / routeVerified / physicalSafe | 软件路由证据和 unknown 物理安全边界；参见上文 |
+| terminalQueued | 结果是否曾进入固件终态保留槽；排空或丢失后仍保留该值，绝非 PC 接收确认 |
+
+终态丢失后，Host 用 `RECOVERY?` 的 session + lastId 匹配原请求，再用 `CONFIG?` 验证结果 revision。查询之间 CONFIG revision 改变时应重读，不把 RECOVERY 与后来配置拼成从未存在的状态。缓存只有最后一个结果；更旧结果已被替换时须报告 outcome_unknown，不能猜成功。
+
+`RECOVER=2` 自动重启预算耗尽时，主调度先记原错，强制 mode=NONE/state=DEGRADED、停止 ADS、请求 SAFE，并单独保留 SAFE/停止错误，再发布 CONFIG 和 rejected/restart_guard。真实下一帧入口因此拒绝采集，不再让 CAP 自动重建 route。已触及硬件的 level 0/1 恢复失败采用同样停止路径，并取消尚未结束的 ADS 自动恢复，避免其随后悄悄恢复旧配置；前置 busy/stale/不支持配置拒绝不破坏现有合法配置。用户后续显式 MODE 或 RESTART 仍可尝试恢复，原有自动重启预算不因失败重新补足。`BOOT.guard=recovery_safe` 是兼容历史名称，只表示预算 guard，不能推导 SAFE 已成功。
+
+**SERIAL?。** 该独立查询调用一次 `sensorarraySerialIoGetStats`，返回其原子统计副本；不增大已有 USBSTREAM 回复。除 driverAcceptedBytes 为 uint64 外，以下字段均为 uint32；累计计数按模 2^32/2^64 回绕，在同 session 的有界窗口内计算增量。
+
+| 字段 | 单位和计数层级 |
+| --- | --- |
+| normalSubmitted / prioritySubmitted | 完整记录被 USB 驱动接受的次数；normal 包括 DATA 和普通诊断，不等同科学帧数 |
+| normalExpired / priorityExpired | 记录从入队起的有界生命周期耗尽次数，包含排队等待；不是设备采样丢点数 |
+| priorityRejected | 优先槽或队列不能接纳记录的次数；初始化门禁前的拒绝不一定进入该计数 |
+| driverShortWrite | 驱动返回正数且少于本次请求字节的次数；0 返回的等待重试不计正短写 |
+| driverWriteError | 驱动返回负数或大于请求长度等无效结果的次数 |
+| txYield | Serial TX worker 因工作预算实际请求一次 vTaskDelay(1) 的次数，不是 USB 包数 |
+| maxQueueAgeUs | 驱动接受字节时观测的最大入队年龄，µs；达到 UINT32_MAX 后饱和，不包括从未提交便过期的记录 |
+| driverTxBufferBytes | 驱动 TX ring 配置容量，字节；是容量而非已发送量 |
+| driverAcceptedBytes | 驱动同步接收的字节数，包含恢复 delimiter；不证明总线已完成或 PC 已读 |
+| partialWrite | 保持旧语义：记录未完整提交且已有前缀被驱动接受的事件；不能与 driverShortWrite 简单相加 |
+
+正常/优先记录分别保留固定的 250 ms/1000 ms 入队绝对期限；等待、调度让出不会重新开始计时。当前 IDF BYTEBUF 驱动按整项接受或返回 0，TX ring 覆盖最大完整 2304 B 科学记录；这解决应用层逐 64 B 提交造成的半帧，但不承诺物理断连后的整帧交付。异常正短写仍有界处理和 delimiter 恢复；Host 继续校验完整科学帧、身份后缀和序号缺口。USBSTREAM=DEBUG/FULL 不关闭 command RX、RECOVERY? 或关键回复。
+
+**SCHED?。** 新增 `sensorarrayFormatSchedulerReply` 从 WorkBudget 取一次观测副本。`registered/initError` 说明 CPU0 idle hook 的注册状态；`idleKnown` 说明是否实际看见 CPU0 idle callback，不能用 scheduler 主动计数冒充 idle。`tickHz` 为 RTOS tick/s；`budgetTicks` 为约 20 ms 的预算 tick 数（最少 1 tick）；`maxUnits` 为 32 个工作单元。`idleGen` 在真实 callback 中递增、跳过 0。`idleAgeTicks/maxIdleGapTicks` 分别为距离最近 callback 的 tick 数及已观测最大间隔（包括尚未闭合间隔）；未知时输出 unknown，不把 UINT32_MAX 当超长实测值。
+
+`bt/tr/log/ser/bc/sc/wc` 每项都是 `checkpoints/yields/maxBurstUnits` 三元组，依次对应 BLE TX、transport、async log、Serial TX、BLE CTRL、Serial CTRL、Wi-Fi CTRL。checkpoint 的工作单元由对应 worker 循环定义，不是统一帧数；yield 只表示真实请求了一次有界 vTaskDelay(1)，不保证 idle 当时已运行。各计数独立取样、按 uint32 回绕；它们既不是原子配置快照，也不是 CPU 利用率。注册失败仍可有 bounded fallback，但 idleKnown 必须保持诚实；不得从一次 SCHED 回复证明长期没有 watchdog 问题。
+
+本轮实际 host 回归 `tools/test_recovery_control.py` 编译执行 6 个生产模块和 19 个 main 函数/实际前置分支，硬件返回均为明确的合成边界，覆盖预算耗尽、SAFE 失败、原错/cleanup、FullRescue 失败、ACK 失败、终态丢失查询、10 类身份变化、3 transport 并发、重复请求、回绕、恢复后合法 MODE，以及 early/runtime 四个查询及两条 RESTART 命令的真实 dispatch。极值实际输出：RECOVERY 450 B、RAPP 330 B、带旧字段的 RERR 335 B（384 B 含 NUL 容量）、SERIAL 339 B、七 worker SCHED 437 B（各查询 512 B 含 NUL 容量）；所有 snprintf 越界返回错误，不发布截断文本。新恢复缓存结构在 host ABI 下为 264 B 静态状态，目标 ABI 内存增量由实际构建记录确认。原 RTC 重启预算回归保留在 `tools/test_restart_budget.py`，旧 RECOVER 身份覆盖移入新测试并增加 revision fencing。上述通过不代表 HIL 或物理安全验收已完成。
+
+
+**显式 RESTART 的独立请求槽（同轮补齐）。** 旧生产 `sensorarrayRestartPost/Take` 可复现：先后 RACK 接受 id=1/2 后只执行 id=2，或 id=3 的 ACK 发布失败后仍执行，甚至 Take 可早于任何 ACK 回调。这是软件控制缺陷，反例源函数和输出保存在 `docs/audit/artifacts/load_reliability_fix_20261113/restart-control-before-01.json/.txt`；该实录是生产函数配合**合成命令交错/失败**的 host 执行，不是设备重启证据。
+
+本轮新增 `sensorarrayRestartControl`：所有 transport 共用独立单 pending 和同 boot 最后结果缓存，已接受 pending 不可覆盖，后续提交明确返回 `ERR,cmd=RESTART,reason=pending`。只有对应 RACK 本地 control sink 接受成功才开放 Take；失败缓存 rejected/ack_publish_failed、保留 originalError，释放 pending 以允许未来显式请求。它不占配置/RECOVER 保留槽；主任务的正常、初始化失败和采集任务创建失败三个执行点都使用同一 helper，且手动重启优先于前端门禁，不进入 I²C/SPI 锁。配置 revision 改变不会撤销用户的显式整机重启意图，acceptedRev 与完成时 rev/boundary 分开记录；这与 RECOVER 的 stale_config 拒绝语义不同。
+
+执行前先缓存 restarting，再把完整、含原 `kind=manual` 的 RAPP 显式交给 SerialIo 的优先队列，并通过已有优先 Lifecycle 通路提交网络，给出有限发送机会后调用 esp_restart。发布失败保留 publishError/terminalQueued=0，不把本地控制队列拥塞变成永久无法重启；此时 ACK 已成功，不是 ACK 失败后偷偷执行。restarting 状态持续 busy 直到实际 reset，不能因迟到 ACK/重复 Take 再执行一次。既有自动恢复预算不因手动重启伪造健康而清零。
+
+新增 `RESTART?` 和 `restart_query_v1`。回复字段为 session/bootId、busy/phase、pendingId/pendingKnown/pendingRev、lastId/last/reason、acceptedKnown/acceptedRev、resultKnown/rev/boundary、originalError/publishError/terminalQueued、serialQueued/serialError/netQueued/netError。revision 的 known 与取样域沿用 RECOVERY? 规则；originalError 是本地 ACK 发布失败，publishError 是重启意图终态的本地发布错误，二者不是硬件 reset 结果。serialQueued/serialError 与 netQueued/netError 分别记录 Serial 完整记录和网络 descriptor 的本地提交结果；publishError 保留首个非零发布错误，不能用另一 sink 成功掩盖它。terminalQueued 只表示至少一条本地通路接纳，不是 PC 接收或两路都成功。网络 sink 全关时，旧 PublishLifecycle 的 ESP_OK 是无动作；本轮新增 PublishLifecycleObserved 从真实 Queue 路径取得 outQueued=false，不能把它当网络排队成功。Serial-only 仍显式发布 RAPP。查询无副作用且原子复制独立缓存；它不能与 CONFIG? 拼装原子整体状态，应按 session 和 revision 检查一致性。
+
+RESTART ID 是独立 uint32 计数器，跳过 0，不与 RECOVER/MODE 的 ID 比大小。真实重启产生新 session、清空缓存；Host 在重启后通过新 BOOT/CONFIG 身份确认设备回归，旧请求可能仍为 outcome_unknown。不得用重发 RESTART 模拟查询，不承诺跨 boot 网络 exactly-once。查询结果 restarting 是意图，既不证明 reset 已发生，也不证明终态已到达 Host。
+
+新增回归执行真实模块、ACK callbacks、两个命令 handler 分支和主重启执行 helper，验证上面的三个旧反例、忙拒绝、迟到 ACK、优先发布失败后查询、配置变化/前端 quarantine/配置槽占用时独立逃生、3 transport 并发、有限计数回绕及新 boot 清缓存。极值实际输出 RESTART? 413 B（512 B 容量）、RAPP 191 B（384 B 容量）；新缓存 host ABI 为 80 B。SCHED? 的 wc 第七组三元组表示 Wi-Fi CTRL，与前六组同单位；七组最大输出为 437 B。所有 reset 与硬件边界在这些回归中是合成 mock，目标构建和实机结果仍需另行记录。
+
+
+针对终态 sink 的追加回归直接执行生产 `sensorarrayTransportQueue`、`sensorarrayTransportPublishLifecycleObserved` 和 `sensorarrayTransportDrainGuaranteedText`：Serial-only 的 RESTART 确有完整优先 RAPP；USB 拒绝和网络队列拒绝各自保留错误；禁用网络的 ESP_OK 无动作保持 netQueued=0。RECOVER 的既有 GuaranteedText drain 原本就显式调用 SerialIoQueue，然后独立尝试 BLE/Wi-Fi，因此没有相同的 Serial 遗漏。RECOVERY.terminalQueued 仍只描述保留槽曾写入，与 RESTART.terminalQueued 的“至少一个本地输出队列接纳”不同；两个字段都不能证明 Host 接收。测试中注入 USB 拒绝仍保留 RECOVERY 结果，真实 sink 丢弃由原分层统计可查。

@@ -12,6 +12,8 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--baseline", help="Also reproduce VFS/64-byte corruption using this unmodified git revision")
 parser.add_argument("--fragment-baseline", help="Also reproduce printf fragment/priority concatenation using this unmodified git revision")
+parser.add_argument("--tx-baseline", help="Also reproduce 20ms chunk expiry using this unmodified git revision")
+parser.add_argument("--source", type=Path, help="Run all current production regressions against an explicitly saved SerialIo source")
 args = parser.parse_args()
 fixture = root / "tests/fixtures/serial_io"
 captured_config = (fixture / "config_complete.rx.txt").read_bytes()
@@ -61,8 +63,30 @@ if idf and (idf / "components/vfs/vfs.c").exists():
     begin = reent_source.index("void esp_reent_init(")
     reent_init = reent_source[begin:reent_source.index("\n}", begin) + 2]
 print(f"SERIAL_IO_VALIDATOR,source={validator_source},pathMax={path_max}", flush=True)
+def actual_function(source, signature):
+    begin = source.index(signature + "\n{")
+    return source[begin:source.index("\n}", begin) + 2]
+
 with tempfile.TemporaryDirectory(prefix="sensorarray-serial-io-") as temp:
     temp = Path(temp)
+    if idf and (idf / "components/esp_ringbuf/ringbuf.c").exists():
+        ring = (idf / "components/esp_ringbuf/ringbuf.c").read_text()
+        usb = (idf / "components/esp_driver_usb_serial_jtag/src/usb_serial_jtag.c").read_text()
+        (temp / "idf_ring_bytebuf.h").write_text("\n".join(actual_function(ring, signature) for signature in (
+            "static BaseType_t prvCheckItemFitsByteBuffer(Ringbuffer_t *pxRingbuffer, size_t xItemSize)",
+            "static void prvCopyItemByteBuf(Ringbuffer_t *pxRingbuffer, const uint8_t *pucItem, size_t xItemSize)",
+            "static size_t prvGetCurMaxSizeByteBuf(Ringbuffer_t *pxRingbuffer)")))
+        (temp / "idf_ring_send.h").write_text(actual_function(ring,
+            "BaseType_t xRingbufferSend(RingbufHandle_t xRingbuffer,\n                           const void *pvItem,\n                           size_t xItemSize,\n                           TickType_t xTicksToWait)"))
+        (temp / "idf_usb_write.h").write_text(actual_function(usb,
+            "int usb_serial_jtag_write_bytes(const void* src, size_t size, TickType_t ticks_to_wait)"))
+        driver_exe = temp / "idf_driver_record"
+        subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-Wno-sign-compare",
+                        "-I", str(temp), str(root / "tests/host/test_usb_driver_record.c"),
+                        "-o", str(driver_exe)], check=True)
+        subprocess.run([str(driver_exe)], check=True)
+    else:
+        print("IDF_USB_DRIVER_RECORD,NOT_RUN,reason=local_IDF_source_unavailable", flush=True)
     (temp / "freertos").mkdir()
     (temp / "driver").mkdir()
     common = '''#pragma once
@@ -86,7 +110,13 @@ typedef pthread_mutex_t portMUX_TYPE;
 #define pdTRUE 1
 #define pdPASS 1
 #define portMAX_DELAY UINT32_MAX
-#define pdMS_TO_TICKS(n) (n)
+#define portTICK_PERIOD_MS 10u
+#define pdMS_TO_TICKS(n) ((n) / portTICK_PERIOD_MS)
+#define portTICK_TYPE_IS_ATOMIC 1
+#define configTICK_RATE_HZ 100u
+TickType_t xTaskGetTickCount(void);
+int xPortGetCoreID(void);
+esp_err_t esp_register_freertos_idle_hook_for_cpu(bool (*callback)(void), unsigned cpu);
 QueueHandle_t xQueueCreateStatic(unsigned count, unsigned size, uint8_t *bytes, StaticQueue_t *queue);
 int xQueueSend(QueueHandle_t queue, const void *item, TickType_t ticks);
 int xQueueReceive(QueueHandle_t queue, void *item, TickType_t ticks);
@@ -137,12 +167,15 @@ static struct _reent testGlobalReent;
         + "static const char encodedFrame[] = " + json.dumps(encoded_frame.decode("ascii")) + ";\n")
     frame_output = (root / "main/output/sensorarrayFrameOutput.c").read_text()
     (temp / "frame_output_function.h").write_text(frame_output[frame_output.index("esp_err_t sensorarrayFrameOutputPrint("):])
-    for file in ["freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h", "driver/usb_serial_jtag.h", "esp_timer.h", "esp_vfs.h"]:
+    for file in ["freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h", "driver/usb_serial_jtag.h", "esp_timer.h", "esp_vfs.h", "esp_freertos_hooks.h"]:
         (temp / file).write_text('#include "common.h"\n')
     (temp / "esp_heap_caps.h").write_text("#include <stddef.h>\n#include <stdint.h>\n#define MALLOC_CAP_8BIT 1u\n#define MALLOC_CAP_SPIRAM 2u\n#define MALLOC_CAP_INTERNAL 4u\nvoid *heap_caps_calloc(size_t count, size_t size, uint32_t caps);\n")
     (temp / "sdkconfig.h").write_text("#define CONFIG_SENSORARRAY_OUTPUT_TASK_CORE 0\n")
     exe = temp / "test"
-    compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c")]
+    # Reuse the WorkBudget address/attribute stubs while retaining this test's
+    # synthetic scheduler headers first. The memory stub owns its test-only
+    # storage classification flag; no production placement is claimed on host.
+    compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/work_budget_stubs"), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "components/sensorarrayWorkBudget/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c"), str(root / "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c")]
     if args.baseline:
         baseline = temp / "baselineSerialIo.c"
         baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
@@ -155,6 +188,13 @@ static struct _reent testGlobalReent;
         baseline_exe = temp / "fragment_baseline"
         subprocess.run(compile_args + ["-DSERIAL_IO_FRAGMENT_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
         subprocess.run([str(baseline_exe)], check=True)
-    subprocess.run(compile_args + ["-o", str(exe)], check=True)
-    for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry"]:
+    if args.tx_baseline:
+        baseline = temp / "txBaselineSerialIo.c"
+        baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.tx_baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
+        baseline_exe = temp / "tx_baseline"
+        subprocess.run(compile_args + ["-DSERIAL_IO_TX_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
+        subprocess.run([str(baseline_exe)], check=True)
+    source_override = [f'-DSERIAL_IO_SOURCE="{args.source.resolve()}"'] if args.source else []
+    subprocess.run(compile_args + source_override + ["-o", str(exe)], check=True)
+    for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry", "foreign_driver"]:
         subprocess.run([str(exe), allocation], check=True)
