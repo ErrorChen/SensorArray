@@ -30,6 +30,9 @@
 #define SERIAL_IO_SLOT_COUNT (SERIAL_IO_LOG_FIRST_SLOT + SERIAL_IO_LOG_SLOT_COUNT)
 #define SERIAL_IO_NORMAL_SLOT_COUNT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT)
 #define SERIAL_IO_DATA_BURST_MAX 4u
+/* Drain the bounded consumer above transport/BLE TX (5), below output hub (7).
+ * Driver waits block only this owner; WorkBudget still bounds ready bursts. */
+#define SERIAL_IO_TX_TASK_PRIORITY 6u
 enum { SERIAL_IO_DATA = 0, SERIAL_IO_PRIORITY, SERIAL_IO_LOG, SERIAL_IO_LANE_COUNT };
 /* IDF 5.5.5 BYTEBUF has xMaxItemSize == xSize; write_bytes copies the entire
  * item or returns zero. Give it room for the largest complete protocol packet,
@@ -472,7 +475,7 @@ esp_err_t sensorarraySerialIoInit(void)
                                             s_queueBytes[i], &s_queueStorage[i]);
             if (!s_queues[i]) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
         }
-        if (xTaskCreatePinnedToCore(sensorarraySerialTxTask, "serialTx", 4096, NULL, 4, &s_task,
+        if (xTaskCreatePinnedToCore(sensorarraySerialTxTask, "serialTx", 4096, NULL, SERIAL_IO_TX_TASK_PRIORITY, &s_task,
                                    CONFIG_SENSORARRAY_OUTPUT_TASK_CORE) != pdPASS) {
             return sensorarraySerialInitResult(ESP_ERR_NO_MEM);
         }
