@@ -1871,7 +1871,8 @@ static void sensorarrayAsyncLogTask(void *arg)
             int64_t outputStartUs = esp_timer_get_time();
             uint64_t frameAgeUs = (publishedUs > 0 && outputStartUs > publishedUs) ?
                 (uint64_t)(outputStartUs - publishedUs) : 0u;
-            bool emitted = frame->freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
+            bool emitted = frame->freshFrame || frame->boundedCrcFailure ||
+                CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
             uint32_t outputFpsCap = sensorarrayCommandMailboxGetOutputFpsCap();
             if (emitted && outputFpsCap > 0u) {
                 int64_t minIntervalUs = 1000000LL / (int64_t)outputFpsCap;

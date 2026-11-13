@@ -18,6 +18,7 @@
  * grow the loop without re-validating frame timing and DRDY handling. */
 #define SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_SAMPLE_COUNT 3u
 #define SENSORARRAY_ADS_MATRIX_OPEN_CONFIRM_MARGIN_FACTOR 3u
+#define SENSORARRAY_ADS_MATRIX_ALL_CRC_REJECTED_LIMIT 3u
 
 typedef struct {
     int32_t raw;
@@ -182,10 +183,23 @@ static esp_err_t sensorarrayAdsMatrixReadFreshAfter(
     memset(outSample, 0, sizeof(*outSample));
     outSample->generationStart = startGeneration;
     outSample->configurationGeneration = configurationGeneration;
-    ads126xAdcFreshReadReport_t report;
+    uint32_t physicalGeneration = ads->configurationGeneration;
+    ads126xAdcFreshReadReport_t report = {0};
     esp_err_t err = ads126xAdcReadAdc1FreshChecked(ads, startGeneration,
         (uint32_t)CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US,
         &engine->cellCrcRetryBudget, &outSample->raw, &outSample->status, &report);
+    engine->cellReadTerminalError = report.terminalError;
+    if (err != ESP_OK && (physicalGeneration != ads->configurationGeneration ||
+        configurationGeneration != sensorarrayAdsMatrixConfigurationGeneration(engine))) {
+        engine->cellReadTerminalError = ESP_ERR_INVALID_STATE;
+    }
+    /* firstError may remain CRC after a later timeout/configuration failure.
+     * Only a completed, rejected wire sample permits local X02 continuation. */
+    engine->cellCrcFailureOnly = err == ESP_ERR_INVALID_CRC &&
+        engine->cellReadTerminalError == ESP_ERR_INVALID_CRC &&
+        physicalGeneration == ads->configurationGeneration &&
+        configurationGeneration == sensorarrayAdsMatrixConfigurationGeneration(engine) &&
+        !ads126xAdcIsQuarantined(ads);
     outSample->generationEnd = report.generationEnd;
     telemetry->drdyWaitUs += report.waitUs;
     telemetry->sampleReadUs += report.readUs;
@@ -1293,10 +1307,15 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
 {
     if (!engine || !engine->state) { return ESP_ERR_INVALID_ARG; }
     engine->cellCrcRetryBudget = CONFIG_SENSORARRAY_ADS_MATRIX_IO_RETRY_COUNT;
+    engine->cellReadTerminalError = ESP_OK;
+    engine->cellCrcFailureOnly = false;
+    engine->cellHardFailure = false;
     engine->currentCell = (uint8_t)sensorarrayMatrixIndex(row, dLine);
     memset(&engine->cellFailedCrc, 0, sizeof(engine->cellFailedCrc));
     esp_err_t err = ads126xAdcBeginTransaction(&engine->state->ads, 100000u);
     if (err != ESP_OK) {
+        engine->cellHardFailure = true;
+        engine->cellReadTerminalError = err;
         sensorarrayAdsMatrixCaptureFault(engine, SENSORARRAY_ADS_FAULT_STAGE_OWNER_ACQUIRE,
             err, 0u, 0u, 0u, 0u);
         return err;
@@ -1304,6 +1323,25 @@ static esp_err_t sensorarrayAdsMatrixMeasureCell(sensorarrayAdsMatrixEngine_t *e
     err = sensorarrayAdsMatrixMeasureCellImpl(engine, rail, row, dLine,
         precisionFrame, transitionSensitive, telemetry, outResult);
     ads126xAdcEndTransaction(&engine->state->ads);
+    /* Electrical invalidity (OPEN/range/unstable/PGA) is a cell result.
+     * Hardware, ownership, freshness, RESET and reference failures are not.
+     * This classification is independent of the frame's preserved firstErr. */
+    bool statusUnknown = (outResult->status &
+        (ADS126X_STATUS_RESET_OCCURRED | ADS126X_STATUS_REFERENCE_ALARM)) != 0u;
+    bool localCrc = err == ESP_ERR_INVALID_CRC && engine->cellCrcFailureOnly &&
+        !statusUnknown && !ads126xAdcIsQuarantined(&engine->state->ads);
+    engine->cellCrcFailureOnly = localCrc;
+    engine->cellHardFailure = ads126xAdcIsQuarantined(&engine->state->ads) ||
+        statusUnknown || (err != ESP_OK && !localCrc &&
+        (!outResult->fresh || outResult->error == SENSORARRAY_CELL_ERROR_SPI ||
+         outResult->error == SENSORARRAY_CELL_ERROR_DRDY_TIMEOUT ||
+         outResult->error == SENSORARRAY_CELL_ERROR_STALE ||
+         outResult->error == SENSORARRAY_CELL_ERROR_READBACK ||
+         outResult->error == SENSORARRAY_CELL_ERROR_ROUTE ||
+         outResult->error == SENSORARRAY_CELL_ERROR_RAIL_INVALID ||
+         outResult->error == SENSORARRAY_CELL_ERROR_REFERENCE_INVALID ||
+         outResult->error == SENSORARRAY_CELL_ERROR_REFERENCE_ALARM));
+    if (err == ESP_OK && engine->cellHardFailure) { err = ESP_ERR_INVALID_RESPONSE; }
     if (err != ESP_OK && outResult->error != SENSORARRAY_CELL_ERROR_OPEN) {
         sensorarrayAdsFaultStage_t stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READ;
         if (err == ESP_ERR_INVALID_CRC) {
@@ -1487,6 +1525,38 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,
         frame->capStartUs, frame->capEndUs,
         frame->voltStartUs, frame->voltEndUs,
         frame->resStartUs, frame->resEndUs);
+}
+
+/* 本轮新增: sample integrity is independent of acquisition freshness. This
+ * budget counts ADS engine sweeps, including sparse MIXED segments. CAP and
+ * mode changes do not reset it; a completed non-CRC ADS cell does. */
+static bool sensorarrayAdsMatrixCompleteCrcDisposition(
+    sensorarrayAdsMatrixEngine_t *engine, sensorarrayFrame_t *frame,
+    uint64_t crcRejectedMask, bool coherent)
+{
+    frame->boundedCrcFailure = false;
+    uint8_t rowMask = frame->configSnapshot.rowMask;
+    if (rowMask == 0u) {
+        rowMask = frame->activeRows >= SENSORARRAY_MATRIX_ROWS ? 0xFFu :
+            (uint8_t)((1u << frame->activeRows) - 1u);
+    }
+    uint64_t expected = sensorarrayFrameBuilderActiveCellMask(rowMask);
+    if (!coherent || expected == 0u) { return false; }
+    crcRejectedMask &= expected;
+    if (crcRejectedMask == expected) {
+        if (engine->allCrcRejectedSweeps < UINT8_MAX) {
+            engine->allCrcRejectedSweeps++;
+        }
+        if (engine->allCrcRejectedSweeps >= SENSORARRAY_ADS_MATRIX_ALL_CRC_REJECTED_LIMIT) {
+            return false;
+        }
+    } else if ((frame->measurement.freshMask & expected & ~crcRejectedMask) != 0u) {
+        engine->allCrcRejectedSweeps = 0u;
+    }
+    uint64_t missing = expected & ~frame->measurement.freshMask;
+    if ((missing & ~crcRejectedMask) != 0u) { return false; }
+    frame->boundedCrcFailure = crcRejectedMask != 0u;
+    return true;
 }
 
 esp_err_t sensorarrayAdsMatrixEngineInit(sensorarrayAdsMatrixEngine_t *engine,
@@ -1796,6 +1866,8 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
     }
 
     esp_err_t firstErr = ESP_OK;
+    esp_err_t abortError = ESP_OK;
+    uint64_t crcRejectedMask = 0u;
     bool coherent = true;
     bool transitionSensitive = engine->transitionSensitiveFrames != 0u || railInvalidated;
     for (uint8_t row = 1u; row <= frame->activeRows; ++row) {
@@ -1834,6 +1906,7 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                                                  false);
             }
             if (firstErr == ESP_OK) { firstErr = rowErr; }
+            abortError = rowErr;
             coherent = false;
             break;
         }
@@ -1892,12 +1965,17 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                     frame->measurement.spiErrorCount++;
                 }
                 sensorarrayAdsMatrixSetCellError(frame, index, error, result.fresh);
+                if (engine->cellCrcFailureOnly) {
+                    crcRejectedMask |= UINT64_C(1) << index;
+                }
                 if (error != SENSORARRAY_CELL_ERROR_OPEN && firstErr == ESP_OK) {
                     firstErr = err;
                 }
-                if (ads126xAdcIsQuarantined(&engine->state->ads)) {
-                    /* DMA may still own its buffers. Do not route another row
-                     * or issue another ADS operation until controlled recovery. */
+                if (engine->cellHardFailure) {
+                    /* A later hard failure must abort even when firstErr and
+                     * the first diagnostic context already preserve CRC. */
+                    abortError = engine->cellReadTerminalError != ESP_OK ?
+                        engine->cellReadTerminalError : err;
                     coherent = false;
                     break;
                 }
@@ -1914,7 +1992,9 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
                 if (firstErr == ESP_OK) {
                     firstErr = ESP_ERR_INVALID_RESPONSE;
                 }
-                continue;
+                abortError = ESP_ERR_INVALID_RESPONSE;
+                coherent = false;
+                break;
             }
             if (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
                 int32_t nodeUv = 0;
@@ -2004,6 +2084,11 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
     if (engine->transitionSensitiveFrames > 0u) {
         engine->transitionSensitiveFrames--;
     }
+    coherent = sensorarrayAdsMatrixCompleteCrcDisposition(
+        engine, frame, crcRejectedMask, coherent);
+    if (!coherent && abortError == ESP_OK) {
+        abortError = crcRejectedMask != 0u ? ESP_ERR_INVALID_CRC : ESP_ERR_INVALID_RESPONSE;
+    }
     if (!coherent) {
         frame->measurement.validMask = 0u;
         frame->validCount = 0u;
@@ -2031,6 +2116,13 @@ esp_err_t sensorarrayAdsMatrixEngineReadFrame(sensorarrayAdsMatrixEngine_t *engi
         engine->railFingerprint.invalidationCount - railInvalidationStart;
     engine->faultContext.acquired = frame->measurement.freshMask != 0u;
     sensorarrayAdsMatrixFinishFrame(frame, frame->activeRows, frameStartUs, coherent);
+    if (crcRejectedMask != 0u || abortError != ESP_OK) {
+        printf("ADSDISPOSITION,seq=%lu,boundedCrc=%u,crcRejected=%016llX,acquired=%016llX,expected=%016llX,allCrcRun=%u,limit=%u,firstError=0x%x,abortError=0x%x,scope=ads_sweep\n",
+            (unsigned long)frame->sequence, frame->boundedCrcFailure ? 1u : 0u,
+            (unsigned long long)crcRejectedMask, (unsigned long long)frame->acquiredMask,
+            (unsigned long long)frame->expectedMask, engine->allCrcRejectedSweeps,
+            SENSORARRAY_ADS_MATRIX_ALL_CRC_REJECTED_LIMIT, firstErr, abortError);
+    }
     sensorarrayAdsMatrixLogCrcEvidence(engine, frame->sequence, firstErr);
     if (frame->measurement.validMask != 0u) {
         sensorarrayAdsGapNoteFirstValidFrame(frame->frameEndUs);

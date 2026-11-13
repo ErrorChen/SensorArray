@@ -309,6 +309,11 @@ typedef struct {
     bool mixedEpoch;
     bool stale;
     bool freshFrame;
+    /* 本轮新增: this completed sweep has only bounded sample CRC rejection
+     * among missing acquisitions. It may publish explicit X02 cells without
+     * claiming those cells, or the whole frame, are fresh/acquired. False for
+     * route/configuration/owner/timeout/reset/quarantine failures. */
+    bool boundedCrcFailure;
     sensorarrayFdcFrameTelemetry_t telemetry;
     sensorarrayAdsGapSnapshot_t adsGap;
     /* Mixed row output keeps unit/scale attached to the physical S row. */

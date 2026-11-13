@@ -3775,10 +3775,11 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
             }
         }
         if (rowProfile.pending && homogeneousApplyOk) {
-            /* The first acquisition/readback decides the transaction
-             * terminal: RMAPP only on a fresh frame, RMERR when the applied
-             * profile cannot produce one. */
-            if (err != ESP_OK || !ctx->frame.freshFrame) {
+            /* Applied configuration is independent of a rejected ADC wire
+             * sample. The explicit disposition excludes state/owner faults;
+             * it never turns an X02 cell into a fresh or valid acquisition. */
+            if (!ctx->frame.boundedCrcFailure &&
+                (err != ESP_OK || !ctx->frame.freshFrame)) {
                 uint32_t readErr = err == ESP_OK ?
                     (uint32_t)ESP_ERR_INVALID_STATE : (uint32_t)err;
                 sensorarrayMeasurementModeRecordRuntimeFault(
@@ -3820,7 +3821,7 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
     ctx->hostFrameSequence = frameSequence;
     ctx->frame.sequence = frameSequence;
     if (mixedProfile) {
-        bool mixedProfileApplied = ctx->frame.freshFrame;
+        bool mixedProfileApplied = ctx->frame.freshFrame || ctx->frame.boundedCrcFailure;
         bool mixedRequestFailed = rowProfile.pending && !mixedProfileApplied;
         uint32_t mixedFailureErr = err == ESP_OK ?
             (uint32_t)ESP_ERR_INVALID_STATE : (uint32_t)err;
@@ -3862,7 +3863,7 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
                 rejectedProfile,
                 (unsigned long)mixedFailureErr);
         }
-        if (!ctx->frame.freshFrame) {
+        if (!ctx->frame.freshFrame && !ctx->frame.boundedCrcFailure) {
             if (!mixedRequestFailed) {
                 sensorarrayAdsFaultEvent_t fault = {
                     .stage = SENSORARRAY_ADS_FAULT_STAGE_PROFILE_TRANSITION,
@@ -3895,9 +3896,10 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         ctx->frame.measurement.freshMask = ctx->frame.freshMask;
         ctx->frame.measurement.errorMask = ctx->frame.errorMask;
     } else if (!mixedProfile && !ctx->frame.freshFrame &&
+               !ctx->frame.boundedCrcFailure &&
                !homogeneousProfileFaultTerminal) {
-        /* A coherent ADS frame may contain explicitly invalid cells. A false
-         * frame freshness flag instead means route/rail ownership failed. */
+        /* Missing samples alone do not prove route failure. Only the ADS
+         * engine may explicitly permit a bounded sample-CRC partial frame. */
         sensorarrayAdsFaultEvent_t fault = {
             .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_ROUTE,
             .err = err,
@@ -4515,7 +4517,8 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                 sensorarrayEmitPayloadTooLargeDrop(ctx->frame.sequence);
             }
         } else if (ctx->legacySyncOutput &&
-                   (ctx->frame.freshFrame || CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG)) {
+                   (ctx->frame.freshFrame || ctx->frame.boundedCrcFailure ||
+                    CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG)) {
             (void)sensorarrayFrameOutputPrint(&ctx->frame);
         }
         sensorarrayBootBreadcrumbMarkStableProgress(

@@ -14,7 +14,7 @@ def main():
     emit = function(source, "static void sensorarrayEmitAdsFault(")
     homogeneous = function(source, "else if (!mixedProfile && !ctx->frame.freshFrame &&")
     homogeneous = homogeneous[homogeneous.index("{"):]
-    mixed_at = source.index("        if (!ctx->frame.freshFrame) {\n            if (!mixedRequestFailed)")
+    mixed_at = source.index("        if (!ctx->frame.freshFrame && !ctx->frame.boundedCrcFailure) {\n            if (!mixedRequestFailed)")
     mixed = function(source[mixed_at:], "if (!mixedRequestFailed)")
     mixed = mixed[mixed.index("{"):]
     check = function(source, "static void sensorarrayRunPendingAdsCheck(")

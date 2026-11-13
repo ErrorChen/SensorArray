@@ -350,6 +350,8 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
         SENSORARRAY_MEASUREMENT_MODE_VOLTAGE,
         SENSORARRAY_MEASUREMENT_MODE_RESISTANCE,
     };
+    bool groupsKnown = true;
+    bool boundedCrcFailure = false;
     for (size_t group = 0u; group < sizeof(modes) / sizeof(modes[0]); ++group) {
         sensorarrayMeasurementMode_t mode = modes[group];
         uint8_t rowMask = 0u;
@@ -407,7 +409,8 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
              * group carries an explicit unacquired error instead of relying
              * on the invalid-frame sentinel masks. */
             sensorarrayMixedMergeSegment(frame, segmentWorkspace, rowMask, mode);
-            continue;
+            groupsKnown = false;
+            break;
         }
 
         esp_err_t readErr = mode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE ?
@@ -419,7 +422,12 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
             firstErr = readErr;
         }
         sensorarrayMixedMergeSegment(frame, segmentWorkspace, rowMask, mode);
-        if (readErr == ESP_OK) {
+        if (!segmentWorkspace->freshFrame && !segmentWorkspace->boundedCrcFailure) {
+            groupsKnown = false;
+            break;
+        }
+        boundedCrcFailure |= segmentWorkspace->boundedCrcFailure;
+        if (readErr == ESP_OK || segmentWorkspace->boundedCrcFailure) {
             sensorarrayMixedMergeSegmentTiming(frame, segmentWorkspace, mode);
         }
     }
@@ -431,7 +439,8 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
      * electrically invalid (OPEN/SHORT/RANGE/SATURATED), which is reported
      * through validMask/errorMask and must not make the sweep stale.
      * Group/route failures remain distinct in the returned firstErr. */
-    frame->freshFrame = sensorarrayFrameBuilderAcquisitionComplete(
+    frame->boundedCrcFailure = groupsKnown && boundedCrcFailure;
+    frame->freshFrame = groupsKnown && sensorarrayFrameBuilderAcquisitionComplete(
         frame->acquiredMask, frame->expectedMask);
     frame->stale = !frame->freshFrame;
     frame->measurement.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;

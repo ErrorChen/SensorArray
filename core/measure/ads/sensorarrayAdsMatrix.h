@@ -45,6 +45,10 @@ typedef struct {
     uint32_t frameCrcRetries;
     uint32_t frameCrcRecovered;
     esp_err_t frameCrcTerminalError;
+    esp_err_t cellReadTerminalError;
+    bool cellCrcFailureOnly;
+    bool cellHardFailure;
+    uint8_t allCrcRejectedSweeps;
     ads126xAdcCrcFault_t frameFirstCrc;
     ads126xAdcCrcFault_t cellFailedCrc;
     uint64_t lastCrcEmitUs;
