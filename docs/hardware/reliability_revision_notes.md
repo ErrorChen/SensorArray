@@ -1,5 +1,7 @@
 # Reliability hardware revision notes
 
+2026-11-13 update: the user confirmed and repaired the loose S8D8 connection; new RES recordings show finite resistance and no OPEN at either reference resistor. User-reported rails are AVDD 3.33–3.37 V and AVSS −1.795 V ±0.005 V relative to GND. Their exact probe location and traceable uncertainty are not established. Representative values were applied only in firmware RAM. CRC rejection persists with external rails and periodic battery sampling disabled; this narrows the software conditions but still does not identify an electrical root cause. No HW01–HW06 rework or scope verification was performed. See the [new HIL report](../audit/reference_fixture_recheck_20261113.md); the earlier no-DMM/unconfirmed-contact observations below remain historical evidence.
+
 Status: **HARDWARE_CHANGE_REQUIRED / as-built revision NOT_VERIFIED**. Audited repository schematic: `datasheets/circuit.pdf`, V1.0, sheets 1–4 (2025-11-28 to 2025-12-05). This is a design review, not an implemented PCB modification or a claim about the user's populated board. The initial audit had no hardware access. The subsequent [reference-fixture HIL](../audit/reference_fixture_hil_20261104.md) accessed the ESP32-S3/ADS1262 board over native USB and recorded its passive fixture. It did not provide an oscilloscope, independent DMM or Windows enumerator. The electrical procedures in HW01–HW06 below remain NOT_RUN.
 
 ## Connectivity and firmware limits

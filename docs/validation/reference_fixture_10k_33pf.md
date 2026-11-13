@@ -10,6 +10,8 @@
 
 配置在 [`reference_10k_33pf.json`](../../tests/fixtures/reference_10k_33pf.json)。元件实测值、参考容差及系统验收误差限未知，分别保留 null。不能沿用旧工具的 25% 电阻容差或 5–20 kΩ 粗筛范围宣称高精度通过。
 
+2026-11-13用户确认S8D8松动已修复，并允许暂用其它悬空口作为电容背景。实测两只电阻均恢复有限值；新增只读 `tools/estimate_floating_cap_background.py --input <recorded.rx.bin或.gz> --output <新报告.json>` 实现逐帧同行/同列/全60点三种近似，排除四个已占用点并保留模型差异。它不作为下文 `--baseline-input`，不改变严格精度门槛、不写校准。独立轨输入及本轮真实失败/恢复记录见 [复测报告](../audit/reference_fixture_recheck_20261113.md)。
+
 ## 数值含义
 
 CAP 生产路径 `sensorarrayMeasureComputeFdcFrameCapTotalPf()` / `sensorarrayMeasureFdcComputeCapacitancePf()` 发布 LC 总电容，包括板上固定电容与寄生。验证 33 pF 需要 S4D4、S5D5 **各自移除标准电容后的空载记录**，保持其它接线、量程和测量条件一致。不能减去其它悬空点均值；`CAL=ZERO` 处理 ADS 残差，不是这项空载测量。没有基线时保留 total pF，结果 BASELINE_REQUIRED。

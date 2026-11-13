@@ -1,0 +1,789 @@
+{
+  "schema_version": 1,
+  "kind": "INDEPENDENT_READ_ONLY_HIL_AUDIT",
+  "precision_acceptance": "NOT_EVALUATED",
+  "source_head_at_analysis": "a73df5e9c8aaafb81be810326ef9ed19a3dec682",
+  "physical_firmware_build": {
+    "idf": "v5.5.5",
+    "target": "esp32s3",
+    "project": "SensorArray",
+    "proto": "2"
+  },
+  "physical_firmware_commit": "Parent recording provenance associates image with ebabe7e; BUILD does not include commit",
+  "sources": {
+    ".rx.bin": {
+      "path": "docs/audit/artifacts/reference_fixture/20261113-cap8-external-recovery-01.rx.bin",
+      "sha256": "1c0f1666205b7e91537b7f6adb8d4f780cdc500f8c405df132af816fc75a87ee",
+      "bytes": 1722678
+    },
+    ".events.jsonl": {
+      "path": "docs/audit/artifacts/reference_fixture/20261113-cap8-external-recovery-01.events.jsonl",
+      "sha256": "2d1b41631d39423dfa001b5f3b62244b9c8b6daf3ba6a2d0f0ac0b9e62dc25ab",
+      "bytes": 937464
+    },
+    ".summary.json": {
+      "path": "docs/audit/artifacts/reference_fixture/20261113-cap8-external-recovery-01.summary.json",
+      "sha256": "79a75a1ea39b4f80189996c507d0902abab48c29f52cb6209e064839bdccb953",
+      "bytes": 5493
+    }
+  },
+  "raw_hash_matches_summary": true,
+  "collector": {
+    "status": "CAPTURED",
+    "error": null,
+    "prepare_seconds": 0.18457244300225284,
+    "capture_seconds": 139.81575780200365,
+    "elapsed_seconds": 140.01069758200174,
+    "usb_restore": "VERIFIED_QUERY",
+    "battery_restore": null,
+    "reset_observations": []
+  },
+  "scientific_frames": {
+    "complete": 1601,
+    "first_seq": 8660385,
+    "last_seq": 8661985,
+    "device_span_seconds": 139.674426,
+    "device_interval_fps": 11.455210848691799,
+    "received_frames_per_host_capture_second": 11.450783696836329,
+    "counters": {
+      "lines": 11007,
+      "cap_frames": 1601,
+      "voltage_frames": 0,
+      "resistance_frames": 0,
+      "mixed_frames": 0,
+      "crc_errors": 0,
+      "malformed": 0,
+      "sequence_gaps": 0,
+      "missing_frames": 0,
+      "sequence_regressions": 0,
+      "non_ascii_chunks": 0,
+      "summary_lines": 810,
+      "rmack": 0,
+      "rmapp": 0,
+      "rmerr": 0,
+      "lifecycle_duplicate_terminal": 0,
+      "lifecycle_terminal_without_ack": 0
+    },
+    "identity_errors": 0,
+    "legacy_domain_mismatches": 0,
+    "truncated_frames": 0,
+    "malformed_frames": 0,
+    "non_ascii_lines": 0,
+    "groups": [
+      {
+        "identity": {
+          "session": "26888A60879294CC",
+          "bootId": "10",
+          "rev": "110",
+          "mgen": "93",
+          "mrid": "105",
+          "rgen": "13",
+          "rrid": "106",
+          "pgen": "94",
+          "prid": "105",
+          "legacy_gen": "13",
+          "legacy_rid": "106"
+        },
+        "identity_status": "consistent_frame_identity",
+        "type": "C",
+        "frames": 1601,
+        "rows": 8,
+        "sequence_gaps": 0,
+        "missing_sequences": 0,
+        "duplicate_or_old": 0,
+        "timestamp_regressions": 0
+      }
+    ]
+  },
+  "references": {
+    "S1D1": {
+      "unit": "pF",
+      "observed": 1601,
+      "valid": 1601,
+      "fresh": 1601,
+      "acquired": 1601,
+      "error_reasons": {
+        "0": 1601
+      },
+      "error_sequences": [],
+      "values": {
+        "samples": 1601,
+        "mean": 80.61775450218613,
+        "median": 80.617706,
+        "stddev": 0.013899838038281652,
+        "min": 80.498674,
+        "max": 80.650874,
+        "range": 0.15220000000000766
+      }
+    },
+    "S8D8": {
+      "unit": "pF",
+      "observed": 1601,
+      "valid": 1601,
+      "fresh": 1601,
+      "acquired": 1601,
+      "error_reasons": {
+        "0": 1601
+      },
+      "error_sequences": [],
+      "values": {
+        "samples": 1601,
+        "mean": 62.396196068082446,
+        "median": 62.398593,
+        "stddev": 0.008062321531400555,
+        "min": 62.350018,
+        "max": 62.412144,
+        "range": 0.06212599999999924
+      }
+    },
+    "S4D4": {
+      "unit": "pF",
+      "observed": 1601,
+      "valid": 1601,
+      "fresh": 1601,
+      "acquired": 1601,
+      "error_reasons": {
+        "0": 1601
+      },
+      "error_sequences": [],
+      "values": {
+        "samples": 1601,
+        "mean": 92.36454704934415,
+        "median": 92.364874,
+        "stddev": 0.011850697542203586,
+        "min": 92.248425,
+        "max": 92.39999,
+        "range": 0.15156500000000506
+      }
+    },
+    "S5D5": {
+      "unit": "pF",
+      "observed": 1601,
+      "valid": 1601,
+      "fresh": 1601,
+      "acquired": 1601,
+      "error_reasons": {
+        "0": 1601
+      },
+      "error_sequences": [],
+      "values": {
+        "samples": 1601,
+        "mean": 77.43796884072455,
+        "median": 77.43907,
+        "stddev": 0.009831039629732492,
+        "min": 77.337617,
+        "max": 77.455888,
+        "range": 0.11827100000000712
+      }
+    }
+  },
+  "rail": {
+    "apply_record": {
+      "path": "docs/audit/artifacts/reference_fixture/20261113-apply-external-rails-01.summary.json",
+      "sha256": "b0bebf35ec66a4a8f810633747e1ef53c662851e37b041888b0c5d5ebd339604",
+      "bytes": 4814
+    },
+    "apply_seq": 8659568,
+    "calibration_device_time_us": 748106579185,
+    "queries": [
+      {
+        "src": "external",
+        "raw": "0",
+        "mon": "0",
+        "rail": "5145000",
+        "avdd": "3350000",
+        "avss": "-1795000",
+        "exp": "5145000",
+        "err": "0",
+        "rv": "1",
+        "rs": "ok",
+        "age": "815",
+        "ref": "restored",
+        "pwr": "restored",
+        "mux": "restored",
+        "split": "external_measured",
+        "aincom": "estimated",
+        "uncertaintyUv": "unknown",
+        "calUs": "748106579185"
+      }
+    ],
+    "logged_refresh_count": 0,
+    "refresh_tags": {
+      "RAIL_REFRESH": 0,
+      "RAILMON": 0,
+      "MIXED_RAIL_BOUNDARY": 0,
+      "RAILCRC": 0
+    },
+    "scientific_header_unique": {
+      "rail": [],
+      "age": [],
+      "avdd": [],
+      "avss": [],
+      "vexc": [],
+      "ref": []
+    },
+    "source_evidence": "External source established by ARL query and apply record; scientific R header has no source field. Uncertainty remains unknown."
+  },
+  "health": {
+    "records": [],
+    "logged_errors": 0,
+    "count_in_complete_frame_window": 0
+  },
+  "adc_crc": {
+    "logged_spi_events": 0,
+    "logged_bytes_events": 0,
+    "logged_bytes_in_complete_frame_window": 0,
+    "logged_xor_counts": {},
+    "logged_first_coordinate_counts": {},
+    "first_event": [],
+    "last_event": [],
+    "bytes_records": [],
+    "all_logged_lengths_and_last_bytes_consistent": true,
+    "interpretation": "Bounded first-failed-read diagnostics only; neither all failing samples nor proof of an electrical root cause. Scientific ASCII CRC32 is independent."
+  },
+  "faults": {
+    "MFAULT": [],
+    "ADSFAULT": [],
+    "ADSFAULTCTX": [],
+    "ADSFAULTREG": [],
+    "ADSFAULTRAIL": [],
+    "ADSFRAME": [],
+    "host_events": []
+  },
+  "battery": {
+    "raw_transaction_count_all_record": 141,
+    "raw_transaction_count_complete_frame_window": 140,
+    "register_phase_counts": {
+      "saved": 141,
+      "configured": 141,
+      "restored": 141
+    },
+    "raw_original_errors": {
+      "0x0": 141
+    },
+    "raw_cleanup_errors": {
+      "0x0": 141
+    },
+    "whole_transaction_duration_us": {
+      "samples": 141,
+      "mean": 6997.297872340426,
+      "median": 6997,
+      "stddev": 40.929578803170934,
+      "min": 6957,
+      "max": 7413,
+      "range": 456
+    },
+    "all_recorded_transactions_after_external_apply": true,
+    "first_raw_transaction": [
+      {
+        "seq": "8660384",
+        "txn": "25318",
+        "raw": "529854009/530812986/531043828",
+        "status": "60/60/60",
+        "timeUs": "748298131197/748298132021/748298132854",
+        "transactionStartUs": "748298126849",
+        "transactionEndUs": "748298134262",
+        "originalError": "0x0",
+        "cleanupError": "0x0"
+      }
+    ],
+    "last_raw_transaction": [
+      {
+        "seq": "8661983",
+        "txn": "25458",
+        "raw": "529843050/530782034/531008277",
+        "status": "60/60/60",
+        "timeUs": "748437720073/748437720902/748437721735",
+        "transactionStartUs": "748437715678",
+        "transactionEndUs": "748437722671",
+        "originalError": "0x0",
+        "cleanupError": "0x0"
+      }
+    ],
+    "AB50_count": 96,
+    "AB50_first": [
+      {
+        "bt": "4098",
+        "valid": "1",
+        "br": "ok",
+        "bs": "present",
+        "ageMs": "345",
+        "lastGoodMv": "4098",
+        "lastGoodValid": "1",
+        "lastGoodFresh": "1",
+        "lastGoodAgeMs": "345",
+        "lastGoodFrame": "8660391",
+        "periodMs": "1000",
+        "due": "0",
+        "run": "25319",
+        "validRun": "462",
+        "invalidRun": "24857",
+        "skip": "0",
+        "defer": "0",
+        "boundary": "25319",
+        "restoreFail": "0",
+        "retry": "0/0",
+        "unstable": "0",
+        "timeout": "0",
+        "spreadRaw": "1186932",
+        "spreadMaxRaw": "1189819",
+        "sampleUs": "1977/8859",
+        "a8d": "1271690",
+        "ac": "777500",
+        "a8g": "2049190",
+        "rail": "5145000",
+        "rv": "1",
+        "rs": "ok",
+        "re": "0",
+        "age": "0",
+        "z": "517/212",
+        "fresh": "1",
+        "status": "0x60",
+        "dg": "1",
+        "chip": "1262",
+        "j": "1/0",
+        "ae": "0/0/0/0/0"
+      }
+    ],
+    "AB50_last": [
+      {
+        "bt": "4098",
+        "valid": "1",
+        "br": "ok",
+        "bs": "present",
+        "ageMs": "691",
+        "lastGoodMv": "4098",
+        "lastGoodValid": "1",
+        "lastGoodFresh": "1",
+        "lastGoodAgeMs": "691",
+        "lastGoodFrame": "8661972",
+        "periodMs": "1000",
+        "due": "0",
+        "run": "25457",
+        "validRun": "600",
+        "invalidRun": "24857",
+        "skip": "0",
+        "defer": "0",
+        "boundary": "25457",
+        "restoreFail": "0",
+        "retry": "0/0",
+        "unstable": "0",
+        "timeout": "0",
+        "spreadRaw": "1159915",
+        "spreadMaxRaw": "1189819",
+        "sampleUs": "2011/8859",
+        "a8d": "1271720",
+        "ac": "777500",
+        "a8g": "2049220",
+        "rail": "5145000",
+        "rv": "1",
+        "rs": "ok",
+        "re": "0",
+        "age": "0",
+        "z": "517/212",
+        "fresh": "1",
+        "status": "0x60",
+        "dg": "1",
+        "chip": "1262",
+        "j": "1/0",
+        "ae": "0/0/0/0/0"
+      }
+    ],
+    "AB50_first_last_delta": {
+      "run": 138,
+      "validRun": 138,
+      "invalidRun": 0,
+      "restoreFail": 0
+    },
+    "AB50_reasons": {
+      "ok": 96
+    },
+    "BATPERIOD_records": [],
+    "limitation": "AB50 checkpoints are not a per-transaction acceptance ledger; first/last counter delta covers only those checkpoints. Raw prefixes may predate mode preparation.",
+    "postcheck": {
+      "source": {
+        "path": "docs/audit/artifacts/reference_fixture/20261113-external-cap-postcheck-01.summary.json",
+        "sha256": "3107ef2e965c0f54497cca7d1cb912f44aec567180b75dba39e4722620f323a4",
+        "bytes": 4251
+      },
+      "BAT": {
+        "bt": "4098",
+        "valid": "1",
+        "fresh": "1",
+        "ageMs": "575",
+        "lastGoodMv": "4098",
+        "lastGoodValid": "1",
+        "lastGoodFresh": "1",
+        "lastGoodAgeMs": "575",
+        "lastGoodFrame": "8662568",
+        "lastGoodKnown": "1",
+        "periodMs": "1000",
+        "due": "0",
+        "run": "25509",
+        "validRun": "652",
+        "invalidRun": "24857",
+        "skip": "0",
+        "defer": "0",
+        "boundary": "25509",
+        "restoreFail": "0",
+        "retry": "0/0",
+        "unstable": "0",
+        "timeout": "0",
+        "spreadRaw": "1162871",
+        "spreadMaxRaw": "1189819",
+        "raw": "530795234",
+        "a8d": "1271693",
+        "ac": "777500",
+        "a8g": "2049193",
+        "ratio": "2/1",
+        "rail": "5145000",
+        "railState": "ok",
+        "vbias": "1",
+        "samples": "3",
+        "sampleUs": "7044",
+        "restore": "ok",
+        "reason": "ok"
+      },
+      "CONFIG": {
+        "session": "26888A60879294CC",
+        "bootId": "10",
+        "rev": "110",
+        "boundary": "8660385",
+        "state": "CAPACITANCE",
+        "mode": "CAP",
+        "rows": "8",
+        "profile": "CCCCCCCC",
+        "err": "0x0",
+        "mgen": "93",
+        "mrid": "105",
+        "rgen": "13",
+        "rrid": "106",
+        "pgen": "94",
+        "prid": "105",
+        "mtermId": "105",
+        "mterm": "applied",
+        "merr": "0x0",
+        "ptermId": "105",
+        "pterm": "applied",
+        "perr": "0x0",
+        "rtermId": "106",
+        "rterm": "applied",
+        "rerr": "0x0"
+      },
+      "ARL": {
+        "src": "external",
+        "raw": "0",
+        "mon": "0",
+        "rail": "5145000",
+        "avdd": "3350000",
+        "avss": "-1795000",
+        "exp": "5145000",
+        "err": "0",
+        "rv": "1",
+        "rs": "ok",
+        "age": "346",
+        "ref": "restored",
+        "pwr": "restored",
+        "mux": "restored",
+        "split": "external_measured",
+        "aincom": "estimated",
+        "uncertaintyUv": "unknown",
+        "calUs": "748106579185"
+      },
+      "new_lastGood_after_external_apply": true,
+      "delta_since_apply_checkpoint": {
+        "run": 262,
+        "validRun": 262,
+        "invalidRun": 0,
+        "restoreFail": 0
+      },
+      "counter_scope": "Across RES/VOLT/CAP and intervening waits after apply; not only this CAP recording. Apply-time lastGood8659567 predates apply8659568 and is not external-calibration proof."
+    }
+  },
+  "usb": {
+    "counter_window": "Initial USBSTREAM query through final DEBUG restore query, including preparation and cleanup",
+    "start": [
+      {
+        "v": "DEBUG",
+        "dataEvery": "50",
+        "diagEvery": "15",
+        "sinkQueued": "2064826",
+        "sinkDropped": "2401878",
+        "priorityQueued": "598",
+        "driverAcceptedBytes": "11880841",
+        "rxBytes": "4535",
+        "partialWrite": "9",
+        "timeout": "2041138",
+        "driverDrained": "355",
+        "rxOversize": "0",
+        "lineDropped": "357013",
+        "lineOversize": "0",
+        "discardBytes": "15092421",
+        "lastRxUs": "748297976711",
+        "lastTxUs": "748297976175",
+        "driverInstalled": "1",
+        "sofPresent": "1",
+        "stdioBound": "1",
+        "initError": "0x0",
+        "txStackBytes": "4096",
+        "txStackMinBytes": "3092",
+        "bufferMemory": "2",
+        "bufferBytes": "11520",
+        "enumerated": "unknown"
+      }
+    ],
+    "end": [
+      {
+        "v": "DEBUG",
+        "dataEvery": "50",
+        "diagEvery": "15",
+        "sinkQueued": "2067337",
+        "sinkDropped": "2401934",
+        "priorityQueued": "607",
+        "driverAcceptedBytes": "13601612",
+        "rxBytes": "4612",
+        "partialWrite": "9",
+        "timeout": "2041138",
+        "driverDrained": "375",
+        "rxOversize": "0",
+        "lineDropped": "357069",
+        "lineOversize": "0",
+        "discardBytes": "15094149",
+        "lastRxUs": "748437981112",
+        "lastTxUs": "748437980230",
+        "driverInstalled": "1",
+        "sofPresent": "1",
+        "stdioBound": "1",
+        "initError": "0x0",
+        "txStackBytes": "4096",
+        "txStackMinBytes": "3092",
+        "bufferMemory": "2",
+        "bufferBytes": "11520",
+        "enumerated": "unknown"
+      }
+    ],
+    "delta": {
+      "sinkQueued": 2511,
+      "sinkDropped": 56,
+      "priorityQueued": 9,
+      "driverAcceptedBytes": 1720771,
+      "rxBytes": 77,
+      "partialWrite": 0,
+      "timeout": 0,
+      "driverDrained": 20,
+      "rxOversize": 0,
+      "lineDropped": 56,
+      "lineOversize": 0,
+      "discardBytes": 1728
+    },
+    "enumeration": "unknown; sofPresent and driverAcceptedBytes do not prove host application delivery",
+    "subsequent_gap_to_postcheck": {
+      "source": {
+        "path": "docs/audit/artifacts/reference_fixture/20261113-external-cap-postcheck-01.summary.json",
+        "sha256": "3107ef2e965c0f54497cca7d1cb912f44aec567180b75dba39e4722620f323a4",
+        "bytes": 4251
+      },
+      "delta": {
+        "sinkQueued": 340,
+        "sinkDropped": 353,
+        "priorityQueued": 6,
+        "driverAcceptedBytes": 3016,
+        "rxBytes": 53,
+        "partialWrite": 1,
+        "timeout": 329,
+        "driverDrained": 0,
+        "rxOversize": 0,
+        "lineDropped": 22,
+        "lineOversize": 0,
+        "discardBytes": 680
+      },
+      "scope": "After capture final snapshot until later postcheck. Not included in capture counters and no complete scientific recording of this interval."
+    }
+  },
+  "performance": {
+    "summary_windows_wholly_inside_complete_frame_range": 95,
+    "capture_fps": {
+      "samples": 95,
+      "mean": 11.44557894736842,
+      "median": 11.45,
+      "stddev": 0.025369512970604347,
+      "min": 11.37,
+      "max": 11.48,
+      "range": 0.11000000000000121
+    },
+    "emitted_fps": {
+      "samples": 95,
+      "mean": 11.446105263157893,
+      "median": 11.45,
+      "stddev": 0.027845239103305126,
+      "min": 11.35,
+      "max": 11.48,
+      "range": 0.13000000000000078
+    },
+    "summary_scope": "SF50 windows may overlap; these are descriptive ranges, not independent statistical samples. Cross-mode prelude windows excluded.",
+    "stack_heap_unique": {
+      "unit": [
+        "bytes"
+      ],
+      "log": [
+        "16384/13064"
+      ],
+      "transport": [
+        "6144/3196"
+      ],
+      "usb": [
+        "0/0"
+      ],
+      "bleTx": [
+        "4096/1952"
+      ],
+      "bleCtrl": [
+        "6144/5240"
+      ],
+      "serialCtrl": [
+        "6144/1912"
+      ],
+      "heap": [
+        "8378640/8349932/8337776"
+      ]
+    },
+    "heap_field_semantics": "initial/free/minimum_free bytes per main/output/sensorarrayAsyncLog.c:1392-1394",
+    "stack_field_semantics": "configured/minimum_remaining bytes; usb=0/0 is not a measured native USB task watermark; use USBSTREAM txStackBytes/txStackMinBytes",
+    "cpu": "NOT_RUN",
+    "largest_contiguous_heap_block": "NOT_RUN"
+  },
+  "limitations": [
+    "No physical reference measured values, traceable uncertainty or acceptance limits supplied; no precision PASS.",
+    "No raw data, production source or existing analysis modified. New audit JSON created exclusively.",
+    "No full-scene equivalence or causal proof inferred from before/after configuration comparisons."
+  ],
+  "cap_proxy_independent_oracle": {
+    "kind": "CROSS_CELL_PROXY",
+    "precision_acceptance": "NOT_EVALUATED",
+    "groups_pooled": false,
+    "donors": "Fixed 7/7/60, excluding all four component positions; current complete frames all valid/fresh/acquired.",
+    "estimates_pf": {
+      "S4D4": {
+        "same_row_median": {
+          "samples": 1601,
+          "mean": 32.375779710805745,
+          "median": 32.375546,
+          "stddev": 0.006050490869721911,
+          "min": 32.331334999999996,
+          "max": 32.403048000000005,
+          "range": 0.07171300000000969
+        },
+        "same_column_median": {
+          "samples": 1601,
+          "mean": 13.498901785758898,
+          "median": 13.499139999999997,
+          "stddev": 0.005560447416802243,
+          "min": 13.460646999999994,
+          "max": 13.516796,
+          "range": 0.05614900000000489
+        },
+        "all_floating_median": {
+          "samples": 1601,
+          "mean": 32.37475664615865,
+          "median": 32.374677,
+          "stddev": 0.005877762919409887,
+          "min": 32.328077,
+          "max": 32.401486999999996,
+          "range": 0.07340999999999553
+        }
+      },
+      "S5D5": {
+        "same_row_median": {
+          "samples": 1601,
+          "mean": 17.44939249031855,
+          "median": 17.449279000000004,
+          "stddev": 0.004365377185603045,
+          "min": 17.417268999999997,
+          "max": 17.461248000000005,
+          "range": 0.04397900000000732
+        },
+        "same_column_median": {
+          "samples": 1601,
+          "mean": 11.767536940662083,
+          "median": 11.772427000000008,
+          "stddev": 0.014659344364817948,
+          "min": 11.718223000000009,
+          "max": 11.793773999999999,
+          "range": 0.07555099999999015
+        },
+        "all_floating_median": {
+          "samples": 1601,
+          "mean": 17.44817843753904,
+          "median": 17.44806400000001,
+          "stddev": 0.004293068711655749,
+          "min": 17.417268999999997,
+          "max": 17.460950000000004,
+          "range": 0.04368100000000652
+        }
+      }
+    },
+    "floating_cell_temporal_medians_pf": {
+      "S1D2": 58.117539,
+      "S1D3": 59.039152,
+      "S1D4": 78.881534,
+      "S1D5": 65.656772,
+      "S1D6": 57.117638,
+      "S1D7": 59.994468,
+      "S1D8": 61.749038,
+      "S2D1": 79.936083,
+      "S2D2": 58.114385,
+      "S2D3": 59.037545,
+      "S2D4": 78.862391,
+      "S2D5": 65.658555,
+      "S2D6": 57.112987,
+      "S2D7": 59.992837,
+      "S2D8": 61.750711,
+      "S3D1": 79.938252,
+      "S3D2": 58.112808,
+      "S3D3": 59.035945,
+      "S3D4": 78.881534,
+      "S3D5": 65.656772,
+      "S3D6": 57.112987,
+      "S3D7": 59.992837,
+      "S3D8": 61.750711,
+      "S4D1": 79.953449,
+      "S4D2": 58.112808,
+      "S4D3": 59.035945,
+      "S4D5": 65.675102,
+      "S4D6": 57.112987,
+      "S4D7": 59.992837,
+      "S4D8": 61.752793,
+      "S5D1": 79.94259,
+      "S5D2": 58.112808,
+      "S5D3": 59.035945,
+      "S5D4": 78.873096,
+      "S5D6": 57.111438,
+      "S5D7": 59.992837,
+      "S5D8": 61.765802,
+      "S6D1": 79.940421,
+      "S6D2": 58.112808,
+      "S6D3": 59.035945,
+      "S6D4": 78.862391,
+      "S6D5": 65.691147,
+      "S6D6": 57.111438,
+      "S6D7": 59.992837,
+      "S6D8": 61.753656,
+      "S7D1": 79.94259,
+      "S7D2": 58.112808,
+      "S7D3": 59.035945,
+      "S7D4": 78.862391,
+      "S7D5": 65.662114,
+      "S7D6": 57.111438,
+      "S7D7": 59.992837,
+      "S7D8": 61.757419,
+      "S8D1": 79.94259,
+      "S8D2": 58.111232,
+      "S8D3": 59.035945,
+      "S8D4": 78.860243,
+      "S8D5": 65.771224,
+      "S8D6": 57.111438,
+      "S8D7": 59.991212
+    },
+    "limitation": "Not same-cell unloaded baseline. All three models retained; no model selected by closeness to33pF."
+  }
+}

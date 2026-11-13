@@ -1,0 +1,51 @@
+{
+  "head": "a73df5e9c8aaafb81be810326ef9ed19a3dec682",
+  "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_files": {
+    "tools/estimate_floating_cap_background.py": "574df0172eed77d72c3bb4a0d87f671fbdc2b6a6b6c8f6407fbafeebc70fc1db",
+    "tools/test_estimate_floating_cap_background.py": "d749cd4d10d5fc4e19d2425677039d5bb32c4c420ec18bc0ed8edbc8174b437a"
+  },
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "tools/test_estimate_floating_cap_background.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.266692053002771,
+      "log": "docs/audit/artifacts/reference_fixture/20261113-proxy-tool-validation-proxy.txt",
+      "log_sha256": "fc0219d2c0e2eea9da4a0f9ddfea3cfc51e9e8d43a7c01f32da1874d14b57eaa"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_reference_fixture.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.268121973000234,
+      "log": "docs/audit/artifacts/reference_fixture/20261113-proxy-tool-validation-fixture.txt",
+      "log_sha256": "22edfb053205154def2176d494b22e526244d38157bfec2054912300877a1eae"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_capture_reference_fixture.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 1.8687138019959093,
+      "log": "docs/audit/artifacts/reference_fixture/20261113-proxy-tool-validation-capture.txt",
+      "log_sha256": "f48c48704b40187eeda48933106472d8f876aa0548693f35acdb80d00052d98f"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.0637596599990502,
+      "log": "docs/audit/artifacts/reference_fixture/20261113-proxy-tool-validation-protocol.txt",
+      "log_sha256": "eced23ddd08c9039f187036632b6dfa267284cbf87aec2491dbe857e559b0d00"
+    }
+  ],
+  "firmware_changed_or_rebuilt": false
+}
