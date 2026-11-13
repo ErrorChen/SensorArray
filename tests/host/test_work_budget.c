@@ -73,15 +73,15 @@ static void testIdleAndBudget(void)
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_ASYNC_LOG));
     assert(delayCalls == 1u && largestDelay == 1u);
     assert(registeredHook());
-    nowTick += 2u;
     unsigned before = delayCalls;
     assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
     assert(delayCalls == before);
+    nowTick += 2u; /* Local quantum, while the real-idle age is still < four. */
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
     assert(delayCalls == before + 1u); /* No idle occurs in delay: still returns. */
     sensorarrayWorkBudgetCopySnapshot(&snap);
-    assert(snap.tickHz == 100u && snap.idleBudgetTicks == 2u && snap.maxWorkUnits == 32u);
-    assert(snap.graceUnits == 2u && snap.backstopTicks == 4u);
+    assert(snap.tickHz == 100u && snap.idleBudgetTicks == 4u && snap.maxWorkUnits == 32u);
+    assert(snap.graceUnits == 0u && snap.backstopTicks == 4u && snap.localQuantumTicks == 2u);
     assert(snap.idleKnown && snap.idleGeneration == 1u && snap.idleAgeTicks == 3u);
     assert(snap.maxIdleGapTicks == 3u && snap.workers[2].maxBurstUnits == 32u);
     core = 1;
@@ -90,7 +90,7 @@ static void testIdleAndBudget(void)
     assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_WORKER_COUNT));
     assert(delayCalls == before); /* Does not cap Core1 acquisition. */
 }
-static void testRealIdleEpochDoesNotChargeFirstUnit(void)
+static void testDelayedWorkerFourUnitBurst(void)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK);
     unsigned yielded = 0u;
@@ -98,11 +98,14 @@ static void testRealIdleEpochDoesNotChargeFirstUnit(void)
         nowTick++;
         assert(registeredHook()); /* Actual callback observation, not a yield. */
         nowTick += 2u; /* Lower-priority worker resumes two ticks later. */
-        yielded += sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX) ? 1u : 0u;
+        for (unsigned unit = 0u; unit < 4u; ++unit) {
+            yielded += sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX) ? 1u : 0u;
+        }
     }
-    /* repair-screen-01: 5900 / 5933 Serial checkpoints yielded despite 52887
-     * real idle callbacks. A newly observed idle epoch must allow useful work. */
+    /* The old actual component yielded 300/400 times here despite genuine
+     * idle progress. The task has done no local two-tick quantum of work. */
     assert(yielded == 0u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_SERIAL_TX].checkpoints == 400u);
 }
 static void testFailureAndNoIdle(void)
 {
@@ -110,8 +113,8 @@ static void testFailureAndNoIdle(void)
     assert(sensorarrayWorkBudgetInit() == ESP_ERR_NO_MEM);
     assert(sensorarrayWorkBudgetInit() == ESP_ERR_NO_MEM && registrationCalls == 1u);
     nowTick = 2u;
-    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
-    assert(delayCalls == 1u && s_idleGeneration == 0u); /* No initial fake grace. */
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(delayCalls == 0u && s_idleGeneration == 0u); /* No fabricated idle. */
     nowTick = 4u; /* No idle and beyond the hard starvation backstop. */
     for (unsigned i = 0u; i < 100u; ++i) {
         unsigned before = delayCalls;
@@ -145,6 +148,7 @@ static void testCrossCoreAndWrap(void)
     assert(snap.idleGeneration == 1u && snap.idleAgeTicks == 0u && snap.maxIdleGapTicks == 3u);
     nowTick = 3u;
     assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
+    nowTick = 5u;
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
     assert(delayCalls == 1u);
 }
@@ -166,29 +170,36 @@ static void testUnsafeStorageRejected(void)
     assert(!sensorarrayWorkBudgetInternal((uint8_t *)words + 1u, sizeof(uint32_t)));
     assert(!sensorarrayWorkBudgetInternal(words, 1u));
 }
-static void testOwnYieldDoesNotRenewIdleCredit(void)
+static void testOwnYieldRestartsLocalOnly(void)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
-    nowTick = 2u;
     assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    nowTick = 2u;
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(nowTick == 3u && s_idleGeneration == 1u && s_idleTick == 0u);
+    /* Own block resets the local account, never the real-idle age. */
+    for (unsigned i = 0u; i < 31u; ++i) {
+        assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    }
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(nowTick == 4u && s_idleGeneration == 1u && s_idleTick == 0u);
     for (unsigned i = 0u; i < 100u; ++i) {
         unsigned before = delayCalls;
         assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
         assert(delayCalls == before + 1u && s_idleGeneration == 1u);
     }
-    /* A genuine new idle renews exactly one epoch; old/new stale times are
-     * never replaced with the time of a voluntary delay. */
+    /* A real idle restarts both evidence and the local work account. */
     assert(registeredHook()); nowTick += 2u;
-    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
-    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    for (unsigned i = 0u; i < 4u; ++i) {
+        assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    }
 }
-static void testStarvationBackstopBypassesNewWorkerGrace(void)
+static void testStarvationBackstopBypassesNewWorkerQuantum(void)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
     nowTick = 4u;
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
-    assert(delayCalls == 1u && s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].idleEpochUnits == 1u);
+    assert(delayCalls == 1u && !s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].quantumActive);
     assert(s_idleGeneration == 1u && s_idleTick == 0u);
 }
 static void testSevenContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhaseUs)
@@ -233,20 +244,114 @@ static void testSevenContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhas
     printf("WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=%u,phaseUs=%u,idleVisits=%u,maxIdleGapTicks=%u\n",
            unitUs, tickPhaseUs, idleVisits, snap.maxIdleGapTicks);
 }
+static void testFiniteSevenWorkerLoad(unsigned unitUs, unsigned phaseUs)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    schedulerModel = true; modelUs = phaseUs;
+    uint64_t end = modelUs + 2000000u, nextSdk = phaseUs + 50000u, nextArrival = modelUs;
+    const unsigned priority[] = {5u, 5u, 7u, 4u, 6u, 4u, 5u};
+    unsigned work[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
+    unsigned pending[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
+    unsigned arrivals = 0u, idleVisits = 0u, roundRobin = 0u;
+    while (modelUs < end) {
+        if (modelUs >= nextSdk) { modelUs += 20000u; nextSdk += 50000u; }
+        while (nextArrival <= modelUs && nextArrival < end) {
+            arrivals++;
+            for (unsigned i = 0; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) { pending[i]++; }
+            nextArrival += 10000u;
+        }
+        int selected = -1;
+        for (unsigned n = 0; n < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++n) {
+            unsigned i = (n + roundRobin) % SENSORARRAY_WORK_BUDGET_WORKER_COUNT;
+            if (pending[i] && blockedUntil[i] <= modelUs &&
+                (selected < 0 || priority[i] > priority[selected])) { selected = (int)i; }
+        }
+        if (selected < 0) {
+            nowTick = (uint32_t)(modelUs / 10000u); assert(registeredHook()); idleVisits++;
+            uint64_t next = nextArrival < nextSdk ? nextArrival : nextSdk;
+            for (unsigned i = 0; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) {
+                if (pending[i] && blockedUntil[i] < next) { next = blockedUntil[i]; }
+            }
+            assert(next > modelUs); modelUs = next; continue;
+        }
+        modelWorker = (unsigned)selected;
+        roundRobin = (modelWorker + 1u) % SENSORARRAY_WORK_BUDGET_WORKER_COUNT;
+        modelUs += unitUs; nowTick = (uint32_t)(modelUs / 10000u);
+        pending[modelWorker]--; work[modelWorker]++;
+        (void)sensorarrayWorkBudgetCheckpoint((sensorarrayWorkBudgetWorker_t)modelWorker);
+    }
+    sensorarrayWorkBudgetSnapshot_t snap; sensorarrayWorkBudgetCopySnapshot(&snap);
+    printf("{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":%u,\"phaseUs\":%u,\"arrivalsPerWorker\":%u,\"idleVisits\":%u,\"maxIdleGapTicks\":%u,\"yields\":%u,\"work\":[",
+           unitUs, phaseUs, arrivals, idleVisits, snap.maxIdleGapTicks, delayCalls);
+    for (unsigned i = 0; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) { printf("%s%u", i ? "," : "", work[i]); }
+    puts("]}");
+    for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) {
+        assert(work[i] == arrivals && pending[i] == 0u); /* No artificial sink rate limit. */
+    }
+    assert(arrivals == 200u && idleVisits > 0u && snap.maxIdleGapTicks <= 4u);
+    if (unitUs == 100u) { assert(delayCalls == 0u); } /* Old global-age gate added 273--351. */
+}
+
+static void testControlFloodMaxUnits(void)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    for (unsigned unit = 1u; unit <= 128u; ++unit) {
+        bool yielded = sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_CTRL);
+        assert(yielded == (unit % 32u == 0u));
+    }
+    assert(delayCalls == 4u && s_idleGeneration == 1u && s_idleTick == 0u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_CTRL].maxBurstUnits == 32u);
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_CTRL));
+    assert(delayCalls == 5u); /* Global hard backstop now wins despite a fresh local budget. */
+}
+static void testNoCpu0OrIdleProgressIsNotFabricated(void)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    nowTick = 60u; core = 1; /* No CPU0 checkpoint ran in this synthetic 600ms gap. */
+    sensorarrayWorkBudgetSnapshot_t snap; sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.idleGeneration == 1u && snap.idleAgeTicks == 60u && snap.maxIdleGapTicks == 60u);
+    core = 0;
+    for (unsigned call = 0u; call < 100u; ++call) {
+        unsigned before = delayCalls;
+        assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_WIFI_CTRL));
+        assert(delayCalls == before + 1u && s_idleGeneration == 1u && s_idleTick == 0u);
+    }
+    /* Cannot force an unresponsive CPU or an independent SDK task to yield;
+     * when called again, this API returns after one block, never fakes idle. */
+}
+static void testLocalQuantumAndGlobalAgeWrap(void)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK);
+    nowTick = UINT32_MAX - 1u; assert(registeredHook());
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
+    nowTick = 0u;
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
+    assert(nowTick == 1u && s_idleTick == UINT32_MAX - 1u && s_idleGeneration == 1u);
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
+    nowTick = 2u;
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
+    assert(delayCalls == 2u); /* Separate local elapsed and real-idle unsigned wrap. */
+}
+
 int main(void)
 {
-    testRealIdleEpochDoesNotChargeFirstUnit();
+    testDelayedWorkerFourUnitBurst();
     testIdleAndBudget();
     testFailureAndNoIdle();
     testCrossCoreAndWrap();
     testUnsafeStorageRejected();
-    testOwnYieldDoesNotRenewIdleCredit();
-    testStarvationBackstopBypassesNewWorkerGrace();
+    testOwnYieldRestartsLocalOnly();
+    testStarvationBackstopBypassesNewWorkerQuantum();
+    testControlFloodMaxUnits();
+    testNoCpu0OrIdleProgressIsNotFabricated();
+    testLocalQuantumAndGlobalAgeWrap();
     for (unsigned phase = 0u; phase < 2u; ++phase) {
         testSevenContinuouslyReadyWorkers(100u, phase * 9500u);
         testSevenContinuouslyReadyWorkers(500u, phase * 9500u);
         testSevenContinuouslyReadyWorkers(1000u, phase * 9500u);
+        testFiniteSevenWorkerLoad(100u, phase * 9500u);
+        testFiniteSevenWorkerLoad(500u, phase * 9500u);
     }
-    puts("WORK_BUDGET_PASS,scenarios=13,production_component=1,hardware=NOT_RUN");
+    puts("WORK_BUDGET_PASS,scenarios=20,production_component=1,hardware=NOT_RUN");
     return 0;
 }

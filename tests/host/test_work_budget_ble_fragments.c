@@ -132,18 +132,23 @@ int main(void)
     slotOwned = false;
 
     reset(true, 247u); assert(sendPayload() == ESP_OK); assertComplete();
-    assert(fragments > 4u && delayCalls == (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
+    assert(fragments > 4u && delayCalls == 0u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints ==
+           1u + (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
 
     reset(true, 64u); assert(sendPayload() == ESP_OK); assertComplete();
-    assert(fragments > 32u && delayCalls == (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
+    assert(fragments > 32u && delayCalls == 0u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints ==
+           1u + (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
 
     reset(false, 23u); assert(sendPayload() == ESP_ERR_INVALID_SIZE);
     assert(sends == 0u && messages == 0u && drops == 1u && slotOwned);
 
     reset(false, 247u); ticksPerSend = 1u; assert(sendPayload() == ESP_OK); assertComplete();
-    assert(delayCalls == fragments - 1u && maxFragmentsInBatch == 1u); /* One-tick elapsed guard. */
+    assert(delayCalls > 0u && maxFragmentsInBatch == 1u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints == fragments); /* One-tick elapsed guard. */
 
-    reset(true, 247u); disconnectOnDelay = true;
+    reset(true, 247u); disconnectOnDelay = true; nowTick = 4u; /* Real idle hard backstop. */
     assert(sendPayload() == ESP_ERR_INVALID_STATE);
     assert(slotOwned && sends == 4u && fragments == 4u && delayCalls == 1u && messages == 0u && drops == 1u);
     assert(s_ble.stats.txConnectionStaleDrop == 1u && s_ble.stats.fragmentError == 0u);
@@ -167,7 +172,8 @@ int main(void)
     reset(true, 247u); nowTick = UINT32_MAX;
     s_idleTick = UINT32_MAX - 2u; ticksPerSend = 1u;
     assert(sendPayload() == ESP_OK); assertComplete();
-    assert(delayCalls == fragments - 1u && maxFragmentsInBatch == 1u); /* Tick wrap keeps elapsed bound. */
+    assert(delayCalls > 0u && maxFragmentsInBatch == 1u);
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints == fragments); /* Tick wrap keeps elapsed bound. */
     puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=5,hardware=NOT_RUN");
     return 0;
 }

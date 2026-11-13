@@ -9,17 +9,17 @@
 #include "esp_memory_utils.h"
 #include "esp_freertos_hooks.h"
 
-/* At 100 Hz: an age of 20 ms permits only two units in a newly observed idle
- * epoch before a block; 40 ms bypasses that grace. A task's own delay is not
- * proof of idle, so it never renews the grace. This avoids charging a lower
- * priority task one delay per record merely because others ran after idle.
- * The unit cap still bounds fast failures within one tick. SDK-call execution
- * time is not bounded here. This is not an acquisition frame-rate cap. */
+/* Two independent bounds: each task gets at most 32 checkpoint units or a
+ * two-tick local quantum before a real block. Four ticks without actual CPU0
+ * idle bypass that local budget. Resetting a task's local quantum after its
+ * own block is not an idle observation and never updates the shared idle age.
+ * This avoids treating time spent in other tasks as a permanent per-record
+ * penalty. A quantum starts at the first boundary after a block; an individual
+ * SDK call can overshoot it and is not bounded here. No acquisition FPS cap. */
 #define SENSORARRAY_WORK_BUDGET_MAX_UNITS 32u
-#define SENSORARRAY_WORK_BUDGET_GRACE_UNITS 2u
-#define SENSORARRAY_WORK_BUDGET_IDLE_TICKS \
+#define SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS \
     ((pdMS_TO_TICKS(20u) > 0u) ? pdMS_TO_TICKS(20u) : 1u)
-#define SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS (2u * SENSORARRAY_WORK_BUDGET_IDLE_TICKS)
+#define SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS (2u * SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS)
 
 _Static_assert(sizeof(TickType_t) == sizeof(uint32_t), "32-bit tick arithmetic required");
 _Static_assert(portTICK_TYPE_IS_ATOMIC == 1, "idle observation must not take a tick lock");
@@ -36,7 +36,8 @@ typedef struct {
     uint32_t maxBurstUnits;
     /* Only this worker's task mutates these private scheduling fields. */
     uint32_t units;
-    uint32_t idleEpochUnits;
+    uint32_t quantumStartTick;
+    bool quantumActive;
     uint32_t lastIdleGeneration;
 } sensorarrayWorkBudgetWorkerState_t;
 
@@ -144,33 +145,35 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
     __atomic_store_n(&state->checkpoints,
                      sensorarrayWorkBudgetLoad(&state->checkpoints) + 1u, __ATOMIC_RELAXED);
     uint32_t generation = __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
-    if (generation == 0u) {
-        /* Registration or our own delay is not an observed idle epoch. */
-        state->idleEpochUnits = SENSORARRAY_WORK_BUDGET_GRACE_UNITS;
-    } else if (generation != state->lastIdleGeneration) {
-        state->units = 0u;
-        state->idleEpochUnits = 0u; /* Only real idle renews this work credit. */
-        state->lastIdleGeneration = generation;
-    }
-    state->units++;
-    if (state->idleEpochUnits < SENSORARRAY_WORK_BUDGET_GRACE_UNITS) {
-        state->idleEpochUnits++;
-    }
-    if (state->units > sensorarrayWorkBudgetLoad(&state->maxBurstUnits)) {
-        __atomic_store_n(&state->maxBurstUnits, state->units, __ATOMIC_RELAXED);
-    }
     uint32_t reference = generation != 0u ? sensorarrayWorkBudgetLoad(&s_idleTick) :
         sensorarrayWorkBudgetLoad(&s_initTick);
     uint32_t now = (uint32_t)xTaskGetTickCount();
+    if (generation != 0u && generation != state->lastIdleGeneration) {
+        /* Real idle proves this task did not remain continuously ready. */
+        state->units = 0u;
+        state->quantumActive = false;
+        state->lastIdleGeneration = generation;
+    }
+    if (!state->quantumActive) {
+        state->quantumStartTick = now;
+        state->quantumActive = true;
+    }
+    state->units++;
+    if (state->units > sensorarrayWorkBudgetLoad(&state->maxBurstUnits)) {
+        __atomic_store_n(&state->maxBurstUnits, state->units, __ATOMIC_RELAXED);
+    }
     uint32_t idleAge = now - reference;
     bool due = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS ||
-        (idleAge >= SENSORARRAY_WORK_BUDGET_IDLE_TICKS &&
-         state->idleEpochUnits >= SENSORARRAY_WORK_BUDGET_GRACE_UNITS) ||
+        now - state->quantumStartTick >= SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS ||
         state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
     if (!due) {
         return false;
     }
-    state->units = 0u; /* Do not replenish idleEpochUnits on our own yield. */
+    state->units = 0u;
+    /* Start at the next boundary, after the caller resumes. The RTOS block
+     * itself must not immediately exhaust the new local quantum. Shared idle
+     * evidence stays unchanged, so the starvation backstop still wins. */
+    state->quantumActive = false;
     __atomic_store_n(&state->yields,
                      sensorarrayWorkBudgetLoad(&state->yields) + 1u, __ATOMIC_RELAXED);
     /* One bounded block only. A broken hook or continuously busy SDK task
@@ -195,9 +198,10 @@ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot
     snapshot->initError = __atomic_load_n(&s_initError, __ATOMIC_RELAXED);
     snapshot->registered = initState == 2u && snapshot->initError == ESP_OK;
     snapshot->tickHz = configTICK_RATE_HZ;
-    snapshot->idleBudgetTicks = SENSORARRAY_WORK_BUDGET_IDLE_TICKS;
+    snapshot->idleBudgetTicks = SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS;
+    snapshot->localQuantumTicks = SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS;
     snapshot->maxWorkUnits = SENSORARRAY_WORK_BUDGET_MAX_UNITS;
-    snapshot->graceUnits = SENSORARRAY_WORK_BUDGET_GRACE_UNITS;
+    snapshot->graceUnits = 0u; /* Legacy field: no real-idle epoch grace. */
     snapshot->backstopTicks = SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS;
     snapshot->idleGeneration = __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
     snapshot->idleKnown = snapshot->idleGeneration != 0u;

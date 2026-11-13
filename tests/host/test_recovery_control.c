@@ -301,6 +301,7 @@ static void testScheduler(void) {
     assert(strlen(out)<512 && schedulerSnapshotCalls==1);
     assert(strstr(out,"initError=0xFFFFFFFF,registered=1,idleKnown=1") &&
            strstr(out,"graceUnits=4294967295,backstopTicks=4294967295") &&
+           strstr(out,"quantumTicks=4294967295") &&
            strstr(out,"bt=4294967295/4294967295/4294967295") &&
            strstr(out,"idleAgeTicks=4294967294,maxIdleGapTicks=4294967294") &&
            strstr(out,"sc=4294967295/4294967295/4294967295") &&

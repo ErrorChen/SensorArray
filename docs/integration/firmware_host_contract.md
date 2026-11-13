@@ -257,7 +257,7 @@ USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回�
 
 ### 2026-11-13 待验收补丁：RECOVER 终态与独立 I/O 观测
 
-本节描述 `0d8f60f` 失败基线之后、本轮新增的源代码接口；不把它追溯为旧镜像已有能力，也不把 host 回归等同于新镜像 HIL 通过。对应能力必须从 `PROTO?` 的 `recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1` 协商；修复提交、实际烧录 SHA 和新 HIL 结果由后续构建记录关联。旧基线的 VOLT1 IDLE0 watchdog 与 USB 截断证据继续保留。
+本节描述 `0d8f60f` 失败基线之后、本轮新增的源代码接口；不把它追溯为旧镜像已有能力，也不把 host 回归等同于新镜像 HIL 通过。对应能力必须从 `PROTO?` 的 `recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1/work_quantum_v2` 协商；修复提交、实际烧录 SHA 和新 HIL 结果由后续构建记录关联。旧基线的 VOLT1 IDLE0 watchdog 与 USB 截断证据继续保留。
 
 **RECOVER 的有界请求与结果。** 新增内部模块 `sensorarrayRecoveryControl`，对所有 transport 使用一个请求槽及一个最后结果缓存。RECOVER 与 MODE/ROWS/ROWMODES 共用已有 GuaranteedText 终态保留槽；先保留终态空间再 ACK，只有 ACK 被本地 control sink 接受后，采集 owner 才能在完整帧边界取走请求。该 ACK 只是本地提交证据。并发或重复文本在槽忙时明确拒绝，闲时再次提交是新请求；不会将有副作用的 RECOVER 重发当查询或去重令牌。ACK 本地发布失败时不运行硬件，缓存 `rejected/ack_publish_failed` 并释放保留槽。
 
@@ -302,11 +302,11 @@ USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回�
 
 正常/优先记录分别保留固定的 250 ms/1000 ms 入队绝对期限；等待、调度让出不会重新开始计时。当前 IDF BYTEBUF 驱动按整项接受或返回 0，TX ring 覆盖最大完整 2304 B 科学记录；这解决应用层逐 64 B 提交造成的半帧，但不承诺物理断连后的整帧交付。异常正短写仍有界处理和 delimiter 恢复；Host 继续校验完整科学帧、身份后缀和序号缺口。USBSTREAM=DEBUG/FULL 不关闭 command RX、RECOVERY? 或关键回复。
 
-**SCHED?。** 新增 `sensorarrayFormatSchedulerReply` 从 WorkBudget 取一次观测副本。`registered/initError` 说明 CPU0 idle hook 的注册状态；`idleKnown` 说明是否实际看见 CPU0 idle callback，不能用 scheduler 主动计数冒充 idle。`tickHz` 为 RTOS tick/s；`budgetTicks` 为约 20 ms 的预算 tick 数（最少 1 tick）；`maxUnits` 为 32 个工作单元。 `graceUnits=2` 为每次真实 idle generation 变化后可用的有限工作额度；全局 age 到达 budgetTicks 时，已消耗此额度的 worker 才请求让出。自己 delay 不补充额度。`backstopTicks=4`（100 Hz 时 40 ms）表示未观测 idle 的保护上限，达到即请求让出，不等待额度耗尽。字段是 work_budget_v1 的兼容增补，旧 Host 可忽略未知字段；均不是采集 FPS 配额。`idleGen` 在真实 callback 中递增、跳过 0。`idleAgeTicks/maxIdleGapTicks` 分别为距离最近 callback 的 tick 数及已观测最大间隔（包括尚未闭合间隔）；未知时输出 unknown，不把 UINT32_MAX 当超长实测值。
+**SCHED?。** 新增 `sensorarrayFormatSchedulerReply` 从 WorkBudget 取一次观测副本。`registered/initError` 说明 CPU0 idle hook 的注册状态；`idleKnown` 说明是否实际看见 CPU0 idle callback，不能用 scheduler 主动计数冒充 idle。`tickHz` 为 RTOS tick/s。新增能力 `work_quantum_v2` 区分本地工作预算与真实 idle 保护：`quantumTicks=2`（100 Hz 时 20 ms）和 `maxUnits=32` 限制每个 worker 的本地工作批次；主动等待后只重启该本地账本，不更新 idle 时间或 generation。`budgetTicks=4/backstopTicks=4`（40 ms）仍表示真实 idle 年龄达到门限后请求让出，并非 SDK 调用耗时的绝对上限。旧字段 `graceUnits=0` 明确不再使用每 idle epoch 的两条记录额度。未知 idle 或 hook 注册失败仍用有限让出策略，不能伪造 idle 进度。旧 `work_budget_v1` 设备仍可能报告 budgetTicks=2/graceUnits=2；Host 按协商能力解释策略，保留原字段域。均不是采集 FPS 配额。`idleGen` 在真实 callback 中递增、跳过 0。`idleAgeTicks/maxIdleGapTicks` 分别为距离最近 callback 的 tick 数及已观测最大间隔（包括尚未闭合间隔）；未知时输出 unknown，不把 UINT32_MAX 当超长实测值。
 
 `bt/tr/log/ser/bc/sc/wc` 每项都是 `checkpoints/yields/maxBurstUnits` 三元组，依次对应 BLE TX、transport、async log、Serial TX、BLE CTRL、Serial CTRL、Wi-Fi CTRL。checkpoint 的工作单元由对应 worker 循环定义，不是统一帧数；yield 只表示真实请求了一次有界 vTaskDelay(1)，不保证 idle 当时已运行。各计数独立取样、按 uint32 回绕；它们既不是原子配置快照，也不是 CPU 利用率。注册失败仍可有 bounded fallback，但 idleKnown 必须保持诚实；不得从一次 SCHED 回复证明长期没有 watchdog 问题。
 
-本轮实际 host 回归 `tools/test_recovery_control.py` 编译执行 6 个生产模块和 19 个 main 函数/实际前置分支，硬件返回均为明确的合成边界，覆盖预算耗尽、SAFE 失败、原错/cleanup、FullRescue 失败、ACK 失败、终态丢失查询、10 类身份变化、3 transport 并发、重复请求、回绕、恢复后合法 MODE，以及 early/runtime 四个查询及两条 RESTART 命令的真实 dispatch。极值实际输出：RECOVERY 450 B、RAPP 330 B、带旧字段的 RERR 335 B（384 B 含 NUL 容量）、SERIAL（含 DATA/LOG 分类字段）435 B、七 worker SCHED（含 graceUnits/backstopTicks）484 B（各查询 512 B 含 NUL 容量）；所有 snprintf 越界返回错误，不发布截断文本。新恢复缓存结构在 host ABI 下为 264 B 静态状态，目标 ABI 内存增量由实际构建记录确认。原 RTC 重启预算回归保留在 `tools/test_restart_budget.py`，旧 RECOVER 身份覆盖移入新测试并增加 revision fencing。上述通过不代表 HIL 或物理安全验收已完成。
+本轮实际 host 回归 `tools/test_recovery_control.py` 编译执行 6 个生产模块和 19 个 main 函数/实际前置分支，硬件返回均为明确的合成边界，覆盖预算耗尽、SAFE 失败、原错/cleanup、FullRescue 失败、ACK 失败、终态丢失查询、10 类身份变化、3 transport 并发、重复请求、回绕、恢复后合法 MODE，以及 early/runtime 四个查询及两条 RESTART 命令的真实 dispatch。极值实际输出：RECOVERY 450 B、RAPP 330 B、带旧字段的 RERR 335 B（384 B 含 NUL 容量）、SERIAL（含 DATA/LOG 分类字段）435 B、七 worker SCHED（含 graceUnits/backstopTicks/quantumTicks）508 B（各查询 512 B 含 NUL 容量）；所有 snprintf 越界返回错误，不发布截断文本。新恢复缓存结构在 host ABI 下为 264 B 静态状态，目标 ABI 内存增量由实际构建记录确认。原 RTC 重启预算回归保留在 `tools/test_restart_budget.py`，旧 RECOVER 身份覆盖移入新测试并增加 revision fencing。上述通过不代表 HIL 或物理安全验收已完成。
 
 
 **显式 RESTART 的独立请求槽（同轮补齐）。** 旧生产 `sensorarrayRestartPost/Take` 可复现：先后 RACK 接受 id=1/2 后只执行 id=2，或 id=3 的 ACK 发布失败后仍执行，甚至 Take 可早于任何 ACK 回调。这是软件控制缺陷，反例源函数和输出保存在 `docs/audit/artifacts/load_reliability_fix_20261113/restart-control-before-01.json/.txt`；该实录是生产函数配合**合成命令交错/失败**的 host 执行，不是设备重启证据。

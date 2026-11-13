@@ -1264,6 +1264,15 @@ static esp_err_t sensorarrayAdsMatrixMeasureCellImpl(sensorarrayAdsMatrixEngine_
                                              sample.spreadRaw,
                                              engine->frameCount,
                                              sample.fullSample);
+            /* A repeatable median does not make the three conversions stable.
+             * Match bypass: retain diagnostic history, but require a new
+             * stable streak before permitting the single-sample fast path. */
+            if (valueCache) {
+                valueCache->stableStreak = 0u;
+                if (valueCache->unstableStreak < UINT32_MAX) {
+                    valueCache->unstableStreak++;
+                }
+            }
             sensorarrayAdsProfileCacheNoteFailure(
                 &engine->profileCache, engine->mode, (uint8_t)cellIndex, false,
                 (uint8_t)CONFIG_SENSORARRAY_ADS_PROFILE_FAILURE_INVALIDATE_COUNT);
