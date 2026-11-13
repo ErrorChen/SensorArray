@@ -1,0 +1,19 @@
+{
+  "provenance": "user_followup_confirmation",
+  "date": "2026-11-13",
+  "supplements": "20261113-user-inputs.json",
+  "prior_record_commit": "8956414",
+  "answer_verbatim": "ADS 芯片附近的供电脚／去耦电容",
+  "reported_probe_location": "ADS local supply pins or nearby decoupling capacitors",
+  "reference": "board GND, as previously reported",
+  "interpretation": "The supplied voltages represent the ADS-side rails at measurement time and already include upstream supply-path drops such as R54; do not subtract those drops again.",
+  "representative_avdd_uv": 3350000,
+  "representative_avss_uv": -1795000,
+  "representative_span_uv": 5145000,
+  "original_voltage_ranges_unchanged": true,
+  "meter_model_calibration_and_traceable_uncertainty": "unknown",
+  "simultaneous_rail_waveforms_available": false,
+  "sub_10mv_variation_independently_verified": false,
+  "new_device_commands_or_calibration_changes": false,
+  "original_capture_or_metadata_overwritten": false
+}

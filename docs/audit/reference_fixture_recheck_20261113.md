@@ -8,7 +8,7 @@
 
 用户确认 S8D8 松动并已修复。S1D1/S8D8仍为标称10 kΩ、S4D4/S5D5为标称33 pF，其余60点悬空。元件实测值、容差和系统验收限尚未提供。
 
-独立万用表读数：AVSS对GND约−1.795 V、上下0.005 V；AVDD对GND为3.33–3.37 V。取AVDD范围中点3.350 V与AVSS代表值−1.795 V输入，跨度5.145 V。独立组合端点为5.120–5.170 V；这是给定读数范围，不是统计置信区间。用户认为工频噪声可能由测量引入、真实波动小于10 mV，此判断尚无独立波形验证。仪表型号、校准状态、实际探测位置尚不确定；不能直接排除R54等供电路径压降。[输入原文含义与来源记录](artifacts/reference_fixture/20261113-user-inputs.json)
+独立万用表读数：AVSS对GND约−1.795 V、上下0.005 V；AVDD对GND为3.33–3.37 V。取AVDD范围中点3.350 V与AVSS代表值−1.795 V输入，跨度5.145 V。独立组合端点为5.120–5.170 V；这是给定读数范围，不是统计置信区间。用户认为工频噪声可能由测量引入、真实波动小于10 mV，此判断尚无独立波形验证。用户随后确认测点为 **ADS芯片附近供电脚／去耦电容**，因此这些读数已包含测量时R54等上游路径的压降，不再额外扣减一次。仪表型号、校准状态和同步波动仍未确定。初次输入元数据保留原样，测点确认单独追加：[初次输入](artifacts/reference_fixture/20261113-user-inputs.json)、[测点确认](artifacts/reference_fixture/20261113-rail-probe-location-confirmation.json)。此次确认没有触发设备命令或更改临时校准值。
 
 `RAILCFG` 在CAP/INTREF OFF时入场，RACK/RAPP id99、应用边界seq8659568，RAIL?确认`src=external,rail=5145000,avdd=3350000,avss=-1795000,split=external_measured`。setter只改内存，未启动透明内部参考。ARL的source是固件来源分类，不代表这些代表值具有可溯源精度；uncertainty仍unknown。[应用记录](artifacts/reference_fixture/20261113-apply-external-rails-01.summary.json)
 
@@ -73,4 +73,4 @@ CAP首段USB诊断行丢弃+63，外部CAP段+56；这两段科学帧均无缺�
 
 最终CONFIG为同session/boot10、rev114，CAP/rows8/profile CCCCCCCC，mgen/mrid95/111、rgen/rrid15/112、pgen/prid96/111。USB DEBUG，BATPERIOD=1000 ms，INTREF0/REFMUX24，CAL仍source0/schema0/valid0。外部RAIL保留5.145 V，calUs没有重写刷新。没有自动push或发布。[最终只读状态](artifacts/reference_fixture/20261113-final-state-01.summary.json)
 
-下一步优先取得SPI SCLK/MISO/CS时序证据；在可以测量时确认轨电压探测位置，并在同一RES窗口同步保留CELL原始码和RAIL快照。当前可以继续用跨点近似做变化观察，但不能把上述模型差异当成33 pF精密校准已完成。
+下一步优先取得SPI SCLK/MISO/CS时序证据；在可以测量时，使用已确认的ADS端测点，并在同一RES窗口同步保留轨读数、CELL原始码和RAIL快照。当前可以继续用跨点近似做变化观察，但不能把上述模型差异当成33 pF精密校准已完成。
