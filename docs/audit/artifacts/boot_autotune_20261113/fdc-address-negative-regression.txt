@@ -1,0 +1,43 @@
+FDC presence wrong-register-address negative regression
+Result: EXPECTED_FAILURE_CONFIRMED (synthetic host fixture; no hardware)
+Recorded UTC: 2026-11-13T07:19:57.245537+00:00
+Old production commit: ee8f972f3198cd6879b3184f4d528f68dc6c29d3
+Harness HEAD: e339a1d5b5e293d39649da887fed2b90bf9a575d
+Old source SHA256: 7240aff294777906c3f4b77c321e3190cd0bf3fdd45cb868df35b70d0450345b
+
+Source extraction:
+$ git show ee8f972f3198cd6879b3184f4d528f68dc6c29d3:core/board/sensorarrayFrontendPresence.c
+exit_code=0
+
+Method:
+Execute current tools/test_frontend_presence.py unchanged except replacing its production .c path with the exact ee8f972 source extracted to a temporary file. Compile complete old production module with current independent address-oracle mock; no hardware or source edits.
+
+COMPILE:
+$ /usr/bin/gcc -std=c11 -Wall -Wextra -Werror -I /tmp/sensorarray-presence-qo4879ta -I /home/csc/esp/workspace/SensorArray/tests/host/include -I /home/csc/esp/workspace/SensorArray/tests/host/ads_stubs -I /home/csc/esp/workspace/SensorArray/core/board -I /home/csc/esp/workspace/SensorArray/main /tmp/sensorarray-presence-negative-n99rqy4a/presence_before_fix.c /home/csc/esp/workspace/SensorArray/tests/host/test_frontend_presence.c -o /tmp/sensorarray-presence-qo4879ta/presence
+exit_code=0
+stdout (verbatim):
+
+stderr (verbatim):
+
+
+RUN:
+$ /tmp/sensorarray-presence-qo4879ta/presence
+exit_code=-6
+stdout (verbatim):
+
+stderr (verbatim):
+presence: /home/csc/esp/workspace/SensorArray/tests/host/test_frontend_presence.c:55: boardSupportI2cReadReg16Sequence: Assertion `(count == 1u && (regs[0] == 0x7Eu || regs[0] == 0x7Fu)) || (count == 2u && regs[0] == 0x7Eu && regs[1] == 0x7Fu)' failed.
+
+
+Signal: SIGABRT (6); subprocess returncode -6; shell convention 134
+Notes: Incorrect FE/FF register addresses are the confirmed defect. Combined-read failure injection in the current mock is synthetic robustness coverage, not evidence that repeated START caused the physical failure. Temporary command paths no longer exist; recreate by the documented source substitution.
+
+Harness/config input SHA256:
+{
+  "tools/test_frontend_presence.py": "21e91e39711b704997952de44ad0ca377e33b262c6bf59021a9431b2a7143895",
+  "tests/host/test_frontend_presence.c": "a11216708618542beac4d47be139acd8498bb0d2d6060fcbd0d64247c1fd5c7f",
+  "core/board/sensorarrayFrontendPresence.h": "604991124d75af95f1bc3b95195d0a2c8cd30be9d932cc3e508978b1fe660ce6",
+  "core/board/sensorarrayBringup.h": "a71605c6dd30da8d2029c0f5a846b2d4419ace478fdeaac9f547e99665343539",
+  "main/sensorarrayConfig.h": "e7c4b8edc60c730312a725f73be1296b78bdcc90c575583fcac799539217071b",
+  "main/sensorarrayConfigDerived.h": "76d313347591859a3b73d08f2acdf8a2556950dfb53af2acc036706774ea9492"
+}

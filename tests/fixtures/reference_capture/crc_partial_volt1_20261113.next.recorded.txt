@@ -1,0 +1,4 @@
+V,seq=2694,ts=128465519,rows=1,cells=8,gen=4,rid=4,mode=VOLT,unit=V,scale=-6,valid=00000000000000FF,fresh=00000000000000FF,error=0000000000000000,expected=00000000000000FF,acquired=00000000000000FF,ref=AVDD_AVSS,rail=1,age=1773,avdd=3350000,avss=-1795000,vexc=0,rref=0,dur=6981,tr=5792,gc=1,ov=0,aa=9,fb=7,ir=0,to=0,st=0,spi=0,fmt=uv-x,n=8,bad=0,session=0DCB1029EC3CCA0D,bootId=7,rev=5,mgen=4,mrid=4,rgen=2,rrid=5,pgen=4,prid=4
+D0,-902034,-1793648,-1794058,-1793974,-1793747,-1793974,-1794026,-1793645
+P0,0100000000000000
+K,seq=2694,gen=4,rid=4,crc=419A48E6,session=0DCB1029EC3CCA0D,bootId=7,rev=5

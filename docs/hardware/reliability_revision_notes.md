@@ -60,3 +60,23 @@ The ADS internal supply monitor inherited PGA bypass from the last matrix cell, 
 SPI CRC rejection remains observable with received CRC differing from computed CRC in the final bit. The 2 MHz duty64 experiment failed and was reverted to duty128; the firmware keeps all eight CRC bits and bounded fresh-conversion retry. The protected register read adds one legal trailing register so requested configuration bytes are not the last response byte. This mitigates the tested end-of-read corruption mechanism but does not prove its electrical origin or repair the RDATA CRC byte. Scope SCLK/MISO at the ADS and MCU pads, verify mode-1 setup/hold and output timing, and inspect the actual SPI route before assigning a hardware cause. No unverified sampling-delay setting or unsupported ADC2 is claimed as a fix.
 
 The subsequent complete-RDATA-plus-NOP experiment also reproduced CRC rejection and was removed in `bd49168`. Final flashed firmware `ebabe7e` still failed the RES screening after 26 complete frames. Successful CAP operation or bounded recovery does not clear this ADC-link finding. The USB VFS path and fragmented-stdio defects were separately reproduced and fixed in software; the Linux serial/BLE recordings do not clear HW05 or establish Windows enumeration reliability. No PCB rework, independent rail measurement, scope capture or HW01–HW06 electrical acceptance was performed.
+
+## 2026-11-13 fixture and startup-scan update
+
+The user confirmed and repaired the loose S8D8 connection; both 10 kΩ reference
+positions now produce resistance values rather than OPEN in the recorded RES
+screen. User DMM observations at the ADS supply pins/nearby decoupling are
+AVSS ≈ −1.795 V ± 0.005 V and AVDD 3.33–3.37 V. The user suspects pickup and
+estimates actual variation below 10 mV; this is not a measured uncertainty bound.
+The temporary RAM comparison uses +3.350/−1.795 V with uncertainty=unknown.
+Do not subtract R54's drop again from measurements already made at the ADS.
+No persistent calibration or hardware rework was performed.
+
+The new startup probe selected requested 900 kHz / driver-reported 909 kHz in
+both final diagnostic boots. The scan retains all CRC bits and permits up to
+2.5% CRC rejection in each finite qualification phase. Runtime CRC rejection
+still occurs; the new partial-frame handling does not repair its physical cause.
+The SPI frequency is an IDF observation, not a measured SCLK waveform. Actual
+three-chip power removal/return while the MCU remains powered, switch topology,
+supply edges, back-power current and SPI timing remain NOT_RUN. A software
+restart that repeats the scan is not a substitute for that physical test.

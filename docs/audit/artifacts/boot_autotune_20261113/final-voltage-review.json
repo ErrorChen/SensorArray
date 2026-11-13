@@ -1,0 +1,2193 @@
+{
+  "schema_version": 1,
+  "kind": "independent_read_only_voltage_review",
+  "generated_utc": "2026-11-13T08:13:54.321790+00:00",
+  "reviewer_HEAD": "0d8f60fd9c29b9ce12e64ed2e6534ee37db41704",
+  "firmware_identity_limit": "Capture BUILD reply has no Git hash; match final-03 flash manifest independently. Review HEAD is not proof of flashed binary.",
+  "sources_unchanged": true,
+  "calibration_or_hardware_actions": false,
+  "voltage_precision_acceptance": "NOT_ESTABLISHED",
+  "captures": [
+    {
+      "label": "volt1-02",
+      "raw": {
+        "path": "docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin",
+        "bytes": 9781771,
+        "sha256": "f849b63c2ab7335b3b3956d6ba380e85db74b38c3e7fb3e45cd767331f1e175f",
+        "matches_collector_hash": true
+      },
+      "source_provenance": {
+        "summary.json": {
+          "sha256": "c1c6a5d81c96da0f0ee8edb02c1b797a61a87d4c15d04ceac1de2593c35dd75b",
+          "bytes": 5779
+        },
+        "events.jsonl": {
+          "sha256": "c1dc30385ae0a3177df477cabe0a2757c1f047a0fca0bbf9b751490d77688d43",
+          "bytes": 5216524
+        },
+        "analysis.json": {
+          "sha256": "d044301bd244a7cc45f5eeb84a12875667f2b97bbda638287c2adf66bd29ecd8",
+          "bytes": 11224408
+        }
+      },
+      "collector": {
+        "status": "CAPTURED",
+        "elapsed_seconds": 140.00745211199683,
+        "prepare_seconds": 0.34976363999885507,
+        "capture_seconds": 139.6503107680037,
+        "capture_frame_trailers": 13041,
+        "rx_bytes": 9781771,
+        "usb_restore": "VERIFIED_QUERY"
+      },
+      "integrity": {
+        "complete_frames": 13042,
+        "ascii_crc_valid": 13042,
+        "parser_counters": {
+          "lines": 62628,
+          "cap_frames": 0,
+          "voltage_frames": 13042,
+          "resistance_frames": 0,
+          "mixed_frames": 0,
+          "crc_errors": 0,
+          "malformed": 0,
+          "sequence_gaps": 25,
+          "missing_frames": 25,
+          "sequence_regressions": 0,
+          "non_ascii_chunks": 0,
+          "summary_lines": 7073,
+          "rmack": 0,
+          "rmapp": 0,
+          "rmerr": 0,
+          "lifecycle_duplicate_terminal": 0,
+          "lifecycle_terminal_without_ack": 0
+        },
+        "truncated_frames": 0,
+        "malformed_frames": 0,
+        "identity_errors": 0,
+        "non_ascii_lines": 0,
+        "fault_event_count": 0,
+        "identity_groups": [
+          {
+            "identity": {
+              "session": "0DCB1029EC3CCA0D",
+              "bootId": "7",
+              "rev": "5",
+              "mgen": "4",
+              "mrid": "4",
+              "rgen": "2",
+              "rrid": "5",
+              "pgen": "4",
+              "prid": "4",
+              "legacy_gen": "4",
+              "legacy_rid": "4"
+            },
+            "status": "consistent_frame_identity",
+            "rows": 1,
+            "frames": 13042,
+            "first_seq": 1015,
+            "last_seq": 14081,
+            "duplicate_or_old": 0,
+            "timestamp_regressions": 0
+          }
+        ],
+        "frame_completion_phase": {
+          "capture": 13041,
+          "cleanup": 1
+        },
+        "sequence_gaps": [
+          {
+            "after": 1380,
+            "before": 1382,
+            "missing": 1,
+            "device_delta_us": 24412
+          },
+          {
+            "after": 1415,
+            "before": 1417,
+            "missing": 1,
+            "device_delta_us": 21912
+          },
+          {
+            "after": 1830,
+            "before": 1832,
+            "missing": 1,
+            "device_delta_us": 22728
+          },
+          {
+            "after": 2695,
+            "before": 2697,
+            "missing": 1,
+            "device_delta_us": 21954
+          },
+          {
+            "after": 3165,
+            "before": 3167,
+            "missing": 1,
+            "device_delta_us": 22707
+          },
+          {
+            "after": 4165,
+            "before": 4167,
+            "missing": 1,
+            "device_delta_us": 25753
+          },
+          {
+            "after": 4365,
+            "before": 4367,
+            "missing": 1,
+            "device_delta_us": 26640
+          },
+          {
+            "after": 4565,
+            "before": 4567,
+            "missing": 1,
+            "device_delta_us": 24561
+          },
+          {
+            "after": 4665,
+            "before": 4667,
+            "missing": 1,
+            "device_delta_us": 21950
+          },
+          {
+            "after": 4745,
+            "before": 4747,
+            "missing": 1,
+            "device_delta_us": 22003
+          },
+          {
+            "after": 5030,
+            "before": 5032,
+            "missing": 1,
+            "device_delta_us": 22093
+          },
+          {
+            "after": 5895,
+            "before": 5897,
+            "missing": 1,
+            "device_delta_us": 22049
+          },
+          {
+            "after": 6315,
+            "before": 6317,
+            "missing": 1,
+            "device_delta_us": 21824
+          },
+          {
+            "after": 6616,
+            "before": 6618,
+            "missing": 1,
+            "device_delta_us": 23375
+          },
+          {
+            "after": 7595,
+            "before": 7597,
+            "missing": 1,
+            "device_delta_us": 22670
+          },
+          {
+            "after": 8915,
+            "before": 8917,
+            "missing": 1,
+            "device_delta_us": 21938
+          },
+          {
+            "after": 8980,
+            "before": 8982,
+            "missing": 1,
+            "device_delta_us": 25690
+          },
+          {
+            "after": 9445,
+            "before": 9447,
+            "missing": 1,
+            "device_delta_us": 24685
+          },
+          {
+            "after": 9495,
+            "before": 9497,
+            "missing": 1,
+            "device_delta_us": 22631
+          },
+          {
+            "after": 9565,
+            "before": 9567,
+            "missing": 1,
+            "device_delta_us": 22707
+          },
+          {
+            "after": 10245,
+            "before": 10247,
+            "missing": 1,
+            "device_delta_us": 26034
+          },
+          {
+            "after": 10866,
+            "before": 10868,
+            "missing": 1,
+            "device_delta_us": 22878
+          },
+          {
+            "after": 11181,
+            "before": 11183,
+            "missing": 1,
+            "device_delta_us": 22999
+          },
+          {
+            "after": 11495,
+            "before": 11497,
+            "missing": 1,
+            "device_delta_us": 22036
+          },
+          {
+            "after": 13581,
+            "before": 13583,
+            "missing": 1,
+            "device_delta_us": 22092
+          }
+        ],
+        "missing_frames": 25,
+        "gap_diagnostic_correlation": {
+          "missing_sequences_with_ADSDISPOSITION": 25,
+          "missing_sequences_without_ADSDISPOSITION": [],
+          "all_observed_missing_frame_dispositions_bounded_no_abort": true,
+          "USB_sinkDropped_minus_lineDropped": 25,
+          "interpretation": "All 25 missing scientific frames have bounded CRC diagnostics. Count equals sinkDropped delta minus lineDropped delta (25). This is consistent with data sink rejection while diagnostic lines survive; counters alone do not establish individual drop cause."
+        }
+      },
+      "scientific_validity": {
+        "invalid_cells_per_frame_histogram": {
+          "0": 4212,
+          "1": 8711,
+          "2": 111,
+          "3": 8
+        },
+        "invalid_reason_totals": {
+          "X12": 8296,
+          "X02": 661
+        },
+        "invalid_reasons_by_cell": {
+          "S1D2": {
+            "X12": 8296,
+            "X02": 439
+          },
+          "S1D1": {
+            "X02": 91
+          },
+          "S1D7": {
+            "X02": 33
+          },
+          "S1D5": {
+            "X02": 30
+          },
+          "S1D6": {
+            "X02": 11
+          },
+          "S1D3": {
+            "X02": 18
+          },
+          "S1D8": {
+            "X02": 18
+          },
+          "S1D4": {
+            "X02": 21
+          }
+        },
+        "frames_with_any_invalid": 8830,
+        "frames_with_X02": 631,
+        "frames_all_cells_invalid": [],
+        "masks": {
+          "frames_missing_acquired": 2,
+          "frames_missing_fresh": 2,
+          "frames_acquired_zero": 0,
+          "expected_cells": 104336,
+          "acquired_cells": 104334,
+          "fresh_cells": 104334,
+          "valid_cells": 95379
+        },
+        "unacquired_X02_cells": [
+          {
+            "seq": 2693,
+            "cell": "S1D2",
+            "fresh": false
+          },
+          {
+            "seq": 8631,
+            "cell": "S1D1",
+            "fresh": false
+          }
+        ],
+        "X02_semantics": "SPI-class invalid cell; the bounded CRC diagnostic confirms CRC-rejected masks only for observed diagnostic records. Missing logs are not assumed successful.",
+        "observed_disposition_crc_bits_matching_X02": 661,
+        "observed_disposition_crc_mask_not_X02": []
+      },
+      "disposition": {
+        "raw_record_count": 657,
+        "within_frame_sequence_window": 656,
+        "boundedCrc": {
+          "1": 656
+        },
+        "abortError": {
+          "0x0": 656
+        },
+        "allCrcRun": {
+          "0": 656
+        },
+        "limit": {
+          "3": 656
+        },
+        "scope": {
+          "ads_sweep": 656
+        },
+        "firstError": {
+          "0x109": 587,
+          "0x108": 69
+        },
+        "nonzero_allCrcRun": [],
+        "runtime_three_bad_sweeps_path": "NOT_EXERCISED_BY_THIS_CAPTURE"
+      },
+      "adc_crc": {
+        "observed_event_records": 660,
+        "within_frame_sequence_window": 659,
+        "event_counter_window": {
+          "first": {
+            "seq": "1029",
+            "mode": "VOLT",
+            "crcFailures": "4",
+            "crcRetries": "3",
+            "crcRecoveredReads": "3",
+            "crcTotal": "157",
+            "retryTotal": "21",
+            "firstS": "1",
+            "firstD": "2",
+            "firstError": "0x109",
+            "terminalError": "0x109",
+            "frameError": "0x109"
+          },
+          "last": {
+            "seq": "14080",
+            "mode": "VOLT",
+            "crcFailures": "2",
+            "crcRetries": "1",
+            "crcRecoveredReads": "1",
+            "crcTotal": "5135",
+            "retryTotal": "4313",
+            "firstS": "1",
+            "firstD": "2",
+            "firstError": "0x109",
+            "terminalError": "0x109",
+            "frameError": "0x109"
+          },
+          "delta": {
+            "crcTotal": 4978,
+            "retryTotal": 4292
+          }
+        },
+        "observed_byte_records_within_window": 657,
+        "received_xor_computed_parity_histogram": [
+          {
+            "xor_hex": "01",
+            "received_lsb": 1,
+            "computed_lsb": 0,
+            "records": 657
+          }
+        ],
+        "health_counter_window": {
+          "first": {
+            "seq": "1077",
+            "engineFrameCount": "64",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "2578",
+            "crcValidOdd": "2634",
+            "crcErrors": "179",
+            "crcRetries": "39"
+          },
+          "last": {
+            "seq": "14069",
+            "engineFrameCount": "13056",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "84007",
+            "crcValidOdd": "88533",
+            "crcErrors": "5132",
+            "crcRetries": "4311"
+          },
+          "delta": {
+            "crcValidEven": 81429,
+            "crcValidOdd": 85899,
+            "crcErrors": 4953,
+            "crcRetries": 4272
+          }
+        },
+        "counter_window_limit": "Deltas apply only between stated same-boot snapshots, not exactly the collector duration. ADSSPIBYTES is bounded diagnostic evidence, not every error byte."
+      },
+      "health": {
+        "raw_records": 205,
+        "within_sequence_window": 204,
+        "first": {
+          "seq": "1014",
+          "engineFrameCount": "1",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "0",
+          "err": "0x0"
+        },
+        "last": {
+          "seq": "14069",
+          "engineFrameCount": "13056",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0"
+        },
+        "intervals": {
+          "64": 205
+        },
+        "due": {
+          "1": 205
+        },
+        "error": {
+          "0x0": 205
+        },
+        "mode_entry_counts": {
+          "0": 205
+        },
+        "absolute_128_256_384_512": [
+          {
+            "seq": "1141",
+            "engineFrameCount": "128",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1269",
+            "engineFrameCount": "256",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1397",
+            "engineFrameCount": "384",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1525",
+            "engineFrameCount": "512",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          }
+        ],
+        "relative_to_mode_entry_128_256_384_512": [
+          {
+            "seq": "1141",
+            "engineFrameCount": "128",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1269",
+            "engineFrameCount": "256",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1397",
+            "engineFrameCount": "384",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "1525",
+            "engineFrameCount": "512",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          }
+        ],
+        "missing_64_multiples_between_observed_min_max": [],
+        "engine_counts": [
+          1,
+          64,
+          128,
+          192,
+          256,
+          320,
+          384,
+          448,
+          512,
+          576,
+          640,
+          704,
+          768,
+          832,
+          896,
+          960,
+          1024,
+          1088,
+          1152,
+          1216,
+          1280,
+          1344,
+          1408,
+          1472,
+          1536,
+          1600,
+          1664,
+          1728,
+          1792,
+          1856,
+          1920,
+          1984,
+          2048,
+          2112,
+          2176,
+          2240,
+          2304,
+          2368,
+          2432,
+          2496,
+          2560,
+          2624,
+          2688,
+          2752,
+          2816,
+          2880,
+          2944,
+          3008,
+          3072,
+          3136,
+          3200,
+          3264,
+          3328,
+          3392,
+          3456,
+          3520,
+          3584,
+          3648,
+          3712,
+          3776,
+          3840,
+          3904,
+          3968,
+          4032,
+          4096,
+          4160,
+          4224,
+          4288,
+          4352,
+          4416,
+          4480,
+          4544,
+          4608,
+          4672,
+          4736,
+          4800,
+          4864,
+          4928,
+          4992,
+          5056,
+          5120,
+          5184,
+          5248,
+          5312,
+          5376,
+          5440,
+          5504,
+          5568,
+          5632,
+          5696,
+          5760,
+          5824,
+          5888,
+          5952,
+          6016,
+          6080,
+          6144,
+          6208,
+          6272,
+          6336,
+          6400,
+          6464,
+          6528,
+          6592,
+          6656,
+          6720,
+          6784,
+          6848,
+          6912,
+          6976,
+          7040,
+          7104,
+          7168,
+          7232,
+          7296,
+          7360,
+          7424,
+          7488,
+          7552,
+          7616,
+          7680,
+          7744,
+          7808,
+          7872,
+          7936,
+          8000,
+          8064,
+          8128,
+          8192,
+          8256,
+          8320,
+          8384,
+          8448,
+          8512,
+          8576,
+          8640,
+          8704,
+          8768,
+          8832,
+          8896,
+          8960,
+          9024,
+          9088,
+          9152,
+          9216,
+          9280,
+          9344,
+          9408,
+          9472,
+          9536,
+          9600,
+          9664,
+          9728,
+          9792,
+          9856,
+          9920,
+          9984,
+          10048,
+          10112,
+          10176,
+          10240,
+          10304,
+          10368,
+          10432,
+          10496,
+          10560,
+          10624,
+          10688,
+          10752,
+          10816,
+          10880,
+          10944,
+          11008,
+          11072,
+          11136,
+          11200,
+          11264,
+          11328,
+          11392,
+          11456,
+          11520,
+          11584,
+          11648,
+          11712,
+          11776,
+          11840,
+          11904,
+          11968,
+          12032,
+          12096,
+          12160,
+          12224,
+          12288,
+          12352,
+          12416,
+          12480,
+          12544,
+          12608,
+          12672,
+          12736,
+          12800,
+          12864,
+          12928,
+          12992,
+          13056
+        ],
+        "mode_entry_change_records": [
+          {
+            "seq": "1014",
+            "engineFrameCount": "1",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "0",
+            "err": "0x0"
+          }
+        ]
+      },
+      "rate": {
+        "first_sequence": 1015,
+        "last_sequence": 14081,
+        "device_first_timestamp_us": 110580695,
+        "device_last_timestamp_us": 250223724,
+        "device_span_seconds": 139.643029,
+        "sequence_progress_fps": 93.567148274906,
+        "received_frame_device_time_fps": 93.38812036224164,
+        "first_complete_frame_host": {
+          "phase": "capture",
+          "host_seconds": 0.3578495030014892
+        },
+        "last_complete_frame_host": {
+          "phase": "cleanup",
+          "host_seconds": 140.0008909570024
+        },
+        "host_complete_frame_span_seconds": 139.64304145400092,
+        "received_complete_frame_host_fps": 93.38811203346475,
+        "collector_capture_phase_frames_per_capture_seconds": 93.38325083761947,
+        "device_reported_SF50_filtered_records": 782,
+        "device_reported_capture_fps_range": [
+          75.6,
+          101.1
+        ],
+        "device_reported_emitted_fps_range": [
+          77.4,
+          99.97
+        ],
+        "rate_limit": "Sequence progress is firmware frame progression per device timestamp; completed host frames prove this collector received bytes. SF50 overlapping rolling windows are not summed."
+      },
+      "usb": {
+        "window": "first_to_last_USBSTREAM_query_in_this_raw_only",
+        "first": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "2731",
+          "sinkDropped": "256",
+          "priorityQueued": "33",
+          "driverAcceptedBytes": "421016",
+          "rxBytes": "270",
+          "partialWrite": "2",
+          "timeout": "120",
+          "driverDrained": "429",
+          "rxOversize": "0",
+          "lineDropped": "126",
+          "lineOversize": "0",
+          "discardBytes": "12300",
+          "lastRxUs": "110255540",
+          "lastTxUs": "110254963",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "last": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "20721",
+          "sinkDropped": "311",
+          "priorityQueued": "47",
+          "driverAcceptedBytes": "10199820",
+          "rxBytes": "378",
+          "partialWrite": "2",
+          "timeout": "120",
+          "driverDrained": "500",
+          "rxOversize": "0",
+          "lineDropped": "156",
+          "lineOversize": "0",
+          "discardBytes": "18817",
+          "lastRxUs": "250241134",
+          "lastTxUs": "250240880",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "delta": {
+          "sinkQueued": 17990,
+          "sinkDropped": 55,
+          "priorityQueued": 14,
+          "driverAcceptedBytes": 9778804,
+          "rxBytes": 108,
+          "partialWrite": 0,
+          "timeout": 0,
+          "driverDrained": 71,
+          "rxOversize": 0,
+          "lineDropped": 30,
+          "lineOversize": 0,
+          "discardBytes": 6517
+        },
+        "host_collector_rx_bytes": 9781771,
+        "enumerated": "unknown",
+        "semantics": [
+          "sinkQueued counts accepted sink slots, not whole scientific frames.",
+          "sinkDropped includes sink failures and line-drop events; lineDropped is not additive to it.",
+          "driverAcceptedBytes is bytes accepted by ESP-IDF driver, not PC acknowledgement.",
+          "driverDrained counts observed wait_tx_done success; it does not count frames or PC application receipt.",
+          "rxBytes is firmware control RX; host collector rx_bytes is actual received raw bytes.",
+          "sofPresent=1 is reported hardware SOF status at query; enumerated remains unknown.",
+          "lineDropped/discardBytes are line-assembler losses, not a complete measurement-frame gap count."
+        ]
+      },
+      "memory": {
+        "STK50_records_within_frame_window": 785,
+        "first": {
+          "unit": "bytes",
+          "seq": "1015",
+          "log": "16384/13064",
+          "transport": "6144/3204",
+          "usb": "0/0",
+          "bleTx": "4096/3292",
+          "bleCtrl": "6144/5236",
+          "serialCtrl": "6144/2100",
+          "heap": "8377960/8343552/8336952",
+          "tSlot": "0/0",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "0/0",
+          "bSlot": "0/0",
+          "ba": "0",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        },
+        "last": {
+          "unit": "bytes",
+          "seq": "14080",
+          "log": "16384/12856",
+          "transport": "6144/3204",
+          "usb": "0/0",
+          "bleTx": "4096/3292",
+          "bleCtrl": "6144/5236",
+          "serialCtrl": "6144/2100",
+          "heap": "8377960/8343552/8336952",
+          "tSlot": "0/0",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "0/0",
+          "bSlot": "0/0",
+          "ba": "0",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        },
+        "CPU_utilization": "NOT_RUN",
+        "largest_contiguous_heap_block": "NOT_REPORTED"
+      },
+      "rail_refresh_count": 0,
+      "acceptance_limits": [
+        "No MFAULT is not proof ADC CRC is repaired.",
+        "Complete ASCII frames are not proof all analog points valid.",
+        "No absolute VOLT accuracy acceptance established in these recordings.",
+        "Absence of allCrcRun escalation means HIL did not exercise its three-sweep isolation boundary."
+      ]
+    },
+    {
+      "label": "volt8-02",
+      "raw": {
+        "path": "docs/audit/artifacts/boot_autotune_20261113/volt8-02.rx.bin",
+        "bytes": 3824012,
+        "sha256": "f178a773a25c3c6578051586ca8da895aae83a27472bbe312bd43b324dfef0cb",
+        "matches_collector_hash": true
+      },
+      "source_provenance": {
+        "summary.json": {
+          "sha256": "9db588c9377710efaebc6972b2601ea36459b1e11da2fa46c2db846e1d20eb6a",
+          "bytes": 5792
+        },
+        "events.jsonl": {
+          "sha256": "7d3f27b4deab529448aae5cc94820f3cbc4cb78f11cf7a7195b7ecd40a7fcc3e",
+          "bytes": 2244923
+        },
+        "analysis.json": {
+          "sha256": "b6cd0e59b0cc488a587ff55f8b5f7452734e58fa72fbfdbce4843e52965f4104",
+          "bytes": 2738478
+        }
+      },
+      "collector": {
+        "status": "CAPTURED",
+        "elapsed_seconds": 140.00810171599733,
+        "prepare_seconds": 0.10993680899991887,
+        "capture_seconds": 139.8901554010008,
+        "capture_frame_trailers": 2533,
+        "rx_bytes": 3824012,
+        "usb_restore": "VERIFIED_QUERY"
+      },
+      "integrity": {
+        "complete_frames": 2534,
+        "ascii_crc_valid": 2534,
+        "parser_counters": {
+          "lines": 28980,
+          "cap_frames": 0,
+          "voltage_frames": 2534,
+          "resistance_frames": 0,
+          "mixed_frames": 0,
+          "crc_errors": 0,
+          "malformed": 0,
+          "sequence_gaps": 0,
+          "missing_frames": 0,
+          "sequence_regressions": 0,
+          "non_ascii_chunks": 0,
+          "summary_lines": 1384,
+          "rmack": 0,
+          "rmapp": 0,
+          "rmerr": 0,
+          "lifecycle_duplicate_terminal": 0,
+          "lifecycle_terminal_without_ack": 0
+        },
+        "truncated_frames": 0,
+        "malformed_frames": 0,
+        "identity_errors": 0,
+        "non_ascii_lines": 0,
+        "fault_event_count": 0,
+        "identity_groups": [
+          {
+            "identity": {
+              "session": "0DCB1029EC3CCA0D",
+              "bootId": "7",
+              "rev": "8",
+              "mgen": "6",
+              "mrid": "7",
+              "rgen": "3",
+              "rrid": "8",
+              "pgen": "6",
+              "prid": "7",
+              "legacy_gen": "6",
+              "legacy_rid": "7"
+            },
+            "status": "consistent_frame_identity",
+            "rows": 8,
+            "frames": 2534,
+            "first_seq": 19064,
+            "last_seq": 21597,
+            "duplicate_or_old": 0,
+            "timestamp_regressions": 0
+          }
+        ],
+        "frame_completion_phase": {
+          "capture": 2533,
+          "cleanup": 1
+        },
+        "sequence_gaps": [],
+        "missing_frames": 0
+      },
+      "scientific_validity": {
+        "invalid_cells_per_frame_histogram": {
+          "0": 540,
+          "1": 409,
+          "2": 1369,
+          "3": 118,
+          "4": 64,
+          "5": 17,
+          "6": 9,
+          "7": 3,
+          "8": 4,
+          "10": 1
+        },
+        "invalid_reason_totals": {
+          "X12": 3199,
+          "X02": 760
+        },
+        "invalid_reasons_by_cell": {
+          "S1D2": {
+            "X12": 1603,
+            "X02": 38
+          },
+          "S3D1": {
+            "X02": 22
+          },
+          "S5D5": {
+            "X02": 8
+          },
+          "S8D1": {
+            "X12": 1596,
+            "X02": 57
+          },
+          "S5D7": {
+            "X02": 6
+          },
+          "S7D2": {
+            "X02": 8
+          },
+          "S2D3": {
+            "X02": 12
+          },
+          "S6D8": {
+            "X02": 9
+          },
+          "S7D3": {
+            "X02": 14
+          },
+          "S7D5": {
+            "X02": 9
+          },
+          "S8D7": {
+            "X02": 5
+          },
+          "S8D4": {
+            "X02": 10
+          },
+          "S8D5": {
+            "X02": 8
+          },
+          "S8D6": {
+            "X02": 9
+          },
+          "S2D1": {
+            "X02": 9
+          },
+          "S1D6": {
+            "X02": 25
+          },
+          "S2D2": {
+            "X02": 19
+          },
+          "S5D3": {
+            "X02": 17
+          },
+          "S4D5": {
+            "X02": 4
+          },
+          "S7D1": {
+            "X02": 16
+          },
+          "S3D2": {
+            "X02": 13
+          },
+          "S8D3": {
+            "X02": 19
+          },
+          "S8D2": {
+            "X02": 14
+          },
+          "S1D1": {
+            "X02": 31
+          },
+          "S6D7": {
+            "X02": 14
+          },
+          "S2D8": {
+            "X02": 5
+          },
+          "S3D4": {
+            "X02": 13
+          },
+          "S4D8": {
+            "X02": 8
+          },
+          "S2D6": {
+            "X02": 7
+          },
+          "S4D7": {
+            "X02": 4
+          },
+          "S4D2": {
+            "X02": 13
+          },
+          "S6D4": {
+            "X02": 10
+          },
+          "S3D6": {
+            "X02": 6
+          },
+          "S6D5": {
+            "X02": 8
+          },
+          "S2D5": {
+            "X02": 13
+          },
+          "S4D3": {
+            "X02": 9
+          },
+          "S1D8": {
+            "X02": 11
+          },
+          "S1D4": {
+            "X02": 30
+          },
+          "S5D2": {
+            "X02": 10
+          },
+          "S5D1": {
+            "X02": 7
+          },
+          "S8D8": {
+            "X02": 9
+          },
+          "S5D4": {
+            "X02": 6
+          },
+          "S4D4": {
+            "X02": 15
+          },
+          "S6D2": {
+            "X02": 8
+          },
+          "S4D1": {
+            "X02": 7
+          },
+          "S7D7": {
+            "X02": 3
+          },
+          "S1D3": {
+            "X02": 9
+          },
+          "S3D8": {
+            "X02": 8
+          },
+          "S3D7": {
+            "X02": 8
+          },
+          "S2D4": {
+            "X02": 13
+          },
+          "S3D3": {
+            "X02": 15
+          },
+          "S6D6": {
+            "X02": 9
+          },
+          "S7D6": {
+            "X02": 5
+          },
+          "S5D8": {
+            "X02": 12
+          },
+          "S6D3": {
+            "X02": 11
+          },
+          "S5D6": {
+            "X02": 6
+          },
+          "S7D8": {
+            "X02": 8
+          },
+          "S7D4": {
+            "X02": 13
+          },
+          "S1D5": {
+            "X02": 10
+          },
+          "S2D7": {
+            "X02": 8
+          },
+          "S3D5": {
+            "X02": 4
+          },
+          "S6D1": {
+            "X02": 11
+          },
+          "S1D7": {
+            "X02": 6
+          },
+          "S4D6": {
+            "X02": 6
+          }
+        },
+        "frames_with_any_invalid": 1994,
+        "frames_with_X02": 402,
+        "frames_all_cells_invalid": [],
+        "masks": {
+          "frames_missing_acquired": 2,
+          "frames_missing_fresh": 2,
+          "frames_acquired_zero": 0,
+          "expected_cells": 162176,
+          "acquired_cells": 162174,
+          "fresh_cells": 162174,
+          "valid_cells": 158217
+        },
+        "unacquired_X02_cells": [
+          {
+            "seq": 19503,
+            "cell": "S6D4",
+            "fresh": false
+          },
+          {
+            "seq": 20281,
+            "cell": "S1D3",
+            "fresh": false
+          }
+        ],
+        "X02_semantics": "SPI-class invalid cell; the bounded CRC diagnostic confirms CRC-rejected masks only for observed diagnostic records. Missing logs are not assumed successful.",
+        "observed_disposition_crc_bits_matching_X02": 760,
+        "observed_disposition_crc_mask_not_X02": []
+      },
+      "disposition": {
+        "raw_record_count": 402,
+        "within_frame_sequence_window": 402,
+        "boundedCrc": {
+          "1": 402
+        },
+        "abortError": {
+          "0x0": 402
+        },
+        "allCrcRun": {
+          "0": 402
+        },
+        "limit": {
+          "3": 402
+        },
+        "scope": {
+          "ads_sweep": 402
+        },
+        "firstError": {
+          "0x108": 149,
+          "0x109": 253
+        },
+        "nonzero_allCrcRun": [],
+        "runtime_three_bad_sweeps_path": "NOT_EXERCISED_BY_THIS_CAPTURE"
+      },
+      "adc_crc": {
+        "observed_event_records": 409,
+        "within_frame_sequence_window": 409,
+        "event_counter_window": {
+          "first": {
+            "seq": "19064",
+            "mode": "VOLT",
+            "crcFailures": "13",
+            "crcRetries": "11",
+            "crcRecoveredReads": "10",
+            "crcTotal": "7599",
+            "retryTotal": "6409",
+            "firstS": "3",
+            "firstD": "1",
+            "firstError": "0x109",
+            "terminalError": "0x109",
+            "frameError": "0x108"
+          },
+          "last": {
+            "seq": "21597",
+            "mode": "VOLT",
+            "crcFailures": "8",
+            "crcRetries": "7",
+            "crcRecoveredReads": "7",
+            "crcTotal": "18552",
+            "retryTotal": "16603",
+            "firstS": "1",
+            "firstD": "8",
+            "firstError": "0x109",
+            "terminalError": "0x109",
+            "frameError": "0x109"
+          },
+          "delta": {
+            "crcTotal": 10953,
+            "retryTotal": 10194
+          }
+        },
+        "observed_byte_records_within_window": 409,
+        "received_xor_computed_parity_histogram": [
+          {
+            "xor_hex": "01",
+            "received_lsb": 1,
+            "computed_lsb": 0,
+            "records": 409
+          }
+        ],
+        "health_counter_window": {
+          "first": {
+            "seq": "19126",
+            "engineFrameCount": "18112",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "118260",
+            "crcValidOdd": "125453",
+            "crcErrors": "7846",
+            "crcRetries": "6638"
+          },
+          "last": {
+            "seq": "21558",
+            "engineFrameCount": "20544",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "239597",
+            "crcValidOdd": "257933",
+            "crcErrors": "18412",
+            "crcRetries": "16471"
+          },
+          "delta": {
+            "crcValidEven": 121337,
+            "crcValidOdd": 132480,
+            "crcErrors": 10566,
+            "crcRetries": 9833
+          }
+        },
+        "counter_window_limit": "Deltas apply only between stated same-boot snapshots, not exactly the collector duration. ADSSPIBYTES is bounded diagnostic evidence, not every error byte."
+      },
+      "health": {
+        "raw_records": 41,
+        "within_sequence_window": 39,
+        "first": {
+          "seq": "19061",
+          "engineFrameCount": "18048",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0"
+        },
+        "last": {
+          "seq": "21558",
+          "engineFrameCount": "20544",
+          "modeEntryFrameCount": "18048",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0"
+        },
+        "intervals": {
+          "64": 41
+        },
+        "due": {
+          "1": 41
+        },
+        "error": {
+          "0x0": 41
+        },
+        "mode_entry_counts": {
+          "0": 1,
+          "18048": 40
+        },
+        "absolute_128_256_384_512": [],
+        "relative_to_mode_entry_128_256_384_512": [
+          {
+            "seq": "19190",
+            "engineFrameCount": "18176",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "19318",
+            "engineFrameCount": "18304",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "19446",
+            "engineFrameCount": "18432",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "19574",
+            "engineFrameCount": "18560",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          }
+        ],
+        "missing_64_multiples_between_observed_min_max": [],
+        "engine_counts": [
+          18048,
+          18049,
+          18112,
+          18176,
+          18240,
+          18304,
+          18368,
+          18432,
+          18496,
+          18560,
+          18624,
+          18688,
+          18752,
+          18816,
+          18880,
+          18944,
+          19008,
+          19072,
+          19136,
+          19200,
+          19264,
+          19328,
+          19392,
+          19456,
+          19520,
+          19584,
+          19648,
+          19712,
+          19776,
+          19840,
+          19904,
+          19968,
+          20032,
+          20096,
+          20160,
+          20224,
+          20288,
+          20352,
+          20416,
+          20480,
+          20544
+        ],
+        "mode_entry_change_records": [
+          {
+            "seq": "19061",
+            "engineFrameCount": "18048",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0"
+          },
+          {
+            "seq": "19063",
+            "engineFrameCount": "18049",
+            "modeEntryFrameCount": "18048",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "0",
+            "err": "0x0"
+          }
+        ]
+      },
+      "rate": {
+        "first_sequence": 19064,
+        "last_sequence": 21597,
+        "device_first_timestamp_us": 303191880,
+        "device_last_timestamp_us": 442949575,
+        "device_span_seconds": 139.757695,
+        "sequence_progress_fps": 18.12422564639464,
+        "received_frame_device_time_fps": 18.12422564639464,
+        "first_complete_frame_host": {
+          "phase": "capture",
+          "host_seconds": 0.23123269699863158
+        },
+        "last_complete_frame_host": {
+          "phase": "cleanup",
+          "host_seconds": 140.00302587400074
+        },
+        "host_complete_frame_span_seconds": 139.7717931770021,
+        "received_complete_frame_host_fps": 18.12239753404535,
+        "collector_capture_phase_frames_per_capture_seconds": 18.107064022761662,
+        "device_reported_SF50_filtered_records": 150,
+        "device_reported_capture_fps_range": [
+          14.15,
+          21.21
+        ],
+        "device_reported_emitted_fps_range": [
+          14.15,
+          22.14
+        ],
+        "rate_limit": "Sequence progress is firmware frame progression per device timestamp; completed host frames prove this collector received bytes. SF50 overlapping rolling windows are not summed."
+      },
+      "usb": {
+        "window": "first_to_last_USBSTREAM_query_in_this_raw_only",
+        "first": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "22205",
+          "sinkDropped": "2719",
+          "priorityQueued": "56",
+          "driverAcceptedBytes": "10202789",
+          "rxBytes": "453",
+          "partialWrite": "3",
+          "timeout": "1593",
+          "driverDrained": "500",
+          "rxOversize": "0",
+          "lineDropped": "941",
+          "lineOversize": "0",
+          "discardBytes": "166399",
+          "lastRxUs": "303114089",
+          "lastTxUs": "303113350",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "last": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "27291",
+          "sinkDropped": "2719",
+          "priorityQueued": "70",
+          "driverAcceptedBytes": "14023829",
+          "rxBytes": "561",
+          "partialWrite": "3",
+          "timeout": "1593",
+          "driverDrained": "528",
+          "rxOversize": "0",
+          "lineDropped": "941",
+          "lineOversize": "0",
+          "discardBytes": "166399",
+          "lastRxUs": "443091429",
+          "lastTxUs": "443090809",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "delta": {
+          "sinkQueued": 5086,
+          "sinkDropped": 0,
+          "priorityQueued": 14,
+          "driverAcceptedBytes": 3821040,
+          "rxBytes": 108,
+          "partialWrite": 0,
+          "timeout": 0,
+          "driverDrained": 28,
+          "rxOversize": 0,
+          "lineDropped": 0,
+          "lineOversize": 0,
+          "discardBytes": 0
+        },
+        "host_collector_rx_bytes": 3824012,
+        "enumerated": "unknown",
+        "semantics": [
+          "sinkQueued counts accepted sink slots, not whole scientific frames.",
+          "sinkDropped includes sink failures and line-drop events; lineDropped is not additive to it.",
+          "driverAcceptedBytes is bytes accepted by ESP-IDF driver, not PC acknowledgement.",
+          "driverDrained counts observed wait_tx_done success; it does not count frames or PC application receipt.",
+          "rxBytes is firmware control RX; host collector rx_bytes is actual received raw bytes.",
+          "sofPresent=1 is reported hardware SOF status at query; enumerated remains unknown.",
+          "lineDropped/discardBytes are line-assembler losses, not a complete measurement-frame gap count."
+        ]
+      },
+      "memory": {
+        "STK50_records_within_frame_window": 153,
+        "first": {
+          "unit": "bytes",
+          "seq": "19065",
+          "log": "16384/12856",
+          "transport": "6144/3204",
+          "usb": "0/0",
+          "bleTx": "4096/3292",
+          "bleCtrl": "6144/5236",
+          "serialCtrl": "6144/2100",
+          "heap": "8377960/8343552/8336952",
+          "tSlot": "0/0",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "0/0",
+          "bSlot": "0/0",
+          "ba": "0",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        },
+        "last": {
+          "unit": "bytes",
+          "seq": "21595",
+          "log": "16384/12856",
+          "transport": "6144/3204",
+          "usb": "0/0",
+          "bleTx": "4096/3292",
+          "bleCtrl": "6144/5236",
+          "serialCtrl": "6144/2100",
+          "heap": "8377960/8343552/8336952",
+          "tSlot": "0/0",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "0/0",
+          "bSlot": "0/0",
+          "ba": "0",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        },
+        "CPU_utilization": "NOT_RUN",
+        "largest_contiguous_heap_block": "NOT_REPORTED"
+      },
+      "rail_refresh_count": 0,
+      "acceptance_limits": [
+        "No MFAULT is not proof ADC CRC is repaired.",
+        "Complete ASCII frames are not proof all analog points valid.",
+        "No absolute VOLT accuracy acceptance established in these recordings.",
+        "Absence of allCrcRun escalation means HIL did not exercise its three-sweep isolation boundary."
+      ]
+    }
+  ],
+  "between_capture_USB_query_delta": {
+    "scope": "volt1 last query to volt8 first query; excluded from either capture delta",
+    "same_session": true,
+    "delta": {
+      "sinkDropped": 2408,
+      "partialWrite": 1,
+      "timeout": 1473,
+      "lineDropped": 785,
+      "discardBytes": 147582
+    }
+  },
+  "firmware_flash_manifest": {
+    "path": "docs/audit/artifacts/boot_autotune_20261113/final-03-flash-result.json",
+    "sha256": "5eb2224f953e839ccc20ab96ffd9e851797df30801bb293214a4315dde302777",
+    "head": "0d8f60fd9c29b9ce12e64ed2e6534ee37db41704",
+    "build_version": "0d8f60f-dirty",
+    "app_sha256": "232ca3976f6b8ea38efd5e09de8279f35c9bfbbd0c605c8dd84e5169ddd1dbaa",
+    "app_bytes": 1552752
+  },
+  "cell_error_enum_source": {
+    "path": "core/measure/include/sensorarrayMeasurementMode.h",
+    "sha256": "03a49b4f90ff3d0fecab959b24bf18af37311338df5993df51e7f935d42f92ac",
+    "X02": "SENSORARRAY_CELL_ERROR_SPI (2)",
+    "X12": "SENSORARRAY_CELL_ERROR_UNSTABLE (18)"
+  },
+  "followup_RES_CAP_review": [
+    {
+      "label": "res8-02",
+      "source": {
+        "path": "docs/audit/artifacts/boot_autotune_20261113/res8-02.rx.bin",
+        "bytes": 1639081,
+        "sha256": "26352339138ed262fec87beb7a207db56817cfecb227c626b38d4fabd0ac331a",
+        "matches_collector": true
+      },
+      "collector": {
+        "status": "CAPTURED",
+        "elapsed_seconds": 140.0047129279992,
+        "capture_seconds": 139.6621926680018,
+        "capture_frame_trailers": 1391,
+        "rx_bytes": 1639081,
+        "usb_restore": "VERIFIED_QUERY"
+      },
+      "complete_frames": 1391,
+      "parser_counters": {
+        "lines": 15595,
+        "cap_frames": 0,
+        "voltage_frames": 0,
+        "resistance_frames": 1391,
+        "mixed_frames": 0,
+        "crc_errors": 0,
+        "malformed": 0,
+        "sequence_gaps": 0,
+        "missing_frames": 0,
+        "sequence_regressions": 0,
+        "non_ascii_chunks": 0,
+        "summary_lines": 756,
+        "rmack": 0,
+        "rmapp": 0,
+        "rmerr": 0,
+        "lifecycle_duplicate_terminal": 0,
+        "lifecycle_terminal_without_ack": 0
+      },
+      "capture_errors": {
+        "truncated_frames": 0,
+        "malformed_frames": 0,
+        "identity_errors": 0,
+        "non_ascii_lines": 0,
+        "fault_event_count": 0
+      },
+      "identity": {
+        "session": "0DCB1029EC3CCA0D",
+        "bootId": "7",
+        "rev": "10",
+        "mgen": "7",
+        "mrid": "9",
+        "rgen": "4",
+        "rrid": "10",
+        "pgen": "7",
+        "prid": "9",
+        "legacy_gen": "7",
+        "legacy_rid": "9"
+      },
+      "identity_status": "consistent_frame_identity",
+      "sequence": {
+        "first": 22644,
+        "last": 24034,
+        "gaps": 0,
+        "missing": 0,
+        "duplicate_or_old": 0
+      },
+      "rate": {
+        "timestamp_span_seconds": 139.553078,
+        "sequence_progress_device_fps": 9.960367911053886,
+        "received_complete_device_fps": 9.960367911053886
+      },
+      "reference_statistics": {
+        "S1D1": {
+          "observed": 1391,
+          "invalid": 51,
+          "stale": 0,
+          "unacquired": 0,
+          "masks_unknown": 0,
+          "rejected_crc": 0,
+          "rejected_identity": 0,
+          "inconsistent": 0,
+          "unit_errors": 0,
+          "open_samples": 0,
+          "unexpected_res_values": 1340,
+          "reasons": {
+            "X00": 0,
+            "X02": 51
+          },
+          "samples": 1340,
+          "mean": 10164.946691044775,
+          "median": 10164.884,
+          "stddev": 1.7985873270996244,
+          "min": 10158.786,
+          "max": 10170.904,
+          "range": 12.118000000000393
+        },
+        "S8D8": {
+          "observed": 1391,
+          "invalid": 2,
+          "stale": 0,
+          "unacquired": 0,
+          "masks_unknown": 0,
+          "rejected_crc": 0,
+          "rejected_identity": 0,
+          "inconsistent": 0,
+          "unit_errors": 0,
+          "open_samples": 0,
+          "unexpected_res_values": 1389,
+          "reasons": {
+            "X00": 0,
+            "X02": 2
+          },
+          "samples": 1389,
+          "mean": 10166.688523398128,
+          "median": 10166.722,
+          "stddev": 2.123464179764458,
+          "min": 10159.388,
+          "max": 10173.833,
+          "range": 14.444999999999709
+        }
+      },
+      "all_cells_totals": {
+        "observed": 89024,
+        "invalid": 86295,
+        "stale": 0,
+        "unacquired": 0,
+        "rejected_crc": 0,
+        "rejected_identity": 0,
+        "open_samples": 86242,
+        "inconsistent": 0
+      },
+      "invalid_reasons": {
+        "X00": 0,
+        "X02": 53,
+        "X0D": 86242
+      },
+      "disposition": {
+        "within_sequence_window": 52,
+        "boundedCrc": {
+          "1": 52
+        },
+        "allCrcRun": {
+          "0": 52
+        },
+        "abortError": {
+          "0x0": 52
+        }
+      },
+      "CRC_bytes": {
+        "observed_within_sequence_window": 105,
+        "xor_histogram": {
+          "01": 105
+        }
+      },
+      "health": {
+        "within_sequence_window": 22,
+        "first": {
+          "seq": "22646",
+          "engineFrameCount": "21632",
+          "modeEntryFrameCount": "21628",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "294321",
+          "crcValidOdd": "318479",
+          "crcErrors": "22818",
+          "crcRetries": "20545"
+        },
+        "last": {
+          "seq": "23990",
+          "engineFrameCount": "22976",
+          "modeEntryFrameCount": "21628",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "296477",
+          "crcValidOdd": "723622",
+          "crcErrors": "23046",
+          "crcRetries": "20724"
+        },
+        "err_histogram": {
+          "0x0": 22
+        }
+      },
+      "usb": {
+        "first": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "28351",
+          "sinkDropped": "4041",
+          "priorityQueued": "79",
+          "driverAcceptedBytes": "14027160",
+          "rxBytes": "636",
+          "partialWrite": "4",
+          "timeout": "2637",
+          "driverDrained": "528",
+          "rxOversize": "0",
+          "lineDropped": "1166",
+          "lineOversize": "0",
+          "discardBytes": "209782",
+          "lastRxUs": "501022338",
+          "lastTxUs": "501021842",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "last": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "30822",
+          "sinkDropped": "4041",
+          "priorityQueued": "88",
+          "driverAcceptedBytes": "15662909",
+          "rxBytes": "713",
+          "partialWrite": "4",
+          "timeout": "2637",
+          "driverDrained": "536",
+          "rxOversize": "0",
+          "lineDropped": "1166",
+          "lineOversize": "0",
+          "discardBytes": "209782",
+          "lastRxUs": "640999984",
+          "lastTxUs": "640999418",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "delta": {
+          "sinkQueued": 2471,
+          "sinkDropped": 0,
+          "priorityQueued": 9,
+          "driverAcceptedBytes": 1635749,
+          "rxBytes": 77,
+          "partialWrite": 0,
+          "timeout": 0,
+          "driverDrained": 8,
+          "lineDropped": 0,
+          "lineOversize": 0,
+          "discardBytes": 0
+        }
+      },
+      "measurement_acceptance": "NOT_ESTABLISHED; CAP values are total path capacitance before same-cell unloaded baseline; RES numeric values retain rejected X02 samples as invalid."
+    },
+    {
+      "label": "cap8-02",
+      "source": {
+        "path": "docs/audit/artifacts/boot_autotune_20261113/cap8-02.rx.bin",
+        "bytes": 1670814,
+        "sha256": "531ec1a943367a2cabda9f2f9140aeb429d580fede9df1902e2e3043eb5e282c",
+        "matches_collector": true
+      },
+      "collector": {
+        "status": "CAPTURED",
+        "elapsed_seconds": 140.003766904003,
+        "capture_seconds": 139.84890367500338,
+        "capture_frame_trailers": 1590,
+        "rx_bytes": 1670814,
+        "usb_restore": "VERIFIED_QUERY"
+      },
+      "complete_frames": 1590,
+      "parser_counters": {
+        "lines": 10928,
+        "cap_frames": 1590,
+        "voltage_frames": 0,
+        "resistance_frames": 0,
+        "mixed_frames": 0,
+        "crc_errors": 0,
+        "malformed": 0,
+        "sequence_gaps": 0,
+        "missing_frames": 0,
+        "sequence_regressions": 0,
+        "non_ascii_chunks": 0,
+        "summary_lines": 795,
+        "rmack": 0,
+        "rmapp": 0,
+        "rmerr": 0,
+        "lifecycle_duplicate_terminal": 0,
+        "lifecycle_terminal_without_ack": 0
+      },
+      "capture_errors": {
+        "truncated_frames": 0,
+        "malformed_frames": 0,
+        "identity_errors": 0,
+        "non_ascii_lines": 0,
+        "fault_event_count": 0
+      },
+      "identity": {
+        "session": "0DCB1029EC3CCA0D",
+        "bootId": "7",
+        "rev": "12",
+        "mgen": "8",
+        "mrid": "11",
+        "rgen": "5",
+        "rrid": "12",
+        "pgen": "8",
+        "prid": "11",
+        "legacy_gen": "5",
+        "legacy_rid": "12"
+      },
+      "identity_status": "consistent_frame_identity",
+      "sequence": {
+        "first": 24388,
+        "last": 25977,
+        "gaps": 0,
+        "missing": 0,
+        "duplicate_or_old": 0
+      },
+      "rate": {
+        "timestamp_span_seconds": 139.72776,
+        "sequence_progress_device_fps": 11.372113887748577,
+        "received_complete_device_fps": 11.372113887748577
+      },
+      "reference_statistics": {
+        "S4D4": {
+          "observed": 1590,
+          "invalid": 0,
+          "stale": 0,
+          "unacquired": 0,
+          "masks_unknown": 0,
+          "rejected_crc": 0,
+          "rejected_identity": 0,
+          "inconsistent": 0,
+          "unit_errors": 0,
+          "open_samples": 0,
+          "unexpected_res_values": 0,
+          "reasons": {
+            "X00": 0
+          },
+          "samples": 1590,
+          "mean": 92.25998330503144,
+          "median": 92.262166,
+          "stddev": 0.01567562428177314,
+          "min": 92.127096,
+          "max": 92.288433,
+          "range": 0.16133700000000317
+        },
+        "S5D5": {
+          "observed": 1590,
+          "invalid": 0,
+          "stale": 0,
+          "unacquired": 0,
+          "masks_unknown": 0,
+          "rejected_crc": 0,
+          "rejected_identity": 0,
+          "inconsistent": 0,
+          "unit_errors": 0,
+          "open_samples": 0,
+          "unexpected_res_values": 0,
+          "reasons": {
+            "X00": 0
+          },
+          "samples": 1590,
+          "mean": 77.39038446289308,
+          "median": 77.393311,
+          "stddev": 0.012621617340603367,
+          "min": 77.277805,
+          "max": 77.414335,
+          "range": 0.13652999999999338
+        }
+      },
+      "all_cells_totals": {
+        "observed": 101760,
+        "invalid": 0,
+        "stale": 0,
+        "unacquired": 0,
+        "rejected_crc": 0,
+        "rejected_identity": 0,
+        "open_samples": 0,
+        "inconsistent": 0
+      },
+      "invalid_reasons": {
+        "X00": 0
+      },
+      "disposition": {
+        "within_sequence_window": 0,
+        "boundedCrc": {},
+        "allCrcRun": {},
+        "abortError": {}
+      },
+      "CRC_bytes": {
+        "observed_within_sequence_window": 0,
+        "xor_histogram": {}
+      },
+      "health": {
+        "within_sequence_window": 0,
+        "first": null,
+        "last": null,
+        "err_histogram": {}
+      },
+      "usb": {
+        "first": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "31083",
+          "sinkDropped": "4290",
+          "priorityQueued": "97",
+          "driverAcceptedBytes": "15665879",
+          "rxBytes": "788",
+          "partialWrite": "4",
+          "timeout": "2883",
+          "driverDrained": "538",
+          "rxOversize": "0",
+          "lineDropped": "1166",
+          "lineOversize": "0",
+          "discardBytes": "209782",
+          "lastRxUs": "676234462",
+          "lastTxUs": "676233902",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "last": {
+          "v": "DEBUG",
+          "dataEvery": "50",
+          "diagEvery": "15",
+          "sinkQueued": "33569",
+          "sinkDropped": "4354",
+          "priorityQueued": "106",
+          "driverAcceptedBytes": "17333722",
+          "rxBytes": "865",
+          "partialWrite": "4",
+          "timeout": "2883",
+          "driverDrained": "568",
+          "rxOversize": "0",
+          "lineDropped": "1230",
+          "lineOversize": "0",
+          "discardBytes": "211766",
+          "lastRxUs": "816206022",
+          "lastTxUs": "816205332",
+          "driverInstalled": "1",
+          "sofPresent": "1",
+          "stdioBound": "1",
+          "initError": "0x0",
+          "txStackBytes": "4096",
+          "txStackMinBytes": "3092",
+          "bufferMemory": "2",
+          "bufferBytes": "11520",
+          "enumerated": "unknown"
+        },
+        "delta": {
+          "sinkQueued": 2486,
+          "sinkDropped": 64,
+          "priorityQueued": 9,
+          "driverAcceptedBytes": 1667843,
+          "rxBytes": 77,
+          "partialWrite": 0,
+          "timeout": 0,
+          "driverDrained": 30,
+          "lineDropped": 64,
+          "lineOversize": 0,
+          "discardBytes": 1984
+        }
+      },
+      "measurement_acceptance": "NOT_ESTABLISHED; CAP values are total path capacitance before same-cell unloaded baseline; RES numeric values retain rejected X02 samples as invalid."
+    }
+  ]
+}

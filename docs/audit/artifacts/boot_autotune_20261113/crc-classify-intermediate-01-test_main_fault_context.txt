@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_main_fault_context.py", line 54, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_main_fault_context.py", line 17, in main
+    mixed_at = source.index("        if (!ctx->frame.freshFrame) {\n            if (!mixedRequestFailed)")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found

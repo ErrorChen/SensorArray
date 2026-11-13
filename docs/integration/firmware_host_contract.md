@@ -1,12 +1,62 @@
 # 固件与上位机契约：配置身份与可靠性修复
 
-本轮审计基线为 `8045e9e9ec9599533c52c15dfcb6002f79fd15f1`，首批固件修复为 `ba8346b7b643e54985699630f608aba3386810e9`。**当前已烧录源码 commit：`ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d`；BUILD 版本：`ebabe7e-dirty`；app SHA256：`2dfd717ec374c3d046c20316320b3e2199e3eeda22c4dd94d193336a1aad8ba2`。** 此处 dirty 为文档/证据改动，源码已提交；准确构建输入、逐文件 hash 和 diff hash 见 [最终构建清单](../audit/artifacts/reference_fixture/serial-lines-final-build-manifest.json)，烧录校验见 [最终烧录结果](../audit/artifacts/reference_fixture/serial-lines-final-flash-result.json)。本文按版本保留后续修复记录；当前状态以本段及 [最新 HIL 记录](../audit/reference_fixture_hil_20261104.md) 为准。
+> 2026-11-13 当前烧录源码为 `0d8f60fd9c29b9ce12e64ed2e6534ee37db41704`，
+> BUILD=`0d8f60f-dirty`（dirty 是文档/证据，构建源码 hash 独立保存），app SHA256
+> `232ca3976f6b8ea38efd5e09de8279f35c9bfbbd0c605c8dd84e5169ddd1dbaa`。
+> 本轮启动模块/扫描主实现 `ee8f972`，FDC ID 地址修正 `e339a1d`，
+> 运行期 CRC 局部失效分类 `0d8f60f`。
+> [构建](../audit/artifacts/boot_autotune_20261113/final-03-build-manifest.json)、
+> [42 个测试入口](../audit/artifacts/boot_autotune_20261113/final-04-tests-manifest.json)、
+> [app-only 烧录](../audit/artifacts/boot_autotune_20261113/final-03-flash-result.json)
+> 均已实际执行。以下 ebabe7e 是历史版本；本轮实测与限制见
+> [启动/恢复验收](../audit/frontend_startup_recovery_20261113.md)。
+
+## 启动扫描与前端恢复扩展（本轮新增）
+
+PROTO 保持 2，新增 `boot_spi_qual_v1/frontend_presence_v1` capabilities；现有数据
+encoder、CRC、单位和各配置身份域不变。此扩展不要求 Host 把坏 ADC CRC 当成有效点。
+
+- `SPI?`：在 READY 前也可读取同一个已发布启动结果。成功需要
+  `done=1,joined=1,timedOut=0,qualified=1,restored=1,err=0`，不能单看 qualified。
+  `hz` 是请求频率，`actualHz` 为 IDF 观测频率（kHz 分辨率换算为 Hz），不是实测
+  SCLK 波形；`overlapUs` 是 SPI 工作区间和 I²C 初始化区间的交集。`attempted/samples/crc`
+  的 `scope=all_candidates` 包含被淘汰档位，不能据此计算选中档的错误率。
+- `SPI_SWEEP`：每档分别记录 screen/confirm、pga1/bypass。默认每个 profile
+  200/800 次 wire attempts，最多 5/20 次 CRC 拒绝；坏样本不计 valid、奇偶覆盖或
+  rawMin/rawMax。2.5% 是有限启动样本的资格门限，不是长期错误概率保证。
+- `FRONTENDS?`：原子探测快照，不触发总线操作。`known/present` 是三位掩码：
+  bit0=primary FDC，bit1=secondary FDC，bit2=ADS。`unknown/busy/inhibited` 不是
+  物理失联证据；`sdInhibited=1` 也可能是 SD 未知，不能解释为实测高电平。
+  `aHz/aRestoreHz` 区分低速探测时钟和恢复后的时钟；原始错误与各 cleanup 分开。
+  ADS 每轮以 125 kHz 探测后恢复选定频率；FDC 正常时使用现有频率，SUSPECT/WAIT
+  才临时降到不高于 100 kHz。`lowSpeed` 描述此等待期策略，不表示正常轮的 ADS 没有临时降速。
+- 首次同轮三芯片 unavailable、已初始化 ADS 的 RESET，或探测恢复失败会进入
+  SUSPECT 并停止采集。3 轮连续全失联确认 WAIT；两轮清理成功、ID 稳定且全 present
+  后请求受预算约束的 ESP 重启。启动未完成也可进入相同等待，不伪造“三芯片断电”证据。
+  正常/SUSPECT 每 1 秒探测，WAIT 每 2 秒探测；每轮有独立有界事务，等待期间可长期
+  保持合法 idle，不能由健康任务伪造采集进度。FDC SD 主动关闭不当作全失联。
+- hold 期间 MODE/ROWS/ROWMODES 和测量辅助操作被拒绝，已接受的请求有拒绝终态；
+  控制接收、查询和显式 RESTART 仍有效。恢复采用整机重启重新调用独立 Startup 模块，
+  不复用旧 worker/DMA/DRDY/cache。自动重启预算耗尽后保持可查询等待，需要显式处置。
+
+SPI?/FRONTENDS? 是诊断快照，不是新的帧身份权威；接纳数据仍以 CONFIG 的
+session/revision/域计数为准。重启后先重新查询 PROTO/BUILD/CONFIG，再恢复上位机配置。
+临时 RAILCFG 随 RAM 丢失，不能自动把旧电源周期的轨校准套到新会话。等待的路由为
+UNKNOWN，`physicalSafe=unknown`；GPIO 回读和 ID 恢复均不证明模拟隔离或供电合规。
+
+本轮审计基线为 `8045e9e9ec9599533c52c15dfcb6002f79fd15f1`，首批固件修复为 `ba8346b7b643e54985699630f608aba3386810e9`。**上一版已烧录源码 commit：`ebabe7e6816c0347c6d1f5187d5f7f801a7ef98d`；BUILD 版本：`ebabe7e-dirty`；app SHA256：`2dfd717ec374c3d046c20316320b3e2199e3eeda22c4dd94d193336a1aad8ba2`。** 此处 dirty 为文档/证据改动，源码已提交；准确构建输入、逐文件 hash 和 diff hash 见 [最终构建清单](../audit/artifacts/reference_fixture/serial-lines-final-build-manifest.json)，烧录校验见 [最终烧录结果](../audit/artifacts/reference_fixture/serial-lines-final-flash-result.json)。本文保留该版记录；其对应结果见 [11月4/5日 HIL 记录](../audit/reference_fixture_hil_20261104.md)，当前版本以文首更新为准。
 
 ADC SPI CRC 错误**尚未根治**，NOP 候选已撤回，不能将有限重试、诊断完善或 ASCII 帧 CRC 通过视为 ADC 链路无误。`release-switch50-identity-01` 的 [50 次控制/身份测试](../audit/artifacts/reference_fixture/release-switch50-identity-01.summary.json) 为 PASS，但测量状态是 `NOT_PRECISION_ACCEPTED`，没有写入校准；它不替代或改写此前严格“切换且参考点有效”测试的失败记录。
 
 此协议交给 ErrorChen/SensorArray_Software 的独立任务实现；本轮未修改软件仓库。协议格式来自实际 `main/output/sensorarrayTextProtocol.c` encoder，完整修改及验证记录见 [固件可靠性报告](../audit/firmware_reliability_fix_report.md)。
 
 2026-11-04 实机追加修复 commit **`a0460b8`** 保持 PROTO2 和测量帧字段语义，补充 ADC CRC 有限恢复与诊断。该镜像的构建/烧录/实录见 [夹具 HIL 记录](../audit/reference_fixture_hil_20261104.md)。
+
+## 运行期 CRC 部分帧（0d8f60f）
+
+内部 `boundedCrcFailure` 只许可纯采样 CRC 拒绝的部分帧进入原数据 encoder，不是新 wire 字段；旧帧 `expected/acquired/fresh/valid/error` 和 X02 语义保留。终态与 CONFIG 仍是配置权威，不要求每个点都 CRC 有效。若旧 Host 以全 acquired 门控整帧，它可能继续丢弃合法部分帧；必须交由软件任务调整，固件不会把缺失位改成已采集。
+
+`ADSDISPOSITION` 是诊断事件，`crcRejected/acquired/expected` 为十六进制位图，`allCrcRun/limit=3` 是连续全 CRC 拒绝的 ADS engine 扫段计数，`scope=ads_sweep` 不等于主机混合帧数。`firstError` 保留首错；`abortError` 独立说明导致停止的后续错误或全坏预算耗尽。首错CRC后出现timeout、RESET、配置变化、owner/route故障、SPI/DMA未知时不允许继续。一次合法非CRC测量结论（包括OPEN）可清除此连续计数，CAP或模式切换本身不能清。
 
 ## 能力协商与兼容边界
 
@@ -59,7 +109,7 @@ MODE、ROWS、ROWMODES 在所有 transport 共用配置 ID allocator 和单个 o
 
 ACK 本地提交成功后，配置命令才对 Core 1 可见；ACK 提交失败则释放 reservation。Core 1 在完整帧边界应用。终态存入专用有界保留槽，优先于普通诊断发送；最后结果另存权威快照。这里的本地提交和保留不能证明 PC 收到，不承诺 BLE/UDP exactly-once。物理断连期间仍可能没有任何有效接收端。
 
-同一 CAP 再次请求仍有新的 request ID 和成功 generation；不能无声忽略。MAPP 表示硬件/配置已应用，`boundary` 指定允许新配置采样的边界，**不保证首个有效数据已传到 Host**。RMAPP 的当前实现还要求该 profile 产生 fresh frame，但 fresh 不等于全部点电气有效。ROWS RAPP 只确认行配置，SAFE 中也可完成，不表示矩阵已恢复运行。
+同一 CAP 再次请求仍有新的 request ID 和成功 generation；不能无声忽略。MAPP 表示硬件/配置已应用，`boundary` 指定允许新配置采样的边界，**不保证首个有效数据已传到 Host**。RMAPP 接受完整新扫帧或已验证配置下的有界 CRC 部分帧；它不保证所有点有效。局部 CRC 重试耗尽仍输出 X02，valid/fresh/acquired 保持真实缺失，Host 应按点处理位图，不能因为配置已 applied 就将缺失点补零或沿用旧值。ROWS RAPP 只确认行配置，SAFE 中也可完成，不表示矩阵已恢复运行。
 
 Host 的恢复顺序：
 
