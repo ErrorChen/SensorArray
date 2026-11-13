@@ -486,6 +486,68 @@ esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controlle
     return ESP_OK;
 }
 
+esp_err_t sensorarrayRouteControllerEnterFrontendWait(
+    sensorarrayRouteController_t *controller, sensorarrayState_t *state)
+{
+    if (!controller || !state ||
+        (controller->state && controller->state != state)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    controller->state = state;
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;
+    controller->snapshot.requestedMode = SENSORARRAY_MEASUREMENT_MODE_NONE;
+    controller->snapshot.safe = false;
+    controller->snapshot.applied = false;
+    controller->snapshot.known = false;
+    controller->snapshot.verified = false;
+    controller->snapshot.analogIsolationVerified = false;
+    controller->snapshot.gpioReadbackValid = false;
+    controller->snapshot.adsReadbackValid = false;
+    controller->snapshot.fdcPrimaryVerified = false;
+    controller->snapshot.fdcSecondaryVerified = false;
+    controller->snapshot.railValid = false;
+    controller->snapshot.failureStage = "frontend_power_wait";
+    sensorarrayRouteWriteEnd(controller);
+    if (!sensorarrayMeasureFdcWorkersQuiescent() ||
+        ads126xAdcIsQuarantined(&state->ads) || state->ads.spiInFlight) {
+        /* Invalidate the old route claim even when a live owner prevents
+         * GPIO changes. Do not touch its state, buffers or physical route. */
+        sensorarrayRouteWriteBegin(controller);
+        controller->snapshot.lastError = (uint32_t)ESP_ERR_INVALID_STATE;
+        sensorarrayRouteWriteEnd(controller);
+        return ESP_ERR_INVALID_STATE;
+    }
+    state->adsReady = false;
+    state->adsRefReady = false;
+    state->adsRefMuxValid = false;
+    state->fdcPrimary.ready = false;
+    state->fdcSecondary.ready = false;
+    /* U5 cannot be disconnected on this revision. Releasing Q1 avoids
+     * deliberately shorting a returning, default-on REFOUT, but leaves the
+     * selected S node connected to REF. This is NOT a verified safe route. */
+    esp_err_t first = tmux1108SetSource(TMUX1108_SOURCE_REF);
+    esp_err_t bank = tmux1134SetEnLogicalState(false);
+    if (first == ESP_OK) { first = bank; }
+    tmuxSwitchControlState_t control = {0};
+    esp_err_t readback = tmuxSwitchGetControlState(&control);
+    bool pinsMatch = readback == ESP_OK &&
+        control.cmdSource == TMUX1108_SOURCE_REF &&
+        control.cmdSwLevel == 0 && control.obsSwLevel == 0 &&
+        (!control.tmux1134EnControllable ||
+         (!control.cmdTmux1134EnLogicalOn &&
+          control.obsTmux1134EnLogicalOnValid &&
+          !control.obsTmux1134EnLogicalOn));
+    if (first == ESP_OK && !pinsMatch) {
+        first = readback == ESP_OK ? ESP_ERR_INVALID_RESPONSE : readback;
+    }
+    sensorarrayRouteWriteBegin(controller);
+    controller->snapshot.gpioReadbackValid = pinsMatch;
+    controller->snapshot.lastError = (uint32_t)first;
+    sensorarrayRouteWriteEnd(controller);
+    return first;
+}
+
 esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *controller,
                                               const char *reason)
 {

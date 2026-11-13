@@ -63,6 +63,8 @@ ST?
 BTX?
 WIFI?
 BOOT?
+SPI?
+FRONTENDS?
 READY?
 PROTO?
 BUILD?
@@ -82,6 +84,15 @@ RESTART
 ```
 
 `MODE=<name>` 会先返回 `MACK ... state=accepted`，再由 Core 1 在完整帧边界应用并输出 `MAPP ... state=applied`。主机必须等待匹配的 request ID，不能把 accepted 当作已经切换。
+
+启动时 ADS SPI 资格扫描与 FDC I²C 初始化在两个核上并行执行，算法集中在
+`core/board/sensorarrayFrontendStartup.c`，SPI 细档测试在
+`core/board/sensorarrayAdsSpiProbe.c`。`SPI?` 查询本次启动选频结果；默认每个
+profile 的初筛和独立确认均容许最多 2.5% CRC 错误，错误样本仍无效，寄存器、
+复位和事务失败另判。`FRONTENDS?` 查询三芯片通信状态；全失联时暂停采集并
+低频探测，稳定恢复后受控重启并重新扫描，不在旧缓存上继续。该等待状态不表示
+模拟隔离已验证。实现、配置与验收边界见
+[启动与恢复记录](docs/audit/frontend_startup_recovery_20261113.md)。
 
 `ROWMODES=<8 chars>` 会先返回 CTRL reply `RMACK,id=...,old=...,new=...,state=accepted`，随后在完整帧边界广播唯一的 LIFECYCLE terminal `RMAPP`（applied）或 `RMERR`（rejected）；`RMAPP`/`RMERR` 会在 Serial、BLE `FF30` 与 Wi-Fi `LOG` 通道发布，每个 `RMACK` 只能对应一个 terminal。混合帧 `M/MR/K` 的 `profile` 始终为 8 字符，非活动行以尾随 `N` 表示且不产生 `MR`，详见 [测量帧与诊断日志格式](docs/output-format.md)。
 

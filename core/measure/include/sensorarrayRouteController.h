@@ -67,6 +67,14 @@ esp_err_t sensorarrayRouteControllerInit(sensorarrayRouteController_t *controlle
 esp_err_t sensorarrayRouteControllerPrepareFdcSdGpio(void);
 esp_err_t sensorarrayRouteControllerEnterSafe(sensorarrayRouteController_t *controller,
                                               const char *reason);
+/* 本轮新增: once frontend loss/startup failure holds acquisition, release Q1 before
+ * possible ADS power return (reset defaults INTREF on), and disable the
+ * controllable TMUX1134 bank. Works before normal route initialization too.
+ * Does not touch ADC registers or FDC SD. ESP_OK means GPIO actions succeeded;
+ * no analogue isolation or physical safety is claimed. Acquisition must stay
+ * stopped until a new boot has rebuilt and qualified all frontend state. */
+esp_err_t sensorarrayRouteControllerEnterFrontendWait(
+    sensorarrayRouteController_t *controller, sensorarrayState_t *state);
 esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *controller,
                                               sensorarrayMeasurementMode_t mode,
                                               const sensorarrayAdsRailSplit_t *rail,

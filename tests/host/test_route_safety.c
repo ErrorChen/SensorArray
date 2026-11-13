@@ -7,7 +7,7 @@
 #include "tmuxSwitch.h"
 
 static bool workersReleased=true, rejectDisable, badPower, badGpio;
-static bool rejectStop;
+static bool rejectStop, rejectBank;
 static uint8_t power,refmux;
 static int sd,clamps,spiCalls;
 static int64_t now;
@@ -35,7 +35,7 @@ esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t*h,uint16_t c){return ESP_OK;}
 esp_err_t tmux1108SetSource(tmux1108Source_t s){if(s==TMUX1108_SOURCE_GND){assert((power&ADS126X_POWER_INTREF)==0);clamps++;}control.cmdSource=s;control.cmdSwLevel=control.obsSwLevel=s==TMUX1108_SOURCE_GND;return ESP_OK;}
 esp_err_t tmux1108GetSource(tmux1108Source_t *s){*s=control.cmdSource;return ESP_OK;}
 esp_err_t tmux1134SelectSelBLevel(bool b){control.cmdSelbLevel=control.obsSelbLevel=b;return ESP_OK;}
-esp_err_t tmux1134SetEnLogicalState(bool b){return ESP_OK;}
+esp_err_t tmux1134SetEnLogicalState(bool b){control.cmdTmux1134EnLogicalOn=b;control.obsTmux1134EnLogicalOnValid=true;control.obsTmux1134EnLogicalOn=b;return rejectBank?ESP_FAIL:ESP_OK;}
 esp_err_t sensorarrayMeasureSetSelaPath(sensorarrayState_t*s,sensorarraySelaRoute_t r,uint32_t u,const char*a,const char*b){int level;assert(sensorarrayBoardMapSelaRouteToGpioLevel(r,&level));control.cmdSelaLevel=control.obsSelaLevel=level;return ESP_OK;}
 esp_err_t sensorarrayMeasurePrepareFdcMatrixPath(sensorarrayState_t*s,const char*r){return ESP_OK;}
 esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t*c){*c=control;if(badGpio)c->obsSwLevel=!c->cmdSwLevel;return ESP_OK;}
@@ -55,5 +55,13 @@ int main(void){
  reset();state.adsReady=false;assert(sensorarrayRouteControllerEnterSafe(&route,"unknown")!=ESP_OK);assert(!route.snapshot.safe&&clamps==0);
  reset();state.ads.spiQuarantined=true;assert(sensorarrayRouteControllerApplyMode(&route,SENSORARRAY_MEASUREMENT_MODE_RESISTANCE,NULL,&us)==ESP_ERR_INVALID_STATE);assert(clamps==0&&spiCalls==0);
  reset();assert(sensorarrayRouteControllerApplyMode(&route,SENSORARRAY_MEASUREMENT_MODE_RESISTANCE,NULL,&us)==ESP_OK);assert(route.snapshot.applied&&route.snapshot.known&&!route.snapshot.safe);int c=clamps;assert(sensorarrayRouteControllerSelectRow(&route,2)==ESP_OK);assert(clamps==c&&(power&ADS126X_POWER_INTREF));badGpio=true;assert(sensorarrayRouteControllerSelectRow(&route,3)==ESP_ERR_INVALID_RESPONSE);assert(!route.snapshot.safe&&strcmp(route.snapshot.failureStage,"gpio_mismatch")==0&&route.snapshot.cleanupError==ESP_ERR_INVALID_RESPONSE);
- puts("ROUTE_SAFETY_TESTS,passed=10,production_controller=1,physical_isolation=not_simulated");return 0;
+ /* Power-wait must not clamp or access a default-on/missing ADC. */
+ reset();assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_OK);assert(clamps==0&&spiCalls==0&&(power&ADS126X_POWER_INTREF));assert(!route.snapshot.safe&&!route.snapshot.known&&!route.snapshot.verified&&!route.snapshot.analogIsolationVerified);assert(route.snapshot.gpioReadbackValid&&!state.adsReady&&!state.fdcPrimary.ready&&!state.fdcSecondary.ready);assert(control.cmdSource==TMUX1108_SOURCE_REF&&!control.cmdTmux1134EnLogicalOn);
+ reset();memset(&route,0,sizeof(route));state.adsReady=false;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_OK);assert(route.state==&state&&spiCalls==0&&clamps==0);
+ reset();workersReleased=false;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_ERR_INVALID_STATE);assert(state.adsReady&&spiCalls==0&&clamps==0);
+ reset();state.ads.spiInFlight=true;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_ERR_INVALID_STATE);assert(state.adsReady&&spiCalls==0&&clamps==0);
+ reset();state.ads.spiQuarantined=true;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_ERR_INVALID_STATE);assert(spiCalls==0&&clamps==0);
+ reset();badGpio=true;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_ERR_INVALID_RESPONSE);assert(!route.snapshot.known&&!route.snapshot.gpioReadbackValid&&clamps==0);
+ reset();rejectBank=true;assert(sensorarrayRouteControllerEnterFrontendWait(&route,&state)==ESP_FAIL);assert(!route.snapshot.safe&&!state.adsReady&&control.cmdSource==TMUX1108_SOURCE_REF&&clamps==0);rejectBank=false;
+ puts("ROUTE_SAFETY_TESTS,passed=17,production_controller=1,physical_isolation=not_simulated");return 0;
 }

@@ -9,6 +9,9 @@ set(SENSORARRAY_MAIN_SRCS
 set(SENSORARRAY_CORE_SRCS
     "../core/board/sensorarrayBoardMap.c"
     "../core/board/sensorarrayBringup.c"
+    "../core/board/sensorarrayAdsSpiProbe.c"
+    "../core/board/sensorarrayFrontendStartup.c"
+    "../core/board/sensorarrayFrontendPresence.c"
     "../core/measure/sensorarrayMeasure.c"
     "../core/measure/sensorarrayMeasurementMode.c"
     "../core/measure/sensorarrayConfigIdentity.c"

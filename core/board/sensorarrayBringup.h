@@ -35,6 +35,27 @@ bool sensorarrayBringupParseI2cAddress(uint32_t configuredAddress, uint8_t *outA
 
 esp_err_t sensorarrayBringupAdsSetRefMux(sensorarrayState_t *state, uint8_t refmuxValue);
 esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state);
+/* 本轮新增: read-only ADC register presence evidence at 125 kHz. "present"
+ * is not analogue safety or a passed CRC workload. Caller must own a quiescent
+ * frontend; timeout does not release an outstanding DMA descriptor. */
+typedef struct {
+    bool present;
+    bool known;
+    bool busy;
+    bool quarantined;
+    uint8_t id;
+    uint8_t power;
+    uint8_t interface;
+    uint32_t actualHz; /* Clock observed during the 125-kHz presence reads. */
+    uint32_t restoredHz; /* Prior clock after completed read-only restore. */
+    esp_err_t error;
+    esp_err_t cleanupError;
+} sensorarrayAdsPresenceResult_t;
+esp_err_t sensorarrayBringupProbeAdsPresence(sensorarrayState_t *state,
+    uint64_t absoluteDeadlineUs, sensorarrayAdsPresenceResult_t *outResult);
+/* 本轮新增: real cold-probe owner/DMA state for the main recovery guard. */
+bool sensorarrayBringupAdsPresenceBusy(void);
+bool sensorarrayBringupAdsPresenceQuarantined(void);
 esp_err_t sensorarrayBringupAttachAdsNoReset(sensorarrayState_t *state);
 esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state);
 

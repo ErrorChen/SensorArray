@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_memory_utils.h"
 #include "esp_timer.h"
+#include "esp_clk_tree.h"
 #include "driver/gpio.h"
 #include "freertos/task.h"
 #include "boardSupport.h"
@@ -201,11 +202,19 @@ static TickType_t ads126xAdcRemainingTicks(int64_t deadlineUs)
 
 esp_err_t ads126xAdcBeginTransaction(ads126xAdcHandle_t *handle, uint32_t budgetUs)
 {
-    if (!handle || !budgetUs || handle->transactionDeadlineUs ||
+    return budgetUs ? ads126xAdcBeginTransactionUntil(handle,
+        (uint64_t)esp_timer_get_time() + budgetUs) : ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t ads126xAdcBeginTransactionUntil(ads126xAdcHandle_t *handle,
+                                        uint64_t absoluteDeadlineUs)
+{
+    if (!handle || absoluteDeadlineUs <= (uint64_t)esp_timer_get_time() ||
+        handle->transactionDeadlineUs ||
         ads126xAdcIsQuarantined(handle)) {
         return ESP_ERR_INVALID_STATE;
     }
-    handle->transactionDeadlineUs = (uint64_t)esp_timer_get_time() + budgetUs;
+    handle->transactionDeadlineUs = absoluteDeadlineUs;
     return ESP_OK;
 }
 
@@ -304,6 +313,7 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
         .rxlength = totalLen * 8u,
         .tx_buffer = handle->spiTxBuf,
         .rx_buffer = handle->spiRxBuf,
+        .override_freq_hz = handle->requestedSpiClockHz,
     };
     esp_err_t err = esp_timer_get_time() >= deadlineUs ? ESP_ERR_TIMEOUT :
         spi_device_queue_trans(handle->spiDevice, &handle->dmaTransaction,
@@ -337,6 +347,77 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
 bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle)
 {
     return handle && (handle->spiQuarantined || handle->spiInFlight);
+}
+
+esp_err_t ads126xAdcRequestSpiClockHz(ads126xAdcHandle_t *handle, uint32_t hz)
+{
+    /* ADS1262/3 table 7.6: tSCLK >=125 ns, including duty high/low >=40 ns.
+     * Keep the existing 50% duty; no unsupported S3 sample-point tuning. */
+    if (!handle || !handle->mutex || !handle->spiDevice ||
+        hz < 1000u || hz > 8000000u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int64_t deadlineUs = ads126xAdcOperationDeadline(handle,
+        CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u);
+    if (xSemaphoreTake(handle->mutex, ads126xAdcRemainingTicks(deadlineUs)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    esp_err_t err = ESP_OK;
+    if (handle->spiQuarantined || handle->spiInFlight) {
+        err = ESP_ERR_INVALID_STATE;
+    } else if (esp_timer_get_time() >= deadlineUs) {
+        err = ESP_ERR_TIMEOUT;
+    } else {
+        handle->requestedSpiClockHz = hz;
+    }
+    xSemaphoreGive(handle->mutex);
+    return err;
+}
+
+esp_err_t ads126xAdcGetSpiClockHz(ads126xAdcHandle_t *handle,
+                                 uint32_t *requestedHz, uint32_t *actualHz)
+{
+    if (!handle || !handle->mutex || !handle->spiDevice || !actualHz) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int64_t deadlineUs = ads126xAdcOperationDeadline(handle,
+        CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u);
+    if (xSemaphoreTake(handle->mutex, ads126xAdcRemainingTicks(deadlineUs)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    int actualKhz = 0;
+    esp_err_t err = handle->spiQuarantined || handle->spiInFlight ? ESP_ERR_INVALID_STATE :
+        (esp_timer_get_time() >= deadlineUs ? ESP_ERR_TIMEOUT :
+            spi_device_get_actual_freq(handle->spiDevice, &actualKhz));
+    if (err == ESP_OK && actualKhz <= 0) { err = ESP_ERR_INVALID_RESPONSE; }
+    if (err == ESP_OK) {
+        *actualHz = (uint32_t)actualKhz * 1000u;
+        if (requestedHz) { *requestedHz = handle->requestedSpiClockHz; }
+    }
+    xSemaphoreGive(handle->mutex);
+    return err;
+}
+
+esp_err_t ads126xAdcPredictDefaultSpiClockHz(uint32_t requestedHz,
+                                          uint32_t *actualHz)
+{
+    if (!actualHz || requestedHz < 1000u || requestedHz > 8000000u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint32_t sourceHz = 0u;
+    esp_err_t err = esp_clk_tree_src_get_freq_hz(SPI_CLK_SRC_DEFAULT,
+        ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &sourceHz);
+    if (err != ESP_OK) { return err; }
+    /* IDF 5.5.5 retains this public divider calculator. The replacement
+     * get_actual_freq cannot predict an unapplied request or detect IDF's
+     * silent rejection of an override. Keep the deprecation waiver local. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    int predicted = spi_get_actual_clock((int)sourceHz, (int)requestedHz, 128);
+#pragma GCC diagnostic pop
+    if (predicted < 1000) { return ESP_ERR_INVALID_RESPONSE; }
+    *actualHz = ((uint32_t)predicted / 1000u) * 1000u;
+    return ESP_OK;
 }
 
 static bool ads126xAdcIsAdc2Supported(const ads126xAdcHandle_t *handle)
@@ -1240,6 +1321,7 @@ esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
     }
     const uint8_t *verified = second;
     if (!ads126xAdcSnapshotBytesEqual(first, second, handle)) {
+        handle->snapshotMismatchCount++;
         err = ads126xAdcReadRegisters(handle, ADS126X_REG_ID, third, sizeof(third));
         if (err != ESP_OK) {
             return err;

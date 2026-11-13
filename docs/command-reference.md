@@ -32,6 +32,19 @@
 
 ## Scan 与测量
 
+本轮新增启动/恢复诊断：`SPI?` 返回本 boot 的原子选速率结果，包括 requested
+`hz`、驱动观测 `actualHz`、`qualified/restored/joined/timedOut`、全部候选累计
+`attempted/samples/crc` 和 SPI/I²C `overlapUs`。累计错误率不是选中档位错误率，
+后者看逐 profile/phase 的 `SPI_SWEEP`。`FRONTENDS?` 返回三芯片探测快照、
+`hold`、各设备错误/清理错误和 `aHz/aRestoreHz`；`sdInhibited` 表示不能安全
+开始探测（含 SD 未知），不等于实测 SD 高电平。两者在 READY 前也可查询，
+不触发硬件 I/O，支持 Serial/BLE/Wi-Fi，均不写持久配置。详见
+[启动与恢复记录](audit/frontend_startup_recovery_20261113.md)。
+
+`hold=1` 时暂停测量，MODE/ROWS/ROWMODES 及辅助测量操作会明确拒绝；查询、
+输出控制和 RESTART 仍可用。通信稳定恢复触发受预算约束的整机重启；重新
+连接后按新的 session 查询 CONFIG，旧 RAM rail 校准和旧帧身份不能沿用。
+
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CONFIG?` | Query | 是 | 是 | 是 | 无 | `CONFIG,session=...,bootId=...,rev=...,boundary=...,mgen=...,rgen=...,pgen=...` | 原子权威 snapshot | - | 支持 | 本轮新增。用于终态丢失/迟到后的重建；各域 ID 和最后 MODE/profile 终态来自同一 revision。 |

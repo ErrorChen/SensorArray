@@ -167,6 +167,9 @@ typedef struct {
     bool spiInFlight;
     bool spiQuarantined;
     uint32_t spiTimeoutCount;
+    /* 本轮新增: mutex protected request; IDF applies it to the next complete
+     * transaction. Zero retains the device's initial configured clock. */
+    uint32_t requestedSpiClockHz;
     uint32_t configurationGeneration;
     uint32_t configuredDrdyGeneration;
     bool referenceStateKnown;
@@ -177,6 +180,7 @@ typedef struct {
     uint8_t snapshotMismatchRegister;
     uint8_t snapshotExpected;
     uint8_t snapshotActual;
+    uint32_t snapshotMismatchCount;
     uint32_t adc1CrcErrorCount;
     uint32_t adc1CrcRetryCount;
     uint32_t adc1CrcValidEvenCount;
@@ -300,7 +304,21 @@ esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
 
 /* 本轮新增: owner-scoped total deadline covers retries and cleanup. */
 esp_err_t ads126xAdcBeginTransaction(ads126xAdcHandle_t *handle, uint32_t budgetUs);
+/* 本轮新增: preserves a caller's absolute boot/cleanup deadline. */
+esp_err_t ads126xAdcBeginTransactionUntil(ads126xAdcHandle_t *handle,
+                                       uint64_t absoluteDeadlineUs);
 void ads126xAdcEndTransaction(ads126xAdcHandle_t *handle);
+/* 本轮新增: no device removal and no transfer cancellation. A successful
+ * request is not a physical-clock acknowledgement: complete a transaction,
+ * then GetSpiClockHz() and verify the actual frequency. */
+esp_err_t ads126xAdcRequestSpiClockHz(ads126xAdcHandle_t *handle, uint32_t hz);
+esp_err_t ads126xAdcGetSpiClockHz(ads126xAdcHandle_t *handle,
+                               uint32_t *requestedHz, uint32_t *actualHz);
+/* 本轮新增: predicts this project's default SPI clock source / 50% duty
+ * using IDF's divider calculation, in the same truncated-kHz units returned
+ * by spi_device_get_actual_freq(). Not an oscilloscope measurement. */
+esp_err_t ads126xAdcPredictDefaultSpiClockHz(uint32_t requestedHz,
+                                          uint32_t *actualHz);
 /* 本轮新增: waits only for an actual internal reference OFF->ON edge. */
 esp_err_t ads126xAdcWaitReferenceReady(ads126xAdcHandle_t *handle);
 bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle);

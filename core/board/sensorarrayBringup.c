@@ -7,6 +7,8 @@
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
 
 #include "sensorarrayConfig.h"
 #include "sensorarrayAcqEvent.h"
@@ -18,6 +20,242 @@
 #define SENSORARRAY_FDC_CONFIG_SLEEP_MODE_EN_MASK 0x2000u
 #define SENSORARRAY_FDC_MUX_AUTOSCAN_EN_MASK 0x8000u
 #define SENSORARRAY_FDC_DRIVE_CURRENT_MASK 0xF800u
+
+/* ADS PRESENCE IMPLEMENTATION BEGIN -- exercised verbatim by host regression.
+ * This slot exists for cold ADS init failures which already destroyed the
+ * ordinary handle mutex. Its DMA storage is permanent for this boot. */
+typedef struct {
+    bool busy;
+    bool pending;
+    bool quarantined;
+    bool restoreClockPending;
+    uint32_t restoreClockHz;
+    uint32_t restoreActualHz;
+    spi_device_handle_t device;
+    spi_transaction_t transaction;
+    uint8_t *tx;
+    uint8_t *rx;
+} sensorarrayAdsPresenceIo_t;
+static sensorarrayAdsPresenceIo_t s_adsPresenceIo;
+
+bool sensorarrayBringupAdsPresenceBusy(void)
+{
+    return __atomic_load_n(&s_adsPresenceIo.busy, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&s_adsPresenceIo.pending, __ATOMIC_ACQUIRE);
+}
+
+bool sensorarrayBringupAdsPresenceQuarantined(void)
+{
+    return __atomic_load_n(&s_adsPresenceIo.quarantined, __ATOMIC_ACQUIRE);
+}
+
+static TickType_t sensorarrayAdsPresenceTicks(uint64_t deadlineUs)
+{
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    if (nowUs >= deadlineUs) { return 0u; }
+    uint64_t ticks = ((deadlineUs - nowUs) * configTICK_RATE_HZ + 999999u) / 1000000u;
+    return ticks >= portMAX_DELAY ? portMAX_DELAY - 1u : (TickType_t)ticks;
+}
+
+static esp_err_t sensorarrayAdsPresenceReadSlot(spi_device_handle_t device,
+    uint64_t deadlineUs, uint32_t clockHz, uint8_t registers[3])
+{
+    sensorarrayAdsPresenceIo_t *io = &s_adsPresenceIo;
+    if (__atomic_load_n(&io->pending, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&io->quarantined, __ATOMIC_ACQUIRE) ||
+        (io->device && io->device != device)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!io->tx) { io->tx = heap_caps_malloc(8u, MALLOC_CAP_DMA); }
+    if (!io->rx) { io->rx = heap_caps_malloc(8u, MALLOC_CAP_DMA); }
+    if (!io->tx || !io->rx) { return ESP_ERR_NO_MEM; }
+    if ((uint64_t)esp_timer_get_time() >= deadlineUs) { return ESP_ERR_TIMEOUT; }
+    io->device = device;
+    /* RREG ID..INTERFACE plus the legal MODE0 guard register. The guard's
+     * trailing bit is not used as any requested register's evidence. */
+    memset(io->tx, 0, 8u);
+    memset(io->rx, 0, 8u);
+    io->tx[0] = 0x20u;
+    io->tx[1] = 3u;
+    io->transaction = (spi_transaction_t){
+        .length = 48u, .rxlength = 48u,
+        .tx_buffer = io->tx, .rx_buffer = io->rx,
+        .override_freq_hz = clockHz,
+    };
+    esp_err_t err = spi_device_queue_trans(device, &io->transaction,
+        sensorarrayAdsPresenceTicks(deadlineUs));
+    if (err != ESP_OK) { return err; }
+    __atomic_store_n(&io->pending, true, __ATOMIC_RELEASE);
+    spi_transaction_t *completed = NULL;
+    err = spi_device_get_trans_result(device, &completed,
+        sensorarrayAdsPresenceTicks(deadlineUs));
+    if (err != ESP_OK || completed != &io->transaction) {
+        __atomic_store_n(&io->quarantined, true, __ATOMIC_RELEASE);
+        return err == ESP_OK ? ESP_ERR_INVALID_STATE : err;
+    }
+    __atomic_store_n(&io->pending, false, __ATOMIC_RELEASE);
+    memcpy(registers, io->rx + 2u, 3u);
+    return ESP_OK;
+}
+
+esp_err_t sensorarrayBringupProbeAdsPresence(sensorarrayState_t *state,
+    uint64_t absoluteDeadlineUs, sensorarrayAdsPresenceResult_t *outResult)
+{
+    if (!outResult) { return ESP_ERR_INVALID_ARG; }
+    memset(outResult, 0, sizeof(*outResult));
+    if (!state || !state->spiDevice) {
+        outResult->error = ESP_ERR_INVALID_STATE;
+        return outResult->error;
+    }
+    bool expectedIdle = false;
+    if (!__atomic_compare_exchange_n(&s_adsPresenceIo.busy, &expectedIdle, true,
+            false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+        outResult->busy = true;
+        outResult->error = ESP_ERR_INVALID_STATE;
+        return outResult->error;
+    }
+    ads126xAdcHandle_t *ads = &state->ads;
+    uint8_t first[3] = {0}, second[3] = {0};
+    bool ownsTransaction = false;
+    bool useRuntimeHandle = ads->mutex != NULL;
+    uint32_t savedRequestedHz = 0u, savedActualHz = 0u;
+    bool clockChanged = false;
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    uint64_t remainingUs = absoluteDeadlineUs > nowUs ? absoluteDeadlineUs - nowUs : 0u;
+    uint64_t cleanupReserveUs = remainingUs > 10000u ? 2000u : remainingUs / 4u;
+    uint64_t workDeadlineUs = absoluteDeadlineUs - cleanupReserveUs;
+    esp_err_t err = ESP_OK;
+    if (ads126xAdcIsQuarantined(ads) ||
+        __atomic_load_n(&s_adsPresenceIo.pending, __ATOMIC_ACQUIRE) ||
+        sensorarrayBringupAdsPresenceQuarantined()) {
+        outResult->quarantined = true;
+        err = ESP_ERR_INVALID_STATE;
+    } else if (ads->transactionDeadlineUs != 0u) {
+        outResult->busy = true;
+        err = ESP_ERR_INVALID_STATE;
+    } else if ((uint64_t)esp_timer_get_time() >= absoluteDeadlineUs) {
+        err = ESP_ERR_TIMEOUT;
+    } else if (useRuntimeHandle) {
+        /* adsReady is a frontend policy flag and may already be false while
+         * the original mutex/device remains alive. Never create a second
+         * owner merely because that readiness flag was cleared. */
+        if (ads->spiDevice != state->spiDevice) {
+            err = ESP_ERR_INVALID_STATE;
+        } else {
+            err = ads126xAdcBeginTransactionUntil(ads, workDeadlineUs);
+            ownsTransaction = err == ESP_OK;
+            if (err == ESP_OK) {
+                err = ads126xAdcGetSpiClockHz(ads, &savedRequestedHz, &savedActualHz);
+            }
+            if (err == ESP_OK && savedRequestedHz != 0u) {
+                /* A previous restore may have been rejected by IDF. Its
+                 * anomalous entry actual clock must not become a new target;
+                 * the retained requested clock defines the expected divider. */
+                err = ads126xAdcPredictDefaultSpiClockHz(savedRequestedHz, &savedActualHz);
+            }
+            if (err == ESP_OK) { err = ads126xAdcRequestSpiClockHz(ads, 125000u); }
+            if (err == ESP_OK) { clockChanged = true; }
+            if (err == ESP_OK) { err = ads126xAdcReadRegisters(ads, 0u, first, sizeof(first)); }
+            if (err == ESP_OK) { err = ads126xAdcReadRegisters(ads, 0u, second, sizeof(second)); }
+            if (err == ESP_OK) { err = ads126xAdcGetSpiClockHz(ads, NULL, &outResult->actualHz); }
+        }
+    } else {
+        if (s_adsPresenceIo.restoreClockPending) {
+            savedRequestedHz = s_adsPresenceIo.restoreClockHz;
+            savedActualHz = s_adsPresenceIo.restoreActualHz;
+        } else {
+            int beforeKhz = 0;
+            err = spi_device_get_actual_freq(state->spiDevice, &beforeKhz);
+            if (err == ESP_OK && beforeKhz > 0) {
+                savedActualHz = (uint32_t)beforeKhz * 1000u;
+                s_adsPresenceIo.restoreClockHz = savedActualHz;
+                s_adsPresenceIo.restoreActualHz = savedActualHz;
+            } else if (err == ESP_OK) { err = ESP_ERR_INVALID_RESPONSE; }
+        }
+        if (err == ESP_OK) {
+            s_adsPresenceIo.restoreClockPending = true;
+            clockChanged = true;
+            err = sensorarrayAdsPresenceReadSlot(state->spiDevice, workDeadlineUs, 125000u, first);
+        }
+        if (err == ESP_OK) {
+            err = sensorarrayAdsPresenceReadSlot(state->spiDevice, workDeadlineUs, 125000u, second);
+        }
+        if (err == ESP_OK) {
+            int actualKhz = 0;
+            err = spi_device_get_actual_freq(state->spiDevice, &actualKhz);
+            if (err == ESP_OK && actualKhz > 0) { outResult->actualHz = (uint32_t)actualKhz * 1000u; }
+            else if (err == ESP_OK) { err = ESP_ERR_INVALID_RESPONSE; }
+        }
+    }
+    if (ownsTransaction) { ads126xAdcEndTransaction(ads); }
+    outResult->id = second[0];
+    outResult->power = second[1] & ADS126X_POWER_READ_MASK;
+    outResult->interface = second[2] & ADS126X_INTERFACE_CONFIG_MASK;
+    if (err == ESP_OK && (outResult->actualHz != 125000u ||
+            first[0] != second[0] ||
+            ((first[1] ^ second[1]) & ADS126X_POWER_READ_MASK) != 0u ||
+            ((first[2] ^ second[2]) & ADS126X_INTERFACE_CONFIG_MASK) != 0u)) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK) {
+        outResult->known = true;
+        /* A successful SPI transaction with a pulled-up/down MISO is not
+         * presence. ADS1262 DEV_ID=0 / ADS1263 DEV_ID=1; revision bits remain
+         * evidence. An earlier trusted nonzero ID must also still match. */
+        bool idMatches = second[0] != 0u && second[0] != 0xFFu &&
+            (second[0] >> 5u) <= 1u &&
+            (ads->idRegRaw == 0u || ads->idRegRaw == 0xFFu || second[0] == ads->idRegRaw);
+        outResult->present = idMatches && (outResult->interface & 0x03u) != 0x03u;
+        if (!outResult->present) { err = ESP_ERR_NOT_FOUND; }
+    }
+    /* Presence polling may run while all frontends are healthy. Restore the
+     * selected runtime rate even after an absent/invalid ADC response: clock
+     * setup is local to the host and a completed RREG need not return valid
+     * ADC data to prove which host divider is active. */
+    esp_err_t cleanup = ESP_OK;
+    if (clockChanged) {
+        if (ads126xAdcIsQuarantined(ads) ||
+            __atomic_load_n(&s_adsPresenceIo.pending, __ATOMIC_ACQUIRE) ||
+            sensorarrayBringupAdsPresenceQuarantined()) {
+            cleanup = ESP_ERR_INVALID_STATE;
+        } else if ((uint64_t)esp_timer_get_time() >= absoluteDeadlineUs) {
+            cleanup = ESP_ERR_TIMEOUT;
+        } else {
+            uint8_t discard[3] = {0};
+            uint32_t restoreHz = savedRequestedHz ? savedRequestedHz : savedActualHz;
+            uint32_t restoredActualHz = 0u;
+            if (useRuntimeHandle) {
+                cleanup = ads126xAdcBeginTransactionUntil(ads, absoluteDeadlineUs);
+                if (cleanup == ESP_OK) {
+                    cleanup = ads126xAdcRequestSpiClockHz(ads, restoreHz);
+                    if (cleanup == ESP_OK) { cleanup = ads126xAdcReadRegisters(ads, 0u, discard, sizeof(discard)); }
+                    if (cleanup == ESP_OK) { cleanup = ads126xAdcGetSpiClockHz(ads, NULL, &restoredActualHz); }
+                    ads126xAdcEndTransaction(ads);
+                }
+            } else {
+                cleanup = sensorarrayAdsPresenceReadSlot(state->spiDevice, absoluteDeadlineUs,
+                    restoreHz, discard);
+                if (cleanup == ESP_OK) {
+                    int restoredKhz = 0;
+                    cleanup = spi_device_get_actual_freq(state->spiDevice, &restoredKhz);
+                    if (cleanup == ESP_OK && restoredKhz > 0) { restoredActualHz = (uint32_t)restoredKhz * 1000u; }
+                }
+            }
+            if (cleanup == ESP_OK && restoredActualHz != savedActualHz) { cleanup = ESP_ERR_INVALID_RESPONSE; }
+            if (cleanup == ESP_OK) { outResult->restoredHz = restoredActualHz; }
+            if (cleanup == ESP_OK && !useRuntimeHandle) { s_adsPresenceIo.restoreClockPending = false; }
+        }
+    }
+    if (cleanup != ESP_OK) { outResult->known = false; outResult->present = false; }
+    outResult->quarantined = ads126xAdcIsQuarantined(ads) ||
+        __atomic_load_n(&s_adsPresenceIo.pending, __ATOMIC_ACQUIRE) ||
+        sensorarrayBringupAdsPresenceQuarantined();
+    outResult->error = err;
+    outResult->cleanupError = cleanup;
+    __atomic_store_n(&s_adsPresenceIo.busy, false, __ATOMIC_RELEASE);
+    return err != ESP_OK ? err : cleanup;
+}
+/* ADS PRESENCE IMPLEMENTATION END */
 
 static void sensorarrayDelayMs(uint32_t delayMs)
 {
@@ -89,10 +327,19 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
         return err;
     }
 
+    /* Bootstrap is a communication admission speed, not a qualified result.
+     * The boot probe selects and verifies the runtime clock without removing
+     * this device or recycling any outstanding DMA descriptor. */
+#if CONFIG_SENSORARRAY_ADS_SPI_AUTOTUNE_ENABLE
+    const uint32_t initialClockHz = CONFIG_ADS126X_SPI_CLOCK_HZ < 125000u ?
+        CONFIG_ADS126X_SPI_CLOCK_HZ : 125000u;
+#else
+    const uint32_t initialClockHz = CONFIG_ADS126X_SPI_CLOCK_HZ;
+#endif
     spi_device_interface_config_t devCfg = {
-        .clock_speed_hz = CONFIG_ADS126X_SPI_CLOCK_HZ,
+        .clock_speed_hz = (int)initialClockHz,
         .mode = 1,
-        .duty_cycle_pos = ads126xAdcSpiDutyCycleForClock(CONFIG_ADS126X_SPI_CLOCK_HZ),
+        .duty_cycle_pos = ads126xAdcSpiDutyCycleForClock(initialClockHz),
         .spics_io_num = CONFIG_BOARD_ADS126X_CS_GPIO,
         .queue_size = 1,
     };

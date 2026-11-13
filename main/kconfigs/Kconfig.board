@@ -71,6 +71,69 @@ config SENSORARRAY_SPI_MAX_TRANSFER_BYTES
 
 endmenu
 
+menu "ADS startup SPI qualification"
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_ENABLE
+    bool "Qualify ADS SPI clock at boot alongside FDC I2C initialization"
+    default y
+    help
+        Start the ADS at a conservative bootstrap clock, then test descending
+        rates no faster than ADS126X_SPI_CLOCK_HZ using verified registers and
+        fresh ADC data with CRC and STATUS. Select the fastest rate passing
+        both the probe and an independent confirmation. No passing rate or an
+        unverified restore is a startup error, never an implicit safe fallback.
+        This finite startup test is not a guarantee of zero runtime errors.
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_BUDGET_MS
+    int "Complete SPI qualification budget including restore (ms)"
+    default 30000
+    range 5000 60000
+    help
+        One monotonic deadline covers worker dispatch, all rate tests and
+        restoration. Existing FDC I2C initialization has its own bounds and
+        is not covered by this SPI deadline.
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_PROBE_SAMPLES
+    int "Wire sample attempts in each rate probe"
+    default 400
+    range 128 2048
+    help
+        Split between gain-one and PGA-bypass profiles. Each phase total must
+        be at least four times MIN_PARITY_SAMPLES; impossible configurations
+        are rejected instead of weakening CRC coverage.
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_CONFIRM_SAMPLES
+    int "Independent wire sample attempts before selecting a rate"
+    default 1600
+    range 128 4096
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_MIN_PARITY_SAMPLES
+    int "Minimum CRC-valid samples of each final-bit parity per phase"
+    default 32
+    range 1 64
+    help
+        Require coverage of both zero and one in the computed CRC final bit.
+        Fixed saturated responses cannot qualify the bus by repeating a CRC
+        whose final bit is always one. Parity is counted only after CRC passes.
+
+config SENSORARRAY_ADS_SPI_AUTOTUNE_MAX_CRC_PERMILLE
+    int "Maximum CRC error fraction for each profile and phase (per mille)"
+    default 25
+    range 0 25
+    help
+        25 permits at most 2.5 percent CRC-rejected wire samples. The default
+        200/800 attempts per profile allow 5/20 CRC errors, respectively.
+        Rejected samples never count as valid data, parity coverage or raw
+        extrema. Register, reset, status and completion errors still fail.
+        Runtime ADC CRC validation is not weakened by this boot criterion.
+
+config SENSORARRAY_ADS_SPI_PROBE_TASK_STACK
+    int "Startup SPI worker stack (bytes)"
+    default 6144
+    range 4096 16384
+
+endmenu
+
 menu "ADS1263 direct diagnostics / gap fill"
 
 config SENSORARRAY_ADS_GAP_FILL_ENABLE

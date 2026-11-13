@@ -23,6 +23,10 @@ static uint32_t dataFrameGeneration[4];
 static bool forceFinalRegisterBit;
 static uint8_t corruptReadRegister = UINT8_MAX;
 static unsigned lastRegisterStart, lastRegisterCount;
+static uint32_t actualSpiHz;
+static bool ignoreClockOverride;
+static bool (*transactionHook)(const uint8_t *tx, uint8_t *rx, size_t bytes);
+static void (*queueHook)(const spi_transaction_t *trans);
 
 int64_t esp_timer_get_time(void) { return nowUs; }
 void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }
@@ -79,6 +83,10 @@ esp_err_t spi_device_queue_trans(spi_device_handle_t device, spi_transaction_t *
     if (queueDelayUs > budget) { nowUs += budget; return ESP_ERR_TIMEOUT; }
     nowUs += queueDelayUs;
     assert(pending == NULL);
+    if (trans->override_freq_hz && !ignoreClockOverride) {
+        actualSpiHz = (uint32_t)spi_get_actual_clock(80000000, (int)trans->override_freq_hz, 128);
+    }
+    if (queueHook) { queueHook(trans); }
     pending = trans;
     completeAtUs = nowUs + completionDelayUs;
     return ESP_OK;
@@ -101,7 +109,9 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
     uint8_t *rx = pending->rx_buffer;
     size_t bytes = pending->length / 8u;
     memset(rx, 0, bytes);
-    if ((tx[0] & 0xE0u) == 0x20u) {
+    if (transactionHook && transactionHook(tx, rx, bytes)) {
+        /* Additional production-module fault scenarios use this bounded bus. */
+    } else if ((tx[0] & 0xE0u) == 0x20u) {
         uint8_t reg = tx[0] & 0x1Fu;
         size_t len = tx[1] + 1u;
         assert(bytes == len + 2u);
@@ -130,6 +140,21 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
     return ESP_OK;
 }
 
+esp_err_t spi_device_get_actual_freq(spi_device_handle_t device, int *freq_khz)
+{
+    (void)device; *freq_khz = (int)(actualSpiHz / 1000u); return ESP_OK;
+}
+
+esp_err_t esp_clk_tree_src_get_freq_hz(int source, int precision, uint32_t *hz)
+{ (void)source; (void)precision; *hz = 80000000u; return ESP_OK; }
+int spi_get_actual_clock(int source_hz, int desired_hz, int duty)
+{
+    assert(source_hz == 80000000 && duty == 128);
+    /* Synthetic IDF divider oracle, including a non-exact requested rate. */
+    if (desired_hz == 1900000) { return 1904761; }
+    return desired_hz;
+}
+
 static ads126xAdcHandle_t handle(void)
 {
     nowUs = 1000000;
@@ -141,6 +166,8 @@ static ads126xAdcHandle_t handle(void)
     dataFrameCount = dataFrameLimit = blockCompletionAfterRead = 0u;
     forceFinalRegisterBit = false; corruptReadRegister = UINT8_MAX;
     lastRegisterStart = lastRegisterCount = 0u;
+    actualSpiHz = 2000000u; ignoreClockOverride = false;
+    transactionHook = NULL; queueHook = NULL;
     memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
     registers[1] = 2u; registers[2] = 6u; registers[5] = 0x8Fu; registers[15] = 0x24u;
@@ -152,6 +179,42 @@ static ads126xAdcHandle_t handle(void)
     result.enableStatusByte = true; result.crcMode = ADS126X_CRC_CRC8;
     result.pgaGain = 1u; result.vrefMicrovolts = 5200000u;
     return result;
+}
+
+static void testSpiClockSelection(void)
+{
+    ads126xAdcHandle_t ads = handle();
+    uint32_t requested = 99u, actual = 0u;
+    assert(ads126xAdcBeginTransactionUntil(&ads, nowUs + 100000u) == ESP_OK);
+    assert(ads126xAdcRequestSpiClockHz(&ads, 500000u) == ESP_OK);
+    assert(ads126xAdcGetSpiClockHz(&ads, &requested, &actual) == ESP_OK);
+    assert(requested == 500000u && actual == 2000000u); /* pending, not applied */
+    uint8_t power = 0u;
+    assert(ads126xAdcReadPowerRegister(&ads, &power) == ESP_OK);
+    assert(ads.dmaTransaction.override_freq_hz == 500000u);
+    assert(ads126xAdcGetSpiClockHz(&ads, &requested, &actual) == ESP_OK && actual == 500000u);
+    ignoreClockOverride = true;
+    assert(ads126xAdcRequestSpiClockHz(&ads, 250000u) == ESP_OK);
+    assert(ads126xAdcReadPowerRegister(&ads, &power) == ESP_OK);
+    assert(ads126xAdcGetSpiClockHz(&ads, &requested, &actual) == ESP_OK);
+    assert(requested == 250000u && actual == 500000u); /* IDF may retain old clock */
+    uint32_t predicted = 0u;
+    assert(ads126xAdcPredictDefaultSpiClockHz(1900000u, &predicted) == ESP_OK);
+    assert(predicted == 1904000u); /* IDF get_actual_freq truncates to kHz. */
+    ads.spiInFlight = true;
+    assert(ads126xAdcRequestSpiClockHz(&ads, 125000u) == ESP_ERR_INVALID_STATE);
+    assert(ads.requestedSpiClockHz == 250000u);
+    assert(ads126xAdcGetSpiClockHz(&ads, NULL, &actual) == ESP_ERR_INVALID_STATE);
+    ads.spiInFlight = false; ads.spiQuarantined = true;
+    assert(ads126xAdcRequestSpiClockHz(&ads, 125000u) == ESP_ERR_INVALID_STATE);
+    ads.spiQuarantined = false;
+    assert(ads126xAdcRequestSpiClockHz(&ads, 8000001u) == ESP_ERR_INVALID_ARG);
+    assert(ads126xAdcRequestSpiClockHz(&ads, 0u) == ESP_ERR_INVALID_ARG);
+    nowUs += 100000u;
+    assert(ads126xAdcRequestSpiClockHz(&ads, 125000u) == ESP_ERR_TIMEOUT);
+    assert(ads.transactionDeadlineUs == (uint64_t)nowUs);
+    ads126xAdcEndTransaction(&ads);
+    assert(ads126xAdcDeinit(&ads) == ESP_OK);
 }
 
 static void testSpiDeadlineAndLifetime(void)
@@ -462,6 +525,10 @@ static void testSnapshots(void)
     snapshots[0][3] = 1u; snapshots[1][3] = 2u; snapshots[2][3] = 3u;
     assert(ads126xAdcReadAdc1RegisterSnapshot(&ads, &snapshot) == ESP_ERR_INVALID_RESPONSE);
     assert(ads.snapshotReadFailure == 2u && ads.snapshotMismatchRegister == 3u);
+    assert(ads.snapshotMismatchCount == 1u);
+    snapshotReads = 0u; snapshots[2][3] = snapshots[1][3];
+    assert(ads126xAdcReadAdc1RegisterSnapshot(&ads, &snapshot) == ESP_OK);
+    assert(ads.snapshotMismatchCount == 2u && snapshot.mode0 == 2u); /* runtime majority retained */
     queueError = ESP_FAIL;
     assert(ads126xAdcReadAdc1RegisterSnapshot(&ads, &snapshot) == ESP_FAIL);
     assert(ads.snapshotReadFailure == 1u);
@@ -476,6 +543,7 @@ static void testSnapshots(void)
 int main(void)
 {
     testSpiTimingSelection();
+    testSpiClockSelection();
     testRegisterReadGuard();
     testSpiDeadlineAndLifetime();
     testCrcAndLength();

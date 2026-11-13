@@ -14,8 +14,19 @@ Status: **HARDWARE_CHANGE_REQUIRED / as-built revision NOT_VERIFIED**. Audited r
 | RES | gate low / released | ON, internal reference | high / REF | REFOUT excitation | intentional excitation; reference startup deadline before conversion |
 | SAFE requested | clamp only after confirmed INTREF OFF | OFF if transaction succeeded | high / REF | still connected | requested/applied/known/verified tracked separately; no independent analogue observation |
 | SAFE_RAIL_MONITOR | would release clamp | would enable INTREF | high / REF | **would be excited** | capability unavailable on this board; rejected before hardware mutation |
+| FRONTEND_WAIT / SUSPECT (2026-11-13) | request released | unknown; returning ADS defaults ON | high / REF | remains connected | pause acquisition, GPIO readback only, physicalSafe=unknown |
 
 U6/U7 SEL switches D lines between FDC and ADS branches. They do not disconnect U5's selected S row from REF. TMUX1108 break-before-make applies during an address transition; it is not a persistent all-open state. REFOUT is approximately AVSS + 2.5 V, not 2.5 V relative to ground. AIN9 is wired to biased AINCOM, not ground. Internal supply monitor measures a span; the nominal-ratio AVDD/AVSS split is an estimate.
+
+The new automatic frontend-return path releases Q1 on the first suspicious
+all-unavailable observation and disables the controllable TMUX1134 enable, if
+fitted. It does not switch frontend power or guarantee isolation during the
+interval before loss is detected. A returning ADC can enable REFOUT before
+software sees it. Low-rate ID probes and a controlled MCU restart cannot fix
+HW03 back-power through I/O, clock inputs or analogue connections; responding
+IDs establish communication, not a measured power-domain state. Keep the
+HARDWARE_CHANGE_REQUIRED status. The present tests use the user's passive
+resistor/capacitor fixture, without a low-impedance external voltage source.
 
 Firmware therefore does not transparently excite a VOLT/CAP matrix to refresh rails. In a known, unpowered-input-safe setup measure AVDD and AVSS at ADS pins relative to board ground, apply `RAILCFG=<positive_uV>,<negative_uV>` before VOLT, and confirm the terminal/query. This calibration is volatile and must be repeated after reboot or an actual supply/temperature change; its timestamp is not refreshed by failures. It is not an instrument traceability record: preserve DMM model, serial, calibration date, uncertainty, board ID, temperature and measurement time outside the device. CAP remains supported; RES keeps intentional excitation; valid external rails enable VOLT and rail-dependent battery conversion. No firmware declaration makes the present circuit input-high-impedance or fail-safe during power loss.
 

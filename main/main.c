@@ -23,6 +23,8 @@
 #include "sensorarrayAdsMatrix.h"
 #include "sensorarrayAdsGap.h"
 #include "sensorarrayAdsFault.h"
+#include "sensorarrayFrontendStartup.h"
+#include "sensorarrayFrontendPresence.h"
 #include "sensorarrayBoardMap.h"
 #include "sensorarrayBringup.h"
 #include "sensorarrayConfig.h"
@@ -148,6 +150,8 @@ typedef struct {
     bool fdcDiagnosticMode;
     bool fdcDegradedMode;
     bool hardwareQuarantineReported;
+    bool frontendStartupReached;
+    bool frontendFdcSdKnownLow;
     sensorarrayFdcBootSummary_t fdcBootSummary;
     uint32_t fdcFrameCounter;
     uint32_t failedRescueCount;
@@ -172,6 +176,26 @@ typedef struct {
 } sensorarrayAppContext_t;
 
 static sensorarrayAppContext_t s_appContext;
+static sensorarrayFrontendPresence_t s_frontendPresence;
+static uint32_t s_frontendHold;
+static uint32_t s_frontendCommandsReady;
+static bool s_frontendRouteWaitEntered;
+static bool s_frontendRestartAttempted;
+
+static bool sensorarrayFrontendsHeld(void)
+{
+    return __atomic_load_n(&s_frontendHold, __ATOMIC_ACQUIRE) != 0u;
+}
+
+static esp_err_t sensorarrayFrontendRowsRequest(uint8_t rows,
+    sensorarrayScanConfigRequestResult_t *outResult)
+{
+    if (!__atomic_load_n(&s_frontendCommandsReady, __ATOMIC_ACQUIRE) ||
+        sensorarrayFrontendsHeld()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    return sensorarrayCommandMailboxPostRows(rows, outResult);
+}
 static sensorarrayConfigIdentity_t sensorarrayPublishConfigAuthority(sensorarrayAppContext_t *ctx, uint32_t frameBoundary);
 static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
@@ -1128,500 +1152,6 @@ static void sensorarrayApplyTmuxDefaults(sensorarrayState_t *state)
                           (int32_t)(tmuxErr == ESP_OK));
 }
 
-static bool sensorarrayAppFdcIdMatches(uint16_t manufacturerId, uint16_t deviceId)
-{
-    return manufacturerId == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID &&
-           deviceId == SENSORARRAY_FDC_EXPECTED_DEVICE_ID;
-}
-
-static esp_err_t sensorarrayProbeFdcIdsAtClock(sensorarrayFdcDeviceState_t *fdcState,
-                                               uint32_t clockHz,
-                                               uint32_t attempts,
-                                               uint32_t *outGoodCount,
-                                               uint32_t *outBadCount,
-                                               uint16_t *outLastManufacturerId,
-                                               uint16_t *outLastDeviceId,
-                                               const char **outReason)
-{
-    if (outGoodCount) {
-        *outGoodCount = 0u;
-    }
-    if (outBadCount) {
-        *outBadCount = 0u;
-    }
-    if (outLastManufacturerId) {
-        *outLastManufacturerId = 0u;
-    }
-    if (outLastDeviceId) {
-        *outLastDeviceId = 0u;
-    }
-    if (outReason) {
-        *outReason = "unknown";
-    }
-    if (!fdcState || !fdcState->i2cCtx || clockHz == 0u || attempts == 0u) {
-        if (outReason) {
-            *outReason = "invalid_arg";
-        }
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    esp_err_t err = boardSupportSetI2cFrequency(fdcState->i2cCtx, clockHz);
-    if (err != ESP_OK) {
-        if (outReason) {
-            *outReason = "bus_reconfigure_failed";
-        }
-        return err;
-    }
-
-    uint32_t goodCount = 0u;
-    uint32_t badCount = 0u;
-    esp_err_t firstErr = ESP_OK;
-    uint16_t lastManufacturerId = 0u;
-    uint16_t lastDeviceId = 0u;
-    for (uint32_t i = 0u; i < attempts; ++i) {
-        uint16_t manufacturerId = 0u;
-        uint16_t deviceId = 0u;
-        err = sensorarrayBringupReadFdcIdsRaw(fdcState->i2cCtx,
-                                              fdcState->i2cAddr,
-                                              &manufacturerId,
-                                              &deviceId);
-        lastManufacturerId = manufacturerId;
-        lastDeviceId = deviceId;
-        if (err == ESP_OK && sensorarrayAppFdcIdMatches(manufacturerId, deviceId)) {
-            goodCount++;
-        } else {
-            badCount++;
-            if (firstErr == ESP_OK) {
-                firstErr = (err != ESP_OK) ? err : ESP_FAIL;
-            }
-        }
-    }
-
-    if (outGoodCount) {
-        *outGoodCount = goodCount;
-    }
-    if (outBadCount) {
-        *outBadCount = badCount;
-    }
-    if (outLastManufacturerId) {
-        *outLastManufacturerId = lastManufacturerId;
-    }
-    if (outLastDeviceId) {
-        *outLastDeviceId = lastDeviceId;
-    }
-    if (goodCount == attempts) {
-        if (outReason) {
-            *outReason = "ok";
-        }
-        return ESP_OK;
-    }
-    if (outReason) {
-        *outReason = (firstErr == ESP_OK || firstErr == ESP_FAIL) ? "id_mismatch" :
-            (firstErr == ESP_ERR_TIMEOUT) ? "timeout" : "id_read_failed";
-    }
-    return (firstErr != ESP_OK) ? firstErr : ESP_FAIL;
-}
-
-static void sensorarrayProbeAndLockFdcI2cClock(sensorarrayFdcDeviceState_t *fdcState,
-                                               const char *mapLabel)
-{
-    if (!fdcState || !fdcState->i2cCtx) {
-        return;
-    }
-    BoardSupportI2cBusInfo_t busInfo = {0};
-    bool secondary = fdcState->i2cCtx == boardSupportGetI2c1Ctx();
-    (void)boardSupportGetI2cBusInfo(secondary, &busInfo);
-    int bus = (int)busInfo.Port;
-
-    if (!CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE) {
-        printf("ICLK,stage=disabled,bus=%d,addr=0x%02X,hz=%lu,map=%s\n",
-               bus,
-               fdcState->i2cAddr,
-               (unsigned long)busInfo.FrequencyHz,
-               mapLabel ? mapLabel : SENSORARRAY_NA);
-        return;
-    }
-
-    static const uint32_t clockCandidates[] = {350000u, 337500u, 325000u, 300000u};
-    const uint32_t attempts = 8u;
-    esp_err_t lastErr = ESP_FAIL;
-    const char *lastReason = "not_probed";
-    for (size_t i = 0u; i < sizeof(clockCandidates) / sizeof(clockCandidates[0]); ++i) {
-        uint32_t hz = clockCandidates[i];
-        uint32_t goodCount = 0u;
-        uint32_t badCount = 0u;
-        uint16_t manufacturerId = 0u;
-        uint16_t deviceId = 0u;
-        const char *reason = "unknown";
-        esp_err_t err = sensorarrayProbeFdcIdsAtClock(fdcState,
-                                                      hz,
-                                                      attempts,
-                                                      &goodCount,
-                                                      &badCount,
-                                                      &manufacturerId,
-                                                      &deviceId,
-                                                      &reason);
-        printf("ICLK,stage=probe,bus=%d,addr=0x%02X,hz=%lu,attempts=%lu,good=%lu,bad=%lu,err=0x%lx,idMfg=0x%04X,idDev=0x%04X,result=%s,map=%s\n",
-               bus,
-               fdcState->i2cAddr,
-               (unsigned long)hz,
-               (unsigned long)attempts,
-               (unsigned long)goodCount,
-               (unsigned long)badCount,
-               (unsigned long)err,
-               manufacturerId,
-               deviceId,
-               (err == ESP_OK) ? "ok" : reason,
-               mapLabel ? mapLabel : SENSORARRAY_NA);
-        if (err == ESP_OK) {
-            printf("ICLK,stage=locked,bus=%d,addr=0x%02X,hz=%lu,attempts=%lu,map=%s\n",
-                   bus,
-                   fdcState->i2cAddr,
-                   (unsigned long)hz,
-                   (unsigned long)attempts,
-                   mapLabel ? mapLabel : SENSORARRAY_NA);
-            if (fdcState->handle) {
-                Fdc2214CapCoreRegs_t regs = {0};
-                esp_err_t verifyErr = Fdc2214CapReadCoreRegs(fdcState->handle, &regs);
-                printf("ICLK,stage=verify,bus=%d,addr=0x%02X,hz=%lu,err=0x%lx,status=0x%04X,statusConfig=0x%04X,config=0x%04X,muxConfig=0x%04X,map=%s\n",
-                       bus,
-                       fdcState->i2cAddr,
-                       (unsigned long)hz,
-                       (unsigned long)verifyErr,
-                       regs.Status,
-                       regs.StatusConfig,
-                       regs.Config,
-                       regs.MuxConfig,
-                       mapLabel ? mapLabel : SENSORARRAY_NA);
-            }
-            return;
-        }
-        lastErr = err;
-        lastReason = reason;
-        if ((i + 1u) < (sizeof(clockCandidates) / sizeof(clockCandidates[0]))) {
-            printf("ICLK,stage=fallback,bus=%d,addr=0x%02X,from=%lu,to=%lu,reason=%s,map=%s\n",
-                   bus,
-                   fdcState->i2cAddr,
-                   (unsigned long)hz,
-                   (unsigned long)clockCandidates[i + 1u],
-                   reason,
-                   mapLabel ? mapLabel : SENSORARRAY_NA);
-        }
-    }
-
-    printf("ICLK,stage=failed,bus=%d,addr=0x%02X,err=0x%lx,reason=%s,action=continue_init_at_last_frequency,map=%s\n",
-           bus,
-           fdcState->i2cAddr,
-           (unsigned long)lastErr,
-           lastReason,
-           mapLabel ? mapLabel : SENSORARRAY_NA);
-}
-
-static void sensorarraySweepFdcI2cClockUnderLoad(sensorarrayFdcDeviceState_t *fdcState,
-                                                 const char *mapLabel)
-{
-    if (!CONFIG_BOARD_I2C_AUTO_FALLBACK_ENABLE ||
-        !fdcState || !fdcState->i2cCtx || !fdcState->handle) {
-        return;
-    }
-
-    const uint32_t startHz = 400000u;
-    const uint32_t minHz = 300000u;
-    const uint32_t stepHz = 5000u;
-    const uint32_t marginHz = 10000u;
-    const uint32_t attempts = 3u;
-    uint32_t maxStableHz = 0u;
-    BoardSupportI2cBusInfo_t busInfo = {0};
-    bool secondary = fdcState->i2cCtx == boardSupportGetI2c1Ctx();
-    (void)boardSupportGetI2cBusInfo(secondary, &busInfo);
-
-    for (uint32_t testHz = startHz; testHz >= minHz; testHz -= stepHz) {
-        esp_err_t setErr = boardSupportSetI2cFrequency(fdcState->i2cCtx, testHz);
-        uint32_t idOk = 0u;
-        uint32_t statusOk = 0u;
-        uint32_t orderedOk = 0u;
-        uint32_t burstOk = 0u;
-        Fdc2214CapResetI2cStats(fdcState->handle);
-        esp_err_t firstErr = setErr;
-        for (uint32_t attempt = 0u; attempt < attempts && setErr == ESP_OK; ++attempt) {
-            uint16_t manufacturerId = 0u;
-            uint16_t deviceId = 0u;
-            esp_err_t err = Fdc2214CapReadId(fdcState->handle,
-                                             &manufacturerId,
-                                             &deviceId);
-            if (err == ESP_OK && sensorarrayAppFdcIdMatches(manufacturerId, deviceId)) {
-                idOk++;
-            } else if (firstErr == ESP_OK) {
-                firstErr = err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
-            }
-
-            Fdc2214CapStatus_t status = {0};
-            err = Fdc2214CapReadStatus(fdcState->handle, &status);
-            if (err == ESP_OK) {
-                statusOk++;
-            } else if (firstErr == ESP_OK) {
-                firstErr = err;
-            }
-
-            Fdc2214CapFastChannelSample_t ordered[4] = {0};
-            err = Fdc2214CapReadDataOrdered4(fdcState->handle, ordered);
-            if (err == ESP_OK) {
-                orderedOk++;
-            } else if (firstErr == ESP_OK) {
-                firstErr = err;
-            }
-
-            if (Fdc2214CapDataBurstSupported(fdcState->handle)) {
-                Fdc2214CapFastChannelSample_t burst[4] = {0};
-                err = Fdc2214CapReadDataBurst4(fdcState->handle, burst);
-                if (err == ESP_OK) {
-                    burstOk++;
-                } else if (firstErr == ESP_OK) {
-                    firstErr = err;
-                }
-            }
-        }
-        Fdc2214CapI2cStats_t stats = {0};
-        Fdc2214CapGetI2cStats(fdcState->handle, &stats);
-        bool burstRequired = Fdc2214CapDataBurstSupported(fdcState->handle);
-        bool ok = setErr == ESP_OK && firstErr == ESP_OK &&
-                  idOk == attempts && statusOk == attempts && orderedOk == attempts &&
-                  (!burstRequired || burstOk == attempts) &&
-                  stats.nackCount == 0u && stats.timeoutCount == 0u;
-        const char *reason = setErr != ESP_OK ? "bus_reconfigure_failed" :
-            (idOk != attempts ? "id_failed" :
-             statusOk != attempts ? "status_failed" :
-             orderedOk != attempts ? "ordered_failed" :
-             (burstRequired && burstOk != attempts) ? "burst_failed" :
-             stats.nackCount != 0u ? "nack" :
-             stats.timeoutCount != 0u ? "timeout" : "ok");
-        printf("I2C_SWEEP,bus=%d,testHz=%lu,ok=%u,idOk=%lu,statusOk=%lu,orderedOk=%lu,burstOk=%lu,nack=%lu,timeout=%lu,recover=%lu,reason=%s,map=%s\n",
-               (int)busInfo.Port,
-               (unsigned long)testHz,
-               ok ? 1u : 0u,
-               (unsigned long)idOk,
-               (unsigned long)statusOk,
-               (unsigned long)orderedOk,
-               (unsigned long)burstOk,
-               (unsigned long)stats.nackCount,
-               (unsigned long)stats.timeoutCount,
-               (unsigned long)stats.recoveryCount,
-               reason,
-               mapLabel ? mapLabel : SENSORARRAY_NA);
-        if (ok) {
-            maxStableHz = testHz;
-            break;
-        }
-        if (testHz == minHz) {
-            break;
-        }
-    }
-
-    uint32_t selectedHz = maxStableHz > (minHz + marginHz) ?
-        (maxStableHz - marginHz) : minHz;
-    const char *selectedReason = maxStableHz == 0u ?
-        "no_stable_workload_use_conservative" :
-        (maxStableHz <= minHz ? "stable_only_at_safe_floor" : "max_stable_minus_margin");
-    esp_err_t selectedErr = boardSupportSetI2cFrequency(fdcState->i2cCtx, selectedHz);
-    printf("I2C_SELECTED,bus=%d,hz=%lu,maxStableHz=%lu,marginKHz=10,err=0x%lx,reason=%s,map=%s\n",
-           (int)busInfo.Port,
-           (unsigned long)selectedHz,
-           (unsigned long)maxStableHz,
-           (unsigned long)selectedErr,
-           selectedReason,
-           mapLabel ? mapLabel : SENSORARRAY_NA);
-}
-
-static void sensorarrayInitFdcDevice(sensorarrayFdcDeviceState_t *fdcState,
-                                     bool addressValid,
-                                     uint8_t requestedChannels,
-                                     const char *mapLabel)
-{
-    if (!fdcState) {
-        return;
-    }
-    if (!addressValid) {
-        sensorarrayLogStartupFdc("fdc_init",
-                                 fdcState,
-                                 ESP_ERR_INVALID_ARG,
-                                 "skip_invalid_addr_config",
-                                 (int32_t)fdcState->i2cAddr,
-                                 false,
-                                 0,
-                                 0,
-                                 mapLabel);
-        return;
-    }
-    if (!fdcState->i2cCtx) {
-        sensorarrayLogStartupFdc("fdc_init",
-                                 fdcState,
-                                 ESP_ERR_NOT_SUPPORTED,
-                                 "skip_i2c_unavailable",
-                                 0,
-                                 false,
-                                 0,
-                                 0,
-                                 mapLabel);
-        return;
-    }
-
-    sensorarrayProbeAndLockFdcI2cClock(fdcState, mapLabel);
-    sensorarrayBringupProbeFdcBus(fdcState);
-
-    sensorarrayFdcInitDiag_t diag = {0};
-    esp_err_t err = sensorarrayBringupInitFdcDevice(fdcState->i2cCtx,
-                                                    fdcState->i2cAddr,
-                                                    requestedChannels,
-                                                    &fdcState->handle,
-                                                    &diag);
-    sensorarrayBringupApplyFdcInitResult(fdcState, fdcState->handle, err, &diag);
-    sensorarrayLogStartupFdc("fdc_init",
-                             fdcState,
-                             err,
-                             diag.status,
-                             (err == ESP_OK) ? (int32_t)requestedChannels : diag.detail,
-                             diag.haveIds,
-                             diag.manufacturerId,
-                             diag.deviceId,
-                             mapLabel);
-    if (err == ESP_OK && fdcState->handle) {
-        Fdc2214CapBurstProbeResult_t burstProbe = {0};
-        esp_err_t burstErr = Fdc2214CapProbeDataBurst4(fdcState->handle,
-                                                       5u,
-                                                       &burstProbe);
-        printf("BURST_PROBE,device=%s,supported=%u,trials=%lu,mismatch=%lu,err=0x%lx,reason=%s,map=%s\n",
-               fdcState->label ? fdcState->label : SENSORARRAY_NA,
-               burstProbe.supported ? 1u : 0u,
-               (unsigned long)burstProbe.trials,
-               (unsigned long)burstProbe.mismatchCount,
-               (unsigned long)burstErr,
-               burstProbe.reason ? burstProbe.reason : "unknown",
-               mapLabel ? mapLabel : SENSORARRAY_NA);
-        sensorarraySweepFdcI2cClockUnderLoad(fdcState, mapLabel);
-        Fdc2214CapSequenceProbeResult_t sequenceProbe = {0};
-        esp_err_t sequenceErr = ESP_ERR_NOT_SUPPORTED;
-        if (CONFIG_SENSORARRAY_FDC_PRECISION_SAFE_SEQUENCE_ENABLE) {
-            sequenceErr = Fdc2214CapProbeDataSequence4(fdcState->handle,
-                                                       5u,
-                                                       &sequenceProbe);
-        } else {
-            sequenceProbe.selectedMode = FDC_DATA_READ_MODE_ORDERED8;
-            sequenceProbe.reason = "config_disabled";
-        }
-        printf("SEQ_PROBE,device=%s,seqProbeOk=%u,dataReadMode=%s,trials=%lu,fixedMismatch=%lu,dataMismatch=%lu,testedMask=0x%lX,okMask=0x%lX,seqRegsPerTxn=%u,seqTxnPerRow=%u,selectedUs=%lu,err=0x%lx,reason=%s,map=%s\n",
-               fdcState->label ? fdcState->label : SENSORARRAY_NA,
-               sequenceProbe.supported ? 1u : 0u,
-               Fdc2214CapDataReadModeName(Fdc2214CapDataReadMode(fdcState->handle)),
-               (unsigned long)sequenceProbe.trials,
-               (unsigned long)sequenceProbe.fixedRegMismatchCount,
-               (unsigned long)sequenceProbe.dataMismatchCount,
-               (unsigned long)sequenceProbe.testedModeMask,
-               (unsigned long)sequenceProbe.modeOkMask,
-               (unsigned)Fdc2214CapDataReadModeRegsPerTransaction(
-                   Fdc2214CapDataReadMode(fdcState->handle)),
-               (unsigned)Fdc2214CapDataReadModeTransactionsPerRow(
-                   Fdc2214CapDataReadMode(fdcState->handle)),
-               (unsigned long)sequenceProbe.selectedElapsedUs,
-               (unsigned long)sequenceErr,
-               sequenceProbe.reason ? sequenceProbe.reason : "unknown",
-               mapLabel ? mapLabel : SENSORARRAY_NA);
-        uint16_t rcount[4] = {0};
-        uint16_t settle[4] = {0};
-        uint16_t clockDiv[4] = {0};
-        uint16_t drive[4] = {0};
-        uint16_t statusConfig = 0u;
-        uint16_t config = 0u;
-        uint16_t muxConfig = 0u;
-        esp_err_t profileErr = ESP_OK;
-        for (uint8_t ch = 0u; ch < 4u; ++ch) {
-            esp_err_t readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
-                                                           (uint8_t)(0x08u + ch),
-                                                           &rcount[ch]);
-            if (profileErr == ESP_OK && readErr != ESP_OK) {
-                profileErr = readErr;
-            }
-            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
-                                                 (uint8_t)(0x10u + ch),
-                                                 &settle[ch]);
-            if (profileErr == ESP_OK && readErr != ESP_OK) {
-                profileErr = readErr;
-            }
-            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
-                                                 (uint8_t)(0x14u + ch),
-                                                 &clockDiv[ch]);
-            if (profileErr == ESP_OK && readErr != ESP_OK) {
-                profileErr = readErr;
-            }
-            readErr = Fdc2214CapReadRawRegisters(fdcState->handle,
-                                                 (uint8_t)(0x1Eu + ch),
-                                                 &drive[ch]);
-            if (profileErr == ESP_OK && readErr != ESP_OK) {
-                profileErr = readErr;
-            }
-        }
-        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x19u, &statusConfig);
-        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x1Au, &config);
-        (void)Fdc2214CapReadRawRegisters(fdcState->handle, 0x1Bu, &muxConfig);
-        printf("FDC_PROFILE,device=%s,name=precision_safe_fast,conversionProfile=%s,runtimeRcount=0x%04X,startupRcount=[%04X,%04X,%04X,%04X],settle=[%04X,%04X,%04X,%04X],clockDiv=[%04X,%04X,%04X,%04X],drive=[%04X,%04X,%04X,%04X],config=0x%04X,mux=0x%04X,statusConfig=0x%04X,precisionAffecting=0,err=0x%lx\n",
-               fdcState->label ? fdcState->label : SENSORARRAY_NA,
-               CONFIG_SENSORARRAY_FDC_RUNTIME_PROFILE_NAME,
-               (unsigned)CONFIG_SENSORARRAY_FDC_RUNTIME_RCOUNT,
-               rcount[0], rcount[1], rcount[2], rcount[3],
-               settle[0], settle[1], settle[2], settle[3],
-               clockDiv[0], clockDiv[1], clockDiv[2], clockDiv[3],
-               drive[0], drive[1], drive[2], drive[3],
-               config,
-               muxConfig,
-               statusConfig,
-               (unsigned long)profileErr);
-        static bool experimentalProfileLogged = false;
-        if (!experimentalProfileLogged) {
-            experimentalProfileLogged = true;
-            printf("FDC_PROFILE,name=experimental_precision_affecting_profile,precisionAffecting=1,enabled=%u\n",
-                   CONFIG_SENSORARRAY_FDC_FORMAL_FAST_PROFILE_ENABLE ? 1u : 0u);
-        }
-    }
-}
-
-static void sensorarrayLogFdcParallelCfg(void)
-{
-    BoardSupportI2cBusInfo_t primaryBus = {0};
-    BoardSupportI2cBusInfo_t secondaryBus = {0};
-    (void)boardSupportGetI2cBusInfo(false, &primaryBus);
-    (void)boardSupportGetI2cBusInfo(true, &secondaryBus);
-    bool primaryAvailable = primaryBus.Enabled && boardSupportGetI2cCtx();
-    bool secondaryAvailable = secondaryBus.Enabled && boardSupportGetI2c1Ctx();
-    bool sameBus = primaryAvailable &&
-                   secondaryAvailable &&
-                   primaryBus.Port == secondaryBus.Port;
-    bool configEnabled = CONFIG_SENSORARRAY_FDC_PARALLEL_DUAL_BUS_READ != 0;
-    bool enabled = configEnabled &&
-                   primaryAvailable &&
-                   secondaryAvailable &&
-                   !sameBus;
-    const char *reason = !configEnabled ? "config_disabled" :
-        (!primaryAvailable || !secondaryAvailable) ? "bus_unavailable" :
-        sameBus ? "same_bus" :
-        "dual_bus_enabled";
-    if (configEnabled && !enabled) {
-        printf("FDC_PARALLEL_WARN,reason=config_enabled_but_worker_not_available,detail=%s\n",
-               reason);
-    }
-    printf("FDC_PARALLEL_CFG,enabled=%u,primaryBus=%d,secondaryBus=%d,sameBus=%u,primaryCore=%d,secondaryCore=%d,workerMode=%s,reason=%s,scanCore=%d,logCore=%d,workerPrio=%d,logPrio=%d\n",
-           enabled ? 1u : 0u,
-           primaryAvailable ? (int)primaryBus.Port : -1,
-           secondaryAvailable ? (int)secondaryBus.Port : -1,
-           sameBus ? 1u : 0u,
-           CONFIG_SENSORARRAY_FDC_PRIMARY_WORKER_TASK_CORE,
-           CONFIG_SENSORARRAY_FDC_SECONDARY_WORKER_TASK_CORE,
-           enabled ? "parallel" : "serial",
-           reason,
-           CONFIG_SENSORARRAY_SCAN_TASK_CORE,
-           CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE,
-           CONFIG_SENSORARRAY_FDC_WORKER_TASK_PRIO,
-           CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY);
-}
-
 static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
 {
     if (!ctx) {
@@ -1696,6 +1226,7 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     if (mailboxErr != ESP_OK) {
         return mailboxErr;
     }
+    sensorarrayScanConfigSetRequestCallback(sensorarrayFrontendRowsRequest);
 
     ctx->requestedFdcChannels =
         sensorarrayBringupNormalizeFdcChannels((uint8_t)CONFIG_FDC2214CAP_CHANNELS);
@@ -2089,6 +1620,37 @@ static void sensorarrayEmitConfigTerminal(sensorarrayAppContext_t *ctx,
     }
 }
 
+static void sensorarrayRejectHeldCommand(sensorarrayAppContext_t *ctx,
+                                         const sensorarrayCommand_t *command)
+{
+    const char *terminal = NULL;
+    if (command->type == SENSORARRAY_COMMAND_ROWS) {
+        sensorarrayScanConfigRecordRejected(command->requestId,
+            (uint32_t)ESP_ERR_INVALID_STATE);
+        terminal = "RERR";
+    } else if (command->type == SENSORARRAY_COMMAND_MEASUREMENT_MODE) {
+        sensorarrayMeasurementModeRejectRequest(&ctx->measurementMode,
+            command->requestId, (uint32_t)ESP_ERR_INVALID_STATE);
+        terminal = "MERR";
+    } else if (command->type == SENSORARRAY_COMMAND_ROW_MODES) {
+        sensorarrayRowModeProfileRejectRequest(&ctx->rowModeProfile,
+            command->requestId, (uint32_t)ESP_ERR_INVALID_STATE);
+        terminal = "RMERR";
+    }
+    if (terminal) {
+        sensorarrayEmitConfigTerminal(ctx, command->requestId,
+            ctx->hostFrameSequence + 1u,
+            "%s,id=%lu,seq=%lu,state=rejected,err=0x%lx,reason=wait_frontends\n",
+            terminal, (unsigned long)command->requestId,
+            (unsigned long)(ctx->hostFrameSequence + 1u),
+            (unsigned long)ESP_ERR_INVALID_STATE);
+    } else {
+        printf("CERR,cmd=%s,id=%lu,reason=wait_frontends,restartRequired=1\n",
+            sensorarrayCommandMailboxTypeName(command->type),
+            (unsigned long)command->requestId);
+    }
+}
+
 static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 {
     if (!ctx) {
@@ -2097,6 +1659,10 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 
     sensorarrayCommand_t command;
     while (sensorarrayCommandMailboxTryReceive(&command)) {
+        if (sensorarrayFrontendsHeld()) {
+            sensorarrayRejectHeldCommand(ctx, &command);
+            continue;
+        }
         switch (command.type) {
         case SENSORARRAY_COMMAND_CALIBRATE_ZERO:
             sensorarrayAdsGapRequestCalibration(true, false);
@@ -2426,6 +1992,161 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
     }
 }
 
+static bool sensorarrayFrontendOwnersQuiescent(const sensorarrayAppContext_t *ctx)
+{
+    /* Check boot publication first: no live driver fields may be read while
+     * that task still owns them. All remaining callers are frame boundaries. */
+    return ctx && sensorarrayFrontendStartupAdsOwnerQuiescent() &&
+        !sensorarrayBringupAdsPresenceBusy() &&
+        !sensorarrayBringupAdsPresenceQuarantined() &&
+        sensorarrayMeasureFdcWorkersQuiescent() &&
+        !sensorarrayMeasureFdcWorkersQuarantined() &&
+        !ads126xAdcIsQuarantined(&ctx->state.ads) &&
+        !ctx->state.ads.spiInFlight;
+}
+
+static void sensorarrayEnterFrontendHold(sensorarrayAppContext_t *ctx,
+                                         const char *reason)
+{
+    __atomic_store_n(&s_frontendHold, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&s_frontendCommandsReady, 0u, __ATOMIC_RELEASE);
+    sensorarrayFrontendPresenceLatchHold(&s_frontendPresence,
+        (uint64_t)esp_timer_get_time());
+    ctx->systemReady = false;
+    sensorarrayBootBreadcrumbMarkStableProgress(false);
+    if (s_frontendRouteWaitEntered ||
+        !sensorarrayFrontendStartupAdsOwnerQuiescent() ||
+        sensorarrayBringupAdsPresenceBusy() ||
+        sensorarrayBringupAdsPresenceQuarantined()) {
+        return;
+    }
+    /* No STOP, RESET, reference enable, or clamp command to an absent ADC.
+     * Releasing Q1 prevents a returning default-on INTREF being clamped, but
+     * U5 is still connected: the route is explicitly UNKNOWN. */
+    esp_err_t routeErr = sensorarrayRouteControllerEnterFrontendWait(
+        &ctx->routeController, &ctx->state);
+    if (!sensorarrayFrontendOwnersQuiescent(ctx)) {
+        /* The route helper published UNKNOWN without touching hardware.
+         * Do not invalidate storage that a live DMA/worker may still use. */
+        return;
+    }
+    s_frontendRouteWaitEntered = true;
+    sensorarrayAdsMatrixEngineInvalidateCaches(&ctx->adsEngine);
+    (void)sensorarrayAdsMatrixEngineSetMode(
+        &ctx->adsEngine, SENSORARRAY_MEASUREMENT_MODE_NONE);
+    for (unsigned row = 0u; row < SENSORARRAY_MATRIX_ROWS; ++row) {
+        for (unsigned col = 0u; col < SENSORARRAY_MATRIX_COLS; ++col) {
+            ctx->state.fdcCellCache[row][col].valid = false;
+        }
+    }
+    ctx->state.fdcAppliedRow[0].valid = false;
+    ctx->state.fdcAppliedRow[1].valid = false;
+    sensorarrayFdcSweepDiscardPendingForConfigChange();
+    sensorarrayMeasurementRecoveryInit(&ctx->adsRestoreRecovery);
+    ctx->pendingAdsCheck = false;
+    ctx->pendingBatteryRequestId = 0u;
+    sensorarrayMeasurementModeSnapshot_t mode = {0};
+    sensorarrayRowModeProfile_t profile = {0};
+    (void)sensorarrayMeasurementModeCopySnapshot(&ctx->measurementMode, &mode);
+    (void)sensorarrayRowModeProfileCopy(&ctx->rowModeProfile, &profile);
+    if (mode.pending) {
+        sensorarrayMeasurementModeFailTransition(&ctx->measurementMode,
+            (uint32_t)ESP_ERR_INVALID_STATE, 0u);
+    }
+    if (profile.pending) {
+        sensorarrayRowModeProfileFailTransition(&ctx->rowModeProfile,
+            (uint32_t)ESP_ERR_INVALID_STATE, 0u);
+    }
+    sensorarrayMeasurementModeRecordRuntimeFault(&ctx->measurementMode,
+        (uint32_t)ESP_ERR_INVALID_STATE);
+    (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
+    if (mode.pending) {
+        sensorarrayEmitConfigTerminal(ctx, mode.pendingRequestId,
+            ctx->hostFrameSequence + 1u,
+            "MERR,id=%lu,state=rejected,err=0x%lx,reason=wait_frontends\n",
+            (unsigned long)mode.pendingRequestId,
+            (unsigned long)ESP_ERR_INVALID_STATE);
+    }
+    if (profile.pending) {
+        sensorarrayEmitConfigTerminal(ctx, profile.pendingRequestId,
+            ctx->hostFrameSequence + 1u,
+            "RMERR,id=%lu,state=rejected,err=0x%lx,reason=wait_frontends\n",
+            (unsigned long)profile.pendingRequestId,
+            (unsigned long)ESP_ERR_INVALID_STATE);
+    }
+    sensorarrayBootBreadcrumbSetStage("wait_frontends", routeErr, ctx);
+    printf("MFAULT,source=FRONTEND_LOSS,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,reason=%s,gpioErr=0x%lx,physicalSafe=unknown,restartRequired=1\n",
+        (unsigned long)(ctx->hostFrameSequence + 1u),
+        (unsigned long)ESP_ERR_INVALID_STATE, reason,
+        (unsigned long)(uint32_t)routeErr);
+}
+
+static bool sensorarrayRunFrontendPresenceBoundary(sensorarrayAppContext_t *ctx)
+{
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    if (sensorarrayFrontendPresenceDue(&s_frontendPresence, nowUs)) {
+        sensorarrayRouteSnapshot_t route = {0};
+        bool sdKnownLow = ctx->frontendFdcSdKnownLow;
+        if (sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route) &&
+            route.fdcSdVerified) {
+            sdKnownLow = !route.fdcSdHigh;
+        }
+        sensorarrayFrontendPresenceSnapshot_t snapshot = {0};
+        sensorarrayFrontendPresenceAction_t action = sensorarrayFrontendPresencePoll(
+            &s_frontendPresence, &ctx->state, nowUs,
+            sensorarrayFrontendOwnersQuiescent(ctx), !sdKnownLow, &snapshot);
+        bool cleanupFailed = false;
+        for (unsigned i = 0u; i < SENSORARRAY_FRONTEND_COUNT; ++i) {
+            cleanupFailed |= snapshot.evidence.devices[i].cleanupError != ESP_OK;
+        }
+        if (action == SENSORARRAY_FRONTEND_PRESENCE_ENTER_WAIT ||
+            sensorarrayFrontendPresenceIsWaiting(&s_frontendPresence) ||
+            cleanupFailed) {
+            sensorarrayEnterFrontendHold(ctx, cleanupFailed ?
+                "presence_restore_failed" : "identity_unavailable_or_reset");
+        }
+        if (action != SENSORARRAY_FRONTEND_PRESENCE_NONE ||
+            sensorarrayFrontendsHeld()) {
+            printf("FRONTEND_PROBE,phase=%s,round=%lu,known=%u,present=%u,absentRun=%lu,presentRun=%lu,ownerFree=%u,lowSpeed=%u,startUs=%llu,endUs=%llu,physicalSafe=unknown\n",
+                sensorarrayFrontendPresencePhaseName(snapshot.phase),
+                (unsigned long)snapshot.probes, (unsigned)snapshot.knownMask,
+                (unsigned)snapshot.presentMask, (unsigned long)snapshot.absentRun,
+                (unsigned long)snapshot.presentRun,
+                snapshot.evidence.ownerQuiescent ? 1u : 0u,
+                snapshot.evidence.lowSpeed ? 1u : 0u,
+                (unsigned long long)snapshot.evidence.startedUs,
+                (unsigned long long)snapshot.evidence.endedUs);
+        }
+        if (snapshot.probes == 1u || action != SENSORARRAY_FRONTEND_PRESENCE_NONE ||
+            sensorarrayFrontendsHeld()) {
+            const sensorarrayFrontendPresenceDevice_t *d = snapshot.evidence.devices;
+            printf("FRONTEND_CLOCKS,round=%lu,pProbeHz=%lu,pRestoredHz=%lu,sProbeHz=%lu,sRestoredHz=%lu,aProbeHz=%lu,aRestoredHz=%lu,unknownHz=0\n",
+                (unsigned long)snapshot.probes, (unsigned long)d[0].clockHz,
+                (unsigned long)d[0].restoredClockHz, (unsigned long)d[1].clockHz,
+                (unsigned long)d[1].restoredClockHz, (unsigned long)d[2].clockHz,
+                (unsigned long)d[2].restoredClockHz);
+        }
+        if (action == SENSORARRAY_FRONTEND_PRESENCE_REQUEST_RESTART &&
+            !s_frontendRestartAttempted) {
+            s_frontendRestartAttempted = true;
+            if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+                sensorarrayBootBreadcrumbSetStage("frontends_restored", ESP_OK, ctx);
+                sensorarrayBootEmitRestartMarker(
+                    "RAPP,cmd=FRONTENDS,id=0,state=restarting,reason=stable_identity_recovered\n");
+                esp_restart();
+            } else {
+                printf("FRONTEND_WAIT,reason=restart_budget_exhausted,route=UNKNOWN,physicalSafe=unknown,query=FRONTENDS\n");
+            }
+        }
+    }
+    if (sensorarrayFrontendsHeld()) {
+        sensorarrayBootBreadcrumbMarkStableProgress(false);
+        sensorarrayApplyPendingCommands(ctx);
+        return true;
+    }
+    return false;
+}
+
 static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
 {
     if (!ctx || !ctx->pendingAdsCheck) {
@@ -2707,6 +2428,37 @@ static esp_err_t sensorarrayFormatBootReply(char *response,
     return ESP_OK;
 }
 
+static esp_err_t sensorarrayFormatFrontendReply(char *response, size_t responseSize)
+{
+    sensorarrayFrontendPresenceSnapshot_t s = {0};
+    (void)sensorarrayFrontendPresenceCopySnapshot(&s_frontendPresence, &s);
+    const sensorarrayFrontendPresenceDevice_t *p = s.evidence.devices;
+    int written = snprintf(response, responseSize,
+        "FRONTENDS,phase=%s,hold=%u,probes=%lu,absentRun=%lu,presentRun=%lu,known=%u,present=%u,primary=%s,secondary=%s,ads=%s,pErr=0x%lx,sErr=0x%lx,aErr=0x%lx,pCleanup=0x%lx,sCleanup=0x%lx,aCleanup=0x%lx,aHz=%lu,aRestoreHz=%lu,ownerFree=%u,sdInhibited=%u,lowSpeed=%u,quarantine=%u,nextUs=%llu,beginUs=%llu,endUs=%llu,physicalSafe=unknown\n",
+        s.initialized ? sensorarrayFrontendPresencePhaseName(s.phase) : "idle",
+        sensorarrayFrontendsHeld() ? 1u : 0u,
+        (unsigned long)s.probes, (unsigned long)s.absentRun,
+        (unsigned long)s.presentRun, (unsigned)s.knownMask, (unsigned)s.presentMask,
+        sensorarrayFrontendPresenceLinkName(p[0].link),
+        sensorarrayFrontendPresenceLinkName(p[1].link),
+        sensorarrayFrontendPresenceLinkName(p[2].link),
+        (unsigned long)(uint32_t)p[0].error,
+        (unsigned long)(uint32_t)p[1].error,
+        (unsigned long)(uint32_t)p[2].error,
+        (unsigned long)(uint32_t)p[0].cleanupError,
+        (unsigned long)(uint32_t)p[1].cleanupError,
+        (unsigned long)(uint32_t)p[2].cleanupError,
+        (unsigned long)p[2].clockHz, (unsigned long)p[2].restoredClockHz,
+        s.evidence.ownerQuiescent ? 1u : 0u,
+        s.evidence.fdcShutdownHigh ? 1u : 0u,
+        s.evidence.lowSpeed ? 1u : 0u, s.evidence.quarantined ? 1u : 0u,
+        (unsigned long long)s.nextProbeUs,
+        (unsigned long long)s.evidence.startedUs,
+        (unsigned long long)s.evidence.endedUs);
+    return written > 0 && (size_t)written < responseSize ?
+        ESP_OK : ESP_ERR_INVALID_SIZE;
+}
+
 static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
                                                      char *response,
                                                      size_t responseSize,
@@ -2715,6 +2467,12 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     (void)context;
     if (!command || !response || responseSize == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(command, "SPI?") == 0) {
+        return sensorarrayFrontendStartupFormatSpi(response, responseSize);
+    }
+    if (strcmp(command, "FRONTENDS?") == 0) {
+        return sensorarrayFormatFrontendReply(response, responseSize);
     }
     uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_FULL;
     sensorarrayEarlyRecoveryKind_t kind =
@@ -2728,8 +2486,9 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
         (void)sensorarrayBootBreadcrumbCopy(&boot);
         snprintf(response,
                  responseSize,
-                 "%s,ready=0,state=INIT,active=NONE,stage=%s,reason=acquisition_not_ready\n",
+                 "%s,ready=0,state=%s,active=NONE,route=UNKNOWN,stage=%s,reason=acquisition_not_ready\n",
                  kind == SENSORARRAY_EARLY_KIND_STATE_QUERY ? "STATE" : "MODE",
+                 sensorarrayFrontendsHeld() ? "DEGRADED" : "INIT",
                  boot.magic == SENSORARRAY_BOOT_BREADCRUMB_MAGIC ?
                      boot.lastStage : "boot");
         return ESP_OK;
@@ -2751,7 +2510,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
@@ -2835,6 +2594,20 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     uint32_t frameSequence = ctx ? ctx->frame.sequence : 0u;
     if (!command || !response || responseSize == 0u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(command, "SPI?") == 0) {
+        return sensorarrayFrontendStartupFormatSpi(response, responseSize);
+    }
+    if (strcmp(command, "FRONTENDS?") == 0) {
+        return sensorarrayFormatFrontendReply(response, responseSize);
+    }
+    if (sensorarrayFrontendsHeld() && !strchr(command, '?') &&
+        strcmp(command, "RESTART") != 0 && strcmp(command, "RECOVER=2") != 0 &&
+        strcmp(command, "USBSTREAM=DEBUG") != 0 &&
+        strcmp(command, "USBSTREAM=FULL") != 0) {
+        snprintf(response, responseSize,
+            "ERR,cmd=FRONTENDS,reason=wait_frontends,restartRequired=1\n");
+        return ESP_ERR_INVALID_STATE;
     }
     if (strcmp(command, "ROUTE?") == 0) {
         sensorarrayRouteSnapshot_t route = {0};
@@ -3392,7 +3165,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
@@ -3518,7 +3291,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
             }
             level = (uint32_t)parsed;
         }
-        if (!ctx || !ctx->systemReady) {
+        if (!ctx || (!ctx->systemReady && !sensorarrayFrontendsHeld())) {
             snprintf(response, responseSize,
                      "ERR,cmd=RECOVER,reason=not_ready\n");
             return ESP_ERR_INVALID_STATE;
@@ -3680,54 +3453,14 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
     /* The shared FDC SD net must be driven low before either FDC2214 is
      * probed or configured.  The route controller owns this pin; a failed
      * prepare is logged here and keeps FDCISO rejected for this boot. */
-    (void)sensorarrayRouteControllerPrepareFdcSdGpio();
+    ctx->frontendFdcSdKnownLow =
+        sensorarrayRouteControllerPrepareFdcSdGpio() == ESP_OK;
 
-    esp_err_t err = sensorarrayBringupInitAds(&ctx->state);
-    ctx->state.adsReady = (err == ESP_OK);
-    ctx->state.adsRefReady = false;
-    sensorarrayLogStartup("ads", err,
-                          ctx->state.adsReady ? "ok_ref_off" : "init_failed",
-                          (int32_t)ctx->state.adsReady);
-    sensorarrayLogSetAdsState(ctx->state.adsReady, ctx->state.adsRefReady);
-
-    if (ctx->state.boardReady) {
-        ctx->state.fdcPrimary.i2cCtx = boardSupportGetI2cCtx();
-        ctx->state.fdcSecondary.i2cCtx = boardSupportGetI2c1Ctx();
-        sensorarrayInitFdcDevice(&ctx->state.fdcPrimary,
-                                 ctx->primaryAddrValid,
-                                 ctx->requestedFdcChannels,
-                                 "D1..D4_primary_ch0..ch3");
-        sensorarrayInitFdcDevice(&ctx->state.fdcSecondary,
-                                 ctx->secondaryAddrValid,
-                                 ctx->requestedFdcChannels,
-                                 "D5..D8_secondary_ch0..ch3");
-        BoardSupportI2cBusInfo_t bus0Info = {0};
-        BoardSupportI2cBusInfo_t bus1Info = {0};
-        (void)boardSupportGetI2cBusInfo(false, &bus0Info);
-        (void)boardSupportGetI2cBusInfo(true, &bus1Info);
-        printf("I2C_SELECTED,bus0Hz=%lu,bus1Hz=%lu,marginKHz=10,reason=post_handle_real_load_sweep\n",
-               (unsigned long)bus0Info.FrequencyHz,
-               (unsigned long)bus1Info.FrequencyHz);
-        sensorarrayLogFdcParallelCfg();
-    } else {
-        sensorarrayLogStartupFdc("fdc_init",
-                                 &ctx->state.fdcPrimary,
-                                 ESP_ERR_INVALID_STATE,
-                                 "skip_board_unavailable",
-                                 0,
-                                 false,
-                                 0,
-                                 0,
-                                 "D1..D4_primary_ch0..ch3");
-        sensorarrayLogStartupFdc("fdc_init",
-                                 &ctx->state.fdcSecondary,
-                                 ESP_ERR_INVALID_STATE,
-                                 "skip_board_unavailable",
-                                 0,
-                                 false,
-                                 0,
-                                 0,
-                                 "D5..D8_secondary_ch0..ch3");
+    ctx->frontendStartupReached = true;
+    esp_err_t err = sensorarrayFrontendStartupRun(&ctx->state,
+        ctx->primaryAddrValid, ctx->secondaryAddrValid, ctx->requestedFdcChannels);
+    if (err != ESP_OK) {
+        return err;
     }
 
     err = sensorarrayFdcMatrixEngineInit(&ctx->fdcEngine, &ctx->state);
@@ -3780,6 +3513,7 @@ static esp_err_t sensorarrayInitFrontends(sensorarrayAppContext_t *ctx)
      * fail, so an accepted ROWMODES can never be stranded in a mailbox that
      * a failed-bring-up fatal loop would never drain. */
     sensorarrayTransportSetRuntimeQueryCallback(sensorarrayRuntimeQueryCommand, ctx);
+    __atomic_store_n(&s_frontendCommandsReady, 1u, __ATOMIC_RELEASE);
     sensorarrayFdcRescueReset(&ctx->fdcRescue);
     return ESP_OK;
 }
@@ -4244,8 +3978,8 @@ static void sensorarrayRuntimeI2cFallbackTick(sensorarrayAppContext_t *ctx)
            (unsigned long)ctx->frame.sequence,
            (unsigned)ctx->frame.i2cErrorCount,
            (unsigned long)ctx->frame.firstReadErr);
-    sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcPrimary, "runtime_primary_reverify");
-    sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcSecondary, "runtime_secondary_reverify");
+    sensorarrayFrontendStartupRecheckFdcClock(&ctx->state.fdcPrimary, "runtime_primary_reverify");
+    sensorarrayFrontendStartupRecheckFdcClock(&ctx->state.fdcSecondary, "runtime_secondary_reverify");
     ctx->runtimeI2cErrorStreak = 0u;
 }
 
@@ -4392,9 +4126,9 @@ static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
             return safeErr;
         }
         if (mode.activeMode == SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE) {
-            sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcPrimary,
+            sensorarrayFrontendStartupRecheckFdcClock(&ctx->state.fdcPrimary,
                                                "recover_full");
-            sensorarrayProbeAndLockFdcI2cClock(&ctx->state.fdcSecondary,
+            sensorarrayFrontendStartupRecheckFdcClock(&ctx->state.fdcSecondary,
                                                "recover_full");
             (void)sensorarrayFdcMatrixEngineRunFullRescue(&ctx->fdcEngine,
                                                           "recover_full");
@@ -4427,6 +4161,23 @@ static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
     uint32_t requestId = 0u;
     if (!sensorarrayRecoveryTake(&level, &requestId)) {
         return false;
+    }
+
+    if (sensorarrayFrontendsHeld()) {
+        if (level == SENSORARRAY_RECOVERY_LEVEL_RESTART &&
+            sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+            sensorarrayBootBreadcrumbSetStage("frontend_manual_recovery",
+                                               ESP_OK, ctx);
+            char marker[128];
+            (void)snprintf(marker, sizeof(marker),
+                "RAPP,cmd=RECOVER,id=%lu,level=2,state=restarting,reason=frontend_wait\n",
+                (unsigned long)requestId);
+            sensorarrayBootEmitRestartMarker(marker);
+            esp_restart();
+        }
+        printf("RERR,cmd=RECOVER,id=%lu,level=%u,state=rejected,reason=wait_frontends,route=UNKNOWN\n",
+            (unsigned long)requestId, (unsigned)level);
+        return true;
     }
 
     sensorarrayRouteSnapshot_t recoveryRoute = {0};
@@ -4499,11 +4250,13 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
 {
     sensorarrayBootBreadcrumbSetStage("main_loop", ESP_OK, ctx);
     while (true) {
+        bool frontendHeld = sensorarrayRunFrontendPresenceBoundary(ctx);
         if (sensorarrayRunRecoveryBoundary(ctx)) {
             continue;
         }
         if (sensorarrayMeasureFdcWorkersQuarantined() ||
-            ads126xAdcIsQuarantined(&ctx->state.ads)) {
+            ads126xAdcIsQuarantined(&ctx->state.ads) ||
+            sensorarrayBringupAdsPresenceQuarantined()) {
             sensorarrayBootBreadcrumbMarkStableProgress(false);
             /* 本轮新增: a timeout is not cancellation. Retain every worker/
              * DMA object, reject hardware transitions, and use the existing
@@ -4515,17 +4268,22 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                 sensorarrayMeasurementModeRecordRuntimeFault(
                     &ctx->measurementMode, (uint32_t)ESP_ERR_INVALID_STATE);
     (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-                printf("MFAULT,source=OWNER_QUARANTINED,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,fdc=%u,spi=%u,physicalSafe=unknown\n",
+                printf("MFAULT,source=OWNER_QUARANTINED,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,fdc=%u,spi=%u,presence=%u,physicalSafe=unknown\n",
                        (unsigned long)(ctx->hostFrameSequence + 1u),
                        (unsigned long)ESP_ERR_INVALID_STATE,
                        sensorarrayMeasureFdcWorkersQuarantined() ? 1u : 0u,
-                       ads126xAdcIsQuarantined(&ctx->state.ads) ? 1u : 0u);
+                       ads126xAdcIsQuarantined(&ctx->state.ads) ? 1u : 0u,
+                       sensorarrayBringupAdsPresenceQuarantined() ? 1u : 0u);
                 sensorarrayBootBreadcrumbSetStage("owner_quarantined",
                                                    ESP_ERR_INVALID_STATE, ctx);
                 if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
                     esp_restart();
                 }
             }
+            vTaskDelay(pdMS_TO_TICKS(50u));
+            continue;
+        }
+        if (frontendHeld) {
             vTaskDelay(pdMS_TO_TICKS(50u));
             continue;
         }
@@ -4775,16 +4533,47 @@ static void sensorarrayScanTask(void *arg)
     esp_err_t initErr = sensorarrayInitSystem(ctx);
     if (initErr != ESP_OK) {
         sensorarrayBootBreadcrumbSetStage("init_failed", initErr, ctx);
-        if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+        bool frontendWait = ctx->frontendStartupReached &&
+            initErr != ESP_ERR_NO_MEM && sensorarrayFrontendOwnersQuiescent(ctx);
+        if (frontendWait) {
+            /* An absent ADC at cold boot is not a reason to consume every
+             * restart token before the frontend supply has returned. */
+            sensorarrayEnterFrontendHold(ctx, "startup_unqualified");
+        } else if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
             sensorarrayBootBreadcrumbSetStage("auto_restart", initErr, ctx);
             sensorarrayBootEmitRestartMarker(
                 "RAPP,cmd=RECOVER,id=0,level=2,state=restarting,kind=auto\n");
             esp_restart();
         }
-        sensorarrayBootBreadcrumbSetStage("recovery_safe_idle", initErr, ctx);
-        printf("APP_FATAL,stage=acquisition_init,err=%ld,action=recovery_safe_no_restart\n",
-               (long)initErr);
+        if (!frontendWait) {
+            sensorarrayBootBreadcrumbSetStage("recovery_safe_idle", initErr, ctx);
+        }
+        printf("APP_FATAL,stage=acquisition_init,err=%ld,action=%s\n",
+               (long)initErr, frontendWait ? "wait_frontends" : "recovery_safe_no_restart");
         for (;;) {
+            if (!frontendWait && ctx->frontendStartupReached &&
+                initErr != ESP_ERR_NO_MEM && sensorarrayFrontendOwnersQuiescent(ctx)) {
+                /* A late boot completion releases ownership, but never
+                 * turns the failed startup into READY or reuses its job. */
+                frontendWait = true;
+                sensorarrayEnterFrontendHold(ctx, "late_boot_owner_release");
+            }
+            if (frontendWait) {
+                (void)sensorarrayRunFrontendPresenceBoundary(ctx);
+                if (!ctx->hardwareQuarantineReported &&
+                    (sensorarrayMeasureFdcWorkersQuarantined() ||
+                     ads126xAdcIsQuarantined(&ctx->state.ads) ||
+                     sensorarrayBringupAdsPresenceQuarantined())) {
+                    ctx->hardwareQuarantineReported = true;
+                    sensorarrayBootBreadcrumbSetStage("presence_quarantined",
+                                                       ESP_ERR_INVALID_STATE, ctx);
+                    if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
+                        sensorarrayBootEmitRestartMarker(
+                            "RAPP,cmd=RECOVER,id=0,level=2,state=restarting,reason=presence_quarantined\n");
+                        esp_restart();
+                    }
+                }
+            }
             uint32_t restartId = 0u;
             if (sensorarrayRestartTake(&restartId)) {
                 char marker[96];
@@ -4813,9 +4602,10 @@ static void sensorarrayScanTask(void *arg)
                     sensorarrayBootEmitRestartMarker(marker);
                     esp_restart();
                 }
-                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=safe,reason=acquisition_init_failed\n",
+                printf("RAPP,cmd=RECOVER,id=%lu,level=%u,state=%s,route=UNKNOWN,reason=acquisition_init_failed\n",
                        (unsigned long)recoveryId,
-                       (unsigned)recoveryLevel);
+                       (unsigned)recoveryLevel,
+                       frontendWait ? "waiting_frontends" : "unavailable");
             }
             vTaskDelay(pdMS_TO_TICKS(250u));
         }
@@ -4945,6 +4735,8 @@ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx)
 void app_main(void)
 {
     memset(&s_appContext, 0, sizeof(s_appContext));
+    sensorarrayFrontendPresenceInit(&s_frontendPresence,
+        (uint64_t)esp_timer_get_time());
     sensorarrayBootBreadcrumbStart();
     esp_fill_random(&s_configSessionId, sizeof(s_configSessionId));
     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
