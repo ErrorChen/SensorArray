@@ -356,6 +356,8 @@ The host software repository was not modified. Its separate integration task mus
 
 ## 双 CDC 替代接口 / Dual-CDC alternative (2026-11-14)
 
+修复提交 / Firmware commits: `3dc0c48e92f080cad334cce50614d07c3df6e38c` adds dual CDC and explicit running-image identity; `4a183bca6a5a0566a834a727a58d5e25a80ad31b` adds bounded detach and rejects late cleanup ACK. The final built app version is `4a183bc`, 1,590,656 bytes, binary SHA256 `283e70782280789ed9c79f29e2263179deb23e9be57f6e35e8f5fb8595fda223`. It is not yet flashed. / 上述版本已经构建，尚未烧录；不能把仓库当前 HEAD 当作板上版本。[构建身份 / Build identity](../audit/artifacts/usb_otg_ble_priority_20261114/cdc-candidate-06-build-manifest.json)。
+
 本节扩展上节 OTG 契约：用户要求当前调试不安装管理员权限规则，因此默认 `CONFIG_SENSORARRAY_USB_OTG_CDC=y`，仍使用原生 OTG DMA。设为 n 才构建上一节的 vendor backend；二者不能同时占用 S3 的 IN 端点。旧 vendor 记录和主机工具保留，不能把其数据伪称为新 CDC 数据。实现提交及 HIL 结果以阶段 manifest 为准，尚未声明完整验收通过。
 
 This extends the preceding OTG contract. To continue without installing an administrator permission rule, `CONFIG_SENSORARRAY_USB_OTG_CDC=y` selects the default dual-CDC backend, still using native OTG DMA. Set it to n for the preceding vendor backend. Both cannot occupy S3 IN endpoints simultaneously. Historical vendor records and tools remain distinct; CDC acceptance is not inferred from them. Exact source/build/HIL identity is recorded in stage manifests; full acceptance is not yet claimed.

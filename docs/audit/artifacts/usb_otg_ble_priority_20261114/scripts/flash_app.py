@@ -1,4 +1,5 @@
 """Authorized app-only flash; retain NVS, calibration, bootloader and partitions."""
+import argparse
 import hashlib
 import json
 import os
@@ -9,7 +10,13 @@ import sys
 root = Path(__file__).resolve().parents[5]
 out = Path(__file__).resolve().parents[1]
 os.chdir(root)
-label = sys.argv[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("label")
+parser.add_argument("--port", default="/dev/ttyACM0", help="Previously identified board download tty; MAC is verified before writing")
+parser.add_argument("--before", choices=("default_reset", "usb_reset", "no_reset"), default="default_reset")
+options = parser.parse_args()
+label = options.label
+assert all(c.isalnum() or c in "-_" for c in label)
 manifest = json.loads((out / (label + "-build-manifest.json")).read_text())
 assert all(r["exit_code"] == 0 for r in manifest["results"])
 assert not manifest["source_changed_during_run"], "build inputs changed; rebuild first"
@@ -21,12 +28,15 @@ flasher = json.loads((root / "build/flasher_args.json").read_text())
 assert flasher["app"]["file"] == app.name
 assert flasher["flash_settings"] == {"flash_mode": "dio", "flash_size": "16MB", "flash_freq": "80m"}
 app_offset = flasher["app"]["offset"]
-base = [sys.executable, "-m", "esptool", "--chip", "esp32s3", "--port", "/dev/ttyACM0",
-        "--baud", "460800", "--before", "default_reset", "--after", "hard_reset"]
+base = [sys.executable, "-m", "esptool", "--chip", "esp32s3", "--port", options.port,
+        "--baud", "460800", "--connect-attempts", "2"]
 records = []
-for name, args in [("identity", ["flash_id"]),
-                   ("app", ["write_flash", "--flash_mode", "dio", "--flash_freq", "80m",
+for name, args in [("identity", ["--before", options.before, "--after", "no_reset", "flash_id"]),
+                   ("app", ["--before", "no_reset", "--after", "hard_reset",
+                            "write_flash", "--flash_mode", "dio", "--flash_freq", "80m",
                             "--flash_size", "16MB", app_offset, str(app)])]:
+    # Keep the ROM/flasher stub after identification. Booting the old OTG app
+    # here would replace the programming interface before the write begins.
     log = out / (label + "-flash-" + name + ".txt")
     command = base + args
     with log.open("x") as stream:

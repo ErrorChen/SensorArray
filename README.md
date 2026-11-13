@@ -32,6 +32,8 @@ Completed and pending checks are recorded in the [stage report](docs/audit/usb_o
 
 最新候选已通过完整 57 个 host 测试入口和目标构建，但尚未烧录：旧镜像 USBBOOT 后没有观察到 ROM 重枚举；直接串口自动复位报 USB Protocol error，不复位同步也未收到数据。已增加包含在原 250 ms 总期限内的 20 ms detach 窗口，并修复迟到清理 ACK 仍误置 ROM 标志的已复现错误。56 个 owner 场景通过；实际枚举恢复、USB+BLE 120 s 筛查、600 s 稳定性和 32 配置长测仍待设备连接恢复。/ The latest candidate passed all 57 host entries and the target build but is not yet flashed. The earlier image did not produce observed ROM re-enumeration after USBBOOT; direct serial reset returned a USB protocol error and no-reset sync received no data. A 20 ms detach window now fits within the original 250 ms deadline, and a reproduced late-cleanup-ACK error no longer arms ROM after expiry. All 56 owner cases pass; enumeration recovery, the 120 s USB+BLE screen, 600 s stability and 32-configuration suite still await a usable device connection.
 
+当前已构建镜像 / Current built image: source `4a183bca6a5a0566a834a727a58d5e25a80ad31b`, BUILD version `4a183bc`, 1,590,656 B, binary SHA256 `283e70782280789ed9c79f29e2263179deb23e9be57f6e35e8f5fb8595fda223`. [最终构建与输入 hash / Final build and input hashes](docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-candidate-06-build-manifest.json). 这是待烧录镜像，不是板上身份。/ This identifies the pending image, not the running board.
+
 ## 历史 Serial/JTAG 修复与失败基线 / Historical Serial/JTAG repairs and failed baselines
 
 以下“当前”表述保留当时阶段语境，均不是本轮 OTG CDC 的版本或验收结论。 / The following historical references to “current” describe their original stages, not the present OTG CDC image or acceptance outcome.
