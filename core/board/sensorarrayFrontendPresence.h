@@ -40,8 +40,11 @@ typedef struct {
     sensorarrayFrontendLink_t link;
     esp_err_t error;
     esp_err_t cleanupError;
-    uint16_t manufacturerId;
-    uint16_t deviceId;
+    uint16_t manufacturerId;       /* FDC first 7E read; ADS ID uses deviceId. */
+    uint16_t deviceId;             /* FDC first 7F read. */
+    uint16_t manufacturerIdSecond; /* FDC second 7E read. */
+    uint16_t deviceIdSecond;       /* FDC second 7F read. */
+    uint8_t idReadMask;            /* Completed FDC 7E/7F/7E/7F reads, bits 0..3. */
     uint8_t power;
     uint8_t interface;
     uint32_t clockHz;         /* Clock used by the identity probe. */

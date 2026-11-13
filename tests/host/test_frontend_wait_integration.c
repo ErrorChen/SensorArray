@@ -281,10 +281,32 @@ static void testStartupFailureAndQuery(void)
     assert(reply[strlen(reply) - 1] == '\n');
     assert(sensorarrayFormatFrontendReply(reply, 16) == ESP_ERR_INVALID_SIZE);
 }
+static void testIdLogBound(void)
+{
+    sensorarrayFrontendPresenceSnapshot_t snapshot = { .probes = UINT32_MAX };
+    for (unsigned i = 0; i < 2; ++i) {
+        sensorarrayFrontendPresenceDevice_t *device = &snapshot.evidence.devices[i];
+        device->manufacturerId = device->deviceId = UINT16_MAX;
+        device->manufacturerIdSecond = device->deviceIdSecond = UINT16_MAX;
+        device->idReadMask = UINT8_MAX;
+        device->error = device->cleanupError = -1;
+    }
+    const sensorarrayFrontendPresenceDevice_t *d = snapshot.evidence.devices;
+    char line[384];
+    /* ACTUAL_IDS_FORMAT */
+    assert(written > 0 && (size_t)written < sizeof(line));
+    assert(line[written - 1] == '\n');
+    assert(strstr(line, "pMfg1=FFFF,pDev1=FFFF,pMfg2=FFFF,pDev2=FFFF,pReadMask=0xFF"));
+    assert(strstr(line, "sMfg1=FFFF,sDev1=FFFF,sMfg2=FFFF,sDev2=FFFF,sReadMask=0xFF"));
+    assert(strstr(line, "pErr=0xFFFFFFFF,pCleanup=0xFFFFFFFF"));
+    assert(strstr(line, "sErr=0xFFFFFFFF,sCleanup=0xFFFFFFFF"));
+    printf("FRONTEND_IDS_MAX,length=%d,capacity=384\n", written);
+}
 int main(void)
 {
     testOwnershipAndHold(); testCommands(); testBoundaryAndRestart();
     testStartupFailureAndQuery();
+    testIdLogBound();
     puts("frontend production main hold/lifecycle/query: PASS");
     return 0;
 }

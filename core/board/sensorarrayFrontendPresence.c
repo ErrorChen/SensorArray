@@ -6,6 +6,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "sensorarrayBringup.h"
+#include "sensorarrayConfig.h"
 
 #define FRONTEND_MONITOR_INTERVAL_US 1000000u
 #define FRONTEND_WAIT_INTERVAL_US 2000000u
@@ -13,8 +14,6 @@
 #define FRONTEND_I2C_LOW_HZ 100000u
 #define FRONTEND_I2C_READ_TIMEOUT_MS 20u
 #define FRONTEND_I2C_RECONFIG_ADMISSION_US 150000u
-#define FRONTEND_FDC_MANUFACTURER_ID 0x5449u
-#define FRONTEND_FDC_DEVICE_ID 0x3055u
 
 /* Static rather than embedded: early queries may precede context Init(). */
 static portMUX_TYPE s_presenceMux = portMUX_INITIALIZER_UNLOCKED;
@@ -209,33 +208,45 @@ static void frontendReadFdc(const sensorarrayFdcDeviceState_t *fdc,
         if (out->error != ESP_OK) { goto restore; }
     }
     if (bus->Offline || !bus->Installed) { goto restore; }
-    const uint8_t idRegisters[2] = {0xFEu, 0xFFu}; /* Never read clear-on-read STATUS. */
-    uint16_t first[2] = {0}, second[2] = {0};
-    if (!frontendBeforeDeadline(deadlineUs, 4u * FRONTEND_I2C_READ_TIMEOUT_MS * 1000u)) {
-        out->error = ESP_ERR_TIMEOUT; goto restore;
+    /* TI FDC2214 7.6.35/7.6.36: IDs are 7Eh/7Fh, not FEh/FFh.
+     * Reuse the startup mapping and its separate STOP per register; no
+     * runtime data-sequence capability is assumed for the ID registers. */
+    const uint8_t idRegisters[4] = {
+        SENSORARRAY_FDC_REG_MANUFACTURER_ID,
+        SENSORARRAY_FDC_REG_MANUFACTURER_ID + 1u,
+        SENSORARRAY_FDC_REG_MANUFACTURER_ID,
+        SENSORARRAY_FDC_REG_MANUFACTURER_ID + 1u,
+    };
+    uint16_t *const idValues[4] = {&out->manufacturerId, &out->deviceId,
+        &out->manufacturerIdSecond, &out->deviceIdSecond};
+    for (unsigned i = 0u; i < 4u; ++i) {
+        if (!frontendBeforeDeadline(deadlineUs,
+                (4u - i) * FRONTEND_I2C_READ_TIMEOUT_MS * 1000u)) {
+            out->error = ESP_ERR_TIMEOUT; goto restore;
+        }
+        uint32_t transactionBefore = bus->TransactionCount;
+        out->error = boardSupportI2cReadReg16Sequence((void *)bus, fdc->i2cAddr,
+            &idRegisters[i], 1u, idValues[i], FRONTEND_I2C_READ_TIMEOUT_MS);
+        if (out->error == ESP_FAIL || out->error == ESP_ERR_TIMEOUT) {
+            /* A first-read NACK/timeout establishes communication
+             * unavailability, not physical unplugging. A later failed read
+             * leaves partial evidence UNKNOWN; a lock timeout is BUSY. */
+            if (bus->TransactionCount == transactionBefore) {
+                out->link = SENSORARRAY_FRONTEND_LINK_BUSY;
+            } else if (i == 0u) {
+                out->link = SENSORARRAY_FRONTEND_LINK_UNAVAILABLE;
+            }
+            goto restore;
+        }
+        if (out->error != ESP_OK) { goto restore; }
+        out->idReadMask |= (uint8_t)(1u << i);
     }
-    uint32_t transactionBefore = bus->TransactionCount;
-    out->error = boardSupportI2cReadReg16Sequence((void *)bus, fdc->i2cAddr,
-        idRegisters, 2u, first, FRONTEND_I2C_READ_TIMEOUT_MS);
-    if (out->error == ESP_FAIL || out->error == ESP_ERR_TIMEOUT) {
-        /* A completed NACK/timeout establishes communication unavailability,
-         * not physical unplugging. Local invalid-state/lock errors do not. */
-        out->link = bus->TransactionCount != transactionBefore ?
-            SENSORARRAY_FRONTEND_LINK_UNAVAILABLE : SENSORARRAY_FRONTEND_LINK_BUSY;
-        goto restore;
-    }
-    if (out->error != ESP_OK) { goto restore; }
-    out->manufacturerId = first[0];
-    out->deviceId = first[1];
-    if (!frontendBeforeDeadline(deadlineUs, 2u * FRONTEND_I2C_READ_TIMEOUT_MS * 1000u)) {
-        out->error = ESP_ERR_TIMEOUT; goto restore;
-    }
-    out->error = boardSupportI2cReadReg16Sequence((void *)bus, fdc->i2cAddr,
-        idRegisters, 2u, second, FRONTEND_I2C_READ_TIMEOUT_MS);
-    if (out->error == ESP_OK && first[0] == second[0] && first[1] == second[1] &&
-        first[0] == FRONTEND_FDC_MANUFACTURER_ID && first[1] == FRONTEND_FDC_DEVICE_ID) {
+    if (out->manufacturerId == out->manufacturerIdSecond &&
+        out->deviceId == out->deviceIdSecond &&
+        out->manufacturerId == SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID &&
+        out->deviceId == SENSORARRAY_FDC_EXPECTED_DEVICE_ID) {
         out->link = SENSORARRAY_FRONTEND_LINK_PRESENT;
-    } else if (out->error == ESP_OK) {
+    } else {
         out->error = ESP_ERR_INVALID_RESPONSE;
     }
 restore:

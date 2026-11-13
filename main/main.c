@@ -2125,6 +2125,16 @@ static bool sensorarrayRunFrontendPresenceBoundary(sensorarrayAppContext_t *ctx)
                 (unsigned long)d[0].restoredClockHz, (unsigned long)d[1].clockHz,
                 (unsigned long)d[1].restoredClockHz, (unsigned long)d[2].clockHz,
                 (unsigned long)d[2].restoredClockHz);
+            printf("FRONTEND_IDS,round=%lu,pMfg1=%04X,pDev1=%04X,pMfg2=%04X,pDev2=%04X,pReadMask=0x%X,pErr=0x%lX,pCleanup=0x%lX,sMfg1=%04X,sDev1=%04X,sMfg2=%04X,sDev2=%04X,sReadMask=0x%X,sErr=0x%lX,sCleanup=0x%lX\n",
+                (unsigned long)snapshot.probes,
+                (unsigned)d[0].manufacturerId, (unsigned)d[0].deviceId,
+                (unsigned)d[0].manufacturerIdSecond, (unsigned)d[0].deviceIdSecond,
+                (unsigned)d[0].idReadMask, (unsigned long)(uint32_t)d[0].error,
+                (unsigned long)(uint32_t)d[0].cleanupError,
+                (unsigned)d[1].manufacturerId, (unsigned)d[1].deviceId,
+                (unsigned)d[1].manufacturerIdSecond, (unsigned)d[1].deviceIdSecond,
+                (unsigned)d[1].idReadMask, (unsigned long)(uint32_t)d[1].error,
+                (unsigned long)(uint32_t)d[1].cleanupError);
         }
         if (action == SENSORARRAY_FRONTEND_PRESENCE_REQUEST_RESTART &&
             !s_frontendRestartAttempted) {

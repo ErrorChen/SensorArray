@@ -46,6 +46,7 @@ esp_err_t boardSupportI2cReadReg16Sequence(void *, uint8_t, const uint8_t *, siz
             "-I", str(root / "tests/host/include"),
             "-I", str(root / "tests/host/ads_stubs"),
             "-I", str(root / "core/board"),
+            "-I", str(root / "main"),
             str(root / "core/board/sensorarrayFrontendPresence.c"),
             str(root / "tests/host/test_frontend_presence.c"), "-o", str(binary),
         ], check=True)

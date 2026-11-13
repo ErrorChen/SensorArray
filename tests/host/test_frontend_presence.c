@@ -4,9 +4,17 @@
 #include <string.h>
 #include "sensorarrayFrontendPresence.h"
 #include "sensorarrayBringup.h"
+#include "sensorarrayConfig.h"
+
+/* Independent oracle: TI ZHCSDX2B (October 2024), page 37, tables 7-45/46.
+ * Do not derive the fake device's addresses from the implementation. */
+_Static_assert(SENSORARRAY_FDC_REG_MANUFACTURER_ID == 0x7Eu, "FDC manufacturer register is 7Eh");
+_Static_assert(SENSORARRAY_FDC_EXPECTED_MANUFACTURER_ID == 0x5449u, "TI manufacturer ID");
+_Static_assert(SENSORARRAY_FDC_EXPECTED_DEVICE_ID == 0x3055u, "FDC2214 device ID");
 
 static uint64_t nowUs;
-static unsigned lockDepth, adsCalls, fdcCalls, frequencyCalls;
+static unsigned lockDepth, adsCalls, fdcCalls, frequencyCalls, combinedIdCalls;
+static unsigned deviceIdReads[2];
 static unsigned failFrequencyCall;
 static bool busLockTimeout, secondIdMismatch;
 static esp_err_t fdcErrors[2];
@@ -44,7 +52,8 @@ esp_err_t boardSupportI2cReadReg16Sequence(void *userCtx, uint8_t addr,
 {
     BoardSupportI2cCtx_t *bus = userCtx;
     assert(lockDepth == 0u && bus->Installed && !bus->Offline);
-    assert(count == 2u && regs[0] == 0xFEu && regs[1] == 0xFFu);
+    assert((count == 1u && (regs[0] == 0x7Eu || regs[0] == 0x7Fu)) ||
+        (count == 2u && regs[0] == 0x7Eu && regs[1] == 0x7Fu));
     assert(addr == (bus == &buses[0] ? 0x2Bu : 0x2Au));
     assert(timeoutMs > 0u && timeoutMs <= 20u);
     ++fdcCalls;
@@ -53,19 +62,31 @@ esp_err_t boardSupportI2cReadReg16Sequence(void *userCtx, uint8_t addr,
     nowUs += callDelayUs;
     unsigned index = bus == &buses[0] ? 0u : 1u;
     if (fdcErrors[index] != ESP_OK) { return fdcErrors[index]; }
-    values[0] = fdcManufacturer[index]; values[1] = fdcDevice[index];
-    if (secondIdMismatch && bus->TransactionCount % 2u == 0u) { values[1] ^= 1u; }
+    if (count == 2u) {
+        /* Synthetic robustness fixture only: the real defect was FE/FF
+         * instead of 7E/7F, not proven repeated-start incompatibility. */
+        ++combinedIdCalls;
+        values[0] = values[1] = 0xFFFFu;
+        return ESP_OK;
+    }
+    values[0] = regs[0] == 0x7Eu ? fdcManufacturer[index] : fdcDevice[index];
+    if (regs[0] == 0x7Fu) {
+        ++deviceIdReads[index];
+        if (secondIdMismatch && deviceIdReads[index] % 2u == 0u) { values[0] ^= 1u; }
+    }
     return ESP_OK;
 }
 
 static sensorarrayState_t setup(void)
 {
     nowUs = 1000000u; lockDepth = adsCalls = fdcCalls = frequencyCalls = 0u;
+    combinedIdCalls = 0u;
     failFrequencyCall = 0u; busLockTimeout = secondIdMismatch = false;
     callDelayUs = 100u;
     for (unsigned i = 0u; i < 2u; ++i) {
         buses[i] = (BoardSupportI2cCtx_t) {.Enabled = true, .Installed = true, .FrequencyHz = 400000u};
         fdcErrors[i] = ESP_OK; fdcManufacturer[i] = 0x5449u; fdcDevice[i] = 0x3055u;
+        deviceIdReads[i] = 0u;
     }
     adsResult = (sensorarrayAdsPresenceResult_t) {.known = true, .present = true,
         .id = 3u, .power = 2u, .interface = 6u, .actualHz = 125000u,
@@ -174,6 +195,9 @@ static void testPartialTimeoutAndWrongId(void)
     busLockTimeout = false; allPresent(); secondIdMismatch = true;
     assert(poll(&p, &state, true, false) == SENSORARRAY_FRONTEND_PRESENCE_NONE);
     assert(p.published.knownMask != 7u);
+    assert(p.published.evidence.devices[0].idReadMask == 0x0Fu);
+    assert(p.published.evidence.devices[0].deviceId == 0x3055u);
+    assert(p.published.evidence.devices[0].deviceIdSecond == 0x3054u);
 }
 
 static void testOfflineLowSpeedAndRestore(void)
@@ -285,6 +309,27 @@ static void testExplicitStartupHoldNeedsTwoFreshIds(void)
     assert(p.published.phase == SENSORARRAY_FRONTEND_PRESENCE_RESTART_REQUIRED);
 }
 
+static void testFdcIdsUseSeparateStopTransactions(void)
+{
+    sensorarrayState_t state = setup(); sensorarrayFrontendPresence_t p;
+    const uint8_t regs[2] = {0x7Eu, 0x7Fu};
+    uint16_t combined[2] = {0};
+    assert(boardSupportI2cReadReg16Sequence(&buses[0], 0x2Bu, regs, 2u,
+        combined, 20u) == ESP_OK);
+    assert(combined[0] != 0x5449u && combined[1] != 0x3055u);
+    unsigned beforeCalls = fdcCalls;
+    sensorarrayFrontendPresenceInit(&p, nowUs);
+    assert(poll(&p, &state, true, false) == SENSORARRAY_FRONTEND_PRESENCE_NONE);
+    assert(p.published.presentMask == 7u && fdcCalls - beforeCalls == 8u);
+    assert(combinedIdCalls == 1u); /* Only the explicit bad-fixture call above. */
+    for (unsigned i = 0u; i < 2u; ++i) {
+        const sensorarrayFrontendPresenceDevice_t *fdc = &p.published.evidence.devices[i];
+        assert(fdc->idReadMask == 0x0Fu && fdc->error == ESP_OK);
+        assert(fdc->manufacturerId == 0x5449u && fdc->manufacturerIdSecond == 0x5449u);
+        assert(fdc->deviceId == 0x3055u && fdc->deviceIdSecond == 0x3055u);
+    }
+}
+
 int main(void)
 {
     testFirstSuspectAndStableRecovery();
@@ -297,6 +342,7 @@ int main(void)
     testCleanupAndStaleEvidenceCannotResume();
     testAdsCleanupPropagationAndQuarantineHold();
     testExplicitStartupHoldNeedsTwoFreshIds();
-    puts("FRONTEND_PRESENCE_TESTS,passed=10,source=complete_production_module,fixture=synthetic");
+    testFdcIdsUseSeparateStopTransactions();
+    puts("FRONTEND_PRESENCE_TESTS,passed=11,source=complete_production_module,fixture=synthetic");
     return 0;
 }

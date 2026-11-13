@@ -51,6 +51,10 @@ types = header[header.index("typedef enum {"):header.index("/* One acquisition c
 test = (root / "tests/host/test_frontend_wait_integration.c").read_text()
 test = test.replace("/* PRESENCE_TYPES */", types)
 test = test.replace("/* ACTUAL_FUNCTIONS */", functions + "\n" + prefix + "\n" + startup)
+id_begin = source.index('printf("FRONTEND_IDS,')
+id_end = source.index(");", id_begin) + 2
+id_format = source[id_begin:id_end].replace("printf(", "int written = snprintf(line, sizeof(line),", 1)
+test = test.replace("/* ACTUAL_IDS_FORMAT */", id_format)
 with tempfile.TemporaryDirectory(prefix="sensorarray-frontend-wait-") as directory:
     c_file = Path(directory) / "test.c"
     executable = Path(directory) / "test"
