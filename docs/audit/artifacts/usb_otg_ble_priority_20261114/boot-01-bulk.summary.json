@@ -1,0 +1,42 @@
+{
+  "status": "RUNNING",
+  "enumeration_attempts": [
+    {
+      "started_monotonic": 93204.340041267
+    }
+  ],
+  "enumeration_poll_seconds": 0.5,
+  "enumeration_timing": "sleep_at_most_500ms; each_USB_descriptor_transfer_at_most_250ms; OS_enumeration_is_not_hard_realtime",
+  "requested_queries": [
+    "BUILD?",
+    "PROTO?",
+    "CONFIG?",
+    "BOOT?",
+    "USB?",
+    "USBQ?",
+    "BLELINK?",
+    "BLETX?",
+    "SCHED?",
+    "SPI?",
+    "FRONTENDS?",
+    "MODE?"
+  ],
+  "unavailable_queries": {
+    "BOARD?": "NOT_AVAILABLE_in_current_production_source"
+  },
+  "USBBOOT_requested": false,
+  "reset_requested": false,
+  "calibration_written": false,
+  "CDC_opened": false,
+  "configuration_changed": false,
+  "raw_file": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-bulk.rx.bin",
+  "ctrl_raw_file": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-bulk.ctrl.rx.bin",
+  "events_file": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-bulk.events.jsonl",
+  "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ctrl_raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "elapsed_seconds": 0.0118585980089847,
+  "source_sha256": "16b5d11a4ee8819b3367bb17304ef2ab855967df15f644920261fb89be18097c",
+  "debug_diagnostics_observed": false,
+  "CDC_WDT_ADC_CRC_heap_evidence": "requires_separate_debug_observer",
+  "boot_observation_scope": "post_enumeration_bulk_and_queries_not_ROM_or_CDC_boot_log"
+}

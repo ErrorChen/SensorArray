@@ -1,0 +1,89 @@
+{
+  "utc": "2026-11-13T15:09:47.364357+00:00",
+  "head": "16f41faee878edfe7579378fab64079fc70cf8ed",
+  "sources": {
+    "tools/test_serial_io.py": "a1679be8ab9791b772486336b4c8264842ce76551acd1b0974dfe1b2c7222a89",
+    "tests/host/test_serial_io.c": "f34110098c5fb8161651b0c10cef3bc02c0489c1c1d74c4c1976320098acb776",
+    "tests/host/test_serial_io_otg.c": "d5dae815b1abaf54f8d5cdb9f546f096540560cc69eaa362d3f86d96ee3b113e",
+    "tests/host/work_budget_stubs/sensorarrayUsbOtg.h": "8bebaa9be784222bb6659c39c25ce0259ed2b752eeaf6c0743aa757b5084e379",
+    "tools/test_link_control.py": "63e96e997b8bbad23673fb4e518ec2c04d2edc66d1039edcd0acaa62b888ea0d",
+    "tests/host/test_link_control.c": "f35e3f8f1a448465ec028ec9447baabcd2db03f48bc6e1a35dcf1a1c626547cf",
+    "tests/host/test_work_budget_drains.c": "9dd39b73c1931d338481a80659ed1a11928c2918b2dcc75b4c68fa12bbbd3281",
+    "core/transport/sensorarraySerialIo.c": "831f76586e730a91cbe6aadc788e412a10eac8343672fe7f090788371cc9ff44",
+    "core/transport/sensorarrayCriticalText.c": "e2f6905282566290afbbe491a9a976ef60f8efc02bfa4d1e5e62147f9baaa0fc",
+    "core/transport/sensorarrayTransport.c": "7c8cfe539140e53d0df1cfbdaca0d93fe84b82026f2c2be4486479836751b63e"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.568697583003086,
+      "stdout": "SERIAL_IO_VALIDATOR,source=/home/csc/esp/esp-idf-v5.5.5/components/vfs/vfs.c,pathMax=15\nADS_FAULT_BURST_SOURCE,records=7,producer=actual_C_formatter,fixture=synthetic\nIDF_USB_DRIVER_RECORD_PASS,actualDriverWrite=1,actualByteBufferFitCopy=1,capacity=2304,emptyWrapped=1,allOrZero=1,smallerRingRejected=1\nSERIAL_IO_PASS,allocation=psram,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=internal,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=failure_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=registration_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=stdout_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=stderr_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=route_probe_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=queue_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=task_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,foreignDriverNotRemovedOrAssumed=1\nSERIAL_OTG_INIT_PASS,case=otg_init_error,first=0xFFFFFFFF,repeat=0xFFFFFFFF,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_OTG_INIT_PASS,case=otg_init_no_mem,first=0x101,repeat=0x101,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_OTG_INIT_PASS,case=otg_timeout_repeated,first=0x107,repeat=0x103,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_PRIORITY_MODEL,priority=4,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=18446744073709551615,source=200,accepted=26,data=0,dataAt2s=0,rejected=174,expired=23,ctrl=40,ctrlSubmitted=0,bleWork=2718,trWork=404,driverWaits=24,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=200000,source=200,accepted=32,data=3,dataAt2s=2,rejected=168,expired=28,ctrl=40,ctrlSubmitted=38,bleWork=2718,trWork=404,driverWaits=3,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=18446744073709551615,source=200,accepted=26,data=0,dataAt2s=0,rejected=174,expired=23,ctrl=40,ctrlSubmitted=0,bleWork=2718,trWork=404,driverWaits=24,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_PASS,scenarios=6,productionPriority=6,actualFunctions=8,hardware=NOT_RUN\nSERIAL_OTG_TX_PASS,groups=4,cases=12,productionFunctions=10,independentLanes=1,epochDrop=1,partialDelimiter=1,noHostBounded=1,cpuBudget=1,hardware=NOT_RUN\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_link_control.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.316262509993976,
+      "stdout": "LINK_CONTROL_FORMAT,command=USB?,bytes=323,capacity=512\nLINK_CONTROL_FORMAT,command=USBQ?,bytes=333,capacity=512\nLINK_CONTROL_FORMAT,command=SERIAL?,bytes=245,capacity=512\nLINK_CONTROL_FORMAT,command=USBSTREAM?,bytes=72,capacity=512\nLINK_CONTROL_FORMAT,command=USB?,bytes=323,capacity=512\nLINK_CONTROL_FORMAT,command=BLELINK?,bytes=339,capacity=512\nLINK_CONTROL_FORMAT,command=BLETX?,bytes=391,capacity=512\nLINK_CONTROL_PASS,groups=4,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,hardware=NOT_RUN\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.3105259549920447,
+      "stdout": "WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":100,\"phaseUs\":0,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":3,\"yields\":0,\"work\":[200,200,200,200,200,200,200]}\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":500,\"phaseUs\":0,\"arrivalsPerWorker\":200,\"idleVisits\":83,\"maxIdleGapTicks\":4,\"yields\":273,\"work\":[200,200,200,200,200,200,200]}\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":100,\"phaseUs\":9500,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":3,\"yields\":0,\"work\":[200,200,200,200,200,200,200]}\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":500,\"phaseUs\":9500,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":4,\"yields\":273,\"work\":[200,200,200,200,200,200,200]}\nWORK_BUDGET_PASS,scenarios=20,production_component=1,hardware=NOT_RUN\nTASKCORE,name=output_hub,core=0,expected=0\nTASKCORE,name=output_hub,core=0,expected=0\nWORK_BUDGET_DRAINS_PASS,scenarios=15,production_bodies=10,hardware=NOT_RUN\nBLECORRUPT,ch=D,mid=1,enqLen=548,deqLen=548,enqCrc=00000000,deqCrc=FC141E31\nWORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=5,hardware=NOT_RUN\n"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "tools/test_serial_io.py",
+        "tests/host/test_serial_io.c",
+        "tests/host/test_serial_io_otg.c",
+        "tests/host/work_budget_stubs/sensorarrayUsbOtg.h",
+        "tools/test_link_control.py",
+        "tests/host/test_link_control.c",
+        "tests/host/test_work_budget_drains.c"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.004131141991820186,
+      "stdout": ""
+    }
+  ],
+  "passed": true,
+  "hardware": "NOT_RUN",
+  "target_build": "NOT_RUN",
+  "scope": "SerialIo actual OTG application TX loop and producer/slot/epoch/read code against synthetic independent endpoints, plus actual CriticalText helper and previous legacy/init regressions. Does not duplicate or validate the TinyUSB low-level owner.",
+  "otg_cases": 12,
+  "critical_text_cases": [
+    "USB priority/network attempted before best-effort CDC",
+    "legacy no duplicate debug publication",
+    "USB first error preserved; network still attempted",
+    "network error returned when USB admission succeeds",
+    "oversize/empty/null produces no publication",
+    "511 byte full record preserved"
+  ],
+  "asan": "ASan/UBSan for new OTG loop and link/critical modules; LeakSanitizer disabled for sandbox ptrace."
+}

@@ -57,6 +57,7 @@ class Config:
 
 class Device:
     bus, address = 3, 10
+    iSerialNumber = 3
 
     def __init__(self, *, serial=SERIAL):
         self.serial_number = serial
@@ -104,6 +105,12 @@ class Util:
     def __init__(self):
         self.claims, self.releases, self.disposed = [], [], []
         self.fail_claim = None
+
+    def get_langids(self, device): return (0x0409,)
+
+    def get_string(self, device, index, langid):
+        assert index == 3 and langid == 0x0409
+        return device.serial_number
 
     def claim_interface(self, device, number):
         if number == self.fail_claim:
@@ -233,6 +240,17 @@ class UsbBulkTests(unittest.TestCase):
             port_for(first, util=util)
         self.assertEqual(util.releases, [1])
         self.assertEqual(util.disposed, [first])
+
+    def test_permission_error_is_not_hidden_as_missing_language_descriptor(self):
+        class Denied(Util):
+            def get_langids(self, device):
+                error = FakeUSBError(-3); error.errno = 13; raise error
+        device, util = Device(), Denied()
+        with self.assertRaisesRegex(UsbBulkError, 'usb_access_denied:libusb=-3:errno=13') as failed:
+            port_for(device, util=util)
+        self.assertIsInstance(failed.exception.__cause__, FakeUSBError)
+        self.assertEqual(util.claims, [])
+        self.assertEqual(util.disposed, [device])
 
     def test_timeout_ZLP_partial_write_and_real_disconnect(self):
         device = Device(); port, _, _ = port_for(device)

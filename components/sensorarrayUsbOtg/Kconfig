@@ -1,10 +1,18 @@
 menu "SensorArray USB data interface"
 config SENSORARRAY_USB_OTG
-    bool "USB-OTG vendor bulk data/control and CDC debug"
+    bool "USB-OTG scientific data/control and independent CDC debug"
     default y
     depends on IDF_TARGET_ESP32S3
     help
         Uses the shared internal PHY exclusively. Serial/JTAG remains the ROM
-        download path. Requires a libusb/WinUSB host for formal scientific data.
+        download path. The backend below selects dual CDC or vendor bulk.
         Disable for the legacy Serial/JTAG build; never install both stacks.
+config SENSORARRAY_USB_OTG_CDC
+    bool "Use dual CDC (formal data/control + separate debug)"
+    default y
+    depends on SENSORARRAY_USB_OTG
+    help
+        CDC0 carries scientific records and command replies in one ordered
+        stream. CDC1 is an independent best-effort debug port. Disable for
+        the development vendor-bulk backend, which requires libusb/WinUSB.
 endmenu

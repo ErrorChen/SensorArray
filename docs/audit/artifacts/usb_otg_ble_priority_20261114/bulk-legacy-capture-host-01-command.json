@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_capture_reference_fixture.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "16f41faee878edfe7579378fab64079fc70cf8ed",
+  "dirty_diff_sha256": "87a5f707e476810f9cb516f9280df7d3c75a1c98020221cfd0a34f4fb27ce59e",
+  "started_utc": "2026-11-13T15:05:46.444158+00:00",
+  "started_monotonic": 89239.02424199,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/bulk-legacy-capture-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T15:05:48.362280+00:00",
+  "finished_monotonic": 89240.942361424,
+  "log_sha256": "26b7a17c3f392649038663d19a5d1416d27b0b8949d770e64feb36cfc6329b0b"
+}

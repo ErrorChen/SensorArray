@@ -493,7 +493,7 @@ def requested_configuration(summary, label):
             "mixed1_semantics": "one_active_row_full_eight_row_profile_controls_wire_format" if mode == "MIXED" and rows == 1 else None}
 
 
-def analyse_capture(directory, label, summary, fingerprints=None):
+def analyse_capture(directory, label, summary, fingerprints=None, debug_summaries=()):
     summary_path = directory / f"{label}.summary.json"
     events_path = directory / f"{label}.events.jsonl"
     if not events_path.exists():
@@ -708,7 +708,7 @@ def analyse_capture(directory, label, summary, fingerprints=None):
         "independent_wire_contract_errors": counts["wire_contract_errors"], "original_summary_modified": False}
     if harness_false_positive:
         contract_review["reason"] = "Collector inferred homogeneous CAP from active row count. Firmware selects the mixed engine from all eight configured modes; each observed M frame and CAP MR row matches the active profile and unchanged full CONFIG."
-    return {"label": label, "requested": declared, "status": record_status,
+    result = {"label": label, "requested": declared, "status": record_status,
             "collector_status": summary.get("status"), "collector_error": summary.get("error"),
             "expected_config_identity": expected_identity,
             "expected_wire_contract": contract, "collector_contract_revalidation": contract_review,
@@ -758,6 +758,15 @@ def analyse_capture(directory, label, summary, fingerprints=None):
                        "CPU_utilization": "NOT_RUN", "maximum_contiguous_heap_block": "NOT_RUN",
                        "stack_scope": "observed capture-window STK50 lifetime watermarks; PERF/USB query fields preserved separately"},
             "precision_acceptance": "NOT_EVALUATED", "partial_freshness_is_route_fault": False}
+    if summary.get("transport") in {"usb_bulk", "usb_cdc"}:
+        from sensorarray_bulk_diagnostics import analyse_bulk_diagnostics
+        diagnostic_key = "otg_diagnostics" if summary.get("transport") == "usb_cdc" else "bulk_diagnostics"
+        result[diagnostic_key] = analyse_bulk_diagnostics(
+            directory, label, summary, sorted(boots), window, debug_summaries,
+            memory_telemetry_record_error, PERF_COUNTERS)
+        result["diagnostic_source_policy"] = ("Formal CDC0 DATA/CTRL share one raw stream; use otg_diagnostics for control records and independent CDC1 debug. Missing telemetry is not zero."
+            if summary.get("transport") == "usb_cdc" else "Legacy top-level diagnostics describe DATA only; use bulk_diagnostics for independent CTRL/CDC. Missing telemetry is not zero.")
+    return result
 
 
 def fingerprint_key(header, frame):
@@ -1161,10 +1170,10 @@ def compact_row(mode, rows, captures):
                          for c in matching]}
 
 
-def _analyse_directory(directory, ble_journal=None, fingerprints=None):
+def _analyse_directory(directory, ble_journal=None, fingerprints=None, debug_summaries=()):
     captures = []
     for path in sorted(directory.glob("*.summary.json")):
-        if path.name.endswith(".ble.summary.json"):
+        if path.name.endswith((".ble.summary.json", ".debug.summary.json")):
             continue
         label = path.name[:-len(".summary.json")]
         try:
@@ -1172,12 +1181,14 @@ def _analyse_directory(directory, ble_journal=None, fingerprints=None):
         except (ValueError, OSError):
             captures.append({"label": label, "status": "NOT_RUN", "reason": "SUMMARY_NOT_FINALIZED"})
             continue
+        if summary.get("boot_observation_scope"):
+            continue  # Read-only boot query observer is not a capture window.
         declared = requested_configuration(summary, label)
         if not summary.get("raw_sha256") or summary.get("status") in {None, "RUNNING", "PREPARING"}:
             captures.append({"label": label, "requested": declared, "status": "NOT_RUN", "reason": "SUMMARY_NOT_FINALIZED"})
             continue
         try:
-            captures.append(analyse_capture(directory, label, summary, fingerprints))
+            captures.append(analyse_capture(directory, label, summary, fingerprints, debug_summaries))
         except (OSError, ValueError, KeyError, TypeError, EOFError) as exc:
             captures.append({"label": label, "requested": declared, "status": "INPUT_ERROR", "reason": str(exc)})
     ble_result = {"status": "NOT_RUN", "reason": "NO_BLE_JOURNAL"}
@@ -1213,7 +1224,9 @@ def _analyse_directory(directory, ble_journal=None, fingerprints=None):
                 "Raw ADC samples, CPU utilization, and maximum contiguous heap block cannot be reconstructed from absent fields."]}
 
 
-def analyse_directory(directory, ble_journal=None):
+def analyse_directory(directory, ble_journal=None, debug_summaries=None):
+    if debug_summaries is None:
+        debug_summaries = sorted(directory.glob("*.debug.summary.json"))
     if ble_journal is None:
         candidates = sorted(directory.glob("*.ble.notifications.jsonl"))
         candidates += [path for path in sorted(directory.glob("*.ble.notifications.jsonl.gz"))
@@ -1221,11 +1234,11 @@ def analyse_directory(directory, ble_journal=None):
         if len(candidates) == 1:
             ble_journal = candidates[0]
     if ble_journal is None:
-        return _analyse_directory(directory)
+        return _analyse_directory(directory, debug_summaries=debug_summaries)
     with tempfile.TemporaryDirectory(prefix="sensorarray-benchmark-fingerprints-") as temporary:
         fingerprints = Fingerprints(Path(temporary) / "frames.sqlite")
         try:
-            return _analyse_directory(directory, Path(ble_journal), fingerprints)
+            return _analyse_directory(directory, Path(ble_journal), fingerprints, debug_summaries)
         finally:
             fingerprints.close()
 
@@ -1261,6 +1274,7 @@ def main(argv=None):
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--ble-journal", type=Path, help="notification journal .jsonl or .jsonl.gz; otherwise auto-detect exactly one schema-named journal")
+    parser.add_argument("--debug-summary", type=Path, action="append", help="finalized independent CDC debug summary; repeat for separate sessions, otherwise auto-discover *.debug.summary.json")
     parser.add_argument("--selection-output", type=Path, help="also save an explicit 32-configuration label mapping for plotting/README")
     parser.add_argument("--replace", action="store_true", help="replace only a prior report generated by this tool")
     args = parser.parse_args(argv)
@@ -1269,7 +1283,7 @@ def main(argv=None):
             raise ValueError("input directory does not exist")
         if args.selection_output and args.selection_output.resolve() == args.output.resolve():
             raise ValueError("selection output must differ from the main report")
-        result = analyse_directory(args.directory, args.ble_journal)
+        result = analyse_directory(args.directory, args.ble_journal, args.debug_summary)
         write_report(args.output, result, args.replace)
         if args.selection_output:
             selection = {"schema_version": 1, "generator": TOOL, "artifact_kind": "configuration_selection",

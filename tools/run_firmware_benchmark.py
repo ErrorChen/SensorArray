@@ -63,7 +63,7 @@ class BenchmarkOptions:
     rail_source_note: str | None = None
     transport: str = "posix"
     usb_vid: int = 0x303A
-    usb_pid: int = 0x4041
+    usb_pid: int | None = None
     usb_serial: str | None = None
 
 
@@ -376,7 +376,7 @@ class BenchmarkCollector(Collector):
         self.phase = name
         for attempt in range(2):
             window = {}
-            queries = tuple(("USB?", "USB") if self.is_bulk and command == "USBSTREAM?" else (command, tag)
+            queries = tuple(("USB?", "USB") if self.is_otg and command == "USBSTREAM?" else (command, tag)
                             for command, tag in QUERIES)
             for command, tag in queries:
                 fields = self.query(command, tag, deadline)
@@ -404,9 +404,9 @@ class BenchmarkCollector(Collector):
     def run(self):
         failure = None
         try:
-            if self.is_bulk:
+            if self.is_otg:
                 self.query("USB?", "USB", self.prepare_deadline)
-                self.restore_status = "NOT_APPLICABLE_BULK_ALWAYS_FULL"
+                self.restore_status = "NOT_APPLICABLE_CDC_ALWAYS_FULL" if self.is_cdc else "NOT_APPLICABLE_BULK_ALWAYS_FULL"
             else:
                 usb = self.query("USBSTREAM?", "USBSTREAM", self.prepare_deadline)
                 if usb.get("v") not in {"FULL", "DEBUG"}:
@@ -429,7 +429,7 @@ class BenchmarkCollector(Collector):
             elif self.configuration.mode != "CAP":
                 self.transition("MODE", self.configuration.mode)
             self.check_fault()
-            if not self.is_bulk:
+            if not self.is_otg:
                 self.restore_required = True
                 self.set_usb("FULL", self.prepare_deadline)
             self.warmup_started = time.monotonic()
@@ -442,7 +442,7 @@ class BenchmarkCollector(Collector):
             config = before["CONFIG?"]["fields"]
             if any(config.get(k) != self.expected_identity.get(k) for k in IDENTITY):
                 raise CaptureError("configuration_changed_before_capture")
-            if not self.is_bulk and before["USBSTREAM?"]["fields"].get("v") != "FULL":
+            if not self.is_otg and before["USBSTREAM?"]["fields"].get("v") != "FULL":
                 raise CaptureError("FULL_output_not_applied")
             fps = before["FPS?"]["fields"]
             if fps.get("cfcap") != "0" or fps.get("ofcap") != "0":
@@ -513,7 +513,7 @@ class BenchmarkCollector(Collector):
             except (OSError, CaptureError, KeyboardInterrupt) as error:
                 self.safe_cap_recovery = "ERROR"
                 cleanup_errors.append("CAP8_recovery:" + (str(error) or "interrupted"))
-            if not self.is_bulk:
+            if not self.is_otg:
                 try:
                     if self.original_usb is None:
                         raise CaptureError("original_USB_profile_unknown")
@@ -634,7 +634,7 @@ def run_benchmark(options, *, port_factory=None):
                 # A failed configuration is never rerun. Continue only after
                 # verified CAP8 + original USB restoration; unknown hardware
                 # state cannot be carried into the next configuration.
-                if result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] not in {"VERIFIED_QUERY", "NOT_APPLICABLE_BULK_ALWAYS_FULL"}:
+                if result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] not in {"VERIFIED_QUERY", "NOT_APPLICABLE_BULK_ALWAYS_FULL", "NOT_APPLICABLE_CDC_ALWAYS_FULL"}:
                     break
             index["status"] = "COMPLETE" if len(index["results"]) == len(plan) and all(r["status"] == "CAPTURED" for r in index["results"]) else "ERROR"
         except (OSError, CaptureError, KeyboardInterrupt) as error:

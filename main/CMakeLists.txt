@@ -86,6 +86,7 @@ idf_component_register(
         "../core/measure/mixed"
         "../core/transport"
     PRIV_REQUIRES
+        esp_app_format
         boardSupport
         powerCtrl
         tmuxSwitch

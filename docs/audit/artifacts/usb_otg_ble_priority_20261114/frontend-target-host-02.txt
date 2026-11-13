@@ -1,0 +1,23 @@
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c: In function ‘sensorarrayUsbControlHandle’:
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c:213:127: error: ‘ESP_ERR_NOT_SUPPORTED’ undeclared (first use in this function)
+  213 | static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+      |                                                                                                                               ^~~~~~~~~~~~~~~~~~~~~
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c:213:127: note: each undeclared identifier is reported only once for each function it appears in
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c: In function ‘sensorarrayLinkDiagnosticsFormat’:
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c:214:132: error: ‘ESP_ERR_NOT_SUPPORTED’ undeclared (first use in this function)
+  214 | static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+      |                                                                                                                                    ^~~~~~~~~~~~~~~~~~~~~
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c:214:155: error: control reaches end of non-void function [-Werror=return-type]
+  214 | static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+      |                                                                                                                                                           ^
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c: In function ‘sensorarrayUsbControlHandle’:
+/tmp/sensorarray-frontend-wait-4qs94jdu/test.c:213:150: error: control reaches end of non-void function [-Werror=return-type]
+  213 | static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+      |                                                                                                                                                      ^
+cc1: all warnings being treated as errors
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_frontend_wait_integration.py", line 62, in <module>
+    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra",
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-O1', '-g', '/tmp/sensorarray-frontend-wait-4qs94jdu/test.c', '-o', '/tmp/sensorarray-frontend-wait-4qs94jdu/test']' returned non-zero exit status 1.

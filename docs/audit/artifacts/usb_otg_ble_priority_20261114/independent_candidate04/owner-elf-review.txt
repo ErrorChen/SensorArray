@@ -1,0 +1,232 @@
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-nm", "-n", "-S", "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"]
+EXIT 0
+STDOUT
+3fcad978 00000004 d s_hardwareMayOwnDma
+3fcadbac 00000080 d _cdcd_epbuf
+3fcadc2c 00000480 d _vendord_epbuf
+3fcae0c4 00000040 d _ctrl_epbuf
+403774d0 00000052 t sensorarrayUsbEmergencyCoreReset
+40377524 0000001c T __wrap_esp_restart_noos
+40381388 00000055 T esp_cpu_unstall
+40395e64 0000001b T xt_ints_off
+420036a0 00000026 T esp_restart
+420044f8 00000009 T panic_restart
+50000000 00000004 b s_recoveryInverse
+50000004 00000004 b s_recoveryMagic
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objcopy", "--remove-section=.xt.prop", "--remove-section=.xt.lit", "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+STDERR
+/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp-elf-objcopy: /tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf: section .ext_ram.dummy lma 0x3c000020 adjusted to 0x3c120020
+/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp-elf-objcopy: /tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf: section .flash.rodata_noload lma 0x3c161024 adjusted to 0x3c290000
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=sensorarrayUsbEmergencyCoreReset", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+403774d0 <sensorarrayUsbEmergencyCoreReset>:
+403774d0:	004136        	entry	a1, 32
+403774d3:	fa7c      	movi.n	a10, -1
+403774d5:	1e98e5        	call8	40395e64 <xt_ints_off>
+403774d8:	f49781        	l32r	a8, 40374734 <_iram_text_start+0x330> (50000004 <s_recoveryMagic>)
+403774db:	f49791        	l32r	a9, 40374738 <_iram_text_start+0x334> (53415552 <_rtc_force_slow_end+0x34154aa>)
+403774de:	0899      	s32i.n	a9, a8, 0
+403774e0:	f49781        	l32r	a8, 4037473c <_iram_text_start+0x338> (50000000 <s_recoveryInverse>)
+403774e3:	f49791        	l32r	a9, 40374740 <_iram_text_start+0x33c> (acbeaaad <_rtc_reserved_end+0x4caeaaad>)
+403774e6:	0899      	s32i.n	a9, a8, 0
+403774e8:	f49791        	l32r	a9, 40374744 <_iram_text_start+0x340> (60008120 <RTCCNTL+0x120>)
+403774eb:	0020c0        	memw
+403774ee:	0988      	l32i.n	a8, a9, 0
+403774f0:	f496a1        	l32r	a10, 40374748 <_iram_text_start+0x344> (fffdffff <_rtc_reserved_end+0x9fedffff>)
+403774f3:	1088a0        	and	a8, a8, a10
+403774f6:	0020c0        	memw
+403774f9:	0989      	s32i.n	a8, a9, 0
+403774fb:	03eb60        	rsr.prid	a6
+403774fe:	046d60        	extui	a6, a6, 13, 1
+40377501:	070c      	movi.n	a7, 0
+40377503:	000306        	j	40377513 <sensorarrayUsbEmergencyCoreReset+0x43>
+40377506:	000000        	ill
+40377509:	041767        	beq	a7, a6, 40377511 <sensorarrayUsbEmergencyCoreReset+0x41>
+4037750c:	07ad      	mov.n	a10, a7
+4037750e:	09e7a5        	call8	40381388 <esp_cpu_unstall>
+40377511:	771b      	addi.n	a7, a7, 1
+40377513:	f227b6        	bltui	a7, 2, 40377509 <sensorarrayUsbEmergencyCoreReset+0x39>
+40377516:	0020c0        	memw
+40377519:	f45a81        	l32r	a8, 40374684 <_iram_text_start+0x280> (400006d8 <esp_rom_software_reset_system>)
+4037751c:	0008e0        	callx8	a8
+4037751f:	ffff06        	j	4037751f <sensorarrayUsbEmergencyCoreReset+0x4f>
+
+Disassembly of section .flash.text:
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=__wrap_esp_restart_noos", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40377524 <__wrap_esp_restart_noos>:
+40377524:	004136        	entry	a1, 32
+40377527:	0020c0        	memw
+4037752a:	f48881        	l32r	a8, 4037474c <_iram_text_start+0x348> (3fcad978 <s_hardwareMayOwnDma>)
+4037752d:	0020c0        	memw
+40377530:	0888      	l32i.n	a8, a8, 0
+40377532:	0020c0        	memw
+40377535:	488c      	beqz.n	a8, 4037753d <__wrap_esp_restart_noos+0x19>
+40377537:	201110        	or	a1, a1, a1
+4037753a:	fff965        	call8	403774d0 <sensorarrayUsbEmergencyCoreReset>
+4037753d:	0deae5        	call8	403853ec <esp_restart_noos>
+
+Disassembly of section .flash.text:
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=panic_restart", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420044f8 <panic_restart>:
+420044f8:	004136        	entry	a1, 32
+420044fb:	ef0681        	l32r	a8, 42000114 <_stext+0xf4> (40377524 <__wrap_esp_restart_noos>)
+420044fe:	0008e0        	callx8	a8
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=esp_restart", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420036a0 <esp_restart>:
+420036a0:	004136        	entry	a1, 32
+420036a3:	470c      	movi.n	a7, 4
+420036a5:	000386        	j	420036b7 <esp_restart+0x17>
+420036a8:	f29981        	l32r	a8, 4200010c <_stext+0xec> (3fcb0fd8 <shutdown_handlers>)
+420036ab:	a08780        	addx4	a8, a7, a8
+420036ae:	0888      	l32i.n	a8, a8, 0
+420036b0:	188c      	beqz.n	a8, 420036b5 <esp_restart+0x15>
+420036b2:	0008e0        	callx8	a8
+420036b5:	770b      	addi.n	a7, a7, -1
+420036b7:	fed7d6        	bgez	a7, 420036a8 <esp_restart+0x8>
+420036ba:	f29581        	l32r	a8, 42000110 <_stext+0xf0> (40387710 <vTaskSuspendAll>)
+420036bd:	0008e0        	callx8	a8
+420036c0:	f29581        	l32r	a8, 42000114 <_stext+0xf4> (40377524 <__wrap_esp_restart_noos>)
+420036c3:	0008e0        	callx8	a8
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=esp_cpu_unstall", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40381388 <esp_cpu_unstall>:
+40381388:	004136        	entry	a1, 32
+4038138b:	01a082        	movi	a8, 1
+4038138e:	0eb827        	bgeu	a8, a2, 403813a0 <esp_cpu_unstall+0x18>
+40381391:	cdaad1        	l32r	a13, 40374a3c <_iram_text_start+0x638> (3fcaee80 <__func__$0+0x530>)
+40381394:	cdafc1        	l32r	a12, 40374a50 <_iram_text_start+0x64c> (3c160bd4 <__func__$1>)
+40381397:	29a0b2        	movi	a11, 41
+4038139a:	cdaaa1        	l32r	a10, 40374a44 <_iram_text_start+0x640> (3fcaeecc <__func__$0+0x57c>)
+4038139d:	0da325        	call8	4038edd0 <__assert_func>
+403813a0:	004256        	bnez	a2, 403813a8 <esp_cpu_unstall+0x20>
+403813a3:	c80c      	movi.n	a8, 12
+403813a5:	000046        	j	403813aa <esp_cpu_unstall+0x22>
+403813a8:	380c      	movi.n	a8, 3
+403813aa:	cda791        	l32r	a9, 40374a48 <_iram_text_start+0x644> (60008000 <RTCCNTL>)
+403813ad:	0020c0        	memw
+403813b0:	09a8      	l32i.n	a10, a9, 0
+403813b2:	1088a0        	and	a8, a8, a10
+403813b5:	3088a0        	xor	a8, a8, a10
+403813b8:	0020c0        	memw
+403813bb:	0989      	s32i.n	a8, a9, 0
+403813bd:	42cc      	bnez.n	a2, 403813c5 <esp_cpu_unstall+0x3d>
+403813bf:	cd9d81        	l32r	a8, 40374a34 <_iram_text_start+0x630> (fc000000 <_rtc_reserved_end+0x9bf00000>)
+403813c2:	000086        	j	403813c8 <esp_cpu_unstall+0x40>
+403813c5:	cd9c81        	l32r	a8, 40374a38 <_iram_text_start+0x634> (3f00000 <UserFrameTotalSize+0x3efff00>)
+403813c8:	cda191        	l32r	a9, 40374a4c <_iram_text_start+0x648> (600080bc <RTCCNTL+0xbc>)
+403813cb:	0020c0        	memw
+403813ce:	09a8      	l32i.n	a10, a9, 0
+403813d0:	1088a0        	and	a8, a8, a10
+403813d3:	3088a0        	xor	a8, a8, a10
+403813d6:	0020c0        	memw
+403813d9:	0989      	s32i.n	a8, a9, 0
+403813db:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+STDERR
+
+
+COMMAND ["/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump", "-d", "--disassemble=xt_ints_off", "/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf"]
+EXIT 0
+STDOUT
+
+/tmp/sensorarray-candidate04-readonly-385qwv4k/decode.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40395e64 <xt_ints_off>:
+40395e64:	002136        	entry	a1, 16
+40395e67:	040c      	movi.n	a4, 0
+40395e69:	61e440        	xsr.intenable	a4
+40395e6c:	002010        	rsync
+40395e6f:	203420        	or	a3, a4, a2
+40395e72:	303320        	xor	a3, a3, a2
+40395e75:	13e430        	wsr.intenable	a3
+40395e78:	002010        	rsync
+40395e7b:	042d      	mov.n	a2, a4
+40395e7d:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+STDERR

@@ -11,7 +11,7 @@
 #include "sensorarrayBle.h"
 #include "sensorarrayTransport.h"
 
-static bool otgEnabled, romAvailable, authorityKnown;
+static bool otgEnabled, cdcEnabled, romAvailable, authorityKnown;
 static sensorarrayUsbOtgStats_t usbStats;
 static sensorarraySerialIoStats_t serialStats;
 static sensorarrayBleLinkSnapshot_t link;
@@ -20,6 +20,7 @@ static unsigned serialTerminals, networkTerminals, debugMirrors, publishCount;
 static char lastTerminal[512], publishOrder[8];
 static esp_err_t usbResult, networkResult, debugResult;
 bool sensorarrayUsbOtgEnabled(void) { return otgEnabled; }
+bool sensorarrayUsbOtgCdcEnabled(void) { return otgEnabled && cdcEnabled; }
 bool sensorarrayUsbOtgRomDownloadAvailable(void) { return romAvailable; }
 void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out) { *out = usbStats; }
 void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *out) { *out = serialStats; }
@@ -72,6 +73,7 @@ static void reset(void)
     memset(&usbStats, 0, sizeof(usbStats)); memset(&serialStats, 0, sizeof(serialStats));
     memset(&link, 0, sizeof(link)); memset(&authority, 0, sizeof(authority));
     otgEnabled = romAvailable = authorityKnown = true;
+    cdcEnabled = false;
     authority.identity.revision = 9u; authority.identity.appliedFrameBoundary = 100u;
     serialTerminals = networkTerminals = 0u; lastTerminal[0] = '\0';
     debugMirrors = publishCount = 0u; memset(publishOrder, 0, sizeof(publishOrder));
@@ -116,11 +118,20 @@ static void testUsbBoundaries(void)
     assert(sensorarrayUsbControlHandles("USBSTREAM=DEBUG") && sensorarrayUsbControlHandles("SERIAL?"));
     assert(strstr(sensorarrayUsbControlCapabilities(), "usb_vendor_bulk_v1"));
     assert(!sensorarrayUsbControlHandles(NULL) && !sensorarrayUsbControlHandles("BLELINK?"));
+    cdcEnabled = true;
+    assertFormat(sensorarrayUsbControlHandle, "USB?", "backend=otg_cdc_v1");
+    assertFormat(sensorarrayUsbControlHandle, "USBQ?", "dCallbackBytes=unknown,cCallbackBytes=unknown");
+    assertFormat(sensorarrayUsbControlHandle, "USBSTREAM?", "v=CDC,scope=otg_data,dataEvery=1,debug=cdc,control=shared_cdc");
+    assert(sensorarrayUsbControlHandle("USBSTREAM=FULL", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
+    assert(strstr(reply, "reason=legacy_usj_only,cdcData=always"));
+    assert(strstr(sensorarrayUsbControlCapabilities(), "usb_cdc_data_v1"));
+    assert(!strstr(sensorarrayUsbControlCapabilities(), "usb_vendor_bulk_v1"));
     otgEnabled = false;
     assertFormat(sensorarrayUsbControlHandle, "USB?", "backend=serial_jtag");
     assert(!sensorarrayUsbControlHandles("USBSTREAM?") && !sensorarrayUsbControlHandles("USBSTREAM=FULL"));
     assert(!sensorarrayUsbControlHandles("SERIAL?") && sensorarrayUsbControlHandles("USBBOOT"));
     assert(!strstr(sensorarrayUsbControlCapabilities(), "usb_vendor_bulk_v1"));
+    assert(!strstr(sensorarrayUsbControlCapabilities(), "usb_cdc_data_v1"));
     assert(strstr(sensorarrayUsbControlCapabilities(), "serial_sink_v1"));
     assert(sensorarrayUsbControlHandle("SERIAL?", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
 }

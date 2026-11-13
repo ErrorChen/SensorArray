@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_bulk_diagnostics.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "7d46db080fce80c721384ad3b7d4f04555eb18f4",
+  "dirty_diff_sha256": "f464269442efd75e98505ea2bddd6e39b3716910a716cedb796a4ee075079240",
+  "started_utc": "2026-11-13T16:33:59.159890+00:00",
+  "started_monotonic": 94531.288434402,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-analysis-host-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T16:33:59.374607+00:00",
+  "finished_monotonic": 94531.503144111,
+  "log_sha256": "3bb9ab1d3878f8a402ad905bdabf56344719dc1a1bc4700a19c6e39705520894"
+}

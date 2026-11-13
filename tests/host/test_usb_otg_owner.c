@@ -9,7 +9,7 @@
 
 static int64_t nowUs;
 static bool ownerProgress, ignoreReset, injectReadReset, injectReceiveReset;
-static bool mounted = true, suspended, cdcConnected;
+static bool mounted = true, suspended, cdcConnected[2];
 static bool dmaOn = true, efuses[4];
 static bool tusbInitOk = true;
 static esp_err_t phyError;
@@ -122,13 +122,24 @@ uint32_t tud_vendor_n_write_available(uint8_t lane) { assert(lane<2);return avai
 uint32_t tud_vendor_n_write(uint8_t lane,const void *buffer,uint32_t count)
 { assert(lane<2); if(count>available[lane])count=available[lane]; available[lane]-=count;written[lane]+=count;return count; }
 uint32_t tud_vendor_n_write_flush(uint8_t lane) { assert(lane<2);return 0; }
-bool tud_cdc_n_connected(uint8_t lane) { assert(lane==0);return cdcConnected; }
-uint32_t tud_cdc_n_write_available(uint8_t lane) { assert(lane==0);return available[2]; }
+static unsigned cdcTxLane(uint8_t lane)
+{ assert(lane<CFG_TUD_CDC);return CFG_TUD_CDC==2&&lane==0?0u:2u; }
+static unsigned cdcRxLane(uint8_t lane)
+{ assert(lane<CFG_TUD_CDC);return CFG_TUD_CDC==2&&lane==0?1u:2u; }
+bool tud_cdc_n_ready(uint8_t lane) { assert(lane<CFG_TUD_CDC);return mounted&&!suspended; }
+bool tud_cdc_n_connected(uint8_t lane) { assert(lane<CFG_TUD_CDC);return mounted&&!suspended&&cdcConnected[lane]; }
+uint8_t tud_cdc_n_get_line_state(uint8_t lane) { assert(lane<CFG_TUD_CDC);return cdcConnected[lane]?1u:0u; }
+uint32_t tud_cdc_n_write_available(uint8_t lane) { return available[cdcTxLane(lane)]; }
 uint32_t tud_cdc_n_write(uint8_t lane,const void *buffer,uint32_t count)
-{ assert(lane==0);if(count>available[2])count=available[2];available[2]-=count;written[2]+=count;return count; }
-uint32_t tud_cdc_n_write_flush(uint8_t lane) { assert(lane==0);return 0; }
+{ unsigned wire=cdcTxLane(lane);if(count>available[wire])count=available[wire];available[wire]-=count;written[wire]+=count;return count; }
+uint32_t tud_cdc_n_write_flush(uint8_t lane) { assert(lane<CFG_TUD_CDC);return 0; }
 uint32_t tud_cdc_n_read(uint8_t lane,void *buffer,uint32_t count)
-{ assert(lane==0);reads[2]++;if(count>rxCount[2])count=rxCount[2];memcpy(buffer,rx[2],count);rxCount[2]-=count;return count; }
+{
+    unsigned wire=cdcRxLane(lane); reads[wire]++;if(count>rxCount[wire])count=rxCount[wire];
+    memcpy(buffer,rx[wire],count);memmove(rx[wire],rx[wire]+count,rxCount[wire]-count);rxCount[wire]-=count;
+    if(wire==1 && injectReadReset) { injectReadReset=false;enqueueEvent(DCD_EVENT_BUS_RESET); }
+    return count;
+}
 static const void *controlData; static uint16_t controlSize;
 bool tud_control_xfer(uint8_t port,const tusb_control_request_t *request,void *buffer,uint16_t size)
 { assert(port==0);controlData=buffer;controlSize=size;return true; }
@@ -201,10 +212,44 @@ static void rxBounds(void)
 }
 static void endpointIndependence(void)
 {
-    initialize();available[0]=0;cdcConnected=false;
+    initialize();available[0]=0;
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    assert(sensorarrayUsbOtgCdcEnabled());
+    assert(!sensorarrayUsbOtgOwnerCanWrite(0)&&!sensorarrayUsbOtgOwnerCanWrite(1));
+    cdcConnected[1]=true;tud_cdc_line_state_cb(1,true,false);
+    assert(sensorarrayUsbOtgOwnerCanWrite(2));assert(sensorarrayUsbOtgOwnerWrite(2,"DEBUG",5)==5);
+    available[0]=8;cdcConnected[1]=false;tud_cdc_line_state_cb(1,false,false);
+    assert(!sensorarrayUsbOtgOwnerCanWrite(2));
+    /* Formal DTR=0 still supports a host that reads without asserting DTR. */
+    assert(sensorarrayUsbOtgOwnerWrite(0,"DATA",4)==4);
+    assert(sensorarrayUsbOtgOwnerWrite(1,"CTRL",4)==4);
+    assert(written[0]==8&&written[1]==0&&s_stats.accepted[0]==4&&s_stats.accepted[1]==4);
+    assert(!sensorarrayUsbOtgOwnerCanWrite(0)&&!sensorarrayUsbOtgOwnerCanWrite(1));
+#else
+    assert(!sensorarrayUsbOtgCdcEnabled());
     assert(!sensorarrayUsbOtgOwnerCanWrite(0));assert(sensorarrayUsbOtgOwnerCanWrite(1));assert(!sensorarrayUsbOtgOwnerCanWrite(2));
     assert(sensorarrayUsbOtgOwnerWrite(0,"DATA",4)==0);assert(sensorarrayUsbOtgOwnerWrite(1,"CTRL",4)==4);assert(written[0]==0&&written[1]==4);
+#endif
     assert(!sensorarrayUsbOtgOwnerCanWrite(3));
+}
+static void cdcLineState(void)
+{
+    initialize();uint32_t epoch=sensorarrayUsbOtgEpoch();
+    for(unsigned itf=0;itf<CFG_TUD_CDC;itf++) {
+        for(unsigned state=0;state<4;state++) {
+            bool dtr=(state&1)!=0;cdcConnected[itf]=dtr;tud_cdc_line_state_cb(itf,dtr,(state&2)!=0);
+            sensorarrayUsbOtgOwnerPoll();assert(s_stats.cdcDtr[itf]==dtr);
+            assert(sensorarrayUsbOtgEpoch()==epoch&&!atomic_load(&s_stopRequested)&&sequenceCount==0);
+        }
+        tud_cdc_tx_complete_cb(itf);tud_cdc_tx_complete_cb(itf);assert(s_stats.cdcTxCallbacks[itf]==2);
+    }
+    assert(CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED==0);
+    assert(CFG_TUD_CDC_RX_PERSISTENT==0&&CFG_TUD_CDC_TX_PERSISTENT==0);
+    for(unsigned lane=0;lane<3;lane++) {
+        assert(s_stats.callbackBytes[lane]==0);
+        assert(s_stats.callbackBytesKnown[lane]==(CFG_TUD_VENDOR==2&&lane<2));
+    }
+    tud_umount_cb();for(unsigned itf=0;itf<CFG_TUD_CDC;itf++)assert(!s_stats.cdcDtr[itf]);
 }
 static void stopAck(void)
 {
@@ -239,7 +284,7 @@ static void restartFallback(void)
 static void recoveryBoot(void)
 {
     s_recoveryMagic=USB_RECOVERY_MAGIC;s_recoveryInverse=~USB_RECOVERY_MAGIC;
-    assert(!sensorarrayUsbOtgEnabled());assert(!s_recoveryMagic&&!s_recoveryInverse);
+    assert(!sensorarrayUsbOtgEnabled());assert(!sensorarrayUsbOtgCdcEnabled());assert(!s_recoveryMagic&&!s_recoveryInverse);
     s_backendSelected=false;assert(sensorarrayUsbOtgEnabled());
 }
 static void efuseGates(void)
@@ -300,11 +345,23 @@ static void descriptors(void)
 {
     sensorarrayUsbOtgInitSerialString();assert(strcmp(s_serial,"020304050607")==0);
     assert(CFG_TUD_DWC2_DMA_ENABLE==1&&CFG_TUD_DWC2_SLAVE_ENABLE==0);assert(CFG_TUD_MEM_DCACHE_ENABLE==0);
-    assert(CFG_TUD_VENDOR==2&&CFG_TUD_CDC==1);assert(CFG_TUD_VENDOR_TX_EPSIZE>=64);
-    const tusb_desc_device_t *d=(const void*)tud_descriptor_device_cb();assert(d->idVendor==0x303a&&d->idProduct==0x4041&&d->bMaxPacketSize0==64);
+    assert(CFG_TUD_VENDOR_TX_EPSIZE>=64);
+    const tusb_desc_device_t *d=(const void*)tud_descriptor_device_cb();assert(d->idVendor==0x303a&&d->bcdDevice==0x0100&&d->bMaxPacketSize0==64);
     const uint8_t *c=tud_descriptor_configuration_cb(0);unsigned total=le16(c+2),eps=0,ifaces=0,mask=0;
     assert(total==USB_CONFIG_BYTES&&c[4]==4);assert(tud_descriptor_configuration_cb(1)==NULL);
-    for(unsigned off=0;off<total;off+=c[off]){assert(c[off]>=2&&off+c[off]<=total);if(c[off+1]==TUSB_DESC_INTERFACE)ifaces++;if(c[off+1]==TUSB_DESC_ENDPOINT){unsigned ep=c[off+2];eps++;mask|=1u<<(ep&15);assert(le16(c+off+4)==(ep==0x83?8:64));}}
+    for(unsigned off=0;off<total;off+=c[off]){assert(c[off]>=2&&off+c[off]<=total);if(c[off+1]==TUSB_DESC_INTERFACE)ifaces++;if(c[off+1]==TUSB_DESC_ENDPOINT){unsigned ep=c[off+2];eps++;mask|=1u<<(ep&15);assert(le16(c+off+4)==((c[off+3]&3)==TUSB_XFER_INTERRUPT?8:64));}}
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    assert(CFG_TUD_VENDOR==0&&CFG_TUD_CDC==2&&d->idProduct==0x4042&&d->bcdUSB==0x0200);
+    assert(CFG_TUD_CDC_TX_BUFSIZE==4096&&CFG_TUD_CDC_TX_EPSIZE==512&&CFG_TUD_CDC_RX_EPSIZE==64);
+    assert(ifaces==4&&eps==6&&mask==0x1e&&tud_descriptor_bos_cb()==NULL);
+    unsigned classes[4]={0},endpointMask=0,ins=1;
+    for(unsigned off=0;off<total;off+=c[off]) {
+        if(c[off+1]==TUSB_DESC_INTERFACE)classes[c[off+2]]=c[off+5];
+        if(c[off+1]==TUSB_DESC_ENDPOINT){unsigned ep=c[off+2],bit=(ep&15)+((ep&0x80)?8:0);assert(!(endpointMask&(1u<<bit)));endpointMask|=1u<<bit;if(ep&0x80)ins++;}
+    }
+    assert(classes[0]==TUSB_CLASS_CDC&&classes[1]==TUSB_CLASS_CDC_DATA&&classes[2]==TUSB_CLASS_CDC&&classes[3]==TUSB_CLASS_CDC_DATA&&ins==5);
+#else
+    assert(CFG_TUD_VENDOR==2&&CFG_TUD_CDC==1&&d->idProduct==0x4041);
     assert(ifaces==4&&eps==7&&mask==0x1e);
     assert(sizeof(s_msOs)==338&&le16(s_msOs+8)==338&&le16(s_msOs+16)==328);
     assert(s_msOs[22]==0&&s_msOs[182]==1&&le16(s_msOs+24)==160&&le16(s_msOs+184)==160);
@@ -312,6 +369,7 @@ static void descriptors(void)
     tusb_control_request_t request={.bmRequestType=0xc0,.bRequest=0x20,.wIndex=7,.wValue=0,.wLength=338};
     assert(tud_vendor_control_xfer_cb(0,CONTROL_STAGE_SETUP,&request));assert(controlData==s_msOs&&controlSize==338);
     request.wIndex=8;assert(!tud_vendor_control_xfer_cb(0,CONTROL_STAGE_SETUP,&request));
+#endif
 }
 int main(int argc,char **argv)
 {
@@ -319,7 +377,7 @@ int main(int argc,char **argv)
     struct { const char *name;void(*test)(void); } cases[]={
         {"normal_commands",normalCommands},{"reset_event17",resetEvent17},{"reset_during_read",resetDuringRead},
         {"unmount_old_command",unmountOldCommand},{"partial_command_reset",partialCommandReset},{"queued_receive_reset",queuedReceiveReset},
-        {"epoch_wrap",epochWrap},{"rx_bounds",rxBounds},{"endpoint_independence",endpointIndependence},
+        {"epoch_wrap",epochWrap},{"rx_bounds",rxBounds},{"endpoint_independence",endpointIndependence},{"cdc_line_state",cdcLineState},
         {"stop_ack",stopAck},{"stop_timeout",stopTimeout},{"reset_not_latched",resetNotLatched},{"restart_fallback",restartFallback},
         {"recovery_boot",recoveryBoot},{"efuse_gates",efuseGates},{"dma_required",dmaRequired},{"descriptors",descriptors},
         {"panic_cpu0",panicCpu0},{"panic_cpu1",panicCpu1},{"panic_no_dma",panicNoDma},

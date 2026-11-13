@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-13T14:43:17.557032+00:00",
+  "scope": "READ_ONLY_USB_OTG_DMA_STACK_AND_REMOTE_RECOVERY",
+  "firmware_head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "sdk": {
+    "path": "/home/csc/esp/esp-idf-v5.5.5",
+    "version": "v5.5.5",
+    "commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f"
+  },
+  "performed": {
+    "production_edits": false,
+    "build": false,
+    "hardware": false,
+    "efuse_read_or_write": false,
+    "static_source_checks": {
+      "dma_arch_checked": true,
+      "dmaen_set": true,
+      "vendor_direct_still_copies": true,
+      "old_no_dcd_deinit": true,
+      "new_dcd_deinit": true,
+      "reset_unbounded_ahb_wait": true,
+      "usb_rst_maps_correctly": true,
+      "restart_does_not_explicitly_reset_otg": true,
+      "candidate_pid4041": true,
+      "fifo_capacity_fits": true
+    },
+    "static_check_exit": 0,
+    "prior_artifact_attempt": "python executable not found, exit127; no file created. Re-run uses python3."
+  },
+  "packages": [
+    {
+      "name": "esp_tinyusb",
+      "version": "2.2.1",
+      "commit": "8e779566ef71d43928cbf7e125e8eb54bab3f542",
+      "archive": "/home/csc/.espressif/tools/components/espressif/esp_tinyusb/2.2.1/espressif__esp_tinyusb-v2.2.1.zip",
+      "sha256": "fd8fa774c435ebe8fdff27a9690a5c2fcbce26490578bc5adcc4e0f51089afc7",
+      "idf_constraint": ">=5.0"
+    },
+    {
+      "name": "tinyusb",
+      "version": "0.19.0~3",
+      "commit": "ab4a1817907ed865b10a712b5e03e5e0a9902df5",
+      "archive": "/home/csc/.espressif/tools/components/espressif/tinyusb/0.19.0~3/espressif__tinyusb-v0.19.0_3.zip",
+      "sha256": "c4ad274d0d2f4c358577925527596936120c12b51505f9cecd0c69d897be8306",
+      "idf_constraint": ">=5.0"
+    },
+    {
+      "name": "tinyusb",
+      "version": "0.21.0~1",
+      "commit": "7049c58a0e895acc92c6407574b05b5536eddfc8",
+      "archive": "/home/csc/.espressif/tools/components/espressif/tinyusb/0.21.0~1/espressif__tinyusb-v0.21.0_1.zip",
+      "sha256": "864d6244f4627717a400c0fa3b536bdaed56657419a43450c38b190ab1b6a2e5",
+      "idf_constraint": ">=5.0"
+    }
+  ],
+  "dependency": "esp_tinyusb2.2.1 allows tinyusb>=0.17.0~2. Pin tinyusb0.21.0~1 explicitly; manifest compatibility is not a project build result. Root selected project-owned owner/config/PHY with raw TinyUSB, avoiding esp_tinyusb task lifecycle.",
+  "hardware_manual": {
+    "path": "datasheets/esp32-s3_technical_reference_manual_en.pdf",
+    "version": "1.7",
+    "sha256": "56b8f499290a58fdaed610647c316ab26a081c75421fcbca055e333a5de3c818",
+    "sections": {
+      "32.1/32.2.2 p1227": "FS12Mbit/s; EP0 + six endpoint numbers; maximum5 concurrentIN includingEP0.",
+      "32.3.1 p1228": "OTG DMA is internalAHB master.",
+      "32.3.5 p1233-1235": "Hardware BufferDMA/ScatterGather/Slave. Audited TinyUSB device supports BufferDMA only.",
+      "33.4.1 p1252": "InternalPHY defaultUSJ; software RTC override supported.",
+      "33.4.2 p1253-1254": "USJ hardware download/reset depends on USJ host reachability.",
+      "8 ChipBootControl p535-536": "FORCE_DOWNLOAD_BOOT + CPUreset conditional on eFuses.",
+      "7.1 p526-528": "CPU reset differs from Core reset. SW_SYS_RST=Core reset of CPUs+digital peripherals, RTC retained.",
+      "17 SystemRegisters p825-826": "SYSTEM_USB_RST is OTG; SYSTEM_USB_DEVICE_RST is distinctUSJ."
+    }
+  },
+  "dma": {
+    "supported": true,
+    "type": "S3 internal BufferDMA, not GDMA",
+    "configuration": [
+      "CFG_TUD_DWC2_DMA_ENABLE=1 plus runtimeGHWCFG2.arch==INTERNAL_DMA. GAHBCFG_DMAEN set in core init. Report actual config/readback.",
+      "esp_tinyusb S3 tusb_config defines aligned(4) DRAM_ATTR endpoint buffers and no external-memory cache maintenance. Keep real DMA storage internalDRAM and persistent.",
+      "Application PSRAM can remain frame storage but must be copied into DMA endpoint buffer. Direct PSRAM USB DMA and end-to-end zero-copy are not established.",
+      "FS endpoint wMaxPacketSize64 stays64; larger endpoint stagingbuffer aggregates packets, not high-speed."
+    ],
+    "references": [
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/esp_tinyusb-2.2.1/include/tusb_config.h",
+        "line": 99,
+        "end_line": 124,
+        "sha256": "08e64de00cda7dd16b73dd56a03ca776fd1c4d4026b1315893a3903d526ea89e"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dwc2_esp32.h",
+        "line": 53,
+        "end_line": 59,
+        "sha256": "5465d886b354ef9a419931905cc2081bb0c9ef52ced7e4e7434fa420f8d72eec"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dcd_dwc2.c",
+        "line": 131,
+        "end_line": 136,
+        "sha256": "66a3d4c49bf78bfca5d7d49a4ff28d0b839a8695912a2c9c29344beae475e25a"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dcd_dwc2.c",
+        "line": 410,
+        "end_line": 416,
+        "sha256": "66a3d4c49bf78bfca5d7d49a4ff28d0b839a8695912a2c9c29344beae475e25a"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dwc2_common.c",
+        "line": 234,
+        "end_line": 239,
+        "sha256": "3971bcb1b0fd639dad056dab97a2671aa430a5892347938427a11d864679559b"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/class/vendor/vendor_device.c",
+        "line": 61,
+        "end_line": 71,
+        "sha256": "c1a94c460bf5db20c1d0da226ee7ddc2810a05b9e8f0c8b5b849b6a726cd72c6"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/class/vendor/vendor_device.c",
+        "line": 154,
+        "end_line": 167,
+        "sha256": "c1a94c460bf5db20c1d0da226ee7ddc2810a05b9e8f0c8b5b849b6a726cd72c6"
+      }
+    ]
+  },
+  "composite": {
+    "root_layout": {
+      "DATA": "vendorinterface0 EP81/01",
+      "CTRL": "vendorinterface1 EP82/02",
+      "DEBUG": "CDCinterfaces2/3 EP83notify EP84/04"
+    },
+    "active_IN_including_EP0": 5,
+    "fifo_words": {
+      "total": 256,
+      "DMAmetadata": 14,
+      "RX": 62,
+      "EP0IN": 16,
+      "CDCnotification8bytes": 2,
+      "threeBulkIN64bytes": 48,
+      "used": 142,
+      "status": "STATIC_SOURCE_CALCULATION_ONLY"
+    },
+    "vid_pid": {
+      "vid": "303A Espressif prototype/development VID from tinyusb.h/Kconfig, not exclusive production allocation",
+      "4001": "Default CDC-only; collides with existing ESP examples/descriptors",
+      "candidate": "4041 = 4000 | CDC1<<0 | VENDOR2<<5, matches audited default combination algorithm",
+      "limits": "Still prototype; stable chipserial, bcdDevice/interface version, host WinUSB binding need validation. Same VID/PID with changed interfaces is explicitly warned against in upstreamsource."
+    },
+    "references": [
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/esp_tinyusb-2.2.1/usb_descriptors.c",
+        "line": 11,
+        "end_line": 20,
+        "sha256": "8ac6875e834cf2642e2e6a803ae611a64ae83b08501d0a52b79af77112e68e35"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/esp_tinyusb-2.2.1/Kconfig",
+        "line": 59,
+        "end_line": 80,
+        "sha256": "6fd5b0cae991d965ce7f2951c282a0a9fd79f700a88769d3b60a7572b0a570a4"
+      },
+      {
+        "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dcd_dwc2.c",
+        "line": 201,
+        "end_line": 268,
+        "sha256": "66a3d4c49bf78bfca5d7d49a4ff28d0b839a8695912a2c9c29344beae475e25a"
+      }
+    ]
+  },
+  "owner_and_protocol": [
+    "Single persistent owner runs tusb_rhport_init and bounded tud_task_ext; all class API calls/callback work obey this ownership. Task default in esp_tinyusb isCPU1/priority5; choose affinity intentionally.",
+    "Default tud_task eventcap16 followed by immediate loop does not guarantee blocking under event flood. Use a real bounded work quantum/block and finite command work.",
+    "DATA andCTRL separate bounded lanes/endpoints. Keep BLEahead of debugCDC; absentUSBhost must not block BLE/acquisition.",
+    "Preserve encoder ASCII bytes, frameCRC and immutable identity. Bulk packet/read boundaries are not frame boundaries.",
+    "tud_vendor_n_write returns acceptedbytecount. Stock vendor callback discards xfer_result_t and only reports bytes; do not label asPCreceipt or unconditionallysuccessfulbuscompletion.",
+    "FIFO-disabled write still memcpys into persistent endpointbuffer. Do not free or reuse a liveDMA buffer after a timeout.",
+    "Battery-powered board needs actualVBUSsense for self-powered attach/detach contract; cannot invent hardwaremonitor or claim backpower isolation."
+  ],
+  "wrapper_lifecycle_findings": [
+    {
+      "finding": "tinyusb0.19 DWC2 lacksdcd_deinit; weakstubfalse is ignored by tud_deinit. Uninstall doesnotproveDMAstop.",
+      "refs": [
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.19.0~3/src/device/usbd.c",
+          "line": 87,
+          "end_line": 90,
+          "sha256": "dbae656d1a0e034c0553490e7c30473baea16999f40b7468277b5fc832d50740"
+        },
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.19.0~3/src/device/usbd.c",
+          "line": 565,
+          "end_line": 576,
+          "sha256": "dbae656d1a0e034c0553490e7c30473baea16999f40b7468277b5fc832d50740"
+        }
+      ]
+    },
+    {
+      "finding": "tinyusb0.21 dcd_deinit doesresetcore, but reset_core loopsunbounded onAHBIDL/CSRST. Timeout callercannot free/reclaim worker.",
+      "refs": [
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dcd_dwc2.c",
+          "line": 499,
+          "end_line": 503,
+          "sha256": "66a3d4c49bf78bfca5d7d49a4ff28d0b839a8695912a2c9c29344beae475e25a"
+        },
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/portable/synopsys/dwc2/dwc2_common.c",
+          "line": 37,
+          "end_line": 60,
+          "sha256": "3971bcb1b0fd639dad056dab97a2671aa430a5892347938427a11d864679559b"
+        }
+      ]
+    },
+    {
+      "finding": "esp_tinyusb2.2.1 start waits5s thenfree task_ctx without lateworkerjoin; stop deletesother task beforestackcleanup. RawTinyUSB requiresdeinit in samecontext.",
+      "refs": [
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/esp_tinyusb-2.2.1/tinyusb_task.c",
+          "line": 147,
+          "end_line": 189,
+          "sha256": "7070f0b54939559ab67b70a96c404223cd2696ba68b108934620e12a64d590f2"
+        },
+        {
+          "path": "/tmp/sensorarray-usb-otg-review-h38cv33_/tinyusb-0.21.0~1/src/device/usbd.h",
+          "line": 81,
+          "end_line": 83,
+          "sha256": "2d96013219d47fd60416007a1ae12f067d30d9b18d0ec5ba6ff931845538938e"
+        }
+      ]
+    }
+  ],
+  "recovery": {
+    "status": "CONDITIONALLY_IMPLEMENTABLE_SOURCE_REVIEW_NOT_HIL",
+    "preconditions": [
+      "NoeFuseburns. Query DIS_FORCE_DOWNLOAD,DIS_DOWNLOAD_MODE,USB_PHY_SEL,DIS_USB_SERIAL_JTAG,DIS_USB_SERIAL_JTAG_DOWNLOAD_MODE read-only; current values not observed here.",
+      "Every boot starts with USJ recovery capability before OTG; initialOTG imageprovisional untilhosthandshake. Recoverycommand accepted through BLEandvendorCTRL.",
+      "All controlled esp_restart callers must request ownerstop with absolute deadline; currentmain contains multiplecall sites. Nojoin timeout meansDMAstopped."
+    ],
+    "owner_ack_success_sequence": [
+      "Latch irreversible stopping state; refuse newqueues/API; retain buffers andTinyUSB allocations. Boundedattempt of reply occurs beforephysicalstop, not assumed delivered.",
+      "In owner onIRQallocationcore: disableDCDinterrupt/freeintr, disconnect. Clear RTC_CNTL_USB_RESET_DISABLE(bit17) inRTC_CNTL_USB_CONF_REG.",
+      "Reset or hold SYSTEM_USB_RST viaS3 PERIPH_USB_MODULE underappropriateRCC serialization. This is peripheral hardware reset, avoiding stockDWC2 busy-waitdeinit. For heldreset use actualSYSTEMUSBresetbit/readback or reviewedLL; do not misuseperiph_module_disable referencecount.",
+      "RestoreUSJ internalPHY using usb_serial_jtag_hal_phy_set_external(NULL,false): SW_HW_USB_PHY_SEL=1,SW_USB_PHY_SEL=0,USJpad_enable1. Do not invoke usb_new_phy ifthat would releasean intentionalOTGheldreset.",
+      "NoTinyUSBcalls/reinitialization afterstop. Retainedheap/PHYmanager may be abandonedonlybecause CPUrestart follows immediately; not validfor samebootresume. ACK proves ownerenteredthisstoppedphase, notPCreceipt.",
+      "chip_usb_set_persist_flags(0) avoids incompatibleROMCDCpersist. If correspondingguardedUSBBOOTrequestackwassuccessful andeFusesallow, setRTC_CNTL_FORCE_DOWNLOAD_BOOT(bit0) inRTC_CNTL_OPTION1_REG.",
+      "esp_restart() aftersuccessfulstop. Do not re-enterTusbstack inshutdownhandler. ConfirmrealUSJROMenumeration andbenignesptoolread before claimingremoteupgrade; thenactualreturntoapp roundtrip."
+    ],
+    "owner_deadline_failure": [
+      "Neverreturn a false successfulstop orcontinue CPU-onlyesp_restart. NoDMA/queue/objectfree. NoROMflagarmed onthisfailedhandoff.",
+      "Ifexistingcontrolledrestartbudgetallowsfatalescalation, anIRAMfinalpath canclearUSB_RESET_DISABLE andinvokeesp_rom_software_reset_system() forCoreReset ofbothCPUs+digitalperipherals. This is notwhole-chipreset; RTCretained, so carrypendingrecoverymarker andforceUSJearlyboot.",
+      "S3 esp_restart_noos_dig isnotavailable: itsimplementation isguarded CONFIG_IDF_TARGET_ESP32. Do notcallit fromS3.",
+      "ROM software_reset actualdisassemblysets RTC_CNTL_SW_SYS_RST(bit31) at0x60008000. SDKnormalreset/panic pathisCPUreset; thisfatalistinctpath mustnotbecalled ordinarysuccess orusedforunboundedresetloop."
+    ],
+    "panic_boundary": "SDK panic_restart callsesp_restart_noos directly andbypasses shutdownhandlers. Controlledrestartcoverage doesnotprovepanic DMAcleanup; boot-timeUSBreset/USJfallback andthatunverifiedpath mustremainexplicit.",
+    "hard_limit": "When OTG owns theonlyPHY, hostUSJhardwareDTR/RTS cannotrescue a fullyhungapplication. IfBLE/OTGcontrolandreset allfail, physicalEN/BOOT orindependenthardware isneeded. Noabsolute remote-recovery claim.",
+    "refs": [
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/hal/esp32s3/include/hal/usb_serial_jtag_ll.h",
+        "line": 206,
+        "end_line": 216,
+        "sha256": "53497c2b5a580e80173859d0fab6dfaf96bd7fd93186d46d8f58079421a5e984"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/hal/usb_serial_jtag_hal.c",
+        "line": 18,
+        "end_line": 27,
+        "sha256": "bf108554b48ea9a06f7cd0078e1b12ff13078fda98ef376377ab46d6901208dd"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/hal/esp32s3/include/hal/clk_gate_ll.h",
+        "line": 126,
+        "end_line": 127,
+        "sha256": "e34b4cbbbf74517b80841f43dda346921200f91f0ae1f73a8091634047b85514"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/hal/esp32s3/include/hal/clk_gate_ll.h",
+        "line": 255,
+        "end_line": 282,
+        "sha256": "e34b4cbbbf74517b80841f43dda346921200f91f0ae1f73a8091634047b85514"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/port/soc/esp32s3/system_internal.c",
+        "line": 35,
+        "end_line": 65,
+        "sha256": "d4cbbb89ddfd3fd1d8ad4305e44bd7b1b2600769703eda763ca7344bdecbd861"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/port/usb_console.c",
+        "line": 253,
+        "end_line": 266,
+        "sha256": "4c2620a557599f5fc81fed1e6fe3744f44c896cf031a30ba87a12fa92ca21ddd"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_rom/esp32s3/include/esp32s3/rom/usb/usb_persist.h",
+        "line": 17,
+        "end_line": 20,
+        "sha256": "2434bf5a0c16fd0b238b0beb98875a27ec42f09f360c3290aadeec4f1c7981f6"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/soc/esp32s3/register/soc/rtc_cntl_reg.h",
+        "line": 3071,
+        "end_line": 3095,
+        "sha256": "3d424e581aa7df773af29a2340171cab8da23f07f6e5043d8c2892d2efb2f47e"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/soc/esp32s3/register/soc/rtc_cntl_reg.h",
+        "line": 3209,
+        "end_line": 3215,
+        "sha256": "3d424e581aa7df773af29a2340171cab8da23f07f6e5043d8c2892d2efb2f47e"
+      },
+      {
+        "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/port/esp_system_chip.c",
+        "line": 22,
+        "end_line": 63,
+        "sha256": "76ef470a504d09372eb58d7e907313b1483c1bdd0e761988329f5653bfa23bec"
+      }
+    ]
+  },
+  "not_run": [
+    "Projectbuild",
+    "ActualDMAregisterreadback",
+    "CompositeUSB/WinUSBenumeration",
+    "No-host/disconnectDMArecovery",
+    "USJ/OTGhandover",
+    "ROMdownloadroundtrip",
+    "USB/BLEthroughput",
+    "PhysicalVBUS/backpower"
+  ],
+  "result": "Source evidence supports implementingS3BufferDMA formalbulkDATA/CTRL with lowpriorityCDC. Safe remote-onlydeployment remainsunverified untilnewowner lifecycle, startupfallback andROMroundtrip areimplemented/tested."
+}

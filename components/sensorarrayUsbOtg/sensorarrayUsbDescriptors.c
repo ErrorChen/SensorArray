@@ -1,5 +1,5 @@
-/* 本轮新增. Prototype Espressif development VID, default class-derived PID.
- * 303a:4041 is NOT an allocated SensorArray production product identifier.
+/* 本轮新增. Prototype Espressif development VID, backend-specific PID.
+ * 303a:4041/4042 are NOT allocated SensorArray production product identifiers.
  * Descriptor grammar follows TinyUSB MIT-licensed webusb_serial example.
  */
 #include "sensorarrayUsbOtg.h"
@@ -18,13 +18,33 @@ void sensorarrayUsbOtgInitSerialString(void)
 }
 static const tusb_desc_device_t s_device = {
     .bLength = sizeof(tusb_desc_device_t), .bDescriptorType = TUSB_DESC_DEVICE,
-    .bcdUSB = 0x0201, .bDeviceClass = TUSB_CLASS_MISC,
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    .bcdUSB = 0x0200,
+#else
+    .bcdUSB = 0x0201,
+#endif
+    .bDeviceClass = TUSB_CLASS_MISC,
     .bDeviceSubClass = MISC_SUBCLASS_COMMON, .bDeviceProtocol = MISC_PROTOCOL_IAD,
-    .bMaxPacketSize0 = 64, .idVendor = 0x303a, .idProduct = 0x4041,
+    .bMaxPacketSize0 = 64, .idVendor = 0x303a,
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    .idProduct = 0x4042,
+#else
+    .idProduct = 0x4041,
+#endif
     .bcdDevice = 0x0100, .iManufacturer = 1, .iProduct = 2,
     .iSerialNumber = 3, .bNumConfigurations = 1,
 };
 const uint8_t *tud_descriptor_device_cb(void) { return (const uint8_t *)&s_device; }
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+#define USB_CONFIG_BYTES (TUD_CONFIG_DESC_LEN + 2*TUD_CDC_DESC_LEN)
+/* CDC0 IF0/1: formal DATA + CTRL. CDC1 IF2/3: debug only. Four non-EP0
+ * IN endpoints, within ESP32-S3's five-IN limit including EP0. */
+static const uint8_t s_configuration[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 4, 0, USB_CONFIG_BYTES, 0, 100),
+    TUD_CDC_DESCRIPTOR(0, 4, 0x81, 8, 0x02, 0x82, 64),
+    TUD_CDC_DESCRIPTOR(2, 5, 0x83, 8, 0x04, 0x84, 64),
+};
+#else
 #define USB_CONFIG_BYTES (TUD_CONFIG_DESC_LEN + 2*TUD_VENDOR_DESC_LEN + TUD_CDC_DESC_LEN)
 /* Vendor subclass 0x53 / protocol DATA=1 CTRL=2 prevent selecting ROM JTAG.
  * Separate IN byte streams MUST be independently framed by the host. */
@@ -38,10 +58,12 @@ static const uint8_t s_configuration[] = {
     SA_VENDOR(1, 5, 0x02, 0x82, 2),
     TUD_CDC_DESCRIPTOR(2, 6, 0x83, 8, 0x04, 0x84, 64),
 };
+#endif
 _Static_assert(sizeof(s_configuration) == USB_CONFIG_BYTES, "USB configuration length");
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index)
 { return index == 0 ? s_configuration : NULL; }
 
+#ifndef CONFIG_SENSORARRAY_USB_OTG_CDC
 #define SA_MS_OS_BYTES 338u
 #define SA_MS_OS_REQUEST 0x20u
 static const uint8_t s_bos[] = {
@@ -85,12 +107,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_contro
     }
     return false;
 }
+#else
+/* CDC binds the operating system's serial class driver. No WINUSB capability
+ * or MS OS vendor descriptor is advertised for either CDC function. */
+const uint8_t *tud_descriptor_bos_cb(void) { return NULL; }
+#endif
 const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t language)
 {
     (void)language;
     static uint16_t text[48];
     static const char *const strings[] = {NULL, "SensorArray development", "SensorArray OTG data",
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+        s_serial, "SensorArray DATA CTRL", "SensorArray debug"};
+#else
         s_serial, "SensorArray DATA v1", "SensorArray CTRL v1", "SensorArray debug"};
+#endif
     if (index == 0) { text[0] = 0x0304; text[1] = 0x0409; return text; }
     if (index >= sizeof(strings)/sizeof(strings[0])) { return NULL; }
     size_t n = strlen(strings[index]);

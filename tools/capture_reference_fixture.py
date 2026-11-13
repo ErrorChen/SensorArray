@@ -134,32 +134,39 @@ class CaptureOptions:
     rowmodes: str | None = None
     transport: str = "posix"
     usb_vid: int = 0x303A
-    usb_pid: int = 0x4041
+    usb_pid: int | None = None
     usb_serial: str | None = None
 
 
 def add_transport_arguments(parser):
     """This round: shared CLI selection; never silently fall back to CDC."""
-    parser.add_argument("--port", help="POSIX serial path; not used for formal USB bulk.")
-    parser.add_argument("--transport", choices=("posix", "usb_bulk"), default="posix")
+    parser.add_argument("--port", help="Legacy POSIX path; formal USB roles are selected by stable serial.")
+    parser.add_argument("--transport", choices=("posix", "usb_bulk", "usb_cdc"), default="posix")
     parser.add_argument("--usb-vid", type=lambda value: int(value, 0), default=0x303A)
-    parser.add_argument("--usb-pid", type=lambda value: int(value, 0), default=0x4041)
-    parser.add_argument("--usb-serial", help="Stable 12-hex MAC without colons; required for bulk.")
+    parser.add_argument("--usb-pid", type=lambda value: int(value, 0), help="Default 4041 for vendor bulk, 4042 for formal CDC.")
+    parser.add_argument("--usb-serial", help="Stable 12-hex MAC without colons; required for formal USB.")
+
+
+def transport_usb_pid(options):
+    return options.usb_pid if options.usb_pid is not None else (0x4042 if options.transport == 'usb_cdc' else 0x4041)
 
 
 def validate_transport_options(options):
     if options.transport == "posix":
         if not options.port:
             raise ValueError("--port is required for POSIX capture")
-    elif options.transport == "usb_bulk":
+    elif options.transport in {"usb_bulk", "usb_cdc"}:
         if not options.usb_serial or not re.fullmatch(r"[0-9A-Fa-f]{12}", options.usb_serial):
             raise ValueError("--usb-serial requires 12 hex MAC digits without colons")
         if options.port:
-            raise ValueError("--port cannot select a CDC/serial fallback for bulk")
-        if not (0 < options.usb_vid <= 65535 and 0 < options.usb_pid <= 65535):
+            raise ValueError("--port cannot select or override a formal USB role")
+        pid = transport_usb_pid(options)
+        if not (0 < options.usb_vid <= 65535 and 0 < pid <= 65535):
             raise ValueError("USB VID/PID out of range")
-        if options.usb_vid == 0x303A and options.usb_pid in {0x1001, 0x4001}:
+        if options.usb_vid == 0x303A and pid in {0x1001, 0x4001}:
             raise ValueError("legacy JTAG/CDC-only PID cannot select formal bulk")
+        if options.transport == 'usb_cdc' and (options.usb_vid, pid) != (0x303A, 0x4042):
+            raise ValueError('formal_CDC_requires_303a4042_interface0')
     else:
         raise ValueError("unknown capture transport")
 
@@ -167,7 +174,10 @@ def validate_transport_options(options):
 def open_capture_port(options):
     if options.transport == "usb_bulk":
         from sensorarray_usb_bulk import UsbBulkPort
-        return UsbBulkPort(options.usb_serial, vid=options.usb_vid, pid=options.usb_pid)
+        return UsbBulkPort(options.usb_serial, vid=options.usb_vid, pid=transport_usb_pid(options))
+    if options.transport == 'usb_cdc':
+        from sensorarray_usb_cdc import UsbCdcPort
+        return UsbCdcPort(options.usb_serial, vid=options.usb_vid, pid=transport_usb_pid(options))
     return PosixPort(options.port)
 
 
@@ -176,6 +186,8 @@ class Collector:
         self.options, self.port, self.raw, self.events = options, port, raw, events
         self.transport_metadata = port.metadata()
         self.is_bulk = self.transport_metadata.get("transport") == "usb_bulk"
+        self.is_cdc = self.transport_metadata.get("transport") == "usb_cdc"
+        self.is_otg = self.is_bulk or self.is_cdc
         if self.is_bulk and ctrl_raw is None:
             raise ValueError("bulk_requires_separate_CTRL_raw_recording")
         self.ctrl_raw = ctrl_raw
@@ -208,7 +220,8 @@ class Collector:
                    modem_bit_ioctl=False, reset_requested=False, input_flushed=False,
                    hupcl=False if not self.is_bulk else None,
                    duration_total_seconds=options.duration,
-                   raw_layout="DATA_rx_and_CTRL_ctrl_rx_separate" if self.is_bulk else "single_POSIX_rx")
+                   raw_layout="DATA_rx_and_CTRL_ctrl_rx_separate" if self.is_bulk else
+                   "formal_CDC_DATA_CTRL_shared_raw" if self.is_cdc else "single_POSIX_rx")
 
     def event(self, kind, **fields):
         self.events.write(json.dumps({"t": time.monotonic() - self.started,
@@ -301,17 +314,18 @@ class Collector:
 
     def validate_protocol(self, fields):
         capabilities = set(re.split(r"[/;,|\s]+", fields.get("caps", "")))
-        if self.is_bulk and (fields.get("version") != "2" or
-                             not {"usb_vendor_bulk_v1", "config_query_v1"} <= capabilities):
-            raise CaptureError("formal_usb_bulk_capability_required")
+        required = 'usb_cdc_data_v1' if self.is_cdc else 'usb_vendor_bulk_v1'
+        if self.is_otg and (fields.get("version") != "2" or not {required, "config_query_v1"} <= capabilities):
+            raise CaptureError("formal_USB_capability_required:" + required)
 
     def transport_result(self):
         return {"transport": self.transport_metadata["transport"],
                 "transport_metadata": self.port.metadata(),
-                "raw_scope": "DATA_endpoint_only" if self.is_bulk else "POSIX_serial_stream",
-                "ctrl_rx_bytes": self.ctrl_raw_bytes,
+                "raw_scope": "DATA_endpoint_only" if self.is_bulk else "formal_CDC_DATA_CTRL_shared_stream" if self.is_cdc else "POSIX_serial_stream",
+                "ctrl_rx_bytes": None if self.is_cdc else self.ctrl_raw_bytes,
                 "ctrl_raw_sha256": self.ctrl_raw_sha.hexdigest() if self.is_bulk else None,
-                "trailing_partial_CTRL_line_bytes": len(self.ctrl_line_buffer),
+                "trailing_partial_CTRL_line_bytes": None if self.is_cdc else len(self.ctrl_line_buffer),
+                "CTRL_byte_accounting": "included_in_shared_raw_not_a_separate_endpoint_counter" if self.is_cdc else "separate_endpoint_when_bulk",
                 "tx_host_accepted_bytes": self.tx_bytes,
                 "CTRL_and_DATA_order": "independent_endpoints_complete_lines_only" if self.is_bulk else "one_stream"}
 
@@ -355,8 +369,8 @@ class Collector:
         return fields
 
     def set_usb(self, mode, phase_deadline):
-        if self.is_bulk:
-            raise CaptureError("USBSTREAM_is_CDC_debug_only_not_bulk_control")
+        if self.is_otg:
+            raise CaptureError("USBSTREAM_setter_is_legacy_USJ_only")
         deadline = self.command_deadline(phase_deadline)
         self.lines.clear()
         self.send(f"USBSTREAM={mode}", deadline)
@@ -423,7 +437,7 @@ class Collector:
         try:
             for command, tag in (("BUILD?", "BUILD"), ("PROTO?", "PROTO"), ("MODE?", "MODE"),
                                  ("ROWS?", "ROWS"), ("ROWMODES?", "ROWMODES"), ("CAL?", "CAL"),
-                                 ("RAIL?", "ARL"), ("USB?", "USB") if self.is_bulk else ("USBSTREAM?", "USBSTREAM")):
+                                 ("RAIL?", "ARL"), ("USB?", "USB") if self.is_otg else ("USBSTREAM?", "USBSTREAM")):
                 fields = self.query(command, tag, self.prepare_deadline)
                 if command == "PROTO?":
                     self.validate_protocol(fields)
@@ -443,8 +457,8 @@ class Collector:
                 self.transition("ROWMODES", self.options.rowmodes)
             # The write may apply even if its reply times out; cleanup must
             # therefore be armed before attempting this reversible mutation.
-            if self.is_bulk:
-                self.restore_status = "NOT_APPLICABLE_BULK_ALWAYS_FULL"
+            if self.is_otg:
+                self.restore_status = "NOT_APPLICABLE_CDC_ALWAYS_FULL" if self.is_cdc else "NOT_APPLICABLE_BULK_ALWAYS_FULL"
             else:
                 self.restore_required = True
                 self.set_usb("FULL", self.prepare_deadline)

@@ -39,6 +39,8 @@ static unsigned polls, delays, waits, notifications, ownerInitCalls, writes, rxC
 static bool allowed[3], rxPending, injectDone, resetAfterWrite, resetDone;
 static unsigned partialLane, invalidMode, produced, productionTarget;
 static bool injectAfterWrite;
+static bool cdcBackend;
+static bool invalidAcceptPrefix;
 static int writeBudget[3];
 static char wire[3][4096], oldWire[3][4096];
 static size_t wireLength[3], oldWireLength[3];
@@ -79,6 +81,7 @@ static uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
     return result;
 }
 static bool sensorarrayUsbOtgEnabled(void) { return true; }
+static bool sensorarrayUsbOtgCdcEnabled(void) { return cdcBackend; }
 static uint32_t sensorarrayUsbOtgEpoch(void) { return currentEpoch; }
 static esp_err_t sensorarrayUsbOtgOwnerInit(void)
 { assert(!lockDepth && ownerInitCalls++ == 0u); return ESP_OK; }
@@ -86,13 +89,19 @@ static void sensorarrayUsbOtgOwnerPoll(void);
 static bool sensorarrayUsbOtgOwnerCanWrite(unsigned lane)
 {
     assert(!lockDepth && lane < 3u);
+    if (cdcBackend && lane != SERIAL_IO_LOG) { lane = SERIAL_IO_DATA; }
     return allowed[lane] && (writeBudget[lane] != 0 || nowUs >= readyAt[lane]);
 }
 static int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t length)
 {
     assert(!lockDepth && lane < 3u && data && length > 0u);
+    if (cdcBackend && lane != SERIAL_IO_LOG) { lane = SERIAL_IO_DATA; }
     writes++;
-    if (invalidMode) { unsigned invalid = invalidMode; invalidMode = 0u; return invalid == 1u ? -1 : (int)length + 1; }
+    if (invalidMode) {
+        unsigned invalid = invalidMode; invalidMode = 0u;
+        if (invalidAcceptPrefix) { assert(length>=3);memcpy(wire[lane]+wireLength[lane],data,3);wireLength[lane]+=3; }
+        return invalid == 1u ? -1 : (int)length + 1;
+    }
     if (nowUs >= readyAt[lane]) { writeBudget[lane] = -1; }
     if (writeBudget[lane] == 0) { return 0; }
     size_t count = length;
@@ -165,7 +174,7 @@ static void reset(void)
     nowUs = injectAt = 0u; currentEpoch = 1u;
     polls = delays = waits = notifications = ownerInitCalls = writes = rxCalls = rxCommands = 0u;
     partialLane = invalidMode = produced = productionTarget = 0u;
-    rxPending = injectDone = resetAfterWrite = resetDone = injectAfterWrite = false;
+    rxPending = injectDone = resetAfterWrite = resetDone = injectAfterWrite = cdcBackend = invalidAcceptPrefix = false;
     for (unsigned i=0u; i<3u; i++) {
         s_queues[i] = &queues[i]; allowed[i] = true; readyAt[i] = 0u; writeBudget[i] = -1;
     }
@@ -241,14 +250,72 @@ static void testNoHostAndBudget(void)
     assert(produced == 100u && s_stats.dataSubmitted == 100u && s_stats.sinkDropped == 0u);
     assert(s_stats.txYield > 0u && delays > 0u && s_workers[SENSORARRAY_WORK_BUDGET_SERIAL_TX].checkpoints >= 100u);
     for (unsigned bad=1u; bad<=2u; bad++) {
-        reset(); invalidMode = bad; offer(SERIAL_IO_DATA, "VALID\n"); run();
-        assert(writes == 2u && s_stats.driverWriteError == 1u && s_stats.dataSubmitted == 1u);
-        assert(s_stats.driverAcceptedBytes == 6u && !strcmp(wire[0], "VALID\n"));
+        reset(); invalidMode = bad; invalidAcceptPrefix=true;offer(SERIAL_IO_DATA, "INVALID\n");offer(SERIAL_IO_DATA,"VALID\n");run();
+        assert(writes == 3u && s_stats.driverWriteError == 1u && s_stats.dataSubmitted == 1u && s_stats.sinkDropped==1u);
+        assert(s_stats.driverAcceptedBytes == 7u && !strcmp(wire[0], "INV\nVALID\n"));
+    }
+}
+static void testCdcRecordBoundaries(void)
+{
+    reset(); cdcBackend = true; allowed[SERIAL_IO_LOG] = false;
+    offer(SERIAL_IO_LOG, "UNREAD_DEBUG\n");
+    for (unsigned i=0; i<4; i++) { offer(SERIAL_IO_DATA,"DATA\n");offer(SERIAL_IO_PRIORITY,"CTRL\n"); }
+    run();assert(!strcmp(wire[0],"CTRL\nCTRL\nCTRL\nCTRL\nDATA\nDATA\nDATA\nDATA\n"));
+    assert(wireLength[1]==0&&wireLength[2]==0&&s_stats.normalExpired==1&&s_stats.prioritySubmitted==4&&s_stats.dataSubmitted==4);
+
+    reset(); cdcBackend = true; writeBudget[0]=3;readyAt[0]=20000;injectAfterWrite=true;
+    offer(SERIAL_IO_DATA,"ABCDEFGH\n");offer(SERIAL_IO_LOG,"DEBUG\n");run();
+    assert(injectDone&&!strcmp(wire[0],"ABCDEFGH\nCTRL_AFTER\n")&&!strcmp(wire[2],"DEBUG\n"));
+    assert(s_stats.driverShortWrite==1&&s_stats.timeout==0&&s_stats.prioritySubmitted==1&&s_stats.dataSubmitted==1);
+
+    reset(); cdcBackend = true;writeBudget[0]=3;readyAt[0]=20000;
+    offer(SERIAL_IO_DATA,"DATA_AFTER\n");offer(SERIAL_IO_PRIORITY,"ABCDEFGH\n");run();
+    assert(!strcmp(wire[0],"ABCDEFGH\nDATA_AFTER\n")&&s_stats.timeout==0);
+
+    reset(); cdcBackend = true;writeBudget[0]=3;readyAt[0]=SERIAL_IO_NORMAL_LIFETIME_US+50000u;injectAfterWrite=true;
+    offer(SERIAL_IO_DATA,"ABCDEFGH\n");offer(SERIAL_IO_LOG,"INDEPENDENT\n");run();
+    assert(!strcmp(wire[0],"ABC\nCTRL_AFTER\n")&&!strcmp(wire[2],"INDEPENDENT\n"));
+    assert(s_stats.partialWrite==1&&s_stats.normalExpired==1&&s_stats.prioritySubmitted==1&&s_stats.timeout==1);
+
+    reset();cdcBackend=true;writeBudget[0]=3;readyAt[0]=SERIAL_IO_PRIORITY_LIFETIME_US+50000u;
+    injectAt=SERIAL_IO_PRIORITY_LIFETIME_US-50000u;partialLane=SERIAL_IO_DATA;
+    offer(SERIAL_IO_PRIORITY,"ABCDEFGH\n");run();
+    assert(!strcmp(wire[0],"ABC\nNEW\n")&&s_stats.priorityExpired==1&&s_stats.dataSubmitted==1&&s_stats.partialWrite==1);
+
+    reset();cdcBackend=true;injectAfterWrite=true;offer(SERIAL_IO_DATA,"PREFIX_WITHOUT_LF");run();
+    assert(!strcmp(wire[0],"PREFIX_WITHOUT_LF\nCTRL_AFTER\n")&&s_stats.partialWrite==0);
+}
+static void testCdcEpochAndBudget(void)
+{
+    reset();cdcBackend=true;
+    offer(SERIAL_IO_DATA,"OLD_DATA\n");offer(SERIAL_IO_PRIORITY,"OLD_CTRL\n");offer(SERIAL_IO_LOG,"OLD_LOG\n");currentEpoch++;
+    offer(SERIAL_IO_DATA,"NEW_DATA\n");offer(SERIAL_IO_PRIORITY,"NEW_CTRL\n");offer(SERIAL_IO_LOG,"NEW_LOG\n");run();
+    assert(!strcmp(wire[0],"NEW_CTRL\nNEW_DATA\n")&&!strcmp(wire[2],"NEW_LOG\n"));
+    assert(s_stats.timeout==0&&s_stats.normalExpired==2&&s_stats.priorityExpired==1);
+    for (unsigned partial=0;partial<2;partial++) {
+        reset();cdcBackend=true;resetAfterWrite=true;readyAt[0]=UINT64_MAX;writeBudget[0]=partial?3:-1;
+        offer(SERIAL_IO_DATA,"OLD_PREFIX");run();
+        assert(oldWireLength[0]==(partial?3u:10u)&&!strcmp(wire[0],"NEW_CTRL\nNEW_DATA\n")&&wire[0][0]!='\n');
+        assert(s_stats.timeout==0&&s_stats.partialWrite==(partial?1u:0u));
+    }
+    reset();cdcBackend=true;
+    for(unsigned lane=0;lane<3;lane++){allowed[lane]=false;for(unsigned i=0;i<4;i++)offer(lane,"EXPIRE\n");}
+    run();assert(writes==0&&s_stats.normalExpired==8&&s_stats.priorityExpired==4&&s_stats.timeout==12);
+    assert(nowUs<=SERIAL_IO_PRIORITY_LIFETIME_US+2u*SERIAL_IO_TICK_US&&waits>0);
+    reset();cdcBackend=true;productionTarget=100;run();
+    assert(s_stats.dataSubmitted==100&&s_stats.sinkDropped==0&&s_stats.txYield>0&&delays>0);
+    for (unsigned bad=1;bad<=2;bad++) {
+        reset();cdcBackend=true;invalidMode=bad;invalidAcceptPrefix=true;injectAfterWrite=true;
+        offer(SERIAL_IO_DATA,"UNKNOWN_PREFIX\n");run();
+        assert(injectDone&&!strcmp(wire[0],"UNK\nCTRL_AFTER\n"));
+        assert(s_stats.sinkDropped==1&&s_stats.driverWriteError==1&&s_stats.dataSubmitted==0&&s_stats.prioritySubmitted==1);
+        assert(s_stats.driverAcceptedBytes==12&&s_stats.partialWrite==0&&s_stats.timeout==0);
     }
 }
 int main(void)
 {
     testIndependentLanes(); testPartialEachLane(); testEpochs(); testNoHostAndBudget();
-    puts("SERIAL_OTG_TX_PASS,groups=4,cases=12,productionFunctions=10,independentLanes=1,epochDrop=1,partialDelimiter=1,noHostBounded=1,cpuBudget=1,hardware=NOT_RUN");
+    testCdcRecordBoundaries();testCdcEpochAndBudget();
+    puts("SERIAL_OTG_TX_PASS,groups=6,cases=25,vendorCases=12,cdcCases=13,productionFunctions=10,independentDebug=1,sharedFormalRecordAtomic=1,epochDrop=1,partialDelimiter=1,unknownAcceptanceDelimiter=1,noHostBounded=1,cpuBudget=1,hardware=NOT_RUN");
     return 0;
 }

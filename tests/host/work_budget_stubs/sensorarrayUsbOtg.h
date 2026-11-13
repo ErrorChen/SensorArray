@@ -29,4 +29,5 @@ static inline int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, s
 static inline int sensorarrayUsbOtgRead(void *buffer, size_t length, uint32_t *epoch)
 { (void)buffer; (void)length; (void)epoch; assert(false && "legacy regression entered OTG read"); return -1; }
 #endif
+static inline bool sensorarrayUsbOtgCdcEnabled(void) { return false; }
 static inline uint32_t sensorarrayUsbOtgEpoch(void) { return 0u; }

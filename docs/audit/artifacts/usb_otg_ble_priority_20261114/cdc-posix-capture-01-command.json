@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_capture_reference_fixture.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "7d46db080fce80c721384ad3b7d4f04555eb18f4",
+  "dirty_diff_sha256": "48bc1d6ec7f1340f11b4c695d73724f6eca694a7854a15ebb0cb4dcd82379da6",
+  "started_utc": "2026-11-13T16:31:44.996263+00:00",
+  "started_monotonic": 94397.124802824,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-posix-capture-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T16:31:46.915546+00:00",
+  "finished_monotonic": 94399.044082659,
+  "log_sha256": "2acbba0488afe4f622746a8f3a130ad75ad7fb099735d72e55f2f5f9fd5da4b8"
+}

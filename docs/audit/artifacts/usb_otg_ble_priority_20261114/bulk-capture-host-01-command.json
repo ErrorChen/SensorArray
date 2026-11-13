@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/test_usb_bulk_capture.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "16f41faee878edfe7579378fab64079fc70cf8ed",
+  "dirty_diff_sha256": "87a5f707e476810f9cb516f9280df7d3c75a1c98020221cfd0a34f4fb27ce59e",
+  "started_utc": "2026-11-13T15:05:46.435694+00:00",
+  "started_monotonic": 89239.015778209,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/bulk-capture-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T15:05:47.652321+00:00",
+  "finished_monotonic": 89240.232397059,
+  "log_sha256": "00a504e1f0b35182e9b1770f67fe69b052c9fad99e1097d0e5d44a1cfdd7fe61"
+}

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_bulk_diagnostics.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "7d46db080fce80c721384ad3b7d4f04555eb18f4",
+  "dirty_diff_sha256": "f5a4e36ada79d605ae824baf6ecf1b909b2c65c9c193505804b1c56e4d89a4c9",
+  "started_utc": "2026-11-13T16:19:06.220410+00:00",
+  "started_monotonic": 93638.348936513,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/bulk-analysis-host-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T16:19:06.384732+00:00",
+  "finished_monotonic": 93638.513258902,
+  "log_sha256": "4be3661df409265ace7a31e57f3513523eb018008b55764dc1440455da4e3920"
+}

@@ -353,3 +353,37 @@ USB-OTG 使用 S3 内部 Buffer DMA，不是 Serial/JTAG DMA，也不是 GDMA。
 BLE 正式 DATA 的应用优先级为 7，CTRL 为 8；USB owner 和 transport 为 6。编码/output 仍为 7，保证采样结果被送入各 sink；普通日志不能占用 DATA admission slots。BLE 生命周期沿既有 FF30 wire 格式使用保留优先槽，不与普通 LOG 排队。`BLELINK?` 公布实际 PHY/connection completion、请求错误和 known 标志；interval 单位 1250 µs、supervision timeout 单位 10 ms。IDF DLE completion 没有 peer ID，故 `dlePeerKnown=0`，其数值只是未归属观测。`BLETX?` 记录本地服务及 SDK 调用时间（µs），不证明空口／PC 完成。IDF 单次 GATT API 内部仍有可阻塞的 BTC 入队；外层 retry deadline 不等于已取消该 SDK 调用，slot 不会提前释放。
 
 The host software repository was not modified. Its separate integration task must add libusb/WinUSB device discovery and independent endpoint readers, preserve the existing session/config gate, support terminal-loss recovery by CONFIG, and keep CDC/BLE diagnostic loss separate from scientific data loss. Wi-Fi wire behavior is unchanged; no new Wi-Fi HIL result is claimed.
+
+## 双 CDC 替代接口 / Dual-CDC alternative (2026-11-14)
+
+本节扩展上节 OTG 契约：用户要求当前调试不安装管理员权限规则，因此默认 `CONFIG_SENSORARRAY_USB_OTG_CDC=y`，仍使用原生 OTG DMA。设为 n 才构建上一节的 vendor backend；二者不能同时占用 S3 的 IN 端点。旧 vendor 记录和主机工具保留，不能把其数据伪称为新 CDC 数据。实现提交及 HIL 结果以阶段 manifest 为准，尚未声明完整验收通过。
+
+This extends the preceding OTG contract. To continue without installing an administrator permission rule, `CONFIG_SENSORARRAY_USB_OTG_CDC=y` selects the default dual-CDC backend, still using native OTG DMA. Set it to n for the preceding vendor backend. Both cannot occupy S3 IN endpoints simultaneously. Historical vendor records and tools remain distinct; CDC acceptance is not inferred from them. Exact source/build/HIL identity is recorded in stage manifests; full acceptance is not yet claimed.
+
+| 属性 / Property | 双 CDC / Dual CDC |
+| --- | --- |
+| Capability / backend | `usb_cdc_data_v1` / `USB,backend=otg_cdc_v1` |
+| 开发 VID:PID / Development identifier | `303a:4042`, bcdDevice `0100`; not an allocated production product ID |
+| 板卡身份 / Board identity | Factory MAC, uppercase 12 hex digits without separators |
+| 正式 DATA+CTRL / Formal stream | CDC0, IAD interfaces 0/1; notification IN81, bulk OUT02/IN82; MPS64 |
+| 调试 / Debug | CDC1, IAD interfaces 2/3; notification IN83, bulk OUT04/IN84; MPS64 |
+| 发现 / Discovery | Verify VID/PID, serial, CDC interface 0 (`02/02/00`) and capability; never tty index alone |
+| 权限 / Permissions | OS `cdc_acm`/CDC driver and existing port ACL; no libusb raw-device claim; not a guarantee of every account's access |
+| 输出设置 / Output setting | `USBSTREAM,v=CDC,scope=otg_data,dataEvery=1,debug=cdc,control=shared_cdc`; legacy setters reject |
+| 证据 / Evidence streams | One original formal `.rx.bin` containing DATA+CTRL; separate `.debug.rx.bin`; no invented CTRL raw stream |
+
+CDC0 接收 ASCII 命令，CDC1 输入有界丢弃。正式输出的 DATA 与优先 CTRL 共享 FIFO，必须等当前记录完成或有界过期后才切换 lane，不能字节交织。短写只重试未接受部分；过期半记录加换行建立边界，主机保留原字节并记缺口。CDC1 阻塞不保留 CDC0 的发送权。RX/TX FIFO 不跨 USB reset 持久化，断开时不允许覆盖旧 FIFO。正式口不强制 DTR，调试口要求 DTR；`USB?` 的 dataDtr/debugDtr 是主机线路状态观测，不能推导应用正在读或已收到数据。此实现没有 1200-baud/DTR 自动 DFU。
+
+CDC0 accepts ASCII commands; CDC1 input is discarded with a finite service budget. DATA and priority CTRL share the formal FIFO at record boundaries. After a partial write, only the unaccepted suffix is retried. Expired partial records require a delimiter and a counted gap; retain the original bytes. Debug backpressure cannot retain the formal endpoint. RX/TX FIFOs do not persist across USB resets, and disconnected FIFO overwrite is disabled. Formal traffic does not require DTR; debug output does. DTR observations do not establish application reads or receipt. There is no 1200-baud/DTR automatic DFU feature.
+
+两种 OTG backend 都保持同一 session/boot/revision/mgen/rgen/pgen、MODE/ROWS/ROWMODES 终态与 ASCII CRC 契约。共享 CDC 的字节顺序只说明这个端点上的发布顺序；它仍不代表 MAPP 后已有首个有效数据，也不消除 BLE 的异步到达。跨连接重读 `PROTO?/CONFIG?`，跨 boot 不比较 sequence/generation 大小。命令结果未知时用权威查询恢复，不自动重放有副作用动作。
+
+Both OTG backends retain the same session/boot/revision/mgen/rgen/pgen, transition-terminal and ASCII CRC contracts. A shared CDC stream establishes only publication order on that endpoint; MAPP still does not prove first valid data, nor order BLE delivery. Query PROTO/CONFIG after reconnect, never compare counters across boots, and resolve unknown command outcomes through authoritative queries rather than automatic action replay.
+
+`USBQ.dBytes/cBytes` 仍是应用 lane 被 FIFO 接受的字节；CDC callback 无法提供按 lane 的完成字节，因此 `dCallbackBytes/cCallbackBytes=unknown`，不是 0 次完成。`BUILD?` 新增 `version`（运行 app descriptor）与完整 64 个十六进制字符（256 bit）的 `elfSha256`；后者是 ELF hash，不是烧录 `.bin` 的 SHA256，二者必须分别记录。
+
+`USBQ.dBytes/cBytes` remain FIFO-accepted application-lane byte counts. CDC callbacks cannot provide per-lane completed bytes, so callback byte fields are `unknown`, not zero completions. `BUILD?` adds running app-descriptor `version` and a complete 64-hex-digit `elfSha256`. The ELF hash is different from the flashed binary SHA256; record both.
+
+主机仓库交接：支持标准串口 API 的正式 CDC0、单流半行缓存、独立可选 CDC1 日志；保留 vendor 可选接收器和原配置门控。不能把 debug 文本帧计入正式实收。Linux 当前普通用户已属 dialout，可直接访问；Windows 自动 CDC 驱动绑定有官方支持，但本板 Windows 枚举／吞吐仍 NOT_RUN。[Linux CDC ACM](https://docs.kernel.org/usb/acm.html)，[Microsoft CDC 驱动](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-driver-installation-based-on-compatible-ids)。
+
+Host handoff: use ordinary serial APIs for formal CDC0 with one partial-line buffer and an optional independent CDC1 debug reader. Retain the optional vendor receiver and existing configuration gate. Never count debug text as formal data receipt. This Linux account already has dialout access. Windows CDC driver support is documented, but this board's Windows enumeration and throughput remain NOT_RUN. No host-repository edits are included here.

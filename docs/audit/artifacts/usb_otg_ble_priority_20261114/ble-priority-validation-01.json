@@ -1,0 +1,106 @@
+{
+  "utc": "2026-11-13T14:52:30.336921+00:00",
+  "head": "be09762eadc6ffd908ec0375d1e41c354a9f7c23",
+  "sources": {
+    "components/sensorarrayBle/sensorarrayBle.c": "f22c489962994bdcd38d4dc3294c51396e939aba0e648ea79b6d66b00b48dbbe",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "2d2f25f59a4319b8a7a8891934c90eb666748a1872e84caa78de40cd9ff34b96",
+    "components/sensorarrayBle/CMakeLists.txt": "5f9d88411c420241c4bd8e6c3e212956fa81a6b6410b11187808b67396384b2a",
+    "tools/test_ble_priority.py": "51f71a0f592b97499effbf644d8845b68acb1934e868ff8504747edb3f135f02",
+    "tests/host/test_ble_priority.c": "034944fd8214ad95e8f8ebee483867df5b3fd77e7f8c834a992fbf2667f5e81d",
+    "tools/test_work_budget.py": "d511cf2683d6d80ee6a2b022c68bae39fd046c5e66a6abcf5f1ac3e44d9067e6",
+    "tests/host/test_work_budget_drains.c": "409f70d946c8307c8db82db983e22862d10f80a107e8131d455fb75e2b83c0de",
+    "tests/host/test_work_budget_ble_fragments.c": "95e80c79be3f3b44ae9cc2d6eac7e1a5488946f6392b1c15751a5b735440f055"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.25665840799047146,
+      "stdout": "BLECORRUPT,ch=D,mid=1,enqLen=5,deqLen=5,enqCrc=2AFB27FA,deqCrc=179B0E4A\nBLE_PRIORITY_PASS,groups=6,dataSlots=4,logSlots=2,ctrlSlots=2,stateBytes=16928,descriptorBytes=32,hardware=NOT_RUN\nBLE_PRIORITY_SOURCE,production_functions=39,hardware=NOT_RUN\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.2899477669998305,
+      "stdout": "WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=0,idleVisits=49,maxIdleGapTicks=4\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":100,\"phaseUs\":0,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":3,\"yields\":0,\"work\":[200,200,200,200,200,200,200]}\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":500,\"phaseUs\":0,\"arrivalsPerWorker\":200,\"idleVisits\":83,\"maxIdleGapTicks\":4,\"yields\":273,\"work\":[200,200,200,200,200,200,200]}\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\nWORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":100,\"phaseUs\":9500,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":3,\"yields\":0,\"work\":[200,200,200,200,200,200,200]}\n{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":500,\"phaseUs\":9500,\"arrivalsPerWorker\":200,\"idleVisits\":122,\"maxIdleGapTicks\":4,\"yields\":273,\"work\":[200,200,200,200,200,200,200]}\nWORK_BUDGET_PASS,scenarios=20,production_component=1,hardware=NOT_RUN\nTASKCORE,name=output_hub,core=0,expected=0\nTASKCORE,name=output_hub,core=0,expected=0\nWORK_BUDGET_DRAINS_PASS,scenarios=15,production_bodies=10,hardware=NOT_RUN\nBLECORRUPT,ch=D,mid=1,enqLen=548,deqLen=548,enqCrc=00000000,deqCrc=FC141E31\nWORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=5,hardware=NOT_RUN\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_receive_ble_text.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.06584290199680254,
+      "stdout": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_capture_benchmark_ble.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.4826196470094146,
+      "stdout": "........\n----------------------------------------------------------------------\nRan 8 tests in 0.396s\n\nOK\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.1373167529964121,
+      "stdout": "TRANSPORT_POOL_TESTS,passed=1,slots=5,descriptorBytes=8,slotBytes=2376\n"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "components/sensorarrayBle/sensorarrayBle.c",
+        "components/sensorarrayBle/include/sensorarrayBle.h",
+        "components/sensorarrayBle/CMakeLists.txt",
+        "tools/test_ble_priority.py",
+        "tests/host/test_ble_priority.c",
+        "tools/test_work_budget.py",
+        "tests/host/test_work_budget_drains.c",
+        "tests/host/test_work_budget_ble_fragments.c"
+      ],
+      "environment": {
+        "CC": "/usr/bin/clang-18"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.004692112008342519,
+      "stdout": ""
+    }
+  ],
+  "passed": true,
+  "hardware": "NOT_RUN",
+  "target_build": "NOT_RUN",
+  "limitations": [
+    "ASan/UBSan executed; LeakSanitizer disabled because the sandbox ptrace cannot run it; test owns static storage.",
+    "Actual BLE throughput/peer reception and IRQ scheduling require HIL.",
+    "IDF public GATT send may wait indefinitely in BTC queue admission; current bounded retry budget does not cancel or bound that individual SDK call."
+  ]
+}

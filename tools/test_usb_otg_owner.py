@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = (
     "normal_commands", "reset_event17", "reset_during_read", "unmount_old_command",
     "partial_command_reset", "queued_receive_reset", "epoch_wrap", "rx_bounds",
-    "endpoint_independence", "stop_ack", "stop_timeout", "reset_not_latched",
+    "endpoint_independence", "cdc_line_state", "stop_ack", "stop_timeout", "reset_not_latched",
     "restart_fallback", "recovery_boot", "efuse_gates", "dma_required", "descriptors",
     "panic_cpu0", "panic_cpu1", "panic_no_dma", "panic_quiesced",
     "panic_init_failed", "panic_phy_failed",
@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, help="Explicit saved owner source for negative replay")
     parser.add_argument("--scenario", choices=SCENARIOS, help="Run one scenario")
+    parser.add_argument("--backend", choices=("vendor", "cdc", "both"), default="both")
     args = parser.parse_args()
     owner = args.source or ROOT / "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c"
     descriptors = ROOT / "components/sensorarrayUsbOtg/sensorarrayUsbDescriptors.c"
@@ -89,11 +90,14 @@ def main():
                    "-Wno-unused-parameter", "-I", str(temp), "-I", str(ROOT / "tests/host/usb_otg_stubs"),
                    "-I", str(tinyusb / "src"), str(ROOT / "tests/host/test_usb_otg_owner.c"),
                    "-o", str(executable)]
-        subprocess.run(command, check=True)
-        for scenario in ([args.scenario] if args.scenario else SCENARIOS):
-            subprocess.run([str(executable), scenario], check=True, timeout=5)
+        backends = ("vendor", "cdc") if args.backend == "both" else (args.backend,)
+        for backend in backends:
+            build = command + (["-DCONFIG_SENSORARRAY_USB_OTG_CDC=1"] if backend == "cdc" else [])
+            subprocess.run(build, check=True)
+            for scenario in ([args.scenario] if args.scenario else SCENARIOS):
+                subprocess.run([str(executable), scenario], check=True, timeout=5)
         print(json.dumps({"suite": "USB_OTG_OWNER", "result": "PASS",
-                          "scenarios": 1 if args.scenario else len(SCENARIOS),
+                          "scenarios": (1 if args.scenario else len(SCENARIOS)) * len(backends), "backends": backends,
                           "source_sha256": hashes, "tinyusb": "0.21.0~1",
                           "hardware": "NOT_RUN", "model": "synthetic SDK/RTOS events; actual production C and TinyUSB descriptors"}))
 

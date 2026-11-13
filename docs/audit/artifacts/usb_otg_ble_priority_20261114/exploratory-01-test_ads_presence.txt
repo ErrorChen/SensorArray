@@ -1,0 +1,1 @@
+ADS_PRESENCE_TESTS,passed=21,source=production_presence_and_driver,fixture=synthetic

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-13T15:07:17.995255+00:00",
+  "scope": "Actual production C logic and pinned TinyUSB 0.21.0~1 descriptor macros with synthetic SDK/RTOS/register responses; no hardware/DMA/USB enumeration experiment",
+  "command": [
+    "/usr/bin/python3",
+    "tools/test_usb_otg_owner.py"
+  ],
+  "exit_code": 0,
+  "head": "16f41faee878edfe7579378fab64079fc70cf8ed",
+  "dirty": true,
+  "tracked_diff_sha256": "87a5f707e476810f9cb516f9280df7d3c75a1c98020221cfd0a34f4fb27ce59e",
+  "status_sha256": "d27cbad7f884b398406e6d0287ad2fbb86cb3869ad244bb89f9e6e73a01f607f",
+  "files_sha256": {
+    "tools/test_usb_otg_owner.py": "a5cbd180927fbd208b5f528bc01594fdd1153351fa4824f180616057d473529d",
+    "tests/host/test_usb_otg_owner.c": "abc3052266c4a876336b0f39dcb445993973dcaf41464b87ae7816d5d07cb16b",
+    "tests/host/usb_otg_stubs/common.h": "ecdaaa9b3a0d30f02a113755dd388ceed91d217e0a2450a9a6117251bb685d5d",
+    "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "411200086719e502032c8fa845e7de5581fffd72dbe739f4358f7288e6286ec6",
+    "components/sensorarrayUsbOtg/sensorarrayUsbDescriptors.c": "c337c0ce004fef3f35e17f360eaff6327ccd571136b50aec2b4248915b4fc978",
+    "components/sensorarrayUsbOtg/include/tusb_config.h": "3fa7c1e5dabd88f061c2c00bf09c710ef92f0af2932759d3a6bf4dac0892098c",
+    "components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h": "68a6f31720a586095b41cb102b50f853cc463c92a4403dfa26ff6902e3c191de"
+  },
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/usb-otg-owner-host-01.txt",
+  "log_sha256": "638f734f4f5442d89aa69017ee5b0b532f650dc797f7e0ef926bf3eeed1df493",
+  "suite_result": {
+    "suite": "USB_OTG_OWNER",
+    "result": "PASS",
+    "scenarios": 23,
+    "source_sha256": {
+      "owner": "411200086719e502032c8fa845e7de5581fffd72dbe739f4358f7288e6286ec6",
+      "descriptors": "c337c0ce004fef3f35e17f360eaff6327ccd571136b50aec2b4248915b4fc978",
+      "config": "3fa7c1e5dabd88f061c2c00bf09c710ef92f0af2932759d3a6bf4dac0892098c",
+      "header": "68a6f31720a586095b41cb102b50f853cc463c92a4403dfa26ff6902e3c191de"
+    },
+    "tinyusb": "0.21.0~1",
+    "hardware": "NOT_RUN",
+    "model": "synthetic SDK/RTOS events; actual production C and TinyUSB descriptors"
+  },
+  "limits": [
+    "No physical DMA ownership or reset timing claim",
+    "No enumeration/WinUSB binding claim",
+    "No panic fault injected on device",
+    "Target ELF call graph is checked separately on final candidate"
+  ]
+}

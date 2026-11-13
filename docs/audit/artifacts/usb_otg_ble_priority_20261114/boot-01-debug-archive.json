@@ -1,0 +1,25 @@
+{
+  "schema": "cdc_debug_archive_v1",
+  "status": "VERIFIED",
+  "scientific_DATA": false,
+  "source_summary": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.summary.json",
+  "summary_sha256": "6810c94d55fc6392ffc24abcb7e2faff551f9be1a31334bb18aa89300c2c484a",
+  "originals_retained": true,
+  "files": [
+    {
+      "source": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.rx.bin",
+      "gzip": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.rx.bin.gz",
+      "bytes": 431580,
+      "uncompressed_sha256": "59588862e2521339a4cb3673359f168ee7e05da76432564b5c784c740cf3d432",
+      "gzip_sha256": "cc7fdf2bf175057ea0486f0af20a09006760208e3259ce1057e06d446181cd84"
+    },
+    {
+      "source": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.events.jsonl",
+      "gzip": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.events.jsonl.gz",
+      "bytes": 447362,
+      "uncompressed_sha256": "41781d652920bfd6565f2ec9ace57b553fb46e30e980ee24211843d70e7b6415",
+      "gzip_sha256": "7a01b981961dc00e3e910047c130d982a8a904f524252063346892afff728a1e"
+    }
+  ],
+  "source_rx_bytes": 431580
+}

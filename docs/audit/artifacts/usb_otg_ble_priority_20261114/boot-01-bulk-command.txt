@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_bulk_boot.py", line 178, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_bulk_boot.py", line 172, in main
+    result = observe(options)
+             ^^^^^^^^^^^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_bulk_boot.py", line 105, in observe
+    port = wait_for_bulk(options, deadline, result['enumeration_attempts'], factory=port_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_bulk_boot.py", line 60, in wait_for_bulk
+    port = factory(options.usb_serial, vid=options.usb_vid, pid=options.usb_pid)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/sensorarray_usb_bulk.py", line 70, in __init__
+    actual_serial = candidate.serial_number
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/usb/core.py", line 878, in serial_number
+    self._serial_number = util.get_string(self, self.iSerialNumber)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/usb/util.py", line 309, in get_string
+    raise ValueError("The device has no langid"
+ValueError: The device has no langid (permission issue, no string descriptors supported or device error)

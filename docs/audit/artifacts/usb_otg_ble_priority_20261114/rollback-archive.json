@@ -1,0 +1,8 @@
+{
+  "source": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rollback-be09762-app.bin",
+  "original_retained": true,
+  "original_sha256": "32d66c6bf3bd562b09422965228045c3399ed5b114a910a9528f66d1677e9241",
+  "gzip": "docs/audit/artifacts/usb_otg_ble_priority_20261114/rollback-be09762-app.bin.gz",
+  "gzip_sha256": "d45d837d43108f44c089eccf4eef7b752c205507e1cc53e199866eea2e2f7691",
+  "roundtrip_verified": true
+}

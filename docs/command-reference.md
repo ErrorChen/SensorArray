@@ -14,7 +14,7 @@ MODE、ROWS、ROWMODES、RAILCFG 和运行时输出设置均为易失状态，�
 
 ## Transport 与输出
 
-USB-OTG build (`usb_vendor_bulk_v1`) keeps the ASCII command/frame grammar, but the “Serial” command column below maps to the **vendor CTRL endpoint**, not CDC. The CDC function is debug output only. `ST=SER` selects the active wired DATA backend; bulk remains full-frame, independent of the legacy `USBSTREAM` setting. / USB-OTG 构建中下表 Serial 命令列对应 vendor CTRL 端点；CDC 仅调试输出，`ST=SER` 选择当前有线 DATA 通路，bulk 固定完整帧，不受旧 `USBSTREAM` 限流。
+USB-OTG keeps the ASCII command/frame grammar. With `usb_cdc_data_v1`, the “Serial” command column maps to **CDC0 formal DATA/CTRL** and CDC1 is debug output only. The optional `usb_vendor_bulk_v1` build instead uses the vendor CTRL endpoint and a single debug CDC. `ST=SER` selects the active wired DATA backend; either OTG backend sends full frames independently of legacy `USBSTREAM`. / 双 CDC 构建中下表 Serial 命令列对应正式 CDC0；CDC1 仅调试输出。可选 vendor 构建仍走独立 CTRL 端点。`ST=SER` 选择当前有线 DATA，OTG 固定完整帧，不受旧 `USBSTREAM` 限流。
 
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ USB-OTG build (`usb_vendor_bulk_v1`) keeps the ASCII command/frame grammar, but 
 | `BLELINK?` | Query | 是 | 是 | 是 | 无 | `BLELINK,gen=...,phyKnown=...,connKnown=...` | 立即快照 | 否 | 支持 | Actual negotiated PHY and connection interval, request/completion errors. DLE completion has no peer ID in IDF; `dlePeerKnown=0` is intentional. |
 | `BLETX?` | Query | 是 | 是 | 是 | 无 | `BLETX,dDequeued=...,sdkActive=...,sdkMaxUs=...` | 立即快照 | 否 | 支持 | Local priority service and GATT SDK timing; SDK admission does not prove radio or PC completion. |
 
-In OTG builds `SERIAL?` explicitly reports `backend=otg_cdc,scope=debug`; `USBSTREAM?` reports `v=BULK,scope=otg_data,dataEvery=1`. `USBSTREAM=DEBUG/FULL` returns `legacy_usj_only` and changes nothing. Legacy Serial/JTAG builds retain their existing fields and commands. / OTG 不静默沿用旧 Serial 统计含义；旧 USJ 构建保留既有契约。
+In OTG builds `SERIAL?` explicitly reports `backend=otg_cdc,scope=debug`; `USBSTREAM?` reports `v=CDC` or `v=BULK`, with `scope=otg_data,dataEvery=1` and `control=shared_cdc` or `bulk_ctrl`. `USBSTREAM=DEBUG/FULL` returns `legacy_usj_only` and changes nothing. `USB?` identifies `otg_cdc_v1` or `otg_bulk_v1`; DTR fields report line state, never PC receipt. `USBQ` CDC callback-byte fields are `unknown` because the shared endpoint callback cannot attribute bytes to DATA/CTRL. Legacy Serial/JTAG builds retain their existing fields and commands. `BUILD?` appends running-image `version` and `elfSha256`, not host checkout identity. / OTG 不静默沿用旧 Serial 统计含义；CDC 正式口共享 DATA/CTRL 字节流但只在完整记录边界仲裁。旧 USJ 构建保留既有契约；`BUILD?` 新增运行镜像版本和 ELF SHA256。
 
 
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |

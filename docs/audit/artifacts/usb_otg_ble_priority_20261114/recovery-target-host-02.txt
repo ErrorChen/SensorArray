@@ -1,0 +1,19 @@
+In file included from /tmp/sensorarray-recovery-control-t4ao5y0e/unit.c:1:
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c: In function ‘sensorarrayBleNotifyLifecycleForGeneration’:
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c:92:12: error: ‘ch’ undeclared (first use in this function)
+   92 |     assert(ch==SENSORARRAY_BLE_CH_LOG&&data&&length&&generation==42);bleTerminalCalls++;return ESP_OK;
+      |            ^~
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c:92:12: note: each undeclared identifier is reported only once for each function it appears in
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c: In function ‘testRestart’:
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c:1017:46: error: ‘a’ undeclared (first use in this function)
+ 1017 |     assert(sensorarrayRestartControlPostRom(&a,true,&romId)==ESP_OK);
+      |                                              ^
+/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c:1024:43: error: ‘taken’ undeclared (first use in this function)
+ 1024 |     assert(sensorarrayRestartControlTake(&taken) && taken==romId);
+      |                                           ^~~~~
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_recovery_control.py", line 79, in <module>
+    subprocess.run(cmd + [str(unit), '-o', str(exe)], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/gcc', '-std=c11', '-D_XOPEN_SOURCE=700', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/sensorarray-recovery-control-t4ao5y0e/fake', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/include', '-I', '/home/csc/esp/workspace/SensorArray/core/config', '-I', '/home/csc/esp/workspace/SensorArray/core/transport', '-I', '/home/csc/esp/workspace/SensorArray/main/control', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include', '/tmp/sensorarray-recovery-control-t4ao5y0e/unit.c', '-o', '/tmp/sensorarray-recovery-control-t4ao5y0e/test']' returned non-zero exit status 1.

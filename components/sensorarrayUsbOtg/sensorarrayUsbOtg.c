@@ -65,6 +65,15 @@ bool sensorarrayUsbOtgEnabled(void)
     return s_enabled;
 }
 
+bool sensorarrayUsbOtgCdcEnabled(void)
+{
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    return sensorarrayUsbOtgEnabled();
+#else
+    return false;
+#endif
+}
+
 uint32_t sensorarrayUsbOtgEpoch(void) { return atomic_load(&s_epoch); }
 
 void tud_event_hook_cb(uint8_t rhport, uint32_t event, bool inIsr)
@@ -94,6 +103,7 @@ void tud_umount_cb(void)
     atomic_fetch_add(&s_epoch, 1u);
     portENTER_CRITICAL(&s_statsMux);
     s_stats.mounted = false; s_stats.unmounts++;
+    memset(s_stats.cdcDtr, 0, sizeof(s_stats.cdcDtr));
     portEXIT_CRITICAL(&s_statsMux);
 }
 void tud_suspend_cb(bool remoteWake)
@@ -105,12 +115,30 @@ void tud_resume_cb(void)
 {
     portENTER_CRITICAL(&s_statsMux); s_stats.suspended = false; portEXIT_CRITICAL(&s_statsMux);
 }
+#ifndef CONFIG_SENSORARRAY_USB_OTG_CDC
 void tud_vendor_tx_cb(uint8_t itf, uint32_t bytes)
 {
     if (itf >= 2u) { return; }
     /* Stock vendor class discards xfer_result_t. This is deliberately called
      * callbackBytes, NOT successful bus bytes or host application receipt. */
     portENTER_CRITICAL(&s_statsMux); s_stats.callbackBytes[itf] += bytes; portEXIT_CRITICAL(&s_statsMux);
+}
+#endif
+
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+    if (itf >= CFG_TUD_CDC) { return; }
+    /* CDC supplies neither byte count nor xfer_result_t. This count cannot
+     * identify DATA versus CTRL, successful bus bytes, or host receipt. */
+    portENTER_CRITICAL(&s_statsMux); s_stats.cdcTxCallbacks[itf]++; portEXIT_CRITICAL(&s_statsMux);
+}
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    (void)rts;
+    if (itf >= CFG_TUD_CDC) { return; }
+    portENTER_CRITICAL(&s_statsMux); s_stats.cdcDtr[itf] = dtr; portEXIT_CRITICAL(&s_statsMux);
+    /* Ordinary DTR/baud changes never request reset or clear active DMA. */
 }
 
 static void sensorarrayUsbConsumeCommands(void)
@@ -124,7 +152,11 @@ static void sensorarrayUsbConsumeCommands(void)
     uint8_t bytes[64];
     /* Maximum the bounded 512-byte CTRL FIFO per owner iteration. */
     for (unsigned chunk = 0; chunk < 8u; ++chunk) {
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+        uint32_t n = tud_cdc_n_read(0, bytes, sizeof(bytes));
+#else
         uint32_t n = tud_vendor_n_read(1, bytes, sizeof(bytes));
+#endif
         if (epoch != sensorarrayUsbOtgEpoch()) {
             s_buildCommand.size = 0u; s_rxDiscard = false; return;
         }
@@ -155,10 +187,14 @@ static void sensorarrayUsbConsumeCommands(void)
             }
         }
     }
-    /* DATA OUT and CDC RX never interpret commands. Drain finite amounts so
+    /* Debug OUT never interprets commands. Drain finite amounts so
      * an accidental debug writer cannot monopolize the USB owner. */
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    (void)tud_cdc_n_read(1, bytes, sizeof(bytes));
+#else
     (void)tud_vendor_n_read(0, bytes, sizeof(bytes));
     (void)tud_cdc_read(bytes, sizeof(bytes));
+#endif
 }
 
 esp_err_t sensorarrayUsbOtgOwnerInit(void)
@@ -179,6 +215,10 @@ esp_err_t sensorarrayUsbOtgOwnerInit(void)
     if (err == ESP_OK && !dma) { err = ESP_ERR_INVALID_STATE; }
     portENTER_CRITICAL(&s_statsMux);
     s_stats.initialized = err == ESP_OK; s_stats.initError = err; s_stats.dmaEnabled = dma;
+#ifndef CONFIG_SENSORARRAY_USB_OTG_CDC
+    s_stats.callbackBytesKnown[SENSORARRAY_USB_DATA] = true;
+    s_stats.callbackBytesKnown[SENSORARRAY_USB_CTRL] = true;
+#endif
     portEXIT_CRITICAL(&s_statsMux);
     return err;
 }
@@ -217,7 +257,9 @@ void sensorarrayUsbOtgOwnerPoll(void)
     uint32_t after = sensorarrayUsbOtgEpoch();
     if (atomic_load(&s_processedEpoch) != after) {
         s_buildCommand.size = 0u; s_rxDiscard = false;
-        portENTER_CRITICAL(&s_statsMux); s_stats.mounted = false; portEXIT_CRITICAL(&s_statsMux);
+        portENTER_CRITICAL(&s_statsMux);
+        s_stats.mounted = false; memset(s_stats.cdcDtr, 0, sizeof(s_stats.cdcDtr));
+        portEXIT_CRITICAL(&s_statsMux);
         /* ISR notification is not proof the queued reset was processed. The
          * reset may be event 17, beyond this iteration's 16-event budget. */
         if (before != after || tud_task_event_ready()) { return; }
@@ -226,6 +268,9 @@ void sensorarrayUsbOtgOwnerPoll(void)
     if (after != sensorarrayUsbOtgEpoch()) { return; }
     portENTER_CRITICAL(&s_statsMux);
     s_stats.mounted = tud_mounted(); s_stats.suspended = tud_suspended();
+    for (uint8_t itf = 0; itf < CFG_TUD_CDC; ++itf) {
+        s_stats.cdcDtr[itf] = (tud_cdc_n_get_line_state(itf) & 1u) != 0u;
+    }
     portEXIT_CRITICAL(&s_statsMux);
     sensorarrayUsbConsumeCommands();
 }
@@ -234,14 +279,29 @@ bool sensorarrayUsbOtgOwnerCanWrite(unsigned lane)
 {
     if (atomic_load(&s_stopRequested) || atomic_load(&s_processedEpoch) != sensorarrayUsbOtgEpoch() ||
         !s_stats.initialized || !tud_ready()) { return false; }
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    if (lane < 2u) {
+        /* Formal commands/data also work for hosts that do not assert DTR.
+         * Non-overwritable FIFO preserves accepted prefixes on DTR changes. */
+        return tud_cdc_n_ready(0) && tud_cdc_n_write_available(0) != 0u;
+    }
+    return lane == SENSORARRAY_USB_DEBUG && tud_cdc_n_connected(1) &&
+        tud_cdc_n_write_available(1) != 0u;
+#else
     return lane < 2u ? tud_vendor_n_write_available((uint8_t)lane) != 0u :
         (lane == SENSORARRAY_USB_DEBUG && tud_cdc_connected() && tud_cdc_write_available() != 0u);
+#endif
 }
 
 int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t size)
 {
     if (!sensorarrayUsbOtgOwnerCanWrite(lane)) { return 0; }
     uint32_t n;
+#ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    uint8_t itf = lane == SENSORARRAY_USB_DEBUG ? 1u : 0u;
+    n = tud_cdc_n_write(itf, data, (uint32_t)size);
+    (void)tud_cdc_n_write_flush(itf);
+#else
     if (lane < 2u) {
         n = tud_vendor_n_write((uint8_t)lane, data, (uint32_t)size);
         (void)tud_vendor_n_write_flush((uint8_t)lane);
@@ -249,6 +309,7 @@ int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t size)
         n = tud_cdc_write(data, (uint32_t)size);
         (void)tud_cdc_write_flush();
     }
+#endif
     portENTER_CRITICAL(&s_statsMux);
     s_stats.accepted[lane] += n;
     if (n) { s_stats.lastTxUs = esp_timer_get_time(); }

@@ -67,7 +67,21 @@ class UsbBulkPort:
                     # PyUSB local per-transfer limit for descriptor/configuration
                     # reads. This does not issue SET_CONFIGURATION or USB reset.
                     candidate.default_timeout = 250
-                    actual_serial = candidate.serial_number
+                    # Device.serial_number may suppress a USB access error in
+                    # its langids property and raise misleading ValueError
+                    # "device has no langid". Read LANGIDs explicitly so the
+                    # original libusb permission/disconnect code is retained.
+                    try:
+                        languages = usb_util.get_langids(candidate)
+                        if not languages:
+                            raise UsbBulkError("usb_string_language_unavailable")
+                        actual_serial = usb_util.get_string(candidate, candidate.iSerialNumber, langid=languages[0])
+                    except usb_core.USBError as error:
+                        code, errno = getattr(error, "backend_error_code", None), getattr(error, "errno", None)
+                        reason = "usb_access_denied" if code == -3 or errno == 13 else "usb_descriptor_read_failed"
+                        raise UsbBulkError(f"{reason}:libusb={code}:errno={errno}:{error}") from error
+                    except ValueError as error:
+                        raise UsbBulkError(f"usb_string_descriptor_invalid:{error}") from error
                     if isinstance(actual_serial, str) and actual_serial.upper() == self._serial:
                         selected.append(candidate)
                     else:

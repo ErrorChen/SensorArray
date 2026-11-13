@@ -12,6 +12,7 @@
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_attr.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -3265,13 +3266,17 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return ESP_OK;
     }
     if (strcmp(command, "BUILD?") == 0) {
-        snprintf(response,
+        /* 本轮新增: report the running image, not the host checkout's HEAD. */
+        const esp_app_desc_t *app = esp_app_get_description();
+        char elfSha[65];
+        (void)esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
+        int length = snprintf(response,
                  responseSize,
-                 "BUILD,idf=%s,target=%s,project=SensorArray,proto=%u\n",
+                 "BUILD,idf=%s,target=%s,project=SensorArray,proto=%u,version=%.32s,elfSha256=%s\n",
                  esp_get_idf_version(),
                  CONFIG_IDF_TARGET,
-                 (unsigned)SENSORARRAY_PROTOCOL_VERSION);
-        return ESP_OK;
+                 (unsigned)SENSORARRAY_PROTOCOL_VERSION, app->version, elfSha);
+        return length > 0 && (size_t)length < responseSize ? ESP_OK : ESP_ERR_INVALID_SIZE;
     }
     if (strcmp(command, "PERF?") == 0) {
         sensorarrayAsyncLogStats_t asyncStats = {0};

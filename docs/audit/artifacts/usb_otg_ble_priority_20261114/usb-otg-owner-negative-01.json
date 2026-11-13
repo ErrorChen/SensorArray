@@ -1,0 +1,48 @@
+{
+  "scope": "Host-only sensitivity check; no hardware and no production modification",
+  "base_source_sha256": "411200086719e502032c8fa845e7de5581fffd72dbe739f4358f7288e6286ec6",
+  "results": [
+    {
+      "scenario": "reset_event17",
+      "kind": "SYNTHETIC_REGRESSION_MUTATION_NOT_HISTORICAL_SOURCE",
+      "replace_once": {
+        "old": "if (before != after || tud_task_event_ready()) { return; }",
+        "new": "if (before != after) { return; }"
+      },
+      "command": [
+        "/usr/bin/python3",
+        "tools/test_usb_otg_owner.py",
+        "--source",
+        "/tmp/sensorarray-otg-owner-negative-qdzxoykw/reset_event17.c",
+        "--scenario",
+        "reset_event17"
+      ],
+      "exit_code": 1,
+      "mutated_source_sha256": "c101606c1a7a3874586397b19c67f27ed0f2aea473dcc13cbb2fabca79e8026c",
+      "stdout": "",
+      "stderr": "owner_test: /home/csc/esp/workspace/SensorArray/tests/host/test_usb_otg_owner.c:163: resetEvent17: Assertion `reads[1]==0' failed.\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 102, in <module>\n    main()\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 94, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-lz3ich86/owner_test', 'reset_event17']' died with <Signals.SIGABRT: 6>.\n",
+      "result": "EXPECTED_ASSERTION_FAILURE"
+    },
+    {
+      "scenario": "panic_cpu0",
+      "kind": "SYNTHETIC_REGRESSION_MUTATION_NOT_HISTORICAL_SOURCE",
+      "replace_once": {
+        "old": "atomic_thread_fence(memory_order_seq_cst);",
+        "new": "esp_clk_utils_mspi_speed_mode_sync_before_cpu_freq_switching(40, 40);\n    rtc_clk_cpu_set_to_default_config();\n    atomic_thread_fence(memory_order_seq_cst);"
+      },
+      "command": [
+        "/usr/bin/python3",
+        "tools/test_usb_otg_owner.py",
+        "--source",
+        "/tmp/sensorarray-otg-owner-negative-qdzxoykw/panic_cpu0.c",
+        "--scenario",
+        "panic_cpu0"
+      ],
+      "exit_code": 1,
+      "mutated_source_sha256": "9f678406c61c82005b8da02ce9ff94f0616fba8baedd09ba719ac7ea10701ccb",
+      "stdout": "",
+      "stderr": "owner_test: /home/csc/esp/workspace/SensorArray/tests/host/test_usb_otg_owner.c:259: assertEmergencyReset: Assertion `interruptsOff==1&&clockSync==0&&defaultClock==0' failed.\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 102, in <module>\n    main()\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 94, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-q5kesi7o/owner_test', 'panic_cpu0']' died with <Signals.SIGABRT: 6>.\n",
+      "result": "EXPECTED_ASSERTION_FAILURE"
+    }
+  ]
+}

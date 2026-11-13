@@ -1,4 +1,4 @@
-> **2026-11-14 调试状态 / Debug status:** 正式 USB 正在从 Serial/JTAG 迁移到 USB-OTG vendor bulk；BLE 正式数据优先。当前工作尚未完成新的 10 分钟及 32 配置 USB+BLE 验收。下方历史测试不得当作新接口通过。 / Formal USB is being migrated to USB-OTG vendor bulk, with BLE data priority. The new 10-minute and 32-configuration USB+BLE acceptance runs are not complete; historical results below do not validate the new interface. [旧阶段实测与中止说明 / Previous phase evidence](docs/audit/load_reliability_fix_20261113.md).
+> **2026-11-14 调试状态 / Debug status:** 根据用户最新要求，正式 USB 改为 USB-OTG 双 CDC：一个口承载完整数据和命令，另一个口输出可丢调试日志。当前 Linux 用户已有 `dialout` 权限，不安装管理员权限规则。vendor bulk 保留为互斥构建选项。新接口的 10 分钟及 32 配置 USB+BLE 验收尚未完成，不能沿用历史通过记录。 / The current migration uses dual USB-OTG CDC: one port for complete data and commands, another for best-effort debug logs. This Linux account already belongs to `dialout`; no administrator permission rule is installed. Vendor bulk remains a mutually exclusive build option. New-interface 10-minute and 32-configuration USB+BLE acceptance is still pending. [本轮记录 / Current evidence](docs/audit/usb_otg_ble_priority_20261114.md).
 
 # SensorArray — ESP32-S3 固件 / ESP32-S3 Firmware
 
@@ -8,7 +8,31 @@ SensorArray is firmware for an 8×8 measurement matrix with **1–8 active S row
 
 仓库 / Repository: [ErrorChen/SensorArray](https://github.com/ErrorChen/SensorArray). 上位机兼容改动属于独立的 `ErrorChen/SensorArray_Software` 任务。 / Host compatibility changes belong to the separate `ErrorChen/SensorArray_Software` task.
 
-## 当前修复与历史失败基线 / Current repair and historical failed baseline
+## USB-OTG CDC 与 BLE 运转机制 / USB-OTG CDC and BLE operation
+
+USB-OTG CDC 仍然是原生 USB Full Speed（12 Mbit/s 总线速率），不是 UART 转 USB。虚拟串口的波特率参数不限制总线速率；实际完整帧吞吐受主机读取、USB 调度、编码、队列和采集耗时共同影响，必须实测，不能用 12 Mbit/s 推算成已达成的有效吞吐。S3 OTG 内部 DMA 使用持续存活的内部 DRAM 缓冲；应用文本复制到 TinyUSB FIFO，不是 PSRAM 零拷贝。`USB?.dma` 查询实际控制器 enable 位。
+
+USB-OTG CDC is native USB Full Speed (12 Mbit/s signaling), not a UART-to-USB link. Virtual baud settings do not set the USB wire rate. Complete-frame throughput still depends on host reads, bus scheduling, encoding, queues and acquisition, so signaling rate is not measured payload throughput. S3 internal OTG DMA uses persistent internal-DRAM buffers; application text is copied into TinyUSB FIFOs rather than DMA-read directly from PSRAM. `USB?.dma` reads the controller's actual enable bit.
+
+双 CDC 用独立端点隔离正式口与调试口；正式口内 DATA 和 CTRL 在完整记录边界仲裁，CTRL 优先，已发送部分 DATA 不允许插入 CTRL 字节。短写、到期、断连和配置 epoch 均有独立状态；到期部分记录以换行重新建立边界并记丢弃，不补零或修改科学帧。调试口无人读取不能占住正式口。只有一个 TinyUSB owner，保留 DMA 停止确认、受控重启和 ROM 下载通路；不会因修改虚拟波特率或 DTR 自动进下载模式。
+
+Separate CDC endpoints isolate the formal stream from debug output. DATA and CTRL share the formal byte stream only at complete-record boundaries: CTRL has admission priority, but cannot interrupt partially accepted DATA bytes. Short writes, expiry, disconnects and connection epochs have explicit state. An expired partial record gets a delimiter and a counted loss; scientific data is neither zero-filled nor relabeled. An unread debug port cannot retain the formal endpoint. One TinyUSB owner preserves the hardware DMA shutdown fence, controlled restart and ROM download path. Virtual baud or DTR changes do not trigger bootloader entry.
+
+BLE DATA/CTRL 应用任务优先级为 7/8，USB owner 与 transport 为 6；DATA、LOG、控制终态使用有界容量，普通日志不能挤占保留终态槽。`BLELINK?` 报真实完成回调的 PHY/连接参数，`BLETX?` 报 SDK 调用时长和本地排队情况。SDK 接受、USB FIFO 接受、回调和主机完整 CRC 帧实收是不同统计层。CDC 回调没有分 lane 的字节数，所以 `USBQ` 对相应字段输出 `unknown`。IDF 单次 BLE GATT 调用内部的 BTC 队列仍可能阻塞；外层截止时间不证明内部调用已取消。
+
+BLE DATA/CTRL application priorities are 7/8; the USB owner and transport use 6. DATA, LOG and terminal replies have bounded capacity; ordinary logs cannot consume reserved terminal slots. `BLELINK?` reports observed PHY/connection completion, while `BLETX?` reports SDK call timing and local queues. SDK acceptance, USB FIFO acceptance, callbacks and host CRC-valid complete-frame receipt are distinct layers. CDC callbacks provide no per-lane byte counts, so the corresponding `USBQ` values are `unknown`. The IDF GATT call can still block internally on its BTC queue; an outer deadline does not establish cancellation.
+
+接口通过 VID/PID、板卡 MAC 序列号、接口编号和 `PROTO?` capability 共同识别，不能按 `/dev/ttyACM0` 枚举顺序猜测。新双 CDC 开发 PID 为 `303a:4042`，接口 0/1 正式、2/3 调试；旧 vendor 开发 PID `303a:4041` 不混用。当前 Linux 可利用已有 `cdc_acm` 驱动和 `dialout` 组访问；这不是对所有操作系统权限的保证。Windows 仍待实测。`BUILD?` 新增运行镜像 version/ELF SHA256，以免把工作区 HEAD 当作板上版本。
+
+Discovery verifies VID/PID, the board's MAC-derived USB serial, interface number and `PROTO?` capability together, never tty enumeration order. The dual-CDC development PID is `303a:4042`, with interfaces 0/1 for formal traffic and 2/3 for debug; it is distinct from the optional vendor PID `303a:4041`. This Linux account can use its existing `cdc_acm` driver and `dialout` membership; this is not a universal OS permission guarantee. Windows remains untested. `BUILD?` adds running-image version and ELF SHA256 so a checkout HEAD is not mistaken for the flashed build.
+
+本轮已完成及未完成项目以[阶段报告](docs/audit/usb_otg_ble_priority_20261114.md)和逐命令 manifest 为准。夹具仍为 S1D1/S8D8 10 kΩ、S4D4/S5D5 33 pF，其余悬空电容仅作为环境背景代理。AVDD/AVSS 的用户读数只用于注明来源的临时 RAM 校准；不执行 CAL=SAVE，不把背景扣除当作绝对精度验证。
+
+Completed and pending checks are recorded in the [stage report](docs/audit/usb_otg_ble_priority_20261114.md) and command manifests. The fixture remains 10 kΩ at S1D1/S8D8 and 33 pF at S4D4/S5D5; floating-port capacitances are environmental-background proxies. User-supplied AVDD/AVSS readings support only explicitly sourced temporary RAM calibration. No CAL=SAVE is performed, and background subtraction is not absolute accuracy validation.
+
+## 历史 Serial/JTAG 修复与失败基线 / Historical Serial/JTAG repairs and failed baselines
+
+以下“当前”表述保留当时阶段语境，均不是本轮 OTG CDC 的版本或验收结论。 / The following historical references to “current” describe their original stages, not the present OTG CDC image or acceptance outcome.
 
 **当前修复源码为 `d314888`；51 个 host 测试入口与目标构建通过，但 screen-04 仍为负载验收 FAIL，完整长测尚未开始。** 已完成 app-only 烧录和 VOLT1 同步 USB+BLE 120 s 筛查：Capture 69.013312 FPS，USB 42.820965 FPS、BLE 43.300331 FPS，分别有 3,143 / 3,082 个未观察到的序号。该窗口未观察到 watchdog、MFAULT、reset、完整帧 ASCII CRC 或 identity 错误；这不能消除 DATA 排队拒绝、吞吐不足或测量有效性问题，也不是精度 PASS。
 

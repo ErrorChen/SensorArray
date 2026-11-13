@@ -443,8 +443,9 @@ static void sensorarraySerialLegacyTxTask(void *arg)
     }
 }
 
-/* 本轮新增: the existing persistent pool now feeds independent OTG endpoints.
- * No global prefix/wire lock: CDC backpressure cannot retain DATA/CTRL service.
+/* 本轮新增: persistent slots feed either independent vendor endpoints or a
+ * shared formal CDC stream. A started formal record owns that stream until
+ * completion/expiry; debug has its own endpoint and never retains formal I/O.
  * TinyUSB copies to internal persistent FIFO/endpoint buffers synchronously;
  * slot release only releases our CPU payload, never an active DMA buffer. */
 static void sensorarraySerialOtgTxTask(void *arg)
@@ -456,21 +457,26 @@ static void sensorarraySerialOtgTxTask(void *arg)
     uint8_t pending[SERIAL_IO_LANE_COUNT] = {UINT8_MAX, UINT8_MAX, UINT8_MAX};
     size_t offset[SERIAL_IO_LANE_COUNT] = {0};
     bool delimiter[SERIAL_IO_LANE_COUNT] = {false};
+    const bool sharedFormal = sensorarrayUsbOtgCdcEnabled();
+    unsigned formalOwner = UINT8_MAX;
     uint32_t epoch = sensorarrayUsbOtgEpoch();
     static const unsigned order[] = {SERIAL_IO_PRIORITY, SERIAL_IO_DATA, SERIAL_IO_LOG};
     for (;;) {
         sensorarrayUsbOtgOwnerPoll();
         bool progress = false;
+        bool formalServiced = false;
         uint32_t current = sensorarrayUsbOtgEpoch();
         if (current != epoch) {
             /* Bus reset class buffers were reset by TinyUSB before service.
              * Application records from the old connection retain their old
              * epoch and are discarded, never stamped as the new connection. */
             memset(delimiter, 0, sizeof(delimiter));
+            formalOwner = UINT8_MAX;
             epoch = current;
         }
         for (unsigned turn = 0; turn < SERIAL_IO_LANE_COUNT; ++turn) {
             unsigned lane = order[turn];
+            unsigned wire = sharedFormal && lane != SERIAL_IO_LOG ? SERIAL_IO_DATA : lane;
             if (pending[lane] == UINT8_MAX &&
                 xQueueReceive(s_queues[lane], &pending[lane], 0) == pdTRUE) {
                 offset[lane] = 0u; progress = true;
@@ -487,22 +493,41 @@ static void sensorarraySerialOtgTxTask(void *arg)
                 if (lane == SERIAL_IO_PRIORITY) { s_stats.priorityExpired++; }
                 else { s_stats.normalExpired++; }
                 portEXIT_CRITICAL(&s_statsMux);
-                if (!stale && offset[lane]) { delimiter[lane] = true; }
+                if (!stale && offset[lane]) { delimiter[wire] = true; }
+                if (formalOwner == lane) { formalOwner = UINT8_MAX; }
                 sensorarraySerialReleaseSlot(index);
                 pending[lane] = UINT8_MAX; offset[lane] = 0u; progress = true;
                 continue;
             }
+            if (sharedFormal && lane != SERIAL_IO_LOG) {
+                if (formalOwner != UINT8_MAX && formalOwner != lane) { continue; }
+                /* At most one formal record is serviced each turn. This
+                 * permits queued CTRL first at the next record boundary,
+                 * while an already accepted DATA prefix cannot be interleaved. */
+                if (formalServiced || (lane == SERIAL_IO_DATA &&
+                    pending[SERIAL_IO_PRIORITY] != UINT8_MAX && formalOwner != lane)) { continue; }
+            }
             if (!sensorarrayUsbOtgOwnerCanWrite(lane)) { continue; }
-            size_t length = delimiter[lane] ? 1u : s_lengths[index] - offset[lane];
-            const char *data = delimiter[lane] ? "\n" : sensorarraySerialBytes(index) + offset[lane];
+            size_t length = delimiter[wire] ? 1u : s_lengths[index] - offset[lane];
+            const char *data = delimiter[wire] ? "\n" : sensorarraySerialBytes(index) + offset[lane];
             int n = sensorarrayUsbOtgOwnerWrite(lane, data, length);
             if (n < 0 || (size_t)n > length) {
-                portENTER_CRITICAL(&s_statsMux); s_stats.driverWriteError++; portEXIT_CRITICAL(&s_statsMux);
-                /* Retain the bounded record, never invent acceptance. */
+                /* Acceptance is unknown, including when offset is zero. Drop
+                 * this CPU record; never retry an unknown prefix or report it
+                 * submitted. The next record must begin after a delimiter. */
+                portENTER_CRITICAL(&s_statsMux);
+                s_stats.driverWriteError++; s_stats.sinkDropped++;
+                s_stats.partialWrite += offset[lane] ? 1u : 0u;
+                portEXIT_CRITICAL(&s_statsMux);
+                delimiter[wire] = true;
+                if (formalOwner == lane) { formalOwner = UINT8_MAX; }
+                sensorarraySerialReleaseSlot(index);
+                pending[lane] = UINT8_MAX; offset[lane] = 0u; progress = true;
                 continue;
             }
             if (n == 0) { continue; }
             progress = true;
+            if (sharedFormal && lane != SERIAL_IO_LOG) { formalServiced = true; }
             uint64_t age = (uint64_t)(now - s_enqueuedUs[index]);
             portENTER_CRITICAL(&s_statsMux);
             s_stats.driverAcceptedBytes += (uint32_t)n;
@@ -510,10 +535,12 @@ static void sensorarraySerialOtgTxTask(void *arg)
             s_stats.driverShortWrite += (size_t)n < length ? 1u : 0u;
             if (age > s_stats.maxQueueAgeUs) { s_stats.maxQueueAgeUs = age > UINT32_MAX ? UINT32_MAX : (uint32_t)age; }
             portEXIT_CRITICAL(&s_statsMux);
-            if (delimiter[lane]) { delimiter[lane] = false; continue; }
+            if (delimiter[wire]) { delimiter[wire] = false; continue; }
+            if (sharedFormal && lane != SERIAL_IO_LOG) { formalOwner = lane; }
             offset[lane] += (size_t)n;
             if (offset[lane] == s_lengths[index]) {
-                delimiter[lane] = sensorarraySerialBytes(index)[s_lengths[index]-1] != '\n';
+                delimiter[wire] = sensorarraySerialBytes(index)[s_lengths[index]-1] != '\n';
+                if (formalOwner == lane) { formalOwner = UINT8_MAX; }
                 portENTER_CRITICAL(&s_statsMux);
                 if (lane == SERIAL_IO_PRIORITY) { s_stats.prioritySubmitted++; }
                 else {

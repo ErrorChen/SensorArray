@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/archive_cdc_debug.py",
+    "--debug-summary",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug.debug.summary.json",
+    "--output",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug-archive.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "7d46db080fce80c721384ad3b7d4f04555eb18f4",
+  "dirty_diff_sha256": "6170e9692b9b3f994aa4cb9c017322b52992d3b421704e4e7db0aa5587711ca9",
+  "started_utc": "2026-11-13T16:29:52.542888+00:00",
+  "started_monotonic": 94284.671417397,
+  "log": "docs/audit/artifacts/usb_otg_ble_priority_20261114/boot-01-debug-archive-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-13T16:29:52.707278+00:00",
+  "finished_monotonic": 94284.835818551,
+  "log_sha256": "0d925d7dbd4da8eb84ea3d1482b946b440fae4d63bfdeced6fe12c483bb5c5e8"
+}
