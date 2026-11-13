@@ -1900,9 +1900,9 @@ static void sensorarrayAsyncLogTask(void *arg)
             uint64_t outputUs = 0u;
             if (emitted) {
                 frame->emitUs = (uint64_t)outputStartUs;
-                /* USB Serial/JTAG data follows the per-sink USBSTREAM profile
-                 * (DEBUG decimates, FULL emits every frame). The queue stays
-                 * non-blocking and network data remains the primary path. */
+                /* Both formal sinks receive the same immutable encoded frame.
+                 * OTG bulk always emits DATA; legacy USJ alone uses USBSTREAM.
+                 * Admission is bounded independently of CDC debug readers. */
                 (void)sensorarrayNetTextPublish(textPacket, true);
                 if (sensorarrayUsbSinkShouldEmitData(frame->sequence)) {
                     (void)sensorarrayUsbSinkPublish(textPacket);

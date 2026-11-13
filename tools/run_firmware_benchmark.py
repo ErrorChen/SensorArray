@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -28,7 +29,8 @@ import re
 import sys
 import time
 
-from capture_reference_fixture import CaptureError, CaptureOptions, Collector, PosixPort
+from capture_reference_fixture import (CaptureError, CaptureOptions, Collector, PosixPort,
+                                       add_transport_arguments, validate_transport_options, open_capture_port)
 from text_protocol import TextProtocolParser, parse_fields
 
 
@@ -59,6 +61,10 @@ class BenchmarkOptions:
     rail_avdd_uv: int | None = None
     rail_avss_uv: int | None = None
     rail_source_note: str | None = None
+    transport: str = "posix"
+    usb_vid: int = 0x303A
+    usb_pid: int = 0x4041
+    usb_serial: str | None = None
 
 
 @dataclass(frozen=True)
@@ -96,10 +102,13 @@ def expected_wire_mode(configuration):
     return configuration.mode
 
 
-def record_paths(directory, label):
-    return {"raw": directory / (label + ".rx.bin"),
+def record_paths(directory, label, *, bulk=False):
+    paths = {"raw": directory / (label + ".rx.bin"),
             "events": directory / (label + ".events.jsonl"),
             "summary": directory / (label + ".summary.json")}
+    if bulk:
+        paths["ctrl_raw"] = directory / (label + ".ctrl.rx.bin")
+    return paths
 
 
 class HashingRaw:
@@ -128,8 +137,9 @@ class ObservedLines(deque):
 
 
 class BenchmarkCollector(Collector):
-    """Reuses the existing POSIX reader/writer; no second RX owner or flush."""
-    def __init__(self, settings, configuration, port, raw, events, *, carry=b"", original_usb=None):
+    """One owner per endpoint; no flush or cross-endpoint partial-line joins."""
+    def __init__(self, settings, configuration, port, raw, events, *, carry=b"", original_usb=None,
+                 ctrl_raw=None, ctrl_carry=b""):
         self.settings, self.configuration = settings, configuration
         self.fault_events = 0
         self.expected_identity = None
@@ -151,17 +161,21 @@ class BenchmarkCollector(Collector):
         capture_options = CaptureOptions(settings.port, total, settings.output_directory,
                                          configuration.label, mode=configuration.mode,
                                          rows=configuration.rows, command_timeout=settings.command_timeout,
-                                         progress_seconds=settings.progress_seconds)
-        super().__init__(capture_options, port, raw, events)
+                                         progress_seconds=settings.progress_seconds,
+                                         transport=settings.transport, usb_vid=settings.usb_vid,
+                                         usb_pid=settings.usb_pid, usb_serial=settings.usb_serial)
+        super().__init__(capture_options, port, raw, events, ctrl_raw=ctrl_raw)
         self.prepare_deadline = self.started + settings.prepare_seconds
         self.cleanup_budget = settings.cleanup_seconds
         self.lines = ObservedLines(self.observe)
         self.line_buffer = bytearray(carry)
+        self.ctrl_line_buffer = bytearray(ctrl_carry)
         self.original_usb = original_usb
         self.faults = deque(maxlen=32)
         self.event("segment", label=configuration.label, benchmark_kind=configuration.kind,
                    benchmark_mode=configuration.mode, rows=configuration.rows,
-                   port_session="continuous", carry_prefix_bytes=len(carry))
+                   port_session="continuous", carry_prefix_bytes=len(carry),
+                   ctrl_carry_prefix_bytes=len(ctrl_carry))
 
     def event(self, kind, **fields):
         if kind == "firmware_fault":
@@ -186,6 +200,12 @@ class BenchmarkCollector(Collector):
         tag = line.split(",", 1)[0]
         fields = parse_fields(line)
         if tag == "M" and "seq" not in fields:  # Memory diagnostics are not mixed data.
+            return
+        if self.is_bulk and self.observation_channel == "ctrl" and (
+                tag in {"C", "V", "R", "M", "MR", "K"} or re.fullmatch(r"[DP][0-9]+", tag)):
+            self.wire_contract_mismatches += 1
+            if len(self.wire_contract_examples) < 8:
+                self.wire_contract_examples.append({"reason": "measurement_on_CTRL_endpoint", "line": line})
             return
         if tag in {"C", "V", "R", "M"} and "seq" in fields:
             self.frame_header = fields
@@ -356,7 +376,9 @@ class BenchmarkCollector(Collector):
         self.phase = name
         for attempt in range(2):
             window = {}
-            for command, tag in QUERIES:
+            queries = tuple(("USB?", "USB") if self.is_bulk and command == "USBSTREAM?" else (command, tag)
+                            for command, tag in QUERIES)
+            for command, tag in queries:
                 fields = self.query(command, tag, deadline)
                 now = time.monotonic()
                 window[command] = {"fields": fields, "monotonic": now, "t": now - self.started}
@@ -382,13 +404,19 @@ class BenchmarkCollector(Collector):
     def run(self):
         failure = None
         try:
-            usb = self.query("USBSTREAM?", "USBSTREAM", self.prepare_deadline)
-            if usb.get("v") not in {"FULL", "DEBUG"}:
-                raise CaptureError("unknown_original_usb_profile")
-            if self.original_usb is None:
-                self.original_usb = usb
+            if self.is_bulk:
+                self.query("USB?", "USB", self.prepare_deadline)
+                self.restore_status = "NOT_APPLICABLE_BULK_ALWAYS_FULL"
+            else:
+                usb = self.query("USBSTREAM?", "USBSTREAM", self.prepare_deadline)
+                if usb.get("v") not in {"FULL", "DEBUG"}:
+                    raise CaptureError("unknown_original_usb_profile")
+                if self.original_usb is None:
+                    self.original_usb = usb
             for command, tag in (("BUILD?", "BUILD"), ("PROTO?", "PROTO"), ("CAL?", "CAL")):
                 fields = self.query(command, tag, self.prepare_deadline)
+                if command == "PROTO?":
+                    self.validate_protocol(fields)
                 if command == "PROTO?" and (fields.get("version") != "2" or "config_query_v1" not in fields.get("caps", "")):
                     raise CaptureError("atomic_config_query_capability_required")
             self.expected_identity = self.query("CONFIG?", "CONFIG", self.prepare_deadline)
@@ -401,8 +429,9 @@ class BenchmarkCollector(Collector):
             elif self.configuration.mode != "CAP":
                 self.transition("MODE", self.configuration.mode)
             self.check_fault()
-            self.restore_required = True
-            self.set_usb("FULL", self.prepare_deadline)
+            if not self.is_bulk:
+                self.restore_required = True
+                self.set_usb("FULL", self.prepare_deadline)
             self.warmup_started = time.monotonic()
             # Warmup has its own budget; preparation/query time is excluded.
             self.interval(self.settings.warmup_seconds, "warmup",
@@ -413,7 +442,7 @@ class BenchmarkCollector(Collector):
             config = before["CONFIG?"]["fields"]
             if any(config.get(k) != self.expected_identity.get(k) for k in IDENTITY):
                 raise CaptureError("configuration_changed_before_capture")
-            if before["USBSTREAM?"]["fields"].get("v") != "FULL":
+            if not self.is_bulk and before["USBSTREAM?"]["fields"].get("v") != "FULL":
                 raise CaptureError("FULL_output_not_applied")
             fps = before["FPS?"]["fields"]
             if fps.get("cfcap") != "0" or fps.get("ofcap") != "0":
@@ -484,22 +513,23 @@ class BenchmarkCollector(Collector):
             except (OSError, CaptureError, KeyboardInterrupt) as error:
                 self.safe_cap_recovery = "ERROR"
                 cleanup_errors.append("CAP8_recovery:" + (str(error) or "interrupted"))
-            try:
-                if self.original_usb is None:
-                    raise CaptureError("original_USB_profile_unknown")
-                self.set_usb(self.original_usb["v"], cleanup_deadline)
-                verified = self.query("USBSTREAM?", "USBSTREAM", cleanup_deadline)
-                if any(verified.get(k) != self.original_usb.get(k) for k in ("v", "dataEvery", "diagEvery") if k in self.original_usb):
-                    raise CaptureError("original_USB_cadence_unverified")
-                self.restore_status = "VERIFIED_QUERY"
-            except (OSError, CaptureError, KeyboardInterrupt) as error:
-                self.restore_status = "ERROR"
-                cleanup_errors.append("usb_restore:" + (str(error) or "interrupted"))
+            if not self.is_bulk:
+                try:
+                    if self.original_usb is None:
+                        raise CaptureError("original_USB_profile_unknown")
+                    self.set_usb(self.original_usb["v"], cleanup_deadline)
+                    verified = self.query("USBSTREAM?", "USBSTREAM", cleanup_deadline)
+                    if any(verified.get(k) != self.original_usb.get(k) for k in ("v", "dataEvery", "diagEvery") if k in self.original_usb):
+                        raise CaptureError("original_USB_cadence_unverified")
+                    self.restore_status = "VERIFIED_QUERY"
+                except (OSError, CaptureError, KeyboardInterrupt) as error:
+                    self.restore_status = "ERROR"
+                    cleanup_errors.append("usb_restore:" + (str(error) or "interrupted"))
             if cleanup_errors:
                 failure = ";".join(([failure] if failure else []) + cleanup_errors)
             self.event("finished", status="ERROR" if failure else "CAPTURED", error=failure)
         duration = (self.capture_finished - self.capture_started) if self.capture_started else 0.0
-        return {"status": "ERROR" if failure else "CAPTURED", "error": failure,
+        return {**self.transport_result(), "status": "ERROR" if failure else "CAPTURED", "error": failure,
                 "benchmark_kind": self.configuration.kind, "benchmark_mode": self.configuration.mode,
                 "mode_requested": self.configuration.mode, "rows_requested": self.configuration.rows,
                 "rowmodes_requested": self.configuration.profile if self.configuration.mode == "MIXED" else None,
@@ -540,7 +570,8 @@ class BenchmarkCollector(Collector):
                 "reset_requested": False, "flashed": False}
 
 
-def run_benchmark(options, *, port_factory=PosixPort):
+def run_benchmark(options, *, port_factory=None):
+    validate_transport_options(options)
     if any(not math.isfinite(value) or value <= 0 for value in (
             options.capture_seconds, options.stability_seconds, options.warmup_seconds,
             options.prepare_seconds, options.cleanup_seconds, options.command_timeout, options.progress_seconds)):
@@ -558,31 +589,43 @@ def run_benchmark(options, *, port_factory=PosixPort):
     index_path = options.output_directory / (options.label + ".benchmark.json")
     all_paths = [index_path]
     for config in plan:
-        paths = record_paths(options.output_directory, config.label)
+        paths = record_paths(options.output_directory, config.label, bulk=options.transport == "usb_bulk")
         all_paths.extend(paths.values())
         all_paths.append(Path(str(paths["raw"]) + ".gz"))
+        if "ctrl_raw" in paths:
+            all_paths.append(Path(str(paths["ctrl_raw"]) + ".gz"))
     if any(path.exists() for path in all_paths):
         raise FileExistsError("benchmark output exists; choose a new --label (no rerun or overwrite)")
     index = {"schema": "firmware_benchmark_v1", "status": "RUNNING", "port": options.port,
+             "transport": options.transport, "usb_serial": options.usb_serial,
              "one_port_session": True, "plan": [asdict(c) for c in plan], "results": [],
              "measurement_acceptance": "NOT_EVALUATED", "automatic_retry": False}
-    port, carry, original_usb = None, b"", None
+    port, carry, ctrl_carry, original_usb = None, b"", b"", None
     with index_path.open("x", encoding="utf-8") as index_file:
         try:
-            port = port_factory(options.port)
+            port = port_factory(options.port) if port_factory is not None else open_capture_port(options)
+            index["transport_metadata"] = port.metadata()
             index["session_monotonic_start"] = time.monotonic()
             for config in plan:
-                paths = record_paths(options.output_directory, config.label)
-                with paths["raw"].open("xb") as raw_file, paths["events"].open("x", encoding="utf-8") as events, paths["summary"].open("x", encoding="utf-8") as report:
+                paths = record_paths(options.output_directory, config.label, bulk=options.transport == "usb_bulk")
+                with ExitStack() as stack:
+                    raw_file = stack.enter_context(paths["raw"].open("xb"))
+                    ctrl_file = stack.enter_context(paths["ctrl_raw"].open("xb")) if "ctrl_raw" in paths else None
+                    events = stack.enter_context(paths["events"].open("x", encoding="utf-8"))
+                    report = stack.enter_context(paths["summary"].open("x", encoding="utf-8"))
                     raw = HashingRaw(raw_file)
                     collector = BenchmarkCollector(options, config, port, raw, events,
-                                                   carry=carry, original_usb=original_usb)
+                                                   carry=carry, original_usb=original_usb,
+                                                   ctrl_raw=ctrl_file, ctrl_carry=ctrl_carry)
                     result = collector.run()
                     carry = bytes(collector.line_buffer)
+                    ctrl_carry = bytes(collector.ctrl_line_buffer)
                     original_usb = collector.original_usb
                     raw.flush()
                     result.update(raw_file=str(paths["raw"]), events_file=str(paths["events"]),
                                   raw_sha256=raw.sha.hexdigest(), trailing_partial_line_bytes=len(carry))
+                    if "ctrl_raw" in paths:
+                        result["ctrl_raw_file"] = str(paths["ctrl_raw"])
                     report.write(json.dumps(result, indent=2) + "\n")
                 index["results"].append({"label": config.label, "summary_file": str(paths["summary"]),
                                          "status": result["status"], "error": result["error"],
@@ -591,14 +634,18 @@ def run_benchmark(options, *, port_factory=PosixPort):
                 # A failed configuration is never rerun. Continue only after
                 # verified CAP8 + original USB restoration; unknown hardware
                 # state cannot be carried into the next configuration.
-                if result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] != "VERIFIED_QUERY":
+                if result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] not in {"VERIFIED_QUERY", "NOT_APPLICABLE_BULK_ALWAYS_FULL"}:
                     break
             index["status"] = "COMPLETE" if len(index["results"]) == len(plan) and all(r["status"] == "CAPTURED" for r in index["results"]) else "ERROR"
         except (OSError, CaptureError, KeyboardInterrupt) as error:
             index["status"], index["error"] = "ERROR", str(error) or "interrupted"
         finally:
             if port:
-                port.close()
+                try:
+                    port.close()
+                except OSError as error:
+                    index["status"] = "ERROR"
+                    index["close_error"] = str(error)
             index["session_monotonic_end"] = time.monotonic()
             completed = {r["label"] for r in index["results"]}
             index["not_run"] = [c.label for c in plan if c.label not in completed]
@@ -608,7 +655,7 @@ def run_benchmark(options, *, port_factory=PosixPort):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", required=True)
+    add_transport_arguments(parser)
     parser.add_argument("--output-directory", type=Path, required=True)
     parser.add_argument("--label", required=True)
     parser.add_argument("--mode", choices=MODES, default="VOLT")

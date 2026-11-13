@@ -61,5 +61,7 @@ esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priorit
 /* 本轮新增: scientific packets have independent admission capacity. */
 esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length);
 int sensorarraySerialIoRead(void *buffer, size_t length);
+/* 本轮新增: resets partial command assembly on a new USB connection. */
+int sensorarraySerialIoReadWithEpoch(void *buffer, size_t length, uint32_t *epoch);
 void sensorarraySerialIoNoteOversize(void);
 void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats);

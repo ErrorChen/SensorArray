@@ -5,6 +5,8 @@ set(SENSORARRAY_MAIN_SRCS
         "control/sensorarrayEarlyRecovery.c"
         "control/sensorarrayRecoveryControl.c"
         "control/sensorarrayRestartControl.c"
+    "control/sensorarrayUsbControl.c"
+    "control/sensorarrayLinkDiagnostics.c"
     "net/sensorarrayNetStatus.c"
 )
 

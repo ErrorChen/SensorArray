@@ -1,3 +1,4 @@
+#define sensorarrayTransportPublishRuntimeFault printf /* Transport is synthetic in this main-logic harness. */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,6 +12,7 @@ typedef int esp_err_t;
 #define ESP_ERR_INVALID_ARG 0x102
 #define ESP_ERR_INVALID_STATE 0x103
 #define ESP_ERR_INVALID_SIZE 0x104
+#define ESP_ERR_NOT_SUPPORTED 0x106
 #define SENSORARRAY_MATRIX_ROWS 8
 #define SENSORARRAY_MATRIX_COLS 8
 #define SENSORARRAY_MEASUREMENT_MODE_NONE 0
@@ -135,7 +137,10 @@ static const char *sensorarrayFrontendPresenceLinkName(sensorarrayFrontendLink_t
 static bool sensorarrayBootPrepareRestart(unsigned kind)
 { assert(kind == SENSORARRAY_BOOT_RESTART_KIND_AUTO); mockBudget++; return mockBudgetAllowed; }
 static void sensorarrayBootEmitRestartMarker(const char *marker) { assert(strstr(marker, "restarting")); }
-static void esp_restart(void) { mockRestart++; }
+static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; mockRestart++; }
+static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
+static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 { assert(ctx); mockDrain++; }
 static esp_err_t sensorarrayFrontendStartupFormatSpi(char *text, size_t capacity)

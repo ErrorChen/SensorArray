@@ -1,3 +1,4 @@
+#define sensorarrayTransportPublishRuntimeFault printf /* Transport is synthetic in this main-logic harness. */
 #include <stdio.h>
 #include <string.h>
 #include "sensorarrayConfigIdentity.h"

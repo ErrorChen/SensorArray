@@ -12,3 +12,7 @@ bool sensorarrayRestartControlTake(uint32_t *outId);
 esp_err_t sensorarrayRestartControlPublish(uint32_t id,
     const sensorarrayConfigAuthority_t *authority, bool known);
 esp_err_t sensorarrayRestartControlFormat(char *response, size_t responseSize);
+
+/* 本轮新增: same ACK fence and request identity, explicit ROM destination. */
+esp_err_t sensorarrayRestartControlPostRom(const sensorarrayConfigAuthority_t *authority, bool known, uint32_t *outId);
+bool sensorarrayRestartControlIsRom(uint32_t id);

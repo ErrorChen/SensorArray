@@ -80,3 +80,8 @@ The SPI frequency is an IDF observation, not a measured SCLK waveform. Actual
 three-chip power removal/return while the MCU remains powered, switch topology,
 supply edges, back-power current and SPI timing remain NOT_RUN. A software
 restart that repeats the scan is not a substitute for that physical test.
+
+
+## 2026-11-14 USB interface migration / USB 接口迁移
+
+This is a firmware-only change from native Serial/JTAG to USB-OTG on the same GPIO19/20/internal PHY, selected in software without burning eFuses. It does not implement HW03/HW05 PCB changes or verify TVS leakage/capacitance, RC/trace impedance, VBUS detection, USB current draw, back-power behavior or Windows enumeration. The new development descriptor/PID and DMA support do not prove USB electrical compliance. / 本轮不冒充完成 USB 或跨电源域硬件整改；硬件限值及实装修订仍需独立核验，旧限制保留。

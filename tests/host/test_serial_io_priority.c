@@ -10,6 +10,7 @@
 #include "sensorarrayWorkBudget.c"
 #include "sensorarraySerialIo.h"
 #include "serial_priority_config.h"
+#include "sensorarrayUsbOtg.h"
 
 #define portTICK_PERIOD_MS 10u
 typedef int portMUX_TYPE;
@@ -35,6 +36,8 @@ static uint64_t nowUs, noHostUntil, stopUs;
 static int currentTask;
 static unsigned sourceFrames, controlCommands, bleWork, transportWork, driverWaits;
 static unsigned sourceAccepted, controlAccepted, submittedAtCaptureEnd;
+static uint64_t controlQueuedAt[40], maxControlDispatchUs, maxControlDeliveryUs;
+static unsigned controlsCopied;
 static unsigned idleVisits, maxQueueCount, driverCalls;
 static sensorarrayWorkBudgetWorker_t controlWorker;
 static bool (*idleCallback)(void);
@@ -43,6 +46,9 @@ static char (*s_dataBytes)[SENSORARRAY_TRANSPORT_TEXT_MAX] = dataStorage;
 static char s_priorityBytes[SERIAL_IO_PRIORITY_SLOT_COUNT][SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX];
 static uint16_t s_lengths[SERIAL_IO_SLOT_COUNT];
 static int64_t s_enqueuedUs[SERIAL_IO_SLOT_COUNT], s_deadlineUs[SERIAL_IO_SLOT_COUNT];
+#if SERIAL_TEST_HAS_EPOCH
+static uint32_t s_slotEpoch[SERIAL_IO_SLOT_COUNT];
+#endif
 static bool s_inUse[SERIAL_IO_SLOT_COUNT];
 static portMUX_TYPE s_poolMux, s_statsMux;
 static StaticQueue_t queues[SERIAL_IO_LANE_COUNT];
@@ -125,6 +131,11 @@ static int usb_serial_jtag_write_bytes(const void *data, size_t bytes, TickType_
         }
         return 0;
     }
+    if (noHostUntil == 0u && bytes == 5u && memcmp(data, "CTRL\n", 5u) == 0) {
+        assert(controlsCopied < controlAccepted);
+        uint64_t age = nowUs - controlQueuedAt[controlsCopied++];
+        if (age > maxControlDeliveryUs) { maxControlDeliveryUs = age; }
+    }
     cpuWork(200u); /* Synthetic CPU copy/driver admission cost, not measured. */
     return (int)bytes;
 }
@@ -145,7 +156,7 @@ static void sourceTask(void)
     }
     blockUntil(UINT64_MAX); assert(false);
 }
-static void serialTask(void) { sensorarraySerialTxTask(NULL); assert(false); }
+static void serialTask(void) { SERIAL_TEST_LEGACY_TX(NULL); assert(false); }
 static void bleTask(void)
 {
     for (;;) {
@@ -165,8 +176,13 @@ static void controlTask(void)
     for (unsigned command = 0u; command < 40u; ++command) {
         uint64_t release = (uint64_t)command * 50000u;
         if (nowUs < release) { blockUntil(release); }
+        uint64_t dispatch = nowUs - release;
+        if (dispatch > maxControlDispatchUs) { maxControlDispatchUs = dispatch; }
         controlCommands++;
-        controlAccepted += sensorarraySerialQueueRecord("CTRL\n", 5u, SERIAL_IO_PRIORITY) == ESP_OK;
+        if (sensorarraySerialQueueRecord("CTRL\n", 5u, SERIAL_IO_PRIORITY) == ESP_OK) {
+            assert(controlAccepted < 40u);
+            controlQueuedAt[controlAccepted++] = nowUs;
+        }
         cpuWork(100u);
         (void)sensorarrayWorkBudgetCheckpoint(controlWorker);
     }
@@ -182,6 +198,8 @@ static void reset(unsigned serialPriority, uint64_t unavailableUntil, unsigned c
     nowUs = 0u; noHostUntil = unavailableUntil; stopUs = 2100000u;
     sourceFrames = controlCommands = bleWork = transportWork = driverWaits = 0u;
     sourceAccepted = controlAccepted = submittedAtCaptureEnd = 0u;
+    memset(controlQueuedAt, 0, sizeof(controlQueuedAt));
+    maxControlDispatchUs = maxControlDeliveryUs = 0u; controlsCopied = 0u;
     idleVisits = maxQueueCount = driverCalls = 0u; currentTask = -1;
     controlWorker = controlPriority == ACTUAL_SERIAL_CONTROL_PRIORITY ?
         SENSORARRAY_WORK_BUDGET_SERIAL_CTRL : SENSORARRAY_WORK_BUDGET_BLE_CTRL;
@@ -228,20 +246,34 @@ static void run(unsigned serialPriority, uint64_t unavailableUntil, unsigned con
         if (nowUs < 2000000u) { submittedAtCaptureEnd = s_stats.dataSubmitted; }
     }
     sensorarrayWorkBudgetSnapshot_t snap; sensorarrayWorkBudgetCopySnapshot(&snap);
-    printf("SERIAL_PRIORITY_MODEL,priority=%u,ctrlPriority=%u,noHostUs=%llu,source=%u,accepted=%u,data=%u,dataAt2s=%u,rejected=%u,expired=%u,ctrl=%u,ctrlSubmitted=%u,bleWork=%u,trWork=%u,driverWaits=%u,idle=%u,maxGap=%u,queueMax=%u\n",
+    printf("SERIAL_PRIORITY_MODEL,priority=%u,ctrlPriority=%u,noHostUs=%llu,source=%u,accepted=%u,data=%u,dataAt2s=%u,rejected=%u,expired=%u,ctrl=%u,ctrlSubmitted=%u,bleWork=%u,trWork=%u,driverWaits=%u,idle=%u,maxGap=%u,queueMax=%u,ctrlDispatchMaxUs=%llu,ctrlDriverMaxUs=%llu\n",
            serialPriority, controlPriority, (unsigned long long)unavailableUntil, sourceFrames, sourceAccepted,
            s_stats.dataSubmitted, submittedAtCaptureEnd, s_stats.dataRejected, s_stats.normalExpired,
            controlCommands, s_stats.prioritySubmitted, bleWork, transportWork, driverWaits,
-           idleVisits, snap.maxIdleGapTicks, maxQueueCount);
+           idleVisits, snap.maxIdleGapTicks, maxQueueCount,
+           (unsigned long long)maxControlDispatchUs, (unsigned long long)maxControlDeliveryUs);
     assert(sourceFrames == 200u && controlCommands == 40u);
     assert(bleWork > 0u && transportWork > 0u && idleVisits > 0u && snap.maxIdleGapTicks <= 6u);
     assert(s_stats.driverShortWrite == 0u && s_stats.driverWriteError == 0u && maxQueueCount <= 4u);
+    unsigned dataRetained = 0u, controlRetained = 0u;
+    for (unsigned i=0u; i<SERIAL_IO_DATA_SLOT_COUNT; i++) { dataRetained += s_inUse[i] ? 1u : 0u; }
+    for (unsigned i=SERIAL_IO_DATA_SLOT_COUNT; i<SERIAL_IO_LOG_FIRST_SLOT; i++) { controlRetained += s_inUse[i] ? 1u : 0u; }
+    assert(sourceAccepted + s_stats.dataRejected == sourceFrames);
+    assert(sourceAccepted == s_stats.dataSubmitted + s_stats.normalExpired + dataRetained);
+    assert(controlAccepted + s_stats.priorityRejected == controlCommands);
+    assert(controlAccepted == s_stats.prioritySubmitted + s_stats.priorityExpired + controlRetained);
+    assert(maxControlDispatchUs < SERIAL_IO_PRIORITY_LIFETIME_US);
     if (serialPriority == 4u && unavailableUntil == 0u) {
         assert(s_stats.dataRejected > 0u || s_stats.normalExpired > 0u);
     }
-    if (serialPriority == 6u && unavailableUntil == 0u) {
-        assert(s_stats.dataSubmitted == 200u && s_stats.dataRejected == 0u && s_stats.normalExpired == 0u);
+    /* Formal BLE now has higher application priority than legacy USJ. Keep
+     * accounting and bounded control assertions; never turn this synthetic
+     * scheduling observation into a lossless-throughput acceptance claim. */
+    if (unavailableUntil == 0u) {
+        assert(s_stats.dataSubmitted > 0u);
         assert(s_stats.prioritySubmitted == 40u);
+        assert(s_stats.priorityRejected == 0u && s_stats.priorityExpired == 0u);
+        assert(controlsCopied == 40u && maxControlDeliveryUs < SERIAL_IO_PRIORITY_LIFETIME_US);
     }
     if (unavailableUntil == UINT64_MAX) {
         assert(driverWaits > 0u && s_stats.dataSubmitted == 0u && s_stats.normalExpired > 0u);
@@ -253,14 +285,15 @@ static void run(unsigned serialPriority, uint64_t unavailableUntil, unsigned con
 int main(void)
 {
     setbuf(stdout, NULL);
-    assert(ACTUAL_OUTPUT_CORE == 0 && ACTUAL_LOG_PRIORITY == 7u && ACTUAL_BLE_PRIORITY == 5u);
+    assert(ACTUAL_OUTPUT_CORE == 0 && ACTUAL_LOG_PRIORITY == 7u && ACTUAL_BLE_PRIORITY == 7u);
+    assert(ACTUAL_CONTROL_PRIORITY == 8u && ACTUAL_CONTROL_PRIORITY > ACTUAL_BLE_PRIORITY);
     run(4u, 0u, ACTUAL_CONTROL_PRIORITY); /* Old priority counterexample retained. */
     run(6u, 0u, ACTUAL_CONTROL_PRIORITY);
     run(6u, UINT64_MAX, ACTUAL_CONTROL_PRIORITY);
     run(6u, 200000u, ACTUAL_CONTROL_PRIORITY);
     run(6u, 0u, ACTUAL_SERIAL_CONTROL_PRIORITY);
     run(6u, UINT64_MAX, ACTUAL_SERIAL_CONTROL_PRIORITY);
-    assert(ACTUAL_SERIAL_PRIORITY == 6u); /* Bind the regression to the actual task creation. */
+    assert(ACTUAL_SERIAL_PRIORITY == 6u && ACTUAL_SERIAL_PRIORITY < ACTUAL_BLE_PRIORITY);
     printf("SERIAL_PRIORITY_PASS,scenarios=6,productionPriority=%u,actualFunctions=8,hardware=NOT_RUN\n", ACTUAL_SERIAL_PRIORITY);
     return 0;
 }

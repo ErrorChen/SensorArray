@@ -323,3 +323,33 @@ RESTART ID 是独立 uint32 计数器，跳过 0，不与 RECOVER/MODE 的 ID �
 
 
 针对终态 sink 的追加回归直接执行生产 `sensorarrayTransportQueue`、`sensorarrayTransportPublishLifecycleObserved` 和 `sensorarrayTransportDrainGuaranteedText`：Serial-only 的 RESTART 确有完整优先 RAPP；USB 拒绝和网络队列拒绝各自保留错误；禁用网络的 ESP_OK 无动作保持 netQueued=0。RECOVER 的既有 GuaranteedText drain 原本就显式调用 SerialIoQueue，然后独立尝试 BLE/Wi-Fi，因此没有相同的 Serial 遗漏。RECOVERY.terminalQueued 仍只描述保留槽曾写入，与 RESTART.terminalQueued 的“至少一个本地输出队列接纳”不同；两个字段都不能证明 Host 接收。测试中注入 USB 拒绝仍保留 RECOVERY 结果，真实 sink 丢弃由原分层统计可查。
+
+## USB-OTG formal data / 正式数据扩展（2026-11-14）
+
+Implementation revision is pending the final validated commit in this phase. The wire protocol remains PROTO 2 ASCII with the existing real-encoder CRC and immutable session/config identity. This extension changes the USB interface, not the meaning of legacy frame `gen/rid`. / 本阶段修复 commit 待最终构建验证后记录；ASCII、CRC、各身份域不变。
+
+`PROTO?` selects capabilities from the active backend. `usb_vendor_bulk_v1` replaces `serial_sink_v1/serial_classes_v1` on OTG. `usb_rom_handoff_v1` announces the explicit `USBBOOT` action. A one-boot USJ recovery backend reports its own capabilities; do not infer OTG from the firmware version alone. Query `USB?` to confirm the active backend.
+
+| Interface | Class/subclass/protocol | Endpoints | Contract / 契约 |
+| --- | --- | --- | --- |
+| 0 DATA | FF/53/01 | OUT 01, IN 81 | Full scientific ASCII packets. DATA OUT is discarded. / 完整科学帧；OUT 不解释命令。 |
+| 1 CTRL | FF/53/02 | OUT 02, IN 82 | Commands, replies and lifecycle/fault events. / 命令、回复、模式终态与 MFAULT。 |
+| 2/3 CDC | CDC ACM | notify 83; OUT 04, IN 84 | Best-effort debug only; RX is discarded. / 可丢弃调试日志，不接收控制命令。 |
+
+The prototype uses Espressif development VID/PID `303a:4041`, bcdDevice `0100`, serial equal to the uppercase six-byte factory MAC without separators (this board `80B54ECDD9AC`). This is not a uniquely allocated production PID. Exact role/interface/endpoint matching is required: old `303a:1001` contains a vendor JTAG interface and MUST NOT receive these ASCII commands. MS OS 2.0/BOS descriptors bind only the two vendor functions to WinUSB with stable distinct interface GUIDs; CDC uses the serial driver. Windows binding is NOT_RUN until actually tested there.
+
+每个 IN 端点是独立字节流。主机必须分别缓存半行；不能先交织原始 chunks 再解析。一帧可以跨多个 USB 包／传输，一个传输也可以含多行。64 字节包、短包、ZLP 和读超时均不是帧边界。CONTROL 终态可能早于或晚于 DATA，仍按 CONFIG session/revision/boundary 契约接纳和恢复，不能靠跨端点到达先后推断配置。模式 action 结果未知时不得自动重放完整命令。
+
+Each IN endpoint has an independent byte stream and partial-line buffer. Neither USB packets nor transfer boundaries delimit scientific frames. Preserve nonzero transferred bytes on timeout and write only the known unsent suffix. A disconnect ends the capture window; reconnect queries PROTO/CONFIG anew and never compares sequence/generation across sessions. Preserve DATA and CTRL raw streams separately; a merged synthetic stream is not original evidence. The capture tools label these `.rx.bin` and `.ctrl.rx.bin`; CDC uses its own `.debug.rx.bin` observer and is excluded from formal data receipt counts.
+
+All three TX lanes reuse the existing bounded persistent application pool. A single CPU0 owner services TinyUSB and independent endpoint offsets/deadlines. CTRL is serviced first, DATA next, CDC last. Partial expiry requires a delimiter only on that endpoint. Bus reset/deconfiguration increments a connection epoch; old queued records are discarded with their original identity. The owner first proves the queued reset event was processed before admitting new-epoch commands. An ISR notification alone is insufficient.
+
+USB-OTG 使用 S3 内部 Buffer DMA，不是 Serial/JTAG DMA，也不是 GDMA。最大 USB FS 包仍为 64 B；vendor DMA staging 为 512 B（每传输最多八包）。TinyUSB FIFO/端点缓冲在内部 DRAM、4 字节对齐并持续存活；PSRAM 仅存 CPU 层队列文本，写入 TinyUSB 会复制，不能称零拷贝。编译启用 DMA 不是实机证明；`USB?.dma` 读实际控制器 enable 位。
+
+`USB?` reports stack initialization, mount/configuration, suspend, connection epoch/reset observations and RX counts/times. `USBQ?` separates queue rejection, whole-record submission, FIFO-accepted bytes and transfer callback bytes. TinyUSB 0.21's vendor callback drops the transfer result; therefore `callbackResult=unknown`, never successful-bus or PC-application receipt. `SERIAL?` on OTG explicitly identifies CDC debug. `USBSTREAM?` returns BULK/dataEvery=1; DEBUG/FULL setters reject as legacy-only. `ST` still controls wired versus wireless sink eligibility; control is independent of DATA selection.
+
+`USBBOOT` uses the existing independent RESTART request ID and local ACK publication guard, with `target=rom_download`. It does not acknowledge PC receipt. At a main-loop boundary the USB owner stops service, disables its IRQ, clears incompatible ROM persistence flags, asserts and verifies the OTG hardware reset, and returns the PHY to USJ before the ROM-download restart. No TinyUSB object or DMA buffer is freed/reused. Ordinary controlled application restarts use the same fence. If the owner cannot acknowledge by the bounded deadline, the firmware uses an ESP32-S3 digital Core Reset and marks one subsequent boot for USJ recovery; it does not claim local cancellation or enter ROM download on that failure. The panic restart call is wrapped so CPU-only reset cannot silently leave OTG DMA using memory reinitialized by the next boot. These terminal paths retain watchdog behavior; physical BOOT/EN remains a recovery route. Do not burn USB eFuses.
+
+BLE 正式 DATA 的应用优先级为 7，CTRL 为 8；USB owner 和 transport 为 6。编码/output 仍为 7，保证采样结果被送入各 sink；普通日志不能占用 DATA admission slots。BLE 生命周期沿既有 FF30 wire 格式使用保留优先槽，不与普通 LOG 排队。`BLELINK?` 公布实际 PHY/connection completion、请求错误和 known 标志；interval 单位 1250 µs、supervision timeout 单位 10 ms。IDF DLE completion 没有 peer ID，故 `dlePeerKnown=0`，其数值只是未归属观测。`BLETX?` 记录本地服务及 SDK 调用时间（µs），不证明空口／PC 完成。IDF 单次 GATT API 内部仍有可阻塞的 BTC 入队；外层 retry deadline 不等于已取消该 SDK 调用，slot 不会提前释放。
+
+The host software repository was not modified. Its separate integration task must add libusb/WinUSB device discovery and independent endpoint readers, preserve the existing session/config gate, support terminal-loss recovery by CONFIG, and keep CDC/BLE diagnostic loss separate from scientific data loss. Wi-Fi wire behavior is unchanged; no new Wi-Fi HIL result is claimed.

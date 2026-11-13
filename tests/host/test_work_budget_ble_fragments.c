@@ -11,7 +11,7 @@
 #define SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT 4u
 
 typedef enum { SENSORARRAY_BLE_CH_DATA, SENSORARRAY_BLE_CH_LOG, SENSORARRAY_BLE_CH_CTRL } sensorarrayBleChannel_t;
-typedef struct { bool congested, confirm; unsigned txMode, mtu, connectionGeneration; } sensorarrayBleSendContext_t;
+typedef struct { bool congested, confirm, priority; unsigned txMode, mtu, connectionGeneration; } sensorarrayBleSendContext_t;
 static struct {
     uint32_t nextMessageId[3];
     uint8_t txPacketScratch[SENSORARRAY_BLE_ATTR_VALUE_MAX];
@@ -115,7 +115,7 @@ static void reset(bool largeSynthetic, unsigned mtu)
 static esp_err_t sendPayload(void)
 {
     return sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes,
-                                    sensorarrayBleCrc32(source, messageBytes), 3u);
+                                    sensorarrayBleCrc32(source, messageBytes), 3u, false);
 }
 static void assertComplete(void)
 {
@@ -166,7 +166,7 @@ int main(void)
     assert(sends == 0u && drops == 1u && slotOwned);
 
     reset(false, 247u);
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes, 0u, 3u) == ESP_ERR_INVALID_CRC);
+    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes, 0u, 3u, false) == ESP_ERR_INVALID_CRC);
     assert(sends == 0u && drops == 1u && s_ble.stats.txCrcMismatch == 1u && slotOwned);
 
     reset(true, 247u); nowTick = UINT32_MAX;

@@ -10,8 +10,10 @@
 #include "esp_gatt_common_api.h"
 #include "esp_gatts_api.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
@@ -22,7 +24,7 @@
 #define CONFIG_SENSORARRAY_BLE_TX_TASK_STACK 4096
 #endif
 #ifndef CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY
-#define CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY 5
+#define CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY 7
 #endif
 #ifndef CONFIG_SENSORARRAY_BLE_TX_TASK_CORE
 #define CONFIG_SENSORARRAY_BLE_TX_TASK_CORE 0
@@ -34,7 +36,7 @@
 #define CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK 6144
 #endif
 #ifndef CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY
-#define CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY 6
+#define CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY 8
 #endif
 #ifndef CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE
 #define CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE 0
@@ -54,8 +56,7 @@
 #define SENSORARRAY_BLE_CTRL_RX_MAX 128u
 #define SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT 2u
 #define SENSORARRAY_BLE_LOG_TX_SLOT_COUNT 2u
-#define SENSORARRAY_BLE_TX_DESCRIPTOR_QUEUE_COUNT \
-    (CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN + SENSORARRAY_BLE_LOG_TX_SLOT_COUNT)
+#define SENSORARRAY_BLE_DATA_SERVICE_BURST 4u
 #define SENSORARRAY_BLE_TINY_TAIL_MIN 8u
 #define SENSORARRAY_BLE_CONF_TIMEOUT_MS 1000u
 #define SENSORARRAY_BLE_DEFAULT_ATT_MTU 23u
@@ -176,6 +177,7 @@ typedef struct {
     uint32_t generation;
     uint32_t connectionGeneration;
     uint32_t crc;
+    uint64_t queuedAtUs;
 } sensorarrayBleTxDescriptor_t;
 
 typedef struct {
@@ -196,11 +198,12 @@ typedef struct {
     sensorarrayBleTxMode_t txMode;
     bool confirm;
     bool congested;
+    bool priority;
 } sensorarrayBleSendContext_t;
 
 _Static_assert(sizeof(sensorarrayBleControlCommand_t) <= 144u,
                "BLE RX command must stay a small BTC-task object");
-_Static_assert(sizeof(sensorarrayBleTxDescriptor_t) <= 24u,
+_Static_assert(sizeof(sensorarrayBleTxDescriptor_t) <= 40u,
                "BLE TX queue must store descriptors, not whole payloads");
 _Static_assert(SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX >= 512u,
                "BLE CTRL TX must carry the longest command response");
@@ -210,6 +213,7 @@ _Static_assert(SENSORARRAY_BLE_LOG_TX_SLOT_COUNT >= 2u,
 typedef struct {
     sensorarrayBleConfig_t config;
     sensorarrayBleStats_t stats;
+    sensorarrayBleLinkSnapshot_t link;
     bool initialized;
     bool txTaskStarted;
     bool controlTaskStarted;
@@ -221,13 +225,17 @@ typedef struct {
     uint16_t connId;
     uint16_t handles[BLE_IDX_COUNT];
     QueueHandle_t txQueue;
+    QueueHandle_t logTxQueue;
     QueueHandle_t ctrlTxQueue;
     QueueHandle_t ctrlRxQueue;
     StaticQueue_t txQueueStruct;
+    StaticQueue_t logTxQueueStruct;
     StaticQueue_t ctrlTxQueueStruct;
     StaticQueue_t ctrlRxQueueStruct;
-    uint8_t txQueueStorage[SENSORARRAY_BLE_TX_DESCRIPTOR_QUEUE_COUNT *
+    uint8_t txQueueStorage[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN *
                            sizeof(sensorarrayBleTxDescriptor_t)];
+    uint8_t logTxQueueStorage[SENSORARRAY_BLE_LOG_TX_SLOT_COUNT *
+                              sizeof(sensorarrayBleTxDescriptor_t)];
     uint8_t ctrlTxQueueStorage[SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT *
                                sizeof(sensorarrayBleTxDescriptor_t)];
     uint8_t ctrlRxQueueStorage[CONFIG_SENSORARRAY_BLE_CTRL_RX_QUEUE_LEN *
@@ -235,6 +243,10 @@ typedef struct {
     sensorarrayBleDataSlot_t dataSlots[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN];
     sensorarrayBleDataSlot_t logSlots[SENSORARRAY_BLE_LOG_TX_SLOT_COUNT];
     sensorarrayBleCtrlSlot_t ctrlSlots[SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT];
+    /* Work wakeups must not share the indication-confirmation notification.
+     * Queue state is authoritative; the binary token only wakes an idle owner. */
+    SemaphoreHandle_t txWake;
+    StaticSemaphore_t txWakeStorage;
     /*
      * Owned exclusively by sensorarrayBleTxTask.  The Bluedroid API deep-copies
      * indication/notification values before returning, so the single TX task
@@ -418,12 +430,13 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
     size_t length,
     uint32_t crc,
     uint32_t expectedConnectionGeneration,
+    bool priority,
     sensorarrayBleTxDescriptor_t *outDesc)
 {
     if (!outDesc || channel > SENSORARRAY_BLE_CH_CTRL || length == 0u) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (channel == SENSORARRAY_BLE_CH_CTRL &&
+    if (priority &&
         length > SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -445,7 +458,7 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
         portEXIT_CRITICAL(&s_bleMux);
         return ESP_ERR_INVALID_STATE;
     }
-    if (channel == SENSORARRAY_BLE_CH_CTRL) {
+    if (priority) {
         for (uint8_t i = 0u; i < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT; ++i) {
             sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[i];
             if (slot->inUse) {
@@ -476,8 +489,8 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
          * must not consume the storage needed by FF30.  Keep the original
          * DATA capacity intact and give LOG two independent bounded slots:
          * compact-summary and ADS packets are published back-to-back.  The
-         * shared descriptor FIFO preserves message ordering, while CTRL keeps
-         * its independent higher-priority queue.
+         * per-channel descriptor queues preserve order within each channel;
+         * ordinary LOG cannot sit in front of newly queued scientific DATA.
          */
         sensorarrayBleDataSlot_t *slots =
             channel == SENSORARRAY_BLE_CH_DATA ?
@@ -1004,7 +1017,10 @@ static esp_err_t sensorarrayBleSendGattValue(
         return ESP_ERR_INVALID_ARG;
     }
 
-    const uint32_t maximumAttempts = channel == SENSORARRAY_BLE_CH_CTRL ?
+    const bool priority = context->priority || channel == SENSORARRAY_BLE_CH_CTRL;
+    const uint64_t retryDeadlineUs = (uint64_t)esp_timer_get_time() +
+        (uint64_t)SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS * 1000u;
+    const uint32_t maximumAttempts = priority ?
         (SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS /
          SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS) + 1u : 1u;
     esp_err_t lastError = ESP_FAIL;
@@ -1019,12 +1035,30 @@ static esp_err_t sensorarrayBleSendGattValue(
             if (confirm) {
                 sensorarrayBlePrepareConfirmation(context, handle);
             }
+            uint64_t callStartedUs = (uint64_t)esp_timer_get_time();
+            portENTER_CRITICAL(&s_bleMux);
+            s_ble.link.sdkCallActive = true;
+            s_ble.link.sdkCallStartedUs = callStartedUs;
+            s_ble.link.sdkCallCount++;
+            portEXIT_CRITICAL(&s_bleMux);
             lastError = esp_ble_gatts_send_indicate(context->gattsIf,
                                                     context->connId,
                                                     handle,
                                                     length,
                                                     value,
                                                     confirm);
+            uint64_t callCompletedUs = (uint64_t)esp_timer_get_time();
+            uint64_t callUs = callCompletedUs - callStartedUs;
+            portENTER_CRITICAL(&s_bleMux);
+            s_ble.link.sdkCallActive = false;
+            s_ble.link.sdkCallCompletedUs = callCompletedUs;
+            s_ble.link.sdkLastError = lastError;
+            if (callUs > s_ble.link.sdkMaxCallUs) {
+                s_ble.link.sdkMaxCallUs = callUs > UINT32_MAX ? UINT32_MAX : (uint32_t)callUs;
+            }
+            if (lastError == ESP_OK) { s_ble.link.sdkAccepted++; }
+            else { s_ble.link.sdkErrors++; }
+            portEXIT_CRITICAL(&s_bleMux);
             if (lastError == ESP_OK) {
                 /* Once Bluedroid accepts an indication, never resend it: a
                  * missing confirmation is ambiguous and retrying could
@@ -1037,15 +1071,18 @@ static esp_err_t sensorarrayBleSendGattValue(
             }
         }
 
-        /* ESP-IDF's Bluedroid API returns ESP_FAIL before accepting the
-         * value when L2CAP is congested or BTC cannot queue it.  Other error
-         * classes are not transient for this descriptor and must not be
-         * retried. */
+        /* ESP_FAIL can be rejected admission/congestion. The public IDF 5.5
+         * implementation can itself wait indefinitely for BTC queue space:
+         * this deadline bounds our retries, not that SDK call. Keep the slot
+         * owned across it and expose active/start/completion diagnostics. */
         if (lastError != ESP_FAIL) {
             break;
         }
-        if (attempt + 1u >= maximumAttempts) {
-            if (channel == SENSORARRAY_BLE_CH_CTRL) {
+        if (attempt + 1u >= maximumAttempts ||
+            (uint64_t)esp_timer_get_time() +
+                (uint64_t)SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS * 1000u >=
+                retryDeadlineUs) {
+            if (priority) {
                 sensorarrayBleStatsIncrement(
                     &s_ble.stats.controlTxRetryExhausted);
             }
@@ -1070,7 +1107,8 @@ static esp_err_t sensorarrayBleSendFragment(
                                             uint32_t crc,
                                             bool confirm)
 {
-    bool contextCurrent = channel == SENSORARRAY_BLE_CH_CTRL ?
+    bool contextCurrent = context &&
+        (context->priority || channel == SENSORARRAY_BLE_CH_CTRL) ?
         sensorarrayBleSendContextMatches(channel, context, NULL) :
         sensorarrayBleSendContextCurrent(channel, context);
     if (!context || !contextCurrent) {
@@ -1133,7 +1171,8 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
                                            const uint8_t *data,
                                            uint16_t length,
                                            uint32_t enqueueCrc,
-                                           uint32_t expectedConnectionGeneration)
+                                           uint32_t expectedConnectionGeneration,
+                                           bool priority)
 {
     if (!data || channel > SENSORARRAY_BLE_CH_CTRL || length == 0u) {
         return ESP_ERR_INVALID_ARG;
@@ -1148,8 +1187,9 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_STATE;
     }
+    context.priority = priority;
     if (context.congested && context.txMode == SENSORARRAY_BLE_TX_FAST &&
-        channel != SENSORARRAY_BLE_CH_CTRL) {
+        channel != SENSORARRAY_BLE_CH_CTRL && !priority) {
         sensorarrayBleStatsIncrement(&s_ble.stats.congestedCount);
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_TIMEOUT;
@@ -1279,32 +1319,69 @@ static esp_err_t sensorarrayBleSendDescriptor(const sensorarrayBleTxDescriptor_t
         sensorarrayBleNoteDrop(desc->channel);
         return ESP_ERR_INVALID_ARG;
     }
+    uint64_t ageUs = (uint64_t)esp_timer_get_time() - desc->queuedAtUs;
+    portENTER_CRITICAL(&s_bleMux);
+    if (ageUs > s_ble.link.queueMaxAgeUs[desc->channel]) {
+        s_ble.link.queueMaxAgeUs[desc->channel] =
+            ageUs > UINT32_MAX ? UINT32_MAX : (uint32_t)ageUs;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
     return sensorarrayBleSendPayload(desc->channel,
                                      data,
                                      desc->length,
                                      desc->crc,
-                                     desc->connectionGeneration);
+                                     desc->connectionGeneration,
+                                     desc->ctrlSlot != 0u);
+}
+
+/* New in this repair: separate DATA/LOG admission already existed; apply that
+ * separation at service time as well, without adding payload slots. */
+static bool sensorarrayBleReceiveNext(sensorarrayBleTxDescriptor_t *desc,
+                                      uint32_t *dataRun)
+{
+    if (s_ble.ctrlTxQueue && xQueueReceive(s_ble.ctrlTxQueue, desc, 0) == pdTRUE) {
+        sensorarrayBleStatsIncrement(&s_ble.link.priorityDequeued);
+        return true;
+    }
+    if (*dataRun >= SENSORARRAY_BLE_DATA_SERVICE_BURST &&
+        s_ble.logTxQueue && xQueueReceive(s_ble.logTxQueue, desc, 0) == pdTRUE) {
+        *dataRun = 0u;
+        sensorarrayBleStatsIncrement(&s_ble.link.logDequeued);
+        return true;
+    }
+    if (s_ble.txQueue && xQueueReceive(s_ble.txQueue, desc, 0) == pdTRUE) {
+        if (*dataRun < SENSORARRAY_BLE_DATA_SERVICE_BURST) { (*dataRun)++; }
+        sensorarrayBleStatsIncrement(&s_ble.link.dataDequeued);
+        return true;
+    }
+    if (s_ble.logTxQueue && xQueueReceive(s_ble.logTxQueue, desc, 0) == pdTRUE) {
+        *dataRun = 0u;
+        sensorarrayBleStatsIncrement(&s_ble.link.logDequeued);
+        return true;
+    }
+    *dataRun = 0u;
+    return false;
 }
 
 static void sensorarrayBleTxTask(void *arg)
 {
     (void)arg;
     sensorarrayBleTxDescriptor_t desc;
+    uint32_t dataRun = 0u;
     for (;;) {
+        if (!sensorarrayBleReceiveNext(&desc, &dataRun)) {
+            /* An enqueue between the last queue check and this take leaves a
+             * token. CTRL, DATA and LOG all wake this same owner immediately.
+             * No work token is consumed by SAFE indication confirmation. */
+            (void)xSemaphoreTake(s_ble.txWake, portMAX_DELAY);
+            continue;
+        }
         /* Successful notify, congestion, stale descriptors and short failures
          * all consume the same persistent budget. A CTRL flood cannot bypass
          * this checkpoint through the continue below. */
         (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
-        if (s_ble.ctrlTxQueue &&
-            xQueueReceive(s_ble.ctrlTxQueue, &desc, 0) == pdTRUE) {
-            (void)sensorarrayBleSendDescriptor(&desc);
-            sensorarrayBleReleaseTxDescriptor(&desc);
-            continue;
-        }
-        if (xQueueReceive(s_ble.txQueue, &desc, pdMS_TO_TICKS(20u)) == pdTRUE) {
-            (void)sensorarrayBleSendDescriptor(&desc);
-            sensorarrayBleReleaseTxDescriptor(&desc);
-        }
+        (void)sensorarrayBleSendDescriptor(&desc);
+        sensorarrayBleReleaseTxDescriptor(&desc);
     }
 }
 
@@ -1313,14 +1390,17 @@ static esp_err_t sensorarrayBleQueueTxDescriptor(sensorarrayBleTxDescriptor_t *d
     if (!desc) {
         return ESP_ERR_INVALID_ARG;
     }
-    QueueHandle_t queue = desc->ctrlSlot ? s_ble.ctrlTxQueue : s_ble.txQueue;
+    QueueHandle_t queue = desc->ctrlSlot ? s_ble.ctrlTxQueue :
+        (desc->channel == SENSORARRAY_BLE_CH_DATA ? s_ble.txQueue : s_ble.logTxQueue);
     if (!queue) {
         sensorarrayBleReleaseTxDescriptor(desc);
         sensorarrayBleNoteDrop(desc->channel);
         return ESP_ERR_INVALID_STATE;
     }
+    desc->queuedAtUs = (uint64_t)esp_timer_get_time();
     if (xQueueSend(queue, desc, 0) == pdTRUE) {
         sensorarrayBleStatsIncrement(&s_ble.stats.messageQueued);
+        (void)xSemaphoreGive(s_ble.txWake);
         return ESP_OK;
     }
 
@@ -1332,6 +1412,7 @@ static esp_err_t sensorarrayBleQueueTxDescriptor(sensorarrayBleTxDescriptor_t *d
         }
         if (xQueueSend(queue, desc, 0) == pdTRUE) {
             sensorarrayBleStatsIncrement(&s_ble.stats.messageQueued);
+            (void)xSemaphoreGive(s_ble.txWake);
             return ESP_OK;
         }
     }
@@ -1351,6 +1432,11 @@ static void sensorarrayBleDrainTxQueues(void)
     }
     while (s_ble.txQueue &&
            xQueueReceive(s_ble.txQueue, &desc, 0) == pdTRUE) {
+        sensorarrayBleNoteDrop(desc.channel);
+        sensorarrayBleReleaseTxDescriptor(&desc);
+    }
+    while (s_ble.logTxQueue &&
+           xQueueReceive(s_ble.logTxQueue, &desc, 0) == pdTRUE) {
         sensorarrayBleNoteDrop(desc.channel);
         sensorarrayBleReleaseTxDescriptor(&desc);
     }
@@ -1476,9 +1562,144 @@ static void sensorarrayBleLogReadySummary(void)
            (unsigned)SENSORARRAY_BLE_MESSAGE_VALUE_MAX);
 }
 
+/* Caller owns s_bleMux. Unknown is explicit until a completion is observed;
+ * a preference request alone must never label the link as 2M/short-interval. */
+static void sensorarrayBleResetLinkObservationLocked(void)
+{
+    s_ble.link.phyKnown = false;
+    s_ble.link.connParamsKnown = false;
+    s_ble.stats.txPhy = 0u;
+    s_ble.stats.rxPhy = 0u;
+    s_ble.link.txPhy = 0u;
+    s_ble.link.rxPhy = 0u;
+    s_ble.link.connIntervalUnits = 0u;
+    s_ble.link.connLatency = 0u;
+    s_ble.link.supervisionTimeoutUnits = 0u;
+    s_ble.link.phyRequestError = ESP_ERR_INVALID_STATE;
+    s_ble.link.phyFallbackRequestError = ESP_ERR_INVALID_STATE;
+    s_ble.link.phyReadRequestError = ESP_ERR_INVALID_STATE;
+    s_ble.link.connRequestError = ESP_ERR_INVALID_STATE;
+    s_ble.link.dataLengthRequestError = ESP_ERR_INVALID_STATE;
+    s_ble.link.phySetStatus = UINT16_MAX;
+    s_ble.link.phyReadStatus = UINT16_MAX;
+    s_ble.link.phyUpdateStatus = UINT16_MAX;
+    s_ble.link.connUpdateStatus = UINT16_MAX;
+    s_ble.link.dataLengthStatus = UINT16_MAX;
+    s_ble.link.dataLengthTx = 0u;
+    s_ble.link.dataLengthRx = 0u;
+    s_ble.link.dataLengthObserved = false;
+    s_ble.link.dataLengthConnectionKnown = false;
+}
+
+static void sensorarrayBleRequestLinkParameters(void)
+{
+    esp_bd_addr_t remote;
+    portENTER_CRITICAL(&s_bleMux);
+    memcpy(remote, s_ble.remote, sizeof(remote));
+    bool prefer2m = s_ble.config.preferPhy2m;
+    uint32_t generation = s_ble.connectionGeneration;
+    portEXIT_CRITICAL(&s_bleMux);
+    esp_ble_gap_phy_mask_t phy = prefer2m ?
+        ESP_BLE_GAP_PHY_2M_PREF_MASK : ESP_BLE_GAP_PHY_1M_PREF_MASK;
+    esp_err_t phyError = esp_ble_gap_set_preferred_phy(
+        remote, 0u, phy, phy, ESP_BLE_GAP_PHY_OPTIONS_NO_PREF);
+    esp_err_t fallbackError = ESP_ERR_INVALID_STATE;
+    if (phyError != ESP_OK && prefer2m) {
+        fallbackError = esp_ble_gap_set_preferred_phy(
+            remote, 0u, ESP_BLE_GAP_PHY_1M_PREF_MASK,
+            ESP_BLE_GAP_PHY_1M_PREF_MASK, ESP_BLE_GAP_PHY_OPTIONS_NO_PREF);
+    }
+    esp_err_t readError = esp_ble_gap_read_phy(remote);
+    esp_ble_conn_update_params_t conn = {0};
+    memcpy(conn.bda, remote, sizeof(conn.bda));
+    conn.min_int = 0x06; /* 7.5 ms requested minimum, central remains authority. */
+    conn.max_int = 0x0C; /* 15 ms requested maximum. */
+    conn.latency = 0u;
+    conn.timeout = 400u; /* 4 s supervision timeout. */
+    esp_err_t connError = esp_ble_gap_update_conn_params(&conn);
+    esp_err_t dataLengthError = esp_ble_gap_set_pkt_data_len(remote, 251u);
+    portENTER_CRITICAL(&s_bleMux);
+    if (s_ble.stats.connected && s_ble.connectionGeneration == generation) {
+        s_ble.link.phyRequestError = phyError;
+        s_ble.link.phyFallbackRequestError = fallbackError;
+        s_ble.link.phyReadRequestError = readError;
+        s_ble.link.connRequestError = connError;
+        s_ble.link.dataLengthRequestError = dataLengthError;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
+}
+
+/* New in this repair. GAP events with an address must match the active peer.
+ * DLE/preferred-PHY-command completion events have no address in this SDK;
+ * record them without claiming a negotiated current-connection identity. */
+static bool sensorarrayBleObserveLinkEvent(esp_gap_ble_cb_event_t event,
+                                           const esp_ble_gap_cb_param_t *param)
+{
+    if (!param) { return false; }
+    const uint8_t *peer = NULL;
+    switch (event) {
+    case ESP_GAP_BLE_READ_PHY_COMPLETE_EVT: peer = param->read_phy.bda; break;
+    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT: peer = param->phy_update.bda; break;
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: peer = param->update_conn_params.bda; break;
+    case ESP_GAP_BLE_SET_PREFERRED_PHY_COMPLETE_EVT:
+    case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT: break;
+    default: return false;
+    }
+    portENTER_CRITICAL(&s_bleMux);
+    if (!s_ble.stats.connected || (peer && memcmp(peer, s_ble.remote, sizeof(s_ble.remote)) != 0)) {
+        s_ble.link.staleLinkEvents++;
+        portEXIT_CRITICAL(&s_bleMux);
+        return true;
+    }
+    switch (event) {
+    case ESP_GAP_BLE_READ_PHY_COMPLETE_EVT:
+        s_ble.link.phyReadStatus = (uint16_t)param->read_phy.status;
+        if (param->read_phy.status == ESP_BT_STATUS_SUCCESS) {
+            s_ble.link.phyKnown = true;
+            s_ble.link.txPhy = s_ble.stats.txPhy = param->read_phy.tx_phy;
+            s_ble.link.rxPhy = s_ble.stats.rxPhy = param->read_phy.rx_phy;
+        }
+        break;
+    case ESP_GAP_BLE_SET_PREFERRED_PHY_COMPLETE_EVT:
+        s_ble.link.phySetStatus = (uint16_t)param->set_perf_phy.status;
+        break;
+    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:
+        s_ble.link.phyUpdateEvents++;
+        s_ble.link.phyUpdateStatus = (uint16_t)param->phy_update.status;
+        if (param->phy_update.status == ESP_BT_STATUS_SUCCESS) {
+            s_ble.link.phyKnown = true;
+            s_ble.link.txPhy = s_ble.stats.txPhy = param->phy_update.tx_phy;
+            s_ble.link.rxPhy = s_ble.stats.rxPhy = param->phy_update.rx_phy;
+        }
+        break;
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
+        s_ble.link.connUpdateEvents++;
+        s_ble.link.connUpdateStatus = (uint16_t)param->update_conn_params.status;
+        if (param->update_conn_params.status == ESP_BT_STATUS_SUCCESS) {
+            s_ble.link.connParamsKnown = true;
+            s_ble.link.connIntervalUnits = param->update_conn_params.conn_int;
+            s_ble.link.connLatency = param->update_conn_params.latency;
+            s_ble.link.supervisionTimeoutUnits = param->update_conn_params.timeout;
+        }
+        break;
+    case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
+        s_ble.link.dataLengthEvents++;
+        s_ble.link.dataLengthStatus = (uint16_t)param->pkt_data_length_cmpl.status;
+        s_ble.link.dataLengthObserved = true;
+        s_ble.link.dataLengthConnectionKnown = false;
+        s_ble.link.dataLengthTx = param->pkt_data_length_cmpl.params.tx_len;
+        s_ble.link.dataLengthRx = param->pkt_data_length_cmpl.params.rx_len;
+        break;
+    default: break;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
+    return true;
+}
+
 static void sensorarrayBleGapCallback(esp_gap_ble_cb_event_t event,
                                       esp_ble_gap_cb_param_t *param)
 {
+    if (sensorarrayBleObserveLinkEvent(event, param)) { return; }
     switch (event) {
     case ESP_GAP_BLE_EXT_ADV_SET_PARAMS_COMPLETE_EVT:
         if (param->ext_adv_set_params.status == ESP_BT_STATUS_SUCCESS) {
@@ -1514,14 +1735,6 @@ static void sensorarrayBleGapCallback(esp_gap_ble_cb_event_t event,
         }
         break;
     }
-    case ESP_GAP_BLE_READ_PHY_COMPLETE_EVT:
-        if (param->read_phy.status == ESP_BT_STATUS_SUCCESS) {
-            portENTER_CRITICAL(&s_bleMux);
-            s_ble.stats.txPhy = param->read_phy.tx_phy;
-            s_ble.stats.rxPhy = param->read_phy.rx_phy;
-            portEXIT_CRITICAL(&s_bleMux);
-        }
-        break;
     default:
         break;
     }
@@ -1593,28 +1806,10 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.connId = param->connect.conn_id;
         s_ble.connectionGeneration = sensorarrayBleNextGeneration(s_ble.connectionGeneration);
         s_ble.gattsIf = gattsIf;
-        portEXIT_CRITICAL(&s_bleMux);
         memcpy(s_ble.remote, param->connect.remote_bda, sizeof(s_ble.remote));
-        esp_ble_gap_phy_mask_t phy = s_ble.config.preferPhy2m ?
-            ESP_BLE_GAP_PHY_2M_PREF_MASK : ESP_BLE_GAP_PHY_1M_PREF_MASK;
-        esp_err_t phyErr = esp_ble_gap_set_preferred_phy(s_ble.remote, 0u, phy, phy,
-                                                         ESP_BLE_GAP_PHY_OPTIONS_NO_PREF);
-        if (phyErr != ESP_OK && s_ble.config.preferPhy2m) {
-            printf("BLEBOOT,stage=phy_2m,err=0x%lx,name=%s,fallback=1M\n",
-                   (unsigned long)phyErr, esp_err_to_name(phyErr));
-            (void)esp_ble_gap_set_preferred_phy(s_ble.remote, 0u,
-                                                ESP_BLE_GAP_PHY_1M_PREF_MASK,
-                                                ESP_BLE_GAP_PHY_1M_PREF_MASK,
-                                                ESP_BLE_GAP_PHY_OPTIONS_NO_PREF);
-        }
-        (void)esp_ble_gap_read_phy(s_ble.remote);
-        esp_ble_conn_update_params_t conn = {0};
-        memcpy(conn.bda, s_ble.remote, sizeof(conn.bda));
-        conn.min_int = 0x06;
-        conn.max_int = 0x0C;
-        conn.latency = 0u;
-        conn.timeout = 400u;
-        (void)esp_ble_gap_update_conn_params(&conn);
+        sensorarrayBleResetLinkObservationLocked();
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleRequestLinkParameters();
         break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
@@ -1624,6 +1819,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.stats.congested = false;
         s_ble.stats.mtu = SENSORARRAY_BLE_DEFAULT_ATT_MTU;
         s_ble.connectionGeneration = sensorarrayBleNextGeneration(s_ble.connectionGeneration);
+        sensorarrayBleResetLinkObservationLocked();
         memset(s_ble.cccd, 0, sizeof(s_ble.cccd));
         if (s_ble.confirmWaitTask != NULL) {
             s_ble.confirmStatus = ESP_GATT_ERROR;
@@ -1730,16 +1926,19 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     s_ble.controlContext = controlContext;
     s_ble.config = *config;
     s_ble.stats.mtu = SENSORARRAY_BLE_DEFAULT_ATT_MTU;
-    s_ble.stats.txPhy = ESP_BLE_GAP_PHY_1M;
-    s_ble.stats.rxPhy = ESP_BLE_GAP_PHY_1M;
+    sensorarrayBleResetLinkObservationLocked();
     s_ble.stats.txTaskConfiguredBytes = CONFIG_SENSORARRAY_BLE_TX_TASK_STACK;
     s_ble.stats.ctrlTaskConfiguredBytes = CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK;
     s_ble.txMode = CONFIG_SENSORARRAY_BLE_TX_MODE_SAFE ?
         SENSORARRAY_BLE_TX_SAFE : SENSORARRAY_BLE_TX_FAST;
-    s_ble.txQueue = xQueueCreateStatic(SENSORARRAY_BLE_TX_DESCRIPTOR_QUEUE_COUNT,
+    s_ble.txQueue = xQueueCreateStatic(CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN,
                                        sizeof(sensorarrayBleTxDescriptor_t),
                                        s_ble.txQueueStorage,
                                        &s_ble.txQueueStruct);
+    s_ble.logTxQueue = xQueueCreateStatic(SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
+                                          sizeof(sensorarrayBleTxDescriptor_t),
+                                          s_ble.logTxQueueStorage,
+                                          &s_ble.logTxQueueStruct);
     s_ble.ctrlTxQueue = xQueueCreateStatic(SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT,
                                            sizeof(sensorarrayBleTxDescriptor_t),
                                            s_ble.ctrlTxQueueStorage,
@@ -1748,7 +1947,9 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
                                            sizeof(sensorarrayBleControlCommand_t),
                                            s_ble.ctrlRxQueueStorage,
                                            &s_ble.ctrlRxQueueStruct);
-    if (!s_ble.txQueue || !s_ble.ctrlTxQueue || !s_ble.ctrlRxQueue) {
+    s_ble.txWake = xSemaphoreCreateBinaryStatic(&s_ble.txWakeStorage);
+    if (!s_ble.txQueue || !s_ble.logTxQueue || !s_ble.ctrlTxQueue ||
+        !s_ble.ctrlRxQueue || !s_ble.txWake) {
         s_ble.stats.initError = ESP_ERR_NO_MEM;
         return ESP_ERR_NO_MEM;
     }
@@ -1852,7 +2053,8 @@ static esp_err_t sensorarrayBleNotifyInternal(
     sensorarrayBleChannel_t channel,
     const uint8_t *data,
     size_t length,
-    uint32_t expectedConnectionGeneration)
+    uint32_t expectedConnectionGeneration,
+    bool priority)
 {
     if (channel > SENSORARRAY_BLE_CH_CTRL || !data || length == 0u) {
         return ESP_ERR_INVALID_ARG;
@@ -1865,7 +2067,7 @@ static esp_err_t sensorarrayBleNotifyInternal(
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_STATE;
     }
-    if (channel == SENSORARRAY_BLE_CH_CTRL &&
+    if (priority &&
         length > SENSORARRAY_BLE_CTRL_MESSAGE_VALUE_MAX) {
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_SIZE;
@@ -1873,7 +2075,7 @@ static esp_err_t sensorarrayBleNotifyInternal(
     uint32_t crc = sensorarrayBleCrc32(data, length);
     sensorarrayBleTxDescriptor_t desc;
     esp_err_t allocateErr = sensorarrayBleAllocateTxDescriptor(
-        channel, length, crc, expectedConnectionGeneration, &desc);
+        channel, length, crc, expectedConnectionGeneration, priority, &desc);
     if (allocateErr != ESP_OK) {
         sensorarrayBleNoteDrop(channel);
         return allocateErr;
@@ -1892,7 +2094,8 @@ esp_err_t sensorarrayBleNotify(sensorarrayBleChannel_t channel,
                               const uint8_t *data,
                               size_t length)
 {
-    return sensorarrayBleNotifyInternal(channel, data, length, 0u);
+    return sensorarrayBleNotifyInternal(channel, data, length, 0u,
+                                        channel == SENSORARRAY_BLE_CH_CTRL);
 }
 
 esp_err_t sensorarrayBleNotifyForGeneration(
@@ -1907,7 +2110,16 @@ esp_err_t sensorarrayBleNotifyForGeneration(
     return sensorarrayBleNotifyInternal(channel,
                                         data,
                                         length,
-                                        expectedConnectionGeneration);
+                                        expectedConnectionGeneration,
+                                        channel == SENSORARRAY_BLE_CH_CTRL);
+}
+
+esp_err_t sensorarrayBleNotifyLifecycleForGeneration(
+    const uint8_t *data, size_t length, uint32_t expectedConnectionGeneration)
+{
+    if (expectedConnectionGeneration == 0u) { return ESP_ERR_INVALID_ARG; }
+    return sensorarrayBleNotifyInternal(SENSORARRAY_BLE_CH_LOG, data, length,
+                                        expectedConnectionGeneration, true);
 }
 
 void sensorarrayBleSetControlRxCallback(sensorarrayBleControlRxCallback_t callback,
@@ -1982,4 +2194,21 @@ void sensorarrayBleGetStats(sensorarrayBleStats_t *outStats)
     s_ble.stats.ctrlTaskMinimumRemainingBytes = ctrlMinimumRemainingBytes;
     *outStats = s_ble.stats;
     portEXIT_CRITICAL(&s_bleMux);
+}
+
+void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *outSnapshot)
+{
+    if (!outSnapshot) { return; }
+    portENTER_CRITICAL(&s_bleMux);
+    *outSnapshot = s_ble.link;
+    outSnapshot->connectionGeneration = s_ble.connectionGeneration;
+    outSnapshot->connected = s_ble.stats.connected;
+    outSnapshot->mtu = s_ble.stats.mtu;
+    TaskHandle_t txTask = s_ble.txTask;
+    TaskHandle_t controlTask = s_ble.controlTask;
+    portEXIT_CRITICAL(&s_bleMux);
+    /* Priorities are task configuration, not part of negotiated link state;
+     * reading the kernel outside our mux avoids a lock-order dependency. */
+    outSnapshot->txTaskPriority = txTask ? (uint32_t)uxTaskPriorityGet(txTask) : 0u;
+    outSnapshot->ctrlTaskPriority = controlTask ? (uint32_t)uxTaskPriorityGet(controlTask) : 0u;
 }

@@ -72,6 +72,8 @@ def main():
         collector = BenchmarkCollector.__new__(BenchmarkCollector)
         collector.configuration = Configuration(name, "MIXED", int(rows), profile, 120)
         collector.phase = "capture"
+        collector.is_bulk = False
+        collector.observation_channel = "data"
         collector.parser = TextProtocolParser()
         collector.expected_identity = {key: header[key] for key in IDENTITY}
         collector.frame_header = collector.frame_tag = None
@@ -87,9 +89,25 @@ def main():
         assert lines[0].startswith("M," if mixed else {"C": "C,", "V": "V,", "R": "R,"}[profile[0]])
         if mixed:
             assert header["profile"] == profile[:int(rows)] + "N" * (8 - int(rows))
+        # The same actual encoder bytes are accepted on formal DATA and
+        # rejected on CTRL, without changing the existing wire assertions.
+        collector.is_bulk = True
+        collector.parser = TextProtocolParser()
+        collector.parsed_frames = collector.crc_valid_frames = 0
+        for wire_line in lines:
+            collector.observe(wire_line)
+        assert collector.parsed_frames == collector.crc_valid_frames == 1
+        assert collector.wire_contract_mismatches == 0
+        collector.observation_channel = "ctrl"
+        collector.parser = TextProtocolParser()
+        collector.parsed_frames = collector.crc_valid_frames = 0
+        for wire_line in lines:
+            collector.observe(wire_line)
+        assert collector.parsed_frames == collector.crc_valid_frames == 0
+        assert collector.wire_contract_mismatches > 0
         tested += 1
     assert tested == 8
-    print("BENCHMARK_MIXED_WIRE,passed=8,source=actual_main+mixed+encoder,fixture=synthetic,full_profile_domain=verified")
+    print("BENCHMARK_MIXED_WIRE,passed=8,source=actual_main+mixed+encoder,fixture=synthetic,full_profile_domain=verified,bulk_DATA=8,bulk_CTRL_rejected=8")
     return 0
 
 

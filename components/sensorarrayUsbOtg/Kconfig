@@ -1,0 +1,10 @@
+menu "SensorArray USB data interface"
+config SENSORARRAY_USB_OTG
+    bool "USB-OTG vendor bulk data/control and CDC debug"
+    default y
+    depends on IDF_TARGET_ESP32S3
+    help
+        Uses the shared internal PHY exclusively. Serial/JTAG remains the ROM
+        download path. Requires a libusb/WinUSB host for formal scientific data.
+        Disable for the legacy Serial/JTAG build; never install both stacks.
+endmenu

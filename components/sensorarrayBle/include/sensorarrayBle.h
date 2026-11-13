@@ -76,6 +76,56 @@ typedef struct {
     esp_err_t initError;
 } sensorarrayBleStats_t;
 
+/* New in this repair: one atomic, read-only observation of link negotiation
+ * and the application TX owner. Request acceptance is not negotiation success;
+ * SDK acceptance is not over-the-air or peer-application delivery. */
+typedef struct {
+    uint32_t connectionGeneration;
+    bool connected;
+    uint16_t mtu;
+    bool phyKnown;
+    bool connParamsKnown;
+    uint8_t txPhy;
+    uint8_t rxPhy;
+    uint16_t connIntervalUnits; /* 1.25 ms, as delivered by ESP-IDF. */
+    uint16_t connLatency;
+    uint16_t supervisionTimeoutUnits; /* 10 ms. */
+    esp_err_t phyRequestError;
+    esp_err_t phyFallbackRequestError;
+    esp_err_t phyReadRequestError;
+    esp_err_t connRequestError;
+    esp_err_t dataLengthRequestError;
+    uint16_t phySetStatus;    /* UINT16_MAX means no completion observed. */
+    uint16_t phyReadStatus;
+    uint16_t phyUpdateStatus;
+    uint16_t connUpdateStatus;
+    uint16_t dataLengthStatus;
+    uint16_t dataLengthTx;
+    uint16_t dataLengthRx;
+    bool dataLengthObserved;
+    /* IDF 5.5's DLE completion lacks address/connection ID. Its values are
+     * retained as un-attributed evidence, never asserted as this peer's state. */
+    bool dataLengthConnectionKnown;
+    uint32_t phyUpdateEvents;
+    uint32_t connUpdateEvents;
+    uint32_t dataLengthEvents;
+    uint32_t staleLinkEvents;
+    uint32_t dataDequeued;
+    uint32_t logDequeued;
+    uint32_t priorityDequeued;
+    uint32_t queueMaxAgeUs[3]; /* DATA / LOG / CTRL, saturating maxima. */
+    bool sdkCallActive;
+    uint64_t sdkCallStartedUs;
+    uint64_t sdkCallCompletedUs;
+    uint32_t sdkCallCount;
+    uint32_t sdkAccepted;
+    uint32_t sdkErrors;
+    uint32_t sdkMaxCallUs;
+    esp_err_t sdkLastError;
+    uint32_t txTaskPriority;
+    uint32_t ctrlTaskPriority;
+} sensorarrayBleLinkSnapshot_t;
+
 esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config);
 esp_err_t sensorarrayBleNotify(sensorarrayBleChannel_t channel,
                               const uint8_t *data,
@@ -96,11 +146,17 @@ esp_err_t sensorarrayBleNotifyForGeneration(
     const uint8_t *data,
     size_t length,
     uint32_t expectedConnectionGeneration);
+/* New in this repair: lifecycle text keeps FF30 framing but uses the existing
+ * reserved <=512-byte CTRL pool/queue. Caller must retain/query its terminal
+ * result if local admission fails; this is not an exactly-once transport. */
+esp_err_t sensorarrayBleNotifyLifecycleForGeneration(
+    const uint8_t *data, size_t length, uint32_t expectedConnectionGeneration);
 bool sensorarrayBleIsCongested(void);
 void sensorarrayBleSetTxMode(sensorarrayBleTxMode_t mode);
 sensorarrayBleTxMode_t sensorarrayBleGetTxMode(void);
 const char *sensorarrayBleTxModeName(sensorarrayBleTxMode_t mode);
 void sensorarrayBleGetStats(sensorarrayBleStats_t *outStats);
+void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *outSnapshot);
 void sensorarrayBleLogHeap(const char *stage);
 
 #ifdef __cplusplus

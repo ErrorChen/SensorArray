@@ -1,3 +1,4 @@
+#define sensorarrayTransportPublishRuntimeFault printf /* Transport is synthetic in this main-logic harness. */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -83,8 +84,8 @@ esp_err_t sensorarraySerialIoQueue(const char *data,size_t length,bool priority)
     memcpy(serialText,data,length);serialText[length]='\0';return serialQueueError;
 }
 static void sensorarrayTransportNoteSerialLog(bool accepted) {if(accepted)serialLogAccepted++;else serialLogRejected++;}
-static esp_err_t sensorarrayBleNotifyForGeneration(unsigned ch,const uint8_t *data,size_t length,uint32_t generation) {
-    assert(ch==SENSORARRAY_BLE_CH_LOG&&data&&length&&generation==42);bleTerminalCalls++;return ESP_OK;
+static esp_err_t sensorarrayBleNotifyLifecycleForGeneration(const uint8_t *data,size_t length,uint32_t generation) {
+    assert(data&&length&&generation==42);bleTerminalCalls++;return ESP_OK;
 }
 static esp_err_t sensorarrayWifiSend(unsigned ch,const uint8_t *data,size_t length) {assert(ch==SENSORARRAY_WIFI_CH_LOG&&data&&length);wifiTerminalCalls++;return ESP_OK;}
 static void sensorarrayTransportStatResult(sensorarrayTransportChannel_t ch,bool ble,esp_err_t err) {(void)ble;assert(ch==SENSORARRAY_TRANSPORT_CHANNEL_LOG&&err==ESP_OK);}
@@ -110,7 +111,10 @@ static bool sensorarrayBootPrepareRestart(unsigned kind) { assert(kind==1||kind=
 static void sensorarrayBootBreadcrumbSetStage(const char *r,esp_err_t e,void *c) { (void)r;(void)e;(void)c; }
 static void sensorarrayBootBreadcrumbMarkStableProgress(bool healthy) { assert(!healthy); }
 static bool sensorarrayFrontendsHeld(void) { return held; }
-static void esp_restart(void) { restarts++; }
+static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; restarts++; }
+static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
+static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static void vTaskDelay(unsigned ticks) { assert(ticks<=21); }
 static bool sensorarrayCommandMailboxCommitConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }
 static bool sensorarrayCommandMailboxCancelConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }
@@ -397,6 +401,22 @@ static void testRestart(void) {
     sensorarrayRestartControlInit(s_configSessionId+1,bootId+1);
     expectRestartQuery("busy=0","lastId=0,last=none");assert(!sensorarrayRestartControlTake(&first));
     assert(!sensorarrayRestartControlAck(second,ESP_OK));
+    sensorarrayRestartControlInit(5, 7);
+    uint32_t romId = 0, taken = 0;
+    sensorarrayConfigAuthority_t a = threadAuthority;
+    assert(sensorarrayRestartControlPostRom(&a,true,&romId)==ESP_OK);
+    assert(!sensorarrayRestartControlIsRom(romId));
+    assert(!sensorarrayRestartControlTake(NULL));
+    assert(sensorarrayRestartControlAck(romId,ESP_FAIL));
+    assert(!sensorarrayRestartControlIsRom(romId));
+    assert(sensorarrayRestartControlPostRom(&a,true,&romId)==ESP_OK);
+    assert(sensorarrayRestartControlAck(romId,ESP_OK));
+    assert(sensorarrayRestartControlTake(&taken) && taken==romId);
+    assert(sensorarrayRestartControlIsRom(romId));
+    assert(!sensorarrayRestartControlIsRom(romId+1));
+    assert(sensorarrayRestartControlPublish(romId,&a,true)==ESP_OK);
+    assert(strstr(lifecycleText,"target=rom_download"));
+    puts("RESTART_ROM_TARGET_PASS,ack_fenced=1,failed_ack_cancels=1,request_id_bound=1");
     puts("RESTART_CONTROL_PASS,overwrite_blocked=1,ack_failure_cancels=1,before_ack_blocked=1,late_ack_fenced=1,lost_terminal_query=1,independent_escape=1,config_change_allowed=1,multitransport=3,wrap=1,new_boot_reset=1,synthetic_reset=1");
 }
 static void testTerminalRouting(void) {

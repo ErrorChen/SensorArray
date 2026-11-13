@@ -24,6 +24,7 @@ SOURCE_FILES = (
     ROOT / "core" / "transport" / "sensorarrayTransportCommand.c",
     ROOT / "main" / "main.c",
     ROOT / "main" / "control" / "sensorarrayCommandMailbox.c",
+    ROOT / "main" / "control" / "sensorarrayUsbControl.c",
 )
 
 # Command variables used by the four parser layers.  Restricting the first

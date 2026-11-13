@@ -1,3 +1,6 @@
+#include "sensorarrayUsbOtg.h"
+#include "control/sensorarrayUsbControl.h"
+#include "control/sensorarrayLinkDiagnostics.h"
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -2025,7 +2028,7 @@ static void sensorarrayEnterFrontendHold(sensorarrayAppContext_t *ctx,
             (unsigned long)ESP_ERR_INVALID_STATE);
     }
     sensorarrayBootBreadcrumbSetStage("wait_frontends", routeErr, ctx);
-    printf("MFAULT,source=FRONTEND_LOSS,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,reason=%s,gpioErr=0x%lx,physicalSafe=unknown,restartRequired=1\n",
+    sensorarrayTransportPublishRuntimeFault("MFAULT,source=FRONTEND_LOSS,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,reason=%s,gpioErr=0x%lx,physicalSafe=unknown,restartRequired=1\n",
         (unsigned long)(ctx->hostFrameSequence + 1u),
         (unsigned long)ESP_ERR_INVALID_STATE, reason,
         (unsigned long)(uint32_t)routeErr);
@@ -2093,7 +2096,7 @@ static bool sensorarrayRunFrontendPresenceBoundary(sensorarrayAppContext_t *ctx)
                 sensorarrayBootBreadcrumbSetStage("frontends_restored", ESP_OK, ctx);
                 sensorarrayBootEmitRestartMarker(
                     "RAPP,cmd=FRONTENDS,id=0,state=restarting,reason=stable_identity_recovered\n");
-                esp_restart();
+                sensorarrayUsbOtgRestart(false);
             } else {
                 printf("FRONTEND_WAIT,reason=restart_budget_exhausted,route=UNKNOWN,physicalSafe=unknown,query=FRONTENDS\n");
             }
@@ -2163,7 +2166,7 @@ static void sensorarrayRunPendingAdsCheck(sensorarrayAppContext_t *ctx)
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                    "ads_check_restore_failed");
         sensorarrayEmitAdsFault(ctx, &fault);
-        printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                (unsigned long)requestId,
                (unsigned long)checkErr);
     }
@@ -2223,7 +2226,7 @@ static void sensorarrayRunBatteryBoundary(sensorarrayAppContext_t *ctx,
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                    "battery_restore_failed");
         sensorarrayEmitAdsFault(ctx, &fault);
-        printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                (unsigned long)batteryErr);
     }
 }
@@ -2249,11 +2252,11 @@ static void sensorarrayFinishAdsRestoreRecovery(sensorarrayAppContext_t *ctx)
         ctx->hostFrameSequence + 1u);
     if (ctx->adsRestoreRecovery.trigger ==
         SENSORARRAY_MEASUREMENT_RECOVERY_TRIGGER_BATTERY_RESTORE) {
-        printf("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED,attempt=%lu\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=BATTERY,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED,attempt=%lu\n",
                (unsigned long)error,
                (unsigned long)attempt);
     } else {
-        printf("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED,attempt=%lu\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSCHK,id=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED,attempt=%lu\n",
                (unsigned long)ctx->adsRestoreRecovery.triggerRequestId,
                (unsigned long)error,
                (unsigned long)attempt);
@@ -2507,6 +2510,12 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     if (strcmp(command, "RESTART?") == 0) {
         return sensorarrayRestartControlFormat(response, responseSize);
     }
+    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
+        return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
+    }
+    if (sensorarrayUsbControlHandles(command)) {
+        return sensorarrayUsbControlHandle(command, response, responseSize);
+    }
     if (strcmp(command, "SERIAL?") == 0) {
         return sensorarrayFormatSerialReply(response, responseSize);
     }
@@ -2555,10 +2564,11 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
-                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
+                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
+                 sensorarrayUsbControlCapabilities());
         return ESP_OK;
     case SENSORARRAY_EARLY_KIND_RECOVER: {
         uint32_t requestId = 0u;
@@ -2664,6 +2674,12 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "RESTART?") == 0) {
         return sensorarrayRestartControlFormat(response, responseSize);
+    }
+    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
+        return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
+    }
+    if (sensorarrayUsbControlHandles(command)) {
+        return sensorarrayUsbControlHandle(command, response, responseSize);
     }
     if (strcmp(command, "SERIAL?") == 0) {
         return sensorarrayFormatSerialReply(response, responseSize);
@@ -3241,10 +3257,11 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
-                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
+                 (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
+                 sensorarrayUsbControlCapabilities());
         return ESP_OK;
     }
     if (strcmp(command, "BUILD?") == 0) {
@@ -3948,7 +3965,7 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
                     &ctx->routeController, "mixed_profile_fault");
                 (void)sensorarrayPublishConfigAuthority(ctx, frameSequence);
                 sensorarrayEmitAdsFault(ctx, &fault);
-                printf("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+                sensorarrayTransportPublishRuntimeFault("MFAULT,mode=MIXED,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                        (unsigned long)frameSequence,
                        (unsigned long)err);
             }
@@ -3984,7 +4001,7 @@ static esp_err_t sensorarrayRunOneFrame(sensorarrayAppContext_t *ctx)
         (void)sensorarrayRouteControllerEnterSafe(&ctx->routeController,
                                                   "ads_frame_fault");
         sensorarrayEmitAdsFault(ctx, &fault);
-        printf("MFAULT,mode=%s,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,mode=%s,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                sensorarrayMeasurementModeName(mode.activeMode),
                (unsigned long)frameSequence,
                (unsigned long)err);
@@ -4286,6 +4303,7 @@ static esp_err_t sensorarrayRunRecoveryLevel(sensorarrayAppContext_t *ctx,
 static void sensorarrayPerformManualRestart(sensorarrayAppContext_t *ctx,
                                             uint32_t requestId)
 {
+    bool romDownload = sensorarrayRestartControlIsRom(requestId);
     (void)sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_MANUAL);
     sensorarrayBootBreadcrumbSetStage("manual_restart", ESP_OK, ctx);
     sensorarrayConfigAuthority_t authority = {0};
@@ -4293,7 +4311,7 @@ static void sensorarrayPerformManualRestart(sensorarrayAppContext_t *ctx,
     (void)sensorarrayRestartControlPublish(requestId, &authority, known);
     /* Bounded opportunity for local priority publication, not a host ACK. */
     vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
-    esp_restart();
+    sensorarrayUsbOtgRestart(romDownload);
 }
 
 static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
@@ -4327,7 +4345,7 @@ static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
             /* A bounded opportunity for the reserved terminal to drain. This
              * is not host acknowledgment; a new session supersedes old IDs. */
             vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
-            esp_restart();
+            sensorarrayUsbOtgRestart(false);
             return true;
         }
         esp_err_t originalError = ESP_ERR_INVALID_STATE;
@@ -4398,7 +4416,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                 sensorarrayMeasurementModeRecordRuntimeFault(
                     &ctx->measurementMode, (uint32_t)ESP_ERR_INVALID_STATE);
     (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-                printf("MFAULT,source=OWNER_QUARANTINED,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,fdc=%u,spi=%u,presence=%u,physicalSafe=unknown\n",
+                sensorarrayTransportPublishRuntimeFault("MFAULT,source=OWNER_QUARANTINED,seq=%lu,err=0x%lx,state=DEGRADED,route=UNKNOWN,fdc=%u,spi=%u,presence=%u,physicalSafe=unknown\n",
                        (unsigned long)(ctx->hostFrameSequence + 1u),
                        (unsigned long)ESP_ERR_INVALID_STATE,
                        sensorarrayMeasureFdcWorkersQuarantined() ? 1u : 0u,
@@ -4407,7 +4425,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                 sensorarrayBootBreadcrumbSetStage("owner_quarantined",
                                                    ESP_ERR_INVALID_STATE, ctx);
                 if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
-                    esp_restart();
+                    sensorarrayUsbOtgRestart(false);
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(50u));
@@ -4445,7 +4463,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
             (void)sensorarrayRouteControllerEnterSafe(
                 &ctx->routeController, "volt_rail_refresh_failed");
             sensorarrayEmitAdsFault(ctx, &fault);
-            printf("MFAULT,mode=VOLT,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+            sensorarrayTransportPublishRuntimeFault("MFAULT,mode=VOLT,seq=%lu,err=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                    (unsigned long)(ctx->hostFrameSequence + 1u),
                    (unsigned long)railRefreshErr);
             continue;
@@ -4532,7 +4550,7 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
                     esp_err_t cleanupError = sensorarrayRouteControllerEnterSafe(
                         &ctx->routeController, "auxiliary_restore_failed");
                     (void)sensorarrayPublishConfigAuthority(ctx, ctx->hostFrameSequence + 1u);
-                    printf("MFAULT,source=AUX_RESTORE,seq=%lu,err=0x%lx,cleanupError=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
+                    sensorarrayTransportPublishRuntimeFault("MFAULT,source=AUX_RESTORE,seq=%lu,err=0x%lx,cleanupError=0x%lx,state=DEGRADED,route=SAFE_REQUESTED\n",
                            (unsigned long)ctx->hostFrameSequence,
                            (unsigned long)restoreError, (unsigned long)cleanupError);
                 }
@@ -4674,7 +4692,7 @@ static void sensorarrayScanTask(void *arg)
             sensorarrayBootBreadcrumbSetStage("auto_restart", initErr, ctx);
             sensorarrayBootEmitRestartMarker(
                 "RAPP,cmd=RECOVER,id=0,level=2,state=restarting,kind=auto\n");
-            esp_restart();
+            sensorarrayUsbOtgRestart(false);
         }
         if (!frontendWait) {
             sensorarrayBootBreadcrumbSetStage("recovery_safe_idle", initErr, ctx);
@@ -4701,7 +4719,7 @@ static void sensorarrayScanTask(void *arg)
                     if (sensorarrayBootPrepareRestart(SENSORARRAY_BOOT_RESTART_KIND_AUTO)) {
                         sensorarrayBootEmitRestartMarker(
                             "RAPP,cmd=RECOVER,id=0,level=2,state=restarting,reason=presence_quarantined\n");
-                        esp_restart();
+                        sensorarrayUsbOtgRestart(false);
                     }
                 }
             }
@@ -4721,7 +4739,7 @@ static void sensorarrayScanTask(void *arg)
                     sensorarrayCompleteRecoveryRequest(&s_appContext, recoveryId,
                         SENSORARRAY_RECOVER_RESTARTING, "auto_restart", ESP_OK, ESP_OK);
                     vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
-                    esp_restart();
+                    sensorarrayUsbOtgRestart(false);
                 }
                 esp_err_t cleanupError = sensorarrayStopAfterRecoveryFailure(ctx,
                     ESP_ERR_INVALID_STATE, ESP_OK, "recovery_init_failed");
@@ -4935,7 +4953,7 @@ void app_main(void)
                     sensorarrayCompleteRecoveryRequest(&s_appContext, recoveryId,
                         SENSORARRAY_RECOVER_RESTARTING, "auto_restart", ESP_OK, ESP_OK);
                     vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
-                    esp_restart();
+                    sensorarrayUsbOtgRestart(false);
                 }
                 esp_err_t cleanupError = sensorarrayStopAfterRecoveryFailure(&s_appContext,
                     ESP_ERR_NO_MEM, ESP_OK, "recovery_no_scan_task");

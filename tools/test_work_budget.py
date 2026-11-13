@@ -36,6 +36,7 @@ def main():
             harness = re.sub(rf"^#define {name}\s+\d+u$", definition.group(), harness, flags=re.M)
         for path, signatures in (
             ("components/sensorarrayBle/sensorarrayBle.c", [
+                "static bool sensorarrayBleReceiveNext(",
                 "static void sensorarrayBleTxTask(",
                 "static void sensorarrayBleControlTask("]),
             ("components/sensorarrayWifi/sensorarrayWifi.c", [

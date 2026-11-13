@@ -11,6 +11,7 @@
 #include "sensorarrayConfig.h"
 #include "sensorarrayTransport.h"
 #include "sensorarraySerialIo.h"
+#include "sensorarrayUsbOtg.h"
 
 #ifndef CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN
 #define CONFIG_SENSORARRAY_USB_SINK_QUEUE_LEN 4
@@ -149,6 +150,7 @@ sensorarrayUsbStreamProfile_t sensorarrayUsbSinkGetStreamProfile(void)
 
 bool sensorarrayUsbSinkShouldEmitData(uint32_t sequence)
 {
+    if (sensorarrayUsbOtgEnabled()) { return true; }
     sensorarrayUsbStreamProfile_t profile = sensorarrayUsbSinkGetStreamProfile();
     if (profile.mode == SENSORARRAY_USB_STREAM_FULL) {
         return true;

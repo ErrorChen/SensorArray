@@ -50,6 +50,29 @@ static bool installed;
 static void (*txTask)(void *);
 static bool taskEntered;
 static jmp_buf taskExit;
+#ifdef SERIAL_IO_TEST_OTG_INIT
+static bool testOtgEnabled, runOtgOwnerOnDelay, otgOwnerYieldArmed;
+static esp_err_t testOtgInitResult;
+static unsigned otgInitCalls;
+static jmp_buf otgOwnerYield;
+bool sensorarrayUsbOtgEnabled(void) { return testOtgEnabled; }
+esp_err_t sensorarrayUsbOtgOwnerInit(void)
+{ assert(testOtgEnabled && otgOwnerYieldArmed); otgInitCalls++; return testOtgInitResult; }
+void sensorarrayUsbOtgOwnerPoll(void)
+{ assert(testOtgEnabled && otgOwnerYieldArmed); longjmp(otgOwnerYield, 1); }
+bool sensorarrayUsbOtgOwnerCanWrite(unsigned lane)
+{ (void)lane; assert(false && "init-prefix test must not service OTG endpoints"); return false; }
+int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t length)
+{ (void)lane; (void)data; (void)length; assert(false); return -1; }
+int sensorarrayUsbOtgRead(void *buffer, size_t length, uint32_t *epoch)
+{ (void)buffer; (void)length; (void)epoch; assert(false && "unready OTG must not read"); return -1; }
+static void runOtgOwnerInitPrefix(void)
+{
+    otgOwnerYieldArmed = true;
+    if (setjmp(otgOwnerYield) == 0) { txTask(NULL); }
+    otgOwnerYieldArmed = false;
+}
+#endif
 /* Bytes accepted into the mock driver, not a claim of PC receipt. */
 static char output[128000];
 static size_t outputLength;
@@ -151,6 +174,9 @@ uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
 void vTaskDelay(TickType_t ticks)
 {
     assert(ticks > 0); delayCalls++; nowUs += ticks * portTICK_PERIOD_MS * 1000;
+#ifdef SERIAL_IO_TEST_OTG_INIT
+    if (runOtgOwnerOnDelay) { runOtgOwnerOnDelay = false; runOtgOwnerInitPrefix(); }
+#endif
     if (idleCallback && observeIdle) { assert(idleCallback()); }
     if (injectRxOnDelay) {
         injectRxOnDelay = false;
@@ -402,6 +428,38 @@ int main(int argc, char **argv)
     return 0;
 #else
     const char *allocation = argc > 1 ? argv[1] : "psram";
+#ifdef SERIAL_IO_TEST_OTG_INIT
+    if (strncmp(allocation, "otg_", 4u) == 0) {
+        bool neverScheduled = strcmp(allocation, "otg_timeout_repeated") == 0;
+        testOtgEnabled = true;
+        testOtgInitResult = strcmp(allocation, "otg_init_no_mem") == 0 ? ESP_ERR_NO_MEM : ESP_FAIL;
+        runOtgOwnerOnDelay = !neverScheduled;
+        esp_err_t first = sensorarraySerialIoInit();
+        assert(first == (neverScheduled ? ESP_ERR_TIMEOUT : testOtgInitResult));
+        assert(!installed && installCount == 0 && !s_driverOwned && s_task);
+        assert(allocatedBuffers == 1u && atomic_load(&s_vfsReady));
+        assert(otgInitCalls == (neverScheduled ? 0u : 1u));
+        assert(nowUs <= 1000000);
+        int64_t beforeRepeat = nowUs;
+        unsigned allocationsBeforeRepeat = allocationCalls;
+        esp_err_t second = sensorarraySerialIoInit();
+        assert(second == (neverScheduled ? ESP_ERR_INVALID_STATE : testOtgInitResult));
+        assert(second != ESP_OK && nowUs == beforeRepeat && allocationCalls == allocationsBeforeRepeat);
+        char input[64]; uint32_t epoch = UINT32_MAX;
+        assert(sensorarraySerialIoReadWithEpoch(input, sizeof(input), &epoch) == 0);
+        if (neverScheduled) {
+            /* A late owner completion publishes a real ESP_FAIL (-1), not a
+             * reused pending sentinel. Never re-create/free the live owner. */
+            runOtgOwnerInitPrefix();
+            assert(otgInitCalls == 1u && atomic_load(&s_otgInitDone));
+            assert(sensorarraySerialIoInit() == ESP_FAIL);
+            assert(sensorarraySerialIoRead(input, sizeof(input)) == 0);
+        }
+        printf("SERIAL_OTG_INIT_PASS,case=%s,first=0x%X,repeat=0x%X,initCalls=%u,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\n",
+               allocation, (unsigned)first, (unsigned)second, otgInitCalls);
+        return 0;
+    }
+#endif
     if (strcmp(allocation, "foreign_driver") == 0) {
         installed = true;
         assert(sensorarraySerialIoInit() == ESP_ERR_INVALID_STATE);
@@ -937,6 +995,16 @@ int main(int argc, char **argv)
     assert(s_queues[0]->count == 0 && s_queues[1]->count == 0);
     for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
     assert(allocationCalls == allocationsAfterInit); /* no hot path allocations */
+#ifdef SERIAL_IO_HAS_OTG_DISPATCH
+    /* Current wrapper selects USJ; the new OTG epoch API must not fabricate a
+     * bus generation for this retained legacy backend. */
+    uint32_t legacyEpoch = UINT32_MAX;
+    char legacyRx[64];
+    assert(!sensorarrayUsbOtgEnabled());
+    assert(sensorarraySerialIoReadWithEpoch(legacyRx, sizeof(legacyRx), &legacyEpoch) == 6);
+    assert(legacyEpoch == 0u && memcmp(legacyRx, "MODE?\n", 6u) == 0);
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(s_slotEpoch[i] == 0u); }
+#endif
     printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=%zu\n", allocation, sizeof(capturedConfig) - 1);
     return 0;
 #endif

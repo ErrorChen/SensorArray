@@ -151,6 +151,9 @@ sensorarrayTransportStream_t sensorarrayTransportGetStream(void);
 void sensorarrayTransportSetWifiMode(sensorarrayTransportWifiMode_t mode);
 sensorarrayTransportWifiMode_t sensorarrayTransportGetWifiMode(void);
 bool sensorarrayTransportSerialSinkEnabled(void);
+/* 本轮新增: bounded priority runtime fault, never a PC delivery guarantee. */
+esp_err_t sensorarrayTransportPublishRuntimeFault(const char *format, ...)
+    __attribute__((format(printf, 1, 2)));
 bool sensorarrayTransportBleSinkEnabled(void);
 bool sensorarrayTransportBleChannelEnabled(sensorarrayTransportChannel_t channel);
 bool sensorarrayTransportWifiSinkEnabled(void);

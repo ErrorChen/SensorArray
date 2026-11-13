@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "sensorarrayWorkBudget.c"
+#include "sensorarrayUsbOtg.h"
 
 #define SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT 8u
@@ -16,6 +17,7 @@
 #define CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG 0
 #define SENSORARRAY_TRANSPORT_REPLY_SERIAL 1
 #define SENSORARRAY_WIFI_CTRL_BUFFER 256u
+#define SENSORARRAY_BLE_DATA_SERVICE_BURST 4u
 
 typedef struct { unsigned source, token; } item_t;
 typedef item_t sensorarrayBleTxDescriptor_t;
@@ -27,12 +29,14 @@ typedef struct { int remaining; bool flood; unsigned source; } queue_t;
 typedef queue_t *QueueHandle_t;
 typedef void *TaskHandle_t;
 typedef struct { int kind; } sensorarrayTransportReplyTarget_t;
-static queue_t queues[8];
+static queue_t queues[9];
 static QueueHandle_t s_eventQueue = &queues[0], s_protocolQueue = &queues[1];
 static QueueHandle_t s_dataQueue = &queues[4], s_lifecycleQueue = &queues[5], s_logQueue = &queues[6];
 static TaskHandle_t s_task = (void *)1, s_logTaskHandle = (void *)2;
 static struct {
-    QueueHandle_t ctrlTxQueue, txQueue, ctrlRxQueue;
+    QueueHandle_t ctrlTxQueue, txQueue, logTxQueue, ctrlRxQueue;
+    void *txWake;
+    struct { unsigned priorityDequeued, dataDequeued, logDequeued; } link;
     unsigned connId, connectionGeneration;
     struct { bool connected; unsigned controlRxStale; } stats;
     sensorarrayBleControlRxCallback_t controlCallback;
@@ -46,7 +50,7 @@ static struct {
     void *controlContext;
 } s_wifi;
 static unsigned lockDepth, nowTick, delayCalls, notifications, takes;
-static unsigned sent, released, owned, received[8], printed, published, consumed, commands, reads;
+static unsigned sent, released, owned, received[9], printed, published, consumed, commands, reads;
 static unsigned sourceOrder[10000], orderLength, stopAfter, runKind;
 static bool negativeRead, zeroRead, failSend, refillFrames;
 static jmp_buf taskExit;
@@ -67,6 +71,9 @@ void vTaskDelay(TickType_t ticks)
 esp_err_t esp_register_freertos_idle_hook_for_cpu(esp_freertos_idle_cb_t cb, UBaseType_t cpu)
 { assert(cpu == 0u); idleHook = cb; return ESP_OK; }
 static int xTaskNotifyGive(TaskHandle_t task) { assert(task); notifications++; return pdTRUE; }
+static int xSemaphoreTake(void *semaphore, TickType_t ticks)
+{ assert(semaphore && ticks == portMAX_DELAY && !lockDepth); return pdTRUE; }
+static void sensorarrayBleStatsIncrement(unsigned *counter) { (*counter)++; }
 static uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
 {
     assert(clear == pdTRUE && ticks > 0u && lockDepth == 0u); takes++;
@@ -90,7 +97,7 @@ static int xQueueReceive(QueueHandle_t q, void *out, TickType_t wait)
         *(sensorarrayBleControlCommand_t *)out = command;
     } else {
         *(item_t *)out = (item_t){.source=q->source, .token=received[q->source]};
-        if (q == s_ble.ctrlTxQueue || q == s_ble.txQueue) { assert(owned == 0u); owned++; }
+        if (q == s_ble.ctrlTxQueue || q == s_ble.txQueue || q == s_ble.logTxQueue) { assert(owned == 0u); owned++; }
     }
     return pdTRUE;
 }
@@ -131,9 +138,10 @@ static ssize_t testRecvFrom(int socket, void *data, size_t capacity, int flags,
     return 7;
 }
 #define recvfrom testRecvFrom
-static int sensorarraySerialIoRead(uint8_t *data, size_t length)
+static int sensorarraySerialIoReadWithEpoch(uint8_t *data, size_t length, uint32_t *epoch)
 {
     assert(length == 64u && lockDepth == 0u);
+    *epoch = 1u;
     if (reads++ >= stopAfter) { longjmp(taskExit, 1); }
     if (negativeRead) { return -1; }
     if (zeroRead) { return 0; }
@@ -199,6 +207,7 @@ static void sensorarrayAsyncLogUpdateSummary(summary_t *summary, sensorarrayFram
 }
 static void sensorarrayAsyncLogMaybePrintSummary(summary_t *summary) { (void)summary; }
 
+/* sensorarrayBleReceiveNext */
 /* sensorarrayBleTxTask */
 /* sensorarrayBleControlTask */
 /* sensorarrayWifiControlTask */
@@ -221,9 +230,10 @@ static void reset(void)
     negativeRead = zeroRead = failSend = refillFrames = false;
     memset(received, 0, sizeof(received));
     memset(queues, 0, sizeof(queues));
-    for (unsigned i = 0u; i < 8u; ++i) { queues[i].source = i; }
+    for (unsigned i = 0u; i < 9u; ++i) { queues[i].source = i; }
     memset(&s_ble, 0, sizeof(s_ble));
     s_ble.ctrlTxQueue = &queues[2]; s_ble.txQueue = &queues[3]; s_ble.ctrlRxQueue = &queues[7];
+    s_ble.logTxQueue = &queues[8]; s_ble.txWake = (void *)1;
     s_ble.connId = 2u; s_ble.connectionGeneration = 3u; s_ble.stats.connected = true;
     s_ble.controlCallback = controlCallback; s_ble.controlContext = (void *)3;
     memset(&s_wifi, 0, sizeof(s_wifi));

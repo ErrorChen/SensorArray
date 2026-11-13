@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from contextlib import ExitStack
 from dataclasses import dataclass
-import fcntl
 import hashlib
 import json
 import os
@@ -19,14 +19,27 @@ from pathlib import Path
 import re
 import select
 import sys
-import termios
 import time
 
 from text_protocol import parse_fields
 
+try:
+    import fcntl
+    import termios
+except ImportError:  # Windows formal bulk does not need POSIX terminal modules.
+    fcntl = termios = None
+
 
 class CaptureError(RuntimeError):
     pass
+
+
+class ReceivedLine(str):
+    """This round: retain endpoint provenance while preserving parser API."""
+    def __new__(cls, text, channel):
+        value = super().__new__(cls, text)
+        value.channel = channel
+        return value
 
 
 class PosixPort:
@@ -36,6 +49,8 @@ class PosixPort:
     No TIOCMGET/TIOCMSET/TIOCMBIS/TIOCMBIC or reset API is used.
     """
     def __init__(self, path: str):
+        if fcntl is None or termios is None:
+            raise CaptureError("POSIX_terminal_backend_unavailable")
         self.fd = -1
         self.exclusive = False
         fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
@@ -58,6 +73,40 @@ class PosixPort:
         except BaseException:
             self.close()
             raise
+
+    transport = "posix"
+
+    def metadata(self):
+        return {"transport": self.transport, "ownership": "flock+TIOCEXCL",
+                "existing_readers": "unverified", "baud_setting": 115200,
+                "tx_acceptance": "OS_write_only_not_device_or_PC_ack"}
+
+    def read_some(self, max_bytes, deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        readable, _, _ = select.select([self.fd], [], [], min(0.5, remaining))
+        if not readable:
+            return None
+        try:
+            chunk = os.read(self.fd, max_bytes)
+        except BlockingIOError:
+            return None
+        if not chunk:
+            raise CaptureError("serial_eof_or_disconnected")
+        return "data", chunk
+
+    def write_some(self, data, deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return 0
+        _, writable, _ = select.select([], [self.fd], [], min(0.5, remaining))
+        if not writable:
+            return 0
+        try:
+            return os.write(self.fd, data)
+        except BlockingIOError:
+            return 0
 
     def close(self):
         if self.fd >= 0:
@@ -83,11 +132,57 @@ class CaptureOptions:
     command_timeout: float = 10.0
     progress_seconds: float = 20.0
     rowmodes: str | None = None
+    transport: str = "posix"
+    usb_vid: int = 0x303A
+    usb_pid: int = 0x4041
+    usb_serial: str | None = None
+
+
+def add_transport_arguments(parser):
+    """This round: shared CLI selection; never silently fall back to CDC."""
+    parser.add_argument("--port", help="POSIX serial path; not used for formal USB bulk.")
+    parser.add_argument("--transport", choices=("posix", "usb_bulk"), default="posix")
+    parser.add_argument("--usb-vid", type=lambda value: int(value, 0), default=0x303A)
+    parser.add_argument("--usb-pid", type=lambda value: int(value, 0), default=0x4041)
+    parser.add_argument("--usb-serial", help="Stable 12-hex MAC without colons; required for bulk.")
+
+
+def validate_transport_options(options):
+    if options.transport == "posix":
+        if not options.port:
+            raise ValueError("--port is required for POSIX capture")
+    elif options.transport == "usb_bulk":
+        if not options.usb_serial or not re.fullmatch(r"[0-9A-Fa-f]{12}", options.usb_serial):
+            raise ValueError("--usb-serial requires 12 hex MAC digits without colons")
+        if options.port:
+            raise ValueError("--port cannot select a CDC/serial fallback for bulk")
+        if not (0 < options.usb_vid <= 65535 and 0 < options.usb_pid <= 65535):
+            raise ValueError("USB VID/PID out of range")
+        if options.usb_vid == 0x303A and options.usb_pid in {0x1001, 0x4001}:
+            raise ValueError("legacy JTAG/CDC-only PID cannot select formal bulk")
+    else:
+        raise ValueError("unknown capture transport")
+
+
+def open_capture_port(options):
+    if options.transport == "usb_bulk":
+        from sensorarray_usb_bulk import UsbBulkPort
+        return UsbBulkPort(options.usb_serial, vid=options.usb_vid, pid=options.usb_pid)
+    return PosixPort(options.port)
 
 
 class Collector:
-    def __init__(self, options: CaptureOptions, port: PosixPort, raw, events):
+    def __init__(self, options: CaptureOptions, port, raw, events, *, ctrl_raw=None):
         self.options, self.port, self.raw, self.events = options, port, raw, events
+        self.transport_metadata = port.metadata()
+        self.is_bulk = self.transport_metadata.get("transport") == "usb_bulk"
+        if self.is_bulk and ctrl_raw is None:
+            raise ValueError("bulk_requires_separate_CTRL_raw_recording")
+        self.ctrl_raw = ctrl_raw
+        self.ctrl_raw_bytes = 0
+        self.ctrl_raw_sha = hashlib.sha256()
+        self.ctrl_line_buffer = bytearray()
+        self.observation_channel = "data"
         self.started = time.monotonic()
         self.total_deadline = self.started + options.duration
         self.cleanup_budget = min(10.0, options.duration / 4)
@@ -109,10 +204,11 @@ class Collector:
         self.reset_observations = []
         self.replies = {}
         self.next_progress = self.started + options.progress_seconds
-        self.event("opened", port=options.port, baud_setting=115200,
-                   ownership="flock+TIOCEXCL", existing_readers="unverified",
+        self.event("opened", port=options.port, transport=self.transport_metadata,
                    modem_bit_ioctl=False, reset_requested=False, input_flushed=False,
-                   hupcl=False, duration_total_seconds=options.duration)
+                   hupcl=False if not self.is_bulk else None,
+                   duration_total_seconds=options.duration,
+                   raw_layout="DATA_rx_and_CTRL_ctrl_rx_separate" if self.is_bulk else "single_POSIX_rx")
 
     def event(self, kind, **fields):
         self.events.write(json.dumps({"t": time.monotonic() - self.started,
@@ -129,69 +225,95 @@ class Collector:
 
     def pump(self, deadline):
         self.progress()
-        remaining = min(deadline, self.total_deadline) - time.monotonic()
-        if remaining <= 0:
+        limit = min(deadline, self.total_deadline)
+        if limit <= time.monotonic():
             return
-        readable, _, _ = select.select([self.port.fd], [], [], min(0.5, remaining))
-        if not readable:
+        received = self.port.read_some(65536, limit)
+        if received is None:
             return
-        try:
-            chunk = os.read(self.port.fd, 65536)
-        except BlockingIOError:
-            return
-        if not chunk:
-            raise CaptureError("serial_eof_or_disconnected")
-        offset = self.raw_bytes
-        self.raw.write(chunk)
-        self.raw.flush()
-        self.raw_bytes += len(chunk)
-        self.event("rx", offset=offset, length=len(chunk))
-        self.line_buffer.extend(chunk)
-        while b"\n" in self.line_buffer:
-            line_bytes, _, remainder = self.line_buffer.partition(b"\n")
-            self.line_buffer = bytearray(remainder)
+        channel, chunk = received
+        if channel not in {"data", "ctrl"} or not chunk:
+            raise CaptureError("invalid_transport_read_result")
+        if channel == "ctrl":
+            if not self.is_bulk or self.ctrl_raw is None:
+                raise CaptureError("unexpected_CTRL_endpoint")
+            offset = self.ctrl_raw_bytes
+            if self.ctrl_raw.write(chunk) != len(chunk):
+                raise CaptureError("CTRL_raw_record_partial_write")
+            self.ctrl_raw.flush()
+            self.ctrl_raw_sha.update(chunk)
+            self.ctrl_raw_bytes += len(chunk)
+            self.event("ctrl_rx", offset=offset, length=len(chunk), channel=channel)
+            pending = self.ctrl_line_buffer
+        else:
+            offset = self.raw_bytes
+            if self.raw.write(chunk) != len(chunk):
+                raise CaptureError("DATA_raw_record_partial_write")
+            self.raw.flush()
+            self.raw_bytes += len(chunk)
+            self.event("rx", offset=offset, length=len(chunk), channel=channel)
+            pending = self.line_buffer
+        pending.extend(chunk)
+        while b"\n" in pending:
+            line_bytes, _, remainder = pending.partition(b"\n")
+            pending[:] = remainder
             line = line_bytes.rstrip(b"\r").decode("ascii", errors="backslashreplace")
-            self.lines.append(line)
+            self.observation_channel = channel
+            self.lines.append(ReceivedLine(line, channel))
             if line.startswith(("RST,", "ESP-ROM:")) or "rst:0x" in line.lower():
                 if len(self.reset_observations) < 16:
-                    self.reset_observations.append({"phase": self.phase, "line": line})
-                self.event("reset_observed", line=line, causation="unknown")
+                    self.reset_observations.append({"phase": self.phase, "line": line, "channel": channel})
+                self.event("reset_observed", line=line, channel=channel, causation="unknown")
                 if self.phase == "capture":
                     self.faults.append("reset_observed_during_capture:" + line)
-            if self.phase == "capture" and line.startswith("K,"):
+            if self.phase == "capture" and channel == "data" and line.startswith("K,"):
                 self.capture_trailers += 1
             if line.startswith(("MFAULT,", "APP_FATAL", "FDC_FATAL")) or any(
                     marker in line.lower() for marker in ("guru meditation", "task watchdog got triggered", "interrupt wdt timeout")):
                 self.faults.append(line)
-                self.event("firmware_fault", line=line)
-        if len(self.line_buffer) > 65536:
-            self.event("line_overflow", buffered_bytes=len(self.line_buffer))
-            raise CaptureError("serial_line_exceeded_65536_bytes")
+                self.event("firmware_fault", line=line, channel=channel)
+        if len(pending) > 65536:
+            self.event("line_overflow", channel=channel, buffered_bytes=len(pending))
+            raise CaptureError("transport_line_exceeded_65536_bytes:" + channel)
 
     def send(self, command: str, deadline):
-        # Leading delimiter also terminates a prior interrupted command; it
-        # does not discard any received data or request a hardware reset.
+        # Terminate a previously interrupted command without flushing RX.
+        # Bulk writes route exclusively to CTRL OUT in UsbBulkPort.
         payload = ("\n" + command + "\n").encode("ascii")
         offset = 0
-        self.event("tx_begin", command=command, wire_ascii=payload.decode("ascii"))
+        self.event("tx_begin", command=command, wire_ascii=payload.decode("ascii"),
+                   channel="ctrl" if self.is_bulk else "data")
         while offset < len(payload):
-            remaining = min(deadline, self.total_deadline) - time.monotonic()
-            if remaining <= 0:
+            limit = min(deadline, self.total_deadline)
+            if limit <= time.monotonic():
                 self.event("tx_incomplete", command=command, accepted_bytes=offset, total_bytes=len(payload))
                 raise CaptureError(f"write_timeout:{command}")
-            _, writable, _ = select.select([], [self.port.fd], [], min(0.5, remaining))
-            if writable:
-                try:
-                    written = os.write(self.port.fd, payload[offset:])
-                except BlockingIOError:
-                    written = 0
-                if written > 0:
-                    self.partial_writes += int(written < len(payload) - offset)
-                    offset += written
-                    self.tx_bytes += written
+            written = self.port.write_some(payload[offset:], limit)
+            if not isinstance(written, int) or not 0 <= written <= len(payload) - offset:
+                raise CaptureError("transport_invalid_write_count")
+            if written > 0:
+                self.partial_writes += int(written < len(payload) - offset)
+                offset += written
+                self.tx_bytes += written
             self.progress()
         self.event("tx_complete", command=command, accepted_bytes=offset,
-                   acceptance="OS_write_only_not_device_or_PC_ack")
+                   acceptance=self.transport_metadata["tx_acceptance"])
+
+    def validate_protocol(self, fields):
+        capabilities = set(re.split(r"[/;,|\s]+", fields.get("caps", "")))
+        if self.is_bulk and (fields.get("version") != "2" or
+                             not {"usb_vendor_bulk_v1", "config_query_v1"} <= capabilities):
+            raise CaptureError("formal_usb_bulk_capability_required")
+
+    def transport_result(self):
+        return {"transport": self.transport_metadata["transport"],
+                "transport_metadata": self.port.metadata(),
+                "raw_scope": "DATA_endpoint_only" if self.is_bulk else "POSIX_serial_stream",
+                "ctrl_rx_bytes": self.ctrl_raw_bytes,
+                "ctrl_raw_sha256": self.ctrl_raw_sha.hexdigest() if self.is_bulk else None,
+                "trailing_partial_CTRL_line_bytes": len(self.ctrl_line_buffer),
+                "tx_host_accepted_bytes": self.tx_bytes,
+                "CTRL_and_DATA_order": "independent_endpoints_complete_lines_only" if self.is_bulk else "one_stream"}
 
     def command_deadline(self, phase_deadline):
         deadline = min(phase_deadline, self.total_deadline,
@@ -203,7 +325,10 @@ class Collector:
     def next_line(self, deadline):
         while time.monotonic() < deadline:
             if self.lines:
-                return self.lines.popleft()
+                line = self.lines.popleft()
+                if self.is_bulk and getattr(line, "channel", None) != "ctrl":
+                    continue  # DATA text cannot satisfy a control reply/terminal.
+                return line
             self.pump(deadline)
         raise CaptureError("reply_deadline_expired")
 
@@ -230,6 +355,8 @@ class Collector:
         return fields
 
     def set_usb(self, mode, phase_deadline):
+        if self.is_bulk:
+            raise CaptureError("USBSTREAM_is_CDC_debug_only_not_bulk_control")
         deadline = self.command_deadline(phase_deadline)
         self.lines.clear()
         self.send(f"USBSTREAM={mode}", deadline)
@@ -296,8 +423,10 @@ class Collector:
         try:
             for command, tag in (("BUILD?", "BUILD"), ("PROTO?", "PROTO"), ("MODE?", "MODE"),
                                  ("ROWS?", "ROWS"), ("ROWMODES?", "ROWMODES"), ("CAL?", "CAL"),
-                                 ("RAIL?", "ARL"), ("USBSTREAM?", "USBSTREAM")):
+                                 ("RAIL?", "ARL"), ("USB?", "USB") if self.is_bulk else ("USBSTREAM?", "USBSTREAM")):
                 fields = self.query(command, tag, self.prepare_deadline)
+                if command == "PROTO?":
+                    self.validate_protocol(fields)
                 if command == "PROTO?" and fields.get("version", "1").isdigit() and int(fields.get("version", "1")) >= 2:
                     self.query("CONFIG?", "CONFIG", self.prepare_deadline)
                 if command == "USBSTREAM?":
@@ -314,8 +443,11 @@ class Collector:
                 self.transition("ROWMODES", self.options.rowmodes)
             # The write may apply even if its reply times out; cleanup must
             # therefore be armed before attempting this reversible mutation.
-            self.restore_required = True
-            self.set_usb("FULL", self.prepare_deadline)
+            if self.is_bulk:
+                self.restore_status = "NOT_APPLICABLE_BULK_ALWAYS_FULL"
+            else:
+                self.restore_required = True
+                self.set_usb("FULL", self.prepare_deadline)
             self.phase = "capture"
             self.capture_started = time.monotonic()
             self.event("capture_start")
@@ -355,7 +487,7 @@ class Collector:
                     self.event("restore_error", reason=str(error))
             self.event("finished", status="ERROR" if failure else "CAPTURED", error=failure,
                        usb_restore=self.restore_status)
-        return {"status": "ERROR" if failure else "CAPTURED", "error": failure,
+        return {**self.transport_result(), "status": "ERROR" if failure else "CAPTURED", "error": failure,
                 "measurement_acceptance": "NOT_EVALUATED", "calibration_written": False,
                 "port": self.options.port, "mode_requested": self.options.mode,
                 "rowmodes_requested": self.options.rowmodes,
@@ -374,6 +506,7 @@ class Collector:
 
 
 def capture(options: CaptureOptions) -> dict:
+    validate_transport_options(options)
     if options.mode and options.rowmodes:
         raise ValueError("--mode and --rowmodes are mutually exclusive")
     if options.rowmodes is not None and not re.fullmatch(r"[CR]{8}", options.rowmodes):
@@ -382,23 +515,35 @@ def capture(options: CaptureOptions) -> dict:
     paths = {"raw": options.output_directory / f"{options.label}.rx.bin",
              "events": options.output_directory / f"{options.label}.events.jsonl",
              "summary": options.output_directory / f"{options.label}.summary.json"}
+    if options.transport == "usb_bulk":
+        paths["ctrl_raw"] = options.output_directory / f"{options.label}.ctrl.rx.bin"
     if any(path.exists() for path in paths.values()):
         raise FileExistsError("capture output exists; choose a new --label")
     # Every output uses exclusive creation. No old scientific data is replaced.
-    with paths["raw"].open("xb") as raw, paths["events"].open("x", encoding="utf-8") as events, paths["summary"].open("x", encoding="utf-8") as summary_file:
+    with ExitStack() as stack:
+        raw = stack.enter_context(paths["raw"].open("xb"))
+        ctrl_raw = stack.enter_context(paths["ctrl_raw"].open("xb")) if "ctrl_raw" in paths else None
+        events = stack.enter_context(paths["events"].open("x", encoding="utf-8"))
+        summary_file = stack.enter_context(paths["summary"].open("x", encoding="utf-8"))
         port = None
         try:
-            port = PosixPort(options.port)
-            result = Collector(options, port, raw, events).run()
+            port = open_capture_port(options)
+            result = Collector(options, port, raw, events, ctrl_raw=ctrl_raw).run()
         except (OSError, CaptureError) as error:
             result = {"status": "ERROR", "error": str(error), "measurement_acceptance": "NOT_EVALUATED",
                       "modem_bit_ioctl": False, "reset_requested": False, "flashed": False}
         finally:
             if port:
-                port.close()
+                try:
+                    port.close()
+                except OSError as error:
+                    result["close_error"] = str(error)
+                    result["status"] = "ERROR"
         raw.flush()
         result["raw_file"] = str(paths["raw"])
         result["events_file"] = str(paths["events"])
+        if "ctrl_raw" in paths:
+            result["ctrl_raw_file"] = str(paths["ctrl_raw"])
         result["raw_sha256"] = hashlib.sha256(paths["raw"].read_bytes()).hexdigest()
         summary_file.write(json.dumps(result, indent=2) + "\n")
         return result
@@ -406,7 +551,7 @@ def capture(options: CaptureOptions) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", required=True)
+    add_transport_arguments(parser)
     parser.add_argument("--duration", type=float, default=150.0, help="Total wall-clock budget, including preparation and restore.")
     parser.add_argument("--output-directory", type=Path, required=True)
     parser.add_argument("--label", required=True)

@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "sensorarrayTransport.c"
         "sensorarraySerialIo.c"
+        "sensorarrayCriticalText.c"
         "sensorarrayTransportFrameMeta.c"
         "sensorarrayTransportCommand.c"
         "sensorarrayTransportGuaranteedText.c"
@@ -9,5 +10,5 @@ idf_component_register(
         "sensorarrayTransportPolicy.c"
         "sensorarrayTransportStats.c"
     INCLUDE_DIRS "."
-    REQUIRES sensorarrayBle sensorarrayWifi sensorarrayWorkBudget config nvs_flash esp_system esp_timer esp_driver_usb_serial_jtag vfs freertos
+    REQUIRES sensorarrayUsbOtg sensorarrayBle sensorarrayWifi sensorarrayWorkBudget config nvs_flash esp_system esp_timer esp_driver_usb_serial_jtag vfs freertos
 )

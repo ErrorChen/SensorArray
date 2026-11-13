@@ -18,6 +18,7 @@ typedef struct {
     uint32_t id;
     uint32_t acceptedRevision;
     bool acceptedKnown;
+    bool romDownload;
 } sensorarrayRestartRequest_t;
 
 typedef struct {
@@ -67,8 +68,8 @@ void sensorarrayRestartControlInit(uint64_t sessionId, uint32_t bootId)
     portEXIT_CRITICAL(&s_restartMux);
 }
 
-esp_err_t sensorarrayRestartControlPost(
-    const sensorarrayConfigAuthority_t *authority, bool known, uint32_t *outId)
+static esp_err_t sensorarrayRestartControlPostTarget(
+    const sensorarrayConfigAuthority_t *authority, bool known, uint32_t *outId, bool romDownload)
 {
     if (known && !authority) { return ESP_ERR_INVALID_ARG; }
     portENTER_CRITICAL(&s_restartMux);
@@ -79,7 +80,7 @@ esp_err_t sensorarrayRestartControlPost(
     s_restart.nextId++;
     if (s_restart.nextId == 0u) { s_restart.nextId = 1u; }
     s_restart.current = (sensorarrayRestartRequest_t){
-        .id = s_restart.nextId, .acceptedKnown = known,
+        .id = s_restart.nextId, .acceptedKnown = known, .romDownload = romDownload,
         .acceptedRevision = known ? authority->identity.revision : 0u,
     };
     s_restart.busy = true;
@@ -88,6 +89,24 @@ esp_err_t sensorarrayRestartControlPost(
     if (outId) { *outId = s_restart.current.id; }
     portEXIT_CRITICAL(&s_restartMux);
     return ESP_OK;
+}
+
+esp_err_t sensorarrayRestartControlPost(
+    const sensorarrayConfigAuthority_t *authority, bool known, uint32_t *outId)
+{ return sensorarrayRestartControlPostTarget(authority, known, outId, false); }
+
+esp_err_t sensorarrayRestartControlPostRom(
+    const sensorarrayConfigAuthority_t *authority, bool known, uint32_t *outId)
+{ return sensorarrayRestartControlPostTarget(authority, known, outId, true); }
+
+bool sensorarrayRestartControlIsRom(uint32_t id)
+{
+    portENTER_CRITICAL(&s_restartMux);
+    bool isRom = s_restart.busy && s_restart.current.id == id &&
+        s_restart.acknowledged && s_restart.phase == SENSORARRAY_RESTART_RUNNING &&
+        s_restart.current.romDownload;
+    portEXIT_CRITICAL(&s_restartMux);
+    return isRom;
 }
 
 bool sensorarrayRestartControlAck(uint32_t id, esp_err_t publishError)
@@ -144,8 +163,9 @@ esp_err_t sensorarrayRestartControlPublish(uint32_t id,
     portEXIT_CRITICAL(&s_restartMux);
     char terminal[384];
     int n = snprintf(terminal, sizeof(terminal),
-        "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual,session=%016llX,bootId=%lu,acceptedKnown=%u,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu\n",
-        (unsigned long)id, (unsigned long long)sessionId, (unsigned long)bootId,
+        "RAPP,cmd=RESTART,id=%lu,state=restarting,kind=manual,target=%s,session=%016llX,bootId=%lu,acceptedKnown=%u,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu\n",
+        (unsigned long)id, result.request.romDownload ? "rom_download" : "application",
+        (unsigned long long)sessionId, (unsigned long)bootId,
         result.request.acceptedKnown ? 1u : 0u, (unsigned long)result.request.acceptedRevision,
         known ? 1u : 0u, (unsigned long)result.resultRevision, (unsigned long)result.frameBoundary);
     esp_err_t serialError = ESP_ERR_INVALID_SIZE;
@@ -185,7 +205,7 @@ esp_err_t sensorarrayRestartControlFormat(char *response, size_t responseSize)
     bool busy = s_restart.busy;
     portEXIT_CRITICAL(&s_restartMux);
     int n = snprintf(response, responseSize,
-        "RESTART,session=%016llX,bootId=%lu,busy=%u,phase=%s,pendingId=%lu,pendingKnown=%u,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedKnown=%u,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,publishError=0x%lX,terminalQueued=%u,serialQueued=%u,serialError=0x%lX,netQueued=%u,netError=0x%lX\n",
+        "RESTART,session=%016llX,bootId=%lu,busy=%u,phase=%s,pendingId=%lu,pendingKnown=%u,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedKnown=%u,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,publishError=0x%lX,terminalQueued=%u,serialQueued=%u,serialError=0x%lX,netQueued=%u,netError=0x%lX,target=%s\n",
         (unsigned long long)sessionId, (unsigned long)bootId, busy ? 1u : 0u,
         sensorarrayRestartPhaseName(phase), (unsigned long)(busy ? current.id : 0u),
         busy && current.acceptedKnown ? 1u : 0u, (unsigned long)(busy ? current.acceptedRevision : 0u),
@@ -197,7 +217,8 @@ esp_err_t sensorarrayRestartControlFormat(char *response, size_t responseSize)
         (unsigned long)(uint32_t)last.originalError, (unsigned long)(uint32_t)last.publishError,
         last.terminalQueued ? 1u : 0u, last.serialQueued ? 1u : 0u,
         (unsigned long)(uint32_t)last.serialError, last.networkQueued ? 1u : 0u,
-        (unsigned long)(uint32_t)last.networkError);
+        (unsigned long)(uint32_t)last.networkError,
+        last.request.romDownload ? "rom_download" : "application");
     if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
     return ESP_OK;
 }

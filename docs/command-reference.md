@@ -14,6 +14,19 @@ MODE、ROWS、ROWMODES、RAILCFG 和运行时输出设置均为易失状态，�
 
 ## Transport 与输出
 
+USB-OTG build (`usb_vendor_bulk_v1`) keeps the ASCII command/frame grammar, but the “Serial” command column below maps to the **vendor CTRL endpoint**, not CDC. The CDC function is debug output only. `ST=SER` selects the active wired DATA backend; bulk remains full-frame, independent of the legacy `USBSTREAM` setting. / USB-OTG 构建中下表 Serial 命令列对应 vendor CTRL 端点；CDC 仅调试输出，`ST=SER` 选择当前有线 DATA 通路，bulk 固定完整帧，不受旧 `USBSTREAM` 限流。
+
+| Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `USB?` | Query | 是 | 是 | 是 | 无 | `USB,backend=...,init=...,mounted=...,dma=...,epoch=...` | 立即快照 | 否 | 支持 | USB stack observations; mounted is SET_CONFIGURATION evidence, not PC receipt. `romAvailable` checks eFuse restrictions without burning them. |
+| `USBQ?` | Query | 是 | 是 | 是 | 无 | `USBQ,dDrop=...,cDrop=...,dBytes=...,dCallbackBytes=...` | 立即快照 | 否 | 支持 | Separate whole-record submissions/rejections, FIFO accepted bytes and transfer callback bytes; callback result/PC receipt unknown. |
+| `USBBOOT` | Action | 是 | 是 | 是 | 无 | `RACK,cmd=RESTART,id=...,target=rom_download` | ACK 本地入队后，在主循环边界 | 否 | 支持 | Explicit firmware-download restart, not a query. Uses RESTART request identity and ACK gate; owner fences DMA and holds OTG reset before USJ/ROM handoff. Failed local ACK cancels. |
+| `BLELINK?` | Query | 是 | 是 | 是 | 无 | `BLELINK,gen=...,phyKnown=...,connKnown=...` | 立即快照 | 否 | 支持 | Actual negotiated PHY and connection interval, request/completion errors. DLE completion has no peer ID in IDF; `dlePeerKnown=0` is intentional. |
+| `BLETX?` | Query | 是 | 是 | 是 | 无 | `BLETX,dDequeued=...,sdkActive=...,sdkMaxUs=...` | 立即快照 | 否 | 支持 | Local priority service and GATT SDK timing; SDK admission does not prove radio or PC completion. |
+
+In OTG builds `SERIAL?` explicitly reports `backend=otg_cdc,scope=debug`; `USBSTREAM?` reports `v=BULK,scope=otg_data,dataEvery=1`. `USBSTREAM=DEBUG/FULL` returns `legacy_usj_only` and changes nothing. Legacy Serial/JTAG builds retain their existing fields and commands. / OTG 不静默沿用旧 Serial 统计含义；旧 USJ 构建保留既有契约。
+
+
 | Command | Type | Serial | BLE FF10 | Wi-Fi CTRL | Arguments | Response | Apply timing | Persistent | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `TX?` | Query | 是 | 是 | 是 | 无 | `ACK,cmd=TX,v=<short|rel|full>` | 立即 snapshot | - | 支持 | 查询 transport text mode。 |

@@ -18,6 +18,7 @@
 #endif
 #include "sensorarrayTransport.h"
 #include "sensorarrayWorkBudget.h"
+#include "sensorarrayUsbOtg.h"
 
 /* One physical TX owner. stdout/log, DATA and priority replies all enter bounded
  * queues; no network or acquisition task calls a USB write/flush. */
@@ -58,6 +59,9 @@ static char s_priorityBytes[SERIAL_IO_PRIORITY_SLOT_COUNT][SENSORARRAY_TRANSPORT
 static uint16_t s_lengths[SERIAL_IO_SLOT_COUNT];
 static int64_t s_enqueuedUs[SERIAL_IO_SLOT_COUNT];
 static int64_t s_deadlineUs[SERIAL_IO_SLOT_COUNT];
+static uint32_t s_slotEpoch[SERIAL_IO_SLOT_COUNT];
+static atomic_int s_otgInitResult = ATOMIC_VAR_INIT(ESP_ERR_INVALID_STATE);
+static atomic_bool s_otgInitDone;
 static bool s_driverOwned;
 _Static_assert(SERIAL_IO_DRIVER_TX_BYTES >= SENSORARRAY_TRANSPORT_TEXT_MAX,
                "USB byte ring must admit one complete DATA record");
@@ -125,6 +129,7 @@ static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsi
     bool queued = false;
     if (index != UINT8_MAX) {
         s_lengths[index] = (uint16_t)length;
+        s_slotEpoch[index] = sensorarrayUsbOtgEpoch();
         s_enqueuedUs[index] = esp_timer_get_time();
         s_deadlineUs[index] = s_enqueuedUs[index] +
             (priority ? SERIAL_IO_PRIORITY_LIFETIME_US : SERIAL_IO_NORMAL_LIFETIME_US);
@@ -294,7 +299,7 @@ static void sensorarraySerialTxCheckpoint(void)
     }
 }
 
-static void sensorarraySerialTxTask(void *arg)
+static void sensorarraySerialLegacyTxTask(void *arg)
 {
     (void)arg;
     bool needsDelimiter = false;
@@ -438,9 +443,110 @@ static void sensorarraySerialTxTask(void *arg)
     }
 }
 
+/* 本轮新增: the existing persistent pool now feeds independent OTG endpoints.
+ * No global prefix/wire lock: CDC backpressure cannot retain DATA/CTRL service.
+ * TinyUSB copies to internal persistent FIFO/endpoint buffers synchronously;
+ * slot release only releases our CPU payload, never an active DMA buffer. */
+static void sensorarraySerialOtgTxTask(void *arg)
+{
+    (void)arg;
+    esp_err_t init = sensorarrayUsbOtgOwnerInit();
+    atomic_store(&s_otgInitResult, init);
+    atomic_store_explicit(&s_otgInitDone, true, memory_order_release);
+    uint8_t pending[SERIAL_IO_LANE_COUNT] = {UINT8_MAX, UINT8_MAX, UINT8_MAX};
+    size_t offset[SERIAL_IO_LANE_COUNT] = {0};
+    bool delimiter[SERIAL_IO_LANE_COUNT] = {false};
+    uint32_t epoch = sensorarrayUsbOtgEpoch();
+    static const unsigned order[] = {SERIAL_IO_PRIORITY, SERIAL_IO_DATA, SERIAL_IO_LOG};
+    for (;;) {
+        sensorarrayUsbOtgOwnerPoll();
+        bool progress = false;
+        uint32_t current = sensorarrayUsbOtgEpoch();
+        if (current != epoch) {
+            /* Bus reset class buffers were reset by TinyUSB before service.
+             * Application records from the old connection retain their old
+             * epoch and are discarded, never stamped as the new connection. */
+            memset(delimiter, 0, sizeof(delimiter));
+            epoch = current;
+        }
+        for (unsigned turn = 0; turn < SERIAL_IO_LANE_COUNT; ++turn) {
+            unsigned lane = order[turn];
+            if (pending[lane] == UINT8_MAX &&
+                xQueueReceive(s_queues[lane], &pending[lane], 0) == pdTRUE) {
+                offset[lane] = 0u; progress = true;
+            }
+            uint8_t index = pending[lane];
+            if (index == UINT8_MAX) { continue; }
+            int64_t now = esp_timer_get_time();
+            bool stale = s_slotEpoch[index] != epoch;
+            if (stale || now >= s_deadlineUs[index]) {
+                portENTER_CRITICAL(&s_statsMux);
+                s_stats.sinkDropped++;
+                s_stats.timeout += stale ? 0u : 1u;
+                s_stats.partialWrite += offset[lane] ? 1u : 0u;
+                if (lane == SERIAL_IO_PRIORITY) { s_stats.priorityExpired++; }
+                else { s_stats.normalExpired++; }
+                portEXIT_CRITICAL(&s_statsMux);
+                if (!stale && offset[lane]) { delimiter[lane] = true; }
+                sensorarraySerialReleaseSlot(index);
+                pending[lane] = UINT8_MAX; offset[lane] = 0u; progress = true;
+                continue;
+            }
+            if (!sensorarrayUsbOtgOwnerCanWrite(lane)) { continue; }
+            size_t length = delimiter[lane] ? 1u : s_lengths[index] - offset[lane];
+            const char *data = delimiter[lane] ? "\n" : sensorarraySerialBytes(index) + offset[lane];
+            int n = sensorarrayUsbOtgOwnerWrite(lane, data, length);
+            if (n < 0 || (size_t)n > length) {
+                portENTER_CRITICAL(&s_statsMux); s_stats.driverWriteError++; portEXIT_CRITICAL(&s_statsMux);
+                /* Retain the bounded record, never invent acceptance. */
+                continue;
+            }
+            if (n == 0) { continue; }
+            progress = true;
+            uint64_t age = (uint64_t)(now - s_enqueuedUs[index]);
+            portENTER_CRITICAL(&s_statsMux);
+            s_stats.driverAcceptedBytes += (uint32_t)n;
+            s_stats.lastTxUs = now;
+            s_stats.driverShortWrite += (size_t)n < length ? 1u : 0u;
+            if (age > s_stats.maxQueueAgeUs) { s_stats.maxQueueAgeUs = age > UINT32_MAX ? UINT32_MAX : (uint32_t)age; }
+            portEXIT_CRITICAL(&s_statsMux);
+            if (delimiter[lane]) { delimiter[lane] = false; continue; }
+            offset[lane] += (size_t)n;
+            if (offset[lane] == s_lengths[index]) {
+                delimiter[lane] = sensorarraySerialBytes(index)[s_lengths[index]-1] != '\n';
+                portENTER_CRITICAL(&s_statsMux);
+                if (lane == SERIAL_IO_PRIORITY) { s_stats.prioritySubmitted++; }
+                else {
+                    s_stats.normalSubmitted++;
+                    if (lane == SERIAL_IO_DATA) { s_stats.dataSubmitted++; }
+                    else { s_stats.logSubmitted++; }
+                }
+                portEXIT_CRITICAL(&s_statsMux);
+                sensorarraySerialReleaseSlot(index); pending[lane] = UINT8_MAX; offset[lane] = 0;
+            }
+        }
+        sensorarraySerialTxCheckpoint();
+        /* USB ISR callbacks, completed record admission, and finite deadline
+         * housekeeping all wake this single owner. No unbounded no-host wait. */
+        if (!progress) { (void)ulTaskNotifyTake(pdTRUE, 1u); }
+    }
+}
+
+static void sensorarraySerialTxTask(void *arg)
+{
+    if (sensorarrayUsbOtgEnabled()) { sensorarraySerialOtgTxTask(arg); }
+    else { sensorarraySerialLegacyTxTask(arg); }
+}
+
 esp_err_t sensorarraySerialIoInit(void)
 {
-    if (atomic_load_explicit(&s_vfsReady, memory_order_acquire)) { return ESP_OK; }
+    if (atomic_load_explicit(&s_vfsReady, memory_order_acquire)) {
+        if (sensorarrayUsbOtgEnabled()) {
+            return atomic_load_explicit(&s_otgInitDone, memory_order_acquire) ?
+                atomic_load(&s_otgInitResult) : ESP_ERR_INVALID_STATE;
+        }
+        return ESP_OK;
+    }
     if (!s_dataBytes) {
         /* CPU-only payload: the driver copies each complete record into its own
          * internal ring buffer. Allocate once, outside every producer path. */
@@ -455,12 +561,13 @@ esp_err_t sensorarraySerialIoInit(void)
         }
         if (!s_dataBytes) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
     }
-    if (!usb_serial_jtag_is_driver_installed()) {
+    bool otg = sensorarrayUsbOtgEnabled();
+    if (!otg && !usb_serial_jtag_is_driver_installed()) {
         usb_serial_jtag_driver_config_t config = {.tx_buffer_size = SERIAL_IO_DRIVER_TX_BYTES, .rx_buffer_size = 512};
         esp_err_t err = usb_serial_jtag_driver_install(&config);
         if (err != ESP_OK) { return sensorarraySerialInitResult(err); }
         s_driverOwned = true;
-    } else if (!s_driverOwned) {
+    } else if (!otg && !s_driverOwned) {
         /* The public API cannot reveal an existing driver's ring capacity.
          * Do not remove somebody else's live driver or claim atomic admission. */
         return sensorarraySerialInitResult(ESP_ERR_INVALID_STATE);
@@ -513,11 +620,24 @@ esp_err_t sensorarraySerialIoInit(void)
         clearerr(stderr);
         atomic_store_explicit(&s_vfsReady, true, memory_order_release);
     }
+    if (otg) {
+        int64_t deadline = esp_timer_get_time() + 1000000;
+        while (!atomic_load_explicit(&s_otgInitDone, memory_order_acquire)) {
+            if (esp_timer_get_time() >= deadline) { return sensorarraySerialInitResult(ESP_ERR_TIMEOUT); }
+            vTaskDelay(1u);
+        }
+        return sensorarraySerialInitResult(atomic_load(&s_otgInitResult));
+    }
     return sensorarraySerialInitResult(ESP_OK);
 }
 
-int sensorarraySerialIoRead(void *buffer, size_t length)
+int sensorarraySerialIoReadWithEpoch(void *buffer, size_t length, uint32_t *epoch)
 {
+    if (sensorarrayUsbOtgEnabled()) {
+        if (!atomic_load_explicit(&s_otgInitDone, memory_order_acquire) || atomic_load(&s_otgInitResult) != ESP_OK) { return 0; }
+        return sensorarrayUsbOtgRead(buffer, length, epoch);
+    }
+    if (epoch) { *epoch = 0u; }
     if (!usb_serial_jtag_is_driver_installed()) { return 0; }
     TickType_t ticks = pdMS_TO_TICKS(20u);
     int count = usb_serial_jtag_read_bytes(buffer, length, ticks ? ticks : 1);
@@ -530,6 +650,9 @@ int sensorarraySerialIoRead(void *buffer, size_t length)
     }
     return count;
 }
+
+int sensorarraySerialIoRead(void *buffer, size_t length)
+{ return sensorarraySerialIoReadWithEpoch(buffer, length, NULL); }
 
 void sensorarraySerialIoNoteOversize(void)
 {
@@ -549,7 +672,7 @@ void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats)
     outStats->normalBufferMemory = s_dataMemory;
     outStats->taskStackConfiguredBytes = 4096u;
     outStats->taskStackMinBytes = s_task ? (uint32_t)uxTaskGetStackHighWaterMark(s_task) * sizeof(StackType_t) : 0u;
-    outStats->driverInstalled = usb_serial_jtag_is_driver_installed();
-    outStats->sofPresent = usb_serial_jtag_is_connected();
+    outStats->driverInstalled = !sensorarrayUsbOtgEnabled() && usb_serial_jtag_is_driver_installed();
+    outStats->sofPresent = !sensorarrayUsbOtgEnabled() && usb_serial_jtag_is_connected();
     outStats->stdioBound = atomic_load_explicit(&s_vfsReady, memory_order_acquire);
 }

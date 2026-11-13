@@ -16,6 +16,7 @@ parser.add_argument("--tx-baseline", help="Also reproduce 20ms chunk expiry usin
 parser.add_argument("--admission-baseline", help="Reproduce diagnostic FIFO saturation rejecting DATA at this unmodified revision")
 parser.add_argument("--source", type=Path, help="Run all current production regressions against an explicitly saved SerialIo source")
 args = parser.parse_args()
+selected_source = (args.source if args.source else root / "core/transport/sensorarraySerialIo.c").read_text()
 fixture = root / "tests/fixtures/serial_io"
 captured_config = (fixture / "config_complete.rx.txt").read_bytes()
 captured_corruption = (fixture / "config_interleaving.rx.txt").read_bytes()
@@ -207,6 +208,8 @@ static struct _reent testGlobalReent;
     # synthetic scheduler headers first. The memory stub owns its test-only
     # storage classification flag; no production placement is claimed on host.
     compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/work_budget_stubs"), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "components/sensorarrayWorkBudget/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c"), str(root / "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c")]
+    if "int sensorarraySerialIoReadWithEpoch(" in selected_source:
+        compile_args += ["-DSERIAL_IO_HAS_OTG_DISPATCH=1", "-DSERIAL_IO_TEST_OTG_INIT=1"]
     if args.baseline:
         baseline = temp / "baselineSerialIo.c"
         baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
@@ -235,14 +238,18 @@ static struct _reent testGlobalReent;
     subprocess.run(compile_args + source_override + ["-o", str(exe)], check=True)
     for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry", "queue_retry", "task_retry", "foreign_driver"]:
         subprocess.run([str(exe), allocation], check=True)
+    if "int sensorarraySerialIoReadWithEpoch(" in selected_source:
+        for initialization in ["otg_init_error", "otg_init_no_mem", "otg_timeout_repeated"]:
+            subprocess.run([str(exe), initialization], check=True)
     # Only the scheduling dependency is synthetic: run the actual queue/slot/TX
     # bodies and WorkBudget. Existing tests above cover the full VFS/driver API.
     priority_dir = temp / "priority"
     priority_dir.mkdir()
-    serial_source = (args.source if args.source else root / "core/transport/sensorarraySerialIo.c").read_text()
+    serial_source = selected_source
     start = serial_source.index("#define SERIAL_IO_QUEUE_COUNT")
     end = serial_source.index("#define SERIAL_IO_VFS_PATH", start)
     constants = serial_source[start:end]
+    constants += f"\n#define SERIAL_TEST_HAS_EPOCH {int('s_slotEpoch[' in serial_source)}\n"
     priority_token = re.search(r'xTaskCreatePinnedToCore\(sensorarraySerialTxTask,\s*"serialTx",\s*4096,\s*NULL,\s*(\w+)', serial_source).group(1)
     if priority_token.isdigit():
         serial_priority = int(priority_token)
@@ -268,7 +275,12 @@ static struct _reent testGlobalReent;
     }.items():
         constants += f"#define {name} {value}u\n"
     (priority_dir / "serial_priority_config.h").write_text(constants)
-    (priority_dir / "serial_priority_source.h").write_text("\n".join(actual_function(serial_source, signature) for signature in (
+    # The current entry point dispatches OTG/USJ. This regression retains the
+    # actual USJ task body; the OTG component has a separate owner test.
+    legacy_task = "sensorarraySerialLegacyTxTask" if "static void sensorarraySerialLegacyTxTask(" in serial_source else "sensorarraySerialTxTask"
+    (priority_dir / "serial_priority_source.h").write_text(
+        f"#define SERIAL_TEST_LEGACY_TX {legacy_task}\n" +
+        "\n".join(actual_function(serial_source, signature) for signature in (
         "static char *sensorarraySerialBytes(unsigned index)",
         "static uint8_t sensorarraySerialClaimSlot(unsigned lane)",
         "static void sensorarraySerialReleaseSlot(uint8_t index)",
@@ -276,7 +288,7 @@ static struct _reent testGlobalReent;
         "static esp_err_t sensorarraySerialQueueRecord(const char *data, size_t length, unsigned lane)",
         "esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length)",
         "static void sensorarraySerialTxCheckpoint(void)",
-        "static void sensorarraySerialTxTask(void *arg)")))
+        f"static void {legacy_task}(void *arg)")))
     priority_exe = priority_dir / "priority"
     subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
                     "-I", str(priority_dir), "-I", str(root / "tests/host/work_budget_stubs"),
@@ -286,3 +298,26 @@ static struct _reent testGlobalReent;
                     "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io_priority.c"),
                     "-o", str(priority_exe)], check=True)
     subprocess.run([str(priority_exe)], check=True, timeout=10)
+    if "static void sensorarraySerialOtgTxTask(" in serial_source:
+        (priority_dir / "serial_otg_source.h").write_text("\n".join(actual_function(serial_source, signature) for signature in (
+            "static char *sensorarraySerialBytes(unsigned index)",
+            "static uint8_t sensorarraySerialClaimSlot(unsigned lane)",
+            "static void sensorarraySerialReleaseSlot(uint8_t index)",
+            "static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsigned lane)",
+            "static esp_err_t sensorarraySerialQueueRecord(const char *data, size_t length, unsigned lane)",
+            "esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)",
+            "esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length)",
+            "static void sensorarraySerialTxCheckpoint(void)",
+            "static void sensorarraySerialOtgTxTask(void *arg)",
+            "int sensorarraySerialIoReadWithEpoch(void *buffer, size_t length, uint32_t *epoch)")))
+        otg_exe = priority_dir / "otg"
+        subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+                        "-I", str(priority_dir), "-I", str(root / "tests/host/work_budget_stubs"),
+                        "-I", str(root / "tests/host/include"),
+                        "-I", str(root / "components/sensorarrayWorkBudget/include"),
+                        "-I", str(root / "components/sensorarrayWorkBudget"),
+                        "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io_otg.c"),
+                        "-o", str(otg_exe)], check=True)
+        subprocess.run([str(otg_exe)], check=True, timeout=10,
+                       env=dict(os.environ, ASAN_OPTIONS="detect_leaks=0"))

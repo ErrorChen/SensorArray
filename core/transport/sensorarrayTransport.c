@@ -1,4 +1,5 @@
 #include "sensorarraySerialIo.h"
+#include "sensorarrayUsbOtg.h"
 #include "sensorarrayTransportFrameMeta.h"
 #include "sensorarrayTransportInternal.h"
 
@@ -395,16 +396,24 @@ static void sensorarrayTransportSerialControlTask(void *arg)
     char command[SENSORARRAY_TRANSPORT_SERIAL_COMMAND_MAX];
     uint8_t bytes[64];
     size_t used = 0;
+    uint32_t commandEpoch = 0;
     bool overflow = false;
     sensorarrayTransportReplyTarget_t target = {.kind = SENSORARRAY_TRANSPORT_REPLY_SERIAL};
     for (;;) {
-        int count = sensorarraySerialIoRead(bytes, sizeof(bytes));
+        uint32_t epoch = commandEpoch;
+        int count = sensorarraySerialIoReadWithEpoch(bytes, sizeof(bytes), &epoch);
+        if (epoch != commandEpoch) { used = 0; overflow = false; commandEpoch = epoch; }
         if (count <= 0) {
             /* An unbound/failed driver is also a bounded idle condition. */
             vTaskDelay(1u);
             continue;
         }
         for (int i = 0; i < count; ++i) {
+            /* Acceptance fence: queued/partially read commands from a prior
+             * USB connection do not become new commands after re-enumeration. */
+            if (sensorarrayUsbOtgEnabled() && epoch != sensorarrayUsbOtgEpoch()) {
+                used = 0; overflow = false; break;
+            }
             uint8_t ch = bytes[i];
             if (ch == '\r' || ch == '\n') {
                 if (overflow) {
@@ -490,11 +499,11 @@ static void sensorarrayTransportProcessDescriptor(
             bleData = shortData;
             bleLength = strlen(shortData);
         }
-        esp_err_t bleErr = sensorarrayBleNotifyForGeneration(
-            bleChannel,
-            (const uint8_t *)bleData,
-            bleLength,
-            slot->bleConnectionGeneration);
+        esp_err_t bleErr = channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
+            sensorarrayBleNotifyLifecycleForGeneration((const uint8_t *)bleData,
+                bleLength, slot->bleConnectionGeneration) :
+            sensorarrayBleNotifyForGeneration(bleChannel, (const uint8_t *)bleData,
+                bleLength, slot->bleConnectionGeneration);
         sensorarrayTransportStatResult(sinkChannel, true, bleErr);
     }
     if (slot && sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
@@ -534,11 +543,8 @@ static void sensorarrayTransportDrainGuaranteedText(void)
         sensorarrayTransportBleChannelEnabled(SENSORARRAY_TRANSPORT_CHANNEL_LOG) &&
         sensorarrayBleGetSendGeneration(SENSORARRAY_BLE_CH_LOG,
                                         &bleConnectionGeneration)) {
-        esp_err_t bleErr = sensorarrayBleNotifyForGeneration(
-            SENSORARRAY_BLE_CH_LOG,
-            (const uint8_t *)text,
-            length,
-            bleConnectionGeneration);
+        esp_err_t bleErr = sensorarrayBleNotifyLifecycleForGeneration(
+            (const uint8_t *)text, length, bleConnectionGeneration);
         sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_LOG,
                                        true,
                                        bleErr);
@@ -802,7 +808,7 @@ esp_err_t sensorarrayTransportInit(void)
                                                 "transport",
                                                 CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
                                                 (void *)(intptr_t)wifiErr,
-                                                5u,
+                                                6u,
                                                 &s_task,
                                                 CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
         if (ok != pdPASS) {
@@ -815,7 +821,7 @@ esp_err_t sensorarrayTransportInit(void)
                                      "serialCtrl",
                                      CONFIG_SENSORARRAY_SERIAL_CTRL_TASK_STACK,
                                      NULL,
-                                     4u,
+                                     8u,
                                      &s_serialTask,
                                      CONFIG_SENSORARRAY_COMM_TASK_CORE);
         if (ok != pdPASS) {
