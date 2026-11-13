@@ -33,6 +33,8 @@ typedef struct {
     uint32_t tickHz;
     uint32_t idleBudgetTicks;
     uint32_t maxWorkUnits;
+    uint32_t graceUnits; /* Minimum work in a newly observed real-idle epoch. */
+    uint32_t backstopTicks; /* Older real-idle evidence bypasses that grace. */
     uint32_t idleGeneration;
     uint32_t idleAgeTicks; /* UINT32_MAX when no real idle callback was observed. */
     uint32_t maxIdleGapTicks; /* UINT32_MAX before real idle; includes open gap. */
@@ -49,7 +51,8 @@ esp_err_t sensorarrayWorkBudgetInit(void);
  * CPU0 only. At most one vTaskDelay(1) per call, never waits for idle to run.
  * A retained packet/slot remains caller-owned. The caller's absolute deadline
  * must include this wait and must not be restarted after it. Returns true iff
- * this call requested that real RTOS block. No notifications are consumed. */
+ * this call requested that real RTOS block. Only observed idle progress renews
+ * the short work grace; a requested delay does not. No notifications consumed. */
 bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker);
 
 /* Individually sampled diagnostic counters, not an atomic configuration or a

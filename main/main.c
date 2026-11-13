@@ -2458,10 +2458,11 @@ static esp_err_t sensorarrayFormatSchedulerReply(char *response, size_t response
     }
     const sensorarrayWorkBudgetWorkerSnapshot_t *w = snapshot.workers;
     int n = snprintf(response, responseSize,
-        "SCHED,initError=0x%lX,registered=%u,idleKnown=%u,tickHz=%lu,budgetTicks=%lu,maxUnits=%lu,idleGen=%lu,idleAgeTicks=%s,maxIdleGapTicks=%s,bt=%lu/%lu/%lu,tr=%lu/%lu/%lu,log=%lu/%lu/%lu,ser=%lu/%lu/%lu,bc=%lu/%lu/%lu,sc=%lu/%lu/%lu,wc=%lu/%lu/%lu\n",
+        "SCHED,initError=0x%lX,registered=%u,idleKnown=%u,tickHz=%lu,budgetTicks=%lu,maxUnits=%lu,graceUnits=%lu,backstopTicks=%lu,idleGen=%lu,idleAgeTicks=%s,maxIdleGapTicks=%s,bt=%lu/%lu/%lu,tr=%lu/%lu/%lu,log=%lu/%lu/%lu,ser=%lu/%lu/%lu,bc=%lu/%lu/%lu,sc=%lu/%lu/%lu,wc=%lu/%lu/%lu\n",
         (unsigned long)(uint32_t)snapshot.initError, snapshot.registered ? 1u : 0u,
         snapshot.idleKnown ? 1u : 0u, (unsigned long)snapshot.tickHz,
         (unsigned long)snapshot.idleBudgetTicks, (unsigned long)snapshot.maxWorkUnits,
+        (unsigned long)snapshot.graceUnits, (unsigned long)snapshot.backstopTicks,
         (unsigned long)snapshot.idleGeneration, age, gap,
         (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints,
         (unsigned long)w[SENSORARRAY_WORK_BUDGET_BLE_TX].yields,

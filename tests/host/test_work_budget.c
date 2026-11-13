@@ -75,10 +75,13 @@ static void testIdleAndBudget(void)
     assert(registeredHook());
     nowTick += 2u;
     unsigned before = delayCalls;
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
+    assert(delayCalls == before);
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
     assert(delayCalls == before + 1u); /* No idle occurs in delay: still returns. */
     sensorarrayWorkBudgetCopySnapshot(&snap);
     assert(snap.tickHz == 100u && snap.idleBudgetTicks == 2u && snap.maxWorkUnits == 32u);
+    assert(snap.graceUnits == 2u && snap.backstopTicks == 4u);
     assert(snap.idleKnown && snap.idleGeneration == 1u && snap.idleAgeTicks == 3u);
     assert(snap.maxIdleGapTicks == 3u && snap.workers[2].maxBurstUnits == 32u);
     core = 1;
@@ -87,12 +90,29 @@ static void testIdleAndBudget(void)
     assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_WORKER_COUNT));
     assert(delayCalls == before); /* Does not cap Core1 acquisition. */
 }
+static void testRealIdleEpochDoesNotChargeFirstUnit(void)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK);
+    unsigned yielded = 0u;
+    for (unsigned i = 0u; i < 100u; ++i) {
+        nowTick++;
+        assert(registeredHook()); /* Actual callback observation, not a yield. */
+        nowTick += 2u; /* Lower-priority worker resumes two ticks later. */
+        yielded += sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX) ? 1u : 0u;
+    }
+    /* repair-screen-01: 5900 / 5933 Serial checkpoints yielded despite 52887
+     * real idle callbacks. A newly observed idle epoch must allow useful work. */
+    assert(yielded == 0u);
+}
 static void testFailureAndNoIdle(void)
 {
     reset(); registrationFails = true;
     assert(sensorarrayWorkBudgetInit() == ESP_ERR_NO_MEM);
     assert(sensorarrayWorkBudgetInit() == ESP_ERR_NO_MEM && registrationCalls == 1u);
-    nowTick = 3u;
+    nowTick = 2u;
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(delayCalls == 1u && s_idleGeneration == 0u); /* No initial fake grace. */
+    nowTick = 4u; /* No idle and beyond the hard starvation backstop. */
     for (unsigned i = 0u; i < 100u; ++i) {
         unsigned before = delayCalls;
         assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
@@ -124,6 +144,7 @@ static void testCrossCoreAndWrap(void)
     sensorarrayWorkBudgetCopySnapshot(&snap);
     assert(snap.idleGeneration == 1u && snap.idleAgeTicks == 0u && snap.maxIdleGapTicks == 3u);
     nowTick = 3u;
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
     assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT));
     assert(delayCalls == 1u);
 }
@@ -145,14 +166,39 @@ static void testUnsafeStorageRejected(void)
     assert(!sensorarrayWorkBudgetInternal((uint8_t *)words + 1u, sizeof(uint32_t)));
     assert(!sensorarrayWorkBudgetInternal(words, 1u));
 }
-static void testSevenContinuouslyReadyWorkers(void)
+static void testOwnYieldDoesNotRenewIdleCredit(void)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
-    schedulerModel = true; modelUs = 0u;
+    nowTick = 2u;
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    for (unsigned i = 0u; i < 100u; ++i) {
+        unsigned before = delayCalls;
+        assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+        assert(delayCalls == before + 1u && s_idleGeneration == 1u);
+    }
+    /* A genuine new idle renews exactly one epoch; old/new stale times are
+     * never replaced with the time of a voluntary delay. */
+    assert(registeredHook()); nowTick += 2u;
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_SERIAL_TX));
+}
+static void testStarvationBackstopBypassesNewWorkerGrace(void)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    nowTick = 4u;
+    assert(sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
+    assert(delayCalls == 1u && s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].idleEpochUnits == 1u);
+    assert(s_idleGeneration == 1u && s_idleTick == 0u);
+}
+static void testSevenContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhaseUs)
+{
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    schedulerModel = true; modelUs = tickPhaseUs;
     unsigned work[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
     const unsigned priority[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {5u, 5u, 7u, 4u, 6u, 4u, 5u};
     unsigned roundRobin = 0u, idleVisits = 0u;
-    while (modelUs < 2000000u) {
+    while (modelUs < tickPhaseUs + 2000000u) {
         int selected = -1;
         for (unsigned n = 0u; n < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++n) {
             unsigned i = (n + roundRobin) % SENSORARRAY_WORK_BUDGET_WORKER_COUNT;
@@ -175,7 +221,7 @@ static void testSevenContinuouslyReadyWorkers(void)
         roundRobin = (modelWorker + 1u) % SENSORARRAY_WORK_BUDGET_WORKER_COUNT;
         /* Worst-case bounded work-unit cost for this deterministic model only.
          * Real SDK call latency remains a HIL measurement, not this assertion. */
-        modelUs += 500u;
+        modelUs += unitUs;
         nowTick = (uint32_t)(modelUs / 10000u);
         work[modelWorker]++;
         (void)sensorarrayWorkBudgetCheckpoint((sensorarrayWorkBudgetWorker_t)modelWorker);
@@ -183,17 +229,24 @@ static void testSevenContinuouslyReadyWorkers(void)
     sensorarrayWorkBudgetSnapshot_t snap;
     sensorarrayWorkBudgetCopySnapshot(&snap);
     for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) { assert(work[i] > 0u && snap.workers[i].yields > 0u); }
-    assert(idleVisits >= 50u && snap.maxIdleGapTicks <= 3u && largestDelay == 1u);
-    printf("WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,idleVisits=%u,maxIdleGapTicks=%u\n",
-           idleVisits, snap.maxIdleGapTicks);
+    assert(idleVisits >= 20u && snap.maxIdleGapTicks <= 5u && largestDelay == 1u);
+    printf("WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=%u,phaseUs=%u,idleVisits=%u,maxIdleGapTicks=%u\n",
+           unitUs, tickPhaseUs, idleVisits, snap.maxIdleGapTicks);
 }
 int main(void)
 {
+    testRealIdleEpochDoesNotChargeFirstUnit();
     testIdleAndBudget();
     testFailureAndNoIdle();
     testCrossCoreAndWrap();
     testUnsafeStorageRejected();
-    testSevenContinuouslyReadyWorkers();
-    puts("WORK_BUDGET_PASS,scenarios=5,production_component=1,hardware=NOT_RUN");
+    testOwnYieldDoesNotRenewIdleCredit();
+    testStarvationBackstopBypassesNewWorkerGrace();
+    for (unsigned phase = 0u; phase < 2u; ++phase) {
+        testSevenContinuouslyReadyWorkers(100u, phase * 9500u);
+        testSevenContinuouslyReadyWorkers(500u, phase * 9500u);
+        testSevenContinuouslyReadyWorkers(1000u, phase * 9500u);
+    }
+    puts("WORK_BUDGET_PASS,scenarios=13,production_component=1,hardware=NOT_RUN");
     return 0;
 }

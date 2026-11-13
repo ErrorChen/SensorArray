@@ -89,6 +89,7 @@ static void reset(void)
     slotOwned = connected = true; disconnectOnDelay = failSend = congested = false;
     for (unsigned i = 0u; i < sizeof(source); ++i) { source[i] = (uint8_t)('A' + i % 26u); }
     assert(sensorarrayWorkBudgetInit() == ESP_OK && idleHook);
+    assert(idleHook());
     nowTick = 2u; /* Other continuously-ready CPU0 work has kept idle out. */
 }
 int main(void)
@@ -97,14 +98,14 @@ int main(void)
     assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
                                     sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_OK);
     assert(slotOwned && fragments == totalFragments && fragments > 1u && messages == 1u && drops == 0u);
-    assert(delayCalls == fragments - 1u && receivedLength == sizeof(source));
+    assert(delayCalls == fragments - 2u && receivedLength == sizeof(source));
     assert(memcmp(reconstructed, source, sizeof(source)) == 0);
     slotOwned = false; /* The TX task releases only after SendPayload returned. */
 
     reset(); disconnectOnDelay = true;
     assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
                                     sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_ERR_INVALID_STATE);
-    assert(slotOwned && sends == 1u && fragments == 1u && delayCalls == 1u && messages == 0u && drops == 1u);
+    assert(slotOwned && sends == 2u && fragments == 2u && delayCalls == 1u && messages == 0u && drops == 1u);
     assert(s_ble.stats.txConnectionStaleDrop == 1u && s_ble.stats.fragmentError == 0u);
     slotOwned = false;
 

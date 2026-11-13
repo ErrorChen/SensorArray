@@ -9,14 +9,17 @@
 #include "esp_memory_utils.h"
 #include "esp_freertos_hooks.h"
 
-/* At 100 Hz: after 20 ms without observed IDLE0 progress, every participating
- * worker blocks at its next safe boundary. This does not bound SDK-call time.
- * A unit
- * cap also covers very short failures and queues continuously refilled within
- * one tick. This is a work budget, not an acquisition frame-rate cap. */
+/* At 100 Hz: an age of 20 ms permits only two units in a newly observed idle
+ * epoch before a block; 40 ms bypasses that grace. A task's own delay is not
+ * proof of idle, so it never renews the grace. This avoids charging a lower
+ * priority task one delay per record merely because others ran after idle.
+ * The unit cap still bounds fast failures within one tick. SDK-call execution
+ * time is not bounded here. This is not an acquisition frame-rate cap. */
 #define SENSORARRAY_WORK_BUDGET_MAX_UNITS 32u
+#define SENSORARRAY_WORK_BUDGET_GRACE_UNITS 2u
 #define SENSORARRAY_WORK_BUDGET_IDLE_TICKS \
     ((pdMS_TO_TICKS(20u) > 0u) ? pdMS_TO_TICKS(20u) : 1u)
+#define SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS (2u * SENSORARRAY_WORK_BUDGET_IDLE_TICKS)
 
 _Static_assert(sizeof(TickType_t) == sizeof(uint32_t), "32-bit tick arithmetic required");
 _Static_assert(portTICK_TYPE_IS_ATOMIC == 1, "idle observation must not take a tick lock");
@@ -31,8 +34,9 @@ typedef struct {
     uint32_t checkpoints;
     uint32_t yields;
     uint32_t maxBurstUnits;
-    /* Only this worker's task mutates these two private scheduling fields. */
+    /* Only this worker's task mutates these private scheduling fields. */
     uint32_t units;
+    uint32_t idleEpochUnits;
     uint32_t lastIdleGeneration;
 } sensorarrayWorkBudgetWorkerState_t;
 
@@ -140,23 +144,33 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
     __atomic_store_n(&state->checkpoints,
                      sensorarrayWorkBudgetLoad(&state->checkpoints) + 1u, __ATOMIC_RELAXED);
     uint32_t generation = __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
-    if (generation != state->lastIdleGeneration) {
-        state->units = 0u; /* Only actual idle progress resets a live burst. */
+    if (generation == 0u) {
+        /* Registration or our own delay is not an observed idle epoch. */
+        state->idleEpochUnits = SENSORARRAY_WORK_BUDGET_GRACE_UNITS;
+    } else if (generation != state->lastIdleGeneration) {
+        state->units = 0u;
+        state->idleEpochUnits = 0u; /* Only real idle renews this work credit. */
         state->lastIdleGeneration = generation;
     }
     state->units++;
+    if (state->idleEpochUnits < SENSORARRAY_WORK_BUDGET_GRACE_UNITS) {
+        state->idleEpochUnits++;
+    }
     if (state->units > sensorarrayWorkBudgetLoad(&state->maxBurstUnits)) {
         __atomic_store_n(&state->maxBurstUnits, state->units, __ATOMIC_RELAXED);
     }
     uint32_t reference = generation != 0u ? sensorarrayWorkBudgetLoad(&s_idleTick) :
         sensorarrayWorkBudgetLoad(&s_initTick);
     uint32_t now = (uint32_t)xTaskGetTickCount();
-    bool due = now - reference >= SENSORARRAY_WORK_BUDGET_IDLE_TICKS ||
+    uint32_t idleAge = now - reference;
+    bool due = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS ||
+        (idleAge >= SENSORARRAY_WORK_BUDGET_IDLE_TICKS &&
+         state->idleEpochUnits >= SENSORARRAY_WORK_BUDGET_GRACE_UNITS) ||
         state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
     if (!due) {
         return false;
     }
-    state->units = 0u;
+    state->units = 0u; /* Do not replenish idleEpochUnits on our own yield. */
     __atomic_store_n(&state->yields,
                      sensorarrayWorkBudgetLoad(&state->yields) + 1u, __ATOMIC_RELAXED);
     /* One bounded block only. A broken hook or continuously busy SDK task
@@ -183,6 +197,8 @@ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot
     snapshot->tickHz = configTICK_RATE_HZ;
     snapshot->idleBudgetTicks = SENSORARRAY_WORK_BUDGET_IDLE_TICKS;
     snapshot->maxWorkUnits = SENSORARRAY_WORK_BUDGET_MAX_UNITS;
+    snapshot->graceUnits = SENSORARRAY_WORK_BUDGET_GRACE_UNITS;
+    snapshot->backstopTicks = SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS;
     snapshot->idleGeneration = __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
     snapshot->idleKnown = snapshot->idleGeneration != 0u;
     uint32_t reference = snapshot->idleKnown ? sensorarrayWorkBudgetLoad(&s_idleTick) :
