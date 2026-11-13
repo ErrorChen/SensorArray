@@ -41,6 +41,8 @@ typedef struct {
 
 esp_err_t sensorarrayUsbSinkInit(void);
 esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet);
+/* 本轮新增: diagnostic packets cannot consume scientific DATA admission. */
+esp_err_t sensorarrayUsbSinkPublishDiagnostic(const sensorarrayTextPacket_t *packet);
 void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats);
 esp_err_t sensorarrayUsbSinkSetStreamProfile(sensorarrayUsbStreamMode_t mode,
                                              uint32_t dataEvery,

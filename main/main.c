@@ -2427,8 +2427,10 @@ static esp_err_t sensorarrayFormatSerialReply(char *response, size_t responseSiz
     sensorarraySerialIoStats_t serial = {0};
     sensorarraySerialIoGetStats(&serial);
     int n = snprintf(response, responseSize,
-        "SERIAL,normalSubmitted=%lu,prioritySubmitted=%lu,normalExpired=%lu,priorityExpired=%lu,priorityRejected=%lu,driverShortWrite=%lu,driverWriteError=%lu,txYield=%lu,maxQueueAgeUs=%lu,driverTxBufferBytes=%lu,driverAcceptedBytes=%llu,partialWrite=%lu\n",
+        "SERIAL,normalSubmitted=%lu,prioritySubmitted=%lu,dataSubmitted=%lu,logSubmitted=%lu,dataRejected=%lu,logRejected=%lu,normalExpired=%lu,priorityExpired=%lu,priorityRejected=%lu,driverShortWrite=%lu,driverWriteError=%lu,txYield=%lu,maxQueueAgeUs=%lu,driverTxBufferBytes=%lu,driverAcceptedBytes=%llu,partialWrite=%lu\n",
         (unsigned long)serial.normalSubmitted, (unsigned long)serial.prioritySubmitted,
+        (unsigned long)serial.dataSubmitted, (unsigned long)serial.logSubmitted,
+        (unsigned long)serial.dataRejected, (unsigned long)serial.logRejected,
         (unsigned long)serial.normalExpired, (unsigned long)serial.priorityExpired,
         (unsigned long)serial.priorityRejected, (unsigned long)serial.driverShortWrite,
         (unsigned long)serial.driverWriteError, (unsigned long)serial.txYield,
@@ -2552,7 +2554,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);
@@ -3238,7 +3240,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX);

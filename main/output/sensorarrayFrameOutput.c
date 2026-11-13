@@ -22,5 +22,5 @@ esp_err_t sensorarrayFrameOutputPrint(const sensorarrayFrame_t *frame)
     /* A scientific frame is one encoded packet, including its CRC trailer.
      * stdout is a line assembler for diagnostics and acknowledges consumption,
      * so it cannot supply this caller's queue-admission result. */
-    return sensorarraySerialIoQueue(packet.data, packet.length, false);
+    return sensorarraySerialIoQueueData(packet.data, packet.length);
 }

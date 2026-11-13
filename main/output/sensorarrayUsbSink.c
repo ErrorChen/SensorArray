@@ -53,7 +53,7 @@ esp_err_t sensorarrayUsbSinkInit(void)
     return ESP_OK;
 }
 
-esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
+static esp_err_t sensorarrayUsbSinkPublishClass(const sensorarrayTextPacket_t *packet, bool diagnostic)
 {
     if (!packet || packet->length == 0u || packet->length > SENSORARRAY_TEXT_PACKET_MAX) {
         return ESP_ERR_INVALID_ARG;
@@ -64,7 +64,8 @@ esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
     if (!s_usbInitialized) {
         return ESP_ERR_INVALID_STATE;
     }
-    esp_err_t err = sensorarraySerialIoQueue(packet->data, packet->length, false);
+    esp_err_t err = diagnostic ? sensorarraySerialIoQueue(packet->data, packet->length, false) :
+        sensorarraySerialIoQueueData(packet->data, packet->length);
     portENTER_CRITICAL(&s_usbStatsMux);
     if (err == ESP_OK) {
         /* Legacy sent means sink submission; SerialIo reports driver bytes. */
@@ -75,6 +76,16 @@ esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
     }
     portEXIT_CRITICAL(&s_usbStatsMux);
     return err;
+}
+
+esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
+{
+    return sensorarrayUsbSinkPublishClass(packet, false);
+}
+
+esp_err_t sensorarrayUsbSinkPublishDiagnostic(const sensorarrayTextPacket_t *packet)
+{
+    return sensorarrayUsbSinkPublishClass(packet, true);
 }
 
 void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *outStats)

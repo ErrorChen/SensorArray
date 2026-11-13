@@ -257,7 +257,7 @@ USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回�
 
 ### 2026-11-13 待验收补丁：RECOVER 终态与独立 I/O 观测
 
-本节描述 `0d8f60f` 失败基线之后、本轮新增的源代码接口；不把它追溯为旧镜像已有能力，也不把 host 回归等同于新镜像 HIL 通过。对应能力必须从 `PROTO?` 的 `recovery_query_v1/restart_query_v1/serial_sink_v1/work_budget_v1` 协商；修复提交、实际烧录 SHA 和新 HIL 结果由后续构建记录关联。旧基线的 VOLT1 IDLE0 watchdog 与 USB 截断证据继续保留。
+本节描述 `0d8f60f` 失败基线之后、本轮新增的源代码接口；不把它追溯为旧镜像已有能力，也不把 host 回归等同于新镜像 HIL 通过。对应能力必须从 `PROTO?` 的 `recovery_query_v1/restart_query_v1/serial_sink_v1/serial_classes_v1/work_budget_v1` 协商；修复提交、实际烧录 SHA 和新 HIL 结果由后续构建记录关联。旧基线的 VOLT1 IDLE0 watchdog 与 USB 截断证据继续保留。
 
 **RECOVER 的有界请求与结果。** 新增内部模块 `sensorarrayRecoveryControl`，对所有 transport 使用一个请求槽及一个最后结果缓存。RECOVER 与 MODE/ROWS/ROWMODES 共用已有 GuaranteedText 终态保留槽；先保留终态空间再 ACK，只有 ACK 被本地 control sink 接受后，采集 owner 才能在完整帧边界取走请求。该 ACK 只是本地提交证据。并发或重复文本在槽忙时明确拒绝，闲时再次提交是新请求；不会将有副作用的 RECOVER 重发当查询或去重令牌。ACK 本地发布失败时不运行硬件，缓存 `rejected/ack_publish_failed` 并释放保留槽。
 
@@ -288,6 +288,8 @@ USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回�
 | 字段 | 单位和计数层级 |
 | --- | --- |
 | normalSubmitted / prioritySubmitted | 完整记录被 USB 驱动接受的次数；normal 包括 DATA 和普通诊断，不等同科学帧数 |
+| dataSubmitted / logSubmitted | `serial_classes_v1` 增补：分别为完整科学帧／诊断记录被驱动接纳的次数；两者之和保持 normalSubmitted 的原聚合语义 |
+| dataRejected / logRejected | `serial_classes_v1` 增补：因相应槽位或队列容量不足而拒收的记录；VFS 按整行首次失败记一次。不是 ADC 无效点，也不包含 lineOversize |
 | normalExpired / priorityExpired | 记录从入队起的有界生命周期耗尽次数，包含排队等待；不是设备采样丢点数 |
 | priorityRejected | 优先槽或队列不能接纳记录的次数；初始化门禁前的拒绝不一定进入该计数 |
 | driverShortWrite | 驱动返回正数且少于本次请求字节的次数；0 返回的等待重试不计正短写 |
@@ -304,7 +306,7 @@ USBSTREAM输出受512B控制回复容量限制。当前实录计数下完整回�
 
 `bt/tr/log/ser/bc/sc/wc` 每项都是 `checkpoints/yields/maxBurstUnits` 三元组，依次对应 BLE TX、transport、async log、Serial TX、BLE CTRL、Serial CTRL、Wi-Fi CTRL。checkpoint 的工作单元由对应 worker 循环定义，不是统一帧数；yield 只表示真实请求了一次有界 vTaskDelay(1)，不保证 idle 当时已运行。各计数独立取样、按 uint32 回绕；它们既不是原子配置快照，也不是 CPU 利用率。注册失败仍可有 bounded fallback，但 idleKnown 必须保持诚实；不得从一次 SCHED 回复证明长期没有 watchdog 问题。
 
-本轮实际 host 回归 `tools/test_recovery_control.py` 编译执行 6 个生产模块和 19 个 main 函数/实际前置分支，硬件返回均为明确的合成边界，覆盖预算耗尽、SAFE 失败、原错/cleanup、FullRescue 失败、ACK 失败、终态丢失查询、10 类身份变化、3 transport 并发、重复请求、回绕、恢复后合法 MODE，以及 early/runtime 四个查询及两条 RESTART 命令的真实 dispatch。极值实际输出：RECOVERY 450 B、RAPP 330 B、带旧字段的 RERR 335 B（384 B 含 NUL 容量）、SERIAL 339 B、七 worker SCHED（含 graceUnits/backstopTicks）484 B（各查询 512 B 含 NUL 容量）；所有 snprintf 越界返回错误，不发布截断文本。新恢复缓存结构在 host ABI 下为 264 B 静态状态，目标 ABI 内存增量由实际构建记录确认。原 RTC 重启预算回归保留在 `tools/test_restart_budget.py`，旧 RECOVER 身份覆盖移入新测试并增加 revision fencing。上述通过不代表 HIL 或物理安全验收已完成。
+本轮实际 host 回归 `tools/test_recovery_control.py` 编译执行 6 个生产模块和 19 个 main 函数/实际前置分支，硬件返回均为明确的合成边界，覆盖预算耗尽、SAFE 失败、原错/cleanup、FullRescue 失败、ACK 失败、终态丢失查询、10 类身份变化、3 transport 并发、重复请求、回绕、恢复后合法 MODE，以及 early/runtime 四个查询及两条 RESTART 命令的真实 dispatch。极值实际输出：RECOVERY 450 B、RAPP 330 B、带旧字段的 RERR 335 B（384 B 含 NUL 容量）、SERIAL（含 DATA/LOG 分类字段）435 B、七 worker SCHED（含 graceUnits/backstopTicks）484 B（各查询 512 B 含 NUL 容量）；所有 snprintf 越界返回错误，不发布截断文本。新恢复缓存结构在 host ABI 下为 264 B 静态状态，目标 ABI 内存增量由实际构建记录确认。原 RTC 重启预算回归保留在 `tools/test_restart_budget.py`，旧 RECOVER 身份覆盖移入新测试并增加 revision fencing。上述通过不代表 HIL 或物理安全验收已完成。
 
 
 **显式 RESTART 的独立请求槽（同轮补齐）。** 旧生产 `sensorarrayRestartPost/Take` 可复现：先后 RACK 接受 id=1/2 后只执行 id=2，或 id=3 的 ACK 发布失败后仍执行，甚至 Take 可早于任何 ACK 回调。这是软件控制缺陷，反例源函数和输出保存在 `docs/audit/artifacts/load_reliability_fix_20261113/restart-control-before-01.json/.txt`；该实录是生产函数配合**合成命令交错/失败**的 host 执行，不是设备重启证据。

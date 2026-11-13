@@ -1428,7 +1428,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
     if (position < sizeof(packet->data) && position <= UINT16_MAX) {
         packet->length = (uint16_t)position;
         if (usbDue) {
-            (void)sensorarrayUsbSinkPublish(packet);
+            (void)sensorarrayUsbSinkPublishDiagnostic(packet);
         }
         if (netDue) {
             (void)sensorarrayNetLogPublish(packet);
@@ -1444,7 +1444,7 @@ static void sensorarrayAsyncLogPrintCompactSummary(sensorarrayAsyncLogSummary_t 
         adsPosition <= UINT16_MAX) {
         adsPacket->length = (uint16_t)adsPosition;
         if (usbDue) {
-            (void)sensorarrayUsbSinkPublish(adsPacket);
+            (void)sensorarrayUsbSinkPublishDiagnostic(adsPacket);
         }
         if (netDue) {
             (void)sensorarrayNetLogPublish(adsPacket);

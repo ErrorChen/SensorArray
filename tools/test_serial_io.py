@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--baseline", help="Also reproduce VFS/64-byte corruption using this unmodified git revision")
 parser.add_argument("--fragment-baseline", help="Also reproduce printf fragment/priority concatenation using this unmodified git revision")
 parser.add_argument("--tx-baseline", help="Also reproduce 20ms chunk expiry using this unmodified git revision")
+parser.add_argument("--admission-baseline", help="Reproduce diagnostic FIFO saturation rejecting DATA at this unmodified revision")
 parser.add_argument("--source", type=Path, help="Run all current production regressions against an explicitly saved SerialIo source")
 args = parser.parse_args()
 fixture = root / "tests/fixtures/serial_io"
@@ -69,6 +70,23 @@ def actual_function(source, signature):
 
 with tempfile.TemporaryDirectory(prefix="sensorarray-serial-io-") as temp:
     temp = Path(temp)
+    # Generate the exact current seven-record fault burst from the production
+    # formatter. Values are synthetic; this is not a reconstructed field log.
+    fault_exe = temp / "fault_fixture"
+    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-I", str(root / "tests/host/include"), "-I", str(root / "core/measure/ads"),
+                    str(root / "tests/host/emit_ads_fault_fixture.c"),
+                    str(root / "core/measure/ads/sensorarrayAdsFault.c"), "-o", str(fault_exe)], check=True)
+    fault_output = subprocess.check_output([str(fault_exe)], text=True)
+    fault_body = next(part for part in fault_output.split("# fixture=")[1:] if part.startswith("POWER_COMPARE;"))
+    fault_lines = fault_body.splitlines(keepends=True)[1:]
+    assert len(fault_lines) == 7
+    assert [line.split(",", 1)[0] for line in fault_lines[:4]] == ["ADSFAULT", "ADSFAULTRAIL", "ADSFAULTCTX", "ADSFAULTREG"]
+    (temp / "serial_fault_burst.h").write_text(
+        "/* Synthetic values, emitted by the actual current C fault formatter. */\n"
+        + "static const char faultBurst[] = " + json.dumps("".join(fault_lines)) + ";\n"
+        + "#define FAULT_FIRST_FOUR_BYTES " + str(sum(len(line.encode("ascii")) for line in fault_lines[:4])) + "u\n")
+    print("ADS_FAULT_BURST_SOURCE,records=7,producer=actual_C_formatter,fixture=synthetic", flush=True)
     if idf and (idf / "components/esp_ringbuf/ringbuf.c").exists():
         ring = (idf / "components/esp_ringbuf/ringbuf.c").read_text()
         usb = (idf / "components/esp_driver_usb_serial_jtag/src/usb_serial_jtag.c").read_text()
@@ -167,6 +185,19 @@ static struct _reent testGlobalReent;
         + "static const char encodedFrame[] = " + json.dumps(encoded_frame.decode("ascii")) + ";\n")
     frame_output = (root / "main/output/sensorarrayFrameOutput.c").read_text()
     (temp / "frame_output_function.h").write_text(frame_output[frame_output.index("esp_err_t sensorarrayFrameOutputPrint("):])
+    usb_sink = (root / "main/output/sensorarrayUsbSink.c").read_text()
+    usb_header = (root / "main/output/sensorarrayUsbSink.h").read_text()
+    packet_header = (root / "main/output/sensorarrayTextProtocol.h").read_text()
+    packet_max = re.search(r"^#define SENSORARRAY_TEXT_PACKET_MAX\s+\d+u$", packet_header, re.M).group()
+    begin = usb_header.index("typedef struct {\n    uint32_t sentPackets;")
+    end = usb_header.index("} sensorarrayUsbSinkStats_t;", begin) + len("} sensorarrayUsbSinkStats_t;")
+    (temp / "usb_sink_functions.h").write_text(packet_max + "\n" + usb_header[begin:end] + "\n" +
+        "static portMUX_TYPE s_usbStatsMux = portMUX_INITIALIZER_UNLOCKED;\n"
+        "static sensorarrayUsbSinkStats_t s_usbStats;\nstatic bool s_usbInitialized = true;\n" +
+        "\n".join(actual_function(usb_sink, signature) for signature in (
+            "static esp_err_t sensorarrayUsbSinkPublishClass(const sensorarrayTextPacket_t *packet, bool diagnostic)",
+            "esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)",
+            "esp_err_t sensorarrayUsbSinkPublishDiagnostic(const sensorarrayTextPacket_t *packet)")))
     for file in ["freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h", "driver/usb_serial_jtag.h", "esp_timer.h", "esp_vfs.h", "esp_freertos_hooks.h"]:
         (temp / file).write_text('#include "common.h"\n')
     (temp / "esp_heap_caps.h").write_text("#include <stddef.h>\n#include <stdint.h>\n#define MALLOC_CAP_8BIT 1u\n#define MALLOC_CAP_SPIRAM 2u\n#define MALLOC_CAP_INTERNAL 4u\nvoid *heap_caps_calloc(size_t count, size_t size, uint32_t caps);\n")
@@ -194,7 +225,13 @@ static struct _reent testGlobalReent;
         baseline_exe = temp / "tx_baseline"
         subprocess.run(compile_args + ["-DSERIAL_IO_TX_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
         subprocess.run([str(baseline_exe)], check=True)
+    if args.admission_baseline:
+        baseline = temp / "admissionBaselineSerialIo.c"
+        baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.admission_baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
+        baseline_exe = temp / "admission_baseline"
+        subprocess.run(compile_args + ["-DSERIAL_IO_ADMISSION_BASELINE", f'-DSERIAL_IO_SOURCE="{baseline}"', "-o", str(baseline_exe)], check=True)
+        subprocess.run([str(baseline_exe)], check=True)
     source_override = [f'-DSERIAL_IO_SOURCE="{args.source.resolve()}"'] if args.source else []
     subprocess.run(compile_args + source_override + ["-o", str(exe)], check=True)
-    for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry", "foreign_driver"]:
+    for allocation in ["psram", "internal", "failure_retry", "registration_retry", "stdout_retry", "stderr_retry", "route_probe_retry", "queue_retry", "task_retry", "foreign_driver"]:
         subprocess.run([str(exe), allocation], check=True)

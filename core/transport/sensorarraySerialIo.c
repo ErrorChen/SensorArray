@@ -22,6 +22,15 @@
 /* One physical TX owner. stdout/log, DATA and priority replies all enter bounded
  * queues; no network or acquisition task calls a USB write/flush. */
 #define SERIAL_IO_QUEUE_COUNT 4u
+#define SERIAL_IO_LOG_QUEUE_COUNT 4u
+#define SERIAL_IO_DATA_SLOT_COUNT 5u
+#define SERIAL_IO_PRIORITY_SLOT_COUNT 4u
+#define SERIAL_IO_LOG_SLOT_COUNT 5u
+#define SERIAL_IO_LOG_FIRST_SLOT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_PRIORITY_SLOT_COUNT)
+#define SERIAL_IO_SLOT_COUNT (SERIAL_IO_LOG_FIRST_SLOT + SERIAL_IO_LOG_SLOT_COUNT)
+#define SERIAL_IO_NORMAL_SLOT_COUNT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT)
+#define SERIAL_IO_DATA_BURST_MAX 4u
+enum { SERIAL_IO_DATA = 0, SERIAL_IO_PRIORITY, SERIAL_IO_LOG, SERIAL_IO_LANE_COUNT };
 /* IDF 5.5.5 BYTEBUF has xMaxItemSize == xSize; write_bytes copies the entire
  * item or returns zero. Give it room for the largest complete protocol packet,
  * instead of releasing a 64-byte prefix when a later chunk times out. */
@@ -35,14 +44,17 @@
 #define SERIAL_IO_VFS_DEVICE 0x5341u
 _Static_assert(sizeof(SERIAL_IO_VFS_PATH) - 1u <= ESP_VFS_PATH_MAX,
                "Serial output VFS path exceeds ESP-IDF's registration limit");
-/* DATA has five slots (four queued + consumer); priority has four smaller
- * slots. No producer allocates a full payload on its task stack. */
+/* Both DATA and LOG retain the original five slots/four queue entries
+ * independently. In particular, the four leading fault records (root cause,
+ * rail, context and registers) keep their previous empty-queue admission.
+ * Stdio assembles only in LOG slots, so an unfinished printf or diagnostic
+ * burst cannot consume DATA capacity. Priority retains four smaller slots. */
 static char (*s_dataBytes)[SENSORARRAY_TRANSPORT_TEXT_MAX];
 static uint8_t s_dataMemory; /* 0 unavailable, 1 internal, 2 PSRAM */
-static char s_priorityBytes[4][SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX];
-static uint16_t s_lengths[9];
-static int64_t s_enqueuedUs[9];
-static int64_t s_deadlineUs[9];
+static char s_priorityBytes[SERIAL_IO_PRIORITY_SLOT_COUNT][SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX];
+static uint16_t s_lengths[SERIAL_IO_SLOT_COUNT];
+static int64_t s_enqueuedUs[SERIAL_IO_SLOT_COUNT];
+static int64_t s_deadlineUs[SERIAL_IO_SLOT_COUNT];
 static bool s_driverOwned;
 _Static_assert(SERIAL_IO_DRIVER_TX_BYTES >= SENSORARRAY_TRANSPORT_TEXT_MAX,
                "USB byte ring must admit one complete DATA record");
@@ -50,13 +62,15 @@ _Static_assert(SERIAL_IO_DRIVER_TX_BYTES >= SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                "USB byte ring must admit one complete priority record");
 static char *sensorarraySerialBytes(unsigned index)
 {
-    return index < 5u ? s_dataBytes[index] : s_priorityBytes[index - 5u];
+    if (index < SERIAL_IO_DATA_SLOT_COUNT) { return s_dataBytes[index]; }
+    if (index < SERIAL_IO_LOG_FIRST_SLOT) { return s_priorityBytes[index - SERIAL_IO_DATA_SLOT_COUNT]; }
+    return s_dataBytes[SERIAL_IO_DATA_SLOT_COUNT + index - SERIAL_IO_LOG_FIRST_SLOT];
 }
-static StaticQueue_t s_queueStorage[2];
-static uint8_t s_queueBytes[2][SERIAL_IO_QUEUE_COUNT * sizeof(uint8_t)];
-static bool s_inUse[9];
+static StaticQueue_t s_queueStorage[SERIAL_IO_LANE_COUNT];
+static uint8_t s_queueBytes[SERIAL_IO_LANE_COUNT][SERIAL_IO_QUEUE_COUNT * sizeof(uint8_t)];
+static bool s_inUse[SERIAL_IO_SLOT_COUNT];
 static portMUX_TYPE s_poolMux = portMUX_INITIALIZER_UNLOCKED;
-static QueueHandle_t s_queues[2];
+static QueueHandle_t s_queues[SERIAL_IO_LANE_COUNT];
 static TaskHandle_t s_task;
 
 static portMUX_TYPE s_statsMux = portMUX_INITIALIZER_UNLOCKED;
@@ -66,9 +80,9 @@ static bool s_vfsRegistered;
 static bool s_stdoutBound;
 static bool s_stderrBound;
 
-/* Each stream borrows at most one existing normal slot while a line is
- * incomplete. Two unfinished streams therefore still leave three slots for
- * DATA/complete logs. ESP-IDF shares each FILE across tasks; its FILE lock
+/* Each stream borrows at most one LOG slot while a line is incomplete.
+ * Two unfinished streams leave all DATA and priority slots available.
+ * ESP-IDF shares each FILE across tasks; its FILE lock
  * serializes writes/close within that stream, while stdout/stderr stay distinct.
  * No formatter holds a queue/pool lock across a USB operation. */
 typedef struct {
@@ -80,11 +94,15 @@ static sensorarraySerialLine_t s_lines[2] = {
     {.index = UINT8_MAX}, {.index = UINT8_MAX},
 };
 
-static uint8_t sensorarraySerialClaimSlot(bool priority)
+static uint8_t sensorarraySerialClaimSlot(unsigned lane)
 {
     uint8_t index = UINT8_MAX;
+    unsigned first = lane == SERIAL_IO_DATA ? 0u :
+        (lane == SERIAL_IO_PRIORITY ? SERIAL_IO_DATA_SLOT_COUNT : SERIAL_IO_LOG_FIRST_SLOT);
+    unsigned end = lane == SERIAL_IO_DATA ? SERIAL_IO_DATA_SLOT_COUNT :
+        (lane == SERIAL_IO_PRIORITY ? SERIAL_IO_LOG_FIRST_SLOT : SERIAL_IO_SLOT_COUNT);
     portENTER_CRITICAL(&s_poolMux);
-    for (unsigned i = priority ? 5u : 0u; i < (priority ? 9u : 5u); ++i) {
+    for (unsigned i = first; i < end; ++i) {
         if (!s_inUse[i]) { s_inUse[i] = true; index = (uint8_t)i; break; }
     }
     portEXIT_CRITICAL(&s_poolMux);
@@ -98,15 +116,16 @@ static void sensorarraySerialReleaseSlot(uint8_t index)
     portEXIT_CRITICAL(&s_poolMux);
 }
 
-static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, bool priority)
+static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsigned lane)
 {
+    bool priority = lane == SERIAL_IO_PRIORITY;
     bool queued = false;
     if (index != UINT8_MAX) {
         s_lengths[index] = (uint16_t)length;
         s_enqueuedUs[index] = esp_timer_get_time();
         s_deadlineUs[index] = s_enqueuedUs[index] +
             (priority ? SERIAL_IO_PRIORITY_LIFETIME_US : SERIAL_IO_NORMAL_LIFETIME_US);
-        queued = xQueueSend(s_queues[priority ? 1 : 0], &index, 0) == pdTRUE;
+        queued = xQueueSend(s_queues[lane], &index, 0) == pdTRUE;
         if (!queued) {
             sensorarraySerialReleaseSlot(index);
         }
@@ -118,6 +137,8 @@ static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, bool
     } else {
         s_stats.sinkDropped++;
         s_stats.priorityRejected += priority ? 1u : 0u;
+        s_stats.dataRejected += lane == SERIAL_IO_DATA ? 1u : 0u;
+        s_stats.logRejected += lane == SERIAL_IO_LOG ? 1u : 0u;
     }
     portEXIT_CRITICAL(&s_statsMux);
     if (queued) {
@@ -126,8 +147,9 @@ static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, bool
     return queued ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
-esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)
+static esp_err_t sensorarraySerialQueueRecord(const char *data, size_t length, unsigned lane)
 {
+    bool priority = lane == SERIAL_IO_PRIORITY;
     if (!data || !length || length > (priority ? SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX : SENSORARRAY_TRANSPORT_TEXT_MAX)) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -136,21 +158,32 @@ esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priorit
      * protocol/DATA TX closed. Registration failure leaves the early console
      * intact; command RX does not depend on this output gate. */
     if (!atomic_load_explicit(&s_vfsReady, memory_order_acquire) ||
-        !s_task || !s_queues[priority ? 1 : 0]) {
+        !s_task || !s_queues[lane]) {
         return ESP_ERR_INVALID_STATE;
     }
-    uint8_t index = sensorarraySerialClaimSlot(priority);
+    uint8_t index = sensorarraySerialClaimSlot(lane);
     if (index != UINT8_MAX) { memcpy(sensorarraySerialBytes(index), data, length); }
-    return sensorarraySerialPublishSlot(index, length, priority);
+    return sensorarraySerialPublishSlot(index, length, lane);
 }
 
-static void sensorarraySerialLineDrop(size_t bytes, bool oversize, bool sinkCounted)
+esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority)
+{
+    return sensorarraySerialQueueRecord(data, length, priority ? SERIAL_IO_PRIORITY : SERIAL_IO_LOG);
+}
+
+esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length)
+{
+    return sensorarraySerialQueueRecord(data, length, SERIAL_IO_DATA);
+}
+
+static void sensorarraySerialLineDrop(size_t bytes, bool oversize, bool sinkCounted, bool capacityRejected)
 {
     portENTER_CRITICAL(&s_statsMux);
     s_stats.lineDropped++;
     s_stats.lineOversize += oversize ? 1u : 0u;
     s_stats.discardBytes += bytes;
     s_stats.sinkDropped += sinkCounted ? 0u : 1u;
+    s_stats.logRejected += capacityRejected && !sinkCounted ? 1u : 0u;
     portEXIT_CRITICAL(&s_statsMux);
 }
 
@@ -168,7 +201,7 @@ static int sensorarraySerialClose(int fd)
     sensorarraySerialLine_t *line = &s_lines[fd];
     if (line->index != UINT8_MAX) {
         sensorarraySerialReleaseSlot(line->index);
-        sensorarraySerialLineDrop(line->length, false, false);
+        sensorarraySerialLineDrop(line->length, false, false, false);
     }
     *line = (sensorarraySerialLine_t){.index = UINT8_MAX};
     return 0;
@@ -217,13 +250,13 @@ static ssize_t sensorarraySerialWrite(int fd, const void *data, size_t size)
             portEXIT_CRITICAL(&s_statsMux);
             line->discarding = newline == NULL;
         } else {
-            if (line->index == UINT8_MAX) { line->index = sensorarraySerialClaimSlot(false); }
+            if (line->index == UINT8_MAX) { line->index = sensorarraySerialClaimSlot(SERIAL_IO_LOG); }
             if (line->index == UINT8_MAX) {
-                sensorarraySerialLineDrop(part, false, false);
+                sensorarraySerialLineDrop(part, false, false, true);
                 line->discarding = newline == NULL;
             } else if (part > SENSORARRAY_TRANSPORT_TEXT_MAX - line->length) {
                 sensorarraySerialReleaseSlot(line->index);
-                sensorarraySerialLineDrop(line->length + part, true, false);
+                sensorarraySerialLineDrop(line->length + part, true, false, false);
                 *line = (sensorarraySerialLine_t){.index = UINT8_MAX, .discarding = newline == NULL};
             } else {
                 memcpy(sensorarraySerialBytes(line->index) + line->length, bytes + offset, part);
@@ -232,8 +265,8 @@ static ssize_t sensorarraySerialWrite(int fd, const void *data, size_t size)
                     uint8_t index = line->index;
                     size_t length = line->length;
                     *line = (sensorarraySerialLine_t){.index = UINT8_MAX};
-                    if (sensorarraySerialPublishSlot(index, length, false) != ESP_OK) {
-                        sensorarraySerialLineDrop(length, false, true);
+                    if (sensorarraySerialPublishSlot(index, length, SERIAL_IO_LOG) != ESP_OK) {
+                        sensorarraySerialLineDrop(length, false, true, true);
                     }
                 }
             }
@@ -267,14 +300,15 @@ static void sensorarraySerialTxTask(void *arg)
      * lifetime expires. An unstarted normal record can wait while priority
      * runs; an unexpected positive short write must finish before any other
      * record. The driver copies synchronously, so it retains no slot pointer. */
-    uint8_t pending[2] = {UINT8_MAX, UINT8_MAX};
-    size_t offset[2] = {0u, 0u};
+    uint8_t pending[SERIAL_IO_LANE_COUNT] = {UINT8_MAX, UINT8_MAX, UINT8_MAX};
+    size_t offset[SERIAL_IO_LANE_COUNT] = {0u, 0u, 0u};
+    unsigned dataBurst = 0u;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         for (;;) {
             int64_t nowUs = esp_timer_get_time();
             bool drainProgress = false;
-            for (unsigned lane = 0; lane < 2u; ++lane) {
+            for (unsigned lane = 0; lane < SERIAL_IO_LANE_COUNT; ++lane) {
                 if (pending[lane] == UINT8_MAX &&
                     xQueueReceive(s_queues[lane], &pending[lane], 0) == pdTRUE) {
                     offset[lane] = 0u;
@@ -285,7 +319,7 @@ static void sensorarraySerialTxTask(void *arg)
                     s_stats.timeout++;
                     s_stats.sinkDropped++;
                     s_stats.partialWrite += offset[lane] != 0u ? 1u : 0u;
-                    if (lane) { s_stats.priorityExpired++; }
+                    if (lane == SERIAL_IO_PRIORITY) { s_stats.priorityExpired++; }
                     else { s_stats.normalExpired++; }
                     portEXIT_CRITICAL(&s_statsMux);
                     needsDelimiter |= offset[lane] != 0u;
@@ -295,7 +329,8 @@ static void sensorarraySerialTxTask(void *arg)
                     drainProgress = true;
                 }
             }
-            if (pending[0] == UINT8_MAX && pending[1] == UINT8_MAX) {
+            if (pending[SERIAL_IO_DATA] == UINT8_MAX && pending[SERIAL_IO_PRIORITY] == UINT8_MAX &&
+                pending[SERIAL_IO_LOG] == UINT8_MAX) {
                 if (drainProgress) {
                     sensorarraySerialTxCheckpoint();
                     /* The initial pdTRUE take consumed all wake counts. A
@@ -305,7 +340,21 @@ static void sensorarraySerialTxTask(void *arg)
                 }
                 break;
             }
-            unsigned lane = offset[0] != 0u ? 0u : (pending[1] != UINT8_MAX ? 1u : 0u);
+            /* A positive prefix in ANY lane owns the wire until completion
+             * or expiry. At whole-record boundaries control wins; DATA gets
+             * priority over LOG, with one waiting LOG served after at most
+             * four completed DATA records. No DATA/log record is relabelled. */
+            unsigned lane = SERIAL_IO_LANE_COUNT;
+            for (unsigned i = 0; i < SERIAL_IO_LANE_COUNT; ++i) {
+                if (offset[i] != 0u) { lane = i; break; }
+            }
+            if (lane == SERIAL_IO_LANE_COUNT) {
+                if (pending[SERIAL_IO_PRIORITY] != UINT8_MAX) { lane = SERIAL_IO_PRIORITY; }
+                else if (pending[SERIAL_IO_DATA] != UINT8_MAX &&
+                         (pending[SERIAL_IO_LOG] == UINT8_MAX || dataBurst < SERIAL_IO_DATA_BURST_MAX)) {
+                    lane = SERIAL_IO_DATA;
+                } else { lane = SERIAL_IO_LOG; }
+            }
             uint8_t index = pending[lane];
             const char *packetData = sensorarraySerialBytes(index);
             size_t packetLength = s_lengths[index];
@@ -358,9 +407,15 @@ static void sensorarraySerialTxTask(void *arg)
                 if (offset[lane] == packetLength) {
                     needsDelimiter = packetData[packetLength - 1u] != '\n';
                     portENTER_CRITICAL(&s_statsMux);
-                    if (lane) { s_stats.prioritySubmitted++; }
-                    else { s_stats.normalSubmitted++; }
+                    if (lane == SERIAL_IO_PRIORITY) { s_stats.prioritySubmitted++; }
+                    else {
+                        s_stats.normalSubmitted++;
+                        if (lane == SERIAL_IO_DATA) { s_stats.dataSubmitted++; }
+                        else { s_stats.logSubmitted++; }
+                    }
                     portEXIT_CRITICAL(&s_statsMux);
+                    if (lane == SERIAL_IO_DATA && dataBurst < SERIAL_IO_DATA_BURST_MAX) { dataBurst++; }
+                    else if (lane == SERIAL_IO_LOG) { dataBurst = 0u; }
                     sensorarraySerialReleaseSlot(index);
                     pending[lane] = UINT8_MAX;
                     offset[lane] = 0u;
@@ -386,12 +441,12 @@ esp_err_t sensorarraySerialIoInit(void)
     if (!s_dataBytes) {
         /* CPU-only payload: the driver copies each complete record into its own
          * internal ring buffer. Allocate once, outside every producer path. */
-        s_dataBytes = heap_caps_calloc(5u, sizeof(*s_dataBytes),
+        s_dataBytes = heap_caps_calloc(SERIAL_IO_NORMAL_SLOT_COUNT, sizeof(*s_dataBytes),
                                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (s_dataBytes) {
             s_dataMemory = SENSORARRAY_SERIAL_MEMORY_PSRAM;
         } else {
-            s_dataBytes = heap_caps_calloc(5u, sizeof(*s_dataBytes),
+            s_dataBytes = heap_caps_calloc(SERIAL_IO_NORMAL_SLOT_COUNT, sizeof(*s_dataBytes),
                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
             if (s_dataBytes) { s_dataMemory = SENSORARRAY_SERIAL_MEMORY_INTERNAL; }
         }
@@ -411,8 +466,9 @@ esp_err_t sensorarraySerialIoInit(void)
         /* Hook errors remain visible through WorkBudget diagnostics; its
          * bounded fallback preserves this independent control/TX service. */
         (void)sensorarrayWorkBudgetInit();
-        for (unsigned i = 0; i < 2u; ++i) {
-            s_queues[i] = xQueueCreateStatic(SERIAL_IO_QUEUE_COUNT, sizeof(uint8_t),
+        for (unsigned i = 0; i < SERIAL_IO_LANE_COUNT; ++i) {
+            unsigned count = i == SERIAL_IO_LOG ? SERIAL_IO_LOG_QUEUE_COUNT : SERIAL_IO_QUEUE_COUNT;
+            s_queues[i] = xQueueCreateStatic(count, sizeof(uint8_t),
                                             s_queueBytes[i], &s_queueStorage[i]);
             if (!s_queues[i]) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
         }
@@ -485,7 +541,7 @@ void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats)
     portENTER_CRITICAL(&s_statsMux);
     *outStats = s_stats;
     portEXIT_CRITICAL(&s_statsMux);
-    outStats->normalBufferBytes = s_dataBytes ? 5u * sizeof(*s_dataBytes) : 0u;
+    outStats->normalBufferBytes = s_dataBytes ? SERIAL_IO_NORMAL_SLOT_COUNT * sizeof(*s_dataBytes) : 0u;
     outStats->driverTxBufferBytes = s_driverOwned ? SERIAL_IO_DRIVER_TX_BYTES : 0u;
     outStats->normalBufferMemory = s_dataMemory;
     outStats->taskStackConfiguredBytes = 4096u;

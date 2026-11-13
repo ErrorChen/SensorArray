@@ -287,6 +287,8 @@ static void testSerial(void) {
     char out[512];assert(sensorarrayFormatSerialReply(out,sizeof(out))==ESP_OK);
     assert(strlen(out)<512&&strstr(out,"driverAcceptedBytes=18446744073709551615"));
     assert(strstr(out,"normalSubmitted=4294967295")&&strstr(out,"driverTxBufferBytes=4294967295")&&serialSnapshotCalls==1);
+    assert(strstr(out,"dataSubmitted=4294967295,logSubmitted=4294967295") &&
+           strstr(out,"dataRejected=4294967295,logRejected=4294967295"));
     printf("SERIAL_QUERY_EXTREMA_PASS,bytes=%zu,capacity=512,one_snapshot=1\n",strlen(out));
     assert(sensorarrayFormatSerialReply(out,20)==ESP_ERR_INVALID_SIZE&&out[0]=='\0');
 }

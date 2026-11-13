@@ -1,12 +1,14 @@
-/* Exercises actual BLE payload/fragment planner around the new checkpoint. */
+/* Actual BLE payload/planner + generated encoder frame; all timing is synthetic. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "sensorarrayWorkBudget.c"
+#include "work_budget_frame.h"
 #define SENSORARRAY_BLE_ATTR_VALUE_MAX 512u
 #define SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE 80u
 #define SENSORARRAY_BLE_TINY_TAIL_MIN 8u
 #define SENSORARRAY_BLE_TX_FAST 0
+#define SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT 4u
 
 typedef enum { SENSORARRAY_BLE_CH_DATA, SENSORARRAY_BLE_CH_LOG, SENSORARRAY_BLE_CH_CTRL } sensorarrayBleChannel_t;
 typedef struct { bool congested, confirm; unsigned txMode, mtu, connectionGeneration; } sensorarrayBleSendContext_t;
@@ -17,10 +19,12 @@ static struct {
 } s_ble;
 static int s_bleMux;
 static unsigned lockDepth, nowTick, delayCalls, drops, messages, sends, fragments, totalFragments;
+static unsigned currentMtu, ticksPerSend, disconnectAfterSends;
+static unsigned checkpointBeforeSend, fragmentsInBatch, maxFragmentsInBatch;
 static bool slotOwned, connected, disconnectOnDelay, failSend, congested;
 static esp_freertos_idle_cb_t idleHook;
-static uint8_t source[128], reconstructed[128];
-static size_t receivedLength;
+static uint8_t source[2304], original[2304], reconstructed[2304];
+static size_t messageBytes, receivedLength;
 #define portENTER_CRITICAL(mux) do { (void)(mux); lockDepth++; } while (0)
 #define portEXIT_CRITICAL(mux) do { (void)(mux); assert(lockDepth); lockDepth--; } while (0)
 TickType_t xTaskGetTickCount(void) { return nowTick; }
@@ -28,8 +32,7 @@ int xPortGetCoreID(void) { return 0; }
 void vTaskDelay(TickType_t ticks)
 {
     assert(ticks == 1u && lockDepth == 0u && slotOwned);
-    /* A caller retains payload ownership while the new checkpoint blocks. */
-    assert(memcmp(source, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26u) == 0);
+    assert(memcmp(source, original, messageBytes) == 0);
     delayCalls++; nowTick++;
     if (disconnectOnDelay) { connected = false; }
 }
@@ -43,7 +46,7 @@ static bool sensorarrayBleSnapshotSendContext(sensorarrayBleChannel_t channel, u
                                               sensorarrayBleSendContext_t *out)
 {
     (void)channel; assert(generation == 3u);
-    *out = (sensorarrayBleSendContext_t){.mtu=83u, .connectionGeneration=3u, .congested=congested};
+    *out = (sensorarrayBleSendContext_t){.mtu=currentMtu, .connectionGeneration=3u, .congested=congested};
     return connected;
 }
 static bool sensorarrayBleSendContextMatches(sensorarrayBleChannel_t channel,
@@ -63,66 +66,108 @@ static esp_err_t sensorarrayBleSendGattValue(const sensorarrayBleSendContext_t *
 {
     (void)channel;
     assert(context && slotOwned && lockDepth == 0u && handle == 12u && !confirm);
-    assert(length <= 80u); sends++;
+    assert(length <= currentMtu - 3u); sends++;
+    unsigned checkpoints = s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints;
+    if (checkpointBeforeSend != checkpoints) { fragmentsInBatch = 0u; checkpointBeforeSend = checkpoints; }
+    fragmentsInBatch++;
+    if (fragmentsInBatch > maxFragmentsInBatch) { maxFragmentsInBatch = fragmentsInBatch; }
     if (failSend) { return ESP_FAIL; }
     char envelope; unsigned mid, index, count, chunk, messageLength, crc; int header = 0;
     assert(sscanf((char *)data, "G,%c,%u,%u,%u,%u,%u,%x\n%n", &envelope, &mid, &index,
                   &count, &chunk, &messageLength, &crc, &header) == 7);
-    assert(envelope == 'D' && mid == 1u && index == fragments && messageLength == sizeof(source));
-    assert(crc == sensorarrayBleCrc32(source, sizeof(source)) && (unsigned)header + chunk == length);
+    assert(envelope == 'D' && mid == 1u && index == fragments && messageLength == messageBytes);
+    assert(crc == sensorarrayBleCrc32(source, messageBytes) && (unsigned)header + chunk == length);
     assert(receivedLength + chunk <= sizeof(reconstructed));
     memcpy(reconstructed + receivedLength, data + header, chunk);
     receivedLength += chunk; fragments++; totalFragments = count;
+    nowTick += ticksPerSend;
+    if (disconnectAfterSends && sends >= disconnectAfterSends) { connected = false; }
     return ESP_OK;
 }
 /* sensorarrayBleMaxPayloadSize */
 /* sensorarrayBlePlanFragments */
 /* sensorarrayBleSendFragment */
 /* sensorarrayBleSendPayload */
-static void reset(void)
+static void reset(bool largeSynthetic, unsigned mtu)
 {
     memset(&s_ble, 0, sizeof(s_ble)); memset(s_workers, 0, sizeof(s_workers));
     s_initState = s_initTick = s_idleGeneration = s_idleTick = s_maxIdleGapTicks = 0u;
     s_initError = ESP_ERR_INVALID_STATE;
     lockDepth = nowTick = delayCalls = drops = messages = sends = fragments = totalFragments = 0u;
-    receivedLength = 0u;
+    ticksPerSend = disconnectAfterSends = 0u;
+    checkpointBeforeSend = fragmentsInBatch = maxFragmentsInBatch = 0u;
+    receivedLength = 0u; currentMtu = mtu;
     slotOwned = connected = true; disconnectOnDelay = failSend = congested = false;
-    for (unsigned i = 0u; i < sizeof(source); ++i) { source[i] = (uint8_t)('A' + i % 26u); }
-    assert(sensorarrayWorkBudgetInit() == ESP_OK && idleHook);
-    assert(idleHook());
-    nowTick = 2u; /* Other continuously-ready CPU0 work has kept idle out. */
+    if (largeSynthetic) {
+        messageBytes = sizeof(source);
+        for (unsigned i = 0u; i < sizeof(source); ++i) { source[i] = (uint8_t)('A' + i % 26u); }
+    } else {
+        messageBytes = sizeof(referenceFrame);
+        assert(messageBytes <= sizeof(source));
+        memcpy(source, referenceFrame, messageBytes);
+    }
+    memcpy(original, source, messageBytes);
+    assert(sensorarrayWorkBudgetInit() == ESP_OK && idleHook && idleHook());
+    nowTick = 2u;
+    /* The actual TX task calls its existing checkpoint before dequeuing. */
+    assert(!sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX));
+}
+static esp_err_t sendPayload(void)
+{
+    return sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes,
+                                    sensorarrayBleCrc32(source, messageBytes), 3u);
+}
+static void assertComplete(void)
+{
+    assert(slotOwned && fragments == totalFragments && fragments > 1u && messages == 1u && drops == 0u);
+    assert(receivedLength == messageBytes && memcmp(reconstructed, source, messageBytes) == 0);
+    assert(maxFragmentsInBatch <= SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
 }
 int main(void)
 {
-    reset();
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
-                                    sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_OK);
-    assert(slotOwned && fragments == totalFragments && fragments > 1u && messages == 1u && drops == 0u);
-    assert(delayCalls == fragments - 2u && receivedLength == sizeof(source));
-    assert(memcmp(reconstructed, source, sizeof(source)) == 0);
-    slotOwned = false; /* The TX task releases only after SendPayload returned. */
-
-    reset(); disconnectOnDelay = true;
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
-                                    sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_ERR_INVALID_STATE);
-    assert(slotOwned && sends == 2u && fragments == 2u && delayCalls == 1u && messages == 0u && drops == 1u);
-    assert(s_ble.stats.txConnectionStaleDrop == 1u && s_ble.stats.fragmentError == 0u);
+    reset(false, 247u); assert(sendPayload() == ESP_OK);
+    assertComplete(); assert(fragments == 3u);
+    assert(delayCalls == 0u); /* Existing descriptor checkpoint covers this fast 3-fragment frame. */
+    assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints == 1u);
     slotOwned = false;
 
-    reset(); failSend = true;
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
-                                    sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_FAIL);
+    reset(true, 247u); assert(sendPayload() == ESP_OK); assertComplete();
+    assert(fragments > 4u && delayCalls == (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
+
+    reset(true, 64u); assert(sendPayload() == ESP_OK); assertComplete();
+    assert(fragments > 32u && delayCalls == (fragments - 1u) / SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT);
+
+    reset(false, 23u); assert(sendPayload() == ESP_ERR_INVALID_SIZE);
+    assert(sends == 0u && messages == 0u && drops == 1u && slotOwned);
+
+    reset(false, 247u); ticksPerSend = 1u; assert(sendPayload() == ESP_OK); assertComplete();
+    assert(delayCalls == fragments - 1u && maxFragmentsInBatch == 1u); /* One-tick elapsed guard. */
+
+    reset(true, 247u); disconnectOnDelay = true;
+    assert(sendPayload() == ESP_ERR_INVALID_STATE);
+    assert(slotOwned && sends == 4u && fragments == 4u && delayCalls == 1u && messages == 0u && drops == 1u);
+    assert(s_ble.stats.txConnectionStaleDrop == 1u && s_ble.stats.fragmentError == 0u);
+
+    reset(false, 247u); disconnectAfterSends = 1u;
+    assert(sendPayload() == ESP_ERR_INVALID_STATE);
+    assert(sends == 1u && delayCalls == 0u && messages == 0u && drops == 1u);
+    assert(s_ble.stats.txConnectionStaleDrop == 1u); /* Every fragment checks even within a batch. */
+
+    reset(false, 247u); failSend = true; assert(sendPayload() == ESP_FAIL);
     assert(slotOwned && sends == 1u && delayCalls == 0u && messages == 0u && drops == 1u);
     assert(s_ble.stats.fragmentError == 1u);
 
-    reset(); congested = true;
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source),
-                                    sensorarrayBleCrc32(source, sizeof(source)), 3u) == ESP_ERR_TIMEOUT);
+    reset(false, 247u); congested = true; assert(sendPayload() == ESP_ERR_TIMEOUT);
     assert(sends == 0u && drops == 1u && slotOwned);
 
-    reset();
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, sizeof(source), 0u, 3u) == ESP_ERR_INVALID_CRC);
+    reset(false, 247u);
+    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes, 0u, 3u) == ESP_ERR_INVALID_CRC);
     assert(sends == 0u && drops == 1u && s_ble.stats.txCrcMismatch == 1u && slotOwned);
-    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=5,production_bodies=5,hardware=NOT_RUN");
+
+    reset(true, 247u); nowTick = UINT32_MAX;
+    s_idleTick = UINT32_MAX - 2u; ticksPerSend = 1u;
+    assert(sendPayload() == ESP_OK); assertComplete();
+    assert(delayCalls == fragments - 1u && maxFragmentsInBatch == 1u); /* Tick wrap keeps elapsed bound. */
+    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=5,hardware=NOT_RUN");
     return 0;
 }

@@ -61,6 +61,7 @@
 #define SENSORARRAY_BLE_DEFAULT_ATT_MTU 23u
 #define SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS 10u
 #define SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS 500u
+#define SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT 4u
 #define SENSORARRAY_BLE_HEAP_LOW_WATERMARK 49152u
 #define SENSORARRAY_BLE_CCCD_NOTIFY_BIT 0x0001u
 #define SENSORARRAY_BLE_CCCD_INDICATE_BIT 0x0002u
@@ -1220,6 +1221,8 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
     size_t base = length / fragmentCount;
     size_t extra = length % fragmentCount;
     size_t offset = 0u;
+    uint32_t fragmentsSinceCheckpoint = 0u;
+    TickType_t checkpointTick = xTaskGetTickCount();
     bool confirm = context.confirm;
     for (uint32_t index = 0u; index < fragmentCount; ++index) {
         size_t chunk = base + (index < extra ? 1u : 0u);
@@ -1239,11 +1242,20 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
             return err;
         }
         offset += chunk;
-        if (index + 1u < fragmentCount) {
+        fragmentsSinceCheckpoint++;
+        if (index + 1u < fragmentCount &&
+            (fragmentsSinceCheckpoint >= SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT ||
+             (TickType_t)(xTaskGetTickCount() - checkpointTick) >= 1u)) {
             /* Retain this descriptor/slot until all fragments finish. The
-             * next fragment rechecks connection generation after this bounded
-             * scheduling point; no BLE mux or SDK lock is held here. */
+             * descriptor boundary already counts as a work unit: charging
+             * every fast fragment again used the idle grace halfway through
+             * ordinary three-fragment frames. Keep larger/slow messages
+             * bounded by four fragments or one elapsed tick between checks.
+             * Every fragment still checks its connection generation, even
+             * inside a batch. No BLE mux or SDK lock is held at this point. */
             (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
+            fragmentsSinceCheckpoint = 0u;
+            checkpointTick = xTaskGetTickCount();
         }
     }
     sensorarrayBleStatsNoteMessageSent(channel, false);

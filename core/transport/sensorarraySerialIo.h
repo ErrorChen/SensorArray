@@ -33,6 +33,12 @@ typedef struct {
     uint32_t txYield;
     uint32_t maxQueueAgeUs;
     uint32_t driverTxBufferBytes;
+    /* Added in this repair: admission classes. Rejected counts exhausted
+     * slots/queues, not malformed-size calls or oversize diagnostic lines. */
+    uint32_t dataRejected;
+    uint32_t logRejected;
+    uint32_t dataSubmitted;
+    uint32_t logSubmitted;
     uint64_t discardBytes;
     uint32_t taskStackMinBytes;
     uint32_t taskStackConfiguredBytes;
@@ -49,7 +55,11 @@ typedef struct {
 } sensorarraySerialIoStats_t;
 
 esp_err_t sensorarraySerialIoInit(void);
+/* priority=true: control/lifecycle; false: diagnostic record. Whole records
+ * return actual queue admission; neither result proves host receipt. */
 esp_err_t sensorarraySerialIoQueue(const char *data, size_t length, bool priority);
+/* 本轮新增: scientific packets have independent admission capacity. */
+esp_err_t sensorarraySerialIoQueueData(const char *data, size_t length);
 int sensorarraySerialIoRead(void *buffer, size_t length);
 void sensorarraySerialIoNoteOversize(void);
 void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats);
