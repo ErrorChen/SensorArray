@@ -1,0 +1,461 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42053110 <sensorarrayBleNotifyInternal$part$0>:
+42053110:	010136        	entry	a1, 128
+42053113:	b94381        	l32r	a8, 42041620 <sensorarrayTextProtocolBuildMixedFrame+0x53c> (3fcb03dc <__stack_chk_guard>)
+42053116:	049d      	mov.n	a9, a4
+42053118:	0020c0        	memw
+4205311b:	08a8      	l32i.n	a10, a8, 0
+4205311d:	b9ea81        	l32r	a8, 420418c8 <sensorarrayTextProtocolBuildMixedFrame+0x7e4> (900 <UserFrameTotalSize+0x800>)
+42053120:	1139      	s32i.n	a3, a1, 4
+42053122:	0020c0        	memw
+42053125:	1761a2        	s32i	a10, a1, 92
+42053128:	5cc142        	addi	a4, a1, 92
+4205312b:	027d      	mov.n	a7, a2
+4205312d:	062d      	mov.n	a2, a6
+4205312f:	1ab897        	bgeu	a8, a9, 4205314d <sensorarrayBleNotifyInternal$part$0+0x3d>
+42053132:	bbc281        	l32r	a8, 4204203c <sensorarrayTextProtocolBuildMixedFrame+0xf58> (3fcaa4a4 <s_bleMux>)
+42053135:	fb7c      	movi.n	a11, -1
+42053137:	08ad      	mov.n	a10, a8
+42053139:	0189      	s32i.n	a8, a1, 0
+4205313b:	b97781        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+4205313e:	0008e0        	callx8	a8
+42053141:	bbb761        	l32r	a6, 42042020 <sensorarrayTextProtocolBuildMixedFrame+0xf3c> (3fcc4ac0 <s_ble>)
+42053144:	4c37f6        	bgeui	a7, 3, 42053194 <sensorarrayBleNotifyInternal$part$0+0x84>
+42053147:	000f06        	j	42053187 <sensorarrayBleNotifyInternal$part$0+0x77>
+4205314a:	000000        	ill
+4205314d:	bbb461        	l32r	a6, 42042020 <sensorarrayTextProtocolBuildMixedFrame+0xf3c> (3fcc4ac0 <s_ble>)
+42053150:	6a26a2        	l32i	a10, a6, 0x1a8
+42053153:	6adc      	bnez.n	a10, 4205316d <sensorarrayBleNotifyInternal$part$0+0x5d>
+42053155:	bbb981        	l32r	a8, 4204203c <sensorarrayTextProtocolBuildMixedFrame+0xf58> (3fcaa4a4 <s_bleMux>)
+42053158:	fb7c      	movi.n	a11, -1
+4205315a:	08ad      	mov.n	a10, a8
+4205315c:	0189      	s32i.n	a8, a1, 0
+4205315e:	b96e81        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053161:	0008e0        	callx8	a8
+42053164:	0237b6        	bltui	a7, 3, 4205316a <sensorarrayBleNotifyInternal$part$0+0x5a>
+42053167:	00c946        	j	42053490 <sensorarrayBleNotifyInternal$part$0+0x380>
+4205316a:	00c5c6        	j	42053485 <sensorarrayBleNotifyInternal$part$0+0x375>
+4205316d:	00a2a2        	movi	a10, 0x200
+42053170:	36ba97        	bgeu	a10, a9, 420531aa <sensorarrayBleNotifyInternal$part$0+0x9a>
+42053173:	32bc      	beqz.n	a2, 420531aa <sensorarrayBleNotifyInternal$part$0+0x9a>
+42053175:	bbb181        	l32r	a8, 4204203c <sensorarrayTextProtocolBuildMixedFrame+0xf58> (3fcaa4a4 <s_bleMux>)
+42053178:	fb7c      	movi.n	a11, -1
+4205317a:	08ad      	mov.n	a10, a8
+4205317c:	0189      	s32i.n	a8, a1, 0
+4205317e:	b96681        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053181:	0008e0        	callx8	a8
+42053184:	0c37f6        	bgeui	a7, 3, 42053194 <sensorarrayBleNotifyInternal$part$0+0x84>
+42053187:	77cb      	addi.n	a7, a7, 12
+42053189:	a07760        	addx4	a7, a7, a6
+4205318c:	4798      	l32i.n	a9, a7, 16
+4205318e:	01c992        	addi	a9, a9, 1
+42053191:	046792        	s32i	a9, a7, 16
+42053194:	152692        	l32i	a9, a6, 84
+42053197:	01a8      	l32i.n	a10, a1, 0
+42053199:	991b      	addi.n	a9, a9, 1
+4205319b:	156692        	s32i	a9, a6, 84
+4205319e:	b95f81        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+420531a1:	0008e0        	callx8	a8
+420531a4:	04a122        	movi	a2, 0x104
+420531a7:	00f706        	j	42053587 <sensorarrayBleNotifyInternal$part$0+0x477>
+420531aa:	11b8      	l32i.n	a11, a1, 4
+420531ac:	09cd      	mov.n	a12, a9
+420531ae:	0a0c      	movi.n	a10, 0
+420531b0:	0199      	s32i.n	a9, a1, 0
+420531b2:	b94d81        	l32r	a8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)
+420531b5:	0008e0        	callx8	a8
+420531b8:	0237b6        	bltui	a7, 3, 420531be <sensorarrayBleNotifyInternal$part$0+0xae>
+420531bb:	007046        	j	42053380 <sensorarrayBleNotifyInternal$part$0+0x270>
+420531be:	0198      	l32i.n	a9, a1, 0
+420531c0:	59dc      	bnez.n	a9, 420531d9 <sensorarrayBleNotifyInternal$part$0+0xc9>
+420531c2:	bb9e81        	l32r	a8, 4204203c <sensorarrayTextProtocolBuildMixedFrame+0xf58> (3fcaa4a4 <s_bleMux>)
+420531c5:	fb7c      	movi.n	a11, -1
+420531c7:	08ad      	mov.n	a10, a8
+420531c9:	0189      	s32i.n	a8, a1, 0
+420531cb:	02a122        	movi	a2, 0x102
+420531ce:	b95281        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+420531d1:	0008e0        	callx8	a8
+420531d4:	006fc6        	j	42053397 <sensorarrayBleNotifyInternal$part$0+0x287>
+420531d7:	320000        	orbc	b0, b0, b0
+420531da:	a918c1        	l32r	a12, 4203d63c <sensorarrayAsyncLogPrintCompactSummary+0x594> (88ea99da <_rtc_reserved_end+0x28da99da>)
+420531dd:	0c2c21        	l32r	a2, 42016290 <sensorarrayBringupVerifyFdcActiveState$constprop$0+0xbc> (650008e0 <_rtc_reserved_end+0x4f008e0>)
+420531e0:	0b0c      	movi.n	a11, 0
+420531e2:	03ad      	mov.n	a10, a3
+420531e4:	036192        	s32i	a9, a1, 12
+420531e7:	b94181        	l32r	a8, 420416ec <sensorarrayTextProtocolBuildMixedFrame+0x608> (400011e8 <memset>)
+420531ea:	0008e0        	callx8	a8
+420531ed:	bb9381        	l32r	a8, 4204203c <sensorarrayTextProtocolBuildMixedFrame+0xf58> (3fcaa4a4 <s_bleMux>)
+420531f0:	fb7c      	movi.n	a11, -1
+420531f2:	08ad      	mov.n	a10, a8
+420531f4:	0189      	s32i.n	a8, a1, 0
+420531f6:	b94881        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+420531f9:	0008e0        	callx8	a8
+420531fc:	2a06a2        	l8ui	a10, a6, 42
+420531ff:	622682        	l32i	a8, a6, 0x188
+42053202:	051a16        	beqz	a10, 42053257 <sensorarrayBleNotifyInternal$part$0+0x147>
+42053205:	2c06a2        	l8ui	a10, a6, 44
+42053208:	04ba16        	beqz	a10, 42053257 <sensorarrayBleNotifyInternal$part$0+0x147>
+4205320b:	43d6a2        	addmi	a10, a6, 0x4300
+4205320e:	192ab2        	l32i	a11, a10, 100
+42053211:	70a1a2        	movi	a10, 0x170
+42053214:	90a7a0        	addx2	a10, a7, a10
+42053217:	a6aa      	add.n	a10, a6, a10
+42053219:	021ae2        	l16ui	a14, a10, 4
+4205321c:	1c0c      	movi.n	a12, 1
+4205321e:	bb0b      	addi.n	a11, a11, -1
+42053220:	3a0c      	movi.n	a10, 3
+42053222:	93acb0        	movnez	a10, a12, a11
+42053225:	2e0ea7        	bnone	a14, a10, 42053257 <sensorarrayBleNotifyInternal$part$0+0x147>
+42053228:	40f5a0        	nsau	a10, a5
+4205322b:	21d8      	l32i.n	a13, a1, 8
+4205322d:	3198      	l32i.n	a9, a1, 12
+4205322f:	41a5a0        	srli	a10, a10, 5
+42053232:	658c      	beqz.n	a5, 4205323c <sensorarrayBleNotifyInternal$part$0+0x12c>
+42053234:	c05580        	sub	a5, a5, a8
+42053237:	93ca50        	movnez	a12, a10, a5
+4205323a:	fc9c      	beqz.n	a12, 4205325d <sensorarrayBleNotifyInternal$part$0+0x14d>
+4205323c:	0a8216        	beqz	a2, 420532e8 <sensorarrayBleNotifyInternal$part$0+0x1d8>
+4205323f:	3cd6a2        	addmi	a10, a6, 0x3c00
+42053242:	c00aa2        	l8ui	a10, a10, 192
+42053245:	7abc      	beqz.n	a10, 42053280 <sensorarrayBleNotifyInternal$part$0+0x170>
+42053247:	3ed6a2        	addmi	a10, a6, 0x3e00
+4205324a:	d40aa2        	l8ui	a10, a10, 212
+4205324d:	10ba56        	bnez	a10, 4205335c <sensorarrayBleNotifyInternal$part$0+0x24c>
+42053250:	1a0c      	movi.n	a10, 1
+42053252:	31a9      	s32i.n	a10, a1, 12
+42053254:	000a86        	j	42053282 <sensorarrayBleNotifyInternal$part$0+0x172>
+42053257:	00a516        	beqz	a5, 42053265 <sensorarrayBleNotifyInternal$part$0+0x155>
+4205325a:	071587        	beq	a5, a8, 42053265 <sensorarrayBleNotifyInternal$part$0+0x155>
+4205325d:	222692        	l32i	a9, a6, 136
+42053260:	991b      	addi.n	a9, a9, 1
+42053262:	226692        	s32i	a9, a6, 136
+42053265:	0158      	l32i.n	a5, a1, 0
+42053267:	03a122        	movi	a2, 0x103
+4205326a:	05ad      	mov.n	a10, a5
+4205326c:	b92c81        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+4205326f:	0008e0        	callx8	a8
+42053272:	fb7c      	movi.n	a11, -1
+42053274:	05ad      	mov.n	a10, a5
+42053276:	b92881        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053279:	0008e0        	callx8	a8
+4205327c:	0045c6        	j	42053397 <sensorarrayBleNotifyInternal$part$0+0x287>
+4205327f:	31a900        	srai	a10, a0, 25
+42053282:	11bab0        	slli	a11, a10, 5
+42053285:	bbaa      	add.n	a11, a11, a10
+42053287:	a0aba0        	addx4	a10, a11, a10
+4205328a:	bb6fb1        	l32r	a11, 42042048 <sensorarrayTextProtocolBuildMixedFrame+0xf64> (3cc4 <UserFrameTotalSize+0x3bc4>)
+4205328d:	a0aa60        	addx4	a10, a10, a6
+42053290:	baba      	add.n	a11, a10, a11
+42053292:	0bc8      	l32i.n	a12, a11, 0
+42053294:	bb84e1        	l32r	a14, 420420a4 <sensorarrayTextProtocolBuildMixedFrame+0xfc0> (3cd0 <UserFrameTotalSize+0x3bd0>)
+42053297:	2c1b      	addi.n	a2, a12, 1
+42053299:	bb6ac1        	l32r	a12, 42042044 <sensorarrayTextProtocolBuildMixedFrame+0xf60> (3cc0 <UserFrameTotalSize+0x3bc0>)
+4205329c:	f4f090        	extui	a15, a9, 0, 16
+4205329f:	5aca      	add.n	a5, a10, a12
+420532a1:	bb7ec1        	l32r	a12, 4204209c <sensorarrayTextProtocolBuildMixedFrame+0xfb8> (3cc8 <UserFrameTotalSize+0x3bc8>)
+420532a4:	caca      	add.n	a12, a10, a12
+420532a6:	21c9      	s32i.n	a12, a1, 8
+420532a8:	bb7ec1        	l32r	a12, 420420a0 <sensorarrayTextProtocolBuildMixedFrame+0xfbc> (3ccc <UserFrameTotalSize+0x3bcc>)
+420532ab:	caca      	add.n	a12, a10, a12
+420532ad:	aaea      	add.n	a10, a10, a14
+420532af:	1e0c      	movi.n	a14, 1
+420532b1:	7322e0        	maxu	a2, a2, a14
+420532b4:	0045e2        	s8i	a14, a5, 0
+420532b7:	21e8      	l32i.n	a14, a1, 8
+420532b9:	005cf2        	s16i	a15, a12, 0
+420532bc:	0ad9      	s32i.n	a13, a10, 0
+420532be:	0b29      	s32i.n	a2, a11, 0
+420532c0:	0e79      	s32i.n	a7, a14, 0
+420532c2:	03bd      	mov.n	a11, a3
+420532c4:	38c152        	addi	a5, a1, 56
+420532c7:	0c0c      	movi.n	a12, 0
+420532c9:	8a0c      	movi.n	a10, 8
+420532cb:	038a76        	loop	a10, 420532d2 <sensorarrayBleNotifyInternal$part$0+0x1c2>
+420532ce:	0bc9      	s32i.n	a12, a11, 0
+420532d0:	bb4b      	addi.n	a11, a11, 4
+420532d2:	2199      	s32i.n	a9, a1, 8
+420532d4:	3198      	l32i.n	a9, a1, 12
+420532d6:	1a0c      	movi.n	a10, 1
+420532d8:	004392        	s8i	a9, a3, 0
+420532db:	0143a2        	s8i	a10, a3, 1
+420532de:	1379      	s32i.n	a7, a3, 4
+420532e0:	0453f2        	s16i	a15, a3, 8
+420532e3:	3329      	s32i.n	a2, a3, 12
+420532e5:	001786        	j	42053347 <sensorarrayBleNotifyInternal$part$0+0x237>
+420532e8:	87cc      	bnez.n	a7, 420532f4 <sensorarrayBleNotifyInternal$part$0+0x1e4>
+420532ea:	bb6aa1        	l32r	a10, 42042094 <sensorarrayTextProtocolBuildMixedFrame+0xfb0> (3fcc5108 <s_ble+0x648>)
+420532ed:	4f0c      	movi.n	a15, 4
+420532ef:	0001c6        	j	420532fa <sensorarrayBleNotifyInternal$part$0+0x1ea>
+420532f2:	a10000        	sll	a0, a0
+420532f5:	bb69      	s32i.n	a6, a11, 44
+420532f7:	02a0f2        	movi	a15, 2
+420532fa:	b8f7e1        	l32r	a14, 420416d8 <sensorarrayTextProtocolBuildMixedFrame+0x5f4> (914 <UserFrameTotalSize+0x814>)
+420532fd:	00a0b2        	movi	a11, 0
+42053300:	000ac2        	l8ui	a12, a10, 0
+42053303:	bc8c      	beqz.n	a12, 42053312 <sensorarrayBleNotifyInternal$part$0+0x202>
+42053305:	bb1b      	addi.n	a11, a11, 1
+42053307:	74b0b0        	extui	a11, a11, 0, 8
+4205330a:	aaea      	add.n	a10, a10, a14
+4205330c:	f09bf7        	bne	a11, a15, 42053300 <sensorarrayBleNotifyInternal$part$0+0x1f0>
+4205330f:	001246        	j	4205335c <sensorarrayBleNotifyInternal$part$0+0x24c>
+42053312:	1ae8      	l32i.n	a14, a10, 4
+42053314:	1f0c      	movi.n	a15, 1
+42053316:	ee1b      	addi.n	a14, a14, 1
+42053318:	73eef0        	maxu	a14, a14, a15
+4205331b:	f42090        	extui	a2, a9, 0, 16
+4205331e:	004af2        	s8i	a15, a10, 0
+42053321:	2a79      	s32i.n	a7, a10, 8
+42053323:	065a22        	s16i	a2, a10, 12
+42053326:	4ad9      	s32i.n	a13, a10, 16
+42053328:	1ae9      	s32i.n	a14, a10, 4
+4205332a:	03fd      	mov.n	a15, a3
+4205332c:	38c152        	addi	a5, a1, 56
+4205332f:	8a0c      	movi.n	a10, 8
+42053331:	048a76        	loop	a10, 42053339 <sensorarrayBleNotifyInternal$part$0+0x229>
+42053334:	0fc9      	s32i.n	a12, a15, 0
+42053336:	04cff2        	addi	a15, a15, 4
+42053339:	026192        	s32i	a9, a1, 8
+4205333c:	0043b2        	s8i	a11, a3, 0
+4205333f:	016372        	s32i	a7, a3, 4
+42053342:	045322        	s16i	a2, a3, 8
+42053345:	33e9      	s32i.n	a14, a3, 12
+42053347:	4389      	s32i.n	a8, a3, 16
+42053349:	53d9      	s32i.n	a13, a3, 20
+4205334b:	ff26a5        	call8	420525b4 <sensorarrayBleUpdateSlotUseLocked>
+4205334e:	01a8      	l32i.n	a10, a1, 0
+42053350:	b8f381        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+42053353:	0008e0        	callx8	a8
+42053356:	2198      	l32i.n	a9, a1, 8
+42053358:	0016c6        	j	420533b7 <sensorarrayBleNotifyInternal$part$0+0x2a7>
+4205335b:	269200        	ee.ldf.64.xp	f9, f2, a0, a2
+4205335e:	1b01581f 	ee.vmulas.s16.qacc.ld.ip.qup	q6, a1, 0xfffffe80, q5, q2, q0, q1
+42053362:	ad99      	s32i.n	a9, a13, 40
+42053364:	669205        	call0	420b9c88 <mbedtls_ecdh_free+0x34>
+42053367:	b8ed811f 	ee.vmulas.s8.accx.ld.xp.qup	q1, a1, a1, q6, q1, q6, q5
+4205336b:	0008e0        	callx8	a8
+4205336e:	fb7c      	movi.n	a11, -1
+42053370:	05ad      	mov.n	a10, a5
+42053372:	b8e981        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053375:	0008e0        	callx8	a8
+42053378:	01a122        	movi	a2, 0x101
+4205337b:	000606        	j	42053397 <sensorarrayBleNotifyInternal$part$0+0x287>
+4205337e:	810000        	src	a0, a0, a0
+42053381:	2f          	.byte	0x2f
+42053382:	7cbb      	addi.n	a7, a12, 11
+42053384:	80fb      	addi.n	a8, a0, 15
+42053386:	20a8      	l32i.n	a10, a0, 8
+42053388:	006182        	s32i	a8, a1, 0
+4205338b:	02a122        	movi	a2, 0x102
+4205338e:	b8e281        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053391:	0008e0        	callx8	a8
+42053394:	000286        	j	420533a2 <sensorarrayBleNotifyInternal$part$0+0x292>
+42053397:	77cb      	addi.n	a7, a7, 12
+42053399:	a07760        	addx4	a7, a7, a6
+4205339c:	4798      	l32i.n	a9, a7, 16
+4205339e:	991b      	addi.n	a9, a9, 1
+420533a0:	4799      	s32i.n	a9, a7, 16
+420533a2:	152692        	l32i	a9, a6, 84
+420533a5:	0021a2        	l32i	a10, a1, 0
+420533a8:	01c992        	addi	a9, a9, 1
+420533ab:	156692        	s32i	a9, a6, 84
+420533ae:	b8db81        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+420533b1:	0008e0        	callx8	a8
+420533b4:	0073c6        	j	42053587 <sensorarrayBleNotifyInternal$part$0+0x477>
+420533b7:	0103c2        	l8ui	a12, a3, 1
+420533ba:	7c9c      	beqz.n	a12, 420533d5 <sensorarrayBleNotifyInternal$part$0+0x2c5>
+420533bc:	0003b2        	l8ui	a11, a3, 0
+420533bf:	532bf6        	bgeui	a11, 2, 42053416 <sensorarrayBleNotifyInternal$part$0+0x306>
+420533c2:	11abb0        	slli	a10, a11, 5
+420533c5:	aaba      	add.n	a10, a10, a11
+420533c7:	a0aab0        	addx4	a10, a10, a11
+420533ca:	bb37b1        	l32r	a11, 420420a8 <sensorarrayTextProtocolBuildMixedFrame+0xfc4> (3cd4 <UserFrameTotalSize+0x3bd4>)
+420533cd:	a0aab0        	addx4	a10, a10, a11
+420533d0:	a6aa      	add.n	a10, a6, a10
+420533d2:	001d46        	j	4205344b <sensorarrayBleNotifyInternal$part$0+0x33b>
+420533d5:	13b8      	l32i.n	a11, a3, 4
+420533d7:	0003a2        	l8ui	a10, a3, 0
+420533da:	2bdc      	bnez.n	a11, 420533f0 <sensorarrayBleNotifyInternal$part$0+0x2e0>
+420533dc:	364af6        	bgeui	a10, 4, 42053416 <sensorarrayBleNotifyInternal$part$0+0x306>
+420533df:	b8beb1        	l32r	a11, 420416d8 <sensorarrayTextProtocolBuildMixedFrame+0x5f4> (914 <UserFrameTotalSize+0x814>)
+420533e2:	c1aab0        	mul16u	a10, a10, a11
+420533e5:	5ca6b2        	movi	a11, 0x65c
+420533e8:	aaba      	add.n	a10, a10, a11
+420533ea:	a6aa      	add.n	a10, a6, a10
+420533ec:	0016c6        	j	4205344b <sensorarrayBleNotifyInternal$part$0+0x33b>
+420533ef:	db0b00        	movt.s	f0, f11, b0
+420533f2:	1b0c      	movi.n	a11, 1
+420533f4:	83cbd0        	moveqz	a12, a11, a13
+420533f7:	bc9c      	beqz.n	a12, 42053416 <sensorarrayBleNotifyInternal$part$0+0x306>
+420533f9:	62bba0        	saltu	a11, a11, a10
+420533fc:	bb0b      	addi.n	a11, a11, -1
+420533fe:	60b0b0        	neg	a11, a11
+42053401:	74b0b0        	extui	a11, a11, 0, 8
+42053404:	eb8c      	beqz.n	a11, 42053416 <sensorarrayBleNotifyInternal$part$0+0x306>
+42053406:	b8b4b1        	l32r	a11, 420416d8 <sensorarrayTextProtocolBuildMixedFrame+0x5f4> (914 <UserFrameTotalSize+0x814>)
+42053409:	c1aab0        	mul16u	a10, a10, a11
+4205340c:	bb28b1        	l32r	a11, 420420ac <sensorarrayTextProtocolBuildMixedFrame+0xfc8> (2aac <UserFrameTotalSize+0x29ac>)
+4205340f:	aaba      	add.n	a10, a10, a11
+42053411:	a6aa      	add.n	a10, a6, a10
+42053413:	000d06        	j	4205344b <sensorarrayBleNotifyInternal$part$0+0x33b>
+42053416:	20a330        	or	a10, a3, a3
+42053419:	ff43e5        	call8	42052858 <sensorarrayBleReleaseTxDescriptor$part$0>
+4205341c:	002152        	l32i	a5, a1, 0
+4205341f:	ffafb2        	movi	a11, -1
+42053422:	05ad      	mov.n	a10, a5
+42053424:	77cb      	addi.n	a7, a7, 12
+42053426:	b8bc81        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053429:	0008e0        	callx8	a8
+4205342c:	a07760        	addx4	a7, a7, a6
+4205342f:	47a8      	l32i.n	a10, a7, 16
+42053431:	152692        	l32i	a9, a6, 84
+42053434:	aa1b      	addi.n	a10, a10, 1
+42053436:	991b      	addi.n	a9, a9, 1
+42053438:	47a9      	s32i.n	a10, a7, 16
+4205343a:	156692        	s32i	a9, a6, 84
+4205343d:	05ad      	mov.n	a10, a5
+4205343f:	b8b781        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+42053442:	0008e0        	callx8	a8
+42053445:	03a122        	movi	a2, 0x103
+42053448:	004ec6        	j	42053587 <sensorarrayBleNotifyInternal$part$0+0x477>
+4205344b:	11b8      	l32i.n	a11, a1, 4
+4205344d:	09cd      	mov.n	a12, a9
+4205344f:	b8b781        	l32r	a8, 4204172c <sensorarrayTextProtocolBuildMixedFrame+0x648> (400011f4 <memcpy>)
+42053452:	0008e0        	callx8	a8
+42053455:	010392        	l8ui	a9, a3, 1
+42053458:	498c      	beqz.n	a9, 42053460 <sensorarrayBleNotifyInternal$part$0+0x350>
+4205345a:	6c2672        	l32i	a7, a6, 0x1b0
+4205345d:	000386        	j	4205346f <sensorarrayBleNotifyInternal$part$0+0x35f>
+42053460:	1398      	l32i.n	a9, a3, 4
+42053462:	69cc      	bnez.n	a9, 4205346c <sensorarrayBleNotifyInternal$part$0+0x35c>
+42053464:	6a2672        	l32i	a7, a6, 0x1a8
+42053467:	000106        	j	4205346f <sensorarrayBleNotifyInternal$part$0+0x35f>
+4205346a:	720000        	salt	a0, a0, a0
+4205346d:	fc6b26        	beqi	a11, 6, 4205346d <sensorarrayBleNotifyInternal$part$0+0x35d>
+42053470:	03ad17        	bge	a13, a1, 42053477 <sensorarrayBleNotifyInternal$part$0+0x367>
+42053473:	ff3e65        	call8	42052858 <sensorarrayBleReleaseTxDescriptor$part$0>
+42053476:	01a8      	l32i.n	a10, a1, 0
+42053478:	1378      	l32i.n	a7, a3, 4
+4205347a:	fb7c      	movi.n	a11, -1
+4205347c:	b8a781        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+4205347f:	0008e0        	callx8	a8
+42053482:	0a37f6        	bgeui	a7, 3, 42053490 <sensorarrayBleNotifyInternal$part$0+0x380>
+42053485:	77cb      	addi.n	a7, a7, 12
+42053487:	a07760        	addx4	a7, a7, a6
+4205348a:	4798      	l32i.n	a9, a7, 16
+4205348c:	991b      	addi.n	a9, a9, 1
+4205348e:	4799      	s32i.n	a9, a7, 16
+42053490:	152692        	l32i	a9, a6, 84
+42053493:	01a8      	l32i.n	a10, a1, 0
+42053495:	991b      	addi.n	a9, a9, 1
+42053497:	156692        	s32i	a9, a6, 84
+4205349a:	b8a081        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+4205349d:	0008e0        	callx8	a8
+420534a0:	ffe846        	j	42053445 <sensorarrayBleNotifyInternal$part$0+0x335>
+420534a3:	c58100        	extui	a8, a0, 17, 13
+420534a6:	e0b8      	l32i.n	a11, a0, 56
+420534a8:	0008      	l32i.n	a0, a0, 0
+420534aa:	0aed      	mov.n	a14, a10
+420534ac:	0bfd      	mov.n	a15, a11
+420534ae:	0d0c      	movi.n	a13, 0
+420534b0:	0dcd      	mov.n	a12, a13
+420534b2:	03bd      	mov.n	a11, a3
+420534b4:	07ad      	mov.n	a10, a7
+420534b6:	63e9      	s32i.n	a14, a3, 24
+420534b8:	73f9      	s32i.n	a15, a3, 28
+420534ba:	b94281        	l32r	a8, 420419c4 <sensorarrayTextProtocolBuildMixedFrame+0x8e0> (403851a4 <xQueueGenericSend>)
+420534bd:	0008e0        	callx8	a8
+420534c0:	051a66        	bnei	a10, 1, 420534c9 <sensorarrayBleNotifyInternal$part$0+0x3b9>
+420534c3:	001646        	j	42053520 <sensorarrayBleNotifyInternal$part$0+0x410>
+420534c6:	000000        	ill
+420534c9:	0103c2        	l8ui	a12, a3, 1
+420534cc:	084c56        	bnez	a12, 42053554 <sensorarrayBleNotifyInternal$part$0+0x444>
+420534cf:	05bd      	mov.n	a11, a5
+420534d1:	07ad      	mov.n	a10, a7
+420534d3:	ba1c81        	l32r	a8, 42041d44 <sensorarrayTextProtocolBuildMixedFrame+0xc60> (40385570 <xQueueReceive>)
+420534d6:	0008e0        	callx8	a8
+420534d9:	311a66        	bnei	a10, 1, 4205350e <sensorarrayBleNotifyInternal$part$0+0x3fe>
+420534dc:	1528      	l32i.n	a2, a5, 4
+420534de:	01a8      	l32i.n	a10, a1, 0
+420534e0:	fb7c      	movi.n	a11, -1
+420534e2:	b88d81        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+420534e5:	0008e0        	callx8	a8
+420534e8:	0c32f6        	bgeui	a2, 3, 420534f8 <sensorarrayBleNotifyInternal$part$0+0x3e8>
+420534eb:	22cb      	addi.n	a2, a2, 12
+420534ed:	a02260        	addx4	a2, a2, a6
+420534f0:	4298      	l32i.n	a9, a2, 16
+420534f2:	01c992        	addi	a9, a9, 1
+420534f5:	046292        	s32i	a9, a2, 16
+420534f8:	152692        	l32i	a9, a6, 84
+420534fb:	01a8      	l32i.n	a10, a1, 0
+420534fd:	01c992        	addi	a9, a9, 1
+42053500:	156692        	s32i	a9, a6, 84
+42053503:	b88681        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+42053506:	0008e0        	callx8	a8
+42053509:	05ad      	mov.n	a10, a5
+4205350b:	ff34e5        	call8	42052858 <sensorarrayBleReleaseTxDescriptor$part$0>
+4205350e:	0d0c      	movi.n	a13, 0
+42053510:	0dcd      	mov.n	a12, a13
+42053512:	03bd      	mov.n	a11, a3
+42053514:	20a770        	or	a10, a7, a7
+42053517:	b92b81        	l32r	a8, 420419c4 <sensorarrayTextProtocolBuildMixedFrame+0x8e0> (403851a4 <xQueueGenericSend>)
+4205351a:	0008e0        	callx8	a8
+4205351d:	331a66        	bnei	a10, 1, 42053554 <sensorarrayBleNotifyInternal$part$0+0x444>
+42053520:	0178      	l32i.n	a7, a1, 0
+42053522:	fb7c      	movi.n	a11, -1
+42053524:	07ad      	mov.n	a10, a7
+42053526:	b87c81        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053529:	0008e0        	callx8	a8
+4205352c:	132692        	l32i	a9, a6, 76
+4205352f:	07ad      	mov.n	a10, a7
+42053531:	991b      	addi.n	a9, a9, 1
+42053533:	136692        	s32i	a9, a6, 76
+42053536:	b87981        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+42053539:	0008e0        	callx8	a8
+4205353c:	40d682        	addmi	a8, a6, 0x4000
+4205353f:	0d0c      	movi.n	a13, 0
+42053541:	3a28a2        	l32i	a10, a8, 232
+42053544:	0dcd      	mov.n	a12, a13
+42053546:	0dbd      	mov.n	a11, a13
+42053548:	b91f81        	l32r	a8, 420419c4 <sensorarrayTextProtocolBuildMixedFrame+0x8e0> (403851a4 <xQueueGenericSend>)
+4205354b:	0008e0        	callx8	a8
+4205354e:	020c      	movi.n	a2, 0
+42053550:	000cc6        	j	42053587 <sensorarrayBleNotifyInternal$part$0+0x477>
+42053553:	00          	.byte	00
+42053554:	03ad      	mov.n	a10, a3
+42053556:	ff3025        	call8	42052858 <sensorarrayBleReleaseTxDescriptor$part$0>
+42053559:	01a8      	l32i.n	a10, a1, 0
+4205355b:	1378      	l32i.n	a7, a3, 4
+4205355d:	fb7c      	movi.n	a11, -1
+4205355f:	b86e81        	l32r	a8, 42041718 <sensorarrayTextProtocolBuildMixedFrame+0x634> (40385a2c <xPortEnterCriticalTimeout>)
+42053562:	0008e0        	callx8	a8
+42053565:	0b37f6        	bgeui	a7, 3, 42053574 <sensorarrayBleNotifyInternal$part$0+0x464>
+42053568:	77cb      	addi.n	a7, a7, 12
+4205356a:	a07760        	addx4	a7, a7, a6
+4205356d:	4798      	l32i.n	a9, a7, 16
+4205356f:	991b      	addi.n	a9, a9, 1
+42053571:	046792        	s32i	a9, a7, 16
+42053574:	152692        	l32i	a9, a6, 84
+42053577:	01a8      	l32i.n	a10, a1, 0
+42053579:	991b      	addi.n	a9, a9, 1
+4205357b:	156692        	s32i	a9, a6, 84
+4205357e:	b86781        	l32r	a8, 4204171c <sensorarrayTextProtocolBuildMixedFrame+0x638> (40385b7c <vPortExitCritical>)
+42053581:	0008e0        	callx8	a8
+42053584:	07a122        	movi	a2, 0x107
+42053587:	b82681        	l32r	a8, 42041620 <sensorarrayTextProtocolBuildMixedFrame+0x53c> (3fcb03dc <__stack_chk_guard>)
+4205358a:	0020c0        	memw
+4205358d:	0498      	l32i.n	a9, a4, 0
+4205358f:	0020c0        	memw
+42053592:	0888      	l32i.n	a8, a8, 0
+42053594:	051987        	beq	a9, a8, 4205359d <sensorarrayBleNotifyInternal$part$0+0x48d>
+42053597:	b85c81        	l32r	a8, 42041708 <sensorarrayTextProtocolBuildMixedFrame+0x624> (40384b24 <__stack_chk_fail>)
+4205359a:	0008e0        	callx8	a8
+4205359d:	f01d      	retw.n

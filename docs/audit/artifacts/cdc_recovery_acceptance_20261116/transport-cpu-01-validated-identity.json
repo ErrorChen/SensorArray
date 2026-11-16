@@ -1,0 +1,33 @@
+{
+  "source_commit": "caa90829f34ffeda76dfe681e8e20bb29de4627c",
+  "version": "caa9082-dirty",
+  "app_bytes": 1592032,
+  "bin_sha256": "65c4d3af1ca56cb2ae60e4972ad40fc4beb27f069c5b878aaa467b3fd85f28d4",
+  "elf_sha256": "b880b7ea8680ae34b68167d3d75b59b06e12b134afc00ef114e883d7dd8b9fcd",
+  "host_entries": 68,
+  "all_exit_zero": true,
+  "production_inputs": 185,
+  "build_test_inputs_identical": true,
+  "build_manifest": "transport-cpu-01-build-manifest.json",
+  "tests_manifest": "transport-cpu-02-tests-manifest.json",
+  "test_head": "849d96cb03ba2089e353563f9c1a750c719434cb",
+  "test_only_followup_commit": "849d96c",
+  "first_suite_failure_preserved": "transport-cpu-01-tests-manifest.json",
+  "failure_scope": "test_work_budget extraction omitted actual new helper/constants; production build and all other entries passed. Existing assertions retained and complete suite rerun.",
+  "hardware_flashed_at_manifest_creation": false,
+  "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+  "CPU_owner_diagnostics_enabled": true,
+  "normal_defaults_diagnostics_enabled": false,
+  "compiler_optimization": "-O2",
+  "cpu_MHz": 160,
+  "sdkconfig_unchanged_since_compiler_perf_02": true,
+  "changed_production_files_since_compiler_perf_02": [
+    "components/ads126xAdc/ads126xAdc.c",
+    "components/sensorarrayBle/sensorarrayBle.c",
+    "main/output/sensorarrayTextProtocol.c"
+  ],
+  "task_wrapper_linked": true,
+  "ROM_CRC_calls_linked": true,
+  "ELF_evidence": "transport-cpu-01-elf-evidence.json",
+  "dirty_build_scope": "BUILD carries -dirty due to concurrent documentation edits; all185 production/config inputs match final passing tests. This does not rename/rebuild the historical image."
+}

@@ -1,0 +1,26 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+403858fc <vPortTaskWrapper>:
+403858fc:	004136        	entry	a1, 32
+403858ff:	03ad      	mov.n	a10, a3
+40385901:	0002e0        	callx8	a2
+40385904:	0a0c      	movi.n	a10, 0
+40385906:	01a365        	call8	4038733c <pcTaskGetName>
+40385909:	0a7d      	mov.n	a7, a10
+4038590b:	0784a5        	call8	4038d154 <esp_log_timestamp>
+4038590e:	bdcfb1        	l32r	a11, 4037504c <_iram_text_start+0xc48> (3c1249fc <_flash_rodata_start+0x48dc>)
+40385911:	bdcfc1        	l32r	a12, 40375050 <_iram_text_start+0xc4c> (3c124a08 <_flash_rodata_start+0x48e8>)
+40385914:	0add      	mov.n	a13, a10
+40385916:	07fd      	mov.n	a15, a7
+40385918:	0bed      	mov.n	a14, a11
+4038591a:	1a0c      	movi.n	a10, 1
+4038591c:	0775a5        	call8	4038d078 <esp_log>
+4038591f:	088b25        	call8	4038e1d0 <abort>
+
+Disassembly of section .flash.text:

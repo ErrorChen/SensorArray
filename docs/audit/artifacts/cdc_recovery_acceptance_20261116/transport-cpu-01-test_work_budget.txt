@@ -1,0 +1,36 @@
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":100,"phaseUs":0,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":3,"yields":0,"work":[200,200,200,200,200,200,200]}
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":500,"phaseUs":0,"arrivalsPerWorker":200,"idleVisits":83,"maxIdleGapTicks":4,"yields":273,"work":[200,200,200,200,200,200,200]}
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=100,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=500,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=1000,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":100,"phaseUs":9500,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":3,"yields":0,"work":[200,200,200,200,200,200,200]}
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":500,"phaseUs":9500,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":4,"yields":273,"work":[200,200,200,200,200,200,200]}
+WORK_BUDGET_PASS,scenarios=26,production_component=1,hardware=NOT_RUN
+TASKCORE,name=output_hub,core=0,expected=0
+TASKCORE,name=output_hub,core=0,expected=0
+WORK_BUDGET_DRAINS_PASS,scenarios=15,production_bodies=10,hardware=NOT_RUN
+/tmp/sensorarray-work-budget-44p_pv7_/fragments.c: In function ‘sensorarrayBleMaxPayloadSize’:
+/tmp/sensorarray-work-budget-44p_pv7_/fragments.c:135:30: error: ‘SENSORARRAY_BLE_FRAGMENT_HEADER_FIXED_CHARS’ undeclared (first use in this function); did you mean ‘SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE’?
+  135 |     const size_t headerLen = SENSORARRAY_BLE_FRAGMENT_HEADER_FIXED_CHARS + 1u +
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                              SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE
+/tmp/sensorarray-work-budget-44p_pv7_/fragments.c:135:30: note: each undeclared identifier is reported only once for each function it appears in
+/tmp/sensorarray-work-budget-44p_pv7_/fragments.c:136:9: error: ‘SENSORARRAY_BLE_U32_HEX_MAX_CHARS’ undeclared (first use in this function)
+  136 |         SENSORARRAY_BLE_U32_HEX_MAX_CHARS +
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/sensorarray-work-budget-44p_pv7_/fragments.c:137:9: error: implicit declaration of function ‘sensorarrayBleDecimalChars’ [-Werror=implicit-function-declaration]
+  137 |         sensorarrayBleDecimalChars(messageId) +
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_work_budget.py", line 99, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_work_budget.py", line 93, in main
+    subprocess.run(command + [str(generated), "-o", str(executable)], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/work_budget_stubs', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget', '/tmp/sensorarray-work-budget-44p_pv7_/fragments.c', '-o', '/tmp/sensorarray-work-budget-44p_pv7_/fragments']' returned non-zero exit status 1.

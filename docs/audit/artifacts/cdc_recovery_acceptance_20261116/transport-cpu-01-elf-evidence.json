@@ -1,0 +1,146 @@
+{
+  "status": "LINKED_ROM_CRC_CALLS_AND_TASK_WRAPPER_VERIFIED_NOT_HIL",
+  "elf_sha256": "b880b7ea8680ae34b68167d3d75b59b06e12b134afc00ef114e883d7dd8b9fcd",
+  "build_manifest": "transport-cpu-01-build-manifest.json",
+  "build_manifest_sha256": "7777edcf94766237e34e163404cd1c72ec87f2ed26159663acbe927f26cb5169",
+  "rom_symbol": "esp_rom_crc32_le",
+  "rom_address": "0x40001c98",
+  "rom_alias_note": "objdump may label the same absolute address r_lld_con_frm_isr_hook; ELF symbol, IDF S3 ROM linker alias and object relocations identify the CRC reference",
+  "functions": [
+    {
+      "function": "sensorarrayBleNotifyInternal$part$0",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayBleNotifyInternal$part$0",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayBleNotifyInternal.txt",
+      "sha256": "9665abb3191a2a86846580456da891273529c484b720cd3c6bfdea03c21b04e7",
+      "crc32_rom_calls": [
+        {
+          "load": "420531b2:\tb94d81        \tl32r\ta8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "420531b5:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "sensorarrayBleTxTask",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayBleTxTask",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayBleTxTask.txt",
+      "sha256": "749447710b31c2458408e6bb0af4f33eab864512740efe2d07710508ec2c36e0",
+      "crc32_rom_calls": [
+        {
+          "load": "42053a64:\tb72181        \tl32r\ta8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "42053a67:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "sensorarrayTextProtocolBuildMixedFrame",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayTextProtocolBuildMixedFrame",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayTextProtocolBuildMixedFrame.txt",
+      "sha256": "312bd039a00d8e7496b049d603a2507d1beb90b8b60e1003d1a0e27b122f7137",
+      "crc32_rom_calls": [
+        {
+          "load": "420415b6:\t06ba81        \tl32r\ta8, 420030a0 <_stext+0x3080> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "420415b9:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "sensorarrayTextProtocolBuildCapFrame",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayTextProtocolBuildCapFrame",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayTextProtocolBuildCapFrame.txt",
+      "sha256": "a2a53116b28417cfe8c7c10eba2184273edfa4bc95d1535af8c0c3a060d6d66e",
+      "crc32_rom_calls": [
+        {
+          "load": "42043f89:\tf5d781        \tl32r\ta8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "42043f8c:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "sensorarrayTextProtocolBuildMeasurementFrame",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayTextProtocolBuildMeasurementFrame",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayTextProtocolBuildMeasurementFrame.txt",
+      "sha256": "2054d5cfebda7c562644e48d4eafd2e7923b4db7a293a0e522f040ec1eee7134",
+      "crc32_rom_calls": [
+        {
+          "load": "42044509:\tf47781        \tl32r\ta8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "4204450c:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "sensorarrayTextProtocolSelfTest",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayTextProtocolSelfTest",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-sensorarrayTextProtocolSelfTest.txt",
+      "sha256": "63ba1cea06a87e6620d5621a47c3610f23209c84b38630248a3fbfb56c83d016",
+      "crc32_rom_calls": [
+        {
+          "load": "420445c7:\tf44881        \tl32r\ta8, 420416e8 <sensorarrayTextProtocolBuildMixedFrame+0x604> (40001c98 <r_lld_con_frm_isr_hook>)",
+          "call": "420445ca:\t0008e0        \tcallx8\ta8"
+        }
+      ]
+    },
+    {
+      "function": "ads126xAdcReadAdc1FreshTailDiagnostic",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=ads126xAdcReadAdc1FreshTailDiagnostic",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-ads126xAdcReadAdc1FreshTailDiagnostic.txt",
+      "sha256": "cdb45d35ab96fb19fd42e844afb48a0bd732fdc56b5222458be9f3dd2cb2a5a5",
+      "crc32_rom_calls": []
+    },
+    {
+      "function": "vPortTaskWrapper",
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=vPortTaskWrapper",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "disassembly": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-vPortTaskWrapper.txt",
+      "sha256": "345606aa564711ca1cfdb40cd63665bca7e977545aae9d57ab73903e59e54890",
+      "crc32_rom_calls": []
+    }
+  ],
+  "scope": "Actual linked call sites; software CRC equivalence was tested separately. Physical ROM execution and waveform measurements are not implied."
+}

@@ -1,0 +1,93 @@
+{
+  "status": "FROZEN_CANDIDATE_HOST_REGRESSIONS_PASS_HIL_NOT_RUN",
+  "utc": "2026-11-16T10:36:19.320704+00:00",
+  "production_scope": {
+    "file": "core/transport/sensorarrayTransport.c",
+    "exact_change": ".preferredMtu = 247u -> 517u",
+    "complete_file_diff_is_exact_one_replacement": true,
+    "fallback247_unchanged": true,
+    "queues_priorities_work_budget_protocol_capacity_unchanged": true
+  },
+  "test_scope": {
+    "entry": "tools/test_ble_priority.py",
+    "new_entry_count": 0,
+    "actual_bodies": "Existing Notify/owner/SendPayload/SendFragment, plus exact CONNECT/DISCONNECT/MTU callback cases extracted",
+    "cases": [
+      "MTU517 DATA/LOG sizes511,512,513,598,2304",
+      "MTU517 CTRL511/512 raw;513/598/2304 still rejected by existing512 limit",
+      "Actual golden CAP/VOLT at247 and517 sent through actual C firmware and real BleTextReceiver (16 total allowed cases)",
+      "517->DISCONNECT23->CONNECT23->peer MTU247; reused conn_id old-generation held descriptor rejected without sending"
+    ],
+    "existing_assertions": "All old C assertion lines retained except SDK boundary max244 generalized to min(actualMTU-3,512), which remains244 in every original247 scenario; no scheduling deadline or capacity assertion relaxed."
+  },
+  "tests": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.4429184889886528,
+      "native_ASan_UBSan_not_HIL": true,
+      "source_sha256": {
+        "core/transport/sensorarrayTransport.c": "38f6c63686084ab604d4139a8d09bf538186170976db9b910f560068beb564eb",
+        "tools/test_ble_priority.py": "e0de0cf0618dde07880f081511e85ca4b19f97dddedb8103fd8fcbcb8ed39336",
+        "tests/host/test_ble_priority.c": "e25b6ca46fdceb4be7172b1542249676ab31345626d4c4d76345bdb85732f245"
+      }
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_crc_planner.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.610285867005587,
+      "stdout": "regression-01.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3026816589990631,
+      "stdout": "regression-02.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_receive_ble_text.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.061820932023692876,
+      "stdout": "regression-03.log"
+    }
+  ],
+  "source_sha256": {
+    "core/transport/sensorarrayTransport.c": {
+      "before_sha256": "caf2825357c2f56d4b7e5fdd81e8d0bde9056ea8137de1f16995b4e1a143bb2b",
+      "after_sha256": "38f6c63686084ab604d4139a8d09bf538186170976db9b910f560068beb564eb"
+    },
+    "tools/test_ble_priority.py": {
+      "before_sha256": "5ca5a06d7970ce452d34bcc6043066bcc827adf8dc1ae411a154e5980626244f",
+      "after_sha256": "e0de0cf0618dde07880f081511e85ca4b19f97dddedb8103fd8fcbcb8ed39336"
+    },
+    "tests/host/test_ble_priority.c": {
+      "before_sha256": "884c420f134237e0b66a7cf27dc003646dfd863d509d95ad64a2396edfa73c30",
+      "after_sha256": "e25b6ca46fdceb4be7172b1542249676ab31345626d4c4d76345bdb85732f245"
+    }
+  },
+  "unchanged_ble_source_sha256": "4c1b9e5b960c7b74cbe9f6cb336121f5e90ecf03701d009765ac6aa34f2a0169",
+  "not_run": [
+    "Target build",
+    "Hardware/radio access",
+    "Real peer MTU negotiation",
+    "Throughput acceptance"
+  ],
+  "HIL_gate": "Parent must observe BLELINK.connected1 actualmtu517 in the same connection generation before/after capture. Requested517 or BLEBOOT preferred value is not negotiation proof. Peer247 remains legal;517 experimental condition then NOT_RUN. No host forcing or configuration changed by this task.",
+  "limits": [
+    "Fewer SDK calls may increase LL PDU segmentation; no throughput gain asserted.",
+    "SDK inner blocking/cancellation behavior unchanged.",
+    "Parent owns all build/flash and capture actions."
+  ]
+}

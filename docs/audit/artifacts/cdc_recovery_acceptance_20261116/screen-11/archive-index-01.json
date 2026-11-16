@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-ble.ble.notifications.jsonl",
+      "raw_bytes": 11137850,
+      "raw_sha256": "5d9e40b7aca2793fb0bf290158746db01074fb85a6cf137210964fa13b19584e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 1368850,
+      "gzip_sha256": "2389852da9baf56fe9e9aa45a5adcd7c47f42b84134c4ccdfac67440c7dbdb49",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-debug.debug.events.jsonl",
+      "raw_bytes": 756116,
+      "raw_sha256": "a4a49b2a550dfa332354797ca363bfc1c1e7780731f2f7ca21d91703184fecd4",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 128644,
+      "gzip_sha256": "1ddbdffc3775ba5bb495ce682956944468d3a49a824a5ad69ff661ebb258da7f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-debug.debug.rx.bin",
+      "raw_bytes": 1039204,
+      "raw_sha256": "7a689a8e20b45411e174a41725d93c73e892d0301b3cbf7b60a0514b74cafd74",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-debug.debug.rx.bin.gz",
+      "gzip_bytes": 93129,
+      "gzip_sha256": "b7b12a2a35891c06b68213510ca5f46cd7f8b93e865708b1b7b62bd40373fc78",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.events.jsonl",
+      "raw_bytes": 3354079,
+      "raw_sha256": "c796407ce19478995897e30ac8a752ea974850dc1d79968b0e3b53164339b771",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.events.jsonl.gz",
+      "gzip_bytes": 453318,
+      "gzip_sha256": "6e29e79166aed4131dfdcc643346097b125261ad49b5360d7276fad5c51dd505",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.rx.bin",
+      "raw_bytes": 4902585,
+      "raw_sha256": "18a2e33c52dd247629ccc44d6d8223a728116ac6a5fb6b5530471e41f6cf3573",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.rx.bin.gz",
+      "gzip_bytes": 425527,
+      "gzip_sha256": "84b7072efb9cd07dc565fe8bd4d4f1bb34fef49bdd7a80d40504634125af47fa",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot.events.jsonl",
+      "raw_bytes": 36578,
+      "raw_sha256": "4282257f9f53d69d44a99b9b12c2fe4fc6d2eddc77153a1a79273dd9ba21f3c1",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot.events.jsonl.gz",
+      "gzip_bytes": 7214,
+      "gzip_sha256": "85c69e999c9e0444098786c7c681f266891939dab4118d02e4ae202ef510a7e3",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot.rx.bin",
+      "raw_bytes": 43345,
+      "raw_sha256": "8a1537dc531ae64f429000ff8fcbaffb58973d76cbf18decf65d433254cb489c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot.rx.bin.gz",
+      "gzip_bytes": 9206,
+      "gzip_sha256": "cfbc4ee56a2bc33c24b99501cc9d41b13b64f604495997db942655801531fee4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.events.jsonl",
+      "raw_bytes": 41137,
+      "raw_sha256": "fa3fff5d3daec321f3ae5c3190e0c86ca4b411d8000ca9893e1830c348566549",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 7618,
+      "gzip_sha256": "36d5dd3f193e3aba47a9f08d4602782e932d8f3a90c16bebb3c845644eb43dad",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.rx.bin",
+      "raw_bytes": 54939,
+      "raw_sha256": "0343fc9babc5483b8da5de396d822a894c708cf42fcd7e576c38a08fc72e0dad",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 3936,
+      "gzip_sha256": "964cb69035f6cbafa0abfa878aa9e970b1ab4292b84a16c5589c66960b9af569",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-app.txt",
+      "raw_bytes": 2720,
+      "raw_sha256": "20f1913b21a0a57a388f4f02c2f2414ef14e353f67fb09db0ec6035970428d14",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-app.txt.gz",
+      "gzip_bytes": 966,
+      "gzip_sha256": "31672394a6ed10d278abf03dd60abeb48a8a432293b34b219167e7d3416d9473",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-identity.txt",
+      "raw_bytes": 592,
+      "raw_sha256": "d89037b735e62a66495364d21afb36b1738c16b2df8caa8086083789b4472883",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-identity.txt.gz",
+      "gzip_bytes": 418,
+      "gzip_sha256": "01545fbc087ec6c7a6126ed4198508300b980098f625df796cee6622ee92ae16",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-watchdog.txt",
+      "raw_bytes": 1011,
+      "raw_sha256": "2ba508bf2e7ec1f34b0dba5434829f64dfc2eb29c573a8c8ec168d364f1ade4f",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-watchdog.txt.gz",
+      "gzip_bytes": 460,
+      "gzip_sha256": "d5b10a5ff0f1e3cf5abb33895e5610b3e2ddecddcca02e1a20520caa4ce188a6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01.epoch0.rx.bin",
+      "raw_bytes": 9965,
+      "raw_sha256": "8b70aec855f335bdb2646d7f86d2054f7011c408aafe5d1f2109598251534520",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01.epoch0.rx.bin.gz",
+      "gzip_bytes": 2773,
+      "gzip_sha256": "8d08a95bd9efd630cf8d733452262db3ff866cdd7bc807ffaead038218e291ab",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01.events.jsonl",
+      "raw_bytes": 20557,
+      "raw_sha256": "00551db22bde683a6ba23a04a84d269d009ce2473b6dc865516ca22765f2742c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01.events.jsonl.gz",
+      "gzip_bytes": 4317,
+      "gzip_sha256": "e991b8cecd05bd28252dad164c5c107ea208c957eb5c5d8751bc4b76533b755d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-state-01.events.jsonl",
+      "raw_bytes": 24819,
+      "raw_sha256": "ee14400e2e0260379694488d2743297b544ace8ec5a08f909e46e235fbffe998",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-state-01.events.jsonl.gz",
+      "gzip_bytes": 5148,
+      "gzip_sha256": "b821361ecce13b2afd62d62d24559279dd1abaa5c8a32034ef4154b243b78280",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-state-01.rx.bin",
+      "raw_bytes": 13496,
+      "raw_sha256": "6241eb3e79d131810bb3e3208c760e527ab5e5eb9d65a09b0d149a7458a0ed32",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-state-01.rx.bin.gz",
+      "gzip_bytes": 3630,
+      "gzip_sha256": "0098a673007bc558c00bb069fc6b1617b9e607f920fb07f2ab87d98f9993dc01",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot.summary.json",
+      "sha256": "f9b25dcd8912c757b63a210b97e7ba73714c4e006a15857a97f3803a2aa61a6a",
+      "bytes": 9741
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-state-01.summary.json",
+      "sha256": "01bcfbed9089ce967dbe5c570a7998a1758ad258bfcf597d38878866ba891143",
+      "bytes": 12590
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01.summary.json",
+      "sha256": "25aea2bb4eea709f1399aedabddb8d783727f5f2a3923edaa3938e9081d834fb",
+      "bytes": 13159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.summary.json",
+      "sha256": "e8a2fe295e16cdc47bdca85b1c6538448a966bf8a7637a66732eabaff6ec4d1f",
+      "bytes": 2487
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.summary.json",
+      "sha256": "0c7d8c5de10c68482fd49dcbd9dca8e4a017ce4b7ddda9f8e11f861afbceef47",
+      "bytes": 357906
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-ble.ble.summary.json",
+      "sha256": "7bae79fb0704a82f182e4d6066a1bcac39278587cf614360ee8b222d2e8900a7",
+      "bytes": 2017
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-debug.debug.summary.json",
+      "sha256": "c63e57c02079193b6a6e1033732f400e1b9260d3009adc19460ad00b18bb1dcd",
+      "bytes": 2666
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-validated-identity.json",
+      "sha256": "e2b836e308ba87d340f0f7d586a75129cdc6d01b0b3af83250aae4f5ed9bbded",
+      "bytes": 1687
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-boot-verification.json",
+      "sha256": "c7ed76ba00c61eba7d611bfabb06ab69b3f6cc25778aa29d5c3332a26917bb41",
+      "bytes": 3537
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-build-manifest.json",
+      "sha256": "7777edcf94766237e34e163404cd1c72ec87f2ed26159663acbe927f26cb5169",
+      "bytes": 69319
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-tests-manifest.json",
+      "sha256": "6491f42e33c8301e3774e7addedc131f759af9555438b292ca6d72dec888c927",
+      "bytes": 88153
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-02-tests-manifest.json",
+      "sha256": "7fc3a9488d79d5942a5d386e51a1da732dfd9968eddfb151f9026ebe69a05dd7",
+      "bytes": 95704
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-usj-result.json",
+      "sha256": "ad176e917d8e5018de20eb17798362b450fff29c4cdd6ddda33efbd6c8f2f36d",
+      "bytes": 3753
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-command.json",
+      "sha256": "83abf569b9564cdcd9956f63832a9c23354ec06f94b869f23bb00fbe835ef56b",
+      "bytes": 879
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-flash-command.txt",
+      "sha256": "d803396004824e0b48ddc337da631ea517de223b2ceeaf0dd3ae94ae4f9bb343",
+      "bytes": 286
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-elf-evidence.json",
+      "sha256": "6e60b559b5e2c05db559d50b211ac9adeb916d7d3470f5cd102bf07d6661385d",
+      "bytes": 6786
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/crc-planner-independent-review-01.json",
+      "sha256": "38ef94701a4610bd8f425d68c69580d04673d77dea2fa1e448b8cc27186a5b31",
+      "bytes": 26216
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-independent-review-01.json",
+      "sha256": "e3c3d6b21c95cfab728400191cf8cd1afc509fe6a3870e083a7025bf8d57c642",
+      "bytes": 18903
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-fix-01.json",
+      "sha256": "a2b70ebf1dfe4e8190b44d7817556d144c245d81d231153303b98ec2012c3d18",
+      "bytes": 2792
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-analysis-01.json",
+      "sha256": "2a93ab1eea01340d88dfb107f781c6b42c6034a15c1cf0b1a74e70be8c813ea2",
+      "bytes": 178265
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-ble.ble.ready.json",
+      "sha256": "bd97ae2d9ef4c7d26ec77bf2e6058b92bc9efe187655bc504e45bcb8196c803a",
+      "bytes": 284
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-cpu-owner-deltas-01.json",
+      "sha256": "17b1d372eafce2604e897e51013ebcaa53112c10a97122556dc925f688fc1e7d",
+      "bytes": 19414
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-selection-01.json",
+      "sha256": "88d4468a08281ca6c61233736b68b0e403177ca3009a0884ce2a1b56db07de49",
+      "bytes": 1248
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-verdict.json",
+      "sha256": "3dc213cd7da51cad85d4d1a8b158cc3a8718acff07bad43c19c98027f0f8730d",
+      "bytes": 38261
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen-11-volt1.benchmark.json",
+      "sha256": "11e30cffbb64c3547530f19f299f32871ddc38de085e3e7e5acf79b29ca91aea",
+      "bytes": 1862
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-11/screen10-screen11-layer-cpu-comparison.json",
+      "sha256": "6f85379b95cd18f4c068e6a72f343888cb374a99619171c17c25b137db5469ed",
+      "bytes": 22859
+    }
+  ],
+  "file_count": 16,
+  "total_original_bytes": 21438993,
+  "total_gzip_bytes": 2515154,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

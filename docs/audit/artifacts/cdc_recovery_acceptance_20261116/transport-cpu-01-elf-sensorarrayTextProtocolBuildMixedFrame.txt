@@ -1,0 +1,503 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420410e4 <sensorarrayTextProtocolBuildMixedFrame>:
+420410e4:	01a136        	entry	a1, 208
+420410e7:	07bd81        	l32r	a8, 42002fdc <_stext+0x2fbc> (3fcb03dc <__stack_chk_guard>)
+420410ea:	024d      	mov.n	a4, a2
+420410ec:	0020c0        	memw
+420410ef:	0898      	l32i.n	a9, a8, 0
+420410f1:	40f280        	nsau	a8, a2
+420410f4:	0020c0        	memw
+420410f7:	2b6192        	s32i	a9, a1, 172
+420410fa:	032d      	mov.n	a2, a3
+420410fc:	418580        	srli	a8, a8, 5
+420410ff:	4fe416        	beqz	a4, 42041601 <sensorarrayTextProtocolBuildMixedFrame+0x51d>
+42041102:	190c      	movi.n	a9, 1
+42041104:	939830        	movnez	a9, a8, a3
+42041107:	4f6956        	bnez	a9, 42041601 <sensorarrayTextProtocolBuildMixedFrame+0x51d>
+4204110a:	05d482        	addmi	a8, a4, 0x500
+4204110d:	266182        	s32i	a8, a1, 152
+42041110:	300882        	l8ui	a8, a8, 48
+42041113:	02a1b2        	movi	a11, 0x102
+42041116:	4ea816        	beqz	a8, 42041604 <sensorarrayTextProtocolBuildMixedFrame+0x520>
+42041119:	a00482        	l8ui	a8, a4, 160
+4204111c:	a80b      	addi.n	a10, a8, -1
+4204111e:	74a0a0        	extui	a10, a10, 0, 8
+42041121:	028ab6        	bltui	a10, 8, 42041127 <sensorarrayTextProtocolBuildMixedFrame+0x43>
+42041124:	013706        	j	42041604 <sensorarrayTextProtocolBuildMixedFrame+0x520>
+42041127:	24a8      	l32i.n	a10, a4, 8
+42041129:	03bd      	mov.n	a11, a3
+4204112b:	1361a2        	s32i	a10, a1, 76
+4204112e:	42a2a2        	movi	a10, 0x242
+42041131:	038a76        	loop	a10, 42041138 <sensorarrayTextProtocolBuildMixedFrame+0x54>
+42041134:	0b99      	s32i.n	a9, a11, 0
+42041136:	bb4b      	addi.n	a11, a11, 4
+42041138:	a3a092        	movi	a9, 163
+4204113b:	319a      	add.n	a3, a1, a9
+4204113d:	132192        	l32i	a9, a1, 76
+42041140:	e0a4d2        	movi	a13, 0x4e0
+42041143:	0299      	s32i.n	a9, a2, 0
+42041145:	03cd      	mov.n	a12, a3
+42041147:	d4da      	add.n	a13, a4, a13
+42041149:	090c      	movi.n	a9, 0
+4204114b:	665c      	movi.n	a6, 86
+4204114d:	2f5c      	movi.n	a15, 82
+4204114f:	354c      	movi.n	a5, 67
+42041151:	8b0c      	movi.n	a11, 8
+42041153:	228b76        	loop	a11, 42041179 <sensorarrayTextProtocolBuildMixedFrame+0x95>
+42041156:	ea4c      	movi.n	a10, 78
+42041158:	11b987        	bgeu	a9, a8, 4204116d <sensorarrayTextProtocolBuildMixedFrame+0x89>
+4204115b:	0de8      	l32i.n	a14, a13, 0
+4204115d:	06ad      	mov.n	a10, a6
+4204115f:	0a1e26        	beqi	a14, 1, 4204116d <sensorarrayTextProtocolBuildMixedFrame+0x89>
+42041162:	ea4c      	movi.n	a10, 78
+42041164:	83a5e0        	moveqz	a10, a5, a14
+42041167:	fecee2        	addi	a14, a14, -2
+4204116a:	83afe0        	moveqz	a10, a15, a14
+4204116d:	004ca2        	s8i	a10, a12, 0
+42041170:	991b      	addi.n	a9, a9, 1
+42041172:	749090        	extui	a9, a9, 0, 8
+42041175:	cc1b      	addi.n	a12, a12, 1
+42041177:	dd4b      	addi.n	a13, a13, 4
+42041179:	090c      	movi.n	a9, 0
+4204117b:	084392        	s8i	a9, a3, 8
+4204117e:	11a8d0        	slli	a10, a8, 3
+42041181:	218826        	beqi	a8, 8, 420411a6 <sensorarrayTextProtocolBuildMixedFrame+0xc2>
+42041184:	1b0c      	movi.n	a11, 1
+42041186:	401a00        	ssl	a10
+42041189:	a1bb00        	sll	a11, a11
+4204118c:	0d2c      	movi.n	a13, 32
+4204118e:	10dad0        	and	a13, a10, a13
+42041191:	0e0c      	movi.n	a14, 0
+42041193:	0bcd      	mov.n	a12, a11
+42041195:	83ced0        	moveqz	a12, a14, a13
+42041198:	93bed0        	movnez	a11, a14, a13
+4204119b:	9c0b      	addi.n	a9, a12, -1
+4204119d:	6b0b      	addi.n	a6, a11, -1
+4204119f:	939cb0        	movnez	a9, a12, a11
+420411a2:	000186        	j	420411ac <sensorarrayTextProtocolBuildMixedFrame+0xc8>
+420411a5:	00          	.byte	00
+420411a6:	ffaf62        	movi	a6, -1
+420411a9:	209660        	or	a9, a6, a6
+420411ac:	12d4b2        	addmi	a11, a4, 0x1200
+420411af:	1d2bc2        	l32i	a12, a11, 116
+420411b2:	1c2b72        	l32i	a7, a11, 112
+420411b5:	1e2bd2        	l32i	a13, a11, 120
+420411b8:	1561c2        	s32i	a12, a1, 84
+420411bb:	04c8      	l32i.n	a12, a4, 0
+420411bd:	2561b2        	s32i	a11, a1, 148
+420411c0:	1f2bb2        	l32i	a11, a11, 124
+420411c3:	1661d2        	s32i	a13, a1, 88
+420411c6:	1861c2        	s32i	a12, a1, 96
+420411c9:	10c760        	and	a12, a7, a6
+420411cc:	1761b2        	s32i	a11, a1, 92
+420411cf:	2361c2        	s32i	a12, a1, 140
+420411d2:	2621b2        	l32i	a11, a1, 152
+420411d5:	1621c2        	l32i	a12, a1, 88
+420411d8:	abf8      	l32i.n	a15, a11, 40
+420411da:	bb58      	l32i.n	a5, a11, 44
+420411dc:	106c60        	and	a6, a12, a6
+420411df:	1124b2        	l32i	a11, a4, 68
+420411e2:	1721c2        	l32i	a12, a1, 92
+420411e5:	152172        	l32i	a7, a1, 84
+420411e8:	14d8      	l32i.n	a13, a4, 4
+420411ea:	1224e2        	l32i	a14, a4, 72
+420411ed:	107790        	and	a7, a7, a9
+420411f0:	1a61b2        	s32i	a11, a1, 104
+420411f3:	109c90        	and	a9, a12, a9
+420411f6:	b26b      	addi.n	a11, a2, 6
+420411f8:	61f9      	s32i.n	a15, a1, 24
+420411fa:	1461b2        	s32i	a11, a1, 80
+420411fd:	1961d2        	s32i	a13, a1, 100
+42041200:	07a0b1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+42041203:	079ed1        	l32r	a13, 4200307c <_stext+0x305c> (3c1374fc <_flash_rodata_start+0x173dc>)
+42041206:	1c6172        	s32i	a7, a1, 112
+42041209:	51e9      	s32i.n	a14, a1, 20
+4204120b:	246162        	s32i	a6, a1, 144
+4204120e:	1d6192        	s32i	a9, a1, 116
+42041211:	8139      	s32i.n	a3, a1, 32
+42041213:	7159      	s32i.n	a5, a1, 28
+42041215:	1a2192        	l32i	a9, a1, 104
+42041218:	2189      	s32i.n	a8, a1, 8
+4204121a:	182182        	l32i	a8, a1, 96
+4204121d:	4199      	s32i.n	a9, a1, 16
+4204121f:	0189      	s32i.n	a8, a1, 0
+42041221:	192192        	l32i	a9, a1, 100
+42041224:	232182        	l32i	a8, a1, 140
+42041227:	1199      	s32i.n	a9, a1, 4
+42041229:	a189      	s32i.n	a8, a1, 40
+4204122b:	1d2192        	l32i	a9, a1, 116
+4204122e:	1c2182        	l32i	a8, a1, 112
+42041231:	1321e2        	l32i	a14, a1, 76
+42041234:	726b      	addi.n	a7, a2, 6
+42041236:	b189      	s32i.n	a8, a1, 44
+42041238:	31a9      	s32i.n	a10, a1, 12
+4204123a:	0c0c      	movi.n	a12, 0
+4204123c:	d199      	s32i.n	a9, a1, 52
+4204123e:	07ad      	mov.n	a10, a7
+42041240:	c169      	s32i.n	a6, a1, 48
+42041242:	ffdb25        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+42041245:	0abd      	mov.n	a11, a10
+42041247:	0d0c      	movi.n	a13, 0
+42041249:	04cd      	mov.n	a12, a4
+4204124b:	07ad      	mov.n	a10, a7
+4204124d:	ffe125        	call8	42041060 <sensorarrayTextAppendIdentity$constprop$0>
+42041250:	078d81        	l32r	a8, 42003084 <_stext+0x3064> (8ff <UserFrameTotalSize+0x7ff>)
+42041253:	a004b2        	l8ui	a11, a4, 160
+42041256:	1a61a2        	s32i	a10, a1, 104
+42041259:	226182        	s32i	a8, a1, 136
+4204125c:	1bcc      	bnez.n	a11, 42041261 <sensorarrayTextProtocolBuildMixedFrame+0x17d>
+4204125e:	00cfc6        	j	420415a1 <sensorarrayTextProtocolBuildMixedFrame+0x4bd>
+42041261:	1a2192        	l32i	a9, a1, 104
+42041264:	628890        	saltu	a8, a8, a9
+42041267:	880b      	addi.n	a8, a8, -1
+42041269:	608080        	neg	a8, a8
+4204126c:	748080        	extui	a8, a8, 0, 8
+4204126f:	32e816        	beqz	a8, 420415a1 <sensorarrayTextProtocolBuildMixedFrame+0x4bd>
+42041272:	180c      	movi.n	a8, 1
+42041274:	176182        	s32i	a8, a1, 92
+42041277:	078581        	l32r	a8, 4200308c <_stext+0x306c> (fffff670 <_rtc_reserved_end+0x9feff670>)
+4204127a:	043d      	mov.n	a3, a4
+4204127c:	c08840        	sub	a8, a8, a4
+4204127f:	166182        	s32i	a8, a1, 88
+42041282:	276122        	s32i	a2, a1, 156
+42041285:	172182        	l32i	a8, a1, 92
+42041288:	280b      	addi.n	a2, a8, -1
+4204128a:	e0a482        	movi	a8, 0x4e0
+4204128d:	a08280        	addx4	a8, a2, a8
+42041290:	838a      	add.n	a8, a3, a8
+42041292:	0888      	l32i.n	a8, a8, 0
+42041294:	186182        	s32i	a8, a1, 96
+42041297:	091826        	beqi	a8, 1, 420412a4 <sensorarrayTextProtocolBuildMixedFrame+0x1c0>
+4204129a:	672826        	beqi	a8, 2, 42041305 <sensorarrayTextProtocolBuildMixedFrame+0x221>
+4204129d:	38bc      	beqz.n	a8, 420412d4 <sensorarrayTextProtocolBuildMixedFrame+0x1f0>
+4204129f:	00b346        	j	42041570 <sensorarrayTextProtocolBuildMixedFrame+0x48c>
+420412a2:	820000        	mull	a0, a0, a0
+420412a5:	9209d3        	lsi	f13, a9, 0x248
+420412a8:	3428      	l32i.n	a2, a4, 12
+420412aa:	372852        	l32i	a5, a8, 220
+420412ad:	156192        	s32i	a9, a1, 84
+420412b0:	352892        	l32i	a9, a8, 212
+420412b3:	3828a2        	l32i	a10, a8, 224
+420412b6:	392842        	l32i	a4, a8, 228
+420412b9:	136192        	s32i	a9, a1, 76
+420412bc:	362892        	l32i	a9, a8, 216
+420412bf:	076881        	l32r	a8, 42003060 <_stext+0x3040> (3c126438 <_flash_rodata_start+0x6318>)
+420412c2:	216182        	s32i	a8, a1, 132
+420412c5:	076781        	l32r	a8, 42003064 <_stext+0x3044> (3c12dd94 <_flash_rodata_start+0xdc74>)
+420412c8:	206182        	s32i	a8, a1, 128
+420412cb:	076781        	l32r	a8, 42003068 <_stext+0x3048> (3c1374dc <_flash_rodata_start+0x173bc>)
+420412ce:	1f6182        	s32i	a8, a1, 124
+420412d1:	001746        	j	42041332 <sensorarrayTextProtocolBuildMixedFrame+0x24e>
+420412d4:	252182        	l32i	a8, a1, 148
+420412d7:	142892        	l32i	a9, a8, 80
+420412da:	172852        	l32i	a5, a8, 92
+420412dd:	156192        	s32i	a9, a1, 84
+420412e0:	152892        	l32i	a9, a8, 84
+420412e3:	1a28a2        	l32i	a10, a8, 104
+420412e6:	1b2842        	l32i	a4, a8, 108
+420412e9:	136192        	s32i	a9, a1, 76
+420412ec:	162892        	l32i	a9, a8, 88
+420412ef:	075981        	l32r	a8, 42003054 <_stext+0x3034> (3c126428 <_flash_rodata_start+0x6308>)
+420412f2:	216182        	s32i	a8, a1, 132
+420412f5:	075881        	l32r	a8, 42003058 <_stext+0x3038> (3c12dd90 <_flash_rodata_start+0xdc70>)
+420412f8:	206182        	s32i	a8, a1, 128
+420412fb:	075881        	l32r	a8, 4200305c <_stext+0x303c> (3c137840 <_flash_rodata_start+0x17720>)
+420412fe:	1f6182        	s32i	a8, a1, 124
+42041301:	000b46        	j	42041332 <sensorarrayTextProtocolBuildMixedFrame+0x24e>
+42041304:	d38200        	movt	a8, a2, b0
+42041307:	9209      	s32i.n	a0, a2, 36
+42041309:	3428      	l32i.n	a2, a4, 12
+4204130b:	372852        	l32i	a5, a8, 220
+4204130e:	156192        	s32i	a9, a1, 84
+42041311:	352892        	l32i	a9, a8, 212
+42041314:	3828a2        	l32i	a10, a8, 224
+42041317:	392842        	l32i	a4, a8, 228
+4204131a:	136192        	s32i	a9, a1, 76
+4204131d:	362892        	l32i	a9, a8, 216
+42041320:	074a81        	l32r	a8, 42003048 <_stext+0x3028> (3c126448 <_flash_rodata_start+0x6328>)
+42041323:	216182        	s32i	a8, a1, 132
+42041326:	074981        	l32r	a8, 4200304c <_stext+0x302c> (3c12dd98 <_flash_rodata_start+0xdc78>)
+42041329:	206182        	s32i	a8, a1, 128
+4204132c:	074981        	l32r	a8, 42003050 <_stext+0x3030> (3c1374d4 <_flash_rodata_start+0x173b4>)
+4204132f:	1f6182        	s32i	a8, a1, 124
+42041332:	1182d0        	slli	a8, a2, 3
+42041335:	ffafb2        	movi	a11, -1
+42041338:	30b8b0        	xor	a11, a8, a11
+4204133b:	1321e2        	l32i	a14, a1, 76
+4204133e:	80c550        	add	a12, a5, a5
+42041341:	401b00        	ssl	a11
+42041344:	a1cc00        	sll	a12, a12
+42041347:	1d21f2        	l32i	a15, a1, 116
+4204134a:	1b61c2        	s32i	a12, a1, 108
+4204134d:	80d440        	add	a13, a4, a4
+42041350:	1521c2        	l32i	a12, a1, 84
+42041353:	6eea      	add.n	a6, a14, a14
+42041355:	1c21e2        	l32i	a14, a1, 112
+42041358:	401b00        	ssl	a11
+4204135b:	a1dd00        	sll	a13, a13
+4204135e:	400800        	ssr	a8
+42041361:	91a0a0        	srl	a10, a10
+42041364:	400800        	ssr	a8
+42041367:	91c0c0        	srl	a12, a12
+4204136a:	7ffa      	add.n	a7, a15, a15
+4204136c:	20ada0        	or	a10, a13, a10
+4204136f:	feea      	add.n	a15, a14, a14
+42041371:	1b21d2        	l32i	a13, a1, 108
+42041374:	401b00        	ssl	a11
+42041377:	a16600        	sll	a6, a6
+4204137a:	1e61c2        	s32i	a12, a1, 120
+4204137d:	401b00        	ssl	a11
+42041380:	a17700        	sll	a7, a7
+42041383:	401b00        	ssl	a11
+42041386:	a1ff00        	sll	a15, a15
+42041389:	2421c2        	l32i	a12, a1, 144
+4204138c:	2321b2        	l32i	a11, a1, 140
+4204138f:	400800        	ssr	a8
+42041392:	919090        	srl	a9, a9
+42041395:	209d90        	or	a9, a13, a9
+42041398:	1e21d2        	l32i	a13, a1, 120
+4204139b:	400800        	ssr	a8
+4204139e:	91c0c0        	srl	a12, a12
+420413a1:	400800        	ssr	a8
+420413a4:	91b0b0        	srl	a11, a11
+420413a7:	20d6d0        	or	a13, a6, a13
+420413aa:	20c7c0        	or	a12, a7, a12
+420413ad:	132162        	l32i	a6, a1, 76
+420413b0:	1d2172        	l32i	a7, a1, 116
+420413b3:	20bfb0        	or	a11, a15, a11
+420413b6:	0e2c      	movi.n	a14, 32
+420413b8:	1c21f2        	l32i	a15, a1, 112
+420413bb:	10e8e0        	and	a14, a8, a14
+420413be:	400800        	ssr	a8
+420413c1:	915050        	srl	a5, a5
+420413c4:	400800        	ssr	a8
+420413c7:	914040        	srl	a4, a4
+420413ca:	400800        	ssr	a8
+420413cd:	916060        	srl	a6, a6
+420413d0:	400800        	ssr	a8
+420413d3:	917070        	srl	a7, a7
+420413d6:	9395e0        	movnez	a9, a5, a14
+420413d9:	400800        	ssr	a8
+420413dc:	9180f0        	srl	a8, a15
+420413df:	93a4e0        	movnez	a10, a4, a14
+420413e2:	93d6e0        	movnez	a13, a6, a14
+420413e5:	93c7e0        	movnez	a12, a7, a14
+420413e8:	93b8e0        	movnez	a11, a8, a14
+420413eb:	749090        	extui	a9, a9, 0, 8
+420413ee:	1f21e2        	l32i	a14, a1, 124
+420413f1:	5199      	s32i.n	a9, a1, 20
+420413f3:	74a0a0        	extui	a10, a10, 0, 8
+420413f6:	74d0d0        	extui	a13, a13, 0, 8
+420413f9:	74c0c0        	extui	a12, a12, 0, 8
+420413fc:	74b0b0        	extui	a11, a11, 0, 8
+420413ff:	832a      	add.n	a8, a3, a2
+42041401:	20a592        	movi	a9, 0x520
+42041404:	71e9      	s32i.n	a14, a1, 28
+42041406:	61a9      	s32i.n	a10, a1, 24
+42041408:	41d9      	s32i.n	a13, a1, 16
+4204140a:	31c9      	s32i.n	a12, a1, 12
+4204140c:	21b9      	s32i.n	a11, a1, 8
+4204140e:	889a      	add.n	a8, a8, a9
+42041410:	000882        	l8ui	a8, a8, 0
+42041413:	172172        	l32i	a7, a1, 92
+42041416:	238800        	sext	a8, a8, 7
+42041419:	1189      	s32i.n	a8, a1, 4
+4204141b:	202182        	l32i	a8, a1, 128
+4204141e:	1a21c2        	l32i	a12, a1, 104
+42041421:	0719d1        	l32r	a13, 42003088 <_stext+0x3068> (3c13757c <_flash_rodata_start+0x1745c>)
+42041424:	0717b1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+42041427:	2121f2        	l32i	a15, a1, 132
+4204142a:	1421a2        	l32i	a10, a1, 80
+4204142d:	0189      	s32i.n	a8, a1, 0
+4204142f:	07ed      	mov.n	a14, a7
+42041431:	ffbc25        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+42041434:	1157a0        	slli	a5, a7, 6
+42041437:	10a582        	movi	a8, 0x510
+4204143a:	071841        	l32r	a4, 4200309c <_stext+0x307c> (988 <UserFrameTotalSize+0x888>)
+4204143d:	558a      	add.n	a5, a5, a8
+4204143f:	b04740        	addx8	a4, a7, a4
+42041442:	835a      	add.n	a8, a3, a5
+42041444:	182122        	l32i	a2, a1, 96
+42041447:	534a      	add.n	a5, a3, a4
+42041449:	0acd      	mov.n	a12, a10
+4204144b:	170c      	movi.n	a7, 1
+4204144d:	060c      	movi.n	a6, 0
+4204144f:	084d      	mov.n	a4, a8
+42041451:	162182        	l32i	a8, a1, 88
+42041454:	1a0c      	movi.n	a10, 1
+42041456:	b85a      	add.n	a11, a8, a5
+42041458:	401b00        	ssl	a11
+4204145b:	a1da00        	sll	a13, a10
+4204145e:	082c      	movi.n	a8, 32
+42041460:	10eb80        	and	a14, a11, a8
+42041463:	0dfd      	mov.n	a15, a13
+42041465:	83f6e0        	moveqz	a15, a6, a14
+42041468:	93d6e0        	movnez	a13, a6, a14
+4204146b:	b2ec      	bnez.n	a2, 4204149a <sensorarrayTextProtocolBuildMixedFrame+0x3b6>
+4204146d:	20a330        	or	a10, a3, a3
+42041470:	1b61c2        	s32i	a12, a1, 108
+42041473:	1861f2        	s32i	a15, a1, 96
+42041476:	1a61d2        	s32i	a13, a1, 104
+42041479:	ffab65        	call8	42040f30 <sensorarrayTextCapFixed>
+4204147c:	152182        	l32i	a8, a1, 84
+4204147f:	1a21d2        	l32i	a13, a1, 104
+42041482:	1821f2        	l32i	a15, a1, 96
+42041485:	10dd80        	and	a13, a13, a8
+42041488:	132182        	l32i	a8, a1, 76
+4204148b:	1b21c2        	l32i	a12, a1, 108
+4204148e:	10ff80        	and	a15, a15, a8
+42041491:	20ddf0        	or	a13, a13, a15
+42041494:	046d16        	beqz	a13, 420414de <sensorarrayTextProtocolBuildMixedFrame+0x3fa>
+42041497:	002546        	j	42041530 <sensorarrayTextProtocolBuildMixedFrame+0x44c>
+4204149a:	09d3e2        	addmi	a14, a3, 0x900
+4204149d:	342eb2        	l32i	a11, a14, 208
+420414a0:	352ee2        	l32i	a14, a14, 212
+420414a3:	10bbd0        	and	a11, a11, a13
+420414a6:	10eef0        	and	a14, a14, a15
+420414a9:	20bbe0        	or	a11, a11, a14
+420414ac:	8bac      	beqz.n	a11, 420414d8 <sensorarrayTextProtocolBuildMixedFrame+0x3f4>
+420414ae:	152182        	l32i	a8, a1, 84
+420414b1:	04e8      	l32i.n	a14, a4, 0
+420414b3:	10dd80        	and	a13, a13, a8
+420414b6:	132182        	l32i	a8, a1, 76
+420414b9:	10ff80        	and	a15, a15, a8
+420414bc:	20ddf0        	or	a13, a13, a15
+420414bf:	40fdb0        	nsau	a11, a13
+420414c2:	14f8      	l32i.n	a15, a4, 4
+420414c4:	41b5b0        	srli	a11, a11, 5
+420414c7:	dd8c      	beqz.n	a13, 420414d8 <sensorarrayTextProtocolBuildMixedFrame+0x3f4>
+420414c9:	06d0d1        	l32r	a13, 4200300c <_stext+0x2fec> (80000000 <_rtc_reserved_end+0x1ff00000>)
+420414cc:	30dfd0        	xor	a13, a15, a13
+420414cf:	20ded0        	or	a13, a14, a13
+420414d2:	93abd0        	movnez	a10, a11, a13
+420414d5:	027a16        	beqz	a10, 42041500 <sensorarrayTextProtocolBuildMixedFrame+0x41c>
+420414d8:	0005e2        	l8ui	a14, a5, 0
+420414db:	000086        	j	420414e1 <sensorarrayTextProtocolBuildMixedFrame+0x3fd>
+420414de:	14a0e2        	movi	a14, 20
+420414e1:	06e3a1        	l32r	a10, 42003070 <_stext+0x3050> (3c1374e4 <_flash_rodata_start+0x173c4>)
+420414e4:	06e281        	l32r	a8, 4200306c <_stext+0x304c> (3c139fdc <_flash_rodata_start+0x19ebc>)
+420414e7:	ffc7d2        	addi	a13, a7, -1
+420414ea:	938ad0        	movnez	a8, a10, a13
+420414ed:	06e4b1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+420414f0:	1421a2        	l32i	a10, a1, 80
+420414f3:	20d880        	or	a13, a8, a8
+420414f6:	ffafe5        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+420414f9:	0acd      	mov.n	a12, a10
+420414fb:	001386        	j	4204154d <sensorarrayTextProtocolBuildMixedFrame+0x469>
+420414fe:	810000        	src	a0, a0, a0
+42041501:	8a06e6        	bgei	a6, -1, 4204148f <sensorarrayTextProtocolBuildMixedFrame+0x3ab>
+42041504:	de          	.byte	0xde
+42041505:	e8a082        	movi	a8, 232
+42041508:	af8a      	add.n	a10, a15, a8
+4204150a:	06e381        	l32r	a8, 42003098 <_stext+0x3078> (d4a50fff <_rtc_reserved_end+0x74950fff>)
+4204150d:	62bd80        	saltu	a11, a13, a8
+42041510:	aaba      	add.n	a10, a10, a11
+42041512:	d1a1b2        	movi	a11, 0x1d1
+42041515:	083ba7        	bltu	a11, a10, 42041521 <sensorarrayTextProtocolBuildMixedFrame+0x43d>
+42041518:	199ab7        	bne	a10, a11, 42041535 <sensorarrayTextProtocolBuildMixedFrame+0x451>
+4204151b:	06dda1        	l32r	a10, 42003090 <_stext+0x3070> (a94a1ffe <_rtc_reserved_end+0x493a1ffe>)
+4204151e:	13bad7        	bgeu	a10, a13, 42041535 <sensorarrayTextProtocolBuildMixedFrame+0x451>
+42041521:	272122        	l32i	a2, a1, 156
+42041524:	080c      	movi.n	a8, 0
+42041526:	025282        	s16i	a8, a2, 4
+42041529:	04a1b2        	movi	a11, 0x104
+4204152c:	003506        	j	42041604 <sensorarrayTextProtocolBuildMixedFrame+0x520>
+4204152f:	0aed00        	add.s	f14, f13, f0
+42041532:	31ffa0        	srai	a15, a10, 31
+42041535:	06d0a1        	l32r	a10, 42003078 <_stext+0x3058> (3c1374f4 <_flash_rodata_start+0x173d4>)
+42041538:	06cf81        	l32r	a8, 42003074 <_stext+0x3054> (3c1374ec <_flash_rodata_start+0x173cc>)
+4204153b:	d70b      	addi.n	a13, a7, -1
+4204153d:	938ad0        	movnez	a8, a10, a13
+42041540:	06d0b1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+42041543:	1421a2        	l32i	a10, a1, 80
+42041546:	08dd      	mov.n	a13, a8
+42041548:	ffaaa5        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+4204154b:	0acd      	mov.n	a12, a10
+4204154d:	771b      	addi.n	a7, a7, 1
+4204154f:	747070        	extui	a7, a7, 0, 8
+42041552:	9a0c      	movi.n	a10, 9
+42041554:	448b      	addi.n	a4, a4, 8
+42041556:	551b      	addi.n	a5, a5, 1
+42041558:	0217a7        	beq	a7, a10, 4204155e <sensorarrayTextProtocolBuildMixedFrame+0x47a>
+4204155b:	ffbc86        	j	42041451 <sensorarrayTextProtocolBuildMixedFrame+0x36d>
+4204155e:	06c8b1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+42041561:	06b8d1        	l32r	a13, 42003044 <_stext+0x3024> (3c14ccb0 <_flash_rodata_start+0x2cb90>)
+42041564:	1421a2        	l32i	a10, a1, 80
+42041567:	ffa8e5        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+4204156a:	a003b2        	l8ui	a11, a3, 160
+4204156d:	1a61a2        	s32i	a10, a1, 104
+42041570:	172182        	l32i	a8, a1, 92
+42041573:	881b      	addi.n	a8, a8, 1
+42041575:	748080        	extui	a8, a8, 0, 8
+42041578:	176182        	s32i	a8, a1, 92
+4204157b:	628b80        	saltu	a8, a11, a8
+4204157e:	880b      	addi.n	a8, a8, -1
+42041580:	608080        	neg	a8, a8
+42041583:	748080        	extui	a8, a8, 0, 8
+42041586:	289c      	beqz.n	a8, 4204159c <sensorarrayTextProtocolBuildMixedFrame+0x4b8>
+42041588:	222182        	l32i	a8, a1, 136
+4204158b:	1a2192        	l32i	a9, a1, 104
+4204158e:	628890        	saltu	a8, a8, a9
+42041591:	880b      	addi.n	a8, a8, -1
+42041593:	608080        	neg	a8, a8
+42041596:	748080        	extui	a8, a8, 0, 8
+42041599:	ce8856        	bnez	a8, 42041285 <sensorarrayTextProtocolBuildMixedFrame+0x1a1>
+4204159c:	272122        	l32i	a2, a1, 156
+4204159f:	034d      	mov.n	a4, a3
+420415a1:	222192        	l32i	a9, a1, 136
+420415a4:	1a2182        	l32i	a8, a1, 104
+420415a7:	02b987        	bgeu	a9, a8, 420415ad <sensorarrayTextProtocolBuildMixedFrame+0x4c9>
+420415aa:	ffdd86        	j	42041524 <sensorarrayTextProtocolBuildMixedFrame+0x440>
+420415ad:	0a0c      	movi.n	a10, 0
+420415af:	988c      	beqz.n	a8, 420415bc <sensorarrayTextProtocolBuildMixedFrame+0x4d8>
+420415b1:	1421b2        	l32i	a11, a1, 80
+420415b4:	08cd      	mov.n	a12, a8
+420415b6:	06ba81        	l32r	a8, 420030a0 <_stext+0x3080> (40001c98 <r_lld_con_frm_isr_hook>)
+420415b9:	0008e0        	callx8	a8
+420415bc:	262182        	l32i	a8, a1, 152
+420415bf:	142172        	l32i	a7, a1, 80
+420415c2:	a8c8      	l32i.n	a12, a8, 40
+420415c4:	b898      	l32i.n	a9, a8, 44
+420415c6:	122482        	l32i	a8, a4, 72
+420415c9:	1124f2        	l32i	a15, a4, 68
+420415cc:	24e8      	l32i.n	a14, a4, 8
+420415ce:	06b1d1        	l32r	a13, 42003094 <_stext+0x3074> (3c1375e4 <_flash_rodata_start+0x174c4>)
+420415d1:	06abb1        	l32r	a11, 42003080 <_stext+0x3060> (900 <UserFrameTotalSize+0x800>)
+420415d4:	11c9      	s32i.n	a12, a1, 4
+420415d6:	1a21c2        	l32i	a12, a1, 104
+420415d9:	0189      	s32i.n	a8, a1, 0
+420415db:	31a9      	s32i.n	a10, a1, 12
+420415dd:	2199      	s32i.n	a9, a1, 8
+420415df:	20a770        	or	a10, a7, a7
+420415e2:	ffa125        	call8	42040ff4 <sensorarrayTextAppend$constprop$0>
+420415e5:	0abd      	mov.n	a11, a10
+420415e7:	1d0c      	movi.n	a13, 1
+420415e9:	04cd      	mov.n	a12, a4
+420415eb:	07ad      	mov.n	a10, a7
+420415ed:	ffa725        	call8	42041060 <sensorarrayTextAppendIdentity$constprop$0>
+420415f0:	222182        	l32i	a8, a1, 136
+420415f3:	02b8a7        	bgeu	a8, a10, 420415f9 <sensorarrayTextProtocolBuildMixedFrame+0x515>
+420415f6:	ffca86        	j	42041524 <sensorarrayTextProtocolBuildMixedFrame+0x440>
+420415f9:	0252a2        	s16i	a10, a2, 4
+420415fc:	0b0c      	movi.n	a11, 0
+420415fe:	000086        	j	42041604 <sensorarrayTextProtocolBuildMixedFrame+0x520>
+42041601:	02a1b2        	movi	a11, 0x102
+42041604:	067681        	l32r	a8, 42002fdc <_stext+0x2fbc> (3fcb03dc <__stack_chk_guard>)
+42041607:	0020c0        	memw
+4204160a:	2b2192        	l32i	a9, a1, 172
+4204160d:	0020c0        	memw
+42041610:	002882        	l32i	a8, a8, 0
+42041613:	051987        	beq	a9, a8, 4204161c <sensorarrayTextProtocolBuildMixedFrame+0x538>
+42041616:	067381        	l32r	a8, 42002fe4 <_stext+0x2fc4> (40384b24 <__stack_chk_fail>)
+42041619:	0008e0        	callx8	a8
+4204161c:	0b2d      	mov.n	a2, a11
+4204161e:	f01d      	retw.n

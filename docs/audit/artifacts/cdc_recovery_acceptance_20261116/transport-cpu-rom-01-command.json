@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "transport-cpu-rom-01",
+    "--request-rom"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "849d96cb03ba2089e353563f9c1a750c719434cb",
+  "dirty_diff_sha256": "666293d9806477fc42721ad906f7c007bf89649129a1acd8d5ec98fe8ff0dfde",
+  "started_utc": "2026-11-16T10:24:00.180583+00:00",
+  "started_monotonic": 331532.628085931,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T10:24:01.298543+00:00",
+  "finished_monotonic": 331533.746053844,
+  "log_sha256": "2b423612bd43027b35e3ee011f0f4e30710d397e324ab6ee92e71d628ff72afd"
+}
