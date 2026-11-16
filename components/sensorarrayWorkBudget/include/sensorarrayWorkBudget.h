@@ -24,6 +24,11 @@ typedef struct {
     uint32_t checkpoints;
     uint32_t yields;
     uint32_t maxBurstUnits;
+    /* Added observation only: a yield can satisfy multiple predicates.
+     * These counters overlap and must not be summed as a yield count. */
+    uint32_t quantumDue;
+    uint32_t backstopDue;
+    uint32_t unitsDue;
 } sensorarrayWorkBudgetWorkerSnapshot_t;
 
 typedef struct {
@@ -57,6 +62,11 @@ esp_err_t sensorarrayWorkBudgetInit(void);
  * The quantum begins at the next checkpoint; a single caller operation may
  * overshoot it. No notifications consumed. */
 bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker);
+
+/* Added observation only: one real CPU0-idle epoch sample, zero if unknown.
+ * No wait/checkpoint or synthetic progress. Nonzero wrap skips zero; a changed
+ * epoch around an SDK call is not a CPU-time or blocked-call measurement. */
+uint32_t sensorarrayWorkBudgetIdleGeneration(void);
 
 /* Individually sampled diagnostic counters, not an atomic configuration or a
  * CPU-utilization measurement. All tick/counter arithmetic is modulo 2^32. */

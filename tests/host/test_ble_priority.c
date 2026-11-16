@@ -51,6 +51,8 @@ static unsigned lockDepth, checkpoints, wakeGives, idleTakes, delayCalls, queueI
 static unsigned failQueueSends, sdkCalls, sdkFailures, disconnectAfter, priorityOnSend;
 static unsigned phyRequests, readRequests, connRequests, dleRequests;
 static uint64_t nowUs, sdkDelayUs;
+static uint32_t idleGeneration, sdkIdleAfter;
+static bool changeIdleDuringSdk;
 static esp_err_t phyReturn, fallbackReturn, readReturn, connReturn, dleReturn;
 static bool wakeOnlyDuringConfirm, confirmSuccess, injectOnIdle, injectLogOnSend;
 static uint32_t notifications;
@@ -67,6 +69,8 @@ static TaskHandle_t xTaskGetCurrentTaskHandle(void) { return (void *)1; }
 static UBaseType_t uxTaskPriorityGet(TaskHandle_t task) { assert(!lockDepth); return task == (void *)1 ? 7u : 8u; }
 static bool sensorarrayWorkBudgetCheckpoint(unsigned worker)
 { assert(!lockDepth && worker == 0u); checkpoints++; return false; }
+static uint32_t sensorarrayWorkBudgetIdleGeneration(void)
+{ assert(!lockDepth); return idleGeneration; }
 static QueueHandle_t xQueueCreateStatic(unsigned count, unsigned size, uint8_t *storage, StaticQueue_t *queue)
 {
     queueInitCount++;
@@ -150,8 +154,10 @@ static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t c
     (void)confirm;
     assert(!lockDepth && interface == 2 && conn == 3 && value && length <= 244u);
     assert(s_ble.link.sdkCallActive && s_ble.link.sdkCallStartedUs == nowUs);
+    assert(s_ble.link.sdkCallCount == s_ble.link.sdkCompletedCalls + 1u);
     assert(s_ble.stats.txSlotUsed > 0u); /* Caller still owns persistent payload. */
     sdkCalls++; nowUs += sdkDelayUs;
+    if (changeIdleDuringSdk) { idleGeneration = sdkIdleAfter; }
     if (sdkCalls <= sdkFailures) { return ESP_FAIL; }
     assert(sentLength + length <= sizeof(sentBytes));
     memcpy(sentBytes + sentLength, value, length); sentLength += length;
@@ -193,6 +199,7 @@ static void reset(void)
 {
     memset(&s_ble, 0, sizeof(s_ble));
     nowUs = 1000000u; sdkDelayUs = 0u;
+    idleGeneration = 1u; sdkIdleAfter = 0u; changeIdleDuringSdk = false;
     lockDepth = checkpoints = wakeGives = idleTakes = delayCalls = queueInitCount = failQueueInit = 0u;
     failQueueSends = sdkCalls = sdkFailures = disconnectAfter = priorityOnSend = 0u;
     phyRequests = readRequests = connRequests = dleRequests = notifications = 0u;
@@ -348,11 +355,52 @@ static void testNegotiation(void)
     assert(s_ble.link.phyReadRequestError == ESP_ERR_TIMEOUT && s_ble.link.connRequestError == ESP_ERR_NO_MEM && s_ble.link.dataLengthRequestError == ESP_FAIL);
     assert(!s_ble.link.phyKnown && s_ble.link.phyUpdateStatus == UINT16_MAX);
 }
+static void testSdkObservation(void)
+{
+    reset(); sdkDelayUs = 2500u;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkCompletedCalls == 1u && s_ble.link.sdkWallUs == 2500u);
+    assert(s_ble.link.sdkIdleUnchanged == 1u && s_ble.link.sdkIdleChanged == 0u && s_ble.link.sdkIdleUnknown == 0u);
+    /* A long synthetic API interval includes no proof of which task ran. */
+    sdkDelayUs = 20001u; changeIdleDuringSdk = true; sdkIdleAfter = 2u;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkCompletedCalls == 2u && s_ble.link.sdkWallUs == 22501u);
+    assert(s_ble.link.sdkIdleChanged == 1u && s_ble.link.sdkIdleUnchanged == 1u);
+    idleGeneration = 0u; changeIdleDuringSdk = false; sdkDelayUs = 0u;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkIdleUnknown == 1u && s_ble.link.sdkWallUs == 22501u);
+    changeIdleDuringSdk = true; sdkIdleAfter = 7u;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkIdleUnknown == 2u); /* Unknown-before/known-after remains unknown. */
+    idleGeneration = UINT32_MAX; sdkIdleAfter = 1u;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkIdleChanged == 2u); /* Epoch wrap is a real observed change. */
+    sensorarrayBleLinkSnapshot_t snapshot; sensorarrayBleGetLinkSnapshot(&snapshot);
+    assert(snapshot.sdkCompletedCalls == 5u && !snapshot.sdkCallActive);
+    assert(snapshot.sdkIdleChanged + snapshot.sdkIdleUnchanged + snapshot.sdkIdleUnknown == snapshot.sdkCompletedCalls);
+    sensorarrayBleResetLinkObservationLocked();
+    assert(s_ble.link.sdkCompletedCalls == 5u && s_ble.link.sdkWallUs == 22501u); /* Boot totals. */
+
+    reset(); sdkDelayUs = 300000u; sdkFailures = 100u;
+    assert(enqueue(SENSORARRAY_BLE_CH_CTRL) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkCompletedCalls == 2u && s_ble.link.sdkWallUs == 600000u);
+    assert(s_ble.link.sdkIdleUnchanged == 2u && s_ble.link.sdkErrors == 2u);
+    assert(nowUs == 1610000u); /* Retry delay is outside the summed SDK intervals. */
+
+    reset(); sdkDelayUs = 10u;
+    s_ble.link.sdkWallUs = UINT64_MAX - 5u;
+    s_ble.link.sdkCallCount = s_ble.link.sdkCompletedCalls = UINT32_MAX;
+    s_ble.link.sdkIdleUnchanged = UINT32_MAX;
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
+    assert(s_ble.link.sdkWallUs == 4u && s_ble.link.sdkCallCount == 0u && s_ble.link.sdkCompletedCalls == 0u);
+    assert(s_ble.link.sdkIdleUnchanged == 0u);
+}
 int main(void)
 {
     testAdmissionAndPriority(); testWeightedLog(); testLifecycleAndWake();
     testPartialOwnership(); testFailuresAndConfirm(); testNegotiation();
-    printf("BLE_PRIORITY_PASS,groups=6,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
+    testSdkObservation();
+    printf("BLE_PRIORITY_PASS,groups=7,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
         CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN, SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
         SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT, (unsigned)sizeof(s_ble), (unsigned)sizeof(sensorarrayBleTxDescriptor_t));
     return 0;

@@ -333,6 +333,64 @@ static void testLocalQuantumAndGlobalAgeWrap(void)
     assert(delayCalls == 2u); /* Separate local elapsed and real-idle unsigned wrap. */
 }
 
+static void testYieldReasonObservation(void)
+{
+    const sensorarrayWorkBudgetWorker_t worker = SENSORARRAY_WORK_BUDGET_BLE_TX;
+    sensorarrayWorkBudgetSnapshot_t snap;
+    reset(); assert(sensorarrayWorkBudgetIdleGeneration() == 0u);
+    assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    assert(sensorarrayWorkBudgetIdleGeneration() == 1u);
+    assert(!sensorarrayWorkBudgetCheckpoint(worker));
+    /* The model advances only wall time while this worker is off CPU. The
+     * current policy still charges its local quantum; observation must not
+     * silently change that policy or claim this was CPU execution time. */
+    nowTick = 2u; assert(sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].quantumDue == 1u && snap.workers[worker].backstopDue == 0u);
+    assert(snap.workers[worker].unitsDue == 0u && snap.workers[worker].yields == 1u);
+    assert(!sensorarrayWorkBudgetCheckpoint(worker)); /* Own delay is not charged twice. */
+
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    assert(!sensorarrayWorkBudgetCheckpoint(worker)); nowTick = 2u; assert(registeredHook());
+    assert(!sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].yields == 0u && snap.workers[worker].quantumDue == 0u);
+
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].backstopDue == 1u && snap.workers[worker].quantumDue == 0u);
+    assert(snap.workers[worker].unitsDue == 0u);
+
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
+    assert(sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].unitsDue == 1u && snap.workers[worker].quantumDue == 0u);
+    assert(snap.workers[worker].backstopDue == 0u);
+
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
+    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].yields == 1u && snap.workers[worker].quantumDue == 1u);
+    assert(snap.workers[worker].backstopDue == 1u && snap.workers[worker].unitsDue == 1u);
+    /* Three matched reasons, exactly one real requested delay. */
+    assert(delayCalls == 1u);
+
+    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
+    s_workers[worker].quantumDue = s_workers[worker].backstopDue = s_workers[worker].unitsDue = UINT32_MAX;
+    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
+    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
+    sensorarrayWorkBudgetCopySnapshot(&snap);
+    assert(snap.workers[worker].quantumDue == 0u && snap.workers[worker].backstopDue == 0u);
+    assert(snap.workers[worker].unitsDue == 0u);
+    s_idleGeneration = UINT32_MAX; assert(registeredHook());
+    assert(sensorarrayWorkBudgetIdleGeneration() == 1u); /* Real epoch skips zero. */
+    workBudgetTestStorageInternal = false;
+    assert(sensorarrayWorkBudgetIdleGeneration() == 0u);
+}
+
 int main(void)
 {
     testDelayedWorkerFourUnitBurst();
@@ -345,6 +403,7 @@ int main(void)
     testControlFloodMaxUnits();
     testNoCpu0OrIdleProgressIsNotFabricated();
     testLocalQuantumAndGlobalAgeWrap();
+    testYieldReasonObservation();
     for (unsigned phase = 0u; phase < 2u; ++phase) {
         testSevenContinuouslyReadyWorkers(100u, phase * 9500u);
         testSevenContinuouslyReadyWorkers(500u, phase * 9500u);
@@ -352,6 +411,6 @@ int main(void)
         testFiniteSevenWorkerLoad(100u, phase * 9500u);
         testFiniteSevenWorkerLoad(500u, phase * 9500u);
     }
-    puts("WORK_BUDGET_PASS,scenarios=20,production_component=1,hardware=NOT_RUN");
+    puts("WORK_BUDGET_PASS,scenarios=26,production_component=1,hardware=NOT_RUN");
     return 0;
 }

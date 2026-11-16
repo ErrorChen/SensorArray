@@ -545,6 +545,14 @@ esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
                                                  outRequestId);
 }
 
+esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t samplesPerGroup,
+                                                uint32_t *outRequestId)
+{
+    if (samplesPerGroup != 200u) { return ESP_ERR_INVALID_ARG; }
+    return sensorarrayCommandMailboxPostReservedConfig(SENSORARRAY_COMMAND_ADS_TIMING,
+                                                        samplesPerGroup, outRequestId);
+}
+
 esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
                                                   uint32_t *outRequestId)
 {
@@ -701,6 +709,8 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
         return "rail_calibration";
     case SENSORARRAY_COMMAND_ADS_CHECK:
         return "ads_check";
+    case SENSORARRAY_COMMAND_ADS_TIMING:
+        return "ads_timing";
     case SENSORARRAY_COMMAND_BATTERY_NOW:
         return "battery_now";
     case SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC:

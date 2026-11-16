@@ -1035,6 +1035,7 @@ static esp_err_t sensorarrayBleSendGattValue(
             if (confirm) {
                 sensorarrayBlePrepareConfirmation(context, handle);
             }
+            uint32_t idleBefore = sensorarrayWorkBudgetIdleGeneration();
             uint64_t callStartedUs = (uint64_t)esp_timer_get_time();
             portENTER_CRITICAL(&s_bleMux);
             s_ble.link.sdkCallActive = true;
@@ -1049,10 +1050,16 @@ static esp_err_t sensorarrayBleSendGattValue(
                                                     confirm);
             uint64_t callCompletedUs = (uint64_t)esp_timer_get_time();
             uint64_t callUs = callCompletedUs - callStartedUs;
+            uint32_t idleAfter = sensorarrayWorkBudgetIdleGeneration();
             portENTER_CRITICAL(&s_bleMux);
             s_ble.link.sdkCallActive = false;
             s_ble.link.sdkCallCompletedUs = callCompletedUs;
             s_ble.link.sdkLastError = lastError;
+            s_ble.link.sdkCompletedCalls++;
+            s_ble.link.sdkWallUs += callUs;
+            if (idleBefore == 0u || idleAfter == 0u) { s_ble.link.sdkIdleUnknown++; }
+            else if (idleBefore != idleAfter) { s_ble.link.sdkIdleChanged++; }
+            else { s_ble.link.sdkIdleUnchanged++; }
             if (callUs > s_ble.link.sdkMaxCallUs) {
                 s_ble.link.sdkMaxCallUs = callUs > UINT32_MAX ? UINT32_MAX : (uint32_t)callUs;
             }

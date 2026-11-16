@@ -1,6 +1,7 @@
 #include "sensorarrayUsbOtg.h"
 #include "control/sensorarrayUsbControl.h"
 #include "control/sensorarrayLinkDiagnostics.h"
+#include "control/sensorarrayAdsTimingControl.h"
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -204,6 +205,12 @@ static esp_err_t sensorarrayFrontendRowsRequest(uint8_t rows,
     return sensorarrayCommandMailboxPostRows(rows, outResult);
 }
 static sensorarrayConfigIdentity_t sensorarrayPublishConfigAuthority(sensorarrayAppContext_t *ctx, uint32_t frameBoundary);
+/* 本轮新增: timing diagnostics are consumed only by the frame-boundary owner. */
+static void
+sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx, const sensorarrayCommand_t *command);
+static esp_err_t
+sensorarrayStopAfterRecoveryFailure(sensorarrayAppContext_t *ctx,
+    esp_err_t originalError, esp_err_t cleanupError, const char *reason);
 static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
 static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
 static bool sensorarrayCalibrationMatrixPayloadValid(const void *payload,
@@ -1611,8 +1618,17 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
         return;
     }
 
+    sensorarrayConfigAuthority_t timingAuthority = {0};
+    bool timingKnown = sensorarrayConfigIdentityCopy(&timingAuthority);
+    sensorarrayAdsTimingControlExpire((uint64_t)esp_timer_get_time(), &timingAuthority, timingKnown);
     sensorarrayCommand_t command;
     while (sensorarrayCommandMailboxTryReceive(&command)) {
+        if (command.type == SENSORARRAY_COMMAND_ADS_TIMING) {
+            /* No intervening frame, command, battery or old ADSCHK can run
+             * inside this complete transaction. It never emits Applied. */
+            sensorarrayRunAdsTimingCommand(ctx, &command);
+            return;
+        }
         if (sensorarrayFrontendsHeld()) {
             sensorarrayRejectHeldCommand(ctx, &command);
             continue;
@@ -1957,6 +1973,78 @@ static bool sensorarrayFrontendOwnersQuiescent(const sensorarrayAppContext_t *ct
         !sensorarrayMeasureFdcWorkersQuarantined() &&
         !ads126xAdcIsQuarantined(&ctx->state.ads) &&
         !ctx->state.ads.spiInFlight;
+}
+
+/* 本轮新增: independent raw-link diagnostic; never feeds frame/PGA/value cache. */
+static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
+                                          const sensorarrayCommand_t *command)
+{
+    sensorarrayConfigAuthority_t authority = {0};
+    bool known = sensorarrayConfigIdentityCopy(&authority);
+    sensorarrayAdsTimingRequest_t request = {0};
+    sensorarrayAdsTimingTake_t take = sensorarrayAdsTimingControlTake(command->requestId,
+        &authority, known, (uint64_t)esp_timer_get_time(), &request);
+    if (take == SENSORARRAY_TIMING_TAKE_NONE) { return; }
+    const char *reject = take == SENSORARRAY_TIMING_TAKE_STALE ? "stale_config" :
+        (take == SENSORARRAY_TIMING_TAKE_EXPIRED ? "queue_deadline" : NULL);
+    sensorarrayRouteSnapshot_t route = {0};
+    if (!reject && (!ctx || sensorarrayFrontendsHeld() || !ctx->systemReady)) { reject = "not_ready"; }
+    if (!reject && (authority.identity.mode != SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE &&
+                    authority.identity.mode != SENSORARRAY_MEASUREMENT_MODE_VOLTAGE)) { reject = "CAP_or_VOLT_required"; }
+    if (!reject && (!sensorarrayFrontendOwnersQuiescent(ctx) ||
+                    sensorarrayMeasurementRecoveryIsActive(&ctx->adsRestoreRecovery))) { reject = "owner_unavailable"; }
+    if (!reject && (!sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route) ||
+                    !route.applied || !route.known || !route.verified ||
+                    route.mode != authority.identity.mode || (route.power & ADS126X_POWER_INTREF) != 0u)) {
+        reject = "route_not_known_ref_off";
+    }
+    if (reject) {
+        (void)sensorarrayAdsTimingControlComplete(request.id, "rejected", reject,
+            take == SENSORARRAY_TIMING_TAKE_EXPIRED ? ESP_ERR_TIMEOUT : ESP_ERR_INVALID_STATE,
+            ESP_OK, &authority, known, false);
+        return;
+    }
+    sensorarrayAdsTimingProbeResult_t *result = sensorarrayAdsTimingControlWorkResult();
+    esp_err_t error = sensorarrayAdsGapRunTimingProbe(&ctx->state,
+        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine), request.id,
+        ctx->hostFrameSequence, result);
+    esp_err_t original = result->firstError != ESP_OK ? result->firstError :
+        (result->terminalError != ESP_OK ? result->terminalError : error);
+    esp_err_t cleanup = result->cleanupError;
+    /* This boundary owns the helper's restore latch; do not carry an already
+     * handled failure into a future legal MODE request. An unexpected latch
+     * still means unknown cleanup, never a silently successful transaction. */
+    if (sensorarrayAdsGapConsumeRestoreFailure()) {
+        if (cleanup == ESP_OK) { cleanup = ESP_ERR_INVALID_STATE; }
+        result->requiresIsolation = true;
+    }
+    bool isolate = result->requiresIsolation || (result->mutated && !result->restoreVerified);
+    const char *terminalReason = isolate ?
+        ((cleanup != ESP_OK || !result->restoreVerified) ? "restore_failed" : "probe_fault_requires_isolation") :
+        (result->completed && result->restoreVerified ? "probe_complete" : "probe_failed");
+    if (isolate && original == ESP_OK) { original = ESP_ERR_INVALID_STATE; }
+    if (isolate) {
+        sensorarrayAdsFaultEvent_t fault = {
+            .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK,
+            .err = original, .seq = ctx->hostFrameSequence,
+            .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
+        };
+        sensorarrayAdsFaultFillContext(ctx, &fault);
+        fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_CHECK);
+        cleanup = sensorarrayStopAfterRecoveryFailure(ctx, original, cleanup,
+            strcmp(terminalReason, "restore_failed") == 0 ? "ads_timing_restore_failed" : "ads_timing_probe_fault");
+        result->cleanupError = cleanup;
+        sensorarrayEmitAdsFault(ctx, &fault);
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSTIMING,id=%lu,err=0x%lx,terminalError=0x%lx,cleanupError=0x%lx,probeReason=%s,restoreVerified=%u,state=DEGRADED,route=SAFE_REQUESTED\n",
+            (unsigned long)request.id, (unsigned long)original,
+            (unsigned long)result->terminalError, (unsigned long)cleanup,
+            result->reason ? result->reason : "unknown", result->restoreVerified ? 1u : 0u);
+    }
+    known = sensorarrayConfigIdentityCopy(&authority);
+    bool completed = result->completed && result->restoreVerified && !isolate;
+    (void)sensorarrayAdsTimingControlComplete(request.id, completed ? "completed" : "failed",
+        terminalReason,
+        original, cleanup, &authority, known, true);
 }
 
 static void sensorarrayEnterFrontendHold(sensorarrayAppContext_t *ctx,
@@ -2543,7 +2631,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     if (strcmp(command, "RESTART?") == 0) {
         return sensorarrayRestartControlFormat(response, responseSize);
     }
-    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
+    if (sensorarrayLinkDiagnosticsHandles(command)) {
         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
     }
     if (sensorarrayUsbControlHandles(command)) {
@@ -2560,6 +2648,13 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "FRONTENDS?") == 0) {
         return sensorarrayFormatFrontendReply(response, responseSize);
+    }
+    if (sensorarrayAdsTimingControlHandles(command)) {
+        esp_err_t err = sensorarrayAdsTimingControlFormat(command, response, responseSize);
+        if (err != ESP_OK) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSTIMING,reason=query_unavailable,err=0x%lx\n", (unsigned long)err);
+        }
+        return err;
     }
     if (strcmp(command, "BUILD?") == 0) {
         return sensorarrayFormatBuildReply(response, responseSize);
@@ -2600,7 +2695,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -2649,6 +2744,10 @@ static void sensorarrayControlReplyPublished(const char *data, size_t length)
         return;
     }
     unsigned long requestId = 0u;
+    if (sscanf(data, "ACK,cmd=ADSCHK,timing=1,id=%lu", &requestId) == 1) {
+        (void)sensorarrayAdsTimingControlAck((uint32_t)requestId, ESP_OK);
+        return;
+    }
     if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
         (void)sensorarrayRecoveryControlAck((uint32_t)requestId, ESP_OK);
         return;
@@ -2676,6 +2775,10 @@ static void sensorarrayControlReplyFailed(esp_err_t error,
         return;
     }
     unsigned long requestId = 0u;
+    if (sscanf(data, "ACK,cmd=ADSCHK,timing=1,id=%lu", &requestId) == 1) {
+        (void)sensorarrayAdsTimingControlAck((uint32_t)requestId, error);
+        return;
+    }
     if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
         (void)sensorarrayRecoveryControlAck((uint32_t)requestId, error);
         return;
@@ -2711,7 +2814,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "RESTART?") == 0) {
         return sensorarrayRestartControlFormat(response, responseSize);
     }
-    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
+    if (sensorarrayLinkDiagnosticsHandles(command)) {
         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
     }
     if (sensorarrayUsbControlHandles(command)) {
@@ -2728,6 +2831,13 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "FRONTENDS?") == 0) {
         return sensorarrayFormatFrontendReply(response, responseSize);
+    }
+    if (sensorarrayAdsTimingControlHandles(command)) {
+        esp_err_t err = sensorarrayAdsTimingControlFormat(command, response, responseSize);
+        if (err != ESP_OK) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSTIMING,reason=query_unavailable,err=0x%lx\n", (unsigned long)err);
+        }
+        return err;
     }
     if (sensorarrayFrontendsHeld() && !strchr(command, '?') &&
         strcmp(command, "RESTART") != 0 && strcmp(command, "RECOVER=2") != 0 &&
@@ -3106,6 +3216,31 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return sensorarrayAdsGapFormatAds(response, responseSize) > 0u ?
             ESP_OK : ESP_FAIL;
     }
+    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0) {
+        if (strcmp(command, "ADSCHK=TIMING,200") != 0) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_syntax,expected=TIMING_200\n");
+            return ESP_ERR_INVALID_ARG;
+        }
+        sensorarrayConfigAuthority_t authority = {0};
+        if (!sensorarrayConfigIdentityCopy(&authority)) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=identity_unavailable\n");
+            return ESP_ERR_INVALID_STATE;
+        }
+        uint32_t id = 0u;
+        esp_err_t err = sensorarrayAdsTimingControlPost(&authority, (uint64_t)esp_timer_get_time(), &id);
+        if (err != ESP_OK) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_busy,err=0x%lx\n", (unsigned long)err);
+            return err;
+        }
+        int n = snprintf(response, responseSize,
+            "ACK,cmd=ADSCHK,timing=1,id=%lu,perGroup=200,groups=4,status=accepted\n", (unsigned long)id);
+        if (n <= 0 || (size_t)n >= responseSize) {
+            response[0] = '\0';
+            (void)sensorarrayAdsTimingControlAck(id, ESP_ERR_INVALID_SIZE);
+            return ESP_ERR_INVALID_SIZE;
+        }
+        return ESP_OK;
+    }
     if (strcmp(command, "ADSCHK") == 0 || strncmp(command, "ADSCHK=", 7u) == 0) {
         uint32_t sampleCount = 100u;
         if (command[6] == '=') {
@@ -3293,7 +3428,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -4913,6 +5048,7 @@ void app_main(void)
     esp_fill_random(&s_configSessionId, sizeof(s_configSessionId));
     sensorarrayRecoveryControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
     sensorarrayRestartControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
+    sensorarrayAdsTimingControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
            CONFIG_SENSORARRAY_ADC_CORE,
            CONFIG_SENSORARRAY_MISC_CORE,

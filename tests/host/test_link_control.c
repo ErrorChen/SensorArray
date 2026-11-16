@@ -10,11 +10,13 @@
 #include "sensorarraySerialIo.h"
 #include "sensorarrayBle.h"
 #include "sensorarrayTransport.h"
+#include "sensorarrayWorkBudget.h"
 
 static bool otgEnabled, cdcEnabled, romAvailable, authorityKnown;
 static sensorarrayUsbOtgStats_t usbStats;
 static sensorarraySerialIoStats_t serialStats;
 static sensorarrayBleLinkSnapshot_t link;
+static sensorarrayWorkBudgetSnapshot_t budget;
 static sensorarrayConfigAuthority_t authority;
 static unsigned serialTerminals, networkTerminals, debugMirrors, publishCount;
 static char lastTerminal[512], publishOrder[8];
@@ -25,6 +27,7 @@ bool sensorarrayUsbOtgRomDownloadAvailable(void) { return romAvailable; }
 void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out) { *out = usbStats; }
 void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *out) { *out = serialStats; }
 void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *out) { *out = link; }
+void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *out) { *out = budget; }
 bool sensorarrayConfigIdentityCopy(sensorarrayConfigAuthority_t *out)
 { *out = authority; return authorityKnown; }
 esp_err_t sensorarraySerialIoQueue(const char *text, size_t length, bool priority)
@@ -72,6 +75,7 @@ static void reset(void)
 {
     memset(&usbStats, 0, sizeof(usbStats)); memset(&serialStats, 0, sizeof(serialStats));
     memset(&link, 0, sizeof(link)); memset(&authority, 0, sizeof(authority));
+    memset(&budget, 0, sizeof(budget));
     otgEnabled = romAvailable = authorityKnown = true;
     cdcEnabled = false;
     authority.identity.revision = 9u; authority.identity.appliedFrameBoundary = 100u;
@@ -153,12 +157,30 @@ static void testBleBoundaries(void)
     link.sdkLastError = ESP_FAIL; link.txTaskPriority = link.ctrlTaskPriority = UINT32_MAX;
     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLELINK?", "dlePeerKnown=0");
     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLETX?", "pcReceipt=unknown");
+    link.sdkCompletedCalls = link.sdkIdleChanged = link.sdkIdleUnchanged = link.sdkIdleUnknown = UINT32_MAX;
+    link.sdkWallUs = UINT64_MAX;
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLESVC?", "wall=elapsed,cpu=unknown,blocked=unknown");
+    budget.initError = ESP_FAIL; budget.registered = budget.idleKnown = true;
+    budget.idleGeneration = UINT32_MAX;
+    for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) {
+        budget.workers[i].quantumDue = budget.workers[i].backstopDue = budget.workers[i].unitsDue = UINT32_MAX;
+    }
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "SCHEDWHY?", "order=quantum/backstop/units,overlap=1");
+    assert(sensorarrayLinkDiagnosticsHandles("BLELINK?") && sensorarrayLinkDiagnosticsHandles("BLETX?"));
+    assert(sensorarrayLinkDiagnosticsHandles("BLESVC?") && sensorarrayLinkDiagnosticsHandles("SCHEDWHY?"));
+    assert(!sensorarrayLinkDiagnosticsHandles(NULL) && !sensorarrayLinkDiagnosticsHandles("BLESVC=1"));
+    assert(!sensorarrayLinkDiagnosticsHandles("SCHEDWHY=1") && !sensorarrayLinkDiagnosticsHandles("OTHER?"));
     memset(&link, 0, sizeof(link));
     link.phyRequestError = link.connRequestError = link.dataLengthRequestError = ESP_ERR_INVALID_STATE;
     link.phyUpdateStatus = link.connUpdateStatus = link.dataLengthStatus = UINT16_MAX;
     char reply[512]; assert(sensorarrayLinkDiagnosticsFormat("BLELINK?", reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "phyKnown=0,txPhy=0,rxPhy=0,connKnown=0"));
     assert(strstr(reply, "phyStatus=65535,connStatus=65535,dleStatus=65535,dleObserved=0,dlePeerKnown=0"));
+    assert(sensorarrayLinkDiagnosticsFormat("BLESVC?", reply, sizeof(reply)) == ESP_OK);
+    assert(strstr(reply, "active=0,started=0,completed=0,wallUs=0,idleChanged=0,idleSame=0,idleUnknown=0"));
+    memset(&budget, 0, sizeof(budget)); budget.initError = ESP_ERR_INVALID_STATE;
+    assert(sensorarrayLinkDiagnosticsFormat("SCHEDWHY?", reply, sizeof(reply)) == ESP_OK);
+    assert(strstr(reply, "init=0x103,registered=0,idleKnown=0,idleGen=0"));
     assert(sensorarrayLinkDiagnosticsFormat("OTHER?", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
 }
 static void testBootGuard(void)

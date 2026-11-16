@@ -115,6 +115,8 @@ static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; restarts++; }
 static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
 static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static bool sensorarrayLinkDiagnosticsHandles(const char *cmd) { return strcmp(cmd,"BLELINK?")==0 || strcmp(cmd,"BLETX?")==0 || strcmp(cmd,"BLESVC?")==0 || strcmp(cmd,"SCHEDWHY?")==0; }
+static bool sensorarrayAdsTimingControlAck(uint32_t id,esp_err_t err) { (void)id;(void)err;return false; }
 static void vTaskDelay(unsigned ticks) { assert(ticks<=21); }
 static bool sensorarrayCommandMailboxCommitConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }
 static bool sensorarrayCommandMailboxCancelConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }

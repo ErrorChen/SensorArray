@@ -7,6 +7,7 @@
 #include "sensorarrayAdsMath.h"
 #include "sensorarrayAdsCache.h"
 #include "sensorarrayAdsFault.h"
+#include "sensorarrayAdsTimingProbe.h"
 #include "sensorarrayTypes.h"
 
 enum {
@@ -107,6 +108,12 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
     uint32_t requestId,
     uint32_t sampleCount,
     sensorarrayAdsActiveCheckResult_t *outResult);
+/* 本轮新增: caller is the complete-frame boundary owner, CAP/VOLT only.
+ * Admission rejection leaves known hardware unchanged; a hard failure or an
+ * unverified restore requires isolation before another scientific frame. */
+esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
+    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
+    uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *outResult);
 size_t sensorarrayAdsGapFormatActiveCheck(
     const sensorarrayAdsActiveCheckResult_t *result,
     char *buffer,

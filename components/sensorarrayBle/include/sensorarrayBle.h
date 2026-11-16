@@ -121,6 +121,15 @@ typedef struct {
     uint32_t sdkAccepted;
     uint32_t sdkErrors;
     uint32_t sdkMaxCallUs;
+    /* Added observation only; boot totals, not reset on link reconnect.
+     * Completed SDK calls include errors. Wall time includes preemption and
+     * possible blocking, so neither it nor idle-epoch change proves CPU cost
+     * or blocking. 32-bit counts/64-bit microsecond total wrap modulo width. */
+    uint32_t sdkCompletedCalls;
+    uint64_t sdkWallUs;
+    uint32_t sdkIdleChanged;
+    uint32_t sdkIdleUnchanged;
+    uint32_t sdkIdleUnknown;
     esp_err_t sdkLastError;
     uint32_t txTaskPriority;
     uint32_t ctrlTaskPriority;

@@ -34,6 +34,9 @@ typedef struct {
     uint32_t checkpoints;
     uint32_t yields;
     uint32_t maxBurstUnits;
+    uint32_t quantumDue;
+    uint32_t backstopDue;
+    uint32_t unitsDue;
     /* Only this worker's task mutates these private scheduling fields. */
     uint32_t units;
     uint32_t quantumStartTick;
@@ -163,11 +166,23 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
         __atomic_store_n(&state->maxBurstUnits, state->units, __ATOMIC_RELAXED);
     }
     uint32_t idleAge = now - reference;
-    bool due = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS ||
-        now - state->quantumStartTick >= SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS ||
-        state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
+    const bool backstopDue = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS;
+    const bool quantumDue = now - state->quantumStartTick >= SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS;
+    const bool unitsDue = state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
+    bool due = backstopDue || quantumDue || unitsDue;
     if (!due) {
         return false;
+    }
+    /* Observe the original predicates, without changing their OR semantics.
+     * Multiple reasons may hold at this same boundary. */
+    if (quantumDue) {
+        __atomic_store_n(&state->quantumDue, sensorarrayWorkBudgetLoad(&state->quantumDue) + 1u, __ATOMIC_RELAXED);
+    }
+    if (backstopDue) {
+        __atomic_store_n(&state->backstopDue, sensorarrayWorkBudgetLoad(&state->backstopDue) + 1u, __ATOMIC_RELAXED);
+    }
+    if (unitsDue) {
+        __atomic_store_n(&state->unitsDue, sensorarrayWorkBudgetLoad(&state->unitsDue) + 1u, __ATOMIC_RELAXED);
     }
     state->units = 0u;
     /* Start at the next boundary, after the caller resumes. The RTOS block
@@ -180,6 +195,12 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
      * cannot trap CTRL/slots here; the next work unit and its deadline proceed. */
     vTaskDelay(1u);
     return true;
+}
+
+uint32_t sensorarrayWorkBudgetIdleGeneration(void)
+{
+    if (!sensorarrayWorkBudgetStorageInternal()) { return 0u; }
+    return __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
 }
 
 void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot)
@@ -223,5 +244,8 @@ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot
         snapshot->workers[i].checkpoints = sensorarrayWorkBudgetLoad(&s_workers[i].checkpoints);
         snapshot->workers[i].yields = sensorarrayWorkBudgetLoad(&s_workers[i].yields);
         snapshot->workers[i].maxBurstUnits = sensorarrayWorkBudgetLoad(&s_workers[i].maxBurstUnits);
+        snapshot->workers[i].quantumDue = sensorarrayWorkBudgetLoad(&s_workers[i].quantumDue);
+        snapshot->workers[i].backstopDue = sensorarrayWorkBudgetLoad(&s_workers[i].backstopDue);
+        snapshot->workers[i].unitsDue = sensorarrayWorkBudgetLoad(&s_workers[i].unitsDue);
     }
 }

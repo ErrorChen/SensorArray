@@ -140,7 +140,10 @@ static void sensorarrayBootEmitRestartMarker(const char *marker) { assert(strstr
 static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; mockRestart++; }
 static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
 static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
-static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { int n=snprintf(text,size,"%.*s,mock=1\n",(int)strlen(cmd)-1,cmd);return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
+static bool sensorarrayLinkDiagnosticsHandles(const char *cmd) { return strcmp(cmd,"BLELINK?")==0 || strcmp(cmd,"BLETX?")==0 || strcmp(cmd,"BLESVC?")==0 || strcmp(cmd,"SCHEDWHY?")==0; }
+static bool sensorarrayAdsTimingControlHandles(const char *cmd) { return strncmp(cmd,"ADSTIMING?",10)==0; }
+static esp_err_t sensorarrayAdsTimingControlFormat(const char *cmd,char *text,size_t size) { (void)cmd;int n=snprintf(text,size,"ADSTIMING,mock=1\n");return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
 static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 { assert(ctx); mockDrain++; }
 static esp_err_t sensorarrayFrontendStartupFormatSpi(char *text, size_t capacity)
@@ -247,9 +250,15 @@ static void testCommands(void)
         assert(sensorarrayRuntimeQueryCommand(newQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
         assert(strcmp(reply, expected[i]) == 0 && mockDiagnosticQueryCalls[i] == 2);
     }
+    const char *timingQueries[] = {"ADSTIMING?", "BLESVC?", "SCHEDWHY?"};
+    for (unsigned i = 0; i < 3; ++i) {
+        assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), &ctx) == ESP_OK);
+        assert(strstr(reply, ",mock=1\n"));
+        assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
+    }
     assert(mockDriverRead == readsBefore && mockRoute == routesBefore && mockRestart == resetsBefore);
     assert(mockTerminals == terminalsBefore && mockRowsPost == postsBefore && s_frontendHold == 1);
-    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=4,with_context_and_null=1,hardware_side_effects=0");
+    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=7,with_context_and_null=1,hardware_side_effects=0");
     const char *allowed[] = {"SPI?", "FRONTENDS?", "CONFIG?", "USBSTREAM?", "USBSTREAM=DEBUG", "RESTART", "RECOVER=2"};
     for (unsigned i = 0; i < 7; ++i) {
         assert(sensorarrayRuntimeQueryCommand(allowed[i], reply, sizeof(reply), &ctx) == ESP_OK);

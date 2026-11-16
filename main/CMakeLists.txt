@@ -7,6 +7,7 @@ set(SENSORARRAY_MAIN_SRCS
         "control/sensorarrayRestartControl.c"
     "control/sensorarrayUsbControl.c"
     "control/sensorarrayLinkDiagnostics.c"
+    "control/sensorarrayAdsTimingControl.c"
     "net/sensorarrayNetStatus.c"
 )
 
@@ -47,6 +48,7 @@ set(SENSORARRAY_ADS_SRCS
         "../core/measure/ads/sensorarrayBatteryScheduler.c"
     "../core/measure/ads/sensorarrayAdsMath.c"
     "../core/measure/ads/sensorarrayAdsGap.c"
+    "../core/measure/ads/sensorarrayAdsTimingProbe.c"
     "../core/measure/ads/sensorarrayAdsFault.c"
 )
 

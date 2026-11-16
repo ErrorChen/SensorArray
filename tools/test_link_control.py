@@ -43,6 +43,7 @@ esp_err_t sensorarrayTransportPublishRuntimeFault(const char *, ...);
         for include in [temp, root / "tests/host/include", root / "main/control",
                         root / "core/measure/include", root / "core/config", root / "core/transport",
                         root / "components/sensorarrayBle/include", root / "components/sensorarrayUsbOtg/include",
+                        root / "components/sensorarrayWorkBudget/include",
                         root / "components/sensorarrayWifi/include"]:
             command += ["-I", str(include)]
         executable = temp / "test"

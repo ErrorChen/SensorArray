@@ -34,6 +34,7 @@ typedef enum {
     SENSORARRAY_COMMAND_ROW_MODES,
     SENSORARRAY_COMMAND_FDC_ISOLATE,
     SENSORARRAY_COMMAND_ROWS,
+    SENSORARRAY_COMMAND_ADS_TIMING, /* 本轮新增: diagnostic, no configuration generation change. */
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -73,6 +74,9 @@ esp_err_t sensorarrayCommandMailboxPostRailCalibration(
     int32_t avssUv,
     uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
+                                                uint32_t *outRequestId);
+/* 本轮新增: shares ACK/terminal reservation and the transport-wide ID arbiter. */
+esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t samplesPerGroup,
                                                 uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
                                                   uint32_t *outRequestId);

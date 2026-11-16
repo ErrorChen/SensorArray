@@ -2996,6 +2996,157 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
     return originalError;
 }
 
+esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
+    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
+    uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *r)
+{
+    if (!r) { return ESP_ERR_INVALID_ARG; }
+    memset(r, 0, sizeof(*r));
+    r->requestId = requestId;
+    r->frameSequence = frameSequence;
+    r->startedUs = (uint64_t)esp_timer_get_time();
+    r->deadlineUs = r->startedUs + SENSORARRAY_ADS_TIMING_BUDGET_US;
+    r->reason = "admission";
+    if (!state || !registerCache || !state->adsReady) {
+        r->firstError = r->terminalError = ESP_ERR_INVALID_STATE;
+        r->reason = "ads_unavailable";
+        r->completedUs = (uint64_t)esp_timer_get_time();
+        return r->firstError;
+    }
+    if (!sensorarrayAdsRegisterCacheAcquire(registerCache, SENSORARRAY_ADS_OWNER_CHECK)) {
+        r->firstError = r->terminalError = ESP_ERR_INVALID_STATE;
+        r->reason = "owner_busy";
+        r->completedUs = (uint64_t)esp_timer_get_time();
+        return r->firstError;
+    }
+    ads126xAdcHandle_t *ads = &state->ads;
+    bool wasRunning = ads126xAdcIsAdc1Running(ads);
+    bool adc2WasRunning = ads126xAdcIsAdc2Running(ads);
+    uint32_t savedVref = ads->vrefMicrovolts;
+    r->generationBefore = ads->configurationGeneration;
+    r->crcGoodBefore = ads->adc1CrcValidEvenCount + ads->adc1CrcValidOddCount;
+    r->crcBadBefore = ads->adc1CrcErrorCount;
+    uint64_t workDeadline = r->deadlineUs - SENSORARRAY_ADS_TIMING_CLEANUP_US;
+    esp_err_t err = ads126xAdcBeginTransactionUntil(ads, workDeadline);
+    bool transactionOwned = err == ESP_OK;
+    sensorarrayAdsTransactionBegin(&s_checkTransaction);
+    if (err != ESP_OK) { r->reason = "transaction"; r->requiresIsolation = true; }
+    if (err == ESP_OK) {
+        uint32_t mismatches = ads->snapshotMismatchCount;
+        err = ads126xAdcReadAdc1RegisterSnapshot(ads, &r->saved);
+        if (err == ESP_OK && mismatches != ads->snapshotMismatchCount) {
+            err = ESP_ERR_INVALID_RESPONSE;
+        }
+        if (err != ESP_OK) { r->reason = "saved_registers"; r->requiresIsolation = true; }
+        else { r->savedKnown = true; }
+    }
+    if (err == ESP_OK && (r->saved.id != ads->idRegRaw ||
+        (r->saved.power & ADS126X_POWER_RESET) != 0u)) {
+        err = ESP_ERR_INVALID_RESPONSE;
+        r->reason = "id_or_reset"; r->requiresIsolation = true;
+    }
+    if (err == ESP_OK && ((r->saved.power & ADS126X_POWER_INTREF) != 0u ||
+        (r->saved.power & ADS126X_POWER_VBIAS) == 0u ||
+        r->saved.refmux != ADS126X_REFMUX_AVDD_AVSS ||
+        (r->saved.interface & 7u) != 6u || r->saved.mode0 != 0u || adc2WasRunning ||
+        gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_ADS_START_GPIO) != 0)) {
+        err = ESP_ERR_NOT_SUPPORTED;
+        r->reason = "requires_passive_profile";
+    }
+    if (err == ESP_OK && (!ads->enableStatusByte || ads->crcMode != ADS126X_CRC_CRC8 ||
+        ads->enableInternalRef || ads->mode0 != r->saved.mode0 ||
+        ads->mode1 != r->saved.mode1 || savedVref == 0u)) {
+        err = ESP_ERR_INVALID_RESPONSE;
+        r->reason = "driver_shadow"; r->requiresIsolation = true;
+    }
+    if (err == ESP_OK) {
+        ads126xAdc1RegisterSnapshot_t shadow = {0};
+        if (sensorarrayAdsSnapshotFromRegisterCache(registerCache, ads, &shadow) &&
+            !sensorarrayAdsBatterySnapshotsMatch(&shadow, &r->saved, NULL)) {
+            err = ESP_ERR_INVALID_RESPONSE;
+            r->reason = "register_shadow"; r->requiresIsolation = true;
+        }
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcGetSpiClockHz(ads, &r->requestedHz, &r->actualHz);
+        if (err != ESP_OK) { r->reason = "clock"; }
+    }
+    if (err == ESP_OK) {
+        /* All following writes are MODE/MUX only. POWER/ref/route/clock are
+         * unchanged. The result stays in this caller-owned persistent slot. */
+        r->mutated = true;
+        err = sensorarrayAdsTimingProbeRun(ads, workDeadline, r);
+    }
+    if (err != ESP_OK && r->firstError == ESP_OK) {
+        r->firstError = r->terminalError = err;
+    }
+    if (!r->workCompletedUs) { r->workCompletedUs = (uint64_t)esp_timer_get_time(); }
+    if (transactionOwned) { ads126xAdcEndTransaction(ads); }
+
+    esp_err_t cleanup = ESP_OK;
+    if (ads126xAdcIsQuarantined(ads)) {
+        cleanup = ESP_ERR_INVALID_STATE;
+    } else if (r->mutated) {
+        cleanup = (uint64_t)esp_timer_get_time() >= r->deadlineUs ? ESP_ERR_TIMEOUT :
+            ads126xAdcBeginTransactionUntil(ads, r->deadlineUs);
+        if (cleanup == ESP_OK) {
+            /* Pulse STOP1 does not cancel an in-progress conversion (9.4.1.2).
+             * MODE0 is an ADC1 restart register (table9-34): the actual40->00
+             * write changes RUNMODE before STOP1 is used as a stop command.
+             * Do this unconditionally: a failed profile readback may have
+             * left physical MODE0 different from the driver shadow. */
+            cleanup = ads126xAdcConfigureAdc1Mode(ads, 0u, 0u);
+            if (cleanup == ESP_OK) { cleanup = ads126xAdcStopAdc1(ads); }
+            uint32_t mismatches = ads->snapshotMismatchCount;
+            if (cleanup == ESP_OK) {
+                cleanup = ads126xAdcRestoreAdc1RegisterSnapshot(ads, &r->saved,
+                    savedVref, wasRunning);
+            }
+            if (cleanup == ESP_OK) {
+                cleanup = ads126xAdcReadAdc1RegisterSnapshot(ads, &r->restored);
+            }
+            if (cleanup == ESP_OK && (mismatches != ads->snapshotMismatchCount ||
+                !sensorarrayAdsBatterySnapshotsMatch(&r->saved, &r->restored, NULL))) {
+                cleanup = ESP_ERR_INVALID_RESPONSE;
+            }
+            uint32_t requestedHz = 0u, actualHz = 0u;
+            if (cleanup == ESP_OK) {
+                cleanup = ads126xAdcGetSpiClockHz(ads, &requestedHz, &actualHz);
+                if (cleanup == ESP_OK &&
+                    (requestedHz != r->requestedHz || actualHz != r->actualHz)) {
+                    cleanup = ESP_ERR_INVALID_RESPONSE;
+                }
+            }
+            ads126xAdcEndTransaction(ads);
+        }
+    }
+    r->cleanupError = cleanup;
+    r->restoreKnown = r->savedKnown && cleanup == ESP_OK &&
+        (r->mutated || !r->requiresIsolation);
+    r->restoreVerified = r->restoreKnown;
+    if (!r->mutated && r->restoreKnown) { r->restored = r->saved; }
+    if (r->mutated && r->restoreVerified) {
+        state->adsAdc1Running = wasRunning;
+        sensorarrayAdsPopulateRestoredRegisterCache(registerCache, &r->saved,
+            savedVref, wasRunning);
+    }
+    if (cleanup != ESP_OK) {
+        r->requiresIsolation = true;
+        if (r->firstError == ESP_OK) { r->firstError = cleanup; }
+        if (r->terminalError == ESP_OK) { r->terminalError = cleanup; }
+        r->reason = "restore_failed";
+        s_batteryRestoreFailureLatched = true;
+    }
+    if (r->requiresIsolation) { sensorarrayAdsRegisterCacheInvalidate(registerCache); }
+    r->generationAfter = ads->configurationGeneration;
+    r->crcGoodAfter = ads->adc1CrcValidEvenCount + ads->adc1CrcValidOddCount;
+    r->crcBadAfter = ads->adc1CrcErrorCount;
+    r->completedUs = (uint64_t)esp_timer_get_time();
+    sensorarrayAdsTransactionEnd(&s_checkTransaction, r->firstError, cleanup);
+    (void)sensorarrayAdsRegisterCacheRelease(registerCache, SENSORARRAY_ADS_OWNER_CHECK);
+    return r->firstError;
+}
+
 static const char *sensorarrayAdsFilterName(uint8_t mode1)
 {
     switch ((mode1 >> 5u) & 0x07u) {
