@@ -1,0 +1,8 @@
+{
+  "kind": "recorded_production_source_fixture_not_wire_data",
+  "source": "core/transport/sensorarrayTransportFrameMeta.c",
+  "source_commit": "b9ebe2f7b8b49819347608392e70ff5966f2ad87",
+  "fixture": "baseline.c.txt",
+  "sha256": "3b6d1df8ceeeee99d312d543d5e6b0b7b70f054a4e033aefa0bf188479ea6fcf",
+  "purpose": "Compile original parser under renamed symbols for differential tests without git history. This fixture is never linked into firmware."
+}

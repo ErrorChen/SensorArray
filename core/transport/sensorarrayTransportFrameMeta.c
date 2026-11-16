@@ -27,12 +27,26 @@ static bool field(const char *text, const char *key, int base, uint64_t maximum,
     return false;
 }
 
-static uint32_t u32(const char *text, const char *key)
-{
-    uint64_t value = 0;
-    (void)field(text, key, 10, UINT32_MAX, &value);
-    return (uint32_t)value;
-}
+enum {
+    META_SEQ, META_ROWS, META_CELLS, META_GEN, META_RID, META_SESSION,
+    META_BOOT, META_REV, META_MGEN, META_MRID, META_RGEN, META_RRID,
+    META_PGEN, META_PRID, META_COUNT
+};
+
+/* 本轮新增: exact keys for the single-pass metadata extractor. The original
+ * field helper remains unchanged for the separate CAP preview path. */
+static const struct {
+    const char *key;
+    size_t length;
+} s_metaFields[META_COUNT] = {
+#define META_KEY(name) {name, sizeof(name) - 1u}
+    META_KEY("seq="), META_KEY("rows="), META_KEY("cells="),
+    META_KEY("gen="), META_KEY("rid="), META_KEY("session="),
+    META_KEY("bootId="), META_KEY("rev="), META_KEY("mgen="),
+    META_KEY("mrid="), META_KEY("rgen="), META_KEY("rrid="),
+    META_KEY("pgen="), META_KEY("prid="),
+#undef META_KEY
+};
 
 void sensorarrayTransportParseFrameMeta(sensorarrayTransportPayloadSlot_t *slot)
 {
@@ -40,25 +54,65 @@ void sensorarrayTransportParseFrameMeta(sensorarrayTransportPayloadSlot_t *slot)
     slot->hasFrameMeta = false;
     if (slot->length < 2 || slot->data[1] != ',' ||
         !strchr("CVRM", slot->data[0])) { return; }
-    uint64_t rows, cells, sequence;
-    if (!field(slot->data, "seq=", 10, UINT32_MAX, &sequence) ||
-        !field(slot->data, "rows=", 10, 8, &rows) || rows < 1 ||
-        !field(slot->data, "cells=", 10, 64, &cells) || cells != rows * 8) { return; }
-    slot->frameSeq = (uint32_t)sequence;
-    slot->rows = (uint8_t)rows;
-    slot->cells = (uint8_t)cells;
-    slot->generation = u32(slot->data, slot->data[0] == 'M' ? "rgen=" : "gen=");
-    slot->requestId = u32(slot->data, slot->data[0] == 'M' ? "rrid=" : "rid=");
-    slot->sessionId = 0;
-    (void)field(slot->data, "session=", 16, UINT64_MAX, &slot->sessionId);
-    slot->bootId = u32(slot->data, "bootId=");
-    slot->configRevision = u32(slot->data, "rev=");
-    slot->modeGeneration = u32(slot->data, "mgen=");
-    slot->modeRequestId = u32(slot->data, "mrid=");
-    slot->rowsGeneration = u32(slot->data, "rgen=");
-    slot->rowsRequestId = u32(slot->data, "rrid=");
-    slot->profileGeneration = u32(slot->data, "pgen=");
-    slot->profileRequestId = u32(slot->data, "prid=");
+    /* TransportQueue owns the slot and appends its private NUL at length.
+     * Extract only the first line; this does not validate a frame or its CRC. */
+    const char *endLine = strpbrk(slot->data, "\r\n");
+    if (!endLine) { endLine = slot->data + strlen(slot->data); }
+    bool mixed = slot->data[0] == 'M';
+    uint64_t values[META_COUNT] = {0};
+    uint32_t seen = mixed ? (UINT32_C(1) << META_GEN) | (UINT32_C(1) << META_RID) : 0u;
+    uint32_t valid = 0u;
+    for (const char *p = slot->data; p < endLine;) {
+        const char *end = memchr(p, ',', (size_t)(endLine - p));
+        if (!end) { end = endLine; }
+        for (unsigned i = 0u; i < META_COUNT; ++i) {
+            uint32_t bit = UINT32_C(1) << i;
+            if ((seen & bit) || (size_t)(end - p) <= s_metaFields[i].length ||
+                *p != *s_metaFields[i].key ||
+                memcmp(p, s_metaFields[i].key, s_metaFields[i].length) != 0) {
+                continue;
+            }
+            /* Preserve first-NONEMPTY semantics: an empty value may be
+             * followed by a usable duplicate; a malformed nonempty one may
+             * not. Optional invalid/missing values retain their zero default. */
+            seen |= bit;
+            const char *start = p + s_metaFields[i].length;
+            if (*start != '-' && *start != '+' && *start != ' ') {
+                uint64_t maximum = i == META_SESSION ? UINT64_MAX :
+                    i == META_ROWS ? 8u : i == META_CELLS ? 64u : UINT32_MAX;
+                errno = 0;
+                char *parsedEnd;
+                unsigned long long parsed = strtoull(start, &parsedEnd,
+                    i == META_SESSION ? 16 : 10);
+                if (!errno && parsedEnd == end && parsed <= maximum) {
+                    values[i] = (uint64_t)parsed;
+                    valid |= bit;
+                }
+            }
+            break;
+        }
+        p = end < endLine ? end + 1 : endLine;
+    }
+    const uint32_t required = (UINT32_C(1) << META_SEQ) |
+        (UINT32_C(1) << META_ROWS) | (UINT32_C(1) << META_CELLS);
+    if ((valid & required) != required || values[META_ROWS] < 1u ||
+        values[META_CELLS] != values[META_ROWS] * 8u) { return; }
+    /* Commit only after required fields pass; do not restamp from globals or
+     * reinterpret the legacy domain. M aliases ROWS, C/V/R retain gen/rid. */
+    slot->frameSeq = (uint32_t)values[META_SEQ];
+    slot->rows = (uint8_t)values[META_ROWS];
+    slot->cells = (uint8_t)values[META_CELLS];
+    slot->generation = (uint32_t)values[mixed ? META_RGEN : META_GEN];
+    slot->requestId = (uint32_t)values[mixed ? META_RRID : META_RID];
+    slot->sessionId = values[META_SESSION];
+    slot->bootId = (uint32_t)values[META_BOOT];
+    slot->configRevision = (uint32_t)values[META_REV];
+    slot->modeGeneration = (uint32_t)values[META_MGEN];
+    slot->modeRequestId = (uint32_t)values[META_MRID];
+    slot->rowsGeneration = (uint32_t)values[META_RGEN];
+    slot->rowsRequestId = (uint32_t)values[META_RRID];
+    slot->profileGeneration = (uint32_t)values[META_PGEN];
+    slot->profileRequestId = (uint32_t)values[META_PRID];
     slot->hasFrameMeta = true;
 }
 
