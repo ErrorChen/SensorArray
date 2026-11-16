@@ -170,8 +170,41 @@ class BleJournalTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             result = await self.invoke(self.options(directory), mocked)
             self.assertEqual(result["status"], "ERROR")
-            self.assertEqual(len(result["cleanup_errors"]), 3)
+            errors = result["cleanup_errors"]
+            self.assertEqual([error.split(":", 1)[0] for error in errors[:3]],
+                             ["stop_C", "stop_D", "stop_L"])
+            self.assertTrue(all("TimeoutError" in error for error in errors[:3]))
+            # Three real 10ms waits share a 35ms cleanup budget. Host scheduling
+            # can consume its remaining 5ms: the production deadline then
+            # correctly closes (rather than executes) the disconnect coroutine.
+            # Permit only that explicit deadline result, not arbitrary errors.
+            if len(errors) == 4:
+                self.assertEqual(errors[3],
+                                 "disconnect:TimeoutError('session_deadline_expired')")
+                self.assertGreaterEqual(result["elapsed_seconds"], 0.14)
+            else:
+                self.assertEqual(len(errors), 3)
             self.assertEqual(len(clients), 1)
+            self.assertFalse(result["reconnect_attempted"])
+            self.assertLess(result["elapsed_seconds"], 0.18)
+
+    async def test_cleanup_budget_exhaustion_is_explicit(self):
+        mocked, clients = backend(stall_cleanup=True)
+        with tempfile.TemporaryDirectory() as directory:
+            # Less than two per-operation waits: exercise the explicit shared
+            # deadline branch without changing the collector's real deadlines.
+            options = self.options(directory, cleanup_seconds=0.015)
+            result = await self.invoke(options, mocked)
+            errors = result["cleanup_errors"]
+            self.assertEqual(result["status"], "ERROR")
+            self.assertEqual([error.split(":", 1)[0] for error in errors],
+                             ["stop_C", "stop_D", "stop_L", "disconnect"])
+            self.assertEqual(errors[-1],
+                             "disconnect:TimeoutError('session_deadline_expired')")
+            self.assertLessEqual(len(clients[0].stopped), 2)
+            self.assertEqual(len(clients), 1)
+            self.assertFalse(result["reconnect_attempted"])
+            self.assertGreaterEqual(result["elapsed_seconds"], options.duration)
             self.assertLess(result["elapsed_seconds"], 0.18)
 
     async def test_existing_stop_file_does_not_start_connection(self):
