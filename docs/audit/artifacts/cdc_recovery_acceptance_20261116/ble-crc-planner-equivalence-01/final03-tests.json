@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_crc_planner.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.685886638995726,
+      "kind": "native_host_not_HIL",
+      "stdout": "final03-01-test_ble_crc_planner.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.41408747201785445,
+      "kind": "native_host_not_HIL",
+      "stdout": "final03-02-test_ble_priority.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.7890807880321518,
+      "kind": "native_host_not_HIL",
+      "stdout": "final03-03-test_ble_pipeline.log"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.056766908965073526,
+      "kind": "native_host_not_HIL",
+      "stdout": "final03-04-test_text_protocol.log"
+    }
+  ],
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "4c1b9e5b960c7b74cbe9f6cb336121f5e90ecf03701d009765ac6aa34f2a0169",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4",
+    "tools/test_ble_crc_planner.py": "0f1a72e4deb8562db34ad5a6addad024c628b7abd96a5a029444816dce8ab2f4",
+    "tests/host/test_ble_crc_planner.c": "3bdfdd5c32b28c961253ac995bc7cd2125fe7ecbd87bd310163f9267b38eae92",
+    "tools/test_ble_priority.py": "5ca5a06d7970ce452d34bcc6043066bcc827adf8dc1ae411a154e5980626244f",
+    "tools/test_ble_pipeline.py": "a89e8fe5dfa725db45fadb72da2945b1999bf09e89bd8016624815b76507be23"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_crc_planner.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 5.685886638995726,
+  "kind": "native_host_not_HIL",
+  "stdout": "final03-01-test_ble_crc_planner.log"
+}

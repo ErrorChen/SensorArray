@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.7890807880321518,
+  "kind": "native_host_not_HIL",
+  "stdout": "final03-03-test_ble_pipeline.log"
+}

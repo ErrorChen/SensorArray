@@ -1,0 +1,12 @@
+test: /tmp/sensorarray-crc-planner-5p_yrrbr/test.c:644: void testPlansAndWire(void): Assertion `largestCount >= 1000 && tinyTailPlans > 0' failed.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ble_crc_planner.py", line 159, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ble_crc_planner.py", line 150, in main
+    run([str(binary)], environment)
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ble_crc_planner.py", line 43, in run
+    subprocess.run(command, check=True, timeout=timeout, env=environment)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-crc-planner-5p_yrrbr/test']' died with <Signals.SIGABRT: 6>.

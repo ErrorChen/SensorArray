@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ads_tail_diagnostic.py",
+    "--baseline",
+    "a656d53f2efc447507f5247a116a22aed35dcc04"
+  ],
+  "exit_code": 1,
+  "expected_failure": true,
+  "purpose": "New timing-order assertion against actual pre-guard driver: post-handoff low proof must precede final rise; fake calls add no incidental time.",
+  "elapsed_seconds": 0.3674008846282959,
+  "baseline_commit": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "baseline_driver_sha256": "4e554dfe399f0394c5b2ddb2bd645ce6620126e463e6b7073059a5dfa8e890b3",
+  "harness_sha256": "afdbbbd41da5524deab88206db87a92d4dcef68255313dfa0d22157a3641f922",
+  "bus_harness_sha256": "2e2baa9d6576af7d6c0a6d3d2ad41138e6e557b52bd431249b41a128eee8eb6d",
+  "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-before-02.txt",
+  "output_sha256": "982a06acf810cdca15b0b7e772b607f00bed569ec4699da061c5d824f4ac00d6"
+}

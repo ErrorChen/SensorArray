@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.notifications.jsonl",
+      "raw_bytes": 47478466,
+      "raw_sha256": "eee5d913f35fc552b86fc29b40dcbe426819998640b8b16e8dcf50dda58e7d37",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 5830481,
+      "gzip_sha256": "36786e10ff4d09e9f914dd49decf049f1d9a2f78b6a3bd23619475350625d14d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.events.jsonl",
+      "raw_bytes": 3872744,
+      "raw_sha256": "4136a0f074a7e989fb3e5ac423c35766384e87ab0c091ca12f5ec47005866f84",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 635773,
+      "gzip_sha256": "c4cff553e02ba90a95b1c51b3d001e42994681aeb3ce8303763cf7312637a798",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.rx.bin",
+      "raw_bytes": 4976637,
+      "raw_sha256": "791fc8e7860227c14baf980202b523d5038a7055369a1ce06bef032732ffbf98",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 431205,
+      "gzip_sha256": "1fa19b4650d5cbda698e64065990e4cb0cb2b6162a954687814e4c886b3491a4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.events.jsonl",
+      "raw_bytes": 16876340,
+      "raw_sha256": "4d9003d507b6249d9fbf749f18044debdeb2b86d27e83c529796a303423bead7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.events.jsonl.gz",
+      "gzip_bytes": 2166098,
+      "gzip_sha256": "00d03ab3a2f89ae2262a3224d94289e175c6f47faf901d5327448349938c0b13",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.rx.bin",
+      "raw_bytes": 24025659,
+      "raw_sha256": "f24e4e77b1ad749db05f65bd022ff25b64c5de9a1d6162e96b2c6cde77528a8a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.rx.bin.gz",
+      "gzip_bytes": 2057445,
+      "gzip_sha256": "c71cf3a8ca382aa4485fbe46c5c6246e98c14fda312c76563186eee22accdc9b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/screen10-stability01-layer-cpu-comparison.json",
+      "sha256": "9fd0d9be86687fa1f2a4dbcd48fde2a0a60a744f2e578269ebef742ea5674b4b",
+      "bytes": 22950
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-analysis-01.json",
+      "sha256": "55574b26550114670551e081825a601c86006baf71d8a2e4b4206ad7e0edc479",
+      "bytes": 172666
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.ready.json",
+      "sha256": "a8120c0ec7619c38a6c79c13804be6728d695ddc4b41c4278684c4d26fbceea6",
+      "bytes": 284
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.summary.json",
+      "sha256": "a8703ddc5fee8b549912f56d26d0d96d8f51cc33673d6f515934e9ffb7136f3c",
+      "bytes": 2030
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-cpu-owner-deltas-01.json",
+      "sha256": "41b465feb0c6a2f0a693b2ceddede7d29572df9bfbd2c3b9ece0400a4a783bac",
+      "bytes": 19527
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.summary.json",
+      "sha256": "652ce4bec3c9d937ca137ab4d9e11b674b8209d4912a5ce3514979c0496d93c7",
+      "bytes": 2706
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-selection-01.json",
+      "sha256": "03b86b8add35f62d21dd0988062412d6da5771c68222337e1b873f043ec61bf3",
+      "bytes": 1241
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-verdict.json",
+      "sha256": "bf8833997292e96e58b431b3b1c8c8fb06318e448c9d3ae61d751095d73d513c",
+      "bytes": 38331
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.summary.json",
+      "sha256": "5c395f502a676bb5e38c754da2ec944a147c475f9657ea681012adb2d17a6a10",
+      "bytes": 1051751
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1.benchmark.json",
+      "sha256": "01f67b84be43474a2a72c2af19240ed411348897c0f6535ece765dddfc1a9a79",
+      "bytes": 1917
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json",
+      "sha256": "cbbb4488609795d0a72e424e0ce6d627cdfe424a88814138a21a3b906d9fac35",
+      "bytes": 1101
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json",
+      "sha256": "3382793bd07496c3aaad6232c1da251958a421534c1bb34d55a93074b27021e8",
+      "bytes": 3529
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-closure-tests-01-command.json",
+      "sha256": "c3cd6ffee198fe5d33a53bdd4f351e5f4fe10a6ee31c21be3ad15dc856084843",
+      "bytes": 758
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-closure-tests-01-command.txt",
+      "sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346",
+      "bytes": 105
+    }
+  ],
+  "file_count": 5,
+  "total_original_bytes": 97229846,
+  "total_gzip_bytes": 11121002,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

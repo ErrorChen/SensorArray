@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_crc_planner.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 4.760417397017591,
+  "kind": "native_host_ASan_UBSan_not_HIL",
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "216091f7892a4ae5b99bef5b50b7472b36e5a2f65cea667bd62b2547dafff777",
+    "main/output/sensorarrayTextProtocol.c": "282cba2110e2a209aa7847e7b1d44e6e1fa8bed2b82b437ec3722289057b9f04",
+    "tools/test_ble_crc_planner.py": "02891c38c4a1d593e7da8c7ef6fa2441de5546a4db0fd0c8cc49132573128e7a",
+    "tests/host/test_ble_crc_planner.c": "3ffe446d43e3b3e99640f33b3a663a8cf3a3ce25a239da1c71dd81ccf49d5f74"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_priority.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.41408747201785445,
+  "kind": "native_host_not_HIL",
+  "stdout": "final03-02-test_ble_priority.log"
+}

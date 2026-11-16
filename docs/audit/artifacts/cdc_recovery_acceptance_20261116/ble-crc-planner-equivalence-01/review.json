@@ -1,0 +1,133 @@
+{
+  "status": "SOURCE_AND_TESTS_FROZEN_PENDING_INDEPENDENT_REVIEW_TARGET_BUILD_HIL",
+  "utc": "2026-11-16T10:15:47.539774+00:00",
+  "baseline_production_commit": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "baseline_note": "Root reported subsequent 4ed6a47 evidence/docs commit only; no git operation performed by this task.",
+  "research_report": "../ble-next-bottleneck-research-01/report.json",
+  "research_sha256": "8358ca9b303e0bdd74db10870d5872bec0d725b2de2e5c05d5128cecb7dda34c",
+  "changed_functions": {
+    "components/sensorarrayBle/sensorarrayBle.c": {
+      "sensorarrayBleCrc32": "Target ESP_PLATFORM branch uses official esp_rom_crc32_le seed0; original bitwise host branch retained. Exact size_t chunks, SIZE_MAX preprocessor gate avoids always-false comparison on target32.",
+      "sensorarrayBleDecimalChars": "New helper in this fix: exact uint32 decimal width.",
+      "sensorarrayBleMaxPayloadSize": "Trial snprintf replaced by fixed header bytes plus five decimal widths. Existing header capacity and maximum checks retained. Wire SendFragment snprintf and PlanFragments algorithm unchanged."
+    },
+    "main/output/sensorarrayTextProtocol.c": {
+      "sensorarrayTextCrc32": "Same target ROM wrapper/portable reference split. All encoder CRC call sites and self-test checks preserved."
+    },
+    "tools/test_ble_priority.py": "Only adds actual new decimal helper to extraction list; original branch assertions unchanged.",
+    "tools/test_ble_pipeline.py": "Only adds actual new decimal helper to extraction list; original scheduling/quantity assertions unchanged."
+  },
+  "compatibility": {
+    "all_accepted_packets": "Byte-for-byte equality checked against real old source and existing 15 scientific golden frames. Accepted BLE length <=2304 remains unchanged.",
+    "out_of_wire_range": "On size_t64, private MaxPayloadSize now explicitly returns0 if chunk or total exceeds UINT32_MAX rather than original unsigned truncation. These inputs cannot pass the existing public enqueue size check.",
+    "crc_layers_retained": [
+      "Scientific ASCII CRC",
+      "BLE enqueue CRC before allocation",
+      "BLE dequeue CRC and corruption error branch"
+    ],
+    "unchanged": [
+      "ADC SPI CRC8",
+      "Protocol version/field domains/ASCII wire format",
+      "BLE queues and task priorities",
+      "WorkBudget and timeouts",
+      "MTU/PHY/connection requests",
+      "SDK source"
+    ]
+  },
+  "tests": {
+    "results": [
+      {
+        "command": [
+          "python3",
+          "tools/test_ble_crc_planner.py"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 5.685886638995726,
+        "kind": "native_host_not_HIL",
+        "stdout": "final03-01-test_ble_crc_planner.log"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_ble_priority.py"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.41408747201785445,
+        "kind": "native_host_not_HIL",
+        "stdout": "final03-02-test_ble_priority.log"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_ble_pipeline.py"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.7890807880321518,
+        "kind": "native_host_not_HIL",
+        "stdout": "final03-03-test_ble_pipeline.log"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_text_protocol.py"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.056766908965073526,
+        "kind": "native_host_not_HIL",
+        "stdout": "final03-04-test_text_protocol.log"
+      }
+    ],
+    "source_sha256": {
+      "components/sensorarrayBle/sensorarrayBle.c": "4c1b9e5b960c7b74cbe9f6cb336121f5e90ecf03701d009765ac6aa34f2a0169",
+      "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4",
+      "tools/test_ble_crc_planner.py": "0f1a72e4deb8562db34ad5a6addad024c628b7abd96a5a029444816dce8ab2f4",
+      "tests/host/test_ble_crc_planner.c": "3bdfdd5c32b28c961253ac995bc7cd2125fe7ecbd87bd310163f9267b38eae92",
+      "tools/test_ble_priority.py": "5ca5a06d7970ce452d34bcc6043066bcc827adf8dc1ae411a154e5980626244f",
+      "tools/test_ble_pipeline.py": "a89e8fe5dfa725db45fadb72da2945b1999bf09e89bd8016624815b76507be23"
+    }
+  },
+  "counts": {
+    "crc_comparisons": 11525,
+    "header_comparisons": 18522,
+    "planner_comparisons": 7071,
+    "wire_comparisons": 3087,
+    "largest_internal_count": 3000,
+    "tiny_tail_plans": 165,
+    "real_encoder_golden_frames": 15,
+    "text_protocol_tests": 34,
+    "ble_priority_groups": 8,
+    "actual_sdk_connection_cases": 8,
+    "pipeline_finite_cases": 18,
+    "pipeline_unbounded_counterexamples_preserved": 2
+  },
+  "fixture_provenance": "Actual unmodified old function extracts and official IDF software CRC reference, hashes in tests/fixtures/ble_crc_planner/provenance.json. No historical git object needed.",
+  "native_boundary": "Host ROM API implementation is the frozen actual IDF software table/function, independently checked against both frozen bitwise CRCs and zlib/encoder golden bytes. ESP32-S3 ROM execution/timing is NOT_RUN.",
+  "failed_development_runs": [
+    {
+      "log": "final-01-test_ble_crc_planner.log",
+      "exit_code": 1,
+      "reason": "Coverage assertion expected four-digit count from <=2304 bytes; old and new planners had equal results but selected smaller plans."
+    },
+    {
+      "log": "final02-01-test_ble_crc_planner.log",
+      "exit_code": 1,
+      "reason": "3000-byte internal input still fits old/new count967 via shorter early index headers. Corrected explicit coverage input to4000/count3000; no production algorithm or assertion weakened."
+    }
+  ],
+  "risk_and_limits": [
+    "No target build or hardware access in this task. Parent must verify actual ROM link and HIL performance.",
+    "Performance improvement is unmeasured; BLE screen10 throughput failure remains historical evidence, not resolved by host equivalence tests.",
+    "SDK API blocking/cancellation, radio credits, and downstream peer receipt guarantees are unchanged."
+  ],
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "4c1b9e5b960c7b74cbe9f6cb336121f5e90ecf03701d009765ac6aa34f2a0169",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4",
+    "tools/test_ble_crc_planner.py": "0f1a72e4deb8562db34ad5a6addad024c628b7abd96a5a029444816dce8ab2f4",
+    "tests/host/test_ble_crc_planner.c": "3bdfdd5c32b28c961253ac995bc7cd2125fe7ecbd87bd310163f9267b38eae92",
+    "tools/test_ble_priority.py": "5ca5a06d7970ce452d34bcc6043066bcc827adf8dc1ae411a154e5980626244f",
+    "tools/test_ble_pipeline.py": "a89e8fe5dfa725db45fadb72da2945b1999bf09e89bd8016624815b76507be23",
+    "tests/fixtures/ble_crc_planner/baseline-functions.c.txt": "5f5331f593c5d09e285b0b1a2d1199dbc63543572fe9f83ab05207c2b9bdd327",
+    "tests/fixtures/ble_crc_planner/esp-idf-v5.5.5-crc32-le.c.txt": "025bcef1c3d4089dc1a8cda66ba8f81acb0737b4d8d112a42e341f9e06d0c061",
+    "tests/fixtures/ble_crc_planner/provenance.json": "4f6734db16c6b3c20a3be1079fa3373b59479258828040a0db2614a350bf1407"
+  }
+}

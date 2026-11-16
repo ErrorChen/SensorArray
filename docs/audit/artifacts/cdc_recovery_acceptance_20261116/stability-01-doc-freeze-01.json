@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "status": "FROZEN_DOCUMENTATION_AND_ARCHIVE",
+  "created_utc": "2026-11-16T10:21:26.819637+00:00",
+  "scope": "README and two reliability reports; closed stability/post-reader evidence archive only",
+  "observed_source_commit": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "version": "a656d53",
+  "elf_sha256": "63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4",
+  "session": "B528ED81F93297CF",
+  "hardware_verdict": "FAIL_BLE_THROUGHPUT",
+  "continuous_600_seconds": "CAPTURED_600_SECONDS_NOT_ACCEPTED",
+  "suite_32_configurations": "NOT_RUN",
+  "documents": {
+    "README.md": "6d57b64fcedac584d1b9393a822c9291f775ba4e19250db3792aa4bfc9790ee2",
+    "docs/audit/cdc_recovery_acceptance_20261116.md": "d9d167b02a1acb274d66d19b1d0a1a08af718713dafd9153aa363fc74a4620e7",
+    "docs/audit/firmware_reliability_fix_report.md": "f136e0c7d060bc1a43cb164d91d22e449e31c72f3fd71abed864d9b53ac50f9a"
+  },
+  "new_evidence_records": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/archive-index-01.json": "784f5ec051c1af9816f22733b8057b6fed759f6638377b1b6fc331e592eb9c42",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/post-readers-closed-archive-index-01.json": "b4c262a424cf5dbbccb6a03040ff569d92f95c6f0746e242683aa12e2256d1a8",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01-archive-01-command.json": "2f27d96aa44f3c842769c63e52da0546332e5e046673fa607d76497de15b8da2",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01-archive-01.txt": "7406f2bfd166de183b18a415fb5bd874733968fa14679352aa81f3952f8c9c8d",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-archive-01-command.json": "c2ac9e75b1b181b39c0aa330b3643930dc6dd605516f8262e71838548a4003ed",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-archive-01.txt": "9f1e5a6a58518881cb231d3c9a7ec89a5e272e1c5e1e2ab7a1e44d6260ed2d34",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01-doc-review-01.json": "32dbc9cc4d30605125cec635ab453d96fc02747d807543a14134939cc318e5d6"
+  },
+  "gzip_files": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.notifications.jsonl.gz": "36786e10ff4d09e9f914dd49decf049f1d9a2f78b6a3bd23619475350625d14d",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.events.jsonl.gz": "c4cff553e02ba90a95b1c51b3d001e42994681aeb3ce8303763cf7312637a798",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.rx.bin.gz": "1fa19b4650d5cbda698e64065990e4cb0cb2b6162a954687814e4c886b3491a4",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.events.jsonl.gz": "00d03ab3a2f89ae2262a3224d94289e175c6f47faf901d5327448349938c0b13",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.rx.bin.gz": "c71cf3a8ca382aa4485fbe46c5c6246e98c14fda312c76563186eee22accdc9b",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.events.jsonl.gz": "73c66d1d3e40b87a053caba5ae3cdaee5f53d1ab87f6aac63979d0a4381e0fae",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.rx.bin.gz": "d937aee0350c8d355a962f63d1bbfdcba762de31dfd229843e1833bfe368bd67"
+  },
+  "verification": {
+    "local_links_valid": 395,
+    "input_sha_verified": 11,
+    "roundtrip_files": 7,
+    "original_bytes_retained": 97314437,
+    "gzip_bytes": 11137638,
+    "closed_evidence_review_exit_code": 0,
+    "existing_7_case_closure_test_exit_code": 0
+  },
+  "no_production_build_hardware_git_operations": true,
+  "next_stage": "Parent may commit these documents/evidence; no future optimization or full-suite result inferred"
+}

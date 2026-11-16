@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED_DOCUMENTATION_AND_CLOSED_EVIDENCE",
+  "created_utc": "2026-11-16T10:21:06.854627+00:00",
+  "source_commit_observed_on_board": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "running_version": "a656d53",
+  "running_elf_sha256": "63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4",
+  "session": "B528ED81F93297CF",
+  "host_entries": 67,
+  "offline_closure_test_cases": 7,
+  "production_inputs_in_existing_build_test_identity": 185,
+  "overall_hardware_verdict": "FAIL_BLE_THROUGHPUT",
+  "continuous_observation": {
+    "status": "CAPTURED_600_SECONDS_NOT_ACCEPTED",
+    "acceptance": "NOT_EVALUATED",
+    "scope": "this_single_continuous_recording_only",
+    "capture_requested_seconds": 600.0,
+    "capture_seconds": 600.0000757509843,
+    "capture_monotonic_start": 329986.129214936,
+    "capture_monotonic_end": 330586.129290687
+  },
+  "suite_32_configurations": "NOT_RUN",
+  "documents": {
+    "README.md": "6d57b64fcedac584d1b9393a822c9291f775ba4e19250db3792aa4bfc9790ee2",
+    "docs/audit/cdc_recovery_acceptance_20261116.md": "d9d167b02a1acb274d66d19b1d0a1a08af718713dafd9153aa363fc74a4620e7",
+    "docs/audit/firmware_reliability_fix_report.md": "f136e0c7d060bc1a43cb164d91d22e449e31c72f3fd71abed864d9b53ac50f9a"
+  },
+  "local_markdown_links_checked": 395,
+  "broken_links": [],
+  "trailing_whitespace": [],
+  "verdict_comparison_and_boot_inputs_verified": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-analysis-01.json": "55574b26550114670551e081825a601c86006baf71d8a2e4b4206ad7e0edc479",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.summary.json": "5c395f502a676bb5e38c754da2ec944a147c475f9657ea681012adb2d17a6a10",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-cpu-owner-deltas-01.json": "41b465feb0c6a2f0a693b2ceddede7d29572df9bfbd2c3b9ece0400a4a783bac",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json": "cbbb4488609795d0a72e424e0ce6d627cdfe424a88814138a21a3b906d9fac35",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json": "3382793bd07496c3aaad6232c1da251958a421534c1bb34d55a93074b27021e8",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-analysis-01.json": "7698c30b4af9be239f1e68c0ea17a3fbbc4fe9e4a96b6e844f88d8b670a13fdc",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json": "bc20182d3ddf30f924baef81d5ca634ea8671fc52107b4b77c8564adc4a5580f",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json": "2da3c4338fc3ef5cbdb9429b6923320fb5a666189011efb0ca1048366c7621fb",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.summary.json": "ea535eb9fb330d207a1a548f4629dca22f310d8fdc6ebe441978bcd5a19e5dd7",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.summary.json": "e2116d7725752ae30d5c1201b3a7722de159073b7a02274c0b252cb3743ac785",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-flash-usj-result.json": "28018c1fa0027ce47411ad7d77746ed6e0b17202fe75b7992660ef769777d172"
+  },
+  "archives": [
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.notifications.jsonl",
+      "raw_bytes": 47478466,
+      "raw_sha256": "eee5d913f35fc552b86fc29b40dcbe426819998640b8b16e8dcf50dda58e7d37",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 5830481,
+      "gzip_sha256": "36786e10ff4d09e9f914dd49decf049f1d9a2f78b6a3bd23619475350625d14d",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.events.jsonl",
+      "raw_bytes": 3872744,
+      "raw_sha256": "4136a0f074a7e989fb3e5ac423c35766384e87ab0c091ca12f5ec47005866f84",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 635773,
+      "gzip_sha256": "c4cff553e02ba90a95b1c51b3d001e42994681aeb3ce8303763cf7312637a798",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.rx.bin",
+      "raw_bytes": 4976637,
+      "raw_sha256": "791fc8e7860227c14baf980202b523d5038a7055369a1ce06bef032732ffbf98",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 431205,
+      "gzip_sha256": "1fa19b4650d5cbda698e64065990e4cb0cb2b6162a954687814e4c886b3491a4",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.events.jsonl",
+      "raw_bytes": 16876340,
+      "raw_sha256": "4d9003d507b6249d9fbf749f18044debdeb2b86d27e83c529796a303423bead7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.events.jsonl.gz",
+      "gzip_bytes": 2166098,
+      "gzip_sha256": "00d03ab3a2f89ae2262a3224d94289e175c6f47faf901d5327448349938c0b13",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.rx.bin",
+      "raw_bytes": 24025659,
+      "raw_sha256": "f24e4e77b1ad749db05f65bd022ff25b64c5de9a1d6162e96b2c6cde77528a8a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.rx.bin.gz",
+      "gzip_bytes": 2057445,
+      "gzip_sha256": "c71cf3a8ca382aa4485fbe46c5c6246e98c14fda312c76563186eee22accdc9b",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.events.jsonl",
+      "raw_bytes": 41041,
+      "raw_sha256": "74514566e0786d13288cebcbbb0d46a507970b6292cdbb4e41a39ef34db94bd7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.events.jsonl.gz",
+      "gzip_bytes": 7792,
+      "gzip_sha256": "73c66d1d3e40b87a053caba5ae3cdaee5f53d1ab87f6aac63979d0a4381e0fae",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.rx.bin",
+      "raw_bytes": 43550,
+      "raw_sha256": "f505956d0c25364fcc597af355c1ef6701b535964f1470fce84d2315f99bbca0",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.rx.bin.gz",
+      "gzip_bytes": 8844,
+      "gzip_sha256": "d937aee0350c8d355a962f63d1bbfdcba762de31dfd229843e1833bfe368bd67",
+      "roundtrip_bytes_equal": true,
+      "original_retained": true
+    }
+  ],
+  "total_original_bytes": 97314437,
+  "total_gzip_bytes": 11137638,
+  "post_readers_closed": {
+    "summary_sha256": "9ec0d95da5a60b73415442eb39fc74a18182aeec15cd7c89f305cc2f470fd860",
+    "raw_sha256_verified": "f505956d0c25364fcc597af355c1ef6701b535964f1470fce84d2315f99bbca0",
+    "status": "QUERIES_COMPLETE",
+    "same_full_BUILD_and_session": true,
+    "physical_USB_connected": true,
+    "other_readers": "unverified",
+    "unplug_or_unmounted_test": false,
+    "cumulative_partial_and_expired_not_capture_window_delta": true
+  },
+  "limitations": [
+    "Completing a continuous600s recording is not full acceptance",
+    "No new CPU/CRC32/planner or explicit SCLK-low-hold candidate is attributed to a656d53",
+    "CPU owner windows are independent; stale/unknown are not zero",
+    "No SDK wall minus owner runtime blocked-time estimate",
+    "Host development ran concurrently; BLE timestamp is host callback, not over-air",
+    "No absolute precision acceptance"
+  ],
+  "actions": {
+    "production_modified": false,
+    "capture_tools_modified": false,
+    "tests_modified": false,
+    "build_run": false,
+    "hardware_accessed": false,
+    "raw_originals_modified_or_deleted": false,
+    "git_operations": false
+  }
+}

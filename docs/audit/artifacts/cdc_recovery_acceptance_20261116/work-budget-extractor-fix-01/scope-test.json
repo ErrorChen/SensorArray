@@ -1,0 +1,40 @@
+{
+  "scope": "Test extraction wiring only; no production change",
+  "command": [
+    "python3",
+    "tools/test_work_budget.py"
+  ],
+  "environment_overrides": {
+    "CC": "/usr/bin/cc"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 0.26798710401635617,
+  "native_host_not_HIL": true,
+  "first_failure": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-test_work_budget.txt",
+    "sha256": "8d26cd11c45a066de6c7d20b1c5c5c7f84661907f92e024c704fe3d48cdb4f9e",
+    "preserved": true
+  },
+  "files": {
+    "tools/test_work_budget.py": {
+      "before_sha256": "d511cf2683d6d80ee6a2b022c68bae39fd046c5e66a6abcf5f1ac3e44d9067e6",
+      "after_sha256": "4e5e7e89e501e4e6f3e859a2660c761b5c3968153513f8909f2ce19bc0efb64d",
+      "existing_c_assertions_unchanged": null
+    },
+    "tests/host/test_work_budget_ble_fragments.c": {
+      "before_sha256": "95e80c79be3f3b44ae9cc2d6eac7e1a5488946f6392b1c15751a5b735440f055",
+      "after_sha256": "bb7e34b8fb4d9e2f31624e5b2ebb491d6c6d38fbc7f5104cb73aa89d6c4e7f67",
+      "existing_c_assertions_unchanged": true
+    }
+  },
+  "production_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "4c1b9e5b960c7b74cbe9f6cb336121f5e90ecf03701d009765ac6aa34f2a0169",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4"
+  },
+  "changes": [
+    "Extract actual DecimalChars helper",
+    "Import actual multiline header constants and static assertions",
+    "Bind existing attr/tiny-tail/batch fixture constants to production definitions",
+    "Keep all C scheduling/fragment assertions unchanged"
+  ]
+}

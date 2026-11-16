@@ -1,0 +1,794 @@
+{
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py",
+    "sha256": "b8d633367e01f67c02b714c90bbeff0cee44db8dcb4f1064ff37738cab4611a4"
+  },
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "schema_version": 1,
+  "inputs": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-analysis-01.json": "7698c30b4af9be239f1e68c0ea17a3fbbc4fe9e4a96b6e844f88d8b670a13fdc",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json": "bc20182d3ddf30f924baef81d5ca634ea8671fc52107b4b77c8564adc4a5580f",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json": "2da3c4338fc3ef5cbdb9429b6923320fb5a666189011efb0ca1048366c7621fb",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-analysis-01.json": "55574b26550114670551e081825a601c86006baf71d8a2e4b4206ad7e0edc479",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.summary.json": "5c395f502a676bb5e38c754da2ec944a147c475f9657ea681012adb2d17a6a10",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-cpu-owner-deltas-01.json": "41b465feb0c6a2f0a693b2ceddede7d29572df9bfbd2c3b9ece0400a4a783bac",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json": "cbbb4488609795d0a72e424e0ce6d627cdfe424a88814138a21a3b906d9fac35",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json": "3382793bd07496c3aaad6232c1da251958a421534c1bb34d55a93074b27021e8"
+  },
+  "status": "DESCRIPTIVE_COMPARISON_NOT_CAUSAL_AB",
+  "previous_label": "screen-10-volt1",
+  "current_label": "stability-01-volt1-stability-volt1",
+  "previous_identity": {
+    "session": "B528ED81F93297CF",
+    "bootId": "1",
+    "rev": "4",
+    "mgen": "3",
+    "mrid": "4",
+    "rgen": "2",
+    "rrid": "3",
+    "pgen": "3",
+    "prid": "4",
+    "legacy_gen": "3",
+    "legacy_rid": "4"
+  },
+  "current_identity": {
+    "session": "B528ED81F93297CF",
+    "bootId": "1",
+    "rev": "9",
+    "mgen": "6",
+    "mrid": "9",
+    "rgen": "4",
+    "rrid": "8",
+    "pgen": "6",
+    "prid": "9",
+    "legacy_gen": "6",
+    "legacy_rid": "9"
+  },
+  "CPU_roles": [
+    {
+      "role": 0,
+      "name": "BLE_TX",
+      "previous": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 19719285,
+        "observation_span_us": 120995504,
+        "runtime_per_own_observation_span_percent": 16.29753531999007
+      },
+      "current": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 98076373,
+        "observation_span_us": 600267916,
+        "runtime_per_own_observation_span_percent": 16.338766471736598
+      },
+      "ratio_difference_percentage_points": 0.04123115174652625
+    },
+    {
+      "role": 1,
+      "name": "TRANSPORT",
+      "previous": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 6430590,
+        "observation_span_us": 120777834,
+        "runtime_per_own_observation_span_percent": 5.324313068903024
+      },
+      "current": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 31886240,
+        "observation_span_us": 600159072,
+        "runtime_per_own_observation_span_percent": 5.312964760116131
+      },
+      "ratio_difference_percentage_points": -0.011348308786892858
+    },
+    {
+      "role": 2,
+      "name": "ASYNC_LOG",
+      "previous": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 17839172,
+        "observation_span_us": 120133160,
+        "runtime_per_own_observation_span_percent": 14.849498672972558
+      },
+      "current": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 89312732,
+        "observation_span_us": 600411082,
+        "runtime_per_own_observation_span_percent": 14.875263744715491
+      },
+      "ratio_difference_percentage_points": 0.025765071742933188
+    },
+    {
+      "role": 3,
+      "name": "SERIAL_TX",
+      "previous": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 12055945,
+        "observation_span_us": 119550795,
+        "runtime_per_own_observation_span_percent": 10.084370413429706
+      },
+      "current": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 59904941,
+        "observation_span_us": 599954851,
+        "runtime_per_own_observation_span_percent": 9.984908181032443
+      },
+      "ratio_difference_percentage_points": -0.09946223239726315
+    },
+    {
+      "role": 4,
+      "name": "BLE_CTRL",
+      "previous": {
+        "status": "UNKNOWN",
+        "reason": "before_stale_historical_sample",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null
+      },
+      "current": {
+        "status": "UNKNOWN",
+        "reason": "before_stale_historical_sample",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null
+      },
+      "ratio_difference_percentage_points": null
+    },
+    {
+      "role": 5,
+      "name": "SERIAL_CTRL",
+      "previous": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 961475,
+        "observation_span_us": 120400085,
+        "runtime_per_own_observation_span_percent": 0.7985667119753279
+      },
+      "current": {
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 4725750,
+        "observation_span_us": 600441021,
+        "runtime_per_own_observation_span_percent": 0.7870464932808113
+      },
+      "ratio_difference_percentage_points": -0.011520218694516582
+    },
+    {
+      "role": 6,
+      "name": "WIFI_CTRL",
+      "previous": {
+        "status": "UNKNOWN",
+        "reason": "before_unavailable_not_observed",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null
+      },
+      "current": {
+        "status": "UNKNOWN",
+        "reason": "before_unavailable_not_observed",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null
+      },
+      "ratio_difference_percentage_points": null
+    }
+  ],
+  "CPU_ratio_sum": null,
+  "blocked_time": "UNKNOWN",
+  "SDK_CPU_time": "UNKNOWN",
+  "FPS": {
+    "capture": {
+      "previous": 65.59451301898596,
+      "current": 65.54324682738611,
+      "difference": -0.051266191599850686
+    },
+    "USB": {
+      "previous": 65.61612332776568,
+      "current": 65.54965689310747,
+      "difference": -0.06646643465821
+    },
+    "BLE": {
+      "previous": 44.162295412887914,
+      "current": 44.20797370345675,
+      "difference": 0.0456782905688371
+    }
+  },
+  "layer_windows": {
+    "previous": {
+      "USB": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.691855578,
+        "last_receipt": 329616.09251502197,
+        "elapsed_seconds": 120.4006594439852,
+        "counters": {
+          "resets": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "mounts": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "unmounts": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxBytes": {
+            "first": 516,
+            "last": 1492,
+            "delta": 976,
+            "unavailable": null
+          },
+          "rxDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxOver": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "USBQ": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.712775199,
+        "last_receipt": 329616.117748787,
+        "elapsed_seconds": 120.40497358801076,
+        "counters": {
+          "dDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dSubmit": {
+            "first": 364,
+            "last": 8262,
+            "delta": 7898,
+            "unavailable": null
+          },
+          "cSubmit": {
+            "first": 62,
+            "last": 173,
+            "delta": 111,
+            "unavailable": null
+          },
+          "expired": {
+            "first": 1318,
+            "last": 1318,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cExpired": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "partial": {
+            "first": 3,
+            "last": 3,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dBytes": {
+            "first": 222791,
+            "last": 4947620,
+            "delta": 4724829,
+            "unavailable": null
+          },
+          "cBytes": {
+            "first": 15288,
+            "last": 41477,
+            "delta": 26189,
+            "unavailable": null
+          },
+          "dCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          },
+          "cCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLETX": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.75234711,
+        "last_receipt": 329616.140124886,
+        "elapsed_seconds": 120.38777777599171,
+        "counters": {
+          "dDequeued": {
+            "first": 526,
+            "last": 5839,
+            "delta": 5313,
+            "unavailable": null
+          },
+          "lDequeued": {
+            "first": 26,
+            "last": 342,
+            "delta": 316,
+            "unavailable": null
+          },
+          "cDequeued": {
+            "first": 4,
+            "last": 4,
+            "delta": 0,
+            "unavailable": null
+          },
+          "sdkCalls": {
+            "first": 2276,
+            "last": 19637,
+            "delta": 17361,
+            "unavailable": null
+          },
+          "sdkAccepted": {
+            "first": 2275,
+            "last": 19636,
+            "delta": 17361,
+            "unavailable": null
+          },
+          "sdkErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BL50": {
+        "status": "OBSERVED",
+        "scope": "first_last_diagnostic_receipts_inside_capture",
+        "first_receipt": 329496.156284191,
+        "last_receipt": 329615.834118049,
+        "elapsed_seconds": 119.6778338580043,
+        "counters": {
+          "mq": {
+            "first": 577,
+            "last": 6175,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 574,
+            "last": 6172,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "md": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 544,
+            "last": 5828,
+            "delta": 5284,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 30,
+            "last": 344,
+            "delta": 314,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 2332,
+            "last": 19598,
+            "delta": 17266,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLESVC": {
+        "status": "OBSERVED",
+        "scope": "BLESVC_before_after_query_snapshots_not_owner_or_capture_boundaries",
+        "before_host_receipt": 329495.824979005,
+        "after_host_receipt": 329616.216733403,
+        "before_active": "0",
+        "after_active": "0",
+        "counter_deltas_modulo_uint32": {
+          "started": 17360,
+          "completed": 17360,
+          "confOk": 17360,
+          "confError": 0,
+          "confMatched": 0,
+          "confUnmatched": 17360
+        },
+        "wall_delta_us": 66127493,
+        "wall_us_per_completed_call": 3809.1873847926267,
+        "CPU_time": "UNKNOWN",
+        "blocked_time": "UNKNOWN",
+        "PC_receipt": "UNKNOWN"
+      }
+    },
+    "current": {
+      "USB": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329985.855142063,
+        "last_receipt": 330586.28126576595,
+        "elapsed_seconds": 600.4261237029568,
+        "counters": {
+          "resets": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "mounts": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "unmounts": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxBytes": {
+            "first": 1868,
+            "last": 6087,
+            "delta": 4219,
+            "unavailable": null
+          },
+          "rxDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxOver": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "USBQ": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329985.867941661,
+        "last_receipt": 330586.300750885,
+        "elapsed_seconds": 600.432809224003,
+        "counters": {
+          "dDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dSubmit": {
+            "first": 8630,
+            "last": 47985,
+            "delta": 39355,
+            "unavailable": null
+          },
+          "cSubmit": {
+            "first": 220,
+            "last": 707,
+            "delta": 487,
+            "unavailable": null
+          },
+          "expired": {
+            "first": 7498,
+            "last": 7498,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cExpired": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "partial": {
+            "first": 5,
+            "last": 5,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dBytes": {
+            "first": 5170799,
+            "last": 28849139,
+            "delta": 23678340,
+            "unavailable": null
+          },
+          "cBytes": {
+            "first": 52613,
+            "last": 165221,
+            "delta": 112608,
+            "unavailable": null
+          },
+          "dCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          },
+          "cCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLETX": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329985.904392052,
+        "last_receipt": 330586.351750922,
+        "elapsed_seconds": 600.4473588700057,
+        "counters": {
+          "dDequeued": {
+            "first": 6469,
+            "last": 33013,
+            "delta": 26544,
+            "unavailable": null
+          },
+          "lDequeued": {
+            "first": 370,
+            "last": 1944,
+            "delta": 1574,
+            "unavailable": null
+          },
+          "cDequeued": {
+            "first": 9,
+            "last": 9,
+            "delta": 0,
+            "unavailable": null
+          },
+          "sdkCalls": {
+            "first": 22406,
+            "last": 109120,
+            "delta": 86714,
+            "unavailable": null
+          },
+          "sdkAccepted": {
+            "first": 22405,
+            "last": 109120,
+            "delta": 86715,
+            "unavailable": null
+          },
+          "sdkErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BL50": {
+        "status": "OBSERVED",
+        "scope": "first_last_diagnostic_receipts_inside_capture",
+        "first_receipt": 329986.381307179,
+        "last_receipt": 330585.923879523,
+        "elapsed_seconds": 599.542572344013,
+        "counters": {
+          "mq": {
+            "first": 6870,
+            "last": 34948,
+            "delta": 28078,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 6870,
+            "last": 34944,
+            "delta": 28074,
+            "unavailable": null
+          },
+          "md": {
+            "first": 2784,
+            "last": 15367,
+            "delta": 12583,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 6489,
+            "last": 32991,
+            "delta": 26502,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 381,
+            "last": 1953,
+            "delta": 1572,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 2784,
+            "last": 15367,
+            "delta": 12583,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 22477,
+            "last": 109058,
+            "delta": 86581,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLESVC": {
+        "status": "OBSERVED",
+        "scope": "BLESVC_before_after_query_snapshots_not_owner_or_capture_boundaries",
+        "before_host_receipt": 329985.96110256,
+        "after_host_receipt": 330586.395377999,
+        "before_active": "1",
+        "after_active": "0",
+        "counter_deltas_modulo_uint32": {
+          "started": 86712,
+          "completed": 86713,
+          "confOk": 86712,
+          "confError": 0,
+          "confMatched": 0,
+          "confUnmatched": 86712
+        },
+        "wall_delta_us": 329772301,
+        "wall_us_per_completed_call": 3803.031852202092,
+        "CPU_time": "UNKNOWN",
+        "blocked_time": "UNKNOWN",
+        "PC_receipt": "UNKNOWN"
+      }
+    }
+  },
+  "interpretation": [
+    "Each within-run role delta uses its own device sample bracket; ratios are compared descriptively across runs.",
+    "No cumulative task/sequence/generation counter is subtracted across boots, even if task numbers match.",
+    "Layer counters have independent receipt/query windows; do not sum/subtract them as disjoint losses.",
+    "Unavailable/stale CPU remains unknown, not zero. SDK wall minus owner run is not blocked time.",
+    "A small ASYNC_LOG ratio change does not establish a repaired BLE bottleneck or the primary cause."
+  ]
+}

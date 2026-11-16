@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ads_tail_diagnostic.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.22443056106567383,
+  "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-after-01.txt",
+  "inputs_sha256": {
+    "components/ads126xAdc/ads126xAdc.c": "bdef8afdae48ef51b064ce9d6b355cbbf1d42969078ebca79effef871d2db250",
+    "tests/host/test_ads_tail_diagnostic.c": "afdbbbd41da5524deab88206db87a92d4dcef68255313dfa0d22157a3641f922",
+    "tests/host/test_ads_driver_reliability.c": "2e2baa9d6576af7d6c0a6d3d2ad41138e6e557b52bd431249b41a128eee8eb6d"
+  }
+}

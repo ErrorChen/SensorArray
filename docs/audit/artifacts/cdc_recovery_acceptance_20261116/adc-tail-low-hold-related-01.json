@@ -1,0 +1,155 @@
+{
+  "head": "4ed6a47cb13d22b5b5577c0c8a1096ba954ccbcc",
+  "environment": {
+    "CC": "/usr/bin/gcc"
+  },
+  "inputs_sha256": {
+    "components/ads126xAdc/ads126xAdc.c": "bdef8afdae48ef51b064ce9d6b355cbbf1d42969078ebca79effef871d2db250",
+    "tests/host/test_ads_driver_reliability.c": "2e2baa9d6576af7d6c0a6d3d2ad41138e6e557b52bd431249b41a128eee8eb6d",
+    "tests/host/test_ads_tail_diagnostic.c": "afdbbbd41da5524deab88206db87a92d4dcef68255313dfa0d22157a3641f922"
+  },
+  "inputs_unchanged": true,
+  "tests": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_driver_reliability.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3407130241394043,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_driver_reliability.txt",
+      "output_sha256": "75bd3965a08a7be810ec23742c7b348ca0b4c335be4c4c1db32f3511ae380383"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_tail_diagnostic.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.21644973754882812,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_tail_diagnostic.txt",
+      "output_sha256": "ec472f35f11658c07349b11bc4ebe0fa666b5f58d15c43007e6fcb1b2e31d2c1"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_scientific_read.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.4595048427581787,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_scientific_read.txt",
+      "output_sha256": "a188e9d8236619cedce9517766c3b80b44e48fcb7db2b70b22d69344aeedf388"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_timing_probe.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.5811254978179932,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_timing_probe.txt",
+      "output_sha256": "bee0f294464cd1424303b75b088841abdb6e62ebf5d621cb868c1edb5628864c"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_spi_probe.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.7383847236633301,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_spi_probe.txt",
+      "output_sha256": "c5c9eaa83fc4b0e5e3e9d3be75fbf0cdbfc2bdf1c0d2519cb64f38bf34763535"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_presence.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.2009592056274414,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_presence.txt",
+      "output_sha256": "6db34de6e6fc2f612ce6e25d4a99d689aaf94aa9d6bd308515e875a90fccfcb0"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_profile.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.10123801231384277,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_rail_profile.txt",
+      "output_sha256": "e492f22329ff05663df058ae88cf7b1641d453488bdd94e638c8bb5aceed92c2"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_error_chain.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.06588101387023926,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_rail_error_chain.txt",
+      "output_sha256": "03445346ece5d98e2492cda6e313ce2f93b2ab2c9866ff30dea01f7ceef9c774"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_matrix_diagnostics.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.08890318870544434,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_matrix_diagnostics.txt",
+      "output_sha256": "a8011c15781a49836fc26cd2237b86464ce139d1cae5c7432dbfdca847288822"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_cell_stability.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.18288564682006836,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_cell_stability.txt",
+      "output_sha256": "4e48b58f3a83c210f7e0cb9eb8666d16f5ee6efcc10831be88c399f4846facaa"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_crc_disposition.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.24390006065368652,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_crc_disposition.txt",
+      "output_sha256": "6046496e9a18037e83967b77a11817f7f7d36e184ca3f6c0c45dc981d5240a41"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_crc_frame_flow.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3143794536590576,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_crc_frame_flow.txt",
+      "output_sha256": "5c1cf24ef083ec5a47d4bfe25e5cc8d60c1293d7d9122a7f6fb15d8c17cada4c"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_fault_fixtures.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.07972002029418945,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_fault_fixtures.txt",
+      "output_sha256": "56d24e5103239d204f004b4781bed1ef7aae3f077d6fbb8e2a07170fc4b7ccac"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_timing_control.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.4878816604614258,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-tail-low-hold-related-01-test_ads_timing_control.txt",
+      "output_sha256": "0325843d4a294a9e81740006c1b76728aa417290cf559262a2b819286b2f466b"
+    }
+  ],
+  "scope": "Actual production driver/modules with synthetic peripherals; no target build or HIL; physical waveform NOT_RUN."
+}

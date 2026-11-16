@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_cpu_owner.py",
+    "--summary",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started_utc": "2026-11-16T09:52:26.977938+00:00",
+  "started_monotonic": 329639.4254409,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10-cpu-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T09:52:27.192778+00:00",
+  "finished_monotonic": 329639.640272272,
+  "log_sha256": "89274506b8a46fcbf4179d7fb194010d77d18f0a615bbe4f6afe52b392826cdc"
+}

@@ -1,8 +1,8 @@
 # 2026-11-16 软件恢复与双 CDC 验收 / Software recovery and dual-CDC acceptance
 
-> 当前已烧录/观测版本为 `a656d53`（160 MHz、`-O2`、CPU profiling ON），67 个 host 入口、目标构建与完整 BUILD/READY 通过。screen10 已闭合：120.000122 秒，ADC CRC 0/84,943，Capture/USB/BLE 65.59/65.62/44.16 FPS，USB 7,873 内部连续帧，BLE 5,298 帧缺 2,572 个序号观察，CAP8 cleanup 查询通过。BLE 较 screen09 提高 12.849%，但仍 FAIL_BLE_THROUGHPUT，截至 screen10 闭合时完整 600 秒/32 配置未运行。移除 wrapper 的 compiler-perf-01 从未烧录；最终版的真实 SDK wrapper 及安全检查保留。旧结果/失败不覆盖，最新证据见末节。 / The observed image is `a656d53` (160 MHz, `-O2`, CPU profiling ON); all 67 host entries, the target build and full BUILD/READY verification passed. Screen10 is closed: 120.000122 seconds, 0/84,943 ADC CRC rejections and 65.59/65.62/44.16 FPS capture/USB/BLE, with 7,873 internally consecutive USB frames, 5,298 BLE frames and 2,572 missing BLE sequence observations. CAP8 cleanup was query-verified. BLE improves 12.849% over screen09 but remains FAIL_BLE_THROUGHPUT; the complete 600-second/32-configuration suite was unrun at screen10 closure. Compiler-perf-01, which removed the wrapper, was never flashed; the final image retains the real SDK wrapper and safety checks. Historical results/failures remain; see the final section for current evidence.
+> 当前已烧录/观测版本 / Current observed image: `a656d53`（160 MHz、`-O2`、CPU profiling ON）同一镜像独立连续 600.000075751 秒已闭合，ADC CRC 0/428,131（599.484129 秒健康日志跨度）、Capture/USB/BLE 65.54/65.55/44.21 FPS。USB 39,328 帧内部连续；BLE 26,523 帧缺 12,805 个序号观察，整体仍 **FAIL_BLE_THROUGHPUT**。结束后 CAP8_QUERY_VERIFIED；67 个 host 入口/目标构建与 wrapper/assert/栈堆/watchdog 保留证据不变，32 配置 NOT_RUN，绝对精度未验收。新 CPU/SCLK-low-hold 候选不归属此实测；旧 FW01–FW10/历史失败保留。 / The same `a656d53` image (160 MHz, `-O2`, CPU profiling ON) completed an independent continuous 600.000075751-second run: 0/428,131 ADC CRC rejections across a 599.484129-second health span, and 65.54/65.55/44.21 FPS capture/USB/BLE. USB has 39,328 internally consecutive frames; BLE receives 26,523 with 12,805 missing observations, so overall status remains **FAIL_BLE_THROUGHPUT**. CAP8_QUERY_VERIFIED follows capture. The 67-entry/build and retained wrapper/assertion/stack/heap/watchdog evidence is unchanged; the 32-configuration suite is NOT_RUN and absolute accuracy is unaccepted. Later CPU/SCLK-low-hold candidates are not part of this result; original FW01–FW10/history remain.
 
-> 后续进度 / Subsequent work: 同一 `a656d53` 的独立 `stability-01` USB+BLE 600 秒连续 CRC/健康诊断已开始，结果待闭合；它不是新优化候选，也不覆盖 screen10 的 BLE 不足。活动文件未被本次文档/归档读取或压缩。 / An independent 600-second USB+BLE CRC/health run, `stability-01`, has started on the same `a656d53`; results await closure. It is not a new optimization candidate and does not erase screen10's BLE deficit. This documentation/archive task has neither read nor compressed its active files.
+> 连续稳定性已闭合 / Continuous stability closed: 同一 `a656d53` 的独立 USB+BLE `stability-01` 已连续采满 600.000075751 秒，结束后 CAP8 查询通过。不是短窗口累计，也不是后续 CPU 优化或显式 SCLK 低电平 hold 补丁结果；这些工作区候选尚不属于本次板上证据。 / The independent USB+BLE `stability-01` run on the same `a656d53` completed a continuous 600.000075751 seconds and ended with query-verified CAP8. This is neither a sum of short screens nor a result of later CPU optimization or explicit SCLK-low-hold patches; those workspace candidates are not part of this hardware evidence.
 
 本记录接续 [11 月 14 日阶段](usb_otg_ble_priority_20261114.md)。用户已重启板卡，并授权继续烧录、调试；没有要求安装软件或使用管理员权限。历史失败记录保留，下面的下载成功不代表完整性能/精度验收通过。
 
@@ -176,7 +176,9 @@ The new `ADSCHK=TAIL,200` runs four continuous-conversion groups comparing stand
 
 Production commit `bc99767` reports BUILD `bc99767-dirty`; sizes and full binary/ELF hashes are above. Of61 host entries,60 initially passed; an old presence-source extraction boundary failed to compile. Its repaired21-case rerun passes, with the original failure retained. The actual IDF build passes and its production input hashes match the test run. App-only flashing and an independent full BUILD query succeed; READY1/CAP8 uses session `4C618C351450A839`. Startup selects requested1100000/driver-observed1111000Hz, so cross-boot comparison against754000Hz is not a controlled same-clock experiment. TAIL HIL and new BLE throughput results are pending at this entry.
 
-## 待完成 / Pending
+## `bc99767` 时点待完成（历史） / Pending at `bc99767` (historical)
+
+以下保留当时未完成状态；后续 600 秒单次连续观察见文末 `stability-01`，32 配置仍未运行。 / The status below is retained at its original point in time. The later single continuous 600-second observation is documented under `stability-01` at the end; the 32-configuration suite is still unrun.
 
 先定位修复本次 CRC/输出背压，再重做筛查；600秒稳定性和32配置×120秒USB+BLE仍须实际执行。未运行项目不得由旧版本结果补齐。夹具、临时DMM rail校准和非精度验收边界沿用README；不执行CAL=SAVE。
 
@@ -579,3 +581,101 @@ BLE improves **12.848988%** over screen09, but capture also increases and pool d
 This round archives **13 closed files**: compiler-perf BOOT/state/ROM/debug recordings and screen10 formal DATA+CTRL, independent debug and BLE-notification originals. Deterministic gzip uses mtime=0. Original size is **21,033,025 bytes**, gzip size **2,490,426 bytes**. Every decompressed file matches the original byte-for-byte and by SHA256; original hashes remain unchanged, and **all original files are retained**. No old index or failure is overwritten. The index also links hashes for the unflashed rejected candidate, final scope/ELF/build/test/boot and analysis files.
 
 [压缩与回验索引](artifacts/cdc_recovery_acceptance_20261116/screen-10/archive-index-01.json)、[实际 argv/exit0](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-screen10-archive-01-command.json)、[归档 stdout](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-screen10-archive-01.txt)。归档工具仅处理显式选择的已关闭文件，不打开硬件、不删除/覆盖原件；本轮文档/归档子任务未修改生产、采集工具或测试，也未执行 build/flash/HIL。 / The archive tool processes only explicitly selected closed files, opens no hardware and deletes/overwrites no originals. This documentation/archive subtask changed no production, capture tool or test and performed no build/flash/HIL.
+
+## stability-01：同镜像连续 600 秒 / stability-01: continuous 600 seconds on the same image
+
+本次为已烧录 `a656d53` 的一次独立、连续 VOLT1 正式 CDC0+BLE 采集，另有独立 CDC1 诊断 observer。单调时间 `329986.129214936→330586.129290687`，实际 **600.000075751 秒**；不是把 screen04…10 累加，也不是后续 CPU/CRC32/planner 优化或显式 SCLK 低电平 hold 补丁的结果。仍为 160 MHz、`-O2`、CPU owner/runtime/trace ON、ADC GPIO-tail-required/2 MHz。完整 BUILD 的 ELF SHA 为 `63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4`，session=`B528ED81F93297CF`、bootId=1。采集配置 rev9（mgen6/mrid9、rgen4/rrid8、pgen6/prid9），不与先前 screen10 的 rev4 混用。
+
+This is one independent, continuous VOLT1 formal-CDC0/BLE recording on the already flashed `a656d53`, with a separate CDC1 diagnostic observer. Monotonic time runs from `329986.129214936` to `330586.129290687`, totaling **600.000075751 seconds**. It is not a sum of screen04…10 and does not include subsequent CPU/CRC32/planner optimizations or an explicit SCLK-low-hold patch. The image remains at 160 MHz, `-O2`, CPU owner/runtime/trace ON, GPIO-tail-required ADC reading at 2 MHz. Full BUILD ELF SHA is `63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4`, session `B528ED81F93297CF`, bootId 1. Capture revision is 9 (mgen6/mrid9, rgen4/rrid8, pgen6/prid9), distinct from screen10 revision 4.
+
+已关闭三路采集并核对原始输入 SHA 后才生成 [verdict](artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-verdict.json)。`continuous_600_seconds.status=CAPTURED_600_SECONDS_NOT_ACCEPTED` 明确只针对本次单窗口；总体仍 **FAIL_BLE_THROUGHPUT**。离线汇总器现在检查有限 start/end/duration、requested≥600、实际满足请求、状态 CAPTURED 和同一窗口，而不是固定写 NOT_RUN；[7 个真实执行的离线回归](artifacts/cdc_recovery_acceptance_20261116/stability-closure-tests-01-command.json)通过，含不足时长/非有限或缺失时间/错误状态等反例。这 7 个用例不改变已验证固件的 67 个 host 入口计数，也不是新的固件构建或 HIL。
+
+The three observers were closed and original input hashes checked before generating the [verdict](artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-verdict.json). `continuous_600_seconds.status=CAPTURED_600_SECONDS_NOT_ACCEPTED` applies only to this single recording; overall status remains **FAIL_BLE_THROUGHPUT**. The offline summarizer now checks finite start/end/duration, a request of at least 600 seconds, the requested duration actually met, CAPTURED status and one consistent window instead of hard-coding NOT_RUN. All [seven executed offline regression cases](artifacts/cdc_recovery_acceptance_20261116/stability-closure-tests-01-command.json) passed, including short/nonfinite/missing-time and error-state counterexamples. They do not change the image's 67-entry host count and are not a new firmware build or hardware run.
+
+### 科学帧与健康边界 / Scientific frames and health boundaries
+
+| 指标 / Metric | 单次连续结果 / Single continuous result |
+|---|---:|
+| Duration | 600.000075751 s |
+| Capture / USB / BLE FPS | 65.543247 / 65.549657 / 44.207974 |
+| USB trusted frames / internal missing observations | 39,328 / 0 |
+| BLE trusted frames / missing observations | 26,523 / 12,805 |
+| USB/BLE ASCII CRC / identity / wire-contract errors | all 0 |
+| Common original frames equal | 26,520 / 26,520 |
+| ADC rejected / checked reads | 0 / 428,131 |
+| Complete ADSHEALTH receipt span | 599.484129 s |
+| USB S1D2 X12 / BLE X12 invalid points | 3,640 / 2,291 |
+| USB/BLE not-fresh or unacquired points | 0 |
+| Complete STK50 free / lifetime minimum | 8,301,048 / 8,297,776 B |
+| Minimum remaining log / transport / BLE_TX stack | 12,504 / 3,280 / 2,108 B |
+| Minimum remaining BLE_CTRL / SERIAL_CTRL stack | 5,204 / 1,712 B |
+| Cleanup / overall verdict | CAP8_QUERY_VERIFIED / **FAIL_BLE_THROUGHPUT** |
+
+USB 的连续性证据为：同一 identity、ordered trusted=39328、first13901/last53228、progress39327、gap_examples=[]；不是将缺少的 `missing_frames` 键当 0。BLE 收到的 26,523 DATA 和 1,574 LOG 组装均没有分片 CRC/缺片/重复/乱序错误，仍有上游完整 DATA 丢弃。共同帧原 wire bytes 全相同；USB-only/BLE-only 的边界差异不直接解释为另一侧丢失。
+
+USB contiguity is established by one identity, ordered trusted=39328, first13901/last53228, progress39327 and gap_examples=[]; an absent `missing_frames` key is not defaulted to zero. Received BLE assemblies—26,523 DATA and 1,574 LOG—have no fragment CRC/missing/duplicate/order errors, while upstream whole-DATA drops remain. Every common frame has identical original wire bytes. USB-only/BLE-only boundary differences are not automatically classified as loss on the other side.
+
+| ADSHEALTH 边界 / Boundary | 首条完整记录 / First complete record | 末条完整记录 / Last complete record |
+|---|---:|---:|
+| Host receipt monotonic (s) | 329986.571616645 | 330586.055745967 |
+| seq / engineFrameCount | 13929 / 8640 | 53225 / 47936 |
+| modeEntryFrameCount | 8259 | 8259 |
+| healthInterval / healthReadbackDue / precisionFrame | 64 / 1 / 1 | 64 / 1 / 1 |
+| err | 0 | 0 |
+| crcValidEven / crcValidOdd / crcErrors | 49579 / 47800 / 0 | 267038 / 258472 / 0 |
+
+分母为 **217459 even +210672 odd +0 rejected=428131** 个受校验读数，包含重试尝试，不是帧数。健康区间跨越已有累计计数的 mode，不能假定 mode 切换将 engineFrameCount 清零，也不能把健康日志首末当作科学窗口的精确端点。末尾无完整性保护的 crcRetries token 仍 unknown；没有 ADSSPI 错误行不等于重试计数已证明为零。正式和独立 debug 观察范围内未观测 MFAULT/reset/WDT；缺少日志不证明任意未记录事件都不存在。
+
+The denominator is **217459 valid-even +210672 valid-odd +0 rejected=428131** checked reads, including retry attempts rather than frames. The health span crosses a mode with prior accumulated counts; it neither assumes mode changes zero engineFrameCount nor treats health endpoints as exact scientific-window boundaries. The final crcRetries token lacks an integrity delimiter and remains unknown; no ADSSPI error line does not establish a zero retry count. No MFAULT/reset/WDT was observed in the formal and independent-debug coverage, which does not prove the absence of any unrecorded event.
+
+所有浮空 S1D2 的 X12 保留无效，没有平滑或补零。最大连续 heap、全核 CPU 和绝对精度仍 unknown/未评估；当前镜像 32 配置×120 秒仍 NOT_RUN。内存最小值来自完整 STK50，不能混用启动 BOOT 的历史 heap 快照。
+
+Every floating-S1D2 X12 remains invalid without smoothing or zero filling. Maximum contiguous heap, whole-core CPU and absolute accuracy remain unknown/not evaluated; the current image's 32 configurations×120 seconds remain NOT_RUN. Memory minima come from complete STK50 records, not a BOOT record's separately scoped historical heap snapshot.
+
+### 各层与 CPU 独立窗口 / Independent layer and CPU windows
+
+| Layer | 本层观察窗口 / Own observation span | 本层增量 / Own delta |
+|---|---:|---|
+| USB | 600.426124 s | resets/mounts/unmounts/rxDrop/rxOver: 0; rxBytes: 4,219 |
+| USBQ | 600.432809 s | dSubmit/cSubmit: 39,355 / 487; dDrop/cDrop/expired/cExpired/partial: all 0 |
+| USBQ accepted bytes | same USBQ span | dBytes/cBytes: 23,678,340 / 112,608 B; per-lane callback bytes unknown |
+| BL50 | 599.542572 s | sentD/dropD/dropL/dropC: 26,502 / 12,583 / 0 / 0; ctrlRetry/ctrlExhaust: 0 |
+| BLETX | 600.447359 s | sdkCalls/accepted/errors: 86,714 / 86,715 / 0 |
+| BLESVC | 600.434275 s | started/completed: 86,712 / 86,713; wall: 329.772301 s; mean 3.803032 ms/completed |
+| BLESVC confirmations | same BLESVC span | confOk/confError: 86,712 / 0; before/after active: 1 / 0 |
+
+USBQ 本地 FIFO 接受、BLE SDK 完成和主机 CRC 完整帧不是相同事件。BLETX/BLESVC 的一次边界在途调用说明 completed/accepted 可比 calls/started 多 1，不表示收到额外科学帧。BL50 是周期日志首末 receipt 窗口，不是主动查询的科学边界；dropD+12583 不能与主机 missing12805 相加为互斥损失。主机同期有开发工作，BLE timestamp 是 host callback/接收时间，不是空中抓包或隔离主机负载实验。
+
+USBQ local FIFO acceptance, BLE SDK completion and host CRC-valid complete-frame receipt are different events. One call in flight at the BLETX/BLESVC boundary explains why completed/accepted can exceed calls/started by one; it does not create an extra received scientific frame. BL50 uses first/last periodic-log receipt times, not queried scientific boundaries; dropD+12583 cannot be added to host missing12805 as disjoint losses. Development work ran concurrently on the host, and BLE timestamps are host callback/receipt times rather than over-air captures or an isolated-host-load experiment.
+
+| Role | stability-01 ΔrunUs / own spanUs | screen10 ratio | stability-01 ratio |
+|---|---:|---:|---:|
+| BLE_TX | 98,076,373 / 600,267,916 | 16.297535% | 16.338766% |
+| TRANSPORT | 31,886,240 / 600,159,072 | 5.324313% | 5.312965% |
+| ASYNC_LOG | 89,312,732 / 600,411,082 | 14.849499% | 14.875264% |
+| SERIAL_TX | 59,904,941 / 599,954,851 | 10.084370% | 9.984908% |
+| BLE_CTRL | unknown: stale historical | unknown | unknown |
+| SERIAL_CTRL | 4,725,750 / 600,441,021 | 0.798567% | 0.787046% |
+| WIFI_CTRL | unknown: not_observed | unknown | unknown |
+
+各角色仅比较同 session/task 的新鲜 switch-out 累计值；角色分母独立，不合计为全核占用，不用 SDK wall−owner runtime 推 blocked。`runUs` 可能含 ISR，SDK/controller/IDLE 没有独立测量。screen10 与本次同镜像但不同时长/配置 revision，以上是描述性对照，不是新优化的因果 A/B。
+
+Each role pairs fresh switch-out accumulators only within the same session/task. Independent denominators are not summed into whole-core utilization, and SDK wall minus owner runtime does not determine blocked time. `runUs` may include ISR execution; SDK/controller/idle work is not separately measured. Screen10 and this run use the same image but different duration/configuration revisions, so the table is descriptive rather than a causal A/B test of a new optimization.
+
+### 关闭本任务 reader 后的只读观察 / Read-only observation after this task's readers closed
+
+三路 observer 关闭后，`post-stability-unread-01` 在 **3.057783 秒**内完成只读查询；完整 BUILD/session 不变，CONFIG rev11、CAP8/CCCCCCCC，BOOT seq55208/ready1，USB mounted1/epoch1。USBQ 此时的 **累计** expired=10258、partial=7、cDrop=0、cExpired=0 是后续时点证据，不能覆盖本次 600 秒 USBQ 窗内 expired/partial 增量均 0 的结果，也不直接归因成相同时间段的科学丢帧。
+
+After all three observers closed, `post-stability-unread-01` completed read-only queries in **3.057783 seconds**. Full BUILD/session are unchanged; CONFIG is revision11, CAP8/CCCCCCCC, BOOT seq55208/ready1 and USB mounted1/epoch1. USBQ's **cumulative** expired=10258, partial=7, cDrop=0 and cExpired=0 describe a later observation. They neither replace the zero expired/partial deltas inside the 600-second USBQ window nor directly quantify scientific loss over that same interval.
+
+USB 物理仍连接，本任务停止读取不等于拔线、unmounted 或系统没有任何 reader；其他 reader 未核验。该工具未发 USBBOOT/reset、未校准或改配置。它证明此后控制仍可查询，不证明所有无人读/断线恢复情形；没有独立 post debug，不能从此次查询补造 ADC/WDT 证据。见 [summary](artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.summary.json) 与 [命令](artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01-command.json)。
+
+USB remained physically connected. Stopping this task's readers is neither unplugging, unmounting nor proof that no other system reader existed; other readers were unverified. The tool issued no USBBOOT/reset and changed no calibration or configuration. It demonstrates subsequent control queryability, not every unread/disconnect-recovery scenario. Without a separate post-capture debug observer, the query cannot supply new ADC/WDT evidence. See the [summary](artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.summary.json) and [command](artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01-command.json).
+
+### 归档与复核 / Archive and verification
+
+5 个已关闭稳定性原始流共 **97,229,846 B→11,121,002 B gzip**；后续只读 raw/events 两文件另为 **84,591 B→16,636 B**。每个文件均解压逐字节和 SHA256 回验，归档前后原件 SHA 不变，全部原件保留。独立索引不覆盖 screen10 或历史失败；该文档/归档步骤未执行生产修改、构建、烧录或硬件操作。
+
+Five closed stability originals total **97,229,846 bytes→11,121,002 gzip bytes**; the later read-only raw/events separately total **84,591→16,636 bytes**. Every decompressed file is checked byte-for-byte and by SHA256, originals retain their pre-archive hashes, and all originals remain. Separate indexes preserve screen10 and historical failures. This documentation/archive step performs no production edit, build, flash or hardware action.
+
+证据 / Evidence: [原 capture summary](artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-volt1-stability-volt1.summary.json), [完整科学/诊断分析](artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-analysis-01.json), [CPU delta](artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-cpu-owner-deltas-01.json), [screen10→stability 对照](artifacts/cdc_recovery_acceptance_20261116/stability-01/screen10-stability01-layer-cpu-comparison.json), [稳定性归档索引](artifacts/cdc_recovery_acceptance_20261116/stability-01/archive-index-01.json), [归档命令/exit0](artifacts/cdc_recovery_acceptance_20261116/stability-01-archive-01-command.json), [后续只读归档](artifacts/cdc_recovery_acceptance_20261116/stability-01/post-readers-closed-archive-index-01.json), [后续归档命令/exit0](artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-archive-01-command.json)。
