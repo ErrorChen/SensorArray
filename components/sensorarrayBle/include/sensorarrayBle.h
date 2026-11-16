@@ -133,6 +133,15 @@ typedef struct {
     esp_err_t sdkLastError;
     uint32_t txTaskPriority;
     uint32_t ctrlTaskPriority;
+    /* Generic SDK CONF events, boot totals with modulo-32-bit wrap. Status
+     * and waiter matching are independent classifications of every event.
+     * A matching waiter predicate does not prove the callback's originating
+     * connection epoch; conn_id/handle can be reused. Notifications may emit
+     * local CONF status, so none of these counts proves peer receipt. */
+    uint32_t confOk;
+    uint32_t confError;
+    uint32_t confMatched;
+    uint32_t confUnmatched;
 } sensorarrayBleLinkSnapshot_t;
 
 esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config);

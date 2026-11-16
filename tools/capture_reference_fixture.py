@@ -40,7 +40,7 @@ READONLY_QUERY_COMMANDS = frozenset({
     "BUILD?", "PROTO?", "CONFIG?", "BOOT?", "STATE?", "MODE?", "ROWS?",
     "ROWMODES?", "CAL?", "RAIL?", "USB?", "USBQ?", "USBSTREAM?", "SERIAL?",
     "SCHED?", "SPI?", "FRONTENDS?", "PERF?", "FPS?", "BAT?", "BLELINK?",
-    "BLETX?", "TX?", "ST?", "BTX?", "WIFI?", "RECOVERY?", "RESTART?",
+    "BLETX?", "BLESVC?", "SCHEDWHY?", "TX?", "ST?", "BTX?", "WIFI?", "RECOVERY?", "RESTART?",
 })
 
 

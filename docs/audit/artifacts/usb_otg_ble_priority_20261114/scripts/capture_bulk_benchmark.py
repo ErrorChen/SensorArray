@@ -5,6 +5,8 @@ Before/after and periodic read-only USB/USBQ/BLELINK/BLETX/SCHED observations
 share existing deadlines. DATA keeps flowing while CTRL queries run. Defaults:
 120 s configurations, 600 s stability, 5 s warmup, 10 s diagnostic interval.
 No USBBOOT, restart, NVS, input flush or automatic USB reconfiguration.
+Optional BLESVC/SCHEDWHY observations are capability-gated and run only in
+the existing before/after CONFIG brackets, outside the measured capture.
 """
 from contextlib import contextmanager
 import hashlib
@@ -29,13 +31,22 @@ EXTRA_REQUIRED = {
     'BLETX?': 'gen dDequeued lDequeued cDequeued dMaxAgeUs lMaxAgeUs cMaxAgeUs sdkActive sdkStartUs sdkEndUs sdkCalls sdkAccepted sdkErrors sdkMaxUs sdkLastErr txPrio ctrlPrio pcReceipt',
     'SCHED?': 'initError registered idleKnown tickHz budgetTicks maxUnits graceUnits backstopTicks quantumTicks idleGen idleAgeTicks maxIdleGapTicks ' + ' '.join(WORKERS),
 }
+OPTIONAL_REQUIRED = {
+    'BLESVC?': 'v gen scope active started completed wallUs idleChanged idleSame idleUnknown wall cpu blocked',
+    'SCHEDWHY?': 'v order overlap init registered idleKnown idleGen ' + ' '.join(WORKERS),
+}
+OPTIONAL_CAPABILITIES = {'BLESVC?': 'ble_service_obs_v1', 'SCHEDWHY?': 'work_reason_v1'}
 DIAGNOSTICS = tuple((command, command[:-1]) for command in EXTRA_REQUIRED)
 CONFIG_CONSISTENCY = base.IDENTITY + ('state', 'mode', 'rows', 'profile', 'boundary', 'err')
 BASE_VALIDATOR = retry.validate_reply
 HEX_FIELDS = {'err', 'initError', 'phyReq', 'connReq', 'dleReq', 'sdkLastErr'}
 BOOL_FIELDS = {'init', 'mounted', 'suspended', 'dma', 'romAvailable', 'quiesced', 'connected', 'dataDtr', 'debugDtr',
-               'phyKnown', 'connKnown', 'dleObserved', 'dlePeerKnown', 'sdkActive', 'registered', 'idleKnown'}
-U64_FIELDS = {'rxBytes', 'dBytes', 'cBytes', 'dCallbackBytes', 'cCallbackBytes', 'sdkStartUs', 'sdkEndUs'}
+               'phyKnown', 'connKnown', 'dleObserved', 'dlePeerKnown', 'sdkActive', 'registered', 'idleKnown', 'active'}
+U64_FIELDS = {'rxBytes', 'dBytes', 'cBytes', 'dCallbackBytes', 'cCallbackBytes', 'sdkStartUs', 'sdkEndUs', 'wallUs'}
+OPTIONAL_LITERALS = {
+    'BLESVC?': {'v': '1', 'scope': 'boot', 'wall': 'elapsed', 'cpu': 'unknown', 'blocked': 'unknown'},
+    'SCHEDWHY?': {'v': '1', 'order': 'quantum/backstop/units', 'overlap': '1'},
+}
 
 
 def unsigned(value, command, field, bits=32):
@@ -55,21 +66,24 @@ def validate_reply(command, fields, *, backend='otg_bulk_v1'):
         # BUILD.version is an application string; PROTO.version is numeric.
         # Do not reuse the legacy cross-command numeric field-name set here.
         return fields
-    if command not in EXTRA_REQUIRED:
+    if command not in EXTRA_REQUIRED and command not in OPTIONAL_REQUIRED:
         return BASE_VALIDATOR(command, fields)
-    required = EXTRA_REQUIRED[command].split()
+    required = {**EXTRA_REQUIRED, **OPTIONAL_REQUIRED}[command].split()
     missing = [key for key in required if not fields.get(key)]
     if missing:
         raise retry.InvalidQueryReply('reply_missing_fields:' + command + ':' + ','.join(missing))
     for key in required:
         value = fields[key]
-        if key == 'backend':
+        if key in OPTIONAL_LITERALS.get(command, {}):
+            if value != OPTIONAL_LITERALS[command][key]:
+                raise retry.InvalidQueryReply('reply_invalid_observation_semantics:' + command + ':' + key)
+        elif key == 'backend':
             if value != backend:
                 raise retry.InvalidQueryReply('formal_USB_backend_required:' + backend)
         elif key in {'pcReceipt', 'callbackResult'}:
             if value != 'unknown':
                 raise retry.InvalidQueryReply('unsupported_receipt_claim:' + command + ':' + key)
-        elif key in HEX_FIELDS:
+        elif key in HEX_FIELDS or (command == 'SCHEDWHY?' and key == 'init'):
             if not re.fullmatch(r'0x[0-9A-Fa-f]{1,8}', value):
                 raise retry.InvalidQueryReply('reply_invalid_error:' + command + ':' + key)
         elif key in {'dataDtr', 'debugDtr'} and value == 'unknown':
@@ -79,7 +93,7 @@ def validate_reply(command, fields, *, backend='otg_bulk_v1'):
         elif key in BOOL_FIELDS:
             if value not in {'0', '1'}:
                 raise retry.InvalidQueryReply('reply_invalid_boolean:' + command + ':' + key)
-        elif command == 'SCHED?' and key in WORKERS:
+        elif command in {'SCHED?', 'SCHEDWHY?'} and key in WORKERS:
             values = value.split('/')
             if len(values) != 3:
                 raise retry.InvalidQueryReply('reply_invalid_worker_tuple:' + key)
@@ -112,7 +126,7 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
     expected_transport = 'usb_bulk'
     expected_backend = 'otg_bulk_v1'
     required_capabilities = CAPABILITIES
-    query_requirements = {**EXTRA_REQUIRED, 'BUILD?': 'idf target project proto version elfSha256'}
+    query_requirements = {**EXTRA_REQUIRED, **OPTIONAL_REQUIRED, 'BUILD?': 'idf target project proto version elfSha256'}
     diagnostics = DIAGNOSTICS
     variant = VARIANT
     runner_source_file = __file__
@@ -125,6 +139,8 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
 
     def __init__(self, *args, **kwargs):
         self.bulk_capabilities_verified = False
+        self.reported_capabilities = set()
+        self.observation_reply_records = {}
         self.diagnostic_windows = []
         self.snapshot_attempts = []
         self.scheduler_observations = {}
@@ -137,10 +153,23 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                    required_capabilities=sorted(self.required_capabilities),
                    periodic_seconds=self.diagnostic_interval_seconds, debug_CDC_scientific_evidence=False)
 
+    def event(self, kind, **fields):
+        if kind == 'reply' and fields.get('command') in OPTIONAL_REQUIRED:
+            # Preserve the actual selected reply, never reconstruct it from
+            # parsed fields. Exact terminators/bytes remain in the raw stream.
+            line = fields['line']
+            self.observation_reply_records[fields['command']] = {
+                'reply_line': str(line), 'reply_event_monotonic': time.monotonic(),
+                'reply_channel': getattr(line, 'channel', None)}
+        super().event(kind, **fields)
+
     def query(self, command, tag, phase_deadline):
         # Base preparation queries USB? before PROTO; both are read-only.
-        if command in EXTRA_REQUIRED and command != 'USB?' and not self.bulk_capabilities_verified:
+        if command in OPTIONAL_REQUIRED and OPTIONAL_CAPABILITIES[command] not in self.reported_capabilities:
+            raise CaptureError('optional_diagnostic_capability_not_verified:' + command)
+        if command in {**EXTRA_REQUIRED, **OPTIONAL_REQUIRED} and command != 'USB?' and not self.bulk_capabilities_verified:
             raise CaptureError('bulk_diagnostic_capabilities_not_verified')
+        self.observation_reply_records.pop(command, None)
         fields = super().query(command, tag, phase_deadline)
         if command == 'PROTO?':
             caps = set(re.split(r'[/;,|\s]+', fields.get('caps', '')))
@@ -148,6 +177,7 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
             if fields.get('version') != '2' or missing:
                 raise CaptureError('bulk_diagnostic_capability_required:' + ','.join(sorted(missing)))
             self.bulk_capabilities_verified = True
+            self.reported_capabilities = caps
         return fields
 
     def diagnostic_window(self, name, deadline, *, full=False):
@@ -160,13 +190,25 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                      'deadline': min(deadline, self.total_deadline), 'queries': window}
             self.snapshot_attempts.append(entry)
             queries = tuple((c, t) for c, t in base.QUERIES if c not in {'CONFIG?', 'USBSTREAM?'}) if full else ()
+            def window_queries():
+                yield from queries
+                yield from self.diagnostics
+                # Evaluate after this window's PROTO query. Optional counters
+                # must not add periodic work or extend the capture deadline.
+                if full and name in {'before', 'after'}:
+                    for command, capability in OPTIONAL_CAPABILITIES.items():
+                        if capability in self.reported_capabilities:
+                            yield command, command[:-1]
+                yield 'CONFIG?', 'CONFIG'
             try:
-                for command, tag in queries + self.diagnostics + (('CONFIG?', 'CONFIG'),):
+                for command, tag in window_queries():
                     begin = time.monotonic()
                     fields = self.query(command, tag, deadline)
                     end = time.monotonic()
                     window['CONFIG?_closing' if command == 'CONFIG?' else command] = {
                         'fields': fields, 'started_monotonic': begin, 'monotonic': end, 't': end - self.started}
+                    if command in OPTIONAL_REQUIRED:
+                        window[command].update(self.observation_reply_records[command])
                 closing = window['CONFIG?_closing']['fields']
                 if any(opening.get(key) != closing.get(key) for key in CONFIG_CONSISTENCY):
                     entry['outcome'] = 'configuration_changed'
@@ -222,6 +264,11 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                       periodic_interval_seconds=self.diagnostic_interval_seconds,
                       periodic_budget_seconds=self.periodic_budget_seconds,
                       source_sha256=hashlib.sha256(Path(self.runner_source_file).read_bytes()).hexdigest(),
+                      shared_diagnostic_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                      optional_service_diagnostics={command: {
+                          'capability': capability, 'advertised': capability in self.reported_capabilities}
+                          for command, capability in OPTIONAL_CAPABILITIES.items()},
+                      optional_service_window_scope='before_after_CONFIG_brackets_only_not_capture',
                       control_queries_are_not_measurement_accuracy=True,
                       USBBOOT_requested=False, reconnect_requested=False)
         return result

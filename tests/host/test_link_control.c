@@ -159,7 +159,9 @@ static void testBleBoundaries(void)
     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLETX?", "pcReceipt=unknown");
     link.sdkCompletedCalls = link.sdkIdleChanged = link.sdkIdleUnchanged = link.sdkIdleUnknown = UINT32_MAX;
     link.sdkWallUs = UINT64_MAX;
-    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLESVC?", "wall=elapsed,cpu=unknown,blocked=unknown");
+    link.confOk = link.confError = link.confMatched = link.confUnmatched = UINT32_MAX;
+    assert(assertFormat(sensorarrayLinkDiagnosticsFormat, "BLESVC?",
+        "confOk=4294967295,confError=4294967295,confMatched=4294967295,confUnmatched=4294967295,confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown\n") == 371u);
     budget.initError = ESP_FAIL; budget.registered = budget.idleKnown = true;
     budget.idleGeneration = UINT32_MAX;
     for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) {
@@ -178,6 +180,7 @@ static void testBleBoundaries(void)
     assert(strstr(reply, "phyStatus=65535,connStatus=65535,dleStatus=65535,dleObserved=0,dlePeerKnown=0"));
     assert(sensorarrayLinkDiagnosticsFormat("BLESVC?", reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "active=0,started=0,completed=0,wallUs=0,idleChanged=0,idleSame=0,idleUnknown=0"));
+    assert(strstr(reply, "confOk=0,confError=0,confMatched=0,confUnmatched=0,confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown\n"));
     memset(&budget, 0, sizeof(budget)); budget.initError = ESP_ERR_INVALID_STATE;
     assert(sensorarrayLinkDiagnosticsFormat("SCHEDWHY?", reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "init=0x103,registered=0,idleKnown=0,idleGen=0"));

@@ -37,7 +37,8 @@ class CdcFirmware(StageFirmware):
 
     def send(self, text):
         if text.startswith('PROTO,'):
-            self.shared.append(b'PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,caps=config_query_v1/usb_cdc_data_v1/work_quantum_v2,adcCrc=crc8\n')
+            caps = '/'.join(sorted(stage.CdcBenchmarkCollector.required_capabilities | self.optional_caps))
+            self.shared.append(('PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,caps=' + caps + ',adcCrc=crc8\n').encode())
             return
         if text.startswith('USB,'):
             fields = {key: '0' for key in stage.shared.EXTRA_REQUIRED['USB?'].split()}
@@ -177,6 +178,31 @@ class CdcTests(unittest.TestCase):
         with self.assertRaisesRegex(UsbCdcError, 'identity_changed'):
             UsbCdcPort(SERIAL, metadata_finder=metadata, port_factory=lambda _: reader)
         reader.close.assert_called_once_with()
+
+    def test_CDC_optional_service_queries_preserve_shared_raw_and_capture_window(self):
+        device = CdcFirmware(optional_caps=stage.shared.OPTIONAL_CAPABILITIES.values(), truncate='SCHEDWHY?')
+        port = UsbCdcPort(SERIAL, metadata_finder=lambda *a, **k: self.metadata(), port_factory=lambda _: device)
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            opts = BenchmarkOptions(None, Path(directory), 'cdc-service', transport='usb_cdc', usb_serial=SERIAL,
+                                    capture_seconds=.1, warmup_seconds=.01, prepare_seconds=2,
+                                    cleanup_seconds=1, command_timeout=.08)
+            index = stage.run_benchmark(opts, port_factory=lambda _: port)
+            report = json.loads((Path(directory) / 'cdc-service.summary.json').read_text())
+            self.assertEqual(index['status'], 'COMPLETE', report.get('error'))
+            self.assertTrue(report['capture_duration_satisfied'])
+            self.assertGreaterEqual(report['capture_seconds'], .1)
+            raw = Path(report['raw_file']).read_bytes()
+            for name in ('before', 'after'):
+                for command in stage.shared.OPTIONAL_REQUIRED:
+                    q = report['snapshots'][name][command]
+                    self.assertEqual(q['reply_channel'], 'data')
+                    self.assertIn((q['reply_line'] + '\n').encode(), raw)
+                    self.assertLessEqual(q['monotonic'], report['snapshots'][name]['CONFIG?_closing']['started_monotonic'])
+            self.assertEqual(device.query_counts['SCHEDWHY?'], 3)
+            self.assertEqual(device.query_counts['BLESVC?'], 2)
+            self.assertNotIn('ctrl_raw_file', report)
+            self.assertIn('shared_diagnostic_source_sha256', report)
+            self.assertFalse(any(c.startswith(('USBSTREAM=', 'USBBOOT', 'RESTART', 'FPS=')) for c in device.commands))
 
     def test_CDC_stage_CLI_refuses_legacy_or_bulk_before_open(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):

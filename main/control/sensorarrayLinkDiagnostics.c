@@ -50,10 +50,12 @@ esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd, char *response, size
             (unsigned long)s.txTaskPriority, (unsigned long)s.ctrlTaskPriority);
     } else if (strcmp(cmd, "BLESVC?") == 0) {
         n = snprintf(response, size,
-            "BLESVC,v=1,gen=%lu,scope=boot,active=%u,started=%lu,completed=%lu,wallUs=%llu,idleChanged=%lu,idleSame=%lu,idleUnknown=%lu,wall=elapsed,cpu=unknown,blocked=unknown\n",
+            "BLESVC,v=1,gen=%lu,scope=boot,active=%u,started=%lu,completed=%lu,wallUs=%llu,idleChanged=%lu,idleSame=%lu,idleUnknown=%lu,wall=elapsed,cpu=unknown,blocked=unknown,confOk=%lu,confError=%lu,confMatched=%lu,confUnmatched=%lu,confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown\n",
             (unsigned long)s.connectionGeneration, s.sdkCallActive, (unsigned long)s.sdkCallCount,
             (unsigned long)s.sdkCompletedCalls, (unsigned long long)s.sdkWallUs,
-            (unsigned long)s.sdkIdleChanged, (unsigned long)s.sdkIdleUnchanged, (unsigned long)s.sdkIdleUnknown);
+            (unsigned long)s.sdkIdleChanged, (unsigned long)s.sdkIdleUnchanged, (unsigned long)s.sdkIdleUnknown,
+            (unsigned long)s.confOk, (unsigned long)s.confError,
+            (unsigned long)s.confMatched, (unsigned long)s.confUnmatched);
     } else { return ESP_ERR_NOT_SUPPORTED; }
     return n > 0 && (size_t)n < size ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }

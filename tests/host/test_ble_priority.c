@@ -26,6 +26,7 @@ typedef StaticSemaphore_t *SemaphoreHandle_t;
 #define pdMS_TO_TICKS(ms) ((ms) / 10u)
 #define ESP_GATT_OK 0
 #define ESP_GATT_ERROR 1
+#define ESP_GATTS_CONF_EVT 1
 #define ESP_BT_STATUS_SUCCESS 0
 #define ESP_BLE_GAP_PHY_1M_PREF_MASK 1
 #define ESP_BLE_GAP_PHY_2M_PREF_MASK 2
@@ -46,6 +47,9 @@ typedef union {
     struct { int status; } set_perf_phy;
     struct { int status; struct { uint16_t rx_len, tx_len; } params; } pkt_data_length_cmpl;
 } esp_ble_gap_cb_param_t;
+typedef union {
+    struct { uint16_t conn_id, handle; esp_gatt_status_t status; } conf;
+} esp_ble_gatts_cb_param_t;
 
 static unsigned lockDepth, checkpoints, wakeGives, idleTakes, delayCalls, queueInitCount, failQueueInit;
 static unsigned failQueueSends, sdkCalls, sdkFailures, disconnectAfter, priorityOnSend;
@@ -56,6 +60,8 @@ static bool changeIdleDuringSdk;
 static esp_err_t phyReturn, fallbackReturn, readReturn, connReturn, dleReturn;
 static bool wakeOnlyDuringConfirm, confirmSuccess, injectOnIdle, injectLogOnSend;
 static uint32_t notifications;
+static unsigned confWakeGives;
+static TaskHandle_t lastConfWakeTask;
 static jmp_buf taskIdle;
 static uint8_t sentBytes[65536];
 static size_t sentLength;
@@ -103,6 +109,11 @@ static int xSemaphoreGive(SemaphoreHandle_t semaphore)
 { assert(semaphore && !lockDepth); semaphore->token = 1u; wakeGives++; return pdTRUE; }
 static int xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t timeout);
 static uint32_t ulTaskNotifyTake(int clear, TickType_t timeout);
+static void xTaskNotifyGive(TaskHandle_t task)
+{
+    assert(!lockDepth && task != NULL); /* Callback must wake outside mux. */
+    confWakeGives++; lastConfWakeTask = task; notifications++;
+}
 static void vTaskDelay(TickType_t ticks);
 static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t conn,
     uint16_t handle, uint16_t length, uint8_t *value, bool confirm);
@@ -114,6 +125,14 @@ static esp_err_t esp_ble_gap_set_pkt_data_len(esp_bd_addr_t peer, uint16_t lengt
 
 /* PRODUCTION_TYPES */
 /* PRODUCTION_FUNCTIONS */
+
+static void dispatchConf(const esp_ble_gatts_cb_param_t *param)
+{
+    switch (ESP_GATTS_CONF_EVT) {
+        /* PRODUCTION_CONF_CASE */
+    default: assert(false);
+    }
+}
 
 static esp_err_t initializeQueues(void)
 {
@@ -203,6 +222,7 @@ static void reset(void)
     lockDepth = checkpoints = wakeGives = idleTakes = delayCalls = queueInitCount = failQueueInit = 0u;
     failQueueSends = sdkCalls = sdkFailures = disconnectAfter = priorityOnSend = 0u;
     phyRequests = readRequests = connRequests = dleRequests = notifications = 0u;
+    confWakeGives = 0u; lastConfWakeTask = NULL;
     phyReturn = fallbackReturn = readReturn = connReturn = dleReturn = ESP_OK;
     wakeOnlyDuringConfirm = confirmSuccess = injectOnIdle = injectLogOnSend = false;
     sentLength = sentChannelCount = 0u;
@@ -399,12 +419,91 @@ static void testSdkObservation(void)
     assert(s_ble.link.sdkWallUs == 4u && s_ble.link.sdkCallCount == 0u && s_ble.link.sdkCompletedCalls == 0u);
     assert(s_ble.link.sdkIdleUnchanged == 0u);
 }
+static void assertConfCounts(uint32_t ok, uint32_t error,
+                             uint32_t matched, uint32_t unmatched)
+{
+    sensorarrayBleLinkSnapshot_t snapshot;
+    sensorarrayBleGetLinkSnapshot(&snapshot);
+    assert(snapshot.confOk == ok && snapshot.confError == error);
+    assert(snapshot.confMatched == matched && snapshot.confUnmatched == unmatched);
+    assert((uint32_t)(snapshot.confOk + snapshot.confError) ==
+           (uint32_t)(snapshot.confMatched + snapshot.confUnmatched));
+    assert(!lockDepth && s_ble.stats.fragmentError == 19u);
+}
+static void testConfObservation(void)
+{
+    esp_ble_gatts_cb_param_t event = {.conf = {.conn_id=3u, .handle=10u, .status=ESP_GATT_OK}};
+    sensorarrayBleSendContext_t context = {.connectionGeneration=7u, .connId=3u};
+
+    reset(); s_ble.stats.fragmentError = 19u;
+    dispatchConf(&event); assertConfCounts(1u, 0u, 0u, 1u);
+    event.conf.status = ESP_GATT_ERROR;
+    dispatchConf(&event); assertConfCounts(1u, 1u, 0u, 2u);
+    assert(confWakeGives == 0u && s_ble.stats.staleConfirmation == 0u);
+
+    for (unsigned status=0u; status<2u; status++) {
+        reset(); s_ble.stats.fragmentError = 19u;
+        event.conf.status = status == 0u ? ESP_GATT_OK : ESP_GATT_ERROR;
+        sensorarrayBlePrepareConfirmation(&context, 10u);
+        dispatchConf(&event);
+        assertConfCounts(status == 0u, status != 0u, 1u, 0u);
+        assert(!s_ble.confirmPending && s_ble.confirmStatus == event.conf.status);
+        assert(confWakeGives == 1u && lastConfWakeTask == (void *)1);
+        assert(s_ble.stats.staleConfirmation == 0u);
+        assert(sensorarrayBleAwaitConfirmation(&context, 10u) ==
+               (status == 0u ? ESP_OK : ESP_FAIL));
+        assert(s_ble.confirmWaitTask == NULL && nowUs == 1000000u);
+        /* A duplicate/late callback remains observable without waking a
+         * future waiter or calling it a FAST notification/peer receipt. */
+        dispatchConf(&event);
+        assertConfCounts(status == 0u ? 2u : 0u, status != 0u ? 2u : 0u, 1u, 1u);
+        assert(confWakeGives == 1u && s_ble.stats.staleConfirmation == 0u);
+    }
+
+    for (unsigned mismatch=0u; mismatch<5u; mismatch++) {
+        reset(); s_ble.stats.fragmentError = 19u;
+        event.conf.status = ESP_GATT_ERROR; event.conf.conn_id = 3u; event.conf.handle = 10u;
+        sensorarrayBlePrepareConfirmation(&context, 10u);
+        if (mismatch == 0u) { s_ble.connectionGeneration++; }
+        if (mismatch == 1u) { event.conf.conn_id++; }
+        if (mismatch == 2u) { event.conf.handle++; }
+        if (mismatch == 3u) { s_ble.confirmWaitTask = NULL; }
+        if (mismatch == 4u) { s_ble.confirmPending = false; }
+        bool pendingBefore = s_ble.confirmPending;
+        dispatchConf(&event); assertConfCounts(0u, 1u, 0u, 1u);
+        assert(confWakeGives == 0u && s_ble.confirmPending == pendingBefore);
+        assert(s_ble.stats.staleConfirmation == (mismatch < 3u ? 1u : 0u));
+    }
+
+    reset(); s_ble.stats.fragmentError = 19u;
+    event.conf.conn_id = 3u; event.conf.handle = 10u; event.conf.status = ESP_GATT_OK;
+    dispatchConf(&event);
+    s_ble.stats.connected = false;
+    sensorarrayBleResetLinkObservationLocked();
+    s_ble.connectionGeneration++;
+    s_ble.stats.connected = true;
+    sensorarrayBleResetLinkObservationLocked();
+    event.conf.status = ESP_GATT_ERROR; dispatchConf(&event);
+    assertConfCounts(1u, 1u, 0u, 2u); /* Boot totals survive link observation reset. */
+    sensorarrayBleLinkSnapshot_t snapshot; sensorarrayBleGetLinkSnapshot(&snapshot);
+    assert(snapshot.connectionGeneration == 8u); /* Query gen is current, not event epoch. */
+
+    reset(); s_ble.stats.fragmentError = 19u;
+    s_ble.link.confOk = s_ble.link.confError = UINT32_MAX;
+    s_ble.link.confMatched = s_ble.link.confUnmatched = UINT32_MAX;
+    sensorarrayBlePrepareConfirmation(&context, 10u);
+    event.conf.status = ESP_GATT_OK; dispatchConf(&event);
+    assertConfCounts(0u, UINT32_MAX, 0u, UINT32_MAX);
+    event.conf.status = ESP_GATT_ERROR; dispatchConf(&event);
+    assertConfCounts(0u, 0u, 0u, 0u);
+    assert(confWakeGives == 1u && s_ble.stats.staleConfirmation == 0u);
+}
 int main(void)
 {
     testAdmissionAndPriority(); testWeightedLog(); testLifecycleAndWake();
     testPartialOwnership(); testFailuresAndConfirm(); testNegotiation();
-    testSdkObservation();
-    printf("BLE_PRIORITY_PASS,groups=7,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
+    testSdkObservation(); testConfObservation();
+    printf("BLE_PRIORITY_PASS,groups=8,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
         CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN, SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
         SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT, (unsigned)sizeof(s_ble), (unsigned)sizeof(sensorarrayBleTxDescriptor_t));
     return 0;

@@ -26,17 +26,25 @@ from text_protocol import parse_fields
 
 
 class StageFirmware(FirmwareDevice):
-    def __init__(self, *, truncate=None, change_revision=False, watchdog=False):
+    def __init__(self, *, truncate=None, change_revision=False, watchdog=False,
+                 optional_caps=(), service_revision_change=False, drop_optional=None,
+                 service_unknown_once=False):
         super().__init__()
         self.truncate = truncate
         self.query_counts = {}
         self.change_revision = change_revision
         self.watchdog = watchdog
+        self.optional_caps = frozenset(optional_caps)
+        self.service_revision_change = service_revision_change
+        self.drop_optional = drop_optional
+        self.service_unknown_once = service_unknown_once
 
     def send(self, value):
         tag = value.split(',', 1)[0]
         command = {'ARL': 'RAIL?', 'ABAT': 'BAT?'}.get(tag, tag + '?')
-        schemas = {**stage.retry.REQUIRED, **stage.EXTRA_REQUIRED, 'BOOT?': boot.BOOT_REQUIRED,
+        if command == self.drop_optional:
+            return
+        schemas = {**stage.retry.REQUIRED, **stage.EXTRA_REQUIRED, **stage.OPTIONAL_REQUIRED, 'BOOT?': boot.BOOT_REQUIRED,
                    'BUILD?': 'idf target project proto version elfSha256'}
         if command in schemas:
             fields = parse_fields(value.strip())
@@ -52,11 +60,17 @@ class StageFirmware(FirmwareDevice):
                         'quantumTicks': '2', 'bootId': '1', 'prevErr': '0x0'}
             if command == 'SCHED?':
                 defaults.update({worker: '12/1/4' for worker in stage.WORKERS})
+            if command == 'BLESVC?':
+                defaults.update(v='1', scope='boot', wall='elapsed', cpu='unknown', blocked='unknown',
+                                wallUs='18446744073709551615', completed='4294967295')
+            if command == 'SCHEDWHY?':
+                defaults.update(v='1', order='quantum/backstop/units', overlap='1', init='0x0')
+                defaults.update({worker: '1/2/3' for worker in stage.WORKERS})
             if command == 'BUILD?': defaults.update(version='synthetic-test', elfSha256='ab' * 32)
             for field in schemas[command].split():
                 fields.setdefault(field, defaults.get(field, '0'))
             if command == 'PROTO?':
-                fields['caps'] = '/'.join(sorted(stage.CAPABILITIES | {'config_identity_v1'}))
+                fields['caps'] = '/'.join(sorted(stage.CAPABILITIES | {'config_identity_v1'} | self.optional_caps))
             if command == 'USB?': fields['backend'] = 'otg_bulk_v1'
             if command == self.truncate and self.query_counts.get(command) == 1:
                 fields.pop(next(reversed(fields)))
@@ -72,9 +86,12 @@ class StageFirmware(FirmwareDevice):
             if not command.strip(): continue
             command = command.decode().strip()
             self.query_counts[command] = self.query_counts.get(command, 0) + 1
-            if command in stage.EXTRA_REQUIRED or command == 'BOOT?':
+            if command in {**stage.EXTRA_REQUIRED, **stage.OPTIONAL_REQUIRED} or command == 'BOOT?':
                 self.commands.append(command)
                 if self.change_revision and command == 'USBQ?': self.rev += 1
+                if self.service_revision_change and command == 'SCHEDWHY?': self.rev += 1
+                if self.service_unknown_once and command == 'BLESVC?' and self.query_counts[command] == 1:
+                    self.send('ERR,cmd=UNKNOWN,reason=unsupported\n')
                 self.send(command[:-1] + ',synthetic=1\n')
                 if self.watchdog and command == 'BLETX?':
                     self.send('E (123) task_wdt: Task watchdog got triggered. synthetic=1\n')
@@ -92,7 +109,7 @@ class StageTests(unittest.TestCase):
     def test_required_schema_matches_actual_production_formatters(self):
         sources = '\n'.join((ROOT / p).read_text() for p in
                             ['main/control/sensorarrayUsbControl.c', 'main/control/sensorarrayLinkDiagnostics.c', 'main/main.c'])
-        for command, required in stage.EXTRA_REQUIRED.items():
+        for command, required in {**stage.EXTRA_REQUIRED, **stage.OPTIONAL_REQUIRED}.items():
             tag = command[:-1]
             match = re.search(r'"(' + tag + r',[^"\n]*)\\n"', sources)
             self.assertIsNotNone(match, command)
@@ -123,8 +140,88 @@ class StageTests(unittest.TestCase):
                 self.assertTrue(any(a['outcome'] == 'failed' and 'reply_missing_fields' in a.get('error', '')
                                     for a in report['query_attempts']))
                 self.assertFalse(any(c.startswith(('USBBOOT', 'USBSTREAM', 'RESTART')) for c in device.commands))
+                self.assertFalse(any(c in stage.OPTIONAL_REQUIRED for c in device.commands))
+                self.assertTrue(all(not x['advertised'] for x in report['optional_service_diagnostics'].values()))
         finally:
             stage.BulkBenchmarkCollector.diagnostic_interval_seconds, stage.BulkBenchmarkCollector.periodic_budget_seconds = old_interval, old_budget
+
+    def test_optional_observations_exact_caps_before_after_raw_and_bounded_retry(self):
+        device = StageFirmware(optional_caps=stage.OPTIONAL_CAPABILITIES.values(),
+                               truncate='BLESVC?', service_unknown_once=True)
+        port, _, _ = port_for(device)
+        old_interval, old_budget = stage.BulkBenchmarkCollector.diagnostic_interval_seconds, stage.BulkBenchmarkCollector.periodic_budget_seconds
+        stage.BulkBenchmarkCollector.diagnostic_interval_seconds = .04
+        stage.BulkBenchmarkCollector.periodic_budget_seconds = .1
+        try:
+            with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+                index = stage.run_benchmark(self.options(directory), port_factory=lambda _: port)
+                report = json.loads((Path(directory) / 'bulkstage.summary.json').read_text())
+                self.assertEqual(index['status'], 'COMPLETE', report.get('error'))
+                self.assertTrue(report['capture_duration_satisfied'])
+                self.assertGreaterEqual(report['capture_seconds'], .3)
+                self.assertEqual(device.query_counts['BLESVC?'], 3)  # one truncated reply + retry + after
+                self.assertEqual(device.query_counts['SCHEDWHY?'], 2)
+                self.assertTrue(all(x['advertised'] for x in report['optional_service_diagnostics'].values()))
+                ctrl = Path(report['ctrl_raw_file']).read_bytes()
+                for name in ('before', 'after'):
+                    snap = report['snapshots'][name]
+                    for command in stage.OPTIONAL_REQUIRED:
+                        q = snap[command]
+                        self.assertIn((q['reply_line'] + '\n').encode(), ctrl)
+                        self.assertEqual(parse_fields(q['reply_line']), q['fields'])
+                        self.assertEqual(q['reply_channel'], 'ctrl')
+                        self.assertLessEqual(q['started_monotonic'], q['reply_event_monotonic'])
+                        self.assertLessEqual(q['reply_event_monotonic'], q['monotonic'])
+                        self.assertLessEqual(q['monotonic'], snap['CONFIG?_closing']['started_monotonic'])
+                        if name == 'before': self.assertLessEqual(q['monotonic'], report['capture_monotonic_start'])
+                        else: self.assertGreaterEqual(q['started_monotonic'], report['capture_monotonic_end'])
+                periodic = [w for w in report['diagnostic_windows'] if w['name'] == 'periodic']
+                self.assertTrue(periodic)
+                self.assertTrue(all(not set(stage.OPTIONAL_REQUIRED) & set(w['queries']) for w in periodic))
+                attempts = [a for a in report['query_attempts'] if a['command'] == 'BLESVC?' and a['phase'] == 'before']
+                self.assertEqual([a['outcome'] for a in attempts], ['failed', 'complete_reply'])
+                self.assertEqual(attempts[0]['phase_deadline'], attempts[1]['phase_deadline'])
+                events = [json.loads(line) for line in Path(report['events_file']).read_text().splitlines()]
+                self.assertTrue(any(e['type'] == 'uncorrelated_error' and e['command'] == 'BLESVC?' for e in events))
+                self.assertEqual(report['query_retry_limit'], 3)
+                self.assertFalse(report['setters_retried'])
+        finally:
+            stage.BulkBenchmarkCollector.diagnostic_interval_seconds, stage.BulkBenchmarkCollector.periodic_budget_seconds = old_interval, old_budget
+
+    def test_independent_optional_caps_and_no_prefix_match(self):
+        for caps, expected in (({'ble_service_obs_v1'}, {'BLESVC?'}),
+                               ({'work_reason_v1'}, {'SCHEDWHY?'}),
+                               ({'ble_service_obs_v10', 'work_reason_v10'}, set())):
+            device = StageFirmware(optional_caps=caps); port, _, _ = port_for(device)
+            with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+                index = stage.run_benchmark(replace(self.options(directory), capture_seconds=.03), port_factory=lambda _: port)
+                report = json.loads((Path(directory) / 'bulkstage.summary.json').read_text())
+                self.assertEqual(index['status'], 'COMPLETE', report.get('error'))
+                self.assertEqual(set(device.commands) & set(stage.OPTIONAL_REQUIRED), expected)
+                for name in ('before', 'after'):
+                    self.assertEqual(set(report['snapshots'][name]) & set(stage.OPTIONAL_REQUIRED), expected)
+
+    def test_optional_timeout_revision_change_and_semantics_are_not_success(self):
+        for params, needle in (({'drop_optional': 'BLESVC?'}, 'readonly_query_failed:BLESVC?:attempts=3'),
+                               ({'service_revision_change': True}, 'configuration_changed')):
+            device = StageFirmware(optional_caps=stage.OPTIONAL_CAPABILITIES.values(), **params); port, _, _ = port_for(device)
+            with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+                index = stage.run_benchmark(self.options(directory), port_factory=lambda _: port)
+                report = json.loads((Path(directory) / 'bulkstage.summary.json').read_text())
+                self.assertEqual(index['status'], 'ERROR')
+                self.assertIn(needle, report['error'])
+                self.assertEqual(report['capture_seconds'], 0)
+                self.assertFalse(report['setters_retried'])
+                self.assertLess(report['elapsed_seconds'], report['duration_total_budget_seconds'])
+        svc = {k: '0' for k in stage.OPTIONAL_REQUIRED['BLESVC?'].split()}
+        svc.update(stage.OPTIONAL_LITERALS['BLESVC?'])
+        for key, value in (('cpu', 'measured'), ('wallUs', str(1 << 64)), ('completed', str(1 << 32)), ('scope', 'connection')):
+            with self.assertRaises(CaptureError): stage.validate_reply('BLESVC?', {**svc, key: value})
+        why = {k: '0' for k in stage.OPTIONAL_REQUIRED['SCHEDWHY?'].split()}
+        why.update(stage.OPTIONAL_LITERALS['SCHEDWHY?']); why['init'] = '0x0'
+        why.update({w: '1/2/3' for w in stage.WORKERS})
+        for key, value in (('overlap', '0'), ('order', 'units/backstop/quantum'), ('bt', '1/2'), ('bt', '1/2/4294967296')):
+            with self.assertRaises(CaptureError): stage.validate_reply('SCHEDWHY?', {**why, key: value})
 
     def test_CLI_cannot_open_POSIX_even_with_explicit_transport_override(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):

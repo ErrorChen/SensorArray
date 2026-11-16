@@ -1863,18 +1863,30 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
     case ESP_GATTS_CONF_EVT: {
         TaskHandle_t confirmTask = NULL;
         portENTER_CRITICAL(&s_bleMux);
+        /* Count SDK events independently of the indication waiter. A FAST
+         * notification can also produce a local CONF status; this is not a
+         * peer/application receipt counter or proven connection attribution. */
+        if (param->conf.status == ESP_GATT_OK) {
+            s_ble.link.confOk++;
+        } else {
+            s_ble.link.confError++;
+        }
         if (s_ble.confirmPending && s_ble.confirmWaitTask != NULL) {
             bool matches = s_ble.confirmConnectionGeneration ==
                                s_ble.connectionGeneration &&
                            s_ble.confirmConnId == param->conf.conn_id &&
                            s_ble.confirmHandle == param->conf.handle;
             if (matches) {
+                s_ble.link.confMatched++;
                 s_ble.confirmStatus = param->conf.status;
                 s_ble.confirmPending = false;
                 confirmTask = s_ble.confirmWaitTask;
             } else {
                 s_ble.stats.staleConfirmation++;
             }
+        }
+        if (confirmTask == NULL) {
+            s_ble.link.confUnmatched++;
         }
         portEXIT_CRITICAL(&s_bleMux);
         if (confirmTask) {

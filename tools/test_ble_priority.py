@@ -64,6 +64,13 @@ def main():
     ]
     bodies = "\n\n".join(function(source, signature) for signature in signatures)
     harness = harness.replace("/* PRODUCTION_FUNCTIONS */", bodies)
+    # Execute the unchanged CONF callback branch, including its real lock,
+    # matching, stale-event and task-wakeup code. Avoid a test-only copy of
+    # that predicate or a refactor of the firmware merely for extraction.
+    conf_case = source[source.index("    case ESP_GATTS_CONF_EVT: {"):
+                       source.index("    case ESP_GATTS_CONGEST_EVT:")]
+    assert conf_case.count("case ESP_GATTS_CONF_EVT:") == 1
+    harness = harness.replace("/* PRODUCTION_CONF_CASE */", conf_case)
     init = source[source.index("    s_ble.txQueue = xQueueCreateStatic("):
                   source.index("    BaseType_t taskOk = xTaskCreatePinnedToCore(")]
     harness = harness.replace("/* PRODUCTION_QUEUE_INIT */", init)
