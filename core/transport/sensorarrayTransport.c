@@ -808,7 +808,7 @@ esp_err_t sensorarrayTransportInit(void)
                                                 "transport",
                                                 CONFIG_SENSORARRAY_TRANSPORT_TASK_STACK,
                                                 (void *)(intptr_t)wifiErr,
-                                                6u,
+                                                7u,
                                                 &s_task,
                                                 CONFIG_SENSORARRAY_OUTPUT_TASK_CORE);
         if (ok != pdPASS) {

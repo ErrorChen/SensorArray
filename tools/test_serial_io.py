@@ -210,6 +210,8 @@ static struct _reent testGlobalReent;
     compile_args = [os.environ.get("CC", "cc"), "-std=c11", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-I", str(temp), "-I", str(root / "tests/host/work_budget_stubs"), "-I", str(root / "tests/host/include"), "-I", str(root / "components/sensorarrayWifi/include"), "-I", str(root / "components/sensorarrayWorkBudget/include"), "-I", str(root / "core/transport"), str(root / "tests/host/test_serial_io.c"), str(root / "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c")]
     if "int sensorarraySerialIoReadWithEpoch(" in selected_source:
         compile_args += ["-DSERIAL_IO_HAS_OTG_DISPATCH=1", "-DSERIAL_IO_TEST_OTG_INIT=1"]
+    if "#define SERIAL_IO_OTG_TX_TASK_PRIORITY" in selected_source:
+        compile_args += ["-DSERIAL_IO_BACKEND_PRIORITY_SPLIT=1"]
     if args.baseline:
         baseline = temp / "baselineSerialIo.c"
         baseline.write_bytes(subprocess.check_output(["git", "show", f"{args.baseline}:core/transport/sensorarraySerialIo.c"], cwd=root))
@@ -251,10 +253,17 @@ static struct _reent testGlobalReent;
     constants = serial_source[start:end]
     constants += f"\n#define SERIAL_TEST_HAS_EPOCH {int('s_slotEpoch[' in serial_source)}\n"
     priority_token = re.search(r'xTaskCreatePinnedToCore\(sensorarraySerialTxTask,\s*"serialTx",\s*4096,\s*NULL,\s*(\w+)', serial_source).group(1)
-    if priority_token.isdigit():
+    if priority_token == "txPriority":
+        selection = re.search(r"unsigned txPriority = otg \? (\w+) : (\w+);", serial_source)
+        assert selection, "task creation must use the once-selected backend priority"
+        otg_priority = int(re.search(rf"#define {selection[1]}\s+(\d+)u?", serial_source).group(1))
+        serial_priority = int(re.search(rf"#define {selection[2]}\s+(\d+)u?", serial_source).group(1))
+    elif priority_token.isdigit():
         serial_priority = int(priority_token)
+        otg_priority = serial_priority
     else:
         serial_priority = int(re.search(rf"#define {priority_token}\s+(\d+)u?", serial_source).group(1))
+        otg_priority = serial_priority
     sdk = (root / "sdkconfig").read_text()
     def configured(name):
         return int(re.search(rf"^{name}=(\d+)$", sdk, re.M).group(1))
@@ -266,6 +275,7 @@ static struct _reent testGlobalReent;
         constants += re.search(rf"^#define {name}\s+\d+u$", transport_header, re.M).group() + "\n"
     for name, value in {
         "ACTUAL_SERIAL_PRIORITY": serial_priority,
+        "ACTUAL_OTG_PRIORITY": otg_priority,
         "ACTUAL_OUTPUT_CORE": configured("CONFIG_SENSORARRAY_OUTPUT_TASK_CORE"),
         "ACTUAL_LOG_PRIORITY": configured("CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY"),
         "ACTUAL_BLE_PRIORITY": configured("CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY"),

@@ -39,6 +39,8 @@ static unsigned sourceAccepted, controlAccepted, submittedAtCaptureEnd;
 static uint64_t controlQueuedAt[40], maxControlDispatchUs, maxControlDeliveryUs;
 static unsigned controlsCopied;
 static unsigned idleVisits, maxQueueCount, driverCalls;
+static bool handoffOnly, handoffHeld, handoffObservedHeld, handoffDone, handoffBleDone;
+static uint64_t handoffReleaseUs;
 static sensorarrayWorkBudgetWorker_t controlWorker;
 static bool (*idleCallback)(void);
 static char dataStorage[SERIAL_IO_NORMAL_SLOT_COUNT][SENSORARRAY_TRANSPORT_TEXT_MAX];
@@ -102,7 +104,14 @@ static int xTaskNotifyGive(TaskHandle_t task)
 {
     task_t *target = task;
     target->notifications++;
-    if (target->waitingNotification) { target->readyAt = nowUs; }
+    if (target->waitingNotification) {
+        target->readyAt = nowUs;
+        /* FreeRTOS queue/semaphore give preempts for a higher-priority ready
+         * task. Equal priority is sliced at ticks, not at each handoff. */
+        if (currentTask >= 0 && target->priority > tasks[currentTask].priority) {
+            reschedule();
+        }
+    }
     return pdTRUE;
 }
 static uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
@@ -159,6 +168,14 @@ static void sourceTask(void)
 static void serialTask(void) { SERIAL_TEST_LEGACY_TX(NULL); assert(false); }
 static void bleTask(void)
 {
+    if (handoffOnly) {
+        assert(tasks[TASK_BLE].notifications > 0u);
+        handoffObservedHeld = handoffHeld;
+        bleWork++;
+        cpuWork(7200u); /* Synthetic three-fragment service, not measured CPU. */
+        handoffBleDone = true;
+        blockUntil(UINT64_MAX); assert(false);
+    }
     for (;;) {
         bleWork++; cpuWork(500u);
         (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
@@ -166,6 +183,14 @@ static void bleTask(void)
 }
 static void transportTask(void)
 {
+    if (handoffOnly) {
+        handoffHeld = true;
+        (void)xTaskNotifyGive(&tasks[TASK_BLE]);
+        handoffHeld = false;
+        handoffReleaseUs = nowUs;
+        handoffDone = true;
+        blockUntil(UINT64_MAX); assert(false);
+    }
     for (;;) {
         transportWork++; cpuWork(500u);
         (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT);
@@ -196,6 +221,8 @@ static void reset(unsigned serialPriority, uint64_t unavailableUntil, unsigned c
     s_initState = s_initTick = s_idleGeneration = s_idleTick = s_maxIdleGapTicks = 0u;
     s_initError = ESP_ERR_INVALID_STATE;
     nowUs = 0u; noHostUntil = unavailableUntil; stopUs = 2100000u;
+    handoffOnly = handoffHeld = handoffObservedHeld = handoffDone = handoffBleDone = false;
+    handoffReleaseUs = 0u;
     sourceFrames = controlCommands = bleWork = transportWork = driverWaits = 0u;
     sourceAccepted = controlAccepted = submittedAtCaptureEnd = 0u;
     memset(controlQueuedAt, 0, sizeof(controlQueuedAt));
@@ -266,9 +293,9 @@ static void run(unsigned serialPriority, uint64_t unavailableUntil, unsigned con
     if (serialPriority == 4u && unavailableUntil == 0u) {
         assert(s_stats.dataRejected > 0u || s_stats.normalExpired > 0u);
     }
-    /* Formal BLE now has higher application priority than legacy USJ. Keep
-     * accounting and bounded control assertions; never turn this synthetic
-     * scheduling observation into a lossless-throughput acceptance claim. */
+    /* Legacy USJ stays below BLE; the OTG-priority case shares the producer's
+     * scheduling level. The real queue/TTL/WorkBudget bodies remain in use;
+     * this synthetic scheduling result is not a HIL throughput acceptance. */
     if (unavailableUntil == 0u) {
         assert(s_stats.dataSubmitted > 0u);
         assert(s_stats.prioritySubmitted == 40u);
@@ -282,6 +309,33 @@ static void run(unsigned serialPriority, uint64_t unavailableUntil, unsigned con
         assert(driverWaits > 0u && s_stats.dataSubmitted > 0u && s_stats.prioritySubmitted > 0u);
     }
 }
+static void runHandoff(unsigned transportPriority, bool expectedHeld)
+{
+    reset(ACTUAL_OTG_PRIORITY, 0u, ACTUAL_CONTROL_PRIORITY);
+    handoffOnly = true;
+    for (unsigned i = 0; i < TASK_COUNT; i++) { tasks[i].readyAt = UINT64_MAX; }
+    tasks[TASK_TRANSPORT].readyAt = 0u;
+    tasks[TASK_TRANSPORT].priority = transportPriority;
+    tasks[TASK_BLE].waitingNotification = true;
+    unsigned switches = 0u;
+    while (!handoffDone || !handoffBleDone) {
+        int selected = -1;
+        for (unsigned i = 0u; i < TASK_COUNT; i++) {
+            if (tasks[i].readyAt <= nowUs &&
+                (selected < 0 || tasks[i].priority > tasks[selected].priority)) {
+                selected = (int)i;
+            }
+        }
+        assert(selected >= 0 && ++switches <= 4u && nowUs <= 7200u);
+        currentTask = selected;
+        assert(swapcontext(&dispatcher, &tasks[selected].context) == 0);
+    }
+    assert(!handoffHeld && handoffObservedHeld == expectedHeld);
+    assert(handoffReleaseUs == (expectedHeld ? 7200u : 0u));
+    printf("HANDOFF_SCHEDULER_MODEL,transportPriority=%u,blePriority=%u,slotHeldDuringBle=%u,releaseUs=%llu,synthetic=1,hardware=NOT_RUN\n",
+           transportPriority, ACTUAL_BLE_PRIORITY, handoffObservedHeld,
+           (unsigned long long)handoffReleaseUs);
+}
 int main(void)
 {
     setbuf(stdout, NULL);
@@ -294,6 +348,15 @@ int main(void)
     run(6u, 0u, ACTUAL_SERIAL_CONTROL_PRIORITY);
     run(6u, UINT64_MAX, ACTUAL_SERIAL_CONTROL_PRIORITY);
     assert(ACTUAL_SERIAL_PRIORITY == 6u && ACTUAL_SERIAL_PRIORITY < ACTUAL_BLE_PRIORITY);
-    printf("SERIAL_PRIORITY_PASS,scenarios=6,productionPriority=%u,actualFunctions=8,hardware=NOT_RUN\n", ACTUAL_SERIAL_PRIORITY);
+    assert(ACTUAL_OTG_PRIORITY == ACTUAL_LOG_PRIORITY && ACTUAL_TRANSPORT_PRIORITY == ACTUAL_LOG_PRIORITY);
+    run(ACTUAL_OTG_PRIORITY, 0u, ACTUAL_CONTROL_PRIORITY);
+    run(ACTUAL_OTG_PRIORITY, UINT64_MAX, ACTUAL_CONTROL_PRIORITY);
+    run(ACTUAL_OTG_PRIORITY, 200000u, ACTUAL_CONTROL_PRIORITY);
+    run(ACTUAL_OTG_PRIORITY, 0u, ACTUAL_SERIAL_CONTROL_PRIORITY);
+    run(ACTUAL_OTG_PRIORITY, UINT64_MAX, ACTUAL_SERIAL_CONTROL_PRIORITY);
+    runHandoff(6u, true);
+    runHandoff(ACTUAL_TRANSPORT_PRIORITY, false);
+    printf("SERIAL_PRIORITY_PASS,scenarios=13,legacyPriority=%u,otgPriority=%u,actualFunctions=8,hardware=NOT_RUN\n",
+           ACTUAL_SERIAL_PRIORITY, ACTUAL_OTG_PRIORITY);
     return 0;
 }

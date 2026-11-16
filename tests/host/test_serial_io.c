@@ -153,6 +153,14 @@ int xQueueReceive(QueueHandle_t q, void *item, TickType_t ticks)
 }
 int xTaskCreatePinnedToCore(void (*fn)(void *), const char *name, unsigned stack, void *arg, unsigned prio, TaskHandle_t *task, int core)
 {
+#if defined(SERIAL_IO_BACKEND_PRIORITY_SPLIT) && !defined(SERIAL_IO_BASELINE) && \
+    !defined(SERIAL_IO_FRAGMENT_BASELINE) && !defined(SERIAL_IO_TX_BASELINE) && \
+    !defined(SERIAL_IO_ADMISSION_BASELINE)
+    /* Exercise the real Init branch/creation argument, including failed and
+     * repeated initialization; do not infer the backend from a source grep. */
+    assert(strcmp(name, "serialTx") == 0 && stack == 4096u && core == 0);
+    assert(prio == (testOtgEnabled ? 7u : 6u));
+#endif
     if (taskFailures) { taskFailures--; return 0; }
     txTask = fn; *task = (void *)1; return pdPASS;
 }
