@@ -768,7 +768,7 @@ esp_err_t sensorarrayTransportInit(void)
         .enableBle5 = true,
         .preferPhy2m = true,
         .preferHighTxPower = true,
-        .preferredMtu = 247u,
+        .preferredMtu = 517u,
     };
     snprintf(bleConfig.deviceName, sizeof(bleConfig.deviceName), "%s", s_deviceName);
     esp_err_t bleErr = ESP_OK;

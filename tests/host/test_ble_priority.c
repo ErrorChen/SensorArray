@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "sensorarrayBle.h"
+#include "mtu_reference.h"
 
 typedef unsigned TickType_t;
 typedef int portMUX_TYPE;
@@ -27,6 +28,9 @@ typedef StaticSemaphore_t *SemaphoreHandle_t;
 #define ESP_GATT_OK 0
 #define ESP_GATT_ERROR 1
 #define ESP_GATTS_CONF_EVT 1
+#define ESP_GATTS_CONNECT_EVT 2
+#define ESP_GATTS_DISCONNECT_EVT 3
+#define ESP_GATTS_MTU_EVT 4
 #define ESP_BT_STATUS_SUCCESS 0
 #define ESP_BLE_GAP_PHY_1M_PREF_MASK 1
 #define ESP_BLE_GAP_PHY_2M_PREF_MASK 2
@@ -49,6 +53,8 @@ typedef union {
 } esp_ble_gap_cb_param_t;
 typedef union {
     struct { uint16_t conn_id, handle; esp_gatt_status_t status; } conf;
+    struct { uint16_t conn_id; esp_bd_addr_t remote_bda; } connect;
+    struct { uint16_t conn_id, mtu; } mtu;
 } esp_ble_gatts_cb_param_t;
 
 static unsigned lockDepth, checkpoints, wakeGives, idleTakes, delayCalls, queueInitCount, failQueueInit;
@@ -67,6 +73,16 @@ static uint8_t sentBytes[65536];
 static size_t sentLength;
 static char sentChannels[256];
 static unsigned sentChannelCount;
+static FILE *wireJournal;
+static const char *wireCase;
+static void journalWire(const char *type, char channel, const uint8_t *data, size_t length)
+{
+    if (!wireCase) return;
+    assert(wireJournal);
+    fprintf(wireJournal, "{\"type\":\"%s\",\"case\":\"%s\",\"channel\":\"%c\",\"hex\":\"", type, wireCase, channel);
+    for (size_t i = 0; i < length; ++i) fprintf(wireJournal, "%02x", data[i]);
+    fputs("\"}\n", wireJournal);
+}
 #define portENTER_CRITICAL(m) do { (void)(m); assert(lockDepth == 0u); lockDepth++; } while (0)
 #define portEXIT_CRITICAL(m) do { (void)(m); assert(lockDepth == 1u); lockDepth--; } while (0)
 static int64_t esp_timer_get_time(void) { return (int64_t)nowUs; }
@@ -122,6 +138,8 @@ static esp_err_t esp_ble_gap_set_preferred_phy(esp_bd_addr_t peer, unsigned all,
 static esp_err_t esp_ble_gap_read_phy(esp_bd_addr_t peer);
 static esp_err_t esp_ble_gap_update_conn_params(esp_ble_conn_update_params_t *params);
 static esp_err_t esp_ble_gap_set_pkt_data_len(esp_bd_addr_t peer, uint16_t length);
+static void sensorarrayBleDrainControlRxQueue(void) { assert(!lockDepth); }
+static void sensorarrayBleStartAdvertising(void) { assert(!lockDepth); }
 
 /* PRODUCTION_TYPES */
 /* PRODUCTION_FUNCTIONS */
@@ -130,6 +148,14 @@ static void dispatchConf(const esp_ble_gatts_cb_param_t *param)
 {
     switch (ESP_GATTS_CONF_EVT) {
         /* PRODUCTION_CONF_CASE */
+    default: assert(false);
+    }
+}
+static void dispatchConnection(unsigned event, const esp_ble_gatts_cb_param_t *param)
+{
+    const esp_gatt_if_t gattsIf = 2;
+    switch (event) {
+        /* PRODUCTION_CONNECTION_CASES */
     default: assert(false);
     }
 }
@@ -171,7 +197,11 @@ static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t c
     uint16_t handle, uint16_t length, uint8_t *value, bool confirm)
 {
     (void)confirm;
-    assert(!lockDepth && interface == 2 && conn == 3 && value && length <= 244u);
+    size_t maximum = s_ble.stats.mtu > 3u ? s_ble.stats.mtu - 3u : 20u;
+    if (maximum > SENSORARRAY_BLE_ATTR_VALUE_MAX) maximum = SENSORARRAY_BLE_ATTR_VALUE_MAX;
+    /* Keeps the original <=244 assertion at MTU247, and checks the actual
+     * negotiated bound instead of fixing every synthetic peer to247. */
+    assert(!lockDepth && interface == 2 && conn == 3 && value && length <= maximum);
     assert(s_ble.link.sdkCallActive && s_ble.link.sdkCallStartedUs == nowUs);
     assert(s_ble.link.sdkCallCount == s_ble.link.sdkCompletedCalls + 1u);
     assert(s_ble.stats.txSlotUsed > 0u); /* Caller still owns persistent payload. */
@@ -182,6 +212,7 @@ static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t c
     memcpy(sentBytes + sentLength, value, length); sentLength += length;
     assert(sentChannelCount < sizeof(sentChannels));
     sentChannels[sentChannelCount++] = handle == 20 ? 'D' : (handle == 30 ? 'L' : 'C');
+    journalWire("notification", sentChannels[sentChannelCount - 1u], value, length);
     if (injectLogOnSend) {
         injectLogOnSend = false;
         assert(sensorarrayBleNotify(SENSORARRAY_BLE_CH_LOG, (const uint8_t *)"LATELOG\n", 8u) == ESP_OK);
@@ -498,12 +529,85 @@ static void testConfObservation(void)
     assertConfCounts(0u, 0u, 0u, 0u);
     assert(confWakeGives == 1u && s_ble.stats.staleConfirmation == 0u);
 }
-int main(void)
+static void testMtuPayloadBoundaries(void)
 {
+    uint8_t payload[2304]; memset(payload, 'A', sizeof payload);
+    const size_t lengths[] = {511u, 512u, 513u, 598u, 2304u};
+    const char channels[] = "DLC";
+    for (unsigned channel = 0; channel < 3; ++channel) {
+        for (size_t i = 0; i < sizeof lengths / sizeof *lengths; ++i) {
+            reset(); s_ble.stats.mtu = 517u;
+            size_t length = lengths[i]; payload[length - 1u] = '\n';
+            char label[48]; snprintf(label, sizeof label, "mtu517-%c-%u", channels[channel], (unsigned)length);
+            wireCase = label;
+            esp_err_t result = sensorarrayBleNotifyForGeneration(channel, payload, length, 7u);
+            if (channel == SENSORARRAY_BLE_CH_CTRL && length > 512u) {
+                assert(result == ESP_ERR_INVALID_SIZE && sdkCalls == 0u && s_ble.stats.txSlotUsed == 0u);
+            } else {
+                assert(result == ESP_OK);
+                journalWire("expected", channels[channel], payload, length);
+                runToIdle();
+                unsigned expected = length <= 512u ? 1u : length <= 598u ? 2u : 5u;
+                assert(sdkCalls == expected && sentChannelCount == expected && s_ble.stats.sent[channel] == 1u);
+                assert(s_ble.stats.txCrcMismatch == 0u && s_ble.stats.fragmentError == 0u);
+                if (length <= 512u) assert(sentLength == length && !memcmp(sentBytes, payload, length));
+                else assert(!memcmp(sentBytes, "G,", 2u));
+            }
+            wireCase = NULL; payload[length - 1u] = 'A';
+        }
+    }
+    /* Actual encoder bytes, passed through the actual Notify/owner/SendPayload
+     * and formatter, then replayed by Python through the real receiver. */
+    for (unsigned mtu = 247u; mtu <= 517u; mtu += 270u) {
+        const uint8_t *frames[] = {referenceCapMtu, referenceVoltMtu};
+        const size_t sizes[] = {sizeof referenceCapMtu, sizeof referenceVoltMtu};
+        for (unsigned i = 0; i < 2; ++i) {
+            reset(); s_ble.stats.mtu = (uint16_t)mtu;
+            char label[48]; snprintf(label, sizeof label, "golden-%s-mtu%u", i ? "volt" : "cap", mtu);
+            wireCase = label;
+            journalWire("expected", 'D', frames[i], sizes[i]);
+            assert(sensorarrayBleNotifyForGeneration(SENSORARRAY_BLE_CH_DATA, frames[i], sizes[i], 7u) == ESP_OK);
+            runToIdle();
+            assert(sdkCalls == (mtu == 247u ? (i ? 3u : 2u) : (i ? 2u : 1u)));
+            wireCase = NULL;
+        }
+    }
+}
+static void testMtuReconnect(void)
+{
+    reset(); s_ble.config.preferredMtu = TEST_APP_PREFERRED_MTU;
+    assert(TEST_APP_PREFERRED_MTU == 517u);
+    esp_ble_gatts_cb_param_t event = {.mtu = {.conn_id=3u, .mtu=517u}};
+    dispatchConnection(ESP_GATTS_MTU_EVT, &event); assert(s_ble.stats.mtu == 517u);
+    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK);
+    sensorarrayBleTxDescriptor_t held;
+    assert(xQueueReceive(s_ble.txQueue, &held, 0) == pdTRUE);
+    dispatchConnection(ESP_GATTS_DISCONNECT_EVT, &event);
+    assert(!s_ble.stats.connected && s_ble.stats.mtu == 23u && s_ble.connectionGeneration == 8u);
+    memset(&event, 0, sizeof event); event.connect.conn_id = 3u;
+    memset(event.connect.remote_bda, 0x5a, 6u);
+    dispatchConnection(ESP_GATTS_CONNECT_EVT, &event);
+    assert(s_ble.stats.connected && s_ble.stats.mtu == 23u && s_ble.connectionGeneration == 9u);
+    assert(s_ble.cccd[0] == 0u && s_ble.cccd[1] == 0u && s_ble.cccd[2] == 0u);
+    assert(sensorarrayBleSendDescriptor(&held) == ESP_ERR_INVALID_STATE && sdkCalls == 0u);
+    sensorarrayBleReleaseTxDescriptor(&held); assert(s_ble.stats.txSlotUsed == 0u);
+    event.mtu.conn_id = 3u; event.mtu.mtu = 247u;
+    dispatchConnection(ESP_GATTS_MTU_EVT, &event);
+    assert(s_ble.stats.mtu == 247u && s_ble.config.preferredMtu == 517u);
+    s_ble.cccd[0] = 1u;
+    assert(sensorarrayBleNotifyForGeneration(SENSORARRAY_BLE_CH_DATA, referenceVoltMtu,
+           sizeof referenceVoltMtu, 9u) == ESP_OK);
+    runToIdle(); assert(sdkCalls == 3u);
+}
+int main(int argc, char **argv)
+{
+    assert(argc == 2); wireJournal = fopen(argv[1], "wb"); assert(wireJournal);
     testAdmissionAndPriority(); testWeightedLog(); testLifecycleAndWake();
     testPartialOwnership(); testFailuresAndConfirm(); testNegotiation();
     testSdkObservation(); testConfObservation();
-    printf("BLE_PRIORITY_PASS,groups=8,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
+    testMtuPayloadBoundaries(); testMtuReconnect();
+    assert(fclose(wireJournal) == 0);
+    printf("BLE_PRIORITY_PASS,groups=10,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
         CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN, SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
         SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT, (unsigned)sizeof(s_ble), (unsigned)sizeof(sensorarrayBleTxDescriptor_t));
     return 0;

@@ -4,6 +4,7 @@
 The FreeRTOS/Bluedroid boundary is synthetic; this is not an RF/HIL test.
 """
 from pathlib import Path
+import argparse
 import hashlib
 import json
 import os
@@ -72,6 +73,10 @@ def main():
                        source.index("    case ESP_GATTS_CONGEST_EVT:")]
     assert conf_case.count("case ESP_GATTS_CONF_EVT:") == 1
     harness = harness.replace("/* PRODUCTION_CONF_CASE */", conf_case)
+    connection_cases = source[source.index("    case ESP_GATTS_CONNECT_EVT: {"):
+                              source.index("    case ESP_GATTS_WRITE_EVT: {")]
+    assert connection_cases.count("case ESP_GATTS_") == 3
+    harness = harness.replace("/* PRODUCTION_CONNECTION_CASES */", connection_cases)
     init = source[source.index("    s_ble.txQueue = xQueueCreateStatic("):
                   source.index("    BaseType_t taskOk = xTaskCreatePinnedToCore(")]
     harness = harness.replace("/* PRODUCTION_QUEUE_INIT */", init)
@@ -80,6 +85,14 @@ def main():
         raise RuntimeError("host execution is required; compile-only is not PASS")
     with tempfile.TemporaryDirectory(prefix="sensorarray-ble-priority-") as name:
         temp = Path(name)
+        transport = (root / "core/transport/sensorarrayTransport.c").read_text()
+        preferred_mtu = re.findall(r"\.preferredMtu\s*=\s*(\d+)u", transport)
+        assert len(preferred_mtu) == 1
+        reference = "#define TEST_APP_PREFERRED_MTU " + preferred_mtu[0] + "u\n"
+        for name, fixture in (("referenceCapMtu", "cap_1.frame"), ("referenceVoltMtu", "volt_1.frame")):
+            data = (root / "tests/fixtures/config_identity" / fixture).read_bytes()
+            reference += "static const uint8_t " + name + "[] = {" + ",".join(map(str, data)) + "};\n"
+        (temp / "mtu_reference.h").write_text(reference)
         (temp / "esp_err.h").write_text("""#pragma once
 typedef int esp_err_t;
 #define ESP_OK 0
@@ -103,7 +116,37 @@ typedef int esp_err_t;
         # This harness owns only static storage. LeakSanitizer cannot inspect
         # threads under the sandbox ptrace; retain ASan/UBSan bounds checking.
         environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
-        subprocess.run([str(executable)], check=True, timeout=15, env=environment)
+        wire = temp / "wire.jsonl"
+        subprocess.run([str(executable), str(wire)], check=True, timeout=15, env=environment)
+        # Replay exact notifications emitted by real C SendPayload/SendFragment
+        # through the receiver, including raw values that no longer need G.
+        from receive_ble_text import BleTextReceiver
+        cases = {}
+        for line in wire.read_text().splitlines():
+            record = json.loads(line)
+            cases.setdefault(record["case"], []).append(record)
+        assert len(cases) == 16  # 12 allowed size/channel cases + 4 golden cases.
+        for label, records in cases.items():
+            receiver = BleTextReceiver(argparse.Namespace(tail=False, show_fragments=False), None)
+            receiver._write = lambda line: None
+            decoded = []
+            process = receiver.process_message
+            def observe(channel, payload):
+                decoded.append((channel, payload))
+                process(channel, payload)
+            receiver.process_message = observe
+            expected = [(r["channel"], bytes.fromhex(r["hex"])) for r in records if r["type"] == "expected"]
+            assert len(expected) == 1
+            for record in records:
+                if record["type"] == "notification":
+                    receiver.callback(record["channel"])(None, bytearray.fromhex(record["hex"]))
+            assert decoded == expected, label
+            assert receiver.parser.counters.crc_errors == 0
+            if label.startswith("golden-volt"):
+                assert receiver.parser.counters.voltage_frames == 1
+            if label.startswith("golden-cap"):
+                assert receiver.parser.counters.cap_frames == 1
+        print("BLE_MTU_RECEIVER_ROUNDTRIP,actual_C_notifications=1,cases=16,hardware=NOT_RUN")
         # Exercise the actual installed SDK decision path as well as our GAP
         # observer. A successful request can be a15ms no-op in this SDK.
         idf = Path(os.environ['IDF_PATH']) if os.environ.get('IDF_PATH') else None
