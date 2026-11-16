@@ -65,6 +65,7 @@ def main():
             'static uint32_t sensorarrayBleCrc32(', 'static void sensorarrayBleNoteDrop(',
             'static bool sensorarrayBleValidateAscii(', 'static bool sensorarrayBleSnapshotSendContext(',
             'static bool sensorarrayBleSendContextMatches(', 'static bool sensorarrayBleSendContextCurrent(',
+            'static size_t sensorarrayBleDecimalChars(',
             'static size_t sensorarrayBleMaxPayloadSize(', 'static bool sensorarrayBlePlanFragments(',
             'static void sensorarrayBlePrepareConfirmation(', 'static void sensorarrayBleClearConfirmation(',
             'static esp_err_t sensorarrayBleAwaitConfirmation(', 'static esp_err_t sensorarrayBleSendGattValue(',

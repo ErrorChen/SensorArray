@@ -1,0 +1,26 @@
+{
+  "kind": "actual_unmodified_source_extract_not_synthetic",
+  "head_reference": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "full_source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "5f27e3dac2db416059abf0ae6ba4beb3e5397f69a6747a88a68e854a0a14498e",
+    "main/output/sensorarrayTextProtocol.c": "25e88eab219f076d4ee8379400f2e7178d9da377bf571175cde575a1ef7c732b"
+  },
+  "functions": {
+    "ble": [
+      "static uint32_t sensorarrayBleCrc32(",
+      "static size_t sensorarrayBleMaxPayloadSize(",
+      "static bool sensorarrayBlePlanFragments("
+    ],
+    "text": [
+      "static uint32_t sensorarrayTextCrc32("
+    ]
+  },
+  "fixture_sha256": "5f5331f593c5d09e285b0b1a2d1199dbc63543572fe9f83ab05207c2b9bdd327",
+  "sdk_crc_reference": {
+    "source": "components/esp_rom/patches/esp_rom_crc.c",
+    "idf_commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+    "source_sha256": "e2c882fb507b8ba1d646235efcc7a5944524a3066e9d0a9bb282cc31354d7ff6",
+    "fixture_sha256": "025bcef1c3d4089dc1a8cda66ba8f81acb0737b4d8d112a42e341f9e06d0c061",
+    "scope": "Official software reference for host API boundary tests; not execution of ESP32-S3 ROM."
+  }
+}

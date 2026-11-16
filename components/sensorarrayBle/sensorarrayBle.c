@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef ESP_PLATFORM
+#include "esp_rom_crc.h"
+#endif
+
 #include "esp_bt.h"
 #include "esp_bt_main.h"
 #include "esp_gap_ble_api.h"
@@ -133,7 +137,7 @@ _Static_assert(SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE >=
                "BLE fragment header buffer must include the terminating NUL");
 _Static_assert(SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE <
                    SENSORARRAY_BLE_ATTR_VALUE_MAX,
-               "BLE fragment planner header must remain a small stack object");
+               "BLE fragment header limit must leave room for payload");
 
 enum {
     BLE_IDX_SERVICE = 0,
@@ -713,6 +717,24 @@ static char sensorarrayBleEnvelopeChannel(sensorarrayBleChannel_t channel)
 
 static uint32_t sensorarrayBleCrc32(const uint8_t *data, size_t length)
 {
+#ifdef ESP_PLATFORM
+    /* New in this fix: ROM uses the same complemented IEEE CRC32 and a zero
+     * initial seed. Keep size_t lengths explicit: production messages fit in
+     * one uint32_t chunk, while wider host size_t must never truncate. */
+    uint32_t crc = 0u;
+    while (length != 0u) {
+#if SIZE_MAX > UINT32_MAX
+        const uint32_t chunk = length > UINT32_MAX ? UINT32_MAX : (uint32_t)length;
+#else
+        const uint32_t chunk = (uint32_t)length;
+#endif
+        crc = esp_rom_crc32_le(crc, data, chunk);
+        data += chunk;
+        length -= chunk;
+    }
+    return crc;
+#else
+    /* Independent portable bitwise reference, also used by host regressions. */
     uint32_t crc = 0xFFFFFFFFu;
     for (size_t i = 0u; i < length; ++i) {
         crc ^= data[i];
@@ -722,6 +744,7 @@ static uint32_t sensorarrayBleCrc32(const uint8_t *data, size_t length)
         }
     }
     return ~crc;
+#endif
 }
 
 static void sensorarrayBleNoteDrop(sensorarrayBleChannel_t channel)
@@ -862,6 +885,18 @@ bool sensorarrayBleGetSendGeneration(sensorarrayBleChannel_t channel,
     return true;
 }
 
+/* New in this fix: count decimal characters without formatting trial headers.
+ * The actual transmitted header still uses snprintf in SendFragment. */
+static size_t sensorarrayBleDecimalChars(uint32_t value)
+{
+    size_t digits = 1u;
+    while (value >= 10u) {
+        value /= 10u;
+        digits++;
+    }
+    return digits;
+}
+
 static size_t sensorarrayBleMaxPayloadSize(size_t maximum,
                                            char envChannel,
                                            uint32_t messageId,
@@ -871,22 +906,27 @@ static size_t sensorarrayBleMaxPayloadSize(size_t maximum,
                                            size_t messageLength,
                                            uint32_t crc)
 {
-    char header[SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE];
-    int headerLen = snprintf((char *)header,
-                             sizeof(header),
-                             "G,%c,%lu,%lu,%lu,%u,%u,%08lX\n",
-                             envChannel,
-                             (unsigned long)messageId,
-                             (unsigned long)index,
-                             (unsigned long)count,
-                             (unsigned)chunk,
-                             (unsigned)messageLength,
-                             (unsigned long)crc);
-    if (headerLen <= 0 || (size_t)headerLen >= sizeof(header) ||
-        (size_t)headerLen >= maximum) {
+    (void)envChannel; /* %c is one byte for each C/D/L envelope. */
+    (void)crc;        /* A uint32_t CRC is exactly eight %08lX digits. */
+    /* NotifyInternal already limits accepted messages to 2304 bytes. Reject
+     * unrepresentable future/internal inputs instead of narrowing size_t. */
+#if SIZE_MAX > UINT32_MAX
+    if (chunk > UINT32_MAX || messageLength > UINT32_MAX) {
         return 0u;
     }
-    return maximum - (size_t)headerLen;
+#endif
+    const size_t headerLen = SENSORARRAY_BLE_FRAGMENT_HEADER_FIXED_CHARS + 1u +
+        SENSORARRAY_BLE_U32_HEX_MAX_CHARS +
+        sensorarrayBleDecimalChars(messageId) +
+        sensorarrayBleDecimalChars(index) +
+        sensorarrayBleDecimalChars(count) +
+        sensorarrayBleDecimalChars((uint32_t)chunk) +
+        sensorarrayBleDecimalChars((uint32_t)messageLength);
+    if (headerLen >= SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE ||
+        headerLen >= maximum) {
+        return 0u;
+    }
+    return maximum - headerLen;
 }
 
 static bool sensorarrayBlePlanFragments(size_t length,

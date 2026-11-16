@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef ESP_PLATFORM
+#include "esp_rom_crc.h"
+#endif
+
 #include "sensorarrayRowModeProfile.h"
 
 static size_t sensorarrayTextAppend(char *buffer,
@@ -64,6 +68,23 @@ static size_t sensorarrayTextAppendIdentity(char *buffer, size_t size, size_t po
 
 static uint32_t sensorarrayTextCrc32(const uint8_t *data, size_t length)
 {
+#ifdef ESP_PLATFORM
+    /* New in this fix: seed zero preserves the portable IEEE CRC32 result.
+     * Packets fit one ROM call; chunking also preserves wider size_t lengths. */
+    uint32_t crc = 0u;
+    while (length != 0u) {
+#if SIZE_MAX > UINT32_MAX
+        const uint32_t chunk = length > UINT32_MAX ? UINT32_MAX : (uint32_t)length;
+#else
+        const uint32_t chunk = (uint32_t)length;
+#endif
+        crc = esp_rom_crc32_le(crc, data, chunk);
+        data += chunk;
+        length -= chunk;
+    }
+    return crc;
+#else
+    /* Independent portable bitwise reference, retained for host builds. */
     uint32_t crc = UINT32_MAX;
     for (size_t index = 0u; index < length; ++index) {
         crc ^= data[index];
@@ -72,6 +93,7 @@ static uint32_t sensorarrayTextCrc32(const uint8_t *data, size_t length)
         }
     }
     return ~crc;
+#endif
 }
 
 static int32_t sensorarrayTextCapFixed(const sensorarrayFrame_t *frame, size_t cell)

@@ -40,6 +40,7 @@ def main():
         "static bool sensorarrayBleSnapshotSendContext(",
         "static bool sensorarrayBleSendContextMatches(",
         "static bool sensorarrayBleSendContextCurrent(",
+        "static size_t sensorarrayBleDecimalChars(",
         "static size_t sensorarrayBleMaxPayloadSize(",
         "static bool sensorarrayBlePlanFragments(",
         "static void sensorarrayBlePrepareConfirmation(",
