@@ -54,9 +54,37 @@ esp_err_t gpio_get_io_config(gpio_num_t pin, gpio_io_config_t *cfg)
     return ESP_OK;
 }
 
+static bool allocationInjection;
+static unsigned allocationFailureMask, allocationCalls, allocationLive;
+static void *allocationPointers[4];
+
 int64_t esp_timer_get_time(void) { return nowUs; }
-void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }
-void heap_caps_free(void *ptr) { ++freeCalls; free(ptr); }
+void *heap_caps_malloc(size_t size, int flags)
+{
+    if (!allocationInjection) { return malloc(size); }
+    unsigned index = allocationCalls++;
+    assert(index < 4u);
+    assert(flags == (index < 2u ? MALLOC_CAP_DMA : MALLOC_CAP_8BIT));
+    if (allocationFailureMask & (1u << index)) { return NULL; }
+    void *result = malloc(size);
+    assert(result != NULL);
+    allocationPointers[index] = result;
+    ++allocationLive;
+    return result;
+}
+void heap_caps_free(void *ptr)
+{
+    ++freeCalls;
+    if (allocationInjection && ptr) {
+        unsigned index = 0u;
+        while (index < 4u && allocationPointers[index] != ptr) { ++index; }
+        assert(index < 4u); /* Includes double free and freeing unowned memory. */
+        allocationPointers[index] = NULL;
+        assert(allocationLive != 0u);
+        --allocationLive;
+    }
+    free(ptr);
+}
 bool esp_ptr_dma_capable(const void *ptr) { return ptr != NULL; }
 SemaphoreHandle_t xSemaphoreCreateMutex(void) { return (void *)1; }
 void vSemaphoreDelete(SemaphoreHandle_t handle) { (void)handle; }
@@ -597,8 +625,49 @@ static void testSnapshots(void)
     assert(ads126xAdcDeinit(&ads) == ESP_OK);
 }
 
+static void testBufferAllocationFailures(void)
+{
+    unsigned successes = 0u, failures = 0u;
+    for (unsigned mask = 0u; mask < 16u; ++mask) {
+        /* Reset the existing synthetic SPI state before entering real Init. */
+        ads126xAdcHandle_t ads = handle();
+        assert(ads126xAdcDeinit(&ads) == ESP_OK);
+        queueCalls = freeCalls = allocationCalls = allocationLive = 0u;
+        memset(allocationPointers, 0, sizeof(allocationPointers));
+        allocationFailureMask = mask;
+        allocationInjection = true;
+        ads126xAdcConfig_t cfg = {
+            .spiDevice = (void *)1, .forcedType = ADS126X_DEVICE_AUTO,
+            .drdyGpio = GPIO_NUM_NC, .resetGpio = GPIO_NUM_NC,
+            .skipResetOnInit = true, .skipConfigureOnInit = true,
+        };
+        bool dmaPair = (mask & 3u) == 0u;
+        bool success = dmaPair || (mask & 12u) == 0u;
+        esp_err_t err = ads126xAdcInit(&ads, &cfg);
+        assert(allocationCalls == (dmaPair ? 2u : 4u));
+        if (success) {
+            ++successes;
+            assert(err == ESP_OK && queueCalls > 0u && allocationLive == 2u);
+            assert(ads.spiTxBuf && ads.spiRxBuf && ads.spiBufSize >= 8u);
+            assert(ads.spiDmaCapable == dmaPair);
+        } else {
+            ++failures;
+            assert(err == ESP_ERR_NO_MEM && queueCalls == 0u && allocationLive == 0u);
+            assert(!ads.spiTxBuf && !ads.spiRxBuf && !ads.spiDmaCapable && ads.spiBufSize == 0u);
+            assert(!ads.mutex && !ads.spiInFlight);
+        }
+        assert(ads126xAdcDeinit(&ads) == ESP_OK && allocationLive == 0u);
+        unsigned freed = freeCalls;
+        assert(ads126xAdcDeinit(&ads) == ESP_OK && freeCalls == freed);
+        allocationInjection = false;
+    }
+    assert(successes == 7u && failures == 9u);
+    puts("ADS_ALLOCATION_LIFETIME,combinations=16,success=7,no_mem=9,duplicate_free=0,leaks=0,source=production_init_deinit");
+}
+
 int main(void)
 {
+    testBufferAllocationFailures();
     testSpiTimingSelection();
     testSpiClockSelection();
     testRegisterReadGuard();

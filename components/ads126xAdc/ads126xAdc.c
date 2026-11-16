@@ -113,33 +113,36 @@ static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)
         bufSize = 8u;
     }
 
-    handle->spiTxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
-    handle->spiRxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
-    handle->spiDmaCapable = handle->spiTxBuf && handle->spiRxBuf &&
-                            esp_ptr_dma_capable(handle->spiTxBuf) &&
-                            esp_ptr_dma_capable(handle->spiRxBuf);
-    if (!handle->spiTxBuf || !handle->spiRxBuf) {
-        if (handle->spiTxBuf) {
-            heap_caps_free(handle->spiTxBuf);
+    /* Init owns an empty handle here. Publish only a complete pair: its
+     * failure path calls Deinit, which must never see freed partial storage. */
+    uint8_t *tx = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
+    uint8_t *rx = heap_caps_malloc(bufSize, MALLOC_CAP_DMA);
+    bool dmaCapable = tx && rx && esp_ptr_dma_capable(tx) && esp_ptr_dma_capable(rx);
+    if (!tx || !rx) {
+        if (tx) {
+            heap_caps_free(tx);
         }
-        if (handle->spiRxBuf) {
-            heap_caps_free(handle->spiRxBuf);
+        if (rx) {
+            heap_caps_free(rx);
         }
-        handle->spiTxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_8BIT);
-        handle->spiRxBuf = heap_caps_malloc(bufSize, MALLOC_CAP_8BIT);
-        if (!handle->spiTxBuf || !handle->spiRxBuf) {
-            if (handle->spiTxBuf) {
-                heap_caps_free(handle->spiTxBuf);
+        tx = heap_caps_malloc(bufSize, MALLOC_CAP_8BIT);
+        rx = heap_caps_malloc(bufSize, MALLOC_CAP_8BIT);
+        if (!tx || !rx) {
+            if (tx) {
+                heap_caps_free(tx);
             }
-            if (handle->spiRxBuf) {
-                heap_caps_free(handle->spiRxBuf);
+            if (rx) {
+                heap_caps_free(rx);
             }
             return ESP_ERR_NO_MEM;
         }
         ESP_LOGW(TAG, "DMA buffers unavailable; using non-DMA buffers");
-        handle->spiDmaCapable = false;
+        dmaCapable = false;
     }
 
+    handle->spiTxBuf = tx;
+    handle->spiRxBuf = rx;
+    handle->spiDmaCapable = dmaCapable;
     handle->spiBufSize = bufSize;
     return ESP_OK;
 }
