@@ -1,0 +1,48 @@
+{
+  "files": [
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/after-audit.json",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-after-audit.json",
+      "sha256": "e77cd596652e9eb41ce08bfe296a271ff682ac9f7ba4a60df148c44c46bcd9e7",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/after-audit.txt",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-after-audit.txt",
+      "sha256": "76fb1e8c51bcfd5558d80db5ce035e59fe89762996772a51dd72649b8469a47c",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/after-regression.json",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-after-regression.json",
+      "sha256": "28775d01a08d42faac13b1df312141bfc1ce83ef3da25e01e4fbac12303b1955",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/after-regression.txt",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-after-regression.txt",
+      "sha256": "6d771d25f5a9248dae7a265a406b808e04280097ed424ace91020c4a0c49bb3a",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/before-audit.json",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-before-audit.json",
+      "sha256": "a41951db90d8b6d397f4af91fb3a721e6ce3afa1ffc8a0db7a128da8252f1fb1",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/before-audit.txt",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-before-audit.txt",
+      "sha256": "4ae347a5d7945bc2b602631ceb01b87b4632a68738445dd0df916a5b88f2ca39",
+      "unchanged_copy": true
+    },
+    {
+      "source": "/tmp/sensorarray-config-surface-review-20261116/before-regression.txt",
+      "archived": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-config-audit-before-regression.txt",
+      "sha256": "fa9828bc5fb1bc9331dfef2684d39319cb99f3a04254cb7107dc37876af4a027",
+      "unchanged_copy": true
+    }
+  ],
+  "original_cpu_owner_host_manifest_retained": true,
+  "scope": "root managed dependency uses excluded only; dependency Kconfig definitions and owned project references remain checked"
+}

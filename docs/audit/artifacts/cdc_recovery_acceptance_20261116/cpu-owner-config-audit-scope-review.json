@@ -1,0 +1,415 @@
+{
+  "scope": "Only tools/audit_config_surface.py and tools/test_audit_config_surface.py changed; no production, SDK, managed dependency, build, or hardware changes.",
+  "baseline_audit_source_sha256": {
+    "b13321a": "0959ef9d10780700c9efa3d264e9701fe64f6e659b1c7b8d53f9ba245ee425df",
+    "0c94fe3": "0959ef9d10780700c9efa3d264e9701fe64f6e659b1c7b8d53f9ba245ee425df",
+    "167e0ea": "0959ef9d10780700c9efa3d264e9701fe64f6e659b1c7b8d53f9ba245ee425df"
+  },
+  "baseline_source_equal": true,
+  "baseline_code_evaluated_against": "Current checkout with unchanged managed dependency download; not a replay of historical dependency installations.",
+  "baseline_missing_count": 53,
+  "baseline_missing_reference_count": 253,
+  "all_missing_references_managed_components": true,
+  "baseline_missing_references": {
+    "0_TOTAL_LEN": [
+      "managed_components/espressif__tinyusb/examples/device/dynamic_configuration/src/usb_descriptors.c:119",
+      "managed_components/espressif__tinyusb/examples/device/dynamic_configuration/src/usb_descriptors.c:163"
+    ],
+    "1_TOTAL_LEN": [
+      "managed_components/espressif__tinyusb/examples/device/dynamic_configuration/src/usb_descriptors.c:120",
+      "managed_components/espressif__tinyusb/examples/device/dynamic_configuration/src/usb_descriptors.c:176"
+    ],
+    "ACM_COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1026",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1081"
+    ],
+    "BITSTREAM_SYNC_HEADER1": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:709"
+    ],
+    "BITSTREAM_SYNC_HEADER2": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:713"
+    ],
+    "CH34X_COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1760",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1828",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1831"
+    ],
+    "CH34X_FLOW_CONTROL": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1759",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1822",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1825"
+    ],
+    "CH34X_READ_VERSION": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1756",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1794"
+    ],
+    "CH34X_SERIAL_INIT": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1757",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1796",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1800"
+    ],
+    "CH34X_SPECIAL_REG_WRITE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1758",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1813",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1818"
+    ],
+    "CLOCK_FREQUENCY": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/family.c:53",
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:717"
+    ],
+    "COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:573",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:641",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:645"
+    ],
+    "CP210X_COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1589",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1617",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1620"
+    ],
+    "CP210X_IFC_ENABLE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1588",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1616"
+    ],
+    "CPU_RESET_ADDR": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:721"
+    ],
+    "CPU_TYPE": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:725"
+    ],
+    "CPU_TYPE_VEXRISCV": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:729"
+    ],
+    "CPU_VARIANT": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:733"
+    ],
+    "CPU_VARIANT_MIN": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:737"
+    ],
+    "CSR_ALIGNMENT": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:741"
+    ],
+    "CSR_DATA_WIDTH": [
+      "managed_components/espressif__tinyusb/hw/bsp/fomu/include/csr.h:745"
+    ],
+    "FTDI_COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1202",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1260",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1263"
+    ],
+    "FTDI_DETERMINE_TYPE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1198",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1236"
+    ],
+    "FTDI_FLOW_CONTROL": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1201",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1254",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1257"
+    ],
+    "FTDI_SIO_RESET": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1200",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1244",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1253"
+    ],
+    "FTDI_WRITE_LATENCY": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1199",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:1241"
+    ],
+    "GET_REPORT_DESC": [
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:572",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:616",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:623",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:629"
+    ],
+    "GPIO_AS_PINRESET": [
+      "managed_components/espressif__tinyusb/hw/bsp/nrf/family.cmake:94"
+    ],
+    "HAS_HW_NRF_USBREG": [
+      "managed_components/espressif__tinyusb/hw/bsp/nrf/family.c:189"
+    ],
+    "HAVE_DOUBLE": [
+      "managed_components/espressif__tinyusb/hw/bsp/cxd56/family.cmake:45"
+    ],
+    "ID_COUNT": [
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:65",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:96",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:229",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:235",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:241",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:252",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:257",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:262",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:286",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:302",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:320"
+    ],
+    "ID_ECM": [
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:61",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:161",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:184",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:231",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:237",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:243"
+    ],
+    "ID_NCM": [
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:63",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:198",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:212",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:253",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:258",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:263"
+    ],
+    "ID_RNDIS": [
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:60",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:152",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:175",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:230",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:236",
+      "managed_components/espressif__tinyusb/examples/device/net_lwip_webserver/src/usb_descriptors.c:242"
+    ],
+    "PL2303_COMPLETE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2096",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2257",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2267",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2273",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2306"
+    ],
+    "PL2303_DETECT_TYPE": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2080",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2135"
+    ],
+    "PL2303_READ1": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2081",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2130",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2140",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2146",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2149"
+    ],
+    "PL2303_READ2": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2083",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2169",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2174"
+    ],
+    "PL2303_READ3": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2084",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2177",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2182"
+    ],
+    "PL2303_READ4": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2085",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2185",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2190"
+    ],
+    "PL2303_READ5": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2087",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2201",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2206"
+    ],
+    "PL2303_READ6": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2088",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2209",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2214"
+    ],
+    "PL2303_RESET_ENDP1": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2092",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2242",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2248"
+    ],
+    "PL2303_RESET_ENDP2": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2093",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2251",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2259",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2264"
+    ],
+    "PL2303_WRITE1": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2082",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2161",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2166"
+    ],
+    "PL2303_WRITE2": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2086",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2193",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2198"
+    ],
+    "PL2303_WRITE3": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2089",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2217",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2222"
+    ],
+    "PL2303_WRITE4": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2090",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2225",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2230"
+    ],
+    "PL2303_WRITE5": [
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2091",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2233",
+      "managed_components/espressif__tinyusb/src/class/cdc/cdc_host.c:2238"
+    ],
+    "SET_PROTOCOL": [
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:571",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:616",
+      "managed_components/espressif__tinyusb/src/class/hid/hid_host.c:621"
+    ],
+    "TOTAL_LEN": [
+      "managed_components/espressif__tinyusb/test/unit-test/test/device/msc/test_msc_device.c:66",
+      "managed_components/espressif__tinyusb/test/unit-test/test/device/msc/test_msc_device.c:71",
+      "managed_components/espressif__tinyusb/examples/device/msc_dual_lun/src/usb_descriptors.c:80",
+      "managed_components/espressif__tinyusb/examples/device/msc_dual_lun/src/usb_descriptors.c:115",
+      "managed_components/espressif__tinyusb/examples/device/msc_dual_lun/src/usb_descriptors.c:125",
+      "managed_components/espressif__tinyusb/examples/device/audio_test/src/usb_descriptors.c:83",
+      "managed_components/espressif__tinyusb/examples/device/audio_test/src/usb_descriptors.c:109",
+      "managed_components/espressif__tinyusb/examples/device/printer_to_cdc/src/usb_descriptors.h:35",
+      "managed_components/espressif__tinyusb/examples/device/printer_to_cdc/src/usb_descriptors.c:96",
+      "managed_components/espressif__tinyusb/examples/device/printer_to_cdc/src/usb_descriptors.c:108",
+      "managed_components/espressif__tinyusb/examples/device/printer_to_cdc/src/usb_descriptors.c:116",
+      "managed_components/espressif__tinyusb/examples/device/printer_to_cdc/src/usb_descriptors.c:143",
+      "managed_components/espressif__tinyusb/examples/device/cdc_dual_ports/src/usb_descriptors.c:85",
+      "managed_components/espressif__tinyusb/examples/device/cdc_dual_ports/src/usb_descriptors.c:143",
+      "managed_components/espressif__tinyusb/examples/device/cdc_dual_ports/src/usb_descriptors.c:156",
+      "managed_components/espressif__tinyusb/examples/device/hid_generic_inout/src/usb_descriptors.c:98",
+      "managed_components/espressif__tinyusb/examples/device/hid_generic_inout/src/usb_descriptors.c:113",
+      "managed_components/espressif__tinyusb/examples/device/usbtmc/src/usb_descriptors.c:123",
+      "managed_components/espressif__tinyusb/examples/device/usbtmc/src/usb_descriptors.c:128",
+      "managed_components/espressif__tinyusb/examples/device/usbtmc/src/usb_descriptors.c:138",
+      "managed_components/espressif__tinyusb/examples/device/usbtmc/src/usb_descriptors.c:144",
+      "managed_components/espressif__tinyusb/examples/device/usbtmc/src/usb_descriptors.c:181",
+      "managed_components/espressif__tinyusb/examples/device/hid_boot_interface/src/usb_descriptors.c:86",
+      "managed_components/espressif__tinyusb/examples/device/hid_boot_interface/src/usb_descriptors.c:100",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc/src/usb_descriptors.c:135",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc/src/usb_descriptors.c:140",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc/src/usb_descriptors.c:155",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc/src/usb_descriptors.c:165",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc/src/usb_descriptors.c:200",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_throughput/src/usb_descriptors.c:90",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_throughput/src/usb_descriptors.c:93",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_throughput/src/usb_descriptors.c:100",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_throughput/src/usb_descriptors.c:105",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_throughput/src/usb_descriptors.c:127",
+      "managed_components/espressif__tinyusb/examples/device/midi_test/src/usb_descriptors.c:76",
+      "managed_components/espressif__tinyusb/examples/device/midi_test/src/usb_descriptors.c:103",
+      "managed_components/espressif__tinyusb/examples/device/midi_test/src/usb_descriptors.c:112",
+      "managed_components/espressif__tinyusb/examples/device/midi_test_freertos/src/usb_descriptors.c:76",
+      "managed_components/espressif__tinyusb/examples/device/midi_test_freertos/src/usb_descriptors.c:103",
+      "managed_components/espressif__tinyusb/examples/device/midi_test_freertos/src/usb_descriptors.c:112",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite_freertos/src/usb_descriptors.c:105",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite_freertos/src/usb_descriptors.c:112",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite_freertos/src/usb_descriptors.c:122",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite_freertos/src/usb_descriptors.c:157",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite/src/usb_descriptors.c:106",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite/src/usb_descriptors.c:113",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite/src/usb_descriptors.c:123",
+      "managed_components/espressif__tinyusb/examples/device/hid_composite/src/usb_descriptors.c:158",
+      "managed_components/espressif__tinyusb/examples/device/webusb_serial/src/usb_descriptors.c:85",
+      "managed_components/espressif__tinyusb/examples/device/webusb_serial/src/usb_descriptors.c:139",
+      "managed_components/espressif__tinyusb/examples/device/dfu_runtime/src/usb_descriptors.c:86",
+      "managed_components/espressif__tinyusb/examples/device/dfu_runtime/src/usb_descriptors.c:90",
+      "managed_components/espressif__tinyusb/examples/device/dfu/src/usb_descriptors.c:88",
+      "managed_components/espressif__tinyusb/examples/device/dfu/src/usb_descriptors.c:93",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_freertos/src/usb_descriptors.c:83",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_freertos/src/usb_descriptors.c:105",
+      "managed_components/espressif__tinyusb/examples/device/hid_multiple_interface/src/usb_descriptors.c:112",
+      "managed_components/espressif__tinyusb/examples/device/hid_multiple_interface/src/usb_descriptors.c:120",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:78",
+      "managed_components/espressif__tinyusb/examples/device/mtp/src/usb_descriptors.c:110",
+      "managed_components/espressif__tinyusb/examples/device/mtp/src/usb_descriptors.c:115",
+      "managed_components/espressif__tinyusb/examples/device/mtp/src/usb_descriptors.c:126",
+      "managed_components/espressif__tinyusb/examples/device/mtp/src/usb_descriptors.c:132",
+      "managed_components/espressif__tinyusb/examples/device/mtp/src/usb_descriptors.c:167",
+      "managed_components/espressif__tinyusb/examples/device/audio_4_channel_mic_freertos/src/usb_descriptors.c:83",
+      "managed_components/espressif__tinyusb/examples/device/audio_4_channel_mic_freertos/src/usb_descriptors.c:105",
+      "managed_components/espressif__tinyusb/examples/device/midi2_device/src/usb_descriptors.c:69",
+      "managed_components/espressif__tinyusb/examples/device/midi2_device/src/usb_descriptors.c:81",
+      "managed_components/espressif__tinyusb/examples/device/audio_4_channel_mic/src/usb_descriptors.c:83",
+      "managed_components/espressif__tinyusb/examples/device/audio_4_channel_mic/src/usb_descriptors.c:109",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_freertos/src/usb_descriptors.c:135",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_freertos/src/usb_descriptors.c:140",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_freertos/src/usb_descriptors.c:156",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_freertos/src/usb_descriptors.c:166",
+      "managed_components/espressif__tinyusb/examples/device/cdc_msc_freertos/src/usb_descriptors.c:202",
+      "managed_components/espressif__tinyusb/examples/device/cdc_uac2/src/usb_descriptors.c:79",
+      "managed_components/espressif__tinyusb/examples/device/cdc_uac2/src/usb_descriptors.c:132",
+      "managed_components/espressif__tinyusb/examples/device/cdc_uac2/src/usb_descriptors.c:147",
+      "managed_components/espressif__tinyusb/examples/device/cdc_uac2/src/usb_descriptors.c:157",
+      "managed_components/espressif__tinyusb/examples/device/cdc_uac2/src/usb_descriptors.c:192",
+      "managed_components/espressif__tinyusb/examples/dual/host_info_to_device_cdc/src/usb_descriptors.c:122",
+      "managed_components/espressif__tinyusb/examples/dual/host_info_to_device_cdc/src/usb_descriptors.c:127",
+      "managed_components/espressif__tinyusb/examples/dual/host_info_to_device_cdc/src/usb_descriptors.c:139",
+      "managed_components/espressif__tinyusb/examples/dual/host_info_to_device_cdc/src/usb_descriptors.c:146",
+      "managed_components/espressif__tinyusb/examples/dual/host_info_to_device_cdc/src/usb_descriptors.c:181",
+      "managed_components/espressif__tinyusb/examples/dual/dynamic_switch/src/usb_descriptors.c:103",
+      "managed_components/espressif__tinyusb/examples/dual/dynamic_switch/src/usb_descriptors.c:107",
+      "managed_components/espressif__tinyusb/examples/dual/dynamic_switch/src/usb_descriptors.c:116",
+      "managed_components/espressif__tinyusb/examples/dual/host_hid_to_device_cdc/src/usb_descriptors.c:122",
+      "managed_components/espressif__tinyusb/examples/dual/host_hid_to_device_cdc/src/usb_descriptors.c:127",
+      "managed_components/espressif__tinyusb/examples/dual/host_hid_to_device_cdc/src/usb_descriptors.c:139",
+      "managed_components/espressif__tinyusb/examples/dual/host_hid_to_device_cdc/src/usb_descriptors.c:146",
+      "managed_components/espressif__tinyusb/examples/dual/host_hid_to_device_cdc/src/usb_descriptors.c:181"
+    ],
+    "UAC1_TOTAL_LEN": [
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:103",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:107",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:113",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:120",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:125",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:136",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:139",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:141",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:146",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:157"
+    ],
+    "UAC2_TOTAL_LEN": [
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:116",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:120",
+      "managed_components/espressif__tinyusb/examples/device/audio_test_multi_rate/src/usb_descriptors.c:126",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:140",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:145",
+      "managed_components/espressif__tinyusb/examples/device/uac2_headset/src/usb_descriptors.c:151",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:162",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:164",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:169",
+      "managed_components/espressif__tinyusb/examples/device/uac2_speaker_fb/src/usb_descriptors.c:180"
+    ]
+  },
+  "original_parent_failure_log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-audit_config_surface.txt",
+  "original_parent_failure_log_sha256": "4ae347a5d7945bc2b602631ceb01b87b4632a68738445dd0df916a5b88f2ca39",
+  "before": {
+    "command": [
+      "python3",
+      "tools/audit_config_surface.py"
+    ],
+    "exit_code": 1,
+    "elapsed_s": 1.6615629196166992,
+    "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+    "script_sha256": "0959ef9d10780700c9efa3d264e9701fe64f6e659b1c7b8d53f9ba245ee425df",
+    "log": "/tmp/sensorarray-config-surface-review-20261116/before-audit.txt",
+    "log_sha256": "4ae347a5d7945bc2b602631ceb01b87b4632a68738445dd0df916a5b88f2ca39"
+  },
+  "after": {
+    "command": [
+      "python3",
+      "tools/audit_config_surface.py"
+    ],
+    "exit_code": 0,
+    "elapsed_s": 2.984036445617676,
+    "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+    "source_sha256": {
+      "tools/audit_config_surface.py": "7b57c465a284bb4ebae1fcbdc8864df01fae56bf44fc796f96163d8abd8b9537",
+      "tools/test_audit_config_surface.py": "3b8423d282a686bcb61ad8a35a2b6a8a172284ee0aa239d4aa7a4b64be17335b"
+    },
+    "log": "/tmp/sensorarray-config-surface-review-20261116/after-audit.txt",
+    "log_sha256": "76fb1e8c51bcfd5558d80db5ce035e59fe89762996772a51dd72649b8469a47c"
+  },
+  "unit": {
+    "command": [
+      "python3",
+      "tools/test_audit_config_surface.py"
+    ],
+    "exit_code": 0,
+    "elapsed_s": 0.5907478332519531,
+    "log": "/tmp/sensorarray-config-surface-review-20261116/after-regression.txt",
+    "log_sha256": "6d771d25f5a9248dae7a265a406b808e04280097ed424ace91020c4a0c49bb3a"
+  },
+  "negative_regression_before_fix": "New regressions run against old implementation: exit1, 2 failures plus missing new discovery-helper error; see before-regression.txt.",
+  "new_behavior": "Only top-level managed_components source-use/fallback scan excluded. Kconfig declarations retained. No new CONFIG_* prefix exceptions."
+}

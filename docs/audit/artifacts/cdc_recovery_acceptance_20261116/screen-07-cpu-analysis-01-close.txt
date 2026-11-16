@@ -1,0 +1,1 @@
+{"boot": "RUNNING_BUILD_AND_READY_VERIFIED", "screen": "FAIL_BLE_THROUGHPUT", "hardware_actions": []}

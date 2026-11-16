@@ -1,0 +1,93 @@
+{
+  "all": {
+    "notifications": 12942,
+    "bytes": 2972102,
+    "notifications_per_capture_second": 107.84989485983357,
+    "payload_mean_bytes": 229.64781332097047,
+    "callback_gap_ms_percentiles": {
+      "0": 0.059309008065611124,
+      "10": 0.46432303497567773,
+      "25": 6.478419993072748,
+      "50": 7.939158007502556,
+      "75": 14.78091097669676,
+      "90": 15.588610025588423,
+      "95": 20.076389948371798,
+      "99": 23.563850962091237,
+      "100": 44.70687301363796
+    },
+    "gap_count": 12941,
+    "gap_le_1ms": 1923,
+    "gap_ge_10ms": 4861,
+    "gap_ge_20ms": 650,
+    "gap_ge_40ms": 1,
+    "observed_G_fragment_count_histogram": {
+      "3": 11660,
+      "4": 572,
+      "5": 710
+    }
+  },
+  "D": {
+    "notifications": 11660,
+    "bytes": 2676878,
+    "notifications_per_capture_second": 97.16657194140468,
+    "payload_mean_bytes": 229.5778730703259,
+    "callback_gap_ms_percentiles": {
+      "0": 0.059309008065611124,
+      "10": 0.46776101225987077,
+      "25": 6.56626297859475,
+      "50": 7.981889008078724,
+      "75": 14.88155999686569,
+      "90": 16.04010903974995,
+      "95": 22.613997978623956,
+      "99": 52.16736800502986,
+      "100": 75.84518002113327
+    },
+    "gap_count": 11659,
+    "gap_le_1ms": 1696,
+    "gap_ge_10ms": 4583,
+    "gap_ge_20ms": 860,
+    "gap_ge_40ms": 235,
+    "observed_G_fragment_count_histogram": {
+      "3": 11660
+    }
+  },
+  "L": {
+    "notifications": 1282,
+    "bytes": 295224,
+    "notifications_per_capture_second": 10.683322918428885,
+    "payload_mean_bytes": 230.2839313572543,
+    "callback_gap_ms_percentiles": {
+      "0": 0.07901497883722186,
+      "10": 0.4725730395875871,
+      "25": 6.350087001919746,
+      "50": 8.108228968922049,
+      "75": 16.39517501462251,
+      "90": 593.531338032335,
+      "95": 668.0199079564773,
+      "99": 720.2418979723006,
+      "100": 795.3661250066943
+    },
+    "gap_count": 1281,
+    "gap_le_1ms": 180,
+    "gap_ge_10ms": 563,
+    "gap_ge_20ms": 314,
+    "gap_ge_40ms": 284,
+    "observed_G_fragment_count_histogram": {
+      "4": 572,
+      "5": 710
+    }
+  },
+  "C": {
+    "notifications": 0,
+    "bytes": 0,
+    "notifications_per_capture_second": 0.0,
+    "payload_mean_bytes": null,
+    "callback_gap_ms_percentiles": null,
+    "gap_count": 0,
+    "gap_le_1ms": 0,
+    "gap_ge_10ms": 0,
+    "gap_ge_20ms": 0,
+    "gap_ge_40ms": 0,
+    "observed_G_fragment_count_histogram": {}
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "baseline_commit": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "source": "main/output/sensorarrayAsyncLog.c",
+  "source_sha256": "b644f12edb17fe79f67d2551ab6c04a98cf9f6e04d7c1c8344504f13799f9b8d",
+  "matching_HIL_ELF_sha256": "6986f8b5859c63caeac1566ae16dd36e65be7669d44a4cddd2595f35df9f8a6d",
+  "matched_existing_ELF": true,
+  "old_nm_precision_function_size_bytes": 479,
+  "old_nm_precision_window_bss_bytes": 1624,
+  "read_only_review_basis": "existing ELF read only; no target build/hardware",
+  "utc": "2026-11-16T08:36:48Z"
+}

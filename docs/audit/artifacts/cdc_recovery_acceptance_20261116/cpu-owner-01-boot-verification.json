@@ -1,0 +1,171 @@
+{
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/close_cpu_owner_screen07.py",
+    "sha256": "b0fd7db1789e37cd93383de6a70deed8f051e4eb6e37aa875ecb4b65f2c744e3"
+  },
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "inputs": {
+    "identity": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-validated-identity.json",
+      "sha256": "7cd7c4cbb50c51945c02ea4337c52d94db612789aea5a618b34369ae51aed579"
+    },
+    "build": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-build-manifest.json",
+      "sha256": "519de9f3d4d96ddfb5ca908b47784f1a566a4eab97e5020cefb78bd01b8bd0c8"
+    },
+    "tests": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-02-tests-manifest.json",
+      "sha256": "b4ce7271b5fc61de426e470527b9358b7451767a606e1fc786e389285674159d"
+    },
+    "flash": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-flash-usj-result.json",
+      "sha256": "4edb57857b61abb58aaa3bcd2f156dd32379e53d8052e8d99ffe10e08625e22f"
+    },
+    "boot": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.summary.json",
+      "sha256": "1ab95d35dda8a2fc2a5fc27567312151cbaba623cc2adf818171ee5aea8f9c01"
+    },
+    "state": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.summary.json",
+      "sha256": "7ea6641e24f18eb1d009345650aa80bcde55d42119cd68aacd0d334d45844c65"
+    },
+    "profile": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-resolved-config-01.json",
+      "sha256": "94c026c6382f4bb53bc583062ab3a3ba4f2115e6e8b163a4e72223bdf4ab03b6"
+    },
+    "summary": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.summary.json",
+      "sha256": "820edf8fb4462e57e38b6ecfa79320cce80f618db408c2d260671a99ad7d666b"
+    },
+    "analysis": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-analysis-01.json",
+      "sha256": "4d83376dfeab8ba7914ae1c6724c03b3bffc0807857b186c06216067a561a979"
+    },
+    "cpu": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json",
+      "sha256": "da79634288add5761e9e8bd18e7b3ca03e7e593893ba76d8c12d409d9942d28e"
+    }
+  },
+  "schema_version": 1,
+  "status": "RUNNING_BUILD_AND_READY_VERIFIED",
+  "source_commit": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "version": "b58336e-dirty",
+  "app_bytes": 1621296,
+  "app_bin_sha256": "14cb051e3351e61028e87d44d0903870fc7624384bfd5ee5000242af839097b5",
+  "running_ELF_sha256": "6986f8b5859c63caeac1566ae16dd36e65be7669d44a4cddd2595f35df9f8a6d",
+  "session": "71055F1EF49B5A00",
+  "bootId": "1",
+  "configuration": {
+    "session": "71055F1EF49B5A00",
+    "bootId": "1",
+    "rev": "1",
+    "boundary": "1",
+    "state": "CAPACITANCE",
+    "mode": "CAP",
+    "rows": "8",
+    "profile": "CCCCCCCC",
+    "err": "0x0",
+    "mgen": "1",
+    "mrid": "0",
+    "rgen": "1",
+    "rrid": "0",
+    "pgen": "1",
+    "prid": "0",
+    "mtermId": "0",
+    "mterm": "applied",
+    "merr": "0x0",
+    "ptermId": "0",
+    "pterm": "none",
+    "perr": "0x0",
+    "rtermId": "0",
+    "rterm": "none",
+    "rerr": "0x0"
+  },
+  "ready": {
+    "ready": "1",
+    "stage": "frame_read",
+    "err": "0x0",
+    "bootId": "1",
+    "boot": "1"
+  },
+  "transport_metadata": {
+    "transport": "usb_cdc",
+    "capability": "usb_cdc_data_v1",
+    "path": "/dev/ttyACM0",
+    "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1",
+    "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.0",
+    "vid": 12346,
+    "pid": 16450,
+    "usb_serial": "80B54ECDD9AC",
+    "interface_number": 0,
+    "interface_class": 2,
+    "interface_subclass": 2,
+    "interface_protocol": 0,
+    "speed_mbps_reported_by_sysfs": "12",
+    "role": "formal_DATA_CTRL_shared_record_stream",
+    "debug_interface_used": false,
+    "libusb_used": false,
+    "modem_bit_ioctl": false,
+    "reset_requested": false,
+    "input_flushed": false,
+    "configuration_changed": false,
+    "ownership": "one_tty_reader_flock_TIOCEXCL",
+    "existing_readers": "unverified",
+    "baud_setting": 115200,
+    "baud_setting_is_not_USB_wire_rate": true,
+    "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free",
+    "tx_acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"
+  },
+  "initial_boot_stage": {
+    "boot": "1",
+    "bootId": "1",
+    "reset": "poweron",
+    "stage": "boot_sweep",
+    "err": "0x0",
+    "seq": "0",
+    "heap": "8297116",
+    "heapMin": "8296504",
+    "prevStage": "none",
+    "prevErr": "0x0",
+    "prevHeap": "0",
+    "guard": "normal",
+    "autoRestarts": "0",
+    "windowAgeS": "0",
+    "ready": "0"
+  },
+  "raw_sources": {
+    "boot": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.rx.bin",
+      "sha256": "75aa4c05613da1b3c0e3483d7aab57c0048cd0f701c228a5d725cdfecb6662f9"
+    },
+    "state": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.rx.bin",
+      "sha256": "a61719dfb5badc49cdedbd385b398f32084d1205e9e6cc942caa71a6178a865a"
+    }
+  },
+  "profile": {
+    "resolved_flags": {
+      "CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS": "y",
+      "CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS": "y",
+      "CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64": "y",
+      "CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER": "y",
+      "CONFIG_FREERTOS_USE_TRACE_FACILITY": "y"
+    },
+    "sdkconfig_sha256": "d1ff64cc0ca9902c8d20a59a1199c001604ff5dec25480970d782dcd7c5b6b5d",
+    "sdkconfig_defaults_sha256": "237d079d508f49599b748ab8498ed57abd278d7ca2c16b4ed323808241bfd960",
+    "defaults_runtime_enabled": false,
+    "dual_core": true,
+    "amazon_SMP": false,
+    "SDK_tree_modified": false,
+    "clock_counter_width": "actual ESP_TIMER port macro casts int64 esp_timer_get_time to configured uint64 without uint32 intermediate; see independent source audit"
+  },
+  "host_test_entries": 65,
+  "target_build_exit": 0,
+  "limitations": [
+    "Bin and ELF hashes have distinct meanings; BUILD attests the full ELF descriptor hash.",
+    "The flash record remains historically boot-unverified; these later observations close that boundary.",
+    "Diagnostic profiling is enabled in this image, not in normal defaults.",
+    "No later unflashed workspace fix is covered by this image identity."
+  ]
+}

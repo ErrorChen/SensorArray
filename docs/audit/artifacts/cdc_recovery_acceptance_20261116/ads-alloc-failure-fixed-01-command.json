@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "/tmp/finalbit_allocation_failure_repro.py",
+    "working"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "dirty_diff_sha256": "06aac3ce74c58c9c66ed06386b0aff80eeaf8272e718e8c94891248927e18dc7",
+  "started_utc": "2026-11-16T08:36:07.962183+00:00",
+  "started_monotonic": 325061.400621928,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ads-alloc-failure-fixed-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T08:36:08.176735+00:00",
+  "finished_monotonic": 325061.615169345,
+  "log_sha256": "e8bd0863b2595451d4ccd4c7576264f46191041da3cd650a88355c8b49ea6104"
+}

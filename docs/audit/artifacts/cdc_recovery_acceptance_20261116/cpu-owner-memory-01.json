@@ -1,0 +1,23 @@
+{
+  "source_commit": "b58336e",
+  "source": "actual target ELF symbol table",
+  "command": "xtensa-esp32s3-elf-nm -S build/SensorArray.elf | rg 's_cpuOwner|s_cpuOwners'",
+  "symbols": [
+    {
+      "name": "s_cpuOwnerMux",
+      "address": "3fcae610",
+      "bytes": 8
+    },
+    {
+      "name": "s_cpuOwners",
+      "address": "3fcae450",
+      "bytes": 448
+    }
+  ],
+  "local_internal_static_bytes": 456,
+  "limits": [
+    "This does not include global FreeRTOS TCB/queue layout changes from runtime/TRACE.",
+    "Internal heap largest block and real startup must still be observed on the board."
+  ],
+  "elf_sha256": "6986f8b5859c63caeac1566ae16dd36e65be7669d44a4cddd2595f35df9f8a6d"
+}

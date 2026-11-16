@@ -1,0 +1,3 @@
+{"type": "CDC_debug_progress", "rx_bytes": 176391, "elapsed_seconds": 20.008179467986338}
+{"type": "CDC_debug_progress", "rx_bytes": 197872, "elapsed_seconds": 40.61765624402324}
+{"status": "STOPPED", "error": null, "rx_bytes": 215904, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-debug.debug.rx.bin"}

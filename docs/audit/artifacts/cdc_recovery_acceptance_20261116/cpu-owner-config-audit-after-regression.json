@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "tools/test_audit_config_surface.py"
+  ],
+  "exit_code": 0,
+  "elapsed_s": 0.5907478332519531,
+  "log": "/tmp/sensorarray-config-surface-review-20261116/after-regression.txt",
+  "log_sha256": "6d771d25f5a9248dae7a265a406b808e04280097ed424ace91020c4a0c49bb3a"
+}

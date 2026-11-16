@@ -1,5 +1,7 @@
 # 固件与上位机契约：配置身份与可靠性修复
 
+> 2026-11-16 最新已观测扩展 / Latest observed extension: `b58336e-dirty` 公告 `cpu_owner_v1`，当前诊断镜像开启 runtime profiling，正常默认配置仍关闭。完整 BUILD/READY 身份与 65 个测试入口见[本轮启动核验](../audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot-verification.json)；screen07 ADC CRC 0/76,128、Capture/USB/BLE 59.90/59.81/32.39 FPS，BLE 吞吐仍未通过。能力存在不等于诊断启用，也不等于性能验收；下面旧阶段和旧提交作为历史保留。 / `b58336e-dirty` advertises `cpu_owner_v1`; runtime profiling is enabled in this diagnostic image, while normal defaults remain disabled. Full BUILD/READY identity and 65 test entries are linked in the [boot verification](../audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot-verification.json). Screen07 records 0/76,128 ADC CRC rejections and 59.90/59.81/32.39 FPS capture/USB/BLE; BLE throughput remains unaccepted. Capability presence means neither enabled diagnostics nor performance acceptance. Older stages and commits below remain historical records.
+
 > 2026-11-13 历史阶段烧录源码为 `0d8f60fd9c29b9ce12e64ed2e6534ee37db41704`，
 > BUILD=`0d8f60f-dirty`（dirty 是文档/证据，构建源码 hash 独立保存），app SHA256
 > `232ca3976f6b8ea38efd5e09de8279f35c9bfbbd0c605c8dd84e5169ddd1dbaa`。
@@ -512,3 +514,59 @@ CRC8 still covers only the four ADC data bytes, excluding STATUS. The host verif
 `0c94fe3` 在已有`ble_service_obs_v1`的BLESVC v1中追加`confOk/confError/confMatched/confUnmatched`及`confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown`。四计数为boot累计uint32，重连不清零，按模2^32差分；SDK status分类与waiter分类相互独立。旧fe/stale字段和ACK语义不变。Host通过字段存在性兼容读取，缺字段为unknown。CONF可能早于SDK wrapper完成，不能要求瞬时计数相等。
 
 `0c94fe3` appends these fields to existing BLESVC v1 under `ble_service_obs_v1`. Counters are boot totals, survive reconnect and wrap modulo2^32; SDK status and waiter matching classify the same events independently. Existing fe/stale and acknowledgement meanings remain. Discover optional fields by presence; absence is unknown. CONF can precede SDK wrapper completion, so instantaneous counters need not equal. No counter proves notification delivery to the peer or host application.
+
+### CPU owner 只读运行计数契约 / Read-only owner runtime contract
+
+实现提交 `b58336eeaa136d0aca23e4c62ac11eb292d5a904`（本轮新增接口）。`PROTO?.caps` 中的 `cpu_owner_v1` 表示支持 `CPUOWNER?0` 至 `CPUOWNER?6`，不表示 profiling 必然开启。命令是精确的问号加单个角色数字，无 `=`；其他后缀返回有界 `ERR,cmd=CPUOWNER,reason=role_0_to_6`。early 与正常控制路径都可查询，不占配置请求 lane、不发送 ACK/Applied、不采硬件、不触发自采或重启。C/V/R/M/MR/K、原 gen/rid、CRC 与 MODE/ROWS/ROWMODES 终态语义均不变。
+
+Implementation commit is `b58336eeaa136d0aca23e4c62ac11eb292d5a904` (new interfaces in this round). `cpu_owner_v1` in `PROTO?.caps` announces `CPUOWNER?0` through `CPUOWNER?6`, not necessarily enabled profiling. The exact grammar is a question mark followed by one role digit, without `=`; other suffixes receive the bounded `ERR,cmd=CPUOWNER,reason=role_0_to_6`. Queries work through early and normal control dispatch, reserve no configuration lane, emit no ACK/Applied, access no measurement hardware and trigger neither self-sampling nor restart. C/V/R/M/MR/K, legacy gen/rid, CRC and MODE/ROWS/ROWMODES terminal semantics are unchanged.
+
+| role | 应用 owner / Application owner |
+|---|---|
+| 0 | BLE_TX |
+| 1 | TRANSPORT |
+| 2 | ASYNC_LOG |
+| 3 | SERIAL_TX |
+| 4 | BLE_CTRL |
+| 5 | SERIAL_CTRL |
+| 6 | WIFI_CTRL |
+
+回复 tag 为 `CPUOWNER`、`v=1`；字段保持下列含义，数值未知使用字面量 `unknown`，不能补 0。 / Replies use tag `CPUOWNER`, `v=1`; fields have these meanings. Unknown numeric values use literal `unknown`, never a substituted zero.
+
+| 字段 / Field | 编码与语义 / Encoding and meaning |
+|---|---|
+| `session` | 当前 boot 的 16 个十六进制字符；与 CONFIG 相等关联，不比较大小。 / Sixteen hex digits for the current boot, matched to CONFIG by equality, not magnitude. |
+| `role` | 十进制 0–6；必须等于所查询角色。 / Decimal 0–6, matching the requested role. |
+| `enabled` | 0/1，当前构建是否启用该诊断。 / Whether this build enables the diagnostic. |
+| `known` | 0/1，是否曾完整发布本角色样本；不表示新鲜或可用于差分。 / Whether a complete role sample has ever been published, not whether it is fresh or usable. |
+| `available` | 0/1，已知且没有 writer/counter/clock 错误；**可仍 stale=1**。 / Known with no writer/counter/clock fault; **may still be stale**. |
+| `conflict` | 0/1，不同 taskNumber 或同时 sampler 的 writer 冲突，保持至 boot。 / A different observed task number or overlapping sampler; sticky until boot. |
+| `stale` | 0/1，未知 age 或 `ageUs >= 3000000` 为 1。 / One for unknown age or age at least 3,000,000 µs. |
+| `reason` | 枚举值 `disabled`, `not_observed`, `writer_conflict`, `counter_regressed`, `clock_regressed`, `ok`。 / These are the defined reason values. |
+| `taskNumber` | uint32 十进制或 unknown；绑定角色首次观察的 task 身份，不能跨 session 比较。 / Decimal uint32 or unknown; binds the first observed writer and is not comparable across sessions. |
+| `runUs` | uint64 十进制，available=1 才输出；否则 unknown。切出累计，非即时 CPU。 / Decimal uint64 only when available; otherwise unknown. Cumulative switch-out runtime, not instantaneous CPU. |
+| `t0Us`, `t1Us` | uint64 单调微秒，自采内核调用前后时间；known=1 时保留原样。 / Monotonic U64 µs bracketing the owner’s kernel call, retained when known. |
+| `observedAtUs` | 等于该样本 t1Us；不是查询收到时间。 / Equals that sample’s t1Us, not query receipt time. |
+| `ageUs` | 查询时刻减 observedAtUs；时钟倒退或样本未知时 unknown。 / Query time minus observedAtUs; unknown for a clock regression or unknown sample. |
+| `sampleMinUs`, `staleAfterUs` | 当前分别为 1000000、3000000；主机读取实际字段，不假定查询就产生新样本。 / Currently 1,000,000 and 3,000,000; read the advertised values and never assume a query creates a sample. |
+| `scope`, `isr`, `sdk`, `blocked` | 固定 `switch_out`, `may_include`, `not_isolated`, `unknown`。 / Explicit accounting limitations, not estimates. |
+
+`known=0` 时 task/runtime/所有时间为 unknown，stale=1。`enabled=0` 时 available=0、known=0、reason=disabled；capability 仍可公告。已知但过期的样本可 `available=1,stale=1,reason=ok` 并保留历史 runUs，不能据此计算当前 CPU。writer/counter 错误可保留已知 task/时间，runUs 必为 unknown。查询遇到时间倒退只使本次副本 unavailable/age unknown，不修改 owner 状态；后续真实 checkpoint 自己发现的错误则保持不可用。完整字段之间不允许用缺失字段的默认值推断通过。
+
+With known=0, task/runtime/all times are unknown and stale=1. With enabled=0, available=0, known=0 and reason=disabled; the capability can still be advertised. A known old sample may report available=1, stale=1, reason=ok and retain historical runtime, without supporting current-CPU inference. Writer/counter faults may retain known task/time fields, but runUs is unknown. A query-time clock regression makes only that copied result unavailable with unknown age, without mutating the owner; a fault independently observed at a real checkpoint remains unavailable. Missing fields must not be replaced with defaults to pass validation.
+
+配置 `SENSORARRAY_CPU_OWNER_DIAGNOSTICS` 默认 n，依赖双核 IDF FreeRTOS、非 SMP/UNICORE、runtime stats、U64 与 ESP_TIMER，不强选系统 choice。ESP-IDF 5.5.5 已核 port 路径直接把 64 位 esp_timer 值转换到 U64 runtime counter，无中间 32 位回绕；核验依据在[源代码与回归记录](../audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-freeze-review.json)。当前诊断构建额外启用了 trace；正常 defaults 保持关闭。未达成该依赖的镜像不能通过仅添加 capability 宣称数据有效。
+
+`SENSORARRAY_CPU_OWNER_DIAGNOSTICS` defaults to n and depends on dual-core IDF FreeRTOS, non-SMP/non-UNICORE, runtime statistics, U64 and ESP_TIMER, without forcing system choices. The inspected ESP-IDF 5.5.5 port directly casts the 64-bit esp_timer value to the U64 runtime counter, with no intermediate 32-bit wrap; the [source-linked review](../audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-freeze-review.json) records that evidence. This diagnostic build also enables trace; normal defaults remain disabled. Advertising a capability alone cannot make data from an unsupported configuration valid.
+
+每角色只在自身 CPU0 自然 checkpoint 自采、完成样本间隔至少 1 秒。内核读取 `vTaskGetInfo(NULL, …, pdFALSE, eReady)` 不持应用 mux、不开栈水位扫描、不发布 eReady 占位状态；内核双核 mux 保证 U64 复制，之后短锁发布值。查询不读取 live task handle，缓存不持有名称、栈或 handle 指针。新接口不增加任务、delay 或改原预算/优先级；配置 OFF 的 checkpoint 不增加 timer/kernel/mux 调用。profiling 与 ON 自采有实际耗时/内存开销，可影响原有时间条件，不能宣传完全无扰动。当前目标新增本地静态存储 456 B，不包括全局 trace/TCB 变化。
+
+Each role self-samples only at its natural CPU0 checkpoint, with at least one second between completed samples. The kernel call `vTaskGetInfo(NULL, …, pdFALSE, eReady)` runs without the application mux, performs no stack-watermark scan and does not publish the placeholder eReady state. The dual-core kernel mux protects the U64 copy, followed by short-lock publication. Queries never read a live task handle; the cache retains no name, stack or handle pointer. The interface adds no tasks/delays or changes to existing budgets/priorities. With diagnostics OFF, checkpoints add no timer/kernel/mux calls. Profiling and ON-path observation still cost time/memory and can affect existing elapsed-time conditions; disturbance-free behavior is not claimed. Current target local static storage is 456 bytes, excluding global trace/TCB changes.
+
+Host 差分须逐角色核同 session、同 taskNumber、known/available、无 conflict、未 stale、runUs 不倒退且采样 bracket 有序；时间和 runtime 不跨 boot 拼接，U64 倒退当错误，不擅自按 32 位补回绕。每角色使用自己的 `observedAtUs` 时间跨度，保留 t0/t1 不确定边界；多个查询不是原子跨任务 CPU 快照，比例不可直接求和。runUs 不含未切出的运行片段，可能含 ISR、SDK 内外所有本任务工作；没有 SDK/controller/IDLE task 样本，不可算全核 residual 或把 SDK wall−owner run 叫 blocked。BLESVC 的 cpu/blocked 继续 unknown，网络确认/PC 实收语义不变。
+
+Hosts validate each delta independently: same session/task number, known/available, no conflict, fresh samples, nonregressing runtime and ordered sampling brackets. Times/runtime never span boots, and a U64 regression is an error, not an assumed 32-bit wrap. Each role uses its own observedAtUs span and retains t0/t1 uncertainty; separate queries are not an atomic cross-task CPU snapshot, so ratios must not be summed. Runtime excludes an open running slice and may include ISR and all task work inside/outside the SDK. Without SDK/controller/idle samples, neither full-core residuals nor SDK wall−owner run as blocked time are defined. BLESVC cpu/blocked remain unknown, and no network/PC receipt meaning changes.
+
+真实 C 格式器回归：CPUOWNER 最大 372/512 B，PROTO 最大 465/512 B，短 buffer 显式失败。实际 65 入口回归通过，[screen07 离线分析](../audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json)仅五角色有新鲜可配对结果；BLE_CTRL 的历史零 runtime 和未观测 Wi-Fi 都为 unknown。screen07 的 ADC 0/76,128 和 USB/BLE 59.81/32.39 FPS 是本板、本窗口结果，不把能力公告或 CPU 观测当作 BLE/精度验收通过。上位机仓库改动仍交独立任务。
+
+Production C formatter regressions measured at most 372/512 bytes for CPUOWNER and 465/512 for PROTO, with explicit short-buffer failure. All 65 test entries passed. The [screen07 offline analysis](../audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json) pairs only five fresh roles; BLE_CTRL's historical zero runtime and unobserved Wi-Fi remain unknown. Screen07's 0/76,128 ADC CRC result and 59.81/32.39 USB/BLE FPS apply only to this board/window. Capability presence and CPU observation are not BLE or precision acceptance. Host-repository implementation remains a separate task.

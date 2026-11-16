@@ -1,5 +1,7 @@
 # 2026-11-16 软件恢复与双 CDC 验收 / Software recovery and dual-CDC acceptance
 
+> 当前已烧录/观测版本为 `b9ebe2f-dirty`，CPU profiling ON，screen08 完整 120 秒得到 ADC CRC 0/76,841、Capture/USB/BLE 59.18/59.17/33.12 FPS；USB 7,101 可信帧内部连续，BLE 3,974 帧缺 3,128 个序号观察。66 个 host 入口与目标构建通过，完整 BUILD 与 READY/CAP8 已核验；**BLE 吞吐仍未通过，当前镜像 600 秒/32 配置尚未运行**。新增 ADS 部分分配 P1 修复和无用日志统计清理已经属于本镜像，旧 screen07 仍归属 b58336e；最新对照见末节。 / The observed image is `b9ebe2f-dirty` with CPU profiling ON. Its complete 120-second screen08 records 0/76,841 ADC CRC rejections and 59.18/59.17/33.12 FPS capture/USB/BLE; 7,101 USB trusted frames are internally consecutive, while 3,974 BLE frames have 3,128 missing sequence observations. All 66 host entries and the target build passed, with full BUILD and READY/CAP8 verified. **BLE throughput remains unaccepted; this image has not run the 600-second/32-configuration acceptance.** The ADS partial-allocation P1 repair and unused-log-statistics removal are now included. Historical screen07 remains attributed to b58336e; the latest comparison is in the final section.
+
 本记录接续 [11 月 14 日阶段](usb_otg_ble_priority_20261114.md)。用户已重启板卡，并授权继续烧录、调试；没有要求安装软件或使用管理员权限。历史失败记录保留，下面的下载成功不代表完整性能/精度验收通过。
 
 This continues the [November 14 stage](usb_otg_ble_priority_20261114.md). The user rebooted the board and authorized continued flashing/debugging. No software installation or administrator account is required. Historical failures remain intact; successful recovery is not full performance or accuracy acceptance.
@@ -240,3 +242,169 @@ CONF回调可以在发送API返回前发生，因此末尾active=1时CONF比wrap
 A CONF callback may arrive before the sending API returns. With after.active=1, one more CONF than completed wrapper call is not necessarily an error. Query and complete-frame receipt windows differ and cannot be subtracted to infer over-air loss. No SDK asynchronous error was observed in this bracket, but that does not prove PC receipt; BLE output still trails capture. The next independent, disableable runtime diagnostic will distinguish owner scheduled time from SDK-call wall time. Existing BLESVC cpu/blocked fields remain unknown; their difference is not invented blocked time.
 
 证据 / Evidence: [build/test identity](artifacts/cdc_recovery_acceptance_20261116/ble-conf-01-validated-identity.json), [boot verification](artifacts/cdc_recovery_acceptance_20261116/ble-conf-01-boot-verification.json), [screen-06 verdict](artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-verdict.json). 本轮未做600秒或32配置的通过声明，也未修改原CRC2.5%门限。 / No600-second or32-configuration pass is claimed, and the original2.5% CRC criterion remains unchanged.
+
+## CPU owner 诊断镜像与 screen07 / CPU-owner diagnostic image and screen07
+
+本节闭合上一节提出的 owner 自采诊断，**不是 BLE 吞吐修复完成声明**。源码提交 `b58336eeaa136d0aca23e4c62ac11eb292d5a904`，运行 version=`b58336e-dirty`；app 1,621,296 B，binary SHA256=`14cb051e3351e61028e87d44d0903870fc7624384bfd5ee5000242af839097b5`，运行描述符完整 ELF SHA256=`6986f8b5859c63caeac1566ae16dd36e65be7669d44a4cddd2595f35df9f8a6d`。`dirty` 的构建差异 SHA 与 185 个生产输入逐项散列已保存，不以当前工作区内容替代烧录身份。后续已确认的 ADS DMA 缓冲部分分配错误修复不在该镜像内，须独立构建/验收。
+
+This section closes the owner self-observation proposed above; **it does not declare the BLE throughput repair complete**. Source commit is `b58336eeaa136d0aca23e4c62ac11eb292d5a904`, running version `b58336e-dirty`. The app is 1,621,296 bytes, with binary SHA256 `14cb051e3351e61028e87d44d0903870fc7624384bfd5ee5000242af839097b5` and full running-descriptor ELF SHA256 `6986f8b5859c63caeac1566ae16dd36e65be7669d44a4cddd2595f35df9f8a6d`. The build-diff hash and all 185 production-input hashes are retained; the present checkout is not substituted for flashed identity. The subsequently confirmed ADS partial-DMA-buffer-allocation repair is not in this image and requires separate build/acceptance evidence.
+
+[构建与测试身份](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-validated-identity.json)对应 ESP-IDF 5.5.5 实际构建 exit 0 和 [65/65 host 入口 exit 0](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-02-tests-manifest.json)，构建/测试生产输入一致。第一次完整测试中 recovery harness 未链接新增 CPU API 的失败仍在 [原 manifest](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-tests-manifest.json)；后续联入真实默认 OFF 模块并执行 early query，未用宽松假桩掩盖失败。[烧录记录](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-flash-usj-result.json)原有 BOOT_UNVERIFIED 状态保留；新增 [启动核验](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot-verification.json)用后续 raw SHA、完整 BUILD、READY=1 和两次一致 CONFIG 补齐，session=`71055F1EF49B5A00`、bootId=1、CAP8。最早 BOOT=boot_sweep/ready0 是启动过程观测，不冒称当时已就绪。
+
+The [build/test identity](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-validated-identity.json) ties an actual ESP-IDF 5.5.5 build exit zero to [65/65 host entries exiting zero](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-02-tests-manifest.json), with identical production inputs. The first full-suite recovery-harness failure, caused by missing linkage for the new CPU API, remains in its [original manifest](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-tests-manifest.json). The harness was then linked to the real default-OFF module and exercised early queries, not replaced with permissive stubs. The [flash record](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-flash-usj-result.json) retains its historical BOOT_UNVERIFIED status. A new [boot verification](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot-verification.json) closes that boundary using later raw hashes, full BUILD, READY=1 and two matching CONFIG replies: session `71055F1EF49B5A00`, bootId 1, CAP8. The initial boot_sweep/ready0 observation is not relabeled ready.
+
+该诊断镜像显式开启 `SENSORARRAY_CPU_OWNER_DIAGNOSTICS`、FreeRTOS runtime stats、U64 counter、ESP_TIMER 和 trace；正常 defaults 仍关闭。实际 IDF 5.5.5 Xtensa 路径将 `esp_timer_get_time()` 直接转换为 U64，无中间 32 位截断；限制为双核、非 Amazon SMP、非 UNICORE。每角色仅在原 checkpoint 自采、最多每秒一次；`vTaskGetInfo(NULL, …, pdFALSE, eReady)` 在应用锁外调用，内核 U64 复制受其双核 mux 保护，随后短锁发布快照。没有全任务/栈扫描、外部 task handle 生命周期或新 delay；首个 taskNumber 绑定后观测到第二 writer 即永久 conflict 至 boot，原工作预算不受该错误分支改变。本地新增静态存储为 456 B，trace/TCB 全局开销另计；开启 profiling 仍有真实开销，不能称零成本。[已解析配置](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-resolved-config-01.json)与构建 sdkconfig SHA 相符。
+
+This diagnostic image explicitly enables `SENSORARRAY_CPU_OWNER_DIAGNOSTICS`, FreeRTOS runtime statistics, the U64 counter, ESP_TIMER and trace; normal defaults remain disabled. The actual IDF 5.5.5 Xtensa path casts `esp_timer_get_time()` directly to U64 without an intermediate 32-bit truncation. It is restricted to dual-core, non-Amazon-SMP, non-UNICORE builds. Each role self-samples only at its existing checkpoint, at most once per second. `vTaskGetInfo(NULL, …, pdFALSE, eReady)` executes outside the application lock; the kernel's dual-core mux protects its U64 copy, followed by a short snapshot-publication lock. There is no all-task/stack scan, retained external task handle or new delay. A different observed writer after the first task-number binding makes the role conflicted until boot without changing the worker's budget logic. Local added static storage is 456 bytes; global trace/TCB overhead is separate. Profiling has real overhead and is not claimed free. The [resolved configuration](artifacts/cdc_recovery_acceptance_20261116/cpu-owner-resolved-config-01.json) matches the build's sdkconfig hash.
+
+### 完整双通路窗口 / Complete dual-link window
+
+120.000117 秒 VOLT1 同时记录正式 CDC0、BLE 和独立 CDC1 诊断，配置 rev=4、相同 session/boot；结束后查询确认 CAP8。启动 source 为 `gpio_tail_required` / `spi55_gpio1`，本 boot 实际 SPI 2 MHz。单纯完整采满窗口不表示通过。
+
+VOLT1 ran for 120.000117 seconds with simultaneous formal CDC0, BLE and independent CDC1 diagnostics, configuration revision 4 in one session/boot. CAP8 was query-verified afterward. The boot source was `gpio_tail_required` / `spi55_gpio1` at an observed 2 MHz SPI clock. Filling the requested window alone does not mean acceptance.
+
+| 指标 / Metric | screen07 |
+|---|---:|
+| Capture / USB / BLE | 59.900009 / 59.812416 / 32.390344 FPS |
+| USB 可信完整帧 / Trusted complete frames | 7,178; missing sequence observations 1 |
+| BLE 可信完整帧 / Trusted complete frames | 3,886; missing sequence observations 3,293 |
+| ASCII CRC / identity / wire-contract errors | USB 0 / 0 / 0; BLE 0 / 0 / 0 |
+| 共同 identity/seq 帧 / Common frames | 3,884; all original wire-byte SHA256 equal |
+| 收到的 BLE 分片 / Received BLE fragments | DATA 3,887 assembled messages; fragment CRC/assembly errors 0 |
+| ADC CRC | 0 rejected / 76,128 checked reads; observed ratio 0%, criterion ≤2.5% |
+| ADC 计数跨度 / ADC counter span | 118.796879 s, first/last complete ADSHEALTH receipts inside capture |
+| 无效点 / Invalid points | USB 406 X12; BLE 223 X12; not zero-filled or smoothed |
+| fresh/acquired 不成立的点 / Not-fresh / unacquired points | USB 0 / 0; BLE 0 / 0 |
+| BL50 `dropD` / `dropL` / `dropC` | +3,177 / 0 / 0 over its separate 119.823636 s receipt span |
+| 完整 STK50 观测 / Complete STK50 observations | free 8,294,036 B; firmware lifetime minimum 8,290,104 B |
+| 最小剩余任务栈 / Minimum remaining task stack | log 13,064 B; transport 3,180 B; BLE_TX 1,932 B; BLE_CTRL 5,236 B; SERIAL_CTRL 1,896 B |
+| WDT / MFAULT / reset | Not observed in formal/debug recordings; absence remains bounded by evidence |
+| 总体 / Overall | **FAIL_BLE_THROUGHPUT**; absolute accuracy NOT_EVALUATED |
+
+ADC 分母为 valid-even Δ38,345 + valid-odd Δ37,783 + rejected Δ0，含重试的实际已校验读数，不是帧数；末尾未受保护的 `crcRetries` 文本仍 unknown。两个主机的 sequence range、BL50 receipt 窗口和查询窗口不同，不相加/相减推断空中丢包。完整 CDC observer 覆盖本采集窗，但没有 WDT 文本不能证明任何未记录事件绝不存在。一个 warmup 中截断的 STK50 按完整 schema 拒绝，未用数值阈值排除低堆；PERF 末尾 heapMin 不代替可信 STK50。最大连续 heap 块、总 CPU 与绝对精度仍 unknown/未评估。
+
+The ADC denominator is valid-even Δ38,345 + valid-odd Δ37,783 + rejected Δ0: checked reads, including retry attempts, not frames. The unprotected terminal `crcRetries` token remains unknown. The two host sequence ranges, BL50 receipt span and query windows differ; their counts cannot be added/subtracted into over-air losses. The CDC observer covers the capture, but absent WDT text does not rule out unrecorded events. A truncated warmup STK50 was rejected by schema completeness, not by filtering small heap values; the terminal PERF heapMin does not replace trusted STK50. Maximum contiguous heap, total CPU and absolute accuracy remain unknown/not evaluated.
+
+证据 / Evidence: [原 summary](artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.summary.json), [独立科学/诊断分析](artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-analysis-01.json), [判定](artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-verdict.json), [逐字节归档核验](artifacts/cdc_recovery_acceptance_20261116/screen-07/archive-index-01.json)。本镜像 600 秒及 32 配置均 NOT_RUN；不把旧阶段结果移植成新镜像通过。 / This image's 600-second and 32-configuration acceptance are NOT_RUN; older-stage results are not transplanted as a pass.
+
+### 各角色独立差分 / Independent per-role deltas
+
+只在完整前后 CONFIG 同身份、CPUOWNER 同 session/taskNumber、已知且未过期、计数不倒退、采样时间有序时取差分。下表每行分母是该角色自己的 `observedAtUs` 跨度，采样调用的 t0/t1 边界也原样保存；它们不等于统一 120 秒采集窗。
+
+Deltas require complete matching CONFIG brackets, identical CPUOWNER session/task number, known fresh samples, nonregressing counters and ordered sample times. Each row's denominator is its own `observedAtUs` span; original t0/t1 sampling brackets are retained. These are not one common 120-second capture window.
+
+| Role / taskNumber | ΔrunUs | Own spanUs | Δrun / own span |
+|---|---:|---:|---:|
+| 0 BLE_TX / 9 | 17,903,690 | 120,095,170 | 14.907918% |
+| 1 TRANSPORT / 15 | 9,070,485 | 119,846,299 | 7.568431% |
+| 2 ASYNC_LOG / 17 | 30,015,103 | 120,182,388 | 24.974627% |
+| 3 SERIAL_TX / 8 | 11,569,529 | 120,609,289 | 9.592569% |
+| 4 BLE_CTRL / 10 | unknown | unknown | stale historical sample |
+| 5 SERIAL_CTRL / 16 | 853,506 | 120,285,279 | 0.709568% |
+| 6 WIFI_CTRL / unknown | unknown | unknown | not_observed |
+
+BLE_CTRL 缓存中的 runUs=0 来自启动旧样本，前后 age 超过 305/425 秒，不能写成当前 CPU=0；Wi-Fi 未观测也不能填零。runUs 只在切出时累计，正在运行片段尚未计入，可能含 ISR 和 SDK 外工作。各行不可合计为双核 CPU 利用率，未覆盖 SDK/controller/IDLE task 的残差也不能归因。
+
+BLE_CTRL's cached runUs=0 is an old startup sample, aged over 305/425 seconds at the two queries, not zero current CPU. An unobserved Wi-Fi role is also unknown. Runtime accumulates only at switch-out, excludes the open running slice and may include ISR and non-SDK work. The rows cannot be summed into dual-core CPU utilization, and unobserved SDK/controller/idle-task residuals cannot be attributed.
+
+独立 BLESVC 查询窗约 120.538556 秒：completed Δ12,991，wallUs Δ62,018,883，平均 4,773.988 µs/完成调用；CONF ok Δ12,991、error Δ0，仍不是 PC 收到证明。BLE_TX 自身累计运行明显小于附近 SDK 墙钟，但窗口与工作范围不同；**不计算 wall−run=blocked**，就绪等待、阻塞、controller 工作和中断占比都尚 unknown。此候选仅增加观测，未修复 BLE 服务率；screen06/07 也不是严格控制所有变量的 profiling 开销 A/B。
+
+The independent BLESVC query window spans approximately 120.538556 seconds: completed Δ12,991, wallUs Δ62,018,883, averaging 4,773.988 µs per completed call; CONF ok Δ12,991 and error Δ0 still do not prove PC receipt. BLE_TX's own cumulative runtime is substantially below the nearby SDK wall observation, but their windows and work scopes differ. **No wall−run=blocked calculation is made.** Ready waiting, blocking, controller work and ISR shares remain unknown. This candidate adds observations rather than repairing BLE service rate; screen06/07 are not a fully controlled profiling-overhead A/B.
+
+[CPU 差分 JSON](artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json)校验原 raw SHA、完整行、event phase、CONFIG identity 与各字段，不拼补截断尾行。新增离线分析器的 7 个合成回归实际通过，覆盖独立窗口、超过 32 位计数、stale/unknown、跨 task/session、倒退/重叠、缺 schema/event、raw SHA 不符和截断；这些是另外 7 个测试用例，不把 65 个入口改称 72 个入口。[命令与 SHA](artifacts/cdc_recovery_acceptance_20261116/screen-07-cpu-analysis-01-manifest.json)。
+
+The [CPU delta JSON](artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json) verifies the original raw hash, complete lines, event phases, CONFIG identity and fields without repairing truncated tails. Seven new synthetic offline regression cases actually passed, covering independent windows, counters beyond 32 bits, stale/unknown values, task/session changes, regressions/overlaps, missing schemas/events, raw-hash mismatch and truncation. These are seven additional test cases, not a claim of 72 test entries. See the [commands and hashes](artifacts/cdc_recovery_acceptance_20261116/screen-07-cpu-analysis-01-manifest.json).
+
+离线复跑使用新输出名，既有输出不会被覆盖；不打开设备。 / Offline replay requires a new output name, preserves existing outputs and opens no device:
+
+```sh
+python3 docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_cpu_owner.py
+python3 docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_cpu_owner.py \
+  --summary docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.summary.json \
+  --output /tmp/screen07-cpu-replay-new.json
+```
+
+## screen08：P1 分配修复、日志清理与独立对照 / screen08: allocation P1 repair, log cleanup and independent comparison
+
+当前完整提交 `b9ebe2f7b8b49819347608392e70ff5966f2ad87`、BUILD=`b9ebe2f-dirty`；app 1,620,752 B，binary SHA256=`b4ae27a3fc5da400febf6db587f0d828f9dd6666e617ec26a071b4988217b3d3`，ELF SHA256=`529b440aae12e5cecf2abed938558cc392009e97f929970ea6191ae5bc9b2b8c`。完整 BUILD、BOOT、READY 与 CAP8 已在[启动核验](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-boot-verification.json)闭合；session=`FD091D519F388B90`、bootId=1，启动 SPI 请求/实测均 2 MHz、`gpio_tail_required`。CPU owner/runtime/trace 诊断仍 ON，正常默认配置仍 OFF；不把两个不同 session 的 taskNumber 或累计值大小相互比较。
+
+The current full commit is `b9ebe2f7b8b49819347608392e70ff5966f2ad87`, BUILD `b9ebe2f-dirty`. The app is 1,620,752 bytes, binary SHA256 `b4ae27a3fc5da400febf6db587f0d828f9dd6666e617ec26a071b4988217b3d3`, ELF SHA256 `529b440aae12e5cecf2abed938558cc392009e97f929970ea6191ae5bc9b2b8c`. The [boot verification](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-boot-verification.json) closes full BUILD, BOOT, READY and CAP8 identity: session `FD091D519F388B90`, bootId 1, requested/observed SPI 2 MHz with `gpio_tail_required`. CPU owner/runtime/trace diagnostics remain ON while normal defaults remain OFF. Task numbers and cumulative magnitudes are not compared between sessions.
+
+`c670897` 修复已复现的 `ads126xAdcAllocSpiBuffers` 部分分配错误：tx/rx 先以局部指针分配，所有分配成功后才发布到 device；失败仍返回首个 NO_MEM，避免失败时释放后 Init/Deinit 再次释放。既有 in-flight/DMA 所有权规则保持；[真实生产 Init/Deinit 回归](artifacts/cdc_recovery_acceptance_20261116/ads-alloc-regression-01-command.txt)覆盖 S3/非 S3 各 16 组合，共 32，duplicate-free/leak 均 0。这是合成分配失败注入，不称实机 OOM 测试。
+
+`c670897` repairs the reproduced partial-allocation defect in `ads126xAdcAllocSpiBuffers`: tx/rx allocations stay in local pointers until all succeed, then are published to the device. Failure retains NO_MEM and avoids a second free by Init/Deinit. Existing in-flight/DMA ownership rules remain. The [production Init/Deinit regression](artifacts/cdc_recovery_acceptance_20261116/ads-alloc-regression-01-command.txt) covers 16 S3 and 16 non-S3 combinations, 32 total, with zero duplicate frees/leaks. Allocation-failure injection is synthetic, not a claimed hardware OOM test.
+
+`98b760c` 只移除不可达 PREC20 与停用 legacy netStatus 消费的逐点统计；活跃 summary 状态及输出按字节保持一致。第一轮 output-trim-01 的 BLE 清理测试断言只接受 3 个错误，但总期限耗尽时真实逻辑正确记录了第四个 `cleanup deadline` 错误；[原失败日志](artifacts/cdc_recovery_acceptance_20261116/output-trim-01-test_capture_benchmark_ble.txt)保留。`b9ebe2f` 只改该测试对精确 deadline 分支的要求并新增确定性用例，生产 collector 的总期限不变。[最终 66 个入口](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-tests-manifest.json)与[实际构建](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-build-manifest.json)均 exit 0，185 个生产输入完全一致；这不是通过延长 timeout 得到的结果。
+
+`98b760c` removes only per-point statistics consumed by unreachable PREC20 and disabled legacy netStatus; active summary state/output remain byte-equivalent. In output-trim-01, a BLE-cleanup test expected only three errors, but the real logic correctly recorded a fourth cleanup-deadline error when its total budget expired. The [original failure log](artifacts/cdc_recovery_acceptance_20261116/output-trim-01-test_capture_benchmark_ble.txt) remains. `b9ebe2f` changes only that test's exact-deadline expectation and adds a deterministic case; the production collector's total deadline is unchanged. All [66 final test entries](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-tests-manifest.json) and the [actual target build](artifacts/cdc_recovery_acceptance_20261116/output-trim-02-build-manifest.json) exited zero, with identical 185 production inputs. Passing was not obtained by extending a timeout.
+
+没有改动 2.5% CRC 门限、160 MHz CPU、`-Og`/断言、BLE/CTRL 优先级、WorkBudget、科学有效性或 wire 协议。[源码变化范围](artifacts/cdc_recovery_acceptance_20261116/output-trim-source-diff-01.json)单独保存，避免把这两项修复说成 BLE 调度修复。
+
+The 2.5% CRC criterion, 160 MHz CPU, `-Og`/assertions, BLE/CTRL priorities, WorkBudget, scientific validity and wire protocol remain unchanged. The [source change scope](artifacts/cdc_recovery_acceptance_20261116/output-trim-source-diff-01.json) is recorded separately; these two repairs are not a BLE scheduling repair.
+
+### 科学接收与各层计数 / Scientific receipt and layer counters
+
+screen08 是 120.000130 秒 VOLT1 正式 CDC0+BLE，同时独立 CDC1 观测诊断；同 session/rev4。科学帧结束后已查询确认恢复 CAP8。 / Screen08 records 120.000130 seconds of VOLT1 through formal CDC0 and BLE, with independent CDC1 diagnostics, in one session/revision 4. CAP8 recovery was query-verified afterward.
+
+| 指标 / Metric | screen07 | screen08 |
+|---|---:|---:|
+| Capture FPS | 59.900009 | 59.184655 |
+| USB FPS / trusted complete frames | 59.812416 / 7,178 | 59.173785 / 7,101 |
+| BLE FPS / trusted complete frames | 32.390344 / 3,886 | 33.118267 / 3,974 |
+| USB internal missing sequence observations | 1 | 0: seq 1259–8359, ordered 7,101 |
+| BLE missing sequence observations | 3,293 | 3,128 |
+| USB / BLE ASCII CRC errors | 0 / 0 | 0 / 0 |
+| USB / BLE identity / wire-contract errors | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| 两端共同帧原字节相同 / Common original frames equal | 3,884 / 3,884 | 3,971 / 3,971 |
+| ADC rejected / checked reads | 0 / 76,128 | 0 / 76,841 |
+| ADC health receipt span | 118.796879 s | 118.996649 s |
+| USB S1D2 X12 invalid points | 406 | 525 |
+| BLE X12 invalid points | 223 | 303 |
+| USB/BLE not-fresh or unacquired points | 0 | 0 |
+| 完整 STK50 free / lifetime minimum / B | 8,294,036 / 8,290,104 | 8,295,596 / 8,292,112 |
+| 总体验收 / Overall | FAIL_BLE_THROUGHPUT | **FAIL_BLE_THROUGHPUT** |
+
+screen08 analyzer 未输出 `missing_frames` 键，不据此补零。新闭环核验只有一个 identity group、ordered trusted=7,101、last−first+1=7,101、progress=7,100 且 gap_examples=[]，由此证明首末可信帧范围内连续；范围外仍不承诺无丢失。BLE 收到的 3,975 个 DATA 分片消息组装没有 gap/CRC/重复/乱序错误，但完整可信科学帧仅 3,974；两者窗口/尾部边界不同，不能宣称整个 BLE 路径无背压。
+
+The analyzer omits `missing_frames` for screen08; this is not defaulted to zero. The new closure checks one identity group, 7,101 ordered trusted frames, last−first+1=7,101, progress=7,100 and gap_examples=[], establishing contiguity inside the trusted first/last range only. BLE's 3,975 received DATA-message assemblies have no fragment gap/CRC/duplicate/order error, but there are 3,974 trusted scientific frames; window/tail boundaries differ. Neither proves an absence of BLE backpressure.
+
+| 层级独立窗口 / Independent layer window | screen07 within-window delta | screen08 within-window delta |
+|---|---|---|
+| USBQ receipt span | 120.483491 s | 120.592613 s |
+| USBQ `dSubmit/cSubmit` | 7,205 / 111 | 7,140 / 111 |
+| USBQ `dDrop/cDrop/expired/cExpired/partial` | 1 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 |
+| USBQ `dBytes/cBytes` | 4,313,661 / 26,249 B | 4,273,137 / 26,187 B |
+| BL50 receipt span | 119.823636 s | 119.650096 s |
+| BL50 `sentD/dropD/dropL/dropC` | 3,882 / 3,177 / 0 / 0 | 3,963 / 3,037 / 0 / 0 |
+| BLETX query span | 120.518957 s | 120.602186 s |
+| BLETX `sdkCalls/sdkAccepted/sdkErrors` | 12,986 / 12,986 / 0 | 13,251 / 13,251 / 0 |
+| BLESVC completed / wall delta / mean wall | 12,991 / 62.018883 s / 4.773988 ms | 13,248 / 61.923999 s / 4.674215 ms |
+| BLESVC `confOk/confError`; after.active | 12,991 / 0; 1 | 13,249 / 0; 1 |
+
+USBQ 字节只表示本地 FIFO 接受；CDC 分 lane 回调字节和 PC receipt 仍 unknown。screen08 旧累计 expired=1037、partial=3 在查询窗内未增长，不能把旧累计误报成实时故障。BL50 pool 丢弃、BLETX SDK 接受、BLESVC 回调和主机缺口属于不同层/窗口，不加减为互斥损失；CONF 先于 wrapper 完成且 after.active=1 可以产生一条差额。USB epoch/mount/reset 计数无增量；完整正式/调试记录未观测到 MFAULT/reset/WDT，但无日志不构成无限安全保证。ADC 分母 38,910 even +37,931 odd +0 rejected，仍含重试尝试，不是科学帧数，末尾 crcRetries 文本仍 unknown。
+
+USBQ byte counts indicate local FIFO acceptance only; per-lane CDC callback bytes and PC receipt remain unknown. Screen08's old totals expired=1037 and partial=3 did not grow in the query window and are not current faults. BL50 pool drops, BLETX SDK acceptance, BLESVC callbacks and host gaps belong to different layers/windows and cannot be combined into disjoint losses. CONF may precede wrapper completion, so after.active=1 can explain a one-event difference. USB epoch/mount/reset counts did not increase. Formal/debug recordings show no MFAULT/reset/WDT, without an unlimited safety guarantee from absent text. The ADC denominator is 38,910 valid-even +37,931 valid-odd +0 rejected checked reads, including retries, not scientific frames; the terminal crcRetries token remains unknown.
+
+### CPU owner 对照与结论边界 / CPU-owner comparison and limits
+
+每行先在各自 boot 的本角色样本间求差，再比较比率；绝不把跨 boot 累计 runtime 相减。 / Each row is first differenced within its own boot and role sample bracket, then its ratio is compared. Cumulative runtime is never subtracted across boots.
+
+| Role | screen08 ΔrunUs / own spanUs | screen07 ratio | screen08 ratio | Difference / percentage points |
+|---|---:|---:|---:|---:|
+| BLE_TX | 18,189,732 / 120,992,137 | 14.907918% | 15.033813% | +0.125895 |
+| TRANSPORT | 9,125,833 / 120,906,284 | 7.568431% | 7.547857% | −0.020575 |
+| ASYNC_LOG | 29,526,020 / 120,021,728 | 24.974627% | 24.600562% | −0.374065 |
+| SERIAL_TX | 11,760,714 / 120,679,896 | 9.592569% | 9.745380% | +0.152811 |
+| BLE_CTRL | unknown: stale historical | unknown | unknown | unknown |
+| SERIAL_CTRL | 947,358 / 120,534,705 | 0.709568% | 0.785963% | +0.076395 |
+| WIFI_CTRL | unknown: not_observed | unknown | unknown | unknown |
+
+这些不是同步 CPU 百分比分账。ASYNC_LOG 约 24.60% 对比 24.97% 的降低不足以解释或解决 BLE 仅 33 FPS；本次不能宣布主要原因已修复，也不能用小差异作单因素因果证明。SDK/IDLE 任务与 ISR 占比仍未单独观测；`wall−run` 不等于 blocked。科学无效 X12 继续保留，不能以临时参考/环境背景把绝对电压精度宣告通过。当前 600 秒/32 配置仍 NOT_RUN，下一修复与复测另建标签。
+
+These are not simultaneous CPU-utilization shares. ASYNC_LOG at roughly 24.60% versus 24.97% neither explains nor resolves BLE's approximately 33 FPS. The primary cause is not declared fixed, and a small difference is not a controlled single-factor causal result. SDK/idle tasks and ISR shares remain separately unobserved; wall−run is not blocked time. Scientific X12 invalids remain, and temporary references/environmental background do not establish absolute voltage accuracy. Current 600-second/32-configuration acceptance remains NOT_RUN; later repairs/retests require new labels.
+
+新增 [通用离线判定脚本](artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py)不硬编码 screen 编号，显式接收 reviewer verdict，逐项核 summary/raw/events/CPU/boot 来源 SHA，输出新文件而不覆盖旧证据。6 个合成回归实际通过，包括缺零键的充分条件、证据不足 unknown、同身份 uint32 回绕、显式缺口保留、不同窗口/boot CPU 比率与未知角色。它们是新增离线用例，不改变 66 个 host 入口数。[执行与散列 manifest](artifacts/cdc_recovery_acceptance_20261116/screen-08-closure-01-manifest.json)。
+
+The new [generic offline closure script](artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py) has no hard-coded screen number, takes an explicit reviewer verdict, verifies summary/raw/event/CPU/boot evidence hashes and creates new outputs without overwriting recordings. Six synthetic regressions actually passed, covering sufficient proof for an omitted zero key, insufficient-evidence unknowns, same-identity uint32 wrap, explicit gaps, independent cross-run ratios and unknown roles. These are additional offline cases, not an increase in the 66 host-entry count. See the [execution/hash manifest](artifacts/cdc_recovery_acceptance_20261116/screen-08-closure-01-manifest.json).
+
+证据 / Evidence: [screen08 summary](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-volt1.summary.json), [科学/诊断分析 / scientific/diagnostic analysis](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-analysis-01.json), [CPU 单次差分 / per-run CPU deltas](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-cpu-owner-deltas-01.json), [screen08 verdict](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-verdict.json), [screen07–08 分层/CPU 对照 / layer/CPU comparison](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-07-08-layer-cpu-comparison-01.json)。所有原始流只读，没有修改生产、重新构建或访问硬件。 / All raw streams were read-only; this closure changed no production source, rebuilt nothing and accessed no hardware.

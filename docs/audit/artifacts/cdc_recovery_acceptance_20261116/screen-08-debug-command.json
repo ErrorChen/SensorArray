@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_debug.py",
+    "--usb-serial",
+    "80B54ECDD9AC",
+    "--usb-pid",
+    "0x4042",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08",
+    "--label",
+    "screen-08-debug",
+    "--duration",
+    "300",
+    "--enumerate-seconds",
+    "30",
+    "--stop-file",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-debug.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 330.0,
+  "head": "b9ebe2f7b8b49819347608392e70ff5966f2ad87",
+  "dirty_diff_sha256": "f0601209362af289cbe4fbbcf64c1ffaa33c163d16257b453d39434def75ec03",
+  "started_utc": "2026-11-16T08:50:50.142221+00:00",
+  "started_monotonic": 325943.563286527,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08-debug-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T08:53:48.908695+00:00",
+  "finished_monotonic": 326122.53745351,
+  "log_sha256": "c3442f29a9687a5e26a6b021dabe0dbd4dc49fe407a861f9f189788d11a09e0d"
+}

@@ -1,0 +1,1 @@
+FDC_WORKER_LIFECYCLE_PASS,scenarios=job_unconsumed;ack_delay;run_delay;done_lost;cancel_race;blocked_bus;late_done

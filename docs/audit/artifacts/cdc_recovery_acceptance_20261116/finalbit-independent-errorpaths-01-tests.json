@@ -1,0 +1,55 @@
+{
+  "kind": "synthetic_production_C_host_tests",
+  "hardware": false,
+  "target_build": false,
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_tail_diagnostic.py"
+      ],
+      "started_utc": "2026-11-16T08:33:28.878355+00:00",
+      "elapsed_seconds": 0.21333158400375396,
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-independent-errorpaths-01-test_ads_tail_diagnostic.txt",
+      "log_sha256": "803888aa42a95fd079ec25922db69cccc00e692e3c5971f879b99c81394e4912",
+      "log_bytes": 1031
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_driver_reliability.py"
+      ],
+      "started_utc": "2026-11-16T08:33:28.878698+00:00",
+      "elapsed_seconds": 0.3507953599910252,
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-independent-errorpaths-01-test_ads_driver_reliability.txt",
+      "log_sha256": "ea1819325ce6cbc5a423f2346916437a49897b91521d33aa2901b84198ed17f1",
+      "log_bytes": 250
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_rail_profile.py"
+      ],
+      "started_utc": "2026-11-16T08:33:28.878869+00:00",
+      "elapsed_seconds": 0.10467321996111423,
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-independent-errorpaths-01-test_ads_rail_profile.txt",
+      "log_sha256": "e492f22329ff05663df058ae88cf7b1641d453488bdd94e638c8bb5aceed92c2",
+      "log_bytes": 371
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ads_timing_probe.py"
+      ],
+      "started_utc": "2026-11-16T08:33:28.879197+00:00",
+      "elapsed_seconds": 0.5623277210397646,
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-independent-errorpaths-01-test_ads_timing_probe.txt",
+      "log_sha256": "4724ad778b95e03abd478a6e5a767389e0260f9b2c73a9149670a6f11eb45c5c",
+      "log_bytes": 7841
+    }
+  ]
+}

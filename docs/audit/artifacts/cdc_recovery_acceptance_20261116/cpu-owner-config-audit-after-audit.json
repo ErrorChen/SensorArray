@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "tools/audit_config_surface.py"
+  ],
+  "exit_code": 0,
+  "elapsed_s": 2.984036445617676,
+  "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "source_sha256": {
+    "tools/audit_config_surface.py": "7b57c465a284bb4ebae1fcbdc8864df01fae56bf44fc796f96163d8abd8b9537",
+    "tools/test_audit_config_surface.py": "3b8423d282a686bcb61ad8a35a2b6a8a172284ee0aa239d4aa7a4b64be17335b"
+  },
+  "log": "/tmp/sensorarray-config-surface-review-20261116/after-audit.txt",
+  "log_sha256": "76fb1e8c51bcfd5558d80db5ce035e59fe89762996772a51dd72649b8469a47c"
+}

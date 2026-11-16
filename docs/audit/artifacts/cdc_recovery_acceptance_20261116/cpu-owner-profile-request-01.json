@@ -1,0 +1,18 @@
+{
+  "scope": "independent_diagnostic_build_not_normal_defaults",
+  "before_sdkconfig_sha256": "43963daf984ae6e22e60951ff5eb08e65385d8ae533e85d3e1a2ceb502a22b70",
+  "requested_sdkconfig_sha256": "fb4caf1319fec21f96dbca3070149b6cd68ad202c95fd6060ede896eb1c56e52",
+  "requested_flags": {
+    "CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS": "y",
+    "CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER": "y",
+    "CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64": "y",
+    "CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS": "y"
+  },
+  "normal_defaults_changed": false,
+  "backup_path": "/tmp/sensorarray-cpu-owner-before-sdkconfig-01",
+  "resolved_config": "PENDING_IDF_RECONFIGURE",
+  "limitations": [
+    "Enabling runtime/TRACE/U64 changes task/queue layout and adds context-switch timing cost.",
+    "Owner snapshots report completed switch-out runtime; they do not decompose one SDK call or prove blocked duration."
+  ]
+}

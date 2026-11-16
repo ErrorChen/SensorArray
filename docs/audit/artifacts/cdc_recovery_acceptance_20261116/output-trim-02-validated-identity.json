@@ -1,0 +1,20 @@
+{
+  "source_commit": "b9ebe2f7b8b49819347608392e70ff5966f2ad87",
+  "version": "b9ebe2f-dirty",
+  "app_bytes": 1620752,
+  "bin_sha256": "b4ae27a3fc5da400febf6db587f0d828f9dd6666e617ec26a071b4988217b3d3",
+  "elf_sha256": "529b440aae12e5cecf2abed938558cc392009e97f929970ea6191ae5bc9b2b8c",
+  "host_entries": 66,
+  "all_exit_zero": true,
+  "production_inputs": 185,
+  "build_test_inputs_identical": true,
+  "dirty_diff_sha256_at_build": "f8de18fe02799741d1b7b1a8cb007411c108fbcfc7eaf9d0872ef11d399b87ae",
+  "build_manifest": "output-trim-02-build-manifest.json",
+  "tests_manifest": "output-trim-02-tests-manifest.json",
+  "previous_failed_tests_manifest_preserved": "output-trim-01-tests-manifest.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+  "CPU_owner_diagnostics_enabled": true,
+  "normal_defaults_diagnostics_enabled": false,
+  "change_scope": "ADS partial allocation lifetime P1 c670897; remove unreachable PREC20 accumulation 98b760c; no BLE scheduling, clock, CRC criterion or wire changes"
+}

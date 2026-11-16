@@ -1,0 +1,54 @@
+{
+  "scope": "synthetic host harness adaptation only; no production source change",
+  "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "source_sha256": {
+    "tools/test_recovery_control.py": "f90fb38e6fa607e3394a6535b450e4e0ef59ccd68f2014b18bcca804885f4c29",
+    "tests/host/test_recovery_control.c": "d4952cf25e2d2d7927c86e4eaf8823bbed2e633e2d5595575aafb8bd220ae389",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "40cc39d817d8b79a92a29d289cdfc3ce00161f9f56e49100dc070cdec01daa28",
+    "components/sensorarrayWorkBudget/include/sensorarrayCpuOwner.h": "c88ddff980860c74c53d2a990d2266f88e25bb35f9ac56924d4b7c1d4c83a8bd",
+    "main/main.c": "aeb37247891879273fc543c720b66e5c1ed2ed6b52dd79277a1386aef69104e7",
+    "tools/test_cpu_owner.py": "e912dbff5684574bd2d1bb685d777b9925846c290f46709f1d8b65b577dd5695",
+    "tests/host/test_cpu_owner.c": "0cb57686c6be93ad9db3e1a43e0cbb35e7d51a8f768b209513356e1c9a36ac74"
+  },
+  "commands": [
+    {
+      "argv": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-recovery-harness-01-test_recovery_control.txt",
+      "log_sha256": "2945f85aaa2e93cf3b77776989cb82f659a59407fb2af5a54a5532aad5497408"
+    },
+    {
+      "argv": [
+        "python3",
+        "tools/test_cpu_owner.py"
+      ],
+      "env": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-recovery-harness-01-test_cpu_owner.txt",
+      "log_sha256": "cea81dbadb133d266239e966d975b90eeb068b52a92dbe9a8bd5ba7f2415dd17"
+    }
+  ],
+  "original_failure_preserved": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-test_recovery_control.txt",
+    "sha256": "ec089342eaadf72598327361c7755d09f832f98e688c88d4c03b43e1f780b78e"
+  },
+  "covered": [
+    "actual default-OFF CpuOwner module linked, not a permissive stub",
+    "actual early/normal query prefixes",
+    "all seven roles, exact session, null context and frontend-held",
+    "disabled/unknown values are not zero CPU",
+    "invalid role and bounded short buffer",
+    "RECOVERY/RESTART caches and hardware/terminal call counts unchanged"
+  ],
+  "target_build": "NOT_RUN",
+  "HIL": "NOT_RUN",
+  "status": "PASS"
+}

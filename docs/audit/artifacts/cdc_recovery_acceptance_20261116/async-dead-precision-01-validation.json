@@ -1,0 +1,27 @@
+{
+  "production_and_tests_frozen": true,
+  "source_files": {
+    "main/output/sensorarrayAsyncLog.c": "39ca36145aac0c51ffef93c993079cd0ccad545251eccfdfbe200e21a3e42d87",
+    "tools/test_async_log_summary.py": "4420bcdedfe4030e73c302a193a9d8eeb89b8b34eb31e0d481e50cdd0b5e2cda",
+    "tests/host/test_async_log_summary.c": "5285757e81b5f1ca493662d444b61c56959cd40e20e40762ed8f34f15993e565"
+  },
+  "baseline_commit": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "production_scope": "Only private statistics used solely by unreachable PREC20 and preexisting #if0 netStatus. Visible summaries, format strings, scheduling, queues and frame encoder unchanged.",
+  "tests": [
+    "async-dead-precision-01-test_async_log_summary.json",
+    "async-dead-precision-01-test_async_log_storage.json",
+    "async-dead-precision-01-test_ads_crc_frame_flow.json",
+    "async-dead-precision-01-test_work_budget.json",
+    "async-dead-precision-02-test_async_log_summary.json"
+  ],
+  "harness_development_failures": [
+    "Initial ISO C compile rejected memmem; replaced by bounded NUL + strstr.",
+    "Whole-struct memcmp caught unspecified C padding, not differing fields; compare declared scalar state and sink fields instead."
+  ],
+  "baseline_elf_precision_window_bytes": 1624,
+  "baseline_elf_precision_function_code_bytes": 479,
+  "expected_cell_visits_removed_per_processed_frame": 64,
+  "performance_gain": "NOT_MEASURED; VOLT mask is zero so arithmetic mean/variance path does not run. Do not attribute all AsyncLog 30 s CPU to this loop.",
+  "build": "NOT_RUN_BY_CHILD",
+  "hardware": "NOT_RUN_BY_CHILD"
+}

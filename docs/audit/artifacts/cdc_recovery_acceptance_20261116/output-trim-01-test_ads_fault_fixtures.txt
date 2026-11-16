@@ -1,0 +1,1 @@
+ADS_FAULT_FIXTURES,passed=1,count=11,fixture=synthetic,producer=actual_C_formatter

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "tools/test_async_log_summary.py"
+  ],
+  "exit_code": 0,
+  "utc": "2026-11-16T08:44:00Z",
+  "production_unchanged_from_validation_02": true,
+  "git_required_by_regression": false,
+  "baseline": "actual frozen production file from b58336eeaa136d0aca23e4c62ac11eb292d5a904, raw SHA verified at test startup",
+  "final_source_sha256": {
+    "main/output/sensorarrayAsyncLog.c": "39ca36145aac0c51ffef93c993079cd0ccad545251eccfdfbe200e21a3e42d87",
+    "tools/test_async_log_summary.py": "60a1c692fc8b01d156f1aa6d512189d08802214bb970273da3bfb1cc6e171773",
+    "tests/host/test_async_log_summary.c": "5285757e81b5f1ca493662d444b61c56959cd40e20e40762ed8f34f15993e565",
+    "tests/fixtures/async_log/b58336e-sensorarrayAsyncLog.c.gz": "50cc2a60c08711f1ec353a10583695eb9d68c53c51bf9af20efe86dcc8e5de6c",
+    "tests/fixtures/async_log/b58336e-source.json": "f2f09c9acd8c95945569d09b4d506574d5aa337315b4e5136bb0551ea3cacfbe"
+  },
+  "stdout_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/async-dead-precision-03-fixture-validation.txt"
+}

@@ -1,0 +1,121 @@
+{
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.events.jsonl",
+      "raw_bytes": 12975,
+      "raw_sha256": "3d75bc0dc8d3a3d5055911d1c6ad2f5548c6f82b7c905663ec226282aca4b4be",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.events.jsonl.gz",
+      "gzip_sha256": "408e7daefa1ab638d8371b571c63e3324aec0516a82a74d5b4b2fc9a1daceda4",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.rx.bin",
+      "raw_bytes": 3611,
+      "raw_sha256": "75aa4c05613da1b3c0e3483d7aab57c0048cd0f701c228a5d725cdfecb6662f9",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-boot.rx.bin.gz",
+      "gzip_sha256": "a9e7e45b55161e6dfb7740d7938bde66cc06cc2e210c29c7c1deaccc521feba7",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-debug.debug.events.jsonl",
+      "raw_bytes": 148273,
+      "raw_sha256": "d67ca19b5e5b6595afe3960a6d852f9588ab64942967c07804486667e14abb08",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-debug.debug.events.jsonl.gz",
+      "gzip_sha256": "499aa437ebdd83bdd95cb9feb41e0bd2fd4c22edf577dc8b0be8badbebc2373e",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-debug.debug.rx.bin",
+      "raw_bytes": 215904,
+      "raw_sha256": "c5a399f33c3781743cbe3155474bb2278f6b8ff7148c32f0244be0e9b0ce853e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-01-debug.debug.rx.bin.gz",
+      "gzip_sha256": "a7257bc6a5476d2a1512d3024df6e09d01c1036f4b2e8edae4efe179e3a3ed68",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-rom-01.epoch0.rx.bin",
+      "raw_bytes": 9020,
+      "raw_sha256": "2d2f3ba30504edc520991c2aaed56722e1554410bcfdc7aa53ff9c74156f0b8d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-rom-01.epoch0.rx.bin.gz",
+      "gzip_sha256": "02d51966cd2b0469155fb4fccb914b5164765ad624a41865a0cc3dc475efad4a",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-rom-01.events.jsonl",
+      "raw_bytes": 19444,
+      "raw_sha256": "f3d942e462d4f5b53ccc0ffee37d02d5264653d854af4477c2d2767a3ba298c1",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-rom-01.events.jsonl.gz",
+      "gzip_sha256": "c24e60ecd2f8847ad6ac989a306d23464ff6ae016ef7c79698d68c4ba498d5b0",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.events.jsonl",
+      "raw_bytes": 25024,
+      "raw_sha256": "f29955160b535ad538520f377e18a5994d0c0b4e279e2d06e7577f20296b98d8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.events.jsonl.gz",
+      "gzip_sha256": "32333c5f91d038a2c01158f0afb88fd7ddcea7b7cd85c9af19ec61f1d42c4b85",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.rx.bin",
+      "raw_bytes": 12138,
+      "raw_sha256": "a61719dfb5badc49cdedbd385b398f32084d1205e9e6cc942caa71a6178a865a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-state-01.rx.bin.gz",
+      "gzip_sha256": "05d4137fc762d6d5bcc39dbd71cf0cc55a1a8985446ec942dfe369ad0e4ab119",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-ble.ble.notifications.jsonl",
+      "raw_bytes": 11592114,
+      "raw_sha256": "4ff74cb2f0879b43f6e80a87c82c48e52da23034346108fa7a624390a8d178d4",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-ble.ble.notifications.jsonl.gz",
+      "gzip_sha256": "61e8c6bb7450972c01a4b2d268f04aa8c8b9deb74207374c881424fda6ea8382",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-debug.debug.events.jsonl",
+      "raw_bytes": 747336,
+      "raw_sha256": "1e1c03036fa5bf42135c2b365503ff03b8ff541a872e0334673d0aa1b6ea1b01",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-debug.debug.events.jsonl.gz",
+      "gzip_sha256": "6f7edece679901949b080ce94fdf73f91b6473c1eaa47cee8f2d4e37bbc9f99e",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-debug.debug.rx.bin",
+      "raw_bytes": 1119398,
+      "raw_sha256": "b331dc6a206aaf4899147733b0c68925febaa5c0ca1ecaf98ec5711eb3cbf6e8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-debug.debug.rx.bin.gz",
+      "gzip_sha256": "4afe4e09f531b5619928ad3ca5e88e79731e226890ae683d3ae6c147b7d6a3a9",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.events.jsonl",
+      "raw_bytes": 2807533,
+      "raw_sha256": "dfe47cc1e6d5f90029435b401a025dc50ce70e287f873ff0ef1122f85d49cf19",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.events.jsonl.gz",
+      "gzip_sha256": "be1444be53da747bc55521a8b5f10a8ff012aa72514d2815917d8f5a3301e83b",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.rx.bin",
+      "raw_bytes": 4565615,
+      "raw_sha256": "ac1b097f189ed9f6cfcc39b3f684de095522147dce6418bf2dafa022dd1605b2",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.rx.bin.gz",
+      "gzip_sha256": "5a0ff99f0b2750dc259116f5edd388ce18ffd1d9f4863f3a9237fca9bea4f8a4",
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ]
+}

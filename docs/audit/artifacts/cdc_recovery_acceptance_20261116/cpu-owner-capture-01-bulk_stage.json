@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 4.785319286980666,
+  "created_utc": "2026-11-16T07:59:03.094034+00:00",
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-capture-01-bulk_stage.txt",
+  "log_sha256": "3c1251960c22b2b61f730504bdba6738793a145ef8d9087a89553bb2a478d3a7",
+  "hardware": "NOT_RUN; synthetic USB/PTY only"
+}

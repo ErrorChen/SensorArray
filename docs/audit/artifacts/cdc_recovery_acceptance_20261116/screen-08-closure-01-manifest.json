@@ -1,0 +1,59 @@
+{
+  "status": "PASS",
+  "scope": "offline closure of completed recordings; no production/hardware/build/flash changes",
+  "synthetic_regression_cases": 6,
+  "firmware_host_entry_count": 66,
+  "commands": [
+    {
+      "argv": [
+        "python3",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_summarize_diagnostic_screen.py"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08-closure-01-tests.txt",
+      "log_sha256": "dcd2147edfda2291b456dfb6d9f3021f0fed07760d5a1c8869fc5446f30e28fe"
+    },
+    {
+      "argv": [
+        "python3",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py",
+        "--analysis",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-analysis-01.json",
+        "--summary",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-volt1.summary.json",
+        "--cpu",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-cpu-owner-deltas-01.json",
+        "--identity",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/output-trim-02-validated-identity.json",
+        "--boot",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/output-trim-02-boot-verification.json",
+        "--previous-analysis",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-analysis-01.json",
+        "--previous-summary",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-volt1.summary.json",
+        "--previous-cpu",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-07/screen-07-cpu-owner-deltas-01.json",
+        "--output",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-verdict.json",
+        "--comparison-output",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-07-08-layer-cpu-comparison-01.json",
+        "--verdict",
+        "FAIL_BLE_THROUGHPUT"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08-closure-01-replay.txt",
+      "log_sha256": "efd48ef119b7b852699bafeba1e1728983ad515eb2c77d619fa152dde92e748d"
+    }
+  ],
+  "file_sha256": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py": "8d1f115cca01683384b4e442564a3ddd29e0017611973010717a3ea02280b249",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_summarize_diagnostic_screen.py": "3c755cf8a3b90a57e72c2f0261f4782704720a4ef7cfc2d3051f400821fd93a4",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-verdict.json": "740ea063211a5396ec4f2e6406f47d2e11551f71685447544029595fa01c1084",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-07-08-layer-cpu-comparison-01.json": "edac08f9f360716598534acb0ccb8651b0bc681a962df396fd5993b1d97949ab"
+  },
+  "manual_additional_event_hash_verification": "both analysis event SHA256 match original completed event files",
+  "hardware_actions": [],
+  "raw_files_modified": false,
+  "historical_failure_outputs_overwritten": false,
+  "conclusion": "FAIL_BLE_THROUGHPUT; zero USB internal missing proven by ordered sequence continuity, not defaulted from an omitted key; CPU ratios do not identify primary cause or blocked time"
+}

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ads_driver_reliability.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "dirty_diff_sha256": "673bc3b044ebe27d1648589d1bd445051e621d44edd2be2f8256bf8e1cc97291",
+  "started_utc": "2026-11-16T08:37:17.005196+00:00",
+  "started_monotonic": 325130.443634389,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ads-alloc-regression-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T08:37:17.370229+00:00",
+  "finished_monotonic": 325130.808674818,
+  "log_sha256": "75bd3965a08a7be810ec23742c7b348ca0b4c335be4c4c1db32f3511ae380383"
+}

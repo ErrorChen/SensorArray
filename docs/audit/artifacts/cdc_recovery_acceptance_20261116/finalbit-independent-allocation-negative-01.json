@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "synthetic_fault_injection_of_actual_production_C",
+  "severity": "P1",
+  "finding": "ADS buffer allocation partial-failure double-free",
+  "created_utc": "2026-11-16T08:36:17.734789+00:00",
+  "commit": "b13321a",
+  "driver_sha256": "3db1923a7bf02c970a857346b191001fcfdecae100a3536920206c39c07c9240",
+  "command": [
+    "python3",
+    "/tmp/finalbit_allocation_failure_repro.py",
+    "b13321a"
+  ],
+  "compile_exit_code": 0,
+  "run_exit_code": 23,
+  "stdout": "compile_exit_code=0\nALLOC_FAILURE_REPRO,err=0x101,allocCalls=4,freeCalls=2,duplicateFreeCalls=1,queued=0\nINVARIANT_FAILED: ads126xAdcInit allocation failure must not free the same buffer twice\nrun_exit_code=23\ndriver_sha256=3db1923a7bf02c970a857346b191001fcfdecae100a3536920206c39c07c9240\n",
+  "stderr": "",
+  "expected_invariant": "ads126xAdcInit allocation failure must not free the same buffer twice",
+  "injection": "Both MALLOC_CAP_DMA allocations fail; MALLOC_CAP_8BIT TX succeeds and RX fails. Tracking free stub detects repeated release without executing a second real host free. No SPI transaction is queued.",
+  "production_functions": [
+    "ads126xAdcAllocSpiBuffers",
+    "ads126xAdcInit",
+    "ads126xAdcDeinit"
+  ],
+  "root_cause": "Partial fallback releases successful block at allocation-function failure, leaves its handle pointer non-null, then Init calls Deinit which releases that pointer again.",
+  "not_introduced_by_gpio_tail": true,
+  "minimal_fix_proposal": "Allocate to local pointers; on failure free local ownership and return with handle untouched; publish handle buffers/size/capability only on success. Preserve existing pending-DMA deinit rules.",
+  "hardware": false,
+  "target_build": false,
+  "production_modified": false,
+  "reproducer_python": "from pathlib import Path\nimport json,os,subprocess,sys,tempfile,hashlib\nroot=Path('/home/csc/esp/workspace/SensorArray')\ncommit=sys.argv[1] if len(sys.argv)>1 else 'b13321a'\noriginal=(root/'tests/host/test_ads_driver_reliability.c').read_text()\nproduction=subprocess.check_output(['git','show',commit+':components/ads126xAdc/ads126xAdc.c'],cwd=root,text=True) if commit!='working' else (root/'components/ads126xAdc/ads126xAdc.c').read_text()\nharness=original.replace('\"../../components/ads126xAdc/ads126xAdc.c\"','\"production_ads.c\"')\nharness=harness.replace('void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }', '''static unsigned injectedAllocCall, duplicateFreeCount;\nstatic void *injectedBlock;\nstatic bool injectedBlockFreed;\nvoid *heap_caps_malloc(size_t size, int flags) {\n    ++injectedAllocCall;\n    if (injectedAllocCall <= 2u) { assert(flags == MALLOC_CAP_DMA); return NULL; }\n    assert(flags == MALLOC_CAP_8BIT);\n    if (injectedAllocCall == 3u) { injectedBlock = malloc(size); return injectedBlock; }\n    assert(injectedAllocCall == 4u); return NULL;\n}''')\nharness=harness.replace('void heap_caps_free(void *ptr) { ++freeCalls; free(ptr); }','''void heap_caps_free(void *ptr) {\n    ++freeCalls;\n    assert(ptr == injectedBlock);\n    if (injectedBlockFreed) { ++duplicateFreeCount; return; }\n    injectedBlockFreed = true; free(ptr);\n}''')\nharness=harness.replace('int main(void)','int ordinaryDriverTests(void)')\nharness+='''\nint main(void) {\n    ads126xAdcHandle_t ads = {0};\n    ads126xAdcConfig_t cfg = {.spiDevice=(void*)1, .forcedType=ADS126X_DEVICE_AUTO,\n        .drdyGpio=GPIO_NUM_NC, .resetGpio=GPIO_NUM_NC};\n    esp_err_t err=ads126xAdcInit(&ads,&cfg);\n    printf(\"ALLOC_FAILURE_REPRO,err=0x%x,allocCalls=%u,freeCalls=%u,duplicateFreeCalls=%u,queued=%u\\\\n\",err,injectedAllocCall,freeCalls,duplicateFreeCount,queueCalls);\n    fflush(stdout);\n    if (err != ESP_ERR_NO_MEM || duplicateFreeCount != 0u || queueCalls != 0u) {\n        fprintf(stderr,\"INVARIANT_FAILED: ads126xAdcInit allocation failure must not free the same buffer twice\\\\n\");\n        return 23;\n    }\n    return 0;\n}\n'''\nwith tempfile.TemporaryDirectory(prefix='sensorarray-ads-alloc-repro-') as temp:\n p=Path(temp);(p/'production_ads.c').write_text(production);(p/'test.c').write_text(harness)\n cmd=['/usr/bin/gcc','-std=c11','-Wall','-Wextra','-Werror','-DCONFIG_IDF_TARGET_ESP32S3=1','-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-I',str(root/'tests/host/ads_stubs'),'-I',str(root/'tests/host/include'),'-I',str(root/'components/ads126xAdc/include'),str(p/'test.c'),'-o',str(p/'test')]\n c=subprocess.run(cmd,capture_output=True,text=True);print('compile_exit_code='+str(c.returncode));print(c.stdout+c.stderr,end='')\n r=subprocess.run([str(p/'test')],capture_output=True,text=True) if c.returncode==0 else None\n if r:print(r.stdout+r.stderr,end='');print('run_exit_code='+str(r.returncode))\n print('driver_sha256='+hashlib.sha256(production.encode()).hexdigest())\n sys.exit(r.returncode if r else c.returncode)\n",
+  "reproducer_sha256": "0544cb1d8f13a5ddc5c33cdac7291fe2d14a0868ad58f524dd2cd91659c74fa2"
+}

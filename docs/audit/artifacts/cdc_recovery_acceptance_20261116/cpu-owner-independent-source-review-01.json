@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "kind": "independent_final_source_review",
+  "created_utc": "2026-11-16T08:03:16.188977+00:00",
+  "scope": "Optional CPU owner diagnostics only; frozen production and integration source, existing focused host evidence, local ESP-IDF kernel source. No target build, hardware access, test re-execution, or production modification.",
+  "reviewer": "fixture_audit",
+  "head_observed": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "working_tree": {
+    "dirty": true,
+    "status_sha256": "e1b4343cbff01f47fe50e9124c32eb6a09aa4d855285c9648c2abc47b2f4f9f0",
+    "tracked_diff_sha256": "32a041b02080d310710831d963c522b78226468bf8596bfb282e5415e84edfa5",
+    "note": "Concurrent unrelated capture-tool/config-auditor work remains; whole-tree freeze is not asserted."
+  },
+  "conclusion": "NO_CONFIRMED_P0_P1_IN_REVIEWED_SCOPE",
+  "blocks_build_or_hil": false,
+  "production_source_sha256": {
+    "components/sensorarrayWorkBudget/CMakeLists.txt": "9003b1ad281e865a6be1a31d919a6e538b50f1994542c021e8cc8ddd91827baf",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "53f6be61c65419a85b015d9693adb1d6275678fe2a2f5a0c55f9619d7bd69e70",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "40cc39d817d8b79a92a29d289cdfc3ce00161f9f56e49100dc070cdec01daa28",
+    "components/sensorarrayWorkBudget/include/sensorarrayCpuOwner.h": "c88ddff980860c74c53d2a990d2266f88e25bb35f9ac56924d4b7c1d4c83a8bd",
+    "main/Kconfig.projbuild": "21f36b57c8c5313341817fd3ffc39deaf7de22e422b4c1a5d989d542a9fb15b6",
+    "main/main.c": "aeb37247891879273fc543c720b66e5c1ed2ed6b52dd79277a1386aef69104e7"
+  },
+  "matches_frozen_host_manifest": {
+    "components/sensorarrayWorkBudget/CMakeLists.txt": true,
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": true,
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": true,
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": true,
+    "components/sensorarrayWorkBudget/include/sensorarrayCpuOwner.h": true,
+    "main/Kconfig.projbuild": true,
+    "main/main.c": true
+  },
+  "test_source_sha256": {
+    "tests/host/test_cpu_owner.c": "0cb57686c6be93ad9db3e1a43e0cbb35e7d51a8f768b209513356e1c9a36ac74",
+    "tests/host/test_frontend_wait_integration.c": "ccad48ae034b67ceaf8194b573be7cd513daf783c0b7b41c91759e4363530c93",
+    "tools/test_cpu_owner.py": "e912dbff5684574bd2d1bb685d777b9925846c290f46709f1d8b65b577dd5695"
+  },
+  "checks": [
+    {
+      "topic": "self sampling and object lifetime",
+      "result": "PASS_STATIC",
+      "evidence": [
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:37",
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:65"
+      ],
+      "detail": "Only CPU0 owner checkpoints sample their current task with vTaskGetInfo(NULL,pdFALSE,eReady). No retained TaskHandle_t/name/stack pointers, allocation, stack walk, idle/SDK task lookup, or new task is introduced."
+    },
+    {
+      "topic": "lock order and U64 publication",
+      "result": "PASS_STATIC_SUPPORTED_CONFIG",
+      "evidence": [
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:31",
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:77",
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:107"
+      ],
+      "detail": "Short DRAM task-context mux covers published records. Timer/kernel calls and formatting occur outside that mux. Actual IDF dual-core vTaskGetInfo copies the U64 accumulator under the same xKernelLock used for switch-out accounting. Unsupported SMP/UNICORE/non-U64/non-ESP_TIMER configurations are rejected."
+    },
+    {
+      "topic": "single writer violations and counter regressions",
+      "result": "PASS_STATIC",
+      "detail": "Overlapping sampling or changed sampled task number latches writer_conflict. Lower runtime or sampler time regression latches unavailable until reboot. Conflict is not cleared by later valid publication. Task/counter comparison is boot-session scoped."
+    },
+    {
+      "topic": "query concurrency and age",
+      "result": "PASS_STATIC",
+      "evidence": [
+        "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c:107"
+      ],
+      "detail": "Query copies a coherent record under mux, then reads clock. It cannot underflow age from a newer simultaneous publication. If the copied observation is in the query clock future, that returned snapshot has age unknown, clockRegressed=true and available=false; query does not mutate owner state."
+    },
+    {
+      "topic": "counter source and interpretation",
+      "result": "PASS_STATIC_WITH_LIMITS",
+      "detail": "Actual port casts esp_timer_get_time directly to U64 and the accumulator is U64; no intermediate U32 timer truncation. Report is a completed-switch-out accumulator that excludes the currently open slice and may include ISR/non-SDK work. No CPU percentage, SDK-only runtime, or wall-minus-run blocked time is claimed."
+    },
+    {
+      "topic": "bounded response and unknown values",
+      "result": "PASS_STATIC_AND_REVIEWED_HOST_EVIDENCE",
+      "detail": "Strict CPUOWNER?0..6, bounded snprintf, unknown runtime for disabled/unobserved/conflicted/regressed state. Stale historical samples remain explicitly stale and are not interpreted as zero current consumption. Other-agent host log: largest owner response372bytes and PROTO465bytes within512; target stack/format execution not run by reviewer."
+    },
+    {
+      "topic": "old scheduling behavior",
+      "result": "PASS_STATIC_WITH_OBSERVATION_COST",
+      "evidence": [
+        "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c:144"
+      ],
+      "detail": "OFF removes observer include/call and sample storage. ON adds owner observation only before unchanged WorkBudget predicates; no delay, idle-hook modification, watchdog feed, threshold change, or pacing policy change. Observation and globally enabled FreeRTOS runtime accounting have nonzero time/RAM costs; fixed-fake-clock host budget equivalence is not HIL performance equivalence."
+    },
+    {
+      "topic": "configuration and dispatch",
+      "result": "PASS_STATIC",
+      "evidence": [
+        "main/Kconfig.projbuild:8",
+        "main/main.c:2646",
+        "main/main.c:2835",
+        "main/main.c:2716",
+        "main/main.c:3465"
+      ],
+      "detail": "Default off, explicit supported-kernel/clock dependencies, readonly early and normal dispatch, cpu_owner_v1 capability. No setters, Applied identity, frontend state transitions, or scientific encoder changes."
+    },
+    {
+      "topic": "test harness data race previously observed",
+      "result": "RESOLVED_IN_FROZEN_TEST",
+      "detail": "timerCalls is now _Atomic unsigned and test file hash matches the final focused host manifest. No production source change was requested for this harness-only issue."
+    }
+  ],
+  "local_sdk": {
+    "root": "/home/csc/esp/esp-idf-v5.5.5",
+    "source_sha256": {
+      "components/freertos/FreeRTOS-Kernel/tasks.c": "193c3d8379acc847097632da8e6d4dd2ee0bf8e069d78979d68dd26b653d48df",
+      "components/freertos/esp_additions/include/esp_private/freertos_idf_additions_priv.h": "9bed40f32059b0b0afd18d70d8c5d981077f3665273154afc1cc909d0e75f24a",
+      "components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h": "80ff24959d8a900b7896d4fd3991344a2e100f3b8aacfbc787fe31df7bef8f77",
+      "components/freertos/config/include/freertos/FreeRTOSConfig.h": "e1b599aa39c1f9718aa3f4e101a81c0f9e8ab139ab1993fc2148840a02641d83",
+      "components/esp_timer/src/esp_timer_impl_systimer.c": "6dbd98e996db47c23967b4a759511bf779d836d70dd69a9112b4f3e1b832c180"
+    },
+    "references": [
+      {
+        "path": "components/freertos/FreeRTOS-Kernel/tasks.c",
+        "lines": [
+          3653,
+          3674,
+          3686,
+          4638,
+          4650,
+          4660,
+          4687
+        ],
+        "claim": "switch-out accumulation and vTaskGetInfo use kernel critical section; only self is queried"
+      },
+      {
+        "path": "components/freertos/esp_additions/include/esp_private/freertos_idf_additions_priv.h",
+        "lines": [
+          40,
+          55,
+          106
+        ],
+        "claim": "legacy IDF dual-core macros take kernel critical lock; unicore guard is necessary for this proof"
+      },
+      {
+        "path": "components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h",
+        "lines": [
+          517
+        ],
+        "claim": "ESP_TIMER clock cast directly to configured runtime type"
+      },
+      {
+        "path": "components/freertos/config/include/freertos/FreeRTOSConfig.h",
+        "lines": [
+          175
+        ],
+        "claim": "U64 runtime type definition"
+      },
+      {
+        "path": "components/esp_timer/src/esp_timer_impl_systimer.c",
+        "lines": [
+          68
+        ],
+        "claim": "64-bit systimer microsecond source, no U32 intermediary"
+      }
+    ]
+  },
+  "existing_host_evidence": {
+    "executed_by": "implementation agent; not re-executed by independent reviewer",
+    "manifest": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-manifest.json",
+    "manifest_sha256": "4630b2198b7991e8705e4eaa8cd762d000766ac78e5002f405d1a8580999a008",
+    "manifest_head": "167e0eaedcbed6216acd78d7be770c8f0be7a058",
+    "manifest_status": "FAIL",
+    "inputs_unchanged_at_execution": true,
+    "focused_commands": [
+      {
+        "command": [
+          "python3",
+          "tools/test_cpu_owner.py"
+        ],
+        "exit_code": 0,
+        "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-test_cpu_owner.txt",
+        "log_sha256": "cea81dbadb133d266239e966d975b90eeb068b52a92dbe9a8bd5ba7f2415dd17"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_work_budget.py"
+        ],
+        "exit_code": 0,
+        "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-test_work_budget.txt",
+        "log_sha256": "950373e0fc822d591ccce31dbb3f98fdbe3f2924b65aefb18579ceba332d08ab"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_frontend_wait_integration.py"
+        ],
+        "exit_code": 0,
+        "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-test_frontend_wait_integration.txt",
+        "log_sha256": "db7bf349608c5b812f5f99de54f9e97996f186331e97ffccc6e38ffe1502e513"
+      },
+      {
+        "command": [
+          "python3",
+          "tools/test_ads_timing_control.py"
+        ],
+        "exit_code": 0,
+        "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cpu-owner-host-01-test_ads_timing_control.txt",
+        "log_sha256": "0325843d4a294a9e81740006c1b76728aa417290cf559262a2b819286b2f466b"
+      }
+    ],
+    "ancillary_config_audit": {
+      "original_exit_code": 1,
+      "original_status_preserved": "FAIL",
+      "current_file_matches_old_manifest": false,
+      "note": "Parent assigned a separate auditor fix for third-party TinyUSB CONFIG symbol classification. This independent CPU owner review does not relabel or rerun that failed audit."
+    },
+    "host_budget_comparison": {
+      "off_checkpoints": 224,
+      "off_yields": 7,
+      "on_checkpoints": 224,
+      "on_yields": 7,
+      "scope": "synthetic fixed clock production-function regression"
+    },
+    "host_storage": {
+      "slot_bytes": 64,
+      "seven_slots_bytes": 448,
+      "target_size": "NOT_RUN"
+    }
+  },
+  "remaining_verification": [
+    "Root target build/map for actual owner BSS and systemwide runtime-accounting RAM cost.",
+    "Actual diagnostic-image HIL observation and scheduling overhead.",
+    "Read runtime deltas only within the same boot/session and coherent task number; exclude unavailable/stale results as appropriate.",
+    "Seven application roles do not measure IDLE, BLE controller, other SDK tasks, or whole-system CPU utilization."
+  ],
+  "hardware": "NOT_RUN",
+  "target_build": "NOT_RUN",
+  "tests_reexecuted_by_reviewer": false,
+  "original_inputs_modified": false
+}
