@@ -65,7 +65,10 @@ bool sensorarrayUsbOtgEnabled(void)
         s_enabled = !(s_recoveryMagic == USB_RECOVERY_MAGIC &&
                       s_recoveryInverse == ~USB_RECOVERY_MAGIC);
 #endif
-        s_recoveryMagic = s_recoveryInverse = 0u;
+        /* Reading the recovery latch must not consume it: an early panic in
+         * this USJ boot has no OTG DMA owner to set it again. Only an explicit
+         * USBBOOT with a verified armed ROM flag clears the latch below.
+         * RTC retention is not guaranteed across removal of chip power. */
         s_backendSelected = true;
     }
     return s_enabled;
@@ -382,7 +385,20 @@ esp_err_t sensorarrayUsbOtgPrepareRestart(int64_t deadlineUs, bool romDownload)
      * Keep that cleanup evidence; never turn it into on-time success or arm
      * ROM download after this transaction's absolute deadline. */
     if (esp_timer_get_time() >= deadlineUs) { return ESP_ERR_TIMEOUT; }
-    if (romDownload) { REG_SET_BIT(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT); }
+    if (romDownload) {
+        REG_SET_BIT(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+        if (!(REG_READ(RTC_CNTL_OPTION1_REG) & RTC_CNTL_FORCE_DOWNLOAD_BOOT)) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        /* This is the explicit recovery-release boundary, not proof of ROM
+         * execution or USB enumeration. The retained flag directs even an
+         * intervening CPU-reset panic to ROM; never clear the latch at boot
+         * selection or an ordinary RESTART. Keep this boot's backend cached.
+         * No promise is made that arbitrary hardware faults recover in SW. */
+        atomic_thread_fence(memory_order_seq_cst);
+        s_recoveryMagic = s_recoveryInverse = 0u;
+        atomic_thread_fence(memory_order_seq_cst);
+    }
     return ESP_OK;
 }
 
@@ -422,6 +438,7 @@ void sensorarrayUsbOtgRestart(bool romDownload)
     if (err == ESP_OK) { esp_restart(); }
     /* No owner ACK: no claimed cancellation or buffer reuse. A digital Core
      * Reset includes the USB peripheral (unlike the normal CPU restart).
-     * One next boot uses USJ recovery. Never arm ROM download on this failure. */
+     * Subsequent boots stay in USJ recovery until explicit USBBOOT release.
+     * Never arm ROM download on this failure. */
     sensorarrayUsbEmergencyCoreReset();
 }

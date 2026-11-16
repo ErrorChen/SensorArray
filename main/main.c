@@ -2496,6 +2496,38 @@ static esp_err_t sensorarrayFormatSchedulerReply(char *response, size_t response
     return ESP_OK;
 }
 
+/* 本轮新增: BUILD needs all 32 descriptor bytes. The panic-cache getter
+ * esp_app_get_elf_sha256 is capped by CONFIG_APP_RETRIEVE_LEN_ELF_SHA even
+ * when the caller supplies a 65-byte destination. This runs in query task
+ * context, with the application descriptor available through normal cache. */
+static esp_err_t sensorarrayFormatBuildReply(char *response, size_t responseSize)
+{
+    if (!response || responseSize == 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    response[0] = '\0';
+    const esp_app_desc_t *app = esp_app_get_description();
+    if (!app) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    static const char hex[] = "0123456789abcdef";
+    char elfSha[sizeof(app->app_elf_sha256) * 2u + 1u];
+    for (size_t i = 0; i < sizeof(app->app_elf_sha256); ++i) {
+        elfSha[2u * i] = hex[app->app_elf_sha256[i] >> 4u];
+        elfSha[2u * i + 1u] = hex[app->app_elf_sha256[i] & 0x0fu];
+    }
+    elfSha[sizeof(elfSha) - 1u] = '\0';
+    int length = snprintf(response, responseSize,
+        "BUILD,idf=%s,target=%s,project=SensorArray,proto=%u,version=%.32s,elfSha256=%s\n",
+        esp_get_idf_version(), CONFIG_IDF_TARGET,
+        (unsigned)SENSORARRAY_PROTOCOL_VERSION, app->version, elfSha);
+    if (length <= 0 || (size_t)length >= responseSize) {
+        response[0] = '\0';
+        return ESP_ERR_INVALID_SIZE;
+    }
+    return ESP_OK;
+}
+
 static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
                                                      char *response,
                                                      size_t responseSize,
@@ -2528,6 +2560,9 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "FRONTENDS?") == 0) {
         return sensorarrayFormatFrontendReply(response, responseSize);
+    }
+    if (strcmp(command, "BUILD?") == 0) {
+        return sensorarrayFormatBuildReply(response, responseSize);
     }
     uint32_t recoveryLevel = SENSORARRAY_RECOVERY_LEVEL_FULL;
     sensorarrayEarlyRecoveryKind_t kind =
@@ -3266,17 +3301,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return ESP_OK;
     }
     if (strcmp(command, "BUILD?") == 0) {
-        /* 本轮新增: report the running image, not the host checkout's HEAD. */
-        const esp_app_desc_t *app = esp_app_get_description();
-        char elfSha[65];
-        (void)esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
-        int length = snprintf(response,
-                 responseSize,
-                 "BUILD,idf=%s,target=%s,project=SensorArray,proto=%u,version=%.32s,elfSha256=%s\n",
-                 esp_get_idf_version(),
-                 CONFIG_IDF_TARGET,
-                 (unsigned)SENSORARRAY_PROTOCOL_VERSION, app->version, elfSha);
-        return length > 0 && (size_t)length < responseSize ? ESP_OK : ESP_ERR_INVALID_SIZE;
+        return sensorarrayFormatBuildReply(response, responseSize);
     }
     if (strcmp(command, "PERF?") == 0) {
         sensorarrayAsyncLogStats_t asyncStats = {0};

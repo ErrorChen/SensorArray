@@ -9,6 +9,7 @@
 
 static int64_t nowUs;
 static bool ownerProgress, ignoreReset, injectReadReset, injectReceiveReset;
+static bool ignoreRomArm;
 static bool mounted = true, suspended, cdcConnected[2];
 static bool dmaOn = true, efuses[4];
 static bool tusbInitOk = true;
@@ -85,6 +86,7 @@ uint32_t hostRegisterRead(unsigned r) { assert(r<HOST_REGISTER_COUNT); return re
 void hostRegisterSet(unsigned r,uint32_t bits)
 {
     assert(r<HOST_REGISTER_COUNT);
+    if (r==RTC_CNTL_OPTION1_REG && (bits&RTC_CNTL_FORCE_DOWNLOAD_BOOT) && ignoreRomArm) { return; }
     if (r==SYSTEM_PERIP_RST_EN0_REG && (bits&SYSTEM_USB_RST)) {
         trace(TRACE_RESET); if(ignoreReset)return;
         USB_DWC.gahbcfg_reg.dmaen=0; registers[USB_GAHBCFG_REG]=0;
@@ -328,8 +330,76 @@ static void restartFallback(void)
 static void recoveryBoot(void)
 {
     s_recoveryMagic=USB_RECOVERY_MAGIC;s_recoveryInverse=~USB_RECOVERY_MAGIC;
-    assert(!sensorarrayUsbOtgEnabled());assert(!sensorarrayUsbOtgCdcEnabled());assert(!s_recoveryMagic&&!s_recoveryInverse);
-    s_backendSelected=false;assert(sensorarrayUsbOtgEnabled());
+    assert(!sensorarrayUsbOtgEnabled());assert(!sensorarrayUsbOtgCdcEnabled());
+    assert(s_recoveryMagic==USB_RECOVERY_MAGIC&&s_recoveryInverse==~USB_RECOVERY_MAGIC);
+    s_backendSelected=false;assert(!sensorarrayUsbOtgEnabled());
+}
+static void nextApplicationBoot(void)
+{
+    /* Model C startup clearing ordinary application state while preserving
+     * the two real production RTC words. This does not model enumeration,
+     * electrical reset or ROM execution. */
+    s_backendSelected=false;s_enabled=false;s_owner=NULL;s_phy=NULL;s_irqInstalled=false;
+    s_detachStarted=false;s_detachedAtUs=0;memset(&s_stats,0,sizeof(s_stats));
+    atomic_store(&s_hardwareMayOwnDma,0);atomic_store(&s_stopRequested,false);atomic_store(&s_quiesced,false);
+}
+static void assertRecoveryLatched(void)
+{ assert(s_recoveryMagic==USB_RECOVERY_MAGIC&&s_recoveryInverse==~USB_RECOVERY_MAGIC); }
+static void recoveryRepeatedPanic(void)
+{
+    restartFallback();nextApplicationBoot();
+    assert(!sensorarrayUsbOtgEnabled());assertRecoveryLatched();
+    int reset=setjmp(restartJump);if(reset==0)__wrap_esp_restart_noos();
+    assert(reset==3&&realRestarts==1);assertRecoveryLatched();
+    nextApplicationBoot();assert(!sensorarrayUsbOtgEnabled());assertRecoveryLatched();
+    /* Another panic before backend selection must preserve the same latch. */
+    nextApplicationBoot();reset=setjmp(restartJump);if(reset==0)__wrap_esp_restart_noos();
+    assert(reset==3&&realRestarts==2);assertRecoveryLatched();
+    nextApplicationBoot();assert(!sensorarrayUsbOtgEnabled());assertRecoveryLatched();
+}
+static void recoveryOrdinaryRestart(void)
+{
+    recoveryBoot();
+    int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgRestart(false);
+    assert(reset==1);assertRecoveryLatched();assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    nextApplicationBoot();assert(!sensorarrayUsbOtgEnabled());assertRecoveryLatched();
+}
+static void recoveryExplicitRom(void)
+{
+    recoveryBoot();
+    assert(sensorarrayUsbOtgPrepareRestart(50000,true)==ESP_OK);
+    assert(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+    assert(!s_recoveryMagic&&!s_recoveryInverse);
+    assert(!sensorarrayUsbOtgEnabled()&&!sensorarrayUsbOtgCdcEnabled()); /* no hot switch */
+    /* An intervening early panic preserves the armed ROM flag. */
+    int reset=setjmp(restartJump);if(reset==0)__wrap_esp_restart_noos();
+    assert(reset==3&&(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    assert(!s_recoveryMagic&&!s_recoveryInverse);
+    /* Represent the later app entry after the host/ROM has completed explicit
+     * recovery and cleared download mode. Do not pretend this test runs ROM. */
+    registers[RTC_CNTL_OPTION1_REG]&=~RTC_CNTL_FORCE_DOWNLOAD_BOOT;
+    nextApplicationBoot();assert(sensorarrayUsbOtgEnabled());
+}
+static void recoveryRejectedRelease(void)
+{
+    recoveryBoot();nowUs=30000;
+    assert(sensorarrayUsbOtgPrepareRestart(25000,true)==ESP_ERR_TIMEOUT);assertRecoveryLatched();
+    for(unsigned i=0;i<4;i++) {
+        efuses[i]=true;assert(sensorarrayUsbOtgPrepareRestart(50000,true)==ESP_ERR_NOT_SUPPORTED);
+        assertRecoveryLatched();efuses[i]=false;
+    }
+    ignoreRomArm=true;
+    assert(sensorarrayUsbOtgPrepareRestart(50000,true)==ESP_ERR_INVALID_STATE);assertRecoveryLatched();
+    assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    assert(!sensorarrayUsbOtgEnabled()&&sequenceCount==0);
+}
+static void normalRestartBackend(void)
+{
+    initialize();ownerProgress=true;
+    int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgRestart(false);
+    assert(reset==1&&atomic_load(&s_quiesced)&&atomic_load(&s_hardwareMayOwnDma)==0u);
+    assert(!s_recoveryMagic&&!s_recoveryInverse&&!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    nextApplicationBoot();assert(sensorarrayUsbOtgEnabled());
 }
 static void efuseGates(void)
 {
@@ -435,6 +505,9 @@ int main(int argc,char **argv)
         {"late_cleanup_ack",lateCleanupAck},
         {"reset_not_latched",resetNotLatched},{"restart_fallback",restartFallback},
         {"recovery_boot",recoveryBoot},{"efuse_gates",efuseGates},{"dma_required",dmaRequired},{"descriptors",descriptors},
+        {"recovery_repeated_panic",recoveryRepeatedPanic},{"recovery_ordinary_restart",recoveryOrdinaryRestart},
+        {"recovery_explicit_rom",recoveryExplicitRom},{"recovery_rejected_release",recoveryRejectedRelease},
+        {"normal_restart_backend",normalRestartBackend},
         {"panic_cpu0",panicCpu0},{"panic_cpu1",panicCpu1},{"panic_no_dma",panicNoDma},
         {"panic_quiesced",panicQuiesced},{"panic_during_detach",panicDuringDetach},
         {"panic_init_failed",panicInitFailed},{"panic_phy_failed",panicPhyFailed},

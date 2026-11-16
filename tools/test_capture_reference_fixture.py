@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from capture_reference_fixture import CaptureOptions, PosixPort, capture
+from capture_reference_fixture import CaptureError, CaptureOptions, Collector, PosixPort, capture
 from test_reference_fixture import capacitance, mixed, resistance
 
 
@@ -264,6 +264,138 @@ class CaptureTests(unittest.TestCase):
                     capture(CaptureOptions("not-a-device", 1, Path(tmp), "invalid", **options))
             port.assert_not_called()
             self.assertFalse(list(Path(tmp).iterdir()))
+
+
+class ReadonlyQueryCorrelationTests(unittest.TestCase):
+    """Real PTY/raw setup and Collector, with a synchronous synthetic peer."""
+
+    @contextlib.contextmanager
+    def collector(self, responses, *, echoed_prefix=b"", command_timeout=0.08):
+        master, slave = os.openpty()
+        port = None
+        try:
+            os.set_blocking(master, False)
+            pending = bytearray()
+            if echoed_prefix:
+                # Reproduce the open-before-raw window rather than injecting
+                # a preconstructed UNKNOWN into the Collector's line deque.
+                self.assertTrue(termios.tcgetattr(slave)[3] & termios.ECHO)
+                os.write(master, echoed_prefix)
+                self.assertTrue(select.select([master], [], [], 0.2)[0])
+                pending.extend(os.read(master, 4096))
+                self.assertEqual(bytes(pending), echoed_prefix)
+            port = PosixPort(os.ttyname(slave))
+            self.assertFalse(termios.tcgetattr(port.fd)[3] & termios.ECHO)
+            if echoed_prefix:
+                os.write(master, b"oot=1,state=ok,quality=ok\n")
+                self.assertFalse(select.select([master], [], [], 0.01)[0])
+            commands = []
+
+            class Peer:
+                def metadata(self):
+                    return port.metadata()
+
+                def read_some(self, size, deadline):
+                    return port.read_some(size, deadline)
+
+                def write_some(self, data, deadline):
+                    written = port.write_some(data, deadline)
+                    if written:
+                        if not select.select([master], [], [], 0.2)[0]:
+                            raise AssertionError("synthetic peer did not receive tty write")
+                        pending.extend(os.read(master, 4096))
+                        while b"\n" in pending:
+                            line, _, tail = pending.partition(b"\n")
+                            pending[:] = tail
+                            command = line.decode("ascii")
+                            if command:
+                                commands.append(command)
+                                response = responses.get(command, "")
+                                if response:
+                                    os.write(master, response.encode("ascii"))
+                    return written
+
+            raw, events = io.BytesIO(), io.StringIO()
+            collector = Collector(CaptureOptions(os.ttyname(slave), 1.0, Path("/tmp"), "pty-only",
+                                                command_timeout=command_timeout, progress_seconds=60),
+                                  Peer(), raw, events)
+            yield collector, raw, events, commands
+        finally:
+            if port is not None:
+                port.close()
+            os.close(slave)
+            os.close(master)
+
+    def test_echoed_partial_ready_then_build_keeps_both_records(self):
+        unknown = "ERR,cmd=UNKNOWN,reason=unsupported\n"
+        build = "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2\n"
+        with self.collector({"READY,bootId=1,b": unknown, "BUILD?": build},
+                            echoed_prefix=b"READY,bootId=1,b") as (c, raw, events, commands):
+            result = c.query("BUILD?", "BUILD", c.prepare_deadline)
+            self.assertEqual(result["target"], "esp32s3")
+            self.assertEqual(commands, ["READY,bootId=1,b", "BUILD?"])
+            self.assertEqual(raw.getvalue(), b"READY,bootId=1,boot=1,state=ok,quality=ok\n" +
+                             unknown.encode() + build.encode())
+            records = [json.loads(line) for line in events.getvalue().splitlines()]
+            uncorrelated = [e for e in records if e["type"] == "uncorrelated_error"]
+            self.assertEqual(len(uncorrelated), 1)
+            self.assertEqual(uncorrelated[0]["line"], unknown.rstrip())
+            self.assertEqual(c.transport_result()["uncorrelated_query_errors"], 1)
+            self.assertFalse(any(e["type"] == "command_error" for e in records))
+
+    def test_unknown_only_times_out_without_replay_or_deadline_extension(self):
+        with self.collector({"BUILD?": "ERR,cmd=UNKNOWN,reason=unsupported\n"},
+                            command_timeout=0.3) as (c, raw, events, commands):
+            started = time.monotonic()
+            with self.assertRaisesRegex(CaptureError, "^reply_deadline_expired$"):
+                c.query("BUILD?", "BUILD", started + 0.04)
+            self.assertLess(time.monotonic() - started, 0.2)
+            self.assertEqual(commands, ["BUILD?"])
+            self.assertNotIn("BUILD?", c.replies)
+            self.assertEqual(c.uncorrelated_query_errors, 1)
+            self.assertIn(b"ERR,cmd=UNKNOWN,reason=unsupported\n", raw.getvalue())
+            self.assertIn('"type": "uncorrelated_error"', events.getvalue())
+
+    def test_explicit_or_ambiguous_other_errors_remain_fatal(self):
+        for error in ("ERR,cmd=BUILD,reason=unsupported", "ERR,cmd=BUILD?,reason=busy",
+                      "ERR,reason=unsupported", "ERR,cmd=UNKNOWN,reason=invalid_arg",
+                      "ERR,cmd=BUILD,cmd=UNKNOWN,reason=unsupported"):
+            with self.subTest(error=error), self.collector({"BUILD?": error + "\nBUILD,proto=2\n"}) as (c, _, _, commands):
+                with self.assertRaisesRegex(CaptureError, "^device_error:BUILD\\?:"):
+                    c.query("BUILD?", "BUILD", c.prepare_deadline)
+                self.assertEqual(commands, ["BUILD?"])
+                self.assertNotIn("BUILD?", c.replies)
+                self.assertEqual(c.uncorrelated_query_errors, 0)
+
+    def test_non_allowlisted_command_cannot_opt_into_unknown_tolerance(self):
+        for command, tag in (("MODE=VOLT", "MAPP"), ("UNDOCUMENTED?", "RESULT")):
+            with self.subTest(command=command), self.collector({command: "ERR,cmd=UNKNOWN,reason=unsupported\n"}) as (c, _, _, _):
+                with self.assertRaisesRegex(CaptureError, "^device_error:"):
+                    c.query(command, tag, c.prepare_deadline)
+                self.assertEqual(c.uncorrelated_query_errors, 0)
+
+    def test_unknown_does_not_make_setter_or_transition_successful(self):
+        for kind in ("MODE", "USBSTREAM"):
+            command = "MODE=VOLT" if kind == "MODE" else "USBSTREAM=FULL"
+            response = "ERR,cmd=UNKNOWN,reason=unsupported\n"
+            response += ("MACK,id=7,new=VOLT,state=accepted\nMAPP,id=7,new=VOLT,state=applied\n"
+                         if kind == "MODE" else "USBSTREAM,v=FULL,state=applied\n")
+            with self.subTest(kind=kind), self.collector({command: response}) as (c, _, _, commands):
+                with self.assertRaisesRegex(CaptureError, "^device_error:"):
+                    if kind == "MODE": c.transition("MODE", "VOLT")
+                    else: c.set_usb("FULL", c.prepare_deadline)
+                self.assertEqual(commands, [command])
+                self.assertEqual(c.uncorrelated_query_errors, 0)
+
+    def test_late_old_mode_reply_and_terminal_cannot_satisfy_new_request(self):
+        response = ("MODE,active=VOLT,pending=NONE\nMAPP,id=6,new=VOLT,state=applied\n"
+                    "MACK,id=7,new=VOLT,state=accepted\n")
+        with self.collector({"MODE=VOLT": response}) as (c, _, events, commands):
+            with self.assertRaisesRegex(CaptureError, "reply_deadline_expired|transition_terminal_timeout"):
+                c.transition("MODE", "VOLT")
+            self.assertEqual(commands, ["MODE=VOLT"])
+            self.assertNotIn('"type": "applied"', events.getvalue())
+            self.assertNotIn("MODE?", c.replies)
 
 
 if __name__ == "__main__":

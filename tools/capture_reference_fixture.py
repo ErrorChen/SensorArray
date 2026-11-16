@@ -34,6 +34,16 @@ class CaptureError(RuntimeError):
     pass
 
 
+# Only these documented, side-effect-free queries may wait past a response
+# without a command identity. Setters and transition waits remain strict.
+READONLY_QUERY_COMMANDS = frozenset({
+    "BUILD?", "PROTO?", "CONFIG?", "BOOT?", "STATE?", "MODE?", "ROWS?",
+    "ROWMODES?", "CAL?", "RAIL?", "USB?", "USBQ?", "USBSTREAM?", "SERIAL?",
+    "SCHED?", "SPI?", "FRONTENDS?", "PERF?", "FPS?", "BAT?", "BLELINK?",
+    "BLETX?", "TX?", "ST?", "BTX?", "WIFI?", "RECOVERY?", "RESTART?",
+})
+
+
 class ReceivedLine(str):
     """This round: retain endpoint provenance while preserving parser API."""
     def __new__(cls, text, channel):
@@ -204,6 +214,7 @@ class Collector:
         self.raw_bytes = 0
         self.tx_bytes = 0
         self.partial_writes = 0
+        self.uncorrelated_query_errors = 0
         self.line_buffer = bytearray()
         self.lines = deque()
         self.original_usb = None
@@ -327,6 +338,7 @@ class Collector:
                 "trailing_partial_CTRL_line_bytes": None if self.is_cdc else len(self.ctrl_line_buffer),
                 "CTRL_byte_accounting": "included_in_shared_raw_not_a_separate_endpoint_counter" if self.is_cdc else "separate_endpoint_when_bulk",
                 "tx_host_accepted_bytes": self.tx_bytes,
+                "uncorrelated_query_errors": self.uncorrelated_query_errors,
                 "CTRL_and_DATA_order": "independent_endpoints_complete_lines_only" if self.is_bulk else "one_stream"}
 
     def command_deadline(self, phase_deadline):
@@ -363,10 +375,29 @@ class Collector:
         # satisfy a query issued later. This is not a device input flush.
         self.lines.clear()
         self.send(command, deadline)
-        line = self.wait(lambda value: value.startswith(tag + ","), deadline, command)
-        fields = parse_fields(line)
-        self.replies[command] = fields
-        return fields
+        while time.monotonic() < deadline:
+            line = self.next_line(deadline)
+            if line.startswith("ERR,"):
+                # One possible source is a tty echoing a device record prefix
+                # before raw mode is applied; send()'s leading LF would then
+                # complete that old input. The actual source remains unknown.
+                # Keep it as evidence; it neither rejects this query nor
+                # proves success. Never extend the deadline or replay a setter.
+                if (command in READONLY_QUERY_COMMANDS and
+                        line == "ERR,cmd=UNKNOWN,reason=unsupported"):
+                    self.uncorrelated_query_errors += 1
+                    self.event("uncorrelated_error", command=command, line=line,
+                               correlation="unknown_command_identity",
+                               action="wait_readonly_reply_with_original_deadline")
+                    continue
+                self.event("command_error", command=command, line=line)
+                raise CaptureError(f"device_error:{command}:{line}")
+            if line.startswith(tag + ","):
+                self.event("reply", command=command, line=line)
+                fields = parse_fields(line)
+                self.replies[command] = fields
+                return fields
+        raise CaptureError("reply_deadline_expired")
 
     def set_usb(self, mode, phase_deadline):
         if self.is_otg:
