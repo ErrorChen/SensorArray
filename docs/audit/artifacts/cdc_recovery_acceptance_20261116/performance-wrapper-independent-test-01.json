@@ -1,0 +1,240 @@
+{
+  "status": "PASS",
+  "kind": "production_Kconfig_and_guard_regression",
+  "target_build": false,
+  "hardware": false,
+  "parser_version": "2.5.4",
+  "input_sha256": {
+    "/home/csc/esp/workspace/SensorArray/main/kconfigs/Kconfig.compat": "ec4cbaf89bc05fe3fb6e5d2f1ad7d85b8db8caa6e83a7a9c03f8223576a77537",
+    "/home/csc/esp/workspace/SensorArray/main/main.c": "a25d982fdf357976d48db408fbe538a31a550b782c5737e1afa94c724aebf83f",
+    "/home/csc/esp/workspace/SensorArray/main/Kconfig.projbuild": "21f36b57c8c5313341817fd3ffc39deaf7de22e422b4c1a5d989d542a9fb15b6",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/Kconfig": "bba9b8ef586b5b008b268de631f225093cf81826312f98d5fd35e6a70637cd2c",
+    "/home/csc/esp/esp-idf-v5.5.5/Kconfig": "26278579772cb3495e48585c1daa10afd961e588e64a6dcd98b65c12ad73776b",
+    "/home/csc/esp/workspace/SensorArray/sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "/home/csc/esp/workspace/SensorArray/build/config.env": "9ac9435dba9c0628ae889d45daaf855f15ad356247aa1587d7aa739fab923c24",
+    "/home/csc/esp/workspace/SensorArray/tests/fixtures/performance_task_wrapper_cases.json": "b3d78f9dc4d46f48b3878d554361a3f80a83ab677c751f2c93419e4d35e8862f",
+    "/home/csc/esp/workspace/SensorArray/tools/test_performance_task_wrapper.py": "c3b2e51a2e2304c757ceb8ad329a03155beeed0f4817a79bcf504bc5afacb3f4",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/linker.lf": "27c683a2708c17f2bbaefe8fced5af23c498ee35445df46e1e7852ebdda406cc",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c": "f7cfbbfe924f53c2c40801550d5a57867f58f76c68432efca97ae18fcec89ef8"
+  },
+  "matrix": [
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": null,
+      "extension": false,
+      "wrapper": "n"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": null,
+      "extension": true,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": false,
+      "debug": true,
+      "extra": null,
+      "extension": false,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": false,
+      "debug": true,
+      "extra": null,
+      "extension": true,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": false,
+      "debug": false,
+      "extra": null,
+      "extension": false,
+      "wrapper": "n"
+    },
+    {
+      "s3": true,
+      "perf": false,
+      "debug": false,
+      "extra": null,
+      "extension": true,
+      "wrapper": "n"
+    },
+    {
+      "s3": false,
+      "perf": true,
+      "debug": false,
+      "extra": null,
+      "extension": false,
+      "wrapper": "n"
+    },
+    {
+      "s3": false,
+      "perf": true,
+      "debug": false,
+      "extra": null,
+      "extension": true,
+      "wrapper": "n"
+    },
+    {
+      "s3": false,
+      "perf": false,
+      "debug": true,
+      "extra": null,
+      "extension": false,
+      "wrapper": "y"
+    },
+    {
+      "s3": false,
+      "perf": false,
+      "debug": true,
+      "extra": null,
+      "extension": true,
+      "wrapper": "y"
+    },
+    {
+      "s3": false,
+      "perf": false,
+      "debug": false,
+      "extra": null,
+      "extension": false,
+      "wrapper": "n"
+    },
+    {
+      "s3": false,
+      "perf": false,
+      "debug": false,
+      "extra": null,
+      "extension": true,
+      "wrapper": "n"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_COREDUMP_ENABLE",
+      "extension": false,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_COREDUMP_ENABLE",
+      "extension": true,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_SYSTEM_PANIC_GDBSTUB",
+      "extension": false,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_SYSTEM_PANIC_GDBSTUB",
+      "extension": true,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_SYSTEM_GDBSTUB_RUNTIME",
+      "extension": false,
+      "wrapper": "y"
+    },
+    {
+      "s3": true,
+      "perf": true,
+      "debug": false,
+      "extra": "ESP_SYSTEM_GDBSTUB_RUNTIME",
+      "extension": true,
+      "wrapper": "y"
+    }
+  ],
+  "full_tree": [
+    {
+      "kind": "baseline",
+      "wrapper": "n",
+      "direct_dependency": "COMPILER_OPTIMIZATION_DEBUG || ESP_COREDUMP_ENABLE || ESP_SYSTEM_PANIC_GDBSTUB || ESP_SYSTEM_GDBSTUB_RUNTIME",
+      "visibility": 0,
+      "definition_count": 1,
+      "generated_header_wrapper_y": false,
+      "generated_header_sha256": "f604d9ed9279988c425116746e5973e18cfb1b728011e9fd2c89d9fbd5e64c8c",
+      "parser_info": ""
+    },
+    {
+      "kind": "extension",
+      "wrapper": "y",
+      "direct_dependency": "(IDF_TARGET_ESP32S3 && COMPILER_OPTIMIZATION_PERF) || COMPILER_OPTIMIZATION_DEBUG || ESP_COREDUMP_ENABLE || ESP_SYSTEM_PANIC_GDBSTUB || ESP_SYSTEM_GDBSTUB_RUNTIME",
+      "visibility": 0,
+      "definition_count": 2,
+      "generated_header_wrapper_y": true,
+      "generated_header_sha256": "e000d47c20d85997c444ca6f43187c767e283447f5bc067decc060d5b36dd219",
+      "parser_info": "info: INFO: Symbol FREERTOS_TASK_FUNCTION_WRAPPER defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:\n    /tmp/sensorarray-task-wrapper-5on9m50b/extension/main/kconfigs/Kconfig.compat:68\n    /home/csc/esp/esp-idf-v5.5.5/components/freertos/Kconfig:362\n"
+    }
+  ],
+  "full_tree_symbol_changes": {
+    "FREERTOS_TASK_FUNCTION_WRAPPER": [
+      "n",
+      "y"
+    ]
+  },
+  "effective_symbols_compared": 3769,
+  "guard_compile_cases": [
+    {
+      "s3": 1,
+      "perf": 1,
+      "wrapper": 1,
+      "expected_rejection": false,
+      "exit_code": 0
+    },
+    {
+      "s3": 1,
+      "perf": 1,
+      "wrapper": 0,
+      "expected_rejection": true,
+      "exit_code": 1
+    },
+    {
+      "s3": 1,
+      "perf": 1,
+      "wrapper": null,
+      "expected_rejection": true,
+      "exit_code": 1
+    },
+    {
+      "s3": 0,
+      "perf": 1,
+      "wrapper": 0,
+      "expected_rejection": false,
+      "exit_code": 0
+    },
+    {
+      "s3": 1,
+      "perf": 0,
+      "wrapper": 0,
+      "expected_rejection": false,
+      "exit_code": 0
+    },
+    {
+      "s3": 0,
+      "perf": 0,
+      "wrapper": null,
+      "expected_rejection": false,
+      "exit_code": 0
+    }
+  ],
+  "inputs_unchanged": true
+}

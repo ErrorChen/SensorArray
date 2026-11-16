@@ -1,0 +1,78 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40385958 <pxPortInitialiseStack>:
+40385958:	004136        	entry	a1, 32
+4038595b:	049d      	mov.n	a9, a4
+4038595d:	344020        	extui	a4, a2, 0, 4
+40385960:	035d      	mov.n	a5, a3
+40385962:	093d      	mov.n	a3, a9
+40385964:	00e416        	beqz	a4, 40385976 <pxPortInitialiseStack+0x1e>
+40385967:	bdbdd1        	l32r	a13, 4037505c <_iram_text_start+0xc58> (3c124a4c <_flash_rodata_start+0x492c>)
+4038596a:	bdbdc1        	l32r	a12, 40375060 <_iram_text_start+0xc5c> (3c14ff64 <__func__$4>)
+4038596d:	bdbda1        	l32r	a10, 40375064 <_iram_text_start+0xc60> (3c124aaa <_flash_rodata_start+0x498a>)
+40385970:	aba1b2        	movi	a11, 0x1ab
+40385973:	088f65        	call8	4038e268 <__assert_func>
+40385976:	bdbcc1        	l32r	a12, 40375068 <_iram_text_start+0xc64> (3c1612bc <_esp_system_init_fn_array_end>)
+40385979:	bdbd81        	l32r	a8, 40375070 <_iram_text_start+0xc6c> (3c1612bc <_esp_system_init_fn_array_end>)
+4038597c:	bdbcb1        	l32r	a11, 4037506c <_iram_text_start+0xc68> (3c1612bc <_esp_system_init_fn_array_end>)
+4038597f:	7c8a      	add.n	a7, a12, a8
+40385981:	c4aea2        	movi	a10, 0xfffffec4
+40385984:	bdbc81        	l32r	a8, 40375074 <_iram_text_start+0xc70> (3c1612bc <_esp_system_init_fn_array_end>)
+40385987:	77fb      	addi.n	a7, a7, 15
+40385989:	097c      	movi.n	a9, -16
+4038598b:	c077b0        	sub	a7, a7, a11
+4038598e:	22aa      	add.n	a2, a2, a10
+40385990:	102290        	and	a2, a2, a9
+40385993:	c07780        	sub	a7, a7, a8
+40385996:	107790        	and	a7, a7, a9
+40385999:	1bc2a2        	addi	a10, a2, 27
+4038599c:	c07270        	sub	a7, a2, a7
+4038599f:	c06cb0        	sub	a6, a12, a11
+403859a2:	10aa90        	and	a10, a10, a9
+403859a5:	0249      	s32i.n	a4, a2, 0
+403859a7:	1249      	s32i.n	a4, a2, 4
+403859a9:	22a9      	s32i.n	a10, a2, 8
+403859ab:	06cd      	mov.n	a12, a6
+403859ad:	07ad      	mov.n	a10, a7
+403859af:	bad981        	l32r	a8, 40374514 <_iram_text_start+0x110> (400011f4 <memcpy>)
+403859b2:	0008e0        	callx8	a8
+403859b5:	bdae81        	l32r	a8, 40375070 <_iram_text_start+0xc6c> (3c1612bc <_esp_system_init_fn_array_end>)
+403859b8:	bdaf91        	l32r	a9, 40375074 <_iram_text_start+0xc70> (3c1612bc <_esp_system_init_fn_array_end>)
+403859bb:	04bd      	mov.n	a11, a4
+403859bd:	c0c890        	sub	a12, a8, a9
+403859c0:	a76a      	add.n	a10, a7, a6
+403859c2:	baa781        	l32r	a8, 40374460 <_iram_text_start+0x5c> (400011e8 <memset>)
+403859c5:	0008e0        	callx8	a8
+403859c8:	bdac91        	l32r	a9, 40375078 <_iram_text_start+0xc74> (1 <_tls_section_alignment>)
+403859cb:	40af22        	movi	a2, -192
+403859ce:	272a      	add.n	a2, a7, a2
+403859d0:	697b      	addi.n	a6, a9, 7
+403859d2:	c0a0c2        	movi	a12, 192
+403859d5:	609090        	neg	a9, a9
+403859d8:	04bd      	mov.n	a11, a4
+403859da:	02ad      	mov.n	a10, a2
+403859dc:	106690        	and	a6, a6, a9
+403859df:	baa081        	l32r	a8, 40374460 <_iram_text_start+0x5c> (400011e8 <memset>)
+403859e2:	0008e0        	callx8	a8
+403859e5:	bb6c91        	l32r	a9, 40374798 <_iram_text_start+0x394> (4037c738 <_xt_user_exit>)
+403859e8:	bda681        	l32r	a8, 40375080 <_iram_text_start+0xc7c> (50030 <UserFrameTotalSize+0x4ff30>)
+403859eb:	0299      	s32i.n	a9, a2, 0
+403859ed:	bda391        	l32r	a9, 4037507c <_iram_text_start+0xc78> (403858fc <vPortTaskWrapper>)
+403859f0:	c06760        	sub	a6, a7, a6
+403859f3:	4279      	s32i.n	a7, a2, 16
+403859f5:	3249      	s32i.n	a4, a2, 12
+403859f7:	1299      	s32i.n	a9, a2, 4
+403859f9:	9259      	s32i.n	a5, a2, 36
+403859fb:	a239      	s32i.n	a3, a2, 40
+403859fd:	2289      	s32i.n	a8, a2, 8
+403859ff:	b0c772        	addi	a7, a7, -80
+40385a02:	0769      	s32i.n	a6, a7, 0
+40385a04:	f01d      	retw.n
+
+Disassembly of section .flash.text:

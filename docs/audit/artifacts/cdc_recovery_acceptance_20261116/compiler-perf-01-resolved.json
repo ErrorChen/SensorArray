@@ -1,0 +1,14 @@
+{
+  "resolved": {
+    "COMPILER_OPTIMIZATION_PERF": true,
+    "COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE": true,
+    "COMPILER_STACK_CHECK_MODE_STRONG": true,
+    "HEAP_POISONING_LIGHT": true,
+    "ESP_DEFAULT_CPU_FREQ_MHZ": 160,
+    "ESP_TASK_WDT_EN": true,
+    "SENSORARRAY_CPU_OWNER_DIAGNOSTICS": true
+  },
+  "sdkconfig_sha256": "9f041c8e583a363e05d97743e0acc712d704eeb2d9db82f76e234bf592358cfe",
+  "sdkconfig_defaults_sha256": "a93a581ac68dcb4d37c5bdf9ebca12dd1735be7a04f5dc692383f2902d190a69",
+  "build_config_sha256": "eafa3709aaf9a515e19ef03e5383b2f22365dcf0d70917aa2eca39fa90f828e8"
+}

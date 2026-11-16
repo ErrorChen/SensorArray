@@ -1,0 +1,35 @@
+{
+  "status": "REJECTED_DO_NOT_FLASH",
+  "reason": "IDF performance option implicitly disables FREERTOS_TASK_FUNCTION_WRAPPER; user requires retaining safety checks.",
+  "current_board_remains": "dafaf9b, ELF922e1c880317d4ace18eb2ec2b368ad7d3b9a1ac1c548f7e34a63182ffeb2c10",
+  "build_label": "compiler-perf-01",
+  "hardware_flash_attempted": false,
+  "configuration_diff": {
+    "CONFIG_COMPILER_OPTIMIZATION_DEBUG": {
+      "old": "y",
+      "new": "n"
+    },
+    "CONFIG_COMPILER_OPTIMIZATION_DEFAULT": {
+      "old": "y",
+      "new": "n"
+    },
+    "CONFIG_COMPILER_OPTIMIZATION_LEVEL_DEBUG": {
+      "old": "y",
+      "new": "n"
+    },
+    "CONFIG_COMPILER_OPTIMIZATION_PERF": {
+      "old": "n",
+      "new": "y"
+    },
+    "CONFIG_FREERTOS_TASK_FUNCTION_WRAPPER": {
+      "old": "y",
+      "new": null
+    },
+    "CONFIG_OPTIMIZATION_LEVEL_DEBUG": {
+      "old": "y",
+      "new": "n"
+    }
+  },
+  "old_sdkconfig_sha256": "d1ff64cc0ca9902c8d20a59a1199c001604ff5dec25480970d782dcd7c5b6b5d",
+  "new_sdkconfig_sha256": "9f041c8e583a363e05d97743e0acc712d704eeb2d9db82f76e234bf592358cfe"
+}

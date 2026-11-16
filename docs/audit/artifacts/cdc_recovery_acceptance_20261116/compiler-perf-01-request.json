@@ -1,0 +1,7 @@
+{
+  "scope": "Compiler -Og to supported -O2, CPU remains160MHz; preserve assertions, stack checks, watchdog, heap poisoning and diagnostics. HIL not yet run.",
+  "previous_sdkconfig_sha256": "d1ff64cc0ca9902c8d20a59a1199c001604ff5dec25480970d782dcd7c5b6b5d",
+  "previous_defaults_sha256": "237d079d508f49599b748ab8498ed57abd278d7ca2c16b4ed323808241bfd960",
+  "exact_previous_sdkconfig_backup": "/tmp/sensorarray-before-perf-o2-sdkconfig-01",
+  "normal_runtime_diagnostics_default": "off; current profiling image explicitly on"
+}

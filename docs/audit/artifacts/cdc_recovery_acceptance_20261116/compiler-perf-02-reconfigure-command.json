@@ -1,0 +1,18 @@
+{
+  "command": [
+    "bash",
+    "-lc",
+    "source /home/csc/esp/esp-idf-v5.5.5/export.sh >/dev/null && idf.py reconfigure"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 120.0,
+  "head": "0b371b6431557c4233b537211f5396fe4575f26f",
+  "dirty_diff_sha256": "f067ec3d09e8b0b4c65745b1c3af5955cba8c538cdf1a14d4192aaaafe27e7e5",
+  "started_utc": "2026-11-16T09:31:12.744042+00:00",
+  "started_monotonic": 328365.191539569,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-reconfigure-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T09:31:18.171212+00:00",
+  "finished_monotonic": 328370.618719153,
+  "log_sha256": "5caf236afbf8bb2dc7a1cde62631af02dd112e598e8f31f434187b0338abba97"
+}

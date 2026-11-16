@@ -1,0 +1,2 @@
+{"type": "CDC_debug_progress", "rx_bytes": 59504, "elapsed_seconds": 20.18530654499773}
+{"status": "STOPPED", "error": null, "rx_bytes": 71548, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.rx.bin"}

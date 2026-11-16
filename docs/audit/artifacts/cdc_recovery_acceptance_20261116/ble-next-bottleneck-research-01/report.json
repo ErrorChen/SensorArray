@@ -1,0 +1,1130 @@
+{
+  "created_utc": "2026-11-16T09:58:34.159969+00:00",
+  "scope": "Read-only closed evidence through screen10; no production/SDK edits or target build/HIL",
+  "head": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "idf_head": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+  "evidence": [
+    {
+      "label": "screen-07",
+      "capture_window_seconds": 120.0001169850002,
+      "usb_complete_fps": 59.816608352950496,
+      "ble_complete_frames": 3886,
+      "ble_complete_fps": 32.38330176366197,
+      "sdk_query_window_seconds": 120.5385657629813,
+      "sdk_completed_delta": 12991,
+      "sdk_wall_us_delta": 62018883,
+      "sdk_mean_wall_us": 4773.9883765683935,
+      "sdk_wall_is_not_cpu_or_blocking_proof": true,
+      "conf_error_delta": 0,
+      "conf_match_semantics": "generic local SDK status; unmatched epoch unknown; not PC ACK",
+      "actual_link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "actual_link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "cpu_separate_sample_windows": {
+        "0": {
+          "own_run_us": 17903690,
+          "sample_window_us": 120095170,
+          "scheduled_share_percent": 14.907918445013234
+        },
+        "1": {
+          "own_run_us": 9070485,
+          "sample_window_us": 119846299,
+          "scheduled_share_percent": 7.568431462368312
+        },
+        "2": {
+          "own_run_us": 30015103,
+          "sample_window_us": 120182388,
+          "scheduled_share_percent": 24.974626897911197
+        },
+        "3": {
+          "own_run_us": 11569529,
+          "sample_window_us": 120609289,
+          "scheduled_share_percent": 9.5925687780151
+        }
+      },
+      "bl_diagnostic_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 567,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 158385,
+          "monotonic": 323788.109547964,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "1555",
+            "ms": "1551",
+            "md": "163",
+            "sentD": "1481",
+            "sentL": "70",
+            "dropD": "163",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "7309",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 1039342,
+          "monotonic": 323907.933183743,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "5722",
+            "ms": "5718",
+            "md": "3340",
+            "sentD": "5363",
+            "sentL": "355",
+            "dropD": "3340",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "20236",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 1555,
+            "last": 5722,
+            "delta": 4167,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 1551,
+            "last": 5718,
+            "delta": 4167,
+            "unavailable": null
+          },
+          "md": {
+            "first": 163,
+            "last": 3340,
+            "delta": 3177,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 1481,
+            "last": 5363,
+            "delta": 3882,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 70,
+            "last": 355,
+            "delta": 285,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 163,
+            "last": 3340,
+            "delta": 3177,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 7309,
+            "last": 20236,
+            "delta": 12927,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.82363577897195,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "summary_sha256": "820edf8fb4462e57e38b6ecfa79320cce80f618db408c2d260671a99ad7d666b",
+      "analysis_sha256": "4d83376dfeab8ba7914ae1c6724c03b3bffc0807857b186c06216067a561a979"
+    },
+    {
+      "label": "screen-08",
+      "capture_window_seconds": 120.00013044598745,
+      "usb_complete_fps": 59.174935673892364,
+      "ble_complete_frames": 3974,
+      "ble_complete_fps": 33.11663066723676,
+      "sdk_query_window_seconds": 120.57615261501633,
+      "sdk_completed_delta": 13248,
+      "sdk_wall_us_delta": 61923999,
+      "sdk_mean_wall_us": 4674.214900362319,
+      "sdk_wall_is_not_cpu_or_blocking_proof": true,
+      "conf_error_delta": 0,
+      "conf_match_semantics": "generic local SDK status; unmatched epoch unknown; not PC ACK",
+      "actual_link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "actual_link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "cpu_separate_sample_windows": {
+        "0": {
+          "own_run_us": 18189732,
+          "sample_window_us": 120992137,
+          "scheduled_share_percent": 15.033813313008928
+        },
+        "1": {
+          "own_run_us": 9125833,
+          "sample_window_us": 120906284,
+          "scheduled_share_percent": 7.547856652347367
+        },
+        "2": {
+          "own_run_us": 29526020,
+          "sample_window_us": 120021728,
+          "scheduled_share_percent": 24.60056232484838
+        },
+        "3": {
+          "own_run_us": 11760714,
+          "sample_window_us": 120679896,
+          "scheduled_share_percent": 9.745379628103093
+        }
+      },
+      "bl_diagnostic_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 485,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 54656,
+          "monotonic": 325963.077760625,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "505",
+            "ms": "500",
+            "md": "160",
+            "sentD": "471",
+            "sentL": "29",
+            "dropD": "160",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "2102",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 932464,
+          "monotonic": 326082.727856374,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "4749",
+            "ms": "4745",
+            "md": "3197",
+            "sentD": "4434",
+            "sentL": "311",
+            "dropD": "3197",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "15258",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 505,
+            "last": 4749,
+            "delta": 4244,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 500,
+            "last": 4745,
+            "delta": 4245,
+            "unavailable": null
+          },
+          "md": {
+            "first": 160,
+            "last": 3197,
+            "delta": 3037,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 471,
+            "last": 4434,
+            "delta": 3963,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 29,
+            "last": 311,
+            "delta": 282,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 160,
+            "last": 3197,
+            "delta": 3037,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 2102,
+            "last": 15258,
+            "delta": 13156,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.65009574900614,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "summary_sha256": "64a59fa7b07a49210d9e282e93607fc3ef8f96ccc01ac8e95bbb5fc71f024785",
+      "analysis_sha256": "890f2a61357910c1e9a9c99173ba6667e14867b69473d0e122d8370fbf22ba0f"
+    },
+    {
+      "label": "screen-09",
+      "capture_window_seconds": 120.00006162101636,
+      "usb_complete_fps": 57.66663705436012,
+      "ble_complete_frames": 4695,
+      "ble_complete_fps": 39.12497990899144,
+      "sdk_query_window_seconds": 120.42803058895515,
+      "sdk_completed_delta": 15383,
+      "sdk_wall_us_delta": 62979474,
+      "sdk_mean_wall_us": 4094.095690047455,
+      "sdk_wall_is_not_cpu_or_blocking_proof": true,
+      "conf_error_delta": 0,
+      "conf_match_semantics": "generic local SDK status; unmatched epoch unknown; not PC ACK",
+      "actual_link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "actual_link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "cpu_separate_sample_windows": {
+        "0": {
+          "own_run_us": 21167994,
+          "sample_window_us": 119927415,
+          "scheduled_share_percent": 17.650671449893252
+        },
+        "1": {
+          "own_run_us": 8935494,
+          "sample_window_us": 120069062,
+          "scheduled_share_percent": 7.441962026820864
+        },
+        "2": {
+          "own_run_us": 16217602,
+          "sample_window_us": 120181452,
+          "scheduled_share_percent": 13.494263657257195
+        },
+        "3": {
+          "own_run_us": 12332742,
+          "sample_window_us": 120513737,
+          "scheduled_share_percent": 10.233474047858959
+        }
+      },
+      "bl_diagnostic_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 462,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 54036,
+          "monotonic": 327416.482881979,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "435",
+            "ms": "432",
+            "md": "118",
+            "sentD": "406",
+            "sentL": "26",
+            "dropD": "118",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "1687",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 906090,
+          "monotonic": 327536.124449492,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "5394",
+            "ms": "5391",
+            "md": "2319",
+            "sentD": "5089",
+            "sentL": "302",
+            "dropD": "2319",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "16978",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 435,
+            "last": 5394,
+            "delta": 4959,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 432,
+            "last": 5391,
+            "delta": 4959,
+            "unavailable": null
+          },
+          "md": {
+            "first": 118,
+            "last": 2319,
+            "delta": 2201,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 406,
+            "last": 5089,
+            "delta": 4683,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 26,
+            "last": 302,
+            "delta": 276,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 118,
+            "last": 2319,
+            "delta": 2201,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 1687,
+            "last": 16978,
+            "delta": 15291,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.64156751299743,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "summary_sha256": "9978c0e8862a9c261b27d2057cc2929e02228ed6b552804678b329cfbb352bae",
+      "analysis_sha256": "415b049d4fbbfab337510bdab75d9e7f71f92fca93ca5f874b35bea581837175",
+      "notification_geometry": {
+        "journal_sha256": "9811f909bd7073b5409ecc6106e9b69509d335a21316a9338f69654bf8068a14",
+        "notifications_by_channel": {
+          "D": 14087,
+          "L": 1251
+        },
+        "complete_G_data_messages": 4695,
+        "boundary_partial_messages": 1,
+        "message_lengths": {
+          "598": 675,
+          "599": 3487,
+          "597": 32,
+          "593": 87,
+          "592": 9,
+          "594": 244,
+          "600": 161
+        },
+        "notification_value_lengths": {
+          "229": 4610,
+          "228": 1840,
+          "227": 144,
+          "226": 42,
+          "230": 7451
+        },
+        "G_header_lengths": {
+          "29": 1812,
+          "30": 12275
+        },
+        "planner_trial_snprintf_total": 23475,
+        "observed_G_fragment_count": {
+          "3": 4695
+        },
+        "mtu517_balanced_hypothetical_notify_count": 9390,
+        "observed_notify_count_complete_messages": 14085,
+        "ideal_LL_PDU_min_251_old": 14085,
+        "ideal_LL_PDU_min_251_mtu517_balanced": 18780,
+        "ideal_PDU_scope": "Mathematical lower bound with ATT3+L2CAP4 and operative251-byte LL payload; not measured air/HCI completions. DLE callback lacks peer identity.",
+        "host_callback_gap_ms_percentiles": {
+          "50": 7.174097991082817,
+          "75": 13.168108998797834,
+          "90": 15.105882019270211,
+          "99": 22.229027992580086
+        },
+        "shape_replay": "Python translation of current balanced planner, validated against every observed complete G count/header/body length. Not nativeC equivalence or a firmware change."
+      }
+    },
+    {
+      "label": "screen-10",
+      "capture_window_seconds": 120.00012219400378,
+      "usb_complete_fps": 65.60826652552693,
+      "ble_complete_frames": 5298,
+      "ble_complete_fps": 44.149955042835224,
+      "sdk_query_window_seconds": 120.3916476740269,
+      "sdk_completed_delta": 17360,
+      "sdk_wall_us_delta": 66127493,
+      "sdk_mean_wall_us": 3809.1873847926267,
+      "sdk_wall_is_not_cpu_or_blocking_proof": true,
+      "conf_error_delta": 0,
+      "conf_match_semantics": "generic local SDK status; unmatched epoch unknown; not PC ACK",
+      "actual_link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "actual_link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "cpu_separate_sample_windows": {
+        "0": {
+          "own_run_us": 19719285,
+          "sample_window_us": 120995504,
+          "scheduled_share_percent": 16.29753531999007
+        },
+        "1": {
+          "own_run_us": 6430590,
+          "sample_window_us": 120777834,
+          "scheduled_share_percent": 5.324313068903024
+        },
+        "2": {
+          "own_run_us": 17839172,
+          "sample_window_us": 120133160,
+          "scheduled_share_percent": 14.849498672972558
+        },
+        "3": {
+          "own_run_us": 12055945,
+          "sample_window_us": 119550795,
+          "scheduled_share_percent": 10.084370413429706
+        }
+      },
+      "bl_diagnostic_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 522,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 69435,
+          "monotonic": 329496.156284191,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "577",
+            "ms": "574",
+            "md": "124",
+            "sentD": "544",
+            "sentL": "30",
+            "dropD": "124",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "2332",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 1026437,
+          "monotonic": 329615.834118049,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "6175",
+            "ms": "6172",
+            "md": "2657",
+            "sentD": "5828",
+            "sentL": "344",
+            "dropD": "2657",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "19598",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 577,
+            "last": 6175,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 574,
+            "last": 6172,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "md": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 544,
+            "last": 5828,
+            "delta": 5284,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 30,
+            "last": 344,
+            "delta": 314,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 2332,
+            "last": 19598,
+            "delta": 17266,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.6778338580043,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "summary_sha256": "bc20182d3ddf30f924baef81d5ca634ea8671fc52107b4b77c8564adc4a5580f",
+      "analysis_sha256": "7698c30b4af9be239f1e68c0ea17a3fbbc4fe9e4a96b6e844f88d8b670a13fdc",
+      "notification_geometry": {
+        "journal_sha256": "b8e8b0e0c7d454bda65e57c07a412bc5d769a5dcd29b4a38b66449b1e9cea14c",
+        "notifications_by_channel": {
+          "D": 15895,
+          "L": 1417
+        },
+        "complete_G_data_messages": 5298,
+        "boundary_partial_messages": 1,
+        "message_lengths": {
+          "598": 909,
+          "597": 39,
+          "593": 215,
+          "592": 16,
+          "599": 3707,
+          "594": 234,
+          "600": 178
+        },
+        "notification_value_lengths": {
+          "229": 5218,
+          "228": 1952,
+          "227": 251,
+          "226": 49,
+          "230": 8425
+        },
+        "G_header_lengths": {
+          "29": 1392,
+          "30": 14503
+        },
+        "planner_trial_snprintf_total": 26490,
+        "observed_G_fragment_count": {
+          "3": 5298
+        },
+        "mtu517_balanced_hypothetical_notify_count": 10596,
+        "observed_notify_count_complete_messages": 15894,
+        "ideal_LL_PDU_min_251_old": 15894,
+        "ideal_LL_PDU_min_251_mtu517_balanced": 21192,
+        "ideal_PDU_scope": "Mathematical lower bound with ATT3+L2CAP4 and operative251-byte LL payload; not measured air/HCI completions. DLE callback lacks peer identity.",
+        "host_callback_gap_ms_percentiles": {
+          "50": 6.9399100029841065,
+          "75": 9.035911993123591,
+          "90": 14.972210046835244,
+          "99": 21.67950803413987
+        },
+        "shape_replay": "Python translation of current balanced planner, validated against every observed complete G count/header/body length. Not nativeC equivalence or a firmware change."
+      }
+    }
+  ],
+  "source_sha256": {
+    "/home/csc/esp/workspace/SensorArray/components/sensorarrayBle/sensorarrayBle.c": "5f27e3dac2db416059abf0ae6ba4beb3e5397f69a6747a88a68e854a0a14498e",
+    "/home/csc/esp/workspace/SensorArray/main/output/sensorarrayTextProtocol.c": "25e88eab219f076d4ee8379400f2e7178d9da377bf571175cde575a1ef7c732b",
+    "/home/csc/esp/workspace/SensorArray/core/transport/sensorarrayTransport.c": "caf2825357c2f56d4b7e5fdd81e8d0bde9056ea8137de1f16995b4e1a143bb2b",
+    "/home/csc/esp/workspace/SensorArray/tools/text_protocol.py": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/api/esp_gatts_api.c": "789cec3d36eedd7c549d8f9db73655ca2f59e136ea44f896d7b3b5de84878e36",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/api/esp_gatt_common_api.c": "8937fa65afc4f7b99dad3b04a9c6016643d5b0367b871111229e2ec0a649fe08",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/thread.c": "9391231ea489ef4fbab908cc4c3d9e50f98279b9ee4fa1016bf0b5f252305ce3",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/btc/core/btc_task.c": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/bta/gatt/bta_gatts_api.c": "d528dfc6290b55f93540d5e58b083efc66ea6cfb77d1deb645913b7f26d077c6",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/bta/gatt/bta_gatts_act.c": "d46a028f404045b3404eaddf871450b0ac718b4ac77be759b2bef17348a6c37d",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_api.c": "1fcce65586e8b56cafe82fc3c01b006bd13d16e6328a4476e0842565b9228986",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_link.c": "85a3b5889ba92c758a129e7389ce4a2e2a19c2b3c89814f8f33abbd680f839fe",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_rom/include/esp_rom_crc.h": "bd91ce2ccc86f340f73b91d953635a8ea9e6c999a2658328066ec8c0c8d93f5c",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_rom/patches/esp_rom_crc.c": "e2c882fb507b8ba1d646235efcc7a5944524a3066e9d0a9bb282cc31354d7ff6"
+  },
+  "findings": [
+    {
+      "classification": "PROVEN_SOURCE_AND_HIL",
+      "finding": "598 bytes require at least3 notifications under MTU247 (ATT value max244), even without G overhead. Current3 fragments are not redundant."
+    },
+    {
+      "classification": "PROVEN_SOURCE",
+      "finding": "FAST sends need_confirm=false and never awaits CONF. There is no extra set_attr_value or unconditional tick sleep in the success path. One public API enqueue per fragment."
+    },
+    {
+      "classification": "PROVEN_SOURCE_WITH_UNMEASURED_ATTRIBUTION",
+      "finding": "Public API allocates/copies, increments BTC count under an unbounded binary-semaphore wait, posts BTC queue0 (default100) with portMAX_DELAY. BTC19 posts BTU20; local CONF returns to BTC. Higher-priority drain and same-priority rescheduling can all occur before API return.4ms wall is not4ms CPU or an ACK wait."
+    },
+    {
+      "classification": "PROVEN_SOURCE",
+      "finding": "L2CAP drains while controller_le_xmit_window>0 and sent_not_acked<link quota; HCI completed-packet events replenish window. It is not fixed one-notification-per-connection-event application serialization."
+    },
+    {
+      "classification": "UNKNOWN",
+      "finding": "No current capture records actual controller-credit window or HCI completion timing. cg0 and confError0 do not establish unsaturated radio, and host callback spacing is not over-air timing."
+    },
+    {
+      "classification": "PROVEN_SOURCE_CANDIDATE",
+      "finding": "Replace bitwise CRC computation with esp_rom_crc32_le(0,...) on target, retaining scientificCRC and both enqueue/dequeue checks and all error branches. SDK header/ROM mapping define same reflectedIEEE polynomial/seed/finalization. Keep independent portablebitwise host oracle; no benefit magnitude yet."
+    },
+    {
+      "classification": "PROVEN_SOURCE_CANDIDATE",
+      "finding": "G header length is18 plus decimal widths(mid,index,count,chunk,total). Replace only planner trialsnprintf with this calculation; keep actualwire formatter, all bounds and identical balanced chunks. Three-fragment records currently incur5 trial plus3 wire snprintf calls. NativeC boundary equivalence still required."
+    },
+    {
+      "classification": "LEGAL_EXPERIMENT_NOT_FIX",
+      "finding": "PreferredMTU517 is supported by officialIDF throughput examples and current512 scratch/attributes. Actual peer negotiation must be observed; fallback247 remains valid. With current balanced2-fragment plan, operativeDLE251 needs ideal4 LL PDUs instead of3. FewerSDK calls can trade against morecontroller/air segments; no byte-only throughput claim."
+    },
+    {
+      "classification": "OBSERVATION_CANDIDATE",
+      "finding": "esp_ble_get_sendable_packets_num() reads global controllerLEwindow without adding a mutex or enqueue, documentedonly BLErunningcore/singleconnection. SampleonTXowner boundary and count zero/min/max, taggedunknown if linkcondition fails. Do not gate sends on it. Perconnectionget_cur_sendable adds portMAX_DELAY semaphore and is not a free/nonblocking hotpath probe."
+    },
+    {
+      "classification": "OUT_OF_SCOPE",
+      "finding": "Successful genericCONF still makes two payloadcopies subsequently hidden by cb len0. SDK ownership/lifetime needs bothcopies today; do not remove them from application or bypasspublicAPI. SDK is read-only."
+    }
+  ],
+  "minimal_next_steps": [
+    "First strict-equivalence ROMCRC and planner arithmetic, keeping wire/CRC checks/budgets/queues/priorities/ADC SPI CRC8 unchanged; actualC differential and target HIL required.",
+    "If still capacitylimited, independent MTU517-only120sVOLT1 USB+BLE trial on sameO2/160MHz/asserts: require actualMTU callback,2M/interval6 evidence; retainoriginalbalancedplanner and controltests for a clean onevariable comparison.",
+    "Compare completeframes/seq gaps/identity/CRC and separate querywindow SDKwall/calls/ownCPU, not only notification count. Ifpeer remains247, classify largerMTU conditionNOT_RUN.",
+    "Do not implement finitepriorityboost; prior research found no gain. Do not remove safety/logs, expandqueues or imposecapture limits. Outer deadlines cannot cancelanSDK call."
+  ]
+}

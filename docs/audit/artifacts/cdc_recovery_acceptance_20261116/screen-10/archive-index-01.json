@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.events.jsonl",
+      "raw_bytes": 12863,
+      "raw_sha256": "d3c15ebd615ef1c42b48b6b25df4c8f836f35e0a25e079b1d124cf0d97de5b2a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.events.jsonl.gz",
+      "gzip_bytes": 3689,
+      "gzip_sha256": "60da04b8a2acf70340ebecb2ad7ab28293d4afcda11f2e04897904e3643fc006",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.rx.bin",
+      "raw_bytes": 3605,
+      "raw_sha256": "38966c45d22878dfdea1341d9e79ea64804674b7087d4fa76b371d3d3a2246f9",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.rx.bin.gz",
+      "gzip_bytes": 1735,
+      "gzip_sha256": "28e9f5fb2782c0b370d733743b3f612b03d5d7e7888c3c3a408feabd4819e0fb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.events.jsonl",
+      "raw_bytes": 52252,
+      "raw_sha256": "5c2b7d4af76fc3b7bd005a5498199dc27db9e6afe3bf89f860aad025dbe24d53",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 9847,
+      "gzip_sha256": "fa2baef0e4f5ea29262fa21c622720e64dcab77369d96329ca0af568e0683547",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.rx.bin",
+      "raw_bytes": 71548,
+      "raw_sha256": "c5ed0c6b005bb6299b5094b181db825ff1b2d1a2f9c3e26d4272b12ab0b6a63c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.rx.bin.gz",
+      "gzip_bytes": 12100,
+      "gzip_sha256": "d961031664e202e622bbc8418c07bd62ccca91f6e35adb8e8a1505b8ac7f2bbb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-rom-01.epoch0.rx.bin",
+      "raw_bytes": 9027,
+      "raw_sha256": "ef390b46d03eb69c7076d718a204c7ca412ccda2d2425b26803889434f2caa11",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-rom-01.epoch0.rx.bin.gz",
+      "gzip_bytes": 2889,
+      "gzip_sha256": "36f2914189b9162e9c45fbd4c87b9dbcdba9a1da94317d1b297126c076817abe",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-rom-01.events.jsonl",
+      "raw_bytes": 20065,
+      "raw_sha256": "ccf17feb2eb0aa4529a6689ad103a5db17c6ddabf70f531dc500d13255bc0e8c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-rom-01.events.jsonl.gz",
+      "gzip_bytes": 4202,
+      "gzip_sha256": "e30fa77c603080b27f47af14c8399a3561507ec653b7f2e80439307acf4635d1",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.events.jsonl",
+      "raw_bytes": 22465,
+      "raw_sha256": "5f37ac3b40c97db05393a5a5d3995f277683592ae6eaf0cf3b6f57b7065fd3a0",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.events.jsonl.gz",
+      "gzip_bytes": 4760,
+      "gzip_sha256": "1429a6dc070ac34783ea4f7dd821a10a6bdaa45f952b3e98464338498f1a33e8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.rx.bin",
+      "raw_bytes": 12130,
+      "raw_sha256": "e762dcb024c606ddfda3e5aa6caace140df6bf11e78d6e753b7bb9a984488ee7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.rx.bin.gz",
+      "gzip_bytes": 3991,
+      "gzip_sha256": "3effaa140e6e6bcb735735228786f435876f2712ea9324ff3ca2f4f1a4dcc15d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-ble.ble.notifications.jsonl",
+      "raw_bytes": 10646045,
+      "raw_sha256": "b8e8b0e0c7d454bda65e57c07a412bc5d769a5dcd29b4a38b66449b1e9cea14c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 1330231,
+      "gzip_sha256": "01ce69c10124171653c3acf4bd2231b69d7c35646e56ed1d832fc028f3bf30e9",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-debug.debug.events.jsonl",
+      "raw_bytes": 770282,
+      "raw_sha256": "ecbea522a23b1a0c54f6c757fb95ce766587a1ef30511e858cf02759e80be769",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 131013,
+      "gzip_sha256": "5676e0f65c69bb11d49c9af763b8af339afcc18cef1b6e0c30083823be3e118e",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-debug.debug.rx.bin",
+      "raw_bytes": 1051475,
+      "raw_sha256": "f60720dd491b290de3d93587cc70f9637146bf72fcc6fa281a431cf1cde0e51c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-debug.debug.rx.bin.gz",
+      "gzip_bytes": 94499,
+      "gzip_sha256": "182775efba6582d57b02f93655f65a9536259be5eac53630209bf1cfb98b47f0",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.events.jsonl",
+      "raw_bytes": 3371056,
+      "raw_sha256": "453a3b417156537e514f8fe1f28d583f7ddae96eb48441547c337aff4a48f911",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.events.jsonl.gz",
+      "gzip_bytes": 456096,
+      "gzip_sha256": "fbc5821cd7f3f6b75c143ede7a2610c75cbbd9077877c706663aef3be22c7c42",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.rx.bin",
+      "raw_bytes": 4990212,
+      "raw_sha256": "a9243110e27ae26766cc77a0d5eccfc6e95ff2c3884abe5bf23a9027a26b63de",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.rx.bin.gz",
+      "gzip_bytes": 435374,
+      "gzip_sha256": "4b4b07cf6c6a356a05344d6f9c0fce2f4aeeb1a7b29710c6e7a6cfd30525ed46",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-01-scope-rejected.json",
+      "sha256": "c1a2d69e93e1181874145def5a8a585fbb26d70c0860fb602fcf3fa1fdffefde",
+      "bytes": 1091
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-scope.json",
+      "sha256": "ef8401ece63d179e77d9d32de89f3cbd95c90a61e97fde881f06c9cc0f2144d9",
+      "bytes": 1052
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-wrapper-elf-review.json",
+      "sha256": "102860000c8bab13de61e5bab7386811337af5bc864ae615857212a6dd55a3de",
+      "bytes": 632
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json",
+      "sha256": "cbbb4488609795d0a72e424e0ce6d627cdfe424a88814138a21a3b906d9fac35",
+      "bytes": 1101
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json",
+      "sha256": "3382793bd07496c3aaad6232c1da251958a421534c1bb34d55a93074b27021e8",
+      "bytes": 3529
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-build-manifest.json",
+      "sha256": "c1d35f05a71c27bec147b036d7b2f677c429692737c5364ebf5cc661752a85bd",
+      "bytes": 77426
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-tests-manifest.json",
+      "sha256": "6cde34b748ec9eb3a0aa25d52b33f43f7cac27e3510c59f714098399358daf82",
+      "bytes": 88979
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot.summary.json",
+      "sha256": "e2116d7725752ae30d5c1201b3a7722de159073b7a02274c0b252cb3743ac785",
+      "bytes": 9688
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-debug.debug.summary.json",
+      "sha256": "195f74c5a79a2f0027b2ae1659d54444476e09efe8732685a2491b7fe105294c",
+      "bytes": 3115
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-state-01.summary.json",
+      "sha256": "ea535eb9fb330d207a1a548f4629dca22f310d8fdc6ebe441978bcd5a19e5dd7",
+      "bytes": 12586
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-rom-01.summary.json",
+      "sha256": "4ab31dfa079c51569ce5772794db14e75f5b50721c6f179b3c98491d6bbf93a3",
+      "bytes": 13145
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-09-10-layer-cpu-comparison-01.json",
+      "sha256": "9f88e38eed0a4e5815a70033227a09d2651131e6ebb6163148ea61bef58f1e65",
+      "bytes": 22853
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-analysis-01.json",
+      "sha256": "7698c30b4af9be239f1e68c0ea17a3fbbc4fe9e4a96b6e844f88d8b670a13fdc",
+      "bytes": 177805
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-ble.ble.ready.json",
+      "sha256": "40a6b252e90d677cb4cad21da77ebba18d059e34a65e69c5fe471bd694e627ae",
+      "bytes": 284
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-ble.ble.summary.json",
+      "sha256": "3fe87d4968d1c7c0d116ab41da1d69340d5ac5a1fd365d8bd635a49015cc99c0",
+      "bytes": 2017
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json",
+      "sha256": "2da3c4338fc3ef5cbdb9429b6923320fb5a666189011efb0ca1048366c7621fb",
+      "bytes": 19413
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-debug.debug.summary.json",
+      "sha256": "323d50c0683d1eb00daf04b5f9673bf353255e96aefa736819621572c76d173e",
+      "bytes": 2707
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-selection-01.json",
+      "sha256": "a97624dee5067fdacfa836fba5caee45e5e8d6d217563948a57f66aa5c100769",
+      "bytes": 1248
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-verdict.json",
+      "sha256": "c241cda49777935df9d9b6e81da2e4cfa726945d179c98c03a30979691145734",
+      "bytes": 37421
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.benchmark.json",
+      "sha256": "93ac9b7a93710d745b4f6e6da0ef296942a8aa0cf95ba473907083a0fb44b3fd",
+      "bytes": 1862
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json",
+      "sha256": "bc20182d3ddf30f924baef81d5ca634ea8671fc52107b4b77c8564adc4a5580f",
+      "bytes": 357893
+    }
+  ],
+  "file_count": 13,
+  "total_original_bytes": 21033025,
+  "total_gzip_bytes": 2490426,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

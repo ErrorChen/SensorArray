@@ -1,0 +1,1203 @@
+{
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py",
+    "sha256": "8d1f115cca01683384b4e442564a3ddd29e0017611973010717a3ea02280b249"
+  },
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "schema_version": 1,
+  "status": "FAIL_BLE_THROUGHPUT",
+  "verdict_source": "explicit_reviewer_argument_not_automatic_threshold",
+  "running_image": {
+    "source_commit": "a656d53f2efc447507f5247a116a22aed35dcc04",
+    "version": "a656d53",
+    "app_bytes": 1591888,
+    "bin_sha256": "dc6c74800d88760a8ba85274b6954317f6a95d019bf2d4883bea7cdf406a3dd6",
+    "elf_sha256": "63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4",
+    "host_entries": 67,
+    "all_exit_zero": true,
+    "production_inputs": 185,
+    "build_test_inputs_identical": true,
+    "build_manifest": "compiler-perf-02-build-manifest.json",
+    "tests_manifest": "compiler-perf-02-tests-manifest.json",
+    "hardware_flashed_at_manifest_creation": false,
+    "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+    "CPU_owner_diagnostics_enabled": true,
+    "normal_defaults_diagnostics_enabled": false,
+    "compiler_optimization": "-O2",
+    "cpu_MHz": 160,
+    "task_wrapper_linked": true,
+    "wrapper_evidence": "compiler-perf-02-wrapper-elf-review.json",
+    "scope_check": "compiler-perf-02-scope.json",
+    "rejected_not_flashed": "compiler-perf-01-scope-rejected.json",
+    "change_scope": "Supported -O2 with original wrapper/assert/stack/WDT/heap checks retained; no protocol, clock, limits or queue changes"
+  },
+  "inputs": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-analysis-01.json": "7698c30b4af9be239f1e68c0ea17a3fbbc4fe9e4a96b6e844f88d8b670a13fdc",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json": "bc20182d3ddf30f924baef81d5ca634ea8671fc52107b4b77c8564adc4a5580f",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json": "2da3c4338fc3ef5cbdb9429b6923320fb5a666189011efb0ca1048366c7621fb",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json": "cbbb4488609795d0a72e424e0ce6d627cdfe424a88814138a21a3b906d9fac35",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json": "3382793bd07496c3aaad6232c1da251958a421534c1bb34d55a93074b27021e8"
+  },
+  "screen": {
+    "label": "screen-10-volt1",
+    "capture_status": "RECORDED",
+    "window_seconds": 120.00012219400378,
+    "requested_seconds_met": true,
+    "configuration_identity": {
+      "session": "B528ED81F93297CF",
+      "bootId": "1",
+      "rev": "4",
+      "mgen": "3",
+      "mrid": "4",
+      "rgen": "2",
+      "rrid": "3",
+      "pgen": "3",
+      "prid": "4",
+      "legacy_gen": "3",
+      "legacy_rid": "4"
+    },
+    "capture_fps": 65.59451301898596,
+    "USB": {
+      "FPS": 65.61612332776568,
+      "counts": {
+        "trusted_complete_frames": 7873,
+        "integrity_valid_frames": 7873,
+        "ordered_integrity_valid_frames": 7873,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 7873,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 62984,
+        "reported_valid_points": 62244,
+        "unit_errors": 0,
+        "usable_numeric_points": 62244,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 740,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 740,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 7133
+      },
+      "missing_observations": {
+        "status": "KNOWN",
+        "count": 0,
+        "basis": "one_identity_ordered_count_equals_u32_last_minus_first_plus_one_and_empty_gap_examples",
+        "first": 1331,
+        "last": 9203,
+        "ordered_count": 7873,
+        "progress": 7872
+      },
+      "sequence": {
+        "first": 1331,
+        "last": 9203,
+        "progress_including_missing": 7872,
+        "gap_examples": [],
+        "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+        "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+      }
+    },
+    "BLE": {
+      "FPS": 44.162295412887914,
+      "counts": {
+        "trusted_complete_frames": 5298,
+        "integrity_valid_frames": 5298,
+        "ordered_integrity_valid_frames": 5298,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 5298,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 42384,
+        "reported_valid_points": 41919,
+        "unit_errors": 0,
+        "usable_numeric_points": 41919,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 465,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 465,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 4833,
+        "sequence_gaps": 1943,
+        "missing_frames": 2572
+      },
+      "missing_observations": {
+        "status": "KNOWN",
+        "count": 2572,
+        "basis": "explicit_analyzer_missing_frames"
+      },
+      "received_fragments": {
+        "D": {
+          "ok": 5298,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        },
+        "L": {
+          "ok": 315,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        }
+      },
+      "common_frames": {
+        "USB_unique_integrity_valid_frames": 7873,
+        "common_identity_sequence_frames": 5295,
+        "same_wire_bytes_sha256": 5295,
+        "different_wire_bytes_sha256": 0,
+        "USB_frames_without_BLE_match": 2578,
+        "BLE_frames_without_USB_match": 3,
+        "mismatch_examples": [],
+        "unmatched_meaning": "No trusted fingerprint match; a partial or identity-rejected frame may still exist in the other raw recording. This is not a literal byte-absence or independent loss count.",
+        "basis": "SHA256 of original scientific header/data/PGA/row/K bytes including line endings, after both CRC and identity checks; no CRC rewriting or sample reconstruction",
+        "scope": "full_capture_window"
+      }
+    },
+    "ADC_CRC": {
+      "status": "OBSERVED",
+      "health": {
+        "status": "OBSERVED",
+        "records_in_stream": 130,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 70927,
+          "monotonic": 329496.266907731,
+          "phase": "capture",
+          "fields": {
+            "seq": "1354",
+            "engineFrameCount": "384",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "2983",
+            "crcValidOdd": "2898",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 1022335,
+          "monotonic": 329615.33652293,
+          "phase": "capture",
+          "fields": {
+            "seq": "9162",
+            "engineFrameCount": "8192",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "46260",
+            "crcValidOdd": "44564",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "counters": {
+          "crcValidEven": {
+            "first": 2983,
+            "last": 46260,
+            "delta": 43277,
+            "unavailable": null
+          },
+          "crcValidOdd": {
+            "first": 2898,
+            "last": 44564,
+            "delta": 41666,
+            "unavailable": null
+          },
+          "crcErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.06961519899778,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "crc_events": {
+        "status": "NOT_OBSERVED",
+        "records_in_stream": 0,
+        "first": null,
+        "last": null,
+        "counters": {
+          "crcTotal": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          },
+          "retryTotal": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          }
+        },
+        "elapsed_seconds": null,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "valid_even_delta": 43277,
+      "valid_odd_delta": 41666,
+      "rejected_delta": 0,
+      "checked_attempts": 84943,
+      "rate": 0.0,
+      "limit": 0.025,
+      "within_limit": true,
+      "denominator": "crcValidEven + crcValidOdd + crcErrors deltas; checked reads, including retry attempts, not frames",
+      "scope": "first/last complete ADSHEALTH receipt inside capture, not exact window endpoints",
+      "observer_window_coverage": "FULL_OBSERVER_WINDOW",
+      "crcRetries_terminal_token": "UNKNOWN_without_following_marker; ADSSPI retryTotal available independently"
+    },
+    "invalid_by_cell": {
+      "S1D2": {
+        "X12": 740
+      }
+    },
+    "layer_windows": {
+      "USB": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.691855578,
+        "last_receipt": 329616.09251502197,
+        "elapsed_seconds": 120.4006594439852,
+        "counters": {
+          "resets": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "mounts": {
+            "first": 1,
+            "last": 1,
+            "delta": 0,
+            "unavailable": null
+          },
+          "unmounts": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxBytes": {
+            "first": 516,
+            "last": 1492,
+            "delta": 976,
+            "unavailable": null
+          },
+          "rxDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "rxOver": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "USBQ": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.712775199,
+        "last_receipt": 329616.117748787,
+        "elapsed_seconds": 120.40497358801076,
+        "counters": {
+          "dDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cDrop": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dSubmit": {
+            "first": 364,
+            "last": 8262,
+            "delta": 7898,
+            "unavailable": null
+          },
+          "cSubmit": {
+            "first": 62,
+            "last": 173,
+            "delta": 111,
+            "unavailable": null
+          },
+          "expired": {
+            "first": 1318,
+            "last": 1318,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cExpired": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "partial": {
+            "first": 3,
+            "last": 3,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dBytes": {
+            "first": 222791,
+            "last": 4947620,
+            "delta": 4724829,
+            "unavailable": null
+          },
+          "cBytes": {
+            "first": 15288,
+            "last": 41477,
+            "delta": 26189,
+            "unavailable": null
+          },
+          "dCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          },
+          "cCallbackBytes": {
+            "first": null,
+            "last": null,
+            "delta": null,
+            "unavailable": "NOT_OBSERVED"
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLETX": {
+        "status": "OBSERVED",
+        "scope": "query_receipts_bracketing_capture_not_exact_boundaries",
+        "first_receipt": 329495.75234711,
+        "last_receipt": 329616.140124886,
+        "elapsed_seconds": 120.38777777599171,
+        "counters": {
+          "dDequeued": {
+            "first": 526,
+            "last": 5839,
+            "delta": 5313,
+            "unavailable": null
+          },
+          "lDequeued": {
+            "first": 26,
+            "last": 342,
+            "delta": 316,
+            "unavailable": null
+          },
+          "cDequeued": {
+            "first": 4,
+            "last": 4,
+            "delta": 0,
+            "unavailable": null
+          },
+          "sdkCalls": {
+            "first": 2276,
+            "last": 19637,
+            "delta": 17361,
+            "unavailable": null
+          },
+          "sdkAccepted": {
+            "first": 2275,
+            "last": 19636,
+            "delta": 17361,
+            "unavailable": null
+          },
+          "sdkErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BL50": {
+        "status": "OBSERVED",
+        "scope": "first_last_diagnostic_receipts_inside_capture",
+        "first_receipt": 329496.156284191,
+        "last_receipt": 329615.834118049,
+        "elapsed_seconds": 119.6778338580043,
+        "counters": {
+          "mq": {
+            "first": 577,
+            "last": 6175,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 574,
+            "last": 6172,
+            "delta": 5598,
+            "unavailable": null
+          },
+          "md": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 544,
+            "last": 5828,
+            "delta": 5284,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 30,
+            "last": 344,
+            "delta": 314,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 124,
+            "last": 2657,
+            "delta": 2533,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 2332,
+            "last": 19598,
+            "delta": 17266,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "PC_receipt": "UNKNOWN"
+      },
+      "BLESVC": {
+        "status": "OBSERVED",
+        "scope": "BLESVC_before_after_query_snapshots_not_owner_or_capture_boundaries",
+        "before_host_receipt": 329495.824979005,
+        "after_host_receipt": 329616.216733403,
+        "before_active": "0",
+        "after_active": "0",
+        "counter_deltas_modulo_uint32": {
+          "started": 17360,
+          "completed": 17360,
+          "confOk": 17360,
+          "confError": 0,
+          "confMatched": 0,
+          "confUnmatched": 17360
+        },
+        "wall_delta_us": 66127493,
+        "wall_us_per_completed_call": 3809.1873847926267,
+        "CPU_time": "UNKNOWN",
+        "blocked_time": "UNKNOWN",
+        "PC_receipt": "UNKNOWN"
+      }
+    },
+    "CPU_owner_roles": [
+      {
+        "role": 0,
+        "name": "BLE_TX",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 19719285,
+        "observation_span_us": 120995504,
+        "runtime_per_own_observation_span_percent": 16.29753531999007,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "0",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "9",
+            "runUs": "2052609",
+            "t0Us": "107823061",
+            "t1Us": "107823066",
+            "observedAtUs": "107823066",
+            "ageUs": "906222",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 9,
+            "runUs": 2052609,
+            "t0Us": 107823061,
+            "t1Us": 107823066,
+            "observedAtUs": 107823066,
+            "ageUs": 906222
+          },
+          "host_reply_received_monotonic": 329495.845676087,
+          "host_query_started_monotonic": 329495.834013693
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "0",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "9",
+            "runUs": "21771894",
+            "t0Us": "228818565",
+            "t1Us": "228818570",
+            "observedAtUs": "228818570",
+            "ageUs": "312897",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 9,
+            "runUs": 21771894,
+            "t0Us": 228818565,
+            "t1Us": 228818570,
+            "observedAtUs": 228818570,
+            "ageUs": 312897
+          },
+          "host_reply_received_monotonic": 329616.249667443,
+          "host_query_started_monotonic": 329616.244163907
+        },
+        "taskNumber": 9,
+        "bracket_elapsed_min_us": 120995499,
+        "bracket_elapsed_max_us": 120995509
+      },
+      {
+        "role": 1,
+        "name": "TRANSPORT",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 6430590,
+        "observation_span_us": 120777834,
+        "runtime_per_own_observation_span_percent": 5.324313068903024,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "1",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "15",
+            "runUs": "506791",
+            "t0Us": "107801141",
+            "t1Us": "107801144",
+            "observedAtUs": "107801144",
+            "ageUs": "948721",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 15,
+            "runUs": 506791,
+            "t0Us": 107801141,
+            "t1Us": 107801144,
+            "observedAtUs": 107801144,
+            "ageUs": 948721
+          },
+          "host_reply_received_monotonic": 329495.869859087,
+          "host_query_started_monotonic": 329495.846022876
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "1",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "15",
+            "runUs": "6937381",
+            "t0Us": "228578975",
+            "t1Us": "228578978",
+            "observedAtUs": "228578978",
+            "ageUs": "569791",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 15,
+            "runUs": 6937381,
+            "t0Us": 228578975,
+            "t1Us": 228578978,
+            "observedAtUs": 228578978,
+            "ageUs": 569791
+          },
+          "host_reply_received_monotonic": 329616.283081933,
+          "host_query_started_monotonic": 329616.249752932
+        },
+        "taskNumber": 15,
+        "bracket_elapsed_min_us": 120777831,
+        "bracket_elapsed_max_us": 120777837
+      },
+      {
+        "role": 2,
+        "name": "ASYNC_LOG",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 17839172,
+        "observation_span_us": 120133160,
+        "runtime_per_own_observation_span_percent": 14.849498672972558,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "2",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "17",
+            "runUs": "2390258",
+            "t0Us": "108640703",
+            "t1Us": "108640709",
+            "observedAtUs": "108640709",
+            "ageUs": "123935",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 17,
+            "runUs": 2390258,
+            "t0Us": 108640703,
+            "t1Us": 108640709,
+            "observedAtUs": 108640709,
+            "ageUs": 123935
+          },
+          "host_reply_received_monotonic": 329495.881063349,
+          "host_query_started_monotonic": 329495.87024022
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "2",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "17",
+            "runUs": "20229430",
+            "t0Us": "228773864",
+            "t1Us": "228773869",
+            "observedAtUs": "228773869",
+            "ageUs": "401722",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 17,
+            "runUs": 20229430,
+            "t0Us": 228773864,
+            "t1Us": 228773869,
+            "observedAtUs": 228773869,
+            "ageUs": 401722
+          },
+          "host_reply_received_monotonic": 329616.29416298,
+          "host_query_started_monotonic": 329616.283175086
+        },
+        "taskNumber": 17,
+        "bracket_elapsed_min_us": 120133155,
+        "bracket_elapsed_max_us": 120133166
+      },
+      {
+        "role": 3,
+        "name": "SERIAL_TX",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 12055945,
+        "observation_span_us": 119550795,
+        "runtime_per_own_observation_span_percent": 10.084370413429706,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "3",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "8",
+            "runUs": "4436609",
+            "t0Us": "108641921",
+            "t1Us": "108641930",
+            "observedAtUs": "108641930",
+            "ageUs": "137764",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 8,
+            "runUs": 4436609,
+            "t0Us": 108641921,
+            "t1Us": 108641930,
+            "observedAtUs": 108641930,
+            "ageUs": 137764
+          },
+          "host_reply_received_monotonic": 329495.896164411,
+          "host_query_started_monotonic": 329495.881471355
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "3",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "8",
+            "runUs": "16492554",
+            "t0Us": "228192720",
+            "t1Us": "228192725",
+            "observedAtUs": "228192725",
+            "ageUs": "995900",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 8,
+            "runUs": 16492554,
+            "t0Us": 228192720,
+            "t1Us": 228192725,
+            "observedAtUs": 228192725,
+            "ageUs": 995900
+          },
+          "host_reply_received_monotonic": 329616.314634731,
+          "host_query_started_monotonic": 329616.294241616
+        },
+        "taskNumber": 8,
+        "bracket_elapsed_min_us": 119550790,
+        "bracket_elapsed_max_us": 119550804
+      },
+      {
+        "role": 4,
+        "name": "BLE_CTRL",
+        "status": "UNKNOWN",
+        "reason": "before_stale_historical_sample",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "4",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "ok",
+            "taskNumber": "10",
+            "runUs": "0",
+            "t0Us": "14202",
+            "t1Us": "14205",
+            "observedAtUs": "14205",
+            "ageUs": "108784576",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 10,
+            "runUs": 0,
+            "t0Us": 14202,
+            "t1Us": 14205,
+            "observedAtUs": 14205,
+            "ageUs": 108784576
+          },
+          "host_reply_received_monotonic": 329495.911956694,
+          "host_query_started_monotonic": 329495.896536307
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "4",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "ok",
+            "taskNumber": "10",
+            "runUs": "0",
+            "t0Us": "14202",
+            "t1Us": "14205",
+            "observedAtUs": "14205",
+            "ageUs": "229195816",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 10,
+            "runUs": 0,
+            "t0Us": 14202,
+            "t1Us": 14205,
+            "observedAtUs": 14205,
+            "ageUs": 229195816
+          },
+          "host_reply_received_monotonic": 329616.325927203,
+          "host_query_started_monotonic": 329616.314747445
+        }
+      },
+      {
+        "role": 5,
+        "name": "SERIAL_CTRL",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 961475,
+        "observation_span_us": 120400085,
+        "runtime_per_own_observation_span_percent": 0.7985667119753279,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "5",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "16",
+            "runUs": "630462",
+            "t0Us": "108463356",
+            "t1Us": "108463362",
+            "observedAtUs": "108463362",
+            "ageUs": "345598",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 16,
+            "runUs": 630462,
+            "t0Us": 108463356,
+            "t1Us": 108463362,
+            "observedAtUs": 108463362,
+            "ageUs": 345598
+          },
+          "host_reply_received_monotonic": 329495.924579805,
+          "host_query_started_monotonic": 329495.912290069
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "5",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "16",
+            "runUs": "1591937",
+            "t0Us": "228863442",
+            "t1Us": "228863447",
+            "observedAtUs": "228863447",
+            "ageUs": "359647",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 16,
+            "runUs": 1591937,
+            "t0Us": 228863442,
+            "t1Us": 228863447,
+            "observedAtUs": 228863447,
+            "ageUs": 359647
+          },
+          "host_reply_received_monotonic": 329616.348876294,
+          "host_query_started_monotonic": 329616.326086354
+        },
+        "taskNumber": 16,
+        "bracket_elapsed_min_us": 120400080,
+        "bracket_elapsed_max_us": 120400091
+      },
+      {
+        "role": 6,
+        "name": "WIFI_CTRL",
+        "status": "UNKNOWN",
+        "reason": "before_unavailable_not_observed",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "6",
+            "enabled": "1",
+            "available": "0",
+            "known": "0",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "not_observed",
+            "taskNumber": "unknown",
+            "runUs": "unknown",
+            "t0Us": "unknown",
+            "t1Us": "unknown",
+            "observedAtUs": "unknown",
+            "ageUs": "unknown",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": null,
+            "runUs": null,
+            "t0Us": null,
+            "t1Us": null,
+            "observedAtUs": null,
+            "ageUs": null
+          },
+          "host_reply_received_monotonic": 329495.952603091,
+          "host_query_started_monotonic": 329495.924891763
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B528ED81F93297CF",
+            "role": "6",
+            "enabled": "1",
+            "available": "0",
+            "known": "0",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "not_observed",
+            "taskNumber": "unknown",
+            "runUs": "unknown",
+            "t0Us": "unknown",
+            "t1Us": "unknown",
+            "observedAtUs": "unknown",
+            "ageUs": "unknown",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": null,
+            "runUs": null,
+            "t0Us": null,
+            "t1Us": null,
+            "observedAtUs": null,
+            "ageUs": null
+          },
+          "host_reply_received_monotonic": 329616.359935579,
+          "host_query_started_monotonic": 329616.349016408
+        }
+      }
+    ],
+    "CPU_total": "UNKNOWN",
+    "SDK_CPU_time": "UNKNOWN",
+    "blocked_time": "UNKNOWN",
+    "memory": {
+      "heap": {
+        "observed_free_bytes": 8301316,
+        "firmware_lifetime_minimum_bytes": 8297776
+      },
+      "stack_minimum_remaining_bytes": {
+        "log": 12504,
+        "transport": 3280,
+        "bleTx": 2108,
+        "bleCtrl": 5204,
+        "serialCtrl": 1792
+      },
+      "scope": "complete_capture_window_STK50_only",
+      "CPU_utilization": null,
+      "maximum_contiguous_heap_block": null
+    },
+    "formal_faults_and_resets": {
+      "FAULT": {
+        "counts_by_receipt_phase": {},
+        "examples": []
+      },
+      "RESET": {
+        "counts_by_receipt_phase": {},
+        "examples": []
+      }
+    },
+    "CDC_faults": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "CDC_resets": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "WDT_evidence": "FULL_OBSERVER_WINDOW; absent_WDT_text_does_not_prove_no_watchdog_event",
+    "precision_acceptance": "NOT_EVALUATED",
+    "post_capture_recovery": "CAP8_QUERY_VERIFIED"
+  },
+  "current_image_600_seconds": "NOT_RUN",
+  "current_image_32_configurations": "NOT_RUN",
+  "limitations": [
+    "Full capture duration is not full acceptance or absolute precision validation.",
+    "No observed fault/reset/WDT text is not proof of absence outside available evidence.",
+    "ADC CRC denominator is checked reads within its diagnostic bracket, not scientific frames."
+  ]
+}

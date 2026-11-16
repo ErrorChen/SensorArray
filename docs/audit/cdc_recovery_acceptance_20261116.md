@@ -1,6 +1,8 @@
 # 2026-11-16 软件恢复与双 CDC 验收 / Software recovery and dual-CDC acceptance
 
-> 当前已烧录/观测版本为 `dafaf9b`（160 MHz、`-Og`、CPU profiling ON）。screen09 完整 120 秒：ADC CRC 0/74,721，Capture/USB/BLE 57.79/57.66/39.13 FPS，USB 6,920 帧内部连续，BLE 4,695 帧缺 2,223 个序号观察。66 个 host 入口、实际构建、完整 BUILD/READY/CAP8 核验通过。元数据单遍解析后本次 BLE 较 screen08 提高 18.16%，但**BLE 吞吐仍未通过，600 秒/32 配置仍未运行**；后续 `-O2` 候选未计入本次结果。各历史阶段和原始失败保留，最新逐层/CPU 对照见末节。 / The observed image is `dafaf9b` (160 MHz, `-Og`, CPU profiling ON). Its complete 120-second screen09 records 0/74,721 ADC CRC rejections and 57.79/57.66/39.13 FPS capture/USB/BLE, with 6,920 internally consecutive USB frames and 4,695 BLE frames with 2,223 missing sequence observations. All 66 host entries, the target build and full BUILD/READY/CAP8 verification passed. Following single-pass metadata parsing, this run's BLE rate is 18.16% above screen08, but **BLE throughput remains unaccepted and the 600-second/32-configuration suite remains unrun**. A subsequent `-O2` candidate is not included in these results. Historical stages and original failures remain; the final section gives layer/CPU comparisons.
+> 当前已烧录/观测版本为 `a656d53`（160 MHz、`-O2`、CPU profiling ON），67 个 host 入口、目标构建与完整 BUILD/READY 通过。screen10 已闭合：120.000122 秒，ADC CRC 0/84,943，Capture/USB/BLE 65.59/65.62/44.16 FPS，USB 7,873 内部连续帧，BLE 5,298 帧缺 2,572 个序号观察，CAP8 cleanup 查询通过。BLE 较 screen09 提高 12.849%，但仍 FAIL_BLE_THROUGHPUT，截至 screen10 闭合时完整 600 秒/32 配置未运行。移除 wrapper 的 compiler-perf-01 从未烧录；最终版的真实 SDK wrapper 及安全检查保留。旧结果/失败不覆盖，最新证据见末节。 / The observed image is `a656d53` (160 MHz, `-O2`, CPU profiling ON); all 67 host entries, the target build and full BUILD/READY verification passed. Screen10 is closed: 120.000122 seconds, 0/84,943 ADC CRC rejections and 65.59/65.62/44.16 FPS capture/USB/BLE, with 7,873 internally consecutive USB frames, 5,298 BLE frames and 2,572 missing BLE sequence observations. CAP8 cleanup was query-verified. BLE improves 12.849% over screen09 but remains FAIL_BLE_THROUGHPUT; the complete 600-second/32-configuration suite was unrun at screen10 closure. Compiler-perf-01, which removed the wrapper, was never flashed; the final image retains the real SDK wrapper and safety checks. Historical results/failures remain; see the final section for current evidence.
+
+> 后续进度 / Subsequent work: 同一 `a656d53` 的独立 `stability-01` USB+BLE 600 秒连续 CRC/健康诊断已开始，结果待闭合；它不是新优化候选，也不覆盖 screen10 的 BLE 不足。活动文件未被本次文档/归档读取或压缩。 / An independent 600-second USB+BLE CRC/health run, `stability-01`, has started on the same `a656d53`; results await closure. It is not a new optimization candidate and does not erase screen10's BLE deficit. This documentation/archive task has neither read nor compressed its active files.
 
 本记录接续 [11 月 14 日阶段](usb_otg_ble_priority_20261114.md)。用户已重启板卡，并授权继续烧录、调试；没有要求安装软件或使用管理员权限。历史失败记录保留，下面的下载成功不代表完整性能/精度验收通过。
 
@@ -486,3 +488,94 @@ USB FIFO and SDK acceptance do not establish PC receipt. Query/receipt windows d
 In this comparison, ASYNC_LOG's ratio fell 11.106299 percentage points and BLE receipt rose **18.164321%**, supporting removal of a material publisher-path cost. BLE at 39.13 FPS still trails capture at 57.79 FPS. Capture fell in this run, and input/scheduling timing is not identical between runs, so one comparison is not a causal decomposition of all bottlenecks. Each role's switch-out delta uses its own window: no cross-boot subtraction, aggregate core-CPU sum or SDK-wall-minus-owner-runtime blocked estimate is valid. Further candidates and bounded retests remain necessary; the complete 600-second/32-configuration suite is still NOT_RUN. The next `-O2` candidate has not been flashed as part of these results, and no future passing counts are filled in.
 
 证据 / Evidence: [原 summary](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-volt1.summary.json), [独立科学/诊断分析](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-analysis-01.json), [CPU delta](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-cpu-owner-deltas-01.json), [判定](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-verdict.json), [08→09 分层/CPU 对照](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-08-09-layer-cpu-comparison-01.json), [实际闭环命令及 SHA](artifacts/cdc_recovery_acceptance_20261116/screen-09-closure-01-manifest.json)。本轮复用未修改的通用离线脚本，实际 exit0；原 stdout/raw/events 与历史失败均保留，文档闭合未修改生产、测试或采集工具，也未执行 build/HIL。 / The unchanged generic offline script actually exited zero. Original stdout/raw/events and historical failures remain; this documentation closure modified no production, test or capture tool and performed no build/HIL.
+
+## screen10：保留检查的 `-O2` 与实机对照 / screen10: `-O2` with retained checks and hardware comparison
+
+已烧录提交 `a656d53f2efc447507f5247a116a22aed35dcc04`，BUILD=`a656d53`；app 1,591,888 B，binary SHA256=`dc6c74800d88760a8ba85274b6954317f6a95d019bf2d4883bea7cdf406a3dd6`，完整 ELF SHA256=`63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4`。session=`B528ED81F93297CF`、bootId=1；[完整 BUILD/BOOT/READY](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json)已核验。CPU 160 MHz、ADC `gpio_tail_required`/SPI 2 MHz、CPU owner/runtime/trace ON 保持；正常默认诊断 OFF，项目优化默认改为 PERF `-O2`。所有 [67 个 host 入口和实际构建](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json)通过，185 个生产输入在 build/test 前后逐 SHA 一致。
+
+The flashed commit is `a656d53f2efc447507f5247a116a22aed35dcc04`, BUILD `a656d53`. The app is 1,591,888 bytes, binary SHA256 `dc6c74800d88760a8ba85274b6954317f6a95d019bf2d4883bea7cdf406a3dd6`, full ELF SHA256 `63ab97c31a1c8c7ca92e631661e42ad7e6357e0475a38f2cc5270959973c36f4`. Session `B528ED81F93297CF`, bootId 1 and [full BUILD/BOOT/READY](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-boot-verification.json) are verified. CPU remains 160 MHz, ADC uses `gpio_tail_required` at SPI 2 MHz, and CPU owner/runtime/trace remain ON. Normal diagnostic defaults stay OFF; the project's compiler default is now PERF `-O2`. All [67 host entries and the target build](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-validated-identity.json) passed, with identical SHA hashes for 185 production inputs before/after build and tests.
+
+### 未烧录的拒绝候选与 wrapper 修正 / Rejected unflashed candidate and wrapper correction
+
+`compiler-perf-01` 虽能构建，但 ESP-IDF 5.5.5 的 `FREERTOS_TASK_FUNCTION_WRAPPER` 依赖 DEBUG 或 core-dump/GDB；直接切换 PERF 会隐式令其消失。该 wrapper 在任务函数错误返回时打印任务名并 abort，初始任务栈 PC 也指向它；移除它违反保留安全检查的要求。因此该候选 [REJECTED_DO_NOT_FLASH](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-01-scope-rejected.json)，**没有执行烧录**，其构建/测试与配置失败证据不改写。
+
+Although compiler-perf-01 built, ESP-IDF 5.5.5 makes `FREERTOS_TASK_FUNCTION_WRAPPER` depend on DEBUG or core-dump/GDB. Selecting PERF implicitly removes it. The wrapper logs the task name and aborts if a task function mistakenly returns; initial task-stack PC points to it. Removing it violates the requirement to retain safety checks. That candidate was therefore [REJECTED_DO_NOT_FLASH](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-01-scope-rejected.json), **never flashed**, with its build/test/configuration-rejection evidence preserved.
+
+最终实现是在项目 `main/kconfigs/Kconfig.compat` 对同一 SDK symbol 添加有条件定义，仅增加 `IDF_TARGET_ESP32S3 && COMPILER_OPTIMIZATION_PERF` 的依赖分支及 default y；实际 Kconfig parser 按 OR 合并多定义依赖。没有修改 SDK 文件、用应用 `#define` 假装开启 SDK 分支、替换 abort、开启 GDB/core dump 或关闭 watchdog。main 的新增编译 guard 在 S3+PERF 且 wrapper 缺失时直接拒绝构建。其他目标/优化模式保持原 SDK 条件。
+
+The final implementation adds a conditional definition of the same SDK symbol in project `main/kconfigs/Kconfig.compat`, extending only the `IDF_TARGET_ESP32S3 && COMPILER_OPTIMIZATION_PERF` dependency branch with default y. The actual Kconfig parser OR-combines dependencies from multiple definitions. There is no SDK edit, application-level macro pretending to enable SDK code, replacement abort, enabled GDB/core dump or disabled watchdog. A new main compile guard rejects S3+PERF if the wrapper is absent. Other targets/optimization modes keep the original SDK conditions.
+
+[独立真实 parser 回归](artifacts/cdc_recovery_acceptance_20261116/performance-wrapper-independent-review-01.json)覆盖 18 个配置边界、6 个 guard 编译用例；3,769 个全树有效 symbol 中扩展只使 wrapper n→y。生成配置与 [范围对照](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-scope.json)确认 assertions、strong stack checking、light heap poisoning、task watchdog、end-of-stack watchpoint 保留，CPU/科学门槛/协议/队列/WorkBudget 未变。多定义提示保留为受测的 Kconfig 扩展，不静默忽略任意同名冲突。
+
+The [independent real-parser regression](artifacts/cdc_recovery_acceptance_20261116/performance-wrapper-independent-review-01.json) covers 18 configuration boundaries and six compile-guard cases. Among 3,769 effective full-tree symbols, the extension changes only the wrapper from n to y. Generated configuration and the [scope comparison](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-scope.json) retain assertions, strong stack checking, light heap poisoning, task watchdog and end-of-stack watchpoint, without changing CPU frequency, scientific criteria, protocol, queues or WorkBudget. The multiple-definition notice is a tested Kconfig extension, not a blanket dismissal of arbitrary naming conflicts.
+
+最终 ELF 的 [反汇编核验](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-wrapper-elf-review.json)看到 `vPortTaskWrapper` 的 task call，返回后的 `pcTaskGetName → log → abort`，以及 `pxPortInitialiseStack` 将真实 wrapper 地址写入初始 frame PC。这是最终链接代码证据，而不只是头文件标志。**实机任务返回故障注入 NOT_RUN**；保留 wrapper 不等于已验证所有 panic/restart 情形。将来 SDK 若改变同一 flag 的实现，编译 guard 不足以发现，必须重新检查最终 ELF。
+
+The final ELF's [disassembly review](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-02-wrapper-elf-review.json) shows the task call in `vPortTaskWrapper`, the return path through `pcTaskGetName → log → abort`, and `pxPortInitialiseStack` writing the actual wrapper address into initial frame PC. This is final linked-code evidence, not just a header flag. **Hardware task-return fault injection is NOT_RUN**; retaining the wrapper does not validate every panic/restart scenario. If a future SDK changes what the flag enables, the compile guard alone is insufficient and the final ELF must be rechecked.
+
+### 完整 screen10 结果 / Complete screen10 results
+
+VOLT1 正式 CDC0+BLE、独立 CDC1 诊断采集 **120.000122194 s**，同 session/rev4；结束后 `CAP8_QUERY_VERIFIED`。screen10 已关闭全部 observer 后分析，不从活动 raw 推断最终结果。 / VOLT1 formal CDC0/BLE and independent CDC1 diagnostics ran for **120.000122194 s**, in one session/revision 4, ending with `CAP8_QUERY_VERIFIED`. Analysis used closed observers, not provisional active streams.
+
+| 指标 / Metric | screen09 `-Og` | screen10 `-O2` |
+|---|---:|---:|
+| Capture / USB / BLE FPS | 57.787813 / 57.664438 / 39.133976 | 65.594513 / 65.616123 / 44.162295 |
+| USB trusted frames / internal missing observations | 6,920 / 0 | 7,873 / 0 |
+| BLE trusted frames / missing observations | 4,695 / 2,223 | 5,298 / 2,572 |
+| USB/BLE ASCII CRC / identity / wire-contract errors | all 0 | all 0 |
+| 共同帧原字节一致 / Common original frames equal | 4,691 / 4,691 | 5,295 / 5,295 |
+| ADC rejected / checked reads | 0 / 74,721 | 0 / 84,943 |
+| Complete ADSHEALTH receipt span | 118.765452 s | 119.069615 s |
+| USB S1D2 X12 / BLE X12 | 467 / 340 | 740 / 465 |
+| USB/BLE not-fresh or unacquired points | 0 | 0 |
+| Complete STK50 free / lifetime minimum | 8,295,596 / 8,292,112 B | 8,301,316 / 8,297,776 B |
+| Minimum remaining log / transport / BLE_TX stack | 13,064 / 3,184 / 1,932 B | 12,504 / 3,280 / 2,108 B |
+| Minimum remaining BLE_CTRL / SERIAL_CTRL stack | 5,236 / 1,952 B | 5,204 / 1,792 B |
+| 总体 / Overall | FAIL_BLE_THROUGHPUT | **FAIL_BLE_THROUGHPUT** |
+
+USB verdict 已核单 identity、ordered trusted=7,873、first1331/last9203、progress7872、gap_examples=[]，故首末可信范围内无缺口；不是因为 `missing_frames` 键缺失就填 0。Capture 使用设备时间/sequence progression，USB 使用主机首末可信 K 收到时间，分母不同可有小幅高低差，不表示帧数超发。BLE 5,298 个 DATA/315 个 LOG 消息的收到分片无 CRC/缺片/乱序错误，仍不能消除上游整帧丢弃。ADC 分母 43,277 even +41,666 odd +0 rejected，含 retry attempts，不是帧数；未受保护的末尾 crcRetries 字段仍 unknown。
+
+The USB verdict verifies one identity, 7,873 ordered trusted frames, first1331/last9203, progress7872 and gap_examples=[], establishing no gap inside the trusted endpoint range. It does not default an omitted `missing_frames` key to zero. Capture uses device time/sequence progression; USB uses host receipt times of the first/last trusted K. Different denominators permit a small rate difference without excess frames. Received fragments for 5,298 BLE DATA and 315 LOG messages have no checksum/missing/order error, while upstream whole-frame loss remains. The ADC denominator is 43,277 valid-even +41,666 valid-odd +0 rejected checked reads, including retries, not frames; the unprotected final crcRetries token stays unknown.
+
+浮空 S1D2 的 X12 全部保留无效，不用平滑或零填补取得通过。正式/独立 debug 窗口未观测到 MFAULT/reset/WDT；这一否定结论受观测覆盖限制，不声称未记录事件绝不存在。最大连续 heap、全核 CPU 和绝对精度仍 unknown/未评估；当前镜像 600 秒/32 配置未运行。
+
+All X12 readings at floating S1D2 remain invalid; no smoothing or zero fill is used to obtain a pass. No MFAULT/reset/WDT was observed in the formal/independent-debug window, subject to recording coverage, not proof that no unrecorded event existed. Maximum contiguous heap, whole-core CPU and absolute accuracy remain unknown/not evaluated; this image has not run the 600-second/32-configuration suite.
+
+### 各层与 CPU 独立窗口 / Independent layer and CPU windows
+
+| Layer | screen09 within-window delta | screen10 within-window delta |
+|---|---|---|
+| USBQ receipt span | 120.402249 s | 120.404974 s |
+| USBQ `dSubmit/cSubmit` | 6,943 / 111 | 7,898 / 111 |
+| USBQ `dDrop/cDrop/expired/cExpired/partial` | all 0 | all 0 |
+| USBQ `dBytes/cBytes` | 4,155,302 / 26,184 B | 4,724,829 / 26,189 B |
+| BL50 receipt span | 119.641568 s | 119.677834 s |
+| BL50 `sentD/dropD/dropL/dropC` | 4,683 / 2,201 / 0 / 0 | 5,284 / 2,533 / 0 / 0 |
+| BLETX query span | 120.401641 s | 120.387778 s |
+| BLETX `sdkCalls/sdkAccepted/sdkErrors` | 15,379 / 15,378 / 0 | 17,361 / 17,361 / 0 |
+| BLESVC completed / wall delta / mean wall | 15,383 / 62.979474 s / 4.094096 ms | 17,360 / 66.127493 s / 3.809187 ms |
+| BLESVC `confOk/confError`; before/after active | 15,382 / 0; 1 / 1 | 17,360 / 0; 0 / 0 |
+
+| Role | screen10 ΔrunUs / own spanUs | screen09 ratio | screen10 ratio |
+|---|---:|---:|---:|
+| BLE_TX | 19,719,285 / 120,995,504 | 17.650671% | 16.297535% |
+| TRANSPORT | 6,430,590 / 120,777,834 | 7.441962% | 5.324313% |
+| ASYNC_LOG | 17,839,172 / 120,133,160 | 13.494264% | 14.849499% |
+| SERIAL_TX | 12,055,945 / 119,550,795 | 10.233474% | 10.084370% |
+| BLE_CTRL | unknown: stale historical | unknown | unknown |
+| SERIAL_CTRL | 961,475 / 120,400,085 | 0.789152% | 0.798567% |
+| WIFI_CTRL | unknown: not_observed | unknown | unknown |
+
+BLE 本次比 screen09 增加 **12.848988%**，采集亦增加，pool 丢弃仍有增量，故结果仍 FAIL_BLE_THROUGHPUT。ASYNC_LOG 比率虽升到 14.85%，本轮处理帧数更多，不能直接说 `-O2` 使该任务变慢；各角色独立 switch-out 分母也不能合计。USB/SDK 本地接受不等于 PC 实收，query/BL50/科学窗口不同不得相加成分层损失。SDK wall−owner run 仍不是 blocked，未观测 SDK/controller/IDLE 的残差不能归因。该一次有限窗口的收益不替代长期或完整模式验收。
+
+BLE improves **12.848988%** over screen09, but capture also increases and pool drops continue, so the verdict remains FAIL_BLE_THROUGHPUT. ASYNC_LOG's ratio rises to 14.85% while handling more frames; this alone does not mean `-O2` slowed that task. Independent per-role switch-out denominators also cannot be summed. USB/SDK local acceptance is not PC receipt, and query/BL50/scientific windows must not be added into disjoint layer losses. SDK wall−owner run is still not blocked time; unobserved SDK/controller/idle residuals cannot be attributed. One bounded window's gain is not long-duration or complete-mode acceptance.
+
+证据 / Evidence: [screen10 summary](artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-volt1.summary.json), [科学与诊断分析](artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-analysis-01.json), [CPU delta](artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-cpu-owner-deltas-01.json), [verdict](artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-10-verdict.json), [09→10 对照](artifacts/cdc_recovery_acceptance_20261116/screen-10/screen-09-10-layer-cpu-comparison-01.json)。[独立文档核验](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-screen10-doc-review-01.json)重新确认所有 verdict/comparison 输入 SHA 与 67 测试/构建 185 输入，无活动流推断。
+
+### 原始证据归档 / Original evidence archive
+
+本轮对 compiler-perf 的已关闭 BOOT/状态/ROM/debug 流及 screen10 正式 DATA+CTRL、独立 debug、BLE notification 原始流共 **13 个文件**执行确定性 gzip（mtime=0）。原始共 **21,033,025 B**，gzip 共 **2,490,426 B**；每个 gzip 解压后逐字节相等、SHA256 相等，归档前后原文件 SHA 不变，**全部原始文件保留**。没有覆盖任何旧索引或失败记录。索引同时关联未烧录拒绝候选、最终 scope/ELF/build/test/boot 与各分析文件的散列。
+
+This round archives **13 closed files**: compiler-perf BOOT/state/ROM/debug recordings and screen10 formal DATA+CTRL, independent debug and BLE-notification originals. Deterministic gzip uses mtime=0. Original size is **21,033,025 bytes**, gzip size **2,490,426 bytes**. Every decompressed file matches the original byte-for-byte and by SHA256; original hashes remain unchanged, and **all original files are retained**. No old index or failure is overwritten. The index also links hashes for the unflashed rejected candidate, final scope/ELF/build/test/boot and analysis files.
+
+[压缩与回验索引](artifacts/cdc_recovery_acceptance_20261116/screen-10/archive-index-01.json)、[实际 argv/exit0](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-screen10-archive-01-command.json)、[归档 stdout](artifacts/cdc_recovery_acceptance_20261116/compiler-perf-screen10-archive-01.txt)。归档工具仅处理显式选择的已关闭文件，不打开硬件、不删除/覆盖原件；本轮文档/归档子任务未修改生产、采集工具或测试，也未执行 build/flash/HIL。 / The archive tool processes only explicitly selected closed files, opens no hardware and deletes/overwrites no originals. This documentation/archive subtask changed no production, capture tool or test and performed no build/flash/HIL.

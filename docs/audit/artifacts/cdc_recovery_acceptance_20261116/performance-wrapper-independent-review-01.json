@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "kind": "independent_performance_wrapper_compatibility_review",
+  "created_utc": "2026-11-16T09:38:12.704914+00:00",
+  "head": "a656d53f2efc447507f5247a116a22aed35dcc04",
+  "conclusion": "NO_CONFIRMED_P0_P1_IN_THE_NARROW_KCONFIG_EXTENSION; KEEP_REJECTED_PERF01_UNFLASHED",
+  "actual_test": {
+    "command": [
+      "python3",
+      "tools/test_performance_task_wrapper.py",
+      "--report",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/performance-wrapper-independent-test-01.json"
+    ],
+    "exit_code": 0,
+    "report": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/performance-wrapper-independent-test-01.json",
+    "report_sha256": "7b7664f4d83db9a9acc46aaf7e6c3f40d01c016487b627eda40718107c651048",
+    "matrix_cases": 18,
+    "guard_cases": 6,
+    "effective_symbols_compared": 3769,
+    "full_tree_changes": {
+      "FREERTOS_TASK_FUNCTION_WRAPPER": [
+        "n",
+        "y"
+      ]
+    },
+    "inputs_unchanged": true
+  },
+  "missing_input_control": {
+    "command": [
+      "python3",
+      "tools/test_performance_task_wrapper.py",
+      "--idf-path",
+      "/tmp/wrapper-missing-sdk-8rtiwmhl/missing"
+    ],
+    "exit_code": 77,
+    "stdout": "{\"status\": \"SKIP\", \"reason\": \"Required SDK/configuration input unavailable: /tmp/wrapper-missing-sdk-8rtiwmhl/missing/Kconfig\", \"target_build\": false, \"hardware\": false}\n",
+    "stderr": ""
+  },
+  "evidence_overwrite_control": {
+    "command": [
+      "python3",
+      "tools/test_performance_task_wrapper.py",
+      "--report",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/performance-wrapper-independent-test-01.json"
+    ],
+    "exit_code": 2,
+    "stderr": "usage: test_performance_task_wrapper.py [-h] [--idf-path IDF_PATH]\n                                        [--config-env CONFIG_ENV]\n                                        [--sdkconfig SDKCONFIG]\n                                        [--report REPORT]\ntest_performance_task_wrapper.py: error: report already exists; refusing to overwrite evidence\n",
+    "original_sha256_unchanged": true
+  },
+  "source_sha256": {
+    "tools/test_performance_task_wrapper.py": "c3b2e51a2e2304c757ceb8ad329a03155beeed0f4817a79bcf504bc5afacb3f4",
+    "tests/fixtures/performance_task_wrapper_cases.json": "b3d78f9dc4d46f48b3878d554361a3f80a83ab677c751f2c93419e4d35e8862f",
+    "main/kconfigs/Kconfig.compat": "ec4cbaf89bc05fe3fb6e5d2f1ad7d85b8db8caa6e83a7a9c03f8223576a77537",
+    "main/main.c": "a25d982fdf357976d48db408fbe538a31a550b782c5737e1afa94c724aebf83f"
+  },
+  "sdk_evidence": [
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/Kconfig",
+      "line": 362,
+      "finding": "SDK wrapper default y is gated on DEBUG or core dump/GDB. PERF without those gates drops wrapper."
+    },
+    {
+      "path": "/home/csc/.espressif/python_env/idf5.5_py3.12_env/lib/python3.12/site-packages/kconfiglib/core.py",
+      "line": 3436,
+      "finding": "Actual installed parser ORs node dependencies and appends defaults. Help at3782 states this; multiple definitions generate informational notice, not a conflicting second symbol."
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c",
+      "line": 139,
+      "finding": "Task wrapper calls task, logs return, then aborts. Only CONFIG_FREERTOS_TASK_FUNCTION_WRAPPER guards it; no DEBUG code dependency. Existing documented overhead16bytes per task call stack."
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c",
+      "line": 351,
+      "finding": "Initial frame pc points to wrapper; call0 and windowed ABI arguments are set accordingly. This is the real mechanism, not an application-level macro alias."
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/linker.lf",
+      "line": 319,
+      "finding": "Wrapper placement also uses the same configuration symbol, not DEBUG."
+    }
+  ],
+  "accepted_design": {
+    "extension_file": "main/kconfigs/Kconfig.compat",
+    "definition": "config FREERTOS_TASK_FUNCTION_WRAPPER\n    bool\n    depends on IDF_TARGET_ESP32S3 && COMPILER_OPTIMIZATION_PERF\n    default y",
+    "semantic_scope": "Adds exactly S3+PERF to the original allowed dependency. No prompt/select, GDB or core dump enable, SDK edit, abort replacement or watchdog modification. Conditional depends on is essential; do not use an unconstrained second definition.",
+    "guard_file": "main/main.c",
+    "guard_scope": "S3 && PERF && !WRAPPER -> compile error. Other targets and other optimization modes retain previous SDK semantics.",
+    "future_sdk_limit": "Guard catches a missing/false generated configuration flag, not a future SDK implementation that stops honoring that flag. The test requires actual SDK symbol and source hashes, and final ELF inspection remains necessary."
+  },
+  "required_parent_final_verification": [
+    "Generated sdkconfig.h contains CONFIG_FREERTOS_TASK_FUNCTION_WRAPPER=1 and PERF=1; protection scope diff retains assertions, stack checks, watchdog and heap poisoning without enabling GDB/core dump.",
+    "Actual Xtensa port.c compile command uses-O2 and real generated configuration.",
+    "Final ELF nm/objdump: vPortTaskWrapper (possibly optimized suffix) exists, wrapper body still calls user task and reaches log/abort on return, and initial-frame construction references its actual address. At-O2 stack-frame helper may inline into pxPortInitialiseStack; do not require an unoptimized helper symbol name.",
+    "Review the existing panic/restart wrapper integration as part of the actual candidate build; host preprocessing is not target execution or HIL."
+  ],
+  "execution_scope": {
+    "production_or_sdk_edits_by_reviewer": false,
+    "current_sdkconfig_or_build_writes_by_reviewer": false,
+    "target_build": false,
+    "hardware": false,
+    "new_owned_files_frozen": true,
+    "generated_files": "temporary directories only"
+  },
+  "initial_experiment_harness_correction": "Initial /tmp prototype used package-level expr_str unavailable in installed esp-idf-kconfig; corrected import from kconfiglib.core. This was a prototype API error, not a production/configuration failure. Final reusable test passed."
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 
@@ -20,6 +21,26 @@ def sha(path: Path) -> str:
 
 def read(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def stability_observation(summary: dict) -> dict:
+    """Describe only this recording, never infer acceptance or other runs."""
+    if summary.get("benchmark_kind") != "stability":
+        return {"status": "NOT_REQUESTED_IN_THIS_CAPTURE", "acceptance": "NOT_EVALUATED"}
+    names = ("capture_requested_seconds", "capture_seconds",
+             "capture_monotonic_start", "capture_monotonic_end")
+    values = [summary.get(name) for name in names]
+    numeric = all(type(v) in (int, float) and math.isfinite(v) for v in values)
+    complete = False
+    if numeric:
+        requested, duration, start, end = values
+        complete = (requested >= 600 and duration >= requested and end >= start and
+                    abs((end-start)-duration) <= 1e-6 and
+                    summary.get("capture_duration_satisfied") is True and
+                    summary.get("status") == "CAPTURED")
+    return {"status": "CAPTURED_600_SECONDS_NOT_ACCEPTED" if complete else "INCOMPLETE_OR_UNKNOWN",
+            "acceptance": "NOT_EVALUATED", "scope": "this_single_continuous_recording_only",
+            **{name: summary.get(name) for name in names}}
 
 
 def missing_observations(counts: dict, groups: list) -> dict:
@@ -75,6 +96,7 @@ def capture_summary(analysis: dict, summary: dict, cpu: dict) -> dict:
     layers["BLESVC"] = cpu["BLE_SDK_separate_query_window"]
     return {
         "label": c["label"], "capture_status": c["status"],
+        "stability_window": stability_observation(summary),
         "window_seconds": summary["capture_seconds"],
         "requested_seconds_met": c["window"]["requested_seconds_met"],
         "configuration_identity": group["identity"],
@@ -177,7 +199,8 @@ def main() -> int:
               "hardware_actions": [], "original_recordings_modified": False}
     verdict = {**common, "schema_version": 1, "status": a.verdict, "verdict_source": "explicit_reviewer_argument_not_automatic_threshold",
                "running_image": identity, "inputs": inputs, "screen": current,
-               "current_image_600_seconds": "NOT_RUN", "current_image_32_configurations": "NOT_RUN",
+               "continuous_600_seconds": current["stability_window"],
+               "other_runs_or_32_configuration_acceptance": "NOT_EVALUATED_FROM_THIS_SINGLE_CAPTURE",
                "limitations": ["Full capture duration is not full acceptance or absolute precision validation.",
                                "No observed fault/reset/WDT text is not proof of absence outside available evidence.",
                                "ADC CRC denominator is checked reads within its diagnostic bracket, not scientific frames."]}
