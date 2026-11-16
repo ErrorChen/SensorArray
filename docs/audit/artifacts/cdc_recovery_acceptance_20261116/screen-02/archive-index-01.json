@@ -1,0 +1,56 @@
+{
+  "scope": "completed_screen02_only",
+  "records": [
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-ble.ble.notifications.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-ble.ble.notifications.jsonl.gz",
+      "bytes": 11899877,
+      "compressed_bytes": 1528757,
+      "original_sha256": "644cf63319126f6f3642afa1158152b8e6187f6e9ac875435017530382c4b38f",
+      "archive_sha256": "087089ea8d82ffd95421affc2c319f3e6ba777bbcce5008ec456b1fa60a70ca5",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.events.jsonl.gz",
+      "bytes": 1231747,
+      "compressed_bytes": 194096,
+      "original_sha256": "12ca49882cda9184e62c0bedcb15145fb769f4c78d294d0a45a299c07c3fcc7d",
+      "archive_sha256": "1b40f88a985f5dcb50379aa31e15376b6d6226acfe00f679d482f54b8ed89a5b",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.rx.bin.gz",
+      "bytes": 1383504,
+      "compressed_bytes": 133710,
+      "original_sha256": "46b03c7a7504551467d836bab82571008736d327216963f3232d4488103adb10",
+      "archive_sha256": "8417d279ef95fe702b9bdc08baf7b88a677e9a64ed4bd9880dd7f0776f596271",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-volt1.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-volt1.events.jsonl.gz",
+      "bytes": 4018668,
+      "compressed_bytes": 511312,
+      "original_sha256": "66bc118bcd2c14c3d38e579872a32e27d9cfef5128a52604e7c8a3646df3e4f1",
+      "archive_sha256": "8030fd2ee1f9d809e2719448c9732c06f3039282a87d9231e16c6ec32c1065a5",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-volt1.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-volt1.rx.bin.gz",
+      "bytes": 5135325,
+      "compressed_bytes": 431412,
+      "original_sha256": "c9c839358c12b1f59f8af853c200bdbf9c313281db70392d628520faf4155543",
+      "archive_sha256": "c3cb995a96798bb623d381f6d85bb5460585e14d202e431410f6bd42b6b3416e",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    }
+  ],
+  "hardware_actions": false
+}

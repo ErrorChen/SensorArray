@@ -1,0 +1,55 @@
+{
+  "scope": "completed_priority_boot_and_ROM_only",
+  "records": [
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-boot.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-boot.events.jsonl.gz",
+      "bytes": 57924,
+      "compressed_bytes": 9342,
+      "original_sha256": "9c162fa52b1c20b1844054e6c4c4fa0a32e8e83af33c45b4f402968a256a489c",
+      "archive_sha256": "159b40f4dd5371aef7f6a91d2d62dc471d62045734f80da29dfe01cd25b794b9",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-debug.debug.events.jsonl.gz",
+      "bytes": 161575,
+      "compressed_bytes": 27622,
+      "original_sha256": "8b5817119ee34e2e897ab2f0e7ce27df818904f1c7ec3799ecb4b91e8bea70a9",
+      "archive_sha256": "c9db10e5e91190e2376523ef2bb42814775d86dc2a0fb0332e1a6fc287070d84",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-boot.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-boot.rx.bin.gz",
+      "bytes": 62030,
+      "compressed_bytes": 14227,
+      "original_sha256": "82cdf9bdf5272b7315961065bf0f20d49f3336d5d974e045e5df09f60376b218",
+      "archive_sha256": "be296601296c66987bc7675f16c62e69a7a28f0d04b49fcd95908e50f3e0963a",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-debug.debug.rx.bin.gz",
+      "bytes": 210971,
+      "compressed_bytes": 33381,
+      "original_sha256": "1d9fc6aca1fe529aa376563edf595629ef5198feb4f4adfaf0d4dde32322c933",
+      "archive_sha256": "3a1c48b8bc921fecbb9e3d36abbff2c90ebfaddbddd113da41b4ccfacf0ccf1b",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-rom-01.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-rom-01.events.jsonl.gz",
+      "bytes": 19981,
+      "compressed_bytes": 4133,
+      "original_sha256": "023da5ec56d6ca74d1f78b71d0913e18757cba1e85c5749c05c9fef28ab28be0",
+      "archive_sha256": "b14fad734ab003e2b39e2b010b4b1fb073005d514124054a8a783c7b8a97c1b7",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    }
+  ]
+}

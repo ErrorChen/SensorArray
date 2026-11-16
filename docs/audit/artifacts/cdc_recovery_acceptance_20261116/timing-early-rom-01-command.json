@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/request_early_rom.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "timing-early-rom-01",
+    "--expected-elf",
+    "4bb52b190a2a2ce3bc4623af7d52e0bd6cb0436ca9972e30bdb3a94f1459b758",
+    "--duration",
+    "60"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 75.0,
+  "head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "dirty_diff_sha256": "9619b9a1072f319a254b12b45e61fedcfe101e549e8691eb34d3bc217e214105",
+  "started_utc": "2026-11-16T05:28:30.622619+00:00",
+  "started_monotonic": 313802.835785746,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-early-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T05:28:31.940319+00:00",
+  "finished_monotonic": 313804.153483274,
+  "log_sha256": "c087087299f51caa454ac28e8a2dc1fa7b84493c8cfa21abe8ff98800dcbff2b"
+}

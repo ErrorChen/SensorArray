@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/usr/bin/env",
+    "CC=/usr/bin/gcc",
+    "python3",
+    "tools/test_frontend_wait_integration.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "bb230d03f438e724436881a7f61af35122726403",
+  "dirty_diff_sha256": "4bd7d04e1d003ff14aed10182d78577bc565bfc9b218a537009a382556003d26",
+  "started_utc": "2026-11-16T05:25:32.265535+00:00",
+  "started_monotonic": 313624.478699212,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-storage-frontend-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T05:25:32.479742+00:00",
+  "finished_monotonic": 313624.692906289,
+  "log_sha256": "b436df6b2f9d2ffba1d01d767581b6a1505f621b37d7e64473f38ab64a11baca"
+}

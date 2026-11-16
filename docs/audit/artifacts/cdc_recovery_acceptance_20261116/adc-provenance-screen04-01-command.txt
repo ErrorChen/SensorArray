@@ -1,0 +1,1 @@
+{"status": "ANALYSIS_COMPLETE", "source_counts": {"legacy_spi56": 366}, "xor_by_source": {"legacy_spi56": {"01": 366}}}

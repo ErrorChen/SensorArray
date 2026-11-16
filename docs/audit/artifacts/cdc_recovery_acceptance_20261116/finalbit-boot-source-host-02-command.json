@@ -1,0 +1,19 @@
+{
+  "command": [
+    "env",
+    "CC=/usr/bin/gcc",
+    "python3",
+    "tools/test_boot_spi_parallel.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "dirty_diff_sha256": "307c9bc76babb9d631c0c40d5feb850579b0e7447ea62d7f95cefe007b3a43c6",
+  "started_utc": "2026-11-16T07:04:34.066670+00:00",
+  "started_monotonic": 319564.403518931,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-boot-source-host-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T07:04:34.281007+00:00",
+  "finished_monotonic": 319564.617851713,
+  "log_sha256": "f79141dc3d53ffa7897b3e2848fc489ee7e7689756a0560f887f0207dde85e35"
+}

@@ -1,0 +1,39 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ads_presence.py"
+  ],
+  "expected_exit_code": 0,
+  "exit_code": 0,
+  "matched_expectation": true,
+  "started_utc": "2026-11-16T06:25:04.340145+00:00",
+  "ended_utc": "2026-11-16T06:25:04.608585+00:00",
+  "head": "bc997679bcdc1db2df272914180bde50f16ff703",
+  "dirty_diff_sha256": "c6371bebcc12ea34788155bb8833041d1290d5451d5b0681eb59ac999fa8a400",
+  "source_sha256_before": {
+    "components/ads126xAdc/ads126xAdc.c": "0f7e37b6f7e5f137863c49afcd8dc623ec362bde6faf5df89acc91faf10d3505",
+    "components/ads126xAdc/include/ads126xAdc.h": "d74faea66f97340930765eb48848ef2dec1b83ed821eacc049d044c1ccfb735d",
+    "core/measure/ads/sensorarrayAdsTimingProbe.c": "feb1708544a45906f284810cb1d46048161109811b88182ade9ae97a1782dec9",
+    "core/measure/ads/sensorarrayAdsTimingProbe.h": "c4379971eb9028e22bd54469e55e994169192c000a7d58dd130051d57b6bb5eb",
+    "tests/host/test_ads_tail_diagnostic.c": "a21c652e31b41ccb20bcab65a2d35ceffe4995087f48c918d425130d772bbf6c",
+    "tools/test_ads_tail_diagnostic.py": "a64097a5f2c179b562f4bed03bff657bd58f28fa227006c14d0b8a99d71e0f30",
+    "tests/host/test_ads_timing_probe.c": "15efe3fc373dea445933810c0f80147a6ed5607cecb6aeb966f2de9624e29206",
+    "tests/host/test_ads_driver_reliability.c": "43c2bd0ae92e23dd9d2a8dd38ce9ce393e2884680728c7414313d8b9871d7afa",
+    "tests/host/ads_stubs/soc/spi_periph.h": "62b9ed0b99c5464fece53f9fb5c3e80cf84d2ef836433da6714d6fbb189a91aa"
+  },
+  "source_sha256_after": {
+    "components/ads126xAdc/ads126xAdc.c": "0f7e37b6f7e5f137863c49afcd8dc623ec362bde6faf5df89acc91faf10d3505",
+    "components/ads126xAdc/include/ads126xAdc.h": "d74faea66f97340930765eb48848ef2dec1b83ed821eacc049d044c1ccfb735d",
+    "core/measure/ads/sensorarrayAdsTimingProbe.c": "feb1708544a45906f284810cb1d46048161109811b88182ade9ae97a1782dec9",
+    "core/measure/ads/sensorarrayAdsTimingProbe.h": "c4379971eb9028e22bd54469e55e994169192c000a7d58dd130051d57b6bb5eb",
+    "tests/host/test_ads_tail_diagnostic.c": "a21c652e31b41ccb20bcab65a2d35ceffe4995087f48c918d425130d772bbf6c",
+    "tools/test_ads_tail_diagnostic.py": "a64097a5f2c179b562f4bed03bff657bd58f28fa227006c14d0b8a99d71e0f30",
+    "tests/host/test_ads_timing_probe.c": "15efe3fc373dea445933810c0f80147a6ed5607cecb6aeb966f2de9624e29206",
+    "tests/host/test_ads_driver_reliability.c": "43c2bd0ae92e23dd9d2a8dd38ce9ce393e2884680728c7414313d8b9871d7afa",
+    "tests/host/ads_stubs/soc/spi_periph.h": "62b9ed0b99c5464fece53f9fb5c3e80cf84d2ef836433da6714d6fbb189a91aa"
+  },
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ads-tail-gpio-presence-host-01.txt",
+  "log_sha256": "6db34de6e6fc2f612ce6e25d4a99d689aaf94aa9d6bd308515e875a90fccfcb0",
+  "scope": "Real production driver/module functions, synthetic SPI/GPIO/RTOS; no hardware or target build.",
+  "source_changed_during_run": false
+}

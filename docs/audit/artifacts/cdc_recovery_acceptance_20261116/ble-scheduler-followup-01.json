@@ -1,0 +1,773 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-16T06:41:25.108713+00:00",
+  "review_head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "sdk_commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+  "scope": "Read-only source/evidence follow-up after BLE TX8 candidate retraction. This command creates only this new report; no production/tests/config edits, build or hardware action.",
+  "candidate_disposition": "WITHDRAWN_NOT_DEPLOYED; all four author-modified production/test files restored to HEAD, parent restored three priority configs to TX7. Original failed regression and candidate patch retained.",
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-04/screen-04-ble-service-review-01.json",
+      "bytes": 83939,
+      "sha256": "4f16aa7cac3f99274fdf85b0f53a5f9abbdc098f72f6264af0ef0da2d7fba03b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx8-candidate-01-validation.json",
+      "bytes": 3742,
+      "sha256": "703bc2cace08e83132369022227a307bba0044c47a82d973d82c95b66ca0857b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx8-01-test_serial_io.txt",
+      "bytes": 8497,
+      "sha256": "2c4ba4e7b2399f67a3fc02512e090c3a42b5479026df2fd90b5e886993a3febf"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx8-candidate-01.patch",
+      "bytes": 11578,
+      "sha256": "096682a8b9aab82b81d557a9ecfee01d1372ece674e04abf1e51b5ce8c902fed"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx8-candidate-01-retraction.json",
+      "bytes": 1554,
+      "sha256": "dc1009e7187ae834fd1abf9eba1aa45be2a5a33d74096ac63898b929a977413d"
+    }
+  ],
+  "model_review": {
+    "source_mapping": "Core0 output-hub/AsyncLog producer, NOT Core1 acquisition. sourceTask uses ACTUAL_LOG_PRIORITY, sourced from CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY, and ASYNC_LOG WorkBudget. It publishes a synthetic DATA record. Actual scan task is Core1 and publishes snapshots to AsyncLog; frame encoding is presently in PublishFrameSnapshot, so this model does not reproduce its Core1 encoding cost.",
+    "actual_topology": {
+      "scan_core": 1,
+      "async_log_core": 0,
+      "async_log_priority": 7,
+      "transport_core": 0,
+      "transport_priority": 7,
+      "otg_owner_core": 0,
+      "otg_owner_priority": 7,
+      "ble_tx_core": 0,
+      "ble_tx_priority_after_retraction": 7,
+      "ble_ctrl_priority": 8
+    },
+    "actual_bodies_exercised": "SerialIo legacy USJ queue/TX functions and actual WorkBudget. The same synthetic driver body is run at alternate priorities; it is not the actual OTG endpoint service implementation.",
+    "synthetic_load": "BLE and Transport each loop forever with 500us synthetic cpuWork then a real WorkBudget checkpoint; they do not block for or depend on their real descriptor queues. sourceTask attempts 200 records at absolute 10ms releases with synthetic 200us work. There is no Core1 task, BLE controller/radio, BTC/BTU work, or real RF/USB service in this scheduler.",
+    "actual_queue_difference": "Actual BLE owner blocks on txWake when all queues are empty; only 4 DATA + 2 LOG + 2 priority slots exist. Actual Transport has bounded descriptor queues and waits on notifications. The always-ready synthetic BLE load is therefore a conservative saturation counterexample, not a reproduction of the entire causal producer-to-consumer pipeline.",
+    "scheduler_difference": "Model rotates equal-priority tasks on ticks and preempts at explicitly modeled higher-priority wakeups. Actual IDF SMP ready-list selection moves each selected task to its list tail; BTC/BTU/HCI preemption inside each SDK send can change which equal-priority application resumes. This is an additional reason not to infer HIL FPS from the synthetic run.",
+    "failed_case": {
+      "serial_priority": 4,
+      "ble_priority": 8,
+      "control_priority": 8,
+      "no_host_until_us": 0,
+      "simulation_end_us": 2100000,
+      "source_expected": 200,
+      "source_observed": 55,
+      "accepted": 35,
+      "data_submitted": 9,
+      "data_rejected": 20,
+      "normal_expired": 23,
+      "controls_observed": 40,
+      "controls_submitted": 40,
+      "max_control_dispatch_us": 10000,
+      "max_control_driver_us": 26900,
+      "idle_visits": 52,
+      "max_idle_gap_ticks": 4,
+      "assertion": "sourceFrames == 200u && controlCommands == 40u",
+      "process": "SIGABRT",
+      "tool_exit_code": 1
+    },
+    "coverage_boundary": "Abort occurred in the FIRST historical serialPriority4 stress scenario. Candidate legacy6/actualOTG7 cases and runHandoff cases did not execute in that run. Control timing values are observed diagnostics; later control deadline assertions were not reached. Do not relabel them as complete candidate acceptance.",
+    "conclusion": "TX8 was not proven safe for the complete regression and was withdrawn. Failure shows WorkBudget idle progress alone does not guarantee lower-priority output-producer throughput under saturated higher-priority load. It does not establish that real Core1 sampling fell to 55 frames or predict actual BLE8 throughput.",
+    "assertions": "Original sourceFrames/control deadline assertions and original slot-held counterexample remain unchanged after retraction. No new test is being presented as a replacement PASS."
+  },
+  "handoff_review": {
+    "current_order": [
+      "Transport validates and holds its pooled descriptor",
+      "BLE NotifyInternal allocates its own slot, computes CRC and memcpy copies the complete payload",
+      "QueueTxDescriptor queues the BLE descriptor then xSemaphoreGive wakes BLE",
+      "Transport records result and may send WiFi using original payload",
+      "Transport releases original pooled descriptor"
+    ],
+    "ownership": "BLE never borrows the Transport payload after NotifyInternal copy. Retaining the Transport descriptor during a preempting BLE send is not a dangling-pointer, use-after-free or identity relabel defect; it reduces available pool capacity and delays draining.",
+    "capacity": "Transport has 5 shared persistent payload slots, DATA queue2/LOG queue2/lifecycle queue1. A descriptor being processed retains one of those slots until release.",
+    "deadline_limit": "The application retains ownership correctly across SDK work. Its retry budget does not bound portMAX_DELAY waits within Bluedroid, so the temporary-hold wall time has no proven strict end-to-end bound. Synthetic7200us handoff cost is not measured HIL latency.",
+    "wake_only_defer_limit": "Copy+enqueue without wake, release Transport, then wake removes that particular immediate wake preemption. It does NOT guarantee the new descriptor cannot be consumed before release: BLE may already be runnable or hold a wake token, or a different producer may wake it.",
+    "strict_minimal_design_not_implemented": [
+      "Prepare reserves BLE-owned slot and copies immutable payload but does not publish its descriptor to a queue",
+      "Transport finishes any WiFi use, records needed metadata and releases its pooled descriptor",
+      "Commit validates the prepared token/generations, publishes the BLE descriptor and wakes owner; every failure cancels only the reserved slot",
+      "Existing public Notify APIs can remain prepare+commit wrappers; only Transport needs staged API if later authorized"
+    ],
+    "required_regressions_before_any_change": [
+      "Prepare does not expose descriptor to an already-running owner",
+      "WiFi still receives intact original payload before Transport release",
+      "Prepare/commit allocation or queue failure releases exactly once",
+      "Disconnect/reconnect between phases never relabels old connection generation and releases reservation",
+      "Every successful commit wakes or is already observable; no lost work after consumed wake token",
+      "CTRL/lifecycle semantics and per-channel FIFO retained",
+      "Pool occupancy and queueDrop measured during subsequent HIL; no throughput claim from queue handoff alone"
+    ],
+    "status": "DESIGN_ONLY; not implemented in the ADS-only candidate"
+  },
+  "closed_screen03_to04": {
+    "comparison": {
+      "ble_receive_fps_pct_change": -10.834291532665208,
+      "capture_fps_pct_change": -0.6930547957178401,
+      "mean_sdk_wall_us_increase": 131.7819592658907,
+      "aggregate_elapsed_per_sdk_call_us_increase": 915.7278872717179,
+      "outside_sdk_interval_per_call_us_increase": 783.9459280058272,
+      "observed_notification_capacity_per_s": 107.28320383179937,
+      "required_notifications_per_s_at_capture_with_same_LOG": 209.5516548517669,
+      "LOG_fraction_of_notifications": 0.11045518098493087,
+      "hypothetical_no_LOG_upper_bound_science_fps_at_unchanged_notify_service": 35.76106794393312,
+      "counterfactual_note": "Arithmetic only, not measured RF capacity or a proposal to disable diagnostic logs; all scientific frames require3D notifications.",
+      "causality_limit": "Different boots/firmware image and substantially different ADC CRC/retry/debug load. Confirmed7.5ms negotiation did not meet throughput target, but decline cannot be assigned causally to interval alone."
+    },
+    "rates": {
+      "screen-03": {
+        "BUILD": {
+          "idf": "v5.5.5",
+          "target": "esp32s3",
+          "project": "SensorArray",
+          "proto": "2",
+          "version": "8b1ce9f-dirty",
+          "elfSha256": "1e501ba784cdf95cd9664d71ebafc218e44e5ba44e2156908af4554da33cef5f"
+        },
+        "capture_window": {
+          "start": 314341.156660095,
+          "end": 314461.194506902,
+          "seconds": 120.0378468070412
+        },
+        "capture_fps": 66.36047081070863,
+        "usb_fps": 66.33135649713398,
+        "ble_fps": 35.68096391513671
+      },
+      "screen-04": {
+        "BUILD": {
+          "idf": "v5.5.5",
+          "target": "esp32s3",
+          "project": "SensorArray",
+          "proto": "2",
+          "version": "bc99767-dirty",
+          "elfSha256": "2cd47eb02b556120fc9459a0cc2ec9c394ca95ac5313a7c4284b4267800cf93b"
+        },
+        "capture_window": {
+          "start": 316176.537441153,
+          "end": 316296.537586005,
+          "seconds": 120.00014485197607
+        },
+        "capture_fps": 65.90055638529408,
+        "usb_fps": 65.8113744320987,
+        "ble_fps": 31.815184262905724
+      }
+    },
+    "interpretation": "Negotiated interval6 is confirmed but target remains FAIL. SDK-call mean wall rose only131.8us while aggregate elapsed per completed SDK call rose915.7us; most additional elapsed is outside the observed API brackets. Separate query brackets and active-call boundaries preclude precise CPU attribution. Different ADC CRC/retry/debug load remains a confounder."
+  },
+  "sdk_path": {
+    "no_forced_success_delay": "FAST send makes one esp_ble_gatts_send_indicate call per fragment. Success has no unconditional 1tick delay/indication-confirmation wait. WorkBudget checks remain conditional and execute at descriptor boundaries or bounded fragment/time intervals.",
+    "possible_block_or_preemption": [
+      "esp_ble_gatts_send_indicate performs congestion check and portMAX semaphore-based ATT accounting",
+      "btc_transfer_context allocates/deep-copies and posts using OSI_THREAD_MAX_TIMEOUT; osi_thead_work_queue_put can xQueueSend portMAX_DELAY",
+      "osi_thread_post wakes priority19 BTC; BTC can wake priority20 BTU, priority22 HCI and controller23 work",
+      "After higher-priority work blocks, actual IDF ready-list scheduling can select peer app tasks before BLE resumes inside the API call"
+    ],
+    "classification": "Possible synchronous queue/semaphore wait and higher-priority/equal-priority scheduling inside one wall bracket. Not established as classical priority inversion; sdkWallUs is not task CPU time. No direct HCI credits/completed-packet counters were recorded in screens03/04."
+  },
+  "next_minimal_credit_observation_design": {
+    "api": "esp_ble_get_sendable_packets_num()",
+    "local_primary_contract": "esp_gatt_common_api.c requires BLE running core and currently single connection. Current BLE owner is Core0; one GATT connection is stored. The API returns L2CA_GetFreePktBufferNum_LE -> controller_le_xmit_window without the ATT-accounting semaphore.",
+    "sampling": "Only BLE owner before/after SDK calls, with connection-generation checks; fixed counters/min/max/zero counts and query-only output. Unconnected or generation-changing samples unknown, not zero. No per-notification log and no flow-control behavior change.",
+    "meaning": "Available controller-side packet window. l2c_link_process_num_completed_pkts adds HCI completed-packet counts to this window. It does not measure PC application receipt, radio airtime or end-to-end delivery.",
+    "avoid": "The nominally per-connection esp_ble_get_cur_sendable_packets_num calls L2CA_GET_ATT_NUM under portMAX semaphore and additional stack lookups; do not add that wait to every fragment without evaluating it.",
+    "status": "DESIGN_ONLY"
+  },
+  "task_runtime_design": {
+    "current": "CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS and USE_TRACE_FACILITY are disabled. Current BLESVC/SCHEDWHY cannot supply task CPU percentages.",
+    "required_config": [
+      "CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y (automatically selects TRACE and STATS_FORMATTING through actual IDF Kconfig)",
+      "CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y",
+      "CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64=y",
+      "Optionally CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y if affinity is included; otherwise use proven static affinity and explicitly label unknown tasks"
+    ],
+    "supported_kernel": "Current CONFIG_FREERTOS_SMP is off but CONFIG_FREERTOS_UNICORE is also off: this is the IDF dual-core FreeRTOS kernel, whose non-Amazon-SMP Kconfig supports U64 counters. A complete firmware rebuild is required.",
+    "query_api": "For fixed lifetime-proven handles, call vTaskGetInfo(handle, &one, pdFALSE, eReady) and use only runtime/handle/taskNumber/priority fields. pdFALSE skips stack watermark scan. A supplied non-eInvalid/non-eSuspended placeholder skips state traversal; do NOT expose that placeholder as real task state.",
+    "avoid_bulk_api": "uxTaskGetSystemState internally calls vTaskGetInfo(...,pdTRUE,...) for every task under the kernel critical section, scanning each stack. vTaskGetRunTimeStats adds allocation/formatting. Neither is the minimal query path here.",
+    "tasks": [
+      "bleTx",
+      "sensorarrayLogTask",
+      "transport",
+      "serialTx (formal OTG owner when selected)",
+      "BTC_TASK",
+      "BTU_TASK",
+      "hciT",
+      "btController (resolve actual task name/handle, unknown if absent)",
+      "IDLE0",
+      "optional bleCtrl/serialCtrl/IDLE1/scan for full accounting"
+    ],
+    "handle_lifetime": "Existing application and BLE SDK tasks are created once and not deinitialized in normal runtime; only query after their successful initialization. Use explicit published app handles where possible. SDK task lookup by name is bounded task-list traversal and must not be treated as a lifetime lock; do not cache across boot/deinit. Missing handle returns unknown.",
+    "atomicity": "Actual vTaskGetInfo takes xKernelLock on dual-core and copies the uint64 runtime counter, preventing torn per-task reads. Sequential task reads are NOT one simultaneous all-task snapshot. Record query begin/end monotonic time and per-entry sample time; publish the completed fixed-size collection once under a short diagnostics mux/revision, format outside locks. An application mux alone cannot make kernel task counters atomic across all tasks.",
+    "units_and_interpretation": "With ESP_TIMER the count is scheduled running microseconds accumulated at task switch-out. Pending running slices are not added by vTaskGetInfo; include query bracket/skew. ISR time between switches can be attributed to the interrupted task. Use delta(taskUs)/delta(sampleUs) for pinned-Core0 scheduled share and delta(IDLE0) for observed slack, not SDK wall or guaranteed pure CPU execution excluding interrupts.",
+    "idle_caveat": "Idle share alone is not a complete utilization guarantee if priority0 non-idle tasks or tickless sleep are used. Current configIDLE_SHOULD_YIELD is0; report sleep/affinity settings with the observation.",
+    "wrap_and_identity": "Default U32 ESP_TIMER counts wrap at 4294.967296s; kernel only accumulates when now > lastSwitch, so one slice across a timer wrap is lost and host modulo arithmetic cannot repair it. U64 ESP_TIMER avoids this operational wrap (port casts esp_timer_get_time directly to configRUN_TIME_COUNTER_TYPE). Still scope deltas by boot/session and task creation number. Counter decrease, task replacement or inconsistent sampled identity invalidates a delta rather than producing a huge percentage.",
+    "ABI_and_cost": "U64 changes TCB and public TaskStatus/StaticTask layouts; all firmware components must rebuild together. Runtime field adds8 bytes per TCB; TRACE adds two UBaseType_t fields (8 bytes on this32-bit target), plus target padding. Queue/sem trace adds UBaseType_t+uint8 fields plus padding. StaticTask/StaticQueue buffers expand accordingly. Every task switch adds ESP_TIMER read and64-bit accounting; exact code/RAM/cycle cost must be measured by later target size/HIL. Query can reuse one local TaskStatus_t and a fixed result array, no hot-path allocation or per-fragment text.",
+    "not_claimed": "Not implemented, not built, no runtime/CPU numbers fabricated. Enabling kernel stats is a distinct diagnostic-image change, not a hidden addition to the ADS-only candidate."
+  },
+  "errata_to_prior_report_without_overwrite": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-04/screen-04-ble-service-review-01.json",
+      "field": "primary_source_contract.BLE_implementation",
+      "correction": "Actual function names are sensorarrayBleAllocateTxDescriptor and sensorarrayBleSendGattValue (not sensorarrayBleAllocTxSlot / sensorarrayBleSendWithContext). SendPayload and TxTask names were correct."
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx8-candidate-01-validation.json",
+      "field": "handoff_tradeoff",
+      "clarification": "The7200us hold statement is a synthetic mechanism/expected relationship from the retained baseline handoff model. Candidate run aborted before its handoff scenarios; no claim those candidate cases executed."
+    }
+  ],
+  "reviewed_sources": [
+    {
+      "path": "tests/host/test_serial_io_priority.c",
+      "bytes": 17199,
+      "sha256": "ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static void sourceTask(void)",
+          "lines": [
+            156
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void bleTask(void)",
+          "lines": [
+            169
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void transportTask(void)",
+          "lines": [
+            184
+          ]
+        },
+        {
+          "symbol_or_exact_token": "unsigned priorities[]",
+          "lines": [
+            237
+          ]
+        },
+        {
+          "symbol_or_exact_token": "assert(sourceFrames == 200u",
+          "lines": [
+            282
+          ]
+        },
+        {
+          "symbol_or_exact_token": "run(4u, 0u",
+          "lines": [
+            344
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void runHandoff(",
+          "lines": [
+            312
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tools/test_serial_io.py",
+      "bytes": 22810,
+      "sha256": "cb5c615d9d7a30d5df3da2468fd469445216e3366f9229ac6c770d0aac4a2f38",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "ACTUAL_LOG_PRIORITY",
+          "lines": [
+            280
+          ]
+        },
+        {
+          "symbol_or_exact_token": "ACTUAL_BLE_PRIORITY",
+          "lines": [
+            281
+          ]
+        },
+        {
+          "symbol_or_exact_token": "SERIAL_TEST_LEGACY_TX",
+          "lines": [
+            292
+          ]
+        }
+      ]
+    },
+    {
+      "path": "main/output/sensorarrayAsyncLog.c",
+      "bytes": 109534,
+      "sha256": "b644f12edb17fe79f67d2551ab6c04a98cf9f6e04d7c1c8344504f13799f9b8d",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static void sensorarrayAsyncLogTask(",
+          "lines": [
+            1854
+          ]
+        },
+        {
+          "symbol_or_exact_token": "sensorarrayNetTextPublish(textPacket",
+          "lines": [
+            1906
+          ]
+        },
+        {
+          "symbol_or_exact_token": "sensorarrayUsbSinkPublish(textPacket",
+          "lines": [
+            1908
+          ]
+        },
+        {
+          "symbol_or_exact_token": "CONFIG_SENSORARRAY_ASYNC_LOG_TASK_PRIORITY,",
+          "lines": [
+            2020,
+            2030,
+            2047
+          ]
+        },
+        {
+          "symbol_or_exact_token": "sensorarrayTextProtocolBuildFrame(",
+          "lines": [
+            2177
+          ]
+        }
+      ]
+    },
+    {
+      "path": "main/main.c",
+      "bytes": 244480,
+      "sha256": "a3325d9340739fc3eb655a92723f108767ffc487501e96e0972d109f68ba9e31",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "sensorarrayAsyncLogPublishFrameSnapshot(",
+          "lines": [
+            4836
+          ]
+        },
+        {
+          "symbol_or_exact_token": "xTaskCreatePinnedToCore(sensorarrayScanTask",
+          "lines": [
+            4999
+          ]
+        }
+      ]
+    },
+    {
+      "path": "main/net/sensorarrayNetStatus.c",
+      "bytes": 1803,
+      "sha256": "3f144a49e858bc0207539500c30298b5618e0b5a5e79ca39acadafc8747a39a0",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "esp_err_t sensorarrayNetTextPublish(",
+          "lines": [
+            22
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/transport/sensorarrayTransport.c",
+      "bytes": 39424,
+      "sha256": "caf2825357c2f56d4b7e5fdd81e8d0bde9056ea8137de1f16995b4e1a143bb2b",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static void sensorarrayTransportProcessDescriptor(",
+          "lines": [
+            467
+          ]
+        },
+        {
+          "symbol_or_exact_token": "sensorarrayBleNotifyForGeneration(bleChannel",
+          "lines": [
+            505
+          ]
+        },
+        {
+          "symbol_or_exact_token": "sensorarrayTransportReleaseDescriptor(descriptor)",
+          "lines": [
+            520
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void sensorarrayTransportTask(",
+          "lines": [
+            589
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/transport/sensorarrayTransportPool.h",
+      "bytes": 3158,
+      "sha256": "8035d677cd265092333c1d94241732e0697b15a6b013b0e17640f014a57c7d47",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT",
+          "lines": [
+            10,
+            13,
+            56,
+            63,
+            66
+          ]
+        }
+      ]
+    },
+    {
+      "path": "components/sensorarrayBle/sensorarrayBle.c",
+      "bytes": 87736,
+      "sha256": "93ce676d4075778588fce222bbf5b3314e18389fa860bb9b5cfd422e1d29a237",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static esp_err_t sensorarrayBleAllocateTxDescriptor(",
+          "lines": [
+            428
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static esp_err_t sensorarrayBleSendGattValue(",
+          "lines": [
+            1008
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void sensorarrayBleTxTask(",
+          "lines": [
+            1373
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static esp_err_t sensorarrayBleQueueTxDescriptor(",
+          "lines": [
+            1395
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static esp_err_t sensorarrayBleNotifyInternal(",
+          "lines": [
+            2059
+          ]
+        },
+        {
+          "symbol_or_exact_token": "memcpy(slotData, data, length);",
+          "lines": [
+            2096
+          ]
+        }
+      ]
+    },
+    {
+      "path": "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c",
+      "bytes": 12410,
+      "sha256": "53b13724ea0980b417ec036bab44dd733969bfa7d6ba216570d6896be2e2abf9",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "bool sensorarrayWorkBudgetCheckpoint(",
+          "lines": [
+            135
+          ]
+        },
+        {
+          "symbol_or_exact_token": "generation != state->lastIdleGeneration",
+          "lines": [
+            154
+          ]
+        },
+        {
+          "symbol_or_exact_token": "vTaskDelay(1u);",
+          "lines": [
+            144,
+            196
+          ]
+        }
+      ]
+    },
+    {
+      "path": "sdkconfig",
+      "bytes": 117705,
+      "sha256": "31353f73b9e6507b9eeebf826b9eac5aeb999fef79cb66bb023c452b14b93acd"
+    },
+    {
+      "path": "main/kconfigs/Kconfig.output",
+      "bytes": 9603,
+      "sha256": "073290b1441c31e8fcaa2509f2f55b6f209c76f1c8e42bd25dc5873b262c9c2d"
+    },
+    {
+      "path": "sdkconfig.defaults",
+      "bytes": 2240,
+      "sha256": "4508f3b9eb5bd290528680560e47b0ede2324a735f76035cd44ddaadf9ef5c30"
+    }
+  ],
+  "sdk_primary_sources": [
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/api/esp_gatts_api.c",
+      "bytes": 17311,
+      "sha256": "789cec3d36eedd7c549d8f9db73655ca2f59e136ea44f896d7b3b5de84878e36",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "esp_err_t esp_ble_gatts_send_indicate(",
+          "lines": [
+            289
+          ]
+        },
+        {
+          "symbol_or_exact_token": "l2ble_update_att_acl_pkt_num(L2CA_ADD_BTC_NUM",
+          "lines": [
+            327
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/btc/core/btc_task.c",
+      "bytes": 23496,
+      "sha256": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "bt_status_t btc_transfer_context(",
+          "lines": [
+            330
+          ]
+        },
+        {
+          "symbol_or_exact_token": "btc_task_post(lmsg, OSI_THREAD_MAX_TIMEOUT)",
+          "lines": [
+            366
+          ]
+        },
+        {
+          "symbol_or_exact_token": "BTC_TASK_PRIO",
+          "lines": [
+            99,
+            545
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/thread.c",
+      "bytes": 13121,
+      "sha256": "9391231ea489ef4fbab908cc4c3d9e50f98279b9ee4fa1016bf0b5f252305ce3",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static bool osi_thead_work_queue_put(",
+          "lines": [
+            114
+          ]
+        },
+        {
+          "symbol_or_exact_token": "xQueueSend(wq->queue, item, portMAX_DELAY)",
+          "lines": [
+            122
+          ]
+        },
+        {
+          "symbol_or_exact_token": "static void osi_thread_run(",
+          "lines": [
+            150
+          ]
+        },
+        {
+          "symbol_or_exact_token": "bool osi_thread_post(",
+          "lines": [
+            338
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/api/esp_gatt_common_api.c",
+      "bytes": 2429,
+      "sha256": "8937fa65afc4f7b99dad3b04a9c6016643d5b0367b871111229e2ec0a649fe08",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "uint16_t esp_ble_get_sendable_packets_num",
+          "lines": [
+            56
+          ]
+        },
+        {
+          "symbol_or_exact_token": "uint16_t esp_ble_get_cur_sendable_packets_num",
+          "lines": [
+            78
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_api.c",
+      "bytes": 88210,
+      "sha256": "1fcce65586e8b56cafe82fc3c01b006bd13d16e6328a4476e0842565b9228986",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "UINT16 L2CA_GetFreePktBufferNum_LE(",
+          "lines": [
+            1882
+          ]
+        },
+        {
+          "symbol_or_exact_token": "void l2ble_update_att_acl_pkt_num(",
+          "lines": [
+            2355
+          ]
+        },
+        {
+          "symbol_or_exact_token": "case L2CA_GET_ATT_NUM:",
+          "lines": [
+            2391
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_link.c",
+      "bytes": 64329,
+      "sha256": "85a3b5889ba92c758a129e7389ce4a2e2a19c2b3c89814f8f33abbd680f839fe",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "void l2c_link_process_num_completed_pkts (",
+          "lines": [
+            1479
+          ]
+        },
+        {
+          "symbol_or_exact_token": "l2cb.controller_le_xmit_window += num_sent;",
+          "lines": [
+            1515
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/Kconfig",
+      "bytes": 33606,
+      "sha256": "bba9b8ef586b5b008b268de631f225093cf81826312f98d5fd35e6a70637cd2c",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "config FREERTOS_GENERATE_RUN_TIME_STATS",
+          "lines": [
+            289
+          ]
+        },
+        {
+          "symbol_or_exact_token": "choice FREERTOS_RUN_TIME_COUNTER_TYPE",
+          "lines": [
+            300
+          ]
+        },
+        {
+          "symbol_or_exact_token": "config FREERTOS_RUN_TIME_COUNTER_TYPE_U64",
+          "lines": [
+            313
+          ]
+        },
+        {
+          "symbol_or_exact_token": "config FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER",
+          "lines": [
+            537
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/tasks.c",
+      "bytes": 272955,
+      "sha256": "193c3d8379acc847097632da8e6d4dd2ee0bf8e069d78979d68dd26b653d48df",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "static void prvSelectHighestPriorityTaskSMP( void )",
+          "lines": [
+            649,
+            3559
+          ]
+        },
+        {
+          "symbol_or_exact_token": "UBaseType_t uxTaskGetSystemState(",
+          "lines": [
+            2970
+          ]
+        },
+        {
+          "symbol_or_exact_token": "void vTaskGetInfo(",
+          "lines": [
+            4638
+          ]
+        },
+        {
+          "symbol_or_exact_token": "vTaskGetInfo( ( TaskHandle_t ) pxNextTCB",
+          "lines": [
+            4790
+          ]
+        },
+        {
+          "symbol_or_exact_token": "pxCurrentTCBs[ xCurCoreID ]->ulRunTimeCounter +=",
+          "lines": [
+            3686
+          ]
+        },
+        {
+          "symbol_or_exact_token": "TaskHandle_t xTaskGetHandle(",
+          "lines": [
+            2858
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/config/include/freertos/FreeRTOSConfig.h",
+      "bytes": 13555,
+      "sha256": "e1b599aa39c1f9718aa3f4e101a81c0f9e8ab139ab1993fc2148840a02641d83",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "#define configRUN_TIME_COUNTER_TYPE    uint64_t",
+          "lines": [
+            175
+          ]
+        },
+        {
+          "symbol_or_exact_token": "#define configIDLE_SHOULD_YIELD",
+          "lines": [
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h",
+      "bytes": 26067,
+      "sha256": "80ff24959d8a900b7896d4fd3991344a2e100f3b8aacfbc787fe31df7bef8f77",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "#define portGET_RUN_TIME_COUNTER_VALUE()",
+          "lines": [
+            517,
+            519
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/esp_additions/freertos_tasks_c_additions.h",
+      "bytes": 50785,
+      "sha256": "6d100f12a99807975367d44788630ca312f3aadb6ea465783cdc74bee9dd0dd8",
+      "anchors": [
+        {
+          "symbol_or_exact_token": "configRUN_TIME_COUNTER_TYPE ulTaskGetIdleRunTimeCounterForCore(",
+          "lines": [
+            489
+          ]
+        }
+      ]
+    }
+  ],
+  "command": {
+    "argv": [
+      "python3",
+      "/tmp/write-ble-scheduler-followup-01.py"
+    ],
+    "hardware_actions": false,
+    "target_build": false,
+    "production_test_edits": false
+  }
+}

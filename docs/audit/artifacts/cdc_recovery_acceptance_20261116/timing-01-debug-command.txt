@@ -1,0 +1,1 @@
+{"status": "STOPPED", "error": null, "rx_bytes": 109, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-01-debug.debug.rx.bin"}

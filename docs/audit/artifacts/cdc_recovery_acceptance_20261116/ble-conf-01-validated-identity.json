@@ -1,0 +1,17 @@
+{
+  "source_commit": "0c94fe3bb58b25b0994ed2b718a8f5c33d456f4d",
+  "version": "0c94fe3-dirty",
+  "app_bytes": 1616720,
+  "bin_sha256": "fea4feb54a83531ad14c1c00c9c35f4f2ee6a7e5fb6f4ff56e0b6405934c0dbf",
+  "elf_sha256": "3077bfbfb35d7f90e27e15673ab90f90c35243db97ec0259776ecd84db019f97",
+  "host_entries": 64,
+  "all_exit_zero": true,
+  "production_inputs": 183,
+  "build_test_inputs_identical": true,
+  "dirty_diff_sha256_at_build": "b5c00ec612d7ebfd12f2f4e5db280d966dbe68c860667925861b52af0efb2cd2",
+  "hardware_flashed_at_manifest_creation": false,
+  "BLE_TX_priority": 7,
+  "startup_crc_threshold_changed": false,
+  "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+  "change_scope": "generic local SDK CONF observation, not a BLE throughput repair"
+}

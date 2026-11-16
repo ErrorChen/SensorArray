@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "timing-storage-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "dirty_diff_sha256": "9619b9a1072f319a254b12b45e61fedcfe101e549e8691eb34d3bc217e214105",
+  "started_utc": "2026-11-16T05:29:07.117629+00:00",
+  "started_monotonic": 313839.330799402,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-storage-01-flash-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T05:29:19.271821+00:00",
+  "finished_monotonic": 313851.484998349,
+  "log_sha256": "003ef0e30f601a172dbf660cf6c222d719d9f0c232359c16878a00643b42fb4d"
+}

@@ -1,0 +1,574 @@
+{
+  "status": "PASS_SYNTHETIC",
+  "tests_run": 6,
+  "case_count": 27,
+  "failures": 0,
+  "errors": 0,
+  "command": [
+    "/usr/bin/python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_request_early_rom.py",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/early-rom-safety-01.json"
+  ],
+  "optimization_level": 0,
+  "source_sha256_before": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/request_early_rom.py": "50ec076665b1a6f62ac12798e2b03b0f24c07c593acbf2e66f5b0792f439a1d7",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py": "b271140101bdecf3aa8b628080f5d04d2f9f557e9e26e391166d26692f89c171",
+    "/home/csc/esp/workspace/SensorArray/tools/capture_reference_fixture.py": "7e6cee81f0051fa2900a62f9fbf2ee0fb40d995c0cadd85fc2ddcbfdb2978a8f",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_request_early_rom.py": "852c617c7bc91e053d36b8e30b02f61e5dd9bf6b66f0d8034f253f4475367367"
+  },
+  "source_sha256_after": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/request_early_rom.py": "50ec076665b1a6f62ac12798e2b03b0f24c07c593acbf2e66f5b0792f439a1d7",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py": "b271140101bdecf3aa8b628080f5d04d2f9f557e9e26e391166d26692f89c171",
+    "/home/csc/esp/workspace/SensorArray/tools/capture_reference_fixture.py": "7e6cee81f0051fa2900a62f9fbf2ee0fb40d995c0cadd85fc2ddcbfdb2978a8f",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_request_early_rom.py": "852c617c7bc91e053d36b8e30b02f61e5dd9bf6b66f0d8034f253f4475367367"
+  },
+  "hardware_actions": false,
+  "temporary_root": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77",
+  "cases": [
+    {
+      "case": "normal",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ROM_ENUMERATION_OBSERVED_NOT_FLASHER_VERIFIED",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.5870000000001454,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/normal/normal.summary.json"
+    },
+    {
+      "case": "wrong_mac",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 0,
+      "peak_readers": 0,
+      "elapsed_fake_seconds": 0.0,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_mac/wrong_mac.summary.json"
+    },
+    {
+      "case": "wrong_open_role",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.0,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_open_role/wrong_open_role.summary.json"
+    },
+    {
+      "case": "wrong_elf",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_elf/wrong_elf.summary.json"
+    },
+    {
+      "case": "truncated_elf",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/truncated_elf/truncated_elf.summary.json"
+    },
+    {
+      "case": "missing_capability",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/missing_capability/missing_capability.summary.json"
+    },
+    {
+      "case": "wrong_stage",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_stage/wrong_stage.summary.json"
+    },
+    {
+      "case": "wrong_error",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_error/wrong_error.summary.json"
+    },
+    {
+      "case": "ready",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/ready/ready.summary.json"
+    },
+    {
+      "case": "progress",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/progress/progress.summary.json"
+    },
+    {
+      "case": "boot_mismatch",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/boot_mismatch/boot_mismatch.summary.json"
+    },
+    {
+      "case": "zero_session",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/zero_session/zero_session.summary.json"
+    },
+    {
+      "case": "pending",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/pending/pending.summary.json"
+    },
+    {
+      "case": "unmounted",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/unmounted/unmounted.summary.json"
+    },
+    {
+      "case": "rom_unavailable",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.024000000000114596,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/rom_unavailable/rom_unavailable.summary.json"
+    },
+    {
+      "case": "session_changed",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.03500000000016712,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/session_changed/session_changed.summary.json"
+    },
+    {
+      "case": "ready_changed",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.03500000000016712,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/ready_changed/ready_changed.summary.json"
+    },
+    {
+      "case": "no_query_replies",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ERROR",
+      "commands": [
+        "BUILD?"
+      ],
+      "action_attempts": 0,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.20000000000000284,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/no_query_replies/no_query_replies.summary.json"
+    },
+    {
+      "case": "ack_lost",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ROM_ENUMERATION_OBSERVED_NOT_FLASHER_VERIFIED",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.5870000000001454,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/ack_lost/ack_lost.summary.json"
+    },
+    {
+      "case": "action_write_unknown",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "ROM_ENUMERATION_OBSERVED_NOT_FLASHER_VERIFIED",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 0.5870000000001454,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/action_write_unknown/action_write_unknown.summary.json"
+    },
+    {
+      "case": "partial_write_failure",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 0,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/partial_write_failure/partial_write_failure.summary.json"
+    },
+    {
+      "case": "ack_without_enumeration",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/ack_without_enumeration/ack_without_enumeration.summary.json"
+    },
+    {
+      "case": "cached_old_present",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/cached_old_present/cached_old_present.summary.json"
+    },
+    {
+      "case": "path_reused_without_observed_absence",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/path_reused_without_observed_absence/path_reused_without_observed_absence.summary.json"
+    },
+    {
+      "case": "same_epoch_reappears",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/same_epoch_reappears/same_epoch_reappears.summary.json"
+    },
+    {
+      "case": "wrong_new_mac",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/wrong_new_mac/wrong_new_mac.summary.json"
+    },
+    {
+      "case": "duplicate_new",
+      "status": "PASS_SYNTHETIC",
+      "helper_status": "DEADLINE_WITHOUT_REQUIRED_ROM_ENUMERATION",
+      "commands": [
+        "BUILD?",
+        "PROTO?",
+        "RESTART?",
+        "BOOT?",
+        "READY?",
+        "USB?",
+        "BOOT?",
+        "READY?",
+        "RESTART?",
+        "USBBOOT"
+      ],
+      "action_attempts": 1,
+      "complete_action_commands": 1,
+      "logical_reader_opens": 1,
+      "peak_readers": 1,
+      "elapsed_fake_seconds": 2.5,
+      "summary": "/tmp/sensorarray-early-rom-synthetic-7k_1cv77/duplicate_new/duplicate_new.summary.json"
+    }
+  ],
+  "failure_details": [],
+  "limits": [
+    "Fake transport/clock/sysfs only; no physical enumeration, firmware response or reset verified.",
+    "RACK/RAPP tests are synthetic local publication events, never physical recovery proof."
+  ]
+}

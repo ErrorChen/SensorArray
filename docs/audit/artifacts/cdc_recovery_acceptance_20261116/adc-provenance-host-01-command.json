@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_adc_read_provenance.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "dirty_diff_sha256": "12031fda4b84892be5ad595a943e51c75448aad6a53691e9c1b65fa1aae3db77",
+  "started_utc": "2026-11-16T06:55:41.699796+00:00",
+  "started_monotonic": 319031.949869738,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-provenance-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T06:55:41.816882+00:00",
+  "finished_monotonic": 319032.066954047,
+  "log_sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+}

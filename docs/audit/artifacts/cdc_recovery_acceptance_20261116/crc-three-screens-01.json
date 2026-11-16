@@ -1,0 +1,27 @@
+{
+  "status": "ANALYSIS_COMPLETE_NOT_ROOT_CAUSE_PROOF",
+  "head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "sources": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/crc-tail-review-01.json",
+      "sha256": "dd833ac990b7a4d147600d7128b801498143d0d0c6cb2f175437900531131920",
+      "packets": 249
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/crc-tail-review-01.json",
+      "sha256": "a5a3c143ec132c449eecab012cc789c8484fbbd73ad7867388726343f6753142",
+      "packets": 156
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/crc-tail-review-01.json",
+      "sha256": "908423905df9ecb6e6a47958fdf03f39796741793564b451b15b425b51711262",
+      "packets": 144
+    }
+  ],
+  "complete_bad_packets": 549,
+  "computed_xor_received_01": 549,
+  "0_to_1": 523,
+  "1_to_0": 26,
+  "scope": "Rate-limited complete bad-packet subset of three closed real HIL logs; not all ADC attempts. Independent polynomial division verifies displayed CRC arithmetic. Untrusted data bytes are retained, not admitted to science.",
+  "limits": "Single syndrome is compatible with last-bit sampling but cannot prove corruption location or physical cause. Hardware GPIO-tail experiment pending; 2.5 percent startup criterion unchanged."
+}

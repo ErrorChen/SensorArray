@@ -1,0 +1,17 @@
+In file included from /home/csc/esp/workspace/SensorArray/tests/host/test_ads_presence.c:5:
+/tmp/sensorarray-ads-presence-r20divqc/sensorarray_ads_presence_impl.inc:35:13: error: ‘sensorarrayAdsDedicatedSpiOwner’ defined but not used [-Werror=unused-function]
+   35 | static bool sensorarrayAdsDedicatedSpiOwner(spi_device_handle_t device)
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/sensorarray-ads-presence-r20divqc/sensorarray_ads_presence_impl.inc:34:28: error: ‘s_adsDedicatedSpiDevice’ defined but not used [-Werror=unused-variable]
+   34 | static spi_device_handle_t s_adsDedicatedSpiDevice;
+      |                            ^~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_presence.py", line 42, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_presence.py", line 29, in main
+    subprocess.run([
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-I', '/tmp/sensorarray-ads-presence-r20divqc', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/ads_stubs', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/components/ads126xAdc/include', '/home/csc/esp/workspace/SensorArray/tests/host/test_ads_presence.c', '-o', '/tmp/sensorarray-ads-presence-r20divqc/test_ads_presence']' returned non-zero exit status 1.

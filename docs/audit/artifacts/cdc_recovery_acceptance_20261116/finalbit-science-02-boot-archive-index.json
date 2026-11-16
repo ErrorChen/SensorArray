@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-rom-01.epoch0.rx.bin",
+      "raw_bytes": 8987,
+      "raw_sha256": "af167a6f29fbcb105bebd6a5b8713ae40aacd163cbdc0a3cfca62a65cd283eae",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-rom-01.epoch0.rx.bin.gz",
+      "gzip_sha256": "4c4cfef151296d095dc805dcb4eae9ca60f9f7cd7379ca0ef8f428d7ac101d3b",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-rom-01.events.jsonl",
+      "raw_bytes": 20198,
+      "raw_sha256": "7b925258b53c457a3a8f18a26df2e9d65c05cd6e7056961f0141c516b06875b6",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-rom-01.events.jsonl.gz",
+      "gzip_sha256": "0bbd96acdc95f9e36b0418d6b47b222de6ce46483f58ed775507587e0e0c2a50",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-boot.events.jsonl",
+      "raw_bytes": 12968,
+      "raw_sha256": "be3a7aa3b6714f883c51250ffb081ffada7f3bec8624845b3b4502159b0ca122",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-boot.events.jsonl.gz",
+      "gzip_sha256": "fcbc3d3e5ac474107df25863c9449f7710e7fe37eb10c2ccb997b94e52239064",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-boot.rx.bin",
+      "raw_bytes": 3595,
+      "raw_sha256": "6b6fea16a175ef73171fa2f9acf702cac33d11131adacdaa69c3d86b72696b6a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-boot.rx.bin.gz",
+      "gzip_sha256": "2a5ef39d07ca08abc95133b727c7ecfeb464cfe47887baf8d5df9a8517a803d4",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-debug.debug.events.jsonl",
+      "raw_bytes": 83146,
+      "raw_sha256": "3b9180668e2ae656777c3fba78bdcf1d912d5c454fe28ca57977813ac458754e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-debug.debug.events.jsonl.gz",
+      "gzip_sha256": "6a4131f23649175c051bda4ccbcfa452d25fb18ddf92c9914eba0afaf883a269",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-debug.debug.rx.bin",
+      "raw_bytes": 122734,
+      "raw_sha256": "d35f0f4377e61951d888b2a6d362ae9d9b905b8259ac76a683f4cddf2b33ae45",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-debug.debug.rx.bin.gz",
+      "gzip_sha256": "752bad24a7611337bd76aa632d1d08782c3562e66be95aed13ce3be052d64927",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-state-01.events.jsonl",
+      "raw_bytes": 14698,
+      "raw_sha256": "939ecb2a2cb44f118ffc96a35a9ff425df8d552979121129310d299c8c15d397",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-state-01.events.jsonl.gz",
+      "gzip_sha256": "9c00b7829a9b7b59b6cf265df602c2e7c03b2adbb38d61647be66eed9cfd74c4",
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-state-01.rx.bin",
+      "raw_bytes": 9736,
+      "raw_sha256": "8dc71e4dd3bf7e3fb2a19a56b87313bd73aa57347d6c94494ad258ae1f73db55",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-state-01.rx.bin.gz",
+      "gzip_sha256": "3300297738239b3efb33e9835d662538fab419822f22801ea26fbc23c9fda8a4",
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "status": "FAIL_BLE_THROUGHPUT_ADC_CRC_SCREEN_PASS",
+  "source_commit": "0c94fe3bb58b25b0994ed2b718a8f5c33d456f4d",
+  "elf_sha256": "3077bfbfb35d7f90e27e15673ab90f90c35243db97ec0259776ecd84db019f97",
+  "bin_sha256": "fea4feb54a83531ad14c1c00c9c35f4f2ee6a7e5fb6f4ff56e0b6405934c0dbf",
+  "capture_seconds": 120.00012181705097,
+  "capture_fps": 60.01689621858808,
+  "usb_fps": 60.02986903927159,
+  "usb_trusted_frames": 7203,
+  "usb_missing_sequence_observations": 1,
+  "ble_fps": 32.61367388639946,
+  "ble_trusted_frames": 3913,
+  "ble_missing_sequence_observations": 3290,
+  "adc_crc": {
+    "status": "OBSERVED",
+    "health": {
+      "status": "OBSERVED",
+      "records_in_stream": 118,
+      "first": {
+        "source": "CDC",
+        "byte_offset": 101764,
+        "monotonic": 321450.130185459,
+        "phase": "capture",
+        "fields": {
+          "seq": "1805",
+          "engineFrameCount": "384",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "2971",
+          "crcValidOdd": "2868",
+          "crcErrors": "0",
+          "crcRetries": "0"
+        },
+        "unverified_terminal_field": "crcRetries"
+      },
+      "last": {
+        "source": "CDC",
+        "byte_offset": 972336,
+        "monotonic": 321568.484614948,
+        "phase": "capture",
+        "fields": {
+          "seq": "8909",
+          "engineFrameCount": "7488",
+          "modeEntryFrameCount": "0",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "41093",
+          "crcValidOdd": "40815",
+          "crcErrors": "0",
+          "crcRetries": "0"
+        },
+        "unverified_terminal_field": "crcRetries"
+      },
+      "counters": {
+        "crcValidEven": {
+          "first": 2971,
+          "last": 41093,
+          "delta": 38122,
+          "unavailable": null
+        },
+        "crcValidOdd": {
+          "first": 2868,
+          "last": 40815,
+          "delta": 37947,
+          "unavailable": null
+        },
+        "crcErrors": {
+          "first": 0,
+          "last": 0,
+          "delta": 0,
+          "unavailable": null
+        }
+      },
+      "elapsed_seconds": 118.35442948900163,
+      "window": "first_last_diagnostic_receipts_inside_capture"
+    },
+    "crc_events": {
+      "status": "NOT_OBSERVED",
+      "records_in_stream": 0,
+      "first": null,
+      "last": null,
+      "counters": {
+        "crcTotal": {
+          "first": null,
+          "last": null,
+          "delta": null,
+          "unavailable": "NOT_OBSERVED"
+        },
+        "retryTotal": {
+          "first": null,
+          "last": null,
+          "delta": null,
+          "unavailable": "NOT_OBSERVED"
+        }
+      },
+      "elapsed_seconds": null,
+      "window": "first_last_diagnostic_receipts_inside_capture"
+    },
+    "valid_even_delta": 38122,
+    "valid_odd_delta": 37947,
+    "rejected_delta": 0,
+    "checked_attempts": 76069,
+    "rate": 0.0,
+    "limit": 0.025,
+    "within_limit": true,
+    "denominator": "crcValidEven + crcValidOdd + crcErrors deltas; checked reads, including retry attempts, not frames",
+    "scope": "first/last complete ADSHEALTH receipt inside capture, not exact window endpoints",
+    "observer_window_coverage": "FULL_OBSERVER_WINDOW",
+    "crcRetries_terminal_token": "UNKNOWN_without_following_marker; ADSSPI retryTotal available independently"
+  },
+  "usb_invalid_reasons_by_cell": {
+    "S1D2": {
+      "X12": 376
+    }
+  },
+  "usb_unacquired_points": 0,
+  "ascii_crc_errors": {
+    "usb": 0,
+    "ble": 0
+  },
+  "identity_errors": {
+    "usb": 0,
+    "ble": 0
+  },
+  "faults_and_resets": {
+    "FAULT": {
+      "counts_by_receipt_phase": {},
+      "examples": []
+    },
+    "RESET": {
+      "counts_by_receipt_phase": {},
+      "examples": []
+    }
+  },
+  "SDK_CONF": {
+    "before": {
+      "v": "1",
+      "gen": "1",
+      "scope": "boot",
+      "active": "0",
+      "started": "4005",
+      "completed": "4005",
+      "wallUs": "11559904",
+      "idleChanged": "0",
+      "idleSame": "4005",
+      "idleUnknown": "0",
+      "wall": "elapsed",
+      "cpu": "unknown",
+      "blocked": "unknown",
+      "confOk": "4005",
+      "confError": "0",
+      "confMatched": "0",
+      "confUnmatched": "4005",
+      "confMatch": "waiter_predicate",
+      "confEpoch": "unknown",
+      "pcReceipt": "unknown"
+    },
+    "after": {
+      "v": "1",
+      "gen": "1",
+      "scope": "boot",
+      "active": "1",
+      "started": "17081",
+      "completed": "17080",
+      "wallUs": "73333821",
+      "idleChanged": "0",
+      "idleSame": "17080",
+      "idleUnknown": "0",
+      "wall": "elapsed",
+      "cpu": "unknown",
+      "blocked": "unknown",
+      "confOk": "17081",
+      "confError": "0",
+      "confMatched": "0",
+      "confUnmatched": "17081",
+      "confMatch": "waiter_predicate",
+      "confEpoch": "unknown",
+      "pcReceipt": "unknown"
+    },
+    "deltas_u32": {
+      "started": 13076,
+      "completed": 13075,
+      "confOk": 13076,
+      "confError": 0,
+      "confMatched": 0,
+      "confUnmatched": 13076
+    },
+    "meaning": "local SDK event observations; unmatched originating epoch and PC receipt remain unknown. After snapshot has active=1; a callback can precede the SDK wrapper completion counter."
+  },
+  "absolute_precision": "NOT_ACCEPTED",
+  "scientific_thresholds_changed": false,
+  "crc_qualification_limit": 0.025,
+  "next_full_acceptance": "600-second and32-configuration USB+BLE suite NOT_RUN while BLE remains below capture rate"
+}

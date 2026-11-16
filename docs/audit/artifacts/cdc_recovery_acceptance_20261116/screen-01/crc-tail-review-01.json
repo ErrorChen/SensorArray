@@ -1,0 +1,2269 @@
+{
+  "source": "closed_real_debug_capture_not_synthetic",
+  "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-debug.debug.rx.bin",
+  "raw_sha256": "770bc63529e4ef4d3923fadde21fc4c11f55582936b9acff0547ea00342114b2",
+  "analysis_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-analysis-01.json",
+  "analysis_sha256": "afd43361b95504be5710597d288df0ff97151428f2756f878c7e615ed61e89de",
+  "window_offsets_inclusive": [
+    100920,
+    1331744
+  ],
+  "complete_packet_records": 249,
+  "xor_counts": {
+    "01": 249
+  },
+  "directions": {
+    "0_to_1": 248,
+    "1_to_0": 1
+  },
+  "wire_status_counts_untrusted": {
+    "68": 211,
+    "60": 38
+  },
+  "independent_recomputation_mismatches": [],
+  "malformed_or_truncated": [],
+  "records": [
+    {
+      "byte_offset": 106377,
+      "seq": "2292",
+      "bytes": "68C07B73C2FD",
+      "computed": "FC",
+      "received": "FD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 108942,
+      "seq": "2303",
+      "bytes": "68C07CFC2F13",
+      "computed": "12",
+      "received": "13",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 112187,
+      "seq": "2320",
+      "bytes": "68C07D45EEC3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 113095,
+      "seq": "2324",
+      "bytes": "68C07BB83C73",
+      "computed": "72",
+      "received": "73",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 123065,
+      "seq": "2385",
+      "bytes": "68C00A2B97F9",
+      "computed": "F8",
+      "received": "F9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 133286,
+      "seq": "2456",
+      "bytes": "68C008C2C661",
+      "computed": "60",
+      "received": "61",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 142827,
+      "seq": "2526",
+      "bytes": "68C008542757",
+      "computed": "56",
+      "received": "57",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 152465,
+      "seq": "2595",
+      "bytes": "68C0099D5F03",
+      "computed": "02",
+      "received": "03",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 153933,
+      "seq": "2602",
+      "bytes": "68C07D1E6CDF",
+      "computed": "DE",
+      "received": "DF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 163295,
+      "seq": "2669",
+      "bytes": "68C007C5EE95",
+      "computed": "94",
+      "received": "95",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 168731,
+      "seq": "2712",
+      "bytes": "68C007EACD11",
+      "computed": "10",
+      "received": "11",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 173751,
+      "seq": "2737",
+      "bytes": "68C072F1A767",
+      "computed": "66",
+      "received": "67",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 174569,
+      "seq": "2744",
+      "bytes": "68C00793E4D1",
+      "computed": "D0",
+      "received": "D1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 177542,
+      "seq": "2758",
+      "bytes": "68C009A2A3C3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 180784,
+      "seq": "2775",
+      "bytes": "68C00975DD6F",
+      "computed": "6E",
+      "received": "6F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 185721,
+      "seq": "2800",
+      "bytes": "68C008179423",
+      "computed": "22",
+      "received": "23",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 186630,
+      "seq": "2808",
+      "bytes": "60D639C23F19",
+      "computed": "18",
+      "received": "19",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 189694,
+      "seq": "2824",
+      "bytes": "68C008348DFD",
+      "computed": "FC",
+      "received": "FD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 190513,
+      "seq": "2830",
+      "bytes": "68C07B124FB7",
+      "computed": "B6",
+      "received": "B7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 200832,
+      "seq": "2902",
+      "bytes": "60D63B286FB9",
+      "computed": "B8",
+      "received": "B9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 208520,
+      "seq": "2965",
+      "bytes": "68C07027E89F",
+      "computed": "9E",
+      "received": "9F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 220468,
+      "seq": "3031",
+      "bytes": "68C00827611F",
+      "computed": "1E",
+      "received": "1F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 221197,
+      "seq": "3033",
+      "bytes": "68C06FA97CFF",
+      "computed": "FE",
+      "received": "FF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 221926,
+      "seq": "3035",
+      "bytes": "68C06F99AF31",
+      "computed": "30",
+      "received": "31",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 224989,
+      "seq": "3052",
+      "bytes": "68C07A59F32D",
+      "computed": "2C",
+      "received": "2D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 226258,
+      "seq": "3064",
+      "bytes": "68C008221D2D",
+      "computed": "2C",
+      "received": "2D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 227627,
+      "seq": "3080",
+      "bytes": "60D639709907",
+      "computed": "06",
+      "received": "07",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 237582,
+      "seq": "3147",
+      "bytes": "68C009DF376D",
+      "computed": "6C",
+      "received": "6D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 238268,
+      "seq": "3152",
+      "bytes": "68C00876641D",
+      "computed": "1C",
+      "received": "1D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 241333,
+      "seq": "3167",
+      "bytes": "60D63B135D49",
+      "computed": "48",
+      "received": "49",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 242109,
+      "seq": "3180",
+      "bytes": "68C07DD96C59",
+      "computed": "58",
+      "received": "59",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 245176,
+      "seq": "3203",
+      "bytes": "60D63B99AFAD",
+      "computed": "AC",
+      "received": "AD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 251114,
+      "seq": "3240",
+      "bytes": "60D63B1B43BB",
+      "computed": "BA",
+      "received": "BB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 260818,
+      "seq": "3303",
+      "bytes": "68C07D210FCB",
+      "computed": "CA",
+      "received": "CB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 263976,
+      "seq": "3320",
+      "bytes": "68C009A2A3C3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 269957,
+      "seq": "3352",
+      "bytes": "60D63E4E5C6B",
+      "computed": "6A",
+      "received": "6B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 273203,
+      "seq": "3375",
+      "bytes": "68C006EB54A9",
+      "computed": "A8",
+      "received": "A9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 278707,
+      "seq": "3404",
+      "bytes": "68C007AE3AD5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 281684,
+      "seq": "3417",
+      "bytes": "68C0737012AD",
+      "computed": "AC",
+      "received": "AD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 284574,
+      "seq": "3432",
+      "bytes": "68C00807C6CD",
+      "computed": "CC",
+      "received": "CD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 287823,
+      "seq": "3455",
+      "bytes": "68C0035EB0D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 289466,
+      "seq": "3460",
+      "bytes": "60D63A9A363F",
+      "computed": "3E",
+      "received": "3F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 292369,
+      "seq": "3469",
+      "bytes": "68C004219559",
+      "computed": "58",
+      "received": "59",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 295442,
+      "seq": "3493",
+      "bytes": "68C00700678F",
+      "computed": "8E",
+      "received": "8F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 296352,
+      "seq": "3503",
+      "bytes": "68C007EACD11",
+      "computed": "10",
+      "received": "11",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 297083,
+      "seq": "3505",
+      "bytes": "68C0082A03DF",
+      "computed": "DE",
+      "received": "DF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 302970,
+      "seq": "3538",
+      "bytes": "68C07D36213D",
+      "computed": "3C",
+      "received": "3D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 321659,
+      "seq": "3655",
+      "bytes": "68C00D3C7361",
+      "computed": "60",
+      "received": "61",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 326763,
+      "seq": "3693",
+      "bytes": "68C00BB16333",
+      "computed": "32",
+      "received": "33",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 327583,
+      "seq": "3697",
+      "bytes": "68C0087BA999",
+      "computed": "98",
+      "received": "99",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 328763,
+      "seq": "3712",
+      "bytes": "68C07E7F5909",
+      "computed": "08",
+      "received": "09",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 329668,
+      "seq": "3715",
+      "bytes": "68C07AFA9B15",
+      "computed": "14",
+      "received": "15",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 332937,
+      "seq": "3736",
+      "bytes": "68C07CB51341",
+      "computed": "40",
+      "received": "41",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 343425,
+      "seq": "3797",
+      "bytes": "68C0B5D3A06D",
+      "computed": "6C",
+      "received": "6D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 343933,
+      "seq": "3800",
+      "bytes": "68C0061B44CD",
+      "computed": "CC",
+      "received": "CD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 352149,
+      "seq": "3847",
+      "bytes": "68C007C5EE95",
+      "computed": "94",
+      "received": "95",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 357843,
+      "seq": "3890",
+      "bytes": "68C00562E70F",
+      "computed": "0E",
+      "received": "0F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 360734,
+      "seq": "3903",
+      "bytes": "68C07E849ED1",
+      "computed": "D0",
+      "received": "D1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 369065,
+      "seq": "3955",
+      "bytes": "68C006AEC151",
+      "computed": "50",
+      "received": "51",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 375317,
+      "seq": "3987",
+      "bytes": "68C005C1B79F",
+      "computed": "9E",
+      "received": "9F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 378392,
+      "seq": "4006",
+      "bytes": "68C07C56428D",
+      "computed": "8C",
+      "received": "8D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 381553,
+      "seq": "4024",
+      "bytes": "68C005E9383D",
+      "computed": "3C",
+      "received": "3D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 382375,
+      "seq": "4027",
+      "bytes": "68C0B73F160F",
+      "computed": "0E",
+      "received": "0F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 390610,
+      "seq": "4077",
+      "bytes": "68C0078BFD61",
+      "computed": "60",
+      "received": "61",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 399903,
+      "seq": "4143",
+      "bytes": "68C006286EDD",
+      "computed": "DC",
+      "received": "DD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 409522,
+      "seq": "4199",
+      "bytes": "68C007E2E76F",
+      "computed": "6E",
+      "received": "6F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 410344,
+      "seq": "4204",
+      "bytes": "68C006359AA1",
+      "computed": "A0",
+      "received": "A1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 418571,
+      "seq": "4256",
+      "bytes": "68C0702545FF",
+      "computed": "FE",
+      "received": "FF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 421598,
+      "seq": "4276",
+      "bytes": "68C008F771D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 422420,
+      "seq": "4280",
+      "bytes": "68C007B0DDEF",
+      "computed": "EE",
+      "received": "EF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 426423,
+      "seq": "4298",
+      "bytes": "68C007914189",
+      "computed": "88",
+      "received": "89",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 427155,
+      "seq": "4303",
+      "bytes": "68C07D45EEC3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 430407,
+      "seq": "4329",
+      "bytes": "60D63AFE4AED",
+      "computed": "EC",
+      "received": "ED",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 434862,
+      "seq": "4361",
+      "bytes": "68C0B28E18BF",
+      "computed": "BE",
+      "received": "BF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 441998,
+      "seq": "4402",
+      "bytes": "68C07B4459A7",
+      "computed": "A6",
+      "received": "A7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 443180,
+      "seq": "4415",
+      "bytes": "68C006E6109B",
+      "computed": "9A",
+      "received": "9B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 451682,
+      "seq": "4477",
+      "bytes": "68C007254687",
+      "computed": "86",
+      "received": "87",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 457760,
+      "seq": "4509",
+      "bytes": "68C070F7F855",
+      "computed": "54",
+      "received": "55",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 468517,
+      "seq": "4568",
+      "bytes": "60D63B62604D",
+      "computed": "4C",
+      "received": "4D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 474573,
+      "seq": "4612",
+      "bytes": "68C0080D0A25",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 490326,
+      "seq": "4710",
+      "bytes": "68C007FD3DF3",
+      "computed": "F2",
+      "received": "F3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 495255,
+      "seq": "4736",
+      "bytes": "68C007E2E76F",
+      "computed": "6E",
+      "received": "6F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 496167,
+      "seq": "4743",
+      "bytes": "68C0066A4773",
+      "computed": "72",
+      "received": "73",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 496898,
+      "seq": "4744",
+      "bytes": "68C002798EC1",
+      "computed": "C0",
+      "received": "C1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 501145,
+      "seq": "4771",
+      "bytes": "68C07A157935",
+      "computed": "34",
+      "received": "35",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 506569,
+      "seq": "4806",
+      "bytes": "68C07D75561B",
+      "computed": "1A",
+      "received": "1B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 508217,
+      "seq": "4811",
+      "bytes": "60D63D73C215",
+      "computed": "14",
+      "received": "15",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 518909,
+      "seq": "4877",
+      "bytes": "60D63D31E9B5",
+      "computed": "B4",
+      "received": "B5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 526236,
+      "seq": "4918",
+      "bytes": "60D63E660FD3",
+      "computed": "D2",
+      "received": "D3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 537007,
+      "seq": "4984",
+      "bytes": "68C00784163D",
+      "computed": "3C",
+      "received": "3D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 540057,
+      "seq": "5004",
+      "bytes": "68C007C89001",
+      "computed": "00",
+      "received": "01",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 543087,
+      "seq": "5023",
+      "bytes": "68C07B712077",
+      "computed": "76",
+      "received": "77",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 546077,
+      "seq": "5035",
+      "bytes": "68C07C75DEC1",
+      "computed": "C0",
+      "received": "C1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 549025,
+      "seq": "5054",
+      "bytes": "68C07E4FF1A1",
+      "computed": "A0",
+      "received": "A1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 557557,
+      "seq": "5098",
+      "bytes": "68C00B4AACD3",
+      "computed": "D2",
+      "received": "D3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 558379,
+      "seq": "5104",
+      "bytes": "68C00485ABAF",
+      "computed": "AE",
+      "received": "AF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 564465,
+      "seq": "5135",
+      "bytes": "68C004394AB5",
+      "computed": "B4",
+      "received": "B5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 574698,
+      "seq": "5201",
+      "bytes": "60D63C6F058E",
+      "computed": "8F",
+      "received": "8E",
+      "xor": "01",
+      "direction": "1_to_0"
+    },
+    {
+      "byte_offset": 575477,
+      "seq": "5212",
+      "bytes": "68C00C86B9BF",
+      "computed": "BE",
+      "received": "BF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 579348,
+      "seq": "5240",
+      "bytes": "68C0094E5C8F",
+      "computed": "8E",
+      "received": "8F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 585434,
+      "seq": "5273",
+      "bytes": "60D63B57D7F9",
+      "computed": "F8",
+      "received": "F9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 588517,
+      "seq": "5287",
+      "bytes": "68C00B18A2DF",
+      "computed": "DE",
+      "received": "DF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 591468,
+      "seq": "5312",
+      "bytes": "68C07E89E24B",
+      "computed": "4A",
+      "received": "4B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 603743,
+      "seq": "5381",
+      "bytes": "68C07C58E527",
+      "computed": "26",
+      "received": "27",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 611760,
+      "seq": "5443",
+      "bytes": "68C00AAF4725",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 612130,
+      "seq": "5444",
+      "bytes": "68C00869391D",
+      "computed": "1C",
+      "received": "1D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 618308,
+      "seq": "5476",
+      "bytes": "60D63C5C95B1",
+      "computed": "B0",
+      "received": "B1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 621837,
+      "seq": "5508",
+      "bytes": "68C005925017",
+      "computed": "16",
+      "received": "17",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 625291,
+      "seq": "5525",
+      "bytes": "68C008ADB31B",
+      "computed": "1A",
+      "received": "1B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 635803,
+      "seq": "5591",
+      "bytes": "68C008B83CA9",
+      "computed": "A8",
+      "received": "A9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 638756,
+      "seq": "5613",
+      "bytes": "60D63CA6537B",
+      "computed": "7A",
+      "received": "7B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 642898,
+      "seq": "5639",
+      "bytes": "68C07B88D309",
+      "computed": "08",
+      "received": "09",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 651793,
+      "seq": "5687",
+      "bytes": "68C005E3F4D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 660241,
+      "seq": "5733",
+      "bytes": "60D6396DF6B3",
+      "computed": "B2",
+      "received": "B3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 663326,
+      "seq": "5748",
+      "bytes": "68C00744E11B",
+      "computed": "1A",
+      "received": "1B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 672226,
+      "seq": "5805",
+      "bytes": "68C0062088C9",
+      "computed": "C8",
+      "received": "C9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 675304,
+      "seq": "5821",
+      "bytes": "68C009E9C021",
+      "computed": "20",
+      "received": "21",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 678399,
+      "seq": "5838",
+      "bytes": "68C00846FC25",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 688686,
+      "seq": "5904",
+      "bytes": "68C080124F37",
+      "computed": "36",
+      "received": "37",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 690022,
+      "seq": "5911",
+      "bytes": "68C007AE3AD5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 691908,
+      "seq": "5927",
+      "bytes": "68C07CFC2F13",
+      "computed": "12",
+      "received": "13",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 701327,
+      "seq": "5992",
+      "bytes": "60D63AACA641",
+      "computed": "40",
+      "received": "41",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 701926,
+      "seq": "5995",
+      "bytes": "68C0094E5C8F",
+      "computed": "8E",
+      "received": "8F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 705094,
+      "seq": "6022",
+      "bytes": "68C008DD1CFD",
+      "computed": "FC",
+      "received": "FD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 706749,
+      "seq": "6032",
+      "bytes": "60D63BA6DADB",
+      "computed": "DA",
+      "received": "DB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 707661,
+      "seq": "6040",
+      "bytes": "60D63C084DEF",
+      "computed": "EE",
+      "received": "EF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 713005,
+      "seq": "6066",
+      "bytes": "68C0B3F98DFF",
+      "computed": "FE",
+      "received": "FF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 734318,
+      "seq": "6208",
+      "bytes": "68C008F771D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 740322,
+      "seq": "6242",
+      "bytes": "68C07FCB326F",
+      "computed": "6E",
+      "received": "6F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 743499,
+      "seq": "6262",
+      "bytes": "68C008542757",
+      "computed": "56",
+      "received": "57",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 748581,
+      "seq": "6283",
+      "bytes": "68C00784163D",
+      "computed": "3C",
+      "received": "3D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 750050,
+      "seq": "6294",
+      "bytes": "68C005ACA5FD",
+      "computed": "FC",
+      "received": "FD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 758755,
+      "seq": "6357",
+      "bytes": "68C0083C73A1",
+      "computed": "A0",
+      "received": "A1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 766222,
+      "seq": "6404",
+      "bytes": "68C07E32F8D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 769964,
+      "seq": "6424",
+      "bytes": "68C008ADB31B",
+      "computed": "1A",
+      "received": "1B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 773140,
+      "seq": "6444",
+      "bytes": "68C0076F0497",
+      "computed": "96",
+      "received": "97",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 781091,
+      "seq": "6484",
+      "bytes": "68C007D5BC7B",
+      "computed": "7A",
+      "received": "7B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 788695,
+      "seq": "6535",
+      "bytes": "68C0072D2D39",
+      "computed": "38",
+      "received": "39",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 792440,
+      "seq": "6556",
+      "bytes": "60D63AFBA90B",
+      "computed": "0A",
+      "received": "0B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 801504,
+      "seq": "6615",
+      "bytes": "68C009C23FEB",
+      "computed": "EA",
+      "received": "EB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 811625,
+      "seq": "6677",
+      "bytes": "68C0077449B3",
+      "computed": "B2",
+      "received": "B3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 820858,
+      "seq": "6742",
+      "bytes": "68C005604445",
+      "computed": "44",
+      "received": "45",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 821367,
+      "seq": "6743",
+      "bytes": "68C009A2A3C3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 827363,
+      "seq": "6786",
+      "bytes": "68C007BE0731",
+      "computed": "30",
+      "received": "31",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 828559,
+      "seq": "6794",
+      "bytes": "60D63CBB6547",
+      "computed": "46",
+      "received": "47",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 837087,
+      "seq": "6861",
+      "bytes": "68C0065A7A39",
+      "computed": "38",
+      "received": "39",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 843222,
+      "seq": "6904",
+      "bytes": "68C07D0E9F5F",
+      "computed": "5E",
+      "received": "5F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 843955,
+      "seq": "6906",
+      "bytes": "68C0087120AD",
+      "computed": "AC",
+      "received": "AD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 844734,
+      "seq": "6915",
+      "bytes": "68C007C89001",
+      "computed": "00",
+      "received": "01",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 847646,
+      "seq": "6923",
+      "bytes": "68C0069C517B",
+      "computed": "7A",
+      "received": "7B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 851106,
+      "seq": "6932",
+      "bytes": "68C07DD4286B",
+      "computed": "6A",
+      "received": "6B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 851927,
+      "seq": "6936",
+      "bytes": "68C009F44929",
+      "computed": "28",
+      "received": "29",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 852749,
+      "seq": "6944",
+      "bytes": "68C0B06260B9",
+      "computed": "B8",
+      "received": "B9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 856275,
+      "seq": "6974",
+      "bytes": "68C00AD18511",
+      "computed": "10",
+      "received": "11",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 862097,
+      "seq": "7000",
+      "bytes": "60D63B45679D",
+      "computed": "9C",
+      "received": "9D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 869981,
+      "seq": "7052",
+      "bytes": "68C00747830D",
+      "computed": "0C",
+      "received": "0D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 871154,
+      "seq": "7059",
+      "bytes": "68C007F7F923",
+      "computed": "22",
+      "received": "23",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 871887,
+      "seq": "7065",
+      "bytes": "68C07B8E190F",
+      "computed": "0E",
+      "received": "0F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 874697,
+      "seq": "7072",
+      "bytes": "68C07D45EEC3",
+      "computed": "C2",
+      "received": "C3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 885215,
+      "seq": "7138",
+      "bytes": "60D63909E177",
+      "computed": "76",
+      "received": "77",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 885904,
+      "seq": "7144",
+      "bytes": "68C0083C73A1",
+      "computed": "A0",
+      "received": "A1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 889626,
+      "seq": "7176",
+      "bytes": "68C008F22D07",
+      "computed": "06",
+      "received": "07",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 893137,
+      "seq": "7192",
+      "bytes": "68C00807C6CD",
+      "computed": "CC",
+      "received": "CD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 903474,
+      "seq": "7257",
+      "bytes": "60D63F1BCBA1",
+      "computed": "A0",
+      "received": "A1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 908504,
+      "seq": "7293",
+      "bytes": "68C006DB8767",
+      "computed": "66",
+      "received": "67",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 912609,
+      "seq": "7315",
+      "bytes": "60D63B0B7667",
+      "computed": "66",
+      "received": "67",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 923675,
+      "seq": "7400",
+      "bytes": "68C008F771D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 924767,
+      "seq": "7413",
+      "bytes": "68C07B6E7D77",
+      "computed": "76",
+      "received": "77",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 926382,
+      "seq": "7420",
+      "bytes": "68C005C45A53",
+      "computed": "52",
+      "received": "53",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 929747,
+      "seq": "7443",
+      "bytes": "60D638DD1C0F",
+      "computed": "0E",
+      "received": "0F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 939504,
+      "seq": "7502",
+      "bytes": "68C0081F7A0F",
+      "computed": "0E",
+      "received": "0F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 940973,
+      "seq": "7510",
+      "bytes": "68C0070AF0E1",
+      "computed": "E0",
+      "received": "E1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 946224,
+      "seq": "7544",
+      "bytes": "60D63B1B43BB",
+      "computed": "BA",
+      "received": "BB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 954490,
+      "seq": "7581",
+      "bytes": "68C07B5185AB",
+      "computed": "AA",
+      "received": "AB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 955089,
+      "seq": "7588",
+      "bytes": "68C008179423",
+      "computed": "22",
+      "received": "23",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 963626,
+      "seq": "7638",
+      "bytes": "68C07D72B5D7",
+      "computed": "D6",
+      "received": "D7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 974508,
+      "seq": "7705",
+      "bytes": "60D63CAB98ED",
+      "computed": "EC",
+      "received": "ED",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 982489,
+      "seq": "7753",
+      "bytes": "68C009CCC7DB",
+      "computed": "DA",
+      "received": "DB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 986307,
+      "seq": "7769",
+      "bytes": "68C07AFD3D05",
+      "computed": "04",
+      "received": "05",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 991389,
+      "seq": "7801",
+      "bytes": "68C0039DE5AB",
+      "computed": "AA",
+      "received": "AB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1000113,
+      "seq": "7858",
+      "bytes": "68C0075F37F7",
+      "computed": "F6",
+      "received": "F7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1002831,
+      "seq": "7866",
+      "bytes": "68C00AC6FC45",
+      "computed": "44",
+      "received": "45",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1005884,
+      "seq": "7889",
+      "bytes": "60D63ABC7333",
+      "computed": "32",
+      "received": "33",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1006706,
+      "seq": "7891",
+      "bytes": "68C00395FF45",
+      "computed": "44",
+      "received": "45",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1017219,
+      "seq": "7958",
+      "bytes": "68C0058D0B05",
+      "computed": "04",
+      "received": "05",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1022894,
+      "seq": "7992",
+      "bytes": "68C00A5B00B7",
+      "computed": "B6",
+      "received": "B7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1025439,
+      "seq": "7999",
+      "bytes": "68C07A103385",
+      "computed": "84",
+      "received": "85",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1026171,
+      "seq": "8004",
+      "bytes": "68C007A8F6C1",
+      "computed": "C0",
+      "received": "C1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1027174,
+      "seq": "8015",
+      "bytes": "68C0047B22DB",
+      "computed": "DA",
+      "received": "DB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1027996,
+      "seq": "8021",
+      "bytes": "68C071445A29",
+      "computed": "28",
+      "received": "29",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1033630,
+      "seq": "8053",
+      "bytes": "68C07047827B",
+      "computed": "7A",
+      "received": "7B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1042167,
+      "seq": "8105",
+      "bytes": "68C006777341",
+      "computed": "40",
+      "received": "41",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1043079,
+      "seq": "8113",
+      "bytes": "68C0080D0A25",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1047744,
+      "seq": "8135",
+      "bytes": "68C00A1E6DA9",
+      "computed": "A8",
+      "received": "A9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1050842,
+      "seq": "8150",
+      "bytes": "68C00975DD6F",
+      "computed": "6E",
+      "received": "6F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1052580,
+      "seq": "8161",
+      "bytes": "68C07D7FDF2F",
+      "computed": "2E",
+      "received": "2F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1057652,
+      "seq": "8190",
+      "bytes": "68C00A23B1A3",
+      "computed": "A2",
+      "received": "A3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1063564,
+      "seq": "8217",
+      "bytes": "68C0082F4745",
+      "computed": "44",
+      "received": "45",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1068642,
+      "seq": "8248",
+      "bytes": "60D63BB6A8D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1075183,
+      "seq": "8285",
+      "bytes": "68C005F3C307",
+      "computed": "06",
+      "received": "07",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1082802,
+      "seq": "8341",
+      "bytes": "68C00B135DBB",
+      "computed": "BA",
+      "received": "BB",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1086264,
+      "seq": "8348",
+      "bytes": "68C004F448BF",
+      "computed": "BE",
+      "received": "BF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1096682,
+      "seq": "8416",
+      "bytes": "68C0064AAB57",
+      "computed": "56",
+      "received": "57",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1107250,
+      "seq": "8484",
+      "bytes": "60D63BA43851",
+      "computed": "50",
+      "received": "51",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1107849,
+      "seq": "8487",
+      "bytes": "68C00C084D1D",
+      "computed": "1C",
+      "received": "1D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1110754,
+      "seq": "8505",
+      "bytes": "60D638EF8C25",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1119646,
+      "seq": "8564",
+      "bytes": "68C06EA76111",
+      "computed": "10",
+      "received": "11",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1120468,
+      "seq": "8570",
+      "bytes": "68C0070AF0E1",
+      "computed": "E0",
+      "received": "E1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1126003,
+      "seq": "8599",
+      "bytes": "68C0091EF3C7",
+      "computed": "C6",
+      "received": "C7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1134800,
+      "seq": "8664",
+      "bytes": "68C006B6A79B",
+      "computed": "9A",
+      "received": "9B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1138123,
+      "seq": "8672",
+      "bytes": "60D63B4D4DE3",
+      "computed": "E2",
+      "received": "E3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1143291,
+      "seq": "8707",
+      "bytes": "68C07CFC2F13",
+      "computed": "12",
+      "received": "13",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1151650,
+      "seq": "8761",
+      "bytes": "68C008F771D5",
+      "computed": "D4",
+      "received": "D5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1159620,
+      "seq": "8810",
+      "bytes": "68C00B946AE3",
+      "computed": "E2",
+      "received": "E3",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1163316,
+      "seq": "8831",
+      "bytes": "68C0B1423EE1",
+      "computed": "E0",
+      "received": "E1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1166953,
+      "seq": "8856",
+      "bytes": "68C007254687",
+      "computed": "86",
+      "received": "87",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1170281,
+      "seq": "8872",
+      "bytes": "60D63B62604D",
+      "computed": "4C",
+      "received": "4D",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1180543,
+      "seq": "8939",
+      "bytes": "68C008A32A0B",
+      "computed": "0A",
+      "received": "0B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1183499,
+      "seq": "8958",
+      "bytes": "60D63DA08861",
+      "computed": "60",
+      "received": "61",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1191544,
+      "seq": "9002",
+      "bytes": "68C004F448BF",
+      "computed": "BE",
+      "received": "BF",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1192276,
+      "seq": "9005",
+      "bytes": "68C07CFC2F13",
+      "computed": "12",
+      "received": "13",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1195087,
+      "seq": "9021",
+      "bytes": "68C00AB72FC5",
+      "computed": "C4",
+      "received": "C5",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1198364,
+      "seq": "9041",
+      "bytes": "68C047D0FE75",
+      "computed": "74",
+      "received": "75",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1199456,
+      "seq": "9052",
+      "bytes": "68C0B0873F21",
+      "computed": "20",
+      "received": "21",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1200929,
+      "seq": "9054",
+      "bytes": "60D639CA25F7",
+      "computed": "F6",
+      "received": "F7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1203519,
+      "seq": "9066",
+      "bytes": "68C009636D5F",
+      "computed": "5E",
+      "received": "5F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1204298,
+      "seq": "9080",
+      "bytes": "68C007A8F6C1",
+      "computed": "C0",
+      "received": "C1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1205210,
+      "seq": "9086",
+      "bytes": "68C005017435",
+      "computed": "34",
+      "received": "35",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1213572,
+      "seq": "9152",
+      "bytes": "68C007254687",
+      "computed": "86",
+      "received": "87",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1221805,
+      "seq": "9201",
+      "bytes": "68C0074CC741",
+      "computed": "40",
+      "received": "41",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1228085,
+      "seq": "9244",
+      "bytes": "68C00958E487",
+      "computed": "86",
+      "received": "87",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1237324,
+      "seq": "9309",
+      "bytes": "68C0074CC741",
+      "computed": "40",
+      "received": "41",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1242447,
+      "seq": "9344",
+      "bytes": "68C06E924F63",
+      "computed": "62",
+      "received": "63",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1250819,
+      "seq": "9399",
+      "bytes": "68C07D38C34B",
+      "computed": "4A",
+      "received": "4B",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1251821,
+      "seq": "9414",
+      "bytes": "68C00B7772D7",
+      "computed": "D6",
+      "received": "D7",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1259156,
+      "seq": "9464",
+      "bytes": "68C07C6610CD",
+      "computed": "CC",
+      "received": "CD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1262429,
+      "seq": "9480",
+      "bytes": "68C00807C6CD",
+      "computed": "CC",
+      "received": "CD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1270239,
+      "seq": "9521",
+      "bytes": "68C07C46755F",
+      "computed": "5E",
+      "received": "5F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1280419,
+      "seq": "9582",
+      "bytes": "68C07A96864F",
+      "computed": "4E",
+      "received": "4F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1281288,
+      "seq": "9593",
+      "bytes": "68C005FBA8B9",
+      "computed": "B8",
+      "received": "B9",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1282484,
+      "seq": "9608",
+      "bytes": "68C00793E4D1",
+      "computed": "D0",
+      "received": "D1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1293463,
+      "seq": "9677",
+      "bytes": "68C007E04425",
+      "computed": "24",
+      "received": "25",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1294332,
+      "seq": "9686",
+      "bytes": "68C00898A1DD",
+      "computed": "DC",
+      "received": "DD",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1296164,
+      "seq": "9706",
+      "bytes": "68C07D337FE1",
+      "computed": "E0",
+      "received": "E1",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1301421,
+      "seq": "9733",
+      "bytes": "68C00B4D4F1F",
+      "computed": "1E",
+      "received": "1F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1305624,
+      "seq": "9762",
+      "bytes": "68C009636D5F",
+      "computed": "5E",
+      "received": "5F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1310703,
+      "seq": "9790",
+      "bytes": "68C008F22D07",
+      "computed": "06",
+      "received": "07",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1320786,
+      "seq": "9855",
+      "bytes": "68C00919AF3F",
+      "computed": "3E",
+      "received": "3F",
+      "xor": "01",
+      "direction": "0_to_1"
+    },
+    {
+      "byte_offset": 1329203,
+      "seq": "9913",
+      "bytes": "68C008B59A3B",
+      "computed": "3A",
+      "received": "3B",
+      "xor": "01",
+      "direction": "0_to_1"
+    }
+  ],
+  "limitations": "Rate-limited first-bad packet evidence only; not every failed read. CRC excludes STATUS. No bit repair, new raw frame or causal conclusion."
+}

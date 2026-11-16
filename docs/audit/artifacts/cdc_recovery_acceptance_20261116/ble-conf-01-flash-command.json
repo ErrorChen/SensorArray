@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "ble-conf-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "0c94fe3bb58b25b0994ed2b718a8f5c33d456f4d",
+  "dirty_diff_sha256": "b5c00ec612d7ebfd12f2f4e5db280d966dbe68c860667925861b52af0efb2cd2",
+  "started_utc": "2026-11-16T07:33:09.855043+00:00",
+  "started_monotonic": 321280.169840046,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-conf-01-flash-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T07:33:22.110366+00:00",
+  "finished_monotonic": 321292.425184703,
+  "log_sha256": "321b4655627377f6f915c6f14b6d9e8f457900ef8e04285cab64b5dfd53b5137"
+}

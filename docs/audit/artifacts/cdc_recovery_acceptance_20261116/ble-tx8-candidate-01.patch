@@ -1,0 +1,204 @@
+diff --git a/components/sensorarrayBle/sensorarrayBle.c b/components/sensorarrayBle/sensorarrayBle.c
+index fc12d70..f32a991 100644
+--- a/components/sensorarrayBle/sensorarrayBle.c
++++ b/components/sensorarrayBle/sensorarrayBle.c
+@@ -24,7 +24,7 @@
+ #define CONFIG_SENSORARRAY_BLE_TX_TASK_STACK 4096
+ #endif
+ #ifndef CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY
+-#define CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY 7
++#define CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY 8
+ #endif
+ #ifndef CONFIG_SENSORARRAY_BLE_TX_TASK_CORE
+ #define CONFIG_SENSORARRAY_BLE_TX_TASK_CORE 0
+diff --git a/tests/host/test_ble_priority.c b/tests/host/test_ble_priority.c
+index 4346371..4fd4315 100644
+--- a/tests/host/test_ble_priority.c
++++ b/tests/host/test_ble_priority.c
+@@ -22,6 +22,7 @@ typedef StaticSemaphore_t *SemaphoreHandle_t;
+ #define portMUX_INITIALIZER_UNLOCKED 0
+ #define pdTRUE 1
+ #define pdFALSE 0
++#define pdPASS 1
+ #define portMAX_DELAY UINT32_MAX
+ #define pdMS_TO_TICKS(ms) ((ms) / 10u)
+ #define ESP_GATT_OK 0
+@@ -50,6 +51,8 @@ typedef union {
+ static unsigned lockDepth, checkpoints, wakeGives, idleTakes, delayCalls, queueInitCount, failQueueInit;
+ static unsigned failQueueSends, sdkCalls, sdkFailures, disconnectAfter, priorityOnSend;
+ static unsigned phyRequests, readRequests, connRequests, dleRequests;
++static unsigned taskCreates, failTaskCreate, nullTaskCreate;
++static UBaseType_t createdPriorities[2];
+ static uint64_t nowUs, sdkDelayUs;
+ static uint32_t idleGeneration, sdkIdleAfter;
+ static bool changeIdleDuringSdk;
+@@ -66,7 +69,8 @@ static unsigned sentChannelCount;
+ static int64_t esp_timer_get_time(void) { return (int64_t)nowUs; }
+ static TickType_t xTaskGetTickCount(void) { return (TickType_t)(nowUs / 10000u); }
+ static TaskHandle_t xTaskGetCurrentTaskHandle(void) { return (void *)1; }
+-static UBaseType_t uxTaskPriorityGet(TaskHandle_t task) { assert(!lockDepth); return task == (void *)1 ? 7u : 8u; }
++static UBaseType_t uxTaskPriorityGet(TaskHandle_t task)
++{ assert(!lockDepth && (task == (void *)1 || task == (void *)2)); return createdPriorities[task == (void *)1 ? 0u : 1u]; }
+ static bool sensorarrayWorkBudgetCheckpoint(unsigned worker)
+ { assert(!lockDepth && worker == 0u); checkpoints++; return false; }
+ static uint32_t sensorarrayWorkBudgetIdleGeneration(void)
+@@ -115,6 +119,27 @@ static esp_err_t esp_ble_gap_set_pkt_data_len(esp_bd_addr_t peer, uint16_t lengt
+ /* PRODUCTION_TYPES */
+ /* PRODUCTION_FUNCTIONS */
+ 
++/* Spawn is exercised, but the control loop is not simulated by this stub. */
++static void sensorarrayBleControlTask(void *arg) { (void)arg; }
++static BaseType_t xTaskCreatePinnedToCore(void (*task)(void *), const char *name,
++    unsigned stack, void *argument, UBaseType_t priority, TaskHandle_t *handle, int core)
++{
++    assert(!lockDepth && argument == NULL && core == 0);
++    unsigned index = taskCreates++;
++    assert(index < 2u);
++    assert(task == (index ? sensorarrayBleControlTask : sensorarrayBleTxTask));
++    assert(strcmp(name, index ? "bleCtrl" : "bleTx") == 0);
++    assert(stack == (index ? CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK : CONFIG_SENSORARRAY_BLE_TX_TASK_STACK));
++    createdPriorities[index] = priority;
++    *handle = failTaskCreate == index + 1u || nullTaskCreate == index + 1u ? NULL : (void *)(uintptr_t)(index + 1u);
++    return failTaskCreate == index + 1u ? pdFALSE : pdPASS;
++}
++static esp_err_t initializeTasks(void)
++{
++    /* PRODUCTION_TASK_INIT */
++    return ESP_OK;
++}
++
+ static esp_err_t initializeQueues(void)
+ {
+     /* PRODUCTION_QUEUE_INIT */
+@@ -198,6 +223,8 @@ static esp_err_t esp_ble_gap_set_pkt_data_len(esp_bd_addr_t peer, uint16_t lengt
+ static void reset(void)
+ {
+     memset(&s_ble, 0, sizeof(s_ble));
++    taskCreates = failTaskCreate = nullTaskCreate = 0u;
++    memset(createdPriorities, 0, sizeof(createdPriorities));
+     nowUs = 1000000u; sdkDelayUs = 0u;
+     idleGeneration = 1u; sdkIdleAfter = 0u; changeIdleDuringSdk = false;
+     lockDepth = checkpoints = wakeGives = idleTakes = delayCalls = queueInitCount = failQueueInit = 0u;
+@@ -208,13 +235,13 @@ static void reset(void)
+     sentLength = sentChannelCount = 0u;
+     memset(sentBytes, 0, sizeof(sentBytes)); memset(sentChannels, 0, sizeof(sentChannels));
+     assert(initializeQueues() == ESP_OK);
++    assert(initializeTasks() == ESP_OK);
+     s_ble.stats.connected = s_ble.stats.gattReady = true; s_ble.stats.mtu = 247u;
+     s_ble.connectionGeneration = 7u; s_ble.gattsIf = 2; s_ble.connId = 3;
+     s_ble.cccd[0] = s_ble.cccd[1] = s_ble.cccd[2] = 1u;
+     s_ble.handles[BLE_IDX_DATA_TX_VALUE] = 20u;
+     s_ble.handles[BLE_IDX_LOG_TX_VALUE] = 30u;
+     s_ble.handles[BLE_IDX_CTRL_TX_VALUE] = 10u;
+-    s_ble.txTask = (void *)1; s_ble.controlTask = (void *)2;
+     s_ble.config.preferPhy2m = true;
+     memset(s_ble.remote, 0x5a, sizeof(s_ble.remote));
+     sensorarrayBleResetLinkObservationLocked();
+@@ -347,7 +374,7 @@ static void testNegotiation(void)
+     assert(s_ble.link.dataLengthObserved && s_ble.link.dataLengthTx == 251u && !s_ble.link.dataLengthConnectionKnown);
+     sensorarrayBleLinkSnapshot_t snapshot; sensorarrayBleGetLinkSnapshot(&snapshot);
+     assert(snapshot.connected && snapshot.connectionGeneration == 7u && snapshot.mtu == 247u);
+-    assert(snapshot.txTaskPriority == 7u && snapshot.ctrlTaskPriority == 8u);
++    assert(snapshot.txTaskPriority == 8u && snapshot.ctrlTaskPriority == 8u);
+     s_ble.stats.connected = false; sensorarrayBleResetLinkObservationLocked();
+     assert(sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT, &event));
+     assert(!s_ble.link.dataLengthObserved && !s_ble.link.phyKnown && s_ble.stats.txPhy == 0u);
+@@ -399,12 +426,32 @@ static void testSdkObservation(void)
+     assert(s_ble.link.sdkWallUs == 4u && s_ble.link.sdkCallCount == 0u && s_ble.link.sdkCompletedCalls == 0u);
+     assert(s_ble.link.sdkIdleUnchanged == 0u);
+ }
++static void testTaskCreation(void)
++{
++    reset();
++    assert(taskCreates == 2u && createdPriorities[0] == 8u && createdPriorities[1] == 8u);
++    assert(s_ble.txTaskStarted && s_ble.controlTaskStarted);
++    for (unsigned failure = 1u; failure <= 2u; failure++) {
++        for (unsigned nullHandle = 0u; nullHandle < 2u; nullHandle++) {
++            reset();
++            s_ble.txTask = s_ble.controlTask = NULL;
++            s_ble.txTaskStarted = s_ble.controlTaskStarted = false;
++            taskCreates = 0u;
++            if (nullHandle) { nullTaskCreate = failure; } else { failTaskCreate = failure; }
++            assert(initializeTasks() == ESP_ERR_NO_MEM);
++            assert(taskCreates == failure && s_ble.stats.initError == ESP_ERR_NO_MEM);
++            assert(s_ble.txTaskStarted == (failure == 2u) && !s_ble.controlTaskStarted);
++        }
++    }
++    puts("BLE_TASK_SPAWN,tx=8,ctrl=8,ctrlMessagePriority=1,ctrlTaskStrictlyHigher=0,createFailureCases=4,hardware=NOT_RUN");
++}
+ int main(void)
+ {
++    testTaskCreation();
+     testAdmissionAndPriority(); testWeightedLog(); testLifecycleAndWake();
+     testPartialOwnership(); testFailuresAndConfirm(); testNegotiation();
+     testSdkObservation();
+-    printf("BLE_PRIORITY_PASS,groups=7,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
++    printf("BLE_PRIORITY_PASS,groups=8,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
+         CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN, SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
+         SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT, (unsigned)sizeof(s_ble), (unsigned)sizeof(sensorarrayBleTxDescriptor_t));
+     return 0;
+diff --git a/tests/host/test_serial_io_priority.c b/tests/host/test_serial_io_priority.c
+index 30da1b4..5a36655 100644
+--- a/tests/host/test_serial_io_priority.c
++++ b/tests/host/test_serial_io_priority.c
+@@ -339,8 +339,10 @@ static void runHandoff(unsigned transportPriority, bool expectedHeld)
+ int main(void)
+ {
+     setbuf(stdout, NULL);
+-    assert(ACTUAL_OUTPUT_CORE == 0 && ACTUAL_LOG_PRIORITY == 7u && ACTUAL_BLE_PRIORITY == 7u);
+-    assert(ACTUAL_CONTROL_PRIORITY == 8u && ACTUAL_CONTROL_PRIORITY > ACTUAL_BLE_PRIORITY);
++    assert(ACTUAL_OUTPUT_CORE == 0 && ACTUAL_LOG_PRIORITY == 7u && ACTUAL_BLE_PRIORITY == 8u);
++    /* This candidate gives DATA and CTRL tasks equal priority. Message/queue
++     * arbitration still prioritizes CTRL; never claim a higher CTRL task. */
++    assert(ACTUAL_CONTROL_PRIORITY == 8u && ACTUAL_CONTROL_PRIORITY >= ACTUAL_BLE_PRIORITY);
+     run(4u, 0u, ACTUAL_CONTROL_PRIORITY); /* Old priority counterexample retained. */
+     run(6u, 0u, ACTUAL_CONTROL_PRIORITY);
+     run(6u, UINT64_MAX, ACTUAL_CONTROL_PRIORITY);
+@@ -355,8 +357,9 @@ int main(void)
+     run(ACTUAL_OTG_PRIORITY, 0u, ACTUAL_SERIAL_CONTROL_PRIORITY);
+     run(ACTUAL_OTG_PRIORITY, UINT64_MAX, ACTUAL_SERIAL_CONTROL_PRIORITY);
+     runHandoff(6u, true);
+-    runHandoff(ACTUAL_TRANSPORT_PRIORITY, false);
+-    printf("SERIAL_PRIORITY_PASS,scenarios=13,legacyPriority=%u,otgPriority=%u,actualFunctions=8,hardware=NOT_RUN\n",
++    runHandoff(ACTUAL_TRANSPORT_PRIORITY, true);
++    runHandoff(ACTUAL_BLE_PRIORITY, false); /* Equal-priority counterfactual retained. */
++    printf("SERIAL_PRIORITY_PASS,scenarios=14,legacyPriority=%u,otgPriority=%u,actualFunctions=8,hardware=NOT_RUN\n",
+            ACTUAL_SERIAL_PRIORITY, ACTUAL_OTG_PRIORITY);
+     return 0;
+ }
+diff --git a/tools/test_ble_priority.py b/tools/test_ble_priority.py
+index 7ee6965..cda4692 100644
+--- a/tools/test_ble_priority.py
++++ b/tools/test_ble_priority.py
+@@ -22,6 +22,7 @@ def main():
+                          source.index("/*\n * Statistics are observed")]
+     harness = harness.replace("/* PRODUCTION_TYPES */", definitions)
+     signatures = [
++        "static void sensorarrayBleStatsSetInitError(",
+         "static void sensorarrayBleStatsIncrement(",
+         "static void sensorarrayBleStatsNoteDrop(",
+         "static void sensorarrayBleStatsNoteMessageSent(",
+@@ -67,6 +68,9 @@ def main():
+     init = source[source.index("    s_ble.txQueue = xQueueCreateStatic("):
+                   source.index("    BaseType_t taskOk = xTaskCreatePinnedToCore(")]
+     harness = harness.replace("/* PRODUCTION_QUEUE_INIT */", init)
++    task_init = source[source.index("    BaseType_t taskOk = xTaskCreatePinnedToCore("):
++                       source.index("    sensorarrayBleBuildAdvData();", source.index("    BaseType_t taskOk = xTaskCreatePinnedToCore("))]
++    harness = harness.replace("/* PRODUCTION_TASK_INIT */", task_init)
+     compiler, native = findCompiler()
+     if not native:
+         raise RuntimeError("host execution is required; compile-only is not PASS")
+@@ -91,6 +95,13 @@ typedef int esp_err_t;
+                    "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+                    "-I", str(temp), "-I", str(root / "components/sensorarrayBle/include"),
+                    str(generated), "-o", str(executable)]
++        # Exercise the actual configured task creation priorities, not a
++        # hardcoded return value from the fake FreeRTOS priority getter.
++        sdkconfig = (root / "sdkconfig").read_text()
++        for macro in ("CONFIG_SENSORARRAY_BLE_TX_TASK_PRIORITY",
++                      "CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY"):
++            value = re.search(r'^' + macro + r'=(\d+)$', sdkconfig, re.M).group(1)
++            command.insert(1, f"-D{macro}={value}")
+         subprocess.run(command, check=True)
+         # This harness owns only static storage. LeakSanitizer cannot inspect
+         # threads under the sandbox ptrace; retain ASan/UBSan bounds checking.

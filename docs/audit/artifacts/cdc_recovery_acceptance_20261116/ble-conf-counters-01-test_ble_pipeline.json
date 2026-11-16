@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.872652767051477,
+  "created_utc": "2026-11-16T07:27:24.626436+00:00",
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-conf-counters-01-test_ble_pipeline.txt",
+  "log_sha256": "91e91bd881a67c94d527797103d66d5fca982a65c2c424b51d48e8b24ddf8baa",
+  "hardware": "NOT_RUN"
+}

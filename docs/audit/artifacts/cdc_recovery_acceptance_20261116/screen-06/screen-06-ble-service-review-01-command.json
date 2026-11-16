@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble-service-review-01.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.3444512200076133,
+  "created_utc": "2026-11-16T07:43:59.015401+00:00",
+  "script_sha256": "1b1708415e69cfb193b2eec169258fcc1b06ac0a1988726d34e54a132f0619d2",
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble-service-review-01-command.txt",
+  "log_sha256": "222ecfefafc3b279e12ddfcc9a1065cea2143e8456072a88af7a645d5edfa01d",
+  "scope": "READ_ONLY_CLOSED_EVIDENCE; no production/build/hardware",
+  "report": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble-service-review-01.json",
+  "report_sha256": "e8f67a7cb71272d1d90bc0b5b317576cc7286aefbd0005d97a1fede59c913c9a"
+}

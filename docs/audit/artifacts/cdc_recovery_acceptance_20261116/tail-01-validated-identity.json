@@ -1,0 +1,20 @@
+{
+  "source_commit": "bc997679bcdc1db2df272914180bde50f16ff703",
+  "version": "bc99767-dirty",
+  "app_bytes": 1610960,
+  "bin_sha256": "47a9ff30ffd60232d12a39ebf19def30e72a19d81a56c3504a0ba43089aa945e",
+  "elf_sha256": "2cd47eb02b556120fc9459a0cc2ec9c394ca95ac5313a7c4284b4267800cf93b",
+  "host_entries": 61,
+  "initial_pass_entries": 60,
+  "failed_initial_entry": "test_ads_presence",
+  "failure_reason": "host source extraction included new adjacent board-only owner helper; unused under -Werror",
+  "fixed_entry_exit_code": 0,
+  "failed_entry_rerun_record": "tail-presence-fixed-01-command.json",
+  "production_inputs": 183,
+  "build_test_inputs_identical": true,
+  "source_changed_during_build": false,
+  "dirty_diff_sha256_at_build": "6ba34a3a103f2d2c3359925baa6ecdeb3e3aa661d319034b933df3c21b92be67",
+  "hardware_flashed_at_manifest_creation": false,
+  "startup_crc_threshold_changed": false,
+  "scientific_read_path_changed": false
+}

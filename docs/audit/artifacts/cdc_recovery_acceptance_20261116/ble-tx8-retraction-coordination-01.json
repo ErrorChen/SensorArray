@@ -1,0 +1,8 @@
+{
+  "note": "Worker completed its exact candidate retraction before root took over. The root withdrawal patch is correctly empty, as confirmed by size0 and HEAD-equal before/after hashes; it is not the candidate diff. Use worker candidate patch and retraction report as actual change evidence.",
+  "actual_candidate_patch": "ble-tx8-candidate-01.patch",
+  "actual_candidate_patch_sha256": "096682a8b9aab82b81d557a9ecfee01d1372ece674e04abf1e51b5ce8c902fed",
+  "root_observed_patch_bytes": 0,
+  "current_BLE_TX_priority": 7,
+  "current_BLE_CTRL_priority": 8
+}

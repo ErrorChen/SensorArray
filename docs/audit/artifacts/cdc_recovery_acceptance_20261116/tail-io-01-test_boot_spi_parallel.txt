@@ -1,0 +1,7 @@
+BOOT_BUS_JOIN,spiPhase=done,done=1,timedOut=0,err=0x0,spiCore=0,i2cCore=1,spiStartUs=1000,spiEndUs=100000,i2cStartUs=2000,i2cEndUs=20000000,joinUs=20000000,deadlineUs=8001000,overlapUs=98000
+SPI_QUERY_MAX,length=467,capacity=512
+boot SPI production lifetime/deadline/query: PASS
+BOOT_BUS_JOIN,spiPhase=skipped,done=0,timedOut=0,err=0x0,spiCore=-1,i2cCore=1,spiStartUs=0,spiEndUs=0,i2cStartUs=1000,i2cEndUs=1000,joinUs=1000,deadlineUs=8001000,overlapUs=0
+SPI_QUERY_MAX,length=468,capacity=512
+boot SPI production lifetime/deadline/query: PASS
+boot SPI production job/join and caller ordering: PASS (enabled + disabled)

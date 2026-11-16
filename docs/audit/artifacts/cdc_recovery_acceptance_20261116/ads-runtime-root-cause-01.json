@@ -230,7 +230,7 @@
     "startup": "Once each profile is started, repeated FreshChecked reads after DRDY. No per-attempt MODE2/INPMUX WREG. AA common-node short avoids external source and matrix excitation; INTREF staysoff, refAVDD/AVSS.",
     "matrix": "ApplyInputProfile writes MODE2 as required, writes INPMUX for changed/forcedroute, starts ADC onlyifnotrunning, then capturesgeneration after writes; optional analogguardcurrently0us. ReadAdaptive may do1/3/confirmationreads with same shared bounded CRCretry. CPUcore/schedulerload and reference/inputcommonmode differ from bootprobe.",
     "datasheet": "9.5.7/9.6 marks INPMUX and MODE2 asADC1restart Group1 when newdata arewritten; not everyregisterwrite restarts. SameAAbyte restart semantics are notexplicitly resolved in examinedmanual.9.4.1.1 guaranteesSTOP1/START1restart.",
-    "rdata_overlap": "56clocks at551k \u2248101.63us crosses38400SPSconversionperiod\u224826.04us. CommandRDATA1 usesholdingregister and doesnot require nextDRDY-minus16fCLK directread constraint; crossingconversionsalone is not provenprotocolbug.",
+    "rdata_overlap": "56clocks at551k ≈101.63us crosses38400SPSconversionperiod≈26.04us. CommandRDATA1 usesholdingregister and doesnot require nextDRDY-minus16fCLK directread constraint; crossingconversionsalone is not provenprotocolbug.",
     "filter_and_rate_confirmed": {
       "mode0": "00 continuous,chopoff,delay0",
       "mode1": "00 registerselectionSINC1; effectivehigh-rateSINC5",
@@ -309,5 +309,37 @@
     "implementation_boundary": "Current SendCommand START1 updatesconfiguredDrdyGeneration afterSPIcompletion. Ifone-shotDRDYarrivesbeforethatreturn, ordinaryFreshCheckedrejectstheedgeandtimesout. A diagnostic mustcaptureactualSTART/edge chronology orreporttimeout; neverresetfreshgeneration/artificiallyacceptastale result. Repeatedholdingreadsareexplicitlydiagnosticonlyandmustnotusefresh-success semantics.",
     "acceptance": "CompareCRCcount/directionatidenticalclock/input/profile; pulseimprovementisnotproofpermanentmatrixfix. Reproducewithcompletebyte/snapshot/timestamprecords beforechangingproductionselection.",
     "external_waveform_if_unresolved": "SynchronisedlastSPIclockedge, DOUTatADCpinandMCUpin, DRDY; independentlyconfirmCSstaticlow. TriggeronCRCbit0withnanosecondresolutionandcheckringing/overshoot/delayacrossR36. No hardware probing performed/authorisedbythisworker."
+  },
+  "upstream_espressif_review": {
+    "checked_date_utc": "2026-11-16",
+    "issue_url": "https://github.com/espressif/esp-idf/issues/17908",
+    "issue_status_observed": "Open; no linked branches or pull requests shown",
+    "issue_scope": "User report for ADS1235 mode 1 and AD7190 mode 3 on ESP32-S3/C3; not an ADS1262 erratum or board-specific proof.",
+    "collaborator_suggestions": [
+      {
+        "setting": "SPI clock above 33 MHz",
+        "condition": "ADS1235 user report of SDO changing about 15 ns after the final clock edge",
+        "applicability": "Rejected for ADS1262: exceeds the 8 MHz datasheet maximum."
+      },
+      {
+        "setting": "cs_ena_posttrans",
+        "condition": "Only if the slave changes SDO after CS deactivation",
+        "applicability": "No physical CS boundary on the configured board: spics_io_num=-1 and schematic CS# tied to GND."
+      }
+    ],
+    "other_chip_user_experiments": "AD7190 duty 64 at 5 MHz or mode 2 with input_delay_ns=50 are not verified ADS1262 solutions. The local duty-64 experiment already failed and was reverted.",
+    "current_upstream_s3_hal": {
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/master/components/esp_hal_gpspi/esp32s3/include/hal/spi_ll.h",
+      "revision_binding": "URL is a moving master branch, observed on the date above; no immutable upstream commit was fetched.",
+      "rx_timing_setter": "lines 691-694: spi_ll_master_set_rx_timing_mode has no implementation and says unsupported",
+      "standard_sample_support": "lines 698-701: spi_ll_master_is_rx_std_sample_supported returns false",
+      "miso_delay_setter": "lines 841-843: spi_ll_set_miso_delay has no implementation",
+      "local_idf_agrees": "The installed ESP-IDF 5.5.5 S3 HAL has the same unsupported/empty paths; spi_master rejects SPI_SAMPLING_POINT_PHASE_1."
+    },
+    "decision": "No source-supported, ADS1262-compatible sampling-point change or upstream fix was identified for a repo-local patch. Do not use unsupported PHASE_1, change SPI mode, exceed datasheet clocks, correct CRC bits, or repeat the failed NOP/duty experiments.",
+    "remaining_hypothesis": "Late final-bit sampling after DOUT takes its readiness/idle role is consistent with the observed final-bit-only errors but is not established by this other-chip issue. The single observed 1-to-0 corruption also prevents claiming the line is always forced high.",
+    "next_evidence": "An independently bounded pulse/holding-register diagnostic or physical SCLK/DOUT/DRDY waveform comparison can distinguish tail readiness from general link timing. Such reads remain diagnostic, never bypass generation freshness, and never become scientific frames.",
+    "production_changed": false,
+    "hardware_accessed": false
   }
 }

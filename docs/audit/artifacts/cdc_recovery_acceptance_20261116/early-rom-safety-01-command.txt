@@ -1,0 +1,12 @@
+test_full_hash_argument_and_existing_output_are_non_bypassable (__main__.EarlyRomTests.test_full_hash_argument_and_existing_output_are_non_bypassable) ... ok
+test_identified_failure_single_action_and_independent_rom_enumeration (__main__.EarlyRomTests.test_identified_failure_single_action_and_independent_rom_enumeration) ... ok
+test_identity_state_or_capability_mismatch_prevents_action (__main__.EarlyRomTests.test_identity_state_or_capability_mismatch_prevents_action) ... ok
+test_lost_ack_and_uncertain_completed_write_never_replay (__main__.EarlyRomTests.test_lost_ack_and_uncertain_completed_write_never_replay) ... ok
+test_partial_action_failure_is_preserved_and_never_replayed (__main__.EarlyRomTests.test_partial_action_failure_is_preserved_and_never_replayed) ... ok
+test_publications_or_reused_identity_do_not_prove_enumeration (__main__.EarlyRomTests.test_publications_or_reused_identity_do_not_prove_enumeration) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.058s
+
+OK
+{"status": "PASS_SYNTHETIC", "tests": 6, "cases": 27, "evidence": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/early-rom-safety-01.json"}

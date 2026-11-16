@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-16T05:55:38.581318+00:00",
+  "head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "scope": "synthetic hardware; real control/mailbox/arbiter/query formatter and main dispatch/boundary/callback C",
+  "commands": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-control-host-01-command.json",
+      "sha256": "01baa2663ce6cdb4abeb67f86abb95c1f24e73e925d0029a67add888d7faf996",
+      "exit_code": 0
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-recovery-host-01-command.json",
+      "sha256": "e9e196997eb23f9ef42021302eaec7427d453a331ad97c47b8757912c064d2d9",
+      "exit_code": 0
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-frontend-host-01-command.json",
+      "sha256": "4c7a940cf6eca0c5b20c39759446fc4c9ffe2de4692be3652f2d5296dbec0af1",
+      "exit_code": 0
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-mailbox-host-01-command.json",
+      "sha256": "6f5c788036b162ae91858a583fa6c0508e577895673b65ef7d01ccbde44eda36",
+      "exit_code": 0
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-config-host-01-command.json",
+      "sha256": "5bc2cfe9ec504ef09e4b2c2a53637338188d38674d30978fee088510419b06db",
+      "exit_code": 0
+    }
+  ],
+  "source_sha256": {
+    "main/main.c": "2146751321d936c152913e2394476ec4d2aa943a0dc4ef9e5831e18e5a496444",
+    "main/control/sensorarrayAdsTimingControl.c": "8082da8fd07841f7e863f3932a47e06f3cf97e1ac5380b2a80a135d49e3180a2",
+    "main/control/sensorarrayAdsTimingControl.h": "88bbabf9586faf39f0834a183ea7924f9773d0a305550b72d1967ec1c249b79c",
+    "main/control/sensorarrayCommandMailbox.c": "b48570be2c9d0413b78709ce4293ad5cce0f79e98bb1fa08590d294b43138eca",
+    "main/control/sensorarrayCommandMailbox.h": "c8cd56db8c746a9a822700eb4d0b3d354ef84b7bddf2e585b6b271d0e0f697b6",
+    "core/measure/ads/sensorarrayAdsTimingProbe.c": "695fa7d7bb1cd6ca09ca30cd622830f02d4a10c04300f1267c25c4524991eb54",
+    "core/measure/ads/sensorarrayAdsTimingProbe.h": "362fefd333162fbed0ea608e4e854b51fd2efc533140038351d0017869a281ee",
+    "components/ads126xAdc/include/ads126xAdc.h": "57eab5423ceaf783502b5cc47c063d3d7f95a02b3c049b0d72f0bca28a96e091",
+    "core/config/sensorarrayScanConfig.c": "82e68598da593c8dbb7c3019cf22fbd646e4d08f4a151c3c82cc03fd2ae6d191",
+    "core/transport/sensorarrayTransportGuaranteedText.c": "aed02f8698f9820b7575849f32f36cd5f245e2100eedc660e2ed43221cfeff64",
+    "tools/test_ads_timing_control.py": "b85e2d24cfbe4d4de83681e65eaf77077253b8fa0df13d4965bbe5596f533826",
+    "tests/host/test_ads_timing_control.c": "855b13ee414c99afad1be9049dcc80482a8dddd78ce135cf5c7c8cde6ee6718f",
+    "tests/host/test_rowmodes_ack_guard.c": "a97261f6fe18025606375ee4bc84610c341c9692dd20827c26e8774c503c94ef",
+    "tools/test_main_config_commit.py": "31ef491ebb5565e319b47089c58468340eef88a8185f9b7f0d8a1698f5391799",
+    "tools/test_rowmodes_ack_guard.py": "3299828ff30a246a927a533f8d8f6db5e923f8b7f30e55effd88b54ad6730c48"
+  },
+  "results": {
+    "control_groups": 20,
+    "admission_subcases": 10,
+    "max_state_bytes": 483,
+    "max_terminal_bytes": 285,
+    "max_proto_bytes": 421,
+    "proto_backends": 3,
+    "host_psram_allocation_bytes": 14448,
+    "internal_fallback": false,
+    "hardware_access": false,
+    "target_build_by_this_subtask": false
+  },
+  "coverage": [
+    "TAIL and TIMING share global ACK/terminal arbiter, including reentrant opposite-kind request before first local request publication",
+    "Immutable accepted kind reaches mailbox, boundary, backend call, cached result, terminal and every query family",
+    "Wrong command kind is rejected before hardware; invalid kind/sample count and failed ACK do not execute",
+    "TAIL supplemental detail rejects TIMING result; STD source reports tailApplicable0/spiBits56; GPIOtail source reports spiBits55 and no continuous-wire claim",
+    "PSRAM allocation failure disables only diagnostics; repeated/reentrant init and query have no malloc/free/reuse",
+    "Original TIMING admissions, stale identity, cleanup/first error, query recovery and configuration tests retained"
+  ]
+}

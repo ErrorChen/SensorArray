@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_work_budget.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.3512984719709493,
+  "created_utc": "2026-11-16T07:27:24.099991+00:00",
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-conf-counters-01-test_work_budget.txt",
+  "log_sha256": "950373e0fc822d591ccce31dbb3f98fdbe3f2924b65aefb18579ceba332d08ab",
+  "hardware": "NOT_RUN"
+}

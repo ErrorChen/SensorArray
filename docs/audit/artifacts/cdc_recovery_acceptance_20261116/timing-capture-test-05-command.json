@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_ads_timing.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "bc997679bcdc1db2df272914180bde50f16ff703",
+  "dirty_diff_sha256": "4a9da06c12db2ec0f4655f7d86f2d8df2bb3852d13ab4d67db22abf32a14a69d",
+  "started_utc": "2026-11-16T06:12:03.850092+00:00",
+  "started_monotonic": 316414.823833046,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-capture-test-05-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T06:12:04.064553+00:00",
+  "finished_monotonic": 316415.038291063,
+  "log_sha256": "ff36b28a93ab6c92591d8b5df2c99451be2d8530bc64d274a12be0b23fbfdeb5"
+}

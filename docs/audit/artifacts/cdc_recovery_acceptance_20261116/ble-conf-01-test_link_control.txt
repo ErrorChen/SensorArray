@@ -1,0 +1,13 @@
+LINK_CONTROL_FORMAT,command=USB?,bytes=350,capacity=512
+LINK_CONTROL_FORMAT,command=USBQ?,bytes=333,capacity=512
+LINK_CONTROL_FORMAT,command=SERIAL?,bytes=245,capacity=512
+LINK_CONTROL_FORMAT,command=USBSTREAM?,bytes=72,capacity=512
+LINK_CONTROL_FORMAT,command=USB?,bytes=343,capacity=512
+LINK_CONTROL_FORMAT,command=USBQ?,bytes=307,capacity=512
+LINK_CONTROL_FORMAT,command=USBSTREAM?,bytes=72,capacity=512
+LINK_CONTROL_FORMAT,command=USB?,bytes=350,capacity=512
+LINK_CONTROL_FORMAT,command=BLELINK?,bytes=339,capacity=512
+LINK_CONTROL_FORMAT,command=BLETX?,bytes=391,capacity=512
+LINK_CONTROL_FORMAT,command=BLESVC?,bytes=371,capacity=512
+LINK_CONTROL_FORMAT,command=SCHEDWHY?,bytes=374,capacity=512
+LINK_CONTROL_PASS,groups=4,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,hardware=NOT_RUN

@@ -1,0 +1,2739 @@
+commit bb230d03f438e724436881a7f61af35122726403
+Author:     ErrorChen <2671094196@qq.com>
+AuthorDate: Mon Nov 16 16:16:05 2026 +1100
+Commit:     ErrorChen <2671094196@qq.com>
+CommitDate: Mon Nov 16 16:16:05 2026 +1100
+
+    Add bounded ADC conversion timing probe and BLE service observations
+
+diff --git a/components/sensorarrayBle/include/sensorarrayBle.h b/components/sensorarrayBle/include/sensorarrayBle.h
+index 23ffd17..9e2c5f6 100644
+--- a/components/sensorarrayBle/include/sensorarrayBle.h
++++ b/components/sensorarrayBle/include/sensorarrayBle.h
+@@ -121,6 +121,15 @@ typedef struct {
+     uint32_t sdkAccepted;
+     uint32_t sdkErrors;
+     uint32_t sdkMaxCallUs;
++    /* Added observation only; boot totals, not reset on link reconnect.
++     * Completed SDK calls include errors. Wall time includes preemption and
++     * possible blocking, so neither it nor idle-epoch change proves CPU cost
++     * or blocking. 32-bit counts/64-bit microsecond total wrap modulo width. */
++    uint32_t sdkCompletedCalls;
++    uint64_t sdkWallUs;
++    uint32_t sdkIdleChanged;
++    uint32_t sdkIdleUnchanged;
++    uint32_t sdkIdleUnknown;
+     esp_err_t sdkLastError;
+     uint32_t txTaskPriority;
+     uint32_t ctrlTaskPriority;
+diff --git a/components/sensorarrayBle/sensorarrayBle.c b/components/sensorarrayBle/sensorarrayBle.c
+index 858e8c0..29b8c7d 100644
+--- a/components/sensorarrayBle/sensorarrayBle.c
++++ b/components/sensorarrayBle/sensorarrayBle.c
+@@ -1035,6 +1035,7 @@ static esp_err_t sensorarrayBleSendGattValue(
+             if (confirm) {
+                 sensorarrayBlePrepareConfirmation(context, handle);
+             }
++            uint32_t idleBefore = sensorarrayWorkBudgetIdleGeneration();
+             uint64_t callStartedUs = (uint64_t)esp_timer_get_time();
+             portENTER_CRITICAL(&s_bleMux);
+             s_ble.link.sdkCallActive = true;
+@@ -1049,10 +1050,16 @@ static esp_err_t sensorarrayBleSendGattValue(
+                                                     confirm);
+             uint64_t callCompletedUs = (uint64_t)esp_timer_get_time();
+             uint64_t callUs = callCompletedUs - callStartedUs;
++            uint32_t idleAfter = sensorarrayWorkBudgetIdleGeneration();
+             portENTER_CRITICAL(&s_bleMux);
+             s_ble.link.sdkCallActive = false;
+             s_ble.link.sdkCallCompletedUs = callCompletedUs;
+             s_ble.link.sdkLastError = lastError;
++            s_ble.link.sdkCompletedCalls++;
++            s_ble.link.sdkWallUs += callUs;
++            if (idleBefore == 0u || idleAfter == 0u) { s_ble.link.sdkIdleUnknown++; }
++            else if (idleBefore != idleAfter) { s_ble.link.sdkIdleChanged++; }
++            else { s_ble.link.sdkIdleUnchanged++; }
+             if (callUs > s_ble.link.sdkMaxCallUs) {
+                 s_ble.link.sdkMaxCallUs = callUs > UINT32_MAX ? UINT32_MAX : (uint32_t)callUs;
+             }
+diff --git a/components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h b/components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h
+index 4f37207..ef29868 100644
+--- a/components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h
++++ b/components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h
+@@ -24,6 +24,11 @@ typedef struct {
+     uint32_t checkpoints;
+     uint32_t yields;
+     uint32_t maxBurstUnits;
++    /* Added observation only: a yield can satisfy multiple predicates.
++     * These counters overlap and must not be summed as a yield count. */
++    uint32_t quantumDue;
++    uint32_t backstopDue;
++    uint32_t unitsDue;
+ } sensorarrayWorkBudgetWorkerSnapshot_t;
+ 
+ typedef struct {
+@@ -58,6 +63,11 @@ esp_err_t sensorarrayWorkBudgetInit(void);
+  * overshoot it. No notifications consumed. */
+ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker);
+ 
++/* Added observation only: one real CPU0-idle epoch sample, zero if unknown.
++ * No wait/checkpoint or synthetic progress. Nonzero wrap skips zero; a changed
++ * epoch around an SDK call is not a CPU-time or blocked-call measurement. */
++uint32_t sensorarrayWorkBudgetIdleGeneration(void);
++
+ /* Individually sampled diagnostic counters, not an atomic configuration or a
+  * CPU-utilization measurement. All tick/counter arithmetic is modulo 2^32. */
+ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot);
+diff --git a/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c b/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c
+index 8d055bf..6711e6b 100644
+--- a/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c
++++ b/components/sensorarrayWorkBudget/sensorarrayWorkBudget.c
+@@ -34,6 +34,9 @@ typedef struct {
+     uint32_t checkpoints;
+     uint32_t yields;
+     uint32_t maxBurstUnits;
++    uint32_t quantumDue;
++    uint32_t backstopDue;
++    uint32_t unitsDue;
+     /* Only this worker's task mutates these private scheduling fields. */
+     uint32_t units;
+     uint32_t quantumStartTick;
+@@ -163,12 +166,24 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
+         __atomic_store_n(&state->maxBurstUnits, state->units, __ATOMIC_RELAXED);
+     }
+     uint32_t idleAge = now - reference;
+-    bool due = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS ||
+-        now - state->quantumStartTick >= SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS ||
+-        state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
++    const bool backstopDue = idleAge >= SENSORARRAY_WORK_BUDGET_BACKSTOP_TICKS;
++    const bool quantumDue = now - state->quantumStartTick >= SENSORARRAY_WORK_BUDGET_QUANTUM_TICKS;
++    const bool unitsDue = state->units >= SENSORARRAY_WORK_BUDGET_MAX_UNITS;
++    bool due = backstopDue || quantumDue || unitsDue;
+     if (!due) {
+         return false;
+     }
++    /* Observe the original predicates, without changing their OR semantics.
++     * Multiple reasons may hold at this same boundary. */
++    if (quantumDue) {
++        __atomic_store_n(&state->quantumDue, sensorarrayWorkBudgetLoad(&state->quantumDue) + 1u, __ATOMIC_RELAXED);
++    }
++    if (backstopDue) {
++        __atomic_store_n(&state->backstopDue, sensorarrayWorkBudgetLoad(&state->backstopDue) + 1u, __ATOMIC_RELAXED);
++    }
++    if (unitsDue) {
++        __atomic_store_n(&state->unitsDue, sensorarrayWorkBudgetLoad(&state->unitsDue) + 1u, __ATOMIC_RELAXED);
++    }
+     state->units = 0u;
+     /* Start at the next boundary, after the caller resumes. The RTOS block
+      * itself must not immediately exhaust the new local quantum. Shared idle
+@@ -182,6 +197,12 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
+     return true;
+ }
+ 
++uint32_t sensorarrayWorkBudgetIdleGeneration(void)
++{
++    if (!sensorarrayWorkBudgetStorageInternal()) { return 0u; }
++    return __atomic_load_n(&s_idleGeneration, __ATOMIC_ACQUIRE);
++}
++
+ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot)
+ {
+     if (!snapshot) {
+@@ -223,5 +244,8 @@ void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *snapshot
+         snapshot->workers[i].checkpoints = sensorarrayWorkBudgetLoad(&s_workers[i].checkpoints);
+         snapshot->workers[i].yields = sensorarrayWorkBudgetLoad(&s_workers[i].yields);
+         snapshot->workers[i].maxBurstUnits = sensorarrayWorkBudgetLoad(&s_workers[i].maxBurstUnits);
++        snapshot->workers[i].quantumDue = sensorarrayWorkBudgetLoad(&s_workers[i].quantumDue);
++        snapshot->workers[i].backstopDue = sensorarrayWorkBudgetLoad(&s_workers[i].backstopDue);
++        snapshot->workers[i].unitsDue = sensorarrayWorkBudgetLoad(&s_workers[i].unitsDue);
+     }
+ }
+diff --git a/core/measure/ads/sensorarrayAdsGap.c b/core/measure/ads/sensorarrayAdsGap.c
+index 1c4a234..01d515f 100644
+--- a/core/measure/ads/sensorarrayAdsGap.c
++++ b/core/measure/ads/sensorarrayAdsGap.c
+@@ -2996,6 +2996,157 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
+     return originalError;
+ }
+ 
++esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
++    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
++    uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *r)
++{
++    if (!r) { return ESP_ERR_INVALID_ARG; }
++    memset(r, 0, sizeof(*r));
++    r->requestId = requestId;
++    r->frameSequence = frameSequence;
++    r->startedUs = (uint64_t)esp_timer_get_time();
++    r->deadlineUs = r->startedUs + SENSORARRAY_ADS_TIMING_BUDGET_US;
++    r->reason = "admission";
++    if (!state || !registerCache || !state->adsReady) {
++        r->firstError = r->terminalError = ESP_ERR_INVALID_STATE;
++        r->reason = "ads_unavailable";
++        r->completedUs = (uint64_t)esp_timer_get_time();
++        return r->firstError;
++    }
++    if (!sensorarrayAdsRegisterCacheAcquire(registerCache, SENSORARRAY_ADS_OWNER_CHECK)) {
++        r->firstError = r->terminalError = ESP_ERR_INVALID_STATE;
++        r->reason = "owner_busy";
++        r->completedUs = (uint64_t)esp_timer_get_time();
++        return r->firstError;
++    }
++    ads126xAdcHandle_t *ads = &state->ads;
++    bool wasRunning = ads126xAdcIsAdc1Running(ads);
++    bool adc2WasRunning = ads126xAdcIsAdc2Running(ads);
++    uint32_t savedVref = ads->vrefMicrovolts;
++    r->generationBefore = ads->configurationGeneration;
++    r->crcGoodBefore = ads->adc1CrcValidEvenCount + ads->adc1CrcValidOddCount;
++    r->crcBadBefore = ads->adc1CrcErrorCount;
++    uint64_t workDeadline = r->deadlineUs - SENSORARRAY_ADS_TIMING_CLEANUP_US;
++    esp_err_t err = ads126xAdcBeginTransactionUntil(ads, workDeadline);
++    bool transactionOwned = err == ESP_OK;
++    sensorarrayAdsTransactionBegin(&s_checkTransaction);
++    if (err != ESP_OK) { r->reason = "transaction"; r->requiresIsolation = true; }
++    if (err == ESP_OK) {
++        uint32_t mismatches = ads->snapshotMismatchCount;
++        err = ads126xAdcReadAdc1RegisterSnapshot(ads, &r->saved);
++        if (err == ESP_OK && mismatches != ads->snapshotMismatchCount) {
++            err = ESP_ERR_INVALID_RESPONSE;
++        }
++        if (err != ESP_OK) { r->reason = "saved_registers"; r->requiresIsolation = true; }
++        else { r->savedKnown = true; }
++    }
++    if (err == ESP_OK && (r->saved.id != ads->idRegRaw ||
++        (r->saved.power & ADS126X_POWER_RESET) != 0u)) {
++        err = ESP_ERR_INVALID_RESPONSE;
++        r->reason = "id_or_reset"; r->requiresIsolation = true;
++    }
++    if (err == ESP_OK && ((r->saved.power & ADS126X_POWER_INTREF) != 0u ||
++        (r->saved.power & ADS126X_POWER_VBIAS) == 0u ||
++        r->saved.refmux != ADS126X_REFMUX_AVDD_AVSS ||
++        (r->saved.interface & 7u) != 6u || r->saved.mode0 != 0u || adc2WasRunning ||
++        gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_ADS_START_GPIO) != 0)) {
++        err = ESP_ERR_NOT_SUPPORTED;
++        r->reason = "requires_passive_profile";
++    }
++    if (err == ESP_OK && (!ads->enableStatusByte || ads->crcMode != ADS126X_CRC_CRC8 ||
++        ads->enableInternalRef || ads->mode0 != r->saved.mode0 ||
++        ads->mode1 != r->saved.mode1 || savedVref == 0u)) {
++        err = ESP_ERR_INVALID_RESPONSE;
++        r->reason = "driver_shadow"; r->requiresIsolation = true;
++    }
++    if (err == ESP_OK) {
++        ads126xAdc1RegisterSnapshot_t shadow = {0};
++        if (sensorarrayAdsSnapshotFromRegisterCache(registerCache, ads, &shadow) &&
++            !sensorarrayAdsBatterySnapshotsMatch(&shadow, &r->saved, NULL)) {
++            err = ESP_ERR_INVALID_RESPONSE;
++            r->reason = "register_shadow"; r->requiresIsolation = true;
++        }
++    }
++    if (err == ESP_OK) {
++        err = ads126xAdcGetSpiClockHz(ads, &r->requestedHz, &r->actualHz);
++        if (err != ESP_OK) { r->reason = "clock"; }
++    }
++    if (err == ESP_OK) {
++        /* All following writes are MODE/MUX only. POWER/ref/route/clock are
++         * unchanged. The result stays in this caller-owned persistent slot. */
++        r->mutated = true;
++        err = sensorarrayAdsTimingProbeRun(ads, workDeadline, r);
++    }
++    if (err != ESP_OK && r->firstError == ESP_OK) {
++        r->firstError = r->terminalError = err;
++    }
++    if (!r->workCompletedUs) { r->workCompletedUs = (uint64_t)esp_timer_get_time(); }
++    if (transactionOwned) { ads126xAdcEndTransaction(ads); }
++
++    esp_err_t cleanup = ESP_OK;
++    if (ads126xAdcIsQuarantined(ads)) {
++        cleanup = ESP_ERR_INVALID_STATE;
++    } else if (r->mutated) {
++        cleanup = (uint64_t)esp_timer_get_time() >= r->deadlineUs ? ESP_ERR_TIMEOUT :
++            ads126xAdcBeginTransactionUntil(ads, r->deadlineUs);
++        if (cleanup == ESP_OK) {
++            /* Pulse STOP1 does not cancel an in-progress conversion (9.4.1.2).
++             * MODE0 is an ADC1 restart register (table9-34): the actual40->00
++             * write changes RUNMODE before STOP1 is used as a stop command.
++             * Do this unconditionally: a failed profile readback may have
++             * left physical MODE0 different from the driver shadow. */
++            cleanup = ads126xAdcConfigureAdc1Mode(ads, 0u, 0u);
++            if (cleanup == ESP_OK) { cleanup = ads126xAdcStopAdc1(ads); }
++            uint32_t mismatches = ads->snapshotMismatchCount;
++            if (cleanup == ESP_OK) {
++                cleanup = ads126xAdcRestoreAdc1RegisterSnapshot(ads, &r->saved,
++                    savedVref, wasRunning);
++            }
++            if (cleanup == ESP_OK) {
++                cleanup = ads126xAdcReadAdc1RegisterSnapshot(ads, &r->restored);
++            }
++            if (cleanup == ESP_OK && (mismatches != ads->snapshotMismatchCount ||
++                !sensorarrayAdsBatterySnapshotsMatch(&r->saved, &r->restored, NULL))) {
++                cleanup = ESP_ERR_INVALID_RESPONSE;
++            }
++            uint32_t requestedHz = 0u, actualHz = 0u;
++            if (cleanup == ESP_OK) {
++                cleanup = ads126xAdcGetSpiClockHz(ads, &requestedHz, &actualHz);
++                if (cleanup == ESP_OK &&
++                    (requestedHz != r->requestedHz || actualHz != r->actualHz)) {
++                    cleanup = ESP_ERR_INVALID_RESPONSE;
++                }
++            }
++            ads126xAdcEndTransaction(ads);
++        }
++    }
++    r->cleanupError = cleanup;
++    r->restoreKnown = r->savedKnown && cleanup == ESP_OK &&
++        (r->mutated || !r->requiresIsolation);
++    r->restoreVerified = r->restoreKnown;
++    if (!r->mutated && r->restoreKnown) { r->restored = r->saved; }
++    if (r->mutated && r->restoreVerified) {
++        state->adsAdc1Running = wasRunning;
++        sensorarrayAdsPopulateRestoredRegisterCache(registerCache, &r->saved,
++            savedVref, wasRunning);
++    }
++    if (cleanup != ESP_OK) {
++        r->requiresIsolation = true;
++        if (r->firstError == ESP_OK) { r->firstError = cleanup; }
++        if (r->terminalError == ESP_OK) { r->terminalError = cleanup; }
++        r->reason = "restore_failed";
++        s_batteryRestoreFailureLatched = true;
++    }
++    if (r->requiresIsolation) { sensorarrayAdsRegisterCacheInvalidate(registerCache); }
++    r->generationAfter = ads->configurationGeneration;
++    r->crcGoodAfter = ads->adc1CrcValidEvenCount + ads->adc1CrcValidOddCount;
++    r->crcBadAfter = ads->adc1CrcErrorCount;
++    r->completedUs = (uint64_t)esp_timer_get_time();
++    sensorarrayAdsTransactionEnd(&s_checkTransaction, r->firstError, cleanup);
++    (void)sensorarrayAdsRegisterCacheRelease(registerCache, SENSORARRAY_ADS_OWNER_CHECK);
++    return r->firstError;
++}
++
+ static const char *sensorarrayAdsFilterName(uint8_t mode1)
+ {
+     switch ((mode1 >> 5u) & 0x07u) {
+diff --git a/core/measure/ads/sensorarrayAdsGap.h b/core/measure/ads/sensorarrayAdsGap.h
+index 60b8546..dbd261c 100644
+--- a/core/measure/ads/sensorarrayAdsGap.h
++++ b/core/measure/ads/sensorarrayAdsGap.h
+@@ -7,6 +7,7 @@
+ #include "sensorarrayAdsMath.h"
+ #include "sensorarrayAdsCache.h"
+ #include "sensorarrayAdsFault.h"
++#include "sensorarrayAdsTimingProbe.h"
+ #include "sensorarrayTypes.h"
+ 
+ enum {
+@@ -107,6 +108,12 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
+     uint32_t requestId,
+     uint32_t sampleCount,
+     sensorarrayAdsActiveCheckResult_t *outResult);
++/* 本轮新增: caller is the complete-frame boundary owner, CAP/VOLT only.
++ * Admission rejection leaves known hardware unchanged; a hard failure or an
++ * unverified restore requires isolation before another scientific frame. */
++esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
++    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
++    uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *outResult);
+ size_t sensorarrayAdsGapFormatActiveCheck(
+     const sensorarrayAdsActiveCheckResult_t *result,
+     char *buffer,
+diff --git a/core/measure/ads/sensorarrayAdsTimingProbe.c b/core/measure/ads/sensorarrayAdsTimingProbe.c
+new file mode 100644
+index 0000000..c356a45
+--- /dev/null
++++ b/core/measure/ads/sensorarrayAdsTimingProbe.c
+@@ -0,0 +1,455 @@
++#include "sensorarrayAdsTimingProbe.h"
++
++#include <limits.h>
++#include <stdio.h>
++#include <string.h>
++
++#include "sdkconfig.h"
++#include "esp_timer.h"
++#include "freertos/task.h"
++
++#ifndef CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US
++#define CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US 600u
++#endif
++
++static uint32_t sensorarrayAdsTimingU32(uint64_t value)
++{
++    return value > UINT32_MAX ? UINT32_MAX : (uint32_t)value;
++}
++
++static bool sensorarrayAdsTimingRegistersMatch(
++    const ads126xAdc1RegisterSnapshot_t *a,
++    const ads126xAdc1RegisterSnapshot_t *b)
++{
++    return a->id == b->id && (b->power & ADS126X_POWER_RESET) == 0u &&
++        ((a->power ^ b->power) & ADS126X_POWER_CONFIG_MASK) == 0u &&
++        ((a->interface ^ b->interface) & ADS126X_INTERFACE_CONFIG_MASK) == 0u &&
++        a->mode0 == b->mode0 && a->mode1 == b->mode1 && a->mode2 == b->mode2 &&
++        a->inpmux == b->inpmux &&
++        ((a->refmux ^ b->refmux) & ADS126X_REFMUX_CONFIG_MASK) == 0u &&
++        memcmp(a->offsetCal, b->offsetCal, sizeof(a->offsetCal)) == 0 &&
++        memcmp(a->fullScaleCal, b->fullScaleCal, sizeof(a->fullScaleCal)) == 0;
++}
++
++static esp_err_t sensorarrayAdsTimingVerify(ads126xAdcHandle_t *ads,
++    const ads126xAdc1RegisterSnapshot_t *expected)
++{
++    ads126xAdc1RegisterSnapshot_t actual = {0};
++    uint32_t mismatches = ads->snapshotMismatchCount;
++    esp_err_t err = ads126xAdcReadAdc1RegisterSnapshot(ads, &actual);
++    if (err == ESP_OK && (mismatches != ads->snapshotMismatchCount ||
++        !sensorarrayAdsTimingRegistersMatch(expected, &actual))) {
++        err = ESP_ERR_INVALID_RESPONSE;
++    }
++    return err;
++}
++
++static void sensorarrayAdsTimingError(sensorarrayAdsTimingProbeResult_t *r,
++    sensorarrayAdsTimingGroup_t *g, esp_err_t error, const char *reason,
++    bool isolate)
++{
++    if (r->firstError == ESP_OK) { r->firstError = error; }
++    r->terminalError = g->terminalError = error;
++    r->reason = g->reason = reason;
++    r->requiresIsolation |= isolate;
++}
++
++static void sensorarrayAdsTimingRecord(sensorarrayAdsTimingProbeResult_t *r,
++    unsigned group, const sensorarrayAdsTimingRecord_t *record,
++    uint32_t *categories)
++{
++    unsigned kind;
++    if (record->error == ESP_ERR_INVALID_CRC) {
++        uint8_t delta = record->computed ^ record->received;
++        kind = delta == 1u ? ((record->received & 1u) ? 2u : 3u) : 4u;
++    } else if (record->error == ESP_OK) {
++        kind = record->crcParity;
++    } else {
++        kind = 5u;
++    }
++    if (record->held) { kind += 6u; }
++    uint32_t bit = 1u << kind;
++    if ((*categories & bit) != 0u) { return; }
++    *categories |= bit;
++    sensorarrayAdsTimingGroup_t *g = &r->groups[group];
++    if (g->recordCount < SENSORARRAY_ADS_TIMING_RECORDS_PER_GROUP) {
++        r->records[group][g->recordCount++] = *record;
++    } else {
++        g->recordsOmitted++;
++    }
++}
++
++static void sensorarrayAdsTimingNoteCrc(sensorarrayAdsTimingReadStats_t *stats,
++    sensorarrayAdsTimingRecord_t *record, const ads126xAdcCrcFault_t *fault)
++{
++    stats->crc++;
++    record->computed = fault->computed;
++    record->received = fault->received;
++    record->crcParity = fault->computed & 1u;
++    record->length = fault->length <= sizeof(record->bytes) ?
++        fault->length : sizeof(record->bytes);
++    memcpy(record->bytes, fault->bytes, record->length);
++    if (record->length == 6u) {
++        record->status = record->bytes[0]; /* Untrusted wire evidence only. */
++        uint32_t code = ((uint32_t)record->bytes[1] << 24u) |
++            ((uint32_t)record->bytes[2] << 16u) |
++            ((uint32_t)record->bytes[3] << 8u) | record->bytes[4];
++        record->raw = (int32_t)code;
++    }
++    uint8_t delta = fault->computed ^ fault->received;
++    if (delta == 1u && (fault->received & 1u)) { stats->xorUp++; }
++    else if (delta == 1u) { stats->xorDown++; }
++    else { stats->xorOther++; }
++}
++
++static bool sensorarrayAdsTimingBadStatus(uint8_t status, int32_t raw)
++{
++    return (status & (ADS126X_STATUS_RESET_OCCURRED |
++        ADS126X_STATUS_REFERENCE_ALARM | ADS126X_STATUS_PGA_ALARM_MASK)) != 0u ||
++        raw == INT32_MIN || raw == INT32_MAX;
++}
++
++static esp_err_t sensorarrayAdsTimingRead(ads126xAdcHandle_t *ads,
++    sensorarrayAdsTimingProbeResult_t *r, unsigned group, uint32_t attempt,
++    bool held, uint32_t floor, uint32_t before, uint32_t startCallUs,
++    bool priorRawValid, int32_t priorRaw, uint32_t *categories,
++    uint32_t *outGeneration, bool *outRawValid, int32_t *outRaw)
++{
++    sensorarrayAdsTimingGroup_t *g = &r->groups[group];
++    sensorarrayAdsTimingReadStats_t *stats = held ? &g->held : &g->primary;
++    sensorarrayAdsTimingRecord_t rec = {
++        .attempt = attempt, .held = held,
++        .configurationGeneration = ads->configurationGeneration,
++        .generationBefore = before, .generationFence = floor,
++        .startCallUs = startCallUs,
++    };
++    uint32_t evenBefore = ads->adc1CrcValidEvenCount;
++    uint32_t oddBefore = ads->adc1CrcValidOddCount;
++    uint32_t badBefore = ads->adc1CrcErrorCount;
++    ads126xAdcFreshReadReport_t read = {0};
++    uint8_t retryBudget = 0u;
++    int32_t raw = 0;
++    uint8_t status = 0u;
++    uint32_t readUs = 0u;
++    stats->attempted++;
++    esp_err_t err = held ?
++        ads126xAdcReadAdc1RawDmaReady(ads, &raw, &status, &readUs) :
++        ads126xAdcReadAdc1FreshChecked(ads, floor,
++            CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, &retryBudget,
++            &raw, &status, &read);
++    rec.observedUs = (uint64_t)esp_timer_get_time();
++    rec.waitUs = sensorarrayAdsTimingU32(read.waitUs);
++    rec.readUs = held ? readUs : sensorarrayAdsTimingU32(read.readUs);
++    rec.generationAfter = ads126xAdcGetDrdyGeneration(ads);
++    rec.error = err;
++    if (err != ESP_OK && r->firstError == ESP_OK) { r->firstError = err; }
++    if (err == ESP_ERR_INVALID_CRC) {
++        sensorarrayAdsTimingNoteCrc(stats, &rec,
++            held ? &ads->lastAdc1CrcFault : &read.firstCrcFault);
++        if (r->firstError == ESP_OK) { r->firstError = err; }
++    }
++    uint32_t even = ads->adc1CrcValidEvenCount - evenBefore;
++    uint32_t odd = ads->adc1CrcValidOddCount - oddBefore;
++    stats->even += even;
++    stats->odd += odd;
++    if (err == ESP_OK) {
++        rec.raw = raw; rec.status = status; rec.rawValid = true;
++        rec.crcValid = true;
++        /* Only parity is known here; do not invent received good wire bytes. */
++        rec.crcParity = odd ? 1u : 0u;
++    }
++    bool generationOk = ads->configurationGeneration == rec.configurationGeneration;
++    if (held) {
++        generationOk = generationOk && rec.generationAfter == floor;
++    } else if (g->pulse) {
++        generationOk = generationOk &&
++            (uint32_t)(read.generationEnd - floor) == 1u &&
++            rec.generationAfter == read.generationEnd;
++    }
++    if (ads126xAdcIsQuarantined(ads)) {
++        sensorarrayAdsTimingError(r, g, err != ESP_OK ? err : ESP_ERR_INVALID_STATE,
++            "spi_quarantined", true);
++    } else if (err != ESP_OK && err != ESP_ERR_INVALID_CRC) {
++        if (err == ESP_ERR_TIMEOUT) { stats->timeout++; }
++        else { stats->freshness++; }
++        sensorarrayAdsTimingError(r, g,
++            !held && read.terminalError != ESP_OK ? read.terminalError : err,
++            err == ESP_ERR_TIMEOUT ? "drdy_or_spi_timeout" : "read", true);
++    } else if (!generationOk) {
++        stats->freshness++;
++        sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_STATE, "generation", true);
++    } else if (err == ESP_ERR_INVALID_CRC &&
++        ads->adc1CrcErrorCount - badBefore == 1u &&
++        (held || read.terminalError == ESP_ERR_INVALID_CRC)) {
++        /* A rejected wire frame is counted, never retried or made valid. */
++    } else if (err != ESP_OK) {
++        if (err == ESP_ERR_TIMEOUT) { stats->timeout++; }
++        else { stats->freshness++; }
++        sensorarrayAdsTimingError(r, g,
++            !held && read.terminalError != ESP_OK ? read.terminalError : err,
++            err == ESP_ERR_TIMEOUT ? "drdy_or_spi_timeout" : "read", true);
++    } else if (even + odd != 1u) {
++        sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_RESPONSE, "crc_counter", true);
++    } else if (sensorarrayAdsTimingBadStatus(status, raw)) {
++        stats->status++;
++        sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_RESPONSE, "status", true);
++    } else if (held && (ads126xAdcStatusByteHasAdc1NewData(ads, status) ||
++        (priorRawValid && raw != priorRaw))) {
++        stats->freshness++;
++        sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_RESPONSE, "hold_state_changed", true);
++    } else {
++        stats->valid++;
++        rec.fresh = !held;
++    }
++    if (rec.error == ESP_OK && g->terminalError != ESP_OK) {
++        rec.error = g->terminalError;
++    }
++    sensorarrayAdsTimingRecord(r, group, &rec, categories);
++    *outGeneration = rec.generationAfter;
++    *outRawValid = rec.rawValid && rec.fresh;
++    *outRaw = raw;
++    return g->terminalError;
++}
++
++esp_err_t sensorarrayAdsTimingProbeRun(ads126xAdcHandle_t *ads,
++    uint64_t workDeadlineUs, sensorarrayAdsTimingProbeResult_t *r)
++{
++    if (!ads || !r || ads->transactionDeadlineUs == 0u ||
++        workDeadlineUs > ads->transactionDeadlineUs) { return ESP_ERR_INVALID_ARG; }
++    ads126xAdc1RegisterSnapshot_t expected = r->saved;
++    if ((expected.power & (ADS126X_POWER_RESET | ADS126X_POWER_INTREF)) != 0u ||
++        (expected.power & ADS126X_POWER_VBIAS) == 0u ||
++        (expected.interface & 7u) != 6u || expected.refmux != ADS126X_REFMUX_AVDD_AVSS) {
++        return ESP_ERR_INVALID_STATE;
++    }
++    for (unsigned i = 0u; i < SENSORARRAY_ADS_TIMING_GROUPS; ++i) {
++        r->groups[i].pulse = (i & 1u) != 0u;
++        r->groups[i].bypass = i >= 2u;
++    }
++    for (unsigned i = 0u; i < SENSORARRAY_ADS_TIMING_GROUPS; ++i) {
++        sensorarrayAdsTimingGroup_t *g = &r->groups[i];
++        g->pulse = (i & 1u) != 0u; g->bypass = i >= 2u;
++        g->startedUs = (uint64_t)esp_timer_get_time();
++        g->reason = "setup";
++        esp_err_t err = g->startedUs >= workDeadlineUs ? ESP_ERR_TIMEOUT :
++            ads126xAdcStopAdc1(ads);
++        expected.mode0 = g->pulse ? 0x40u : 0x00u;
++        expected.mode1 = 0u;
++        expected.mode2 = g->bypass ? 0x8Fu : 0x0Fu;
++        expected.inpmux = 0xAAu;
++        if (err == ESP_OK) { err = ads126xAdcConfigureAdc1Mode(ads, expected.mode0, 0u); }
++        if (err == ESP_OK) { err = ads126xAdcSetMode2Verified(ads, expected.mode2); }
++        if (err == ESP_OK) { err = ads126xAdcSetInputMuxVerified(ads, 0x0Au, 0x0Au); }
++        if (err == ESP_OK) { err = sensorarrayAdsTimingVerify(ads, &expected); }
++        if (err != ESP_OK) {
++            g->registerErrors++;
++            sensorarrayAdsTimingError(r, g, err, "profile", true);
++        }
++        if (err == ESP_OK && !g->pulse) { err = ads126xAdcStartAdc1(ads); }
++        if (err != ESP_OK && g->terminalError == ESP_OK) {
++            sensorarrayAdsTimingError(r, g, err, "start", true);
++        }
++        g->configurationGeneration = ads->configurationGeneration;
++        uint32_t categories = 0u;
++        for (uint32_t attempt = 1u; g->terminalError == ESP_OK &&
++             attempt <= SENSORARRAY_ADS_TIMING_SAMPLES; ++attempt) {
++            if ((uint64_t)esp_timer_get_time() >= workDeadlineUs) {
++                sensorarrayAdsTimingError(r, g, ESP_ERR_TIMEOUT, "deadline", false);
++                break;
++            }
++            uint32_t before = ads126xAdcGetDrdyGeneration(ads);
++            uint32_t floor = before, startCallUs = 0u;
++            if (g->pulse) {
++                uint64_t start = (uint64_t)esp_timer_get_time();
++                err = ads126xAdcStartAdc1(ads);
++                startCallUs = sensorarrayAdsTimingU32((uint64_t)esp_timer_get_time() - start);
++                floor = ads->configuredDrdyGeneration;
++                if (err != ESP_OK) {
++                    sensorarrayAdsTimingError(r, g, err, "start", true);
++                    break;
++                }
++                if (floor != before) {
++                    g->startFenceMissed++;
++                    sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_RESPONSE,
++                        "start_fence_missed", false);
++                    break;
++                }
++            }
++            uint32_t generation = floor;
++            bool primaryRawValid = false;
++            int32_t primaryRaw = 0;
++            uint32_t crcBefore = ads->adc1CrcErrorCount;
++            err = sensorarrayAdsTimingRead(ads, r, i, attempt, false, floor, before,
++                startCallUs, false, 0, &categories, &generation,
++                &primaryRawValid, &primaryRaw);
++            if (err == ESP_OK && g->pulse) {
++                bool ignoredValid = false;
++                int32_t ignoredRaw = 0;
++                err = sensorarrayAdsTimingRead(ads, r, i, attempt, true, generation,
++                    generation, 0u, primaryRawValid, primaryRaw, &categories,
++                    &generation, &ignoredValid, &ignoredRaw);
++            }
++            if (err == ESP_OK && (ads->adc1CrcErrorCount != crcBefore || attempt % 64u == 0u)) {
++                err = sensorarrayAdsTimingVerify(ads, &expected);
++                if (err != ESP_OK) {
++                    g->registerErrors++;
++                    sensorarrayAdsTimingError(r, g, err, "register", true);
++                }
++            }
++            if (err == ESP_OK && attempt % 32u == 0u) {
++                uint64_t now = (uint64_t)esp_timer_get_time();
++                uint64_t tickUs = (1000000u + configTICK_RATE_HZ - 1u) / configTICK_RATE_HZ;
++                if (now + tickUs >= workDeadlineUs) {
++                    sensorarrayAdsTimingError(r, g, ESP_ERR_TIMEOUT, "deadline", false);
++                } else { vTaskDelay(1u); }
++            }
++        }
++        if (g->terminalError == ESP_OK) {
++            err = sensorarrayAdsTimingVerify(ads, &expected);
++            uint32_t requestedHz = 0u, actualHz = 0u;
++            if (err == ESP_OK) { err = ads126xAdcGetSpiClockHz(ads, &requestedHz, &actualHz); }
++            if (err == ESP_OK && (requestedHz != r->requestedHz || actualHz != r->actualHz)) {
++                err = ESP_ERR_INVALID_RESPONSE;
++            }
++            if (err != ESP_OK) {
++                g->registerErrors++;
++                sensorarrayAdsTimingError(r, g, err, "final_profile_or_clock", true);
++            }
++        }
++        g->completed = g->terminalError == ESP_OK &&
++            g->primary.attempted == SENSORARRAY_ADS_TIMING_SAMPLES &&
++            g->primary.valid + g->primary.crc == SENSORARRAY_ADS_TIMING_SAMPLES &&
++            (!g->pulse || g->held.attempted == SENSORARRAY_ADS_TIMING_SAMPLES);
++        if (g->completed) {
++            g->reason = g->primary.even < 32u || g->primary.odd < 32u ?
++                "parity_insufficient" : g->primary.crc > 5u ? "crc_above_25permille" : "complete";
++        }
++        g->completedUs = (uint64_t)esp_timer_get_time();
++        if (!g->completed) { break; }
++    }
++    r->completed = true;
++    for (unsigned i = 0u; i < SENSORARRAY_ADS_TIMING_GROUPS; ++i) {
++        r->completed &= r->groups[i].completed;
++    }
++    if (r->completed) { r->reason = "complete"; }
++    r->workCompletedUs = (uint64_t)esp_timer_get_time();
++    return r->firstError;
++}
++
++static size_t sensorarrayAdsTimingFormatted(char *buffer, size_t size, int count)
++{
++    if (count < 0 || (size_t)count >= size) {
++        if (buffer && size) { buffer[0] = '\0'; }
++        return 0u;
++    }
++    return (size_t)count;
++}
++
++size_t sensorarrayAdsTimingProbeFormatSummary(
++    const sensorarrayAdsTimingProbeResult_t *r, char *b, size_t n)
++{
++    if (!r || !b || !n) { return 0u; }
++    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
++        "ADSTIMING,diagnostic=1,science=0,id=%lu,seq=%lu,groups=4,n=200,done=%u,mutated=%u,restoreKnown=%u,restoreVerified=%u,isolate=%u,hz=%lu,actualHz=%lu,first=0x%lx,terminal=0x%lx,cleanup=0x%lx,startUs=%llu,endUs=%llu,gen=%lu/%lu,crcGood=%lu/%lu,crcBad=%lu/%lu,records=%lu,reason=%s\n",
++        (unsigned long)r->requestId, (unsigned long)r->frameSequence,
++        r->completed, r->mutated, r->restoreKnown, r->restoreVerified, r->requiresIsolation,
++        (unsigned long)r->requestedHz, (unsigned long)r->actualHz,
++        (unsigned long)r->firstError, (unsigned long)r->terminalError,
++        (unsigned long)r->cleanupError, (unsigned long long)r->startedUs,
++        (unsigned long long)r->completedUs, (unsigned long)r->generationBefore,
++        (unsigned long)r->generationAfter, (unsigned long)r->crcGoodBefore,
++        (unsigned long)r->crcGoodAfter, (unsigned long)r->crcBadBefore,
++        (unsigned long)r->crcBadAfter, (unsigned long)sensorarrayAdsTimingProbeRecordCount(r),
++        r->reason ? r->reason : "unknown"));
++}
++
++size_t sensorarrayAdsTimingProbeFormatGroup(
++    const sensorarrayAdsTimingProbeResult_t *r, uint32_t group, char *b, size_t n)
++{
++    if (!r || group >= SENSORARRAY_ADS_TIMING_GROUPS || !b || !n) { return 0u; }
++    const sensorarrayAdsTimingGroup_t *g = &r->groups[group];
++    const sensorarrayAdsTimingReadStats_t *p = &g->primary, *h = &g->held;
++    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
++        "ADSTIMINGGROUP,diagnostic=1,id=%lu,g=%lu,mode=%s,pga=%s,n=200,a=%lu,v=%lu,crc=%lu,even=%lu,odd=%lu,up=%lu,down=%lu,other=%lu,status=%lu,freshErr=%lu,timeout=%lu,fenceMiss=%lu,regErr=%lu,heldA=%lu,heldV=%lu,heldCrc=%lu,heldUp=%lu,heldDown=%lu,heldOther=%lu,done=%u,err=0x%lx,reason=%s\n",
++        (unsigned long)r->requestId, (unsigned long)group,
++        g->pulse ? "PULSE" : "CONT", g->bypass ? "bypass" : "gain1",
++        (unsigned long)p->attempted, (unsigned long)p->valid, (unsigned long)p->crc,
++        (unsigned long)p->even, (unsigned long)p->odd, (unsigned long)p->xorUp,
++        (unsigned long)p->xorDown, (unsigned long)p->xorOther, (unsigned long)p->status,
++        (unsigned long)p->freshness, (unsigned long)p->timeout,
++        (unsigned long)g->startFenceMissed, (unsigned long)g->registerErrors,
++        (unsigned long)h->attempted, (unsigned long)h->valid, (unsigned long)h->crc,
++        (unsigned long)h->xorUp, (unsigned long)h->xorDown, (unsigned long)h->xorOther,
++        g->completed, (unsigned long)g->terminalError, g->reason ? g->reason : "not_run"));
++}
++
++size_t sensorarrayAdsTimingProbeFormatGroupTiming(
++    const sensorarrayAdsTimingProbeResult_t *r, uint32_t group, char *b, size_t n)
++{
++    if (!r || group >= SENSORARRAY_ADS_TIMING_GROUPS || !b || !n) { return 0u; }
++    const sensorarrayAdsTimingGroup_t *g = &r->groups[group];
++    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
++        "ADSTIMINGTIME,diagnostic=1,id=%lu,g=%lu,startUs=%llu,endUs=%llu,gen=%lu,records=%lu,omitted=%lu,heldEven=%lu,heldOdd=%lu,heldStatus=%lu,heldFreshErr=%lu,heldTimeout=%lu\n",
++        (unsigned long)r->requestId, (unsigned long)group,
++        (unsigned long long)g->startedUs, (unsigned long long)g->completedUs,
++        (unsigned long)g->configurationGeneration, (unsigned long)g->recordCount,
++        (unsigned long)g->recordsOmitted, (unsigned long)g->held.even,
++        (unsigned long)g->held.odd, (unsigned long)g->held.status,
++        (unsigned long)g->held.freshness, (unsigned long)g->held.timeout));
++}
++
++size_t sensorarrayAdsTimingProbeFormatRegisters(
++    const sensorarrayAdsTimingProbeResult_t *r, bool restored, char *b, size_t n)
++{
++    if (!r || !b || !n) { return 0u; }
++    const ads126xAdc1RegisterSnapshot_t *s = restored ? &r->restored : &r->saved;
++    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
++        "ADSTIMINGREG,diagnostic=1,id=%lu,phase=%s,known=%u,ID=%02X,POWER=%02X,INTERFACE=%02X,MODE0=%02X,MODE1=%02X,MODE2=%02X,INPMUX=%02X,REFMUX=%02X,OCAL=%02X%02X%02X,FSCAL=%02X%02X%02X\n",
++        (unsigned long)r->requestId, restored ? "restored" : "saved",
++        restored ? r->restoreVerified : r->savedKnown,
++        s->id, s->power, s->interface, s->mode0, s->mode1, s->mode2, s->inpmux,
++        s->refmux, s->offsetCal[0], s->offsetCal[1], s->offsetCal[2],
++        s->fullScaleCal[0], s->fullScaleCal[1], s->fullScaleCal[2]));
++}
++
++uint32_t sensorarrayAdsTimingProbeRecordCount(const sensorarrayAdsTimingProbeResult_t *r)
++{
++    if (!r) { return 0u; }
++    uint32_t count = 0u;
++    for (unsigned i = 0u; i < SENSORARRAY_ADS_TIMING_GROUPS; ++i) {
++        count += r->groups[i].recordCount;
++    }
++    return count;
++}
++
++size_t sensorarrayAdsTimingProbeFormatRecord(const sensorarrayAdsTimingProbeResult_t *r,
++    uint32_t index, char *b, size_t n)
++{
++    if (!r || !b || !n) { return 0u; }
++    uint32_t group = 0u;
++    while (group < SENSORARRAY_ADS_TIMING_GROUPS && index >= r->groups[group].recordCount) {
++        index -= r->groups[group++].recordCount;
++    }
++    if (group >= SENSORARRAY_ADS_TIMING_GROUPS) { b[0] = '\0'; return 0u; }
++    const sensorarrayAdsTimingRecord_t *v = &r->records[group][index];
++    char bytes[13] = {0};
++    char computed[8] = "unknown", received[8] = "unknown", delta[8] = "unknown";
++    for (unsigned i = 0u; i < v->length && i < sizeof(v->bytes); ++i) {
++        (void)snprintf(bytes + i * 2u, sizeof(bytes) - i * 2u, "%02X", v->bytes[i]);
++    }
++    if (v->length) {
++        (void)snprintf(computed, sizeof(computed), "%02X", v->computed);
++        (void)snprintf(received, sizeof(received), "%02X", v->received);
++        (void)snprintf(delta, sizeof(delta), "%02X", v->computed ^ v->received);
++    }
++    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
++        "ADSTIMINGRAW,diagnostic=1,id=%lu,g=%lu,attempt=%lu,kind=%s,raw=%ld,rawValid=%u,fresh=%u,status=%02X,crcValid=%u,parity=%u,wireKnown=%u,bytes=%s,computed=%s,received=%s,xor=%s,err=0x%lx,observedUs=%llu,startCallUs=%lu,waitUs=%lu,readUs=%lu,cfg=%lu,drdy=%lu/%lu/%lu\n",
++        (unsigned long)r->requestId, (unsigned long)group, (unsigned long)v->attempt,
++        v->held ? "held_repeat" : "primary", (long)v->raw, v->rawValid, v->fresh,
++        v->status, v->crcValid, v->crcParity, v->length != 0u, bytes[0] ? bytes : "unknown",
++        computed, received, delta, (unsigned long)v->error,
++        (unsigned long long)v->observedUs, (unsigned long)v->startCallUs,
++        (unsigned long)v->waitUs, (unsigned long)v->readUs,
++        (unsigned long)v->configurationGeneration, (unsigned long)v->generationBefore,
++        (unsigned long)v->generationFence, (unsigned long)v->generationAfter));
++}
+diff --git a/core/measure/ads/sensorarrayAdsTimingProbe.h b/core/measure/ads/sensorarrayAdsTimingProbe.h
+new file mode 100644
+index 0000000..dda8ab8
+--- /dev/null
++++ b/core/measure/ads/sensorarrayAdsTimingProbe.h
+@@ -0,0 +1,126 @@
++#pragma once
++
++#include <stdbool.h>
++#include <stddef.h>
++#include <stdint.h>
++
++#include "ads126xAdc.h"
++
++/* 本轮新增: explicitly diagnostic; never a matrix sample or a speed selection. */
++#define SENSORARRAY_ADS_TIMING_GROUPS 4u
++#define SENSORARRAY_ADS_TIMING_SAMPLES 200u
++#define SENSORARRAY_ADS_TIMING_RECORDS_PER_GROUP 8u
++#define SENSORARRAY_ADS_TIMING_BUDGET_US 2000000u
++#define SENSORARRAY_ADS_TIMING_CLEANUP_US 500000u
++
++typedef struct {
++    uint32_t attempted;
++    uint32_t valid;
++    uint32_t crc;
++    uint32_t even;
++    uint32_t odd;
++    uint32_t xorUp;
++    uint32_t xorDown;
++    uint32_t xorOther;
++    uint32_t status;
++    uint32_t freshness;
++    uint32_t timeout;
++} sensorarrayAdsTimingReadStats_t;
++
++typedef struct {
++    bool pulse;
++    bool bypass;
++    bool completed;
++    uint32_t startFenceMissed;
++    uint32_t registerErrors;
++    uint32_t recordCount;
++    uint32_t recordsOmitted;
++    uint32_t configurationGeneration;
++    uint64_t startedUs;
++    uint64_t completedUs;
++    esp_err_t terminalError;
++    const char *reason;
++    sensorarrayAdsTimingReadStats_t primary;
++    sensorarrayAdsTimingReadStats_t held;
++} sensorarrayAdsTimingGroup_t;
++
++typedef struct {
++    uint32_t attempt;
++    uint32_t configurationGeneration;
++    uint32_t generationBefore;
++    uint32_t generationFence;
++    uint32_t generationAfter;
++    uint64_t observedUs;
++    uint32_t startCallUs;
++    uint32_t waitUs;
++    uint32_t readUs;
++    int32_t raw;
++    esp_err_t error;
++    uint8_t status;
++    uint8_t computed;
++    uint8_t received;
++    uint8_t crcParity;
++    uint8_t length;
++    uint8_t bytes[6];
++    bool held;
++    bool rawValid;
++    bool fresh;
++    bool crcValid;
++} sensorarrayAdsTimingRecord_t;
++
++typedef struct {
++    uint32_t requestId;
++    uint32_t frameSequence;
++    uint32_t requestedHz;
++    uint32_t actualHz;
++    uint32_t generationBefore;
++    uint32_t generationAfter;
++    uint32_t crcGoodBefore;
++    uint32_t crcGoodAfter;
++    uint32_t crcBadBefore;
++    uint32_t crcBadAfter;
++    uint64_t startedUs;
++    uint64_t workCompletedUs;
++    uint64_t completedUs;
++    uint64_t deadlineUs;
++    esp_err_t firstError;
++    esp_err_t terminalError;
++    esp_err_t cleanupError;
++    const char *reason;
++    bool mutated;
++    bool savedKnown;
++    bool restoreKnown;
++    bool restoreVerified;
++    bool completed;
++    bool requiresIsolation;
++    ads126xAdc1RegisterSnapshot_t saved;
++    ads126xAdc1RegisterSnapshot_t restored;
++    sensorarrayAdsTimingGroup_t groups[SENSORARRAY_ADS_TIMING_GROUPS];
++    sensorarrayAdsTimingRecord_t records[SENSORARRAY_ADS_TIMING_GROUPS]
++        [SENSORARRAY_ADS_TIMING_RECORDS_PER_GROUP];
++} sensorarrayAdsTimingProbeResult_t;
++
++/* Caller holds CHECK owner and a deadline ending before the cleanup reserve.
++ * The saved profile must already satisfy INTREF off, VBIAS on, CRC+STATUS,
++ * AVDD/AVSS reference. This module never changes POWER, route or SPI clock. */
++esp_err_t sensorarrayAdsTimingProbeRun(ads126xAdcHandle_t *ads,
++    uint64_t workDeadlineUs, sensorarrayAdsTimingProbeResult_t *result);
++
++/* Immutable completed-result formatters. Every record says diagnostic=1.
++ * Return zero with an empty buffer if the whole line does not fit. */
++size_t sensorarrayAdsTimingProbeFormatSummary(
++    const sensorarrayAdsTimingProbeResult_t *result, char *buffer, size_t size);
++size_t sensorarrayAdsTimingProbeFormatGroup(
++    const sensorarrayAdsTimingProbeResult_t *result, uint32_t group,
++    char *buffer, size_t size);
++size_t sensorarrayAdsTimingProbeFormatGroupTiming(
++    const sensorarrayAdsTimingProbeResult_t *result, uint32_t group,
++    char *buffer, size_t size);
++size_t sensorarrayAdsTimingProbeFormatRegisters(
++    const sensorarrayAdsTimingProbeResult_t *result, bool restored,
++    char *buffer, size_t size);
++size_t sensorarrayAdsTimingProbeFormatRecord(
++    const sensorarrayAdsTimingProbeResult_t *result, uint32_t record,
++    char *buffer, size_t size);
++uint32_t sensorarrayAdsTimingProbeRecordCount(
++    const sensorarrayAdsTimingProbeResult_t *result);
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+index 0924a5b..430e05d 100644
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -7,6 +7,7 @@ set(SENSORARRAY_MAIN_SRCS
+         "control/sensorarrayRestartControl.c"
+     "control/sensorarrayUsbControl.c"
+     "control/sensorarrayLinkDiagnostics.c"
++    "control/sensorarrayAdsTimingControl.c"
+     "net/sensorarrayNetStatus.c"
+ )
+ 
+@@ -47,6 +48,7 @@ set(SENSORARRAY_ADS_SRCS
+         "../core/measure/ads/sensorarrayBatteryScheduler.c"
+     "../core/measure/ads/sensorarrayAdsMath.c"
+     "../core/measure/ads/sensorarrayAdsGap.c"
++    "../core/measure/ads/sensorarrayAdsTimingProbe.c"
+     "../core/measure/ads/sensorarrayAdsFault.c"
+ )
+ 
+diff --git a/main/control/sensorarrayAdsTimingControl.c b/main/control/sensorarrayAdsTimingControl.c
+new file mode 100644
+index 0000000..865c12c
+--- /dev/null
++++ b/main/control/sensorarrayAdsTimingControl.c
+@@ -0,0 +1,250 @@
++#include "sensorarrayAdsTimingControl.h"
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "freertos/FreeRTOS.h"
++#include "sensorarrayCommandMailbox.h"
++#include "sensorarrayTransportGuaranteedText.h"
++
++#define SENSORARRAY_TIMING_QUEUE_BUDGET_US 10000000u
++
++typedef struct {
++    sensorarrayAdsTimingRequest_t request;
++    char outcome[12];
++    char reason[40];
++    esp_err_t originalError;
++    esp_err_t cleanupError;
++    uint32_t resultRevision;
++    uint32_t boundary;
++    bool resultKnown;
++    bool resultAvailable;
++    bool terminalQueued;
++} sensorarrayAdsTimingLast_t;
++
++static portMUX_TYPE s_timingMux = portMUX_INITIALIZER_UNLOCKED;
++static struct {
++    uint64_t session;
++    uint32_t bootId;
++    bool busy;
++    bool acknowledged;
++    bool running;
++    bool queryBusy;
++    sensorarrayAdsTimingRequest_t current;
++    sensorarrayAdsTimingLast_t last;
++} s_timing;
++/* Fixed storage: no multi-kilobyte result on acquisition/control task stacks. */
++static sensorarrayAdsTimingProbeResult_t s_timingWork;
++static sensorarrayAdsTimingProbeResult_t s_timingResult;
++static sensorarrayAdsTimingProbeResult_t s_timingQuery;
++
++void sensorarrayAdsTimingControlInit(uint64_t session, uint32_t bootId)
++{
++    portENTER_CRITICAL(&s_timingMux);
++    memset(&s_timing, 0, sizeof(s_timing));
++    s_timing.session = session; s_timing.bootId = bootId;
++    portEXIT_CRITICAL(&s_timingMux);
++}
++
++esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
++    uint64_t nowUs, uint32_t *outId)
++{
++    if (!authority || !authority->available || !outId) { return ESP_ERR_INVALID_ARG; }
++    portENTER_CRITICAL(&s_timingMux);
++    bool busy = s_timing.busy;
++    bool bootMatches = authority->identity.sessionId == s_timing.session &&
++        authority->identity.bootId == s_timing.bootId;
++    portEXIT_CRITICAL(&s_timingMux);
++    if (busy || !bootMatches) { return ESP_ERR_INVALID_STATE; }
++    uint32_t id = 0u;
++    esp_err_t error = sensorarrayCommandMailboxPostAdsTiming(SENSORARRAY_ADS_TIMING_SAMPLES, &id);
++    if (error != ESP_OK) { return error; }
++    portENTER_CRITICAL(&s_timingMux);
++    s_timing.current = (sensorarrayAdsTimingRequest_t){
++        .id = id, .identity = authority->identity, .acceptedUs = nowUs,
++        .expiresUs = nowUs + SENSORARRAY_TIMING_QUEUE_BUDGET_US,
++    };
++    s_timing.busy = true; s_timing.acknowledged = false; s_timing.running = false;
++    portEXIT_CRITICAL(&s_timingMux);
++    *outId = id;
++    return ESP_OK;
++}
++
++bool sensorarrayAdsTimingControlAck(uint32_t id, esp_err_t error)
++{
++    portENTER_CRITICAL(&s_timingMux);
++    bool matches = s_timing.busy && s_timing.current.id == id &&
++        !s_timing.acknowledged && !s_timing.running;
++    if (matches && error == ESP_OK) {
++        /* Set before enqueue: Core 1 may run immediately after the barrier. */
++        s_timing.acknowledged = true;
++    } else if (matches) {
++        s_timing.last = (sensorarrayAdsTimingLast_t){
++            .request = s_timing.current, .originalError = error,
++        };
++        memcpy(s_timing.last.outcome, "rejected", sizeof("rejected"));
++        memcpy(s_timing.last.reason, "ack_publish_failed", sizeof("ack_publish_failed"));
++        s_timing.busy = false;
++    }
++    portEXIT_CRITICAL(&s_timingMux);
++    if (matches) {
++        if (error == ESP_OK) {
++            if (!sensorarrayCommandMailboxCommitConfigAck(id)) {
++                (void)sensorarrayAdsTimingControlComplete(id, "rejected", "ack_commit_failed",
++                    ESP_ERR_INVALID_STATE, ESP_OK, NULL, false, false);
++            }
++        } else {
++            (void)sensorarrayCommandMailboxCancelConfigAck(id);
++        }
++    }
++    return matches;
++}
++
++sensorarrayAdsTimingTake_t sensorarrayAdsTimingControlTake(uint32_t id,
++    const sensorarrayConfigAuthority_t *authority, bool known, uint64_t nowUs,
++    sensorarrayAdsTimingRequest_t *outRequest)
++{
++    if (!outRequest || (known && !authority)) { return SENSORARRAY_TIMING_TAKE_NONE; }
++    portENTER_CRITICAL(&s_timingMux);
++    if (!s_timing.busy || !s_timing.acknowledged || s_timing.running || s_timing.current.id != id) {
++        portEXIT_CRITICAL(&s_timingMux); return SENSORARRAY_TIMING_TAKE_NONE;
++    }
++    *outRequest = s_timing.current; s_timing.running = true;
++    portEXIT_CRITICAL(&s_timingMux);
++    if (nowUs >= outRequest->expiresUs) { return SENSORARRAY_TIMING_TAKE_EXPIRED; }
++    const sensorarrayConfigIdentity_t *a = &outRequest->identity;
++    const sensorarrayConfigIdentity_t *b = known ? &authority->identity : NULL;
++    if (!known || !authority->available || a->sessionId != b->sessionId || a->bootId != b->bootId ||
++        a->revision != b->revision || a->modeGeneration != b->modeGeneration || a->modeRequestId != b->modeRequestId ||
++        a->rowsGeneration != b->rowsGeneration || a->rowsRequestId != b->rowsRequestId ||
++        a->profileGeneration != b->profileGeneration || a->profileRequestId != b->profileRequestId) {
++        return SENSORARRAY_TIMING_TAKE_STALE;
++    }
++    memset(&s_timingWork, 0, sizeof(s_timingWork));
++    return SENSORARRAY_TIMING_TAKE_READY;
++}
++
++sensorarrayAdsTimingProbeResult_t *sensorarrayAdsTimingControlWorkResult(void)
++{ return &s_timingWork; }
++
++esp_err_t sensorarrayAdsTimingControlComplete(uint32_t id, const char *outcome,
++    const char *reason, esp_err_t originalError, esp_err_t cleanupError,
++    const sensorarrayConfigAuthority_t *authority, bool known, bool keepResult)
++{
++    if (!outcome || !reason || strlen(outcome) >= sizeof(s_timing.last.outcome) ||
++        strlen(reason) >= sizeof(s_timing.last.reason) || (known && !authority)) { return ESP_ERR_INVALID_ARG; }
++    sensorarrayAdsTimingLast_t last = {
++        .originalError = originalError, .cleanupError = cleanupError,
++        .resultKnown = known, .resultAvailable = keepResult,
++        .resultRevision = known ? authority->identity.revision : 0u,
++        .boundary = known ? authority->identity.appliedFrameBoundary : 0u,
++    };
++    memcpy(last.outcome, outcome, strlen(outcome) + 1u);
++    memcpy(last.reason, reason, strlen(reason) + 1u);
++    portENTER_CRITICAL(&s_timingMux);
++    if (!s_timing.busy || s_timing.current.id != id || !s_timing.acknowledged) {
++        portEXIT_CRITICAL(&s_timingMux); return ESP_ERR_INVALID_STATE;
++    }
++    last.request = s_timing.current;
++    if (keepResult) { s_timingResult = s_timingWork; }
++    s_timing.last = last; s_timing.busy = false; s_timing.running = false;
++    portEXIT_CRITICAL(&s_timingMux);
++    char text[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX];
++    int n = snprintf(text, sizeof(text),
++        "ADSTERM,id=%lu,state=%s,reason=%s,session=%016llX,bootId=%lu,acceptedRev=%lu,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,diagnostic=1,query=ADSTIMING\n",
++        (unsigned long)id, outcome, reason, (unsigned long long)last.request.identity.sessionId,
++        (unsigned long)last.request.identity.bootId, (unsigned long)last.request.identity.revision,
++        (unsigned long)last.resultRevision, (unsigned long)last.boundary,
++        (unsigned long)(uint32_t)originalError, (unsigned long)(uint32_t)cleanupError, keepResult ? 1u : 0u);
++    esp_err_t error = n > 0 && (size_t)n < sizeof(text) ?
++        sensorarrayCommandMailboxEmitConfigTerminal(id, text, (size_t)n) : ESP_ERR_INVALID_SIZE;
++    if (error != ESP_OK) { (void)sensorarrayCommandMailboxCancelConfigAck(id); }
++    portENTER_CRITICAL(&s_timingMux);
++    if (s_timing.last.request.id == id) { s_timing.last.terminalQueued = error == ESP_OK; }
++    portEXIT_CRITICAL(&s_timingMux);
++    return error;
++}
++
++void sensorarrayAdsTimingControlExpire(uint64_t nowUs,
++    const sensorarrayConfigAuthority_t *authority, bool known)
++{
++    portENTER_CRITICAL(&s_timingMux);
++    uint32_t id = s_timing.busy && !s_timing.running && nowUs >= s_timing.current.expiresUs ? s_timing.current.id : 0u;
++    bool acknowledged = s_timing.acknowledged;
++    portEXIT_CRITICAL(&s_timingMux);
++    if (id == 0u) { return; }
++    if (!acknowledged) { (void)sensorarrayAdsTimingControlAck(id, ESP_ERR_TIMEOUT); }
++    else { (void)sensorarrayAdsTimingControlComplete(id, "rejected", "queue_deadline", ESP_ERR_TIMEOUT,
++                                                    ESP_OK, authority, known, false); }
++}
++
++bool sensorarrayAdsTimingControlHandles(const char *command)
++{ return command && strncmp(command, "ADSTIMING?", 10u) == 0; }
++
++static bool sensorarrayTimingParseUnsigned(const char **text, uint32_t *value)
++{
++    if (**text < '0' || **text > '9') { return false; }
++    uint32_t parsed = 0u;
++    while (**text >= '0' && **text <= '9') {
++        uint32_t digit = (uint32_t)(**text - '0');
++        if (parsed > (UINT32_MAX - digit) / 10u) { return false; }
++        parsed = parsed * 10u + digit; ++*text;
++    }
++    *value = parsed; return true;
++}
++
++esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response, size_t responseSize)
++{
++    if (!command || !response || responseSize == 0u) { return ESP_ERR_INVALID_ARG; }
++    response[0] = '\0';
++    if (strcmp(command, "ADSTIMING?") == 0) {
++        portENTER_CRITICAL(&s_timingMux);
++        sensorarrayAdsTimingLast_t last = s_timing.last;
++        sensorarrayAdsTimingRequest_t current = s_timing.current;
++        bool busy = s_timing.busy, running = s_timing.running, ack = s_timing.acknowledged;
++        uint64_t session = s_timing.session; uint32_t bootId = s_timing.bootId;
++        portEXIT_CRITICAL(&s_timingMux);
++        int n = snprintf(response, responseSize,
++            "ADSTIMING,session=%016llX,bootId=%lu,busy=%u,phase=%s,ackLocal=%u,pendingId=%lu,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,terminalQueued=%u,groups=4,perGroup=200,diagnostic=1\n",
++            (unsigned long long)session, (unsigned long)bootId, busy ? 1u : 0u,
++            busy ? (running ? "running" : "pending") : "idle", busy && ack ? 1u : 0u,
++            (unsigned long)(busy ? current.id : 0u), (unsigned long)(busy ? current.identity.revision : 0u),
++            (unsigned long)last.request.id, last.request.id ? last.outcome : "none", last.request.id ? last.reason : "none",
++            (unsigned long)last.request.identity.revision, last.resultKnown ? 1u : 0u,
++            (unsigned long)last.resultRevision, (unsigned long)last.boundary,
++            (unsigned long)(uint32_t)last.originalError, (unsigned long)(uint32_t)last.cleanupError,
++            last.resultAvailable ? 1u : 0u, last.terminalQueued ? 1u : 0u);
++        if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
++        return ESP_OK;
++    }
++    const char *number = NULL; unsigned kind = 0u;
++    static const struct { const char *prefix; unsigned kind; } queries[] = {
++        {"ADSTIMING?RESULT,", 1u}, {"ADSTIMING?GROUP,", 2u},
++        {"ADSTIMING?RECORD,", 3u}, {"ADSTIMING?TIME,", 4u}, {"ADSTIMING?REG,", 5u},
++    };
++    for (size_t i = 0u; i < sizeof(queries) / sizeof(queries[0]); ++i) {
++        size_t length = strlen(queries[i].prefix);
++        if (strncmp(command, queries[i].prefix, length) == 0) {
++            number = command + length; kind = queries[i].kind; break;
++        }
++    }
++    uint32_t id = 0u, index = 0u;
++    if (!number || !sensorarrayTimingParseUnsigned(&number, &id) || !id ||
++        (kind != 1u && (*number++ != ',' || !sensorarrayTimingParseUnsigned(&number, &index))) || *number != '\0' ||
++        ((kind == 2u || kind == 4u) && index >= SENSORARRAY_ADS_TIMING_GROUPS) || (kind == 5u && index > 1u)) {
++        return ESP_ERR_INVALID_ARG;
++    }
++    portENTER_CRITICAL(&s_timingMux);
++    if (s_timing.queryBusy || !s_timing.last.resultAvailable || s_timing.last.request.id != id) {
++        portEXIT_CRITICAL(&s_timingMux); return ESP_ERR_INVALID_STATE;
++    }
++    s_timing.queryBusy = true; s_timingQuery = s_timingResult;
++    portEXIT_CRITICAL(&s_timingMux);
++    size_t length = kind == 1u ? sensorarrayAdsTimingProbeFormatSummary(&s_timingQuery, response, responseSize) :
++        kind == 2u ? sensorarrayAdsTimingProbeFormatGroup(&s_timingQuery, index, response, responseSize) :
++        kind == 3u ? sensorarrayAdsTimingProbeFormatRecord(&s_timingQuery, index, response, responseSize) :
++        kind == 4u ? sensorarrayAdsTimingProbeFormatGroupTiming(&s_timingQuery, index, response, responseSize) :
++                     sensorarrayAdsTimingProbeFormatRegisters(&s_timingQuery, index != 0u, response, responseSize);
++    portENTER_CRITICAL(&s_timingMux); s_timing.queryBusy = false; portEXIT_CRITICAL(&s_timingMux);
++    return length ? ESP_OK : ESP_ERR_INVALID_SIZE;
++}
+diff --git a/main/control/sensorarrayAdsTimingControl.h b/main/control/sensorarrayAdsTimingControl.h
+new file mode 100644
+index 0000000..bfaf648
+--- /dev/null
++++ b/main/control/sensorarrayAdsTimingControl.h
+@@ -0,0 +1,38 @@
++#pragma once
++
++#include "sensorarrayAdsTimingProbe.h"
++#include "sensorarrayConfigIdentity.h"
++
++/* 本轮新增: one ACK-fenced, bounded diagnostic request and immutable last result.
++ * Hardware is exclusively called by Core 1 at a complete-frame boundary. */
++typedef struct {
++    uint32_t id;
++    sensorarrayConfigIdentity_t identity;
++    uint64_t acceptedUs;
++    uint64_t expiresUs;
++} sensorarrayAdsTimingRequest_t;
++
++typedef enum {
++    SENSORARRAY_TIMING_TAKE_NONE,
++    SENSORARRAY_TIMING_TAKE_READY,
++    SENSORARRAY_TIMING_TAKE_STALE,
++    SENSORARRAY_TIMING_TAKE_EXPIRED,
++} sensorarrayAdsTimingTake_t;
++
++void sensorarrayAdsTimingControlInit(uint64_t session, uint32_t bootId);
++esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
++    uint64_t nowUs, uint32_t *outId);
++bool sensorarrayAdsTimingControlAck(uint32_t id, esp_err_t error);
++sensorarrayAdsTimingTake_t sensorarrayAdsTimingControlTake(uint32_t id,
++    const sensorarrayConfigAuthority_t *authority, bool known, uint64_t nowUs,
++    sensorarrayAdsTimingRequest_t *outRequest);
++/* Core 1 only: never expose the mutable working result to query tasks. */
++sensorarrayAdsTimingProbeResult_t *sensorarrayAdsTimingControlWorkResult(void);
++esp_err_t sensorarrayAdsTimingControlComplete(uint32_t id, const char *outcome,
++    const char *reason, esp_err_t originalError, esp_err_t cleanupError,
++    const sensorarrayConfigAuthority_t *authority, bool known, bool keepResult);
++void sensorarrayAdsTimingControlExpire(uint64_t nowUs,
++    const sensorarrayConfigAuthority_t *authority, bool known);
++bool sensorarrayAdsTimingControlHandles(const char *command);
++esp_err_t sensorarrayAdsTimingControlFormat(const char *command,
++    char *response, size_t responseSize);
+diff --git a/main/control/sensorarrayCommandMailbox.c b/main/control/sensorarrayCommandMailbox.c
+index 522c69d..8b7c355 100644
+--- a/main/control/sensorarrayCommandMailbox.c
++++ b/main/control/sensorarrayCommandMailbox.c
+@@ -545,6 +545,14 @@ esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
+                                                  outRequestId);
+ }
+ 
++esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t samplesPerGroup,
++                                                uint32_t *outRequestId)
++{
++    if (samplesPerGroup != 200u) { return ESP_ERR_INVALID_ARG; }
++    return sensorarrayCommandMailboxPostReservedConfig(SENSORARRAY_COMMAND_ADS_TIMING,
++                                                        samplesPerGroup, outRequestId);
++}
++
+ esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
+                                                   uint32_t *outRequestId)
+ {
+@@ -701,6 +709,8 @@ const char *sensorarrayCommandMailboxTypeName(sensorarrayCommandType_t type)
+         return "rail_calibration";
+     case SENSORARRAY_COMMAND_ADS_CHECK:
+         return "ads_check";
++    case SENSORARRAY_COMMAND_ADS_TIMING:
++        return "ads_timing";
+     case SENSORARRAY_COMMAND_BATTERY_NOW:
+         return "battery_now";
+     case SENSORARRAY_COMMAND_BATTERY_DIAGNOSTIC:
+diff --git a/main/control/sensorarrayCommandMailbox.h b/main/control/sensorarrayCommandMailbox.h
+index 3f9d90e..1f2f10b 100644
+--- a/main/control/sensorarrayCommandMailbox.h
++++ b/main/control/sensorarrayCommandMailbox.h
+@@ -34,6 +34,7 @@ typedef enum {
+     SENSORARRAY_COMMAND_ROW_MODES,
+     SENSORARRAY_COMMAND_FDC_ISOLATE,
+     SENSORARRAY_COMMAND_ROWS,
++    SENSORARRAY_COMMAND_ADS_TIMING, /* 本轮新增: diagnostic, no configuration generation change. */
+ } sensorarrayCommandType_t;
+ 
+ typedef struct {
+@@ -74,6 +75,9 @@ esp_err_t sensorarrayCommandMailboxPostRailCalibration(
+     uint32_t *outRequestId);
+ esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
+                                                 uint32_t *outRequestId);
++/* 本轮新增: shares ACK/terminal reservation and the transport-wide ID arbiter. */
++esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t samplesPerGroup,
++                                                uint32_t *outRequestId);
+ esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
+                                                   uint32_t *outRequestId);
+ esp_err_t sensorarrayCommandMailboxPostBatteryPeriod(bool enabled,
+diff --git a/main/control/sensorarrayLinkDiagnostics.c b/main/control/sensorarrayLinkDiagnostics.c
+index e0f35d2..80ef440 100644
+--- a/main/control/sensorarrayLinkDiagnostics.c
++++ b/main/control/sensorarrayLinkDiagnostics.c
+@@ -2,9 +2,32 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include "sensorarrayBle.h"
++#include "sensorarrayWorkBudget.h"
++
++bool sensorarrayLinkDiagnosticsHandles(const char *cmd)
++{
++    return cmd && (strcmp(cmd, "BLELINK?") == 0 || strcmp(cmd, "BLETX?") == 0 ||
++                   strcmp(cmd, "BLESVC?") == 0 || strcmp(cmd, "SCHEDWHY?") == 0);
++}
++
+ esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd, char *response, size_t size)
+ {
+     if (!cmd || !response || !size) { return ESP_ERR_INVALID_ARG; }
++    if (strcmp(cmd, "SCHEDWHY?") == 0) {
++        sensorarrayWorkBudgetSnapshot_t b = {0};
++        sensorarrayWorkBudgetCopySnapshot(&b);
++        int n = snprintf(response, size,
++            "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x%lX,registered=%u,idleKnown=%u,idleGen=%lu,bt=%lu/%lu/%lu,tr=%lu/%lu/%lu,log=%lu/%lu/%lu,ser=%lu/%lu/%lu,bc=%lu/%lu/%lu,sc=%lu/%lu/%lu,wc=%lu/%lu/%lu\n",
++            (unsigned long)b.initError, b.registered, b.idleKnown, (unsigned long)b.idleGeneration,
++            (unsigned long)b.workers[0].quantumDue, (unsigned long)b.workers[0].backstopDue, (unsigned long)b.workers[0].unitsDue,
++            (unsigned long)b.workers[1].quantumDue, (unsigned long)b.workers[1].backstopDue, (unsigned long)b.workers[1].unitsDue,
++            (unsigned long)b.workers[2].quantumDue, (unsigned long)b.workers[2].backstopDue, (unsigned long)b.workers[2].unitsDue,
++            (unsigned long)b.workers[3].quantumDue, (unsigned long)b.workers[3].backstopDue, (unsigned long)b.workers[3].unitsDue,
++            (unsigned long)b.workers[4].quantumDue, (unsigned long)b.workers[4].backstopDue, (unsigned long)b.workers[4].unitsDue,
++            (unsigned long)b.workers[5].quantumDue, (unsigned long)b.workers[5].backstopDue, (unsigned long)b.workers[5].unitsDue,
++            (unsigned long)b.workers[6].quantumDue, (unsigned long)b.workers[6].backstopDue, (unsigned long)b.workers[6].unitsDue);
++        return n > 0 && (size_t)n < size ? ESP_OK : ESP_ERR_INVALID_SIZE;
++    }
+     sensorarrayBleLinkSnapshot_t s = {0};
+     sensorarrayBleGetLinkSnapshot(&s);
+     int n;
+@@ -25,6 +48,12 @@ esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd, char *response, size
+             (unsigned long long)s.sdkCallCompletedUs, (unsigned long)s.sdkCallCount, (unsigned long)s.sdkAccepted,
+             (unsigned long)s.sdkErrors, (unsigned long)s.sdkMaxCallUs, (unsigned long)s.sdkLastError,
+             (unsigned long)s.txTaskPriority, (unsigned long)s.ctrlTaskPriority);
++    } else if (strcmp(cmd, "BLESVC?") == 0) {
++        n = snprintf(response, size,
++            "BLESVC,v=1,gen=%lu,scope=boot,active=%u,started=%lu,completed=%lu,wallUs=%llu,idleChanged=%lu,idleSame=%lu,idleUnknown=%lu,wall=elapsed,cpu=unknown,blocked=unknown\n",
++            (unsigned long)s.connectionGeneration, s.sdkCallActive, (unsigned long)s.sdkCallCount,
++            (unsigned long)s.sdkCompletedCalls, (unsigned long long)s.sdkWallUs,
++            (unsigned long)s.sdkIdleChanged, (unsigned long)s.sdkIdleUnchanged, (unsigned long)s.sdkIdleUnknown);
+     } else { return ESP_ERR_NOT_SUPPORTED; }
+     return n > 0 && (size_t)n < size ? ESP_OK : ESP_ERR_INVALID_SIZE;
+ }
+diff --git a/main/control/sensorarrayLinkDiagnostics.h b/main/control/sensorarrayLinkDiagnostics.h
+index 5598a15..d245bac 100644
+--- a/main/control/sensorarrayLinkDiagnostics.h
++++ b/main/control/sensorarrayLinkDiagnostics.h
+@@ -1,5 +1,8 @@
+ #pragma once
++#include <stdbool.h>
+ #include <stddef.h>
+ #include "esp_err.h"
+ /* 本轮新增: actual negotiated state and local SDK service observations. */
+ esp_err_t sensorarrayLinkDiagnosticsFormat(const char *command, char *response, size_t size);
++/* Added read-only dispatch helper, shared by early and normal control paths. */
++bool sensorarrayLinkDiagnosticsHandles(const char *command);
+diff --git a/main/main.c b/main/main.c
+index e7ccbe7..ff41c02 100644
+--- a/main/main.c
++++ b/main/main.c
+@@ -1,6 +1,7 @@
+ #include "sensorarrayUsbOtg.h"
+ #include "control/sensorarrayUsbControl.h"
+ #include "control/sensorarrayLinkDiagnostics.h"
++#include "control/sensorarrayAdsTimingControl.h"
+ #include <stdbool.h>
+ #include <inttypes.h>
+ #include <stdarg.h>
+@@ -204,6 +205,12 @@ static esp_err_t sensorarrayFrontendRowsRequest(uint8_t rows,
+     return sensorarrayCommandMailboxPostRows(rows, outResult);
+ }
+ static sensorarrayConfigIdentity_t sensorarrayPublishConfigAuthority(sensorarrayAppContext_t *ctx, uint32_t frameBoundary);
++/* 本轮新增: timing diagnostics are consumed only by the frame-boundary owner. */
++static void
++sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx, const sensorarrayCommand_t *command);
++static esp_err_t
++sensorarrayStopAfterRecoveryFailure(sensorarrayAppContext_t *ctx,
++    esp_err_t originalError, esp_err_t cleanupError, const char *reason);
+ static int64_t s_lastDiagnosticDumpUs __attribute__((unused));
+ static esp_err_t sensorarrayInitSystem(sensorarrayAppContext_t *ctx);
+ static bool sensorarrayCalibrationMatrixPayloadValid(const void *payload,
+@@ -1611,8 +1618,17 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
+         return;
+     }
+ 
++    sensorarrayConfigAuthority_t timingAuthority = {0};
++    bool timingKnown = sensorarrayConfigIdentityCopy(&timingAuthority);
++    sensorarrayAdsTimingControlExpire((uint64_t)esp_timer_get_time(), &timingAuthority, timingKnown);
+     sensorarrayCommand_t command;
+     while (sensorarrayCommandMailboxTryReceive(&command)) {
++        if (command.type == SENSORARRAY_COMMAND_ADS_TIMING) {
++            /* No intervening frame, command, battery or old ADSCHK can run
++             * inside this complete transaction. It never emits Applied. */
++            sensorarrayRunAdsTimingCommand(ctx, &command);
++            return;
++        }
+         if (sensorarrayFrontendsHeld()) {
+             sensorarrayRejectHeldCommand(ctx, &command);
+             continue;
+@@ -1959,6 +1975,78 @@ static bool sensorarrayFrontendOwnersQuiescent(const sensorarrayAppContext_t *ct
+         !ctx->state.ads.spiInFlight;
+ }
+ 
++/* 本轮新增: independent raw-link diagnostic; never feeds frame/PGA/value cache. */
++static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
++                                          const sensorarrayCommand_t *command)
++{
++    sensorarrayConfigAuthority_t authority = {0};
++    bool known = sensorarrayConfigIdentityCopy(&authority);
++    sensorarrayAdsTimingRequest_t request = {0};
++    sensorarrayAdsTimingTake_t take = sensorarrayAdsTimingControlTake(command->requestId,
++        &authority, known, (uint64_t)esp_timer_get_time(), &request);
++    if (take == SENSORARRAY_TIMING_TAKE_NONE) { return; }
++    const char *reject = take == SENSORARRAY_TIMING_TAKE_STALE ? "stale_config" :
++        (take == SENSORARRAY_TIMING_TAKE_EXPIRED ? "queue_deadline" : NULL);
++    sensorarrayRouteSnapshot_t route = {0};
++    if (!reject && (!ctx || sensorarrayFrontendsHeld() || !ctx->systemReady)) { reject = "not_ready"; }
++    if (!reject && (authority.identity.mode != SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE &&
++                    authority.identity.mode != SENSORARRAY_MEASUREMENT_MODE_VOLTAGE)) { reject = "CAP_or_VOLT_required"; }
++    if (!reject && (!sensorarrayFrontendOwnersQuiescent(ctx) ||
++                    sensorarrayMeasurementRecoveryIsActive(&ctx->adsRestoreRecovery))) { reject = "owner_unavailable"; }
++    if (!reject && (!sensorarrayRouteControllerCopySnapshot(&ctx->routeController, &route) ||
++                    !route.applied || !route.known || !route.verified ||
++                    route.mode != authority.identity.mode || (route.power & ADS126X_POWER_INTREF) != 0u)) {
++        reject = "route_not_known_ref_off";
++    }
++    if (reject) {
++        (void)sensorarrayAdsTimingControlComplete(request.id, "rejected", reject,
++            take == SENSORARRAY_TIMING_TAKE_EXPIRED ? ESP_ERR_TIMEOUT : ESP_ERR_INVALID_STATE,
++            ESP_OK, &authority, known, false);
++        return;
++    }
++    sensorarrayAdsTimingProbeResult_t *result = sensorarrayAdsTimingControlWorkResult();
++    esp_err_t error = sensorarrayAdsGapRunTimingProbe(&ctx->state,
++        sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine), request.id,
++        ctx->hostFrameSequence, result);
++    esp_err_t original = result->firstError != ESP_OK ? result->firstError :
++        (result->terminalError != ESP_OK ? result->terminalError : error);
++    esp_err_t cleanup = result->cleanupError;
++    /* This boundary owns the helper's restore latch; do not carry an already
++     * handled failure into a future legal MODE request. An unexpected latch
++     * still means unknown cleanup, never a silently successful transaction. */
++    if (sensorarrayAdsGapConsumeRestoreFailure()) {
++        if (cleanup == ESP_OK) { cleanup = ESP_ERR_INVALID_STATE; }
++        result->requiresIsolation = true;
++    }
++    bool isolate = result->requiresIsolation || (result->mutated && !result->restoreVerified);
++    const char *terminalReason = isolate ?
++        ((cleanup != ESP_OK || !result->restoreVerified) ? "restore_failed" : "probe_fault_requires_isolation") :
++        (result->completed && result->restoreVerified ? "probe_complete" : "probe_failed");
++    if (isolate && original == ESP_OK) { original = ESP_ERR_INVALID_STATE; }
++    if (isolate) {
++        sensorarrayAdsFaultEvent_t fault = {
++            .stage = SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK,
++            .err = original, .seq = ctx->hostFrameSequence,
++            .outcome = SENSORARRAY_ADS_FAULT_OUTCOME_FAILED,
++        };
++        sensorarrayAdsFaultFillContext(ctx, &fault);
++        fault.owner = sensorarrayAdsOwnerName(SENSORARRAY_ADS_OWNER_CHECK);
++        cleanup = sensorarrayStopAfterRecoveryFailure(ctx, original, cleanup,
++            strcmp(terminalReason, "restore_failed") == 0 ? "ads_timing_restore_failed" : "ads_timing_probe_fault");
++        result->cleanupError = cleanup;
++        sensorarrayEmitAdsFault(ctx, &fault);
++        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSTIMING,id=%lu,err=0x%lx,terminalError=0x%lx,cleanupError=0x%lx,probeReason=%s,restoreVerified=%u,state=DEGRADED,route=SAFE_REQUESTED\n",
++            (unsigned long)request.id, (unsigned long)original,
++            (unsigned long)result->terminalError, (unsigned long)cleanup,
++            result->reason ? result->reason : "unknown", result->restoreVerified ? 1u : 0u);
++    }
++    known = sensorarrayConfigIdentityCopy(&authority);
++    bool completed = result->completed && result->restoreVerified && !isolate;
++    (void)sensorarrayAdsTimingControlComplete(request.id, completed ? "completed" : "failed",
++        terminalReason,
++        original, cleanup, &authority, known, true);
++}
++
+ static void sensorarrayEnterFrontendHold(sensorarrayAppContext_t *ctx,
+                                          const char *reason)
+ {
+@@ -2543,7 +2631,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
+     if (strcmp(command, "RESTART?") == 0) {
+         return sensorarrayRestartControlFormat(response, responseSize);
+     }
+-    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
++    if (sensorarrayLinkDiagnosticsHandles(command)) {
+         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
+     }
+     if (sensorarrayUsbControlHandles(command)) {
+@@ -2561,6 +2649,13 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
+     if (strcmp(command, "FRONTENDS?") == 0) {
+         return sensorarrayFormatFrontendReply(response, responseSize);
+     }
++    if (sensorarrayAdsTimingControlHandles(command)) {
++        esp_err_t err = sensorarrayAdsTimingControlFormat(command, response, responseSize);
++        if (err != ESP_OK) {
++            (void)snprintf(response, responseSize, "ERR,cmd=ADSTIMING,reason=query_unavailable,err=0x%lx\n", (unsigned long)err);
++        }
++        return err;
++    }
+     if (strcmp(command, "BUILD?") == 0) {
+         return sensorarrayFormatBuildReply(response, responseSize);
+     }
+@@ -2600,7 +2695,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
+     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
+         snprintf(response,
+                  responseSize,
+-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
++                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
+                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
+                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
+@@ -2649,6 +2744,10 @@ static void sensorarrayControlReplyPublished(const char *data, size_t length)
+         return;
+     }
+     unsigned long requestId = 0u;
++    if (sscanf(data, "ACK,cmd=ADSCHK,timing=1,id=%lu", &requestId) == 1) {
++        (void)sensorarrayAdsTimingControlAck((uint32_t)requestId, ESP_OK);
++        return;
++    }
+     if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
+         (void)sensorarrayRecoveryControlAck((uint32_t)requestId, ESP_OK);
+         return;
+@@ -2676,6 +2775,10 @@ static void sensorarrayControlReplyFailed(esp_err_t error,
+         return;
+     }
+     unsigned long requestId = 0u;
++    if (sscanf(data, "ACK,cmd=ADSCHK,timing=1,id=%lu", &requestId) == 1) {
++        (void)sensorarrayAdsTimingControlAck((uint32_t)requestId, error);
++        return;
++    }
+     if (sscanf(data, "RACK,cmd=RECOVER,id=%lu", &requestId) == 1) {
+         (void)sensorarrayRecoveryControlAck((uint32_t)requestId, error);
+         return;
+@@ -2711,7 +2814,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
+     if (strcmp(command, "RESTART?") == 0) {
+         return sensorarrayRestartControlFormat(response, responseSize);
+     }
+-    if (strcmp(command, "BLELINK?") == 0 || strcmp(command, "BLETX?") == 0) {
++    if (sensorarrayLinkDiagnosticsHandles(command)) {
+         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
+     }
+     if (sensorarrayUsbControlHandles(command)) {
+@@ -2729,6 +2832,13 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
+     if (strcmp(command, "FRONTENDS?") == 0) {
+         return sensorarrayFormatFrontendReply(response, responseSize);
+     }
++    if (sensorarrayAdsTimingControlHandles(command)) {
++        esp_err_t err = sensorarrayAdsTimingControlFormat(command, response, responseSize);
++        if (err != ESP_OK) {
++            (void)snprintf(response, responseSize, "ERR,cmd=ADSTIMING,reason=query_unavailable,err=0x%lx\n", (unsigned long)err);
++        }
++        return err;
++    }
+     if (sensorarrayFrontendsHeld() && !strchr(command, '?') &&
+         strcmp(command, "RESTART") != 0 && strcmp(command, "RECOVER=2") != 0 &&
+         strcmp(command, "USBSTREAM=DEBUG") != 0 &&
+@@ -3106,6 +3216,31 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
+         return sensorarrayAdsGapFormatAds(response, responseSize) > 0u ?
+             ESP_OK : ESP_FAIL;
+     }
++    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0) {
++        if (strcmp(command, "ADSCHK=TIMING,200") != 0) {
++            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_syntax,expected=TIMING_200\n");
++            return ESP_ERR_INVALID_ARG;
++        }
++        sensorarrayConfigAuthority_t authority = {0};
++        if (!sensorarrayConfigIdentityCopy(&authority)) {
++            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=identity_unavailable\n");
++            return ESP_ERR_INVALID_STATE;
++        }
++        uint32_t id = 0u;
++        esp_err_t err = sensorarrayAdsTimingControlPost(&authority, (uint64_t)esp_timer_get_time(), &id);
++        if (err != ESP_OK) {
++            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_busy,err=0x%lx\n", (unsigned long)err);
++            return err;
++        }
++        int n = snprintf(response, responseSize,
++            "ACK,cmd=ADSCHK,timing=1,id=%lu,perGroup=200,groups=4,status=accepted\n", (unsigned long)id);
++        if (n <= 0 || (size_t)n >= responseSize) {
++            response[0] = '\0';
++            (void)sensorarrayAdsTimingControlAck(id, ESP_ERR_INVALID_SIZE);
++            return ESP_ERR_INVALID_SIZE;
++        }
++        return ESP_OK;
++    }
+     if (strcmp(command, "ADSCHK") == 0 || strncmp(command, "ADSCHK=", 7u) == 0) {
+         uint32_t sampleCount = 100u;
+         if (command[6] == '=') {
+@@ -3293,7 +3428,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
+     if (strcmp(command, "PROTO?") == 0) {
+         snprintf(response,
+                  responseSize,
+-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
++                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
+                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
+                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
+@@ -4913,6 +5048,7 @@ void app_main(void)
+     esp_fill_random(&s_configSessionId, sizeof(s_configSessionId));
+     sensorarrayRecoveryControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
+     sensorarrayRestartControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
++    sensorarrayAdsTimingControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
+     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
+            CONFIG_SENSORARRAY_ADC_CORE,
+            CONFIG_SENSORARRAY_MISC_CORE,
+diff --git a/tests/host/test_ads_timing_control.c b/tests/host/test_ads_timing_control.c
+new file mode 100644
+index 0000000..ae77ac4
+--- /dev/null
++++ b/tests/host/test_ads_timing_control.c
+@@ -0,0 +1,313 @@
++#include <assert.h>
++#include <stdarg.h>
++#include <limits.h>
++
++/* Reuse the actual mailbox/ScanConfig/guaranteed-text and bounded fake queue. */
++#define sensorarrayCommandMailboxPostAdsTiming realMailboxPostAdsTiming
++#define main existingMailboxTests
++/* EXISTING_MAILBOX_TEST */
++#undef main
++#undef sensorarrayCommandMailboxPostAdsTiming
++#include "sensorarrayAdsTimingControl.h"
++
++static sensorarrayConfigAuthority_t authority;
++static bool nestedPost;
++static esp_err_t nestedError;
++static uint32_t nestedId;
++esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t n, uint32_t *id)
++{
++    esp_err_t error = realMailboxPostAdsTiming(n, id);
++    if (error == ESP_OK && nestedPost) {
++        nestedPost = false;
++        nestedError = sensorarrayAdsTimingControlPost(&authority, 100u, &nestedId);
++    }
++    return error;
++}
++#include "sensorarrayAdsTimingControl.c"
++/* PRODUCTION_FORMATTERS */
++
++typedef struct { bool applied, known, verified; sensorarrayMeasurementMode_t mode; uint8_t power; } sensorarrayRouteSnapshot_t;
++typedef struct { int unused; } sensorarrayState_t;
++typedef struct {
++    bool systemReady;
++    sensorarrayState_t state;
++    int adsEngine;
++    sensorarrayMeasurementRecovery_t adsRestoreRecovery;
++    sensorarrayRouteSnapshot_t routeController;
++    uint32_t hostFrameSequence;
++} sensorarrayAppContext_t;
++typedef struct { unsigned stage, seq, outcome; esp_err_t err; const char *owner; } sensorarrayAdsFaultEvent_t;
++#define ADS126X_POWER_INTREF 1u
++#define SENSORARRAY_ADS_OWNER_CHECK 4u
++#define SENSORARRAY_ADS_FAULT_STAGE_MATRIX_READBACK 1u
++#define SENSORARRAY_ADS_FAULT_OUTCOME_FAILED 1u
++static bool authorityKnown, held, quiescent, recoveryActive, routeKnown, restoreLatched;
++static unsigned probeCalls, stopCalls, faultCalls, runtimeFaultCalls, fillBeforeStop;
++static uint64_t nowUs;
++static esp_err_t safeError;
++static sensorarrayAdsTimingProbeResult_t injectedResult;
++bool sensorarrayConfigIdentityCopy(sensorarrayConfigAuthority_t *out)
++{ *out = authority; return authorityKnown; }
++static int64_t esp_timer_get_time(void) { return (int64_t)nowUs; }
++static bool sensorarrayFrontendsHeld(void) { return held; }
++static bool sensorarrayFrontendOwnersQuiescent(const sensorarrayAppContext_t *ctx) { return ctx && quiescent; }
++bool sensorarrayMeasurementRecoveryIsActive(const sensorarrayMeasurementRecovery_t *r) { (void)r; return recoveryActive; }
++static bool sensorarrayAdsGapConsumeRestoreFailure(void) { bool value=restoreLatched;restoreLatched=false;return value; }
++static bool sensorarrayRouteControllerCopySnapshot(const sensorarrayRouteSnapshot_t *route, sensorarrayRouteSnapshot_t *out)
++{ *out = *route; return routeKnown; }
++static int *sensorarrayAdsMatrixEngineRegisterCache(int *engine) { return engine; }
++static esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state, int *cache,
++    uint32_t id, uint32_t seq, sensorarrayAdsTimingProbeResult_t *result)
++{
++    assert(state && cache && seq == 123u); probeCalls++;
++    *result = injectedResult; result->requestId = id; result->frameSequence = seq;
++    return result->firstError;
++}
++static void sensorarrayAdsFaultFillContext(sensorarrayAppContext_t *ctx, sensorarrayAdsFaultEvent_t *fault)
++{ assert(ctx && fault); fillBeforeStop = stopCalls + 1u; }
++static const char *sensorarrayAdsOwnerName(unsigned owner) { assert(owner == SENSORARRAY_ADS_OWNER_CHECK); return "CHECK"; }
++static esp_err_t sensorarrayStopAfterRecoveryFailure(sensorarrayAppContext_t *ctx, esp_err_t original,
++    esp_err_t cleanup, const char *reason)
++{
++    assert(ctx && original != ESP_OK && (strcmp(reason, "ads_timing_restore_failed") == 0 || strcmp(reason,"ads_timing_probe_fault") == 0));
++    assert(fillBeforeStop == stopCalls + 1u); stopCalls++;
++    authority.identity.state = SENSORARRAY_MEASUREMENT_STATE_DEGRADED;
++    authority.identity.mode = SENSORARRAY_MEASUREMENT_MODE_NONE;
++    authority.identity.revision++;
++    ctx->routeController.verified = false;
++    return cleanup != ESP_OK ? cleanup : safeError;
++}
++static void sensorarrayEmitAdsFault(sensorarrayAppContext_t *ctx, sensorarrayAdsFaultEvent_t *event)
++{ assert(ctx && event->err != ESP_OK); faultCalls++; }
++static void sensorarrayTransportPublishRuntimeFault(const char *format, ...)
++{ assert(strstr(format, "source=ADSTIMING")); runtimeFaultCalls++; }
++/* PRODUCTION_BOUNDARY */
++static bool sensorarrayRecoveryControlAck(uint32_t id, esp_err_t error) { (void)id; (void)error; return false; }
++static bool sensorarrayRestartControlAck(uint32_t id, esp_err_t error) { (void)id; (void)error; return false; }
++/* PRODUCTION_CALLBACKS */
++static esp_err_t actualTimingCommand(const char *command, char *response, size_t responseSize)
++{
++/* PRODUCTION_COMMAND */
++    return ESP_ERR_NOT_SUPPORTED;
++}
++
++static char response[512];
++static size_t maxState, maxTerminal;
++static unsigned cases;
++static void readState(void)
++{
++    assert(sensorarrayAdsTimingControlFormat("ADSTIMING?", response, sizeof(response)) == ESP_OK);
++    if (strlen(response) > maxState) { maxState = strlen(response); }
++}
++static void drain(void)
++{
++    char text[384]; size_t length = 0;
++    if (sensorarrayTransportGuaranteedTextTakeDrain(text, sizeof(text), &length)) {
++        assert(strncmp(text, "ADSTERM,", 8) == 0);
++        if (length > maxTerminal) { maxTerminal = length; }
++    }
++}
++static void reset(sensorarrayAppContext_t *ctx)
++{
++    (void)sensorarrayTransportGuaranteedTextAbort();
++    sensorarrayScanConfigEndConfigurationRequest(s_configurationRequestId);
++    memset(&s_rowModesReservation, 0, sizeof(s_rowModesReservation));
++    s_testQueueHead = s_testQueueCount = 0u;
++    authority = (sensorarrayConfigAuthority_t){.available = true, .identity = {
++        .sessionId = UINT64_C(0x123456789ABCDEF0), .bootId = 9u, .revision = 7u,
++        .appliedFrameBoundary = 120u, .modeGeneration = 3u, .modeRequestId = 2u,
++        .rowsGeneration = 5u, .rowsRequestId = 4u, .profileGeneration = 8u, .profileRequestId = 6u,
++        .mode = SENSORARRAY_MEASUREMENT_MODE_VOLTAGE, .state = SENSORARRAY_MEASUREMENT_STATE_VOLTAGE}};
++    sensorarrayAdsTimingControlInit(authority.identity.sessionId, authority.identity.bootId);
++    memset(ctx, 0, sizeof(*ctx)); ctx->systemReady = true; ctx->hostFrameSequence = 123u;
++    ctx->routeController = (sensorarrayRouteSnapshot_t){.applied = true, .known = true,
++        .verified = true, .mode = SENSORARRAY_MEASUREMENT_MODE_VOLTAGE};
++    injectedResult = (sensorarrayAdsTimingProbeResult_t){.completed = true, .restoreKnown = true,
++        .restoreVerified = true, .savedKnown = true, .reason = "complete"};
++    for (unsigned g = 0; g < 4; g++) {
++        injectedResult.groups[g].completed = true; injectedResult.groups[g].reason = "complete";
++        injectedResult.groups[g].pulse = (g & 1u) != 0; injectedResult.groups[g].bypass = g >= 2u;
++        injectedResult.groups[g].primary.attempted = injectedResult.groups[g].primary.valid = 200u;
++    }
++    authorityKnown = routeKnown = quiescent = true;
++    held = recoveryActive = nestedPost = restoreLatched = false; nowUs = 100u;
++    probeCalls = stopCalls = faultCalls = runtimeFaultCalls = fillBeforeStop = 0u;
++    safeError = ESP_OK;
++}
++static uint32_t accept(bool ack)
++{
++    assert(actualTimingCommand("ADSCHK=TIMING,200", response, sizeof(response)) == ESP_OK);
++    unsigned long id = 0; assert(sscanf(response, "ACK,cmd=ADSCHK,timing=1,id=%lu", &id) == 1);
++    if (ack) { sensorarrayControlReplyPublished(response, strlen(response)); }
++    return (uint32_t)id;
++}
++static void run(sensorarrayAppContext_t *ctx, uint32_t id)
++{
++    sensorarrayCommand_t cmd;
++    assert(sensorarrayCommandMailboxTryReceive(&cmd));
++    assert(cmd.type == SENSORARRAY_COMMAND_ADS_TIMING && cmd.requestId == id);
++    sensorarrayRunAdsTimingCommand(ctx, &cmd);
++}
++static void query(const char *kind, uint32_t id, unsigned index)
++{
++    char cmd[64];
++    if (strcmp(kind, "RESULT") == 0) { snprintf(cmd, sizeof(cmd), "ADSTIMING?%s,%lu", kind, (unsigned long)id); }
++    else { snprintf(cmd, sizeof(cmd), "ADSTIMING?%s,%lu,%u", kind, (unsigned long)id, index); }
++    assert(sensorarrayAdsTimingControlFormat(cmd, response, sizeof(response)) == ESP_OK);
++    assert(strstr(response, "diagnostic=1"));
++}
++static void testFenceAndArbitration(sensorarrayAppContext_t *ctx)
++{
++    reset(ctx); nestedPost = true; nestedId = 0u;
++    uint32_t id = accept(false); assert(nestedError != ESP_OK && nestedId == 0);
++    sensorarrayCommand_t cmd; assert(!sensorarrayCommandMailboxTryReceive(&cmd));
++    uint32_t other = 0; assert(sensorarrayCommandMailboxPostMeasurementMode(SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE, &other) != ESP_OK);
++    assert(!sensorarrayAdsTimingControlAck(id + 1u, ESP_OK));
++    readState(); assert(strstr(response, "ackLocal=0") && strstr(response, "phase=pending"));
++    assert(sensorarrayAdsTimingControlAck(id, ESP_OK)); run(ctx, id);
++    assert(probeCalls == 1u); readState(); assert(strstr(response, "last=completed") && strstr(response, "result=1"));
++    /* A lost terminal never needs another hardware request. */
++    query("RESULT", id, 0); assert(strstr(response, "science=0")); drain();
++    assert(!sensorarrayAdsTimingControlAck(id, ESP_OK));
++    uint32_t next = accept(true); assert(next != id); run(ctx, next); drain(); cases++;
++
++    reset(ctx); id = accept(false);
++    sensorarrayControlReplyFailed(ESP_ERR_TIMEOUT, response, strlen(response));
++    assert(!sensorarrayCommandMailboxTryReceive(&cmd)); readState();
++    assert(strstr(response, "last=rejected") && strstr(response, "reason=ack_publish_failed"));
++    assert(probeCalls == 0u); assert(!sensorarrayAdsTimingControlAck(id, ESP_OK));
++    next = accept(true); run(ctx, next); drain(); cases++;
++
++    reset(ctx); id = accept(true);
++    /* Synthetic loss of the reserved local sink exercises cached recovery
++     * even when terminal publication itself fails, without replaying ADC. */
++    assert(sensorarrayTransportGuaranteedTextAbort() == ESP_OK);
++    run(ctx, id); readState();
++    assert(strstr(response, "last=completed") && strstr(response, "terminalQueued=0"));
++    query("RESULT", id, 0); assert(probeCalls == 1u);
++    next = accept(true); run(ctx, next); drain(); cases++;
++
++    reset(ctx); char tiny[8]; assert(actualTimingCommand("ADSCHK=TIMING,200", tiny, sizeof(tiny)) == ESP_ERR_INVALID_SIZE);
++    assert(tiny[0] == 0 && !sensorarrayCommandMailboxTryReceive(&cmd)); readState();
++    assert(strstr(response, "ack_publish_failed"));
++    assert(actualTimingCommand("ADSCHK=TIMING,201", response, sizeof(response)) == ESP_ERR_INVALID_ARG);
++    assert(realMailboxPostAdsTiming(201, &id) == ESP_ERR_INVALID_ARG); cases++;
++}
++static void testAdmissionAndExpiry(sensorarrayAppContext_t *ctx)
++{
++    for (unsigned fail = 0; fail < 10; fail++) {
++        reset(ctx); uint32_t id = accept(true);
++        switch (fail) {
++            case 0: authority.identity.revision++; break;
++            case 1: authority.identity.sessionId++; break;
++            case 2: authorityKnown = false; break;
++            case 3: held = true; break;
++            case 4: authority.identity.mode = SENSORARRAY_MEASUREMENT_MODE_RESISTANCE; break;
++            case 5: quiescent = false; break;
++            case 6: recoveryActive = true; break;
++            case 7: routeKnown = false; break;
++            case 8: ctx->routeController.power = ADS126X_POWER_INTREF; break;
++            default: nowUs += SENSORARRAY_TIMING_QUEUE_BUDGET_US; break;
++        }
++        run(ctx, id); assert(probeCalls == 0u && stopCalls == 0u);
++        readState(); assert(strstr(response, "last=rejected") && strstr(response, "result=0")); drain();
++    }
++    cases++;
++    for (unsigned ack = 0; ack < 2; ack++) {
++        reset(ctx); uint32_t id = accept(ack != 0);
++        nowUs += SENSORARRAY_TIMING_QUEUE_BUDGET_US;
++        sensorarrayAdsTimingControlExpire(nowUs, &authority, true);
++        readState(); assert(strstr(response, "last=rejected") && strstr(response, "busy=0"));
++        if (ack) { run(ctx, id); }
++        assert(probeCalls == 0u); drain();
++        uint32_t next = accept(true); run(ctx, next); assert(probeCalls == 1u); drain();
++    }
++    cases++;
++}
++static void testResultQueriesAndFailure(sensorarrayAppContext_t *ctx)
++{
++    reset(ctx);
++    for (unsigned g = 0; g < 4; g++) {
++        injectedResult.groups[g].recordCount = 8u;
++        for (unsigned r = 0; r < 8; r++) {
++            injectedResult.records[g][r].attempt = r + 1u;
++            injectedResult.records[g][r].rawValid = true;
++            injectedResult.records[g][r].fresh = true;
++        }
++    }
++    uint32_t id = accept(true); run(ctx, id); drain();
++    for (unsigned g = 0; g < 4; g++) { query("GROUP", id, g); query("TIME", id, g); }
++    query("REG", id, 0); assert(strstr(response, "phase=saved,known=1"));
++    query("REG", id, 1); assert(strstr(response, "phase=restored,known=1"));
++    for (unsigned r = 0; r < 32; r++) { query("RECORD", id, r); assert(strstr(response, "wireKnown=0,bytes=unknown,computed=unknown")); }
++    char cmd[64]; snprintf(cmd, sizeof(cmd), "ADSTIMING?RECORD,%lu,32", (unsigned long)id);
++    assert(sensorarrayAdsTimingControlFormat(cmd, response, sizeof(response)) != ESP_OK && !response[0]);
++    assert(sensorarrayAdsTimingControlFormat("ADSTIMING?RESULT,4294967296", response, sizeof(response)) == ESP_ERR_INVALID_ARG);
++    assert(sensorarrayAdsTimingControlFormat("ADSTIMING?REG,1,2", response, sizeof(response)) == ESP_ERR_INVALID_ARG);
++    uint32_t next = accept(true);
++    query("RESULT", id, 0); /* Last completed result remains immutable while pending. */
++    run(ctx, next); drain();
++    snprintf(cmd, sizeof(cmd), "ADSTIMING?RESULT,%lu", (unsigned long)id);
++    assert(sensorarrayAdsTimingControlFormat(cmd, response, sizeof(response)) == ESP_ERR_INVALID_STATE); cases++;
++
++    reset(ctx); injectedResult.firstError = ESP_ERR_INVALID_CRC;
++    id = accept(true); run(ctx, id); readState();
++    assert(strstr(response, "last=completed") && strstr(response, "originalError=0x109"));
++    assert(probeCalls == 1 && stopCalls == 0); drain(); cases++;
++
++    reset(ctx); injectedResult.firstError = ESP_ERR_INVALID_CRC;
++    injectedResult.terminalError = ESP_ERR_INVALID_RESPONSE;
++    injectedResult.cleanupError = ESP_ERR_TIMEOUT;
++    injectedResult.completed = injectedResult.restoreVerified = false;
++    injectedResult.requiresIsolation = true; safeError = ESP_ERR_INVALID_STATE;
++    id = accept(true); run(ctx, id); readState();
++    assert(strstr(response, "last=failed") && strstr(response, "originalError=0x109") && strstr(response, "cleanupError=0x107"));
++    assert(authority.identity.state == SENSORARRAY_MEASUREMENT_STATE_DEGRADED && stopCalls == 1 && faultCalls == 1 && runtimeFaultCalls == 1);
++    query("RESULT", id, 0); assert(strstr(response, "first=0x109,terminal=0x108,cleanup=0x107")); drain(); cases++;
++
++    reset(ctx); injectedResult.completed = injectedResult.restoreVerified = false;
++    injectedResult.requiresIsolation = true; safeError = ESP_ERR_INVALID_RESPONSE;
++    id = accept(true); run(ctx, id); readState();
++    assert(strstr(response, "originalError=0x103") && strstr(response, "cleanupError=0x108")); drain(); cases++;
++
++    reset(ctx); injectedResult.firstError = injectedResult.terminalError = ESP_ERR_INVALID_RESPONSE;
++    injectedResult.requiresIsolation = true; injectedResult.reason = "status_alarm";
++    id = accept(true); run(ctx, id); readState();
++    assert(strstr(response, "reason=probe_fault_requires_isolation") && strstr(response, "cleanupError=0x0"));
++    query("RESULT", id, 0); assert(strstr(response, "reason=status_alarm") && strstr(response, "restoreVerified=1"));
++    drain(); cases++;
++
++    reset(ctx); restoreLatched = true;
++    id = accept(true); run(ctx, id); readState();
++    assert(!restoreLatched && stopCalls == 1u && strstr(response, "cleanupError=0x103"));
++    assert(strstr(response, "reason=restore_failed")); drain(); cases++;
++}
++static void testExtremaAndReset(sensorarrayAppContext_t *ctx)
++{
++    reset(ctx); authority.identity.bootId = UINT32_MAX; authority.identity.sessionId = UINT64_MAX;
++    authority.identity.revision = authority.identity.appliedFrameBoundary = UINT32_MAX;
++    sensorarrayAdsTimingControlInit(UINT64_MAX, UINT32_MAX);
++    s_nextRequestId = UINT32_MAX; /* Existing shared allocator wraps through nonzero IDs. */
++    uint32_t id = accept(true); assert(id != 0u);
++    sensorarrayCommand_t command; assert(sensorarrayCommandMailboxTryReceive(&command) && command.requestId == id);
++    sensorarrayAdsTimingRequest_t request;
++    assert(sensorarrayAdsTimingControlTake(id, &authority, true, nowUs, &request) == SENSORARRAY_TIMING_TAKE_READY);
++    assert(sensorarrayAdsTimingControlComplete(id, "rejected", "abcdefghijklmnopqrstuvwxyzabcdefghijklm",
++        ESP_FAIL, ESP_FAIL, &authority, true, false) == ESP_OK);
++    readState(); assert(strlen(response) < 512); drain();
++    assert(maxTerminal < 384);
++    uint32_t next = accept(true); assert(next == 1u); readState();
++    assert(strstr(response,"pendingId=1,pendingRev=4294967295"));
++    run(ctx,next); drain();
++    char tiny[8]; assert(sensorarrayAdsTimingControlFormat("ADSTIMING?", tiny, sizeof(tiny)) == ESP_ERR_INVALID_SIZE && !tiny[0]);
++    sensorarrayAdsTimingControlInit(1u, 1u); readState(); assert(strstr(response, "lastId=0,last=none")); cases++;
++}
++int main(void)
++{
++    assert(sensorarrayCommandMailboxInit() == ESP_OK);
++    sensorarrayAppContext_t ctx;
++    testFenceAndArbitration(&ctx); testAdmissionAndExpiry(&ctx);
++    testResultQueriesAndFailure(&ctx); testExtremaAndReset(&ctx);
++    printf("ADS_TIMING_CONTROL,passed=%u,admission_subcases=10,maxState=%zu,maxTerminal=%zu,fixture=synthetic\n", cases, maxState, maxTerminal);
++    return 0;
++}
+diff --git a/tests/host/test_ads_timing_probe.c b/tests/host/test_ads_timing_probe.c
+new file mode 100644
+index 0000000..423a003
+--- /dev/null
++++ b/tests/host/test_ads_timing_probe.c
+@@ -0,0 +1,348 @@
++/* Synthetic wire/RTOS only: actual complete ADS driver, timing module and Gap
++ * wrapper execute below. This is not ADC settling, a wire capture or HIL. */
++#define main adsDriverStandaloneTests
++#include "driver_bus.h"
++#undef main
++#include "core/measure/ads/sensorarrayAdsTimingProbe.c"
++#include "core/measure/ads/sensorarrayAdsCache.c"
++#include "sensorarrayAdsFault.h"
++
++typedef struct {
++    ads126xAdcHandle_t ads;
++    bool adsReady;
++    bool adsAdc1Running;
++} sensorarrayState_t;
++/* PRODUCTION_GAP_TYPES */
++static sensorarrayAdsTransactionEvidence_t s_checkTransaction;
++static uint32_t s_transactionGeneration;
++static bool s_batteryRestoreFailureLatched;
++/* PRODUCTION_GAP_FUNCTIONS */
++
++enum timingCase {
++    GOOD, CRC_BOTH_DIRECTIONS, ALL_CRC, PULSE_FENCE_MISSED, EDGE_AFTER_FENCE,
++    PULSE_TIMEOUT, CRC_THEN_TIMEOUT, CRC_CONFIG_CHANGE, RESET_STATUS,
++    DMA_UNKNOWN, RESTORE_MODE_ERROR, CRC_RESTORE_ERROR, RESTORE_CAL_ERROR,
++    BASELINE_UNSTABLE, PROFILE_MISMATCH, OWNER_BUSY, INTREF_ACTIVE,
++    START_HIGH, BUDGET_EXHAUSTED, GENERATION_WRAP, HELD_NEW_DATA,
++    HELD_CHANGED_RAW, HELD_BAD_CRC, CLOCK_CHANGE, BASELINE_SHADOW,
++};
++static enum timingCase selected;
++static bool pulsePending, continuousRunning, dataNew, restoreStarted, afterFenceArmed;
++static uint32_t startConfiguration, sampleSerial, primaryReads, heldReads;
++static uint32_t allWrites, powerOnWrites, pulseStarts, pulseStopsIgnored, exitModeWrites;
++static uint32_t snapshotCalls;
++static unsigned quarantineQueueCalls;
++static int64_t pulseDue;
++static int32_t holdingRaw;
++
++static void newConversion(void)
++{
++    ++notifyHandle->drdyGeneration;
++    ++sampleSerial;
++    holdingRaw = (int32_t)(12345u + sampleSerial * 17u);
++    uint8_t data[4];
++    for (;;) {
++        uint32_t raw = (uint32_t)holdingRaw;
++        data[0] = raw >> 24u; data[1] = raw >> 16u;
++        data[2] = raw >> 8u; data[3] = raw;
++        if ((ads126xAdcCrc8(data, sizeof(data)) & 1u) == (sampleSerial & 1u)) { break; }
++        holdingRaw++;
++    }
++    dataNew = true;
++    pulsePending = false;
++}
++
++int64_t esp_timer_get_time(void)
++{
++    if (afterFenceArmed && notifyHandle &&
++        notifyHandle->configurationGeneration != startConfiguration) {
++        afterFenceArmed = false;
++        nowUs = pulseDue;
++        newConversion();
++    }
++    return nowUs;
++}
++
++int gpio_get_level(gpio_num_t pin)
++{
++    return selected == START_HIGH && pin == CONFIG_SENSORARRAY_ADS_START_GPIO ? 1 : 0;
++}
++
++uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks)
++{
++    (void)clear;
++    if (!ticks) { return 0u; }
++    if ((selected == PULSE_TIMEOUT || selected == CRC_THEN_TIMEOUT) &&
++        (registers[3] & 0x40u)) {
++        nowUs += (int64_t)ticks * (1000000u / configTICK_RATE_HZ);
++        return 0u;
++    }
++    if ((registers[3] & 0x40u) ? pulsePending : continuousRunning) {
++        if (pulsePending && nowUs < pulseDue) { nowUs = pulseDue; }
++        else { nowUs += 27u; }
++        newConversion();
++        return 1u;
++    }
++    nowUs += (int64_t)ticks * (1000000u / configTICK_RATE_HZ);
++    return 0u;
++}
++
++static void timingQueueHook(const spi_transaction_t *t)
++{
++    completionDelayUs = (uint32_t)((t->length * 1000000u + actualSpiHz - 1u) / actualSpiHz);
++    const uint8_t *tx = t->tx_buffer;
++    if (selected == DMA_UNKNOWN && tx[0] == ADS126X_CMD_RDATA1) {
++        completionBlocked = true;
++        quarantineQueueCalls = queueCalls;
++    }
++}
++
++static bool timingTransactionHook(const uint8_t *tx, uint8_t *rx, size_t bytes)
++{
++    if ((tx[0] & 0xE0u) == ADS126X_CMD_RREG && (tx[0] & 0x1Fu) == 0u) {
++        snapshotCalls++;
++        if (selected == BASELINE_UNSTABLE && snapshotCalls == 1u) {
++            memcpy(rx + 2u, registers, bytes - 2u); rx[5] ^= 1u; return true;
++        }
++    }
++    if ((tx[0] & 0xE0u) == ADS126X_CMD_WREG) {
++        uint8_t reg = tx[0] & 0x1Fu;
++        allWrites++;
++        if (reg == 1u && (tx[2] & ADS126X_POWER_INTREF)) { powerOnWrites++; }
++        if (reg == 3u && tx[2] == 0u && primaryReads >= 800u) { restoreStarted = true; }
++        if (reg == 3u && (registers[3] & 0x40u) && tx[2] == 0u) {
++            exitModeWrites++;
++            pulsePending = false; continuousRunning = true;
++        }
++        memcpy(registers + reg, tx + 2u, tx[1] + 1u);
++        if (reg == 3u && tx[2] == 0x40u && selected == GENERATION_WRAP) {
++            notifyHandle->drdyGeneration = UINT32_MAX;
++        }
++        if (reg == 3u && restoreStarted &&
++            (selected == RESTORE_MODE_ERROR || selected == CRC_RESTORE_ERROR)) {
++            registers[3] ^= 1u;
++        }
++        if (selected == RESTORE_CAL_ERROR && reg == 7u) { registers[7] ^= 1u; }
++        if (selected == PROFILE_MISMATCH && reg == 6u) { registers[6] ^= 1u; }
++        return true;
++    }
++    if (tx[0] == ADS126X_CMD_START1) {
++        dataNew = false;
++        if (registers[3] & 0x40u) {
++            pulseStarts++; pulsePending = true; pulseDue = nowUs + 207u;
++            continuousRunning = false;
++            if (selected == PULSE_FENCE_MISSED && pulseStarts == 1u) {
++                nowUs = pulseDue; newConversion();
++            }
++            if (selected == EDGE_AFTER_FENCE && pulseStarts == 1u) {
++                startConfiguration = notifyHandle->configurationGeneration;
++                afterFenceArmed = true;
++            }
++        } else { continuousRunning = true; pulsePending = false; }
++        return true;
++    }
++    if (tx[0] == ADS126X_CMD_STOP1) {
++        if ((registers[3] & 0x40u) && pulsePending) { pulseStopsIgnored++; }
++        else { continuousRunning = false; }
++        return true;
++    }
++    if (tx[0] != ADS126X_CMD_RDATA1) { return false; }
++    assert(bytes == 7u);
++    bool held = !dataNew;
++    if (held) { heldReads++; } else { primaryReads++; }
++    int32_t raw = holdingRaw;
++    if (selected == HELD_CHANGED_RAW && held) { raw++; }
++    uint32_t word = (uint32_t)raw;
++    rx[1] = dataNew ? ADS126X_STATUS_ADC1_NEW_DATA : 0u;
++    if (selected == RESET_STATUS) { rx[1] |= ADS126X_STATUS_RESET_OCCURRED; }
++    if (selected == HELD_NEW_DATA && held) { rx[1] |= ADS126X_STATUS_ADC1_NEW_DATA; }
++    rx[2] = word >> 24u; rx[3] = word >> 16u; rx[4] = word >> 8u; rx[5] = word;
++    rx[6] = ads126xAdcCrc8(rx + 2u, 4u);
++    bool corrupt = selected == ALL_CRC ||
++        (selected == CRC_BOTH_DIRECTIONS && primaryReads <= 2u && !held) ||
++        ((selected == CRC_THEN_TIMEOUT || selected == CRC_CONFIG_CHANGE ||
++          selected == CRC_RESTORE_ERROR) && primaryReads == 1u && !held) ||
++        (selected == HELD_BAD_CRC && held);
++    if (corrupt) { rx[6] ^= 1u; }
++    if (selected == CRC_CONFIG_CHANGE && corrupt) { notifyHandle->configurationGeneration++; }
++    if (selected == CLOCK_CHANGE && primaryReads == 199u) { ignoreClockOverride = true; actualSpiHz = 500000u; }
++    if (selected == BUDGET_EXHAUSTED && primaryReads == 100u) { nowUs += 1490000u; }
++    dataNew = false;
++    return true;
++}
++
++static sensorarrayState_t timingState(enum timingCase test)
++{
++    sensorarrayState_t state = {.ads = handle(), .adsReady = true, .adsAdc1Running = true};
++    selected = test;
++    pulsePending = dataNew = restoreStarted = afterFenceArmed = false;
++    continuousRunning = true;
++    sampleSerial = primaryReads = heldReads = allWrites = powerOnWrites = 0u;
++    pulseStarts = pulseStopsIgnored = exitModeWrites = snapshotCalls = 0u;
++    memset(&s_checkTransaction, 0, sizeof(s_checkTransaction));
++    s_transactionGeneration = 0u; s_batteryRestoreFailureLatched = false;
++    state.ads.idRegRaw = registers[0] = 3u;
++    state.ads.deviceType = ADS126X_DEVICE_ADS1262;
++    state.ads.requestedSpiClockHz = 550000u;
++    state.ads.adc1Running = true; state.ads.mode0 = state.ads.mode1 = 0u;
++    state.ads.pgaBypassed = true; state.ads.dataRateDr = 15u;
++    registers[6] = 0x7Au; registers[12] = 0x40u;
++    if (test == INTREF_ACTIVE) { registers[1] |= 1u; state.ads.enableInternalRef = true; }
++    transactionHook = timingTransactionHook; queueHook = timingQueueHook;
++    return state;
++}
++
++static void runCase(enum timingCase test)
++{
++    sensorarrayState_t state = timingState(test);
++    notifyHandle = &state.ads;
++    sensorarrayAdsRegisterCache_t cache = {0};
++    ads126xAdc1RegisterSnapshot_t saved;
++    ads126xAdcDecodeAdc1RegisterSnapshot(registers, &saved);
++    sensorarrayAdsPopulateRestoredRegisterCache(&cache, &saved, state.ads.vrefMicrovolts, true);
++    if (test == OWNER_BUSY) { cache.owner = SENSORARRAY_ADS_OWNER_MATRIX; }
++    if (test == BASELINE_SHADOW) { cache.registers[SENSORARRAY_ADS_REGISTER_MODE2].value ^= 0x80u; }
++    sensorarrayAdsTimingProbeResult_t result;
++    uint64_t start = nowUs;
++    esp_err_t err = sensorarrayAdsGapRunTimingProbe(&state, &cache, 42u, 123u, &result);
++    assert(powerOnWrites == 0u);
++    assert(state.ads.transactionDeadlineUs == 0u);
++    assert(state.ads.drdyWaitTask == NULL);
++    assert(cache.owner == (test == OWNER_BUSY ? SENSORARRAY_ADS_OWNER_MATRIX : SENSORARRAY_ADS_OWNER_NONE));
++    assert(result.completedUs - start <= SENSORARRAY_ADS_TIMING_BUDGET_US + 10000u);
++    assert(sensorarrayAdsTimingProbeRecordCount(&result) <= 32u);
++    char line[512];
++    assert(sensorarrayAdsTimingProbeFormatSummary(&result, line, sizeof(line)) > 0u);
++    assert(strstr(line, "diagnostic=1,science=0"));
++    for (unsigned i = 0u; i < 4u; ++i) {
++        assert(sensorarrayAdsTimingProbeFormatGroup(&result, i, line, sizeof(line)) > 0u);
++        assert(sensorarrayAdsTimingProbeFormatGroupTiming(&result, i, line, sizeof(line)) > 0u);
++    }
++    assert(sensorarrayAdsTimingProbeFormatRegisters(&result, false, line, sizeof(line)) > 0u);
++    assert(sensorarrayAdsTimingProbeFormatRegisters(&result, true, line, sizeof(line)) > 0u);
++    for (unsigned i = 0u; i < sensorarrayAdsTimingProbeRecordCount(&result); ++i) {
++        assert(sensorarrayAdsTimingProbeFormatRecord(&result, i, line, sizeof(line)) > 0u);
++    }
++    bool complete = test == GOOD || test == CRC_BOTH_DIRECTIONS || test == ALL_CRC ||
++        test == EDGE_AFTER_FENCE || test == RESTORE_MODE_ERROR || test == CRC_RESTORE_ERROR ||
++        test == RESTORE_CAL_ERROR || test == GENERATION_WRAP || test == HELD_BAD_CRC;
++    assert(result.completed == complete);
++    bool restoreFailed = test == DMA_UNKNOWN || test == RESTORE_MODE_ERROR ||
++        test == CRC_RESTORE_ERROR || test == RESTORE_CAL_ERROR || test == CLOCK_CHANGE;
++    if (restoreFailed) {
++        assert(!result.restoreVerified && result.cleanupError != ESP_OK && result.requiresIsolation);
++        assert(s_batteryRestoreFailureLatched);
++    } else if (result.savedKnown && (result.mutated || !result.requiresIsolation)) {
++        assert(result.restoreVerified && result.cleanupError == ESP_OK);
++    }
++    if (test == GOOD || test == EDGE_AFTER_FENCE || test == GENERATION_WRAP) {
++        assert(err == ESP_OK && result.completed && result.restoreVerified);
++        assert(primaryReads == 800u && heldReads == 400u && pulseStarts == 400u);
++        assert(!result.requiresIsolation && !pulsePending);
++        for (unsigned i = 0u; i < 4u; ++i) {
++            assert(result.groups[i].primary.valid == 200u);
++            assert(result.groups[i].primary.even >= 32u && result.groups[i].primary.odd >= 32u);
++        }
++    }
++    if (test == CRC_BOTH_DIRECTIONS) {
++        assert(err == ESP_ERR_INVALID_CRC && result.completed && !result.requiresIsolation);
++        assert(result.groups[0].primary.xorUp == 1u && result.groups[0].primary.xorDown == 1u);
++        assert(result.groups[0].primary.valid == 198u);
++    }
++    if (test == ALL_CRC) {
++        assert(result.groups[0].primary.crc == 200u && result.groups[0].primary.valid == 0u);
++        assert(result.groups[1].held.crc == 200u && !result.requiresIsolation);
++    }
++    if (test == PULSE_FENCE_MISSED) {
++        assert(result.groups[1].startFenceMissed == 1u && result.groups[1].primary.attempted == 0u);
++        assert(!result.requiresIsolation && result.restoreVerified);
++    }
++    if (test == PULSE_TIMEOUT || test == CRC_THEN_TIMEOUT) {
++        assert(result.terminalError == ESP_ERR_TIMEOUT && exitModeWrites != 0u);
++        assert(pulseStopsIgnored == 0u && !pulsePending);
++    }
++    if (test == CRC_THEN_TIMEOUT || test == CRC_CONFIG_CHANGE || test == CRC_RESTORE_ERROR) {
++        assert(result.firstError == ESP_ERR_INVALID_CRC && result.requiresIsolation);
++    }
++    if (test == DMA_UNKNOWN) {
++        assert(state.ads.spiQuarantined && pending == &state.ads.dmaTransaction);
++        assert(queueCalls == quarantineQueueCalls); /* No restore or descriptor reuse after unknown DMA. */
++        assert(state.ads.spiInFlight && !result.restoreKnown);
++        pending = NULL; state.ads.spiInFlight = false; /* synthetic completion only, before freeing test memory */
++    }
++    if (test == OWNER_BUSY || test == INTREF_ACTIVE || test == START_HIGH ||
++        test == BASELINE_UNSTABLE || test == BASELINE_SHADOW) {
++        assert(!result.mutated && allWrites == 0u);
++    }
++    if (test == BUDGET_EXHAUSTED) { assert(!result.completed && result.restoreVerified); }
++    if (test == HELD_BAD_CRC) {
++        assert(result.groups[1].primary.valid == 200u && result.groups[1].primary.crc == 0u);
++        assert(result.groups[1].held.crc == 200u && result.firstError == ESP_ERR_INVALID_CRC);
++    }
++    if (result.mutated && result.restoreVerified) {
++        ads126xAdc1RegisterSnapshot_t restored;
++        ads126xAdcDecodeAdc1RegisterSnapshot(registers, &restored);
++        assert(sensorarrayAdsBatterySnapshotsMatch(&saved, &restored, NULL));
++        assert(state.ads.mode0 == saved.mode0 && state.ads.mode1 == saved.mode1);
++        if (!result.requiresIsolation) {
++            assert(cache.vrefValid && cache.registers[SENSORARRAY_ADS_REGISTER_INPMUX].value == saved.inpmux);
++        } else { assert(!cache.vrefValid); }
++    }
++    printf("PASS timing case=%u complete=%u first=0x%x terminal=0x%x cleanup=0x%x us=%llu\n",
++        test, result.completed, result.firstError, result.terminalError, result.cleanupError,
++        (unsigned long long)(result.completedUs - start));
++    free(state.ads.spiTxBuf); free(state.ads.spiRxBuf);
++}
++
++static void testFormatterBounds(void)
++{
++    sensorarrayAdsTimingProbeResult_t r = {0};
++    r.requestId = r.frameSequence = r.requestedHz = r.actualHz = UINT32_MAX;
++    r.generationBefore = r.generationAfter = r.crcGoodBefore = r.crcGoodAfter = UINT32_MAX;
++    r.crcBadBefore = r.crcBadAfter = UINT32_MAX;
++    r.startedUs = r.completedUs = UINT64_MAX;
++    r.firstError = r.terminalError = r.cleanupError = INT_MAX;
++    r.reason = "requires_passive_profile";
++    char line[512], shortLine[16];
++    size_t maximum = sensorarrayAdsTimingProbeFormatSummary(&r, line, sizeof(line));
++    assert(maximum > 0u);
++    assert(sensorarrayAdsTimingProbeFormatSummary(&r, shortLine, sizeof(shortLine)) == 0u);
++    assert(shortLine[0] == '\0');
++    for (unsigned i = 0u; i < 4u; ++i) {
++        sensorarrayAdsTimingGroup_t *g = &r.groups[i];
++        g->reason = "crc_above_25permille"; g->pulse = g->bypass = true;
++        g->startedUs = g->completedUs = UINT64_MAX;
++        g->configurationGeneration = UINT32_MAX;
++        g->recordCount = 8u; g->recordsOmitted = 4u;
++        g->primary = g->held = (sensorarrayAdsTimingReadStats_t){
++            .attempted=200u,.valid=200u,.crc=200u,.even=200u,.odd=200u,
++            .xorUp=200u,.xorDown=200u,.xorOther=200u,.status=200u,.freshness=200u,.timeout=200u};
++        size_t length = sensorarrayAdsTimingProbeFormatGroup(&r, i, line, sizeof(line));
++        assert(length > 0u); if (length > maximum) { maximum = length; }
++        assert(sensorarrayAdsTimingProbeFormatGroupTiming(&r, i, line, sizeof(line)) > 0u);
++        for (unsigned j = 0u; j < 8u; ++j) {
++            r.records[i][j] = (sensorarrayAdsTimingRecord_t){
++                .attempt=200u,.configurationGeneration=UINT32_MAX,.generationBefore=UINT32_MAX,
++                .generationFence=UINT32_MAX,.generationAfter=UINT32_MAX,.observedUs=UINT64_MAX,
++                .startCallUs=UINT32_MAX,.waitUs=UINT32_MAX,.readUs=UINT32_MAX,
++                .raw=INT32_MIN,.error=INT_MAX,.status=0xFFu,.computed=0xFFu,.received=0xFEu,
++                .crcParity=1u,.length=6u,.held=true,.bytes={0xFF,0x80,0,0,0,0xFE}};
++        }
++    }
++    for (unsigned i = 0u; i < 32u; ++i) {
++        size_t length = sensorarrayAdsTimingProbeFormatRecord(&r, i, line, sizeof(line));
++        assert(length > 0u); if (length > maximum) { maximum = length; }
++    }
++    assert(sensorarrayAdsTimingProbeFormatRecord(&r, 32u, line, sizeof(line)) == 0u && !line[0]);
++    printf("PASS timing formatter maximum=%zu capacity=512 records=%lu\n", maximum,
++        (unsigned long)sensorarrayAdsTimingProbeRecordCount(&r));
++}
++
++int main(void)
++{
++    setbuf(stdout, NULL);
++    for (unsigned test = GOOD; test <= BASELINE_SHADOW; ++test) { runCase((enum timingCase)test); }
++    testFormatterBounds();
++    puts("ADS timing probe production driver/module/Gap: 25 scenarios + formatter PASS (synthetic, no HIL)");
++    return 0;
++}
+diff --git a/tests/host/test_ble_priority.c b/tests/host/test_ble_priority.c
+index 159bbe9..ca8a37f 100644
+--- a/tests/host/test_ble_priority.c
++++ b/tests/host/test_ble_priority.c
+@@ -51,6 +51,8 @@ static unsigned lockDepth, checkpoints, wakeGives, idleTakes, delayCalls, queueI
+ static unsigned failQueueSends, sdkCalls, sdkFailures, disconnectAfter, priorityOnSend;
+ static unsigned phyRequests, readRequests, connRequests, dleRequests;
+ static uint64_t nowUs, sdkDelayUs;
++static uint32_t idleGeneration, sdkIdleAfter;
++static bool changeIdleDuringSdk;
+ static esp_err_t phyReturn, fallbackReturn, readReturn, connReturn, dleReturn;
+ static bool wakeOnlyDuringConfirm, confirmSuccess, injectOnIdle, injectLogOnSend;
+ static uint32_t notifications;
+@@ -67,6 +69,8 @@ static TaskHandle_t xTaskGetCurrentTaskHandle(void) { return (void *)1; }
+ static UBaseType_t uxTaskPriorityGet(TaskHandle_t task) { assert(!lockDepth); return task == (void *)1 ? 7u : 8u; }
+ static bool sensorarrayWorkBudgetCheckpoint(unsigned worker)
+ { assert(!lockDepth && worker == 0u); checkpoints++; return false; }
++static uint32_t sensorarrayWorkBudgetIdleGeneration(void)
++{ assert(!lockDepth); return idleGeneration; }
+ static QueueHandle_t xQueueCreateStatic(unsigned count, unsigned size, uint8_t *storage, StaticQueue_t *queue)
+ {
+     queueInitCount++;
+@@ -150,8 +154,10 @@ static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t c
+     (void)confirm;
+     assert(!lockDepth && interface == 2 && conn == 3 && value && length <= 244u);
+     assert(s_ble.link.sdkCallActive && s_ble.link.sdkCallStartedUs == nowUs);
++    assert(s_ble.link.sdkCallCount == s_ble.link.sdkCompletedCalls + 1u);
+     assert(s_ble.stats.txSlotUsed > 0u); /* Caller still owns persistent payload. */
+     sdkCalls++; nowUs += sdkDelayUs;
++    if (changeIdleDuringSdk) { idleGeneration = sdkIdleAfter; }
+     if (sdkCalls <= sdkFailures) { return ESP_FAIL; }
+     assert(sentLength + length <= sizeof(sentBytes));
+     memcpy(sentBytes + sentLength, value, length); sentLength += length;
+@@ -193,6 +199,7 @@ static void reset(void)
+ {
+     memset(&s_ble, 0, sizeof(s_ble));
+     nowUs = 1000000u; sdkDelayUs = 0u;
++    idleGeneration = 1u; sdkIdleAfter = 0u; changeIdleDuringSdk = false;
+     lockDepth = checkpoints = wakeGives = idleTakes = delayCalls = queueInitCount = failQueueInit = 0u;
+     failQueueSends = sdkCalls = sdkFailures = disconnectAfter = priorityOnSend = 0u;
+     phyRequests = readRequests = connRequests = dleRequests = notifications = 0u;
+@@ -348,11 +355,52 @@ static void testNegotiation(void)
+     assert(s_ble.link.phyReadRequestError == ESP_ERR_TIMEOUT && s_ble.link.connRequestError == ESP_ERR_NO_MEM && s_ble.link.dataLengthRequestError == ESP_FAIL);
+     assert(!s_ble.link.phyKnown && s_ble.link.phyUpdateStatus == UINT16_MAX);
+ }
++static void testSdkObservation(void)
++{
++    reset(); sdkDelayUs = 2500u;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkCompletedCalls == 1u && s_ble.link.sdkWallUs == 2500u);
++    assert(s_ble.link.sdkIdleUnchanged == 1u && s_ble.link.sdkIdleChanged == 0u && s_ble.link.sdkIdleUnknown == 0u);
++    /* A long synthetic API interval includes no proof of which task ran. */
++    sdkDelayUs = 20001u; changeIdleDuringSdk = true; sdkIdleAfter = 2u;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkCompletedCalls == 2u && s_ble.link.sdkWallUs == 22501u);
++    assert(s_ble.link.sdkIdleChanged == 1u && s_ble.link.sdkIdleUnchanged == 1u);
++    idleGeneration = 0u; changeIdleDuringSdk = false; sdkDelayUs = 0u;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkIdleUnknown == 1u && s_ble.link.sdkWallUs == 22501u);
++    changeIdleDuringSdk = true; sdkIdleAfter = 7u;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkIdleUnknown == 2u); /* Unknown-before/known-after remains unknown. */
++    idleGeneration = UINT32_MAX; sdkIdleAfter = 1u;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkIdleChanged == 2u); /* Epoch wrap is a real observed change. */
++    sensorarrayBleLinkSnapshot_t snapshot; sensorarrayBleGetLinkSnapshot(&snapshot);
++    assert(snapshot.sdkCompletedCalls == 5u && !snapshot.sdkCallActive);
++    assert(snapshot.sdkIdleChanged + snapshot.sdkIdleUnchanged + snapshot.sdkIdleUnknown == snapshot.sdkCompletedCalls);
++    sensorarrayBleResetLinkObservationLocked();
++    assert(s_ble.link.sdkCompletedCalls == 5u && s_ble.link.sdkWallUs == 22501u); /* Boot totals. */
++
++    reset(); sdkDelayUs = 300000u; sdkFailures = 100u;
++    assert(enqueue(SENSORARRAY_BLE_CH_CTRL) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkCompletedCalls == 2u && s_ble.link.sdkWallUs == 600000u);
++    assert(s_ble.link.sdkIdleUnchanged == 2u && s_ble.link.sdkErrors == 2u);
++    assert(nowUs == 1610000u); /* Retry delay is outside the summed SDK intervals. */
++
++    reset(); sdkDelayUs = 10u;
++    s_ble.link.sdkWallUs = UINT64_MAX - 5u;
++    s_ble.link.sdkCallCount = s_ble.link.sdkCompletedCalls = UINT32_MAX;
++    s_ble.link.sdkIdleUnchanged = UINT32_MAX;
++    assert(enqueue(SENSORARRAY_BLE_CH_DATA) == ESP_OK); runToIdle();
++    assert(s_ble.link.sdkWallUs == 4u && s_ble.link.sdkCallCount == 0u && s_ble.link.sdkCompletedCalls == 0u);
++    assert(s_ble.link.sdkIdleUnchanged == 0u);
++}
+ int main(void)
+ {
+     testAdmissionAndPriority(); testWeightedLog(); testLifecycleAndWake();
+     testPartialOwnership(); testFailuresAndConfirm(); testNegotiation();
+-    printf("BLE_PRIORITY_PASS,groups=6,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
++    testSdkObservation();
++    printf("BLE_PRIORITY_PASS,groups=7,dataSlots=%u,logSlots=%u,ctrlSlots=%u,stateBytes=%u,descriptorBytes=%u,hardware=NOT_RUN\n",
+         CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN, SENSORARRAY_BLE_LOG_TX_SLOT_COUNT,
+         SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT, (unsigned)sizeof(s_ble), (unsigned)sizeof(sensorarrayBleTxDescriptor_t));
+     return 0;
+diff --git a/tests/host/test_frontend_wait_integration.c b/tests/host/test_frontend_wait_integration.c
+index 1f6ab66..91d1af4 100644
+--- a/tests/host/test_frontend_wait_integration.c
++++ b/tests/host/test_frontend_wait_integration.c
+@@ -140,7 +140,10 @@ static void sensorarrayBootEmitRestartMarker(const char *marker) { assert(strstr
+ static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; mockRestart++; }
+ static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
+ static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+-static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
++static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { int n=snprintf(text,size,"%.*s,mock=1\n",(int)strlen(cmd)-1,cmd);return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
++static bool sensorarrayLinkDiagnosticsHandles(const char *cmd) { return strcmp(cmd,"BLELINK?")==0 || strcmp(cmd,"BLETX?")==0 || strcmp(cmd,"BLESVC?")==0 || strcmp(cmd,"SCHEDWHY?")==0; }
++static bool sensorarrayAdsTimingControlHandles(const char *cmd) { return strncmp(cmd,"ADSTIMING?",10)==0; }
++static esp_err_t sensorarrayAdsTimingControlFormat(const char *cmd,char *text,size_t size) { (void)cmd;int n=snprintf(text,size,"ADSTIMING,mock=1\n");return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
+ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
+ { assert(ctx); mockDrain++; }
+ static esp_err_t sensorarrayFrontendStartupFormatSpi(char *text, size_t capacity)
+@@ -247,9 +250,15 @@ static void testCommands(void)
+         assert(sensorarrayRuntimeQueryCommand(newQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
+         assert(strcmp(reply, expected[i]) == 0 && mockDiagnosticQueryCalls[i] == 2);
+     }
++    const char *timingQueries[] = {"ADSTIMING?", "BLESVC?", "SCHEDWHY?"};
++    for (unsigned i = 0; i < 3; ++i) {
++        assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), &ctx) == ESP_OK);
++        assert(strstr(reply, ",mock=1\n"));
++        assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
++    }
+     assert(mockDriverRead == readsBefore && mockRoute == routesBefore && mockRestart == resetsBefore);
+     assert(mockTerminals == terminalsBefore && mockRowsPost == postsBefore && s_frontendHold == 1);
+-    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=4,with_context_and_null=1,hardware_side_effects=0");
++    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=7,with_context_and_null=1,hardware_side_effects=0");
+     const char *allowed[] = {"SPI?", "FRONTENDS?", "CONFIG?", "USBSTREAM?", "USBSTREAM=DEBUG", "RESTART", "RECOVER=2"};
+     for (unsigned i = 0; i < 7; ++i) {
+         assert(sensorarrayRuntimeQueryCommand(allowed[i], reply, sizeof(reply), &ctx) == ESP_OK);
+diff --git a/tests/host/test_link_control.c b/tests/host/test_link_control.c
+index 8fc0cbd..f6e7e2a 100644
+--- a/tests/host/test_link_control.c
++++ b/tests/host/test_link_control.c
+@@ -10,11 +10,13 @@
+ #include "sensorarraySerialIo.h"
+ #include "sensorarrayBle.h"
+ #include "sensorarrayTransport.h"
++#include "sensorarrayWorkBudget.h"
+ 
+ static bool otgEnabled, cdcEnabled, romAvailable, authorityKnown;
+ static sensorarrayUsbOtgStats_t usbStats;
+ static sensorarraySerialIoStats_t serialStats;
+ static sensorarrayBleLinkSnapshot_t link;
++static sensorarrayWorkBudgetSnapshot_t budget;
+ static sensorarrayConfigAuthority_t authority;
+ static unsigned serialTerminals, networkTerminals, debugMirrors, publishCount;
+ static char lastTerminal[512], publishOrder[8];
+@@ -25,6 +27,7 @@ bool sensorarrayUsbOtgRomDownloadAvailable(void) { return romAvailable; }
+ void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out) { *out = usbStats; }
+ void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *out) { *out = serialStats; }
+ void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *out) { *out = link; }
++void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *out) { *out = budget; }
+ bool sensorarrayConfigIdentityCopy(sensorarrayConfigAuthority_t *out)
+ { *out = authority; return authorityKnown; }
+ esp_err_t sensorarraySerialIoQueue(const char *text, size_t length, bool priority)
+@@ -72,6 +75,7 @@ static void reset(void)
+ {
+     memset(&usbStats, 0, sizeof(usbStats)); memset(&serialStats, 0, sizeof(serialStats));
+     memset(&link, 0, sizeof(link)); memset(&authority, 0, sizeof(authority));
++    memset(&budget, 0, sizeof(budget));
+     otgEnabled = romAvailable = authorityKnown = true;
+     cdcEnabled = false;
+     authority.identity.revision = 9u; authority.identity.appliedFrameBoundary = 100u;
+@@ -153,12 +157,30 @@ static void testBleBoundaries(void)
+     link.sdkLastError = ESP_FAIL; link.txTaskPriority = link.ctrlTaskPriority = UINT32_MAX;
+     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLELINK?", "dlePeerKnown=0");
+     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLETX?", "pcReceipt=unknown");
++    link.sdkCompletedCalls = link.sdkIdleChanged = link.sdkIdleUnchanged = link.sdkIdleUnknown = UINT32_MAX;
++    link.sdkWallUs = UINT64_MAX;
++    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLESVC?", "wall=elapsed,cpu=unknown,blocked=unknown");
++    budget.initError = ESP_FAIL; budget.registered = budget.idleKnown = true;
++    budget.idleGeneration = UINT32_MAX;
++    for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) {
++        budget.workers[i].quantumDue = budget.workers[i].backstopDue = budget.workers[i].unitsDue = UINT32_MAX;
++    }
++    assertFormat(sensorarrayLinkDiagnosticsFormat, "SCHEDWHY?", "order=quantum/backstop/units,overlap=1");
++    assert(sensorarrayLinkDiagnosticsHandles("BLELINK?") && sensorarrayLinkDiagnosticsHandles("BLETX?"));
++    assert(sensorarrayLinkDiagnosticsHandles("BLESVC?") && sensorarrayLinkDiagnosticsHandles("SCHEDWHY?"));
++    assert(!sensorarrayLinkDiagnosticsHandles(NULL) && !sensorarrayLinkDiagnosticsHandles("BLESVC=1"));
++    assert(!sensorarrayLinkDiagnosticsHandles("SCHEDWHY=1") && !sensorarrayLinkDiagnosticsHandles("OTHER?"));
+     memset(&link, 0, sizeof(link));
+     link.phyRequestError = link.connRequestError = link.dataLengthRequestError = ESP_ERR_INVALID_STATE;
+     link.phyUpdateStatus = link.connUpdateStatus = link.dataLengthStatus = UINT16_MAX;
+     char reply[512]; assert(sensorarrayLinkDiagnosticsFormat("BLELINK?", reply, sizeof(reply)) == ESP_OK);
+     assert(strstr(reply, "phyKnown=0,txPhy=0,rxPhy=0,connKnown=0"));
+     assert(strstr(reply, "phyStatus=65535,connStatus=65535,dleStatus=65535,dleObserved=0,dlePeerKnown=0"));
++    assert(sensorarrayLinkDiagnosticsFormat("BLESVC?", reply, sizeof(reply)) == ESP_OK);
++    assert(strstr(reply, "active=0,started=0,completed=0,wallUs=0,idleChanged=0,idleSame=0,idleUnknown=0"));
++    memset(&budget, 0, sizeof(budget)); budget.initError = ESP_ERR_INVALID_STATE;
++    assert(sensorarrayLinkDiagnosticsFormat("SCHEDWHY?", reply, sizeof(reply)) == ESP_OK);
++    assert(strstr(reply, "init=0x103,registered=0,idleKnown=0,idleGen=0"));
+     assert(sensorarrayLinkDiagnosticsFormat("OTHER?", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
+ }
+ static void testBootGuard(void)
+diff --git a/tests/host/test_recovery_control.c b/tests/host/test_recovery_control.c
+index 8eb7b7f..b9fb178 100644
+--- a/tests/host/test_recovery_control.c
++++ b/tests/host/test_recovery_control.c
+@@ -115,6 +115,8 @@ static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; restarts++; }
+ static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
+ static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+ static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
++static bool sensorarrayLinkDiagnosticsHandles(const char *cmd) { return strcmp(cmd,"BLELINK?")==0 || strcmp(cmd,"BLETX?")==0 || strcmp(cmd,"BLESVC?")==0 || strcmp(cmd,"SCHEDWHY?")==0; }
++static bool sensorarrayAdsTimingControlAck(uint32_t id,esp_err_t err) { (void)id;(void)err;return false; }
+ static void vTaskDelay(unsigned ticks) { assert(ticks<=21); }
+ static bool sensorarrayCommandMailboxCommitConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }
+ static bool sensorarrayCommandMailboxCancelConfigAck(uint32_t id) { (void)id; ackCalls++; return true; }
+diff --git a/tests/host/test_work_budget.c b/tests/host/test_work_budget.c
+index 18f1ea7..13e70d8 100644
+--- a/tests/host/test_work_budget.c
++++ b/tests/host/test_work_budget.c
+@@ -333,6 +333,64 @@ static void testLocalQuantumAndGlobalAgeWrap(void)
+     assert(delayCalls == 2u); /* Separate local elapsed and real-idle unsigned wrap. */
+ }
+ 
++static void testYieldReasonObservation(void)
++{
++    const sensorarrayWorkBudgetWorker_t worker = SENSORARRAY_WORK_BUDGET_BLE_TX;
++    sensorarrayWorkBudgetSnapshot_t snap;
++    reset(); assert(sensorarrayWorkBudgetIdleGeneration() == 0u);
++    assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    assert(sensorarrayWorkBudgetIdleGeneration() == 1u);
++    assert(!sensorarrayWorkBudgetCheckpoint(worker));
++    /* The model advances only wall time while this worker is off CPU. The
++     * current policy still charges its local quantum; observation must not
++     * silently change that policy or claim this was CPU execution time. */
++    nowTick = 2u; assert(sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].quantumDue == 1u && snap.workers[worker].backstopDue == 0u);
++    assert(snap.workers[worker].unitsDue == 0u && snap.workers[worker].yields == 1u);
++    assert(!sensorarrayWorkBudgetCheckpoint(worker)); /* Own delay is not charged twice. */
++
++    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    assert(!sensorarrayWorkBudgetCheckpoint(worker)); nowTick = 2u; assert(registeredHook());
++    assert(!sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].yields == 0u && snap.workers[worker].quantumDue == 0u);
++
++    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].backstopDue == 1u && snap.workers[worker].quantumDue == 0u);
++    assert(snap.workers[worker].unitsDue == 0u);
++
++    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
++    assert(sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].unitsDue == 1u && snap.workers[worker].quantumDue == 0u);
++    assert(snap.workers[worker].backstopDue == 0u);
++
++    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
++    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].yields == 1u && snap.workers[worker].quantumDue == 1u);
++    assert(snap.workers[worker].backstopDue == 1u && snap.workers[worker].unitsDue == 1u);
++    /* Three matched reasons, exactly one real requested delay. */
++    assert(delayCalls == 1u);
++
++    reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
++    s_workers[worker].quantumDue = s_workers[worker].backstopDue = s_workers[worker].unitsDue = UINT32_MAX;
++    for (unsigned i = 0u; i < 31u; ++i) { assert(!sensorarrayWorkBudgetCheckpoint(worker)); }
++    nowTick = 4u; assert(sensorarrayWorkBudgetCheckpoint(worker));
++    sensorarrayWorkBudgetCopySnapshot(&snap);
++    assert(snap.workers[worker].quantumDue == 0u && snap.workers[worker].backstopDue == 0u);
++    assert(snap.workers[worker].unitsDue == 0u);
++    s_idleGeneration = UINT32_MAX; assert(registeredHook());
++    assert(sensorarrayWorkBudgetIdleGeneration() == 1u); /* Real epoch skips zero. */
++    workBudgetTestStorageInternal = false;
++    assert(sensorarrayWorkBudgetIdleGeneration() == 0u);
++}
++
+ int main(void)
+ {
+     testDelayedWorkerFourUnitBurst();
+@@ -345,6 +403,7 @@ int main(void)
+     testControlFloodMaxUnits();
+     testNoCpu0OrIdleProgressIsNotFabricated();
+     testLocalQuantumAndGlobalAgeWrap();
++    testYieldReasonObservation();
+     for (unsigned phase = 0u; phase < 2u; ++phase) {
+         testSevenContinuouslyReadyWorkers(100u, phase * 9500u);
+         testSevenContinuouslyReadyWorkers(500u, phase * 9500u);
+@@ -352,6 +411,6 @@ int main(void)
+         testFiniteSevenWorkerLoad(100u, phase * 9500u);
+         testFiniteSevenWorkerLoad(500u, phase * 9500u);
+     }
+-    puts("WORK_BUDGET_PASS,scenarios=20,production_component=1,hardware=NOT_RUN");
++    puts("WORK_BUDGET_PASS,scenarios=26,production_component=1,hardware=NOT_RUN");
+     return 0;
+ }
+diff --git a/tools/test_ads_timing_control.py b/tools/test_ads_timing_control.py
+new file mode 100644
+index 0000000..194001e
+--- /dev/null
++++ b/tools/test_ads_timing_control.py
+@@ -0,0 +1,73 @@
++#!/usr/bin/env python3
++"""Execute real timing control/mailbox/main-boundary code with synthetic hardware.
++
++The reentrant producer hook is inserted after the real shared reservation and
++before ControlPost publishes its local slot; the second transport must lose the
++existing global configuration arbiter. No ADC samples here are HIL evidence.
++"""
++from pathlib import Path
++import os
++import subprocess
++import tempfile
++
++from test_main_config_commit import function
++from test_rowmodes_ack_guard import writeFakeHeaders
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def main() -> int:
++    source = (ROOT / "main/main.c").read_text()
++    boundary = function(source, "static void sensorarrayRunAdsTimingCommand(")
++    runtime = function(source, "static esp_err_t sensorarrayRuntimeQueryCommand(")
++    command = function(runtime, '    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0)')
++    callbacks = "\n".join(function(source, name) for name in [
++        "static void sensorarrayControlReplyPublished(",
++        "static void sensorarrayControlReplyFailed("])
++    apply = function(source, "static void sensorarrayApplyPendingCommands(")
++    assert apply.index("sensorarrayAdsTimingControlExpire") < apply.index("while (sensorarrayCommandMailboxTryReceive")
++    assert apply.index("SENSORARRAY_COMMAND_ADS_TIMING") < apply.index("sensorarrayFrontendsHeld()")
++    assert "sensorarrayRunAdsTimingCommand(ctx, &command);\n            return;" in apply
++    assert source.count("sensorarrayAdsTimingControlHandles(command)") == 2
++    assert source.count("sensorarrayLinkDiagnosticsHandles(command)") == 2
++    assert source.count("ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1") == 2
++    probe = (ROOT / "core/measure/ads/sensorarrayAdsTimingProbe.c").read_text()
++    formatters = probe[probe.index("static size_t sensorarrayAdsTimingFormatted("):]
++    adc = (ROOT / "components/ads126xAdc/include/ads126xAdc.h").read_text()
++    end = adc.index("} ads126xAdc1RegisterSnapshot_t;") + len("} ads126xAdc1RegisterSnapshot_t;")
++    snapshot = adc[adc.rfind("typedef struct {", 0, end):end]
++    test = (ROOT / "tests/host/test_ads_timing_control.c").read_text()
++    test = test.replace("/* EXISTING_MAILBOX_TEST */", '#include "' + str(ROOT / "tests/host/test_rowmodes_ack_guard.c") + '"')
++    test = test.replace("/* PRODUCTION_FORMATTERS */", formatters)
++    test = test.replace("/* PRODUCTION_BOUNDARY */", boundary)
++    test = test.replace("/* PRODUCTION_CALLBACKS */", callbacks)
++    test = test.replace("/* PRODUCTION_COMMAND */", command)
++    with tempfile.TemporaryDirectory(prefix="sensorarray-ads-timing-control-") as directory:
++        tmp = Path(directory); fake = tmp / "fake"; fake.mkdir()
++        writeFakeHeaders(fake)
++        freertos = fake / "freertos/FreeRTOS.h"
++        f = freertos.read_text(); start = f.index("typedef struct { int locked; }")
++        f = f[:start] + """#include <pthread.h>
++typedef pthread_mutex_t portMUX_TYPE;
++#define portMUX_INITIALIZER_UNLOCKED PTHREAD_MUTEX_INITIALIZER
++#define portENTER_CRITICAL(p) pthread_mutex_lock(p)
++#define portEXIT_CRITICAL(p) pthread_mutex_unlock(p)
++"""
++        freertos.write_text(f)
++        (fake / "ads126xAdc.h").write_text('#pragma once\n#include <stdint.h>\n#include "esp_err.h"\n' +
++            snapshot + '\ntypedef struct ads126xAdcHandle ads126xAdcHandle_t;\n')
++        unit = tmp / "unit.c"; unit.write_text(test)
++        executable = tmp / "test"
++        cmd = [os.environ.get("CC", "/usr/bin/gcc"), "-std=c11", "-D_XOPEN_SOURCE=700",
++               "-Wall", "-Wextra", "-Werror", "-pthread", "-O1", "-g"]
++        for path in [fake, ROOT / "tests/host/include", ROOT / "core/config",
++                     ROOT / "core/measure/include", ROOT / "core/measure/ads",
++                     ROOT / "core/transport", ROOT / "main/control"]:
++            cmd += ["-I", str(path)]
++        subprocess.run(cmd + [str(unit), "-o", str(executable)], check=True)
++        subprocess.run([str(executable)], check=True, timeout=20)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tools/test_ads_timing_probe.py b/tools/test_ads_timing_probe.py
+new file mode 100644
+index 0000000..3cf7c19
+--- /dev/null
++++ b/tools/test_ads_timing_probe.py
+@@ -0,0 +1,68 @@
++#!/usr/bin/env python3
++"""Execute production timing probe, Gap wrapper and ADS driver on a synthetic bus."""
++from pathlib import Path
++import os
++import shutil
++import subprocess
++import tempfile
++
++from test_main_config_commit import function
++
++
++def main():
++    root = Path(__file__).resolve().parents[1]
++    cc = os.environ.get("CC") or shutil.which("gcc") or shutil.which("clang")
++    if not cc:
++        raise RuntimeError("native C compiler required")
++    source = (root / "core/measure/ads/sensorarrayAdsGap.c").read_text()
++    functions = [function(source, name) for name in (
++        "static void sensorarrayAdsTransactionBegin(",
++        "static void sensorarrayAdsTransactionEnd(",
++        "static bool sensorarrayAdsSnapshotFromRegisterCache(",
++        "static uint8_t sensorarrayAdsBatteryRegisterMask(",
++        "static bool sensorarrayAdsBatterySnapshotsMatch(",
++        "static void sensorarrayAdsPopulateRestoredRegisterCache(",
++        "esp_err_t sensorarrayAdsGapRunTimingProbe(",
++    )]
++    # The populate helper has a forward declaration; extract its actual body.
++    marker = "static void sensorarrayAdsPopulateRestoredRegisterCache("
++    functions[-2] = function(source[source.rindex(marker):], marker)
++    end = source.index("} sensorarrayAdsBatteryCompare_t;") + len("} sensorarrayAdsBatteryCompare_t;")
++    comparison = source[source.rindex("typedef struct {", 0, end):end]
++    driver_bus = (root / "tests/host/test_ads_driver_reliability.c").read_text()
++    driver_bus = driver_bus.replace('"../../components/ads126xAdc/ads126xAdc.c"',
++        '"' + str(root / "components/ads126xAdc/ads126xAdc.c") + '"')
++    driver_bus = driver_bus.replace("uint32_t ulTaskNotifyTake(", "uint32_t driverDefaultNotify(")
++    driver_bus = driver_bus.replace("int gpio_get_level(", "int driverDefaultGpioLevel(")
++    driver_bus = driver_bus.replace("int64_t esp_timer_get_time(", "int64_t driverDefaultTimer(")
++    # Model this target's actual100Hz tick in the reused synthetic RTOS bus.
++    driver_bus = driver_bus.replace("ticks * 1000u", "ticks * (1000000u / configTICK_RATE_HZ)")
++    driver_bus = driver_bus.replace("ticks * 1000", "ticks * (1000000u / configTICK_RATE_HZ)")
++    driver_bus = driver_bus.replace("if (desired_hz == 1900000)",
++        "if (desired_hz == 550000) { return 551724; }\n    if (desired_hz == 1900000)")
++    harness = (root / "tests/host/test_ads_timing_probe.c").read_text()
++    harness = harness.replace("/* PRODUCTION_GAP_TYPES */", comparison)
++    harness = harness.replace("/* PRODUCTION_GAP_FUNCTIONS */", "\n".join(functions))
++    with tempfile.TemporaryDirectory(prefix="sensorarray-timing-probe-") as directory:
++        temp = Path(directory)
++        (temp / "driver_bus.h").write_text(driver_bus)
++        shutil.copytree(root / "tests/host/ads_stubs/freertos", temp / "freertos")
++        (temp / "freertos/FreeRTOS.h").write_text(
++            (root / "tests/host/ads_stubs/freertos/FreeRTOS.h").read_text()
++            .replace("configTICK_RATE_HZ 1000u", "configTICK_RATE_HZ 100u"))
++        (temp / "test.c").write_text(harness)
++        command = [cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
++            "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
++            "-DCONFIG_SENSORARRAY_ADS_START_GPIO=48", "-DCONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US=600"]
++        for path in (temp, root / "tests/host/ads_stubs", root / "tests/host/include",
++                     root / "components/ads126xAdc/include", root / "core/measure/ads",
++                     root / "core/measure/include", root / "core/config", root):
++            command += ["-I", str(path)]
++        binary = temp / "test"
++        subprocess.run(command + [str(temp / "test.c"), "-o", str(binary)], check=True)
++        subprocess.run([str(binary)], check=True)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tools/test_link_control.py b/tools/test_link_control.py
+index c92c3b9..37f638b 100644
+--- a/tools/test_link_control.py
++++ b/tools/test_link_control.py
+@@ -43,6 +43,7 @@ esp_err_t sensorarrayTransportPublishRuntimeFault(const char *, ...);
+         for include in [temp, root / "tests/host/include", root / "main/control",
+                         root / "core/measure/include", root / "core/config", root / "core/transport",
+                         root / "components/sensorarrayBle/include", root / "components/sensorarrayUsbOtg/include",
++                        root / "components/sensorarrayWorkBudget/include",
+                         root / "components/sensorarrayWifi/include"]:
+             command += ["-I", str(include)]
+         executable = temp / "test"

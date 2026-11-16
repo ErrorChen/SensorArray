@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "reviewer": "fixture_audit",
+  "evidence_kind": "independent_static_source_review",
+  "created_utc": "2026-11-16T07:17:40.276041+00:00",
+  "baseline_commit": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "head_at_review": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "scope_tracked_dirty": true,
+  "scope_diff_sha256": "587b86e7c0d10129a737868a2e1e424f665ea1193bef32b9fe0f3dfd8572eb0f",
+  "production_source_hashes": {
+    "components/ads126xAdc/ads126xAdc.c": "3db1923a7bf02c970a857346b191001fcfdecae100a3536920206c39c07c9240",
+    "components/ads126xAdc/include/ads126xAdc.h": "f16493acb5f197ef7dfa72eba356a870f9c7f472a5ec4cdec3392a4b11abba80",
+    "core/board/sensorarrayBringup.c": "5317126d5d4507dbfc2cc8f0e6da8168c8b5daa9c6eb3cda37e3de2465427460",
+    "core/board/sensorarrayAdsSpiProbe.c": "7f8a5530f49e76cf79d129603e55e93aeba2ed6af3baddf56bcdf8319a5e8765",
+    "core/board/sensorarrayAdsSpiProbe.h": "80ae2155b1b2071a9c8302469859853a08f6e3670288a6cab974569681904dff",
+    "core/board/sensorarrayFrontendStartup.c": "93a82935b19ee9f9e2be1f1f820899e589df8d937556c0f9300e006e021c9f2a",
+    "core/board/sensorarrayFrontendStartup.h": "9e1d3d7883dd682e2084bebfa2c12fd267c1e4a919885c836042dbb980b32df1",
+    "core/measure/ads/sensorarrayAdsGap.c": "69075d3a889c35cc9d2b902bfa8021a448312c84d82684965a451af2fadb6b97",
+    "core/measure/ads/sensorarrayAdsTimingProbe.c": "714974ce5f4e4870297fbcb2438edcc29442796f4cfcc26b2cb51f05767368d3",
+    "core/measure/ads/sensorarrayAdsMatrix.c": "deae68bb93505c1d0af1616b071fdbbde9109612cbb7b6ab699cdca2616fee89",
+    "main/main.c": "629aa8dfb3531154dcc7e31563594d36ddb357412e907a0e83eb1eb8efbac923",
+    "main/kconfigs/Kconfig.board": "270ba5625dbcda60cd1feb8763d18c50b573d4020a645df7dec767445fbd0343",
+    "sdkconfig.defaults": "237d079d508f49599b748ab8498ed57abd278d7ca2c16b4ed323808241bfd960"
+  },
+  "production_changed_after_review": false,
+  "conclusion": "NO_CONFIRMED_P0_P1_OR_BUILD_BLOCKER_IN_REVIEWED_DIFF",
+  "blocking_findings": [],
+  "checks": [
+    {
+      "area": "explicit_board_policy",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "main/kconfigs/Kconfig.board:76",
+        "sdkconfig.defaults:60",
+        "core/board/sensorarrayBringup.c:814"
+      ],
+      "evidence": "Kconfig defaults n with S3/ADS1262/DMA dependencies; this board explicitly enables y. Runtime gate requires dedicated SPI3 SCLK47/MISO14 and the existing exclusive-owner callback, rejecting cold-presence pending/quarantine. REQUIRED never silently falls back."
+    },
+    {
+      "area": "physical_identity_interface_and_lifecycle",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "components/ads126xAdc/ads126xAdc.c:386",
+        "components/ads126xAdc/ads126xAdc.c:794",
+        "core/board/sensorarrayBringup.c:836"
+      ],
+      "evidence": "New deviceIdentityKnown comes from successful physical recognized-ID read, not forcedType fallback. Bringup clears only its intentional reset then requires matching physical ID and RESET clear. Required policy needs stopped ADC and physically verified INTERFACE=0x06 plus matching STATUS/CRC8 shadow. Legacy unverified attach is explicitly unsupported and has no current production callers."
+    },
+    {
+      "area": "proof_invalidation_rebuild",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "components/ads126xAdc/ads126xAdc.c:342",
+        "components/ads126xAdc/ads126xAdc.c:925",
+        "components/ads126xAdc/ads126xAdc.c:1017",
+        "components/ads126xAdc/ads126xAdc.c:1080",
+        "components/ads126xAdc/ads126xAdc.c:1284",
+        "components/ads126xAdc/ads126xAdc.c:1621",
+        "components/ads126xAdc/ads126xAdc.c:1670"
+      ],
+      "evidence": "INTERFACE write invalidates before transfer; RESET request/observation, uncertain DMA completion and failed configuration/restore invalidate proof. Configure physically verifies STATUS/CRC8 and clears TIMEOUT under REQUIRED. Bounded physical snapshot/recovery rebuilds proof. MUX/PGA writes intentionally retain unchanged interface proof."
+    },
+    {
+      "area": "raw_entrypoints_deadlines",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "components/ads126xAdc/ads126xAdc.c:2165",
+        "components/ads126xAdc/ads126xAdc.c:2218",
+        "components/ads126xAdc/ads126xAdc.c:2232",
+        "components/ads126xAdc/ads126xAdc.c:2344"
+      ],
+      "evidence": "Both Raw entrypoints dispatch the same selected policy. FreshChecked preserves absolute transaction deadline, new DRDY/configuration-generation checks and bounded CRC retry. Legacy Raw obtains one bounded DRDY/read budget if none exists. Raw/status outputs publish only after valid parse; DMA descriptor/buffers remain persistent and a timeout does not reclaim in-flight ownership."
+    },
+    {
+      "area": "diagnostic_std_and_startup",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "core/measure/ads/sensorarrayAdsTimingProbe.c:141",
+        "core/board/sensorarrayAdsSpiProbe.c:129",
+        "core/board/sensorarrayFrontendStartup.c:254"
+      ],
+      "evidence": "STD fresh/held paths now explicitly force SPI byte reads without changing science policy. Boot qualification calls ordinary FreshChecked and therefore measures the actual selected science read source. SPISOURCE is an immutable published boot snapshot with runtime=unobserved and physicalVerified=0."
+    },
+    {
+      "area": "status_interface_restore_and_cache",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "core/measure/ads/sensorarrayAdsGap.c:445",
+        "core/measure/ads/sensorarrayAdsGap.c:1024",
+        "core/measure/ads/sensorarrayAdsGap.c:3044",
+        "core/measure/ads/sensorarrayAdsGap.c:287",
+        "core/measure/ads/sensorarrayAdsMatrix.c:1739"
+      ],
+      "evidence": "Battery core restore physically reads INTERFACE alongside original POWER/RESET/MODE2/MUX/REFMUX before rebuilding proof. Full restore rejects incompatible saved interface under REQUIRED and verifies register state; reference settling/start failure invalidates proof. Helper completion increments transaction generation; next frame invalidates profile/value cache. Diagnostic samples do not populate scientific value cache."
+    },
+    {
+      "area": "provenance_and_unchanged_science",
+      "result": "NO_BLOCKER_FOUND",
+      "references": [
+        "core/measure/ads/sensorarrayAdsMatrix.c:1389",
+        "core/measure/ads/sensorarrayAdsGap.c:1544",
+        "main/main.c:2660",
+        "main/main.c:3458"
+      ],
+      "evidence": "Split CRC logs explicitly label bytes=unknown/wireKnown=0 and separate assembled bytes, SPI prefix, sampled GPIO bit and stage. Conventional wire bytes require known evidence. Capability extension is explicit; scientific encoder/frame identity and numerical analog/PGA calculations are unchanged in this diff."
+    }
+  ],
+  "configuration": {
+    "values_verified": {
+      "IDF_TARGET_ESP32S3": "y",
+      "SENSORARRAY_ADS1262": "y",
+      "SENSORARRAY_SPI_USE_DMA": "y",
+      "SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE": "y",
+      "BOARD_SPI_HOST": "2",
+      "BOARD_SPI_SCLK_GPIO": "47",
+      "BOARD_SPI_MISO_GPIO": "14"
+    },
+    "pre_root_reconfigure_sha256": "02f5e3011a10b5c02b68f1433313368757dce16faa0601558bcc59ead413cd4e",
+    "current_sha256": "43963daf984ae6e22e60951ff5eb08e65385d8ae533e85d3e1a2ceb502a22b70",
+    "changed_during_parent_build": true,
+    "note": "Parent build normalized sdkconfig location/order. Relevant board policy values remain identical. Parent will independently record normalized configuration build. The first report-write attempt correctly refused the changed configuration hash and wrote no file."
+  },
+  "execution": {
+    "tests_executed_by_reviewer": false,
+    "target_build_executed_by_reviewer": false,
+    "hardware_access": false,
+    "source_writes": false,
+    "other_agent_evidence_read": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-protocol-host-01-manifest.json",
+    "other_agent_evidence_sha256": "4016dc3c87c915f6dfd4cb0a7d2a7613a8304c2540b2e4c785055b37777c1859",
+    "other_agent_evidence_kind": "synthetic production formatter host regressions, not HIL",
+    "other_agent_reported_format_lengths": {
+      "ADSSPIBYTES_tested_max": 294,
+      "acq_capacity": 384,
+      "SPI_original_max": 468,
+      "SPISOURCE_max": 281,
+      "PROTO_max": 452,
+      "control_capacity": 512
+    },
+    "parent_reported_only": "All 64 host entrypoints and initial target build exited 0; normalized-config record still parent-owned. This review does not independently rerun those results."
+  },
+  "limitations": [
+    "Static review does not establish physical timing margin, runtime CRC rate, precision accuracy, analog isolation or HIL acceptance.",
+    "STATUS remains outside ADS ADC-data CRC coverage; existing status and register checks are still needed.",
+    "Boot SPISOURCE is not live runtime source evidence.",
+    "This review checks the new scientific integration and changed guards, not a repeated broad audit of the previously reviewed 55+1 implementation."
+  ],
+  "review_commands": [
+    "git diff 4bf31db -- reviewed production files",
+    "rg/sed exact changed functions and callers",
+    "sha256sum reviewed production files",
+    "python3 static PROTO string expansion",
+    "git rev-parse HEAD"
+  ],
+  "write_scope": "Only this exclusive-created review JSON; no original capture, production source, test or build artifact modified."
+}

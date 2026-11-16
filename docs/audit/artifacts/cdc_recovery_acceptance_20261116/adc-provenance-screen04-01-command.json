@@ -1,0 +1,25 @@
+{
+  "command": [
+    "python3",
+    "tools/analyze_adc_read_provenance.py",
+    "--directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-04",
+    "--phase",
+    "screen-04",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-04/read-provenance-review-01.json",
+    "--evidence-kind",
+    "recorded"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "dirty_diff_sha256": "12031fda4b84892be5ad595a943e51c75448aad6a53691e9c1b65fa1aae3db77",
+  "started_utc": "2026-11-16T06:55:41.968247+00:00",
+  "started_monotonic": 319032.218316609,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/adc-provenance-screen04-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T06:55:42.082600+00:00",
+  "finished_monotonic": 319032.332665882,
+  "log_sha256": "cf2321825f9ddd4f33923beb8745a078b2d4c95e0059941dd15a4347613f86c1"
+}

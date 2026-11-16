@@ -1,0 +1,943 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-16T05:46:37.024929+00:00",
+  "review_head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "actual_BUILD": {
+    "idf": "v5.5.5",
+    "target": "esp32s3",
+    "project": "SensorArray",
+    "proto": "2",
+    "version": "8b1ce9f-dirty",
+    "elfSha256": "1e501ba784cdf95cd9664d71ebafc218e44e5ba44e2156908af4554da33cef5f"
+  },
+  "actual_PROTO": {
+    "version": "2",
+    "wires": "ascii",
+    "ctrlMax": "512",
+    "dataMax": "2304",
+    "channels": "CTRL/DATA/LOG/LIFECYCLE",
+    "caps": "config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1",
+    "legacyGen": "tag_domain",
+    "railMonitor": "unavailable",
+    "adcCrc": "crc8"
+  },
+  "scope": "closed records only; no hardware or production changes during this review; root owns ADC quality verdict",
+  "evidence": {
+    "screen-03-volt1.summary.json": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-volt1.summary.json",
+      "bytes": 273011,
+      "sha256": "141d30fc9f8e77b57f15f32001ed3e8bd9d86cc881a859e5f1d2ef8aa30e29fd"
+    },
+    "screen-03-analysis-01.json": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-analysis-01.json",
+      "bytes": 149045,
+      "sha256": "32c9ee0b0f881824f5f45ddccd10dbc07d1e06de92848447b59c64fa5197fb29"
+    },
+    "screen-03-ble.ble.notifications.jsonl": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-ble.ble.notifications.jsonl",
+      "bytes": 9558877,
+      "sha256": "389fadb450c50d0515622b682e1408d4e64f77f3082e99656717ab8710ab9355"
+    },
+    "screen-03-debug.debug.rx.bin": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-debug.debug.rx.bin",
+      "bytes": 1192929,
+      "sha256": "4ab962aabe8bc10a6a0e6aea6f94f046706e3057c178dacb564c4ea033748ac0"
+    },
+    "screen-03-debug.debug.events.jsonl": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-debug.debug.events.jsonl",
+      "bytes": 858090,
+      "sha256": "2291538fa11e4523cd52f4b5f07bb2f36338bd7219bf79d59d00bd16cbb85e28"
+    }
+  },
+  "capture_window": {
+    "monotonic_start": 314341.156660095,
+    "monotonic_end": 314461.194506902,
+    "seconds": 120.0378468070412
+  },
+  "rates": {
+    "capture_query_fps": 66.37720980641943,
+    "capture_query_scope": "query_snapshots_not_exact_capture_boundaries",
+    "usb_exact_window_fps": 66.33741117333092,
+    "ble_exact_window_fps": 35.68041341898484,
+    "ble_complete_frames": 4283,
+    "ble_sequence_missing": 3682
+  },
+  "observed_notifications": {
+    "D": {
+      "count": 12849,
+      "bytes": 2959267,
+      "per_second": 107.04124025695454,
+      "bytes_per_second": 24652.783090627836,
+      "gap_ms_quantiles": {
+        "0.5": 12.200645986013114,
+        "0.9": 15.76475502224639,
+        "0.99": 45.206843002233654
+      }
+    },
+    "L": {
+      "count": 1430,
+      "bytes": 330083,
+      "per_second": 11.91290945345513,
+      "bytes_per_second": 2749.8243993879933,
+      "gap_ms_quantiles": {
+        "0.5": 13.156778004486114,
+        "0.9": 540.3347660321742,
+        "0.99": 645.1221700408496
+      }
+    }
+  },
+  "scientific_frame_wire": {
+    "complete_messages": 4283,
+    "ascii_frame_bytes_min": 593,
+    "ascii_frame_bytes_median": 601,
+    "ascii_frame_bytes_max": 607,
+    "fragment_counts": {
+      "3": 4283
+    },
+    "notification_bytes_per_message_min": 680,
+    "notification_bytes_per_message_max": 697,
+    "sample": {
+      "bytes": 599,
+      "mid": 2581,
+      "fragments": 3,
+      "notify_bytes": 689,
+      "sha256": "215391019346cc38c14e8485415796e0109c908ff648d6a48e277ff30ab2cb18"
+    },
+    "G_crc_checked_on_each_complete_message": true,
+    "ascii_crc_source": "root analyzer independently reports0 ASCII/identity errors; no claim ADC accuracy"
+  },
+  "diagnostic_query_windows": {
+    "BLESVC?": {
+      "before": {
+        "fields": {
+          "v": "1",
+          "gen": "1",
+          "scope": "boot",
+          "active": "1",
+          "started": "1915",
+          "completed": "1914",
+          "wallUs": "6029498",
+          "idleChanged": "0",
+          "idleSame": "1914",
+          "idleUnknown": "0",
+          "wall": "elapsed",
+          "cpu": "unknown",
+          "blocked": "unknown"
+        },
+        "started_monotonic": 314341.090988032,
+        "monotonic": 314341.117086039,
+        "t": 5.60546670696931,
+        "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=1,started=1915,completed=1914,wallUs=6029498,idleChanged=0,idleSame=1914,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown",
+        "reply_event_monotonic": 314341.116921786,
+        "reply_channel": "data"
+      },
+      "after": {
+        "fields": {
+          "v": "1",
+          "gen": "1",
+          "scope": "boot",
+          "active": "1",
+          "started": "16232",
+          "completed": "16231",
+          "wallUs": "72709011",
+          "idleChanged": "0",
+          "idleSame": "16231",
+          "idleUnknown": "0",
+          "wall": "elapsed",
+          "cpu": "unknown",
+          "blocked": "unknown"
+        },
+        "started_monotonic": 314461.499006407,
+        "monotonic": 314461.52052536,
+        "t": 126.00890602800064,
+        "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=1,started=16232,completed=16231,wallUs=72709011,idleChanged=0,idleSame=16231,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown",
+        "reply_event_monotonic": 314461.520471106,
+        "reply_channel": "data"
+      },
+      "query_completion_span_seconds": 120.40343932103133,
+      "counter_deltas": {
+        "started": {
+          "bits": 32,
+          "delta": 14317
+        },
+        "completed": {
+          "bits": 32,
+          "delta": 14317
+        },
+        "wallUs": {
+          "bits": 64,
+          "delta": 66679513
+        },
+        "idleChanged": {
+          "bits": 32,
+          "delta": 0
+        },
+        "idleSame": {
+          "bits": 32,
+          "delta": 14317
+        },
+        "idleUnknown": {
+          "bits": 32,
+          "delta": 0
+        }
+      },
+      "scope": "query completion bracket; not exact capture window"
+    },
+    "BLETX?": {
+      "before": {
+        "fields": {
+          "gen": "1",
+          "dDequeued": "436",
+          "lDequeued": "24",
+          "cDequeued": "4",
+          "dMaxAgeUs": "133573",
+          "lMaxAgeUs": "152574",
+          "cMaxAgeUs": "0",
+          "sdkActive": "0",
+          "sdkStartUs": "489440113",
+          "sdkEndUs": "489444026",
+          "sdkCalls": "1910",
+          "sdkAccepted": "1910",
+          "sdkErrors": "0",
+          "sdkMaxUs": "14509",
+          "sdkLastErr": "0x0",
+          "txPrio": "7",
+          "ctrlPrio": "8",
+          "pcReceipt": "unknown"
+        },
+        "started_monotonic": 314341.039292288,
+        "monotonic": 314341.055841821,
+        "t": 5.544222488999367
+      },
+      "after": {
+        "fields": {
+          "gen": "1",
+          "dDequeued": "4732",
+          "lDequeued": "342",
+          "cDequeued": "4",
+          "dMaxAgeUs": "172349",
+          "lMaxAgeUs": "167773",
+          "cMaxAgeUs": "0",
+          "sdkActive": "0",
+          "sdkStartUs": "609846707",
+          "sdkEndUs": "609855204",
+          "sdkCalls": "16226",
+          "sdkAccepted": "16226",
+          "sdkErrors": "0",
+          "sdkMaxUs": "19879",
+          "sdkLastErr": "0x0",
+          "txPrio": "7",
+          "ctrlPrio": "8",
+          "pcReceipt": "unknown"
+        },
+        "started_monotonic": 314461.431761803,
+        "monotonic": 314461.453757188,
+        "t": 125.94213785597822
+      },
+      "query_completion_span_seconds": 120.39791536697885,
+      "counter_deltas": {
+        "dDequeued": {
+          "bits": 32,
+          "delta": 4296
+        },
+        "lDequeued": {
+          "bits": 32,
+          "delta": 318
+        },
+        "cDequeued": {
+          "bits": 32,
+          "delta": 0
+        },
+        "sdkCalls": {
+          "bits": 32,
+          "delta": 14316
+        },
+        "sdkAccepted": {
+          "bits": 32,
+          "delta": 14316
+        },
+        "sdkErrors": {
+          "bits": 32,
+          "delta": 0
+        }
+      },
+      "scope": "query completion bracket; not exact capture window"
+    },
+    "PERF?": {
+      "before": {
+        "fields": {
+          "pub": "5434",
+          "fresh": "5431",
+          "stale": "3",
+          "mixed": "0",
+          "dropOut": "0",
+          "dropEvent": "0",
+          "startAvgUs": "85954",
+          "startN": "5433",
+          "usbStage": "queued",
+          "usbSent": "6082",
+          "usbDrop": "2",
+          "usbBlock": "0",
+          "usbBytes": "5145657",
+          "usbWriteMaxUs": "0",
+          "usbQMax": "0",
+          "usbStackMin": "0",
+          "lifePub": "1",
+          "lifeDrop": "0",
+          "queueDrop": "10",
+          "frames": "5434",
+          "heap": "8308156",
+          "heapMin": "8303960"
+        },
+        "started_monotonic": 314340.866477532,
+        "monotonic": 314340.894298202,
+        "t": 5.3826788699952886
+      },
+      "after": {
+        "fields": {
+          "pub": "13423",
+          "fresh": "13398",
+          "stale": "25",
+          "mixed": "0",
+          "dropOut": "0",
+          "dropEvent": "0",
+          "startAvgUs": "43761",
+          "startN": "13422",
+          "usbStage": "queued",
+          "usbSent": "15026",
+          "usbDrop": "6",
+          "usbBlock": "0",
+          "usbBytes": "10813525",
+          "usbWriteMaxUs": "0",
+          "usbQMax": "0",
+          "usbStackMin": "0",
+          "lifePub": "1",
+          "lifeDrop": "0",
+          "queueDrop": "246",
+          "frames": "13423",
+          "heap": "8307896",
+          "heapMin": "8303960"
+        },
+        "started_monotonic": 314461.225445013,
+        "monotonic": 314461.252063191,
+        "t": 125.74044385895832
+      },
+      "query_completion_span_seconds": 120.35776498896303,
+      "counter_deltas": {
+        "pub": {
+          "bits": 32,
+          "delta": 7989
+        },
+        "queueDrop": {
+          "bits": 32,
+          "delta": 236
+        },
+        "dropOut": {
+          "bits": 32,
+          "delta": 0
+        },
+        "dropEvent": {
+          "bits": 32,
+          "delta": 0
+        }
+      },
+      "scope": "query completion bracket; not exact capture window"
+    },
+    "USBQ?": {
+      "before": {
+        "fields": {
+          "dDrop": "0",
+          "cDrop": "0",
+          "dSubmit": "474",
+          "cSubmit": "501",
+          "expired": "5680",
+          "cExpired": "0",
+          "partial": "5",
+          "dBytes": "319472",
+          "cBytes": "129510",
+          "dCallbackBytes": "unknown",
+          "cCallbackBytes": "unknown",
+          "queueMaxUs": "235497",
+          "stackMinBytes": "2412",
+          "callbackResult": "unknown"
+        },
+        "started_monotonic": 314341.024589832,
+        "monotonic": 314341.027978674,
+        "t": 5.5163593419711106
+      },
+      "after": {
+        "fields": {
+          "dDrop": "2",
+          "cDrop": "0",
+          "dSubmit": "8462",
+          "cSubmit": "605",
+          "expired": "5680",
+          "cExpired": "0",
+          "partial": "5",
+          "dBytes": "5122165",
+          "cBytes": "153686",
+          "dCallbackBytes": "unknown",
+          "cCallbackBytes": "unknown",
+          "queueMaxUs": "235497",
+          "stackMinBytes": "2412",
+          "callbackResult": "unknown"
+        },
+        "started_monotonic": 314461.403829301,
+        "monotonic": 314461.421391524,
+        "t": 125.90977219201159
+      },
+      "query_completion_span_seconds": 120.39341285004048,
+      "counter_deltas": {
+        "dDrop": {
+          "bits": 32,
+          "delta": 2
+        },
+        "dSubmit": {
+          "bits": 32,
+          "delta": 7988
+        },
+        "expired": {
+          "bits": 32,
+          "delta": 0
+        },
+        "partial": {
+          "bits": 32,
+          "delta": 0
+        }
+      },
+      "scope": "query completion bracket; not exact capture window"
+    },
+    "SCHED?": {
+      "before": {
+        "fields": {
+          "initError": "0x0",
+          "registered": "1",
+          "idleKnown": "1",
+          "tickHz": "100",
+          "budgetTicks": "4",
+          "maxUnits": "32",
+          "graceUnits": "0",
+          "backstopTicks": "4",
+          "quantumTicks": "2",
+          "idleGen": "70163",
+          "idleAgeTicks": "5",
+          "maxIdleGapTicks": "7",
+          "bt": "971/221/4",
+          "tr": "1207/181/8",
+          "log": "6219/131/10",
+          "ser": "69659/381/21",
+          "bc": "1/0/1",
+          "sc": "976/8/11",
+          "wc": "0/0/0"
+        },
+        "started_monotonic": 314341.055846612,
+        "monotonic": 314341.076988839,
+        "t": 5.565369507006835
+      },
+      "after": {
+        "fields": {
+          "initError": "0x0",
+          "registered": "1",
+          "idleKnown": "1",
+          "tickHz": "100",
+          "budgetTicks": "4",
+          "maxUnits": "32",
+          "graceUnits": "0",
+          "backstopTicks": "4",
+          "quantumTicks": "2",
+          "idleGen": "76994",
+          "idleAgeTicks": "3",
+          "maxIdleGapTicks": "8",
+          "bt": "10456/3507/5",
+          "tr": "16147/4331/9",
+          "log": "15117/3244/10",
+          "ser": "95109/5781/21",
+          "bc": "1/0/1",
+          "sc": "1184/81/11",
+          "wc": "0/0/0"
+        },
+        "started_monotonic": 314461.453759601,
+        "monotonic": 314461.490555835,
+        "t": 125.97893650300102
+      },
+      "query_completion_span_seconds": 120.41356699599419,
+      "workers": {
+        "bt": {
+          "before": [
+            971,
+            221,
+            4
+          ],
+          "after": [
+            10456,
+            3507,
+            5
+          ],
+          "counter_deltas": [
+            9485,
+            3286
+          ],
+          "maxBurst_first_last": [
+            4,
+            5
+          ]
+        },
+        "tr": {
+          "before": [
+            1207,
+            181,
+            8
+          ],
+          "after": [
+            16147,
+            4331,
+            9
+          ],
+          "counter_deltas": [
+            14940,
+            4150
+          ],
+          "maxBurst_first_last": [
+            8,
+            9
+          ]
+        },
+        "log": {
+          "before": [
+            6219,
+            131,
+            10
+          ],
+          "after": [
+            15117,
+            3244,
+            10
+          ],
+          "counter_deltas": [
+            8898,
+            3113
+          ],
+          "maxBurst_first_last": [
+            10,
+            10
+          ]
+        },
+        "ser": {
+          "before": [
+            69659,
+            381,
+            21
+          ],
+          "after": [
+            95109,
+            5781,
+            21
+          ],
+          "counter_deltas": [
+            25450,
+            5400
+          ],
+          "maxBurst_first_last": [
+            21,
+            21
+          ]
+        },
+        "bc": {
+          "before": [
+            1,
+            0,
+            1
+          ],
+          "after": [
+            1,
+            0,
+            1
+          ],
+          "counter_deltas": [
+            0,
+            0
+          ],
+          "maxBurst_first_last": [
+            1,
+            1
+          ]
+        },
+        "sc": {
+          "before": [
+            976,
+            8,
+            11
+          ],
+          "after": [
+            1184,
+            81,
+            11
+          ],
+          "counter_deltas": [
+            208,
+            73
+          ],
+          "maxBurst_first_last": [
+            11,
+            11
+          ]
+        },
+        "wc": {
+          "before": [
+            0,
+            0,
+            0
+          ],
+          "after": [
+            0,
+            0,
+            0
+          ],
+          "counter_deltas": [
+            0,
+            0
+          ],
+          "maxBurst_first_last": [
+            0,
+            0
+          ]
+        }
+      },
+      "scope": "SCHEDWHY predicates overlap; SCHED query occurs separately, do not subtract reasons from its yield count for exact overlap. Maxima/gauges are first/last only."
+    },
+    "SCHEDWHY?": {
+      "before": {
+        "fields": {
+          "v": "1",
+          "order": "quantum/backstop/units",
+          "overlap": "1",
+          "init": "0x0",
+          "registered": "1",
+          "idleKnown": "1",
+          "idleGen": "70165",
+          "bt": "204/106/0",
+          "tr": "115/111/0",
+          "log": "91/96/0",
+          "ser": "278/125/0",
+          "bc": "0/0/0",
+          "sc": "7/4/0",
+          "wc": "0/0/0"
+        },
+        "started_monotonic": 314341.117099502,
+        "monotonic": 314341.139126653,
+        "t": 5.627507321012672,
+        "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=70165,bt=204/106/0,tr=115/111/0,log=91/96/0,ser=278/125/0,bc=0/0/0,sc=7/4/0,wc=0/0/0",
+        "reply_event_monotonic": 314341.138915462,
+        "reply_channel": "data"
+      },
+      "after": {
+        "fields": {
+          "v": "1",
+          "order": "quantum/backstop/units",
+          "overlap": "1",
+          "init": "0x0",
+          "registered": "1",
+          "idleKnown": "1",
+          "idleGen": "77002",
+          "bt": "3099/2473/0",
+          "tr": "2676/2647/0",
+          "log": "2118/2294/0",
+          "ser": "3326/2843/0",
+          "bc": "0/0/0",
+          "sc": "48/42/0",
+          "wc": "0/0/0"
+        },
+        "started_monotonic": 314461.52052887,
+        "monotonic": 314461.543619924,
+        "t": 126.03200059197843,
+        "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=77002,bt=3099/2473/0,tr=2676/2647/0,log=2118/2294/0,ser=3326/2843/0,bc=0/0/0,sc=48/42/0,wc=0/0/0",
+        "reply_event_monotonic": 314461.543464507,
+        "reply_channel": "data"
+      },
+      "query_completion_span_seconds": 120.40449327096576,
+      "workers": {
+        "bt": {
+          "before": [
+            204,
+            106,
+            0
+          ],
+          "after": [
+            3099,
+            2473,
+            0
+          ],
+          "counter_deltas": [
+            2895,
+            2367,
+            0
+          ]
+        },
+        "tr": {
+          "before": [
+            115,
+            111,
+            0
+          ],
+          "after": [
+            2676,
+            2647,
+            0
+          ],
+          "counter_deltas": [
+            2561,
+            2536,
+            0
+          ]
+        },
+        "log": {
+          "before": [
+            91,
+            96,
+            0
+          ],
+          "after": [
+            2118,
+            2294,
+            0
+          ],
+          "counter_deltas": [
+            2027,
+            2198,
+            0
+          ]
+        },
+        "ser": {
+          "before": [
+            278,
+            125,
+            0
+          ],
+          "after": [
+            3326,
+            2843,
+            0
+          ],
+          "counter_deltas": [
+            3048,
+            2718,
+            0
+          ]
+        },
+        "bc": {
+          "before": [
+            0,
+            0,
+            0
+          ],
+          "after": [
+            0,
+            0,
+            0
+          ],
+          "counter_deltas": [
+            0,
+            0,
+            0
+          ]
+        },
+        "sc": {
+          "before": [
+            7,
+            4,
+            0
+          ],
+          "after": [
+            48,
+            42,
+            0
+          ],
+          "counter_deltas": [
+            41,
+            38,
+            0
+          ]
+        },
+        "wc": {
+          "before": [
+            0,
+            0,
+            0
+          ],
+          "after": [
+            0,
+            0,
+            0
+          ],
+          "counter_deltas": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "scope": "SCHEDWHY predicates overlap; SCHED query occurs separately, do not subtract reasons from its yield count for exact overlap. Maxima/gauges are first/last only."
+    }
+  },
+  "BLELINK_before_after": [
+    {
+      "fields": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "12",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "started_monotonic": 314341.027981299,
+      "monotonic": 314341.039288756,
+      "t": 5.527669423958287
+    },
+    {
+      "fields": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "247",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "12",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "started_monotonic": 314461.42139521,
+      "monotonic": 314461.431760031,
+      "t": 125.92014069895959
+    }
+  ],
+  "debug_windows": {
+    "BL50,": {
+      "count": 478,
+      "first": {
+        "offset": 70421,
+        "monotonic": 314341.365675205,
+        "line": "BL50,conn=1,sub=111,mtu=247,phy=2/2,mode=fast,mq=478,ms=474,md=168,sentD=444,sentL=30,dropD=168,dropL=0,dropC=0,ctrlRetry=0,ctrlExhaust=0,fs=1946,fe=0,cg=0,stale=0,conf=0,tiny=0"
+      },
+      "last": {
+        "offset": 1126174,
+        "monotonic": 314461.151451911,
+        "line": "BL50,conn=1,sub=111,mtu=247,phy=2/2,mode=fast,mq=5069,ms=5067,md=3608,sentD=4721,sentL=346,dropD=3608,dropL=0,dropC=0,ctrlRetry=0,ctrlExhaust=0,fs=16196,fe=0,cg=0,stale=0,conf=0,tiny=0"
+      }
+    },
+    "STK50,": {
+      "count": 478,
+      "first": {
+        "offset": 70669,
+        "monotonic": 314341.377772455,
+        "line": "STK50,unit=bytes,seq=5465,log=16384/12840,transport=6144/2996,usb=0/0,bleTx=4096/1932,bleCtrl=6144/5236,serialCtrl=6144/1792,heap=8344968/8308156/8303960,tSlot=1/4,ta=1,ts=0,tr=0,tq=10/0,bSlot=4/6,ba=168,bs=0,br=0,bc=0,bf=0,bg=0,bconf=0,trunc=0"
+      },
+      "last": {
+        "offset": 1126429,
+        "monotonic": 314461.194271781,
+        "line": "STK50,unit=bytes,seq=13415,log=16384/12840,transport=6144/2996,usb=0/0,bleTx=4096/1932,bleCtrl=6144/5236,serialCtrl=6144/1792,heap=8344968/8308156/8303960,tSlot=2/4,ta=18,ts=0,tr=0,tq=244/2,bSlot=2/6,ba=3608,bs=0,br=0,bc=0,bf=0,bg=0,bconf=0,trunc=0"
+      }
+    },
+    "TXDROP,": {
+      "count": 219,
+      "first": {
+        "offset": 83358,
+        "monotonic": 314342.905398489,
+        "line": "TXDROP,ch=0,seq=5571,rows=1,cells=8,gen=3,rid=15,pgen=0,prid=0,reason=transport_queue_full"
+      },
+      "last": {
+        "offset": 1122704,
+        "monotonic": 314460.662329294,
+        "line": "TXDROP,ch=0,seq=13384,rows=1,cells=8,gen=3,rid=15,pgen=0,prid=0,reason=transport_queue_full"
+      }
+    }
+  },
+  "sdk_observation": {
+    "completed_calls": 14317,
+    "summed_wall_us": 66679513,
+    "mean_wall_us_per_completed_call": 4657.366277851505,
+    "summed_wall_fraction_of_query_bracket": 0.5538007334010835,
+    "idleChanged_delta": 0,
+    "idleSame_delta": 14317,
+    "idleUnknown_delta": 0,
+    "interpretation": "Full elapsed SDK intervals for completed calls, includes CPU execution/preemption/waits; boundary active call excluded until completed. No real IDLE0 generation change around these calls. Neither CPU utilization nor proof of blocking. Long SDK call can wake higher-priority BTC/BTU/controller tasks."
+  },
+  "confirmed_layer": "BLE admission pool remains first major loss: BL50 dropD168->3608 and STK ba168->3608 (+3440), while Transport PERF queueDrop+236; their receipt/query windows differ. Received BLE fragments have no gap/CRC failure; central/RF/credits are not proven unconstrained.",
+  "connection_opportunity": {
+    "request_min_units": 6,
+    "request_max_units": 12,
+    "actual_before_after_units": [
+      12,
+      12
+    ],
+    "units_ms": 1.25,
+    "minimum_spec_request": [
+      6,
+      6
+    ],
+    "SDK_short_circuit": "L2CA_UpdateBleConnParams returns success callback without update if requested max_int equals current_used_conn_interval and latency/timeout match. min6/max12 therefore permits15ms and may no-op at existing15ms; current logs do not prove short-circuit actually taken.",
+    "central_authority": "Only address-matched successful conn_params callback with actual interval6 demonstrates7.5ms. Rejection/no change must remain observable; no throughput guarantee.",
+    "capacity_arithmetic_not_RF_measurement": {
+      "observed_total_notifications_per_s": 118.95414971040967,
+      "required_notifications_per_s_for_capture_plus_observed_LOG": 211.04453887271342,
+      "required_average_notifications_per_15ms_event": 3.165668083090701,
+      "required_average_notifications_per_7p5ms_event": 1.5828340415453506,
+      "assumptions": "three D notifications per current frame, unchanged observed LOG rate; actual event occupancy/central scheduling not measured"
+    }
+  },
+  "SDK_primary": {
+    "root": "/home/csc/esp/esp-idf-v5.5.5",
+    "head": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+    "source_hashes": {
+      "components/bt/host/bluedroid/stack/l2cap/l2c_ble.c": "6edd20732d5b3c9e4b7273b442902e09a26c150064ce6af835f7e0a7bdf07b7a",
+      "components/bt/host/bluedroid/stack/l2cap/l2c_link.c": "85a3b5889ba92c758a129e7389ce4a2e2a19c2b3c89814f8f33abbd680f839fe",
+      "components/bt/host/bluedroid/stack/l2cap/l2c_api.c": "1fcce65586e8b56cafe82fc3c01b006bd13d16e6328a4476e0842565b9228986",
+      "components/bt/host/bluedroid/api/esp_gap_ble_api.c": "f889577bd5def2866b5eb75f734ec483dfb724137adf3195b9986ba17b97d082",
+      "components/bt/host/bluedroid/api/esp_gatts_api.c": "789cec3d36eedd7c549d8f9db73655ca2f59e136ea44f896d7b3b5de84878e36",
+      "components/bt/host/bluedroid/api/esp_gatt_common_api.c": "8937fa65afc4f7b99dad3b04a9c6016643d5b0367b871111229e2ec0a649fe08",
+      "components/bt/controller/esp32c3/Kconfig.in": "ba8b480949107f7e3649abb8ef1785a2b10a152be537983b7fdd71a0d5e0f6af",
+      "components/bt/common/btc/core/btc_task.c": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+      "components/bt/common/osi/thread.c": "9391231ea489ef4fbab908cc4c3d9e50f98279b9ee4fa1016bf0b5f252305ce3"
+    },
+    "llcp_flags_correction": "BT_CTRL_BLE_LLCP_CONN_UPDATE/PHY_UPDATE are disconnect-on-Instant-Passed0x28 options, not enablement of connection/PHY updates. S3 includes C3 controller Kconfig.",
+    "credits": "LE controller buffer count comes from HCI Read LE Buffer Size; controller_le_xmit_window is decremented for outgoing ACL segments and replenished by Number Of Completed Packets. Runtime count/zero-time/packet completion cadence are not in current logs. STATIC_ACL_TX_BUF_NB0 selects dynamic allocation, not zero transmission credits. L2CAP per-link quota and ATT cache limit10 are separate.",
+    "public_credit_api_constraints": "esp_ble_get_sendable_packets_num documented only BLE core/single connection; matches current ownerCore0/one link but is a transient global read, not PC receipt. Preferred per-connection getter uses a portMAX_DELAY semaphore in this local SDK, so should not casually add it to every hot-path observation."
+  },
+  "official_source": {
+    "url": "https://docs.espressif.com/projects/esp-idf/en/v5.5.5/esp32s3/api-guides/ble/get-started/ble-connection.html",
+    "supports": "interval1.25ms units,min7.5ms;central chooses initial parameters;one or multiple packet exchanges per event;DLE max251/ATT247"
+  },
+  "unknowns": [
+    "Actual number of packets per RF event/retries/central event length; host notification receipt timestamps include controller/BlueZ/Python scheduling.",
+    "PC HCI receive-credit flow and ESP controller HCI transmit-credit time series were not captured.",
+    "Yield reasons indicate time/backstop, never32-unit cap; causes overlap and are sampled in separate bracket from SCHED yields.",
+    "15ms versus7.5ms may improve service opportunities but cannot prove factor2 throughput or fix SDK scheduling/queue stalls."
+  ],
+  "next_minimal_candidate": "After root authorization, request min=max6 once via existing connection setup; keep PHY/queues/priorities/budgets/framing/LOG unchanged. Validate request status and actual callback before comparing throughput. No blind priority8 or queue growth."
+}

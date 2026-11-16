@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "finalbit-science-state-01"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "b13321a2c166715fa15f98c1677626786bec65b1",
+  "dirty_diff_sha256": "639829fdab9b3a876954576cfd4fb518bbed3e64d85874025df023696e0fb278",
+  "started_utc": "2026-11-16T07:20:05.148763+00:00",
+  "started_monotonic": 320497.359603117,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/finalbit-science-state-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T07:20:05.313690+00:00",
+  "finished_monotonic": 320497.524537581,
+  "log_sha256": "090d2e4d28ba4370bd62b6cc30ebb43a9febe570ea37e2fbcef939c12efa0278"
+}

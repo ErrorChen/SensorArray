@@ -1,0 +1,81 @@
+{
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "status": "production_and_tests_frozen_for_root_target_build_and_HIL",
+  "validation_manifest": "ads-science-tail-host-01.manifest.json",
+  "implementation": [
+    {
+      "files": [
+        "components/ads126xAdc/ads126xAdc.c",
+        "components/ads126xAdc/include/ads126xAdc.h"
+      ],
+      "functions": [
+        "ads126xAdcSetAdc1ReadPolicy",
+        "ads126xAdcReadAdc1ReadyWithPolicy",
+        "ads126xAdcReadAdc1RawDmaReady",
+        "ads126xAdcReadAdc1Raw",
+        "ads126xAdcReadAdc1FreshCheckedImpl"
+      ],
+      "change": "Explicit SPI_BYTES/GPIO_TAIL_REQUIRED policy. Both ordinary ADC1 entries share payload transport and existing parser. GPIO bit is physically sampled, never selected from computed CRC. Legacy callers without outer deadline retain a bounded DRDY+SPI budget; an existing outer deadline is reused."
+    },
+    {
+      "files": [
+        "components/ads126xAdc/ads126xAdc.c"
+      ],
+      "functions": [
+        "ads126xAdcConfigure",
+        "ads126xAdcWriteRegisters",
+        "ads126xAdcHardwareReset",
+        "ads126xAdcSendCommand",
+        "ads126xAdcReadPowerRegister",
+        "ads126xAdcParseAdc1Frame",
+        "ads126xAdcReadAdc1RegisterSnapshot",
+        "ads126xAdcRestoreAdc1RegisterSnapshot"
+      ],
+      "change": "Physical INTERFACE proof tracks STATUS+CRC8/TIMEOUT0. Covering single/block writes, RESET observation/command, and uncertain/failed restoration invalidate proof. Configure or physical stable snapshot rebuilds it. MUX/PGA writes do not invalidate unrelated INTERFACE proof. REQUIRED checks known recognized ADS1262 identity, not forcedType alone."
+    },
+    {
+      "files": [
+        "core/board/sensorarrayBringup.c"
+      ],
+      "functions": [
+        "sensorarrayBringupInitAds",
+        "sensorarrayBringupAttachAdsNoReset",
+        "sensorarrayBringupPrepareAdsRefPath"
+      ],
+      "change": "Normal Init enables STATUS, then confirms physical snapshot/ID after intentional reset clear before selecting REQUIRED only under explicit board config. Capability failure returns error with no fallback. Legacy no-reset attach cannot prove the required exclusive bus/configuration and returns NOT_SUPPORTED only when the explicit board option is enabled. The old unused PrepareRefPath now keeps STATUS enabled; its analogue routing/reference behavior is unchanged."
+    },
+    {
+      "files": [
+        "core/board/sensorarrayAdsSpiProbe.c",
+        "core/board/sensorarrayAdsSpiProbe.h"
+      ],
+      "change": "Boot qualification uses the same normal FreshChecked policy as runtime; preserves candidate spacing, each-profile 200/800 attempts, 2.5% tolerance, parity counts and no-retry qualification. Source/interface are copied into persistent immutable job result for query. Failed cleanup clears proof."
+    },
+    {
+      "files": [
+        "core/measure/ads/sensorarrayAdsTimingProbe.c"
+      ],
+      "change": "STD and held controls explicitly select byte-SPI diagnostics even when scientific policy is REQUIRED. TAIL GPIO groups still use explicit GPIO diagnostic API; A/B does not silently become identical."
+    },
+    {
+      "files": [
+        "core/measure/ads/sensorarrayAdsGap.c"
+      ],
+      "change": "Full restore failure invalidates driver proof. Fast battery restore verifies INTERFACE in its existing physical core-register read and rebuilds proof only on success. RAILCRC distinguishes actual continuous SPI bytes from physically assembled split bytes; unknown bit/evidence stays unknown. Analog input/reference/calibration/PGA/cache interpretation and rail safety gates are unchanged."
+    }
+  ],
+  "test_coverage": {
+    "new_scientific_harness": "51 actual-production scenarios, compiled with explicit board option 0 and 1 (102 executions), including both Raw APIs with/without outer deadline, explicit STD overrides, physical last-bit XOR01 injection in both directions, CRC first error plus terminal timeout/config/reset, full/fast restore, actual Bringup identity/capability failure, and RAILCRC maximum-width/unknown provenance.",
+    "boot_probe": "20 scenarios each with normal SPI_BYTES and GPIO_REQUIRED plus invalid-coverage configuration; production driver and complete probe.",
+    "timing_tail": "25 TIMING + 9 TAIL scenarios + 3 formatter bounds under each scientific policy; complete probe, real Gap wrapper, and driver.",
+    "related": "Existing driver S3/non-S3, tail256 CRC patterns and lifecycle/admission cases, rail33, presence, battery validity and snapshot-evidence tests all exit0.",
+    "limits": "GPIO/SPI/DRDY/RTOS are synthetic. Host tests do not demonstrate pad timing, glitch absence, analogue accuracy, actual target stack, or HIL performance."
+  },
+  "evidence_boundary": {
+    "prior_tail_HIL": "Root completed tail-probe-02..12 at actual IDF-reported754kHz: STD15/4400 CRC failures, split0/4400, all restored, same boot. Scientific runtime has not yet been tested with this new default policy.",
+    "timing_confound": "Split changes the pause and sampling phase as well as final-bit ownership. Prior diagnostics do not isolate silicon/board root cause; physicalVerified stays0.",
+    "performance": "Prior selected diagnostic records: GPIO readUs182..496, STD158..217, SPI-complete to route-restored11..79us. These are bounded selected records, not full latency distributions. No FPS cap, wait-threshold increase, or slower fixed SPI clock was added.",
+    "remaining": "Root target build and HIL must verify normal VOLT/RES and mixed configurations, battery/rail recovery, fresh data/CRC rates and capture throughput. Scope/physical no-glitch evidence remains unmeasured."
+  },
+  "ownership": "No main/transport/log encoder changes by ADS worker. Matrix provenance, immutable SPISOURCE query and capability contract handled by identity/root. No target build, flashing, serial, or hardware access by this worker."
+}

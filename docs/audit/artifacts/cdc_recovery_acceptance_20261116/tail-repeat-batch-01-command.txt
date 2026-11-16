@@ -1,0 +1,20 @@
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-03-command.json", "exit_code": 0}
+{"label": "tail-probe-03", "groups_crc": [1, 0, 0, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-04-command.json", "exit_code": 0}
+{"label": "tail-probe-04", "groups_crc": [1, 0, 1, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-05-command.json", "exit_code": 0}
+{"label": "tail-probe-05", "groups_crc": [1, 0, 2, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-06-command.json", "exit_code": 0}
+{"label": "tail-probe-06", "groups_crc": [1, 0, 2, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-07-command.json", "exit_code": 0}
+{"label": "tail-probe-07", "groups_crc": [0, 0, 0, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-08-command.json", "exit_code": 0}
+{"label": "tail-probe-08", "groups_crc": [1, 0, 0, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-09-command.json", "exit_code": 0}
+{"label": "tail-probe-09", "groups_crc": [1, 0, 0, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-10-command.json", "exit_code": 0}
+{"label": "tail-probe-10", "groups_crc": [0, 0, 0, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-11-command.json", "exit_code": 0}
+{"label": "tail-probe-11", "groups_crc": [1, 0, 1, 0]}
+{"command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-12-command.json", "exit_code": 0}
+{"label": "tail-probe-12", "groups_crc": [0, 0, 0, 0]}

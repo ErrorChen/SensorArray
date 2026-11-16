@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-16T07:08:22.974536+00:00",
+  "scope": "READ_ONLY_PLAN; no production/SDK/config changes; no hardware or target build",
+  "source": "components/sensorarrayBle/sensorarrayBle.c",
+  "source_sha256": "93ce676d4075778588fce222bbf5b3314e18389fa860bb9b5cfd422e1d29a237",
+  "related_report": "ble-send-overhead-review-01.json",
+  "confirmed_gap": "ESP_GATTS_CONF_EVT currently only processes an active confirmPending waiter. Callback status with no waiter is uncounted. Thus fe=0 and synchronous API ESP_OK cannot exclude a later local SDK rejection.",
+  "proposed_minimum": {
+    "eventOk": "Count every CONF event with status ESP_GATT_OK, regardless of active waiter.",
+    "eventError": "Count every CONF event with status other than ESP_GATT_OK, regardless of active waiter.",
+    "eventUnmatched": "Count every CONF event that cannot match a current pending confirmation waiter. This is an overlapping count, not a third mutually exclusive status.",
+    "existing_semantics": "Preserve current generation/connId/handle matching, confirmation wake, staleConfirmation counter, and protocol framing. Update aggregate counters under the existing short stats lock; no per-notification printing.",
+    "attribution": "Unmatched must not be labelled FAST, stale, peer ACK or a particular connection epoch. The callback lacks a unique transmit/connection-generation token and connId may be reused.",
+    "meaning": "These are local SDK callback observations. Successful FAST notification callbacks do not prove central reception, application reception, or complete scientific-frame reconstruction.",
+    "test_plan": [
+      "success and error with no waiter",
+      "matching indication waiter remains awakened",
+      "mismatched conn/handle stays unmatched and preserves stale semantics",
+      "event counters wrap according to uint32 protocol contract",
+      "no callback payload retention or allocation"
+    ]
+  },
+  "sdk_candidate_constraint": "Do not edit the external ESP-IDF tree. Any future successful-CONF payload-copy optimization requires measured CPU/event evidence plus a separately authorized project-contained reproducible patch guarded by exact SDK source hashes.",
+  "pipeline_freeze": "tools/test_ble_pipeline.py + tests/host/test_ble_pipeline.c + tests/host/ble_pipeline_stubs/common.h; 20 executed cases, 18 finite semantic-invariant cases and 2 explicit NOT_PROVABLY_BOUNDED outcomes. No performance/HIL acceptance; older TX8 failure remains unchanged."
+}

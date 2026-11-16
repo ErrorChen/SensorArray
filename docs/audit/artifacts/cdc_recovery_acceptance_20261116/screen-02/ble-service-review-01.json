@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "head": "1e9fd19799afa13bbf4584d986f5a797c57ec74d",
+  "scope": "closed screen01/screen02; read-only investigation, no hardware or source changes at report creation",
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-analysis-01.json",
+      "bytes": 146211,
+      "sha256": "afd43361b95504be5710597d288df0ff97151428f2756f878c7e615ed61e89de"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-debug.debug.rx.bin",
+      "bytes": 1386071,
+      "sha256": "770bc63529e4ef4d3923fadde21fc4c11f55582936b9acff0547ea00342114b2"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-debug.debug.events.jsonl",
+      "bytes": 1442770,
+      "sha256": "2ee390a23d3a75477630bacc55703c2fb0816e42cd84df9f9847d7c5a1fd2621"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-ble.ble.notifications.jsonl",
+      "bytes": 10605913,
+      "sha256": "2f6212381a3d86e25218fc9a1362c782d7b5c09f1c3c1b3193cec8b7b2170b28"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-volt1.summary.json",
+      "bytes": 259807,
+      "sha256": "f8b7847090ea3dc2f2d512b6f3261a052afe9e6c0b7fa4bc705df6ca8ac9cd1a"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-analysis-01.json",
+      "bytes": 144364,
+      "sha256": "d46eb8148b89072c984b65e943594e4aead6a7e319059928357c57a5cfea7f98"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.rx.bin",
+      "bytes": 1383504,
+      "sha256": "46b03c7a7504551467d836bab82571008736d327216963f3232d4488103adb10"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-debug.debug.events.jsonl",
+      "bytes": 1231747,
+      "sha256": "12ca49882cda9184e62c0bedcb15145fb769f4c78d294d0a45a299c07c3fcc7d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-ble.ble.notifications.jsonl",
+      "bytes": 11899877,
+      "sha256": "644cf63319126f6f3642afa1158152b8e6187f6e9ac875435017530382c4b38f"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-02/screen-02-volt1.summary.json",
+      "bytes": 259859,
+      "sha256": "fb776deb82a14cd330889f9ad98337680b67963bdbef68181feb43f6157e0430"
+    }
+  ],
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "f22c489962994bdcd38d4dc3294c51396e939aba0e648ea79b6d66b00b48dbbe",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "bd089fbfb06cf1b5daf1f1a9e49c4deebc450d9eaab9d27e09d33848797819a1",
+    "core/transport/sensorarrayTransport.c": "caf2825357c2f56d4b7e5fdd81e8d0bde9056ea8137de1f16995b4e1a143bb2b",
+    "core/transport/sensorarraySerialIo.c": "58932c35807a95441f528d228302b4cfea81b6614fd89261e01bd007b57db6d5",
+    "sdkconfig": "31353f73b9e6507b9eeebf826b9eac5aeb999fef79cb66bb023c452b14b93acd"
+  },
+  "comparison": {
+    "screen01": {
+      "capture_fps": 64.563554,
+      "usb_fps": 62.532747,
+      "usb_missing": 239,
+      "ble_fps": 43.370896,
+      "ble_missing": 2537,
+      "perf_transport_queueDrop_delta": 2615,
+      "bl50_data_drop_delta": 0,
+      "bl50_data_sent_delta": 5197,
+      "bl50_log_sent_delta": 261,
+      "stk_transport_data_drop_delta": 2534,
+      "stk_transport_log_drop_delta": 47,
+      "stk_ble_alloc_fail_delta": 0,
+      "debug_TXDROP_count_in_capture": 2257,
+      "ble_data_notifications": 15615,
+      "ble_log_notifications": 1151,
+      "ble_data_notification_gap_ms_p50": 2.535258,
+      "sdk_calls_delta": 16854,
+      "sdk_max_us_before": 9826,
+      "sdk_max_us_after": 14488,
+      "sched_delta": {
+        "idleGeneration": 9741,
+        "ble_checkpoints": 8965,
+        "ble_yields": 2486,
+        "transport_checkpoints": 8235,
+        "transport_yields": 2393,
+        "async_checkpoints": 9161,
+        "async_yields": 2823,
+        "serial_checkpoints": 16325,
+        "serial_yields": 2637
+      }
+    },
+    "screen02": {
+      "capture_fps": 68.04785,
+      "usb_fps": 68.02899,
+      "usb_missing": 1,
+      "ble_fps": 35.34748,
+      "ble_missing": 3923,
+      "perf_transport_queueDrop_delta": 226,
+      "bl50_data_drop_delta": 3690,
+      "bl50_data_sent_delta": 4234,
+      "bl50_log_sent_delta": 326,
+      "stk_transport_data_drop_delta": 225,
+      "stk_transport_log_drop_delta": 0,
+      "stk_ble_alloc_fail_delta": 3690,
+      "debug_TXDROP_count_in_capture": 212,
+      "ble_data_notifications": 12725,
+      "ble_log_notifications": 1469,
+      "ble_data_notification_gap_ms_p50": 12.118701,
+      "sdk_calls_delta": 14230,
+      "sdk_max_us_before": 12477,
+      "sdk_max_us_after": 20757,
+      "sched_delta": {
+        "idleGeneration": 7373,
+        "ble_checkpoints": 9181,
+        "ble_yields": 3267,
+        "transport_checkpoints": 15293,
+        "transport_yields": 4241,
+        "async_checkpoints": 9174,
+        "async_yields": 3322,
+        "serial_checkpoints": 25310,
+        "serial_yields": 5361
+      }
+    }
+  },
+  "counter_window_rule": "PERF/BLETX/SCHED are individual query brackets, not exact capture window. BL50/STK are first/last received debug records inside capture; windows differ and their deltas must not be summed as exact whole-window loss.",
+  "confirmed": [
+    "First admission failure moved from Transport to BLE per-class DATA slots. screen02 BLE allocation failures equal dropD delta3690 in corresponding debug sample interval.",
+    "BLE received fragments reassemble without CRC/missing-fragment errors; fe/congestion/stale counters do not increase. This does not prove RF capacity is unlimited.",
+    "Both runs report MTU247,2M PHY,15ms connection interval; DLE251 observed but IDF event lacks peer identity.",
+    "Actual WorkBudget recognizes new real idle generation and resets own quantum after its requested delay. It also charges time between checkpoints spent preempted/inside SDK when no real idle epoch intervened."
+  ],
+  "not_proven": [
+    "Fraction of BLE throughput loss caused by quantum versus global backstop versus SDK/BT scheduling. Existing SCHED lacks reason counters.",
+    "SDK wall time is neither task CPU time nor proof of a queue block. Active SDK snapshots have end from previous call; negative end-start is invalid.",
+    "No IRQ service-time trace or RF sniffer evidence; no claim of IRQ or air-link saturation.",
+    "Different boots and ADC CRC rates are not controlled evidence that priority changed ADC reliability."
+  ],
+  "functions": {
+    "loss": "sensorarrayBleAllocateTxDescriptor -> sensorarrayBleNotifyInternal -> sensorarrayBleNoteDrop; descriptor held across SendPayload/SDK",
+    "budget": "sensorarrayWorkBudgetCheckpoint: local elapsed20ms OR real-idle age40ms OR32units; no reason counters yet",
+    "sdk": "sensorarrayBleSendGattValue -> esp_ble_gatts_send_indicate -> btc_transfer_context -> btc_task_post(OSI_THREAD_MAX_TIMEOUT); BTC19/BTU20/HCI22/controller23 outrank application7"
+  },
+  "actual_C_counterexample": {
+    "kind": "actual production C with synthetic ticks; NOT_HIL",
+    "command": [
+      "/usr/bin/clang-18",
+      "-std=c11",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-g",
+      "-I",
+      "/home/csc/esp/workspace/SensorArray/tests/host/work_budget_stubs",
+      "-I",
+      "/home/csc/esp/workspace/SensorArray/tests/host/include",
+      "-I",
+      "/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include",
+      "-I",
+      "/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget",
+      "/tmp/sensorarray-screen02-work-accounting/actual_budget_accounting.c",
+      "-o",
+      "/tmp/sensorarray-screen02-work-accounting/actual_budget_accounting"
+    ],
+    "compile_exit": 0,
+    "run_command": [
+      "/tmp/sensorarray-screen02-work-accounting/actual_budget_accounting"
+    ],
+    "run_exit": 0,
+    "stdout": "CASE,off_cpu_20ms_no_idle,yield=1,maxUnits=2,idleGeneration=1\nCASE,off_cpu_20ms_with_real_idle,yield=0,maxUnits=1,idleGeneration=2\nCASE,own_yield_not_charged_twice,yield=1,nowTick=3\n",
+    "source_sha256": "bd089fbfb06cf1b5daf1f1a9e49c4deebc450d9eaab9d27e09d33848797819a1",
+    "harness_sha256": "33835c65c90e9bbeac1335525e8eb20a582dadec03931037846ee3dd272cfd92"
+  },
+  "next_change": "Observation only: independent quantum/backstop/units hit counts for actual yields; completed SDK cumulative wallUs and before/after real idle epoch classification. Preserve queue sizes, priorities, deadlines, fragments, PHY, LOG and budget predicates. No performance PASS until new HIL."
+}

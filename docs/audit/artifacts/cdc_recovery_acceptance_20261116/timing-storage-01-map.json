@@ -1,0 +1,18 @@
+{
+  "commit": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "map_sha256": "5a127993fc925d96577de38352d896dd3890d2ad21ddc6af536e84cdc23de61b",
+  "new_internal_declared_bytes": 308,
+  "new_alignment_fill_bytes": 4,
+  "old_internal_declared_bytes": 9216,
+  "old_result_array_bytes": 8928,
+  "new_internal_declared_saving_bytes": 8908,
+  "new_result_slots_storage": "PSRAM_only_fixed_boot_lifetime",
+  "map_excerpt": [
+    " .data.s_timingMux",
+    "                0x3fca6268        0x8 esp-idf/main/libmain.a(sensorarrayAdsTimingControl.c.obj)",
+    " .bss.s_timingStorage",
+    "                0x3fcb9f50        0x4 esp-idf/main/libmain.a(sensorarrayAdsTimingControl.c.obj)",
+    " .bss.s_timing  0x3fcb9f58      0x128 esp-idf/main/libmain.a(sensorarrayAdsTimingControl.c.obj)",
+    " .bss.s_adsPresenceIo"
+  ]
+}

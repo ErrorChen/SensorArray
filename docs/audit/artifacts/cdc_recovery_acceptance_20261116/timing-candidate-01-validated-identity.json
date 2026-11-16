@@ -1,0 +1,13 @@
+{
+  "source_commit": "bb230d03f438e724436881a7f61af35122726403",
+  "version": "bb230d0-dirty",
+  "app_bytes": 1605760,
+  "bin_sha256": "b24e8e5abc190133aaa0ff2b885b984cc3bbeb726a95ae9060fde0d32b0366d4",
+  "elf_sha256": "4bb52b190a2a2ce3bc4623af7d52e0bd6cb0436ca9972e30bdb3a94f1459b758",
+  "host_entries": 60,
+  "all_exit_zero": true,
+  "production_inputs": 183,
+  "build_test_inputs_identical": true,
+  "dirty_diff_sha256_at_build": "2748135144c580bde390c6d752fce3bf7d35e243a88118c541f4ca671c54dd63",
+  "hardware_flashed": false
+}

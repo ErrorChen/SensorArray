@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_boot.py",
+    "--usb-serial",
+    "80B54ECDD9AC",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "priority-01-boot",
+    "--duration",
+    "90",
+    "--observe-seconds",
+    "25"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 95.0,
+  "head": "1e9fd19799afa13bbf4584d986f5a797c57ec74d",
+  "dirty_diff_sha256": "7fe22ee5ad755c1516ad2e62a94314e08ed3d3c9b904d6ead690a7a8be9877b1",
+  "started_utc": "2026-11-16T04:42:15.730465+00:00",
+  "started_monotonic": 311027.943635198,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/priority-01-boot-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T04:42:40.856657+00:00",
+  "finished_monotonic": 311053.069821411,
+  "log_sha256": "03e1f907b25dc77bb5cd1883ef2b43a350661a31b4a2ce8a5c3a21016bcf7460"
+}

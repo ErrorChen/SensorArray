@@ -1,0 +1,29 @@
+{
+  "status": "DIAGNOSTIC_FAILED_BEFORE_SPI55_SUBMISSION",
+  "source": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-failure-context-01.summary.json",
+  "source_sha256": "67db58acd769b413a572a2f8077d3f24a889ffd1791ff7b0fc642117d37d2d5e",
+  "request_id": 7,
+  "build": "bc99767-dirty",
+  "session": "4C618C351450A839",
+  "observed": {
+    "standard_gain1_attempts": 200,
+    "standard_gain1_valid": 200,
+    "gpio_gain1_attempts": 1,
+    "spi55_submitted": false,
+    "gpio_tail_observed": false,
+    "original_error": "0x103",
+    "terminal_error": "0x103",
+    "cleanup_error": "0x0",
+    "register_restore_verified": true,
+    "fault_state": "DEGRADED",
+    "software_route": "SAFE",
+    "physical_safe": "unknown",
+    "revision_transition": [
+      6,
+      7
+    ]
+  },
+  "source_defect": "Diagnostic gate rejects MISO GPIO_ENABLE=1. IDF spi_common configures output-capable MISO as INPUT_OUTPUT with peripheral-controlled OE, so that register bit alone does not establish a driven input.",
+  "evidence_limit": "The failed image did not retain its individual IO gate/config fields. The capture proves prequeue rejection; it cannot uniquely name the individual gate without the source-derived assumptions. New bounded IO evidence is being added before the next experiment.",
+  "runner_defect": "The runner rejected legitimate failed-transition revision6->7 before querying cached result details. All detail evidence was subsequently retrieved by a separate read-only same-ELF/same-session/same-id query; no ADSCHK replay."
+}

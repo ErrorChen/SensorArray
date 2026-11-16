@@ -1,0 +1,2597 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-16T07:43:58.700022+00:00",
+  "review_head": "0c94fe3bb58b25b0994ed2b718a8f5c33d456f4d",
+  "scope": "Closed screen05/screen06 read-only comparison. Query windows differ from exact capture and each other. Generic CONF events are local SDK observations, not peer receipt.",
+  "analysis_script": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble-service-review-01.py",
+    "bytes": 17715,
+    "sha256": "1b1708415e69cfb193b2eec169258fcc1b06ac0a1988726d34e54a132f0619d2"
+  },
+  "screens": {
+    "screen-05": {
+      "evidence": [
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-volt1.summary.json",
+          "bytes": 272383,
+          "sha256": "5e3b76827bf8bba4e1203b3719fe48c3492553fdbc6b1cabbff0941e1362b85d"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-analysis-01.json",
+          "bytes": 145788,
+          "sha256": "4e5c2683c0db309a9f384cba50a48ae0e648170e526678898205f74abc9f97de"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-ble.ble.summary.json",
+          "bytes": 2016,
+          "sha256": "392b8933e47b938ac0c479706301cb4c6d94198d78eb6ab2377def1ac2fc3071"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-ble.ble.notifications.jsonl",
+          "bytes": 8521700,
+          "sha256": "92b52b8f5de3aaeb9df519b93493ebdcf75bed2f6964ba34a52b9c9049f28097"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-debug.debug.summary.json",
+          "bytes": 2711,
+          "sha256": "e0e3f8af4832bd845d15d651bfdcbf5c23b1005b9ce2aa2d96e00a90f78d4b43"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-debug.debug.rx.bin",
+          "bytes": 1030902,
+          "sha256": "f5d31b13ef933408851910895af20f2b5bd15499208dc4480c7a377f04117132"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-debug.debug.events.jsonl",
+          "bytes": 695476,
+          "sha256": "9ac6a82d45dadbd7655d4e56fa94375cf9a1fb2c6651a27d3b2aba7ade8dd036"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-volt1.rx.bin",
+          "bytes": 4674652,
+          "sha256": "bb21e3978185f4ae91303a9b1bc08e8a94f6a7b9c6a011d87331d618d65a48d3"
+        }
+      ],
+      "actual_BUILD": {
+        "idf": "v5.5.5",
+        "target": "esp32s3",
+        "project": "SensorArray",
+        "proto": "2",
+        "version": "b13321a-dirty",
+        "elfSha256": "e0e6d5878e9385fd883cffb782126a2a6e6b6cf00ccc471abd6a015a151f68ef"
+      },
+      "capture_window": {
+        "start": 320550.284311653,
+        "end": 320670.284411285,
+        "seconds": 120.00009963201592
+      },
+      "usb_rates": {
+        "device_span_seconds": 120.068969,
+        "host_receipt_span_seconds": 119.98290846095188,
+        "capture_fps": 61.464673691001714,
+        "host_complete_receive_fps": 61.50876066153874,
+        "host_parsed_frame_fps": 61.50876066153874,
+        "host_parsed_receipt_span_seconds": 119.98290846095188,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "usb_counts": {
+        "trusted_complete_frames": 7381,
+        "integrity_valid_frames": 7381,
+        "ordered_integrity_valid_frames": 7381,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 7381,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 59048,
+        "reported_valid_points": 58568,
+        "unit_errors": 0,
+        "usable_numeric_points": 58568,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 480,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 480,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 6901
+      },
+      "ble_rates": {
+        "device_span_seconds": 120.009292,
+        "host_receipt_span_seconds": 119.96492469200166,
+        "capture_fps": 61.46190746629853,
+        "host_complete_receive_fps": 32.86794044278585,
+        "host_parsed_frame_fps": 32.86794044278585,
+        "host_parsed_receipt_span_seconds": 119.96492469200166,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "ble_counts": {
+        "trusted_complete_frames": 3944,
+        "integrity_valid_frames": 3944,
+        "ordered_integrity_valid_frames": 3944,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 3944,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 31552,
+        "reported_valid_points": 31304,
+        "unit_errors": 0,
+        "usable_numeric_points": 31304,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 248,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 248,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 3696,
+        "sequence_gaps": 2018,
+        "missing_frames": 3433
+      },
+      "ble_fragment_counts": {
+        "D": {
+          "ok": 3945,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        },
+        "L": {
+          "ok": 296,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        }
+      },
+      "cross_transport": {
+        "USB_unique_integrity_valid_frames": 7381,
+        "common_identity_sequence_frames": 3942,
+        "same_wire_bytes_sha256": 3942,
+        "different_wire_bytes_sha256": 0,
+        "USB_frames_without_BLE_match": 3439,
+        "BLE_frames_without_USB_match": 2,
+        "mismatch_examples": [],
+        "unmatched_meaning": "No trusted fingerprint match; a partial or identity-rejected frame may still exist in the other raw recording. This is not a literal byte-absence or independent loss count.",
+        "basis": "SHA256 of original scientific header/data/PGA/row/K bytes including line endings, after both CRC and identity checks; no CRC rewriting or sample reconstruction",
+        "scope": "full_capture_window"
+      },
+      "BLELINK": {
+        "before": {
+          "gen": "1",
+          "connected": "1",
+          "mtu": "247",
+          "phyKnown": "1",
+          "txPhy": "2",
+          "rxPhy": "2",
+          "connKnown": "1",
+          "interval1250us": "6",
+          "latency": "0",
+          "timeout10ms": "400",
+          "phyReq": "0x0",
+          "connReq": "0x0",
+          "dleReq": "0x0",
+          "phyStatus": "0",
+          "connStatus": "0",
+          "dleStatus": "0",
+          "dleObserved": "1",
+          "dlePeerKnown": "0",
+          "dleTx": "251",
+          "dleRx": "251",
+          "stale": "0"
+        },
+        "after": {
+          "gen": "1",
+          "connected": "1",
+          "mtu": "247",
+          "phyKnown": "1",
+          "txPhy": "2",
+          "rxPhy": "2",
+          "connKnown": "1",
+          "interval1250us": "6",
+          "latency": "0",
+          "timeout10ms": "400",
+          "phyReq": "0x0",
+          "connReq": "0x0",
+          "dleReq": "0x0",
+          "phyStatus": "0",
+          "connStatus": "0",
+          "dleStatus": "0",
+          "dleObserved": "1",
+          "dlePeerKnown": "0",
+          "dleTx": "251",
+          "dleRx": "251",
+          "stale": "0"
+        }
+      },
+      "SPI": {
+        "before": {
+          "phase": "done",
+          "done": "1",
+          "joined": "1",
+          "timedOut": "0",
+          "qualified": "1",
+          "restored": "1",
+          "hz": "2000000",
+          "actualHz": "2000000",
+          "err": "0x0",
+          "run": "0x0",
+          "cleanup": "0x0",
+          "core": "0",
+          "stackBytes": "6144",
+          "stackMinBytes": "2984",
+          "candidates": "1",
+          "attempted": "2000",
+          "samples": "2000",
+          "even": "981",
+          "odd": "1019",
+          "crc": "0",
+          "status": "0",
+          "reg": "0",
+          "drdy": "0",
+          "startUs": "131705",
+          "endUs": "822422",
+          "overlapUs": "690205",
+          "scope": "all_candidates"
+        },
+        "after": {
+          "phase": "done",
+          "done": "1",
+          "joined": "1",
+          "timedOut": "0",
+          "qualified": "1",
+          "restored": "1",
+          "hz": "2000000",
+          "actualHz": "2000000",
+          "err": "0x0",
+          "run": "0x0",
+          "cleanup": "0x0",
+          "core": "0",
+          "stackBytes": "6144",
+          "stackMinBytes": "2984",
+          "candidates": "1",
+          "attempted": "2000",
+          "samples": "2000",
+          "even": "981",
+          "odd": "1019",
+          "crc": "0",
+          "status": "0",
+          "reg": "0",
+          "drdy": "0",
+          "startUs": "131705",
+          "endUs": "822422",
+          "overlapUs": "690205",
+          "scope": "all_candidates"
+        }
+      },
+      "ble_pool_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 500,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 69196,
+          "monotonic": 320550.393379518,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "435",
+            "ms": "432",
+            "md": "151",
+            "sentD": "406",
+            "sentL": "26",
+            "dropD": "151",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "1761",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 985662,
+          "monotonic": 320670.260566973,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "4672",
+            "ms": "4668",
+            "md": "3461",
+            "sentD": "4346",
+            "sentL": "322",
+            "dropD": "3461",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "14914",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 435,
+            "last": 4672,
+            "delta": 4237,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 432,
+            "last": 4668,
+            "delta": 4236,
+            "unavailable": null
+          },
+          "md": {
+            "first": 151,
+            "last": 3461,
+            "delta": 3310,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 406,
+            "last": 4346,
+            "delta": 3940,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 26,
+            "last": 322,
+            "delta": 296,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 151,
+            "last": 3461,
+            "delta": 3310,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 1761,
+            "last": 14914,
+            "delta": 13153,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.86718745500548,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "adc_crc_window_context_not_radio_causality": {
+        "status": "OBSERVED",
+        "records_in_stream": 121,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 75000,
+          "monotonic": 320551.094023354,
+          "phase": "capture",
+          "fields": {
+            "seq": "1040",
+            "engineFrameCount": "384",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "3070",
+            "crcValidOdd": "3054",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 982622,
+          "monotonic": 320669.752953106,
+          "phase": "capture",
+          "fields": {
+            "seq": "8336",
+            "engineFrameCount": "7680",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "43388",
+            "crcValidOdd": "42153",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "counters": {
+          "crcValidEven": {
+            "first": 3070,
+            "last": 43388,
+            "delta": 40318,
+            "unavailable": null
+          },
+          "crcValidOdd": {
+            "first": 3054,
+            "last": 42153,
+            "delta": 39099,
+            "unavailable": null
+          },
+          "crcErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 118.65892975201132,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "query_windows": {
+        "BLESVC?": {
+          "before": {
+            "fields": {
+              "v": "1",
+              "gen": "1",
+              "scope": "boot",
+              "active": "0",
+              "started": "1748",
+              "completed": "1748",
+              "wallUs": "5736616",
+              "idleChanged": "0",
+              "idleSame": "1748",
+              "idleUnknown": "0",
+              "wall": "elapsed",
+              "cpu": "unknown",
+              "blocked": "unknown"
+            },
+            "started_monotonic": 320550.203578082,
+            "monotonic": 320550.232093683,
+            "t": 5.652572195976973,
+            "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=0,started=1748,completed=1748,wallUs=5736616,idleChanged=0,idleSame=1748,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown",
+            "reply_event_monotonic": 320550.231925343,
+            "reply_channel": "data"
+          },
+          "after": {
+            "fields": {
+              "v": "1",
+              "gen": "1",
+              "scope": "boot",
+              "active": "0",
+              "started": "14957",
+              "completed": "14957",
+              "wallUs": "67728451",
+              "idleChanged": "0",
+              "idleSame": "14957",
+              "idleUnknown": "0",
+              "wall": "elapsed",
+              "cpu": "unknown",
+              "blocked": "unknown"
+            },
+            "started_monotonic": 320670.647146417,
+            "monotonic": 320670.682700847,
+            "t": 126.10317935998319,
+            "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=0,started=14957,completed=14957,wallUs=67728451,idleChanged=0,idleSame=14957,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown",
+            "reply_event_monotonic": 320670.68253393,
+            "reply_channel": "data"
+          },
+          "receipt_elapsed_seconds": 120.45060716400621,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "started": 13209,
+            "completed": 13209,
+            "wallUs": 61991835,
+            "idleChanged": 0,
+            "idleSame": 13209,
+            "idleUnknown": 0
+          },
+          "mean_call_wall_us": 4693.151260504202,
+          "sdk_wall_fraction": 0.5146660233567073,
+          "completed_calls_per_s": 109.66320810666029,
+          "aggregate_elapsed_per_completed_call_us": 9118.828614127202,
+          "outside_observed_sdk_intervals_per_completed_call_us": 4425.677353623,
+          "sdk_active_endpoints": [
+            "0",
+            "0"
+          ],
+          "interpretation": "Aggregate SDK invocation wall time. Not task CPU time, proof of blocking, or PC/airtime completion. Possible boundary-active call makes exact containment approximate; maximum call durations retained separately."
+        },
+        "SCHED?": {
+          "before": {
+            "fields": {
+              "initError": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "tickHz": "100",
+              "budgetTicks": "4",
+              "maxUnits": "32",
+              "graceUnits": "0",
+              "backstopTicks": "4",
+              "quantumTicks": "2",
+              "idleGen": "18962",
+              "idleAgeTicks": "1",
+              "maxIdleGapTicks": "8",
+              "bt": "926/241/4",
+              "tr": "1089/195/8",
+              "log": "1143/137/10",
+              "ser": "13348/394/19",
+              "bc": "1/0/1",
+              "sc": "104/10/5",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 320550.130927892,
+            "monotonic": 320550.159833201,
+            "t": 5.58031171397306
+          },
+          "after": {
+            "fields": {
+              "initError": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "tickHz": "100",
+              "budgetTicks": "4",
+              "maxUnits": "32",
+              "graceUnits": "0",
+              "backstopTicks": "4",
+              "quantumTicks": "2",
+              "idleGen": "26624",
+              "idleAgeTicks": "3",
+              "maxIdleGapTicks": "11",
+              "bt": "9782/3649/5",
+              "tr": "15015/4667/8",
+              "log": "9147/3340/10",
+              "ser": "36371/6051/19",
+              "bc": "1/0/1",
+              "sc": "312/90/5",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 320670.608498563,
+            "monotonic": 320670.62643494,
+            "t": 126.04691345297033
+          },
+          "receipt_elapsed_seconds": 120.46660173899727,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "workers": {
+            "bt": {
+              "checkpoints": 8856,
+              "yields": 3408,
+              "maxBurstUnits_before": 4,
+              "maxBurstUnits_after": 5
+            },
+            "tr": {
+              "checkpoints": 13926,
+              "yields": 4472,
+              "maxBurstUnits_before": 8,
+              "maxBurstUnits_after": 8
+            },
+            "log": {
+              "checkpoints": 8004,
+              "yields": 3203,
+              "maxBurstUnits_before": 10,
+              "maxBurstUnits_after": 10
+            },
+            "ser": {
+              "checkpoints": 23023,
+              "yields": 5657,
+              "maxBurstUnits_before": 19,
+              "maxBurstUnits_after": 19
+            },
+            "bc": {
+              "checkpoints": 0,
+              "yields": 0,
+              "maxBurstUnits_before": 1,
+              "maxBurstUnits_after": 1
+            },
+            "sc": {
+              "checkpoints": 208,
+              "yields": 80,
+              "maxBurstUnits_before": 5,
+              "maxBurstUnits_after": 5
+            },
+            "wc": {
+              "checkpoints": 0,
+              "yields": 0,
+              "maxBurstUnits_before": 0,
+              "maxBurstUnits_after": 0
+            }
+          },
+          "idleGeneration_delta_skip_zero": 7662,
+          "init_before_after": [
+            "0x0",
+            "0x0"
+          ],
+          "maxIdleGapTicks_endpoints": [
+            8,
+            11
+          ]
+        },
+        "SCHEDWHY?": {
+          "before": {
+            "fields": {
+              "v": "1",
+              "order": "quantum/backstop/units",
+              "overlap": "1",
+              "init": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "idleGen": "18969",
+              "bt": "218/115/0",
+              "tr": "118/126/0",
+              "log": "90/109/0",
+              "ser": "281/135/0",
+              "bc": "0/0/0",
+              "sc": "5/8/0",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 320550.232103757,
+            "monotonic": 320550.250964678,
+            "t": 5.671443191007711,
+            "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=18969,bt=218/115/0,tr=118/126/0,log=90/109/0,ser=281/135/0,bc=0/0/0,sc=5/8/0,wc=0/0/0",
+            "reply_event_monotonic": 320550.250700946,
+            "reply_channel": "data"
+          },
+          "after": {
+            "fields": {
+              "v": "1",
+              "order": "quantum/backstop/units",
+              "overlap": "1",
+              "init": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "idleGen": "26626",
+              "bt": "2934/2783/0",
+              "tr": "2626/3076/0",
+              "log": "2023/2635/0",
+              "ser": "3147/3299/0",
+              "bc": "0/0/0",
+              "sc": "41/60/0",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 320670.682709242,
+            "monotonic": 320670.720601547,
+            "t": 126.14108005998423,
+            "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=26626,bt=2934/2783/0,tr=2626/3076/0,log=2023/2635/0,ser=3147/3299/0,bc=0/0/0,sc=41/60/0,wc=0/0/0",
+            "reply_event_monotonic": 320670.720366792,
+            "reply_channel": "data"
+          },
+          "receipt_elapsed_seconds": 120.46963686897652,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "workers": {
+            "bt": [
+              2716,
+              2668,
+              0
+            ],
+            "tr": [
+              2508,
+              2950,
+              0
+            ],
+            "log": [
+              1933,
+              2526,
+              0
+            ],
+            "ser": [
+              2866,
+              3164,
+              0
+            ],
+            "bc": [
+              0,
+              0,
+              0
+            ],
+            "sc": [
+              36,
+              52,
+              0
+            ],
+            "wc": [
+              0,
+              0,
+              0
+            ]
+          },
+          "idleGeneration_delta_skip_zero": 7657,
+          "init_before_after": [
+            "0x0",
+            "0x0"
+          ],
+          "reason_order": "quantum/backstop/units; reasons can overlap at one yield; do not add or exactly join to separate SCHED query window"
+        },
+        "BLETX?": {
+          "before": {
+            "fields": {
+              "gen": "1",
+              "dDequeued": "400",
+              "lDequeued": "22",
+              "cDequeued": "4",
+              "dMaxAgeUs": "135001",
+              "lMaxAgeUs": "160951",
+              "cMaxAgeUs": "0",
+              "sdkActive": "0",
+              "sdkStartUs": "86372145",
+              "sdkEndUs": "86375662",
+              "sdkCalls": "1741",
+              "sdkAccepted": "1741",
+              "sdkErrors": "0",
+              "sdkMaxUs": "14120",
+              "sdkLastErr": "0x0",
+              "txPrio": "7",
+              "ctrlPrio": "8",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 320550.119505074,
+            "monotonic": 320550.130926011,
+            "t": 5.551404524012469
+          },
+          "after": {
+            "fields": {
+              "gen": "1",
+              "dDequeued": "4359",
+              "lDequeued": "318",
+              "cDequeued": "4",
+              "dMaxAgeUs": "157595",
+              "lMaxAgeUs": "219853",
+              "cMaxAgeUs": "0",
+              "sdkActive": "0",
+              "sdkStartUs": "206879206",
+              "sdkEndUs": "206884823",
+              "sdkCalls": "14949",
+              "sdkAccepted": "14949",
+              "sdkErrors": "0",
+              "sdkMaxUs": "16651",
+              "sdkLastErr": "0x0",
+              "txPrio": "7",
+              "ctrlPrio": "8",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 320670.595771404,
+            "monotonic": 320670.608494396,
+            "t": 126.0289729089709
+          },
+          "receipt_elapsed_seconds": 120.47756838495843,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "dDequeued": 3959,
+            "lDequeued": 296,
+            "cDequeued": 0,
+            "sdkCalls": 13208,
+            "sdkAccepted": 13208,
+            "sdkErrors": 0
+          },
+          "maxima_endpoints": {
+            "dMaxAgeUs": [
+              135001,
+              157595
+            ],
+            "lMaxAgeUs": [
+              160951,
+              219853
+            ],
+            "cMaxAgeUs": [
+              0,
+              0
+            ],
+            "sdkMaxUs": [
+              14120,
+              16651
+            ]
+          }
+        },
+        "PERF?": {
+          "before": {
+            "fields": {
+              "pub": "968",
+              "fresh": "968",
+              "stale": "0",
+              "mixed": "0",
+              "dropOut": "0",
+              "dropEvent": "0",
+              "startAvgUs": "66777",
+              "startN": "967",
+              "usbStage": "queued",
+              "usbSent": "1083",
+              "usbDrop": "0",
+              "usbBlock": "0",
+              "usbBytes": "847551",
+              "usbWriteMaxUs": "0",
+              "usbQMax": "0",
+              "usbStackMin": "0",
+              "lifePub": "1",
+              "lifeDrop": "0",
+              "queueDrop": "4",
+              "frames": "968",
+              "heap": "8301328",
+              "heapMin": "8297384"
+            },
+            "started_monotonic": 320549.933323968,
+            "monotonic": 320549.949840383,
+            "t": 5.370318896020763
+          },
+          "after": {
+            "fields": {
+              "pub": "8370",
+              "fresh": "8370",
+              "stale": "0",
+              "mixed": "0",
+              "dropOut": "1",
+              "dropEvent": "0",
+              "startAvgUs": "22104",
+              "startN": "8369",
+              "usbStage": "queued",
+              "usbSent": "9372",
+              "usbDrop": "0",
+              "usbBlock": "0",
+              "usbBytes": "6076681",
+              "usbWriteMaxUs": "0",
+              "usbQMax": "0",
+              "usbStackMin": "0",
+              "lifePub": "1",
+              "lifeDrop": "0",
+              "queueDrop": "125",
+              "frames": "8370",
+              "heap": "8301580",
+              "heapMin": "8297384"
+            },
+            "started_monotonic": 320670.299198518,
+            "monotonic": 320670.315450293,
+            "t": 125.73592880601063
+          },
+          "receipt_elapsed_seconds": 120.36560990998987,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "pub": 7402,
+            "fresh": 7402,
+            "stale": 0,
+            "dropOut": 1,
+            "dropEvent": 0,
+            "usbSent": 8289,
+            "usbDrop": 0,
+            "queueDrop": 121
+          }
+        },
+        "USBQ?": {
+          "before": {
+            "fields": {
+              "dDrop": "0",
+              "cDrop": "0",
+              "dSubmit": "339",
+              "cSubmit": "54",
+              "expired": "870",
+              "cExpired": "0",
+              "partial": "3",
+              "dBytes": "206740",
+              "cBytes": "12878",
+              "dCallbackBytes": "unknown",
+              "cCallbackBytes": "unknown",
+              "queueMaxUs": "170928",
+              "stackMinBytes": "2412",
+              "callbackResult": "unknown"
+            },
+            "started_monotonic": 320550.095777964,
+            "monotonic": 320550.111234197,
+            "t": 5.531712709984276
+          },
+          "after": {
+            "fields": {
+              "dDrop": "0",
+              "cDrop": "0",
+              "dSubmit": "7746",
+              "cSubmit": "158",
+              "expired": "870",
+              "cExpired": "0",
+              "partial": "3",
+              "dBytes": "4638540",
+              "cBytes": "36794",
+              "dCallbackBytes": "unknown",
+              "cCallbackBytes": "unknown",
+              "queueMaxUs": "170928",
+              "stackMinBytes": "2412",
+              "callbackResult": "unknown"
+            },
+            "started_monotonic": 320670.516380818,
+            "monotonic": 320670.567549585,
+            "t": 125.98802809801418
+          },
+          "receipt_elapsed_seconds": 120.4563153880299,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "dDrop": 0,
+            "cDrop": 0,
+            "dSubmit": 7407,
+            "cSubmit": 104,
+            "expired": 0,
+            "cExpired": 0,
+            "partial": 0
+          }
+        }
+      },
+      "independent_notifications": {
+        "scope": "exact summary capture monotonic window; notification callback timestamps, not RF event timing",
+        "duration_s": 120.00009963201592,
+        "fragment_crc_failures": 0,
+        "channels": {
+          "D": {
+            "notifications": 11833,
+            "bytes": 2713348,
+            "notifications_per_s": 98.608251462176,
+            "bytes_per_s": 22611.214559992593,
+            "notification_length": {
+              "n": 11833,
+              "min": 225,
+              "p50": 230.0,
+              "p90": 230.0,
+              "p99": 230.0,
+              "max": 230
+            },
+            "inter_notification_gap_ms": {
+              "n": 11832,
+              "min": 0.041157996747642756,
+              "p50": 7.923856523120776,
+              "p90": 16.09825398772955,
+              "p99": 52.56150070577863,
+              "max": 82.69621402723715
+            },
+            "complete_messages": {
+              "n": 3944,
+              "tags": {
+                "V": 3944
+              },
+              "fragment_counts": {
+                "3": 3944
+              },
+              "payload_bytes": {
+                "n": 3944,
+                "min": 591,
+                "p50": 599.0,
+                "p90": 599.0,
+                "p99": 600.0,
+                "max": 600
+              },
+              "notification_bytes": {
+                "n": 3944,
+                "min": 678,
+                "p50": 689.0,
+                "p90": 689.0,
+                "p99": 690.0,
+                "max": 690
+              },
+              "first_to_last_fragment_ms": {
+                "n": 3944,
+                "min": 0.09565299842506647,
+                "p50": 15.182495000772178,
+                "p90": 23.67802172666416,
+                "p99": 31.276862754602917,
+                "max": 46.80052801268175
+              }
+            }
+          },
+          "L": {
+            "notifications": 1332,
+            "bytes": 306485,
+            "notifications_per_s": 11.09999078404618,
+            "bytes_per_s": 2554.0395461324274,
+            "notification_length": {
+              "n": 1332,
+              "min": 223,
+              "p50": 231.0,
+              "p90": 233.0,
+              "p99": 234.0,
+              "max": 234
+            },
+            "inter_notification_gap_ms": {
+              "n": 1331,
+              "min": 0.06412900984287262,
+              "p50": 8.104956010356545,
+              "p90": 591.9687940040603,
+              "p99": 688.6485102935694,
+              "max": 727.5656550191343
+            },
+            "complete_messages": {
+              "n": 296,
+              "tags": {
+                "SF50": 148,
+                "ADS50": 148
+              },
+              "fragment_counts": {
+                "4": 148,
+                "5": 148
+              },
+              "payload_bytes": {
+                "n": 296,
+                "min": 781,
+                "p50": 904.0,
+                "p90": 1015.0,
+                "p99": 1018.0,
+                "max": 1018
+              },
+              "notification_bytes": {
+                "n": 296,
+                "min": 893,
+                "p50": 1034.5,
+                "p90": 1165.0,
+                "p99": 1168.0,
+                "max": 1168
+              },
+              "first_to_last_fragment_ms": {
+                "n": 296,
+                "min": 7.8223169548437,
+                "p50": 29.850875987904146,
+                "p90": 38.291186472633854,
+                "p99": 47.800552862463555,
+                "max": 51.84793198714033
+              }
+            }
+          }
+        }
+      },
+      "independent_debug": {
+        "receipt_window": [
+          320550.284311653,
+          320670.284411285
+        ],
+        "line_time_semantics": "time of receive chunk containing final LF; may include queued device logs",
+        "complete_lines": 4690,
+        "complete_line_bytes": 918355,
+        "tags": {
+          "TXDROP": {
+            "count": 113,
+            "bytes": 10169
+          },
+          "SF50": {
+            "count": 443,
+            "bytes": 44670
+          },
+          "TR50": {
+            "count": 443,
+            "bytes": 35872
+          },
+          "OT50": {
+            "count": 443,
+            "bytes": 49470
+          },
+          "BL50": {
+            "count": 443,
+            "bytes": 81157
+          },
+          "I2C50": {
+            "count": 443,
+            "bytes": 31010
+          },
+          "STK50": {
+            "count": 443,
+            "bytes": 108936
+          },
+          "ADS50": {
+            "count": 443,
+            "bytes": 166071
+          },
+          "ADST50": {
+            "count": 443,
+            "bytes": 82461
+          },
+          "AB50": {
+            "count": 443,
+            "bytes": 199532
+          },
+          "BATREG": {
+            "count": 360,
+            "bytes": 64338
+          },
+          "BATRAW": {
+            "count": 116,
+            "bytes": 23288
+          },
+          "ADSHEALTH": {
+            "count": 114,
+            "bytes": 21381
+          }
+        },
+        "STK": {
+          "first": null,
+          "last": null
+        },
+        "TXDROP": {
+          "count": 113,
+          "reasons": {
+            "transport_queue_full": 113
+          }
+        }
+      },
+      "sdk_idle_changed_fraction": 0.0,
+      "capture_complete_frame_rate_usb": 61.508282265048685,
+      "capture_complete_frame_rate_ble": 32.86663937858719,
+      "conf_observation": {
+        "availability": "NOT_REPORTED"
+      },
+      "per_channel_service": {
+        "D": {
+          "notifications": 11833,
+          "notifications_per_s": 98.608251462176,
+          "bytes_per_s": 22611.214559992593,
+          "fragments_per_message": {
+            "3": 3944
+          },
+          "frame_bytes": {
+            "n": 3944,
+            "min": 591,
+            "p50": 599.0,
+            "p90": 599.0,
+            "p99": 600.0,
+            "max": 600
+          },
+          "inter_notification_ms": {
+            "n": 11832,
+            "min": 0.041157996747642756,
+            "p50": 7.923856523120776,
+            "p90": 16.09825398772955,
+            "p99": 52.56150070577863,
+            "max": 82.69621402723715
+          }
+        },
+        "L": {
+          "notifications": 1332,
+          "notifications_per_s": 11.09999078404618,
+          "bytes_per_s": 2554.0395461324274,
+          "fragments_per_message": {
+            "4": 148,
+            "5": 148
+          },
+          "frame_bytes": {
+            "n": 296,
+            "min": 781,
+            "p50": 904.0,
+            "p90": 1015.0,
+            "p99": 1018.0,
+            "max": 1018
+          },
+          "inter_notification_ms": {
+            "n": 1331,
+            "min": 0.06412900984287262,
+            "p50": 8.104956010356545,
+            "p90": 591.9687940040603,
+            "p99": 688.6485102935694,
+            "max": 727.5656550191343
+          }
+        }
+      }
+    },
+    "screen-06": {
+      "evidence": [
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-volt1.summary.json",
+          "bytes": 274890,
+          "sha256": "2fed04fb05e494993db8f7e389616d79c28e89373c813c42ed1c60a2cee3927f"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-analysis-01.json",
+          "bytes": 146982,
+          "sha256": "a84f0bcbe40e9a4d1e947184b43cf5102be5dc9267e7b80b4f23773a978b5513"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble.ble.summary.json",
+          "bytes": 2016,
+          "sha256": "f164409ae3ff4ae54d7fe944969de7e6e4b93f8fdf0d9e4907660ea87554b798"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble.ble.notifications.jsonl",
+          "bytes": 11309203,
+          "sha256": "f1d12b10af11e5171609a90d9cb36c498972b90d04c35d79fb42d9f8b89883a7"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-debug.debug.summary.json",
+          "bytes": 2680,
+          "sha256": "fbf9cf96ffd401fea7b5b562740751fd31746291c022173a05631c4c525631ea"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-debug.debug.rx.bin",
+          "bytes": 1125228,
+          "sha256": "a868a894cd25af3ba19d4dd8adfe8bfdafb23381a2213af8961bad47aa232651"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-debug.debug.events.jsonl",
+          "bytes": 733171,
+          "sha256": "32b8bf9ac5744083c04c4baa7e32d53ce18b8fd7a064a72134c9d4185c5aa2e6"
+        },
+        {
+          "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-volt1.rx.bin",
+          "bytes": 4572652,
+          "sha256": "48165e5eded7e4b4d6255399f39d1661a3a2facc6d0e2cdc1772d0307c96832e"
+        }
+      ],
+      "actual_BUILD": {
+        "idf": "v5.5.5",
+        "target": "esp32s3",
+        "project": "SensorArray",
+        "proto": "2",
+        "version": "0c94fe3-dirty",
+        "elfSha256": "3077bfbfb35d7f90e27e15673ab90f90c35243db97ec0259776ecd84db019f97"
+      },
+      "capture_window": {
+        "start": 321449.226463447,
+        "end": 321569.226585264,
+        "seconds": 120.00012181705097
+      },
+      "usb_rates": {
+        "device_span_seconds": 120.016203,
+        "host_receipt_span_seconds": 119.97360839298926,
+        "capture_fps": 60.01689621858808,
+        "host_complete_receive_fps": 60.02986903927159,
+        "host_parsed_frame_fps": 60.02986903927159,
+        "host_parsed_receipt_span_seconds": 119.97360839298926,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "usb_counts": {
+        "trusted_complete_frames": 7203,
+        "integrity_valid_frames": 7203,
+        "ordered_integrity_valid_frames": 7203,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 7203,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 57624,
+        "reported_valid_points": 57248,
+        "unit_errors": 0,
+        "usable_numeric_points": 57248,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 376,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 376,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 6827,
+        "sequence_gaps": 1,
+        "missing_frames": 1
+      },
+      "ble_rates": {
+        "device_span_seconds": 120.000907,
+        "host_receipt_span_seconds": 119.94968777900795,
+        "capture_fps": 60.01621304412308,
+        "host_complete_receive_fps": 32.61367388639946,
+        "host_parsed_frame_fps": 32.61367388639946,
+        "host_parsed_receipt_span_seconds": 119.94968777900795,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "ble_counts": {
+        "trusted_complete_frames": 3913,
+        "integrity_valid_frames": 3913,
+        "ordered_integrity_valid_frames": 3913,
+        "rejected_untrusted_frames": 0,
+        "complete_frames": 3913,
+        "wire_contract_errors": 0,
+        "ascii_crc_errors": 0,
+        "identity_errors": 0,
+        "header_identity_missing": 0,
+        "header_identity_invalid": 0,
+        "trailer_identity_missing": 0,
+        "trailer_identity_invalid": 0,
+        "trailer_header_identity_mismatch": 0,
+        "header_config_identity_mismatch": 0,
+        "identity_value_mismatch": 0,
+        "observed_points": 31304,
+        "reported_valid_points": 31111,
+        "unit_errors": 0,
+        "usable_numeric_points": 31111,
+        "open_points": 0,
+        "inconsistent_points": 0,
+        "invalid_points": 193,
+        "not_fresh_points": 0,
+        "unacquired_points": 0,
+        "unknown_masks_points": 0,
+        "frames_with_invalid_points": 193,
+        "frames_with_partial_freshness": 0,
+        "frames_with_unacquired_points": 0,
+        "fully_valid_fresh_acquired_frames": 3720,
+        "sequence_gaps": 2024,
+        "missing_frames": 3290
+      },
+      "ble_fragment_counts": {
+        "D": {
+          "ok": 3914,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        },
+        "L": {
+          "ok": 288,
+          "missing": 0,
+          "gap": 0,
+          "crc_fail": 0,
+          "dropped": 0,
+          "tiny": 0,
+          "duplicate": 0,
+          "out_of_order": 0
+        }
+      },
+      "cross_transport": {
+        "USB_unique_integrity_valid_frames": 7203,
+        "common_identity_sequence_frames": 3910,
+        "same_wire_bytes_sha256": 3910,
+        "different_wire_bytes_sha256": 0,
+        "USB_frames_without_BLE_match": 3293,
+        "BLE_frames_without_USB_match": 3,
+        "mismatch_examples": [],
+        "unmatched_meaning": "No trusted fingerprint match; a partial or identity-rejected frame may still exist in the other raw recording. This is not a literal byte-absence or independent loss count.",
+        "basis": "SHA256 of original scientific header/data/PGA/row/K bytes including line endings, after both CRC and identity checks; no CRC rewriting or sample reconstruction",
+        "scope": "full_capture_window"
+      },
+      "BLELINK": {
+        "before": {
+          "gen": "1",
+          "connected": "1",
+          "mtu": "247",
+          "phyKnown": "1",
+          "txPhy": "2",
+          "rxPhy": "2",
+          "connKnown": "1",
+          "interval1250us": "6",
+          "latency": "0",
+          "timeout10ms": "400",
+          "phyReq": "0x0",
+          "connReq": "0x0",
+          "dleReq": "0x0",
+          "phyStatus": "0",
+          "connStatus": "0",
+          "dleStatus": "0",
+          "dleObserved": "1",
+          "dlePeerKnown": "0",
+          "dleTx": "251",
+          "dleRx": "251",
+          "stale": "0"
+        },
+        "after": {
+          "gen": "1",
+          "connected": "1",
+          "mtu": "247",
+          "phyKnown": "1",
+          "txPhy": "2",
+          "rxPhy": "2",
+          "connKnown": "1",
+          "interval1250us": "6",
+          "latency": "0",
+          "timeout10ms": "400",
+          "phyReq": "0x0",
+          "connReq": "0x0",
+          "dleReq": "0x0",
+          "phyStatus": "0",
+          "connStatus": "0",
+          "dleStatus": "0",
+          "dleObserved": "1",
+          "dlePeerKnown": "0",
+          "dleTx": "251",
+          "dleRx": "251",
+          "stale": "0"
+        }
+      },
+      "SPI": {
+        "before": {
+          "phase": "done",
+          "done": "1",
+          "joined": "1",
+          "timedOut": "0",
+          "qualified": "1",
+          "restored": "1",
+          "hz": "2000000",
+          "actualHz": "2000000",
+          "err": "0x0",
+          "run": "0x0",
+          "cleanup": "0x0",
+          "core": "0",
+          "stackBytes": "6144",
+          "stackMinBytes": "2984",
+          "candidates": "1",
+          "attempted": "2000",
+          "samples": "2000",
+          "even": "1014",
+          "odd": "986",
+          "crc": "0",
+          "status": "0",
+          "reg": "0",
+          "drdy": "0",
+          "startUs": "131827",
+          "endUs": "832305",
+          "overlapUs": "699968",
+          "scope": "all_candidates"
+        },
+        "after": {
+          "phase": "done",
+          "done": "1",
+          "joined": "1",
+          "timedOut": "0",
+          "qualified": "1",
+          "restored": "1",
+          "hz": "2000000",
+          "actualHz": "2000000",
+          "err": "0x0",
+          "run": "0x0",
+          "cleanup": "0x0",
+          "core": "0",
+          "stackBytes": "6144",
+          "stackMinBytes": "2984",
+          "candidates": "1",
+          "attempted": "2000",
+          "samples": "2000",
+          "even": "1014",
+          "odd": "986",
+          "crc": "0",
+          "status": "0",
+          "reg": "0",
+          "drdy": "0",
+          "startUs": "131827",
+          "endUs": "832305",
+          "overlapUs": "699968",
+          "scope": "all_candidates"
+        }
+      },
+      "ble_pool_window": {
+        "status": "OBSERVED",
+        "records_in_stream": 551,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 96716,
+          "monotonic": 321449.500241266,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "898",
+            "ms": "893",
+            "md": "158",
+            "sentD": "848",
+            "sentL": "45",
+            "dropD": "158",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "4037",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 977178,
+          "monotonic": 321569.141926224,
+          "phase": "capture",
+          "fields": {
+            "conn": "1",
+            "sub": "111",
+            "mtu": "247",
+            "phy": "2/2",
+            "mode": "fast",
+            "mq": "5087",
+            "ms": "5084",
+            "md": "3345",
+            "sentD": "4752",
+            "sentL": "332",
+            "dropD": "3345",
+            "dropL": "0",
+            "dropC": "0",
+            "ctrlRetry": "0",
+            "ctrlExhaust": "0",
+            "fs": "17037",
+            "fe": "0",
+            "cg": "0",
+            "stale": "0",
+            "conf": "0",
+            "tiny": "0"
+          },
+          "unverified_terminal_field": "tiny"
+        },
+        "counters": {
+          "mq": {
+            "first": 898,
+            "last": 5087,
+            "delta": 4189,
+            "unavailable": null
+          },
+          "ms": {
+            "first": 893,
+            "last": 5084,
+            "delta": 4191,
+            "unavailable": null
+          },
+          "md": {
+            "first": 158,
+            "last": 3345,
+            "delta": 3187,
+            "unavailable": null
+          },
+          "sentD": {
+            "first": 848,
+            "last": 4752,
+            "delta": 3904,
+            "unavailable": null
+          },
+          "sentL": {
+            "first": 45,
+            "last": 332,
+            "delta": 287,
+            "unavailable": null
+          },
+          "dropD": {
+            "first": 158,
+            "last": 3345,
+            "delta": 3187,
+            "unavailable": null
+          },
+          "dropL": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "dropC": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlRetry": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "ctrlExhaust": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "fs": {
+            "first": 4037,
+            "last": 17037,
+            "delta": 13000,
+            "unavailable": null
+          },
+          "fe": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "cg": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "stale": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          },
+          "conf": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 119.64168495801277,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "adc_crc_window_context_not_radio_causality": {
+        "status": "OBSERVED",
+        "records_in_stream": 118,
+        "first": {
+          "source": "CDC",
+          "byte_offset": 101764,
+          "monotonic": 321450.130185459,
+          "phase": "capture",
+          "fields": {
+            "seq": "1805",
+            "engineFrameCount": "384",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "2971",
+            "crcValidOdd": "2868",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "last": {
+          "source": "CDC",
+          "byte_offset": 972336,
+          "monotonic": 321568.484614948,
+          "phase": "capture",
+          "fields": {
+            "seq": "8909",
+            "engineFrameCount": "7488",
+            "modeEntryFrameCount": "0",
+            "healthInterval": "64",
+            "healthReadbackDue": "1",
+            "precisionFrame": "1",
+            "err": "0x0",
+            "crcValidEven": "41093",
+            "crcValidOdd": "40815",
+            "crcErrors": "0",
+            "crcRetries": "0"
+          },
+          "unverified_terminal_field": "crcRetries"
+        },
+        "counters": {
+          "crcValidEven": {
+            "first": 2971,
+            "last": 41093,
+            "delta": 38122,
+            "unavailable": null
+          },
+          "crcValidOdd": {
+            "first": 2868,
+            "last": 40815,
+            "delta": 37947,
+            "unavailable": null
+          },
+          "crcErrors": {
+            "first": 0,
+            "last": 0,
+            "delta": 0,
+            "unavailable": null
+          }
+        },
+        "elapsed_seconds": 118.35442948900163,
+        "window": "first_last_diagnostic_receipts_inside_capture"
+      },
+      "query_windows": {
+        "BLESVC?": {
+          "before": {
+            "fields": {
+              "v": "1",
+              "gen": "1",
+              "scope": "boot",
+              "active": "0",
+              "started": "4005",
+              "completed": "4005",
+              "wallUs": "11559904",
+              "idleChanged": "0",
+              "idleSame": "4005",
+              "idleUnknown": "0",
+              "wall": "elapsed",
+              "cpu": "unknown",
+              "blocked": "unknown",
+              "confOk": "4005",
+              "confError": "0",
+              "confMatched": "0",
+              "confUnmatched": "4005",
+              "confMatch": "waiter_predicate",
+              "confEpoch": "unknown",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 321449.162598414,
+            "monotonic": 321449.191742533,
+            "t": 5.6745755320298485,
+            "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=0,started=4005,completed=4005,wallUs=11559904,idleChanged=0,idleSame=4005,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown,confOk=4005,confError=0,confMatched=0,confUnmatched=4005,confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown",
+            "reply_event_monotonic": 321449.191593922,
+            "reply_channel": "data"
+          },
+          "after": {
+            "fields": {
+              "v": "1",
+              "gen": "1",
+              "scope": "boot",
+              "active": "1",
+              "started": "17081",
+              "completed": "17080",
+              "wallUs": "73333821",
+              "idleChanged": "0",
+              "idleSame": "17080",
+              "idleUnknown": "0",
+              "wall": "elapsed",
+              "cpu": "unknown",
+              "blocked": "unknown",
+              "confOk": "17081",
+              "confError": "0",
+              "confMatched": "0",
+              "confUnmatched": "17081",
+              "confMatch": "waiter_predicate",
+              "confEpoch": "unknown",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 321569.549623102,
+            "monotonic": 321569.588088609,
+            "t": 126.07092160801403,
+            "reply_line": "BLESVC,v=1,gen=1,scope=boot,active=1,started=17081,completed=17080,wallUs=73333821,idleChanged=0,idleSame=17080,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown,confOk=17081,confError=0,confMatched=0,confUnmatched=17081,confMatch=waiter_predicate,confEpoch=unknown,pcReceipt=unknown",
+            "reply_event_monotonic": 321569.587927428,
+            "reply_channel": "data"
+          },
+          "receipt_elapsed_seconds": 120.39634607598418,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "started": 13076,
+            "completed": 13075,
+            "wallUs": 61773917,
+            "idleChanged": 0,
+            "idleSame": 13075,
+            "idleUnknown": 0
+          },
+          "mean_call_wall_us": 4724.5825621414915,
+          "sdk_wall_fraction": 0.5130879716317422,
+          "completed_calls_per_s": 108.59964131924855,
+          "aggregate_elapsed_per_completed_call_us": 9208.133543096304,
+          "outside_observed_sdk_intervals_per_completed_call_us": 4483.550980954813,
+          "sdk_active_endpoints": [
+            "0",
+            "1"
+          ],
+          "interpretation": "Aggregate SDK invocation wall time. Not task CPU time, proof of blocking, or PC/airtime completion. Possible boundary-active call makes exact containment approximate; maximum call durations retained separately."
+        },
+        "SCHED?": {
+          "before": {
+            "fields": {
+              "initError": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "tickHz": "100",
+              "budgetTicks": "4",
+              "maxUnits": "32",
+              "graceUnits": "0",
+              "backstopTicks": "4",
+              "quantumTicks": "2",
+              "idleGen": "38461",
+              "idleAgeTicks": "3",
+              "maxIdleGapTicks": "9",
+              "bt": "2013/481/4",
+              "tr": "1986/220/8",
+              "log": "1994/144/10",
+              "ser": "22275/669/21",
+              "bc": "1/0/1",
+              "sc": "104/8/6",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 321449.122512515,
+            "monotonic": 321449.144911966,
+            "t": 5.62774496502243
+          },
+          "after": {
+            "fields": {
+              "initError": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "tickHz": "100",
+              "budgetTicks": "4",
+              "maxUnits": "32",
+              "graceUnits": "0",
+              "backstopTicks": "4",
+              "quantumTicks": "2",
+              "idleGen": "46674",
+              "idleAgeTicks": "3",
+              "maxIdleGapTicks": "14",
+              "bt": "10777/3935/5",
+              "tr": "15723/4645/9",
+              "log": "9750/3130/10",
+              "ser": "45159/6246/21",
+              "bc": "1/0/1",
+              "sc": "312/98/6",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 321569.477980855,
+            "monotonic": 321569.510942977,
+            "t": 125.99377597600687
+          },
+          "receipt_elapsed_seconds": 120.36603101098444,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "workers": {
+            "bt": {
+              "checkpoints": 8764,
+              "yields": 3454,
+              "maxBurstUnits_before": 4,
+              "maxBurstUnits_after": 5
+            },
+            "tr": {
+              "checkpoints": 13737,
+              "yields": 4425,
+              "maxBurstUnits_before": 8,
+              "maxBurstUnits_after": 9
+            },
+            "log": {
+              "checkpoints": 7756,
+              "yields": 2986,
+              "maxBurstUnits_before": 10,
+              "maxBurstUnits_after": 10
+            },
+            "ser": {
+              "checkpoints": 22884,
+              "yields": 5577,
+              "maxBurstUnits_before": 21,
+              "maxBurstUnits_after": 21
+            },
+            "bc": {
+              "checkpoints": 0,
+              "yields": 0,
+              "maxBurstUnits_before": 1,
+              "maxBurstUnits_after": 1
+            },
+            "sc": {
+              "checkpoints": 208,
+              "yields": 90,
+              "maxBurstUnits_before": 6,
+              "maxBurstUnits_after": 6
+            },
+            "wc": {
+              "checkpoints": 0,
+              "yields": 0,
+              "maxBurstUnits_before": 0,
+              "maxBurstUnits_after": 0
+            }
+          },
+          "idleGeneration_delta_skip_zero": 8213,
+          "init_before_after": [
+            "0x0",
+            "0x0"
+          ],
+          "maxIdleGapTicks_endpoints": [
+            9,
+            14
+          ]
+        },
+        "SCHEDWHY?": {
+          "before": {
+            "fields": {
+              "v": "1",
+              "order": "quantum/backstop/units",
+              "overlap": "1",
+              "init": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "idleGen": "38465",
+              "bt": "439/122/0",
+              "tr": "118/145/0",
+              "log": "76/116/0",
+              "ser": "530/160/0",
+              "bc": "0/0/0",
+              "sc": "5/7/0",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 321449.191752397,
+            "monotonic": 321449.211435382,
+            "t": 5.69426838104846,
+            "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=38465,bt=439/122/0,tr=118/145/0,log=76/116/0,ser=530/160/0,bc=0/0/0,sc=5/7/0,wc=0/0/0",
+            "reply_event_monotonic": 321449.2112599,
+            "reply_channel": "data"
+          },
+          "after": {
+            "fields": {
+              "v": "1",
+              "order": "quantum/backstop/units",
+              "overlap": "1",
+              "init": "0x0",
+              "registered": "1",
+              "idleKnown": "1",
+              "idleGen": "46680",
+              "bt": "3230/2653/0",
+              "tr": "2671/2962/0",
+              "log": "1847/2498/0",
+              "ser": "3455/3197/0",
+              "bc": "0/0/0",
+              "sc": "44/68/0",
+              "wc": "0/0/0"
+            },
+            "started_monotonic": 321569.588097035,
+            "monotonic": 321569.637463044,
+            "t": 126.1202960430528,
+            "reply_line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=46680,bt=3230/2653/0,tr=2671/2962/0,log=1847/2498/0,ser=3455/3197/0,bc=0/0/0,sc=44/68/0,wc=0/0/0",
+            "reply_event_monotonic": 321569.637284147,
+            "reply_channel": "data"
+          },
+          "receipt_elapsed_seconds": 120.42602766200434,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "workers": {
+            "bt": [
+              2791,
+              2531,
+              0
+            ],
+            "tr": [
+              2553,
+              2817,
+              0
+            ],
+            "log": [
+              1771,
+              2382,
+              0
+            ],
+            "ser": [
+              2925,
+              3037,
+              0
+            ],
+            "bc": [
+              0,
+              0,
+              0
+            ],
+            "sc": [
+              39,
+              61,
+              0
+            ],
+            "wc": [
+              0,
+              0,
+              0
+            ]
+          },
+          "idleGeneration_delta_skip_zero": 8215,
+          "init_before_after": [
+            "0x0",
+            "0x0"
+          ],
+          "reason_order": "quantum/backstop/units; reasons can overlap at one yield; do not add or exactly join to separate SCHED query window"
+        },
+        "BLETX?": {
+          "before": {
+            "fields": {
+              "gen": "1",
+              "dDequeued": "839",
+              "lDequeued": "40",
+              "cDequeued": "4",
+              "dMaxAgeUs": "139977",
+              "lMaxAgeUs": "174942",
+              "cMaxAgeUs": "0",
+              "sdkActive": "1",
+              "sdkStartUs": "156545585",
+              "sdkEndUs": "156542354",
+              "sdkCalls": "4001",
+              "sdkAccepted": "4000",
+              "sdkErrors": "0",
+              "sdkMaxUs": "14812",
+              "sdkLastErr": "0x0",
+              "txPrio": "7",
+              "ctrlPrio": "8",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 321449.098822012,
+            "monotonic": 321449.122508647,
+            "t": 5.6053416460053995
+          },
+          "after": {
+            "fields": {
+              "gen": "1",
+              "dDequeued": "4760",
+              "lDequeued": "330",
+              "cDequeued": "4",
+              "dMaxAgeUs": "163626",
+              "lMaxAgeUs": "189947",
+              "cMaxAgeUs": "0",
+              "sdkActive": "1",
+              "sdkStartUs": "276949066",
+              "sdkEndUs": "276939400",
+              "sdkCalls": "17069",
+              "sdkAccepted": "17068",
+              "sdkErrors": "0",
+              "sdkMaxUs": "21445",
+              "sdkLastErr": "0x0",
+              "txPrio": "7",
+              "ctrlPrio": "8",
+              "pcReceipt": "unknown"
+            },
+            "started_monotonic": 321569.458376643,
+            "monotonic": 321569.477975083,
+            "t": 125.96080808201805
+          },
+          "receipt_elapsed_seconds": 120.35546643601265,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "dDequeued": 3921,
+            "lDequeued": 290,
+            "cDequeued": 0,
+            "sdkCalls": 13068,
+            "sdkAccepted": 13068,
+            "sdkErrors": 0
+          },
+          "maxima_endpoints": {
+            "dMaxAgeUs": [
+              139977,
+              163626
+            ],
+            "lMaxAgeUs": [
+              174942,
+              189947
+            ],
+            "cMaxAgeUs": [
+              0,
+              0
+            ],
+            "sdkMaxUs": [
+              14812,
+              21445
+            ]
+          }
+        },
+        "PERF?": {
+          "before": {
+            "fields": {
+              "pub": "1732",
+              "fresh": "1732",
+              "stale": "0",
+              "mixed": "0",
+              "dropOut": "0",
+              "dropEvent": "0",
+              "startAvgUs": "77844",
+              "startN": "1731",
+              "usbStage": "queued",
+              "usbSent": "1936",
+              "usbDrop": "2",
+              "usbBlock": "0",
+              "usbBytes": "1581696",
+              "usbWriteMaxUs": "0",
+              "usbQMax": "0",
+              "usbStackMin": "0",
+              "lifePub": "1",
+              "lifeDrop": "0",
+              "queueDrop": "4",
+              "frames": "1732",
+              "heap": "8301560",
+              "heapMin": "8297368"
+            },
+            "started_monotonic": 321448.952264236,
+            "monotonic": 321448.960348496,
+            "t": 5.443181495007593
+          },
+          "after": {
+            "fields": {
+              "pub": "8956",
+              "fresh": "8956",
+              "stale": "0",
+              "mixed": "0",
+              "dropOut": "1",
+              "dropEvent": "0",
+              "startAvgUs": "28486",
+              "startN": "8955",
+              "usbStage": "queued",
+              "usbSent": "10023",
+              "usbDrop": "3",
+              "usbBlock": "0",
+              "usbBytes": "6683592",
+              "usbWriteMaxUs": "0",
+              "usbQMax": "0",
+              "usbStackMin": "0",
+              "lifePub": "1",
+              "lifeDrop": "0",
+              "queueDrop": "95",
+              "frames": "8956",
+              "heap": "8301308",
+              "heapMin": "8297368"
+            },
+            "started_monotonic": 321569.241651724,
+            "monotonic": 321569.267420833,
+            "t": 125.75025383202592
+          },
+          "receipt_elapsed_seconds": 120.30707233701833,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "pub": 7224,
+            "fresh": 7224,
+            "stale": 0,
+            "dropOut": 1,
+            "dropEvent": 0,
+            "usbSent": 8087,
+            "usbDrop": 1,
+            "queueDrop": 91
+          }
+        },
+        "USBQ?": {
+          "before": {
+            "fields": {
+              "dDrop": "0",
+              "cDrop": "0",
+              "dSubmit": "339",
+              "cSubmit": "54",
+              "expired": "1641",
+              "cExpired": "0",
+              "partial": "3",
+              "dBytes": "207380",
+              "cBytes": "12901",
+              "dCallbackBytes": "unknown",
+              "cCallbackBytes": "unknown",
+              "queueMaxUs": "204283",
+              "stackMinBytes": "2412",
+              "callbackResult": "unknown"
+            },
+            "started_monotonic": 321449.052322411,
+            "monotonic": 321449.079571561,
+            "t": 5.562404560041614
+          },
+          "after": {
+            "fields": {
+              "dDrop": "0",
+              "cDrop": "0",
+              "dSubmit": "7564",
+              "cSubmit": "158",
+              "expired": "1641",
+              "cExpired": "0",
+              "partial": "3",
+              "dBytes": "4531873",
+              "cBytes": "36994",
+              "dCallbackBytes": "unknown",
+              "cCallbackBytes": "unknown",
+              "queueMaxUs": "204283",
+              "stackMinBytes": "2412",
+              "callbackResult": "unknown"
+            },
+            "started_monotonic": 321569.428959,
+            "monotonic": 321569.437784357,
+            "t": 125.92061735602329
+          },
+          "receipt_elapsed_seconds": 120.35821279598167,
+          "scope": "two query replies; not exact capture window. Each query has its own bracket.",
+          "counter_delta": {
+            "dDrop": 0,
+            "cDrop": 0,
+            "dSubmit": 7225,
+            "cSubmit": 104,
+            "expired": 0,
+            "cExpired": 0,
+            "partial": 0
+          }
+        }
+      },
+      "independent_notifications": {
+        "scope": "exact summary capture monotonic window; notification callback timestamps, not RF event timing",
+        "duration_s": 120.00012181705097,
+        "fragment_crc_failures": 0,
+        "channels": {
+          "D": {
+            "notifications": 11740,
+            "bytes": 2694177,
+            "notifications_per_s": 97.83323401869954,
+            "bytes_per_s": 22451.45220858585,
+            "notification_length": {
+              "n": 11740,
+              "min": 226,
+              "p50": 230.0,
+              "p90": 230.0,
+              "p99": 230.0,
+              "max": 230
+            },
+            "inter_notification_gap_ms": {
+              "n": 11739,
+              "min": 0.06529904203489423,
+              "p50": 7.965595985297114,
+              "p90": 15.985385421663523,
+              "p99": 52.3765901534354,
+              "max": 81.64416905492544
+            },
+            "complete_messages": {
+              "n": 3913,
+              "tags": {
+                "V": 3913
+              },
+              "fragment_counts": {
+                "3": 3913
+              },
+              "payload_bytes": {
+                "n": 3913,
+                "min": 592,
+                "p50": 599.0,
+                "p90": 599.0,
+                "p99": 600.0,
+                "max": 600
+              },
+              "notification_bytes": {
+                "n": 3913,
+                "min": 679,
+                "p50": 689.0,
+                "p90": 689.0,
+                "p99": 690.0,
+                "max": 690
+              },
+              "first_to_last_fragment_ms": {
+                "n": 3913,
+                "min": 0.2616950077936053,
+                "p50": 15.249003015924245,
+                "p90": 23.80327363498509,
+                "p99": 32.8126383246854,
+                "max": 45.99038400920108
+              }
+            }
+          },
+          "L": {
+            "notifications": 1296,
+            "bytes": 297866,
+            "notifications_per_s": 10.799989036476543,
+            "bytes_per_s": 2482.2141468666064,
+            "notification_length": {
+              "n": 1296,
+              "min": 223,
+              "p50": 229.0,
+              "p90": 233.0,
+              "p99": 234.0,
+              "max": 234
+            },
+            "inter_notification_gap_ms": {
+              "n": 1295,
+              "min": 0.05471694748848677,
+              "p50": 8.064931025728583,
+              "p90": 603.5518369870268,
+              "p99": 720.5522404005751,
+              "max": 758.3050430403091
+            },
+            "complete_messages": {
+              "n": 288,
+              "tags": {
+                "SF50": 144,
+                "ADS50": 144
+              },
+              "fragment_counts": {
+                "4": 144,
+                "5": 144
+              },
+              "payload_bytes": {
+                "n": 288,
+                "min": 782,
+                "p50": 897.0,
+                "p90": 1014.3,
+                "p99": 1017.0,
+                "max": 1017
+              },
+              "notification_bytes": {
+                "n": 288,
+                "min": 894,
+                "p50": 1025.0,
+                "p90": 1164.3,
+                "p99": 1167.0,
+                "max": 1167
+              },
+              "first_to_last_fragment_ms": {
+                "n": 288,
+                "min": 3.4687870065681636,
+                "p50": 29.316766507690772,
+                "p90": 37.78921468765475,
+                "p99": 44.879947703448124,
+                "max": 53.05739800678566
+              }
+            }
+          }
+        }
+      },
+      "independent_debug": {
+        "receipt_window": [
+          321449.226463447,
+          321569.226585264
+        ],
+        "line_time_semantics": "time of receive chunk containing final LF; may include queued device logs",
+        "complete_lines": 4494,
+        "complete_line_bytes": 882268,
+        "tags": {
+          "SF50": {
+            "count": 432,
+            "bytes": 43469
+          },
+          "TR50": {
+            "count": 432,
+            "bytes": 34932
+          },
+          "OT50": {
+            "count": 432,
+            "bytes": 48053
+          },
+          "BL50": {
+            "count": 432,
+            "bytes": 79377
+          },
+          "I2C50": {
+            "count": 432,
+            "bytes": 30240
+          },
+          "STK50": {
+            "count": 432,
+            "bytes": 106156
+          },
+          "ADS50": {
+            "count": 431,
+            "bytes": 161578
+          },
+          "ADST50": {
+            "count": 431,
+            "bytes": 80258
+          },
+          "AB50": {
+            "count": 431,
+            "bytes": 193361
+          },
+          "ADSHEALTH": {
+            "count": 111,
+            "bytes": 20814
+          },
+          "TXDROP": {
+            "count": 82,
+            "bytes": 7380
+          },
+          "BATREG": {
+            "count": 313,
+            "bytes": 55933
+          },
+          "BATRAW": {
+            "count": 103,
+            "bytes": 20717
+          }
+        },
+        "STK": {
+          "first": null,
+          "last": null
+        },
+        "TXDROP": {
+          "count": 82,
+          "reasons": {
+            "transport_queue_full": 82
+          }
+        }
+      },
+      "sdk_idle_changed_fraction": 0.0,
+      "capture_complete_frame_rate_usb": 60.02493906615782,
+      "capture_complete_frame_rate_ble": 32.60830023127524,
+      "conf_observation": {
+        "availability": "OBSERVED",
+        "counter_delta": {
+          "confOk": 13076,
+          "confError": 0,
+          "confMatched": 0,
+          "confUnmatched": 13076
+        },
+        "endpoints_before_after": [
+          {
+            "active": 0,
+            "started": 4005,
+            "completed": 4005,
+            "confOk": 4005,
+            "confError": 0,
+            "confMatched": 0,
+            "confUnmatched": 4005,
+            "started_minus_completed": 0,
+            "events_minus_completed": 0,
+            "events_minus_started": 0,
+            "confEpoch": "unknown",
+            "pcReceipt": "unknown"
+          },
+          {
+            "active": 1,
+            "started": 17081,
+            "completed": 17080,
+            "confOk": 17081,
+            "confError": 0,
+            "confMatched": 0,
+            "confUnmatched": 17081,
+            "started_minus_completed": 1,
+            "events_minus_completed": 1,
+            "events_minus_started": 0,
+            "confEpoch": "unknown",
+            "pcReceipt": "unknown"
+          }
+        ],
+        "elapsed_seconds": 120.39634607598418,
+        "counter_scope": "boot; delta between BLESVC reply snapshots, not exact capture",
+        "interpretation": "No delivered CONF error status observed in this window. All events were unmatched to an active indication waiter; this is not proof of FAST classification, origin epoch, central acknowledgement or application receipt.",
+        "one_event_ahead": "After snapshot has active1, started17081, completed17080, confOk17081. The SDK callback can execute before the BLE owner publishes SDK-return completion. This is consistent with the one in-flight call and is not an anomalous extra event; no unique event/call ID proves individual pairing."
+      },
+      "per_channel_service": {
+        "D": {
+          "notifications": 11740,
+          "notifications_per_s": 97.83323401869954,
+          "bytes_per_s": 22451.45220858585,
+          "fragments_per_message": {
+            "3": 3913
+          },
+          "frame_bytes": {
+            "n": 3913,
+            "min": 592,
+            "p50": 599.0,
+            "p90": 599.0,
+            "p99": 600.0,
+            "max": 600
+          },
+          "inter_notification_ms": {
+            "n": 11739,
+            "min": 0.06529904203489423,
+            "p50": 7.965595985297114,
+            "p90": 15.985385421663523,
+            "p99": 52.3765901534354,
+            "max": 81.64416905492544
+          }
+        },
+        "L": {
+          "notifications": 1296,
+          "notifications_per_s": 10.799989036476543,
+          "bytes_per_s": 2482.2141468666064,
+          "fragments_per_message": {
+            "4": 144,
+            "5": 144
+          },
+          "frame_bytes": {
+            "n": 288,
+            "min": 782,
+            "p50": 897.0,
+            "p90": 1014.3,
+            "p99": 1017.0,
+            "max": 1017
+          },
+          "inter_notification_ms": {
+            "n": 1295,
+            "min": 0.05471694748848677,
+            "p50": 8.064931025728583,
+            "p90": 603.5518369870268,
+            "p99": 720.5522404005751,
+            "max": 758.3050430403091
+          }
+        }
+      }
+    }
+  },
+  "comparison": {
+    "capture_fps_screen05": 61.464673691001714,
+    "capture_fps_screen06": 60.01689621858808,
+    "ble_first_last_receipt_fps_screen05": 32.86794044278585,
+    "ble_first_last_receipt_fps_screen06": 32.61367388639946,
+    "ble_exact_capture_count_per_second_screen05": 32.86663937858719,
+    "ble_exact_capture_count_per_second_screen06": 32.60830023127524,
+    "usb_exact_capture_count_per_second_screen05": 61.508282265048685,
+    "usb_exact_capture_count_per_second_screen06": 60.02493906615782,
+    "sdk_mean_wall_us_screen05": 4693.151260504202,
+    "sdk_mean_wall_us_screen06": 4724.5825621414915,
+    "sdk_wall_fraction_screen05": 0.5146660233567073,
+    "sdk_wall_fraction_screen06": 0.5130879716317422,
+    "completed_calls_per_s_screen05": 109.66320810666029,
+    "completed_calls_per_s_screen06": 108.59964131924855,
+    "sdk_idle_changed_fraction_screen05": 0.0,
+    "sdk_idle_changed_fraction_screen06": 0.0,
+    "outside_sdk_bracket_us_per_call_screen05": 4425.677353623,
+    "outside_sdk_bracket_us_per_call_screen06": 4483.550980954813,
+    "screen06_observed_DplusL_notifications_per_s": 108.63322305517609,
+    "screen06_required_DplusL_notifications_per_s_at_capture": 190.8506776922408,
+    "screen06_LOG_notification_fraction": 0.09941699907947223,
+    "arithmetic_only_no_LOG_science_fps_at_unchanged_total_notify_rate": 36.211074351725365,
+    "arithmetic_limit": "Not measured RF capacity and not a proposal to remove LOG. All science records require3D notifications in these captures.",
+    "causality_limit": "Separate boots/windows; SDK wall is elapsed time including possible blocking/preemption, not CPU time. Counters at different query/log times are not exactly additive to capture loss."
+  },
+  "confirmed_findings": [
+    "screen06 observed BUILD is0c94fe3-dirty and ELF SHA3077bfbfb35d7f90e27e15673ab90f90c35243db97ec0259776ecd84db019f97; this device reply identifies the measured image rather than current working-tree HEAD.",
+    "confError delta0 narrows the failure: no error-status CONF callback was observed. Immediate SDK errors/legacy fe are also0, but none of those counts proves end-to-end PC delivery.",
+    "CONF count exceeds completed SDK-call count by1 only at the after snapshot; started exceeds completed by1 and active is1. Do not flag this asynchronously valid ordering as duplicate completion.",
+    "Both screens retain negotiated7.5ms/2MPHY/MTU247. Three DATA notifications per scientific frame and current notification service remain insufficient for the source rate.",
+    "BLE admission drops remain the largest observed loss layer. Transport drops and output/USB differences remain separately reported in their actual windows, not a single invented total.",
+    "ADC runtime CRC counter delta remains0 in screen06. BLE throughput remains inadequate; this observation patch is not a throughput repair.",
+    "WorkBudget quantum/backstop reasons can overlap. No CPU owner runtime or HCI-credit series exists in this capture, so neither SDK wall nor idleChanged0 assigns the remaining time to CPU or a specific wait."
+  ],
+  "source_ordering_evidence": {
+    "file": {
+      "path": "components/sensorarrayBle/sensorarrayBle.c",
+      "bytes": 88240,
+      "sha256": "5f27e3dac2db416059abf0ae6ba4beb3e5397f69a6747a88a68e854a0a14498e"
+    },
+    "functions": [
+      "sensorarrayBleSendGattValue",
+      "sensorarrayBleGattCallback"
+    ],
+    "ordering": "Call start/active is published under mux before esp_ble_gatts_send_indicate; completion is published after return. The independent CONF callback increments its counters under the same mux. Atomic snapshot prevents torn counters, not asynchronous phase differences."
+  },
+  "limits": [
+    "No production/SDK/config edits; no target build or hardware access.",
+    "CONF matching means only waiter predicate, not proven callback connection epoch; all screen06 observed events are unmatched.",
+    "Host notification timestamps include BlueZ/DBus/Python delivery and cannot identify RF event boundaries.",
+    "Query and debug timestamps are receipt windows, not exact conversion/frame timestamps.",
+    "No claim of improved BLE throughput or completed acceptance."
+  ]
+}

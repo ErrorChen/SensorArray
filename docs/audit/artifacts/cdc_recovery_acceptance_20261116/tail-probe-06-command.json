@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_ads_timing.py",
+    "--output-directory",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "tail-probe-06",
+    "--expected-elf",
+    "a2557c8f07f1e1735313315dd65bd71f4e2b79b58bbf284338888fa9e2220d5c",
+    "--probe",
+    "TAIL"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 100.0,
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "dirty_diff_sha256": "c22f8b514498825979981261bf690a7bb328f3689b030beded0541285199b37e",
+  "started_utc": "2026-11-16T06:37:39.119889+00:00",
+  "started_monotonic": 317949.860508667,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-probe-06-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T06:37:40.086560+00:00",
+  "finished_monotonic": 317950.827193964,
+  "log_sha256": "6c1a3b678325b69b96df5bc0e5031fe32aa6817b4f05f14079b28b55b340b09a"
+}

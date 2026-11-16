@@ -1,0 +1,280 @@
+{
+  "status": "STOPPED",
+  "source": "CDC_debug_interface_2",
+  "requested_usb_pid": "4042",
+  "requested_usb_serial": "80B54ECDD9AC",
+  "formal_scientific_frame_evidence": false,
+  "commands_written": 0,
+  "automatic_reconnect": false,
+  "USBBOOT_requested": false,
+  "reset_requested": false,
+  "modem_bit_ioctl": false,
+  "input_flushed": false,
+  "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free",
+  "baud_setting_is_not_USB_wire_rate": true,
+  "enumeration_attempts": [
+    {
+      "monotonic": 315990.200056467,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315990.701445701,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315991.202340511,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315991.703506184,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315992.204652048,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315992.70582266,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315993.206992206,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315993.707883022,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315994.209201639,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315994.710566194,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315995.211722992,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315995.713092507,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315996.214447996,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315996.715648472,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315997.216952935,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315997.718063139,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315998.219267617,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315998.719934204,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315999.221542133,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 315999.722884073,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316000.224073697,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316000.725387142,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316001.226229524,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316001.727384195,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316002.227935184,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316002.72913331,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316003.230240761,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316003.731375115,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316004.232649872,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316004.734034162,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316005.234631254,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316005.735825525,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316006.236985659,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316006.738137531,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316007.239828786,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316007.741035973,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316008.24123695,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316008.741496381,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316009.241713771,
+      "outcome": "CDC_debug_not_enumerated"
+    },
+    {
+      "monotonic": 316009.744110169,
+      "outcome": "matched",
+      "path": "/dev/ttyACM1",
+      "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1",
+      "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.2",
+      "vid": "303a",
+      "pid": "4042",
+      "usb_serial": "80B54ECDD9AC",
+      "interface_number": 2,
+      "interface_class": 2,
+      "interface_subclass": 2,
+      "interface_protocol": 0,
+      "speed_mbps_reported_by_sysfs": "12"
+    }
+  ],
+  "stop_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-01-debug.stop",
+  "faults": [],
+  "reset_observations": [],
+  "metadata": {
+    "path": "/dev/ttyACM1",
+    "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1",
+    "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.2",
+    "vid": "303a",
+    "pid": "4042",
+    "usb_serial": "80B54ECDD9AC",
+    "interface_number": 2,
+    "interface_class": 2,
+    "interface_subclass": 2,
+    "interface_protocol": 0,
+    "speed_mbps_reported_by_sysfs": "12"
+  },
+  "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-01-debug.debug.rx.bin",
+  "events_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-01-debug.debug.events.jsonl",
+  "raw_sha256": "b3ac57617e9aad9fbac0567f0d5cbc59a8f32f97e51bd41d5aad48b6561e9049",
+  "rx_bytes": 238266,
+  "tag_counts": {
+    "BOARD_I2C_MEM": 6,
+    "BOARD_I2C_INIT": 9,
+    "BOARD_I2C_FREQ": 3,
+    "BOARD_I2C_XFER": 18,
+    "BOARD_I2C_ERR": 10,
+    "SPI_SWEEP": 8,
+    "other": 8,
+    "I2C_SWEEP": 2,
+    "SPI_SWEEP_TIME": 7,
+    "I2C_SELECTED": 2,
+    "SEQ_PROBE": 1,
+    "FDC_PROFILE": 1,
+    "FDC_PARALLEL_CFG": 1,
+    "SPI_SELECTED": 1,
+    "BOOT_BUS_JOIN": 1,
+    "CALBOOT": 1,
+    "ADSBOOT": 1,
+    "CALB": 1,
+    "ADS_PINMAP": 1,
+    "INIT": 2,
+    "APP_INIT": 1,
+    "GPIOISR": 1,
+    "APP_FDC_BOOT": 1,
+    "APP_STACK": 2,
+    "FDC_BOOT": 4,
+    "FDC_REGS": 2,
+    "FDC_REGS_CH": 8,
+    "FDC_BOOT_MATRIX_SWEEP_START": 1,
+    "FDC_ROW_ROUTE": 8,
+    "FDC_ROW_SWEEP_BEGIN": 8,
+    "FDC_DEVICE_READ4": 814,
+    "FDC_CACHE": 64,
+    "FDC_ROW_SWEEP_RESULT": 8,
+    "FDC_LOCK": 36,
+    "FDC_SWEEP": 19,
+    "FDC_BOOT_ROW_RESULT": 8,
+    "FDC_BOOT_MATRIX_SWEEP_DONE": 1,
+    "APP_FDC": 1,
+    "FRONTEND_CLOCKS": 1,
+    "FRONTEND_IDS": 1,
+    "FDC_PARALLEL_CONFIG": 1,
+    "FDC_INTB_GPIO": 2,
+    "FDC_WORKER_CREATE_BEGIN": 2,
+    "FDC_WORKER_CREATE_DONE": 2,
+    "FDC_INTB_CFG": 2,
+    "FDC_FORMAL_PRECHECK": 2,
+    "PR": 2,
+    "PFU": 2,
+    "FDC_CACHE_APPLY": 2,
+    "CAWARN": 1,
+    "BATREG": 24,
+    "BATCTX": 6,
+    "BATRAW": 6,
+    "SF50": 23,
+    "TR50": 23,
+    "OT50": 23,
+    "BL50": 23,
+    "I2C50": 23,
+    "STK50": 23,
+    "AB50": 23,
+    "R50": 7,
+    "T50": 7,
+    "ROW50": 7,
+    "FB50": 7
+  },
+  "trailing_partial_line_bytes": 0,
+  "started_monotonic": 315990.199460033,
+  "ended_monotonic": 316065.835868636,
+  "source_sha256": "4e5b5b45e4e7ac330b31bd2a4e383375765ae85b4fc9f72eb9d389d6fed69229",
+  "observation_status_is_not_health_PASS": true,
+  "diagnostic_loss": "CDC_is_best_effort; absent_records_are_NOT_OBSERVED_not_success"
+}

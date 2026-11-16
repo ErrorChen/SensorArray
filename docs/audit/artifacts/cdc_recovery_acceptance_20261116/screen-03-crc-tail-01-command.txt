@@ -1,0 +1,1 @@
+{"complete_packet_records": 144, "xor_counts": {"01": 144}, "directions": {"0_to_1": 130, "1_to_0": 14}, "independent_recomputation_mismatches": [], "malformed_or_truncated": []}

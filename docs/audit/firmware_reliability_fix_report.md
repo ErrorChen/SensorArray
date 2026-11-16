@@ -1,6 +1,29 @@
 # SensorArray 固件可靠性修复报告
 
-> **2026-11-16 最新阶段 / Latest stage:** `3a55543` 已完成目标构建、58 个 host 测试入口和 app-only 烧录，设备完整 BUILD ELF 哈希已匹配。BLE 和正式 CDC 的 USBBOOT、同 MAC 下载器同步、软件退出下载和重新启动均有实机证据。修复了 USJ 恢复标记过早清除、BUILD 哈希被 IDF 日志缓存截断及只读查询误关联旧 UNKNOWN 的缺陷；保留原 FW01–FW10 编号。完整性能验收仍待后续结果。 / Target build, all 58 host test entries, app-only flashing and full running ELF identity passed. BLE/formal-CDC software recovery has hardware evidence. Premature recovery-latch clearing, truncated BUILD identity and stale UNKNOWN association are repaired. Full performance acceptance remains pending. [完整中英文记录 / Full bilingual record](cdc_recovery_acceptance_20261116.md).
+> **2026-11-16 最新阶段 / Latest stage:** `b13321a` 已通过64个host入口、实际构建、app-only烧录及完整BUILD/READY核对。正式VOLT1的120秒窗口CRC0/79417；同2MHz对照SPI56仍63/400失败，真实末位采样0/400，恢复已验证。USB7381帧无内部缺口，BLE32.87FPS仍未跟上61.46FPS采集，整体验收未通过；600秒和32配置仍NOT_RUN。原FW01–FW10编号保留。 / All64 host entries, target build and app identity pass. Runtime CRC is0/79417; same-clock controls reproduce63/400 standard rejections versus0/400 sampled-tail rejections. USB receives7381 frames without internal gaps, but BLE remains below capture. Full acceptance is pending. [完整中英文机制、证据与限制 / Full bilingual mechanism, evidence and limits](cdc_recovery_acceptance_20261116.md).
+
+## 2026-11-16 已复现的诊断内存回归与修复 / Reproduced diagnostic-memory regression
+
+`bb230d0` 虽通过编译和host测试，同板启动却在 `scan_task_create_failed/0x101` 停止，seq=0，SPI扫描尚未启动。新诊断模块的三个内部静态结果槽消耗约9KB，破坏了采集任务16KB内部连续栈的分配余量；总heap含PSRAM，不能证明内部可分配。`8b1ce9f` 将可选诊断槽改为启动时一次性PSRAM分配，无内部fallback；失败只令该诊断不可用。内部占用减少8908B，未缩减采集栈或watchdog。60个host入口和目标构建再次通过，同板已完整BUILD核对并正常CAP8采集；失败镜像和退出下载记录均保留。[失败记录](artifacts/cdc_recovery_acceptance_20261116/timing-startup-failure-01.json)、[修复验证](artifacts/cdc_recovery_acceptance_20261116/timing-storage-01-validated-identity.json)。
+
+Although `bb230d0` compiled and passed host tests, the board stopped at `scan_task_create_failed/0x101`, before SPI qualification or any acquisition. Three new static diagnostic result slots consumed approximately9KB of internal memory, removing allocation headroom for the16KB acquisition stack; total heap included PSRAM and did not establish internal contiguous availability. `8b1ce9f` allocates these optional slots once in PSRAM with no internal fallback. Allocation failure disables only the diagnostic. It saves8908 internal bytes without reducing the acquisition stack or watchdog. All60 host entries and the target build pass again; the same board boots and acquires CAP8 with a verified full BUILD hash. The failed image's evidence remains intact.
+
+Eleven TIMING requests on this image completed with verified restore and unchanged configuration identity: continuous groups rejected9/4400 reads, pulse groups0/4400 and held diagnostic rereads0/4400. This is a frame-boundary shorted-input diagnostic, not the runtime matrix error rate or a causal proof. 三轮120秒筛查累计549条完整坏包均为最低位syndrome01，但正式VOLT运行仍有CRC拒收；第三轮capture66.36/USB66.33/BLE35.68FPS，整体仍FAIL。详情与边界见[本轮双语记录](cdc_recovery_acceptance_20261116.md)。
+
+## 2026-11-16 CRC 根因诊断增量 / CRC diagnostic increment
+
+`bb230d03f438e724436881a7f61af35122726403` 已通过实际 ESP-IDF 构建和60个host测试入口，183个生产输入hash与测试清单逐项一致。它新增诊断能力和BLE服务观测，不是“CRC已修复”或“性能已通过”的声明；原FW01–FW10编号不变。
+
+The `bb230d0` increment passes the actual ESP-IDF build and all60 host test entries, with183 production input hashes matching. It adds diagnostic capability and BLE service observations, not a claim of repaired CRC or accepted performance. Original FW01–FW10 numbering remains unchanged.
+
+| 证据—函数 / Evidence and functions | 修改 / Change | 实际验证与残余风险 / Validation and remaining limits |
+|---|---|---|
+| 两轮闭合日志405条完整坏包均CRC syndrome01；`sensorarrayAdsTimingProbeRun`（本轮新增） | 独立模块固定CONT/PULSE×PGA1/bypass、200次/组，pulse held reread另计；不改SPI时钟、启动2.5%门限或科学路径 / Separate fixed comparison; held rereads counted separately, unchanged clock/qualification/science | 25个真实driver+module+Gap场景通过；不凭syndrome断言硬件根因 / 25 production-path scenarios pass; syndrome alone does not establish cause |
+| pulse STOP不能取消进行中转换；`sensorarrayAdsGapRunTimingProbe`（本轮新增） | 单owner与2s绝对期限含500ms恢复余量；MODE0连续模式verified→STOP→完整快照/driver/cache恢复；首错/terminal/cleanup分开 / One owner and absolute deadline, verified full restore | 未确认DMA回收禁止复用/恢复；下一帧helperGeneration使profile/value cache失效 / Unknown DMA ownership remains quarantined; next-frame cache invalidation verified by call-chain review |
+| 多transport接受/终态可能先后到达；`sensorarrayAdsTimingControl.[ch]`（本轮新增）、main边界接入 | 复用单槽全局配置仲裁、ACK栅栏、10s排队期限、不可变last-result和按id查询 / Shared arbitration, ACK fence, bounded queue wait and immutable result queries | 13组＋10准入子例及4既有入口通过，未假称终态绝对送达 / Actual C tests pass; local terminal retention is not guaranteed PC receipt |
+| screen02 BLE35.35FPS低于capture68.05；WorkBudget/SendGattValue/LinkDiagnostics | 新BLESVC?/SCHEDWHY?仅观察SDK墙钟/真实idle与可重叠yield条件，不改调度策略 / Observation only, unchanged scheduling | 10组旧/新调度模型输出一致；尚须新HIL确定服务差额根因 / Model outputs match; throughput root cause still requires hardware evidence |
+
+详细命令、退出码、source SHA、完整坏包与后续HIL见[当前阶段](cdc_recovery_acceptance_20261116.md)。 / Exact commands, exit codes, source hashes, packet evidence and subsequent HIL are in the current-stage report.
 
 > 2026-11-14 的烧录受阻记录为历史，见 [原始阶段](usb_otg_ble_priority_20261114.md)；失败与原始数据未被覆盖。 / The earlier programming blockage and original evidence remain preserved.
 
@@ -154,3 +177,37 @@ Core0 transport/output -> bounded per-sink queues
 - [文件清单](artifacts/reliability_fix/changed-files.txt)和[函数diff](artifacts/reliability_fix/function-diff.txt)记录准确修改位置；各子系统进一步证据见 `ads_notes.md`、`fdc_usb_notes.md`、`config_identity_notes.md`。
 
 仍需具备安全接线及外部校准的实机执行两分钟筛查、覆盖原失败帧数、保存raw ADC/physical voltage/逐帧rail及事件，测恢复首帧与模拟节点；需要Windows确认USB枚举。当前交付证明本地编译、软件状态/期限/对象生命周期与协议回归通过，**没有证明现场尖峰、电池物理噪声、USB电气问题或全部性能指标已经消失**。硬件阻塞和未提供原日志均保留，不以暂时有图作为完成标准。
+
+## FW02/FW10 增量：末位采样 / Final-bit sampling increment
+
+
+修复提交为 `b13321a2c166715fa15f98c1677626786bec65b1`，运行BUILD `b13321a-dirty`，ELF SHA256 `e0e6d5878e9385fd883cffb782126a2a6e6b6cf00ccc471abd6a015a151f68ef`。64个host入口、实际ESP-IDF v5.5.5构建及183个生产输入hash闭合；app-only写入后独立BUILD/READY核对成功。首次reconfigure重排sdkconfig的验证记录保留，随后以解析后的固定配置重新验证，没有使用变化中的构建清单烧录。
+
+The repair is commit `b13321a2c166715fa15f98c1677626786bec65b1`, running as BUILD `b13321a-dirty` with ELF SHA256 `e0e6d5878e9385fd883cffb782126a2a6e6b6cf00ccc471abd6a015a151f68ef`. All64 host entries and the actual ESP-IDFv5.5.5 build pass with matching183 production inputs. Independent BUILD/READY checks follow the app-only write. The initial reconfigure changed sdkconfig, so that evidence is retained and validation was repeated against the resolved configuration before flashing.
+
+本板显式启用 `CONFIG_SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE`。ADC1标准包包括命令、STATUS、四个数据字节和CRC共56位；新路径先由SPI/DMA接收55位，在确认描述符回收后实际驱动最后一个时钟并读取MISO，再完成下降沿和恢复SPI路由。CRC末位来自GPIO实测，不来自计算出的CRC；完整CRC、STATUS、新鲜度、配置generation与有限重试仍按原规则判断。超时且DMA归属未知时保持隔离，不复用描述符。既有真实ADS1262身份、独占SPI3、STATUS+CRC8、INTERFACE=06的物理回读是准入条件；配置写入、复位和失败恢复撤销证明。缺条件即明确失败，不偷偷回退到旧路径。
+
+This board explicitly enables `CONFIG_SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE`. The56-bit ADC1 transaction comprises command, STATUS, four data bytes and CRC. SPI/DMA receives55 bits; after exact descriptor reclamation, the driver physically clocks and samples the final MISO bit, completes the falling edge and restores SPI routing. The bit comes from GPIO, never from the computed CRC. Full CRC, STATUS, freshness, configuration generation and bounded-retry rules remain intact. Unknown DMA ownership stays quarantined without descriptor reuse. Admission requires an actually identified ADS1262, dedicated SPI3 and physical INTERFACE=06 verification for STATUS+CRC8 with serial timeout disabled. Writes, reset and failed restoration invalidate that proof; missing prerequisites fail explicitly without fallback.
+
+启动选速、电池/rail辅助读取及正式ADC1读取共用该策略，保留细档扫描和2.5%门限。诊断STD组显式强制标准SPI56，从而保持真实对照；`SPISOURCE?`只查询不可变启动结果，不能冒充实时统计。新错误文本明确区分连续SPI字节和SPI55/GPIO1组装证据。模拟建立、参考安全、自动PGA、shadow/cache、逐行模式和科学有效性规则保持。
+
+Startup qualification, battery/rail ADC1 helpers and scientific reads use the same policy while retaining the fine clock ladder and2.5% criterion. Diagnostic STD groups explicitly use SPI56 so the control remains genuine. `SPISOURCE?` reports immutable boot evidence, not live telemetry. Error text distinguishes continuous SPI bytes from SPI55/GPIO1 assembly. Analog settling, reference safety, auto-PGA, shadow/cache, per-row modes and scientific-validity rules remain.
+
+| 实际观测 / Observation | 结果 / Result |
+|---|---|
+| 启动选速 / Boot qualification | 2MHz requested/observed; one candidate;2000 checked;0 CRC |
+| 正式VOLT1窗口 / Scientific VOLT1 window | 120.000100s; ADC0/79417 CRC over118.658930s complete-health bracket |
+| Capture / USB | 61.464674 /61.508761FPS; USB7381 trusted frames;0 internal missing sequence observations |
+| BLE | 32.867940FPS;3944 trusted frames;3433 missing sequence observations |
+| Frame integrity / identity | USB0/0 and BLE0/0 errors |
+| Validity | USB480 X12 points at floatingS1D2 remain invalid;0 CRC-invalid or unacquired points observed |
+| MFAULT / reset | Not observed in the closed capture window |
+| 同boot2MHz反向对照 / Same-boot2MHz diagnostic control | SPI56 gain1:28/200; bypass:35/200 CRC; GPIOtail:0/200 in each group |
+| Restore after diagnostic | known=1,verified=1,isolate=0; first=0x109 retained; terminal=0,cleanup=0 |
+| 整体验收 / Overall acceptance | FAIL_BLE_THROUGHPUT; absolute precision NOT_ACCEPTED;600s/32 configurations NOT_RUN |
+
+同频切回标准路径即恢复错误，而实际采样末位又消除错误，支持问题位于末位读取/时序路径。它尚未区分芯片采样延迟、DOUT末尾状态变化、GPIO矩阵或板级波形；没有示波器证据，`physicalVerified=0`。55+1同时改变最后位的暂停和采样时刻，不能声称已唯一证明某个硅缺陷。采集帧率比上一轮下降约6.7%，时钟、输入变化和GPIO开销混杂，不能把全部差异直接归因某一项；没有永久限速或放宽阈值。后续TAIL诊断的63次标准路径拒收会进入累计驱动计数，发生在已闭合正式窗口之后，不能误报为该窗口科学读取回归。
+
+Errors return when the same-clock diagnostic switches back to standard reads and disappear with physical final-bit sampling. This localizes the defect to the final-bit read/timing path without uniquely identifying silicon sampling delay, end-of-packet DOUT behavior, GPIO routing or board waveforms. No oscilloscope evidence exists: `physicalVerified=0`. The55+1 operation changes both pause and sampling time. Capture FPS is approximately6.7% below the preceding run; clock, input trajectories and GPIO overhead are confounded, so the entire difference cannot be assigned to one factor. No permanent rate limit or relaxed threshold was introduced. The63 later diagnostic standard-path rejections enter cumulative driver counters after the closed scientific window and must not be reported as runtime failures within it.
+
+证据 / Evidence: [build/test identity](artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-validated-identity.json), [normal boot](artifacts/cdc_recovery_acceptance_20261116/finalbit-science-02-boot-verification.json), [120-second verdict](artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-verdict.json), [same-clock control](artifacts/cdc_recovery_acceptance_20261116/finalbit-science-tail-comparison-01.json), [precise source/test diff](artifacts/cdc_recovery_acceptance_20261116/finalbit-science-increment-01.patch), [independent source audit](artifacts/cdc_recovery_acceptance_20261116/finalbit-independent-source-review-01.json). 所有实录保留，压缩归档逐文件校验；合成回归单独标识。 / Original captures remain intact, compressed archives are verified per file, and synthetic regressions are labelled separately.

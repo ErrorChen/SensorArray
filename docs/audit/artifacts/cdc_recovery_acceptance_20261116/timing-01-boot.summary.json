@@ -1,0 +1,113 @@
+{
+  "status": "ERROR",
+  "transport": "usb_cdc",
+  "enumeration_attempts": [
+    {
+      "started_monotonic": 313179.797791432,
+      "outcome": "matched_roles_opened",
+      "finished_monotonic": 313179.800032785
+    }
+  ],
+  "enumeration_poll_seconds": 0.5,
+  "enumeration_timing": "sleep_at_most_500ms; read_only_sysfs_then_tty_open; OS_enumeration_is_not_hard_realtime",
+  "requested_queries": [
+    "BUILD?",
+    "PROTO?",
+    "CONFIG?",
+    "BOOT?",
+    "USB?",
+    "USBQ?",
+    "BLELINK?",
+    "BLETX?",
+    "SCHED?",
+    "SPI?",
+    "FRONTENDS?",
+    "MODE?",
+    "USBSTREAM?"
+  ],
+  "unavailable_queries": {
+    "BOARD?": "NOT_AVAILABLE_in_current_production_source"
+  },
+  "USBBOOT_requested": false,
+  "reset_requested": false,
+  "calibration_written": false,
+  "CDC_opened": true,
+  "configuration_changed": false,
+  "build_identity": {
+    "version": "bb230d0-dirty",
+    "elf_sha256": "4bb52b190a2a2ce3bc4623af7d52e0bd6cb0436ca9972e30bdb3a94f1459b758",
+    "application_binary_sha256": null,
+    "hash_scope": "firmware application ELF identity, not the flashed .bin SHA256"
+  },
+  "error": "reply_deadline_expired",
+  "error_class": "CaptureError",
+  "transport_metadata": {
+    "transport": "usb_cdc",
+    "capability": "usb_cdc_data_v1",
+    "path": "/dev/ttyACM0",
+    "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1",
+    "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.0",
+    "vid": 12346,
+    "pid": 16450,
+    "usb_serial": "80B54ECDD9AC",
+    "interface_number": 0,
+    "interface_class": 2,
+    "interface_subclass": 2,
+    "interface_protocol": 0,
+    "speed_mbps_reported_by_sysfs": "12",
+    "role": "formal_DATA_CTRL_shared_record_stream",
+    "debug_interface_used": false,
+    "libusb_used": false,
+    "modem_bit_ioctl": false,
+    "reset_requested": false,
+    "input_flushed": false,
+    "configuration_changed": false,
+    "ownership": "one_tty_reader_flock_TIOCEXCL",
+    "existing_readers": "unverified",
+    "baud_setting": 115200,
+    "baud_setting_is_not_USB_wire_rate": true,
+    "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free",
+    "tx_acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"
+  },
+  "raw_scope": "formal_CDC_DATA_CTRL_shared_stream",
+  "ctrl_rx_bytes": null,
+  "ctrl_raw_sha256": null,
+  "trailing_partial_CTRL_line_bytes": null,
+  "CTRL_byte_accounting": "included_in_shared_raw_not_a_separate_endpoint_counter",
+  "tx_host_accepted_bytes": 25,
+  "uncorrelated_query_errors": 1,
+  "CTRL_and_DATA_order": "one_stream",
+  "replies": {
+    "BUILD?": {
+      "idf": "v5.5.5",
+      "target": "esp32s3",
+      "project": "SensorArray",
+      "proto": "2",
+      "version": "bb230d0-dirty",
+      "elfSha256": "4bb52b190a2a2ce3bc4623af7d52e0bd6cb0436ca9972e30bdb3a94f1459b758"
+    },
+    "PROTO?": {
+      "version": "2",
+      "wires": "ascii",
+      "ctrlMax": "512",
+      "dataMax": "2304",
+      "channels": "CTRL/DATA/LOG/LIFECYCLE",
+      "caps": "config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1",
+      "legacyGen": "tag_domain",
+      "railMonitor": "unavailable",
+      "adcCrc": "crc8"
+    }
+  },
+  "firmware_faults": [],
+  "reset_observations": [],
+  "rx_bytes": 578,
+  "trailing_partial_line_bytes": 0,
+  "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-01-boot.rx.bin",
+  "events_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/timing-01-boot.events.jsonl",
+  "raw_sha256": "b28ad984b49cea4b921a8cf82ba8993811b6d1d9289b0a1658bb8b2af3c31749",
+  "elapsed_seconds": 6.009287635970395,
+  "source_sha256": "66bdfecd534ce3c6c79590ef5160dfc9573919ad03b1fd2f007be33cf28278d2",
+  "debug_diagnostics_observed": false,
+  "CDC_WDT_ADC_CRC_heap_evidence": "requires_separate_debug_observer",
+  "boot_observation_scope": "post_enumeration_formal_USB_queries_not_ROM_or_debug_CDC_boot_log"
+}

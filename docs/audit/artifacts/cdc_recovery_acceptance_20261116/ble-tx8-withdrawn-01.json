@@ -1,0 +1,22 @@
+{
+  "status": "WITHDRAWN_BEFORE_TARGET_BUILD_OR_HIL",
+  "reason": "Unresolved regression in existing serial scheduling test: data producer progress lower; no acceptance criterion relaxed. Root restores only this candidate-owned delta after interrupting its writer.",
+  "head": "4bf31dbc576cf5061e1694102f82ad2111ef5392",
+  "candidate_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "candidate_file_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "93ce676d4075778588fce222bbf5b3314e18389fa860bb9b5cfd422e1d29a237",
+    "tests/host/test_ble_priority.c": "bb2a75983ffaba5829f84447dd6081d3c5f2f7b7a97af5ff72d03e57be0579ef",
+    "tests/host/test_serial_io_priority.c": "ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509",
+    "tools/test_ble_priority.py": "645c33f0d3762b1aba1368b4accb11a6b7b5096dfa303abb48fb4a5eaeaf1142"
+  },
+  "restored_file_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "93ce676d4075778588fce222bbf5b3314e18389fa860bb9b5cfd422e1d29a237",
+    "tests/host/test_ble_priority.c": "bb2a75983ffaba5829f84447dd6081d3c5f2f7b7a97af5ff72d03e57be0579ef",
+    "tests/host/test_serial_io_priority.c": "ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509",
+    "tools/test_ble_priority.py": "645c33f0d3762b1aba1368b4accb11a6b7b5096dfa303abb48fb4a5eaeaf1142"
+  },
+  "BLE_TX_priority": 7,
+  "BLE_CTRL_priority": 8,
+  "queue_budget_change": false,
+  "screen04_fail_retained": true
+}

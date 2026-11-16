@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "/tmp/analyze-screen05-ble-service.py"
+  ],
+  "exit_code": 0,
+  "created_utc": "2026-11-16T07:30:04.990691+00:00",
+  "script_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-ble-service-review-01.py",
+  "script_sha256": "b39ae4492acab3ad0c3496c6a4521ced38480a38d14dcbe0680268f6ee1bed83",
+  "report": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-05/screen-05-ble-service-review-01.json",
+  "report_sha256": "1454a1f2eabee99f4b2679d7b59aae9a5d201a0334dd27a90cf5c9ebfaa8e4d2",
+  "mode": "READ_ONLY_CLOSED_EVIDENCE",
+  "hardware": "NOT_RUN",
+  "note": "Exact executed script copied without modifying original closed captures. Exclusive report creation refuses rerun overwrite."
+}

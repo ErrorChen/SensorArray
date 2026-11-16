@@ -1,0 +1,139 @@
+{
+  "status": "DIAGNOSTIC_COMPARISON_COMPLETE_NOT_CAUSAL_PROOF",
+  "source_commit": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "boot_session": "71532608891F6A75",
+  "requests": [
+    {
+      "label": "timing-probe-01.summary",
+      "sha256": "1779eb0ed9e0331d3074eda3589999792f0599f5d1340adde706d16faa1de76f",
+      "id": "1",
+      "duration_us": 610630,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-02.summary",
+      "sha256": "c4c301adceba00217c4b9560c9074295e436dbe9b316bd2497b3491f8b48a4ff",
+      "id": "2",
+      "duration_us": 605879,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-03.summary",
+      "sha256": "054a36ec54b991e914c3f10f8960ff0f7f4c66b778e96f30c5258a67676e1f8e",
+      "id": "3",
+      "duration_us": 605267,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-04.summary",
+      "sha256": "5fb49ec3033ba4673e9a4cbf2ea084ab85b108ca6534732e4d287a682f98ba4e",
+      "id": "4",
+      "duration_us": 612709,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-05.summary",
+      "sha256": "497dc3f785d6fdaf14a715d81244b9b381a523d7321876462b8cd3cca8305fb7",
+      "id": "5",
+      "duration_us": 603371,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-06.summary",
+      "sha256": "110d4aea906674cba72fcd9254b0d17137aaeaa24863d0d22f68512cc0e323c6",
+      "id": "6",
+      "duration_us": 603644,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-07.summary",
+      "sha256": "e7f70887a4334a8eda00617cd8832e1bab52e968cb2e2129628ebad3b63d397a",
+      "id": "7",
+      "duration_us": 605114,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-08.summary",
+      "sha256": "23fc8137c4a8cb2efe1d2afb63a18ea3114d5556f2f8a18d6b2d0db27fd2d711",
+      "id": "8",
+      "duration_us": 603448,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-09.summary",
+      "sha256": "7209bb1cd52b4b5b4dabf118a34f990eb78e100274da227929fd0cef21a0b847",
+      "id": "9",
+      "duration_us": 611278,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-10.summary",
+      "sha256": "a9d0058ffd3ae31a233341446a9b856c3b0dd44fc5c3b41abf9c0fe8fa7d5dd4",
+      "id": "10",
+      "duration_us": 603689,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    },
+    {
+      "label": "timing-probe-11.summary",
+      "sha256": "9bf49c1037e0426aefa13ae6b9d21ae86c8e8b920381f595d83ca753c9f88059",
+      "id": "11",
+      "duration_us": 610912,
+      "restoreVerified": "1",
+      "clockHz": "754000"
+    }
+  ],
+  "groups": [
+    {
+      "attempts": 2200,
+      "valid": 2195,
+      "crc": 5,
+      "up": 5,
+      "down": 0,
+      "other": 0,
+      "held_attempts": 0,
+      "held_crc": 0
+    },
+    {
+      "attempts": 2200,
+      "valid": 2200,
+      "crc": 0,
+      "up": 0,
+      "down": 0,
+      "other": 0,
+      "held_attempts": 2200,
+      "held_crc": 0
+    },
+    {
+      "attempts": 2200,
+      "valid": 2196,
+      "crc": 4,
+      "up": 4,
+      "down": 0,
+      "other": 0,
+      "held_attempts": 0,
+      "held_crc": 0
+    },
+    {
+      "attempts": 2200,
+      "valid": 2200,
+      "crc": 0,
+      "up": 0,
+      "down": 0,
+      "other": 0,
+      "held_attempts": 2200,
+      "held_crc": 0
+    }
+  ],
+  "scope": "CAP8 frame-boundary paused diagnostic; AA shorted input, same750000requested/754000observedHz; not runtime matrix error rate",
+  "limits": "Fixed group order and START/held-read cadence differ; raw packet subset limited. No SPI threshold change, bit repair, or scientific admission of CRC failures."
+}

@@ -1,0 +1,11 @@
+REAL_IDF_MISO_INPUT_OUTPUT,ie=1,oe=1,peripheralOE=1,sig=33,err=0x103,attempted=0,spiDone=0
+test: /tmp/sensorarray-tail-roc0q8vh/test.c:115: testAllCrcBytes: Assertion `error == ESP_OK' failed.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_tail_diagnostic.py", line 58, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ads_tail_diagnostic.py", line 53, in main
+    subprocess.run([str(p / "test")], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-tail-roc0q8vh/test']' died with <Signals.SIGABRT: 6>.

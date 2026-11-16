@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_bulk_stage.py",
+    "--directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03",
+    "--ble-journal",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-ble.ble.notifications.jsonl",
+    "--debug-summary",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-debug.debug.summary.json",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-analysis-01.json",
+    "--selection-output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03/screen-03-selection-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8b1ce9f8a6612498e8338f822ad63ec71e8444c6",
+  "dirty_diff_sha256": "9619b9a1072f319a254b12b45e61fedcfe101e549e8691eb34d3bc217e214105",
+  "started_utc": "2026-11-16T05:40:07.624048+00:00",
+  "started_monotonic": 314501.155445895,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-03-analysis-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T05:40:10.296139+00:00",
+  "finished_monotonic": 314503.82753645,
+  "log_sha256": "61befdba670cae4b6470557f15e419ed229170514853e7e9677738ed0d92e6f8"
+}

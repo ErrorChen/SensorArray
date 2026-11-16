@@ -1,0 +1,84 @@
+docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-06/screen-06-ble-service-review-01.json
+{
+  "capture_fps_screen05": 61.464673691001714,
+  "capture_fps_screen06": 60.01689621858808,
+  "ble_first_last_receipt_fps_screen05": 32.86794044278585,
+  "ble_first_last_receipt_fps_screen06": 32.61367388639946,
+  "ble_exact_capture_count_per_second_screen05": 32.86663937858719,
+  "ble_exact_capture_count_per_second_screen06": 32.60830023127524,
+  "usb_exact_capture_count_per_second_screen05": 61.508282265048685,
+  "usb_exact_capture_count_per_second_screen06": 60.02493906615782,
+  "sdk_mean_wall_us_screen05": 4693.151260504202,
+  "sdk_mean_wall_us_screen06": 4724.5825621414915,
+  "sdk_wall_fraction_screen05": 0.5146660233567073,
+  "sdk_wall_fraction_screen06": 0.5130879716317422,
+  "completed_calls_per_s_screen05": 109.66320810666029,
+  "completed_calls_per_s_screen06": 108.59964131924855,
+  "sdk_idle_changed_fraction_screen05": 0.0,
+  "sdk_idle_changed_fraction_screen06": 0.0,
+  "outside_sdk_bracket_us_per_call_screen05": 4425.677353623,
+  "outside_sdk_bracket_us_per_call_screen06": 4483.550980954813,
+  "screen06_observed_DplusL_notifications_per_s": 108.63322305517609,
+  "screen06_required_DplusL_notifications_per_s_at_capture": 190.8506776922408,
+  "screen06_LOG_notification_fraction": 0.09941699907947223,
+  "arithmetic_only_no_LOG_science_fps_at_unchanged_total_notify_rate": 36.211074351725365,
+  "arithmetic_limit": "Not measured RF capacity and not a proposal to remove LOG. All science records require3D notifications in these captures.",
+  "causality_limit": "Separate boots/windows; SDK wall is elapsed time including possible blocking/preemption, not CPU time. Counters at different query/log times are not exactly additive to capture loss."
+}
+CONF {
+  "availability": "OBSERVED",
+  "counter_delta": {
+    "confOk": 13076,
+    "confError": 0,
+    "confMatched": 0,
+    "confUnmatched": 13076
+  },
+  "endpoints_before_after": [
+    {
+      "active": 0,
+      "started": 4005,
+      "completed": 4005,
+      "confOk": 4005,
+      "confError": 0,
+      "confMatched": 0,
+      "confUnmatched": 4005,
+      "started_minus_completed": 0,
+      "events_minus_completed": 0,
+      "events_minus_started": 0,
+      "confEpoch": "unknown",
+      "pcReceipt": "unknown"
+    },
+    {
+      "active": 1,
+      "started": 17081,
+      "completed": 17080,
+      "confOk": 17081,
+      "confError": 0,
+      "confMatched": 0,
+      "confUnmatched": 17081,
+      "started_minus_completed": 1,
+      "events_minus_completed": 1,
+      "events_minus_started": 0,
+      "confEpoch": "unknown",
+      "pcReceipt": "unknown"
+    }
+  ],
+  "elapsed_seconds": 120.39634607598418,
+  "counter_scope": "boot; delta between BLESVC reply snapshots, not exact capture",
+  "interpretation": "No delivered CONF error status observed in this window. All events were unmatched to an active indication waiter; this is not proof of FAST classification, origin epoch, central acknowledgement or application receipt.",
+  "one_event_ahead": "After snapshot has active1, started17081, completed17080, confOk17081. The SDK callback can execute before the BLE owner publishes SDK-return completion. This is consistent with the one in-flight call and is not an anomalous extra event; no unique event/call ID proves individual pairing."
+}
+screen-05 BLEdropD 3310 BLEsentD 3940
+screen-05 BLETX {'dDequeued': 3959, 'lDequeued': 296, 'cDequeued': 0, 'sdkCalls': 13208, 'sdkAccepted': 13208, 'sdkErrors': 0}
+screen-05 PERF {'pub': 7402, 'fresh': 7402, 'stale': 0, 'dropOut': 1, 'dropEvent': 0, 'usbSent': 8289, 'usbDrop': 0, 'queueDrop': 121}
+screen-05 USBQ {'dDrop': 0, 'cDrop': 0, 'dSubmit': 7407, 'cSubmit': 104, 'expired': 0, 'cExpired': 0, 'partial': 0}
+screen-05 SCHED {'checkpoints': 8856, 'yields': 3408, 'maxBurstUnits_before': 4, 'maxBurstUnits_after': 5}
+screen-05 SCHEDWHY [2716, 2668, 0]
+screen-05 SDK {'started': 13209, 'completed': 13209, 'wallUs': 61991835, 'idleChanged': 0, 'idleSame': 13209, 'idleUnknown': 0}
+screen-06 BLEdropD 3187 BLEsentD 3904
+screen-06 BLETX {'dDequeued': 3921, 'lDequeued': 290, 'cDequeued': 0, 'sdkCalls': 13068, 'sdkAccepted': 13068, 'sdkErrors': 0}
+screen-06 PERF {'pub': 7224, 'fresh': 7224, 'stale': 0, 'dropOut': 1, 'dropEvent': 0, 'usbSent': 8087, 'usbDrop': 1, 'queueDrop': 91}
+screen-06 USBQ {'dDrop': 0, 'cDrop': 0, 'dSubmit': 7225, 'cSubmit': 104, 'expired': 0, 'cExpired': 0, 'partial': 0}
+screen-06 SCHED {'checkpoints': 8764, 'yields': 3454, 'maxBurstUnits_before': 4, 'maxBurstUnits_after': 5}
+screen-06 SCHEDWHY [2791, 2531, 0]
+screen-06 SDK {'started': 13076, 'completed': 13075, 'wallUs': 61773917, 'idleChanged': 0, 'idleSame': 13075, 'idleUnknown': 0}
