@@ -1,0 +1,53 @@
+{
+  "status": "PASS",
+  "scope": "offline closure and bilingual docs; unchanged generic script, no production/capture/test/build/hardware action",
+  "command": {
+    "argv": [
+      "python3",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py",
+      "--analysis",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-analysis-01.json",
+      "--summary",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-volt1.summary.json",
+      "--cpu",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-cpu-owner-deltas-01.json",
+      "--identity",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-validated-identity.json",
+      "--boot",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-boot-verification.json",
+      "--previous-analysis",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-analysis-01.json",
+      "--previous-summary",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-volt1.summary.json",
+      "--previous-cpu",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-cpu-owner-deltas-01.json",
+      "--output",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-verdict.json",
+      "--comparison-output",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-08-09-layer-cpu-comparison-01.json",
+      "--verdict",
+      "FAIL_BLE_THROUGHPUT"
+    ],
+    "exit_code": 0,
+    "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09-closure-01-replay.txt",
+    "log_sha256": "8449869c5e4f7da097861e4806479b9a3a123904e698dd53f177b61d1fbafee1"
+  },
+  "file_sha256": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py": "8d1f115cca01683384b4e442564a3ddd29e0017611973010717a3ea02280b249",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-verdict.json": "d2792a6758ac6ffa4793a602d732a4472bca34db1585b5a35bc40fae6717903e",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-08-09-layer-cpu-comparison-01.json": "ce81453b52fa7016a14ce83c371bcf17fc171a99874991c3a7229d501d303692",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-validated-identity.json": "9b284b5cfcc7f0cc0d0e25399849b66e3e32d23e60f8768de5d0206df3f67dc3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-boot-verification.json": "648103d64b998385fd4c315522cead9af8bf762057b0d13407d14816c687a0c2"
+  },
+  "source_test_build_crosscheck": {
+    "host_entries": 66,
+    "all_exit_zero": true,
+    "production_inputs_equal": true,
+    "count": 185
+  },
+  "additional_event_hash_check": "both analysis event SHA256 match original closed files",
+  "hardware_actions": [],
+  "raw_or_historical_outputs_modified": false,
+  "conclusion": "FAIL_BLE_THROUGHPUT; USB zero internal gap proven; ASYNC_LOG own-window ratio fell and BLE increased18.164321%, without complete acceptance or blocked-time attribution",
+  "next_O2_candidate": "not included in this hardware evidence"
+}

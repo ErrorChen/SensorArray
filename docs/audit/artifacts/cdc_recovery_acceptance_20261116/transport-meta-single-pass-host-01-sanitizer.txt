@@ -1,0 +1,12 @@
+==16==LeakSanitizer has encountered a fatal error.
+==16==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==16==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_transport_frame_metadata.py", line 93, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_transport_frame_metadata.py", line 71, in main
+    subprocess.run([str(legacy)], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-frame-meta-7onfbgin/legacy_regression']' returned non-zero exit status 1.

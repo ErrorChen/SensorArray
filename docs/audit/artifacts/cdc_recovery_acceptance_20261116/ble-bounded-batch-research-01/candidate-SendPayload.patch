@@ -1,0 +1,33 @@
+--- deployed/SendPayload
++++ temporary-candidate/SendPayload
+@@ -95,6 +95,7 @@
+     uint32_t fragmentsSinceCheckpoint = 0u;
+     TickType_t checkpointTick = xTaskGetTickCount();
+     bool confirm = context.confirm;
++    bool batchBoosted = sensorarrayBleBatchBegin(channel, &context);
+     for (uint32_t index = 0u; index < fragmentCount; ++index) {
+         size_t chunk = base + (index < extra ? 1u : 0u);
+         esp_err_t err = sensorarrayBleSendFragment(&context,
+@@ -109,6 +110,7 @@
+                                                    crc,
+                                                    confirm);
+         if (err != ESP_OK) {
++            sensorarrayBleBatchEnd(&batchBoosted);
+             sensorarrayBleNoteDrop(channel);
+             return err;
+         }
+@@ -124,11 +126,14 @@
+              * bounded by four fragments or one elapsed tick between checks.
+              * Every fragment still checks its connection generation, even
+              * inside a batch. No BLE mux or SDK lock is held at this point. */
++            sensorarrayBleBatchEnd(&batchBoosted);
+             (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_BLE_TX);
+             fragmentsSinceCheckpoint = 0u;
+             checkpointTick = xTaskGetTickCount();
++            batchBoosted = sensorarrayBleBatchBegin(channel, &context);
+         }
+     }
++    sensorarrayBleBatchEnd(&batchBoosted);
+     sensorarrayBleStatsNoteMessageSent(channel, false);
+     return ESP_OK;
+ }

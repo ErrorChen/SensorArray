@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "tools/test_config_identity.py"
+  ],
+  "environment": {
+    "CC": "/usr/bin/gcc"
+  },
+  "exit_code": 0,
+  "elapsed_s": 0.21096340799704194,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-encoder.txt",
+  "log_sha256": "3f1195fbb27af96e74061ddd2f1eb87c874416d172cc06abb0f692fa311b6a1b",
+  "existing_golden_bytes_unchanged": true
+}

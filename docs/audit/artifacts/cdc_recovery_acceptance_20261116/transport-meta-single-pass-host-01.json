@@ -1,0 +1,452 @@
+{
+  "kind": "production_single_pass_transport_metadata_regression",
+  "created_utc": "2026-11-16T09:09:10.774004+00:00",
+  "head": "dafaf9bc841e756b7d78aa54391703a952b819e5",
+  "owned_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "production_frozen": true,
+  "production_scope": [
+    "core/transport/sensorarrayTransportFrameMeta.c: sensorarrayTransportParseFrameMeta and private key table; obsolete u32 lookup removed"
+  ],
+  "source_sha256": {
+    "core/transport/sensorarrayTransportFrameMeta.c": "f5f17c646530e88c2c4bcc7ddd39048e7d2381d47d5d9011903cae537f292bde",
+    "tools/test_transport_frame_metadata.py": "beb7b10f2a8d740f0919a27aba6c91be0e68280d0ced63c2530ee9b28e057703",
+    "tests/host/test_transport_frame_metadata.c": "997d31dc2035d46ed5cb4054414a3eae33d9fe69a8bf7020e35ee2d04b865a59",
+    "tests/host/test_transport_frame_metadata_differential.c": "d66c76b6c707cc1db39d870fdce4edcdb7545cb32480129bfd3470227a9e3621",
+    "tests/fixtures/transport_frame_meta/baseline.c.txt": "3b6d1df8ceeeee99d312d543d5e6b0b7b70f054a4e033aefa0bf188479ea6fcf",
+    "tests/fixtures/transport_frame_meta/baseline.json": "a87ea50872d7790e8cd3da09272ff0dfafe53836a8fc8d9747db5a05b3d1ef05",
+    "tests/fixtures/transport_frame_meta/README.md": "48f449facb4999abb1da59c9a37d489669114cb0de5bdaf2cd057bd5ac3e24a0"
+  },
+  "legacy_field_helper_bytes_identical": true,
+  "preview_bytes_identical": true,
+  "baseline_fixture_sha256": "3b6d1df8ceeeee99d312d543d5e6b0b7b70f054a4e033aefa0bf188479ea6fcf",
+  "baseline_fixture_requires_git": false,
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_config_identity.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "elapsed_s": 0.21096340799704194,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-encoder.txt",
+      "log_sha256": "3f1195fbb27af96e74061ddd2f1eb87c874416d172cc06abb0f692fa311b6a1b",
+      "existing_golden_bytes_unchanged": true
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "elapsed_s": 0.5676010280149058,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-metadata.txt",
+      "log_sha256": "f7f4ca431c7336724ebc25179e9b9961bf4a14ea4ce7f6490ee1b6e7bda637e7"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 1,
+      "elapsed_s": 0.34824935300275683,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-sanitizer.txt",
+      "log_sha256": "cd8a8233b657f6ed000aa0238bd1a0af220e386f672671bcbc3e870bb410b653"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0:halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1"
+      },
+      "exit_code": 0,
+      "elapsed_s": 1.2379200309515,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-sanitizer-address-ub.txt",
+      "log_sha256": "f7f4ca431c7336724ebc25179e9b9961bf4a14ea4ce7f6490ee1b6e7bda637e7",
+      "leak_check": "NOT_RUN: LeakSanitizer fails under execution-environment ptrace; original failure retained. Address and undefined-behavior checks remain enabled."
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "elapsed_s": 0.9746579399798065,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-ble-pipeline.txt",
+      "log_sha256": "432fe6c06c931aedd752c643e4584bb3c2cde505889cd152a61830f60976532c"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--benchmark"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "elapsed_s": 16.412901032017544,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-benchmark.txt",
+      "log_sha256": "7ff1c28bdadaea35fb570832bb6abb511a3a3bff364e2891e90210f0248c671c",
+      "scope": "host x86 GCC-O2 old/new relative timing; shared host scheduling uncontrolled; not ESP32 runtime/CPU or BLE acceptance"
+    }
+  ],
+  "results": {
+    "original_domain_cases": "PASS",
+    "fixed_boundary_cases": 90,
+    "seeded_cases": 50000,
+    "complete_wire_fixtures": 20,
+    "wire_fixture_provenance": {
+      "synthetic_actual_encoder": 15,
+      "recorded_device_encoder": 5
+    },
+    "every_byte_prefix_truncations": 16786,
+    "entire_slot_comparisons": 66896,
+    "entire_slot_bytes_host": 2376,
+    "accepted": 51663,
+    "rejected": 15233,
+    "address_undefined_sanitizers": "PASS, same66896 corpus",
+    "leak_sanitizer": "NOT_RUN; original environment failure retained, no production fix inferred",
+    "actual_encoder_regenerated_goldens": 15,
+    "regenerated_golden_bytes_unchanged": true,
+    "independent_wire_crc": "zlib and actual TextProtocolParser pass; wire bytes unchanged",
+    "ble_pipeline": "20 executable scenarios pass assertions;2 intentionally never-returning SDK models remain NOT_PROVABLY_BOUNDED; no HIL assertion"
+  },
+  "retained_semantics": [
+    "first nonempty duplicate wins, including first-invalid/later-valid rejection",
+    "empty optional duplicates may be filled by later nonempty values",
+    "missing/invalid optional numbers become0; required invalid leaves all other old slot fields unchanged and hasFrameMeta false",
+    "first CR/LF/NUL only, full-token strtoull/base16 session/MAX/overflow/whitespace behavior retained",
+    "C legacy ROWS and V/R legacy MODE come from unchanged gen/rid bytes; M aliases explicit rgen/rrid; all explicit identity domains remain separate",
+    "no global state restamping, no encoder or wire/CRC modification, no complete-frame validity claim from hasFrameMeta",
+    "BuildPreview and original field helper unchanged byte-for-byte"
+  ],
+  "memory": "Fixed14-element uint64 local values array (112B), two32-bit masks and bounded token pointers. No heap, task, queue, or payload size change; private key table is static const. ESP stack watermark impact awaits root build/HIL.",
+  "host_benchmark": {
+    "scope": "GCC-O2/x86 relative elapsed only; shared-host scheduling uncontrolled; not ESP32 CPU or BLE acceptance",
+    "rounds": 3,
+    "iterations_per_fixture_per_round": 100000,
+    "fixtures": {
+      "tests/fixtures/config_identity/cap_1.frame": {
+        "old_ns": [
+          1360.923,
+          1368.437,
+          1386.021
+        ],
+        "new_ns": [
+          436.359,
+          445.417,
+          442.563
+        ],
+        "old_median_ns": 1368.437,
+        "new_median_ns": 442.563,
+        "relative_speedup": 3.0920727670410764
+      },
+      "tests/fixtures/config_identity/cap_8.frame": {
+        "old_ns": [
+          1484.394,
+          1443.689,
+          1426.253
+        ],
+        "new_ns": [
+          471.834,
+          459.755,
+          469.854
+        ],
+        "old_median_ns": 1443.689,
+        "new_median_ns": 469.854,
+        "relative_speedup": 3.072633200951785
+      },
+      "tests/fixtures/config_identity/cap_after.frame": {
+        "old_ns": [
+          1437.45,
+          1459.928,
+          1443.593
+        ],
+        "new_ns": [
+          464.324,
+          471.282,
+          471.531
+        ],
+        "old_median_ns": 1443.593,
+        "new_median_ns": 471.282,
+        "relative_speedup": 3.063119321340514
+      },
+      "tests/fixtures/config_identity/cap_before.frame": {
+        "old_ns": [
+          1431.496,
+          1395.101,
+          1414.598
+        ],
+        "new_ns": [
+          452.727,
+          458.619,
+          458.508
+        ],
+        "old_median_ns": 1414.598,
+        "new_median_ns": 458.508,
+        "relative_speedup": 3.0852198871121117
+      },
+      "tests/fixtures/config_identity/cap_reapplied.frame": {
+        "old_ns": [
+          1408.799,
+          1392.923,
+          1408.369
+        ],
+        "new_ns": [
+          450.128,
+          453.899,
+          474.54
+        ],
+        "old_median_ns": 1408.369,
+        "new_median_ns": 453.899,
+        "relative_speedup": 3.1028246371990242
+      },
+      "tests/fixtures/config_identity/health_before_conversion.frame": {
+        "old_ns": [
+          2535.358,
+          2493.043,
+          2519.184
+        ],
+        "new_ns": [
+          739.736,
+          741.527,
+          745.846
+        ],
+        "old_median_ns": 2519.184,
+        "new_median_ns": 741.527,
+        "relative_speedup": 3.3972923440414173
+      },
+      "tests/fixtures/config_identity/mixed_1.frame": {
+        "old_ns": [
+          927.119,
+          922.984,
+          921.163
+        ],
+        "new_ns": [
+          344.53,
+          346.101,
+          342.305
+        ],
+        "old_median_ns": 922.984,
+        "new_median_ns": 344.53,
+        "relative_speedup": 2.678965547267292
+      },
+      "tests/fixtures/config_identity/mixed_8.frame": {
+        "old_ns": [
+          925.684,
+          922.66,
+          926.508
+        ],
+        "new_ns": [
+          340.852,
+          341.721,
+          347.408
+        ],
+        "old_median_ns": 925.684,
+        "new_median_ns": 341.721,
+        "relative_speedup": 2.7088882450888296
+      },
+      "tests/fixtures/config_identity/mixed_extreme.frame": {
+        "old_ns": [
+          1100.672,
+          1107.996,
+          1121.912
+        ],
+        "new_ns": [
+          432.098,
+          433.837,
+          444.314
+        ],
+        "old_median_ns": 1107.996,
+        "new_median_ns": 433.837,
+        "relative_speedup": 2.5539453757978228
+      },
+      "tests/fixtures/config_identity/res_1.frame": {
+        "old_ns": [
+          2512.161,
+          2524.854,
+          2529.737
+        ],
+        "new_ns": [
+          762.044,
+          763.618,
+          772.504
+        ],
+        "old_median_ns": 2524.854,
+        "new_median_ns": 763.618,
+        "relative_speedup": 3.3064359404833303
+      },
+      "tests/fixtures/config_identity/res_8.frame": {
+        "old_ns": [
+          2643.855,
+          2549.616,
+          2551.035
+        ],
+        "new_ns": [
+          770.652,
+          770.715,
+          781.46
+        ],
+        "old_median_ns": 2551.035,
+        "new_median_ns": 770.715,
+        "relative_speedup": 3.3099589342363904
+      },
+      "tests/fixtures/config_identity/res_extreme.frame": {
+        "old_ns": [
+          3003.03,
+          3021.589,
+          3046.792
+        ],
+        "new_ns": [
+          897.168,
+          907.989,
+          899.511
+        ],
+        "old_median_ns": 3021.589,
+        "new_median_ns": 899.511,
+        "relative_speedup": 3.3591462472387774
+      },
+      "tests/fixtures/config_identity/volt_1.frame": {
+        "old_ns": [
+          2558.273,
+          2552.419,
+          2549.988
+        ],
+        "new_ns": [
+          775.645,
+          792.482,
+          790.863
+        ],
+        "old_median_ns": 2552.419,
+        "new_median_ns": 790.863,
+        "relative_speedup": 3.2273845153964715
+      },
+      "tests/fixtures/config_identity/volt_8.frame": {
+        "old_ns": [
+          2567.506,
+          2572.988,
+          2568.691
+        ],
+        "new_ns": [
+          778.749,
+          779.01,
+          775.622
+        ],
+        "old_median_ns": 2568.691,
+        "new_median_ns": 778.749,
+        "relative_speedup": 3.298483850380546
+      },
+      "tests/fixtures/config_identity/volt_transition.frame": {
+        "old_ns": [
+          2567.922,
+          2623.83,
+          2579.773
+        ],
+        "new_ns": [
+          776.372,
+          778.884,
+          820.258
+        ],
+        "old_median_ns": 2579.773,
+        "new_median_ns": 778.884,
+        "relative_speedup": 3.3121401903235914
+      },
+      "tests/fixtures/reference_capture/cap8_total.recorded.txt": {
+        "old_ns": [
+          1376.471,
+          1389.173,
+          1370.487
+        ],
+        "new_ns": [
+          452.652,
+          487.624,
+          458.236
+        ],
+        "old_median_ns": 1376.471,
+        "new_median_ns": 458.236,
+        "relative_speedup": 3.0038473624944353
+      },
+      "tests/fixtures/reference_capture/crc_partial_volt1_20261113.next.recorded.txt": {
+        "old_ns": [
+          2637.653,
+          2639.427,
+          2637.614
+        ],
+        "new_ns": [
+          778.064,
+          781.193,
+          780.049
+        ],
+        "old_median_ns": 2637.653,
+        "new_median_ns": 780.049,
+        "relative_speedup": 3.3813939893519507
+      },
+      "tests/fixtures/reference_capture/crc_partial_volt1_20261113.partial.recorded.txt": {
+        "old_ns": [
+          2644.181,
+          2657.924,
+          2652.935
+        ],
+        "new_ns": [
+          785.216,
+          794.208,
+          785.494
+        ],
+        "old_median_ns": 2652.935,
+        "new_median_ns": 785.494,
+        "relative_speedup": 3.3774096301181165
+      },
+      "tests/fixtures/reference_capture/res8_crc_rejected.recorded.txt": {
+        "old_ns": [
+          2653.398,
+          2647.484,
+          2639.377
+        ],
+        "new_ns": [
+          772.288,
+          777.153,
+          779.258
+        ],
+        "old_median_ns": 2647.484,
+        "new_median_ns": 777.153,
+        "relative_speedup": 3.406644508867623
+      },
+      "tests/fixtures/reference_capture/res8_first.recorded.txt": {
+        "old_ns": [
+          2664.698,
+          2671.709,
+          2671.218
+        ],
+        "new_ns": [
+          780.413,
+          779.758,
+          779.114
+        ],
+        "old_median_ns": 2671.218,
+        "new_median_ns": 779.758,
+        "relative_speedup": 3.4257013073286835
+      }
+    }
+  },
+  "target_build": "NOT_RUN by this agent; root owns build",
+  "HIL": "NOT_RUN by this agent; root owns hardware",
+  "status": "PASS_FUNCTIONAL_AND_ADDRESS_UB; leak check unavailable in this environment; target performance pending"
+}

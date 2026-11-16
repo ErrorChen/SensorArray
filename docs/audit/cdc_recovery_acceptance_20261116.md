@@ -1,6 +1,6 @@
 # 2026-11-16 软件恢复与双 CDC 验收 / Software recovery and dual-CDC acceptance
 
-> 当前已烧录/观测版本为 `b9ebe2f-dirty`，CPU profiling ON，screen08 完整 120 秒得到 ADC CRC 0/76,841、Capture/USB/BLE 59.18/59.17/33.12 FPS；USB 7,101 可信帧内部连续，BLE 3,974 帧缺 3,128 个序号观察。66 个 host 入口与目标构建通过，完整 BUILD 与 READY/CAP8 已核验；**BLE 吞吐仍未通过，当前镜像 600 秒/32 配置尚未运行**。新增 ADS 部分分配 P1 修复和无用日志统计清理已经属于本镜像，旧 screen07 仍归属 b58336e；最新对照见末节。 / The observed image is `b9ebe2f-dirty` with CPU profiling ON. Its complete 120-second screen08 records 0/76,841 ADC CRC rejections and 59.18/59.17/33.12 FPS capture/USB/BLE; 7,101 USB trusted frames are internally consecutive, while 3,974 BLE frames have 3,128 missing sequence observations. All 66 host entries and the target build passed, with full BUILD and READY/CAP8 verified. **BLE throughput remains unaccepted; this image has not run the 600-second/32-configuration acceptance.** The ADS partial-allocation P1 repair and unused-log-statistics removal are now included. Historical screen07 remains attributed to b58336e; the latest comparison is in the final section.
+> 当前已烧录/观测版本为 `dafaf9b`（160 MHz、`-Og`、CPU profiling ON）。screen09 完整 120 秒：ADC CRC 0/74,721，Capture/USB/BLE 57.79/57.66/39.13 FPS，USB 6,920 帧内部连续，BLE 4,695 帧缺 2,223 个序号观察。66 个 host 入口、实际构建、完整 BUILD/READY/CAP8 核验通过。元数据单遍解析后本次 BLE 较 screen08 提高 18.16%，但**BLE 吞吐仍未通过，600 秒/32 配置仍未运行**；后续 `-O2` 候选未计入本次结果。各历史阶段和原始失败保留，最新逐层/CPU 对照见末节。 / The observed image is `dafaf9b` (160 MHz, `-Og`, CPU profiling ON). Its complete 120-second screen09 records 0/74,721 ADC CRC rejections and 57.79/57.66/39.13 FPS capture/USB/BLE, with 6,920 internally consecutive USB frames and 4,695 BLE frames with 2,223 missing sequence observations. All 66 host entries, the target build and full BUILD/READY/CAP8 verification passed. Following single-pass metadata parsing, this run's BLE rate is 18.16% above screen08, but **BLE throughput remains unaccepted and the 600-second/32-configuration suite remains unrun**. A subsequent `-O2` candidate is not included in these results. Historical stages and original failures remain; the final section gives layer/CPU comparisons.
 
 本记录接续 [11 月 14 日阶段](usb_otg_ble_priority_20261114.md)。用户已重启板卡，并授权继续烧录、调试；没有要求安装软件或使用管理员权限。历史失败记录保留，下面的下载成功不代表完整性能/精度验收通过。
 
@@ -408,3 +408,81 @@ These are not simultaneous CPU-utilization shares. ASYNC_LOG at roughly 24.60% v
 The new [generic offline closure script](artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py) has no hard-coded screen number, takes an explicit reviewer verdict, verifies summary/raw/event/CPU/boot evidence hashes and creates new outputs without overwriting recordings. Six synthetic regressions actually passed, covering sufficient proof for an omitted zero key, insufficient-evidence unknowns, same-identity uint32 wrap, explicit gaps, independent cross-run ratios and unknown roles. These are additional offline cases, not an increase in the 66 host-entry count. See the [execution/hash manifest](artifacts/cdc_recovery_acceptance_20261116/screen-08-closure-01-manifest.json).
 
 证据 / Evidence: [screen08 summary](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-volt1.summary.json), [科学/诊断分析 / scientific/diagnostic analysis](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-analysis-01.json), [CPU 单次差分 / per-run CPU deltas](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-cpu-owner-deltas-01.json), [screen08 verdict](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-08-verdict.json), [screen07–08 分层/CPU 对照 / layer/CPU comparison](artifacts/cdc_recovery_acceptance_20261116/screen-08/screen-07-08-layer-cpu-comparison-01.json)。所有原始流只读，没有修改生产、重新构建或访问硬件。 / All raw streams were read-only; this closure changed no production source, rebuilt nothing and accessed no hardware.
+
+## screen09：元数据单遍解析 / screen09: single-pass frame metadata parsing
+
+已烧录提交 `dafaf9bc841e756b7d78aa54391703a952b819e5`，BUILD=`dafaf9b`，app 1,620,976 B，binary SHA256=`ae0975e0d4ea203f4914a491be876d9bee435ac56ed7f1524f5a5d939ccb8a50`，完整 ELF SHA256=`922e1c880317d4ace18eb2ec2b368ad7d3b9a1ac1c548f7e34a63182ffeb2c10`。session=`48E77595DEBD273B`、bootId=1；[完整 BUILD/BOOT/READY 核验](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-boot-verification.json)确认 CAP8 可运行，启动选择 `gpio_tail_required`、SPI 请求/实测 2 MHz。160 MHz CPU、`-Og`、断言、CPU owner/runtime/trace ON 与上轮相同；正常诊断 defaults 仍 OFF。[66 个 host 入口及实际构建](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-validated-identity.json)通过，185 个生产输入逐项一致，构建差异为空。后续准备的 `-O2` 候选不属于本镜像或本次 HIL。
+
+The flashed commit is `dafaf9bc841e756b7d78aa54391703a952b819e5`, BUILD `dafaf9b`, app size 1,620,976 bytes, binary SHA256 `ae0975e0d4ea203f4914a491be876d9bee435ac56ed7f1524f5a5d939ccb8a50`, full ELF SHA256 `922e1c880317d4ace18eb2ec2b368ad7d3b9a1ac1c548f7e34a63182ffeb2c10`. Session is `48E77595DEBD273B`, bootId 1. [Full BUILD/BOOT/READY verification](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-boot-verification.json) establishes running CAP8, with `gpio_tail_required` and requested/observed SPI 2 MHz. CPU 160 MHz, `-Og`, assertions and CPU owner/runtime/trace ON remain unchanged; normal diagnostic defaults remain OFF. All [66 host entries and the target build](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-validated-identity.json) passed with identical 185 production inputs and an empty build-source diff. The subsequently prepared `-O2` candidate is not this image or this HIL result.
+
+### 实施与语义回归 / Implementation and semantic regression
+
+改动限于 `core/transport/sensorarrayTransportFrameMeta.c` 的 `sensorarrayTransportParseFrameMeta` 和私有 key 表。实际调用链是 AsyncLog/output owner → `sensorarrayNetTextPublish` → transport 拷贝 payload 到独占 slot → 同步提取元数据 → descriptor 入队；原实现对最多 14 个字段反复扫描 header，这部分时间属于发布者而不是 BLE worker。新实现首行定位一次、comma token 遍历一次，以 seen/valid mask 和局部数值保留“第一个非空字段优先”的既有语义，再一次发布已验证元数据。
+
+The change is confined to `sensorarrayTransportParseFrameMeta` and its private key table in `core/transport/sensorarrayTransportFrameMeta.c`. The actual path is AsyncLog/output owner → `sensorarrayNetTextPublish` → transport copies the payload into an exclusive slot → synchronous metadata extraction → descriptor enqueue. The former parser rescanned the header for up to 14 fields, so this cost belongs to the publisher, not the BLE worker. The new parser locates the first-line boundary once, traverses comma tokens once, retains the existing first-nonempty-field rule using seen/valid masks and local values, then publishes validated metadata together.
+
+保持旧 C=rows、V/R=mode、M legacy aliases=rgen/rrid 的域，不改任何显式 mode/rows/profile 身份；只解析已复制字节，不读取最新全局状态。保留 required/optional 数值错误、重复字段、CR/LF/NUL、strtoull 边界与失败时旧 slot 字段行为；`hasFrameMeta` 仍不等于完整科学帧或 CRC 有效。CAP preview 与旧 helper 保持原字节。没有修改 encoder/wire/CRC、科学 freshness、PGA、队列容量、任务优先级、WorkBudget，也没有关闭原 stdout 日志。固定 14×uint64 局部值（112 B）和 mask 无新增 heap/任务；新目标栈水位见下表，不以主机编译大小替代实测。
+
+Legacy domains remain C=rows, V/R=mode and M aliases=rgen/rrid, with all explicit mode/rows/profile identities separate. The parser reads copied bytes, never current globals. Required/optional numeric errors, duplicates, CR/LF/NUL, strtoull boundaries and stale-slot behavior on failure remain; `hasFrameMeta` still does not prove a complete scientific frame or valid CRC. CAP preview and the old helper retain their bytes. Encoder/wire/CRC, scientific freshness, PGA, queue capacity, priorities and WorkBudget are unchanged, and existing stdout logs remain enabled. The fixed 14×uint64 local array (112 bytes) and masks add no heap or task; target stack observations are below rather than inferred from host object sizes.
+
+[生产差分 manifest](artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01.json)与[本镜像测试 stdout](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-test_transport_frame_metadata.txt)：90 个固定边界、50,000 个确定种子、20 个完整帧、16,786 个逐字节前缀截断，共 **66,896** 次整 slot 比较（51,663 接受/15,233 拒绝）通过。20 帧中 15 个由真实 encoder 合成、5 个来自既有设备 encoder 实录；原字节/CRC 经 zlib 与真实 parser 双重验证，未手造 CRC。相同语料 ASan/UBSan 实际通过；LeakSanitizer 在执行环境 ptrace 下失败，**LSan NOT_RUN**，首次失败日志保留，不称内存泄漏检查通过。主机 x86 `-O2` 微基准不是 ESP32 结果，不能与本板 `-Og` 混用。
+
+The [production differential manifest](artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01.json) and [this image's test stdout](artifacts/cdc_recovery_acceptance_20261116/frame-meta-01-test_transport_frame_metadata.txt) record **66,896** full-slot comparisons: 90 fixed boundaries, 50,000 seeded cases, 20 complete frames and 16,786 byte-prefix truncations, with 51,663 accepted and 15,233 rejected. Of the 20 frames, 15 are synthetic outputs of the real encoder and five are existing device-encoder recordings. Original bytes/CRC were checked using both zlib and the actual parser, without fabricated CRCs. The same corpus actually passed ASan/UBSan. LeakSanitizer failed under the execution environment's ptrace restriction, so **LSan is NOT_RUN**, with the initial log preserved, not a passing leak check. Host x86 `-O2` microbenchmarks are not ESP32 results and must not be mixed with this board's `-Og` build.
+
+### screen09 结果和各层窗口 / screen09 results and layer windows
+
+完整 120.000062 秒 VOLT1，正式 CDC0/BLE 同时采集，独立 CDC1 诊断；同 session/rev4，结束后 CAP8 cleanup 查询通过。 / VOLT1 completed 120.000062 seconds of simultaneous formal CDC0/BLE capture with independent CDC1 diagnostics in one session/revision 4; CAP8 cleanup was query-verified afterward.
+
+| 指标 / Metric | screen08 | screen09 |
+|---|---:|---:|
+| Capture / USB / BLE FPS | 59.184655 / 59.173785 / 33.118267 | 57.787813 / 57.664438 / 39.133976 |
+| USB trusted complete frames / internal missing observations | 7,101 / 0 | 6,920 / 0 |
+| BLE trusted complete frames / missing observations | 3,974 / 3,128 | 4,695 / 2,223 |
+| USB / BLE ASCII CRC, identity and wire-contract errors | all 0 | all 0 |
+| 共同 identity/seq 原字节一致 / Common original frames equal | 3,971 / 3,971 | 4,691 / 4,691 |
+| ADC rejected / checked reads | 0 / 76,841 | 0 / 74,721 |
+| Complete ADSHEALTH receipt span | 118.996649 s | 118.765452 s |
+| USB S1D2 X12 / BLE X12 | 525 / 303 | 467 / 340 |
+| USB/BLE not-fresh or unacquired points | 0 | 0 |
+| Complete STK50 free / lifetime minimum | 8,295,596 / 8,292,112 B | 8,295,596 / 8,292,112 B |
+| Minimum remaining log / transport / BLE_TX stack | 13,064 / 3,152 / 1,932 B | 13,064 / 3,184 / 1,932 B |
+| Overall acceptance | FAIL_BLE_THROUGHPUT | **FAIL_BLE_THROUGHPUT** |
+
+USB 内部零缺口由单 identity、有序可信 6,920 帧、seq1600…8519、progress6919 和 gap_examples=[] 共同证明；不存在 `missing_frames` 键并非证明。BLE 收到的 DATA 4,695 和 LOG 278 个完整分片消息无 gap/CRC/重复/乱序错误，但完整科学序号仍缺 2,223；片段完整不等于没有上游整帧丢弃。ADC 分母是健康日志已校验 even/odd/rejected 增量，不是帧数；2.5% 门限不变。浮空输入 S1D2 的 X12 不作零填补或平滑，也不解释为校准精度通过。
+
+Zero internal USB loss is established by one identity, 6,920 ordered trusted frames, seq1600…8519, progress6919 and gap_examples=[]; an absent `missing_frames` key alone is not proof. BLE received 4,695 DATA and 278 LOG message assemblies without fragment gap/CRC/duplicate/order errors, while 2,223 complete scientific sequence observations are still missing. Intact fragments do not eliminate upstream whole-frame drops. The ADC denominator is the complete-health valid-even/valid-odd/rejected delta, not frames; the 2.5% criterion is unchanged. X12 on floating S1D2 remains invalid, without zero fill, smoothing or a claim of calibration accuracy.
+
+| 层级 / Layer | screen08 within-window delta | screen09 within-window delta |
+|---|---|---|
+| USBQ receipt span | 120.592613 s | 120.402249 s |
+| USBQ `dSubmit/cSubmit` | 7,140 / 111 | 6,943 / 111 |
+| USBQ `dDrop/cDrop/expired/cExpired/partial` | all 0 | all 0 |
+| USBQ `dBytes/cBytes` | 4,273,137 / 26,187 B | 4,155,302 / 26,184 B |
+| BL50 receipt span | 119.650096 s | 119.641568 s |
+| BL50 `sentD/dropD/dropL/dropC` | 3,963 / 3,037 / 0 / 0 | 4,683 / 2,201 / 0 / 0 |
+| BLETX query span | 120.602186 s | 120.401641 s |
+| BLETX `sdkCalls/sdkAccepted/sdkErrors` | 13,251 / 13,251 / 0 | 15,379 / 15,378 / 0 |
+| BLESVC completed / wall delta / mean wall | 13,248 / 61.923999 s / 4.674215 ms | 15,383 / 62.979474 s / 4.094096 ms |
+| BLESVC `confOk/confError` | 13,249 / 0 | 15,382 / 0 |
+
+USB FIFO 接受和 SDK 接受不是 PC 收到。各行的 query/receipt 窗口不同；活跃调用及 CONF 与 wrapper 的异步时序可形成 1 条边界差，不能把它们与主机缺口相加。WDT/MFAULT/reset 在完整正式/调试窗口内未观测到；缺失日志不能证明未记录事件不存在。最大连续 heap、SDK CPU、blocked 和绝对精度仍 unknown/未评估。
+
+USB FIFO and SDK acceptance do not establish PC receipt. Query/receipt windows differ, and active calls plus asynchronous CONF/wrapper timing can produce one-event boundary differences; these are not added to host gaps. No WDT/MFAULT/reset was observed in the covered formal/debug window, without ruling out unrecorded events. Maximum contiguous heap, SDK CPU, blocked time and absolute accuracy remain unknown/not evaluated.
+
+### CPU 变化与剩余阻塞 / CPU changes and remaining blocker
+
+| Role | screen09 ΔrunUs / own spanUs | screen08 ratio | screen09 ratio |
+|---|---:|---:|---:|
+| BLE_TX | 21,167,994 / 119,927,415 | 15.033813% | 17.650671% |
+| TRANSPORT | 8,935,494 / 120,069,062 | 7.547857% | 7.441962% |
+| ASYNC_LOG | 16,217,602 / 120,181,452 | 24.600562% | 13.494264% |
+| SERIAL_TX | 12,332,742 / 120,513,737 | 9.745380% | 10.233474% |
+| BLE_CTRL | unknown: stale historical sample | unknown | unknown |
+| SERIAL_CTRL | 948,055 / 120,135,925 | 0.785963% | 0.789152% |
+| WIFI_CTRL | unknown: not_observed | unknown | unknown |
+
+本对照 ASYNC_LOG 比率下降 11.106299 个百分点，BLE 实收提高 **18.164321%**，支持单遍解析消除了发布路径的一部分实际开销；但 BLE39.13FPS 仍低于 capture57.79FPS，采集本次下降且各运行的输入/调度时序并不完全相同，不将一次对照当作所有瓶颈的因果分解。各角色本窗口 switch-out 差分独立，不能跨 boot 相减、不能求和成全核 CPU、不能用 SDK 墙钟减 owner runtime 推 blocked。仍需下一候选和有界复测；完整 600 秒/32 配置继续 NOT_RUN。下一 `-O2` 候选尚未烧录到本次结果，不提前填通过数。
+
+In this comparison, ASYNC_LOG's ratio fell 11.106299 percentage points and BLE receipt rose **18.164321%**, supporting removal of a material publisher-path cost. BLE at 39.13 FPS still trails capture at 57.79 FPS. Capture fell in this run, and input/scheduling timing is not identical between runs, so one comparison is not a causal decomposition of all bottlenecks. Each role's switch-out delta uses its own window: no cross-boot subtraction, aggregate core-CPU sum or SDK-wall-minus-owner-runtime blocked estimate is valid. Further candidates and bounded retests remain necessary; the complete 600-second/32-configuration suite is still NOT_RUN. The next `-O2` candidate has not been flashed as part of these results, and no future passing counts are filled in.
+
+证据 / Evidence: [原 summary](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-volt1.summary.json), [独立科学/诊断分析](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-analysis-01.json), [CPU delta](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-cpu-owner-deltas-01.json), [判定](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-verdict.json), [08→09 分层/CPU 对照](artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-08-09-layer-cpu-comparison-01.json), [实际闭环命令及 SHA](artifacts/cdc_recovery_acceptance_20261116/screen-09-closure-01-manifest.json)。本轮复用未修改的通用离线脚本，实际 exit0；原 stdout/raw/events 与历史失败均保留，文档闭合未修改生产、测试或采集工具，也未执行 build/HIL。 / The unchanged generic offline script actually exited zero. Original stdout/raw/events and historical failures remain; this documentation closure modified no production, test or capture tool and performed no build/HIL.

@@ -1,0 +1,137 @@
+#define _POSIX_C_SOURCE 200809L
+#include <assert.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include "sensorarrayTransportFrameMeta.h"
+
+enum { F_SEQ, F_ROWS, F_CELLS, F_GEN, F_RID, F_SESSION, F_BOOT, F_REV,
+       F_MGEN, F_MRID, F_RGEN, F_RRID, F_PGEN, F_PRID, F_COUNT };
+static const char *const keys[F_COUNT] = {"seq=", "rows=", "cells=", "gen=", "rid=", "session=", "bootId=", "rev=", "mgen=", "mrid=", "rgen=", "rrid=", "pgen=", "prid="};
+static const unsigned char key_lengths[F_COUNT] = {4,5,6,4,4,8,7,4,5,5,5,5,5,5};
+
+/* Independent review prototype only: never linked into firmware. */
+static void candidate_parse(sensorarrayTransportPayloadSlot_t *s)
+{
+    if (!s) return;
+    s->hasFrameMeta = false;
+    if (s->length < 2 || s->data[1] != ',' || !strchr("CVRM", s->data[0])) return;
+    const char *line_end = strpbrk(s->data, "\r\n");
+    if (!line_end) line_end = s->data + strlen(s->data);
+    uint64_t v[F_COUNT] = {0};
+    uint32_t seen = 0, valid = 0;
+    for (const char *p = s->data; p < line_end;) {
+        const char *end = memchr(p, ',', (size_t)(line_end - p));
+        if (!end) end = line_end;
+        for (unsigned i = 0; i < F_COUNT; ++i) {
+            if (s->data[0] == 'M' && (i == F_GEN || i == F_RID)) continue;
+            uint32_t bit = UINT32_C(1) << i;
+            if ((seen & bit) || (size_t)(end-p) <= key_lengths[i] ||
+                *p != *keys[i] || memcmp(p, keys[i], key_lengths[i])) continue;
+            seen |= bit;
+            const char *start = p + key_lengths[i];
+            if (*start != '-' && *start != '+' && *start != ' ') {
+                uint64_t maximum = i == F_SESSION ? UINT64_MAX :
+                    i == F_ROWS ? 8 : i == F_CELLS ? 64 : UINT32_MAX;
+                errno = 0;
+                char *parsed_end;
+                unsigned long long parsed = strtoull(start, &parsed_end,
+                    i == F_SESSION ? 16 : 10);
+                if (!errno && parsed_end == end && parsed <= maximum) {
+                    v[i] = parsed;
+                    valid |= bit;
+                }
+            }
+            break;
+        }
+        p = end < line_end ? end + 1 : line_end;
+    }
+    if ((valid & 7) != 7 || v[F_ROWS] < 1 || v[F_CELLS] != v[F_ROWS] * 8) return;
+    s->frameSeq = (uint32_t)v[F_SEQ]; s->rows = (uint8_t)v[F_ROWS]; s->cells = (uint8_t)v[F_CELLS];
+    s->generation = (uint32_t)v[s->data[0] == 'M' ? F_RGEN : F_GEN];
+    s->requestId = (uint32_t)v[s->data[0] == 'M' ? F_RRID : F_RID];
+    s->sessionId = v[F_SESSION]; s->bootId = (uint32_t)v[F_BOOT]; s->configRevision = (uint32_t)v[F_REV];
+    s->modeGeneration = (uint32_t)v[F_MGEN]; s->modeRequestId = (uint32_t)v[F_MRID];
+    s->rowsGeneration = (uint32_t)v[F_RGEN]; s->rowsRequestId = (uint32_t)v[F_RRID];
+    s->profileGeneration = (uint32_t)v[F_PGEN]; s->profileRequestId = (uint32_t)v[F_PRID];
+    s->hasFrameMeta = true;
+}
+
+static uint32_t random_state = 0x84138a5bu;
+static uint32_t rng(void) { random_state ^= random_state << 13; random_state ^= random_state >> 17; random_state ^= random_state << 5; return random_state; }
+static unsigned compared;
+static void check(const char *data, size_t length)
+{
+    sensorarrayTransportPayloadSlot_t a, b;
+    memset(&a, 0xa5, sizeof(a));
+    memset(a.data, 0, sizeof(a.data));
+    memcpy(a.data, data, length);
+    a.length = (uint16_t)length;
+    b = a;
+    sensorarrayTransportParseFrameMeta(&a); candidate_parse(&b);
+    if (memcmp(&a, &b, sizeof(a))) {
+        fprintf(stderr, "MISMATCH case=%u input=%s\n", compared, data); exit(1);
+    }
+    ++compared;
+}
+static double now_ns(void) { struct timespec t; assert(clock_gettime(CLOCK_MONOTONIC, &t) == 0); return t.tv_sec * 1e9 + t.tv_nsec; }
+static volatile uint64_t sink;
+static double bench(void (*fn)(sensorarrayTransportPayloadSlot_t *), sensorarrayTransportPayloadSlot_t *slot, unsigned n)
+{
+    double start = now_ns();
+    uint64_t sum = 0;
+    for (unsigned i = 0; i < n; ++i) { fn(slot); sum += slot->frameSeq + slot->modeGeneration + slot->hasFrameMeta; }
+    sink += sum;
+    return (now_ns() - start) / n;
+}
+int main(int argc, char **argv)
+{
+    static const char *cases[] = {
+        "", "C", "C,", "N,seq=1,rows=1,cells=8", "MR,seq=1,rows=1,cells=8",
+        "C,seq=1,rows=1,cells=8", "C,seq=0,rows=1,cells=8,", "C,seq=4294967295,rows=8,cells=64",
+        "C,seq=4294967296,rows=1,cells=8", "C,seq=-1,rows=1,cells=8", "C,seq=+1,rows=1,cells=8",
+        "C,seq= 1,rows=1,cells=8", "C,seq=\t+1,rows=1,cells=8", "C,seq=1 ,rows=1,cells=8",
+        "C,seq=1,rows=0,cells=0", "C,seq=1,rows=9,cells=72", "C,seq=1,rows=1,cells=16",
+        "C,seq=,seq=1,rows=1,cells=8", "C,seq=x,seq=1,rows=1,cells=8", "C,seq=1,seq=x,rows=1,cells=8",
+        "C,seq=1,rows=1,cells=8,gen=,gen=3", "C,seq=1,rows=1,cells=8,gen=x,gen=3",
+        "C,seq=1,rows=1,cells=8,gen=0x10", "C,seq=1,rows=1,cells=8,session=0xFFFFFFFFFFFFFFFF",
+        "C,seq=1,rows=1,cells=8,session=FFFFFFFFFFFFFFFFF", "C,seq=1,rows=1,cells=8,session=\t-1",
+        "M,seq=1,rows=1,cells=8,gen=99,rid=88,rgen=7,rrid=8,pgen=9,prid=10",
+        "C,seq=1,rows=1,cells=8,mgen=7,xgen=8\nK,gen=999,rid=999\n",
+        "C,seq=1,rows=1,cells=8,gen=2\rgen=4\n", "C,seq=1,rows=1,cells=8,gen=\nK,gen=99\n"
+    };
+    for (unsigned i = 0; i < sizeof(cases)/sizeof(*cases); ++i) check(cases[i], strlen(cases[i]));
+    const char nul[] = "C,seq=1,rows=1,cells=8,gen=2\0,gen=99\n"; check(nul, sizeof(nul)-1);
+    const char *vals[] = {"", "0", "1", "8", "64", "4294967295", "4294967296", "18446744073709551615", "18446744073709551616", "-1", "+1", " 1", "\t1", "\t+1", "\v1", "\f1", "1 ", "0x10", "0XFFFFFFFFFFFFFFFF", "z", "01", "1x"};
+    for (unsigned n = 0; n < 50000; ++n) {
+        char text[2305];
+        char tag = "CVRMX"[rng()%5];
+        size_t at = (size_t)snprintf(text, sizeof(text), "%c,seq=%s,rows=1,cells=8", tag, n%7 ? "1" : "");
+        for (unsigned k = 0, count = rng()%25; k < count; ++k) {
+            const char *key = keys[rng()%F_COUNT]; const char *value = vals[rng()%(sizeof(vals)/sizeof(*vals))];
+            int wrote = snprintf(text+at,sizeof(text)-at,",%s%s%s", rng()%11 == 0 ? "x" : "", key, value);
+            assert(wrote >= 0 && (size_t)wrote < sizeof(text)-at); at += (size_t)wrote;
+        }
+        const char *tail = n%3 == 0 ? "\r\nK,gen=99,rid=98\n" : n%3 == 1 ? "\nK,gen=99\n" : "";
+        at += (size_t)snprintf(text+at,sizeof(text)-at,"%s",tail);
+        check(text,at);
+    }
+    char maximum[2305]; memset(maximum,'x',2304); maximum[2304]=0;
+    memcpy(maximum,"C,seq=1,rows=1,cells=8,unknown=",29); check(maximum,2304);
+    printf("{\"differential_cases\":%u,\"comparison\":\"entire slot bytes, including unchanged payload and stale fields when hasFrameMeta=false\",\"iterations_per_round\":100000,\"rounds\":3,\"benchmarks\":[",compared);
+    for (int f = 1; f < argc; ++f) {
+        sensorarrayTransportPayloadSlot_t s = {0}; FILE *file = fopen(argv[f],"rb"); assert(file);
+        size_t n = fread(s.data,1,2304,file); assert(feof(file)); fclose(file); s.length=(uint16_t)n; s.data[n]=0; check(s.data,n);
+        size_t header=strcspn(s.data,"\r\n"); double old[3], proposed[3];
+        for (unsigned r = 0; r < 3; ++r) {
+            if (r%2) { proposed[r]=bench(candidate_parse,&s,100000); old[r]=bench(sensorarrayTransportParseFrameMeta,&s,100000); }
+            else { old[r]=bench(sensorarrayTransportParseFrameMeta,&s,100000); proposed[r]=bench(candidate_parse,&s,100000); }
+        }
+        printf("%s{\"fixture\":\"%s\",\"bytes\":%zu,\"header_bytes\":%zu,\"baseline_ns_per_parse\":[%.3f,%.3f,%.3f],\"prototype_ns_per_parse\":[%.3f,%.3f,%.3f]}",f>1?",":"",argv[f],n,header,old[0],old[1],old[2],proposed[0],proposed[1],proposed[2]);
+    }
+    printf("],\"fixture_differential_cases\":%d,\"sink\":%"PRIu64"}\n",argc-1,sink);
+    return 0;
+}

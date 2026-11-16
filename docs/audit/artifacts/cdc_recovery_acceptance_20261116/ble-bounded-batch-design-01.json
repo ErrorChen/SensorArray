@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "kind": "READ_ONLY_DESIGN_NOT_IMPLEMENTED",
+  "created_utc": "2026-11-16T09:06:15.481470+00:00",
+  "repository_head": "b9ebe2f7b8b49819347608392e70ff5966f2ad87",
+  "idf_head": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+  "idf_tracked_dirty": false,
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "5f27e3dac2db416059abf0ae6ba4beb3e5397f69a6747a88a68e854a0a14498e",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "tests/host/test_ble_pipeline.c": "da03d5f75d460dbdd44a223ac357afd5d03fcf6dc7c3c4279c86223e655996f3",
+    "tests/host/test_serial_io_priority.c": "ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509",
+    "sdkconfig": "d1ff64cc0ca9902c8d20a59a1199c001604ff5dec25480970d782dcd7c5b6b5d",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/tasks.c": "193c3d8379acc847097632da8e6d4dd2ee0bf8e069d78979d68dd26b653d48df",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/config/include/freertos/FreeRTOSConfig.h": "e1b599aa39c1f9718aa3f4e101a81c0f9e8ab139ab1993fc2148840a02641d83",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/api/esp_gatts_api.c": "789cec3d36eedd7c549d8f9db73655ca2f59e136ea44f896d7b3b5de84878e36",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/btc/core/btc_task.c": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/thread.c": "9391231ea489ef4fbab908cc4c3d9e50f98279b9ee4fa1016bf0b5f252305ce3"
+  },
+  "decision": "Single-call boost rejected as likely wait redistribution; finite-batch boost warrants model evaluation only, not deployment or a boundedness/performance claim.",
+  "observed_source_facts": [
+    {
+      "source": "IDF tasks.c:3559-3645",
+      "fact": "Original IDF dual-core scheduler starts at ready-list head and moves each selected task to its priority-list tail. Higher-priority BTC preemption can therefore rotate BLE_TX behind other priority-7 peers without waiting for a tick."
+    },
+    {
+      "source": "IDF tasks.c:1853-1859,1928-1942",
+      "fact": "vTaskPrioritySet lowering the running task sets xYieldRequired and yields after moving the ready item. A single-call 8-to-7 restoration can move the same wait outside sdkWallUs."
+    },
+    {
+      "source": "sensorarrayBle.c:1267-1308",
+      "fact": "Current fragmentation checkpoints after at most four successful fragments OR an observed tick change, while more fragments remain. At HZ=100 this is tick-granular, not a hard 10ms call bound. Descriptor entry also checkpoints."
+    },
+    {
+      "source": "sensorarrayWorkBudget.c:15-25,138-205",
+      "fact": "Original predicates remain 32 units OR 2-tick quantum OR 4-tick idle backstop. A due checkpoint performs exactly one vTaskDelay(1); real idle progress resets the local quantum. Lowering to priority 7 or taskYIELD alone cannot guarantee IDLE0."
+    },
+    {
+      "source": "esp_gatts_api.c:289-331 -> btc_task.c:330-366 -> osi/thread.c:114-130,338-358",
+      "fact": "The public send call deep-copies and posts to BTC with OSI_THREAD_MAX_TIMEOUT, reaching xQueueSend(portMAX_DELAY); no unconditional one-tick delay was found on this path. The caller cannot bound/cancel the individual SDK call using an outer deadline."
+    },
+    {
+      "source": "FreeRTOSConfig.h:86,93-94; btc_task.c:99; btu_init.c:49",
+      "fact": "Preemption and time slicing enabled, maximum priorities25; BTC19 and BTU20 remain above both BLE7/8. This is same-priority service contention, not demonstrated mutex priority inversion."
+    }
+  ],
+  "candidate_for_future_model_only": {
+    "scope": "Current BLE_TX task only; FAST DATA only. Keep SAFE indications, CTRL, LOG, CRC/ASCII validation and fragment planning at the existing baseline priority.",
+    "batch_end": "Existing 4-fragment/tick-change checkpoint, descriptor end, connection-generation mismatch or any send error; restore original base priority on every exit before retry/confirmation waits or release.",
+    "time_limit": "Do not replace the existing tick-change check by a coarser 20ms test. An additional absolute wall limit can only be checked after SDK returns; an individual call can overshoot it.",
+    "yield_policy": "First model restore7 plus unchanged WorkBudget. If actual vTaskDelay(1) after every batch is required, model separately as a changed scheduling policy with up-to-one-tick blocking cost; do not call that unchanged behavior.",
+    "control": "CTRL worker stays8 and can time-slice with boosted owner. Control messages queued to the same BLE owner still wait for current DATA descriptor completion; queue priority is not mid-record preemption.",
+    "priority_ownership": "No external task or effective inherited priority may be blindly overwritten; guard owner identity/base7 and restore once on every exit. No scheduler suspension, ISR blocking, task deletion or payload reuse to fake cancellation."
+  },
+  "conditional_bounds": {
+    "finite_sdk_assumption": "With individual SDK wall time <=B and finite local overhead H, N<=4 and an after-return threshold T allow only a conditional batch bound <=min(N*B+H,T+B+H); H must include finite scheduling/ISR effects. No measured HIL maximum is a proof of B.",
+    "sdk_blocks_forever": "Blocked owner does not itself consume CPU, but descriptor lifetime and same-owner CTRL delivery are unbounded. Keep slot owned, classify NOT_PROVABLY_BOUNDED.",
+    "sdk_ready_forever": "A non-returning ready SDK call at8 would starve priority7 production/USB and cannot reach WorkBudget. This is an adversarial risk, not an observed SDK spin diagnosis; retain watchdog and reject any claim of hard bounded boost.",
+    "idle": "A lower priority or yield to ready priority7 peers is not evidence IDLE0 ran; use actual idle hook generation and the existing idle-gap assertions."
+  },
+  "model_acceptance_plan": [
+    "Retain archived permanent-TX8 failed log and all old serial model assertions: sourceFrames200, controls40, idle gap<=6ticks, original control lifetime checks. Do not relabel the historical failure.",
+    "Use actual extracted production pipeline and bounded BLE4slot dependency. Add baseline7, historical permanent8, single-fragment boost and bounded-batch variants without editing production.",
+    "Scheduler adapter must reproduce IDF ready-list-tail movement on every selection, higher-priority wake preemption, self-lowering yield, affinity and 100Hz tick slicing; changing only a priority integer is insufficient.",
+    "Cover short SDK calls, BTC preemption, long finite queue blocking, rejection, congestion, unread peer, generation changes and control arrivals at every fragment boundary.",
+    "Assert every completion/error/stale branch returns to baseline priority; no priority boost around SAFE confirmation/retry wait, no held hardware lock at yield, no extra slot reuse.",
+    "Preserve exact source/encoder/transport/BLE/SDK/receiver conservation and distinct drop counters; measure descriptor hold time, control dispatch/delivery, actual idle progress and maximum boosted wall interval.",
+    "Include indefinitely blocked SDK and adversarial ready/nonreturning SDK as NOT_PROVABLY_BOUNDED, not successful finite expiry; never discard owned payloads to satisfy teardown.",
+    "Performance admission must compare receiver-complete messages and layer drops plus upstream/USB/control progress; reduced sdkWallUs alone can be accounting displacement, not throughput improvement."
+  ],
+  "out_of_scope": [
+    "No production/config/SDK/test modifications",
+    "No model execution for this new candidate",
+    "No target build, serial/BLE access or HIL",
+    "No claim of air-interface capacity or PC ACK",
+    "No O2 change; optimization/assertions/CPU160 would be a separate experiment"
+  ],
+  "prior_evidence": [
+    "ble-tx8-01-test_serial_io.txt",
+    "ble-tx8-withdrawn-01.json",
+    "ble-pipeline-01-command.json",
+    "screen-08/screen-08-analysis-01.json"
+  ]
+}

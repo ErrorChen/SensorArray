@@ -1,0 +1,213 @@
+{
+  "kind": "read_only_performance_and_semantics_review",
+  "created_utc": "2026-11-16T08:49:39.898093+00:00",
+  "head_at_review_start": "c670897050e99e6d01c95b2da7ba55a57fe8e52b",
+  "head_at_report": "b9ebe2f7b8b49819347608392e70ff5966f2ad87",
+  "production_edits": false,
+  "test_file_edits": false,
+  "target_build": false,
+  "hardware_actions": false,
+  "source_evidence": {
+    "core/transport/sensorarrayTransportFrameMeta.c": {
+      "sha256": "3b6d1df8ceeeee99d312d543d5e6b0b7b70f054a4e033aefa0bf188479ea6fcf",
+      "matches_review_start_commit": true
+    },
+    "core/transport/sensorarrayTransport.c": {
+      "sha256": "caf2825357c2f56d4b7e5fdd81e8d0bde9056ea8137de1f16995b4e1a143bb2b",
+      "matches_review_start_commit": true
+    },
+    "core/transport/sensorarrayTransportPool.h": {
+      "sha256": "8035d677cd265092333c1d94241732e0697b15a6b013b0e17640f014a57c7d47",
+      "matches_review_start_commit": true
+    },
+    "main/net/sensorarrayNetStatus.c": {
+      "sha256": "3f144a49e858bc0207539500c30298b5618e0b5a5e79ca39acadafc8747a39a0",
+      "matches_review_start_commit": true
+    },
+    "main/output/sensorarrayAsyncLog.c": {
+      "sha256": "39ca36145aac0c51ffef93c993079cd0ccad545251eccfdfbe200e21a3e42d87",
+      "matches_review_start_commit": false
+    },
+    "tests/host/test_transport_frame_metadata.c": {
+      "sha256": "997d31dc2035d46ed5cb4054414a3eae33d9fe69a8bf7020e35ee2d04b865a59",
+      "matches_review_start_commit": true
+    }
+  },
+  "call_chain": [
+    "sensorarrayAsyncLogTask (Core0 output_hub)",
+    "sensorarrayNetTextPublish",
+    "sensorarrayTransportPublishData",
+    "sensorarrayTransportQueue: allocate exclusive slot, copy payload, append private NUL",
+    "sensorarrayTransportFillFrameMeta -> sensorarrayTransportParseFrameMeta (synchronous on publisher task)",
+    "xQueueSend descriptor",
+    "sensorarrayTransportProcessDescriptor -> BLE/WiFi sends original immutable payload; optional CAP B20 preview uses stored metadata"
+  ],
+  "cost_facts": [
+    "Accepted C/V/R/M headers execute field() fourteen times; each repeats strpbrk and comma-token traversal. Typical V/R first line has44 tokens; supplied encoder VOLT1 fixture header400B.",
+    "M repeats rgen and rrid conversion for legacy aliases and explicit rows identity.",
+    "No enabled network sink or failed payload-pool allocation returns before parsing. Queue-full failure occurs after parsing.",
+    "Normal REL sends the original bytes. Parsing is not repeated by the BLE worker; short CAP preview is a separate conditional parser.",
+    "Payload copy and parse are outside the short pool metadata critical section. No new global configuration read is needed."
+  ],
+  "identity_contract": {
+    "C_gen_rid": "ROWS",
+    "V_R_gen_rid": "MODE",
+    "M_legacy_slot_generation_requestId": "rgen/rrid (ROWS)",
+    "explicit_fields": "session/bootId/rev, mgen/mrid, rgen/rrid, pgen/prid remain independent",
+    "no_restamping": "Only parse the immutable slot payload; never fetch latest globals or unify legacy generation domains."
+  },
+  "existing_semantics_to_preserve": [
+    "Only first line through earliest CR/LF or NUL is parsed; later K fields are ignored.",
+    "Required seq is0..UINT32_MAX, rows1..8, cells==rows*8. Any required failure sets hasFrameMeta=false without rewriting other old fields.",
+    "Empty key=value tokens are skipped; the first NONEMPTY matching token is authoritative. Invalid first nonempty prevents a later valid duplicate from replacing it.",
+    "Missing or invalid optional numbers become0; they do not invalidate otherwise valid required metadata.",
+    "The numeric converter is strtoull(base10, session base16), full-token consumption and overflow/max checks. Immediate minus/plus/space are rejected; other leading whitespace and hex-session prefix retain existing library behavior.",
+    "A newline, data body, K trailer, or CRC match is not required for hasFrameMeta. This flag is not proof of complete/valid scientific wire framing.",
+    "Queue guarantees private NUL at data[length], with length<=2304. Current parser only uses length for initial2-byte check, so adding new length-based semantic rejection must be a separate hardening decision.",
+    "Source bytes, slotGeneration, connection generation and non-metadata fields remain unchanged."
+  ],
+  "minimal_design": [
+    "Keep public ParseFrameMeta API and caller lifecycle unchanged. Find first-line end once, visit comma tokens once, and match exact field keys.",
+    "Use a seen mask plus validity mask and bounded local values. Empty tokens do not set seen. First nonempty malformed tokens set seen but not valid.",
+    "Keep strtoull for the first optimization; replacing it with a hand-written integer parser risks silent whitespace, sign, hex and overflow behavior changes.",
+    "Commit metadata only after required fields validate. For M, reuse rgen/rrid values for legacy aliases; otherwise use gen/rid. Leave each explicit domain untouched.",
+    "Keep BuildPreview and its existing helper semantics separate; remove obsolete u32 lookup helper only if it becomes unused.",
+    "No change to encoder, CRC, frame data, transport selection, queue capacity, task priorities or work budgets."
+  ],
+  "current_test_gaps": [
+    "Only seven parse scenarios in the existing test: domain identities, queued copy, M aliases, ignored K fallback, previews and seq overflow. No broad duplicate/nonempty ordering coverage.",
+    "Missing negative/plus/space versus tab/formfeed, session base16/0x and uint64 overflow boundaries.",
+    "Missing required rows/cells0/9/mismatch, optional overflow/malformed and first-invalid/later-valid duplicate distinction.",
+    "Missing CR versus LF, no newline, embedded NUL, maximum2304 payload, misleading key prefixes, invalid tags, and reused-slot metadata preservation on failure.",
+    "No existing single-pass-versus-old differential test or ESP parser cost isolation."
+  ],
+  "host_experiment": {
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "compile_command": [
+      "/usr/bin/gcc",
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-I",
+      "core/transport",
+      "/tmp/sensorarray-frame-meta-review-20261116/candidate.c",
+      "core/transport/sensorarrayTransportFrameMeta.c",
+      "-o",
+      "/tmp/sensorarray-frame-meta-review-20261116/review"
+    ],
+    "compile_exit_code": 0,
+    "run_command": [
+      "/tmp/sensorarray-frame-meta-review-20261116/review",
+      "tests/fixtures/config_identity/volt_1.frame",
+      "tests/fixtures/config_identity/res_extreme.frame",
+      "tests/fixtures/config_identity/mixed_extreme.frame",
+      "tests/fixtures/config_identity/cap_1.frame"
+    ],
+    "run_exit_code": 0,
+    "prototype_artifact": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-frame-meta-single-pass-review-01.c.txt",
+    "prototype_sha256": "7624f0efaf11ef6eb23fb35077a211938ccdc33c6ce12e965e40ed2748689077",
+    "results": {
+      "differential_cases": 50032,
+      "comparison": "entire slot bytes, including unchanged payload and stale fields when hasFrameMeta=false",
+      "iterations_per_round": 100000,
+      "rounds": 3,
+      "benchmarks": [
+        {
+          "fixture": "tests/fixtures/config_identity/volt_1.frame",
+          "bytes": 548,
+          "header_bytes": 400,
+          "baseline_ns_per_parse": [
+            2745.458,
+            2583.533,
+            2533.719
+          ],
+          "prototype_ns_per_parse": [
+            807.052,
+            787.69,
+            766.423
+          ],
+          "baseline_median_ns": 2583.533,
+          "prototype_median_ns": 787.69,
+          "host_relative_speedup": 3.2798854879457653,
+          "fixture_sha256": "c9dd91c22535375e137e6ff1c777bc6590a4799eb8ac818aa846c1aa58cd3ddc"
+        },
+        {
+          "fixture": "tests/fixtures/config_identity/res_extreme.frame",
+          "bytes": 1844,
+          "header_bytes": 673,
+          "baseline_ns_per_parse": [
+            3023.759,
+            3024.19,
+            3044.076
+          ],
+          "prototype_ns_per_parse": [
+            1078.661,
+            1055.469,
+            969.161
+          ],
+          "baseline_median_ns": 3024.19,
+          "prototype_median_ns": 1055.469,
+          "host_relative_speedup": 2.8652570563417776,
+          "fixture_sha256": "7607089b2e501bc803781bebd1e3df2b4aed51fe51848f3fb5d779e828de6915"
+        },
+        {
+          "fixture": "tests/fixtures/config_identity/mixed_extreme.frame",
+          "bytes": 2085,
+          "header_bytes": 288,
+          "baseline_ns_per_parse": [
+            1193.004,
+            1198.566,
+            1198.23
+          ],
+          "prototype_ns_per_parse": [
+            553.598,
+            571.581,
+            559.856
+          ],
+          "baseline_median_ns": 1198.23,
+          "prototype_median_ns": 559.856,
+          "host_relative_speedup": 2.140246777742848,
+          "fixture_sha256": "8142106e5058c6010a370da7878a03298748f54e3ec632af8470fc4791e04b67"
+        },
+        {
+          "fixture": "tests/fixtures/config_identity/cap_1.frame",
+          "bytes": 376,
+          "header_bytes": 224,
+          "baseline_ns_per_parse": [
+            1363.013,
+            1367.085,
+            1361.369
+          ],
+          "prototype_ns_per_parse": [
+            442.9,
+            459.749,
+            453.152
+          ],
+          "baseline_median_ns": 1363.013,
+          "prototype_median_ns": 453.152,
+          "host_relative_speedup": 3.0078494633147375,
+          "fixture_sha256": "77fbdb4dd6812b62ee05d5f9f4b3d7834236ff1e2eddd1c07dfc65a82606365b"
+        }
+      ],
+      "fixture_differential_cases": 4,
+      "sink": 5153971797600000
+    },
+    "limitations": [
+      "Host x86_64/GCC/glibc timing only, not ESP32-S3/newlib or a BLE-throughput prediction. No firmware build or physical experiment performed.",
+      "Finite differential cases compare entire slot object bytes; they do not prove every possible input or preserve incidental errno state, which no current caller consumes.",
+      "Prototype source is a review artifact, not production or a newly installed acceptance test.",
+      "Distinct owner CPU percentages from different windows cannot be added; ESP SDK wall time is not CPU time. This does not establish parsing as the dominant25% AsyncLog owner cost."
+    ]
+  },
+  "next_evidence": [
+    "If authorized, production implementation should first add the listed exact-semantic regressions and retain actual encoder golden frames/unchanged CRC.",
+    "Measure parser invocation count and bounded aggregate elapsed cost in the actual publisher context with matched profile, clock and transport conditions; separate wall elapsed from CPU-own runtime.",
+    "Verify BLE receipt gaps/queue counters/critical-reply latency in a matched physical run before claiming throughput benefit. No FPS cap, safety, validity or identity relaxation."
+  ],
+  "concurrent_changes": "Root advanced HEAD c670897 to b9ebe2f while this read-only review ran. AsyncLog changed in that parallel task; the production parser, Transport, Pool header, NetStatus and existing metadata test remain byte-identical to the review-start commit. The parser benchmark is against that unchanged parser.",
+  "prepared_not_applied_patch": "/tmp/sensorarray-frame-meta-review-20261116/proposal.NOT_APPLIED.patch"
+}

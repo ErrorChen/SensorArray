@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "environment": {
+    "CC": "/usr/bin/gcc"
+  },
+  "exit_code": 0,
+  "elapsed_s": 0.9746579399798065,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-meta-single-pass-host-01-ble-pipeline.txt",
+  "log_sha256": "432fe6c06c931aedd752c643e4584bb3c2cde505889cd152a61830f60976532c"
+}

@@ -1,0 +1,19 @@
+{
+  "source_commit": "dafaf9bc841e756b7d78aa54391703a952b819e5",
+  "version": "dafaf9b",
+  "app_bytes": 1620976,
+  "bin_sha256": "ae0975e0d4ea203f4914a491be876d9bee435ac56ed7f1524f5a5d939ccb8a50",
+  "elf_sha256": "922e1c880317d4ace18eb2ec2b368ad7d3b9a1ac1c548f7e34a63182ffeb2c10",
+  "host_entries": 66,
+  "all_exit_zero": true,
+  "production_inputs": 185,
+  "build_test_inputs_identical": true,
+  "dirty_diff_sha256_at_build": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "build_manifest": "frame-meta-01-build-manifest.json",
+  "tests_manifest": "frame-meta-01-tests-manifest.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+  "CPU_owner_diagnostics_enabled": true,
+  "normal_defaults_diagnostics_enabled": false,
+  "change_scope": "Single-pass frame metadata extraction only; immutable identity and wire bytes unchanged; 160MHz, -Og, CRC 2.5%, priorities/work budgets unchanged"
+}

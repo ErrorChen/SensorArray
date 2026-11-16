@@ -1,0 +1,12 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 327393016173238, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.819150744995568, "notifications": {"D": 1206, "L": 59}, "payload_bytes": {"D": 254823, "L": 12289}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.88709703297354, "notifications": {"D": 3550, "L": 266}, "payload_bytes": {"D": 790123, "L": 59411}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.95695682900259, "notifications": {"D": 5910, "L": 473}, "payload_bytes": {"D": 1331799, "L": 106750}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 81.04086314397864, "notifications": {"D": 8286, "L": 680}, "payload_bytes": {"D": 1877167, "L": 154305}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 101.1159895809833, "notifications": {"D": 10644, "L": 887}, "payload_bytes": {"D": 2418407, "L": 201939}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.17713284899946, "notifications": {"D": 13004, "L": 1098}, "payload_bytes": {"D": 2960094, "L": 250575}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.23611951398198, "notifications": {"D": 15334, "L": 1310}, "payload_bytes": {"D": 3494891, "L": 299514}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.32604673097376, "notifications": {"D": 16594, "L": 1369}, "payload_bytes": {"D": 3765187, "L": 312504}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 16714, "L": 1369}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-ble.ble.notifications.jsonl", "journal_sha256": "9811f909bd7073b5409ecc6106e9b69509d335a21316a9338f69654bf8068a14"}
