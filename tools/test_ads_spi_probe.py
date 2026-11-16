@@ -34,6 +34,9 @@ def main():
         ]
         subprocess.run(command, check=True)
         subprocess.run([str(binary)], check=True)
+        subprocess.run(command + ["-DCONFIG_IDF_TARGET_ESP32S3=1", "-DPROBE_TEST_TAIL_POLICY=1"], check=True)
+        subprocess.run([str(binary)], check=True)
+        print("ADS_SPI_PROBE_REQUIRED_POLICY_TESTS,passed=20,transport=spi55_gpio1")
         command.remove("-DCONFIG_SENSORARRAY_ADS_SPI_AUTOTUNE_PROBE_SAMPLES=400")
         command += ["-DCONFIG_SENSORARRAY_ADS_SPI_AUTOTUNE_PROBE_SAMPLES=128",
                     "-DPROBE_TEST_CONFIG_INSUFFICIENT=1"]

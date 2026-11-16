@@ -24,6 +24,13 @@ static bool restoreSnapshotCorrupted;
 static void probeQueueHook(const spi_transaction_t *trans)
 {
     const uint8_t *tx = trans->tx_buffer;
+    if (tx[0] == ADS126X_CMD_RDATA1) {
+#ifdef PROBE_TEST_TAIL_POLICY
+        assert(trans->length == 55u);
+#else
+        assert(trans->length == 56u);
+#endif
+    }
     if ((tx[0] & 0xE0u) == 0x40u && (tx[0] & 0x1Fu) == 1u &&
         (tx[2] & ADS126X_POWER_INTREF) != 0u) { powerOnWrites++; }
     if (scenario == PROBE_DMA_UNKNOWN && tx[0] == ADS126X_CMD_RDATA1) {
@@ -113,6 +120,14 @@ static sensorarrayState_t probeState(enum probeScenario selected)
     registers[6] = 1u; registers[15] = 0u;
     registers[12] = 0x40u;
     state.ads.enableStatusByte = false;
+#ifdef PROBE_TEST_TAIL_POLICY
+    state.ads.enableStatusByte = true;
+    state.ads.deviceIdentityKnown = true;
+    registers[2] = 6u;
+    ads126xAdc1RegisterSnapshot_t proof;
+    assert(ads126xAdcReadAdc1RegisterSnapshot(&state.ads, &proof) == ESP_OK);
+    assert(ads126xAdcSetAdc1ReadPolicy(&state.ads, ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED) == ESP_OK);
+#endif
     scenario = selected;
     samplesAtClock = lastClock = sampleSerial = powerOnWrites = samplesInPass = passAtClock = 0u;
     restoreSeen = false;
@@ -156,7 +171,7 @@ static void probeRunCase(enum probeScenario selected, uint32_t selectedHz, bool 
     if (restored) {
         assert(memcmp(saved, registers, sizeof(saved)) == 0);
         assert(state.ads.vrefMicrovolts == savedVref && !state.ads.adc1Running);
-        assert(state.ads.enableStatusByte == false && state.ads.crcMode == ADS126X_CRC_CRC8);
+        assert(state.ads.enableStatusByte == ((saved[2] & 4u) != 0u) && state.ads.crcMode == ADS126X_CRC_CRC8);
     }
     if (selected == PROBE_DMA_UNKNOWN) {
         assert(result.candidatesTested == 1u && ads126xAdcIsQuarantined(&state.ads));
@@ -170,6 +185,13 @@ static void probeRunCase(enum probeScenario selected, uint32_t selectedHz, bool 
     }
     if (selected == PROBE_RESTORE_ERROR || selected == PROBE_RESTORE_UNSTABLE) {
         assert(result.error == ESP_OK && result.cleanupError == ESP_ERR_INVALID_RESPONSE && restoreSeen);
+        assert(!result.interfaceKnown);
+    }
+    assert(result.readPolicy == (uint8_t)state.ads.adc1ReadPolicy);
+    if (result.readSourceKnown) {
+        assert(result.validSamples != 0u);
+        assert(result.readSource == (state.ads.adc1ReadPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED ?
+            ADS126X_READ_SOURCE_SPI55_GPIO1 : ADS126X_READ_SOURCE_SPI56));
     }
     if (selected == PROBE_IGNORED_CLOCK) { assert(result.candidatesTested == 29u); }
     if (selected == PROBE_ALL_CRC) { assert(result.crcErrors == 29u * 6u); }

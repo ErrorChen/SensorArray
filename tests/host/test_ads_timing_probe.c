@@ -186,6 +186,12 @@ static sensorarrayState_t timingState(enum timingCase test)
     s_transactionGeneration = 0u; s_batteryRestoreFailureLatched = false;
     state.ads.idRegRaw = registers[0] = 3u;
     state.ads.deviceType = ADS126X_DEVICE_ADS1262;
+#ifdef TIMING_TEST_REQUIRED_POLICY
+    state.ads.deviceIdentityKnown = true;
+    ads126xAdc1RegisterSnapshot_t proof;
+    assert(ads126xAdcReadAdc1RegisterSnapshot(&state.ads, &proof) == ESP_OK);
+    assert(ads126xAdcSetAdc1ReadPolicy(&state.ads, ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED) == ESP_OK);
+#endif
     state.ads.requestedSpiClockHz = 550000u;
     state.ads.adc1Running = true; state.ads.mode0 = state.ads.mode1 = 0u;
     state.ads.pgaBypassed = true; state.ads.dataRateDr = 15u;

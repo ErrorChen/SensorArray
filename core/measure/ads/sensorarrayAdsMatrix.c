@@ -1386,6 +1386,25 @@ static void sensorarrayAdsMatrixLogCrcEvidence(sensorarrayAdsMatrixEngine_t *eng
     }
     engine->lastCrcEmitUs = nowUs;
     const ads126xAdcCrcFault_t *crc = &engine->frameFirstCrc;
+    /* 本轮新增：the parser payload is not necessarily continuous SPI wire.
+     * A GPIO-tail CRC rejection retains its two physical observations. */
+    bool split = crc->readSource == ADS126X_READ_SOURCE_SPI55_GPIO1;
+    bool payloadKnown = crc->length > 0u && crc->length <= sizeof(crc->bytes);
+    bool gpioKnown = split && crc->gpioTailKnown && crc->gpioTailBit <= 1u;
+    bool wireKnown = !split && crc->wireKnown && payloadKnown &&
+        (crc->readSource == ADS126X_READ_SOURCE_SPI56 || crc->readSource == ADS126X_READ_SOURCE_SPI_BYTES);
+    char payload[13] = "unknown", prefix[15] = "unknown", gpioBit[8] = "unknown";
+    if (payloadKnown && (wireKnown || gpioKnown)) {
+        for (unsigned i = 0u; i < crc->length; ++i) {
+            (void)snprintf(payload + i * 2u, sizeof(payload) - i * 2u, "%02X", crc->bytes[i]);
+        }
+    }
+    if (gpioKnown) {
+        for (unsigned i = 0u; i < sizeof(crc->spiPrefix); ++i) {
+            (void)snprintf(prefix + i * 2u, sizeof(prefix) - i * 2u, "%02X", crc->spiPrefix[i]);
+        }
+        (void)snprintf(gpioBit, sizeof(gpioBit), "%u", crc->gpioTailBit);
+    }
     sensorarrayAcqEventPrintf(
         "ADSSPI,seq=%lu,mode=%s,crcFailures=%lu,crcRetries=%lu,crcRecoveredReads=%lu,crcTotal=%lu,retryTotal=%lu,firstS=%u,firstD=%u,firstError=0x%x,terminalError=0x%lx,frameError=0x%lx\n",
         (unsigned long)sequence, sensorarrayMeasurementModeName(engine->mode),
@@ -1397,12 +1416,21 @@ static void sensorarrayAdsMatrixLogCrcEvidence(sensorarrayAdsMatrixEngine_t *eng
         engine->frameFirstCrcCell % SENSORARRAY_MATRIX_COLS + 1u,
         ESP_ERR_INVALID_CRC, (unsigned long)(uint32_t)engine->frameCrcTerminalError,
         (unsigned long)(uint32_t)frameError);
-    sensorarrayAcqEventPrintf(
-        "ADSSPIBYTES,seq=%lu,firstUs=%llu,bytes=%02X%02X%02X%02X%02X%02X,len=%u,received=%02X,computed=%02X,crcMode=%u,statusEnabled=%u,physicalGen=%lu,drdyGen=%lu\n",
-        (unsigned long)sequence, (unsigned long long)crc->timestampUs,
-        crc->bytes[0], crc->bytes[1], crc->bytes[2], crc->bytes[3], crc->bytes[4], crc->bytes[5],
-        crc->length, crc->received, crc->computed, crc->crcMode, crc->statusEnabled ? 1u : 0u,
-        (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration);
+    if (split) {
+        sensorarrayAcqEventPrintf(
+            "ADSSPIBYTES,seq=%lu,firstUs=%llu,bytes=unknown,len=%u,received=%02X,computed=%02X,crcMode=%u,statusEnabled=%u,physicalGen=%lu,drdyGen=%lu,source=spi55_gpio1,wireKnown=0,assembledBytes=%s,spiPrefix=%s,gpioKnown=%u,gpioBit=%s,tailStage=%s\n",
+            (unsigned long)sequence, (unsigned long long)crc->timestampUs,
+            crc->length, crc->received, crc->computed, crc->crcMode, crc->statusEnabled ? 1u : 0u,
+            (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration,
+            payload, prefix, gpioKnown ? 1u : 0u, gpioBit, ads126xAdcTailStageName(crc->tailStage));
+    } else {
+        sensorarrayAcqEventPrintf(
+            "ADSSPIBYTES,seq=%lu,firstUs=%llu,bytes=%s,len=%u,received=%02X,computed=%02X,crcMode=%u,statusEnabled=%u,physicalGen=%lu,drdyGen=%lu,source=%s,wireKnown=%u\n",
+            (unsigned long)sequence, (unsigned long long)crc->timestampUs, payload,
+            crc->length, crc->received, crc->computed, crc->crcMode, crc->statusEnabled ? 1u : 0u,
+            (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration,
+            ads126xAdcReadSourceName(crc->readSource), wireKnown ? 1u : 0u);
+    }
 }
 
 static esp_err_t sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engine,

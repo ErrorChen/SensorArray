@@ -76,6 +76,7 @@ static const char *TAG = "ads126xAdc";
 /* INTERFACE register bit definitions. */
 #define ADS126X_INTERFACE_STATUS (1u << 2)
 #define ADS126X_INTERFACE_CRC_MASK 0x03u
+#define ADS126X_INTERFACE_TIMEOUT (1u << 3)
 
 /* MODE2 register bit definitions. */
 #define ADS126X_MODE2_BYPASS (1u << 7)
@@ -339,6 +340,7 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
             /* No cancellation API: keep DMA memory alive and isolate ADS.
              * A later controlled deinit may reclaim only a returned descriptor. */
             handle->spiQuarantined = true;
+            handle->interfaceKnown = false;
             if (err == ESP_OK) {
                 err = ESP_ERR_INVALID_STATE;
             }
@@ -365,6 +367,55 @@ bool ads126xAdcTailDiagnosticAvailable(const ads126xAdcHandle_t *handle)
 #endif
 }
 
+const char *ads126xAdcReadSourceName(uint8_t source)
+{
+    switch (source) {
+    case ADS126X_READ_SOURCE_SPI_BYTES: return "spi_bytes";
+    case ADS126X_READ_SOURCE_SPI56: return "spi56";
+    case ADS126X_READ_SOURCE_SPI55_GPIO1: return "spi55_gpio1";
+    default: return "unknown";
+    }
+}
+
+static bool ads126xAdcTailInterfaceReady(const ads126xAdcHandle_t *handle)
+{
+    return handle && handle->interfaceKnown && handle->interfaceReg == 0x06u &&
+        handle->enableStatusByte && handle->crcMode == ADS126X_CRC_CRC8;
+}
+
+esp_err_t ads126xAdcSetAdc1ReadPolicy(ads126xAdcHandle_t *handle,
+    ads126xAdcAdc1ReadPolicy_t policy)
+{
+    if (!handle || !handle->mutex || (policy != ADS126X_ADC1_READ_SPI_BYTES &&
+            policy != ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int64_t deadline = ads126xAdcOperationDeadline(handle,
+        CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u);
+    if (xSemaphoreTake(handle->mutex, ads126xAdcRemainingTicks(deadline)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    esp_err_t err = ESP_OK;
+    if (ads126xAdcIsQuarantined(handle) || handle->adc1Running) {
+        err = ESP_ERR_INVALID_STATE;
+    } else if (esp_timer_get_time() >= deadline) {
+        err = ESP_ERR_TIMEOUT;
+    } else if (policy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED &&
+        (!ads126xAdcTailDiagnosticAvailable(handle) ||
+         handle->deviceType != ADS126X_DEVICE_ADS1262)) {
+        err = ESP_ERR_NOT_SUPPORTED;
+    } else if (policy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED &&
+        !handle->deviceIdentityKnown) {
+        err = ESP_ERR_INVALID_STATE;
+    } else if (policy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED &&
+        !ads126xAdcTailInterfaceReady(handle)) {
+        err = ESP_ERR_INVALID_STATE;
+    }
+    if (err == ESP_OK) { handle->adc1ReadPolicy = policy; }
+    xSemaphoreGive(handle->mutex);
+    return err;
+}
+
 const char *ads126xAdcTailStageName(uint8_t stage)
 {
     static const char *const names[] = {
@@ -372,7 +423,7 @@ const char *ads126xAdcTailStageName(uint8_t stage)
         "clock_mux", "clock_signal", "clock_flags", "miso_input", "miso_mux",
         "miso_signal", "miso_owner", "miso_flags", "clock_low", "queue",
         "spi_complete", "clock_after_spi", "gpio_high", "gpio_sample",
-        "gpio_low", "gpio_restore", "clock_read", "deadline", "complete",
+        "gpio_low", "gpio_restore", "clock_read", "deadline", "complete", "interface_proof",
     };
     return stage < sizeof(names) / sizeof(names[0]) ? names[stage] : "unknown";
 }
@@ -395,15 +446,15 @@ static uint32_t ads126xAdcTailElapsed(uint64_t start)
 
 /* Entire55+1 operation owns the same mutex. No SDK bus-acquire call with an
  * infinite wait: the board capability rejects a shared/unproven bus instead.
- * TIMEOUT must be physically verified off by the diagnostic wrapper. */
+ * The same verified INTERFACE gate applies to diagnostics and science. A
+ * caller without an outer transaction still receives the bounded SPI budget. */
 static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
     uint8_t frame[6], ads126xAdcTailEvidence_t *tail)
 {
     if (!tail) { return ESP_ERR_INVALID_ARG; }
     memset(tail, 0, sizeof(*tail));
     tail->stage = ADS126X_TAIL_STAGE_OWNER;
-    if (!ads126xAdcTailDiagnosticAvailable(h) || !h->transactionDeadlineUs ||
-        !h->enableStatusByte || h->crcMode != ADS126X_CRC_CRC8 ||
+    if (!ads126xAdcTailDiagnosticAvailable(h) ||
         h->spiBufSize < 8u || !h->spiDmaCapable || !h->spiTxBuf || !h->spiRxBuf) {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -416,6 +467,10 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
     const uint32_t clockSignal = (uint32_t)spi_periph_signal[h->tailBus.host].spiclk_out;
     const uint32_t misoSignal = (uint32_t)spi_periph_signal[h->tailBus.host].spiq_out;
     if (!ads126xAdcTailDiagnosticAvailable(h)) { err = ESP_ERR_INVALID_STATE; }
+    if (err == ESP_OK && !ads126xAdcTailInterfaceReady(h)) {
+        tail->stage = ADS126X_TAIL_STAGE_INTERFACE_PROOF;
+        err = ESP_ERR_INVALID_STATE;
+    }
     if (err == ESP_OK) {
         tail->stage = ADS126X_TAIL_STAGE_GPIO_READ;
         err = gpio_get_io_config(h->tailBus.sclkGpio, &clock);
@@ -485,6 +540,7 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
         if (err != ESP_OK || completed != &h->dmaTransaction) {
             /* Unknown DMA completion: never take SCLK from the controller. */
             h->spiQuarantined = true;
+            h->interfaceKnown = false;
             if (err == ESP_OK) { err = ESP_ERR_INVALID_STATE; }
         } else {
             h->spiInFlight = false;
@@ -556,6 +612,7 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
                 /* SPI framing or pin ownership is unknown, despite DMA having
                  * returned. Quarantine also blocks the ordinary restore path. */
                 h->spiQuarantined = true;
+                h->interfaceKnown = false;
             } else {
                 memcpy(frame, tail->spi55 + 1u, 6u);
                 frame[5] = tail->assembledCrc;
@@ -751,6 +808,7 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
 
     if (idReadOk && detectedType != ADS126X_DEVICE_AUTO) {
         handle->deviceType = detectedType;
+        handle->deviceIdentityKnown = true;
         if (handle->forcedType != ADS126X_DEVICE_AUTO &&
             handle->forcedType != detectedType) {
             ESP_LOGW(TAG,
@@ -864,6 +922,7 @@ esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)
         return ESP_ERR_INVALID_STATE;
     }
     handle->configurationGeneration++;
+    handle->interfaceKnown = false;
     handle->referenceStateKnown = false;
     handle->referenceReadyAtUs = 0u;
     /* RESET/PWDN is active low; hold low briefly then release high. */
@@ -879,6 +938,7 @@ esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)
 
 esp_err_t ads126xAdcSendCommand(ads126xAdcHandle_t *handle, uint8_t cmd)
 {
+    if (handle && cmd == ADS126X_CMD_RESET) { handle->interfaceKnown = false; }
     esp_err_t err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, NULL, 0);
     if (err == ESP_OK && handle) {
         if (cmd == ADS126X_CMD_START1) {
@@ -952,6 +1012,12 @@ esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr
     memcpy(temp, cmd, sizeof(cmd));
     memcpy(temp + sizeof(cmd), data, len);
 
+    /* Even an unsuccessful write cannot leave an old proof attached to a
+     * possibly changed INTERFACE. A later physical verification rebuilds it. */
+    if (startAddr <= ADS126X_REG_INTERFACE && startAddr + len > ADS126X_REG_INTERFACE) {
+        handle->interfaceKnown = false;
+    }
+
     esp_err_t err = ads126xAdcSpiTransferLocked(handle, temp, sizeof(cmd) + len, NULL, 0);
     if (err == ESP_OK) {
         handle->configurationGeneration++;
@@ -1010,6 +1076,9 @@ static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
         if (statusByteOptional) {
             *statusByteOptional = frame[idx];
         }
+        if ((frame[idx] & ADS126X_STATUS_RESET_OCCURRED) != 0u) {
+            handle->interfaceKnown = false;
+        }
         idx++;
     }
     if ((idx + 4u) > frameLen) {
@@ -1030,6 +1099,8 @@ static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle,
             fault->computed = actual;
             fault->crcMode = (uint8_t)handle->crcMode;
             fault->statusEnabled = handle->enableStatusByte;
+            fault->readSource = frameLen == 6u ? ADS126X_READ_SOURCE_SPI56 : ADS126X_READ_SOURCE_SPI_BYTES;
+            fault->wireKnown = true;
             fault->configurationGeneration = handle->configurationGeneration;
             fault->drdyGeneration = handle->drdyGeneration;
             fault->timestampUs = (uint64_t)esp_timer_get_time();
@@ -1058,6 +1129,7 @@ esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPo
     }
     esp_err_t err = ads126xAdcReadRegisters(handle, ADS126X_REG_POWER, outPower, 1);
     if (err == ESP_OK && handle) {
+        if ((*outPower & ADS126X_POWER_RESET) != 0u) { handle->interfaceKnown = false; }
         bool enabled = (*outPower & ADS126X_POWER_INTREF) != 0u;
         if (enabled && (!handle->referenceStateKnown || !handle->enableInternalRef)) {
             handle->referenceReadyAtUs = (uint64_t)esp_timer_get_time() +
@@ -1222,6 +1294,12 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     if (crcMode > ADS126X_CRC_CRC8 || dataRateDr > ADS126X_MODE2_DR_MASK) {
         return ESP_ERR_INVALID_ARG;
     }
+    handle->interfaceKnown = false;
+
+    if (handle->adc1ReadPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED &&
+        (!enableStatusByte || crcMode != ADS126X_CRC_CRC8)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
 
     uint8_t mode2 = 0u;
     if (!ads126xAdcBuildMode2(false, pgaGain, dataRateDr, &mode2)) {
@@ -1247,6 +1325,9 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
         return err;
     }
     iface &= (uint8_t)~(ADS126X_INTERFACE_STATUS | ADS126X_INTERFACE_CRC_MASK);
+    if (handle->adc1ReadPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED) {
+        iface &= (uint8_t)~ADS126X_INTERFACE_TIMEOUT;
+    }
     if (enableStatusByte) {
         iface |= ADS126X_INTERFACE_STATUS;
     }
@@ -1286,6 +1367,9 @@ esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle,
     handle->pgaGain = pgaGain;
     handle->dataRateDr = dataRateDr;
     handle->pgaBypassed = false;
+    handle->interfaceReg = ifaceReadback & ADS126X_INTERFACE_CONFIG_MASK;
+    handle->interfaceVerifiedGeneration = handle->configurationGeneration;
+    handle->interfaceKnown = true;
 
     return ESP_OK;
 }
@@ -1540,6 +1624,7 @@ esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
     if (!handle || !outSnapshot) {
         return ESP_ERR_INVALID_ARG;
     }
+    handle->interfaceKnown = false;
     /* RREG has no CRC. Majority of three bounded reads detects instability;
      * RESET is not masked away, and reserved bits cannot create false faults. */
     uint8_t first[16] = {0}, second[16] = {0}, third[16] = {0};
@@ -1573,6 +1658,12 @@ esp_err_t ads126xAdcReadAdc1RegisterSnapshot(
     outSnapshot->interface &= ADS126X_INTERFACE_CONFIG_MASK;
     outSnapshot->refmux &= ADS126X_REFMUX_CONFIG_MASK;
     handle->snapshotReadFailure = 0u;
+    if (outSnapshot->id == handle->idRegRaw &&
+        (outSnapshot->power & ADS126X_POWER_RESET) == 0u) {
+        handle->interfaceReg = outSnapshot->interface;
+        handle->interfaceVerifiedGeneration = handle->configurationGeneration;
+        handle->interfaceKnown = true;
+    }
     return ESP_OK;
 }
 
@@ -1585,6 +1676,11 @@ esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
     if (!handle || !snapshot || vrefMicrovolts == 0u ||
         (snapshot->interface & ADS126X_INTERFACE_CRC_MASK) == 3u) {
         return ESP_ERR_INVALID_ARG;
+    }
+    handle->interfaceKnown = false;
+    if (handle->adc1ReadPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED &&
+        (snapshot->interface & ADS126X_INTERFACE_CONFIG_MASK) != 0x06u) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
     esp_err_t err = ads126xAdcStopAdc1(handle);
     if (err == ESP_OK) {
@@ -1655,11 +1751,14 @@ esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot(
         memcmp(readback.fullScaleCal, snapshot->fullScaleCal,
                sizeof(readback.fullScaleCal)) == 0;
     if (!registerMatch) {
+        handle->interfaceKnown = false;
         return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
     }
     ads126xAdcClearDrdyNotifications(handle);
     err = ads126xAdcWaitReferenceReady(handle);
-    return err == ESP_OK && adc1WasRunning ? ads126xAdcStartAdc1(handle) : err;
+    if (err == ESP_OK && adc1WasRunning) { err = ads126xAdcStartAdc1(handle); }
+    if (err != ESP_OK) { handle->interfaceKnown = false; }
+    return err;
 }
 
 esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle,
@@ -2063,10 +2162,10 @@ esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle,
     return err;
 }
 
-esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
-                                        int32_t *rawCode,
-                                        uint8_t *statusByteOptional,
-                                        uint32_t *outReadUs)
+static esp_err_t ads126xAdcReadAdc1ReadyWithPolicy(ads126xAdcHandle_t *handle,
+    ads126xAdcAdc1ReadPolicy_t policy, int32_t *rawCode,
+    uint8_t *statusByteOptional, uint32_t *outReadUs,
+    ads126xAdcTailEvidence_t *outTail)
 {
     if (!handle || !rawCode) {
         return ESP_ERR_INVALID_ARG;
@@ -2076,20 +2175,64 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
     uint8_t frame[6] = {0};
     uint8_t cmd = ADS126X_CMD_RDATA1;
     int64_t startUs = esp_timer_get_time();
-    esp_err_t err = ads126xAdcSpiTransferDmaLocked(handle, &cmd, 1u, frame, frameLen);
+    esp_err_t err;
+    memset(&handle->lastAdc1Tail, 0, sizeof(handle->lastAdc1Tail));
+    if (policy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED) {
+#if CONFIG_IDF_TARGET_ESP32S3
+        err = ads126xAdcSpiTailDiagnostic(handle, frame, &handle->lastAdc1Tail);
+#else
+        err = ESP_ERR_NOT_SUPPORTED;
+#endif
+    } else if (policy == ADS126X_ADC1_READ_SPI_BYTES) {
+        err = ads126xAdcSpiTransferLocked(handle, &cmd, 1u, frame, frameLen);
+    } else {
+        err = ESP_ERR_INVALID_ARG;
+    }
     if (outReadUs) {
         int64_t elapsedUs = esp_timer_get_time() - startUs;
         *outReadUs = elapsedUs > 0 ? (uint32_t)elapsedUs : 0u;
     }
-    return err == ESP_OK ?
-        ads126xAdcParseAdc1Frame(handle, frame, frameLen, rawCode, statusByteOptional) :
-        err;
+    if (outTail) { *outTail = handle->lastAdc1Tail; }
+    if (err == ESP_OK) {
+        int32_t candidateRaw = 0;
+        uint8_t candidateStatus = 0u;
+        err = ads126xAdcParseAdc1Frame(handle, frame, frameLen, &candidateRaw, &candidateStatus);
+        if (err == ESP_ERR_INVALID_CRC && policy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED) {
+            ads126xAdcCrcFault_t *fault = &handle->lastAdc1CrcFault;
+            const ads126xAdcTailEvidence_t *tail = &handle->lastAdc1Tail;
+            fault->readSource = ADS126X_READ_SOURCE_SPI55_GPIO1;
+            fault->wireKnown = false;
+            fault->gpioTailKnown = tail->gpioSampled;
+            fault->gpioTailBit = tail->gpioBit;
+            fault->tailStage = tail->stage;
+            memcpy(fault->spiPrefix, tail->spi55, sizeof(fault->spiPrefix));
+        }
+        if (err == ESP_OK) {
+            *rawCode = candidateRaw;
+            if (statusByteOptional) { *statusByteOptional = candidateStatus; }
+        }
+    }
+    return err;
+}
+
+esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
+    int32_t *rawCode, uint8_t *statusByteOptional, uint32_t *outReadUs)
+{
+    return handle ? ads126xAdcReadAdc1ReadyWithPolicy(handle, handle->adc1ReadPolicy,
+        rawCode, statusByteOptional, outReadUs, NULL) : ESP_ERR_INVALID_ARG;
+}
+
+esp_err_t ads126xAdcReadAdc1RawSpiDiagnostic(ads126xAdcHandle_t *handle,
+    int32_t *rawCode, uint8_t *statusByte, uint32_t *outReadUs)
+{
+    return ads126xAdcReadAdc1ReadyWithPolicy(handle, ADS126X_ADC1_READ_SPI_BYTES,
+        rawCode, statusByte, outReadUs, NULL);
 }
 
 static esp_err_t ads126xAdcReadAdc1FreshCheckedImpl(ads126xAdcHandle_t *handle,
     uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
     int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report,
-    ads126xAdcTailEvidence_t *tail)
+    ads126xAdcTailEvidence_t *tail, bool forceSpiDiagnostic)
 {
     if (!handle || !crcRetryBudget || !rawCode || !statusByte || !report) {
         return ESP_ERR_INVALID_ARG;
@@ -2115,23 +2258,10 @@ static esp_err_t ads126xAdcReadAdc1FreshCheckedImpl(ads126xAdcHandle_t *handle,
         }
         if (err == ESP_OK) {
             uint32_t readUs = 0u;
-            if (tail) {
-#if CONFIG_IDF_TARGET_ESP32S3
-                uint8_t frame[6] = {0};
-                int64_t readStart = esp_timer_get_time();
-                err = ads126xAdcSpiTailDiagnostic(handle, frame, tail);
-                readUs = (uint32_t)(esp_timer_get_time() - readStart);
-                if (err == ESP_OK) {
-                    err = ads126xAdcParseAdc1Frame(handle, frame, sizeof(frame),
-                        &candidateRaw, &candidateStatus);
-                }
-#else
-                err = ESP_ERR_NOT_SUPPORTED;
-#endif
-            } else {
-                err = ads126xAdcReadAdc1RawDmaReady(handle, &candidateRaw,
-                    &candidateStatus, &readUs);
-            }
+            ads126xAdcAdc1ReadPolicy_t policy = tail ? ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED :
+                forceSpiDiagnostic ? ADS126X_ADC1_READ_SPI_BYTES : handle->adc1ReadPolicy;
+            err = ads126xAdcReadAdc1ReadyWithPolicy(handle, policy, &candidateRaw,
+                &candidateStatus, &readUs, tail);
             report->readUs += readUs;
         }
         if (err == ESP_ERR_INVALID_CRC) {
@@ -2173,7 +2303,15 @@ esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
     int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)
 {
     return ads126xAdcReadAdc1FreshCheckedImpl(handle, startGeneration,
-        drdyTimeoutUs, crcRetryBudget, rawCode, statusByte, report, NULL);
+        drdyTimeoutUs, crcRetryBudget, rawCode, statusByte, report, NULL, false);
+}
+
+esp_err_t ads126xAdcReadAdc1FreshSpiDiagnostic(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)
+{
+    return ads126xAdcReadAdc1FreshCheckedImpl(handle, startGeneration,
+        drdyTimeoutUs, crcRetryBudget, rawCode, statusByte, report, NULL, true);
 }
 
 esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle,
@@ -2185,7 +2323,7 @@ esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle,
     memset(tail, 0, sizeof(*tail));
     uint8_t noRetry = 0u;
     return ads126xAdcReadAdc1FreshCheckedImpl(handle, startGeneration,
-        drdyTimeoutUs, &noRetry, rawCode, statusByte, report, tail);
+        drdyTimeoutUs, &noRetry, rawCode, statusByte, report, tail, false);
 }
 
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)
@@ -2211,27 +2349,20 @@ esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle,
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = ads126xAdcWaitDrdy(handle, handle->drdyTimeoutMs);
-    if (err != ESP_OK) {
-        return err;
+    /* Legacy callers may not own an outer deadline. Preserve that API with
+     * one bounded DRDY+read budget, never bypass the selected ADC1 transport. */
+    bool ownsDeadline = handle->transactionDeadlineUs == 0u;
+    uint64_t budgetUs = (uint64_t)handle->drdyTimeoutMs * 1000u +
+        CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u;
+    if (budgetUs > UINT32_MAX) { budgetUs = UINT32_MAX; }
+    esp_err_t err = ownsDeadline ? ads126xAdcBeginTransaction(handle, (uint32_t)budgetUs) : ESP_OK;
+    if (err == ESP_OK) { err = ads126xAdcWaitDrdy(handle, handle->drdyTimeoutMs); }
+    if (err == ESP_OK) {
+        err = ads126xAdcReadAdc1ReadyWithPolicy(handle, handle->adc1ReadPolicy,
+            rawCode, statusByteOptional, NULL, NULL);
     }
-
-    size_t frameLen = 4;
-    if (handle->enableStatusByte) {
-        frameLen += 1;
-    }
-    if (handle->crcMode != ADS126X_CRC_OFF) {
-        frameLen += 1;
-    }
-
-    uint8_t frame[6] = {0};
-    uint8_t cmd = ADS126X_CMD_RDATA1;
-    err = ads126xAdcSpiTransferLocked(handle, &cmd, 1, frame, frameLen);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    return ads126xAdcParseAdc1Frame(handle, frame, frameLen, rawCode, statusByteOptional);
+    if (ownsDeadline) { ads126xAdcEndTransaction(handle); }
+    return err;
 }
 
 int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode)

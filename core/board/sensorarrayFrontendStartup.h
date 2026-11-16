@@ -15,6 +15,9 @@ esp_err_t sensorarrayFrontendStartupRun(sensorarrayState_t *state,
 
 /* 本轮新增: read-only published boot result; available before READY. */
 esp_err_t sensorarrayFrontendStartupFormatSpi(char *response, size_t responseSize);
+/* 本轮新增: immutable boot-only read policy/source/interface evidence.
+ * Does not inspect live ADC state or claim current runtime source. */
+esp_err_t sensorarrayFrontendStartupFormatSpiSource(char *response, size_t responseSize);
 
 /* 本轮新增: no boot worker can still access ADS after this reports true.
  * Driver DMA quarantine must be checked separately by every hardware caller. */

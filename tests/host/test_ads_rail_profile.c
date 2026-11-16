@@ -130,6 +130,15 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *ads, int32_t *raw,
   }
   if (err == ESP_OK) { *raw = 1109871204; *status = s_status; }
   return err; }
+/* This rail harness stubs the physical wire layer; the selected transport is
+ * exercised separately by test_ads_scientific_read with the full driver. */
+static esp_err_t ads126xAdcReadAdc1ReadyWithPolicy(ads126xAdcHandle_t *ads,
+    ads126xAdcAdc1ReadPolicy_t policy, int32_t *raw, uint8_t *status,
+    uint32_t *readUs, ads126xAdcTailEvidence_t *tail)
+{
+    assert(policy == ADS126X_ADC1_READ_SPI_BYTES && tail == NULL);
+    return ads126xAdcReadAdc1RawDmaReady(ads, raw, status, readUs);
+}
 int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *ads, int32_t raw)
 { assert(ads->pgaGain == 1u && raw == 1109871204); return 1292050; }
 static void sensorarrayAdsRecordFreshSample(const sensorarrayAdsFreshSample_t *sample, esp_err_t err)

@@ -86,8 +86,22 @@ typedef enum {
     ADS126X_CRC_CRC8 = 2,
 } ads126xCrcMode_t;
 
-/* 本轮新增: board-created exclusive bus proof for the diagnostic-only tail
- * experiment. The callback must also reject a pending cold presence owner. */
+/* 本轮新增: an explicit ADC1 transport policy. REQUIRED never falls back
+ * after an admission/transfer failure. Other boards retain SPI_BYTES. */
+typedef enum {
+    ADS126X_ADC1_READ_SPI_BYTES = 0,
+    ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED = 1,
+} ads126xAdcAdc1ReadPolicy_t;
+
+typedef enum {
+    ADS126X_READ_SOURCE_SPI_BYTES = 0,
+    ADS126X_READ_SOURCE_SPI56 = 1,
+    ADS126X_READ_SOURCE_SPI55_GPIO1 = 2,
+} ads126xAdcReadSource_t;
+const char *ads126xAdcReadSourceName(uint8_t source);
+
+/* Board-created exclusive bus proof. The callback must also reject a pending
+ * cold presence owner; it never substitutes for the ADS transaction mutex. */
 typedef struct {
     int host;
     gpio_num_t sclkGpio;
@@ -108,6 +122,7 @@ typedef enum {
     ADS126X_TAIL_STAGE_GPIO_SAMPLE, ADS126X_TAIL_STAGE_GPIO_LOW,
     ADS126X_TAIL_STAGE_GPIO_RESTORE, ADS126X_TAIL_STAGE_CLOCK_READ,
     ADS126X_TAIL_STAGE_DEADLINE, ADS126X_TAIL_STAGE_COMPLETE,
+    ADS126X_TAIL_STAGE_INTERFACE_PROOF,
 } ads126xAdcTailStage_t;
 const char *ads126xAdcTailStageName(uint8_t stage);
 
@@ -173,6 +188,14 @@ typedef struct {
     uint32_t configurationGeneration;
     uint32_t drdyGeneration;
     uint64_t timestampUs;
+    /* bytes contains the parser payload. A split payload is assembled from
+     * two physical reads and must never be labelled a continuous wire dump. */
+    uint8_t readSource;
+    bool wireKnown;
+    bool gpioTailKnown;
+    uint8_t gpioTailBit;
+    uint8_t tailStage;
+    uint8_t spiPrefix[7];
 } ads126xAdcCrcFault_t;
 
 typedef struct {
@@ -190,10 +213,12 @@ typedef struct {
 typedef struct {
     spi_device_handle_t spiDevice;
     ads126xAdcTailBus_t tailBus;
+    ads126xAdcAdc1ReadPolicy_t adc1ReadPolicy;
     gpio_num_t drdyGpio;
     gpio_num_t resetGpio;
     ads126xDeviceType_t deviceType;
     ads126xDeviceType_t forcedType;
+    bool deviceIdentityKnown;
     ads126xCrcMode_t crcMode;
     bool enableStatusByte;
     bool enableInternalRef;
@@ -230,6 +255,14 @@ typedef struct {
     uint32_t requestedSpiClockHz;
     uint32_t configurationGeneration;
     uint32_t configuredDrdyGeneration;
+    /* Last physical verification, invalidated by INTERFACE writes/reset and
+     * failed configuration/restore. MUX/PGA writes do not change INTERFACE. */
+    bool interfaceKnown;
+    uint8_t interfaceReg;
+    uint32_t interfaceVerifiedGeneration;
+    /* Persistent bounded evidence, updated by the ADC owner, not a lock-free
+     * control-plane snapshot. Control queries must copy an owner snapshot. */
+    ads126xAdcTailEvidence_t lastAdc1Tail;
     bool referenceStateKnown;
     uint64_t referenceReadyAtUs;
     uint64_t transactionDeadlineUs;
@@ -406,6 +439,11 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
                                         int32_t *rawCode,
                                         uint8_t *statusByteOptional,
                                         uint32_t *outReadUs);
+/* 本轮新增: configure only while ADC1 is stopped and the caller owns the
+ * frontend. The setter uses the bounded ADS mutex; REQUIRED needs a verified
+ * STATUS+CRC8/TIMEOUT0 interface and the dedicated board capability. */
+esp_err_t ads126xAdcSetAdc1ReadPolicy(ads126xAdcHandle_t *handle,
+    ads126xAdcAdc1ReadPolicy_t policy);
 /* 本轮新增: caller owns an active transaction deadline. The shared per-cell
  * CRC retry budget only buys a NEW conversion, never reuse of the bad frame.
  * Failure leaves raw/status untouched; firstError survives a failed retry. */
@@ -419,6 +457,13 @@ esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle,
     uint32_t startGeneration, uint32_t drdyTimeoutUs, int32_t *rawCode,
     uint8_t *statusByte, ads126xAdcFreshReadReport_t *report,
     ads126xAdcTailEvidence_t *tail);
+/* Explicit STD controls for diagnostics. They do not change the scientific
+ * policy, and cannot silently convert an A/B control to the GPIO path. */
+esp_err_t ads126xAdcReadAdc1FreshSpiDiagnostic(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report);
+esp_err_t ads126xAdcReadAdc1RawSpiDiagnostic(ads126xAdcHandle_t *handle,
+    int32_t *rawCode, uint8_t *statusByte, uint32_t *outReadUs);
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
 uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 

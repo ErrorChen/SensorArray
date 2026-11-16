@@ -24,6 +24,14 @@ esp_err_t spi_bus_add_device(int host, const spi_device_interface_config_t *conf
 
 static void prepareFrame(ads126xAdcHandle_t *h, uint8_t value)
 {
+    h->deviceType = ADS126X_DEVICE_ADS1262;
+    h->deviceIdentityKnown = true;
+    h->idRegRaw = registers[0] = 3u;
+    ads126xAdc1RegisterSnapshot_t proof;
+    assert(ads126xAdcReadAdc1RegisterSnapshot(h, &proof) == ESP_OK);
+#ifndef ADS_TAIL_BASELINE_DRIVER
+    assert(h->interfaceKnown);
+#endif
     notifyHandle = h;
     notifyEdge = true;
     dataFrameLimit = 1u;

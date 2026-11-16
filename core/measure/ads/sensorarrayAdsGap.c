@@ -472,27 +472,35 @@ static esp_err_t sensorarrayAdsRestoreBatteryCoreState(
         err = ads126xAdcSetRefMuxWithVref(ads, saved->refmux, savedVrefUv);
     }
     if (err != ESP_OK) {
+        ads->interfaceKnown = false;
         return err;
     }
 
     uint8_t power = 0u;
+    uint8_t interface = 0u;
     uint8_t mode2 = 0u;
     uint8_t inpmux = 0u;
     uint8_t refmux = 0u;
-    err = ads126xAdcReadCoreRegisters(ads, &power, NULL, &mode2,
+    err = ads126xAdcReadCoreRegisters(ads, &power, &interface, &mode2,
                                       &inpmux, &refmux);
-    if (err == ESP_OK && !sensorarrayAdsCoreRegistersMatch(
-            saved, power, mode2, inpmux, refmux)) {
+    if (err == ESP_OK && (!sensorarrayAdsCoreRegistersMatch(
+            saved, power, mode2, inpmux, refmux) ||
+            ((interface ^ saved->interface) & ADS126X_INTERFACE_CONFIG_MASK) != 0u)) {
         /* The production board ties CS low. One retry prevents a transient
          * DOUT bit upset from being mistaken for a failed restore, while a
          * persistent mismatch still forces SAFE/DEGRADED. */
-        err = ads126xAdcReadCoreRegisters(ads, &power, NULL, &mode2,
+        err = ads126xAdcReadCoreRegisters(ads, &power, &interface, &mode2,
                                           &inpmux, &refmux);
     }
     if (err != ESP_OK || !sensorarrayAdsCoreRegistersMatch(
-            saved, power, mode2, inpmux, refmux)) {
+            saved, power, mode2, inpmux, refmux) ||
+            ((interface ^ saved->interface) & ADS126X_INTERFACE_CONFIG_MASK) != 0u) {
+        ads->interfaceKnown = false;
         return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
     }
+    ads->interfaceReg = interface & ADS126X_INTERFACE_CONFIG_MASK;
+    ads->interfaceKnown = true;
+    ads->interfaceVerifiedGeneration = ads->configurationGeneration;
     ads->enableInternalRef = (saved->power & ADS126X_POWER_INTREF) != 0u;
     ads->vrefMicrovolts = savedVrefUv;
     if (outPowerAfter) {
@@ -500,7 +508,9 @@ static esp_err_t sensorarrayAdsRestoreBatteryCoreState(
     }
     ads126xAdcClearDrdyNotifications(ads);
     err = ads126xAdcWaitReferenceReady(ads);
-    return err == ESP_OK && adc1WasRunning ? ads126xAdcStartAdc1(ads) : err;
+    if (err == ESP_OK && adc1WasRunning) { err = ads126xAdcStartAdc1(ads); }
+    if (err != ESP_OK) { ads->interfaceKnown = false; }
+    return err;
 }
 
 static bool sensorarrayAdsRailUsableAsReference(int64_t railUv)
@@ -1049,6 +1059,7 @@ static esp_err_t sensorarrayAdsRestoreState(ads126xAdcHandle_t *ads,
         sensorarrayAdsPopulateRestoredRegisterCache(s_registerCache, &snapshot,
             saved->vrefMicrovolts, saved->adc1WasRunning);
     } else {
+        ads->interfaceKnown = false;
         sensorarrayAdsRegisterCacheInvalidate(s_registerCache);
         s_batteryRestoreFailureLatched = true;
     }
@@ -1530,14 +1541,40 @@ esp_err_t sensorarrayAdsGapRefreshRailAtBoundary(sensorarrayState_t *state,
            (unsigned long)(uint32_t)railDiag.sampleTerminalError);
     if (railDiag.crcErrors != 0u) {
         const ads126xAdcCrcFault_t *crc = &railDiag.firstCrc;
-        printf("RAILCRC,seq=%lu,txn=%lu,firstUs=%llu,bytes=%02X%02X%02X%02X%02X%02X,len=%u,received=%02X,computed=%02X,physicalGen=%lu,drdyGen=%lu\n",
+        if (crc->readSource == ADS126X_READ_SOURCE_SPI55_GPIO1) {
+            char assembled[13] = "unknown", prefix[15] = "unknown", bit[2] = "";
+            bool known = crc->gpioTailKnown && crc->gpioTailBit <= 1u && crc->length == 6u;
+            if (known) {
+                (void)snprintf(assembled, sizeof(assembled), "%02X%02X%02X%02X%02X%02X",
+                    crc->bytes[0], crc->bytes[1], crc->bytes[2], crc->bytes[3], crc->bytes[4], crc->bytes[5]);
+                (void)snprintf(prefix, sizeof(prefix), "%02X%02X%02X%02X%02X%02X%02X",
+                    crc->spiPrefix[0], crc->spiPrefix[1], crc->spiPrefix[2], crc->spiPrefix[3],
+                    crc->spiPrefix[4], crc->spiPrefix[5], crc->spiPrefix[6]);
+                bit[0] = crc->gpioTailBit ? '1' : '0';
+            }
+            printf("RAILCRC,seq=%lu,txn=%lu,firstUs=%llu,source=spi55_gpio1,wireKnown=0,bytes=unknown,assembledBytes=%s,spiPrefix=%s,gpioKnown=%u,gpioBit=%s,tailStage=%s,len=%u,received=%02X,computed=%02X,physicalGen=%lu,drdyGen=%lu\n",
+                (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
+                (unsigned long long)crc->timestampUs, assembled, prefix,
+                known ? 1u : 0u, known ? bit : "unknown",
+                ads126xAdcTailStageName(crc->tailStage), crc->length, crc->received, crc->computed,
+                (unsigned long)crc->configurationGeneration, (unsigned long)crc->drdyGeneration);
+        } else {
+        char bytes[13] = "unknown";
+        bool known = crc->wireKnown && crc->length > 0u && crc->length <= 6u &&
+            (crc->readSource == ADS126X_READ_SOURCE_SPI56 || crc->readSource == ADS126X_READ_SOURCE_SPI_BYTES);
+        if (known) {
+            for (uint8_t i = 0u; i < crc->length; ++i) {
+                (void)snprintf(bytes + 2u * i, sizeof(bytes) - 2u * i, "%02X", crc->bytes[i]);
+            }
+        }
+        printf("RAILCRC,seq=%lu,txn=%lu,firstUs=%llu,bytes=%s,len=%u,received=%02X,computed=%02X,physicalGen=%lu,drdyGen=%lu,source=%s,wireKnown=%u\n",
                (unsigned long)frameSequence, (unsigned long)s_railTransaction.id,
-               (unsigned long long)crc->timestampUs,
-               crc->bytes[0], crc->bytes[1], crc->bytes[2],
-               crc->bytes[3], crc->bytes[4], crc->bytes[5], crc->length,
+               (unsigned long long)crc->timestampUs, bytes, crc->length,
                crc->received, crc->computed,
                (unsigned long)crc->configurationGeneration,
-               (unsigned long)crc->drdyGeneration);
+               (unsigned long)crc->drdyGeneration, ads126xAdcReadSourceName(crc->readSource),
+               known ? 1u : 0u);
+        }
     }
     return err;
 }
@@ -3159,6 +3196,7 @@ esp_err_t sensorarrayAdsGapRunTimingProbeKind(sensorarrayState_t *state,
             savedVref, wasRunning);
     }
     if (cleanup != ESP_OK) {
+        ads->interfaceKnown = false;
         r->requiresIsolation = true;
         if (r->firstError == ESP_OK) { r->firstError = cleanup; }
         if (r->terminalError == ESP_OK) { r->terminalError = cleanup; }

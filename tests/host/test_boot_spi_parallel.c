@@ -15,6 +15,7 @@ typedef int esp_err_t;
 #define ESP_OK 0
 #define ESP_FAIL -1
 #define ESP_ERR_NO_MEM 0x101
+#define ESP_ERR_INVALID_ARG 0x102
 #define ESP_ERR_INVALID_STATE 0x103
 #define ESP_ERR_INVALID_SIZE 0x104
 #define ESP_ERR_TIMEOUT 0x107
@@ -118,6 +119,11 @@ static esp_err_t sensorarrayAdsSpiProbeRun(sensorarrayState_t *state,
     /* A partial worker write is intentionally invalid as a public snapshot. */
     out->qualified = true;
     out->candidatesTested = 999u;
+    out->readSourceKnown = true;
+    out->readSource = ADS126X_READ_SOURCE_SPI55_GPIO1;
+    out->readPolicy = ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED;
+    out->interfaceKnown = true;
+    out->interfaceReg = 0xFFu; /* Never visible before the atomic publication. */
     mockEntered = true;
     assert(pthread_cond_broadcast(&mockCond) == 0);
     mockWait(&mockAllowReturn);
@@ -142,6 +148,9 @@ static void resetBoot(void)
         .selectedHz = 2000000, .actualHz = 2000000,
         .candidatesTested = 1, .validSamples = 1280,
         .crcValidEven = 640, .crcValidOdd = 640,
+        .readSourceKnown = true, .readSource = ADS126X_READ_SOURCE_SPI55_GPIO1,
+        .readPolicy = ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED,
+        .interfaceKnown = true, .interfaceReg = 0x06u,
     };
     atomic_store(&mockNowUs, 1000u);
 }
@@ -208,6 +217,9 @@ static void testActiveTimeoutAndLateDone(void)
     char reply[512];
     assert(sensorarrayFrontendStartupFormatSpi(reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "done=0") && strstr(reply, "qualified=0"));
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply, sizeof(reply)) == ESP_OK);
+    assert(strstr(reply,"sourceKnown=0,policy=unknown,source=unknown,interfaceKnown=0,interface=unknown"));
+    assert(!strstr(reply,"interface=FF"));
     /* Let production Join consume one-tick waits through its finite deadline. */
     assert(sensorarrayBootSpiJoin() == ESP_ERR_TIMEOUT);
     s = sensorarrayBootSpiCopy();
@@ -220,6 +232,10 @@ static void testActiveTimeoutAndLateDone(void)
     assert(sensorarrayFrontendStartupAdsOwnerQuiescent()); /* Released, still failed. */
     assert(sensorarrayFrontendStartupFormatSpi(reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "timedOut=1") && strstr(reply, "err=0x107"));
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply, sizeof(reply)) == ESP_OK);
+    assert(strstr(reply,"sourceKnown=1,policy=gpio_tail_required,source=spi55_gpio1"));
+    assert(strstr(reply,"interfaceKnown=1,interface=06")&&strstr(reply,"timedOut=1"));
+    assert(strstr(reply,"runtime=unobserved,physicalVerified=0"));
 }
 static void testUnconsumedPost(void)
 {
@@ -280,6 +296,34 @@ static void testQueryBound(void)
     printf("SPI_QUERY_MAX,length=%lu,capacity=512\n", (unsigned long)strlen(reply));
     assert(strlen(reply) < sizeof(reply) && reply[strlen(reply) - 1] == '\n');
     assert(sensorarrayFrontendStartupFormatSpi(reply, 16) == ESP_ERR_INVALID_SIZE);
+    p->phase = SENSORARRAY_BOOT_SPI_DONE;
+    p->result.readSourceKnown = true;p->result.readSource = ADS126X_READ_SOURCE_SPI55_GPIO1;
+    p->result.readPolicy = ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED;
+    p->result.interfaceKnown = true;p->result.interfaceReg = UINT8_MAX;
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply,sizeof(reply)) == ESP_OK);
+    assert(strstr(reply,"source=spi55_gpio1")&&strstr(reply,"interface=FF"));
+    assert(strstr(reply,"scope=boot_probe")&&strstr(reply,"runtime=unobserved"));
+    size_t maxSource=0u;
+    for(unsigned phase=0;phase<=SENSORARRAY_BOOT_SPI_SKIPPED;phase++) {
+        for(unsigned known=0;known<2;known++) {
+            for(unsigned interfaceKnown=0;interfaceKnown<2;interfaceKnown++) {
+                p->phase=(sensorarrayBootSpiPhase_t)phase;p->result.readSourceKnown=known!=0;
+                p->result.interfaceKnown=interfaceKnown!=0;
+                assert(sensorarrayFrontendStartupFormatSpiSource(reply,sizeof(reply))==ESP_OK);
+                if(strlen(reply)>maxSource)maxSource=strlen(reply);
+            }
+        }
+    }
+    printf("SPI_SOURCE_QUERY_MAX,length=%lu,capacity=512\n",(unsigned long)maxSource);
+    p->phase=SENSORARRAY_BOOT_SPI_DONE;p->result.readSourceKnown=true;
+    p->result.readPolicy=ADS126X_ADC1_READ_SPI_BYTES;p->result.readSource=ADS126X_READ_SOURCE_SPI56;
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply,sizeof(reply))==ESP_OK);
+    assert(strstr(reply,"policy=spi_bytes,source=spi56"));
+    p->result.readSource=UINT8_MAX;p->result.interfaceKnown=false;
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply,sizeof(reply))==ESP_OK);
+    assert(strstr(reply,"sourceKnown=0,policy=unknown,source=unknown,interfaceKnown=0,interface=unknown"));
+    assert(sensorarrayFrontendStartupFormatSpiSource(reply,16)==ESP_ERR_INVALID_SIZE&&reply[0]=='\0');
+    assert(sensorarrayFrontendStartupFormatSpiSource(NULL,sizeof(reply))==ESP_ERR_INVALID_ARG);
 }
 int main(void)
 {

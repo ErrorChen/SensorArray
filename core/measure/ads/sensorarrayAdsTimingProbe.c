@@ -141,8 +141,8 @@ static esp_err_t sensorarrayAdsTimingRead(ads126xAdcHandle_t *ads,
     esp_err_t err = g->gpioTail ?
         ads126xAdcReadAdc1FreshTailDiagnostic(ads, floor,
             CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, &raw, &status, &read, &rec.tail) : held ?
-        ads126xAdcReadAdc1RawDmaReady(ads, &raw, &status, &readUs) :
-        ads126xAdcReadAdc1FreshChecked(ads, floor,
+        ads126xAdcReadAdc1RawSpiDiagnostic(ads, &raw, &status, &readUs) :
+        ads126xAdcReadAdc1FreshSpiDiagnostic(ads, floor,
             CONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US, &retryBudget,
             &raw, &status, &read);
     rec.observedUs = (uint64_t)esp_timer_get_time();

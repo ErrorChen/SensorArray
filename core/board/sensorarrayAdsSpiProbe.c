@@ -239,6 +239,9 @@ esp_err_t sensorarrayAdsSpiProbeRun(sensorarrayState_t *state,
         return outResult->error;
     }
     ads126xAdcHandle_t *ads = &state->ads;
+    outResult->readPolicy = (uint8_t)ads->adc1ReadPolicy;
+    outResult->readSource = ads->adc1ReadPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED ?
+        ADS126X_READ_SOURCE_SPI55_GPIO1 : ADS126X_READ_SOURCE_SPI56;
     uint64_t workDeadlineUs = absoluteDeadlineUs - ADS_SPI_PROBE_CLEANUP_US;
     uint32_t savedClockHz = 0u;
     uint32_t savedVref = ads->vrefMicrovolts;
@@ -376,14 +379,22 @@ esp_err_t sensorarrayAdsSpiProbeRun(sensorarrayState_t *state,
         }
     }
     outResult->restored = savedKnown && cleanup == ESP_OK;
+    if (cleanup != ESP_OK) { ads->interfaceKnown = false; }
     outResult->error = err;
     outResult->cleanupError = cleanup;
     outResult->qualified = err == ESP_OK && outResult->restored && outResult->selectedHz != 0u;
+    outResult->readSourceKnown = outResult->validSamples != 0u;
+    outResult->interfaceKnown = ads->interfaceKnown;
+    outResult->interfaceReg = ads->interfaceReg;
     outResult->endUs = (uint64_t)esp_timer_get_time();
     printf("SPI_SELECTED,owner=BOOT,qualified=%u,restored=%u,selectedHz=%lu,actualHz=%lu,actualSource=idf_khz,candidates=%lu,err=0x%x,cleanup=0x%x,firstCandidateError=0x%x,startUs=%llu,endUs=%llu,scope=boot_link_samples\n",
         outResult->qualified ? 1u : 0u, outResult->restored ? 1u : 0u,
         (unsigned long)outResult->selectedHz, (unsigned long)outResult->actualHz,
         (unsigned long)outResult->candidatesTested, err, cleanup, firstCandidateError,
         (unsigned long long)outResult->startUs, (unsigned long long)outResult->endUs);
+    printf("SPI_READ_SOURCE,owner=BOOT,policy=%u,known=%u,source=%s,interfaceKnown=%u,interface=%02X,scope=boot_link_samples\n",
+        outResult->readPolicy, outResult->readSourceKnown ? 1u : 0u,
+        ads126xAdcReadSourceName(outResult->readSource), outResult->interfaceKnown ? 1u : 0u,
+        outResult->interfaceReg);
     return err != ESP_OK ? err : cleanup;
 }

@@ -827,7 +827,7 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
     cfg.forcedType = ADS126X_DEVICE_AUTO;
 #endif
     cfg.crcMode = ADS126X_CRC_CRC8;
-    cfg.enableStatusByte = false;
+    cfg.enableStatusByte = true;
     cfg.enableInternalRef = false;
     cfg.vrefMicrovolts = ADS126X_ADC_DEFAULT_VREF_UV;
     cfg.pgaGain = 1;
@@ -846,6 +846,25 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
         (void)ads126xAdcDeinit(&state->ads);
         return err;
     }
+#if CONFIG_SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE
+    /* Explicit board opt-in. A failed capability/physical-interface proof
+     * never falls back to the known STD sampling path. Other boards retain
+     * the default byte SPI policy unless separately qualified and enabled. */
+    ads126xAdc1RegisterSnapshot_t tailProof = {0};
+    err = ads126xAdcReadAdc1RegisterSnapshot(&state->ads, &tailProof);
+    if (err == ESP_OK && (tailProof.id != state->ads.idRegRaw ||
+            (tailProof.power & ADS126X_POWER_RESET) != 0u)) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    if (err == ESP_OK) {
+        err = ads126xAdcSetAdc1ReadPolicy(&state->ads,
+            ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED);
+    }
+    if (err != ESP_OK) {
+        (void)ads126xAdcDeinit(&state->ads);
+        return err;
+    }
+#endif
 
     state->adsAdc1Running = false;
     state->adsRefReady = false;
@@ -858,6 +877,11 @@ esp_err_t sensorarrayBringupAttachAdsNoReset(sensorarrayState_t *state)
     if (!state) {
         return ESP_ERR_INVALID_ARG;
     }
+#if CONFIG_SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE
+    /* This legacy attach does not establish physical configuration or the
+     * fresh exclusive-bus proof. Do not silently attach using SPI_BYTES. */
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
 
     esp_err_t err = sensorarrayInitSpi(&state->spiDevice);
     if (err != ESP_OK) {
@@ -909,7 +933,7 @@ esp_err_t sensorarrayBringupPrepareAdsRefPath(sensorarrayState_t *state)
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = ads126xAdcConfigure(&state->ads, true, false, ADS126X_CRC_CRC8, 1, 0);
+    esp_err_t err = ads126xAdcConfigure(&state->ads, true, true, ADS126X_CRC_CRC8, 1, 0);
     if (err != ESP_OK) {
         return err;
     }

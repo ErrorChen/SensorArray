@@ -62,6 +62,9 @@ def main():
         binary = temp / "test"
         subprocess.run(command + [str(temp / "test.c"), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
+        subprocess.run(command + ["-DTIMING_TEST_REQUIRED_POLICY=1", str(temp / "test.c"), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+        print("ADS_TIMING_REQUIRED_POLICY_TESTS,passed=1,standard_controls_stay_spi56=1")
     return 0
 
 

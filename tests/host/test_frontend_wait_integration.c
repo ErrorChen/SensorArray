@@ -148,6 +148,8 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
 { assert(ctx); mockDrain++; }
 static esp_err_t sensorarrayFrontendStartupFormatSpi(char *text, size_t capacity)
 { snprintf(text, capacity, "SPI,mock=1\n"); return ESP_OK; }
+static esp_err_t sensorarrayFrontendStartupFormatSpiSource(char *text, size_t capacity)
+{ snprintf(text, capacity, "SPISOURCE,mock=1\n"); return ESP_OK; }
 /* Formatting has separate production-module extrema tests. These four
  * boundary stubs let this test execute the actual main dispatch while held. */
 static unsigned mockDiagnosticQueryCalls[4];
@@ -250,15 +252,15 @@ static void testCommands(void)
         assert(sensorarrayRuntimeQueryCommand(newQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
         assert(strcmp(reply, expected[i]) == 0 && mockDiagnosticQueryCalls[i] == 2);
     }
-    const char *timingQueries[] = {"ADSTIMING?", "BLESVC?", "SCHEDWHY?"};
-    for (unsigned i = 0; i < 3; ++i) {
+    const char *timingQueries[] = {"ADSTIMING?", "BLESVC?", "SCHEDWHY?", "SPISOURCE?"};
+    for (unsigned i = 0; i < 4; ++i) {
         assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), &ctx) == ESP_OK);
         assert(strstr(reply, ",mock=1\n"));
         assert(sensorarrayRuntimeQueryCommand(timingQueries[i], reply, sizeof(reply), NULL) == ESP_OK);
     }
     assert(mockDriverRead == readsBefore && mockRoute == routesBefore && mockRestart == resetsBefore);
     assert(mockTerminals == terminalsBefore && mockRowsPost == postsBefore && s_frontendHold == 1);
-    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=7,with_context_and_null=1,hardware_side_effects=0");
+    puts("FRONTEND_HELD_QUERY_DISPATCH,queries=8,with_context_and_null=1,hardware_side_effects=0");
     const char *allowed[] = {"SPI?", "FRONTENDS?", "CONFIG?", "USBSTREAM?", "USBSTREAM=DEBUG", "RESTART", "RECOVER=2"};
     for (unsigned i = 0; i < 7; ++i) {
         assert(sensorarrayRuntimeQueryCommand(allowed[i], reply, sizeof(reply), &ctx) == ESP_OK);

@@ -73,6 +73,19 @@ endmenu
 
 menu "ADS startup SPI qualification"
 
+config SENSORARRAY_ADS_GPIO_TAIL_READ_ENABLE
+    bool "Require physical GPIO sampling of the ADC1 CRC final bit"
+    depends on IDF_TARGET_ESP32S3 && SENSORARRAY_ADS1262 && SENSORARRAY_SPI_USE_DMA
+    default n
+    help
+        Explicit SensorArray board policy: use SPI for the first 55 bits and
+        physically sample the last CRC bit before the final falling edge.
+        Requires the verified dedicated SPI3 board route and physical
+        INTERFACE readback with STATUS, CRC8 and serial timeout disabled.
+        Missing capability is an explicit error, not a silent SPI fallback.
+        This does not infer or repair a bit from the calculated CRC.
+        Ordinary byte-based SPI remains the default for other configurations.
+
 config SENSORARRAY_ADS_SPI_AUTOTUNE_ENABLE
     bool "Qualify ADS SPI clock at boot alongside FDC I2C initialization"
     default y
@@ -155,7 +168,8 @@ config SENSORARRAY_ADS_DATA_RATE
     default 15
     range 0 15
     help
-        15 selects 38400 SPS for ADC1. ADS1263 background jobs use ADC2 at 800 SPS.
+        15 selects 38400 SPS for ADC1. Auxiliary transactions must follow
+        the capabilities of the identified ADC device.
 
 config SENSORARRAY_ADS_GAP_GUARD_US
     int "Initial FDC deadline guard for ADS gap-fill (us)"

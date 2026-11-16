@@ -49,6 +49,8 @@ def main():
         for path in (p, root / "tests/host/ads_stubs", root / "tests/host/include",
                      root / "components/ads126xAdc/include"):
             cmd += ["-I", str(path)]
+        if args.baseline:
+            cmd += ["-DADS_TAIL_BASELINE_DRIVER=1"]
         subprocess.run(cmd + [str(p / "test.c"), "-o", str(p / "test")], check=True)
         subprocess.run([str(p / "test")], check=True)
     return 0

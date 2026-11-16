@@ -249,6 +249,39 @@ esp_err_t sensorarrayFrontendStartupFormatSpi(char *response, size_t responseSiz
         ESP_OK : ESP_ERR_INVALID_SIZE;
 }
 
+/* 本轮新增: keep the original SPI all-candidates counters unchanged. The
+ * separate reply reads only the boot worker's mutex-published value copy. */
+esp_err_t sensorarrayFrontendStartupFormatSpiSource(char *response, size_t responseSize)
+{
+    if (!response || responseSize == 0u) { return ESP_ERR_INVALID_ARG; }
+    sensorarrayBootSpiSnapshot_t s = sensorarrayBootSpiCopy();
+    bool published = s.phase == SENSORARRAY_BOOT_SPI_DONE;
+    bool sourceKnown = published && s.result.readSourceKnown &&
+        s.result.readSource <= ADS126X_READ_SOURCE_SPI55_GPIO1;
+    bool interfaceKnown = published && s.result.interfaceKnown;
+    const char *policy = !sourceKnown ? "unknown" :
+        s.result.readPolicy == ADS126X_ADC1_READ_GPIO_TAIL_REQUIRED ? "gpio_tail_required" :
+        s.result.readPolicy == ADS126X_ADC1_READ_SPI_BYTES ? "spi_bytes" : "unknown";
+    char interfaceText[8] = "unknown";
+    if (interfaceKnown) {
+        (void)snprintf(interfaceText, sizeof(interfaceText), "%02X", s.result.interfaceReg);
+    }
+    int written = snprintf(response, responseSize,
+        "SPISOURCE,scope=boot_probe,phase=%s,sourceKnown=%u,policy=%s,source=%s,interfaceKnown=%u,interface=%s,hz=%lu,actualHz=%lu,qualified=%u,restored=%u,joined=%u,timedOut=%u,err=0x%lx,cleanup=0x%lx,runtime=unobserved,physicalVerified=0\n",
+        sensorarrayBootSpiPhaseName(s.phase), sourceKnown ? 1u : 0u, policy,
+        sourceKnown ? ads126xAdcReadSourceName(s.result.readSource) : "unknown",
+        interfaceKnown ? 1u : 0u, interfaceText,
+        (unsigned long)s.result.selectedHz, (unsigned long)s.result.actualHz,
+        s.result.qualified ? 1u : 0u, s.result.restored ? 1u : 0u,
+        s.joined ? 1u : 0u, s.timedOut ? 1u : 0u,
+        (unsigned long)(uint32_t)s.joinError, (unsigned long)(uint32_t)s.result.cleanupError);
+    if (written <= 0 || (size_t)written >= responseSize) {
+        response[0] = '\0';
+        return ESP_ERR_INVALID_SIZE;
+    }
+    return ESP_OK;
+}
+
 static void sensorarrayBootSpiLogJoin(esp_err_t err)
 {
     sensorarrayBootSpiSnapshot_t s = sensorarrayBootSpiCopy();

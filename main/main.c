@@ -2657,6 +2657,9 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     if (strcmp(command, "SPI?") == 0) {
         return sensorarrayFrontendStartupFormatSpi(response, responseSize);
     }
+    if (strcmp(command, "SPISOURCE?") == 0) {
+        return sensorarrayFrontendStartupFormatSpiSource(response, responseSize);
+    }
     if (strcmp(command, "FRONTENDS?") == 0) {
         return sensorarrayFormatFrontendReply(response, responseSize);
     }
@@ -2706,7 +2709,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -2839,6 +2842,9 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     }
     if (strcmp(command, "SPI?") == 0) {
         return sensorarrayFrontendStartupFormatSpi(response, responseSize);
+    }
+    if (strcmp(command, "SPISOURCE?") == 0) {
+        return sensorarrayFrontendStartupFormatSpiSource(response, responseSize);
     }
     if (strcmp(command, "FRONTENDS?") == 0) {
         return sensorarrayFormatFrontendReply(response, responseSize);
@@ -3449,7 +3455,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,

@@ -37,7 +37,7 @@ def main() -> int:
     assert "sensorarrayRunAdsTimingCommand(ctx, &command);\n            return;" in apply
     assert source.count("sensorarrayAdsTimingControlHandles(command)") == 2
     assert source.count("sensorarrayLinkDiagnosticsHandles(command)") == 2
-    assert source.count("ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/ble_service_obs_v1/work_reason_v1") == 2
+    assert source.count("ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1") == 2
     probe = (ROOT / "core/measure/ads/sensorarrayAdsTimingProbe.c").read_text()
     formatters = probe[probe.index("static size_t sensorarrayAdsTimingFormatted("):]
     if "const char *sensorarrayAdsTimingProbeKindName(" not in formatters:

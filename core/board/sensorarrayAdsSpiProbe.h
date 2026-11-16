@@ -25,6 +25,12 @@ typedef struct {
     uint32_t statusErrors;
     uint32_t registerErrors;
     uint32_t drdyTimeouts;
+    /* Immutable boot-owner copy; no control task reads mutable ADC state. */
+    uint8_t readPolicy;
+    uint8_t readSource;
+    bool readSourceKnown;
+    bool interfaceKnown;
+    uint8_t interfaceReg;
 } sensorarrayAdsSpiProbeResult_t;
 
 /* 本轮新增: exclusive ADS boot owner, before matrix/route/Gap initialization.

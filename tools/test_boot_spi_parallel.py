@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 import subprocess
 import tempfile
+from test_main_config_commit import function
 
 root = Path(__file__).resolve().parents[1]
 main_source = (root / "main/main.c").read_text()
@@ -18,6 +19,12 @@ production = source[begin:end]
 production += source[source.index("bool sensorarrayFrontendStartupAdsOwnerQuiescent("):]
 header = (root / "core/board/sensorarrayAdsSpiProbe.h").read_text()
 types = header[header.index("typedef struct {"):header.index("/* 本轮新增: exclusive")]
+adc_header = (root / "components/ads126xAdc/include/ads126xAdc.h").read_text()
+for name in ("ads126xAdcAdc1ReadPolicy_t", "ads126xAdcReadSource_t"):
+    end_enum = adc_header.index("} " + name + ";") + len("} " + name + ";")
+    types += "\n" + adc_header[adc_header.rfind("typedef enum {", 0, end_enum):end_enum]
+driver = (root / "components/ads126xAdc/ads126xAdc.c").read_text()
+production = function(driver, "const char *ads126xAdcReadSourceName(") + "\n" + production
 
 # The actual caller must not initialize a matrix/cache/route/gap while an
 # outstanding boot owner can still be using ADS. A failed join returns first.
@@ -40,6 +47,7 @@ positions = [startup.index(token) for token in ordered]
 assert positions == sorted(positions), "parallel startup ordering changed"
 assert "return err;" in startup[positions[-1]:]
 assert main_source.count('if (strcmp(command, "SPI?") == 0)') == 2, "early and normal SPI? required"
+assert main_source.count('if (strcmp(command, "SPISOURCE?") == 0)') == 2, "early and normal SPISOURCE? required"
 assert "vTaskDelete" not in production, "boot DRDY target task cannot be deleted"
 assert "vTaskSuspend(NULL)" in production, "one-shot boot worker must retain its task handle"
 
