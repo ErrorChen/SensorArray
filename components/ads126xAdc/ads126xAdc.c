@@ -561,10 +561,22 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
             tail->stage = ADS126X_TAIL_STAGE_CLOCK_AFTER_SPI;
             if (gpio_get_level(h->tailBus.sclkGpio) != 0) { err = ESP_ERR_INVALID_STATE; }
             else {
-                tail->stage = ADS126X_TAIL_STAGE_GPIO_HIGH;
                 esp_rom_gpio_connect_out_signal(h->tailBus.sclkGpio, SIG_GPIO_OUT_IDX, false, false);
-                err = gpio_set_level(h->tailBus.sclkGpio, 1u);
-                tail->riseUs = ads126xAdcTailElapsed(tail->startedUs);
+                tail->stage = ADS126X_TAIL_STAGE_CLOCK_LOW;
+                if (gpio_get_level(h->tailBus.sclkGpio) != 0) { err = ESP_ERR_INVALID_STATE; }
+                else {
+                    /* ADS1262 tSCLK low>=40ns. Do not rely on call overhead
+                     * between DMA completion and the manual rising edge.
+                     * Round the actual half-period up to ROM-delay us; at
+                     * least1us also covers cleanup when clock readback fails.
+                     * The verified TIMEOUT=0 gate permits this longer pause. */
+                    uint32_t lowHoldUs = clockErr == ESP_OK && actualKhz > 0 ?
+                        (500u + (uint32_t)actualKhz - 1u) / (uint32_t)actualKhz : 1u;
+                    esp_rom_delay_us(lowHoldUs);
+                    tail->stage = ADS126X_TAIL_STAGE_GPIO_HIGH;
+                    err = gpio_set_level(h->tailBus.sclkGpio, 1u);
+                    tail->riseUs = ads126xAdcTailElapsed(tail->startedUs);
+                }
                 if (err == ESP_OK) {
                     tail->stage = ADS126X_TAIL_STAGE_GPIO_SAMPLE;
                     /* Datasheet DOUT propagation<=60ns at specified load.

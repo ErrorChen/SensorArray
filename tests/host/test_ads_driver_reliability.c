@@ -33,10 +33,16 @@ static int tailPhysicalBitOverride = -1;
 static unsigned tailEdges, tailRouteChanges;
 static bool tailOwnerAvailable, tailRestoreFailure, tailHighFailure;
 static bool tailLowReadbackHigh, tailReturnedLow;
+static bool tailHandoffReadbackHigh;
+static void (*tailTraceHook)(const char *event, uint32_t value);
 static gpio_io_config_t tailClockConfig, tailMisoConfig;
 #if CONFIG_IDF_TARGET_ESP32S3
 const host_spi_signal_t spi_periph_signal[3] = {{0,0},{0,0},{32,33}};
-void esp_rom_delay_us(uint32_t us) { nowUs += us; }
+void esp_rom_delay_us(uint32_t us)
+{
+    if (tailTraceHook) { tailTraceHook("delay", us); }
+    nowUs += us;
+}
 void esp_rom_gpio_connect_out_signal(uint32_t pin, uint32_t signal, bool invert, bool oe_invert)
 {
     assert(pin == 47u && !invert && !oe_invert && pending == NULL && mutexDepth == 1u);
@@ -44,6 +50,7 @@ void esp_rom_gpio_connect_out_signal(uint32_t pin, uint32_t signal, bool invert,
     if (tailRestoreFailure && signal == 32u) { return; }
     tailClockConfig.sig_out = (int)signal;
     if (signal == SIG_GPIO_OUT_IDX) { tailSclkLevel = tailLatch; }
+    if (tailTraceHook) { tailTraceHook("route", signal); }
 }
 #endif
 static bool tailExclusiveOwner(spi_device_handle_t device) { return device == (void *)1 && tailOwnerAvailable; }
@@ -128,14 +135,21 @@ esp_err_t gpio_set_level(gpio_num_t pin, int level)
             if (!level && tailSclkLevel) { tailReturnedLow = true; }
             if (tailSclkLevel != level) { ++tailEdges; }
             tailSclkLevel = level;
+            if (tailTraceHook) { tailTraceHook("write", (uint32_t)level); }
         }
     }
     return ESP_OK;
 }
 int gpio_get_level(gpio_num_t pin)
 {
-    return pin == 47 ? (tailLowReadbackHigh && tailReturnedLow ? 1 : tailSclkLevel) :
-        pin == 14 ? tailPhysicalBit : 0;
+    int level = pin == 47 ?
+        ((tailLowReadbackHigh && tailReturnedLow) ||
+         (tailHandoffReadbackHigh && tailClockConfig.sig_out == 256 && tailEdges == 0u)
+            ? 1 : tailSclkLevel) : pin == 14 ? tailPhysicalBit : 0;
+    if (tailTraceHook && (pin == 47 || pin == 14)) {
+        tailTraceHook(pin == 47 ? "clock_read" : "miso_read", (uint32_t)level);
+    }
+    return level;
 }
 esp_err_t gpio_config(const gpio_config_t *cfg) { (void)cfg; return ESP_OK; }
 esp_err_t gpio_isr_handler_add(gpio_num_t pin, void (*fn)(void *), void *arg)
@@ -210,7 +224,9 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
         tailPhysicalBit = tailPhysicalBitOverride >= 0 ? tailPhysicalBitOverride : (int)(rx[6] & 1u);
         rx[6] = (rx[6] & 0xFEu) | 1u; /* unreceived bit deliberately arbitrary */
     }
+    bool tailCompleted = pending->length == 55u;
     *out = pending; pending = NULL;
+    if (tailCompleted && tailTraceHook) { tailTraceHook("dma_reclaimed", 55u); }
     return ESP_OK;
 }
 
@@ -248,6 +264,7 @@ static ads126xAdcHandle_t handle(void)
     tailEdges = tailRouteChanges = 0u;
     tailOwnerAvailable = true; tailRestoreFailure = tailHighFailure = false;
     tailLowReadbackHigh = tailReturnedLow = false;
+    tailHandoffReadbackHigh = false; tailTraceHook = NULL;
     tailClockConfig = (gpio_io_config_t){.ie=true,.oe=true,.oe_ctrl_by_periph=true,.fun_sel=1u,.sig_out=32};
     /* Actual IDF SPI3 GPIO-matrix setup auto-detects DUAL-capable pins and
      * uses INPUT_OUTPUT plus peripheral-controlled Q output enable. */

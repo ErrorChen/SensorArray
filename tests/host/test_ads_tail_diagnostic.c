@@ -70,6 +70,93 @@ static void testAllCrcBytes(void)
     puts("PASS tail256 CRC byte patterns:55bit prefix + physical0/1, no computed-bit repair");
 }
 
+typedef struct {
+    const char *event;
+    uint32_t value;
+    int64_t atUs;
+} tailTestEvent_t;
+static tailTestEvent_t tailTrace[24];
+static unsigned tailTraceCount;
+
+static void captureTailTrace(const char *event, uint32_t value)
+{
+    assert(tailTraceCount < sizeof(tailTrace) / sizeof(tailTrace[0]));
+    tailTrace[tailTraceCount++] = (tailTestEvent_t){event, value, nowUs};
+}
+
+static unsigned findTailEvent(unsigned from, const char *event, uint32_t value)
+{
+    for (unsigned i = from; i < tailTraceCount; ++i) {
+        if (strcmp(tailTrace[i].event, event) == 0 && tailTrace[i].value == value) { return i; }
+    }
+    fprintf(stderr, "MISSING_TAIL_EVENT,event=%s,value=%u,from=%u,count=%u\n",
+        event, value, from, tailTraceCount);
+    assert(!"required tail timing event missing");
+    return tailTraceCount;
+}
+
+static void testExplicitLowHold(void)
+{
+    /* API-order/timer evidence only, not a physical waveform measurement.
+     * The fake GPIO/ROM calls consume zero incidental time. */
+    const uint32_t rates[] = {2000000u, 754000u, 500000u, 250000u, 150000u, 125000u};
+    for (unsigned i = 0u; i < sizeof(rates) / sizeof(rates[0]); ++i) {
+        ads126xAdcHandle_t h = handle(); prepareFrame(&h, (uint8_t)i);
+        actualSpiHz = rates[i];
+        tailTraceCount = 0u; tailTraceHook = captureTailTrace;
+        ads126xAdcTailEvidence_t tail; uint8_t frame[6];
+        assert(ads126xAdcSpiTailDiagnostic(&h, frame, &tail) == ESP_OK);
+        unsigned reclaimed = findTailEvent(0u, "dma_reclaimed", 55u);
+        unsigned attached = findTailEvent(reclaimed + 1u, "route", SIG_GPIO_OUT_IDX);
+        unsigned rise = findTailEvent(attached + 1u, "write", 1u);
+        unsigned lowRead = findTailEvent(attached + 1u, "clock_read", 0u);
+        assert(lowRead < rise); /* Proof must precede the edge, not observe cleanup. */
+        uint32_t lowUs = (500u + rates[i] / 1000u - 1u) / (rates[i] / 1000u);
+        unsigned lowDelay = findTailEvent(lowRead + 1u, "delay", lowUs);
+        assert(lowDelay < rise);
+        unsigned highDelay = findTailEvent(rise + 1u, "delay", 1u);
+        unsigned sample = findTailEvent(highDelay + 1u, "miso_read", dataFrames[0][5] & 1u);
+        unsigned fall = findTailEvent(sample + 1u, "write", 0u);
+        unsigned restoreDelay = findTailEvent(fall + 1u, "delay", 1u);
+        unsigned restored = findTailEvent(restoreDelay + 1u, "route", 32u);
+        assert(tailTrace[rise].atUs - tailTrace[lowRead].atUs >= lowUs);
+        assert(tailTrace[sample].atUs - tailTrace[rise].atUs >= 1u);
+        assert(tailTrace[restored].atUs - tailTrace[fall].atUs >= 1u);
+        assert(tail.riseUs >= tail.spiDoneUs + lowUs && tail.frameComplete && tail.routeRestored);
+        assert(tailEdges == 2u && mutexDepth == 0u && pending == NULL);
+        printf("LOW_HOLD_ORDER,hz=%u,lowUs=%u,reclaimed=%u,gpio=%u,lowRead=%u,delay=%u,rise=%u\n",
+            rates[i], lowUs, reclaimed, attached, lowRead, lowDelay, rise);
+        tailTraceHook = NULL;
+        free(h.spiTxBuf); free(h.spiRxBuf);
+    }
+    puts("PASS6 explicit pre-rise low holds: completed DMA -> GPIO low proof -> delay -> edge -> sample -> restore");
+}
+
+static void testHandoffLowFailure(void)
+{
+    ads126xAdcHandle_t h = handle(); prepareFrame(&h, 8u);
+    tailHandoffReadbackHigh = true;
+    tailTraceCount = 0u; tailTraceHook = captureTailTrace;
+    int32_t raw = 123; uint8_t status = 45u;
+    ads126xAdcFreshReadReport_t report; ads126xAdcTailEvidence_t tail;
+    assert(ads126xAdcReadAdc1FreshTailDiagnostic(&h, 0u, 600u,
+        &raw, &status, &report, &tail) == ESP_ERR_INVALID_STATE);
+    assert(raw == 123 && status == 45u && tail.spiComplete && !tail.frameComplete && !tail.gpioSampled);
+    assert(tail.stage == ADS126X_TAIL_STAGE_CLOCK_LOW && tail.riseUs == 0u && tail.sampleUs == 0u);
+    assert(tailEdges == 0u && tailRouteChanges == 2u && tail.routeRestored);
+    assert(pending == NULL && mutexDepth == 0u && ads126xAdcIsQuarantined(&h));
+    for (unsigned i = 0u; i < tailTraceCount; ++i) {
+        assert(strcmp(tailTrace[i].event, "miso_read") != 0);
+        assert(strcmp(tailTrace[i].event, "write") != 0 || tailTrace[i].value != 1u);
+    }
+    unsigned before = queueCalls;
+    uint8_t value = 0u;
+    assert(ads126xAdcReadRegisters(&h, 1u, &value, 1u) == ESP_ERR_INVALID_STATE && queueCalls == before);
+    tailTraceHook = NULL;
+    free(h.spiTxBuf); free(h.spiRxBuf);
+    puts("PASS post-handoff low mismatch: no rise/sample, low+route cleanup, first stage retained, quarantined");
+}
+
 static void testMisoOutputGates(void)
 {
     for (unsigned kind = 0u; kind < 8u; ++kind) {
@@ -170,7 +257,7 @@ static void testCompletedAfterWorkDeadline(void)
     assert(ads126xAdcSpiTailDiagnostic(&h, frame, &tail) == ESP_ERR_TIMEOUT);
     assert(tail.spiComplete && tail.frameComplete && tail.routeRestored && tailEdges == 2u);
     assert(!ads126xAdcIsQuarantined(&h) && pending == NULL);
-    assert(tail.restoredUs == 102u && mutexDepth == 0u);
+    assert(tail.restoredUs == 103u && mutexDepth == 0u);
     free(h.spiTxBuf); free(h.spiRxBuf);
     puts("PASS known55 completion after work deadline completes framing before timeout; no valid sample");
 }
@@ -195,6 +282,8 @@ static void testBoardOwnership(void)
 
 int main(void)
 {
+    testExplicitLowHold();
+    testHandoffLowFailure();
     testAllCrcBytes();
     testMisoOutputGates();
     testBadPhysicalBitAndData();
