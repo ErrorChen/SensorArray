@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/exit_usj_download.py",
+    "--port",
+    "/dev/ttyACM0",
+    "--mac",
+    "80B54ECDD9AC"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "a485c47533c0e6db864325ce7da6658ff3c19a40",
+  "dirty_diff_sha256": "43b81ad2ef1aa97aeb5a73d87d08bb99b2023f5380c5757eaee1fc17e23b8eaa",
+  "started_utc": "2026-11-16T03:59:27.251757+00:00",
+  "started_monotonic": 308459.703184122,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-exit-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T03:59:27.566577+00:00",
+  "finished_monotonic": 308460.018030696,
+  "log_sha256": "c0ae77305022e9369c32320011ed6e222f01fe46192a3aa174fd7f0dcb982eb9"
+}

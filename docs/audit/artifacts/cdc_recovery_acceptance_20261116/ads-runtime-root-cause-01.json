@@ -1,0 +1,313 @@
+{
+  "head": "3a55543cb21fa3412ede26ee79c1cce7d8371804",
+  "read_only": true,
+  "debug_raw": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-debug.debug.rx.bin",
+  "debug_raw_sha256": "770bc63529e4ef4d3923fadde21fc4c11f55582936b9acff0547ea00342114b2",
+  "window_debug_offsets_inclusive": [
+    100920,
+    1331744
+  ],
+  "first_health": {
+    "offset": 100920,
+    "seq": "2248",
+    "engineFrameCount": "448",
+    "modeEntryFrameCount": "0",
+    "healthInterval": "64",
+    "healthReadbackDue": "1",
+    "precisionFrame": "1",
+    "err": "0x0",
+    "crcValidEven": "4629",
+    "crcValidOdd": "4893",
+    "crcErrors": "353",
+    "crcRetries": "226"
+  },
+  "last_health": {
+    "offset": 1331744,
+    "seq": "9928",
+    "engineFrameCount": "8128",
+    "modeEntryFrameCount": "0",
+    "healthInterval": "64",
+    "healthReadbackDue": "1",
+    "precisionFrame": "1",
+    "err": "0x0",
+    "crcValidEven": "52117",
+    "crcValidOdd": "55855",
+    "crcErrors": "4731",
+    "crcRetries": "4338"
+  },
+  "health_records_in_window": 109,
+  "health_errors": {
+    "0x0": 109
+  },
+  "observed_crc_byte_records": 249,
+  "xor_counts": {
+    "01": 249
+  },
+  "status_byte_counts": {
+    "68": 211,
+    "60": 38
+  },
+  "first_cell_counts": {
+    "1:2": 108,
+    "1:6": 14,
+    "1:5": 28,
+    "1:4": 21,
+    "1:3": 21,
+    "1:1": 38,
+    "1:7": 12,
+    "not_observed": 1,
+    "1:8": 6
+  },
+  "independent_0x107_crc_recompute_mismatches": [],
+  "first_byte_examples": [
+    {
+      "offset": 106377,
+      "seq": 2292,
+      "cell": "1:2",
+      "bytes": "68C07B73C2FD",
+      "computed": "FC",
+      "received": "FD",
+      "firstUs": 190359633
+    },
+    {
+      "offset": 108942,
+      "seq": 2303,
+      "cell": "1:6",
+      "bytes": "68C07CFC2F13",
+      "computed": "12",
+      "received": "13",
+      "firstUs": 190540840
+    },
+    {
+      "offset": 112187,
+      "seq": 2320,
+      "cell": "1:2",
+      "bytes": "68C07D45EEC3",
+      "computed": "C2",
+      "received": "C3",
+      "firstUs": 190793902
+    },
+    {
+      "offset": 113095,
+      "seq": 2324,
+      "cell": "1:2",
+      "bytes": "68C07BB83C73",
+      "computed": "72",
+      "received": "73",
+      "firstUs": 190851063
+    }
+  ],
+  "last_byte_examples": [
+    {
+      "offset": 1305624,
+      "seq": 9762,
+      "cell": "1:2",
+      "bytes": "68C009636D5F",
+      "computed": "5E",
+      "received": "5F",
+      "firstUs": 306170431
+    },
+    {
+      "offset": 1310703,
+      "seq": 9790,
+      "cell": "1:6",
+      "bytes": "68C008F22D07",
+      "computed": "06",
+      "received": "07",
+      "firstUs": 306575156
+    },
+    {
+      "offset": 1320786,
+      "seq": 9855,
+      "cell": "1:6",
+      "bytes": "68C00919AF3F",
+      "computed": "3E",
+      "received": "3F",
+      "firstUs": 307602172
+    },
+    {
+      "offset": 1329203,
+      "seq": 9913,
+      "cell": "1:2",
+      "bytes": "68C008B59A3B",
+      "computed": "3A",
+      "received": "3B",
+      "firstUs": 308505127
+    }
+  ],
+  "fault_records_in_closed_debug": [],
+  "sampling_limit": "ADSSPIBYTES retains only first CRC packet per emitted event; rate limited and some diagnostics absent. These records are not all4378 failures and do not provide first/second/triple sample position or PGA profile. STATUS is not covered by ADC CRC; a rejected packet is not a reliable physical alarm diagnosis.",
+  "qualified_selected_clock": {
+    "requestedHz": 550000,
+    "actualHz": 551000,
+    "actualSource": "idf_khz",
+    "queryQualified": true,
+    "queryRestored": true,
+    "candidates": 20,
+    "allCandidatesAttempted": 4099,
+    "allCandidatesCrc": 114,
+    "selected_four_phase_raw": "NOT_OBSERVED",
+    "reason": "CDC restart debug observer began after1.54second startup scan; existing closed debug files have no SPI_SWEEP/SPI_SELECTED tokens. Do not use aggregate114/4099 as selected-clockrate."
+  },
+  "last_bit_direction": {
+    "0_to_1": 248,
+    "1_to_0": 1,
+    "other": 0
+  },
+  "source_sha256": {
+    "core/board/sensorarrayAdsSpiProbe.c": "5814b419862cee20e5ff037e8366251868960cf5b251cba4b721ddf1e596e7cc",
+    "core/board/sensorarrayBringup.c": "82faa959c7893dcebdd30691fc15ed8e81e98830c2e3804db355c8000d1b71ec",
+    "core/measure/ads/sensorarrayAdsMatrix.c": "79521281d85f3c136e41a7d073e0ef3faff87e8ec32fc44d87ad47e2e62624eb",
+    "components/ads126xAdc/ads126xAdc.c": "6bed581d19eaad1fb11fd2c76051d0fbdbcf0f11abc64119fd3125f085418cd9",
+    "sdkconfig": "31353f73b9e6507b9eeebf826b9eac5aeb999fef79cb66bb023c452b14b93acd",
+    "datasheets/circuit_page3-3.png": "ce0b6b5a81232f5ca56ae222a724f2e57be894ca0d94d31420bef785100f745a",
+    "datasheets/ads1263.pdf": "8b3290ca6ac01d2da9352d62b73c268e20ccdce54475c0a35444cce9e366b1f0"
+  },
+  "startup_enforcement": {
+    "screen_each_profile_attempts": 200,
+    "screen_each_profile_max_crc": 5,
+    "confirm_each_profile_attempts": 800,
+    "confirm_each_profile_max_crc": 20,
+    "minimum_accepted_even_and_odd_each": 32,
+    "crc_retry_budget": 0,
+    "profiles": [
+      "gain1 PGA",
+      "bypass"
+    ],
+    "hard_errors": [
+      "register",
+      "status/reset/reference/PGA alarm",
+      "freshness",
+      "timeout",
+      "quarantine",
+      "constant raw / insufficient parity"
+    ],
+    "conclusion": "Code requires all four profile phases to pass before selected; selected550k is query-confirmed, but phase raw counters were not observed. Aggregate114/4099 is all candidates, including rejects, not the selected-clock CRC rate.",
+    "filter_register_vs_effective": "MODE1=00 selects second-stageSINC1, but at nominal38400SPS the second stage is bypassed and first-stageSINC5 determines response (datasheet9.3.10.1). This applies equally toboot andmatrix."
+  },
+  "runtime_evidence": {
+    "health_interval_seconds_from_existing_analyzer": 118.99224810797023,
+    "valid_even_delta": 47488,
+    "valid_odd_delta": 50962,
+    "crc_rejected_delta": 4378,
+    "checked_delta": 102828,
+    "rejected_percent": 4.257595207531022,
+    "user_limit_percent": 2.5,
+    "acceptance": "FAIL",
+    "counter_scope": "CRC-checked ADC1 read attempts, including successful/failed retry reads and auxiliary reads, not cells or all ADC conversions. SPI failures before parse and unread conversions are excluded. CRC-valid does not alone imply fresh/status/physical validity.",
+    "scientific_frame_source": "screen-01/screen-01-volt1.summary.json",
+    "scientific_faults_reported": [],
+    "scientific_resets_reported": [],
+    "invalid_semantics": "X12 unstable and X02 CRC-rejected remain invalid; absence of MFAULT does not waive the2.5% raw link requirement."
+  },
+  "cs_and_sampling_review": {
+    "spi_mode": 1,
+    "duty_cycle_pos": 128,
+    "gpio": {
+      "host_enum": 2,
+      "sclk": 47,
+      "mosi": 21,
+      "miso": 14,
+      "cs": -1
+    },
+    "datasheet_sections": "7.6/7.7 serial timing;9.4.4 serial interface;9.4.7.2 command read",
+    "schematic": "Visually inspected circuit_page3-3.png: ADC CS# pin10 connects toGND. Actual assembled board connection was not physically verified this turn.",
+    "cs_setup_hold": "Both actual and helper devCfg have cs=-1; cs_ena_pretrans/posttrans absent. IDF5.5.5 spi_master.c567..573 maps requestedposttrans0 tooneCSclock. There is no routed CS output, so adding posttrans does not delay a physical CS edge. No prematureCSrelease conclusion is supported.",
+    "idf_source_root": "/home/csc/esp/esp-idf-v5.5.5",
+    "s3_timing_api": "spi_ll.h733 RXtiming setter empty;741 standard sample unsupported;892 MISOdelay setter empty. spi_master.c522 rejects PHASE_1. input_delay_ns is not an established physical end-bit adjustment for this full-duplex path.",
+    "nominal_period_ns": 1814.8820326678765,
+    "nominal_half_cycle_ns": 907.4410163339383,
+    "specified_sclk_min_period_ns": 125,
+    "specified_sclk_min_high_low_ns": 40,
+    "specified_dout_max_propagation_ns": 60,
+    "specified_last_falling_to_cs_rising_min_ns": 40,
+    "configured_timing_violation_found": false,
+    "physical_waveform_verified": false,
+    "signature_inference": "248observedfinalCRCbit0to1 and1bit1to0, allsyndrome01. Under a singlebit assumption this selects the CRCbit0, not any singlepayloadbit. It supports an end-bit sampling issue; it is not proof of a constant pullup or a particular electrical cause.",
+    "no_repeat": "Failed duty64 and RDATA+NOP candidates remain historical; neither is proposed again."
+  },
+  "command_phase_gap": {
+    "startup": "Once each profile is started, repeated FreshChecked reads after DRDY. No per-attempt MODE2/INPMUX WREG. AA common-node short avoids external source and matrix excitation; INTREF staysoff, refAVDD/AVSS.",
+    "matrix": "ApplyInputProfile writes MODE2 as required, writes INPMUX for changed/forcedroute, starts ADC onlyifnotrunning, then capturesgeneration after writes; optional analogguardcurrently0us. ReadAdaptive may do1/3/confirmationreads with same shared bounded CRCretry. CPUcore/schedulerload and reference/inputcommonmode differ from bootprobe.",
+    "datasheet": "9.5.7/9.6 marks INPMUX and MODE2 asADC1restart Group1 when newdata arewritten; not everyregisterwrite restarts. SameAAbyte restart semantics are notexplicitly resolved in examinedmanual.9.4.1.1 guaranteesSTOP1/START1restart.",
+    "rdata_overlap": "56clocks at551k \u2248101.63us crosses38400SPSconversionperiod\u224826.04us. CommandRDATA1 usesholdingregister and doesnot require nextDRDY-minus16fCLK directread constraint; crossingconversionsalone is not provenprotocolbug.",
+    "filter_and_rate_confirmed": {
+      "mode0": "00 continuous,chopoff,delay0",
+      "mode1": "00 registerselectionSINC1; effectivehigh-rateSINC5",
+      "mode2": [
+        "0F PGA gain1 DR15",
+        "8F bypass DR15"
+      ],
+      "nominal_adc_rate_sps": 38400,
+      "nominal_first_conversion_latency_us": 207,
+      "nominal_following_period_us": 26.0416666667,
+      "nominal_rdata_payload_us_at551k": 87.11433756805808,
+      "nominal_rdata_opcode_plus_payload_us_at551k": 101.63339382940109,
+      "observed_saved_BATREG_profiles": {
+        "00/00/8F/7A/24": 105,
+        "00/00/0F/7A/24": 25,
+        "00/00/0F/9A/24": 1
+      },
+      "sources": [
+        "sensorarrayAdsSpiProbePass lines100..102",
+        "sensorarrayAdsMatrixApplyInputProfile lines433..435",
+        "sdkconfig ADS_DATA_RATE15",
+        "datasheet9.3.10.1,9.4.2 Table9-13",
+        "closed screen-01-debug raw BATREG saved lines"
+      ],
+      "scope": "ConfigurednominalSPSfrom7.3728MHzclock, not independently measuredADCclock."
+    }
+  },
+  "next_controlled_comparison": {
+    "priority": 1,
+    "goal": "Test the representativeness gap at the SAME requested550k/actual551k before attributing results to frequency, CPU priorities or choosing a lower unvalidated rate.",
+    "minimal_firmware_candidate": "Boot-only extra cadence=inpmux_write phase reuses Pass/FreshChecked/owner/deadline/restore; forceSetInputMuxFast(AA) before everyattempt then capturegeneration. Preserve existingsteady200/800 perprofile and2.5% limits. This is a command-cadence test, not proof of physicalrestart on identicalwrites. No production implementation in this task.",
+    "restart_control_if_required": "A separate explicitlylabelled profile_switch phase alternates realMODE2 values0F/8F(PGA1/bypass), optionallyfollowed byAAWREG, whileINPMUX/ref/POWER/externalrouteunchanged. This guarantees an actualconfigchange withoutnewexternalinput and maintains separate800attempt/20CRCbudget andparity perprofile. It ismoreintrusive than WREG-only and notauthorised/implemented.",
+    "measurement": "Capturecompletephase logsfrombeforeboot; comparesteady andcommandcadence atsameclock, first-errorwirebytes, attempted/valid/parity/CRC, no retrymasking. ConfirmruntimeVOLT1/RES atselectedclockwithraw counters; newbootpassalonecannotclosepresentfailure.",
+    "fallback": "Ifcadencedoesnotreproduce signature, do notclaimfix orblindlyslower. Timingcapture ofSCLK,DOUT,DRDY andphysicalCS atADC/MCU is needed to decideend-bit hold/ringing/clockphase mechanism; hardware action requiresowner/userauthorisation.",
+    "candidate_selection": "Onlyafterqualifiednewtest, retainfine2M..1M100k andbelow1M50k..125k schedule. No coarsefastfallback, permanentFPSlimit, largerCRCthreshold orzero-filledsample."
+  },
+  "official_search": {
+    "date_utc": "2026-11-16",
+    "queries": [
+      "site:e2e.ti.com ADS1262 CRC last bit",
+      "site:e2e.ti.com ADS1262 DOUT DRDY CRC wrong CS low",
+      "site:e2e.ti.com ADS1263 RDATA1 LSB",
+      "site:ti.com ADS1262 errata SPI CRC"
+    ],
+    "private_data_sent": false,
+    "result": "No ADS1262-specific official erratum or TI-engineer statement establishing required extraCS/earlier sampling for this finalCRCbit was found in this targeted search. This is searchcoverage, not proofnoneexists. OtherADS-family replies were not treated as thischiprequirements.",
+    "sources": [
+      {
+        "url": "https://www.ti.com/lit/ds/symlink/ads1262.pdf",
+        "type": "TIprimarydatasheet",
+        "supported": "CRCover4ADC1databyteswith0x107; continuous/pulse control; commandreadholding; CS tiedlowallowed."
+      },
+      {
+        "url": "https://e2e.ti.com/cfs-file/__key/communityserver-discussions-components-files/73/sbau206a.pdf",
+        "type": "TIADS126xEVMguide",
+        "supported": "Rawdata/status/CRCinspection and registerverification, nofoundendbitworkaround."
+      },
+      {
+        "url": "https://github.com/espressif/esp-idf/issues/17908",
+        "type": "OfficialEspressifissuetracker,userreportwithcollaboratorreply",
+        "status_observed": "Open",
+        "supported": "SimilarCPHA1finalbitlate-sampling report onS3/C3 withADS1235/AD7190, notADS1262. Itsupportsahypothesis, notaboard-specificcause or sanctionedfix. UnsupportedPHASE_1 andabove-specclock/dutysolutions arenotused."
+      }
+    ]
+  },
+  "safe_temporary_diagnostic_design": {
+    "status": "DESIGN_ONLY_NOT_IMPLEMENTED_NOT_RUN",
+    "purpose": "Differentiate continuousDRDY/DOUTtailinteraction fromgeneralSPIcorruption atsameclock, not permanentlyreducecaptureFPS or maskCRC.",
+    "conditions": "SingleADSowneratfullframeboundaryorbootbeforematrix; saveandverifyphysical/driverconfiguration+clock, keepAA/AINCOM andAVDD/AVSSreference, INTREFoff,STARTGPIOlow; noexternalroutechange,noadditionalinput/referenceexcitation,no scientific output/cache training. Totaldeadline andcleanupreserve,restoreverifyrequired.",
+    "phases": [
+      "Baseline continuousMODE0=00, existingPGA1/bypass, nominal38400SPS, same550000requested551000reportedclock, rawCRC/statusevidence andaccepted-even/odd counts.",
+      "TemporarypulseMODE0=40(chopoff,delay0): eachSTART1 generatesoneconversion thenstops; collect fresh post-STARTgeneration, thenreadfullunchangedRDATA1status/data/CRCpacket; optionalsecondRDATA rereadsameholdingpayload explicitlytaggednotfreshdiagnostic. No retrythatconceals originalCRCfailure.",
+      "Restorefullsnapshot/clock/driver/shadows/cache/DRDY epoch beforematrixresumes;restoreunknownquarantinepreventsresume."
+    ],
+    "why_discriminating": "Datasheet9.4.1.2 says onepulseconversion; Fig9-44noteB sayspulseDRDYstayslowuntilnextSTART. If finalbitisbeingreadfromDRDY afterpacketend, CRCodd/even failuredirection should change withthetailstate. This is aprediction, not aclaimedresult.",
+    "implementation_boundary": "Current SendCommand START1 updatesconfiguredDrdyGeneration afterSPIcompletion. Ifone-shotDRDYarrivesbeforethatreturn, ordinaryFreshCheckedrejectstheedgeandtimesout. A diagnostic mustcaptureactualSTART/edge chronology orreporttimeout; neverresetfreshgeneration/artificiallyacceptastale result. Repeatedholdingreadsareexplicitlydiagnosticonlyandmustnotusefresh-success semantics.",
+    "acceptance": "CompareCRCcount/directionatidenticalclock/input/profile; pulseimprovementisnotproofpermanentmatrixfix. Reproducewithcompletebyte/snapshot/timestamprecords beforechangingproductionselection.",
+    "external_waveform_if_unresolved": "SynchronisedlastSPIclockedge, DOUTatADCpinandMCUpin, DRDY; independentlyconfirmCSstaticlow. TriggeronCRCbit0withnanosecondresolutionandcheckringing/overshoot/delayacrossR36. No hardware probing performed/authorisedbythisworker."
+  }
+}

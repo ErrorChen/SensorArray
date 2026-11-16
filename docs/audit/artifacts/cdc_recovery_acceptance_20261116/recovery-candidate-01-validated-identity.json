@@ -1,0 +1,10 @@
+{
+  "head": "3a55543cb21fa3412ede26ee79c1cce7d8371804",
+  "build_version": "3a55543",
+  "app_sha256": "59d3f07d772730692ea4a68e9af6437779ddfd24849c78f8fb9a03fbb2e31fee",
+  "app_bytes": 1591088,
+  "tests": 58,
+  "elf_sha256": "d4ac82a199bd2bc8bb730b331225ffdbb94acd2c84c410cd675636da706e92e5",
+  "production_inputs": 179,
+  "source_unchanged": true
+}

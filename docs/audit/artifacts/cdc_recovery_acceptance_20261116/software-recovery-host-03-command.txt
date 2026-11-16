@@ -1,0 +1,1 @@
+{"status": "PASS", "synthetic_cases": 24, "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/software-recovery-host-03.json"}

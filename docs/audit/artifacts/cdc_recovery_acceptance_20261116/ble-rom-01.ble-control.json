@@ -1,0 +1,26 @@
+{
+  "address": "80:B5:4E:CD:D9:AE",
+  "name": "CscArray_CDD9AD",
+  "status": "OBSERVED",
+  "commands": [
+    "BUILD?",
+    "PROTO?",
+    "USB?",
+    "USBBOOT"
+  ],
+  "replies": {
+    "BUILD?": "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=4a183bc,elfSha256=9a16d7673",
+    "PROTO?": "PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8",
+    "USB?": "USB,backend=otg_cdc_v1,init=1,err=0x0,mounted=1,suspended=0,dma=1,epoch=1,resets=1,mounts=1,unmounts=0,rxBytes=32,rxDrop=0,rxOver=0,lastRxUs=185692677,lastTxUs=186234516,romAvailable=1,quiesced=0,pcReceipt=unknown,dataDtr=1,debugDtr=1",
+    "USBBOOT": "RACK,cmd=RESTART,id=1,state=accepted,target=rom_download"
+  },
+  "sudo_used": false,
+  "raw_usb_used": false,
+  "rom_download_requested": true,
+  "build_identity_scope": "legacy_4a_version_and_9hex_ELF_prefix_only",
+  "expected_disconnect_observed": true,
+  "elapsed_seconds": 5.570008680981118,
+  "journal": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-rom-01.ble-control.jsonl",
+  "journal_sha256": "65919f9a5578ac45aeff7c03bb8f893a98d2275c9c1af05361c0f9dfcda62e75",
+  "source_sha256": "3cb51e1907f168771925ce33f7b2f51fa6f5f4f5bba470d720cd553cdc5dba38"
+}

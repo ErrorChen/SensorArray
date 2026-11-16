@@ -1,0 +1,71 @@
+esptool.py v4.12.0
+Serial port /dev/ttyACM0
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:b5:4e:cd:d9:ac
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Manufacturer: 46
+Device: 4018
+Detected flash size: 16MB
+Flash type set in eFuse: quad (4 data lines)
+Flash voltage set by eFuse to 3.3V
+Staying in bootloader.
+
+ing at 0x0008d274... (25 %)
+Writing at 0x00092b3b... (27 %)
+Writing at 0x00098300... (28 %)
+Writing at 0x0009dd02... (30 %)
+Writing at 0x000a3e62... (32 %)
+Writing at 0x000a9fad... (33 %)
+Writing at 0x000afbe1... (35 %)
+Writing at 0x000b62fd... (37 %)
+Writing at 0x000bc6d8... (38 %)
+Writing at 0x000c293f... (40 %)
+Writing at 0x000c8b91... (42 %)
+Writing at 0x000cf2c0... (44 %)
+Writing at 0x000d50c5... (45 %)
+Writing at 0x000da7f2... (47 %)
+Writing at 0x000e0235... (49 %)
+Writing at 0x000e6045... (50 %)
+Writing at 0x000ec910... (52 %)
+Writing at 0x000f2dd0... (54 %)
+Writing at 0x000f895a... (55 %)
+Writing at 0x000fe6aa... (57 %)
+Writing at 0x00104370... (59 %)
+Writing at 0x0010a1cd... (61 %)
+Writing at 0x00110469... (62 %)
+Writing at 0x00116541... (64 %)
+Writing at 0x0011c6f2... (66 %)
+Writing at 0x00121894... (67 %)
+Writing at 0x00126812... (69 %)
+Writing at 0x0012c07c... (71 %)
+Writing at 0x00131839... (72 %)
+Writing at 0x00136d89... (74 %)
+Writing at 0x0013c27b... (76 %)
+Writing at 0x00141dd5... (77 %)
+Writing at 0x00147bf4... (79 %)
+Writing at 0x0014da71... (81 %)
+Writing at 0x00153896... (83 %)
+Writing at 0x00159304... (84 %)
+Writing at 0x0015eb0d... (86 %)
+Writing at 0x00167d29... (88 %)
+Writing at 0x0016deba... (89 %)
+Writing at 0x00173b04... (91 %)
+Writing at 0x0017963a... (93 %)
+Writing at 0x0017f25b... (94 %)
+Writing at 0x00185271... (96 %)
+Writing at 0x0018bd91... (98 %)
+Writing at 0x00190e6a... (100 %)
+Wrote 1590656 bytes (958431 compressed) at 0x00010000 in 8.2 seconds (effective 1547.8 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
+

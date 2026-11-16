@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "-m",
+    "esptool",
+    "--chip",
+    "esp32s3",
+    "--port",
+    "/dev/ttyACM0",
+    "--baud",
+    "460800",
+    "--connect-attempts",
+    "1",
+    "--before",
+    "no_reset",
+    "--after",
+    "no_reset",
+    "flash_id"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 35.0,
+  "head": "a485c47533c0e6db864325ce7da6658ff3c19a40",
+  "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started_utc": "2026-11-16T03:57:07.633989+00:00",
+  "started_monotonic": 308320.085415203,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-post-flash-02-identify-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T03:57:07.798132+00:00",
+  "finished_monotonic": 308320.249560146,
+  "log_sha256": "94ddde1137267fe23341dc213c64eb8069f9c555725560495871a29fab8a3fdf"
+}

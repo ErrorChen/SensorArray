@@ -1,6 +1,6 @@
 # 固件与上位机契约：配置身份与可靠性修复
 
-> 2026-11-13 当前烧录源码为 `0d8f60fd9c29b9ce12e64ed2e6534ee37db41704`，
+> 2026-11-13 历史阶段烧录源码为 `0d8f60fd9c29b9ce12e64ed2e6534ee37db41704`，
 > BUILD=`0d8f60f-dirty`（dirty 是文档/证据，构建源码 hash 独立保存），app SHA256
 > `232ca3976f6b8ea38efd5e09de8279f35c9bfbbd0c605c8dd84e5169ddd1dbaa`。
 > 本轮启动模块/扫描主实现 `ee8f972`，FDC ID 地址修正 `e339a1d`，
@@ -348,7 +348,7 @@ USB-OTG 使用 S3 内部 Buffer DMA，不是 Serial/JTAG DMA，也不是 GDMA。
 
 `USB?` reports stack initialization, mount/configuration, suspend, connection epoch/reset observations and RX counts/times. `USBQ?` separates queue rejection, whole-record submission, FIFO-accepted bytes and transfer callback bytes. TinyUSB 0.21's vendor callback drops the transfer result; therefore `callbackResult=unknown`, never successful-bus or PC-application receipt. `SERIAL?` on OTG explicitly identifies CDC debug. `USBSTREAM?` returns BULK/dataEvery=1; DEBUG/FULL setters reject as legacy-only. `ST` still controls wired versus wireless sink eligibility; control is independent of DATA selection.
 
-`USBBOOT` uses the existing independent RESTART request ID and local ACK publication guard, with `target=rom_download`. It does not acknowledge PC receipt. At a main-loop boundary the USB owner stops service, disables its IRQ, clears incompatible ROM persistence flags, asserts and verifies the OTG hardware reset, and returns the PHY to USJ before the ROM-download restart. No TinyUSB object or DMA buffer is freed/reused. Ordinary controlled application restarts use the same fence. If the owner cannot acknowledge by the bounded deadline, the firmware uses an ESP32-S3 digital Core Reset and marks one subsequent boot for USJ recovery; it does not claim local cancellation or enter ROM download on that failure. The panic restart call is wrapped so CPU-only reset cannot silently leave OTG DMA using memory reinitialized by the next boot. These terminal paths retain watchdog behavior; physical BOOT/EN remains a recovery route. Do not burn USB eFuses.
+`USBBOOT` uses the existing independent RESTART request ID and local ACK publication guard, with `target=rom_download`. It does not acknowledge PC receipt. At a main-loop boundary the USB owner stops service, disables its IRQ, clears incompatible ROM persistence flags, asserts and verifies the OTG hardware reset, and returns the PHY to USJ before the ROM-download restart. No TinyUSB object or DMA buffer is freed/reused. Ordinary controlled application restarts use the same fence. If the owner cannot acknowledge by the bounded deadline, the firmware uses an ESP32-S3 digital Core Reset and latches subsequent boots into USJ recovery until explicit USBBOOT prepares and reads back the armed ROM flag (repair `3a55543`); it does not claim local cancellation or enter ROM download on that failure. The panic restart call is wrapped so CPU-only reset cannot silently leave OTG DMA using memory reinitialized by the next boot. These terminal paths retain watchdog behavior; physical BOOT/EN remains a recovery route. Do not burn USB eFuses.
 
 BLE 正式 DATA 的应用优先级为 7，CTRL 为 8；USB owner 和 transport 为 6。编码/output 仍为 7，保证采样结果被送入各 sink；普通日志不能占用 DATA admission slots。BLE 生命周期沿既有 FF30 wire 格式使用保留优先槽，不与普通 LOG 排队。`BLELINK?` 公布实际 PHY/connection completion、请求错误和 known 标志；interval 单位 1250 µs、supervision timeout 单位 10 ms。IDF DLE completion 没有 peer ID，故 `dlePeerKnown=0`，其数值只是未归属观测。`BLETX?` 记录本地服务及 SDK 调用时间（µs），不证明空口／PC 完成。IDF 单次 GATT API 内部仍有可阻塞的 BTC 入队；外层 retry deadline 不等于已取消该 SDK 调用，slot 不会提前释放。
 
@@ -356,7 +356,11 @@ The host software repository was not modified. Its separate integration task mus
 
 ## 双 CDC 替代接口 / Dual-CDC alternative (2026-11-14)
 
-修复提交 / Firmware commits: `3dc0c48e92f080cad334cce50614d07c3df6e38c` adds dual CDC and explicit running-image identity; `4a183bca6a5a0566a834a727a58d5e25a80ad31b` adds bounded detach and rejects late cleanup ACK. The final built app version is `4a183bc`, 1,590,656 bytes, binary SHA256 `283e70782280789ed9c79f29e2263179deb23e9be57f6e35e8f5fb8595fda223`. It is not yet flashed. / 上述版本已经构建，尚未烧录；不能把仓库当前 HEAD 当作板上版本。[构建身份 / Build identity](../audit/artifacts/usb_otg_ble_priority_20261114/cdc-candidate-06-build-manifest.json)。
+修复提交 / Firmware commits: `3dc0c48e92f080cad334cce50614d07c3df6e38c` adds dual CDC; `4a183bca6a5a0566a834a727a58d5e25a80ad31b` adds bounded detach and rejects late cleanup ACK; `3a55543cb21fa3412ede26ee79c1cce7d8371804` retains the recovery latch and supplies the complete descriptor ELF hash. 当前已实际烧录及查询确认 / flashed and queried BUILD: `3a55543`, binary SHA256 `59d3f07d772730692ea4a68e9af6437779ddfd24849c78f8fb9a03fbb2e31fee`, ELF SHA256 `d4ac82a199bd2bc8bb730b331225ffdbb94acd2c84c410cd675636da706e92e5`. [软件恢复实录 / Software recovery evidence](../audit/cdc_recovery_acceptance_20261116.md).
+
+BUILD 的 ELF 字段固定为完整 64 位十六进制；`4a183bc` 的实录只有 9 位，属于已修复的查询缺陷，不允许主机把前缀扩写为完整哈希或混同 binary SHA。本仓库捕获工具对精确、无关联身份的 `ERR,cmd=UNKNOWN,reason=unsupported` 仅在白名单只读查询中保存并继续等待原期限；明确命令错误、模式 setter、Applied 请求 ID 门控保持严格。 / BUILD returns 64 ELF hash hex digits. The observed nine-digit `4a183bc` field was a query defect: do not expand it or confuse it with the binary hash. Capture tools may retain an uncorrelated exact UNKNOWN during allowlisted read-only queries and continue within the existing deadline; explicit errors, setters and Applied request IDs remain strict.
+
+Linux 设备节点可能先出现，再由 udev 应用用户组权限。主机应在同一连接期限内重新核对 serial/interface/devnum 并等待访问就绪；不得因短暂 EACCES 再发 RESTART、修改权限或要求管理员。 / A Linux tty can appear before udev applies group permissions. Within the same connection deadline, revalidate serial/interface/devnum and wait for access readiness; transient EACCES must not trigger another RESTART or an administrator requirement.
 
 本节扩展上节 OTG 契约：用户要求当前调试不安装管理员权限规则，因此默认 `CONFIG_SENSORARRAY_USB_OTG_CDC=y`，仍使用原生 OTG DMA。设为 n 才构建上一节的 vendor backend；二者不能同时占用 S3 的 IN 端点。旧 vendor 记录和主机工具保留，不能把其数据伪称为新 CDC 数据。实现提交及 HIL 结果以阶段 manifest 为准，尚未声明完整验收通过。
 

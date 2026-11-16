@@ -87,3 +87,10 @@ restart that repeats the scan is not a substitute for that physical test.
 This is a firmware-only change from native Serial/JTAG to USB-OTG on the same GPIO19/20/internal PHY, selected in software without burning eFuses. It does not implement HW03/HW05 PCB changes or verify TVS leakage/capacitance, RC/trace impedance, VBUS detection, USB current draw, back-power behavior or Windows enumeration. The new development descriptor/PID and DMA support do not prove USB electrical compliance. / 本轮不冒充完成 USB 或跨电源域硬件整改；硬件限值及实装修订仍需独立核验，旧限制保留。
 
 The subsequent dual-CDC backend changes USB descriptors and software queues, not the PCB. Existing Linux dialout access avoids raw-device permission setup on this host. A failed software ROM handoff was observed on the earlier image; no D+/D− waveform or ROM execution-point capture exists, so it is not assigned to a damaged chip/TVS or a confirmed electrical cause. The new 20 ms detach dwell is an engineering margin inside the existing restart budget, not measured isolation. Actual USB reconnection, UART wiring and ROM accessibility must be identified before programming; do not probe unspecified pins or apply RS-232 voltage levels. / 双 CDC 不改 PCB；本机已有 dialout 权限不代表所有主机均可访问。当前下载切换失败没有波形或 ROM 执行点证据，不归咎于芯片／TVS 损坏。20 ms 等待不是模拟隔离实测；烧录前必须确认真实接口，不能猜测引脚或接入 RS-232 电平。
+
+
+## 2026-11-16 软件下载恢复实测 / Software download recovery evidence
+
+用户本次重启后恢复了 Serial/JTAG 下载访问。现已实际验证 BLE/正式 CDC 的 USBBOOT→旧接口移除→新303a:1001→同MAC下载器同步→app-only烧录→一次官方S3 watchdog软件复位→双CDC与完整BUILD核对，见[本轮实录](../audit/cdc_recovery_acceptance_20261116.md)。这不构成HW01–HW06或PCB整改；RTS-only退出未启动应用的完整根因仍未确认，不能排除主机/USB电气因素。真实供电故障、失效PHY或无法执行的CPU仍可能需要物理访问。
+
+After the user's reboot restored Serial/JTAG access, BLE and formal-CDC USBBOOT paths were exercised through removal, new downloader enumeration, same-MAC sync, app-only flash, one official S3 software watchdog reset and dual-CDC/full-BUILD verification. This is not a HW01–HW06 or PCB repair. The complete cause of failed RTS-only exit remains unknown, and host/USB electrical factors are not excluded. Supply faults, a failed PHY or a CPU unable to execute can still require physical access.

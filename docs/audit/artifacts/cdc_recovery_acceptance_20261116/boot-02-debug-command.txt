@@ -1,0 +1,1 @@
+{"status": "ERROR", "error": "CDC_debug_enumeration_deadline", "rx_bytes": 0, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02-debug.debug.rx.bin"}

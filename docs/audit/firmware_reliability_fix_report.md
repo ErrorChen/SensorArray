@@ -1,6 +1,8 @@
 # SensorArray 固件可靠性修复报告
 
-> **2026-11-14 最新阶段，实机验收受阻 / Latest stage, HIL blocked:** 双 CDC 正式 DATA/CTRL 与独立调试口已实现（`3dc0c48`），有界 USB detach 与迟到 ACK 修复为 `4a183bc`。完整 57 个 host 测试入口、56 个 USB owner 场景和实际 ESP-IDF 构建通过；源码输入 hash 一致。旧板上镜像的 USBBOOT 仅返回 BLE RACK/RAPP，未观察到 ROM 重枚举；串口自动复位报 Errno 71，不复位同步无数据，尚未写入新镜像。用户不方便操作 BOOT/EN，当前等待 USB 重新连接或实际 UART 下载通路。10 分钟、32 配置 USB+BLE 验收仍 NOT_RUN。/ Dual CDC and bounded ROM-handoff repairs pass the host suite and target build, but the running earlier image has not provided a usable programming interface. The new app is not flashed, and full acceptance remains pending. See [完整中英文证据 / bilingual evidence](usb_otg_ble_priority_20261114.md); the original FW01–FW10 numbering and historical failures below remain unchanged.
+> **2026-11-16 最新阶段 / Latest stage:** `3a55543` 已完成目标构建、58 个 host 测试入口和 app-only 烧录，设备完整 BUILD ELF 哈希已匹配。BLE 和正式 CDC 的 USBBOOT、同 MAC 下载器同步、软件退出下载和重新启动均有实机证据。修复了 USJ 恢复标记过早清除、BUILD 哈希被 IDF 日志缓存截断及只读查询误关联旧 UNKNOWN 的缺陷；保留原 FW01–FW10 编号。完整性能验收仍待后续结果。 / Target build, all 58 host test entries, app-only flashing and full running ELF identity passed. BLE/formal-CDC software recovery has hardware evidence. Premature recovery-latch clearing, truncated BUILD identity and stale UNKNOWN association are repaired. Full performance acceptance remains pending. [完整中英文记录 / Full bilingual record](cdc_recovery_acceptance_20261116.md).
+
+> 2026-11-14 的烧录受阻记录为历史，见 [原始阶段](usb_otg_ble_priority_20261114.md)；失败与原始数据未被覆盖。 / The earlier programming blockage and original evidence remain preserved.
 
 > **2026-11-13 当前负载修复（待验收）**：USB/CPU0 工作预算及 RECOVER/RESTART 的已确认 P0/P1 修复已提交为 `fd0190a`；最终已提交目标构建 PASS，50 个 host 入口全部 exit 0，输入 hash 与构建逐项相符。WorkBudget 的 Xtensa/include 适配已完成，repair-01/02 失败历史保留。app-only 烧录/启动观察由主任务执行，新镜像 HIL 待验证。完整中英文机制、证据和剩余边界见 [负载可靠性修复](load_reliability_fix_20261113.md)。下文历史版本/实测不被改写。
 >

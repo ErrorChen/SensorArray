@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "cdc-rom-01-reflash",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 420.0,
+  "head": "3a55543cb21fa3412ede26ee79c1cce7d8371804",
+  "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started_utc": "2026-11-16T04:15:50.925231+00:00",
+  "started_monotonic": 309443.581755693,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reflash-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T04:16:03.017864+00:00",
+  "finished_monotonic": 309455.67439315,
+  "log_sha256": "c7e15af33d34a6419483f089fdeb44f6a833c93522d9a8ca779cd48f102f13f3"
+}

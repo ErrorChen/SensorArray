@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/capture_benchmark_ble.py",
+    "--address",
+    "80:B5:4E:CD:D9:AE",
+    "--adapter",
+    "hci0",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01",
+    "--label",
+    "screen-01-ble",
+    "--duration",
+    "300",
+    "--stop-file",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-ble.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 310.0,
+  "head": "3a55543cb21fa3412ede26ee79c1cce7d8371804",
+  "dirty_diff_sha256": "9afa86e6b17708d1244b4cd57ed443badb197687ac199def50a43a8d3db548ef",
+  "started_utc": "2026-11-16T04:20:15.811610+00:00",
+  "started_monotonic": 309708.024784806,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01-ble-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T04:23:12.825112+00:00",
+  "finished_monotonic": 309885.038275413,
+  "log_sha256": "6a13b6b89a5fa3ff14f45f1ce0b83f535b7f80b02269f9d3aab4eb6538a1f69a"
+}

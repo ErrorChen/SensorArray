@@ -1,4 +1,4 @@
-> **2026-11-14 调试状态 / Debug status:** 根据用户最新要求，正式 USB 改为 USB-OTG 双 CDC：一个口承载完整数据和命令，另一个口输出可丢调试日志。当前 Linux 用户已有 `dialout` 权限，不安装管理员权限规则。vendor bulk 保留为互斥构建选项。新接口的 10 分钟及 32 配置 USB+BLE 验收尚未完成，不能沿用历史通过记录。 / The current migration uses dual USB-OTG CDC: one port for complete data and commands, another for best-effort debug logs. This Linux account already belongs to `dialout`; no administrator permission rule is installed. Vendor bulk remains a mutually exclusive build option. New-interface 10-minute and 32-configuration USB+BLE acceptance is still pending. [本轮记录 / Current evidence](docs/audit/usb_otg_ble_priority_20261114.md).
+> **2026-11-16 调试状态 / Debug status:** 双 CDC 修复 `3a55543` 已实际构建、烧录并以完整 BUILD ELF 哈希核对；58 个 host 测试入口通过。BLE 与正式 CDC 的软件进入下载模式、同 MAC 下载器同步、app-only 重刷和软件启动已有实机证据，无需本轮再次按 BOOT 或管理员权限。600 秒及 32 配置 USB+BLE 验收仍待执行，不沿用旧版本成绩。 / Dual-CDC repair `3a55543` is built, flashed and verified by its full running ELF hash; all 58 host test entries pass. BLE and formal-CDC download requests, same-MAC downloader sync, app-only reflash and software boot have hardware evidence, without another BOOT-button operation or administrator account. The 600-second and 32-configuration USB+BLE acceptance runs remain pending. [本轮记录 / Current evidence](docs/audit/cdc_recovery_acceptance_20261116.md).
 
 # SensorArray — ESP32-S3 固件 / ESP32-S3 Firmware
 
@@ -30,9 +30,37 @@ Discovery verifies VID/PID, the board's MAC-derived USB serial, interface number
 
 Completed and pending checks are recorded in the [stage report](docs/audit/usb_otg_ble_priority_20261114.md) and command manifests. The fixture remains 10 kΩ at S1D1/S8D8 and 33 pF at S4D4/S5D5; floating-port capacitances are environmental-background proxies. User-supplied AVDD/AVSS readings support only explicitly sourced temporary RAM calibration. No CAL=SAVE is performed, and background subtraction is not absolute accuracy validation.
 
-最新候选已通过完整 57 个 host 测试入口和目标构建，但尚未烧录：旧镜像 USBBOOT 后没有观察到 ROM 重枚举；直接串口自动复位报 USB Protocol error，不复位同步也未收到数据。已增加包含在原 250 ms 总期限内的 20 ms detach 窗口，并修复迟到清理 ACK 仍误置 ROM 标志的已复现错误。56 个 owner 场景通过；实际枚举恢复、USB+BLE 120 s 筛查、600 s 稳定性和 32 配置长测仍待设备连接恢复。/ The latest candidate passed all 57 host entries and the target build but is not yet flashed. The earlier image did not produce observed ROM re-enumeration after USBBOOT; direct serial reset returned a USB protocol error and no-reset sync received no data. A 20 ms detach window now fits within the original 250 ms deadline, and a reproduced late-cleanup-ACK error no longer arms ROM after expiry. All 56 owner cases pass; enumeration recovery, the 120 s USB+BLE screen, 600 s stability and 32-configuration suite still await a usable device connection.
+当前源码 / Current source: `3a55543cb21fa3412ede26ee79c1cce7d8371804`; BUILD `3a55543`; app 1,591,088 B; binary SHA256 `59d3f07d772730692ea4a68e9af6437779ddfd24849c78f8fb9a03fbb2e31fee`; ELF SHA256 `d4ac82a199bd2bc8bb730b331225ffdbb94acd2c84c410cd675636da706e92e5`. [构建与 58 入口验证 / Build and 58-entry validation](docs/audit/artifacts/cdc_recovery_acceptance_20261116/recovery-candidate-01-validated-identity.json), [正式 CDC 恢复闭环 / Formal-CDC recovery loop](docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-verified-loop.json).
 
-当前已构建镜像 / Current built image: source `4a183bca6a5a0566a834a727a58d5e25a80ad31b`, BUILD version `4a183bc`, 1,590,656 B, binary SHA256 `283e70782280789ed9c79f29e2263179deb23e9be57f6e35e8f5fb8595fda223`. [最终构建与输入 hash / Final build and input hashes](docs/audit/artifacts/usb_otg_ble_priority_20261114/cdc-candidate-06-build-manifest.json). 这是待烧录镜像，不是板上身份。/ This identifies the pending image, not the running board.
+更新时由 USBBOOT 显式请求 ROM 下载，owner 在同一个 250 ms 总期限内停止 USB 事件、保持至少 20 ms detach 窗口、确认控制器 reset 后才允许 CPU restart；20 ms 是工程间隔，不是模拟节点或主机收到终态的证明。恢复模式的 RTC 标记不再在启动选择时清除，普通 RESTART 和重复 early panic 保留 USJ；显式 USBBOOT 完成准备并读回 ROM 启动标志后才解除。完整 BUILD 哈希直接读取应用描述符 32 字节，避免 IDF 日志缓存长度仅 9 位造成截断。主机只读查询会保留未关联的精确 UNKNOWN 错误并在原期限内等待真实回复，模式 setter/终态 ID 门控不变。
+
+Updates explicitly request ROM download using USBBOOT. Within the same 250 ms transaction deadline, the owner stops USB events, holds an engineering detach window of at least 20 ms and verifies controller reset before CPU restart. That interval proves neither analog stability nor terminal receipt. The RTC recovery latch now survives backend selection, ordinary RESTART and repeated early panic; only an explicit, prepared USBBOOT with a read-back ROM flag releases it. BUILD reads all 32 descriptor hash bytes rather than the IDF's nine-character logging cache. Read-only host queries retain an uncorrelated exact UNKNOWN error while awaiting the real reply within the original deadline; mode setter and terminal-ID checks remain strict.
+
+本机 esptool 4.12 的 RTS-only 退出下载未启动应用；明确清 DTR 也未恢复，根因仍未完全确认。新的 app-only 助手在核对镜像、分区、MAC 和写入哈希后，仅调用一次官方 S3 watchdog 软件复位，独立核验新枚举和 BUILD。该路径已实测，不等于任意硬件故障都能免物理操作恢复。旧失败与尚未运行的早崩溃注入均保留在阶段报告。
+
+Here, esptool 4.12's RTS-only download exit did not start the application; explicitly clearing DTR also failed, so the full cause remains unresolved. After image, partition, MAC and flash-hash checks, the new app-only helper calls the official S3 watchdog software reset once, with independent enumeration and BUILD verification. This path has hardware evidence, but arbitrary hardware failures are not guaranteed to recover without physical access. Prior failures and unrun early-crash injection remain in the stage report.
+
+## 2026-11-16 首轮双通路筛查 / First dual-link screen
+
+[完整 120 秒实录与判定 / Full 120-second evidence and verdict](docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-01/screen-01-verdict.json)：**FAIL**。运行源码 `3a55543`，VOLT 1 行，USB CDC0 和 BLE 同时记录，独立 CDC1 用于 ADC 诊断；相同会话/配置身份。启动 SPI 为请求 550 kHz、驱动观测 551 kHz，不能拿前一个 boot 的 850 kHz 解释本窗口。
+
+The complete VOLT1 screen **failed** on `3a55543`. Formal CDC0 and BLE were recorded simultaneously, with separate CDC1 diagnostics and matching session/configuration identity. This boot selected 550 kHz (driver-observed 551 kHz); the preceding boot's 850 kHz is not this run's clock.
+
+| 指标 / Metric | 本轮实测 / Observation |
+|---|---:|
+| 科学采集窗口 / Scientific capture window | 120.0001 s |
+| Capture | 64.563554 FPS |
+| USB 完整可信帧 / USB complete trusted frames | 62.532747 FPS; 7,502 frames; 239 missing sequence observations |
+| BLE 完整可信帧 / BLE complete trusted frames | 43.370896 FPS; 5,204 frames; 2,537 missing sequence observations |
+| ASCII CRC / configuration identity errors | USB 0 / 0; BLE 0 / 0 |
+| ADC SPI CRC 拒绝 / ADC SPI CRC rejection | 4,378 / 102,828 = **4.257595%**, limit 2.5% |
+| CRC 诊断跨度 / CRC diagnostic span | 118.992248 s inside capture; first/last complete ADSHEALTH receipts |
+| MFAULT / reset | Not observed in the recorded window; absence is limited to observed logs |
+| 绝对精度 / Absolute accuracy | NOT_ACCEPTED; approximate DMM RAM rails and floating-port background remain nonprecision references |
+
+ADC 分母是已校验有效 even/odd 读数与 CRC 拒绝的增量之和，包含有限重试，不能再次加 retry 或用帧数代替。两通路缺口是各自的可信序号观察缺口，不能相减为独立层丢失。扫描汇总 `scope=all_candidates` 包含被淘汰档位，不等于选中档错误率。先定位运行期错误及有界输出队列背压，再重做筛查；600 秒与32配置测试不以本次失败替代。
+
+The ADC denominator sums valid-even, valid-odd and rejected checked reads, including bounded retries; retries must not be added again and frame count is not the denominator. Each transport's missing count refers to its own trusted sequence observations, not disjoint losses. Startup `scope=all_candidates` includes rejected rates and is not the selected-rate error ratio. Runtime CRC and bounded-output backpressure must be addressed before repeating the screen and starting the 600-second/32-configuration tests.
 
 ## 历史 Serial/JTAG 修复与失败基线 / Historical Serial/JTAG repairs and failed baselines
 

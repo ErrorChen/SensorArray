@@ -1,0 +1,326 @@
+{
+  "scope": "completed_recovery_root_only",
+  "records": [
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-rom-01.ble-control.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-rom-01.ble-control.jsonl.gz",
+      "bytes": 3482,
+      "compressed_bytes": 1739,
+      "original_sha256": "65919f9a5578ac45aeff7c03bb8f893a98d2275c9c1af05361c0f9dfcda62e75",
+      "archive_sha256": "d22165e0718bcad2a5520c0eb51f9fe311a5aec2ac4bd5355c06db3b160cebe9",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-01-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-01-debug.debug.events.jsonl.gz",
+      "bytes": 177,
+      "compressed_bytes": 161,
+      "original_sha256": "c98501e44142a3f0566daf5a8a7b4f70e173122ee4d1613190c4d53456a264a9",
+      "archive_sha256": "10fd21948251042f09599064aa7544c29f7288d2ffae72e2b1ccadf214976573",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-01-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-01-debug.debug.rx.bin.gz",
+      "bytes": 0,
+      "compressed_bytes": 20,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02-debug.debug.events.jsonl.gz",
+      "bytes": 176,
+      "compressed_bytes": 160,
+      "original_sha256": "711a6571ad51a67fc192ff648fd0b7794bae0bd53ff5524538e9e4fcd5fecf45",
+      "archive_sha256": "8eb9159bacad23d7b5f590e9100af7da941c8171484ff0b7b86ce195b2cccc4d",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02-debug.debug.rx.bin.gz",
+      "bytes": 0,
+      "compressed_bytes": 20,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02.events.jsonl.gz",
+      "bytes": 0,
+      "compressed_bytes": 20,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02.rx.bin.gz",
+      "bytes": 0,
+      "compressed_bytes": 20,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03-debug.debug.events.jsonl.gz",
+      "bytes": 55338,
+      "compressed_bytes": 9704,
+      "original_sha256": "f13a3bcf4c7643673ad0e50ab3d4d30a4fee743a4c418a881cf359e80e5df35c",
+      "archive_sha256": "a85e8ff62ca7dd68d8d87df1899d82f1f6c06a36e491afeefc11e6a5de583023",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03-debug.debug.rx.bin.gz",
+      "bytes": 75331,
+      "compressed_bytes": 5041,
+      "original_sha256": "24a456e44cd40825ae95d3a885066f7f191e68c37f3021d2ebde8e3e3f8cf427",
+      "archive_sha256": "37d174559e0b42db5402dee56dc4ff5d47a35cbf65164bada9d3bd609bd97aa0",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03.events.jsonl.gz",
+      "bytes": 62618,
+      "compressed_bytes": 8660,
+      "original_sha256": "f597f493b40a65c2fb937afd128103809c491e2de60e39a4663ba15ef07bac2d",
+      "archive_sha256": "cb10905322e5cf27ea8fe2d878f2e5391e7916d3da54f2070c0a42a6e7f0d5ce",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03.rx.bin.gz",
+      "bytes": 85870,
+      "compressed_bytes": 13738,
+      "original_sha256": "f4f42961d17e594b32438d1881d0270488a1cfdbe79702486c309c1c30f393d7",
+      "archive_sha256": "dc44b24a7795c7dd501dbab4e3865fbf5be4abf7cac1d5645052c279e26c0362",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-04.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-04.events.jsonl.gz",
+      "bytes": 38369,
+      "compressed_bytes": 5867,
+      "original_sha256": "c1fbae8b6b64d25fa3ef8ccda01dd9d9e00852364848c0117b220bc95bde0e02",
+      "archive_sha256": "86ecf2aec7d048ee95aa335dfc68dc97b96cf77c0000bf4703cac6addf9c8834",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-04.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-04.rx.bin.gz",
+      "bytes": 57274,
+      "compressed_bytes": 9213,
+      "original_sha256": "0c8a7e7eb78d8187cf1839cea987bfa8a397d7ab9f239a8c9260c19326bc8bc5",
+      "archive_sha256": "5949cc82364011c290d1068f649ffdecc6dd5458e1ef7945855a13f04a4fb4c3",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-05-readonly.ble-control.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-05-readonly.ble-control.jsonl.gz",
+      "bytes": 10880,
+      "compressed_bytes": 4683,
+      "original_sha256": "bec45ec307651efbf99358d9cc7c609e8ea08374a4089c0fb532da9c6bcd0c82",
+      "archive_sha256": "db537bd729afed291f12c1096cf6380c8d883e36e73e7ac7b1e35e926838abdd",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-boot.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-boot.events.jsonl.gz",
+      "bytes": 63746,
+      "compressed_bytes": 10071,
+      "original_sha256": "164cf4b6c73603687670859631f86cd7c112f724fd8e649e5eb8074841a64558",
+      "archive_sha256": "29898886b552c0c89298876a309138a3f94d992ecafb2e976337d64aee1715cf",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-boot.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-boot.rx.bin.gz",
+      "bytes": 72662,
+      "compressed_bytes": 16078,
+      "original_sha256": "13fbb7e6d087335112feb3a4605bd355c3e4c33b4702aba7f668dd5652ab89fa",
+      "archive_sha256": "2ec37dd104f5816f94ff49ad5213b211af2e18b2ad4a44d5864c8d7bfe661f6d",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-debug.debug.events.jsonl.gz",
+      "bytes": 161521,
+      "compressed_bytes": 27854,
+      "original_sha256": "bcd71691ff24de74bfacb0dc07924d92c5f600cf379fc8668dc7d1443c21d15d",
+      "archive_sha256": "3981e210a340838f3cc6a38f2084ad29847412f060009786f8cc14ce34ec1ac2",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-debug.debug.rx.bin.gz",
+      "bytes": 218724,
+      "compressed_bytes": 41682,
+      "original_sha256": "57b0aae1434ac3bd79830350a50dda908d5a0f78e65c9cd578263f92160d192e",
+      "archive_sha256": "f3cc4abbc299c3592d5665fbb39854ea68b6d7eecb044fe724007eec7d141454",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-debug.debug.events.jsonl.gz",
+      "bytes": 117940,
+      "compressed_bytes": 20379,
+      "original_sha256": "971a4d169b80567f5f1b1b8367a53854043d881aa845a5e7f0c46929a95c4723",
+      "archive_sha256": "ae4fc0821fbf4dc399a8c45aaae110d84d4754885afca67b6d4d5de2df4cc08e",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-debug.debug.rx.bin.gz",
+      "bytes": 151341,
+      "compressed_bytes": 25722,
+      "original_sha256": "3fd0e973e86ab98677b90a0e5c04cb9c7b2a78a9a014f5bc3c05632bf8e57433",
+      "archive_sha256": "39077969ad824fd24f9c4a9f9b289933fd93d7c9e40894a833dc0e8c1eb605ec",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-readonly.epoch0.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-readonly.epoch0.rx.bin.gz",
+      "bytes": 9265,
+      "compressed_bytes": 3155,
+      "original_sha256": "e0492d30ba00607529d4cbb5b49f637d1b1aebc0315a004769ec0457907a569c",
+      "archive_sha256": "79dbe3665cfb8f50be3648429f0ab38a5a1e5e8f008d4ab67a64f0463dc18bbe",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-readonly.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-readonly.events.jsonl.gz",
+      "bytes": 14054,
+      "compressed_bytes": 3301,
+      "original_sha256": "ef96cd28e78bf9caeaf1e77093e0cbbaf83108ceef53ed5d5e18620c0c991f4c",
+      "archive_sha256": "e667fd67f8e9692da215eacd3a0bb846bcef7923931912638340c830d30b226a",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01.epoch0.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01.epoch0.rx.bin.gz",
+      "bytes": 8850,
+      "compressed_bytes": 2467,
+      "original_sha256": "03b8189a21170217bd79413c5e0494488b7af54df0983b113ee8cc9a1c627215",
+      "archive_sha256": "47b23c2c33db5b077cfaf25d966051a823651aabd9260c7e58b5d6db334e2203",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01.events.jsonl.gz",
+      "bytes": 20286,
+      "compressed_bytes": 4152,
+      "original_sha256": "bdece92c5804ec09c4c20e52134f2f36ca073fe7b90ad0c1509e8969dc2796e5",
+      "archive_sha256": "0241cbb8d0e54bdcd7a07295a63f0bb44420c46c349537f0af019b6072168803",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot-debug.debug.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot-debug.debug.events.jsonl.gz",
+      "bytes": 170838,
+      "compressed_bytes": 29398,
+      "original_sha256": "5ecdf487278f9a20d09a2c1b54fb6f7c4e6383995231e710ba4d67d433d715f8",
+      "archive_sha256": "4a6af7f5a96ec62edf7cc45d14b97a2343f0df8f21030da9cbb1bc7a27a31dfa",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot-debug.debug.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot-debug.debug.rx.bin.gz",
+      "bytes": 228075,
+      "compressed_bytes": 42447,
+      "original_sha256": "6a11c1f8fb777d421b1e6fe1d03fd8d287178950efb1c8afe2022eea2f27bd7a",
+      "archive_sha256": "4685e7b0ce8496bcc374a8d1ed535db1afd11b69156440b242953b91e6c2b254",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot.events.jsonl.gz",
+      "bytes": 79299,
+      "compressed_bytes": 11910,
+      "original_sha256": "64b357dd3801e8f1fb88453087b1c143201fc74f281172bc007187bf8c778daa",
+      "archive_sha256": "ad9dd30986168443393d365af2f7f3ed8a908e928e27a29d24bf2fdb08d8684c",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot.rx.bin.gz",
+      "bytes": 92156,
+      "compressed_bytes": 18571,
+      "original_sha256": "ded61a153650ab2030b6eeaf6c52c5ad10341e6f065a687aad66014af6d36675",
+      "archive_sha256": "2578dfbbdcfa4d928cfc96eb7abdc364dddca9ad6267896e6d55cdeea59234a2",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01.epoch0.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01.epoch0.rx.bin.gz",
+      "bytes": 8870,
+      "compressed_bytes": 2445,
+      "original_sha256": "1e9f50373d8573c47296f6168aef737e600a07c42e37b20c41bca7e3ef1765b2",
+      "archive_sha256": "c6b906741388aea54a627d1fa102708d92ed1098347b2b63bad2f197e566f74e",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01.events.jsonl.gz",
+      "bytes": 19474,
+      "compressed_bytes": 4039,
+      "original_sha256": "3ea86f917383ef233e8a4eae10d8a3344fb95d044270bcd9985a785f3b57bd09",
+      "archive_sha256": "92621dccf96880fdb4c61b64c3ca0e1568dc604dabdc98b0cdef375d0e7d45ad",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-post-flash-01.events.jsonl",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-post-flash-01.events.jsonl.gz",
+      "bytes": 204,
+      "compressed_bytes": 125,
+      "original_sha256": "515c4eba647ff2b6a1d9e8ab8f336aedbafc89e13d4ca3b07a2ffd54f18ae540",
+      "archive_sha256": "8956d9d213fc79ef579ff3b564d938bdb8de880d8c432c91c2cd5aaa5fef309b",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    },
+    {
+      "original": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-post-flash-01.rx.bin",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usj-post-flash-01.rx.bin.gz",
+      "bytes": 0,
+      "compressed_bytes": 20,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "roundtrip_exact": true,
+      "original_preserved": true
+    }
+  ],
+  "hardware_actions": false
+}

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "timeout",
+    "40s",
+    "udevadm",
+    "monitor",
+    "--kernel",
+    "--property",
+    "--subsystem-match=usb"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "a485c47533c0e6db864325ce7da6658ff3c19a40",
+  "dirty_diff_sha256": "3c99b62dc9238eb2562646e04c75569e7ef228ee74e24c3f6646512ae40b290d",
+  "started_utc": "2026-11-16T04:09:26.416401+00:00",
+  "started_monotonic": 309060.57271282,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-rom-01-udev-command.txt",
+  "exit_code": 124,
+  "finished_utc": "2026-11-16T04:10:06.426570+00:00",
+  "finished_monotonic": 309100.582895337,
+  "log_sha256": "343201bcbd40f7f5b616f2ba419da000b85545e9c70376e098efb0dd563c1f2f"
+}

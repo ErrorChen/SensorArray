@@ -1,0 +1,7 @@
+{
+  "source": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+  "preserved_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/check_software_recovery.source-before-udev-fix.txt",
+  "sha256": "9c1142e45dfc0ff3aed6b01008c01bbcc4336f9f42e64f7b8b0eec97741dda6a",
+  "bytes": 22234,
+  "scope": "exact pre-udev-fix observer bytes used for cdc-restart-01; no hardware access"
+}

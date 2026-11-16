@@ -1,0 +1,63 @@
+{
+  "head": "4a183bca6a5a0566a834a727a58d5e25a80ad31b",
+  "build_version": "4a183bc",
+  "app_sha256": "283e70782280789ed9c79f29e2263179deb23e9be57f6e35e8f5fb8595fda223",
+  "app_bytes": 1590656,
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--connect-attempts",
+        "2",
+        "--before",
+        "usb_reset",
+        "--after",
+        "no_reset",
+        "flash_id"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/flash-01-flash-identity.txt"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--connect-attempts",
+        "2",
+        "--before",
+        "no_reset",
+        "--after",
+        "hard_reset",
+        "write_flash",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "16MB",
+        "0x10000",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/flash-01-flash-app.txt"
+    }
+  ],
+  "nvs_or_calibration_written": false,
+  "partition_written": false,
+  "bootloader_written": false
+}

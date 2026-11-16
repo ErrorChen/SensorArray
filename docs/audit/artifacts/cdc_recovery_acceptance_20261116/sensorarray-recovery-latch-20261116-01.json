@@ -1,0 +1,97 @@
+{
+  "recorded_utc": "2026-11-16T04:00:52.596090+00:00",
+  "baseline_head": "a485c47533c0e6db864325ce7da6658ff3c19a40",
+  "baseline_owner_sha256": "3cdbd95b5c93fa05814b416f2145d0acd3d870e9f7825f2ef17b68533c43e100",
+  "source_sha256": {
+    "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "e3cf5101b074a6cd25021a2c065e6c87a94271631a8c894db3cf571936f7f1f1",
+    "tests/host/test_usb_otg_owner.c": "13e70efb79694feabd5dc761922885e6ac34ae5147ba6a7a5f8f88508ba0a1a0",
+    "tools/test_usb_otg_owner.py": "11e990b7446c38e9a1abad089b11813c30d949bef8b251a9000269ed193b4bfb"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py",
+        "--source",
+        "/tmp/sensorarray-recovery-latch-20261116-01.baseline.c",
+        "--backend",
+        "cdc",
+        "--scenario",
+        "recovery_repeated_panic"
+      ],
+      "CC": "/usr/bin/clang-18",
+      "exit_code": 1,
+      "expected_pass": false,
+      "elapsed_seconds": 0.2977855110075325,
+      "stdout": "",
+      "stderr": "owner_test: /home/csc/esp/workspace/SensorArray/tests/host/test_usb_otg_owner.c:347: void assertRecoveryLatched(void): Assertion `s_recoveryMagic==USB_RECOVERY_MAGIC&&s_recoveryInverse==~USB_RECOVERY_MAGIC' failed.\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 108, in <module>\n    main()\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_otg_owner.py\", line 100, in main\n    subprocess.run([str(executable), scenario], check=True, timeout=5)\n  File \"/usr/lib/python3.12/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/sensorarray-usb-otg-host-1pzmhiag/owner_test', 'recovery_repeated_panic']' died with <Signals.SIGABRT: 6>.\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "CC": "/usr/bin/clang-18",
+      "exit_code": 0,
+      "expected_pass": true,
+      "elapsed_seconds": 0.31897055299486965,
+      "stdout": "USB_OTG_OWNER,normal_commands,PASS\nUSB_OTG_OWNER,reset_event17,PASS\nUSB_OTG_OWNER,reset_during_read,PASS\nUSB_OTG_OWNER,unmount_old_command,PASS\nUSB_OTG_OWNER,partial_command_reset,PASS\nUSB_OTG_OWNER,queued_receive_reset,PASS\nUSB_OTG_OWNER,epoch_wrap,PASS\nUSB_OTG_OWNER,rx_bounds,PASS\nUSB_OTG_OWNER,endpoint_independence,PASS\nUSB_OTG_OWNER,cdc_line_state,PASS\nUSB_OTG_OWNER,stop_ack,PASS\nUSB_OTG_OWNER,stop_timeout,PASS\nUSB_OTG_OWNER,detach_window,PASS\nUSB_OTG_OWNER,detach_deadline,PASS\nUSB_OTG_OWNER,late_cleanup_ack,PASS\nUSB_OTG_OWNER,reset_not_latched,PASS\nUSB_OTG_OWNER,restart_fallback,PASS\nUSB_OTG_OWNER,recovery_boot,PASS\nUSB_OTG_OWNER,efuse_gates,PASS\nUSB_OTG_OWNER,dma_required,PASS\nUSB_OTG_OWNER,descriptors,PASS\nUSB_OTG_OWNER,recovery_repeated_panic,PASS\nUSB_OTG_OWNER,recovery_ordinary_restart,PASS\nUSB_OTG_OWNER,recovery_explicit_rom,PASS\nUSB_OTG_OWNER,recovery_rejected_release,PASS\nUSB_OTG_OWNER,normal_restart_backend,PASS\nUSB_OTG_OWNER,panic_cpu0,PASS\nUSB_OTG_OWNER,panic_cpu1,PASS\nUSB_OTG_OWNER,panic_no_dma,PASS\nUSB_OTG_OWNER,panic_quiesced,PASS\nUSB_OTG_OWNER,panic_during_detach,PASS\nUSB_OTG_OWNER,panic_init_failed,PASS\nUSB_OTG_OWNER,panic_phy_failed,PASS\nUSB_OTG_OWNER,normal_commands,PASS\nUSB_OTG_OWNER,reset_event17,PASS\nUSB_OTG_OWNER,reset_during_read,PASS\nUSB_OTG_OWNER,unmount_old_command,PASS\nUSB_OTG_OWNER,partial_command_reset,PASS\nUSB_OTG_OWNER,queued_receive_reset,PASS\nUSB_OTG_OWNER,epoch_wrap,PASS\nUSB_OTG_OWNER,rx_bounds,PASS\nUSB_OTG_OWNER,endpoint_independence,PASS\nUSB_OTG_OWNER,cdc_line_state,PASS\nUSB_OTG_OWNER,stop_ack,PASS\nUSB_OTG_OWNER,stop_timeout,PASS\nUSB_OTG_OWNER,detach_window,PASS\nUSB_OTG_OWNER,detach_deadline,PASS\nUSB_OTG_OWNER,late_cleanup_ack,PASS\nUSB_OTG_OWNER,reset_not_latched,PASS\nUSB_OTG_OWNER,restart_fallback,PASS\nUSB_OTG_OWNER,recovery_boot,PASS\nUSB_OTG_OWNER,efuse_gates,PASS\nUSB_OTG_OWNER,dma_required,PASS\nUSB_OTG_OWNER,descriptors,PASS\nUSB_OTG_OWNER,recovery_repeated_panic,PASS\nUSB_OTG_OWNER,recovery_ordinary_restart,PASS\nUSB_OTG_OWNER,recovery_explicit_rom,PASS\nUSB_OTG_OWNER,recovery_rejected_release,PASS\nUSB_OTG_OWNER,normal_restart_backend,PASS\nUSB_OTG_OWNER,panic_cpu0,PASS\nUSB_OTG_OWNER,panic_cpu1,PASS\nUSB_OTG_OWNER,panic_no_dma,PASS\nUSB_OTG_OWNER,panic_quiesced,PASS\nUSB_OTG_OWNER,panic_during_detach,PASS\nUSB_OTG_OWNER,panic_init_failed,PASS\nUSB_OTG_OWNER,panic_phy_failed,PASS\n{\"suite\": \"USB_OTG_OWNER\", \"result\": \"PASS\", \"scenarios\": 66, \"backends\": [\"vendor\", \"cdc\"], \"source_sha256\": {\"owner\": \"e3cf5101b074a6cd25021a2c065e6c87a94271631a8c894db3cf571936f7f1f1\", \"descriptors\": \"a4331cf0cc7302be7c0f3f28bb08afdf3947a1b18062dfb71ef57b72d856276e\", \"config\": \"3e10066338713c0646d20eca26f2407a4262d4a89b539a9fd5ce69d10f8fd462\", \"header\": \"b4cb7454b201f8bfe3564a6d41185c38c7998035765bb37b18ed2c4785845356\"}, \"tinyusb\": \"0.21.0~1\", \"hardware\": \"NOT_RUN\", \"model\": \"synthetic SDK/RTOS events; actual production C and TinyUSB descriptors\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py"
+      ],
+      "CC": "/usr/bin/clang-18",
+      "exit_code": 0,
+      "expected_pass": true,
+      "elapsed_seconds": 0.5450064180186018,
+      "stdout": "SERIAL_IO_VALIDATOR,source=/home/csc/esp/esp-idf-v5.5.5/components/vfs/vfs.c,pathMax=15\nADS_FAULT_BURST_SOURCE,records=7,producer=actual_C_formatter,fixture=synthetic\nIDF_USB_DRIVER_RECORD_PASS,actualDriverWrite=1,actualByteBufferFitCopy=1,capacity=2304,emptyWrapped=1,allOrZero=1,smallerRingRejected=1\nSERIAL_IO_PASS,allocation=psram,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=internal,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=failure_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=registration_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=stdout_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=stderr_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=route_probe_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=queue_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,allocation=task_retry,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=261\nSERIAL_IO_PASS,foreignDriverNotRemovedOrAssumed=1\nSERIAL_OTG_INIT_PASS,case=otg_init_error,first=0xFFFFFFFF,repeat=0xFFFFFFFF,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_OTG_INIT_PASS,case=otg_init_no_mem,first=0x101,repeat=0x101,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_OTG_INIT_PASS,case=otg_timeout_repeated,first=0x107,repeat=0x103,initCalls=1,usjInstalled=0,hotReuse=0,hardware=NOT_RUN\nSERIAL_PRIORITY_MODEL,priority=4,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=18446744073709551615,source=200,accepted=26,data=0,dataAt2s=0,rejected=174,expired=23,ctrl=40,ctrlSubmitted=0,bleWork=2718,trWork=404,driverWaits=24,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=200000,source=200,accepted=32,data=3,dataAt2s=2,rejected=168,expired=28,ctrl=40,ctrlSubmitted=38,bleWork=2718,trWork=404,driverWaits=3,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=0,source=200,accepted=37,data=10,dataAt2s=10,rejected=163,expired=25,ctrl=40,ctrlSubmitted=40,bleWork=2718,trWork=404,driverWaits=0,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=36400\nSERIAL_PRIORITY_MODEL,priority=6,ctrlPriority=8,noHostUs=18446744073709551615,source=200,accepted=26,data=0,dataAt2s=0,rejected=174,expired=23,ctrl=40,ctrlSubmitted=0,bleWork=2718,trWork=404,driverWaits=24,idle=52,maxGap=4,queueMax=4,ctrlDispatchMaxUs=400,ctrlDriverMaxUs=0\nSERIAL_PRIORITY_PASS,scenarios=6,productionPriority=6,actualFunctions=8,hardware=NOT_RUN\nSERIAL_OTG_TX_PASS,groups=6,cases=25,vendorCases=12,cdcCases=13,productionFunctions=10,independentDebug=1,sharedFormalRecordAtomic=1,epochDrop=1,partialDelimiter=1,unknownAcceptanceDelimiter=1,noHostBounded=1,cpuBudget=1,hardware=NOT_RUN\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_link_control.py"
+      ],
+      "CC": "/usr/bin/clang-18",
+      "exit_code": 0,
+      "expected_pass": true,
+      "elapsed_seconds": 0.31050162302562967,
+      "stdout": "LINK_CONTROL_FORMAT,command=USB?,bytes=350,capacity=512\nLINK_CONTROL_FORMAT,command=USBQ?,bytes=333,capacity=512\nLINK_CONTROL_FORMAT,command=SERIAL?,bytes=245,capacity=512\nLINK_CONTROL_FORMAT,command=USBSTREAM?,bytes=72,capacity=512\nLINK_CONTROL_FORMAT,command=USB?,bytes=343,capacity=512\nLINK_CONTROL_FORMAT,command=USBQ?,bytes=307,capacity=512\nLINK_CONTROL_FORMAT,command=USBSTREAM?,bytes=72,capacity=512\nLINK_CONTROL_FORMAT,command=USB?,bytes=350,capacity=512\nLINK_CONTROL_FORMAT,command=BLELINK?,bytes=339,capacity=512\nLINK_CONTROL_FORMAT,command=BLETX?,bytes=391,capacity=512\nLINK_CONTROL_PASS,groups=4,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,hardware=NOT_RUN\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c",
+        "tests/host/test_usb_otg_owner.c",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "CC": "/usr/bin/clang-18",
+      "exit_code": 0,
+      "expected_pass": true,
+      "elapsed_seconds": 0.003477811987977475,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "build": "NOT_RUN",
+  "changes": [
+    "Enabled no longer consumes RTC recovery marker. USJ recovery survives ordinary RESTART and repeated panic before/after backend selection.",
+    "Explicit USBBOOT release only after existing preparation/absolute deadline and FORCE_DOWNLOAD_BOOT write plus readback. Readback failure returns ESP_ERR_INVALID_STATE and retains marker.",
+    "No new command/API; cached backend unchanged within current boot; later app may select OTG after explicit ROM recovery.",
+    "Normal OTG restart remains OTG without arming a recovery latch."
+  ],
+  "limits": [
+    "Armed RTC flag is not ROM execution or host enumeration evidence.",
+    "Retention across chip power removal is not guaranteed.",
+    "No promise arbitrary hardware faults are software recoverable."
+  ],
+  "initial_dirty": "Only parent-owned untracked docs/audit/artifacts/cdc_recovery_acceptance_20261116/; preserved."
+}

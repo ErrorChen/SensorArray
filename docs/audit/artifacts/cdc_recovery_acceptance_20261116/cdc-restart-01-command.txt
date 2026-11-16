@@ -1,0 +1,1 @@
+{"status": "ERROR", "error": "[Errno 13] Permission denied: '/dev/ttyACM0'", "action_attempts": 1, "elapsed_seconds": 1.4421727280132473}

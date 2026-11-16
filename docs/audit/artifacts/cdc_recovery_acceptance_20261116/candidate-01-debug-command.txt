@@ -1,0 +1,3 @@
+{"type": "CDC_debug_progress", "rx_bytes": 176818, "elapsed_seconds": 20.017303964006715}
+{"type": "CDC_debug_progress", "rx_bytes": 206592, "elapsed_seconds": 40.607964762020856}
+{"status": "STOPPED", "error": null, "rx_bytes": 218724, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-debug.debug.rx.bin"}

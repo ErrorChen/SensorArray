@@ -1,0 +1,5 @@
+BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=4a183bc,elfSha256=9a16d7673
+PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8
+USB,backend=otg_cdc_v1,init=1,err=0x0,mounted=1,suspended=0,dma=1,epoch=1,resets=1,mounts=1,unmounts=0,rxBytes=32,rxDrop=0,rxOver=0,lastRxUs=185692677,lastTxUs=186234516,romAvailable=1,quiesced=0,pcReceipt=unknown,dataDtr=1,debugDtr=1
+RACK,cmd=RESTART,id=1,state=accepted,target=rom_download
+{"status": "OBSERVED", "error": null, "report": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-rom-01.ble-control.json"}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "tools/test_build_identity_reply.py",
+    "--manifest",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/build-identity-host-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "a485c47533c0e6db864325ce7da6658ff3c19a40",
+  "dirty_diff_sha256": "3c99b62dc9238eb2562646e04c75569e7ef228ee74e24c3f6646512ae40b290d",
+  "started_utc": "2026-11-16T04:09:30.911845+00:00",
+  "started_monotonic": 309065.06815874,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/build-identity-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T04:09:31.026103+00:00",
+  "finished_monotonic": 309065.182422453,
+  "log_sha256": "084b1adba3f506a2fc9258f6ffe3240b76a0b25559a70a12b0fe6dd679b79c46"
+}

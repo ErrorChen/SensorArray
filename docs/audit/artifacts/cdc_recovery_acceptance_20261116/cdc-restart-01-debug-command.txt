@@ -1,0 +1,3 @@
+{"type": "CDC_debug_progress", "rx_bytes": 114492, "elapsed_seconds": 20.933749587042257}
+{"type": "CDC_debug_progress", "rx_bytes": 133323, "elapsed_seconds": 41.00227632303722}
+{"status": "OBSERVED", "error": null, "rx_bytes": 151341, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-restart-01-debug.debug.rx.bin"}

@@ -1,0 +1,1 @@
+{"status": "ERROR", "error": "formal_bulk_enumeration_deadline", "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-02.rx.bin", "ctrl_raw_file": null, "elapsed_seconds": 80.00033650203841}
