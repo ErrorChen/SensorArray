@@ -114,6 +114,10 @@ esp_err_t sensorarrayAdsGapRunActiveCheck(
 esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
     sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
     uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *outResult);
+esp_err_t sensorarrayAdsGapRunTimingProbeKind(sensorarrayState_t *state,
+    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
+    uint32_t frameSequence, sensorarrayAdsTimingProbeKind_t kind,
+    sensorarrayAdsTimingProbeResult_t *outResult);
 size_t sensorarrayAdsGapFormatActiveCheck(
     const sensorarrayAdsActiveCheckResult_t *result,
     char *buffer,

@@ -34,6 +34,7 @@ static uint32_t snapshotCalls;
 static unsigned quarantineQueueCalls;
 static int64_t pulseDue;
 static int32_t holdingRaw;
+static bool tailStandardCrc;
 
 static void newConversion(void)
 {
@@ -65,7 +66,7 @@ int64_t esp_timer_get_time(void)
 
 int gpio_get_level(gpio_num_t pin)
 {
-    return selected == START_HIGH && pin == CONFIG_SENSORARRAY_ADS_START_GPIO ? 1 : 0;
+    return selected == START_HIGH && pin == CONFIG_SENSORARRAY_ADS_START_GPIO ? 1 : driverDefaultGpioLevel(pin);
 }
 
 uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks)
@@ -164,6 +165,7 @@ static bool timingTransactionHook(const uint8_t *tx, uint8_t *rx, size_t bytes)
           selected == CRC_RESTORE_ERROR) && primaryReads == 1u && !held) ||
         (selected == HELD_BAD_CRC && held);
     if (corrupt) { rx[6] ^= 1u; }
+    if (tailStandardCrc && pending->length == 56u && primaryReads % 50u == 0u) { rx[6] ^= 1u; }
     if (selected == CRC_CONFIG_CHANGE && corrupt) { notifyHandle->configurationGeneration++; }
     if (selected == CLOCK_CHANGE && primaryReads == 199u) { ignoreClockOverride = true; actualSpiHz = 500000u; }
     if (selected == BUDGET_EXHAUSTED && primaryReads == 100u) { nowUs += 1490000u; }
@@ -175,6 +177,7 @@ static sensorarrayState_t timingState(enum timingCase test)
 {
     sensorarrayState_t state = {.ads = handle(), .adsReady = true, .adsAdc1Running = true};
     selected = test;
+    tailStandardCrc = false;
     pulsePending = dataNew = restoreStarted = afterFenceArmed = false;
     continuousRunning = true;
     sampleSerial = primaryReads = heldReads = allWrites = powerOnWrites = 0u;
@@ -213,7 +216,7 @@ static void runCase(enum timingCase test)
     assert(sensorarrayAdsTimingProbeRecordCount(&result) <= 32u);
     char line[512];
     assert(sensorarrayAdsTimingProbeFormatSummary(&result, line, sizeof(line)) > 0u);
-    assert(strstr(line, "diagnostic=1,science=0"));
+    assert(strstr(line, "diagnostic=1,") && strstr(line, "science=0,"));
     for (unsigned i = 0u; i < 4u; ++i) {
         assert(sensorarrayAdsTimingProbeFormatGroup(&result, i, line, sizeof(line)) > 0u);
         assert(sensorarrayAdsTimingProbeFormatGroupTiming(&result, i, line, sizeof(line)) > 0u);
@@ -338,11 +341,95 @@ static void testFormatterBounds(void)
         (unsigned long)sensorarrayAdsTimingProbeRecordCount(&r));
 }
 
+static void runTailCase(unsigned test)
+{
+    sensorarrayState_t state = timingState(test == 4u ? RESTORE_MODE_ERROR :
+        test == 6u ? BUDGET_EXHAUSTED : GOOD);
+    notifyHandle = &state.ads;
+    if (test == 1u) { tailStandardCrc = true; }
+    if (test == 2u) { tailPhysicalBitOverride = 0; }
+    if (test == 3u) { tailOwnerAvailable = false; }
+    if (test == 5u) { registers[2] |= 0x08u; }
+    if (test == 7u) { tailRestoreFailure = true; }
+    sensorarrayAdsRegisterCache_t cache = {0};
+    ads126xAdc1RegisterSnapshot_t saved;
+    ads126xAdcDecodeAdc1RegisterSnapshot(registers, &saved);
+    sensorarrayAdsPopulateRestoredRegisterCache(&cache, &saved, state.ads.vrefMicrovolts, true);
+    sensorarrayAdsTimingProbeResult_t r;
+    esp_err_t err = sensorarrayAdsGapRunTimingProbeKind(&state, &cache, 43u, 124u,
+        SENSORARRAY_ADS_TIMING_PROBE_TAIL, &r);
+    assert(r.kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL && powerOnWrites == 0u);
+    assert(pulseStarts == 0u && heldReads == 0u && mutexDepth == 0u);
+    assert(state.ads.transactionDeadlineUs == 0u && cache.owner == SENSORARRAY_ADS_OWNER_NONE);
+    assert(r.completedUs - r.startedUs <= SENSORARRAY_ADS_TIMING_BUDGET_US + 10000u);
+    if (test <= 2u) {
+        assert(r.completed && r.restoreVerified && !r.requiresIsolation && primaryReads == 800u);
+        assert(tailEdges == 800u && tailRouteChanges == 800u);
+        for (unsigned g = 0u; g < 4u; ++g) {
+            assert(!r.groups[g].pulse && r.groups[g].gpioTail == ((g & 1u) != 0u));
+            assert(r.groups[g].primary.attempted == 200u && r.groups[g].held.attempted == 0u);
+        }
+        if (test == 0u) { assert(err == ESP_OK && r.crcBadAfter == r.crcBadBefore); }
+        if (test == 1u) {
+            assert(err == ESP_ERR_INVALID_CRC && r.groups[0].primary.crc == 4u &&
+                r.groups[2].primary.crc == 4u && r.groups[1].primary.crc == 0u && r.groups[3].primary.crc == 0u);
+        }
+        if (test == 2u) {
+            assert(err == ESP_ERR_INVALID_CRC && r.groups[1].primary.crc == 100u &&
+                r.groups[3].primary.crc == 100u && r.groups[1].primary.valid == 100u);
+        }
+    } else if (test == 3u || test == 5u) {
+        assert(err == ESP_ERR_NOT_SUPPORTED && !r.mutated && primaryReads == 0u && tailEdges == 0u);
+    } else if (test == 4u || test == 7u) {
+        assert(r.requiresIsolation && !r.restoreVerified && r.cleanupError != ESP_OK);
+        assert(test == 4u ? r.completed : !r.completed);
+    } else {
+        assert(err == ESP_ERR_TIMEOUT && !r.completed && r.restoreVerified);
+    }
+    char line[512];
+    for (unsigned i = 0u; i < sensorarrayAdsTimingProbeRecordCount(&r); ++i) {
+        assert(sensorarrayAdsTimingProbeFormatRecord(&r, i, line, sizeof(line)));
+        if (strstr(line, "source=spi55_gpio1")) { assert(strstr(line, "wireKnown=0,bytes=unknown")); }
+        assert(sensorarrayAdsTimingProbeFormatTailRecord(&r, i, line, sizeof(line)));
+        if (strstr(line, "source=spi55_gpio1")) { assert(strstr(line, "tailApplicable=1,spiBits=55")); }
+        else { assert(strstr(line, "tailApplicable=0,spiBits=56") && strstr(line, "gpioKnown=0")); }
+    }
+    if (test == 0u) {
+        unsigned i = r.groups[0].recordCount;
+        assert(sensorarrayAdsTimingProbeFormatRecord(&r, i, line, sizeof(line))); fputs(line, stdout);
+        assert(sensorarrayAdsTimingProbeFormatTailRecord(&r, i, line, sizeof(line))); fputs(line, stdout);
+    }
+    printf("PASS TAIL production full module+Gap case=%u complete=%u first=0x%x cleanup=0x%x\n",
+        test, r.completed, r.firstError, r.cleanupError);
+    free(state.ads.spiTxBuf); free(state.ads.spiRxBuf);
+}
+
+static void testTailFormatterBounds(void)
+{
+    sensorarrayAdsTimingProbeResult_t r = {0};
+    r.kind = SENSORARRAY_ADS_TIMING_PROBE_TAIL;
+    r.requestId = UINT32_MAX;
+    r.groups[1].gpioTail = true; r.groups[1].recordCount = 1u;
+    sensorarrayAdsTimingRecord_t *v = &r.records[1][0];
+    v->attempt = UINT32_MAX;
+    v->tail = (ads126xAdcTailEvidence_t){.startedUs=UINT64_MAX,
+        .spiDoneUs=UINT32_MAX,.riseUs=UINT32_MAX,.sampleUs=UINT32_MAX,
+        .fallUs=UINT32_MAX,.restoredUs=UINT32_MAX,.requestedHz=UINT32_MAX,.actualHz=UINT32_MAX,
+        .spi55={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFE},.gpioBit=1u,.assembledCrc=0xFFu,
+        .attempted=true,.spiComplete=true,.gpioSampled=true,.frameComplete=true,.routeRestored=true};
+    char line[512];
+    size_t n = sensorarrayAdsTimingProbeFormatTailRecord(&r, 0u, line, sizeof(line));
+    assert(n > 0u && n < sizeof(line));
+    printf("PASS TAIL formatter maximum=%zu capacity=512\n", n);
+}
+
 int main(void)
 {
     setbuf(stdout, NULL);
     for (unsigned test = GOOD; test <= BASELINE_SHADOW; ++test) { runCase((enum timingCase)test); }
     testFormatterBounds();
-    puts("ADS timing probe production driver/module/Gap: 25 scenarios + formatter PASS (synthetic, no HIL)");
+    for (unsigned test = 0u; test < 8u; ++test) { runTailCase(test); }
+    testTailFormatterBounds();
+    puts("ADS timing probe production driver/module/Gap:25 TIMING +8 TAIL scenarios +2 formatter bounds PASS (synthetic,no HIL)");
     return 0;
 }

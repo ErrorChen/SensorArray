@@ -22,11 +22,12 @@ def main():
         "static uint8_t sensorarrayAdsBatteryRegisterMask(",
         "static bool sensorarrayAdsBatterySnapshotsMatch(",
         "static void sensorarrayAdsPopulateRestoredRegisterCache(",
+        "esp_err_t sensorarrayAdsGapRunTimingProbeKind(",
         "esp_err_t sensorarrayAdsGapRunTimingProbe(",
     )]
     # The populate helper has a forward declaration; extract its actual body.
     marker = "static void sensorarrayAdsPopulateRestoredRegisterCache("
-    functions[-2] = function(source[source.rindex(marker):], marker)
+    functions[-3] = function(source[source.rindex(marker):], marker)
     end = source.index("} sensorarrayAdsBatteryCompare_t;") + len("} sensorarrayAdsBatteryCompare_t;")
     comparison = source[source.rindex("typedef struct {", 0, end):end]
     driver_bus = (root / "tests/host/test_ads_driver_reliability.c").read_text()
@@ -53,7 +54,7 @@ def main():
         (temp / "test.c").write_text(harness)
         command = [cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
             "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
-            "-DCONFIG_SENSORARRAY_ADS_START_GPIO=48", "-DCONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US=600"]
+            "-DCONFIG_IDF_TARGET_ESP32S3=1", "-DCONFIG_SENSORARRAY_ADS_START_GPIO=48", "-DCONFIG_SENSORARRAY_ADS_DRDY_TIMEOUT_US=600"]
         for path in (temp, root / "tests/host/ads_stubs", root / "tests/host/include",
                      root / "components/ads126xAdc/include", root / "core/measure/ads",
                      root / "core/measure/include", root / "core/config", root):

@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from test_main_config_commit import function
 
 
 def main():
@@ -15,6 +16,13 @@ def main():
     source = (root / "core/board/sensorarrayBringup.c").read_text()
     begin = source.index("/* ADS PRESENCE IMPLEMENTATION BEGIN")
     end = source.index("/* ADS PRESENCE IMPLEMENTATION END */")
+    presence_source = source[begin:end]
+    # The board-only TAIL capability is adjacent to the shared presence slot,
+    # but is exercised with actual sensorarrayInitSpi by test_ads_tail_diagnostic.
+    # Keep this compilation unit scoped to the unchanged presence functions.
+    owner = function(source, "static bool sensorarrayAdsDedicatedSpiOwner(")
+    presence_source = presence_source.replace(owner, "").replace(
+        "static spi_device_handle_t s_adsDedicatedSpiDevice;", "")
     header = (root / "core/board/sensorarrayBringup.h").read_text()
     result_end = header.index("} sensorarrayAdsPresenceResult_t;") + len("} sensorarrayAdsPresenceResult_t;")
     result_start = header.rfind("typedef struct {", 0, result_end)
@@ -23,7 +31,7 @@ def main():
         (directory / "sensorarray_ads_presence_impl.inc").write_text(
             'typedef struct { ads126xAdcHandle_t ads; bool adsReady; '
             'spi_device_handle_t spiDevice; } sensorarrayState_t;\n' +
-            header[result_start:result_end] + "\n" + source[begin:end]
+            header[result_start:result_end] + "\n" + presence_source
         )
         binary = directory / "test_ads_presence"
         subprocess.run([

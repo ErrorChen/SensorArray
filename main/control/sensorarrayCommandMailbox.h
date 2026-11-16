@@ -35,6 +35,7 @@ typedef enum {
     SENSORARRAY_COMMAND_FDC_ISOLATE,
     SENSORARRAY_COMMAND_ROWS,
     SENSORARRAY_COMMAND_ADS_TIMING, /* 本轮新增: diagnostic, no configuration generation change. */
+    SENSORARRAY_COMMAND_ADS_TAIL, /* 本轮新增: explicit diagnostic kind, same arbiter. */
 } sensorarrayCommandType_t;
 
 typedef struct {
@@ -78,6 +79,9 @@ esp_err_t sensorarrayCommandMailboxPostAdsCheck(uint32_t sampleCount,
 /* 本轮新增: shares ACK/terminal reservation and the transport-wide ID arbiter. */
 esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t samplesPerGroup,
                                                 uint32_t *outRequestId);
+/* 本轮新增: TAIL keeps its kind in the queued command, never a TIMING alias. */
+esp_err_t sensorarrayCommandMailboxPostAdsTail(uint32_t samplesPerGroup,
+                                              uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostBatteryNow(bool diagnostic,
                                                   uint32_t *outRequestId);
 esp_err_t sensorarrayCommandMailboxPostBatteryPeriod(bool enabled,

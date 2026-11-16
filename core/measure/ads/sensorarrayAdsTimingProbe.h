@@ -13,6 +13,12 @@
 #define SENSORARRAY_ADS_TIMING_BUDGET_US 2000000u
 #define SENSORARRAY_ADS_TIMING_CLEANUP_US 500000u
 
+typedef enum {
+    SENSORARRAY_ADS_TIMING_PROBE_TIMING = 0,
+    SENSORARRAY_ADS_TIMING_PROBE_TAIL = 1,
+} sensorarrayAdsTimingProbeKind_t;
+const char *sensorarrayAdsTimingProbeKindName(sensorarrayAdsTimingProbeKind_t kind);
+
 typedef struct {
     uint32_t attempted;
     uint32_t valid;
@@ -29,6 +35,7 @@ typedef struct {
 
 typedef struct {
     bool pulse;
+    bool gpioTail;
     bool bypass;
     bool completed;
     uint32_t startFenceMissed;
@@ -66,9 +73,11 @@ typedef struct {
     bool rawValid;
     bool fresh;
     bool crcValid;
+    ads126xAdcTailEvidence_t tail;
 } sensorarrayAdsTimingRecord_t;
 
 typedef struct {
+    sensorarrayAdsTimingProbeKind_t kind;
     uint32_t requestId;
     uint32_t frameSequence;
     uint32_t requestedHz;
@@ -120,6 +129,9 @@ size_t sensorarrayAdsTimingProbeFormatRegisters(
     const sensorarrayAdsTimingProbeResult_t *result, bool restored,
     char *buffer, size_t size);
 size_t sensorarrayAdsTimingProbeFormatRecord(
+    const sensorarrayAdsTimingProbeResult_t *result, uint32_t record,
+    char *buffer, size_t size);
+size_t sensorarrayAdsTimingProbeFormatTailRecord(
     const sensorarrayAdsTimingProbeResult_t *result, uint32_t record,
     char *buffer, size_t size);
 uint32_t sensorarrayAdsTimingProbeRecordCount(

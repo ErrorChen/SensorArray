@@ -13,6 +13,13 @@
 #include "driver/gpio.h"
 #include "freertos/task.h"
 #include "boardSupport.h"
+#if CONFIG_IDF_TARGET_ESP32S3
+#include "esp_rom_gpio.h"
+#include "esp_rom_sys.h"
+#include "soc/gpio_sig_map.h"
+#include "soc/io_mux_reg.h"
+#include "soc/spi_periph.h"
+#endif
 
 #ifndef CONFIG_ADS126X_LOG_LEVEL
 #define CONFIG_ADS126X_LOG_LEVEL 3
@@ -344,6 +351,156 @@ static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle,
     return err;
 }
 
+bool ads126xAdcTailDiagnosticAvailable(const ads126xAdcHandle_t *handle)
+{
+#if CONFIG_IDF_TARGET_ESP32S3
+    return handle && handle->mutex && handle->spiDevice &&
+        handle->tailBus.host == SPI3_HOST && handle->tailBus.sclkGpio == 47 &&
+        handle->tailBus.misoGpio == 14 && handle->tailBus.exclusiveOwner &&
+        handle->tailBus.exclusiveOwner(handle->spiDevice) &&
+        !ads126xAdcIsQuarantined(handle);
+#else
+    (void)handle;
+    return false;
+#endif
+}
+
+#if CONFIG_IDF_TARGET_ESP32S3
+static uint32_t ads126xAdcTailElapsed(uint64_t start)
+{
+    uint64_t now = (uint64_t)esp_timer_get_time();
+    uint64_t elapsed = now > start ? now - start : 0u;
+    return elapsed > UINT32_MAX ? UINT32_MAX : (uint32_t)elapsed;
+}
+
+/* Entire55+1 operation owns the same mutex. No SDK bus-acquire call with an
+ * infinite wait: the board capability rejects a shared/unproven bus instead.
+ * TIMEOUT must be physically verified off by the diagnostic wrapper. */
+static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
+    uint8_t frame[6], ads126xAdcTailEvidence_t *tail)
+{
+    if (!tail) { return ESP_ERR_INVALID_ARG; }
+    memset(tail, 0, sizeof(*tail));
+    if (!ads126xAdcTailDiagnosticAvailable(h) || !h->transactionDeadlineUs ||
+        !h->enableStatusByte || h->crcMode != ADS126X_CRC_CRC8 ||
+        h->spiBufSize < 8u || !h->spiDmaCapable || !h->spiTxBuf || !h->spiRxBuf) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    int64_t deadline = ads126xAdcOperationDeadline(h, CONFIG_ADS126X_MUTEX_TIMEOUT_MS * 1000u);
+    if (xSemaphoreTake(h->mutex, ads126xAdcRemainingTicks(deadline)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    esp_err_t err = ESP_OK;
+    gpio_io_config_t clock = {0}, input = {0}, restored = {0};
+    const uint32_t clockSignal = (uint32_t)spi_periph_signal[h->tailBus.host].spiclk_out;
+    if (!ads126xAdcTailDiagnosticAvailable(h)) { err = ESP_ERR_INVALID_STATE; }
+    if (err == ESP_OK) { err = gpio_get_io_config(h->tailBus.sclkGpio, &clock); }
+    if (err == ESP_OK) { err = gpio_get_io_config(h->tailBus.misoGpio, &input); }
+    if (err == ESP_OK && (!clock.ie || !clock.oe || clock.od || clock.oe_inv ||
+            clock.fun_sel != PIN_FUNC_GPIO || input.fun_sel != PIN_FUNC_GPIO ||
+            clock.sig_out != clockSignal || !input.ie || input.oe ||
+            gpio_get_level(h->tailBus.sclkGpio) != 0)) { err = ESP_ERR_INVALID_STATE; }
+    if (err == ESP_OK) { err = gpio_set_level(h->tailBus.sclkGpio, 0u); }
+    if (err == ESP_OK && esp_timer_get_time() >= deadline) { err = ESP_ERR_TIMEOUT; }
+    if (err != ESP_OK) { xSemaphoreGive(h->mutex); return err; }
+    /* S3 DMA writes32-bit units, so both permanent buffers retain>=8bytes. */
+    memset(h->spiTxBuf, 0, 8u);
+    memset(h->spiRxBuf, 0, 8u);
+    h->spiTxBuf[0] = ADS126X_CMD_RDATA1;
+    h->dmaTransaction = (spi_transaction_t){
+        .length = 55u, .rxlength = 55u,
+        .tx_buffer = h->spiTxBuf, .rx_buffer = h->spiRxBuf,
+        .override_freq_hz = h->requestedSpiClockHz,
+    };
+    tail->startedUs = (uint64_t)esp_timer_get_time();
+    tail->requestedHz = h->requestedSpiClockHz;
+    tail->attempted = true;
+    err = spi_device_queue_trans(h->spiDevice, &h->dmaTransaction,
+        ads126xAdcRemainingTicks(deadline));
+    if (err == ESP_OK) {
+        h->spiInFlight = true;
+        spi_transaction_t *completed = NULL;
+        err = spi_device_get_trans_result(h->spiDevice, &completed,
+            ads126xAdcRemainingTicks(deadline));
+        if (err != ESP_OK || completed != &h->dmaTransaction) {
+            /* Unknown DMA completion: never take SCLK from the controller. */
+            h->spiQuarantined = true;
+            if (err == ESP_OK) { err = ESP_ERR_INVALID_STATE; }
+        } else {
+            h->spiInFlight = false;
+            tail->spiComplete = true;
+            tail->spiDoneUs = ads126xAdcTailElapsed(tail->startedUs);
+            memcpy(tail->spi55, h->spiRxBuf, sizeof(tail->spi55));
+            tail->spi55[6] &= 0xFEu; /* unreceived bit, NOT a measured zero */
+            int actualKhz = 0;
+            esp_err_t clockErr = spi_device_get_actual_freq(h->spiDevice, &actualKhz);
+            if (clockErr == ESP_OK && actualKhz > 0) { tail->actualHz = (uint32_t)actualKhz * 1000u; }
+            /* The ADC is still part-way through RDATA. Complete exactly one
+             * edge pair even if the work deadline elapsed while awaiting the
+             * known descriptor; the outer transaction reserves cleanup time.
+             * No new SPI command may be issued until this sequence completes. */
+            if (gpio_get_level(h->tailBus.sclkGpio) != 0) { err = ESP_ERR_INVALID_STATE; }
+            else {
+                esp_rom_gpio_connect_out_signal(h->tailBus.sclkGpio, SIG_GPIO_OUT_IDX, false, false);
+                err = gpio_set_level(h->tailBus.sclkGpio, 1u);
+                tail->riseUs = ads126xAdcTailElapsed(tail->startedUs);
+                if (err == ESP_OK) {
+                    /* Datasheet DOUT propagation<=60ns at specified load.
+                     * TIMEOUT=0 permits a longer pause under preemption; all
+                     * elapsed time is recorded, not claimed cycle-exact. */
+                    esp_rom_delay_us(1u);
+                    if (gpio_get_level(h->tailBus.sclkGpio) != 1) { err = ESP_ERR_INVALID_STATE; }
+                    else {
+                        tail->gpioBit = (uint8_t)(gpio_get_level(h->tailBus.misoGpio) & 1u);
+                        tail->sampleUs = ads126xAdcTailElapsed(tail->startedUs);
+                        tail->gpioSampled = true;
+                    }
+                }
+                esp_err_t lowErr = gpio_set_level(h->tailBus.sclkGpio, 0u);
+                tail->fallUs = ads126xAdcTailElapsed(tail->startedUs);
+                esp_rom_delay_us(1u); /* meet low width and input synchronizer delay */
+                tail->frameComplete = err == ESP_OK && lowErr == ESP_OK &&
+                    gpio_get_level(h->tailBus.sclkGpio) == 0;
+                if (err == ESP_OK) { err = lowErr; }
+                esp_rom_gpio_connect_out_signal(h->tailBus.sclkGpio, clockSignal, false, false);
+                esp_err_t restoreErr = gpio_get_io_config(h->tailBus.sclkGpio, &restored);
+                tail->routeRestored = restoreErr == ESP_OK &&
+                    restored.sig_out == clock.sig_out && restored.oe == clock.oe &&
+                    restored.ie == clock.ie && restored.od == clock.od &&
+                    restored.oe_inv == clock.oe_inv && restored.fun_sel == clock.fun_sel &&
+                    restored.oe_ctrl_by_periph == clock.oe_ctrl_by_periph &&
+                    gpio_get_level(h->tailBus.sclkGpio) == 0;
+                tail->restoredUs = ads126xAdcTailElapsed(tail->startedUs);
+                if (err == ESP_OK && (!tail->frameComplete || !tail->routeRestored)) {
+                    err = ESP_ERR_INVALID_STATE;
+                }
+            }
+            if (tail->frameComplete && tail->gpioSampled) {
+                tail->assembledCrc = (uint8_t)(tail->spi55[6] | tail->gpioBit);
+                /* Diagnostic CRC calculation never supplies or changes a
+                 * physical bit. Known even if a later route/clock check fails. */
+                tail->computedCrc = ads126xAdcCrc8(tail->spi55 + 2u, 4u);
+                tail->crcKnown = true;
+            }
+            if (!tail->frameComplete || !tail->routeRestored) {
+                /* SPI framing or pin ownership is unknown, despite DMA having
+                 * returned. Quarantine also blocks the ordinary restore path. */
+                h->spiQuarantined = true;
+            } else {
+                memcpy(frame, tail->spi55 + 1u, 6u);
+                frame[5] = tail->assembledCrc;
+                if (err == ESP_OK && clockErr != ESP_OK) { err = clockErr; }
+                if (err == ESP_OK && actualKhz <= 0) { err = ESP_ERR_INVALID_RESPONSE; }
+                if (err == ESP_OK && esp_timer_get_time() >= deadline) { err = ESP_ERR_TIMEOUT; }
+            }
+        }
+    }
+    if (err == ESP_ERR_TIMEOUT) { h->spiTimeoutCount++; }
+    xSemaphoreGive(h->mutex);
+    return err;
+}
+#endif
+
 bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle)
 {
     return handle && (handle->spiQuarantined || handle->spiInFlight);
@@ -444,6 +601,7 @@ esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *c
     }
     memset(handle, 0, sizeof(*handle));
     handle->spiDevice = cfg->spiDevice;
+    handle->tailBus = cfg->tailBus;
     handle->drdyGpio = cfg->drdyGpio;
     handle->resetGpio = cfg->resetGpio;
     handle->forcedType = cfg->forcedType;
@@ -1853,9 +2011,10 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
         err;
 }
 
-esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
+static esp_err_t ads126xAdcReadAdc1FreshCheckedImpl(ads126xAdcHandle_t *handle,
     uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
-    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report,
+    ads126xAdcTailEvidence_t *tail)
 {
     if (!handle || !crcRetryBudget || !rawCode || !statusByte || !report) {
         return ESP_ERR_INVALID_ARG;
@@ -1881,8 +2040,23 @@ esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
         }
         if (err == ESP_OK) {
             uint32_t readUs = 0u;
-            err = ads126xAdcReadAdc1RawDmaReady(handle, &candidateRaw,
-                &candidateStatus, &readUs);
+            if (tail) {
+#if CONFIG_IDF_TARGET_ESP32S3
+                uint8_t frame[6] = {0};
+                int64_t readStart = esp_timer_get_time();
+                err = ads126xAdcSpiTailDiagnostic(handle, frame, tail);
+                readUs = (uint32_t)(esp_timer_get_time() - readStart);
+                if (err == ESP_OK) {
+                    err = ads126xAdcParseAdc1Frame(handle, frame, sizeof(frame),
+                        &candidateRaw, &candidateStatus);
+                }
+#else
+                err = ESP_ERR_NOT_SUPPORTED;
+#endif
+            } else {
+                err = ads126xAdcReadAdc1RawDmaReady(handle, &candidateRaw,
+                    &candidateStatus, &readUs);
+            }
             report->readUs += readUs;
         }
         if (err == ESP_ERR_INVALID_CRC) {
@@ -1917,6 +2091,26 @@ esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
         *statusByte = candidateStatus;
         return ESP_OK;
     }
+}
+
+esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
+    int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)
+{
+    return ads126xAdcReadAdc1FreshCheckedImpl(handle, startGeneration,
+        drdyTimeoutUs, crcRetryBudget, rawCode, statusByte, report, NULL);
+}
+
+esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, int32_t *rawCode,
+    uint8_t *statusByte, ads126xAdcFreshReadReport_t *report,
+    ads126xAdcTailEvidence_t *tail)
+{
+    if (!tail) { return ESP_ERR_INVALID_ARG; }
+    memset(tail, 0, sizeof(*tail));
+    uint8_t noRetry = 0u;
+    return ads126xAdcReadAdc1FreshCheckedImpl(handle, startGeneration,
+        drdyTimeoutUs, &noRetry, rawCode, statusByte, report, tail);
 }
 
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)

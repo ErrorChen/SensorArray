@@ -31,6 +31,7 @@ void *heap_caps_calloc(size_t count, size_t size, uint32_t caps)
 
 static sensorarrayConfigAuthority_t authority;
 static bool nestedPost;
+static sensorarrayAdsTimingProbeKind_t nestedProbe;
 static esp_err_t nestedError;
 static uint32_t nestedId;
 esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t n, uint32_t *id)
@@ -38,7 +39,7 @@ esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t n, uint32_t *id)
     esp_err_t error = realMailboxPostAdsTiming(n, id);
     if (error == ESP_OK && nestedPost) {
         nestedPost = false;
-        nestedError = sensorarrayAdsTimingControlPost(&authority, 100u, &nestedId);
+        nestedError = sensorarrayAdsTimingControlPostKind(&authority, nestedProbe, 100u, &nestedId);
     }
     return error;
 }
@@ -101,11 +102,16 @@ static bool sensorarrayAdsGapConsumeRestoreFailure(void) { bool value=restoreLat
 static bool sensorarrayRouteControllerCopySnapshot(const sensorarrayRouteSnapshot_t *route, sensorarrayRouteSnapshot_t *out)
 { *out = *route; return routeKnown; }
 static int *sensorarrayAdsMatrixEngineRegisterCache(int *engine) { return engine; }
-static esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state, int *cache,
-    uint32_t id, uint32_t seq, sensorarrayAdsTimingProbeResult_t *result)
+static sensorarrayAdsTimingProbeKind_t lastExecutedProbe;
+static esp_err_t sensorarrayAdsGapRunTimingProbeKind(sensorarrayState_t *state, int *cache,
+    uint32_t id, uint32_t seq, sensorarrayAdsTimingProbeKind_t kind, sensorarrayAdsTimingProbeResult_t *result)
 {
     assert(state && cache && seq == 123u); probeCalls++;
-    *result = injectedResult; result->requestId = id; result->frameSequence = seq;
+    *result = injectedResult; result->requestId = id; result->frameSequence = seq; result->kind = kind;
+    lastExecutedProbe = kind;
+    if (kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL) {
+        for (unsigned g=0;g<4;g++) { result->groups[g].pulse=false;result->groups[g].gpioTail=(g&1u)!=0u; }
+    }
     return result->firstError;
 }
 static void sensorarrayAdsFaultFillContext(sensorarrayAppContext_t *ctx, sensorarrayAdsFaultEvent_t *fault)
@@ -181,21 +187,24 @@ static void reset(sensorarrayAppContext_t *ctx)
     }
     authorityKnown = routeKnown = quiescent = true;
     held = recoveryActive = nestedPost = restoreLatched = collideQuery = false; nowUs = 100u;
+    nestedProbe = SENSORARRAY_ADS_TIMING_PROBE_TIMING;
     probeCalls = stopCalls = faultCalls = runtimeFaultCalls = fillBeforeStop = 0u;
     safeError = ESP_OK;
 }
-static uint32_t accept(bool ack)
+static uint32_t acceptProbe(bool ack, sensorarrayAdsTimingProbeKind_t kind)
 {
-    assert(actualTimingCommand("ADSCHK=TIMING,200", response, sizeof(response)) == ESP_OK);
+    assert(actualTimingCommand(kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL ? "ADSCHK=TAIL,200" : "ADSCHK=TIMING,200", response, sizeof(response)) == ESP_OK);
     unsigned long id = 0; assert(sscanf(response, "ACK,cmd=ADSCHK,timing=1,id=%lu", &id) == 1);
+    assert(strstr(response, kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL ? "probe=TAIL" : "probe=TIMING"));
     if (ack) { sensorarrayControlReplyPublished(response, strlen(response)); }
     return (uint32_t)id;
 }
+static uint32_t accept(bool ack) { return acceptProbe(ack, SENSORARRAY_ADS_TIMING_PROBE_TIMING); }
 static void run(sensorarrayAppContext_t *ctx, uint32_t id)
 {
     sensorarrayCommand_t cmd;
     assert(sensorarrayCommandMailboxTryReceive(&cmd));
-    assert(cmd.type == SENSORARRAY_COMMAND_ADS_TIMING && cmd.requestId == id);
+    assert(cmd.type == (s_timing.current.kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL ? SENSORARRAY_COMMAND_ADS_TAIL : SENSORARRAY_COMMAND_ADS_TIMING) && cmd.requestId == id);
     sensorarrayRunAdsTimingCommand(ctx, &cmd);
 }
 static void query(const char *kind, uint32_t id, unsigned index)
@@ -378,6 +387,8 @@ static void testStorageAdmission(sensorarrayAppContext_t *ctx)
     readState();assert(strstr(response,"storageKnown=1,storageReady=0,storageBytes=0,storageError=0x101"));
     assert(actualTimingCommand("ADSCHK=TIMING,200",response,sizeof(response))==ESP_ERR_NO_MEM);
     assert(strstr(response,"reason=diagnostic_unavailable"));
+    assert(actualTimingCommand("ADSCHK=TAIL,200",response,sizeof(response))==ESP_ERR_NO_MEM);
+    assert(strstr(response,"reason=diagnostic_unavailable"));
     uint32_t id=0u;assert(sensorarrayAdsTimingControlPost(&authority,nowUs,&id)==ESP_ERR_NO_MEM);
     assert(!sensorarrayTransportGuaranteedTextIsReserved() && id==0u);
     sensorarrayAdsTimingControlInit(authority.identity.sessionId,authority.identity.bootId);
@@ -397,6 +408,64 @@ static void testStorageAdmission(sensorarrayAppContext_t *ctx)
     assert(queryCollisions==1u && !s_timing.queryBusy && allocationCalls==1u);
     query("RESULT",id,0u);cases++;
 }
+static void testProbeKinds(sensorarrayAppContext_t *ctx)
+{
+    reset(ctx);nestedPost=true;nestedProbe=SENSORARRAY_ADS_TIMING_PROBE_TAIL;nestedId=0u;
+    uint32_t timingId=accept(false);
+    assert(nestedError!=ESP_OK && nestedId==0u && s_timing.current.kind==SENSORARRAY_ADS_TIMING_PROBE_TIMING);
+    assert(sensorarrayAdsTimingControlAck(timingId,ESP_ERR_TIMEOUT));cases++;
+
+    reset(ctx); uint32_t id=acceptProbe(false,SENSORARRAY_ADS_TIMING_PROBE_TAIL), other=0u;
+    readState(); assert(strstr(response,"pendingProbe=TAIL,lastProbe=none"));
+    assert(sensorarrayAdsTimingControlPost(&authority,nowUs,&other)!=ESP_OK && other==0u);
+    sensorarrayCommand_t command; assert(!sensorarrayCommandMailboxTryReceive(&command));
+    assert(sensorarrayAdsTimingControlAck(id,ESP_OK));
+    for(unsigned g=0;g<4;g++)injectedResult.groups[g].recordCount=1u;
+    run(ctx,id);assert(lastExecutedProbe==SENSORARRAY_ADS_TIMING_PROBE_TAIL);
+    readState();assert(strstr(response,"lastProbe=TAIL"));
+    query("RESULT",id,0);assert(strstr(response,"probe=TAIL"));
+    query("GROUP",id,0);assert(strstr(response,"probe=TAIL"));
+    query("GROUP",id,1);assert(strstr(response,"source=spi55_gpio1,mode=CONT"));
+    query("TIME",id,0);assert(strstr(response,"probe=TAIL"));
+    query("REG",id,0);assert(strstr(response,"probe=TAIL"));
+    query("RECORD",id,0);assert(strstr(response,"probe=TAIL"));
+    query("RECORD",id,1);assert(strstr(response,"source=spi55_gpio1")&&strstr(response,"wireKnown=0,bytes=unknown"));
+    query("TAIL",id,0);assert(strstr(response,"probe=TAIL")&&strstr(response,"tailApplicable=0,spiBits=56")&&strstr(response,"assembledKnown=0"));
+    query("TAIL",id,1);assert(strstr(response,"source=spi55_gpio1")&&strstr(response,"spiBits=55")&&strstr(response,"physicalVerified=0"));
+    char terminal[384];size_t length=0;
+    assert(sensorarrayTransportGuaranteedTextTakeDrain(terminal,sizeof(terminal),&length));
+    assert(strstr(terminal,"probe=TAIL"));
+    uint32_t next=accept(true);query("RESULT",id,0);assert(strstr(response,"probe=TAIL"));
+    run(ctx,next);assert(lastExecutedProbe==SENSORARRAY_ADS_TIMING_PROBE_TIMING);drain();
+    query("RESULT",next,0);assert(strstr(response,"probe=TIMING"));
+    char text[64];snprintf(text,sizeof(text),"ADSTIMING?TAIL,%lu,0",(unsigned long)next);
+    assert(sensorarrayAdsTimingControlFormat(text,response,sizeof(response))!=ESP_OK);
+    cases++;
+
+    reset(ctx);id=acceptProbe(true,SENSORARRAY_ADS_TIMING_PROBE_TAIL);
+    assert(sensorarrayCommandMailboxTryReceive(&command));command.type=SENSORARRAY_COMMAND_ADS_TIMING;
+    sensorarrayRunAdsTimingCommand(ctx,&command);
+    assert(probeCalls==0u);readState();assert(strstr(response,"reason=probe_kind_mismatch")&&strstr(response,"lastProbe=TAIL"));drain();
+    assert(sensorarrayAdsTimingControlPostKind(&authority,(sensorarrayAdsTimingProbeKind_t)99,nowUs,&other)==ESP_ERR_INVALID_ARG);
+    assert(actualTimingCommand("ADSCHK=TAIL,201",response,sizeof(response))==ESP_ERR_INVALID_ARG);
+    assert(sensorarrayCommandMailboxPostAdsTail(201,&other)==ESP_ERR_INVALID_ARG);cases++;
+
+    reset(ctx);id=acceptProbe(false,SENSORARRAY_ADS_TIMING_PROBE_TAIL);
+    sensorarrayControlReplyFailed(ESP_ERR_TIMEOUT,response,strlen(response));
+    readState();assert(strstr(response,"last=rejected")&&strstr(response,"lastProbe=TAIL"));
+    assert(!sensorarrayCommandMailboxTryReceive(&command)&&probeCalls==0u);cases++;
+}
+static void testProtoBudget(void)
+{
+    const char *caps[]={"usb_cdc_data_v1/usb_rom_handoff_v1","usb_vendor_bulk_v1/usb_rom_handoff_v1","serial_sink_v1/serial_classes_v1/usb_rom_handoff_v1"};
+    size_t maximum=0;
+    for(unsigned i=0;i<3;i++) {
+        int n=snprintf(response,sizeof(response),/* PRODUCTION_PROTO_FORMAT */,2u,512u,2304u,caps[i]);
+        assert(n>0&&(size_t)n<sizeof(response)&&strstr(response,"ads_tail_probe_v1"));
+        if((size_t)n>maximum)maximum=(size_t)n;
+    }
+    printf("ADS_TAIL_PROTO,maxBytes=%zu,capacity=512,backends=3\n",maximum);cases++;
+}
 int main(void)
 {
     assert(sensorarrayCommandMailboxInit() == ESP_OK);
@@ -404,6 +473,7 @@ int main(void)
     testFenceAndArbitration(&ctx); testAdmissionAndExpiry(&ctx);
     testResultQueriesAndFailure(&ctx); testExtremaAndReset(&ctx);
     testStorageAdmission(&ctx);
+    testProbeKinds(&ctx);testProtoBudget();
     printf("ADS_TIMING_CONTROL,passed=%u,admission_subcases=10,maxState=%zu,maxTerminal=%zu,fixture=synthetic\n", cases, maxState, maxTerminal);
     printf("ADS_TIMING_STORAGE,allocations=1,caps=SPIRAM_8BIT,internal_fallback=0,heap_outside_lock=1,host_bytes=%zu,alloc_failure_only_disables_diagnostic=1,reentrant_init_query_safe=1\n",sizeof(sensorarrayAdsTimingStorage_t));
     return 0;

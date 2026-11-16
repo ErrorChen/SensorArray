@@ -7,6 +7,7 @@ existing global configuration arbiter. No ADC samples here are HIL evidence.
 """
 from pathlib import Path
 import os
+import re
 import subprocess
 import tempfile
 
@@ -26,7 +27,7 @@ def main() -> int:
     assert "MALLOC_CAP_INTERNAL" not in control
     boundary = function(source, "static void sensorarrayRunAdsTimingCommand(")
     runtime = function(source, "static esp_err_t sensorarrayRuntimeQueryCommand(")
-    command = function(runtime, '    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0)')
+    command = function(runtime, '    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0 ||')
     callbacks = "\n".join(function(source, name) for name in [
         "static void sensorarrayControlReplyPublished(",
         "static void sensorarrayControlReplyFailed("])
@@ -36,18 +37,24 @@ def main() -> int:
     assert "sensorarrayRunAdsTimingCommand(ctx, &command);\n            return;" in apply
     assert source.count("sensorarrayAdsTimingControlHandles(command)") == 2
     assert source.count("sensorarrayLinkDiagnosticsHandles(command)") == 2
-    assert source.count("ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1") == 2
+    assert source.count("ads_timing_probe_v1/ads_tail_probe_v1/ble_service_obs_v1/work_reason_v1") == 2
     probe = (ROOT / "core/measure/ads/sensorarrayAdsTimingProbe.c").read_text()
     formatters = probe[probe.index("static size_t sensorarrayAdsTimingFormatted("):]
+    if "const char *sensorarrayAdsTimingProbeKindName(" not in formatters:
+        formatters = function(probe, "const char *sensorarrayAdsTimingProbeKindName(") + "\n" + formatters
     adc = (ROOT / "components/ads126xAdc/include/ads126xAdc.h").read_text()
     end = adc.index("} ads126xAdc1RegisterSnapshot_t;") + len("} ads126xAdc1RegisterSnapshot_t;")
     snapshot = adc[adc.rfind("typedef struct {", 0, end):end]
+    end = adc.index("} ads126xAdcTailEvidence_t;") + len("} ads126xAdcTailEvidence_t;")
+    tail_evidence = adc[adc.rfind("typedef struct {", 0, end):end]
     test = (ROOT / "tests/host/test_ads_timing_control.c").read_text()
     test = test.replace("/* EXISTING_MAILBOX_TEST */", '#include "' + str(ROOT / "tests/host/test_rowmodes_ack_guard.c") + '"')
     test = test.replace("/* PRODUCTION_FORMATTERS */", formatters)
     test = test.replace("/* PRODUCTION_BOUNDARY */", boundary)
     test = test.replace("/* PRODUCTION_CALLBACKS */", callbacks)
     test = test.replace("/* PRODUCTION_COMMAND */", command)
+    proto = re.search(r'"PROTO,version=%u,wires=ascii[^"\n]*"', source).group(0)
+    test = test.replace("/* PRODUCTION_PROTO_FORMAT */", proto)
     with tempfile.TemporaryDirectory(prefix="sensorarray-ads-timing-control-") as directory:
         tmp = Path(directory); fake = tmp / "fake"; fake.mkdir()
         writeFakeHeaders(fake)
@@ -68,8 +75,8 @@ typedef pthread_mutex_t portMUX_TYPE;
 #define portEXIT_CRITICAL(p) pthread_mutex_unlock(p)
 """
         freertos.write_text(f)
-        (fake / "ads126xAdc.h").write_text('#pragma once\n#include <stdint.h>\n#include "esp_err.h"\n' +
-            snapshot + '\ntypedef struct ads126xAdcHandle ads126xAdcHandle_t;\n')
+        (fake / "ads126xAdc.h").write_text('#pragma once\n#include <stdint.h>\n#include <stdbool.h>\n#include "esp_err.h"\n' +
+            snapshot + '\n' + tail_evidence + '\ntypedef struct ads126xAdcHandle ads126xAdcHandle_t;\n')
         unit = tmp / "unit.c"; unit.write_text(test)
         executable = tmp / "test"
         cmd = [os.environ.get("CC", "/usr/bin/gcc"), "-std=c11", "-D_XOPEN_SOURCE=700",

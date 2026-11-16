@@ -1623,7 +1623,8 @@ static void sensorarrayApplyPendingCommands(sensorarrayAppContext_t *ctx)
     sensorarrayAdsTimingControlExpire((uint64_t)esp_timer_get_time(), &timingAuthority, timingKnown);
     sensorarrayCommand_t command;
     while (sensorarrayCommandMailboxTryReceive(&command)) {
-        if (command.type == SENSORARRAY_COMMAND_ADS_TIMING) {
+        if (command.type == SENSORARRAY_COMMAND_ADS_TIMING ||
+            command.type == SENSORARRAY_COMMAND_ADS_TAIL) {
             /* No intervening frame, command, battery or old ADSCHK can run
              * inside this complete transaction. It never emits Applied. */
             sensorarrayRunAdsTimingCommand(ctx, &command);
@@ -1987,6 +1988,10 @@ static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
     if (take == SENSORARRAY_TIMING_TAKE_NONE) { return; }
     const char *reject = take == SENSORARRAY_TIMING_TAKE_STALE ? "stale_config" :
         (take == SENSORARRAY_TIMING_TAKE_EXPIRED ? "queue_deadline" : NULL);
+    if (!reject && ((request.kind == SENSORARRAY_ADS_TIMING_PROBE_TIMING &&
+                    command->type != SENSORARRAY_COMMAND_ADS_TIMING) ||
+                   (request.kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL &&
+                    command->type != SENSORARRAY_COMMAND_ADS_TAIL))) { reject = "probe_kind_mismatch"; }
     sensorarrayRouteSnapshot_t route = {0};
     if (!reject && (!ctx || sensorarrayFrontendsHeld() || !ctx->systemReady)) { reject = "not_ready"; }
     if (!reject && (authority.identity.mode != SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE &&
@@ -2010,9 +2015,9 @@ static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
             ESP_ERR_NO_MEM, ESP_OK, &authority, known, false);
         return;
     }
-    esp_err_t error = sensorarrayAdsGapRunTimingProbe(&ctx->state,
+    esp_err_t error = sensorarrayAdsGapRunTimingProbeKind(&ctx->state,
         sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine), request.id,
-        ctx->hostFrameSequence, result);
+        ctx->hostFrameSequence, request.kind, result);
     esp_err_t original = result->firstError != ESP_OK ? result->firstError :
         (result->terminalError != ESP_OK ? result->terminalError : error);
     esp_err_t cleanup = result->cleanupError;
@@ -2040,10 +2045,11 @@ static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
             strcmp(terminalReason, "restore_failed") == 0 ? "ads_timing_restore_failed" : "ads_timing_probe_fault");
         result->cleanupError = cleanup;
         sensorarrayEmitAdsFault(ctx, &fault);
-        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSTIMING,id=%lu,err=0x%lx,terminalError=0x%lx,cleanupError=0x%lx,probeReason=%s,restoreVerified=%u,state=DEGRADED,route=SAFE_REQUESTED\n",
+        sensorarrayTransportPublishRuntimeFault("MFAULT,source=ADSTIMING,id=%lu,err=0x%lx,terminalError=0x%lx,cleanupError=0x%lx,probeReason=%s,restoreVerified=%u,state=DEGRADED,route=SAFE_REQUESTED,probe=%s\n",
             (unsigned long)request.id, (unsigned long)original,
             (unsigned long)result->terminalError, (unsigned long)cleanup,
-            result->reason ? result->reason : "unknown", result->restoreVerified ? 1u : 0u);
+            result->reason ? result->reason : "unknown", result->restoreVerified ? 1u : 0u,
+            sensorarrayAdsTimingProbeKindName(request.kind));
     }
     known = sensorarrayConfigIdentityCopy(&authority);
     bool completed = result->completed && result->restoreVerified && !isolate;
@@ -2700,7 +2706,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -3221,11 +3227,14 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         return sensorarrayAdsGapFormatAds(response, responseSize) > 0u ?
             ESP_OK : ESP_FAIL;
     }
-    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0) {
-        if (strcmp(command, "ADSCHK=TIMING,200") != 0) {
-            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_syntax,expected=TIMING_200\n");
+    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0 || strncmp(command, "ADSCHK=TAIL", 11u) == 0) {
+        bool timing = strcmp(command, "ADSCHK=TIMING,200") == 0;
+        bool tail = strcmp(command, "ADSCHK=TAIL,200") == 0;
+        if (!timing && !tail) {
+            (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_syntax,expected=TIMING_200_or_TAIL_200\n");
             return ESP_ERR_INVALID_ARG;
         }
+        sensorarrayAdsTimingProbeKind_t probe = tail ? SENSORARRAY_ADS_TIMING_PROBE_TAIL : SENSORARRAY_ADS_TIMING_PROBE_TIMING;
         esp_err_t storageError = sensorarrayAdsTimingControlStorageError();
         if (storageError != ESP_OK) {
             (void)snprintf(response, responseSize,
@@ -3238,13 +3247,14 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
             return ESP_ERR_INVALID_STATE;
         }
         uint32_t id = 0u;
-        esp_err_t err = sensorarrayAdsTimingControlPost(&authority, (uint64_t)esp_timer_get_time(), &id);
+        esp_err_t err = sensorarrayAdsTimingControlPostKind(&authority, probe, (uint64_t)esp_timer_get_time(), &id);
         if (err != ESP_OK) {
             (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_busy,err=0x%lx\n", (unsigned long)err);
             return err;
         }
         int n = snprintf(response, responseSize,
-            "ACK,cmd=ADSCHK,timing=1,id=%lu,perGroup=200,groups=4,status=accepted\n", (unsigned long)id);
+            "ACK,cmd=ADSCHK,timing=1,id=%lu,perGroup=200,groups=4,status=accepted,probe=%s\n",
+            (unsigned long)id, sensorarrayAdsTimingProbeKindName(probe));
         if (n <= 0 || (size_t)n >= responseSize) {
             response[0] = '\0';
             (void)sensorarrayAdsTimingControlAck(id, ESP_ERR_INVALID_SIZE);
@@ -3439,7 +3449,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,

@@ -8,6 +8,7 @@
 static int64_t nowUs;
 static uint32_t lockDelayUs, queueDelayUs, completionDelayUs;
 static bool mutexAvailable = true, completionBlocked, wrongDescriptor;
+static unsigned mutexDepth;
 static unsigned queueCalls, freeCalls, snapshotReads;
 static uint8_t registers[32], snapshots[3][32];
 static bool useSnapshots;
@@ -27,6 +28,30 @@ static uint32_t actualSpiHz;
 static bool ignoreClockOverride;
 static bool (*transactionHook)(const uint8_t *tx, uint8_t *rx, size_t bytes);
 static void (*queueHook)(const spi_transaction_t *trans);
+static int tailSclkLevel, tailLatch, tailPhysicalBit;
+static int tailPhysicalBitOverride = -1;
+static unsigned tailEdges, tailRouteChanges;
+static bool tailOwnerAvailable, tailRestoreFailure, tailHighFailure;
+static gpio_io_config_t tailClockConfig;
+#if CONFIG_IDF_TARGET_ESP32S3
+const host_spi_signal_t spi_periph_signal[3] = {{0},{0},{32}};
+void esp_rom_delay_us(uint32_t us) { nowUs += us; }
+void esp_rom_gpio_connect_out_signal(uint32_t pin, uint32_t signal, bool invert, bool oe_invert)
+{
+    assert(pin == 47u && !invert && !oe_invert && pending == NULL && mutexDepth == 1u);
+    ++tailRouteChanges;
+    if (tailRestoreFailure && signal == 32u) { return; }
+    tailClockConfig.sig_out = (int)signal;
+    if (signal == SIG_GPIO_OUT_IDX) { tailSclkLevel = tailLatch; }
+}
+#endif
+static bool tailExclusiveOwner(spi_device_handle_t device) { return device == (void *)1 && tailOwnerAvailable; }
+esp_err_t gpio_get_io_config(gpio_num_t pin, gpio_io_config_t *cfg)
+{
+    if (pin == 47) { *cfg = tailClockConfig; }
+    else { *cfg = (gpio_io_config_t){.ie = true, .fun_sel = 1u}; }
+    return ESP_OK;
+}
 
 int64_t esp_timer_get_time(void) { return nowUs; }
 void *heap_caps_malloc(size_t size, int flags) { (void)flags; return malloc(size); }
@@ -39,9 +64,9 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t handle, TickType_t ticks)
     (void)handle;
     uint64_t budget = (uint64_t)ticks * 1000u;
     if (!mutexAvailable || lockDelayUs > budget) { nowUs += budget; return pdFALSE; }
-    nowUs += lockDelayUs; return pdTRUE;
+    nowUs += lockDelayUs; ++mutexDepth; assert(mutexDepth == 1u); return pdTRUE;
 }
-BaseType_t xSemaphoreGive(SemaphoreHandle_t handle) { (void)handle; return pdTRUE; }
+BaseType_t xSemaphoreGive(SemaphoreHandle_t handle) { (void)handle; assert(mutexDepth == 1u); --mutexDepth; return pdTRUE; }
 TaskHandle_t xTaskGetCurrentTaskHandle(void) { return (void *)1; }
 BaseType_t xTaskNotifyStateClear(TaskHandle_t task) { (void)task; return pdTRUE; }
 uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks)
@@ -65,8 +90,22 @@ void vTaskDelay(TickType_t ticks) { nowUs += (int64_t)ticks * 1000; }
 TickType_t xTaskGetTickCount(void) { return (TickType_t)(nowUs / 1000); }
 void vTaskNotifyGiveFromISR(TaskHandle_t task, BaseType_t *woken) { (void)task; *woken = pdFALSE; }
 esp_err_t gpio_set_direction(gpio_num_t pin, int mode) { (void)pin; (void)mode; return ESP_OK; }
-esp_err_t gpio_set_level(gpio_num_t pin, int level) { (void)pin; (void)level; return ESP_OK; }
-int gpio_get_level(gpio_num_t pin) { (void)pin; return 0; }
+esp_err_t gpio_set_level(gpio_num_t pin, int level)
+{
+    if (pin == 47) {
+        if (level && tailHighFailure) { return ESP_FAIL; }
+        tailLatch = level;
+        if (tailClockConfig.sig_out == 256) {
+            if (tailSclkLevel != level) { ++tailEdges; }
+            tailSclkLevel = level;
+        }
+    }
+    return ESP_OK;
+}
+int gpio_get_level(gpio_num_t pin)
+{
+    return pin == 47 ? tailSclkLevel : pin == 14 ? tailPhysicalBit : 0;
+}
 esp_err_t gpio_config(const gpio_config_t *cfg) { (void)cfg; return ESP_OK; }
 esp_err_t gpio_isr_handler_add(gpio_num_t pin, void (*fn)(void *), void *arg)
 { (void)pin; (void)fn; (void)arg; return ESP_OK; }
@@ -107,7 +146,7 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
     }
     const uint8_t *tx = pending->tx_buffer;
     uint8_t *rx = pending->rx_buffer;
-    size_t bytes = pending->length / 8u;
+    size_t bytes = (pending->length + 7u) / 8u;
     memset(rx, 0, bytes);
     if (transactionHook && transactionHook(tx, rx, bytes)) {
         /* Additional production-module fault scenarios use this bounded bus. */
@@ -136,6 +175,10 @@ esp_err_t spi_device_get_trans_result(spi_device_handle_t device, spi_transactio
         ++dataFrameCount;
         if (blockCompletionAfterRead == dataFrameCount) { completionBlocked = true; }
     }
+    if (pending->length == 55u) {
+        tailPhysicalBit = tailPhysicalBitOverride >= 0 ? tailPhysicalBitOverride : (int)(rx[6] & 1u);
+        rx[6] = (rx[6] & 0xFEu) | 1u; /* unreceived bit deliberately arbitrary */
+    }
     *out = pending; pending = NULL;
     return ESP_OK;
 }
@@ -160,6 +203,7 @@ static ads126xAdcHandle_t handle(void)
     nowUs = 1000000;
     lockDelayUs = queueDelayUs = completionDelayUs = 0u;
     mutexAvailable = true; completionBlocked = wrongDescriptor = useSnapshots = false;
+    mutexDepth = 0u;
     queueError = ESP_OK; pending = NULL; snapshotReads = 0u;
     notifyHandle = NULL; notifyEdge = notifyConfigChange = false;
     notifyEdgesRemaining = notifyEdgeCount = configChangeOnEdge = 0u;
@@ -168,11 +212,17 @@ static ads126xAdcHandle_t handle(void)
     lastRegisterStart = lastRegisterCount = 0u;
     actualSpiHz = 2000000u; ignoreClockOverride = false;
     transactionHook = NULL; queueHook = NULL;
+    tailSclkLevel = tailLatch = tailPhysicalBit = 0;
+    tailPhysicalBitOverride = -1;
+    tailEdges = tailRouteChanges = 0u;
+    tailOwnerAvailable = true; tailRestoreFailure = tailHighFailure = false;
+    tailClockConfig = (gpio_io_config_t){.ie=true,.oe=true,.oe_ctrl_by_periph=true,.fun_sel=1u,.sig_out=32};
     memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
     registers[1] = 2u; registers[2] = 6u; registers[5] = 0x8Fu; registers[15] = 0x24u;
     ads126xAdcHandle_t result = {0};
     result.spiDevice = (void *)1; result.mutex = (void *)1;
+    result.tailBus = (ads126xAdcTailBus_t){.host=2,.sclkGpio=47,.misoGpio=14,.exclusiveOwner=tailExclusiveOwner};
     result.spiTxBuf = malloc(64u); result.spiRxBuf = malloc(64u);
     result.spiBufSize = 64u; result.spiDmaCapable = true;
     result.drdyGpio = 1; result.resetGpio = 2; result.drdyNotificationReady = true;

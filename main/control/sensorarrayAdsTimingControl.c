@@ -86,7 +86,17 @@ esp_err_t sensorarrayAdsTimingControlStorageError(void)
 esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
     uint64_t nowUs, uint32_t *outId)
 {
-    if (!authority || !authority->available || !outId) { return ESP_ERR_INVALID_ARG; }
+    return sensorarrayAdsTimingControlPostKind(authority, SENSORARRAY_ADS_TIMING_PROBE_TIMING,
+        nowUs, outId);
+}
+
+esp_err_t sensorarrayAdsTimingControlPostKind(const sensorarrayConfigAuthority_t *authority,
+    sensorarrayAdsTimingProbeKind_t kind, uint64_t nowUs, uint32_t *outId)
+{
+    if (!authority || !authority->available || !outId ||
+        (kind != SENSORARRAY_ADS_TIMING_PROBE_TIMING && kind != SENSORARRAY_ADS_TIMING_PROBE_TAIL)) {
+        return ESP_ERR_INVALID_ARG;
+    }
     portENTER_CRITICAL(&s_timingMux);
     bool busy = s_timing.busy;
     bool bootMatches = authority->identity.sessionId == s_timing.session &&
@@ -97,11 +107,13 @@ esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *au
     if (!storageReady) { return storageError; }
     if (busy || !bootMatches) { return ESP_ERR_INVALID_STATE; }
     uint32_t id = 0u;
-    esp_err_t error = sensorarrayCommandMailboxPostAdsTiming(SENSORARRAY_ADS_TIMING_SAMPLES, &id);
+    esp_err_t error = kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL ?
+        sensorarrayCommandMailboxPostAdsTail(SENSORARRAY_ADS_TIMING_SAMPLES, &id) :
+        sensorarrayCommandMailboxPostAdsTiming(SENSORARRAY_ADS_TIMING_SAMPLES, &id);
     if (error != ESP_OK) { return error; }
     portENTER_CRITICAL(&s_timingMux);
     s_timing.current = (sensorarrayAdsTimingRequest_t){
-        .id = id, .identity = authority->identity, .acceptedUs = nowUs,
+        .id = id, .kind = kind, .identity = authority->identity, .acceptedUs = nowUs,
         .expiresUs = nowUs + SENSORARRAY_TIMING_QUEUE_BUDGET_US,
     };
     s_timing.busy = true; s_timing.acknowledged = false; s_timing.running = false;
@@ -192,11 +204,12 @@ esp_err_t sensorarrayAdsTimingControlComplete(uint32_t id, const char *outcome,
     portEXIT_CRITICAL(&s_timingMux);
     char text[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX];
     int n = snprintf(text, sizeof(text),
-        "ADSTERM,id=%lu,state=%s,reason=%s,session=%016llX,bootId=%lu,acceptedRev=%lu,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,diagnostic=1,query=ADSTIMING\n",
+        "ADSTERM,id=%lu,state=%s,reason=%s,session=%016llX,bootId=%lu,acceptedRev=%lu,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,diagnostic=1,query=ADSTIMING,probe=%s\n",
         (unsigned long)id, outcome, reason, (unsigned long long)last.request.identity.sessionId,
         (unsigned long)last.request.identity.bootId, (unsigned long)last.request.identity.revision,
         (unsigned long)last.resultRevision, (unsigned long)last.boundary,
-        (unsigned long)(uint32_t)originalError, (unsigned long)(uint32_t)cleanupError, keepResult ? 1u : 0u);
+        (unsigned long)(uint32_t)originalError, (unsigned long)(uint32_t)cleanupError, keepResult ? 1u : 0u,
+        sensorarrayAdsTimingProbeKindName(last.request.kind));
     esp_err_t error = n > 0 && (size_t)n < sizeof(text) ?
         sensorarrayCommandMailboxEmitConfigTerminal(id, text, (size_t)n) : ESP_ERR_INVALID_SIZE;
     if (error != ESP_OK) { (void)sensorarrayCommandMailboxCancelConfigAck(id); }
@@ -249,7 +262,7 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
         uint64_t session = s_timing.session; uint32_t bootId = s_timing.bootId;
         portEXIT_CRITICAL(&s_timingMux);
         int n = snprintf(response, responseSize,
-            "ADSTIMING,session=%016llX,bootId=%lu,busy=%u,phase=%s,ackLocal=%u,pendingId=%lu,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,terminalQueued=%u,groups=4,perGroup=200,diagnostic=1,storageKnown=%u,storageReady=%u,storageBytes=%lu,storageError=0x%lX\n",
+            "ADSTIMING,session=%016llX,bootId=%lu,busy=%u,phase=%s,ackLocal=%u,pendingId=%lu,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,terminalQueued=%u,groups=4,perGroup=200,diagnostic=1,storageKnown=%u,storageReady=%u,storageBytes=%lu,storageError=0x%lX,pendingProbe=%s,lastProbe=%s\n",
             (unsigned long long)session, (unsigned long)bootId, busy ? 1u : 0u,
             busy ? (running ? "running" : "pending") : "idle", busy && ack ? 1u : 0u,
             (unsigned long)(busy ? current.id : 0u), (unsigned long)(busy ? current.identity.revision : 0u),
@@ -259,7 +272,9 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
             (unsigned long)(uint32_t)last.originalError, (unsigned long)(uint32_t)last.cleanupError,
             last.resultAvailable ? 1u : 0u, last.terminalQueued ? 1u : 0u,
             storageKnown ? 1u : 0u, storageReady ? 1u : 0u,
-            (unsigned long)storageBytes, (unsigned long)(uint32_t)storageError);
+            (unsigned long)storageBytes, (unsigned long)(uint32_t)storageError,
+            busy ? sensorarrayAdsTimingProbeKindName(current.kind) : "none",
+            last.request.id ? sensorarrayAdsTimingProbeKindName(last.request.kind) : "none");
         if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
         return ESP_OK;
     }
@@ -267,6 +282,7 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
     static const struct { const char *prefix; unsigned kind; } queries[] = {
         {"ADSTIMING?RESULT,", 1u}, {"ADSTIMING?GROUP,", 2u},
         {"ADSTIMING?RECORD,", 3u}, {"ADSTIMING?TIME,", 4u}, {"ADSTIMING?REG,", 5u},
+        {"ADSTIMING?TAIL,", 6u},
     };
     for (size_t i = 0u; i < sizeof(queries) / sizeof(queries[0]); ++i) {
         size_t length = strlen(queries[i].prefix);
@@ -290,7 +306,8 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
         kind == 2u ? sensorarrayAdsTimingProbeFormatGroup(&s_timingStorage->query, index, response, responseSize) :
         kind == 3u ? sensorarrayAdsTimingProbeFormatRecord(&s_timingStorage->query, index, response, responseSize) :
         kind == 4u ? sensorarrayAdsTimingProbeFormatGroupTiming(&s_timingStorage->query, index, response, responseSize) :
-                     sensorarrayAdsTimingProbeFormatRegisters(&s_timingStorage->query, index != 0u, response, responseSize);
+        kind == 5u ? sensorarrayAdsTimingProbeFormatRegisters(&s_timingStorage->query, index != 0u, response, responseSize) :
+                     sensorarrayAdsTimingProbeFormatTailRecord(&s_timingStorage->query, index, response, responseSize);
     portENTER_CRITICAL(&s_timingMux); s_timing.queryBusy = false; portEXIT_CRITICAL(&s_timingMux);
     return length ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }

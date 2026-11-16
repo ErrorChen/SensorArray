@@ -38,6 +38,21 @@ typedef struct {
 } sensorarrayAdsPresenceIo_t;
 static sensorarrayAdsPresenceIo_t s_adsPresenceIo;
 
+/* Only a fresh successful initialize plus this file's single add-device
+ * establishes the diagnostic capability. Already-initialized is not proof. */
+static spi_device_handle_t s_adsDedicatedSpiDevice;
+static bool sensorarrayAdsDedicatedSpiOwner(spi_device_handle_t device)
+{
+#if CONFIG_ADS126X_HELPER_CREATE_SPI || CONFIG_BOARD_ADS126X_CS_GPIO != -1
+    (void)device;
+    return false;
+#else
+    return device && device == s_adsDedicatedSpiDevice &&
+        !sensorarrayBringupAdsPresenceBusy() &&
+        !sensorarrayBringupAdsPresenceQuarantined();
+#endif
+}
+
 bool sensorarrayBringupAdsPresenceBusy(void)
 {
     return __atomic_load_n(&s_adsPresenceIo.busy, __ATOMIC_ACQUIRE) ||
@@ -319,7 +334,9 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
     int dmaChan = 0;
 #endif
 
+    s_adsDedicatedSpiDevice = NULL;
     esp_err_t err = spi_bus_initialize(CONFIG_BOARD_SPI_HOST, &busCfg, dmaChan);
+    bool freshlyOwnedBus = err == ESP_OK;
     if (err == ESP_ERR_INVALID_STATE) {
         err = ESP_OK;
     }
@@ -345,6 +362,7 @@ static esp_err_t sensorarrayInitSpi(spi_device_handle_t *outDevice)
     };
 
     err = spi_bus_add_device(CONFIG_BOARD_SPI_HOST, &devCfg, outDevice);
+    if (err == ESP_OK && freshlyOwnedBus) { s_adsDedicatedSpiDevice = *outDevice; }
     printf("ADS_SPI_TIMING,path=board,requestedClockHz=%d,mode=%u,dutyCyclePos=%u,cs=%d,candidate=%u,err=0x%x\n",
         devCfg.clock_speed_hz, devCfg.mode, devCfg.duty_cycle_pos, devCfg.spics_io_num,
         devCfg.duty_cycle_pos == 64u ? 1u : 0u, err);
@@ -793,6 +811,12 @@ esp_err_t sensorarrayBringupInitAds(sensorarrayState_t *state)
 
     ads126xAdcConfig_t cfg = {0};
     cfg.spiDevice = state->spiDevice;
+    cfg.tailBus = (ads126xAdcTailBus_t){
+        .host = CONFIG_BOARD_SPI_HOST,
+        .sclkGpio = CONFIG_BOARD_SPI_SCLK_GPIO,
+        .misoGpio = CONFIG_BOARD_SPI_MISO_GPIO,
+        .exclusiveOwner = sensorarrayAdsDedicatedSpiOwner,
+    };
     cfg.drdyGpio = sensorarrayToGpio(CONFIG_BOARD_ADS126X_DRDY_GPIO);
     cfg.resetGpio = sensorarrayToGpio(CONFIG_BOARD_ADS126X_RESET_GPIO);
 #if CONFIG_SENSORARRAY_ADS1262

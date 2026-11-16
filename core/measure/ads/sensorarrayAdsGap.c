@@ -3000,16 +3000,39 @@ esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
     sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
     uint32_t frameSequence, sensorarrayAdsTimingProbeResult_t *r)
 {
+    return sensorarrayAdsGapRunTimingProbeKind(state, registerCache, requestId,
+        frameSequence, SENSORARRAY_ADS_TIMING_PROBE_TIMING, r);
+}
+
+esp_err_t sensorarrayAdsGapRunTimingProbeKind(sensorarrayState_t *state,
+    sensorarrayAdsRegisterCache_t *registerCache, uint32_t requestId,
+    uint32_t frameSequence, sensorarrayAdsTimingProbeKind_t kind,
+    sensorarrayAdsTimingProbeResult_t *r)
+{
     if (!r) { return ESP_ERR_INVALID_ARG; }
     memset(r, 0, sizeof(*r));
+    r->kind = kind;
     r->requestId = requestId;
     r->frameSequence = frameSequence;
     r->startedUs = (uint64_t)esp_timer_get_time();
     r->deadlineUs = r->startedUs + SENSORARRAY_ADS_TIMING_BUDGET_US;
     r->reason = "admission";
+    if (kind != SENSORARRAY_ADS_TIMING_PROBE_TIMING && kind != SENSORARRAY_ADS_TIMING_PROBE_TAIL) {
+        r->firstError = r->terminalError = ESP_ERR_INVALID_ARG;
+        r->reason = "probe_kind";
+        r->completedUs = (uint64_t)esp_timer_get_time();
+        return r->firstError;
+    }
     if (!state || !registerCache || !state->adsReady) {
         r->firstError = r->terminalError = ESP_ERR_INVALID_STATE;
         r->reason = "ads_unavailable";
+        r->completedUs = (uint64_t)esp_timer_get_time();
+        return r->firstError;
+    }
+    if (kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL &&
+        !ads126xAdcTailDiagnosticAvailable(&state->ads)) {
+        r->firstError = r->terminalError = ESP_ERR_NOT_SUPPORTED;
+        r->reason = "tail_bus_unavailable";
         r->completedUs = (uint64_t)esp_timer_get_time();
         return r->firstError;
     }
@@ -3052,6 +3075,11 @@ esp_err_t sensorarrayAdsGapRunTimingProbe(sensorarrayState_t *state,
         gpio_get_level((gpio_num_t)CONFIG_SENSORARRAY_ADS_START_GPIO) != 0)) {
         err = ESP_ERR_NOT_SUPPORTED;
         r->reason = "requires_passive_profile";
+    }
+    if (err == ESP_OK && kind == SENSORARRAY_ADS_TIMING_PROBE_TAIL &&
+        (r->saved.interface & 0x08u) != 0u) {
+        err = ESP_ERR_NOT_SUPPORTED;
+        r->reason = "tail_timeout_enabled";
     }
     if (err == ESP_OK && (!ads->enableStatusByte || ads->crcMode != ADS126X_CRC_CRC8 ||
         ads->enableInternalRef || ads->mode0 != r->saved.mode0 ||

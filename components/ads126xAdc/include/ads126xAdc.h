@@ -86,8 +86,41 @@ typedef enum {
     ADS126X_CRC_CRC8 = 2,
 } ads126xCrcMode_t;
 
+/* 本轮新增: board-created exclusive bus proof for the diagnostic-only tail
+ * experiment. The callback must also reject a pending cold presence owner. */
+typedef struct {
+    int host;
+    gpio_num_t sclkGpio;
+    gpio_num_t misoGpio;
+    bool (*exclusiveOwner)(spi_device_handle_t device);
+} ads126xAdcTailBus_t;
+
+/* Physical observations, not a reconstructed continuous SPI wire capture.
+ * spi55[6] bit0 is explicitly zero/unknown. Only gpioBit supplies that bit. */
+typedef struct {
+    uint64_t startedUs;
+    uint32_t spiDoneUs;
+    uint32_t riseUs;
+    uint32_t sampleUs;
+    uint32_t fallUs;
+    uint32_t restoredUs;
+    uint32_t requestedHz;
+    uint32_t actualHz;
+    uint8_t spi55[7];
+    uint8_t gpioBit;
+    uint8_t assembledCrc;
+    uint8_t computedCrc;
+    bool attempted;
+    bool spiComplete;
+    bool gpioSampled;
+    bool frameComplete;
+    bool routeRestored;
+    bool crcKnown;
+} ads126xAdcTailEvidence_t;
+
 typedef struct {
     spi_device_handle_t spiDevice;
+    ads126xAdcTailBus_t tailBus;
     gpio_num_t drdyGpio;
     gpio_num_t resetGpio;
     ads126xDeviceType_t forcedType;
@@ -132,6 +165,7 @@ typedef struct {
 
 typedef struct {
     spi_device_handle_t spiDevice;
+    ads126xAdcTailBus_t tailBus;
     gpio_num_t drdyGpio;
     gpio_num_t resetGpio;
     ads126xDeviceType_t deviceType;
@@ -354,6 +388,13 @@ esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle,
 esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle,
     uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget,
     int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report);
+/* 本轮新增: diagnostic only; no retry, same freshness/CRC rules. Admission
+ * requires a board-proven dedicated S3 SPI3 bus and INTERFACE.TIMEOUT=0. */
+bool ads126xAdcTailDiagnosticAvailable(const ads126xAdcHandle_t *handle);
+esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle,
+    uint32_t startGeneration, uint32_t drdyTimeoutUs, int32_t *rawCode,
+    uint8_t *statusByte, ads126xAdcFreshReadReport_t *report,
+    ads126xAdcTailEvidence_t *tail);
 uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode);
 uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode);
 

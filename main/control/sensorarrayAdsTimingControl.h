@@ -7,6 +7,7 @@
  * Hardware is exclusively called by Core 1 at a complete-frame boundary. */
 typedef struct {
     uint32_t id;
+    sensorarrayAdsTimingProbeKind_t kind;
     sensorarrayConfigIdentity_t identity;
     uint64_t acceptedUs;
     uint64_t expiresUs;
@@ -25,6 +26,9 @@ void sensorarrayAdsTimingControlInit(uint64_t session, uint32_t bootId);
 esp_err_t sensorarrayAdsTimingControlStorageError(void);
 esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
     uint64_t nowUs, uint32_t *outId);
+/* 本轮新增: shared diagnostic lane with an immutable explicit probe kind. */
+esp_err_t sensorarrayAdsTimingControlPostKind(const sensorarrayConfigAuthority_t *authority,
+    sensorarrayAdsTimingProbeKind_t kind, uint64_t nowUs, uint32_t *outId);
 bool sensorarrayAdsTimingControlAck(uint32_t id, esp_err_t error);
 sensorarrayAdsTimingTake_t sensorarrayAdsTimingControlTake(uint32_t id,
     const sensorarrayConfigAuthority_t *authority, bool known, uint64_t nowUs,
