@@ -60,3 +60,12 @@ config SENSORARRAY_FDC_RUNTIME_PROFILE_FAST
     default SENSORARRAY_FDC_RUNTIME_PROFILE_FAST_RUNTIME
 
 endmenu
+
+# 本轮新增: IDF 5.5.5 hides this check behind debug/core-dump/GDB options.
+# Kconfig merges multiple definitions' dependencies with OR. Extend only the
+# S3 performance configuration so -O2 retains the existing task-return abort
+# and initial stack wrapper, without enabling a debugger or changing panic policy.
+config FREERTOS_TASK_FUNCTION_WRAPPER
+    bool
+    depends on IDF_TARGET_ESP32S3 && COMPILER_OPTIMIZATION_PERF
+    default y

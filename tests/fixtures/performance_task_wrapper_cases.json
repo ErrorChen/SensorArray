@@ -1,0 +1,14 @@
+{
+  "kind": "synthetic_Kconfig_truth_table_not_HIL",
+  "cases": [
+    {"s3": true, "perf": true, "debug": false, "extra": null},
+    {"s3": true, "perf": false, "debug": true, "extra": null},
+    {"s3": true, "perf": false, "debug": false, "extra": null},
+    {"s3": false, "perf": true, "debug": false, "extra": null},
+    {"s3": false, "perf": false, "debug": true, "extra": null},
+    {"s3": false, "perf": false, "debug": false, "extra": null},
+    {"s3": true, "perf": true, "debug": false, "extra": "ESP_COREDUMP_ENABLE"},
+    {"s3": true, "perf": true, "debug": false, "extra": "ESP_SYSTEM_PANIC_GDBSTUB"},
+    {"s3": true, "perf": true, "debug": false, "extra": "ESP_SYSTEM_GDBSTUB_RUNTIME"}
+  ]
+}

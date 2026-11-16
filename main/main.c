@@ -65,6 +65,11 @@
 #include "sensorarrayTypes.h"
 #include "esp_rtc_time.h"
 
+/* 本轮新增: -O2 must not silently remove IDF's task-return check. */
+#if CONFIG_IDF_TARGET_ESP32S3 && CONFIG_COMPILER_OPTIMIZATION_PERF && !CONFIG_FREERTOS_TASK_FUNCTION_WRAPPER
+#error "SensorArray requires the FreeRTOS task function wrapper on ESP32-S3"
+#endif
+
 #define printf sensorarrayAcqEventPrintf
 
 #ifndef CONFIG_SENSORARRAY_REQUIRE_DUAL_FDC_FOR_BOOT
