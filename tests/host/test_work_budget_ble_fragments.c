@@ -5,7 +5,7 @@
 #include "sensorarrayWorkBudget.c"
 #include "work_budget_frame.h"
 #define SENSORARRAY_BLE_ATTR_VALUE_MAX 512u
-#define SENSORARRAY_BLE_FRAGMENT_HEADER_BUFFER_SIZE 80u
+/* BLE_HEADER_CONSTANTS */
 #define SENSORARRAY_BLE_TINY_TAIL_MIN 8u
 #define SENSORARRAY_BLE_TX_FAST 0
 #define SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT 4u
@@ -84,6 +84,7 @@ static esp_err_t sensorarrayBleSendGattValue(const sensorarrayBleSendContext_t *
     if (disconnectAfterSends && sends >= disconnectAfterSends) { connected = false; }
     return ESP_OK;
 }
+/* sensorarrayBleDecimalChars */
 /* sensorarrayBleMaxPayloadSize */
 /* sensorarrayBlePlanFragments */
 /* sensorarrayBleSendFragment */
@@ -174,6 +175,6 @@ int main(void)
     assert(sendPayload() == ESP_OK); assertComplete();
     assert(delayCalls > 0u && maxFragmentsInBatch == 1u);
     assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints == fragments); /* Tick wrap keeps elapsed bound. */
-    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=5,hardware=NOT_RUN");
+    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=6,hardware=NOT_RUN");
     return 0;
 }

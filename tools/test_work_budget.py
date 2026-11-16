@@ -74,12 +74,21 @@ def main():
             ",".join(str(b) for b in frame_bytes) + "};\n")
         harness = (root / "tests/host/test_work_budget_ble_fragments.c").read_text()
         source = (root / "components/sensorarrayBle/sensorarrayBle.c").read_text()
-        batch_name = "SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT"
-        definition = re.search(rf"^#define {batch_name}\s+\d+u$", source, re.M)
-        assert definition, "missing production BLE fragment batch limit"
-        harness = re.sub(rf"^#define {batch_name}\s+\d+u$", definition.group(), harness, flags=re.M)
+        for name in ("SENSORARRAY_BLE_ATTR_VALUE_MAX", "SENSORARRAY_BLE_TINY_TAIL_MIN",
+                     "SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT"):
+            definition = re.search(rf"^#define {name}\s+\d+u$", source, re.M)
+            assert definition, f"missing production BLE constant: {name}"
+            harness, count = re.subn(rf"^#define {name}\s+\d+u$", definition.group(), harness, flags=re.M)
+            assert count == 1, f"missing fixture BLE constant: {name}"
+        # Include the production multiline fixed-length expression and its
+        # assertions, so the arithmetic planner cannot use a stale test copy.
+        header_constants = source[source.index("#define SENSORARRAY_BLE_U32_DECIMAL_MAX_CHARS"):
+                                  source.index("enum {\n    BLE_IDX_SERVICE")]
+        assert harness.count("/* BLE_HEADER_CONSTANTS */") == 1
+        harness = harness.replace("/* BLE_HEADER_CONSTANTS */", header_constants)
         for signature in (
             "static uint32_t sensorarrayBleCrc32(",
+            "static size_t sensorarrayBleDecimalChars(",
             "static size_t sensorarrayBleMaxPayloadSize(",
             "static bool sensorarrayBlePlanFragments(",
             "static esp_err_t sensorarrayBleSendFragment(",
