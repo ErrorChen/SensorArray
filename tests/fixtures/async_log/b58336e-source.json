@@ -1,0 +1,10 @@
+{
+  "origin": "actual historical production source; not synthetic",
+  "commit": "b58336eeaa136d0aca23e4c62ac11eb292d5a904",
+  "path": "main/output/sensorarrayAsyncLog.c",
+  "raw_sha256": "b644f12edb17fe79f67d2551ab6c04a98cf9f6e04d7c1c8344504f13799f9b8d",
+  "raw_bytes": 109534,
+  "gzip_sha256": "50cc2a60c08711f1ec353a10583695eb9d68c53c51bf9af20efe86dcc8e5de6c",
+  "gzip_bytes": 20176,
+  "gzip_mtime": 0
+}
