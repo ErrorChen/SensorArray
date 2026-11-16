@@ -10,6 +10,7 @@
 #include "sensorarrayRestartControl.h"
 #include "sensorarraySerialIo.h"
 #include "sensorarrayWorkBudget.h"
+#include "sensorarrayCpuOwner.h"
 #include "sensorarrayTransportGuaranteedText.h"
 #include "sensorarrayTransportPool.h"
 /* PRODUCTION_MODULES */
@@ -467,9 +468,41 @@ static void testQueryDispatch(void) {
         assert(!strcmp(early,normal));
     }
 }
+static void testCpuOwnerOffQuery(void) {
+    sensorarrayAppContext_t c; reset(&c); held=true;
+    char recoveryBefore[512],restartBefore[512],recoveryAfter[512],restartAfter[512];
+    assert(sensorarrayRecoveryControlFormat(recoveryBefore,sizeof(recoveryBefore))==ESP_OK);
+    assert(sensorarrayRestartControlFormat(restartBefore,sizeof(restartBefore))==ESP_OK);
+    char sessionField[40];
+    snprintf(sessionField,sizeof(sessionField),"session=%016llX",(unsigned long long)s_configSessionId);
+    for(unsigned role=0;role<7;role++) {
+        char command[16],early[512],normal[512],withoutContext[512],roleField[16];
+        snprintf(command,sizeof(command),"CPUOWNER?%u",role);
+        snprintf(roleField,sizeof(roleField),",role=%u,",role);
+        assert(sensorarrayTestEarlyQuery(command,early,sizeof(early),NULL)==ESP_OK);
+        assert(sensorarrayTestRuntimeQuery(command,normal,sizeof(normal),&c)==ESP_OK);
+        assert(sensorarrayTestRuntimeQuery(command,withoutContext,sizeof(withoutContext),NULL)==ESP_OK);
+        assert(!strcmp(early,normal)&&!strcmp(early,withoutContext));
+        assert(strstr(early,sessionField)&&strstr(early,roleField));
+        assert(strstr(early,"enabled=0,available=0,known=0,conflict=0,stale=1,reason=disabled"));
+        assert(strstr(early,"taskNumber=unknown,runUs=unknown,t0Us=unknown,t1Us=unknown"));
+        assert(strstr(early,"observedAtUs=unknown,ageUs=unknown"));
+        assert(strlen(early)<512&&early[strlen(early)-1]=='\n');
+    }
+    char reply[512];
+    assert(sensorarrayTestEarlyQuery("CPUOWNER?7",reply,sizeof(reply),NULL)==ESP_ERR_INVALID_ARG);
+    assert(!strcmp(reply,"ERR,cmd=CPUOWNER,reason=role_0_to_6\n"));
+    assert(sensorarrayTestEarlyQuery("CPUOWNER?0",reply,1,NULL)==ESP_ERR_INVALID_SIZE&&reply[0]=='\0');
+    assert(sensorarrayRecoveryControlFormat(recoveryAfter,sizeof(recoveryAfter))==ESP_OK);
+    assert(sensorarrayRestartControlFormat(restartAfter,sizeof(restartAfter))==ESP_OK);
+    assert(!strcmp(recoveryBefore,recoveryAfter)&&!strcmp(restartBefore,restartAfter));
+    assert(safeCalls==0&&modeStopCalls==0&&modeApplyCalls==0&&restarts==0&&ackCalls==0);
+    assert(serialQueueCalls==0&&lifecycleCalls==0&&!sensorarrayTransportGuaranteedTextIsReserved());
+    puts("RECOVERY_CPUOWNER_OFF_QUERY_PASS,roles=7,actual_module=1,early=1,normal=1,null_context=1,held=1,unavailable_not_zero=1,side_effects=0");
+}
 int main(void) {
-    testMain();testCache();testSerial();testScheduler();testRestart();testTerminalRouting();testQueryDispatch();
+    testMain();testCache();testSerial();testScheduler();testRestart();testTerminalRouting();testQueryDispatch();testCpuOwnerOffQuery();
     printf("RECOVERY_STATIC_STATE,bytes=%zu\n",sizeof(s_recover));
-    puts("RECOVERY_CONTROL_PASS,production_modules=6,main_functions=19,budget_stop=1,safe_failure=1,first_cleanup=1,rescue_error=1,lost_terminal_query=1,ack_fence=1,stale_identity=10,multitransport=3,wrap=1,future_mode=1,synthetic_hardware=1");
+    puts("RECOVERY_CONTROL_PASS,production_modules=7,main_functions=19,budget_stop=1,safe_failure=1,first_cleanup=1,rescue_error=1,lost_terminal_query=1,ack_fence=1,stale_identity=10,multitransport=3,wrap=1,future_mode=1,synthetic_hardware=1");
     return 0;
 }

@@ -5,7 +5,7 @@ Before/after and periodic read-only USB/USBQ/BLELINK/BLETX/SCHED observations
 share existing deadlines. DATA keeps flowing while CTRL queries run. Defaults:
 120 s configurations, 600 s stability, 5 s warmup, 10 s diagnostic interval.
 No USBBOOT, restart, NVS, input flush or automatic USB reconfiguration.
-Optional BLESVC/SCHEDWHY observations are capability-gated and run only in
+Optional BLESVC/SCHEDWHY/CPUOWNER observations are capability-gated and run only in
 the existing before/after CONFIG brackets, outside the measured capture.
 """
 from contextlib import contextmanager
@@ -36,6 +36,14 @@ OPTIONAL_REQUIRED = {
     'SCHEDWHY?': 'v order overlap init registered idleKnown idleGen ' + ' '.join(WORKERS),
 }
 OPTIONAL_CAPABILITIES = {'BLESVC?': 'ble_service_obs_v1', 'SCHEDWHY?': 'work_reason_v1'}
+CPU_OWNER_CAPABILITY = 'cpu_owner_v1'
+CPU_OWNER_QUERIES = tuple((f'CPUOWNER?{role}', 'CPUOWNER') for role in range(7))
+CPU_OWNER_FIELDS = ('v session role enabled available known conflict stale reason taskNumber runUs '
+                    't0Us t1Us observedAtUs ageUs sampleMinUs staleAfterUs scope isr sdk blocked')
+CPU_OWNER_REQUIRED = {command: CPU_OWNER_FIELDS for command, _ in CPU_OWNER_QUERIES}
+OBSERVATION_REQUIRED = {**OPTIONAL_REQUIRED, **CPU_OWNER_REQUIRED}
+OBSERVATION_CAPABILITIES = {**OPTIONAL_CAPABILITIES,
+                           **{command: CPU_OWNER_CAPABILITY for command in CPU_OWNER_REQUIRED}}
 DIAGNOSTICS = tuple((command, command[:-1]) for command in EXTRA_REQUIRED)
 CONFIG_CONSISTENCY = base.IDENTITY + ('state', 'mode', 'rows', 'profile', 'boundary', 'err')
 BASE_VALIDATOR = retry.validate_reply
@@ -55,7 +63,64 @@ def unsigned(value, command, field, bits=32):
     return int(value)
 
 
+def validate_cpu_owner(command, fields):
+    """Validate the actual CPUOWNER formatter, preserving unavailable history."""
+    def reject(field):
+        raise retry.InvalidQueryReply('reply_invalid_cpu_owner:' + command + ':' + field)
+    missing = [key for key in CPU_OWNER_FIELDS.split() if not fields.get(key)]
+    if missing:
+        raise retry.InvalidQueryReply('reply_missing_fields:' + command + ':' + ','.join(missing))
+    if fields['role'] != command[-1]: reject('role')
+    if not re.fullmatch(r'[0-9A-Fa-f]{16}', fields['session']): reject('session')
+    for key in ('enabled', 'available', 'known', 'conflict', 'stale'):
+        if fields[key] not in {'0', '1'}: reject(key)
+    literals = {'v': '1', 'sampleMinUs': '1000000', 'staleAfterUs': '3000000',
+                'scope': 'switch_out', 'isr': 'may_include', 'sdk': 'not_isolated', 'blocked': 'unknown'}
+    for key, expected in literals.items():
+        if fields[key] != expected: reject(key)
+    enabled, available, known, conflict, stale = (fields[k] == '1' for k in
+        ('enabled', 'available', 'known', 'conflict', 'stale'))
+    reason = fields['reason']
+    if reason not in {'disabled', 'not_observed', 'ok', 'writer_conflict', 'counter_regressed', 'clock_regressed'}:
+        reject('reason')
+    if not enabled:
+        if available or known or conflict or not stale or reason != 'disabled': reject('disabled_semantics')
+    elif reason == 'disabled' or conflict != (reason == 'writer_conflict'):
+        reject('enabled_conflict_semantics')
+    if available != (enabled and known and not conflict and reason == 'ok'):
+        reject('available_semantics')
+    sample_fields = ('taskNumber', 't0Us', 't1Us', 'observedAtUs')
+    if known:
+        if reason in {'disabled', 'not_observed'}: reject('known_reason')
+        values = {key: unsigned(fields[key], command, key, 32 if key == 'taskNumber' else 64)
+                  for key in sample_fields}
+        if values['t1Us'] < values['t0Us'] or values['observedAtUs'] != values['t1Us']:
+            reject('sample_time_order')
+    else:
+        if any(fields[key] != 'unknown' for key in sample_fields): reject('unknown_sample')
+        if available or not stale or reason in {'ok', 'counter_regressed'}: reject('unknown_semantics')
+    if available:
+        unsigned(fields['runUs'], command, 'runUs', 64)
+    elif fields['runUs'] != 'unknown': reject('unavailable_runUs')
+    if fields['ageUs'] == 'unknown':
+        if not stale or available: reject('unknown_age')
+    else:
+        if not known: reject('unknown_sample_age')
+        age = unsigned(fields['ageUs'], command, 'ageUs', 64)
+        if stale != (age >= int(fields['staleAfterUs'])): reject('stale_age')
+    return fields
+
+
+def cpu_owner_evidence(fields):
+    return {'usable_for_pairing': fields['available'] == '1' and fields['stale'] == '0',
+            'historical': fields['known'] == '1' and fields['stale'] == '1',
+            'reason': fields['reason'], 'current_cpu_utilization': 'NOT_DERIVED',
+            'interpretation': 'Unavailable is unknown, not zero. Stale retains historical values only.'}
+
+
 def validate_reply(command, fields, *, backend='otg_bulk_v1'):
+    if command in CPU_OWNER_REQUIRED:
+        return validate_cpu_owner(command, fields)
     if command == 'BUILD?':
         if any(not fields.get(key) for key in ('idf', 'target', 'project', 'proto', 'version', 'elfSha256')):
             raise retry.InvalidQueryReply('complete_BUILD_identity_required')
@@ -126,7 +191,7 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
     expected_transport = 'usb_bulk'
     expected_backend = 'otg_bulk_v1'
     required_capabilities = CAPABILITIES
-    query_requirements = {**EXTRA_REQUIRED, **OPTIONAL_REQUIRED, 'BUILD?': 'idf target project proto version elfSha256'}
+    query_requirements = {**EXTRA_REQUIRED, **OBSERVATION_REQUIRED, 'BUILD?': 'idf target project proto version elfSha256'}
     diagnostics = DIAGNOSTICS
     variant = VARIANT
     runner_source_file = __file__
@@ -141,6 +206,8 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
         self.bulk_capabilities_verified = False
         self.reported_capabilities = set()
         self.observation_reply_records = {}
+        self.cpu_owner_rx = {}
+        self.cpu_owner_session = None
         self.diagnostic_windows = []
         self.snapshot_attempts = []
         self.scheduler_observations = {}
@@ -154,23 +221,81 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                    periodic_seconds=self.diagnostic_interval_seconds, debug_CDC_scientific_evidence=False)
 
     def event(self, kind, **fields):
-        if kind == 'reply' and fields.get('command') in OPTIONAL_REQUIRED:
+        if kind in {'rx', 'ctrl_rx'}:
+            self.cpu_owner_rx[fields['channel']] = {
+                'reply_received_monotonic': time.monotonic(),
+                'reply_rx_chunk_offset': fields['offset'], 'reply_rx_chunk_length': fields['length'],
+                'reply_receipt_scope': 'host_recorded_rx_chunk_ending_line'}
+        if kind == 'reply' and fields.get('command') in OBSERVATION_REQUIRED:
             # Preserve the actual selected reply, never reconstruct it from
             # parsed fields. Exact terminators/bytes remain in the raw stream.
             line = fields['line']
             self.observation_reply_records[fields['command']] = {
                 'reply_line': str(line), 'reply_event_monotonic': time.monotonic(),
                 'reply_channel': getattr(line, 'channel', None)}
+            if fields['command'] in CPU_OWNER_REQUIRED:
+                self.observation_reply_records[fields['command']].update(getattr(line, 'cpu_owner_receipt', {}))
         super().event(kind, **fields)
+
+    def observe(self, line):
+        if line.startswith('CPUOWNER,'):
+            line.cpu_owner_receipt = dict(self.cpu_owner_rx.get(getattr(line, 'channel', None), {}))
+        super().observe(line)
+
+    def query_cpu_owner(self, command, phase_deadline):
+        # Frozen retry wrapper intentionally allows only trailing-? commands.
+        # These seven indexed reads use the original single-query collector
+        # with the same attempt/deadline policy, without broadening setters.
+        limit = min(phase_deadline, self.total_deadline)
+        baseline_faults, attempts, last_error = self.fault_events, 0, 'phase_deadline_expired'
+        for attempt in range(1, retry.MAX_QUERY_ATTEMPTS + 1):
+            if time.monotonic() >= limit: break
+            attempts = attempt
+            entry = {'command': command, 'phase': self.phase, 'attempt': attempt,
+                     'started_monotonic': time.monotonic(), 'phase_deadline': limit}
+            self.query_attempts.append(entry)
+            self.event('readonly_query_attempt', command=command, attempt=attempt, phase_deadline=limit)
+            try:
+                fields = super(retry.RetryBenchmarkCollector, self).query(command, 'CPUOWNER', limit)
+                validate_cpu_owner(command, fields)
+                sessions = [self.cpu_owner_session]
+                if self.expected_identity: sessions.append(self.expected_identity['session'])
+                if any(session and fields['session'].upper() != session.upper() for session in sessions):
+                    raise retry.InvalidQueryReply('reply_cpu_owner_session_mismatch:' + command)
+                if self.fault_events > baseline_faults:
+                    raise CaptureError('firmware_fault_during_readonly_query:' + command)
+                entry['outcome'] = 'complete_reply'
+                if attempt > 1: self.event('readonly_query_recovered', command=command, attempts=attempt)
+                return fields
+            except CaptureError as error:
+                last_error = str(error)
+                entry.update(outcome='failed', error=last_error)
+                retryable = (isinstance(error, retry.InvalidQueryReply) or last_error == 'reply_deadline_expired'
+                             or last_error.startswith('reply_timeout:') or 'reason=snapshot_busy' in last_error)
+                self.event('readonly_query_failure', command=command, attempt=attempt, error=last_error, retryable=retryable)
+                if not retryable or self.fault_events > baseline_faults: raise
+                if attempt == retry.MAX_QUERY_ATTEMPTS or time.monotonic() >= limit: break
+                gap_end = min(limit, time.monotonic() + retry.RETRY_GAP_SECONDS)
+                while time.monotonic() < gap_end:
+                    self.pump(gap_end); self.lines.clear()
+                if self.fault_events > baseline_faults:
+                    raise CaptureError('firmware_fault_during_readonly_query:' + command)
+            finally:
+                entry['finished_monotonic'] = time.monotonic()
+        raise CaptureError(f'readonly_query_failed:{command}:attempts={attempts}:{last_error}')
 
     def query(self, command, tag, phase_deadline):
         # Base preparation queries USB? before PROTO; both are read-only.
-        if command in OPTIONAL_REQUIRED and OPTIONAL_CAPABILITIES[command] not in self.reported_capabilities:
+        if command in OBSERVATION_REQUIRED and OBSERVATION_CAPABILITIES[command] not in self.reported_capabilities:
             raise CaptureError('optional_diagnostic_capability_not_verified:' + command)
-        if command in {**EXTRA_REQUIRED, **OPTIONAL_REQUIRED} and command != 'USB?' and not self.bulk_capabilities_verified:
+        if command in {**EXTRA_REQUIRED, **OBSERVATION_REQUIRED} and command != 'USB?' and not self.bulk_capabilities_verified:
             raise CaptureError('bulk_diagnostic_capabilities_not_verified')
         self.observation_reply_records.pop(command, None)
-        fields = super().query(command, tag, phase_deadline)
+        if command in CPU_OWNER_REQUIRED:
+            if tag != 'CPUOWNER': raise CaptureError('cpu_owner_reply_tag_required')
+            fields = self.query_cpu_owner(command, phase_deadline)
+        else:
+            fields = super().query(command, tag, phase_deadline)
         if command == 'PROTO?':
             caps = set(re.split(r'[/;,|\s]+', fields.get('caps', '')))
             missing = self.required_capabilities - caps
@@ -185,6 +310,7 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
         # evidence and their CTRL receipt timing remains in the same window.
         for attempt in range(2):
             opening = self.query('CONFIG?', 'CONFIG', deadline)
+            self.cpu_owner_session = opening['session']
             window = {'CONFIG?': {'fields': opening, 'monotonic': time.monotonic(), 't': time.monotonic() - self.started}}
             entry = {'name': name, 'attempt': attempt + 1, 'started_monotonic': time.monotonic(),
                      'deadline': min(deadline, self.total_deadline), 'queries': window}
@@ -199,6 +325,8 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                     for command, capability in OPTIONAL_CAPABILITIES.items():
                         if capability in self.reported_capabilities:
                             yield command, command[:-1]
+                    if CPU_OWNER_CAPABILITY in self.reported_capabilities:
+                        yield from CPU_OWNER_QUERIES
                 yield 'CONFIG?', 'CONFIG'
             try:
                 for command, tag in window_queries():
@@ -207,8 +335,10 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                     end = time.monotonic()
                     window['CONFIG?_closing' if command == 'CONFIG?' else command] = {
                         'fields': fields, 'started_monotonic': begin, 'monotonic': end, 't': end - self.started}
-                    if command in OPTIONAL_REQUIRED:
+                    if command in OBSERVATION_REQUIRED:
                         window[command].update(self.observation_reply_records[command])
+                    if command in CPU_OWNER_REQUIRED:
+                        window[command]['cpu_owner_evidence'] = cpu_owner_evidence(fields)
                 closing = window['CONFIG?_closing']['fields']
                 if any(opening.get(key) != closing.get(key) for key in CONFIG_CONSISTENCY):
                     entry['outcome'] = 'configuration_changed'
@@ -230,6 +360,7 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                 entry['error'] = str(error)
                 raise
             finally:
+                self.cpu_owner_session = None
                 entry['finished_monotonic'] = time.monotonic()
         raise CaptureError('configuration_changed_during_bulk_diagnostics')
 
@@ -269,6 +400,12 @@ class BulkBenchmarkCollector(retry.RetryBenchmarkCollector):
                           'capability': capability, 'advertised': capability in self.reported_capabilities}
                           for command, capability in OPTIONAL_CAPABILITIES.items()},
                       optional_service_window_scope='before_after_CONFIG_brackets_only_not_capture',
+                      optional_cpu_owner_diagnostics={
+                          'capability': CPU_OWNER_CAPABILITY, 'advertised': CPU_OWNER_CAPABILITY in self.reported_capabilities,
+                          'queries': list(CPU_OWNER_REQUIRED), 'roles': dict(enumerate(WORKERS)),
+                          'window_scope': 'before_after_CONFIG_brackets_only_not_capture',
+                          'delta_rules': 'Pair only same session and taskNumber with available=1,known=1,conflict=0,stale=0 at both samples; require non-regressing runUs and ordered non-overlapping t0Us/t1Us brackets. Never compare across boot, map unknown to zero, or infer current CPU from stale samples.',
+                          'counter_scope': 'switch_out accumulator; current running slice omitted, ISR may be included, SDK not isolated, blocked time unknown; collector does not derive CPU percentages'},
                       control_queries_are_not_measurement_accuracy=True,
                       USBBOOT_requested=False, reconnect_requested=False)
         return result

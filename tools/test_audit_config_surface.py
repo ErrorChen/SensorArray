@@ -101,6 +101,77 @@ CONFIG_SENSORARRAY_CONTINUED_COMMENT
         self.assertEqual(code, 1, output)
         self.assertIn("usedButNotDefined: 2", output)
 
+    def test_managed_examples_and_local_macros_are_not_project_uses(self) -> None:
+        dependency = self.root / "managed_components/vendor__usb"
+        example = dependency / "examples/other_board/main.c"
+        example.parent.mkdir(parents=True)
+        example.write_text(
+            "enum { CONFIG_LOCAL_COMPLETE, CONFIG_LOCAL_TOTAL_LEN = 9 };\n"
+            "#ifndef CONFIG_EXAMPLE_ONLY\n#define CONFIG_EXAMPLE_ONLY 1\n#endif\n"
+            "#if CONFIG_SENSORARRAY_ENABLE_BLE\n#endif\n"
+        )
+        (dependency / "CMakeLists.txt").write_text("if(CONFIG_OTHER_BOARD_ONLY)\nendif()\n")
+        self.assertNotIn(example, audit.iter_source_files())
+        self.assertEqual(set(audit.collect_used()), {"SENSORARRAY_KNOWN", "SPIRAM", "SDK_MENU"})
+        self.assertEqual(audit.collect_fallbacks(), {})
+        code, output = self.run_audit()
+        self.assertEqual(code, 0, output)
+        self.assertIn("usedButNotDefined: 0", output)
+        self.assertIn("legacyConfigStillUsedInCode: 0", output)
+
+    def test_managed_local_macro_does_not_define_project_kconfig(self) -> None:
+        dependency = self.root / "managed_components/vendor__usb/defs.h"
+        dependency.parent.mkdir(parents=True)
+        dependency.write_text("#define CONFIG_LOCAL_TOTAL_LEN 9\n")
+        self.source.write_text("#if CONFIG_LOCAL_TOTAL_LEN\n#endif\n")
+        code, output = self.run_audit()
+        self.assertEqual(code, 1, output)
+        self.assertIn("usedButNotDefined: 1\n  LOCAL_TOTAL_LEN", output)
+        self.assertEqual(audit.collect_used()["LOCAL_TOTAL_LEN"], ["main/main.c:1"])
+
+    def test_owned_component_undefined_config_still_fails(self) -> None:
+        component = self.root / "components/owned/driver.c"
+        component.parent.mkdir(parents=True)
+        component.write_text("#ifndef CONFIG_SENSORARRAY_COMPONENT_MISSING\n#endif\n")
+        code, output = self.run_audit()
+        self.assertEqual(code, 1, output)
+        self.assertIn("usedButNotDefined: 1\n  SENSORARRAY_COMPONENT_MISSING", output)
+        self.assertEqual(audit.collect_fallbacks()["SENSORARRAY_COMPONENT_MISSING"],
+                         ["components/owned/driver.c:1"])
+
+    def test_only_top_level_managed_components_is_excluded(self) -> None:
+        for relative in ("components/managed_components/owned.c",
+                         "managed_components_local/owned.c"):
+            with self.subTest(path=relative):
+                source = self.root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text("#if CONFIG_SENSORARRAY_OWNED_MISSING\n#endif\n")
+                try:
+                    self.assertIn(source, audit.iter_source_files())
+                    code, output = self.run_audit()
+                    self.assertEqual(code, 1, output)
+                    self.assertIn("usedButNotDefined: 1\n  SENSORARRAY_OWNED_MISSING", output)
+                finally:
+                    source.unlink()
+
+    def test_managed_kconfig_definitions_remain_available_to_project(self) -> None:
+        dependency = self.root / "managed_components/vendor__usb/Kconfig"
+        dependency.parent.mkdir(parents=True)
+        dependency.write_text("config VENDOR_USB_KNOWN\n    bool\n")
+        config_files = audit.iter_kconfig_files()
+        self.assertIn(dependency, config_files)
+        with patch.object(audit, "SCAN_FILES", config_files):
+            self.source.write_text("#if CONFIG_VENDOR_USB_KNOWN\n#endif\n")
+            self.assertEqual(audit.collect_defined()["VENDOR_USB_KNOWN"],
+                             ["managed_components/vendor__usb/Kconfig:1"])
+            code, output = self.run_audit()
+            self.assertEqual(code, 0, output)
+            self.assertIn("usedButNotDefined: 0", output)
+            self.source.write_text("#if CONFIG_VENDOR_USB_UNKNOWN\n#endif\n")
+            code, output = self.run_audit()
+            self.assertEqual(code, 1, output)
+            self.assertIn("usedButNotDefined: 1\n  VENDOR_USB_UNKNOWN", output)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

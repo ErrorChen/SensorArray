@@ -3,13 +3,16 @@
 from collections import deque
 import contextlib
 from dataclasses import replace
+import errno
 import io
 import json
 import os
 from pathlib import Path
 import pty
+import select
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -203,6 +206,66 @@ class CdcTests(unittest.TestCase):
             self.assertNotIn('ctrl_raw_file', report)
             self.assertIn('shared_diagnostic_source_sha256', report)
             self.assertFalse(any(c.startswith(('USBSTREAM=', 'USBBOOT', 'RESTART', 'FPS=')) for c in device.commands))
+
+    def test_CDC_cpu_owner_real_PTY_full_capture_and_unknown_role(self):
+        # The firmware is synthetic, but every command/reply traverses the
+        # actual POSIX reader and shared CDC collector through a real PTY.
+        unknown = {k: 'unknown' for k in ('taskNumber', 'runUs', 't0Us', 't1Us', 'observedAtUs', 'ageUs')}
+        device = CdcFirmware(optional_caps={stage.shared.CPU_OWNER_CAPABILITY}, truncate='CPUOWNER?2',
+                             cpu_values={6: dict(unknown, available='0', known='0', stale='1', reason='not_observed')})
+        master, slave = pty.openpty(); path = os.ttyname(slave)
+        port = UsbCdcPort(SERIAL, metadata_finder=lambda *a, **k: self.metadata(path))
+        os.close(slave); os.set_blocking(master, False)
+        stopped = threading.Event(); errors = []
+        def serve():
+            pending = bytearray()
+            try:
+                while not stopped.is_set():
+                    readable, _, _ = select.select([master], [], [], .001)
+                    if readable:
+                        try: command = os.read(master, 4096)
+                        except OSError as error:
+                            if error.errno == errno.EIO: break  # Collector closed the PTY after cleanup.
+                            raise
+                        if command: device.write_some(command, time.monotonic()+.1)
+                    received = device.read_some(65536, time.monotonic()+.01)
+                    if received: pending.extend(received[1])
+                    if len(pending) > 262144: raise AssertionError('synthetic PTY backlog exceeded bound')
+                    if pending and select.select([], [master], [], 0)[1]:
+                        written = os.write(master, pending)
+                        del pending[:written]
+            except BaseException as error: errors.append(error)
+        thread = threading.Thread(target=serve, daemon=True); thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+                options = BenchmarkOptions(None, Path(directory), 'cdc-cpu', transport='usb_cdc', usb_serial=SERIAL,
+                                           capture_seconds=.05, warmup_seconds=.01, prepare_seconds=2,
+                                           cleanup_seconds=1, command_timeout=.08)
+                index = stage.run_benchmark(options, port_factory=lambda _: port)
+                report = json.loads((Path(directory) / 'cdc-cpu.summary.json').read_text())
+                self.assertEqual(index['status'], 'COMPLETE', report.get('error'))
+                self.assertGreaterEqual(report['capture_seconds'], .05)
+                self.assertGreater(report['capture_crc_valid_frames'], 0)
+                self.assertEqual(report['safe_cap_recovery'], 'CAP8_QUERY_VERIFIED')
+                raw = Path(report['raw_file']).read_bytes()
+                for side in ('before', 'after'):
+                    snap = report['snapshots'][side]
+                    for command, _ in stage.shared.CPU_OWNER_QUERIES:
+                        query = snap[command]
+                        self.assertEqual(query['reply_channel'], 'data')
+                        self.assertEqual(query['fields']['role'], command[-1])
+                        self.assertIn((query['reply_line']+'\n').encode(), raw)
+                        self.assertLessEqual(query['reply_received_monotonic'], query['reply_event_monotonic'])
+                        self.assertLessEqual(query['monotonic'], snap['CONFIG?_closing']['started_monotonic'])
+                    self.assertEqual(snap['CPUOWNER?6']['fields']['runUs'], 'unknown')
+                    self.assertFalse(snap['CPUOWNER?6']['cpu_owner_evidence']['usable_for_pairing'])
+                self.assertEqual(device.query_counts['CPUOWNER?2'], 3)
+                self.assertFalse(report['modem_bit_ioctl'])
+                self.assertFalse(any(c.startswith(('USBSTREAM=', 'USBBOOT', 'RESTART', 'FPS=')) for c in device.commands))
+        finally:
+            stopped.set(); thread.join(1); port.close(); os.close(master)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
 
     def test_CDC_stage_CLI_refuses_legacy_or_bulk_before_open(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):

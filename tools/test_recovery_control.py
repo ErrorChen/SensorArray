@@ -44,7 +44,8 @@ harness = harness.replace('/* PRODUCTION_FUNCTIONS */', '\n\n'.join(functions.va
 includes = '\n'.join('#include "' + str(ROOT / path) + '"' for path in [
     'core/measure/sensorarrayMeasurementMode.c', 'core/measure/sensorarrayRowModeProfile.c',
     'core/measure/sensorarrayConfigIdentity.c', 'core/transport/sensorarrayTransportGuaranteedText.c',
-    'main/control/sensorarrayRecoveryControl.c', 'main/control/sensorarrayRestartControl.c'])
+    'main/control/sensorarrayRecoveryControl.c', 'main/control/sensorarrayRestartControl.c',
+    'components/sensorarrayWorkBudget/sensorarrayCpuOwner.c'])
 harness = harness.replace('/* PRODUCTION_MODULES */', includes)
 transport_source = (ROOT / 'core/transport/sensorarrayTransport.c').read_text()
 transport_functions = '\n\n'.join(function(transport_source, name) for name in [
@@ -55,6 +56,9 @@ harness = harness.replace('/* PRODUCTION_TRANSPORT */', transport_functions)
 
 with tempfile.TemporaryDirectory(prefix='sensorarray-recovery-control-') as temporary:
     tmp = Path(temporary); fake = tmp / 'fake'; (fake / 'freertos').mkdir(parents=True)
+    # Link the real default-OFF diagnostic implementation. This isolated
+    # harness must not inherit the target's optional diagnostic-image config.
+    (fake / 'sdkconfig.h').write_text('#pragma once\n#define CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS 0\n')
     (fake / 'freertos/FreeRTOS.h').write_text('''#pragma once
 #include <pthread.h>
 #include <stdint.h>

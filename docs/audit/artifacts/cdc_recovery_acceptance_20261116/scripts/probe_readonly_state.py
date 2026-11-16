@@ -21,9 +21,12 @@ with ExitStack() as stack:
   for command in queries:
    item={'command':command,'monotonic':time.monotonic()};result['attempts'].append(item)
    try:
-    item['fields']=collector.query(command,command[:-1],deadline)
+    item['fields']=collector.query(command,'CPUOWNER' if command.startswith('CPUOWNER?') else command[:-1],deadline)
     if command=='PROTO?' and 'adc_finalbit_v1' in str(item['fields'].get('caps','')).split('/'):
      queries.append('SPISOURCE?')
+    if command=='PROTO?' and 'cpu_owner_v1' in str(item['fields'].get('caps','')).split('/'):
+     queries.extend('CPUOWNER?'+str(role) for role in range(7))
+     queries.append('CONFIG?')
    except Exception as error:item['error']=str(error)
   result['status']='READONLY_PROBE_RECORDED'
  except Exception as error:result.update(status='ERROR',error=str(error))

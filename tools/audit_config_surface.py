@@ -72,10 +72,15 @@ def is_generated_build_path(path: Path) -> bool:
     return top_level == "build" or top_level.startswith(("build_", "build-"))
 
 
-SCAN_FILES = [
-    path for path in sorted(ROOT.rglob("Kconfig*"))
-    if path.is_file() and not is_generated_build_path(path) and ".git" not in path.parts
-]
+def iter_kconfig_files() -> list[Path]:
+    """Keep managed dependency declarations available to project references."""
+    return [
+        path for path in sorted(ROOT.rglob("Kconfig*"))
+        if path.is_file() and not is_generated_build_path(path) and ".git" not in path.parts
+    ]
+
+
+SCAN_FILES = iter_kconfig_files()
 SCAN_FILES.extend([
     ROOT / "sdkconfig.defaults",
     ROOT / "sdkconfig.defaults.esp32s3",
@@ -97,7 +102,13 @@ def iter_source_files() -> list[Path]:
         if is_generated_build_path(path):
             continue
         rp = rel(path)
-        if rp.startswith(("build/", ".git/", ".venv/", "docs/archive/", "example/")):
+        # IDF-managed downloads contain unbuilt examples and ordinary C
+        # identifiers such as CONFIG_TOTAL_LEN / CONFIG_COMPLETE. Their code
+        # is outside this project's usage audit, just like IDF source itself.
+        # Exclude only this root directory, not owned components or symbol
+        # prefixes; iter_kconfig_files still supplies dependency declarations.
+        if rp.startswith(("build/", ".git/", ".venv/", "docs/archive/", "example/",
+                          "managed_components/")):
             continue
         files.append(path)
     return files
@@ -234,6 +245,7 @@ def main() -> int:
                 legacy_hits.append(f"CONFIG_{name} {where}")
 
     print(f"sdkConfigSource: {sdk_root if sdk_root else 'unavailable (SDK compatibility exceptions)'}")
+    print("sourceUsageScope: project sources; managed_components source uses excluded, Kconfig declarations retained")
     print("configFilesSummary:")
     for path in SCAN_FILES:
         if path.exists():
