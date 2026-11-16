@@ -189,7 +189,7 @@ static esp_err_t esp_ble_gap_read_phy(esp_bd_addr_t peer)
 static esp_err_t esp_ble_gap_update_conn_params(esp_ble_conn_update_params_t *params)
 {
     assert(!lockDepth && !memcmp(params->bda, s_ble.remote, 6u));
-    assert(params->min_int == 6u && params->max_int == 12u && params->latency == 0u && params->timeout == 400u);
+    assert(params->min_int == 6u && params->max_int == 6u && params->latency == 0u && params->timeout == 400u);
     connRequests++; return connReturn;
 }
 static esp_err_t esp_ble_gap_set_pkt_data_len(esp_bd_addr_t peer, uint16_t length)
@@ -331,12 +331,16 @@ static void testNegotiation(void)
     assert(sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT, &event));
     assert(s_ble.stats.txPhy == 2u && s_ble.link.staleLinkEvents == 1u);
     memset(&event, 0, sizeof(event)); memset(event.update_conn_params.bda, 0x5a, 6u);
-    event.update_conn_params.conn_int = 6u; event.update_conn_params.timeout = 400u;
+    event.update_conn_params.conn_int = 12u; event.update_conn_params.timeout = 400u;
     assert(sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT, &event));
-    assert(s_ble.link.connParamsKnown && s_ble.link.connIntervalUnits == 6u && s_ble.link.supervisionTimeoutUnits == 400u);
-    event.update_conn_params.status = 0x28; event.update_conn_params.conn_int = 12u;
+    assert(s_ble.link.connParamsKnown && s_ble.link.connIntervalUnits == 12u && s_ble.link.supervisionTimeoutUnits == 400u);
+    /* Requesting 6/6 never stamps that value over the central's actual 12. */
+    event.update_conn_params.status = 0x28; event.update_conn_params.conn_int = 6u;
     sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT, &event);
-    assert(s_ble.link.connUpdateStatus == 0x28u && s_ble.link.connIntervalUnits == 6u);
+    assert(s_ble.link.connUpdateStatus == 0x28u && s_ble.link.connIntervalUnits == 12u);
+    event.update_conn_params.status = ESP_BT_STATUS_SUCCESS;
+    sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT, &event);
+    assert(s_ble.link.connParamsKnown && s_ble.link.connIntervalUnits == 6u);
     memset(&event, 0, sizeof(event)); event.pkt_data_length_cmpl.params.tx_len = 251u;
     event.pkt_data_length_cmpl.params.rx_len = 120u;
     assert(sensorarrayBleObserveLinkEvent(ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT, &event));

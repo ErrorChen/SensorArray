@@ -4,7 +4,10 @@
 The FreeRTOS/Bluedroid boundary is synthetic; this is not an RF/HIL test.
 """
 from pathlib import Path
+import hashlib
+import json
 import os
+import re
 import subprocess
 import tempfile
 from test_main_config_commit import function
@@ -93,6 +96,44 @@ typedef int esp_err_t;
         # threads under the sandbox ptrace; retain ASan/UBSan bounds checking.
         environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
         subprocess.run([str(executable)], check=True, timeout=15, env=environment)
+        # Exercise the actual installed SDK decision path as well as our GAP
+        # observer. A successful request can be a15ms no-op in this SDK.
+        idf = Path(os.environ['IDF_PATH']) if os.environ.get('IDF_PATH') else None
+        description = root / 'build/project_description.json'
+        if idf is None and description.exists():
+            idf = Path(json.loads(description.read_text())['idf_path'])
+        if idf is None:
+            raise RuntimeError('actual ESP-IDF tree required for connection-request regression')
+        sdk_path = idf / 'components/bt/host/bluedroid/stack/l2cap/l2c_ble.c'
+        sdk = sdk_path.read_text()
+        header = (idf / 'components/bt/host/bluedroid/stack/l2cap/include/l2c_int.h').read_text()
+        btm = (idf / 'components/bt/host/bluedroid/stack/include/stack/btm_ble_api.h').read_text()
+        constants = []
+        for macro in ('L2C_BLE_CONN_UPDATE_DISABLE', 'L2C_BLE_NEW_CONN_PARAM', 'L2C_BLE_UPDATE_PENDING',
+                      'L2C_BLE_NOT_DEFAULT_PARAM', 'L2C_BLE_UPDATE_PARAM_FULL'):
+            constants.append(re.search(r'^#define\s+' + macro + r'\s+[^\n]+', header, re.M).group())
+        for macro in ('BTM_BLE_CONN_INT_MIN', 'BTM_BLE_CONN_INT_MAX_DEF',
+                      'BTM_BLE_CONN_SLAVE_LATENCY_DEF', 'BTM_BLE_CONN_TIMEOUT_DEF'):
+            constants.append(re.search(r'^#define\s+' + macro + r'\s+[^\n]+', btm, re.M).group())
+        for suffix, field in (('MIN', 'min_int'), ('MAX', 'max_int')):
+            value = re.search(r'conn\.' + field + r'\s*=\s*(0x[0-9A-Fa-f]+|\d+)\s*;', source).group(1)
+            constants.append(f'#define CURRENT_REQUEST_{suffix} {value}u')
+        sdk_harness = (root / 'tests/host/test_ble_sdk_connection_request.c').read_text()
+        sdk_harness = sdk_harness.replace('/* PRODUCTION_CONSTANTS */', '\n'.join(constants))
+        # The first occurrence of start_conn_update is a prototype; the
+        # extractor searches the implementation signature including its body.
+        start = sdk.index('static BOOLEAN l2cble_start_conn_update (tL2C_LCB *p_lcb)\n{')
+        sdk_harness = sdk_harness.replace('/* PRODUCTION_FUNCTIONS */',
+            function(sdk[start:], 'static BOOLEAN l2cble_start_conn_update (') + '\n' +
+            function(sdk, 'BOOLEAN L2CA_UpdateBleConnParams ('))
+        generated = temp / 'sdk_connection.c'; generated.write_text(sdk_harness)
+        executable = temp / 'sdk_connection'
+        subprocess.run([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror', '-g',
+                        '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
+                        str(generated), '-o', str(executable)], check=True)
+        subprocess.run([str(executable)], check=True, timeout=10, env=environment)
+        print('BLE_SDK_CONNECTION_SOURCE,path=' + str(sdk_path) + ',sha256=' +
+              hashlib.sha256(sdk_path.read_bytes()).hexdigest())
     print(f"BLE_PRIORITY_SOURCE,production_functions={len(signatures)},hardware=NOT_RUN")
     return 0
 

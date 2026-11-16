@@ -1619,8 +1619,8 @@ static void sensorarrayBleRequestLinkParameters(void)
     esp_err_t readError = esp_ble_gap_read_phy(remote);
     esp_ble_conn_update_params_t conn = {0};
     memcpy(conn.bda, remote, sizeof(conn.bda));
-    conn.min_int = 0x06; /* 7.5 ms requested minimum, central remains authority. */
-    conn.max_int = 0x0C; /* 15 ms requested maximum. */
+    conn.min_int = 0x06; /* Request 7.5 ms; only the actual callback confirms it. */
+    conn.max_int = 0x06; /* A 15 ms maximum can no-op when already at 15 ms. */
     conn.latency = 0u;
     conn.timeout = 400u; /* 4 s supervision timeout. */
     esp_err_t connError = esp_ble_gap_update_conn_params(&conn);
