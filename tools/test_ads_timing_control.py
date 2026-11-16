@@ -18,6 +18,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     source = (ROOT / "main/main.c").read_text()
+    control = (ROOT / "main/control/sensorarrayAdsTimingControl.c").read_text()
+    assert "static sensorarrayAdsTimingProbeResult_t " not in control
+    assert control.count("heap_caps_calloc(") == 1
+    assert "heap_caps_free(" not in control
+    assert "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT" in control
+    assert "MALLOC_CAP_INTERNAL" not in control
     boundary = function(source, "static void sensorarrayRunAdsTimingCommand(")
     runtime = function(source, "static esp_err_t sensorarrayRuntimeQueryCommand(")
     command = function(runtime, '    if (strncmp(command, "ADSCHK=TIMING", 13u) == 0)')
@@ -45,6 +51,14 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="sensorarray-ads-timing-control-") as directory:
         tmp = Path(directory); fake = tmp / "fake"; fake.mkdir()
         writeFakeHeaders(fake)
+        (fake / "sdkconfig.h").write_text("#pragma once\n#define CONFIG_SPIRAM 1\n")
+        (fake / "esp_heap_caps.h").write_text("""#pragma once
+#include <stddef.h>
+#include <stdint.h>
+#define MALLOC_CAP_SPIRAM 0x400u
+#define MALLOC_CAP_8BIT 4u
+void *heap_caps_calloc(size_t count, size_t size, uint32_t caps);
+""")
         freertos = fake / "freertos/FreeRTOS.h"
         f = freertos.read_text(); start = f.index("typedef struct { int locked; }")
         f = f[:start] + """#include <pthread.h>

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "sdkconfig.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "sensorarrayCommandMailbox.h"
 #include "sensorarrayTransportGuaranteedText.h"
@@ -30,20 +32,55 @@ static struct {
     bool acknowledged;
     bool running;
     bool queryBusy;
+    bool initStarted;
+    bool storageKnown;
+    bool storageReady;
+    esp_err_t storageError;
+    uint32_t storageBytes;
     sensorarrayAdsTimingRequest_t current;
     sensorarrayAdsTimingLast_t last;
 } s_timing;
-/* Fixed storage: no multi-kilobyte result on acquisition/control task stacks. */
-static sensorarrayAdsTimingProbeResult_t s_timingWork;
-static sensorarrayAdsTimingProbeResult_t s_timingResult;
-static sensorarrayAdsTimingProbeResult_t s_timingQuery;
+/* CPU-only diagnostic storage must not consume the internal heap needed for
+ * acquisition stacks/DMA. One boot-time PSRAM allocation, no internal fallback
+ * and no free/reuse while a worker or query can still hold a reference. */
+typedef struct {
+    sensorarrayAdsTimingProbeResult_t work;
+    sensorarrayAdsTimingProbeResult_t result;
+    sensorarrayAdsTimingProbeResult_t query;
+} sensorarrayAdsTimingStorage_t;
+static sensorarrayAdsTimingStorage_t *s_timingStorage;
 
 void sensorarrayAdsTimingControlInit(uint64_t session, uint32_t bootId)
 {
     portENTER_CRITICAL(&s_timingMux);
-    memset(&s_timing, 0, sizeof(s_timing));
+    if (s_timing.initStarted) { portEXIT_CRITICAL(&s_timingMux); return; }
+    s_timing.initStarted = true;
     s_timing.session = session; s_timing.bootId = bootId;
+    s_timing.storageError = ESP_ERR_INVALID_STATE;
     portEXIT_CRITICAL(&s_timingMux);
+    /* Allocation never occurs in a critical section or hardware transaction. */
+    sensorarrayAdsTimingStorage_t *storage = NULL;
+    esp_err_t error = ESP_ERR_NOT_SUPPORTED;
+#if CONFIG_SPIRAM
+    storage = heap_caps_calloc(1u, sizeof(*storage), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    error = storage ? ESP_OK : ESP_ERR_NO_MEM;
+#endif
+    portENTER_CRITICAL(&s_timingMux);
+    s_timingStorage = storage;
+    s_timing.storageReady = storage != NULL;
+    s_timing.storageBytes = storage ? (uint32_t)sizeof(*storage) : 0u;
+    s_timing.storageError = error;
+    s_timing.storageKnown = true;
+    portEXIT_CRITICAL(&s_timingMux);
+}
+
+esp_err_t sensorarrayAdsTimingControlStorageError(void)
+{
+    portENTER_CRITICAL(&s_timingMux);
+    esp_err_t error = s_timing.storageReady ? ESP_OK :
+        (s_timing.storageKnown ? s_timing.storageError : ESP_ERR_INVALID_STATE);
+    portEXIT_CRITICAL(&s_timingMux);
+    return error;
 }
 
 esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
@@ -54,7 +91,10 @@ esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *au
     bool busy = s_timing.busy;
     bool bootMatches = authority->identity.sessionId == s_timing.session &&
         authority->identity.bootId == s_timing.bootId;
+    bool storageReady = s_timing.storageReady;
+    esp_err_t storageError = s_timing.storageKnown ? s_timing.storageError : ESP_ERR_INVALID_STATE;
     portEXIT_CRITICAL(&s_timingMux);
+    if (!storageReady) { return storageError; }
     if (busy || !bootMatches) { return ESP_ERR_INVALID_STATE; }
     uint32_t id = 0u;
     esp_err_t error = sensorarrayCommandMailboxPostAdsTiming(SENSORARRAY_ADS_TIMING_SAMPLES, &id);
@@ -106,7 +146,7 @@ sensorarrayAdsTimingTake_t sensorarrayAdsTimingControlTake(uint32_t id,
 {
     if (!outRequest || (known && !authority)) { return SENSORARRAY_TIMING_TAKE_NONE; }
     portENTER_CRITICAL(&s_timingMux);
-    if (!s_timing.busy || !s_timing.acknowledged || s_timing.running || s_timing.current.id != id) {
+    if (!s_timing.storageReady || !s_timing.busy || !s_timing.acknowledged || s_timing.running || s_timing.current.id != id) {
         portEXIT_CRITICAL(&s_timingMux); return SENSORARRAY_TIMING_TAKE_NONE;
     }
     *outRequest = s_timing.current; s_timing.running = true;
@@ -120,12 +160,12 @@ sensorarrayAdsTimingTake_t sensorarrayAdsTimingControlTake(uint32_t id,
         a->profileGeneration != b->profileGeneration || a->profileRequestId != b->profileRequestId) {
         return SENSORARRAY_TIMING_TAKE_STALE;
     }
-    memset(&s_timingWork, 0, sizeof(s_timingWork));
+    memset(&s_timingStorage->work, 0, sizeof(s_timingStorage->work));
     return SENSORARRAY_TIMING_TAKE_READY;
 }
 
 sensorarrayAdsTimingProbeResult_t *sensorarrayAdsTimingControlWorkResult(void)
-{ return &s_timingWork; }
+{ return s_timingStorage ? &s_timingStorage->work : NULL; }
 
 esp_err_t sensorarrayAdsTimingControlComplete(uint32_t id, const char *outcome,
     const char *reason, esp_err_t originalError, esp_err_t cleanupError,
@@ -142,11 +182,12 @@ esp_err_t sensorarrayAdsTimingControlComplete(uint32_t id, const char *outcome,
     memcpy(last.outcome, outcome, strlen(outcome) + 1u);
     memcpy(last.reason, reason, strlen(reason) + 1u);
     portENTER_CRITICAL(&s_timingMux);
-    if (!s_timing.busy || s_timing.current.id != id || !s_timing.acknowledged) {
+    if (!s_timing.busy || s_timing.current.id != id || !s_timing.acknowledged ||
+        (keepResult && !s_timing.storageReady)) {
         portEXIT_CRITICAL(&s_timingMux); return ESP_ERR_INVALID_STATE;
     }
     last.request = s_timing.current;
-    if (keepResult) { s_timingResult = s_timingWork; }
+    if (keepResult) { s_timingStorage->result = s_timingStorage->work; }
     s_timing.last = last; s_timing.busy = false; s_timing.running = false;
     portEXIT_CRITICAL(&s_timingMux);
     char text[SENSORARRAY_TRANSPORT_GUARANTEED_TEXT_MAX];
@@ -202,10 +243,13 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
         sensorarrayAdsTimingLast_t last = s_timing.last;
         sensorarrayAdsTimingRequest_t current = s_timing.current;
         bool busy = s_timing.busy, running = s_timing.running, ack = s_timing.acknowledged;
+        bool storageKnown = s_timing.storageKnown, storageReady = s_timing.storageReady;
+        esp_err_t storageError = s_timing.storageError;
+        uint32_t storageBytes = s_timing.storageBytes;
         uint64_t session = s_timing.session; uint32_t bootId = s_timing.bootId;
         portEXIT_CRITICAL(&s_timingMux);
         int n = snprintf(response, responseSize,
-            "ADSTIMING,session=%016llX,bootId=%lu,busy=%u,phase=%s,ackLocal=%u,pendingId=%lu,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,terminalQueued=%u,groups=4,perGroup=200,diagnostic=1\n",
+            "ADSTIMING,session=%016llX,bootId=%lu,busy=%u,phase=%s,ackLocal=%u,pendingId=%lu,pendingRev=%lu,lastId=%lu,last=%s,reason=%s,acceptedRev=%lu,resultKnown=%u,rev=%lu,boundary=%lu,originalError=0x%lX,cleanupError=0x%lX,result=%u,terminalQueued=%u,groups=4,perGroup=200,diagnostic=1,storageKnown=%u,storageReady=%u,storageBytes=%lu,storageError=0x%lX\n",
             (unsigned long long)session, (unsigned long)bootId, busy ? 1u : 0u,
             busy ? (running ? "running" : "pending") : "idle", busy && ack ? 1u : 0u,
             (unsigned long)(busy ? current.id : 0u), (unsigned long)(busy ? current.identity.revision : 0u),
@@ -213,7 +257,9 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
             (unsigned long)last.request.identity.revision, last.resultKnown ? 1u : 0u,
             (unsigned long)last.resultRevision, (unsigned long)last.boundary,
             (unsigned long)(uint32_t)last.originalError, (unsigned long)(uint32_t)last.cleanupError,
-            last.resultAvailable ? 1u : 0u, last.terminalQueued ? 1u : 0u);
+            last.resultAvailable ? 1u : 0u, last.terminalQueued ? 1u : 0u,
+            storageKnown ? 1u : 0u, storageReady ? 1u : 0u,
+            (unsigned long)storageBytes, (unsigned long)(uint32_t)storageError);
         if (n <= 0 || (size_t)n >= responseSize) { response[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
         return ESP_OK;
     }
@@ -235,16 +281,16 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
         return ESP_ERR_INVALID_ARG;
     }
     portENTER_CRITICAL(&s_timingMux);
-    if (s_timing.queryBusy || !s_timing.last.resultAvailable || s_timing.last.request.id != id) {
+    if (!s_timing.storageReady || s_timing.queryBusy || !s_timing.last.resultAvailable || s_timing.last.request.id != id) {
         portEXIT_CRITICAL(&s_timingMux); return ESP_ERR_INVALID_STATE;
     }
-    s_timing.queryBusy = true; s_timingQuery = s_timingResult;
+    s_timing.queryBusy = true; s_timingStorage->query = s_timingStorage->result;
     portEXIT_CRITICAL(&s_timingMux);
-    size_t length = kind == 1u ? sensorarrayAdsTimingProbeFormatSummary(&s_timingQuery, response, responseSize) :
-        kind == 2u ? sensorarrayAdsTimingProbeFormatGroup(&s_timingQuery, index, response, responseSize) :
-        kind == 3u ? sensorarrayAdsTimingProbeFormatRecord(&s_timingQuery, index, response, responseSize) :
-        kind == 4u ? sensorarrayAdsTimingProbeFormatGroupTiming(&s_timingQuery, index, response, responseSize) :
-                     sensorarrayAdsTimingProbeFormatRegisters(&s_timingQuery, index != 0u, response, responseSize);
+    size_t length = kind == 1u ? sensorarrayAdsTimingProbeFormatSummary(&s_timingStorage->query, response, responseSize) :
+        kind == 2u ? sensorarrayAdsTimingProbeFormatGroup(&s_timingStorage->query, index, response, responseSize) :
+        kind == 3u ? sensorarrayAdsTimingProbeFormatRecord(&s_timingStorage->query, index, response, responseSize) :
+        kind == 4u ? sensorarrayAdsTimingProbeFormatGroupTiming(&s_timingStorage->query, index, response, responseSize) :
+                     sensorarrayAdsTimingProbeFormatRegisters(&s_timingStorage->query, index != 0u, response, responseSize);
     portENTER_CRITICAL(&s_timingMux); s_timing.queryBusy = false; portEXIT_CRITICAL(&s_timingMux);
     return length ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }

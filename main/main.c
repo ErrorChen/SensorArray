@@ -2005,6 +2005,11 @@ static void sensorarrayRunAdsTimingCommand(sensorarrayAppContext_t *ctx,
         return;
     }
     sensorarrayAdsTimingProbeResult_t *result = sensorarrayAdsTimingControlWorkResult();
+    if (!result) {
+        (void)sensorarrayAdsTimingControlComplete(request.id, "failed", "diagnostic_unavailable",
+            ESP_ERR_NO_MEM, ESP_OK, &authority, known, false);
+        return;
+    }
     esp_err_t error = sensorarrayAdsGapRunTimingProbe(&ctx->state,
         sensorarrayAdsMatrixEngineRegisterCache(&ctx->adsEngine), request.id,
         ctx->hostFrameSequence, result);
@@ -3220,6 +3225,12 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
         if (strcmp(command, "ADSCHK=TIMING,200") != 0) {
             (void)snprintf(response, responseSize, "ERR,cmd=ADSCHK,reason=timing_syntax,expected=TIMING_200\n");
             return ESP_ERR_INVALID_ARG;
+        }
+        esp_err_t storageError = sensorarrayAdsTimingControlStorageError();
+        if (storageError != ESP_OK) {
+            (void)snprintf(response, responseSize,
+                "ERR,cmd=ADSCHK,reason=diagnostic_unavailable,err=0x%lx\n", (unsigned long)storageError);
+            return storageError;
         }
         sensorarrayConfigAuthority_t authority = {0};
         if (!sensorarrayConfigIdentityCopy(&authority)) {

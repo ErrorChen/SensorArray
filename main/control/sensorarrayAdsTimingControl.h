@@ -20,6 +20,9 @@ typedef enum {
 } sensorarrayAdsTimingTake_t;
 
 void sensorarrayAdsTimingControlInit(uint64_t session, uint32_t bootId);
+/* 本轮新增: boot-only PSRAM preparation is optional; failure disables only
+ * diagnostics. Storage has fixed boot lifetime and is never DMA/ISR memory. */
+esp_err_t sensorarrayAdsTimingControlStorageError(void);
 esp_err_t sensorarrayAdsTimingControlPost(const sensorarrayConfigAuthority_t *authority,
     uint64_t nowUs, uint32_t *outId);
 bool sensorarrayAdsTimingControlAck(uint32_t id, esp_err_t error);

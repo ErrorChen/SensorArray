@@ -9,6 +9,25 @@
 #undef main
 #undef sensorarrayCommandMailboxPostAdsTiming
 #include "sensorarrayAdsTimingControl.h"
+#include "esp_heap_caps.h"
+
+static _Alignas(8) unsigned char allocatedStorage[16384];
+static bool allocationFails;
+static unsigned allocationCalls;
+static size_t allocationBytes;
+static void (*allocationHook)(void);
+static void allocatorLockCheck(void);
+void *heap_caps_calloc(size_t count, size_t size, uint32_t caps)
+{
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    assert(count == 1u && size <= sizeof(allocatedStorage));
+    allocatorLockCheck();
+    allocationCalls++; allocationBytes = count * size;
+    if (allocationHook) { allocationHook(); }
+    if (allocationFails) { return NULL; }
+    memset(allocatedStorage, 0, sizeof(allocatedStorage));
+    return allocatedStorage;
+}
 
 static sensorarrayConfigAuthority_t authority;
 static bool nestedPost;
@@ -24,7 +43,33 @@ esp_err_t sensorarrayCommandMailboxPostAdsTiming(uint32_t n, uint32_t *id)
     return error;
 }
 #include "sensorarrayAdsTimingControl.c"
+static void allocatorLockCheck(void)
+{
+    assert(pthread_mutex_trylock(&s_timingMux) == 0);
+    assert(pthread_mutex_unlock(&s_timingMux) == 0);
+}
+#define sensorarrayAdsTimingProbeFormatSummary realProbeFormatSummary
 /* PRODUCTION_FORMATTERS */
+#undef sensorarrayAdsTimingProbeFormatSummary
+static bool collideQuery;
+static unsigned queryCollisions;
+size_t sensorarrayAdsTimingProbeFormatSummary(const sensorarrayAdsTimingProbeResult_t *r, char *b, size_t n)
+{
+    if (collideQuery) {
+        collideQuery = false;
+        sensorarrayAdsTimingStorage_t *storage = s_timingStorage;
+        uint64_t session = s_timing.session;
+        unsigned allocations = allocationCalls;
+        sensorarrayAdsTimingControlInit(99u, 999u);
+        assert(s_timingStorage == storage && s_timing.session == session);
+        assert(allocationCalls == allocations && s_timing.queryBusy);
+        char command[64], reply[512];
+        snprintf(command, sizeof(command), "ADSTIMING?RESULT,%lu", (unsigned long)r->requestId);
+        assert(sensorarrayAdsTimingControlFormat(command, reply, sizeof(reply)) == ESP_ERR_INVALID_STATE);
+        assert(!reply[0]); queryCollisions++;
+    }
+    return realProbeFormatSummary(r, b, n);
+}
 
 typedef struct { bool applied, known, verified; sensorarrayMeasurementMode_t mode; uint8_t power; } sensorarrayRouteSnapshot_t;
 typedef struct { int unused; } sensorarrayState_t;
@@ -118,7 +163,12 @@ static void reset(sensorarrayAppContext_t *ctx)
         .appliedFrameBoundary = 120u, .modeGeneration = 3u, .modeRequestId = 2u,
         .rowsGeneration = 5u, .rowsRequestId = 4u, .profileGeneration = 8u, .profileRequestId = 6u,
         .mode = SENSORARRAY_MEASUREMENT_MODE_VOLTAGE, .state = SENSORARRAY_MEASUREMENT_STATE_VOLTAGE}};
+    /* Synthetic cold boot resets BSS; production Init is one-shot and never
+     * frees or resets storage already visible to a query/hardware owner. */
+    memset(&s_timing, 0, sizeof(s_timing)); s_timingStorage = NULL;
+    allocationFails = false; allocationHook = NULL; allocationCalls = 0u;
     sensorarrayAdsTimingControlInit(authority.identity.sessionId, authority.identity.bootId);
+    assert(allocationCalls == 1u && allocationBytes == sizeof(sensorarrayAdsTimingStorage_t));
     memset(ctx, 0, sizeof(*ctx)); ctx->systemReady = true; ctx->hostFrameSequence = 123u;
     ctx->routeController = (sensorarrayRouteSnapshot_t){.applied = true, .known = true,
         .verified = true, .mode = SENSORARRAY_MEASUREMENT_MODE_VOLTAGE};
@@ -130,7 +180,7 @@ static void reset(sensorarrayAppContext_t *ctx)
         injectedResult.groups[g].primary.attempted = injectedResult.groups[g].primary.valid = 200u;
     }
     authorityKnown = routeKnown = quiescent = true;
-    held = recoveryActive = nestedPost = restoreLatched = false; nowUs = 100u;
+    held = recoveryActive = nestedPost = restoreLatched = collideQuery = false; nowUs = 100u;
     probeCalls = stopCalls = faultCalls = runtimeFaultCalls = fillBeforeStop = 0u;
     safeError = ESP_OK;
 }
@@ -286,7 +336,7 @@ static void testExtremaAndReset(sensorarrayAppContext_t *ctx)
 {
     reset(ctx); authority.identity.bootId = UINT32_MAX; authority.identity.sessionId = UINT64_MAX;
     authority.identity.revision = authority.identity.appliedFrameBoundary = UINT32_MAX;
-    sensorarrayAdsTimingControlInit(UINT64_MAX, UINT32_MAX);
+    s_timing.session=UINT64_MAX; s_timing.bootId=UINT32_MAX;
     s_nextRequestId = UINT32_MAX; /* Existing shared allocator wraps through nonzero IDs. */
     uint32_t id = accept(true); assert(id != 0u);
     sensorarrayCommand_t command; assert(sensorarrayCommandMailboxTryReceive(&command) && command.requestId == id);
@@ -300,7 +350,52 @@ static void testExtremaAndReset(sensorarrayAppContext_t *ctx)
     assert(strstr(response,"pendingId=1,pendingRev=4294967295"));
     run(ctx,next); drain();
     char tiny[8]; assert(sensorarrayAdsTimingControlFormat("ADSTIMING?", tiny, sizeof(tiny)) == ESP_ERR_INVALID_SIZE && !tiny[0]);
+    memset(&s_timing,0,sizeof(s_timing));s_timingStorage=NULL;
     sensorarrayAdsTimingControlInit(1u, 1u); readState(); assert(strstr(response, "lastId=0,last=none")); cases++;
+}
+static void duringAllocation(void)
+{
+    char text[512];
+    assert(sensorarrayAdsTimingControlFormat("ADSTIMING?",text,sizeof(text))==ESP_OK);
+    assert(strstr(text,"storageKnown=0,storageReady=0,storageBytes=0"));
+    uint32_t id=0u;
+    assert(sensorarrayAdsTimingControlPost(&authority,nowUs,&id)==ESP_ERR_INVALID_STATE);
+    assert(id==0u && !sensorarrayTransportGuaranteedTextIsReserved());
+    unsigned calls=allocationCalls;
+    sensorarrayAdsTimingControlInit(99u,999u);
+    assert(allocationCalls==calls && s_timing.session==authority.identity.sessionId);
+}
+static void testStorageAdmission(sensorarrayAppContext_t *ctx)
+{
+    reset(ctx);
+    memset(&s_timing,0,sizeof(s_timing));s_timingStorage=NULL;
+    allocationCalls=0u;allocationFails=true;allocationHook=duringAllocation;
+    sensorarrayAdsTimingControlInit(authority.identity.sessionId,authority.identity.bootId);
+    allocationHook=NULL;
+    assert(allocationCalls==1u && !s_timingStorage);
+    assert(sensorarrayAdsTimingControlStorageError()==ESP_ERR_NO_MEM);
+    assert(sensorarrayAdsTimingControlWorkResult()==NULL);
+    readState();assert(strstr(response,"storageKnown=1,storageReady=0,storageBytes=0,storageError=0x101"));
+    assert(actualTimingCommand("ADSCHK=TIMING,200",response,sizeof(response))==ESP_ERR_NO_MEM);
+    assert(strstr(response,"reason=diagnostic_unavailable"));
+    uint32_t id=0u;assert(sensorarrayAdsTimingControlPost(&authority,nowUs,&id)==ESP_ERR_NO_MEM);
+    assert(!sensorarrayTransportGuaranteedTextIsReserved() && id==0u);
+    sensorarrayAdsTimingControlInit(authority.identity.sessionId,authority.identity.bootId);
+    assert(allocationCalls==1u); /* Failed diagnostics do not repeatedly consume heap. */
+    assert(sensorarrayCommandMailboxPostMeasurementMode(SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE,&id)==ESP_OK);
+    assert(sensorarrayCommandMailboxCancelConfigAck(id));
+    assert(probeCalls==0u && stopCalls==0u && ctx->systemReady);
+    cases++;
+
+    reset(ctx);
+    sensorarrayAdsTimingStorage_t *storage=s_timingStorage;
+    id=accept(true);
+    sensorarrayAdsTimingControlInit(99u,999u);
+    assert(s_timingStorage==storage && allocationCalls==1u && s_timing.busy);
+    run(ctx,id);drain();
+    collideQuery=true;queryCollisions=0u;query("RESULT",id,0u);
+    assert(queryCollisions==1u && !s_timing.queryBusy && allocationCalls==1u);
+    query("RESULT",id,0u);cases++;
 }
 int main(void)
 {
@@ -308,6 +403,8 @@ int main(void)
     sensorarrayAppContext_t ctx;
     testFenceAndArbitration(&ctx); testAdmissionAndExpiry(&ctx);
     testResultQueriesAndFailure(&ctx); testExtremaAndReset(&ctx);
+    testStorageAdmission(&ctx);
     printf("ADS_TIMING_CONTROL,passed=%u,admission_subcases=10,maxState=%zu,maxTerminal=%zu,fixture=synthetic\n", cases, maxState, maxTerminal);
+    printf("ADS_TIMING_STORAGE,allocations=1,caps=SPIRAM_8BIT,internal_fallback=0,heap_outside_lock=1,host_bytes=%zu,alloc_failure_only_disables_diagnostic=1,reentrant_init_query_safe=1\n",sizeof(sensorarrayAdsTimingStorage_t));
     return 0;
 }
