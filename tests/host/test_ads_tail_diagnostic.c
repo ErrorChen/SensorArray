@@ -43,8 +43,11 @@ static void testAllCrcBytes(void)
         int32_t raw = -1; uint8_t status = 0u;
         ads126xAdcFreshReadReport_t report;
         ads126xAdcTailEvidence_t tail;
-        assert(ads126xAdcReadAdc1FreshTailDiagnostic(&h, 0u, 600u,
-            &raw, &status, &report, &tail) == ESP_OK);
+        esp_err_t error = ads126xAdcReadAdc1FreshTailDiagnostic(&h, 0u, 600u,
+            &raw, &status, &report, &tail);
+        if (i == 0u) { printf("REAL_IDF_MISO_INPUT_OUTPUT,ie=1,oe=1,peripheralOE=1,sig=33,err=0x%x,attempted=%u,spiDone=%u\n",
+            error, tail.attempted, tail.spiComplete); fflush(stdout); }
+        assert(error == ESP_OK);
         assert(raw == (int32_t)(0x12345600u | i) && status == ADS126X_STATUS_ADC1_NEW_DATA);
         assert(h.dmaTransaction.length == 55u && h.dmaTransaction.rxlength == 55u);
         assert(tail.spiComplete && tail.frameComplete && tail.gpioSampled && tail.routeRestored);
@@ -57,6 +60,34 @@ static void testAllCrcBytes(void)
     }
     for (unsigned i = 0u; i < 256u; ++i) { assert(seen[i]); }
     puts("PASS tail256 CRC byte patterns:55bit prefix + physical0/1, no computed-bit repair");
+}
+
+static void testMisoOutputGates(void)
+{
+    for (unsigned kind = 0u; kind < 8u; ++kind) {
+        ads126xAdcHandle_t h = handle(); prepareFrame(&h, 8u);
+        unsigned before = queueCalls;
+        uint8_t expectedStage = ADS126X_TAIL_STAGE_NONE;
+        switch (kind) {
+        case 0u: tailMisoConfig.oe_ctrl_by_periph = false; expectedStage=ADS126X_TAIL_STAGE_MISO_OWNER; break;
+        case 1u: tailMisoConfig.sig_out = 256u; expectedStage=ADS126X_TAIL_STAGE_MISO_SIGNAL; break;
+        case 2u: tailMisoConfig.oe_inv = true; expectedStage=ADS126X_TAIL_STAGE_MISO_FLAGS; break;
+        case 3u: tailMisoConfig.od = true; expectedStage=ADS126X_TAIL_STAGE_MISO_FLAGS; break;
+        case 4u: tailMisoConfig.ie = false; expectedStage=ADS126X_TAIL_STAGE_MISO_INPUT; break;
+        case 5u: tailMisoConfig.fun_sel = 0u; expectedStage=ADS126X_TAIL_STAGE_MISO_MUX; break;
+        case 6u: tailClockConfig.oe_ctrl_by_periph = false; expectedStage=ADS126X_TAIL_STAGE_CLOCK_FLAGS; break;
+        case 7u: tailClockConfig.ie = false; expectedStage=ADS126X_TAIL_STAGE_CLOCK_INPUT; break;
+        }
+        int32_t raw = 0; uint8_t status = 0u;
+        ads126xAdcFreshReadReport_t report; ads126xAdcTailEvidence_t tail;
+        assert(ads126xAdcReadAdc1FreshTailDiagnostic(&h, 0u, 600u,
+            &raw, &status, &report, &tail) == ESP_ERR_INVALID_STATE);
+        assert(tail.clockIoKnown && tail.misoIoKnown && tail.stage == expectedStage);
+        assert(queueCalls == before && !tail.attempted && tailRouteChanges == 0u && tailEdges == 0u);
+        assert(!ads126xAdcIsQuarantined(&h));
+        free(h.spiTxBuf); free(h.spiRxBuf);
+    }
+    puts("PASS8 precise MISO/clock gates reject GPIO-driven/wrong-route/inverted/OD/disabled-input state beforequeue");
 }
 
 static void testBadPhysicalBitAndData(void)
@@ -81,7 +112,7 @@ static void testBadPhysicalBitAndData(void)
 
 static void testFailures(void)
 {
-    for (unsigned kind = 0u; kind < 11u; ++kind) {
+    for (unsigned kind = 0u; kind < 12u; ++kind) {
         ads126xAdcHandle_t h = handle(); prepareFrame(&h, 7u);
         unsigned queues = queueCalls;
         if (kind == 0u) { tailOwnerAvailable = false; }
@@ -95,15 +126,20 @@ static void testFailures(void)
         if (kind == 8u) { tailRestoreFailure = true; }
         if (kind == 9u) { mutexAvailable = false; }
         if (kind == 10u) { h.transactionDeadlineUs = nowUs; }
+        if (kind == 11u) { tailLowReadbackHigh = true; }
         int32_t raw = 123; uint8_t status = 45u;
         ads126xAdcFreshReadReport_t report;
         ads126xAdcTailEvidence_t tail;
         assert(ads126xAdcReadAdc1FreshTailDiagnostic(&h, 0u, 600u,
             &raw, &status, &report, &tail) != ESP_OK);
         assert(raw == 123 && status == 45u && mutexDepth == 0u);
-        if (kind <= 3u || kind >= 9u) { assert(queueCalls == queues); }
-        if (kind <= 6u || kind >= 9u) { assert(tailEdges == 0u && tailRouteChanges == 0u); }
-        bool quarantine = kind >= 5u && kind <= 8u;
+        if (kind <= 3u || kind == 9u || kind == 10u) { assert(queueCalls == queues); }
+        if (kind <= 6u || kind == 9u || kind == 10u) { assert(tailEdges == 0u && tailRouteChanges == 0u); }
+        bool quarantine = (kind >= 5u && kind <= 8u) || kind == 11u;
+        if (kind == 11u) {
+            assert(tail.stage == ADS126X_TAIL_STAGE_GPIO_LOW && !tail.frameComplete &&
+                tail.spiComplete && tail.gpioSampled && tailRouteChanges == 2u);
+        }
         assert(ads126xAdcIsQuarantined(&h) == quarantine);
         if (quarantine) {
             unsigned before = queueCalls;
@@ -114,7 +150,7 @@ static void testFailures(void)
         pending = NULL; /* synthetic completion before test frees its own memory */
         free(h.spiTxBuf); free(h.spiRxBuf);
     }
-    puts("PASS11 tail admission/queue/DMA/route/mutex/deadline failure paths");
+    puts("PASS12 tail admission/queue/DMA/route/mutex/deadline failure paths; low-readback first stage retained");
 }
 
 static void testCompletedAfterWorkDeadline(void)
@@ -152,6 +188,7 @@ static void testBoardOwnership(void)
 int main(void)
 {
     testAllCrcBytes();
+    testMisoOutputGates();
     testBadPhysicalBitAndData();
     testFailures();
     testCompletedAfterWorkDeadline();

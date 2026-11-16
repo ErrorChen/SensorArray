@@ -432,6 +432,10 @@ static void testProbeKinds(sensorarrayAppContext_t *ctx)
     query("RECORD",id,1);assert(strstr(response,"source=spi55_gpio1")&&strstr(response,"wireKnown=0,bytes=unknown"));
     query("TAIL",id,0);assert(strstr(response,"probe=TAIL")&&strstr(response,"tailApplicable=0,spiBits=56")&&strstr(response,"assembledKnown=0"));
     query("TAIL",id,1);assert(strstr(response,"source=spi55_gpio1")&&strstr(response,"spiBits=55")&&strstr(response,"physicalVerified=0"));
+    query("IO",id,0);assert(strstr(response,"ADSTIMINGIO,")&&strstr(response,"probe=TAIL")&&strstr(response,"source=spi56"));
+    query("IO",id,1);assert(strstr(response,"source=spi55_gpio1")&&strstr(response,"stage="));
+    char outOfRange[64];snprintf(outOfRange,sizeof(outOfRange),"ADSTIMING?IO,%lu,4",(unsigned long)id);
+    assert(sensorarrayAdsTimingControlFormat(outOfRange,response,sizeof(response))==ESP_ERR_INVALID_SIZE);
     char terminal[384];size_t length=0;
     assert(sensorarrayTransportGuaranteedTextTakeDrain(terminal,sizeof(terminal),&length));
     assert(strstr(terminal,"probe=TAIL"));
@@ -439,6 +443,12 @@ static void testProbeKinds(sensorarrayAppContext_t *ctx)
     run(ctx,next);assert(lastExecutedProbe==SENSORARRAY_ADS_TIMING_PROBE_TIMING);drain();
     query("RESULT",next,0);assert(strstr(response,"probe=TIMING"));
     char text[64];snprintf(text,sizeof(text),"ADSTIMING?TAIL,%lu,0",(unsigned long)next);
+    assert(sensorarrayAdsTimingControlFormat(text,response,sizeof(response))!=ESP_OK);
+    snprintf(text,sizeof(text),"ADSTIMING?IO,%lu,0",(unsigned long)next);
+    assert(sensorarrayAdsTimingControlFormat(text,response,sizeof(response))!=ESP_OK);
+    snprintf(text,sizeof(text),"ADSTIMING?IO,%lu,0",(unsigned long)id);
+    assert(sensorarrayAdsTimingControlFormat(text,response,sizeof(response))==ESP_ERR_INVALID_STATE);
+    snprintf(text,sizeof(text),"ADSTIMING?IO,%lu,32",(unsigned long)next);
     assert(sensorarrayAdsTimingControlFormat(text,response,sizeof(response))!=ESP_OK);
     cases++;
 
@@ -461,10 +471,20 @@ static void testProtoBudget(void)
     size_t maximum=0;
     for(unsigned i=0;i<3;i++) {
         int n=snprintf(response,sizeof(response),/* PRODUCTION_PROTO_FORMAT */,2u,512u,2304u,caps[i]);
-        assert(n>0&&(size_t)n<sizeof(response)&&strstr(response,"ads_tail_probe_v1"));
+        assert(n>0&&(size_t)n<sizeof(response)&&strstr(response,"ads_tail_probe_v1/ads_tail_io_v1"));
         if((size_t)n>maximum)maximum=(size_t)n;
     }
     printf("ADS_TAIL_PROTO,maxBytes=%zu,capacity=512,backends=3\n",maximum);cases++;
+    memset(&injectedResult,0,sizeof(injectedResult));injectedResult.kind=SENSORARRAY_ADS_TIMING_PROBE_TAIL;
+    injectedResult.requestId=UINT32_MAX;injectedResult.groups[3].gpioTail=true;injectedResult.groups[3].recordCount=1u;
+    sensorarrayAdsTimingRecord_t *record=&injectedResult.records[3][0];record->attempt=UINT32_MAX;
+    record->tail.clockIo=UINT32_MAX;record->tail.misoIo=UINT32_MAX;
+    record->tail.clockIoKnown=true;record->tail.misoIoKnown=true;record->tail.clockLevel=1u;record->tail.stage=16u;
+    size_t length=sensorarrayAdsTimingProbeFormatTailIoRecord(&injectedResult,0,response,sizeof(response));
+    assert(length>0&&length<sizeof(response)&&strstr(response,"stage=clock_after_spi")&&strstr(response,"clkSig=511"));
+    assert(strstr(response,"misoSig=511")&&strstr(response,"physicalVerified=0"));
+    printf("ADS_TAIL_IO,maxBytes=%zu,capacity=512\n",length);
+    assert(sensorarrayAdsTimingProbeFormatTailIoRecord(&injectedResult,0,response,32u)==0u&&response[0]=='\0');cases++;
 }
 int main(void)
 {

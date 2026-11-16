@@ -365,7 +365,27 @@ bool ads126xAdcTailDiagnosticAvailable(const ads126xAdcHandle_t *handle)
 #endif
 }
 
+const char *ads126xAdcTailStageName(uint8_t stage)
+{
+    static const char *const names[] = {
+        "not_run", "owner", "gpio_read", "clock_input", "clock_output",
+        "clock_mux", "clock_signal", "clock_flags", "miso_input", "miso_mux",
+        "miso_signal", "miso_owner", "miso_flags", "clock_low", "queue",
+        "spi_complete", "clock_after_spi", "gpio_high", "gpio_sample",
+        "gpio_low", "gpio_restore", "clock_read", "deadline", "complete",
+    };
+    return stage < sizeof(names) / sizeof(names[0]) ? names[stage] : "unknown";
+}
+
 #if CONFIG_IDF_TARGET_ESP32S3
+static uint32_t ads126xAdcTailPackIo(const gpio_io_config_t *io)
+{
+    return (io->ie ? 1u : 0u) | (io->oe ? 2u : 0u) |
+        (io->oe_ctrl_by_periph ? 4u : 0u) | (io->oe_inv ? 8u : 0u) |
+        (io->od ? 16u : 0u) | ((io->fun_sel & 7u) << 5u) |
+        ((io->sig_out & 0x1FFu) << 8u);
+}
+
 static uint32_t ads126xAdcTailElapsed(uint64_t start)
 {
     uint64_t now = (uint64_t)esp_timer_get_time();
@@ -381,6 +401,7 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
 {
     if (!tail) { return ESP_ERR_INVALID_ARG; }
     memset(tail, 0, sizeof(*tail));
+    tail->stage = ADS126X_TAIL_STAGE_OWNER;
     if (!ads126xAdcTailDiagnosticAvailable(h) || !h->transactionDeadlineUs ||
         !h->enableStatusByte || h->crcMode != ADS126X_CRC_CRC8 ||
         h->spiBufSize < 8u || !h->spiDmaCapable || !h->spiTxBuf || !h->spiRxBuf) {
@@ -393,15 +414,52 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
     esp_err_t err = ESP_OK;
     gpio_io_config_t clock = {0}, input = {0}, restored = {0};
     const uint32_t clockSignal = (uint32_t)spi_periph_signal[h->tailBus.host].spiclk_out;
+    const uint32_t misoSignal = (uint32_t)spi_periph_signal[h->tailBus.host].spiq_out;
     if (!ads126xAdcTailDiagnosticAvailable(h)) { err = ESP_ERR_INVALID_STATE; }
-    if (err == ESP_OK) { err = gpio_get_io_config(h->tailBus.sclkGpio, &clock); }
-    if (err == ESP_OK) { err = gpio_get_io_config(h->tailBus.misoGpio, &input); }
-    if (err == ESP_OK && (!clock.ie || !clock.oe || clock.od || clock.oe_inv ||
-            clock.fun_sel != PIN_FUNC_GPIO || input.fun_sel != PIN_FUNC_GPIO ||
-            clock.sig_out != clockSignal || !input.ie || input.oe ||
-            gpio_get_level(h->tailBus.sclkGpio) != 0)) { err = ESP_ERR_INVALID_STATE; }
-    if (err == ESP_OK) { err = gpio_set_level(h->tailBus.sclkGpio, 0u); }
-    if (err == ESP_OK && esp_timer_get_time() >= deadline) { err = ESP_ERR_TIMEOUT; }
+    if (err == ESP_OK) {
+        tail->stage = ADS126X_TAIL_STAGE_GPIO_READ;
+        err = gpio_get_io_config(h->tailBus.sclkGpio, &clock);
+        if (err == ESP_OK) {
+            tail->clockIoKnown = true;
+            tail->clockIo = ads126xAdcTailPackIo(&clock);
+        }
+    }
+    if (err == ESP_OK) {
+        err = gpio_get_io_config(h->tailBus.misoGpio, &input);
+        if (err == ESP_OK) {
+            tail->misoIoKnown = true;
+            tail->misoIo = ads126xAdcTailPackIo(&input);
+            tail->clockLevel = (uint8_t)(gpio_get_level(h->tailBus.sclkGpio) & 1u);
+        }
+    }
+    if (err == ESP_OK) {
+        uint8_t gate = !clock.ie ? ADS126X_TAIL_STAGE_CLOCK_INPUT :
+            !clock.oe ? ADS126X_TAIL_STAGE_CLOCK_OUTPUT :
+            clock.fun_sel != PIN_FUNC_GPIO ? ADS126X_TAIL_STAGE_CLOCK_MUX :
+            clock.sig_out != clockSignal ? ADS126X_TAIL_STAGE_CLOCK_SIGNAL :
+            (clock.od || clock.oe_inv || !clock.oe_ctrl_by_periph) ? ADS126X_TAIL_STAGE_CLOCK_FLAGS :
+            !input.ie ? ADS126X_TAIL_STAGE_MISO_INPUT :
+            input.fun_sel != PIN_FUNC_GPIO ? ADS126X_TAIL_STAGE_MISO_MUX :
+            input.sig_out != misoSignal ? ADS126X_TAIL_STAGE_MISO_SIGNAL :
+            !input.oe_ctrl_by_periph ? ADS126X_TAIL_STAGE_MISO_OWNER :
+            (input.od || input.oe_inv) ? ADS126X_TAIL_STAGE_MISO_FLAGS :
+            tail->clockLevel != 0u ? ADS126X_TAIL_STAGE_CLOCK_LOW : ADS126X_TAIL_STAGE_NONE;
+        /* IDF auto-detects DUAL-capable pads even for flags0 single-line SPI,
+         * so MISO has GPIO_ENABLE=1 and SPI3_Q peripheral-controlled OE.
+         * GPIO_ENABLE is not the actual pad output enable. Admit only this
+         * exact peripheral route/owner, never an arbitrary GPIO output. */
+        if (gate != ADS126X_TAIL_STAGE_NONE) {
+            tail->stage = gate;
+            err = ESP_ERR_INVALID_STATE;
+        }
+    }
+    if (err == ESP_OK) {
+        tail->stage = ADS126X_TAIL_STAGE_CLOCK_LOW;
+        err = gpio_set_level(h->tailBus.sclkGpio, 0u);
+    }
+    if (err == ESP_OK && esp_timer_get_time() >= deadline) {
+        tail->stage = ADS126X_TAIL_STAGE_DEADLINE; err = ESP_ERR_TIMEOUT;
+    }
     if (err != ESP_OK) { xSemaphoreGive(h->mutex); return err; }
     /* S3 DMA writes32-bit units, so both permanent buffers retain>=8bytes. */
     memset(h->spiTxBuf, 0, 8u);
@@ -415,9 +473,11 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
     tail->startedUs = (uint64_t)esp_timer_get_time();
     tail->requestedHz = h->requestedSpiClockHz;
     tail->attempted = true;
+    tail->stage = ADS126X_TAIL_STAGE_QUEUE;
     err = spi_device_queue_trans(h->spiDevice, &h->dmaTransaction,
         ads126xAdcRemainingTicks(deadline));
     if (err == ESP_OK) {
+        tail->stage = ADS126X_TAIL_STAGE_SPI_COMPLETE;
         h->spiInFlight = true;
         spi_transaction_t *completed = NULL;
         err = spi_device_get_trans_result(h->spiDevice, &completed,
@@ -439,12 +499,15 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
              * edge pair even if the work deadline elapsed while awaiting the
              * known descriptor; the outer transaction reserves cleanup time.
              * No new SPI command may be issued until this sequence completes. */
+            tail->stage = ADS126X_TAIL_STAGE_CLOCK_AFTER_SPI;
             if (gpio_get_level(h->tailBus.sclkGpio) != 0) { err = ESP_ERR_INVALID_STATE; }
             else {
+                tail->stage = ADS126X_TAIL_STAGE_GPIO_HIGH;
                 esp_rom_gpio_connect_out_signal(h->tailBus.sclkGpio, SIG_GPIO_OUT_IDX, false, false);
                 err = gpio_set_level(h->tailBus.sclkGpio, 1u);
                 tail->riseUs = ads126xAdcTailElapsed(tail->startedUs);
                 if (err == ESP_OK) {
+                    tail->stage = ADS126X_TAIL_STAGE_GPIO_SAMPLE;
                     /* Datasheet DOUT propagation<=60ns at specified load.
                      * TIMEOUT=0 permits a longer pause under preemption; all
                      * elapsed time is recorded, not claimed cycle-exact. */
@@ -456,12 +519,19 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
                         tail->gpioSampled = true;
                     }
                 }
+                if (err == ESP_OK) { tail->stage = ADS126X_TAIL_STAGE_GPIO_LOW; }
                 esp_err_t lowErr = gpio_set_level(h->tailBus.sclkGpio, 0u);
                 tail->fallUs = ads126xAdcTailElapsed(tail->startedUs);
                 esp_rom_delay_us(1u); /* meet low width and input synchronizer delay */
                 tail->frameComplete = err == ESP_OK && lowErr == ESP_OK &&
                     gpio_get_level(h->tailBus.sclkGpio) == 0;
                 if (err == ESP_OK) { err = lowErr; }
+                if (err == ESP_OK && !tail->frameComplete) {
+                    /* Keep the first low-level readback failure even when
+                     * output-route cleanup is still attempted below. */
+                    err = ESP_ERR_INVALID_STATE;
+                }
+                if (err == ESP_OK) { tail->stage = ADS126X_TAIL_STAGE_GPIO_RESTORE; }
                 esp_rom_gpio_connect_out_signal(h->tailBus.sclkGpio, clockSignal, false, false);
                 esp_err_t restoreErr = gpio_get_io_config(h->tailBus.sclkGpio, &restored);
                 tail->routeRestored = restoreErr == ESP_OK &&
@@ -489,9 +559,14 @@ static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h,
             } else {
                 memcpy(frame, tail->spi55 + 1u, 6u);
                 frame[5] = tail->assembledCrc;
-                if (err == ESP_OK && clockErr != ESP_OK) { err = clockErr; }
-                if (err == ESP_OK && actualKhz <= 0) { err = ESP_ERR_INVALID_RESPONSE; }
-                if (err == ESP_OK && esp_timer_get_time() >= deadline) { err = ESP_ERR_TIMEOUT; }
+                if (err == ESP_OK && (clockErr != ESP_OK || actualKhz <= 0)) {
+                    tail->stage = ADS126X_TAIL_STAGE_CLOCK_READ;
+                    err = clockErr != ESP_OK ? clockErr : ESP_ERR_INVALID_RESPONSE;
+                }
+                if (err == ESP_OK && esp_timer_get_time() >= deadline) {
+                    tail->stage = ADS126X_TAIL_STAGE_DEADLINE; err = ESP_ERR_TIMEOUT;
+                }
+                if (err == ESP_OK) { tail->stage = ADS126X_TAIL_STAGE_COMPLETE; }
             }
         }
     }

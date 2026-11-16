@@ -134,5 +134,9 @@ size_t sensorarrayAdsTimingProbeFormatRecord(
 size_t sensorarrayAdsTimingProbeFormatTailRecord(
     const sensorarrayAdsTimingProbeResult_t *result, uint32_t record,
     char *buffer, size_t size);
+/* 本轮新增: numeric GPIO configuration evidence; never analog isolation. */
+size_t sensorarrayAdsTimingProbeFormatTailIoRecord(
+    const sensorarrayAdsTimingProbeResult_t *result, uint32_t record,
+    char *buffer, size_t size);
 uint32_t sensorarrayAdsTimingProbeRecordCount(
     const sensorarrayAdsTimingProbeResult_t *result);

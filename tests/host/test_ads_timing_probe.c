@@ -351,6 +351,7 @@ static void runTailCase(unsigned test)
     if (test == 3u) { tailOwnerAvailable = false; }
     if (test == 5u) { registers[2] |= 0x08u; }
     if (test == 7u) { tailRestoreFailure = true; }
+    if (test == 8u) { tailMisoConfig.oe_ctrl_by_periph = false; }
     sensorarrayAdsRegisterCache_t cache = {0};
     ads126xAdc1RegisterSnapshot_t saved;
     ads126xAdcDecodeAdc1RegisterSnapshot(registers, &saved);
@@ -383,6 +384,12 @@ static void runTailCase(unsigned test)
     } else if (test == 4u || test == 7u) {
         assert(r.requiresIsolation && !r.restoreVerified && r.cleanupError != ESP_OK);
         assert(test == 4u ? r.completed : !r.completed);
+    } else if (test == 8u) {
+        assert(err == ESP_ERR_INVALID_STATE && !r.completed && r.restoreVerified && r.requiresIsolation);
+        assert(r.groups[0].primary.valid == 200u && r.groups[1].primary.attempted == 1u);
+        assert(!strcmp(r.groups[1].reason, "miso_owner"));
+        assert(r.records[1][0].tail.stage == ADS126X_TAIL_STAGE_MISO_OWNER &&
+            !r.records[1][0].tail.attempted && tailEdges == 0u);
     } else {
         assert(err == ESP_ERR_TIMEOUT && !r.completed && r.restoreVerified);
     }
@@ -393,11 +400,14 @@ static void runTailCase(unsigned test)
         assert(sensorarrayAdsTimingProbeFormatTailRecord(&r, i, line, sizeof(line)));
         if (strstr(line, "source=spi55_gpio1")) { assert(strstr(line, "tailApplicable=1,spiBits=55")); }
         else { assert(strstr(line, "tailApplicable=0,spiBits=56") && strstr(line, "gpioKnown=0")); }
+        assert(sensorarrayAdsTimingProbeFormatTailIoRecord(&r, i, line, sizeof(line)));
+        if (strstr(line, "source=spi56")) { assert(strstr(line, "stage=not_applicable")); }
     }
     if (test == 0u) {
         unsigned i = r.groups[0].recordCount;
         assert(sensorarrayAdsTimingProbeFormatRecord(&r, i, line, sizeof(line))); fputs(line, stdout);
         assert(sensorarrayAdsTimingProbeFormatTailRecord(&r, i, line, sizeof(line))); fputs(line, stdout);
+        assert(sensorarrayAdsTimingProbeFormatTailIoRecord(&r, i, line, sizeof(line))); fputs(line, stdout);
     }
     printf("PASS TAIL production full module+Gap case=%u complete=%u first=0x%x cleanup=0x%x\n",
         test, r.completed, r.firstError, r.cleanupError);
@@ -421,6 +431,13 @@ static void testTailFormatterBounds(void)
     size_t n = sensorarrayAdsTimingProbeFormatTailRecord(&r, 0u, line, sizeof(line));
     assert(n > 0u && n < sizeof(line));
     printf("PASS TAIL formatter maximum=%zu capacity=512\n", n);
+    v->tail.clockIo = v->tail.misoIo = UINT32_MAX;
+    v->tail.clockIoKnown = v->tail.misoIoKnown = true;
+    v->tail.stage = ADS126X_TAIL_STAGE_CLOCK_AFTER_SPI; v->tail.clockLevel = UINT8_MAX;
+    n = sensorarrayAdsTimingProbeFormatTailIoRecord(&r, 0u, line, sizeof(line));
+    assert(n > 0u && n < 384u);
+    assert(strstr(line, "clkSig=511") && strstr(line, "stage=clock_after_spi"));
+    printf("PASS IO formatter maximum=%zu capacity=384\n", n);
 }
 
 int main(void)
@@ -428,8 +445,8 @@ int main(void)
     setbuf(stdout, NULL);
     for (unsigned test = GOOD; test <= BASELINE_SHADOW; ++test) { runCase((enum timingCase)test); }
     testFormatterBounds();
-    for (unsigned test = 0u; test < 8u; ++test) { runTailCase(test); }
+    for (unsigned test = 0u; test < 9u; ++test) { runTailCase(test); }
     testTailFormatterBounds();
-    puts("ADS timing probe production driver/module/Gap:25 TIMING +8 TAIL scenarios +2 formatter bounds PASS (synthetic,no HIL)");
+    puts("ADS timing probe production driver/module/Gap:25 TIMING +9 TAIL scenarios +3 formatter bounds PASS (synthetic,no HIL)");
     return 0;
 }

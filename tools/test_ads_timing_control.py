@@ -37,11 +37,13 @@ def main() -> int:
     assert "sensorarrayRunAdsTimingCommand(ctx, &command);\n            return;" in apply
     assert source.count("sensorarrayAdsTimingControlHandles(command)") == 2
     assert source.count("sensorarrayLinkDiagnosticsHandles(command)") == 2
-    assert source.count("ads_timing_probe_v1/ads_tail_probe_v1/ble_service_obs_v1/work_reason_v1") == 2
+    assert source.count("ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/ble_service_obs_v1/work_reason_v1") == 2
     probe = (ROOT / "core/measure/ads/sensorarrayAdsTimingProbe.c").read_text()
     formatters = probe[probe.index("static size_t sensorarrayAdsTimingFormatted("):]
     if "const char *sensorarrayAdsTimingProbeKindName(" not in formatters:
         formatters = function(probe, "const char *sensorarrayAdsTimingProbeKindName(") + "\n" + formatters
+    driver = (ROOT / "components/ads126xAdc/ads126xAdc.c").read_text()
+    formatters = function(driver, "const char *ads126xAdcTailStageName(") + "\n" + formatters
     adc = (ROOT / "components/ads126xAdc/include/ads126xAdc.h").read_text()
     end = adc.index("} ads126xAdc1RegisterSnapshot_t;") + len("} ads126xAdc1RegisterSnapshot_t;")
     snapshot = adc[adc.rfind("typedef struct {", 0, end):end]

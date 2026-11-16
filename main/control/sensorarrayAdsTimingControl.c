@@ -282,7 +282,7 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
     static const struct { const char *prefix; unsigned kind; } queries[] = {
         {"ADSTIMING?RESULT,", 1u}, {"ADSTIMING?GROUP,", 2u},
         {"ADSTIMING?RECORD,", 3u}, {"ADSTIMING?TIME,", 4u}, {"ADSTIMING?REG,", 5u},
-        {"ADSTIMING?TAIL,", 6u},
+        {"ADSTIMING?TAIL,", 6u}, {"ADSTIMING?IO,", 7u}, /* 本轮新增：只读 TAIL GPIO 配置证据。 */
     };
     for (size_t i = 0u; i < sizeof(queries) / sizeof(queries[0]); ++i) {
         size_t length = strlen(queries[i].prefix);
@@ -307,7 +307,8 @@ esp_err_t sensorarrayAdsTimingControlFormat(const char *command, char *response,
         kind == 3u ? sensorarrayAdsTimingProbeFormatRecord(&s_timingStorage->query, index, response, responseSize) :
         kind == 4u ? sensorarrayAdsTimingProbeFormatGroupTiming(&s_timingStorage->query, index, response, responseSize) :
         kind == 5u ? sensorarrayAdsTimingProbeFormatRegisters(&s_timingStorage->query, index != 0u, response, responseSize) :
-                     sensorarrayAdsTimingProbeFormatTailRecord(&s_timingStorage->query, index, response, responseSize);
+        kind == 6u ? sensorarrayAdsTimingProbeFormatTailRecord(&s_timingStorage->query, index, response, responseSize) :
+                     sensorarrayAdsTimingProbeFormatTailIoRecord(&s_timingStorage->query, index, response, responseSize);
     portENTER_CRITICAL(&s_timingMux); s_timing.queryBusy = false; portEXIT_CRITICAL(&s_timingMux);
     return length ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }

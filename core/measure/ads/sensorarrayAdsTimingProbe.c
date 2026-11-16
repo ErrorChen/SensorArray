@@ -182,7 +182,7 @@ static esp_err_t sensorarrayAdsTimingRead(ads126xAdcHandle_t *ads,
     }
     if (ads126xAdcIsQuarantined(ads)) {
         sensorarrayAdsTimingError(r, g, err != ESP_OK ? err : ESP_ERR_INVALID_STATE,
-            "spi_quarantined", true);
+            g->gpioTail && rec.tail.stage ? ads126xAdcTailStageName(rec.tail.stage) : "spi_quarantined", true);
     } else if (g->gpioTail && rec.tail.spiComplete &&
         (rec.tail.requestedHz != r->requestedHz || rec.tail.actualHz != r->actualHz)) {
         sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_RESPONSE, "tail_clock", true);
@@ -191,7 +191,8 @@ static esp_err_t sensorarrayAdsTimingRead(ads126xAdcHandle_t *ads,
         else { stats->freshness++; }
         sensorarrayAdsTimingError(r, g,
             !held && read.terminalError != ESP_OK ? read.terminalError : err,
-            err == ESP_ERR_TIMEOUT ? "drdy_or_spi_timeout" : "read", true);
+            g->gpioTail && rec.tail.stage ? ads126xAdcTailStageName(rec.tail.stage) :
+                err == ESP_ERR_TIMEOUT ? "drdy_or_spi_timeout" : "read", true);
     } else if (!generationOk) {
         stats->freshness++;
         sensorarrayAdsTimingError(r, g, ESP_ERR_INVALID_STATE, "generation", true);
@@ -508,4 +509,31 @@ size_t sensorarrayAdsTimingProbeFormatTailRecord(const sensorarrayAdsTimingProbe
         (unsigned long long)t->startedUs, (unsigned long)t->spiDoneUs,
         (unsigned long)t->riseUs, (unsigned long)t->sampleUs,
         (unsigned long)t->fallUs, (unsigned long)t->restoredUs));
+}
+
+size_t sensorarrayAdsTimingProbeFormatTailIoRecord(const sensorarrayAdsTimingProbeResult_t *r,
+    uint32_t index, char *b, size_t n)
+{
+    if (!r || !b || !n || r->kind != SENSORARRAY_ADS_TIMING_PROBE_TAIL) { return 0u; }
+    uint32_t group = 0u;
+    while (group < SENSORARRAY_ADS_TIMING_GROUPS && index >= r->groups[group].recordCount) {
+        index -= r->groups[group++].recordCount;
+    }
+    if (group >= SENSORARRAY_ADS_TIMING_GROUPS) { b[0] = '\0'; return 0u; }
+    const sensorarrayAdsTimingRecord_t *v = &r->records[group][index];
+    const ads126xAdcTailEvidence_t *t = &v->tail;
+    const uint32_t c = t->clockIo, m = t->misoIo;
+    return sensorarrayAdsTimingFormatted(b, n, snprintf(b, n,
+        "ADSTIMINGIO,diagnostic=1,probe=TAIL,id=%lu,g=%lu,attempt=%lu,source=%s,stage=%s,clockKnown=%u,misoKnown=%u,clkFunc=%u,clkSig=%u,clkIE=%u,clkOE=%u,clkPeriph=%u,clkInv=%u,clkOD=%u,misoFunc=%u,misoSig=%u,misoIE=%u,misoOE=%u,misoPeriph=%u,misoInv=%u,misoOD=%u,clkLevelKnown=%u,clkLevel=%u,physicalVerified=0\n",
+        (unsigned long)r->requestId, (unsigned long)group, (unsigned long)v->attempt,
+        r->groups[group].gpioTail ? "spi55_gpio1" : "spi56",
+        r->groups[group].gpioTail ? ads126xAdcTailStageName(t->stage) : "not_applicable",
+        t->clockIoKnown, t->misoIoKnown,
+        (unsigned)((c >> 5u) & 7u), (unsigned)((c >> 8u) & 0x1FFu),
+        (unsigned)(c & 1u), (unsigned)((c >> 1u) & 1u), (unsigned)((c >> 2u) & 1u),
+        (unsigned)((c >> 3u) & 1u), (unsigned)((c >> 4u) & 1u),
+        (unsigned)((m >> 5u) & 7u), (unsigned)((m >> 8u) & 0x1FFu),
+        (unsigned)(m & 1u), (unsigned)((m >> 1u) & 1u), (unsigned)((m >> 2u) & 1u),
+        (unsigned)((m >> 3u) & 1u), (unsigned)((m >> 4u) & 1u),
+        t->clockIoKnown && t->misoIoKnown, t->clockLevel));
 }

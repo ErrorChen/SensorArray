@@ -95,6 +95,22 @@ typedef struct {
     bool (*exclusiveOwner)(spi_device_handle_t device);
 } ads126xAdcTailBus_t;
 
+typedef enum {
+    ADS126X_TAIL_STAGE_NONE = 0, ADS126X_TAIL_STAGE_OWNER,
+    ADS126X_TAIL_STAGE_GPIO_READ, ADS126X_TAIL_STAGE_CLOCK_INPUT,
+    ADS126X_TAIL_STAGE_CLOCK_OUTPUT, ADS126X_TAIL_STAGE_CLOCK_MUX,
+    ADS126X_TAIL_STAGE_CLOCK_SIGNAL, ADS126X_TAIL_STAGE_CLOCK_FLAGS,
+    ADS126X_TAIL_STAGE_MISO_INPUT, ADS126X_TAIL_STAGE_MISO_MUX,
+    ADS126X_TAIL_STAGE_MISO_SIGNAL, ADS126X_TAIL_STAGE_MISO_OWNER,
+    ADS126X_TAIL_STAGE_MISO_FLAGS, ADS126X_TAIL_STAGE_CLOCK_LOW,
+    ADS126X_TAIL_STAGE_QUEUE, ADS126X_TAIL_STAGE_SPI_COMPLETE,
+    ADS126X_TAIL_STAGE_CLOCK_AFTER_SPI, ADS126X_TAIL_STAGE_GPIO_HIGH,
+    ADS126X_TAIL_STAGE_GPIO_SAMPLE, ADS126X_TAIL_STAGE_GPIO_LOW,
+    ADS126X_TAIL_STAGE_GPIO_RESTORE, ADS126X_TAIL_STAGE_CLOCK_READ,
+    ADS126X_TAIL_STAGE_DEADLINE, ADS126X_TAIL_STAGE_COMPLETE,
+} ads126xAdcTailStage_t;
+const char *ads126xAdcTailStageName(uint8_t stage);
+
 /* Physical observations, not a reconstructed continuous SPI wire capture.
  * spi55[6] bit0 is explicitly zero/unknown. Only gpioBit supplies that bit. */
 typedef struct {
@@ -106,6 +122,10 @@ typedef struct {
     uint32_t restoredUs;
     uint32_t requestedHz;
     uint32_t actualHz;
+    /* IO packed: IE,OE,peripheralOE,OE-invert,OD in bits0..4;
+     * GPIO function in5..7; output signal in8..16. Not physical pad OE. */
+    uint32_t clockIo;
+    uint32_t misoIo;
     uint8_t spi55[7];
     uint8_t gpioBit;
     uint8_t assembledCrc;
@@ -116,6 +136,10 @@ typedef struct {
     bool frameComplete;
     bool routeRestored;
     bool crcKnown;
+    uint8_t stage;
+    uint8_t clockLevel;
+    bool clockIoKnown;
+    bool misoIoKnown;
 } ads126xAdcTailEvidence_t;
 
 typedef struct {

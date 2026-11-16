@@ -32,9 +32,10 @@ static int tailSclkLevel, tailLatch, tailPhysicalBit;
 static int tailPhysicalBitOverride = -1;
 static unsigned tailEdges, tailRouteChanges;
 static bool tailOwnerAvailable, tailRestoreFailure, tailHighFailure;
-static gpio_io_config_t tailClockConfig;
+static bool tailLowReadbackHigh, tailReturnedLow;
+static gpio_io_config_t tailClockConfig, tailMisoConfig;
 #if CONFIG_IDF_TARGET_ESP32S3
-const host_spi_signal_t spi_periph_signal[3] = {{0},{0},{32}};
+const host_spi_signal_t spi_periph_signal[3] = {{0,0},{0,0},{32,33}};
 void esp_rom_delay_us(uint32_t us) { nowUs += us; }
 void esp_rom_gpio_connect_out_signal(uint32_t pin, uint32_t signal, bool invert, bool oe_invert)
 {
@@ -49,7 +50,7 @@ static bool tailExclusiveOwner(spi_device_handle_t device) { return device == (v
 esp_err_t gpio_get_io_config(gpio_num_t pin, gpio_io_config_t *cfg)
 {
     if (pin == 47) { *cfg = tailClockConfig; }
-    else { *cfg = (gpio_io_config_t){.ie = true, .fun_sel = 1u}; }
+    else { *cfg = tailMisoConfig; }
     return ESP_OK;
 }
 
@@ -96,6 +97,7 @@ esp_err_t gpio_set_level(gpio_num_t pin, int level)
         if (level && tailHighFailure) { return ESP_FAIL; }
         tailLatch = level;
         if (tailClockConfig.sig_out == 256) {
+            if (!level && tailSclkLevel) { tailReturnedLow = true; }
             if (tailSclkLevel != level) { ++tailEdges; }
             tailSclkLevel = level;
         }
@@ -104,7 +106,8 @@ esp_err_t gpio_set_level(gpio_num_t pin, int level)
 }
 int gpio_get_level(gpio_num_t pin)
 {
-    return pin == 47 ? tailSclkLevel : pin == 14 ? tailPhysicalBit : 0;
+    return pin == 47 ? (tailLowReadbackHigh && tailReturnedLow ? 1 : tailSclkLevel) :
+        pin == 14 ? tailPhysicalBit : 0;
 }
 esp_err_t gpio_config(const gpio_config_t *cfg) { (void)cfg; return ESP_OK; }
 esp_err_t gpio_isr_handler_add(gpio_num_t pin, void (*fn)(void *), void *arg)
@@ -216,7 +219,11 @@ static ads126xAdcHandle_t handle(void)
     tailPhysicalBitOverride = -1;
     tailEdges = tailRouteChanges = 0u;
     tailOwnerAvailable = true; tailRestoreFailure = tailHighFailure = false;
+    tailLowReadbackHigh = tailReturnedLow = false;
     tailClockConfig = (gpio_io_config_t){.ie=true,.oe=true,.oe_ctrl_by_periph=true,.fun_sel=1u,.sig_out=32};
+    /* Actual IDF SPI3 GPIO-matrix setup auto-detects DUAL-capable pins and
+     * uses INPUT_OUTPUT plus peripheral-controlled Q output enable. */
+    tailMisoConfig = (gpio_io_config_t){.ie=true,.oe=true,.oe_ctrl_by_periph=true,.fun_sel=1u,.sig_out=33};
     memset(dataFrames, 0, sizeof(dataFrames));
     memset(registers, 0, sizeof(registers));
     registers[1] = 2u; registers[2] = 6u; registers[5] = 0x8Fu; registers[15] = 0x24u;

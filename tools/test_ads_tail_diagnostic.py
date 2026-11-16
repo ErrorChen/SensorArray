@@ -4,6 +4,7 @@
 Synthetic GPIO/SPI only: does not claim pad timing, no glitches, or HIL.
 """
 from pathlib import Path
+import argparse
 import os
 import shutil
 import subprocess
@@ -12,6 +13,9 @@ from test_main_config_commit import function
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--baseline", help="compile that commit's actual driver as a negative control")
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     cc = os.environ.get("CC") or shutil.which("gcc") or shutil.which("clang")
     if not cc:
@@ -22,11 +26,17 @@ def main():
         "static esp_err_t sensorarrayInitSpi(",
     ))
     harness = (root / "tests/host/test_ads_tail_diagnostic.c").read_text()
-    harness = harness.replace('"test_ads_driver_reliability.c"',
-        '"' + str(root / "tests/host/test_ads_driver_reliability.c") + '"')
+    harness = harness.replace('"test_ads_driver_reliability.c"', '"driver_bus.h"')
     harness = harness.replace("/* PRODUCTION_BOARD_OWNERSHIP */", bodies)
     with tempfile.TemporaryDirectory(prefix="sensorarray-tail-") as directory:
         p = Path(directory)
+        driver = subprocess.check_output(["git", "show", args.baseline +
+            ":components/ads126xAdc/ads126xAdc.c"], cwd=root, text=True) if args.baseline else \
+            (root / "components/ads126xAdc/ads126xAdc.c").read_text()
+        (p / "production_ads.c").write_text(driver)
+        bus = (root / "tests/host/test_ads_driver_reliability.c").read_text().replace(
+            '"../../components/ads126xAdc/ads126xAdc.c"', '"production_ads.c"')
+        (p / "driver_bus.h").write_text(bus)
         (p / "test.c").write_text(harness)
         cmd = [cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
             "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
@@ -36,7 +46,7 @@ def main():
             "-DCONFIG_SENSORARRAY_SPI_USE_DMA=1", "-DCONFIG_ADS126X_SPI_CLOCK_HZ=2000000",
             "-DCONFIG_SENSORARRAY_ADS_SPI_AUTOTUNE_ENABLE=1",
             "-DCONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES=64"]
-        for path in (root / "tests/host/ads_stubs", root / "tests/host/include",
+        for path in (p, root / "tests/host/ads_stubs", root / "tests/host/include",
                      root / "components/ads126xAdc/include"):
             cmd += ["-I", str(path)]
         subprocess.run(cmd + [str(p / "test.c"), "-o", str(p / "test")], check=True)
