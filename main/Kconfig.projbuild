@@ -5,4 +5,16 @@ rsource "kconfigs/Kconfig.output"
 rsource "kconfigs/Kconfig.logging"
 rsource "kconfigs/Kconfig.expert"
 rsource "kconfigs/Kconfig.compat"
+config SENSORARRAY_CPU_OWNER_DIAGNOSTICS
+    bool "Observe application owners' scheduled runtime (diagnostic image)"
+    default n
+    depends on !FREERTOS_SMP && !FREERTOS_UNICORE && FREERTOS_GENERATE_RUN_TIME_STATS && FREERTOS_RUN_TIME_COUNTER_TYPE_U64 && FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER
+    help
+        Sample the seven existing CPU0 work owners at natural checkpoints,
+        at most once per second, without adding a task or delay. CPUOWNER?0..6
+        reads a bounded published snapshot. Runtime is a switch-out cumulative
+        counter, including non-SDK work and possibly ISR time; stale is not
+        zero CPU and wall minus runtime is not blocked time. Full runtime/trace
+        accounting has system-wide RAM and scheduling overhead. These SDK
+        options must be selected explicitly; this option does not select them.
 endmenu

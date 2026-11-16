@@ -8,6 +8,9 @@
 #include "esp_attr.h"
 #include "esp_memory_utils.h"
 #include "esp_freertos_hooks.h"
+#if CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS
+#include "sensorarrayCpuOwner.h"
+#endif
 
 /* Two independent bounds: each task gets at most 32 checkpoint units or a
  * two-tick local quantum before a real block. Four ticks without actual CPU0
@@ -138,6 +141,11 @@ bool sensorarrayWorkBudgetCheckpoint(sensorarrayWorkBudgetWorker_t worker)
         xPortGetCoreID() != 0) {
         return false;
     }
+#if CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS
+    /* Optional owner self-sample only; OFF has no call, timer read or lock.
+     * The observation neither adds a delay nor changes budget predicates. */
+    sensorarrayCpuOwnerCheckpoint(worker);
+#endif
     if (!sensorarrayWorkBudgetStorageInternal()) {
         /* Defensive fallback if a future linker/storage change violates the
          * internal-memory contract. No atomics are accessed on this path. */

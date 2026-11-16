@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "sensorarrayWorkBudget.c"
+    SRCS "sensorarrayWorkBudget.c" "sensorarrayCpuOwner.c"
     INCLUDE_DIRS "include"
-    REQUIRES esp_system esp_hw_support freertos
+    REQUIRES esp_system esp_hw_support freertos esp_timer
 )
