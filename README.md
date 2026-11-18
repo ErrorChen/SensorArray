@@ -2,6 +2,8 @@
 
 > 历史连续稳定性 / Historical continuous stability: `a656d53` 的独立 600.000075751 秒 USB+BLE 结果完整保留；其 ADC 0/428,131 和 CAP8 恢复仅属于旧镜像，不能填入 `caa9082-dirty` 的 600 秒验收。新镜像才包含 CRC32 ROM/planner 等价优化和显式 SCLK 低电平 hold；两者都不放宽科学 CRC/invalid 门限。 / The independent 600.000075751-second USB+BLE result on `a656d53` remains preserved. Its 0/428,131 ADC result and CAP8 recovery belong to the previous image and do not fill the new image’s 600-second acceptance. `caa9082-dirty` adds the equivalent ROM-CRC32/planner optimization and explicit SCLK-low hold; neither relaxes scientific CRC/invalid criteria.
 
+Still in test
+
 # SensorArray — ESP32-S3 固件 / ESP32-S3 Firmware
 
 SensorArray 面向 8×8 测量矩阵，支持 **1–8 个活动 S 行、每行 8 个 D 通道**。每行可选择电容 `CAP/C`、电压 `VOLT/V` 或电阻 `RES/R`；`ROWMODES` 可将不同模式组合在同一帧。模式切换的最小单位是一行，不是固定四点。
