@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "ble-mtu517-rom-01",
+    "--request-rom"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "53005f0042a7a7694338f92c9b86ab3276db668a",
+  "dirty_diff_sha256": "b202b579b5605881c38295d95d271837eb29c733ae74dd04ee432f98daa3b0f6",
+  "started_utc": "2026-11-16T10:40:14.267283+00:00",
+  "started_monotonic": 332506.7147793,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-mtu517-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-16T10:40:15.385479+00:00",
+  "finished_monotonic": 332507.832976754,
+  "log_sha256": "58588d471d8047b7ea8f978a6de41bc845dbdce6fb64f6261c3d6ec9a41beeda"
+}

@@ -1,0 +1,229 @@
+{"t": 1.038296613842249e-05, "type": "opened", "phase": "prepare", "port": null, "transport": {"transport": "usb_cdc", "capability": "usb_cdc_data_v1", "path": "/dev/ttyACM0", "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1", "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.0", "vid": 12346, "pid": 16450, "usb_serial": "80B54ECDD9AC", "interface_number": 0, "interface_class": 2, "interface_subclass": 2, "interface_protocol": 0, "speed_mbps_reported_by_sysfs": "12", "role": "formal_DATA_CTRL_shared_record_stream", "debug_interface_used": false, "libusb_used": false, "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "configuration_changed": false, "ownership": "one_tty_reader_flock_TIOCEXCL", "existing_readers": "unverified", "baud_setting": 115200, "baud_setting_is_not_USB_wire_rate": true, "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free", "tx_acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}, "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "hupcl": false, "duration_total_seconds": 90, "raw_layout": "formal_CDC_DATA_CTRL_shared_raw"}
+{"t": 6.8227993324399e-05, "type": "tx_begin", "phase": "preconditions", "command": "BUILD?", "wire_ascii": "\nBUILD?\n", "channel": "data"}
+{"t": 0.00012153398711234331, "type": "tx_complete", "phase": "preconditions", "command": "BUILD?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.00014801794895902276, "type": "rx", "phase": "preconditions", "offset": 0, "length": 1024, "channel": "data"}
+{"t": 0.0005316899623721838, "type": "rx", "phase": "preconditions", "offset": 1024, "length": 128, "channel": "data"}
+{"t": 0.0005762039800174534, "type": "rx", "phase": "preconditions", "offset": 1152, "length": 128, "channel": "data"}
+{"t": 0.0006837209803052247, "type": "rx", "phase": "preconditions", "offset": 1280, "length": 128, "channel": "data"}
+{"t": 0.0008411239832639694, "type": "rx", "phase": "preconditions", "offset": 1408, "length": 128, "channel": "data"}
+{"t": 0.00313391798408702, "type": "rx", "phase": "preconditions", "offset": 1536, "length": 256, "channel": "data"}
+{"t": 0.0032144179567694664, "type": "rx", "phase": "preconditions", "offset": 1792, "length": 128, "channel": "data"}
+{"t": 0.003321469994261861, "type": "rx", "phase": "preconditions", "offset": 1920, "length": 128, "channel": "data"}
+{"t": 0.0035563779529184103, "type": "rx", "phase": "preconditions", "offset": 2048, "length": 128, "channel": "data"}
+{"t": 0.003766908950638026, "type": "rx", "phase": "preconditions", "offset": 2176, "length": 128, "channel": "data"}
+{"t": 0.003914258966688067, "type": "rx", "phase": "preconditions", "offset": 2304, "length": 128, "channel": "data"}
+{"t": 0.003957947948947549, "type": "rx", "phase": "preconditions", "offset": 2432, "length": 128, "channel": "data"}
+{"t": 0.004217021982185543, "type": "rx", "phase": "preconditions", "offset": 2560, "length": 128, "channel": "data"}
+{"t": 0.004262251954060048, "type": "rx", "phase": "preconditions", "offset": 2688, "length": 128, "channel": "data"}
+{"t": 0.004348057962488383, "type": "rx", "phase": "preconditions", "offset": 2816, "length": 128, "channel": "data"}
+{"t": 0.004456027993001044, "type": "rx", "phase": "preconditions", "offset": 2944, "length": 128, "channel": "data"}
+{"t": 0.00463739299448207, "type": "rx", "phase": "preconditions", "offset": 3072, "length": 128, "channel": "data"}
+{"t": 0.0048015929642133415, "type": "rx", "phase": "preconditions", "offset": 3200, "length": 128, "channel": "data"}
+{"t": 0.0049107789527624846, "type": "rx", "phase": "preconditions", "offset": 3328, "length": 128, "channel": "data"}
+{"t": 0.005037215945776552, "type": "rx", "phase": "preconditions", "offset": 3456, "length": 128, "channel": "data"}
+{"t": 0.005198526952881366, "type": "rx", "phase": "preconditions", "offset": 3584, "length": 128, "channel": "data"}
+{"t": 0.00529175199335441, "type": "rx", "phase": "preconditions", "offset": 3712, "length": 128, "channel": "data"}
+{"t": 0.005400448979344219, "type": "rx", "phase": "preconditions", "offset": 3840, "length": 128, "channel": "data"}
+{"t": 0.00550843495875597, "type": "rx", "phase": "preconditions", "offset": 3968, "length": 128, "channel": "data"}
+{"t": 0.005687124968972057, "type": "rx", "phase": "preconditions", "offset": 4096, "length": 128, "channel": "data"}
+{"t": 0.005836855969391763, "type": "rx", "phase": "preconditions", "offset": 4224, "length": 128, "channel": "data"}
+{"t": 0.006048822950106114, "type": "rx", "phase": "preconditions", "offset": 4352, "length": 128, "channel": "data"}
+{"t": 0.006089523958507925, "type": "rx", "phase": "preconditions", "offset": 4480, "length": 128, "channel": "data"}
+{"t": 0.006267897959332913, "type": "rx", "phase": "preconditions", "offset": 4608, "length": 128, "channel": "data"}
+{"t": 0.006374825956299901, "type": "rx", "phase": "preconditions", "offset": 4736, "length": 128, "channel": "data"}
+{"t": 0.006481185962911695, "type": "rx", "phase": "preconditions", "offset": 4864, "length": 128, "channel": "data"}
+{"t": 0.006600522960070521, "type": "rx", "phase": "preconditions", "offset": 4992, "length": 128, "channel": "data"}
+{"t": 0.007057572947815061, "type": "rx", "phase": "preconditions", "offset": 5120, "length": 256, "channel": "data"}
+{"t": 0.0071509769768454134, "type": "rx", "phase": "preconditions", "offset": 5376, "length": 128, "channel": "data"}
+{"t": 0.007253742951434106, "type": "rx", "phase": "preconditions", "offset": 5504, "length": 128, "channel": "data"}
+{"t": 0.007599825970828533, "type": "rx", "phase": "preconditions", "offset": 5632, "length": 128, "channel": "data"}
+{"t": 0.007615446986164898, "type": "reply", "phase": "preconditions", "command": "BUILD?", "line": "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=8b1ce9f-dirty,elfSha256=1e501ba784cdf95cd9664d71ebafc218e44e5ba44e2156908af4554da33cef5f"}
+{"t": 0.007636514957994223, "type": "tx_begin", "phase": "preconditions", "command": "PROTO?", "wire_ascii": "\nPROTO?\n", "channel": "data"}
+{"t": 0.0076833609491586685, "type": "tx_complete", "phase": "preconditions", "command": "PROTO?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.007697012973949313, "type": "rx", "phase": "preconditions", "offset": 5760, "length": 128, "channel": "data"}
+{"t": 0.007915503985714167, "type": "rx", "phase": "preconditions", "offset": 5888, "length": 128, "channel": "data"}
+{"t": 0.00796718499623239, "type": "rx", "phase": "preconditions", "offset": 6016, "length": 128, "channel": "data"}
+{"t": 0.008197604969609529, "type": "rx", "phase": "preconditions", "offset": 6144, "length": 128, "channel": "data"}
+{"t": 0.008307247946504503, "type": "rx", "phase": "preconditions", "offset": 6272, "length": 128, "channel": "data"}
+{"t": 0.008410925976932049, "type": "rx", "phase": "preconditions", "offset": 6400, "length": 128, "channel": "data"}
+{"t": 0.008518055954482406, "type": "rx", "phase": "preconditions", "offset": 6528, "length": 128, "channel": "data"}
+{"t": 0.010844980948604643, "type": "rx", "phase": "preconditions", "offset": 6656, "length": 384, "channel": "data"}
+{"t": 0.010924882953986526, "type": "rx", "phase": "preconditions", "offset": 7040, "length": 128, "channel": "data"}
+{"t": 0.011335369956213981, "type": "rx", "phase": "preconditions", "offset": 7168, "length": 256, "channel": "data"}
+{"t": 0.011433753999881446, "type": "rx", "phase": "preconditions", "offset": 7424, "length": 128, "channel": "data"}
+{"t": 0.011540620995219797, "type": "rx", "phase": "preconditions", "offset": 7552, "length": 128, "channel": "data"}
+{"t": 0.012191895977593958, "type": "rx", "phase": "preconditions", "offset": 7680, "length": 145, "channel": "data"}
+{"t": 0.012225405953358859, "type": "reply", "phase": "preconditions", "command": "PROTO?", "line": "PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ble_service_obs_v1/work_reason_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8"}
+{"t": 0.012254927947651595, "type": "tx_begin", "phase": "preconditions", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n", "channel": "data"}
+{"t": 0.01229537499602884, "type": "tx_complete", "phase": "preconditions", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.015896133962087333, "type": "rx", "phase": "preconditions", "offset": 7825, "length": 252, "channel": "data"}
+{"t": 0.015950002998579293, "type": "reply", "phase": "preconditions", "command": "CONFIG?", "line": "CONFIG,session=71532608891F6A75,bootId=1,rev=1,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=1,mrid=0,rgen=1,rrid=0,pgen=1,prid=0,mtermId=0,mterm=applied,merr=0x0,ptermId=0,pterm=none,perr=0x0,rtermId=0,rterm=none,rerr=0x0"}
+{"t": 0.015977422997821122, "type": "tx_begin", "phase": "preconditions", "command": "ROUTE?", "wire_ascii": "\nROUTE?\n", "channel": "data"}
+{"t": 0.01601967599708587, "type": "tx_complete", "phase": "preconditions", "command": "ROUTE?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.01795437594410032, "type": "rx", "phase": "preconditions", "offset": 8077, "length": 211, "channel": "data"}
+{"t": 0.018015211971942335, "type": "reply", "phase": "preconditions", "command": "ROUTE?", "line": "ROUTE,requested=CAP,mode=CAP,applied=1,known=1,verified=1,safe=0,gpioReadback=1,adsReadback=1,analogIsolationVerified=0,physicalSafe=unknown,originalError=0x0,cleanupError=0x0,stage=none,railMonitor=unavailable"}
+{"t": 0.018046378972940147, "type": "tx_begin", "phase": "preconditions", "command": "SPI?", "wire_ascii": "\nSPI?\n", "channel": "data"}
+{"t": 0.018092209997121245, "type": "tx_complete", "phase": "preconditions", "command": "SPI?", "accepted_bytes": 6, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.019733482971787453, "type": "rx", "phase": "preconditions", "offset": 8288, "length": 318, "channel": "data"}
+{"t": 0.019796246953774244, "type": "reply", "phase": "preconditions", "command": "SPI?", "line": "SPI,phase=done,done=1,joined=1,timedOut=0,qualified=1,restored=1,hz=750000,actualHz=754000,err=0x0,run=0x0,cleanup=0x0,core=0,stackBytes=6144,stackMinBytes=2992,candidates=16,attempted=3962,samples=3864,even=1985,odd=1879,crc=98,status=0,reg=0,drdy=0,startUs=129434,endUs=1541988,overlapUs=922485,scope=all_candidates"}
+{"t": 0.019831100944429636, "type": "tx_begin", "phase": "preconditions", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.019878567953128368, "type": "tx_complete", "phase": "preconditions", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.031023621966596693, "type": "rx", "phase": "preconditions", "offset": 8606, "length": 256, "channel": "data"}
+{"t": 0.031129180977586657, "type": "rx", "phase": "preconditions", "offset": 8862, "length": 96, "channel": "data"}
+{"t": 0.03119209496071562, "type": "reply", "phase": "preconditions", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=0,phase=idle,ackLocal=0,pendingId=0,pendingRev=0,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.031248305982444435, "type": "tx_begin", "phase": "preconditions", "command": "BLESVC?", "wire_ascii": "\nBLESVC?\n", "channel": "data"}
+{"t": 0.03130773495649919, "type": "tx_complete", "phase": "preconditions", "command": "BLESVC?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.03338325396180153, "type": "rx", "phase": "preconditions", "offset": 8958, "length": 148, "channel": "data"}
+{"t": 0.03344849398126826, "type": "reply", "phase": "preconditions", "command": "BLESVC?", "line": "BLESVC,v=1,gen=0,scope=boot,active=0,started=0,completed=0,wallUs=0,idleChanged=0,idleSame=0,idleUnknown=0,wall=elapsed,cpu=unknown,blocked=unknown"}
+{"t": 0.033492903981823474, "type": "tx_begin", "phase": "preconditions", "command": "SCHEDWHY?", "wire_ascii": "\nSCHEDWHY?\n", "channel": "data"}
+{"t": 0.033541619952302426, "type": "tx_complete", "phase": "preconditions", "command": "SCHEDWHY?", "accepted_bytes": 11, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.03551220294320956, "type": "rx", "phase": "preconditions", "offset": 9106, "length": 166, "channel": "data"}
+{"t": 0.03556602995377034, "type": "reply", "phase": "preconditions", "command": "SCHEDWHY?", "line": "SCHEDWHY,v=1,order=quantum/backstop/units,overlap=1,init=0x0,registered=1,idleKnown=1,idleGen=21484,bt=0/0/0,tr=0/0/0,log=0/0/0,ser=19/3/0,bc=0/0/0,sc=1/0/0,wc=0/0/0"}
+{"t": 0.03574288496747613, "type": "tx_begin", "phase": "acceptance", "command": "ADSCHK=TIMING,200", "wire_ascii": "\nADSCHK=TIMING,200\n", "channel": "data"}
+{"t": 0.0357939739478752, "type": "tx_complete", "phase": "acceptance", "command": "ADSCHK=TIMING,200", "accepted_bytes": 19, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.03875715297181159, "type": "rx", "phase": "acceptance", "offset": 9272, "length": 67, "channel": "data"}
+{"t": 0.03880980197573081, "type": "reply", "phase": "acceptance", "command": "ADSCHK=TIMING,200", "line": "ACK,cmd=ADSCHK,timing=1,id=2,perGroup=200,groups=4,status=accepted"}
+{"t": 0.038912951946258545, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.03895971196470782, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.05165024695452303, "type": "rx", "phase": "await_cached_terminal", "offset": 9339, "length": 256, "channel": "data"}
+{"t": 0.05171757296193391, "type": "rx", "phase": "await_cached_terminal", "offset": 9595, "length": 99, "channel": "data"}
+{"t": 0.051748275000136346, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=1,phase=pending,ackLocal=1,pendingId=2,pendingRev=1,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.09838227200089023, "type": "rx", "phase": "await_cached_terminal", "offset": 9694, "length": 512, "channel": "data"}
+{"t": 0.09886986995115876, "type": "rx", "phase": "await_cached_terminal", "offset": 10206, "length": 128, "channel": "data"}
+{"t": 0.09898741997312754, "type": "rx", "phase": "await_cached_terminal", "offset": 10334, "length": 251, "channel": "data"}
+{"t": 0.2019359049736522, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.20204025297425687, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.21065117098623887, "type": "rx", "phase": "await_cached_terminal", "offset": 10585, "length": 256, "channel": "data"}
+{"t": 0.21080850396538153, "type": "rx", "phase": "await_cached_terminal", "offset": 10841, "length": 99, "channel": "data"}
+{"t": 0.21085363195743412, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=1,phase=running,ackLocal=1,pendingId=2,pendingRev=1,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.36115913197863847, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.3613327569910325, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.37151218397775665, "type": "rx", "phase": "await_cached_terminal", "offset": 10940, "length": 355, "channel": "data"}
+{"t": 0.37162530794739723, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=1,phase=running,ackLocal=1,pendingId=2,pendingRev=1,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.5221347989863716, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.5222995059448294, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.5309710269793868, "type": "rx", "phase": "await_cached_terminal", "offset": 11295, "length": 355, "channel": "data"}
+{"t": 0.5311827239929698, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=1,phase=running,ackLocal=1,pendingId=2,pendingRev=1,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.6816759709618054, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.6818529539741576, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.6908150499803014, "type": "rx", "phase": "await_cached_terminal", "offset": 11650, "length": 355, "channel": "data"}
+{"t": 0.6909694359637797, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=1,phase=running,ackLocal=1,pendingId=2,pendingRev=1,lastId=1,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.7043392889900133, "type": "rx", "phase": "await_cached_terminal", "offset": 12005, "length": 191, "channel": "data"}
+{"t": 0.792172834975645, "type": "rx", "phase": "await_cached_terminal", "offset": 12196, "length": 256, "channel": "data"}
+{"t": 0.7923812869703397, "type": "rx", "phase": "await_cached_terminal", "offset": 12452, "length": 256, "channel": "data"}
+{"t": 0.7927515310002491, "type": "rx", "phase": "await_cached_terminal", "offset": 12708, "length": 256, "channel": "data"}
+{"t": 0.7930218389956281, "type": "rx", "phase": "await_cached_terminal", "offset": 12964, "length": 123, "channel": "data"}
+{"t": 0.8412252189591527, "type": "tx_begin", "phase": "await_cached_terminal", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.8413916479912587, "type": "tx_complete", "phase": "await_cached_terminal", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8504070089547895, "type": "rx", "phase": "await_cached_terminal", "offset": 13087, "length": 352, "channel": "data"}
+{"t": 0.8505325809819624, "type": "reply", "phase": "await_cached_terminal", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=0,phase=idle,ackLocal=0,pendingId=0,pendingRev=0,lastId=2,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.8506784929777496, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RESULT,2", "wire_ascii": "\nADSTIMING?RESULT,2\n", "channel": "data"}
+{"t": 0.8507689559482969, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RESULT,2", "accepted_bytes": 20, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8524366669589654, "type": "rx", "phase": "immutable_result_queries", "offset": 13439, "length": 290, "channel": "data"}
+{"t": 0.85252292198129, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RESULT,2", "line": "ADSTIMING,diagnostic=1,science=0,id=2,seq=1277,groups=4,n=200,done=1,mutated=1,restoreKnown=1,restoreVerified=1,isolate=0,hz=750000,actualHz=754000,first=0x109,terminal=0x0,cleanup=0x0,startUs=136735899,endUs=137341778,gen=549/968,crcGood=5087/6286,crcBad=99/100,records=13,reason=complete"}
+{"t": 0.8526050020009279, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,0", "wire_ascii": "\nADSTIMING?GROUP,2,0\n", "channel": "data"}
+{"t": 0.8526983089977875, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,0", "accepted_bytes": 21, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8553778729983605, "type": "rx", "phase": "immutable_result_queries", "offset": 13729, "length": 257, "channel": "data"}
+{"t": 0.8555032319854945, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,0", "line": "ADSTIMINGGROUP,diagnostic=1,id=2,g=0,mode=CONT,pga=gain1,n=200,a=200,v=200,crc=0,even=111,odd=89,up=0,down=0,other=0,status=0,freshErr=0,timeout=0,fenceMiss=0,regErr=0,heldA=0,heldV=0,heldCrc=0,heldUp=0,heldDown=0,heldOther=0,done=1,err=0x0,reason=complete"}
+{"t": 0.8555999899981543, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,0", "wire_ascii": "\nADSTIMING?TIME,2,0\n", "channel": "data"}
+{"t": 0.8557056389981881, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,0", "accepted_bytes": 20, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8581520999432541, "type": "rx", "phase": "immutable_result_queries", "offset": 13986, "length": 161, "channel": "data"}
+{"t": 0.8582411939860322, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,0", "line": "ADSTIMINGTIME,diagnostic=1,id=2,g=0,startUs=136736944,endUs=136856226,gen=553,records=2,omitted=0,heldEven=0,heldOdd=0,heldStatus=0,heldFreshErr=0,heldTimeout=0"}
+{"t": 0.8583096399670467, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,1", "wire_ascii": "\nADSTIMING?GROUP,2,1\n", "channel": "data"}
+{"t": 0.8583896499476396, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,1", "accepted_bytes": 21, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.871271051990334, "type": "rx", "phase": "immutable_result_queries", "offset": 14147, "length": 262, "channel": "data"}
+{"t": 0.8713904309552163, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,1", "line": "ADSTIMINGGROUP,diagnostic=1,id=2,g=1,mode=PULSE,pga=gain1,n=200,a=200,v=200,crc=0,even=98,odd=102,up=0,down=0,other=0,status=0,freshErr=0,timeout=0,fenceMiss=0,regErr=0,heldA=200,heldV=200,heldCrc=0,heldUp=0,heldDown=0,heldOther=0,done=1,err=0x0,reason=complete"}
+{"t": 0.8714793019462377, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,1", "wire_ascii": "\nADSTIMING?TIME,2,1\n", "channel": "data"}
+{"t": 0.8715841089724563, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,1", "accepted_bytes": 20, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.874300385999959, "type": "rx", "phase": "immutable_result_queries", "offset": 14409, "length": 164, "channel": "data"}
+{"t": 0.87446448096307, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,1", "line": "ADSTIMINGTIME,diagnostic=1,id=2,g=1,startUs=136856232,endUs=137039182,gen=556,records=4,omitted=0,heldEven=98,heldOdd=102,heldStatus=0,heldFreshErr=0,heldTimeout=0"}
+{"t": 0.874571232998278, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,2", "wire_ascii": "\nADSTIMING?GROUP,2,2\n", "channel": "data"}
+{"t": 0.8746902079437859, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,2", "accepted_bytes": 21, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8766002009506337, "type": "rx", "phase": "immutable_result_queries", "offset": 14573, "length": 258, "channel": "data"}
+{"t": 0.8767301189946011, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,2", "line": "ADSTIMINGGROUP,diagnostic=1,id=2,g=2,mode=CONT,pga=bypass,n=200,a=200,v=199,crc=1,even=89,odd=110,up=1,down=0,other=0,status=0,freshErr=0,timeout=0,fenceMiss=0,regErr=0,heldA=0,heldV=0,heldCrc=0,heldUp=0,heldDown=0,heldOther=0,done=1,err=0x0,reason=complete"}
+{"t": 0.8768215749878436, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,2", "wire_ascii": "\nADSTIMING?TIME,2,2\n", "channel": "data"}
+{"t": 0.8769104169914499, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,2", "accepted_bytes": 20, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8787271909532137, "type": "rx", "phase": "immutable_result_queries", "offset": 14831, "length": 161, "channel": "data"}
+{"t": 0.8788493009633385, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,2", "line": "ADSTIMINGTIME,diagnostic=1,id=2,g=2,startUs=137039188,endUs=137155884,gen=760,records=3,omitted=0,heldEven=0,heldOdd=0,heldStatus=0,heldFreshErr=0,heldTimeout=0"}
+{"t": 0.878942126990296, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,3", "wire_ascii": "\nADSTIMING?GROUP,2,3\n", "channel": "data"}
+{"t": 0.8790281669935212, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,3", "accepted_bytes": 21, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8917626079637557, "type": "rx", "phase": "immutable_result_queries", "offset": 14992, "length": 263, "channel": "data"}
+{"t": 0.8918908649939112, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?GROUP,2,3", "line": "ADSTIMINGGROUP,diagnostic=1,id=2,g=3,mode=PULSE,pga=bypass,n=200,a=200,v=200,crc=0,even=97,odd=103,up=0,down=0,other=0,status=0,freshErr=0,timeout=0,fenceMiss=0,regErr=0,heldA=200,heldV=200,heldCrc=0,heldUp=0,heldDown=0,heldOther=0,done=1,err=0x0,reason=complete"}
+{"t": 0.8919767509796657, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,3", "wire_ascii": "\nADSTIMING?TIME,2,3\n", "channel": "data"}
+{"t": 0.8920423079980537, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,3", "accepted_bytes": 20, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8920942029799335, "type": "rx", "phase": "immutable_result_queries", "offset": 15255, "length": 384, "channel": "data"}
+{"t": 0.8922067669918761, "type": "rx", "phase": "immutable_result_queries", "offset": 15639, "length": 128, "channel": "data"}
+{"t": 0.8927111179800704, "type": "rx", "phase": "immutable_result_queries", "offset": 15767, "length": 256, "channel": "data"}
+{"t": 0.8928489940008149, "type": "rx", "phase": "immutable_result_queries", "offset": 16023, "length": 123, "channel": "data"}
+{"t": 0.8940322409616783, "type": "rx", "phase": "immutable_result_queries", "offset": 16146, "length": 164, "channel": "data"}
+{"t": 0.894117658957839, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?TIME,2,3", "line": "ADSTIMINGTIME,diagnostic=1,id=2,g=3,startUs=137155886,endUs=137339462,gen=763,records=4,omitted=0,heldEven=97,heldOdd=103,heldStatus=0,heldFreshErr=0,heldTimeout=0"}
+{"t": 0.8941874529700726, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,0", "wire_ascii": "\nADSTIMING?REG,2,0\n", "channel": "data"}
+{"t": 0.8942633029655553, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,0", "accepted_bytes": 19, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8958295959746465, "type": "rx", "phase": "immutable_result_queries", "offset": 16310, "length": 151, "channel": "data"}
+{"t": 0.8959147479617968, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,0", "line": "ADSTIMINGREG,diagnostic=1,id=2,phase=saved,known=1,ID=03,POWER=02,INTERFACE=06,MODE0=00,MODE1=00,MODE2=0F,INPMUX=9A,REFMUX=24,OCAL=000000,FSCAL=000040"}
+{"t": 0.895978671964258, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,1", "wire_ascii": "\nADSTIMING?REG,2,1\n", "channel": "data"}
+{"t": 0.8960513929487206, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,1", "accepted_bytes": 19, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.8985154879628681, "type": "rx", "phase": "immutable_result_queries", "offset": 16461, "length": 154, "channel": "data"}
+{"t": 0.8986008669598959, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?REG,2,1", "line": "ADSTIMINGREG,diagnostic=1,id=2,phase=restored,known=1,ID=03,POWER=02,INTERFACE=06,MODE0=00,MODE1=00,MODE2=0F,INPMUX=9A,REFMUX=24,OCAL=000000,FSCAL=000040"}
+{"t": 0.898712494992651, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,0", "wire_ascii": "\nADSTIMING?RECORD,2,0\n", "channel": "data"}
+{"t": 0.8987950679729693, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,0", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9108624839573167, "type": "rx", "phase": "immutable_result_queries", "offset": 16615, "length": 286, "channel": "data"}
+{"t": 0.9109879339812323, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,0", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=0,attempt=1,kind=primary,raw=288407,rawValid=1,fresh=1,status=60,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136739282,startCallUs=0,waitUs=140,readUs=167,cfg=553,drdy=50820/50820/50827"}
+{"t": 0.9110810619895346, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,1", "wire_ascii": "\nADSTIMING?RECORD,2,1\n", "channel": "data"}
+{"t": 0.9111649689730257, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,1", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9146154669579118, "type": "rx", "phase": "immutable_result_queries", "offset": 16901, "length": 285, "channel": "data"}
+{"t": 0.9147735069855116, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,1", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=0,attempt=2,kind=primary,raw=271552,rawValid=1,fresh=1,status=60,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136739548,startCallUs=0,waitUs=14,readUs=161,cfg=553,drdy=50830/50830/50835"}
+{"t": 0.9148613739525899, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,2", "wire_ascii": "\nADSTIMING?RECORD,2,2\n", "channel": "data"}
+{"t": 0.9149685259908438, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,2", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9187338409828953, "type": "rx", "phase": "immutable_result_queries", "offset": 17186, "length": 287, "channel": "data"}
+{"t": 0.9188583999639377, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,2", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=1,attempt=1,kind=primary,raw=141423,rawValid=1,fresh=1,status=60,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136858144,startCallUs=99,waitUs=183,readUs=154,cfg=557,drdy=54772/54772/54773"}
+{"t": 0.9190014299820177, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,3", "wire_ascii": "\nADSTIMING?RECORD,2,3\n", "channel": "data"}
+{"t": 0.9190888319863006, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,3", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9305107959662564, "type": "rx", "phase": "immutable_result_queries", "offset": 17473, "length": 288, "channel": "data"}
+{"t": 0.9307213579886593, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,3", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=1,attempt=1,kind=held_repeat,raw=141423,rawValid=1,fresh=0,status=20,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136858323,startCallUs=0,waitUs=0,readUs=158,cfg=557,drdy=54773/54773/54773"}
+{"t": 0.9308819169527851, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,4", "wire_ascii": "\nADSTIMING?RECORD,2,4\n", "channel": "data"}
+{"t": 0.9309892589808442, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,4", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9334647659561597, "type": "rx", "phase": "immutable_result_queries", "offset": 17761, "length": 287, "channel": "data"}
+{"t": 0.9335497919819318, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,4", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=1,attempt=2,kind=primary,raw=185249,rawValid=1,fresh=1,status=60,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136858807,startCallUs=91,waitUs=190,readUs=173,cfg=558,drdy=54773/54773/54774"}
+{"t": 0.9336241759592667, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,5", "wire_ascii": "\nADSTIMING?RECORD,2,5\n", "channel": "data"}
+{"t": 0.9337366229738109, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,5", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9366724479477853, "type": "rx", "phase": "immutable_result_queries", "offset": 18048, "length": 288, "channel": "data"}
+{"t": 0.9367632099892944, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,5", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=1,attempt=2,kind=held_repeat,raw=185249,rawValid=1,fresh=0,status=20,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=136859001,startCallUs=0,waitUs=0,readUs=170,cfg=558,drdy=54774/54774/54774"}
+{"t": 0.9368370679439977, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,6", "wire_ascii": "\nADSTIMING?RECORD,2,6\n", "channel": "data"}
+{"t": 0.936912577948533, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,6", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.940418146958109, "type": "rx", "phase": "immutable_result_queries", "offset": 18336, "length": 286, "channel": "data"}
+{"t": 0.9405600159661844, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,6", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=2,attempt=1,kind=primary,raw=328187,rawValid=1,fresh=1,status=60,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137041098,startCallUs=0,waitUs=176,readUs=160,cfg=760,drdy=54972/54972/54978"}
+{"t": 0.9406896999571472, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,7", "wire_ascii": "\nADSTIMING?RECORD,2,7\n", "channel": "data"}
+{"t": 0.9407868459820747, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,7", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9435655999695882, "type": "rx", "phase": "immutable_result_queries", "offset": 18622, "length": 285, "channel": "data"}
+{"t": 0.9437186109717004, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,7", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=2,attempt=4,kind=primary,raw=113780,rawValid=1,fresh=1,status=60,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137041701,startCallUs=0,waitUs=29,readUs=159,cfg=760,drdy=54989/54989/54994"}
+{"t": 0.9438105769804679, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,8", "wire_ascii": "\nADSTIMING?RECORD,2,8\n", "channel": "data"}
+{"t": 0.9438926679431461, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,8", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.946439791994635, "type": "rx", "phase": "immutable_result_queries", "offset": 18907, "length": 279, "channel": "data"}
+{"t": 0.9465553589980118, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,8", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=2,attempt=155,kind=primary,raw=152885,rawValid=0,fresh=0,status=60,crcValid=0,parity=0,wireKnown=1,bytes=600002553511,computed=10,received=11,xor=01,err=0x109,observedUs=137119271,startCallUs=0,waitUs=38,readUs=165,cfg=760,drdy=57577/57577/57583"}
+{"t": 0.9467279569944367, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,9", "wire_ascii": "\nADSTIMING?RECORD,2,9\n", "channel": "data"}
+{"t": 0.946819553966634, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,9", "accepted_bytes": 22, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9500030969502404, "type": "rx", "phase": "immutable_result_queries", "offset": 19186, "length": 288, "channel": "data"}
+{"t": 0.9501200869563036, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,9", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=3,attempt=1,kind=primary,raw=383475,rawValid=1,fresh=1,status=60,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137157763,startCallUs=101,waitUs=184,readUs=154,cfg=764,drdy=58839/58839/58840"}
+{"t": 0.9502116660005413, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,10", "wire_ascii": "\nADSTIMING?RECORD,2,10\n", "channel": "data"}
+{"t": 0.9503037249669433, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,10", "accepted_bytes": 23, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9543084329925478, "type": "rx", "phase": "immutable_result_queries", "offset": 19474, "length": 288, "channel": "data"}
+{"t": 0.9544242269475944, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,10", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=3,attempt=1,kind=held_repeat,raw=383475,rawValid=1,fresh=0,status=20,crcValid=1,parity=0,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137157943,startCallUs=0,waitUs=0,readUs=158,cfg=764,drdy=58840/58840/58840"}
+{"t": 0.9545405499520712, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,11", "wire_ascii": "\nADSTIMING?RECORD,2,11\n", "channel": "data"}
+{"t": 0.9546269619604573, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,11", "accepted_bytes": 23, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9570465769502334, "type": "rx", "phase": "immutable_result_queries", "offset": 19762, "length": 287, "channel": "data"}
+{"t": 0.957161437952891, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,11", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=3,attempt=2,kind=primary,raw=219635,rawValid=1,fresh=1,status=60,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137158393,startCallUs=92,waitUs=185,readUs=154,cfg=765,drdy=58840/58840/58841"}
+{"t": 0.9572453799773939, "type": "tx_begin", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,12", "wire_ascii": "\nADSTIMING?RECORD,2,12\n", "channel": "data"}
+{"t": 0.9573300659540109, "type": "tx_complete", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,12", "accepted_bytes": 23, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9590659189852886, "type": "rx", "phase": "immutable_result_queries", "offset": 20049, "length": 256, "channel": "data"}
+{"t": 0.9591507149743848, "type": "rx", "phase": "immutable_result_queries", "offset": 20305, "length": 32, "channel": "data"}
+{"t": 0.9592057809932157, "type": "reply", "phase": "immutable_result_queries", "command": "ADSTIMING?RECORD,2,12", "line": "ADSTIMINGRAW,diagnostic=1,id=2,g=3,attempt=2,kind=held_repeat,raw=219635,rawValid=1,fresh=0,status=20,crcValid=1,parity=1,wireKnown=0,bytes=unknown,computed=unknown,received=unknown,xor=unknown,err=0x0,observedUs=137158563,startCallUs=0,waitUs=0,readUs=159,cfg=765,drdy=58841/58841/58841"}
+{"t": 0.9592755349585786, "type": "tx_begin", "phase": "closing_identity", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n", "channel": "data"}
+{"t": 0.9593441449687816, "type": "tx_complete", "phase": "closing_identity", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.970889032993, "type": "rx", "phase": "closing_identity", "offset": 20337, "length": 252, "channel": "data"}
+{"t": 0.9710128919687122, "type": "reply", "phase": "closing_identity", "command": "CONFIG?", "line": "CONFIG,session=71532608891F6A75,bootId=1,rev=1,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=1,mrid=0,rgen=1,rrid=0,pgen=1,prid=0,mtermId=0,mterm=applied,merr=0x0,ptermId=0,pterm=none,perr=0x0,rtermId=0,rterm=none,rerr=0x0"}
+{"t": 0.9710993129992858, "type": "tx_begin", "phase": "closing_identity", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.9711868919548579, "type": "tx_complete", "phase": "closing_identity", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.9740039839525707, "type": "rx", "phase": "closing_identity", "offset": 20589, "length": 352, "channel": "data"}
+{"t": 0.9741298519656993, "type": "reply", "phase": "closing_identity", "command": "ADSTIMING?", "line": "ADSTIMING,session=71532608891F6A75,bootId=1,busy=0,phase=idle,ackLocal=0,pendingId=0,pendingRev=0,lastId=2,last=completed,reason=probe_complete,acceptedRev=1,resultKnown=1,rev=1,boundary=1,originalError=0x109,cleanupError=0x0,result=1,terminalQueued=1,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=8928,storageError=0x0"}
+{"t": 0.9742433379869908, "type": "finished", "phase": "closing_identity", "status": "DIAGNOSTIC_COMPLETE", "error": null}

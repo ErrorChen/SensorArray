@@ -1,0 +1,40 @@
+{
+  "source_commit": "53005f0042a7a7694338f92c9b86ab3276db668a",
+  "version": "53005f0-dirty",
+  "app_bytes": 1592032,
+  "bin_sha256": "d53347bb7e28bbef833d19c9651ef492ccf79701fd2dad9e18471d47f1864bff",
+  "elf_sha256": "ca6a90ffe1c2b72344e4b1a54f44169c751b39217f4da0ee5f3bdbfabe323d90",
+  "host_entries": 68,
+  "all_exit_zero": true,
+  "production_inputs": 185,
+  "build_test_inputs_identical": true,
+  "build_manifest": "ble-mtu517-01-build-manifest.json",
+  "tests_manifest": "ble-mtu517-01-tests-manifest.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "ADC1_read_policy": "GPIO_TAIL_REQUIRED",
+  "CPU_owner_diagnostics_enabled": true,
+  "normal_defaults_diagnostics_enabled": false,
+  "compiler_optimization": "-O2",
+  "cpu_MHz": 160,
+  "sdkconfig_unchanged_since_transport_cpu_01": true,
+  "changed_production_files_since_transport_cpu_01": [
+    "core/transport/sensorarrayTransport.c"
+  ],
+  "change_scope": "Only preferredMtu 247 to 517. The negotiated bound and 512-byte packet cap, decoder, CRC, priorities, deadlines and queues are unchanged. Hardware negotiation and throughput remain unverified.",
+  "task_wrapper_linked": true,
+  "symbols": {
+    "command": [
+      "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-nm",
+      "-n",
+      "build/SensorArray.elf"
+    ],
+    "exit_code": 0,
+    "matches": [
+      "40001c98 A esp_rom_crc32_le",
+      "403858fc t vPortTaskWrapper"
+    ]
+  },
+  "requested_MTU": 517,
+  "actual_MTU": "UNKNOWN_UNTIL_HIL",
+  "dirty_build_scope": "Concurrent documentation edits only; production/configuration hashes identical to all68 passing tests."
+}

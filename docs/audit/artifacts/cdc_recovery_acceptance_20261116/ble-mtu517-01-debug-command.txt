@@ -1,0 +1,3 @@
+{"type": "CDC_debug_progress", "rx_bytes": 20382, "elapsed_seconds": 20.091335717996117}
+{"type": "CDC_debug_progress", "rx_bytes": 40367, "elapsed_seconds": 40.85641910799313}
+{"status": "STOPPED", "error": null, "rx_bytes": 50607, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-mtu517-01-debug.debug.rx.bin"}

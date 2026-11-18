@@ -1,0 +1,1 @@
+{"status": "QUERIES_COMPLETE", "error": null, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-mtu517-01-boot.rx.bin", "ctrl_raw_file": null, "elapsed_seconds": 3.052374785009306}

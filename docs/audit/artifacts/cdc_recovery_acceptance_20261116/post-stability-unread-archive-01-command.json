@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "--recording",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.rx.bin",
+    "--recording",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.events.jsonl",
+    "--evidence",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01.summary.json",
+    "--evidence",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-01-command.json",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/post-readers-closed-archive-index-01.json"
+  ],
+  "exit_code": 0,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/post-stability-unread-archive-01.txt",
+  "log_sha256": "9f1e5a6a58518881cb231d3c9a7ec89a5e272e1c5e1e2ab7a1e44d6260ed2d34",
+  "hardware_actions": [],
+  "original_retained": true
+}
