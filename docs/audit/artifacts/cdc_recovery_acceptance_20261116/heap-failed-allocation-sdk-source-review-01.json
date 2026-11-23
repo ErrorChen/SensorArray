@@ -1,0 +1,192 @@
+{
+  "utc": "2026-11-21T01:55:40.502442+00:00",
+  "reviewer": "ble_review",
+  "scope": "Read-only SDK source and first/last-record design review. Implementation not frozen yet; no gate implied.",
+  "originImage": {
+    "elfSha256": "2f74130825f1b4c173cee27bf569bc4385bbdd26a7049adee3efe6e8b77c39e9",
+    "session": "55B0EC5D078FCD53",
+    "bootId": "1"
+  },
+  "trigger": {
+    "status": "BACKEND_UNAVAILABLE_CONTROL_QUERY_OBSERVED",
+    "preInternalFree": 45716,
+    "preInternalLargest": 31732,
+    "postInternalFree": 29076,
+    "postInternalLargest": 10740,
+    "minimumInternal": 8592,
+    "phase": "driver_init",
+    "sdkErr": "0x00000101",
+    "faults": [],
+    "resets": [],
+    "artifacts": {
+      "wifi-control-05/wifi-control-05.summary.json": "60f8a31da67e3a59d498a676c47b9ab2098b83995c16917d044838bfcaccfe5a",
+      "wifi-control-05/wifi-control-05.events.jsonl": "942e0b673a1f19cf046d1021cdebccaeefc735cccc08ff5f4bcabbd27721bc94",
+      "wifi-control-05/wifi-control-05.rx.bin": "5a406b8437560b063ebd70e2fc1191ea98f469236adc541bc51a3faeddcfd04d"
+    }
+  },
+  "sdkEvidence": {
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps.c": {
+      "sha256": "a1ddc96cda0df2758552c611e409bde6358b8b18145470f928a33cb59628f2a1",
+      "excerpts": [
+        {
+          "start": 27,
+          "end": 29,
+          "text": "static esp_alloc_failed_hook_t alloc_failed_callback;\n\n#ifdef CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS"
+        },
+        {
+          "start": 49,
+          "end": 72,
+          "text": "HEAP_IRAM_ATTR NOINLINE_ATTR static void heap_caps_alloc_failed(size_t requested_size, uint32_t caps, const char *function_name)\n{\n    if (alloc_failed_callback) {\n        alloc_failed_callback(requested_size, caps, function_name);\n    }\n\n#ifdef CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS\n    char buf[48];\n    fmt_abort_str(buf, requested_size, caps);\n    esp_system_abort(buf);\n#endif\n}\n\nesp_err_t heap_caps_register_failed_alloc_callback(esp_alloc_failed_hook_t callback)\n{\n    if (callback == NULL) {\n        return ESP_ERR_INVALID_ARG;\n    }\n\n    alloc_failed_callback = callback;\n\n    return ESP_OK;\n}\n"
+        },
+        {
+          "start": 81,
+          "end": 92,
+          "text": "*/\nHEAP_IRAM_ATTR void *heap_caps_malloc( size_t size, uint32_t caps)\n{\n    void* ptr = heap_caps_malloc_base(size, caps);\n\n\n    if (!ptr && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n\n    return ptr;\n}"
+        },
+        {
+          "start": 172,
+          "end": 189,
+          "text": "HEAP_IRAM_ATTR void *heap_caps_malloc_prefer( size_t size, size_t num, ... )\n{\n    va_list argp;\n    va_start( argp, num );\n    void *r = NULL;\n    uint32_t caps = MALLOC_CAP_DEFAULT;\n    while (num--) {\n        caps = va_arg( argp, uint32_t );\n        r = heap_caps_malloc_base( size, caps );\n        if (r != NULL || size == 0) {\n            break;\n        }\n    }\n\n    if (r == NULL && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n    va_end( argp );"
+        },
+        {
+          "start": 220,
+          "end": 261,
+          "text": "HEAP_IRAM_ATTR void *heap_caps_calloc_prefer( size_t n, size_t size, size_t num, ... )\n{\n    va_list argp;\n    va_start( argp, num );\n    void *r = NULL;\n    uint32_t caps = MALLOC_CAP_DEFAULT;\n    while (num--) {\n        caps = va_arg( argp, uint32_t );\n        r = heap_caps_calloc_base( n, size, caps );\n        if (r != NULL || size == 0){\n            break;\n        }\n    }\n\n    if (r == NULL && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n    va_end( argp );\n    return r;\n}\n\nHEAP_IRAM_ATTR void *heap_caps_realloc( void *ptr, size_t size, uint32_t caps)\n{\n    ptr = heap_caps_realloc_base(ptr, size, caps);\n\n\n    if (ptr == NULL && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n\n    return ptr;\n}\n\nHEAP_IRAM_ATTR void *heap_caps_calloc( size_t n, size_t size, uint32_t caps)\n{\n    void* ptr = heap_caps_calloc_base(n, size, caps);\n\n\n    if (!ptr && size > 0){\n        heap_caps_alloc_failed(n * size, caps, __func__);\n    }\n"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps_base.c": {
+      "sha256": "2750c06fd0925269a5604289596075f1dbaba44afcc5883b5a33c5073cc8b557",
+      "excerpts": [
+        {
+          "start": 90,
+          "end": 109,
+          "text": "\nHEAP_IRAM_ATTR static inline void *aligned_or_unaligned_alloc(multi_heap_handle_t heap, size_t size, size_t alignment, size_t offset) {\n    if (alignment<=UNALIGNED_MEM_ALIGNMENT_BYTES) { //alloc and friends align to 32-bit by default\n        return multi_heap_malloc(heap, size);\n    } else {\n        return multi_heap_aligned_alloc_offs(heap, size, alignment, offset);\n    }\n}\n\n/*\nThis function should not be called directly as it does not check for failure / call heap_caps_alloc_failed()\nNote that this function does 'unaligned' alloc calls if alignment <= UNALIGNED_MEM_ALIGNMENT_BYTES (=4) as the\nallocator will align to that value by default.\n*/\nHEAP_IRAM_ATTR NOINLINE_ATTR void *heap_caps_aligned_alloc_base(size_t alignment, size_t size, uint32_t caps)\n{\n    void *ret = NULL;\n\n    // Alignment, size and caps may need to be modified because of hardware requirements.\n    esp_heap_adjust_alignment_to_hw(&alignment, &size, &caps);"
+        },
+        {
+          "start": 145,
+          "end": 202,
+          "text": "                //Heap has at least one of the caps requested. If caps has other bits set that this prio\n                //doesn't cover, see if they're available in other prios.\n                if ((get_all_caps(heap) & caps) == caps) {\n                    //This heap can satisfy all the requested capabilities. See if we can grab some memory using it.\n                    // If MALLOC_CAP_EXEC is requested but the DRAM and IRAM are on the same addresses (like on esp32c6)\n                    // proceed as for a default allocation.\n                    if ((caps & MALLOC_CAP_EXEC) &&\n                        ((!esp_dram_match_iram() && esp_ptr_in_diram_dram((void *)heap->start)) ||\n                         (!esp_rtc_dram_match_rtc_iram() && esp_ptr_in_rtc_dram_fast((void *)heap->start)))) {\n                        //This is special, insofar that what we're going to get back is a DRAM address. If so,\n                        //we need to 'invert' it (lowest address in DRAM == highest address in IRAM and vice-versa) and\n                        //add a pointer to the DRAM equivalent before the address we're going to return.\n                        ret = aligned_or_unaligned_alloc(heap->heap, MULTI_HEAP_ADD_BLOCK_OWNER_SIZE(size) + 4,\n                                                        alignment, MULTI_HEAP_BLOCK_OWNER_SIZE());  // int overflow checked above\n                        if (ret != NULL) {\n#if CONFIG_HEAP_TASK_TRACKING\n                            heap_caps_update_per_task_info_alloc(heap,\n                                                                 MULTI_HEAP_ADD_BLOCK_OWNER_OFFSET(ret),\n                                                                 multi_heap_get_full_block_size(heap->heap, ret),\n                                                                 get_all_caps(heap));\n#endif\n\n                            MULTI_HEAP_SET_BLOCK_OWNER(ret);\n                            ret = MULTI_HEAP_ADD_BLOCK_OWNER_OFFSET(ret);\n                            uint32_t *iptr = dram_alloc_to_iram_addr(ret, size + 4);  // int overflow checked above\n                            CALL_HOOK(esp_heap_trace_alloc_hook, iptr, size, caps);\n                            return iptr;\n                        }\n                    } else {\n                        //Just try to alloc, nothing special.\n                        ret = aligned_or_unaligned_alloc(heap->heap, MULTI_HEAP_ADD_BLOCK_OWNER_SIZE(size),\n                                                        alignment, MULTI_HEAP_BLOCK_OWNER_SIZE());\n                        if (ret != NULL) {\n#if CONFIG_HEAP_TASK_TRACKING\n                            heap_caps_update_per_task_info_alloc(heap,\n                                                                 MULTI_HEAP_ADD_BLOCK_OWNER_OFFSET(ret),\n                                                                 multi_heap_get_full_block_size(heap->heap, ret),\n                                                                 get_all_caps(heap));\n#endif\n\n                            MULTI_HEAP_SET_BLOCK_OWNER(ret);\n                            ret = MULTI_HEAP_ADD_BLOCK_OWNER_OFFSET(ret);\n                            CALL_HOOK(esp_heap_trace_alloc_hook, ret, size, caps);\n                            return ret;\n                        }\n                    }\n                }\n            }\n        }\n    }\n\n    //Nothing usable found.\n    return NULL;\n}\n\n//Wrapper for heap_caps_aligned_alloc_base as that can also do unaligned allocs.\nHEAP_IRAM_ATTR NOINLINE_ATTR void *heap_caps_malloc_base( size_t size, uint32_t caps) {\n    return heap_caps_aligned_alloc_base(UNALIGNED_MEM_ALIGNMENT_BYTES, size, caps);"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/multi_heap_poisoning.c": {
+      "sha256": "9b0e6aeca85f4deef8e18bdbc5dda921650a74f1cc0b98bc0cb88e7509148125",
+      "excerpts": [
+        {
+          "start": 243,
+          "end": 267,
+          "text": "void *multi_heap_malloc(multi_heap_handle_t heap, size_t size)\n{\n    if (!size) {\n        return NULL;\n    }\n\n    if(size > SIZE_MAX - POISON_OVERHEAD) {\n        return NULL;\n    }\n\n    multi_heap_internal_lock(heap);\n    poison_head_t *head = multi_heap_malloc_impl(heap, size + POISON_OVERHEAD);\n    uint8_t *data = NULL;\n    if (head != NULL) {\n        data = poison_allocated_region(head, size);\n#ifdef SLOW\n        /* check everything we got back is FREE_FILL_PATTERN & swap for MALLOC_FILL_PATTERN */\n        bool ret = verify_fill_pattern(data, size, true, true, true);\n        assert( ret );\n#endif\n    }\n\n    multi_heap_internal_unlock(heap);\n    return data;\n}"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/multi_heap.c": {
+      "sha256": "2647ff6bb7284a70c94491d003acbc3cd821c02a9f7d49d643aaf7241ac5f74b",
+      "excerpts": [
+        {
+          "start": 208,
+          "end": 231,
+          "text": "void *multi_heap_malloc_impl(multi_heap_handle_t heap, size_t size)\n{\n    if (size == 0 || heap == NULL) {\n        return NULL;\n    }\n\n\n    multi_heap_internal_lock(heap);\n    void *result = tlsf_malloc(heap->heap_data, size);\n    if(result) {\n        heap->free_bytes -= tlsf_block_size(result);\n        heap->free_bytes -= tlsf_alloc_overhead();\n        if (heap->free_bytes < heap->minimum_free_bytes) {\n            heap->minimum_free_bytes = heap->free_bytes;\n        }\n    }\n    multi_heap_internal_unlock(heap);\n\n    return result;\n}\n\nvoid multi_heap_free_impl(multi_heap_handle_t heap, void *p)\n{\n    if (heap == NULL || p == NULL) {"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/multi_heap_platform.h": {
+      "sha256": "660fe2d674267c86cbb2c2018d1854f8a0dedb60f8f303f57b1fbc2215722cc8",
+      "excerpts": [
+        {
+          "start": 15,
+          "end": 31,
+          "text": "\ntypedef portMUX_TYPE multi_heap_lock_t;\n\n/* Because malloc/free can happen inside an ISR context,\n   we need to use portmux spinlocks here not RTOS mutexes */\n#define MULTI_HEAP_LOCK(PLOCK) do {                         \\\n        if((PLOCK) != NULL) {                               \\\n            portENTER_CRITICAL_SAFE((PLOCK));               \\\n        }                                                   \\\n    } while(0)\n\n\n#define MULTI_HEAP_UNLOCK(PLOCK) do {                       \\\n        if ((PLOCK) != NULL) {                              \\\n            portEXIT_CRITICAL_SAFE((PLOCK));                \\\n        }                                                   \\\n    } while(0)"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/include/esp_heap_caps.h": {
+      "sha256": "5fd9bf5e089788bc91b81474047379c96826c768607f0f7ad4b8e0930a7de3ec",
+      "excerpts": [
+        {
+          "start": 53,
+          "end": 68,
+          "text": "#define MALLOC_CAP_INVALID          (1<<31) ///< Memory can't be used / list end marker\n\n/**\n * @brief callback called when an allocation operation fails, if registered\n * @param size in bytes of failed allocation\n * @param caps capabilities requested of failed allocation\n * @param function_name function which generated the failure\n */\ntypedef void (*esp_alloc_failed_hook_t) (size_t size, uint32_t caps, const char * function_name);\n\n/**\n * @brief registers a callback function to be invoked if a memory allocation operation fails\n * @param callback caller defined callback to be invoked\n * @return ESP_OK if callback was registered.\n */\nesp_err_t heap_caps_register_failed_alloc_callback(esp_alloc_failed_hook_t callback);"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c": {
+      "sha256": "f7cfbbfe924f53c2c40801550d5a57867f58f76c68432efca97ae18fcec89ef8",
+      "excerpts": [
+        {
+          "start": 478,
+          "end": 504,
+          "text": "BaseType_t __attribute__((optimize(\"-O3\"))) xPortEnterCriticalTimeout(portMUX_TYPE *mux, BaseType_t timeout)\n{\n    /* Interrupts may already be disabled (if this function is called in nested\n     * manner). However, there's no atomic operation that will allow us to check,\n     * thus we have to disable interrupts again anyways.\n     *\n     * However, if this is call is NOT nested (i.e., the first call to enter a\n     * critical section), we will save the previous interrupt level so that the\n     * saved level can be restored on the last call to exit the critical.\n     */\n    BaseType_t xOldInterruptLevel = portSET_INTERRUPT_MASK_FROM_ISR();\n    if (!spinlock_acquire(mux, timeout)) {\n        //Timed out attempting to get spinlock. Restore previous interrupt level and return\n        portCLEAR_INTERRUPT_MASK_FROM_ISR(xOldInterruptLevel);\n        return pdFAIL;\n    }\n    //Spinlock acquired. Increment the critical nesting count.\n    BaseType_t coreID = xPortGetCoreID();\n    BaseType_t newNesting = port_uxCriticalNesting[coreID] + 1;\n    port_uxCriticalNesting[coreID] = newNesting;\n    //If this is the first entry to a critical section. Save the old interrupt level.\n    if ( newNesting == 1 ) {\n        port_uxOldInterruptState[coreID] = xOldInterruptLevel;\n    }\n    return pdPASS;\n}\n"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h": {
+      "sha256": "80ff24959d8a900b7896d4fd3991344a2e100f3b8aacfbc787fe31df7bef8f77",
+      "excerpts": [
+        {
+          "start": 450,
+          "end": 464,
+          "text": "#define portTRY_ENTER_CRITICAL(mux, timeout)        xPortEnterCriticalTimeoutCompliance(mux, timeout)\n#define portENTER_CRITICAL(mux)                     vPortEnterCriticalCompliance(mux)\n#define portEXIT_CRITICAL(mux)                      vPortExitCriticalCompliance(mux)\n#else\n#define portTRY_ENTER_CRITICAL(mux, timeout)        xPortEnterCriticalTimeout(mux, timeout)\n#define portENTER_CRITICAL(mux)                     vPortEnterCritical(mux)\n#define portEXIT_CRITICAL(mux)                      vPortExitCritical(mux)\n#endif /* CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE */\n\n#define portTRY_ENTER_CRITICAL_ISR(mux, timeout)    xPortEnterCriticalTimeout(mux, timeout)\n#define portENTER_CRITICAL_ISR(mux)                 vPortEnterCritical(mux)\n#define portEXIT_CRITICAL_ISR(mux)                  vPortExitCritical(mux)\n\n#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout)   xPortEnterCriticalTimeoutSafe(mux, timeout)\n#define portENTER_CRITICAL_SAFE(mux)                vPortEnterCriticalSafe(mux)"
+        },
+        {
+          "start": 565,
+          "end": 568,
+          "text": "static inline void __attribute__((always_inline)) vPortEnterCritical(portMUX_TYPE *mux)\n{\n    xPortEnterCriticalTimeout(mux, portMUX_NO_TIMEOUT);\n}"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_hw_support/include/spinlock.h": {
+      "sha256": "97673e8d7495c206bc4339c677c28912c5579bbf4d8e3f25ecbd929c286789fc",
+      "excerpts": [
+        {
+          "start": 32,
+          "end": 33,
+          "text": "#define SPINLOCK_WAIT_FOREVER  (-1)\n#define SPINLOCK_NO_WAIT        0"
+        },
+        {
+          "start": 106,
+          "end": 137,
+          "text": "        assert(lock->count > 0 && lock->count < 0xFF);    // Bad count value implies memory corruption\n        lock->count++;\n#if __XTENSA__\n        XTOS_RESTORE_INTLEVEL(irq_status);\n#else\n        rv_utils_restore_intlevel_regval(irq_status);\n#endif\n        return true;\n    }\n\n    /* First attempt to take the lock.\n     *\n     * Note: We do a first attempt separately (instead of putting this into a loop) in order to avoid call to\n     * esp_cpu_get_cycle_count(). This doing a first attempt separately makes acquiring a free lock quicker, which\n     * is the case for the majority of spinlock_acquire() calls (as spinlocks are free most of the time since they\n     * aren't meant to be held for long).\n     */\n    lock_set = esp_cpu_compare_and_set(&lock->owner, SPINLOCK_FREE, core_owner_id);\n    if (lock_set || timeout == SPINLOCK_NO_WAIT) {\n        // We've successfully taken the lock, or we are not retrying\n        goto exit;\n    }\n\n    // First attempt to take the lock has failed. Retry until the lock is taken, or until we timeout.\n    start_count = esp_cpu_get_cycle_count();\n    do {\n        lock_set = esp_cpu_compare_and_set(&lock->owner, SPINLOCK_FREE, core_owner_id);\n        if (lock_set) {\n            break;\n        }\n        // Keep looping if we are waiting forever, or check if we have timed out\n    } while ((timeout == SPINLOCK_WAIT_FOREVER) || (esp_cpu_get_cycle_count() - start_count) <= (esp_cpu_cycle_count_t)timeout);"
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "kind": "execution context",
+      "conclusion": "Synchronous in allocation caller context after *_base returns. Current LIGHT-poisoned region allocator releases its mux before returning failure. This does not mean caller holds no other lock or that callback runs only in task context; heap port explicitly supports ISR callers."
+    },
+    {
+      "kind": "registration",
+      "conclusion": "One global callback pointer; NULL rejected, no unregister/chaining built in. Initialize immutable boot/session/ELF identity and fixed internal record before registering once, before network/scan; preserve repeated-init result and data. Existing project registration search had no competing hook at review start."
+    },
+    {
+      "kind": "bounded record",
+      "conclusion": "No heap traversal, allocation/free, printf/logging, NVS, SDK owner queries, task APIs or function_name dereference in hook. Fixed scalar DRAM writes and IRAM code; query formats after taking a consistent snapshot outside hook."
+    },
+    {
+      "kind": "critical section",
+      "conclusion": "portENTER_CRITICAL_ISR uses infinite -1 spinlock timeout; short lock body does not bound cross-core acquisition. Recommended portTRY_ENTER_CRITICAL_ISR(mux,0): actual SDK attempts one compare-and-set and returns on contention. Preserve IRQ state. Mark capture incomplete on miss without a retry loop. Count/first/last mean recorded events, not guaranteed all allocation failures if misses occurred."
+    },
+    {
+      "kind": "raw semantics",
+      "conclusion": "Prefer allocators report once only if all alternatives fail, with final attempted caps. function_name is allocator API, not vendor request caller. Requested size excludes internal alignment/poisoning overhead; record raw value rather than infer total physical footprint. Direct base allocator calls and returned NO_MEM paths need not all invoke callback."
+    },
+    {
+      "kind": "query identity",
+      "conclusion": "Read-only MEMFAIL should bind session/boot/fullELF to current since-register record, have known/registration/incomplete/saturated distinctions, and never clear on query. Callback must not obtain identity via another lock or late global restamp."
+    }
+  ],
+  "implementationChecksPending": [
+    "Worker freeze source and real host concurrency/reentrancy/unknown/format bounds tests",
+    "Target IRAM callback/helper/literal call tree and internal record placement",
+    "Target query capacity including newline/NUL",
+    "Hardware observed failing request size/caps; no allocation fault injection by reviewer"
+  ],
+  "noActions": [
+    "No source/config edits",
+    "No target builds",
+    "No hardware commands",
+    "No speculative memory placement changes"
+  ]
+}

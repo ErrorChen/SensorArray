@@ -1,0 +1,113 @@
+{
+  "schema": "app_only_usj_flash_v1",
+  "status": "FLASH_VERIFIED_WATCHDOG_REQUESTED_BOOT_UNVERIFIED",
+  "commands": [
+    {
+      "stage": "identity",
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--connect-attempts",
+        "2",
+        "--before",
+        "no_reset",
+        "--after",
+        "no_reset",
+        "flash_id"
+      ],
+      "timeout_seconds": 180,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-flash-usj-identity.txt",
+      "exit_code": 0,
+      "log_sha256": "55b21e1e71fd8c935da16179df8a572ed78c1889f0cfba83e34d14d6fa47c1bf"
+    },
+    {
+      "stage": "app",
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "-m",
+        "esptool",
+        "--chip",
+        "esp32s3",
+        "--port",
+        "/dev/ttyACM0",
+        "--baud",
+        "460800",
+        "--connect-attempts",
+        "2",
+        "--before",
+        "no_reset",
+        "--after",
+        "no_reset",
+        "write_flash",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "16MB",
+        "0x10000",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin"
+      ],
+      "timeout_seconds": 180,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-flash-usj-app.txt",
+      "exit_code": 0,
+      "log_sha256": "22466c1333aa467ce8aa477f027d4f4a84d75509d6cd978ce78d330c5046e750"
+    },
+    {
+      "stage": "watchdog",
+      "command": [
+        "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/exit_usj_download_watchdog.py",
+        "--port",
+        "/dev/ttyACM0",
+        "--mac",
+        "80:b5:4e:cd:d9:ac"
+      ],
+      "timeout_seconds": 30,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-flash-usj-watchdog.txt",
+      "exit_code": 0,
+      "log_sha256": "be3fc5c988e332e6f6276c3ce566904beebf1ad8f9f7d475bbcaa124d86e3d52"
+    }
+  ],
+  "expected_mac": "80:b5:4e:cd:d9:ac",
+  "app_offset": 65536,
+  "flash_verified": true,
+  "watchdog_helper_started": true,
+  "watchdog_requested": true,
+  "watchdog_call_returned": true,
+  "app_boot_verified": false,
+  "automatic_retries": 0,
+  "nvs_or_calibration_written": false,
+  "partition_written": false,
+  "bootloader_written": false,
+  "efuse_written": false,
+  "script_sha256": "c4f76424aa7ce1e714e2d0ff8301964f949328f5042b4bacc31fbe8078aa2966",
+  "limitations": [
+    "Application enumeration and BUILD identity require independent observation.",
+    "Official ROM connection may disable watchdog registers before ROM MAC readback; no flash/eFuse write is requested then."
+  ],
+  "build_manifest_sha256": "1ede1520920b0de01ea17ed1322c711cfb9ae499e3fb8ce5a23e419eb4ecc669",
+  "flasher_args_sha256": "33af4a3d99ac0fc18d486231be52084439f017865110917622bf5c78ef9f1678",
+  "partitions_sha256": "603c4af4923f97a44af642e46f26b3919c50f3cb912cdddc1e1400726f9711a4",
+  "app_partition": {
+    "name": "factory",
+    "type": "app",
+    "subtype": "factory",
+    "offset": 65536,
+    "size": 3145728,
+    "erase_start": 65536,
+    "erase_end_exclusive": 1699840
+  },
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "build_version": "8a1794c-dirty",
+  "app_sha256": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a",
+  "app_bytes": 1631456,
+  "watchdog_helper_sha256": "31fb688d4dafaf5a56727722269f3c316d122d476f10b914f47fbfc4d6ab865d"
+}

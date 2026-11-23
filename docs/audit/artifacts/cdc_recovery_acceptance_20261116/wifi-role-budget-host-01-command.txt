@@ -1,0 +1,11 @@
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=100,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=500,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=1000,phaseUs=0,idleVisits=49,maxIdleGapTicks=4
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":100,"phaseUs":0,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":3,"yields":0,"work":[200,200,200,200,200,200,200,200]}
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":500,"phaseUs":0,"arrivalsPerWorker":200,"idleVisits":83,"maxIdleGapTicks":4,"yields":312,"work":[200,200,200,200,200,200,200,200]}
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=100,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=500,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=1000,phaseUs=9500,idleVisits=50,maxIdleGapTicks=4
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":100,"phaseUs":9500,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":3,"yields":0,"work":[200,200,200,200,200,200,200,200]}
+{"case":"finite_100Hz_7workers_sdk40percent","unitUs":500,"phaseUs":9500,"arrivalsPerWorker":200,"idleVisits":122,"maxIdleGapTicks":4,"yields":312,"work":[200,200,200,200,200,200,200,200]}
+WORK_BUDGET_PASS,scenarios=26,production_component=1,hardware=NOT_RUN

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "wifi-owner-02",
+    "--change-scope",
+    "Persistent isolated Wi-Fi SDK owner with asynchronous boot-scoped request results, bounded queue admission, retained in-flight ownership and independent deadline quarantine; checked initialization failures and truthful completion counters. Lazy startup gate preserves fixed scan/SPI/output reservations. Explicit manual RESTART/USBBOOT bypass potentially blocking shutdown handlers after existing USB fence; generic/automatic restart unchanged. CAPS2 and cached Wi-Fi stack diagnostics are additive. Includes image06 typed metadata and periodic BLE snapshots unchanged. HIL pending."
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "a509a0ff94c24e4df118880e2533d00815fe66c977fda13e980ab59c4b491ffb",
+  "started_utc": "2026-11-21T00:25:15.085963+00:00",
+  "started_monotonic": 151482.480533318,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-validate-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:25:17.805707+00:00",
+  "finished_monotonic": 151485.200275296,
+  "log_sha256": "d21f48f0aab5f57df6ca555b37381586937d03c63fa560f4bb4055b7a09d9b32"
+}

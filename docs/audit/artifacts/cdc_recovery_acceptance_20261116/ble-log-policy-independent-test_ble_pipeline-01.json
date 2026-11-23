@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "tools/test_ble_pipeline.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "started_utc": "2026-11-20T18:07:54.301652+00:00",
+  "timeout_seconds": 90,
+  "hardware": "NOT_RUN",
+  "source_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+  "exit_code": 0,
+  "elapsed_seconds": 0.9157491560035851,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-independent-test_ble_pipeline-01.txt",
+  "log_sha256": "09af3a2793a33fb39e2cfbb550d134f8dc4b051d9f3893a6054b7e047073d5f1",
+  "finished_utc": "2026-11-20T18:07:55.217653+00:00"
+}

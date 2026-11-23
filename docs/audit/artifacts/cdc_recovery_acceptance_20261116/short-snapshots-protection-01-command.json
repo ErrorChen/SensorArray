@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py",
+    "--summary",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.summary.json",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-protection-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "8e90bbe514e869d4d760ddd16ecb1e02a817ffb5e75467c7ed775d14ce0581fe",
+  "started_utc": "2026-11-20T19:38:35.734367+00:00",
+  "started_monotonic": 134289.902607247,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-01-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-20T19:38:35.898432+00:00",
+  "finished_monotonic": 134290.066672973,
+  "log_sha256": "df915b26a0ad67309cb3d3f532dd87fa1ede0f11a3001af831d5d134f562ce84"
+}

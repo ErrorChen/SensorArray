@@ -5,6 +5,7 @@
 
 #include "esp_err.h"
 #include "sensorarrayTransportChannels.h"
+#include "sensorarrayTransportFrameIdentity.h"
 #include "sensorarrayWifi.h"
 
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 2304u
@@ -76,7 +77,24 @@ typedef struct {
     uint32_t transportSlotReleaseMismatch;
     uint32_t transportStaleDescriptor;
     uint32_t blockCount;
+    /* Local policy choices, separate from unexpected queue rejection. */
+    uint32_t bleDataPolicySkipped;
+    uint32_t bleDataObsolete;
 } sensorarrayTransportStats_t;
+
+typedef struct {
+    uint32_t queued;
+    uint32_t admissionMiss;
+    uint32_t firstCandidateMiss;
+    uint32_t derivedProtection;
+    uint32_t superseded;
+    uint32_t retryAttempts;
+    uint32_t expired;
+    uint32_t bleExpired;  /* Captured BLE target still awaiting admission. */
+    uint32_t wifiExpired; /* Captured ready Wi-Fi target never attempted. */
+    uint32_t bleAccepted;
+    uint32_t bleFailed;
+} sensorarrayTransportProtectionStats_t;
 
 typedef struct {
     uint32_t legacyItemBytes;
@@ -85,6 +103,13 @@ typedef struct {
     uint32_t legacyQueueStorageBytes;
     uint32_t descriptorQueueStorageBytes;
     uint32_t payloadPoolBytes;
+    /* 本轮新增: split storage accounting. Existing slot/pool totals still
+     * include metadata plus their allocated payload bytes across both heaps. */
+    uint32_t payloadStorageBytes;
+    uint32_t payloadInternalBytes;
+    uint32_t payloadExternalBytes;
+    bool payloadStorageReady;
+    esp_err_t payloadStorageError;
 } sensorarrayTransportMemoryDiagnostics_t;
 
 typedef struct {
@@ -110,7 +135,20 @@ typedef void (*sensorarrayTransportControlReplyFailedCallback_t)(
     size_t length);
 
 esp_err_t sensorarrayTransportInit(void);
+/* 本轮新增: software-only boot identity and fixed-task reservation gate.
+ * Default OFF never allocates the lazy Wi-Fi owner/payload resources. */
+void sensorarrayTransportConfigureWifiBoot(uint64_t sessionId, uint32_t bootId);
+void sensorarrayTransportReleaseWifiStartupGate(void);
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length);
+/* 本轮新增: only the real frame encoder's immutable packet/identity pair may
+ * use this interface. ESP_OK is local admission, never PC receipt. */
+esp_err_t sensorarrayTransportPublishFrame(const char *data, size_t length,
+    const sensorarrayTransportFrameIdentity_t *identity, uint32_t protectionFlags);
+/* 本轮新增: same encoder provenance, with copied tag-specific wire metadata.
+ * The identity-only entry above retains its original text parser behavior. */
+esp_err_t sensorarrayTransportPublishFrameMetadata(const char *data, size_t length,
+    const sensorarrayTransportFrameMetadata_t *metadata, uint32_t protectionFlags);
+void sensorarrayTransportGetProtectionStats(sensorarrayTransportProtectionStats_t *outStats);
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length);
 esp_err_t sensorarrayTransportPublishLifecycle(const char *data, size_t length);
 /* 本轮新增: network descriptor admission only; ESP_OK can be a disabled-sink
@@ -127,6 +165,8 @@ esp_err_t sensorarrayTransportHandleControlCommand(
     size_t length,
     const sensorarrayTransportReplyTarget_t *replyTarget);
 esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode);
+/* 本轮新增: ESP_OK means accepted; query the exact id for the applied result. */
+esp_err_t sensorarrayTransportRequestWifiMode(sensorarrayTransportWifiMode_t mode, uint32_t *requestId);
 void sensorarrayTransportSetLegacyCommandCallback(
     sensorarrayTransportLegacyCommandCallback_t callback,
     void *context);

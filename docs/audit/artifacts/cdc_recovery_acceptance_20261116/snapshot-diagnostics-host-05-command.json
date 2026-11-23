@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_snapshot_diagnostics.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "937a2b23764dfef700e2a6a2e5d76e2fa8132c88ec70d118b8184843991eee45",
+  "started_utc": "2026-11-20T19:06:11.110604+00:00",
+  "started_monotonic": 132345.2788547,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/snapshot-diagnostics-host-05-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:06:11.225093+00:00",
+  "finished_monotonic": 132345.393337112,
+  "log_sha256": "c765a7aaf069f501112ac1fa0016e7fc5cf9f397ef6dedbce3a0d7fc7fbf5727"
+}

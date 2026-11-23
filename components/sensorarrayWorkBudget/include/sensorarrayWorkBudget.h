@@ -17,6 +17,8 @@ typedef enum {
     SENSORARRAY_WORK_BUDGET_BLE_CTRL,
     SENSORARRAY_WORK_BUDGET_SERIAL_CTRL,
     SENSORARRAY_WORK_BUDGET_WIFI_CTRL,
+    /* 本轮新增: persistent SDK owner; never share WIFI_CTRL's writer. */
+    SENSORARRAY_WORK_BUDGET_WIFI_OWNER,
     SENSORARRAY_WORK_BUDGET_WORKER_COUNT,
 } sensorarrayWorkBudgetWorker_t;
 

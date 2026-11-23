@@ -1,0 +1,39 @@
+[
+  {
+    "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2",
+    "sysfs_name": "3-2",
+    "vid": "303a",
+    "pid": "1001",
+    "busnum": 3,
+    "devnum": 37,
+    "serial_raw": "80:B5:4E:CD:D9:AC",
+    "serial": "80B54ECDD9AC",
+    "interfaces": [
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.0",
+        "number": "00",
+        "class": "02",
+        "subclass": "02",
+        "protocol": "00"
+      },
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.1",
+        "number": "01",
+        "class": "0a",
+        "subclass": "02",
+        "protocol": "00"
+      },
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.2",
+        "number": "02",
+        "class": "ff",
+        "subclass": "ff",
+        "protocol": "01"
+      }
+    ],
+    "ttys": [
+      "/dev/ttyACM0"
+    ],
+    "speed_mbps_sysfs": "12"
+  }
+]

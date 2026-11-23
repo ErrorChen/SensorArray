@@ -76,6 +76,12 @@ def main():
     for name in names:
         assert structure(before, name) == structure(after, name), name
     harness = (root / "tests/host/test_async_log_summary.c").read_text()
+    sink = (root / "main/output/sensorarrayUsbSink.c").read_text()
+    profile_functions = function(sink, "esp_err_t sensorarrayUsbSinkInit(") + "\n" + function(
+        sink, "sensorarrayUsbStreamProfile_t sensorarrayUsbSinkGetStreamProfile(").replace(
+            "sensorarrayUsbSinkGetStreamProfile", "actualUsbProfile") + "\n" + function(
+                sink, "bool sensorarrayUsbSinkShouldEmitData(")
+    harness = harness.replace("/* ACTUAL_USB_PROFILE */", profile_functions)
     harness = harness.replace("/* ACTUAL_TYPES */", "\n".join(structure(after, n) for n in names))
     # Compare declared state fields; C structure padding is not observable
     # state and may differ between otherwise identical aggregate assignments.

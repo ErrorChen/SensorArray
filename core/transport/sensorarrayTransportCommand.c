@@ -1,4 +1,5 @@
 #include "sensorarrayTransportInternal.h"
+#include "sensorarrayTransportWifiControl.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -151,25 +152,8 @@ static esp_err_t sensorarrayTransportHandleRuntimeCommand(const char *text,
         return ESP_OK;
     }
 
-    if (strcmp(text, "WIFI?") == 0) {
-        snprintf(response, responseSize, "ACK,cmd=WIFI,v=%s,ok=%u\n",
-                 sensorarrayTransportWifiModeName(sensorarrayTransportGetWifiMode()),
-                 sensorarrayWifiIsReady() ? 1u : 0u);
-        return ESP_OK;
-    }
-    if (strcmp(text, "WIFI=OFF") == 0 || strcmp(text, "WIFI=AP") == 0) {
-        sensorarrayTransportWifiMode_t mode =
-            strcmp(text, "WIFI=AP") == 0 ? SENSORARRAY_TRANSPORT_WIFI_AP :
-                                           SENSORARRAY_TRANSPORT_WIFI_OFF;
-        esp_err_t err = sensorarrayTransportApplyWifiMode(mode);
-        if (err == ESP_OK) {
-            snprintf(response, responseSize, "ACK,cmd=WIFI,v=%s,ok=%u\n",
-                     sensorarrayTransportWifiModeName(mode), 1u);
-        } else {
-            snprintf(response, responseSize, "ERR,cmd=WIFI,v=%s,e=0x%lx\n",
-                     sensorarrayTransportWifiModeName(mode), (unsigned long)err);
-        }
-        return err;
+    if (sensorarrayTransportWifiCommandHandles(text)) {
+        return sensorarrayTransportWifiCommand(text, response, responseSize);
     }
     if (strcmp(text, "WIFI=STA") == 0 || strcmp(text, "WIFI=APSTA") == 0 ||
         strcmp(text, "WIFI_SCAN") == 0 ||

@@ -13,7 +13,8 @@
 #include "sensorarrayTransport.h"
 #include "sensorarrayBle.h"
 
-#define SENSORARRAY_CFG_LOG_PERIOD_FRAMES 50u
+static uint32_t testNetPeriod = 50u;
+#define SENSORARRAY_CFG_LOG_PERIOD_FRAMES testNetPeriod
 #define CONFIG_SENSORARRAY_ASYNC_LOG_TASK_STACK 16384u
 #define CONFIG_SENSORARRAY_FDC_PRIMARY_I2C_ADDR 0x2bu
 #define CONFIG_SENSORARRAY_FDC_SECONDARY_I2C_ADDR 0x2au
@@ -21,8 +22,17 @@ typedef uint8_t StackType_t;
 static uint64_t nowUs;
 static unsigned variant, frameNumber, formatPackets[2], stackScans[2], oldCellVisits;
 static bool adsDebug;
+static bool otgEnabled;
 static char output[2][16384];
 static size_t outputLength[2];
+static char netOutput[2][8192], usbOutput[2][8192];
+static size_t netLength[2], usbLength[2];
+static portMUX_TYPE s_usbProfileMux;
+static sensorarrayUsbSinkStats_t s_usbStats;
+static sensorarrayUsbStreamProfile_t s_usbStreamProfile;
+static bool s_usbInitialized;
+static bool sensorarrayUsbOtgEnabled(void) { return otgEnabled; }
+/* ACTUAL_USB_PROFILE */
 
 static void record(const char *bytes, size_t length)
 {
@@ -43,7 +53,7 @@ static UBaseType_t uxTaskGetStackHighWaterMark(void *task)
 { (void)task;stackScans[variant]++; return 13064u; }
 static bool sensorarrayCommandMailboxAdsDebugEnabled(void) { return adsDebug; }
 sensorarrayUsbStreamProfile_t sensorarrayUsbSinkGetStreamProfile(void)
-{ return (sensorarrayUsbStreamProfile_t){.mode=SENSORARRAY_USB_STREAM_DEBUG,.dataEvery=50,.diagEvery=15}; }
+{ return variant == 0u ? (sensorarrayUsbStreamProfile_t){.mode=SENSORARRAY_USB_STREAM_DEBUG,.dataEvery=50,.diagEvery=15} : actualUsbProfile(); }
 void sensorarrayUsbSinkGetStats(sensorarrayUsbSinkStats_t *s)
 { *s=(sensorarrayUsbSinkStats_t){.sentPackets=frameNumber+5,.sentBytes=frameNumber*598u,.droppedPackets=frameNumber/19u}; }
 void sensorarrayNetGetSinkStats(sensorarrayNetSinkStats_t *s)
@@ -66,9 +76,9 @@ const char *sensorarrayMeasurementModeName(sensorarrayMeasurementMode_t m)
 static const char *sensorarrayAdsRailStatusName(sensorarrayAdsRailStatus_t s)
 { (void)s;return "ok"; }
 esp_err_t sensorarrayUsbSinkPublishDiagnostic(const sensorarrayTextPacket_t *p)
-{ record("USB:",4);record(p->data,p->length);formatPackets[variant]++;return ESP_OK; }
+{ assert(usbLength[variant]+p->length<sizeof(usbOutput[variant]));memcpy(usbOutput[variant]+usbLength[variant],p->data,p->length);usbLength[variant]+=p->length;record("USB:",4);record(p->data,p->length);formatPackets[variant]++;return ESP_OK; }
 esp_err_t sensorarrayNetLogPublish(const sensorarrayTextPacket_t *p)
-{ record("NET:",4);record(p->data,p->length);formatPackets[variant]++;return ESP_OK; }
+{ assert(netLength[variant]+p->length<sizeof(netOutput[variant]));memcpy(netOutput[variant]+netLength[variant],p->data,p->length);netLength[variant]+=p->length;record("NET:",4);record(p->data,p->length);formatPackets[variant]++;return ESP_OK; }
 
 /* ACTUAL_TYPES */
 static void compareState(const sensorarrayAsyncLogSummary_t *a,const sensorarrayAsyncLogSummary_t *b)
@@ -89,6 +99,31 @@ static uint32_t old_s_summaryTruncated,new_s_summaryTruncated;
 int main(void)
 {
     unsigned compared=0, outputRecords=0;
+    const uint32_t periods[] = {0u,1u,7u,15u,50u,1000u};
+    unsigned profileCases=0;
+    for(unsigned otg=0;otg<2;otg++) {
+        otgEnabled=otg!=0;
+        for(unsigned p=0;p<sizeof(periods)/sizeof(periods[0]);p++) {
+            testNetPeriod=periods[p];s_usbInitialized=false;
+            assert(sensorarrayUsbSinkInit()==ESP_OK);
+            sensorarrayUsbStreamProfile_t profile=actualUsbProfile();
+            assert(profile.diagEvery==(otg?(testNetPeriod?testNetPeriod:20u):15u));
+            assert(profile.dataEvery==50u&&profile.mode==SENSORARRAY_USB_STREAM_DEBUG);
+            variant=1u;
+            for(uint32_t seq=0;seq<101u;seq++) {
+                assert(sensorarrayUsbSinkShouldEmitData(seq)==(otg||seq%50u==0u));
+            }
+            assert(sensorarrayUsbSinkShouldEmitData(UINT32_MAX)==(otg||UINT32_MAX%50u==0u));
+            s_usbStats.sentPackets=123u;
+            assert(sensorarrayUsbSinkInit()==ESP_OK&&s_usbStats.sentPackets==123u);
+            profileCases++;
+        }
+    }
+    testNetPeriod=50u;
+    for(unsigned transport=0;transport<2;transport++) {
+    otgEnabled=transport!=0;s_usbInitialized=false;
+    assert(sensorarrayUsbSinkInit()==ESP_OK);
+    memset(formatPackets,0,sizeof(formatPackets));memset(stackScans,0,sizeof(stackScans));
     for (unsigned scenario=0;scenario<16;scenario++) {
         memset(&old_workspace,0,sizeof(old_workspace));memset(&new_workspace,0,sizeof(new_workspace));
         memset(&old_s_sharedStats,0,sizeof(old_s_sharedStats));memset(&new_s_sharedStats,0,sizeof(new_s_sharedStats));
@@ -130,15 +165,22 @@ int main(void)
             old_s_sharedStats.publishedFrames=new_s_sharedStats.publishedFrames=n;
             old_s_sharedStats.droppedEventLogs=new_s_sharedStats.droppedEventLogs=n/29u;
             old_s_sharedStats.droppedOutputFrames=new_s_sharedStats.droppedOutputFrames=n/41u;
-            variant=0;outputLength[0]=0;
+            variant=0;outputLength[0]=0;netLength[0]=usbLength[0]=0;
             old_sensorarrayAsyncLogUpdateSummary(&old_workspace.summary,&frame,12000,80,90,n%3,n%11!=0);
-            variant=1;outputLength[1]=0;
+            variant=1;outputLength[1]=0;netLength[1]=usbLength[1]=0;
             new_sensorarrayAsyncLogUpdateSummary(&new_workspace.summary,&frame,12000,80,90,n%3,n%11!=0);
             compareState(&old_workspace.summary,&new_workspace.summary);
             variant=0;old_sensorarrayAsyncLogMaybePrintSummary(&old_workspace.summary);
             variant=1;new_sensorarrayAsyncLogMaybePrintSummary(&new_workspace.summary);
-            assert(outputLength[0]==outputLength[1]);
-            assert(memcmp(output[0],output[1],outputLength[0])==0);
+            assert(netLength[0]==netLength[1]);
+            assert(memcmp(netOutput[0],netOutput[1],netLength[0])==0);
+            if(!otgEnabled) {
+                assert(outputLength[0]==outputLength[1]);
+                assert(memcmp(output[0],output[1],outputLength[0])==0);
+            } else {
+                assert(usbLength[1]==netLength[1]);
+                assert(memcmp(usbOutput[1],netOutput[1],netLength[1])==0);
+            }
             compareState(&old_workspace.summary,&new_workspace.summary);
             assert(memcmp(&frame,&saved,sizeof(frame))==0);
             assert(old_s_summaryTruncated==new_s_summaryTruncated);
@@ -147,9 +189,16 @@ int main(void)
             compared++;outputRecords+=outputLength[0]!=0;
         }
     }
+    if(!otgEnabled) {
+        assert(formatPackets[0]==formatPackets[1] && formatPackets[0]>1000);
+        assert(stackScans[0]==stackScans[1]);
+    } else {
+        assert(formatPackets[1]<formatPackets[0]);
+        assert(stackScans[1]<stackScans[0]);
+    }
+    }
     assert(oldCellVisits==compared*64u);
-    assert(formatPackets[0]==formatPackets[1] && formatPackets[0]>1000);
-    assert(stackScans[0]==stackScans[1]);
-    printf("ASYNC_SUMMARY,scenarios=16,frames=%u,byte_equal_windows=%u,packets=%u,state_equal=1,input_unchanged=1,old_cell_visits=%u,new_cell_visits=0,old_window_bytes=%zu,stack_policy_unchanged=1,scope=host_synthetic_not_timing\n",compared,outputRecords,formatPackets[0],oldCellVisits,sizeof(old_s_precisionWindow));
+    printf("USB_DEBUG_CADENCE,profile_cases=%u,transport_scenarios=32,legacy_bytes_equal=1,network_bytes_equal=1,OTG_USB_equals_complete_network_aggregate=1,ADSDBG_preserved=1\n",profileCases);
+    printf("ASYNC_SUMMARY,scenarios=32,frames=%u,baseline_output_windows=%u,baseline_packets=%u,state_equal=1,input_unchanged=1,old_cell_visits=%u,new_cell_visits=0,old_window_bytes=%zu,stack_scans_only_when_summary_due=1,scope=host_synthetic_not_timing\n",compared,outputRecords,formatPackets[0],oldCellVisits,sizeof(old_s_precisionWindow));
     return 0;
 }

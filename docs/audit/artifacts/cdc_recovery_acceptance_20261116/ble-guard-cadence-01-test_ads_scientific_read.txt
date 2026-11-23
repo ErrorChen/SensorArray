@@ -1,0 +1,32 @@
+PASS4 common ADC1 entries: ready/legacy x outer/noouter, no analogue register mutation
+PASS5 selected fresh retry, bad-bit provenance, no bad output, explicit STD fresh/held controls
+PASS8 INTERFACE single/block/failed write, timeout, command/hardware/POWER reset invalidate; MUX preserves; physical proof rebuilds
+PASS8 owner loss never falls back; DMA/route/deadline isolation; firstCRC then RESET/timeout/config change stays hard
+PASS8 identity/type/running/interface/shadow/owner admission and physical restore success/mismatch
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+PASS6 actual Bringup enabled=0: STATUS unified, physical identity proof, no implicit fallback
+PASS4 actual fast battery restore: physical INTERFACE verified/rebuilt; failures block next RDATA
+PASS6 actual RAILCRC log block: split/STD/unknown/invalid-bit provenance, maximum integers <384B
+PASS2 actual SPI56 rejection vs selected55+physical-bit acceptance under injected0-to1/1-to0 tail sampling faults
+ADS_SCIENTIFIC_TRANSPORT_TESTS,passed=51,source=complete_driver_actual_bringup_battery_restore_rail_log,fixture=synthetic
+PASS4 common ADC1 entries: ready/legacy x outer/noouter, no analogue register mutation
+PASS5 selected fresh retry, bad-bit provenance, no bad output, explicit STD fresh/held controls
+PASS8 INTERFACE single/block/failed write, timeout, command/hardware/POWER reset invalidate; MUX preserves; physical proof rebuilds
+PASS8 owner loss never falls back; DMA/route/deadline isolation; firstCRC then RESET/timeout/config change stays hard
+PASS8 identity/type/running/interface/shadow/owner admission and physical restore success/mismatch
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+ADS_SPI_TIMING,path=board,requestedClockHz=125000,mode=1,dutyCyclePos=128,cs=-1,candidate=0,err=0x0
+PASS6 actual Bringup enabled=1: STATUS unified, physical identity proof, no implicit fallback
+PASS4 actual fast battery restore: physical INTERFACE verified/rebuilt; failures block next RDATA
+PASS6 actual RAILCRC log block: split/STD/unknown/invalid-bit provenance, maximum integers <384B
+PASS2 actual SPI56 rejection vs selected55+physical-bit acceptance under injected0-to1/1-to0 tail sampling faults
+ADS_SCIENTIFIC_TRANSPORT_TESTS,passed=51,source=complete_driver_actual_bringup_battery_restore_rail_log,fixture=synthetic

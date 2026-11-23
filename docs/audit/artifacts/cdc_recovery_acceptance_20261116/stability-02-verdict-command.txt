@@ -1,0 +1,1 @@
+{"status": "FAIL_BLE_THROUGHPUT", "label": "stability-02-stability-volt1", "USB_missing": {"status": "KNOWN", "count": 0, "basis": "one_identity_ordered_count_equals_u32_last_minus_first_plus_one_and_empty_gap_examples", "first": 12675, "last": 51141, "ordered_count": 38467, "progress": 38466}, "comparison": "DESCRIPTIVE_COMPARISON_NOT_CAUSAL_AB"}

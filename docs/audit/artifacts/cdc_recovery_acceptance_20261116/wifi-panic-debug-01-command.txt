@@ -1,0 +1,2 @@
+{"type": "CDC_debug_progress", "rx_bytes": 9050, "elapsed_seconds": 22.103789821994724}
+{"status": "ERROR", "error": "serial_eof_or_disconnected", "rx_bytes": 11937, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-panic-debug-01/wifi-panic-debug-01.debug.rx.bin"}

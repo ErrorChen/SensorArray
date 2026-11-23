@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_bt_host_memory_01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "14b39cbab9fb2016071ed1695e1155269d2043564189957299dc8c11f12a03da",
+  "started_utc": "2026-11-21T02:01:49.953869+00:00",
+  "started_monotonic": 157277.674898039,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-control-analysis-01-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-21T02:01:50.068231+00:00",
+  "finished_monotonic": 157277.789245291,
+  "log_sha256": "7af62979432b470c50a2773574bf332a101d94f02ec4830f8e3aeeb04cfe1c85"
+}

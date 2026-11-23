@@ -1,0 +1,180 @@
+{
+  "status": "PASS",
+  "utc": "2026-11-21T00:39:45.429633+00:00",
+  "scope": "Five documentation files only; no hardware, build or new host execution",
+  "documents": [
+    {
+      "path": "README.md",
+      "sha256": "72e8e96f6f0fab31ade266a5c648788d644a501e48047bdc89e278f4251f8c82",
+      "local_links_checked": 485
+    },
+    {
+      "path": "docs/integration/firmware_host_contract.md",
+      "sha256": "24fb02e2756df4ad643d212f07a4f3f85a92ffcbe438efbf2a93f6bb43765021",
+      "local_links_checked": 160
+    },
+    {
+      "path": "docs/audit/firmware_reliability_fix_report.md",
+      "sha256": "ab24978b1c92b12f1f7a5606f13a028a4fb5176e6037b3af0ceec161a5707997",
+      "local_links_checked": 375
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "8b17f0f34ee927e6ec7486c9b0b81a9d7d414e8bacd92fec2f7b2a3056c39671",
+      "local_links_checked": 9
+    },
+    {
+      "path": "docs/ble-protocol.md",
+      "sha256": "594a11cc385be15dfce7dca2b43475372a9def85f10aac1946455a47b9643427",
+      "local_links_checked": 13
+    }
+  ],
+  "handoff": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-contract-handoff-02.json",
+    "sha256": "cbfa9fa05ed7a7dbb2547ed29e7e58527b32aaa5a16ffe0506fd3617f70c9727"
+  },
+  "documented_query_fields_checked": 87,
+  "runner_freeze": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-runner-freeze-01.json",
+    "sha256": "faea653032642478d282c9fb89c8b86f347fa726b423e02243204f56a08b3667"
+  },
+  "frozen_runner_sources_checked": 15,
+  "documented_production_sources_checked": [
+    {
+      "path": "components/sensorarrayWifi/CMakeLists.txt",
+      "sha256": "59e6175a9d54fd9cc1b7a36e1499cb9da196702d6235306999eaddffed20fd12"
+    },
+    {
+      "path": "components/sensorarrayWifi/include/sensorarrayWifi.h",
+      "sha256": "85b912409972fcf8afe8a135dea9cfeeee03c00be19835b85538d2086f69bcf2"
+    },
+    {
+      "path": "components/sensorarrayWifi/sensorarrayWifi.c",
+      "sha256": "cd3d7ede70e893755a9455a1fb163b5ce3abecbe8fec8b75abfbc3ba9006e37e"
+    },
+    {
+      "path": "components/sensorarrayWifi/sensorarrayWifiOwner.c",
+      "sha256": "94b1dfabca04f52a3588fe2510c481c5712de89037df23e109ed8c25c1692ee6"
+    },
+    {
+      "path": "components/sensorarrayWifi/sensorarrayWifiOwner.h",
+      "sha256": "ecddd905bb2d3b68133a57520f971f65d7765709649216d0494034e0665960da"
+    },
+    {
+      "path": "components/sensorarrayWifi/sensorarrayWifiWatchdog.c",
+      "sha256": "235de4b2660a8f79185afb92ba56edc3f515d4a7352b2357b89b736d8fd4ae86"
+    },
+    {
+      "path": "components/sensorarrayWifi/sensorarrayWifiWatchdog.h",
+      "sha256": "5054304ac30b1040dc0144ecd2897616bc1e737a087407ceb052cf1c317daa67"
+    },
+    {
+      "path": "core/transport/CMakeLists.txt",
+      "sha256": "d7589acde33bbed4af75a23cd759e0054d0a7c32273a1524bfa86edd83cea37a"
+    },
+    {
+      "path": "core/transport/sensorarrayTransport.c",
+      "sha256": "19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d"
+    },
+    {
+      "path": "core/transport/sensorarrayTransport.h",
+      "sha256": "c9d06566b79ddf8f6d4babf9920c2e45d7619a5bbed2d7aeb805775bb9c8f65b"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportCommand.c",
+      "sha256": "48a5187ebdc53a9cb5df655088164d357d9dfe71ea01fc0e125e26cb1b0c593c"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportStats.c",
+      "sha256": "5b008056f552a87609ce07f11aaccf79aa2b6c6949b84a54d2bc75da7352a755"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportPool.c",
+      "sha256": "734f76edd05644a679dbbc1bd63a38f92938d1feb0cf34970bb8f91c3d7b173d"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportPool.h",
+      "sha256": "368e3759fdfbfadff31cd98dc46d2a728642c4ac17f27d9f3d4930611f41b2d8"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportWifiControl.c",
+      "sha256": "eb617e68d36279b7108babde1f8f3363df50c00e77dc628fcc8cdaba9d9c6a6d"
+    },
+    {
+      "path": "core/transport/sensorarrayTransportWifiControl.h",
+      "sha256": "b6e07ef77761dfdc4ef8ea59c3b1280b41962c2c36959f4b463f685aa65080f4"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/components/sensorarrayUsbOtg/sensorarrayUsbOtg.c",
+      "sha256": "3fb2abd4c4353ffa64aa9f47e5a4708ed2de0b9a88dd0abdcaf3bf03e4b8e471"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h",
+      "sha256": "bf45fe9d2c15fd7976cae2ee0f75aeb8c721e7918b21775a9af54de41d56bef5"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/components/sensorarrayUsbOtg/CMakeLists.txt",
+      "sha256": "aed0d79111f869af88d5ac9531c28a105b6ce75f384013594bf942e816a608ca"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/main/main.c",
+      "sha256": "1ae3354d485f93b7bd9f0e2e724ffeafa30141cec2e4ba0555c454b18aa7a97b"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/main/control/sensorarrayRestartControl.c",
+      "sha256": "bbccc1bdcfaa225352bd4db1ce02f848bd66d40109d62e85675d6debd3f32de7"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/config/sensorarrayCalibration.c",
+      "sha256": "19ca5a74f9309bbc7faa59aeae852af597ee28cc4a7ea0f2868ecb21460114c9"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/sdkconfig",
+      "sha256": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/datasheets/esp32-s3_technical_reference_manual_en.pdf",
+      "sha256": "56b8f499290a58fdaed610647c316ab26a081c75421fcbca055e333a5de3c818"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/esp_system.c",
+      "sha256": "d23069d0226093ab1ffdfa7ec62324628fcf3573c3ec261cc8890104a1ed7dfb"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/port/soc/esp32s3/system_internal.c",
+      "sha256": "d4cbbb89ddfd3fd1d8ad4305e44bd7b1b2600769703eda763ca7344bdecbd861"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/include/esp_private/system_internal.h",
+      "sha256": "25bbc902263504e0e07f434433ac276b28e2c4e73503a20dac8745605424de75"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/src/wifi_default.c",
+      "sha256": "042a1ff171a9833e64f167ce1643e30d833b421151beaea09fffd8d443b106cc"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_timer/src/system_time.c",
+      "sha256": "86df92fdc65f93f6abe0e67e35fd815b57af90f1fbe97409505f45406108519a"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/newlib/src/port/esp_time_impl.c",
+      "sha256": "f50f9841d1b371f251f5ef62f9d0951f52a31b844ccd3849b51c05734fc2980a"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_hw_support/port/esp32s3/rtc_clk.c",
+      "sha256": "c2e9eceecf742a47903766299420f781336e00c6a956c56bbd5d591449acd7f3"
+    },
+    {
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/hal/esp32s3/include/hal/rwdt_ll.h",
+      "sha256": "2508aa299b2b1ad3260c2c3a273a4d7c72f25509d127c95c7c09d5771f2b4ff5"
+    }
+  ],
+  "git_diff_check": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "errors": [],
+  "hardware_actions": [],
+  "overall_acceptance": "NOT_ESTABLISHED"
+}

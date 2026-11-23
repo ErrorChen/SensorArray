@@ -1,0 +1,187 @@
+{
+  "timestamp_utc": "2026-11-21T00:54:52.944907+00:00",
+  "scope": "Independent source, host tests, and actual linked ESP32-S3 target image gate for retained panic diagnostics only. No hardware/build/source/config edits by reviewer.",
+  "gate": "PASS_SOURCE_HOST_AND_TARGET; physical panic retention and AP root cause remain pending parent HIL.",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "build_dirty_diff_sha256": "3a2de23707270d8c2e27c1260869d8b01662fdd375ea2e77f3ee2da415f61b65",
+  "source_sha256": {
+    "main/control/sensorarrayPanicDiagnostics.c": "670ccbd6e9ea8a25566cef9272b7f89c8a617ca211fa849af20decb0c6422c7c",
+    "main/control/sensorarrayPanicDiagnostics.h": "1c78f7b6016c3ae412f365b240b7b0adf45ece37ee90353cdf7aa7501ae5463a",
+    "main/main.c": "89755d266466048871a471ead10847fee995f8cafe7d18c1f5bbb3d58e153702",
+    "main/CMakeLists.txt": "66fac838ace4f351ff7e313ab16a1989e73ae0630babb87e32c1b9b0c2415b7b",
+    "tools/test_panic_diagnostics.py": "d0eb9abc5e0b5843936c817aa6fddda0949c835b0d3db5f90489027f1e3fd383",
+    "tests/host/test_panic_diagnostics.c": "0bb1a805dd2e7113353c8291c1f059535b55ea6f2d5e926e1f2a7a9d3a0ca62c",
+    "tests/host/test_recovery_control.c": "664a8ff966bd39c30117fde7d97555799d1ade45046759c7ee7e886a9b2964d4",
+    "tests/host/test_frontend_wait_integration.c": "0a651abb3a8554ff1564722293ff9d8149f6290981f3a90e184ef468155376f5"
+  },
+  "images_before": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "images_after": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "evidence_sha256": {
+    "panic-diagnostics-host-01.json": "ec4fef2d49320d0ff4dc6cb92f584255e5d94be493cd9519e92e1cf704d39353",
+    "panic-diagnostics-independent-host-01.json": "de413c0cbab19d7dfd6aa3cd54ac6cba802ebb7ef45de06eb902ede6c0ed37dc",
+    "panic-diagnostics-independent-host-01.txt": "804a35dd728c37a0f35095424c282451281467f0fd8d51febc58875e99398952",
+    "panic-diagnostics-independent-target-commands-01.json": "7fe340ace12aec0f28c417cf157ea2e1d49c5c7659ae9d43c0e067038c40cd49",
+    "panic-diagnostics-independent-target-supplement-01.json": "07578485b92aa21197eb554dcfa14619546239f597c590e7b649621a79a475e3",
+    "panic-diagnostic-01-build-manifest.json": "1ede1520920b0de01ea17ed1322c711cfb9ae499e3fb8ce5a23e419eb4ecc669",
+    "panic-diagnostics-independent-target-wrapper-01.txt": "567b00b529dce06fac3be6f641653d8120c8bda94a720f21f356850e405ecfba",
+    "panic-diagnostics-independent-target-port-handler-01.txt": "b219c1424a3d3ee764acbbb081fc89fb2b4d37c5e0f573c4d796403a1a396d0b",
+    "panic-diagnostics-independent-target-sdk-handler-01.txt": "ed5755c0e8c541397ea54f013806e9eeeea00d11ffe5b682f75c1d7ae80da00b",
+    "panic-diagnostics-independent-target-wrapper-literals-01.txt": "3c14c909a10812acebffd117ae16faad02179fd300f9f43c10c108c5a773429b",
+    "panic-diagnostics-independent-target-symbols-01.txt": "466bc45d793042b14f655cf669559f1a962a9b65384a5f7f5a88cc0476cb71a3",
+    "panic-diagnostics-independent-target-sections-01.txt": "46e269934acd0c88fbf9390be1450cc6d5d61a4ba4ee15a0718b9092e987ff1d",
+    "panic-diagnostics-independent-target-literal-pool-01.txt": "be91be41c130fb21ef07ed672b4d804b9ce285a1b086da590458e63129ed75f5",
+    "panic-diagnostics-independent-target-range-literal-01.txt": "67f10161d870b2de48c138c19c60339f20bddfe4b3136924f92e14ef434af86d",
+    "panic-diagnostics-independent-target-entry-panic-01.txt": "82f17506d0fab8a5b61c18ec15122cecf0b33f952e8edba1d695c1179f76857e",
+    "panic-diagnostics-independent-target-entry-exception-01.txt": "4abb504e4001e5a6daa2e2a01d0760c387376a6a8d5306c475ec28d49f8586c7",
+    "panic-diagnostics-independent-target-init-01.txt": "acfcc5aaa2a51e71235bccc63f969a641db170d727ba35e77add27e5361079c1",
+    "panic-diagnostics-independent-target-app-main-01.txt": "5df20e0fb1a33e74725b101d71607f9115e852fb56c96c9f011751cd5c8c39ac"
+  },
+  "host": {
+    "command": [
+      "python3",
+      "tools/test_panic_diagnostics.py"
+    ],
+    "exit_code": 0,
+    "variants": [
+      "optimized -O2",
+      "-O1 ASan+UBSan; detect_leaks=0 because sandbox ptrace; no dynamic allocations in module"
+    ],
+    "actual_test_scope": [
+      "194 bounded detail lengths roundtrip through real C formatter",
+      "internal pointer alignment/end/overflow rejection; flash/PSRAM not dereferenced",
+      "invalid info/frame still forwards exact SDK argument once per entry",
+      "recursive entry preserves first capture, unchanged SDK call per entry",
+      "origin unknown before startup; old ELF/session/boot retained across later query boot",
+      "CRC/magic/inverse/version/size/bool/detail length rejection",
+      "poweron/brownout/unknown reset invalidates retained record",
+      "read-only/idempotent initialization and three-page formatting",
+      "all too-small capacities fail without overflow"
+    ],
+    "max_response_bytes_including_nul": [
+      473,
+      349,
+      350
+    ],
+    "capacity_bytes": 512
+  },
+  "target": {
+    "elf_sha256": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "bin_sha256": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a",
+    "toolchain": "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+    "wrapper": {
+      "address": "0x40377444",
+      "section": ".iram0.text",
+      "symbol_bytes": 581,
+      "stack_entry_bytes": 32,
+      "helpers": "panicCapture/panicRecordCrc/panicInternalRange inlined; no independent helper symbols",
+      "external_calls": [
+        "4037764f:\t0008e0        \tcallx8\ta8"
+      ],
+      "only_external_target": "0x4211CD10 original esp_panic_handler, after retained commit",
+      "l32r_literal_storage_addresses": [
+        "0x403745a4",
+        "0x40374748",
+        "0x4037474c",
+        "0x40374750",
+        "0x40374754",
+        "0x40374758",
+        "0x4037475c",
+        "0x40374760",
+        "0x40374764",
+        "0x40374768",
+        "0x4037476c",
+        "0x40374770"
+      ],
+      "capture_no_extra_external_libc_atomic_stack_guard": true,
+      "record_size_bytes": 328,
+      "crc_input_bytes": 316,
+      "frame_bound_size_bytes": 112,
+      "info_bound_size_bytes": 36
+    },
+    "actual_call_site": {
+      "port_function": "panic_handler 0x420042B4 (original SDK .flash.text)",
+      "load_wrapper_at": "0x4200441B",
+      "call_at": "0x4200441E",
+      "target": "0x40377444"
+    },
+    "sdk_environment": {
+      "panicHandler": "0x40375B60 .iram0.text",
+      "xt_unhandled_exception": "0x40375B8C .iram0.text",
+      "cache_check": "0x4037D74C",
+      "cache_enable": "0x4037D744",
+      "behavior": "Both original entries check/restore cache before the existing flash port handler. Port enables RTC watchdog, stalls the other core, fills panic_info, then calls wrapper. Wrapper forwards original SDK panic handler; this is not a claim that the full vendor panic path is IRAM-only."
+    },
+    "data": {
+      "s_panicCapturedThisBoot": {
+        "address": "0x3FCAE65C",
+        "size": 1,
+        "section": ".dram0.data"
+      },
+      "s_panicOrigin": {
+        "address": "0x3FCAE660",
+        "size": 48,
+        "section": ".dram0.data"
+      },
+      "g_panic_abort_details": {
+        "address": "0x3FCB1E24",
+        "size": 4,
+        "section": ".dram0.bss"
+      },
+      "g_panic_abort": {
+        "address": "0x3FCB1E28",
+        "size": 1,
+        "section": ".dram0.bss"
+      },
+      "s_panicSnapshot": {
+        "address": "0x3FCBAE9C",
+        "size": 328,
+        "section": ".dram0.bss"
+      }
+    },
+    "rtc": {
+      "s_recoveryInverse": [
+        "0x50000000",
+        "0x50000004"
+      ],
+      "s_recoveryMagic": [
+        "0x50000004",
+        "0x50000008"
+      ],
+      "s_bootBreadcrumb": [
+        "0x50000008",
+        "0x50000088"
+      ],
+      "s_retainedPanic": [
+        "0x50000088",
+        "0x500001D0"
+      ],
+      "range_semantics": "start inclusive, end exclusive",
+      "record_nonoverlap": true,
+      "rtc_noinit_size_bytes": 464
+    },
+    "normal_startup_call": {
+      "app_main_call_at": "0x42012B39",
+      "init_target": "0x42015EB0",
+      "source_order": "After random session and boot breadcrumb initialization, before command transport installation; two existing main command dispatch paths serve read-only PANIC? pages."
+    }
+  },
+  "review_reasoning": [
+    "Panic path uses no lock, allocator, task API, queue, peripheral I/O, formatter, stack walk or info->details callback. Bounds precede DRAM dereference; volatile bounded writes and final commit protect partially written record validity.",
+    "First capture latch prevents recursive overwriting. A recursion interrupting an incomplete write may lose the record (unknown), and does not turn partial data into verified evidence.",
+    "Query snapshot is copied once at normal startup, avoiding a multiwriter seqlock or panic-context lock. Current query identity and original panic identity are separate.",
+    "CRC32 detects corruption; record identifier is not authentication. Register values require their known flags. Xtensa return address is raw ABI value.",
+    "Last retained panic can predate the current reset, which the protocol explicitly distinguishes via origin session/boot/full ELF and current reset field."
+  ],
+  "limitations": [
+    "No target crash was induced by reviewer. Actual RTC persistence and diagnostic recovery are NOT_RUN here.",
+    "No AP panic cause is claimed until matching origin/image and raw panic evidence are collected.",
+    "No claim that all SDK assertions, low-memory conditions or physical hardware risks are fixed.",
+    "No SDK timeout or cancellation semantics, watchdog policy, normal/manual restart behavior or scientific data format were changed by this module."
+  ]
+}

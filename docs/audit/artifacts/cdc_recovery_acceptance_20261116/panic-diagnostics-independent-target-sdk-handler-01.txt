@@ -1,0 +1,119 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4211cd10 <esp_panic_handler>:
+4211cd10:	006136        	entry	a1, 48
+4211cd13:	39a261        	l32r	a6, 420eb39c <pp_timer_process+0x64> (3fcb1dfc <__stack_chk_guard>)
+4211cd16:	51cb      	addi.n	a5, a1, 12
+4211cd18:	0020c0        	memw
+4211cd1b:	0688      	l32i.n	a8, a6, 0
+4211cd1d:	027d      	mov.n	a7, a2
+4211cd1f:	0020c0        	memw
+4211cd22:	0589      	s32i.n	a8, a5, 0
+4211cd24:	03eb80        	rsr.prid	a8
+4211cd27:	048d80        	extui	a8, a8, 13, 1
+4211cd2a:	3c8a91        	l32r	a9, 420ebf54 <pp_timer_process+0xc1c> (3fcad818 <g_panic_entry_count>)
+4211cd2d:	a08890        	addx4	a8, a8, a9
+4211cd30:	0888      	l32i.n	a8, a8, 0
+4211cd32:	0238f6        	bgeui	a8, 3, 4211cd38 <esp_panic_handler+0x28>
+4211cd35:	ffe025        	call8	4211cb38 <esp_panic_handler_feed_wdts$part$0>
+4211cd38:	3c8a41        	l32r	a4, 420ebf60 <pp_timer_process+0xc28> (3fcb1e28 <g_panic_abort>)
+4211cd3b:	000482        	l8ui	a8, a4, 0
+4211cd3e:	68cc      	bnez.n	a8, 4211cd48 <esp_panic_handler+0x38>
+4211cd40:	4788      	l32i.n	a8, a7, 16
+4211cd42:	68ec      	bnez.n	a8, 4211cd6c <esp_panic_handler+0x5c>
+4211cd44:	000a46        	j	4211cd71 <esp_panic_handler+0x61>
+4211cd47:	878100        	ee.stf.64.xp	f8, f8, a0, a1
+4211cd4a:	0c3c      	movi.n	a12, 48
+4211cd4c:	8809      	s32i.n	a0, a8, 32
+4211cd4e:	9908      	l32i.n	a0, a9, 36
+4211cd50:	c88c37        	bany	a12, a3, 4211cd1c <esp_panic_handler+0xc>
+4211cd53:	3c8281        	l32r	a8, 420ebf5c <pp_timer_process+0xc24> (4211ce30 <print_abort_details>)
+4211cd56:	2799      	s32i.n	a9, a7, 8
+4211cd58:	390c      	movi.n	a9, 3
+4211cd5a:	4789      	s32i.n	a8, a7, 16
+4211cd5c:	1799      	s32i.n	a9, a7, 4
+4211cd5e:	000286        	j	4211cd6c <esp_panic_handler+0x5c>
+4211cd61:	4789      	s32i.n	a8, a7, 16
+4211cd63:	2789      	s32i.n	a8, a7, 8
+4211cd65:	380c      	movi.n	a8, 3
+4211cd67:	1789      	s32i.n	a8, a7, 4
+4211cd69:	000106        	j	4211cd71 <esp_panic_handler+0x61>
+4211cd6c:	77a8      	l32i.n	a10, a7, 28
+4211cd6e:	0008e0        	callx8	a8
+4211cd71:	3c7d81        	l32r	a8, 420ebf68 <pp_timer_process+0xc30> (10200c <_rtc_slow_length+0x101e1c>)
+4211cd74:	406880        	rer	a8, a8
+4211cd77:	5d6807        	bbci	a8, 0, 4211cdd8 <esp_panic_handler+0xc8>
+4211cd7a:	200782        	l8ui	a8, a7, 32
+4211cd7d:	388c      	beqz.n	a8, 4211cd84 <esp_panic_handler+0x74>
+4211cd7f:	27a8      	l32i.n	a10, a7, 8
+4211cd81:	000246        	j	4211cd8e <esp_panic_handler+0x7e>
+4211cd84:	000482        	l8ui	a8, a4, 0
+4211cd87:	889c      	beqz.n	a8, 4211cda3 <esp_panic_handler+0x93>
+4211cd89:	3c7681        	l32r	a8, 420ebf64 <pp_timer_process+0xc2c> (3fcb1e24 <g_panic_abort_details>)
+4211cd8c:	08a8      	l32i.n	a10, a8, 0
+4211cd8e:	011a16        	beqz	a10, 4211cda3 <esp_panic_handler+0x93>
+4211cd91:	11a9      	s32i.n	a10, a1, 4
+4211cd93:	3b5e81        	l32r	a8, 420ebb0c <pp_timer_process+0x7d4> (40001248 <strlen>)
+4211cd96:	0008e0        	callx8	a8
+4211cd99:	314b      	addi.n	a3, a1, 4
+4211cd9b:	21a9      	s32i.n	a10, a1, 8
+4211cd9d:	16a122        	movi	a2, 0x116
+4211cda0:	0041e0        	break	1, 14
+4211cda3:	ffe465        	call8	4211cbe8 <esp_panic_handler_disable_timg_wdts>
+4211cda6:	3c5f41        	l32r	a4, 420ebf24 <pp_timer_process+0xbec> (3fca554c <rtc_wdt_ctx>)
+4211cda9:	04ad      	mov.n	a10, a4
+4211cdab:	3c6081        	l32r	a8, 420ebf2c <pp_timer_process+0xbf4> (40000de0 <wdt_hal_write_protect_disable>)
+4211cdae:	0008e0        	callx8	a8
+4211cdb1:	04ad      	mov.n	a10, a4
+4211cdb3:	3c6181        	l32r	a8, 420ebf38 <pp_timer_process+0xc00> (40000e04 <wdt_hal_disable>)
+4211cdb6:	0008e0        	callx8	a8
+4211cdb9:	04ad      	mov.n	a10, a4
+4211cdbb:	3c5e81        	l32r	a8, 420ebf34 <pp_timer_process+0xbfc> (40000dec <wdt_hal_write_protect_enable>)
+4211cdbe:	0008e0        	callx8	a8
+4211cdc1:	67b8      	l32i.n	a11, a7, 24
+4211cdc3:	0a0c      	movi.n	a10, 0
+4211cdc5:	fe1325        	call8	4211aef8 <esp_cpu_set_breakpoint>
+4211cdc8:	0020c0        	memw
+4211cdcb:	0598      	l32i.n	a9, a5, 0
+4211cdcd:	0020c0        	memw
+4211cdd0:	0688      	l32i.n	a8, a6, 0
+4211cdd2:	561987        	beq	a9, a8, 4211ce2c <esp_panic_handler+0x11c>
+4211cdd5:	001346        	j	4211ce26 <esp_panic_handler+0x116>
+4211cdd8:	ffefa5        	call8	4211ccd4 <esp_panic_handler_feed_wdts>
+4211cddb:	5788      	l32i.n	a8, a7, 20
+4211cddd:	004816        	beqz	a8, 4211cde5 <esp_panic_handler+0xd5>
+4211cde0:	77a8      	l32i.n	a10, a7, 28
+4211cde2:	0008e0        	callx8	a8
+4211cde5:	00a082        	movi	a8, 0
+4211cde8:	004482        	s8i	a8, a4, 0
+4211cdeb:	ffeea5        	call8	4211ccd4 <esp_panic_handler_feed_wdts>
+4211cdee:	0006e5        	call8	4211ce5c <esp_reset_reason_get_hint>
+4211cdf1:	02ba56        	bnez	a10, 4211ce20 <esp_panic_handler+0x110>
+4211cdf4:	1788      	l32i.n	a8, a7, 4
+4211cdf6:	061826        	beqi	a8, 1, 4211ce00 <esp_panic_handler+0xf0>
+4211cdf9:	0f2826        	beqi	a8, 2, 4211ce0c <esp_panic_handler+0xfc>
+4211cdfc:	0005c6        	j	4211ce17 <esp_panic_handler+0x107>
+4211cdff:	5a0c00        	msub.s	f0, f12, f0
+4211ce02:	3c5a81        	l32r	a8, 420ebf6c <pp_timer_process+0xc34> (40384d5c <esp_reset_reason_set_hint>)
+4211ce05:	0008e0        	callx8	a8
+4211ce08:	000506        	j	4211ce20 <esp_panic_handler+0x110>
+4211ce0b:	6a0c00        	maddn.s	f0, f12, f0
+4211ce0e:	3c5781        	l32r	a8, 420ebf6c <pp_timer_process+0xc34> (40384d5c <esp_reset_reason_set_hint>)
+4211ce11:	0008e0        	callx8	a8
+4211ce14:	000206        	j	4211ce20 <esp_panic_handler+0x110>
+4211ce17:	04a0a2        	movi	a10, 4
+4211ce1a:	3c5481        	l32r	a8, 420ebf6c <pp_timer_process+0xc34> (40384d5c <esp_reset_reason_set_hint>)
+4211ce1d:	0008e0        	callx8	a8
+4211ce20:	3c4e81        	l32r	a8, 420ebf58 <pp_timer_process+0xc20> (420044b4 <panic_restart>)
+4211ce23:	0008e0        	callx8	a8
+4211ce26:	395f81        	l32r	a8, 420eb3a4 <pp_timer_process+0x6c> (40384d8c <__stack_chk_fail>)
+4211ce29:	0008e0        	callx8	a8
+4211ce2c:	f01d      	retw.n

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py", line 218, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py", line 186, in main
+    if (identity["version"] != boot["version"] or identity["elf_sha256"] != boot["elf_sha256"] or
+                               ~~~~^^^^^^^^^^^
+KeyError: 'version'

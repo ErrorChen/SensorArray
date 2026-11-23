@@ -1,0 +1,21 @@
+{
+  "kind": "independent_actual_source_host_regression",
+  "hardware": "NOT_RUN",
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "sources": {
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "319c27138bfa9fe314dd6b3498d753389c729910392ee474e6bd0fa2b14c5a30",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "core/transport/sensorarrayTransport.c": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+    "tests/host/test_ble_pipeline.c": "9bb2c13d0f6945e186085cd3427aa892a83f39cb1a3fb836ecf84d70cd767931",
+    "tools/test_ble_pipeline.py": "4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 0.9675743220141158,
+  "log_sha256": "940ff00889e6fedddf732a37c5ba3074887cb60da978638d72e6405195badaea",
+  "sources_unchanged": true
+}

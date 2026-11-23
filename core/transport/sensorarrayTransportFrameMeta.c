@@ -52,7 +52,7 @@ void sensorarrayTransportParseFrameMeta(sensorarrayTransportPayloadSlot_t *slot)
 {
     if (!slot) { return; }
     slot->hasFrameMeta = false;
-    if (slot->length < 2 || slot->data[1] != ',' ||
+    if (!slot->data || slot->length < 2 || slot->data[1] != ',' ||
         !strchr("CVRM", slot->data[0])) { return; }
     /* TransportQueue owns the slot and appends its private NUL at length.
      * Extract only the first line; this does not validate a frame or its CRC. */
@@ -116,11 +116,49 @@ void sensorarrayTransportParseFrameMeta(sensorarrayTransportPayloadSlot_t *slot)
     slot->hasFrameMeta = true;
 }
 
+bool sensorarrayTransportFrameMetadataValid(const sensorarrayTransportFrameMetadata_t *metadata,
+    const char *data, size_t length)
+{
+    return metadata && data && length >= 2u && length <= SENSORARRAY_TRANSPORT_POOL_TEXT_MAX &&
+        data[1] == ',' && data[0] == metadata->tag &&
+        (metadata->tag == 'C' || metadata->tag == 'V' || metadata->tag == 'R' || metadata->tag == 'M') &&
+        metadata->identity.sessionId != 0u && metadata->identity.rows >= 1u && metadata->identity.rows <= 8u;
+}
+
+bool sensorarrayTransportApplyFrameMetadata(sensorarrayTransportPayloadSlot_t *slot,
+    const sensorarrayTransportFrameMetadata_t *metadata)
+{
+    if (!slot || !slot->data || !sensorarrayTransportFrameMetadataValid(metadata, slot->data, slot->length)) {
+        return false;
+    }
+    const sensorarrayTransportFrameIdentity_t *id = &metadata->identity;
+    bool extended = id->revision != 0u;
+    bool mixed = metadata->tag == 'M';
+    slot->frameSeq = id->sequence;
+    slot->rows = id->rows;
+    slot->cells = (uint8_t)(id->rows * 8u);
+    slot->generation = metadata->legacyGeneration;
+    slot->requestId = metadata->legacyRequestId;
+    /* Match the actual encoder: revision zero omits the identity extension.
+     * M's row/profile fields precede that extension and remain present. */
+    slot->sessionId = extended ? id->sessionId : 0u;
+    slot->bootId = extended ? id->bootId : 0u;
+    slot->configRevision = extended ? id->revision : 0u;
+    slot->modeGeneration = extended ? id->modeGeneration : 0u;
+    slot->modeRequestId = extended ? id->modeRequestId : 0u;
+    slot->rowsGeneration = mixed ? metadata->legacyGeneration : extended ? id->rowsGeneration : 0u;
+    slot->rowsRequestId = mixed ? metadata->legacyRequestId : extended ? id->rowsRequestId : 0u;
+    slot->profileGeneration = mixed ? metadata->mixedProfileGeneration : extended ? id->profileGeneration : 0u;
+    slot->profileRequestId = mixed ? metadata->mixedProfileRequestId : extended ? id->profileRequestId : 0u;
+    slot->hasFrameMeta = true;
+    return true;
+}
+
 bool sensorarrayTransportBuildPreview(const sensorarrayTransportPayloadSlot_t *slot,
                                                char *out,
                                                size_t outSize)
 {
-    if (!slot || !slot->hasFrameMeta || !out || outSize == 0u) {
+    if (!slot || !slot->data || !slot->hasFrameMeta || !out || outSize == 0u) {
         return false;
     }
     const char *data = slot->data;

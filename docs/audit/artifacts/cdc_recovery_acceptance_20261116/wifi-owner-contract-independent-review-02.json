@@ -1,0 +1,59 @@
+{
+  "reviewer": "/root/ble_review",
+  "created_utc": "2026-11-20T23:37:41.979642+00:00",
+  "scope": "Read-only Wi-Fi owner design follow-up and root startup-gate/capability/CPU-role integration review; no production edit, hardware or IDF build.",
+  "status": "ROOT_INTEGRATION_SCOPED_PASS_OWNER_IMPLEMENTATION_STILL_PENDING",
+  "sources": {
+    "/home/csc/esp/workspace/SensorArray/main/main.c": "a16e7565581d069ca00a62e8c67b5beb7795e15f7976e30d19ef39c2707aae17",
+    "/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "e150525557eeae54977e079bd59cbad0977305a2e242c4c626c1b18c3eda7324",
+    "/home/csc/esp/workspace/SensorArray/components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "45bed289daf352de71ee3de5b4b25a385d527a84463891277c87e360d140e1b8",
+    "/home/csc/esp/workspace/SensorArray/tools/test_wifi_startup_gate.py": "8c78c01b6317e9be507285d547d106a2aceb706f05fc08aa2c45d9c6b9f48d96",
+    "/home/csc/esp/workspace/SensorArray/tools/test_snapshot_diagnostics.py": "7f39022d8c9e32af178cd6b84102abf4bb5de3ba33412a22e92a1f3a873e8b8c",
+    "/home/csc/esp/workspace/SensorArray/components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "e3cf5101b074a6cd25021a2c065e6c87a94271631a8c894db3cf571936f7f1f1",
+    "/home/csc/esp/workspace/SensorArray/core/board/sensorarrayFrontendStartup.c": "93a82935b19ee9f9e2be1f1f820899e589df8d937556c0f9300e006e021c9f2a",
+    "/home/csc/esp/workspace/SensorArray/sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/src/wifi_default.c": "042a1ff171a9833e64f167ce1643e30d833b421151beaea09fffd8d443b106cc",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/esp_system.c": "d23069d0226093ab1ffdfa7ec62324628fcf3573c3ec261cc8890104a1ed7dfb"
+  },
+  "input_plan": "wifi-owner-implementation-plan-01.json",
+  "previous_design": "wifi-owner-isolation-design-review-01.json",
+  "actual_host_records": [
+    "wifi-contract-independent-host-01.json",
+    "wifi-contract-independent-snapshot_diagnostics-02.json"
+  ],
+  "actual_test_summary": {
+    "startup_gate": "PASS: actual extracted helper, both completion orders/repeated marks/scan-create failure/1000 pthread races.",
+    "cpu_owner": "PASS: diagnostics enabled and disabled; role7 additive, prior role indexes preserved; existing work budget thresholds unchanged. Actual max PROTO wire 510 bytes including newline, 511 including NUL.",
+    "snapshot_queries": "Initial old harness failed because heap_v1 was hard-coded as final token; root changed to token set validation. Independent rerun PASS: actual three backend wire sizes493/496/510, 512-byte guard retained; SNAPSRC222/SNAPNET352. Original failure record preserved."
+  },
+  "contract_requirements_agreed_with_worker": [
+    "RequestAp returns accepted/pending, never applied just because queued; one management request accepted at a time. Same already-ready config/profile has a named idempotent terminal; another pending AP may be busy-rejected without pretending accepted.",
+    "Every accepted request has one terminal outcome. OFF can supersede a still-pending/running AP but may not rewrite an already failed/quarantined result. Late SDK return is recorded separately, not a second terminal or proof a newer epoch applied.",
+    "OFF is logical output-gate only, radio state unknown. It must preserve active old-epoch SDK phase/start/deadline/held owner. New AP cannot bypass a still-owned backend or sticky quarantine via OFF->AP.",
+    "CAPS2 capability means software support only. Request ACK, terminal and query carry the real scientific boot/session hook plus Wi-Fi epoch; no second session identity or silent unknown boot0. Query one explicit request per bounded reply; missing/evicted result is unknown/expired, not substituted latest.",
+    "Terminal may precede or follow ACK/data in transport. Cache last two results plus active request and query without side effects; preserve publication admitted versus ESP_OK no-sink no-op via PublishLifecycleObserved. Any retry and optional ACK-commit wait must be finite.",
+    "wifiSent legacy counters advance only after real full-length SDK return. queued, SDK accepted, timeout/quarantine, partial/error and peer receipt remain distinct. A late full return can update accepted evidence once but never resume a quarantined owner."
+  ],
+  "memory_and_startup": {
+    "payload_plan_bytes": 7424,
+    "layout": "Two2304 normal + one2304 lifecycle + one512 CTRL; single PSRAM|8BIT allocation no internal fallback. Larger than earlier5632 candidate to preserve existing public2304 lifecycle contract. No pool reallocation or payload free while owner unknown.",
+    "stack": "Proposed new owner4096B internal stack/TCB plus existing wifiCtrl4096B and Wi-Fi SDK allocations; actual largest internal block and stack watermark still require target validation. DefaultOFF performs software state registration only.",
+    "root_gate": "Two atomic completed bits: Core0 output/USB-sink reservation path terminal; Core1 sensorarrayInitSystem returned, including early failure. Release once when both bits observed. scan-task creation failure marks both because neither later path runs. This is attempt-path completion, not READY, success of every resource, physical safety or absence of later unrelated heap allocation.",
+    "late_SPI": "BootSpiStart has one startup call site and allocates its6144B dynamic stack synchronously before returning. The probe task persists even after lateDONE/timeout. InitSystem return therefore ends that creation attempt without proving the SPI owner stopped; gate does not alter its quarantine or READY."
+  },
+  "new_existing_P1_identified_for_owner_fix": {
+    "symbol": "sensorarrayWifiInit -> esp_netif_create_default_wifi_ap",
+    "exact_SDK": "wifi_default.c:404-412 asserts esp_netif_new result and uses ESP_ERROR_CHECK for attach and default handler registration. sdkconfig enables assertions and panic reboot.",
+    "impact": "Moving this convenience call to an isolated owner does not stop allocation/attach/registration failure from aborting the entire firmware. Current post-call NULL check cannot catch the assertion.",
+    "required_minimum": "Use public ESP_NETIF_DEFAULT_WIFI_AP + esp_netif_new + esp_netif_attach_wifi_ap + esp_wifi_set_default_wifi_ap_handlers inside guarded owner, checking each result without SDK edits. Preserve partial stage ownership; attach may already store a global netif pointer before failing. Do not treat void destroy helper as verified cleanup; unproven release requires retained state/quarantine.",
+    "worker_notified": true,
+    "tests_required": "Actual owner host injection for NULL netif, attach failure, handler registration failure, cleanup error/blocked cleanup; no abort, no freeing uncertain objects, first error retained. Still NOT_RUN for future owner."
+  },
+  "event_callback_scope": "Application WIFI event callback only records bounded state/epoch/reconciliation-needed under mux; no SDK calls or logging. SDK default AP handlers themselves still invoke driver/netif APIs on esp_event. Do not claim all SDK events are moved into the application owner. Backend applied means required application stages returned successfully and epoch matched, not station/PC connectivity.",
+  "restart_verified_boundary": {
+    "actual_chain": "main PerformManualRestart caches restarting intent and waits20ms for local publication; UsbOtgRestart calls PrepareRestart(total250ms). Only failed Prepare triggers existing emergency digital core reset. Successful Prepare enters esp_restart, which synchronously invokes registered shutdown handlers before esp_restart_noos. Default Wi-Fi handler is esp_wifi_stop (wifi_default.c:273).",
+    "limitation": "A stuck Wi-Fi shutdown handler can prevent reaching noos and prevent falling back after Prepare success. Neither ACK/RAPP nor owner host tests prove a physical reset or USB reenumeration.",
+    "decision": "Keep recovery limitation explicit and quarantine sticky; no automatic restart loop or unreviewed private reset bypass. Any later direct use of the existing S3 digital core-reset route for Wi-Fi quarantine needs separate source/IRAM/boot-latch/actual enumeration validation."
+  },
+  "remaining_gate": "Full owner facade, request/terminal query, observer, deep-copy ownership, cleanup and no-abort implementation is not independently frozen/reviewed yet. Wi-Fi HIL NOT_RUN; project-wide P0/P1 closure not claimed."
+}

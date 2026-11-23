@@ -11,12 +11,14 @@
 #define SENSORARRAY_BLE_TX_FRAGMENT_BATCH_COUNT 4u
 
 typedef enum { SENSORARRAY_BLE_CH_DATA, SENSORARRAY_BLE_CH_LOG, SENSORARRAY_BLE_CH_CTRL } sensorarrayBleChannel_t;
-typedef struct { bool congested, confirm, priority; unsigned txMode, mtu, connectionGeneration; } sensorarrayBleSendContext_t;
+typedef struct { bool congested, confirm, priority; unsigned txMode, mtu, connectionGeneration, streamGeneration; } sensorarrayBleSendContext_t;
 static struct {
+    struct { bool ready, quarantined; uint32_t rejected; } guard;
     uint32_t nextMessageId[3];
     uint8_t txPacketScratch[SENSORARRAY_BLE_ATTR_VALUE_MAX];
+    bool ownerCapacityFailure;
     struct { uint32_t txConnectionStaleDrop, congestedCount, txCrcMismatch, fragmentError, fragmentSent, tinyTailCount; } stats;
-} s_ble;
+} s_ble = {.guard = {.ready = true}};
 static int s_bleMux;
 static unsigned lockDepth, nowTick, delayCalls, drops, messages, sends, fragments, totalFragments;
 static unsigned currentMtu, ticksPerSend, disconnectAfterSends;
@@ -87,11 +89,12 @@ static esp_err_t sensorarrayBleSendGattValue(const sensorarrayBleSendContext_t *
 /* sensorarrayBleDecimalChars */
 /* sensorarrayBleMaxPayloadSize */
 /* sensorarrayBlePlanFragments */
+/* sensorarrayBleTwoFragmentFirstChunk */
 /* sensorarrayBleSendFragment */
 /* sensorarrayBleSendPayload */
 static void reset(bool largeSynthetic, unsigned mtu)
 {
-    memset(&s_ble, 0, sizeof(s_ble)); memset(s_workers, 0, sizeof(s_workers));
+    memset(&s_ble, 0, sizeof(s_ble)); s_ble.guard.ready = true; memset(s_workers, 0, sizeof(s_workers));
     s_initState = s_initTick = s_idleGeneration = s_idleTick = s_maxIdleGapTicks = 0u;
     s_initError = ESP_ERR_INVALID_STATE;
     lockDepth = nowTick = delayCalls = drops = messages = sends = fragments = totalFragments = 0u;
@@ -116,7 +119,7 @@ static void reset(bool largeSynthetic, unsigned mtu)
 static esp_err_t sendPayload(void)
 {
     return sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes,
-                                    sensorarrayBleCrc32(source, messageBytes), 3u, false);
+                                    sensorarrayBleCrc32(source, messageBytes), 3u, false, 0u);
 }
 static void assertComplete(void)
 {
@@ -167,7 +170,7 @@ int main(void)
     assert(sends == 0u && drops == 1u && slotOwned);
 
     reset(false, 247u);
-    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes, 0u, 3u, false) == ESP_ERR_INVALID_CRC);
+    assert(sensorarrayBleSendPayload(SENSORARRAY_BLE_CH_DATA, source, (uint16_t)messageBytes, 0u, 3u, false, 0u) == ESP_ERR_INVALID_CRC);
     assert(sends == 0u && drops == 1u && s_ble.stats.txCrcMismatch == 1u && slotOwned);
 
     reset(true, 247u); nowTick = UINT32_MAX;
@@ -175,6 +178,6 @@ int main(void)
     assert(sendPayload() == ESP_OK); assertComplete();
     assert(delayCalls > 0u && maxFragmentsInBatch == 1u);
     assert(s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].checkpoints == fragments); /* Tick wrap keeps elapsed bound. */
-    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=6,hardware=NOT_RUN");
+    puts("WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=7,hardware=NOT_RUN");
     return 0;
 }

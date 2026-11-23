@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_cpu_owner.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "73f0887ec8a33b4e431708cb80df89f023bf9e2daba527a3a5cdefd746b548c8",
+  "started_utc": "2026-11-20T18:56:19.053140+00:00",
+  "started_monotonic": 131753.221390016,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-02-cpu-owner-regression-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T18:56:19.468382+00:00",
+  "finished_monotonic": 131753.636622567,
+  "log_sha256": "2007ae2f6e96fff1387de98f15b35145acf110db94a1e99a19cc0bda2f127d5e"
+}

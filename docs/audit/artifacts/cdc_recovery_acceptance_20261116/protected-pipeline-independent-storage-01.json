@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_async_log_storage.py"
+  ],
+  "elapsedSeconds": 0.06165219699323643,
+  "exitCode": 0,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/protected-pipeline-independent-storage-01.txt",
+  "logSha256": "5acae5ed483666f6a1e5d3314d59e69e590036bdb1a99138cdaf69cdefb9148a",
+  "hardware": "NOT_RUN",
+  "scope": "real storage allocation helper; fake heap; not full RTOS initialization fault injection"
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-ble.ble.notifications.jsonl",
+      "raw_bytes": 697204,
+      "raw_sha256": "4d91d3f6a456d627adf43e0dff33e2ee3393d3417e95bb67c0aa2a8a52df11ec",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 102541,
+      "gzip_sha256": "abb96703519e524b0563c65f7fdba9bff4f3f42fac2712abd206833012d9d444",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-debug.debug.events.jsonl",
+      "raw_bytes": 83942,
+      "raw_sha256": "04c52c42b50ba4a992b2d6649a15a1d21d86b240a849e4950d85bd620a19754e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 15486,
+      "gzip_sha256": "2c14353f638ce0c47730f79e7e39850468763aa67605dd4fa86771feedd58ce7",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-debug.debug.rx.bin",
+      "raw_bytes": 94243,
+      "raw_sha256": "45960966b769484c2322bde74b3175b95bfae679eb744681f0f8834be714ff2c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 9520,
+      "gzip_sha256": "554304f5b50416536b8dcd2d25e7846238c8e4fd4da50e53d6404e2fc6b68ca0",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01.events.jsonl",
+      "raw_bytes": 300788,
+      "raw_sha256": "e030d00df62c47ce575abf5c4473ec5d7c3cd3085b36a6610400c7c5b0f94fe7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01.events.jsonl.gz",
+      "gzip_bytes": 38889,
+      "gzip_sha256": "6f4792bb48faf6d436b3afedc4287727b44de63165da97096302280a8ee62068",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01.rx.bin",
+      "raw_bytes": 159781,
+      "raw_sha256": "7d4f6eb062fd34d81f5968b884bf5dee21167f396edbe4e75edb0f8489f74503",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01.rx.bin.gz",
+      "gzip_bytes": 24859,
+      "gzip_sha256": "ee097b12b8fbe17b020dbba1686b5e14788d4e033b61775e47c4f99dff3fb312",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01-command.json",
+      "sha256": "acf95e3e33082c11d366730d4958e3c14d2ae9e89703b182920618bdf26d6565",
+      "bytes": 954
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01-ble-command.json",
+      "sha256": "16752cf3a58f16de244615f6aa10981b4680242888fd185b3e8105d0609dd7b7",
+      "bytes": 1089
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01-debug-command.json",
+      "sha256": "8321ad3caf8dd6d9f2df18ecb051ca2dff663e3a7d5b94d2d87103f4a8545095",
+      "bytes": 1181
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01.summary.json",
+      "sha256": "1f3ee4addb7373942874f9f861cb7994f3617ee8513bd1d58a4f0bfecfcbb6f1",
+      "bytes": 255392
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-independent-review-01.json",
+      "sha256": "6555653e934cd6d6983cb06826b2c2a13393b63bfde07b1ec64115db73e1f93f",
+      "bytes": 3284
+    }
+  ],
+  "file_count": 5,
+  "total_original_bytes": 1335958,
+  "total_gzip_bytes": 191295,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

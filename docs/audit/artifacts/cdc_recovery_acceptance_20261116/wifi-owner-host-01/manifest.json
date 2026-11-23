@@ -1,0 +1,227 @@
+{
+  "utc": "2026-11-21T00:09:59.118216+00:00",
+  "HEAD": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_tracked_diff_sha256": "f24992484cba722b0cacce4e2c993f88b717cd1ca764ca78dd87e00b60dd44e5",
+  "production_sha256": {
+    "components/sensorarrayWifi/CMakeLists.txt": "59e6175a9d54fd9cc1b7a36e1499cb9da196702d6235306999eaddffed20fd12",
+    "components/sensorarrayWifi/include/sensorarrayWifi.h": "85b912409972fcf8afe8a135dea9cfeeee03c00be19835b85538d2086f69bcf2",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "cd3d7ede70e893755a9455a1fb163b5ce3abecbe8fec8b75abfbc3ba9006e37e",
+    "components/sensorarrayWifi/sensorarrayWifiOwner.c": "94b1dfabca04f52a3588fe2510c481c5712de89037df23e109ed8c25c1692ee6",
+    "components/sensorarrayWifi/sensorarrayWifiOwner.h": "ecddd905bb2d3b68133a57520f971f65d7765709649216d0494034e0665960da",
+    "components/sensorarrayWifi/sensorarrayWifiWatchdog.c": "235de4b2660a8f79185afb92ba56edc3f515d4a7352b2357b89b736d8fd4ae86",
+    "components/sensorarrayWifi/sensorarrayWifiWatchdog.h": "5054304ac30b1040dc0144ecd2897616bc1e737a087407ceb052cf1c317daa67",
+    "core/transport/CMakeLists.txt": "d7589acde33bbed4af75a23cd759e0054d0a7c32273a1524bfa86edd83cea37a",
+    "core/transport/sensorarrayTransport.c": "19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d",
+    "core/transport/sensorarrayTransport.h": "c9d06566b79ddf8f6d4babf9920c2e45d7619a5bbed2d7aeb805775bb9c8f65b",
+    "core/transport/sensorarrayTransportCommand.c": "48a5187ebdc53a9cb5df655088164d357d9dfe71ea01fc0e125e26cb1b0c593c",
+    "core/transport/sensorarrayTransportStats.c": "5b008056f552a87609ce07f11aaccf79aa2b6c6949b84a54d2bc75da7352a755",
+    "core/transport/sensorarrayTransportPool.c": "734f76edd05644a679dbbc1bd63a38f92938d1feb0cf34970bb8f91c3d7b173d",
+    "core/transport/sensorarrayTransportPool.h": "368e3759fdfbfadff31cd98dc46d2a728642c4ac17f27d9f3d4930611f41b2d8",
+    "core/transport/sensorarrayTransportWifiControl.c": "4600dd0f1babcd271b86ef5e1edd1d64402a6226afb6b520d8096a16af7d07d6",
+    "core/transport/sensorarrayTransportWifiControl.h": "b6e07ef77761dfdc4ef8ea59c3b1280b41962c2c36959f4b463f685aa65080f4"
+  },
+  "test_sha256": {
+    "tests/host/test_wifi_owner.c": "6245d0993ba5fac4ca5f2f974f9a32b5bb761b40b9e1d35f88a6bc1d8e6be1aa",
+    "tests/host/wifi_owner_stubs/common.h": "512fa4412736d4363afd2c765d1c374e84e39bf9cd8b130631d963b5f1fd7c5c",
+    "tools/test_wifi_owner.py": "a0b1e5fe0a4510190d81f1970800267d5b87a8b03c1b70c1aa68e7151b1173eb",
+    "tests/host/test_wifi_command.c": "94b8e389474e0948c214fea4ee95d4920c87bee583ea3846e7fd05750e53d0f9",
+    "tools/test_wifi_command.py": "e667ecdc6f7084701fbe44355c0ae130055f20531031813494c443a7c370068f",
+    "tests/host/test_wifi_transport_isolation.c": "5a092c3fe6882d8f486023b7115bd082b0aadb351a77c503a8625cbedea07b82",
+    "tools/test_wifi_transport_isolation.py": "9b6f39352a08ed3f0e840b73d17c3093f90d72765f35b66c77b051568421640b",
+    "tests/host/test_protected_frame_pipeline.c": "0ebc8231468a80dfd3f756edab54c4a8a810c60686e8c9fa5480c8f1493b4df9",
+    "tools/test_protected_frame_pipeline.py": "3dd142bde24053bf57137ebbd309471419b3fcb86f17b00c41bf598ff1a8a46d",
+    "tests/host/test_ble_pipeline.c": "9a98dbf0c1aa6d7d3b8b08b4c3b644e7061f8d061786310e3435eb142fc8942e",
+    "tests/host/test_recovery_control.c": "afd2a8952e56c3cfee523f82cfd886f1522729414451fc0062eb6ca3cc10c877",
+    "tools/test_recovery_control.py": "28fc8382742a7db9c3a0b11965c3de15626378f17ef312896e4ecebd077073cd",
+    "tests/host/test_work_budget_drains.c": "a9921408ec86616e251da8bc033611b84f2c86f2564a0cfdf9ff41850fb77272"
+  },
+  "hardware": "NOT_RUN",
+  "idf_build": "ROOT_ONLY_NOT_RUN_BY_THIS_AGENT",
+  "counterexamples": "Two explicitly labelled reconstructed mutations of current owner, not original deployed source; command output contains their actual SIGABRT and SHA. Negative enum case verifies current rejection only.",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_owner.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.166161+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_wifi_owner.txt",
+      "log_sha256": "bfd88656677ee0649843c570df2647c052736c8424e740112e8c9a642f51ad4a"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_command.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.166516+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_wifi_command.txt",
+      "log_sha256": "93536df792a24072c122bf091be0d41fcce94bb48259c1116a2bb53da92ac7c3"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_transport_isolation.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.166703+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_wifi_transport_isolation.txt",
+      "log_sha256": "0a7a9dc5a7ba2ec1c8fa0d501b5672cff5c6398cfac4f76e97510083a53e85e8"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.166835+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_work_budget.txt",
+      "log_sha256": "a12a7bab8a32a6540e8e43bb2b9cc79a155dc35ad9a19577761340c3437c4f47"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_protected_frame_pipeline.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.324152+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_protected_frame_pipeline.txt",
+      "log_sha256": "35584597cf0dbe376d8238272dbde31a922ff12f74690c8e72f73abfa14ee9c8"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.457999+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_ble_pipeline.txt",
+      "log_sha256": "2dcd07471b57638f295369e6ba947038778538310598f91409b045fbc289d11b"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:09:59.911480+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_transport_frame_metadata.txt",
+      "log_sha256": "6e709637cdc201f00ea21f7887bb186300f2958585bb8765ebf1fcad9554200d"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:00.035874+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_transport_pool.txt",
+      "log_sha256": "2b525e0107c376a1ac3f351f2cdcb26acff29b954a80415696c25ab0df8b0179"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:00.140728+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_recovery_control.txt",
+      "log_sha256": "54f4cd4bc6f47c80204bc1d45b1560011197a668daec657d74e84bad416909a0"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_link_control.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:00.481191+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_link_control.txt",
+      "log_sha256": "a868eb35f5ecde97385ed1355931c95324f90d0069195f21b4fd13514134dd74"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_config_identity.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:00.944235+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_config_identity.txt",
+      "log_sha256": "3f1195fbb27af96e74061ddd2f1eb87c874416d172cc06abb0f692fa311b6a1b"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:01.156001+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_text_protocol.txt",
+      "log_sha256": "eced23ddd08c9039f187036632b6dfa267284cbf87aec2491dbe857e559b0d00"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_snapshot_diagnostics.py"
+      ],
+      "environment": {
+        "CC": "/usr/bin/gcc",
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "start_utc": "2026-11-21T00:10:01.205217+00:00",
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-host-01/test_snapshot_diagnostics.txt",
+      "log_sha256": "780a5a56f4f99a90adb8956eee5575cc0a22c1967f4dbaa87fc6fdf76ca24959"
+    }
+  ],
+  "production_unchanged_during_tests": true,
+  "all_pass": true
+}

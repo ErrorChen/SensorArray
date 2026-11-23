@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "9aa2ece2bc4121bc57f921f186bf9a869f2f3d76c9303fb2847b1df95e0b6fed",
+  "started_utc": "2026-11-20T18:59:31.878757+00:00",
+  "started_monotonic": 131946.047045384,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-host-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T18:59:32.544881+00:00",
+  "finished_monotonic": 131946.713121429,
+  "log_sha256": "4d98caeb55bc5326d215cca60276073c3ca6d227adc6be5a18c56cdec13dbb3b"
+}

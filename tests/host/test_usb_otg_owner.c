@@ -70,6 +70,8 @@ esp_err_t esp_efuse_mac_get_default(uint8_t *mac)
 { const uint8_t value[6]={2,3,4,5,6,7}; memcpy(mac,value,6); return ESP_OK; }
 bool esp_efuse_read_field_bit(unsigned field) { assert(field<4); return efuses[field]; }
 void esp_restart(void) { trace(TRACE_CPU); longjmp(restartJump,1); }
+/* Model the real linker --wrap resolution; target disassembly is separate. */
+void esp_restart_noos(void) { __wrap_esp_restart_noos(); }
 void esp_rom_software_reset_system(void) { trace(TRACE_CORE); longjmp(restartJump,2); }
 void __real_esp_restart_noos(void) { realRestarts++;trace(TRACE_REAL);longjmp(restartJump,3); }
 void xt_ints_off(uint32_t mask) { assert(mask==UINT32_MAX);interruptsOff++; }
@@ -401,6 +403,40 @@ static void normalRestartBackend(void)
     assert(!s_recoveryMagic&&!s_recoveryInverse&&!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
     nextApplicationBoot();assert(sensorarrayUsbOtgEnabled());
 }
+static void manualRestartBackend(void)
+{
+    initialize();ownerProgress=true;
+    int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgManualRestart(false);
+    assert(reset==3&&realRestarts==1&&atomic_load(&s_quiesced));
+    assert(atomic_load(&s_hardwareMayOwnDma)==0u);
+    for(unsigned i=0;i<sequenceCount;i++)assert(sequence[i]!=TRACE_CPU);
+    assert(!s_recoveryMagic&&!s_recoveryInverse&&!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    nextApplicationBoot();assert(sensorarrayUsbOtgEnabled());
+}
+static void manualRestartRom(void)
+{
+    initialize();ownerProgress=true;
+    int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgManualRestart(true);
+    assert(reset==3&&realRestarts==1&&atomic_load(&s_quiesced));
+    assert(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+    assert(!s_recoveryMagic&&!s_recoveryInverse);
+    for(unsigned i=0;i<sequenceCount;i++)assert(sequence[i]!=TRACE_CPU);
+}
+static void manualRestartTimeout(void)
+{
+    initialize();int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgManualRestart(true);
+    assert(reset==2&&realRestarts==0&&!atomic_load(&s_quiesced));
+    assert(!(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT));
+    assertRecoveryLatched();
+}
+static void manualRecoveryRom(void)
+{
+    recoveryBoot();
+    int reset=setjmp(restartJump);if(reset==0)sensorarrayUsbOtgManualRestart(true);
+    assert(reset==3&&realRestarts==1);
+    assert(registers[RTC_CNTL_OPTION1_REG]&RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+    assert(!s_recoveryMagic&&!s_recoveryInverse);
+}
 static void efuseGates(void)
 {
     assert(sensorarrayUsbOtgRomDownloadAvailable());
@@ -508,6 +544,8 @@ int main(int argc,char **argv)
         {"recovery_repeated_panic",recoveryRepeatedPanic},{"recovery_ordinary_restart",recoveryOrdinaryRestart},
         {"recovery_explicit_rom",recoveryExplicitRom},{"recovery_rejected_release",recoveryRejectedRelease},
         {"normal_restart_backend",normalRestartBackend},
+        {"manual_restart_backend",manualRestartBackend},{"manual_restart_rom",manualRestartRom},
+        {"manual_restart_timeout",manualRestartTimeout},{"manual_recovery_rom",manualRecoveryRom},
         {"panic_cpu0",panicCpu0},{"panic_cpu1",panicCpu1},{"panic_no_dma",panicNoDma},
         {"panic_quiesced",panicQuiesced},{"panic_during_detach",panicDuringDetach},
         {"panic_init_failed",panicInitFailed},{"panic_phy_failed",panicPhyFailed},

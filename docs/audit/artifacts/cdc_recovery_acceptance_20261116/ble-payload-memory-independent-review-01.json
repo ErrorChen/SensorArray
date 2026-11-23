@@ -1,0 +1,129 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T19:10:25.306042+00:00",
+  "gate": "PASS_FROZEN_BLE_CPU_PAYLOAD_PLACEMENT_AND_MEMORY_DIAGNOSTICS_INCREMENT_ONLY",
+  "scope": "Read-only review of one-time BLE CPU payload storage migration plus low-frequency MEM diagnostic and main scan allocation bracket. No firmware build, hardware, flash, production changes or commit by reviewer.",
+  "reviewedSourceSha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+    "tests/host/test_ble_watchdog_init.c": "551470c60ef502788738411637b59b18dc60daeeb81c14882bba45deb7480135",
+    "tests/host/test_ble_priority.c": "7d3200646ea3c3eddc602dbf922b63443c7b7cd4b30a6c6a62e4cf9e62acae4b",
+    "tests/host/test_ble_pipeline.c": "9bb2c13d0f6945e186085cd3427aa892a83f39cb1a3fb836ecf84d70cd767931",
+    "tools/test_ble_watchdog.py": "fe570d13f18ffe6f47bb92d5f53ec9f62c26fe3fb3173138bcffa98bd7dff94c",
+    "tools/test_ble_priority.py": "2877d04fa97de9b127016f7ddf2e20679f84751548da8734cf63cdf3a2b8bee7",
+    "tools/test_ble_pipeline.py": "4acc5b5b1429ca8593279df78e0c44a641256de83d50443cd47314a84a213e4e",
+    "main/control/sensorarrayMemoryDiagnostics.c": "84ff3629e0b6495e3fa9da7db5e0cec4502be33e529236fb05920dd96d6df635",
+    "main/control/sensorarrayMemoryDiagnostics.h": "293e95c3e25ff6ba10e3b80282edf93eaf25245a42608080f47cff209edfc021",
+    "main/main.c": "e9a81f83e00419e701090f8a4d087e8ece08676a17869f960421af9166cb134e",
+    "main/CMakeLists.txt": "86abc38ded1c8348e36e179f2f1f406d95f7e619d3043df60136fa0894e373e1",
+    "tools/test_memory_diagnostics.py": "558dfcd4e6fa6ebd495c787e56306f694c5b43c696419169884818edc2d18323",
+    "tools/test_snapshot_diagnostics.py": "cccee17ecdb447172ecb54c10e955c879cd167735799758597baaec2249e5f1d",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+  },
+  "buildReferenced": {
+    "record": "ble-snapshot-03-build-manifest.json",
+    "sha256": "84c50757a714472e30f069c4ce504b799919fb9bdd811cd629fb2541446a8bf8",
+    "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+    "sourceChangedDuringBuild": false,
+    "appSha256": "726425b30120e2a3f72c2628a4963d79b216186a785f5b1d08809d62429fa30c",
+    "appBytes": 1615232,
+    "buildExitCode": 0,
+    "buildRunByReviewer": false
+  },
+  "actualTargetMapObservation": {
+    "elfSha256": "7ce5e9f8746aefe0f999b467bc08fc9470903a59141339829c6363a30db7e1c8",
+    "mapSha256": "a6c295e86c23b61ef4bbb6eb33174b431ed5871158303c297714ecf56111281e",
+    "mapLine": ".data.s_ble    0x3fcaa4b8     0x1250 esp-idf/sensorarrayBle/libsensorarrayBle.a(sensorarrayBle.c.obj)",
+    "currentBleStateInternalBytes": 4688,
+    "previousBleStateInternalBytes": 23080,
+    "previousObservation": "ble-snapshot-internal-memory-sdk-review-01.json, build02 .data.s_ble0x5a28 read before rebuild; separately confirmed by worker targetELF/DWARF.",
+    "internalStaticBytesReleased": 18392,
+    "externalPayloadBytes": 18432,
+    "hostStateBytesNotTarget": 4448,
+    "claim": "Static placement evidence only; this does not measure runtime largest free internal block or prove successful scan startup."
+  },
+  "BLEOwnershipReview": [
+    "Only DataSlot.data changes from embedded2304-byte array to a pointer. Eight pointers map to eight distinct contiguous2304-byte regions; CTRL512-byte arrays and the512-byte TX scratch remain embedded/internal. The18432-byte allocation excludes RTOS structures and guard/slot metadata.",
+    "Init takes its existing same-mux one-time claim before allocating. Payload storage is allocated after the final memset of s_ble and before guard timer, queues, tasks and SDK initialization. Bindings are complete before txQueue/GATT admission can make producers eligible.",
+    "One explicit heap_caps_malloc(SPIRAM|8BIT) occurs outside s_bleMux. No internal fallback, runtime allocation, free or reallocation path is added. Failed allocation sets guard/init error toNO_MEM and stays failed for this boot; later initialization failure retains permanent storage and references.",
+    "All pointer assignments occur within a short metadata critical section; payload memcpy/CRC and SDK calls remain outside. Payload bytes need not be zeroed: only validated nonzero length<=2304 is used after complete copy to an exclusively reserved slot.",
+    "WRITING cannot be consumed/superseded; PENDING/OWNED generation checks and same-mux transitions remain unchanged. Disconnect/reconnect, stream changes, SDK quarantine and late return do not free or replace the backing allocation. Slot reuse still waits for actual owner return.",
+    "The installed SDK synchronously copies GATT values before posting BTC work. This is CPU source storage, not a peripheral DMA descriptor or ADS buffer. Fragment scratch remains internal, and small direct packets still keep their slot until SDK actually returns.",
+    "No sizeof(slot.data) length regression was found; payload limit/offsets use MESSAGE_VALUE_MAX. Existing full/SHORT, CRC, descriptor and protected ticket identities are unchanged."
+  ],
+  "MemoryDiagnosticsReview": [
+    "Both early recovery command dispatch and normal runtime query dispatch implement exact MEM? before context-dependent acquisition handling. PROTO advertises heap_v1 identically on early/normal paths.",
+    "The only production Begin/End writer is sensorarrayStartScanTask around ordinary xTaskCreatePinnedToCore. Begin records requested16384-byte stack and INTERNAL|8BIT before free/largest; both success/failure branches record after free/largest and result. No task stack placement or creation policy is changed.",
+    "Unknown and pending states retain explicitunknown after/result fields. End without Begin cannot invent a creation attempt. A query copies the bracket atomically under its own mux, then performs heap traversals/formatting outside that lock.",
+    "Current internal and external readings are sequential and labelled as such. Internal free/largest/min are requested using INTERNAL|8BIT, PSRAM uses SPIRAM|8BIT. No exclusive allocation delta, ADC state, analog safety or PC receipt is inferred.",
+    "Formatter rejects truncated output, clears response[0], and never writes beyond caller capacity. Actualhost UINT32_MAX/INT64_MAX record is325B; current PROTO variants484/487/501B plusNUL fit512. Minimal stack-local formatting only; no diagnostic heap allocation."
+  ],
+  "executedTests": [
+    {
+      "record": "ble-payload-memory-independent-watchdog-01.json",
+      "recordSha256": "3dedc09e26eaa2ed7952d06026da6c37c4195aa641f2e427becd6bf1625111f2",
+      "command": [
+        "python3",
+        "tools/test_ble_watchdog.py"
+      ],
+      "exitCode": 0,
+      "logSha256": "974ea274c08de63e76b4d34711e99b7172980a8c5d65255c1446e841b695c03e"
+    },
+    {
+      "record": "ble-payload-memory-independent-priority-01.json",
+      "recordSha256": "1eff0e04e5d07448cf263115cce20c07c0ae274bb1442b200c8f52318d638576",
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exitCode": 0,
+      "logSha256": "60bd99f8fc66a63685c8c29b388295490e176dc616e22aca69d9a6750af57281"
+    },
+    {
+      "record": "ble-payload-memory-independent-pipeline-01.json",
+      "recordSha256": "dee79e417947415746de4fa5ebdae921dd01ed06725e8c67fcbba002c5b790cf",
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "exitCode": 0,
+      "logSha256": "89c4df25575e2d657186e7779605a1b9af5a4bf5db46fedaf563d743783a2a65"
+    },
+    {
+      "record": "memory-diagnostics-independent-host-01.json",
+      "recordSha256": "9b6b5b73a0c62ba4e737933a8368ac4bd5e9dc4c90cec60ad73817848ac05dc3",
+      "command": [
+        "python3",
+        "tools/test_memory_diagnostics.py"
+      ],
+      "exitCode": 0,
+      "logSha256": "be6e866dec5f608db9c8284d4d2f7e61e9502d66d3d8053392ca71abc1a6896d"
+    },
+    {
+      "record": "memory-diagnostics-independent-proto-01.json",
+      "recordSha256": "308ca0940d2ab1286b2147336ba51a9b1b3126573f31ab36f6cd10b7a9cbde43",
+      "command": [
+        "python3",
+        "tools/test_snapshot_diagnostics.py"
+      ],
+      "exitCode": 0,
+      "logSha256": "c765a7aaf069f501112ac1fa0016e7fc5cf9f397ef6dedbce3a0d7fc7fbf5727"
+    }
+  ],
+  "validatedTestMeaning": [
+    "Guard init8cases, exactcap/oneallocation/8distinctbuffers/canaries, allocation failure before any timer/queue/task/SDK, sticky subsequentInit and live bytes preserved; ASan+UBSan.",
+    "Actual BLE15groups, max2304deepcopy and caller reuse, owned-pointer persistence duringinflight/late SDK return/reconnect, typed protection WRITING races and37actualCnotification receiver roundtrips; ASan+UBSan.",
+    "Actual cooperative pipeline22scenarios, including two nonreturningSDK owner quarantine cases; no peer throughput guarantee.",
+    "Actual MEM source compile with syntheticheaps verifiesunknown/pending/failed/created/caps/lockexclusion/eachtruncatedcapacity; allthreePROTO capabilities fit512."
+  ],
+  "residualLimits": [
+    "Requires parent HIL proof of successful scan creation and complete front-end bring-up with internal free/largest observed; static saving alone is not that proof.",
+    "PSRAM cache availability applies: CPU payload paths are task-context; this approval does not migrate ISR/DMA or scan stacks.",
+    "SDK buffers still require their own allocation and some SDK calls can block; existing bounded observer/quarantine behavior is unchanged.",
+    "MEM heapwalk is low-frequency sequential observation, not an atomic global heap or a guarantee another task cannot allocate before the scan task."
+  ],
+  "hardware": "NOT_RUN",
+  "reportedTo": [
+    "/root",
+    "/root/ble_pack_impl"
+  ]
+}

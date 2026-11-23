@@ -21,16 +21,19 @@
 static uint8_t s_testBlob[SENSORARRAY_CALIBRATION_RECORD_MAX_BYTES];
 static size_t s_testBlobLength;
 static bool s_testBlobPresent;
+static esp_err_t s_initError;
+static unsigned s_eraseCalls, s_openCalls, s_writeCalls, s_commitCalls;
 
 esp_err_t nvs_flash_init_partition(const char *partitionLabel)
 {
     (void)partitionLabel;
-    return ESP_OK;
+    return s_initError;
 }
 
 esp_err_t nvs_flash_erase_partition(const char *partName)
 {
     (void)partName;
+    ++s_eraseCalls;
     s_testBlobPresent = false;
     s_testBlobLength = 0u;
     memset(s_testBlob, 0, sizeof(s_testBlob));
@@ -43,6 +46,7 @@ esp_err_t nvs_open_from_partition(const char *partName,
                                   nvs_handle_t *outHandle)
 {
     (void)openMode;
+    ++s_openCalls;
     if (!partName || !namespaceName || !outHandle) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -60,6 +64,7 @@ esp_err_t nvs_set_blob(nvs_handle_t handle,
                        size_t length)
 {
     (void)handle;
+    ++s_writeCalls;
     if (!key || !value) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -105,6 +110,7 @@ esp_err_t nvs_get_blob(nvs_handle_t handle,
 esp_err_t nvs_commit(nvs_handle_t handle)
 {
     (void)handle;
+    ++s_commitCalls;
     return ESP_OK;
 }
 
@@ -433,6 +439,46 @@ static int testOversizeAndMalformedRejected(void)
     return 0;
 }
 
+static int testInitFailurePreservesScientificCalibration(void)
+{
+    const esp_err_t failures[] = {ESP_ERR_NVS_NO_FREE_PAGES,
+        ESP_ERR_NVS_NEW_VERSION_FOUND, ESP_ERR_NO_MEM};
+    uint8_t payload[TEST_PAYLOAD_BYTES], output[TEST_PAYLOAD_BYTES];
+    uint8_t preserved[SENSORARRAY_CALIBRATION_RECORD_MAX_BYTES];
+    testFillPayload(payload, sizeof payload, 0x35u);
+    for (unsigned index = 0; index < sizeof failures / sizeof failures[0]; ++index) {
+        CHECK(testStoreValidRecord(payload, sizeof payload) == ESP_OK);
+        memcpy(preserved, s_testBlob, sizeof preserved);
+        size_t preservedLength = s_testBlobLength;
+        unsigned erases = s_eraseCalls, opens = s_openCalls;
+        unsigned writes = s_writeCalls, commits = s_commitCalls;
+        s_initError = failures[index];
+        sensorarrayCalibrationStatus_t status;
+        size_t length = 99u;
+        memset(output, 0xa5, sizeof output);
+        CHECK(sensorarrayCalibrationInit() == failures[index]);
+        CHECK(sensorarrayCalibrationLoad(testPayloadValid, output, sizeof output,
+            &length, &status) == failures[index]);
+        CHECK(!status.valid && length == 0u);
+        for (unsigned i = 0; i < sizeof output; ++i) { CHECK(output[i] == 0xa5); }
+        CHECK(sensorarrayCalibrationQuery(&status) == failures[index]);
+        CHECK(!status.valid);
+        CHECK(sensorarrayCalibrationSave(payload, sizeof payload, &status) == failures[index]);
+        CHECK(!status.valid);
+        CHECK(s_eraseCalls == erases && s_openCalls == opens);
+        CHECK(s_writeCalls == writes && s_commitCalls == commits);
+        CHECK(s_testBlobPresent && s_testBlobLength == preservedLength);
+        CHECK(memcmp(preserved, s_testBlob, sizeof preserved) == 0);
+        s_initError = ESP_OK;
+        CHECK(sensorarrayCalibrationLoad(testPayloadValid, output, sizeof output,
+            &length, &status) == ESP_OK);
+        CHECK(status.valid && length == sizeof payload);
+        CHECK(memcmp(output, payload, sizeof payload) == 0);
+    }
+    puts("CALIBRATION_INIT_FAILURE_PRESERVATION,errors=3,apis=4,erases=0,writes=0,reload=verified,synthetic=1");
+    return 0;
+}
+
 int main(void)
 {
     int result = 0;
@@ -446,6 +492,7 @@ int main(void)
     result |= testPayloadValidationFallsBackToDefault();
     result |= testQueryStatuses();
     result |= testOversizeAndMalformedRejected();
+    result |= testInitFailurePreservesScientificCalibration();
     if (result != 0) {
         return result;
     }

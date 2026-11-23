@@ -1,0 +1,1 @@
+Reviewer snapshot taken during development, before final freeze. It already includes the observer time/cleanup-error fixes and is NOT the original failing baseline. No production or hardware execution was performed from this snapshot. source-manifest.json records exact captured files. Independent final tests will use a separate frozen snapshot/artifact.

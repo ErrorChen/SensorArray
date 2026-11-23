@@ -1,0 +1,22 @@
+{
+  "scope": "in-progress root-owned startup/resources/capabilities changes; not a complete build identity",
+  "hardware": "NOT_RUN",
+  "inputs": {
+    "main/main.c": "a16e7565581d069ca00a62e8c67b5beb7795e15f7976e30d19ef39c2707aae17",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "e150525557eeae54977e079bd59cbad0977305a2e242c4c626c1b18c3eda7324",
+    "components/sensorarrayWorkBudget/include/sensorarrayCpuOwner.h": "3ff33d65def71823fb8226f4962f700c993d856e2f73ed7f9eb5d3d1038f79b1",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "45bed289daf352de71ee3de5b4b25a385d527a84463891277c87e360d140e1b8",
+    "tools/test_wifi_startup_gate.py": "8c78c01b6317e9be507285d547d106a2aceb706f05fc08aa2c45d9c6b9f48d96",
+    "tools/test_snapshot_diagnostics.py": "7f39022d8c9e32af178cd6b84102abf4bb5de3ba33412a22e92a1f3a873e8b8c",
+    "tests/host/test_cpu_owner.c": "bdb20812e0f14d20390bafa2208092348623355c215f37dd1819382315855495",
+    "tests/host/test_recovery_control.c": "588afcc837aed993fdb485a17059b007b2d575b7ca3475d2af227ab4b92db277",
+    "tests/host/test_work_budget.c": "a3126c103c4c086e4dd07f2341780c3ae7c2f3f819163caae05232388fec213d"
+  },
+  "targeted_pass_records": [
+    "wifi-startup-gate-host-01-command.json",
+    "wifi-role-cpu-host-01-command.json",
+    "wifi-role-recovery-host-01-command.json",
+    "wifi-caps-snapshot-host-01-command.json"
+  ],
+  "budget_note": "wifi-role-budget-host-01 passed 8 worker production model; a stale 7workers output label was corrected afterwards; full work-budget rerun pending Wifi integration"
+}

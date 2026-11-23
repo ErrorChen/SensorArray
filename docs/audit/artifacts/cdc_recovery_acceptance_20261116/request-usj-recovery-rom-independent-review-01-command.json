@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_request_usj_recovery_rom_review_01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "b9d2c9c0415ca33d41d8b42b36ebb3cc86191d10830ca6f9282f81a53d7e4a37",
+  "started_utc": "2026-11-21T00:46:20.849190+00:00",
+  "started_monotonic": 152747.998741222,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/request-usj-recovery-rom-independent-review-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:46:20.963684+00:00",
+  "finished_monotonic": 152748.113234048,
+  "log_sha256": "a04c8aa8717daa6bf504e64d53db25fcc0208eb6b4479d0e6ba0b9a2a6cb0147"
+}

@@ -24,11 +24,22 @@ typedef struct {
     uint32_t frameStartIntervalCount;
 } sensorarrayAsyncLogStats_t;
 
+typedef struct {
+    uint32_t queued;
+    uint32_t firstConfigQueued;
+    uint32_t periodicQueued;
+    uint32_t candidateMiss;
+    uint32_t firstCandidateMiss;
+    uint32_t superseded;
+    uint32_t firstSuperseded;
+} sensorarrayAsyncLogProtectionStats_t;
+
 esp_err_t sensorarrayAsyncLogInit(void);
 esp_err_t sensorarrayAsyncLogStartUsbSink(void);
 void sensorarrayAsyncLogEnableAcquisition(void);
 bool sensorarrayAsyncLogIsRunning(void);
 void sensorarrayAsyncLogGetStats(sensorarrayAsyncLogStats_t *outStats);
+void sensorarrayAsyncLogGetProtectionStats(sensorarrayAsyncLogProtectionStats_t *outStats);
 
 esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *frame,
                                                   uint64_t measureFrameUs);

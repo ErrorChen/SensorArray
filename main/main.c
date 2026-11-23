@@ -1,6 +1,8 @@
 #include "sensorarrayUsbOtg.h"
 #include "control/sensorarrayUsbControl.h"
 #include "control/sensorarrayLinkDiagnostics.h"
+#include "control/sensorarrayMemoryDiagnostics.h"
+#include "control/sensorarrayPanicDiagnostics.h"
 #include "control/sensorarrayAdsTimingControl.h"
 #include <stdbool.h>
 #include <inttypes.h>
@@ -2651,6 +2653,15 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     if (sensorarrayCpuOwnerHandles(command)) {
         return sensorarrayCpuOwnerFormat(command, s_configSessionId, response, responseSize);
     }
+    if (strcmp(command, "MEM?") == 0) {
+        return sensorarrayMemoryDiagnosticsFormat(response, responseSize);
+    }
+    if (strcmp(command, "MEMFAIL?") == 0) {
+        return sensorarrayMemoryDiagnosticsFailureFormat(response, responseSize);
+    }
+    if (sensorarrayPanicDiagnosticsHandles(command)) {
+        return sensorarrayPanicDiagnosticsFormat(command, response, responseSize);
+    }
     if (sensorarrayLinkDiagnosticsHandles(command)) {
         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
     }
@@ -2718,7 +2729,7 @@ static esp_err_t sensorarrayEarlyRuntimeQueryCommand(const char *command,
     case SENSORARRAY_EARLY_KIND_PROTO_QUERY:
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1/cpu_owner_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1/cpu_owner_v1/ble_flow_v1/ble_snapshot_v1/heap_v1/caps2_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -2839,6 +2850,15 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     }
     if (sensorarrayCpuOwnerHandles(command)) {
         return sensorarrayCpuOwnerFormat(command, s_configSessionId, response, responseSize);
+    }
+    if (strcmp(command, "MEM?") == 0) {
+        return sensorarrayMemoryDiagnosticsFormat(response, responseSize);
+    }
+    if (strcmp(command, "MEMFAIL?") == 0) {
+        return sensorarrayMemoryDiagnosticsFailureFormat(response, responseSize);
+    }
+    if (sensorarrayPanicDiagnosticsHandles(command)) {
+        return sensorarrayPanicDiagnosticsFormat(command, response, responseSize);
     }
     if (sensorarrayLinkDiagnosticsHandles(command)) {
         return sensorarrayLinkDiagnosticsFormat(command, response, responseSize);
@@ -3467,7 +3487,7 @@ static esp_err_t sensorarrayRuntimeQueryCommand(const char *command,
     if (strcmp(command, "PROTO?") == 0) {
         snprintf(response,
                  responseSize,
-                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1/cpu_owner_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
+                 "PROTO,version=%u,wires=ascii,ctrlMax=%u,dataMax=%u,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/%s/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1/cpu_owner_v1/ble_flow_v1/ble_snapshot_v1/heap_v1/caps2_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8\n",
                  (unsigned)SENSORARRAY_PROTOCOL_VERSION,
                  (unsigned)SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                  (unsigned)SENSORARRAY_TRANSPORT_TEXT_MAX,
@@ -4515,7 +4535,7 @@ static void sensorarrayPerformManualRestart(sensorarrayAppContext_t *ctx,
     (void)sensorarrayRestartControlPublish(requestId, &authority, known);
     /* Bounded opportunity for local priority publication, not a host ACK. */
     vTaskDelay(pdMS_TO_TICKS(20u) + 1u);
-    sensorarrayUsbOtgRestart(romDownload);
+    sensorarrayUsbOtgManualRestart(romDownload);
 }
 
 static bool sensorarrayRunRecoveryBoundary(sensorarrayAppContext_t *ctx)
@@ -4872,6 +4892,19 @@ static void sensorarrayRunMainLoop(sensorarrayAppContext_t *ctx)
     }
 }
 
+/* 本轮新增: each core reports its startup reservation attempt once. Creating
+ * the scan task alone does not reserve the later dynamic SPI probe stack.
+ * This software gate is neither READY nor evidence of physical isolation. */
+static uint32_t s_wifiStartupReservations;
+static void sensorarrayWifiStartupReservationComplete(uint32_t completed)
+{
+    uint32_t previous = __atomic_fetch_or(&s_wifiStartupReservations, completed,
+                                          __ATOMIC_ACQ_REL);
+    if (previous != 3u && (previous | completed) == 3u) {
+        sensorarrayTransportReleaseWifiStartupGate();
+    }
+}
+
 static void sensorarrayScanTask(void *arg)
 {
     sensorarrayAppContext_t *ctx = (sensorarrayAppContext_t *)arg;
@@ -4884,6 +4917,7 @@ static void sensorarrayScanTask(void *arg)
 
     sensorarrayBootBreadcrumbSetStage("init_system", ESP_OK, ctx);
     esp_err_t initErr = sensorarrayInitSystem(ctx);
+    sensorarrayWifiStartupReservationComplete(2u);
     if (initErr != ESP_OK) {
         sensorarrayBootBreadcrumbSetStage("init_failed", initErr, ctx);
         bool frontendWait = ctx->frontendStartupReached &&
@@ -5014,6 +5048,7 @@ static esp_err_t sensorarrayStartScanTask(sensorarrayAppContext_t *ctx)
         return ESP_ERR_INVALID_ARG;
     }
     TaskHandle_t scanTaskHandle = NULL;
+    sensorarrayMemoryDiagnosticsScanBegin(CONFIG_SENSORARRAY_SCAN_TASK_STACK);
     BaseType_t taskOk = xTaskCreatePinnedToCore(sensorarrayScanTask,
                                                 "sensorarrayScanTask",
                                                 CONFIG_SENSORARRAY_SCAN_TASK_STACK,
@@ -5022,8 +5057,10 @@ static esp_err_t sensorarrayStartScanTask(sensorarrayAppContext_t *ctx)
                                                 &scanTaskHandle,
                                                 CONFIG_SENSORARRAY_SCAN_TASK_CORE);
     if (taskOk != pdPASS || !scanTaskHandle) {
+        sensorarrayMemoryDiagnosticsScanEnd(ESP_ERR_NO_MEM);
         return ESP_ERR_NO_MEM;
     }
+    sensorarrayMemoryDiagnosticsScanEnd(ESP_OK);
     ctx->scanTaskHandle = scanTaskHandle;
     return ESP_OK;
 }
@@ -5085,9 +5122,16 @@ void app_main(void)
         (uint64_t)esp_timer_get_time());
     sensorarrayBootBreadcrumbStart();
     esp_fill_random(&s_configSessionId, sizeof(s_configSessionId));
+    sensorarrayPanicDiagnosticsInit(s_configSessionId, s_bootBreadcrumb.bootId,
+        esp_app_get_description()->app_elf_sha256, esp_reset_reason());
+    (void)sensorarrayMemoryDiagnosticsInit(s_configSessionId, s_bootBreadcrumb.bootId,
+        esp_app_get_description()->app_elf_sha256);
     sensorarrayRecoveryControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
     sensorarrayRestartControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
     sensorarrayAdsTimingControlInit(s_configSessionId, s_bootBreadcrumb.bootId);
+    /* 本轮新增: establish Wi-Fi request identity before command RX starts.
+     * The SDK owner stays gated until the fixed output/scan reservations. */
+    sensorarrayTransportConfigureWifiBoot(s_configSessionId, s_bootBreadcrumb.bootId);
     printf("COREMAP,acq=%d,misc=%d,fdcP=%d,fdcS=%d,ads=%d,log=%d,out=%d,net=%d\n",
            CONFIG_SENSORARRAY_ADC_CORE,
            CONFIG_SENSORARRAY_MISC_CORE,
@@ -5138,6 +5182,8 @@ void app_main(void)
 
     esp_err_t scanErr = sensorarrayStartScanTask(&s_appContext);
     if (scanErr != ESP_OK) {
+        /* No scan task can make a later reservation on this failure path. */
+        sensorarrayWifiStartupReservationComplete(3u);
         sensorarrayBootBreadcrumbSetStage("scan_task_create_failed", scanErr, &s_appContext);
         printf("APP_FATAL,stage=scan_task_create,err=0x%lx,action=safe_idle_no_restart\n",
                (unsigned long)scanErr);
@@ -5186,4 +5232,5 @@ void app_main(void)
         }
     }
     sensorarrayLogBootHeap("after_async_log_sink_init");
+    sensorarrayWifiStartupReservationComplete(1u);
 }

@@ -25,6 +25,7 @@ SCENARIOS = (
     "recovery_rejected_release", "normal_restart_backend",
     "panic_cpu0", "panic_cpu1", "panic_no_dma", "panic_quiesced", "panic_during_detach",
     "panic_init_failed", "panic_phy_failed",
+    "manual_restart_backend", "manual_restart_rom", "manual_restart_timeout", "manual_recovery_rom",
 )
 
 
@@ -78,7 +79,7 @@ def main():
             "esp_cpu.h", "esp_private/esp_clk_utils.h", "esp_private/rtc_clk.h",
             "hal/clk_tree_ll.h", "xtensa/xtensa_api.h",
             "freertos/FreeRTOS.h", "freertos/task.h", "freertos/queue.h",
-            "esp_private/periph_ctrl.h", "esp_private/usb_phy.h",
+            "esp_private/periph_ctrl.h", "esp_private/usb_phy.h", "esp_private/system_internal.h",
             "hal/usb_serial_jtag_hal.h", "hal/usb_serial_jtag_ll.h",
             "soc/rtc_cntl_reg.h", "soc/system_reg.h", "soc/dport_access.h", "soc/usb_reg.h",
             "soc/usb_dwc_struct.h", "rom/usb/chip_usb_dw_wrapper.h",

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "bt-host-memory-01",
+    "--change-scope",
+    "Official Bluedroid dynamic host allocation preference for PSRAM with internal fallback; retain internal controller DMA/stacks/queues and prior pool/stack/NVS fixes"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "b36d49a2357481d394aa1302ef2b7aad0fc2eb2cd90f1a18be1040b677fe7c41",
+  "started_utc": "2026-11-21T01:44:11.583726+00:00",
+  "started_monotonic": 156219.572960967,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-validate-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:44:14.304732+00:00",
+  "finished_monotonic": 156222.293962845,
+  "log_sha256": "d5aa41c042636052d07786475ce7a336236f023c9cb331d4be61d2e0c2c4b341"
+}

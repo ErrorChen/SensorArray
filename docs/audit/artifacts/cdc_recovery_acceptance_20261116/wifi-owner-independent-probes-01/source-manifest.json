@@ -1,0 +1,13 @@
+{
+  "components/sensorarrayWifi/sensorarrayWifiOwner.c": "4c970f3bc3035adff990839a5bb729c546460599a55731939fcc854f7ab893d3",
+  "components/sensorarrayWifi/sensorarrayWifiWatchdog.h": "5054304ac30b1040dc0144ecd2897616bc1e737a087407ceb052cf1c317daa67",
+  "components/sensorarrayWifi/sensorarrayWifi.c": "d062254781149032acfd20934aa7813a9417ab0320205d8c7bcab3e4b1e1f458",
+  "components/sensorarrayWifi/CMakeLists.txt": "59e6175a9d54fd9cc1b7a36e1499cb9da196702d6235306999eaddffed20fd12",
+  "components/sensorarrayWifi/sensorarrayWifiOwner.h": "ecddd905bb2d3b68133a57520f971f65d7765709649216d0494034e0665960da",
+  "components/sensorarrayWifi/sensorarrayWifiWatchdog.c": "235de4b2660a8f79185afb92ba56edc3f515d4a7352b2357b89b736d8fd4ae86",
+  "components/sensorarrayWifi/include/sensorarrayWifi.h": "47cf17910e809529d3cb8fc143869929122d360ddb7ce2a4be35be4bf985dc89",
+  "tests/host/wifi_owner_stubs/common.h": "512fa4412736d4363afd2c765d1c374e84e39bf9cd8b130631d963b5f1fd7c5c",
+  "tests/host/test_wifi_owner.c": "132e1ec2a69a1fba81eb6ecd3f78ade178fd6de0aca9969d8cb616ef035652cc",
+  "tests/host/include/esp_err.h": "cb0d5dd3c32039d5f9e4ed21ef7e59c2f2ea0d87d9f455224db23a7cf5815a5d",
+  "tools/test_wifi_owner.py": "4a913e393527935f027b887c704c0e6b535976fc8feffc9bfb83e913bfe7cc06"
+}

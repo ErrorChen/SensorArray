@@ -1,0 +1,27 @@
+{
+  "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "version": "8a1794c-dirty",
+  "app_bytes": 1615232,
+  "bin_sha256": "726425b30120e2a3f72c2628a4963d79b216186a785f5b1d08809d62429fa30c",
+  "elf_sha256": "7ce5e9f8746aefe0f999b467bc08fc9470903a59141339829c6363a30db7e1c8",
+  "host_entries": 73,
+  "all_recorded_entries_pass_after_targeted_harness_fixes": true,
+  "original_full_run_passed": 71,
+  "original_full_run_failed": 2,
+  "production_inputs": 195,
+  "build_test_inputs_identical": true,
+  "build_manifest": "ble-snapshot-03-build-manifest.json",
+  "tests_manifest": "ble-snapshot-03-tests-manifest.json",
+  "corrective_runs": [
+    "ble-snapshot-03-frontend-wait-regression-command.json",
+    "ble-snapshot-03-recovery-regression-command.json"
+  ],
+  "corrective_scope": "Only add dependency stubs for separately tested MEM formatter to pre-existing dispatch/recovery harnesses. Production unchanged; original compile failures preserved.",
+  "corrected_fixture_hashes": {
+    "tests/host/test_frontend_wait_integration.c": "2beaf8223d7d8e6068b794014d28b2c454d0fc2c8278adf199694eefb01727fe",
+    "tests/host/test_recovery_control.c": "63eb0853af6746bb704e83de89244240afda3b275c724ad9079b6d8b07bc0189"
+  },
+  "hardware_flashed_at_manifest_creation": false,
+  "image_archive": "ble-snapshot-03-image-archive.json",
+  "test_version_scope": "Exact executed input hashes in manifests; subsequent offline analysis-tool changes require their separate tests."
+}

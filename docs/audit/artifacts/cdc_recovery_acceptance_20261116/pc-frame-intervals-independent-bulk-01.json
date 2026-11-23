@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_bulk_diagnostics.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:15:47.308947+00:00",
+  "sourceSha256": "196309110655f57a24032693c0c9bfb80ad9896d9d4ccce6cc335742e18f6080",
+  "logSha256": "c7cb808f7b83f7db92cae23ea5d2a5b58e0515e72f1b5edece8b266084b11194",
+  "hardware": "NOT_RUN",
+  "scope": "synthetic tests or offline closed screen17 history only; no screen18 recording read"
+}

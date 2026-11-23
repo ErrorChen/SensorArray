@@ -1,0 +1,46 @@
+{
+  "status": "PASS_SCOPED_DOCUMENT_AND_INPUT_VERIFICATION",
+  "utc": "2026-11-21T01:25:30.347253+00:00",
+  "documents": {
+    "README.md": "2bbe64f609240015a648bae4619208f3f929c33bd962ab9679d3d1609c3a58c2",
+    "docs/integration/firmware_host_contract.md": "01f76e356eb8ff8e8f2abaea33d3482a910d7d4019aadd82e8cbe17aa8337c2b",
+    "docs/audit/firmware_reliability_fix_report.md": "2a67a5716fadadbf5560a3f824e0fd0300c58ad24462d7e3d58944a44c321bd4"
+  },
+  "analysis": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-control-evidence-01.json",
+  "analysis_sha256": "d340f8e626dbdc10fece4f0ed1cf6b9688152dcc9199cb6c3145082e387b6e44",
+  "analysis_command": "wifi-stack-control-analysis-01-command.json",
+  "original_inputs_unchanged": 27,
+  "manual_top_level_before_after_match_raw_bound_epoch_replies": true,
+  "NVS_workspace_host_evidence": [
+    {
+      "command": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/calibration-auto-erase-reproduce-03-command.json",
+      "exit_code": 1,
+      "command_sha256": "0137e730e777669ff8b06cf90e4d27f84e2a7d45383cbe0acc29689cec9baaa4",
+      "log_sha256": "aeb559e9d436529fc491483f9132c574fe0bdf38f935a9dff0f74609d61c00ab"
+    },
+    {
+      "command": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/calibration-preservation-host-01-command.json",
+      "exit_code": 0,
+      "command_sha256": "d570e39fea587524d84d32d3f27175e7f60aeff2ca6e806e2dc6b256d4c2057b",
+      "log_sha256": "41ee84bea77174ee630c3a04cf1b7d49cde5a388c61ec61a65e525cca2513034"
+    }
+  ],
+  "checks": {
+    "command": [
+      "git",
+      "diff",
+      "--check",
+      "--",
+      "README.md",
+      "docs/integration/firmware_host_contract.md",
+      "docs/audit/firmware_reliability_fix_report.md"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "hardware_actions": [],
+  "production_changes": [],
+  "overall_acceptance": "BLOCKED_AP_MEMORY_FIX_FIRST",
+  "final_acceptance": "NOT_RUN"
+}

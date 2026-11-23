@@ -1,0 +1,201 @@
+{
+  "status": "IMPLEMENTED_HOST_TESTED_TARGET_BUILD_AND_HIL_PENDING",
+  "utc": "2026-11-21T00:12:57.785174+00:00",
+  "source_manifest": "wifi-owner-host-01/manifest.json",
+  "source_manifest_sha256": "9d41faa0d3358939bb1ce99bd028382772fd5e8d3c8f8a820156c41c18cbe51a",
+  "new_apis": "All Owner/Watchdog/WifiControl APIs and TransportRequestWifiMode/ConfigureWifiBoot/ReleaseWifiStartupGate are 本轮新增; obsolete synchronous WifiInit/Send/SendControlReply call paths removed.",
+  "queries": {
+    "CAPS2?": {
+      "prefix": "CAPS2",
+      "fields": [
+        "v=1",
+        "page=1",
+        "caps=wifi_owner_v1",
+        "next=none"
+      ],
+      "bytes": 46,
+      "semantics": "Capability only, not initialized/ready. Root added caps2_v1 to PROTO; actual three-backend limit test owned by root."
+    },
+    "WIFI?": {
+      "prefix": "ACK,cmd=WIFI",
+      "fields": [
+        "v=AP|OFF",
+        "ok",
+        "ver=2",
+        "session",
+        "boot",
+        "bootKnown",
+        "requested",
+        "outputGate",
+        "backend",
+        "startAllowed",
+        "resources",
+        "initErr",
+        "quarantined",
+        "id",
+        "epoch",
+        "linkEpoch",
+        "outcome",
+        "pending",
+        "physicalOff=unknown",
+        "peerReceipt=unknown"
+      ],
+      "tested_max_bytes": 310,
+      "semantics": [
+        "One owner snapshot; requested/output/backend are distinct.",
+        "initErr is the lazy owner RESOURCE bootstrap result (payload/timer/task); backend AP errors are WIFIREQ err/cleanupErr and guard evidence. resources=0 with no attempt is not a live backend.",
+        "AP ok=1 requires latest applied request, outputGate and ready backend, no quarantine. OFF ok=1 is logical gate applied only; radio may still be running.",
+        "v/requested derive the same owner snapshot, never a fresh mode stamped onto old state."
+      ]
+    },
+    "WIFIGUARD?": {
+      "prefix": "WIFIGUARD",
+      "fields": [
+        "v=1",
+        "session",
+        "boot",
+        "bootKnown",
+        "quarantined",
+        "active",
+        "ownerBusy",
+        "phase",
+        "callId",
+        "startUs",
+        "deadlineUs",
+        "ageUs",
+        "detectedUs",
+        "completionKnown",
+        "err",
+        "cleanupErr",
+        "sdkErr",
+        "errno",
+        "returned",
+        "held",
+        "writing",
+        "timeouts",
+        "late",
+        "pollUs=100000",
+        "recovery=explicit_manual_restart_attempt"
+      ],
+      "tested_max_bytes": 483,
+      "semantics": [
+        "Times are monotonic microseconds. No call => start/deadline/age unknown; no quarantine => detected unknown.",
+        "active refers to the isolated owner SDK call, not radio/bus status or isolated RX waiting.",
+        "err is first local transaction/guard error; cleanupErr independently records unestablished cleanup (INVALID_STATE) or first cleanup timeout/error. sdkErr/errno/returned are actual most recent SDK return, separate from timeout.",
+        "completionKnown is the frozen quarantined call completion; a late actual return changes this evidence but never clears quarantine.",
+        "held includes WRITING/PENDING/OWNED slots. No claim that a timeout cancelled SDK or radio is off."
+      ]
+    },
+    "WIFIREQ?": {
+      "prefix": "WIFIREQ",
+      "fields": [
+        "v=1",
+        "session",
+        "boot",
+        "bootKnown",
+        "id",
+        "known",
+        "epoch",
+        "requested",
+        "outcome",
+        "err",
+        "cleanupErr",
+        "acceptedUs",
+        "completedUs",
+        "terminalAttempts",
+        "terminalQueued",
+        "terminalPending",
+        "scope",
+        "peerReceipt=unknown"
+      ],
+      "tested_max_bytes": 338,
+      "semantics": [
+        "Latest request only; WIFIREQ?<id> e.g. WIFIREQ?17 reads exact nonzero decimal u32 id.",
+        "Unknown/evicted result => known=0,outcome=unknown,reason=not_cached; never substitutes another request.",
+        "One active + two cached terminal records. Terminal commits once. OFF may supersede active AP but cannot rewrite a failed/quarantined/applied cached request.",
+        "completedUs is unknown while pending/running. AP applied requires required calls, sockets and RX-task creation actually succeeded in matching config epoch; no station/PC receipt implication."
+      ]
+    },
+    "WIFIQ?D/L/C": {
+      "prefix": "WIFIQ",
+      "fields": [
+        "v=1",
+        "session",
+        "boot",
+        "channel",
+        "scope=boot",
+        "queued",
+        "rejected",
+        "sent",
+        "dropped",
+        "expired",
+        "stale",
+        "partial",
+        "driverAcceptedBytes",
+        "terminalNoSink",
+        "terminalEvicted",
+        "sentScope=full_sendto_return",
+        "peerReceipt=unknown"
+      ],
+      "tested_max_bytes": 343,
+      "semantics": [
+        "Three separate commands WIFIQ?D, WIFIQ?L, WIFIQ?C; counters boot-scoped.",
+        "queued is copied owner admission, not legacy sent. sent/old Transport wifiDataSent/wifiLogSent/wifiCtrlTx increment only actual full sendto return; late full returns count and guard late evidence persists.",
+        "rejected is owner admission failure; dropped also includes expired/stale/partial/SDK failures. These are overlapping local counters, not independent PC loss.",
+        "An in-flight timeout leaves completion unknown; do not invent a physically lost datagram.",
+        "driverAcceptedBytes is u64, other counters u32 modulo wrap; bounded deltas, no cross-boot comparison."
+      ]
+    }
+  },
+  "commands": {
+    "WIFI=AP": "ACK ver=2 accepted=1 pending=1 ok=0 id/epoch until applied; task may complete before ACK formatting, in which case exact cached result reports it. Same already-ready configuration gets a new idempotent applied terminal, no SDK call. Rejected bootstrap/busy/quarantine returns accepted=0,id=0 and error.",
+    "WIFI=OFF": "Immediate output-gate terminal with new id/epoch; no close/stop/deinit/task delete. Does not clear active SDK/phase/deadline/held slot or quarantine.",
+    "terminal": "WTERM uses WIFIREQ fields. Best-effort priority Serial plus observed lifecycle queue, at most3 attempts200ms apart; queued not PC delivery. Terminal may precede/lag ACK. Query has no side effects."
+  },
+  "deadline_policy": {
+    "AP_execution_us": 5000000,
+    "cleanup_max_us": 1000000,
+    "AP_total_us": 6000000,
+    "send_max_us": 500000,
+    "queue_send_start_TTL_us": 1000000,
+    "observer_poll_us": 100000,
+    "notes": [
+      "All are local policy; HIL qualification pending. Queue TTL min(original protected deadline, current local deadline), never refreshed.",
+      "TTL forbids overdue send start; it is NOT a promise to reclaim pending slots within1s under persistent CTRL pressure or a quarantined owner. Slots stay bounded and retained until real ownership proof.",
+      "Observer samples time under same mux, preventing stale-before-new-call false quarantine; no SDK/log/free/reset in callback."
+    ]
+  },
+  "resources": {
+    "default_off": "No Wi-Fi owner task, timer or payload allocation; static metadata remains. Gate is software-only and requires real boot identity plus both root startup reservation participants.",
+    "pool_bytes": 7424,
+    "pool_layout": "2x2304 normal DATA/LOG +1x2304 lifecycle +1x512 CTRL; persistent PSRAM|8BIT only, no internal fallback",
+    "owner_stack_bytes": 4096,
+    "RX_stack_bytes": 4096,
+    "owner_core": 0,
+    "owner_priority": 5,
+    "budget_role": 7,
+    "rx_budget_role": 6,
+    "limits": [
+      "Metadata/mux/task stacks remain internal; no DMA claim.",
+      "Never free/overwrite WRITING or OWNED payload. Release OWNED only after actual return; quarantine retains pending.",
+      "Lazy payload/timer/task failure is sticky and queryable; repeated AP never recreates partial live objects.",
+      "No HIGH->BLE_COMPAT automatic retry. Existing high/compat buffer configuration unchanged.",
+      "DRIVER_INIT returning error may hide internal deinit failure in pinned IDF; retain associated netif/handlers and quarantine. Earlier netif/attach failures use checked cleanup; cleanup failure or timeout quarantines.",
+      "App callback only records station events; default SDK event handlers still run in their SDK thread."
+    ]
+  },
+  "evidence": {
+    "host_entrypoints_pass": 13,
+    "owner_scenarios_pass": 60,
+    "synthetic_reconstructed_mutations_reproduced": 2,
+    "shared_actual_functions": 9,
+    "formatter_all_truncation_lengths": "PASS",
+    "science_wire": "real CVRM encoder96 typed cases +15 protocol golden CRC unchanged; no BLE source change",
+    "target": "ROOT_ONLY_NOT_RUN_BY_THIS_AGENT"
+  },
+  "remaining": [
+    "Independent reviewer gate and actual ESP-IDF build required.",
+    "Actual AP success may be blocked by real internal heap. NO_MEM is evidence, not reason to enlarge stack/buffers or claim radio shutdown.",
+    "HIL memory, stack watermarks, radio coexistence and real PC reception remain unmeasured by this child."
+  ]
+}

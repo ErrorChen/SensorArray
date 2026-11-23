@@ -150,20 +150,13 @@ esp_err_t sensorarrayCalibrationRecordDecode(const uint8_t *bytes,
 
 esp_err_t sensorarrayCalibrationInit(void)
 {
-    esp_err_t err = nvs_flash_init_partition(
+    /* Initialization failure is not permission to destroy scientific
+     * calibration. In particular NEW_VERSION_FOUND may contain a readable
+     * record for another firmware version, and NO_FREE_PAGES is not proof
+     * that every stored value is disposable. Preserve bytes and the first
+     * NVS error for LOAD/QUERY/SAVE; recovery requires an explicit procedure. */
+    return nvs_flash_init_partition(
         SENSORARRAY_CALIBRATION_PARTITION_NAME);
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        /* Recovery is scoped to the dedicated calib partition; generic
-         * nvs_flash_erase() never touches this partition. */
-        err = nvs_flash_erase_partition(
-            SENSORARRAY_CALIBRATION_PARTITION_NAME);
-        if (err == ESP_OK) {
-            err = nvs_flash_init_partition(
-                SENSORARRAY_CALIBRATION_PARTITION_NAME);
-        }
-    }
-    return err;
 }
 
 static void sensorarrayCalibrationStatusFromInfo(

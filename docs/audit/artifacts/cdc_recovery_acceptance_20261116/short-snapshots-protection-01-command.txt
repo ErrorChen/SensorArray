@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py", line 313, in <module>
+    if __name__ == '__main__': raise SystemExit(main())
+                                                ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py", line 306, in main
+    result = analyze_file(args.summary)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py", line 287, in analyze_file
+    raise ValueError('matching_finished_event_required')
+ValueError: matching_finished_event_required

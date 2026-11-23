@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-reset-saturation-probe-02.py"
+  ],
+  "exitCode": 0,
+  "dateUtc": "2026-11-20T19:11:18.118568+00:00",
+  "sourceSha256": "545d0ef0779d06b88bb48a753dd69050e1cf3d2fe6a899bb1010447079ab5c1f",
+  "logSha256": "8eb413d3ab5f4a6e1fcb45ed9c093920db44391cd98dca62e452f481468e988c",
+  "hardware": "NOT_RUN",
+  "synthetic": true,
+  "probeSha256": "0a36bf093f50e3421ebfdce20653d24bdafc7fc3387de9df32a6618b8c54c543"
+}

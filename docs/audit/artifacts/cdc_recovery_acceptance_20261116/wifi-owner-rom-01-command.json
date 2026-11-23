@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "wifi-owner-rom-01",
+    "--request-rom"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 70.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "a509a0ff94c24e4df118880e2533d00815fe66c977fda13e980ab59c4b491ffb",
+  "started_utc": "2026-11-21T00:26:19.394503+00:00",
+  "started_monotonic": 151546.233577003,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:26:20.010120+00:00",
+  "finished_monotonic": 151546.849192077,
+  "log_sha256": "bc7aa6ab3d4fc4d7cf65c4093f56d803fe656bb0e19542e1dc6858e7de0687dd"
+}

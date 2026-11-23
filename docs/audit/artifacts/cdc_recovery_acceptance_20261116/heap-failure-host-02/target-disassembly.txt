@@ -1,0 +1,1126 @@
+
+/tmp/memfail-actual-target-86tavvme/memory.o:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram1.3.literal:
+
+00000000 <.iram1.3.literal>:
+	...
+			0: R_XTENSA_32	.dram1.1
+			4: R_XTENSA_32	.dram1.2
+			8: R_XTENSA_32	.dram1.0
+			c: R_XTENSA_32	xPortEnterCriticalTimeout
+			10: R_XTENSA_32	vPortExitCritical
+
+Disassembly of section .literal.sensorarrayMemoryDiagnosticsInit:
+
+00000000 <.literal.sensorarrayMemoryDiagnosticsInit>:
+	...
+			0: R_XTENSA_32	.dram1.1
+			4: R_XTENSA_32	.dram1.0
+   8:	0000000e 	
+			8: R_XTENSA_32	.dram1.0
+	...
+			c: R_XTENSA_32	.rodata.hex$0
+			10: R_XTENSA_32	.iram1.3
+			14: R_XTENSA_32	xPortEnterCriticalTimeout
+			18: R_XTENSA_32	vPortExitCritical
+			1c: R_XTENSA_32	vPortExitCritical
+			20: R_XTENSA_32	heap_caps_register_failed_alloc_callback
+			24: R_XTENSA_32	xPortEnterCriticalTimeout
+			28: R_XTENSA_32	vPortExitCritical
+
+Disassembly of section .literal.sensorarrayMemoryDiagnosticsFailureFormat:
+
+00000000 <.literal.sensorarrayMemoryDiagnosticsFailureFormat>:
+	...
+			0: R_XTENSA_32	__stack_chk_guard
+			4: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+			8: R_XTENSA_32	.dram1.1
+			c: R_XTENSA_32	.dram1.0
+			10: R_XTENSA_32	.dram1.2
+  14:	00000008 	
+			14: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+  18:	00000010 	
+			18: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+  1c:	00000018 	
+			1c: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+  20:	00000020 	
+			20: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+	...
+			24: R_XTENSA_32	xPortEnterCriticalTimeout
+			28: R_XTENSA_32	memcpy
+			2c: R_XTENSA_32	vPortExitCritical
+			30: R_XTENSA_32	snprintf
+			34: R_XTENSA_32	snprintf
+			38: R_XTENSA_32	snprintf
+			3c: R_XTENSA_32	snprintf
+			40: R_XTENSA_32	snprintf
+			44: R_XTENSA_32	snprintf
+			48: R_XTENSA_32	snprintf
+			4c: R_XTENSA_32	snprintf
+			50: R_XTENSA_32	__stack_chk_fail
+
+Disassembly of section .literal.sensorarrayMemoryDiagnosticsScanBegin:
+
+00000000 <.literal.sensorarrayMemoryDiagnosticsScanBegin>:
+   0:	00000000 	
+			0: R_XTENSA_32	__stack_chk_guard
+   4:	00000804 	
+	...
+			8: R_XTENSA_32	.data.s_memoryMux
+			c: R_XTENSA_32	.bss.s_scanMemory
+			10: R_XTENSA_32	heap_caps_get_info
+			14: R_XTENSA_32	xPortEnterCriticalTimeout
+			18: R_XTENSA_32	vPortExitCritical
+			1c: R_XTENSA_32	__stack_chk_fail
+
+Disassembly of section .literal.sensorarrayMemoryDiagnosticsScanEnd:
+
+00000000 <.literal.sensorarrayMemoryDiagnosticsScanEnd>:
+   0:	00000000 	
+			0: R_XTENSA_32	__stack_chk_guard
+   4:	00000804 	
+	...
+			8: R_XTENSA_32	.data.s_memoryMux
+			c: R_XTENSA_32	.bss.s_scanMemory
+			10: R_XTENSA_32	heap_caps_get_info
+			14: R_XTENSA_32	xPortEnterCriticalTimeout
+			18: R_XTENSA_32	vPortExitCritical
+			1c: R_XTENSA_32	__stack_chk_fail
+
+Disassembly of section .literal.sensorarrayMemoryDiagnosticsFormat:
+
+00000000 <.literal.sensorarrayMemoryDiagnosticsFormat>:
+	...
+			0: R_XTENSA_32	__stack_chk_guard
+			4: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFormat.str1.4
+   8:	00000008 	
+			8: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFormat.str1.4
+   c:	00000000 	
+			c: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+  10:	00000010 	
+			10: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFormat.str1.4
+	...
+			14: R_XTENSA_32	.data.s_memoryMux
+			18: R_XTENSA_32	.bss.s_scanMemory
+  1c:	00000804 	
+  20:	00000018 	
+			20: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFormat.str1.4
+  24:	00000010 	
+			24: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFailureFormat.str1.4
+  28:	0000001c 	
+			28: R_XTENSA_32	.rodata.sensorarrayMemoryDiagnosticsFormat.str1.4
+	...
+			2c: R_XTENSA_32	xPortEnterCriticalTimeout
+			30: R_XTENSA_32	vPortExitCritical
+			34: R_XTENSA_32	heap_caps_get_info
+			38: R_XTENSA_32	heap_caps_get_info
+			3c: R_XTENSA_32	sensorarrayTransportGetMemoryDiagnostics
+			40: R_XTENSA_32	snprintf
+			44: R_XTENSA_32	snprintf
+			48: R_XTENSA_32	snprintf
+			4c: R_XTENSA_32	snprintf
+			50: R_XTENSA_32	snprintf
+			54: R_XTENSA_32	snprintf
+			58: R_XTENSA_32	snprintf
+			5c: R_XTENSA_32	snprintf
+			60: R_XTENSA_32	snprintf
+			64: R_XTENSA_32	esp_timer_get_time
+			68: R_XTENSA_32	snprintf
+			6c: R_XTENSA_32	snprintf
+			70: R_XTENSA_32	__stack_chk_fail
+
+Disassembly of section .iram1.3:
+
+00000000 <sensorarrayMemoryAllocationFailed>:
+   0:	004136        	entry	a1, 32
+   3:	0000a1        	l32r	a10, fffc0004 <sensorarrayMemoryAllocationFailed+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.iram1.3.literal
+   6:	0b0c      	movi.n	a11, 0
+   8:	000081        	l32r	a8, fffc0008 <sensorarrayMemoryAllocationFailed+0xfffc0008>
+			8: R_XTENSA_SLOT0_OP	.iram1.3.literal+0xc
+			8: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+   b:	0008e0        	callx8	a8
+   e:	bacc      	bnez.n	a10, 1d <sensorarrayMemoryAllocationFailed+0x1d>
+			e: R_XTENSA_SLOT0_OP	.iram1.3+0x1d
+  10:	000081        	l32r	a8, fffc0010 <sensorarrayMemoryAllocationFailed+0xfffc0010>
+			10: R_XTENSA_SLOT0_OP	.iram1.3.literal+0x4
+  13:	190c      	movi.n	a9, 1
+  15:	0020c0        	memw
+  18:	0899      	s32i.n	a9, a8, 0
+  1a:	001006        	j	5e <sensorarrayMemoryAllocationFailed+0x5e>
+			1a: R_XTENSA_SLOT0_OP	.iram1.3+0x5e
+  1d:	000081        	l32r	a8, fffc0020 <sensorarrayMemoryAllocationFailed+0xfffc0020>
+			1d: R_XTENSA_SLOT0_OP	.iram1.3.literal+0x8
+  20:	162892        	l32i	a9, a8, 88
+  23:	59dc      	bnez.n	a9, 3c <sensorarrayMemoryAllocationFailed+0x3c>
+			23: R_XTENSA_SLOT0_OP	.iram1.3+0x3c
+  25:	186822        	s32i	a2, a8, 96
+  28:	196832        	s32i	a3, a8, 100
+  2b:	1a6842        	s32i	a4, a8, 104
+  2e:	1b6822        	s32i	a2, a8, 108
+  31:	1c6832        	s32i	a3, a8, 112
+  34:	1d6842        	s32i	a4, a8, 116
+  37:	000346        	j	48 <sensorarrayMemoryAllocationFailed+0x48>
+			37: R_XTENSA_SLOT0_OP	.iram1.3+0x48
+  3a:	00          	.byte	00
+  3b:	00          	.byte	00
+  3c:	1b6822        	s32i	a2, a8, 108
+  3f:	1c6832        	s32i	a3, a8, 112
+  42:	1d6842        	s32i	a4, a8, 116
+  45:	070926        	beqi	a9, -1, 50 <sensorarrayMemoryAllocationFailed+0x50>
+			45: R_XTENSA_SLOT0_OP	.iram1.3+0x50
+  48:	991b      	addi.n	a9, a9, 1
+  4a:	166892        	s32i	a9, a8, 88
+  4d:	000106        	j	55 <sensorarrayMemoryAllocationFailed+0x55>
+			4d: R_XTENSA_SLOT0_OP	.iram1.3+0x55
+  50:	190c      	movi.n	a9, 1
+  52:	5c4892        	s8i	a9, a8, 92
+  55:	0000a1        	l32r	a10, fffc0058 <sensorarrayMemoryAllocationFailed+0xfffc0058>
+			55: R_XTENSA_SLOT0_OP	.iram1.3.literal
+  58:	000081        	l32r	a8, fffc0058 <sensorarrayMemoryAllocationFailed+0xfffc0058>
+			58: R_XTENSA_SLOT0_OP	.iram1.3.literal+0x10
+			58: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  5b:	0008e0        	callx8	a8
+  5e:	f01d      	retw.n
+
+Disassembly of section .text.sensorarrayMemoryDiagnosticsInit:
+
+00000000 <sensorarrayMemoryDiagnosticsInit>:
+   0:	004136        	entry	a1, 32
+   3:	0000a1        	l32r	a10, fffc0004 <sensorarrayMemoryDiagnosticsInit+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit
+   6:	0b0c      	movi.n	a11, 0
+   8:	000081        	l32r	a8, fffc0008 <sensorarrayMemoryDiagnosticsInit+0xfffc0008>
+			8: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x14
+			8: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+   b:	0008e0        	callx8	a8
+   e:	027d      	mov.n	a7, a2
+  10:	07a122        	movi	a2, 0x107
+  13:	0a6a16        	beqz	a10, bd <sensorarrayMemoryDiagnosticsInit+0xbd>
+			13: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0xbd
+  16:	000061        	l32r	a6, fffc0018 <sensorarrayMemoryDiagnosticsInit+0xfffc0018>
+			16: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x4
+  19:	4f0692        	l8ui	a9, a6, 79
+  1c:	599c      	beqz.n	a9, 35 <sensorarrayMemoryDiagnosticsInit+0x35>
+			1c: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0x35
+  1e:	500682        	l8ui	a8, a6, 80
+  21:	03a122        	movi	a2, 0x103
+  24:	188c      	beqz.n	a8, 29 <sensorarrayMemoryDiagnosticsInit+0x29>
+			24: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0x29
+  26:	152622        	l32i	a2, a6, 84
+  29:	0000a1        	l32r	a10, fffc002c <sensorarrayMemoryDiagnosticsInit+0xfffc002c>
+			29: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit
+  2c:	000081        	l32r	a8, fffc002c <sensorarrayMemoryDiagnosticsInit+0xfffc002c>
+			2c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x18
+			2c: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  2f:	0008e0        	callx8	a8
+  32:	0021c6        	j	bd <sensorarrayMemoryDiagnosticsInit+0xbd>
+			32: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0xbd
+  35:	1a0c      	movi.n	a10, 1
+  37:	09bd      	mov.n	a11, a9
+  39:	20c730        	or	a12, a7, a3
+  3c:	93bac0        	movnez	a11, a10, a12
+  3f:	83a940        	moveqz	a10, a9, a4
+  42:	109ba0        	and	a9, a11, a10
+  45:	1a0c      	movi.n	a10, 1
+  47:	4f46a2        	s8i	a10, a6, 79
+  4a:	0679      	s32i.n	a7, a6, 0
+  4c:	1639      	s32i.n	a3, a6, 4
+  4e:	2649      	s32i.n	a4, a6, 8
+  50:	0c4692        	s8i	a9, a6, 12
+  53:	55bc      	beqz.n	a5, 8c <sensorarrayMemoryDiagnosticsInit+0x8c>
+			53: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0x8c
+  55:	0000b1        	l32r	a11, fffc0058 <sensorarrayMemoryDiagnosticsInit+0xfffc0058>
+			55: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x8
+  58:	0000c1        	l32r	a12, fffc0058 <sensorarrayMemoryDiagnosticsInit+0xfffc0058>
+			58: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0xc
+  5b:	0a2c      	movi.n	a10, 32
+  5d:	1f8a76        	loop	a10, 80 <sensorarrayMemoryDiagnosticsInit+0x80>
+			5d: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsInit+0x80
+  60:	000582        	l8ui	a8, a5, 0
+  63:	551b      	addi.n	a5, a5, 1
+  65:	349080        	extui	a9, a8, 0, 4
+  68:	9c9a      	add.n	a9, a12, a9
+  6a:	418480        	srli	a8, a8, 4
+  6d:	000992        	l8ui	a9, a9, 0
+  70:	8c8a      	add.n	a8, a12, a8
+  72:	000882        	l8ui	a8, a8, 0
+  75:	119980        	slli	a9, a9, 8
+  78:	208890        	or	a8, a8, a9
+  7b:	005b82        	s16i	a8, a11, 0
+  7e:	bb2b      	addi.n	a11, a11, 2
+  80:	00a082        	movi	a8, 0
+  83:	4e4682        	s8i	a8, a6, 78
+  86:	01a082        	movi	a8, 1
+  89:	0d4682        	s8i	a8, a6, 13
+  8c:	0000a1        	l32r	a10, fffc008c <sensorarrayMemoryDiagnosticsInit+0xfffc008c>
+			8c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit
+  8f:	000081        	l32r	a8, fffc0090 <sensorarrayMemoryDiagnosticsInit+0xfffc0090>
+			8f: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x1c
+			8f: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  92:	0008e0        	callx8	a8
+  95:	0000a1        	l32r	a10, fffc0098 <sensorarrayMemoryDiagnosticsInit+0xfffc0098>
+			95: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x10
+  98:	000081        	l32r	a8, fffc0098 <sensorarrayMemoryDiagnosticsInit+0xfffc0098>
+			98: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x20
+			98: R_XTENSA_ASM_EXPAND	heap_caps_register_failed_alloc_callback
+  9b:	0008e0        	callx8	a8
+  9e:	0a2d      	mov.n	a2, a10
+  a0:	0000a1        	l32r	a10, fffc00a0 <sensorarrayMemoryDiagnosticsInit+0xfffc00a0>
+			a0: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit
+  a3:	ffafb2        	movi	a11, -1
+  a6:	000081        	l32r	a8, fffc00a8 <sensorarrayMemoryDiagnosticsInit+0xfffc00a8>
+			a6: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x24
+			a6: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+  a9:	0008e0        	callx8	a8
+  ac:	180c      	movi.n	a8, 1
+  ae:	0000a1        	l32r	a10, fffc00b0 <sensorarrayMemoryDiagnosticsInit+0xfffc00b0>
+			ae: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit
+  b1:	156622        	s32i	a2, a6, 84
+  b4:	504682        	s8i	a8, a6, 80
+  b7:	000081        	l32r	a8, fffc00b8 <sensorarrayMemoryDiagnosticsInit+0xfffc00b8>
+			b7: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsInit+0x28
+			b7: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  ba:	0008e0        	callx8	a8
+  bd:	f01d      	retw.n
+
+Disassembly of section .text.sensorarrayMemoryDiagnosticsFailureFormat:
+
+00000000 <sensorarrayMemoryDiagnosticsFailureFormat>:
+   0:	036136        	entry	a1, 0x1b0
+   3:	000081        	l32r	a8, fffc0004 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat
+   6:	027d      	mov.n	a7, a2
+   8:	0020c0        	memw
+   b:	0898      	l32i.n	a9, a8, 0
+   d:	5ca182        	movi	a8, 0x15c
+  10:	30c882        	addi	a8, a8, 48
+  13:	681a      	add.n	a6, a8, a1
+  15:	0020c0        	memw
+  18:	0699      	s32i.n	a9, a6, 0
+  1a:	40f280        	nsau	a8, a2
+  1d:	418580        	srli	a8, a8, 5
+  20:	237216        	beqz	a2, 25b <sensorarrayMemoryDiagnosticsFailureFormat+0x25b>
+			20: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x25b
+  23:	150c      	movi.n	a5, 1
+  25:	935830        	movnez	a5, a8, a3
+  28:	22f556        	bnez	a5, 25b <sensorarrayMemoryDiagnosticsFailureFormat+0x25b>
+			28: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x25b
+  2b:	0000a1        	l32r	a10, fffc002c <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc002c>
+			2b: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x8
+  2e:	05bd      	mov.n	a11, a5
+  30:	000081        	l32r	a8, fffc0030 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0030>
+			30: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x24
+			30: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+  33:	0008e0        	callx8	a8
+  36:	7acc      	bnez.n	a10, 41 <sensorarrayMemoryDiagnosticsFailureFormat+0x41>
+			36: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x41
+  38:	0042a2        	s8i	a10, a2, 0
+  3b:	07a122        	movi	a2, 0x107
+  3e:	0096c6        	j	29d <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+			3e: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x29d
+  41:	80a082        	movi	a8, 128
+  44:	218a      	add.n	a2, a1, a8
+  46:	0000b1        	l32r	a11, fffc0048 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0048>
+			46: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0xc
+  49:	78a0c2        	movi	a12, 120
+  4c:	02ad      	mov.n	a10, a2
+  4e:	000081        	l32r	a8, fffc0050 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0050>
+			4e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x28
+			4e: R_XTENSA_ASM_EXPAND	memcpy
+  51:	0008e0        	callx8	a8
+  54:	000081        	l32r	a8, fffc0054 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0054>
+			54: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x10
+  57:	0000a1        	l32r	a10, fffc0058 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0058>
+			57: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x8
+  5a:	0020c0        	memw
+  5d:	0888      	l32i.n	a8, a8, 0
+  5f:	166182        	s32i	a8, a1, 88
+  62:	000081        	l32r	a8, fffc0064 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0064>
+			62: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x2c
+			62: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  65:	0008e0        	callx8	a8
+  68:	162242        	l32i	a4, a2, 88
+  6b:	0b9416        	beqz	a4, 128 <sensorarrayMemoryDiagnosticsFailureFormat+0x128>
+			6b: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x128
+  6e:	30c182        	addi	a8, a1, 48
+  71:	1822e2        	l32i	a14, a2, 96
+  74:	0000c1        	l32r	a12, fffc0074 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0074>
+			74: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x14
+  77:	fca0a2        	movi	a10, 252
+  7a:	05fd      	mov.n	a15, a5
+  7c:	18a0b2        	movi	a11, 24
+  7f:	80aa80        	add	a10, a10, a8
+  82:	000081        	l32r	a8, fffc0084 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0084>
+			82: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x30
+			82: R_XTENSA_ASM_EXPAND	snprintf
+  85:	0008e0        	callx8	a8
+  88:	1b22e2        	l32i	a14, a2, 108
+  8b:	30c182        	addi	a8, a1, 48
+  8e:	0000c1        	l32r	a12, fffc0090 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0090>
+			8e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x14
+  91:	14a1a2        	movi	a10, 0x114
+  94:	05fd      	mov.n	a15, a5
+  96:	8b1c      	movi.n	a11, 24
+  98:	aa8a      	add.n	a10, a10, a8
+  9a:	000081        	l32r	a8, fffc009c <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc009c>
+			9a: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x34
+			9a: R_XTENSA_ASM_EXPAND	snprintf
+  9d:	0008e0        	callx8	a8
+  a0:	cca082        	movi	a8, 204
+  a3:	30c882        	addi	a8, a8, 48
+  a6:	1922d2        	l32i	a13, a2, 100
+  a9:	0000c1        	l32r	a12, fffc00ac <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00ac>
+			a9: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x18
+  ac:	10a0b2        	movi	a11, 16
+  af:	80a810        	add	a10, a8, a1
+  b2:	000081        	l32r	a8, fffc00b4 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00b4>
+			b2: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x38
+			b2: R_XTENSA_ASM_EXPAND	snprintf
+  b5:	0008e0        	callx8	a8
+  b8:	dca082        	movi	a8, 220
+  bb:	30c882        	addi	a8, a8, 48
+  be:	1c22d2        	l32i	a13, a2, 112
+  c1:	0000c1        	l32r	a12, fffc00c4 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00c4>
+			c1: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x18
+  c4:	80a810        	add	a10, a8, a1
+  c7:	10a0b2        	movi	a11, 16
+  ca:	000081        	l32r	a8, fffc00cc <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00cc>
+			ca: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x3c
+			ca: R_XTENSA_ASM_EXPAND	snprintf
+  cd:	0008e0        	callx8	a8
+  d0:	000081        	l32r	a8, fffc00d0 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00d0>
+			d0: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+  d3:	1a22e2        	l32i	a14, a2, 104
+  d6:	156182        	s32i	a8, a1, 84
+  d9:	fe9c      	beqz.n	a14, fc <sensorarrayMemoryDiagnosticsFailureFormat+0xfc>
+			d9: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0xfc
+  db:	30c182        	addi	a8, a1, 48
+  de:	0000c1        	l32r	a12, fffc00e0 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00e0>
+			de: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x1c
+  e1:	2ca1a2        	movi	a10, 0x12c
+  e4:	aa8a      	add.n	a10, a10, a8
+  e6:	05fd      	mov.n	a15, a5
+  e8:	18a0b2        	movi	a11, 24
+  eb:	000081        	l32r	a8, fffc00ec <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc00ec>
+			eb: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x40
+			eb: R_XTENSA_ASM_EXPAND	snprintf
+  ee:	0008e0        	callx8	a8
+  f1:	2ca182        	movi	a8, 0x12c
+  f4:	30c192        	addi	a9, a1, 48
+  f7:	889a      	add.n	a8, a8, a9
+  f9:	156182        	s32i	a8, a1, 84
+  fc:	080c      	movi.n	a8, 0
+  fe:	818a      	add.n	a8, a1, a8
+ 100:	3d28e2        	l32i	a14, a8, 244
+ 103:	000051        	l32r	a5, fffc0104 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0104>
+			103: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+ 106:	3ebc      	beqz.n	a14, 13d <sensorarrayMemoryDiagnosticsFailureFormat+0x13d>
+			106: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x13d
+ 108:	30c182        	addi	a8, a1, 48
+ 10b:	0000c1        	l32r	a12, fffc010c <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc010c>
+			10b: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x1c
+ 10e:	44a1a2        	movi	a10, 0x144
+ 111:	aa8a      	add.n	a10, a10, a8
+ 113:	0f0c      	movi.n	a15, 0
+ 115:	8b1c      	movi.n	a11, 24
+ 117:	000081        	l32r	a8, fffc0118 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0118>
+			117: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x44
+			117: R_XTENSA_ASM_EXPAND	snprintf
+ 11a:	0008e0        	callx8	a8
+ 11d:	44a152        	movi	a5, 0x144
+ 120:	30c182        	addi	a8, a1, 48
+ 123:	558a      	add.n	a5, a5, a8
+ 125:	000506        	j	13d <sensorarrayMemoryDiagnosticsFailureFormat+0x13d>
+			125: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x13d
+ 128:	000051        	l32r	a5, fffc0128 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0128>
+			128: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+ 12b:	156152        	s32i	a5, a1, 84
+ 12e:	1f6152        	s32i	a5, a1, 124
+ 131:	1e6152        	s32i	a5, a1, 120
+ 134:	1d6152        	s32i	a5, a1, 116
+ 137:	1c6152        	s32i	a5, a1, 112
+ 13a:	000a06        	j	166 <sensorarrayMemoryDiagnosticsFailureFormat+0x166>
+			13a: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x166
+ 13d:	dca082        	movi	a8, 220
+ 140:	30c882        	addi	a8, a8, 48
+ 143:	881a      	add.n	a8, a8, a1
+ 145:	1f6182        	s32i	a8, a1, 124
+ 148:	cca082        	movi	a8, 204
+ 14b:	30c882        	addi	a8, a8, 48
+ 14e:	881a      	add.n	a8, a8, a1
+ 150:	30c192        	addi	a9, a1, 48
+ 153:	1e6182        	s32i	a8, a1, 120
+ 156:	14a182        	movi	a8, 0x114
+ 159:	889a      	add.n	a8, a8, a9
+ 15b:	1d6182        	s32i	a8, a1, 116
+ 15e:	fca082        	movi	a8, 252
+ 161:	889a      	add.n	a8, a8, a9
+ 163:	1c6182        	s32i	a8, a1, 112
+ 166:	80a082        	movi	a8, 128
+ 169:	218a      	add.n	a2, a1, a8
+ 16b:	500292        	l8ui	a9, a2, 80
+ 16e:	0ef916        	beqz	a9, 261 <sensorarrayMemoryDiagnosticsFailureFormat+0x261>
+			16e: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x261
+ 171:	30c182        	addi	a8, a1, 48
+ 174:	1522d2        	l32i	a13, a2, 84
+ 177:	0000c1        	l32r	a12, fffc0178 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0178>
+			177: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x18
+ 17a:	eca0a2        	movi	a10, 236
+ 17d:	0b1c      	movi.n	a11, 16
+ 17f:	80aa80        	add	a10, a10, a8
+ 182:	000081        	l32r	a8, fffc0184 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0184>
+			182: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x48
+			182: R_XTENSA_ASM_EXPAND	snprintf
+ 185:	0008e0        	callx8	a8
+ 188:	22a8      	l32i.n	a10, a2, 8
+ 18a:	02c8      	l32i.n	a12, a2, 0
+ 18c:	1a61a2        	s32i	a10, a1, 104
+ 18f:	0c02a2        	l8ui	a10, a2, 12
+ 192:	12d8      	l32i.n	a13, a2, 4
+ 194:	1b61a2        	s32i	a10, a1, 108
+ 197:	4f02a2        	l8ui	a10, a2, 79
+ 19a:	0d0292        	l8ui	a9, a2, 13
+ 19d:	1761a2        	s32i	a10, a1, 92
+ 1a0:	500282        	l8ui	a8, a2, 80
+ 1a3:	0000a1        	l32r	a10, fffc01a4 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc01a4>
+			1a3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+ 1a6:	b2eb      	addi.n	a11, a2, 14
+ 1a8:	1861c2        	s32i	a12, a1, 96
+ 1ab:	1961d2        	s32i	a13, a1, 100
+ 1ae:	83ba90        	moveqz	a11, a10, a9
+ 1b1:	489c      	beqz.n	a8, 1c9 <sensorarrayMemoryDiagnosticsFailureFormat+0x1c9>
+			1b1: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x1c9
+ 1b3:	1522a2        	l32i	a10, a2, 84
+ 1b6:	30c182        	addi	a8, a1, 48
+ 1b9:	eca0d2        	movi	a13, 236
+ 1bc:	40faa0        	nsau	a10, a10
+ 1bf:	dd8a      	add.n	a13, a13, a8
+ 1c1:	41a5a0        	srli	a10, a10, 5
+ 1c4:	180c      	movi.n	a8, 1
+ 1c6:	000246        	j	1d3 <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+			1c6: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x1d3
+ 1c9:	eca0d2        	movi	a13, 236
+ 1cc:	30c192        	addi	a9, a1, 48
+ 1cf:	dd9a      	add.n	a13, a13, a9
+ 1d1:	08ad      	mov.n	a10, a8
+ 1d3:	090c      	movi.n	a9, 0
+ 1d5:	c19a      	add.n	a12, a1, a9
+ 1d7:	dc0cf2        	l8ui	a15, a12, 220
+ 1da:	362ce2        	l32i	a14, a12, 216
+ 1dd:	4189      	s32i.n	a8, a1, 16
+ 1df:	172182        	l32i	a8, a1, 92
+ 1e2:	1621c2        	l32i	a12, a1, 88
+ 1e5:	3189      	s32i.n	a8, a1, 12
+ 1e7:	1b2182        	l32i	a8, a1, 108
+ 1ea:	090c      	movi.n	a9, 0
+ 1ec:	1189      	s32i.n	a8, a1, 4
+ 1ee:	1a2182        	l32i	a8, a1, 104
+ 1f1:	120c      	movi.n	a2, 1
+ 1f3:	0189      	s32i.n	a8, a1, 0
+ 1f5:	1f2182        	l32i	a8, a1, 124
+ 1f8:	8329c0        	moveqz	a2, a9, a12
+ 1fb:	f189      	s32i.n	a8, a1, 60
+ 1fd:	1d2182        	l32i	a8, a1, 116
+ 200:	1c0c      	movi.n	a12, 1
+ 202:	e189      	s32i.n	a8, a1, 56
+ 204:	152182        	l32i	a8, a1, 84
+ 207:	939c40        	movnez	a9, a12, a4
+ 20a:	d189      	s32i.n	a8, a1, 52
+ 20c:	1e2182        	l32i	a8, a1, 120
+ 20f:	91f9      	s32i.n	a15, a1, 36
+ 211:	c189      	s32i.n	a8, a1, 48
+ 213:	1c2182        	l32i	a8, a1, 112
+ 216:	81e9      	s32i.n	a14, a1, 32
+ 218:	0000c1        	l32r	a12, fffc0218 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0218>
+			218: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x20
+ 21b:	1821e2        	l32i	a14, a1, 96
+ 21e:	1921f2        	l32i	a15, a1, 100
+ 221:	a129      	s32i.n	a2, a1, 40
+ 223:	51a9      	s32i.n	a10, a1, 20
+ 225:	21b9      	s32i.n	a11, a1, 8
+ 227:	7199      	s32i.n	a9, a1, 28
+ 229:	61d9      	s32i.n	a13, a1, 24
+ 22b:	03bd      	mov.n	a11, a3
+ 22d:	20a770        	or	a10, a7, a7
+ 230:	106152        	s32i	a5, a1, 64
+ 233:	0b6182        	s32i	a8, a1, 44
+ 236:	000081        	l32r	a8, fffc0238 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0238>
+			236: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4c
+			236: R_XTENSA_ASM_EXPAND	snprintf
+ 239:	0008e0        	callx8	a8
+ 23c:	052fa0        	extui	a2, a10, 31, 1
+ 23f:	00da96        	bltz	a10, 250 <sensorarrayMemoryDiagnosticsFailureFormat+0x250>
+			23f: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x250
+ 242:	62aa30        	saltu	a10, a10, a3
+ 245:	aa0b      	addi.n	a10, a10, -1
+ 247:	60a0a0        	neg	a10, a10
+ 24a:	74a0a0        	extui	a10, a10, 0, 8
+ 24d:	04ca16        	beqz	a10, 29d <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+			24d: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x29d
+ 250:	080c      	movi.n	a8, 0
+ 252:	004782        	s8i	a8, a7, 0
+ 255:	04a122        	movi	a2, 0x104
+ 258:	001046        	j	29d <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+			258: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x29d
+ 25b:	02a122        	movi	a2, 0x102
+ 25e:	000ec6        	j	29d <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+			25e: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x29d
+ 261:	22a8      	l32i.n	a10, a2, 8
+ 263:	12b8      	l32i.n	a11, a2, 4
+ 265:	1a61a2        	s32i	a10, a1, 104
+ 268:	0c02a2        	l8ui	a10, a2, 12
+ 26b:	0d0282        	l8ui	a8, a2, 13
+ 26e:	1b61a2        	s32i	a10, a1, 108
+ 271:	02a8      	l32i.n	a10, a2, 0
+ 273:	1961b2        	s32i	a11, a1, 100
+ 276:	1861a2        	s32i	a10, a1, 96
+ 279:	089c      	beqz.n	a8, 28d <sensorarrayMemoryDiagnosticsFailureFormat+0x28d>
+			279: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x28d
+ 27b:	098d      	mov.n	a8, a9
+ 27d:	4f0292        	l8ui	a9, a2, 79
+ 280:	0000d1        	l32r	a13, fffc0280 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0280>
+			280: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+ 283:	176192        	s32i	a9, a1, 92
+ 286:	b2eb      	addi.n	a11, a2, 14
+ 288:	08ad      	mov.n	a10, a8
+ 28a:	ffd146        	j	1d3 <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+			28a: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x1d3
+ 28d:	0000b1        	l32r	a11, fffc0290 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc0290>
+			28d: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x4
+ 290:	4f0292        	l8ui	a9, a2, 79
+ 293:	0bdd      	mov.n	a13, a11
+ 295:	176192        	s32i	a9, a1, 92
+ 298:	08ad      	mov.n	a10, a8
+ 29a:	ffcd46        	j	1d3 <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+			29a: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x1d3
+ 29d:	000081        	l32r	a8, fffc02a0 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc02a0>
+			29d: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat
+ 2a0:	0020c0        	memw
+ 2a3:	0698      	l32i.n	a9, a6, 0
+ 2a5:	0020c0        	memw
+ 2a8:	002882        	l32i	a8, a8, 0
+ 2ab:	051987        	beq	a9, a8, 2b4 <sensorarrayMemoryDiagnosticsFailureFormat+0x2b4>
+			2ab: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFailureFormat+0x2b4
+ 2ae:	000081        	l32r	a8, fffc02b0 <sensorarrayMemoryDiagnosticsFailureFormat+0xfffc02b0>
+			2ae: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFailureFormat+0x50
+			2ae: R_XTENSA_ASM_EXPAND	__stack_chk_fail
+ 2b1:	0008e0        	callx8	a8
+ 2b4:	f01d      	retw.n
+
+Disassembly of section .text.sensorarrayMemoryDiagnosticsScanBegin:
+
+00000000 <sensorarrayMemoryDiagnosticsScanBegin>:
+   0:	008136        	entry	a1, 64
+   3:	000071        	l32r	a7, fffc0004 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin
+   6:	1cc162        	addi	a6, a1, 28
+   9:	0020c0        	memw
+   c:	0788      	l32i.n	a8, a7, 0
+   e:	019d      	mov.n	a9, a1
+  10:	0020c0        	memw
+  13:	0689      	s32i.n	a8, a6, 0
+  15:	0a0c      	movi.n	a10, 0
+  17:	780c      	movi.n	a8, 7
+  19:	038876        	loop	a8, 20 <sensorarrayMemoryDiagnosticsScanBegin+0x20>
+			19: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanBegin+0x20
+  1c:	09a9      	s32i.n	a10, a9, 0
+  1e:	994b      	addi.n	a9, a9, 4
+  20:	0000b1        	l32r	a11, fffc0020 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0020>
+			20: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x4
+  23:	20a110        	or	a10, a1, a1
+  26:	000081        	l32r	a8, fffc0028 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0028>
+			26: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x10
+			26: R_XTENSA_ASM_EXPAND	heap_caps_get_info
+  29:	0008e0        	callx8	a8
+  2c:	0000a1        	l32r	a10, fffc002c <sensorarrayMemoryDiagnosticsScanBegin+0xfffc002c>
+			2c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x8
+  2f:	ffafb2        	movi	a11, -1
+  32:	000081        	l32r	a8, fffc0034 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0034>
+			32: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x14
+			32: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+  35:	0008e0        	callx8	a8
+  38:	0000b1        	l32r	a11, fffc0038 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0038>
+			38: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0xc
+  3b:	01d8      	l32i.n	a13, a1, 0
+  3d:	21c8      	l32i.n	a12, a1, 8
+  3f:	0b9d      	mov.n	a9, a11
+  41:	0a0c      	movi.n	a10, 0
+  43:	780c      	movi.n	a8, 7
+  45:	038876        	loop	a8, 4c <sensorarrayMemoryDiagnosticsScanBegin+0x4c>
+			45: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanBegin+0x4c
+  48:	09a9      	s32i.n	a10, a9, 0
+  4a:	994b      	addi.n	a9, a9, 4
+  4c:	180c      	movi.n	a8, 1
+  4e:	0000a1        	l32r	a10, fffc0050 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0050>
+			4e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x8
+  51:	004b82        	s8i	a8, a11, 0
+  54:	1b29      	s32i.n	a2, a11, 4
+  56:	2bd9      	s32i.n	a13, a11, 8
+  58:	036bc2        	s32i	a12, a11, 12
+  5b:	000081        	l32r	a8, fffc005c <sensorarrayMemoryDiagnosticsScanBegin+0xfffc005c>
+			5b: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x18
+			5b: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  5e:	0008e0        	callx8	a8
+  61:	0020c0        	memw
+  64:	0698      	l32i.n	a9, a6, 0
+  66:	0020c0        	memw
+  69:	0788      	l32i.n	a8, a7, 0
+  6b:	051987        	beq	a9, a8, 74 <sensorarrayMemoryDiagnosticsScanBegin+0x74>
+			6b: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanBegin+0x74
+  6e:	000081        	l32r	a8, fffc0070 <sensorarrayMemoryDiagnosticsScanBegin+0xfffc0070>
+			6e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanBegin+0x1c
+			6e: R_XTENSA_ASM_EXPAND	__stack_chk_fail
+  71:	0008e0        	callx8	a8
+  74:	f01d      	retw.n
+
+Disassembly of section .text.sensorarrayMemoryDiagnosticsScanEnd:
+
+00000000 <sensorarrayMemoryDiagnosticsScanEnd>:
+   0:	008136        	entry	a1, 64
+   3:	000071        	l32r	a7, fffc0004 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd
+   6:	1cc152        	addi	a5, a1, 28
+   9:	0020c0        	memw
+   c:	0788      	l32i.n	a8, a7, 0
+   e:	016d      	mov.n	a6, a1
+  10:	0020c0        	memw
+  13:	0589      	s32i.n	a8, a5, 0
+  15:	019d      	mov.n	a9, a1
+  17:	0a0c      	movi.n	a10, 0
+  19:	780c      	movi.n	a8, 7
+  1b:	038876        	loop	a8, 22 <sensorarrayMemoryDiagnosticsScanEnd+0x22>
+			1b: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanEnd+0x22
+  1e:	09a9      	s32i.n	a10, a9, 0
+  20:	994b      	addi.n	a9, a9, 4
+  22:	0000b1        	l32r	a11, fffc0024 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0024>
+			22: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x4
+  25:	06ad      	mov.n	a10, a6
+  27:	000081        	l32r	a8, fffc0028 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0028>
+			27: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x10
+			27: R_XTENSA_ASM_EXPAND	heap_caps_get_info
+  2a:	0008e0        	callx8	a8
+  2d:	000041        	l32r	a4, fffc0030 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0030>
+			2d: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x8
+  30:	ffafb2        	movi	a11, -1
+  33:	20a440        	or	a10, a4, a4
+  36:	000081        	l32r	a8, fffc0038 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0038>
+			36: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x14
+			36: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+  39:	0008e0        	callx8	a8
+  3c:	000081        	l32r	a8, fffc003c <sensorarrayMemoryDiagnosticsScanEnd+0xfffc003c>
+			3c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0xc
+  3f:	000892        	l8ui	a9, a8, 0
+  42:	f98c      	beqz.n	a9, 55 <sensorarrayMemoryDiagnosticsScanEnd+0x55>
+			42: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanEnd+0x55
+  44:	2698      	l32i.n	a9, a6, 8
+  46:	06a8      	l32i.n	a10, a6, 0
+  48:	5899      	s32i.n	a9, a8, 20
+  4a:	01a092        	movi	a9, 1
+  4d:	48a9      	s32i.n	a10, a8, 16
+  4f:	066822        	s32i	a2, a8, 24
+  52:	014892        	s8i	a9, a8, 1
+  55:	04ad      	mov.n	a10, a4
+  57:	000081        	l32r	a8, fffc0058 <sensorarrayMemoryDiagnosticsScanEnd+0xfffc0058>
+			57: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x18
+			57: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  5a:	0008e0        	callx8	a8
+  5d:	0020c0        	memw
+  60:	0598      	l32i.n	a9, a5, 0
+  62:	0020c0        	memw
+  65:	0788      	l32i.n	a8, a7, 0
+  67:	051987        	beq	a9, a8, 70 <sensorarrayMemoryDiagnosticsScanEnd+0x70>
+			67: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsScanEnd+0x70
+  6a:	000081        	l32r	a8, fffc006c <sensorarrayMemoryDiagnosticsScanEnd+0xfffc006c>
+			6a: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsScanEnd+0x1c
+			6a: R_XTENSA_ASM_EXPAND	__stack_chk_fail
+  6d:	0008e0        	callx8	a8
+  70:	f01d      	retw.n
+
+Disassembly of section .text.sensorarrayMemoryDiagnosticsFormat:
+
+00000000 <sensorarrayMemoryDiagnosticsFormat>:
+   0:	02c136        	entry	a1, 0x160
+   3:	000081        	l32r	a8, fffc0004 <sensorarrayMemoryDiagnosticsFormat+0xfffc0004>
+			3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat
+   6:	026d      	mov.n	a6, a2
+   8:	0020c0        	memw
+   b:	0898      	l32i.n	a9, a8, 0
+   d:	40f280        	nsau	a8, a2
+  10:	0020c0        	memw
+  13:	4f6192        	s32i	a9, a1, 0x13c
+  16:	418580        	srli	a8, a8, 5
+  19:	2bf216        	beqz	a2, 2dc <sensorarrayMemoryDiagnosticsFormat+0x2dc>
+			19: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x2dc
+  1c:	190c      	movi.n	a9, 1
+  1e:	838930        	moveqz	a8, a9, a3
+  21:	082d      	mov.n	a2, a8
+  23:	2b5856        	bnez	a8, 2dc <sensorarrayMemoryDiagnosticsFormat+0x2dc>
+			23: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x2dc
+  26:	000071        	l32r	a7, fffc0028 <sensorarrayMemoryDiagnosticsFormat+0xfffc0028>
+			26: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x14
+  29:	ffafb2        	movi	a11, -1
+  2c:	07ad      	mov.n	a10, a7
+  2e:	000081        	l32r	a8, fffc0030 <sensorarrayMemoryDiagnosticsFormat+0xfffc0030>
+			2e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x2c
+			2e: R_XTENSA_ASM_EXPAND	xPortEnterCriticalTimeout
+  31:	0008e0        	callx8	a8
+  34:	000081        	l32r	a8, fffc0034 <sensorarrayMemoryDiagnosticsFormat+0xfffc0034>
+			34: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x18
+  37:	07ad      	mov.n	a10, a7
+  39:	000892        	l8ui	a9, a8, 0
+  3c:	010852        	l8ui	a5, a8, 1
+  3f:	126192        	s32i	a9, a1, 72
+  42:	1898      	l32i.n	a9, a8, 4
+  44:	6848      	l32i.n	a4, a8, 24
+  46:	116192        	s32i	a9, a1, 68
+  49:	2898      	l32i.n	a9, a8, 8
+  4b:	40c172        	addi	a7, a1, 64
+  4e:	186192        	s32i	a9, a1, 96
+  51:	3898      	l32i.n	a9, a8, 12
+  53:	196192        	s32i	a9, a1, 100
+  56:	042892        	l32i	a9, a8, 16
+  59:	1b6192        	s32i	a9, a1, 108
+  5c:	052892        	l32i	a9, a8, 20
+  5f:	1a6192        	s32i	a9, a1, 104
+  62:	000081        	l32r	a8, fffc0064 <sensorarrayMemoryDiagnosticsFormat+0xfffc0064>
+			62: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x30
+			62: R_XTENSA_ASM_EXPAND	vPortExitCritical
+  65:	0008e0        	callx8	a8
+  68:	38c7a2        	addi	a10, a7, 56
+  6b:	780c      	movi.n	a8, 7
+  6d:	038876        	loop	a8, 74 <sensorarrayMemoryDiagnosticsFormat+0x74>
+			6d: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x74
+  70:	0a29      	s32i.n	a2, a10, 0
+  72:	aa4b      	addi.n	a10, a10, 4
+  74:	54c792        	addi	a9, a7, 84
+  77:	0a0c      	movi.n	a10, 0
+  79:	780c      	movi.n	a8, 7
+  7b:	038876        	loop	a8, 82 <sensorarrayMemoryDiagnosticsFormat+0x82>
+			7b: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x82
+  7e:	09a9      	s32i.n	a10, a9, 0
+  80:	994b      	addi.n	a9, a9, 4
+  82:	0000b1        	l32r	a11, fffc0084 <sensorarrayMemoryDiagnosticsFormat+0xfffc0084>
+			82: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x1c
+  85:	78c1a2        	addi	a10, a1, 120
+  88:	000081        	l32r	a8, fffc0088 <sensorarrayMemoryDiagnosticsFormat+0xfffc0088>
+			88: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x34
+			88: R_XTENSA_ASM_EXPAND	heap_caps_get_info
+  8b:	0008e0        	callx8	a8
+  8e:	94a082        	movi	a8, 148
+  91:	a18a      	add.n	a10, a1, a8
+  93:	04a4b2        	movi	a11, 0x404
+  96:	000081        	l32r	a8, fffc0098 <sensorarrayMemoryDiagnosticsFormat+0xfffc0098>
+			96: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x38
+			96: R_XTENSA_ASM_EXPAND	heap_caps_get_info
+  99:	0008e0        	callx8	a8
+  9c:	70c792        	addi	a9, a7, 112
+  9f:	0a0c      	movi.n	a10, 0
+  a1:	b80c      	movi.n	a8, 11
+  a3:	038876        	loop	a8, aa <sensorarrayMemoryDiagnosticsFormat+0xaa>
+			a3: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0xaa
+  a6:	09a9      	s32i.n	a10, a9, 0
+  a8:	994b      	addi.n	a9, a9, 4
+  aa:	80a082        	movi	a8, 128
+  ad:	30c882        	addi	a8, a8, 48
+  b0:	a81a      	add.n	a10, a8, a1
+  b2:	000081        	l32r	a8, fffc00b4 <sensorarrayMemoryDiagnosticsFormat+0xfffc00b4>
+			b2: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x3c
+			b2: R_XTENSA_ASM_EXPAND	sensorarrayTransportGetMemoryDiagnostics
+  b5:	0008e0        	callx8	a8
+  b8:	122182        	l32i	a8, a1, 72
+  bb:	58fc      	bnez.n	a8, f4 <sensorarrayMemoryDiagnosticsFormat+0xf4>
+			bb: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0xf4
+  bd:	223556        	bnez	a5, 2e4 <sensorarrayMemoryDiagnosticsFormat+0x2e4>
+			bd: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x2e4
+  c0:	e788      	l32i.n	a8, a7, 56
+  c2:	000051        	l32r	a5, fffc00c4 <sensorarrayMemoryDiagnosticsFormat+0xfffc00c4>
+			c2: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0xc
+  c5:	176182        	s32i	a8, a1, 92
+  c8:	102782        	l32i	a8, a7, 64
+  cb:	116152        	s32i	a5, a1, 68
+  ce:	166182        	s32i	a8, a1, 88
+  d1:	112782        	l32i	a8, a7, 68
+  d4:	126152        	s32i	a5, a1, 72
+  d7:	156182        	s32i	a8, a1, 84
+  da:	152782        	l32i	a8, a7, 84
+  dd:	05dd      	mov.n	a13, a5
+  df:	146182        	s32i	a8, a1, 80
+  e2:	172782        	l32i	a8, a7, 92
+  e5:	186152        	s32i	a5, a1, 96
+  e8:	136182        	s32i	a8, a1, 76
+  eb:	054d      	mov.n	a4, a5
+  ed:	052d      	mov.n	a2, a5
+  ef:	005b46        	j	260 <sensorarrayMemoryDiagnosticsFormat+0x260>
+			ef: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x260
+  f2:	00          	.byte	00
+  f3:	00          	.byte	00
+  f4:	08c556        	bnez	a5, 184 <sensorarrayMemoryDiagnosticsFormat+0x184>
+			f4: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x184
+  f7:	30c182        	addi	a8, a1, 48
+  fa:	aca0a2        	movi	a10, 172
+  fd:	aa8a      	add.n	a10, a10, a8
+  ff:	e788      	l32i.n	a8, a7, 56
+ 101:	000051        	l32r	a5, fffc0104 <sensorarrayMemoryDiagnosticsFormat+0xfffc0104>
+			101: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x20
+ 104:	176182        	s32i	a8, a1, 92
+ 107:	102782        	l32i	a8, a7, 64
+ 10a:	1121d2        	l32i	a13, a1, 68
+ 10d:	166182        	s32i	a8, a1, 88
+ 110:	112782        	l32i	a8, a7, 68
+ 113:	05cd      	mov.n	a12, a5
+ 115:	156182        	s32i	a8, a1, 84
+ 118:	152782        	l32i	a8, a7, 84
+ 11b:	0b1c      	movi.n	a11, 16
+ 11d:	146182        	s32i	a8, a1, 80
+ 120:	172782        	l32i	a8, a7, 92
+ 123:	136182        	s32i	a8, a1, 76
+ 126:	000081        	l32r	a8, fffc0128 <sensorarrayMemoryDiagnosticsFormat+0xfffc0128>
+			126: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x40
+			126: R_XTENSA_ASM_EXPAND	snprintf
+ 129:	0008e0        	callx8	a8
+ 12c:	30c182        	addi	a8, a1, 48
+ 12f:	1821d2        	l32i	a13, a1, 96
+ 132:	bca0a2        	movi	a10, 188
+ 135:	05cd      	mov.n	a12, a5
+ 137:	0b1c      	movi.n	a11, 16
+ 139:	aa8a      	add.n	a10, a10, a8
+ 13b:	000081        	l32r	a8, fffc013c <sensorarrayMemoryDiagnosticsFormat+0xfffc013c>
+			13b: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x44
+			13b: R_XTENSA_ASM_EXPAND	snprintf
+ 13e:	0008e0        	callx8	a8
+ 141:	30c182        	addi	a8, a1, 48
+ 144:	1921d2        	l32i	a13, a1, 100
+ 147:	cca0a2        	movi	a10, 204
+ 14a:	05cd      	mov.n	a12, a5
+ 14c:	80aa80        	add	a10, a10, a8
+ 14f:	10a0b2        	movi	a11, 16
+ 152:	000081        	l32r	a8, fffc0154 <sensorarrayMemoryDiagnosticsFormat+0xfffc0154>
+			152: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x48
+			152: R_XTENSA_ASM_EXPAND	snprintf
+ 155:	0008e0        	callx8	a8
+ 158:	000081        	l32r	a8, fffc0158 <sensorarrayMemoryDiagnosticsFormat+0xfffc0158>
+			158: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x10
+ 15b:	aca052        	movi	a5, 172
+ 15e:	126182        	s32i	a8, a1, 72
+ 161:	30c182        	addi	a8, a1, 48
+ 164:	30c192        	addi	a9, a1, 48
+ 167:	558a      	add.n	a5, a5, a8
+ 169:	bca082        	movi	a8, 188
+ 16c:	889a      	add.n	a8, a8, a9
+ 16e:	0000d1        	l32r	a13, fffc0170 <sensorarrayMemoryDiagnosticsFormat+0xfffc0170>
+			16e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0xc
+ 171:	116182        	s32i	a8, a1, 68
+ 174:	cca082        	movi	a8, 204
+ 177:	889a      	add.n	a8, a8, a9
+ 179:	186182        	s32i	a8, a1, 96
+ 17c:	0d4d      	mov.n	a4, a13
+ 17e:	0d2d      	mov.n	a2, a13
+ 180:	003706        	j	260 <sensorarrayMemoryDiagnosticsFormat+0x260>
+			180: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x260
+ 183:	00          	.byte	00
+ 184:	fca082        	movi	a8, 252
+ 187:	30c882        	addi	a8, a8, 48
+ 18a:	881a      	add.n	a8, a8, a1
+ 18c:	000091        	l32r	a9, fffc018c <sensorarrayMemoryDiagnosticsFormat+0xfffc018c>
+			18c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x8
+ 18f:	08ad      	mov.n	a10, a8
+ 191:	082d      	mov.n	a2, a8
+ 193:	000081        	l32r	a8, fffc0194 <sensorarrayMemoryDiagnosticsFormat+0xfffc0194>
+			193: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x4
+ 196:	0000c1        	l32r	a12, fffc0198 <sensorarrayMemoryDiagnosticsFormat+0xfffc0198>
+			196: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x24
+ 199:	838940        	moveqz	a8, a9, a4
+ 19c:	04dd      	mov.n	a13, a4
+ 19e:	0b1c      	movi.n	a11, 16
+ 1a0:	126182        	s32i	a8, a1, 72
+ 1a3:	000081        	l32r	a8, fffc01a4 <sensorarrayMemoryDiagnosticsFormat+0xfffc01a4>
+			1a3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x4c
+			1a3: R_XTENSA_ASM_EXPAND	snprintf
+ 1a6:	0008e0        	callx8	a8
+ 1a9:	30c182        	addi	a8, a1, 48
+ 1ac:	aca0a2        	movi	a10, 172
+ 1af:	aa8a      	add.n	a10, a10, a8
+ 1b1:	e788      	l32i.n	a8, a7, 56
+ 1b3:	000041        	l32r	a4, fffc01b4 <sensorarrayMemoryDiagnosticsFormat+0xfffc01b4>
+			1b3: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x20
+ 1b6:	176182        	s32i	a8, a1, 92
+ 1b9:	102782        	l32i	a8, a7, 64
+ 1bc:	1121d2        	l32i	a13, a1, 68
+ 1bf:	166182        	s32i	a8, a1, 88
+ 1c2:	112782        	l32i	a8, a7, 68
+ 1c5:	04cd      	mov.n	a12, a4
+ 1c7:	156182        	s32i	a8, a1, 84
+ 1ca:	152782        	l32i	a8, a7, 84
+ 1cd:	0b1c      	movi.n	a11, 16
+ 1cf:	146182        	s32i	a8, a1, 80
+ 1d2:	172782        	l32i	a8, a7, 92
+ 1d5:	aca052        	movi	a5, 172
+ 1d8:	136182        	s32i	a8, a1, 76
+ 1db:	000081        	l32r	a8, fffc01dc <sensorarrayMemoryDiagnosticsFormat+0xfffc01dc>
+			1db: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x50
+			1db: R_XTENSA_ASM_EXPAND	snprintf
+ 1de:	0008e0        	callx8	a8
+ 1e1:	30c182        	addi	a8, a1, 48
+ 1e4:	1821d2        	l32i	a13, a1, 96
+ 1e7:	bca0a2        	movi	a10, 188
+ 1ea:	20c440        	or	a12, a4, a4
+ 1ed:	10a0b2        	movi	a11, 16
+ 1f0:	aa8a      	add.n	a10, a10, a8
+ 1f2:	000081        	l32r	a8, fffc01f4 <sensorarrayMemoryDiagnosticsFormat+0xfffc01f4>
+			1f2: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x54
+			1f2: R_XTENSA_ASM_EXPAND	snprintf
+ 1f5:	0008e0        	callx8	a8
+ 1f8:	30c182        	addi	a8, a1, 48
+ 1fb:	1921d2        	l32i	a13, a1, 100
+ 1fe:	cca0a2        	movi	a10, 204
+ 201:	aa8a      	add.n	a10, a10, a8
+ 203:	04cd      	mov.n	a12, a4
+ 205:	0b1c      	movi.n	a11, 16
+ 207:	000081        	l32r	a8, fffc0208 <sensorarrayMemoryDiagnosticsFormat+0xfffc0208>
+			207: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x58
+			207: R_XTENSA_ASM_EXPAND	snprintf
+ 20a:	0008e0        	callx8	a8
+ 20d:	30c182        	addi	a8, a1, 48
+ 210:	30c192        	addi	a9, a1, 48
+ 213:	558a      	add.n	a5, a5, a8
+ 215:	bca082        	movi	a8, 188
+ 218:	889a      	add.n	a8, a8, a9
+ 21a:	116182        	s32i	a8, a1, 68
+ 21d:	cca082        	movi	a8, 204
+ 220:	889a      	add.n	a8, a8, a9
+ 222:	186182        	s32i	a8, a1, 96
+ 225:	30c182        	addi	a8, a1, 48
+ 228:	1b21d2        	l32i	a13, a1, 108
+ 22b:	dca0a2        	movi	a10, 220
+ 22e:	20c440        	or	a12, a4, a4
+ 231:	0b1c      	movi.n	a11, 16
+ 233:	80aa80        	add	a10, a10, a8
+ 236:	000081        	l32r	a8, fffc0238 <sensorarrayMemoryDiagnosticsFormat+0xfffc0238>
+			236: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x5c
+			236: R_XTENSA_ASM_EXPAND	snprintf
+ 239:	0008e0        	callx8	a8
+ 23c:	30c182        	addi	a8, a1, 48
+ 23f:	1a21d2        	l32i	a13, a1, 104
+ 242:	eca0a2        	movi	a10, 236
+ 245:	04cd      	mov.n	a12, a4
+ 247:	aa8a      	add.n	a10, a10, a8
+ 249:	0b1c      	movi.n	a11, 16
+ 24b:	000081        	l32r	a8, fffc024c <sensorarrayMemoryDiagnosticsFormat+0xfffc024c>
+			24b: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x60
+			24b: R_XTENSA_ASM_EXPAND	snprintf
+ 24e:	0008e0        	callx8	a8
+ 251:	30c182        	addi	a8, a1, 48
+ 254:	02dd      	mov.n	a13, a2
+ 256:	dca042        	movi	a4, 220
+ 259:	eca022        	movi	a2, 236
+ 25c:	448a      	add.n	a4, a4, a8
+ 25e:	228a      	add.n	a2, a2, a8
+ 260:	1961d2        	s32i	a13, a1, 100
+ 263:	000081        	l32r	a8, fffc0264 <sensorarrayMemoryDiagnosticsFormat+0xfffc0264>
+			263: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x64
+			263: R_XTENSA_ASM_EXPAND	esp_timer_get_time
+ 266:	0008e0        	callx8	a8
+ 269:	2627f2        	l32i	a15, a7, 152
+ 26c:	9407e2        	l8ui	a14, a7, 148
+ 26f:	242782        	l32i	a8, a7, 144
+ 272:	232792        	l32i	a9, a7, 140
+ 275:	a1a9      	s32i.n	a10, a1, 40
+ 277:	1821a2        	l32i	a10, a1, 96
+ 27a:	1921d2        	l32i	a13, a1, 100
+ 27d:	51a9      	s32i.n	a10, a1, 20
+ 27f:	1121a2        	l32i	a10, a1, 68
+ 282:	d1f9      	s32i.n	a15, a1, 52
+ 284:	41a9      	s32i.n	a10, a1, 16
+ 286:	1221a2        	l32i	a10, a1, 72
+ 289:	c1e9      	s32i.n	a14, a1, 48
+ 28b:	21a9      	s32i.n	a10, a1, 8
+ 28d:	1321a2        	l32i	a10, a1, 76
+ 290:	81d9      	s32i.n	a13, a1, 32
+ 292:	11a9      	s32i.n	a10, a1, 4
+ 294:	1421a2        	l32i	a10, a1, 80
+ 297:	0000c1        	l32r	a12, fffc0298 <sensorarrayMemoryDiagnosticsFormat+0xfffc0298>
+			297: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x28
+ 29a:	1521f2        	l32i	a15, a1, 84
+ 29d:	1621e2        	l32i	a14, a1, 88
+ 2a0:	1721d2        	l32i	a13, a1, 92
+ 2a3:	b1b9      	s32i.n	a11, a1, 44
+ 2a5:	7129      	s32i.n	a2, a1, 28
+ 2a7:	01a9      	s32i.n	a10, a1, 0
+ 2a9:	6149      	s32i.n	a4, a1, 24
+ 2ab:	3159      	s32i.n	a5, a1, 12
+ 2ad:	03bd      	mov.n	a11, a3
+ 2af:	06ad      	mov.n	a10, a6
+ 2b1:	f189      	s32i.n	a8, a1, 60
+ 2b3:	0e6192        	s32i	a9, a1, 56
+ 2b6:	000081        	l32r	a8, fffc02b8 <sensorarrayMemoryDiagnosticsFormat+0xfffc02b8>
+			2b6: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x68
+			2b6: R_XTENSA_ASM_EXPAND	snprintf
+ 2b9:	0008e0        	callx8	a8
+ 2bc:	052fa0        	extui	a2, a10, 31, 1
+ 2bf:	00da96        	bltz	a10, 2d0 <sensorarrayMemoryDiagnosticsFormat+0x2d0>
+			2bf: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x2d0
+ 2c2:	62aa30        	saltu	a10, a10, a3
+ 2c5:	aa0b      	addi.n	a10, a10, -1
+ 2c7:	60a0a0        	neg	a10, a10
+ 2ca:	74a0a0        	extui	a10, a10, 0, 8
+ 2cd:	05ba16        	beqz	a10, 32c <sensorarrayMemoryDiagnosticsFormat+0x32c>
+			2cd: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x32c
+ 2d0:	080c      	movi.n	a8, 0
+ 2d2:	004682        	s8i	a8, a6, 0
+ 2d5:	04a122        	movi	a2, 0x104
+ 2d8:	001406        	j	32c <sensorarrayMemoryDiagnosticsFormat+0x32c>
+			2d8: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x32c
+ 2db:	00          	.byte	00
+ 2dc:	02a122        	movi	a2, 0x102
+ 2df:	001246        	j	32c <sensorarrayMemoryDiagnosticsFormat+0x32c>
+			2df: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x32c
+ 2e2:	00          	.byte	00
+ 2e3:	00          	.byte	00
+ 2e4:	fca082        	movi	a8, 252
+ 2e7:	30c882        	addi	a8, a8, 48
+ 2ea:	881a      	add.n	a8, a8, a1
+ 2ec:	0000c1        	l32r	a12, fffc02ec <sensorarrayMemoryDiagnosticsFormat+0xfffc02ec>
+			2ec: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x24
+ 2ef:	04dd      	mov.n	a13, a4
+ 2f1:	08ad      	mov.n	a10, a8
+ 2f3:	0b1c      	movi.n	a11, 16
+ 2f5:	082d      	mov.n	a2, a8
+ 2f7:	000081        	l32r	a8, fffc02f8 <sensorarrayMemoryDiagnosticsFormat+0xfffc02f8>
+			2f7: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x6c
+			2f7: R_XTENSA_ASM_EXPAND	snprintf
+ 2fa:	0008e0        	callx8	a8
+ 2fd:	e788      	l32i.n	a8, a7, 56
+ 2ff:	000051        	l32r	a5, fffc0300 <sensorarrayMemoryDiagnosticsFormat+0xfffc0300>
+			2ff: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0xc
+ 302:	176182        	s32i	a8, a1, 92
+ 305:	102782        	l32i	a8, a7, 64
+ 308:	000041        	l32r	a4, fffc0308 <sensorarrayMemoryDiagnosticsFormat+0xfffc0308>
+			308: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x20
+ 30b:	166182        	s32i	a8, a1, 88
+ 30e:	112782        	l32i	a8, a7, 68
+ 311:	116152        	s32i	a5, a1, 68
+ 314:	156182        	s32i	a8, a1, 84
+ 317:	152782        	l32i	a8, a7, 84
+ 31a:	126152        	s32i	a5, a1, 72
+ 31d:	146182        	s32i	a8, a1, 80
+ 320:	172782        	l32i	a8, a7, 92
+ 323:	186152        	s32i	a5, a1, 96
+ 326:	136182        	s32i	a8, a1, 76
+ 329:	ffbe06        	j	225 <sensorarrayMemoryDiagnosticsFormat+0x225>
+			329: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x225
+ 32c:	000081        	l32r	a8, fffc032c <sensorarrayMemoryDiagnosticsFormat+0xfffc032c>
+			32c: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat
+ 32f:	0020c0        	memw
+ 332:	4f2192        	l32i	a9, a1, 0x13c
+ 335:	0020c0        	memw
+ 338:	002882        	l32i	a8, a8, 0
+ 33b:	051987        	beq	a9, a8, 344 <sensorarrayMemoryDiagnosticsFormat+0x344>
+			33b: R_XTENSA_SLOT0_OP	.text.sensorarrayMemoryDiagnosticsFormat+0x344
+ 33e:	000081        	l32r	a8, fffc0340 <sensorarrayMemoryDiagnosticsFormat+0xfffc0340>
+			33e: R_XTENSA_SLOT0_OP	.literal.sensorarrayMemoryDiagnosticsFormat+0x70
+			33e: R_XTENSA_ASM_EXPAND	__stack_chk_fail
+ 341:	0008e0        	callx8	a8
+ 344:	f01d      	retw.n

@@ -1,0 +1,112 @@
+{
+  "status": "CLOSED_DEBUG_CADENCE_OBSERVED",
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "screens": [
+    {
+      "label": "screen-14",
+      "capture_monotonic_start": 126111.742257898,
+      "capture_monotonic_end": 126231.742347729,
+      "complete_observer_SF50": 531,
+      "complete_observer_n_histogram": {
+        "15": 177,
+        "30": 177,
+        "45": 177
+      },
+      "capture_receipt_SF50": 476,
+      "capture_receipt_n_histogram": {
+        "15": 158,
+        "30": 159,
+        "45": 159
+      },
+      "capture_first_last": [
+        {
+          "offset": 80310,
+          "bytes": 99,
+          "receipt_monotonic": 126111.825194593,
+          "seq_first": 1101,
+          "seq_last": 1145,
+          "n": 45,
+          "rows": 1
+        },
+        {
+          "offset": 1032376,
+          "bytes": 100,
+          "receipt_monotonic": 126231.736413456,
+          "seq_first": 9051,
+          "seq_last": 9080,
+          "n": 30,
+          "rows": 1
+        }
+      ],
+      "rejected_SF50_layout": [],
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-volt1.summary.json",
+          "sha256": "36301caeace933ba32cc79b1de818024030d929ba8b5c5d0ac08c9a7e036babf"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-debug.debug.rx.bin",
+          "sha256": "edd3ffac30d63eeb33a16b19730a7fcec37202d0462f0249bd56a6c766e3061a"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-debug.debug.events.jsonl",
+          "sha256": "fea42164995744daab6200804ea9eb330cfbea87399f107c90eab2cdb2863364"
+        }
+      ]
+    },
+    {
+      "label": "screen-15",
+      "capture_monotonic_start": 126972.506706007,
+      "capture_monotonic_end": 127092.506821329,
+      "complete_observer_SF50": 168,
+      "complete_observer_n_histogram": {
+        "50": 168
+      },
+      "capture_receipt_SF50": 154,
+      "capture_receipt_n_histogram": {
+        "50": 154
+      },
+      "capture_first_last": [
+        {
+          "offset": 22063,
+          "bytes": 99,
+          "receipt_monotonic": 126972.999920671,
+          "seq_first": 1001,
+          "seq_last": 1050,
+          "n": 50,
+          "rows": 1
+        },
+        {
+          "offset": 407589,
+          "bytes": 100,
+          "receipt_monotonic": 127092.496312475,
+          "seq_first": 8651,
+          "seq_last": 8700,
+          "n": 50,
+          "rows": 1
+        }
+      ],
+      "rejected_SF50_layout": [],
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-15/screen-15-volt1.summary.json",
+          "sha256": "491bfad9a946f2d1fce1d3a2b24ce5e3f8918ac43cbc50ca14641eab33caae65"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-15/screen-15-debug.debug.rx.bin",
+          "sha256": "77e41b6023bdc95e196800b4184f223a6281b976ffda6303160fb36628a5cea3"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-15/screen-15-debug.debug.events.jsonl",
+          "sha256": "e7bf4956f723c7be90fce004a8cf66730360f096111b5faa8e5cf3ac2851fdb4"
+        }
+      ]
+    }
+  ],
+  "scope": "Only complete structurally checked SF50 lines; capture membership uses the host timestamp of the read completing the line. This is diagnostic cadence, not scientific frame rate or air timing.",
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-15/inspect_debug_cadence_01.py",
+    "sha256": "6030373c127410aa37aefe6262335972488bd501e3cf41574d2b85ad0d9fa7f3"
+  }
+}

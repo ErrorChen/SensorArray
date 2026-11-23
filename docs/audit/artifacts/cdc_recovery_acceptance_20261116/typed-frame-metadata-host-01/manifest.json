@@ -1,0 +1,272 @@
+{
+  "created_utc": "2026-11-20T23:13:23.183540+00:00",
+  "HEAD": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "tracked_dirty_diff_sha256": "a7f73c4adab00459a1da63c7cf3ff58f7c87462d655b5f080fff6d8ffe75512b",
+  "source_before": {
+    "main/net/sensorarrayNetStatus.c": "d2e5cff799b864cd5a279330cf273cb01d40e1291582823d3e9901b62ed51a15",
+    "main/output/sensorarrayFramePublication.h": "646caf6e20c375e40a7f66d93ed3893b302d5fb680b64ff64f8361c014ef3ccd",
+    "core/transport/sensorarrayTransportFrameIdentity.h": "3b2271b40c5a6f738901bea6386f9758f50baffd273c4c7bfdea2dbaf0ec60af",
+    "core/transport/sensorarrayTransportFrameMeta.c": "8feb572c83c3bb1dfa9eb756906bf6d8d685435bba3219d88d32e17afbd9946b",
+    "core/transport/sensorarrayTransportFrameMeta.h": "59a39b6ee27820873394a23912eaafc00661a0f58baad9b135dc0eeda26ffada",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransport.h": "5fb48ab90f309f3fa1abad00344ef75db2b330480a492f8f0bccf973e8fe7796",
+    "tests/host/test_protected_frame_pipeline.c": "3b4622ad5d6bb793eb5665647f240eaeab52d768b201cef87f50253bf293aa5e",
+    "tests/host/test_recovery_control.c": "d5205026369809cd3c31ecdaac16b20dffab1a422401dcd28eb3121539bd1f9d",
+    "tools/test_protected_frame_pipeline.py": "88816f430e78923c1a433dd8e44ab5b44ff7baa89883da03f06dd1e829dad520",
+    "tools/test_recovery_control.py": "17bec2b81b89c6ba9aaf50d6310809bcc57b6a77ce0e9d9bde2b65dd9c906e07",
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "core/transport/sensorarrayTransportPool.h": "8481d586b517d483fad27aaabea2ee1e8e75aaaf73d0dee4b939cca55dde355b",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4"
+  },
+  "source_after": {
+    "main/net/sensorarrayNetStatus.c": "d2e5cff799b864cd5a279330cf273cb01d40e1291582823d3e9901b62ed51a15",
+    "main/output/sensorarrayFramePublication.h": "646caf6e20c375e40a7f66d93ed3893b302d5fb680b64ff64f8361c014ef3ccd",
+    "core/transport/sensorarrayTransportFrameIdentity.h": "3b2271b40c5a6f738901bea6386f9758f50baffd273c4c7bfdea2dbaf0ec60af",
+    "core/transport/sensorarrayTransportFrameMeta.c": "8feb572c83c3bb1dfa9eb756906bf6d8d685435bba3219d88d32e17afbd9946b",
+    "core/transport/sensorarrayTransportFrameMeta.h": "59a39b6ee27820873394a23912eaafc00661a0f58baad9b135dc0eeda26ffada",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransport.h": "5fb48ab90f309f3fa1abad00344ef75db2b330480a492f8f0bccf973e8fe7796",
+    "tests/host/test_protected_frame_pipeline.c": "3b4622ad5d6bb793eb5665647f240eaeab52d768b201cef87f50253bf293aa5e",
+    "tests/host/test_recovery_control.c": "d5205026369809cd3c31ecdaac16b20dffab1a422401dcd28eb3121539bd1f9d",
+    "tools/test_protected_frame_pipeline.py": "88816f430e78923c1a433dd8e44ab5b44ff7baa89883da03f06dd1e829dad520",
+    "tools/test_recovery_control.py": "17bec2b81b89c6ba9aaf50d6310809bcc57b6a77ce0e9d9bde2b65dd9c906e07",
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "core/transport/sensorarrayTransportPool.h": "8481d586b517d483fad27aaabea2ee1e8e75aaaf73d0dee4b939cca55dde355b",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4"
+  },
+  "source_frozen": true,
+  "commands": [
+    {
+      "name": "protected",
+      "command": [
+        "python3",
+        "tools/test_protected_frame_pipeline.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.5768726489914116,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/protected.txt",
+      "log_sha256": "35584597cf0dbe376d8238272dbde31a922ff12f74690c8e72f73abfa14ee9c8"
+    },
+    {
+      "name": "metadata_asan",
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize"
+      ],
+      "environment_overrides": {
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 1.475111410021782,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/metadata_asan.txt",
+      "log_sha256": "9fde23536ec5a4c395b2686ebfd64ca317d006bb039854ffc34fffc6b91746b4"
+    },
+    {
+      "name": "pipeline",
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 1.0250424919940997,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/pipeline.txt",
+      "log_sha256": "5b1f5e32788fe4b9c4060908d456de53105ea178a3af22dbb63533a08366a328"
+    },
+    {
+      "name": "work_budget",
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.3131234759930521,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/work_budget.txt",
+      "log_sha256": "1180d2997f9f18d726a994d78ee5a6c0a0203063d50b78093ef9191a33924162"
+    },
+    {
+      "name": "recovery",
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.245658710016869,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/recovery.txt",
+      "log_sha256": "4f3a25fc1897b4b42f03d77f03692f077958ac8d9fbb159880053c9a50074e4a"
+    },
+    {
+      "name": "pool",
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "environment_overrides": {
+        "CC": "/usr/bin/gcc"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.12207334500271827,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/pool.txt",
+      "log_sha256": "05cbe4424a1f5d10a75b1698a0b49ec722c7dd2a32005a512f828e12e95d553c"
+    },
+    {
+      "name": "identity_golden",
+      "command": [
+        "python3",
+        "tools/test_config_identity.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.264655008999398,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/identity_golden.txt",
+      "log_sha256": "3f1195fbb27af96e74061ddd2f1eb87c874416d172cc06abb0f692fa311b6a1b"
+    },
+    {
+      "name": "frame_semantics",
+      "command": [
+        "python3",
+        "tools/test_frame_semantics.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.09021775497240014,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/frame_semantics.txt",
+      "log_sha256": "68b97917a12f741454e5345440879da279490e36e2f97974d03a745094e8d2b9"
+    },
+    {
+      "name": "text_protocol",
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.05440947899478488,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-host-01/text_protocol.txt",
+      "log_sha256": "c4b8362186da627a2df103b4b01957882cfc8c0af17a2cd21b896a66c4cb6364"
+    }
+  ],
+  "golden_before": {
+    "tests/fixtures/config_identity/cap_1.frame": "77fbdb4dd6812b62ee05d5f9f4b3d7834236ff1e2eddd1c07dfc65a82606365b",
+    "tests/fixtures/config_identity/cap_after.config": "6427d3bc0d19b98de624e6337354e0ce5b73443eb137cd07757522679c28de7e",
+    "tests/fixtures/config_identity/health_before_conversion.config": "2aee745a6b9749abb714823b45866082872e3b16478360fbb77883c699d55bbf",
+    "tests/fixtures/config_identity/cap_8.config": "4a1144a9e906012e89b339e36faaa0f97495549ef8d6dac7593159da8e469eca",
+    "tests/fixtures/config_identity/res_extreme.config": "bb5c7783f6d727ed92a8b30977a604c0c82fbb224f47163c57e34481020e28c7",
+    "tests/fixtures/config_identity/res_1.config": "771874a6807002fa060ce4660f108454a085a71543b53af507118126628205e6",
+    "tests/fixtures/config_identity/README.md": "728e2adeea78abc4bb009d12245e487e156e50be02f6ab8e91595203117d0102",
+    "tests/fixtures/config_identity/volt_transition.config": "713a6cbaf155c21a1924e645d8e7e5ce331c64f6c11755e7cd3f9de022521fa6",
+    "tests/fixtures/config_identity/res_1.frame": "b25026ae0a1fe07eee03035a8d8c0254220a21b6ef1cb473e6224aecac4c20b1",
+    "tests/fixtures/config_identity/volt_transition.frame": "9402d444e4468c5662f78a5c6f29ffd1c4253c03b382ffbf45cfad4e3902116b",
+    "tests/fixtures/config_identity/health_before_conversion.frame": "549a7420c0e8e60909f4b6d643b60289e5decd682dda011cd9ebc0d04cd6709c",
+    "tests/fixtures/config_identity/mixed_8.frame": "fff742cc26b19223735ed50b288cf9c27a14f73a20dcbc1584812f07d4fa0528",
+    "tests/fixtures/config_identity/cap_reapplied.frame": "545871e09db10e65eb2230c4d3c477bdb53e46d2b382db9e75c4f95e024021b6",
+    "tests/fixtures/config_identity/mixed_8.config": "2a2115832e44b33a93c29f8043890fa074abb2236266bc5db3143d0bcbf55216",
+    "tests/fixtures/config_identity/res_8.frame": "737f27609ac4c9dcf0f16ad8bf2922481f9733f3236b3d8f8fad0ff623afc9c6",
+    "tests/fixtures/config_identity/cap_reapplied.config": "1d30be5789c68741a1c29b17585b06ecd6408ab90e9e4769b988848023369234",
+    "tests/fixtures/config_identity/mixed_1.frame": "843c36f5daabffdca7363c172a45ac230e0923ddfc8f4d28cc1364c910b8907a",
+    "tests/fixtures/config_identity/cap_1.config": "50bf2ad67d1f17dae45dc32dfc0cdc312f4d5cab30133b4407d99cf87470725c",
+    "tests/fixtures/config_identity/res_8.config": "5fecf94089ef79df73fd99a673eea593ddb55f678b51a885aac722c1aa2f2c5a",
+    "tests/fixtures/config_identity/mixed_extreme.config": "f788c58f58617a147c17bebcffd2f9248b328a4a0a303a9b2b0c1c15a94646a2",
+    "tests/fixtures/config_identity/volt_1.config": "37ecd867b1d79ea3cff6e5765e9d45876244a3655e4558041e8a55e02cbf28e8",
+    "tests/fixtures/config_identity/mixed_1.config": "294ce89e89cacb7ed46c65c2620ade6c4667667fec8da6b14e9d40c0689f2099",
+    "tests/fixtures/config_identity/cap_after.frame": "e48d081d2d23073fb15189675a25f1a31cc041ac62273df7e6529d663261ba0d",
+    "tests/fixtures/config_identity/volt_8.config": "2aee745a6b9749abb714823b45866082872e3b16478360fbb77883c699d55bbf",
+    "tests/fixtures/config_identity/cap_8.frame": "d5f5b51274921500a1c1bceb468c80f1c6c5ac23049af1ddf5eaf46a642d376a",
+    "tests/fixtures/config_identity/cap_before.config": "4fe8d3ab2db52d00b6cf2706347782344f85ffdecbfd8c07084a48b1ef17f87d",
+    "tests/fixtures/config_identity/volt_8.frame": "bf8230fbaad616d92364eaddadf0523cce4244c2ce3bfa09e27cae886776184b",
+    "tests/fixtures/config_identity/mixed_extreme.frame": "8142106e5058c6010a370da7878a03298748f54e3ec632af8470fc4791e04b67",
+    "tests/fixtures/config_identity/volt_1.frame": "c9dd91c22535375e137e6ff1c777bc6590a4799eb8ac818aa846c1aa58cd3ddc",
+    "tests/fixtures/config_identity/res_extreme.frame": "7607089b2e501bc803781bebd1e3df2b4aed51fe51848f3fb5d779e828de6915",
+    "tests/fixtures/config_identity/cap_before.frame": "390c5630254924acf7c8663c1aa57a49f165cb99134376dddb93b095fae7bb67"
+  },
+  "golden_after": {
+    "tests/fixtures/config_identity/cap_1.frame": "77fbdb4dd6812b62ee05d5f9f4b3d7834236ff1e2eddd1c07dfc65a82606365b",
+    "tests/fixtures/config_identity/cap_after.config": "6427d3bc0d19b98de624e6337354e0ce5b73443eb137cd07757522679c28de7e",
+    "tests/fixtures/config_identity/health_before_conversion.config": "2aee745a6b9749abb714823b45866082872e3b16478360fbb77883c699d55bbf",
+    "tests/fixtures/config_identity/cap_8.config": "4a1144a9e906012e89b339e36faaa0f97495549ef8d6dac7593159da8e469eca",
+    "tests/fixtures/config_identity/res_extreme.config": "bb5c7783f6d727ed92a8b30977a604c0c82fbb224f47163c57e34481020e28c7",
+    "tests/fixtures/config_identity/res_1.config": "771874a6807002fa060ce4660f108454a085a71543b53af507118126628205e6",
+    "tests/fixtures/config_identity/README.md": "728e2adeea78abc4bb009d12245e487e156e50be02f6ab8e91595203117d0102",
+    "tests/fixtures/config_identity/volt_transition.config": "713a6cbaf155c21a1924e645d8e7e5ce331c64f6c11755e7cd3f9de022521fa6",
+    "tests/fixtures/config_identity/res_1.frame": "b25026ae0a1fe07eee03035a8d8c0254220a21b6ef1cb473e6224aecac4c20b1",
+    "tests/fixtures/config_identity/volt_transition.frame": "9402d444e4468c5662f78a5c6f29ffd1c4253c03b382ffbf45cfad4e3902116b",
+    "tests/fixtures/config_identity/health_before_conversion.frame": "549a7420c0e8e60909f4b6d643b60289e5decd682dda011cd9ebc0d04cd6709c",
+    "tests/fixtures/config_identity/mixed_8.frame": "fff742cc26b19223735ed50b288cf9c27a14f73a20dcbc1584812f07d4fa0528",
+    "tests/fixtures/config_identity/cap_reapplied.frame": "545871e09db10e65eb2230c4d3c477bdb53e46d2b382db9e75c4f95e024021b6",
+    "tests/fixtures/config_identity/mixed_8.config": "2a2115832e44b33a93c29f8043890fa074abb2236266bc5db3143d0bcbf55216",
+    "tests/fixtures/config_identity/res_8.frame": "737f27609ac4c9dcf0f16ad8bf2922481f9733f3236b3d8f8fad0ff623afc9c6",
+    "tests/fixtures/config_identity/cap_reapplied.config": "1d30be5789c68741a1c29b17585b06ecd6408ab90e9e4769b988848023369234",
+    "tests/fixtures/config_identity/mixed_1.frame": "843c36f5daabffdca7363c172a45ac230e0923ddfc8f4d28cc1364c910b8907a",
+    "tests/fixtures/config_identity/cap_1.config": "50bf2ad67d1f17dae45dc32dfc0cdc312f4d5cab30133b4407d99cf87470725c",
+    "tests/fixtures/config_identity/res_8.config": "5fecf94089ef79df73fd99a673eea593ddb55f678b51a885aac722c1aa2f2c5a",
+    "tests/fixtures/config_identity/mixed_extreme.config": "f788c58f58617a147c17bebcffd2f9248b328a4a0a303a9b2b0c1c15a94646a2",
+    "tests/fixtures/config_identity/volt_1.config": "37ecd867b1d79ea3cff6e5765e9d45876244a3655e4558041e8a55e02cbf28e8",
+    "tests/fixtures/config_identity/mixed_1.config": "294ce89e89cacb7ed46c65c2620ade6c4667667fec8da6b14e9d40c0689f2099",
+    "tests/fixtures/config_identity/cap_after.frame": "e48d081d2d23073fb15189675a25f1a31cc041ac62273df7e6529d663261ba0d",
+    "tests/fixtures/config_identity/volt_8.config": "2aee745a6b9749abb714823b45866082872e3b16478360fbb77883c699d55bbf",
+    "tests/fixtures/config_identity/cap_8.frame": "d5f5b51274921500a1c1bceb468c80f1c6c5ac23049af1ddf5eaf46a642d376a",
+    "tests/fixtures/config_identity/cap_before.config": "4fe8d3ab2db52d00b6cf2706347782344f85ffdecbfd8c07084a48b1ef17f87d",
+    "tests/fixtures/config_identity/volt_8.frame": "bf8230fbaad616d92364eaddadf0523cce4244c2ce3bfa09e27cae886776184b",
+    "tests/fixtures/config_identity/mixed_extreme.frame": "8142106e5058c6010a370da7878a03298748f54e3ec632af8470fc4791e04b67",
+    "tests/fixtures/config_identity/volt_1.frame": "c9dd91c22535375e137e6ff1c777bc6590a4799eb8ac818aa846c1aa58cd3ddc",
+    "tests/fixtures/config_identity/res_extreme.frame": "7607089b2e501bc803781bebd1e3df2b4aed51fe51848f3fb5d779e828de6915",
+    "tests/fixtures/config_identity/cap_before.frame": "390c5630254924acf7c8663c1aa57a49f165cb99134376dddb93b095fae7bb67"
+  },
+  "production_change_scope": [
+    "main/net/sensorarrayNetStatus.c",
+    "main/output/sensorarrayFramePublication.h",
+    "core/transport/sensorarrayTransportFrameIdentity.h",
+    "core/transport/sensorarrayTransportFrameMeta.c",
+    "core/transport/sensorarrayTransportFrameMeta.h",
+    "core/transport/sensorarrayTransport.c",
+    "core/transport/sensorarrayTransport.h"
+  ],
+  "hardware": "NOT_RUN",
+  "full_IDF_build": "NOT_RUN",
+  "typed_path_measured_calls": {
+    "real_encoder_cases": 96,
+    "legacy_parser_calls": 96,
+    "legacy_strtoull_calls": 1040,
+    "typed_parser_calls": 0,
+    "typed_strtoull_calls": 0,
+    "scope": "actual extracted NetStatus -> typed public API -> transport pool/queue; host interposed call counters, not ESP32 CPU or BLE performance"
+  },
+  "first_attempt_environment_failures": [
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize",
+        "--benchmark"
+      ],
+      "exit_code": 1,
+      "error": "LeakSanitizer has encountered a fatal error. LeakSanitizer does not work under ptrace (strace, gdb, etc).",
+      "resolution": "ASAN_OPTIONS=detect_leaks=0; address and undefined-behavior sanitizers retained. Leak checks NOT_RUN."
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "exit_code": 1,
+      "error": "no host C compiler found (set CC or install clang)",
+      "resolution": "CC=/usr/bin/gcc, existing compiler; no installation."
+    }
+  ],
+  "notes": [
+    "No BLE policy, queue size, WorkBudget, pool layout, encoder bytes, hardware or build changes.",
+    "C/M legacy domains copied from configSnapshot; V/R legacy from measurement. M wire profile generations copied from rowProfile fields.",
+    "Synthetic deliberately disagreeing frame domains test relabeling only; they are not claimed to be valid HIL configurations.",
+    "Legacy parser differential: 66896 cases and 20 original wire fixtures unchanged. Prior parser old/new benchmark is not typed-path target performance."
+  ]
+}

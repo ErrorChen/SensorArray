@@ -13,6 +13,7 @@
 #include "sensorarrayCpuOwner.h"
 #include "sensorarrayTransportGuaranteedText.h"
 #include "sensorarrayTransportPool.h"
+#include "sensorarrayWifi.h"
 /* PRODUCTION_MODULES */
 
 #define SENSORARRAY_RECOVERY_LEVEL_NONE 255u
@@ -50,36 +51,56 @@ static esp_err_t serialQueueError;
 static char lifecycleText[384], serialText[384];
 static bool netBleEnabled, netWifiEnabled, networkQueueAccept;
 static unsigned bleTerminalCalls, wifiTerminalCalls, serialLogAccepted, serialLogRejected;
-static sensorarrayTransportPayloadSlot_t transportSlot;
+static sensorarrayTransportPool_t s_pool;
+static sensorarrayTransportProtectionStats_t s_transportProtectionStats;
+static bool s_protectedAdmissionKnown;
+static sensorarrayTransportFrameIdentity_t s_protectedAdmissionIdentity;
+static uint64_t s_lastProtectedAdmissionUs;
+/* PRODUCTION_TRANSPORT_CONSTANTS */
+static int64_t esp_timer_get_time(void) { return 1000000; }
 typedef unsigned QueueHandle_t;
 typedef unsigned sensorarrayBleChannel_t;
 #define SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT 1
 #define SENSORARRAY_BLE_CH_DATA 0u
 #define SENSORARRAY_BLE_CH_LOG 1u
-#define SENSORARRAY_WIFI_CH_LOG 1u
 #define pdTRUE 1
-static QueueHandle_t s_dataQueue=1,s_logQueue=2,s_lifecycleQueue=3;
+static QueueHandle_t s_dataQueue=1,s_logQueue=2,s_lifecycleQueue=3,s_protectedQueue=4;
 static unsigned s_task=1;
+static bool lifecycleConsumerPending;
+static sensorarrayTransportDescriptor_t lifecycleConsumerDescriptor;
 static portMUX_TYPE g_sensorarrayTransportStatsMux=portMUX_INITIALIZER_UNLOCKED;
-static struct {uint32_t queueDrop,queueDropData,queueDropLog,queueDropLifecycle,lifecycleDropped,lifecyclePublished;} g_sensorarrayTransportStats;
+static sensorarrayTransportStats_t g_sensorarrayTransportStats;
 static bool sensorarrayTransportBleChannelEnabled(sensorarrayTransportChannel_t ch) {(void)ch;return netBleEnabled;}
 static bool sensorarrayBleGetSendGeneration(unsigned ch,uint32_t *gen) {(void)ch;*gen=42;return netBleEnabled;}
 static bool sensorarrayTransportWifiSinkEnabled(void) {return netWifiEnabled;}
-static bool sensorarrayWifiIsReady(void) {return netWifiEnabled;}
-static bool sensorarrayTransportAllocateDescriptor(sensorarrayTransportChannel_t ch,size_t length,sensorarrayTransportDescriptor_t *d) {
-    *d=(sensorarrayTransportDescriptor_t){.channel=ch,.length=length};
-    transportSlot=(sensorarrayTransportPayloadSlot_t){.channel=ch,.length=length};return true;
-}
-static sensorarrayTransportPayloadSlot_t *sensorarrayTransportDescriptorSlot(const sensorarrayTransportDescriptor_t *d) {(void)d;return &transportSlot;}
-static bool sensorarrayTransportReleaseDescriptor(const sensorarrayTransportDescriptor_t *d) {(void)d;return true;}
+bool sensorarrayWifiGetSendEpoch(bool control,uint32_t *epoch) {(void)control;*epoch=netWifiEnabled?55u:0u;return netWifiEnabled;}
 static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t *slot) {slot->hasFrameMeta=false;}
 static bool sensorarrayTransportFindFieldU32(const char *data,const char *field,uint32_t *out) {(void)data;(void)field;(void)out;return false;}
 static unsigned xQueueSend(QueueHandle_t queue,const void *data,unsigned timeout) {
-    (void)data;assert(queue==s_lifecycleQueue&&timeout==0);lifecycleCalls++;
-    assert(transportSlot.length<sizeof(lifecycleText));memcpy(lifecycleText,transportSlot.data,transportSlot.length+1);
+    assert(queue==s_lifecycleQueue&&timeout==0);lifecycleCalls++;
+    const sensorarrayTransportDescriptor_t *d=data;
+    assert(sensorarrayTransportPoolValidate(&s_pool,d));
+    const sensorarrayTransportPayloadSlot_t *slot=sensorarrayTransportPoolGetSlot(&s_pool,d);
+    assert(slot->length<sizeof(lifecycleText));memcpy(lifecycleText,slot->data,slot->length+1);
+    if(networkQueueAccept) {
+        assert(!lifecycleConsumerPending);lifecycleConsumerPending=true;lifecycleConsumerDescriptor=*d;
+    }
     return networkQueueAccept?pdTRUE:0;
 }
-static void xTaskNotifyGive(unsigned task) {assert(task==s_task);}
+/* Recovery publishes lifecycle only. Protected queue admission/supersede is
+ * nevertheless compiled from production, with its real pool and POD types. */
+static unsigned xQueueReceive(QueueHandle_t queue,void *out,unsigned timeout)
+{ (void)out;assert(queue==s_protectedQueue && timeout==0);return 0; }
+static void xTaskNotifyGive(unsigned task) {
+    assert(task==s_task);
+    /* Synthetic receiver consumes its copied descriptor after admission.
+     * This models the real queue-to-consumer ownership boundary, not delivery;
+     * allocation, generation validation and release are the production pool. */
+    if(lifecycleConsumerPending) {
+        lifecycleConsumerPending=false;
+        assert(sensorarrayTransportPoolRelease(&s_pool,&lifecycleConsumerDescriptor));
+    }
+}
 esp_err_t sensorarraySerialIoQueue(const char *data,size_t length,bool priority) {
     assert(priority&&length<sizeof(serialText));serialQueueCalls++;
     memcpy(serialText,data,length);serialText[length]='\0';return serialQueueError;
@@ -88,7 +109,7 @@ static void sensorarrayTransportNoteSerialLog(bool accepted) {if(accepted)serial
 static esp_err_t sensorarrayBleNotifyLifecycleForGeneration(const uint8_t *data,size_t length,uint32_t generation) {
     assert(data&&length&&generation==42);bleTerminalCalls++;return ESP_OK;
 }
-static esp_err_t sensorarrayWifiSend(unsigned ch,const uint8_t *data,size_t length) {assert(ch==SENSORARRAY_WIFI_CH_LOG&&data&&length);wifiTerminalCalls++;return ESP_OK;}
+esp_err_t sensorarrayWifiSubmit(const sensorarrayWifiPublication_t *p) {assert(p&&p->channel==SENSORARRAY_WIFI_CH_LOG&&p->lifecycle&&p->data&&p->length&&p->expectedEpoch==55u);wifiTerminalCalls++;return ESP_OK;}
 static void sensorarrayTransportStatResult(sensorarrayTransportChannel_t ch,bool ble,esp_err_t err) {(void)ble;assert(ch==SENSORARRAY_TRANSPORT_CHANNEL_LOG&&err==ESP_OK);}
 /* PRODUCTION_TRANSPORT */
 static sensorarrayWorkBudgetSnapshot_t schedulerStats;
@@ -113,9 +134,15 @@ static void sensorarrayBootBreadcrumbSetStage(const char *r,esp_err_t e,void *c)
 static void sensorarrayBootBreadcrumbMarkStableProgress(bool healthy) { assert(!healthy); }
 static bool sensorarrayFrontendsHeld(void) { return held; }
 static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; restarts++; }
+static void sensorarrayUsbOtgManualRestart(bool rom) { (void)rom; restarts++; }
 static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
 static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+/* Memory formatter is separately executed by test_memory_diagnostics.py. */
+static esp_err_t sensorarrayMemoryDiagnosticsFormat(char *text,size_t size) { (void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static esp_err_t sensorarrayMemoryDiagnosticsFailureFormat(char *text,size_t size) { (void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static bool sensorarrayPanicDiagnosticsHandles(const char *command) { (void)command;return false; }
+static esp_err_t sensorarrayPanicDiagnosticsFormat(const char *command,char *text,size_t size) { (void)command;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static bool sensorarrayLinkDiagnosticsHandles(const char *cmd) { return strcmp(cmd,"BLELINK?")==0 || strcmp(cmd,"BLETX?")==0 || strcmp(cmd,"BLESVC?")==0 || strcmp(cmd,"SCHEDWHY?")==0; }
 static bool sensorarrayAdsTimingControlAck(uint32_t id,esp_err_t err) { (void)id;(void)err;return false; }
 static void vTaskDelay(unsigned ticks) { assert(ticks<=21); }
@@ -151,6 +178,13 @@ static void drainTerminal(void) {
 }
 static void reset(sensorarrayAppContext_t *ctx) {
     (void)sensorarrayTransportGuaranteedTextAbort();
+    /* Fixture reset models a new boot; production never rebinds a live pool. */
+    static char transportStorage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    memset(&s_pool,0,sizeof(s_pool));
+    assert(sensorarrayTransportPoolInit(&s_pool,transportStorage,sizeof(transportStorage)));lifecycleConsumerPending=false;
+    memset(&s_transportProtectionStats,0,sizeof s_transportProtectionStats);
+    memset(&g_sensorarrayTransportStats,0,sizeof g_sensorarrayTransportStats);
+    s_protectedAdmissionKnown=false;s_lastProtectedAdmissionUs=0;
     s_configSessionId++;sensorarrayRecoveryControlInit(s_configSessionId,bootId);
     sensorarrayRestartControlInit(s_configSessionId,bootId);
     lifecycleCalls=serialQueueCalls=bleTerminalCalls=wifiTerminalCalls=serialLogAccepted=serialLogRejected=0;
@@ -475,7 +509,7 @@ static void testCpuOwnerOffQuery(void) {
     assert(sensorarrayRestartControlFormat(restartBefore,sizeof(restartBefore))==ESP_OK);
     char sessionField[40];
     snprintf(sessionField,sizeof(sessionField),"session=%016llX",(unsigned long long)s_configSessionId);
-    for(unsigned role=0;role<7;role++) {
+    for(unsigned role=0;role<SENSORARRAY_WORK_BUDGET_WORKER_COUNT;role++) {
         char command[16],early[512],normal[512],withoutContext[512],roleField[16];
         snprintf(command,sizeof(command),"CPUOWNER?%u",role);
         snprintf(roleField,sizeof(roleField),",role=%u,",role);
@@ -490,19 +524,19 @@ static void testCpuOwnerOffQuery(void) {
         assert(strlen(early)<512&&early[strlen(early)-1]=='\n');
     }
     char reply[512];
-    assert(sensorarrayTestEarlyQuery("CPUOWNER?7",reply,sizeof(reply),NULL)==ESP_ERR_INVALID_ARG);
-    assert(!strcmp(reply,"ERR,cmd=CPUOWNER,reason=role_0_to_6\n"));
+    assert(sensorarrayTestEarlyQuery("CPUOWNER?8",reply,sizeof(reply),NULL)==ESP_ERR_INVALID_ARG);
+    assert(!strcmp(reply,"ERR,cmd=CPUOWNER,reason=role_0_to_7\n"));
     assert(sensorarrayTestEarlyQuery("CPUOWNER?0",reply,1,NULL)==ESP_ERR_INVALID_SIZE&&reply[0]=='\0');
     assert(sensorarrayRecoveryControlFormat(recoveryAfter,sizeof(recoveryAfter))==ESP_OK);
     assert(sensorarrayRestartControlFormat(restartAfter,sizeof(restartAfter))==ESP_OK);
     assert(!strcmp(recoveryBefore,recoveryAfter)&&!strcmp(restartBefore,restartAfter));
     assert(safeCalls==0&&modeStopCalls==0&&modeApplyCalls==0&&restarts==0&&ackCalls==0);
     assert(serialQueueCalls==0&&lifecycleCalls==0&&!sensorarrayTransportGuaranteedTextIsReserved());
-    puts("RECOVERY_CPUOWNER_OFF_QUERY_PASS,roles=7,actual_module=1,early=1,normal=1,null_context=1,held=1,unavailable_not_zero=1,side_effects=0");
+    puts("RECOVERY_CPUOWNER_OFF_QUERY_PASS,roles=8,actual_module=1,early=1,normal=1,null_context=1,held=1,unavailable_not_zero=1,side_effects=0");
 }
 int main(void) {
     testMain();testCache();testSerial();testScheduler();testRestart();testTerminalRouting();testQueryDispatch();testCpuOwnerOffQuery();
     printf("RECOVERY_STATIC_STATE,bytes=%zu\n",sizeof(s_recover));
-    puts("RECOVERY_CONTROL_PASS,production_modules=7,main_functions=19,budget_stop=1,safe_failure=1,first_cleanup=1,rescue_error=1,lost_terminal_query=1,ack_fence=1,stale_identity=10,multitransport=3,wrap=1,future_mode=1,synthetic_hardware=1");
+    puts("RECOVERY_CONTROL_PASS,production_modules=9,main_functions=19,budget_stop=1,safe_failure=1,first_cleanup=1,rescue_error=1,lost_terminal_query=1,ack_fence=1,stale_identity=10,multitransport=3,wrap=1,future_mode=1,synthetic_hardware=1");
     return 0;
 }

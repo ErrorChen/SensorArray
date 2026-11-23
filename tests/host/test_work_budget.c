@@ -202,12 +202,12 @@ static void testStarvationBackstopBypassesNewWorkerQuantum(void)
     assert(delayCalls == 1u && !s_workers[SENSORARRAY_WORK_BUDGET_BLE_TX].quantumActive);
     assert(s_idleGeneration == 1u && s_idleTick == 0u);
 }
-static void testSevenContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhaseUs)
+static void testContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhaseUs)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
     schedulerModel = true; modelUs = tickPhaseUs;
     unsigned work[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
-    const unsigned priority[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {5u, 5u, 7u, 4u, 6u, 4u, 5u};
+    const unsigned priority[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {5u, 5u, 7u, 4u, 6u, 4u, 5u, 5u};
     unsigned roundRobin = 0u, idleVisits = 0u;
     while (modelUs < tickPhaseUs + 2000000u) {
         int selected = -1;
@@ -241,15 +241,15 @@ static void testSevenContinuouslyReadyWorkers(unsigned unitUs, unsigned tickPhas
     sensorarrayWorkBudgetCopySnapshot(&snap);
     for (unsigned i = 0u; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) { assert(work[i] > 0u && snap.workers[i].yields > 0u); }
     assert(idleVisits >= 20u && snap.maxIdleGapTicks <= 5u && largestDelay == 1u);
-    printf("WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=7,unitUs=%u,phaseUs=%u,idleVisits=%u,maxIdleGapTicks=%u\n",
+    printf("WORK_BUDGET_SCHEDULER_MODEL,tickHz=100,workers=8,unitUs=%u,phaseUs=%u,idleVisits=%u,maxIdleGapTicks=%u\n",
            unitUs, tickPhaseUs, idleVisits, snap.maxIdleGapTicks);
 }
-static void testFiniteSevenWorkerLoad(unsigned unitUs, unsigned phaseUs)
+static void testFiniteWorkerLoad(unsigned unitUs, unsigned phaseUs)
 {
     reset(); assert(sensorarrayWorkBudgetInit() == ESP_OK); assert(registeredHook());
     schedulerModel = true; modelUs = phaseUs;
     uint64_t end = modelUs + 2000000u, nextSdk = phaseUs + 50000u, nextArrival = modelUs;
-    const unsigned priority[] = {5u, 5u, 7u, 4u, 6u, 4u, 5u};
+    const unsigned priority[] = {5u, 5u, 7u, 4u, 6u, 4u, 5u, 5u};
     unsigned work[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
     unsigned pending[SENSORARRAY_WORK_BUDGET_WORKER_COUNT] = {0u};
     unsigned arrivals = 0u, idleVisits = 0u, roundRobin = 0u;
@@ -281,7 +281,7 @@ static void testFiniteSevenWorkerLoad(unsigned unitUs, unsigned phaseUs)
         (void)sensorarrayWorkBudgetCheckpoint((sensorarrayWorkBudgetWorker_t)modelWorker);
     }
     sensorarrayWorkBudgetSnapshot_t snap; sensorarrayWorkBudgetCopySnapshot(&snap);
-    printf("{\"case\":\"finite_100Hz_7workers_sdk40percent\",\"unitUs\":%u,\"phaseUs\":%u,\"arrivalsPerWorker\":%u,\"idleVisits\":%u,\"maxIdleGapTicks\":%u,\"yields\":%u,\"work\":[",
+    printf("{\"case\":\"finite_100Hz_8workers_sdk40percent\",\"unitUs\":%u,\"phaseUs\":%u,\"arrivalsPerWorker\":%u,\"idleVisits\":%u,\"maxIdleGapTicks\":%u,\"yields\":%u,\"work\":[",
            unitUs, phaseUs, arrivals, idleVisits, snap.maxIdleGapTicks, delayCalls);
     for (unsigned i = 0; i < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; ++i) { printf("%s%u", i ? "," : "", work[i]); }
     puts("]}");
@@ -405,11 +405,11 @@ int main(void)
     testLocalQuantumAndGlobalAgeWrap();
     testYieldReasonObservation();
     for (unsigned phase = 0u; phase < 2u; ++phase) {
-        testSevenContinuouslyReadyWorkers(100u, phase * 9500u);
-        testSevenContinuouslyReadyWorkers(500u, phase * 9500u);
-        testSevenContinuouslyReadyWorkers(1000u, phase * 9500u);
-        testFiniteSevenWorkerLoad(100u, phase * 9500u);
-        testFiniteSevenWorkerLoad(500u, phase * 9500u);
+        testContinuouslyReadyWorkers(100u, phase * 9500u);
+        testContinuouslyReadyWorkers(500u, phase * 9500u);
+        testContinuouslyReadyWorkers(1000u, phase * 9500u);
+        testFiniteWorkerLoad(100u, phase * 9500u);
+        testFiniteWorkerLoad(500u, phase * 9500u);
     }
     puts("WORK_BUDGET_PASS,scenarios=26,production_component=1,hardware=NOT_RUN");
     return 0;

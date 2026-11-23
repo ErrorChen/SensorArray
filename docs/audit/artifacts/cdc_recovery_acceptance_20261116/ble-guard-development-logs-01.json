@@ -1,0 +1,15 @@
+{
+  "logs": [
+    {
+      "source": "/tmp/ble-guard-pipeline-test.log",
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-guard-pipeline-test.txt",
+      "sha256": "41a9b82592314f805bd515f030ff3426e2578b28b6d63a76f18742b725cd77a5"
+    },
+    {
+      "source": "/tmp/ble-guard-pipeline-test-02.log",
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-guard-pipeline-test-02.txt",
+      "sha256": "719485fc95b052ff8bdd79e4e7399540d58f723814a3e0771aa88f6ff5a24788"
+    }
+  ],
+  "scope": "Preserved worker development stdout. Full command/HEAD/source freeze verification is separately recorded by root validation manifests."
+}

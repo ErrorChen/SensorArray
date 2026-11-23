@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-replay-02.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "eee949651ff169401b105a7efb9de723b74bc8132be0ddc7e3950eeb0ca23130",
+  "started_utc": "2026-11-21T00:11:36.870944+00:00",
+  "started_monotonic": 150662.751464361,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-replay-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:11:43.651602+00:00",
+  "finished_monotonic": 150669.532120071,
+  "log_sha256": "286e95c464917cafcc3b176b0d690d75e695b16455ca0a6e7bb47f6f136a20d0"
+}

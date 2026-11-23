@@ -1,0 +1,131 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40385c94 <xPortEnterCriticalTimeout>:
+40385c94:	006136        	entry	a1, 48
+40385c97:	006380        	rsil	a8, 3
+40385c9a:	036182        	s32i	a8, a1, 12
+40385c9d:	00e256        	bnez	a2, 40385caf <xPortEnterCriticalTimeout+0x1b>
+40385ca0:	bd02d1        	l32r	a13, 403750a8 <_iram_text_start+0xca4> (3c1384cc <_flash_rodata_start+0x183ac>)
+40385ca3:	bd02c1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385ca6:	bd02a1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385ca9:	54a0b2        	movi	a11, 84
+40385cac:	088225        	call8	4038e4d0 <__assert_func>
+40385caf:	006350        	rsil	a5, 3
+40385cb2:	03eb70        	rsr.prid	a7
+40385cb5:	002292        	l32i	a9, a2, 0
+40385cb8:	259797        	bne	a7, a9, 40385ce1 <xPortEnterCriticalTimeout+0x4d>
+40385cbb:	1298      	l32i.n	a9, a2, 4
+40385cbd:	fda0b2        	movi	a11, 253
+40385cc0:	a90b      	addi.n	a10, a9, -1
+40385cc2:	0ebba7        	bgeu	a11, a10, 40385cd4 <xPortEnterCriticalTimeout+0x40>
+40385cc5:	bcfbd1        	l32r	a13, 403750b4 <_iram_text_start+0xcb0> (3c124ae8 <_flash_rodata_start+0x49c8>)
+40385cc8:	bcf9c1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385ccb:	bcf9a1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385cce:	6aa0b2        	movi	a11, 106
+40385cd1:	087fe5        	call8	4038e4d0 <__assert_func>
+40385cd4:	991b      	addi.n	a9, a9, 1
+40385cd6:	1299      	s32i.n	a9, a2, 4
+40385cd8:	13e650        	wsr.ps	a5
+40385cdb:	002010        	rsync
+40385cde:	003346        	j	40385daf <xPortEnterCriticalTimeout+0x11b>
+40385ce1:	bc5fb1        	l32r	a11, 40374e60 <_iram_text_start+0xa5c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385ce4:	20c770        	or	a12, a7, a7
+40385ce7:	20a220        	or	a10, a2, a2
+40385cea:	fb5225        	call8	4038120c <esp_cpu_compare_and_set>
+40385ced:	53bc      	beqz.n	a3, 40385d26 <xPortEnterCriticalTimeout+0x92>
+40385cef:	3afc      	bnez.n	a10, 40385d26 <xPortEnterCriticalTimeout+0x92>
+40385cf1:	03ea40        	rsr.ccount	a4
+40385cf4:	bc5b61        	l32r	a6, 40374e60 <_iram_text_start+0xa5c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385cf7:	190326        	beqi	a3, -1, 40385d14 <xPortEnterCriticalTimeout+0x80>
+40385cfa:	07cd      	mov.n	a12, a7
+40385cfc:	06bd      	mov.n	a11, a6
+40385cfe:	20a220        	or	a10, a2, a2
+40385d01:	fb50a5        	call8	4038120c <esp_cpu_compare_and_set>
+40385d04:	0d5a56        	bnez	a10, 40385ddd <xPortEnterCriticalTimeout+0x149>
+40385d07:	03ea90        	rsr.ccount	a9
+40385d0a:	c09940        	sub	a9, a9, a4
+40385d0d:	e9b397        	bgeu	a3, a9, 40385cfa <xPortEnterCriticalTimeout+0x66>
+40385d10:	003106        	j	40385dd8 <xPortEnterCriticalTimeout+0x144>
+40385d13:	c77000        	ee.stf.64.xp	f7, f12, a0, a0
+40385d16:	b66020        	ee.ldf.64.xp	f6, f11, a2, a0
+40385d19:	a22020        	muluh	a2, a0, a2
+40385d1c:	20          	.byte	0x20
+40385d1d:	fb4ee5        	call8	4038120c <esp_cpu_compare_and_set>
+40385d20:	ff0a16        	beqz	a10, 40385d14 <xPortEnterCriticalTimeout+0x80>
+40385d23:	002d86        	j	40385ddd <xPortEnterCriticalTimeout+0x149>
+40385d26:	002292        	l32i	a9, a2, 0
+40385d29:	034a16        	beqz	a10, 40385d61 <xPortEnterCriticalTimeout+0xcd>
+40385d2c:	0e1797        	beq	a7, a9, 40385d3e <xPortEnterCriticalTimeout+0xaa>
+40385d2f:	bce2d1        	l32r	a13, 403750b8 <_iram_text_start+0xcb4> (3c124b10 <_flash_rodata_start+0x49f0>)
+40385d32:	bcdec1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385d35:	bcdea1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385d38:	8da0b2        	movi	a11, 141
+40385d3b:	087965        	call8	4038e4d0 <__assert_func>
+40385d3e:	1298      	l32i.n	a9, a2, 4
+40385d40:	d98c      	beqz.n	a9, 40385d51 <xPortEnterCriticalTimeout+0xbd>
+40385d42:	bcded1        	l32r	a13, 403750bc <_iram_text_start+0xcb8> (3c124b30 <_flash_rodata_start+0x4a10>)
+40385d45:	bcd9c1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385d48:	bcdaa1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385d4b:	8ea0b2        	movi	a11, 142
+40385d4e:	087825        	call8	4038e4d0 <__assert_func>
+40385d51:	190c      	movi.n	a9, 1
+40385d53:	1299      	s32i.n	a9, a2, 4
+40385d55:	13e650        	wsr.ps	a5
+40385d58:	002010        	rsync
+40385d5b:	001406        	j	40385daf <xPortEnterCriticalTimeout+0x11b>
+40385d5e:	000000        	ill
+40385d61:	bcd7a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (6666 <_rtc_slow_length+0x6476>)
+40385d64:	30a7a0        	xor	a10, a7, a10
+40385d67:	171a97        	beq	a10, a9, 40385d82 <xPortEnterCriticalTimeout+0xee>
+40385d6a:	bc3da1        	l32r	a10, 40374e60 <_iram_text_start+0xa5c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385d6d:	1119a7        	beq	a9, a10, 40385d82 <xPortEnterCriticalTimeout+0xee>
+40385d70:	bcd5d1        	l32r	a13, 403750c4 <_iram_text_start+0xcc0> (3c124b44 <_flash_rodata_start+0x4a24>)
+40385d73:	bccec1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385d76:	bccea1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385d79:	91a0b2        	movi	a11, 145
+40385d7c:	201110        	or	a1, a1, a1
+40385d7f:	087525        	call8	4038e4d0 <__assert_func>
+40385d82:	012282        	l32i	a8, a2, 4
+40385d85:	fea092        	movi	a9, 254
+40385d88:	0eb987        	bgeu	a9, a8, 40385d9a <xPortEnterCriticalTimeout+0x106>
+40385d8b:	bccfd1        	l32r	a13, 403750c8 <_iram_text_start+0xcc4> (3c124b88 <_flash_rodata_start+0x4a68>)
+40385d8e:	bcc7c1        	l32r	a12, 403750ac <_iram_text_start+0xca8> (3c150fa4 <__func__$2>)
+40385d91:	bcc7a1        	l32r	a10, 403750b0 <_iram_text_start+0xcac> (3c124adc <_flash_rodata_start+0x49bc>)
+40385d94:	92a0b2        	movi	a11, 146
+40385d97:	0873a5        	call8	4038e4d0 <__assert_func>
+40385d9a:	13e650        	wsr.ps	a5
+40385d9d:	002010        	rsync
+40385da0:	0321a2        	l32i	a10, a1, 12
+40385da3:	00a022        	movi	a2, 0
+40385da6:	bcbf81        	l32r	a8, 403750a4 <_iram_text_start+0xca0> (40001c38 <_xtos_set_intlevel>)
+40385da9:	0008e0        	callx8	a8
+40385dac:	000c86        	j	40385de2 <xPortEnterCriticalTimeout+0x14e>
+40385daf:	03eb80        	rsr.prid	a8
+40385db2:	048d80        	extui	a8, a8, 13, 1
+40385db5:	bcc591        	l32r	a9, 403750cc <_iram_text_start+0xcc8> (3fcb23d0 <port_uxCriticalNesting>)
+40385db8:	11a8e0        	slli	a10, a8, 2
+40385dbb:	a08890        	addx4	a8, a8, a9
+40385dbe:	0898      	l32i.n	a9, a8, 0
+40385dc0:	991b      	addi.n	a9, a9, 1
+40385dc2:	0899      	s32i.n	a9, a8, 0
+40385dc4:	041926        	beqi	a9, 1, 40385dcc <xPortEnterCriticalTimeout+0x138>
+40385dc7:	120c      	movi.n	a2, 1
+40385dc9:	000546        	j	40385de2 <xPortEnterCriticalTimeout+0x14e>
+40385dcc:	bcc181        	l32r	a8, 403750d0 <_iram_text_start+0xccc> (3fcb23c8 <port_uxOldInterruptState>)
+40385dcf:	3198      	l32i.n	a9, a1, 12
+40385dd1:	88aa      	add.n	a8, a8, a10
+40385dd3:	0899      	s32i.n	a9, a8, 0
+40385dd5:	fffb86        	j	40385dc7 <xPortEnterCriticalTimeout+0x133>
+40385dd8:	0298      	l32i.n	a9, a2, 0
+40385dda:	ffe0c6        	j	40385d61 <xPortEnterCriticalTimeout+0xcd>
+40385ddd:	0298      	l32i.n	a9, a2, 0
+40385ddf:	ffd246        	j	40385d2c <xPortEnterCriticalTimeout+0x98>
+40385de2:	f01d      	retw.n
+
+Disassembly of section .flash.text:

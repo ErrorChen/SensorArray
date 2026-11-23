@@ -1,0 +1,1 @@
+{"status": "MEETS_REVISED_NORMAL_LINK_GAP_BUDGET", "ratio": "141/7710", "percent": 1.828793774319066, "overall": "NOT_ESTABLISHED", "sha256": "de594faa42f1a2886c416af2c917ab7ad87ab06acfc74cd8132955af05e7563a"}

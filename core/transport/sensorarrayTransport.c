@@ -1,6 +1,7 @@
 #include "sensorarraySerialIo.h"
 #include "sensorarrayUsbOtg.h"
 #include "sensorarrayTransportFrameMeta.h"
+#include "sensorarrayTransportWifiControl.h"
 #include "sensorarrayTransportInternal.h"
 
 #include <stdbool.h>
@@ -11,6 +12,8 @@
 
 #include "esp_mac.h"
 #include "esp_err.h"
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -57,6 +60,11 @@
 #define SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT 2u
 #define SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT 1u
+#define SENSORARRAY_TRANSPORT_PROTECTED_QUEUE_COUNT 2u
+#define SENSORARRAY_TRANSPORT_PROTECTED_DEADLINE_US UINT64_C(1000000)
+#define SENSORARRAY_TRANSPORT_PROTECTED_RETRY_US UINT64_C(10000)
+_Static_assert(SENSORARRAY_TRANSPORT_PROTECTED_QUEUE_COUNT >= SENSORARRAY_TRANSPORT_POOL_PROTECTED_SLOT_COUNT,
+               "protected queue must fit every reserved slot during owner restoration");
 #define SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT 8u
 #define SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES 1560u
 #define SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES \
@@ -84,16 +92,39 @@ _Static_assert(SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX <=
 static StaticQueue_t s_dataQueueStruct;
 static StaticQueue_t s_logQueueStruct;
 static StaticQueue_t s_lifecycleQueueStruct;
+static StaticQueue_t s_protectedQueueStruct;
 static uint8_t s_dataQueueStorage[SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT *
                                   sizeof(sensorarrayTransportDescriptor_t)];
 static uint8_t s_logQueueStorage[SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT *
                                  sizeof(sensorarrayTransportDescriptor_t)];
 static uint8_t s_lifecycleQueueStorage[SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT *
                                        sizeof(sensorarrayTransportDescriptor_t)];
+static uint8_t s_protectedQueueStorage[SENSORARRAY_TRANSPORT_PROTECTED_QUEUE_COUNT *
+                                       sizeof(sensorarrayTransportDescriptor_t)];
 static QueueHandle_t s_dataQueue;
 static QueueHandle_t s_logQueue;
 static QueueHandle_t s_lifecycleQueue;
+static QueueHandle_t s_protectedQueue;
 static sensorarrayTransportPool_t s_pool;
+/* One allocation for the entire boot, no internal-RAM fallback. State is
+ * claimed/published under the existing stats mux; allocation stays outside. */
+static uint8_t s_payloadStorageState; /* 0 absent, 1 claiming, 2 ready, 3 failed */
+static esp_err_t s_payloadStorageError = ESP_ERR_INVALID_STATE;
+static bool s_initInProgress;
+static esp_err_t s_completedInitError = ESP_ERR_INVALID_STATE;
+static sensorarrayTransportProtectionStats_t s_transportProtectionStats;
+/* Admission obligation belongs to this layer. A successful queue admission is
+ * not a BLE completion and does not retire BLE's independent obligation. */
+static bool s_protectedAdmissionKnown;
+static sensorarrayTransportFrameIdentity_t s_protectedAdmissionIdentity;
+static uint64_t s_lastProtectedAdmissionUs;
+/* Only the transport task touches retry/last-admitted state. An owned retry
+ * descriptor remains in the permanent pool; producers cannot reclaim it. */
+static bool s_protectedRetryActive;
+static sensorarrayTransportDescriptor_t s_protectedRetry;
+static bool s_lastBleFrameKnown;
+static uint32_t s_lastBleConnectionGeneration;
+static sensorarrayTransportFrameIdentity_t s_lastBleFrame;
 static TaskHandle_t s_task;
 static TaskHandle_t s_serialTask;
 static bool s_started;
@@ -297,6 +328,61 @@ static void sensorarrayTransportFillFrameMeta(sensorarrayTransportPayloadSlot_t 
     sensorarrayTransportParseFrameMeta(item);
 }
 
+static void sensorarrayTransportProtectionCount(uint32_t *counter)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    (*counter)++;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+}
+
+void sensorarrayTransportGetProtectionStats(sensorarrayTransportProtectionStats_t *outStats)
+{
+    if (!outStats) { return; }
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    *outStats = s_transportProtectionStats;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+}
+
+static bool sensorarrayTransportHoldProtectedRetry(
+    const sensorarrayTransportDescriptor_t *descriptor,
+    sensorarrayTransportPayloadSlot_t *slot, uint64_t nowUs)
+{
+    if (nowUs >= slot->protectedDeadlineUs) { return false; }
+    if (s_protectedRetryActive) {
+        sensorarrayTransportPayloadSlot_t *old = sensorarrayTransportDescriptorSlot(&s_protectedRetry);
+        /* A periodic sample cannot replace an unfinished first-configuration
+         * sample of the same configuration. A new configuration supersedes
+         * an old pending obligation explicitly, never a BLE-owned buffer. */
+        if (old && (old->protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) &&
+            sensorarrayTransportFrameSameConfig(&old->frameIdentity, &slot->frameIdentity)) {
+            return false;
+        }
+        (void)sensorarrayTransportReleaseDescriptor(&s_protectedRetry);
+        sensorarrayTransportProtectionCount(&s_transportProtectionStats.superseded);
+    }
+    slot->protectedNextAttemptUs = nowUs + SENSORARRAY_TRANSPORT_PROTECTED_RETRY_US;
+    s_protectedRetry = *descriptor;
+    s_protectedRetryActive = true;
+    sensorarrayTransportProtectionCount(&s_transportProtectionStats.retryAttempts);
+    return true;
+}
+
+static TickType_t sensorarrayTransportWaitTicks(void)
+{
+    TickType_t wifiPoll = sensorarrayWifiOwnerNeedsPoll() ?
+        (TickType_t)((SENSORARRAY_WIFI_OBSERVER_POLL_US * configTICK_RATE_HZ + UINT64_C(999999)) / UINT64_C(1000000)) : portMAX_DELAY;
+    if (wifiPoll == 0u) { wifiPoll = 1u; }
+    if (!s_protectedRetryActive) { return wifiPoll; }
+    sensorarrayTransportPayloadSlot_t *slot = sensorarrayTransportDescriptorSlot(&s_protectedRetry);
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    uint64_t wakeUs = slot->protectedNextAttemptUs < slot->protectedDeadlineUs ?
+        slot->protectedNextAttemptUs : slot->protectedDeadlineUs;
+    if (wakeUs <= nowUs) { return 0u; }
+    uint64_t ticks = ((wakeUs - nowUs) * configTICK_RATE_HZ + UINT64_C(999999)) / UINT64_C(1000000);
+    TickType_t protectedPoll = (TickType_t)(ticks != 0u ? ticks : 1u);
+    return protectedPoll < wifiPoll ? protectedPoll : wifiPoll;
+}
+
 static void sensorarrayTransportBuildNames(const uint8_t mac[6])
 {
     snprintf(s_deviceName, sizeof(s_deviceName), "CscArray_%02X%02X%02X",
@@ -321,16 +407,30 @@ static void sensorarrayTransportBuildWifiConfig(sensorarrayWifiConfig_t *wifiCon
              CONFIG_SENSORARRAY_WIFI_SOFTAP_PASSWORD);
 }
 
-static esp_err_t sensorarrayTransportStartWifiAp(void)
+static esp_err_t sensorarrayTransportStartWifiAp(uint32_t *requestId)
 {
     sensorarrayWifiConfig_t wifiConfig;
     sensorarrayTransportBuildWifiConfig(&wifiConfig);
-    esp_err_t err = sensorarrayWifiInit(&wifiConfig);
-    if (err != ESP_OK) {
-        wifiConfig.profile = SENSORARRAY_WIFI_PROFILE_BLE_COMPAT;
-        err = sensorarrayWifiInit(&wifiConfig);
+    return sensorarrayWifiRequestAp(&wifiConfig, requestId);
+}
+
+void sensorarrayTransportConfigureWifiBoot(uint64_t sessionId, uint32_t bootId)
+{
+    sensorarrayWifiConfigureBoot(sessionId, bootId);
+}
+
+void sensorarrayTransportReleaseWifiStartupGate(void)
+{
+    sensorarrayWifiAllowOwnerStart();
+    /* Called only after the two main startup participants reserve scan/probe
+     * and USB stacks. Default OFF allocates neither Wi-Fi task nor payload. */
+    if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT) {
+        sensorarrayWifiOwnerSnapshot_t snapshot;
+        sensorarrayWifiCopyOwnerSnapshot(&snapshot);
+        if (!snapshot.resourceAttempted && snapshot.requestId == 0u) {
+            (void)sensorarrayTransportStartWifiAp(NULL);
+        }
     }
-    return err;
 }
 
 static void sensorarrayTransportStatResult(sensorarrayTransportChannel_t channel,
@@ -361,6 +461,49 @@ static void sensorarrayTransportStatResult(sensorarrayTransportChannel_t channel
         }
     }
     portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+}
+
+static void sensorarrayTransportWifiCompleted(const sensorarrayWifiTxResult_t *result, void *context)
+{
+    (void)context;
+    /* Legacy sent counters still mean an actual full sendto return, including
+     * a late return. Neither local admission nor UDP acceptance proves receipt. */
+    if (result->channel == SENSORARRAY_WIFI_CH_CTRL) {
+        if (result->fullLength) {
+            portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+            g_sensorarrayTransportStats.wifiCtrlTx++;
+            portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        }
+    } else {
+        sensorarrayTransportStatResult(result->channel == SENSORARRAY_WIFI_CH_DATA ?
+            SENSORARRAY_TRANSPORT_CHANNEL_DATA : SENSORARRAY_TRANSPORT_CHANNEL_LOG,
+            false, result->fullLength ? ESP_OK : result->error);
+    }
+}
+
+/* End a protected descriptor's local network TTL without any SDK/lwIP call.
+ * Call only with a dequeued/task-owned descriptor. BLE NO_MEM retries remain
+ * unadmitted; Wi-Fi records its one attempted submission separately. */
+static bool sensorarrayTransportExpireOwnedProtected(
+    const sensorarrayTransportDescriptor_t *descriptor)
+{
+    if (!sensorarrayTransportDescriptorCurrent(descriptor)) { return false; }
+    const sensorarrayTransportPayloadSlot_t *slot = sensorarrayTransportDescriptorSlot(descriptor);
+    bool bleExpired = slot->bleConnectionGeneration != 0u;
+    bool wifiExpired = slot->protectedWifiTarget && !slot->protectedWifiDone;
+    if (!sensorarrayTransportReleaseDescriptor(descriptor)) { return false; }
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    s_transportProtectionStats.expired++;
+    if (bleExpired) {
+        s_transportProtectionStats.bleExpired++;
+        g_sensorarrayTransportStats.bleDataDrop++;
+    }
+    if (wifiExpired) {
+        s_transportProtectionStats.wifiExpired++;
+        g_sensorarrayTransportStats.wifiDataDrop++;
+    }
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    return true;
 }
 
 static void sensorarrayTransportBleControl(const uint8_t *data, size_t length, void *context)
@@ -485,7 +628,21 @@ static void sensorarrayTransportProcessDescriptor(
     sensorarrayTransportChannel_t sinkChannel =
         channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
             SENSORARRAY_TRANSPORT_CHANNEL_LOG : channel;
-    if (slot && slot->bleConnectionGeneration != 0u &&
+    bool protectedFrame = slot && slot->trustedFullFrame && slot->protectionFlags != 0u;
+    bool retainForRetry = false;
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    bool obsolete = slot && slot->trustedFullFrame && s_lastBleFrameKnown &&
+        slot->bleConnectionGeneration == s_lastBleConnectionGeneration &&
+        sensorarrayTransportFrameOlderOrSame(&slot->frameIdentity, &s_lastBleFrame);
+    bool expired = protectedFrame && nowUs >= slot->protectedDeadlineUs;
+    if (expired) {
+        (void)sensorarrayTransportExpireOwnedProtected(descriptor);
+        return;
+    }
+    if (obsolete) {
+        sensorarrayTransportProtectionCount(&g_sensorarrayTransportStats.bleDataObsolete);
+        if (protectedFrame) { sensorarrayTransportProtectionCount(&s_transportProtectionStats.superseded); }
+    } else if (slot && slot->bleConnectionGeneration != 0u &&
         SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT &&
         sensorarrayTransportBleChannelEnabled(sinkChannel)) {
         char shortData[384];
@@ -499,25 +656,73 @@ static void sensorarrayTransportProcessDescriptor(
             bleData = shortData;
             bleLength = strlen(shortData);
         }
-        esp_err_t bleErr = channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
-            sensorarrayBleNotifyLifecycleForGeneration((const uint8_t *)bleData,
-                bleLength, slot->bleConnectionGeneration) :
-            sensorarrayBleNotifyForGeneration(bleChannel, (const uint8_t *)bleData,
-                bleLength, slot->bleConnectionGeneration);
-        sensorarrayTransportStatResult(sinkChannel, true, bleErr);
+        esp_err_t bleErr;
+        if (slot->trustedFullFrame) {
+            /* The ordinary preview and full original are both available until
+             * BLE atomically selects its stream epoch/protection class. That
+             * synchronous API deep-copies the chosen bytes before returning. */
+            sensorarrayBleFramePublication_t publication = {
+                .fullData = (const uint8_t *)slot->data, .fullLength = slot->length,
+                .normalData = (const uint8_t *)bleData, .normalLength = bleLength,
+                .identity = {.sessionId = slot->frameIdentity.sessionId,
+                    .bootId = slot->frameIdentity.bootId, .revision = slot->frameIdentity.revision,
+                    .sequence = slot->frameIdentity.sequence},
+                .protectionFlags = slot->protectionFlags,
+            };
+            bleErr = sensorarrayBleNotifyFrameForGeneration(&publication, slot->bleConnectionGeneration);
+        } else {
+            bleErr = channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
+                sensorarrayBleNotifyLifecycleForGeneration((const uint8_t *)bleData,
+                    bleLength, slot->bleConnectionGeneration) :
+                sensorarrayBleNotifyForGeneration(bleChannel, (const uint8_t *)bleData,
+                    bleLength, slot->bleConnectionGeneration);
+        }
+        if (protectedFrame && bleErr == ESP_ERR_NO_MEM) {
+            retainForRetry = sensorarrayTransportHoldProtectedRetry(descriptor, slot, nowUs);
+        }
+        if (protectedFrame && bleErr == ESP_OK) {
+            /* Only a protected admission establishes this overtaking fence.
+             * Ordinary admission is neither completion nor evidence that an
+             * older protected obligation may be discarded. */
+            s_lastBleFrame = slot->frameIdentity;
+            s_lastBleConnectionGeneration = slot->bleConnectionGeneration;
+            s_lastBleFrameKnown = true;
+        }
+        if (slot->trustedFullFrame && !protectedFrame && bleErr == ESP_ERR_NOT_ALLOWED) {
+            sensorarrayTransportProtectionCount(&g_sensorarrayTransportStats.bleDataPolicySkipped);
+        } else if (!retainForRetry) {
+            sensorarrayTransportStatResult(sinkChannel, true, bleErr);
+            if (protectedFrame) {
+                sensorarrayTransportProtectionCount(bleErr == ESP_OK ?
+                    &s_transportProtectionStats.bleAccepted : &s_transportProtectionStats.bleFailed);
+            }
+        }
+    } else if (protectedFrame && slot->bleConnectionGeneration != 0u) {
+        sensorarrayTransportProtectionCount(&s_transportProtectionStats.bleFailed);
+        sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_DATA, true, ESP_ERR_INVALID_STATE);
     }
-    if (slot && sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
-        esp_err_t sendWifiErr = sensorarrayWifiSend(wifiChannel,
-                                                    (const uint8_t *)slot->data,
-                                                    slot->length);
-        sensorarrayTransportStatResult(sinkChannel, false, sendWifiErr);
+    if (slot && !slot->protectedWifiDone && slot->wifiEpoch != 0u) {
+        sensorarrayWifiPublication_t publication = {
+            .channel = wifiChannel, .lifecycle = channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE,
+            .data = (const uint8_t *)slot->data, .length = slot->length,
+            .expectedEpoch = slot->wifiEpoch, .deadlineUs = slot->wifiDeadlineUs,
+            .identityKnown = slot->trustedFullFrame,
+            .sessionId = slot->frameIdentity.sessionId, .bootId = slot->frameIdentity.bootId,
+            .revision = slot->frameIdentity.revision, .sequence = slot->frameIdentity.sequence,
+        };
+        esp_err_t sendWifiErr = sensorarrayTransportWifiSinkEnabled() ?
+            sensorarrayWifiSubmit(&publication) : ESP_ERR_INVALID_STATE;
+        /* Accepted copies complete asynchronously in the Wi-Fi owner. Count
+         * only admission failures here; completion owns the legacy sent count. */
+        if (sendWifiErr != ESP_OK) { sensorarrayTransportStatResult(sinkChannel, false, sendWifiErr); }
+        if (protectedFrame) { slot->protectedWifiDone = true; }
     }
     if (sensorarrayBleIsCongested()) {
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
         g_sensorarrayTransportStats.bleCongested++;
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
     }
-    (void)sensorarrayTransportReleaseDescriptor(descriptor);
+    if (!retainForRetry) { (void)sensorarrayTransportReleaseDescriptor(descriptor); }
 }
 
 static void sensorarrayTransportNotifyTask(void)
@@ -549,13 +754,66 @@ static void sensorarrayTransportDrainGuaranteedText(void)
                                        true,
                                        bleErr);
     }
-    if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiIsReady()) {
-        esp_err_t wifiErr = sensorarrayWifiSend(SENSORARRAY_WIFI_CH_LOG,
-                                                (const uint8_t *)text,
-                                                length);
-        sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_LOG,
-                                       false,
-                                       wifiErr);
+    uint32_t wifiEpoch = 0u;
+    if (sensorarrayTransportWifiSinkEnabled() && sensorarrayWifiGetSendEpoch(false, &wifiEpoch)) {
+        sensorarrayWifiPublication_t publication = {.channel = SENSORARRAY_WIFI_CH_LOG,
+            .lifecycle = true, .data = (const uint8_t *)text, .length = length, .expectedEpoch = wifiEpoch};
+        esp_err_t wifiErr = sensorarrayWifiSubmit(&publication);
+        if (wifiErr != ESP_OK) {
+            sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_LOG, false, wifiErr);
+        }
+    }
+}
+
+/* 本轮新增: deadline reclamation is independent of transmission priority.
+ * This descriptor is owned solely by this task after a synchronous BLE
+ * NO_MEM rejection; no SDK/DMA call retains its payload. Release still checks
+ * the slot generation, so an unproven owner is never reclaimed. */
+static void sensorarrayTransportExpireProtectedRetry(void)
+{
+    if (!s_protectedRetryActive) { return; }
+    sensorarrayTransportPayloadSlot_t *slot = sensorarrayTransportDescriptorSlot(&s_protectedRetry);
+    if (!slot || (uint64_t)esp_timer_get_time() < slot->protectedDeadlineUs) { return; }
+    if (!sensorarrayTransportExpireOwnedProtected(&s_protectedRetry)) { return; }
+    s_protectedRetryActive = false;
+    /* Prior NO_MEM retry evidence remains. This is local TTL disposal, never
+     * cancellation of an accepted send or proof of peer delivery. */
+}
+
+/* At most the two real protected slots can be dequeued here. Dequeue is
+ * the ownership transfer; never scan or reclaim a producer's WRITING slot.
+ * Temporarily held live descriptors are restored to the front in reverse
+ * order, preserving their FIFO order ahead of concurrent new publications. */
+static void sensorarrayTransportExpireProtectedPending(void)
+{
+    if (!s_protectedQueue) { return; }
+    sensorarrayTransportDescriptor_t retained[SENSORARRAY_TRANSPORT_POOL_PROTECTED_SLOT_COUNT];
+    unsigned count = 0u;
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    for (unsigned inspected = 0u; inspected < SENSORARRAY_TRANSPORT_POOL_PROTECTED_SLOT_COUNT; ++inspected) {
+        sensorarrayTransportDescriptor_t descriptor;
+        if (xQueueReceive(s_protectedQueue, &descriptor, 0) != pdTRUE) { break; }
+        if (!sensorarrayTransportDescriptorCurrent(&descriptor)) { continue; }
+        sensorarrayTransportPayloadSlot_t *slot = sensorarrayTransportDescriptorSlot(&descriptor);
+        if (nowUs >= slot->protectedDeadlineUs) {
+            (void)sensorarrayTransportExpireOwnedProtected(&descriptor);
+        } else {
+            retained[count++] = descriptor;
+        }
+    }
+    while (count != 0u) {
+        const sensorarrayTransportDescriptor_t *descriptor = &retained[--count];
+        /* Each held descriptor occupies one of the only two pool slots; the
+         * queue also holds two entries. Concurrent producers therefore cannot
+         * fill the space needed to return an owner we still hold. */
+        if (xQueueSendToFront(s_protectedQueue, descriptor, 0) != pdTRUE) {
+            /* A violated capacity invariant must be counted, not silently
+             * lose an owner. This local descriptor is still ours to release. */
+            if (sensorarrayTransportReleaseDescriptor(descriptor)) {
+                sensorarrayTransportProtectionCount(&s_transportProtectionStats.bleFailed);
+                sensorarrayTransportStatResult(SENSORARRAY_TRANSPORT_CHANNEL_DATA, true, ESP_ERR_NO_MEM);
+            }
+        }
     }
 }
 
@@ -566,6 +824,10 @@ static bool sensorarrayTransportReceiveNext(
     if (!outDescriptor || !dataBudget) {
         return false;
     }
+    /* Constant bounded owner cleanup runs even under continuous control
+     * or newer protected traffic. It does not send a retry ahead of control. */
+    sensorarrayTransportExpireProtectedRetry();
+    sensorarrayTransportExpireProtectedPending();
     /* Lifecycle wins at every descriptor boundary. DATA retains its bounded
      * throughput batch ahead of ordinary diagnostics. Neither queue activity
      * nor a notification resets the independent CPU work budget. */
@@ -573,6 +835,18 @@ static bool sensorarrayTransportReceiveNext(
         xQueueReceive(s_lifecycleQueue, outDescriptor, 0) == pdTRUE) {
         *dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
         return true;
+    }
+    if (s_protectedQueue && xQueueReceive(s_protectedQueue, outDescriptor, 0) == pdTRUE) {
+        return true;
+    }
+    if (s_protectedRetryActive) {
+        sensorarrayTransportPayloadSlot_t *retry = sensorarrayTransportDescriptorSlot(&s_protectedRetry);
+        uint64_t nowUs = (uint64_t)esp_timer_get_time();
+        if (nowUs >= retry->protectedNextAttemptUs || nowUs >= retry->protectedDeadlineUs) {
+            *outDescriptor = s_protectedRetry;
+            s_protectedRetryActive = false;
+            return true;
+        }
     }
     if (*dataBudget > 0u && s_dataQueue &&
         xQueueReceive(s_dataQueue, outDescriptor, 0) == pdTRUE) {
@@ -593,13 +867,14 @@ static void sensorarrayTransportTask(void *arg)
     sensorarrayTransportPrintNetInit(wifiErr);
     sensorarrayTransportDescriptor_t descriptor;
     for (;;) {
-        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        (void)ulTaskNotifyTake(pdTRUE, sensorarrayTransportWaitTicks());
         uint32_t dataBudget = SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT;
         unsigned processed = 0u;
         for (; processed < SENSORARRAY_TRANSPORT_DRAIN_BATCH_COUNT; ++processed) {
             (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_TRANSPORT);
             /* At most one guaranteed terminal per iteration; it stays ahead
              * of ordinary data even when all queues are continuously refilled. */
+            sensorarrayTransportWifiDrainTerminal();
             sensorarrayTransportDrainGuaranteedText();
             if (!sensorarrayTransportReceiveNext(&descriptor, &dataBudget)) {
                 break;
@@ -614,10 +889,30 @@ static void sensorarrayTransportTask(void *arg)
     }
 }
 
-static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel,
+static bool sensorarrayTransportSupersedePendingProtected(
+    const sensorarrayTransportFrameIdentity_t *identity)
+{
+    sensorarrayTransportDescriptor_t old;
+    if (!s_protectedQueue || xQueueReceive(s_protectedQueue, &old, 0) != pdTRUE) { return false; }
+    if (!sensorarrayTransportDescriptorCurrent(&old)) { return false; }
+    sensorarrayTransportPayloadSlot_t *slot = sensorarrayTransportDescriptorSlot(&old);
+    bool replace = !sensorarrayTransportFrameSameConfig(identity, &slot->frameIdentity) ||
+        !(slot->protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG);
+    if (!replace && xQueueSend(s_protectedQueue, &old, 0) == pdTRUE) { return false; }
+    /* xQueueReceive transferred ownership to this producer. Neither a
+     * WRITING slot nor the consumer's retry/active slot can enter this path. */
+    (void)sensorarrayTransportReleaseDescriptor(&old);
+    sensorarrayTransportProtectionCount(&s_transportProtectionStats.superseded);
+    return true;
+}
+
+static esp_err_t sensorarrayTransportQueueFrameInternal(sensorarrayTransportChannel_t channel,
                                            const char *data,
                                            size_t length,
-                                           bool *outQueued)
+                                           bool *outQueued,
+                                           const sensorarrayTransportFrameIdentity_t *identity,
+                                           uint32_t protectionFlags,
+                                           const sensorarrayTransportFrameMetadata_t *metadata)
 {
     if (outQueued) { *outQueued = false; }
     if ((channel != SENSORARRAY_TRANSPORT_CHANNEL_DATA &&
@@ -633,7 +928,22 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
         }
         return ESP_ERR_INVALID_ARG;
     }
-    QueueHandle_t queue = channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
+    uint32_t suppliedProtection = protectionFlags;
+    if (identity) {
+        uint64_t nowUs = (uint64_t)esp_timer_get_time();
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        if (!s_protectedAdmissionKnown ||
+            !sensorarrayTransportFrameSameConfig(identity, &s_protectedAdmissionIdentity)) {
+            protectionFlags |= SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG;
+        }
+        if (!s_protectedAdmissionKnown || nowUs < s_lastProtectedAdmissionUs ||
+            nowUs - s_lastProtectedAdmissionUs >= SENSORARRAY_TRANSPORT_PROTECTED_DEADLINE_US) {
+            protectionFlags |= SENSORARRAY_FRAME_PROTECT_PERIODIC;
+        }
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    }
+    bool protectedFrame = identity && protectionFlags != 0u;
+    QueueHandle_t queue = protectedFrame ? s_protectedQueue : channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA ?
         s_dataQueue : (channel == SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE ?
             s_lifecycleQueue : s_logQueue);
     if (!queue) {
@@ -650,14 +960,38 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
                       sensorarrayTransportBleChannelEnabled(bleSinkChannel) &&
                       sensorarrayBleGetSendGeneration(
                           bleChannel, &bleConnectionGeneration);
+    uint32_t wifiEpoch = 0u;
     bool wifiEnabled = sensorarrayTransportWifiSinkEnabled();
+    bool wifiAvailable = wifiEnabled && sensorarrayWifiGetSendEpoch(false, &wifiEpoch);
     if (!bleEnabled && !wifiEnabled) {
         return ESP_OK;
     }
 
     sensorarrayTransportDescriptor_t descriptor;
-    if (!sensorarrayTransportAllocateDescriptor(channel, length, &descriptor)) {
+    bool allocated;
+    if (protectedFrame) {
         portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        allocated = sensorarrayTransportPoolAllocateProtected(&s_pool, length, &descriptor);
+        sensorarrayTransportSyncPoolStatsLocked();
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        if (!allocated && sensorarrayTransportSupersedePendingProtected(identity)) {
+            portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+            allocated = sensorarrayTransportPoolAllocateProtected(&s_pool, length, &descriptor);
+            sensorarrayTransportSyncPoolStatsLocked();
+            portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        }
+    } else {
+        allocated = sensorarrayTransportAllocateDescriptor(channel, length, &descriptor);
+    }
+    if (!allocated) {
+        if (protectedFrame) {
+            sensorarrayTransportProtectionCount(&s_transportProtectionStats.admissionMiss);
+            if (protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) {
+                sensorarrayTransportProtectionCount(&s_transportProtectionStats.firstCandidateMiss);
+            }
+        }
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        esp_err_t allocationErr = s_pool.storage ? ESP_ERR_TIMEOUT : ESP_ERR_NO_MEM;
         g_sensorarrayTransportStats.queueDrop++;
         if (channel == SENSORARRAY_TRANSPORT_CHANNEL_DATA) {
             g_sensorarrayTransportStats.queueDropData++;
@@ -668,17 +1002,41 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
             g_sensorarrayTransportStats.lifecycleDropped++;
         }
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
-        return ESP_ERR_TIMEOUT;
+        return allocationErr;
     }
 
     sensorarrayTransportPayloadSlot_t *slot =
         sensorarrayTransportDescriptorSlot(&descriptor);
     slot->bleConnectionGeneration = bleEnabled ?
         bleConnectionGeneration : 0u;
+    slot->wifiEpoch = wifiAvailable ? wifiEpoch : 0u;
+    slot->wifiDeadlineUs = (uint64_t)esp_timer_get_time() + SENSORARRAY_WIFI_QUEUE_DEADLINE_US;
     memcpy(slot->data, data, length);
     slot->data[length] = '\0';
-    sensorarrayTransportFillFrameMeta(slot);
+    if (metadata) {
+        if (!sensorarrayTransportApplyFrameMetadata(slot, metadata)) {
+            (void)sensorarrayTransportReleaseDescriptor(&descriptor);
+            return ESP_ERR_INVALID_ARG;
+        }
+    } else {
+        sensorarrayTransportFillFrameMeta(slot);
+    }
+    if (identity) {
+        slot->frameIdentity = *identity;
+        slot->trustedFullFrame = true;
+        slot->protectionFlags = protectionFlags;
+        slot->protectedDeadlineUs = (uint64_t)esp_timer_get_time() + SENSORARRAY_TRANSPORT_PROTECTED_DEADLINE_US;
+        slot->protectedNextAttemptUs = 0u;
+        slot->protectedWifiDone = false;
+        slot->protectedWifiTarget = wifiAvailable;
+    }
     if (xQueueSend(queue, &descriptor, 0) != pdTRUE) {
+        if (protectedFrame) {
+            sensorarrayTransportProtectionCount(&s_transportProtectionStats.admissionMiss);
+            if (protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) {
+                sensorarrayTransportProtectionCount(&s_transportProtectionStats.firstCandidateMiss);
+            }
+        }
         if (slot->hasFrameMeta) {
             uint32_t profileGeneration = 0u;
             uint32_t profileRequestId = 0u;
@@ -723,10 +1081,50 @@ static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel
         portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
     }
     if (outQueued) { *outQueued = true; }
+    if (protectedFrame) {
+        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+        s_transportProtectionStats.queued++;
+        s_transportProtectionStats.derivedProtection += protectionFlags != suppliedProtection ? 1u : 0u;
+        s_protectedAdmissionKnown = true;
+        s_protectedAdmissionIdentity = *identity;
+        s_lastProtectedAdmissionUs = (uint64_t)esp_timer_get_time();
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    }
     return ESP_OK;
 }
 
-esp_err_t sensorarrayTransportInit(void)
+static esp_err_t sensorarrayTransportQueue(sensorarrayTransportChannel_t channel,
+    const char *data, size_t length, bool *outQueued)
+{
+    return sensorarrayTransportQueueFrameInternal(channel, data, length, outQueued, NULL, 0u, NULL);
+}
+
+static esp_err_t sensorarrayTransportEnsurePayloadStorage(void)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    if (s_payloadStorageState != 0u) {
+        esp_err_t result = s_payloadStorageState == 1u ? ESP_ERR_INVALID_STATE : s_payloadStorageError;
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        return result;
+    }
+    s_payloadStorageState = 1u;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    char *storage = heap_caps_malloc(SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES,
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    bool bound = storage && sensorarrayTransportPoolInit(&s_pool, storage,
+        SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES);
+    s_payloadStorageError = bound ? ESP_OK : storage ? ESP_ERR_INVALID_STATE : ESP_ERR_NO_MEM;
+    s_payloadStorageState = bound ? 2u : 3u;
+    esp_err_t result = s_payloadStorageError;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    /* Binding failure never publishes the new block. Existing pool/owned
+     * pointers are untouched, so only this unreferenced allocation is freed. */
+    if (storage && !bound) { heap_caps_free(storage); }
+    return result;
+}
+
+static esp_err_t sensorarrayTransportInitOwned(void)
 {
     esp_err_t budgetErr = sensorarrayWorkBudgetInit();
     if (budgetErr != ESP_OK) {
@@ -736,9 +1134,11 @@ esp_err_t sensorarrayTransportInit(void)
     if (s_started) {
         /* Network/control initialization can succeed before optional Serial
          * binding. Retry that binding and retain its error until it succeeds. */
-        return sensorarraySerialIoInit();
+        esp_err_t serialErr = sensorarraySerialIoInit();
+        return serialErr != ESP_OK ? serialErr : s_completedInitError;
     }
     esp_err_t serialErr = sensorarraySerialIoInit();
+    esp_err_t storageErr = sensorarrayTransportEnsurePayloadStorage();
     /* A failed optional USB driver must not suppress BLE/Wi-Fi control. */
     (void)sensorarrayScanConfigInit();
     uint8_t mac[6] = {0};
@@ -757,12 +1157,8 @@ esp_err_t sensorarrayTransportInit(void)
                                     SENSORARRAY_TRANSPORT_WIFI_OFF);
 
     esp_err_t nvsErr = nvs_flash_init();
-    if (nvsErr == ESP_ERR_NVS_NO_FREE_PAGES || nvsErr == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        nvsErr = nvs_flash_erase();
-        if (nvsErr == ESP_OK) {
-            nvsErr = nvs_flash_init();
-        }
-    }
+    /* Storage/version failure is reported without erasing existing contents.
+     * Optional BLE startup may fail; command/recovery tasks still start. */
     sensorarrayBleSetControlRxCallback(sensorarrayTransportBleControl, NULL);
     sensorarrayBleConfig_t bleConfig = {
         .enableBle5 = true,
@@ -776,16 +1172,13 @@ esp_err_t sensorarrayTransportInit(void)
         bleErr = nvsErr == ESP_OK ? sensorarrayBleInit(&bleConfig) : nvsErr;
     }
 
-    sensorarrayBleLogHeap("before_wifi_init");
     sensorarrayWifiSetControlRxCallback(sensorarrayTransportWifiControl, NULL);
+    sensorarrayWifiSetOwnerCallbacks(sensorarrayTransportWifiCompleted, NULL, sensorarrayTransportNotifyTask);
+    /* AP startup is deliberately deferred until both main startup reservation
+     * participants release the gate. This return is not a Wi-Fi applied event. */
     esp_err_t wifiErr = ESP_OK;
-    if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT) {
-        wifiErr = nvsErr == ESP_OK ? sensorarrayTransportStartWifiAp() : nvsErr;
-    }
-    sensorarrayBleLogHeap("after_wifi_init");
 
-    if (!s_dataQueue && !s_logQueue && !s_lifecycleQueue) {
-        sensorarrayTransportPoolInit(&s_pool);
+    if (!s_dataQueue && !s_logQueue && !s_lifecycleQueue && !s_protectedQueue) {
         s_dataQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT,
                                         sizeof(sensorarrayTransportDescriptor_t),
                                         s_dataQueueStorage,
@@ -798,8 +1191,12 @@ esp_err_t sensorarrayTransportInit(void)
                                               sizeof(sensorarrayTransportDescriptor_t),
                                               s_lifecycleQueueStorage,
                                               &s_lifecycleQueueStruct);
+        s_protectedQueue = xQueueCreateStatic(SENSORARRAY_TRANSPORT_PROTECTED_QUEUE_COUNT,
+                                              sizeof(sensorarrayTransportDescriptor_t),
+                                              s_protectedQueueStorage,
+                                              &s_protectedQueueStruct);
     }
-    if (!s_dataQueue || !s_logQueue || !s_lifecycleQueue) {
+    if (!s_dataQueue || !s_logQueue || !s_lifecycleQueue || !s_protectedQueue) {
         return ESP_ERR_NO_MEM;
     }
     BaseType_t ok = pdPASS;
@@ -832,19 +1229,38 @@ esp_err_t sensorarrayTransportInit(void)
     /* Serial/transport tasks remain available when an optional network sink
      * fails, but the caller must still receive the real initialization error.
      * A disabled sink is not evidence that another enabled sink succeeded. */
-    if (serialErr != ESP_OK) {
-        return serialErr;
-    }
+    s_completedInitError = ESP_OK;
     if (nvsErr != ESP_OK) {
-        return nvsErr;
+        s_completedInitError = nvsErr;
+    } else if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && bleErr != ESP_OK) {
+        s_completedInitError = bleErr;
+    } else if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT && wifiErr != ESP_OK) {
+        s_completedInitError = wifiErr;
+    } else if (storageErr != ESP_OK) {
+        s_completedInitError = storageErr;
     }
-    if (SENSORARRAY_CFG_OUTPUT_BLE_CAP_TEXT && bleErr != ESP_OK) {
-        return bleErr;
+    /* Pool failure denies DATA/LOG/lifecycle allocation but must not prevent
+     * the independent CTRL queues, command RX and recovery queries above. */
+    /* Serial binding alone remains retryable. Completed network/storage
+     * failures stay visible; repeated Init never claims an unstarted BLE
+     * backend recovered merely because the control tasks are already alive. */
+    return serialErr != ESP_OK ? serialErr : s_completedInitError;
+}
+
+esp_err_t sensorarrayTransportInit(void)
+{
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    if (s_initInProgress) {
+        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+        return ESP_ERR_INVALID_STATE;
     }
-    if (SENSORARRAY_CFG_OUTPUT_WIFI_TEXT && wifiErr != ESP_OK) {
-        return wifiErr;
-    }
-    return ESP_OK;
+    s_initInProgress = true;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    esp_err_t result = sensorarrayTransportInitOwned();
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    s_initInProgress = false;
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
+    return result;
 }
 
 void sensorarrayTransportGetMemoryDiagnostics(
@@ -853,16 +1269,26 @@ void sensorarrayTransportGetMemoryDiagnostics(
     if (!outDiagnostics) {
         return;
     }
+    portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
+    uint32_t externalBytes = s_payloadStorageState == 2u ?
+        SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES : 0u;
     *outDiagnostics = (sensorarrayTransportMemoryDiagnostics_t){
         .legacyItemBytes = SENSORARRAY_TRANSPORT_LEGACY_ITEM_BYTES,
-        .payloadSlotBytes = sizeof(sensorarrayTransportPayloadSlot_t),
+        .payloadSlotBytes = sizeof(sensorarrayTransportPayloadSlot_t) +
+            (externalBytes ? SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE : 0u),
         .descriptorBytes = sizeof(sensorarrayTransportDescriptor_t),
         .legacyQueueStorageBytes = SENSORARRAY_TRANSPORT_LEGACY_QUEUE_STORAGE_BYTES,
         .descriptorQueueStorageBytes = sizeof(s_dataQueueStorage) +
                                        sizeof(s_logQueueStorage) +
-                                       sizeof(s_lifecycleQueueStorage),
-        .payloadPoolBytes = sizeof(s_pool.slots),
+                                       sizeof(s_lifecycleQueueStorage) + sizeof(s_protectedQueueStorage),
+        .payloadPoolBytes = sizeof(s_pool.slots) + externalBytes,
+        .payloadStorageBytes = SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES,
+        .payloadInternalBytes = sizeof(s_pool) + sizeof(s_payloadStorageState) + sizeof(s_payloadStorageError),
+        .payloadExternalBytes = externalBytes,
+        .payloadStorageReady = s_payloadStorageState == 2u,
+        .payloadStorageError = s_payloadStorageError,
     };
+    portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
 }
 
 static uint32_t sensorarrayTransportStackMinimumRemainingBytes(TaskHandle_t task)
@@ -890,24 +1316,44 @@ void sensorarrayTransportGetTaskStackStats(
     };
 }
 
+esp_err_t sensorarrayTransportRequestWifiMode(sensorarrayTransportWifiMode_t mode, uint32_t *requestId)
+{
+    if (requestId) { *requestId = 0u; }
+    if (mode == SENSORARRAY_TRANSPORT_WIFI_OFF) { return sensorarrayWifiRequestOff(requestId); }
+    if (mode == SENSORARRAY_TRANSPORT_WIFI_AP) { return sensorarrayTransportStartWifiAp(requestId); }
+    return (unsigned)mode > SENSORARRAY_TRANSPORT_WIFI_APSTA ? ESP_ERR_INVALID_ARG : ESP_ERR_NOT_SUPPORTED;
+}
+
 esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode)
 {
-    if (mode > SENSORARRAY_TRANSPORT_WIFI_APSTA) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    sensorarrayTransportSetWifiMode(mode);
-    if (mode == SENSORARRAY_TRANSPORT_WIFI_OFF) {
-        return ESP_OK;
-    }
-    if (mode == SENSORARRAY_TRANSPORT_WIFI_AP) {
-        return sensorarrayTransportStartWifiAp();
-    }
-    return ESP_ERR_NOT_SUPPORTED;
+    return sensorarrayTransportRequestWifiMode(mode, NULL);
 }
 
 esp_err_t sensorarrayTransportPublishData(const char *data, size_t length)
 {
     return sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_DATA, data, length, NULL);
+}
+
+esp_err_t sensorarrayTransportPublishFrame(const char *data, size_t length,
+    const sensorarrayTransportFrameIdentity_t *identity, uint32_t protectionFlags)
+{
+    if (!identity || identity->sessionId == 0u || identity->rows < 1u || identity->rows > 8u ||
+        (protectionFlags & ~SENSORARRAY_FRAME_PROTECT_MASK) != 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayTransportQueueFrameInternal(SENSORARRAY_TRANSPORT_CHANNEL_DATA,
+        data, length, NULL, identity, protectionFlags, NULL);
+}
+
+esp_err_t sensorarrayTransportPublishFrameMetadata(const char *data, size_t length,
+    const sensorarrayTransportFrameMetadata_t *metadata, uint32_t protectionFlags)
+{
+    if (!sensorarrayTransportFrameMetadataValid(metadata, data, length) ||
+        (protectionFlags & ~SENSORARRAY_FRAME_PROTECT_MASK) != 0u) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return sensorarrayTransportQueueFrameInternal(SENSORARRAY_TRANSPORT_CHANNEL_DATA,
+        data, length, NULL, &metadata->identity, protectionFlags, metadata);
 }
 
 esp_err_t sensorarrayTransportPublishLog(const char *data, size_t length)
@@ -959,14 +1405,12 @@ esp_err_t sensorarrayTransportPublishControlReply(
         return err;
     }
     if (target->kind == SENSORARRAY_TRANSPORT_REPLY_WIFI) {
-        err = sensorarrayWifiSendControlReply(&target->wifiPeer,
-                                              (const uint8_t *)data, length);
-        portENTER_CRITICAL(&g_sensorarrayTransportStatsMux);
-        if (err == ESP_OK) {
-            g_sensorarrayTransportStats.wifiCtrlTx++;
-        }
-        portEXIT_CRITICAL(&g_sensorarrayTransportStatsMux);
-        return err;
+        uint32_t wifiEpoch = 0u;
+        if (!sensorarrayWifiGetSendEpoch(true, &wifiEpoch)) { return ESP_ERR_INVALID_STATE; }
+        sensorarrayWifiPublication_t publication = {.channel = SENSORARRAY_WIFI_CH_CTRL,
+            .unicast = true, .peer = target->wifiPeer, .data = (const uint8_t *)data,
+            .length = length, .expectedEpoch = wifiEpoch};
+        return sensorarrayWifiSubmit(&publication);
     }
     return sensorarraySerialIoQueue(data, length, true);
 }

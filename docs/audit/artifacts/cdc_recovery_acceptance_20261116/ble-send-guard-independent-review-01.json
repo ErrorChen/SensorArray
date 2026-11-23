@@ -1,0 +1,31 @@
+{
+  "status": "REVIEWED_NO_BLOCKING_P0_P1_IDENTIFIED",
+  "scope": "New local BLE SDK send observer/quarantine only; not a whole-project absence-of-defects proof",
+  "reviewer": "independent read-only ble_review agent",
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "2889a6f29bd51dfaa88228c986c519ad7675680873d56a4230dcea434a1dcbfd",
+    "components/sensorarrayBle/sensorarrayBleWatchdog.c": "986e543d36a9656a1e15b4214b3fe4962b60f39243c7eef63479c58886442202",
+    "components/sensorarrayBle/sensorarrayBleWatchdog.h": "3311912eeb5bba207e8289c2f090bd06e874490c95b482cc2b5dd1f6e572c694",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "3d3fec5e51900711492e1e30b9b98c5c2cff91f83a846eacfea873e48fc7d799",
+    "main/control/sensorarrayLinkDiagnostics.c": "2d526b3ebe93a08c1a013e3e6ac7e6d577a05570211645380fcc359240591ef3"
+  },
+  "findings": [
+    "Timer callback only samples monotonic time and latches under existing BLE lock.",
+    "Late SDK return is checked before active clears; actual SDK outcome retained separately from local deadline.",
+    "Active slot survives until actual owner return; reconnect cannot clear quarantine.",
+    "Init claim/result survives resettable BLE state and prevents partial-startup object reuse."
+  ],
+  "executed_tests_reviewed": [
+    "Independent ucontext SDK owner remains suspended while external observer latches deadline",
+    "499999/500000us boundary and callId wrap",
+    "Late ESP_OK and ESP_FAIL",
+    "CONF wait and idle do not trigger active-call timeout",
+    "Reconnect latch and initialization failures"
+  ],
+  "limits": [
+    "Quarantine is not SDK cancellation or a hard-real-time scheduling guarantee.",
+    "Recovery uses explicit existing USB RESTART; no automatic reboot loop added.",
+    "BLEGUARD rejected counts actual local BLE admission/send rejection paths, not all missing frames; TransportQueue no-enabled-network-sink path can returnESP_OK without queueing. Hostreceipt and layercounts remain distinct."
+  ],
+  "hardware_actions": []
+}

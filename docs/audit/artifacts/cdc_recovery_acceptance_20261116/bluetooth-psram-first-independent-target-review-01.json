@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "utc": "2026-11-21T01:47:33.699965+00:00",
+  "reviewer": "ble_review",
+  "verdict": "PASS_FOCUSED_CONFIGURATION_TARGET_GATE",
+  "scope": "Official Bluedroid host PSRAM-first allocator option; actual ELF branch/caps and unchanged kernel/controller/static allocation boundaries. No production/source/config edits or build/hardware actions by reviewer.",
+  "baselineElf": "3d7cd5ce5d8c64e07504ed85a569c5080543484740c021ac9d98931e53552c36",
+  "newElf": "2f74130825f1b4c173cee27bf569bc4385bbdd26a7049adee3efe6e8b77c39e9",
+  "newBin": "cf8c72569e30569bce2d6f224b96391c4e7078439cb90a25ae8218c491967838",
+  "filesBeforeAfterStable": true,
+  "configOnlySingleFlag": {
+    "sdkconfig": {
+      "currentSha256": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+      "matchesFreeze": true,
+      "oneFlagInverseEqualsBefore": true
+    },
+    "sdkconfig.defaults": {
+      "currentSha256": "ace8bf23cfea213bb3d553da25ea100b6150adf7737ab5d050f71407af3e48b0",
+      "matchesFreeze": true,
+      "oneFlagInverseEqualsBefore": true
+    }
+  },
+  "sourceReportConfigTiming": "Source assessment began with option unset. Worker changed config before source-report serialization; source report currentConfig therefore represents the frozen candidate, while wifi-control-04 is explicitly old ELF3d7. This target gate is for new ELF2f7413.",
+  "compiledProof": [
+    {
+      "symbol": "osi_malloc_func",
+      "address": "0x42071b10",
+      "old": "malloc (old0x4038e5cc)",
+      "new": "heap_caps_malloc_prefer (0x403761f4)",
+      "arguments": "size, 2, 0x1400(DEFAULT|SPIRAM), 0x1800(DEFAULT|INTERNAL)",
+      "callsite": "0x42071b25"
+    },
+    {
+      "symbol": "osi_calloc_func",
+      "address": "0x42071b88",
+      "old": "calloc (old0x4038e5f8)",
+      "new": "heap_caps_calloc_prefer (0x403762a8)",
+      "arguments": "1, size, 2, 0x1400(DEFAULT|SPIRAM), 0x1800(DEFAULT|INTERNAL)",
+      "callsite": "0x42071b9d"
+    },
+    {
+      "symbol": "malloc_internal_wrapper",
+      "address": "0x4205aab4",
+      "allocation": "heap_caps_malloc(size, 0x808=INTERNAL|DMA)",
+      "result": "Controller internal allocation unchanged"
+    },
+    {
+      "symbol": "pvPortMalloc",
+      "address": "0x40386228",
+      "allocation": "heap_caps_malloc(size, 0x804=INTERNAL|8BIT)",
+      "result": "FreeRTOS dynamic allocation unchanged"
+    },
+    {
+      "symbol": "xTaskCreatePinnedToCore",
+      "stackAllocationCall": "0x40388f46 -> pvPortMalloc",
+      "TCBAllocationCall": "0x40388f58 -> pvPortMalloc",
+      "evidenceNote": "TCB instruction decoded from actual branch target0x40388f52, correcting full-function linear-sweep padding desynchronization; raw full dump and corrected range both retained."
+    },
+    {
+      "symbol": "xQueueGenericCreate",
+      "allocationCall": "0x40385395 -> pvPortMalloc"
+    }
+  ],
+  "staticControlBlocks": {
+    "allAddressesAndSizesExactlyEqualToBaseline": true,
+    "gatt_cbBytes": 1576,
+    "btm_cbBytes": 1464,
+    "l2cbBytes": 952,
+    "alarm_cbsBytes": 1200
+  },
+  "configBoundaries": {
+    "BT_BLE_DYNAMIC_ENV_MEMORY": false,
+    "SPIRAM_USE_MALLOC": false,
+    "SPIRAM_TRY_ALLOCATE_WIFI_LWIP": false,
+    "PSRAMMode": "existing octal80MHz CAPS_ALLOC",
+    "kernelStackPlacement": "internal; sizes unchanged"
+  },
+  "rootBuildEvidence": {
+    "hostEntries": 80,
+    "allExitZero": true,
+    "productionInputs": 203,
+    "buildTestInputsIdentical": true,
+    "note": "Existing actual root build/host manifests consumed; reviewer did not rerun them."
+  },
+  "artifacts": {
+    "bt-host-psram-independent-target-01/new-target-manifest.json": "1029f01788d5d184b8481e4588c7fe045c13df69077ba4053cfec859ba226b12",
+    "bt-host-psram-independent-target-01/new-task-tcb-range-command.json": "0be7bf8bffc20cfdb9422d29ba480c829a42b4364663d7bfe89c91caaa1d8933",
+    "bt-host-psram-independent-target-01/baseline-malloc_ble_controller_mem.txt": "b0453d7c0c7382626db685b065c3de6706bbd490cdb5376098bcf21a55879b11",
+    "bt-host-psram-independent-target-01/new-static-bt-symbols.txt": "8cfb0ec611e95acf1ce0623c19e0dca2e7516936f9aba59bb1f99fa1135055b1",
+    "bt-host-psram-independent-target-01/supplement-manifest.json": "f354ac8bcbd23bed95db436cbb480a5e39eccbbe09e546ef1f5b47317fd7b9a3",
+    "bt-host-psram-independent-target-01/baseline-manifest.json": "23ea86fd5eacc1db279a13f2cddf2da49a5a55f2df90f86e6fdc4b1def10b369",
+    "bt-host-psram-independent-target-01/new-osi_malloc_func.txt": "38986e93364e64f3341548003b54987dd91638ae8abf6dcbde7aacf06e60e8be",
+    "bt-host-psram-independent-target-01/new-heap_caps_malloc_prefer.txt": "5400c2745c53e97568293b40c2bdd3f37467c3c6445d03dd4a38eeccf28f3781",
+    "bt-host-psram-independent-target-01/baseline-osi_calloc_func.txt": "a20a6728824fc46166525f245950bff29e61b834d459c7daa4e713c1316f2ca8",
+    "bt-host-psram-independent-target-01/new-task-tcb-range.txt": "a7fcdaca0b33964fff4b3c38c2b25ede5b878f429a40988aea71116b3c0dc91c",
+    "bt-host-psram-independent-target-01/new-xTaskCreatePinnedToCore.txt": "166f8f460ea3a32ca70f9a5ecd08a4faa013751fcf8829ef7c825e55dd291aac",
+    "bt-host-psram-independent-target-01/new-heap_caps_calloc_prefer.txt": "706b57d301e11497e73187ab244ed2082bb2079dd57e589b6fda3afe3cdad3cd",
+    "bt-host-psram-independent-target-01/new-xQueueGenericCreate.txt": "ae8fbcadb5c5611cc95d1854cbdcf1124d5e74eff9d3dd112bb6c43c4317a182",
+    "bt-host-psram-independent-target-01/baseline-pvPortMalloc.txt": "359355d563109c26f19396bc62c96057056054ed6d89b178ecb8872c0f2d4d5b",
+    "bt-host-psram-independent-target-01/baseline-malloc_internal_wrapper.txt": "e0adfe2e061a87ab8a952c0157e3e63a043510c5cb84ace0c2ee028eb94f02a7",
+    "bt-host-psram-independent-target-01/new-malloc_internal_wrapper.txt": "0d1bdbd0381d46ed5b92c92336dee111cc2ad6088d15a40992d678d89c5edf78",
+    "bt-host-psram-independent-target-01/baseline-osi_malloc_func.txt": "fca30f2834f046bf203d56d0f15eb9555366d58a0d4d6c65e56984ce219e0de7",
+    "bt-host-psram-independent-target-01/new-osi_calloc_func.txt": "c1bee2f5c31711749684b048f33a3936f3e7403c0b0c8df2f13ad8242efeeca7",
+    "bt-host-psram-independent-target-01/baseline-static-bt-symbols.txt": "8cfb0ec611e95acf1ce0623c19e0dca2e7516936f9aba59bb1f99fa1135055b1",
+    "bt-host-psram-independent-target-01/new-pvPortMalloc.txt": "dfda2941892b6b3530feba4a46f6db5536f64e02a59f7019ae5d764b4ea877c7"
+  },
+  "references": {
+    "bluetooth-psram-first-source-review-01.json": "d222de982fbb2bbd9b11eb4dbcabe6f2fc8b3cb125be378c687c85ca71bfcc91",
+    "bt-host-psram-config-01/config-change.json": "273b74f6bf5c44850b3f9b8a450e9c3f3a488f7c5242412a8429b4dba2ac8204",
+    "bt-host-psram-config-01/validation.json": "9bbf43f092207f58fa605be1b2576f65133dc93456302ec8c7c3d64c7542670e",
+    "bt-host-memory-01-validated-identity.json": "cb9d40c7432ab6096b9013fa259ad1d2aba96a0b3bdf5c90d3fa1d0fb8d4a442",
+    "bt-host-memory-01-build-manifest.json": "7425be6092647e461395a4cfbaa595448b863042dcd4c078cd5423f81338b278",
+    "bt-host-memory-01-tests-manifest.json": "7aaab2ddf684530049cc46e0bc972a8d9cb8ce2879b8b8334b05450c2c1e5eb3"
+  },
+  "residuals": [
+    "Allocator preference falls back internally; it does not guarantee every dynamic host allocation is external.",
+    "Host PSRAM traffic/cache misses may change BLE latency/CPU; no throughput or2.5%normal-gap pass inferred.",
+    "Vendor Wi-Fi startup can still exceed available internal memory; required success must be observed with the same BLE subscriptions and MEM/GUARD/owner stack state.",
+    "No new-image HIL or RF tests performed by reviewer. Build/branch correctness is not full stability acceptance."
+  ]
+}

@@ -1,0 +1,12 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-20/screen-20-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 134733790162122, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.693368587002624, "notifications": {"D": 474}, "payload_bytes": {"D": 223986}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.76383552898187, "notifications": {"D": 2510, "L": 4}, "payload_bytes": {"D": 905234, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.83184033600264, "notifications": {"D": 4997, "L": 4}, "payload_bytes": {"D": 1723815, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 80.89923323498806, "notifications": {"D": 7503, "L": 4}, "payload_bytes": {"D": 2549126, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 100.96810496700346, "notifications": {"D": 10001, "L": 4}, "payload_bytes": {"D": 3371938, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.03591190700536, "notifications": {"D": 12494, "L": 4}, "payload_bytes": {"D": 4193136, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.09733308799332, "notifications": {"D": 14994, "L": 4}, "payload_bytes": {"D": 5016303, "L": 484}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.17120205200627, "notifications": {"D": 16468, "L": 6}, "payload_bytes": {"D": 5535541, "L": 750}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 16690, "L": 6}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-20/screen-20-ble.ble.notifications.jsonl", "journal_sha256": "e361419442d15b2344c54093049c1bf3d1baf0c0e257e9ed2f7243083b4b5e9d"}

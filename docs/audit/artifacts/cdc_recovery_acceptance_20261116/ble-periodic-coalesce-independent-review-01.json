@@ -1,0 +1,116 @@
+{
+  "kind": "independent_scoped_source_review_and_actual_host_execution",
+  "created_utc": "2026-11-20T19:26:58.792743+00:00",
+  "status": "PASS_SCOPED_BLE_PERIODIC_COALESCING_INCREMENT",
+  "reviewer": "/root/ble_review",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "tracked_dirty_diff_sha256": "742968d5f02ee81a6a11891b36fcbd8369f394a96e04a39c0c2e51d17f33b24f",
+  "scope": "BLE-only all-full completion anchor; no Transport reorder/prefix state machine or source cadence rewrite",
+  "production_baseline_sha256": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+  "sources": {
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "319c27138bfa9fe314dd6b3498d753389c729910392ee474e6bd0fa2b14c5a30",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "core/transport/sensorarrayTransport.c": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+    "tests/host/test_ble_priority.c": "3c8863d3b2a110a8903e0134e3acb109eedc3389aeb2cde55788f5a8f5c1d5a8",
+    "tools/test_ble_priority.py": "da52829a5e736f5024344c388b884c60369bb49ddd2c6ef552bab24db36327db",
+    "tests/host/test_ble_pipeline.c": "9bb2c13d0f6945e186085cd3427aa892a83f39cb1a3fb836ecf84d70cd767931",
+    "tools/test_ble_pipeline.py": "4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc"
+  },
+  "inputs": {
+    "ble-periodic-coalesce-before-01.json": "c476ec5538a2d3ad21f8bc64f4348cda9a314ecd4cc3ef1a19b383768966d178",
+    "ble-periodic-coalesce-before-01.txt": "be439897f41845ad58a6cf4ed0ac2d0eea1378c7e2fb531caf9dea0b7039cba8",
+    "ble-periodic-coalesce-independent-priority-01.json": "42a994180ba4e47411b7b38ae87db1f6701e09a76bd26e5509c000732d1c2e9b",
+    "ble-periodic-coalesce-independent-priority-01.txt": "68ecd05a77840e3c6471d424a07e3027721a54e8bebbe181f8f366fa57181215",
+    "ble-periodic-coalesce-independent-pipeline-01.json": "acb7d6832d66e3f13ba97666fb790e7711b7b53a1732b34316e1c471dfa4e7fa",
+    "ble-periodic-coalesce-independent-pipeline-01.txt": "940ff00889e6fedddf732a37c5ba3074887cb60da978638d72e6405195badaea"
+  },
+  "source_findings": [
+    {
+      "symbols": [
+        "sensorarrayBleFrameFullCompletedLocked",
+        "sensorarrayBleSendDescriptor"
+      ],
+      "result": "PASS",
+      "evidence": "Called only after successful typed completeBundle local send in current connection/stream. Helper additionally requires same session/boot/config revision, a strictly advancing serial sequence, and a nonregressing completion timestamp. It compares to last successful full sequence rather than latest offered sequence, preserving progress under queued load."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleFramePeriodicLocked",
+        "sensorarrayBleNotifyFrameForGeneration"
+      ],
+      "result": "PASS",
+      "evidence": "Upstream PERIODIC is a source/network reservation hint, not an independent BLE timer. Successful advancing ordinary FULL and protected full completion set due=completion+1000000us with saturation. Preview/raw/failure cannot advance that anchor. A real unflagged typed frame at/after due still opens local periodic protection."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleFrameFlowSyncLocked",
+        "sensorarrayBleNotifyFrameForGeneration"
+      ],
+      "result": "PASS",
+      "evidence": "Effective stream changes and new immutable config identity reset fullCompleteKnown and periodic state, and retain independent FIRST. Prior stream or old config success cannot satisfy a new FIRST or advance its full anchor."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleFrameFullCompletedLocked",
+        "sensorarrayBleReceiveProtected"
+      ],
+      "result": "PASS",
+      "evidence": "Coalescing clears only periodic obligation state. It does not free, overwrite, cancel, or reuse WRITING/PENDING/OWNED payloads. An already accepted protected descriptor may still transmit once and remains governed by existing slot generations and actual SDK completion."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleGetFlowSnapshot",
+        "sensorarrayBleFrameFlow_t"
+      ],
+      "result": "PASS",
+      "evidence": "New all-full evidence is private and distinct from existing protected-only BLESNAP counters/time/gap. Public query bytes and previous fields are not silently reinterpreted."
+    },
+    {
+      "symbols": [
+        "sensorarrayTransportProcessDescriptor"
+      ],
+      "result": "UNCHANGED_BOUNDARY",
+      "evidence": "Transport retains its existing protected-candidate admission fence. ESP_OK from typed BLE publication may now represent ordinary BLE admission; the NET fence remains intentionally based on source/network protected candidate acceptance, preventing older queued normal frames from being relabeled or emitted after that fence. Counted NET loss is not promised to vanish."
+    }
+  ],
+  "actual_tests": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exit_code": 0,
+      "record": "ble-periodic-coalesce-independent-priority-01.json",
+      "coverage": "18 harness groups under ASan/UBSan; 8 phased/lost-candidate FULL/SHORT scenarios, 7 anchor boundary groups, old-config owned completion, resubscribe/first, sequence wrap and ambiguity, clock regression/saturation, failed/raw/preview exclusions, pending owner retained; 39 actual C notification receiver roundtrips including 2 unchanged encoder CRC bundles."
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "exit_code": 0,
+      "record": "ble-periodic-coalesce-independent-pipeline-01.json",
+      "coverage": "22 actual-source pipeline scenarios, including finite backpressure and independently observed SDK owner quarantine. Generic pipeline bridge does not independently emulate the typed all-full anchor; the priority harness covers that changed path."
+    }
+  ],
+  "deterministic_counterexample": {
+    "fixture_kind": "synthetic RTOS/SDK timing with actual production admission/ownership/send code; not RF or HIL",
+    "baseline_result": "Actual old-source FAIL retained: phased 20FPS/10s FULL 200 offered -> 20 protected, 19 stale, 181 whole local completion; SHORT 20 protected,19 stale,20 whole.",
+    "fixed_result": "At upstream phases 0.1/0.5/0.9s and no upstream candidate: FULL 200 offered -> 1 first protected,0 stale,200 whole local completion; SHORT -> 10 protected full,9 stale,10 whole local completion.",
+    "complete_does_not_mean": "PC receipt, air transmission completion, valid analog samples, RF reliability or a guaranteed one-second PC interarrival limit"
+  },
+  "p0_p1_in_changed_increment_found": [],
+  "limitations": [
+    "Normal BLE 2.5% PC complete-frame gap acceptance still requires new closed HIL; existing screen18 FAIL is not overwritten or retroactively passed.",
+    "Protected BLESNAP age can grow during healthy ordinary FULL streaming because that age remains protected-only. Do not infer missing PC snapshots from that age alone.",
+    "One-second target is evaluated when a real typed frame arrives. Idle/paused acquisition fabricates no frame. Queueing, capacity failures, or a quarantined SDK can prevent local completion; there is no absolute one-second delivery guarantee.",
+    "SHORT intentionally keeps preview ordinary traffic and periodic complete original bundles; priority overtaking may still create bounded counted ordinary gaps.",
+    "Transport source/network protection candidates may still overtake older ordinary frames. Existing per-layer stale/drop accounting and immutable identity remain in force.",
+    "No whole-repository P0/P1-free, all-SDK-waits-bounded, hardware calibration, or weak-RF claim is made."
+  ],
+  "hardware_actions": [],
+  "build_actions": [],
+  "production_edits_by_reviewer": [],
+  "original_artifacts_modified": false
+}

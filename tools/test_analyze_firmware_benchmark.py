@@ -10,7 +10,8 @@ import tempfile
 import unittest
 import zlib
 
-from analyze_firmware_benchmark import analyse_directory, analyse_capture, compact_row, write_report, PERF_FIELDS
+from analyze_firmware_benchmark import analyse_directory, analyse_capture, compact_row, write_report, PERF_FIELDS, Group
+from text_protocol import TextProtocolParser, parse_fields
 from plot_firmware_benchmark import extract_rates
 from test_reference_fixture import capacitance, resistance, finish, mixed, identity
 
@@ -127,6 +128,89 @@ class BenchmarkAnalysisTests(unittest.TestCase):
         self.assertEqual(result["capture_counts"]["ascii_crc_errors"], 1)
         self.assertEqual(result["capture_counts"]["identity_errors"], 1)
         self.assertEqual(result["capture_counts"]["observed_points"], 8)
+
+    def test_host_complete_intervals_keep_invalid_points_and_reject_corrupt_frames(self):
+        bad_crc = resistance(rows=1, seq=3, timestamp=3000000)
+        bad_crc[-1] = re.sub(r"crc=[0-9A-F]+", "crc=00000000", bad_crc[-1])
+        bad_id = resistance(rows=1, seq=4, timestamp=4000000)
+        bad_id[-1] = bad_id[-1].replace("rev=1", "rev=2")
+        bad_units = resistance(rows=1, seq=5, timestamp=5000000)
+        bad_units[0] = bad_units[0].replace("unit=ohm", "unit=V")
+        bad_units = finish(bad_units[:-1], 5)
+        result = self.capture([(1.2, resistance(rows=1, seq=1, timestamp=1000000)),
+                               (1.5, resistance(rows=1, seq=2, timestamp=2000000, overrides={0: "X02"})),
+                               (1.7, bad_crc), (1.8, bad_id), (1.9, bad_units),
+                               (2.3, resistance(rows=1, seq=6, timestamp=6000000))])
+        group = result["configuration_groups"][0]
+        intervals = group["host_complete_frame_intervals"]
+        self.assertTrue(intervals["known"])
+        self.assertEqual(intervals["sample_pairs"], 2)
+        self.assertEqual(intervals["ordered_complete_frames"], 3)
+        self.assertAlmostEqual(intervals["max_seconds"], .8)
+        self.assertEqual(intervals["first_complete_host_seconds"], 1.2)
+        self.assertEqual(intervals["last_complete_host_seconds"], 2.3)
+        # Bad units are rejected by the existing parser before Group; CRC and
+        # trailer-identity failures reach Group's existing rejection path.
+        self.assertEqual(group["counts"]["rejected_untrusted_frames"], 2)
+        self.assertEqual(group["counts"]["complete_frames"], 5)
+        self.assertEqual(group["counts"]["frames_with_invalid_points"], 3)
+        self.assertEqual(group["invalid_reasons"]["X02"], 1)
+        self.assertAlmostEqual(group["rates"]["host_complete_receive_fps"], 2 / 1.1)
+
+    def test_host_complete_intervals_unknown_time_and_duplicate_gates(self):
+        def group_from(samples):
+            group = None
+            for seq, timestamp, host in samples:
+                lines = resistance(rows=1, seq=seq, timestamp=timestamp)
+                parser = TextProtocolParser()
+                frame = None
+                for line in lines:
+                    parsed = parser.feed_line(line)
+                    if parsed is not None: frame = parsed
+                self.assertIsNotNone(frame)
+                header = {"tag": "R", **parse_fields(lines[0])}
+                if group is None: group = Group(header, frame)
+                group.add(frame, header, parse_fields(lines[-1]), {}, host, 0, 0)
+            return group.output()
+        for hosts, unavailable, regressed, pairs in [
+                ([1., None, 3.], 1, 0, 0), ([1., 2., None, 4., 5.], 1, 0, 2),
+                ([2., 1., 3.], 0, 1, 1), ([1., float('nan'), 3.], 1, 0, 0),
+                ([1., float('inf'), 3.], 1, 0, 0)]:
+            with self.subTest(hosts=hosts):
+                result = group_from([(i+1, (i+1)*1000000, host) for i, host in enumerate(hosts)])
+                intervals = result["host_complete_frame_intervals"]
+                self.assertFalse(intervals["known"]); self.assertIsNone(intervals["max_seconds"])
+                self.assertIsNone(intervals["first_complete_host_seconds"])
+                self.assertIsNone(intervals["last_complete_host_seconds"])
+                self.assertEqual(intervals["sample_pairs"], pairs)
+                self.assertEqual(intervals["unavailable_timestamps"], unavailable)
+                self.assertEqual(intervals["timestamp_regressions"], regressed)
+        # A duplicate/old frame cannot add a sample or poison the timing of
+        # the next accepted frame, even if its supplied host time is missing.
+        result = group_from([(1, 1000000, 1.), (1, 1000000, 99.), (0, 0, None), (2, 2000000, 2.)])
+        intervals = result["host_complete_frame_intervals"]
+        self.assertTrue(intervals["known"]); self.assertEqual(intervals["sample_pairs"], 1)
+        self.assertEqual(intervals["max_seconds"], 1.); self.assertEqual(result["counts"]["duplicate_or_old_frames"], 2)
+        result = group_from([(1, 1000000, 1.), (2, 2000000, 1.)])
+        self.assertTrue(result["host_complete_frame_intervals"]["known"])
+        self.assertEqual(result["host_complete_frame_intervals"]["max_seconds"], 0.)
+
+    def test_host_complete_intervals_never_cross_identity_boot_or_device_time_order(self):
+        result = self.capture([(1.2, resistance(rows=1, seq=10, timestamp=1000000)),
+                               (1.5, resistance(rows=1, seq=11, timestamp=2000000, rev=2)),
+                               (2.2, resistance(rows=1, seq=1, timestamp=1000000, session="BBBBBBBBBBBBBBBB"))])
+        self.assertEqual(len(result["configuration_groups"]), 3)
+        for group in result["configuration_groups"]:
+            intervals = group["host_complete_frame_intervals"]
+            self.assertFalse(intervals["known"]); self.assertIsNone(intervals["max_seconds"])
+            self.assertEqual(intervals["sample_pairs"], 0)
+        wrapped = self.capture([(1.2, resistance(rows=1, seq=0xFFFFFFFF, timestamp=1000000)),
+                                (1.4, resistance(rows=1, seq=0, timestamp=1)),
+                                (2.2, resistance(rows=1, seq=1, timestamp=2000000))], label="res1-wrap")
+        group = wrapped["configuration_groups"][0]
+        self.assertEqual(group["counts"]["timestamp_regressions"], 1)
+        self.assertEqual(group["host_complete_frame_intervals"]["sample_pairs"], 1)
+        self.assertAlmostEqual(group["host_complete_frame_intervals"]["max_seconds"], 1.)
 
     def test_same_boot_revision_changes_are_separate_but_counter_delta_allowed(self):
         result = self.capture([(0.8, [synthetic_perf(pub=20, usbSent=19)]),
@@ -384,6 +468,25 @@ class BenchmarkAnalysisTests(unittest.TestCase):
         self.assertEqual(ble["USB_comparison"]["same_wire_bytes_sha256"], 2)
         self.assertEqual(ble["comparative_host_fps"], 1.0)
 
+    def test_ble_complete_interval_uses_completing_notification_not_local_or_first_fragment(self):
+        first = capacitance(rows=8, seq=1, timestamp=1000000)
+        second = capacitance(rows=8, seq=101, timestamp=2000000)
+        self.capture([(1.2, first), (2.5, second)], label="cap8-snapshots", mode="CAP", rows=8,
+                     extra={"capture_monotonic_start": 101., "capture_monotonic_end": 103.})
+        a, b, duplicate = self.fragments(first), self.fragments(second, mid=2), self.fragments(first, mid=3)
+        self.ble_journal([(101.1, a[0]), (101.2, a[1]), (102.1, b[0]), (102.5, b[1]),
+                          (102.8, duplicate[0]), (102.9, duplicate[1])])
+        ble = analyse_directory(self.root)["captures"][0]["ble"]
+        intervals = ble["configuration_groups"][0]["host_complete_frame_intervals"]
+        self.assertTrue(intervals["known"]); self.assertEqual(intervals["sample_pairs"], 1)
+        self.assertEqual(intervals["ordered_complete_frames"], 2)
+        self.assertAlmostEqual(intervals["max_seconds"], 1.3)
+        self.assertEqual(ble["capture_frame_counts"]["duplicate_or_old_frames"], 1)
+        self.assertEqual(ble["capture_frame_counts"]["missing_frames"], 99)
+        # A gap between full frames is not reclassified as radio loss or
+        # subtracted from sequence gaps by this timing observation.
+        self.assertEqual(ble["USB_comparison"]["same_wire_bytes_sha256"], 2)
+
     def test_ble_outer_crc_and_inner_ascii_crc_remain_distinct(self):
         first, second = self.serial_with_absolute_window()
         first[-1] = re.sub(r"crc=[0-9A-F]+", "crc=00000000", first[-1])
@@ -401,6 +504,51 @@ class BenchmarkAnalysisTests(unittest.TestCase):
         ble = analyse_directory(self.root)["captures"][0]["ble"]
         self.assertEqual(ble["counts"]["boundary_straddling_frames_excluded"], 1)
         self.assertEqual(ble["capture_frame_counts"]["complete_frames"], 1)
+
+    def test_ble_window_crc_attribution_retains_edge_and_interior_errors(self):
+        first, second = self.serial_with_absolute_window()
+        edge = self.fragments(first, mid=10, bad_outer_crc=True)
+        inside = self.fragments(second, mid=11, bad_outer_crc=True)
+        tail = self.fragments(second, mid=12, bad_outer_crc=True)
+        self.ble_journal([(100.9, edge[0]), (101.2, edge[1]),
+                          (102.1, inside[0]), (102.2, inside[1]),
+                          (102.9, tail[0]), (103.2, tail[1])])
+        report = analyse_directory(self.root)
+        ble = report["captures"][0]["ble"]
+        self.assertEqual(ble["fragments_by_channel"]["D"]["crc_fail"], 2)
+        self.assertEqual(ble["fragment_integrity"]["fully_contained_by_channel"]["D"]["crc_fail"], 1)
+        self.assertEqual(ble["fragment_integrity"]["edge_or_unknown_by_channel"]["D"]["crc_fail"], 2)
+        self.assertEqual(report["ble_journal"]["all_fragment_counters_by_channel"]["D"]["crc_fail"], 3)
+        self.assertFalse(ble["capture_frame_counts"].get("missing_frames"))
+
+    def test_ble_malformed_envelope_has_unknown_attribution_not_an_invented_frame(self):
+        self.serial_with_absolute_window()
+        self.ble_journal([(101.2, b"G,invalid\nraw")])
+        ble = analyse_directory(self.root)["captures"][0]["ble"]
+        self.assertEqual(ble["fragment_integrity"]["edge_or_unknown_by_channel"]["D"]["dropped"], 1)
+        self.assertFalse(ble["fragment_integrity"]["fully_contained_by_channel"].get("D"))
+        self.assertFalse(ble["capture_frame_counts"].get("missing_frames"))
+
+    def test_in_window_nonascii_data_is_retained_as_integrity_diagnostic(self):
+        self.serial_with_absolute_window()
+        self.ble_journal([(101.2, b'D0,1,\xff\n')])
+        ble = analyse_directory(self.root)["captures"][0]["ble"]
+        self.assertEqual(ble["counts"]["non_ascii_data_lines"], 1)
+        self.assertEqual(ble["fully_contained_data_diagnostics"]["non_ascii_data_lines"], 1)
+
+    def test_ble_fault_reset_outside_capture_retained_for_closed_journal_gate(self):
+        first, second = self.serial_with_absolute_window()
+        a, b = self.fragments(first), self.fragments(second, mid=2)
+        extras = []
+        for ns, ch, payload in [(100_800_000_000, "L", b"MFAULT,err=0x108\n"),
+                                (103_200_000_000, "C", b"RST,bootId=2\n")]:
+            extras.append({"schema_version": 1, "type": "notification", "monotonic_ns": ns,
+                           "channel": ch, "length": len(payload),
+                           "payload_base64": base64.b64encode(payload).decode()})
+        self.ble_journal([(101.1, a[0]), (101.2, a[1]), (102.1, b[0]), (102.2, b[1])], extra=extras)
+        report = analyse_directory(self.root)
+        self.assertEqual(report["ble_journal"]["whole_journal_critical_records"], {"fault_L": 1, "reset_C": 1})
+        self.assertEqual(report["captures"][0]["ble"]["capture_frame_counts"]["trusted_complete_frames"], 2)
 
     def test_ble_valid_but_different_scientific_data_is_detected(self):
         first, _ = self.serial_with_absolute_window()

@@ -1,0 +1,1 @@
+{"status": "OBSERVED", "error": null, "rx_bytes": 0, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-02-boot-failure-debug.debug.rx.bin"}

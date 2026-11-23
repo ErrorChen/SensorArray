@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+    "-d",
+    "--disassemble=esp_restart_noos",
+    "build/SensorArray.elf"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 20.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "eee949651ff169401b105a7efb9de723b74bc8132be0ddc7e3950eeb0ca23130",
+  "started_utc": "2026-11-21T00:13:17.059938+00:00",
+  "started_monotonic": 150762.940464577,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-01-sdk-reset-disassembly-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:13:17.068120+00:00",
+  "finished_monotonic": 150762.948643084,
+  "log_sha256": "e00ce6b860f77e69bb288653b47c685a18e45dd324dec3b4d0894e5646f43c81"
+}

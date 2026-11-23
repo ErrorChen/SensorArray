@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_frontend_wait_integration.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "adb99a2573a33aa8cbd56970c4897869a3710e05898b076fb2537902cb974374",
+  "started_utc": "2026-11-20T19:09:07.369200+00:00",
+  "started_monotonic": 132521.537441739,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-03-frontend-wait-regression-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:09:07.583523+00:00",
+  "finished_monotonic": 132521.751770749,
+  "log_sha256": "db7bf349608c5b812f5f99de54f9e97996f186331e97ffccc6e38ffe1502e513"
+}

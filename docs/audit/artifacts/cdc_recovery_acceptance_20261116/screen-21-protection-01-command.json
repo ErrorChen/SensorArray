@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py",
+    "--summary",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/screen-21-volt1.summary.json",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/screen-21-protection-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "50efff7756c1bece691d00ee6df4767678c415d32b510406e823f15186296e06",
+  "started_utc": "2026-11-20T23:28:15.807391+00:00",
+  "started_monotonic": 148063.482039898,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21-protection-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T23:28:16.021809+00:00",
+  "finished_monotonic": 148063.696458039,
+  "log_sha256": "a17cf4dfa1ef01cd62dbe9a6e8f40f8d3f207c06689a3ec8ff4ffe9132bb95ff"
+}

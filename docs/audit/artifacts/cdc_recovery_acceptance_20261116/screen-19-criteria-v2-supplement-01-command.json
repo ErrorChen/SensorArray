@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-criteria-v2-supplement-01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "8e90bbe514e869d4d760ddd16ecb1e02a817ffb5e75467c7ed775d14ce0581fe",
+  "started_utc": "2026-11-20T19:36:57.401329+00:00",
+  "started_monotonic": 134191.569576094,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19-criteria-v2-supplement-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:36:57.433512+00:00",
+  "finished_monotonic": 134191.601752297,
+  "log_sha256": "c792c909b0d003df1ec38c6f0d2f770ec2aa0c9dacef9b9be6e9a1d82fd43f6c"
+}

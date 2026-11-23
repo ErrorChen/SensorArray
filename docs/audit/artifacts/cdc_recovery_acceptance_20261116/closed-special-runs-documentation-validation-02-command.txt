@@ -1,0 +1,1 @@
+{"status": "PASS_SCOPED_DOCUMENTATION_AND_ARCHIVE_VALIDATION", "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/closed-special-runs-documentation-validation-02.json", "documents": 5, "local_targets": 970, "originals_revalidated": 26, "diff_check_exit_code": 0}

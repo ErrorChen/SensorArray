@@ -1,0 +1,119 @@
+{
+  "created_utc": "2026-11-20T23:25:16.480562+00:00",
+  "status": "READ_ONLY_IMPLEMENTATION_PROPOSAL_NOT_IMPLEMENTED",
+  "author": "/root/ble_pack_impl",
+  "HEAD": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "source_sha256": {
+    "components/sensorarrayWifi/sensorarrayWifi.c": "fbf9e8417e9fa4def8f1372514f5c2d81f15e844b3ac5097e74d20dace5ece2a",
+    "components/sensorarrayWifi/include/sensorarrayWifi.h": "a82bdbcd503c6d1edbae6f0c56cea513ed7ae04b6407235cae14a0b447ce105d",
+    "components/sensorarrayWifi/CMakeLists.txt": "81f4bf51b14749df80e4c4cf8acd9094bc7a4ea8f41610bae62928ff37eec9fb",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransportCommand.c": "cc6045ec92757fe772e93edfba326d9f7d8304d108cdc12ff0ad4931009b5630",
+    "core/transport/sensorarrayTransportStats.c": "9bc65de22a3d733d4c5bb0578b824f2ae733927630305f77c7d5e6ee02f5f690",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "53f6be61c65419a85b015d9693adb1d6275678fe2a2f5a0c55f9619d7bd69e70",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "40cc39d817d8b79a92a29d289cdfc3ce00161f9f56e49100dc070cdec01daa28",
+    "main/main.c": "e9a81f83e00419e701090f8a4d087e8ece08676a17869f960421af9166cb134e"
+  },
+  "based_on": "wifi-owner-isolation-design-review-01.json; wifi-udp-sdk-deadline-source-review-01.json",
+  "confirmed_paths": [
+    "TransportProcessDescriptor -> WifiSend -> synchronous sendto; keeps shared Transport descriptor/task until return.",
+    "TransportDrainGuaranteedText -> WifiSend(LOG); same shared Transport dependency.",
+    "TransportPublishControlReply(WIFI) -> WifiSendControlReply -> synchronous sendto in command caller.",
+    "WIFI=AP -> TransportApplyWifiMode -> StartWifiAp -> WifiInit; init/profile/socket/cleanup SDK work currently in the Serial/BLE/WiFi command caller.",
+    "WifiEvent(AP_STADISCONNECTED) -> esp_wifi_ap_get_sta_list in shared ESP event callback.",
+    "WifiCleanupAttempt deletes ctrlTask before socket close; cannot retain this behavior when RX might still reference its socket or SDK locks.",
+    "Wifi stats/callback/config are currently read and written without one shared mux."
+  ],
+  "files_proposed_not_yet_authorized": {
+    "component": [
+      "components/sensorarrayWifi/sensorarrayWifi.c (bounded public facade/event and existing isolated RX task)",
+      "components/sensorarrayWifi/include/sensorarrayWifi.h (new typed admission/request/observation API)",
+      "components/sensorarrayWifi/sensorarrayWifiOwner.c/.h (NEW persistent owner, queues, SDK phases, ownership, completion)",
+      "components/sensorarrayWifi/sensorarrayWifiWatchdog.c/.h (NEW independent latch-only timer)",
+      "components/sensorarrayWifi/CMakeLists.txt"
+    ],
+    "transport": [
+      "core/transport/sensorarrayTransport.c/.h (async admission, immutable deadline/peer copying, completion accounting, terminal draining)",
+      "core/transport/sensorarrayTransportCommand.c (delegate WIFI command/query handling; accepted != applied)",
+      "core/transport/sensorarrayTransportWifiControl.c/.h (NEW bounded request/terminal formatting and query surface)",
+      "core/transport/sensorarrayTransportStats.c (new queued counters; preserve legacy send-completion counters)",
+      "core/transport/CMakeLists.txt"
+    ],
+    "budget": [
+      "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h (append WIFI_OWNER; do not change existing roles or policy)",
+      "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c/.h (append role7 query support; keep roles0..6 semantics)",
+      "main/control/sensorarrayLinkDiagnostics.c only if needed for delegation; do not lengthen near-512 legacy SCHEDWHY"
+    ],
+    "root_owned_integration": [
+      "main/main.c: software-only boot identity hook before NetStatusInit; optional explicit startup-reservation gate for default-ON boot before owner allocation; add only short /caps2_v1 to both PROTO strings after actual maximum-length test. CAPS2? itself handled in TransportCommand.",
+      "Existing firmware_host_contract/README/audit docs updated after implementation evidence, not part of current code authorization."
+    ]
+  },
+  "public_api_proposals_all_NEW": [
+    "RequestAp(config, boot identity, request result): copy config under serialized admission; no WiFi/lwIP SDK. Return local request acceptance and requestId/epoch; one accepted management request at a time, reject another AP as busy instead of silently replacing it.",
+    "RequestOff(request result): immediate logical output gate/epoch change, no esp_wifi_stop/close/deinit. An old AP request is given a superseded terminal, not later applied in the new epoch.",
+    "SubmitDatagram(publication): channel/class, exact bytes/length, immutable peer or broadcast destination, absolute deadline, captured epoch, optional typed scientific identity. Deep copy before ESP_OK; never retain caller pointers.",
+    "CopyOwnerSnapshot/CopyChannelCounters/CopyRequestResult: one mux snapshot, no SDK, no allocation, safe before lazy initialization.",
+    "TakeTerminal/Completion callback outside owner mux: bounded POD results only; no socket, deinit, log or payload pointer loan.",
+    "ObserveDeadline(nowUs): timer only checks/latches active phase/call/epoch and frozen request outcome under the same mux; no log/alloc/free/socket/SDK/reset."
+  ],
+  "owner_and_storage": {
+    "default_OFF": "Software-only observations/callback registration allowed; no owner task, large stack, payload pool or WiFi SDK start. First AP request lazily creates persistent resources once. Partial allocation/timer/task failure is sticky and queryable; never memset/recreate live state.",
+    "task": "Candidate owner priority5/core0 with 4096-byte internal stack, not yet stack-qualified. Existing wifiCtrl RX remains a separate persistent task and retains its current distinct WorkBudget role.",
+    "candidate_payload_pool": "2 x 2304 ordinary DATA/LOG + 1 x 2304 priority lifecycle + 1 x 512 CTRL = 7424 bytes, one explicit PSRAM|8BIT allocation, no internal fallback. This differs from the earlier 5632-byte candidate to preserve the public lifecycle 2304-byte maximum rather than truncate or silently downgrade it. Exact count requires root approval.",
+    "states": "FREE -> WRITING -> PENDING -> OWNED -> completion known -> FREE. Notifications only wake; descriptor/slot/epoch state carries meaning. Admission mutex sections short, memcpy outside. No queue scan can reclaim a WRITING/OWNED slot.",
+    "queues": "Fixed descriptor queues, zero-wait producer admission. CTRL/lifecycle before normal whenever owner is free; cannot preempt an in-flight SDK call. Retain exact full scientific bytes and normal DATA enqueue order. No payload overwrite to hide pressure.",
+    "deadline": "Candidate datagram observer 500000us, poll100000us; candidate AP init/profile transaction total5000000us and cleanup1000000us, all named policy constants, not proven SDK timeouts. Queue deadline immutable; inherited protected deadline is min(existing remaining deadline, local policy), never refreshed on retry. WorkBudget waits count in transaction time.",
+    "guard": "Timer uses ESP_TIMER_TASK + skip_unhandled_events. Atomic gate+beginSDK and finishSDK; finish observes elapsed time BEFORE clearing active. A quarantined epoch never starts another SDK call, including cleanup. Actual returned result/errno/bytes stored separately from first local deadline and cleanup errors.",
+    "late_return": "A late full sendto increments actual completion/driver bytes and legacy wifiSent once, plus late-result evidence; it does not clear quarantine or resume owner work. The datagram may have reached a PC. A never-returning SDK keeps slot/socket/task/stack alive; no cancellation claim.",
+    "cleanup": "Before RX task exists, owner may clean partial initialization under its own explicit deadline. After RX task starts, do not delete it or close/destroy its borrowed socket/netif while recvfrom may still be active. OFF is gate-only; retain backend resources. Uncertain partial startup requires quarantine, not blind HIGH->BLE_COMPAT retry.",
+    "fallback": "Preserve at most one HIGH->BLE_COMPAT attempt only when first call returned and necessary cleanup is known successful; keep firstError and one total deadline. A hung/unknown cleanup never starts another attempt.",
+    "events": "ESP event callback only records event/generation and marks station knowledge/reconciliation needed. No esp_wifi_ap_get_sta_list in event thread. Owner performs any required query as an observed SDK phase; event counts alone are not physical connection proof.",
+    "locks": "One internal WiFi mux protects public state/admission/guard snapshots. No SDK, heap allocation, printf, Transport/BLE callbacks or other component lock while held. Completion and terminal publication occur after releasing it."
+  },
+  "protocol_proposal": {
+    "capability": "Recommended CAPS2: append only /caps2_v1 (9 bytes) to both existing PROTO formats after real-formatter max tests; current longest501 would become510, still within512 with NUL. CAPS2?, read-only, returns CAPS2,v=1,page=1,caps=wifi_owner_v1,next=none. Keep old capability tokens and512 limit. WIFI? also declares ver=2 for its changed asynchronous command semantics. If actual max test fails, use versioned WIFI? self-discovery without adding PROTO; do not truncate.",
+    "AP_acceptance": "ACK,cmd=WIFI,v=AP,ok=0,accepted=1,pending=1,id=...,epoch=...,ver=2. A request is applied only after required SDK phases really returned and epoch still matches. Repeated already-applied AP has explicit idempotent outcome, not silent ignore.",
+    "OFF": "ACK uses applied output_gate semantics only, radio=unknown. Existing running radio/socket is not reported physically off.",
+    "terminal": "Versioned WTERM cached by requestId + boot/session + epoch; outcomes applied/failed/superseded/quarantined; firstError and cleanupError distinct. Cache last two terminals plus active request so AP->OFF does not immediately erase the superseded AP result. Unknown/expired request query stays explicit.",
+    "query": "WIFI? basic state/discovery; WIFIIO? phase/guard/init/firstErr/cleanupErr/callId/start/age/deadline/completionKnown/held resources/recovery limit; WIFIQ?D/L/C per-channel queued/full send completions/drop/expired/stale/partial/errno/driver bytes. Split lines rather than exceed512. All fields maximal-width/truncation tested.",
+    "terminal_progress_if_owner_stuck": "Timer only latches. A bounded Transport poll/drain while a WiFi transaction is active must expose cached terminal even when the owner cannot return; only active/pending WiFi adds a finite wake timeout. Normal admission wakes Transport outside WiFi mux. Default OFF retains existing idle blocking behavior.",
+    "compatibility_counters": "Do not call TransportStatResult(...ESP_OK) on WiFi queue admission. queued is new; wifiDataSent/wifiLogSent/wifiCtrlTx advance only from actual full sendto completion, via bounded callback outside WiFi mux. Admission rejection/expiry/stale/completion failure counted once per layer; active timeout remains completion unknown, not invented physical loss.",
+    "control_reply_barrier": "Existing published hook means local sink admission; a copied CTRL queue success may open it, never a PC ACK. Request terminal/query reconstructs a lost or late reply. If implementation adds an AP ACK commit barrier, it needs its own finite uncommitted deadline and no extra blocking handler.",
+    "boot": "Use real main session/boot hook before transport starts; do not generate a conflicting scientific session or silently use bootId0. No cross-boot request/epoch comparison; bounded u32 serial order and zero-skip wrap declared.",
+    "budget_observation": "Append WIFI_OWNER role7 with independent writer; no reuse of WIFI_CTRL6. Keep old SCHEDWHY layout to stay<=512; expose role7 budget via WiFi query and CPUOWNER?7 additive support."
+  },
+  "SDK_restart_boundary": {
+    "evidence": [
+      "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/src/wifi_default.c:273 registers esp_wifi_stop shutdown handler",
+      "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/esp_system.c:47-63 calls shutdown handlers synchronously before esp_restart_noos"
+    ],
+    "meaning": "Do not promise existing RESTART completes while WiFi SDK is wedged. Manual restart request is available but physical result unknown. A separate reviewed controlled hardware-reset strategy may be required; no automatic resets, watchdog disable, or private noos bypass proposed here."
+  },
+  "tests_to_implement_and_execute_not_run_yet": {
+    "NEW tools/test_wifi_owner.py + tests/host/test_wifi_owner.c": "Compile actual owner/facade/guard with fake RTOS/sdk/socket boundaries; independent observer pthread while init/profile/socket/send/cleanup stub remains blocked; no cross-thread SDK entry; immutable owned slot/socket lifetime; late return cannot resume; timer init failure/partial startup/repeated AP never recreate live objects.",
+    "NEW tools/test_wifi_transport_isolation.py + tests/host/test_wifi_transport_isolation.c": "Execute actual Transport descriptor, guaranteed lifecycle and CTRL reply paths with stalled owner. Prove USB/BLE/Transport callers finish, original source released only after deep copy; full2304/CTRL512/stack buffer mutation exact bytes; priority/admission flood/expiry/deadline inheritance/multi-producer WRITING and OFF races; old epoch cannot send/clear new state.",
+    "NEW tools/test_wifi_command.py + tests/host/test_wifi_command.c": "Real command handlers/formatter: AP accepted not applied, all init-stage failures, OFF supersession, repeated sameAP, concurrent transports, lost/late terminal query reconstruction, request rollover/boot reset, maximum fields and all truncation lengths<=512, no-side-effect queries before init/quarantine. Include all three actual PROTO formatter variants and CAPS2 maximum/truncation/legacy-token preservation tests; expected longest501+9=510 must be verified, not assumed.",
+    "Existing regressions": [
+      "tools/test_protected_frame_pipeline.py",
+      "tools/test_ble_pipeline.py",
+      "tools/test_recovery_control.py",
+      "tools/test_work_budget.py",
+      "tools/test_cpu_owner.py",
+      "tools/test_link_control.py",
+      "tools/test_snapshot_diagnostics.py",
+      "tools/test_transport_pool.py",
+      "tools/test_transport_frame_metadata.py"
+    ],
+    "Later root HIL": "Actual IDF build/map; default-OFF startup MEM unchanged; AP init failure remains queryable/does not stall acquisition; AP+USB+BLE memory/stack/delivery comparison; safe no-client and overload. Do not perform dangerous radio/input/failure injection unattended or mark host tests as HIL."
+  },
+  "integration_decisions_before_code": [
+    "Root assigns component + transport + command + budget ownership after image06 flash verification; no current production edit permission.",
+    "Choose candidate pool/owner stack and explicit init/cleanup deadline policy, then validate actual target memory and stack rather than increasing to hide failures.",
+    "For compile-time default-ON startup, asynchronous WiFi must not race fixed scan/output stack reservations for internal RAM. Proposed root-owned gate: reject runtime AP as resources_pending before reservations; trigger configured boot AP only after reservation attempt. Default OFF requires no extra resources. Preserve independent control even if scan creation fails.",
+    "Use existing main immutable session/boot hook. Prefer /caps2_v1 + CAPS2? secondary query; prove actual three-backend maximum<=512 before retaining it. Versioned WIFI? self-discovery is fallback if real maximum fails."
+  ],
+  "production_edited": false,
+  "hardware": "NOT_RUN",
+  "tests": "NOT_RUN: read-only implementation plan, not validation or P1 closure."
+}

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/inspect_size_confounder_01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "a38a73842d4c567d05dd9425c11746656fd34370132a71972453d24ed60c49b0",
+  "started_utc": "2026-11-20T17:29:46.478838+00:00",
+  "started_monotonic": 126560.863348704,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14-size-confounder-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:29:46.793775+00:00",
+  "finished_monotonic": 126561.178279678,
+  "log_sha256": "d0ebe22ec8534dedc2797b8e2d9d187d71ea534a68263790b8b0e455ed7ef8af"
+}

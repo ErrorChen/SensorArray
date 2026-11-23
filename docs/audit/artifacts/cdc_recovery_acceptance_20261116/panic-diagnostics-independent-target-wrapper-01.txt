@@ -1,0 +1,225 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40377444 <__wrap_esp_panic_handler>:
+40377444:	004136        	entry	a1, 32
+40377447:	f4c081        	l32r	a8, 40374748 <_iram_text_start+0x344> (3fcae65c <s_panicCapturedThisBoot>)
+4037744a:	02ad      	mov.n	a10, a2
+4037744c:	0020c0        	memw
+4037744f:	0008c2        	l8ui	a12, a8, 0
+40377452:	74c0c0        	extui	a12, a12, 0, 8
+40377455:	1f3c56        	bnez	a12, 4037764c <__wrap_esp_panic_handler+0x208>
+40377458:	f4bdd1        	l32r	a13, 4037474c <_iram_text_start+0x348> (50000088 <s_retainedPanic>)
+4037745b:	190c      	movi.n	a9, 1
+4037745d:	0020c0        	memw
+40377460:	004892        	s8i	a9, a8, 0
+40377463:	0020c0        	memw
+40377466:	516dc2        	s32i	a12, a13, 0x144
+40377469:	0020c0        	memw
+4037746c:	208dd0        	or	a8, a13, a13
+4037746f:	20bdd0        	or	a11, a13, a13
+40377472:	48a192        	movi	a9, 0x148
+40377475:	078976        	loop	a9, 40377480 <__wrap_esp_panic_handler+0x3c>
+40377478:	0020c0        	memw
+4037747b:	004bc2        	s8i	a12, a11, 0
+4037747e:	bb1b      	addi.n	a11, a11, 1
+40377480:	190c      	movi.n	a9, 1
+40377482:	0020c0        	memw
+40377485:	0d99      	s32i.n	a9, a13, 0
+40377487:	f4b2f1        	l32r	a15, 40374750 <_iram_text_start+0x34c> (3fcae660 <s_panicOrigin>)
+4037748a:	48a192        	movi	a9, 0x148
+4037748d:	0020c0        	memw
+40377490:	1d99      	s32i.n	a9, a13, 4
+40377492:	0020c0        	memw
+40377495:	0fb8      	l32i.n	a11, a15, 0
+40377497:	090c      	movi.n	a9, 0
+40377499:	0020c0        	memw
+4037749c:	2db9      	s32i.n	a11, a13, 8
+4037749e:	0020c0        	memw
+403774a1:	1fb8      	l32i.n	a11, a15, 4
+403774a3:	0c2c      	movi.n	a12, 32
+403774a5:	0020c0        	memw
+403774a8:	3db9      	s32i.n	a11, a13, 12
+403774aa:	0020c0        	memw
+403774ad:	2fb8      	l32i.n	a11, a15, 8
+403774af:	0020c0        	memw
+403774b2:	4db9      	s32i.n	a11, a13, 16
+403774b4:	0020c0        	memw
+403774b7:	3fb8      	l32i.n	a11, a15, 12
+403774b9:	0020c0        	memw
+403774bc:	5db9      	s32i.n	a11, a13, 20
+403774be:	148c76        	loop	a12, 403774d6 <__wrap_esp_panic_handler+0x92>
+403774c1:	bf9a      	add.n	a11, a15, a9
+403774c3:	0020c0        	memw
+403774c6:	100bb2        	l8ui	a11, a11, 16
+403774c9:	ed9a      	add.n	a14, a13, a9
+403774cb:	74b0b0        	extui	a11, a11, 0, 8
+403774ce:	0020c0        	memw
+403774d1:	184eb2        	s8i	a11, a14, 24
+403774d4:	991b      	addi.n	a9, a9, 1
+403774d6:	f49fb1        	l32r	a11, 40374754 <_iram_text_start+0x350> (3fcb1e28 <g_panic_abort>)
+403774d9:	1490a0        	extui	a9, a10, 0, 2
+403774dc:	000bf2        	l8ui	a15, a11, 0
+403774df:	6fbc      	beqz.n	a15, 40377519 <__wrap_esp_panic_handler+0xd5>
+403774e1:	1b0c      	movi.n	a11, 1
+403774e3:	0020c0        	memw
+403774e6:	116db2        	s32i	a11, a13, 68
+403774e9:	b99c      	beqz.n	a9, 40377508 <__wrap_esp_panic_handler+0xc4>
+403774eb:	f42e91        	l32r	a9, 403745a4 <_iram_text_start+0x1a0> (c0378000 <_rtc_reserved_end+0x60278000>)
+403774ee:	f49bc1        	l32r	a12, 4037475c <_iram_text_start+0x358> (77fff <_rtc_slow_length+0x77e0f>)
+403774f1:	f499b1        	l32r	a11, 40374758 <_iram_text_start+0x354> (3fcb1e24 <g_panic_abort_details>)
+403774f4:	0be8      	l32i.n	a14, a11, 0
+403774f6:	0020c0        	memw
+403774f9:	1b6de2        	s32i	a14, a13, 108
+403774fc:	9e9a      	add.n	a9, a14, a9
+403774fe:	023c97        	bltu	a12, a9, 40377504 <__wrap_esp_panic_handler+0xc0>
+40377501:	002a46        	j	403775ae <__wrap_esp_panic_handler+0x16a>
+40377504:	003c06        	j	403775f8 <__wrap_esp_panic_handler+0x1b4>
+40377507:	279100        	ee.stf.64.xp	f9, f2, a0, a1
+4037750a:	94c1f4        	ee.vst.l.64.ip	q3, a15, 0x208
+4037750d:	ea9af4        	ee.vst.128.ip	q5, a15, 0xfffff9a0
+40377510:	023ce7        	bltu	a12, a14, 40377516 <__wrap_esp_panic_handler+0xd2>
+40377513:	005846        	j	40377678 <__wrap_esp_panic_handler+0x234>
+40377516:	fff5c6        	j	403774f1 <__wrap_esp_panic_handler+0xad>
+40377519:	0020c0        	memw
+4037751c:	116df2        	s32i	a15, a13, 68
+4037751f:	0d5956        	bnez	a9, 403775f8 <__wrap_esp_panic_handler+0x1b4>
+40377522:	f42091        	l32r	a9, 403745a4 <_iram_text_start+0x1a0> (c0378000 <_rtc_reserved_end+0x60278000>)
+40377525:	f48dc1        	l32r	a12, 4037475c <_iram_text_start+0x358> (77fff <_rtc_slow_length+0x77e0f>)
+40377528:	ba9a      	add.n	a11, a10, a9
+4037752a:	023cb7        	bltu	a12, a11, 40377530 <__wrap_esp_panic_handler+0xec>
+4037752d:	004dc6        	j	40377668 <__wrap_esp_panic_handler+0x224>
+40377530:	003106        	j	403775f8 <__wrap_esp_panic_handler+0x1b4>
+40377533:	0a78      	l32i.n	a7, a10, 0
+40377535:	0020c0        	memw
+40377538:	edb9      	s32i.n	a11, a13, 56
+4037753a:	0020c0        	memw
+4037753d:	fd79      	s32i.n	a7, a13, 60
+4037753f:	3b0c      	movi.n	a11, 3
+40377541:	200a72        	l8ui	a7, a10, 32
+40377544:	6a68      	l32i.n	a6, a10, 24
+40377546:	0020c0        	memw
+40377549:	106db2        	s32i	a11, a13, 64
+4037754c:	0020c0        	memw
+4037754f:	126d72        	s32i	a7, a13, 72
+40377552:	7ab8      	l32i.n	a11, a10, 28
+40377554:	2a78      	l32i.n	a7, a10, 8
+40377556:	0020c0        	memw
+40377559:	196d62        	s32i	a6, a13, 100
+4037755c:	0020c0        	memw
+4037755f:	1a6d72        	s32i	a7, a13, 104
+40377562:	1470b0        	extui	a7, a11, 0, 2
+40377565:	f7fc      	bnez.n	a7, 403775a8 <__wrap_esp_panic_handler+0x164>
+40377567:	7b9a      	add.n	a7, a11, a9
+40377569:	3b3c77        	bltu	a12, a7, 403775a8 <__wrap_esp_panic_handler+0x164>
+4037756c:	c0eeb0        	sub	a14, a14, a11
+4037756f:	6fa072        	movi	a7, 111
+40377572:	32b7e7        	bgeu	a7, a14, 403775a8 <__wrap_esp_panic_handler+0x164>
+40377575:	1b78      	l32i.n	a7, a11, 4
+40377577:	1e0c      	movi.n	a14, 1
+40377579:	0020c0        	memw
+4037757c:	136de2        	s32i	a14, a13, 76
+4037757f:	3be8      	l32i.n	a14, a11, 12
+40377581:	0020c0        	memw
+40377584:	146d72        	s32i	a7, a13, 80
+40377587:	042b72        	l32i	a7, a11, 16
+4037758a:	0020c0        	memw
+4037758d:	156de2        	s32i	a14, a13, 84
+40377590:	142be2        	l32i	a14, a11, 80
+40377593:	152bb2        	l32i	a11, a11, 84
+40377596:	0020c0        	memw
+40377599:	166d72        	s32i	a7, a13, 88
+4037759c:	0020c0        	memw
+4037759f:	176de2        	s32i	a14, a13, 92
+403775a2:	0020c0        	memw
+403775a5:	186db2        	s32i	a11, a13, 96
+403775a8:	f45f56        	bnez	a15, 403774f1 <__wrap_esp_panic_handler+0xad>
+403775ab:	001246        	j	403775f8 <__wrap_esp_panic_handler+0x1b4>
+403775ae:	190c      	movi.n	a9, 1
+403775b0:	f46cc1        	l32r	a12, 40374760 <_iram_text_start+0x35c> (3fd00000 <ets_ops_table_ptr+0x10004>)
+403775b3:	0020c0        	memw
+403775b6:	1c6d92        	s32i	a9, a13, 112
+403775b9:	0020c0        	memw
+403775bc:	1e6d92        	s32i	a9, a13, 120
+403775bf:	c0cce0        	sub	a12, a12, a14
+403775c2:	090c      	movi.n	a9, 0
+403775c4:	c0a072        	movi	a7, 192
+403775c7:	000106        	j	403775cf <__wrap_esp_panic_handler+0x18b>
+403775ca:	c70000        	ee.stf.64.xp	f0, f12, a0, a0
+403775cd:	2819      	s32i.n	a1, a8, 8
+403775cf:	be9a      	add.n	a11, a14, a9
+403775d1:	0020c0        	memw
+403775d4:	000bb2        	l8ui	a11, a11, 0
+403775d7:	fd9a      	add.n	a15, a13, a9
+403775d9:	74b0b0        	extui	a11, a11, 0, 8
+403775dc:	991b      	addi.n	a9, a9, 1
+403775de:	7bcc      	bnez.n	a11, 403775e9 <__wrap_esp_panic_handler+0x1a5>
+403775e0:	0020c0        	memw
+403775e3:	1e6db2        	s32i	a11, a13, 120
+403775e6:	000386        	j	403775f8 <__wrap_esp_panic_handler+0x1b4>
+403775e9:	0020c0        	memw
+403775ec:	7c4fb2        	s8i	a11, a15, 124
+403775ef:	0020c0        	memw
+403775f2:	1d6d92        	s32i	a9, a13, 116
+403775f5:	d39977        	bne	a9, a7, 403775cc <__wrap_esp_panic_handler+0x188>
+403775f8:	3ca1e2        	movi	a14, 0x13c
+403775fb:	f45af1        	l32r	a15, 40374764 <_iram_text_start+0x360> (edb88320 <_rtc_reserved_end+0x8da88320>)
+403775fe:	80ede0        	add	a14, a13, a14
+40377601:	ffafb2        	movi	a11, -1
+40377604:	0020c0        	memw
+40377607:	000892        	l8ui	a9, a8, 0
+4037760a:	8c0c      	movi.n	a12, 8
+4037760c:	749090        	extui	a9, a9, 0, 8
+4037760f:	30bb90        	xor	a11, a11, a9
+40377612:	0e8c76        	loop	a12, 40377624 <__wrap_esp_panic_handler+0x1e0>
+40377615:	0490b0        	extui	a9, a11, 0, 1
+40377618:	609090        	neg	a9, a9
+4037761b:	41b1b0        	srli	a11, a11, 1
+4037761e:	1099f0        	and	a9, a9, a15
+40377621:	30bb90        	xor	a11, a11, a9
+40377624:	881b      	addi.n	a8, a8, 1
+40377626:	da9e87        	bne	a14, a8, 40377604 <__wrap_esp_panic_handler+0x1c0>
+40377629:	f87c      	movi.n	a8, -1
+4037762b:	30bb80        	xor	a11, a11, a8
+4037762e:	f44e81        	l32r	a8, 40374768 <_iram_text_start+0x364> (acbeafce <_rtc_reserved_end+0x4caeafce>)
+40377631:	0020c0        	memw
+40377634:	4f6db2        	s32i	a11, a13, 0x13c
+40377637:	0020c0        	memw
+4037763a:	506d82        	s32i	a8, a13, 0x140
+4037763d:	0020c0        	memw
+40377640:	f44b81        	l32r	a8, 4037476c <_iram_text_start+0x368> (53415031 <_rtc_force_slow_end+0x3414e41>)
+40377643:	0020c0        	memw
+40377646:	516d82        	s32i	a8, a13, 0x144
+40377649:	0020c0        	memw
+4037764c:	f44981        	l32r	a8, 40374770 <_iram_text_start+0x36c> (4211cd10 <esp_panic_handler>)
+4037764f:	0008e0        	callx8	a8
+40377652:	f01d      	retw.n
+40377654:	0a78      	l32i.n	a7, a10, 0
+40377656:	1b0c      	movi.n	a11, 1
+40377658:	0020c0        	memw
+4037765b:	edb9      	s32i.n	a11, a13, 56
+4037765d:	1ab8      	l32i.n	a11, a10, 4
+4037765f:	0020c0        	memw
+40377662:	fd79      	s32i.n	a7, a13, 60
+40377664:	ffb646        	j	40377541 <__wrap_esp_panic_handler+0xfd>
+40377667:	00          	.byte	00
+40377668:	f43ee1        	l32r	a14, 40374760 <_iram_text_start+0x35c> (3fd00000 <ets_ops_table_ptr+0x10004>)
+4037766b:	372c      	movi.n	a7, 35
+4037766d:	c0bea0        	sub	a11, a14, a10
+40377670:	e037b7        	bltu	a7, a11, 40377654 <__wrap_esp_panic_handler+0x210>
+40377673:	ffe046        	j	403775f8 <__wrap_esp_panic_handler+0x1b4>
+40377676:	00          	.byte	00
+40377677:	00          	.byte	00
+40377678:	f43ae1        	l32r	a14, 40374760 <_iram_text_start+0x35c> (3fd00000 <ets_ops_table_ptr+0x10004>)
+4037767b:	362c      	movi.n	a6, 35
+4037767d:	c07ea0        	sub	a7, a14, a10
+40377680:	023677        	bltu	a6, a7, 40377686 <__wrap_esp_panic_handler+0x242>
+40377683:	ff9a86        	j	403774f1 <__wrap_esp_panic_handler+0xad>
+40377686:	ffaa46        	j	40377533 <__wrap_esp_panic_handler+0xef>
+
+Disassembly of section .flash.text:

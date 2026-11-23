@@ -1,0 +1,150 @@
+{
+  "kind": "actual_host_regression",
+  "hardware": "NOT_RUN",
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "source_before": {
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "319c27138bfa9fe314dd6b3498d753389c729910392ee474e6bd0fa2b14c5a30",
+    "tools/test_ble_priority.py": "da52829a5e736f5024344c388b884c60369bb49ddd2c6ef552bab24db36327db",
+    "tools/test_ble_pipeline.py": "4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc",
+    "tests/host/test_ble_priority.c": "3c8863d3b2a110a8903e0134e3acb109eedc3389aeb2cde55788f5a8f5c1d5a8",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.h": "4576c23f98b0505d19157b2e936df6b793ba7501c9bfd549ed0709ad59a278e3"
+  },
+  "owned_scope_diff_sha256": "ea80fba7aa2ab8de5a4c24331a80dace22a9666f14258923c8ea1d4d6b817cd0",
+  "production_changed_files": [
+    "components/sensorarrayBle/sensorarrayBle.c",
+    "components/sensorarrayBle/include/sensorarrayBle.h"
+  ],
+  "query_wire_changes": false,
+  "pre_fix_evidence": "../ble-periodic-coalesce-before-01.json",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.6314425000164192,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_ble_priority.txt",
+      "sha256": "68ecd05a77840e3c6471d424a07e3027721a54e8bebbe181f8f366fa57181215",
+      "tail": [
+        "BLE_SDK_CONNECTION_SOURCE,path=/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_ble.c,sha256=6edd20732d5b3c9e4b7273b442902e09a26c150064ce6af835f7e0a7bdf07b7a",
+        "BLE_PRIORITY_SOURCE,production_functions=60,hardware=NOT_RUN"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.1461905629839748,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_ble_pipeline.txt",
+      "sha256": "940ff00889e6fedddf732a37c5ba3074887cb60da978638d72e6405195badaea",
+      "tail": [
+        "PIPELINE_RESULT,{\"scenario\":\"guarded_never_returns\",\"txPriority\":8,\"status\":\"QUARANTINED_INFLIGHT_NOT_CANCELLED\",\"bounded\":false,\"source\":200,\"outputPopped\":200,\"outputDrop\":0,\"transportQueued\":60,\"transportDrop\":0,\"bleAdmission\":4,\"bleAdmissionReject\":56,\"bleSdkComplete\":0,\"bleDropTotal\":56,\"ordinaryLogPolicyDrop\":6,\"ordinaryLogDropTotal\":6,\"transportLogRejected\":6,\"peerReceived\":0,\"sdkCalls\":1,\"sdkErrors\":0,\"btJobs\":0,\"ctrlCalls\":40,\"ctrlAccepted\":2,\"ctrlRejected\":38,\"ctrlSdkComplete\":0,\"ctrlDispatchMaxUs\":0,\"ctrlMaxUs\":0,\"poolHeldMaxUs\":0,\"sdkWhilePoolHeld\":0,\"poolHighWater\":2,\"bleHighWater\":6,\"idleVisits\":500,\"maxIdleGapTicks\":1,\"bleYields\":0,\"bleOutstanding\":6,\"sdkNeverOutstanding\":1,\"sourcePeriodUs\":10000,\"syntheticSdkCpuUs\":100,\"syntheticBtCpuUs\":0,\"syntheticSdkWaitUs\":0,\"syntheticOutputCpuUs\":200,\"controlDeadlineUs\":500000,\"controlDeadlineBasis\":\"local_SDK_admission_not_PC_receipt\",\"guardTimerModeled\":1,\"guardQuarantined\":1,\"guardPolls\":49,\"guardDetectedUs\":1600000,\"guardCallStartUs\":1000100,\"transportNoNetworkSink\":140,\"performanceAcceptance\":\"NOT_ESTABLISHED\",\"hardware\":\"NOT_RUN\"}",
+        "BLE_PIPELINE_REGRESSION,{\"actual_extracted_functions\": 82, \"finite_cases\": 18, \"hardware\": \"NOT_RUN\", \"models\": \"Core1 arrivals independent; actual encoder/slot/descriptor/owner bodies; output hub cost bridge and RTOS/SDK are synthetic\", \"old_always_ready_regression\": \"UNCHANGED; its TX8 FAIL is not replaced by this test\", \"performance_acceptance\": \"NOT_ESTABLISHED; finite saturated cases expose counted performance degradation\", \"quarantined_nonreturning_owner_cases\": 2, \"scenarios\": 22, \"source_sha256\": {\"components/sensorarrayBle/sensorarrayBle.c\": \"022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404\", \"components/sensorarrayBle/sensorarrayBleOutputSchedule.c\": \"51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b\", \"components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h\": \"53f6be61c65419a85b015d9693adb1d6275678fe2a2f5a0c55f9619d7bd69e70\", \"components/sensorarrayWorkBudget/sensorarrayWorkBudget.c\": \"3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b\", \"core/measure/sensorarrayFrameBuilder.c\": \"48eb6fdc3c4ea822c25ed1e917e70d6f505d954781812ba55b68aa73bf0a806e\", \"core/measure/sensorarrayMeasurementMode.c\": \"117bae59e25af249dcf4205432ac3abaed6372bd71a1b7224722cba609c42bee\", \"core/measure/sensorarrayRowModeProfile.c\": \"603a9fdbc9753136ff1b538442a5af2f1d80898cd655c240e9858dca04444933\", \"core/transport/sensorarrayTransport.c\": \"52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde\", \"core/transport/sensorarrayTransportFrameMeta.c\": \"f5f17c646530e88c2c4bcc7ddd39048e7d2381d47d5d9011903cae537f292bde\", \"core/transport/sensorarrayTransportPool.c\": \"0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1\", \"main/output/sensorarrayAsyncLog.c\": \"68a19dd4e15226a3a4bc02c67b2079704722d9f8ad75da51697606afc7afc953\", \"main/output/sensorarrayTextProtocol.c\": \"2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4\", \"sdkconfig\": \"51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4\", \"tests/host/ble_pipeline_stubs/common.h\": \"6b5b120709e15afaba4f38d6c87230e49622585ee63c0b0ec33f0561470c3241\", \"tests/host/test_ble_pipeline.c\": \"9bb2c13d0f6945e186085cd3427aa892a83f39cb1a3fb836ecf84d70cd767931\", \"tests/host/test_serial_io_priority.c\": \"ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509\", \"tools/test_ble_pipeline.py\": \"4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc\", \"tools/test_serial_io.py\": \"cb5c615d9d7a30d5df3da2468fd469445216e3366f9229ac6c770d0aac4a2f38\"}, \"typed_protection\": \"separate test_protected_frame_pipeline; this scheduler bridge remains generic DATA\", \"unbounded_counterexamples\": 2}"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_output_schedule.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.6821500179939903,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_ble_output_schedule.txt",
+      "sha256": "f00fd2fce864fa2c9224b734ff4a61540ddcf711a6529153289186d8ccf4e217",
+      "tail": [
+        "BLE_OUTPUT_SCHEDULE_PASS,groups=8,normal_full=1,pressure_windows=3,step_permille=50,down_hold_us=3000000,recover_evidence_us=10000000,clean_ttl_us=3000000,probe_interval_us=1000000,protection_external=1,peerLoss=unknown,RSSI=unknown,stateBytes=272,hardware=NOT_RUN",
+        "BLE_OUTPUT_SCHEDULE_VARIANT,asan_ubsan=PASS"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_watchdog.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.2806481400039047,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_ble_watchdog.txt",
+      "sha256": "974ea274c08de63e76b4d34711e99b7172980a8c5d65255c1446e841b695c03e",
+      "tail": [
+        "BLE_GUARD_INIT_PASS,cases=8,timer_task=1,period_us=100000,skip_missed=1,partial_retry_blocked=1,concurrent_claim=1,psram_only=1,payload_slots=8,payload_bytes=18432,alloc_failure_sticky=1,hardware=NOT_RUN"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_ble_crc_planner.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.703049114992609,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_ble_crc_planner.txt",
+      "sha256": "70b40f6a76d3be57686a6d6808ccc04806900940a430a8947915ca0078a91f2e",
+      "tail": [
+        "CRC_PLANNER_SOURCES,{\"components/sensorarrayBle/sensorarrayBle.c\": \"022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404\", \"main/output/sensorarrayTextProtocol.c\": \"2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4\"}",
+        "CRC_PLANNER_RESULT,hardware=NOT_RUN,SDK_modified=0,fixtures_modified=0"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3023598899890203,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_work_budget.txt",
+      "sha256": "1180d2997f9f18d726a994d78ee5a6c0a0203063d50b78093ef9191a33924162",
+      "tail": [
+        "BLECORRUPT,ch=D,mid=1,enqLen=548,deqLen=548,enqCrc=00000000,deqCrc=FC141E31",
+        "WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=7,hardware=NOT_RUN"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_link_control.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.3800160770188086,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_link_control.txt",
+      "sha256": "a868eb35f5ecde97385ed1355931c95324f90d0069195f21b4fd13514134dd74",
+      "tail": [
+        "LINK_CONTROL_FORMAT,command=BLEGUARD?,bytes=382,capacity=512",
+        "LINK_CONTROL_PASS,groups=5,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,bleGuardQuery=1,hardware=NOT_RUN"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_protected_frame_pipeline.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.5360662059974857,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-periodic-coalesce-host-01/test_protected_frame_pipeline.txt",
+      "sha256": "69996d942b0c0ab4a5533f2ca19fdcdb306098793931c2cd84e4156961f29569",
+      "tail": [
+        "PROTECTED_SINK_EXPIRY,cases=7,bleOnly=PASS,wifiOnly=PASS,dual=PASS,notReady=notTarget,capturedQualification=PASS,ownedDispatch=PASS,wifiAttemptSuccessOrFailure=noDoubleCount,SDKcallsInCleanup=0",
+        "PROTECTED_FRAME_PIPELINE,passed=1,hardware=NOT_RUN,scope=actual_source+transport+encoder,ble=synthetic_admission_boundary,baseline=8a1794ce3be95ff0007698c4e4e667dcf25fbe19"
+      ]
+    }
+  ],
+  "source_after": {
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "319c27138bfa9fe314dd6b3498d753389c729910392ee474e6bd0fa2b14c5a30",
+    "tools/test_ble_priority.py": "da52829a5e736f5024344c388b884c60369bb49ddd2c6ef552bab24db36327db",
+    "tools/test_ble_pipeline.py": "4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc",
+    "tests/host/test_ble_priority.c": "3c8863d3b2a110a8903e0134e3acb109eedc3389aeb2cde55788f5a8f5c1d5a8",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.h": "4576c23f98b0505d19157b2e936df6b793ba7501c9bfd549ed0709ad59a278e3"
+  },
+  "source_stable": true,
+  "diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "all_pass": true
+}

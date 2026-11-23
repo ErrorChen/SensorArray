@@ -5,6 +5,8 @@ Real encoder, AsyncLog slot helpers, Transport pool/queue/drain and BLE owner
 bodies are used. The Core0 scheduler, Core1 arrival clock and SDK costs are
 explicit models, not HIL, CPU measurements or radio throughput acceptance.
 The older always-ready scheduler regression is neither changed nor replaced.
+This baseline uses generic DATA admission. test_protected_frame_pipeline executes
+new typed source/transport protection independently with a BLE admission stub.
 """
 from pathlib import Path
 import hashlib
@@ -53,12 +55,21 @@ def main():
             (temp / name).write_text('\n\n'.join(function(sources[key], s) for s in signatures))
 
         ble = sources['ble']
-        (temp / 'ble_types.h').write_text(ble[ble.index('#ifndef CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN'):
-                                                   ble.index('/*\n * Statistics are observed')])
+        (temp / 'ble_types.h').write_text('#include "sensorarrayBleOutputSchedule.h"\n' + ble[ble.index('#ifndef CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN'):
+                                                   ble.index('/*\n * Statistics are observed')] + '\n' +
+            re.search(r'^static esp_err_t s_bleInitResult = [^\n]+', ble, re.M)[0])
         emit('ble_functions.h', 'ble', [
+            'static esp_err_t sensorarrayBleInitPayloadStorage(',
+            'static esp_err_t sensorarrayBleFinishInit(',
             'static void sensorarrayBleStatsIncrement(', 'static void sensorarrayBleStatsNoteDrop(',
             'static void sensorarrayBleStatsNoteMessageSent(', 'static uint32_t sensorarrayBleNextGeneration(',
             'static uint32_t sensorarrayBleCountUsedSlotsLocked(', 'static void sensorarrayBleUpdateSlotUseLocked(',
+            'static bool sensorarrayBleDataActiveLocked(',
+            'static bool sensorarrayBleFrameSameBoot(', 'static bool sensorarrayBleFrameSameConfig(',
+            'static bool sensorarrayBleFrameSequenceBefore(', 'static void sensorarrayBleFrameFlowSyncLocked(',
+            'static void sensorarrayBleFrameFlowObserveLocked(', 'static bool sensorarrayBleFrameProtectedRepresentedLocked(',
+            'static void sensorarrayBleFramePeriodicLocked(',
+            'static void sensorarrayBleFrameFullCompletedLocked(',
             'static esp_err_t sensorarrayBleAllocateTxDescriptor(', 'static uint8_t *sensorarrayBleDescriptorData(',
             'static bool sensorarrayBleDescriptorCurrent(', 'static void sensorarrayBleReleaseTxDescriptor(',
             'static uint16_t sensorarrayBleValueHandle(', 'static char sensorarrayBleEnvelopeChannel(',
@@ -67,37 +78,56 @@ def main():
             'static bool sensorarrayBleSendContextMatches(', 'static bool sensorarrayBleSendContextCurrent(',
             'static size_t sensorarrayBleDecimalChars(',
             'static size_t sensorarrayBleMaxPayloadSize(', 'static bool sensorarrayBlePlanFragments(',
+            'static size_t sensorarrayBleTwoFragmentFirstChunk(',
             'static void sensorarrayBlePrepareConfirmation(', 'static void sensorarrayBleClearConfirmation(',
-            'static esp_err_t sensorarrayBleAwaitConfirmation(', 'static esp_err_t sensorarrayBleSendGattValue(',
+            'static esp_err_t sensorarrayBleAwaitConfirmation(',
+            'static void sensorarrayBleObserveSendDeadlineLocked(',
+            'void sensorarrayBleObserveSendDeadline(',
+            'static esp_err_t sensorarrayBleSendGattValue(',
             'static esp_err_t sensorarrayBleSendFragment(', 'static esp_err_t sensorarrayBleSendPayload(',
             'static esp_err_t sensorarrayBleQueueTxDescriptor(', 'static esp_err_t sensorarrayBleNotifyInternal(',
             'esp_err_t sensorarrayBleNotify(', 'esp_err_t sensorarrayBleNotifyForGeneration(',
+            'esp_err_t sensorarrayBleNotifyFrameForGeneration(',
             'esp_err_t sensorarrayBleNotifyLifecycleForGeneration(', 'bool sensorarrayBleGetSendGeneration(',
             'bool sensorarrayBleIsCongested(',
         ])
         emit('ble_send.h', 'ble', ['static esp_err_t sensorarrayBleSendDescriptor('])
-        emit('ble_owner.h', 'ble', ['static bool sensorarrayBleReceiveNext(', 'static void sensorarrayBleTxTask('])
+        emit('ble_owner.h', 'ble', ['static bool sensorarrayBleReceiveProtected(', 'static bool sensorarrayBleReceiveNext(', 'static void sensorarrayBleTxTask('])
         (temp / 'ble_init.h').write_text(ble[ble.index('    s_ble.txQueue = xQueueCreateStatic('):
                                                 ble.index('    BaseType_t taskOk = xTaskCreatePinnedToCore(')])
         tr = sources['transport']
-        constants = '\n'.join(re.findall(r'^#define SENSORARRAY_TRANSPORT_(?:DATA_QUEUE_COUNT|LOG_QUEUE_COUNT|LIFECYCLE_QUEUE_COUNT|DRAIN_BATCH_COUNT) .*$', tr, re.M))
+        constants = '\n'.join(re.findall(r'^#define SENSORARRAY_TRANSPORT_(?:DATA_QUEUE_COUNT|LOG_QUEUE_COUNT|LIFECYCLE_QUEUE_COUNT|DRAIN_BATCH_COUNT|PROTECTED_QUEUE_COUNT|PROTECTED_DEADLINE_US|PROTECTED_RETRY_US) .*$', tr, re.M))
         (temp / 'transport_constants.h').write_text(constants)
         emit('transport_helpers.h', 'transport', [
             'static void sensorarrayTransportSyncPoolStatsLocked(', 'static bool sensorarrayTransportAllocateDescriptor(',
             'static bool sensorarrayTransportDescriptorCurrent(',
             'static sensorarrayTransportPayloadSlot_t *sensorarrayTransportDescriptorSlot(',
             'static bool sensorarrayTransportReleaseDescriptor(', 'static void sensorarrayTransportFillFrameMeta(',
-            'static void sensorarrayTransportStatResult(', 'static void sensorarrayTransportNotifyTask(',
+            'static void sensorarrayTransportStatResult(',
+            'static bool sensorarrayTransportExpireOwnedProtected(', 'static void sensorarrayTransportNotifyTask(',
+            'static void sensorarrayTransportProtectionCount(',
+            'static void sensorarrayTransportExpireProtectedRetry(',
+            'static void sensorarrayTransportExpireProtectedPending(',
+            'static bool sensorarrayTransportHoldProtectedRetry(',
+            'static TickType_t sensorarrayTransportWaitTicks(',
+            'static bool sensorarrayTransportSupersedePendingProtected(',
+            'static esp_err_t sensorarrayTransportQueueFrameInternal(',
             'static esp_err_t sensorarrayTransportQueue(',
         ])
         emit('transport_process.h', 'transport', ['static void sensorarrayTransportProcessDescriptor('])
         emit('transport_owner.h', 'transport', ['static bool sensorarrayTransportReceiveNext(', 'static void sensorarrayTransportTask('])
         async_source = sources['async']
         (temp / 'async_types.h').write_text(struct(async_source, 'sensorarrayAsyncLogFrameSlot_t') + '\n' +
-                                          struct(async_source, 'sensorarrayAsyncLogSharedStats_t'))
+                                          struct(async_source, 'sensorarrayAsyncLogSharedStats_t') + '\n' +
+                                          struct((ROOT / 'main/output/sensorarrayAsyncLog.h').read_text(), 'sensorarrayAsyncLogProtectionStats_t'))
         emit('async_functions.h', 'async', [
             'static void sensorarrayAsyncLogNotifyTask(', 'static uint8_t sensorarrayAsyncLogFindFreeSlotLocked(',
-            'static bool sensorarrayAsyncLogDropOldestQueuedFrameLocked(', 'static bool sensorarrayAsyncLogPopFrame(',
+            'static uint8_t sensorarrayAsyncLogFindFreeProtectedSlotLocked(',
+            'static void sensorarrayAsyncLogRemovePendingLocked(',
+            'static bool sensorarrayAsyncLogDropOldestQueuedFrameLocked(',
+            'static bool sensorarrayAsyncLogSupersedeProtectedLocked(',
+            'static uint32_t sensorarrayAsyncLogProtectionFlagsLocked(',
+            'static bool sensorarrayAsyncLogPopFrame(',
             'esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(',
         ])
         sdk = (ROOT / 'sdkconfig').read_text()
@@ -106,7 +136,10 @@ def main():
             'CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE', 'CONFIG_SENSORARRAY_SCAN_TASK_CORE',
             'CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN', 'CONFIG_SENSORARRAY_BLE_CTRL_TASK_PRIORITY')}
         header = ''.join(f'#define {key} {value}u\n' for key, value in values.items())
-        header += '#define SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS\n'
+        header += '#define SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS\n'
+        header += '#define SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT (SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT + 2u)\n'
+        header += '#define SENSORARRAY_ASYNC_PROTECTED_PERIOD_US INT64_C(1000000)\n'
+        header += '#define CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG 0\n'
         header += '#define CONFIG_SENSORARRAY_ASYNC_LOG_DROP_OLD_FRAMES 1\n'
         priority = re.search(r'xTaskCreatePinnedToCore\(sensorarrayTransportTask,\s*"[^"\n]+",\s*\w+,\s*[^,]+,\s*(\d+)u?', tr)[1]
         header += f'#define PIPELINE_TRANSPORT_PRIORITY {priority}u\n'
@@ -117,9 +150,10 @@ def main():
                     ROOT / 'core/transport', ROOT / 'core/boardSupport/include',
                     ROOT / 'components/ads126xAdc/include', ROOT / 'components/fdc2214Cap/include',
                     ROOT / 'components/tmuxSwitch/include', ROOT / 'components/sensorarrayBle/include',
+                    ROOT / 'components/sensorarrayBle',
                     ROOT / 'components/sensorarrayWifi/include', ROOT / 'components/sensorarrayWorkBudget/include',
                     ROOT / 'components/sensorarrayWorkBudget']
-        compiled = ['tests/host/test_ble_pipeline.c', 'core/transport/sensorarrayTransportPool.c',
+        compiled = ['tests/host/test_ble_pipeline.c', 'components/sensorarrayBle/sensorarrayBleOutputSchedule.c', 'core/transport/sensorarrayTransportPool.c',
                     'core/transport/sensorarrayTransportFrameMeta.c', 'main/output/sensorarrayTextProtocol.c',
                     'core/measure/sensorarrayFrameBuilder.c', 'core/measure/sensorarrayMeasurementMode.c',
                     'core/measure/sensorarrayRowModeProfile.c']
@@ -131,7 +165,7 @@ def main():
         command += [str(ROOT / p) for p in compiled] + ['-Wl,--gc-sections', '-lm', '-o', str(executable)]
         subprocess.run(command, check=True)
         cases = ('burst', 'short', 'bt_preempt', 'long_wait', 'reject', 'unread', 'control_flow',
-                 'sdk_busy', 'bt_saturated', 'never_returns')
+                 'sdk_busy', 'bt_saturated', 'never_returns', 'guarded_never_returns')
         results = []
         for case in cases:
             for priority in (7, 8):
@@ -142,9 +176,11 @@ def main():
                 record = json.loads(next(line[16:] for line in result.stdout.splitlines()
                                          if line.startswith('PIPELINE_RESULT,')))
                 results.append(record)
-        assert len(results) == 20
-        assert sum(r['bounded'] is False for r in results) == 2
-        assert all(r['status'] == 'NOT_PROVABLY_BOUNDED' for r in results if not r['bounded'])
+        assert len(results) == 22
+        assert sum(r['bounded'] is False for r in results) == 4
+        assert all(r['status'] == 'NOT_PROVABLY_BOUNDED' for r in results if r['scenario'] == 'never_returns')
+        assert all(r['status'] == 'QUARANTINED_INFLIGHT_NOT_CANCELLED' and r['guardQuarantined'] == 1
+                   for r in results if r['scenario'] == 'guarded_never_returns')
         # Backpressure is an observed performance failure, even when ownership
         # and bounded local-control invariants pass. Never promote this model
         # verdict into candidate throughput/HIL acceptance.
@@ -158,9 +194,11 @@ def main():
             'tests/host/test_serial_io_priority.c', 'tools/test_serial_io.py', 'sdkconfig'}
         print('BLE_PIPELINE_REGRESSION,' + json.dumps({
             'scenarios':len(results), 'finite_cases':18, 'unbounded_counterexamples':2,
+            'quarantined_nonreturning_owner_cases':2,
             'hardware':'NOT_RUN', 'actual_extracted_functions':sum(len(x) for x in selected.values()),
             'source_sha256':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sorted(provenance)},
             'old_always_ready_regression':'UNCHANGED; its TX8 FAIL is not replaced by this test',
+            'typed_protection':'separate test_protected_frame_pipeline; this scheduler bridge remains generic DATA',
             'performance_acceptance':'NOT_ESTABLISHED; finite saturated cases expose counted performance degradation',
             'models':'Core1 arrivals independent; actual encoder/slot/descriptor/owner bodies; output hub cost bridge and RTOS/SDK are synthetic',
         }, sort_keys=True))

@@ -1,0 +1,13 @@
+/tmp/sensorarray-async-summary-epdvydgz/test.c:30:21: error: unused variable 's_usbStatsMux' [-Werror,-Wunused-variable]
+   30 | static portMUX_TYPE s_usbStatsMux, s_usbProfileMux;
+      |                     ^~~~~~~~~~~~~
+1 error generated.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_async_log_summary.py", line 139, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_async_log_summary.py", line 130, in main
+    subprocess.run(command, check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/usr/bin/clang-18', '-std=c11', '-Wall', '-Wextra', '-Werror', '-O0', '-I', '/tmp/sensorarray-async-summary-epdvydgz/fake', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/frame_stubs', '-I', '/home/csc/esp/workspace/SensorArray/tests/host/include', '-I', '/home/csc/esp/workspace/SensorArray/main', '-I', '/home/csc/esp/workspace/SensorArray/main/output', '-I', '/home/csc/esp/workspace/SensorArray/main/net', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/include', '-I', '/home/csc/esp/workspace/SensorArray/core/measure/ads', '-I', '/home/csc/esp/workspace/SensorArray/core/config', '-I', '/home/csc/esp/workspace/SensorArray/core/board', '-I', '/home/csc/esp/workspace/SensorArray/core/transport', '-I', '/home/csc/esp/workspace/SensorArray/core/boardSupport/include', '-I', '/home/csc/esp/workspace/SensorArray/components/ads126xAdc/include', '-I', '/home/csc/esp/workspace/SensorArray/components/fdc2214Cap/include', '-I', '/home/csc/esp/workspace/SensorArray/components/tmuxSwitch/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayBle/include', '-I', '/home/csc/esp/workspace/SensorArray/components/sensorarrayWifi/include', '/tmp/sensorarray-async-summary-epdvydgz/test.c', '-lm', '-o', '/tmp/sensorarray-async-summary-epdvydgz/test']' returned non-zero exit status 1.

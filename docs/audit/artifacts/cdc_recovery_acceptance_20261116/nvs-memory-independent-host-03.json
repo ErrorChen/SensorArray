@@ -1,0 +1,46 @@
+{
+  "utc": "2026-11-21T01:34:02.652847+00:00",
+  "sourceBefore": {
+    "core/config/sensorarrayCalibration.c": "fa4a6beb22bb2e9daa4d03ed1b035734fb908b1e8c269fe515ea6eb7a5d994df",
+    "tests/host/test_calibration_persistence.c": "2e74ac325edb23644a24fb3f1eb1f673f695fbc9b882ed1effc03210c7799863",
+    "tools/test_calibration_persistence.py": "331dd56847c5662020a3d3feb24b8e871571e975b204c04a5a9284f89376d93e",
+    "main/control/sensorarrayMemoryDiagnostics.c": "309b717feeda86109e30c53db545c0a284ee8d2c4bd31bcbf7472a881e9d7f3d",
+    "tools/test_memory_diagnostics.py": "a19d38f5201ef026fdf6a9fabe58e0ceaeff07bdcaddac230ca161573ed83203"
+  },
+  "sourceAfter": {
+    "core/config/sensorarrayCalibration.c": "fa4a6beb22bb2e9daa4d03ed1b035734fb908b1e8c269fe515ea6eb7a5d994df",
+    "tests/host/test_calibration_persistence.c": "2e74ac325edb23644a24fb3f1eb1f673f695fbc9b882ed1effc03210c7799863",
+    "tools/test_calibration_persistence.py": "331dd56847c5662020a3d3feb24b8e871571e975b204c04a5a9284f89376d93e",
+    "main/control/sensorarrayMemoryDiagnostics.c": "309b717feeda86109e30c53db545c0a284ee8d2c4bd31bcbf7472a881e9d7f3d",
+    "tools/test_memory_diagnostics.py": "a19d38f5201ef026fdf6a9fabe58e0ceaeff07bdcaddac230ca161573ed83203"
+  },
+  "sourceUnchanged": true,
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_calibration_persistence.py"
+      ],
+      "CC": "unset",
+      "exitCode": 0,
+      "elapsedSeconds": 0.10783581601572223,
+      "output": "CALIBRATION_INIT_FAILURE_PRESERVATION,errors=3,apis=4,erases=0,writes=0,reload=verified,synthetic=1\nCALIBRATION_TESTS,passed=1,maxPayloadBytes=512,recordBytes=540\n",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/test_calibration_persistence-independent-nvs-memory-03.txt",
+      "logSha256": "41ee84bea77174ee630c3a04cf1b7d49cde5a388c61ec61a65e525cca2513034"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_memory_diagnostics.py"
+      ],
+      "CC": "unset",
+      "exitCode": 0,
+      "elapsedSeconds": 0.10355788501328789,
+      "output": "MEM max_bytes=394 capacity=512 synthetic_heaps=1\nPASS memory caps, allocation bracket, unknown states, readonly lock exclusion and bounds\n",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/test_memory_diagnostics-independent-nvs-memory-03.txt",
+      "logSha256": "2878acc6e60f84ceeb883ab9c7be4ec3d74bd56ace3e06e90f27f55381d19cfc"
+    }
+  ],
+  "priorEnvironmentFailureRetained": "nvs-memory-independent-host-01.json",
+  "scope": "Actual C logic with host NVS/heap/RTOS boundary substitutes; no hardware fault injection"
+}

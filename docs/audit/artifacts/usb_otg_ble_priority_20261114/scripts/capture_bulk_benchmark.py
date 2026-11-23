@@ -5,7 +5,7 @@ Before/after and periodic read-only USB/USBQ/BLELINK/BLETX/SCHED observations
 share existing deadlines. DATA keeps flowing while CTRL queries run. Defaults:
 120 s configurations, 600 s stability, 5 s warmup, 10 s diagnostic interval.
 No USBBOOT, restart, NVS, input flush or automatic USB reconfiguration.
-Optional BLESVC/SCHEDWHY/CPUOWNER observations are capability-gated and run only in
+Optional service/output/protection/CPUOWNER observations are capability-gated and run only in
 the existing before/after CONFIG brackets, outside the measured capture.
 """
 from contextlib import contextmanager
@@ -31,11 +31,22 @@ EXTRA_REQUIRED = {
     'BLETX?': 'gen dDequeued lDequeued cDequeued dMaxAgeUs lMaxAgeUs cMaxAgeUs sdkActive sdkStartUs sdkEndUs sdkCalls sdkAccepted sdkErrors sdkMaxUs sdkLastErr txPrio ctrlPrio pcReceipt',
     'SCHED?': 'initError registered idleKnown tickHz budgetTicks maxUnits graceUnits backstopTicks quantumTicks idleGen idleAgeTicks maxIdleGapTicks ' + ' '.join(WORKERS),
 }
+FRAME_OUTPUT_REQUIRED = {
+    'BLEFLOW?': 'v scope counters gen stream active stage ratePm intentionalSkip probeSelected attempts capacityReject evidence rejectPm pressureWindows cleanUs localServiceMilliFps probeUs cleanTtlUs peerLoss rssi',
+    'BLESNAP?': 'v scope counters gen stream queued localComplete failed admitMiss deadlineMiss superseded staleNormal known lastSeq lastRev lastCompleteAgeUs gapKnown maxCompleteGapUs firstPending periodicPending dueUs pcReceipt',
+    'SNAPSRC?': 'v scope queued firstQueued periodicQueued candidateMiss firstMiss superseded firstSuperseded stage pcReceipt',
+    'SNAPNET?': 'v scope readout queued admissionMiss firstMiss derived superseded retry expired bleExpired wifiExpired bleAccepted bleFailed policySkip obsolete stage pcReceipt',
+}
 OPTIONAL_REQUIRED = {
     'BLESVC?': 'v gen scope active started completed wallUs idleChanged idleSame idleUnknown wall cpu blocked',
     'SCHEDWHY?': 'v order overlap init registered idleKnown idleGen ' + ' '.join(WORKERS),
+    **FRAME_OUTPUT_REQUIRED,
 }
-OPTIONAL_CAPABILITIES = {'BLESVC?': 'ble_service_obs_v1', 'SCHEDWHY?': 'work_reason_v1'}
+OPTIONAL_CAPABILITIES = {
+    'BLESVC?': 'ble_service_obs_v1', 'SCHEDWHY?': 'work_reason_v1',
+    'BLEFLOW?': 'ble_flow_v1', 'BLESNAP?': 'ble_snapshot_v1',
+    'SNAPSRC?': 'ble_snapshot_v1', 'SNAPNET?': 'ble_snapshot_v1',
+}
 CPU_OWNER_CAPABILITY = 'cpu_owner_v1'
 CPU_OWNER_QUERIES = tuple((f'CPUOWNER?{role}', 'CPUOWNER') for role in range(7))
 CPU_OWNER_FIELDS = ('v session role enabled available known conflict stale reason taskNumber runUs '
@@ -55,12 +66,71 @@ OPTIONAL_LITERALS = {
     'BLESVC?': {'v': '1', 'scope': 'boot', 'wall': 'elapsed', 'cpu': 'unknown', 'blocked': 'unknown'},
     'SCHEDWHY?': {'v': '1', 'order': 'quantum/backstop/units', 'overlap': '1'},
 }
+FRAME_OUTPUT_LITERALS = {
+    'BLEFLOW?': {'v': '1', 'scope': 'local_output', 'counters': 'boot',
+                 'probeUs': '1000000', 'cleanTtlUs': '3000000', 'peerLoss': 'unknown', 'rssi': 'unknown'},
+    'BLESNAP?': {'v': '1', 'scope': 'local_complete', 'counters': 'boot',
+                 'dueUs': '1000000', 'pcReceipt': 'unknown'},
+    'SNAPSRC?': {'v': '1', 'scope': 'boot', 'stage': 'source_queue', 'pcReceipt': 'unknown'},
+    'SNAPNET?': {'v': '1', 'scope': 'boot', 'readout': 'sequential',
+                 'stage': 'ble_admission', 'pcReceipt': 'unknown'},
+}
 
 
 def unsigned(value, command, field, bits=32):
     if not re.fullmatch(r'[0-9]+', value or '') or int(value) >= 1 << bits:
         raise retry.InvalidQueryReply(f'reply_invalid_unsigned:{command}:{field}')
     return int(value)
+
+
+def validate_frame_output(command, fields):
+    """Validate local counters without treating admission as peer delivery.
+
+    Counter ordering is deliberately not inferred from modulo boot totals.
+    Unknown historical age/service remains unknown; it is never changed to 0.
+    """
+    def reject(field):
+        raise retry.InvalidQueryReply('reply_invalid_ble_output_semantics:' + command + ':' + field)
+    required = FRAME_OUTPUT_REQUIRED[command].split()
+    missing = [key for key in required if not fields.get(key)]
+    if missing:
+        raise retry.InvalidQueryReply('reply_missing_fields:' + command + ':' + ','.join(missing))
+    booleans = {'active', 'evidence', 'known', 'gapKnown', 'firstPending', 'periodicPending'}
+    u64 = {'intentionalSkip', 'probeSelected', 'cleanUs', 'lastCompleteAgeUs', 'maxCompleteGapUs'}
+    maybe_unknown = {'localServiceMilliFps', 'lastSeq', 'lastRev', 'lastCompleteAgeUs', 'maxCompleteGapUs'}
+    for key in required:
+        value = fields[key]
+        if key in FRAME_OUTPUT_LITERALS[command]:
+            if value != FRAME_OUTPUT_LITERALS[command][key]: reject(key)
+        elif key in booleans:
+            if value not in {'0', '1'}: reject(key)
+        elif command == 'BLEFLOW?' and key == 'stage':
+            if value not in {'inactive', 'full', 'pressure', 'limited', 'unknown'}: reject(key)
+        elif key in maybe_unknown and value == 'unknown':
+            pass
+        else:
+            bits = 64 if key in u64 else (16 if key in {'ratePm', 'rejectPm'} else 8 if key == 'pressureWindows' else 32)
+            number = unsigned(value, command, key, bits)
+            if key in {'ratePm', 'rejectPm'} and number > 1000: reject(key)
+            if key == 'pressureWindows' and number > 3: reject(key)
+    if command == 'BLEFLOW?':
+        active, evidence = fields['active'] == '1', fields['evidence'] == '1'
+        stage, rate = fields['stage'], int(fields['ratePm'])
+        if stage != 'unknown' and (stage == 'inactive') == active: reject('active_stage')
+        if stage in {'full', 'pressure'} and rate != 1000: reject('full_rate')
+        if stage == 'limited' and rate >= 1000: reject('limited_rate')
+        if evidence and not active: reject('inactive_evidence')
+        if fields['localServiceMilliFps'] != 'unknown' and not (active and evidence): reject('service_evidence')
+    elif command == 'BLESNAP?':
+        known, gap_known = fields['known'] == '1', fields['gapKnown'] == '1'
+        if known:
+            if fields['lastSeq'] == 'unknown' or fields['lastRev'] == 'unknown': reject('known_identity')
+        elif any(fields[key] != 'unknown' for key in ('lastSeq', 'lastRev', 'lastCompleteAgeUs')):
+            reject('unknown_completion')
+        if gap_known:
+            if not known or fields['maxCompleteGapUs'] == 'unknown': reject('known_gap')
+        elif fields['maxCompleteGapUs'] != 'unknown': reject('unknown_gap')
+    return fields
 
 
 def validate_cpu_owner(command, fields):
@@ -119,6 +189,8 @@ def cpu_owner_evidence(fields):
 
 
 def validate_reply(command, fields, *, backend='otg_bulk_v1'):
+    if command in FRAME_OUTPUT_REQUIRED:
+        return validate_frame_output(command, fields)
     if command in CPU_OWNER_REQUIRED:
         return validate_cpu_owner(command, fields)
     if command == 'BUILD?':

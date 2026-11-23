@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_wifi_owner_docs_02.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "d304fa8b51023cfd32e996407f24bb957ce7a730fb4a398ced7177954a1630d2",
+  "started_utc": "2026-11-21T00:34:20.583853+00:00",
+  "started_monotonic": 152026.321628786,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-doc-validation-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:34:20.698379+00:00",
+  "finished_monotonic": 152026.436168824,
+  "log_sha256": "38c649bae23ca0d17a6abb534244ca091af3ac2a6fad8d4abe1aa681b620be8a"
+}

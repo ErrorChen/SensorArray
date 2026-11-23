@@ -1,0 +1,291 @@
+{
+  "schema": 1,
+  "scope": "Read-only current pinned SDK/source and closed parent HIL evidence. No build, hardware commands, production/config edits, fault injection or SDK patch.",
+  "created_utc": "2026-11-21T00:44:38.951740+00:00",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "source_hashes": {
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "sdkconfig.defaults": "a93a581ac68dcb4d37c5bdf9ebca12dd1735be7a04f5dc692383f2902d190a69",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "cd3d7ede70e893755a9455a1fb163b5ce3abecbe8fec8b75abfbc3ba9006e37e",
+    "components/sensorarrayWifi/sensorarrayWifiOwner.c": "94b1dfabca04f52a3588fe2510c481c5712de89037df23e109ed8c25c1692ee6",
+    "core/transport/sensorarrayTransport.c": "19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d"
+  },
+  "idf_root": "/home/csc/esp/esp-idf-v5.5.5",
+  "sdkconfig": {
+    "CONFIG_SPIRAM": "y",
+    "CONFIG_SPIRAM_USE_CAPS_ALLOC": "y",
+    "CONFIG_SPIRAM_USE_MALLOC": false,
+    "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP": false,
+    "CONFIG_SPIRAM_IGNORE_NOTFOUND": false,
+    "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY": "y",
+    "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM": "8",
+    "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM": "16",
+    "CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER": "y",
+    "CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM": "16",
+    "CONFIG_ESP_WIFI_STATIC_RX_MGMT_BUFFER": "y",
+    "CONFIG_ESP_WIFI_RX_MGMT_BUF_NUM_DEF": "5",
+    "CONFIG_LWIP_TCPIP_TASK_STACK_SIZE": "3072",
+    "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE": "16",
+    "CONFIG_LWIP_TCPIP_CORE_LOCKING": false,
+    "CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE": "2304",
+    "CONFIG_NEWLIB_NANO_FORMAT": false,
+    "CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS": false,
+    "CONFIG_HEAP_USE_HOOKS": false,
+    "CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT": "y",
+    "CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS": "0",
+    "CONFIG_ESP_COREDUMP_ENABLE_TO_NONE": "y"
+  },
+  "references": {
+    "components/esp_psram/Kconfig.spiram.common": {
+      "lines": [
+        109,
+        117
+      ],
+      "finding": "Explicit WiFi/lwIP SPIRAM-first flag supports current CAPS_ALLOC, internal fallback; general malloc/reserve policy is distinct.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_psram/Kconfig.spiram.common",
+      "sha256": "0ea5bf089440c8cf32e2702fdfc690af1866f94f859339188dd6b450a3ce9812"
+    },
+    "components/esp_wifi/Kconfig": {
+      "lines": [
+        82,
+        91,
+        106
+      ],
+      "finding": "Enabling SPIRAM_TRY_ALLOCATE_WIFI_LWIP while IGNORE_NOTFOUND is false disables dynamic TX choice; static TX defaults16 and cache TX32. This is not a same-buffer-count placement-only change.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/Kconfig",
+      "sha256": "d3fa69f3b42d007d81b35f4cc51674bed4b787deade22dcb0f79128ef1617717"
+    },
+    "components/esp_wifi/esp32s3/esp_adapter.c": {
+      "lines": [
+        71,
+        84,
+        97,
+        114,
+        330,
+        412
+      ],
+      "finding": "wifi allocation wrappers can prefer SPIRAM; queue/FreeRTOS metadata and explicit internal DMA allocations remain internal.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/esp32s3/esp_adapter.c",
+      "sha256": "0bd67f85a88f0c1bb0d6a0412a48c767de7e2eab76c1ee8a05db56920c512d6d"
+    },
+    "components/lwip/port/include/lwipopts.h": {
+      "lines": [
+        1708
+      ],
+      "finding": "mem_clib_malloc/calloc prefer SPIRAM only under the explicit flag.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/lwip/port/include/lwipopts.h",
+      "sha256": "2c9aacaa8e152d5270fabf0b76eefd2801d051c847b8ef875d12a17259d2f4ac"
+    },
+    "components/freertos/heap_idf.c": {
+      "lines": [
+        38,
+        55
+      ],
+      "finding": "Ordinary dynamic FreeRTOS allocations require INTERNAL|8BIT; external-stack allowance alone does not relocate them.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/freertos/heap_idf.c",
+      "sha256": "6201b70a245f721c3021656d62fbbbf45c3e4d5d843365df007d0da9ac99db2e"
+    },
+    "components/esp_system/include/esp_task.h": {
+      "lines": [
+        34,
+        57
+      ],
+      "finding": "Non-nano format adds512 bytes: current TCPIP3584 and default event2816 bytes before TCB/queue/other resources.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_system/include/esp_task.h",
+      "sha256": "78bc0f886085c922e4d4c5c9a27d460378c7a923eef5dcc9d3b1cde1e9f7005b"
+    },
+    "components/lwip/port/freertos/sys_arch.c": {
+      "lines": [
+        205,
+        383,
+        390
+      ],
+      "finding": "Mailbox mem_malloc + internal xQueueCreate can return ERR_MEM; failed task creation returns NULL.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/lwip/port/freertos/sys_arch.c",
+      "sha256": "1e9bcbadb652f5b15149fcc8bcd173ec52b52430201c86af88644e4f65ecd8b8"
+    },
+    "components/lwip/lwip/src/api/tcpip.c": {
+      "lines": [
+        650,
+        656,
+        667
+      ],
+      "finding": "tcpip_init asserts if mailbox creation fails; ignores sys_thread_new return.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/lwip/lwip/src/api/tcpip.c",
+      "sha256": "486a8ad6d219bd9c3ed5e030715d457589537678a059b74e4debe687657e03e9"
+    },
+    "components/esp_netif/lwip/esp_netif_lwip.c": {
+      "lines": [
+        534,
+        939,
+        1171,
+        1173
+      ],
+      "finding": "esp_netif_init waits on initialized semaphore. Default netif start uses ESP_ERROR_CHECK for config sanity and lwip_add; these are panic-capable SDK boundaries, not ordinary owner-return errors.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_netif/lwip/esp_netif_lwip.c",
+      "sha256": "f5c1f6fd080df5416cb8893578648609e3da93cadebddb569173739f3bfb9a34"
+    },
+    "components/esp_wifi/src/wifi_init.c": {
+      "lines": [
+        320
+      ],
+      "finding": "PSRAM-backed TX cache policy also has runtime compatibility checks; cache count0 is not supported in the enabled case.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/esp_wifi/src/wifi_init.c",
+      "sha256": "aee4898a95c946766e9e0ceae37c3f7a5e358665a19768c284f6dd0a648a5887"
+    },
+    "components/heap/include/esp_heap_caps.h": {
+      "lines": [
+        55,
+        68
+      ],
+      "finding": "SDK failed-allocation callback(size,caps,function_name) is available independent of heap hook tracing; no hook was added.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/heap/include/esp_heap_caps.h",
+      "sha256": "5fd9bf5e089788bc91b81474047379c96826c768607f0f7ad4b8e0930a7de3ec"
+    },
+    "components/heap/heap_caps.c": {
+      "lines": [
+        49,
+        172,
+        188
+      ],
+      "finding": "Failure callback runs on final failed allocation; preference helper can report the final attempted caps, not all preference attempts.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps.c",
+      "sha256": "a1ddc96cda0df2758552c611e409bde6358b8b18145470f928a33cb59628f2a1"
+    },
+    "docs/en/api-guides/wifi.rst": {
+      "lines": [
+        3665,
+        4188,
+        4215
+      ],
+      "finding": "Static RX and TX hardware buffers are DMA memory (~1600B each); generic SPIRAM availability does not replace internal DMA capacity.",
+      "path": "/home/csc/esp/esp-idf-v5.5.5/docs/en/api-guides/wifi.rst",
+      "sha256": "bb2c81779e7408d8c4c0fa7a4ec312efdf6d28b103d6047af7f4a86dd6763728"
+    }
+  },
+  "closed_evidence_hashes": {
+    "wifi-control-01/wifi-control-01.summary.json": "24d2994cf8618947bc07a7db152526fcb4263757b84c6a3cfaae2934a79c4b4e",
+    "wifi-control-01/wifi-control-01.events.jsonl": "5419184c124ef9b357b3ce7850538becd5fb633cfb4b2aadfd0df345bac795ab",
+    "wifi-control-01/wifi-control-01.rx.bin": "589f1cfd3ae0b46d8d7c571a8e8fe0cca65835abd750e9f716eb49ae5dce4aa4",
+    "wifi-failure-usj-01.summary.json": "12a7e761032de8bf62849f5e9ebb76f154c7137ea63e5bed284aabb3ff00aadd",
+    "wifi-failure-usj-01.events.jsonl": "8a102e1fe41cd85cfba0130e8502aab476313a26793c710d91af91a95e60061e",
+    "wifi-failure-usj-01.rx.bin": "6d50709d177bb4e26731728e34ec07285741a64e9c72cc7bc06dc4e8540c23f7"
+  },
+  "observed": {
+    "expected_image": {
+      "elfSha256": "9e1ee9f9812dcd21a1295e315f08c10bdf98ae55d309e67b1f84b97b3c825573",
+      "session": "0ACE6CD97F8649DC",
+      "bootId": "1"
+    },
+    "status": "ERROR",
+    "error": "serial_eof_or_disconnected",
+    "memory_before": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "27408",
+      "intLargest": "11252",
+      "intMin": "21044",
+      "extFree": "8248968",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "38952",
+      "beforeLargest": "25588",
+      "afterFree": "21152",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "557274718"
+    },
+    "events_selected": [
+      {
+        "t": 0.028044979990227148,
+        "type": "tx_begin",
+        "phase": "wifi_request",
+        "command": "WIFI=AP",
+        "wire_ascii": "\nWIFI=AP\n",
+        "channel": "data"
+      },
+      {
+        "t": 0.03088260698132217,
+        "type": "reply",
+        "phase": "wifi_request",
+        "command": "WIFI=AP",
+        "line": "ACK,cmd=WIFI,v=AP,ok=0,ver=2,accepted=1,pending=1,session=0ace6cd97f8649dc,boot=1,bootKnown=1,id=1,epoch=2,outcome=pending,e=0x00000000,scope=backend_and_gate,peerReceipt=unknown"
+      },
+      {
+        "t": 0.030940366006689146,
+        "type": "tx_begin",
+        "phase": "wifi_request",
+        "command": "WIFIREQ?1",
+        "wire_ascii": "\nWIFIREQ?1\n",
+        "channel": "data"
+      },
+      {
+        "t": 0.03260977898025885,
+        "type": "reply",
+        "phase": "wifi_request",
+        "command": "WIFIREQ?1",
+        "line": "WIFIREQ,v=1,session=0ace6cd97f8649dc,boot=1,bootKnown=1,id=1,known=1,epoch=2,requested=AP,outcome=running,err=0x00000000,cleanupErr=0x00000000,acceptedUs=557277934,completedUs=unknown,terminalAttempts=0,terminalQueued=0,terminalPending=0,scope=backend_and_gate,peerReceipt=unknown"
+      },
+      {
+        "t": 0.037955078994855285,
+        "type": "finished",
+        "phase": "restore_output_gate",
+        "status": "ERROR",
+        "error": "serial_eof_or_disconnected",
+        "off_restore": "FAILED_OR_UNKNOWN"
+      }
+    ],
+    "recovery_replies": [
+      {
+        "t": 0.01309663598658517,
+        "type": "reply",
+        "phase": "readonly_recovery_probe",
+        "command": "BUILD?",
+        "line": "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=8a1794c-dirty,elfSha256=9e1ee9f9812dcd21a1295e315f08c10bdf98ae55d309e67b1f84b97b3c825573"
+      },
+      {
+        "t": 0.014527639985317364,
+        "type": "reply",
+        "phase": "readonly_recovery_probe",
+        "command": "BOOT?",
+        "line": "BOOT,boot=2,bootId=2,reset=panic,stage=frame_read,err=0x0,seq=1445,heap=8272880,heapMin=8272392,prevStage=frame_read,prevErr=0x0,prevHeap=8275876,guard=normal,autoRestarts=0,windowAgeS=0,ready=1"
+      },
+      {
+        "t": 0.021227216988336295,
+        "type": "reply",
+        "phase": "readonly_recovery_probe",
+        "command": "MEM?",
+        "line": "MEM,v=1,readout=sequential,unit=bytes,intCaps=internal8,intFree=23912,intLargest=8180,intMin=17560,extFree=8248968,extLargest=8126452,scan=created,scanStack=16384,beforeFree=35468,beforeLargest=25588,afterFree=17668,afterLargest=8180,err=0x0,sampleUs=140059569"
+      }
+    ],
+    "panic_text_or_backtrace_in_either_raw": false,
+    "physical_root_cause": "UNKNOWN. BOOT reset=panic proves reset classification, not assertion location, OOM, stack overflow, or owner-timeout causality."
+  },
+  "memory_model": {
+    "current_runtime_profile": "TransportBuildWifiConfig selects HIGH; existing backend applies staticRX8/dynamicRX16/dynamicTX16/rxBA6/mgmt12. No implicit BLE_COMPAT fallback.",
+    "new_owner_payload": "7424 bytes explicitly PSRAM, persistent; task4096 bytes internal. Control RX task4096 internal created last.",
+    "other_known_stacks": "TCPIP3584 and default event2816 internal plus TCB, queues and vendor WiFi task/resources. Full aggregate/peak cannot be derived from these partial sums.",
+    "current_static_rx_nominal_bytes": 12800,
+    "current_static_rx_nominal_is_estimate": true,
+    "psram_flag_coupling": "With IGNORE_NOTFOUND false, enabling TRY_ALLOCATE_WIFI_LWIP forces static TX. Default16*~1600 bytes adds ~25.6KB DMA allocation plus cache policy. Existing app only overrides dynamic_tx_buf_num and would not tune newly selected static count. Do not blindly enable one flag.",
+    "not_guaranteed": "8MB total free PSRAM does not prove internal RAM, contiguous task-stack or DMA eligibility. Largest-block and allocation capabilities matter."
+  },
+  "hypotheses_not_observed_root_cause": [
+    "tcpip_init mailbox allocation failure is an explicit LWIP_ASSERT boundary before the owner can receive an error.",
+    "tcpip task allocation failure instead returns NULL ignored by tcpip_init and can leave esp_netif_init blocked; the persistent owner watchdog is designed to isolate this case, not prevent SDK panic.",
+    "Default AP netif-start SDK path contains ESP_ERROR_CHECK on configuration and netif_add. This is a potential panic-capable boundary; no evidence this branch was reached in the recorded run.",
+    "Task-stack canary/watchpoint panic remains unexcluded. No panic text/backtrace or in-job stack water mark was captured."
+  ],
+  "recommended_next_step": "Parent has approved bounded RTC panic diagnostics; wait for exact phase/PC/assert evidence, then select a targeted correction. Do not tune memory counts, disable assertions, relax thresholds or claim an OOM root cause from current evidence.",
+  "checks": {
+    "sdk_and_current_config_inspected": true,
+    "closed_raw_inspected": true,
+    "hardware_or_build_by_reviewer": "NOT_RUN",
+    "configuration_changes": "NONE",
+    "raw_inputs_modified": false
+  },
+  "gate": "INVESTIGATION_ONLY; actual AP panic remains blocking and source hypotheses are not a fix or root-cause proof."
+}

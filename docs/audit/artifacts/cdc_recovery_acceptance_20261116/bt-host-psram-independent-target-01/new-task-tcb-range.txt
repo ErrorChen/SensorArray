@@ -1,0 +1,12 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.text:
+
+40388f52 <xTaskCreatePinnedToCore+0x42>:
+40388f52:	0661a2        	s32i	a10, a1, 24
+40388f55:	68a1a2        	movi	a10, 0x168
+40388f58:	fd2ce5        	call8	40386228 <pvPortMalloc>
+40388f5b:	6188      	l32i.n	a8, a1, 24
+40388f5d:	03ea16        	beqz	a10, 40388f9f <xTaskCreatePinnedToCore+0x8f>

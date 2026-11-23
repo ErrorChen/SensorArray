@@ -34,4 +34,11 @@ bool sensorarrayUsbOtgRomDownloadAvailable(void);
  * all buffers and the owner stay alive. Caller must not report DMA cancelled. */
 esp_err_t sensorarrayUsbOtgPrepareRestart(int64_t deadlineUs, bool romDownload);
 void sensorarrayUsbOtgRestart(bool romDownload) __attribute__((noreturn));
+/* 本轮新增: explicitly accepted manual RESTART/USBBOOT only. After the same
+ * bounded USB fence, bypass shutdown callbacks which can wait in the Wi-Fi
+ * SDK. This pinned ESP32-S3/IDF escape skips wall-clock synchronization and
+ * graceful Wi-Fi stop, not a scientific-data save or physical SAFE action.
+ * It retains the existing noos DMA wrapper and SDK hardware-watchdog fallback.
+ * Actual reset/enumeration still requires observation after this call. */
+void sensorarrayUsbOtgManualRestart(bool romDownload) __attribute__((noreturn));
 void sensorarrayUsbOtgInitSerialString(void);

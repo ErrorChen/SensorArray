@@ -1,0 +1,19 @@
+{
+  "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "version": "8a1794c-dirty",
+  "app_bytes": 1611024,
+  "bin_sha256": "5f35bfc3e11aab5d6adcd748c7a09ab817ebf561417cf8a477c5ee665143e112",
+  "elf_sha256": "8e61aacaee859cd5ebe1dff13dff1d9d2c722268bb564837c15b4741613eb4fc",
+  "host_entries": 69,
+  "all_exit_zero": true,
+  "production_inputs": 187,
+  "build_test_inputs_identical": true,
+  "build_manifest": "ble-data-priority-01-build-manifest.json",
+  "tests_manifest": "ble-data-priority-01-tests-manifest.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "changed_from_guard_cadence": [
+    "components/sensorarrayBle/sensorarrayBle.c"
+  ],
+  "change_scope": "Only BLE descriptor selection: reserved CTRL/lifecycle, then DATA, then best-effort ordinary LOG. Packing, watchdogguard, OTG debugcadence, queues, priorities, acquisition and scientificchecks retained.",
+  "dirty_build_scope": "Uncommitted production/test fixes and documentation; exact source snapshots in paired manifests."
+}

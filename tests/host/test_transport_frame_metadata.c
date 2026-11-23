@@ -11,7 +11,8 @@ static void parse(sensorarrayTransportPayloadSlot_t *slot, const char *data)
 }
 int main(void)
 {
-    sensorarrayTransportPayloadSlot_t slot = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE];
+    sensorarrayTransportPayloadSlot_t slot = {.data=storage};
     parse(&slot, "C,seq=11,rows=1,cells=8,mgen=4,mrid=3,gen=2,rid=1,session=0123456789ABCDEF,bootId=99,rev=6,rgen=2,rrid=1,pgen=5,prid=4\nK,gen=999\n");
     assert(slot.hasFrameMeta && slot.generation == 2 && slot.requestId == 1);
     assert(slot.modeGeneration == 4 && slot.modeRequestId == 3);
@@ -19,9 +20,13 @@ int main(void)
     assert(slot.profileGeneration == 5 && slot.profileRequestId == 4);
     assert(slot.sessionId == UINT64_C(0x0123456789abcdef) && slot.bootId == 99 && slot.configRevision == 6);
     /* Metadata stays attached to queued payload; no global-state restamping. */
+    char queuedStorage[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE];
     sensorarrayTransportPayloadSlot_t queued = slot;
+    queued.data = queuedStorage;
+    memcpy(queued.data, slot.data, slot.length + 1u);
     parse(&slot, "V,seq=12,rows=1,cells=8,gen=7,rid=6,mgen=7,mrid=6,rgen=2,rrid=1\n");
     assert(queued.modeGeneration == 4 && slot.modeGeneration == 7);
+    assert(queued.data[0] == 'C' && slot.data[0] == 'V');
     parse(&slot, "M,seq=13,rows=1,cells=8,pgen=8,prid=7,rgen=2,rrid=1,mgen=9,mrid=8\n");
     assert(slot.generation == 2 && slot.requestId == 1 && slot.profileGeneration == 8);
     parse(&slot, "C,seq=14,rows=1,cells=8,mgen=77,mrid=66\nK,gen=22,rid=11\n");
@@ -36,5 +41,11 @@ int main(void)
     assert(strstr(preview, "d0=na,dl=na"));
     parse(&slot, "C,seq=4294967296,rows=1,cells=8,gen=1,rid=1\n");
     assert(!slot.hasFrameMeta);
+    sensorarrayTransportPayloadSlot_t unbound = {.hasFrameMeta=true};
+    sensorarrayTransportParseFrameMeta(&unbound);
+    assert(!unbound.hasFrameMeta);
+    assert(!sensorarrayTransportBuildPreview(&unbound, preview, sizeof(preview)));
+    sensorarrayTransportFrameMetadata_t metadata = {0};
+    assert(!sensorarrayTransportApplyFrameMetadata(&unbound, &metadata));
     puts("TRANSPORT_FRAME_METADATA_PASS,domains=rows;mode;profile;session,exact_fields=1,immutable=1");
 }

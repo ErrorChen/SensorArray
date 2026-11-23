@@ -1,0 +1,167 @@
+{
+  "timestamp_utc": "2026-11-21T00:35:49.517344+00:00",
+  "scope": "Read-only script review and synthetic execution; no production/script edits; no hardware access",
+  "source_hashes_before": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_wifi_owner_control.py": "4c1c1570a9473716aedaad20235413a27e879838eb5267d3d769737482537efe",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_check_wifi_owner_control.py": "2daec047b29c74d8e2e45aa0f5f0ad30fb78bb8a5735541879a084914c29dd07",
+    "tools/capture_reference_fixture.py": "7e6cee81f0051fa2900a62f9fbf2ee0fb40d995c0cadd85fc2ddcbfdb2978a8f",
+    "tools/sensorarray_capture_identity.py": "c436de0b1650775caecfd1bd39ff22c59a1ccc063d1f1ff16ef77e98601985ce",
+    "tools/sensorarray_usb_cdc.py": "9cab48effca6e0ac3198549b26db72c4f7aad42bd6f73fc945d2418d214ef4d2"
+  },
+  "source_hashes_after": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_wifi_owner_control.py": "4c1c1570a9473716aedaad20235413a27e879838eb5267d3d769737482537efe",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_check_wifi_owner_control.py": "2daec047b29c74d8e2e45aa0f5f0ad30fb78bb8a5735541879a084914c29dd07",
+    "tools/capture_reference_fixture.py": "7e6cee81f0051fa2900a62f9fbf2ee0fb40d995c0cadd85fc2ddcbfdb2978a8f",
+    "tools/sensorarray_capture_identity.py": "c436de0b1650775caecfd1bd39ff22c59a1ccc063d1f1ff16ef77e98601985ce",
+    "tools/sensorarray_usb_cdc.py": "9cab48effca6e0ac3198549b26db72c4f7aad42bd6f73fc945d2418d214ef4d2"
+  },
+  "inputs_stable": true,
+  "host_tests": {
+    "command": [
+      "python3",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_check_wifi_owner_control.py"
+    ],
+    "exit_code": 0,
+    "stdout": "WIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,success\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,wrong_image\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,different_boot\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,backend_unavailable\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,lost_AP_ACK\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,lost_OFF_ACK\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,terminal_overwritten\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,guard_quarantine\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,false_accepted\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,applied_with_error\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,wrong_epoch\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,duplicate_ACK\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,bootstrap_rejected\nWIFI_CONTROL_CAPTURE_SYNTHETIC_PASS,terminal_epoch_overwritten\nscenarios=14,hardware=NOT_RUN,real_adapter_constructed=0\n",
+    "stderr": ""
+  },
+  "independent_mutations": {
+    "recipe": "On final WIFIREQ?4 after five setters, replace exactly one immutable field; execute actual frozen main and real Collector.wait with synthetic transport boundary; all eight mutations must return nonzero with OFF_changed_original_AP_terminal.",
+    "cases": [
+      {
+        "field": "known",
+        "value": "0",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "id",
+        "value": "123",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "requested",
+        "value": "OFF",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "epoch",
+        "value": "123",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "scope",
+        "value": "output_gate_only",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "outcome",
+        "value": "failed",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "err",
+        "value": "0x101",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      },
+      {
+        "field": "cleanupErr",
+        "value": "0x107",
+        "exit_code": 1,
+        "status": "ERROR",
+        "error": "OFF_restore:OFF_changed_original_AP_terminal",
+        "off_restore": "FAILED_OR_UNKNOWN",
+        "commands": [
+          "WIFI=AP",
+          "WIFI=AP",
+          "WIFI=OFF",
+          "WIFI=AP",
+          "WIFI=OFF"
+        ]
+      }
+    ]
+  },
+  "gate": "READY_FOR_BOUNDED_HARDWARE_TOOL_EXECUTION",
+  "hardware": "NOT_RUN",
+  "limitations": [
+    "This review authorizes no additional physical action; root retains existing hardware authorization and identity gates.",
+    "Owner backend success, memory margin, RF behavior and UDP PC receipt remain target evidence, not host-test claims.",
+    "Observed OFF is a logical output gate, not radio power-off proof.",
+    "The tool conservatively marks OFF restore FAILED_OR_UNKNOWN if a subsequent immutable-cache check fails, even after gate0 was observed."
+  ],
+  "resolved": [
+    "Original guard-quarantine, false-accepted ACK and applied-with-error false PASS cases are rejected.",
+    "Two-entry request cache uses latest AP and explicitly checks first eviction.",
+    "Actual bootstrap ERR/id0/no-cache follows real Collector.wait error path and remains nonzero.",
+    "Final cached terminal compares known/id/requested/epoch/scope/outcome/err/cleanupErr; the original changed-epoch false PASS is closed."
+  ]
+}

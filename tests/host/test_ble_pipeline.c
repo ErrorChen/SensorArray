@@ -9,12 +9,14 @@
 #include <ucontext.h>
 #include "pipeline_config.h"
 #include "sensorarrayBle.h"
+#include "sensorarrayBleWatchdog.h"
 #include "sensorarrayTransport.h"
 #include "sensorarrayTransportPool.h"
 #include "sensorarrayTransportFrameMeta.h"
 #include "sensorarrayTextProtocol.h"
 #include "sensorarrayFrameBuilder.h"
 #include "sensorarrayOutputPolicy.h"
+#include "sensorarrayFramePublication.h"
 #include "sensorarrayWorkBudget.c"
 
 typedef int esp_gatt_if_t;
@@ -30,7 +32,7 @@ typedef uint8_t esp_bd_addr_t[6];
 enum { ASYNC, TRANSPORT, BLE, CONTROL, BT, TASKS };
 enum { Q_NONE, Q_TR_DATA, Q_TR_LOG, Q_TR_LIFE, Q_BLE_DATA, Q_BLE_LOG, Q_BLE_CTRL };
 enum { BURST, SHORT, BT_PREEMPT, LONG_WAIT, REJECT, UNREAD, CONTROL_FLOW,
-       SDK_BUSY, BT_SATURATED, NEVER_RETURNS, SCENARIOS };
+       SDK_BUSY, BT_SATURATED, NEVER_RETURNS, GUARDED_NEVER_RETURNS, SCENARIOS };
 typedef struct {
     ucontext_t context;
     uint8_t stack[131072];
@@ -45,10 +47,13 @@ static bool sourceContext, inAdvance;
 static uint64_t nowUs, readyOrder, sourceStart = 1000000u, nextSourceUs;
 static unsigned scenario, sourceGoal, controlGoal, sourceCount, asyncPopped;
 static unsigned transportQueued[3], transportRejected[3], transportProcessed[3];
+static unsigned transportNoSink[3];
 static unsigned bleQueued[3], bleStarted[3], bleFinished[3], sdkAccepted[3], receiverRecords[3];
 static unsigned controlCalls, controlAccepted, controlRejected, sdkCalls, sdkErrors, btJobs;
 static uint64_t controlAt[256], controlMaxDispatch, controlMaxLatency, poolHeldMaxUs;
 static unsigned sdkWhilePoolHeld, idleVisits, sdkNeverOutstanding, modelSwitches;
+static uint64_t nextGuardUs;
+static unsigned guardPolls;
 static bool trActive, bleActive;
 static sensorarrayTransportDescriptor_t activeTransport;
 static sensorarrayBleTxDescriptor_t activeBle;
@@ -62,7 +67,15 @@ static sensorarrayTransportStats_t g_sensorarrayTransportStats;
 static portMUX_TYPE g_sensorarrayTransportStatsMux;
 static StaticQueue_t trQueues[3];
 static uint8_t trQueueBytes[3][2u * sizeof(sensorarrayTransportDescriptor_t)];
-static QueueHandle_t s_dataQueue, s_logQueue, s_lifecycleQueue;
+static QueueHandle_t s_dataQueue, s_logQueue, s_lifecycleQueue, s_protectedQueue;
+static bool s_protectedRetryActive, s_lastBleFrameKnown;
+static sensorarrayTransportDescriptor_t s_protectedRetry;
+static sensorarrayTransportProtectionStats_t s_transportProtectionStats;
+static bool s_protectedAdmissionKnown;
+static sensorarrayTransportFrameIdentity_t s_protectedAdmissionIdentity;
+static uint64_t s_lastProtectedAdmissionUs;
+static uint32_t s_lastBleConnectionGeneration;
+static sensorarrayTransportFrameIdentity_t s_lastBleFrame;
 static TaskHandle_t s_task, s_logTaskHandle;
 static sensorarrayAsyncLogFrameSlot_t asyncSlots[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static sensorarrayAsyncLogFrameSlot_t *s_frameSlots = asyncSlots;
@@ -71,6 +84,12 @@ static uint8_t s_pendingSlots[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static uint8_t s_pendingReadIndex, s_pendingCount;
 static portMUX_TYPE s_asyncLogMux;
 static sensorarrayAsyncLogSharedStats_t s_sharedStats;
+static uint32_t s_frameSlotProtection[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
+static sensorarrayTransportFrameIdentity_t s_frameSlotIdentity[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
+static sensorarrayAsyncLogProtectionStats_t s_asyncProtectionStats;
+static bool s_protectedIdentityKnown;
+static sensorarrayTransportFrameIdentity_t s_protectedIdentity;
+static int64_t s_lastProtectedPublishedUs;
 
 static void reschedule(void);
 static void blockUntil(uint64_t until);
@@ -81,8 +100,10 @@ static bool sensorarrayAsyncLogIsRunning(void) { return true; }
 bool sensorarrayTransportBleChannelEnabled(sensorarrayTransportChannel_t c) { (void)c; return true; }
 bool sensorarrayTransportWifiSinkEnabled(void) { return false; }
 bool sensorarrayWifiIsReady(void) { return false; }
-esp_err_t sensorarrayWifiSend(sensorarrayWifiChannel_t c, const uint8_t *p, size_t n)
-{ (void)c; (void)p; (void)n; assert(false); return ESP_FAIL; }
+bool sensorarrayWifiGetSendEpoch(bool control,uint32_t *epoch) { (void)control;if(epoch)*epoch=0;return false; }
+bool sensorarrayWifiOwnerNeedsPoll(void) { return false; }
+esp_err_t sensorarrayWifiSubmit(const sensorarrayWifiPublication_t *p) { (void)p;assert(!"Wi-Fi disabled in BLE pipeline");return ESP_ERR_INVALID_STATE; }
+static void sensorarrayTransportWifiDrainTerminal(void) {}
 sensorarrayTransportTxMode_t sensorarrayTransportGetTxMode(void) { return SENSORARRAY_TRANSPORT_TX_REL; }
 static bool sensorarrayTransportFindFieldU32(const char *p, const char *field, uint32_t *out)
 { (void)p; (void)field; (void)out; assert(false); return false; }
@@ -107,6 +128,7 @@ static void wake(modelTask_t *task)
         reschedule();
     }
 }
+
 int xTaskNotifyGive(TaskHandle_t handle)
 {
     modelTask_t *task = handle; assert(task && !pipelineLockDepth);
@@ -138,6 +160,13 @@ int xQueueSend(QueueHandle_t q, const void *item, TickType_t timeout)
     memcpy(q->storage + ((q->head + q->count) % q->capacity) * q->itemSize, item, q->itemSize);
     q->count++; queueObserved(q, item); return pdTRUE;
 }
+int xQueueSendToFront(QueueHandle_t q,const void *item,TickType_t timeout)
+{
+    assert(q && !pipelineLockDepth && !timeout);
+    if(q->count==q->capacity)return pdFALSE;
+    q->head=(q->head+q->capacity-1u)%q->capacity;
+    memcpy(q->storage+q->head*q->itemSize,item,q->itemSize);q->count++;return pdTRUE;
+}
 int xQueueReceive(QueueHandle_t q, void *out, TickType_t timeout)
 {
     assert(q && !pipelineLockDepth && timeout == 0u);
@@ -162,6 +191,14 @@ int xSemaphoreTake(SemaphoreHandle_t s, TickType_t timeout)
 static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t conn,
     uint16_t handle, uint16_t length, uint8_t *value, bool confirm);
 
+#define MALLOC_CAP_SPIRAM 1u
+#define MALLOC_CAP_8BIT 2u
+static uint8_t blePayloadStorage[SENSORARRAY_BLE_PAYLOAD_STORAGE_BYTES];
+static void *heap_caps_malloc(size_t bytes, uint32_t caps)
+{
+    assert(!pipelineLockDepth && bytes==sizeof blePayloadStorage && caps==(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    return blePayloadStorage;
+}
 #include "ble_functions.h"
 #define sensorarrayBleSendDescriptor actualBleSendDescriptor
 #include "ble_send.h"
@@ -256,7 +293,7 @@ static esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t interface, uint16_t c
         assert(sensorarrayTransportDescriptorCurrent(&activeTransport));
         sdkWhilePoolHeld++;
     }
-    if (scenario == NEVER_RETURNS) {
+    if (scenario == NEVER_RETURNS || scenario == GUARDED_NEVER_RETURNS) {
         sdkNeverOutstanding++;
         blockUntil(UINT64_MAX); /* No artificial SDK return/cancel at model deadline. */
         assert(false);
@@ -336,25 +373,36 @@ static void outputBridge(void)
 {
     /* The full AsyncLog formatter/task is not substituted with fake queue
      * ownership. Real publish/pop helpers and real Transport admission run;
-     * the fanout/diagnostic execution cost alone is a 200us synthetic bridge. */
+     * the fanout/diagnostic execution cost alone is a 200us synthetic bridge.
+     * This preexisting scheduler baseline intentionally keeps generic DATA
+     * admission; typed source/transport protection is executed separately in
+     * test_protected_frame_pipeline, not claimed by these 22 scenarios. */
     static sensorarrayFrame_t frame;
     static sensorarrayTextPacket_t packet;
     for(;;) {
         (void)ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
         unsigned processed=0;
-        uint64_t measure;int64_t published;uint32_t depth;
+        uint64_t measure;int64_t published;uint32_t depth, protectionFlags;
         while(processed<SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT &&
-              sensorarrayAsyncLogPopFrame(&frame,&packet,&measure,&published,&depth)) {
+              sensorarrayAsyncLogPopFrame(&frame,&packet,&measure,&published,&depth,&protectionFlags)) {
             assert(packet.sequence==frame.sequence && frame.identity.revision==8);
             assert(packet.length==expectedPackets[frame.sequence].length &&
                    memcmp(packet.data,expectedPackets[frame.sequence].data,packet.length)==0);
             asyncPopped++; bool queued=false;
             esp_err_t result=sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_DATA,packet.data,packet.length,&queued);
-            if(queued) transportQueued[0]++; else { assert(result!=ESP_OK);transportRejected[0]++; }
+            if(queued) transportQueued[0]++;
+            else if(result==ESP_OK) {
+                assert(scenario==GUARDED_NEVER_RETURNS && s_ble.guard.quarantined);
+                transportNoSink[0]++; /* Existing Queue API: no enabled network sink. */
+            } else { transportRejected[0]++; }
             if(frame.sequence%10u==0u) {
                 const char log[]="LOG,fixture=synthetic,source=bounded\n";
                 queued=false;result=sensorarrayTransportQueue(SENSORARRAY_TRANSPORT_CHANNEL_LOG,log,sizeof(log)-1,&queued);
-                if(queued)transportQueued[1]++;else {assert(result!=ESP_OK);transportRejected[1]++;}
+                if(queued)transportQueued[1]++;
+                else if(result==ESP_OK) {
+                    assert(scenario==GUARDED_NEVER_RETURNS && s_ble.guard.quarantined);
+                    transportNoSink[1]++;
+                } else {transportRejected[1]++;}
             }
             consume(200u);processed++;
             (void)sensorarrayWorkBudgetCheckpoint(SENSORARRAY_WORK_BUDGET_ASYNC_LOG);
@@ -395,7 +443,7 @@ static esp_err_t initializeBleQueues(void)
 static void initialize(unsigned txPriority)
 {
     assert(CONFIG_SENSORARRAY_SCAN_TASK_CORE==1 && CONFIG_SENSORARRAY_ASYNC_LOG_TASK_CORE==0);
-    assert(CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN==4 && SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT==4);
+    assert(CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN==4 && SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT==4 && SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT==6);
     sourceGoal=scenario==BURST?8:200;controlGoal=scenario==BURST?2:scenario==CONTROL_FLOW?200:40;
     nextSourceUs=sourceStart;
     assert(sensorarrayWorkBudgetInit()==ESP_OK && idleHook);
@@ -408,13 +456,18 @@ static void initialize(unsigned txPriority)
         tasks[i].context.uc_link=&scheduler;makecontext(&tasks[i].context,entries[i],0);
     }
     s_task=&tasks[TRANSPORT];s_logTaskHandle=&tasks[ASYNC];
-    sensorarrayTransportPoolInit(&s_pool);
+    /* Fixture reset models a new boot; production never rebinds a live pool. */
+    static char transportStorage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    memset(&s_pool,0,sizeof(s_pool));
+    assert(sensorarrayTransportPoolInit(&s_pool,transportStorage,sizeof(transportStorage)));
     s_dataQueue=xQueueCreateStatic(SENSORARRAY_TRANSPORT_DATA_QUEUE_COUNT,sizeof(sensorarrayTransportDescriptor_t),trQueueBytes[0],&trQueues[0]);
     s_logQueue=xQueueCreateStatic(SENSORARRAY_TRANSPORT_LOG_QUEUE_COUNT,sizeof(sensorarrayTransportDescriptor_t),trQueueBytes[1],&trQueues[1]);
     s_lifecycleQueue=xQueueCreateStatic(SENSORARRAY_TRANSPORT_LIFECYCLE_QUEUE_COUNT,sizeof(sensorarrayTransportDescriptor_t),trQueueBytes[2],&trQueues[2]);
     s_dataQueue->tag=Q_TR_DATA;s_logQueue->tag=Q_TR_LOG;s_lifecycleQueue->tag=Q_TR_LIFE;
+    assert(sensorarrayBleInitPayloadStorage()==ESP_OK);
     assert(initializeBleQueues()==ESP_OK);
     s_ble.txQueue->tag=Q_BLE_DATA;s_ble.logTxQueue->tag=Q_BLE_LOG;s_ble.ctrlTxQueue->tag=Q_BLE_CTRL;
+    s_ble.guard.ready=true; s_ble.guard.initError=ESP_OK;
     s_ble.stats.connected=s_ble.stats.gattReady=true;s_ble.stats.mtu=247;
     s_ble.connectionGeneration=7;s_ble.gattsIf=2;s_ble.connId=3;
     s_ble.cccd[0]=s_ble.cccd[1]=s_ble.cccd[2]=1;
@@ -433,12 +486,21 @@ int main(int argc,char **argv)
 {
     setbuf(stdout,NULL);assert(argc==3);
     const char *names[]={"burst","short","bt_preempt","long_wait","reject","unread","control_flow",
-                         "sdk_busy","bt_saturated","never_returns"};
+                         "sdk_busy","bt_saturated","never_returns","guarded_never_returns"};
     for(scenario=0;scenario<SCENARIOS;scenario++)if(strcmp(names[scenario],argv[1])==0)break;
     assert(scenario<SCENARIOS);unsigned txPriority=(unsigned)strtoul(argv[2],NULL,10);assert(txPriority==7||txPriority==8);
     initialize(txPriority);
+    nextGuardUs = SENSORARRAY_BLE_SEND_POLL_US;
     uint64_t stop=sourceStart+(uint64_t)sourceGoal*10000u+2000000u;
     while(nowUs<stop) {
+        if (scenario == GUARDED_NEVER_RETURNS && nowUs >= nextGuardUs) {
+            /* An independent simulated ESP timer dispatcher runs while the
+             * BLE ucontext remains suspended inside the non-returning SDK.
+             * Skip missed periods, matching the real timer registration. */
+            assert(current == -1 && !pipelineLockDepth);
+            sensorarrayBleObserveSendDeadline(); guardPolls++;
+            nextGuardUs = nowUs + SENSORARRAY_BLE_SEND_POLL_US;
+        }
         if(sourceCount<sourceGoal && nextSourceUs<=nowUs)advanceTo(nowUs);
         int selected=-1;
         for(unsigned i=0;i<TASKS;i++)if(tasks[i].readyAt<=nowUs &&
@@ -460,15 +522,25 @@ int main(int argc,char **argv)
         assert(modelSwitches<100000u);
         assert(swapcontext(&scheduler,&tasks[selected].context)==0);current=-1;
     }
-    bool bounded=scenario!=NEVER_RETURNS;
+    bool bounded=scenario!=NEVER_RETURNS && scenario!=GUARDED_NEVER_RETURNS;
     sensorarrayWorkBudgetSnapshot_t budget;sensorarrayWorkBudgetCopySnapshot(&budget);
     /* All source arrivals occur independently of Core0 scheduling. Output
      * loss must be explained by the actual bounded slot/drop decisions. */
     assert(sourceCount==sourceGoal && s_sharedStats.publishedFrames==sourceGoal);
     assert(sourceGoal==asyncPopped+s_sharedStats.droppedOutputFrames+s_pendingCount);
-    assert(asyncPopped==transportQueued[0]+transportRejected[0]);
+    assert(asyncPopped==transportQueued[0]+transportRejected[0]+transportNoSink[0]);
     assert(transportQueued[0]==transportProcessed[0]+s_dataQueue->count+(trActive?1u:0u));
     assert(transportProcessed[0]==g_sensorarrayTransportStats.bleDataSent+g_sensorarrayTransportStats.bleDataDrop);
+    /* DATA is effectively subscribed throughout this model. Actual ordinary
+     * LOG admission rejection must reach transport as a counted drop, not a
+     * fictional successful submit, and cannot consume SDK/owner capacity. */
+    assert(g_sensorarrayTransportStats.bleLogSent==0u && sdkAccepted[1]==0u && bleQueued[1]==0u);
+    assert(transportProcessed[1]==g_sensorarrayTransportStats.bleLogDrop);
+    assert(s_ble.stats.logPolicyDrop<=s_ble.stats.dropped[SENSORARRAY_BLE_CH_LOG]);
+    if(scenario!=GUARDED_NEVER_RETURNS) {
+        assert(transportProcessed[1]==s_ble.stats.logPolicyDrop);
+        assert(s_ble.stats.logPolicyDrop==s_ble.stats.dropped[SENSORARRAY_BLE_CH_LOG]);
+    }
     assert(controlCalls==controlGoal && controlAccepted+controlRejected==controlCalls);
     assert(g_sensorarrayTransportStats.queueDropData==transportRejected[0]);
     assert(s_pool.stats.releaseMismatch==0 && s_ble.stats.txSlotReleaseMismatch==0 && s_ble.stats.txCrcMismatch==0);
@@ -496,25 +568,40 @@ int main(int argc,char **argv)
         assert(s_ble.stats.txSlotUsed>0 && sdkAccepted[0]==0 && sdkAccepted[2]==0);
         /* World inspection ends; blocked owner never returns, cancels or
          * releases its payload. Process exit is not firmware recovery. */
+        if (scenario == GUARDED_NEVER_RETURNS) {
+            assert(guardPolls > 1u && s_ble.guard.quarantined && s_ble.guard.callKnown);
+            assert(s_ble.guard.callId == 1u && !s_ble.guard.completionKnown && sdkCalls == 1u);
+            uint64_t detectedAge = s_ble.guard.detectedUs - s_ble.guard.startUs;
+            assert(detectedAge >= SENSORARRAY_BLE_SEND_DEADLINE_US &&
+                   detectedAge <= SENSORARRAY_BLE_SEND_DEADLINE_US + SENSORARRAY_BLE_SEND_POLL_US);
+            assert(s_ble.guard.rejected > 0u && s_ble.stats.txConnectionStaleDrop == 0u);
+            assert(sensorarrayBleDescriptorCurrent(&activeBle));
+        }
     }
     printf("PIPELINE_RESULT,{\"scenario\":\"%s\",\"txPriority\":%u,\"status\":\"%s\",\"bounded\":%s,"
            "\"source\":%u,\"outputPopped\":%u,\"outputDrop\":%llu,\"transportQueued\":%u,\"transportDrop\":%u,"
            "\"bleAdmission\":%u,\"bleAdmissionReject\":%u,\"bleSdkComplete\":%u,\"bleDropTotal\":%u,"
+           "\"ordinaryLogPolicyDrop\":%u,\"ordinaryLogDropTotal\":%u,\"transportLogRejected\":%u,"
            "\"peerReceived\":%u,\"sdkCalls\":%u,\"sdkErrors\":%u,\"btJobs\":%u,\"ctrlCalls\":%u,"
            "\"ctrlAccepted\":%u,\"ctrlRejected\":%u,\"ctrlSdkComplete\":%u,\"ctrlDispatchMaxUs\":%llu,\"ctrlMaxUs\":%llu,"
            "\"poolHeldMaxUs\":%llu,\"sdkWhilePoolHeld\":%u,\"poolHighWater\":%u,\"bleHighWater\":%u,"
            "\"idleVisits\":%u,\"maxIdleGapTicks\":%u,\"bleYields\":%u,\"bleOutstanding\":%u,\"sdkNeverOutstanding\":%u,"
            "\"sourcePeriodUs\":%u,\"syntheticSdkCpuUs\":%u,\"syntheticBtCpuUs\":%u,\"syntheticSdkWaitUs\":%u,"
            "\"syntheticOutputCpuUs\":200,\"controlDeadlineUs\":500000,\"controlDeadlineBasis\":\"local_SDK_admission_not_PC_receipt\","
+           "\"guardTimerModeled\":%u,\"guardQuarantined\":%u,\"guardPolls\":%u,\"guardDetectedUs\":%llu,\"guardCallStartUs\":%llu,\"transportNoNetworkSink\":%u,"
            "\"performanceAcceptance\":\"NOT_ESTABLISHED\",\"hardware\":\"NOT_RUN\"}\n",
-           names[scenario],txPriority,bounded?"MODEL_INVARIANTS_PASS":"NOT_PROVABLY_BOUNDED",bounded?"true":"false",
+           names[scenario],txPriority,bounded?"MODEL_INVARIANTS_PASS":
+               scenario==GUARDED_NEVER_RETURNS?"QUARANTINED_INFLIGHT_NOT_CANCELLED":"NOT_PROVABLY_BOUNDED",bounded?"true":"false",
            sourceCount,asyncPopped,(unsigned long long)s_sharedStats.droppedOutputFrames,transportQueued[0],transportRejected[0],
            g_sensorarrayTransportStats.bleDataSent,g_sensorarrayTransportStats.bleDataDrop,sdkAccepted[0],s_ble.stats.dropped[0],
+           s_ble.stats.logPolicyDrop,s_ble.stats.dropped[SENSORARRAY_BLE_CH_LOG],g_sensorarrayTransportStats.bleLogDrop,
            receiverRecords[0],sdkCalls,sdkErrors,btJobs,controlCalls,controlAccepted,controlRejected,sdkAccepted[2],
            (unsigned long long)controlMaxDispatch,(unsigned long long)controlMaxLatency,(unsigned long long)poolHeldMaxUs,
            sdkWhilePoolHeld,s_pool.stats.highWater,s_ble.stats.txSlotHighWater,idleVisits,budget.maxIdleGapTicks,
            budget.workers[SENSORARRAY_WORK_BUDGET_BLE_TX].yields,s_ble.stats.txSlotUsed,sdkNeverOutstanding,
            scenario==BURST?1000u:10000u,scenario==SDK_BUSY?6000u:100u,
-           scenario==BT_PREEMPT?1500u:scenario==BT_SATURATED?4800u:0u,scenario==LONG_WAIT?15000u:0u);
+           scenario==BT_PREEMPT?1500u:scenario==BT_SATURATED?4800u:0u,scenario==LONG_WAIT?15000u:0u,
+           scenario==GUARDED_NEVER_RETURNS,s_ble.guard.quarantined,guardPolls,
+           (unsigned long long)s_ble.guard.detectedUs,(unsigned long long)s_ble.guard.startUs,transportNoSink[0]);
     return 0;
 }

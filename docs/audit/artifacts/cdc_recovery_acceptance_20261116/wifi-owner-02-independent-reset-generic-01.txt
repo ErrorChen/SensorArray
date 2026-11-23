@@ -1,0 +1,25 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4200b284 <sensorarrayUsbOtgRestart>:
+4200b284:	004136        	entry	a1, 32
+4200b287:	d5b581        	l32r	a8, 4200095c <_stext+0x93c> (40377258 <esp_timer_get_time>)
+4200b28a:	0008e0        	callx8	a8
+4200b28d:	d64d81        	l32r	a8, 42000bc4 <_stext+0xba4> (3d090 <UserFrameTotalSize+0x3cf90>)
+4200b290:	742020        	extui	a2, a2, 0, 8
+4200b293:	80aa80        	add	a10, a10, a8
+4200b296:	628a80        	saltu	a8, a10, a8
+4200b299:	20c220        	or	a12, a2, a2
+4200b29c:	bb8a      	add.n	a11, a11, a8
+4200b29e:	ffed25        	call8	4200b170 <sensorarrayUsbOtgPrepareRestart>
+4200b2a1:	1acc      	bnez.n	a10, 4200b2a6 <sensorarrayUsbOtgRestart+0x22>
+4200b2a3:	f843a5        	call8	420036dc <esp_restart>
+4200b2a6:	d64881        	l32r	a8, 42000bc8 <_stext+0xba8> (403773b8 <sensorarrayUsbEmergencyCoreReset>)
+4200b2a9:	0008e0        	callx8	a8

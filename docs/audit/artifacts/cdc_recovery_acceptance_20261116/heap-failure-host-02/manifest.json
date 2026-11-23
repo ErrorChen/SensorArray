@@ -1,0 +1,31 @@
+{
+  "sourceBefore": {
+    "main/control/sensorarrayMemoryDiagnostics.c": "b4417dd5409500b554140dce2120bbe8c110f76900df98dfb587f16c754b6e99",
+    "main/control/sensorarrayMemoryDiagnostics.h": "fc77d0bed1ba883f6bc4f1210595b35c74f6cc99e1524430f5517bebe9595543",
+    "main/main.c": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41",
+    "tools/test_memory_diagnostics.py": "ff87465257e995e28e121860ca924a4418b8a115190db0fea5f3b6d501ebe512",
+    "tests/host/test_memory_failures.c": "b626f0bca5b954358b24bf70b8e20a6e0678ea48c3e50f3b1c2ed586ebf8d8a0",
+    "tests/host/test_recovery_control.c": "97ca4d337c61868b286472fd31209dd8dd5296288a15d440617b4fe8aa3c5252",
+    "tests/host/test_frontend_wait_integration.c": "31709d247a35be5385e1ac48e8117f23dac8dc63b2184d3d0c302b49f5f17b45"
+  },
+  "sourceAfter": {
+    "main/control/sensorarrayMemoryDiagnostics.c": "b4417dd5409500b554140dce2120bbe8c110f76900df98dfb587f16c754b6e99",
+    "main/control/sensorarrayMemoryDiagnostics.h": "fc77d0bed1ba883f6bc4f1210595b35c74f6cc99e1524430f5517bebe9595543",
+    "main/main.c": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41",
+    "tools/test_memory_diagnostics.py": "ff87465257e995e28e121860ca924a4418b8a115190db0fea5f3b6d501ebe512",
+    "tests/host/test_memory_failures.c": "b626f0bca5b954358b24bf70b8e20a6e0678ea48c3e50f3b1c2ed586ebf8d8a0",
+    "tests/host/test_recovery_control.c": "97ca4d337c61868b286472fd31209dd8dd5296288a15d440617b4fe8aa3c5252",
+    "tests/host/test_frontend_wait_integration.c": "31709d247a35be5385e1ac48e8117f23dac8dc63b2184d3d0c302b49f5f17b45"
+  },
+  "sourcesUnchanged": true,
+  "hostCommand": [
+    "python3",
+    "tools/test_memory_diagnostics.py"
+  ],
+  "hostExitCode": 0,
+  "targetCompileExitCode": 0,
+  "targetCommand": "target-command.json",
+  "targetDisassembly": "target-disassembly.txt",
+  "previousFailurePreserved": "heap-failure-01 IDF build staticassert + heap-failure-atomic-probe-01 candidate proof",
+  "change": "Keep atomic relaxed operations; replace overstrong type-level always-lock-free assertion with exact 4-byte storage/alignment assertion; no policy/record semantics changes."
+}

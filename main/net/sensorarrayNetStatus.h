@@ -27,6 +27,9 @@ typedef struct {
 esp_err_t sensorarrayNetStatusInit(void);
 esp_err_t sensorarrayNetTextPublish(const sensorarrayTextPacket_t *packet,
                                     bool allowBle);
+/* 本轮新增: successful encoder packet and its same immutable frame snapshot. */
+esp_err_t sensorarrayNetFramePublish(const sensorarrayTextPacket_t *packet,
+    const sensorarrayFrame_t *frame, uint32_t protectionFlags);
 esp_err_t sensorarrayNetLogPublish(const sensorarrayTextPacket_t *packet);
 void sensorarrayNetGetSinkStats(sensorarrayNetSinkStats_t *outStats);
 

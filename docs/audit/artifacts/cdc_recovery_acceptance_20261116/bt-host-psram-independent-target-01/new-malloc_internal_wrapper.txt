@@ -1,0 +1,28 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4205aab4 <malloc_internal_wrapper>:
+4205aab4:	004136        	entry	a1, 32
+4205aab7:	9d8eb1        	l32r	a11, 420420f0 <sensorarrayAsyncLogGetProtectionStats+0xc14> (808 <_rtc_slow_length+0x618>)
+4205aaba:	02ad      	mov.n	a10, a2
+4205aabc:	9bef81        	l32r	a8, 42041a78 <sensorarrayAsyncLogGetProtectionStats+0x59c> (403760f0 <heap_caps_malloc>)
+4205aabf:	0008e0        	callx8	a8
+4205aac2:	0a2d      	mov.n	a2, a10
+4205aac4:	6adc      	bnez.n	a10, 4205aade <malloc_internal_wrapper+0x2a>
+4205aac6:	9bbe81        	l32r	a8, 420419c0 <sensorarrayAsyncLogGetProtectionStats+0x4e4> (4038d474 <esp_log_timestamp>)
+4205aac9:	0008e0        	callx8	a8
+4205aacc:	9df6b1        	l32r	a11, 420422a4 <sensorarrayAsyncLogGetProtectionStats+0xdc8> (3c13b870 <_flash_rodata_start+0x1b750>)
+4205aacf:	9e00c1        	l32r	a12, 420422d0 <sensorarrayAsyncLogGetProtectionStats+0xdf4> (3c13b92c <_flash_rodata_start+0x1b80c>)
+4205aad2:	0add      	mov.n	a13, a10
+4205aad4:	0bed      	mov.n	a14, a11
+4205aad6:	1a0c      	movi.n	a10, 1
+4205aad8:	9bbb81        	l32r	a8, 420419c4 <sensorarrayAsyncLogGetProtectionStats+0x4e8> (4038d398 <esp_log>)
+4205aadb:	0008e0        	callx8	a8
+4205aade:	f01d      	retw.n

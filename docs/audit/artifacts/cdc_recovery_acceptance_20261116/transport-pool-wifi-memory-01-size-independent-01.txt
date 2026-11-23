@@ -1,0 +1,41 @@
+/tmp/transport-pool-target-review-kcvnmhed/wifi-memory-01.elf  :
+section                    size         addr
+.rtc.text                     0   1611653120
+.rtc.force_fast               0   1611653120
+.rtc_noinit                 464   1342177280
+.rtc.force_slow              32   1342177744
+.rtc_reserved                24   1611661288
+.iram0.vectors             1028   1077362688
+.iram0.text              135215   1077363716
+.dram0.dummy             120064   1070104576
+.dram0.data               51432   1070224640
+.noinit                       0   1070276072
+.dram0.bss               107200   1070276072
+.flash.text             1172604   1107296288
+.flash_rodata_dummy     1179648   1006632992
+.flash.appdesc              256   1007812640
+.flash.rodata            270988   1007812896
+.flash.rodata_noload      12695   1008083884
+.ext_ram.dummy          1507296   1006632992
+.iram0.text_end             205   1077498931
+.iram0.data                   0   1077499136
+.iram0.bss                    0   1077499136
+.dram0.heap_start             0   1070383272
+.debug_aranges            80072            0
+.debug_info             5822343            0
+.debug_abbrev            589757            0
+.debug_line             4307173            0
+.debug_frame             202880            0
+.debug_str               775763            0
+.debug_loc              2149328            0
+.debug_ranges            293024            0
+.debug_line_str           10290            0
+.debug_loclists           79193            0
+.debug_rnglists            4040            0
+.comment                    181            0
+.xtensa.info                 56            0
+.xt.prop                    240            0
+.xt.lit                       0            0
+Total                  18873491
+
+

@@ -1,0 +1,70 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40388f10 <xTaskCreatePinnedToCore>:
+40388f10:	008136        	entry	a1, 64
+40388f13:	102182        	l32i	a8, a1, 64
+40388f16:	01a092        	movi	a9, 1
+40388f19:	628980        	saltu	a8, a9, a8
+40388f1c:	ffc882        	addi	a8, a8, -1
+40388f1f:	608080        	neg	a8, a8
+40388f22:	748080        	extui	a8, a8, 0, 8
+40388f25:	b8dc      	bnez.n	a8, 40388f44 <xTaskCreatePinnedToCore+0x34>
+40388f27:	b0aea1        	l32r	a10, 403751e0 <_iram_text_start+0xddc> (7fffffff <_rtc_reserved_end+0x1fefffff>)
+40388f2a:	1021b2        	l32i	a11, a1, 64
+40388f2d:	c0aba0        	sub	a10, a11, a10
+40388f30:	9398a0        	movnez	a9, a8, a10
+40388f33:	d9cc      	bnez.n	a9, 40388f44 <xTaskCreatePinnedToCore+0x34>
+40388f35:	b11ed1        	l32r	a13, 403753b0 <_iram_text_start+0xfac> (3c1248c4 <_flash_rodata_start+0x47a4>)
+40388f38:	b11fc1        	l32r	a12, 403753b4 <_iram_text_start+0xfb0> (3c150d40 <__func__$9>)
+40388f3b:	b11ca1        	l32r	a10, 403753ac <_iram_text_start+0xfa8> (3c124534 <_flash_rodata_start+0x4414>)
+40388f3e:	a3a0b2        	movi	a11, 163
+40388f41:	056465        	call8	4038e588 <__assert_func>
+40388f44:	04ad      	mov.n	a10, a4
+40388f46:	fd2e25        	call8	40386228 <pvPortMalloc>
+40388f49:	5acc      	bnez.n	a10, 40388f52 <xTaskCreatePinnedToCore+0x42>
+40388f4b:	f27c      	movi.n	a2, -1
+40388f4d:	001586        	j	40388fa7 <xTaskCreatePinnedToCore+0x97>
+40388f50:	a20000        	muluh	a0, a0, a0
+40388f53:	a20661        	l32r	a6, 4037176c <esp_rom_opiflash_read_raw+0x323d98>
+40388f56:	e568a1        	l32r	a10, 403824f8 <rtc_clk_slow_src_set+0x94> (20c00b <_rtc_slow_length+0x20be1b>)
+40388f59:	fd2c      	movi.n	a13, 47
+40388f5b:	6188      	l32i.n	a8, a1, 24
+40388f5d:	03ea16        	beqz	a10, 40388f9f <xTaskCreatePinnedToCore+0x8f>
+40388f60:	68a1c2        	movi	a12, 0x168
+40388f63:	0b0c      	movi.n	a11, 0
+40388f65:	7189      	s32i.n	a8, a1, 28
+40388f67:	61a9      	s32i.n	a10, a1, 24
+40388f69:	ad3d81        	l32r	a8, 40374460 <_iram_text_start+0x5c> (400011e8 <memset>)
+40388f6c:	0008e0        	callx8	a8
+40388f6f:	6198      	l32i.n	a9, a1, 24
+40388f71:	7188      	l32i.n	a8, a1, 28
+40388f73:	0a0c      	movi.n	a10, 0
+40388f75:	c989      	s32i.n	a8, a9, 48
+40388f77:	01d982        	addmi	a8, a9, 0x100
+40388f7a:	6548a2        	s8i	a10, a8, 101
+40388f7d:	102182        	l32i	a8, a1, 64
+40388f80:	02ad      	mov.n	a10, a2
+40388f82:	1189      	s32i.n	a8, a1, 4
+40388f84:	0199      	s32i.n	a9, a1, 0
+40388f86:	07fd      	mov.n	a15, a7
+40388f88:	06ed      	mov.n	a14, a6
+40388f8a:	05dd      	mov.n	a13, a5
+40388f8c:	20c440        	or	a12, a4, a4
+40388f8f:	20b330        	or	a11, a3, a3
+40388f92:	fe1de5        	call8	40387170 <prvInitialiseNewTask$constprop$0>
+40388f95:	61a8      	l32i.n	a10, a1, 24
+40388f97:	120c      	movi.n	a2, 1
+40388f99:	fdf3e5        	call8	40386ed8 <prvAddNewTaskToReadyList>
+40388f9c:	0001c6        	j	40388fa7 <xTaskCreatePinnedToCore+0x97>
+40388f9f:	08ad      	mov.n	a10, a8
+40388fa1:	fd29a5        	call8	4038623c <vPortFree>
+40388fa4:	ffe8c6        	j	40388f4b <xTaskCreatePinnedToCore+0x3b>
+40388fa7:	f01d      	retw.n
+
+Disassembly of section .flash.text:

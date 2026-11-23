@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "tools/test_protected_frame_pipeline.py"
+  ],
+  "beganUtc": "2026-11-20T18:39:41.062916+00:00",
+  "elapsedSeconds": 0.4395173929951852,
+  "exitCode": 0,
+  "sourceSha256": {
+    "main/output/sensorarrayAsyncLog.c": "68a19dd4e15226a3a4bc02c67b2079704722d9f8ad75da51697606afc7afc953",
+    "main/output/sensorarrayAsyncLog.h": "3a4ab70ebff2d6170a088a9b12d7b7f349627a48775e11192363cd28ab9edae2",
+    "main/output/sensorarrayFramePublication.h": "d38d7f6db1fc6e08f4d9417f779973bfecaf72f2a4974e5500327a76e7c933f5",
+    "main/net/sensorarrayNetStatus.c": "092af0ea6beb0795db2c272d864316d6cd8c86784b02c3b4a51dc32f77e34e52",
+    "main/net/sensorarrayNetStatus.h": "95eb5ea991a1d21bbea05b94a447d844f6f68dd6458671e6a689ae79a20d3a7d",
+    "core/transport/sensorarrayTransport.c": "3ef6d079c8af1ddb53dc878db8524c4dcc6324fb46c05dfdd34d9b2d6e2af687",
+    "core/transport/sensorarrayTransportPool.c": "546b4084f9d563d9c0d25fccc52b61797ffd0e35345cb2dc6f7fb1b592927ec8",
+    "core/transport/sensorarrayTransportPool.h": "18eb7bc3674c8eb82aba57372f8a4915873f30d0917b87df8e147e1e505e6759",
+    "core/transport/sensorarrayTransportFrameIdentity.h": "f8859655d4c8db376ba3bd156cd52c530470cfd2f9ded37fdb2785308d11c98a",
+    "core/transport/sensorarrayTransport.h": "76dcfdf2204e2c88f6c5e8232324c4add5eadc9265f99315d855b5d9b68e28ce",
+    "tools/test_protected_frame_pipeline.py": "cd28224429a50cd73ddb06a1b4cfbbc8e79a3b4add64c7d3aca535e146ab38b7",
+    "tests/host/test_protected_frame_pipeline.c": "cd381c3eec2c4807942a80a50a5b164256a847d07b89cdc4a3d63511876ee19d"
+  },
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/protected-pipeline-independent-test-01.txt",
+  "logSha256": "c73bb7859a97ef3a3dbbf196d35946992dd01342b7c07c193246156445386859",
+  "hardware": "NOT_RUN",
+  "BLE": "synthetic admission boundary; actual BLE integration excluded"
+}

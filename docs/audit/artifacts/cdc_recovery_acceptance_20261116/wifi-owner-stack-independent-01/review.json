@@ -1,0 +1,358 @@
+{
+  "timestamp_utc": "2026-11-21T01:02:32.050108+00:00",
+  "scope": "Read-only independent actual ELF call-frame investigation after parent-captured panic; no production changes/build/hardware.",
+  "elf_sha256_before": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+  "elf_sha256_after": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+  "evidence": {
+    "panic_events_sha256": "3e0adb4d69c1d5d70a1211b02cf4dc910d1e44c292540305ef775ae570513d8d",
+    "panic_raw_sha256": "368100be7fc3a64c1c2b107d8d6739fe6dc14d059e708c9b6a48167326d6d4df",
+    "replies": [
+      {
+        "t": 0.003647888981504366,
+        "type": "reply",
+        "phase": "prepare",
+        "command": "BUILD?",
+        "line": "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=8a1794c-dirty,elfSha256=6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e"
+      },
+      {
+        "t": 0.0169076309830416,
+        "type": "reply",
+        "phase": "prepare",
+        "command": "PANIC?",
+        "line": "PANIC,v=1,page=0,session=585FFDD061878C2E,boot=2,known=1,record=F9CE9DC1,originKnown=1,originSession=7939E4B087EA883A,originBoot=1,elf=6A91B6AA606ADA32346F9D86AB6AD85DF40187BDB567846F643262345CA3A94E,reset=4,infoKnown=1,core=0,exception=3,abort=1,pseudo=1,frameKnown=1,pc=4037C91F,ra=3FCD49C0,sp=3FCD4900,cause=00000001,vaddr=00000000,addr=00000000,reasonPtr=3C120BD0,detailPtr=3FCD4A11,detailKnown=1,detailLen=65,truncated=0"
+      },
+      {
+        "t": 0.018292153981747106,
+        "type": "reply",
+        "phase": "prepare",
+        "command": "PANIC?1",
+        "line": "PANIC,v=1,page=1,session=585FFDD061878C2E,boot=2,known=1,record=F9CE9DC1,detailKnown=1,offset=0,length=65,total=65,truncated=0,encoding=hex,text=2A2A2A4552524F522A2A2A204120737461636B206F766572666C6F7720696E207461736B20776966694F776E657220686173206265656E2064657465637465642E"
+      },
+      {
+        "t": 0.019356178992893547,
+        "type": "reply",
+        "phase": "prepare",
+        "command": "PANIC?2",
+        "line": "PANIC,v=1,page=2,session=585FFDD061878C2E,boot=2,known=1,record=F9CE9DC1,detailKnown=1,offset=96,length=0,total=65,truncated=0,encoding=hex,text="
+      }
+    ],
+    "decoded_detail": "***ERROR*** A stack overflow in task wifiOwner has been detected.",
+    "same_origin_elf": true,
+    "record": "F9CE9DC1",
+    "origin_session": "7939E4B087EA883A",
+    "origin_boot": 1
+  },
+  "source_evidence": {
+    "serial_io_path": "/home/csc/esp/workspace/SensorArray/core/transport/sensorarraySerialIo.c",
+    "serial_io_sha256": "58932c35807a95441f528d228302b4cfea81b6614fd89261e01bd007b57db6d5",
+    "stdout_setvbuf_line": 638,
+    "sdk_log_path": "/home/csc/esp/esp-idf-v5.5.5/components/log/src/os/log_write.c",
+    "sdk_log_sha256": "cf16d560637e27bdd4136b648f04360fdfd9b431b4974a74e33e3891210f1f21",
+    "sdk_default_vprintf": true
+  },
+  "commands": [
+    {
+      "symbol": "sensorarrayWifiOwnerTask",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayWifiOwnerTask",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/sensorarrayWifiOwnerTask.txt",
+      "sha256": "eb6c0720a700d3947de476367413293d5195b997091a738e60826d7ac68dcced"
+    },
+    {
+      "symbol": "sensorarrayWifiOwnerProcessOnce",
+      "entry_bytes": 704,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayWifiOwnerProcessOnce",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/sensorarrayWifiOwnerProcessOnce.txt",
+      "sha256": "ae2db9e2d523ede1efea81a89f3a74d19ae6fd9f568bcfe09f7d3bba393d7905"
+    },
+    {
+      "symbol": "sensorarrayWifiBackendInitialize",
+      "entry_bytes": 464,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayWifiBackendInitialize",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/sensorarrayWifiBackendInitialize.txt",
+      "sha256": "427d99fcf06e770837b2c54717c84c76edf057220b33e861388756ef5c879eae"
+    },
+    {
+      "symbol": "esp_netif_init",
+      "entry_bytes": 64,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_netif_init",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_netif_init.txt",
+      "sha256": "a46ae0fdc31ecdf704a56f1cbd16e60cd8dfc60e3fcde3ffe88de7abfaefc73f"
+    },
+    {
+      "symbol": "esp_wifi_init",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_wifi_init",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_wifi_init.txt",
+      "sha256": "ec8d2b35c395f91f6289b2423a5f427dfdcb89fe8ea36205c2589bfb590a77dc"
+    },
+    {
+      "symbol": "esp_wifi_init_internal",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_wifi_init_internal",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_wifi_init_internal.txt",
+      "sha256": "056568617490d882554c98582518a02f32a243e554765fc71db265aa322cdb16"
+    },
+    {
+      "symbol": "wifi_init_in_caller_task",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=wifi_init_in_caller_task",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/wifi_init_in_caller_task.txt",
+      "sha256": "69d0ff4e3922d87a9d8391edb7863c21998edd82c64285fee44489af4a294d14"
+    },
+    {
+      "symbol": "wifi_log",
+      "entry_bytes": 112,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=wifi_log",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/wifi_log.txt",
+      "sha256": "17694c3da4337dc17aa796d50210a33e1d73f7a2b5234807ea2d465149f629e1"
+    },
+    {
+      "symbol": "esp_log",
+      "entry_bytes": 96,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_log",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_log.txt",
+      "sha256": "d9cf63db8ad6804e2626d52218dca109d23e8335fde258849e0291409a1530ab"
+    },
+    {
+      "symbol": "esp_log_va",
+      "entry_bytes": 48,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_log_va",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_log_va.txt",
+      "sha256": "9116d9da12d449da70d2edc12936cba1cccbbf7a960735a5b98c0cc9cca6a1e7"
+    },
+    {
+      "symbol": "vprintf",
+      "entry_bytes": 48,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=vprintf",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/vprintf.txt",
+      "sha256": "1abf93111642a282a0b81f4e7c90cd234a381214154ee8af8105abc6fd22ea23"
+    },
+    {
+      "symbol": "_vfprintf_r",
+      "entry_bytes": 800,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=_vfprintf_r",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/_vfprintf_r.txt",
+      "sha256": "7c2637f8e5167cc68b6b456dfae3ee1a91eca7cb4a667cdcf4f58f82a6898e83"
+    },
+    {
+      "symbol": "__sbprintf",
+      "entry_bytes": 288,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__sbprintf",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/__sbprintf.txt",
+      "sha256": "7853154b634af26a0fbf31a33415056ab2d79429114127f20cd7f716f4cdbe27"
+    },
+    {
+      "symbol": "__sprint_r",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__sprint_r",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/__sprint_r.txt",
+      "sha256": "e8b2c672c0813ac5c013111399786f1ded4c03aa612d90e2468d653d51a273dd"
+    },
+    {
+      "symbol": "__sfvwrite_r",
+      "entry_bytes": 48,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__sfvwrite_r",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/__sfvwrite_r.txt",
+      "sha256": "437f9d5eec229d793acb637bbba806b71e83d35616675117440df952b1a3072e"
+    },
+    {
+      "symbol": "__swrite",
+      "entry_bytes": 32,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__swrite",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/__swrite.txt",
+      "sha256": "657fd26a4b3948f52c5ca1703619d71b236a383643c037e8b361bb8266905dbf"
+    },
+    {
+      "symbol": "esp_vfs_write",
+      "entry_bytes": null,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_vfs_write",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/esp_vfs_write.txt",
+      "sha256": "e22314588329afcea76dc4ecbf78bca65a046322743a91a5f6ab522fea22da9f"
+    },
+    {
+      "symbol": "sensorarraySerialWrite",
+      "entry_bytes": 64,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarraySerialWrite",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/sensorarraySerialWrite.txt",
+      "sha256": "90e643226b62bd9580cca5bc0af9a86c4e4f2fd335c32979a752e7e2ea8df428"
+    },
+    {
+      "symbol": "xQueueGenericSend",
+      "entry_bytes": 64,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=xQueueGenericSend",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/xQueueGenericSend.txt",
+      "sha256": "acc6327ad1c476d74d6c681258080a47337b49862f1169d12f9ac218cea9643a"
+    },
+    {
+      "symbol": "xPortEnterCriticalTimeout",
+      "entry_bytes": 48,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=xPortEnterCriticalTimeout",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/xPortEnterCriticalTimeout.txt",
+      "sha256": "01aa736b85718be8ef03c5c92252b98a8cb2f717a79333e6627e0bfe8701cab8"
+    },
+    {
+      "symbol": "vApplicationStackOverflowHook",
+      "entry_bytes": 128,
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=vApplicationStackOverflowHook",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-independent-01/vApplicationStackOverflowHook.txt",
+      "sha256": "d8aa4cc6ffdb591c5b9b61eb5af7868950634a25936965c8f919ad39f500baba"
+    }
+  ],
+  "derived": {
+    "owner_outer_frames_bytes": 1200,
+    "formatter_unbuffered_nesting": [
+      "_vfprintf_r 800",
+      "__sbprintf 288",
+      "_vfprintf_r 800"
+    ],
+    "formatter_nested_frame_sum_bytes": 1888,
+    "sum_owner_backend_and_formatter_only_bytes": 3088,
+    "old_owner_stack_bytes": 4096,
+    "format_nesting_call_sites": [
+      "0x4210D8D5 -> __sbprintf 0x4211047C",
+      "0x421104DE -> _vfprintf_r 0x4210D7E4"
+    ],
+    "not_in_sum": [
+      "SDK intermediates",
+      "esp_log/wifi_log/vprintf wrappers",
+      "stdio sink and queue/critical paths",
+      "register spill/RTOS exception context",
+      "other branches, callbacks and opaque vendor code"
+    ]
+  },
+  "conclusion": "Actual untruncated retained panic establishes wifiOwner stack overflow. Actual target frame sizes plus configured unbuffered stdout establish a significant reachable nested formatter cost. They do not establish the exact crashing init phase or a whole-SDK worst-case bound.",
+  "recommendation": "Remove avoidable large owner/backend by-value locals into persistent single-owner scratch with unchanged job ownership and late-return lifetime. A modest explicitly bounded stack increase may then be measured using actual owner watermark; no blind unlimited stack growth, no log suppression/stdio behavior change, no PSRAM task-stack assumption.",
+  "worker_coordination": "Parent/worker selected candidate6144 plus persistent execution/init scratch; implementation is not reviewed by this artifact. New ELF sizes and HIL minimum watermark remain required.",
+  "limitations": [
+    "Canary detects overflow; saved panic-hook PC is not the deepest SDK frame.",
+    "The static frame sum is not a runtime high-water measurement or complete worst-case proof.",
+    "No assertion, timeout, SPI/WiFi buffer count, watchdog or scientific data semantics were changed by reviewer."
+  ]
+}

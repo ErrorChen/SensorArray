@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_recovery_control.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "11f7ce01e3cd001ba834c7f5d6648bfd87802cb41250615d82ea673efbfcb82b",
+  "started_utc": "2026-11-20T23:32:09.654736+00:00",
+  "started_monotonic": 148297.329395441,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-role-recovery-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T23:32:09.921694+00:00",
+  "finished_monotonic": 148297.596342276,
+  "log_sha256": "9a4c9edf38a09c46c2a0e0664aad77807ea10f2e9e36029bfe0888761b04c92a"
+}

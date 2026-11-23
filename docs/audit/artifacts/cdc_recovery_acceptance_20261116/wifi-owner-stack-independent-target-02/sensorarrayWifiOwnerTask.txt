@@ -1,0 +1,41 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4208e550 <sensorarrayWifiOwnerTask>:
+4208e550:	004136        	entry	a1, 32
+4208e553:	f2fe61        	l32r	a6, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e556:	f2f831        	l32r	a3, 4208b138 <bt_rf_coex_hook_register+0x44> (3fcaba20 <s_owner>)
+4208e559:	f2fd41        	l32r	a4, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e55c:	150c      	movi.n	a5, 1
+4208e55e:	000946        	j	4208e587 <sensorarrayWifiOwnerTask+0x37>
+4208e561:	0107e5        	call8	4208f5e0 <sensorarrayWorkBudgetCheckpoint>
+4208e564:	0a0c      	movi.n	a10, 0
+4208e566:	f31681        	l32r	a8, 4208b1c0 <bt_rf_coex_hook_register+0xcc> (403885d4 <uxTaskGetStackHighWaterMark>)
+4208e569:	0008e0        	callx8	a8
+4208e56c:	0a7d      	mov.n	a7, a10
+4208e56e:	fb7c      	movi.n	a11, -1
+4208e570:	20a660        	or	a10, a6, a6
+4208e573:	f2f981        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e576:	0008e0        	callx8	a8
+4208e579:	06ad      	mov.n	a10, a6
+4208e57b:	e66372        	s32i	a7, a3, 0x398
+4208e57e:	9c4452        	s8i	a5, a4, 156
+4208e581:	f2f681        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e584:	0008e0        	callx8	a8
+4208e587:	ff83a5        	call8	4208ddc0 <sensorarrayWifiOwnerProcessOnce>
+4208e58a:	0a8d      	mov.n	a8, a10
+4208e58c:	fc7c      	movi.n	a12, -1
+4208e58e:	7a0c      	movi.n	a10, 7
+4208e590:	1b0c      	movi.n	a11, 1
+4208e592:	fcb856        	bnez	a8, 4208e561 <sensorarrayWifiOwnerTask+0x11>
+4208e595:	0a0c      	movi.n	a10, 0
+4208e597:	f30b81        	l32r	a8, 4208b1c4 <bt_rf_coex_hook_register+0xd0> (40388984 <ulTaskGenericNotifyTake>)
+4208e59a:	0008e0        	callx8	a8
+4208e59d:	fff986        	j	4208e587 <sensorarrayWifiOwnerTask+0x37>

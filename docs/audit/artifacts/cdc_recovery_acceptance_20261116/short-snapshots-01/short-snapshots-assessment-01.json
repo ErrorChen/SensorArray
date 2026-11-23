@@ -1,0 +1,1588 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-20T19:51:29.968597+00:00",
+  "status": "PERIODIC_FULL_SNAPSHOTS_OBSERVED_IN_SHORT_MODE",
+  "overall_acceptance": "NOT_ESTABLISHED",
+  "inputs": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-analysis-01.json",
+      "sha256": "04b8f21ccaac21e78858643d461af94b488162a6319d36bf4cb4c81b82b6114d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-cpu-01.json",
+      "sha256": "35a07202b9229e945f7916b00f2f30ff4245f92d4ec2b3248670279c32d57722"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-protection-03.json",
+      "sha256": "e25016027024fbce16a78b756141a5aab816091fef0b37c164076b3f9308195b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.summary.json",
+      "sha256": "260826326ab5a767c8c896d7d93f1fb5fab17b24c4f63f899a21fd578bb2842a"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-04-validated-identity.json",
+      "sha256": "5ee9fef38ae5432fc2cd40a5ceaefb0729d68e4f0d752cb732f7a3c2df2e4d07"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-legacy-closure-02.json",
+      "sha256": "05a6a4a132689a354fa223906287d6e8d8059adf421dfc3c2ca746fa39b5d073"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-protection-short-closure-host-02.json",
+      "sha256": "dcda55344d46a050a8763fefd27d62e9f0c825d5b31aa702bb1c407df30232c2"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-01-command.json",
+      "sha256": "a889daf087736ab9106eb889a3a0405bbef0b12ff4c865d20406ec1bd12f5b49"
+    }
+  ],
+  "running_image": {
+    "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+    "version": "8a1794c-dirty",
+    "app_bytes": 1615664,
+    "bin_sha256": "4903ce004daf970bac3e5b80e24bdffd452571cbd91f34cd1223357532afc484",
+    "elf_sha256": "a6b04a2a68ddcb5c8c39cc28020abbe5db430c1e140cbb3afb4ddb703fdb217a",
+    "host_entries": 73,
+    "all_exit_zero": true,
+    "production_inputs": 195,
+    "build_test_inputs_identical": true,
+    "build_manifest": "ble-snapshot-04-build-manifest.json",
+    "tests_manifest": "ble-snapshot-04-tests-manifest.json",
+    "image_archive": "ble-snapshot-04-image-archive.json",
+    "hardware_flashed_at_manifest_creation": false,
+    "change_scope": "BLE periodic obligation uses advancing same-epoch/configuration typed full-message local completions; ordinary FULL qualifies, SHORT preview/legacy raw/failed/stale completion does not. Upstream periodic candidates coalesce without dropping the offered frame by this coalescing action. First-configuration protection and existing ownership remain. BLESNAP protected-only semantics unchanged; no queue/capture/budget change."
+  },
+  "configuration_identity": {
+    "session": "B4828F8EF45001F1",
+    "bootId": "1",
+    "rev": "8",
+    "mgen": "5",
+    "mrid": "7",
+    "rgen": "4",
+    "rrid": "8",
+    "pgen": "5",
+    "prid": "7",
+    "legacy_gen": "4",
+    "legacy_rid": "8"
+  },
+  "capture_seconds": 120.00012375597726,
+  "USB": {
+    "rates": {
+      "device_span_seconds": 119.962372,
+      "host_receipt_span_seconds": 119.95303225700627,
+      "capture_fps": 11.795365300045917,
+      "host_complete_receive_fps": 11.796283706845202,
+      "host_parsed_frame_fps": 11.796283706845202,
+      "host_parsed_receipt_span_seconds": 119.95303225700627,
+      "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+      "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+    },
+    "counts": {
+      "trusted_complete_frames": 1416,
+      "integrity_valid_frames": 1416,
+      "ordered_integrity_valid_frames": 1416,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 1416,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 90624,
+      "reported_valid_points": 90624,
+      "unit_errors": 0,
+      "usable_numeric_points": 90624,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 0,
+      "not_fresh_points": 0,
+      "unacquired_points": 0,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 0,
+      "frames_with_partial_freshness": 0,
+      "frames_with_unacquired_points": 0,
+      "fully_valid_fresh_acquired_frames": 1416
+    },
+    "sequence": {
+      "first": 11989,
+      "last": 13404,
+      "progress_including_missing": 1415,
+      "gap_examples": [],
+      "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+      "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+    },
+    "host_complete_frame_intervals": {
+      "known": true,
+      "max_seconds": 0.12327644100878388,
+      "sample_pairs": 1415,
+      "candidate_pairs": 1415,
+      "ordered_complete_frames": 1416,
+      "unavailable_timestamps": 0,
+      "timestamp_regressions": 0,
+      "unknown_reasons": [],
+      "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+      "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+      "limits": "No cross-identity/boot pairing; capture-edge waits are not measured; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"
+    }
+  },
+  "BLE_full": {
+    "rates": {
+      "device_span_seconds": 119.02123,
+      "host_receipt_span_seconds": 119.02404425799614,
+      "capture_fps": 11.796214843351896,
+      "host_complete_receive_fps": 0.9829946606955413,
+      "host_parsed_frame_fps": 0.9829946606955413,
+      "host_parsed_receipt_span_seconds": 119.02404425799614,
+      "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+      "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+    },
+    "counts": {
+      "trusted_complete_frames": 118,
+      "integrity_valid_frames": 118,
+      "ordered_integrity_valid_frames": 118,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 118,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 7552,
+      "reported_valid_points": 7552,
+      "unit_errors": 0,
+      "usable_numeric_points": 7552,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 0,
+      "not_fresh_points": 0,
+      "unacquired_points": 0,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 0,
+      "frames_with_partial_freshness": 0,
+      "frames_with_unacquired_points": 0,
+      "fully_valid_fresh_acquired_frames": 118,
+      "sequence_gaps": 117,
+      "missing_frames": 1287
+    },
+    "sequence": {
+      "first": 11999,
+      "last": 13403,
+      "progress_including_missing": 1404,
+      "gap_examples": [
+        {
+          "after": 11999,
+          "before": 12011,
+          "missing": 11
+        },
+        {
+          "after": 12011,
+          "before": 12023,
+          "missing": 11
+        },
+        {
+          "after": 12023,
+          "before": 12035,
+          "missing": 11
+        },
+        {
+          "after": 12035,
+          "before": 12047,
+          "missing": 11
+        },
+        {
+          "after": 12047,
+          "before": 12059,
+          "missing": 11
+        },
+        {
+          "after": 12059,
+          "before": 12071,
+          "missing": 11
+        },
+        {
+          "after": 12071,
+          "before": 12083,
+          "missing": 11
+        },
+        {
+          "after": 12083,
+          "before": 12095,
+          "missing": 11
+        },
+        {
+          "after": 12095,
+          "before": 12107,
+          "missing": 11
+        },
+        {
+          "after": 12107,
+          "before": 12119,
+          "missing": 11
+        },
+        {
+          "after": 12119,
+          "before": 12131,
+          "missing": 11
+        },
+        {
+          "after": 12131,
+          "before": 12143,
+          "missing": 11
+        },
+        {
+          "after": 12143,
+          "before": 12155,
+          "missing": 11
+        },
+        {
+          "after": 12155,
+          "before": 12167,
+          "missing": 11
+        },
+        {
+          "after": 12167,
+          "before": 12179,
+          "missing": 11
+        },
+        {
+          "after": 12179,
+          "before": 12191,
+          "missing": 11
+        }
+      ],
+      "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+      "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+    },
+    "host_complete_frame_intervals": {
+      "known": true,
+      "max_seconds": 1.0281269339902792,
+      "sample_pairs": 117,
+      "candidate_pairs": 117,
+      "ordered_complete_frames": 118,
+      "unavailable_timestamps": 0,
+      "timestamp_regressions": 0,
+      "unknown_reasons": [],
+      "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+      "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+      "limits": "No cross-identity/boot pairing; capture-edge waits are not measured; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"
+    }
+  },
+  "BLE_logical_message_counts": {
+    "notifications_D": 1534,
+    "notification_bytes_D": 368396,
+    "logical_messages_D": 1416,
+    "malformed_lines": 0
+  },
+  "original_full_bytes_comparison": {
+    "USB_unique_integrity_valid_frames": 1416,
+    "common_identity_sequence_frames": 118,
+    "same_wire_bytes_sha256": 118,
+    "different_wire_bytes_sha256": 0,
+    "USB_frames_without_BLE_match": 1298,
+    "mismatch_examples": [],
+    "unmatched_meaning": "No trusted fingerprint match; a partial or identity-rejected frame may still exist in the other raw recording. This is not a literal byte-absence or independent loss count.",
+    "basis": "SHA256 of original scientific header/data/PGA/row/K bytes including line endings, after both CRC and identity checks; no CRC rewriting or sample reconstruction",
+    "scope": "full_capture_window"
+  },
+  "normal_FULL_gap_budget": {
+    "status": "NOT_APPLICABLE_TO_SHORT_PREVIEW_STREAM",
+    "reason": "Ordinary CAP data uses SHORT previews while periodic protected data is full. Missing full-frame sequence observations retain their raw count1287 but are not random transport loss against all captured frames.",
+    "counter_rewritten_or_subtracted": false
+  },
+  "protection_queries": {
+    "BLEFLOW?": {
+      "advertised": true,
+      "after": {
+        "fields": {
+          "active": "1",
+          "attempts": "12189",
+          "capacityReject": "255",
+          "cleanTtlUs": "3000000",
+          "cleanUs": "0",
+          "counters": "boot",
+          "evidence": "1",
+          "gen": "3",
+          "intentionalSkip": "0",
+          "localServiceMilliFps": "980",
+          "peerLoss": "unknown",
+          "pressureWindows": "0",
+          "probeSelected": "0",
+          "probeUs": "1000000",
+          "ratePm": "1000",
+          "rejectPm": "0",
+          "rssi": "unknown",
+          "scope": "local_output",
+          "stage": "full",
+          "stream": "3",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134247.524808859,
+        "host_query_start_monotonic": 134247.52184235,
+        "host_reply_event_monotonic": 134247.524746966,
+        "observed_state": {
+          "active": "1",
+          "cleanUs": "0",
+          "evidence": "1",
+          "localServiceMilliFps": "980",
+          "peerLoss": "unknown",
+          "pressureWindows": "0",
+          "ratePm": "1000",
+          "rejectPm": "0",
+          "rssi": "unknown",
+          "stage": "full"
+        },
+        "original_reply_line": "BLEFLOW,v=1,scope=local_output,counters=boot,gen=3,stream=3,active=1,stage=full,ratePm=1000,intentionalSkip=0,probeSelected=0,attempts=12189,capacityReject=255,evidence=1,rejectPm=0,pressureWindows=0,cleanUs=0,localServiceMilliFps=980,probeUs=1000000,cleanTtlUs=3000000,peerLoss=unknown,rssi=unknown",
+        "reply_channel": "data"
+      },
+      "before": {
+        "fields": {
+          "active": "1",
+          "attempts": "10773",
+          "capacityReject": "255",
+          "cleanTtlUs": "3000000",
+          "cleanUs": "0",
+          "counters": "boot",
+          "evidence": "1",
+          "gen": "3",
+          "intentionalSkip": "0",
+          "localServiceMilliFps": "11545",
+          "peerLoss": "unknown",
+          "pressureWindows": "0",
+          "probeSelected": "0",
+          "probeUs": "1000000",
+          "ratePm": "1000",
+          "rejectPm": "0",
+          "rssi": "unknown",
+          "scope": "local_output",
+          "stage": "full",
+          "stream": "3",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134127.436558984,
+        "host_query_start_monotonic": 134127.43394654,
+        "host_reply_event_monotonic": 134127.436497618,
+        "observed_state": {
+          "active": "1",
+          "cleanUs": "0",
+          "evidence": "1",
+          "localServiceMilliFps": "11545",
+          "peerLoss": "unknown",
+          "pressureWindows": "0",
+          "ratePm": "1000",
+          "rejectPm": "0",
+          "rssi": "unknown",
+          "stage": "full"
+        },
+        "original_reply_line": "BLEFLOW,v=1,scope=local_output,counters=boot,gen=3,stream=3,active=1,stage=full,ratePm=1000,intentionalSkip=0,probeSelected=0,attempts=10773,capacityReject=255,evidence=1,rejectPm=0,pressureWindows=0,cleanUs=0,localServiceMilliFps=11545,probeUs=1000000,cleanTtlUs=3000000,peerLoss=unknown,rssi=unknown",
+        "reply_channel": "data"
+      },
+      "capability": "ble_flow_v1",
+      "counter_deltas": {
+        "attempts": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090863,
+          "delta": 1416,
+          "rollover_observed": false
+        },
+        "capacityReject": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090863,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "intentionalSkip": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 64,
+          "bound": 120090863,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "probeSelected": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 64,
+          "bound": 120090863,
+          "delta": 0,
+          "rollover_observed": false
+        }
+      },
+      "endpoints_validated": true,
+      "host_snapshot_interval_seconds": {
+        "maximum": 120.09086231898982,
+        "minimum": 120.08528336600284,
+        "scope": "local_counter_snapshot_lies_within_each_host_query"
+      },
+      "reason": null,
+      "status": "OBSERVED_LOCAL_COUNTERS"
+    },
+    "BLESNAP?": {
+      "advertised": true,
+      "after": {
+        "fields": {
+          "admitMiss": "0",
+          "counters": "boot",
+          "deadlineMiss": "0",
+          "dueUs": "1000000",
+          "failed": "0",
+          "firstPending": "0",
+          "gapKnown": "1",
+          "gen": "3",
+          "known": "1",
+          "lastCompleteAgeUs": "155341",
+          "lastRev": "8",
+          "lastSeq": "13403",
+          "localComplete": "127",
+          "maxCompleteGapUs": "5929446",
+          "pcReceipt": "unknown",
+          "periodicPending": "0",
+          "queued": "127",
+          "scope": "local_complete",
+          "staleNormal": "1",
+          "stream": "3",
+          "superseded": "0",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134247.527346359,
+        "host_query_start_monotonic": 134247.524810947,
+        "host_reply_event_monotonic": 134247.527286836,
+        "observed_state": {
+          "dueUs": "1000000",
+          "firstPending": "0",
+          "gapKnown": "1",
+          "known": "1",
+          "lastCompleteAgeUs": "155341",
+          "lastRev": "8",
+          "lastSeq": "13403",
+          "maxCompleteGapUs": "5929446",
+          "pcReceipt": "unknown",
+          "periodicPending": "0"
+        },
+        "original_reply_line": "BLESNAP,v=1,scope=local_complete,counters=boot,gen=3,stream=3,queued=127,localComplete=127,failed=0,admitMiss=0,deadlineMiss=0,superseded=0,staleNormal=1,known=1,lastSeq=13403,lastRev=8,lastCompleteAgeUs=155341,gapKnown=1,maxCompleteGapUs=5929446,firstPending=0,periodicPending=0,dueUs=1000000,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "before": {
+        "fields": {
+          "admitMiss": "0",
+          "counters": "boot",
+          "deadlineMiss": "0",
+          "dueUs": "1000000",
+          "failed": "0",
+          "firstPending": "0",
+          "gapKnown": "0",
+          "gen": "3",
+          "known": "1",
+          "lastCompleteAgeUs": "5016690",
+          "lastRev": "8",
+          "lastSeq": "11930",
+          "localComplete": "9",
+          "maxCompleteGapUs": "unknown",
+          "pcReceipt": "unknown",
+          "periodicPending": "0",
+          "queued": "9",
+          "scope": "local_complete",
+          "staleNormal": "1",
+          "stream": "3",
+          "superseded": "0",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134127.438682212,
+        "host_query_start_monotonic": 134127.436560806,
+        "host_reply_event_monotonic": 134127.438628601,
+        "observed_state": {
+          "dueUs": "1000000",
+          "firstPending": "0",
+          "gapKnown": "0",
+          "known": "1",
+          "lastCompleteAgeUs": "5016690",
+          "lastRev": "8",
+          "lastSeq": "11930",
+          "maxCompleteGapUs": "unknown",
+          "pcReceipt": "unknown",
+          "periodicPending": "0"
+        },
+        "original_reply_line": "BLESNAP,v=1,scope=local_complete,counters=boot,gen=3,stream=3,queued=9,localComplete=9,failed=0,admitMiss=0,deadlineMiss=0,superseded=0,staleNormal=1,known=1,lastSeq=11930,lastRev=8,lastCompleteAgeUs=5016690,gapKnown=0,maxCompleteGapUs=unknown,firstPending=0,periodicPending=0,dueUs=1000000,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {
+        "admitMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "deadlineMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "failed": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "localComplete": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "queued": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "staleNormal": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "superseded": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090786,
+          "delta": 0,
+          "rollover_observed": false
+        }
+      },
+      "endpoints_validated": true,
+      "host_snapshot_interval_seconds": {
+        "maximum": 120.09078555300948,
+        "minimum": 120.08612873501261,
+        "scope": "local_counter_snapshot_lies_within_each_host_query"
+      },
+      "reason": null,
+      "status": "OBSERVED_LOCAL_COUNTERS"
+    },
+    "SNAPNET?": {
+      "advertised": true,
+      "after": {
+        "fields": {
+          "admissionMiss": "0",
+          "bleAccepted": "477",
+          "bleExpired": "0",
+          "bleFailed": "0",
+          "derived": "7",
+          "expired": "0",
+          "firstMiss": "0",
+          "obsolete": "9",
+          "pcReceipt": "unknown",
+          "policySkip": "0",
+          "queued": "477",
+          "readout": "sequential",
+          "retry": "3",
+          "scope": "boot",
+          "stage": "ble_admission",
+          "superseded": "0",
+          "v": "1",
+          "wifiExpired": "0"
+        },
+        "host_query_end_monotonic": 134247.530076433,
+        "host_query_start_monotonic": 134247.528704854,
+        "host_reply_event_monotonic": 134247.530008761,
+        "observed_state": {
+          "pcReceipt": "unknown",
+          "stage": "ble_admission"
+        },
+        "original_reply_line": "SNAPNET,v=1,scope=boot,readout=sequential,queued=477,admissionMiss=0,firstMiss=0,derived=7,superseded=0,retry=3,expired=0,bleExpired=0,wifiExpired=0,bleAccepted=477,bleFailed=0,policySkip=0,obsolete=9,stage=ble_admission,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "before": {
+        "fields": {
+          "admissionMiss": "0",
+          "bleAccepted": "359",
+          "bleExpired": "0",
+          "bleFailed": "0",
+          "derived": "7",
+          "expired": "0",
+          "firstMiss": "0",
+          "obsolete": "9",
+          "pcReceipt": "unknown",
+          "policySkip": "0",
+          "queued": "359",
+          "readout": "sequential",
+          "retry": "3",
+          "scope": "boot",
+          "stage": "ble_admission",
+          "superseded": "0",
+          "v": "1",
+          "wifiExpired": "0"
+        },
+        "host_query_end_monotonic": 134127.441243059,
+        "host_query_start_monotonic": 134127.439929759,
+        "host_reply_event_monotonic": 134127.441198113,
+        "observed_state": {
+          "pcReceipt": "unknown",
+          "stage": "ble_admission"
+        },
+        "original_reply_line": "SNAPNET,v=1,scope=boot,readout=sequential,queued=359,admissionMiss=0,firstMiss=0,derived=7,superseded=0,retry=3,expired=0,bleExpired=0,wifiExpired=0,bleAccepted=359,bleFailed=0,policySkip=0,obsolete=9,stage=ble_admission,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {
+        "admissionMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "bleAccepted": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "bleExpired": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "bleFailed": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "derived": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "expired": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "firstMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "obsolete": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "policySkip": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "queued": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "retry": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "superseded": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "wifiExpired": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090147,
+          "delta": 0,
+          "rollover_observed": false
+        }
+      },
+      "endpoints_validated": true,
+      "host_snapshot_interval_seconds": {
+        "maximum": 120.09014667398878,
+        "minimum": 120.08746179498849,
+        "scope": "local_counter_snapshot_lies_within_each_host_query"
+      },
+      "reason": null,
+      "status": "OBSERVED_LOCAL_COUNTERS"
+    },
+    "SNAPSRC?": {
+      "advertised": true,
+      "after": {
+        "fields": {
+          "candidateMiss": "0",
+          "firstMiss": "0",
+          "firstQueued": "8",
+          "firstSuperseded": "0",
+          "pcReceipt": "unknown",
+          "periodicQueued": "557",
+          "queued": "564",
+          "scope": "boot",
+          "stage": "source_queue",
+          "superseded": "0",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134247.528702689,
+        "host_query_start_monotonic": 134247.527348686,
+        "host_reply_event_monotonic": 134247.528656346,
+        "observed_state": {
+          "pcReceipt": "unknown",
+          "stage": "source_queue"
+        },
+        "original_reply_line": "SNAPSRC,v=1,scope=boot,queued=564,firstQueued=8,periodicQueued=557,candidateMiss=0,firstMiss=0,superseded=0,firstSuperseded=0,stage=source_queue,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "before": {
+        "fields": {
+          "candidateMiss": "0",
+          "firstMiss": "0",
+          "firstQueued": "8",
+          "firstSuperseded": "0",
+          "pcReceipt": "unknown",
+          "periodicQueued": "439",
+          "queued": "446",
+          "scope": "boot",
+          "stage": "source_queue",
+          "superseded": "0",
+          "v": "1"
+        },
+        "host_query_end_monotonic": 134127.439925074,
+        "host_query_start_monotonic": 134127.438684703,
+        "host_reply_event_monotonic": 134127.439896404,
+        "observed_state": {
+          "pcReceipt": "unknown",
+          "stage": "source_queue"
+        },
+        "original_reply_line": "SNAPSRC,v=1,scope=boot,queued=446,firstQueued=8,periodicQueued=439,candidateMiss=0,firstMiss=0,superseded=0,firstSuperseded=0,stage=source_queue,pcReceipt=unknown",
+        "reply_channel": "data"
+      },
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {
+        "candidateMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "firstMiss": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "firstQueued": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "firstSuperseded": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 0,
+          "rollover_observed": false
+        },
+        "periodicQueued": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "queued": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 118,
+          "rollover_observed": false
+        },
+        "superseded": {
+          "assumption": "at_most_one_rollover_within_analysis_event_bound",
+          "bits": 32,
+          "bound": 120090018,
+          "delta": 0,
+          "rollover_observed": false
+        }
+      },
+      "endpoints_validated": true,
+      "host_snapshot_interval_seconds": {
+        "maximum": 120.0900179859891,
+        "minimum": 120.08742361201439,
+        "scope": "local_counter_snapshot_lies_within_each_host_query"
+      },
+      "reason": null,
+      "status": "OBSERVED_LOCAL_COUNTERS"
+    }
+  },
+  "closure": {
+    "CAP8_query_before_TX_restore": {
+      "CONFIG?": {
+        "bootId": "1",
+        "boundary": "13408",
+        "err": "0x0",
+        "merr": "0x0",
+        "mgen": "6",
+        "mode": "CAP",
+        "mrid": "9",
+        "mterm": "applied",
+        "mtermId": "9",
+        "perr": "0x0",
+        "pgen": "6",
+        "prid": "9",
+        "profile": "CCCCCCCC",
+        "pterm": "applied",
+        "ptermId": "9",
+        "rerr": "0x0",
+        "rev": "10",
+        "rgen": "5",
+        "rows": "8",
+        "rrid": "10",
+        "rterm": "applied",
+        "rtermId": "10",
+        "session": "B4828F8EF45001F1",
+        "state": "CAPACITANCE"
+      },
+      "MODE?": {
+        "active": "CAP",
+        "age": "12801",
+        "budgetFps": "20",
+        "captureCap": "0",
+        "fdcPrimary": "active",
+        "fdcPrimaryVerified": "1",
+        "fdcRestartRequired": "0",
+        "fdcSd": "low",
+        "fdcSdVerified": "1",
+        "fdcSecondary": "active",
+        "fdcSecondaryVerified": "1",
+        "gen": "6",
+        "heap": "8274984",
+        "heapMin": "8270568",
+        "intref": "0",
+        "layout": "HOMOGENEOUS",
+        "matrixRef": "GND",
+        "pending": "NONE",
+        "pga": "1",
+        "pid": "0",
+        "profile": "CCCCCCCC",
+        "rail": "1",
+        "refmux": "24",
+        "rid": "9",
+        "route": "CAP",
+        "row": "8",
+        "seq": "13407",
+        "source": "GND",
+        "stackBytes": "3632",
+        "stackUnit": "bytes",
+        "stackWords": "3632",
+        "state": "CAPACITANCE",
+        "sw": "HIGH",
+        "transitionUs": "8446",
+        "transitions": "6",
+        "vbias": "1"
+      }
+    },
+    "base_finished": {
+      "error": null,
+      "phase": "cleanup",
+      "status": "CAPTURED",
+      "t": 125.64238335899427,
+      "type": "finished"
+    },
+    "explicit_final_finished_event": false,
+    "kind": "legacy_SHORT_restore_tail_verified",
+    "last_event": {
+      "command": "TX?",
+      "line": "ACK,cmd=TX,v=rel",
+      "phase": "tx_restore",
+      "t": 125.6450884710066,
+      "type": "reply"
+    },
+    "limits": [
+      "No second finished event was recorded by this historical subclass.",
+      "CAP8 was queried before the TX-only restore; no new post-restore CONFIG query is invented.",
+      "Local restore ACK/query does not establish BLE PC snapshot delivery."
+    ],
+    "new_fault_events": 0,
+    "new_reset_events": 0,
+    "restore": "QUERY_VERIFIED",
+    "restore_replies": [
+      {
+        "command": "TX=REL",
+        "event_t": 125.64353050501086,
+        "line": "ACK,cmd=TX,v=rel",
+        "raw_read_begin": 1369039,
+        "raw_read_end": 1369056
+      },
+      {
+        "command": "TX?",
+        "event_t": 125.6450884710066,
+        "line": "ACK,cmd=TX,v=rel",
+        "raw_read_begin": 1369056,
+        "raw_read_end": 1369073
+      }
+    ],
+    "reviewed_source_sha256": "545d0ef0779d06b88bb48a753dd69050e1cf3d2fe6a899bb1010447079ab5c1f",
+    "scope": "hashed_final_summary_plus_complete_raw_event_coverage_and_recorded_restore_protocol",
+    "summary_status": "CAPTURED",
+    "tail_RX_bytes": 34,
+    "tail_events": 9
+  },
+  "debug": {
+    "faults": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "resets": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "memory": {
+      "heap": {
+        "observed_free_bytes": 8274764,
+        "firmware_lifetime_minimum_bytes": 8270568
+      },
+      "stack_minimum_remaining_bytes": {
+        "log": 12500,
+        "transport": 2896,
+        "bleTx": 2080,
+        "bleCtrl": 5208,
+        "serialCtrl": 1452
+      },
+      "scope": "complete_capture_window_STK50_only",
+      "CPU_utilization": null,
+      "maximum_contiguous_heap_block": null
+    },
+    "ADC_CRC_status": "NOT_OBSERVED"
+  },
+  "CPU": {
+    "roles": [
+      {
+        "role": 0,
+        "name": "BLE_TX",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 1185996,
+        "observation_span_us": 120046051,
+        "runtime_per_own_observation_span_percent": 0.9879508656223935,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "0",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "9",
+            "runUs": "27228618",
+            "t0Us": "474881474",
+            "t1Us": "474881477",
+            "observedAtUs": "474881477",
+            "ageUs": "47211",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 9,
+            "runUs": 27228618,
+            "t0Us": 474881474,
+            "t1Us": 474881477,
+            "observedAtUs": 474881477,
+            "ageUs": 47211
+          },
+          "host_reply_received_monotonic": 134127.453303133,
+          "host_query_started_monotonic": 134127.441245825
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "0",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "9",
+            "runUs": "28414614",
+            "t0Us": "594927525",
+            "t1Us": "594927528",
+            "observedAtUs": "594927528",
+            "ageUs": "91278",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 9,
+            "runUs": 28414614,
+            "t0Us": 594927525,
+            "t1Us": 594927528,
+            "observedAtUs": 594927528,
+            "ageUs": 91278
+          },
+          "host_reply_received_monotonic": 134247.542706942,
+          "host_query_started_monotonic": 134247.530079367
+        },
+        "taskNumber": 9,
+        "bracket_elapsed_min_us": 120046048,
+        "bracket_elapsed_max_us": 120046054
+      },
+      {
+        "role": 1,
+        "name": "TRANSPORT",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 2868950,
+        "observation_span_us": 120045389,
+        "runtime_per_own_observation_span_percent": 2.389887711555502,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "1",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "15",
+            "runUs": "10724450",
+            "t0Us": "474879813",
+            "t1Us": "474879817",
+            "observedAtUs": "474879817",
+            "ageUs": "51034",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 15,
+            "runUs": 10724450,
+            "t0Us": 474879813,
+            "t1Us": 474879817,
+            "observedAtUs": 474879817,
+            "ageUs": 51034
+          },
+          "host_reply_received_monotonic": 134127.456143415,
+          "host_query_started_monotonic": 134127.453402329
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "1",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "15",
+            "runUs": "13593400",
+            "t0Us": "594925202",
+            "t1Us": "594925206",
+            "observedAtUs": "594925206",
+            "ageUs": "99400",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 15,
+            "runUs": 13593400,
+            "t0Us": 594925202,
+            "t1Us": 594925206,
+            "observedAtUs": 594925206,
+            "ageUs": 99400
+          },
+          "host_reply_received_monotonic": 134247.548732483,
+          "host_query_started_monotonic": 134247.54290182
+        },
+        "taskNumber": 15,
+        "bracket_elapsed_min_us": 120045385,
+        "bracket_elapsed_max_us": 120045393
+      },
+      {
+        "role": 2,
+        "name": "ASYNC_LOG",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 2718934,
+        "observation_span_us": 120060891,
+        "runtime_per_own_observation_span_percent": 2.264629203859565,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "2",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "17",
+            "runUs": "23506960",
+            "t0Us": "474101860",
+            "t1Us": "474101864",
+            "observedAtUs": "474101864",
+            "ageUs": "832128",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 17,
+            "runUs": 23506960,
+            "t0Us": 474101860,
+            "t1Us": 474101864,
+            "observedAtUs": 474101864,
+            "ageUs": 832128
+          },
+          "host_reply_received_monotonic": 134127.45874107,
+          "host_query_started_monotonic": 134127.456230003
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "2",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "17",
+            "runUs": "26225894",
+            "t0Us": "594162752",
+            "t1Us": "594162755",
+            "observedAtUs": "594162755",
+            "ageUs": "864905",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 17,
+            "runUs": 26225894,
+            "t0Us": 594162752,
+            "t1Us": 594162755,
+            "observedAtUs": 594162755,
+            "ageUs": 864905
+          },
+          "host_reply_received_monotonic": 134247.551468331,
+          "host_query_started_monotonic": 134247.54883918
+        },
+        "taskNumber": 17,
+        "bracket_elapsed_min_us": 120060888,
+        "bracket_elapsed_max_us": 120060895
+      },
+      {
+        "role": 3,
+        "name": "SERIAL_TX",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 4944280,
+        "observation_span_us": 119639824,
+        "runtime_per_own_observation_span_percent": 4.132637306454078,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "3",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "8",
+            "runUs": "27545051",
+            "t0Us": "474478737",
+            "t1Us": "474478741",
+            "observedAtUs": "474478741",
+            "ageUs": "457636",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 8,
+            "runUs": 27545051,
+            "t0Us": 474478737,
+            "t1Us": 474478741,
+            "observedAtUs": 474478741,
+            "ageUs": 457636
+          },
+          "host_reply_received_monotonic": 134127.460758008,
+          "host_query_started_monotonic": 134127.458808408
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "3",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "8",
+            "runUs": "32489331",
+            "t0Us": "594118562",
+            "t1Us": "594118565",
+            "observedAtUs": "594118565",
+            "ageUs": "912020",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 8,
+            "runUs": 32489331,
+            "t0Us": 594118562,
+            "t1Us": 594118565,
+            "observedAtUs": 594118565,
+            "ageUs": 912020
+          },
+          "host_reply_received_monotonic": 134247.555227411,
+          "host_query_started_monotonic": 134247.551624972
+        },
+        "taskNumber": 8,
+        "bracket_elapsed_min_us": 119639821,
+        "bracket_elapsed_max_us": 119639828
+      },
+      {
+        "role": 4,
+        "name": "BLE_CTRL",
+        "status": "UNKNOWN",
+        "reason": "before_stale_historical_sample",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "4",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "ok",
+            "taskNumber": "10",
+            "runUs": "0",
+            "t0Us": "13911",
+            "t1Us": "13914",
+            "observedAtUs": "13914",
+            "ageUs": "474924158",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 10,
+            "runUs": 0,
+            "t0Us": 13911,
+            "t1Us": 13914,
+            "observedAtUs": 13914,
+            "ageUs": 474924158
+          },
+          "host_reply_received_monotonic": 134127.462313655,
+          "host_query_started_monotonic": 134127.460822379
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "4",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "ok",
+            "taskNumber": "10",
+            "runUs": "0",
+            "t0Us": "13911",
+            "t1Us": "13914",
+            "observedAtUs": "13914",
+            "ageUs": "595019940",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 10,
+            "runUs": 0,
+            "t0Us": 13911,
+            "t1Us": 13914,
+            "observedAtUs": 13914,
+            "ageUs": 595019940
+          },
+          "host_reply_received_monotonic": 134247.556935062,
+          "host_query_started_monotonic": 134247.55533789
+        }
+      },
+      {
+        "role": 5,
+        "name": "SERIAL_CTRL",
+        "status": "PAIRED",
+        "reason": "same_session_task_fresh_ordered_samples",
+        "runtime_delta_us": 795938,
+        "observation_span_us": 120118396,
+        "runtime_per_own_observation_span_percent": 0.6626278958969781,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "5",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "16",
+            "runUs": "3082011",
+            "t0Us": "474830299",
+            "t1Us": "474830302",
+            "observedAtUs": "474830302",
+            "ageUs": "109397",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 16,
+            "runUs": 3082011,
+            "t0Us": 474830299,
+            "t1Us": 474830302,
+            "observedAtUs": 474830302,
+            "ageUs": 109397
+          },
+          "host_reply_received_monotonic": 134127.464298365,
+          "host_query_started_monotonic": 134127.462383242
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "5",
+            "enabled": "1",
+            "available": "1",
+            "known": "1",
+            "conflict": "0",
+            "stale": "0",
+            "reason": "ok",
+            "taskNumber": "16",
+            "runUs": "3877949",
+            "t0Us": "594948694",
+            "t1Us": "594948698",
+            "observedAtUs": "594948698",
+            "ageUs": "86797",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": 16,
+            "runUs": 3877949,
+            "t0Us": 594948694,
+            "t1Us": 594948698,
+            "observedAtUs": 594948698,
+            "ageUs": 86797
+          },
+          "host_reply_received_monotonic": 134247.558492425,
+          "host_query_started_monotonic": 134247.557042264
+        },
+        "taskNumber": 16,
+        "bracket_elapsed_min_us": 120118392,
+        "bracket_elapsed_max_us": 120118399
+      },
+      {
+        "role": 6,
+        "name": "WIFI_CTRL",
+        "status": "UNKNOWN",
+        "reason": "before_unavailable_not_observed",
+        "runtime_delta_us": null,
+        "observation_span_us": null,
+        "runtime_per_own_observation_span_percent": null,
+        "before": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "6",
+            "enabled": "1",
+            "available": "0",
+            "known": "0",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "not_observed",
+            "taskNumber": "unknown",
+            "runUs": "unknown",
+            "t0Us": "unknown",
+            "t1Us": "unknown",
+            "observedAtUs": "unknown",
+            "ageUs": "unknown",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": null,
+            "runUs": null,
+            "t0Us": null,
+            "t1Us": null,
+            "observedAtUs": null,
+            "ageUs": null
+          },
+          "host_reply_received_monotonic": 134127.466202458,
+          "host_query_started_monotonic": 134127.464361959
+        },
+        "after": {
+          "fields": {
+            "v": "1",
+            "session": "B4828F8EF45001F1",
+            "role": "6",
+            "enabled": "1",
+            "available": "0",
+            "known": "0",
+            "conflict": "0",
+            "stale": "1",
+            "reason": "not_observed",
+            "taskNumber": "unknown",
+            "runUs": "unknown",
+            "t0Us": "unknown",
+            "t1Us": "unknown",
+            "observedAtUs": "unknown",
+            "ageUs": "unknown",
+            "sampleMinUs": "1000000",
+            "staleAfterUs": "3000000",
+            "scope": "switch_out",
+            "isr": "may_include",
+            "sdk": "not_isolated",
+            "blocked": "unknown"
+          },
+          "values": {
+            "taskNumber": null,
+            "runUs": null,
+            "t0Us": null,
+            "t1Us": null,
+            "observedAtUs": null,
+            "ageUs": null
+          },
+          "host_reply_received_monotonic": 134247.560762103,
+          "host_query_started_monotonic": 134247.558607812
+        }
+      }
+    ],
+    "total": "UNKNOWN",
+    "SDK_CPU": "UNKNOWN",
+    "blocked": "UNKNOWN"
+  },
+  "limitations": [
+    "PC maximum observed full-frame gap1.0281269339902792s is not a strict one-second delivery guarantee and excludes capture edges.",
+    "Local protected completion/query intervals are separate from PC observation; no per-ticket PC ACK exists.",
+    "CAP8 was queried before the historical TX-only restore. No post-restore CONFIG or second finished event is invented.",
+    "Every observed point is valid, but absolute capacitance precision, baseline stability and weak-link delivery are not established.",
+    "ADC CRC is unobserved during this CAP run, not a measured zero rate.",
+    "The original failed analyzer log remains; later compatibility validation does not rewrite source recordings or declare the main FULL throughput screen passed."
+  ],
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-assessment-01.py",
+    "sha256": "3c4e5c51abc877b13e1f8c8964be05ce01d3738eebf7cd416fe29a707347f4de"
+  },
+  "hardware_actions": [],
+  "production_modified": false,
+  "original_recordings_modified": false
+}

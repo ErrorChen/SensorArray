@@ -7,6 +7,7 @@
 #include "sensorarrayBle.h"
 #include "sensorarrayScanConfig.h"
 #include "sensorarrayTransportInternal.h"
+#include "sensorarrayTransportWifiControl.h"
 #include "sensorarrayWifi.h"
 
 #define CHECK(condition)                                                        \
@@ -122,6 +123,22 @@ esp_err_t sensorarrayTransportApplyWifiMode(sensorarrayTransportWifiMode_t mode)
 bool sensorarrayWifiIsReady(void)
 {
     return false;
+}
+
+/* This fixture exercises the real control-reply/ACK fence with BAT/FAKE/BUSY
+ * replies. Wi-Fi command routing is an independent boundary here; the actual
+ * formatter, max fields and owner integration run in test_wifi_command and
+ * test_wifi_transport_isolation instead of adding fake Wi-Fi state here. */
+bool sensorarrayTransportWifiCommandHandles(const char *text)
+{
+    (void)text;
+    return false;
+}
+
+esp_err_t sensorarrayTransportWifiCommand(const char *text, char *response, size_t size)
+{
+    (void)text; (void)response; (void)size;
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 const char *sensorarrayBleTxModeName(sensorarrayBleTxMode_t mode)

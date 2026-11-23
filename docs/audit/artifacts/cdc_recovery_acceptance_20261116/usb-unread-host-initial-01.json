@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_usb_unread.py",
+    "Tests.test_cleanup_fault_and_saturated_reset_sample_list_are_not_hidden"
+  ],
+  "exit_code": 1,
+  "hardware": "NOT_RUN",
+  "log_sha256": "8cf7d85af8a04c846ff665f3ddba878805d88e5ffeb506d686b62bc9c7720dca",
+  "diagnosis": "Synthetic reset history was split into16 chunks: fail-fast correctly stopped after first reset, and stopped recovery at second reset before late17 could be injected. Fixture must place16 historical reset lines in one read to exercise saturated-list late17; production behavior not weakened."
+}

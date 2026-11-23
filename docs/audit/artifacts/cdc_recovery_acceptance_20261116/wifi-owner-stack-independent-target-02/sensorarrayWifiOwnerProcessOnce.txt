@@ -1,0 +1,733 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4208ddc0 <sensorarrayWifiOwnerProcessOnce>:
+4208ddc0:	00c136        	entry	a1, 96
+4208ddc3:	f4f531        	l32r	a3, 4208b198 <bt_rf_coex_hook_register+0xa4> (3fcb1dfc <__stack_chk_guard>)
+4208ddc6:	3cc172        	addi	a7, a1, 60
+4208ddc9:	0020c0        	memw
+4208ddcc:	0388      	l32i.n	a8, a3, 0
+4208ddce:	0020c0        	memw
+4208ddd1:	0789      	s32i.n	a8, a7, 0
+4208ddd3:	f4e581        	l32r	a8, 4208b168 <bt_rf_coex_hook_register+0x74> (40388610 <xTaskGetCurrentTaskHandle>)
+4208ddd6:	0008e0        	callx8	a8
+4208ddd9:	f4e281        	l32r	a8, 4208b164 <bt_rf_coex_hook_register+0x70> (3fcc7e1c <s_ownerTask>)
+4208dddc:	0888      	l32i.n	a8, a8, 0
+4208ddde:	3098a7        	bne	a8, a10, 4208de12 <sensorarrayWifiOwnerProcessOnce+0x52>
+4208dde1:	f4df81        	l32r	a8, 4208b160 <bt_rf_coex_hook_register+0x6c> (40377278 <esp_timer_get_time>)
+4208dde4:	0008e0        	callx8	a8
+4208dde7:	206aa0        	or	a6, a10, a10
+4208ddea:	f4d8a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208dded:	205bb0        	or	a5, a11, a11
+4208ddf0:	ffafb2        	movi	a11, -1
+4208ddf3:	f4d981        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208ddf6:	0008e0        	callx8	a8
+4208ddf9:	06ad      	mov.n	a10, a6
+4208ddfb:	05bd      	mov.n	a11, a5
+4208ddfd:	ff5fe5        	call8	4208d3fc <wifiObserveLocked>
+4208de00:	f4ce21        	l32r	a2, 4208b138 <bt_rf_coex_hook_register+0x44> (3fcaba20 <s_owner>)
+4208de03:	0e02d2        	l8ui	a13, a2, 14
+4208de06:	0d2d26        	beqi	a13, 2, 4208de17 <sensorarrayWifiOwnerProcessOnce+0x57>
+4208de09:	f4d0a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208de0c:	f4d481        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208de0f:	0008e0        	callx8	a8
+4208de12:	020c      	movi.n	a2, 0
+4208de14:	019cc6        	j	4208e48b <sensorarrayWifiOwnerProcessOnce+0x6cb>
+4208de17:	cc22a2        	l32i	a10, a2, 0x330
+4208de1a:	f4a0a0        	extui	a10, a10, 0, 16
+4208de1d:	fe8a56        	bnez	a10, 4208de09 <sensorarrayWifiOwnerProcessOnce+0x49>
+4208de20:	f4cc81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208de23:	480882        	l8ui	a8, a8, 72
+4208de26:	2189      	s32i.n	a8, a1, 8
+4208de28:	fdd856        	bnez	a8, 4208de09 <sensorarrayWifiOwnerProcessOnce+0x49>
+4208de2b:	4822b2        	l32i	a11, a2, 0x120
+4208de2e:	022b66        	bnei	a11, 2, 4208de34 <sensorarrayWifiOwnerProcessOnce+0x74>
+4208de31:	003c46        	j	4208df26 <sensorarrayWifiOwnerProcessOnce+0x166>
+4208de34:	3222b2        	l32i	a11, a2, 200
+4208de37:	022b66        	bnei	a11, 2, 4208de3d <sensorarrayWifiOwnerProcessOnce+0x7d>
+4208de3a:	003bc6        	j	4208df2d <sensorarrayWifiOwnerProcessOnce+0x16d>
+4208de3d:	01d2b2        	addmi	a11, a2, 0x100
+4208de40:	900bc2        	l8ui	a12, a11, 144
+4208de43:	dcfc      	bnez.n	a12, 4208de84 <sensorarrayWifiOwnerProcessOnce+0xc4>
+4208de45:	62b8      	l32i.n	a11, a2, 24
+4208de47:	1c22c2        	l32i	a12, a2, 112
+4208de4a:	062b26        	beqi	a11, 2, 4208de54 <sensorarrayWifiOwnerProcessOnce+0x94>
+4208de4d:	1f2c66        	bnei	a12, 2, 4208de70 <sensorarrayWifiOwnerProcessOnce+0xb0>
+4208de50:	003786        	j	4208df32 <sensorarrayWifiOwnerProcessOnce+0x172>
+4208de53:	218800        	srai	a8, a0, 8
+4208de56:	3189      	s32i.n	a8, a1, 12
+4208de58:	022c26        	beqi	a12, 2, 4208de5e <sensorarrayWifiOwnerProcessOnce+0x9e>
+4208de5b:	0035c6        	j	4208df36 <sensorarrayWifiOwnerProcessOnce+0x176>
+4208de5e:	82a8      	l32i.n	a10, a2, 32
+4208de60:	1e22b2        	l32i	a11, a2, 120
+4208de63:	c0aab0        	sub	a10, a10, a11
+4208de66:	318fa0        	srai	a8, a10, 31
+4208de69:	881b      	addi.n	a8, a8, 1
+4208de6b:	3189      	s32i.n	a8, a1, 12
+4208de6d:	003146        	j	4208df36 <sensorarrayWifiOwnerProcessOnce+0x176>
+4208de70:	f4b881        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208de73:	f4ca41        	l32r	a4, 4208b19c <bt_rf_coex_hook_register+0xa8> (3fcc7e20 <s_execution>)
+4208de76:	2f08b2        	l8ui	a11, a8, 47
+4208de79:	2188      	l32i.n	a8, a1, 8
+4208de7b:	484482        	s8i	a8, a4, 72
+4208de7e:	0f6b56        	bnez	a11, 4208df78 <sensorarrayWifiOwnerProcessOnce+0x1b8>
+4208de81:	ffe106        	j	4208de09 <sensorarrayWifiOwnerProcessOnce+0x49>
+4208de84:	f4c641        	l32r	a4, 4208b19c <bt_rf_coex_hook_register+0xa8> (3fcc7e20 <s_execution>)
+4208de87:	90a0a2        	movi	a10, 144
+4208de8a:	6862d2        	s32i	a13, a2, 0x1a0
+4208de8d:	bbaa      	add.n	a11, a11, a10
+4208de8f:	0c4c      	movi.n	a12, 64
+4208de91:	48c4a2        	addi	a10, a4, 72
+4208de94:	88a062        	movi	a6, 136
+4208de97:	c70581        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208de9a:	0008e0        	callx8	a8
+4208de9d:	02d252        	addmi	a5, a2, 0x200
+4208dea0:	646a      	add.n	a6, a4, a6
+4208dea2:	54c5b2        	addi	a11, a5, 84
+4208dea5:	6ca0c2        	movi	a12, 108
+4208dea8:	20a660        	or	a10, a6, a6
+4208deab:	c70081        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208deae:	0008e0        	callx8	a8
+4208deb1:	c0a0b2        	movi	a11, 192
+4208deb4:	f4a0a2        	movi	a10, 244
+4208deb7:	b5ba      	add.n	a11, a5, a11
+4208deb9:	6ca0c2        	movi	a12, 108
+4208debc:	80a4a0        	add	a10, a4, a10
+4208debf:	c6fb81        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208dec2:	0008e0        	callx8	a8
+4208dec5:	f4a281        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208dec8:	01d452        	addmi	a5, a4, 0x100
+4208decb:	2d08d2        	l8ui	a13, a8, 45
+4208dece:	6022c2        	l32i	a12, a2, 0x180
+4208ded1:	6045d2        	s8i	a13, a5, 96
+4208ded4:	1d0c      	movi.n	a13, 1
+4208ded6:	089d      	mov.n	a9, a8
+4208ded8:	1324a2        	l32i	a10, a4, 76
+4208dedb:	3148d2        	s8i	a13, a8, 49
+4208dede:	022182        	l32i	a8, a1, 8
+4208dee1:	1b24b2        	l32i	a11, a4, 108
+4208dee4:	cd62c2        	s32i	a12, a2, 0x334
+4208dee7:	324982        	s8i	a8, a9, 50
+4208deea:	ce6282        	s32i	a8, a2, 0x338
+4208deed:	cf62a2        	s32i	a10, a2, 0x33c
+4208def0:	1a24c2        	l32i	a12, a4, 104
+4208def3:	050b66        	bnei	a11, -1, 4208defc <sensorarrayWifiOwnerProcessOnce+0x13c>
+4208def6:	f4aaa1        	l32r	a10, 4208b1a0 <bt_rf_coex_hook_register+0xac> (ffb3b4bf <_rtc_reserved_end+0x9fa3b4bf>)
+4208def9:	63cca0        	minu	a12, a12, a10
+4208defc:	f4aea1        	l32r	a10, 4208b1b4 <bt_rf_coex_hook_register+0xc0> (4c4b40 <_rtc_slow_length+0x4c4950>)
+4208deff:	0d0c      	movi.n	a13, 0
+4208df01:	ccaa      	add.n	a12, a12, a10
+4208df03:	62aca0        	saltu	a10, a12, a10
+4208df06:	baba      	add.n	a11, a10, a11
+4208df08:	f491a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208df0b:	d062c2        	s32i	a12, a2, 0x340
+4208df0e:	d162b2        	s32i	a11, a2, 0x344
+4208df11:	de62d2        	s32i	a13, a2, 0x378
+4208df14:	dd62d2        	s32i	a13, a2, 0x374
+4208df17:	f49181        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208df1a:	0008e0        	callx8	a8
+4208df1d:	4804a2        	l8ui	a10, a4, 72
+4208df20:	2b9a16        	beqz	a10, 4208e1dd <sensorarrayWifiOwnerProcessOnce+0x41d>
+4208df23:	00b286        	j	4208e1f1 <sensorarrayWifiOwnerProcessOnce+0x431>
+4208df26:	380c      	movi.n	a8, 3
+4208df28:	3189      	s32i.n	a8, a1, 12
+4208df2a:	000206        	j	4208df36 <sensorarrayWifiOwnerProcessOnce+0x176>
+4208df2d:	31b9      	s32i.n	a11, a1, 12
+4208df2f:	0000c6        	j	4208df36 <sensorarrayWifiOwnerProcessOnce+0x176>
+4208df32:	180c      	movi.n	a8, 1
+4208df34:	3189      	s32i.n	a8, a1, 12
+4208df36:	3188      	l32i.n	a8, a1, 12
+4208df38:	f49941        	l32r	a4, 4208b19c <bt_rf_coex_hook_register+0xa8> (3fcc7e20 <s_execution>)
+4208df3b:	a0b880        	addx4	a11, a8, a8
+4208df3e:	90bb80        	addx2	a11, a11, a8
+4208df41:	b0bb20        	addx8	a11, a11, a2
+4208df44:	080c      	movi.n	a8, 0
+4208df46:	3a0c      	movi.n	a10, 3
+4208df48:	6ba9      	s32i.n	a10, a11, 24
+4208df4a:	484482        	s8i	a8, a4, 72
+4208df4d:	8c4c      	movi.n	a12, 72
+4208df4f:	28cbb2        	addi	a11, a11, 40
+4208df52:	04ad      	mov.n	a10, a4
+4208df54:	4189      	s32i.n	a8, a1, 16
+4208df56:	c6d581        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208df59:	0008e0        	callx8	a8
+4208df5c:	f47d81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208df5f:	1c0c      	movi.n	a12, 1
+4208df61:	089d      	mov.n	a9, a8
+4208df63:	6022b2        	l32i	a11, a2, 0x180
+4208df66:	3148c2        	s8i	a12, a8, 49
+4208df69:	4188      	l32i.n	a8, a1, 16
+4208df6b:	64a8      	l32i.n	a10, a4, 24
+4208df6d:	324982        	s8i	a8, a9, 50
+4208df70:	cd62b2        	s32i	a11, a2, 0x334
+4208df73:	2188      	l32i.n	a8, a1, 8
+4208df75:	000886        	j	4208df9b <sensorarrayWifiOwnerProcessOnce+0x1db>
+4208df78:	f47681        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208df7b:	2d0882        	l8ui	a8, a8, 45
+4208df7e:	e87816        	beqz	a8, 4208de09 <sensorarrayWifiOwnerProcessOnce+0x49>
+4208df81:	f47391        	l32r	a9, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208df84:	0b0c      	movi.n	a11, 0
+4208df86:	6022c2        	l32i	a12, a2, 0x180
+4208df89:	1d0c      	movi.n	a13, 1
+4208df8b:	2f49b2        	s8i	a11, a9, 47
+4208df8e:	3149d2        	s8i	a13, a9, 49
+4208df91:	3249b2        	s8i	a11, a9, 50
+4208df94:	f97c      	movi.n	a9, -1
+4208df96:	cd62c2        	s32i	a12, a2, 0x334
+4208df99:	3199      	s32i.n	a9, a1, 12
+4208df9b:	ce62a2        	s32i	a10, a2, 0x338
+4208df9e:	0a0c      	movi.n	a10, 0
+4208dfa0:	cf62a2        	s32i	a10, a2, 0x33c
+4208dfa3:	050566        	bnei	a5, -1, 4208dfac <sensorarrayWifiOwnerProcessOnce+0x1ec>
+4208dfa6:	f47fa1        	l32r	a10, 4208b1a4 <bt_rf_coex_hook_register+0xb0> (fff85edf <_rtc_reserved_end+0x9fe85edf>)
+4208dfa9:	6366a0        	minu	a6, a6, a10
+4208dfac:	f483a1        	l32r	a10, 4208b1b8 <bt_rf_coex_hook_register+0xc4> (7a120 <_rtc_slow_length+0x79f30>)
+4208dfaf:	090c      	movi.n	a9, 0
+4208dfb1:	66aa      	add.n	a6, a6, a10
+4208dfb3:	62a6a0        	saltu	a10, a6, a10
+4208dfb6:	ba5a      	add.n	a11, a10, a5
+4208dfb8:	f465a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208dfbb:	de6292        	s32i	a9, a2, 0x378
+4208dfbe:	dd6292        	s32i	a9, a2, 0x374
+4208dfc1:	d06262        	s32i	a6, a2, 0x340
+4208dfc4:	d162b2        	s32i	a11, a2, 0x344
+4208dfc7:	4189      	s32i.n	a8, a1, 16
+4208dfc9:	612252        	l32i	a5, a2, 0x184
+4208dfcc:	f46481        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208dfcf:	0008e0        	callx8	a8
+4208dfd2:	3198      	l32i.n	a9, a1, 12
+4208dfd4:	4188      	l32i.n	a8, a1, 16
+4208dfd6:	020966        	bnei	a9, -1, 4208dfdc <sensorarrayWifiOwnerProcessOnce+0x21c>
+4208dfd9:	008206        	j	4208e1e5 <sensorarrayWifiOwnerProcessOnce+0x425>
+4208dfdc:	f46181        	l32r	a8, 4208b160 <bt_rf_coex_hook_register+0x6c> (40377278 <esp_timer_get_time>)
+4208dfdf:	0008e0        	callx8	a8
+4208dfe2:	090c      	movi.n	a9, 0
+4208dfe4:	9199      	s32i.n	a9, a1, 36
+4208dfe6:	a199      	s32i.n	a9, a1, 40
+4208dfe8:	b199      	s32i.n	a9, a1, 44
+4208dfea:	0498      	l32i.n	a9, a4, 0
+4208dfec:	0a6d      	mov.n	a6, a10
+4208dfee:	8199      	s32i.n	a9, a1, 32
+4208dff0:	040492        	l8ui	a9, a4, 4
+4208dff3:	fd7c      	movi.n	a13, -1
+4208dff5:	244192        	s8i	a9, a1, 36
+4208dff8:	6498      	l32i.n	a9, a4, 24
+4208dffa:	f454a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208dffd:	d199      	s32i.n	a9, a1, 52
+4208dfff:	5498      	l32i.n	a9, a4, 20
+4208e001:	0bfd      	mov.n	a15, a11
+4208e003:	e199      	s32i.n	a9, a1, 56
+4208e005:	0dbd      	mov.n	a11, a13
+4208e007:	c1d9      	s32i.n	a13, a1, 48
+4208e009:	5169      	s32i.n	a6, a1, 20
+4208e00b:	0461f2        	s32i	a15, a1, 16
+4208e00e:	f45281        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e011:	0008e0        	callx8	a8
+4208e014:	8498      	l32i.n	a9, a4, 32
+4208e016:	4188      	l32i.n	a8, a1, 16
+4208e018:	6199      	s32i.n	a9, a1, 24
+4208e01a:	20c152        	addi	a5, a1, 32
+4208e01d:	9468      	l32i.n	a6, a4, 36
+4208e01f:	51c8      	l32i.n	a12, a1, 20
+4208e021:	070866        	bnei	a8, -1, 4208e02c <sensorarrayWifiOwnerProcessOnce+0x26c>
+4208e024:	f460a1        	l32r	a10, 4208b1a4 <bt_rf_coex_hook_register+0xb0> (fff85edf <_rtc_reserved_end+0x9fe85edf>)
+4208e027:	01bac7        	bgeu	a10, a12, 4208e02c <sensorarrayWifiOwnerProcessOnce+0x26c>
+4208e02a:	0acd      	mov.n	a12, a10
+4208e02c:	f463b1        	l32r	a11, 4208b1b8 <bt_rf_coex_hook_register+0xc4> (7a120 <_rtc_slow_length+0x79f30>)
+4208e02f:	4188      	l32i.n	a8, a1, 16
+4208e031:	ccba      	add.n	a12, a12, a11
+4208e033:	64d8      	l32i.n	a13, a4, 24
+4208e035:	6122a2        	l32i	a10, a2, 0x184
+4208e038:	62bcb0        	saltu	a11, a12, a11
+4208e03b:	bb8a      	add.n	a11, a11, a8
+4208e03d:	021da7        	beq	a13, a10, 4208e043 <sensorarrayWifiOwnerProcessOnce+0x283>
+4208e040:	011d46        	j	4208e4b9 <sensorarrayWifiOwnerProcessOnce+0x6f9>
+4208e043:	080c      	movi.n	a8, 0
+4208e045:	04a8      	l32i.n	a10, a4, 0
+4208e047:	7189      	s32i.n	a8, a1, 28
+4208e049:	112a26        	beqi	a10, 2, 4208e05e <sensorarrayWifiOwnerProcessOnce+0x29e>
+4208e04c:	f44181        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e04f:	1d0c      	movi.n	a13, 1
+4208e051:	2c08a2        	l8ui	a10, a8, 44
+4208e054:	30aad0        	xor	a10, a10, a13
+4208e057:	7480a0        	extui	a8, a10, 0, 8
+4208e05a:	2189      	s32i.n	a8, a1, 8
+4208e05c:	7189      	s32i.n	a8, a1, 28
+4208e05e:	4188      	l32i.n	a8, a1, 16
+4208e060:	01a0a2        	movi	a10, 1
+4208e063:	0b3867        	bltu	a8, a6, 4208e072 <sensorarrayWifiOwnerProcessOnce+0x2b2>
+4208e066:	0a9687        	bne	a6, a8, 4208e074 <sensorarrayWifiOwnerProcessOnce+0x2b4>
+4208e069:	052182        	l32i	a8, a1, 20
+4208e06c:	062192        	l32i	a9, a1, 24
+4208e06f:	01b897        	bgeu	a8, a9, 4208e074 <sensorarrayWifiOwnerProcessOnce+0x2b4>
+4208e072:	0a0c      	movi.n	a10, 0
+4208e074:	2188      	l32i.n	a8, a1, 8
+4208e076:	0621f2        	l32i	a15, a1, 24
+4208e079:	20a8a0        	or	a10, a8, a10
+4208e07c:	7480a0        	extui	a8, a10, 0, 8
+4208e07f:	2189      	s32i.n	a8, a1, 8
+4208e081:	20d660        	or	a13, a6, a6
+4208e084:	053b67        	bltu	a11, a6, 4208e08d <sensorarrayWifiOwnerProcessOnce+0x2cd>
+4208e087:	0696b7        	bne	a6, a11, 4208e091 <sensorarrayWifiOwnerProcessOnce+0x2d1>
+4208e08a:	03bcf7        	bgeu	a12, a15, 4208e091 <sensorarrayWifiOwnerProcessOnce+0x2d1>
+4208e08d:	0cfd      	mov.n	a15, a12
+4208e08f:	0bdd      	mov.n	a13, a11
+4208e091:	f42ea1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e094:	d062f2        	s32i	a15, a2, 0x340
+4208e097:	d162d2        	s32i	a13, a2, 0x344
+4208e09a:	f43081        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e09d:	0008e0        	callx8	a8
+4208e0a0:	2188      	l32i.n	a8, a1, 8
+4208e0a2:	688c      	beqz.n	a8, 4208e0ac <sensorarrayWifiOwnerProcessOnce+0x2ec>
+4208e0a4:	07a1a2        	movi	a10, 0x107
+4208e0a7:	25a9      	s32i.n	a10, a5, 8
+4208e0a9:	000806        	j	4208e0cd <sensorarrayWifiOwnerProcessOnce+0x30d>
+4208e0ac:	2cc1c2        	addi	a12, a1, 44
+4208e0af:	30c1b2        	addi	a11, a1, 48
+4208e0b2:	20a440        	or	a10, a4, a4
+4208e0b5:	012965        	call8	4208f34c <sensorarrayWifiBackendSend>
+4208e0b8:	0524b2        	l32i	a11, a4, 20
+4208e0bb:	0425c2        	l32i	a12, a5, 16
+4208e0be:	2188      	l32i.n	a8, a1, 8
+4208e0c0:	c0ccb0        	sub	a12, a12, a11
+4208e0c3:	1b0c      	movi.n	a11, 1
+4208e0c5:	93b8c0        	movnez	a11, a8, a12
+4208e0c8:	25a9      	s32i.n	a10, a5, 8
+4208e0ca:	0545b2        	s8i	a11, a5, 5
+4208e0cd:	f41fa1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e0d0:	fb7c      	movi.n	a11, -1
+4208e0d2:	f42181        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e0d5:	0008e0        	callx8	a8
+4208e0d8:	f41e81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e0db:	0505b2        	l8ui	a11, a5, 5
+4208e0de:	3008a2        	l8ui	a10, a8, 48
+4208e0e1:	0645a2        	s8i	a10, a5, 6
+4208e0e4:	04a8      	l32i.n	a10, a4, 0
+4208e0e6:	6bbc      	beqz.n	a11, 4208e120 <sensorarrayWifiOwnerProcessOnce+0x360>
+4208e0e8:	00a4b2        	movi	a11, 0x400
+4208e0eb:	b0bab0        	addx8	a11, a10, a11
+4208e0ee:	b2ba      	add.n	a11, a2, a11
+4208e0f0:	0c0c      	movi.n	a12, 0
+4208e0f2:	2bf8      	l32i.n	a15, a11, 8
+4208e0f4:	54d8      	l32i.n	a13, a4, 20
+4208e0f6:	a0cac0        	addx4	a12, a10, a12
+4208e0f9:	c2ca      	add.n	a12, a2, a12
+4208e0fb:	3be8      	l32i.n	a14, a11, 12
+4208e0fd:	ea2c62        	l32i	a6, a12, 0x3a8
+4208e100:	dfda      	add.n	a13, a15, a13
+4208e102:	62fdf0        	saltu	a15, a13, a15
+4208e105:	661b      	addi.n	a6, a6, 1
+4208e107:	eefa      	add.n	a14, a14, a15
+4208e109:	2bd9      	s32i.n	a13, a11, 8
+4208e10b:	ea6c62        	s32i	a6, a12, 0x3a8
+4208e10e:	3be9      	s32i.n	a14, a11, 12
+4208e110:	7d2a66        	bnei	a10, 2, 4208e191 <sensorarrayWifiOwnerProcessOnce+0x3d1>
+4208e113:	f122a2        	l32i	a10, a2, 0x3c4
+4208e116:	aa1b      	addi.n	a10, a10, 1
+4208e118:	f162a2        	s32i	a10, a2, 0x3c4
+4208e11b:	001c86        	j	4208e191 <sensorarrayWifiOwnerProcessOnce+0x3d1>
+4208e11e:	b20000        	mulsh	a0, a0, a0
+4208e121:	a3          	.byte	0xa3
+4208e122:	bab0b0        	ceil.s	a11, f0, 11
+4208e125:	b2baa0        	mulsh	a11, a10, a10
+4208e128:	1bc8      	l32i.n	a12, a11, 4
+4208e12a:	4188      	l32i.n	a8, a1, 16
+4208e12c:	cc1b      	addi.n	a12, a12, 1
+4208e12e:	1bc9      	s32i.n	a12, a11, 4
+4208e130:	1a3867        	bltu	a8, a6, 4208e14e <sensorarrayWifiOwnerProcessOnce+0x38e>
+4208e133:	069687        	bne	a6, a8, 4208e13d <sensorarrayWifiOwnerProcessOnce+0x37d>
+4208e136:	5188      	l32i.n	a8, a1, 20
+4208e138:	6198      	l32i.n	a9, a1, 24
+4208e13a:	103897        	bltu	a8, a9, 4208e14e <sensorarrayWifiOwnerProcessOnce+0x38e>
+4208e13d:	e0a3b2        	movi	a11, 0x3e0
+4208e140:	a0bab0        	addx4	a11, a10, a11
+4208e143:	b2ba      	add.n	a11, a2, a11
+4208e145:	012bc2        	l32i	a12, a11, 4
+4208e148:	01ccc2        	addi	a12, a12, 1
+4208e14b:	016bc2        	s32i	a12, a11, 4
+4208e14e:	7188      	l32i.n	a8, a1, 28
+4208e150:	e88c      	beqz.n	a8, 4208e162 <sensorarrayWifiOwnerProcessOnce+0x3a2>
+4208e152:	f0a3b2        	movi	a11, 0x3f0
+4208e155:	a0bab0        	addx4	a11, a10, a11
+4208e158:	b2ba      	add.n	a11, a2, a11
+4208e15a:	0bc8      	l32i.n	a12, a11, 0
+4208e15c:	01ccc2        	addi	a12, a12, 1
+4208e15f:	006bc2        	s32i	a12, a11, 0
+4208e162:	45b8      	l32i.n	a11, a5, 16
+4208e164:	291ba6        	blti	a11, 1, 4208e191 <sensorarrayWifiOwnerProcessOnce+0x3d1>
+4208e167:	00a4c2        	movi	a12, 0x400
+4208e16a:	b0cac0        	addx8	a12, a10, a12
+4208e16d:	c2ca      	add.n	a12, a2, a12
+4208e16f:	f0a3e2        	movi	a14, 0x3f0
+4208e172:	2cd8      	l32i.n	a13, a12, 8
+4208e174:	a0aae0        	addx4	a10, a10, a14
+4208e177:	3cf8      	l32i.n	a15, a12, 12
+4208e179:	a2aa      	add.n	a10, a2, a10
+4208e17b:	6dba      	add.n	a6, a13, a11
+4208e17d:	3ae8      	l32i.n	a14, a10, 12
+4208e17f:	31bfb0        	srai	a11, a11, 31
+4208e182:	bfba      	add.n	a11, a15, a11
+4208e184:	62d6d0        	saltu	a13, a6, a13
+4208e187:	ee1b      	addi.n	a14, a14, 1
+4208e189:	bbda      	add.n	a11, a11, a13
+4208e18b:	2c69      	s32i.n	a6, a12, 8
+4208e18d:	3ae9      	s32i.n	a14, a10, 12
+4208e18f:	3cb9      	s32i.n	a11, a12, 12
+4208e191:	3188      	l32i.n	a8, a1, 12
+4208e193:	0b0c      	movi.n	a11, 0
+4208e195:	a0a880        	addx4	a10, a8, a8
+4208e198:	90aa80        	addx2	a10, a10, a8
+4208e19b:	b0aa20        	addx8	a10, a10, a2
+4208e19e:	f3ec81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e1a1:	04d222        	addmi	a2, a2, 0x400
+4208e1a4:	a268      	l32i.n	a6, a2, 40
+4208e1a6:	6ab9      	s32i.n	a11, a10, 24
+4208e1a8:	f3e9a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e1ab:	3148b2        	s8i	a11, a8, 49
+4208e1ae:	b248      	l32i.n	a4, a2, 44
+4208e1b0:	f3eb81        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e1b3:	0008e0        	callx8	a8
+4208e1b6:	668c      	beqz.n	a6, 4208e1c0 <sensorarrayWifiOwnerProcessOnce+0x400>
+4208e1b8:	04bd      	mov.n	a11, a4
+4208e1ba:	20a550        	or	a10, a5, a5
+4208e1bd:	0006e0        	callx8	a6
+4208e1c0:	f3e3a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e1c3:	ffafb2        	movi	a11, -1
+4208e1c6:	f3e481        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e1c9:	0008e0        	callx8	a8
+4208e1cc:	f3e0a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e1cf:	0c2262        	l32i	a6, a2, 48
+4208e1d2:	f3e281        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e1d5:	0008e0        	callx8	a8
+4208e1d8:	168c      	beqz.n	a6, 4208e1dd <sensorarrayWifiOwnerProcessOnce+0x41d>
+4208e1da:	0006e0        	callx8	a6
+4208e1dd:	120c      	movi.n	a2, 1
+4208e1df:	00aa06        	j	4208e48b <sensorarrayWifiOwnerProcessOnce+0x6cb>
+4208e1e2:	000000        	ill
+4208e1e5:	4804b2        	l8ui	a11, a4, 72
+4208e1e8:	248b16        	beqz	a11, 4208e434 <sensorarrayWifiOwnerProcessOnce+0x674>
+4208e1eb:	f3f061        	l32r	a6, 4208b1ac <bt_rf_coex_hook_register+0xb8> (3fcc7ea8 <s_execution+0x88>)
+4208e1ee:	f3f051        	l32r	a5, 4208b1b0 <bt_rf_coex_hook_register+0xbc> (3fcc7f20 <s_execution+0x100>)
+4208e1f1:	600582        	l8ui	a8, a5, 96
+4208e1f4:	036182        	s32i	a8, a1, 12
+4208e1f7:	03a816        	beqz	a8, 4208e235 <sensorarrayWifiOwnerProcessOnce+0x475>
+4208e1fa:	f3ebb1        	l32r	a11, 4208b1a8 <bt_rf_coex_hook_register+0xb4> (3fcc7f14 <s_execution+0xf4>)
+4208e1fd:	00a0c2        	movi	a12, 0
+4208e200:	06ad      	mov.n	a10, a6
+4208e202:	ff0d25        	call8	4208d2d4 <wifiSameConfig>
+4208e205:	eadc      	bnez.n	a10, 4208e227 <sensorarrayWifiOwnerProcessOnce+0x467>
+4208e207:	f3d681        	l32r	a8, 4208b160 <bt_rf_coex_hook_register+0x6c> (40377278 <esp_timer_get_time>)
+4208e20a:	0008e0        	callx8	a8
+4208e20d:	f3cfa1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e210:	fb7c      	movi.n	a11, -1
+4208e212:	f3d181        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e215:	0008e0        	callx8	a8
+4208e218:	dd22a2        	l32i	a10, a2, 0x374
+4208e21b:	0d9a56        	bnez	a10, 4208e2f8 <sensorarrayWifiOwnerProcessOnce+0x538>
+4208e21e:	06a1a2        	movi	a10, 0x106
+4208e221:	dd62a2        	s32i	a10, a2, 0x374
+4208e224:	003406        	j	4208e2f8 <sensorarrayWifiOwnerProcessOnce+0x538>
+4208e227:	3a24a2        	l32i	a10, a4, 232
+4208e22a:	00c4a5        	call8	4208ee74 <sensorarrayWifiBackendApplyProfile>
+4208e22d:	0a5d      	mov.n	a5, a10
+4208e22f:	000246        	j	4208e23c <sensorarrayWifiOwnerProcessOnce+0x47c>
+4208e232:	000000        	ill
+4208e235:	06ad      	mov.n	a10, a6
+4208e237:	00cda5        	call8	4208ef10 <sensorarrayWifiBackendInitialize>
+4208e23a:	0a5d      	mov.n	a5, a10
+4208e23c:	f3c981        	l32r	a8, 4208b160 <bt_rf_coex_hook_register+0x6c> (40377278 <esp_timer_get_time>)
+4208e23f:	0008e0        	callx8	a8
+4208e242:	0a9d      	mov.n	a9, a10
+4208e244:	f3c2a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e247:	0b8d      	mov.n	a8, a11
+4208e249:	fb7c      	movi.n	a11, -1
+4208e24b:	5199      	s32i.n	a9, a1, 20
+4208e24d:	4189      	s32i.n	a8, a1, 16
+4208e24f:	f3c281        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e252:	0008e0        	callx8	a8
+4208e255:	0ad516        	beqz	a5, 4208e306 <sensorarrayWifiOwnerProcessOnce+0x546>
+4208e258:	dd22a2        	l32i	a10, a2, 0x374
+4208e25b:	1acc      	bnez.n	a10, 4208e260 <sensorarrayWifiOwnerProcessOnce+0x4a0>
+4208e25d:	dd6252        	s32i	a5, a2, 0x374
+4208e260:	f3bc81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e263:	3198      	l32i.n	a9, a1, 12
+4208e265:	300882        	l8ui	a8, a8, 48
+4208e268:	2189      	s32i.n	a8, a1, 8
+4208e26a:	094956        	bnez	a9, 4208e302 <sensorarrayWifiOwnerProcessOnce+0x542>
+4208e26d:	095856        	bnez	a8, 4208e306 <sensorarrayWifiOwnerProcessOnce+0x546>
+4208e270:	f3b881        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e273:	1a0c      	movi.n	a10, 1
+4208e275:	1b24c2        	l32i	a12, a4, 108
+4208e278:	3248a2        	s8i	a10, a8, 50
+4208e27b:	1a24d2        	l32i	a13, a4, 104
+4208e27e:	230c66        	bnei	a12, -1, 4208e2a5 <sensorarrayWifiOwnerProcessOnce+0x4e5>
+4208e281:	f3b0a1        	l32r	a10, 4208b144 <bt_rf_coex_hook_register+0x50> (ffa4727f <_rtc_reserved_end+0x9f94727f>)
+4208e284:	1dbad7        	bgeu	a10, a13, 4208e2a5 <sensorarrayWifiOwnerProcessOnce+0x4e5>
+4208e287:	4188      	l32i.n	a8, a1, 16
+4208e289:	51b8      	l32i.n	a11, a1, 20
+4208e28b:	050866        	bnei	a8, -1, 4208e294 <sensorarrayWifiOwnerProcessOnce+0x4d4>
+4208e28e:	f3c0a1        	l32r	a10, 4208b190 <bt_rf_coex_hook_register+0x9c> (fff0bdbf <_rtc_reserved_end+0x9fe0bdbf>)
+4208e291:	63bba0        	minu	a11, a11, a10
+4208e294:	f3c0a1        	l32r	a10, 4208b194 <bt_rf_coex_hook_register+0xa0> (f4240 <_rtc_slow_length+0xf4050>)
+4208e297:	4188      	l32i.n	a8, a1, 16
+4208e299:	bbaa      	add.n	a11, a11, a10
+4208e29b:	62aba0        	saltu	a10, a11, a10
+4208e29e:	8a8a      	add.n	a8, a10, a8
+4208e2a0:	000b46        	j	4208e2d1 <sensorarrayWifiOwnerProcessOnce+0x511>
+4208e2a3:	a10000        	sll	a0, a0
+4208e2a6:	f3a8      	l32i.n	a10, a3, 60
+4208e2a8:	4198      	l32i.n	a9, a1, 16
+4208e2aa:	ddaa      	add.n	a13, a13, a10
+4208e2ac:	62ada0        	saltu	a10, a13, a10
+4208e2af:	5188      	l32i.n	a8, a1, 20
+4208e2b1:	ccaa      	add.n	a12, a12, a10
+4208e2b3:	050966        	bnei	a9, -1, 4208e2bc <sensorarrayWifiOwnerProcessOnce+0x4fc>
+4208e2b6:	f3b6a1        	l32r	a10, 4208b190 <bt_rf_coex_hook_register+0x9c> (fff0bdbf <_rtc_reserved_end+0x9fe0bdbf>)
+4208e2b9:	6388a0        	minu	a8, a8, a10
+4208e2bc:	f3b6a1        	l32r	a10, 4208b194 <bt_rf_coex_hook_register+0xa0> (f4240 <_rtc_slow_length+0xf4050>)
+4208e2bf:	b8aa      	add.n	a11, a8, a10
+4208e2c1:	4188      	l32i.n	a8, a1, 16
+4208e2c3:	62aba0        	saltu	a10, a11, a10
+4208e2c6:	8a8a      	add.n	a8, a10, a8
+4208e2c8:	193c87        	bltu	a12, a8, 4208e2e5 <sensorarrayWifiOwnerProcessOnce+0x525>
+4208e2cb:	0298c7        	bne	a8, a12, 4208e2d1 <sensorarrayWifiOwnerProcessOnce+0x511>
+4208e2ce:	133db7        	bltu	a13, a11, 4208e2e5 <sensorarrayWifiOwnerProcessOnce+0x525>
+4208e2d1:	f39ea1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e2d4:	d062b2        	s32i	a11, a2, 0x340
+4208e2d7:	d16282        	s32i	a8, a2, 0x344
+4208e2da:	f3a081        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e2dd:	0008e0        	callx8	a8
+4208e2e0:	000b86        	j	4208e312 <sensorarrayWifiOwnerProcessOnce+0x552>
+4208e2e3:	a10000        	sll	a0, a0
+4208e2e6:	f399      	s32i.n	a9, a3, 60
+4208e2e8:	d062d2        	s32i	a13, a2, 0x340
+4208e2eb:	d162c2        	s32i	a12, a2, 0x344
+4208e2ee:	f39b81        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e2f1:	0008e0        	callx8	a8
+4208e2f4:	000686        	j	4208e312 <sensorarrayWifiOwnerProcessOnce+0x552>
+4208e2f7:	318800        	srai	a8, a0, 24
+4208e2fa:	06a152        	movi	a5, 0x106
+4208e2fd:	2189      	s32i.n	a8, a1, 8
+4208e2ff:	0000c6        	j	4208e306 <sensorarrayWifiOwnerProcessOnce+0x546>
+4208e302:	3188      	l32i.n	a8, a1, 12
+4208e304:	2189      	s32i.n	a8, a1, 8
+4208e306:	f391a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e309:	f39481        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e30c:	0008e0        	callx8	a8
+4208e30f:	007f06        	j	4208e50f <sensorarrayWifiOwnerProcessOnce+0x74f>
+4208e312:	0102a5        	call8	4208f33c <sensorarrayWifiBackendHasReader>
+4208e315:	1c8a56        	bnez	a10, 4208e4e1 <sensorarrayWifiOwnerProcessOnce+0x721>
+4208e318:	00ef65        	call8	4208f210 <sensorarrayWifiBackendCleanup>
+4208e31b:	206aa0        	or	a6, a10, a10
+4208e31e:	f39081        	l32r	a8, 4208b160 <bt_rf_coex_hook_register+0x6c> (40377278 <esp_timer_get_time>)
+4208e321:	0008e0        	callx8	a8
+4208e324:	209aa0        	or	a9, a10, a10
+4208e327:	f389a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e32a:	0b8d      	mov.n	a8, a11
+4208e32c:	fb7c      	movi.n	a11, -1
+4208e32e:	3199      	s32i.n	a9, a1, 12
+4208e330:	2189      	s32i.n	a8, a1, 8
+4208e332:	f38981        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e335:	0008e0        	callx8	a8
+4208e338:	de22a2        	l32i	a10, a2, 0x378
+4208e33b:	2188      	l32i.n	a8, a1, 8
+4208e33d:	3198      	l32i.n	a9, a1, 12
+4208e33f:	1acc      	bnez.n	a10, 4208e344 <sensorarrayWifiOwnerProcessOnce+0x584>
+4208e341:	de6262        	s32i	a6, a2, 0x378
+4208e344:	f26252        	s32i	a5, a2, 0x3c8
+4208e347:	4199      	s32i.n	a9, a1, 16
+4208e349:	5189      	s32i.n	a8, a1, 20
+4208e34b:	a6ec      	bnez.n	a6, 4208e379 <sensorarrayWifiOwnerProcessOnce+0x5b9>
+4208e34d:	007b46        	j	4208e53e <sensorarrayWifiOwnerProcessOnce+0x77e>
+4208e350:	06a1a2        	movi	a10, 0x106
+4208e353:	0595a7        	bne	a5, a10, 4208e35c <sensorarrayWifiOwnerProcessOnce+0x59c>
+4208e356:	060c      	movi.n	a6, 0
+4208e358:	0019c6        	j	4208e3c3 <sensorarrayWifiOwnerProcessOnce+0x603>
+4208e35b:	655600        	extui	a5, a0, 22, 7
+4208e35e:	9d5601        	l32r	a0, 420758b8 <bta_gatts_deinit+0xc> (8e02f84 <_rtc_slow_length+0x8e02d94>)
+4208e361:	03          	.byte	0x3
+4208e362:	0521d2        	l32i	a13, a1, 20
+4208e365:	41c8      	l32i.n	a12, a1, 16
+4208e367:	05ad      	mov.n	a10, a5
+4208e369:	ff03e5        	call8	4208d3a8 <wifiQuarantineLocked$part$0>
+4208e36c:	f37981        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e36f:	3008d2        	l8ui	a13, a8, 48
+4208e372:	000986        	j	4208e39c <sensorarrayWifiOwnerProcessOnce+0x5dc>
+4208e375:	a06200        	addx4	a6, a2, a0
+4208e378:	758100        	extui	a8, a0, 17, 8
+4208e37b:	f3          	.byte	0xf3
+4208e37c:	3008a2        	l8ui	a10, a8, 48
+4208e37f:	07da56        	bnez	a10, 4208e400 <sensorarrayWifiOwnerProcessOnce+0x640>
+4208e382:	0521d2        	l32i	a13, a1, 20
+4208e385:	0421c2        	l32i	a12, a1, 16
+4208e388:	05ad      	mov.n	a10, a5
+4208e38a:	ff01e5        	call8	4208d3a8 <wifiQuarantineLocked$part$0>
+4208e38d:	f37081        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e390:	3008d2        	l8ui	a13, a8, 48
+4208e393:	000b06        	j	4208e3c3 <sensorarrayWifiOwnerProcessOnce+0x603>
+4208e396:	000000        	ill
+4208e399:	fb9556        	bnez	a5, 4208e356 <sensorarrayWifiOwnerProcessOnce+0x596>
+4208e39c:	f36d81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e39f:	1f0c      	movi.n	a15, 1
+4208e3a1:	c0a2a2        	movi	a10, 0x2c0
+4208e3a4:	06bd      	mov.n	a11, a6
+4208e3a6:	6ca0c2        	movi	a12, 108
+4208e3a9:	80a2a0        	add	a10, a2, a10
+4208e3ac:	2d48f2        	s8i	a15, a8, 45
+4208e3af:	21d9      	s32i.n	a13, a1, 8
+4208e3b1:	c5be81        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208e3b4:	0008e0        	callx8	a8
+4208e3b7:	3a24a2        	l32i	a10, a4, 232
+4208e3ba:	050c      	movi.n	a5, 0
+4208e3bc:	21d8      	l32i.n	a13, a1, 8
+4208e3be:	e962a2        	s32i	a10, a2, 0x3a4
+4208e3c1:	056d      	mov.n	a6, a5
+4208e3c3:	9dfc      	bnez.n	a13, 4208e400 <sensorarrayWifiOwnerProcessOnce+0x640>
+4208e3c5:	01d2a2        	addmi	a10, a2, 0x100
+4208e3c8:	900aa2        	l8ui	a10, a10, 144
+4208e3cb:	1abc      	beqz.n	a10, 4208e400 <sensorarrayWifiOwnerProcessOnce+0x640>
+4208e3cd:	1324b2        	l32i	a11, a4, 76
+4208e3d0:	6522a2        	l32i	a10, a2, 0x194
+4208e3d3:	299ab7        	bne	a10, a11, 4208e400 <sensorarrayWifiOwnerProcessOnce+0x640>
+4208e3d6:	1424c2        	l32i	a12, a4, 80
+4208e3d9:	6022b2        	l32i	a11, a2, 0x180
+4208e3dc:	209cb7        	bne	a12, a11, 4208e400 <sensorarrayWifiOwnerProcessOnce+0x640>
+4208e3df:	1b0c      	movi.n	a11, 1
+4208e3e1:	0d8d      	mov.n	a8, a13
+4208e3e3:	838b50        	moveqz	a8, a11, a5
+4208e3e6:	490c      	movi.n	a9, 4
+4208e3e8:	3b0c      	movi.n	a11, 3
+4208e3ea:	93b950        	movnez	a11, a9, a5
+4208e3ed:	f35891        	l32r	a9, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e3f0:	41e8      	l32i.n	a14, a1, 16
+4208e3f2:	51f8      	l32i.n	a15, a1, 20
+4208e3f4:	20d660        	or	a13, a6, a6
+4208e3f7:	20c550        	or	a12, a5, a5
+4208e3fa:	2c4982        	s8i	a8, a9, 44
+4208e3fd:	fef225        	call8	4208d320 <wifiFinishRequestLocked>
+4208e400:	f35481        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e403:	00a0b2        	movi	a11, 0
+4208e406:	f351a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e409:	3148b2        	s8i	a11, a8, 49
+4208e40c:	3248b2        	s8i	a11, a8, 50
+4208e40f:	f35381        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e412:	0008e0        	callx8	a8
+4208e415:	f34da1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e418:	fb7c      	movi.n	a11, -1
+4208e41a:	f34f81        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e41d:	0008e0        	callx8	a8
+4208e420:	04d282        	addmi	a8, a2, 0x400
+4208e423:	c868      	l32i.n	a6, a8, 48
+4208e425:	f349a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e428:	f34d81        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e42b:	0008e0        	callx8	a8
+4208e42e:	dab616        	beqz	a6, 4208e1dd <sensorarrayWifiOwnerProcessOnce+0x41d>
+4208e431:	ff6946        	j	4208e1da <sensorarrayWifiOwnerProcessOnce+0x41a>
+4208e434:	da5816        	beqz	a8, 4208e1dd <sensorarrayWifiOwnerProcessOnce+0x41d>
+4208e437:	20c142        	addi	a4, a1, 32
+4208e43a:	2041b2        	s8i	a11, a1, 32
+4208e43d:	04ad      	mov.n	a10, a4
+4208e43f:	00fee5        	call8	4208f42c <sensorarrayWifiBackendStationQuery>
+4208e442:	31b8      	l32i.n	a11, a1, 12
+4208e444:	206aa0        	or	a6, a10, a10
+4208e447:	f341a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e44a:	f34381        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e44d:	0008e0        	callx8	a8
+4208e450:	f34081        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e453:	3008a2        	l8ui	a10, a8, 48
+4208e456:	cadc      	bnez.n	a10, 4208e476 <sensorarrayWifiOwnerProcessOnce+0x6b6>
+4208e458:	612282        	l32i	a8, a2, 0x184
+4208e45b:	179857        	bne	a8, a5, 4208e476 <sensorarrayWifiOwnerProcessOnce+0x6b6>
+4208e45e:	f33c91        	l32r	a9, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e461:	01a082        	movi	a8, 1
+4208e464:	938a60        	movnez	a8, a10, a6
+4208e467:	2e4982        	s8i	a8, a9, 46
+4208e46a:	002656        	bnez	a6, 4208e470 <sensorarrayWifiOwnerProcessOnce+0x6b0>
+4208e46d:	2001a2        	l8ui	a10, a1, 32
+4208e470:	f33881        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e473:	a148a2        	s8i	a10, a8, 161
+4208e476:	f33691        	l32r	a9, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e479:	00a082        	movi	a8, 0
+4208e47c:	f334a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e47f:	314982        	s8i	a8, a9, 49
+4208e482:	f33681        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e485:	0008e0        	callx8	a8
+4208e488:	ff5446        	j	4208e1dd <sensorarrayWifiOwnerProcessOnce+0x41d>
+4208e48b:	0020c0        	memw
+4208e48e:	0798      	l32i.n	a9, a7, 0
+4208e490:	0020c0        	memw
+4208e493:	0388      	l32i.n	a8, a3, 0
+4208e495:	029987        	bne	a9, a8, 4208e49b <sensorarrayWifiOwnerProcessOnce+0x6db>
+4208e498:	002c46        	j	4208e54d <sensorarrayWifiOwnerProcessOnce+0x78d>
+4208e49b:	002a06        	j	4208e547 <sensorarrayWifiOwnerProcessOnce+0x787>
+4208e49e:	6188      	l32i.n	a8, a1, 24
+4208e4a0:	f32ba1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e4a3:	d06282        	s32i	a8, a2, 0x340
+4208e4a6:	d16262        	s32i	a6, a2, 0x344
+4208e4a9:	f32c81        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e4ac:	0008e0        	callx8	a8
+4208e4af:	180c      	movi.n	a8, 1
+4208e4b1:	7189      	s32i.n	a8, a1, 28
+4208e4b3:	fefb46        	j	4208e0a4 <sensorarrayWifiOwnerProcessOnce+0x2e4>
+4208e4b6:	000000        	ill
+4208e4b9:	e136b7        	bltu	a6, a11, 4208e49e <sensorarrayWifiOwnerProcessOnce+0x6de>
+4208e4bc:	059b67        	bne	a11, a6, 4208e4c5 <sensorarrayWifiOwnerProcessOnce+0x705>
+4208e4bf:	062182        	l32i	a8, a1, 24
+4208e4c2:	d838c7        	bltu	a8, a12, 4208e49e <sensorarrayWifiOwnerProcessOnce+0x6de>
+4208e4c5:	f321a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e4c8:	d062c2        	s32i	a12, a2, 0x340
+4208e4cb:	d162b2        	s32i	a11, a2, 0x344
+4208e4ce:	f32381        	l32r	a8, 4208b15c <bt_rf_coex_hook_register+0x68> (40385de4 <vPortExitCritical>)
+4208e4d1:	0008e0        	callx8	a8
+4208e4d4:	fff5c6        	j	4208e4af <sensorarrayWifiOwnerProcessOnce+0x6ef>
+4208e4d7:	625200        	saltu	a5, a2, a0
+4208e4da:	a162f2        	s32i	a15, a2, 0x284
+4208e4dd:	a5c603        	ssip	f0, a6, 0x294
+4208e4e0:	f31f81ff 	ee.vmulas.u8.qacc.ld.xp	q7, a15, a1, q6, q0
+4208e4e4:	0008e0        	callx8	a8
+4208e4e7:	0a9d      	mov.n	a9, a10
+4208e4e9:	f318a1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e4ec:	0b8d      	mov.n	a8, a11
+4208e4ee:	fb7c      	movi.n	a11, -1
+4208e4f0:	046192        	s32i	a9, a1, 16
+4208e4f3:	056182        	s32i	a8, a1, 20
+4208e4f6:	f31881        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e4f9:	0008e0        	callx8	a8
+4208e4fc:	de22a2        	l32i	a10, a2, 0x378
+4208e4ff:	fd5a56        	bnez	a10, 4208e4d8 <sensorarrayWifiOwnerProcessOnce+0x718>
+4208e502:	03a162        	movi	a6, 0x103
+4208e505:	de6262        	s32i	a6, a2, 0x378
+4208e508:	f26252        	s32i	a5, a2, 0x3c8
+4208e50b:	ff9a86        	j	4208e379 <sensorarrayWifiOwnerProcessOnce+0x5b9>
+4208e50e:	148100        	extui	a8, a0, 1, 2
+4208e511:	f3          	.byte	0xf3
+4208e512:	0008e0        	callx8	a8
+4208e515:	0a9d      	mov.n	a9, a10
+4208e517:	f30da1        	l32r	a10, 4208b14c <bt_rf_coex_hook_register+0x58> (3fcabe58 <s_wifiMux>)
+4208e51a:	0b8d      	mov.n	a8, a11
+4208e51c:	fb7c      	movi.n	a11, -1
+4208e51e:	5189      	s32i.n	a8, a1, 20
+4208e520:	4199      	s32i.n	a9, a1, 16
+4208e522:	f30d81        	l32r	a8, 4208b158 <bt_rf_coex_hook_register+0x64> (40385c94 <xPortEnterCriticalTimeout>)
+4208e525:	0008e0        	callx8	a8
+4208e528:	f30a81        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e52b:	f26252        	s32i	a5, a2, 0x3c8
+4208e52e:	3008d2        	l8ui	a13, a8, 48
+4208e531:	3188      	l32i.n	a8, a1, 12
+4208e533:	e62816        	beqz	a8, 4208e399 <sensorarrayWifiOwnerProcessOnce+0x5d9>
+4208e536:	2188      	l32i.n	a8, a1, 8
+4208e538:	e14856        	bnez	a8, 4208e350 <sensorarrayWifiOwnerProcessOnce+0x590>
+4208e53b:	ff9686        	j	4208e399 <sensorarrayWifiOwnerProcessOnce+0x5d9>
+4208e53e:	f30481        	l32r	a8, 4208b150 <bt_rf_coex_hook_register+0x5c> (3fcabd20 <s_owner+0x300>)
+4208e541:	3008d2        	l8ui	a13, a8, 48
+4208e544:	ff8386        	j	4208e356 <sensorarrayWifiOwnerProcessOnce+0x596>
+4208e547:	f31d81        	l32r	a8, 4208b1bc <bt_rf_coex_hook_register+0xc8> (40384d8c <__stack_chk_fail>)
+4208e54a:	0008e0        	callx8	a8
+4208e54d:	f01d      	retw.n

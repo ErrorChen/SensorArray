@@ -1,0 +1,1 @@
+{"output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen17-pc-frame-intervals-independent-analysis-01.json", "captures": 1, "configuration_statuses": {"NOT_RUN": 31, "RECORDED": 1}, "precision_acceptance": "NOT_EVALUATED"}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_watchdog.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:09:10.968650+00:00",
+  "sourceSha256": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+  "toolSha256": "fe570d13f18ffe6f47bb92d5f53ec9f62c26fe3fb3173138bcffa98bd7dff94c",
+  "logSha256": "974ea274c08de63e76b4d34711e99b7172980a8c5d65255c1446e841b695c03e",
+  "hardware": "NOT_RUN"
+}

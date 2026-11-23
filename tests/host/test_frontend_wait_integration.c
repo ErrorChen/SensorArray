@@ -141,6 +141,11 @@ static void sensorarrayUsbOtgRestart(bool rom) { (void)rom; mockRestart++; }
 static bool sensorarrayUsbControlHandles(const char *cmd) { (void)cmd; return false; }
 static esp_err_t sensorarrayUsbControlHandle(const char *cmd,char *text,size_t size) { (void)cmd;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static esp_err_t sensorarrayLinkDiagnosticsFormat(const char *cmd,char *text,size_t size) { int n=snprintf(text,size,"%.*s,mock=1\n",(int)strlen(cmd)-1,cmd);return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
+/* This suite covers dispatch/recovery; the real memory formatter has its own suite. */
+static esp_err_t sensorarrayMemoryDiagnosticsFormat(char *text,size_t size) { int n=snprintf(text,size,"MEM,v=1,mock=1\n");return n>0&&(size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE; }
+static esp_err_t sensorarrayMemoryDiagnosticsFailureFormat(char *text,size_t size) { (void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
+static bool sensorarrayPanicDiagnosticsHandles(const char *command) { (void)command;return false; }
+static esp_err_t sensorarrayPanicDiagnosticsFormat(const char *command,char *text,size_t size) { (void)command;(void)text;(void)size;return ESP_ERR_NOT_SUPPORTED; }
 static const uint64_t s_configSessionId = UINT64_C(0x123456789ABCDEF0);
 static bool sensorarrayCpuOwnerHandles(const char *cmd) { return strncmp(cmd,"CPUOWNER?",9u)==0; }
 static esp_err_t sensorarrayCpuOwnerFormat(const char *cmd,uint64_t session,char *text,size_t size)

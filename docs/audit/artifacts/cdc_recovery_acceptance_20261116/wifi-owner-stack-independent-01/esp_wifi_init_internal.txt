@@ -1,0 +1,116 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420d6db0 <esp_wifi_init_internal>:
+420d6db0:	004136        	entry	a1, 32
+420d6db3:	024d      	mov.n	a4, a2
+420d6db5:	010256        	bnez	a2, 420d6dc9 <esp_wifi_init_internal+0x19>
+420d6db8:	fffaa1        	l32r	a10, 420d6da0 <net80211_funcs_deinit+0x24> (3c155ff2 <__func__$15+0x1396>)
+420d6dbb:	02a122        	movi	a2, 0x102
+420d6dbe:	201110        	or	a1, a1, a1
+420d6dc1:	306ca5        	call8	4210748c <puts>
+420d6dc4:	004186        	j	420d6ece <esp_wifi_init_internal+0x11e>
+420d6dc7:	00          	.byte	00
+420d6dc8:	02a800        	andb	b10, b8, b0
+420d6dcb:	201110        	or	a1, a1, a1
+420d6dce:	ffc9a5        	call8	420d6a68 <wifi_osi_funcs_register>
+420d6dd1:	0a2d      	mov.n	a2, a10
+420d6dd3:	0f7a56        	bnez	a10, 420d6ece <esp_wifi_init_internal+0x11e>
+420d6dd6:	201110        	or	a1, a1, a1
+420d6dd9:	ff8125        	call8	420d65ec <wifi_api_lock>
+420d6ddc:	0a2d      	mov.n	a2, a10
+420d6dde:	0eca56        	bnez	a10, 420d6ece <esp_wifi_init_internal+0x11e>
+420d6de1:	fdfa51        	l32r	a5, 420d65cc <esp_wifi_ap_get_sta_aid_local+0x6c> (3fcac970 <g_wifi_event_mask+0x4>)
+420d6de4:	0538      	l32i.n	a3, a5, 0
+420d6de6:	3f1326        	beqi	a3, 1, 420d6e29 <esp_wifi_init_internal+0x79>
+420d6de9:	033366        	bnei	a3, 3, 420d6df0 <esp_wifi_init_internal+0x40>
+420d6dec:	003606        	j	420d6ec8 <esp_wifi_init_internal+0x118>
+420d6def:	236600        	sext	a6, a6, 7
+420d6df2:	111011        	l32r	a1, 4209b234 <_ZN3nvs7Storage26eraseMismatchedBlobIndexesER14intrusive_listINS0_13BlobIndexNodeEE+0x1c> (29ffa042 <_rtc_slow_length+0x29ff9e52>)
+420d6df5:	83e520        	moveqz	a14, a5, a2
+420d6df8:	ff          	.byte	0xff
+420d6df9:	ffead1        	l32r	a13, 420d6da4 <net80211_funcs_deinit+0x28> (3c16198a <__chclass+0x37da>)
+420d6dfc:	03cd      	mov.n	a12, a3
+420d6dfe:	03bd      	mov.n	a11, a3
+420d6e00:	000506        	j	420d6e18 <esp_wifi_init_internal+0x68>
+420d6e03:	260000        	ee.ldf.64.xp	f0, f2, a0, a0
+420d6e06:	060243        	lsi	f4, a2, 24
+420d6e09:	1110002f 	ee.vmulas.s16.qacc.ld.ip.qup	q2, a2, 0, q4, q0, q1, q0
+420d6e0d:	826520        	mull	a6, a5, a2
+420d6e10:	d12c0cff 	ee.fft.ams.s16.ld.incp	q4, a15, q0, q7, q4, q2, q4, 0
+420d6e14:	bdffe5        	call8	42094e14 <gpio_set_intr_type+0xd0>
+420d6e17:	0c0c      	movi.n	a12, 0
+420d6e19:	101a      	add.n	a1, a0, a1
+420d6e1b:	252011        	l32r	a1, 420a029c <lwip_ioctl+0x8> (ea8c0a7d <_rtc_reserved_end+0x8a7c0a7d>)
+420d6e1e:	f5c9      	s32i.n	a12, a5, 60
+420d6e20:	ffdf21        	l32r	a2, 420d6d9c <net80211_funcs_deinit+0x20> (3013 <_rtc_slow_length+0x2e23>)
+420d6e23:	0029c6        	j	420d6ece <esp_wifi_init_internal+0x11e>
+420d6e26:	000000        	ill
+420d6e29:	201110        	or	a1, a1, a1
+420d6e2c:	126365        	call8	420e9464 <pm_funcs_init>
+420d6e2f:	202aa0        	or	a2, a10, a10
+420d6e32:	06ea56        	bnez	a10, 420d6ea4 <esp_wifi_init_internal+0xf4>
+420d6e35:	1e24a2        	l32i	a10, a4, 120
+420d6e38:	1f24b2        	l32i	a11, a4, 124
+420d6e3b:	201110        	or	a1, a1, a1
+420d6e3e:	120a65        	call8	420e8ee4 <wdev_funcs_init>
+420d6e41:	202aa0        	or	a2, a10, a10
+420d6e44:	05ca56        	bnez	a10, 420d6ea4 <esp_wifi_init_internal+0xf4>
+420d6e47:	201110        	or	a1, a1, a1
+420d6e4a:	ffde25        	call8	420d6c2c <net80211_funcs_init>
+420d6e4d:	0a2d      	mov.n	a2, a10
+420d6e4f:	051a56        	bnez	a10, 420d6ea4 <esp_wifi_init_internal+0xf4>
+420d6e52:	220c      	movi.n	a2, 2
+420d6e54:	006522        	s32i	a2, a5, 0
+420d6e57:	201110        	or	a1, a1, a1
+420d6e5a:	ff7da5        	call8	420d6634 <wifi_api_unlock>
+420d6e5d:	04ad      	mov.n	a10, a4
+420d6e5f:	201110        	or	a1, a1, a1
+420d6e62:	ffb565        	call8	420d69b8 <wifi_init_in_caller_task>
+420d6e65:	0a2d      	mov.n	a2, a10
+420d6e67:	9afc      	bnez.n	a10, 420d6ea4 <esp_wifi_init_internal+0xf4>
+420d6e69:	bafe31        	l32r	a3, 420c5a64 <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420d6e6c:	8a1c      	movi.n	a10, 24
+420d6e6e:	0338      	l32i.n	a3, a3, 0
+420d6e70:	5d2332        	l32i	a3, a3, 0x174
+420d6e73:	0003e0        	callx8	a3
+420d6e76:	7aac      	beqz.n	a10, 420d6ea1 <esp_wifi_init_internal+0xf1>
+420d6e78:	632c      	movi.n	a3, 38
+420d6e7a:	004a32        	s8i	a3, a10, 0
+420d6e7d:	ffcb31        	l32r	a3, 420d6dac <net80211_funcs_deinit+0x30> (420d4ad8 <wifi_init_process>)
+420d6e80:	045a22        	s16i	a2, a10, 8
+420d6e83:	0a4a22        	s8i	a2, a10, 10
+420d6e86:	1a39      	s32i.n	a3, a10, 4
+420d6e88:	3a49      	s32i.n	a4, a10, 12
+420d6e8a:	201110        	or	a1, a1, a1
+420d6e8d:	fed965        	call8	420d5c24 <ieee80211_ioctl>
+420d6e90:	0a2d      	mov.n	a2, a10
+420d6e92:	eacc      	bnez.n	a10, 420d6ea4 <esp_wifi_init_internal+0xf4>
+420d6e94:	201110        	or	a1, a1, a1
+420d6e97:	ff7565        	call8	420d65ec <wifi_api_lock>
+420d6e9a:	330c      	movi.n	a3, 3
+420d6e9c:	000946        	j	420d6ec5 <esp_wifi_init_internal+0x115>
+420d6e9f:	220000        	orb	b0, b0, b0
+420d6ea2:	1001a1        	l32r	a10, 4209aea8 <_ZN3nvs4Page11markFreeingEv+0x4c> (87068800 <_rtc_reserved_end+0x26f68800>)
+420d6ea5:	652011        	l32r	a1, 420b0328 <poll_tcp+0x50> (8c284282 <_rtc_reserved_end+0x2c184282>)
+420d6ea8:	ffac      	beqz.n	a15, 420d6edb <esp_wifi_init_internal+0x12b>
+420d6eaa:	201110        	or	a1, a1, a1
+420d6ead:	ff73e5        	call8	420d65ec <wifi_api_lock>
+420d6eb0:	201110        	or	a1, a1, a1
+420d6eb3:	1250e5        	call8	420e93c0 <wdev_funcs_deinit>
+420d6eb6:	201110        	or	a1, a1, a1
+420d6eb9:	125ea5        	call8	420e94a4 <pm_funcs_deinit>
+420d6ebc:	201110        	or	a1, a1, a1
+420d6ebf:	ffebe5        	call8	420d6d7c <net80211_funcs_deinit>
+420d6ec2:	01a032        	movi	a3, 1
+420d6ec5:	006532        	s32i	a3, a5, 0
+420d6ec8:	201110        	or	a1, a1, a1
+420d6ecb:	ff76a5        	call8	420d6634 <wifi_api_unlock>
+420d6ece:	f01d      	retw.n

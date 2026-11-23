@@ -1,0 +1,38 @@
+...........FFF..
+======================================================================
+FAIL: test_actual_collector_preserves_duration_raw_restore_and_scope (__main__.ShortTests.test_actual_collector_preserves_duration_raw_restore_and_scope)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py", line 55, in test_actual_collector_preserves_duration_raw_restore_and_scope
+    self.assertEqual(index['status'], 'COMPLETE', report.get('error'))
+AssertionError: 'ERROR' != 'COMPLETE'
+- ERROR
++ COMPLETE
+ : retry_wrapper_requires_known_readonly_query:TX?
+
+======================================================================
+FAIL: test_lost_setter_reply_restores_without_replaying_setter (__main__.ShortTests.test_lost_setter_reply_restores_without_replaying_setter)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py", line 70, in test_lost_setter_reply_restores_without_replaying_setter
+    self.assertEqual(report['tx_restore'], 'QUERY_VERIFIED')
+AssertionError: 'NOT_NEEDED' != 'QUERY_VERIFIED'
+- NOT_NEEDED
++ QUERY_VERIFIED
+
+
+======================================================================
+FAIL: test_original_short_remains_short_and_unknown_never_mutates (__main__.ShortTests.test_original_short_remains_short_and_unknown_never_mutates) (value='short')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py", line 80, in test_original_short_remains_short_and_unknown_never_mutates
+    self.assertEqual(report['status'], expected, report.get('error'))
+AssertionError: 'ERROR' != 'CAPTURED'
+- ERROR
++ CAPTURED
+ : retry_wrapper_requires_known_readonly_query:TX?
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.331s
+
+FAILED (failures=3)

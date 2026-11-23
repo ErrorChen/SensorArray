@@ -1,0 +1,54 @@
+
+/tmp/bt-host-old-target-9he6p4sb/baseline.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42071b78 <osi_calloc_func>:
+42071b78:	008136        	entry	a1, 64
+42071b7b:	02bd      	mov.n	a11, a2
+42071b7d:	1a0c      	movi.n	a10, 1
+42071b7f:	027d      	mov.n	a7, a2
+42071b81:	402881        	l32r	a8, 42041c24 <sensorarrayAsyncLogGetProtectionStats+0x748> (4038e5f8 <calloc>)
+42071b84:	0008e0        	callx8	a8
+42071b87:	0a2d      	mov.n	a2, a10
+42071b89:	059716        	beqz	a7, 42071be6 <osi_calloc_func+0x6e>
+42071b8c:	056a56        	bnez	a10, 42071be6 <osi_calloc_func+0x6e>
+42071b8f:	3f8c81        	l32r	a8, 420419c0 <sensorarrayAsyncLogGetProtectionStats+0x4e4> (4038d3bc <esp_log_timestamp>)
+42071b92:	0008e0        	callx8	a8
+42071b95:	45bc81        	l32r	a8, 42043288 <sensorarrayAsyncLogGetProtectionStats+0x1dac> (42071b8f <osi_calloc_func+0x17>)
+42071b98:	45b8b1        	l32r	a11, 42043278 <sensorarrayAsyncLogGetProtectionStats+0x1d9c> (3c141d7c <_flash_rodata_start+0x21c5c>)
+42071b9b:	45bcc1        	l32r	a12, 4204328c <sensorarrayAsyncLogGetProtectionStats+0x1db0> (3c141f0c <_flash_rodata_start+0x21dec>)
+42071b9e:	11f0e0        	slli	a15, a0, 2
+42071ba1:	158e80        	extui	a8, a8, 30, 2
+42071ba4:	0bed      	mov.n	a14, a11
+42071ba6:	0add      	mov.n	a13, a10
+42071ba8:	404200        	ssai	2
+42071bab:	81f8f0        	src	a15, a8, a15
+42071bae:	0179      	s32i.n	a7, a1, 0
+42071bb0:	1a0c      	movi.n	a10, 1
+42071bb2:	420e81        	l32r	a8, 420423ec <sensorarrayAsyncLogGetProtectionStats+0xf10> (4038d428 <esp_log_write>)
+42071bb5:	0008e0        	callx8	a8
+42071bb8:	3f8281        	l32r	a8, 420419c0 <sensorarrayAsyncLogGetProtectionStats+0x4e4> (4038d3bc <esp_log_timestamp>)
+42071bbb:	0008e0        	callx8	a8
+42071bbe:	0a7d      	mov.n	a7, a10
+42071bc0:	40b2a1        	l32r	a10, 42041e88 <sensorarrayAsyncLogGetProtectionStats+0x9ac> (1000 <_rtc_slow_length+0xe10>)
+42071bc3:	932425        	call8	42004e04 <heap_caps_get_free_size>
+42071bc6:	0afd      	mov.n	a15, a10
+42071bc8:	40b0a1        	l32r	a10, 42041e88 <sensorarrayAsyncLogGetProtectionStats+0x9ac> (1000 <_rtc_slow_length+0xe10>)
+42071bcb:	71f9      	s32i.n	a15, a1, 28
+42071bcd:	933425        	call8	42004f10 <heap_caps_get_largest_free_block>
+42071bd0:	45aab1        	l32r	a11, 42043278 <sensorarrayAsyncLogGetProtectionStats+0x1d9c> (3c141d7c <_flash_rodata_start+0x21c5c>)
+42071bd3:	45abc1        	l32r	a12, 42043280 <sensorarrayAsyncLogGetProtectionStats+0x1da4> (3c141ed8 <_flash_rodata_start+0x21db8>)
+42071bd6:	71f8      	l32i.n	a15, a1, 28
+42071bd8:	01a9      	s32i.n	a10, a1, 0
+42071bda:	0bed      	mov.n	a14, a11
+42071bdc:	07dd      	mov.n	a13, a7
+42071bde:	1a0c      	movi.n	a10, 1
+42071be0:	420381        	l32r	a8, 420423ec <sensorarrayAsyncLogGetProtectionStats+0xf10> (4038d428 <esp_log_write>)
+42071be3:	0008e0        	callx8	a8
+42071be6:	f01d      	retw.n

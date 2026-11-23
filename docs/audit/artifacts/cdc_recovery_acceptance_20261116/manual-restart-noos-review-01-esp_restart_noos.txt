@@ -1,0 +1,164 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40384b30 <esp_restart_noos>:
+40384b30:	008136        	entry	a1, 64
+40384b33:	be5781        	l32r	a8, 40374490 <_iram_text_start+0x8c> (3fcb164c <__stack_chk_guard>)
+40384b36:	fa7c      	movi.n	a10, -1
+40384b38:	0020c0        	memw
+40384b3b:	0898      	l32i.n	a9, a8, 0
+40384b3d:	0020c0        	memw
+40384b40:	7199      	s32i.n	a9, a1, 28
+40384b42:	1066e5        	call8	403951b0 <xt_ints_off>
+40384b45:	0d0c      	movi.n	a13, 0
+40384b47:	0dcd      	mov.n	a12, a13
+40384b49:	0dbd      	mov.n	a11, a13
+40384b4b:	a14b      	addi.n	a10, a1, 4
+40384b4d:	c10581        	l32r	a8, 40374f64 <_iram_text_start+0xb60> (40000dbc <wdt_hal_init>)
+40384b50:	0008e0        	callx8	a8
+40384b53:	fd6c25        	call8	40382214 <rtc_clk_slow_freq_get_hz>
+40384b56:	0a7d      	mov.n	a7, a10
+40384b58:	a14b      	addi.n	a10, a1, 4
+40384b5a:	be5081        	l32r	a8, 4037449c <_iram_text_start+0x98> (40000de0 <wdt_hal_write_protect_disable>)
+40384b5d:	0008e0        	callx8	a8
+40384b60:	07cd      	mov.n	a12, a7
+40384b62:	a14b      	addi.n	a10, a1, 4
+40384b64:	3d0c      	movi.n	a13, 3
+40384b66:	0b0c      	movi.n	a11, 0
+40384b68:	be4e81        	l32r	a8, 403744a0 <_iram_text_start+0x9c> (40000dd4 <wdt_hal_config_stage>)
+40384b6b:	0008e0        	callx8	a8
+40384b6e:	4d0c      	movi.n	a13, 4
+40384b70:	07cd      	mov.n	a12, a7
+40384b72:	a1da      	add.n	a10, a1, a13
+40384b74:	1b0c      	movi.n	a11, 1
+40384b76:	be4a81        	l32r	a8, 403744a0 <_iram_text_start+0x9c> (40000dd4 <wdt_hal_config_stage>)
+40384b79:	0008e0        	callx8	a8
+40384b7c:	1b0c      	movi.n	a11, 1
+40384b7e:	a14b      	addi.n	a10, a1, 4
+40384b80:	c0fa81        	l32r	a8, 40374f68 <_iram_text_start+0xb64> (40000e28 <wdt_hal_set_flashboot_en>)
+40384b83:	0008e0        	callx8	a8
+40384b86:	a14b      	addi.n	a10, a1, 4
+40384b88:	be4881        	l32r	a8, 403744a8 <_iram_text_start+0xa4> (40000dec <wdt_hal_write_protect_enable>)
+40384b8b:	0008e0        	callx8	a8
+40384b8e:	c0eb81        	l32r	a8, 40374f3c <_iram_text_start+0xb38> (3c14f4c0 <reason$1+0xa0>)
+40384b91:	71cb      	addi.n	a7, a1, 12
+40384b93:	0898      	l32i.n	a9, a8, 0
+40384b95:	1888      	l32i.n	a8, a8, 4
+40384b97:	07ad      	mov.n	a10, a7
+40384b99:	3199      	s32i.n	a9, a1, 12
+40384b9b:	046182        	s32i	a8, a1, 16
+40384b9e:	be3f81        	l32r	a8, 4037449c <_iram_text_start+0x98> (40000de0 <wdt_hal_write_protect_disable>)
+40384ba1:	0008e0        	callx8	a8
+40384ba4:	07ad      	mov.n	a10, a7
+40384ba6:	c0f181        	l32r	a8, 40374f6c <_iram_text_start+0xb68> (40000e04 <wdt_hal_disable>)
+40384ba9:	0008e0        	callx8	a8
+40384bac:	07ad      	mov.n	a10, a7
+40384bae:	be3e81        	l32r	a8, 403744a8 <_iram_text_start+0xa4> (40000dec <wdt_hal_write_protect_enable>)
+40384bb1:	0008e0        	callx8	a8
+40384bb4:	c0e381        	l32r	a8, 40374f40 <_iram_text_start+0xb3c> (3c14f4c8 <reason$1+0xa8>)
+40384bb7:	14c172        	addi	a7, a1, 20
+40384bba:	0898      	l32i.n	a9, a8, 0
+40384bbc:	1888      	l32i.n	a8, a8, 4
+40384bbe:	07ad      	mov.n	a10, a7
+40384bc0:	5199      	s32i.n	a9, a1, 20
+40384bc2:	6189      	s32i.n	a8, a1, 24
+40384bc4:	be3681        	l32r	a8, 4037449c <_iram_text_start+0x98> (40000de0 <wdt_hal_write_protect_disable>)
+40384bc7:	0008e0        	callx8	a8
+40384bca:	07ad      	mov.n	a10, a7
+40384bcc:	c0e881        	l32r	a8, 40374f6c <_iram_text_start+0xb68> (40000e04 <wdt_hal_disable>)
+40384bcf:	0008e0        	callx8	a8
+40384bd2:	07ad      	mov.n	a10, a7
+40384bd4:	be3581        	l32r	a8, 403744a8 <_iram_text_start+0xa4> (40000dec <wdt_hal_write_protect_enable>)
+40384bd7:	0008e0        	callx8	a8
+40384bda:	01ad      	mov.n	a10, a1
+40384bdc:	fc5925        	call8	40381170 <esp_ptr_external_ram>
+40384bdf:	04aa16        	beqz	a10, 40384c2d <esp_restart_noos+0xfd>
+40384be2:	be1681        	l32r	a8, 4037443c <_iram_text_start+0x38> (3fccf368 <_bss_end>)
+40384be5:	0898      	l32i.n	a9, a8, 0
+40384be7:	087c      	movi.n	a8, -16
+40384be9:	108890        	and	a8, a8, a9
+40384bec:	c4c8a2        	addi	a10, a8, -60
+40384bef:	0a89      	s32i.n	a8, a10, 0
+40384bf1:	d0c892        	addi	a9, a8, -48
+40384bf4:	080c      	movi.n	a8, 0
+40384bf6:	c0d3a1        	l32r	a10, 40374f44 <_iram_text_start+0xb40> (fff8f0ff <_rtc_reserved_end+0x9fe8f0ff>)
+40384bf9:	08bd      	mov.n	a11, a8
+40384bfb:	03e680        	rsr.ps	a8
+40384bfe:	1088a0        	and	a8, a8, a10
+40384c01:	13e680        	wsr.ps	a8
+40384c04:	002010        	rsync
+40384c07:	034880        	rsr.windowbase	a8
+40384c0a:	401800        	ssl	a8
+40384c0d:	01a082        	movi	a8, 1
+40384c10:	a18800        	sll	a8, a8
+40384c13:	134980        	wsr.windowstart	a8
+40384c16:	002010        	rsync
+40384c19:	000c      	movi.n	a0, 0
+40384c1b:	201990        	or	a1, a9, a9
+40384c1e:	03e680        	rsr.ps	a8
+40384c21:	bef9b1        	l32r	a11, 40374808 <_iram_text_start+0x404> (40000 <UserFrameTotalSize+0x3ff00>)
+40384c24:	2088b0        	or	a8, a8, a11
+40384c27:	13e680        	wsr.ps	a8
+40384c2a:	002010        	rsync
+40384c2d:	03eb60        	rsr.prid	a6
+40384c30:	046d60        	extui	a6, a6, 13, 1
+40384c33:	070c      	movi.n	a7, 0
+40384c35:	150c      	movi.n	a5, 1
+40384c37:	935760        	movnez	a5, a7, a6
+40384c3a:	05ad      	mov.n	a10, a5
+40384c3c:	c0cd81        	l32r	a8, 40374f70 <_iram_text_start+0xb6c> (400006e4 <esp_rom_software_reset_cpu>)
+40384c3f:	0008e0        	callx8	a8
+40384c42:	05ad      	mov.n	a10, a5
+40384c44:	fc3b65        	call8	40380ffc <esp_cpu_stall>
+40384c47:	c0cb81        	l32r	a8, 40374f74 <_iram_text_start+0xb70> (4000186c <Cache_Disable_ICache>)
+40384c4a:	0008e0        	callx8	a8
+40384c4d:	c0ca81        	l32r	a8, 40374f78 <_iram_text_start+0xb74> (40001884 <Cache_Disable_DCache>)
+40384c50:	0008e0        	callx8	a8
+40384c53:	c0bd91        	l32r	a9, 40374f48 <_iram_text_start+0xb44> (60004154 <GPIO+0x154>)
+40384c56:	083c      	movi.n	a8, 48
+40384c58:	0020c0        	memw
+40384c5b:	0989      	s32i.n	a8, a9, 0
+40384c5d:	c0bb91        	l32r	a9, 40374f4c <_iram_text_start+0xb48> (60004158 <GPIO+0x158>)
+40384c60:	0020c0        	memw
+40384c63:	0989      	s32i.n	a8, a9, 0
+40384c65:	c0ba91        	l32r	a9, 40374f50 <_iram_text_start+0xb4c> (6000415c <GPIO+0x15c>)
+40384c68:	0020c0        	memw
+40384c6b:	0989      	s32i.n	a8, a9, 0
+40384c6d:	c0b991        	l32r	a9, 40374f54 <_iram_text_start+0xb50> (60004160 <GPIO+0x160>)
+40384c70:	0020c0        	memw
+40384c73:	0989      	s32i.n	a8, a9, 0
+40384c75:	c0b891        	l32r	a9, 40374f58 <_iram_text_start+0xb54> (60004164 <GPIO+0x164>)
+40384c78:	0020c0        	memw
+40384c7b:	0989      	s32i.n	a8, a9, 0
+40384c7d:	c0b791        	l32r	a9, 40374f5c <_iram_text_start+0xb58> (60004168 <GPIO+0x168>)
+40384c80:	0020c0        	memw
+40384c83:	0989      	s32i.n	a8, a9, 0
+40384c85:	0003e5        	call8	40384cc4 <esp_system_reset_modules_on_exit>
+40384c88:	f21e25        	call8	40376e6c <rtc_clk_cpu_set_to_default_config>
+40384c8b:	c0b581        	l32r	a8, 40374f60 <_iram_text_start+0xb5c> (600c0004 <SYSTEM+0x4>)
+40384c8e:	0020c0        	memw
+40384c91:	0879      	s32i.n	a7, a8, 0
+40384c93:	16dc      	bnez.n	a6, 40384ca8 <esp_restart_noos+0x178>
+40384c95:	1a0c      	movi.n	a10, 1
+40384c97:	c0b681        	l32r	a8, 40374f70 <_iram_text_start+0xb6c> (400006e4 <esp_rom_software_reset_cpu>)
+40384c9a:	0008e0        	callx8	a8
+40384c9d:	06ad      	mov.n	a10, a6
+40384c9f:	c0b481        	l32r	a8, 40374f70 <_iram_text_start+0xb6c> (400006e4 <esp_rom_software_reset_cpu>)
+40384ca2:	0008e0        	callx8	a8
+40384ca5:	0005c6        	j	40384cc0 <esp_restart_noos+0x190>
+40384ca8:	20a770        	or	a10, a7, a7
+40384cab:	c0b181        	l32r	a8, 40374f70 <_iram_text_start+0xb6c> (400006e4 <esp_rom_software_reset_cpu>)
+40384cae:	0008e0        	callx8	a8
+40384cb1:	20a770        	or	a10, a7, a7
+40384cb4:	fc3b25        	call8	40381068 <esp_cpu_unstall>
+40384cb7:	01a0a2        	movi	a10, 1
+40384cba:	c0ad81        	l32r	a8, 40374f70 <_iram_text_start+0xb6c> (400006e4 <esp_rom_software_reset_cpu>)
+40384cbd:	0008e0        	callx8	a8
+40384cc0:	ffff06        	j	40384cc0 <esp_restart_noos+0x190>
+
+Disassembly of section .flash.text:

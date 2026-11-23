@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "tools/test_link_control.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "started_utc": "2026-11-20T18:07:54.299691+00:00",
+  "timeout_seconds": 90,
+  "hardware": "NOT_RUN",
+  "source_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+  "exit_code": 0,
+  "elapsed_seconds": 0.36468753300141543,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-independent-test_link_control-01.txt",
+  "log_sha256": "9a225f2a1272efb43d7928722ea75f0cff9583d2dad0db6cd2c31a2ce79a3a59",
+  "finished_utc": "2026-11-20T18:07:54.664607+00:00"
+}

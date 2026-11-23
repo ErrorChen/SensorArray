@@ -1,0 +1,20 @@
+{
+  "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "version": "8a1794c-dirty",
+  "app_bytes": 1628976,
+  "bin_sha256": "55b25e40cc20de1b619f000080d5fe984752e1e693b2327e6e2dda4de87c2c9e",
+  "elf_sha256": "9e1ee9f9812dcd21a1295e315f08c10bdf98ae55d309e67b1f84b97b3c825573",
+  "host_entries": 78,
+  "all_exit_zero": true,
+  "production_inputs": 201,
+  "build_test_inputs_identical": true,
+  "build_manifest": "wifi-owner-02-build-manifest.json",
+  "tests_manifest": "wifi-owner-02-tests-manifest.json",
+  "image_archive": "wifi-owner-02-image-archive.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Persistent isolated Wi-Fi SDK owner with asynchronous boot-scoped request results, bounded queue admission, retained in-flight ownership and independent deadline quarantine; checked initialization failures and truthful completion counters. Lazy startup gate preserves fixed scan/SPI/output reservations. Explicit manual RESTART/USBBOOT bypass potentially blocking shutdown handlers after existing USB fence; generic/automatic restart unchanged. CAPS2 and cached Wi-Fi stack diagnostics are additive. Includes image06 typed metadata and periodic BLE snapshots unchanged. HIL pending.",
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+  }
+}

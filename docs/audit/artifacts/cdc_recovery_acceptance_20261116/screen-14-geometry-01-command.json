@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/inspect_recorded_geometry_01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "4ad6d8e5d3a9ea6d28309c4f4448ab1660d82e3d386e80b1350bb8a97d27a337",
+  "started_utc": "2026-11-20T17:26:36.492453+00:00",
+  "started_monotonic": 126370.876963533,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14-geometry-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:26:36.857150+00:00",
+  "finished_monotonic": 126371.241656814,
+  "log_sha256": "6b99ea774dccfc302fed4e7f4cc654a032e9610bbe27089233e589bc7ad45dcb"
+}

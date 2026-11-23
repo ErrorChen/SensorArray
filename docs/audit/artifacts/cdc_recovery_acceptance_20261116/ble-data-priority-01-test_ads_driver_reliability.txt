@@ -1,0 +1,6 @@
+ADS_ALLOCATION_LIFETIME,combinations=16,success=7,no_mem=9,duplicate_free=0,leaks=0,source=production_init_deinit
+ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic
+ADS_ALLOCATION_LIFETIME,combinations=16,success=7,no_mem=9,duplicate_free=0,leaks=0,source=production_init_deinit
+ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic
+ADS_SPI_TIMING_SELECTION,passed=1,esp32s3=0
+ADS_SPI_TIMING_SELECTION,passed=1,esp32s3=1

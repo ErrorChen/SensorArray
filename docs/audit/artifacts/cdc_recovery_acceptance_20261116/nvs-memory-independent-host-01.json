@@ -1,0 +1,38 @@
+{
+  "timestamp_utc": "2026-11-21T01:27:51.350110+00:00",
+  "scope": "Independent root-owned NVS data preservation and MEM formatter tests only; actual source with synthetic NVS/heaps, no hardware writes or fault injection.",
+  "source_before": {
+    "core/config/sensorarrayCalibration.c": "fa4a6beb22bb2e9daa4d03ed1b035734fb908b1e8c269fe515ea6eb7a5d994df",
+    "tests/host/test_calibration_persistence.c": "2e74ac325edb23644a24fb3f1eb1f673f695fbc9b882ed1effc03210c7799863",
+    "tools/test_calibration_persistence.py": "fac22f228e30d42244335fac41a1531fde94bfb5ac32c22d3be79d1c0364f46b",
+    "main/control/sensorarrayMemoryDiagnostics.c": "309b717feeda86109e30c53db545c0a284ee8d2c4bd31bcbf7472a881e9d7f3d",
+    "tools/test_memory_diagnostics.py": "a19d38f5201ef026fdf6a9fabe58e0ceaeff07bdcaddac230ca161573ed83203"
+  },
+  "source_after": {
+    "core/config/sensorarrayCalibration.c": "fa4a6beb22bb2e9daa4d03ed1b035734fb908b1e8c269fe515ea6eb7a5d994df",
+    "tests/host/test_calibration_persistence.c": "2e74ac325edb23644a24fb3f1eb1f673f695fbc9b882ed1effc03210c7799863",
+    "tools/test_calibration_persistence.py": "fac22f228e30d42244335fac41a1531fde94bfb5ac32c22d3be79d1c0364f46b",
+    "main/control/sensorarrayMemoryDiagnostics.c": "309b717feeda86109e30c53db545c0a284ee8d2c4bd31bcbf7472a881e9d7f3d",
+    "tools/test_memory_diagnostics.py": "a19d38f5201ef026fdf6a9fabe58e0ceaeff07bdcaddac230ca161573ed83203"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_calibration_persistence.py"
+      ],
+      "exit_code": 1,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/test_calibration_persistence-independent-nvs-memory-01.txt",
+      "output_sha256": "ad4178033029d246025efcba6b9baf57b2e2bb6f124cfbfe27d24f80f4b8a0f5"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_memory_diagnostics.py"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/test_memory_diagnostics-independent-nvs-memory-01.txt",
+      "output_sha256": "2878acc6e60f84ceeb883ab9c7be4ec3d74bd56ace3e06e90f27f55381d19cfc"
+    }
+  ]
+}

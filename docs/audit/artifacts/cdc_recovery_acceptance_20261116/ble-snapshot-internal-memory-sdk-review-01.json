@@ -1,0 +1,81 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T19:04:20.393249+00:00",
+  "scope": "Independent actual ESP-IDF allocation/API source trace for scan task startup failure and CPU-only BLE payload placement. No hardware, build, production edits, or proposed patch verification.",
+  "sdkRoot": "/home/csc/esp/esp-idf-v5.5.5",
+  "sdkSourceSha256": {
+    "components/esp_common/include/esp_err.h": "dcea6a47531d34026f988052a143fd3a9a9af4b176dbc86931dc3c519275afad",
+    "components/freertos/heap_idf.c": "6201b70a245f721c3021656d62fbbbf45c3e4d5d843365df007d0da9ac99db2e",
+    "components/freertos/config/include/freertos/FreeRTOSConfig.h": "e1b599aa39c1f9718aa3f4e101a81c0f9e8ab139ab1993fc2148840a02641d83",
+    "components/freertos/FreeRTOS-Kernel/include/freertos/portable.h": "d68d9693f793c25ebbf5ed15e7a65e1d5e63a2b43cbffc6de7f9990beb6e8935",
+    "components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h": "80ff24959d8a900b7896d4fd3991344a2e100f3b8aacfbc787fe31df7bef8f77",
+    "components/freertos/esp_additions/freertos_tasks_c_additions.h": "6d100f12a99807975367d44788630ca312f3aadb6ea465783cdc74bee9dd0dd8",
+    "components/freertos/esp_additions/idf_additions.c": "a89370f78711e8051b530603c08c02fd8675e090e1598e58f3d94fbdc24f56d4",
+    "components/bt/host/bluedroid/api/esp_gatts_api.c": "789cec3d36eedd7c549d8f9db73655ca2f59e136ea44f896d7b3b5de84878e36",
+    "components/bt/common/btc/core/btc_task.c": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+    "components/bt/host/bluedroid/btc/profile/std/gatt/btc_gatts.c": "eadc5f917c2508c75110a32e7c220d2353a8f6117080c947a26424adbc4513b6",
+    "components/bt/common/osi/include/osi/allocator.h": "d1477e1877c0f26cc9ccbb30f00b95eb9c0a1cb738df43d21cb251f87cc72af3",
+    "docs/en/api-guides/external-ram.rst": "d493323ef317f33a1ebcadfe933d94e0f158c6562dfec77343871bf42c2e32ee"
+  },
+  "sdkconfigSha256": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+  "firmwareSourceAtInvestigation": {
+    "main/main.c": "cb3a2091d454db3fa5f6b9bc24383ba6cb85817c002fe0dc496c3171e0c87906",
+    "components/sensorarrayBle/sensorarrayBle.c": "207d1dd11a2e76f822e7a9b94fec65858beeebdf7e9a4384e31dfd90be5a7e72"
+  },
+  "HILEvidenceReferenced": {
+    "path": "ble-snapshot-state-01.summary.json",
+    "sha256": "ad228d0b16b53c5fddd23ce8887ff12b1cf0ef710d8aba2f89227d19680b9b5f",
+    "observed": "READY ready0, stage scan_task_create_failed, err0x101; BOOT heap8295496. This reviewer did not query hardware."
+  },
+  "confirmed": [
+    {
+      "fact": "0x101 is ESP_ERR_NO_MEM in the actual installed SDK.",
+      "source": "components/esp_common/include/esp_err.h:25"
+    },
+    {
+      "fact": "sensorarrayStartScanTask uses ordinary xTaskCreatePinnedToCore with CONFIG_SENSORARRAY_SCAN_TASK_STACK=16384. It returns NO_MEM if pdPASS/handle absent.",
+      "source": "main/main.c:5011"
+    },
+    {
+      "fact": "Xtensa StackType_t is uint8_t; stack depth is16384 bytes. configSTACK_ALLOCATION_FROM_SEPARATE_HEAP=0 aliases pvPortMallocStack to pvPortMalloc. pvPortMalloc requires MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT. A contiguous16KiB internal stack plus separate internalTCB allocation is required.",
+      "source": "FreeRTOSConfig.h:139; portable.h:191; Xtensa portmacro.h:88; heap_idf.c:43; freertos_tasks_c_additions.h:231"
+    },
+    {
+      "fact": "CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y permits explicitly provided external stack memory, but does not redirect ordinary task creation to PSRAM. WithCaps would explicitly use heap_caps_malloc for stack whileTCB stays internal; changing the acquisition stack is not recommended by this review.",
+      "source": "heap_idf.c:xPortcheckValidStackMem; idf_additions.c:xTaskCreatePinnedToCoreWithCaps; external-ram.rst"
+    },
+    {
+      "fact": "The existing BOOT heap field uses esp_get_free_heap_size, not an INTERNAL|8BIT largest-block observation; it cannot prove scan task allocation capacity. Existing APP_BOOT_MEM reports internalFree/internalLargest/internalMin and should be captured at before-scan/after allocation.",
+      "source": "main/main.c:sensorarrayFormatBootReply and sensorarrayLogBootHeap"
+    },
+    {
+      "fact": "The current static s_ble contains DATA4+LOG2+protected2 data payloads of2304 bytes each:18432 payload bytes before metadata. Build02 map places s_ble in .data (0x5a28 bytes). RTOS queue structures, metadata, guard and scratch share the object. A whole-object move is unnecessary and would broaden cache/RTOS constraints.",
+      "source": "sensorarrayBle.c:sensorarrayBleState_t; build/SensorArray.map:.data.s_ble"
+    },
+    {
+      "fact": "esp_ble_gatts_send_indicate passes the value to btc_transfer_context. That function synchronously executes btc_gatts_arg_deep_copy before posting the BTC message; the GATTS callback allocates its own value buffer and memcpy. The application payload is CPU-readable source, not a direct peripheral DMA descriptor/buffer owned by GATT hardware. Fragmented data is also copied to txPacketScratch before the call.",
+      "source": "esp_gatts_api.c:289; btc_task.c:330; btc_gatts.c:72; sensorarrayBle.c:sensorarrayBleSendFragment"
+    }
+  ],
+  "minimalCandidateConstraints": [
+    "Allocate a boot-lifetime CPU-only payload slab once with MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT, before any caller/task can publish or consume it; keep internal slot metadata and only point payload accesses at the slab.",
+    "Keep muxes, guard/timing state, RTOS queue/semaphore control and storage, TCBs, scan/driver-critical stacks, and actual DMA descriptors/internal scratch unchanged. Do not use DMA flags for this text slab or claim PSRAM eliminates DMA lifetime constraints.",
+    "Never place allocation/free/copy under a critical section; preserve reserveWRITING, copyoutside, commitPENDING and OWNED until actual SDK return. A timeout/quarantine is not evidence of return and must not permit freeing/reusing payload.",
+    "Cover storage allocation with the existing one-time init claim/result; avoid later memset erasing installed pointers, repeated init replacing storage, or callbacks seeing successful init before allocation. Allocation failure must be explicit and leave no usable partial payload state; avoid silently falling back to enough internal memory to starve acquisition again.",
+    "CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY is disabled, so adding an externalBSS attribute alone is not an established fix. PSRAM/XIP/cache settings remain unchanged.",
+    "External RAM requires cache availability. The inspected BLE data copying/CRC/send paths are ordinary task context and no IRAM/ISR payload access was found. Keep fault observer metadata internal; do not generalize this finding to ADS DMA or arbitrary system objects.",
+    "SDK deep copy still allocates its own buffers and BTC posting can block; freeing application internal payload space does not prove all SDK allocations/sends succeed or peer receipt. Preserve the existing timeout observer and local accepted-vs-delivered contract."
+  ],
+  "validationNeededByImplementationOwner": [
+    "Actual before/after ELF/map internal static size and all pointer/lifetime host tests including allocation failure/reentrant init.",
+    "Capture internal8bit free/largest around startup, successful scan creation plus FDC/ADS workers, BLE/USB initialization, real protected-frame traffic and stack watermarks.",
+    "No capacity/queue reduction, stack shrinking, FPS cap or hardware reset workaround should be called the memory fix."
+  ],
+  "causeBoundary": "Task creation failed with actualNO_MEM and current ordinary API requires internal stack/TCB. Without internal largest-block telemetry at the failing instant this reviewer does not distinguish total internal exhaustion from fragmentation or TCB failure solely from aggregate8MB heap.",
+  "hostTestsForAllocationChange": "NOT_RUN_no_change_implemented",
+  "hardware": "NOT_RUN",
+  "reportedTo": [
+    "/root",
+    "/root/ble_pack_impl"
+  ]
+}

@@ -1,0 +1,2 @@
+{"type": "CDC_debug_progress", "rx_bytes": 53793, "elapsed_seconds": 20.042810803002794}
+{"status": "STOPPED", "error": null, "rx_bytes": 94243, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-debug.debug.rx.bin"}

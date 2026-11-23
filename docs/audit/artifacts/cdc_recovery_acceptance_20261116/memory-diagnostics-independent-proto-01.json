@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_snapshot_diagnostics.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:09:10.969263+00:00",
+  "sourceSha256": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+  "toolSha256": "cccee17ecdb447172ecb54c10e955c879cd167735799758597baaec2249e5f1d",
+  "logSha256": "c765a7aaf069f501112ac1fa0016e7fc5cf9f397ef6dedbce3a0d7fc7fbf5727",
+  "hardware": "NOT_RUN"
+}

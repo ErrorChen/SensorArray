@@ -1,0 +1,20 @@
+{
+  "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "version": "8a1794c-dirty",
+  "app_bytes": 1631664,
+  "bin_sha256": "c2d3b3b5932fae9fbd05226ea14faa5adc35de62bdb9482e8948c3a6c8dae031",
+  "elf_sha256": "3d7cd5ce5d8c64e07504ed85a569c5080543484740c021ac9d98931e53552c36",
+  "host_entries": 80,
+  "all_exit_zero": true,
+  "production_inputs": 203,
+  "build_test_inputs_identical": true,
+  "build_manifest": "wifi-memory-01-build-manifest.json",
+  "tests_manifest": "wifi-memory-01-tests-manifest.json",
+  "image_archive": "wifi-memory-01-image-archive.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Transport CPU text payloads in persistent PSRAM; immutable pool binding and visible init failures; preserve NVS/calibration on init errors; MEM pool diagnostics; retain Wifi stack and panic fixes",
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+  }
+}

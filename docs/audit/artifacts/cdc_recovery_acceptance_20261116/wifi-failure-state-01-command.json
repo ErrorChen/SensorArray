@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "wifi-failure-state-01",
+    "--ble-guard",
+    "--ble-log"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 40.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "d304fa8b51023cfd32e996407f24bb957ce7a730fb4a398ced7177954a1630d2",
+  "started_utc": "2026-11-21T00:36:49.054934+00:00",
+  "started_monotonic": 152174.792724968,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-failure-state-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:36:49.119441+00:00",
+  "finished_monotonic": 152174.85721117,
+  "log_sha256": "380f59bdc719fd8e6d3ddfcb204e94b5205e070ec4c8ceb3652c329697fa68d0"
+}

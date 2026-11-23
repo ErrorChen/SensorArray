@@ -1,0 +1,77 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T18:49:29.407150+00:00",
+  "scope": "Read-only independent review of frozen BLE typed frame/protected slot integration, stream epoch cancellation, local completion accounting and snapshot getter. Scheduler already independently passed review02. Upstream transport deadline repair and root-owned query formatter/collector review are separate gates. No hardware, build or production edits.",
+  "reviewedSourceSha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "207d1dd11a2e76f822e7a9b94fec65858beeebdf7e9a4384e31dfd90be5a7e72",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "fb51628d648c74df359390660e3fe6bd10c089d9f969760d08f4fdb077f8f20c",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.h": "4576c23f98b0505d19157b2e936df6b793ba7501c9bfd549ed0709ad59a278e3",
+    "tools/test_ble_priority.py": "7eae19706c0fdc5eba51e1964ff9d93e799ba50a9ad96591961d23dda9679155",
+    "tests/host/test_ble_priority.c": "61824297d037b5a1a7911e548bd261c5bb967579dbe04ee096fc8b91e112662c"
+  },
+  "gate": "PASS_BLE_FROZEN_INCREMENT_ONLY",
+  "blockingFindings": [],
+  "verifiedOwnership": [
+    "Two independent protected payload slots each hold the full2304 bytes; existing four DATA/two LOG/two CTRL capacities remain independent. Protected DATA does not set ctrlSlot and therefore does not inherit512-byte storage or500ms-per-fragment CTRL retry behavior.",
+    "Protected allocation sets WRITING while holding s_bleMux, then CRC/copy occur outside the lock. Producer replacement only considers PENDING. Commit rechecks slot generation, connection, stream and effective active state before changing WRITING toPENDING.",
+    "ReceiveProtected selects and changes PENDING toOWNED under the same s_bleMux. There is no queue-pop/late-mark-owned window available to a competing producer.",
+    "Disconnect drain only claims PENDING via ReceiveProtected and queue-owned ordinary descriptors. It cannot free WRITING or the SDK/confirmation owner. A writer racing reconnect releases its own generation after failed commit.",
+    "The sole TX owner releases after SendDescriptor actually returns. The independent guard latches quarantine and admission refusal without cancelling or freeing the owned SDK buffer.",
+    "Each descriptor carries immutable copied frame identity and a policy ticket. Caller full/preview pointers do not escape the synchronous admission. Real encoder bytes are preserved exactly, including X invalid points."
+  ],
+  "verifiedEpochAndCompletion": [
+    "Effective DATA active transitions advance streamGeneration, including same-connection unsubscribe/resubscribe and FAST/SAFE changes that change effective sendability. Connection generation remains separate.",
+    "Each fragment/context and the atomic SDK admission predicate check current connection, stream, CCCD, mode and confirmation selection. SAFE completion checks the DATA stream again after confirmation wait.",
+    "A complete local success from an older configuration cannot clear firstPending for a newer current revision. Periodic completion additionally requires matching periodicGeneration to retire the current obligation.",
+    "A failed or partial message leaves the protection obligation; subsequent real frames can offer a replacement. FULL/protected path always uses fullData while ordinary CAP SHORT may use the legacy B20 preview.",
+    "Protected completion advances a BLE-only original identity/sequence floor. Older/equal ordinary records are dropped with counters; all original scientific identities remain unchanged and no USB/Wi-Fi label or loss is inferred.",
+    "Sequence ordering is limited to matching boot/session and a strict half-range relation. Cross-boot sequence reset is not treated as old."
+  ],
+  "verifiedObservation": [
+    "Flow getter acquires s_bleMux before sampling nowUs and copying last-completion state; completion timestamp updates also occur under that mux. It additionally emits ageKnown only when now>=lastCompleteUs, avoiding unsigned underflow.",
+    "gapKnown is reset for a new config/stream and becomes true only with two successful protected full completions in the same configuration.",
+    "Policy observation timestamps are obtained after serializing state, preventing a preempted earlier timestamp from resetting the pure scheduler.",
+    "Intentional ordinary skips returnNOT_ALLOWED and increment policy skip, not DATA drop/slot allocation failure. Capacity rejection, other failure, full local completion and protected bookkeeping remain distinct.",
+    "No new RSSI or other potentially blocking SDK query is introduced by this policy."
+  ],
+  "residualSemantics": [
+    "The1s BLE cadence is a due/obligation target observed when a real eligible frame is offered, not a hard deadline for local completion or PC delivery. Sustained CTRL/lifecycle priority can keep a same-config FIRST_CONFIG slot PENDING indefinitely; the other bounded slot can refresh periodic pending data and missed-period counters are explicit. No new finite pending-age promise is made.",
+    "Once a message is selected, its fragments retain ownership and are not preempted by a later control reply. An indefinitely blocked SDK call quarantines later sends but may prevent BLE TX control responses; USB/control recovery remains a separate path.",
+    "protectedFailed is not a total for every protected record discarded. Disconnect drains and early stale-descriptor returns also use generic dropD/stale counters; queued-complete-failed must not be interpreted as queue depth or end-to-end loss.",
+    "The helper passes the immutable owner ticket as its pending completion candidate; OWNED slots cannot be superseded, and current config/periodic-generation gates remain necessary when clearing external obligations.",
+    "No host receipt, weak-RF performance or final transport throughput is inferred from SDK acceptance/CONF or host-only tests."
+  ],
+  "executedTests": [
+    {
+      "record": "ble-frame-flow-independent-priority-01.json",
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exitCode": 0,
+      "results": [
+        "ASan+UBSan execution of58 actual production bodies",
+        "14 harness groups, including12 protected-frame scenarios",
+        "Two adversarial unlocked-WRITING copy interleavings: competing publication and disconnect/reconnect",
+        "37 actual-C notification streams reconstructed by the real receiver, CRC errors0",
+        "Eight SDK request path cases; no over-the-air guarantee"
+      ]
+    },
+    {
+      "record": "ble-frame-flow-independent-watchdog-01.json",
+      "command": [
+        "python3",
+        "tools/test_ble_watchdog.py"
+      ],
+      "exitCode": 0,
+      "results": [
+        "Seven real watchdog-init/lifetime cases at mocked timer boundary"
+      ]
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "weakRadioScenario": "NOT_RUN",
+  "fullFirmwareBuild": "NOT_RUN_BY_REVIEWER",
+  "rawEvidencePreserved": true
+}

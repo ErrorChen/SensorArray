@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Stage wrapper and boot observer self-tests; synthetic USB only."""
 from dataclasses import replace
+import ast
 import contextlib
 import io
 import json
@@ -36,10 +37,34 @@ def cpu_owner_fields(index, **updates):
     return fields
 
 
+def output_fields(command, **updates):
+    fields = {key: '0' for key in stage.FRAME_OUTPUT_REQUIRED[command].split()}
+    fields.update(stage.FRAME_OUTPUT_LITERALS[command])
+    if command == 'BLEFLOW?':
+        fields.update(stage='inactive', ratePm='1000', localServiceMilliFps='unknown')
+    if command == 'BLESNAP?':
+        fields.update(lastSeq='unknown', lastRev='unknown', lastCompleteAgeUs='unknown', maxCompleteGapUs='unknown')
+    fields.update(updates)
+    return fields
+
+
+def formatter_line(source, tag):
+    """Join adjacent C string literals, including the split SNAP* formatters."""
+    literal = r'"(?:\\.|[^"\\])*"'
+    for match in re.finditer(literal + r'(?:\s*' + literal + r')*', source):
+        tokens = re.findall(literal, match.group())
+        if tokens and tokens[0].startswith('"' + tag + ','):
+            line = ''.join(ast.literal_eval(token) for token in tokens)
+            if line.endswith('\n'):
+                return line.rstrip('\n')
+    return None
+
+
 class StageFirmware(FirmwareDevice):
     def __init__(self, *, truncate=None, change_revision=False, watchdog=False,
                  optional_caps=(), service_revision_change=False, drop_optional=None,
-                 service_unknown_once=False, cpu_values=None, cpu_revision_change=False):
+                 service_unknown_once=False, cpu_values=None, cpu_revision_change=False,
+                 output_values=None, revision_change_on=None):
         super().__init__()
         self.truncate = truncate
         self.query_counts = {}
@@ -52,6 +77,8 @@ class StageFirmware(FirmwareDevice):
         self.cpu_values = cpu_values or {}
         self.cpu_revision_change = cpu_revision_change
         self.cpu_command = None
+        self.output_values = output_values or {}
+        self.revision_change_on = revision_change_on
 
     def send(self, value):
         tag = value.split(',', 1)[0]
@@ -81,6 +108,8 @@ class StageFirmware(FirmwareDevice):
             if command == 'SCHEDWHY?':
                 defaults.update(v='1', order='quantum/backstop/units', overlap='1', init='0x0')
                 defaults.update({worker: '1/2/3' for worker in stage.WORKERS})
+            if command in stage.FRAME_OUTPUT_REQUIRED:
+                defaults.update(output_fields(command, **self.output_values.get(command, {})))
             if command == 'BUILD?': defaults.update(version='synthetic-test', elfSha256='ab' * 32)
             if command in stage.CPU_OWNER_REQUIRED:
                 role = int(command[-1])
@@ -108,6 +137,7 @@ class StageFirmware(FirmwareDevice):
                 self.commands.append(command)
                 if self.change_revision and command == 'USBQ?': self.rev += 1
                 if self.service_revision_change and command == 'SCHEDWHY?': self.rev += 1
+                if command == self.revision_change_on: self.rev += 1
                 if self.service_unknown_once and command == 'BLESVC?' and self.query_counts[command] == 1:
                     self.send('ERR,cmd=UNKNOWN,reason=unsupported\n')
                 if command in stage.CPU_OWNER_REQUIRED:
@@ -132,19 +162,18 @@ class StageTests(unittest.TestCase):
     def test_required_schema_matches_actual_production_formatters(self):
         sources = '\n'.join((ROOT / p).read_text() for p in
                             ['main/control/sensorarrayUsbControl.c', 'main/control/sensorarrayLinkDiagnostics.c',
+                             'main/control/sensorarraySnapshotDiagnostics.c',
                              'components/sensorarrayWorkBudget/sensorarrayCpuOwner.c', 'main/main.c'])
         for command, required in {**stage.EXTRA_REQUIRED, **stage.OPTIONAL_REQUIRED}.items():
             tag = command[:-1]
-            match = re.search(r'"(' + tag + r',[^"\n]*)\\n"', sources)
-            self.assertIsNotNone(match, command)
+            line = formatter_line(sources, tag)
+            self.assertIsNotNone(line, command)
             # BLESVC v1 gained additive CONF counters after the older images;
             # preserve its legacy required subset and all received fields.
-            if command == 'BLESVC?': self.assertLessEqual(set(required.split()), set(parse_fields(match.group(1))), command)
-            else: self.assertEqual(set(required.split()), set(parse_fields(match.group(1))), command)
-        match = re.search(r'"(CPUOWNER,[^"\n]*)\\n"', sources)
-        self.assertEqual(set(stage.CPU_OWNER_FIELDS.split()), set(parse_fields(match.group(1))))
-        match = re.search(r'"(BOOT,[^"\n]*)\\n"', sources)
-        self.assertEqual(set(boot.BOOT_REQUIRED.split()), set(parse_fields(match.group(1))))
+            if command == 'BLESVC?': self.assertLessEqual(set(required.split()), set(parse_fields(line)), command)
+            else: self.assertEqual(set(required.split()), set(parse_fields(line)), command)
+        self.assertEqual(set(stage.CPU_OWNER_FIELDS.split()), set(parse_fields(formatter_line(sources, 'CPUOWNER'))))
+        self.assertEqual(set(boot.BOOT_REQUIRED.split()), set(parse_fields(formatter_line(sources, 'BOOT'))))
 
     def test_before_after_periodic_CTRL_records_and_no_stream_setter(self):
         device = StageFirmware(truncate='USBQ?'); port, _, _ = port_for(device)
@@ -191,6 +220,7 @@ class StageTests(unittest.TestCase):
                 self.assertGreaterEqual(report['capture_seconds'], .3)
                 self.assertEqual(device.query_counts['BLESVC?'], 3)  # one truncated reply + retry + after
                 self.assertEqual(device.query_counts['SCHEDWHY?'], 2)
+                self.assertTrue(all(device.query_counts[c] == 2 for c in stage.FRAME_OUTPUT_REQUIRED))
                 self.assertTrue(all(x['advertised'] for x in report['optional_service_diagnostics'].values()))
                 ctrl = Path(report['ctrl_raw_file']).read_bytes()
                 for name in ('before', 'after'):
@@ -221,7 +251,9 @@ class StageTests(unittest.TestCase):
     def test_independent_optional_caps_and_no_prefix_match(self):
         for caps, expected in (({'ble_service_obs_v1'}, {'BLESVC?'}),
                                ({'work_reason_v1'}, {'SCHEDWHY?'}),
-                               ({'ble_service_obs_v10', 'work_reason_v10', 'cpu_owner_v10'}, set())):
+                               ({'ble_flow_v1'}, {'BLEFLOW?'}),
+                               ({'ble_snapshot_v1'}, {'BLESNAP?', 'SNAPSRC?', 'SNAPNET?'}),
+                               ({'ble_service_obs_v10', 'work_reason_v10', 'cpu_owner_v10', 'ble_flow_v10', 'ble_snapshot_v10'}, set())):
             device = StageFirmware(optional_caps=caps); port, _, _ = port_for(device)
             with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
                 index = stage.run_benchmark(replace(self.options(directory), capture_seconds=.03), port_factory=lambda _: port)
@@ -253,6 +285,109 @@ class StageTests(unittest.TestCase):
         why.update({w: '1/2/3' for w in stage.WORKERS})
         for key, value in (('overlap', '0'), ('order', 'units/backstop/quantum'), ('bt', '1/2'), ('bt', '1/2/4294967296')):
             with self.assertRaises(CaptureError): stage.validate_reply('SCHEDWHY?', {**why, key: value})
+
+    def test_output_observations_zero_max_unknown_and_additive_fields(self):
+        u32, u64 = str((1 << 32) - 1), str((1 << 64) - 1)
+        for command in stage.FRAME_OUTPUT_REQUIRED:
+            with self.subTest(command=command):
+                zero = output_fields(command, future='preserved')
+                self.assertEqual(stage.validate_reply(command, zero), zero)
+                maximum = output_fields(command)
+                for key, value in list(maximum.items()):
+                    if key not in stage.FRAME_OUTPUT_LITERALS[command] and value == '0': maximum[key] = u32
+                if command == 'BLEFLOW?':
+                    maximum.update(active='1', evidence='1', stage='unknown', ratePm='1000', rejectPm='1000',
+                                   pressureWindows='3', localServiceMilliFps=u32,
+                                   intentionalSkip=u64, probeSelected=u64, cleanUs=u64)
+                elif command == 'BLESNAP?':
+                    maximum.update(known='1', gapKnown='1', firstPending='1', periodicPending='1',
+                                   lastSeq=u32, lastRev=u32, lastCompleteAgeUs=u64, maxCompleteGapUs=u64)
+                self.assertEqual(stage.validate_reply(command, maximum), maximum)
+                for key in stage.FRAME_OUTPUT_REQUIRED[command].split():
+                    missing = dict(zero); del missing[key]
+                    with self.subTest(missing=key), self.assertRaises(CaptureError): stage.validate_reply(command, missing)
+                for key in stage.FRAME_OUTPUT_LITERALS[command]:
+                    with self.subTest(literal=key), self.assertRaises(CaptureError):
+                        stage.validate_reply(command, {**zero, key: 'not_' + zero[key]})
+        # No-sample evidence and historical completion age stay unknown, not 0.
+        for values in ({'active': '1', 'stage': 'full'},
+                       {'active': '1', 'stage': 'pressure', 'evidence': '1', 'rejectPm': '200'},
+                       {'active': '1', 'stage': 'limited', 'ratePm': '0'},
+                       {'active': '0', 'stage': 'inactive', 'ratePm': '50'}):
+            fields = output_fields('BLEFLOW?', **values)
+            self.assertEqual(stage.validate_reply('BLEFLOW?', fields)['localServiceMilliFps'], 'unknown')
+        fields = output_fields('BLESNAP?', known='1', lastSeq='0', lastRev='0', gapKnown='1', maxCompleteGapUs='0')
+        self.assertEqual(stage.validate_reply('BLESNAP?', fields)['lastCompleteAgeUs'], 'unknown')
+        # Wrapped cumulative totals need not be ordered; this is not an atomic
+        # cross-layer conservation equation or evidence of peer reception.
+        fields = output_fields('SNAPNET?', queued='0', bleAccepted=u32, admissionMiss='1')
+        self.assertEqual(stage.validate_reply('SNAPNET?', fields), fields)
+
+    def test_output_observations_reject_bad_ranges_and_unsupported_claims(self):
+        invalid = {
+            'BLEFLOW?': [dict(active='2'), dict(active='1'), dict(stage='full'), dict(stage='invented'),
+                         dict(active='1', stage='full', ratePm='950'),
+                         dict(active='1', stage='limited', ratePm='1000'), dict(evidence='1'),
+                         dict(active='1', stage='full', localServiceMilliFps='0'),
+                         dict(ratePm='1001'), dict(rejectPm='1001'), dict(pressureWindows='4'),
+                         dict(pressureWindows='256'), dict(intentionalSkip=str(1 << 64)),
+                         dict(probeSelected=str(1 << 64)), dict(cleanUs=str(1 << 64)),
+                         dict(attempts=str(1 << 32)), dict(capacityReject='unknown'),
+                         dict(peerLoss='0'), dict(rssi='-60'), dict(gen=' 0'), dict(stream='-1'),
+                         dict(active='1', stage='full', evidence='1', localServiceMilliFps=str(1 << 32))],
+            'BLESNAP?': [dict(known='2'), dict(known='1'), dict(lastSeq='0'), dict(lastRev='0'),
+                         dict(lastCompleteAgeUs='0'), dict(gapKnown='1'), dict(maxCompleteGapUs='0'),
+                         dict(known='1', lastSeq='0', lastRev='0', gapKnown='1'),
+                         dict(known='1', lastSeq=str(1 << 32), lastRev='0'),
+                         dict(known='1', lastSeq='0', lastRev='0', lastCompleteAgeUs=str(1 << 64)),
+                         dict(known='1', lastSeq='0', lastRev='0', gapKnown='1', maxCompleteGapUs=str(1 << 64)),
+                         dict(firstPending='2'), dict(periodicPending='unknown'), dict(localComplete=str(1 << 32)),
+                         dict(pcReceipt='confirmed')],
+            'SNAPSRC?': [dict(queued=str(1 << 32)), dict(candidateMiss='unknown'), dict(firstMiss='-1'),
+                         dict(stage='ble_admission'), dict(pcReceipt='confirmed')],
+            'SNAPNET?': [dict(policySkip=str(1 << 32)), dict(bleAccepted='unknown'), dict(readout='atomic'),
+                         dict(stage='local_complete'), dict(obsolete='0.0'), dict(pcReceipt='confirmed')],
+        }
+        for command, cases in invalid.items():
+            for values in cases:
+                with self.subTest(command=command, values=values), self.assertRaises(CaptureError):
+                    stage.validate_reply(command, output_fields(command, **values))
+
+    def test_output_observation_config_change_and_invalid_reply_fail_before_capture(self):
+        cases = [({'revision_change_on': 'SNAPNET?'}, 'configuration_changed'),
+                 ({'output_values': {'SNAPNET?': {'readout': 'atomic'}}}, 'reply_invalid_ble_output_semantics:SNAPNET?:readout'),
+                 ({'output_values': {'BLESNAP?': {'lastCompleteAgeUs': '0'}}}, 'reply_invalid_ble_output_semantics:BLESNAP?:unknown_completion')]
+        for params, needle in cases:
+            device = StageFirmware(optional_caps={'ble_flow_v1', 'ble_snapshot_v1'}, **params); port, _, _ = port_for(device)
+            with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+                index = stage.run_benchmark(self.options(directory), port_factory=lambda _: port)
+                report = json.loads((Path(directory) / 'bulkstage.summary.json').read_text())
+                self.assertEqual(index['status'], 'ERROR')
+                self.assertIn(needle, report['error'])
+                self.assertEqual(report['capture_seconds'], 0)
+                self.assertFalse(report['setters_retried'])
+                self.assertLess(report['elapsed_seconds'], report['duration_total_budget_seconds'])
+
+    def test_output_query_timeout_keeps_original_deadline_and_does_not_retry_setters(self):
+        for command in stage.FRAME_OUTPUT_REQUIRED:
+            device = StageFirmware(optional_caps={'ble_flow_v1', 'ble_snapshot_v1'}, drop_optional=command)
+            port, _, _ = port_for(device)
+            try:
+                with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()), stage.bulk_collector_selected():
+                    options = self.options(directory)
+                    collector = stage.BulkBenchmarkCollector(options, stage.base.configurations(options)[0], port,
+                                                             io.BytesIO(), io.StringIO(), ctrl_raw=io.BytesIO())
+                    collector.bulk_capabilities_verified = True
+                    collector.reported_capabilities = {'ble_flow_v1', 'ble_snapshot_v1'}
+                    deadline = time.monotonic() + .025
+                    with self.assertRaisesRegex(CaptureError, re.escape('readonly_query_failed:' + command + ':attempts=1')):
+                        collector.query(command, command[:-1], deadline)
+                    self.assertEqual(device.query_counts[command], 1)
+                    self.assertEqual(device.commands, [command])
+                    self.assertEqual(collector.query_attempts[-1]['phase_deadline'], deadline)
+                    self.assertLess(time.monotonic(), deadline + .05)
+            finally:
+                port.close()
 
     def test_cpu_owner_cap_brackets_raw_indexed_tags_and_retry(self):
         values = {0: {'runUs': '0'}, 5: {'stale': '1', 'ageUs': '3000000'},

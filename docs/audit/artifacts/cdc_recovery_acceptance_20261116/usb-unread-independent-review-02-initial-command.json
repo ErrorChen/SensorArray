@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-independent-review-02.py"
+  ],
+  "exit_code": 1,
+  "classification": "independent harness assertion comparing live Python map key/tuple types with JSON-normalized archived object; no firmware or evidence validation failed",
+  "error": "AssertionError comparing entire configuration_groups without JSON normalization",
+  "initial_source_sha256": "76aab22845e7d41447eef8fa1691e165ee2b338f9ad212829ec3fdcd4481ac62",
+  "created_utc": "2026-11-20T23:14:55.921148+00:00"
+}

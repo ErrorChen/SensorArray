@@ -8,6 +8,7 @@
 #include <string.h>
 
 #define SENSORARRAY_BLE_ATTR_VALUE_MAX 512u
+#define SENSORARRAY_BLE_TX_FAST 0u
 /* TINY_TAIL_CONSTANT */
 /* HEADER_CONSTANTS */
 enum { SENSORARRAY_BLE_CH_DATA, SENSORARRAY_BLE_CH_LOG, SENSORARRAY_BLE_CH_CTRL };
@@ -15,11 +16,13 @@ typedef unsigned sensorarrayBleChannel_t;
 typedef int esp_err_t;
 enum { ESP_OK, ESP_ERR_INVALID_STATE, ESP_ERR_INVALID_SIZE, ESP_ERR_INVALID_ARG,
        ESP_ERR_TIMEOUT };
-typedef struct { bool priority; uint16_t mtu; } sensorarrayBleSendContext_t;
+typedef struct { bool priority; uint16_t mtu; unsigned txMode; } sensorarrayBleSendContext_t;
 static struct {
+    struct { bool ready, quarantined; uint32_t rejected; } guard;
     struct { uint64_t tinyTailCount, txConnectionStaleDrop, fragmentError, fragmentSent; } stats;
     uint8_t txPacketScratch[512];
-} s_ble;
+    bool ownerCapacityFailure;
+} s_ble = {.guard = {.ready = true}};
 static int s_bleMux;
 #define portENTER_CRITICAL(p) ((void)(p))
 #define portEXIT_CRITICAL(p) ((void)(p))

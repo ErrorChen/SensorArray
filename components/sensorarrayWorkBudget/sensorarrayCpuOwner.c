@@ -158,8 +158,8 @@ esp_err_t sensorarrayCpuOwnerFormat(const char *command, uint64_t session,
 {
     if (!command || !response || size == 0u) { return ESP_ERR_INVALID_ARG; }
     if (!sensorarrayCpuOwnerHandles(command) || command[9] < '0' ||
-        command[9] > '6' || command[10] != '\0') {
-        int n = snprintf(response, size, "ERR,cmd=CPUOWNER,reason=role_0_to_6\n");
+        command[9] > '7' || command[10] != '\0') {
+        int n = snprintf(response, size, "ERR,cmd=CPUOWNER,reason=role_0_to_7\n");
         return n > 0 && (size_t)n < size ? ESP_ERR_INVALID_ARG : ESP_ERR_INVALID_SIZE;
     }
     unsigned role = (unsigned)(command[9] - '0');

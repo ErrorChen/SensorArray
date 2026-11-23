@@ -1,0 +1,175 @@
+{
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "trackedDiffSha256": "fe16667a0e0c86d5777a9af8e772e09c8d83769074315100030bed1f08749708",
+  "sourceBefore": {
+    "core/transport/sensorarrayTransportPool.c": "234521e3468c44418865421d47e4e0bee8f5b70969372d438550df0141caa6ac",
+    "core/transport/sensorarrayTransportPool.h": "ac3c6081a162015fc903418febac260116c3e29c4571584e585f14ed5011fe1b",
+    "core/transport/sensorarrayTransport.c": "92f640498ad2e8ad36b8fe1d429d7985754897e52aa6f2d5c61b3f0e2b591e45",
+    "core/transport/sensorarrayTransport.h": "897c8749f331aa2fd6f0b2e3c0ec50adc7dc5b9e95dc5e1f1408ab20835e4218",
+    "core/transport/sensorarrayTransportFrameMeta.c": "b63c1ee0060603f4216c33359cd23904d5772e3f7a964df53c88a879fac719e0",
+    "tests/host/test_transport_pool.c": "4af0a12814b23964773d8ae2e9a31cbffc97ca6a79ebe9aa9d13ac454f4d8c35",
+    "tests/host/test_transport_storage.c": "4485c0a80089769629e31a4ca948d4b995e080bbaf86d4f848703bd4d1af7f1c",
+    "tools/test_transport_storage.py": "19f48d183139b66c15302e441c99cd6e9affbb672ef0c7e202b18284cc2399c2",
+    "tests/host/test_transport_frame_metadata.c": "42f7ca65e8c58785abbe785e72ec9dad5b4ba0f8a4423902a6c323001bda8de2",
+    "tests/host/test_transport_frame_metadata_differential.c": "b8642fb284c8b98859763a55b5a14727bbd0a281452ee27e24b4edc7fda9a68a",
+    "tools/test_transport_frame_metadata.py": "7efb12177d3d6df2c2c3e196d65cc1e0eeca3e6b0833f831c165e4b5935b4972",
+    "tests/host/test_ble_pipeline.c": "f01495ea9f1d0da766c897886e9d88c03cef0c58bc81c79f64d8f7b600fb088a",
+    "tests/host/test_protected_frame_pipeline.c": "17e326185d574acefadb2b452c732b9ba728713213ac0371b454e6518027827c",
+    "tests/host/test_recovery_control.c": "9ea8bf19a8108286eb7429f19aab07ceb17788ce09ac45b34b476d3d35ec1e53"
+  },
+  "sourceAfter": {
+    "core/transport/sensorarrayTransportPool.c": "234521e3468c44418865421d47e4e0bee8f5b70969372d438550df0141caa6ac",
+    "core/transport/sensorarrayTransportPool.h": "ac3c6081a162015fc903418febac260116c3e29c4571584e585f14ed5011fe1b",
+    "core/transport/sensorarrayTransport.c": "92f640498ad2e8ad36b8fe1d429d7985754897e52aa6f2d5c61b3f0e2b591e45",
+    "core/transport/sensorarrayTransport.h": "897c8749f331aa2fd6f0b2e3c0ec50adc7dc5b9e95dc5e1f1408ab20835e4218",
+    "core/transport/sensorarrayTransportFrameMeta.c": "b63c1ee0060603f4216c33359cd23904d5772e3f7a964df53c88a879fac719e0",
+    "tests/host/test_transport_pool.c": "4af0a12814b23964773d8ae2e9a31cbffc97ca6a79ebe9aa9d13ac454f4d8c35",
+    "tests/host/test_transport_storage.c": "4485c0a80089769629e31a4ca948d4b995e080bbaf86d4f848703bd4d1af7f1c",
+    "tools/test_transport_storage.py": "19f48d183139b66c15302e441c99cd6e9affbb672ef0c7e202b18284cc2399c2",
+    "tests/host/test_transport_frame_metadata.c": "42f7ca65e8c58785abbe785e72ec9dad5b4ba0f8a4423902a6c323001bda8de2",
+    "tests/host/test_transport_frame_metadata_differential.c": "b8642fb284c8b98859763a55b5a14727bbd0a281452ee27e24b4edc7fda9a68a",
+    "tools/test_transport_frame_metadata.py": "7efb12177d3d6df2c2c3e196d65cc1e0eeca3e6b0833f831c165e4b5935b4972",
+    "tests/host/test_ble_pipeline.c": "f01495ea9f1d0da766c897886e9d88c03cef0c58bc81c79f64d8f7b600fb088a",
+    "tests/host/test_protected_frame_pipeline.c": "17e326185d574acefadb2b452c732b9ba728713213ac0371b454e6518027827c",
+    "tests/host/test_recovery_control.c": "9ea8bf19a8108286eb7429f19aab07ceb17788ce09ac45b34b476d3d35ec1e53"
+  },
+  "sourcesUnchanged": true,
+  "environment": {
+    "CC": "/usr/bin/gcc",
+    "ASAN_OPTIONS": "detect_leaks=0"
+  },
+  "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "results": [
+    {
+      "name": "pool",
+      "command": [
+        "python3",
+        "tools/test_transport_pool.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.269121+00:00",
+      "elapsedSec": 0.14109297300456092,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/pool.txt",
+      "logSha256": "5ee1321b8b8f6cfc858c4303195307811c34994c9fe082218de3866da87f71d0"
+    },
+    {
+      "name": "storage",
+      "command": [
+        "python3",
+        "tools/test_transport_storage.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.269324+00:00",
+      "elapsedSec": 0.31656744302017614,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/storage.txt",
+      "logSha256": "151c86537d2e42c57823c5cda8c22664a323582d054d60802779be82072ed490"
+    },
+    {
+      "name": "metadata",
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize"
+      ],
+      "startUtc": "2026-11-21T01:27:49.269724+00:00",
+      "elapsedSec": 1.4900933039898518,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/metadata.txt",
+      "logSha256": "34600b2c2809a3ebc612ed39b28f9721b738bdad9771254f42d89a94f781348c"
+    },
+    {
+      "name": "protected",
+      "command": [
+        "python3",
+        "tools/test_protected_frame_pipeline.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.270075+00:00",
+      "elapsedSec": 0.7359956669970416,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/protected.txt",
+      "logSha256": "10512cb0a5514c8cfed65680eeeb8a4a8430cc115eec85c470020f071616b6ac"
+    },
+    {
+      "name": "ble-pipeline",
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.410428+00:00",
+      "elapsedSec": 1.3556909459875897,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/ble-pipeline.txt",
+      "logSha256": "9d517d424297d5b48bdc679b5222094e278dabef01c0285d7f6c88ca6fabf9ff"
+    },
+    {
+      "name": "recovery",
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.586072+00:00",
+      "elapsedSec": 0.25053087298874743,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/recovery.txt",
+      "logSha256": "d90216c4d9a5fa2d4f384e1f76523be0399c360a6a6df4b0d40fff72e0c5a1a3"
+    },
+    {
+      "name": "budget",
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "startUtc": "2026-11-21T01:27:49.836795+00:00",
+      "elapsedSec": 0.2918652989901602,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/budget.txt",
+      "logSha256": "a12a7bab8a32a6540e8e43bb2b9cc79a155dc35ad9a19577761340c3437c4f47"
+    },
+    {
+      "name": "wifi-isolation",
+      "command": [
+        "python3",
+        "tools/test_wifi_transport_isolation.py"
+      ],
+      "startUtc": "2026-11-21T01:27:50.006235+00:00",
+      "elapsedSec": 0.7831273739866447,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/wifi-isolation.txt",
+      "logSha256": "fba8fc38cba7e9944c197fdc2b1d4c0158ce345ad165cb5de03bfeb778c613a6"
+    },
+    {
+      "name": "ctrl-guard",
+      "command": [
+        "python3",
+        "tools/test_ctrl_reply_guard.py"
+      ],
+      "startUtc": "2026-11-21T01:27:50.128881+00:00",
+      "elapsedSec": 0.08208125998498872,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/ctrl-guard.txt",
+      "logSha256": "1a5591ff784cd42419c16225f6b22d80dd54dd2ed154ce636d3760e3ae817945"
+    },
+    {
+      "name": "text-protocol",
+      "command": [
+        "python3",
+        "tools/test_text_protocol.py"
+      ],
+      "startUtc": "2026-11-21T01:27:50.211125+00:00",
+      "elapsedSec": 0.05607143399538472,
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-psram-host-01/text-protocol.txt",
+      "logSha256": "c4b8362186da627a2df103b4b01957882cfc8c0af17a2cd21b896a66c4cb6364"
+    }
+  ],
+  "scope": "Actual portable pool + extracted production init/queue bodies; fake heap/SDK/RTOS; target RAM/build/HIL NOT_RUN",
+  "earlierPreflight": {
+    "command": [
+      "python3",
+      "tools/test_transport_pool.py"
+    ],
+    "exitCode": 1,
+    "error": "no host C compiler found (set CC or install clang)",
+    "resolution": "Use installed /usr/bin/gcc via CC; no software installed"
+  }
+}

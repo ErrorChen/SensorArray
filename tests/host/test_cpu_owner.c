@@ -85,7 +85,7 @@ static void testUnknownAndOff(void)
     assert(!sensorarrayCpuOwnerCopySnapshot(SENSORARRAY_WORK_BUDGET_WORKER_COUNT, &s));
     assert(!sensorarrayCpuOwnerCopySnapshot(SENSORARRAY_WORK_BUDGET_BLE_TX, NULL));
     assert(!sensorarrayCpuOwnerHandles(NULL) && !sensorarrayCpuOwnerHandles("CPUOWNER=0"));
-    const char *bad[] = {"CPUOWNER?", "CPUOWNER?7", "CPUOWNER?00", "CPUOWNER?-1", "CPUOWNER?1x"};
+    const char *bad[] = {"CPUOWNER?", "CPUOWNER?8", "CPUOWNER?00", "CPUOWNER?-1", "CPUOWNER?1x"};
     for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         assert(sensorarrayCpuOwnerFormat(bad[i], session, reply, sizeof(reply)) == ESP_ERR_INVALID_ARG);
     }
@@ -208,8 +208,10 @@ static void testBudgetUnchanged(void)
 #else
     assert(getInfoCalls == 0u && timerCalls == 0u);
 #endif
-    printf("CPUOWNER_BUDGET,enabled=%u,roles=7,checkpoints=224,yields=%u\n",
-        (unsigned)CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS, delayCalls);
+    printf("CPUOWNER_BUDGET,enabled=%u,roles=%u,checkpoints=%u,yields=%u\n",
+        (unsigned)CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS,
+        (unsigned)SENSORARRAY_WORK_BUDGET_WORKER_COUNT,
+        32u * (unsigned)SENSORARRAY_WORK_BUDGET_WORKER_COUNT, delayCalls);
 }
 
 /* ACTUAL_EARLY_DISPATCH */
@@ -217,13 +219,13 @@ static void testBudgetUnchanged(void)
 static void testDispatchAndCapacity(void)
 {
     reset(); char response[512];
-    for (unsigned role = 0; role < 7u; role++) {
+    for (unsigned role = 0; role < SENSORARRAY_WORK_BUDGET_WORKER_COUNT; role++) {
         char command[16]; (void)snprintf(command, sizeof(command), "CPUOWNER?%u", role);
         assert(actualEarly(command, response, sizeof(response)) == ESP_OK);
         assert(actualNormal(command, response, sizeof(response)) == ESP_OK);
         assert(strstr(response, "session=123456789ABCDEF0"));
     }
-    assert(actualEarly("CPUOWNER?7", response, sizeof(response)) == ESP_ERR_INVALID_ARG);
+    assert(actualEarly("CPUOWNER?8", response, sizeof(response)) == ESP_ERR_INVALID_ARG);
     assert(actualNormal("OTHER?", response, sizeof(response)) == ESP_ERR_NOT_FOUND);
     assert(getInfoCalls == 0u); /* Query never dereferences any live task. */
 #if CONFIG_SENSORARRAY_CPU_OWNER_DIAGNOSTICS
@@ -250,7 +252,10 @@ static void testDispatchAndCapacity(void)
     size_t maximum=0u;
     for (unsigned i=0u;i<3u;i++) {
         int n=snprintf(response,sizeof(response),/* ACTUAL_PROTO */,2u,512u,2304u,caps[i]);
-        assert(n>0 && n<(int)sizeof(response) && strstr(response,"/cpu_owner_v1,"));
+        const char *cpuCapability = strstr(response, "/cpu_owner_v1");
+        assert(n>0 && n<(int)sizeof(response) && cpuCapability);
+        char delimiter = cpuCapability[strlen("/cpu_owner_v1")];
+        assert(delimiter == '/' || delimiter == ',');
         if ((size_t)n>maximum) { maximum=(size_t)n; }
     }
     printf("CPUOWNER_FORMAT,enabled=%u,maxOwnerBytes=%zu,maxProtoBytes=%zu,capacity=512\n",

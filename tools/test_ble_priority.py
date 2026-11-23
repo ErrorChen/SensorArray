@@ -21,14 +21,27 @@ def main():
     harness = (root / "tests/host/test_ble_priority.c").read_text()
     definitions = source[source.index("#ifndef CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN"):
                          source.index("/*\n * Statistics are observed")]
+    definitions += "\n" + re.search(r"^static esp_err_t s_bleInitResult = [^\n]+", source, re.M)[0]
+    definitions = '#include "sensorarrayBleOutputSchedule.h"\n' + definitions
     harness = harness.replace("/* PRODUCTION_TYPES */", definitions)
     signatures = [
+        "static esp_err_t sensorarrayBleInitPayloadStorage(",
+        "static esp_err_t sensorarrayBleFinishInit(",
         "static void sensorarrayBleStatsIncrement(",
         "static void sensorarrayBleStatsNoteDrop(",
         "static void sensorarrayBleStatsNoteMessageSent(",
         "static uint32_t sensorarrayBleNextGeneration(",
         "static uint32_t sensorarrayBleCountUsedSlotsLocked(",
         "static void sensorarrayBleUpdateSlotUseLocked(",
+        "static bool sensorarrayBleDataActiveLocked(",
+        "static bool sensorarrayBleFrameSameBoot(",
+        "static bool sensorarrayBleFrameSameConfig(",
+        "static bool sensorarrayBleFrameSequenceBefore(",
+        "static void sensorarrayBleFrameFlowSyncLocked(",
+        "static void sensorarrayBleFrameFlowObserveLocked(",
+        "static bool sensorarrayBleFrameProtectedRepresentedLocked(",
+        "static void sensorarrayBleFramePeriodicLocked(",
+        "static void sensorarrayBleFrameFullCompletedLocked(",
         "static esp_err_t sensorarrayBleAllocateTxDescriptor(",
         "static uint8_t *sensorarrayBleDescriptorData(",
         "static bool sensorarrayBleDescriptorCurrent(",
@@ -38,19 +51,24 @@ def main():
         "static uint32_t sensorarrayBleCrc32(",
         "static void sensorarrayBleNoteDrop(",
         "static bool sensorarrayBleValidateAscii(",
+        "void sensorarrayBleSetTxMode(",
         "static bool sensorarrayBleSnapshotSendContext(",
         "static bool sensorarrayBleSendContextMatches(",
         "static bool sensorarrayBleSendContextCurrent(",
         "static size_t sensorarrayBleDecimalChars(",
         "static size_t sensorarrayBleMaxPayloadSize(",
         "static bool sensorarrayBlePlanFragments(",
+        "static size_t sensorarrayBleTwoFragmentFirstChunk(",
         "static void sensorarrayBlePrepareConfirmation(",
         "static void sensorarrayBleClearConfirmation(",
         "static esp_err_t sensorarrayBleAwaitConfirmation(",
+        "static void sensorarrayBleObserveSendDeadlineLocked(",
+        "void sensorarrayBleObserveSendDeadline(",
         "static esp_err_t sensorarrayBleSendGattValue(",
         "static esp_err_t sensorarrayBleSendFragment(",
         "static esp_err_t sensorarrayBleSendPayload(",
         "static esp_err_t sensorarrayBleSendDescriptor(",
+        "static bool sensorarrayBleReceiveProtected(",
         "static bool sensorarrayBleReceiveNext(",
         "static void sensorarrayBleTxTask(",
         "static esp_err_t sensorarrayBleQueueTxDescriptor(",
@@ -61,10 +79,19 @@ def main():
         "static esp_err_t sensorarrayBleNotifyInternal(",
         "esp_err_t sensorarrayBleNotify(",
         "esp_err_t sensorarrayBleNotifyForGeneration(",
+        "esp_err_t sensorarrayBleNotifyFrameForGeneration(",
         "esp_err_t sensorarrayBleNotifyLifecycleForGeneration(",
         "void sensorarrayBleGetLinkSnapshot(",
+        "void sensorarrayBleGetGuardSnapshot(",
+        "void sensorarrayBleGetLogPolicySnapshot(",
+        "void sensorarrayBleGetFlowSnapshot(",
     ]
     bodies = "\n\n".join(function(source, signature) for signature in signatures)
+    # Inject producer interleavings at the real unlocked copy boundary. The
+    # shim performs the actual memcpy after competing publication/reconnect;
+    # admission, state, ownership, generation and release bodies are unchanged.
+    assert bodies.count("memcpy(slot->data,source,length);") == 1
+    bodies = bodies.replace("memcpy(slot->data,source,length);", "testTypedFrameCopy(slot->data,source,length);")
     harness = harness.replace("/* PRODUCTION_FUNCTIONS */", bodies)
     # Execute the unchanged CONF callback branch, including its real lock,
     # matching, stale-event and task-wakeup code. Avoid a test-only copy of
@@ -89,7 +116,8 @@ def main():
         preferred_mtu = re.findall(r"\.preferredMtu\s*=\s*(\d+)u", transport)
         assert len(preferred_mtu) == 1
         reference = "#define TEST_APP_PREFERRED_MTU " + preferred_mtu[0] + "u\n"
-        for name, fixture in (("referenceCapMtu", "cap_1.frame"), ("referenceVoltMtu", "volt_1.frame")):
+        for name, fixture in (("referenceCapMtu", "cap_1.frame"), ("referenceVoltMtu", "volt_1.frame"),
+                              ("referenceCapAfter", "cap_after.frame")):
             data = (root / "tests/fixtures/config_identity" / fixture).read_bytes()
             reference += "static const uint8_t " + name + "[] = {" + ",".join(map(str, data)) + "};\n"
         (temp / "mtu_reference.h").write_text(reference)
@@ -104,6 +132,7 @@ typedef int esp_err_t;
 #define ESP_ERR_NOT_SUPPORTED 0x106
 #define ESP_ERR_TIMEOUT 0x107
 #define ESP_ERR_INVALID_CRC 0x109
+#define ESP_ERR_NOT_ALLOWED 0x10D
 """)
         generated = temp / "test.c"
         generated.write_text(harness)
@@ -111,13 +140,14 @@ typedef int esp_err_t;
         command = [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-g",
                    "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
                    "-I", str(temp), "-I", str(root / "components/sensorarrayBle/include"),
-                   str(generated), "-o", str(executable)]
+                   "-I", str(root / "components/sensorarrayBle"),
+                   str(generated), str(root / "components/sensorarrayBle/sensorarrayBleOutputSchedule.c"), "-o", str(executable)]
         subprocess.run(command, check=True)
         # This harness owns only static storage. LeakSanitizer cannot inspect
         # threads under the sandbox ptrace; retain ASan/UBSan bounds checking.
         environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=0")
         wire = temp / "wire.jsonl"
-        subprocess.run([str(executable), str(wire)], check=True, timeout=15, env=environment)
+        subprocess.run([str(executable), str(wire)], check=True, timeout=45, env=environment)
         # Replay exact notifications emitted by real C SendPayload/SendFragment
         # through the receiver, including raw values that no longer need G.
         from receive_ble_text import BleTextReceiver
@@ -125,7 +155,7 @@ typedef int esp_err_t;
         for line in wire.read_text().splitlines():
             record = json.loads(line)
             cases.setdefault(record["case"], []).append(record)
-        assert len(cases) == 16  # 12 allowed size/channel cases + 4 golden cases.
+        assert len(cases) == 39  # Original 37 + periodic SHORT and missing-candidate fallback.
         for label, records in cases.items():
             receiver = BleTextReceiver(argparse.Namespace(tail=False, show_fragments=False), None)
             receiver._write = lambda line: None
@@ -146,7 +176,7 @@ typedef int esp_err_t;
                 assert receiver.parser.counters.voltage_frames == 1
             if label.startswith("golden-cap"):
                 assert receiver.parser.counters.cap_frames == 1
-        print("BLE_MTU_RECEIVER_ROUNDTRIP,actual_C_notifications=1,cases=16,hardware=NOT_RUN")
+        print(f"BLE_MTU_RECEIVER_ROUNDTRIP,actual_C_notifications=1,cases={len(cases)},hardware=NOT_RUN")
         # Exercise the actual installed SDK decision path as well as our GAP
         # observer. A successful request can be a15ms no-op in this SDK.
         idf = Path(os.environ['IDF_PATH']) if os.environ.get('IDF_PATH') else None

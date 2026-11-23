@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "6c5f1b6cb977dd64a015d12f80125878216522093e1dbb37547e9f4c0a76d5f5",
+  "started_utc": "2026-11-20T19:56:17.200559+00:00",
+  "started_monotonic": 135351.368804272,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-analysis-host-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:56:17.314932+00:00",
+  "finished_monotonic": 135351.483171463,
+  "log_sha256": "d1aaab86fa02d87997171aeb3220b40f5e28046ec4d1674848f9ec5f589f297c"
+}

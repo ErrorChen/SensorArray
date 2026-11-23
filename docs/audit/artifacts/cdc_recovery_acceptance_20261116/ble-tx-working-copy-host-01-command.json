@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_priority.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "c493fd295f98ca1d827ed16dfbb3b5257e39c2aab80a05ff08c75271440fe6e1",
+  "started_utc": "2026-11-20T19:42:38.585401+00:00",
+  "started_monotonic": 134532.753649262,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-tx-working-copy-host-01-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-20T19:42:38.849980+00:00",
+  "finished_monotonic": 134533.018224703,
+  "log_sha256": "e29a938d40503896fa132cc3025f469bd83ac31ded9acda82ed510ca9cac4632"
+}

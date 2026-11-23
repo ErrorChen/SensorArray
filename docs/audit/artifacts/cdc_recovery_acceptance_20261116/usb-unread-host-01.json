@@ -1,0 +1,64 @@
+{
+  "HEAD": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "sources": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_usb_unread.py": "d0c4a23de2dffd047a526f9956aa2938fcb0d239d6587b14af674ee019ee46b8",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_usb_unread.py": "a93706aa19d8df605e096d5d94a023fa8e4c1db8bea6a6f5193324608e14d034"
+  },
+  "hardware": "NOT_RUN",
+  "production_changes": false,
+  "scope": "two new tooling files only",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_usb_unread.py"
+      ],
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "0a15b6",
+        "wall_time_seconds": 1.629112008,
+        "exit_code": 0,
+        "original_token_count": 28,
+        "output": "..........\n----------------------------------------------------------------------\nRan 10 tests in 1.644s\n\nOK\n"
+      }
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_cdc_capture.py"
+      ],
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "114cc0",
+        "wall_time_seconds": 1.097630361,
+        "exit_code": 0,
+        "original_token_count": 28,
+        "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 1.113s\n\nOK\n"
+      }
+    },
+    {
+      "command": [
+        "python3",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_usb_unread.py",
+        "--help"
+      ],
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "af5e99",
+        "wall_time_seconds": 0.00001619,
+        "exit_code": 0,
+        "original_token_count": 218,
+        "output": "usage: capture_usb_unread.py [-h] --output-directory OUTPUT_DIRECTORY --label\n                             LABEL [--usb-serial USB_SERIAL]\n                             [--stop-file STOP_FILE]\n                             [--expected-elf-sha256 EXPECTED_ELF_SHA256]\n\nKeep formal CDC0 open without application reads/writes for 120 seconds. This\nis an unread-client stress capture, not USB receive-throughput evidence. The\nkernel may continue accepting bytes. BLE/debug observation is independent. Use\na unique label; no input flush, USBSTREAM setter, reset, flash or NVS write.\nEvery operation, including after queries and CAP8 recovery, shares one budget.\n\noptions:\n  -h, --help            show this help message and exit\n  --output-directory OUTPUT_DIRECTORY\n  --label LABEL\n  --usb-serial USB_SERIAL\n  --stop-file STOP_FILE\n  --expected-elf-sha256 EXPECTED_ELF_SHA256\n"
+      }
+    }
+  ],
+  "initial_failure_record": "usb-unread-host-initial-01.json",
+  "all_pass": true,
+  "limits": [
+    "120s test uses injected monotonic clock; live hardware NOT_RUN",
+    "Real SIGTERM exercised only inside synthetic host process with scoped signal handlers",
+    "Kernel buffering is possible; no USB PC FPS or receipt is inferred",
+    "SIGKILL/power loss cannot be handled by finally",
+    "Previous uncooperative readers cannot be proven absent; original flock/TIOCEXCL owner rules retained"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_output_schedule.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "beganUtc": "2026-11-20T18:30:55.059242+00:00",
+  "elapsedSeconds": 0.47947967100481037,
+  "exitCode": 0,
+  "sourceSha256": {
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.h": "4576c23f98b0505d19157b2e936df6b793ba7501c9bfd549ed0709ad59a278e3",
+    "tools/test_ble_output_schedule.py": "19c69a5f59b4060229d41d5105cbac79fdf8d2da36832bb15299b73b53f0dd7b",
+    "tests/host/test_ble_output_schedule.c": "ca62c4bfb187a6ea28e5a0e0305c149aa689d796a6c4164b4b9647c3860f2194"
+  },
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-independent-test-02.txt",
+  "logSha256": "f00fd2fce864fa2c9224b734ff4a61540ddcf711a6529153289186d8ccf4e217",
+  "hardware": "NOT_RUN"
+}

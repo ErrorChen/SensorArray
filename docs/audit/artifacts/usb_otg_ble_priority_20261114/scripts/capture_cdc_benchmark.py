@@ -38,7 +38,7 @@ def main(argv=None):
     if '--transport' not in args:
         args = ['--transport', 'usb_cdc', *args]
     with shared.bulk_collector_selected(CdcBenchmarkCollector):
-        return shared.base.main(args)
+        return shared.base.main(args, require_image_identity=True)
 
 
 if __name__ == '__main__': raise SystemExit(main())

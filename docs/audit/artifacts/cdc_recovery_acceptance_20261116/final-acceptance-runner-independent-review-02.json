@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "gate": "PASS_SOURCE_AND_HOST_FOR_NEXT_HIL_ATTEMPT",
+  "scope": "Frozen final acceptance tools; no hardware used by reviewer; no final product/precision acceptance",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "freeze_manifest": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-runner-freeze-01.json",
+    "sha256": "faea653032642478d282c9fb89c8b86f347fa726b423e02243204f56a08b3667"
+  },
+  "source_sha256": {
+    "tools/sensorarray_capture_identity.py": "c436de0b1650775caecfd1bd39ff22c59a1ccc063d1f1ff16ef77e98601985ce",
+    "tools/test_capture_identity.py": "baec87b7439c26534257e745222d4cd82b6bbe7d7244b27a3f74101816e32911",
+    "tools/run_firmware_benchmark.py": "1bbc9d5566e81edd1f39f27718ebe61f2f97b57febd147a78f754fdb036cfdcd",
+    "tools/test_firmware_benchmark.py": "5f4ec06948d81f2693b51aa206161156e25f320d46a868081c923fbefe2ee5a7",
+    "tools/analyze_firmware_benchmark.py": "445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81",
+    "tools/test_analyze_firmware_benchmark.py": "aa4ff7dc6088acb4291d6c0f0fa8a50748e5060ad775985a4c505cc05b2a6ac7",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_cdc_benchmark.py": "58f6e99e0320453add184f61d17e8a34398c122b3c80705702c731d5081c90e0",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_mode_switches.py": "0a4bf12746d39efea2a35b89ec965bb0b7fa4d8af7fcba83b5d8885e40a3e639",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_mode_switches.py": "d0c30c2d8089abc26b32895e8cc4112c2f951b87b8f11d64b9a3de920b49b521",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_short_snapshots.py": "dfe77e3b77b4a4a3c4dca8e85573ad02161c740108c913346936337d9ed49b54",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py": "1d7435f9726c246a3411f8249acc916a6e97c0407c4fa507ef985cb65f11c0df",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/run_cdc_matrix_failfast.py": "17368eeaebfda608d3763f81818d189acd7ca0e44cc5468d802d74e67601e313",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_run_cdc_matrix_failfast.py": "bd4d74b5e8e8fc5ae9d2bfd6b20214abdbea55f5d5f2490d997fa6cdc839441e",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/qualify_closed_capture.py": "1bbe1799ce437e1d0c3769206ed20cdb1745906ed1908a27ca3ad6e878649c05",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_qualify_closed_capture.py": "504cfb24a4a0c7871b07326767b61fb1603cbfef665ae28ffa2d4e2a707b3806"
+  },
+  "tests": {
+    "total": 122,
+    "executed_host_record": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-independent-host-02.json",
+      "sha256": "4143a133ec85b1fb937716d50db48396746d6a1c5b696097dd0740d498b58885"
+    },
+    "all_exit_zero": true,
+    "inputs_before_after_unchanged": true
+  },
+  "confirmed": [
+    "Formal CDC and mode/SHORT CLI require full expected ELF/session/boot. Actual CONFIG/BUILD/CONFIG bracket, target esp32s3/project SensorArray/PROTO2 and full unchanged configuration domains precede first setter.",
+    "Failed authority or observed reset/changed CONFIG boot revokes setter permission. Cleanup with no verified preparation is not attempted. A fresh cleanup bracket binds the same expected boot/image; failed/changed identity prevents CAP/ROWS/USB/TX cleanup mutation.",
+    "50-mode and SHORT harness retain their bounded total deadline and raw/event coverage. SHORT lost setter ACK arms one restoration attempt; no blind setter replay; post-restore fault/reset/bytes and final event remain included.",
+    "32 cases comprise CAP/VOLT/RES/MIXED x rows1..8, each full120s after separate5s warmup. MIXED uses CVRCVRCV; one active C row is explicitly homogeneous. No automatic FPS caps or CAL=SAVE.",
+    "Each case starts separate BLE/debug observer processes, checks live process identity/readiness, runs formal collector, closes/joins observers, then uses real parser/protection analysis before continuing. First ERROR/FAIL/UNKNOWN or unknown child cleanup stops without automatic retry.",
+    "Forced child termination is recorded as unknown cleanup, never board SAFE. Observer/child bounded wait and PID identity/reap branches are covered with synthetic processes.",
+    "Gate verifies contiguous raw/event RX, hashes, one final finished record, actual raw query replies, prepare+cleanup authority brackets, CAPACITANCE/CAP8/CCCCCCCC final config, and closed BLE/debug coverage. No summary-only authority.",
+    "Fully contained BLE fragment/line CRC errors are distinct from boundary-straddling diagnostics; malformed unattributable/oversize DATA is UNKNOWN. Fault/reset diagnostics across the closed journal fail. Original scientific invalid points are retained and count as complete protocol frames when wire/identity/CRC valid.",
+    "Normal BLE endpoint loss ratio keeps its old definition and0.025 budget. Separate full-window evidence guard requires trustworthy first/last receipt within1s edges, device timestamp span >= requested-2s and captureFPS>=1; missing clocks/low-rate tests require manual review, not automatic threshold relaxation."
+  ],
+  "counterexample": {
+    "kind": "synthetic report, not reconstructed raw/HIL",
+    "original": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/runner-data-coverage-independent-probe-01.json",
+      "sha256": "c22c30531cf26f7d70054a5fa33a7d8feef352732f951ace724ca2ff2b1658c4"
+    },
+    "script": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/runner-data-coverage-independent-probe-01.py",
+      "sha256": "76aec13e61e4e080e241743ca86371234758f58fcffc4a9b1421d4c924a63c36"
+    },
+    "fixed_same_probe": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/runner-data-coverage-independent-probe-02.json",
+      "sha256": "475cf10ac7045bb13911573d7f8676d12fcf567c02a4867ed74e2dd4dfd70758"
+    },
+    "observed": "Two adjacent BLE frames amid10000 USB frames changed from PASS_NUMERIC_SCREEN to UNKNOWN. Maintained tests also provide valid host edges with two old device-adjacent frames and confirm UNKNOWN."
+  },
+  "offline_replay": {
+    "command": [
+      "python3",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-independent-replay-03.py"
+    ],
+    "exit_code": 0,
+    "script": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-independent-replay-03.py",
+      "sha256": "2a8c734dcb71ca808c05d2d6ed80ac71c87de3bb0646e7742646cf583390efc3"
+    },
+    "output": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-independent-replay-03.txt",
+      "sha256": "286e95c464917cafcc3b176b0d690d75e695b16455ca0a6e7bb47f6f136a20d0"
+    },
+    "record": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-independent-replay-03.json",
+      "sha256": "1b006e50ab2f25da617e7d4eada16aaf25d82eb3c142e0d9b8de069548b25ea3"
+    },
+    "decisions": [
+      {
+        "screen": 20,
+        "status": "FAIL",
+        "received": 7461,
+        "missing": 202,
+        "fraction": 0.02636043325068511
+      },
+      {
+        "screen": 21,
+        "status": "PASS_NUMERIC_SCREEN",
+        "received": 7569,
+        "missing": 141,
+        "fraction": 0.018287937743190662
+      }
+    ],
+    "all_original_inputs_sha256_unchanged": true,
+    "historical_pre_mutation_authority": "NOT_ESTABLISHED",
+    "new_HIL_acceptance": "NOT_ESTABLISHED"
+  },
+  "limits": [
+    "A preflight cannot prevent a physical reset that has not yet been observed between query and setter; observed changes revoke authority.",
+    "One-second edge allowance is an offline observation sufficiency rule, not a firmware/snapshot/peer-delivery deadline.",
+    "Network notify admission/local completion does not establish PC receipt; actual BLE journal reassembly and trusted full frame are required.",
+    "The runner screens cases; required final10-minute/32-case hardware runs and precision/hardware limitations remain separate."
+  ],
+  "hardware_actions": [],
+  "production_modified_by_reviewer": false,
+  "overall_acceptance": "NOT_ESTABLISHED"
+}

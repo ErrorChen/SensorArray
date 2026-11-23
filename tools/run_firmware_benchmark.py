@@ -32,6 +32,8 @@ import time
 from capture_reference_fixture import (CaptureError, CaptureOptions, Collector, PosixPort,
                                        add_transport_arguments, validate_transport_options, open_capture_port)
 from text_protocol import TextProtocolParser, parse_fields
+from sensorarray_capture_identity import (CaptureIdentityError, CaptureImageAuthority,
+                                         expected_from_options, readonly_command)
 
 
 MODES = ("CAP", "VOLT", "RES", "MIXED")
@@ -65,6 +67,9 @@ class BenchmarkOptions:
     usb_vid: int = 0x303A
     usb_pid: int | None = None
     usb_serial: str | None = None
+    expected_elf_sha256: str | None = None
+    expected_session: str | None = None
+    expected_boot_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +162,11 @@ class BenchmarkCollector(Collector):
         self.volatile_rail_written = False
         self.safe_cap_recovery = "NOT_ATTEMPTED"
         self.interrupted = False
+        expected = expected_from_options(settings.expected_elf_sha256, settings.expected_session,
+                                         settings.expected_boot_id)
+        self.image_authority = CaptureImageAuthority(expected) if expected is not None else None
+        self.image_authority_brackets = []
+        self.first_mutation_authority = None
         total = settings.prepare_seconds + settings.warmup_seconds + configuration.seconds + settings.cleanup_seconds
         capture_options = CaptureOptions(settings.port, total, settings.output_directory,
                                          configuration.label, mode=configuration.mode,
@@ -180,7 +190,56 @@ class BenchmarkCollector(Collector):
     def event(self, kind, **fields):
         if kind == "firmware_fault":
             self.fault_events += 1
+        authority = getattr(self, "image_authority", None)
+        if authority is not None:
+            if kind == "reset_observed":
+                authority.revoke()
+            elif kind == "reply" and fields.get("command") == "CONFIG?":
+                config = parse_fields(fields.get("line", ""))
+                if (config.get("session"), config.get("bootId")) != (
+                        authority.expected.session, str(authority.expected.boot_id)):
+                    authority.revoke()
         super().event(kind, **fields)
+
+    def send(self, command, deadline):
+        if self.image_authority is not None:
+            try:
+                self.image_authority.require_command(command)
+            except CaptureIdentityError as error:
+                self.event("mutation_blocked", command=command, reason=str(error))
+                raise CaptureError(str(error)) from error
+            if not readonly_command(command) and self.first_mutation_authority is None:
+                self.first_mutation_authority = dict(self.image_authority.evidence)
+                self.event("first_mutation_authorized", command=command,
+                           authority=self.first_mutation_authority)
+        return super().send(command, deadline)
+
+    def verify_mutation_authority(self, deadline, *, cleanup=False):
+        """New: one actual read bracket before preparation or cleanup setters."""
+        if self.image_authority is None:
+            return  # Explicitly unbound legacy/test entry, never final acceptance.
+        self.image_authority.revoke()
+        purpose = "cleanup" if cleanup else "prepare"
+        self.event("image_authority_begin", purpose=purpose,
+                   expected=self.image_authority.expected.output())
+        opening = self.query("CONFIG?", "CONFIG", deadline)
+        build = self.query("BUILD?", "BUILD", deadline)
+        closing = self.query("CONFIG?", "CONFIG", deadline)
+        try:
+            evidence = self.image_authority.verify(build, opening, closing, require_running=not cleanup)
+        except CaptureIdentityError as error:
+            self.event("image_authority_rejected", purpose=purpose, reason=str(error))
+            raise CaptureError(str(error)) from error
+        self.expected_identity = closing
+        self.image_authority_brackets.append({"purpose": purpose, **evidence})
+        self.event("image_authority_verified", purpose=purpose, evidence=evidence)
+
+    def image_authority_result(self):
+        return {"required": self.image_authority is not None,
+                "expected": self.image_authority.expected.output() if self.image_authority else None,
+                "brackets": self.image_authority_brackets,
+                "first_mutation": self.first_mutation_authority,
+                "scope": "recorded_CONFIG_BUILD_CONFIG_before_setters; not_physical_safety"}
 
     def progress(self):
         now = time.monotonic()
@@ -420,6 +479,7 @@ class BenchmarkCollector(Collector):
                 if command == "PROTO?" and (fields.get("version") != "2" or "config_query_v1" not in fields.get("caps", "")):
                     raise CaptureError("atomic_config_query_capability_required")
             self.expected_identity = self.query("CONFIG?", "CONFIG", self.prepare_deadline)
+            self.verify_mutation_authority(self.prepare_deadline)
             self.transition("MODE", "CAP")
             self.verify_cap(self.prepare_deadline)
             self.ensure_rail()
@@ -502,6 +562,10 @@ class BenchmarkCollector(Collector):
                 cleanup_errors.append("end_queries:" + (str(error) or "interrupted"))
             self.phase = "cleanup"
             try:
+                if self.image_authority is not None and self.first_mutation_authority is None:
+                    self.safe_cap_recovery = "NOT_ATTEMPTED_AUTHORITY_UNVERIFIED"
+                    raise CaptureError("cleanup_setters_blocked_no_verified_preparation")
+                self.verify_mutation_authority(cleanup_deadline, cleanup=True)
                 self.transition("MODE", "CAP", cleanup_deadline)
                 self.transition("ROWS", 8, cleanup_deadline)
                 self.verify_cap(cleanup_deadline)
@@ -511,7 +575,8 @@ class BenchmarkCollector(Collector):
                     raise CaptureError("final_CAP8_config_unverified")
                 self.safe_cap_recovery = "CAP8_QUERY_VERIFIED"
             except (OSError, CaptureError, KeyboardInterrupt) as error:
-                self.safe_cap_recovery = "ERROR"
+                if self.safe_cap_recovery != "NOT_ATTEMPTED_AUTHORITY_UNVERIFIED":
+                    self.safe_cap_recovery = "ERROR"
                 cleanup_errors.append("CAP8_recovery:" + (str(error) or "interrupted"))
             if not self.is_otg:
                 try:
@@ -558,6 +623,7 @@ class BenchmarkCollector(Collector):
                 "rx_bytes": self.raw_bytes, "tx_os_accepted_bytes": self.tx_bytes, "partial_writes": self.partial_writes,
                 "initial_usb_profile": self.original_usb, "usb_restore": self.restore_status,
                 "safe_cap_recovery": self.safe_cap_recovery, "transitions": self.transitions,
+                "image_authority": self.image_authority_result(),
                 "snapshots": self.snapshots, "replies": self.replies,
                 "firmware_faults": list(self.faults), "firmware_fault_events": self.fault_events,
                 "reset_observations": self.reset_observations, "interrupted": self.interrupted,
@@ -571,6 +637,7 @@ class BenchmarkCollector(Collector):
 
 
 def run_benchmark(options, *, port_factory=None):
+    expected_from_options(options.expected_elf_sha256, options.expected_session, options.expected_boot_id)
     validate_transport_options(options)
     if any(not math.isfinite(value) or value <= 0 for value in (
             options.capture_seconds, options.stability_seconds, options.warmup_seconds,
@@ -634,7 +701,7 @@ def run_benchmark(options, *, port_factory=None):
                 # A failed configuration is never rerun. Continue only after
                 # verified CAP8 + original USB restoration; unknown hardware
                 # state cannot be carried into the next configuration.
-                if result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] not in {"VERIFIED_QUERY", "NOT_APPLICABLE_BULK_ALWAYS_FULL", "NOT_APPLICABLE_CDC_ALWAYS_FULL"}:
+                if result["status"] != "CAPTURED" or result["error"] or result["interrupted"] or result["safe_cap_recovery"] != "CAP8_QUERY_VERIFIED" or result["usb_restore"] not in {"VERIFIED_QUERY", "NOT_APPLICABLE_BULK_ALWAYS_FULL", "NOT_APPLICABLE_CDC_ALWAYS_FULL"}:
                     break
             index["status"] = "COMPLETE" if len(index["results"]) == len(plan) and all(r["status"] == "CAPTURED" for r in index["results"]) else "ERROR"
         except (OSError, CaptureError, KeyboardInterrupt) as error:
@@ -653,7 +720,7 @@ def run_benchmark(options, *, port_factory=None):
     return index
 
 
-def main(argv=None):
+def main(argv=None, *, require_image_identity=False):
     parser = argparse.ArgumentParser(description=__doc__)
     add_transport_arguments(parser)
     parser.add_argument("--output-directory", type=Path, required=True)
@@ -667,6 +734,12 @@ def main(argv=None):
     parser.add_argument("--rail-avdd-uv", type=int)
     parser.add_argument("--rail-avss-uv", type=int)
     parser.add_argument("--rail-source-note", help="Provenance of explicitly supplied RAM calibration; never an accuracy claim.")
+    parser.add_argument("--expected-elf", dest="expected_elf_sha256", required=require_image_identity,
+                        help="Full 64-hex BUILD ELF SHA256 from recorded preflight evidence.")
+    parser.add_argument("--expected-session", required=require_image_identity,
+                        help="Full 16-hex CONFIG session from that preflight.")
+    parser.add_argument("--expected-boot-id", type=int, required=require_image_identity,
+                        help="CONFIG bootId paired with the expected session; never compare across boots.")
     args = parser.parse_args(argv)
     if args.capture_seconds < 120:
         parser.error("--capture-seconds must be at least 120; prepare/warmup/cleanup are additional")

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "wifi-quarantine-restart-01",
+    "--request-restart"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 70.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ed3420e927458d98844d6b325489a386baccd8a39e8d1307bd197c2a72d0fff5",
+  "started_utc": "2026-11-21T01:13:03.368880+00:00",
+  "started_monotonic": 154349.375931445,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:13:06.944898+00:00",
+  "finished_monotonic": 154352.951945512,
+  "log_sha256": "06ab829fde1c96ae6662f96312caf4e69e5ee25e238727876342540f6042b892"
+}

@@ -1,0 +1,127 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T23:12:06.269361+00:00",
+  "scope": "Read-only current SensorArray Wi-Fi application isolation design. No production edit, SDK send-chain re-audit, hardware, IDF build, or fault injection.",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "sourceHashes": {
+    "components/sensorarrayWifi/sensorarrayWifi.c": "fbf9e8417e9fa4def8f1372514f5c2d81f15e844b3ac5097e74d20dace5ece2a",
+    "components/sensorarrayWifi/include/sensorarrayWifi.h": "a82bdbcd503c6d1edbae6f0c56cea513ed7ae04b6407235cae14a0b447ce105d",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransportCommand.c": "cc6045ec92757fe772e93edfba326d9f7d8304d108cdc12ff0ad4931009b5630",
+    "core/transport/sensorarrayTransportStats.c": "9bc65de22a3d733d4c5bb0578b824f2ae733927630305f77c7d5e6ee02f5f690",
+    "core/transport/sensorarrayTransport.h": "5fb48ab90f309f3fa1abad00344ef75db2b330480a492f8f0bccf973e8fe7796",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "53f6be61c65419a85b015d9693adb1d6275678fe2a2f5a0c55f9619d7bd69e70",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+  },
+  "sourceFreeze": "Wi-Fi component/config unchanged during review. Transport typed-metadata work may be concurrent; line positions are observational, not a frozen implementation gate.",
+  "existingEvidence": "wifi-udp-sdk-deadline-source-review-01.json",
+  "result": "P1 application dependency remains reachable when runtime Wi-Fi is enabled. A persistent isolated owner is a concrete repair design, not an implemented or HIL-passed fix.",
+  "actualConfig": {
+    "CONFIG_SENSORARRAY_OUTPUT_WIFI_TEXT": false,
+    "CONFIG_SENSORARRAY_WIFI_SOFTAP_ENABLE": true,
+    "CONFIG_ESP_WIFI_ENABLED": true,
+    "runtimeApReachable": true,
+    "apHIL": "NOT_RUN",
+    "meaning": "Default output OFF does not compile out WIFI=AP. Command calls ApplyWifiMode -> StartWifiAp -> WifiInit without a compile-time feature rejection. Actual success depends on memory/SDK results."
+  },
+  "currentCallers": [
+    {
+      "caller": "sensorarrayTransportProcessDescriptor",
+      "callee": "sensorarrayWifiSend",
+      "risk": "A blocked send retains the shared Transport owner and descriptor; later BLE/network publications and lifecycle draining cannot progress."
+    },
+    {
+      "caller": "sensorarrayTransportDrainGuaranteedText",
+      "callee": "sensorarrayWifiSend",
+      "risk": "Same shared Transport task; control/lifecycle priority does not preempt an in-flight SDK call."
+    },
+    {
+      "caller": "sensorarrayTransportPublishControlReply",
+      "callee": "sensorarrayWifiSendControlReply",
+      "risk": "Runs in the command caller, including wifiCtrl. Current reply hook only proceeds after send returns."
+    },
+    {
+      "caller": "sensorarrayTransportHandleRuntimeCommand(WIFI=AP)",
+      "callee": "sensorarrayTransportApplyWifiMode -> sensorarrayTransportStartWifiAp -> sensorarrayWifiInit",
+      "risk": "Synchronous SDK init/profile/socket/cleanup work can occupy Serial/BLE command task; send-only isolation is incomplete."
+    },
+    {
+      "caller": "sensorarrayWifiEvent(AP_STADISCONNECTED)",
+      "callee": "esp_wifi_ap_get_sta_list",
+      "risk": "SDK query currently runs in the shared event callback. Minimal isolation should record an event and defer reconciliation to owner; do not infer station count from a guessed boolean."
+    }
+  ],
+  "proposedNewInterfaces_notImplemented": [
+    "Owner-local initialization/profile/socket/send/cleanup functions in sensorarrayWifi.c or new sensorarrayWifiOwner.c; exported methods validate, reserve persistent storage, copy, commit, notify and return without SDK calls.",
+    "Explicit queued publication API returning local-admission status; distinguish it from legacy synchronous sent counters. Provide broadcast DATA/ordinary LOG and unicast CTRL/priority lifecycle input, copying peer/address and exact payload.",
+    "Request AP initialization asynchronously with request/generation and queryable pending/ready/failed/quarantined result. Do not return old ok=1 meaning applied merely because queued. WIFI? appends versioned state/epoch/error or add WIFIIO? capability; preserve existing fields explicitly.",
+    "Independent timer calls ObserveDeadline only; no sockets, SDK, printf, task deletion, allocation or waiting in observer. One short Wi-Fi mux serializes admission, active phase, generation and diagnostic snapshots."
+  ],
+  "storageAndOwnership": {
+    "candidate": "Two persistent normal 2304-byte payload slots (DATA or ordinary LOG) plus two 512-byte priority slots (CTRL or <=384-byte lifecycle); two bounded descriptor queues; one dedicated TX/management owner.",
+    "payloadBytes": 5632,
+    "payloadPlacement": "One startup/lazy-once PSRAM|8BIT allocation with explicit no internal fallback; zero runtime free/realloc. Metadata, task TCB/stack and tiny SDK argument state internal. No payload is declared DMA storage.",
+    "ownerStackBudgetCandidateBytes": 4096,
+    "stackNote": "Candidate only, not measured. Actual IDF stack allocation is INTERNAL|8BIT and has TCB/queue/timer overhead; build map plus MEM before/after and stack high-water HIL required. Wi-Fi driver allocation remains additional and potentially much larger.",
+    "states": "FREE -> WRITING -> PENDING -> OWNED -> COMPLETED -> FREE. Claim and commit under mux, bounded memcpy outside; consumer removes an actual descriptor then owns it. Never reclaim by scanning a slot that might have left the queue.",
+    "priority": "CTRL/lifecycle before normal whenever owner is free. A currently in-flight SDK call cannot be preempted. Full 2304-byte protected scientific frames must use full storage, never be squeezed into 512-byte control slots.",
+    "callerRelease": "Deep-copy admission makes the original Transport/stack buffer releasable immediately after return; a rejected admission means no retained caller pointer. Transport protection expiry and Wi-Fi copy expiry remain separate counters.",
+    "blockedOwner": "Keep active slot, sockets, sockaddr and caller stack in owner alive until actual SDK return. Quarantine rejects new work; pending committed slots can be marked failed/reclaimed only by real queue ownership, never WRITING or OWNED. It is also safe to retain bounded pending storage until reboot if exposed as unavailable."
+  },
+  "deadlineAndEpoch": {
+    "caller": "Zero queue wait and no SDK execution in transport or command callers; bounded validation/copy/critical section only.",
+    "sendObserver": "Existing BLE policy offers a defensible analogous 500000-us local-send quarantine threshold sampled at 100000 us, explicitly a new application liveness policy, not a proven SDK timeout/cancellation. AP initialization requires a separately named finite policy budget before implementation; no hidden reuse or automatic extension.",
+    "queue": "Immutable absolute deadline captured on admission. For an already protected network descriptor pass/min its existing remaining deadline, not a fresh retry deadline. Expired queued records are accounted without SDK calls. SDK entry and deadline start captured atomically with owner/slot/epoch.",
+    "lateReturn": "Retain actual result/errno/returned byte count separately from local deadline. Late ESP_OK can set completionKnown and localAccepted but must not unlatch quarantine, run next SDK call, or report peer receipt.",
+    "epoch": "Capture boot identity, Wi-Fi generation, command/request generation, immutable peer destination and scientific identity. OFF/reenable/disconnect boundaries invalidate stale queued targets as documented; old completion cannot make a new epoch ready. Sequence/generation comparisons remain scoped to boot and half-range wrap rules.",
+    "restart": "Quarantine sticky for current boot, with explicit user-controlled recovery rather than automatic reset loops. Do not assume socket close, driver deinit, task deletion or ordinary esp_restart shutdown callbacks are bounded while Wi-Fi SDK is stuck; restart-path guarantee requires separate verification. No unconditional reset claim."
+  },
+  "lockAndControlRules": [
+    "No Wi-Fi mux held across SDK/lwIP/printf/heap allocation or cross-component callbacks. Copy snapshot under mux, format outside. Do not acquire Transport/BLE locks while holding Wi-Fi mux.",
+    "Do not reuse WIFI_CTRL WorkBudget identity for the new owner: the existing enum promises exactly one writer per worker. Add a separately reported Wi-Fi owner identity/checkpoint if implementing work budgeting.",
+    "WIFI=OFF currently means application output disabled, not esp_wifi_stop or physical radio off. Quarantine must remain equally honest: ready=false/unavailable, actual radio/socket state unknown.",
+    "UDP RX task may itself wait in SDK; its isolation already limits that task. Do not promise Wi-Fi RX survives global lwIP failure. The required available control path is independent USB/BLE.",
+    "GetStats/IsReady/event updates currently lack a shared snapshot lock; new owner/timer/multiple producers must use one mux rather than introduce more unsynchronized writers."
+  ],
+  "diagnosticsSuggested": {
+    "query": "Versioned WIFIIO? <=512 bytes, preferably separate service and queue queries if maximum-width fields exceed it. Snapshot itself must not call Wi-Fi SDK.",
+    "fields": [
+      "state",
+      "epoch",
+      "phase",
+      "active",
+      "callId",
+      "elapsedUs",
+      "deadlineUs",
+      "quarantined",
+      "firstError",
+      "cleanupError",
+      "completionKnown",
+      "actualErrno",
+      "actualAcceptedBytes",
+      "queueAccepted",
+      "driverAcceptedDatagrams",
+      "queueRejected",
+      "expired",
+      "stale",
+      "partial",
+      "timeout",
+      "lastRxUs",
+      "lastTxUs",
+      "pcReceipt=unknown"
+    ],
+    "counterCompatibility": "Current wifiDataSent/wifiLogSent and s_wifi.stats.sent increment after sendto returned full length. Do not silently reinterpret these as queue admission. Add queued counters and update existing completed counters asynchronously, or explicitly version their semantics. Existing published ACK barrier already documents local admission; queued reply does not prove PC receipt."
+  },
+  "requiredActualRegressionBeforeGate": [
+    "Stub sendto remains blocked across deadline while independent observer quarantines; verify Transport/BLE/USB continue, held source/slot immutable, no close/delete/free/reuse.",
+    "Late successful/failed SDK return records original result without clearing quarantine or acknowledging newer generation.",
+    "Concurrent producer WRITING, dequeue ownership and OFF/reconnect race; exact full 2304 and 512 control bytes, no buffer alias or stack retention.",
+    "Queue full/expiry/priority floods have finite exits and per-channel loss accounting; lifecycle priority separate from ordinary LOG.",
+    "AP init/profile/socket/cleanup block in isolated owner, not Serial/BLE command callback; all init failure stages and sticky partial startup are observable.",
+    "Original Wi-Fi full-length success versus partial/error/errno classification and legacy counters stay truthful after async conversion.",
+    "Target build/MEM/startup/stack and Wi-Fi AP+USB+BLE HIL with user authorization; current Wi-Fi behavior remains NOT_RUN."
+  ],
+  "productionEdited": false,
+  "hardware": "NOT_RUN",
+  "tests": "Not run: design-only read-only review, not implementation validation."
+}

@@ -1,0 +1,1 @@
+{"status": "VERIFIED", "files": 18, "raw_bytes": 21620723, "gzip_bytes": 2237453, "original_retained": true}

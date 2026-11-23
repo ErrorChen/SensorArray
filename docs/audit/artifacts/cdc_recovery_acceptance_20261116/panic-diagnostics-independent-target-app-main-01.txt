@@ -1,0 +1,511 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42012900 <app_main>:
+42012900:	022136        	entry	a1, 0x110
+42012903:	b5c981        	l32r	a8, 42000028 <_stext+0x8> (3fcb1dfc <__stack_chk_guard>)
+42012906:	ba5321        	l32r	a2, 42001254 <_stext+0x1234> (3fcb2c80 <s_appContext>)
+42012909:	0020c0        	memw
+4201290c:	002882        	l32i	a8, a8, 0
+4201290f:	b8e3c1        	l32r	a12, 42000c9c <_stext+0xc7c> (7e80 <_rtc_slow_length+0x7c90>)
+42012912:	00a0b2        	movi	a11, 0
+42012915:	20a220        	or	a10, a2, a2
+42012918:	0020c0        	memw
+4201291b:	3b6182        	s32i	a8, a1, 236
+4201291e:	b5e181        	l32r	a8, 420000a4 <_stext+0x84> (400011e8 <memset>)
+42012921:	0008e0        	callx8	a8
+42012924:	b80e81        	l32r	a8, 4200095c <_stext+0x93c> (40377278 <esp_timer_get_time>)
+42012927:	0008e0        	callx8	a8
+4201292a:	0acd      	mov.n	a12, a10
+4201292c:	b8cca1        	l32r	a10, 42000c5c <_stext+0xc3c> (3fcb2bd8 <s_frontendPresence>)
+4201292f:	0bdd      	mov.n	a13, a11
+42012931:	076025        	call8	42019f34 <sensorarrayFrontendPresenceInit>
+42012934:	b8d361        	l32r	a6, 42000c80 <_stext+0xc60> (50000008 <s_bootBreadcrumb>)
+42012937:	f0c172        	addi	a7, a1, -16
+4201293a:	80a0c2        	movi	a12, 128
+4201293d:	06bd      	mov.n	a11, a6
+4201293f:	78c7a2        	addi	a10, a7, 120
+42012942:	b5c981        	l32r	a8, 42000068 <_stext+0x48> (400011f4 <memcpy>)
+42012945:	0008e0        	callx8	a8
+42012948:	1e2782        	l32i	a8, a7, 120
+4201294b:	b8ce91        	l32r	a9, 42000c84 <_stext+0xc64> (53414252 <_rtc_force_slow_end+0x3414062>)
+4201294e:	0b9897        	bne	a8, a9, 4201295d <app_main+0x5d>
+42012951:	1f2742        	l32i	a4, a7, 124
+42012954:	022426        	beqi	a4, 2, 4201295a <app_main+0x5a>
+42012957:	012586        	j	42012df1 <app_main+0x4f1>
+4201295a:	011906        	j	42012dc2 <app_main+0x4c2>
+4201295d:	babc81        	l32r	a8, 42001450 <_stext+0x1430> (4211ce50 <esp_reset_reason>)
+42012960:	0008e0        	callx8	a8
+42012963:	0a5d      	mov.n	a5, a10
+42012965:	080c      	movi.n	a8, 0
+42012967:	212792        	l32i	a9, a7, 132
+4201296a:	608080        	neg	a8, a8
+4201296d:	108890        	and	a8, a8, a9
+42012970:	881b      	addi.n	a8, a8, 1
+42012972:	a189      	s32i.n	a8, a1, 40
+42012974:	05ad      	mov.n	a10, a5
+42012976:	5a1526        	beqi	a5, 1, 420129d4 <app_main+0xd4>
+42012979:	f8a325        	call8	4200b3ac <sensorarrayResetReasonName>
+4201297c:	b906c1        	l32r	a12, 42000d94 <_stext+0xd74> (3c12f430 <_flash_rodata_start+0xf310>)
+4201297f:	040c      	movi.n	a4, 0
+42012981:	0abd      	mov.n	a11, a10
+42012983:	1a0c      	movi.n	a10, 1
+42012985:	b905d1        	l32r	a13, 42000d9c <_stext+0xd7c> (3c125d9c <_flash_rodata_start+0x5c7c>)
+42012988:	126142        	s32i	a4, a1, 72
+4201298b:	d149      	s32i.n	a4, a1, 52
+4201298d:	049d      	mov.n	a9, a4
+4201298f:	116142        	s32i	a4, a1, 68
+42012992:	04ed      	mov.n	a14, a4
+42012994:	0c8d      	mov.n	a8, a12
+42012996:	04fd      	mov.n	a15, a4
+42012998:	e149      	s32i.n	a4, a1, 56
+4201299a:	1061a2        	s32i	a10, a1, 64
+4201299d:	f149      	s32i.n	a4, a1, 60
+4201299f:	003246        	j	42012a6c <app_main+0x16c>
+420129a2:	820000        	mull	a0, a0, a0
+420129a5:	503927        	bltu	a9, a2, 420129f9 <app_main+0xf9>
+420129a8:	8220a5        	call8	41f94bb4 <_coredump_iram_end+0x1bff6b4>
+420129ab:	820e61        	l32r	a6, 41ff31e4 <_coredump_iram_end+0x1c5dce4>
+420129ae:	923a27        	bltu	a10, a2, 42012944 <app_main+0x44>
+420129b1:	821361        	l32r	a6, 41ff3200 <_coredump_iram_end+0x1c5dd00>
+420129b4:	820d61        	l32r	a6, 41ff31e8 <_coredump_iram_end+0x1c5dce8>
+420129b7:	e93d27        	bltu	a13, a2, 420129a4 <app_main+0xa4>
+420129ba:	6182f1        	l32r	a15, 41feafc4 <_coredump_iram_end+0x1c55ac4>
+420129bd:	274212        	s8i	a1, a2, 39
+420129c0:	a53c      	movi.n	a5, 58
+420129c2:	9e          	.byte	0x9e
+420129c3:	e8f8      	l32i.n	a15, a8, 56
+420129c5:	2192f1        	l32r	a15, 41fdb010 <_coredump_iram_end+0x1c45b10>
+420129c8:	8b8113        	lsip	f1, a1, 0x22c
+420129cb:	bdba      	add.n	a11, a13, a11
+420129cd:	260a      	add.n	a2, a6, a0
+420129cf:	13          	.byte	0x13
+420129d0:	0014065f 	ee.vmulas.s16.accx.ld.ip.qup	q0, a5, 96, q4, q0, q1, q4
+420129d4:	f89d65        	call8	4200b3ac <sensorarrayResetReasonName>
+420129d7:	b8efc1        	l32r	a12, 42000d94 <_stext+0xd74> (3c12f430 <_flash_rodata_start+0xf310>)
+420129da:	00a042        	movi	a4, 0
+420129dd:	b8efd1        	l32r	a13, 42000d9c <_stext+0xd7c> (3c125d9c <_flash_rodata_start+0x5c7c>)
+420129e0:	20baa0        	or	a11, a10, a10
+420129e3:	106152        	s32i	a5, a1, 64
+420129e6:	126142        	s32i	a4, a1, 72
+420129e9:	0d6142        	s32i	a4, a1, 52
+420129ec:	049d      	mov.n	a9, a4
+420129ee:	116142        	s32i	a4, a1, 68
+420129f1:	04ed      	mov.n	a14, a4
+420129f3:	0c8d      	mov.n	a8, a12
+420129f5:	04fd      	mov.n	a15, a4
+420129f7:	e149      	s32i.n	a4, a1, 56
+420129f9:	f149      	s32i.n	a4, a1, 60
+420129fb:	001b46        	j	42012a6c <app_main+0x16c>
+420129fe:	20a550        	or	a10, a5, a5
+42012a01:	0e6192        	s32i	a9, a1, 56
+42012a04:	0d61e2        	s32i	a14, a1, 52
+42012a07:	f89a65        	call8	4200b3ac <sensorarrayResetReasonName>
+42012a0a:	d1e8      	l32i.n	a14, a1, 52
+42012a0c:	e198      	l32i.n	a9, a1, 56
+42012a0e:	0abd      	mov.n	a11, a10
+42012a10:	040c      	movi.n	a4, 0
+42012a12:	231326        	beqi	a3, 1, 42012a39 <app_main+0x139>
+42012a15:	2f2366        	bnei	a3, 2, 42012a48 <app_main+0x148>
+42012a18:	ba7981        	l32r	a8, 420013fc <_stext+0x13dc> (3c129878 <_flash_rodata_start+0x9758>)
+42012a1b:	126142        	s32i	a4, a1, 72
+42012a1e:	d149      	s32i.n	a4, a1, 52
+42012a20:	e149      	s32i.n	a4, a1, 56
+42012a22:	000b06        	j	42012a52 <app_main+0x152>
+42012a25:	ba75c1        	l32r	a12, 420013fc <_stext+0x13dc> (3c129878 <_flash_rodata_start+0x9758>)
+42012a28:	b8db81        	l32r	a8, 42000d94 <_stext+0xd74> (3c12f430 <_flash_rodata_start+0xf310>)
+42012a2b:	fec3d2        	addi	a13, a3, -2
+42012a2e:	838cd0        	moveqz	a8, a12, a13
+42012a31:	e1a8      	l32i.n	a10, a1, 56
+42012a33:	291a26        	beqi	a10, 1, 42012a60 <app_main+0x160>
+42012a36:	000606        	j	42012a52 <app_main+0x152>
+42012a39:	ba6f81        	l32r	a8, 420013f8 <_stext+0x13d8> (3c129870 <_flash_rodata_start+0x9750>)
+42012a3c:	126142        	s32i	a4, a1, 72
+42012a3f:	d149      	s32i.n	a4, a1, 52
+42012a41:	e149      	s32i.n	a4, a1, 56
+42012a43:	0002c6        	j	42012a52 <app_main+0x152>
+42012a46:	810000        	src	a0, a0, a0
+42012a49:	d3          	.byte	0xd3
+42012a4a:	42b8      	l32i.n	a11, a2, 16
+42012a4c:	491261        	l32r	a6, 41fe4e94 <_coredump_iram_end+0x1c4f994>
+42012a4f:	e149d1        	l32r	a13, 4200af74 <sensorarrayUsbOtgOwnerCanWrite+0x48> (e0d70281 <_rtc_reserved_end+0x80c70281>)
+42012a52:	1f0c      	movi.n	a15, 1
+42012a54:	b8d2d1        	l32r	a13, 42000d9c <_stext+0xd7c> (3c125d9c <_flash_rodata_start+0x5c7c>)
+42012a57:	7cc1c2        	addi	a12, a1, 124
+42012a5a:	f1f9      	s32i.n	a15, a1, 60
+42012a5c:	000306        	j	42012a6c <app_main+0x16c>
+42012a5f:	00          	.byte	00
+42012a60:	e138      	l32i.n	a3, a1, 56
+42012a62:	b8cdd1        	l32r	a13, 42000d98 <_stext+0xd78> (3c125d8c <_flash_rodata_start+0x5c6c>)
+42012a65:	03fd      	mov.n	a15, a3
+42012a67:	7cc1c2        	addi	a12, a1, 124
+42012a6a:	f139      	s32i.n	a3, a1, 60
+42012a6c:	d138      	l32i.n	a3, a1, 52
+42012a6e:	4199      	s32i.n	a9, a1, 16
+42012a70:	6139      	s32i.n	a3, a1, 24
+42012a72:	112192        	l32i	a9, a1, 68
+42012a75:	102132        	l32i	a3, a1, 64
+42012a78:	51d9      	s32i.n	a13, a1, 20
+42012a7a:	ba62a1        	l32r	a10, 42001404 <_stext+0x13e4> (3c129898 <_flash_rodata_start+0x9778>)
+42012a7d:	a1d8      	l32i.n	a13, a1, 40
+42012a7f:	3199      	s32i.n	a9, a1, 12
+42012a81:	0189      	s32i.n	a8, a1, 0
+42012a83:	21e9      	s32i.n	a14, a1, 8
+42012a85:	11c9      	s32i.n	a12, a1, 4
+42012a87:	03ed      	mov.n	a14, a3
+42012a89:	05cd      	mov.n	a12, a5
+42012a8b:	3221e5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012a8e:	b87ba1        	l32r	a10, 42000c7c <_stext+0xc5c> (3fca5848 <s_bootBreadcrumbMux>)
+42012a91:	fb7c      	movi.n	a11, -1
+42012a93:	b6b581        	l32r	a8, 42000568 <_stext+0x548> (40385c94 <xPortEnterCriticalTimeout>)
+42012a96:	0008e0        	callx8	a8
+42012a99:	80a0c2        	movi	a12, 128
+42012a9c:	0b0c      	movi.n	a11, 0
+42012a9e:	06ad      	mov.n	a10, a6
+42012aa0:	b58181        	l32r	a8, 420000a4 <_stext+0x84> (400011e8 <memset>)
+42012aa3:	0008e0        	callx8	a8
+42012aa6:	a188      	l32i.n	a8, a1, 40
+42012aa8:	b87791        	l32r	a9, 42000c84 <_stext+0xc64> (53414252 <_rtc_force_slow_end+0x3414062>)
+42012aab:	3689      	s32i.n	a8, a6, 12
+42012aad:	e188      	l32i.n	a8, a1, 56
+42012aaf:	2639      	s32i.n	a3, a6, 8
+42012ab1:	1b6682        	s32i	a8, a6, 108
+42012ab4:	122182        	l32i	a8, a1, 72
+42012ab7:	d138      	l32i.n	a3, a1, 52
+42012ab9:	0699      	s32i.n	a9, a6, 0
+42012abb:	2a0c      	movi.n	a10, 2
+42012abd:	1f6682        	s32i	a8, a6, 124
+42012ac0:	090c      	movi.n	a9, 0
+42012ac2:	f188      	l32i.n	a8, a1, 60
+42012ac4:	16a9      	s32i.n	a10, a6, 4
+42012ac6:	4659      	s32i.n	a5, a6, 16
+42012ac8:	1c6632        	s32i	a3, a6, 112
+42012acb:	1e6642        	s32i	a4, a6, 120
+42012ace:	1a6692        	s32i	a9, a6, 104
+42012ad1:	b89c      	beqz.n	a8, 42012af0 <app_main+0x1f0>
+42012ad3:	b857c1        	l32r	a12, 42000c30 <_stext+0xc10> (3c125414 <_flash_rodata_start+0x52f4>)
+42012ad6:	ba4ca1        	l32r	a10, 42001408 <_stext+0x13e8> (50000048 <s_bootBreadcrumb+0x40>)
+42012ad9:	7cc1d2        	addi	a13, a1, 124
+42012adc:	0b2c      	movi.n	a11, 32
+42012ade:	b83e81        	l32r	a8, 42000bd8 <_stext+0xbb8> (42107744 <snprintf>)
+42012ae1:	0008e0        	callx8	a8
+42012ae4:	2b2792        	l32i	a9, a7, 172
+42012ae7:	2d2782        	l32i	a8, a7, 180
+42012aea:	186692        	s32i	a9, a6, 96
+42012aed:	196682        	s32i	a8, a6, 100
+42012af0:	b88381        	l32r	a8, 42000cfc <_stext+0xcdc> (4211c9cc <esp_get_free_heap_size>)
+42012af3:	0008e0        	callx8	a8
+42012af6:	0a8d      	mov.n	a8, a10
+42012af8:	b861a1        	l32r	a10, 42000c7c <_stext+0xc5c> (3fca5848 <s_bootBreadcrumbMux>)
+42012afb:	f689      	s32i.n	a8, a6, 60
+42012afd:	b69b81        	l32r	a8, 4200056c <_stext+0x54c> (40385de4 <vPortExitCritical>)
+42012b00:	0008e0        	callx8	a8
+42012b03:	0c0c      	movi.n	a12, 0
+42012b05:	ba41a1        	l32r	a10, 4200140c <_stext+0x13ec> (3c12992c <_flash_rodata_start+0x980c>)
+42012b08:	0cbd      	mov.n	a11, a12
+42012b0a:	f965a5        	call8	4200c164 <sensorarrayBootBreadcrumbSetStage>
+42012b0d:	b89751        	l32r	a5, 42000d6c <_stext+0xd4c> (3fcb2bb0 <s_configSessionId>)
+42012b10:	8b0c      	movi.n	a11, 8
+42012b12:	05ad      	mov.n	a10, a5
+42012b14:	f2c465        	call8	4200575c <esp_fill_random>
+42012b17:	1598      	l32i.n	a9, a5, 4
+42012b19:	0588      	l32i.n	a8, a5, 0
+42012b1b:	b199      	s32i.n	a9, a1, 44
+42012b1d:	2648      	l32i.n	a4, a6, 8
+42012b1f:	a189      	s32i.n	a8, a1, 40
+42012b21:	f06c65        	call8	420031e8 <esp_app_get_description>
+42012b24:	0a3d      	mov.n	a3, a10
+42012b26:	ba4a81        	l32r	a8, 42001450 <_stext+0x1430> (4211ce50 <esp_reset_reason>)
+42012b29:	0008e0        	callx8	a8
+42012b2c:	90a082        	movi	a8, 144
+42012b2f:	0aed      	mov.n	a14, a10
+42012b31:	b1b8      	l32i.n	a11, a1, 44
+42012b33:	a1a8      	l32i.n	a10, a1, 40
+42012b35:	d38a      	add.n	a13, a3, a8
+42012b37:	04cd      	mov.n	a12, a4
+42012b39:	033765        	call8	42015eb0 <sensorarrayPanicDiagnosticsInit>
+42012b3c:	26c8      	l32i.n	a12, a6, 8
+42012b3e:	05a8      	l32i.n	a10, a5, 0
+42012b40:	15b8      	l32i.n	a11, a5, 4
+42012b42:	014b65        	call8	42013ff8 <sensorarrayRecoveryControlInit>
+42012b45:	26c8      	l32i.n	a12, a6, 8
+42012b47:	05a8      	l32i.n	a10, a5, 0
+42012b49:	15b8      	l32i.n	a11, a5, 4
+42012b4b:	01c3a5        	call8	42014784 <sensorarrayRestartControlInit>
+42012b4e:	26c8      	l32i.n	a12, a6, 8
+42012b50:	05a8      	l32i.n	a10, a5, 0
+42012b52:	15b8      	l32i.n	a11, a5, 4
+42012b54:	037525        	call8	420162a8 <sensorarrayAdsTimingControlInit>
+42012b57:	26c8      	l32i.n	a12, a6, 8
+42012b59:	05a8      	l32i.n	a10, a5, 0
+42012b5b:	15b8      	l32i.n	a11, a5, 4
+42012b5d:	3f18e5        	call8	42051cec <sensorarrayTransportConfigureWifiBoot>
+42012b60:	0c0c      	movi.n	a12, 0
+42012b62:	1f0c      	movi.n	a15, 1
+42012b64:	ba2ba1        	l32r	a10, 42001410 <_stext+0x13f0> (3c129938 <_flash_rodata_start+0x9818>)
+42012b67:	0fbd      	mov.n	a11, a15
+42012b69:	21c9      	s32i.n	a12, a1, 8
+42012b6b:	11c9      	s32i.n	a12, a1, 4
+42012b6d:	01c9      	s32i.n	a12, a1, 0
+42012b6f:	0fed      	mov.n	a14, a15
+42012b71:	0fdd      	mov.n	a13, a15
+42012b73:	321365        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012b76:	ba27a1        	l32r	a10, 42001414 <_stext+0x13f4> (4200ca58 <sensorarrayEarlyRuntimeQueryCommand>)
+42012b79:	02bd      	mov.n	a11, a2
+42012b7b:	4296e5        	call8	420554e8 <sensorarrayTransportSetRuntimeQueryCallback>
+42012b7e:	ba26a1        	l32r	a10, 42001418 <_stext+0x13f8> (4200b538 <sensorarrayControlReplyPublished>)
+42012b81:	429765        	call8	420554f8 <sensorarrayTransportSetControlReplyPublishedCallback>
+42012b84:	ba26a1        	l32r	a10, 4200141c <_stext+0x13fc> (4200b454 <sensorarrayControlReplyFailed>)
+42012b87:	4297e5        	call8	42055504 <sensorarrayTransportSetControlReplyFailedCallback>
+42012b8a:	042425        	call8	42016dcc <sensorarrayNetStatusInit>
+42012b8d:	0a6d      	mov.n	a6, a10
+42012b8f:	3a9c      	beqz.n	a10, 42012ba6 <app_main+0x2a6>
+42012b91:	faae82        	movi	a8, 0xfffffefa
+42012b94:	8a8a      	add.n	a8, a10, a8
+42012b96:	00c816        	beqz	a8, 42012ba6 <app_main+0x2a6>
+42012b99:	f1f665        	call8	42004b00 <esp_err_to_name>
+42012b9c:	0acd      	mov.n	a12, a10
+42012b9e:	ba20a1        	l32r	a10, 42001420 <_stext+0x1400> (3c12997c <_flash_rodata_start+0x985c>)
+42012ba1:	06bd      	mov.n	a11, a6
+42012ba3:	321065        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012ba6:	b6b7a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012ba9:	f22565        	call8	42004e00 <heap_caps_get_free_size>
+42012bac:	0a6d      	mov.n	a6, a10
+42012bae:	b6b5a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012bb1:	f235a5        	call8	42004f0c <heap_caps_get_largest_free_block>
+42012bb4:	0a4d      	mov.n	a4, a10
+42012bb6:	b6b3a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012bb9:	f227e5        	call8	42004e38 <heap_caps_get_minimum_free_size>
+42012bbc:	ba1ab1        	l32r	a11, 42001424 <_stext+0x1404> (3c1299cc <_flash_rodata_start+0x98ac>)
+42012bbf:	0aed      	mov.n	a14, a10
+42012bc1:	ba19a1        	l32r	a10, 42001428 <_stext+0x1408> (3c1299dc <_flash_rodata_start+0x98bc>)
+42012bc4:	06cd      	mov.n	a12, a6
+42012bc6:	04dd      	mov.n	a13, a4
+42012bc8:	320de5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012bcb:	080c      	movi.n	a8, 0
+42012bcd:	78d262        	addmi	a6, a2, 0x7800
+42012bd0:	914682        	s8i	a8, a6, 145
+42012bd3:	924682        	s8i	a8, a6, 146
+42012bd6:	3128a5        	call8	42043e60 <sensorarrayAsyncLogInit>
+42012bd9:	0abd      	mov.n	a11, a10
+42012bdb:	bacc      	bnez.n	a10, 42012bea <app_main+0x2ea>
+42012bdd:	180c      	movi.n	a8, 1
+42012bdf:	914682        	s8i	a8, a6, 145
+42012be2:	9246a2        	s8i	a10, a6, 146
+42012be5:	000306        	j	42012bf5 <app_main+0x2f5>
+42012be8:	00          	.byte	00
+42012be9:	180c00        	lsxp	f0, a12, a0
+42012bec:	b986a1        	l32r	a10, 42001204 <_stext+0x11e4> (3c128558 <_flash_rodata_start+0x8438>)
+42012bef:	924682        	s8i	a8, a6, 146
+42012bf2:	320b65        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012bf5:	b6a3a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012bf8:	050c      	movi.n	a5, 0
+42012bfa:	f22065        	call8	42004e00 <heap_caps_get_free_size>
+42012bfd:	0a4d      	mov.n	a4, a10
+42012bff:	b6a1a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012c02:	f230a5        	call8	42004f0c <heap_caps_get_largest_free_block>
+42012c05:	0a3d      	mov.n	a3, a10
+42012c07:	b69fa1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012c0a:	f222e5        	call8	42004e38 <heap_caps_get_minimum_free_size>
+42012c0d:	0aed      	mov.n	a14, a10
+42012c0f:	ba07b1        	l32r	a11, 4200142c <_stext+0x140c> (3c129a28 <_flash_rodata_start+0x9908>)
+42012c12:	ba05a1        	l32r	a10, 42001428 <_stext+0x1408> (3c1299dc <_flash_rodata_start+0x98bc>)
+42012c15:	03dd      	mov.n	a13, a3
+42012c17:	04cd      	mov.n	a12, a4
+42012c19:	3208e5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012c1c:	b5aba1        	l32r	a10, 420002c8 <_stext+0x2a8> (4000 <_rtc_slow_length+0x3e10>)
+42012c1f:	1d6752        	s32i	a5, a7, 116
+42012c22:	910642        	l8ui	a4, a6, 145
+42012c25:	02eba5        	call8	42015ae0 <sensorarrayMemoryDiagnosticsScanBegin>
+42012c28:	180c      	movi.n	a8, 1
+42012c2a:	b5a7c1        	l32r	a12, 420002c8 <_stext+0x2a8> (4000 <_rtc_slow_length+0x3e10>)
+42012c2d:	ba00b1        	l32r	a11, 42001430 <_stext+0x1410> (3c129a40 <_flash_rodata_start+0x9920>)
+42012c30:	ba01a1        	l32r	a10, 42001434 <_stext+0x1414> (420104f0 <sensorarrayScanTask>)
+42012c33:	0189      	s32i.n	a8, a1, 0
+42012c35:	64c1f2        	addi	a15, a1, 100
+42012c38:	ce0c      	movi.n	a14, 12
+42012c3a:	02dd      	mov.n	a13, a2
+42012c3c:	b61681        	l32r	a8, 42000494 <_stext+0x474> (40388e58 <xTaskCreatePinnedToCore>)
+42012c3f:	0008e0        	callx8	a8
+42012c42:	0a3d      	mov.n	a3, a10
+42012c44:	041a66        	bnei	a10, 1, 42012c4c <app_main+0x34c>
+42012c47:	1d2782        	l32i	a8, a7, 116
+42012c4a:	88dc      	bnez.n	a8, 42012c66 <app_main+0x366>
+42012c4c:	01a1a2        	movi	a10, 0x101
+42012c4f:	02f065        	call8	42015b54 <sensorarrayMemoryDiagnosticsScanEnd>
+42012c52:	b977a1        	l32r	a10, 42001230 <_stext+0x1210> (3fcb2ba8 <s_wifiStartupReservations>)
+42012c55:	4c0c      	movi.n	a12, 4
+42012c57:	03a0b2        	movi	a11, 3
+42012c5a:	b9de81        	l32r	a8, 420013d4 <_stext+0x13b4> (4038e85c <__atomic_fetch_or_4>)
+42012c5d:	0008e0        	callx8	a8
+42012c60:	493af6        	bgeui	a10, 3, 42012cad <app_main+0x3ad>
+42012c63:	0010c6        	j	42012caa <app_main+0x3aa>
+42012c66:	05ad      	mov.n	a10, a5
+42012c68:	02eea5        	call8	42015b54 <sensorarrayMemoryDiagnosticsScanEnd>
+42012c6b:	1d2782        	l32i	a8, a7, 116
+42012c6e:	b596d1        	l32r	a13, 420002c8 <_stext+0x2a8> (4000 <_rtc_slow_length+0x3e10>)
+42012c71:	b9f1a1        	l32r	a10, 42001438 <_stext+0x1418> (3c129a54 <_flash_rodata_start+0x9934>)
+42012c74:	cc0c      	movi.n	a12, 12
+42012c76:	03bd      	mov.n	a11, a3
+42012c78:	2e6682        	s32i	a8, a6, 184
+42012c7b:	3202e5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012c7e:	b681a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012c81:	f217e5        	call8	42004e00 <heap_caps_get_free_size>
+42012c84:	0a7d      	mov.n	a7, a10
+42012c86:	b67fa1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012c89:	f22825        	call8	42004f0c <heap_caps_get_largest_free_block>
+42012c8c:	0a6d      	mov.n	a6, a10
+42012c8e:	b67da1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012c91:	f21a65        	call8	42004e38 <heap_caps_get_minimum_free_size>
+42012c94:	0aed      	mov.n	a14, a10
+42012c96:	b9e9b1        	l32r	a11, 4200143c <_stext+0x141c> (3c129ab0 <_flash_rodata_start+0x9990>)
+42012c99:	b9e3a1        	l32r	a10, 42001428 <_stext+0x1408> (3c1299dc <_flash_rodata_start+0x98bc>)
+42012c9c:	06dd      	mov.n	a13, a6
+42012c9e:	20c770        	or	a12, a7, a7
+42012ca1:	320065        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012ca4:	0d4416        	beqz	a4, 42012d7c <app_main+0x47c>
+42012ca7:	0030c6        	j	42012d6e <app_main+0x46e>
+42012caa:	3f0525        	call8	42051cfc <sensorarrayTransportReleaseWifiStartupGate>
+42012cad:	b9d4a1        	l32r	a10, 42001400 <_stext+0x13e0> (3c129880 <_flash_rodata_start+0x9760>)
+42012cb0:	20c220        	or	a12, a2, a2
+42012cb3:	01a1b2        	movi	a11, 0x101
+42012cb6:	f94ae5        	call8	4200c164 <sensorarrayBootBreadcrumbSetStage>
+42012cb9:	b9e1a1        	l32r	a10, 42001440 <_stext+0x1420> (3c129ac8 <_flash_rodata_start+0x99a8>)
+42012cbc:	01a1b2        	movi	a11, 0x101
+42012cbf:	31fea5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012cc2:	00a062        	movi	a6, 0
+42012cc5:	5cc142        	addi	a4, a1, 92
+42012cc8:	20a440        	or	a10, a4, a4
+42012ccb:	1b6762        	s32i	a6, a7, 108
+42012cce:	01c7a5        	call8	42014948 <sensorarrayRestartControlTake>
+42012cd1:	0a3d      	mov.n	a3, a10
+42012cd3:	6a8c      	beqz.n	a10, 42012cdd <app_main+0x3dd>
+42012cd5:	1b27b2        	l32i	a11, a7, 108
+42012cd8:	02ad      	mov.n	a10, a2
+42012cda:	f94ea5        	call8	4200c1c4 <sensorarrayPerformManualRestart>
+42012cdd:	ffa082        	movi	a8, 255
+42012ce0:	64c1b2        	addi	a11, a1, 100
+42012ce3:	60c1a2        	addi	a10, a1, 96
+42012ce6:	1c6782        	s32i	a8, a7, 112
+42012ce9:	1d6732        	s32i	a3, a7, 116
+42012cec:	f97325        	call8	4200c420 <sensorarrayRecoveryTake$constprop$0>
+42012cef:	06da16        	beqz	a10, 42012d60 <app_main+0x460>
+42012cf2:	1c27a2        	l32i	a10, a7, 112
+42012cf5:	1d2752        	l32i	a5, a7, 116
+42012cf8:	2e2a66        	bnei	a10, 2, 42012d2a <app_main+0x42a>
+42012cfb:	f8b8e5        	call8	4200b888 <sensorarrayBootPrepareRestart>
+42012cfe:	03ea16        	beqz	a10, 42012d40 <app_main+0x440>
+42012d01:	b94d71        	l32r	a7, 42001238 <_stext+0x1218> (3c128694 <_flash_rodata_start+0x8574>)
+42012d04:	03cd      	mov.n	a12, a3
+42012d06:	03a1b2        	movi	a11, 0x103
+42012d09:	07ad      	mov.n	a10, a7
+42012d0b:	f945a5        	call8	4200c164 <sensorarrayBootBreadcrumbSetStage>
+42012d0e:	03fd      	mov.n	a15, a3
+42012d10:	03ed      	mov.n	a14, a3
+42012d12:	07dd      	mov.n	a13, a7
+42012d14:	5c0c      	movi.n	a12, 5
+42012d16:	05bd      	mov.n	a11, a5
+42012d18:	02ad      	mov.n	a10, a2
+42012d1a:	f8f4e5        	call8	4200bc68 <sensorarrayCompleteRecoveryRequest>
+42012d1d:	3a0c      	movi.n	a10, 3
+42012d1f:	b4e281        	l32r	a8, 420000a8 <_stext+0x88> (403872d0 <vTaskDelay>)
+42012d22:	0008e0        	callx8	a8
+42012d25:	03ad      	mov.n	a10, a3
+42012d27:	f85525        	call8	4200b278 <sensorarrayUsbOtgRestart>
+42012d2a:	b9c6d1        	l32r	a13, 42001444 <_stext+0x1424> (3c129b10 <_flash_rodata_start+0x99f0>)
+42012d2d:	06cd      	mov.n	a12, a6
+42012d2f:	01a1b2        	movi	a11, 0x101
+42012d32:	20a220        	or	a10, a2, a2
+42012d35:	fbf9a5        	call8	4200ecd0 <sensorarrayStopAfterRecoveryFailure$part$0>
+42012d38:	b9b2d1        	l32r	a13, 42001400 <_stext+0x13e0> (3c129880 <_flash_rodata_start+0x9760>)
+42012d3b:	0afd      	mov.n	a15, a10
+42012d3d:	0004c6        	j	42012d54 <app_main+0x454>
+42012d40:	b9c1d1        	l32r	a13, 42001444 <_stext+0x1424> (3c129b10 <_flash_rodata_start+0x99f0>)
+42012d43:	20c660        	or	a12, a6, a6
+42012d46:	01a1b2        	movi	a11, 0x101
+42012d49:	20a220        	or	a10, a2, a2
+42012d4c:	fbf825        	call8	4200ecd0 <sensorarrayStopAfterRecoveryFailure$part$0>
+42012d4f:	b923d1        	l32r	a13, 420011dc <_stext+0x11bc> (3c12849c <_flash_rodata_start+0x837c>)
+42012d52:	0afd      	mov.n	a15, a10
+42012d54:	01a1e2        	movi	a14, 0x101
+42012d57:	4c0c      	movi.n	a12, 4
+42012d59:	05bd      	mov.n	a11, a5
+42012d5b:	02ad      	mov.n	a10, a2
+42012d5d:	f8f0a5        	call8	4200bc68 <sensorarrayCompleteRecoveryRequest>
+42012d60:	64a0a2        	movi	a10, 100
+42012d63:	b4d181        	l32r	a8, 420000a8 <_stext+0x88> (403872d0 <vTaskDelay>)
+42012d66:	0008e0        	callx8	a8
+42012d69:	ffd6c6        	j	42012cc8 <app_main+0x3c8>
+42012d6c:	a50000        	extui	a0, a0, 16, 11
+42012d6f:	313a      	add.n	a3, a1, a3
+42012d71:	20baa0        	or	a11, a10, a10
+42012d74:	4a8c      	beqz.n	a10, 42012d7c <app_main+0x47c>
+42012d76:	b9b4a1        	l32r	a10, 42001448 <_stext+0x1428> (3c129b28 <_flash_rodata_start+0x9a08>)
+42012d79:	31f2e5        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012d7c:	b642a1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012d7f:	f20825        	call8	42004e00 <heap_caps_get_free_size>
+42012d82:	207aa0        	or	a7, a10, a10
+42012d85:	b63fa1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012d88:	f21825        	call8	42004f0c <heap_caps_get_largest_free_block>
+42012d8b:	0a6d      	mov.n	a6, a10
+42012d8d:	b63da1        	l32r	a10, 42000684 <_stext+0x664> (800 <_rtc_slow_length+0x610>)
+42012d90:	f20a65        	call8	42004e38 <heap_caps_get_minimum_free_size>
+42012d93:	b9aeb1        	l32r	a11, 4200144c <_stext+0x142c> (3c129b70 <_flash_rodata_start+0x9a50>)
+42012d96:	0aed      	mov.n	a14, a10
+42012d98:	b9a4a1        	l32r	a10, 42001428 <_stext+0x1408> (3c1299dc <_flash_rodata_start+0x98bc>)
+42012d9b:	20c770        	or	a12, a7, a7
+42012d9e:	06dd      	mov.n	a13, a6
+42012da0:	31f065        	call8	42044ca8 <sensorarrayAcqEventPrintf>
+42012da3:	b923a1        	l32r	a10, 42001230 <_stext+0x1210> (3fcb2ba8 <s_wifiStartupReservations>)
+42012da6:	4c0c      	movi.n	a12, 4
+42012da8:	1b0c      	movi.n	a11, 1
+42012daa:	b98a81        	l32r	a8, 420013d4 <_stext+0x13b4> (4038e85c <__atomic_fetch_or_4>)
+42012dad:	0008e0        	callx8	a8
+42012db0:	513a26        	beqi	a10, 3, 42012e05 <app_main+0x505>
+42012db3:	180c      	movi.n	a8, 1
+42012db5:	20aa80        	or	a10, a10, a8
+42012db8:	493a66        	bnei	a10, 3, 42012e05 <app_main+0x505>
+42012dbb:	3ef425        	call8	42051cfc <sensorarrayTransportReleaseWifiStartupGate>
+42012dbe:	0010c6        	j	42012e05 <app_main+0x505>
+42012dc1:	a38100        	movltz	a8, a1, a0
+42012dc4:	e0b9      	s32i.n	a11, a0, 56
+42012dc6:	0008      	l32i.n	a0, a0, 0
+42012dc8:	2027b2        	l32i	a11, a7, 128
+42012dcb:	212782        	l32i	a8, a7, 132
+42012dce:	2c2792        	l32i	a9, a7, 176
+42012dd1:	0a5d      	mov.n	a5, a10
+42012dd3:	881b      	addi.n	a8, a8, 1
+42012dd5:	ab1b      	addi.n	a10, a11, 1
+42012dd7:	116192        	s32i	a9, a1, 68
+42012dda:	1061a2        	s32i	a10, a1, 64
+42012ddd:	a189      	s32i.n	a8, a1, 40
+42012ddf:	382732        	l32i	a3, a7, 224
+42012de2:	2d2792        	l32i	a9, a7, 180
+42012de5:	2b27e2        	l32i	a14, a7, 172
+42012de8:	021526        	beqi	a5, 1, 42012dee <app_main+0x4ee>
+42012deb:	feed46        	j	420129a4 <app_main+0xa4>
+42012dee:	ff0306        	j	420129fe <app_main+0xfe>
+42012df1:	b99781        	l32r	a8, 42001450 <_stext+0x1430> (4211ce50 <esp_reset_reason>)
+42012df4:	0008e0        	callx8	a8
+42012df7:	840b      	addi.n	a8, a4, -1
+42012df9:	40f880        	nsau	a8, a8
+42012dfc:	0a5d      	mov.n	a5, a10
+42012dfe:	418580        	srli	a8, a8, 5
+42012e01:	fed886        	j	42012967 <app_main+0x67>
+42012e04:	00          	.byte	00
+42012e05:	b48881        	l32r	a8, 42000028 <_stext+0x8> (3fcb1dfc <__stack_chk_guard>)
+42012e08:	0020c0        	memw
+42012e0b:	3b2192        	l32i	a9, a1, 236
+42012e0e:	0020c0        	memw
+42012e11:	0888      	l32i.n	a8, a8, 0
+42012e13:	051987        	beq	a9, a8, 42012e1c <app_main+0x51c>
+42012e16:	b49581        	l32r	a8, 4200006c <_stext+0x4c> (40384d8c <__stack_chk_fail>)
+42012e19:	0008e0        	callx8	a8
+42012e1c:	f01d      	retw.n

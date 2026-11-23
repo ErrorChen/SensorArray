@@ -1,0 +1,393 @@
+{
+  "status": "TESTED_STACK_FAILURE_PATH_RECOVERED_AP_MEMORY_BLOCKER_REMAINS",
+  "utc": "2026-11-21T01:20:48.878421+00:00",
+  "image": {
+    "elf_sha256": "ab39d5c32a50506c0e06ad3ffa091866186da306673f0a1482b935352b4f7c75",
+    "bin_sha256": "7ad1803b69ac4d1b7af1bd876d9b6497ffdc8f9f52f21955ae1173dfdbcfb0a7",
+    "app_bytes": 1631232,
+    "host_entries": 79,
+    "production_inputs": 203
+  },
+  "session": "E400DABECADCE252",
+  "boot": "1",
+  "AP": {
+    "capture_status": "BACKEND_UNAVAILABLE_CONTROL_QUERY_OBSERVED",
+    "capture_exit_code": 1,
+    "terminal": {
+      "v": "1",
+      "session": "e400dabecadce252",
+      "boot": "1",
+      "bootKnown": "1",
+      "id": "1",
+      "known": "1",
+      "epoch": "2",
+      "requested": "AP",
+      "outcome": "quarantined",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "acceptedUs": "107254631",
+      "completedUs": "107268221",
+      "terminalAttempts": "1",
+      "terminalQueued": "1",
+      "terminalPending": "0",
+      "scope": "backend_and_gate",
+      "peerReceipt": "unknown"
+    },
+    "accepted_to_terminal_us": 13590,
+    "guard_phase_start_to_quarantine_us": 6431,
+    "scope": "Known DRIVER_INIT NO_MEM return; cleanupErr103 retains uncertain SDK cleanup, not a timeout/cancel.",
+    "OFF_scope": "software output gate only",
+    "failed_AP_terminal_unchanged_after_OFF": true,
+    "UDP_PC_receipt": "NOT_RUN",
+    "SDK_stall_injection": "NOT_RUN"
+  },
+  "stack": {
+    "configured_bytes": 6144,
+    "minimum_remaining_bytes": 2884,
+    "sample_scope": "owner_after_job",
+    "conclusion": "Observed tested DRIVER_INIT failure path returns without the earlier stack-overflow reset; successful full AP path not qualified."
+  },
+  "memory": {
+    "unit": "bytes",
+    "readout": "sequential",
+    "before_AP": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "25520",
+      "intLargest": "9204",
+      "intMin": "19156",
+      "extFree": "8248968",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "37064",
+      "beforeLargest": "25588",
+      "afterFree": "19264",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "107252424"
+    },
+    "after_AP": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "8400",
+      "intLargest": "7668",
+      "intMin": "8208",
+      "extFree": "8241260",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "37064",
+      "beforeLargest": "25588",
+      "afterFree": "19264",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "107293313"
+    },
+    "later_postquery": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "8400",
+      "intLargest": "7668",
+      "intMin": "8192",
+      "extFree": "8241260",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "37064",
+      "beforeLargest": "25588",
+      "afterFree": "19264",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "145765401"
+    },
+    "limitation": "Different query instants, not exclusive allocation/leak accounting; later intMin8192 is not the earlier8208 sample."
+  },
+  "same_boot_post": {
+    "CONFIG": {
+      "session": "E400DABECADCE252",
+      "bootId": "1",
+      "rev": "1",
+      "boundary": "1",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "1",
+      "mrid": "0",
+      "rgen": "1",
+      "rrid": "0",
+      "pgen": "1",
+      "prid": "0",
+      "mtermId": "0",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "0",
+      "pterm": "none",
+      "perr": "0x0",
+      "rtermId": "0",
+      "rterm": "none",
+      "rerr": "0x0"
+    },
+    "BOOT": {
+      "boot": "1",
+      "bootId": "1",
+      "reset": "poweron",
+      "stage": "frame_read",
+      "err": "0x0",
+      "seq": "1493",
+      "heap": "8249660",
+      "heapMin": "8249652",
+      "prevStage": "none",
+      "prevErr": "0x0",
+      "prevHeap": "0",
+      "guard": "normal",
+      "autoRestarts": "0",
+      "windowAgeS": "0",
+      "ready": "1"
+    },
+    "READY": {
+      "ready": "1",
+      "stage": "frame_read",
+      "err": "0x0",
+      "bootId": "1",
+      "boot": "1"
+    },
+    "guard": {
+      "v": "1",
+      "session": "e400dabecadce252",
+      "boot": "1",
+      "bootKnown": "1",
+      "quarantined": "1",
+      "active": "0",
+      "ownerBusy": "0",
+      "phase": "driver_init",
+      "callId": "6",
+      "startUs": "107261790",
+      "deadlineUs": "112254631",
+      "ageUs": "38515702",
+      "detectedUs": "107268221",
+      "completionKnown": "1",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "sdkErr": "0x00000101",
+      "errno": "0",
+      "returned": "0",
+      "held": "0",
+      "writing": "0",
+      "timeouts": "0",
+      "late": "0",
+      "pollUs": "100000",
+      "recovery": "explicit_manual_restart_attempt"
+    }
+  },
+  "debug": {
+    "status": "OBSERVED",
+    "exit_code": 0,
+    "raw_bytes": 31396,
+    "observed_faults": [],
+    "observed_resets": [],
+    "not_a_global_health_guarantee": true
+  },
+  "manual_restart": {
+    "status": "APPLICATION_RESTART_OBSERVED",
+    "command_exit_code": 0,
+    "old_CONFIG": {
+      "session": "E400DABECADCE252",
+      "bootId": "1",
+      "rev": "1",
+      "boundary": "1",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "1",
+      "mrid": "0",
+      "rgen": "1",
+      "rrid": "0",
+      "pgen": "1",
+      "prid": "0",
+      "mtermId": "0",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "0",
+      "pterm": "none",
+      "perr": "0x0",
+      "rtermId": "0",
+      "rterm": "none",
+      "rerr": "0x0"
+    },
+    "new_CONFIG": {
+      "session": "5AAC0452906F854B",
+      "bootId": "2",
+      "rev": "1",
+      "boundary": "1",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "1",
+      "mrid": "0",
+      "rgen": "1",
+      "rrid": "0",
+      "pgen": "1",
+      "prid": "0",
+      "mtermId": "0",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "0",
+      "pterm": "none",
+      "perr": "0x0",
+      "rtermId": "0",
+      "rterm": "none",
+      "rerr": "0x0"
+    },
+    "action_attempts": 1,
+    "action_to_enumeration_seconds": 1.4037122429872397,
+    "original_post_restart_error_retained": "reply_deadline_expired",
+    "READY_query_collected_by_this_run": false,
+    "epochs": [
+      {
+        "epoch": 0,
+        "bytes": 10975,
+        "raw_sha256": "7d670b2ea7d652b99d5d8f0484103197885475ee050c433348973a439511ae7d",
+        "replies": 6
+      },
+      {
+        "epoch": 1,
+        "bytes": 2389,
+        "raw_sha256": "d9c6bffe971d9feff6fcf8f3f9d854c5b75aa953ed2cbc10d28d9a48e3b03f32",
+        "replies": 8
+      }
+    ],
+    "causal_scope": "enumeration and identities observed after one action; external interventions cannot be excluded by this tool",
+    "limitation": "Formal OTG RESTART observed from a quarantined, already-returned SDK failure; no claim of canceling an in-flight blocked call or arbitrary recovery."
+  },
+  "inputs": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03/wifi-control-03.events.jsonl",
+      "sha256": "53b88307d666445015423567b31db802836e67300382c3c1cea805ce6458c77b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03/wifi-control-03.rx.bin",
+      "sha256": "d40d718ed8a94235a65706205222762c06afea6b580e6071eee62cb30c7f1129"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03/wifi-control-03.summary.json",
+      "sha256": "ea8faa5fdca2a3322991113742150309d917f72fc8318b48da1166f6f8c4e09d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03-command.json",
+      "sha256": "acade852cbae9452be9c292595547a5980d8d38671e5fa0e20fa2e052f6639b5"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03-command.txt",
+      "sha256": "f8d34c766b790e8a34979a21f1070b3bd054f73612d084ad4c233a0f946dcf25"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01-command.json",
+      "sha256": "239e0499d6e83a541cbd141989ed865e5572e9d588616c5017e06404261ba52b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01-command.txt",
+      "sha256": "06ab829fde1c96ae6662f96312caf4e69e5ee25e238727876342540f6042b892"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01.epoch0.rx.bin",
+      "sha256": "7d670b2ea7d652b99d5d8f0484103197885475ee050c433348973a439511ae7d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01.epoch1.rx.bin",
+      "sha256": "d9c6bffe971d9feff6fcf8f3f9d854c5b75aa953ed2cbc10d28d9a48e3b03f32"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01.events.jsonl",
+      "sha256": "568becb35517da9655c8cd93b6236db37615ec1d463ec912ec083abc70988872"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-quarantine-restart-01.summary.json",
+      "sha256": "73a572ee5d5021996854f6fc5ae293b49ca0b165ca3d0b5df4e6c7754d06dfca"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-01-validated-identity.json",
+      "sha256": "f8f9c85813ea4a9636985bbf5e798f902a6e1d7231ff47ff59e306ff03ba3f9d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01/wifi-stack-debug-01.debug.events.jsonl",
+      "sha256": "e1c81ff49a46da32e537c23325dadd1da6426eeb9c7d5e99ebfcc64d5e3463ff"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01/wifi-stack-debug-01.debug.rx.bin",
+      "sha256": "795ff60a3d0c8c543da40e392157b7ecf9112e468c2e317658d3cfb49a4a082f"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01/wifi-stack-debug-01.debug.summary.json",
+      "sha256": "65e72a89c25969cc3fb518735d86d30fbab56aabdb719fc190b19b472f179b65"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01-command.json",
+      "sha256": "d82c09bd398b3aad3c514895f7afe16c98156b2810db9209a6e6cc46a2f3c9fb"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01-command.txt",
+      "sha256": "b1f1ab039081de105eb3f0092ce222609a107f03b77d59a965f0055deaeb54da"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-post-01-command.json",
+      "sha256": "99b850045eea0c7e4086acecde9fa0b01a07b67ac6b0301abe99f584e286dd5e"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-post-01-command.txt",
+      "sha256": "f48ad5c099cbf1503bc5c6fa17276dad14ecd45ac96d28be2a705fbf3ddd56f3"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-post-01.events.jsonl",
+      "sha256": "e241f1883cdd76e69bf63e699879108ab5948909466461cd7e39a951519c4b9b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-post-01.rx.bin",
+      "sha256": "6fe8ef465863b63b21f781ebf13309e36697fdda4712e5f35bb272d92a529b99"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-post-01.summary.json",
+      "sha256": "f48ad5c099cbf1503bc5c6fa17276dad14ecd45ac96d28be2a705fbf3ddd56f3"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-state-01-command.json",
+      "sha256": "e1a58e38b8a22db70185768a36a43ec24bd4ed073f7b090cf3dbe2637cf2b3c3"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-state-01-command.txt",
+      "sha256": "b85094df0ec5e8ea61dd388b68d880b57b94a0c3fce029ed58879df425bc997b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-state-01.events.jsonl",
+      "sha256": "7adcc410a59a6e5299cebe957f730319ba460b7523b19def2c5758f216fa08e4"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-state-01.rx.bin",
+      "sha256": "d75db01784f43c41cb0c5bd054cfd1395f375fb39b3811b6cfb920839bd17ad5"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-state-01.summary.json",
+      "sha256": "b85094df0ec5e8ea61dd388b68d880b57b94a0c3fce029ed58879df425bc997b"
+    }
+  ],
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_stack_control_01.py",
+    "sha256": "54eca4d9afb011ae0f58476e0702dd50e9ffc263e4752cd1e86e66cef849933f"
+  },
+  "hardware_actions_by_analysis": [],
+  "original_inputs_modified": false,
+  "final600_32_50_SHORT": "NOT_RUN",
+  "overall_acceptance": "BLOCKED_AP_MEMORY_FIX_FIRST"
+}

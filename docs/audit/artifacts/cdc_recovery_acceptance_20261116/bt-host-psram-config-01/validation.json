@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-11-21T01:42:13.336010+00:00",
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/audit_config_surface.py"
+      ],
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/validation-1.txt",
+      "sha256": "aaf3a06d649e3fa287cad9120c97f589cc1143d80ef68480d2bb9f06f453e4fd"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_audit_config_surface.py"
+      ],
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/validation-2.txt",
+      "sha256": "79e900bac392071f677dd3a8e0afd6d7447e01442348b366eeb1199a86649b92"
+    }
+  ],
+  "constraints": {
+    "hostPsramPreferredWithInternalFallback": true,
+    "dynamicEnvironment": false,
+    "globalMallocExternal": false,
+    "wifiTryExternal": false,
+    "wifiTxDynamicUnchanged": true
+  },
+  "sourceSha256": {
+    "sdkconfig": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+    "sdkconfig.defaults": "ace8bf23cfea213bb3d553da25ea100b6150adf7737ab5d050f71407af3e48b0"
+  },
+  "sdkKconfigSha256": "f12f881ea250a1e3fb70f92f1ee1a5f2a0adede93d8a7de0fee5a017f29820b5",
+  "targetBuild": "NOT_RUN_by_child",
+  "hardware": "NOT_RUN_by_child",
+  "expectedBytesSaved": "unknown_until_measured"
+}

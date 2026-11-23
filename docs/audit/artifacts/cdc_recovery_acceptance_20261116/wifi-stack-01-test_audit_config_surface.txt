@@ -1,0 +1,14 @@
+test_literals_comments_and_document_logs_are_not_macros (__main__.ConfigSurfaceTests.test_literals_comments_and_document_logs_are_not_macros) ... ok
+test_managed_examples_and_local_macros_are_not_project_uses (__main__.ConfigSurfaceTests.test_managed_examples_and_local_macros_are_not_project_uses) ... ok
+test_managed_kconfig_definitions_remain_available_to_project (__main__.ConfigSurfaceTests.test_managed_kconfig_definitions_remain_available_to_project) ... ok
+test_managed_local_macro_does_not_define_project_kconfig (__main__.ConfigSurfaceTests.test_managed_local_macro_does_not_define_project_kconfig) ... ok
+test_no_sdk_uses_only_exact_spiram_compatibility_name (__main__.ConfigSurfaceTests.test_no_sdk_uses_only_exact_spiram_compatibility_name) ... ok
+test_only_top_level_managed_components_is_excluded (__main__.ConfigSurfaceTests.test_only_top_level_managed_components_is_excluded) ... ok
+test_owned_component_undefined_config_still_fails (__main__.ConfigSurfaceTests.test_owned_component_undefined_config_still_fails) ... ok
+test_real_undefined_project_macro_still_fails_with_correct_line (__main__.ConfigSurfaceTests.test_real_undefined_project_macro_still_fails_with_correct_line) ... ok
+test_sdk_definitions_do_not_exempt_undefined_spiram_names (__main__.ConfigSurfaceTests.test_sdk_definitions_do_not_exempt_undefined_spiram_names) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.044s
+
+OK

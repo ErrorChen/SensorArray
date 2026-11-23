@@ -1,0 +1,1 @@
+{"status": "FAIL_BLE_THROUGHPUT", "label": "screen-13-volt1", "USB_missing": {"status": "KNOWN", "count": 0, "basis": "one_identity_ordered_count_equals_u32_last_minus_first_plus_one_and_empty_gap_examples", "first": 1511513, "last": 1519410, "ordered_count": 7898, "progress": 7897}, "comparison": "DESCRIPTIVE_COMPARISON_NOT_CAUSAL_AB"}

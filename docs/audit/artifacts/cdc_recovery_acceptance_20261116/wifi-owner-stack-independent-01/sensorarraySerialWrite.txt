@@ -1,0 +1,235 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42052f6c <sensorarraySerialWrite>:
+42052f6c:	008136        	entry	a1, 64
+42052f6f:	03dd      	mov.n	a13, a3
+42052f71:	028d      	mov.n	a8, a2
+42052f73:	043d      	mov.n	a3, a4
+42052f75:	0c22b6        	bltui	a2, 2, 42052f85 <sensorarraySerialWrite+0x19>
+42052f78:	bb9881        	l32r	a8, 42041dd8 <sensorarrayAsyncLogGetProtectionStats+0x958> (42107e18 <__errno>)
+42052f7b:	0008e0        	callx8	a8
+42052f7e:	980c      	movi.n	a8, 9
+42052f80:	0a89      	s32i.n	a8, a10, 0
+42052f82:	000406        	j	42052f96 <sensorarraySerialWrite+0x2a>
+42052f85:	020c      	movi.n	a2, 0
+42052f87:	211416        	beqz	a4, 4205319c <sensorarraySerialWrite+0x230>
+42052f8a:	edcc      	bnez.n	a13, 42052f9c <sensorarraySerialWrite+0x30>
+42052f8c:	bb9381        	l32r	a8, 42041dd8 <sensorarrayAsyncLogGetProtectionStats+0x958> (42107e18 <__errno>)
+42052f8f:	0008e0        	callx8	a8
+42052f92:	681c      	movi.n	a8, 22
+42052f94:	0a89      	s32i.n	a8, a10, 0
+42052f96:	f27c      	movi.n	a2, -1
+42052f98:	008006        	j	4205319c <sensorarraySerialWrite+0x230>
+42052f9b:	8a9100        	round.s	a9, f1, 0
+42052f9e:	d0bb      	addi.n	a13, a0, 11
+42052fa0:	1188      	l32i.n	a8, a1, 4
+42052fa2:	0020c0        	memw
+42052fa5:	0009a2        	l8ui	a10, a9, 0
+42052fa8:	0020c0        	memw
+42052fab:	bb8c91        	l32r	a9, 42041ddc <sensorarrayAsyncLogGetProtectionStats+0x95c> (3fcaa72c <s_lines>)
+42052fae:	74a0a0        	extui	a10, a10, 0, 8
+42052fb1:	498a      	add.n	a4, a9, a8
+42052fb3:	945b      	addi.n	a9, a4, 5
+42052fb5:	bacc      	bnez.n	a10, 42052fc4 <sensorarraySerialWrite+0x58>
+42052fb7:	bb8881        	l32r	a8, 42041dd8 <sensorarrayAsyncLogGetProtectionStats+0x958> (42107e18 <__errno>)
+42052fba:	0008e0        	callx8	a8
+42052fbd:	b80c      	movi.n	a8, 11
+42052fbf:	0a89      	s32i.n	a8, a10, 0
+42052fc1:	fff446        	j	42052f96 <sensorarraySerialWrite+0x2a>
+42052fc4:	11d9      	s32i.n	a13, a1, 4
+42052fc6:	096d      	mov.n	a6, a9
+42052fc8:	5189      	s32i.n	a8, a1, 20
+42052fca:	1188      	l32i.n	a8, a1, 4
+42052fcc:	c07320        	sub	a7, a3, a2
+42052fcf:	882a      	add.n	a8, a8, a2
+42052fd1:	07cd      	mov.n	a12, a7
+42052fd3:	ab0c      	movi.n	a11, 10
+42052fd5:	08ad      	mov.n	a10, a8
+42052fd7:	026182        	s32i	a8, a1, 8
+42052fda:	bb8881        	l32r	a8, 42041dfc <sensorarrayAsyncLogGetProtectionStats+0x97c> (40001344 <memchr>)
+42052fdd:	0008e0        	callx8	a8
+42052fe0:	0a5d      	mov.n	a5, a10
+42052fe2:	0a9c      	beqz.n	a10, 42052ff6 <sensorarraySerialWrite+0x8a>
+42052fe4:	1188      	l32i.n	a8, a1, 4
+42052fe6:	a20b      	addi.n	a10, a2, -1
+42052fe8:	c08580        	sub	a8, a5, a8
+42052feb:	60a0a0        	neg	a10, a10
+42052fee:	78aa      	add.n	a7, a8, a10
+42052ff0:	227a      	add.n	a2, a2, a7
+42052ff2:	000086        	j	42052ff8 <sensorarraySerialWrite+0x8c>
+42052ff5:	00          	.byte	00
+42052ff6:	032d      	mov.n	a2, a3
+42052ff8:	0006a2        	l8ui	a10, a6, 0
+42052ffb:	6abc      	beqz.n	a10, 42053035 <sensorarraySerialWrite+0xc9>
+42052ffd:	bb64a1        	l32r	a10, 42041d90 <sensorarrayAsyncLogGetProtectionStats+0x910> (3fcaa73c <s_statsMux>)
+42053000:	ffafb2        	movi	a11, -1
+42053003:	b93f81        	l32r	a8, 42041500 <sensorarrayAsyncLogGetProtectionStats+0x80> (40385c94 <xPortEnterCriticalTimeout>)
+42053006:	0008e0        	callx8	a8
+42053009:	bb62b1        	l32r	a11, 42041d94 <sensorarrayAsyncLogGetProtectionStats+0x914> (3fcc7088 <s_stats>)
+4205300c:	bb61a1        	l32r	a10, 42041d90 <sensorarrayAsyncLogGetProtectionStats+0x910> (3fcaa73c <s_statsMux>)
+4205300f:	182bc2        	l32i	a12, a11, 96
+42053012:	192bd2        	l32i	a13, a11, 100
+42053015:	8c7a      	add.n	a8, a12, a7
+42053017:	62c8c0        	saltu	a12, a8, a12
+4205301a:	ddca      	add.n	a13, a13, a12
+4205301c:	186b82        	s32i	a8, a11, 96
+4205301f:	196bd2        	s32i	a13, a11, 100
+42053022:	b93881        	l32r	a8, 42041504 <sensorarrayAsyncLogGetProtectionStats+0x84> (40385de4 <vPortExitCritical>)
+42053025:	0008e0        	callx8	a8
+42053028:	40f590        	nsau	a9, a5
+4205302b:	419590        	srli	a9, a9, 5
+4205302e:	004692        	s8i	a9, a6, 0
+42053031:	0057c6        	j	42053194 <sensorarraySerialWrite+0x228>
+42053034:	04c200        	extui	a12, a0, 2, 1
+42053037:	04          	.byte	0x4
+42053038:	ffa0a2        	movi	a10, 255
+4205303b:	021ca7        	beq	a12, a10, 42053041 <sensorarraySerialWrite+0xd5>
+4205303e:	001fc6        	j	420530c1 <sensorarraySerialWrite+0x155>
+42053041:	bb5a81        	l32r	a8, 42041dac <sensorarrayAsyncLogGetProtectionStats+0x92c> (3fcaa744 <s_poolMux>)
+42053044:	fb7c      	movi.n	a11, -1
+42053046:	08ad      	mov.n	a10, a8
+42053048:	036182        	s32i	a8, a1, 12
+4205304b:	b92d81        	l32r	a8, 42041500 <sensorarrayAsyncLogGetProtectionStats+0x80> (40385c94 <xPortEnterCriticalTimeout>)
+4205304e:	0008e0        	callx8	a8
+42053051:	bb57d1        	l32r	a13, 42041db0 <sensorarrayAsyncLogGetProtectionStats+0x930> (3fcc7138 <s_inUse>)
+42053054:	9b0c      	movi.n	a11, 9
+42053056:	0dad      	mov.n	a10, a13
+42053058:	5c0c      	movi.n	a12, 5
+4205305a:	3e8c76        	loop	a12, 4205309c <sensorarraySerialWrite+0x130>
+4205305d:	090a82        	l8ui	a8, a10, 9
+42053060:	aa1b      	addi.n	a10, a10, 1
+42053062:	48fc      	bnez.n	a8, 4205309a <sensorarraySerialWrite+0x12e>
+42053064:	adba      	add.n	a10, a13, a11
+42053066:	1c0c      	movi.n	a12, 1
+42053068:	004ac2        	s8i	a12, a10, 0
+4205306b:	31a8      	l32i.n	a10, a1, 12
+4205306d:	74c0b0        	extui	a12, a11, 0, 8
+42053070:	61d9      	s32i.n	a13, a1, 24
+42053072:	41c9      	s32i.n	a12, a1, 16
+42053074:	71b9      	s32i.n	a11, a1, 28
+42053076:	b92381        	l32r	a8, 42041504 <sensorarrayAsyncLogGetProtectionStats+0x84> (40385de4 <vPortExitCritical>)
+42053079:	0008e0        	callx8	a8
+4205307c:	bb5881        	l32r	a8, 42041ddc <sensorarrayAsyncLogGetProtectionStats+0x95c> (3fcaa72c <s_lines>)
+4205307f:	5198      	l32i.n	a9, a1, 20
+42053081:	41c8      	l32i.n	a12, a1, 16
+42053083:	a89a      	add.n	a10, a8, a9
+42053085:	0af8      	l32i.n	a15, a10, 0
+42053087:	044ac2        	s8i	a12, a10, 4
+4205308a:	f7dfa2        	addmi	a10, a15, 0xfffff700
+4205308d:	60a0a0        	neg	a10, a10
+42053090:	61d8      	l32i.n	a13, a1, 24
+42053092:	403a77        	bltu	a10, a7, 420530d6 <sensorarraySerialWrite+0x16a>
+42053095:	71b8      	l32i.n	a11, a1, 28
+42053097:	002586        	j	42053131 <sensorarraySerialWrite+0x1c5>
+4205309a:	bb1b      	addi.n	a11, a11, 1
+4205309c:	31a8      	l32i.n	a10, a1, 12
+4205309e:	b91981        	l32r	a8, 42041504 <sensorarrayAsyncLogGetProtectionStats+0x84> (40385de4 <vPortExitCritical>)
+420530a1:	0008e0        	callx8	a8
+420530a4:	fa7c      	movi.n	a10, -1
+420530a6:	0c0c      	movi.n	a12, 0
+420530a8:	0444a2        	s8i	a10, a4, 4
+420530ab:	1d0c      	movi.n	a13, 1
+420530ad:	0cbd      	mov.n	a11, a12
+420530af:	07ad      	mov.n	a10, a7
+420530b1:	ff0965        	call8	42052148 <sensorarraySerialLineDrop>
+420530b4:	40f590        	nsau	a9, a5
+420530b7:	419590        	srli	a9, a9, 5
+420530ba:	004692        	s8i	a9, a6, 0
+420530bd:	0034c6        	j	42053194 <sensorarraySerialWrite+0x228>
+420530c0:	24f200        	extui	a15, a0, 2, 3
+420530c3:	00          	.byte	00
+420530c4:	f7dfa2        	addmi	a10, a15, 0xfffff700
+420530c7:	60a0a0        	neg	a10, a10
+420530ca:	4eba77        	bgeu	a10, a7, 4205311c <sensorarraySerialWrite+0x1b0>
+420530cd:	bb3781        	l32r	a8, 42041dac <sensorarrayAsyncLogGetProtectionStats+0x92c> (3fcaa744 <s_poolMux>)
+420530d0:	bb38d1        	l32r	a13, 42041db0 <sensorarrayAsyncLogGetProtectionStats+0x930> (3fcc7138 <s_inUse>)
+420530d3:	036182        	s32i	a8, a1, 12
+420530d6:	0321a2        	l32i	a10, a1, 12
+420530d9:	fb7c      	movi.n	a11, -1
+420530db:	41d9      	s32i.n	a13, a1, 16
+420530dd:	21c9      	s32i.n	a12, a1, 8
+420530df:	b90881        	l32r	a8, 42041500 <sensorarrayAsyncLogGetProtectionStats+0x80> (40385c94 <xPortEnterCriticalTimeout>)
+420530e2:	0008e0        	callx8	a8
+420530e5:	21c8      	l32i.n	a12, a1, 8
+420530e7:	41d8      	l32i.n	a13, a1, 16
+420530e9:	0a0c      	movi.n	a10, 0
+420530eb:	ddca      	add.n	a13, a13, a12
+420530ed:	004da2        	s8i	a10, a13, 0
+420530f0:	31a8      	l32i.n	a10, a1, 12
+420530f2:	b90481        	l32r	a8, 42041504 <sensorarrayAsyncLogGetProtectionStats+0x84> (40385de4 <vPortExitCritical>)
+420530f5:	0008e0        	callx8	a8
+420530f8:	04a8      	l32i.n	a10, a4, 0
+420530fa:	0d0c      	movi.n	a13, 0
+420530fc:	0dcd      	mov.n	a12, a13
+420530fe:	1b0c      	movi.n	a11, 1
+42053100:	a7aa      	add.n	a10, a7, a10
+42053102:	ff0465        	call8	42052148 <sensorarraySerialLineDrop>
+42053105:	080c      	movi.n	a8, 0
+42053107:	40f590        	nsau	a9, a5
+4205310a:	1489      	s32i.n	a8, a4, 4
+4205310c:	0489      	s32i.n	a8, a4, 0
+4205310e:	419590        	srli	a9, a9, 5
+42053111:	f87c      	movi.n	a8, -1
+42053113:	044482        	s8i	a8, a4, 4
+42053116:	004692        	s8i	a9, a6, 0
+42053119:	001dc6        	j	42053194 <sensorarraySerialWrite+0x228>
+4205311c:	0cbd      	mov.n	a11, a12
+4205311e:	0f5cf6        	bgeui	a12, 5, 42053131 <sensorarraySerialWrite+0x1c5>
+42053121:	bb29a1        	l32r	a10, 42041dc8 <sensorarrayAsyncLogGetProtectionStats+0x948> (3fcc7ba8 <s_dataBytes>)
+42053124:	b0ccc0        	addx8	a12, a12, a12
+42053127:	0aa8      	l32i.n	a10, a10, 0
+42053129:	11cc80        	slli	a12, a12, 8
+4205312c:	aaca      	add.n	a10, a10, a12
+4205312e:	000b06        	j	4205315e <sensorarraySerialWrite+0x1f2>
+42053131:	8a0c      	movi.n	a10, 8
+42053133:	123ab7        	bltu	a10, a11, 42053149 <sensorarraySerialWrite+0x1dd>
+42053136:	fbcba2        	addi	a10, a11, -5
+42053139:	f4a0a0        	extui	a10, a10, 0, 16
+4205313c:	bb24b1        	l32r	a11, 42041dcc <sensorarrayAsyncLogGetProtectionStats+0x94c> (3fcc73a4 <s_priorityBytes>)
+4205313f:	11aa70        	slli	a10, a10, 9
+42053142:	aaba      	add.n	a10, a10, a11
+42053144:	000586        	j	4205315e <sensorarraySerialWrite+0x1f2>
+42053147:	a10000        	sll	a0, a0
+4205314a:	b0b0bb1f 	ee.vmulas.s16.accx.ld.xp.qup	q0, a1, a11, q6, q7, q3, q0
+4205314e:	bbb0f4        	ee.vst.h.64.ip	q7, a15, 0x180
+42053151:	2aa2b0        	mul.s	f10, f2, f11
+42053154:	bb8000        	movgez.s	f8, f0, a0
+42053157:	dbb211        	l32r	a1, 4204a020 <tmuxSwitchGetControlState+0x8> (81fb7cde <_rtc_reserved_end+0x21eb7cde>)
+4205315a:	b0dc      	bnez.n	a0, 42053179 <sensorarraySerialWrite+0x20d>
+4205315c:	80aa      	add.n	a8, a0, a10
+4205315e:	21b8      	l32i.n	a11, a1, 8
+42053160:	07cd      	mov.n	a12, a7
+42053162:	aafa      	add.n	a10, a10, a15
+42053164:	b8e981        	l32r	a8, 42041508 <sensorarrayAsyncLogGetProtectionStats+0x88> (400011f4 <memcpy>)
+42053167:	0008e0        	callx8	a8
+4205316a:	0488      	l32i.n	a8, a4, 0
+4205316c:	778a      	add.n	a7, a7, a8
+4205316e:	0479      	s32i.n	a7, a4, 0
+42053170:	05ac      	beqz.n	a5, 42053194 <sensorarraySerialWrite+0x228>
+42053172:	050c      	movi.n	a5, 0
+42053174:	0404a2        	l8ui	a10, a4, 4
+42053177:	f87c      	movi.n	a8, -1
+42053179:	1459      	s32i.n	a5, a4, 4
+4205317b:	0459      	s32i.n	a5, a4, 0
+4205317d:	044482        	s8i	a8, a4, 4
+42053180:	2c0c      	movi.n	a12, 2
+42053182:	07bd      	mov.n	a11, a7
+42053184:	ff0165        	call8	4205219c <sensorarraySerialPublishSlot>
+42053187:	9a8c      	beqz.n	a10, 42053194 <sensorarraySerialWrite+0x228>
+42053189:	1d0c      	movi.n	a13, 1
+4205318b:	0dcd      	mov.n	a12, a13
+4205318d:	05bd      	mov.n	a11, a5
+4205318f:	07ad      	mov.n	a10, a7
+42053191:	fefb65        	call8	42052148 <sensorarraySerialLineDrop>
+42053194:	02b237        	bgeu	a2, a3, 4205319a <sensorarraySerialWrite+0x22e>
+42053197:	ff8bc6        	j	42052fca <sensorarraySerialWrite+0x5e>
+4205319a:	032d      	mov.n	a2, a3
+4205319c:	f01d      	retw.n

@@ -141,6 +141,10 @@ void sensorarrayTransportSetWifiMode(sensorarrayTransportWifiMode_t mode)
 
 sensorarrayTransportWifiMode_t sensorarrayTransportGetWifiMode(void)
 {
+    bool requestedAp;
+    if (sensorarrayWifiGetRequestedAp(&requestedAp)) {
+        return requestedAp ? SENSORARRAY_TRANSPORT_WIFI_AP : SENSORARRAY_TRANSPORT_WIFI_OFF;
+    }
     portENTER_CRITICAL(&s_runtimeMux);
     sensorarrayTransportWifiMode_t mode = s_wifiMode;
     portEXIT_CRITICAL(&s_runtimeMux);

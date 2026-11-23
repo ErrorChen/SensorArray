@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_wifi_owner_control.py",
+    "--label",
+    "wifi-control-03",
+    "--expected-elf",
+    "ab39d5c32a50506c0e06ad3ffa091866186da306673f0a1482b935352b4f7c75",
+    "--expected-session",
+    "E400DABECADCE252",
+    "--expected-boot",
+    "1"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 55.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ed3420e927458d98844d6b325489a386baccd8a39e8d1307bd197c2a72d0fff5",
+  "started_utc": "2026-11-21T01:10:18.882571+00:00",
+  "started_monotonic": 154186.408807883,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-21T01:10:19.047238+00:00",
+  "finished_monotonic": 154186.57346748,
+  "log_sha256": "f8d34c766b790e8a34979a21f1070b3bd054f73612d084ad4c233a0f946dcf25"
+}

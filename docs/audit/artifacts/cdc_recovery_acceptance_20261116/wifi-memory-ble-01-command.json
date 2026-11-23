@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/capture_benchmark_ble.py",
+    "--address",
+    "80:B5:4E:CD:D9:AE",
+    "--adapter",
+    "hci0",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-coexist-01",
+    "--label",
+    "wifi-memory-ble-01",
+    "--duration",
+    "180",
+    "--stop-file",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-ble-01.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 200.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "6730bdd9a885384505ad728297593605794f4763a9af02bf53d8db779bbb9c93",
+  "started_utc": "2026-11-21T01:35:46.656925+00:00",
+  "started_monotonic": 155712.963115521,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-ble-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:37:43.795791+00:00",
+  "finished_monotonic": 155831.052965798,
+  "log_sha256": "1badbe3de2a01e4a7d8fb2efc1f416153b1b61d7b5441503ff1681d37e0453f1"
+}

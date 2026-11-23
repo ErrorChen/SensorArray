@@ -25,7 +25,7 @@ def main() -> int:
         test = test.replace(f"/* ACTUAL_{label}_DISPATCH */", generated)
     proto = re.search(r'"PROTO,version=%u,wires=ascii[^"\n]*"', main_source).group(0)
     test = test.replace("/* ACTUAL_PROTO */", proto)
-    assert main_source.count("/cpu_owner_v1,") == 2
+    assert len(re.findall(r"/cpu_owner_v1(?=/|,)", main_source)) == 2
     config = (ROOT / "main/Kconfig.projbuild").read_text()
     config = config[config.index("config SENSORARRAY_CPU_OWNER_DIAGNOSTICS"):]
     assert "default n" in config and "depends on !FREERTOS_SMP && !FREERTOS_UNICORE" in config

@@ -1,0 +1,5 @@
+CRC_FLOW_ENCODER,label=volt1_partial_crc,bytes=554,ascii_crc=PASS,invalid=X02,masks=PASS,identity=PASS
+CRC_FLOW_ENCODER,label=volt8_partial_crc,bytes=1081,ascii_crc=PASS,invalid=X02,masks=PASS,identity=PASS
+CRC_FLOW_ENCODER,label=mixed8_partial_crc,bytes=1564,ascii_crc=PASS,invalid=X02,masks=PASS,identity=PASS
+CRC_FLOW_MAIN,acquisition_cases=11,partial_invalid_masks=preserved,pending_terminal=checked,old_first_error=does_not_permit_hard,output_caps=preserved
+ADS_CRC_FRAME_FLOW,passed=1,source=actual_main+mixed+output_gates+encoder,fixture=synthetic

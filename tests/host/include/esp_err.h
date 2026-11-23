@@ -20,6 +20,7 @@ typedef int32_t esp_err_t;
 #define ESP_ERR_INVALID_RESPONSE 0x108
 #define ESP_ERR_INVALID_CRC 0x109
 #define ESP_ERR_INVALID_VERSION 0x10a
+#define ESP_ERR_NOT_ALLOWED 0x10D
 
 #ifdef __cplusplus
 }

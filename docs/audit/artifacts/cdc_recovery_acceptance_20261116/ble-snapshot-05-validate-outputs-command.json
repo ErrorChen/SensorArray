@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "ble-snapshot-05",
+    "--change-scope",
+    "Single internal 2304-byte BLE TX owner working copy, with original persistent slot retained until actual send return. Queue sizes, CRC/ASCII/epoch validation, SDK deadline, capture rate and output policy unchanged. Performance hypothesis requires target comparison."
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "8f5dd0870d4590b8bbaddbbbb5ed130525eb1833bb728da82f348c64c88bbcf8",
+  "started_utc": "2026-11-20T19:44:14.995937+00:00",
+  "started_monotonic": 134629.164184207,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-05-validate-outputs-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:44:17.667579+00:00",
+  "finished_monotonic": 134631.835818226,
+  "log_sha256": "9b4e54912da45add51e845c256e7ca50c7312617a6a47da322a0f956a879bf0e"
+}

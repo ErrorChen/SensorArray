@@ -1,0 +1,55 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+4038d2e0 <esp_log>:
+4038d2e0:	00c136        	entry	a1, 96
+4038d2e3:	9c6b81        	l32r	a8, 40374490 <_iram_text_start+0x8c> (3fcb1dfc <__stack_chk_guard>)
+4038d2e6:	07cd      	mov.n	a12, a7
+4038d2e8:	0020c0        	memw
+4038d2eb:	08b8      	l32i.n	a11, a8, 0
+4038d2ed:	40c1a2        	addi	a10, a1, 64
+4038d2f0:	cd0c      	movi.n	a13, 12
+4038d2f2:	3cc1e2        	addi	a14, a1, 60
+4038d2f5:	3159      	s32i.n	a5, a1, 12
+4038d2f7:	4169      	s32i.n	a6, a1, 16
+4038d2f9:	51c9      	s32i.n	a12, a1, 20
+4038d2fb:	91a9      	s32i.n	a10, a1, 36
+4038d2fd:	c1a9      	s32i.n	a10, a1, 48
+4038d2ff:	248020        	extui	a8, a2, 0, 3
+4038d302:	0020c0        	memw
+4038d305:	0eb9      	s32i.n	a11, a14, 0
+4038d307:	a119      	s32i.n	a1, a1, 40
+4038d309:	b1d9      	s32i.n	a13, a1, 44
+4038d30b:	d119      	s32i.n	a1, a1, 52
+4038d30d:	e1d9      	s32i.n	a13, a1, 56
+4038d30f:	30c172        	addi	a7, a1, 48
+4038d312:	08ad      	mov.n	a10, a8
+4038d314:	f89c      	beqz.n	a8, 4038d337 <esp_log+0x57>
+4038d316:	20b330        	or	a11, a3, a3
+4038d319:	a0c081        	l32r	a8, 4037561c <_iram_text_start+0x1218> (42004b34 <esp_log_is_tag_loggable>)
+4038d31c:	0008e0        	callx8	a8
+4038d31f:	3cc1e2        	addi	a14, a1, 60
+4038d322:	1a9c      	beqz.n	a10, 4038d337 <esp_log+0x57>
+4038d324:	a0bd81        	l32r	a8, 40375618 <_iram_text_start+0x1214> (3fca5578 <esp_log_vprint_func>)
+4038d327:	c1b8      	l32i.n	a11, a1, 48
+4038d329:	0888      	l32i.n	a8, a8, 0
+4038d32b:	d1c8      	l32i.n	a12, a1, 52
+4038d32d:	e1d8      	l32i.n	a13, a1, 56
+4038d32f:	04ad      	mov.n	a10, a4
+4038d331:	0008e0        	callx8	a8
+4038d334:	3cc1e2        	addi	a14, a1, 60
+4038d337:	9c5681        	l32r	a8, 40374490 <_iram_text_start+0x8c> (3fcb1dfc <__stack_chk_guard>)
+4038d33a:	0020c0        	memw
+4038d33d:	0e98      	l32i.n	a9, a14, 0
+4038d33f:	0020c0        	memw
+4038d342:	0888      	l32i.n	a8, a8, 0
+4038d344:	021987        	beq	a9, a8, 4038d34a <esp_log+0x6a>
+4038d347:	f7a465        	call8	40384d8c <__stack_chk_fail>
+4038d34a:	f01d      	retw.n
+
+Disassembly of section .flash.text:

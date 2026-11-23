@@ -1,0 +1,10 @@
+FAIL,line=468,condition=s_eraseCalls == erases && s_openCalls == opens
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_calibration_persistence.py", line 83, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_calibration_persistence.py", line 78, in main
+    completed.check_returncode()
+  File "/usr/lib/python3.12/subprocess.py", line 502, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-calibration-test-2z4_b91h/test_calibration_persistence.exe']' returned non-zero exit status 1.

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "wifi-stack-01",
+    "--change-scope",
+    "Fix observed wifiOwner stack overflow with fixed 6144-byte stack and immutable owner-lifetime execution/init workspace; retain diagnostics and existing deadlines"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 60.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ed3420e927458d98844d6b325489a386baccd8a39e8d1307bd197c2a72d0fff5",
+  "started_utc": "2026-11-21T01:06:56.459011+00:00",
+  "started_monotonic": 153983.985245234,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-01-validate-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:06:59.283951+00:00",
+  "finished_monotonic": 153986.81018249,
+  "log_sha256": "c5691658fcb030d8d26ef113491fff55e24231c86e0b70352af6851beb82a114"
+}

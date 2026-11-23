@@ -5,6 +5,7 @@ idf_component_register(
         "sensorarrayCriticalText.c"
         "sensorarrayTransportFrameMeta.c"
         "sensorarrayTransportCommand.c"
+        "sensorarrayTransportWifiControl.c"
         "sensorarrayTransportGuaranteedText.c"
         "sensorarrayTransportPool.c"
         "sensorarrayTransportPolicy.c"

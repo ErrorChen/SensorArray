@@ -1,0 +1,19 @@
+{
+  "command": [
+    "env",
+    "CC=/usr/bin/cc",
+    "python3",
+    "tools/test_calibration_persistence.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "10a5892bb99579ed5ad8ca631ec037e2e7f382cc4635651fd3e2fae750d26948",
+  "started_utc": "2026-11-21T01:20:10.862201+00:00",
+  "started_monotonic": 154778.358663871,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/calibration-auto-erase-reproduce-03-command.txt",
+  "exit_code": 1,
+  "finished_utc": "2026-11-21T01:20:11.076583+00:00",
+  "finished_monotonic": 154778.573053578,
+  "log_sha256": "aeb559e9d436529fc491483f9132c574fe0bdf38f935a9dff0f74609d61c00ab"
+}

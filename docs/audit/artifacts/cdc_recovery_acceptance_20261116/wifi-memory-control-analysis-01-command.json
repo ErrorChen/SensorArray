@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_memory_control_01.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "b36d49a2357481d394aa1302ef2b7aad0fc2eb2cd90f1a18be1040b677fe7c41",
+  "started_utc": "2026-11-21T01:43:34.962150+00:00",
+  "started_monotonic": 156182.951399853,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-control-analysis-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:43:35.479298+00:00",
+  "finished_monotonic": 156183.468537715,
+  "log_sha256": "6db77ffbc09286b262be9ba4315eae9d884c7139c652fb0b09bd96c7d7a14f47"
+}

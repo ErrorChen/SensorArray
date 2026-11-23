@@ -1,0 +1,70 @@
+{
+  "created_utc": "2026-11-20T23:34:37.224829+00:00",
+  "sources_before": {
+    "main/main.c": "a16e7565581d069ca00a62e8c67b5beb7795e15f7976e30d19ef39c2707aae17",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "e150525557eeae54977e079bd59cbad0977305a2e242c4c626c1b18c3eda7324",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "45bed289daf352de71ee3de5b4b25a385d527a84463891277c87e360d140e1b8",
+    "tools/test_wifi_startup_gate.py": "8c78c01b6317e9be507285d547d106a2aceb706f05fc08aa2c45d9c6b9f48d96",
+    "tools/test_cpu_owner.py": "9941d35b4b76f797c4ba1b3c5087a984f8febb4de5d10f0ec711ba2213295c6f",
+    "tools/test_snapshot_diagnostics.py": "cccee17ecdb447172ecb54c10e955c879cd167735799758597baaec2249e5f1d"
+  },
+  "sources_after": {
+    "main/main.c": "a16e7565581d069ca00a62e8c67b5beb7795e15f7976e30d19ef39c2707aae17",
+    "components/sensorarrayWorkBudget/include/sensorarrayWorkBudget.h": "e150525557eeae54977e079bd59cbad0977305a2e242c4c626c1b18c3eda7324",
+    "components/sensorarrayWorkBudget/sensorarrayCpuOwner.c": "45bed289daf352de71ee3de5b4b25a385d527a84463891277c87e360d140e1b8",
+    "tools/test_wifi_startup_gate.py": "8c78c01b6317e9be507285d547d106a2aceb706f05fc08aa2c45d9c6b9f48d96",
+    "tools/test_cpu_owner.py": "9941d35b4b76f797c4ba1b3c5087a984f8febb4de5d10f0ec711ba2213295c6f",
+    "tools/test_snapshot_diagnostics.py": "cccee17ecdb447172ecb54c10e955c879cd167735799758597baaec2249e5f1d"
+  },
+  "unchanged": true,
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_startup_gate.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.11653883699909784,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-contract-independent-wifi_startup_gate-01.txt",
+      "sha256": "a96e7dd950600435e6319ab027f4322c705892d9abe9fdee29dccecb54192583",
+      "stdout": "WIFI_STARTUP_GATE_PASS,orders=2,concurrent=1000,failed_scan=1,hardware=NOT_RUN\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_snapshot_diagnostics.py"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 0.09254251199308783,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-contract-independent-snapshot_diagnostics-01.txt",
+      "sha256": "ca7696cd2879143448da923822f62697ecc444c48bc4a875109d619b3fb3404c",
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_snapshot_diagnostics.py\", line 133, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_snapshot_diagnostics.py\", line 32, in main\n    assert '/ble_flow_v1/ble_snapshot_v1/heap_v1,' in reply and reply.endswith(',adcCrc=crc8\\n')\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_cpu_owner.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.31869189301505685,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-contract-independent-cpu_owner-01.txt",
+      "sha256": "4a71a8c4cccc9a9851695173bd28e3a1ea5551d98823d84dd5ddcbe9ee86d771",
+      "stdout": "CPUOWNER_BUDGET,enabled=0,roles=8,checkpoints=256,yields=8\nCPUOWNER_FORMAT,enabled=0,maxOwnerBytes=311,maxProtoBytes=510,capacity=512\nCPUOWNER_PASS,synthetic=1,productionModule=1,hardware=NOT_RUN\nCPUOWNER_BUDGET,enabled=1,roles=8,checkpoints=256,yields=8\nCPUOWNER_STORAGE,hostSlotBytes=64,hostTotalBytes=512,targetSize=NOT_RUN\nCPUOWNER_FORMAT,enabled=1,maxOwnerBytes=372,maxProtoBytes=510,capacity=512\nCPUOWNER_PASS,synthetic=1,productionModule=1,hardware=NOT_RUN\nCPUOWNER_CONFIG_GUARD,unsupported_kernels_or_clock=4,expected_compile_rejections=PASS\n",
+      "stderr": ""
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "production_modified": false,
+  "earlier_prospective_generation_attempts": [
+    {
+      "exit_code": 1,
+      "reason": "Python code-generator nested triple quote syntax error; no file created."
+    },
+    {
+      "exit_code": 1,
+      "reason": "Expected old PROTO marker assertion failed because root had already added caps2_v1; no file created. Replaced with actual production formatter test, not a prospective format."
+    }
+  ]
+}

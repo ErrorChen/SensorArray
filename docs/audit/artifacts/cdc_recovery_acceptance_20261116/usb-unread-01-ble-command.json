@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/capture_benchmark_ble.py",
+    "--address",
+    "80:B5:4E:CD:D9:AE",
+    "--adapter",
+    "hci0",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01",
+    "--label",
+    "usb-unread-01-ble",
+    "--duration",
+    "300",
+    "--stop-file",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-ble.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 330.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "8e90bbe514e869d4d760ddd16ecb1e02a817ffb5e75467c7ed775d14ce0581fe",
+  "started_utc": "2026-11-20T19:39:14.208345+00:00",
+  "started_monotonic": 134328.376591278,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01-ble-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:41:54.894204+00:00",
+  "finished_monotonic": 134489.06244438,
+  "log_sha256": "c24387d47ae91131fc5a53b8810de266f58ece15b314f808dad18290948b65dd"
+}

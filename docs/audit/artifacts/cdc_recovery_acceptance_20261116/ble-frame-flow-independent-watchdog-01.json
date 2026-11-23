@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_watchdog.py"
+  ],
+  "elapsedSeconds": 0.16926901999977417,
+  "exitCode": 0,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-frame-flow-independent-watchdog-01.txt",
+  "logSha256": "6676bdf05058ff03098adbb450309d9e3c7a226d52ad9d3b7717b30d59b35d9b",
+  "hardware": "NOT_RUN"
+}

@@ -1,0 +1,152 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420042b4 <panic_handler>:
+420042b4:	00c136        	entry	a1, 96
+420042b7:	ef5c61        	l32r	a6, 42000028 <_stext+0x8> (3fcb1dfc <__stack_chk_guard>)
+420042ba:	3cc142        	addi	a4, a1, 60
+420042bd:	0020c0        	memw
+420042c0:	0688      	l32i.n	a8, a6, 0
+420042c2:	18c172        	addi	a7, a1, 24
+420042c5:	0020c0        	memw
+420042c8:	0489      	s32i.n	a8, a4, 0
+420042ca:	f02481        	l32r	a8, 4200035c <_stext+0x33c> (4211ccf0 <esp_panic_handler_increment_entry_count>)
+420042cd:	0008e0        	callx8	a8
+420042d0:	079d      	mov.n	a9, a7
+420042d2:	0a0c      	movi.n	a10, 0
+420042d4:	980c      	movi.n	a8, 9
+420042d6:	038876        	loop	a8, 420042dd <panic_handler+0x29>
+420042d9:	09a9      	s32i.n	a10, a9, 0
+420042db:	994b      	addi.n	a9, a9, 4
+420042dd:	03eb50        	rsr.prid	a5
+420042e0:	045d50        	extui	a5, a5, 13, 1
+420042e3:	1185e0        	slli	a8, a5, 2
+420042e6:	3189      	s32i.n	a8, a1, 12
+420042e8:	f01681        	l32r	a8, 42000340 <_stext+0x320> (3fcb1e38 <g_exc_frames>)
+420042eb:	a08580        	addx4	a8, a5, a8
+420042ee:	0829      	s32i.n	a2, a8, 0
+420042f0:	06c316        	beqz	a3, 42004360 <panic_handler+0xac>
+420042f3:	20a220        	or	a10, a2, a2
+420042f6:	f01a81        	l32r	a8, 42000360 <_stext+0x340> (421133d4 <panic_get_cause>)
+420042f9:	0008e0        	callx8	a8
+420042fc:	051566        	bnei	a5, 1, 42004305 <panic_handler+0x51>
+420042ff:	025a66        	bnei	a10, 5, 42004305 <panic_handler+0x51>
+42004302:	ffff06        	j	42004302 <panic_handler+0x4e>
+42004305:	02ad      	mov.n	a10, a2
+42004307:	f01681        	l32r	a8, 42000360 <_stext+0x340> (421133d4 <panic_get_cause>)
+4200430a:	0008e0        	callx8	a8
+4200430d:	046a66        	bnei	a10, 6, 42004315 <panic_handler+0x61>
+42004310:	15cc      	bnez.n	a5, 42004315 <panic_handler+0x61>
+42004312:	ffff06        	j	42004312 <panic_handler+0x5e>
+42004315:	02ad      	mov.n	a10, a2
+42004317:	f01281        	l32r	a8, 42000360 <_stext+0x340> (421133d4 <panic_get_cause>)
+4200431a:	0008e0        	callx8	a8
+4200431d:	3f7a66        	bnei	a10, 7, 42004360 <panic_handler+0xac>
+42004320:	ffd8a5        	call8	420040ac <esp_cache_err_get_cpuid>
+42004323:	050a66        	bnei	a10, -1, 4200432c <panic_handler+0x78>
+42004326:	a59c      	beqz.n	a5, 42004344 <panic_handler+0x90>
+42004328:	ffff06        	j	42004328 <panic_handler+0x74>
+4200432b:	d7e500        	ee.stf.64.xp	f14, f13, a0, a5
+4200432e:	2d1a57ff 	ee.vmulas.s8.accx.ld.ip.qup	q3, a15, -144, q5, q2, q1, q2
+42004332:	032192        	l32i	a9, a1, 12
+42004335:	f00281        	l32r	a8, 42000340 <_stext+0x320> (3fcb1e38 <g_exc_frames>)
+42004338:	808890        	add	a8, a8, a9
+4200433b:	00a092        	movi	a9, 0
+4200433e:	0899      	s32i.n	a9, a8, 0
+42004340:	ffff06        	j	42004340 <panic_handler+0x8c>
+42004343:	00          	.byte	00
+42004344:	efefa1        	l32r	a10, 42000300 <_stext+0x2e0> (2710 <_rtc_slow_length+0x2520>)
+42004347:	f00781        	l32r	a8, 42000364 <_stext+0x344> (4211cc5c <esp_panic_handler_enable_rtc_wdt>)
+4200434a:	0008e0        	callx8	a8
+4200434d:	f00681        	l32r	a8, 42000368 <_stext+0x348> (4211cbe8 <esp_panic_handler_disable_timg_wdts>)
+42004350:	0008e0        	callx8	a8
+42004353:	01a0a2        	movi	a10, 1
+42004356:	ef9b81        	l32r	a8, 420001c4 <_stext+0x1a4> (40000600 <esp_rom_delay_us>)
+42004359:	0008e0        	callx8	a8
+4200435c:	0009c6        	j	42004387 <panic_handler+0xd3>
+4200435f:	00          	.byte	00
+42004360:	efe8a1        	l32r	a10, 42000300 <_stext+0x2e0> (2710 <_rtc_slow_length+0x2520>)
+42004363:	f00081        	l32r	a8, 42000364 <_stext+0x344> (4211cc5c <esp_panic_handler_enable_rtc_wdt>)
+42004366:	0008e0        	callx8	a8
+42004369:	efff81        	l32r	a8, 42000368 <_stext+0x348> (4211cbe8 <esp_panic_handler_disable_timg_wdts>)
+4200436c:	0008e0        	callx8	a8
+4200436f:	01a0a2        	movi	a10, 1
+42004372:	ef9481        	l32r	a8, 420001c4 <_stext+0x1a4> (40000600 <esp_rom_delay_us>)
+42004375:	0008e0        	callx8	a8
+42004378:	00b516        	beqz	a5, 42004387 <panic_handler+0xd3>
+4200437b:	00a0a2        	movi	a10, 0
+4200437e:	effb81        	l32r	a8, 4200036c <_stext+0x34c> (40381264 <esp_cpu_stall>)
+42004381:	0008e0        	callx8	a8
+42004384:	071526        	beqi	a5, 1, 4200438f <panic_handler+0xdb>
+42004387:	1a0c      	movi.n	a10, 1
+42004389:	eff881        	l32r	a8, 4200036c <_stext+0x34c> (40381264 <esp_cpu_stall>)
+4200438c:	0008e0        	callx8	a8
+4200438f:	eff881        	l32r	a8, 42000370 <_stext+0x350> (40375bb8 <esp_ipc_isr_stall_abort>)
+42004392:	0008e0        	callx8	a8
+42004395:	efeb81        	l32r	a8, 42000344 <_stext+0x324> (10200c <_rtc_slow_length+0x101e1c>)
+42004398:	406880        	rer	a8, a8
+4200439b:	396807        	bbci	a8, 0, 420043d8 <panic_handler+0x124>
+4200439e:	02ad      	mov.n	a10, a2
+420043a0:	eff581        	l32r	a8, 42000374 <_stext+0x354> (421133cc <panic_get_address>)
+420043a3:	0008e0        	callx8	a8
+420043a6:	efe981        	l32r	a8, 4200034c <_stext+0x32c> (40000000 <r_lld_cca_con_evt_start_handle>)
+420043a9:	11aae0        	slli	a10, a10, 2
+420043ac:	41a2a0        	srli	a10, a10, 2
+420043af:	20aa80        	or	a10, a10, a8
+420043b2:	efe551        	l32r	a5, 42000348 <_stext+0x328> (3fffffff <ets_rom_layout_p+0xe0003>)
+420043b5:	eff081        	l32r	a8, 42000378 <_stext+0x358> (4038133c <esp_ptr_executable>)
+420043b8:	0008e0        	callx8	a8
+420043bb:	eacc      	bnez.n	a10, 420043cd <panic_handler+0x119>
+420043bd:	efe4b1        	l32r	a11, 42000350 <_stext+0x330> (40374400 <_invalid_pc_placeholder>)
+420043c0:	02ad      	mov.n	a10, a2
+420043c2:	efee81        	l32r	a8, 4200037c <_stext+0x35c> (421133dc <panic_set_address>)
+420043c5:	0008e0        	callx8	a8
+420043c8:	000306        	j	420043d8 <panic_handler+0x124>
+420043cb:	00          	.byte	00
+420043cc:	02ad00        	andb	b10, b13, b0
+420043cf:	efe981        	l32r	a8, 42000374 <_stext+0x354> (421133cc <panic_get_address>)
+420043d2:	0008e0        	callx8	a8
+420043d5:	e4b5a7        	bgeu	a5, a10, 420043bd <panic_handler+0x109>
+420043d8:	03eb80        	rsr.prid	a8
+420043db:	048d80        	extui	a8, a8, 13, 1
+420043de:	0789      	s32i.n	a8, a7, 0
+420043e0:	480c      	movi.n	a8, 4
+420043e2:	1789      	s32i.n	a8, a7, 4
+420043e4:	080c      	movi.n	a8, 0
+420043e6:	4789      	s32i.n	a8, a7, 16
+420043e8:	efdb81        	l32r	a8, 42000354 <_stext+0x334> (3c1208e8 <_flash_rodata_start+0x7c8>)
+420043eb:	07bd      	mov.n	a11, a7
+420043ed:	02ad      	mov.n	a10, a2
+420043ef:	2789      	s32i.n	a8, a7, 8
+420043f1:	efe381        	l32r	a8, 42000380 <_stext+0x360> (421133c4 <panic_soc_check_pseudo_cause>)
+420043f4:	0008e0        	callx8	a8
+420043f7:	2033a0        	or	a3, a3, a10
+420043fa:	743030        	extui	a3, a3, 0, 8
+420043fd:	204732        	s8i	a3, a7, 32
+42004400:	07bd      	mov.n	a11, a7
+42004402:	02ad      	mov.n	a10, a2
+42004404:	438c      	beqz.n	a3, 4200440c <panic_handler+0x158>
+42004406:	004125        	call8	42004818 <panic_soc_fill_info>
+42004409:	000086        	j	4200440f <panic_handler+0x15b>
+4200440c:	003d25        	call8	420047e0 <panic_arch_fill_info>
+4200440f:	efd281        	l32r	a8, 42000358 <_stext+0x338> (42004438 <print_state>)
+42004412:	20a770        	or	a10, a7, a7
+42004415:	056782        	s32i	a8, a7, 20
+42004418:	076722        	s32i	a2, a7, 28
+4200441b:	efda81        	l32r	a8, 42000384 <_stext+0x364> (40377444 <__wrap_esp_panic_handler>)
+4200441e:	0008e0        	callx8	a8
+42004421:	0020c0        	memw
+42004424:	0498      	l32i.n	a9, a4, 0
+42004426:	0020c0        	memw
+42004429:	0688      	l32i.n	a8, a6, 0
+4200442b:	051987        	beq	a9, a8, 42004434 <panic_handler+0x180>
+4200442e:	ef0f81        	l32r	a8, 4200006c <_stext+0x4c> (40384d8c <__stack_chk_fail>)
+42004431:	0008e0        	callx8	a8
+42004434:	f01d      	retw.n

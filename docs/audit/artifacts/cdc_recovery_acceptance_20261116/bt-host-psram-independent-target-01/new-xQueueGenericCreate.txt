@@ -1,0 +1,43 @@
+
+build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40385378 <xQueueGenericCreate>:
+40385378:	004136        	entry	a1, 32
+4038537b:	207220        	or	a7, a2, a2
+4038537e:	744040        	extui	a4, a4, 0, 8
+40385381:	037216        	beqz	a2, 403853bc <xQueueGenericCreate+0x44>
+40385384:	a26230        	muluh	a6, a2, a3
+40385387:	16fc      	bnez.n	a6, 403853bc <xQueueGenericCreate+0x44>
+40385389:	82a230        	mull	a10, a2, a3
+4038538c:	a3af82        	movi	a8, -93
+4038538f:	2938a7        	bltu	a8, a10, 403853bc <xQueueGenericCreate+0x44>
+40385392:	5ccaa2        	addi	a10, a10, 92
+40385395:	00e925        	call8	40386228 <pvPortMalloc>
+40385398:	0a2d      	mov.n	a2, a10
+4038539a:	0abc      	beqz.n	a10, 403853ce <xQueueGenericCreate+0x56>
+4038539c:	5cca82        	addi	a8, a10, 92
+4038539f:	838a30        	moveqz	a8, a10, a3
+403853a2:	444a62        	s8i	a6, a10, 68
+403853a5:	0a89      	s32i.n	a8, a10, 0
+403853a7:	fa79      	s32i.n	a7, a10, 60
+403853a9:	106a32        	s32i	a3, a10, 64
+403853ac:	1b0c      	movi.n	a11, 1
+403853ae:	ffe4e5        	call8	403851fc <xQueueGenericReset>
+403853b1:	504242        	s8i	a4, a2, 80
+403853b4:	126262        	s32i	a6, a2, 72
+403853b7:	0004c6        	j	403853ce <xQueueGenericCreate+0x56>
+403853ba:	d10000        	mul16s	a0, a0, a0
+403853bd:	bf0c      	movi.n	a15, 11
+403853bf:	bf0ec1        	l32r	a12, 40374ff8 <_iram_text_start+0xbf4> (3c150c60 <__func__$21>)
+403853c2:	bf01a1        	l32r	a10, 40374fc8 <_iram_text_start+0xbc4> (3c124026 <_flash_rodata_start+0x3f06>)
+403853c5:	3da2b2        	movi	a11, 0x23d
+403853c8:	201110        	or	a1, a1, a1
+403853cb:	091be5        	call8	4038e588 <__assert_func>
+403853ce:	f01d      	retw.n
+
+Disassembly of section .flash.text:

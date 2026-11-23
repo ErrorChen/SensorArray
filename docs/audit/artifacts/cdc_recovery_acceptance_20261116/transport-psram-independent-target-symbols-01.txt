@@ -1,0 +1,5 @@
+3fcc2b60 00000001 b s_initInProgress
+3fcc2b61 00000001 b s_payloadStorageState
+3fcaa72c 00000004 d s_completedInitError
+3fcaa730 00000004 d s_payloadStorageError
+3fcc2b68 00000480 b s_pool

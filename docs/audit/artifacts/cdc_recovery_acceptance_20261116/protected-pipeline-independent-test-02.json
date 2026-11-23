@@ -1,0 +1,14 @@
+{
+  "dateUtc": "2026-11-20T18:58:19.832834+00:00",
+  "command": [
+    "python3",
+    "tools/test_protected_frame_pipeline.py"
+  ],
+  "exitCode": 0,
+  "sourceSha256": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+  "testSha256": "cfbee80618cd4faaed0eacc1a8a69e835109c1fa5fd9349a693a798867f8e887",
+  "runnerSha256": "7bf5744effb933d6c6fad63b855d4ef81a4ac44d2140177bbdd8e45947e9ebbf",
+  "logSha256": "69996d942b0c0ab4a5533f2ca19fdcdb306098793931c2cd84e4156961f29569",
+  "hardware": "NOT_RUN",
+  "scope": "Actual extracted source/transport plus compiled real pool/frame encoder; synthetic queues/time/BLE/WiFi admission; UBSan enabled."
+}

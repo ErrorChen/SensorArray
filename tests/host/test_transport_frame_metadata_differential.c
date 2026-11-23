@@ -29,24 +29,35 @@ static void compare(const char *data, size_t length, uint16_t declaredLength,
                     sensorarrayTransportPayloadSlot_t *out)
 {
     assert(length <= SENSORARRAY_TRANSPORT_POOL_TEXT_MAX);
+    char oldData[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE] = {0};
+    char newData[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE] = {0};
     sensorarrayTransportPayloadSlot_t oldSlot, newSlot;
     memset(&oldSlot, 0xa5, sizeof(oldSlot));
     oldSlot.inUse = true;
     oldSlot.hasFrameMeta = true;
-    memset(oldSlot.data, 0, sizeof(oldSlot.data));
+    oldSlot.data = oldData;
     memcpy(oldSlot.data, data, length);
     oldSlot.length = declaredLength;
     memcpy(&newSlot, &oldSlot, sizeof(newSlot));
+    newSlot.data = newData;
+    memcpy(newData, oldData, sizeof(newData));
     sensorarrayTransportBaselineParseFrameMeta(&oldSlot);
     sensorarrayTransportParseFrameMeta(&newSlot);
-    if (memcmp(&oldSlot, &newSlot, sizeof(oldSlot)) != 0) {
+    /* Compare metadata and bytes independently; storage addresses differ. */
+    oldSlot.data = newSlot.data;
+    if (memcmp(&oldSlot, &newSlot, sizeof(oldSlot)) != 0 ||
+        memcmp(oldData, newData, sizeof(oldData)) != 0) {
         fprintf(stderr, "FRAME_META_MISMATCH,case=%u,len=%zu,declared=%u,input=%s\n",
                 compared, length, declaredLength, data);
         abort();
     }
     ++compared;
     if (newSlot.hasFrameMeta) { ++accepted; } else { ++rejected; }
-    if (out) { memcpy(out, &newSlot, sizeof(newSlot)); }
+    if (out) {
+        char *outData = out->data; assert(outData);
+        memcpy(out, &newSlot, sizeof(newSlot));
+        out->data = outData; memcpy(outData, newData, sizeof(newData));
+    }
 }
 
 static void compareString(const char *text, sensorarrayTransportPayloadSlot_t *out)
@@ -102,7 +113,8 @@ static void fixedCases(void)
     compare(maximum, sizeof(maximum) - 1u, sizeof(maximum) - 1u, NULL);
 
     /* Expected semantics independently asserted, beyond old/new equivalence. */
-    sensorarrayTransportPayloadSlot_t slot;
+    char slotData[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE];
+    sensorarrayTransportPayloadSlot_t slot = {.data=slotData};
     compareString("C,seq=,seq=1,rows=1,cells=8,gen=,gen=3", &slot);
     assert(slot.hasFrameMeta && slot.frameSeq == 1u && slot.generation == 3u);
     compareString("C,seq=x,seq=1,rows=1,cells=8", &slot);
@@ -197,7 +209,8 @@ int main(int argc, char **argv)
         assert(!ferror(file) && feof(file) && length <= SENSORARRAY_TRANSPORT_POOL_TEXT_MAX);
         fclose(file);
         data[length] = '\0';
-        sensorarrayTransportPayloadSlot_t slot;
+        char slotData[SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE];
+    sensorarrayTransportPayloadSlot_t slot = {.data=slotData};
         compare(data, length, (uint16_t)length, &slot);
         assert(slot.hasFrameMeta);
         ++fixtureCount;

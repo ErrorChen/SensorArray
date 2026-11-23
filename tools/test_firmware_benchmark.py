@@ -384,6 +384,55 @@ class BenchmarkTests(unittest.TestCase):
         finally:
             device.close()
 
+    def test_expected_image_is_checked_before_any_setter_and_again_before_cleanup(self):
+        class BoundFirmware(Firmware):
+            def reply(self, command):
+                if command == "BUILD?":
+                    self.commands.append(command)
+                    self.send("BUILD,idf=synthetic,target=esp32s3,project=SensorArray,proto=2,"
+                              "version=synthetic,elfSha256=" + "ab" * 32 + "\n")
+                    return
+                super().reply(command)
+        for elf, status in (("ab" * 32, "COMPLETE"), ("cd" * 32, "ERROR")):
+            with self.subTest(elf=elf):
+                device = BoundFirmware()
+                try:
+                    with tempfile.TemporaryDirectory() as directory:
+                        options = self.options(device, directory, stability=True, expected_elf_sha256=elf,
+                                               expected_session="AABBCCDDEE112233", expected_boot_id=1)
+                        index, (report,) = self.run_case(device, options)
+                        self.assertEqual(index["status"], status, report["error"])
+                        authority = report["image_authority"]
+                        self.assertTrue(authority["required"])
+                        if status == "COMPLETE":
+                            self.assertEqual([b["purpose"] for b in authority["brackets"]], ["prepare", "cleanup"])
+                            self.assertEqual(authority["first_mutation"]["expected"]["elfSha256"], elf)
+                            first_setter = next(i for i, c in enumerate(device.commands) if "=" in c)
+                            self.assertEqual(device.commands[first_setter-3:first_setter], ["CONFIG?", "BUILD?", "CONFIG?"])
+                            self.assertEqual(report["safe_cap_recovery"], "CAP8_QUERY_VERIFIED")
+                            self.assertGreaterEqual(report["capture_seconds"], options.stability_seconds)
+                        else:
+                            self.assertFalse(any("=" in c for c in device.commands))
+                            self.assertIsNone(authority["first_mutation"])
+                            self.assertEqual(report["safe_cap_recovery"], "NOT_ATTEMPTED_AUTHORITY_UNVERIFIED")
+                            self.assertIn("expected_running_image_mismatch", report["error"])
+                finally:
+                    device.close()
+
+    def test_failed_case_stops_suite_even_after_verified_cap8_cleanup(self):
+        device = Firmware(wrong_identity=True)
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                options = self.options(device, directory, suite=True)
+                index, reports = self.run_case(device, options)
+                self.assertEqual(index["status"], "ERROR")
+                self.assertEqual(len(reports), 1)
+                self.assertEqual(len(index["not_run"]), 31)
+                self.assertEqual(reports[0]["safe_cap_recovery"], "CAP8_QUERY_VERIFIED")
+                self.assertEqual(reports[0]["status"], "ERROR")
+        finally:
+            device.close()
+
 
 if __name__ == "__main__":
     unittest.main()

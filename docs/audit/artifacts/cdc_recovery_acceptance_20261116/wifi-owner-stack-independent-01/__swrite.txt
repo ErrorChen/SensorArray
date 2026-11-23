@@ -1,0 +1,33 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+421078b0 <__swrite>:
+421078b0:	004136        	entry	a1, 32
+421078b3:	061382        	l16ui	a8, a3, 12
+421078b6:	0e6887        	bbci	a8, 8, 421078c8 <__swrite+0x18>
+421078b9:	0793b2        	l16si	a11, a3, 14
+421078bc:	2d0c      	movi.n	a13, 2
+421078be:	0c0c      	movi.n	a12, 0
+421078c0:	02ad      	mov.n	a10, a2
+421078c2:	905681        	l32r	a8, 420eba1c <pp_timer_process+0x6e4> (42009dfc <_lseek_r>)
+421078c5:	0008e0        	callx8	a8
+421078c8:	061382        	l16ui	a8, a3, 12
+421078cb:	f97c      	movi.n	a9, -1
+421078cd:	f0d992        	addmi	a9, a9, 0xfffff000
+421078d0:	108890        	and	a8, a8, a9
+421078d3:	0793b2        	l16si	a11, a3, 14
+421078d6:	065382        	s16i	a8, a3, 12
+421078d9:	05dd      	mov.n	a13, a5
+421078db:	04cd      	mov.n	a12, a4
+421078dd:	02ad      	mov.n	a10, a2
+421078df:	905081        	l32r	a8, 420eba20 <pp_timer_process+0x6e8> (42009d98 <_write_r>)
+421078e2:	0008e0        	callx8	a8
+421078e5:	0a2d      	mov.n	a2, a10
+421078e7:	f01d      	retw.n

@@ -1,0 +1,1 @@
+BLE_GUARD_INIT_PASS,cases=7,timer_task=1,period_us=100000,skip_missed=1,partial_retry_blocked=1,concurrent_claim=1,hardware=NOT_RUN

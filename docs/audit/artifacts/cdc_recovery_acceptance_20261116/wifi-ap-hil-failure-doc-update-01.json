@@ -1,0 +1,59 @@
+{
+  "status": "PASS",
+  "utc": "2026-11-21T00:42:30.442448+00:00",
+  "scope": "Minimal AP HIL failure status update; no production/test/build/hardware action",
+  "inputs": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-01/wifi-control-01.summary.json",
+      "sha256": "24d2994cf8618947bc07a7db152526fcb4263757b84c6a3cfaae2934a79c4b4e"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-01/wifi-control-01.events.jsonl",
+      "sha256": "5419184c124ef9b357b3ce7850538becd5fb633cfb4b2aadfd0df345bac795ab"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-failure-usj-01.summary.json",
+      "sha256": "12a7e761032de8bf62849f5e9ebb76f154c7137ea63e5bed284aabb3ff00aadd"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-failure-usj-01.events.jsonl",
+      "sha256": "8a102e1fe41cd85cfba0130e8502aab476313a26793c710d91af91a95e60061e"
+    }
+  ],
+  "documents": [
+    {
+      "path": "README.md",
+      "sha256": "954f0c6945c4b2ff11c66c03a1b5832699dcba1b4422b27fe915749d64d40e3a"
+    },
+    {
+      "path": "docs/integration/firmware_host_contract.md",
+      "sha256": "c25553891db940b4a63c4421efb54a86c342e75b1d96f49b0a2858bbf0d106ae"
+    },
+    {
+      "path": "docs/audit/firmware_reliability_fix_report.md",
+      "sha256": "d431ced540311e81e51c4b21f182849b03e356f350e12d0f7c1f8a292f2fbf0d"
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "c0821bdf94468019900574455bf32f016c3e0687715a9366c897a648d76b8495"
+    },
+    {
+      "path": "docs/ble-protocol.md",
+      "sha256": "5709ee30315eef702edda6607b925431b732c842c2184ef4b3c43f7b0d39b95d"
+    }
+  ],
+  "checks": [
+    "failure summary and no terminal/OFF recovery verified",
+    "same-image panic boot2 readonly recovery verified",
+    "new direct evidence targets exist",
+    "git diff --check scoped to5 docs"
+  ],
+  "diff_check": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "overall_acceptance": "BLOCKED_FIX_FIRST",
+  "final_tests": "NOT_RUN",
+  "hardware_actions": []
+}

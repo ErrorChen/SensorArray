@@ -1,0 +1,1 @@
+ASYNC_LOG_STORAGE_TESTS,passed=1,psram=1,fallback=1,allfail=1,retry=1,noHotAlloc=1,secondPoolRetry=1

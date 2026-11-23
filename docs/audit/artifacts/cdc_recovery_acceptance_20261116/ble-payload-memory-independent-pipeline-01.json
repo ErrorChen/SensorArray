@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:09:10.968995+00:00",
+  "sourceSha256": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+  "toolSha256": "4acc5b5b1429ca8593279df78e0c44a641256de83d50443cd47314a84a213e4e",
+  "logSha256": "89c4df25575e2d657186e7779605a1b9af5a4bf5db46fedaf563d743783a2a65",
+  "hardware": "NOT_RUN"
+}

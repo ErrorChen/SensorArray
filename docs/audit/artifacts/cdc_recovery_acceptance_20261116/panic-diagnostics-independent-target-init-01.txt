@@ -1,0 +1,142 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42015eb0 <sensorarrayPanicDiagnosticsInit>:
+42015eb0:	004136        	entry	a1, 32
+42015eb3:	ae29c1        	l32r	a12, 42001758 <_stext+0x1738> (3fcbae99 <s_panicInitialized>)
+42015eb6:	000c82        	l8ui	a8, a12, 0
+42015eb9:	158856        	bnez	a8, 42016015 <sensorarrayPanicDiagnosticsInit+0x165>
+42015ebc:	ae2881        	l32r	a8, 4200175c <_stext+0x173c> (3fcbae90 <s_panicQuerySession>)
+42015ebf:	0829      	s32i.n	a2, a8, 0
+42015ec1:	1839      	s32i.n	a3, a8, 4
+42015ec3:	ae2781        	l32r	a8, 42001760 <_stext+0x1740> (3fcbae88 <s_panicQueryBoot>)
+42015ec6:	0849      	s32i.n	a4, a8, 0
+42015ec8:	ae2781        	l32r	a8, 42001764 <_stext+0x1744> (3fcbae84 <s_panicQueryReset>)
+42015ecb:	0869      	s32i.n	a6, a8, 0
+42015ecd:	787c      	movi.n	a8, -9
+42015ecf:	108680        	and	a8, a6, a8
+42015ed2:	051866        	bnei	a8, 1, 42015edb <sensorarrayPanicDiagnosticsInit+0x2b>
+42015ed5:	ae2581        	l32r	a8, 4200176c <_stext+0x174c> (50000088 <s_retainedPanic>)
+42015ed8:	000106        	j	42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015edb:	ae2481        	l32r	a8, 4200176c <_stext+0x174c> (50000088 <s_retainedPanic>)
+42015ede:	76dc      	bnez.n	a6, 42015ef9 <sensorarrayPanicDiagnosticsInit+0x49>
+42015ee0:	090c      	movi.n	a9, 0
+42015ee2:	ae21a1        	l32r	a10, 42001768 <_stext+0x1748> (3fcbae98 <s_panicSnapshotKnown>)
+42015ee5:	0020c0        	memw
+42015ee8:	516892        	s32i	a9, a8, 0x144
+42015eeb:	0b0c      	movi.n	a11, 0
+42015eed:	004ab2        	s8i	a11, a10, 0
+42015ef0:	0020c0        	memw
+42015ef3:	506892        	s32i	a9, a8, 0x140
+42015ef6:	003706        	j	42015fd6 <sensorarrayPanicDiagnosticsInit+0x126>
+42015ef9:	ae1d91        	l32r	a9, 42001770 <_stext+0x1750> (53415031 <_rtc_force_slow_end+0x3414e41>)
+42015efc:	0020c0        	memw
+42015eff:	5128a2        	l32i	a10, a8, 0x144
+42015f02:	da9a97        	bne	a10, a9, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f05:	0020c0        	memw
+42015f08:	5028a2        	l32i	a10, a8, 0x140
+42015f0b:	ae1a91        	l32r	a9, 42001774 <_stext+0x1754> (acbeafce <_rtc_reserved_end+0x4caeafce>)
+42015f0e:	ce9a97        	bne	a10, a9, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f11:	0020c0        	memw
+42015f14:	0898      	l32i.n	a9, a8, 0
+42015f16:	c61966        	bnei	a9, 1, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f19:	0020c0        	memw
+42015f1c:	18a8      	l32i.n	a10, a8, 4
+42015f1e:	48a192        	movi	a9, 0x148
+42015f21:	bb9a97        	bne	a10, a9, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f24:	0020c0        	memw
+42015f27:	2898      	l32i.n	a9, a8, 8
+42015f29:	b329f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f2c:	0020c0        	memw
+42015f2f:	e898      	l32i.n	a9, a8, 56
+42015f31:	ab29f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f34:	0020c0        	memw
+42015f37:	132892        	l32i	a9, a8, 76
+42015f3a:	a229f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f3d:	0020c0        	memw
+42015f40:	112892        	l32i	a9, a8, 68
+42015f43:	9929f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f46:	0020c0        	memw
+42015f49:	122892        	l32i	a9, a8, 72
+42015f4c:	9029f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f4f:	0020c0        	memw
+42015f52:	1c2892        	l32i	a9, a8, 112
+42015f55:	8729f6        	bgeui	a9, 2, 42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f58:	0020c0        	memw
+42015f5b:	1e2892        	l32i	a9, a8, 120
+42015f5e:	0229b6        	bltui	a9, 2, 42015f64 <sensorarrayPanicDiagnosticsInit+0xb4>
+42015f61:	ffdec6        	j	42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f64:	0020c0        	memw
+42015f67:	1d2892        	l32i	a9, a8, 116
+42015f6a:	c0a0a2        	movi	a10, 192
+42015f6d:	02ba97        	bgeu	a10, a9, 42015f73 <sensorarrayPanicDiagnosticsInit+0xc3>
+42015f70:	ffdb06        	j	42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015f73:	0020c0        	memw
+42015f76:	4f28f2        	l32i	a15, a8, 0x13c
+42015f79:	adff71        	l32r	a7, 42001778 <_stext+0x1758> (edb88320 <_rtc_reserved_end+0x8da88320>)
+42015f7c:	f97c      	movi.n	a9, -1
+42015f7e:	00a0d2        	movi	a13, 0
+42015f81:	3ca162        	movi	a6, 0x13c
+42015f84:	ad8a      	add.n	a10, a13, a8
+42015f86:	0020c0        	memw
+42015f89:	000ab2        	l8ui	a11, a10, 0
+42015f8c:	8e0c      	movi.n	a14, 8
+42015f8e:	74b0b0        	extui	a11, a11, 0, 8
+42015f91:	08ad      	mov.n	a10, a8
+42015f93:	3099b0        	xor	a9, a9, a11
+42015f96:	0e8e76        	loop	a14, 42015fa8 <sensorarrayPanicDiagnosticsInit+0xf8>
+42015f99:	04b090        	extui	a11, a9, 0, 1
+42015f9c:	60b0b0        	neg	a11, a11
+42015f9f:	419190        	srli	a9, a9, 1
+42015fa2:	10bb70        	and	a11, a11, a7
+42015fa5:	3099b0        	xor	a9, a9, a11
+42015fa8:	dd1b      	addi.n	a13, a13, 1
+42015faa:	d69d67        	bne	a13, a6, 42015f84 <sensorarrayPanicDiagnosticsInit+0xd4>
+42015fad:	fb7c      	movi.n	a11, -1
+42015faf:	3099b0        	xor	a9, a9, a11
+42015fb2:	021f97        	beq	a15, a9, 42015fb8 <sensorarrayPanicDiagnosticsInit+0x108>
+42015fb5:	ffc9c6        	j	42015ee0 <sensorarrayPanicDiagnosticsInit+0x30>
+42015fb8:	adec81        	l32r	a8, 42001768 <_stext+0x1748> (3fcbae98 <s_panicSnapshotKnown>)
+42015fbb:	1b0c      	movi.n	a11, 1
+42015fbd:	adef91        	l32r	a9, 4200177c <_stext+0x175c> (3fcbae9c <s_panicSnapshot>)
+42015fc0:	0048b2        	s8i	a11, a8, 0
+42015fc3:	48a182        	movi	a8, 0x148
+42015fc6:	0c8876        	loop	a8, 42015fd6 <sensorarrayPanicDiagnosticsInit+0x126>
+42015fc9:	0020c0        	memw
+42015fcc:	000ab2        	l8ui	a11, a10, 0
+42015fcf:	aa1b      	addi.n	a10, a10, 1
+42015fd1:	0049b2        	s8i	a11, a9, 0
+42015fd4:	991b      	addi.n	a9, a9, 1
+42015fd6:	adead1        	l32r	a13, 42001780 <_stext+0x1760> (3fcae660 <s_panicOrigin>)
+42015fd9:	080c      	movi.n	a8, 0
+42015fdb:	0020c0        	memw
+42015fde:	0d89      	s32i.n	a8, a13, 0
+42015fe0:	0020c0        	memw
+42015fe3:	1d29      	s32i.n	a2, a13, 4
+42015fe5:	0020c0        	memw
+42015fe8:	2d39      	s32i.n	a3, a13, 8
+42015fea:	0020c0        	memw
+42015fed:	3d49      	s32i.n	a4, a13, 12
+42015fef:	d59c      	beqz.n	a5, 42016010 <sensorarrayPanicDiagnosticsInit+0x160>
+42015ff1:	092c      	movi.n	a9, 32
+42015ff3:	0e8976        	loop	a9, 42016005 <sensorarrayPanicDiagnosticsInit+0x155>
+42015ff6:	a58a      	add.n	a10, a5, a8
+42015ff8:	000ab2        	l8ui	a11, a10, 0
+42015ffb:	ad8a      	add.n	a10, a13, a8
+42015ffd:	0020c0        	memw
+42016000:	104ab2        	s8i	a11, a10, 16
+42016003:	881b      	addi.n	a8, a8, 1
+42016005:	0020c0        	memw
+42016008:	180c      	movi.n	a8, 1
+4201600a:	0020c0        	memw
+4201600d:	006d82        	s32i	a8, a13, 0
+42016010:	180c      	movi.n	a8, 1
+42016012:	004c82        	s8i	a8, a12, 0
+42016015:	f01d      	retw.n

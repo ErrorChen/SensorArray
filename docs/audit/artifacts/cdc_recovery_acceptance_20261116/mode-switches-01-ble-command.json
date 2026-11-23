@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "tools/capture_benchmark_ble.py",
+    "--address",
+    "80:B5:4E:CD:D9:AE",
+    "--adapter",
+    "hci0",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01",
+    "--label",
+    "mode-switches-01-ble",
+    "--duration",
+    "360",
+    "--stop-file",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01/mode-switches-01-ble.stop"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 390.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "f5cbcac08729720a1535466b92ebfb453b39a7be68e2136434f7b3acec88e6ba",
+  "started_utc": "2026-11-20T17:52:20.518581+00:00",
+  "started_monotonic": 127914.686825571,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-01-ble-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:52:59.893453+00:00",
+  "finished_monotonic": 127954.061694361,
+  "log_sha256": "60b4abce5f1e9debf3e1747022e5bf9a28a40019da7996380179329e2a9e1794"
+}

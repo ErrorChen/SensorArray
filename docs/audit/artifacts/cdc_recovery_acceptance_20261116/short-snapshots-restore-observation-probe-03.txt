@@ -1,0 +1,31 @@
+{
+  "meaning": "FIX_CONFIRMED_synthetic_only",
+  "synthetic": true,
+  "hardware": "NOT_RUN",
+  "results": [
+    {
+      "case": "normal",
+      "indexStatus": "COMPLETE",
+      "summaryStatus": "CAPTURED",
+      "txRestore": "QUERY_VERIFIED",
+      "reportedRxBytes": 33235,
+      "actualRawBytes": 33235,
+      "rawShaMatches": true,
+      "reportedFaults": 0,
+      "rawContainsRestoreFault": false,
+      "restoredTx": "rel"
+    },
+    {
+      "case": "fault_during_restore",
+      "indexStatus": "ERROR",
+      "summaryStatus": "ERROR",
+      "txRestore": "QUERY_VERIFIED",
+      "reportedRxBytes": 33286,
+      "actualRawBytes": 33286,
+      "rawShaMatches": true,
+      "reportedFaults": 1,
+      "rawContainsRestoreFault": true,
+      "restoredTx": "rel"
+    }
+  ]
+}

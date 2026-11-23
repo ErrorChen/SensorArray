@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_run_cdc_matrix_failfast.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "started_utc": "2026-11-20T18:01:14.404778+00:00",
+  "timeout_seconds": 30,
+  "hardware": "NOT_RUN",
+  "source_sha256": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/run_cdc_matrix_failfast.py": "a117513ddffbfa4b8b798081cac209556d3178f8615e6aecf22da8d0859fa73e",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_run_cdc_matrix_failfast.py": "164c4a51f24501d09dd5db239ddf540ad57759ff5979894e44109a1118a6608a"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 0.36490073600725736,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/matrix-failfast-independent-tests-01-command.txt",
+  "log_sha256": "c6486d27c660d7461ee9cba1cc64efd5f67f84ddb3c6c3d0cf2ddedc47831c01",
+  "finished_utc": "2026-11-20T18:01:14.769959+00:00"
+}

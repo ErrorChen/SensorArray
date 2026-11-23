@@ -1,0 +1,79 @@
+{
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "sourceBefore": {
+    "main/control/sensorarrayMemoryDiagnostics.c": "f681e42833d2239de770b4ee088b1f4eddf8541a494c63b4bad3adcb0fec2e7d",
+    "main/control/sensorarrayMemoryDiagnostics.h": "fc77d0bed1ba883f6bc4f1210595b35c74f6cc99e1524430f5517bebe9595543",
+    "main/main.c": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41",
+    "tools/test_memory_diagnostics.py": "ff87465257e995e28e121860ca924a4418b8a115190db0fea5f3b6d501ebe512",
+    "tests/host/test_memory_failures.c": "b626f0bca5b954358b24bf70b8e20a6e0678ea48c3e50f3b1c2ed586ebf8d8a0",
+    "tests/host/test_recovery_control.c": "97ca4d337c61868b286472fd31209dd8dd5296288a15d440617b4fe8aa3c5252",
+    "tests/host/test_frontend_wait_integration.c": "31709d247a35be5385e1ac48e8117f23dac8dc63b2184d3d0c302b49f5f17b45"
+  },
+  "sourceAfter": {
+    "main/control/sensorarrayMemoryDiagnostics.c": "f681e42833d2239de770b4ee088b1f4eddf8541a494c63b4bad3adcb0fec2e7d",
+    "main/control/sensorarrayMemoryDiagnostics.h": "fc77d0bed1ba883f6bc4f1210595b35c74f6cc99e1524430f5517bebe9595543",
+    "main/main.c": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41",
+    "tools/test_memory_diagnostics.py": "ff87465257e995e28e121860ca924a4418b8a115190db0fea5f3b6d501ebe512",
+    "tests/host/test_memory_failures.c": "b626f0bca5b954358b24bf70b8e20a6e0678ea48c3e50f3b1c2ed586ebf8d8a0",
+    "tests/host/test_recovery_control.c": "97ca4d337c61868b286472fd31209dd8dd5296288a15d440617b4fe8aa3c5252",
+    "tests/host/test_frontend_wait_integration.c": "31709d247a35be5385e1ac48e8117f23dac8dc63b2184d3d0c302b49f5f17b45"
+  },
+  "sourcesUnchanged": true,
+  "sdkSources": {
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps.c": "a1ddc96cda0df2758552c611e409bde6358b8b18145470f928a33cb59628f2a1",
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/include/esp_heap_caps.h": "5fd9bf5e089788bc91b81474047379c96826c768607f0f7ad4b8e0930a7de3ec",
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/multi_heap.c": "2647ff6bb7284a70c94491d003acbc3cd821c02a9f7d49d643aaf7241ac5f74b",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h": "80ff24959d8a900b7896d4fd3991344a2e100f3b8aacfbc787fe31df7bef8f77",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_hw_support/include/spinlock.h": "97673e8d7495c206bc4339c677c28912c5579bbf4d8e3f25ecbd929c286789fc"
+  },
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tools/test_memory_diagnostics.py"
+      ],
+      "exitCode": 0,
+      "elapsedSec": 0.48104223900008947,
+      "startUtc": "2026-11-21T01:59:38.573849+00:00",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-01/test_memory_diagnostics.txt",
+      "logSha256": "fdc3b55be99aea8ca28f3c4b807ded2142dcefa30b7a10883095d208511d1835"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "exitCode": 0,
+      "elapsedSec": 0.24996013002237305,
+      "startUtc": "2026-11-21T01:59:38.573998+00:00",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-01/test_recovery_control.txt",
+      "logSha256": "52e2b3db8575469dc4110a6cddefae4af3f8c1ce117f618205249fd093876aab"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_frontend_wait_integration.py"
+      ],
+      "exitCode": 0,
+      "elapsedSec": 0.19120977801503614,
+      "startUtc": "2026-11-21T01:59:38.574217+00:00",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-01/test_frontend_wait_integration.txt",
+      "logSha256": "db7bf349608c5b812f5f99de54f9e97996f186331e97ffccc6e38ffe1502e513"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_panic_diagnostics.py"
+      ],
+      "exitCode": 0,
+      "elapsedSec": 0.40777154301758856,
+      "startUtc": "2026-11-21T01:59:38.574324+00:00",
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-01/test_panic_diagnostics.txt",
+      "logSha256": "804a35dd728c37a0f35095424c282451281467f0fd8d51febc58875e99398952"
+    }
+  ],
+  "callbackPolicy": "IRAM; no-wait try-lock; fixed first/last recorded samples; saturation; one atomic incomplete store on miss; no allocation/log/clock/pointer dereference; actual target IRAM/DRAM gate pending",
+  "scope": "Host SDK boundary and pthread interleavings; no hardware injection or target build",
+  "firstFailureLimit": "If incomplete=1, first recorded is not proof of first actual failure; registration covers only subsequent callback invocations",
+  "apiSemantics": "SDK callback is synchronous after base allocator returns; function pointer identifies allocator API, not Wi-Fi caller; prefer reports final caps only after all alternatives fail; size excludes alignment/poison overhead"
+}

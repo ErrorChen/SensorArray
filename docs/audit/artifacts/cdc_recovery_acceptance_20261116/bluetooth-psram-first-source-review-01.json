@@ -1,0 +1,310 @@
+{
+  "schema": 1,
+  "utc": "2026-11-21T01:42:50.930732+00:00",
+  "reviewer": "ble_review",
+  "scope": "Read-only local pinned IDF 5.5.5 SDK allocation-policy investigation; no firmware/config changes, no builds and no hardware operations",
+  "recommendation": "CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST=y is the smallest SDK-supported next placement experiment for the current Bluedroid host and 8MB PSRAM board. Keep all other memory and radio options unchanged for the first comparison. It is a candidate, not a proven Wi-Fi fix or BLE performance pass.",
+  "currentConfig": {
+    "CONFIG_BT_BLUEDROID_ENABLED": "CONFIG_BT_BLUEDROID_ENABLED=y",
+    "CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST": "CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST=y",
+    "CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY": "# CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY is not set",
+    "CONFIG_BT_BLUEDROID_MEM_STATS": "# CONFIG_BT_BLUEDROID_MEM_STATS is not set",
+    "CONFIG_BT_BLUEDROID_MEM_DEBUG": "# CONFIG_BT_BLUEDROID_MEM_DEBUG is not set",
+    "CONFIG_BT_ABORT_WHEN_ALLOCATION_FAILS": "# CONFIG_BT_ABORT_WHEN_ALLOCATION_FAILS is not set",
+    "CONFIG_BT_BTC_TASK_STACK_SIZE": "CONFIG_BT_BTC_TASK_STACK_SIZE=3072",
+    "CONFIG_BT_BTU_TASK_STACK_SIZE": "CONFIG_BT_BTU_TASK_STACK_SIZE=4352",
+    "CONFIG_BT_CTRL_BLE_MAX_ACT": "CONFIG_BT_CTRL_BLE_MAX_ACT=6",
+    "CONFIG_SPIRAM_USE_CAPS_ALLOC": "CONFIG_SPIRAM_USE_CAPS_ALLOC=y",
+    "CONFIG_SPIRAM_USE_MALLOC": "# CONFIG_SPIRAM_USE_MALLOC is not set",
+    "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP": "# CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP is not set",
+    "CONFIG_SPIRAM_MODE_OCT": "CONFIG_SPIRAM_MODE_OCT=y",
+    "CONFIG_SPIRAM_SPEED": "CONFIG_SPIRAM_SPEED=80",
+    "CONFIG_SPIRAM_BOOT_INIT": "CONFIG_SPIRAM_BOOT_INIT=y",
+    "CONFIG_SPIRAM_IGNORE_NOTFOUND": "# CONFIG_SPIRAM_IGNORE_NOTFOUND is not set",
+    "CONFIG_SPIRAM_FETCH_INSTRUCTIONS": "# CONFIG_SPIRAM_FETCH_INSTRUCTIONS is not set",
+    "CONFIG_SPIRAM_RODATA": "# CONFIG_SPIRAM_RODATA is not set"
+  },
+  "sdkconfigSha256": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+  "sdkconfigDefaultsSha256": "ace8bf23cfea213bb3d553da25ea100b6150adf7737ab5d050f71407af3e48b0",
+  "sourceEvidence": {
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/Kconfig.in": {
+      "sha256": "f12f881ea250a1e3fb70f92f1ee1a5f2a0adede93d8a7de0fee5a017f29820b5",
+      "excerpts": [
+        {
+          "startLine": 1334,
+          "endLine": 1341,
+          "text": "config BT_ALLOCATION_FROM_SPIRAM_FIRST\n    bool \"BT/BLE will first malloc the memory from the PSRAM\"\n    depends on BT_BLUEDROID_ENABLED\n    default n\n    help\n        This select can save the internal RAM if there have the PSRAM\n\nconfig BT_BLE_DYNAMIC_ENV_MEMORY"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/include/bt_user_config.h": {
+      "sha256": "17178f5c4a0172c098fc9fc2979a01498b52916ee63839f7a6ccf965b164d6b7",
+      "excerpts": [
+        {
+          "startLine": 134,
+          "endLine": 138,
+          "text": "#ifdef CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST\n#define UC_HEAP_ALLOCATION_FROM_SPIRAM_FIRST    CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST\n#else\n#define UC_HEAP_ALLOCATION_FROM_SPIRAM_FIRST    FALSE\n#endif"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/include/bt_common.h": {
+      "sha256": "661324ec8119b91e17c5e4ddc602893917197551a14a603f03830367e45c047f",
+      "excerpts": [
+        {
+          "startLine": 50,
+          "endLine": 56,
+          "text": "#if UC_BT_BLE_DYNAMIC_ENV_MEMORY\n#define BT_BLE_DYNAMIC_ENV_MEMORY  TRUE\n#define BTC_DYNAMIC_MEMORY         TRUE\n#else\n#define BT_BLE_DYNAMIC_ENV_MEMORY  FALSE\n#define BTC_DYNAMIC_MEMORY         FALSE\n#endif"
+        },
+        {
+          "startLine": 84,
+          "endLine": 94,
+          "text": "#if UC_HEAP_ALLOCATION_FROM_SPIRAM_FIRST\n#define HEAP_ALLOCATION_FROM_SPIRAM_FIRST TRUE\n#else\n#define HEAP_ALLOCATION_FROM_SPIRAM_FIRST FALSE\n#endif\n\n#if UC_BT_ABORT_WHEN_ALLOCATION_FAILS\n#define HEAP_ALLOCATION_FAILS_ABORT TRUE\n#else\n#define HEAP_ALLOCATION_FAILS_ABORT FALSE\n#endif"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/include/osi/allocator.h": {
+      "sha256": "d1477e1877c0f26cc9ccbb30f00b95eb9c0a1cb738df43d21cb251f87cc72af3",
+      "excerpts": [
+        {
+          "startLine": 37,
+          "endLine": 44,
+          "text": "// Memory alloc function without print and assertion\n#if HEAP_ALLOCATION_FROM_SPIRAM_FIRST\n#define osi_malloc_base(size)             heap_caps_malloc_prefer(size, 2, MALLOC_CAP_DEFAULT|MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT|MALLOC_CAP_INTERNAL)\n#define osi_calloc_base(size)             heap_caps_calloc_prefer(1, size, 2, MALLOC_CAP_DEFAULT|MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT|MALLOC_CAP_INTERNAL)\n#else\n#define osi_malloc_base(size)             malloc((size))\n#define osi_calloc_base(size)             calloc(1, (size))\n#endif /* #if HEAP_ALLOCATION_FROM_SPIRAM_FIRST */"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/allocator.c": {
+      "sha256": "dbb11ff4543746dcb19da8a667cf3f796b3bd0d26a2b38a6fe31645b7432cbe4",
+      "excerpts": [
+        {
+          "startLine": 242,
+          "endLine": 292,
+          "text": "void *osi_malloc_func(size_t size)\n{\n    void *p = osi_malloc_base(size);\n\n    if (size != 0 && p == NULL) {\n        OSI_TRACE_ERROR(\"malloc failed (caller=%p size=%u)\", __builtin_return_address(0), size);\n        OSI_TRACE_ERROR(\"heap info: free=%d, largest_block=%d\",\n            heap_caps_get_free_size(MALLOC_CAP_DEFAULT), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));\n#if HEAP_ALLOCATION_FAILS_ABORT\n        assert(0);\n#endif\n    }\n\n#if HEAP_MEMORY_STATS\n    if (s_mem_mutex != NULL && p != NULL) {\n        size_t alloc_size = heap_caps_get_allocated_size(p);\n        xSemaphoreTake(s_mem_mutex, portMAX_DELAY);\n        s_mem_used_size += alloc_size;\n        xSemaphoreGive(s_mem_mutex);\n    }\n#endif\n\n    return p;\n}\n\nvoid *osi_calloc_func(size_t size)\n{\n    void *p = osi_calloc_base(size);\n\n    if (size != 0 && p == NULL) {\n        OSI_TRACE_ERROR(\"calloc failed (caller=%p size=%u)\", __builtin_return_address(0), size);\n        OSI_TRACE_ERROR(\"heap info: free=%d, largest_block=%d\",\n            heap_caps_get_free_size(MALLOC_CAP_DEFAULT), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));\n#if HEAP_ALLOCATION_FAILS_ABORT\n        assert(0);\n#endif\n    }\n\n#if HEAP_MEMORY_STATS\n    if (s_mem_mutex != NULL && p != NULL) {\n        size_t alloc_size = heap_caps_get_allocated_size(p);\n        xSemaphoreTake(s_mem_mutex, portMAX_DELAY);\n        s_mem_used_size += alloc_size;\n        xSemaphoreGive(s_mem_mutex);\n    }\n#endif\n\n    return p;\n}\n\nvoid osi_free_func(void *ptr)"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/osi/thread.c": {
+      "sha256": "9391231ea489ef4fbab908cc4c3d9e50f98279b9ee4fa1016bf0b5f252305ce3",
+      "excerpts": [
+        {
+          "startLine": 69,
+          "endLine": 87,
+          "text": "{\n    if (capacity == 0) {\n        return NULL;\n    }\n\n    struct work_queue *wq = (struct work_queue *)osi_malloc(sizeof(struct work_queue));\n    if (wq != NULL) {\n        wq->queue = xQueueCreate(capacity, sizeof(struct work_item));\n        if (wq->queue != 0) {\n            wq->capacity = capacity;\n            return wq;\n        } else {\n            osi_free(wq);\n        }\n    }\n\n    return NULL;\n}\n"
+        },
+        {
+          "startLine": 228,
+          "endLine": 267,
+          "text": "    }\n\n    thread->stop = false;\n    thread->work_queues = (struct work_queue **)osi_calloc(sizeof(struct work_queue *) * work_queue_num);\n    if (thread->work_queues == NULL) {\n        goto _err;\n    }\n    thread->work_queue_num = work_queue_num;\n\n    for (int i = 0; i < thread->work_queue_num; i++) {\n        size_t queue_len = work_queue_len[i] ? work_queue_len[i] : DEFAULT_WORK_QUEUE_CAPACITY;\n        thread->work_queues[i] = osi_work_queue_create(queue_len);\n        if (thread->work_queues[i] == NULL) {\n            goto _err;\n        }\n    }\n\n    ret = osi_sem_new(&thread->work_sem, 1, 0);\n    if (ret != 0) {\n        goto _err;\n    }\n\n    ret = osi_sem_new(&thread->stop_sem, 1, 0);\n    if (ret != 0) {\n        goto _err;\n    }\n\n    start_arg.thread = thread;\n    ret = osi_sem_new(&start_arg.start_sem, 1, 0);\n    if (ret != 0) {\n        goto _err;\n    }\n\n    if (xTaskCreatePinnedToCore(osi_thread_run, name, stack_size, &start_arg, priority, &thread->thread_handle, core) != pdPASS) {\n        goto _err;\n    }\n\n    osi_sem_take(&start_arg.start_sem, OSI_SEM_MAX_TIMEOUT);\n    osi_sem_free(&start_arg.start_sem);\n"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/CMakeLists.txt": {
+      "sha256": "72168828ac489c717c27f5b74ab1c701a2b4422e572a4a904e30dc00b1fae146",
+      "excerpts": [
+        {
+          "startLine": 1,
+          "endLine": 14,
+          "text": "idf_build_get_property(target IDF_TARGET)\n\nif(${target} STREQUAL \"linux\")\n    return() # This component is not supported by the POSIX/Linux simulator\nendif()\n\nif(CONFIG_IDF_TARGET_ESP32S3)\n    set(TARGET_SRC_NAME \"esp32c3\")\nelseif(CONFIG_IDF_TARGET_ESP32C61)\n    set(TARGET_SRC_NAME \"esp32c6\")\nelseif(CONFIG_IDF_TARGET_ESP32H21)\n    set(TARGET_SRC_NAME \"esp32h2\")\nelse()\n    set(TARGET_SRC_NAME \"${idf_target}\")"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/controller/esp32c3/bt.c": {
+      "sha256": "6398dd7f781d13d7c0a80d05df03fa98363e07c677704f98094f544082f476cb",
+      "excerpts": [
+        {
+          "startLine": 137,
+          "endLine": 137,
+          "text": "#define BLE_CONTROLLER_MALLOC_CAPS        (MALLOC_CAP_INTERNAL|MALLOC_CAP_DMA)"
+        },
+        {
+          "startLine": 454,
+          "endLine": 461,
+          "text": "    ._task_create = task_create_wrapper,\n    ._task_delete = task_delete_wrapper,\n    ._is_in_isr = is_in_isr_wrapper,\n    ._cause_sw_intr_to_core = NULL,\n    ._malloc = malloc,\n    ._malloc_internal = malloc_internal_wrapper,\n    ._malloc_retention = malloc_retention_wrapper,\n    ._free = free,"
+        },
+        {
+          "startLine": 1052,
+          "endLine": 1095,
+          "text": "static int task_create_wrapper(void *task_func, const char *name, uint32_t stack_depth, void *param, uint32_t prio, void *task_handle, uint32_t core_id)\n{\n    return (uint32_t)xTaskCreatePinnedToCore(task_func, name, stack_depth, param, prio, task_handle, (core_id < CONFIG_FREERTOS_NUMBER_OF_CORES ? core_id : tskNO_AFFINITY));\n}\n\nstatic void task_delete_wrapper(void *task_handle)\n{\n    vTaskDelete(task_handle);\n}\n\nstatic bool IRAM_ATTR is_in_isr_wrapper(void)\n{\n    return (bool)xPortInIsrContext();\n}\n\nstatic void *malloc_internal_wrapper(size_t size)\n{\n    void *p = heap_caps_malloc(size, BLE_CONTROLLER_MALLOC_CAPS);\n    if(p == NULL) {\n        ESP_LOGE(BT_LOG_TAG, \"Malloc failed\");\n    }\n    return p;\n}\n\nstatic void *malloc_retention_wrapper(size_t size)\n{\n    void *p = heap_caps_malloc(size, MALLOC_CAP_RETENTION);\n    if(p == NULL) {\n        ESP_LOGE(BT_LOG_TAG, \"Malloc failed\");\n    }\n    return p;\n}\n\nvoid *malloc_ble_controller_mem(size_t size)\n{\n    void *p = heap_caps_malloc(size, BLE_CONTROLLER_MALLOC_CAPS);\n    if(p == NULL) {\n        ESP_LOGE(BT_LOG_TAG, \"Malloc failed\");\n    }\n    return p;\n}\n\nuint32_t get_ble_controller_free_heap_size(void)\n{"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/heap_idf.c": {
+      "sha256": "6201b70a245f721c3021656d62fbbbf45c3e4d5d843365df007d0da9ac99db2e",
+      "excerpts": [
+        {
+          "startLine": 8,
+          "endLine": 21,
+          "text": "\n/* This file implements the heap related functions that are called by FreeRTOS.\n * ESP-IDF provides its own heap containing memory with different capabilities\n * (see esp_heap_caps.h). Thus, this file maps a subset of the ESP-IDF heap to\n * act as the FreeRTOS heap.\n *\n * All dynamic allocation done by FreeRTOS should be placed in internal 8-bit\n * accessible RAM (i.e., using the MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT flags).\n * This is due to the fact that FreeRTOS objects (e.g., task stacks, TCBs,\n * queues etc) must be accessible even if the cache is disabled. Therefore, the\n * heap that is made available to FreeRTOS for dynamic allocation is a subset of\n * the ESP-IDF heap (where all MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT memory is\n * made available to FreeRTOS for dynamic allocation).\n */"
+        },
+        {
+          "startLine": 43,
+          "endLine": 57,
+          "text": "#define portFREERTOS_HEAP_CAPS    ( MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT )\n\n/*-----------------------------------------------------------*/\n\nvoid * pvPortMalloc(size_t xWantedSize)\n{\n    void * pvReturn = NULL;\n\n    /* All dynamic allocation done by FreeRTOS goes through this function. If\n     * users need to allocate FreeRTOS objects into external RAM, they should\n     * use the \"static\" equivalents of FreeRTOS API to create FreeRTOS objects\n     * (e.g., queues). */\n    pvReturn = heap_caps_malloc(xWantedSize, portFREERTOS_HEAP_CAPS);\n\n    return pvReturn;"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/port/esp32s3/memory_layout.c": {
+      "sha256": "68e12bc93fb4040987bffb2c334fb9af4b911ceb52b51f1e7914e55e3dc1aa77",
+      "excerpts": [
+        {
+          "startLine": 40,
+          "endLine": 41,
+          "text": "/* COMMON_CAPS is the set of attributes common to all types of memory (except I/D cache data memory) on this chip */\n#define ESP32S3_MEM_COMMON_CAPS (MALLOC_CAP_DEFAULT | MALLOC_CAP_32BIT | MALLOC_CAP_8BIT)"
+        },
+        {
+          "startLine": 60,
+          "endLine": 67,
+          "text": "const soc_memory_type_desc_t soc_memory_types[SOC_MEMORY_TYPE_NUM] = {\n/*                           Mem Type Name | High Priority Matching                    | Medium Priority Matching                                                         | Low Priority Matching */\n    [SOC_MEMORY_TYPE_DIRAM]  = { \"RAM\",    { MALLOC_DIRAM_BASE_CAPS | MALLOC_CAP_SIMD,   0,                                                                                 0 }},\n    [SOC_MEMORY_TYPE_DRAM]   = { \"DRAM\",   { 0,                                          ESP32S3_MEM_COMMON_CAPS | MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_SIMD,  0 }},\n    [SOC_MEMORY_TYPE_IRAM]   = { \"IRAM\",   { MALLOC_CAP_EXEC,                            MALLOC_CAP_32BIT | MALLOC_CAP_INTERNAL,                                            0 }},\n    [SOC_MEMORY_TYPE_SPIRAM] = { \"SPIRAM\", { MALLOC_CAP_SPIRAM,                          0,                                                                                 ESP32S3_MEM_COMMON_CAPS | MALLOC_CAP_SIMD }},\n    [SOC_MEMORY_TYPE_RTCRAM] = { \"RTCRAM\", { MALLOC_CAP_RTCRAM,                          0,                                                                                 MALLOC_RTCRAM_BASE_CAPS }},\n};"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps.c": {
+      "sha256": "a1ddc96cda0df2758552c611e409bde6358b8b18145470f928a33cb59628f2a1",
+      "excerpts": [
+        {
+          "startLine": 104,
+          "endLine": 112,
+          "text": "/*\n Default memory allocation implementation. Should return standard 8-bit memory. malloc() essentially resolves to this function.\n*/\nHEAP_IRAM_ATTR void *heap_caps_malloc_default( size_t size )\n{\n    if (malloc_alwaysinternal_limit==MALLOC_DISABLE_EXTERNAL_ALLOCS) {\n        return heap_caps_malloc( size, MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL);\n    } else {\n"
+        },
+        {
+          "startLine": 172,
+          "endLine": 189,
+          "text": "HEAP_IRAM_ATTR void *heap_caps_malloc_prefer( size_t size, size_t num, ... )\n{\n    va_list argp;\n    va_start( argp, num );\n    void *r = NULL;\n    uint32_t caps = MALLOC_CAP_DEFAULT;\n    while (num--) {\n        caps = va_arg( argp, uint32_t );\n        r = heap_caps_malloc_base( size, caps );\n        if (r != NULL || size == 0) {\n            break;\n        }\n    }\n\n    if (r == NULL && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n    va_end( argp );"
+        },
+        {
+          "startLine": 220,
+          "endLine": 239,
+          "text": "HEAP_IRAM_ATTR void *heap_caps_calloc_prefer( size_t n, size_t size, size_t num, ... )\n{\n    va_list argp;\n    va_start( argp, num );\n    void *r = NULL;\n    uint32_t caps = MALLOC_CAP_DEFAULT;\n    while (num--) {\n        caps = va_arg( argp, uint32_t );\n        r = heap_caps_calloc_base( n, size, caps );\n        if (r != NULL || size == 0){\n            break;\n        }\n    }\n\n    if (r == NULL && size > 0){\n        heap_caps_alloc_failed(size, caps, __func__);\n    }\n    va_end( argp );\n    return r;\n}"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/common/btc/core/btc_task.c": {
+      "sha256": "cb0726a69e53d54a07ac2c9790a3115d47ebaf61e7f89c41822d2935c3f53aa0",
+      "excerpts": [
+        {
+          "startLine": 336,
+          "endLine": 354,
+          "text": "    if ((msg == NULL) || ((arg == NULL) == !(arg_len == 0)) ||\n        (msg->pid >= BTC_PID_NUM)) {\n        /* Reject invalid pid here, before any deep_copy runs, so the caller's\n         * arg is not yet duplicated into lmsg and there is nothing to free.\n         * This keeps the trust boundary at the single public entry point and\n         * makes the downstream handler unable to encounter an invalid pid. */\n        BTC_TRACE_WARNING(\"%s Invalid parameters\\n\", __func__);\n        return BT_STATUS_PARM_INVALID;\n    }\n\n    BTC_TRACE_DEBUG(\"%s msg %u %u %u %p\\n\", __func__, msg->sig, msg->pid, msg->act, arg);\n\n    lmsg = (btc_msg_t *)osi_malloc(sizeof(btc_msg_t) + arg_len);\n    if (lmsg == NULL) {\n        BTC_TRACE_WARNING(\"%s No memory\\n\", __func__);\n        return BT_STATUS_NOMEM;\n    }\n\n    memcpy(lmsg, msg, sizeof(btc_msg_t));"
+        },
+        {
+          "startLine": 469,
+          "endLine": 480,
+          "text": "static bt_status_t btc_init_mem(void) {\n    if ((btc_dm_cb_ptr = (btc_dm_cb_t *)osi_malloc(sizeof(btc_dm_cb_t))) == NULL) {\n        goto error_exit;\n    }\n    memset((void *)btc_dm_cb_ptr, 0, sizeof(btc_dm_cb_t));\n\n    if ((btc_profile_cb_tab = (void **)osi_malloc(sizeof(void *) * BTC_PID_NUM)) == NULL) {\n        goto error_exit;\n    }\n    memset((void *)btc_profile_cb_tab, 0, sizeof(void *) * BTC_PID_NUM);\n\n#if BTC_DYNAMIC_MEMORY == TRUE"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/gatt/gatt_main.c": {
+      "sha256": "3dbb529f7bbe32775bfa143e9ecc380615f843cc2ba37a1347176892f5710156",
+      "excerpts": [
+        {
+          "startLine": 78,
+          "endLine": 83,
+          "text": "#if GATT_DYNAMIC_MEMORY == FALSE\ntGATT_CB  gatt_cb;\n#else\ntGATT_CB  *gatt_cb_ptr;\n#endif\n"
+        },
+        {
+          "startLine": 95,
+          "endLine": 110,
+          "text": "*******************************************************************************/\nvoid gatt_init (void)\n{\n    tL2CAP_FIXED_CHNL_REG  fixed_reg;\n\n#if GATT_DYNAMIC_MEMORY\n    gatt_cb_ptr = (tGATT_CB *)osi_malloc(sizeof(tGATT_CB));\n#endif /* #if GATT_DYNAMIC_MEMORY */\n    memset (&gatt_cb, 0, sizeof(tGATT_CB));\n    memset (&fixed_reg, 0, sizeof(tL2CAP_FIXED_CHNL_REG));\n#if (GATTC_INCLUDED == TRUE)\n    gatt_cb.auto_disc = TRUE;\n#endif // (GATTC_INCLUDED == TRUE)\n    gatt_cb.p_clcb_list = list_new(osi_free_func);\n    gatt_cb.p_tcb_list  = list_new(osi_free_func);\n#if defined(GATT_INITIAL_TRACE_LEVEL)"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/gatt/gatt_db.c": {
+      "sha256": "f165f5fd79863dd4184ddacdc5a5cbf50a6c2f2255bf063849a493d5e25df5ce",
+      "excerpts": [
+        {
+          "startLine": 1475,
+          "endLine": 1493,
+          "text": "static BOOLEAN allocate_svc_db_buf(tGATT_SVC_DB *p_db)\n{\n    BT_HDR  *p_buf;\n\n    GATT_TRACE_DEBUG(\"allocate_svc_db_buf allocating extra buffer\");\n\n    if ((p_buf = (BT_HDR *)osi_calloc(GATT_DB_BUF_SIZE)) == NULL) {\n        GATT_TRACE_ERROR(\"allocate_svc_db_buf failed, no resources\");\n        return FALSE;\n    }\n\n    p_db->p_free_mem    = (UINT8 *) p_buf;\n    p_db->mem_free = GATT_DB_BUF_SIZE;\n\n    fixed_queue_enqueue(p_db->svc_buffer, p_buf, FIXED_QUEUE_MAX_TIMEOUT);\n\n    return TRUE;\n\n}"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/include/stack/dyn_mem.h": {
+      "sha256": "ebc0230a391c17a9936468b4d672f75118fa3d9cc262d9218eba28d5192466cf",
+      "excerpts": [
+        {
+          "startLine": 23,
+          "endLine": 31,
+          "text": "#if UC_BT_BLE_DYNAMIC_ENV_MEMORY\n#define BTU_DYNAMIC_MEMORY         TRUE\n#define BTM_DYNAMIC_MEMORY         TRUE\n#define L2C_DYNAMIC_MEMORY         TRUE\n#define GATT_DYNAMIC_MEMORY        TRUE\n#define SMP_DYNAMIC_MEMORY         TRUE\n#define BTA_DYNAMIC_MEMORY         TRUE\n#define SDP_DYNAMIC_MEMORY         TRUE\n#define GAP_DYNAMIC_MEMORY         TRUE"
+        },
+        {
+          "startLine": 61,
+          "endLine": 69,
+          "text": "#else  /* #if UC_BT_BLE_DYNAMIC_ENV_MEMORY */\n#define BTU_DYNAMIC_MEMORY         FALSE\n#define BTM_DYNAMIC_MEMORY         FALSE\n#define L2C_DYNAMIC_MEMORY         FALSE\n#define GATT_DYNAMIC_MEMORY        FALSE\n#define SMP_DYNAMIC_MEMORY         FALSE\n#define BTA_DYNAMIC_MEMORY         FALSE\n#define SDP_DYNAMIC_MEMORY         FALSE\n#define GAP_DYNAMIC_MEMORY         FALSE"
+        }
+      ]
+    },
+    "/home/csc/esp/esp-idf-v5.5.5/docs/en/api-guides/external-ram.rst": {
+      "sha256": "d493323ef317f33a1ebcadfe933d94e0f158c6562dfec77343871bf42c2e32ee",
+      "excerpts": [
+        {
+          "startLine": 84,
+          "endLine": 92,
+          "text": "--------------------------------------------\n\nSelect this option by choosing ``Add RAM to heap_caps allocator (malloc() stays internal by default)`` from :ref:`CONFIG_SPIRAM_USE`.\n\nWhen enabled, memory is mapped to data virtual address space and also added to the :doc:`capabilities-based heap memory allocator </api-reference/system/mem_alloc>` using ``MALLOC_CAP_SPIRAM``. Since this memory is also tagged with ``MALLOC_CAP_DEFAULT``, calls such as ``heap_caps_malloc(size, MALLOC_CAP_DEFAULT)`` can still return PSRAM pointers.\n\nTo explicitly allocate memory from external RAM, a program should call ``heap_caps_malloc(size, MALLOC_CAP_SPIRAM)``. After use, this memory can be freed by calling the normal ``free()`` function.\n\nIn this mode, standard ``malloc()`` does not allocate from external RAM by default because it uses a separate default allocation policy."
+        },
+        {
+          "startLine": 208,
+          "endLine": 229,
+          "text": "Restrictions\n============\n\nExternal RAM use has the following restrictions:\n\n.. list::\n\n    - When flash cache is disabled (for example, if the flash is being written to), the external RAM also becomes inaccessible. Any read operations from or write operations to it will lead to an illegal cache access exception. This is also the reason why ESP-IDF does not by default allocate any task stacks in external RAM (see below).\n\n    :esp32s2: - External RAM cannot be used as a place to store DMA transaction descriptors or as a buffer for a DMA transfer to read from or write into. Therefore when External RAM is enabled, any buffer that will be used in combination with DMA must be allocated using ``heap_caps_malloc(size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL)`` and can be freed using a standard ``free()`` call. Note that although {IDF_TARGET_NAME} has hardware support for DMA to or from external RAM, this is not yet supported in ESP-IDF.\n\n    :esp32s3: - Although {IDF_TARGET_NAME} has hardware support for DMA to or from external RAM, there are still limitations:\n\n        :esp32s3: - DMA transaction descriptors cannot be placed in PSRAM.\n        :esp32s3: - The bandwidth that DMA accesses external RAM is very limited, especially when the core is trying to access the external RAM at the same time.\n        :esp32s3: - You can configure :ref:`CONFIG_SPIRAM_SPEED` as 120 MHz for an octal PSRAM. The bandwidth will be improved. However there are still restrictions for this option. See :ref:`All Supported PSRAM Modes and Speeds <flash-psram-combination>` for more details.\n\n    - External RAM uses the same cache region as the external flash. This means that frequently accessed variables in external RAM can be read and modified almost as quickly as in internal RAM. However, when accessing large chunks of data (> 32 KB), the cache can be insufficient, and speeds will fall back to the access speed of the external RAM. Moreover, accessing large chunks of data can \"push out\" cached flash, possibly making the execution of code slower afterwards.\n\n    - In general, external RAM will not be used as task stack memory. :cpp:func:`xTaskCreate` and similar functions will always allocate internal memory for stack and task TCBs.\n\nThe option :ref:`CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM` can be used to allow placing task stacks into external memory. In these cases :cpp:func:`xTaskCreateStatic` must be used to specify a task stack buffer allocated from external memory, otherwise task stacks will still be allocated from internal memory."
+        }
+      ]
+    }
+  },
+  "observedTrigger": {
+    "origin": "Closed root HIL wifi-control-04; independent reviewer performed no hardware I/O",
+    "artifacts": {
+      "wifi-control-04/wifi-control-04.summary.json": "8691cac155c1e55df5422de22c11c55833e1285ce5c6f79da028db1b51544fd9",
+      "wifi-control-04/wifi-control-04.events.jsonl": "8466f66849c7398c45348e399bce8c72327b977a8412ea402656129da4dd4664",
+      "wifi-control-04/wifi-control-04.rx.bin": "a825b43db3454decc5a1af8d990db2346dd9167289ddf87859a3e345ca69444e"
+    },
+    "expected": {
+      "elfSha256": "3d7cd5ce5d8c64e07504ed85a569c5080543484740c021ac9d98931e53552c36",
+      "session": "E5DB4EDD25F5BC05",
+      "bootId": "1"
+    },
+    "status": "BACKEND_UNAVAILABLE_CONTROL_QUERY_OBSERVED",
+    "selectedRawReplies": [
+      "MEM,v=1,readout=sequential,unit=bytes,intCaps=internal8,intFree=39164,intLargest=16372,intMin=35252,extFree=8232580,extLargest=8126452,scan=created,scanStack=16384,beforeFree=53160,beforeLargest=31732,afterFree=35360,afterLargest=14324,err=0x0,sampleUs=185499223,poolReady=1,poolErr=0x0,poolInt=1157,poolExt=16135",
+      "WTERM,v=1,session=e5db4edd25f5bc05,boot=1,bootKnown=1,id=1,known=1,epoch=2,requested=AP,outcome=quarantined,err=0x00000101,cleanupErr=0x00000103,acceptedUs=185501881,completedUs=185539876,terminalAttempts=0,terminalQueued=0,terminalPending=1,scope=backend_and_gate,peerReceipt=unknown",
+      "WIFIGUARD,v=1,session=e5db4edd25f5bc05,boot=1,bootKnown=1,quarantined=1,active=0,ownerBusy=0,phase=driver_init,callId=6,startUs=185509142,deadlineUs=190501881,ageUs=38136,detectedUs=185539876,completionKnown=1,err=0x00000101,cleanupErr=0x00000103,sdkErr=0x00000101,errno=0,returned=0,held=0,writing=0,timeouts=0,late=0,pollUs=100000,recovery=explicit_manual_restart_attempt",
+      "MEM,v=1,readout=sequential,unit=bytes,intCaps=internal8,intFree=21624,intLargest=7668,intMin=2796,extFree=8224872,extLargest=8126452,scan=created,scanStack=16384,beforeFree=53160,beforeLargest=31732,afterFree=35360,afterLargest=14324,err=0x0,sampleUs=185551914,poolReady=1,poolErr=0x0,poolInt=1157,poolExt=16135",
+      "WTERM,v=1,session=e5db4edd25f5bc05,boot=1,bootKnown=1,id=2,known=1,epoch=3,requested=OFF,outcome=applied,err=0x00000000,cleanupErr=0x00000000,acceptedUs=185569615,completedUs=185569615,terminalAttempts=0,terminalQueued=0,terminalPending=1,scope=output_gate_only,peerReceipt=unknown"
+    ],
+    "interpretation": "Real DRIVER_INIT returned ESP_ERR_NO_MEM with BLE connected; a transient intMin of2796 does not identify the exact vendor failing allocation or guarantee a required delta. Control and cached quarantine/OFF remained observable."
+  },
+  "placement": {
+    "affected": "osi_malloc_base and osi_calloc_base used by Bluedroid dynamic CPU host allocations: BTC copied messages, dynamically allocated service database storage and attributes, host linked-list nodes, HCI host packet buffers, and OSI thread wrapper objects. Exact live set/size depends on initialization and traffic.",
+    "allocationPolicy": "heap_caps_malloc_prefer(size, 2, DEFAULT|SPIRAM, DEFAULT|INTERNAL), corresponding calloc; SDK falls back internally if PSRAM cannot satisfy allocation. This is not strict PSRAM-only placement.",
+    "currentCapsCompatible": "S3 SPIRAM region advertises DEFAULT|8BIT|32BIT. CAPS_ALLOC exposes it to explicit caps calls while ordinary malloc remains internal. SPIRAM_USE_MALLOC need not change.",
+    "controllerUnchanged": "S3 CMake maps controller sources to esp32c3/bt.c. _malloc_internal and malloc_ble_controller_mem retain INTERNAL|DMA; controller _malloc remains plain malloc under the unchanged current global allocator policy. Radio/DMA hardware buffers are not manually moved.",
+    "kernelUnchanged": "OSI wrapper object may move, but xQueueCreate and xTaskCreatePinnedToCore still use pvPortMalloc INTERNAL|8BIT for queue storage/TCBs/stacks. Existing BTC3072 and BTU4352 configured stack sizes unchanged.",
+    "staticUnchanged": "BT_BLE_DYNAMIC_ENV_MEMORY remains disabled, so static host control blocks such as gatt_cb are not relocated by this option. No BSS-to-external linker policy enabled.",
+    "applicationUnchanged": "Project BLE persistent payload pool is already PSRAM and its control metadata/scratch remain as previously reviewed; this Kconfig only affects SDK allocator macros."
+  },
+  "limitations": [
+    "PSRAM is cached; cache misses and contention can increase CPU/wall latency. There is no established hard per-notify bound or promise that normal BLE loss stays within2.5%.",
+    "With this configuration flash cache disable also makes PSRAM inaccessible. Do not add cache-disabled ISR/IRAM users of host objects; the change uses the SDK-supported host allocator path, not a proof that arbitrary project ISR buffers can move.",
+    "Memory preference does not create more internal DMA or stack memory and cannot guarantee vendor Wi-Fi init succeeds. Measure actual free/largest/min after boot and after the same BLE subscriptions before AP.",
+    "Internal fallback under PSRAM exhaustion remains possible and must not be reported as all host bytes external.",
+    "The option does not affect Wi-Fi TX buffer type. Leave SPIRAM_TRY_ALLOCATE_WIFI_LWIP disabled to avoid its known forced-static-TX configuration interaction."
+  ],
+  "minimalImplementationSuggestion": {
+    "files": [
+      "sdkconfig",
+      "sdkconfig.defaults"
+    ],
+    "setting": "CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST=y",
+    "doNotAdd": [
+      "BT_BLE_DYNAMIC_ENV_MEMORY",
+      "SPIRAM_USE_MALLOC",
+      "SPIRAM_TRY_ALLOCATE_WIFI_LWIP",
+      "external task stacks",
+      "manual controller/DMA buffer relocation"
+    ]
+  },
+  "nextValidation": [
+    "Rebuild actual target and verify generated sdkconfig plus osi_malloc_func/osi_calloc_func select heap_caps_*_prefer, while controller internal allocation caps remain unchanged.",
+    "Same full ELF/boot identity: read MEM before/after C/D/L BLE subscription, then one bounded AP request with WIFIREQ/WIFIGUARD/WIFIQ/MEM. No repeated failed init in a quarantined epoch.",
+    "If AP reaches applied: preserve BLE operation and collect USB/BLE complete-frame gaps, CPU/SDK service latency, heap minimum/largest, owner stack minimum and fault/reset counters.",
+    "Do not call source audit or a successful build 10-minute/32-configuration HIL acceptance."
+  ],
+  "tests": "No new host or hardware test claimed; this is a read-only placement-policy assessment."
+}

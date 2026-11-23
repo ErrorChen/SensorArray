@@ -1,0 +1,60 @@
+{
+  "synthetic": true,
+  "hardware": "NOT_RUN",
+  "meaning": "same two original input/event scenarios, with repaired expectations; exit0 confirms actual upward recovery",
+  "baselineFixture": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-sparse-recovery-probe-01.c",
+  "baselineFixtureSha256": "f7977ed872d8d5d01433da976e4936ba1fec7ab4c78e029c675806d00499d97c",
+  "fixture": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-sparse-recovery-probe-02.c",
+  "fixtureSha256": "982eb7b4944b35689b1c0de21c5d521efead530c36ed30744ec38b4c1e0acf6a",
+  "changesFromBaseline": "Only introductory comment, expected rate/upstep and sent-count assertions, and output label changed; event loops/inputs unchanged. Original failure fixture/output unmodified.",
+  "variants": [
+    {
+      "variant": "optimized",
+      "command": [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pedantic",
+        "-O2",
+        "-I",
+        "components/sensorarrayBle",
+        "components/sensorarrayBle/sensorarrayBleOutputSchedule.c",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-sparse-recovery-probe-02.c",
+        "-o",
+        "/tmp/sensorarray-sparse-review-fixed-1fjnhg2k/optimized"
+      ],
+      "compileExitCode": 0,
+      "runExitCode": 0,
+      "output": "RECOVERY_CONFIRMED,case=zero_rate_successful_1Hz_due_snapshots,seconds=120,offered=100,wholeLocalCompleted=100,capacityRejects=0,otherFailures=0,ratePermille=400,upSteps=8,noEvidenceWindows=20,cleanUs=0\nRECOVERY_CONFIRMED,case=five_percent_12fps,offered=1440,wholeLocalCompleted=439,capacityRejects=0,otherFailures=0,ratePermille=600,upSteps=11,noEvidenceWindows=0,cleanUs=0\n"
+    },
+    {
+      "variant": "asan_ubsan",
+      "command": [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pedantic",
+        "-O1",
+        "-g",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I",
+        "components/sensorarrayBle",
+        "components/sensorarrayBle/sensorarrayBleOutputSchedule.c",
+        "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-sparse-recovery-probe-02.c",
+        "-o",
+        "/tmp/sensorarray-sparse-review-fixed-1fjnhg2k/asan_ubsan"
+      ],
+      "compileExitCode": 0,
+      "runExitCode": 0,
+      "output": "RECOVERY_CONFIRMED,case=zero_rate_successful_1Hz_due_snapshots,seconds=120,offered=100,wholeLocalCompleted=100,capacityRejects=0,otherFailures=0,ratePermille=400,upSteps=8,noEvidenceWindows=20,cleanUs=0\nRECOVERY_CONFIRMED,case=five_percent_12fps,offered=1440,wholeLocalCompleted=439,capacityRejects=0,otherFailures=0,ratePermille=600,upSteps=11,noEvidenceWindows=0,cleanUs=0\n"
+    }
+  ],
+  "sourceSha256": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-output-schedule-sparse-recovery-probe-02.txt",
+  "logSha256": "a1124160407945d7a52287dc644e56016ca0cbde8cef2f065b59a75b60be4074"
+}

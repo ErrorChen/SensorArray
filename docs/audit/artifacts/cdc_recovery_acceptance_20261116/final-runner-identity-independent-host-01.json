@@ -1,0 +1,38 @@
+{
+  "scope": "independent stable identity/benchmark host tests; no hardware; full runner gate pending",
+  "source_before": {
+    "tools/sensorarray_capture_identity.py": "f5468f92603a8985004778f0188cae30a68fa176f1c29e1ba913537cd89a1523",
+    "tools/run_firmware_benchmark.py": "1bbc9d5566e81edd1f39f27718ebe61f2f97b57febd147a78f754fdb036cfdcd",
+    "tools/test_capture_identity.py": "3ab5d8a020993917b3ba735e66a98a91acee2c529c8d4e1bcb0fee06990f85a2",
+    "tools/test_firmware_benchmark.py": "5f4ec06948d81f2693b51aa206161156e25f320d46a868081c923fbefe2ee5a7"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_capture_identity.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.11424297100165859,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-identity-independent-identity-01.txt",
+      "sha256": "74202dc09a3347400de94f86db7081b0c92ff6270bca74570c143aa53888e576"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_firmware_benchmark.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.9729416070040315,
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-identity-independent-benchmark-01.txt",
+      "sha256": "799e67fdc48c9aa24256e0177574c74f6abf36e8462488d5f5be157acf06a429"
+    }
+  ],
+  "source_after": {
+    "tools/sensorarray_capture_identity.py": "f5468f92603a8985004778f0188cae30a68fa176f1c29e1ba913537cd89a1523",
+    "tools/run_firmware_benchmark.py": "1bbc9d5566e81edd1f39f27718ebe61f2f97b57febd147a78f754fdb036cfdcd",
+    "tools/test_capture_identity.py": "3ab5d8a020993917b3ba735e66a98a91acee2c529c8d4e1bcb0fee06990f85a2",
+    "tools/test_firmware_benchmark.py": "5f4ec06948d81f2693b51aa206161156e25f320d46a868081c923fbefe2ee5a7"
+  },
+  "source_unchanged": true
+}

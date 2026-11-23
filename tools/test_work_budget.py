@@ -91,6 +91,7 @@ def main():
             "static size_t sensorarrayBleDecimalChars(",
             "static size_t sensorarrayBleMaxPayloadSize(",
             "static bool sensorarrayBlePlanFragments(",
+            "static size_t sensorarrayBleTwoFragmentFirstChunk(",
             "static esp_err_t sensorarrayBleSendFragment(",
             "static esp_err_t sensorarrayBleSendPayload(",
         ):

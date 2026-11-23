@@ -1,0 +1,65 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420ccab0 <wifi_log>:
+420ccab0:	00e136        	entry	a1, 112
+420ccab3:	fff8b1        	l32r	a11, 420cca94 <offchan_send_action_tx_status+0x3c> (3c15c008 <coex_schm_all_default+0x1ee>)
+420ccab6:	07a0c2        	movi	a12, 7
+420ccab9:	1cc1a2        	addi	a10, a1, 28
+420ccabc:	106162        	s32i	a6, a1, 64
+420ccabf:	116172        	s32i	a7, a1, 68
+420ccac2:	eaa781        	l32r	a8, 420c7560 <ieee80211_amsdu_encap_check+0x68> (400011f4 <memcpy>)
+420ccac5:	0008e0        	callx8	a8
+420ccac8:	e3e731        	l32r	a3, 420c5a64 <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420ccacb:	020c      	movi.n	a2, 0
+420ccacd:	234122        	s8i	a2, a1, 35
+420ccad0:	0328      	l32i.n	a2, a3, 0
+420ccad2:	064216        	beqz	a2, 420ccb3a <wifi_log+0x8a>
+420ccad5:	542262        	l32i	a6, a2, 0x150
+420ccad8:	05e616        	beqz	a6, 420ccb3a <wifi_log+0x8a>
+420ccadb:	ffef61        	l32r	a6, 420cca98 <offchan_send_action_tx_status+0x40> (3fccda40 <g_log_level>)
+420ccade:	0668      	l32i.n	a6, a6, 0
+420ccae0:	563647        	bltu	a6, a4, 420ccb3a <wifi_log+0x8a>
+420ccae3:	1cc192        	addi	a9, a1, 28
+420ccae6:	5522a2        	l32i	a10, a2, 0x154
+420ccae9:	894a      	add.n	a8, a9, a4
+420ccaeb:	532262        	l32i	a6, a2, 0x14c
+420ccaee:	000872        	l8ui	a7, a8, 0
+420ccaf1:	000ae0        	callx8	a10
+420ccaf4:	ffec81        	l32r	a8, 420ccaa4 <offchan_send_action_tx_status+0x4c> (3c155689 <__func__$15+0xa2d>)
+420ccaf7:	ffe921        	l32r	a2, 420cca9c <offchan_send_action_tx_status+0x44> (3c1559f2 <__func__$15+0xd96>)
+420ccafa:	ffe9c1        	l32r	a12, 420ccaa0 <offchan_send_action_tx_status+0x48> (3c1559f7 <__func__$15+0xd9b>)
+420ccafd:	0aed      	mov.n	a14, a10
+420ccaff:	0189      	s32i.n	a8, a1, 0
+420ccb01:	02fd      	mov.n	a15, a2
+420ccb03:	07dd      	mov.n	a13, a7
+420ccb05:	02bd      	mov.n	a11, a2
+420ccb07:	04ad      	mov.n	a10, a4
+420ccb09:	0006e0        	callx8	a6
+420ccb0c:	0388      	l32i.n	a8, a3, 0
+420ccb0e:	50c1d2        	addi	a13, a1, 80
+420ccb11:	542882        	l32i	a8, a8, 0x150
+420ccb14:	30c1e2        	addi	a14, a1, 48
+420ccb17:	0f1c      	movi.n	a15, 16
+420ccb19:	05cd      	mov.n	a12, a5
+420ccb1b:	02bd      	mov.n	a11, a2
+420ccb1d:	04ad      	mov.n	a10, a4
+420ccb1f:	41d9      	s32i.n	a13, a1, 16
+420ccb21:	51e9      	s32i.n	a14, a1, 20
+420ccb23:	61f9      	s32i.n	a15, a1, 24
+420ccb25:	0008e0        	callx8	a8
+420ccb28:	0338      	l32i.n	a3, a3, 0
+420ccb2a:	ffdfd1        	l32r	a13, 420ccaa8 <offchan_send_action_tx_status+0x50> (3c155688 <__func__$15+0xa2c>)
+420ccb2d:	532332        	l32i	a3, a3, 0x14c
+420ccb30:	ffdfc1        	l32r	a12, 420ccaac <offchan_send_action_tx_status+0x54> (3c155a03 <__func__$15+0xda7>)
+420ccb33:	02bd      	mov.n	a11, a2
+420ccb35:	04ad      	mov.n	a10, a4
+420ccb37:	0003e0        	callx8	a3
+420ccb3a:	f01d      	retw.n

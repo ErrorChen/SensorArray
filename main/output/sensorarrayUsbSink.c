@@ -40,13 +40,21 @@ esp_err_t sensorarrayUsbSinkInit(void)
 
     memset(&s_usbStats, 0, sizeof(s_usbStats));
     portENTER_CRITICAL(&s_usbProfileMux);
-    /* USBSTREAM is intentionally a volatile per-boot default and is never
-     * persisted. DEBUG preserves the low-volume USB fallback contract while
-     * FULL re-enables per-frame USB measurement data on demand. */
+    /* New in this fix: OTG debug shares the network summary boundary. Formatting
+     * overlapping snapshots at 15/30/45 and again at 50 consumed the same CPU
+     * needed by formal BLE output. The complete aggregate is still published;
+     * scientific OTG DATA is independently emitted for every frame. Legacy USJ
+     * keeps its existing volatile USBSTREAM defaults. ADSDBG still overrides
+     * both summary periods in the formatter. */
+    uint32_t diagnosticEvery = SENSORARRAY_USB_STREAM_DIAG_EVERY;
+    if (sensorarrayUsbOtgEnabled()) {
+        diagnosticEvery = (uint32_t)SENSORARRAY_CFG_LOG_PERIOD_FRAMES;
+        if (diagnosticEvery == 0u) { diagnosticEvery = 20u; }
+    }
     s_usbStreamProfile = (sensorarrayUsbStreamProfile_t){
         .mode = SENSORARRAY_USB_STREAM_DEBUG,
         .dataEvery = SENSORARRAY_USB_STREAM_DEBUG_DATA_EVERY,
-        .diagEvery = SENSORARRAY_USB_STREAM_DIAG_EVERY,
+        .diagEvery = diagnosticEvery,
     };
     portEXIT_CRITICAL(&s_usbProfileMux);
     /* SerialIo is the single physical TX owner; no duplicate DATA queue/task. */

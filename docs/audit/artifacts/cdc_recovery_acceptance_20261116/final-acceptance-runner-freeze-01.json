@@ -1,0 +1,159 @@
+{
+  "status": "FROZEN_FOR_INDEPENDENT_REVIEW",
+  "hardware_actions": [],
+  "production_C_modified_by_this_increment": false,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "current_dirty_diff_sha256": "eee949651ff169401b105a7efb9de723b74bc8132be0ddc7e3950eeb0ca23130",
+  "shared_workspace_note": "Other owners edit unrelated production files; this freezes the listed Python source hashes only.",
+  "files": [
+    {
+      "path": "tools/sensorarray_capture_identity.py",
+      "sha256": "c436de0b1650775caecfd1bd39ff22c59a1ccc063d1f1ff16ef77e98601985ce",
+      "bytes": 6481,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/c436de0b1650775caecfd1bd39ff22c59a1ccc063d1f1ff16ef77e98601985ce/sensorarray_capture_identity.py"
+    },
+    {
+      "path": "tools/test_capture_identity.py",
+      "sha256": "baec87b7439c26534257e745222d4cd82b6bbe7d7244b27a3f74101816e32911",
+      "bytes": 6644,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/baec87b7439c26534257e745222d4cd82b6bbe7d7244b27a3f74101816e32911/test_capture_identity.py"
+    },
+    {
+      "path": "tools/run_firmware_benchmark.py",
+      "sha256": "1bbc9d5566e81edd1f39f27718ebe61f2f97b57febd147a78f754fdb036cfdcd",
+      "bytes": 44171,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/1bbc9d5566e81edd1f39f27718ebe61f2f97b57febd147a78f754fdb036cfdcd/run_firmware_benchmark.py"
+    },
+    {
+      "path": "tools/test_firmware_benchmark.py",
+      "sha256": "5f4ec06948d81f2693b51aa206161156e25f320d46a868081c923fbefe2ee5a7",
+      "bytes": 24371,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/5f4ec06948d81f2693b51aa206161156e25f320d46a868081c923fbefe2ee5a7/test_firmware_benchmark.py"
+    },
+    {
+      "path": "tools/analyze_firmware_benchmark.py",
+      "sha256": "445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81",
+      "bytes": 87907,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81/analyze_firmware_benchmark.py"
+    },
+    {
+      "path": "tools/test_analyze_firmware_benchmark.py",
+      "sha256": "aa4ff7dc6088acb4291d6c0f0fa8a50748e5060ad775985a4c505cc05b2a6ac7",
+      "bytes": 47711,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/aa4ff7dc6088acb4291d6c0f0fa8a50748e5060ad775985a4c505cc05b2a6ac7/test_analyze_firmware_benchmark.py"
+    },
+    {
+      "path": "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_cdc_benchmark.py",
+      "sha256": "58f6e99e0320453add184f61d17e8a34398c122b3c80705702c731d5081c90e0",
+      "bytes": 1873,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/58f6e99e0320453add184f61d17e8a34398c122b3c80705702c731d5081c90e0/capture_cdc_benchmark.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_mode_switches.py",
+      "sha256": "0a4bf12746d39efea2a35b89ec965bb0b7fa4d8af7fcba83b5d8885e40a3e639",
+      "bytes": 22612,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/0a4bf12746d39efea2a35b89ec965bb0b7fa4d8af7fcba83b5d8885e40a3e639/capture_mode_switches.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_mode_switches.py",
+      "sha256": "d0c30c2d8089abc26b32895e8cc4112c2f951b87b8f11d64b9a3de920b49b521",
+      "bytes": 16770,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/d0c30c2d8089abc26b32895e8cc4112c2f951b87b8f11d64b9a3de920b49b521/test_capture_mode_switches.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_short_snapshots.py",
+      "sha256": "dfe77e3b77b4a4a3c4dca8e85573ad02161c740108c913346936337d9ed49b54",
+      "bytes": 7759,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/dfe77e3b77b4a4a3c4dca8e85573ad02161c740108c913346936337d9ed49b54/capture_short_snapshots.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py",
+      "sha256": "1d7435f9726c246a3411f8249acc916a6e97c0407c4fa507ef985cb65f11c0df",
+      "bytes": 9684,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/1d7435f9726c246a3411f8249acc916a6e97c0407c4fa507ef985cb65f11c0df/test_capture_short_snapshots.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/run_cdc_matrix_failfast.py",
+      "sha256": "17368eeaebfda608d3763f81818d189acd7ca0e44cc5468d802d74e67601e313",
+      "bytes": 18310,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/17368eeaebfda608d3763f81818d189acd7ca0e44cc5468d802d74e67601e313/run_cdc_matrix_failfast.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_run_cdc_matrix_failfast.py",
+      "sha256": "bd4d74b5e8e8fc5ae9d2bfd6b20214abdbea55f5d5f2490d997fa6cdc839441e",
+      "bytes": 20788,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/bd4d74b5e8e8fc5ae9d2bfd6b20214abdbea55f5d5f2490d997fa6cdc839441e/test_run_cdc_matrix_failfast.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/qualify_closed_capture.py",
+      "sha256": "1bbe1799ce437e1d0c3769206ed20cdb1745906ed1908a27ca3ad6e878649c05",
+      "bytes": 19533,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/1bbe1799ce437e1d0c3769206ed20cdb1745906ed1908a27ca3ad6e878649c05/qualify_closed_capture.py"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_qualify_closed_capture.py",
+      "sha256": "504cfb24a4a0c7871b07326767b61fb1603cbfef665ae28ffa2d4e2a707b3806",
+      "bytes": 17256,
+      "frozen_copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/historical-runner-sources/504cfb24a4a0c7871b07326767b61fb1603cbfef665ae28ffa2d4e2a707b3806/test_qualify_closed_capture.py"
+    }
+  ],
+  "test_runs": [
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-identity-host-01-command.json",
+      "sha256": "e59de48aac065889d5e21fdb8f61d9f384b274bbe102b17bf52a2b48607d3687",
+      "tests": 9,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-benchmark-host-01-command.json",
+      "sha256": "c28872df9889e83bfce8cb252998977261ab98b77bc07c038476999c38f26bec",
+      "tests": 14,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-mode-host-01-command.json",
+      "sha256": "44d7805bc9314cbb53720a8889b8cdb2faed078b193ae44c782eef61610d0ea3",
+      "tests": 11,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-short-host-01-command.json",
+      "sha256": "7d660c426218e1e21cc700bf2884bdd87c9ab6057d2544cedd1cb08f6dc80b16",
+      "tests": 8,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-analysis-host-02-command.json",
+      "sha256": "d1c9a270fa05a982b1480caa51add5b2c071c48e4de68947a64fc8487e3d4c43",
+      "tests": 47,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-matrix-host-01-command.json",
+      "sha256": "2d7bc66635107aa57fac0ec804383c577c1e648ce245ec8ab4ffe1cd7e12b06e",
+      "tests": 21,
+      "exit_code": 0
+    },
+    {
+      "command_record": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-runner-gate-host-02-command.json",
+      "sha256": "39354d826fbcd63e83125dcec0d3c4a4c0cf493df18fa2298c52ec2a719c0c3c",
+      "tests": 12,
+      "exit_code": 0
+    }
+  ],
+  "total_tests": 122,
+  "real_recording_replay": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-replay-02.json",
+    "sha256": "ddba8f3d1143269ef999ae1282f80a819eab312a88efe9f97fc2411acd19bb01",
+    "result": "screen20 FAIL; screen21 PASS_NUMERIC_SCREEN; neither establishes new pre-mutation authority or final acceptance"
+  },
+  "overall_acceptance": "NOT_ESTABLISHED",
+  "original_recordings_modified": false,
+  "normal_gap_budget": 0.025,
+  "coverage_guard": {
+    "host_edge_seconds": 1,
+    "minimum_device_span": "requested_seconds - 2",
+    "capture_period_over_1s": "UNKNOWN; manual review; no automatic threshold change"
+  },
+  "original_failed_probe": "runner-data-coverage-independent-probe-01.json"
+}

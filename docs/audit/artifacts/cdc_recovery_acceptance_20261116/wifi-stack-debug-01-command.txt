@@ -1,0 +1,4 @@
+{"type": "CDC_debug_progress", "rx_bytes": 8866, "elapsed_seconds": 22.373818328982452}
+{"type": "CDC_debug_progress", "rx_bytes": 18160, "elapsed_seconds": 43.18555963097606}
+{"type": "CDC_debug_progress", "rx_bytes": 25723, "elapsed_seconds": 63.97806068600039}
+{"status": "OBSERVED", "error": null, "rx_bytes": 31396, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-stack-debug-01/wifi-stack-debug-01.debug.rx.bin"}

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "wifi-panic-state-01",
+    "--ble-guard",
+    "--ble-log",
+    "--usj",
+    "--panic"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 40.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ec790ba5ddceb24d02352c6d2e6ba3db327531e89911f446b1266f1324cd454e",
+  "started_utc": "2026-11-21T00:57:16.368082+00:00",
+  "started_monotonic": 153403.51764443,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-panic-state-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:57:16.482641+00:00",
+  "finished_monotonic": 153403.632187893,
+  "log_sha256": "1841dc29a582538ab3cc437df49aeab547719846bc894e69d864edaa473fa9d5"
+}

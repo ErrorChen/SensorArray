@@ -1,0 +1,12 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 134107790933474, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.847872890008148, "notifications": {"D": 462, "L": 2}, "payload_bytes": {"D": 218922, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.943833428988, "notifications": {"D": 719, "L": 2}, "payload_bytes": {"D": 280771, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.977734737010906, "notifications": {"D": 974, "L": 2}, "payload_bytes": {"D": 341665, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 81.07459175799158, "notifications": {"D": 1231, "L": 2}, "payload_bytes": {"D": 403514, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 101.16757066300488, "notifications": {"D": 1488, "L": 2}, "payload_bytes": {"D": 465363, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.25939621200087, "notifications": {"D": 1746, "L": 2}, "payload_bytes": {"D": 527409, "L": 270}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.2599109080038, "notifications": {"D": 2007, "L": 4}, "payload_bytes": {"D": 593442, "L": 541}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.27175582700875, "notifications": {"D": 2475, "L": 4}, "payload_bytes": {"D": 818082, "L": 541}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 2709, "L": 4}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-ble.ble.notifications.jsonl", "journal_sha256": "a2f07becac1c207e7a532371c9fbcf1d16a71a53427240f25cf78fd081ce204d"}

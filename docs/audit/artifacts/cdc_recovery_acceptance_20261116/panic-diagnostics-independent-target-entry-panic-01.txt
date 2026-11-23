@@ -1,0 +1,26 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40375b60 <panicHandler>:
+40375b60:	004136        	entry	a1, 32
+40375b63:	03eb70        	rsr.prid	a7
+40375b66:	047d70        	extui	a7, a7, 13, 1
+40375b69:	07be25        	call8	4037d74c <spi_flash_cache_enabled>
+40375b6c:	008a56        	bnez	a10, 40375b78 <panicHandler+0x18>
+40375b6f:	0004a5        	call8	40375bb8 <esp_ipc_isr_stall_abort>
+40375b72:	20a770        	or	a10, a7, a7
+40375b75:	07bce5        	call8	4037d744 <spi_flash_enable_cache>
+40375b78:	fa5081        	l32r	a8, 403744b8 <_iram_text_start+0xb4> (42003f04 <esp_cache_err_acs_save_and_clr>)
+40375b7b:	0008e0        	callx8	a8
+40375b7e:	1b0c      	movi.n	a11, 1
+40375b80:	02ad      	mov.n	a10, a2
+40375b82:	fa4e81        	l32r	a8, 403744bc <_iram_text_start+0xb8> (420042b4 <panic_handler>)
+40375b85:	0008e0        	callx8	a8
+40375b88:	f01d      	retw.n
+
+Disassembly of section .flash.text:

@@ -1,0 +1,302 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4208ef10 <sensorarrayWifiBackendInitialize>:
+4208ef10:	00e136        	entry	a1, 112
+4208ef13:	f0a151        	l32r	a5, 4208b198 <bt_rf_coex_hook_register+0xa4> (3fcb1dfc <__stack_chk_guard>)
+4208ef16:	4cc142        	addi	a4, a1, 76
+4208ef19:	0020c0        	memw
+4208ef1c:	0588      	l32i.n	a8, a5, 0
+4208ef1e:	027d      	mov.n	a7, a2
+4208ef20:	0020c0        	memw
+4208ef23:	0489      	s32i.n	a8, a4, 0
+4208ef25:	28b216        	beqz	a2, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef28:	f0b561        	l32r	a6, 4208b1fc <bt_rf_coex_hook_register+0x108> (3fcabe64 <s_wifi>)
+4208ef2b:	1d2682        	l32i	a8, a6, 116
+4208ef2e:	282856        	bnez	a8, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef31:	1e2682        	l32i	a8, a6, 120
+4208ef34:	27c856        	bnez	a8, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef37:	7d0632        	l8ui	a3, a6, 125
+4208ef3a:	276356        	bnez	a3, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef3d:	6ca0c2        	movi	a12, 108
+4208ef40:	02bd      	mov.n	a11, a2
+4208ef42:	06ad      	mov.n	a10, a6
+4208ef44:	c2da81        	l32r	a8, 4207faac <r_llc_llcp_send_eco+0x7c> (400011f4 <memcpy>)
+4208ef47:	0008e0        	callx8	a8
+4208ef4a:	02ad      	mov.n	a10, a2
+4208ef4c:	ffce65        	call8	4208ec34 <sensorarrayWifiPrepareInitScratch>
+4208ef4f:	1a0c      	movi.n	a10, 1
+4208ef51:	fe5b65        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208ef54:	25ca16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef57:	22ebe5        	call8	420b1e14 <esp_netif_init>
+4208ef5a:	03cd      	mov.n	a12, a3
+4208ef5c:	03bd      	mov.n	a11, a3
+4208ef5e:	202aa0        	or	a2, a10, a10
+4208ef61:	fe64e5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208ef64:	180c      	movi.n	a8, 1
+4208ef66:	039d      	mov.n	a9, a3
+4208ef68:	939820        	movnez	a9, a8, a2
+4208ef6b:	a98c      	beqz.n	a9, 4208ef79 <sensorarrayWifiBackendInitialize+0x69>
+4208ef6d:	fdae92        	movi	a9, 0xfffffefd
+4208ef70:	809290        	add	a9, a2, a9
+4208ef73:	838390        	moveqz	a8, a3, a9
+4208ef76:	27f856        	bnez	a8, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208ef79:	237a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef7c:	2a0c      	movi.n	a10, 2
+4208ef7e:	fe58a5        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208ef81:	22fa16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208ef84:	f0b581        	l32r	a8, 4208b258 <bt_rf_coex_hook_register+0x164> (4211a0b0 <esp_event_loop_create_default>)
+4208ef87:	0008e0        	callx8	a8
+4208ef8a:	0c0c      	movi.n	a12, 0
+4208ef8c:	0a2d      	mov.n	a2, a10
+4208ef8e:	0cbd      	mov.n	a11, a12
+4208ef90:	fe61e5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208ef93:	628c      	beqz.n	a2, 4208ef9d <sensorarrayWifiBackendInitialize+0x8d>
+4208ef95:	fdae82        	movi	a8, 0xfffffefd
+4208ef98:	828a      	add.n	a8, a2, a8
+4208ef9a:	25b856        	bnez	a8, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208ef9d:	213a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208efa0:	3a0c      	movi.n	a10, 3
+4208efa2:	fe5665        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208efa5:	20ba16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208efa8:	f097a1        	l32r	a10, 4208b204 <bt_rf_coex_hook_register+0x110> (3fcc7f90 <s_wifiInitScratch>)
+4208efab:	22f4e5        	call8	420b1ef8 <esp_netif_new>
+4208efae:	1e66a2        	s32i	a10, a6, 120
+4208efb1:	22fa56        	bnez	a10, 4208f1e4 <sensorarrayWifiBackendInitialize+0x2d4>
+4208efb4:	008506        	j	4208f1cc <sensorarrayWifiBackendInitialize+0x2bc>
+4208efb7:	00          	.byte	00
+4208efb8:	180c00        	lsxp	f0, a12, a0
+4208efbb:	4a0c      	movi.n	a10, 4
+4208efbd:	7c4682        	s8i	a8, a6, 124
+4208efc0:	fe5465        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208efc3:	1eda16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208efc6:	1e26a2        	l32i	a10, a6, 120
+4208efc9:	254865        	call8	420b4450 <esp_netif_attach_wifi_ap>
+4208efcc:	0c0c      	movi.n	a12, 0
+4208efce:	0a2d      	mov.n	a2, a10
+4208efd0:	0cbd      	mov.n	a11, a12
+4208efd2:	fe5de5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208efd5:	220256        	bnez	a2, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208efd8:	1d8a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208efdb:	5a0c      	movi.n	a10, 5
+4208efdd:	fe52a5        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208efe0:	1d0a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208efe3:	253ea5        	call8	420b43cc <esp_wifi_set_default_wifi_ap_handlers>
+4208efe6:	0a2d      	mov.n	a2, a10
+4208efe8:	0c0c      	movi.n	a12, 0
+4208efea:	0b0c      	movi.n	a11, 0
+4208efec:	fe5c25        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208efef:	206256        	bnez	a2, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208eff2:	1bea16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208eff5:	6a0c      	movi.n	a10, 6
+4208eff7:	fe5125        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208effa:	1b6a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208effd:	f08ca1        	l32r	a10, 4208b230 <bt_rf_coex_hook_register+0x13c> (3fcc7fa0 <s_wifiInitScratch+0x10>)
+4208f000:	130c      	movi.n	a3, 1
+4208f002:	24ef25        	call8	420b3ef4 <esp_wifi_init>
+4208f005:	080c      	movi.n	a8, 0
+4208f007:	190c      	movi.n	a9, 1
+4208f009:	8383a0        	moveqz	a8, a3, a10
+4208f00c:	839aa0        	moveqz	a9, a10, a10
+4208f00f:	7d4682        	s8i	a8, a6, 125
+4208f012:	0c0c      	movi.n	a12, 0
+4208f014:	0b0c      	movi.n	a11, 0
+4208f016:	7e4692        	s8i	a9, a6, 126
+4208f019:	0a2d      	mov.n	a2, a10
+4208f01b:	7199      	s32i.n	a9, a1, 28
+4208f01d:	fe5925        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f020:	0a8d      	mov.n	a8, a10
+4208f022:	1a0c      	movi.n	a10, 1
+4208f024:	3088a0        	xor	a8, a8, a10
+4208f027:	748080        	extui	a8, a8, 0, 8
+4208f02a:	28cc      	bnez.n	a8, 4208f030 <sensorarrayWifiBackendInitialize+0x120>
+4208f02c:	7198      	l32i.n	a9, a1, 28
+4208f02e:	498c      	beqz.n	a9, 4208f036 <sensorarrayWifiBackendInitialize+0x126>
+4208f030:	1c5256        	bnez	a2, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f033:	005f46        	j	4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f036:	7a0c      	movi.n	a10, 7
+4208f038:	fe4ce5        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f03b:	175a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f03e:	f07e81        	l32r	a8, 4208b238 <bt_rf_coex_hook_register+0x144> (3c159f58 <WIFI_EVENT>)
+4208f041:	f07cc1        	l32r	a12, 4208b234 <bt_rf_coex_hook_register+0x140> (4208edfc <sensorarrayWifiEvent>)
+4208f044:	08a8      	l32i.n	a10, a8, 0
+4208f046:	fb7c      	movi.n	a11, -1
+4208f048:	0d0c      	movi.n	a13, 0
+4208f04a:	f08481        	l32r	a8, 4208b25c <bt_rf_coex_hook_register+0x168> (4211a040 <esp_event_handler_register>)
+4208f04d:	0008e0        	callx8	a8
+4208f050:	0a2d      	mov.n	a2, a10
+4208f052:	0c0c      	movi.n	a12, 0
+4208f054:	0b0c      	movi.n	a11, 0
+4208f056:	182a56        	bnez	a10, 4208f1dc <sensorarrayWifiBackendInitialize+0x2cc>
+4208f059:	0a0c      	movi.n	a10, 0
+4208f05b:	804632        	s8i	a3, a6, 128
+4208f05e:	fe5525        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f061:	14fa16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f064:	8a0c      	movi.n	a10, 8
+4208f066:	fe4a25        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f069:	147a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f06c:	2a0c      	movi.n	a10, 2
+4208f06e:	47e7e5        	call8	420d6eec <esp_wifi_set_mode>
+4208f071:	0a2d      	mov.n	a2, a10
+4208f073:	0c0c      	movi.n	a12, 0
+4208f075:	0b0c      	movi.n	a11, 0
+4208f077:	fe53a5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f07a:	17b256        	bnez	a2, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f07d:	133a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f080:	9a0c      	movi.n	a10, 9
+4208f082:	fe4865        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f085:	12ba16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f088:	f064b1        	l32r	a11, 4208b218 <bt_rf_coex_hook_register+0x124> (3fcc8038 <s_wifiInitScratch+0xa8>)
+4208f08b:	1a0c      	movi.n	a10, 1
+4208f08d:	4806a5        	call8	420d70f8 <esp_wifi_set_config>
+4208f090:	0a2d      	mov.n	a2, a10
+4208f092:	0c0c      	movi.n	a12, 0
+4208f094:	0b0c      	movi.n	a11, 0
+4208f096:	fe51a5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f099:	15c256        	bnez	a2, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f09c:	114a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f09f:	aa0c      	movi.n	a10, 10
+4208f0a1:	fe4665        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f0a4:	10ca16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f0a7:	47e865        	call8	420d6f2c <esp_wifi_start>
+4208f0aa:	0a2d      	mov.n	a2, a10
+4208f0ac:	0c0c      	movi.n	a12, 0
+4208f0ae:	0b0c      	movi.n	a11, 0
+4208f0b0:	128a56        	bnez	a10, 4208f1dc <sensorarrayWifiBackendInitialize+0x2cc>
+4208f0b3:	180c      	movi.n	a8, 1
+4208f0b5:	0a0c      	movi.n	a10, 0
+4208f0b7:	7f4682        	s8i	a8, a6, 127
+4208f0ba:	fe4f65        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f0bd:	0f3a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f0c0:	1827a2        	l32i	a10, a7, 96
+4208f0c3:	ffdb25        	call8	4208ee74 <sensorarrayWifiBackendApplyProfile>
+4208f0c6:	0a2d      	mov.n	a2, a10
+4208f0c8:	12da56        	bnez	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f0cb:	f05ca1        	l32r	a10, 4208b23c <bt_rf_coex_hook_register+0x148> (3fcabed0 <s_wifi+0x6c>)
+4208f0ce:	ffc765        	call8	4208ed44 <sensorarrayWifiOpenSocket>
+4208f0d1:	0a2d      	mov.n	a2, a10
+4208f0d3:	122a56        	bnez	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f0d6:	1b26a2        	l32i	a10, a6, 108
+4208f0d9:	180c      	movi.n	a8, 1
+4208f0db:	4d0c      	movi.n	a13, 4
+4208f0dd:	24c1c2        	addi	a12, a1, 36
+4208f0e0:	0b2c      	movi.n	a11, 32
+4208f0e2:	9189      	s32i.n	a8, a1, 36
+4208f0e4:	ffd365        	call8	4208ee1c <sensorarrayWifiSocketOption$constprop$0>
+4208f0e7:	0a2d      	mov.n	a2, a10
+4208f0e9:	10ca56        	bnez	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f0ec:	f055a1        	l32r	a10, 4208b240 <bt_rf_coex_hook_register+0x14c> (3fcabed4 <s_wifi+0x70>)
+4208f0ef:	ffc565        	call8	4208ed44 <sensorarrayWifiOpenSocket>
+4208f0f2:	0a2d      	mov.n	a2, a10
+4208f0f4:	101a56        	bnez	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f0f7:	341682        	l16ui	a8, a6, 104
+4208f0fa:	f1a9      	s32i.n	a10, a1, 60
+4208f0fc:	749880        	extui	a9, a8, 8, 8
+4208f0ff:	118880        	slli	a8, a8, 8
+4208f102:	208890        	or	a8, a8, a9
+4208f105:	290c      	movi.n	a9, 2
+4208f107:	11a0a2        	movi	a10, 17
+4208f10a:	3cc172        	addi	a7, a1, 60
+4208f10d:	106122        	s32i	a2, a1, 64
+4208f110:	116122        	s32i	a2, a1, 68
+4208f113:	126122        	s32i	a2, a1, 72
+4208f116:	3d4192        	s8i	a9, a1, 61
+4208f119:	1f5182        	s16i	a8, a1, 62
+4208f11c:	fe3ea5        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f11f:	091a16        	beqz	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f122:	1c26a2        	l32i	a10, a6, 112
+4208f125:	07bd      	mov.n	a11, a7
+4208f127:	0c1c      	movi.n	a12, 16
+4208f129:	103065        	call8	4209f430 <lwip_bind>
+4208f12c:	0a7d      	mov.n	a7, a10
+4208f12e:	012ad6        	bgez	a10, 4208f144 <sensorarrayWifiBackendInitialize+0x234>
+4208f131:	f03c81        	l32r	a8, 4208b224 <bt_rf_coex_hook_register+0x130> (42107d34 <__errno>)
+4208f134:	0008e0        	callx8	a8
+4208f137:	0ab8      	l32i.n	a11, a10, 0
+4208f139:	07cd      	mov.n	a12, a7
+4208f13b:	fa7c      	movi.n	a10, -1
+4208f13d:	fe4725        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f140:	0008c6        	j	4208f167 <sensorarrayWifiBackendInitialize+0x257>
+4208f143:	a03200        	addx4	a3, a2, a0
+4208f146:	3aa001        	l32r	a0, 4205dbc8 <btc_gatts_arg_deep_copy+0x20> (7f860041 <_rtc_reserved_end+0x1f760041>)
+4208f149:	83          	.byte	0x83
+4208f14a:	20caa0        	or	a12, a10, a10
+4208f14d:	00a0b2        	movi	a11, 0
+4208f150:	60a030        	neg	a10, a3
+4208f153:	fe45e5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f156:	190c      	movi.n	a9, 1
+4208f158:	308a90        	xor	a8, a10, a9
+4208f15b:	748080        	extui	a8, a8, 0, 8
+4208f15e:	002856        	bnez	a8, 4208f164 <sensorarrayWifiBackendInitialize+0x254>
+4208f161:	008316        	beqz	a3, 4208f16d <sensorarrayWifiBackendInitialize+0x25d>
+4208f164:	04c716        	beqz	a7, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f167:	f27c      	movi.n	a2, -1
+4208f169:	002306        	j	4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f16c:	a08200        	addx4	a8, a2, a0
+4208f16f:	00          	.byte	00
+4208f170:	0a6182        	s32i	a8, a1, 40
+4208f173:	b189      	s32i.n	a8, a1, 44
+4208f175:	f034b1        	l32r	a11, 4208b248 <bt_rf_coex_hook_register+0x154> (1006 <_rtc_slow_length+0xe16>)
+4208f178:	f03381        	l32r	a8, 4208b244 <bt_rf_coex_hook_register+0x150> (3d090 <_rtc_slow_length+0x3cea0>)
+4208f17b:	1c26a2        	l32i	a10, a6, 112
+4208f17e:	0d1c      	movi.n	a13, 16
+4208f180:	28c1c2        	addi	a12, a1, 40
+4208f183:	c189      	s32i.n	a8, a1, 48
+4208f185:	ffc965        	call8	4208ee1c <sensorarrayWifiSocketOption$constprop$0>
+4208f188:	0a2d      	mov.n	a2, a10
+4208f18a:	06ba56        	bnez	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f18d:	aa1c      	movi.n	a10, 26
+4208f18f:	fe37a5        	call8	4208d508 <sensorarrayWifiOwnerBeginSdk>
+4208f192:	ea9c      	beqz.n	a10, 4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f194:	f02ef1        	l32r	a15, 4208b24c <bt_rf_coex_hook_register+0x158> (3fcabed8 <s_wifi+0x74>)
+4208f197:	eb46c1        	l32r	a12, 42089eb0 <r_rwip_reset+0x120> (1000 <_rtc_slow_length+0xe10>)
+4208f19a:	f02db1        	l32r	a11, 4208b250 <bt_rf_coex_hook_register+0x15c> (3c145254 <_flash_rodata_start+0x25134>)
+4208f19d:	f02da1        	l32r	a10, 4208b254 <bt_rf_coex_hook_register+0x160> (4208ebb0 <sensorarrayWifiControlTask>)
+4208f1a0:	0129      	s32i.n	a2, a1, 0
+4208f1a2:	5e0c      	movi.n	a14, 5
+4208f1a4:	0d0c      	movi.n	a13, 0
+4208f1a6:	eff881        	l32r	a8, 4208b188 <bt_rf_coex_hook_register+0x94> (40388e58 <xTaskCreatePinnedToCore>)
+4208f1a9:	0008e0        	callx8	a8
+4208f1ac:	1c1a66        	bnei	a10, 1, 4208f1cc <sensorarrayWifiBackendInitialize+0x2bc>
+4208f1af:	0001c6        	j	4208f1ba <sensorarrayWifiBackendInitialize+0x2aa>
+4208f1b2:	220000        	orb	b0, b0, b0
+4208f1b5:	8603a1        	l32r	a10, 420709c4 <l2cu_find_lcb_by_handle+0x4> (6020474b <_rtc_reserved_end+0x10474b>)
+4208f1b8:	a0c2000f 	ee.fft.ams.s16.st.incp	q4, q0, a0, a0, q2, q4, q1, 0
+4208f1bc:	a0b200        	addx4	a11, a2, a0
+4208f1bf:	a0a200        	addx4	a10, a2, a0
+4208f1c2:	00          	.byte	00
+4208f1c3:	fe3ee5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f1c6:	faec      	bnez.n	a10, 4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f1c8:	fffa06        	j	4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f1cb:	00          	.byte	00
+4208f1cc:	0c0c      	movi.n	a12, 0
+4208f1ce:	0cbd      	mov.n	a11, a12
+4208f1d0:	01a1a2        	movi	a10, 0x101
+4208f1d3:	fe3de5        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f1d6:	01a122        	movi	a2, 0x101
+4208f1d9:	000706        	j	4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f1dc:	02ad      	mov.n	a10, a2
+4208f1de:	fe3d25        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f1e1:	000506        	j	4208f1f9 <sensorarrayWifiBackendInitialize+0x2e9>
+4208f1e4:	00a0c2        	movi	a12, 0
+4208f1e7:	20bcc0        	or	a11, a12, a12
+4208f1ea:	20acc0        	or	a10, a12, a12
+4208f1ed:	fe3c25        	call8	4208d5b0 <sensorarrayWifiOwnerEndSdk>
+4208f1f0:	dc5a56        	bnez	a10, 4208efb9 <sensorarrayWifiBackendInitialize+0xa9>
+4208f1f3:	ffef46        	j	4208f1b4 <sensorarrayWifiBackendInitialize+0x2a4>
+4208f1f6:	000000        	ill
+4208f1f9:	0020c0        	memw
+4208f1fc:	0498      	l32i.n	a9, a4, 0
+4208f1fe:	0020c0        	memw
+4208f201:	0588      	l32i.n	a8, a5, 0
+4208f203:	051987        	beq	a9, a8, 4208f20c <sensorarrayWifiBackendInitialize+0x2fc>
+4208f206:	efed81        	l32r	a8, 4208b1bc <bt_rf_coex_hook_register+0xc8> (40384d8c <__stack_chk_fail>)
+4208f209:	0008e0        	callx8	a8
+4208f20c:	f01d      	retw.n

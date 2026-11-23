@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_analyze_firmware_benchmark.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:15:47.308772+00:00",
+  "sourceSha256": "196309110655f57a24032693c0c9bfb80ad9896d9d4ccce6cc335742e18f6080",
+  "logSha256": "b39a59a6d651f5282def13bac9f1200f50085114cc3f0622cb4dd685d940eeee",
+  "hardware": "NOT_RUN",
+  "scope": "synthetic tests or offline closed screen17 history only; no screen18 recording read"
+}

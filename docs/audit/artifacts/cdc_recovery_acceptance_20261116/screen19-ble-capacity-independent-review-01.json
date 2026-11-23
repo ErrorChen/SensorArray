@@ -1,0 +1,405 @@
+{
+  "kind": "independent_closed_capture_and_source_performance_investigation",
+  "created_utc": "2026-11-20T19:42:21.783526+00:00",
+  "reviewer": "/root/ble_review",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "status": "LOCAL_SLOT_EXHAUSTION_IDENTIFIED_ROOT_SERVICE_CAUSE_NOT_PROVEN",
+  "hardware_actions": [],
+  "production_edits": [],
+  "sources": {
+    "components/sensorarrayBle/sensorarrayBle.c": "d38799c6e377616d2024c5c590778b46b46cdb9000202753c6756fe4b3aa7011",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "tests/host/test_ble_priority.c": "3c8863d3b2a110a8903e0134e3acb109eedc3389aeb2cde55788f5a8f5c1d5a8",
+    "tools/test_ble_priority.py": "da52829a5e736f5024344c388b884c60369bb49ddd2c6ef552bab24db36327db",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+  },
+  "inputs": {
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-volt1.summary.json": "750980ee782afd86bf3e1972d6f330b3d3e755f3406f27a46173c8759263bdc4",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-debug.debug.summary.json": "047a10bf525d9b739810c0b55bfabcc8aca4ebaebe9b7f5d8c1560de114638c5",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-debug.debug.rx.bin": "91ff02396c43bc48435283cb4c3f5a2dec9cd3444ff0975a9328bab31a900b4a",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-debug.debug.events.jsonl": "522510f5763ba71b6e8f5dbb0334e411bbe747b78fdb93b35580240451031f2e",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-volt1.summary.json": "64416f2093e4f367f662c7816b8e7416dca66e8e7dda0341f26fa5e3d9f981b0",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-debug.debug.summary.json": "0733e74ed4849021b17ea83d369bd71a7ee5a93cf7a9c81ea6970ce20629ae7c",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-debug.debug.rx.bin": "f7018884713797d9b5d9289efdf38d2984772c00d8b89c9062f5e16054740332",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-debug.debug.events.jsonl": "58cb491a00033fdcc478a302345913a80c9214971a86f146d2bb014f38869e4c",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-01-build-manifest.json": "008397bc852ec74ee6dd4f90f75c01a57fa7d2f2bebdd67a1f8c8e0e56a9a1fb"
+  },
+  "closed_runs": {
+    "17": {
+      "capture_window": [
+        129155.865180828,
+        129275.865238536
+      ],
+      "STK50_scope": "complete debug lines ending inside capture host window; first/last diagnostic observations are not exact capture boundaries",
+      "samples": 156,
+      "first": {
+        "host_rx_chunk_end": 129156.110088088,
+        "fields": {
+          "unit": "bytes",
+          "seq": "2650",
+          "log": "16384/12504",
+          "transport": "6144/3272",
+          "usb": "0/0",
+          "bleTx": "4096/2192",
+          "bleCtrl": "6144/5208",
+          "serialCtrl": "6144/1664",
+          "heap": "8338880/8301840/8297784",
+          "tSlot": "1/4",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "0/0",
+          "bSlot": "3/4",
+          "ba": "2",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        }
+      },
+      "last": {
+        "host_rx_chunk_end": 129275.295786369,
+        "fields": {
+          "unit": "bytes",
+          "seq": "10400",
+          "log": "16384/12504",
+          "transport": "6144/3272",
+          "usb": "0/0",
+          "bleTx": "4096/2192",
+          "bleCtrl": "6144/5208",
+          "serialCtrl": "6144/1664",
+          "heap": "8338880/8301840/8297784",
+          "tSlot": "1/4",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "6/0",
+          "bSlot": "0/4",
+          "ba": "24",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        }
+      },
+      "observation_span_s": 119.18569828099862,
+      "slot_used_histogram": {
+        "3": 10,
+        "0": 85,
+        "2": 13,
+        "1": 47,
+        "4": 1
+      },
+      "counter_deltas": {
+        "ba": 22,
+        "bs": 0,
+        "br": 0,
+        "bc": 0,
+        "bf": 0,
+        "bg": 0,
+        "ta": 0
+      },
+      "allocation_failure_windows": 15,
+      "max_allocation_failures_per50frame_window": 3,
+      "SCHED_checkpoint_yield_maxBurst_differences": {
+        "bt": [
+          10830,
+          1101,
+          0
+        ],
+        "tr": [
+          16028,
+          1071,
+          1
+        ],
+        "log": [
+          8374,
+          741,
+          0
+        ],
+        "ser": [
+          33363,
+          1715,
+          0
+        ]
+      },
+      "SCHED_difference_warning": "third tuple element is max highwater difference, not additive events",
+      "BLESVC_separate_query_window": {
+        "completed_calls": 15600,
+        "wall_delta_us": 53275199,
+        "wall_us_per_call": 3415.076858974359,
+        "CPU_or_blocked_time": "UNKNOWN"
+      },
+      "link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "517",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "517",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      }
+    },
+    "19": {
+      "capture_window": [
+        133730.87480541,
+        133850.874944719
+      ],
+      "STK50_scope": "complete debug lines ending inside capture host window; first/last diagnostic observations are not exact capture boundaries",
+      "samples": 155,
+      "first": {
+        "host_rx_chunk_end": 133731.242191369,
+        "fields": {
+          "unit": "bytes",
+          "seq": "1000",
+          "log": "16384/12500",
+          "transport": "6144/3248",
+          "usb": "0/0",
+          "bleTx": "4096/2080",
+          "bleCtrl": "6144/5208",
+          "serialCtrl": "6144/1680",
+          "heap": "8312180/8274992/8271084",
+          "tSlot": "1/4",
+          "ta": "0",
+          "ts": "0",
+          "tr": "0",
+          "tq": "1/0",
+          "bSlot": "3/4",
+          "ba": "27",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        }
+      },
+      "last": {
+        "host_rx_chunk_end": 133850.825744948,
+        "fields": {
+          "unit": "bytes",
+          "seq": "8700",
+          "log": "16384/12500",
+          "transport": "6144/3248",
+          "usb": "0/0",
+          "bleTx": "4096/2080",
+          "bleCtrl": "6144/5208",
+          "serialCtrl": "6144/1644",
+          "heap": "8312180/8274804/8270568",
+          "tSlot": "1/4",
+          "ta": "1",
+          "ts": "0",
+          "tr": "0",
+          "tq": "20/0",
+          "bSlot": "1/4",
+          "ba": "251",
+          "bs": "0",
+          "br": "0",
+          "bc": "0",
+          "bf": "0",
+          "bg": "0",
+          "bconf": "0",
+          "trunc": "0"
+        }
+      },
+      "observation_span_s": 119.58355357899563,
+      "slot_used_histogram": {
+        "3": 31,
+        "4": 8,
+        "2": 33,
+        "0": 56,
+        "1": 27
+      },
+      "counter_deltas": {
+        "ba": 224,
+        "bs": 0,
+        "br": 0,
+        "bc": 0,
+        "bf": 0,
+        "bg": 0,
+        "ta": 1
+      },
+      "allocation_failure_windows": 86,
+      "max_allocation_failures_per50frame_window": 6,
+      "SCHED_checkpoint_yield_maxBurst_differences": {
+        "bt": [
+          11066,
+          2102,
+          0
+        ],
+        "tr": [
+          15659,
+          2372,
+          2
+        ],
+        "log": [
+          8351,
+          1619,
+          0
+        ],
+        "ser": [
+          30335,
+          3159,
+          0
+        ]
+      },
+      "SCHED_difference_warning": "third tuple element is max highwater difference, not additive events",
+      "BLESVC_separate_query_window": {
+        "completed_calls": 15019,
+        "wall_delta_us": 55761859,
+        "wall_us_per_call": 3712.754444370464,
+        "CPU_or_blocked_time": "UNKNOWN"
+      },
+      "link_before": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "517",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      },
+      "link_after": {
+        "gen": "1",
+        "connected": "1",
+        "mtu": "517",
+        "phyKnown": "1",
+        "txPhy": "2",
+        "rxPhy": "2",
+        "connKnown": "1",
+        "interval1250us": "6",
+        "latency": "0",
+        "timeout10ms": "400",
+        "phyReq": "0x0",
+        "connReq": "0x0",
+        "dleReq": "0x0",
+        "phyStatus": "0",
+        "connStatus": "0",
+        "dleStatus": "0",
+        "dleObserved": "1",
+        "dlePeerKnown": "0",
+        "dleTx": "251",
+        "dleRx": "251",
+        "stale": "0"
+      }
+    }
+  },
+  "actual_call_count_probe": {
+    "command": [
+      "python3",
+      "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_ble_hot_path_counts.py"
+    ],
+    "exit_code": 0,
+    "script_sha256": "e2c8a209d840a81072d6e874b4b59998e24fc31c4b5aee435e0a544fcf6d8839",
+    "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-hot-path-independent-counts-01.txt",
+    "log_sha256": "2382c01c25c8b4b1d43006da8cee3f0a25c81e0c0df520780b9ac8f13b536613",
+    "output": [
+      "BLE_HOT_PATH_COUNTS,typed=0,frames=100,sync=900,observe=0,crcCalls=200,crcBytes=120000,asciiCalls=300,asciiBytes=120000,descriptor=100,checks=400,gatt=200,locks=2100,hardware=NOT_RUN,target_cpu_time=UNKNOWN",
+      "BLE_HOT_PATH_COUNTS,typed=1,frames=100,sync=1100,observe=200,crcCalls=200,crcBytes=120000,asciiCalls=300,asciiBytes=120000,descriptor=100,checks=400,gatt=200,locks=2300,hardware=NOT_RUN,target_cpu_time=UNKNOWN"
+    ],
+    "scope": "100 synthetic 600-byte messages through current actual production raw/typed admission and send functions; counters injected only in temporary extracted C. Both cases use current PSRAM abstraction. Maintained 18 groups/39 real encoder receiver assertions still execute. This is not old-firmware reconstruction or target CPU timing."
+  },
+  "source_findings": [
+    "Capacity rejection at typed admission increments txSlotAllocFail when all four ordinary persistent DATA slots are in use. Existing owner retains one slot across all fragments and actual SDK completion; queued or WRITING producers retain others.",
+    "Closed screen19 STK50 ba increases224 inside119.584s, while stale generation/release mismatch/CRC/fragment/connect-error counters remain unchanged. BLESVC/BL50 show no SDK errors/congestion. This directly supports local slot exhaustion rather than RF-loss attribution.",
+    "CTRL/protected/DATA/LOG receive order and binary txWake avoid the inspect-then-sleep lost-wakeup race: any successful enqueue leaves a token before blocking. No poll timeout was added.",
+    "WorkBudget component and sdkconfig SHA match screen17 manifest. Global tick100Hz, local20ms quantum,40ms real-idle backstop and 32units remain. BLE TX yields increased1101->2102; this is a local scheduling observation, not proof that changing priority or thresholds is safe.",
+    "Measured temporary call counts: typed adds2 FlowSync and2 mux acquisitions plus2 FlowObserve calls per full frame. CRC/ASCII/GATT/context-check counts match current raw path; no per-fragment adaptive-policy division was found. Observe returns before its 64-bit divisions until the1s window elapses.",
+    "The complete old529518ab BLE source is not archived here; old exact source behavior is not invented. Existing build manifest establishes hashes and unchanged WorkBudget/config only.",
+    "For approximately600-byte VOLT frames, each GATT call already receives internal txPacketScratch, not PSRAM. PSRAM affects pre-send payload reads:600CRC+600wholeASCII+600fragmentASCII+600fragmentcopy bytes per message."
+  ],
+  "bounded_candidate": {
+    "status": "CANDIDATE_ONLY_NOT_IMPLEMENTED_OR_HIL_PROVEN",
+    "change": "One fixed internal2304-byte TX-owner payload working buffer. Copy the validated persistent slot once before SendPayload, then preserve all existing CRC/ASCII/fragment checks against the immutable copied bytes.",
+    "owner_rules": [
+      "Single TX task only; no queue capacity increase",
+      "Retain the original slot until actual SDK completion/SAFE confirmation and existing release path",
+      "Never reuse owner scratch on timeout/quarantine before SDK returns; one stalled owner stops further sends",
+      "No buffer allocation/reallocation/free per frame; no ADC DMA buffer changes",
+      "Preserve connection/stream/config checks and original enqueueCRC; CRC after copy detects corrupt source or copy"
+    ],
+    "expected_memory_effect": "Additional2304internal static bytes, no additional scientific slots; ownerPSRAM read traversals600-byte case reduce2400->600bytes, internal copy/check work remains. Target speed gain is UNKNOWN.",
+    "required_validation": [
+      "Actual target map/static delta, scan-before/after MEM and READY after reboot",
+      "Max2304/caller reuse/persistent owner/reconnect/CCCD/quarantine guard host cases",
+      "Same VOLT1 120s closed USB+BLE experiment and normal2.5%budget; compare CPU,slot allocation failures,SDKwall/yields and PC CRC/identity/gaps separately",
+      "Keep previous FAIL evidence and do not treat a lower local counter alone as PC delivery"
+    ]
+  },
+  "memory_evidence": {
+    "source": "ble-snapshot-postscreen19-01.rx.bin",
+    "line": "MEM,v=1,readout=sequential,unit=bytes,intCaps=internal8,intFree=26024,intLargest=13812,intMin=21744,extFree=8248968,extLargest=8126452,scan=created,scanStack=16384,beforeFree=40168,beforeLargest=30708,afterFree=22368,afterLargest=13812,err=0x0,sampleUs=358558935",
+    "limitation": "Observed existing image only, not guarantee new allocation layout. Total PSRAM is not task-stack-eligible internal memory."
+  },
+  "not_recommended": [
+    "Arbitrary larger queues",
+    "Priority or tick changes without stronger evidence; prior bounded-batch research remains HOLD",
+    "Moving all4ordinary payload slots back to internal RAM costs9216bytes and erodes startup margin",
+    "Dropping ADC/ASCII/CRC checks or declaring RF loss from local slot rejection"
+  ],
+  "other_candidate_limits": [
+    "Completion-side duplicate FlowObserve could be removed only after window/sparse-recovery/epoch regressions; operation counts do not establish a meaningful target gain.",
+    "Idle txWake waits currently do not reset the task-local work quantum unless real IDLE or budget delay occurs. Any future optimization must prove actual blocking and retain independent global backstop; elapsed time alone cannot invent idle."
+  ],
+  "overall_firmware_acceptance": "NOT_ESTABLISHED",
+  "original_recordings_modified": false
+}

@@ -16,6 +16,9 @@ static bool otgEnabled, cdcEnabled, romAvailable, authorityKnown;
 static sensorarrayUsbOtgStats_t usbStats;
 static sensorarraySerialIoStats_t serialStats;
 static sensorarrayBleLinkSnapshot_t link;
+static sensorarrayBleGuardSnapshot_t guard;
+static sensorarrayBleLogPolicySnapshot_t logPolicy;
+static sensorarrayBleFlowSnapshot_t flow;
 static sensorarrayWorkBudgetSnapshot_t budget;
 static sensorarrayConfigAuthority_t authority;
 static unsigned serialTerminals, networkTerminals, debugMirrors, publishCount;
@@ -27,6 +30,17 @@ bool sensorarrayUsbOtgRomDownloadAvailable(void) { return romAvailable; }
 void sensorarrayUsbOtgGetStats(sensorarrayUsbOtgStats_t *out) { *out = usbStats; }
 void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *out) { *out = serialStats; }
 void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *out) { *out = link; }
+void sensorarrayBleGetGuardSnapshot(sensorarrayBleGuardSnapshot_t *out) { *out = guard; }
+void sensorarrayBleGetLogPolicySnapshot(sensorarrayBleLogPolicySnapshot_t *out) { *out = logPolicy; }
+void sensorarrayBleGetFlowSnapshot(sensorarrayBleFlowSnapshot_t *out) { *out = flow; }
+bool sensorarraySnapshotDiagnosticsHandles(const char *cmd)
+{ return cmd && (!strcmp(cmd,"SNAPSRC?") || !strcmp(cmd,"SNAPNET?")); }
+esp_err_t sensorarraySnapshotDiagnosticsFormat(const char *cmd,char *text,size_t size)
+{
+    assert(sensorarraySnapshotDiagnosticsHandles(cmd));
+    int n=snprintf(text,size,"%s,routed=1\n",cmd);
+    return n>0 && (size_t)n<size ? ESP_OK : ESP_ERR_INVALID_SIZE;
+}
 void sensorarrayWorkBudgetCopySnapshot(sensorarrayWorkBudgetSnapshot_t *out) { *out = budget; }
 bool sensorarrayConfigIdentityCopy(sensorarrayConfigAuthority_t *out)
 { *out = authority; return authorityKnown; }
@@ -75,6 +89,9 @@ static void reset(void)
 {
     memset(&usbStats, 0, sizeof(usbStats)); memset(&serialStats, 0, sizeof(serialStats));
     memset(&link, 0, sizeof(link)); memset(&authority, 0, sizeof(authority));
+    memset(&guard, 0, sizeof(guard));
+    memset(&logPolicy, 0, sizeof(logPolicy));
+    memset(&flow, 0, sizeof(flow));
     memset(&budget, 0, sizeof(budget));
     otgEnabled = romAvailable = authorityKnown = true;
     cdcEnabled = false;
@@ -142,6 +159,28 @@ static void testUsbBoundaries(void)
 static void testBleBoundaries(void)
 {
     reset();
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"BLESNAP?","known=0,lastSeq=unknown,lastRev=unknown,lastCompleteAgeUs=unknown");
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"BLEFLOW?","localServiceMilliFps=unknown");
+    flow.connectionGeneration=flow.streamGeneration=flow.localServiceMilliFps=UINT32_MAX;
+    flow.admissionAttempts=flow.capacityRejected=UINT32_MAX;
+    flow.protectedQueued=flow.protectedComplete=flow.protectedFailed=UINT32_MAX;
+    flow.protectedAdmissionMiss=flow.protectedDeadlineMiss=flow.protectedSuperseded=flow.staleNormal=UINT32_MAX;
+    flow.lastSequence=flow.lastRevision=UINT32_MAX;
+    flow.intentionalSkip=flow.probeSelected=flow.cleanEvidenceUs=flow.lastCompleteAgeUs=flow.maxCompleteGapUs=UINT64_MAX;
+    flow.stage=UINT8_MAX;flow.pressureWindows=UINT8_MAX;
+    flow.ordinaryRatePermille=flow.capacityRejectedPermille=UINT16_MAX;
+    flow.active=flow.evidenceKnown=flow.serviceKnown=flow.lastCompleteKnown=flow.lastCompleteAgeKnown=true;
+    flow.gapKnown=true;
+    flow.firstPending=flow.periodicPending=true;
+    sensorarrayBleFlowSnapshot_t beforeFlow=flow;
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"BLEFLOW?","peerLoss=unknown,rssi=unknown");
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"BLESNAP?","lastCompleteAgeUs=18446744073709551615,gapKnown=1,maxCompleteGapUs=18446744073709551615");
+    assert(!memcmp(&flow,&beforeFlow,sizeof flow));
+    assert(sensorarrayLinkDiagnosticsHandles("BLEFLOW?") && sensorarrayLinkDiagnosticsHandles("BLESNAP?"));
+    assert(!sensorarrayLinkDiagnosticsHandles("BLEFLOW=1") && !sensorarrayLinkDiagnosticsHandles("BLESNAP=1"));
+    assert(sensorarrayLinkDiagnosticsHandles("SNAPSRC?") && sensorarrayLinkDiagnosticsHandles("SNAPNET?"));
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"SNAPSRC?","routed=1");
+    assertFormat(sensorarrayLinkDiagnosticsFormat,"SNAPNET?","routed=1");
     link.connectionGeneration = link.staleLinkEvents = UINT32_MAX;
     link.connected = link.phyKnown = link.connParamsKnown = link.dataLengthObserved = true;
     link.dataLengthConnectionKnown = false;
@@ -157,6 +196,13 @@ static void testBleBoundaries(void)
     link.sdkLastError = ESP_FAIL; link.txTaskPriority = link.ctrlTaskPriority = UINT32_MAX;
     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLELINK?", "dlePeerKnown=0");
     assertFormat(sensorarrayLinkDiagnosticsFormat, "BLETX?", "pcReceipt=unknown");
+    logPolicy.connectionGeneration = logPolicy.policyDrop = logPolicy.droppedLog = UINT32_MAX;
+    logPolicy.connected = logPolicy.dataActive = true;
+    logPolicy.txMode = SENSORARRAY_BLE_TX_SAFE; logPolicy.dataCccd = UINT16_MAX;
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLELOG?",
+        "mode=safe,dataCccd=65535,dataActive=1,ordinaryAllowed=0,policy=drop_ordinary_when_data,policyDrop=4294967295,dropL=4294967295,priorityBypass=1,inflightCancel=0,pcReceipt=unknown\n");
+    assert(sensorarrayLinkDiagnosticsHandles("BLELOG?") && !sensorarrayLinkDiagnosticsHandles("BLELOG=0"));
+    sensorarrayBleLogPolicySnapshot_t policyBefore = logPolicy;
     link.sdkCompletedCalls = link.sdkIdleChanged = link.sdkIdleUnchanged = link.sdkIdleUnknown = UINT32_MAX;
     link.sdkWallUs = UINT64_MAX;
     link.confOk = link.confError = link.confMatched = link.confUnmatched = UINT32_MAX;
@@ -176,6 +222,11 @@ static void testBleBoundaries(void)
     link.phyRequestError = link.connRequestError = link.dataLengthRequestError = ESP_ERR_INVALID_STATE;
     link.phyUpdateStatus = link.connUpdateStatus = link.dataLengthStatus = UINT16_MAX;
     char reply[512]; assert(sensorarrayLinkDiagnosticsFormat("BLELINK?", reply, sizeof(reply)) == ESP_OK);
+    assert(sensorarrayLinkDiagnosticsFormat("BLELOG?", reply, sizeof(reply)) == ESP_OK);
+    assert(strstr(reply, "BLELOG,v=1,scope=boot,gen=4294967295,connected=1,"));
+    assert(!memcmp(&policyBefore, &logPolicy, sizeof(logPolicy)));
+    assert(sensorarrayLinkDiagnosticsFormat("BLELOG=0", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
+    assert(sensorarrayLinkDiagnosticsFormat("BLELINK?", reply, sizeof(reply)) == ESP_OK);
     assert(strstr(reply, "phyKnown=0,txPhy=0,rxPhy=0,connKnown=0"));
     assert(strstr(reply, "phyStatus=65535,connStatus=65535,dleStatus=65535,dleObserved=0,dlePeerKnown=0"));
     assert(sensorarrayLinkDiagnosticsFormat("BLESVC?", reply, sizeof(reply)) == ESP_OK);
@@ -216,6 +267,33 @@ static void testBootGuard(void)
     assert(sensorarrayRestartControlFormat(reply, sizeof(reply)) == ESP_OK && strstr(reply, "pendingKnown=0,pendingRev=0"));
     assert(sensorarrayRestartControlAck(first, ESP_FAIL)); assertNotBusy();
 }
+static void testBleGuardQueryAndRestart(void)
+{
+    reset();
+    guard.ready=guard.quarantined=guard.callKnown=guard.active=guard.restartRequired=true;
+    guard.initError=ESP_FAIL; guard.callId=guard.rejected=UINT32_MAX;
+    guard.startUs=guard.detectedUs=guard.ageUs=UINT64_MAX;
+    guard.deadlineUs=guard.pollUs=UINT32_MAX;
+    assert(sensorarrayLinkDiagnosticsHandles("BLEGUARD?") && !sensorarrayLinkDiagnosticsHandles("BLEGUARD=0"));
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLEGUARD?", "completionKnown=0,restartRequired=1,rejected=4294967295,recovery=manual_restart,sdkCancelled=0,pcReceipt=unknown");
+    char reply[512];
+    assert(sensorarrayLinkDiagnosticsFormat("BLEGUARD?", reply, sizeof reply)==ESP_OK);
+    assert(strstr(reply,"quarantined=1,reason=sdk_deadline,callKnown=1,callId=4294967295"));
+    sensorarrayBleGuardSnapshot_t before=guard;
+    /* Read-only status and the independent explicit restart/USB ACK fence
+     * remain usable while the BLE send owner has not returned. */
+    assertFormat(sensorarrayUsbControlHandle, "USB?", "backend=otg_bulk_v1");
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLELOG?", "dataActive=0,ordinaryAllowed=0");
+    uint32_t id=0u, taken=0u;
+    assert(sensorarrayRestartControlPost(&authority, true, &id)==ESP_OK && id!=0u);
+    assert(!sensorarrayRestartControlTake(&taken));
+    assert(sensorarrayRestartControlFormat(reply, sizeof reply)==ESP_OK && strstr(reply,"busy=1"));
+    assert(sensorarrayRestartControlAck(id, ESP_OK));
+    assert(sensorarrayRestartControlTake(&taken) && taken==id && !sensorarrayRestartControlIsRom(id));
+    assert(!memcmp(&before,&guard,sizeof guard));
+    guard.active=false; guard.completionKnown=true;
+    assertFormat(sensorarrayLinkDiagnosticsFormat, "BLEGUARD?", "active=0,completionKnown=1,restartRequired=1");
+}
 static void testCriticalText(void)
 {
     reset(); debugResult = ESP_ERR_TIMEOUT;
@@ -244,7 +322,7 @@ static void testCriticalText(void)
 }
 int main(void)
 {
-    testUsbBoundaries(); testBleBoundaries(); testBootGuard(); testCriticalText();
-    puts("LINK_CONTROL_PASS,groups=4,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,hardware=NOT_RUN");
+    testUsbBoundaries(); testBleBoundaries(); testBootGuard(); testCriticalText(); testBleGuardQueryAndRestart();
+    puts("LINK_CONTROL_PASS,groups=5,actualModules=4,capacity=512,bootAckFence=1,backendCaps=1,criticalText=1,bleGuardQuery=1,hardware=NOT_RUN");
     return 0;
 }

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "wifi-memory-rom-01",
+    "--request-rom"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 70.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "6730bdd9a885384505ad728297593605794f4763a9af02bf53d8db779bbb9c93",
+  "started_utc": "2026-11-21T01:30:28.584978+00:00",
+  "started_monotonic": 155396.232651422,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T01:30:29.200674+00:00",
+  "finished_monotonic": 155396.848340298,
+  "log_sha256": "1be5202e9bbf1a7d4f50d42f00303a9eb4dad8dc839b769d99829f44acfd9d03"
+}

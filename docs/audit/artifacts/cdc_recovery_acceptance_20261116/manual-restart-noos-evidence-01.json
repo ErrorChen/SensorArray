@@ -1,0 +1,55 @@
+{
+  "created_utc": "2026-11-20T23:46:08.628029+00:00",
+  "elf_sha256_before": "c47a3710a770506abd030d03790b58c137150c9c1cba86a596f07962114a3c4e",
+  "elf_sha256_after": "c47a3710a770506abd030d03790b58c137150c9c1cba86a596f07962114a3c4e",
+  "map_sha256": "00fc96db0a635c9242914f93c15d2231f5caf0e8bae5925f716ba31369e5e684",
+  "shutdown_registration_cross_reference": "esp_register_shutdown_handler                     esp-idf/esp_system/libesp_system.a(esp_system.c.obj)\n                                                  esp-idf/esp_wifi/libesp_wifi.a(wifi_default.c.obj)\n                                                  esp-idf/esp_timer/libesp_timer.a(system_time.c.obj)",
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_restart_noos",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/manual-restart-noos-review-01-esp_restart_noos.txt",
+      "log_sha256": "859871badefa8a210a0cf825b5c8c0f2ae957b2090df44c6c29541b9a7e0d0f2"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__wrap_esp_restart_noos",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/manual-restart-noos-review-01-wrap_esp_restart_noos.txt",
+      "log_sha256": "517de2aea577e876439bb621b4c9cbf8493480a35fbdbfa11213aa3ed83db857"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayUsbEmergencyCoreReset",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/manual-restart-noos-review-01-sensorarrayUsbEmergencyCoreReset.txt",
+      "log_sha256": "8d530f9bdc8a6e9a31889853b23c0c6bb93429847a6cacaa3be5889779062849"
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=rtc_clk_slow_freq_get_hz",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/manual-restart-noos-review-01-rtc_clk_slow_freq_get_hz.txt",
+      "log_sha256": "0b2e473d0e1c0c2c38217615c59476f9c223d01306196f722db8677fe05b05fb"
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "source_or_SDK_edited": false
+}

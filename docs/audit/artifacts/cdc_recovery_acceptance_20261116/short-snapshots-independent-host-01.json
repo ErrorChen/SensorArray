@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_short_snapshots.py"
+  ],
+  "exitCode": 0,
+  "dateUtc": "2026-11-20T19:01:01.622834+00:00",
+  "hardware": "NOT_RUN",
+  "sourceSha256": "a60d46acbca24362adf2a2c038cd4e10829e49ab3aec36b06fde8702f270689b",
+  "testSha256": "3e7950ee62acc76bab9f44f293df0f6e70dafd3035f4813db1ca4ea97f6db9e0",
+  "logSha256": "d64c7a530372000c858c12f181699382d31fb02bde0b5a3438b89b5666f4fd9c"
+}

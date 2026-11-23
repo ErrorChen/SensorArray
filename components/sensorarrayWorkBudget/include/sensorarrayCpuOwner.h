@@ -38,7 +38,8 @@ void sensorarrayCpuOwnerCheckpoint(sensorarrayWorkBudgetWorker_t worker);
 bool sensorarrayCpuOwnerCopySnapshot(sensorarrayWorkBudgetWorker_t worker,
                                     sensorarrayCpuOwnerSnapshot_t *snapshot);
 
-/* 本轮新增: strict CPUOWNER?0 through CPUOWNER?6. session is immutable for this
+/* 本轮新增: strict CPUOWNER?0 through CPUOWNER?7. Role 7 is the Wi-Fi SDK
+ * owner; the existing 0..6 domains are unchanged. session is immutable for this
  * boot and is provided by main; taskNumber/counters cannot cross sessions. */
 bool sensorarrayCpuOwnerHandles(const char *command);
 esp_err_t sensorarrayCpuOwnerFormat(const char *command, uint64_t session,

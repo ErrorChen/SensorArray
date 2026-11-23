@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-ble.ble.notifications.jsonl",
+      "raw_bytes": 1842603,
+      "raw_sha256": "a2f07becac1c207e7a532371c9fbcf1d16a71a53427240f25cf78fd081ce204d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 192443,
+      "gzip_sha256": "81cc230da118c4375393f9ed86debfaf26f57bffac637a816e98db59f98445c7",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.events.jsonl",
+      "raw_bytes": 841812,
+      "raw_sha256": "7168114ff9f959c6a1ab0f2638f372258dadf9bb006c23c81cd561c2499e26e2",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.events.jsonl.gz",
+      "gzip_bytes": 129701,
+      "gzip_sha256": "8fca7b16afe473f67ba14627da53d45b36b3c038012f672e5239be3626af87a8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.rx.bin",
+      "raw_bytes": 1369073,
+      "raw_sha256": "8dbd9a1db4bb071ccac8c1fbf0978fd10bcbce9f9f2d67f587ec2d12ebf453de",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.rx.bin.gz",
+      "gzip_bytes": 188691,
+      "gzip_sha256": "b41d9f57229de9aa2613ab519e7bce0df65cd29a31d56cbe8b4fa01f364017d1",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-debug.debug.events.jsonl",
+      "raw_bytes": 166744,
+      "raw_sha256": "e8e74c2cb85a562bbb671e1420e5a08ea54f072984b19f5c1dd946c1f79e61fd",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 29596,
+      "gzip_sha256": "8bc267951cd5d353d5aec60b96c1f4cc00735944d1c9546c0c21eaa198c42b6e",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-debug.debug.rx.bin",
+      "raw_bytes": 201614,
+      "raw_sha256": "a6ecef768da31d6ceb7fbc1c794b8a5139e20ed2ee4a79da0cf98e6f17b5a261",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 22397,
+      "gzip_sha256": "ac0154f8e8c36a850ae5c25290031864d6e78051105e26ce0e92e07d84969788",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-cap8.summary.json",
+      "sha256": "260826326ab5a767c8c896d7d93f1fb5fab17b24c4f63f899a21fd578bb2842a",
+      "bytes": 389202
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-debug.debug.summary.json",
+      "sha256": "85b39429f181e72441190940d1761f198c73f33848002b947fba23c72a9aeac3",
+      "bytes": 2593
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-ble.ble.summary.json",
+      "sha256": "05ab6682968994d12dd12814e87732d42f2e89cab56ac236e923d7b38cedff92",
+      "bytes": 2044
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-analysis-01.json",
+      "sha256": "04b8f21ccaac21e78858643d461af94b488162a6319d36bf4cb4c81b82b6114d",
+      "bytes": 189718
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-cpu-01.json",
+      "sha256": "35a07202b9229e945f7916b00f2f30ff4245f92d4ec2b3248670279c32d57722",
+      "bytes": 19459
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-protection-03.json",
+      "sha256": "e25016027024fbce16a78b756141a5aab816091fef0b37c164076b3f9308195b",
+      "bytes": 30047
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-assessment-01.json",
+      "sha256": "3a3c36c110143295934eaf7f4306ea99e58c311ad95682bc55cb8b3a97582a61",
+      "bytes": 53765
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-assessment-source-before-fix-01.py",
+      "sha256": "77eb11dd7a9b93ee150a55388262ba7f694ffade773c9aa3962a78194205d44d",
+      "bytes": 5420
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-legacy-closure-02.json",
+      "sha256": "05a6a4a132689a354fa223906287d6e8d8059adf421dfc3c2ca746fa39b5d073",
+      "bytes": 2828
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-protection-short-closure-host-02.json",
+      "sha256": "dcda55344d46a050a8763fefd27d62e9f0c825d5b31aa702bb1c407df30232c2",
+      "bytes": 2247
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-01-command.json",
+      "sha256": "a889daf087736ab9106eb889a3a0405bbef0b12ff4c865d20406ec1bd12f5b49",
+      "bytes": 1013
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-protection-01-command.txt",
+      "sha256": "df915b26a0ad67309cb3d3f532dd87fa1ede0f11a3001af831d5d134f562ce84",
+      "bytes": 787
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-assessment-01-command.json",
+      "sha256": "0d71ce21c0d4e1dcde42b76eafa622b4fddbcc5b3a8efbb4e33e935eefc554d4",
+      "bytes": 769
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-assessment-01-command.txt",
+      "sha256": "de5973fc8174a7b0f93cdf45f0e23211ac552a5c4829abe21f16e800e4f11a25",
+      "bytes": 381
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-assessment-02-command.json",
+      "sha256": "33ffed350be52518caf42856fd1e540ae6e275449c8597217b38c46d44732fa2",
+      "bytes": 769
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-04-validated-identity.json",
+      "sha256": "5ee9fef38ae5432fc2cd40a5ceaefb0729d68e4f0d752cb732f7a3c2df2e4d07",
+      "bytes": 1072
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01-cap8-command.json",
+      "sha256": "f4f0079bf4585aa649a8f7274ff0e283ef5cc36b3ad44be8e59ba8aac5fae012",
+      "bytes": 1327
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01-ble-command.json",
+      "sha256": "b8363f171bef6c4188effd214a376a63341bf2ae415d9ade9bf07098713d465f",
+      "bytes": 1099
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01-debug-command.json",
+      "sha256": "9cc5eb6238e4a4860620feebb0ed1bca51dc263c184462bcbd46712c9b82f193",
+      "bytes": 1190
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-analysis-01-command.json",
+      "sha256": "32249443137cd2ac2f7a4d9fcfe240f86d8873c1b4f2ac140e2a875e4953ed48",
+      "bytes": 1405
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-cpu-01-command.json",
+      "sha256": "530315065349d7b4a267ff9e0da01e602a37d9a79a5b25393c35bfed5b6f8d20",
+      "bytes": 997
+    }
+  ],
+  "file_count": 5,
+  "total_original_bytes": 4421846,
+  "total_gzip_bytes": 562828,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

@@ -1,0 +1,1 @@
+{"status": "BACKEND_UNAVAILABLE_CONTROL_QUERY_OBSERVED", "error": null, "summary": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05/wifi-control-05.summary.json"}

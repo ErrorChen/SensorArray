@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_pipeline.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ebdb066172f3889faf7b3e8df34a60abe77bcdc6072823e5d115fc5b9cbbe9c3",
+  "started_utc": "2026-11-20T17:43:05.675749+00:00",
+  "started_monotonic": 127359.843997222,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-data-priority-pipeline-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:43:06.592381+00:00",
+  "finished_monotonic": 127360.760624651,
+  "log_sha256": "9fc14174e49a8e1c98b2ed55b538efa2450edfca946c3a45b32a624c84c390bc"
+}

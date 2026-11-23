@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "scope": "synthetic host regression; not HIL or performance evidence",
+  "HEAD": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "files": {
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_bulk_benchmark.py": "f1f8e76a7717de5ed1892704d3914c1e2a79dc3490d9681d1c44fafb8e1705ef",
+    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py": "a7b75c7ab855c234eaabfb878738cfe8aa8534d885d4fcc1d1a475222d3cc175",
+    "tools/test_usb_cdc_capture.py": "d91cc0887a3f3b433cb2b96253bd9c6c4394779d1006875528a0c4003f52554d"
+  },
+  "scoped_dirty_diff_sha256": "feac25ddc96196f70017b4646dd7b1e60bddb6e070334f397e6a0e59011c352c",
+  "scoped_status": " M docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_bulk_benchmark.py\n M docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py\n M tools/test_usb_cdc_capture.py\n",
+  "production_modified_by_this_task": false,
+  "hardware_accessed": false,
+  "commands": [
+    "python3 docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py",
+    "python3 tools/test_usb_cdc_capture.py"
+  ],
+  "baseline": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "df58b7",
+        "wall_time_seconds": 0.000004229,
+        "exit_code": 0,
+        "original_token_count": 27,
+        "output": "........\n----------------------------------------------------------------------\nRan 15 tests in 4.595s\n\nOK\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "a60167",
+        "wall_time_seconds": 0.00000861,
+        "exit_code": 0,
+        "original_token_count": 27,
+        "output": "........\n----------------------------------------------------------------------\nRan 11 tests in 1.151s\n\nOK\n"
+      }
+    }
+  ],
+  "initial_run_started": [
+    {
+      "command": "python3 docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "chunk_id": "b34dca",
+          "wall_time_seconds": 1.001259579,
+          "session_id": 56122,
+          "original_token_count": 2,
+          "output": "......."
+        }
+      }
+    },
+    {
+      "command": "python3 tools/test_usb_cdc_capture.py",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "chunk_id": "5940c9",
+          "wall_time_seconds": 1.001160201,
+          "session_id": 20141,
+          "original_token_count": 1,
+          "output": ".E."
+        }
+      }
+    }
+  ],
+  "initial_run_completed": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "f29cdd",
+        "wall_time_seconds": 0.000013269,
+        "exit_code": 1,
+        "original_token_count": 228,
+        "output": "..........F.\n======================================================================\nFAIL: test_required_schema_matches_actual_production_formatters (__main__.StageTests.test_required_schema_matches_actual_production_formatters)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py\", line 174, in test_required_schema_matches_actual_production_formatters\n    else: self.assertEqual(set(required.split()), set(parse_fields(line)), command)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Items in the second set but not the first:\n'bleExpired'\n'wifiExpired' : SNAPNET?\n\n----------------------------------------------------------------------\nRan 19 tests in 5.665s\n\nFAILED (failures=1)\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "e9965b",
+        "wall_time_seconds": 0.000008744,
+        "exit_code": 1,
+        "original_token_count": 208,
+        "output": "........\n======================================================================\nERROR: test_CDC_optional_service_queries_preserve_shared_raw_and_capture_window (__main__.CdcTests.test_CDC_optional_service_queries_preserve_shared_raw_and_capture_window)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/csc/esp/workspace/SensorArray/tools/test_usb_cdc_capture.py\", line 204, in test_CDC_optional_service_queries_preserve_shared_raw_and_capture_window\n    self.assertLessEqual(q['started_monotonic'], q['reply_received_monotonic'])\n                                                 ~^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'reply_received_monotonic'\n\n----------------------------------------------------------------------\nRan 11 tests in 1.109s\n\nFAILED (errors=1)\n"
+      }
+    }
+  ],
+  "initial_failures_explained": [
+    "Production SNAPNET schema gained bleExpired/wifiExpired during the first run; required collector schema synchronized before rerun.",
+    "CDC test incorrectly required CPUOWNER-only receive-chunk metadata for every optional query; corrected to actual start/reply-event/end metadata retained by the existing collector."
+  ],
+  "final_run_started": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "ad4638",
+        "wall_time_seconds": 1.001608091,
+        "session_id": 54390,
+        "original_token_count": 2,
+        "output": "......."
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "39e59e",
+        "wall_time_seconds": 1.001864201,
+        "session_id": 60616,
+        "original_token_count": 1,
+        "output": "..."
+      }
+    }
+  ],
+  "final_run_completed": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "29ad12",
+        "wall_time_seconds": 0.000016609,
+        "exit_code": 0,
+        "original_token_count": 28,
+        "output": "............\n----------------------------------------------------------------------\nRan 19 tests in 5.648s\n\nOK\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "242967",
+        "wall_time_seconds": 0.000009241,
+        "exit_code": 0,
+        "original_token_count": 27,
+        "output": "........\n----------------------------------------------------------------------\nRan 11 tests in 1.106s\n\nOK\n"
+      }
+    }
+  ],
+  "diff_check": {
+    "command": "git diff --check -- docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_bulk_benchmark.py docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py tools/test_usb_cdc_capture.py",
+    "exit_code": 0
+  },
+  "coverage": [
+    "actual C formatter adjacent-literal schemas",
+    "exact capability gating; old images unchanged",
+    "zero/max U32/U64; explicit unknown retention",
+    "missing field/literal/range/unsupported delivery claim rejection",
+    "before/after original reply text and individual host time windows",
+    "CONFIG bracket revision mismatch fails before capture",
+    "all four new query timeouts share original deadline",
+    "no periodic query extension or unsafe setter"
+  ],
+  "final_status": "HOST_TESTS_PASSED"
+}

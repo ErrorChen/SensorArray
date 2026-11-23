@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+    "-d",
+    "--start-address=0x40377408",
+    "--stop-address=0x40377430",
+    "build/SensorArray.elf"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 20.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "eee949651ff169401b105a7efb9de723b74bc8132be0ddc7e3950eeb0ca23130",
+  "started_utc": "2026-11-21T00:14:02.915044+00:00",
+  "started_monotonic": 150808.795576973,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-01-wrapper-range-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:14:02.922904+00:00",
+  "finished_monotonic": 150808.803420079,
+  "log_sha256": "ec93146c68b157c35648469f7003e58951d2bc83ea81adc0ac0dc653fb03cb84"
+}

@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -20,6 +21,7 @@ def find_compiler() -> tuple[str, bool]:
     candidates = [
         os.environ.get("CC", ""),
         shutil.which("clang") or "",
+        shutil.which("cc") or "",
         str(clion_gcc[0]) if clion_gcc else "",
         r"C:\Espressif\tools\esp-clang\esp-19.1.2_20250312\esp-clang\bin\clang.exe",
     ]
@@ -70,9 +72,11 @@ def main() -> int:
         subprocess.run(common + [*(str(source) for source in sources),
                                  "-o", str(executable)], check=True,
                        env=compiler_environment)
-        completed = subprocess.run([str(executable)], check=True, text=True,
+        completed = subprocess.run([str(executable)], check=False, text=True,
                                    capture_output=True, env=compiler_environment)
         print(completed.stdout, end="")
+        print(completed.stderr, end="", file=sys.stderr)
+        completed.check_returncode()
     return 0
 
 

@@ -68,6 +68,9 @@ typedef struct {
     uint32_t txCrcMismatch;
     uint32_t controlTxRetry;
     uint32_t controlTxRetryExhausted;
+    /* Ordinary FF30 admissions suppressed while DATA is effectively subscribed.
+     * Included once in dropped[LOG]/messageDropped; boot total, modulo-32-bit. */
+    uint32_t logPolicyDrop;
     /* Configured and lifetime-minimum remaining stack sizes, all in bytes. */
     uint32_t txTaskConfiguredBytes;
     uint32_t txTaskMinimumRemainingBytes;
@@ -144,6 +147,84 @@ typedef struct {
     uint32_t confUnmatched;
 } sensorarrayBleLinkSnapshot_t;
 
+/* New in this fix, queried with BLEGUARD? (v=1). Quarantine is sticky until an
+ * explicit application restart. It stops admission, not an in-flight SDK call.
+ * When quarantined, callId/start/detected/completionKnown describe the frozen
+ * fault call even after a late SDK return or a connection epoch change. */
+typedef struct {
+    bool ready;
+    esp_err_t initError;
+    bool quarantined;
+    bool callKnown;
+    uint32_t callId; /* Modulo-32-bit; pair with startUs within this boot. */
+    uint64_t startUs;
+    uint64_t detectedUs;
+    uint64_t ageUs; /* Time since start, not SDK CPU time or completion time. */
+    uint32_t deadlineUs;
+    uint32_t pollUs;
+    bool active;
+    bool completionKnown;
+    bool restartRequired;
+    uint32_t rejected; /* Guard-blocked admissions/attempts, modulo-32-bit. */
+} sensorarrayBleGuardSnapshot_t;
+
+/* New in this fix: BLELOG? v=1. The policy affects new ordinary LOG admissions
+ * only. Reserved lifecycle/CTRL and already-owned records are unchanged. */
+typedef struct {
+    uint32_t connectionGeneration;
+    bool connected;
+    sensorarrayBleTxMode_t txMode;
+    uint16_t dataCccd;
+    bool dataActive;
+    bool ordinaryAllowed;
+    uint32_t policyDrop;
+    uint32_t droppedLog;
+} sensorarrayBleLogPolicySnapshot_t;
+
+/* 本轮新增: typed encoder publication. All pointers are borrowed for this call
+ * only; successful BLE admission deep-copies its selected complete payload.
+ * fullData is always the original complete encoder bundle. normalData may be
+ * a legacy preview; protected output always selects fullData. Upstream
+ * protectionFlags describe source/network protection candidates. BLE first
+ * protection is tied to its config/stream, and its one-second obligation is
+ * satisfied by a sequence-advancing typed full bundle's local completion;
+ * an upstream PERIODIC candidate may therefore enter the ordinary queue. */
+enum {
+    SENSORARRAY_BLE_FRAME_PROTECT_FIRST_CONFIG = 1u,
+    SENSORARRAY_BLE_FRAME_PROTECT_PERIODIC = 2u,
+};
+typedef struct {
+    uint64_t sessionId;
+    uint32_t bootId;
+    uint32_t revision;
+    uint32_t sequence;
+} sensorarrayBleFrameIdentity_t;
+typedef struct {
+    const uint8_t *fullData;
+    size_t fullLength;
+    const uint8_t *normalData;
+    size_t normalLength;
+    sensorarrayBleFrameIdentity_t identity;
+    uint32_t protectionFlags;
+} sensorarrayBleFramePublication_t;
+
+/* 本轮新增: atomic local output observation. Counters are modulo width;
+ * local completion/selection never imply PC receipt. */
+typedef struct {
+    uint32_t connectionGeneration, streamGeneration;
+    uint8_t stage;
+    uint16_t ordinaryRatePermille, capacityRejectedPermille;
+    uint8_t pressureWindows;
+    bool active, evidenceKnown, serviceKnown;
+    uint32_t localServiceMilliFps, admissionAttempts, capacityRejected;
+    uint64_t intentionalSkip, probeSelected, cleanEvidenceUs;
+    uint32_t protectedQueued, protectedComplete, protectedFailed;
+    uint32_t protectedAdmissionMiss, protectedDeadlineMiss, protectedSuperseded, staleNormal;
+    bool lastCompleteKnown, lastCompleteAgeKnown, gapKnown, firstPending, periodicPending;
+    uint32_t lastSequence, lastRevision;
+    uint64_t lastCompleteAgeUs, maxCompleteGapUs;
+} sensorarrayBleFlowSnapshot_t;
+
 esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config);
 esp_err_t sensorarrayBleNotify(sensorarrayBleChannel_t channel,
                               const uint8_t *data,
@@ -164,6 +245,9 @@ esp_err_t sensorarrayBleNotifyForGeneration(
     const uint8_t *data,
     size_t length,
     uint32_t expectedConnectionGeneration);
+esp_err_t sensorarrayBleNotifyFrameForGeneration(
+    const sensorarrayBleFramePublication_t *publication,
+    uint32_t expectedConnectionGeneration);
 /* New in this repair: lifecycle text keeps FF30 framing but uses the existing
  * reserved <=512-byte CTRL pool/queue. Caller must retain/query its terminal
  * result if local admission fails; this is not an exactly-once transport. */
@@ -175,6 +259,9 @@ sensorarrayBleTxMode_t sensorarrayBleGetTxMode(void);
 const char *sensorarrayBleTxModeName(sensorarrayBleTxMode_t mode);
 void sensorarrayBleGetStats(sensorarrayBleStats_t *outStats);
 void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *outSnapshot);
+void sensorarrayBleGetGuardSnapshot(sensorarrayBleGuardSnapshot_t *outSnapshot);
+void sensorarrayBleGetLogPolicySnapshot(sensorarrayBleLogPolicySnapshot_t *outSnapshot);
+void sensorarrayBleGetFlowSnapshot(sensorarrayBleFlowSnapshot_t *outSnapshot);
 void sensorarrayBleLogHeap(const char *stage);
 
 #ifdef __cplusplus

@@ -1,0 +1,38 @@
+{
+  "results": [
+    {
+      "symbol": "xTaskCreatePinnedToCore",
+      "exitCode": 0,
+      "hasSymbol": true,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-xTaskCreatePinnedToCore.txt",
+      "sha256": "166f8f460ea3a32ca70f9a5ecd08a4faa013751fcf8829ef7c825e55dd291aac",
+      "calls": [
+        "40388f41:\t056465        \tcall8\t4038e588 <__assert_func>",
+        "40388f46:\tfd2e25        \tcall8\t40386228 <pvPortMalloc>",
+        "40388f6c:\t0008e0        \tcallx8\ta8",
+        "40388f92:\tfe1de5        \tcall8\t40387170 <prvInitialiseNewTask$constprop$0>",
+        "40388f99:\tfdf3e5        \tcall8\t40386ed8 <prvAddNewTaskToReadyList>",
+        "40388fa1:\tfd29a5        \tcall8\t4038623c <vPortFree>"
+      ]
+    },
+    {
+      "symbol": "xQueueGenericCreate",
+      "exitCode": 0,
+      "hasSymbol": true,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-xQueueGenericCreate.txt",
+      "sha256": "ae8fbcadb5c5611cc95d1854cbdcf1124d5e74eff9d3dd112bb6c43c4317a182",
+      "calls": [
+        "40385395:\t00e925        \tcall8\t40386228 <pvPortMalloc>",
+        "403853ae:\tffe4e5        \tcall8\t403851fc <xQueueGenericReset>",
+        "403853cb:\t091be5        \tcall8\t4038e588 <__assert_func>"
+      ]
+    },
+    {
+      "symbol": "baselineStaticCB",
+      "exitCode": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-static-bt-symbols.txt",
+      "sha256": "8cfb0ec611e95acf1ce0623c19e0dca2e7516936f9aba59bb1f99fa1135055b1",
+      "text": "3fccb230 000004b0 b alarm_cbs\n3fcca1c4 000005b8 B btm_cb\n3fcca7e0 00000628 B gatt_cb\n3fccae4c 000003b8 B l2cb\n"
+    }
+  ]
+}

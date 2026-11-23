@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "tools/test_ble_priority.py"
+  ],
+  "exitCode": 0,
+  "startedUtc": "2026-11-20T19:09:10.968788+00:00",
+  "sourceSha256": "8c215b126c9ec6f4a4278e99b4afa102462921c8045151f5cf177f6e11d66c01",
+  "toolSha256": "2877d04fa97de9b127016f7ddf2e20679f84751548da8734cf63cdf3a2b8bee7",
+  "logSha256": "60bd99f8fc66a63685c8c29b388295490e176dc616e22aca69d9a6750af57281",
+  "hardware": "NOT_RUN"
+}

@@ -1,0 +1,243 @@
+{
+  "BLE_epoch": {
+    "reason": "BLE_epoch_observations_unavailable",
+    "status": "UNKNOWN"
+  },
+  "PC_missing_frames_adjusted": "NOT_COMPUTED",
+  "PC_snapshot_receipt": "unknown",
+  "RF_loss": "unknown",
+  "RSSI": "unknown",
+  "configuration": {
+    "brackets": {
+      "after": {
+        "CONFIG?": {
+          "fields": {
+            "bootId": "1",
+            "boundary": "2283",
+            "err": "0x0",
+            "merr": "0x0",
+            "mgen": "3",
+            "mode": "VOLT",
+            "mrid": "4",
+            "mterm": "applied",
+            "mtermId": "4",
+            "perr": "0x0",
+            "pgen": "3",
+            "prid": "4",
+            "profile": "VVVVVVVV",
+            "pterm": "applied",
+            "ptermId": "4",
+            "rerr": "0x0",
+            "rev": "4",
+            "rgen": "2",
+            "rows": "1",
+            "rrid": "3",
+            "rterm": "applied",
+            "rtermId": "3",
+            "session": "863626B103487FE5",
+            "state": "VOLTAGE"
+          },
+          "host_query_end_monotonic": 129275.881910845,
+          "original_reply_line": "CONFIG,session=863626B103487FE5,bootId=1,rev=4,boundary=2283,state=VOLTAGE,mode=VOLT,rows=1,profile=VVVVVVVV,err=0x0,mgen=3,mrid=4,rgen=2,rrid=3,pgen=3,prid=4,mtermId=4,mterm=applied,merr=0x0,ptermId=4,pterm=applied,perr=0x0,rtermId=3,rterm=applied,rerr=0x0"
+        },
+        "CONFIG?_closing": {
+          "fields": {
+            "bootId": "1",
+            "boundary": "2283",
+            "err": "0x0",
+            "merr": "0x0",
+            "mgen": "3",
+            "mode": "VOLT",
+            "mrid": "4",
+            "mterm": "applied",
+            "mtermId": "4",
+            "perr": "0x0",
+            "pgen": "3",
+            "prid": "4",
+            "profile": "VVVVVVVV",
+            "pterm": "applied",
+            "ptermId": "4",
+            "rerr": "0x0",
+            "rev": "4",
+            "rgen": "2",
+            "rows": "1",
+            "rrid": "3",
+            "rterm": "applied",
+            "rtermId": "3",
+            "session": "863626B103487FE5",
+            "state": "VOLTAGE"
+          },
+          "host_query_end_monotonic": 129276.214410375,
+          "host_query_start_monotonic": 129276.18947558,
+          "original_reply_line": "CONFIG,session=863626B103487FE5,bootId=1,rev=4,boundary=2283,state=VOLTAGE,mode=VOLT,rows=1,profile=VVVVVVVV,err=0x0,mgen=3,mrid=4,rgen=2,rrid=3,pgen=3,prid=4,mtermId=4,mterm=applied,merr=0x0,ptermId=4,pterm=applied,perr=0x0,rtermId=3,rterm=applied,rerr=0x0"
+        }
+      },
+      "before": {
+        "CONFIG?": {
+          "fields": {
+            "bootId": "1",
+            "boundary": "2283",
+            "err": "0x0",
+            "merr": "0x0",
+            "mgen": "3",
+            "mode": "VOLT",
+            "mrid": "4",
+            "mterm": "applied",
+            "mtermId": "4",
+            "perr": "0x0",
+            "pgen": "3",
+            "prid": "4",
+            "profile": "VVVVVVVV",
+            "pterm": "applied",
+            "ptermId": "4",
+            "rerr": "0x0",
+            "rev": "4",
+            "rgen": "2",
+            "rows": "1",
+            "rrid": "3",
+            "rterm": "applied",
+            "rtermId": "3",
+            "session": "863626B103487FE5",
+            "state": "VOLTAGE"
+          },
+          "host_query_end_monotonic": 129155.520110404,
+          "original_reply_line": "CONFIG,session=863626B103487FE5,bootId=1,rev=4,boundary=2283,state=VOLTAGE,mode=VOLT,rows=1,profile=VVVVVVVV,err=0x0,mgen=3,mrid=4,rgen=2,rrid=3,pgen=3,prid=4,mtermId=4,mterm=applied,merr=0x0,ptermId=4,pterm=applied,perr=0x0,rtermId=3,rterm=applied,rerr=0x0"
+        },
+        "CONFIG?_closing": {
+          "fields": {
+            "bootId": "1",
+            "boundary": "2283",
+            "err": "0x0",
+            "merr": "0x0",
+            "mgen": "3",
+            "mode": "VOLT",
+            "mrid": "4",
+            "mterm": "applied",
+            "mtermId": "4",
+            "perr": "0x0",
+            "pgen": "3",
+            "prid": "4",
+            "profile": "VVVVVVVV",
+            "pterm": "applied",
+            "ptermId": "4",
+            "rerr": "0x0",
+            "rev": "4",
+            "rgen": "2",
+            "rows": "1",
+            "rrid": "3",
+            "rterm": "applied",
+            "rtermId": "3",
+            "session": "863626B103487FE5",
+            "state": "VOLTAGE"
+          },
+          "host_query_end_monotonic": 129155.865135422,
+          "host_query_start_monotonic": 129155.847022785,
+          "original_reply_line": "CONFIG,session=863626B103487FE5,bootId=1,rev=4,boundary=2283,state=VOLTAGE,mode=VOLT,rows=1,profile=VVVVVVVV,err=0x0,mgen=3,mrid=4,rgen=2,rrid=3,pgen=3,prid=4,mtermId=4,mterm=applied,merr=0x0,ptermId=4,pterm=applied,perr=0x0,rtermId=3,rterm=applied,rerr=0x0"
+        }
+      }
+    },
+    "identity": {
+      "bootId": "1",
+      "boundary": "2283",
+      "err": "0x0",
+      "mgen": "3",
+      "mode": "VOLT",
+      "mrid": "4",
+      "pgen": "3",
+      "prid": "4",
+      "profile": "VVVVVVVV",
+      "rev": "4",
+      "rgen": "2",
+      "rows": "1",
+      "rrid": "3",
+      "session": "863626B103487FE5",
+      "state": "VOLTAGE"
+    }
+  },
+  "counter_bound_policy": {
+    "max_local_events_per_second": 1000000,
+    "max_pair_seconds": 1800,
+    "purpose": "analysis_plausibility_guard_not_measured_firmware_rate"
+  },
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_ble_protection.py",
+    "schema_source_sha256": "f1f8e76a7717de5ed1892704d3914c1e2a79dc3490d9681d1c44fafb8e1705ef",
+    "sha256": "fa36a08b20d2ca6b656207e1ab9e2b0e3774bc5a16a174dd76326af6dc9e45c7"
+  },
+  "hardware_actions": [],
+  "inputs": {
+    "data": {
+      "incomplete_tail_used": false,
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-volt1.rx.bin",
+      "recorded_bytes": 4944976,
+      "recorded_bytes_sha256": "73925874b449fa4047f159ecc8874ea7f50240e7939d21cb681c1afb4568e156",
+      "stored_file_sha256": "73925874b449fa4047f159ecc8874ea7f50240e7939d21cb681c1afb4568e156"
+    },
+    "events": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-volt1.events.jsonl",
+      "recorded_bytes_sha256": "fe52f6f07566028f65106d42ca7872c195cc9c869ed2ef1f1f64ff28ee1027f2",
+      "stored_file_sha256": "fe52f6f07566028f65106d42ca7872c195cc9c869ed2ef1f1f64ff28ee1027f2"
+    },
+    "summary": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-volt1.summary.json",
+      "sha256": "750980ee782afd86bf3e1972d6f330b3d3e755f3406f27a46173c8759263bdc4"
+    }
+  },
+  "original_recordings_modified": false,
+  "overall_acceptance": "NOT_EVALUATED",
+  "queries": {
+    "BLEFLOW?": {
+      "advertised": false,
+      "after": null,
+      "before": null,
+      "capability": "ble_flow_v1",
+      "counter_deltas": {},
+      "endpoints_validated": false,
+      "reason": "capability_not_advertised",
+      "status": "UNKNOWN"
+    },
+    "BLESNAP?": {
+      "advertised": false,
+      "after": null,
+      "before": null,
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {},
+      "endpoints_validated": false,
+      "reason": "capability_not_advertised",
+      "status": "UNKNOWN"
+    },
+    "SNAPNET?": {
+      "advertised": false,
+      "after": null,
+      "before": null,
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {},
+      "endpoints_validated": false,
+      "reason": "capability_not_advertised",
+      "status": "UNKNOWN"
+    },
+    "SNAPSRC?": {
+      "advertised": false,
+      "after": null,
+      "before": null,
+      "capability": "ble_snapshot_v1",
+      "counter_deltas": {},
+      "endpoints_validated": false,
+      "reason": "capability_not_advertised",
+      "status": "UNKNOWN"
+    }
+  },
+  "recording_status": "CAPTURED",
+  "schema_version": 1,
+  "semantics": [
+    "intentionalSkip counts local admission decisions; it is never subtracted from PC sequence gaps.",
+    "Source queue, network admission and BLE local completion have different accounting boundaries.",
+    "SNAPNET readout is sequential; its counters are not one atomic cross-layer conservation equation.",
+    "bleExpired/wifiExpired are sink obligations of a descriptor; summing them is not a count of unique lost scientific frames.",
+    "lastCompleteAgeUs and maxCompleteGapUs refer to local whole-frame completion, not sample age or PC receipt.",
+    "SHORT ordinary previews can create intentional full-frame sequence gaps; no FULL 2.5% acceptance budget is applied here.",
+    "Unknown values remain unknown; endpoint stage/rate cannot establish behavior throughout the interval."
+  ],
+  "status": "ANALYZED",
+  "window_scope": "separate_before_after_query_intervals_not_capture_endpoints"
+}

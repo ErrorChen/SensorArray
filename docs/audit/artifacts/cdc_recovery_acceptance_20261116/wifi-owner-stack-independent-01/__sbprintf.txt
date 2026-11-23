@@ -1,0 +1,68 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+4211047c <__sbprintf>:
+4211047c:	024136        	entry	a1, 0x120
+4211047f:	078d      	mov.n	a8, a7
+42110481:	027d      	mov.n	a7, a2
+42110483:	f0a022        	movi	a2, 240
+42110486:	212a      	add.n	a2, a1, a2
+42110488:	2289      	s32i.n	a8, a2, 8
+4211048a:	061382        	l16ui	a8, a3, 12
+4211048d:	d97c      	movi.n	a9, -3
+4211048f:	108890        	and	a8, a8, a9
+42110492:	465182        	s16i	a8, a1, 140
+42110495:	192382        	l32i	a8, a3, 100
+42110498:	1269      	s32i.n	a6, a2, 4
+4211049a:	396182        	s32i	a8, a1, 228
+4211049d:	071382        	l16ui	a8, a3, 14
+421104a0:	80a062        	movi	a6, 128
+421104a3:	475182        	s16i	a8, a1, 142
+421104a6:	8388      	l32i.n	a8, a3, 32
+421104a8:	226162        	s32i	a6, a1, 136
+421104ab:	286182        	s32i	a8, a1, 160
+421104ae:	a388      	l32i.n	a8, a3, 40
+421104b0:	256162        	s32i	a6, a1, 148
+421104b3:	616a      	add.n	a6, a1, a6
+421104b5:	0259      	s32i.n	a5, a2, 0
+421104b7:	2a6182        	s32i	a8, a1, 168
+421104ba:	58c6a2        	addi	a10, a6, 88
+421104bd:	080c      	movi.n	a8, 0
+421104bf:	266182        	s32i	a8, a1, 152
+421104c2:	206112        	s32i	a1, a1, 128
+421104c5:	246112        	s32i	a1, a1, 144
+421104c8:	6d4081        	l32r	a8, 420eb9c8 <pp_timer_process+0x690> (403770d4 <__retarget_lock_init_recursive>)
+421104cb:	0008e0        	callx8	a8
+421104ce:	02d8      	l32i.n	a13, a2, 0
+421104d0:	12e8      	l32i.n	a14, a2, 4
+421104d2:	22f8      	l32i.n	a15, a2, 8
+421104d4:	04cd      	mov.n	a12, a4
+421104d6:	06bd      	mov.n	a11, a6
+421104d8:	20a770        	or	a10, a7, a7
+421104db:	201110        	or	a1, a1, a1
+421104de:	fd3065        	call8	4210d7e4 <_vfprintf_r>
+421104e1:	0a2d      	mov.n	a2, a10
+421104e3:	00ea96        	bltz	a10, 421104f5 <__sbprintf+0x79>
+421104e6:	06bd      	mov.n	a11, a6
+421104e8:	07ad      	mov.n	a10, a7
+421104ea:	201110        	or	a1, a1, a1
+421104ed:	f66065        	call8	42106af4 <_fflush_r>
+421104f0:	f87c      	movi.n	a8, -1
+421104f2:	9328a0        	movnez	a2, a8, a10
+421104f5:	461182        	l16ui	a8, a1, 140
+421104f8:	094c      	movi.n	a9, 64
+421104fa:	080897        	bnone	a8, a9, 42110506 <__sbprintf+0x8a>
+421104fd:	061382        	l16ui	a8, a3, 12
+42110500:	208890        	or	a8, a8, a9
+42110503:	065382        	s16i	a8, a3, 12
+42110506:	3621a2        	l32i	a10, a1, 216
+42110509:	6d2581        	l32r	a8, 420eb9a0 <pp_timer_process+0x668> (4037710c <__retarget_lock_close_recursive>)
+4211050c:	0008e0        	callx8	a8
+4211050f:	f01d      	retw.n

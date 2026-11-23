@@ -1,0 +1,108 @@
+{
+  "kind": "independent_scoped_source_review_and_actual_host_execution",
+  "created_utc": "2026-11-20T19:44:33.123757+00:00",
+  "status": "PASS_SOURCE_AND_HOST_TARGET_MEMORY_AND_HIL_PENDING",
+  "reviewer": "/root/ble_review",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "sources": {
+    "components/sensorarrayBle/sensorarrayBle.c": "6676453fb9ccf3c59cc858a48307b59c3a3b7e3eb27ccb979d78a2615495ac36",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "319c27138bfa9fe314dd6b3498d753389c729910392ee474e6bd0fa2b14c5a30",
+    "tests/host/test_ble_priority.c": "dac27a3b5466da8e88666fd6ef98aad458e3b62c250e27600515938a0e396492",
+    "tools/test_ble_priority.py": "da52829a5e736f5024344c388b884c60369bb49ddd2c6ef552bab24db36327db",
+    "tools/test_ble_pipeline.py": "4eee3ef5060cd4f75d8509085e86a7028f7f8df5f9d7eb75b0b2eda705354edc",
+    "tools/test_ble_watchdog.py": "fe570d13f18ffe6f47bb92d5f53ec9f62c26fe3fb3173138bcffa98bd7dff94c",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+  },
+  "baseline_sha256": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+  "exact_delta_verified": "Removing only new fixed member/comment, explicit copy-bound/copy block, and restoring SendPayload argument to data reproduced exact baseline SHA256. No other production delta was present.",
+  "findings": [
+    {
+      "symbols": [
+        "sensorarrayBleState_t.txPayloadScratch",
+        "sensorarrayBleSendDescriptor",
+        "sensorarrayBleTxTask"
+      ],
+      "result": "PASS",
+      "evidence": "One fixed2304-byte member, no new scientific slots or heap allocation. Static SendDescriptor has one production caller, the serial TX-owner task. Original persistent slot remains in use across copy and all fragment/confirmation/SDK calls, then existing TxTask release executes only after actual return."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleSendDescriptor",
+        "sensorarrayBleSendPayload"
+      ],
+      "result": "PASS",
+      "evidence": "Descriptor/slot generation/channel/length/CRC and obsolete checks precede bounded copy. Copy runs outside BLE mux. Its source is the still-owned immutable payload. CRC is recalculated on the owner copy and compared to original enqueueCRC; complete ASCII, per-fragment ASCII and stream/connection/SAFE checks are unchanged. Copy never applies current global identity to old bytes."
+    },
+    {
+      "symbols": [
+        "sensorarrayBleObserveSendDeadlineLocked",
+        "sensorarrayBleSendGattValue"
+      ],
+      "result": "PASS",
+      "evidence": "The added buffer is not reclaimed by deadline observer. Quarantine blocks future admissions but does not pretend SDK call stopped. Single TX owner cannot overwrite it while blocked. Test records entire2304-byte owner-buffer CRC before/after deadline observation and denied admission while slot remains held."
+    },
+    {
+      "symbols": [
+        "s_ble",
+        "sdkconfig"
+      ],
+      "result": "SOURCE_INTENT_VERIFIED_TARGET_PLACEMENT_PENDING",
+      "evidence": "Member is in existing nonzero-initialized static s_ble, whose earlier target map was internal .data; current config disables external BSS and PSRAM XIP. Host sizeof change is2304bytes, but host total size is not target evidence. Root must verify new ELF/map, internal free/largest/min and scan READY after reboot."
+    }
+  ],
+  "actual_tests": [
+    {
+      "record": "ble-tx-owner-copy-independent-priority-01.json",
+      "record_sha256": "03ca23adc2171a94da3628d968082b917cad0f6a51c37b42a8b37875d51db830",
+      "command": [
+        "python3",
+        "tools/test_ble_priority.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e8bc25b39e12770304bb048c4f9d9c3e100859977c4d9a2227a0508813f14054"
+    },
+    {
+      "record": "ble-tx-owner-copy-independent-pipeline-01.json",
+      "record_sha256": "f864956cc427d7ece463e1ae8b0b45a6508175d61ae6f0869544d319ae72998a",
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "d5aef29134570ba3618d72e0676d19f5e38f4405ae5df6e0b2cb70b342f64560"
+    },
+    {
+      "record": "ble-tx-owner-copy-independent-watchdog-01.json",
+      "record_sha256": "bff1b95bc19e3f141f4f7834eff8d70b90143bc991f995b1b919aa5a7767c8df",
+      "command": [
+        "python3",
+        "tools/test_ble_watchdog.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "974ea274c08de63e76b4d34711e99b7172980a8c5d65255c1446e841b695c03e"
+    }
+  ],
+  "test_scope": {
+    "priority": "18 actual extracted-production harness groups under ASan/UBSan,39 unchanged C notification receiver roundtrips including real encoder CRC packets. Added maximum2304 copy equality and caller reuse, persistent-source corruption rejected before any SDK call, in-SDK quarantine scratch unchanged. Existing raw and fragmented/SAFE/reconnect/cancel/old-config/periodic fallback cases remain.",
+    "pipeline": "22 actual-source pipeline models include nonreturning SDK and independently observed quarantine. Synthetic RTOS/SDK costs are not target throughput evidence.",
+    "watchdog": "8 init/PSRAM allocation/lifetime cases; confirms no new allocation path or reset of existing persistent pool was introduced."
+  },
+  "p0_p1_found_in_delta": [],
+  "target_gate_requirements": [
+    "Actual map confirms fixed member internal and quantifies static RAM delta",
+    "Boot reaches READY with scan task created; report MEM internal8 free/largest/min before/after scan",
+    "Closed VOLT1 USB+BLE120s comparison against screen19, preserving2.5% complete-frame gap threshold",
+    "Compare per-layer slot failures,CPU owner observations,SDK elapsed service and PC complete-frame interval/gaps; no inference of PC receipt from SDK success"
+  ],
+  "limits": [
+    "No target build or hardware was run by reviewer.",
+    "Buffer adds2304internal bytes; previous observed free/largest is not a guarantee of new boot allocation geometry.",
+    "VOLT approximately600-byte fragmented sends already used internal512-byte packet scratch for GATT. Candidate reduces PSRAM payload traversals before SDK, not an asserted direct GATT PSRAM-copy penalty.",
+    "Performance benefit and RF reliability remain NOT_ESTABLISHED; source safety PASS is not HIL acceptance.",
+    "Prior root test compile failure is not overwritten; corrected tests and independent execution are recorded separately."
+  ],
+  "hardware_actions": [],
+  "build_actions": [],
+  "production_edits_by_reviewer": [],
+  "original_artifacts_modified": false
+}

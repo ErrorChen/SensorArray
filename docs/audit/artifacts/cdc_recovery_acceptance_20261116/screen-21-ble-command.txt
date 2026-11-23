@@ -1,0 +1,15 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/screen-21-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 147801761224533, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.76590836199466, "notifications": {"D": 470}, "payload_bytes": {"D": 222100}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.84771465897211, "notifications": {"D": 941}, "payload_bytes": {"D": 445480}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.915632442978676, "notifications": {"D": 2956, "L": 4}, "payload_bytes": {"D": 1123933, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 80.97895703697577, "notifications": {"D": 5478, "L": 4}, "payload_bytes": {"D": 1954478, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 101.03594286297448, "notifications": {"D": 8011, "L": 4}, "payload_bytes": {"D": 2788732, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.09866851699189, "notifications": {"D": 10554, "L": 4}, "payload_bytes": {"D": 3626119, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.16508140298538, "notifications": {"D": 13078, "L": 4}, "payload_bytes": {"D": 4457312, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.2249440769956, "notifications": {"D": 15600, "L": 4}, "payload_bytes": {"D": 5287865, "L": 491}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 181.30807614899823, "notifications": {"D": 17155, "L": 6}, "payload_bytes": {"D": 5831864, "L": 757}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 201.39064696698915, "notifications": {"D": 17621, "L": 6}, "payload_bytes": {"D": 6053447, "L": 757}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 221.4918019459874, "notifications": {"D": 18087, "L": 6}, "payload_bytes": {"D": 6275030, "L": 757}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 18307, "L": 6}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/screen-21-ble.ble.notifications.jsonl", "journal_sha256": "7c6e47760ab9d286fdfc0577ed963eb9522158cc3b4b713d731bb697d1a8cc34"}

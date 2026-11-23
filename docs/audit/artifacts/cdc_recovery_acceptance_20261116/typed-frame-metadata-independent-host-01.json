@@ -1,0 +1,97 @@
+{
+  "created_utc": "2026-11-20T23:17:06.857716+00:00",
+  "source_before": {
+    "main/net/sensorarrayNetStatus.c": "d2e5cff799b864cd5a279330cf273cb01d40e1291582823d3e9901b62ed51a15",
+    "main/output/sensorarrayFramePublication.h": "646caf6e20c375e40a7f66d93ed3893b302d5fb680b64ff64f8361c014ef3ccd",
+    "core/transport/sensorarrayTransportFrameIdentity.h": "3b2271b40c5a6f738901bea6386f9758f50baffd273c4c7bfdea2dbaf0ec60af",
+    "core/transport/sensorarrayTransportFrameMeta.c": "8feb572c83c3bb1dfa9eb756906bf6d8d685435bba3219d88d32e17afbd9946b",
+    "core/transport/sensorarrayTransportFrameMeta.h": "59a39b6ee27820873394a23912eaafc00661a0f58baad9b135dc0eeda26ffada",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransport.h": "5fb48ab90f309f3fa1abad00344ef75db2b330480a492f8f0bccf973e8fe7796",
+    "tests/host/test_protected_frame_pipeline.c": "3b4622ad5d6bb793eb5665647f240eaeab52d768b201cef87f50253bf293aa5e",
+    "tests/host/test_recovery_control.c": "d5205026369809cd3c31ecdaac16b20dffab1a422401dcd28eb3121539bd1f9d",
+    "tools/test_protected_frame_pipeline.py": "88816f430e78923c1a433dd8e44ab5b44ff7baa89883da03f06dd1e829dad520",
+    "tools/test_recovery_control.py": "17bec2b81b89c6ba9aaf50d6310809bcc57b6a77ce0e9d9bde2b65dd9c906e07",
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "core/transport/sensorarrayTransportPool.h": "8481d586b517d483fad27aaabea2ee1e8e75aaaf73d0dee4b939cca55dde355b",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4"
+  },
+  "source_after": {
+    "main/net/sensorarrayNetStatus.c": "d2e5cff799b864cd5a279330cf273cb01d40e1291582823d3e9901b62ed51a15",
+    "main/output/sensorarrayFramePublication.h": "646caf6e20c375e40a7f66d93ed3893b302d5fb680b64ff64f8361c014ef3ccd",
+    "core/transport/sensorarrayTransportFrameIdentity.h": "3b2271b40c5a6f738901bea6386f9758f50baffd273c4c7bfdea2dbaf0ec60af",
+    "core/transport/sensorarrayTransportFrameMeta.c": "8feb572c83c3bb1dfa9eb756906bf6d8d685435bba3219d88d32e17afbd9946b",
+    "core/transport/sensorarrayTransportFrameMeta.h": "59a39b6ee27820873394a23912eaafc00661a0f58baad9b135dc0eeda26ffada",
+    "core/transport/sensorarrayTransport.c": "8b24a1baeda0cc53b0b789cc8af7e6d2e75a603395e17e173337361712c306ea",
+    "core/transport/sensorarrayTransport.h": "5fb48ab90f309f3fa1abad00344ef75db2b330480a492f8f0bccf973e8fe7796",
+    "tests/host/test_protected_frame_pipeline.c": "3b4622ad5d6bb793eb5665647f240eaeab52d768b201cef87f50253bf293aa5e",
+    "tests/host/test_recovery_control.c": "d5205026369809cd3c31ecdaac16b20dffab1a422401dcd28eb3121539bd1f9d",
+    "tools/test_protected_frame_pipeline.py": "88816f430e78923c1a433dd8e44ab5b44ff7baa89883da03f06dd1e829dad520",
+    "tools/test_recovery_control.py": "17bec2b81b89c6ba9aaf50d6310809bcc57b6a77ce0e9d9bde2b65dd9c906e07",
+    "components/sensorarrayBle/sensorarrayBle.c": "022decd4ac421b92805dcee853284567cf45b804620443468fab038c3c234404",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "core/transport/sensorarrayTransportPool.h": "8481d586b517d483fad27aaabea2ee1e8e75aaaf73d0dee4b939cca55dde355b",
+    "components/sensorarrayWorkBudget/sensorarrayWorkBudget.c": "3401c2d389270eb8130921bbe16f114e120f6265731a4b6b1d637e688c7dab7b",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+    "main/output/sensorarrayTextProtocol.c": "2b9e160f0fd36463601fc7ffd19cb3af93a554bebfbaf914fd6b1e491ad230b4"
+  },
+  "sources_unchanged": true,
+  "commands": [
+    {
+      "name": "protected",
+      "command": [
+        "python3",
+        "tools/test_protected_frame_pipeline.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.5874459679762367,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-independent-protected-01.txt",
+      "log_sha256": "35584597cf0dbe376d8238272dbde31a922ff12f74690c8e72f73abfa14ee9c8"
+    },
+    {
+      "name": "metadata_asan",
+      "command": [
+        "python3",
+        "tools/test_transport_frame_metadata.py",
+        "--sanitize"
+      ],
+      "environment_overrides": {
+        "ASAN_OPTIONS": "detect_leaks=0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 1.3834535579953808,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-independent-metadata_asan-01.txt",
+      "log_sha256": "9fde23536ec5a4c395b2686ebfd64ca317d006bb039854ffc34fffc6b91746b4"
+    },
+    {
+      "name": "pipeline",
+      "command": [
+        "python3",
+        "tools/test_ble_pipeline.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 1.017986576014664,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-independent-pipeline-01.txt",
+      "log_sha256": "5b1f5e32788fe4b9c4060908d456de53105ea178a3af22dbb63533a08366a328"
+    },
+    {
+      "name": "recovery",
+      "command": [
+        "python3",
+        "tools/test_recovery_control.py"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.2491005000192672,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/typed-frame-metadata-independent-recovery-01.txt",
+      "log_sha256": "4f3a25fc1897b4b42f03d77f03692f077958ac8d9fbb159880053c9a50074e4a"
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "production_modified": false
+}

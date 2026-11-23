@@ -1,0 +1,2 @@
+FIX_CONFIRMED,case=expired_retry_behind_continuous_lifecycle,elapsedUs=5000000,deadlineUs=1000000,retainedOwner=0,expiryCount=1,lifeProcessed=50,firstExpiryAtDeadline=1,noSdkCancellationClaim=1
+PROTECTED_FRAME_PIPELINE,passed=1,hardware=NOT_RUN,scope=actual_source+transport+encoder,ble=synthetic_admission_boundary,baseline=8a1794ce3be95ff0007698c4e4e667dcf25fbe19

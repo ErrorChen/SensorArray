@@ -1,0 +1,86 @@
+{
+  "timestamp_utc": "2026-11-21T00:51:00.445768+00:00",
+  "scope": "Panic diagnostic implementation freeze; no build/flash/hardware by this worker",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "source_sha256": {
+    "main/control/sensorarrayPanicDiagnostics.c": "670ccbd6e9ea8a25566cef9272b7f89c8a617ca211fa849af20decb0c6422c7c",
+    "main/control/sensorarrayPanicDiagnostics.h": "1c78f7b6016c3ae412f365b240b7b0adf45ece37ee90353cdf7aa7501ae5463a",
+    "main/main.c": "89755d266466048871a471ead10847fee995f8cafe7d18c1f5bbb3d58e153702",
+    "main/CMakeLists.txt": "66fac838ace4f351ff7e313ab16a1989e73ae0630babb87e32c1b9b0c2415b7b",
+    "tools/test_panic_diagnostics.py": "d0eb9abc5e0b5843936c817aa6fddda0949c835b0d3db5f90489027f1e3fd383",
+    "tests/host/test_panic_diagnostics.c": "0bb1a805dd2e7113353c8291c1f059535b55ea6f2d5e926e1f2a7a9d3a0ca62c",
+    "tests/host/test_recovery_control.c": "664a8ff966bd39c30117fde7d97555799d1ade45046759c7ee7e886a9b2964d4",
+    "tests/host/test_frontend_wait_integration.c": "0a651abb3a8554ff1564722293ff9d8149f6290981f3a90e184ef468155376f5"
+  },
+  "actual_commands": [
+    {
+      "command": "python3 tools/test_panic_diagnostics.py",
+      "exit_code": 0,
+      "variants": [
+        "-O2",
+        "-O1 -fsanitize=address,undefined -fno-omit-frame-pointer"
+      ],
+      "observed": [
+        "194 detail lengths with actual record/page roundtrip",
+        "bounded internal pointer checks and flash-string rejection",
+        "invalid frame/info pointers still invoke real SDK boundary once",
+        "recursive entries preserve first record and call real SDK once per entry",
+        "record CRC/magic/inverse/version/size/length validation",
+        "poweron/brownout/unknown retention rejection",
+        "pre-init originKnown=0 and old panic origin identity preserved",
+        "all response capacities below needed reject without overflow",
+        "one startup hook and two main query dispatch hooks"
+      ],
+      "maximum_reply_bytes": [
+        472,
+        348,
+        349
+      ],
+      "maximum_reply_bytes_including_nul": [
+        473,
+        349,
+        350
+      ],
+      "record_bytes": 328
+    },
+    {
+      "command": "python3 tools/test_recovery_control.py",
+      "exit_code": 0,
+      "scope": "Existing actual main query/recovery/manual restart guard checks; new panic formatter dependency is isolated stub; actual panic formatter is tested separately"
+    },
+    {
+      "command": "python3 tools/test_frontend_wait_integration.py",
+      "exit_code": 0,
+      "scope": "Existing actual main held/frontend query path and recovery checks; new panic formatter dependency isolated stub"
+    }
+  ],
+  "earlier_attempt": {
+    "command": "python3 tools/test_panic_diagnostics.py",
+    "exit_code": 1,
+    "optimized_variant": "PASS",
+    "failure": "LeakSanitizer fatal: does not work under ptrace",
+    "resolution": "Only LeakSanitizer disabled (detect_leaks=0); AddressSanitizer and UndefinedBehaviorSanitizer stay enabled; module has no allocation calls",
+    "raw_transcript": "tool output retained in conversation; not reconstructed as a raw artifact"
+  },
+  "protocol": {
+    "commands": [
+      "PANIC?",
+      "PANIC?1",
+      "PANIC?2"
+    ],
+    "version": 1,
+    "metadata": "current query session/boot plus originKnown/originSession/originBoot/full elf; register values are usable only when infoKnown/frameKnown is1; raw Xtensa ra includes ABI bits",
+    "record": "CRC32 corruption-detection identity shared by all pages, not authentication",
+    "details": "up to192 internal-DRAM abort-detail bytes, 96-byte pages, hex encoding; detailKnown0 means bytes unavailable; no flash string dereference",
+    "retention": "Last valid retained panic, may precede current reset; reset is current reset enum; poweron/brownout/unknown invalidate retained evidence",
+    "no_injection_command": true
+  },
+  "pending_target_gate": [
+    "Actual IDF build",
+    "Verify external panic_handler call resolves to wrapper",
+    "IRAM helpers/capture/wrapper plus literals and no unexpected libc/libgcc/stack guard calls",
+    "DRAM globals and RTC328B do not overlap existing recovery/breadcrumb data",
+    "Actual diagnostic image and one controlled AP reproduction; no root cause claimed yet"
+  ],
+  "production_frozen": true
+}

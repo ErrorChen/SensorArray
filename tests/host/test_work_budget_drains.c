@@ -17,7 +17,6 @@
 #define CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG 0
 #define SENSORARRAY_TRANSPORT_REPLY_SERIAL 1
 #define SENSORARRAY_WIFI_CTRL_BUFFER 256u
-#define SENSORARRAY_BLE_DATA_SERVICE_BURST 4u
 
 typedef struct { unsigned source, token; } item_t;
 typedef item_t sensorarrayBleTxDescriptor_t;
@@ -32,6 +31,19 @@ typedef struct { int kind; } sensorarrayTransportReplyTarget_t;
 static queue_t queues[9];
 static QueueHandle_t s_eventQueue = &queues[0], s_protocolQueue = &queues[1];
 static QueueHandle_t s_dataQueue = &queues[4], s_lifecycleQueue = &queues[5], s_logQueue = &queues[6];
+static QueueHandle_t s_protectedQueue;
+static bool s_protectedRetryActive;
+static sensorarrayTransportDescriptor_t s_protectedRetry;
+typedef struct { uint64_t protectedNextAttemptUs, protectedDeadlineUs; } sensorarrayTransportPayloadSlot_t;
+static sensorarrayTransportPayloadSlot_t retrySlot;
+static sensorarrayTransportPayloadSlot_t *sensorarrayTransportDescriptorSlot(const sensorarrayTransportDescriptor_t *d)
+{ (void)d; return &retrySlot; }
+static TickType_t sensorarrayTransportWaitTicks(void) { return portMAX_DELAY; }
+/* Legacy drain fixture has no held retry. Its real expiry ownership path is
+ * executed by test_protected_frame_pipeline under continuous priority load. */
+static void sensorarrayTransportExpireProtectedRetry(void) { assert(!s_protectedRetryActive); }
+static void sensorarrayTransportExpireProtectedPending(void) { assert(!s_protectedQueue); }
+static int64_t esp_timer_get_time(void);
 static TaskHandle_t s_task = (void *)1, s_logTaskHandle = (void *)2;
 static struct {
     QueueHandle_t ctrlTxQueue, txQueue, logTxQueue, ctrlRxQueue;
@@ -74,6 +86,10 @@ static int xTaskNotifyGive(TaskHandle_t task) { assert(task); notifications++; r
 static int xSemaphoreTake(void *semaphore, TickType_t ticks)
 { assert(semaphore && ticks == portMAX_DELAY && !lockDepth); return pdTRUE; }
 static void sensorarrayBleStatsIncrement(unsigned *counter) { (*counter)++; }
+/* This legacy always-ready budget fixture contains no protected publications;
+ * the real protected pool/owner is executed by test_ble_priority.py. */
+static bool sensorarrayBleReceiveProtected(sensorarrayBleTxDescriptor_t *descriptor)
+{ (void)descriptor; return false; }
 static uint32_t ulTaskNotifyTake(int clear, TickType_t ticks)
 {
     assert(clear == pdTRUE && ticks > 0u && lockDepth == 0u); takes++;
@@ -106,6 +122,7 @@ static esp_err_t sensorarrayBleSendDescriptor(const sensorarrayBleTxDescriptor_t
 static void sensorarrayBleReleaseTxDescriptor(const sensorarrayBleTxDescriptor_t *desc)
 { (void)desc; assert(owned == 1u); owned--; released++; }
 static void sensorarrayTransportPrintNetInit(esp_err_t err) { assert(err == ESP_OK); }
+static void sensorarrayTransportWifiDrainTerminal(void) {} /* formatter separately exercised; SDK-free */
 static void sensorarrayTransportDrainGuaranteedText(void) { order(9u); }
 static void sensorarrayTransportProcessDescriptor(sensorarrayTransportDescriptor_t *desc)
 { assert(lockDepth == 0u); sent++; released++; order(desc->source); }
@@ -120,6 +137,9 @@ static void wifiCallback(const uint8_t *data, size_t length, const sensorarrayWi
     assert(peer && peer->port == 3335u && peer->ipv4 == htonl(0xc0a80402u));
     commands++;
 }
+static bool sensorarrayWifiOwnerRxAllowed(void) { return true; }
+static void sensorarrayWifiOwnerReceive(const uint8_t *data,size_t length,const sensorarrayWifiPeer_t *peer)
+{ s_wifi.stats.ctrlRx++;s_wifi.controlCallback(data,length,peer,s_wifi.controlContext); }
 static ssize_t testRecvFrom(int socket, void *data, size_t capacity, int flags,
                             struct sockaddr *address, socklen_t *addressLength)
 {
@@ -164,7 +184,7 @@ static void sensorarrayTransportLogSerialCommandError(const uint8_t *text, size_
 typedef struct { bool freshFrame, boundedCrcFailure; uint32_t sequence; uint64_t emitUs; } sensorarrayFrame_t;
 typedef struct { uint32_t sequence; } sensorarrayTextPacket_t;
 typedef struct { unsigned count; } summary_t;
-typedef struct { sensorarrayFrame_t frame; sensorarrayTextPacket_t textPacket; uint64_t measureFrameUs; int64_t publishedUs; } slot_t;
+typedef struct { sensorarrayFrame_t frame; sensorarrayTextPacket_t textPacket; uint64_t measureFrameUs; int64_t publishedUs; uint32_t protectionFlags; } slot_t;
 typedef struct { sensorarrayFrame_t frame; sensorarrayTextPacket_t framePacket; summary_t summary; } sensorarrayAsyncLogWorkspace_t;
 static slot_t slots[4], *s_frameSlots = slots;
 static uint8_t s_frameSlotState[4], s_pendingSlots[4], s_pendingReadIndex, s_pendingCount;
@@ -175,8 +195,8 @@ static int64_t esp_timer_get_time(void) { return (int64_t)nowTick * 10000 + 1; }
 static uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void) { return 0u; }
 static bool sensorarrayCommandMailboxTraceEnabled(void) { return false; }
 static bool sensorarrayUsbSinkShouldEmitData(uint32_t sequence) { return sequence > 0u; }
-static esp_err_t sensorarrayNetTextPublish(sensorarrayTextPacket_t *packet, bool data)
-{ assert(packet->sequence > 0u && data && lockDepth == 0u); published++; return ESP_OK; }
+static esp_err_t sensorarrayNetFramePublish(sensorarrayTextPacket_t *packet, const sensorarrayFrame_t *frame, uint32_t flags)
+{ (void)flags; assert(packet->sequence > 0u && frame->sequence == packet->sequence && lockDepth == 0u); published++; return ESP_OK; }
 static esp_err_t sensorarrayUsbSinkPublish(sensorarrayTextPacket_t *packet)
 { assert(packet->sequence > 0u && lockDepth == 0u); return ESP_OK; }
 static uint64_t sensorarrayAsyncLogElapsedPositiveUs(int64_t start) { (void)start; return 1u; }

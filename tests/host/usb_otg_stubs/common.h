@@ -57,6 +57,8 @@ enum { ESP_EFUSE_DIS_USB_SERIAL_JTAG, ESP_EFUSE_DIS_DOWNLOAD_MODE,
        ESP_EFUSE_DIS_FORCE_DOWNLOAD, ESP_EFUSE_DIS_USB_SERIAL_JTAG_DOWNLOAD_MODE };
 bool esp_efuse_read_field_bit(unsigned);
 void esp_restart(void);
+void esp_restart_noos(void) __attribute__((noreturn));
+void __wrap_esp_restart_noos(void) __attribute__((noreturn));
 void esp_rom_software_reset_system(void);
 void chip_usb_set_persist_flags(uint32_t);
 void xt_ints_off(uint32_t);

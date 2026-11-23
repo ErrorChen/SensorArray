@@ -182,8 +182,8 @@ static esp_err_t sensorarrayCommandMailboxEmitConfigTerminal(uint32_t requestId,
 }
 static uint32_t sensorarrayCommandMailboxGetOutputFpsCap(void) { return outputCap; }
 static bool sensorarrayCommandMailboxTraceEnabled(void) { return false; }
-static esp_err_t sensorarrayNetTextPublish(const sensorarrayTextPacket_t *packet, bool data)
-{ assert(data && packet->length); netCalls++; return ESP_OK; }
+static esp_err_t sensorarrayNetFramePublish(const sensorarrayTextPacket_t *packet, const sensorarrayFrame_t *frame, uint32_t flags)
+{ (void)flags; assert(frame && packet->length); netCalls++; return ESP_OK; }
 static bool sensorarrayUsbSinkShouldEmitData(uint32_t sequence) { assert(sequence); return emitUsb; }
 static esp_err_t sensorarrayUsbSinkPublish(const sensorarrayTextPacket_t *packet)
 { assert(packet->length); usbCalls++; return ESP_OK; }
@@ -196,8 +196,8 @@ static esp_err_t sensorarrayFrameOutputPrint(const sensorarrayFrame_t *frame)
 
 #define printf sensorarrayAcqEventPrintf
 /* ACTUAL_FUNCTIONS */
-static bool runAsync(sensorarrayFrame_t *frame, const sensorarrayTextPacket_t *textPacket,
-    int64_t outputStartUs, int64_t lastOutputEmitUs)
+static bool runAsyncProtected(sensorarrayFrame_t *frame, const sensorarrayTextPacket_t *textPacket,
+    int64_t outputStartUs, int64_t lastOutputEmitUs, uint32_t protectionFlags)
 {
     uint64_t frameAgeUs = 1;
     uint32_t queueDepth = 1;
@@ -205,6 +205,9 @@ static bool runAsync(sensorarrayFrame_t *frame, const sensorarrayTextPacket_t *t
     (void)outputUs; (void)lastOutputEmitUs;
     return emitted;
 }
+static bool runAsync(sensorarrayFrame_t *frame, const sensorarrayTextPacket_t *packet,
+    int64_t start, int64_t last)
+{ return runAsyncProtected(frame, packet, start, last, 0u); }
 static void runLegacy(sensorarrayAppContext_t *ctx)
 {
     uint64_t measureFrameUs = 100;
@@ -291,6 +294,9 @@ static void testHomogeneous(void)
     outputCap = 10; netCalls = usbCalls = 0;
     assert(!runAsync(&ctx.frame, &outputPacket, 1000010, 1000000));
     assert(netCalls == 0 && usbCalls == 0);
+    assert(runAsyncProtected(&ctx.frame, &outputPacket, 1000010, 1000000, 1u));
+    assert(netCalls == 1 && usbCalls == 1); /* protected full snapshot bypasses ordinary cap */
+    netCalls = usbCalls = 0;
     outputCap = 0; emitUsb = false;
     assert(runAsync(&ctx.frame, &outputPacket, 2000000, 0));
     assert(netCalls == 1 && usbCalls == 0);

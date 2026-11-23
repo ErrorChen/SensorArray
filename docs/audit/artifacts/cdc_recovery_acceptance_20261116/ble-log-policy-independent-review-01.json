@@ -1,0 +1,92 @@
+{
+  "schema": "ble_ordinary_log_policy_independent_review_v1",
+  "recorded_utc": "2026-11-20T18:08:41.970987+00:00",
+  "reviewer": "/root/ble_review",
+  "gate": "PASS_NO_BLOCKING_P0_P1_FOUND",
+  "comparison_ble_sha256": "e3303be49ab3c1f629b37958bf8ec6602b8c40362d280b5bd285654150e8899f",
+  "reviewed_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+  "scope_proof": "Removing only the new DataActive helper, ordinary LOG admission rejection, policy duplicate-count exception and policy snapshot function in memory reproduces the prior frozen e3303be source hash exactly. No source was edited by reviewer.",
+  "source_sha256": {
+    "components/sensorarrayBle/sensorarrayBle.c": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+    "components/sensorarrayBle/include/sensorarrayBle.h": "a0ce8287bb369257c58ec5eacdefb8797d252b42bf9b3f64d949f0217bf76c51",
+    "main/control/sensorarrayLinkDiagnostics.c": "89d202af9feef429bddb8d97ce4fb41e42c60c737f3bdb934cea681e084c5aff",
+    "tests/host/test_ble_priority.c": "dc43be5147804f7178f09e7ad09b8638b64e142372d7f1e973f296460d7143f1",
+    "tests/host/test_ble_pipeline.c": "8a114ebeb369e5c0d89b16a876ce2aafd4da64a2ae309e35009ea0a423faae8a",
+    "tests/host/test_link_control.c": "4ec52a053f5e7590447c6cdadf1a2e16017cd173d1561a58798d0ddb9ed91712",
+    "tests/host/include/esp_err.h": "cb0d5dd3c32039d5f9e4ed21ef7e59c2f2ea0d87d9f455224db23a7cf5815a5d",
+    "tools/test_ble_priority.py": "150f6a74417e75ae676a85d635536047cef6cd1ac63f9381f4a93d6bc4aa6717",
+    "tools/test_ble_pipeline.py": "8c7ed83e196115e989e303a9c515ae1bc53bcc310b373c026f2f443353dd9d11"
+  },
+  "findings": [],
+  "checked": [
+    "DATA admission and policy snapshot use the same effective CCCD/FAST/SAFE predicate under the existing s_bleMux; indication-only DATA is inactive in FAST and active in SAFE.",
+    "Policy applies only to channel LOG with priority=false after normal sendability/epoch checks; CTRL and lifecycle priority slots bypass it.",
+    "No queue drain, owner cancellation, active buffer reuse or task deletion is introduced; already accepted/inflight LOG completes normally even if DATA is enabled between fragments.",
+    "Each policy rejection increments logPolicyDrop, dropped[LOG] and messageDropped exactly once. NotifyInternal returns ESP_ERR_NOT_ALLOWED and does not count a second drop.",
+    "Policy rejections do not increment slot-allocation failure, stale-generation, SDK, guard or fragment-error counters. TransportStatResult increments its separate bleLogDrop and releases its descriptor; it does not report successful submission.",
+    "AsyncLog -> NetLogPublish -> TransportProcessDescriptor/StatResult does not recurse into error logging, retry or matrix recovery/MFAULT on policy rejection; Wi-Fi fanout remains independent.",
+    "DATA unsubscribe restores ordinary LOG admission; disconnect/reconnect clears CCCDs normally while boot counters persist. Finite counter wrap is tested.",
+    "BLELOG? is read-only v1 capability probe with no setter. Actual formatter maximum tested response is227 bytes within512; other replies unchanged."
+  ],
+  "executed_tests": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tools/test_ble_priority.py"
+      ],
+      "cwd": "/home/csc/esp/workspace/SensorArray",
+      "started_utc": "2026-11-20T18:07:54.302496+00:00",
+      "timeout_seconds": 90,
+      "hardware": "NOT_RUN",
+      "source_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+      "exit_code": 0,
+      "elapsed_seconds": 1.2661539070104482,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-independent-test_ble_priority-01.txt",
+      "log_sha256": "94c9e7821091e5f1140eff3e6a5ded5fd6ae8cebe41c6aacb93c003834dce998",
+      "finished_utc": "2026-11-20T18:07:55.568909+00:00"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tools/test_link_control.py"
+      ],
+      "cwd": "/home/csc/esp/workspace/SensorArray",
+      "started_utc": "2026-11-20T18:07:54.299691+00:00",
+      "timeout_seconds": 90,
+      "hardware": "NOT_RUN",
+      "source_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+      "exit_code": 0,
+      "elapsed_seconds": 0.36468753300141543,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-independent-test_link_control-01.txt",
+      "log_sha256": "9a225f2a1272efb43d7928722ea75f0cff9583d2dad0db6cd2c31a2ce79a3a59",
+      "finished_utc": "2026-11-20T18:07:54.664607+00:00"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tools/test_ble_pipeline.py"
+      ],
+      "cwd": "/home/csc/esp/workspace/SensorArray",
+      "started_utc": "2026-11-20T18:07:54.301652+00:00",
+      "timeout_seconds": 90,
+      "hardware": "NOT_RUN",
+      "source_ble_sha256": "529518ab2b2639a7118aa2eec03e242fd122790cdd3212fe42e5774c862d41a2",
+      "exit_code": 0,
+      "elapsed_seconds": 0.9157491560035851,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-log-policy-independent-test_ble_pipeline-01.txt",
+      "log_sha256": "09af3a2793a33fb39e2cfbb550d134f8dc4b051d9f3893a6054b7e047073d5f1",
+      "finished_utc": "2026-11-20T18:07:55.217653+00:00"
+    }
+  ],
+  "test_coverage": "Actual production functions under ASan/UBSan for priority/ownership;8 CCCD-mode cases,4 unavailable cases,LOG-only restore/epoch/stale classification,critical bypass,accepted owner completion,exact-once/wrap counters,query read-only;36 real-notification receiver roundtrips;22 pipeline scenarios including stuck-owner quarantine and separate policy/transport counters.",
+  "contract_boundaries": [
+    "dataActive means an effective DATA subscription on a sendable connection, not actual frames per second or a nonempty DATA queue. A paused acquisition retaining DATA CCCD still suppresses new ordinary LOG. Disable DATA subscription for LOG-only operation.",
+    "policyDrop is a boot modulo32 subset of dropL. These are intentional ordinary-diagnostic rejections, not scientific DATA loss. Counters from different pipeline layers are not independent losses to sum.",
+    "Previously accepted LOG may finish after DATA subscription activates. No cancellation or instant wire silence is claimed.",
+    "Critical priority is local admission/service; SDK acceptance is not PC receipt.",
+    "No radio/HIL, throughput acceptance, board access, firmware flash or full-build claim is made by this review; root handles actual build and HIL."
+  ]
+}

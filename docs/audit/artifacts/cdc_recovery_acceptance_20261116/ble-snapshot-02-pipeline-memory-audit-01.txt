@@ -1,0 +1,39 @@
+This is a transcription of tool outputs actually executed before build03 replaced build/SensorArray.elf/map; it is not an archived raw ELF/map or an original device log. All addresses/types below belong to the then-hash-checked575c ELF. The fixed-hash capture script subsequently refused the replacement ELF (exit1, AssertionError: Refuse a different candidate ELF; keep original evidence immutable). No new ELF was substituted as old evidence.
+
+Actual read-only SHA output (exec chunk73d074):
+build/SensorArray.elf 575c5dc25217721cfb47f651556d0e28edd4b5fe666a022200b8737608ff2e40
+build/SensorArray.map 20890248f12179a2a91814cbef0ca0c9aaf004fa0732c29aeb9b9c8074a8233a
+
+Actual map extraction (exec chunkc4f52b, exit0):
+ .bss.s_lastProtectedPublishedUs
+                0x3fcc4d98        0x8 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_protectedIdentity
+                0x3fcc4da0       0x30 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_protectedIdentityKnown
+                0x3fcc4dd0        0x1 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_pendingSlots
+                0x3fcc4df4        0x6 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_frameSlotIdentity
+                0x3fcc4e00      0x120 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_frameSlotProtection
+                0x3fcc4f20       0x18 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_frameSlotState
+                0x3fcc4f38        0x6 esp-idf/main/libmain.a(sensorarrayAsyncLog.c.obj)
+ .bss.s_pool    0x3fcc69e0     0x4340 esp-idf/transport/libtransport.a(sensorarrayTransport.c.obj)
+
+Actual target-DWARF read via installed IDF Python/pyelftools (exec chunk71ce78, exit0):
+sensorarrayAsyncLogFrameSlot_t size7160 DIE0x1895bd
+sensorarrayAsyncLogWorkspace_t size13536 DIE0x189c9c
+sensorarrayTransportPayloadSlot_t size2456 DIE0x1b5ac4
+ slotGeneration0 frameSeq4 generation8 requestId12 bleConnectionGeneration16
+ sessionId24 bootId32 configRevision36 modeGeneration40 modeRequestId44
+ rowsGeneration48 rowsRequestId52 profileGeneration56 profileRequestId60
+ length64 channel66 rows67 cells68 inUse69 hasFrameMeta70 trustedFullFrame71
+ frameIdentity72 protectionFlags120 protectedDeadlineUs128 protectedNextAttemptUs136
+ protectedWifiDone144 protectedWifiTarget145 data146
+sensorarrayTransportPool_t size17216 DIE0x1b5d03
+ slots0 stats17192
+
+Existing old host logs read in exec chunk81e690, exit0:
+tail-01-test_transport_pool.txt: TRANSPORT_POOL_TESTS,passed=1,slots=5,descriptorBytes=8,slotBytes=2376
+recovery-candidate-01-test_transport_pool.txt: same layout output

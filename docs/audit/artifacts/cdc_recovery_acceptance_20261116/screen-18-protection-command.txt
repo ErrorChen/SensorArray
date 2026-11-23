@@ -1,0 +1,1 @@
+docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-18/screen-18-protection-01.json

@@ -1,0 +1,17 @@
+
+/tmp/bt-host-old-target-9he6p4sb/baseline.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40386170 <pvPortMalloc>:
+40386170:	004136        	entry	a1, 32
+40386173:	bbe9b1        	l32r	a11, 40375118 <_iram_text_start+0xd14> (804 <_rtc_slow_length+0x614>)
+40386176:	20a220        	or	a10, a2, a2
+40386179:	eff725        	call8	403760ec <heap_caps_malloc>
+4038617c:	202aa0        	or	a2, a10, a10
+4038617f:	000090        	retw
+
+Disassembly of section .flash.text:

@@ -1,0 +1,422 @@
+{
+  "status": "RECORDED_ATT_GEOMETRY_VERIFIED_LL_MODEL_ONLY",
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "scope": "D notifications whose callback timestamps lie inside each closed formal capture window; incomplete boundary groups are reported separately.",
+  "screens": [
+    {
+      "label": "screen-13",
+      "capture_host_monotonic_seconds": {
+        "start": 125712.533742362,
+        "end": 125832.533824204
+      },
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-13/screen-13-volt1.summary.json",
+          "sha256": "bf00e0ece24a1a22da9dd6f6f0e9952bc7c325b2500d404b32e7fa747b66c35b"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-13/screen-13-ble.ble.notifications.jsonl",
+          "sha256": "e7b6b794758226389bb54272bbf89105d99be593becd2451b19c35109a009730"
+        }
+      ],
+      "counts": {
+        "D_notifications": 14761,
+        "complete_envelope_messages_crc_valid": 7380,
+        "complete_two_fragment_messages": 7380,
+        "incomplete_groups_at_capture_boundaries_or_inside_window": 1
+      },
+      "observed_notification_lengths": {
+        "329": 8,
+        "330": 43,
+        "331": 742,
+        "332": 826,
+        "333": 1512,
+        "334": 11449,
+        "335": 181
+      },
+      "complete_two_fragment_observed_value_geometry": [
+        {
+          "value_bytes": [
+            330,
+            329
+          ],
+          "messages": 8
+        },
+        {
+          "value_bytes": [
+            330,
+            330
+          ],
+          "messages": 15
+        },
+        {
+          "value_bytes": [
+            331,
+            330
+          ],
+          "messages": 5
+        },
+        {
+          "value_bytes": [
+            331,
+            331
+          ],
+          "messages": 210
+        },
+        {
+          "value_bytes": [
+            332,
+            331
+          ],
+          "messages": 316
+        },
+        {
+          "value_bytes": [
+            332,
+            332
+          ],
+          "messages": 65
+        },
+        {
+          "value_bytes": [
+            333,
+            332
+          ],
+          "messages": 380
+        },
+        {
+          "value_bytes": [
+            333,
+            333
+          ],
+          "messages": 20
+        },
+        {
+          "value_bytes": [
+            334,
+            333
+          ],
+          "messages": 1092
+        },
+        {
+          "value_bytes": [
+            334,
+            334
+          ],
+          "messages": 5088
+        },
+        {
+          "value_bytes": [
+            335,
+            334
+          ],
+          "messages": 181
+        }
+      ],
+      "logical_message_length_min_max": [
+        601,
+        609
+      ],
+      "LL_assumption_model_not_measured": {
+        "payload_bytes_assumed": 251,
+        "L2CAP_ATT_overhead_bytes_per_notification": 7,
+        "peer_effective_DLE": "UNKNOWN",
+        "over_air_trace": "NOT_RUN",
+        "formula": "sum(ceil((observed ATT value bytes + 7)/251))",
+        "comparison": [
+          {
+            "observed_geometry_assumed_PDUs": 4,
+            "balanced_same_message_assumed_PDUs": 4,
+            "messages": 7380
+          }
+        ]
+      },
+      "examples": [
+        {
+          "message_id": 527,
+          "logical_bytes": 607,
+          "observed_value_bytes": [
+            333,
+            332
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1112,
+            1113
+          ],
+          "reassembled_sha256": "5b7d4881846732bb8dbf1b2272f58d7ed3ae5688b066b7f00272efc8a6da8759",
+          "envelope_crc32": "4A627FCC",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            333,
+            332
+          ]
+        },
+        {
+          "message_id": 528,
+          "logical_bytes": 607,
+          "observed_value_bytes": [
+            333,
+            332
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1114,
+            1115
+          ],
+          "reassembled_sha256": "0b38da2a4e5d846de7115370227aa39e6e458bd46b9aa1368bf69b26ad0e035e",
+          "envelope_crc32": "5605F339",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            333,
+            332
+          ]
+        },
+        {
+          "message_id": 529,
+          "logical_bytes": 607,
+          "observed_value_bytes": [
+            333,
+            332
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1116,
+            1117
+          ],
+          "reassembled_sha256": "f86ff5bc2bb2b1056ed13cb6be39fcb50b2e0a3d8ecaa99dcb659450a90c732b",
+          "envelope_crc32": "AA79AB8F",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            333,
+            332
+          ]
+        }
+      ],
+      "interpretation": "ATT lengths and payload CRC are observed from host callbacks; LL counts are conditional arithmetic, not bus/radio measurements or throughput causation."
+    },
+    {
+      "label": "screen-14",
+      "capture_host_monotonic_seconds": {
+        "start": 126111.742257898,
+        "end": 126231.742347729
+      },
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-volt1.summary.json",
+          "sha256": "36301caeace933ba32cc79b1de818024030d929ba8b5c5d0ac08c9a7e036babf"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-ble.ble.notifications.jsonl",
+          "sha256": "7ad7ce145567e75b29ec619bca1724f70e40074a96a3b10698b8227c379c217d"
+        }
+      ],
+      "counts": {
+        "D_notifications": 15005,
+        "complete_envelope_messages_crc_valid": 7502,
+        "complete_two_fragment_messages": 7502,
+        "two_fragment_messages_meeting_495_244_targets": 7502,
+        "incomplete_groups_at_capture_boundaries_or_inside_window": 1
+      },
+      "observed_notification_lengths": {
+        "154": 6,
+        "155": 9,
+        "156": 16,
+        "157": 15,
+        "158": 249,
+        "159": 387,
+        "160": 130,
+        "161": 66,
+        "162": 241,
+        "163": 1078,
+        "164": 5135,
+        "165": 170,
+        "495": 7503
+      },
+      "complete_two_fragment_observed_value_geometry": [
+        {
+          "value_bytes": [
+            495,
+            154
+          ],
+          "messages": 6
+        },
+        {
+          "value_bytes": [
+            495,
+            155
+          ],
+          "messages": 9
+        },
+        {
+          "value_bytes": [
+            495,
+            156
+          ],
+          "messages": 16
+        },
+        {
+          "value_bytes": [
+            495,
+            157
+          ],
+          "messages": 15
+        },
+        {
+          "value_bytes": [
+            495,
+            158
+          ],
+          "messages": 249
+        },
+        {
+          "value_bytes": [
+            495,
+            159
+          ],
+          "messages": 387
+        },
+        {
+          "value_bytes": [
+            495,
+            160
+          ],
+          "messages": 130
+        },
+        {
+          "value_bytes": [
+            495,
+            161
+          ],
+          "messages": 66
+        },
+        {
+          "value_bytes": [
+            495,
+            162
+          ],
+          "messages": 241
+        },
+        {
+          "value_bytes": [
+            495,
+            163
+          ],
+          "messages": 1078
+        },
+        {
+          "value_bytes": [
+            495,
+            164
+          ],
+          "messages": 5135
+        },
+        {
+          "value_bytes": [
+            495,
+            165
+          ],
+          "messages": 170
+        }
+      ],
+      "logical_message_length_min_max": [
+        591,
+        600
+      ],
+      "LL_assumption_model_not_measured": {
+        "payload_bytes_assumed": 251,
+        "L2CAP_ATT_overhead_bytes_per_notification": 7,
+        "peer_effective_DLE": "UNKNOWN",
+        "over_air_trace": "NOT_RUN",
+        "formula": "sum(ceil((observed ATT value bytes + 7)/251))",
+        "comparison": [
+          {
+            "observed_geometry_assumed_PDUs": 3,
+            "balanced_same_message_assumed_PDUs": 4,
+            "messages": 7502
+          }
+        ]
+      },
+      "examples": [
+        {
+          "message_id": 828,
+          "logical_bytes": 597,
+          "observed_value_bytes": [
+            495,
+            160
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1729,
+            1730
+          ],
+          "reassembled_sha256": "9375f21c116008846dfedad9c0707f093438bc987b39c9675a36270e578f3f6c",
+          "envelope_crc32": "59A4D939",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            328,
+            327
+          ]
+        },
+        {
+          "message_id": 829,
+          "logical_bytes": 597,
+          "observed_value_bytes": [
+            495,
+            160
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1731,
+            1732
+          ],
+          "reassembled_sha256": "9acf0a293b4dc827ab89003104198f79b3299ad44c18f9de8105d222bda3ec41",
+          "envelope_crc32": "D8843EF9",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            328,
+            327
+          ]
+        },
+        {
+          "message_id": 830,
+          "logical_bytes": 597,
+          "observed_value_bytes": [
+            495,
+            160
+          ],
+          "observed_header_bytes": [
+            29,
+            29
+          ],
+          "raw_journal_lines": [
+            1733,
+            1734
+          ],
+          "reassembled_sha256": "c23df8090c21cda0e375f1ed381277a74d42264b08c28fcdee50d0c23f55edc9",
+          "envelope_crc32": "2115F4A1",
+          "balanced_header_arithmetic_value_bytes_not_recorded": [
+            328,
+            327
+          ]
+        }
+      ],
+      "interpretation": "ATT lengths and payload CRC are observed from host callbacks; LL counts are conditional arithmetic, not bus/radio measurements or throughput causation."
+    }
+  ],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/inspect_recorded_geometry_01.py",
+    "sha256": "c4389034cf2ea235c79395801439ebb99652e574219c366de298397c507a7c83"
+  }
+}

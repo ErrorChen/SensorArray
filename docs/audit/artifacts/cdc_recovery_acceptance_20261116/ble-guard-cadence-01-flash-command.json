@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "ble-guard-cadence-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 450.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "b8208f8ccec3c01911e1844f36859b725f222a335fad28f6a3d9616c8c9145f0",
+  "started_utc": "2026-11-20T17:35:02.589852+00:00",
+  "started_monotonic": 126876.974362908,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-guard-cadence-01-flash-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:35:14.991971+00:00",
+  "finished_monotonic": 126889.376474987,
+  "log_sha256": "1b46bb27460e9bc83e52d0ebc7c40e65d0168eac33f86900c67751b4f53ffad7"
+}

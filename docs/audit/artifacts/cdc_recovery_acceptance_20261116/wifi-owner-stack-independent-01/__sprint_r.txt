@@ -1,0 +1,26 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42110514 <__sprint_r>:
+42110514:	004136        	entry	a1, 32
+42110517:	2488      	l32i.n	a8, a4, 8
+42110519:	02ad      	mov.n	a10, a2
+4211051b:	03bd      	mov.n	a11, a3
+4211051d:	020c      	movi.n	a2, 0
+4211051f:	d88c      	beqz.n	a8, 42110530 <__sprint_r+0x1c>
+42110521:	20c440        	or	a12, a4, a4
+42110524:	201110        	or	a1, a1, a1
+42110527:	f6b765        	call8	4210709c <__sfvwrite_r>
+4211052a:	080c      	movi.n	a8, 0
+4211052c:	0a2d      	mov.n	a2, a10
+4211052e:	2489      	s32i.n	a8, a4, 8
+42110530:	080c      	movi.n	a8, 0
+42110532:	1489      	s32i.n	a8, a4, 4
+42110534:	f01d      	retw.n

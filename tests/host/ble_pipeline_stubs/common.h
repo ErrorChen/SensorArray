@@ -38,6 +38,7 @@ UBaseType_t uxTaskPriorityGet(TaskHandle_t task);
 QueueHandle_t xQueueCreateStatic(unsigned count, unsigned size, uint8_t *storage, StaticQueue_t *queue);
 int xQueueSend(QueueHandle_t queue, const void *item, TickType_t timeout);
 int xQueueReceive(QueueHandle_t queue, void *out, TickType_t timeout);
+int xQueueSendToFront(QueueHandle_t queue, const void *item, TickType_t timeout);
 SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t *semaphore);
 int xSemaphoreGive(SemaphoreHandle_t semaphore);
 int xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t timeout);

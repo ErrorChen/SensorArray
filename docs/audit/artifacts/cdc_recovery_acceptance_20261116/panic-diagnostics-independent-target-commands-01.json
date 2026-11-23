@@ -1,0 +1,84 @@
+{
+  "timestamp_utc": "2026-11-21T00:52:28.396449+00:00",
+  "images_before": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "images_after": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "commands": [
+    {
+      "name": "wrapper",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=__wrap_esp_panic_handler",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-wrapper-01.txt",
+      "output_sha256": "567b00b529dce06fac3be6f641653d8120c8bda94a720f21f356850e405ecfba"
+    },
+    {
+      "name": "port-handler",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=panic_handler",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-port-handler-01.txt",
+      "output_sha256": "b219c1424a3d3ee764acbbb081fc89fb2b4d37c5e0f573c4d796403a1a396d0b"
+    },
+    {
+      "name": "sdk-handler",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_panic_handler",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-sdk-handler-01.txt",
+      "output_sha256": "ed5755c0e8c541397ea54f013806e9eeeea00d11ffe5b682f75c1d7ae80da00b"
+    },
+    {
+      "name": "wrapper-literals",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-s",
+        "--start-address=0x403773e0",
+        "--stop-address=0x40377690",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-wrapper-literals-01.txt",
+      "output_sha256": "3c14c909a10812acebffd117ae16faad02179fd300f9f43c10c108c5a773429b"
+    },
+    {
+      "name": "symbols",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-t",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-symbols-01.txt",
+      "output_sha256": "466bc45d793042b14f655cf669559f1a962a9b65384a5f7f5a88cc0476cb71a3"
+    },
+    {
+      "name": "sections",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-readelf",
+        "-SW",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-target-sections-01.txt",
+      "output_sha256": "46e269934acd0c88fbf9390be1450cc6d5d61a4ba4ee15a0718b9092e987ff1d"
+    }
+  ]
+}

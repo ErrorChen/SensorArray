@@ -50,7 +50,11 @@ def main() -> int:
     # and separate preview code byte-for-byte, not merely semantically close.
     assert old_text.split("static uint32_t u32(", 1)[0] == new_text.split("enum {", 1)[0]
     marker = "bool sensorarrayTransportBuildPreview("
-    assert old_text[old_text.index(marker):] == new_text[new_text.index(marker):]
+    # Storage moved to a bound pointer; the sole preview delta rejects an
+    # unbound pointer. All populated preview/parser differential cases remain.
+    old_preview = old_text[old_text.index(marker):]
+    new_preview = new_text[new_text.index(marker):]
+    assert old_preview == new_preview.replace("!slot || !slot->data ||", "!slot ||")
     fixtures = sorted((ROOT / "tests/fixtures/config_identity").glob("*.frame"))
     fixtures += sorted((ROOT / "tests/fixtures/reference_capture").glob("*.recorded.txt"))
     assert fixtures

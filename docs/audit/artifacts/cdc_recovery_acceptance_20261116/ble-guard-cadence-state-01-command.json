@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "ble-guard-cadence-state-01",
+    "--ble-guard"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 40.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "b8208f8ccec3c01911e1844f36859b725f222a335fad28f6a3d9616c8c9145f0",
+  "started_utc": "2026-11-20T17:35:39.240905+00:00",
+  "started_monotonic": 126913.625413529,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-guard-cadence-state-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:35:39.405176+00:00",
+  "finished_monotonic": 126913.789681594,
+  "log_sha256": "be01462e6db7efc1c688debbe7bb61786d347df6677b07a55faa19b79fc08171"
+}

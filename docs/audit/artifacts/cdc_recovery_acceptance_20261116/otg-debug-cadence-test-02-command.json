@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_async_log_summary.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "80ff9345896832f20e2b45c913d938cb9e39f029b7f7c9791e98dd166df2dc7b",
+  "started_utc": "2026-11-20T17:30:08.040616+00:00",
+  "started_monotonic": 126582.425126451,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/otg-debug-cadence-test-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:30:08.255023+00:00",
+  "finished_monotonic": 126582.639530435,
+  "log_sha256": "b6c105223859f299787d16bb28cf56b4d8e0019f5d5032ef607996e4e44ed9f3"
+}

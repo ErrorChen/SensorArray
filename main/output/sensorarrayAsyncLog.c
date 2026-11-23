@@ -22,6 +22,7 @@
 #include "sensorarrayBle.h"
 #include "sensorarrayConfig.h"
 #include "sensorarrayFrameOutput.h"
+#include "sensorarrayFramePublication.h"
 #include "sensorarrayNetStatus.h"
 #include "sensorarrayOutputPolicy.h"
 #include "sensorarrayTextProtocol.h"
@@ -66,10 +67,14 @@
 #endif
 
 #define SENSORARRAY_ASYNC_EVENT_TEXT_MAX 384u
+#define SENSORARRAY_ASYNC_PROTECTED_PERIOD_US INT64_C(1000000)
 
 enum {
-    SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT =
+    SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT =
         (CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS < 2) ? 2 : CONFIG_SENSORARRAY_ASYNC_LOG_FRAME_SLOTS,
+    SENSORARRAY_ASYNC_LOG_PROTECTED_FRAME_SLOT_COUNT = 2,
+    SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT = SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT +
+        SENSORARRAY_ASYNC_LOG_PROTECTED_FRAME_SLOT_COUNT,
     SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT =
         (CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN < 1) ? 1 : CONFIG_SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_LEN,
     SENSORARRAY_ASYNC_LOG_PROTOCOL_QUEUE_COUNT =
@@ -123,6 +128,7 @@ typedef struct {
     sensorarrayTextPacket_t textPacket;
     uint64_t measureFrameUs;
     int64_t publishedUs;
+    uint32_t protectionFlags;
 } sensorarrayAsyncLogFrameSlot_t;
 
 typedef struct {
@@ -290,9 +296,15 @@ static portMUX_TYPE s_asyncLogMux = portMUX_INITIALIZER_UNLOCKED;
 static sensorarrayAsyncLogStorage_t s_frameSlotStorage;
 static sensorarrayAsyncLogFrameSlot_t *s_frameSlots;
 static uint8_t s_frameSlotState[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
+static uint32_t s_frameSlotProtection[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
+static sensorarrayTransportFrameIdentity_t s_frameSlotIdentity[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static uint8_t s_pendingSlots[SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT];
 static uint8_t s_pendingReadIndex;
 static uint8_t s_pendingCount;
+static sensorarrayAsyncLogProtectionStats_t s_asyncProtectionStats;
+static bool s_protectedIdentityKnown;
+static sensorarrayTransportFrameIdentity_t s_protectedIdentity;
+static int64_t s_lastProtectedPublishedUs;
 
 static StaticQueue_t s_eventQueueStruct;
 static uint8_t s_eventQueueStorage[SENSORARRAY_ASYNC_LOG_EVENT_QUEUE_COUNT *
@@ -383,6 +395,14 @@ void sensorarrayAsyncLogGetStats(sensorarrayAsyncLogStats_t *outStats)
     };
 }
 
+void sensorarrayAsyncLogGetProtectionStats(sensorarrayAsyncLogProtectionStats_t *outStats)
+{
+    if (!outStats) { return; }
+    portENTER_CRITICAL(&s_asyncLogMux);
+    *outStats = s_asyncProtectionStats;
+    portEXIT_CRITICAL(&s_asyncLogMux);
+}
+
 static void sensorarrayAsyncLogNotifyTask(void)
 {
     if (s_logTaskHandle) {
@@ -399,7 +419,7 @@ static void sensorarrayAsyncLogIncrementDroppedEvent(void)
 
 static uint8_t sensorarrayAsyncLogFindFreeSlotLocked(void)
 {
-    for (uint8_t i = 0u; i < SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT; ++i) {
+    for (uint8_t i = 0u; i < SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT; ++i) {
         if (s_frameSlotState[i] == 0u) {
             return i;
         }
@@ -407,28 +427,85 @@ static uint8_t sensorarrayAsyncLogFindFreeSlotLocked(void)
     return UINT8_MAX;
 }
 
+static uint8_t sensorarrayAsyncLogFindFreeProtectedSlotLocked(void)
+{
+    for (uint8_t i = SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT;
+         i < SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT; ++i) {
+        if (s_frameSlotState[i] == 0u) { return i; }
+    }
+    return UINT8_MAX;
+}
+
+static void sensorarrayAsyncLogRemovePendingLocked(uint8_t offset)
+{
+    uint8_t index = (uint8_t)((s_pendingReadIndex + offset) % SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+    uint8_t slot = s_pendingSlots[index];
+    /* Only entries actually present in the pending FIFO are reclaimable. */
+    for (uint8_t i = offset; i + 1u < s_pendingCount; ++i) {
+        uint8_t to = (uint8_t)((s_pendingReadIndex + i) % SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+        uint8_t from = (uint8_t)((s_pendingReadIndex + i + 1u) % SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+        s_pendingSlots[to] = s_pendingSlots[from];
+    }
+    s_pendingCount--;
+    s_frameSlotState[slot] = 0u;
+    s_sharedStats.droppedOutputFrames++;
+}
+
 static bool sensorarrayAsyncLogDropOldestQueuedFrameLocked(void)
 {
-    if (s_pendingCount == 0u) {
-        return false;
+    for (uint8_t i = 0u; i < s_pendingCount; ++i) {
+        uint8_t index = (uint8_t)((s_pendingReadIndex + i) % SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+        if (s_pendingSlots[index] < SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT) {
+            sensorarrayAsyncLogRemovePendingLocked(i);
+            return true;
+        }
     }
-    uint8_t droppedSlot = s_pendingSlots[s_pendingReadIndex];
-    s_frameSlotState[droppedSlot] = 0u;
-    s_pendingReadIndex = (uint8_t)((s_pendingReadIndex + 1u) %
-                                   SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
-    s_pendingCount--;
-    s_sharedStats.droppedOutputFrames++;
-    return true;
+    return false;
+}
+
+static bool sensorarrayAsyncLogSupersedeProtectedLocked(
+    const sensorarrayTransportFrameIdentity_t *identity)
+{
+    for (uint8_t i = 0u; i < s_pendingCount; ++i) {
+        uint8_t index = (uint8_t)((s_pendingReadIndex + i) % SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+        uint8_t slot = s_pendingSlots[index];
+        if (slot < SENSORARRAY_ASYNC_LOG_NORMAL_FRAME_SLOT_COUNT) { continue; }
+        bool first = (s_frameSlotProtection[slot] & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) != 0u;
+        if (first && sensorarrayTransportFrameSameConfig(identity, &s_frameSlotIdentity[slot])) { continue; }
+        sensorarrayAsyncLogRemovePendingLocked(i);
+        s_asyncProtectionStats.superseded++;
+        s_asyncProtectionStats.firstSuperseded += first ? 1u : 0u;
+        return true;
+    }
+    return false;
+}
+
+static uint32_t sensorarrayAsyncLogProtectionFlagsLocked(
+    const sensorarrayFrame_t *frame, const sensorarrayTransportFrameIdentity_t *identity,
+    int64_t nowUs)
+{
+    if (identity->sessionId == 0u || !(frame->freshFrame || frame->boundedCrcFailure ||
+        CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG)) { return 0u; }
+    uint32_t flags = 0u;
+    if (!s_protectedIdentityKnown || !sensorarrayTransportFrameSameConfig(identity, &s_protectedIdentity)) {
+        flags |= SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG;
+    }
+    if (s_lastProtectedPublishedUs <= 0 || nowUs < s_lastProtectedPublishedUs ||
+        nowUs - s_lastProtectedPublishedUs >= SENSORARRAY_ASYNC_PROTECTED_PERIOD_US) {
+        flags |= SENSORARRAY_FRAME_PROTECT_PERIODIC;
+    }
+    return flags;
 }
 
 static bool sensorarrayAsyncLogPopFrame(sensorarrayFrame_t *outFrame,
                                         sensorarrayTextPacket_t *outTextPacket,
                                         uint64_t *outMeasureFrameUs,
                                         int64_t *outPublishedUs,
-                                        uint32_t *outQueueDepth)
+                                        uint32_t *outQueueDepth,
+                                        uint32_t *outProtectionFlags)
 {
     if (!outFrame || !outTextPacket || !outMeasureFrameUs ||
-        !outPublishedUs || !outQueueDepth) {
+        !outPublishedUs || !outQueueDepth || !outProtectionFlags) {
         return false;
     }
 
@@ -451,6 +528,7 @@ static bool sensorarrayAsyncLogPopFrame(sensorarrayFrame_t *outFrame,
     *outTextPacket = s_frameSlots[slot].textPacket;
     *outMeasureFrameUs = s_frameSlots[slot].measureFrameUs;
     *outPublishedUs = s_frameSlots[slot].publishedUs;
+    *outProtectionFlags = s_frameSlots[slot].protectionFlags;
 
     portENTER_CRITICAL(&s_asyncLogMux);
     if (s_frameSlotState[slot] == 3u) {
@@ -1747,13 +1825,15 @@ static void sensorarrayAsyncLogTask(void *arg)
         uint64_t measureFrameUs = 0u;
         int64_t publishedUs = 0;
         uint32_t queueDepth = 0u;
+        uint32_t protectionFlags = 0u;
         unsigned processed = 0u;
         while (processed < SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT &&
                sensorarrayAsyncLogPopFrame(frame,
                                            textPacket,
                                            &measureFrameUs,
                                            &publishedUs,
-                                           &queueDepth)) {
+                                           &queueDepth,
+                                           &protectionFlags)) {
             sensorarrayAsyncLogDrainProtocolEvents();
             sensorarrayAsyncLogDrainEvents();
 
@@ -1763,7 +1843,7 @@ static void sensorarrayAsyncLogTask(void *arg)
             bool emitted = frame->freshFrame || frame->boundedCrcFailure ||
                 CONFIG_SENSORARRAY_OUTPUT_ALLOW_NON_FRESH_DEBUG;
             uint32_t outputFpsCap = sensorarrayCommandMailboxGetOutputFpsCap();
-            if (emitted && outputFpsCap > 0u) {
+            if (emitted && protectionFlags == 0u && outputFpsCap > 0u) {
                 int64_t minIntervalUs = 1000000LL / (int64_t)outputFpsCap;
                 if (lastOutputEmitUs > 0 &&
                     outputStartUs - lastOutputEmitUs < minIntervalUs) {
@@ -1776,7 +1856,7 @@ static void sensorarrayAsyncLogTask(void *arg)
                 /* Both formal sinks receive the same immutable encoded frame.
                  * OTG bulk always emits DATA; legacy USJ alone uses USBSTREAM.
                  * Admission is bounded independently of CDC debug readers. */
-                (void)sensorarrayNetTextPublish(textPacket, true);
+                (void)sensorarrayNetFramePublish(textPacket, frame, protectionFlags);
                 if (sensorarrayUsbSinkShouldEmitData(frame->sequence)) {
                     (void)sensorarrayUsbSinkPublish(textPacket);
                 }
@@ -1844,6 +1924,11 @@ esp_err_t sensorarrayAsyncLogInit(void)
     s_frameSlots = (sensorarrayAsyncLogFrameSlot_t *)s_frameSlotStorage.memory;
 
     memset(s_frameSlots, 0, sizeof(*s_frameSlots) * SENSORARRAY_ASYNC_LOG_FRAME_SLOT_COUNT);
+    memset(s_frameSlotProtection, 0, sizeof(s_frameSlotProtection));
+    memset(s_frameSlotIdentity, 0, sizeof(s_frameSlotIdentity));
+    memset(&s_asyncProtectionStats, 0, sizeof(s_asyncProtectionStats));
+    s_protectedIdentityKnown = false;
+    s_lastProtectedPublishedUs = 0;
     memset(s_frameSlotState, 0, sizeof(s_frameSlotState));
     memset(s_pendingSlots, 0, sizeof(s_pendingSlots));
     s_pendingReadIndex = 0u;
@@ -1985,6 +2070,8 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
     bool notify = false;
     esp_err_t result = ESP_OK;
     uint8_t slot = UINT8_MAX;
+    sensorarrayTransportFrameIdentity_t identity = sensorarrayFramePublicationIdentity(frame);
+    uint32_t protectionFlags = 0u;
     portENTER_CRITICAL(&s_asyncLogMux);
     s_sharedStats.publishedFrames++;
     s_sharedStats.freshFrames += frame->freshFrame ? 1u : 0u;
@@ -2018,7 +2105,23 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
     if (measureFrameUs > s_sharedStats.measureFrameMaxUs) {
         s_sharedStats.measureFrameMaxUs = measureFrameUs;
     }
-    slot = sensorarrayAsyncLogFindFreeSlotLocked();
+    protectionFlags = sensorarrayAsyncLogProtectionFlagsLocked(frame, &identity, publishedUs);
+    if (protectionFlags != 0u) {
+        slot = sensorarrayAsyncLogFindFreeProtectedSlotLocked();
+        if (slot == UINT8_MAX && sensorarrayAsyncLogSupersedeProtectedLocked(&identity)) {
+            slot = sensorarrayAsyncLogFindFreeProtectedSlotLocked();
+        }
+        if (slot == UINT8_MAX) {
+            s_asyncProtectionStats.candidateMiss++;
+            s_asyncProtectionStats.firstCandidateMiss +=
+                (protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) != 0u ? 1u : 0u;
+            /* Preserve the obligation for the next available encoded frame.
+             * A normal fallback can still reach USB, but is not reported as
+             * the missing original protected candidate. */
+            protectionFlags = 0u;
+        }
+    }
+    if (slot == UINT8_MAX) { slot = sensorarrayAsyncLogFindFreeSlotLocked(); }
     sensorarrayOutputCongestionDecision_t congestionDecision =
         sensorarrayOutputCongestionDecide(
             slot != UINT8_MAX,
@@ -2034,6 +2137,8 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
         result = ESP_ERR_TIMEOUT;
     } else {
         s_frameSlotState[slot] = 2u;
+        s_frameSlotProtection[slot] = protectionFlags;
+        s_frameSlotIdentity[slot] = identity;
     }
     portEXIT_CRITICAL(&s_asyncLogMux);
 
@@ -2047,6 +2152,7 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
         s_frameSlots[slot].frame = *frame;
         s_frameSlots[slot].measureFrameUs = measureFrameUs;
         s_frameSlots[slot].publishedUs = publishedUs;
+        s_frameSlots[slot].protectionFlags = protectionFlags;
         esp_err_t textErr = sensorarrayTextProtocolBuildFrame(
             frame,
             &s_frameSlots[slot].textPacket);
@@ -2054,6 +2160,11 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
             portENTER_CRITICAL(&s_asyncLogMux);
             s_frameSlotState[slot] = 0u;
             s_sharedStats.droppedOutputFrames++;
+            if (protectionFlags != 0u) {
+                s_asyncProtectionStats.candidateMiss++;
+                s_asyncProtectionStats.firstCandidateMiss +=
+                    (protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) != 0u ? 1u : 0u;
+            }
             portEXIT_CRITICAL(&s_asyncLogMux);
             return textErr;
         }
@@ -2066,6 +2177,16 @@ esp_err_t sensorarrayAsyncLogPublishFrameSnapshot(const sensorarrayFrame_t *fram
         s_pendingSlots[writeIndex] = slot;
         s_pendingCount++;
         s_frameSlotState[slot] = 1u;
+        if (protectionFlags != 0u) {
+            s_protectedIdentity = identity;
+            s_protectedIdentityKnown = true;
+            s_lastProtectedPublishedUs = publishedUs;
+            s_asyncProtectionStats.queued++;
+            s_asyncProtectionStats.firstConfigQueued +=
+                (protectionFlags & SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG) != 0u ? 1u : 0u;
+            s_asyncProtectionStats.periodicQueued +=
+                (protectionFlags & SENSORARRAY_FRAME_PROTECT_PERIODIC) != 0u ? 1u : 0u;
+        }
         portEXIT_CRITICAL(&s_asyncLogMux);
         notify = true;
     }

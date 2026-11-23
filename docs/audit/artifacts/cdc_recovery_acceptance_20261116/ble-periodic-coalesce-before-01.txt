@@ -1,0 +1,14 @@
+BLE_LOG_POLICY_PASS,cccd_mode_cases=8,unavailable_cases=4,epoch_and_unsubscribe=1,critical_bypass=1,accepted_owner_complete=1,count_once_wrap=1,query_readonly=1,hardware=NOT_RUN
+BLE_FRAME_PROTECTION_PASS,groups=12,full_encoder_roundtrip=1,deep_copy=1,writing_races=2,independent_slots=2,owner_retained=1,stream_epoch=1,old_config_no_ack=1,ctrl_retry_unchanged=1,capacity_policy_integrated=1,fast_safe=1,wrap_boot=1,hardware=NOT_RUN
+BLE_PERIODIC_PHASE_OBSERVED,preview=0,offered=200,source_periodic=10,protected=20,whole=181,stale=19,hardware=NOT_RUN
+BLE_PERIODIC_PHASE_OBSERVED,preview=1,offered=200,source_periodic=10,protected=20,whole=20,stale=19,hardware=NOT_RUN
+test: /tmp/sensorarray-ble-priority-kny4rk9s/test.c:2908: void testPeriodicCadence(void): Assertion `expected' failed.
+Traceback (most recent call last):
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ble_priority.py", line 221, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/csc/esp/workspace/SensorArray/tools/test_ble_priority.py", line 148, in main
+    subprocess.run([str(executable), str(wire)], check=True, timeout=45, env=environment)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/sensorarray-ble-priority-kny4rk9s/test', '/tmp/sensorarray-ble-priority-kny4rk9s/wire.jsonl']' died with <Signals.SIGABRT: 6>.

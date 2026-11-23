@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_software_recovery.py",
+    "--output-directory",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116",
+    "--label",
+    "ble-data-priority-rom-01",
+    "--request-rom"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 90.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "ebdb066172f3889faf7b3e8df34a60abe77bcdc6072823e5d115fc5b9cbbe9c3",
+  "started_utc": "2026-11-20T17:44:32.825805+00:00",
+  "started_monotonic": 127446.994049573,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-data-priority-rom-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:44:33.441506+00:00",
+  "finished_monotonic": 127447.609749391,
+  "log_sha256": "c875a8cef9141e9dbb23dd1c623d98ffbd5414ede81e1d72b7f69497e02d4d6e"
+}

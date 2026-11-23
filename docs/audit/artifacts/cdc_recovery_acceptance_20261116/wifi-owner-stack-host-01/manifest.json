@@ -1,0 +1,80 @@
+{
+  "timestamp_utc": "2026-11-21T01:04:40.719989+00:00",
+  "source_hashes_before": {
+    "components/sensorarrayWifi/sensorarrayWifiOwner.c": "70c4deabbb78e44fd14040bb32fa4b0df01e69bb6a39aa48d81e072081cb3a85",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "fa03e15db27e5549e40ddcc29f68e0fd21d41ccc748a06aca5d920b4a3e90d3f",
+    "tests/host/test_wifi_owner.c": "d9da7356a1e7a85aaecdc85496eed81edb64d28bfb3eef73ebb49fa48e9e83ec",
+    "tests/host/wifi_owner_stubs/common.h": "75c04c5fd6d7836601ebba46a784ce60725de588afd07965c838b8a5a81504d3",
+    "tools/test_wifi_owner.py": "44539bdb1ef17182fc1cd7a93db043136af88d342f8db7e501c2f643ae5635da"
+  },
+  "source_hashes_after": {
+    "components/sensorarrayWifi/sensorarrayWifiOwner.c": "70c4deabbb78e44fd14040bb32fa4b0df01e69bb6a39aa48d81e072081cb3a85",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "fa03e15db27e5549e40ddcc29f68e0fd21d41ccc748a06aca5d920b4a3e90d3f",
+    "tests/host/test_wifi_owner.c": "d9da7356a1e7a85aaecdc85496eed81edb64d28bfb3eef73ebb49fa48e9e83ec",
+    "tests/host/wifi_owner_stubs/common.h": "75c04c5fd6d7836601ebba46a784ce60725de588afd07965c838b8a5a81504d3",
+    "tools/test_wifi_owner.py": "44539bdb1ef17182fc1cd7a93db043136af88d342f8db7e501c2f643ae5635da"
+  },
+  "stable": true,
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_owner.py"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-host-01/test_wifi_owner.txt",
+      "sha256": "ebda5fde958c1f8e54630117add299b2ab9492b59ba8844b77022b5bf1606022",
+      "tail": [
+        "test: /tmp/wifi-owner-test-ggsmze6m/observer_interleave-test.c:189: main: Assertion `!snapshot().quarantined' failed.",
+        "WIFI_MUTATION_REPRODUCED,kind=synthetic_reconstruction,case=cleanup_blocked,exit=-6,source_sha256=33129e2be57e07738dd7f49e31aa1da29dd3429178358cd9579414bcd457b789",
+        "test: /tmp/wifi-owner-test-ggsmze6m/cleanup_blocked-test.c:194: main: Assertion `r.outcome==SENSORARRAY_WIFI_REQUEST_QUARANTINED&&r.originalError==ESP_ERR_NO_MEM&&r.cleanupError==ESP_ERR_TIMEOUT' failed.",
+        "wifi_owner: real owner/backend/watchdog; 61 scenarios PASS; no hardware evidence"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_command.py"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-host-01/test_wifi_command.txt",
+      "sha256": "4a5a6c693bd82266102f678398f09ecab361147e80d63ec86ba2fe545b8e103d",
+      "tail": [
+        "WIFIQ?D length=408",
+        "WIFIQ?L length=408",
+        "WIFIQ?C length=408",
+        "wifi_command actual formatter max=483 <=512; truncation/unknown/exact-ID/admission/terminal-noop PASS"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_wifi_transport_isolation.py"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-host-01/test_wifi_transport_isolation.txt",
+      "sha256": "0a7a9dc5a7ba2ec1c8fa0d501b5672cff5c6398cfac4f76e97510083a53e85e8",
+      "tail": [
+        "WIFI_TRANSPORT_ISOLATION,actual_shared_bodies=9,queued_not_sent=PASS,CTRL512_deepcopy=PASS,lifecycle=PASS,blocked_SDK_USB_BLE_queries=PASS,deadline_poll=PASS,late_actual_send=PASS,hardware=NOT_RUN",
+        "WIFI_SHARED_SOURCE_SHA256,19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_work_budget.py"
+      ],
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-host-01/test_work_budget.txt",
+      "sha256": "a12a7bab8a32a6540e8e43bb2b9cc79a155dc35ad9a19577761340c3437c4f47",
+      "tail": [
+        "TASKCORE,name=output_hub,core=0,expected=0",
+        "WORK_BUDGET_DRAINS_PASS,scenarios=15,production_bodies=10,hardware=NOT_RUN",
+        "BLECORRUPT,ch=D,mid=1,enqLen=548,deqLen=548,enqCrc=00000000,deqCrc=FC141E31",
+        "WORK_BUDGET_BLE_FRAGMENTS_PASS,scenarios=11,production_bodies=7,hardware=NOT_RUN"
+      ]
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "target_build": "NOT_RUN_BY_THIS_WORKER"
+}

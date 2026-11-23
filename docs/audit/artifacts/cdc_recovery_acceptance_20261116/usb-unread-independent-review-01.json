@@ -1,0 +1,117 @@
+{
+  "created_utc": "2026-11-20T19:54:23.756318+00:00",
+  "scope": "READ_ONLY_INDEPENDENT_ANALYZER_REVIEW",
+  "source_sha256": "ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.07078484000521712,
+      "stdout": "",
+      "stderr": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.011s\n\nOK\n"
+    },
+    {
+      "command": [
+        "python3",
+        "/home/csc/esp/workspace/SensorArray/tools/test_analyze_firmware_benchmark.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.14483688797918148,
+      "stdout": "",
+      "stderr": "...........................................\n----------------------------------------------------------------------\nRan 43 tests in 0.080s\n\nOK\n"
+    },
+    {
+      "command": [
+        "python3",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-independent-review-01.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.6147152759949677,
+      "stdout": "{\n  \"created_utc\": \"2026-11-20T19:54:21.188684+00:00\",\n  \"source_sha256\": \"ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c\",\n  \"test_sha256\": \"1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418\",\n  \"hardware_actions\": [],\n  \"original_recordings_modified\": false,\n  \"probes\": [\n    {\n      \"name\": \"baseline_validate_hold\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": \"VOLT\"\n    },\n    {\n      \"name\": \"missing_final_finished_event\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": \"VOLT\"\n    },\n    {\n      \"name\": \"final_finished_disagrees_with_summary\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": \"VOLT\"\n    },\n    {\n      \"name\": \"summary_faults_unknown_cleanup_still_labeled_success\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": \"VOLT\"\n    },\n    {\n      \"name\": \"real_tx_event_names_inside_zero_IO_hold\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": \"VOLT\"\n    },\n    {\n      \"name\": \"full_original_analysis_reexecution\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": {\n        \"status\": \"CLOSED_UNREAD_HOLD_ANALYZED\",\n        \"BLE_endpoint_gap\": {\n          \"received\": 7821,\n          \"missing\": 25,\n          \"expected_within_BLE_endpoints\": 7846,\n          \"fraction\": 0.003186336986999745,\n          \"scope\": \"same-identity trusted complete BLE endpoints only; no USB denominator or RF-loss attribution\"\n        },\n        \"USB_PC_FPS\": null,\n        \"hold_seconds\": 120.00036729499698,\n        \"max_PC_complete_gap\": 0.03623694600537419\n      }\n    },\n    {\n      \"name\": \"unbound_post_summary_error_bad_hash_old_time_and_fabricated_MEM\",\n      \"result\": \"ACCEPTED\",\n      \"detail\": {\n        \"status\": \"CLOSED_UNREAD_HOLD_ANALYZED\",\n        \"collector_recovery\": \"CAP8_QUERY_VERIFIED\",\n        \"intFree\": \"424242\"\n      }\n    }\n  ],\n  \"input_hashes_before\": {\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.summary.json\": \"99d84643f8e77573c3fc77252f5aa046b10d2b813b79028337e5bd0f6618cc50\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.rx.bin\": \"e82a611c1ed4df3d5d1600f26e7176e6a69c67bc3ecea3bd785b495c2de5ac3e\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.events.jsonl\": \"6b44ac28b4463be1cde285ece6c570a2e7a9102ffb8cf25176594de840712a56\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-postunread-01.summary.json\": \"5a8fc05dd72381ed0660cbf62bb01cd441ffce692473b80ceb6a906b500540af\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_usb_unread.py\": \"ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py\": \"1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418\"\n  },\n  \"input_hashes_after\": {\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.summary.json\": \"99d84643f8e77573c3fc77252f5aa046b10d2b813b79028337e5bd0f6618cc50\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.rx.bin\": \"e82a611c1ed4df3d5d1600f26e7176e6a69c67bc3ecea3bd785b495c2de5ac3e\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.events.jsonl\": \"6b44ac28b4463be1cde285ece6c570a2e7a9102ffb8cf25176594de840712a56\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-postunread-01.summary.json\": \"5a8fc05dd72381ed0660cbf62bb01cd441ffce692473b80ceb6a906b500540af\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_usb_unread.py\": \"ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c\",\n    \"/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py\": \"1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418\"\n  },\n  \"all_inputs_unchanged\": true\n}\n",
+      "stderr": "",
+      "probe_results": {
+        "created_utc": "2026-11-20T19:54:21.188684+00:00",
+        "source_sha256": "ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c",
+        "test_sha256": "1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418",
+        "hardware_actions": [],
+        "original_recordings_modified": false,
+        "probes": [
+          {
+            "name": "baseline_validate_hold",
+            "result": "ACCEPTED",
+            "detail": "VOLT"
+          },
+          {
+            "name": "missing_final_finished_event",
+            "result": "ACCEPTED",
+            "detail": "VOLT"
+          },
+          {
+            "name": "final_finished_disagrees_with_summary",
+            "result": "ACCEPTED",
+            "detail": "VOLT"
+          },
+          {
+            "name": "summary_faults_unknown_cleanup_still_labeled_success",
+            "result": "ACCEPTED",
+            "detail": "VOLT"
+          },
+          {
+            "name": "real_tx_event_names_inside_zero_IO_hold",
+            "result": "ACCEPTED",
+            "detail": "VOLT"
+          },
+          {
+            "name": "full_original_analysis_reexecution",
+            "result": "ACCEPTED",
+            "detail": {
+              "status": "CLOSED_UNREAD_HOLD_ANALYZED",
+              "BLE_endpoint_gap": {
+                "received": 7821,
+                "missing": 25,
+                "expected_within_BLE_endpoints": 7846,
+                "fraction": 0.003186336986999745,
+                "scope": "same-identity trusted complete BLE endpoints only; no USB denominator or RF-loss attribution"
+              },
+              "USB_PC_FPS": null,
+              "hold_seconds": 120.00036729499698,
+              "max_PC_complete_gap": 0.03623694600537419
+            }
+          },
+          {
+            "name": "unbound_post_summary_error_bad_hash_old_time_and_fabricated_MEM",
+            "result": "ACCEPTED",
+            "detail": {
+              "status": "CLOSED_UNREAD_HOLD_ANALYZED",
+              "collector_recovery": "CAP8_QUERY_VERIFIED",
+              "intFree": "424242"
+            }
+          }
+        ],
+        "input_hashes_before": {
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.summary.json": "99d84643f8e77573c3fc77252f5aa046b10d2b813b79028337e5bd0f6618cc50",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.rx.bin": "e82a611c1ed4df3d5d1600f26e7176e6a69c67bc3ecea3bd785b495c2de5ac3e",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.events.jsonl": "6b44ac28b4463be1cde285ece6c570a2e7a9102ffb8cf25176594de840712a56",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-postunread-01.summary.json": "5a8fc05dd72381ed0660cbf62bb01cd441ffce692473b80ceb6a906b500540af",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_usb_unread.py": "ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py": "1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418"
+        },
+        "input_hashes_after": {
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.summary.json": "99d84643f8e77573c3fc77252f5aa046b10d2b813b79028337e5bd0f6618cc50",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.rx.bin": "e82a611c1ed4df3d5d1600f26e7176e6a69c67bc3ecea3bd785b495c2de5ac3e",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-hold.events.jsonl": "6b44ac28b4463be1cde285ece6c570a2e7a9102ffb8cf25176594de840712a56",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-postunread-01.summary.json": "5a8fc05dd72381ed0660cbf62bb01cd441ffce692473b80ceb6a906b500540af",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_usb_unread.py": "ec740a5015521b045a76d8f8c2d14e26cbb1f7154aa777865f062e0f8b30be7c",
+          "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_analyze_usb_unread.py": "1df3b6dd0353dfbd88433c4eaa30949964d7fb982428fd595406f993aed86418"
+        },
+        "all_inputs_unchanged": true
+      }
+    }
+  ],
+  "conclusion": "CHANGES_REQUESTED: missing final/cleanup consistency, actual TX event names, and post-probe raw/time/closure binding. Original HIL numbers reproduced. No production/hardware/original-data changes.",
+  "pending": "Author received counterexamples for focused fix and negative regressions."
+}

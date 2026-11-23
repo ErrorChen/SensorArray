@@ -1,0 +1,66 @@
+wifi_owner off PASS
+wifi_owner success PASS
+wifi_owner oom PASS
+wifi_owner timer_create PASS
+wifi_owner timer_start PASS
+wifi_owner task_create PASS
+wifi_owner blocked_send PASS
+wifi_owner late_send PASS
+wifi_owner off_inflight PASS
+wifi_owner partial PASS
+wifi_owner queue_epoch PASS
+wifi_owner priority PASS
+wifi_owner expiry PASS
+wifi_owner terminal PASS
+wifi_owner request_wrap PASS
+wifi_owner init_deadline PASS
+wifi_owner failed_cleanup PASS
+wifi_owner profile_error PASS
+wifi_owner reply_off PASS
+wifi_owner callback_event PASS
+wifi_owner observer_interleave PASS
+wifi_owner cleanup_blocked PASS
+wifi_owner invalid_enum PASS
+wifi_owner idle_pending PASS
+wifi_owner writing_epoch_race PASS
+wifi_owner execution_snapshot PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner phase_failure PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+wifi_owner blocked_phase PASS
+WIFI_MUTATION_REPRODUCED,kind=synthetic_reconstruction,case=observer_interleave,exit=-6,source_sha256=49483cb99bcc2e9ab6b207ec913b8c358bb7b24e37e338238af727d0812117f9
+test: /tmp/wifi-owner-test-swdt0t0a/observer_interleave-test.c:189: main: Assertion `!snapshot().quarantined' failed.
+WIFI_MUTATION_REPRODUCED,kind=synthetic_reconstruction,case=cleanup_blocked,exit=-6,source_sha256=33129e2be57e07738dd7f49e31aa1da29dd3429178358cd9579414bcd457b789
+test: /tmp/wifi-owner-test-swdt0t0a/cleanup_blocked-test.c:194: main: Assertion `r.outcome==SENSORARRAY_WIFI_REQUEST_QUARANTINED&&r.originalError==ESP_ERR_NO_MEM&&r.cleanupError==ESP_ERR_TIMEOUT' failed.
+wifi_owner: real owner/backend/watchdog; 61 scenarios PASS; no hardware evidence

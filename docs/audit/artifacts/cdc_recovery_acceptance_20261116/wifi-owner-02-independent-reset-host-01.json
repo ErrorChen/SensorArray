@@ -1,0 +1,86 @@
+{
+  "scope": "Independent read-only target ELF verification; no build/hardware",
+  "elf_sha256_before": "9e1ee9f9812dcd21a1295e315f08c10bdf98ae55d309e67b1f84b97b3c825573",
+  "commands": [
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayUsbOtgManualRestart",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-manual-01.txt",
+      "output_sha256": "6f4762fe2a552be6628a7791ea10f7032b14932f84923b48b583a34668e5135b",
+      "output_filter": null
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--start-address=0x40377408",
+        "--stop-address=0x40377424",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-wrapper-01.txt",
+      "output_sha256": "345a870162aa9a939e91ca349ef17de8a020ebc6054e70be4b3dc6932796a843",
+      "output_filter": null
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_restart_noos",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-noos-01.txt",
+      "output_sha256": "a0d396c501da3c4c0c0f7c24445ebf3fa88a6f41e03ff7fdb531f64425773a0f",
+      "output_filter": null
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayPerformManualRestart",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-maincaller-01.txt",
+      "output_sha256": "bb06f168a5fc914f4b9d66ca1e6fab3b67d4541b8119b10986500072f6a52785",
+      "output_filter": null
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayUsbOtgRestart",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-generic-01.txt",
+      "output_sha256": "2001f40e36b0ae7214cdc7f736c5d16ac83c5b3dee88a59c4a8da7df6730de99",
+      "output_filter": null
+    },
+    {
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-t",
+        "build/SensorArray.elf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-02-independent-reset-symbols-01.txt",
+      "output_sha256": "e48d1eb7d6a690235a178f5f772f2ce8c5060709b7f23132b3bf41d6ef342e82",
+      "output_filter": "named restart symbols only"
+    }
+  ],
+  "elf_sha256_after": "9e1ee9f9812dcd21a1295e315f08c10bdf98ae55d309e67b1f84b97b3c825573",
+  "elf_unchanged": true
+}

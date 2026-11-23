@@ -1,0 +1,179 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420b3fd8 <esp_wifi_init>:
+420b3fd8:	004136        	entry	a1, 32
+420b3fdb:	62e871        	l32r	a7, 4208cb7c <bt_rf_coex_hook_register+0x1a88> (3fccb0b8 <s_wifi_inited>)
+420b3fde:	000782        	l8ui	a8, a7, 0
+420b3fe1:	18c856        	bnez	a8, 420b4171 <esp_wifi_init+0x199>
+420b3fe4:	1e2282        	l32i	a8, a2, 120
+420b3fe7:	31e817        	bbsi	a8, 1, 420b401c <esp_wifi_init+0x44>
+420b3fea:	5b99a1        	l32r	a10, 4208ae50 <coex_hook_check_wifi_sleep+0x34> (c350 <_rtc_slow_length+0xc160>)
+420b3fed:	238c65        	call8	420d78b4 <esp_wifi_set_sleep_min_active_time>
+420b3ff0:	62e9a1        	l32r	a10, 4208cb94 <bt_rf_coex_hook_register+0x1aa0> (989680 <_rtc_slow_length+0x989490>)
+420b3ff3:	238d25        	call8	420d78c4 <esp_wifi_set_keep_alive_time>
+420b3ff6:	62e8a1        	l32r	a10, 4208cb98 <bt_rf_coex_hook_register+0x1aa4> (3a98 <_rtc_slow_length+0x38a8>)
+420b3ff9:	238da5        	call8	420d78d4 <esp_wifi_set_sleep_wait_broadcast_data_time>
+420b3ffc:	10b3e5        	call8	420c4b3c <coex_init>
+420b3fff:	03a0a2        	movi	a10, 3
+420b4002:	2382e5        	call8	420d7830 <esp_wifi_internal_set_log_level>
+420b4005:	62f281        	l32r	a8, 4208cbd0 <bt_rf_coex_hook_register+0x1adc> (4037dfa8 <esp_wifi_bt_power_domain_on>)
+420b4008:	0008e0        	callx8	a8
+420b400b:	20a220        	or	a10, a2, a2
+420b400e:	22da25        	call8	420d6db0 <esp_wifi_init_internal>
+420b4011:	202aa0        	or	a2, a10, a10
+420b4014:	160a56        	bnez	a10, 420b4178 <esp_wifi_init+0x1a0>
+420b4017:	0007c6        	j	420b403a <esp_wifi_init+0x62>
+420b401a:	810000        	src	a0, a0, a0
+420b401d:	5cdc      	bnez.n	a12, 420b4036 <esp_wifi_init+0x5e>
+420b401f:	0008e0        	callx8	a8
+420b4022:	62d2b1        	l32r	a11, 4208cb6c <bt_rf_coex_hook_register+0x1a78> (3c14b26c <_flash_rodata_start+0x2b14c>)
+420b4025:	62ddc1        	l32r	a12, 4208cb9c <bt_rf_coex_hook_register+0x1aa8> (3c14b314 <_flash_rodata_start+0x2b1f4>)
+420b4028:	0add      	mov.n	a13, a10
+420b402a:	0bed      	mov.n	a14, a11
+420b402c:	1a0c      	movi.n	a10, 1
+420b402e:	5cd881        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4031:	0008e0        	callx8	a8
+420b4034:	06a122        	movi	a2, 0x106
+420b4037:	005846        	j	420b419c <esp_wifi_init+0x1c4>
+420b403a:	e94d65        	call8	4209d510 <esp_phy_modem_init>
+420b403d:	3abaa5        	call8	420eebe8 <esp_supplicant_init>
+420b4040:	202aa0        	or	a2, a10, a10
+420b4043:	01da16        	beqz	a10, 420b4064 <esp_wifi_init+0x8c>
+420b4046:	5cd181        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4049:	0008e0        	callx8	a8
+420b404c:	62c8b1        	l32r	a11, 4208cb6c <bt_rf_coex_hook_register+0x1a78> (3c14b26c <_flash_rodata_start+0x2b14c>)
+420b404f:	62d4c1        	l32r	a12, 4208cba0 <bt_rf_coex_hook_register+0x1aac> (3c14b368 <_flash_rodata_start+0x2b248>)
+420b4052:	0add      	mov.n	a13, a10
+420b4054:	02fd      	mov.n	a15, a2
+420b4056:	0bed      	mov.n	a14, a11
+420b4058:	1a0c      	movi.n	a10, 1
+420b405a:	5ccd81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b405d:	0008e0        	callx8	a8
+420b4060:	004506        	j	420b4178 <esp_wifi_init+0x1a0>
+420b4063:	ca8100        	float.s	f8, a1, 0
+420b4066:	e05c      	movi.n	a0, 94
+420b4068:	0008      	l32i.n	a0, a0, 0
+420b406a:	62c021        	l32r	a2, 4208cb6c <bt_rf_coex_hook_register+0x1a78> (3c14b26c <_flash_rodata_start+0x2b14c>)
+420b406d:	62cdc1        	l32r	a12, 4208cba4 <bt_rf_coex_hook_register+0x1ab0> (3c14b398 <_flash_rodata_start+0x2b278>)
+420b4070:	0add      	mov.n	a13, a10
+420b4072:	6f0c      	movi.n	a15, 6
+420b4074:	02ed      	mov.n	a14, a2
+420b4076:	02bd      	mov.n	a11, a2
+420b4078:	3a0c      	movi.n	a10, 3
+420b407a:	5cc581        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b407d:	0008e0        	callx8	a8
+420b4080:	5cc381        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4083:	0008e0        	callx8	a8
+420b4086:	62c8c1        	l32r	a12, 4208cba8 <bt_rf_coex_hook_register+0x1ab4> (3c14b3b4 <_flash_rodata_start+0x2b294>)
+420b4089:	0add      	mov.n	a13, a10
+420b408b:	6f0c      	movi.n	a15, 6
+420b408d:	02ed      	mov.n	a14, a2
+420b408f:	02bd      	mov.n	a11, a2
+420b4091:	3a0c      	movi.n	a10, 3
+420b4093:	5cbf81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4096:	0008e0        	callx8	a8
+420b4099:	5cbc81        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b409c:	0008e0        	callx8	a8
+420b409f:	62c3c1        	l32r	a12, 4208cbac <bt_rf_coex_hook_register+0x1ab8> (3c14b3d4 <_flash_rodata_start+0x2b2b4>)
+420b40a2:	0add      	mov.n	a13, a10
+420b40a4:	0f1c      	movi.n	a15, 16
+420b40a6:	20e220        	or	a14, a2, a2
+420b40a9:	20b220        	or	a11, a2, a2
+420b40ac:	3a0c      	movi.n	a10, 3
+420b40ae:	5cb881        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b40b1:	0008e0        	callx8	a8
+420b40b4:	5cb681        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b40b7:	0008e0        	callx8	a8
+420b40ba:	62bdc1        	l32r	a12, 4208cbb0 <bt_rf_coex_hook_register+0x1abc> (3c14b3f0 <_flash_rodata_start+0x2b2d0>)
+420b40bd:	0add      	mov.n	a13, a10
+420b40bf:	6f0c      	movi.n	a15, 6
+420b40c1:	02ed      	mov.n	a14, a2
+420b40c3:	02bd      	mov.n	a11, a2
+420b40c5:	3a0c      	movi.n	a10, 3
+420b40c7:	5cb281        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b40ca:	0008e0        	callx8	a8
+420b40cd:	5caf81        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b40d0:	0008e0        	callx8	a8
+420b40d3:	62b8c1        	l32r	a12, 4208cbb4 <bt_rf_coex_hook_register+0x1ac0> (3c14b40c <_flash_rodata_start+0x2b2ec>)
+420b40d6:	0add      	mov.n	a13, a10
+420b40d8:	6f0c      	movi.n	a15, 6
+420b40da:	02ed      	mov.n	a14, a2
+420b40dc:	20b220        	or	a11, a2, a2
+420b40df:	03a0a2        	movi	a10, 3
+420b40e2:	5cab81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b40e5:	0008e0        	callx8	a8
+420b40e8:	5ca981        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b40eb:	0008e0        	callx8	a8
+420b40ee:	6057f1        	l32r	a15, 4208c24c <bt_rf_coex_hook_register+0x1158> (1680 <_rtc_slow_length+0x1490>)
+420b40f1:	62b1c1        	l32r	a12, 4208cbb8 <bt_rf_coex_hook_register+0x1ac4> (3c14b428 <_flash_rodata_start+0x2b308>)
+420b40f4:	0add      	mov.n	a13, a10
+420b40f6:	02ed      	mov.n	a14, a2
+420b40f8:	20b220        	or	a11, a2, a2
+420b40fb:	03a0a2        	movi	a10, 3
+420b40fe:	5ca481        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4101:	0008e0        	callx8	a8
+420b4104:	5ca281        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4107:	0008e0        	callx8	a8
+420b410a:	6050f1        	l32r	a15, 4208c24c <bt_rf_coex_hook_register+0x1158> (1680 <_rtc_slow_length+0x1490>)
+420b410d:	62abc1        	l32r	a12, 4208cbbc <bt_rf_coex_hook_register+0x1ac8> (3c14b444 <_flash_rodata_start+0x2b324>)
+420b4110:	0add      	mov.n	a13, a10
+420b4112:	02ed      	mov.n	a14, a2
+420b4114:	20b220        	or	a11, a2, a2
+420b4117:	03a0a2        	movi	a10, 3
+420b411a:	5c9d81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b411d:	0008e0        	callx8	a8
+420b4120:	5c9b81        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4123:	0008e0        	callx8	a8
+420b4126:	62a6c1        	l32r	a12, 4208cbc0 <bt_rf_coex_hook_register+0x1acc> (3c14b460 <_flash_rodata_start+0x2b340>)
+420b4129:	a0a5f2        	movi	a15, 0x5a0
+420b412c:	0add      	mov.n	a13, a10
+420b412e:	02ed      	mov.n	a14, a2
+420b4130:	20b220        	or	a11, a2, a2
+420b4133:	03a0a2        	movi	a10, 3
+420b4136:	5c9681        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4139:	0008e0        	callx8	a8
+420b413c:	5c9481        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b413f:	0008e0        	callx8	a8
+420b4142:	62a0c1        	l32r	a12, 4208cbc4 <bt_rf_coex_hook_register+0x1ad0> (3c14b47c <_flash_rodata_start+0x2b35c>)
+420b4145:	0add      	mov.n	a13, a10
+420b4147:	02ed      	mov.n	a14, a2
+420b4149:	20b220        	or	a11, a2, a2
+420b414c:	03a0a2        	movi	a10, 3
+420b414f:	5c9081        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4152:	0008e0        	callx8	a8
+420b4155:	5c8d81        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4158:	0008e0        	callx8	a8
+420b415b:	629bc1        	l32r	a12, 4208cbc8 <bt_rf_coex_hook_register+0x1ad4> (3c14b4a0 <_flash_rodata_start+0x2b380>)
+420b415e:	0add      	mov.n	a13, a10
+420b4160:	02ed      	mov.n	a14, a2
+420b4162:	02bd      	mov.n	a11, a2
+420b4164:	3a0c      	movi.n	a10, 3
+420b4166:	5c8a81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4169:	0008e0        	callx8	a8
+420b416c:	180c      	movi.n	a8, 1
+420b416e:	004782        	s8i	a8, a7, 0
+420b4171:	020c      	movi.n	a2, 0
+420b4173:	000946        	j	420b419c <esp_wifi_init+0x1c4>
+420b4176:	250000        	extui	a0, a0, 16, 3
+420b4179:	ffd9      	s32i.n	a13, a15, 60
+420b417b:	207aa0        	or	a7, a10, a10
+420b417e:	01aa16        	beqz	a10, 420b419c <esp_wifi_init+0x1c4>
+420b4181:	5c8281        	l32r	a8, 4208b38c <bt_rf_coex_hook_register+0x298> (4038d3bc <esp_log_timestamp>)
+420b4184:	0008e0        	callx8	a8
+420b4187:	6279b1        	l32r	a11, 4208cb6c <bt_rf_coex_hook_register+0x1a78> (3c14b26c <_flash_rodata_start+0x2b14c>)
+420b418a:	6290c1        	l32r	a12, 4208cbcc <bt_rf_coex_hook_register+0x1ad8> (3c14b4c8 <_flash_rodata_start+0x2b3a8>)
+420b418d:	20daa0        	or	a13, a10, a10
+420b4190:	07fd      	mov.n	a15, a7
+420b4192:	0bed      	mov.n	a14, a11
+420b4194:	1a0c      	movi.n	a10, 1
+420b4196:	5c7e81        	l32r	a8, 4208b390 <bt_rf_coex_hook_register+0x29c> (4038d2e0 <esp_log>)
+420b4199:	0008e0        	callx8	a8
+420b419c:	f01d      	retw.n

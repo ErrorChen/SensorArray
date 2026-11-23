@@ -1,0 +1,44 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T19:04:20.393249+00:00",
+  "gate": "HOLD_RESTORE_OBSERVATION_FALSE_SUCCESS",
+  "scope": "Read-only review of CAP8 SHORT collector; synthetic host tests only, no hardware or production edits. Paused after concrete finding for the independent startup memory investigation.",
+  "sourceSha256": "a60d46acbca24362adf2a2c038cd4e10829e49ab3aec36b06fde8702f270689b",
+  "testSha256": "3e7950ee62acc76bab9f44f293df0f6e70dafd3035f4813db1ca4ea97f6db9e0",
+  "passedChecks": [
+    "Firmware runtime TX setter/query emits lowercase short/rel/full and collector compares lowercase correctly.",
+    "TX? is added to process-local readonly query schema; advertised ble_snapshot_v1 token is checked before TX mutation.",
+    "Original unknown TX and non-CAP8 requested configuration do not issue TX setters; already-short is unchanged.",
+    "Setter is not replayed. Lost SHORT setter ACK triggers one restoration attempt because attempted is marked before issuing the write.",
+    "Restoration shares original total deadline, and a restoration failure does not overwrite an existing primary error.",
+    "Raw SHA is calculated by outer run_benchmark only after subclass run/finally returns, so received restore bytes are included and the saved hash matches them.",
+    "normal_FULL_loss_budget_applicable=false and snapshot_acceptance=NOT_EVALUATED prevent this collector itself from asserting ordinary FULL delivery acceptance; an independent BLE observer remains required."
+  ],
+  "findings": [
+    {
+      "priority": "P1",
+      "function": "ShortSnapshotCollector.run",
+      "reason": "Base run creates copied final fault counters/status and byte/elapsed counters before subclass finally performs additional TX restore reads. Faults during the restore setter wait are already present before the following query establishes its own baseline; they therefore do not fail that readonly query. The subclass reports CAPTURED/QUERY_VERIFIED and outer index COMPLETE despite a new MFAULT present in raw.",
+      "evidence": "short-snapshots-restore-observation-probe-01.json",
+      "actualResult": "Synthetic real collector, MFAULT injected before the TX=REL ACK: rawContainsRestoreFault=true, rawShaMatches=true, summary firmware_fault_events=0, status=CAPTURED, index=COMPLETE. Even normal restore has rx_bytes34 below the actual raw length.",
+      "recommendation": "Record fault/reset baselines before restoration; merge final live transport/byte/fault/reset/elapsed observations after restoration. A new restore-phase fault/reset must be a separate cleanup error with ERROR status and preserve any primary error. Do not claim final CAP safety from a check made before the new fault. Keep total deadline, one-shot setters and raw hash ordering unchanged."
+    }
+  ],
+  "executedTests": [
+    {
+      "record": "short-snapshots-independent-host-01.json",
+      "exitCode": 0,
+      "scope": "Five maintained host cases passed."
+    },
+    {
+      "record": "short-snapshots-restore-observation-probe-01.json",
+      "exitCode": 0,
+      "meaning": "BUG_REPRODUCED_not_acceptance",
+      "probeSha256": "1b8a078fd4ee7011a9b3efdb7fa061642e9027a35427fe3d30953645165fed60"
+    }
+  ],
+  "hardware": "NOT_RUN",
+  "reportedTo": [
+    "/root"
+  ]
+}

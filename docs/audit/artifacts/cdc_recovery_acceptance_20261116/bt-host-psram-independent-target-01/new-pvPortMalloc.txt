@@ -1,0 +1,17 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40386228 <pvPortMalloc>:
+40386228:	004136        	entry	a1, 32
+4038622b:	bbbcb1        	l32r	a11, 4037511c <_iram_text_start+0xd18> (804 <_rtc_slow_length+0x614>)
+4038622e:	20a220        	or	a10, a2, a2
+40386231:	efebe5        	call8	403760f0 <heap_caps_malloc>
+40386234:	202aa0        	or	a2, a10, a10
+40386237:	000090        	retw
+
+Disassembly of section .flash.text:

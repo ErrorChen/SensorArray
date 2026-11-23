@@ -10,6 +10,7 @@
 #include "esp_efuse_table.h"
 #include "esp_private/periph_ctrl.h"
 #include "esp_private/usb_phy.h"
+#include "esp_private/system_internal.h"
 #include "esp_rom_sys.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -440,5 +441,23 @@ void sensorarrayUsbOtgRestart(bool romDownload)
      * Reset includes the USB peripheral (unlike the normal CPU restart).
      * Subsequent boots stay in USJ recovery until explicit USBBOOT release.
      * Never arm ROM download on this failure. */
+    sensorarrayUsbEmergencyCoreReset();
+}
+
+void sensorarrayUsbOtgManualRestart(bool romDownload)
+{
+    esp_err_t err = sensorarrayUsbOtgPrepareRestart(esp_timer_get_time() + 250000, romDownload);
+    if (err == ESP_OK) {
+        /* Explicit manual escape on the pinned S3/IDF implementation only.
+         * esp_restart() invokes shutdown handlers before its noos watchdog;
+         * esp_wifi_stop in that list can wait indefinitely. Enter the same
+         * wrapped noos terminal path directly. Its RTC watchdog is armed
+         * before cache/clock/core teardown. Do not add scheduler-lock waits,
+         * claim SDK cancellation, or use this entry for automatic recovery.
+         * A successful ROM preparation keeps its existing release/latch. */
+        esp_restart_noos();
+    }
+    /* Original timeout fallback: retained buffers are not reclaimed, and
+     * ROM is not armed on a failed/late USB owner acknowledgement. */
     sensorarrayUsbEmergencyCoreReset();
 }

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_capture_mode_switches.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "f5cbcac08729720a1535466b92ebfb453b39a7be68e2136434f7b3acec88e6ba",
+  "started_utc": "2026-11-20T17:51:56.557994+00:00",
+  "started_monotonic": 127890.726249258,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/mode-switches-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T17:51:58.476826+00:00",
+  "finished_monotonic": 127892.645068787,
+  "log_sha256": "953f19c7d96e00cbab8dcd6f3e9a76bca80b00a792592781ba2daca65fde41bb"
+}

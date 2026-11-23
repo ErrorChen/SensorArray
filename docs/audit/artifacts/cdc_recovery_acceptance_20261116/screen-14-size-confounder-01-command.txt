@@ -1,0 +1,1 @@
+{"status": "RECORDED_MESSAGE_SIZE_CONFOUNDER", "screens": [{"label": "screen-13", "range": [601, 609], "mode": [{"bytes": 608, "messages": 5093}], "sequence_digits": {"7": 7380}}, {"label": "screen-14", "range": [591, 600], "mode": [{"bytes": 599, "messages": 5135}], "sequence_digits": {"4": 7502}}]}

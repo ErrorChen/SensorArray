@@ -1,0 +1,86 @@
+{
+  "status": "RECORDED_MESSAGE_SIZE_CONFOUNDER",
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "screens": [
+    {
+      "label": "screen-13",
+      "complete_messages": 7380,
+      "logical_message_bytes_histogram": {
+        "601": 13,
+        "602": 225,
+        "603": 316,
+        "606": 80,
+        "607": 1472,
+        "608": 5093,
+        "609": 181
+      },
+      "logical_message_bytes_min_max": [
+        601,
+        609
+      ],
+      "most_common_logical_bytes": [
+        {
+          "bytes": 608,
+          "messages": 5093
+        }
+      ],
+      "sequence_decimal_digit_histogram": {
+        "7": 7380
+      },
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-13/screen-13-volt1.summary.json",
+          "sha256": "bf00e0ece24a1a22da9dd6f6f0e9952bc7c325b2500d404b32e7fa747b66c35b"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-13/screen-13-ble.ble.notifications.jsonl",
+          "sha256": "e7b6b794758226389bb54272bbf89105d99be593becd2451b19c35109a009730"
+        }
+      ]
+    },
+    {
+      "label": "screen-14",
+      "complete_messages": 7502,
+      "logical_message_bytes_histogram": {
+        "591": 22,
+        "592": 24,
+        "593": 249,
+        "594": 362,
+        "596": 89,
+        "597": 371,
+        "598": 1080,
+        "599": 5135,
+        "600": 170
+      },
+      "logical_message_bytes_min_max": [
+        591,
+        600
+      ],
+      "most_common_logical_bytes": [
+        {
+          "bytes": 599,
+          "messages": 5135
+        }
+      ],
+      "sequence_decimal_digit_histogram": {
+        "4": 7502
+      },
+      "inputs": [
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-volt1.summary.json",
+          "sha256": "36301caeace933ba32cc79b1de818024030d929ba8b5c5d0ac08c9a7e036babf"
+        },
+        {
+          "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-ble.ble.notifications.jsonl",
+          "sha256": "7ad7ce145567e75b29ec619bca1724f70e40074a96a3b10698b8227c379c217d"
+        }
+      ]
+    }
+  ],
+  "limit": "Different boots/uptime/sequence widths change logical message lengths. These windows do not isolate packing as the sole cause of the FPS difference. No over-air measurement.",
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/inspect_size_confounder_01.py",
+    "sha256": "e4e9aeb200d8e8ef3af091310907423b336ad23768e5c8d799e0ed823cb819eb"
+  }
+}

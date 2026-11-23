@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "panic-diagnostic-state-01",
+    "--ble-guard",
+    "--ble-log",
+    "--panic"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 40.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "3a2de23707270d8c2e27c1260869d8b01662fdd375ea2e77f3ee2da415f61b65",
+  "started_utc": "2026-11-21T00:55:52.794593+00:00",
+  "started_monotonic": 153319.944145724,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-state-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:55:53.009135+00:00",
+  "finished_monotonic": 153320.158684424,
+  "log_sha256": "5c9a10b515a9e405fe8629bf93be145d62be1e63bb935ee3c5d912f7a68aab91"
+}

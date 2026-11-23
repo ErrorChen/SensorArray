@@ -1,0 +1,12 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-18/screen-18-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 132723374043912, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.875185162993148, "notifications": {"D": 472}, "payload_bytes": {"D": 223040}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.9373645830201, "notifications": {"D": 2692, "L": 4}, "payload_bytes": {"D": 958506, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 61.00024401099654, "notifications": {"D": 5144, "L": 4}, "payload_bytes": {"D": 1765813, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 81.07602069500717, "notifications": {"D": 7594, "L": 4}, "payload_bytes": {"D": 2572649, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 101.1502704610175, "notifications": {"D": 10048, "L": 4}, "payload_bytes": {"D": 3380900, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.22307402599836, "notifications": {"D": 12496, "L": 4}, "payload_bytes": {"D": 4187083, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.2934165430197, "notifications": {"D": 14939, "L": 4}, "payload_bytes": {"D": 4991764, "L": 485}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.37339685999905, "notifications": {"D": 16202, "L": 6}, "payload_bytes": {"D": 5448243, "L": 751}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 16360, "L": 6}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-18/screen-18-ble.ble.notifications.jsonl", "journal_sha256": "349cd76039e5ad95a07918941a2e8980f2d21a903907d02167fa5f8464a75130"}

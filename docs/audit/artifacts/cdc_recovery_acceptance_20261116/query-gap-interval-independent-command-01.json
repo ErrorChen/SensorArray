@@ -1,0 +1,18 @@
+{
+  "kind": "actual_offline_execution_record",
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_query_gap_intervals.py",
+    "--output",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/query-gap-interval-independent-01.json"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "exit_code": 0,
+  "duration_seconds": null,
+  "duration_reason": "not separately timed; tools reported completion",
+  "stdout": "Displayed by exec session75986; complete structured results are the linked output, no console transcript is fabricated",
+  "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/query-gap-interval-independent-01.json",
+  "output_sha256": "19607fecac389f1480e0c1781631a277fa96d90e54c3d590523c91f57164619f",
+  "script_sha256": "fc45dbeb03c6e4623e3b9f485be96fa8a44ea30e0675e1ad5e8ce1c65e663a0f",
+  "hardware": "NOT_RUN"
+}

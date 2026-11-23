@@ -7,6 +7,9 @@ set(SENSORARRAY_MAIN_SRCS
         "control/sensorarrayRestartControl.c"
     "control/sensorarrayUsbControl.c"
     "control/sensorarrayLinkDiagnostics.c"
+    "control/sensorarraySnapshotDiagnostics.c"
+    "control/sensorarrayMemoryDiagnostics.c"
+    "control/sensorarrayPanicDiagnostics.c"
     "control/sensorarrayAdsTimingControl.c"
     "net/sensorarrayNetStatus.c"
 )
@@ -107,3 +110,7 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
     -Wformat=2
     -Wformat-security
 )
+
+# Pinned IDF port/panic_handler.c calls this external symbol. The wrapper
+# retains bounded evidence and then invokes the unchanged SDK panic handler.
+target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")

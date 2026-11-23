@@ -304,6 +304,12 @@ class Group:
         self.first = self.last = None
         self.host_first = self.host_last = None
         self.trusted_host_first = self.trusted_host_last = None
+        self.ordered_host_previous = None
+        self.ordered_host_first = self.ordered_host_last = None
+        self.ordered_host_pairs = 0
+        self.ordered_host_max_gap = None
+        self.ordered_host_unavailable = 0
+        self.ordered_host_regressions = 0
         self.expected_identity = expected_identity
         self.expected_contract = expected_contract
         self.contract_errors = Counter()
@@ -408,6 +414,7 @@ class Group:
             self.first, self.first_sequence = frame.timestamp_us, frame.sequence
         self.last, self.last_sequence = frame.timestamp_us, frame.sequence
         self.counts["ordered_integrity_valid_frames"] += 1
+        self.observe_ordered_host_receipt(host)
         invalid = stale = unacquired = unknown = 0
         for label, mode, unit, scale, fixed, valid, fresh, acquired, error, reason, known in _observations(frame, header, raw_rows):
             self.point_modes[mode] += 1
@@ -438,6 +445,48 @@ class Group:
         self.invalid_histogram[invalid] += 1
         return True
 
+    def observe_ordered_host_receipt(self, host):
+        # Called only after the existing CRC, identity, wire-contract and
+        # sequence/device-time ordering gates. Point validity is independent:
+        # Xhh points do not make a complete protocol frame disappear.
+        if isinstance(host, bool) or not isinstance(host, (int, float)) or not math.isfinite(host) or host < 0:
+            self.ordered_host_unavailable += 1
+            self.ordered_host_previous = None  # Never bridge a missing timestamp.
+            return
+        if self.ordered_host_previous is not None:
+            if host < self.ordered_host_previous:
+                self.ordered_host_regressions += 1
+            else:
+                gap = host - self.ordered_host_previous
+                self.ordered_host_pairs += 1
+                self.ordered_host_max_gap = max(self.ordered_host_max_gap or 0.0, gap)
+        self.ordered_host_previous = host
+        if self.ordered_host_first is None:
+            self.ordered_host_first = host
+        self.ordered_host_last = host
+
+    def host_complete_frame_intervals(self):
+        ordered = self.counts["ordered_integrity_valid_frames"]
+        reasons = []
+        if ordered < 2:
+            reasons.append("FEWER_THAN_TWO_ORDERED_COMPLETE_FRAMES")
+        if self.ordered_host_unavailable:
+            reasons.append("HOST_RECEIPT_TIME_UNAVAILABLE")
+        if self.ordered_host_regressions:
+            reasons.append("HOST_RECEIPT_TIME_REGRESSED")
+        known = not reasons and self.ordered_host_pairs > 0
+        return {"known": known, "max_seconds": self.ordered_host_max_gap if known else None,
+                "first_complete_host_seconds": self.ordered_host_first if known else None,
+                "last_complete_host_seconds": self.ordered_host_last if known else None,
+                "sample_pairs": self.ordered_host_pairs, "candidate_pairs": max(ordered - 1, 0),
+                "ordered_complete_frames": ordered,
+                "unavailable_timestamps": self.ordered_host_unavailable,
+                "timestamp_regressions": self.ordered_host_regressions, "unknown_reasons": reasons,
+                "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+                "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+                "time_coordinate": "USB collector-relative event seconds; BLE absolute host monotonic seconds; never compare these coordinates directly",
+                "limits": "No cross-identity/boot pairing; first/last receipt permit separate capture-edge coverage checks; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"}
+
     def output(self):
         duration = (self.last - self.first) / 1e6 if self.first is not None else None
         parsed_host_duration = self.host_last - self.host_first if self.host_first is not None and self.host_last is not None else None
@@ -457,6 +506,7 @@ class Group:
                     "identity_mismatch_semantics": "Value mismatches are observed text disagreements, not proof of a device configuration change; truncated numeric tokens can still be syntactically valid.",
                     "examples": self.rejected_examples, "accepted_scientific_samples": False},
                 "point_mode_counts": dict(self.point_modes),
+                "host_complete_frame_intervals": self.host_complete_frame_intervals(),
                 "invalid_reasons_by_cell": dict(self.cell_errors), "invalid_points_per_frame": dict(self.invalid_histogram),
                 "sequence": {"first": self.first_sequence, "last": self.last_sequence,
                              "progress_including_missing": self.progress, "gap_examples": self.gap_examples,
@@ -824,6 +874,11 @@ class BleWindow:
         self.groups = {}
         self.counts = Counter()
         self.fragments = defaultdict(Counter)
+        # Additive attribution for a strict capture gate. The legacy counters
+        # below still describe the completing notification's receipt window.
+        self.contained_fragments = defaultdict(Counter)
+        self.edge_fragments = defaultdict(Counter)
+        self.contained_data = Counter()
 
     def add_frame(self, frame, pending, trailer, received_ns, fingerprints):
         header = pending["header"]
@@ -878,6 +933,11 @@ class BleWindow:
                 "counts": dict(self.counts), "capture_frame_counts": dict(counts),
                 "capture_invalid_reasons": dict(errors), "configuration_groups": groups,
                 "fragments_by_channel": dict(self.fragments), "USB_comparison": comparison,
+                "fragment_integrity": {
+                    "fully_contained_by_channel": dict(self.contained_fragments),
+                    "edge_or_unknown_by_channel": dict(self.edge_fragments),
+                    "meaning": "all observed envelope parts start and finish in this window; edge/unknown counters are retained, not counted as in-window frame loss"},
+                "fully_contained_data_diagnostics": dict(self.contained_data),
                 "comparative_host_fps": (groups[0]["rates"]["host_complete_receive_fps"]
                                          if status in {"RECORDED", "RECORDED_WITH_ERRORS"} and len(groups) == 1 else None),
                 "timestamp_semantics": "host notification callback completion, not over-air arrival or device send completion",
@@ -935,6 +995,7 @@ def analyse_ble_journal(path, captures, fingerprints):
         return windows[index] if index >= 0 and ns <= windows[index].end else None
 
     source, journal_counts, metadata = {}, Counter(), []
+    all_fragments, critical_records = defaultdict(Counter), Counter()
     intervals = []
     connected = False
     ready_start = None
@@ -953,6 +1014,8 @@ def analyse_ble_journal(path, captures, fingerprints):
             if owner:
                 owner.fragments[key[0]]["incomplete_messages_" + reason] += 1
                 owner.fragments[key[0]]["unobserved_parts_" + reason] += max(0, state["n"] - len(state["parts"]))
+                owner.edge_fragments[key[0]]["incomplete_messages_" + reason] += 1
+                owner.edge_fragments[key[0]]["unobserved_parts_" + reason] += max(0, state["n"] - len(state["parts"]))
         reassembler._messages.clear()
         fragment_starts.clear()
 
@@ -1018,12 +1081,25 @@ def analyse_ble_journal(path, captures, fingerprints):
                         fragment_starts.setdefault(key, ns)
                 except (IndexError, ValueError, UnicodeDecodeError):
                     pass
-            before = asdict(reassembler.stats[effective])
+            before_all = {ch: asdict(stats) for ch, stats in reassembler.stats.items()}
+            before = before_all[effective]
             first_fragment_ns = fragment_starts.get(key, ns)
             messages = reassembler.feed(channel, payload)
             after = asdict(reassembler.stats[effective])
             if owner:
                 owner.fragments[effective].update({key: after[key] - before[key] for key in before})
+            first_owner = at(first_fragment_ns)
+            # The shared reassembler validates all parts/length/CRC. CRC
+            # completion proves its full observed envelope span; malformed
+            # headers without a message key remain explicitly unattributed.
+            for ch, stats in reassembler.stats.items():
+                delta = {name: value - before_all[ch][name] for name, value in asdict(stats).items()
+                         if value != before_all[ch][name]}
+                all_fragments[ch].update(delta)
+                if key is not None and owner is not None and first_owner is owner:
+                    owner.contained_fragments[ch].update(delta)
+                elif owner or first_owner:
+                    (owner or first_owner).edge_fragments[ch].update(delta)
             if key not in reassembler._messages:
                 fragment_starts.pop(key, None)
             if len(reassembler._messages) > 4096:
@@ -1036,9 +1112,20 @@ def analyse_ble_journal(path, captures, fingerprints):
                 if window:
                     window.fragments[oldest[0]]["incomplete_evicted_by_analysis_limit"] += 1
                     window.fragments[oldest[0]]["unobserved_parts_at_eviction"] += state["n"] - len(state["parts"])
+                    window.edge_fragments[oldest[0]]["incomplete_evicted_by_analysis_limit"] += 1
             for logical_channel, message in messages:
                 if owner:
                     owner.counts["logical_messages_" + logical_channel] += 1
+                # A capture-window gate must not ignore preparation/cleanup
+                # faults or a reset elsewhere in the same closed journal.
+                for diagnostic in message.splitlines():
+                    lower = diagnostic.lower()
+                    if (diagnostic.startswith((b"MFAULT,", b"MERR,", b"RMERR,", b"APP_FATAL,", b"FDC_FATAL,"))
+                            or b"watchdog got triggered" in lower or b"interrupt wdt timeout" in lower
+                            or b"guru meditation" in lower):
+                        critical_records["fault_" + logical_channel] += 1
+                    if diagnostic.startswith((b"RST,", b"ESP-ROM:")) or b"rst:0x" in lower:
+                        critical_records["reset_" + logical_channel] += 1
                 if logical_channel != "D":
                     if owner:
                         for diagnostic in message.splitlines():
@@ -1064,12 +1151,16 @@ def analyse_ble_journal(path, captures, fingerprints):
                     except UnicodeDecodeError:
                         if owner:
                             owner.counts["non_ascii_data_lines"] += 1
+                            if at(line_first_ns) is owner:
+                                owner.contained_data["non_ascii_data_lines"] += 1
                         continue
                     tag = line.split(",", 1)[0]
                     fields = parse_fields(line)
                     if tag in {"C", "V", "R", "M"}:
                         if pending and owner:
                             owner.counts["truncated_frames"] += 1
+                            if at(pending["start_ns"]) is owner:
+                                owner.contained_data["truncated_frames"] += 1
                         pending = {"header": {"tag": tag, **fields}, "raw_rows": {}, "start_ns": line_first_ns,
                                    "wire_bytes": 0, "payload_bytes": 0, "digest": hashlib.sha256()}
                     scientific = tag in {"C", "V", "R", "M", "MR", "K"} or re.fullmatch(r"[DP][0-3]", tag)
@@ -1088,6 +1179,8 @@ def analyse_ble_journal(path, captures, fingerprints):
                     frame = parser.feed_line(line)
                     if owner:
                         owner.counts["malformed_lines"] += parser.counters.malformed - malformed_before
+                        if at(line_first_ns) is owner:
+                            owner.contained_data["malformed_lines"] += parser.counters.malformed - malformed_before
                     if tag == "K":
                         if pending:
                             pending["raw_K"] = wire.decode("ascii")
@@ -1098,6 +1191,8 @@ def analyse_ble_journal(path, captures, fingerprints):
                             (owner or start_owner).counts["boundary_straddling_frames_excluded"] += 1
                         elif pending and owner:
                             owner.counts["malformed_frames"] += 1
+                            if start_owner is owner:
+                                owner.contained_data["malformed_frames"] += 1
                         pending = None
     if ready_start is not None and last_ns is not None:
         intervals.append((ready_start, last_ns))
@@ -1131,6 +1226,8 @@ def analyse_ble_journal(path, captures, fingerprints):
             "counts": dict(journal_counts), "metadata": metadata,
             "collector_summary_verification": summary_evidence,
             "recording_end_observed": bool(journal_counts["recording_end"]),
+            "all_fragment_counters_by_channel": dict(all_fragments),
+            "whole_journal_critical_records": dict(critical_records),
             "ready_intervals_monotonic_ns": intervals,
             "incomplete_fragment_meaning": "unobserved parts at an explicit disconnect/end/prefix boundary; never inferred from message-ID jumps",
             "maximum_inflight_reassembly_messages": 4096}

@@ -1,0 +1,78 @@
+{
+  "status": "PASS_SCOPED_DOCUMENTATION_AND_ARCHIVE_VALIDATION",
+  "created_utc": "2026-11-20T23:34:01.997003+00:00",
+  "documents": [
+    {
+      "path": "README.md",
+      "sha256": "0b6988a5ee71a4c0125b347e96c5f911227628a7c72ea8b80ad186ca3c336981",
+      "local_targets_exist": 458,
+      "fences_even": true
+    },
+    {
+      "path": "docs/integration/firmware_host_contract.md",
+      "sha256": "f53d8015a78ff16869ca67b37f8d927e099a5aacff6db2f3bd780ad7e172c7d6",
+      "local_targets_exist": 144,
+      "fences_even": true
+    },
+    {
+      "path": "docs/audit/firmware_reliability_fix_report.md",
+      "sha256": "d4d77063d78a46f1d916bdbbe2659b835b9d49a78f21daed4b80a30930735a8a",
+      "local_targets_exist": 352,
+      "fences_even": true
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "85db41ad3923ade1e4490a1f3e53b32ca0a3cdd51892fb0f23c6faa52d0fb1c6",
+      "local_targets_exist": 5,
+      "fences_even": true
+    },
+    {
+      "path": "docs/ble-protocol.md",
+      "sha256": "d7a665af51342f083f7e1d893b84d6888ce29082c72c14645506f8742c7ffac0",
+      "local_targets_exist": 11,
+      "fences_even": true
+    }
+  ],
+  "archives": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/archive-index-01.json",
+      "sha256": "f86ea82e3a0c2d888cfeaba395611a4b65488c4493fd118364cdddf353fb337c",
+      "originals_revalidated": 7,
+      "original_bytes": 21993293,
+      "gzip_bytes": 2290621
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-20/archive-index-01.json",
+      "sha256": "a57474aae148b2604367e87d4732e2dbc147562435a3c07767adec72ebeafe3e",
+      "originals_revalidated": 7,
+      "original_bytes": 20402625,
+      "gzip_bytes": 2100049
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/archive-index-01.json",
+      "sha256": "ca255b749ce27345cf2136ae04f03649d1ab8130eb20377065936adedb63dad0",
+      "originals_revalidated": 5,
+      "original_bytes": 4421846,
+      "gzip_bytes": 562828
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/archive-index-02.json",
+      "sha256": "06f4826ac13a6e78998fa376358b9a665834013adf35a77207b15a874c53883e",
+      "originals_revalidated": 7,
+      "original_bytes": 12171808,
+      "gzip_bytes": 1229815
+    }
+  ],
+  "unread_independent_review": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-independent-review-02.json",
+    "sha256": "f1a806acc8d17e328ca96e6b35383399b18287889f766f31ea72d53430afb833",
+    "source_matches_review": true,
+    "original_negative_probes_rejected": true,
+    "real_numeric_fields_unchanged": true
+  },
+  "diff_check_exit_code": 0,
+  "hardware_actions": [],
+  "production_modified": false,
+  "overall_acceptance": "NOT_ESTABLISHED",
+  "scope": "Existing closed artifacts and documentation consistency only; no new firmware build, HIL, performance, or precision acceptance."
+}

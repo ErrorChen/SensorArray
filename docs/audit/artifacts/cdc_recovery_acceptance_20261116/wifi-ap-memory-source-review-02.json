@@ -1,0 +1,168 @@
+{
+  "timestamp_utc": "2026-11-21T01:15:25.463130+00:00",
+  "scope": "Read-only current pinned SDK/config constraints and closed wifi-control-03 allocation failure evidence. No source/config changes, build, or hardware.",
+  "elf_sha256_before": "ab39d5c32a50506c0e06ad3ffa091866186da306673f0a1482b935352b4f7c75",
+  "elf_sha256_after": "ab39d5c32a50506c0e06ad3ffa091866186da306673f0a1482b935352b4f7c75",
+  "previous_source_review": {
+    "path": "wifi-ap-memory-source-review-01.json",
+    "sha256": "a80aaff68de13b7c13f7647eb0a930a16c1b9896d2cbe6f2dd1393933b0c143b"
+  },
+  "hIL_inputs_sha256": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03/wifi-control-03.rx.bin": "d40d718ed8a94235a65706205222762c06afea6b580e6071eee62cb30c7f1129",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-03/wifi-control-03.events.jsonl": "53b88307d666445015423567b31db802836e67300382c3c1cea805ce6458c77b"
+  },
+  "hIL_summary_sha256": "ea8faa5fdca2a3322991113742150309d917f72fc8318b48da1166f6f8c4e09d",
+  "observed": {
+    "expected_identity": {
+      "elfSha256": "ab39d5c32a50506c0e06ad3ffa091866186da306673f0a1482b935352b4f7c75",
+      "session": "E400DABECADCE252",
+      "bootId": "1"
+    },
+    "status": "BACKEND_UNAVAILABLE_CONTROL_QUERY_OBSERVED",
+    "first_AP_terminal": {
+      "v": "1",
+      "session": "e400dabecadce252",
+      "boot": "1",
+      "bootKnown": "1",
+      "id": "1",
+      "known": "1",
+      "epoch": "2",
+      "requested": "AP",
+      "outcome": "quarantined",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "acceptedUs": "107254631",
+      "completedUs": "107268221",
+      "terminalAttempts": "1",
+      "terminalQueued": "1",
+      "terminalPending": "0",
+      "scope": "backend_and_gate",
+      "peerReceipt": "unknown"
+    },
+    "guard_after": {
+      "v": "1",
+      "session": "e400dabecadce252",
+      "boot": "1",
+      "bootKnown": "1",
+      "quarantined": "1",
+      "active": "0",
+      "ownerBusy": "0",
+      "phase": "driver_init",
+      "callId": "6",
+      "startUs": "107261790",
+      "deadlineUs": "112254631",
+      "ageUs": "28548",
+      "detectedUs": "107268221",
+      "completionKnown": "1",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "sdkErr": "0x00000101",
+      "errno": "0",
+      "returned": "0",
+      "held": "0",
+      "writing": "0",
+      "timeouts": "0",
+      "late": "0",
+      "pollUs": "100000",
+      "recovery": "explicit_manual_restart_attempt"
+    },
+    "memory_before": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "25520",
+      "intLargest": "9204",
+      "intMin": "19156",
+      "extFree": "8248968",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "37064",
+      "beforeLargest": "25588",
+      "afterFree": "19264",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "107252424"
+    },
+    "memory_after": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "8400",
+      "intLargest": "7668",
+      "intMin": "8208",
+      "extFree": "8241260",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "37064",
+      "beforeLargest": "25588",
+      "afterFree": "19264",
+      "afterLargest": "8180",
+      "err": "0x0",
+      "sampleUs": "107293313"
+    },
+    "faults": [],
+    "resets": [],
+    "conclusion": "Actual esp_wifi_init SDK call returned ESP_ERR_NO_MEM (0x101); completionKnown1/timeouts0 distinguishes a returned allocation error from a guard timeout. Exact failed allocation is not recorded."
+  },
+  "target_inventory": {
+    "command": [
+      "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-nm",
+      "-S",
+      "--size-sort",
+      "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+    ],
+    "exit_code": 0,
+    "selected_output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-ap-memory-symbols-02.txt",
+    "selected_output_sha256": "d0e290f067b9e21295b1af5e5ec0558d7b83c1339e0718e382fc669a2108d603",
+    "pool_total_bytes": 17272,
+    "pool_payload_slots": 7,
+    "wire_max_per_slot": 2304,
+    "private_nul_per_slot": 1,
+    "payload_bytes_total": 16135,
+    "target_net_saving": "Pending new actual ELF; pointer fields/padding mean nominal payload total is not exact net BSS reduction."
+  },
+  "internal_requirements": {
+    "owner_stack_bytes": 6144,
+    "tcpip_stack_bytes": 3584,
+    "default_event_stack_bytes": 2816,
+    "rx_task_stack_bytes_created_last": 4096,
+    "static_hardware_rx_buffers": "8 * approximately1600 DMA bytes, ~12800; estimate from SDK documentation, excludes metadata/alignments.",
+    "dynamic_hardware_tx_buffers": "Up to16 dynamic DMA buffers, size depends on frames; no static16 TX pool in this current configuration.",
+    "additional": "SDK WiFi task/TCB, WiFi queue and metadata, mutexes, netif/event/tcpip objects, management buffers, transient calibration/NVS/runtime allocations. No total exact startup/peak bound follows from available public source or current MEM snapshots.",
+    "task_api": "Ordinary xTaskCreate and FreeRTOS heap require internal8. External-stack-allowed flag alone does not move a task.",
+    "PSRAM_option": "TRY_ALLOCATE_WIFI_LWIP remains off. Turning it on here forces static TX by Kconfig and is not a placement-only change; no such tuning was proposed or performed."
+  },
+  "pool_migration_assessment": {
+    "cpu_only_path": "Transport payload copy/CRC/parse/preview executes in tasks; BLE notification admission and WiFiSubmit each deep-copy to their separate persistent slots before returning. No transport slot address is submitted to DMA or an ISR.",
+    "required_contract": [
+      "Keep7 slots and all2304 wire bytes plus privateNUL per slot.",
+      "Keep metadata, generation, owner flags, mux and FreeRTOS queue descriptors internal.",
+      "One permanent allocation with explicit SPIRAM|8BIT; no internalfallback/hot allocation/rebind/free.",
+      "Idempotent same-binding init must not clear live pending/owned/retry/WRITING storage; reject different binding.",
+      "Before allocation succeeds, no slot.data NULL dereference and publish failures remain explicit.",
+      "PSRAM failure must not remove independently allocated command readers/terminal query capability.",
+      "Preserve generation checks, all immutable identities, completion/expiry accounting, existing retry TTL, SHORT/full wire bytes and actual DMA owners.",
+      "Verify new target map and actual MEM/READY/AP/HWM; extra16KB is not assumed sufficient before HIL."
+    ]
+  },
+  "other_objects": {
+    "already_external": [
+      "AsyncLog workspace and frameSlots via PSRAM-preferred storage",
+      "Serial ordinary DATA/LOG payloads",
+      "BLE DATA payloads",
+      "WiFi payload pool"
+    ],
+    "not_move_as_whole": [
+      "TinyUSB _cdcd_itf/_cdcd_epbuf: SDK/ISR/FIFO/DMA ownership needs dedicated audit",
+      "FreeRTOS static event/protocol queues: preserve internal kernel ownership; possible future pointer-payload refactor is broader than this fix",
+      "s_appContext/s_fdcWorkers: mixed control/measurement/worker-lifetime objects, not pure text",
+      "Small priority/control buffers: preserve available command path"
+    ],
+    "deferred": "No additional migration selected without evidence that the focused transport payload change is insufficient."
+  },
+  "gate": "Transport payload move is a justified narrow candidate; wait frozen source lifetime review, target actual savings and AP HIL before claiming restored WiFi."
+}

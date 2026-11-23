@@ -1,0 +1,36 @@
+{
+  "offline": true,
+  "admin": false,
+  "commands": [
+    [
+      "/usr/bin/python3",
+      "-m",
+      "venv",
+      "/tmp/sensorarray-ble-hil-venv"
+    ],
+    [
+      "/tmp/sensorarray-ble-hil-venv/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "--no-index",
+      "--find-links",
+      "/tmp/sensorarray-ble-wheels",
+      "bleak==3.0.2",
+      "dbus-fast==5.0.22"
+    ]
+  ],
+  "wheels": [
+    {
+      "source": "/home/csc/.cache/pip/http-v2/7/9/b/5/8/79b58b05c8e5c047720988bf2422f472464db2296e78bb3b1b72d753.body",
+      "wheel": "/tmp/sensorarray-ble-wheels/bleak-3.0.2-py3-none-any.whl",
+      "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+      "bluez_client_sha256": "ef65fa9784410521c10d5c9eca2f63310e299d7f4278baf7530f81d57888cf92"
+    },
+    {
+      "source": "/home/csc/.cache/pip/http-v2/8/4/b/c/4/84bc4a8d26f197f5bd3590c293000b6eff0c81618a5ec25988c7d00a.body",
+      "wheel": "/tmp/sensorarray-ble-wheels/dbus_fast-5.0.22-cp312-cp312-manylinux_2_28_x86_64.whl",
+      "sha256": "4ffcf16034f71a801bd2108aeffb6337d104c9459e8b1a218d16a917c8a2d2e9"
+    }
+  ]
+}

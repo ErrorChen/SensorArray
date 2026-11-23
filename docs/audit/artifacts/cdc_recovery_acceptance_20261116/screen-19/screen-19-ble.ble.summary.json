@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "RECORDED",
+  "error": null,
+  "stop_reason": "stop_file",
+  "cleanup_errors": [],
+  "selected_device": {
+    "address": "80:B5:4E:CD:D9:AE",
+    "name": "CscArray_CDD9AD"
+  },
+  "address_requested": "80:B5:4E:CD:D9:AE",
+  "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+  "characteristics": {
+    "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+    "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+    "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+  },
+  "subscribed_channels": [
+    "C",
+    "D",
+    "L"
+  ],
+  "connected_monotonic_ns": 133683668835400,
+  "ready_monotonic_ns": 133683757064292,
+  "recording_end_monotonic_ns": 134018220132423,
+  "disconnected_monotonic_ns": 134020012692073,
+  "unexpected_disconnect": false,
+  "reconnect_attempted": false,
+  "notification_counts": {
+    "D": 20573,
+    "L": 6
+  },
+  "notification_payload_bytes": {
+    "D": 7481723,
+    "L": 750
+  },
+  "maximum_observed_notification_bytes": 495,
+  "first_notification_monotonic_ns": 133683772846974,
+  "last_notification_monotonic_ns": 134018205869071,
+  "mtu_reported_by_backend": 23,
+  "negotiated_mtu_verified": false,
+  "mtu_note": "Backend value may be 23 on BlueZ without proving negotiated MTU; unknown remains null.",
+  "application_commands_sent": 0,
+  "serial_opened": false,
+  "mode_or_rate_settings_written": false,
+  "recording_seconds": 334.463068131,
+  "elapsed_seconds": 336.9151824800065,
+  "measurement_acceptance": "NOT_EVALUATED",
+  "unconnected_windows": "NOT_RUN_not_zero_FPS",
+  "journal_cost": "base64 + buffered file write in callback; no frame duplication or fsync; host I/O can affect callback latency",
+  "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-ble.ble.notifications.jsonl",
+  "journal_sha256": "70dee6e9dd37c0bb2ddb1e2e0d8358a37e28dfbbd75443c59d22d85a26caf9de",
+  "journal_bytes": 14544653,
+  "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-19/screen-19-ble.ble.ready.json"
+}

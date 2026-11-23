@@ -1,0 +1,16 @@
+{
+  "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "version": "8a1794c-dirty",
+  "app_bytes": 1611184,
+  "bin_sha256": "80687a88b442e6ea23dd6e76832db36259c1aac77632267b22ba6d2748eb1cc7",
+  "elf_sha256": "48f7352f2f0f637ee4c0290a09f1141e0a2d6e5a7ad12442910b5132c5250116",
+  "host_entries": 69,
+  "all_exit_zero": true,
+  "production_inputs": 187,
+  "build_test_inputs_identical": true,
+  "build_manifest": "ble-guard-cadence-01-build-manifest.json",
+  "tests_manifest": "ble-guard-cadence-01-tests-manifest.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Retains DATA two-fragment packing. Adds persistent BLE SDK send deadline observer/quarantine with explicit USB manual restart recovery; OTG default debug summary cadence aligned to network period. Scientific DATA rate, ADC checks, queues, priorities and SDK source unchanged.",
+  "dirty_build_scope": "Uncommitted production/test fixes and documentation; exact source snapshots in paired manifests."
+}

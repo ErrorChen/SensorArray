@@ -1,0 +1,29 @@
+{
+  "scope": "immutable_generated_build_outputs_not_scientific_measurements",
+  "records": [
+    {
+      "build_path": "build/SensorArray.bin",
+      "raw_bytes": 1631456,
+      "raw_sha256": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-SensorArray.bin.gz",
+      "archive_sha256": "0749a65d844970c17c4201ab3bd0931e4fca76206cf26102e8821d6138580b26",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.elf",
+      "raw_bytes": 16532468,
+      "raw_sha256": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-SensorArray.elf.gz",
+      "archive_sha256": "cc2855d3e8d8ed480c26cc5e4c72d62bdc309877f95682e6e045640cbd914f23",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.map",
+      "raw_bytes": 11625785,
+      "raw_sha256": "cbe84ea2c6880f66063150e07a365cfb28a04d684f0724bd0f354ba0728390f6",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostic-01-SensorArray.map.gz",
+      "archive_sha256": "c2866ca87918387a099311d1b6c43ff063b09f754679cc2a6ece45e8f0157429",
+      "roundtrip_verified": true
+    }
+  ]
+}

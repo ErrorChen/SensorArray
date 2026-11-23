@@ -1,0 +1,1 @@
+{"output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-14/screen-14-cpu-owner-deltas-01.json", "paired_roles": [0, 1, 2, 3, 5], "unknown_roles": [4, 6], "status": "ANALYZED"}

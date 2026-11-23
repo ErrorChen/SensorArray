@@ -40,8 +40,9 @@ static bool testQueueReceive(testDescriptorQueue_t *queue,
 
 static void testAllocateReleaseAndPriorityReserve(void)
 {
-    sensorarrayTransportPool_t pool;
-    sensorarrayTransportPoolInit(&pool);
+    sensorarrayTransportPool_t pool = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof(storage)));
 
     sensorarrayTransportDescriptor_t logA;
     sensorarrayTransportDescriptor_t logB;
@@ -87,8 +88,9 @@ static void testAllocateReleaseAndPriorityReserve(void)
 
 static void testGenerationAndReleaseGuards(void)
 {
-    sensorarrayTransportPool_t pool;
-    sensorarrayTransportPoolInit(&pool);
+    sensorarrayTransportPool_t pool = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof(storage)));
     sensorarrayTransportDescriptor_t oldDescriptor;
     assert(sensorarrayTransportPoolAllocate(
         &pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 32u, &oldDescriptor));
@@ -111,10 +113,44 @@ static void testGenerationAndReleaseGuards(void)
     assert(sensorarrayTransportPoolRelease(&pool, &currentDescriptor));
 }
 
+static void testProtectedSlotsAreIndependentAndPersistent(void)
+{
+    sensorarrayTransportPool_t pool = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof(storage)));
+    sensorarrayTransportDescriptor_t ordinary[4], lifecycle, protectedA, protectedB, rejected;
+    for (unsigned i = 0; i < 4; ++i) {
+        assert(sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 2304, &ordinary[i]));
+    }
+    assert(!sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 2304, &rejected));
+    assert(sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE, 512, &lifecycle));
+    assert(sensorarrayTransportPoolAllocateProtected(&pool, 2304, &protectedA));
+    assert(sensorarrayTransportPoolAllocateProtected(&pool, 2304, &protectedB));
+    assert(!sensorarrayTransportPoolAllocateProtected(&pool, 2304, &rejected));
+    assert(pool.stats.used == 7u && protectedA.slotIndex != protectedB.slotIndex);
+    sensorarrayTransportPayloadSlot_t *owned = sensorarrayTransportPoolGetSlot(&pool, &protectedA);
+    memset(owned->data, 'Q', 2304); owned->trustedFullFrame = true;
+    owned->protectionFlags = SENSORARRAY_FRAME_PROTECT_FIRST_CONFIG;
+    sensorarrayTransportDescriptor_t stale = protectedB;
+    assert(sensorarrayTransportPoolRelease(&pool, &protectedB));
+    assert(sensorarrayTransportPoolAllocateProtected(&pool, 2304, &protectedB));
+    assert(protectedB.slotGeneration != stale.slotGeneration);
+    assert(!sensorarrayTransportPoolRelease(&pool, &stale));
+    for (unsigned i = 0; i < 2304; ++i) { assert(owned->data[i] == 'Q'); }
+    assert(owned->inUse && owned->trustedFullFrame && owned->protectionFlags != 0u);
+    assert(sensorarrayTransportPoolRelease(&pool, &protectedA));
+    assert(!owned->trustedFullFrame && owned->protectionFlags == 0u);
+    assert(sensorarrayTransportPoolRelease(&pool, &protectedB));
+    assert(sensorarrayTransportPoolRelease(&pool, &lifecycle));
+    for (unsigned i = 0; i < 4; ++i) { assert(sensorarrayTransportPoolRelease(&pool, &ordinary[i])); }
+    assert(pool.stats.used == 0u);
+}
+
 static void testQueueFullAndDisconnectCleanup(void)
 {
-    sensorarrayTransportPool_t pool;
-    sensorarrayTransportPoolInit(&pool);
+    sensorarrayTransportPool_t pool = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof(storage)));
     testDescriptorQueue_t queue = {0};
     sensorarrayTransportDescriptor_t first;
     sensorarrayTransportDescriptor_t second;
@@ -169,8 +205,69 @@ static void testBleChannelPolicy(void)
         true, true, true, true, SENSORARRAY_TRANSPORT_CHANNEL_CTRL));
 }
 
+static void testStorageBindingAndPrivateNul(void)
+{
+    sensorarrayTransportPool_t pool = {0};
+    char storage[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    char replacement[SENSORARRAY_TRANSPORT_POOL_STORAGE_BYTES];
+    sensorarrayTransportDescriptor_t descriptors[SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT];
+    sensorarrayTransportDescriptor_t absent = {.length=1u};
+    assert(!sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA, 1u, &absent));
+    assert(!sensorarrayTransportPoolAllocateProtected(&pool, 1u, &absent));
+    assert(!sensorarrayTransportPoolValidate(&pool, &absent));
+    assert(!sensorarrayTransportPoolGetSlot(&pool, &absent));
+    assert(!sensorarrayTransportPoolRelease(&pool, &absent));
+    assert(!sensorarrayTransportPoolInit(NULL, storage, sizeof storage));
+    assert(!sensorarrayTransportPoolInit(&pool, NULL, sizeof storage));
+    assert(!sensorarrayTransportPoolInit(&pool, storage, sizeof storage - 1u));
+    assert(!sensorarrayTransportPoolInit(&pool, storage, sizeof storage + 1u));
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof storage));
+    for (unsigned i=0; i<SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT; ++i) {
+        bool accepted = i < SENSORARRAY_TRANSPORT_POOL_NORMAL_SLOT_COUNT ?
+            sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_DATA,
+                SENSORARRAY_TRANSPORT_POOL_TEXT_MAX, &descriptors[i]) :
+            i == SENSORARRAY_TRANSPORT_POOL_LIFECYCLE_SLOT_INDEX ?
+            sensorarrayTransportPoolAllocate(&pool, SENSORARRAY_TRANSPORT_CHANNEL_LIFECYCLE,
+                SENSORARRAY_TRANSPORT_POOL_TEXT_MAX, &descriptors[i]) :
+            sensorarrayTransportPoolAllocateProtected(&pool, SENSORARRAY_TRANSPORT_POOL_TEXT_MAX,
+                &descriptors[i]);
+        assert(accepted && descriptors[i].slotIndex==i);
+        char *data = sensorarrayTransportPoolGetSlot(&pool, &descriptors[i])->data;
+        assert(data == storage + i*SENSORARRAY_TRANSPORT_POOL_STORAGE_STRIDE);
+        memset(data, 'a'+(int)i, SENSORARRAY_TRANSPORT_POOL_TEXT_MAX);
+        data[SENSORARRAY_TRANSPORT_POOL_TEXT_MAX] = '\0';
+    }
+    sensorarrayTransportPool_t held = pool;
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof storage));
+    assert(!sensorarrayTransportPoolInit(&pool, replacement, sizeof replacement));
+    assert(memcmp(&pool, &held, sizeof pool)==0);
+    for (unsigned i=0; i<SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT; ++i) {
+        assert(sensorarrayTransportPoolValidate(&pool, &descriptors[i]));
+        char *data = pool.slots[i].data;
+        for (unsigned n=0; n<SENSORARRAY_TRANSPORT_POOL_TEXT_MAX; ++n) {
+            assert(data[n]=='a'+(int)i);
+        }
+        assert(data[SENSORARRAY_TRANSPORT_POOL_TEXT_MAX]=='\0');
+    }
+    /* A corrupt binding is never handed to a producer or accepted as owned. */
+    char *saved = pool.slots[0].data;
+    pool.slots[0].data = NULL;
+    assert(!sensorarrayTransportPoolGetSlot(&pool, &descriptors[0]));
+    assert(!sensorarrayTransportPoolValidate(&pool, &descriptors[0]));
+    assert(!sensorarrayTransportPoolRelease(&pool, &descriptors[0]));
+    pool.slots[0].data = saved;
+    for (unsigned i=0; i<SENSORARRAY_TRANSPORT_POOL_SLOT_COUNT; ++i) {
+        assert(sensorarrayTransportPoolRelease(&pool, &descriptors[i]));
+    }
+    assert(!sensorarrayTransportPoolInit(&pool, replacement, sizeof replacement));
+    assert(sensorarrayTransportPoolInit(&pool, storage, sizeof storage));
+    assert(pool.stats.used==0 && pool.slots[0].data==saved);
+}
+
 int main(void)
 {
+    testStorageBindingAndPrivateNul();
+    testProtectedSlotsAreIndependentAndPersistent();
     testAllocateReleaseAndPriorityReserve();
     testGenerationAndReleaseGuards();
     testQueueFullAndDisconnectCleanup();

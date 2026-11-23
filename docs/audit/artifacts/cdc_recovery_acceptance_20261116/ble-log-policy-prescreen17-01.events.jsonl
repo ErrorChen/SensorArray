@@ -1,0 +1,148 @@
+{"t": 1.8216000171378255e-05, "type": "opened", "phase": "prepare", "port": null, "transport": {"transport": "usb_cdc", "capability": "usb_cdc_data_v1", "path": "/dev/ttyACM0", "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2", "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.0", "vid": 12346, "pid": 16450, "usb_serial": "80B54ECDD9AC", "interface_number": 0, "interface_class": 2, "interface_subclass": 2, "interface_protocol": 0, "speed_mbps_reported_by_sysfs": "12", "role": "formal_DATA_CTRL_shared_record_stream", "debug_interface_used": false, "libusb_used": false, "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "configuration_changed": false, "ownership": "one_tty_reader_flock_TIOCEXCL", "existing_readers": "unverified", "baud_setting": 115200, "baud_setting_is_not_USB_wire_rate": true, "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free", "tx_acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}, "modem_bit_ioctl": false, "reset_requested": false, "input_flushed": false, "hupcl": false, "duration_total_seconds": 30, "raw_layout": "formal_CDC_DATA_CTRL_shared_raw"}
+{"t": 0.0001963480026461184, "type": "tx_begin", "phase": "prepare", "command": "BUILD?", "wire_ascii": "\nBUILD?\n", "channel": "data"}
+{"t": 0.0003298319934401661, "type": "tx_complete", "phase": "prepare", "command": "BUILD?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.00043379099224694073, "type": "rx", "phase": "prepare", "offset": 0, "length": 1408, "channel": "data"}
+{"t": 0.0008291039994219318, "type": "rx", "phase": "prepare", "offset": 1408, "length": 768, "channel": "data"}
+{"t": 0.0010088510025525466, "type": "rx", "phase": "prepare", "offset": 2176, "length": 256, "channel": "data"}
+{"t": 0.0010992229945259169, "type": "rx", "phase": "prepare", "offset": 2432, "length": 128, "channel": "data"}
+{"t": 0.0034538460022304207, "type": "rx", "phase": "prepare", "offset": 2560, "length": 128, "channel": "data"}
+{"t": 0.0035865870013367385, "type": "rx", "phase": "prepare", "offset": 2688, "length": 256, "channel": "data"}
+{"t": 0.003669287994853221, "type": "rx", "phase": "prepare", "offset": 2944, "length": 128, "channel": "data"}
+{"t": 0.003930662001948804, "type": "rx", "phase": "prepare", "offset": 3072, "length": 128, "channel": "data"}
+{"t": 0.00407730600272771, "type": "rx", "phase": "prepare", "offset": 3200, "length": 128, "channel": "data"}
+{"t": 0.004167420993326232, "type": "rx", "phase": "prepare", "offset": 3328, "length": 128, "channel": "data"}
+{"t": 0.004274944993085228, "type": "rx", "phase": "prepare", "offset": 3456, "length": 128, "channel": "data"}
+{"t": 0.004776125002535991, "type": "rx", "phase": "prepare", "offset": 3584, "length": 128, "channel": "data"}
+{"t": 0.004829715995583683, "type": "rx", "phase": "prepare", "offset": 3712, "length": 128, "channel": "data"}
+{"t": 0.0049378900002921, "type": "rx", "phase": "prepare", "offset": 3840, "length": 128, "channel": "data"}
+{"t": 0.00511231500422582, "type": "rx", "phase": "prepare", "offset": 3968, "length": 128, "channel": "data"}
+{"t": 0.005499945997144096, "type": "rx", "phase": "prepare", "offset": 4096, "length": 128, "channel": "data"}
+{"t": 0.005581467994488776, "type": "rx", "phase": "prepare", "offset": 4224, "length": 128, "channel": "data"}
+{"t": 0.005688270990503952, "type": "rx", "phase": "prepare", "offset": 4352, "length": 128, "channel": "data"}
+{"t": 0.005800329003250226, "type": "rx", "phase": "prepare", "offset": 4480, "length": 128, "channel": "data"}
+{"t": 0.006042153996531852, "type": "rx", "phase": "prepare", "offset": 4608, "length": 128, "channel": "data"}
+{"t": 0.006152756002848037, "type": "rx", "phase": "prepare", "offset": 4736, "length": 128, "channel": "data"}
+{"t": 0.006259971996769309, "type": "rx", "phase": "prepare", "offset": 4864, "length": 128, "channel": "data"}
+{"t": 0.006367155991028994, "type": "rx", "phase": "prepare", "offset": 4992, "length": 128, "channel": "data"}
+{"t": 0.006540410002344288, "type": "rx", "phase": "prepare", "offset": 5120, "length": 128, "channel": "data"}
+{"t": 0.006659831997239962, "type": "rx", "phase": "prepare", "offset": 5248, "length": 128, "channel": "data"}
+{"t": 0.006755099995643832, "type": "rx", "phase": "prepare", "offset": 5376, "length": 128, "channel": "data"}
+{"t": 0.006881345994770527, "type": "rx", "phase": "prepare", "offset": 5504, "length": 128, "channel": "data"}
+{"t": 0.007050959000480361, "type": "rx", "phase": "prepare", "offset": 5632, "length": 128, "channel": "data"}
+{"t": 0.007155861996579915, "type": "rx", "phase": "prepare", "offset": 5760, "length": 128, "channel": "data"}
+{"t": 0.007261830003699288, "type": "rx", "phase": "prepare", "offset": 5888, "length": 128, "channel": "data"}
+{"t": 0.007369475002633408, "type": "rx", "phase": "prepare", "offset": 6016, "length": 128, "channel": "data"}
+{"t": 0.007513307995395735, "type": "rx", "phase": "prepare", "offset": 6144, "length": 128, "channel": "data"}
+{"t": 0.007620304997544736, "type": "rx", "phase": "prepare", "offset": 6272, "length": 128, "channel": "data"}
+{"t": 0.007736749990726821, "type": "rx", "phase": "prepare", "offset": 6400, "length": 128, "channel": "data"}
+{"t": 0.00785847999213729, "type": "rx", "phase": "prepare", "offset": 6528, "length": 128, "channel": "data"}
+{"t": 0.007875212002545595, "type": "reply", "phase": "prepare", "command": "BUILD?", "line": "BUILD,idf=v5.5.5,target=esp32s3,project=SensorArray,proto=2,version=8a1794c-dirty,elfSha256=f1ec518dfba78453dcd7fe057bba29eb61a8f8898274a21e22125df26b933a04"}
+{"t": 0.00791397099965252, "type": "tx_begin", "phase": "prepare", "command": "PROTO?", "wire_ascii": "\nPROTO?\n", "channel": "data"}
+{"t": 0.007963897995068692, "type": "tx_complete", "phase": "prepare", "command": "PROTO?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.008102730993414298, "type": "rx", "phase": "prepare", "offset": 6656, "length": 128, "channel": "data"}
+{"t": 0.008212935994379222, "type": "rx", "phase": "prepare", "offset": 6784, "length": 128, "channel": "data"}
+{"t": 0.008321626999531873, "type": "rx", "phase": "prepare", "offset": 6912, "length": 128, "channel": "data"}
+{"t": 0.00842831599584315, "type": "rx", "phase": "prepare", "offset": 7040, "length": 128, "channel": "data"}
+{"t": 0.008608464995631948, "type": "rx", "phase": "prepare", "offset": 7168, "length": 128, "channel": "data"}
+{"t": 0.008710163994692266, "type": "rx", "phase": "prepare", "offset": 7296, "length": 128, "channel": "data"}
+{"t": 0.008754490001592785, "type": "rx", "phase": "prepare", "offset": 7424, "length": 15, "channel": "data"}
+{"t": 0.019441215990809724, "type": "rx", "phase": "prepare", "offset": 7439, "length": 384, "channel": "data"}
+{"t": 0.019740043993806466, "type": "rx", "phase": "prepare", "offset": 7823, "length": 64, "channel": "data"}
+{"t": 0.019800134003162384, "type": "reply", "phase": "prepare", "command": "PROTO?", "line": "PROTO,version=2,wires=ascii,ctrlMax=512,dataMax=2304,channels=CTRL/DATA/LOG/LIFECYCLE,caps=config_identity_v1/config_query_v1/session64/boot_spi_qual_v1/frontend_presence_v1/recovery_query_v1/restart_query_v1/usb_cdc_data_v1/usb_rom_handoff_v1/work_budget_v1/work_quantum_v2/ads_timing_probe_v1/ads_tail_probe_v1/ads_tail_io_v1/adc_finalbit_v1/ble_service_obs_v1/work_reason_v1/cpu_owner_v1,legacyGen=tag_domain,railMonitor=unavailable,adcCrc=crc8"}
+{"t": 0.01985903699824121, "type": "tx_begin", "phase": "prepare", "command": "BOOT?", "wire_ascii": "\nBOOT?\n", "channel": "data"}
+{"t": 0.019913651995011605, "type": "tx_complete", "phase": "prepare", "command": "BOOT?", "accepted_bytes": 7, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.023005790993920527, "type": "rx", "phase": "prepare", "offset": 7887, "length": 185, "channel": "data"}
+{"t": 0.023091877999831922, "type": "reply", "phase": "prepare", "command": "BOOT?", "line": "BOOT,boot=1,bootId=1,reset=poweron,stage=frame_read,err=0x0,seq=2135,heap=8301840,heapMin=8299624,prevStage=none,prevErr=0x0,prevHeap=0,guard=normal,autoRestarts=0,windowAgeS=0,ready=1"}
+{"t": 0.023141122990637086, "type": "tx_begin", "phase": "prepare", "command": "READY?", "wire_ascii": "\nREADY?\n", "channel": "data"}
+{"t": 0.023190819993033074, "type": "tx_complete", "phase": "prepare", "command": "READY?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.025882635993184522, "type": "rx", "phase": "prepare", "offset": 8072, "length": 55, "channel": "data"}
+{"t": 0.02596441700006835, "type": "reply", "phase": "prepare", "command": "READY?", "line": "READY,ready=1,stage=frame_read,err=0x0,bootId=1,boot=1"}
+{"t": 0.026000255995313637, "type": "tx_begin", "phase": "prepare", "command": "FRONTENDS?", "wire_ascii": "\nFRONTENDS?\n", "channel": "data"}
+{"t": 0.026052984001580626, "type": "tx_complete", "phase": "prepare", "command": "FRONTENDS?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.029802504999679513, "type": "rx", "phase": "prepare", "offset": 8127, "length": 349, "channel": "data"}
+{"t": 0.029891208992921747, "type": "reply", "phase": "prepare", "command": "FRONTENDS?", "line": "FRONTENDS,phase=monitor,hold=0,probes=166,absentRun=0,presentRun=0,known=7,present=7,primary=present,secondary=present,ads=present,pErr=0x0,sErr=0x0,aErr=0x0,pCleanup=0x0,sCleanup=0x0,aCleanup=0x0,aHz=125000,aRestoreHz=2000000,ownerFree=1,sdInhibited=0,lowSpeed=0,quarantine=0,nextUs=199976126,beginUs=198971015,endUs=198976126,physicalSafe=unknown"}
+{"t": 0.029940603999421, "type": "tx_begin", "phase": "prepare", "command": "RESTART?", "wire_ascii": "\nRESTART?\n", "channel": "data"}
+{"t": 0.029998546990100294, "type": "tx_complete", "phase": "prepare", "command": "RESTART?", "accepted_bytes": 10, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.03122106999217067, "type": "rx", "phase": "prepare", "offset": 8476, "length": 128, "channel": "data"}
+{"t": 0.03126912699372042, "type": "rx", "phase": "prepare", "offset": 8604, "length": 128, "channel": "data"}
+{"t": 0.03130999399581924, "type": "rx", "phase": "prepare", "offset": 8732, "length": 63, "channel": "data"}
+{"t": 0.03133935900405049, "type": "reply", "phase": "prepare", "command": "RESTART?", "line": "RESTART,session=863626B103487FE5,bootId=1,busy=0,phase=none,pendingId=0,pendingKnown=0,pendingRev=0,lastId=0,last=none,reason=none,acceptedKnown=0,acceptedRev=0,resultKnown=0,rev=0,boundary=0,originalError=0x0,publishError=0x0,terminalQueued=0,serialQueued=0,serialError=0x0,netQueued=0,netError=0x0,target=application"}
+{"t": 0.031375653998111375, "type": "tx_begin", "phase": "prepare", "command": "SPI?", "wire_ascii": "\nSPI?\n", "channel": "data"}
+{"t": 0.03142353499424644, "type": "tx_complete", "phase": "prepare", "command": "SPI?", "accepted_bytes": 6, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.033715076991938986, "type": "rx", "phase": "prepare", "offset": 8795, "length": 256, "channel": "data"}
+{"t": 0.03377164299308788, "type": "rx", "phase": "prepare", "offset": 9051, "length": 60, "channel": "data"}
+{"t": 0.03380571099114604, "type": "reply", "phase": "prepare", "command": "SPI?", "line": "SPI,phase=done,done=1,joined=1,timedOut=0,qualified=1,restored=1,hz=2000000,actualHz=2000000,err=0x0,run=0x0,cleanup=0x0,core=0,stackBytes=6144,stackMinBytes=3020,candidates=1,attempted=2000,samples=2000,even=1067,odd=933,crc=0,status=0,reg=0,drdy=0,startUs=119268,endUs=830857,overlapUs=695007,scope=all_candidates"}
+{"t": 0.03384065999125596, "type": "tx_begin", "phase": "prepare", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n", "channel": "data"}
+{"t": 0.03388292799354531, "type": "tx_complete", "phase": "prepare", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.038531632992089726, "type": "rx", "phase": "prepare", "offset": 9111, "length": 252, "channel": "data"}
+{"t": 0.03861523799423594, "type": "reply", "phase": "prepare", "command": "CONFIG?", "line": "CONFIG,session=863626B103487FE5,bootId=1,rev=1,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=1,mrid=0,rgen=1,rrid=0,pgen=1,prid=0,mtermId=0,mterm=applied,merr=0x0,ptermId=0,pterm=none,perr=0x0,rtermId=0,rterm=none,rerr=0x0"}
+{"t": 0.038678373995935544, "type": "tx_begin", "phase": "prepare", "command": "ADSTIMING?", "wire_ascii": "\nADSTIMING?\n", "channel": "data"}
+{"t": 0.03874100500252098, "type": "tx_complete", "phase": "prepare", "command": "ADSTIMING?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.04407786099181976, "type": "rx", "phase": "prepare", "offset": 9363, "length": 128, "channel": "data"}
+{"t": 0.044168844004161656, "type": "rx", "phase": "prepare", "offset": 9491, "length": 256, "channel": "data"}
+{"t": 0.04424223999376409, "type": "rx", "phase": "prepare", "offset": 9747, "length": 128, "channel": "data"}
+{"t": 0.05036418499366846, "type": "rx", "phase": "prepare", "offset": 9875, "length": 256, "channel": "data"}
+{"t": 0.050479466997785494, "type": "rx", "phase": "prepare", "offset": 10131, "length": 123, "channel": "data"}
+{"t": 0.05164449100266211, "type": "rx", "phase": "prepare", "offset": 10254, "length": 128, "channel": "data"}
+{"t": 0.05170953400374856, "type": "rx", "phase": "prepare", "offset": 10382, "length": 128, "channel": "data"}
+{"t": 0.05184133199509233, "type": "rx", "phase": "prepare", "offset": 10510, "length": 113, "channel": "data"}
+{"t": 0.05188936500053387, "type": "reply", "phase": "prepare", "command": "ADSTIMING?", "line": "ADSTIMING,session=863626B103487FE5,bootId=1,busy=0,phase=idle,ackLocal=0,pendingId=0,pendingRev=0,lastId=0,last=none,reason=none,acceptedRev=0,resultKnown=0,rev=0,boundary=0,originalError=0x0,cleanupError=0x0,result=0,terminalQueued=0,groups=4,perGroup=200,diagnostic=1,storageKnown=1,storageReady=1,storageBytes=15096,storageError=0x0,pendingProbe=none,lastProbe=none"}
+{"t": 0.05193474699626677, "type": "tx_begin", "phase": "prepare", "command": "SCHED?", "wire_ascii": "\nSCHED?\n", "channel": "data"}
+{"t": 0.0519866649992764, "type": "tx_complete", "phase": "prepare", "command": "SCHED?", "accepted_bytes": 8, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.056525672000134364, "type": "rx", "phase": "prepare", "offset": 10623, "length": 252, "channel": "data"}
+{"t": 0.056606307000038214, "type": "reply", "phase": "prepare", "command": "SCHED?", "line": "SCHED,initError=0x0,registered=1,idleKnown=1,tickHz=100,budgetTicks=4,maxUnits=32,graceUnits=0,backstopTicks=4,quantumTicks=2,idleGen=34091,idleAgeTicks=0,maxIdleGapTicks=3,bt=177/0/2,tr=270/0/5,log=2470/0/6,ser=27508/5/14,bc=1/0/1,sc=102/0/6,wc=0/0/0"}
+{"t": 0.05665221500385087, "type": "tx_begin", "phase": "prepare", "command": "BLEGUARD?", "wire_ascii": "\nBLEGUARD?\n", "channel": "data"}
+{"t": 0.0567184709943831, "type": "tx_complete", "phase": "prepare", "command": "BLEGUARD?", "accepted_bytes": 11, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.06879081299121026, "type": "rx", "phase": "prepare", "offset": 10875, "length": 128, "channel": "data"}
+{"t": 0.06889777300239075, "type": "rx", "phase": "prepare", "offset": 11003, "length": 162, "channel": "data"}
+{"t": 0.06895135900413152, "type": "reply", "phase": "prepare", "command": "BLEGUARD?", "line": "BLEGUARD,v=1,scope=send_observer,ready=1,initErr=0x0,quarantined=0,reason=none,callKnown=1,callId=264,startUs=199327967,detectedUs=0,ageUs=20631,deadlineUs=500000,pollUs=100000,active=0,completionKnown=1,restartRequired=0,rejected=0,recovery=manual_restart,sdkCancelled=0,pcReceipt=unknown"}
+{"t": 0.06901098799426109, "type": "tx_begin", "phase": "prepare", "command": "BLELOG?", "wire_ascii": "\nBLELOG?\n", "channel": "data"}
+{"t": 0.06906595500186086, "type": "tx_complete", "phase": "prepare", "command": "BLELOG?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.07015199199668132, "type": "rx", "phase": "prepare", "offset": 11165, "length": 128, "channel": "data"}
+{"t": 0.07024047699815128, "type": "rx", "phase": "prepare", "offset": 11293, "length": 68, "channel": "data"}
+{"t": 0.07028468500357121, "type": "reply", "phase": "prepare", "command": "BLELOG?", "line": "BLELOG,v=1,scope=boot,gen=1,connected=1,mode=fast,dataCccd=1,dataActive=1,ordinaryAllowed=0,policy=drop_ordinary_when_data,policyDrop=4,dropL=4,priorityBypass=1,inflightCancel=0,pcReceipt=unknown"}
+{"t": 0.07033272300031967, "type": "tx_begin", "phase": "prepare", "command": "SPISOURCE?", "wire_ascii": "\nSPISOURCE?\n", "channel": "data"}
+{"t": 0.07037684100214392, "type": "tx_complete", "phase": "prepare", "command": "SPISOURCE?", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.07221233499876689, "type": "rx", "phase": "prepare", "offset": 11361, "length": 128, "channel": "data"}
+{"t": 0.0722973079973599, "type": "rx", "phase": "prepare", "offset": 11489, "length": 128, "channel": "data"}
+{"t": 0.07233205900411122, "type": "reply", "phase": "prepare", "command": "SPISOURCE?", "line": "SPISOURCE,scope=boot_probe,phase=done,sourceKnown=1,policy=gpio_tail_required,source=spi55_gpio1,interfaceKnown=1,interface=06,hz=2000000,actualHz=2000000,qualified=1,restored=1,joined=1,timedOut=0,err=0x0,cleanup=0x0,runtime=unobserved,physicalVerified=0"}
+{"t": 0.07237178899231367, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?0", "wire_ascii": "\nCPUOWNER?0\n", "channel": "data"}
+{"t": 0.07240037899464369, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?0", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.07436505299119744, "type": "rx", "phase": "prepare", "offset": 11617, "length": 256, "channel": "data"}
+{"t": 0.07440490600129124, "type": "rx", "phase": "prepare", "offset": 11873, "length": 47, "channel": "data"}
+{"t": 0.07442582400108222, "type": "reply", "phase": "prepare", "command": "CPUOWNER?0", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=0,enabled=1,available=1,known=1,conflict=0,stale=0,reason=ok,taskNumber=9,runUs=223474,t0Us=198380161,t1Us=198380164,observedAtUs=198380164,ageUs=973852,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.07445192999148276, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?1", "wire_ascii": "\nCPUOWNER?1\n", "channel": "data"}
+{"t": 0.07447287799732294, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?1", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.07682346299407072, "type": "rx", "phase": "prepare", "offset": 11920, "length": 128, "channel": "data"}
+{"t": 0.07687221899686847, "type": "rx", "phase": "prepare", "offset": 12048, "length": 175, "channel": "data"}
+{"t": 0.07689287500397768, "type": "reply", "phase": "prepare", "command": "CPUOWNER?1", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=1,enabled=1,available=1,known=1,conflict=0,stale=0,reason=ok,taskNumber=15,runUs=58713,t0Us=198379254,t1Us=198379259,observedAtUs=198379259,ageUs=976901,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.07692353399761487, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?2", "wire_ascii": "\nCPUOWNER?2\n", "channel": "data"}
+{"t": 0.0769441369920969, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?2", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.08928342399303801, "type": "rx", "phase": "prepare", "offset": 12223, "length": 128, "channel": "data"}
+{"t": 0.08933496999088675, "type": "rx", "phase": "prepare", "offset": 12351, "length": 177, "channel": "data"}
+{"t": 0.08936548400379252, "type": "reply", "phase": "prepare", "command": "CPUOWNER?2", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=2,enabled=1,available=1,known=1,conflict=0,stale=0,reason=ok,taskNumber=17,runUs=2666370,t0Us=199062534,t1Us=199062539,observedAtUs=199062539,ageUs=306165,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.08939764299429953, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?3", "wire_ascii": "\nCPUOWNER?3\n", "channel": "data"}
+{"t": 0.0894424819998676, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?3", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.09105002399883233, "type": "rx", "phase": "prepare", "offset": 12528, "length": 128, "channel": "data"}
+{"t": 0.09107152299839072, "type": "rx", "phase": "prepare", "offset": 12656, "length": 128, "channel": "data"}
+{"t": 0.0911162419943139, "type": "rx", "phase": "prepare", "offset": 12784, "length": 48, "channel": "data"}
+{"t": 0.09112930999253877, "type": "reply", "phase": "prepare", "command": "CPUOWNER?3", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=3,enabled=1,available=1,known=1,conflict=0,stale=0,reason=ok,taskNumber=8,runUs=7146710,t0Us=199168767,t1Us=199168771,observedAtUs=199168771,ageUs=202380,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.09114756000053603, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?4", "wire_ascii": "\nCPUOWNER?4\n", "channel": "data"}
+{"t": 0.09117927099578083, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?4", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.09268342600262258, "type": "rx", "phase": "prepare", "offset": 12832, "length": 290, "channel": "data"}
+{"t": 0.09272407500247937, "type": "reply", "phase": "prepare", "command": "CPUOWNER?4", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=4,enabled=1,available=1,known=1,conflict=0,stale=1,reason=ok,taskNumber=10,runUs=0,t0Us=13867,t1Us=13871,observedAtUs=13871,ageUs=199358832,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.09274909799569286, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?5", "wire_ascii": "\nCPUOWNER?5\n", "channel": "data"}
+{"t": 0.09278711800288875, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?5", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.09464071800175589, "type": "rx", "phase": "prepare", "offset": 13122, "length": 128, "channel": "data"}
+{"t": 0.0947185900004115, "type": "rx", "phase": "prepare", "offset": 13250, "length": 176, "channel": "data"}
+{"t": 0.09475113599910401, "type": "reply", "phase": "prepare", "command": "CPUOWNER?5", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=5,enabled=1,available=1,known=1,conflict=0,stale=0,reason=ok,taskNumber=16,runUs=1127019,t0Us=199282978,t1Us=199282983,observedAtUs=199282983,ageUs=91362,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.09480004200304393, "type": "tx_begin", "phase": "prepare", "command": "CPUOWNER?6", "wire_ascii": "\nCPUOWNER?6\n", "channel": "data"}
+{"t": 0.09485602600034326, "type": "tx_complete", "phase": "prepare", "command": "CPUOWNER?6", "accepted_bytes": 12, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.09661595299257897, "type": "rx", "phase": "prepare", "offset": 13426, "length": 128, "channel": "data"}
+{"t": 0.09669725799176376, "type": "rx", "phase": "prepare", "offset": 13554, "length": 128, "channel": "data"}
+{"t": 0.09675090700329747, "type": "rx", "phase": "prepare", "offset": 13682, "length": 59, "channel": "data"}
+{"t": 0.09676444200158585, "type": "reply", "phase": "prepare", "command": "CPUOWNER?6", "line": "CPUOWNER,v=1,session=863626B103487FE5,role=6,enabled=1,available=0,known=0,conflict=0,stale=1,reason=not_observed,taskNumber=unknown,runUs=unknown,t0Us=unknown,t1Us=unknown,observedAtUs=unknown,ageUs=unknown,sampleMinUs=1000000,staleAfterUs=3000000,scope=switch_out,isr=may_include,sdk=not_isolated,blocked=unknown"}
+{"t": 0.09678123200137634, "type": "tx_begin", "phase": "prepare", "command": "CONFIG?", "wire_ascii": "\nCONFIG?\n", "channel": "data"}
+{"t": 0.09682271799829323, "type": "tx_complete", "phase": "prepare", "command": "CONFIG?", "accepted_bytes": 9, "acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"}
+{"t": 0.10995070700300857, "type": "rx", "phase": "prepare", "offset": 13741, "length": 252, "channel": "data"}
+{"t": 0.11001473899523262, "type": "reply", "phase": "prepare", "command": "CONFIG?", "line": "CONFIG,session=863626B103487FE5,bootId=1,rev=1,boundary=1,state=CAPACITANCE,mode=CAP,rows=8,profile=CCCCCCCC,err=0x0,mgen=1,mrid=0,rgen=1,rrid=0,pgen=1,prid=0,mtermId=0,mterm=applied,merr=0x0,ptermId=0,pterm=none,perr=0x0,rtermId=0,rterm=none,rerr=0x0"}

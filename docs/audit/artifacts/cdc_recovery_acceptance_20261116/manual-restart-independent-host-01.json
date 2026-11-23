@@ -1,0 +1,25 @@
+{
+  "created_utc": "2026-11-20T23:48:01.764556+00:00",
+  "command": [
+    "python3",
+    "tools/test_usb_otg_owner.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.35185467900009826,
+  "source_before": {
+    "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "3fb2abd4c4353ffa64aa9f47e5a4708ed2de0b9a88dd0abdcaf3bf03e4b8e471",
+    "components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h": "bf45fe9d2c15fd7976cae2ee0f75aeb8c721e7918b21775a9af54de41d56bef5",
+    "tests/host/test_usb_otg_owner.c": "d016834388372b67dffd6a0cf0c4c72703a5555a739b9153ed642daa1ea218c9",
+    "tools/test_usb_otg_owner.py": "2df832bbbf1e4edef8d96864cfb06e3c8dbf741e367bfa6b6db89808098a9f6e"
+  },
+  "source_after": {
+    "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c": "3fb2abd4c4353ffa64aa9f47e5a4708ed2de0b9a88dd0abdcaf3bf03e4b8e471",
+    "components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h": "bf45fe9d2c15fd7976cae2ee0f75aeb8c721e7918b21775a9af54de41d56bef5",
+    "tests/host/test_usb_otg_owner.c": "d016834388372b67dffd6a0cf0c4c72703a5555a739b9153ed642daa1ea218c9",
+    "tools/test_usb_otg_owner.py": "2df832bbbf1e4edef8d96864cfb06e3c8dbf741e367bfa6b6db89808098a9f6e"
+  },
+  "unchanged": true,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/manual-restart-independent-host-01.txt",
+  "log_sha256": "63676f0193b07fe25ff830f9716c582a2931550553ea75b9f397d8e327e1c952",
+  "hardware": "NOT_RUN"
+}

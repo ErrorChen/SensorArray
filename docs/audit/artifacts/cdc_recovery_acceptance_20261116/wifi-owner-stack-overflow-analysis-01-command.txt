@@ -1,0 +1,1 @@
+{"status": "PANIC_RECORD_CONFIRMED_WIFI_OWNER_STACK_OVERFLOW", "detail_bytes": 65, "record": "F9CE9DC1", "bound_inputs": 26, "negative_checks": 5, "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-stack-overflow-evidence-01.json"}

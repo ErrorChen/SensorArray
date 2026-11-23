@@ -1,0 +1,40 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+403773b8 <sensorarrayUsbEmergencyCoreReset>:
+403773b8:	004136        	entry	a1, 32
+403773bb:	fa7c      	movi.n	a10, -1
+403773bd:	1ddf25        	call8	403951b0 <xt_ints_off>
+403773c0:	f4db81        	l32r	a8, 4037472c <_iram_text_start+0x328> (50000004 <s_recoveryMagic>)
+403773c3:	f4dba1        	l32r	a10, 40374730 <_iram_text_start+0x32c> (53415552 <_rtc_force_slow_end+0x34154aa>)
+403773c6:	f4dd91        	l32r	a9, 4037473c <_iram_text_start+0x338> (60008120 <RTCCNTL+0x120>)
+403773c9:	08a9      	s32i.n	a10, a8, 0
+403773cb:	f4da81        	l32r	a8, 40374734 <_iram_text_start+0x330> (50000000 <s_recoveryInverse>)
+403773ce:	f4daa1        	l32r	a10, 40374738 <_iram_text_start+0x334> (acbeaaad <_rtc_reserved_end+0x4caeaaad>)
+403773d1:	08a9      	s32i.n	a10, a8, 0
+403773d3:	0020c0        	memw
+403773d6:	0988      	l32i.n	a8, a9, 0
+403773d8:	f4daa1        	l32r	a10, 40374740 <_iram_text_start+0x33c> (fffdffff <_rtc_reserved_end+0x9fedffff>)
+403773db:	1088a0        	and	a8, a8, a10
+403773de:	0020c0        	memw
+403773e1:	0989      	s32i.n	a8, a9, 0
+403773e3:	03eb70        	rsr.prid	a7
+403773e6:	047d70        	extui	a7, a7, 13, 1
+403773e9:	007756        	bnez	a7, 403773f4 <sensorarrayUsbEmergencyCoreReset+0x3c>
+403773ec:	1a0c      	movi.n	a10, 1
+403773ee:	09c7a5        	call8	40381068 <esp_cpu_unstall>
+403773f1:	0001c6        	j	403773fc <sensorarrayUsbEmergencyCoreReset+0x44>
+403773f4:	0a0c      	movi.n	a10, 0
+403773f6:	09c725        	call8	40381068 <esp_cpu_unstall>
+403773f9:	ef1766        	bnei	a7, 1, 403773ec <sensorarrayUsbEmergencyCoreReset+0x34>
+403773fc:	0020c0        	memw
+403773ff:	f49f81        	l32r	a8, 4037467c <_iram_text_start+0x278> (400006d8 <esp_rom_software_reset_system>)
+40377402:	0008e0        	callx8	a8
+40377405:	ffff06        	j	40377405 <sensorarrayUsbEmergencyCoreReset+0x4d>
+
+Disassembly of section .flash.text:

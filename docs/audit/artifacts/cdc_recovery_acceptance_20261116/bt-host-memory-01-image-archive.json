@@ -1,0 +1,29 @@
+{
+  "scope": "immutable_generated_build_outputs_not_scientific_measurements",
+  "records": [
+    {
+      "build_path": "build/SensorArray.bin",
+      "raw_bytes": 1631888,
+      "raw_sha256": "cf8c72569e30569bce2d6f224b96391c4e7078439cb90a25ae8218c491967838",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-SensorArray.bin.gz",
+      "archive_sha256": "8cfb5e6412c976b1f42dbb8f27d9128135121c7b3480139044c2a8d94f7bc4a3",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.elf",
+      "raw_bytes": 16536032,
+      "raw_sha256": "2f74130825f1b4c173cee27bf569bc4385bbdd26a7049adee3efe6e8b77c39e9",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-SensorArray.elf.gz",
+      "archive_sha256": "7e372b1b0a43244201ea79825d4739d316c4886b1e413b7bc035e31d50cfb50c",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.map",
+      "raw_bytes": 11626436,
+      "raw_sha256": "5cb0cf9e54f4b24207718c2003b05158f8f20a7613a99b38b54794e69b1766ca",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-SensorArray.map.gz",
+      "archive_sha256": "165261f59965c576a47d9d28a0565c45db970feab2f60eb9f83b88d23fb4364d",
+      "roundtrip_verified": true
+    }
+  ]
+}

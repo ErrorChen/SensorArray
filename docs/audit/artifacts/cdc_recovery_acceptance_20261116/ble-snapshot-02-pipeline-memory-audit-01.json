@@ -1,0 +1,224 @@
+{
+  "schema": "sensorarray_pipeline_internal_memory_audit_v1",
+  "recorded_utc": "2026-11-20T19:11:12.867693+00:00",
+  "reviewer": "/root/protected_pipeline",
+  "scope": "Read-only target map/DWARF and existing source/SDK/host-log comparison; no firmware build, hardware query or production edits by this agent.",
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "build_dirty_diff_sha256": "3ec989045779b4cb586632ecc0d3e5b24312a6a256aacbfeddd618705dddc3a9",
+  "candidate": {
+    "elf_sha256": "575c5dc25217721cfb47f651556d0e28edd4b5fe666a022200b8737608ff2e40",
+    "map_sha256": "20890248f12179a2a91814cbef0ca0c9aaf004fa0732c29aeb9b9c8074a8233a",
+    "app_sha256": "e287b819c8a8e6c7d77bd7aa100f8ddfcff1ee4b003f58760bd931b4af3030bc",
+    "app_bytes": 1632496,
+    "version": "8a1794c-dirty"
+  },
+  "evidence_preservation": {
+    "kind": "transcription_of_previously_executed_readonly_tool_outputs",
+    "transcript": "ble-snapshot-02-pipeline-memory-audit-01.txt",
+    "transcript_sha256": "22a4714deec70d9c7629d17a9cc3cac078023248d82b8e9a890a7dd8f6c30a4c",
+    "complete_old_elf_map_archived": false,
+    "why": "Build03 replaced build/SensorArray.elf/map after successful readonly extraction but before the archival script ran. Root confirms no full575c ELF/map copy exists. The saved script rejected the changed ELF rather than mixing identities.",
+    "guarded_capture_script": "ble-snapshot-02-pipeline-memory-audit-01.py",
+    "guarded_capture_exit_code": 1,
+    "guarded_capture_error": "AssertionError: Refuse a different candidate ELF; keep original evidence immutable.",
+    "not_claimed": [
+      "No full old ELF/map archive",
+      "No rerun against575c after replacement",
+      "No fresh old-image test pass from the failed capture script"
+    ]
+  },
+  "source_hashes_from_actual_build_manifest": {
+    "core/transport/sensorarrayTransport.c": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "core/transport/sensorarrayTransportPool.h": "8481d586b517d483fad27aaabea2ee1e8e75aaaf73d0dee4b939cca55dde355b",
+    "main/output/sensorarrayAsyncLog.c": "68a19dd4e15226a3a4bc02c67b2079704722d9f8ad75da51697606afc7afc953",
+    "main/output/sensorarrayAsyncLogStorage.h": "8acf7b564245f9b3ace334843b738d39019c7b89d622850f82ce18a7bfb331dd",
+    "sdkconfig": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4"
+  },
+  "target_dwarf": {
+    "sensorarrayTransportPayloadSlot_t": {
+      "bytes": 2456,
+      "die_offset": "0x1b5ac4",
+      "member_offsets": {
+        "slotGeneration": 0,
+        "frameSeq": 4,
+        "generation": 8,
+        "requestId": 12,
+        "bleConnectionGeneration": 16,
+        "sessionId": 24,
+        "bootId": 32,
+        "configRevision": 36,
+        "modeGeneration": 40,
+        "modeRequestId": 44,
+        "rowsGeneration": 48,
+        "rowsRequestId": 52,
+        "profileGeneration": 56,
+        "profileRequestId": 60,
+        "length": 64,
+        "channel": 66,
+        "rows": 67,
+        "cells": 68,
+        "inUse": 69,
+        "hasFrameMeta": 70,
+        "trustedFullFrame": 71,
+        "frameIdentity": 72,
+        "protectionFlags": 120,
+        "protectedDeadlineUs": 128,
+        "protectedNextAttemptUs": 136,
+        "protectedWifiDone": 144,
+        "protectedWifiTarget": 145,
+        "data": 146
+      }
+    },
+    "sensorarrayTransportPool_t": {
+      "bytes": 17216,
+      "die_offset": "0x1b5d03",
+      "member_offsets": {
+        "slots": 0,
+        "stats": 17192
+      }
+    },
+    "sensorarrayAsyncLogFrameSlot_t": {
+      "bytes": 7160,
+      "die_offset": "0x1895bd"
+    },
+    "sensorarrayAsyncLogWorkspace_t": {
+      "bytes": 13536,
+      "die_offset": "0x189c9c"
+    }
+  },
+  "target_map": {
+    "s_pool": {
+      "address": "0x3fcc69e0",
+      "bytes": 17216,
+      "section": ".bss",
+      "object": "sensorarrayTransport.c.obj"
+    },
+    "source_metadata_sizes": {
+      "s_lastProtectedPublishedUs": 8,
+      "s_protectedIdentity": 48,
+      "s_protectedIdentityKnown": 1,
+      "s_pendingSlots": 6,
+      "s_frameSlotIdentity": 288,
+      "s_frameSlotProtection": 24,
+      "s_frameSlotState": 6
+    },
+    "source_metadata_note": "These are selected observed symbols, not a complete BSS delta; source identity/protection arrays are internal, while full-frame payloads are dynamically allocated."
+  },
+  "old_pool_comparison": {
+    "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+    "header_sha256": "8035d677cd265092333c1d94241732e0697b15a6b013b0e17640f014a57c7d47",
+    "old_slot_count": 5,
+    "old_slot_bytes_from_preserved_host_test": 2376,
+    "old_pool_bytes_derived": 11904,
+    "derivation": "align8(5*2376 + 20-byte stats)=11904; old target ELF unavailable, so this is a layout derivation, not an old target-map measurement.",
+    "new_pool_bytes_target": 17216,
+    "growth_against_derived_prior_bytes": 5312,
+    "growth_breakdown": "2*2456 additional slots + 5*(2456-2376) extra existing-slot metadata =5312",
+    "old_test_evidence": [
+      {
+        "path": "tail-01-test_transport_pool.txt",
+        "sha256": "4aa8a04e055f4b54b8802978a2aa6ee36a097a986fe4156f30a3d6c92f5bff97"
+      },
+      {
+        "path": "recovery-candidate-01-test_transport_pool.txt",
+        "sha256": "4aa8a04e055f4b54b8802978a2aa6ee36a097a986fe4156f30a3d6c92f5bff97"
+      }
+    ]
+  },
+  "source_storage": {
+    "normal_slots_configured": 4,
+    "added_protected_slots": 2,
+    "total_slots": 6,
+    "full_frame_storage_bytes": 42960,
+    "workspace_bytes": 13536,
+    "combined_cpu_storage_bytes": 56496,
+    "added_full_frame_storage_bytes": 14320,
+    "allocation": "Existing startup-owned permanent calloc SPIRAM|8BIT preferred, explicit INTERNAL|8BIT fallback. Not static BSS; actual APP_LOG_INIT placement was not captured in this failed-boot observation.",
+    "formatter_stack_bytes": 16384,
+    "formatter_stack_caps": "Explicit WithCaps SPIRAM|8BIT; TCB stays internal."
+  },
+  "sdk": {
+    "root": "/home/csc/esp/esp-idf-v5.5.5",
+    "scan_stack_bytes": 16384,
+    "normal_task_caps": "INTERNAL|8BIT",
+    "tcb": "separate internal allocation; WithCaps does not move TCB",
+    "bss_external_enabled": false,
+    "independent_review": "ble-snapshot-internal-memory-sdk-review-01.json"
+  },
+  "failed_boot": {
+    "path": "ble-snapshot-state-01.summary.json",
+    "sha256": "ad228d0b16b53c5fddd23ce8887ff12b1cf0ef710d8aba2f89227d19680b9b5f",
+    "observed": {
+      "BUILD?": {
+        "idf": "v5.5.5",
+        "target": "esp32s3",
+        "project": "SensorArray",
+        "proto": "2",
+        "version": "8a1794c-dirty",
+        "elfSha256": "575c5dc25217721cfb47f651556d0e28edd4b5fe666a022200b8737608ff2e40"
+      },
+      "BOOT?": {
+        "boot": "1",
+        "bootId": "1",
+        "reset": "poweron",
+        "stage": "scan_task_create_failed",
+        "err": "0x101",
+        "seq": "0",
+        "heap": "8295496",
+        "heapMin": "8295496",
+        "prevStage": "none",
+        "prevErr": "0x0",
+        "prevHeap": "0",
+        "guard": "normal",
+        "autoRestarts": "0",
+        "windowAgeS": "0",
+        "ready": "0"
+      },
+      "READY?": {
+        "ready": "0",
+        "stage": "scan_task_create_failed",
+        "err": "0x101",
+        "bootId": "1",
+        "boot": "1"
+      },
+      "SPI?": {
+        "phase": "idle",
+        "done": "0",
+        "joined": "0",
+        "timedOut": "0",
+        "qualified": "0",
+        "restored": "0",
+        "hz": "0",
+        "actualHz": "0",
+        "err": "0x0",
+        "run": "0x0",
+        "cleanup": "0x0",
+        "core": "0",
+        "stackBytes": "0",
+        "stackMinBytes": "0",
+        "candidates": "0",
+        "attempted": "0",
+        "samples": "0",
+        "even": "0",
+        "odd": "0",
+        "crc": "0",
+        "status": "0",
+        "reg": "0",
+        "drdy": "0",
+        "startUs": "0",
+        "endUs": "0",
+        "overlapUs": "0",
+        "scope": "all_candidates"
+      }
+    }
+  },
+  "conclusion": {
+    "status": "HIL_STARTUP_FAIL_NO_MEM",
+    "error": "0x101 is SDK ESP_ERR_NO_MEM",
+    "measurement_boundary": "SPI phase idle, attempted0,samples0: CRC/performance NOT_RUN, not a measured zero-error rate.",
+    "heap_boundary": "Aggregate8295496 bytes does not prove contiguous internal16KiB stack plusTCB. No at-failure internal-largest observation; internal exhaustion vs fragmentation vsTCB failure is unresolved.",
+    "control_boundary": "USB readonly control responds; CONFIG times out. No whole-device-death claim.",
+    "selected_next_fix": "Root selected BLE18432-byte CPU-payload PSRAM migration, keeping Transport pool, all protected slots and acquisition stacks unchanged. Implementation verification belongs to the BLE owner/new candidate."
+  }
+}

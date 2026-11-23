@@ -1,0 +1,3 @@
+SNAPSRC? max_bytes=222
+SNAPNET? max_bytes=267
+PASS snapshot query bounds, per-layer stages, readonly counters, max u32 and truncation fence

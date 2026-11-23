@@ -1,0 +1,2 @@
+FIX_CONFIRMED,case=wifi_only_pending_expiry,bleEnabled=0,wifiEnabled=1,released=2,wifiCalls=0,wifiDataDrop=2,bleDataDrop=0,expired=2
+PROTECTED_FRAME_PIPELINE,passed=1,hardware=NOT_RUN,scope=actual_source+transport+encoder,ble=synthetic_admission_boundary,baseline=8a1794ce3be95ff0007698c4e4e667dcf25fbe19

@@ -1,0 +1,153 @@
+{
+  "scope": "original recorded bytes replayed; no original summary or raw changed",
+  "new_pre_mutation_authority_established_for_historical_runs": false,
+  "overall_acceptance": "NOT_ESTABLISHED",
+  "hardware_actions": [],
+  "runs": [
+    {
+      "screen": 20,
+      "decision": {
+        "status": "FAIL",
+        "failures": [
+          "BLE_normal_complete_frame_gap_budget_exceeded"
+        ],
+        "unknown": [],
+        "received": 7461,
+        "missing": 202,
+        "expected_within_BLE_endpoints": 7663,
+        "missing_fraction": 0.02636043325068511,
+        "normal_budget_fraction": 0.025,
+        "overall_acceptance": "NOT_ESTABLISHED",
+        "FULL_observation_coverage": {
+          "USB": {
+            "sufficient": true,
+            "first_complete_host_seconds": 5.916146251984173,
+            "last_complete_host_seconds": 125.89229793098639,
+            "window_start_seconds": 5.900393255986273,
+            "window_end_seconds": 125.90048323798692,
+            "device_span_seconds": 120.116826,
+            "requested_seconds": 120.0,
+            "capture_fps": 63.796224518952904,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          },
+          "BLE": {
+            "sufficient": true,
+            "first_complete_host_seconds": 134763.856749126,
+            "last_complete_host_seconds": 134883.813688795,
+            "window_start_seconds": 134763.814316366,
+            "window_end_seconds": 134883.814397606,
+            "device_span_seconds": 120.10778,
+            "requested_seconds": 120.0,
+            "capture_fps": 63.79270352012168,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          }
+        },
+        "edge_or_unknown_fragment_diagnostics": {
+          "D": {
+            "ok": 1
+          },
+          "L": {},
+          "C": {}
+        },
+        "complete_is_not_all_points_valid": true
+      },
+      "inputs_sha256_unchanged": {
+        "screen-20/screen-20-ble.ble.notifications.jsonl": "e361419442d15b2344c54093049c1bf3d1baf0c0e257e9ed2f7243083b4b5e9d",
+        "screen-20/screen-20-ble.ble.summary.json": "b18317d0168672f7bd93621a3864be9aa76e92afc55d433e913e959dc7d1f56d",
+        "screen-20/screen-20-debug.debug.events.jsonl": "3009d283d65ffe4b9ee8f5a223be487177206feb2ee8e132150ca2e45ae661d0",
+        "screen-20/screen-20-debug.debug.rx.bin": "baa872a3114c6f51faf94e5e9a99b8f30590cd8d9f50c6ade1e799d788de03f6",
+        "screen-20/screen-20-debug.debug.summary.json": "8cdc2dda684809a1438bc15f11fd91dd7de8abbe49bf532ad322341f0beeddc3",
+        "screen-20/screen-20-volt1.events.jsonl": "5154ffd381cca9915b69eb4135d09cef978cd9f7974d3e80f683a81c804f9445",
+        "screen-20/screen-20-volt1.rx.bin": "1190d6eab544ffe96641b1d7381217126f32dcb14f1cd03d463c6317aa088003",
+        "screen-20/screen-20-volt1.summary.json": "00fce1d91009fd71c4f226119e25825eaa549c118540f222f80c3dc4ee15dfbc"
+      },
+      "analysis": {
+        "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-20/screen-20-final-gate-replay-analysis-02.json",
+        "sha256": "72426996c5f025e7bc1c626e575a4bd895f9ae39dcb7cb92750b93c851adcfe2",
+        "stored_bytes": 193037
+      }
+    },
+    {
+      "screen": 21,
+      "decision": {
+        "status": "PASS_NUMERIC_SCREEN",
+        "failures": [],
+        "unknown": [],
+        "received": 7569,
+        "missing": 141,
+        "expected_within_BLE_endpoints": 7710,
+        "missing_fraction": 0.018287937743190662,
+        "normal_budget_fraction": 0.025,
+        "overall_acceptance": "NOT_ESTABLISHED",
+        "FULL_observation_coverage": {
+          "USB": {
+            "sufficient": true,
+            "first_complete_host_seconds": 5.790542750008171,
+            "last_complete_host_seconds": 125.75964682799531,
+            "window_start_seconds": 5.786331492010504,
+            "window_end_seconds": 125.78645903000142,
+            "device_span_seconds": 120.039088,
+            "requested_seconds": 120.0,
+            "capture_fps": 64.19575596908899,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          },
+          "BLE": {
+            "sufficient": true,
+            "first_complete_host_seconds": 147852.453284754,
+            "last_complete_host_seconds": 147972.4297788,
+            "window_start_seconds": 147852.442530555,
+            "window_end_seconds": 147972.442650049,
+            "device_span_seconds": 120.083015,
+            "requested_seconds": 120.0,
+            "capture_fps": 64.19725554026104,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          }
+        },
+        "edge_or_unknown_fragment_diagnostics": {
+          "D": {
+            "ok": 1
+          },
+          "L": {},
+          "C": {}
+        },
+        "complete_is_not_all_points_valid": true
+      },
+      "inputs_sha256_unchanged": {
+        "screen-21/screen-21-ble.ble.notifications.jsonl": "7c6e47760ab9d286fdfc0577ed963eb9522158cc3b4b713d731bb697d1a8cc34",
+        "screen-21/screen-21-ble.ble.summary.json": "861bf5b46215e74ba760200fbda6f90709b5c4e85623c53b2413638f56bde350",
+        "screen-21/screen-21-debug.debug.events.jsonl": "05869887113495b753e6fb72a5d6baabd51dfdd7932f0bbf4594514ee9546671",
+        "screen-21/screen-21-debug.debug.rx.bin": "3e6f26f855123f8502fa988ae062c7120390f003bd55a4ecbe295960f4ed6189",
+        "screen-21/screen-21-debug.debug.summary.json": "5e8c79dc25425e7f0334f070cee7336935d62e5b8064687f79852947d8c69cbc",
+        "screen-21/screen-21-volt1.events.jsonl": "ed39ff6da7114ec0cac259dcda39c7b2d8c6e9b7f194a8c10784d736a4df5831",
+        "screen-21/screen-21-volt1.rx.bin": "8833ecf19537b586f739d5515ae6f0b76ad46ae2ffeec32b2a48bce0e004e16d",
+        "screen-21/screen-21-volt1.summary.json": "ea25417dc487a1eabff65d37b82b0f307d51e5136df89845621f9f93df4f6c92"
+      },
+      "analysis": {
+        "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-21/screen-21-final-gate-replay-analysis-02.json",
+        "sha256": "2e7c5d4dbfb687d2a30d03b68f1011caa544b1a1f80f637c6b9ac5ff6a5eb14f",
+        "stored_bytes": 193088
+      }
+    }
+  ],
+  "sources": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/qualify_closed_capture.py",
+      "sha256": "1bbe1799ce437e1d0c3769206ed20cdb1745906ed1908a27ca3ad6e878649c05",
+      "stored_bytes": 19533
+    },
+    {
+      "path": "tools/analyze_firmware_benchmark.py",
+      "sha256": "445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81",
+      "stored_bytes": 87907
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/final-acceptance-gate-replay-02.py",
+      "sha256": "1d129af5d965fb9db5f4b04e429d18931682821365833e3bb4234886d97cff0c",
+      "stored_bytes": 2329
+    }
+  ]
+}

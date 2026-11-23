@@ -1,0 +1,195 @@
+{
+  "oldReport": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-analysis-01.json",
+  "oldReportSha256": "861e33d5b2420a07dc5ff99be477922107c2979fa4422e943e3ee819a957bd00",
+  "newReport": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen17-pc-frame-intervals-independent-analysis-01.json",
+  "newReportSha256": "08a3a04f9d3dae1297ac6b0fe20de9c432c3fc8b6c82d6d1b72ca5ad10bb8e6f",
+  "oldRawUnmodified": true,
+  "oldAnalyzerSha256": "3412d1dfa56a338afd2d3bf033fdd82982193b8a5bee44001e4dded9eddaeab1",
+  "newAnalyzerSha256": "196309110655f57a24032693c0c9bfb80ad9896d9d4ccce6cc335742e18f6080",
+  "existingMetricsEqual": {
+    "USB_configuration_groups": true,
+    "BLE_configuration_groups": true,
+    "USB_capture_counts": true,
+    "BLE_capture_counts": true,
+    "BLE_USB_comparison": true,
+    "BLE_comparative_host_fps": true
+  },
+  "observations": [
+    {
+      "transport": "USB",
+      "identity": {
+        "session": "863626B103487FE5",
+        "bootId": "1",
+        "rev": "4",
+        "mgen": "3",
+        "mrid": "4",
+        "rgen": "2",
+        "rrid": "3",
+        "pgen": "3",
+        "prid": "4",
+        "legacy_gen": "3",
+        "legacy_rid": "4"
+      },
+      "rates": {
+        "device_span_seconds": 120.101216,
+        "host_receipt_span_seconds": 119.99689931499597,
+        "capture_fps": 64.9785261125083,
+        "host_complete_receive_fps": 65.03501377576626,
+        "host_parsed_frame_fps": 65.03501377576626,
+        "host_parsed_receipt_span_seconds": 119.99689931499597,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "sequence": {
+        "first": 2633,
+        "last": 10437,
+        "progress_including_missing": 7804,
+        "gap_examples": [],
+        "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+        "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+      },
+      "intervals": {
+        "known": true,
+        "max_seconds": 0.0481362949940376,
+        "sample_pairs": 7804,
+        "candidate_pairs": 7804,
+        "ordered_complete_frames": 7805,
+        "unavailable_timestamps": 0,
+        "timestamp_regressions": 0,
+        "unknown_reasons": [],
+        "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+        "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+        "limits": "No cross-identity/boot pairing; capture-edge waits are not measured; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"
+      }
+    },
+    {
+      "transport": "BLE",
+      "identity": {
+        "session": "863626B103487FE5",
+        "bootId": "1",
+        "rev": "4",
+        "mgen": "3",
+        "mrid": "4",
+        "rgen": "2",
+        "rrid": "3",
+        "pgen": "3",
+        "prid": "4",
+        "legacy_gen": "3",
+        "legacy_rid": "4"
+      },
+      "rates": {
+        "device_span_seconds": 120.098241,
+        "host_receipt_span_seconds": 119.98312712399638,
+        "capture_fps": 64.98013572072217,
+        "host_complete_receive_fps": 64.80077812911925,
+        "host_parsed_frame_fps": 64.80077812911925,
+        "host_parsed_receipt_span_seconds": 119.98312712399638,
+        "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+        "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+      },
+      "sequence": {
+        "first": 2632,
+        "last": 10436,
+        "progress_including_missing": 7804,
+        "gap_examples": [
+          {
+            "after": 2640,
+            "before": 2642,
+            "missing": 1
+          },
+          {
+            "after": 2670,
+            "before": 2672,
+            "missing": 1
+          },
+          {
+            "after": 2687,
+            "before": 2689,
+            "missing": 1
+          },
+          {
+            "after": 2696,
+            "before": 2698,
+            "missing": 1
+          },
+          {
+            "after": 2790,
+            "before": 2792,
+            "missing": 1
+          },
+          {
+            "after": 2982,
+            "before": 2984,
+            "missing": 1
+          },
+          {
+            "after": 2987,
+            "before": 2989,
+            "missing": 1
+          },
+          {
+            "after": 3059,
+            "before": 3061,
+            "missing": 1
+          },
+          {
+            "after": 3077,
+            "before": 3079,
+            "missing": 1
+          },
+          {
+            "after": 3088,
+            "before": 3090,
+            "missing": 1
+          },
+          {
+            "after": 3151,
+            "before": 3153,
+            "missing": 1
+          },
+          {
+            "after": 3174,
+            "before": 3176,
+            "missing": 1
+          },
+          {
+            "after": 3186,
+            "before": 3188,
+            "missing": 1
+          },
+          {
+            "after": 3333,
+            "before": 3335,
+            "missing": 1
+          },
+          {
+            "after": 3449,
+            "before": 3451,
+            "missing": 1
+          },
+          {
+            "after": 3451,
+            "before": 3453,
+            "missing": 1
+          }
+        ],
+        "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+        "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+      },
+      "intervals": {
+        "known": true,
+        "max_seconds": 0.04297552899515722,
+        "sample_pairs": 7775,
+        "candidate_pairs": 7775,
+        "ordered_complete_frames": 7776,
+        "unavailable_timestamps": 0,
+        "timestamp_regressions": 0,
+        "unknown_reasons": [],
+        "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+        "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+        "limits": "No cross-identity/boot pairing; capture-edge waits are not measured; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"
+      }
+    }
+  ],
+  "scope": "Closed historical screen17, not new firmware or screen18 performance acceptance."
+}

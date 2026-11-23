@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-restore-observation-probe-02.py"
+  ],
+  "exitCode": 0,
+  "dateUtc": "2026-11-20T19:08:09.442497+00:00",
+  "logSha256": "85f93ec7b1bc5cbf7442600adb3818ebd85653b4282fe7719f83a0baa3727d98",
+  "hardware": "NOT_RUN",
+  "probeSha256": "7e829e2514d21bc9f9edd6403bd8ee6e62d6d1423bc0875f373371aec9de0909"
+}

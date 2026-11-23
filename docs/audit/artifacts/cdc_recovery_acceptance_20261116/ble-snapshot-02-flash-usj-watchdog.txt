@@ -1,0 +1,7 @@
+{"sysfs": {"idVendor": "303a", "idProduct": "1001", "serial": "80:B5:4E:CD:D9:AC", "devnum": "19"}, "watchdog_requested": false}
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+{"mac": "80B54ECDD9AC", "force_before": 1, "force_after": 0, "strap": 35, "DTR": false, "RTS": false, "watchdog_requested": false}
+{"watchdog_requested": true, "watchdog_call_returned": false, "app_boot_verified": false}
+Hard resetting with a watchdog...
+{"schema": "usj_watchdog_exit_v1", "watchdog_requested": true, "watchdog_call_returned": true, "app_boot_verified": false, "flash_writes": 0, "efuse_writes": 0, "automatic_retries": 0, "sysfs": {"idVendor": "303a", "idProduct": "1001", "serial": "80:B5:4E:CD:D9:AC", "devnum": "19"}, "mac": "80B54ECDD9AC", "secure_download_mode": false, "chip_id": 9, "force_before": 1, "force_after": 0, "strap": 35, "DTR": false, "RTS": false, "status": "WATCHDOG_CALL_RETURNED_BOOT_UNVERIFIED"}

@@ -1,0 +1,632 @@
+{
+  "status": "BT_HOST_PSRAM_PREFERENCE_AP_MEMORY_BLOCKER_REMAINS",
+  "utc": "2026-11-21T02:03:27.419295+00:00",
+  "image": {
+    "source_commit": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+    "version": "8a1794c-dirty",
+    "app_bytes": 1631888,
+    "bin_sha256": "cf8c72569e30569bce2d6f224b96391c4e7078439cb90a25ae8218c491967838",
+    "elf_sha256": "2f74130825f1b4c173cee27bf569bc4385bbdd26a7049adee3efe6e8b77c39e9",
+    "host_entries": 80,
+    "all_exit_zero": true,
+    "production_inputs": 203,
+    "build_test_inputs_identical": true,
+    "build_manifest": "bt-host-memory-01-build-manifest.json",
+    "tests_manifest": "bt-host-memory-01-tests-manifest.json",
+    "image_archive": "bt-host-memory-01-image-archive.json",
+    "hardware_flashed_at_manifest_creation": false,
+    "change_scope": "Official Bluedroid dynamic host allocation preference for PSRAM with internal fallback; retain internal controller DMA/stacks/queues and prior pool/stack/NVS fixes",
+    "generator": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+      "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+    }
+  },
+  "CONFIG": {
+    "session": "55B0EC5D078FCD53",
+    "bootId": "1",
+    "rev": "1",
+    "boundary": "1",
+    "state": "CAPACITANCE",
+    "mode": "CAP",
+    "rows": "8",
+    "profile": "CCCCCCCC",
+    "err": "0x0",
+    "mgen": "1",
+    "mrid": "0",
+    "rgen": "1",
+    "rrid": "0",
+    "pgen": "1",
+    "prid": "0",
+    "mtermId": "0",
+    "mterm": "applied",
+    "merr": "0x0",
+    "ptermId": "0",
+    "pterm": "none",
+    "perr": "0x0",
+    "rtermId": "0",
+    "rterm": "none",
+    "rerr": "0x0"
+  },
+  "READY": {
+    "ready": "1",
+    "stage": "frame_read",
+    "err": "0x0",
+    "bootId": "1",
+    "boot": "1"
+  },
+  "source_binding": {
+    "build_test_production_inputs_equal": true,
+    "production_inputs": 203,
+    "config": {
+      "timestamp": "2026-11-21T01:41:36.236135+00:00",
+      "changes": {
+        "sdkconfig": {
+          "beforeSha256": "51530306a43c3321047df6981449c452172ea9ec32421a6cbc0d9c89285eead4",
+          "afterSha256": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+          "diff": "--- sdkconfig.before\n+++ sdkconfig\n@@ -1360,7 +1360,7 @@\n \n CONFIG_BT_ACL_CONNECTIONS=1\n CONFIG_BT_MULTI_CONNECTION_ENBALE=y\n-# CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST is not set\n+CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST=y\n # CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY is not set\n # CONFIG_BT_BLE_ACT_SCAN_REP_ADV_SCAN is not set\n CONFIG_BT_MAX_DEVICE_NAME_LEN=32\n"
+        },
+        "sdkconfig.defaults": {
+          "beforeSha256": "a93a581ac68dcb4d37c5bdf9ebca12dd1735be7a04f5dc692383f2902d190a69",
+          "afterSha256": "ace8bf23cfea213bb3d553da25ea100b6150adf7737ab5d050f71407af3e48b0",
+          "diff": "--- sdkconfig.defaults.before\n+++ sdkconfig.defaults\n@@ -12,6 +12,7 @@\n CONFIG_SENSORARRAY_LOG_FRAME_SUMMARY_EVERY_N_FRAMES=50\n CONFIG_COMPILER_STACK_CHECK_MODE_STRONG=y\n CONFIG_BT_ENABLED=y\n+CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST=y\n CONFIG_BT_GATT_MAX_SR_PROFILES=3\n CONFIG_BT_GATT_MAX_SR_ATTRIBUTES=24\n CONFIG_BT_GATTC_ENABLE=n\n"
+        }
+      },
+      "scope": "Only official Bluedroid host malloc/calloc PSRAM preference; internal fallback retained; no other placement/buffer/queue changes"
+    },
+    "scope": {
+      "hostPsramPreferredWithInternalFallback": true,
+      "dynamicEnvironment": false,
+      "globalMallocExternal": false,
+      "wifiTryExternal": false,
+      "wifiTxDynamicUnchanged": true
+    },
+    "target_ELF_hash_matches": true,
+    "AP_collector_source": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_wifi_owner_control.py",
+      "recorded_run_sha256": "4c1c1570a9473716aedaad20235413a27e879838eb5267d3d769737482537efe",
+      "current_observed_sha256": "44acc3c1eac0c3db533c87a7fa445626824f86b1b42aa3da250884a3777c526c",
+      "archived_run_source_available": false,
+      "binding": "RECORDED_SHA_ONLY_ARCHIVE_UNAVAILABLE",
+      "limitation": "Root confirms a subsequent optional allocation-trace edit without a separate old-source archive. The current file is not attributed to AP05. Raw/events are independently validated; no reverse-synthesized source is presented as an original.",
+      "prior_analysis_failure": "bt-host-memory-control-analysis-01-command.json"
+    }
+  },
+  "AP": {
+    "capture_exit_code": 1,
+    "terminal": {
+      "v": "1",
+      "session": "55b0ec5d078fcd53",
+      "boot": "1",
+      "bootKnown": "1",
+      "id": "1",
+      "known": "1",
+      "epoch": "2",
+      "requested": "AP",
+      "outcome": "quarantined",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "acceptedUs": "190425398",
+      "completedUs": "190459880",
+      "terminalAttempts": "1",
+      "terminalQueued": "1",
+      "terminalPending": "0",
+      "scope": "backend_and_gate",
+      "peerReceipt": "unknown"
+    },
+    "accepted_to_terminal_us": 34482,
+    "phase_start_to_quarantine_us": 28320,
+    "guard": {
+      "v": "1",
+      "session": "55b0ec5d078fcd53",
+      "boot": "1",
+      "bootKnown": "1",
+      "quarantined": "1",
+      "active": "0",
+      "ownerBusy": "0",
+      "phase": "driver_init",
+      "callId": "6",
+      "startUs": "190431560",
+      "deadlineUs": "195425398",
+      "ageUs": "189094509",
+      "detectedUs": "190459880",
+      "completionKnown": "1",
+      "err": "0x00000101",
+      "cleanupErr": "0x00000103",
+      "sdkErr": "0x00000101",
+      "errno": "0",
+      "returned": "0",
+      "held": "0",
+      "writing": "0",
+      "timeouts": "0",
+      "late": "0",
+      "pollUs": "100000",
+      "recovery": "explicit_manual_restart_attempt"
+    },
+    "failed_terminal_unchanged_after_OFF": true,
+    "OFF_scope": "software output gate only, physical off unknown",
+    "observed_faults": [],
+    "observed_resets": []
+  },
+  "memory": {
+    "unit": "bytes",
+    "readout": "sequential",
+    "before_BLE_AP": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "47144",
+      "intLargest": "31732",
+      "intMin": "40780",
+      "extFree": "8227096",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "58688",
+      "beforeLargest": "31732",
+      "afterFree": "40888",
+      "afterLargest": "31732",
+      "err": "0x0",
+      "sampleUs": "92203751",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "previous_image_before_BLE_AP": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "41616",
+      "intLargest": "17396",
+      "intMin": "35252",
+      "extFree": "8232580",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "53160",
+      "beforeLargest": "31732",
+      "afterFree": "35360",
+      "afterLargest": "14324",
+      "err": "0x0",
+      "sampleUs": "79585786",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "observed_cross_image_intFree_difference": 5528,
+    "AP_with_BLE_before": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "45716",
+      "intLargest": "31732",
+      "intMin": "40780",
+      "extFree": "8225324",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "58688",
+      "beforeLargest": "31732",
+      "afterFree": "40888",
+      "afterLargest": "31732",
+      "err": "0x0",
+      "sampleUs": "190422409",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "AP_with_BLE_after": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "29076",
+      "intLargest": "10740",
+      "intMin": "8592",
+      "extFree": "8217616",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "58688",
+      "beforeLargest": "31732",
+      "afterFree": "40888",
+      "afterLargest": "31732",
+      "err": "0x0",
+      "sampleUs": "190481275",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "later_postquery": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "29716",
+      "intLargest": "10740",
+      "intMin": "8592",
+      "extFree": "8218348",
+      "extLargest": "8126452",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "58688",
+      "beforeLargest": "31732",
+      "afterFree": "40888",
+      "afterLargest": "31732",
+      "err": "0x0",
+      "sampleUs": "379502401",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "limitation": "Different query instants/images, not exclusive allocation accounting. PSRAM preference retains internal fallback and does not prove sufficient internal capacity for AP."
+  },
+  "owner_stack": {
+    "v": "1",
+    "session": "55b0ec5d078fcd53",
+    "boot": "1",
+    "channel": "D",
+    "scope": "boot",
+    "queued": "0",
+    "rejected": "0",
+    "sent": "0",
+    "dropped": "0",
+    "expired": "0",
+    "stale": "0",
+    "partial": "0",
+    "driverAcceptedBytes": "0",
+    "terminalNoSink": "0",
+    "terminalEvicted": "0",
+    "stackKnown": "1",
+    "stackMinBytes": "2864",
+    "stackScope": "owner_after_job",
+    "sentScope": "full_sendto_return",
+    "peerReceipt": "unknown"
+  },
+  "BLE_terminal_receipt": {
+    "status": "BOTH_REQUEST_TERMINALS_OBSERVED",
+    "parser": {
+      "path": "tools/text_protocol.py",
+      "sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01"
+    },
+    "journal_sha256": "f4348ae81715d4539a8651dfae8cb99e8fce9c18474ce1876cc160008dae03a5",
+    "notification_counts": {
+      "D": 3964,
+      "L": 2
+    },
+    "records": [
+      {
+        "logical_channel": "L",
+        "fields": {
+          "v": "1",
+          "session": "55b0ec5d078fcd53",
+          "boot": "1",
+          "bootKnown": "1",
+          "id": "1",
+          "known": "1",
+          "epoch": "2",
+          "requested": "AP",
+          "outcome": "quarantined",
+          "err": "0x00000101",
+          "cleanupErr": "0x00000103",
+          "acceptedUs": "190425398",
+          "completedUs": "190459880",
+          "terminalAttempts": "0",
+          "terminalQueued": "0",
+          "terminalPending": "1",
+          "scope": "backend_and_gate",
+          "peerReceipt": "unknown"
+        },
+        "text": "WTERM,v=1,session=55b0ec5d078fcd53,boot=1,bootKnown=1,id=1,known=1,epoch=2,requested=AP,outcome=quarantined,err=0x00000101,cleanupErr=0x00000103,acceptedUs=190425398,completedUs=190459880,terminalAttempts=0,terminalQueued=0,terminalPending=1,scope=backend_and_gate,peerReceipt=unknown",
+        "line_bytes_including_LF": 285,
+        "source_records": [
+          {
+            "journal_line": 800,
+            "journal_byte_offset": 676696,
+            "journal_record_bytes": 599,
+            "host_monotonic_ns": 156527842586991,
+            "ATT_channel": "L",
+            "ATT_bytes": 285,
+            "ATT_sha256": "6aad687c43fc8cf01589eb7fb1f68e223e9f3073360b99668714840bf891cf40"
+          }
+        ],
+        "framing": "raw_ATT_complete_ASCII_line_no_independent_G_or_science_CRC",
+        "immutable_fields_match_USB_terminal_query": true,
+        "later_USB_publication_counters": {
+          "terminalAttempts": "1",
+          "terminalPending": "0",
+          "terminalQueued": "1"
+        }
+      },
+      {
+        "logical_channel": "L",
+        "fields": {
+          "v": "1",
+          "session": "55b0ec5d078fcd53",
+          "boot": "1",
+          "bootKnown": "1",
+          "id": "2",
+          "known": "1",
+          "epoch": "3",
+          "requested": "OFF",
+          "outcome": "applied",
+          "err": "0x00000000",
+          "cleanupErr": "0x00000000",
+          "acceptedUs": "190498852",
+          "completedUs": "190498852",
+          "terminalAttempts": "0",
+          "terminalQueued": "0",
+          "terminalPending": "1",
+          "scope": "output_gate_only",
+          "peerReceipt": "unknown"
+        },
+        "text": "WTERM,v=1,session=55b0ec5d078fcd53,boot=1,bootKnown=1,id=2,known=1,epoch=3,requested=OFF,outcome=applied,err=0x00000000,cleanupErr=0x00000000,acceptedUs=190498852,completedUs=190498852,terminalAttempts=0,terminalQueued=0,terminalPending=1,scope=output_gate_only,peerReceipt=unknown",
+        "line_bytes_including_LF": 282,
+        "source_records": [
+          {
+            "journal_line": 801,
+            "journal_byte_offset": 677295,
+            "journal_record_bytes": 593,
+            "host_monotonic_ns": 156527880565027,
+            "ATT_channel": "L",
+            "ATT_bytes": 282,
+            "ATT_sha256": "b857dbadeace2f62bd3f161c09dcdd27c62cbb5a05f32607bd14fabce198a98f"
+          }
+        ],
+        "framing": "raw_ATT_complete_ASCII_line_no_independent_G_or_science_CRC",
+        "immutable_fields_match_USB_terminal_query": true,
+        "later_USB_publication_counters": {
+          "terminalAttempts": "1",
+          "terminalPending": "0",
+          "terminalQueued": "1"
+        }
+      }
+    ],
+    "C_notifications": 0,
+    "fragment_stats": {
+      "D": {
+        "ok": 1982,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      },
+      "L": {
+        "ok": 0,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      },
+      "C": {
+        "ok": 0,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      }
+    },
+    "pending_fragment_messages": 0,
+    "trailing_bytes": {
+      "C": 0,
+      "D": 0,
+      "L": 0
+    },
+    "recording_interval_ns": [
+      156494100461997,
+      156663323622547
+    ],
+    "formal_scientific_capture_window": null,
+    "FPS": "NOT_EVALUATED",
+    "scope": "These exact two received terminal lines only; no delivery guarantee or science-frame acceptance. Publication counters are captured before local submission and can differ from later queries."
+  },
+  "inputs": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-build-manifest.json",
+      "sha256": "7425be6092647e461395a4cfbaa595448b863042dcd4c078cd5423f81338b278"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-tests-manifest.json",
+      "sha256": "7aaab2ddf684530049cc46e0bc972a8d9cb8ce2879b8b8334b05450c2c1e5eb3"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-01-validated-identity.json",
+      "sha256": "cb9d40c7432ab6096b9013fa259ad1d2aba96a0b3bdf5c90d3fa1d0fb8d4a442"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-ble-01-command.json",
+      "sha256": "4594b4ea8f4b0bed0bc55b875af323c2d3a12d2b00e872541804d03ccd868f86"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-ble-01-command.txt",
+      "sha256": "313cfc4fdc9f08df744af501f3c38708e869d1c7caabaa7a3ddea415727e43b2"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-coexist-01/bt-host-memory-ble-01.ble.notifications.jsonl",
+      "sha256": "f4348ae81715d4539a8651dfae8cb99e8fce9c18474ce1876cc160008dae03a5"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-coexist-01/bt-host-memory-ble-01.ble.ready.json",
+      "sha256": "d560395d40093b263b8480247f987aa131b87b6eef22ef2924b5ec8c4a1f0486"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-coexist-01/bt-host-memory-ble-01.ble.summary.json",
+      "sha256": "b6bdb96b6f5ef4f46b55bbd4718dd57c86a665bca7141aab8a6ed7cd1236ae3b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-post-01-command.json",
+      "sha256": "c301d01fe67bf8e9021703f13f142edc9aea8bf1885a01856e7d47c1e739c724"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-post-01-command.txt",
+      "sha256": "37352bfe1be9bb7ab91b91c4bba03143e6a0949bf1c3622a60078b7a24d5a0fa"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-post-01.events.jsonl",
+      "sha256": "871f6873644fc903b7776d46311ac47633172d1277b784b4ead76913ffa919e4"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-post-01.rx.bin",
+      "sha256": "a409b537f6a90829a4b7c57395f3298ec359c7603e844b6cb9f9b14850db41c5"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-post-01.summary.json",
+      "sha256": "37352bfe1be9bb7ab91b91c4bba03143e6a0949bf1c3622a60078b7a24d5a0fa"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-state-01-command.json",
+      "sha256": "1e28b2f6e2b3eb580701a3a39e71f5feda338a603e9dff89ca84ba400727d8ce"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-state-01-command.txt",
+      "sha256": "410be04ef716630db051a26dab5679795ae074fcb2ebb8337e4afc6b6e7923fc"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-state-01.events.jsonl",
+      "sha256": "65636065e9905d988b43ef76f50a10c9e4a4174d1937a66b40abb798d7301840"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-state-01.rx.bin",
+      "sha256": "7ec90b2e67bda88ba9567b132e1a208df7923f3b8b4e9954d733a1aec699123c"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-memory-state-01.summary.json",
+      "sha256": "410be04ef716630db051a26dab5679795ae074fcb2ebb8337e4afc6b6e7923fc"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/config-change.json",
+      "sha256": "273b74f6bf5c44850b3f9b8a450e9c3f3a488f7c5242412a8429b4dba2ac8204"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/validation-1.txt",
+      "sha256": "aaf3a06d649e3fa287cad9120c97f589cc1143d80ef68480d2bb9f06f453e4fd"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/validation-2.txt",
+      "sha256": "79e900bac392071f677dd3a8e0afd6d7447e01442348b366eeb1199a86649b92"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-config-01/validation.json",
+      "sha256": "9bbf43f092207f58fa605be1b2576f65133dc93456302ec8c7c3d64c7542670e"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-heap_caps_calloc_prefer.txt",
+      "sha256": "706b57d301e11497e73187ab244ed2082bb2079dd57e589b6fda3afe3cdad3cd"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-heap_caps_malloc_prefer.txt",
+      "sha256": "5400c2745c53e97568293b40c2bdd3f37467c3c6445d03dd4a38eeccf28f3781"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-malloc_internal_wrapper.txt",
+      "sha256": "0d1bdbd0381d46ed5b92c92336dee111cc2ad6088d15a40992d678d89c5edf78"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-osi_calloc_func.txt",
+      "sha256": "c1bee2f5c31711749684b048f33a3936f3e7403c0b0c8df2f13ad8242efeeca7"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-osi_malloc_func.txt",
+      "sha256": "38986e93364e64f3341548003b54987dd91638ae8abf6dcbde7aacf06e60e8be"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-pvPortMalloc.txt",
+      "sha256": "dfda2941892b6b3530feba4a46f6db5536f64e02a59f7019ae5d764b4ea877c7"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-static-bt-symbols.txt",
+      "sha256": "8cfb0ec611e95acf1ce0623c19e0dca2e7516936f9aba59bb1f99fa1135055b1"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/new-target-manifest.json",
+      "sha256": "1029f01788d5d184b8481e4588c7fe045c13df69077ba4053cfec859ba226b12"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_memory_control_01.py",
+      "sha256": "fa6f1584eb4abeff67583f2f341f7ed43b325bf08ae9ab16d2d80a3b00a91ee4"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_owner_panic_01.py",
+      "sha256": "9b27adbfaa4f2c492d5d7c1e054c87eb508afec8b83c674dbd57aae9dea9c55e"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_stack_control_01.py",
+      "sha256": "54eca4d9afb011ae0f58476e0702dd50e9ffc263e4752cd1e86e66cef849933f"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/check_wifi_owner_control.py",
+      "sha256": "44acc3c1eac0c3db533c87a7fa445626824f86b1b42aa3da250884a3777c526c"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05/wifi-control-05.events.jsonl",
+      "sha256": "942e0b673a1f19cf046d1021cdebccaeefc735cccc08ff5f4bcabbd27721bc94"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05/wifi-control-05.rx.bin",
+      "sha256": "5a406b8437560b063ebd70e2fc1191ea98f469236adc541bc51a3faeddcfd04d"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05/wifi-control-05.summary.json",
+      "sha256": "60f8a31da67e3a59d498a676c47b9ab2098b83995c16917d044838bfcaccfe5a"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05-command.json",
+      "sha256": "130e28bb38c997c991f06aa45013d6b92c41487301bb1eb1b303119e3ba86464"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-05-command.txt",
+      "sha256": "ee7a8ac8c7f73a19fd6cc1d30a2310723bccbf26970c28611e48691b75b2828c"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-state-01-command.json",
+      "sha256": "b689d4246237b3ff9c05e588ed190d9c88175ed91cd5e62847eac812f0918745"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-state-01-command.txt",
+      "sha256": "d6574aa84b088fe994fc7a2e6d1e834beb30b9484bb224b313f31609aa6b901f"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-state-01.events.jsonl",
+      "sha256": "39a945a50cc3fee50cd1f0a617a9f297138a57541ad1966a1a6ffaa31790aaff"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-state-01.rx.bin",
+      "sha256": "517fd00ce52ee59aae9b66d747f3e66b89b2f6618a1cfe417305d989232f2319"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-state-01.summary.json",
+      "sha256": "d6574aa84b088fe994fc7a2e6d1e834beb30b9484bb224b313f31609aa6b901f"
+    },
+    {
+      "path": "tools/text_protocol.py",
+      "sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01"
+    }
+  ],
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_bt_host_memory_01.py",
+    "sha256": "42c32a65a1b4cc8f82a630f380eba0033def0a754cc1b5263d5cc639f0e6d9cc"
+  },
+  "hardware_actions_by_analysis": [],
+  "original_inputs_modified": false,
+  "formal_FPS": "NOT_EVALUATED",
+  "UDP_PC_receipt": "NOT_RUN",
+  "SDK_stall_injection": "NOT_RUN",
+  "final600_32_50_SHORT": "NOT_RUN",
+  "overall_acceptance": "BLOCKED_AP_MEMORY_FIX_FIRST"
+}

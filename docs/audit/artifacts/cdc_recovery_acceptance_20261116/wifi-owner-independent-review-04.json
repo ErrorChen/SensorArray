@@ -1,0 +1,44 @@
+{
+  "gate": "PASS_NARROW_FORMATTER_ADDENDUM",
+  "base_review": "wifi-owner-independent-review-03.json",
+  "changed_production": [
+    "core/transport/sensorarrayTransportWifiControl.c"
+  ],
+  "production_sha256": {
+    "components/sensorarrayWifi/CMakeLists.txt": "59e6175a9d54fd9cc1b7a36e1499cb9da196702d6235306999eaddffed20fd12",
+    "components/sensorarrayWifi/include/sensorarrayWifi.h": "85b912409972fcf8afe8a135dea9cfeeee03c00be19835b85538d2086f69bcf2",
+    "components/sensorarrayWifi/sensorarrayWifi.c": "cd3d7ede70e893755a9455a1fb163b5ce3abecbe8fec8b75abfbc3ba9006e37e",
+    "components/sensorarrayWifi/sensorarrayWifiOwner.c": "94b1dfabca04f52a3588fe2510c481c5712de89037df23e109ed8c25c1692ee6",
+    "components/sensorarrayWifi/sensorarrayWifiOwner.h": "ecddd905bb2d3b68133a57520f971f65d7765709649216d0494034e0665960da",
+    "components/sensorarrayWifi/sensorarrayWifiWatchdog.c": "235de4b2660a8f79185afb92ba56edc3f515d4a7352b2357b89b736d8fd4ae86",
+    "components/sensorarrayWifi/sensorarrayWifiWatchdog.h": "5054304ac30b1040dc0144ecd2897616bc1e737a087407ceb052cf1c317daa67",
+    "core/transport/CMakeLists.txt": "d7589acde33bbed4af75a23cd759e0054d0a7c32273a1524bfa86edd83cea37a",
+    "core/transport/sensorarrayTransport.c": "19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d",
+    "core/transport/sensorarrayTransport.h": "c9d06566b79ddf8f6d4babf9920c2e45d7619a5bbed2d7aeb805775bb9c8f65b",
+    "core/transport/sensorarrayTransportCommand.c": "48a5187ebdc53a9cb5df655088164d357d9dfe71ea01fc0e125e26cb1b0c593c",
+    "core/transport/sensorarrayTransportStats.c": "5b008056f552a87609ce07f11aaccf79aa2b6c6949b84a54d2bc75da7352a755",
+    "core/transport/sensorarrayTransportPool.c": "734f76edd05644a679dbbc1bd63a38f92938d1feb0cf34970bb8f91c3d7b173d",
+    "core/transport/sensorarrayTransportPool.h": "368e3759fdfbfadff31cd98dc46d2a728642c4ac17f27d9f3d4930611f41b2d8",
+    "core/transport/sensorarrayTransportWifiControl.c": "eb617e68d36279b7108babde1f8f3363df50c00e77dc628fcc8cdaba9d9c6a6d",
+    "core/transport/sensorarrayTransportWifiControl.h": "b6e07ef77761dfdc4ef8ea59c3b1280b41962c2c36959f4b463f685aa65080f4"
+  },
+  "review": "WIFIQ adds cached owner stackKnown/stackMinBytes/stackScope=owner_after_job. Getter uses POD snapshot only; no task walk or SDK. No sample before first completed job prints unknown. Other15 production inputs unchanged from independent review03.",
+  "actual_test": {
+    "command": [
+      "python3",
+      "tools/test_wifi_command.py"
+    ],
+    "exit_code": 0,
+    "observed_max_wire_bytes_including_newline": {
+      "WIFIQ": 408,
+      "WIFIGUARD": 483
+    },
+    "with_NUL_max": 484,
+    "unknown_and_uint32max_cases_passed": true,
+    "truncation_exact_ID_admission_terminal_noop_passed": true,
+    "output_capture": "Observed tool stdout; no separate stdout file saved for this single narrow addendum"
+  },
+  "remaining": "Actual target stack memory/watermark and HIL still required; sample is owner after job, not live active SDK stack inspection.",
+  "hardware_actions": [],
+  "production_modified_by_reviewer": false
+}

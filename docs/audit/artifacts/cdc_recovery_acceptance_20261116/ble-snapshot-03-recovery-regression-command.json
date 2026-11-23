@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "tools/test_recovery_control.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 180.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "adb99a2573a33aa8cbd56970c4897869a3710e05898b076fb2537902cb974374",
+  "started_utc": "2026-11-20T19:09:07.369195+00:00",
+  "started_monotonic": 132521.53744031,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-03-recovery-regression-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-20T19:09:07.688189+00:00",
+  "finished_monotonic": 132521.856433492,
+  "log_sha256": "99a2d7945c880678ede05598a8a7eb8af96d9d646da8d71946b6e1f862fdb341"
+}

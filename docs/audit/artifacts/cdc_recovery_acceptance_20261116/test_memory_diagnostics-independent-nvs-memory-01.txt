@@ -1,0 +1,2 @@
+MEM max_bytes=394 capacity=512 synthetic_heaps=1
+PASS memory caps, allocation bracket, unknown states, readonly lock exclusion and bounds

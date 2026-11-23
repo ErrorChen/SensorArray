@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_check_wifi_owner_control.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 30.0,
+  "head": "8a1794ce3be95ff0007698c4e4e667dcf25fbe19",
+  "dirty_diff_sha256": "a509a0ff94c24e4df118880e2533d00815fe66c977fda13e980ab59c4b491ffb",
+  "started_utc": "2026-11-21T00:24:34.554155+00:00",
+  "started_monotonic": 151441.948726724,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-capture-host-05-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-21T00:24:34.719398+00:00",
+  "finished_monotonic": 151442.113972456,
+  "log_sha256": "24661ac4f49c348b723aebdf397e4b347d56b2e5128aef00396788920889ed55"
+}

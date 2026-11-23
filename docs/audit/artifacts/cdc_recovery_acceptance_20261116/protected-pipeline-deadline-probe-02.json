@@ -1,0 +1,15 @@
+{
+  "synthetic": true,
+  "hardware": "NOT_RUN",
+  "dateUtc": "2026-11-20T18:58:18.939699+00:00",
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/protected-pipeline-deadline-probe-02.py"
+  ],
+  "exitCode": 0,
+  "meaning": "Same publication, NO_MEM, 50 lifecycle dispatches at 100ms as probe01. Added assertions require owner retirement at first dispatch at 1s; changed final expectations only. Fixture common queue stubs updated from maintained current harness.",
+  "sourceSha256": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+  "fixtureSha256": "500e51d7e082dc56029bc48d98b2af0f2f63f3303ed6ee7ed60d73444416cdd8",
+  "runnerSha256": "73677be815a7fa9b20cda26556808d3058a0b2006cf664a0c7d1f58052fe8bf7",
+  "logSha256": "7aee932f1a9d6250bc98d8ecfcdc4ef522104d6c2855178093461e03b6273a53"
+}

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "tools/test_recovery_control.py"
+  ],
+  "environment": {
+    "CC": "/usr/bin/cc"
+  },
+  "exitCode": 0,
+  "utc": "2026-11-20T18:58:06.619100+00:00",
+  "hardware": "NOT_RUN",
+  "productionChanged": false,
+  "originalFailurePreserved": "ble-snapshot-02-test_recovery_control.txt",
+  "sourceSha256": {
+    "core/transport/sensorarrayTransport.c": "52b40c28cdd53fc6d5a979c1707947eab4c1856409be9d16b14abfdb21544cde",
+    "core/transport/sensorarrayTransportPool.c": "0d0016d11fc5b144cfbdedb597d3ac91d7ebdab541a8f5d63653d74f330c59f1",
+    "tools/test_recovery_control.py": "845df68bfd3866d5a01fb108bca147788c461e04eea42d0dd711fbe4706be77d",
+    "tests/host/test_recovery_control.c": "692df2b992b222ee35ca0b249dadbc196c73e9fcbc2b164e052f32508134ce01"
+  },
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-snapshot-02-recovery-harness-fix-01.txt"
+}

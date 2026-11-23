@@ -1,0 +1,115 @@
+{
+  "utc": "2026-11-21T01:44:14.091297+00:00",
+  "elfSha256": "3d7cd5ce5d8c64e07504ed85a569c5080543484740c021ac9d98931e53552c36",
+  "results": [
+    {
+      "symbol": "osi_malloc_func",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=osi_malloc_func",
+        "/tmp/bt-host-old-target-9he6p4sb/baseline.elf"
+      ],
+      "exitCode": 0,
+      "hasSymbol": true,
+      "calls": [
+        "42071b12:\t0008e0        \tcallx8\ta8",
+        "42071b20:\t0008e0        \tcallx8\ta8",
+        "42071b43:\t0008e0        \tcallx8\ta8",
+        "42071b49:\t0008e0        \tcallx8\ta8",
+        "42071b51:\t932b25        \tcall8\t42004e04 <heap_caps_get_free_size>",
+        "42071b5d:\t933b25        \tcall8\t42004f10 <heap_caps_get_largest_free_block>",
+        "42071b73:\t0008e0        \tcallx8\ta8"
+      ],
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-osi_malloc_func.txt",
+      "logSha256": "fca30f2834f046bf203d56d0f15eb9555366d58a0d4d6c65e56984ce219e0de7"
+    },
+    {
+      "symbol": "osi_calloc_func",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=osi_calloc_func",
+        "/tmp/bt-host-old-target-9he6p4sb/baseline.elf"
+      ],
+      "exitCode": 0,
+      "hasSymbol": true,
+      "calls": [
+        "42071b78 <osi_calloc_func>:",
+        "42071b81:\t402881        \tl32r\ta8, 42041c24 <sensorarrayAsyncLogGetProtectionStats+0x748> (4038e5f8 <calloc>)",
+        "42071b84:\t0008e0        \tcallx8\ta8",
+        "42071b89:\t059716        \tbeqz\ta7, 42071be6 <osi_calloc_func+0x6e>",
+        "42071b8c:\t056a56        \tbnez\ta10, 42071be6 <osi_calloc_func+0x6e>",
+        "42071b92:\t0008e0        \tcallx8\ta8",
+        "42071b95:\t45bc81        \tl32r\ta8, 42043288 <sensorarrayAsyncLogGetProtectionStats+0x1dac> (42071b8f <osi_calloc_func+0x17>)",
+        "42071bb5:\t0008e0        \tcallx8\ta8",
+        "42071bbb:\t0008e0        \tcallx8\ta8",
+        "42071bc3:\t932425        \tcall8\t42004e04 <heap_caps_get_free_size>",
+        "42071bcd:\t933425        \tcall8\t42004f10 <heap_caps_get_largest_free_block>",
+        "42071be3:\t0008e0        \tcallx8\ta8"
+      ],
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-osi_calloc_func.txt",
+      "logSha256": "a20a6728824fc46166525f245950bff29e61b834d459c7daa4e713c1316f2ca8"
+    },
+    {
+      "symbol": "malloc_internal_wrapper",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=malloc_internal_wrapper",
+        "/tmp/bt-host-old-target-9he6p4sb/baseline.elf"
+      ],
+      "exitCode": 0,
+      "hasSymbol": true,
+      "calls": [
+        "4205aab7:\t0008e0        \tcallx8\ta8",
+        "4205aac1:\t0008e0        \tcallx8\ta8",
+        "4205aad3:\t0008e0        \tcallx8\ta8"
+      ],
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-malloc_internal_wrapper.txt",
+      "logSha256": "e0adfe2e061a87ab8a952c0157e3e63a043510c5cb84ace0c2ee028eb94f02a7"
+    },
+    {
+      "symbol": "malloc_ble_controller_mem",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=malloc_ble_controller_mem",
+        "/tmp/bt-host-old-target-9he6p4sb/baseline.elf"
+      ],
+      "exitCode": 0,
+      "hasSymbol": false,
+      "calls": [],
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-malloc_ble_controller_mem.txt",
+      "logSha256": "b0453d7c0c7382626db685b065c3de6706bbd490cdb5376098bcf21a55879b11"
+    },
+    {
+      "symbol": "pvPortMalloc",
+      "command": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=pvPortMalloc",
+        "/tmp/bt-host-old-target-9he6p4sb/baseline.elf"
+      ],
+      "exitCode": 0,
+      "hasSymbol": true,
+      "calls": [
+        "40386179:\teff725        \tcall8\t403760ec <heap_caps_malloc>"
+      ],
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bt-host-psram-independent-target-01/baseline-pvPortMalloc.txt",
+      "logSha256": "359355d563109c26f19396bc62c96057056054ed6d89b178ecb8872c0f2d4d5b"
+    }
+  ],
+  "configInverseVerification": {
+    "sdkconfig": {
+      "currentSha256": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+      "matchesFreeze": true,
+      "oneFlagInverseEqualsBefore": true
+    },
+    "sdkconfig.defaults": {
+      "currentSha256": "ace8bf23cfea213bb3d553da25ea100b6150adf7737ab5d050f71407af3e48b0",
+      "matchesFreeze": true,
+      "oneFlagInverseEqualsBefore": true
+    }
+  }
+}

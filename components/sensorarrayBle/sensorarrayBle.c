@@ -1,4 +1,6 @@
 #include "sensorarrayBle.h"
+#include "sensorarrayBleWatchdog.h"
+#include "sensorarrayBleOutputSchedule.h"
 #include "sensorarrayWorkBudget.h"
 
 #include <stdio.h>
@@ -60,7 +62,12 @@
 #define SENSORARRAY_BLE_CTRL_RX_MAX 128u
 #define SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT 2u
 #define SENSORARRAY_BLE_LOG_TX_SLOT_COUNT 2u
-#define SENSORARRAY_BLE_DATA_SERVICE_BURST 4u
+#define SENSORARRAY_BLE_PROTECTED_SLOT_COUNT 2u
+#define SENSORARRAY_BLE_PAYLOAD_SLOT_COUNT \
+    (CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN + SENSORARRAY_BLE_LOG_TX_SLOT_COUNT + \
+     SENSORARRAY_BLE_PROTECTED_SLOT_COUNT)
+#define SENSORARRAY_BLE_PAYLOAD_STORAGE_BYTES \
+    (SENSORARRAY_BLE_PAYLOAD_SLOT_COUNT * SENSORARRAY_BLE_MESSAGE_VALUE_MAX)
 #define SENSORARRAY_BLE_TINY_TAIL_MIN 8u
 #define SENSORARRAY_BLE_CONF_TIMEOUT_MS 1000u
 #define SENSORARRAY_BLE_DEFAULT_ATT_MTU 23u
@@ -86,6 +93,9 @@ _Static_assert(SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS > 0u &&
                    SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS >=
                        SENSORARRAY_BLE_CTRL_TX_RETRY_INTERVAL_MS,
                "BLE CTRL retry window must be finite and non-zero");
+_Static_assert(SENSORARRAY_BLE_SEND_DEADLINE_US ==
+                   SENSORARRAY_BLE_CTRL_TX_RETRY_TIMEOUT_MS * 1000u,
+               "BLE SDK guard must use the existing control retry envelope");
 
 _Static_assert(!SENSORARRAY_BLE_CCCD_ALLOWS_MODE(0x0000u,
                                                   SENSORARRAY_BLE_TX_FAST) &&
@@ -161,7 +171,9 @@ typedef struct {
     sensorarrayBleChannel_t channel;
     uint16_t length;
     uint32_t crc;
-    uint8_t data[SENSORARRAY_BLE_MESSAGE_VALUE_MAX];
+    /* CPU-only payload storage lives for the entire boot in explicit PSRAM.
+     * Slot ownership and generation remain in internal RAM. */
+    uint8_t *data;
 } sensorarrayBleDataSlot_t;
 
 typedef struct {
@@ -176,13 +188,53 @@ typedef struct {
 typedef struct {
     uint8_t slotIndex;
     uint8_t ctrlSlot;
+    uint8_t protectedSlot;
+    uint8_t typedFrame;
     sensorarrayBleChannel_t channel;
     uint16_t length;
     uint32_t generation;
     uint32_t connectionGeneration;
+    uint32_t streamGeneration;
     uint32_t crc;
     uint64_t queuedAtUs;
 } sensorarrayBleTxDescriptor_t;
+
+enum { BLE_FRAME_FREE, BLE_FRAME_WRITING, BLE_FRAME_PENDING, BLE_FRAME_OWNED };
+typedef struct {
+    sensorarrayBleFrameIdentity_t identity;
+    sensorarrayBleOutputTicket_t ticket;
+    uint32_t periodicGeneration;
+    bool completeBundle;
+} sensorarrayBleFrameMeta_t;
+typedef struct {
+    bool active;
+    bool identityKnown;
+    bool firstPending;
+    bool periodicPending;
+    bool floorKnown;
+    bool gapKnown;
+    bool scheduleInitialized;
+    bool fullCompleteKnown;
+    uint32_t streamGeneration;
+    uint32_t periodicGeneration;
+    uint32_t lastFullSequence;
+    uint64_t periodicDueUs;
+    uint64_t lastFullCompleteUs;
+    uint64_t lastProtectedCompleteUs;
+    uint64_t maxCompleteGapUs;
+    sensorarrayBleFrameIdentity_t identity;
+    sensorarrayBleFrameIdentity_t floor;
+    sensorarrayBleOutputSchedule_t schedule;
+    sensorarrayBleOutputCounters_t counters;
+    uint32_t protectedQueued;
+    uint32_t protectedComplete;
+    uint32_t protectedFailed;
+    uint32_t protectedMissed;
+    uint32_t protectedDeadlineMissed;
+    uint32_t protectedSuperseded;
+    uint32_t staleNormal;
+    uint32_t intentionalSkip;
+} sensorarrayBleFrameFlow_t;
 
 typedef struct {
     uint16_t length;
@@ -196,6 +248,7 @@ typedef struct {
  * global connId after a disconnect/reconnect race. */
 typedef struct {
     uint32_t connectionGeneration;
+    uint32_t streamGeneration;
     esp_gatt_if_t gattsIf;
     uint16_t connId;
     uint16_t mtu;
@@ -218,6 +271,7 @@ typedef struct {
     sensorarrayBleConfig_t config;
     sensorarrayBleStats_t stats;
     sensorarrayBleLinkSnapshot_t link;
+    sensorarrayBleGuardSnapshot_t guard;
     bool initialized;
     bool txTaskStarted;
     bool controlTaskStarted;
@@ -247,6 +301,14 @@ typedef struct {
     sensorarrayBleDataSlot_t dataSlots[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN];
     sensorarrayBleDataSlot_t logSlots[SENSORARRAY_BLE_LOG_TX_SLOT_COUNT];
     sensorarrayBleCtrlSlot_t ctrlSlots[SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT];
+    sensorarrayBleDataSlot_t protectedSlots[SENSORARRAY_BLE_PROTECTED_SLOT_COUNT];
+    uint8_t *payloadStorage;
+    sensorarrayBleTxDescriptor_t protectedDescriptors[SENSORARRAY_BLE_PROTECTED_SLOT_COUNT];
+    uint8_t protectedPhase[SENSORARRAY_BLE_PROTECTED_SLOT_COUNT];
+    sensorarrayBleFrameMeta_t protectedMeta[SENSORARRAY_BLE_PROTECTED_SLOT_COUNT];
+    sensorarrayBleFrameMeta_t dataFrameMeta[CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN];
+    sensorarrayBleFrameFlow_t frameFlow;
+    bool ownerCapacityFailure;
     /* Work wakeups must not share the indication-confirmation notification.
      * Queue state is authoritative; the binary token only wakes an idle owner. */
     SemaphoreHandle_t txWake;
@@ -276,7 +338,7 @@ _Static_assert(sizeof(((sensorarrayBleState_t *)0)->txPacketScratch) ==
                    SENSORARRAY_BLE_ATTR_VALUE_MAX,
                "BLE TX scratch must hold one maximum ATT value");
 
-static sensorarrayBleState_t s_ble;
+static sensorarrayBleState_t s_ble = {.guard = {.initError = ESP_ERR_INVALID_STATE}};
 static portMUX_TYPE s_bleMux = portMUX_INITIALIZER_UNLOCKED;
 
 /*
@@ -417,6 +479,9 @@ static uint32_t sensorarrayBleCountUsedSlotsLocked(void)
     for (uint8_t i = 0u; i < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT; ++i) {
         used += s_ble.ctrlSlots[i].inUse ? 1u : 0u;
     }
+    for (uint8_t i = 0u; i < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT; ++i) {
+        used += s_ble.protectedSlots[i].inUse ? 1u : 0u;
+    }
     return used;
 }
 
@@ -427,6 +492,138 @@ static void sensorarrayBleUpdateSlotUseLocked(void)
     if (used > s_ble.stats.txSlotHighWater) {
         s_ble.stats.txSlotHighWater = used;
     }
+}
+
+/* Caller holds s_bleMux. Use the same effective CCCD/FAST/SAFE predicate as
+ * DATA admission, not queue emptiness or an unsupported indication-only bit. */
+static bool sensorarrayBleDataActiveLocked(void)
+{
+    return s_ble.guard.ready && !s_ble.guard.quarantined &&
+           s_ble.stats.gattReady && s_ble.stats.connected &&
+           SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[SENSORARRAY_BLE_CH_DATA],
+                                           s_ble.txMode);
+}
+
+static bool sensorarrayBleFrameSameBoot(const sensorarrayBleFrameIdentity_t *a,
+                                       const sensorarrayBleFrameIdentity_t *b)
+{
+    return a->sessionId == b->sessionId && a->bootId == b->bootId;
+}
+
+static bool sensorarrayBleFrameSameConfig(const sensorarrayBleFrameIdentity_t *a,
+                                         const sensorarrayBleFrameIdentity_t *b)
+{
+    return sensorarrayBleFrameSameBoot(a, b) && a->revision == b->revision;
+}
+
+/* Same-boot serial-number arithmetic; the exactly-half-range case is
+ * unordered. Never infer ordering across boot/session identities. */
+static bool sensorarrayBleFrameSequenceBefore(uint32_t a, uint32_t b)
+{
+    uint32_t distance = b - a;
+    return distance != 0u && distance < UINT32_C(0x80000000);
+}
+
+static void sensorarrayBleFrameFlowSyncLocked(void)
+{
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    bool active = sensorarrayBleDataActiveLocked();
+    if (active == flow->active) return;
+    flow->active = active;
+    flow->streamGeneration = sensorarrayBleNextGeneration(flow->streamGeneration);
+    flow->identityKnown = false;
+    flow->firstPending = true;
+    flow->periodicPending = false;
+    flow->periodicDueUs = 0u;
+    flow->fullCompleteKnown = false;
+    flow->periodicGeneration = sensorarrayBleNextGeneration(flow->periodicGeneration);
+    flow->floorKnown = false;
+    flow->maxCompleteGapUs = 0u;
+    flow->gapKnown = false;
+    if (flow->scheduleInitialized) {
+        sensorarrayBleOutputObservation_t observation = {
+            .epoch = flow->schedule.snapshot.epoch,
+            .counters = flow->counters, .active = false, .valid = true,
+        };
+        (void)sensorarrayBleOutputScheduleObserve(&flow->schedule,
+            (uint64_t)esp_timer_get_time(), &observation);
+    }
+}
+
+static void sensorarrayBleFrameFlowObserveLocked(uint64_t nowUs)
+{
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    if (!flow->identityKnown) return;
+    if (!flow->scheduleInitialized) {
+        sensorarrayBleOutputScheduleInit(&flow->schedule, nowUs);
+        flow->scheduleInitialized = true;
+    }
+    sensorarrayBleOutputObservation_t observation = {
+        .epoch = {.sessionId = flow->identity.sessionId, .bootId = flow->identity.bootId,
+            .connectionGeneration = s_ble.connectionGeneration,
+            .streamGeneration = flow->streamGeneration},
+        .counters = flow->counters, .active = flow->active, .valid = true,
+    };
+    (void)sensorarrayBleOutputScheduleObserve(&flow->schedule, nowUs, &observation);
+}
+
+static bool sensorarrayBleFrameProtectedRepresentedLocked(uint8_t flag)
+{
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    for (unsigned i = 0u; i < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT; ++i) {
+        sensorarrayBleFrameMeta_t *meta = &s_ble.protectedMeta[i];
+        if (s_ble.protectedPhase[i] != BLE_FRAME_FREE &&
+            s_ble.protectedDescriptors[i].streamGeneration == flow->streamGeneration &&
+            sensorarrayBleFrameSameConfig(&meta->identity, &flow->identity) &&
+            (meta->ticket.protectionFlags & flag) != 0u &&
+            (flag != SENSORARRAY_BLE_OUTPUT_PROTECT_PERIODIC ||
+             meta->periodicGeneration == flow->periodicGeneration)) return true;
+    }
+    return false;
+}
+
+/* One local periodic obligation. Upstream PERIODIC flags reserve passage
+ * through source/network queues; they do not create a second BLE cadence.
+ * A recently completed typed full bundle already satisfies this obligation.
+ * Without full completion, even unflagged input triggers the local fallback. */
+static void sensorarrayBleFramePeriodicLocked(uint64_t nowUs)
+{
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    if (flow->periodicDueUs == 0u) flow->periodicDueUs =
+        UINT64_MAX - nowUs < UINT64_C(1000000) ? UINT64_MAX : nowUs + UINT64_C(1000000);
+    if (nowUs >= flow->periodicDueUs) {
+        uint64_t periods = (nowUs - flow->periodicDueUs) / UINT64_C(1000000) + 1u;
+        if (flow->periodicPending) flow->protectedDeadlineMissed++;
+        flow->protectedDeadlineMissed += (uint32_t)(periods - 1u);
+        flow->periodicGeneration += (uint32_t)periods;
+        if (flow->periodicGeneration == 0u) flow->periodicGeneration = 1u;
+        flow->periodicPending = true;
+        flow->periodicDueUs = UINT64_MAX - nowUs < UINT64_C(1000000) ?
+            UINT64_MAX : nowUs + (UINT64_C(1000000) -
+                (nowUs - flow->periodicDueUs) % UINT64_C(1000000));
+    }
+}
+
+/* Caller has verified a successful typed whole-bundle local completion in
+ * the current connection/stream. FULL ordinary data counts; preview, raw
+ * legacy messages and failed/partial sends never reach this helper. Keep
+ * this evidence separate from BLESNAP's protected-only counters and clock. */
+static void sensorarrayBleFrameFullCompletedLocked(
+    const sensorarrayBleFrameIdentity_t *identity, uint64_t completedUs)
+{
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    if (!sensorarrayBleFrameSameConfig(identity, &flow->identity) ||
+        (flow->fullCompleteKnown &&
+         (completedUs < flow->lastFullCompleteUs ||
+          !sensorarrayBleFrameSequenceBefore(flow->lastFullSequence, identity->sequence)))) return;
+    flow->fullCompleteKnown = true;
+    flow->lastFullSequence = identity->sequence;
+    flow->lastFullCompleteUs = completedUs;
+    flow->periodicDueUs = UINT64_MAX - completedUs < UINT64_C(1000000) ?
+        UINT64_MAX : completedUs + UINT64_C(1000000);
+    flow->periodicPending = false;
+    /* Do not cancel or reclaim an already accepted protected descriptor.
+     * Its owner retains the original identity, bytes and SDK-return fence. */
 }
 
 static esp_err_t sensorarrayBleAllocateTxDescriptor(
@@ -447,20 +644,35 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
 
     memset(outDesc, 0, sizeof(*outDesc));
     portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleFrameFlowSyncLocked();
     sensorarrayBleTxMode_t txMode = s_ble.txMode;
     uint32_t connectionGeneration = s_ble.connectionGeneration;
-    bool sendable = s_ble.stats.gattReady &&
+    bool sendable = s_ble.guard.ready && !s_ble.guard.quarantined &&
+                    s_ble.stats.gattReady &&
                     s_ble.stats.connected &&
                     SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[channel], txMode) &&
                     (expectedConnectionGeneration == 0u ||
                      expectedConnectionGeneration == connectionGeneration);
     if (!sendable) {
-        if (expectedConnectionGeneration != 0u &&
+        if (!s_ble.guard.ready || s_ble.guard.quarantined) {
+            s_ble.guard.rejected++;
+        } else if (expectedConnectionGeneration != 0u &&
             expectedConnectionGeneration != connectionGeneration) {
             s_ble.stats.txConnectionStaleDrop++;
         }
         portEXIT_CRITICAL(&s_bleMux);
         return ESP_ERR_INVALID_STATE;
+    }
+    if (channel == SENSORARRAY_BLE_CH_LOG && !priority &&
+        sensorarrayBleDataActiveLocked()) {
+        /* A momentarily empty DATA queue does not establish spare link
+         * capacity. Count this intentional ordinary-log policy separately
+         * from slot exhaustion; never touch an already admitted owner. */
+        s_ble.stats.logPolicyDrop++;
+        s_ble.stats.dropped[SENSORARRAY_BLE_CH_LOG]++;
+        s_ble.stats.messageDropped++;
+        portEXIT_CRITICAL(&s_bleMux);
+        return ESP_ERR_NOT_ALLOWED;
     }
     if (priority) {
         for (uint8_t i = 0u; i < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT; ++i) {
@@ -480,6 +692,7 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
                 .length = (uint16_t)length,
                 .generation = slot->generation,
                 .connectionGeneration = connectionGeneration,
+                .streamGeneration = s_ble.frameFlow.streamGeneration,
                 .crc = crc,
             };
             sensorarrayBleUpdateSlotUseLocked();
@@ -519,6 +732,7 @@ static esp_err_t sensorarrayBleAllocateTxDescriptor(
                 .length = (uint16_t)length,
                 .generation = slot->generation,
                 .connectionGeneration = connectionGeneration,
+                .streamGeneration = s_ble.frameFlow.streamGeneration,
                 .crc = crc,
             };
             sensorarrayBleUpdateSlotUseLocked();
@@ -535,6 +749,10 @@ static uint8_t *sensorarrayBleDescriptorData(const sensorarrayBleTxDescriptor_t 
 {
     if (!desc) {
         return NULL;
+    }
+    if (desc->protectedSlot) {
+        return desc->slotIndex < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT ?
+            s_ble.protectedSlots[desc->slotIndex].data : NULL;
     }
     if (desc->ctrlSlot) {
         return desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT ?
@@ -556,7 +774,15 @@ static bool sensorarrayBleDescriptorCurrent(const sensorarrayBleTxDescriptor_t *
     }
     bool current = false;
     portENTER_CRITICAL(&s_bleMux);
-    if (desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
+    sensorarrayBleFrameFlowSyncLocked();
+    if (desc->protectedSlot && !desc->ctrlSlot &&
+        desc->slotIndex < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT) {
+        const sensorarrayBleDataSlot_t *slot = &s_ble.protectedSlots[desc->slotIndex];
+        current = slot->inUse && slot->generation == desc->generation &&
+            slot->channel == desc->channel && slot->length == desc->length && slot->crc == desc->crc &&
+            desc->connectionGeneration == s_ble.connectionGeneration &&
+            desc->streamGeneration == s_ble.frameFlow.streamGeneration;
+    } else if (!desc->protectedSlot && desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
         const sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[desc->slotIndex];
         current = slot->inUse &&
                   slot->generation == desc->generation &&
@@ -564,7 +790,7 @@ static bool sensorarrayBleDescriptorCurrent(const sensorarrayBleTxDescriptor_t *
                   slot->length == desc->length &&
                   slot->crc == desc->crc &&
                   desc->connectionGeneration == s_ble.connectionGeneration;
-    } else if (!desc->ctrlSlot &&
+    } else if (!desc->protectedSlot && !desc->ctrlSlot &&
                desc->channel == SENSORARRAY_BLE_CH_DATA &&
                desc->slotIndex < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN) {
         const sensorarrayBleDataSlot_t *slot = &s_ble.dataSlots[desc->slotIndex];
@@ -573,8 +799,9 @@ static bool sensorarrayBleDescriptorCurrent(const sensorarrayBleTxDescriptor_t *
                   slot->channel == desc->channel &&
                   slot->length == desc->length &&
                   slot->crc == desc->crc &&
-                  desc->connectionGeneration == s_ble.connectionGeneration;
-    } else if (!desc->ctrlSlot &&
+                  desc->connectionGeneration == s_ble.connectionGeneration &&
+                  desc->streamGeneration == s_ble.frameFlow.streamGeneration;
+    } else if (!desc->protectedSlot && !desc->ctrlSlot &&
                desc->channel == SENSORARRAY_BLE_CH_LOG &&
                desc->slotIndex < SENSORARRAY_BLE_LOG_TX_SLOT_COUNT) {
         const sensorarrayBleDataSlot_t *slot = &s_ble.logSlots[desc->slotIndex];
@@ -596,13 +823,21 @@ static void sensorarrayBleReleaseTxDescriptor(const sensorarrayBleTxDescriptor_t
     }
     bool released = false;
     portENTER_CRITICAL(&s_bleMux);
-    if (desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
+    if (desc->protectedSlot && !desc->ctrlSlot &&
+        desc->slotIndex < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT) {
+        sensorarrayBleDataSlot_t *slot = &s_ble.protectedSlots[desc->slotIndex];
+        if (slot->inUse && slot->generation == desc->generation) {
+            slot->inUse = false;
+            s_ble.protectedPhase[desc->slotIndex] = BLE_FRAME_FREE;
+            released = true;
+        }
+    } else if (!desc->protectedSlot && desc->ctrlSlot && desc->slotIndex < SENSORARRAY_BLE_CTRL_TX_SLOT_COUNT) {
         sensorarrayBleCtrlSlot_t *slot = &s_ble.ctrlSlots[desc->slotIndex];
         if (slot->inUse && slot->generation == desc->generation) {
             slot->inUse = false;
             released = true;
         }
-    } else if (!desc->ctrlSlot &&
+    } else if (!desc->protectedSlot && !desc->ctrlSlot &&
                desc->channel == SENSORARRAY_BLE_CH_DATA &&
                desc->slotIndex < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN) {
         sensorarrayBleDataSlot_t *slot = &s_ble.dataSlots[desc->slotIndex];
@@ -610,7 +845,7 @@ static void sensorarrayBleReleaseTxDescriptor(const sensorarrayBleTxDescriptor_t
             slot->inUse = false;
             released = true;
         }
-    } else if (!desc->ctrlSlot &&
+    } else if (!desc->protectedSlot && !desc->ctrlSlot &&
                desc->channel == SENSORARRAY_BLE_CH_LOG &&
                desc->slotIndex < SENSORARRAY_BLE_LOG_TX_SLOT_COUNT) {
         sensorarrayBleDataSlot_t *slot = &s_ble.logSlots[desc->slotIndex];
@@ -787,6 +1022,7 @@ void sensorarrayBleSetTxMode(sensorarrayBleTxMode_t mode)
     }
     portENTER_CRITICAL(&s_bleMux);
     s_ble.txMode = mode;
+    sensorarrayBleFrameFlowSyncLocked();
     portEXIT_CRITICAL(&s_bleMux);
 }
 
@@ -808,9 +1044,11 @@ static bool sensorarrayBleSnapshotSendContext(
     }
 
     portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleFrameFlowSyncLocked();
     sensorarrayBleTxMode_t mode = s_ble.txMode;
     uint16_t cccd = s_ble.cccd[channel];
-    bool canSend = s_ble.stats.gattReady &&
+    bool canSend = s_ble.guard.ready && !s_ble.guard.quarantined &&
+                   s_ble.stats.gattReady &&
                    s_ble.stats.connected &&
                    SENSORARRAY_BLE_CCCD_ALLOWS_MODE(cccd, mode) &&
                    (expectedConnectionGeneration == 0u ||
@@ -818,6 +1056,7 @@ static bool sensorarrayBleSnapshotSendContext(
     if (canSend && outContext) {
         *outContext = (sensorarrayBleSendContext_t){
             .connectionGeneration = s_ble.connectionGeneration,
+            .streamGeneration = s_ble.frameFlow.streamGeneration,
             .gattsIf = s_ble.gattsIf,
             .connId = s_ble.connId,
             .mtu = s_ble.stats.mtu,
@@ -839,11 +1078,15 @@ static bool sensorarrayBleSendContextMatches(
         return false;
     }
     portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleFrameFlowSyncLocked();
     uint16_t cccd = s_ble.cccd[channel];
     bool confirm = SENSORARRAY_BLE_MODE_USES_CONFIRM(cccd, s_ble.txMode);
-    bool current = s_ble.stats.gattReady &&
+    bool current = s_ble.guard.ready && !s_ble.guard.quarantined &&
+                   s_ble.stats.gattReady &&
                    s_ble.stats.connected &&
                    s_ble.connectionGeneration == context->connectionGeneration &&
+                   (channel != SENSORARRAY_BLE_CH_DATA ||
+                    context->streamGeneration == s_ble.frameFlow.streamGeneration) &&
                    s_ble.gattsIf == context->gattsIf &&
                    s_ble.connId == context->connId &&
                    s_ble.txMode == context->txMode &&
@@ -972,6 +1215,45 @@ static bool sensorarrayBlePlanFragments(size_t length,
     return false;
 }
 
+/* New in this fix: retain the planner's two notifications, but avoid splitting
+ * an ordinary ~600-byte DATA record into two ~330-byte ATT values. With a
+ * 251-byte LL payload, 495 + <=244 ATT bytes need three PDUs instead of four
+ * (each notification also carries seven L2CAP/ATT bytes). This is a packing
+ * target, not evidence of the peer's negotiated LL data length or delivery.
+ * Other channels, ATT bounds and records that cannot meet both targets stay balanced.
+ */
+static size_t sensorarrayBleTwoFragmentFirstChunk(size_t length,
+                                                  size_t maximum,
+                                                  char envChannel,
+                                                  uint32_t messageId,
+                                                  uint32_t crc)
+{
+    const size_t balanced = length / 2u + length % 2u;
+    const size_t firstValueMax = 495u;
+    const size_t secondValueMax = 244u;
+    if (envChannel != 'D' || maximum != 512u || length <= maximum) {
+        return balanced;
+    }
+
+    /* Guess the largest possible chunk's decimal width. The resulting chunk
+     * cannot have more digits; three bounded header calculations validate the
+     * actual two chunks without a per-byte search or another SDK call. */
+    size_t first = sensorarrayBleMaxPayloadSize(firstValueMax, envChannel,
+        messageId, 0u, 2u, firstValueMax, length, crc);
+    if (first == 0u || first >= length ||
+        first > sensorarrayBleMaxPayloadSize(firstValueMax, envChannel,
+            messageId, 0u, 2u, first, length, crc)) {
+        return balanced;
+    }
+    size_t second = length - first;
+    if (second < SENSORARRAY_BLE_TINY_TAIL_MIN ||
+        second > sensorarrayBleMaxPayloadSize(secondValueMax, envChannel,
+            messageId, 1u, 2u, second, length, crc)) {
+        return balanced;
+    }
+    return first;
+}
+
 static void sensorarrayBlePrepareConfirmation(
     const sensorarrayBleSendContext_t *context,
     uint16_t handle)
@@ -1026,7 +1308,9 @@ static esp_err_t sensorarrayBleAwaitConfirmation(
     bool connectionCurrent = s_ble.stats.connected &&
                              s_ble.connectionGeneration ==
                                  context->connectionGeneration &&
-                             s_ble.connId == context->connId;
+                             s_ble.connId == context->connId &&
+                             (handle != s_ble.handles[BLE_IDX_DATA_TX_VALUE] ||
+                              context->streamGeneration == s_ble.frameFlow.streamGeneration);
     if (s_ble.confirmWaitTask == task) {
         s_ble.confirmWaitTask = NULL;
         s_ble.confirmConnectionGeneration = 0u;
@@ -1043,6 +1327,30 @@ static esp_err_t sensorarrayBleAwaitConfirmation(
         return ESP_ERR_INVALID_STATE;
     }
     return status == ESP_GATT_OK ? ESP_OK : ESP_FAIL;
+}
+
+/* Caller holds s_bleMux. This only latches evidence/admission state: neither
+ * the timer task nor a late-returning owner cancels or frees an SDK operation. */
+static void sensorarrayBleObserveSendDeadlineLocked(uint64_t nowUs)
+{
+    if (s_ble.guard.ready && !s_ble.guard.quarantined && s_ble.link.sdkCallActive &&
+        nowUs >= s_ble.link.sdkCallStartedUs &&
+        nowUs - s_ble.link.sdkCallStartedUs >= SENSORARRAY_BLE_SEND_DEADLINE_US) {
+        s_ble.guard.quarantined = true;
+        s_ble.guard.callKnown = true;
+        s_ble.guard.callId = s_ble.link.sdkCallCount;
+        s_ble.guard.startUs = s_ble.link.sdkCallStartedUs;
+        s_ble.guard.detectedUs = nowUs;
+        s_ble.guard.completionKnown = false;
+    }
+}
+
+void sensorarrayBleObserveSendDeadline(void)
+{
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleObserveSendDeadlineLocked(nowUs);
+    portEXIT_CRITICAL(&s_bleMux);
 }
 
 static esp_err_t sensorarrayBleSendGattValue(
@@ -1067,7 +1375,10 @@ static esp_err_t sensorarrayBleSendGattValue(
     for (uint32_t attempt = 0u; attempt < maximumAttempts; ++attempt) {
         bool congested = false;
         if (!sensorarrayBleSendContextMatches(channel, context, &congested)) {
-            sensorarrayBleStatsIncrement(&s_ble.stats.txConnectionStaleDrop);
+            portENTER_CRITICAL(&s_bleMux);
+            if (!s_ble.guard.ready || s_ble.guard.quarantined) s_ble.guard.rejected++;
+            else s_ble.stats.txConnectionStaleDrop++;
+            portEXIT_CRITICAL(&s_bleMux);
             return ESP_ERR_INVALID_STATE;
         }
 
@@ -1078,10 +1389,33 @@ static esp_err_t sensorarrayBleSendGattValue(
             uint32_t idleBefore = sensorarrayWorkBudgetIdleGeneration();
             uint64_t callStartedUs = (uint64_t)esp_timer_get_time();
             portENTER_CRITICAL(&s_bleMux);
-            s_ble.link.sdkCallActive = true;
-            s_ble.link.sdkCallStartedUs = callStartedUs;
-            s_ble.link.sdkCallCount++;
+            sensorarrayBleFrameFlowSyncLocked();
+            /* Admission and the active mark are atomic against the observer.
+             * This last admitted call retains its slot until the SDK returns,
+             * including preemption between this mark and actual SDK entry. */
+            bool callAdmitted = s_ble.guard.ready && !s_ble.guard.quarantined &&
+                                !s_ble.link.sdkCallActive && s_ble.stats.connected && s_ble.stats.gattReady &&
+                                context->connectionGeneration == s_ble.connectionGeneration &&
+                                context->connId == s_ble.connId && context->gattsIf == s_ble.gattsIf &&
+                                context->txMode == s_ble.txMode &&
+                                context->confirm == SENSORARRAY_BLE_MODE_USES_CONFIRM(s_ble.cccd[channel], s_ble.txMode) &&
+                                (channel != SENSORARRAY_BLE_CH_DATA ||
+                                 context->streamGeneration == s_ble.frameFlow.streamGeneration) &&
+                                SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[channel], context->txMode);
+            if (callAdmitted) {
+                s_ble.link.sdkCallActive = true;
+                s_ble.link.sdkCallStartedUs = callStartedUs;
+                s_ble.link.sdkCallCount++;
+                s_ble.guard.callKnown = true;
+            } else {
+                if (!s_ble.guard.ready || s_ble.guard.quarantined) s_ble.guard.rejected++;
+                else s_ble.stats.txConnectionStaleDrop++;
+            }
             portEXIT_CRITICAL(&s_bleMux);
+            if (!callAdmitted) {
+                if (confirm) sensorarrayBleClearConfirmation(xTaskGetCurrentTaskHandle());
+                return ESP_ERR_INVALID_STATE;
+            }
             lastError = esp_ble_gatts_send_indicate(context->gattsIf,
                                                     context->connId,
                                                     handle,
@@ -1092,6 +1426,8 @@ static esp_err_t sensorarrayBleSendGattValue(
             uint64_t callUs = callCompletedUs - callStartedUs;
             uint32_t idleAfter = sensorarrayWorkBudgetIdleGeneration();
             portENTER_CRITICAL(&s_bleMux);
+            /* Also catch a late return between timer polls. */
+            sensorarrayBleObserveSendDeadlineLocked(callCompletedUs);
             s_ble.link.sdkCallActive = false;
             s_ble.link.sdkCallCompletedUs = callCompletedUs;
             s_ble.link.sdkLastError = lastError;
@@ -1105,7 +1441,16 @@ static esp_err_t sensorarrayBleSendGattValue(
             }
             if (lastError == ESP_OK) { s_ble.link.sdkAccepted++; }
             else { s_ble.link.sdkErrors++; }
+            bool quarantined = s_ble.guard.quarantined;
+            if (quarantined && s_ble.guard.callId == s_ble.link.sdkCallCount &&
+                s_ble.guard.startUs == callStartedUs) {
+                s_ble.guard.completionKnown = true;
+            }
             portEXIT_CRITICAL(&s_bleMux);
+            if (quarantined) {
+                if (confirm) sensorarrayBleClearConfirmation(xTaskGetCurrentTaskHandle());
+                return ESP_ERR_TIMEOUT;
+            }
             if (lastError == ESP_OK) {
                 /* Once Bluedroid accepts an indication, never resend it: a
                  * missing confirmation is ambiguous and retrying could
@@ -1116,12 +1461,17 @@ static esp_err_t sensorarrayBleSendGattValue(
             if (confirm) {
                 sensorarrayBleClearConfirmation(xTaskGetCurrentTaskHandle());
             }
+        } else if (channel == SENSORARRAY_BLE_CH_DATA && !priority) {
+            portENTER_CRITICAL(&s_bleMux);
+            s_ble.ownerCapacityFailure = true;
+            portEXIT_CRITICAL(&s_bleMux);
         }
 
         /* ESP_FAIL can be rejected admission/congestion. The public IDF 5.5
          * implementation can itself wait indefinitely for BTC queue space:
          * this deadline bounds our retries, not that SDK call. Keep the slot
-         * owned across it and expose active/start/completion diagnostics. */
+         * owned across it. The independent observer quarantines later calls;
+         * it does not make this SDK call return or establish peer receipt. */
         if (lastError != ESP_FAIL) {
             break;
         }
@@ -1159,10 +1509,16 @@ static esp_err_t sensorarrayBleSendFragment(
         sensorarrayBleSendContextMatches(channel, context, NULL) :
         sensorarrayBleSendContextCurrent(channel, context);
     if (!context || !contextCurrent) {
+        bool congested = false;
+        bool capacity = context && sensorarrayBleSendContextMatches(channel, context, &congested) &&
+            congested && context->txMode == SENSORARRAY_BLE_TX_FAST && !context->priority &&
+            channel == SENSORARRAY_BLE_CH_DATA;
         portENTER_CRITICAL(&s_bleMux);
-        s_ble.stats.txConnectionStaleDrop++;
+        if (capacity) s_ble.ownerCapacityFailure = true;
+        else if (!s_ble.guard.ready || s_ble.guard.quarantined) s_ble.guard.rejected++;
+        else s_ble.stats.txConnectionStaleDrop++;
         portEXIT_CRITICAL(&s_bleMux);
-        return ESP_ERR_INVALID_STATE;
+        return capacity ? ESP_ERR_TIMEOUT : ESP_ERR_INVALID_STATE;
     }
     uint16_t handle = sensorarrayBleValueHandle(channel);
     uint8_t *packet = s_ble.txPacketScratch;
@@ -1219,7 +1575,8 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
                                            uint16_t length,
                                            uint32_t enqueueCrc,
                                            uint32_t expectedConnectionGeneration,
-                                           bool priority)
+                                           bool priority,
+                                           uint32_t expectedStreamGeneration)
 {
     if (!data || channel > SENSORARRAY_BLE_CH_CTRL || length == 0u) {
         return ESP_ERR_INVALID_ARG;
@@ -1229,8 +1586,15 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
                                            expectedConnectionGeneration,
                                            &context)) {
         portENTER_CRITICAL(&s_bleMux);
-        s_ble.stats.txConnectionStaleDrop++;
+        if (!s_ble.guard.ready || s_ble.guard.quarantined) s_ble.guard.rejected++;
+        else s_ble.stats.txConnectionStaleDrop++;
         portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(channel);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (channel == SENSORARRAY_BLE_CH_DATA &&
+        context.streamGeneration != expectedStreamGeneration) {
+        sensorarrayBleStatsIncrement(&s_ble.stats.txConnectionStaleDrop);
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_INVALID_STATE;
     }
@@ -1238,6 +1602,9 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
     if (context.congested && context.txMode == SENSORARRAY_BLE_TX_FAST &&
         channel != SENSORARRAY_BLE_CH_CTRL && !priority) {
         sensorarrayBleStatsIncrement(&s_ble.stats.congestedCount);
+        portENTER_CRITICAL(&s_bleMux);
+        s_ble.ownerCapacityFailure = true;
+        portEXIT_CRITICAL(&s_bleMux);
         sensorarrayBleNoteDrop(channel);
         return ESP_ERR_TIMEOUT;
     }
@@ -1307,12 +1674,18 @@ static esp_err_t sensorarrayBleSendPayload(sensorarrayBleChannel_t channel,
 
     size_t base = length / fragmentCount;
     size_t extra = length % fragmentCount;
+    size_t firstChunk = fragmentCount == 2u ?
+        sensorarrayBleTwoFragmentFirstChunk(length, maximum, envChannel,
+                                            messageId, crc) : 0u;
     size_t offset = 0u;
     uint32_t fragmentsSinceCheckpoint = 0u;
     TickType_t checkpointTick = xTaskGetTickCount();
     bool confirm = context.confirm;
     for (uint32_t index = 0u; index < fragmentCount; ++index) {
         size_t chunk = base + (index < extra ? 1u : 0u);
+        if (fragmentCount == 2u) {
+            chunk = index == 0u ? firstChunk : length - firstChunk;
+        }
         esp_err_t err = sensorarrayBleSendFragment(&context,
                                                    channel,
                                                    envChannel,
@@ -1367,46 +1740,134 @@ static esp_err_t sensorarrayBleSendDescriptor(const sensorarrayBleTxDescriptor_t
         return ESP_ERR_INVALID_ARG;
     }
     uint64_t ageUs = (uint64_t)esp_timer_get_time() - desc->queuedAtUs;
+    sensorarrayBleFrameMeta_t frameMeta = {0};
     portENTER_CRITICAL(&s_bleMux);
+    s_ble.ownerCapacityFailure = false;
+    if (desc->typedFrame) {
+        frameMeta = desc->protectedSlot ? s_ble.protectedMeta[desc->slotIndex] :
+            s_ble.dataFrameMeta[desc->slotIndex];
+        if (s_ble.frameFlow.floorKnown &&
+            sensorarrayBleFrameSameBoot(&frameMeta.identity, &s_ble.frameFlow.floor) &&
+            (frameMeta.identity.sequence == s_ble.frameFlow.floor.sequence ||
+             sensorarrayBleFrameSequenceBefore(frameMeta.identity.sequence, s_ble.frameFlow.floor.sequence))) {
+            if (desc->protectedSlot) s_ble.frameFlow.protectedSuperseded++;
+            else s_ble.frameFlow.staleNormal++;
+            portEXIT_CRITICAL(&s_bleMux);
+            sensorarrayBleNoteDrop(desc->channel);
+            return ESP_ERR_INVALID_STATE;
+        }
+    }
     if (ageUs > s_ble.link.queueMaxAgeUs[desc->channel]) {
         s_ble.link.queueMaxAgeUs[desc->channel] =
             ageUs > UINT32_MAX ? UINT32_MAX : (uint32_t)ageUs;
     }
     portEXIT_CRITICAL(&s_bleMux);
-    return sensorarrayBleSendPayload(desc->channel,
+    esp_err_t result = sensorarrayBleSendPayload(desc->channel,
                                      data,
                                      desc->length,
                                      desc->crc,
                                      desc->connectionGeneration,
-                                     desc->ctrlSlot != 0u);
+                                     desc->ctrlSlot != 0u,
+                                     desc->streamGeneration);
+    if (desc->typedFrame) {
+        portENTER_CRITICAL(&s_bleMux);
+        sensorarrayBleFrameFlowSyncLocked();
+        /* Policy timestamps are sampled after acquiring its serialization
+         * lock; another core may have recorded a later observation meanwhile. */
+        uint64_t completedUs = (uint64_t)esp_timer_get_time();
+        sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+        bool current = desc->connectionGeneration == s_ble.connectionGeneration &&
+            desc->streamGeneration == flow->streamGeneration && flow->active && flow->identityKnown &&
+            sensorarrayBleFrameSameBoot(&frameMeta.identity, &flow->identity);
+        if (current) {
+            if (result == ESP_OK && frameMeta.completeBundle) flow->counters.wholeCompleted++;
+            else if (result != ESP_OK && s_ble.ownerCapacityFailure) flow->counters.capacityRejected++;
+            else if (result != ESP_OK) flow->counters.otherFailures++;
+            uint8_t acknowledged = frameMeta.completeBundle ?
+                sensorarrayBleOutputScheduleNoteCompletion(&flow->schedule, completedUs,
+                    &frameMeta.ticket, &frameMeta.ticket, result == ESP_OK) : 0u;
+            if (desc->protectedSlot) {
+                if (result == ESP_OK && acknowledged) {
+                    flow->protectedComplete++;
+                    if (flow->floorKnown && sensorarrayBleFrameSameConfig(&flow->floor, &frameMeta.identity) &&
+                        sensorarrayBleFrameSameConfig(&flow->identity, &frameMeta.identity) &&
+                        completedUs >= flow->lastProtectedCompleteUs) {
+                        flow->gapKnown = true;
+                        if (completedUs - flow->lastProtectedCompleteUs > flow->maxCompleteGapUs)
+                            flow->maxCompleteGapUs = completedUs - flow->lastProtectedCompleteUs;
+                    }
+                    flow->lastProtectedCompleteUs = completedUs;
+                    if (!flow->floorKnown || !sensorarrayBleFrameSameBoot(&flow->floor, &frameMeta.identity) ||
+                        sensorarrayBleFrameSequenceBefore(flow->floor.sequence, frameMeta.identity.sequence)) {
+                        flow->floor = frameMeta.identity;
+                        flow->floorKnown = true;
+                    }
+                    if (sensorarrayBleFrameSameConfig(&frameMeta.identity, &flow->identity)) {
+                        if (acknowledged & SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG) flow->firstPending = false;
+                        if ((acknowledged & SENSORARRAY_BLE_OUTPUT_PROTECT_PERIODIC) &&
+                            frameMeta.periodicGeneration == flow->periodicGeneration) flow->periodicPending = false;
+                    }
+                } else {
+                    flow->protectedFailed++;
+                }
+            }
+            if (result == ESP_OK && frameMeta.completeBundle)
+                sensorarrayBleFrameFullCompletedLocked(&frameMeta.identity, completedUs);
+            sensorarrayBleFrameFlowObserveLocked(completedUs);
+        } else if (desc->protectedSlot) {
+            flow->protectedFailed++;
+        }
+        portEXIT_CRITICAL(&s_bleMux);
+    }
+    return result;
 }
 
-/* New in this repair: separate DATA/LOG admission already existed; apply that
- * separation at service time as well, without adding payload slots. */
-static bool sensorarrayBleReceiveNext(sensorarrayBleTxDescriptor_t *desc,
-                                      uint32_t *dataRun)
+static bool sensorarrayBleReceiveProtected(sensorarrayBleTxDescriptor_t *desc)
+{
+    bool found = false;
+    portENTER_CRITICAL(&s_bleMux);
+    int selected = -1;
+    for (unsigned i = 0u; i < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT; ++i) {
+        if (s_ble.protectedPhase[i] != BLE_FRAME_PENDING) continue;
+        bool first = (s_ble.protectedMeta[i].ticket.protectionFlags & SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG) != 0u;
+        bool selectedFirst = selected >= 0 &&
+            (s_ble.protectedMeta[selected].ticket.protectionFlags & SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG) != 0u;
+        if (selected < 0 || (first && !selectedFirst) ||
+            (first == selectedFirst &&
+             sensorarrayBleFrameSameBoot(&s_ble.protectedMeta[i].identity, &s_ble.protectedMeta[selected].identity) &&
+             sensorarrayBleFrameSequenceBefore(s_ble.protectedMeta[i].identity.sequence,
+                                               s_ble.protectedMeta[selected].identity.sequence))) selected = (int)i;
+    }
+    if (selected >= 0) {
+        s_ble.protectedPhase[selected] = BLE_FRAME_OWNED;
+        *desc = s_ble.protectedDescriptors[selected];
+        s_ble.link.dataDequeued++;
+        found = true;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
+    return found;
+}
+
+/* New in this repair: CTRL and lifecycle records retain reserved priority.
+ * Ordinary diagnostic LOG is best effort and may remain queued while DATA is
+ * backlogged; it must not force a scientific frame to wait every four records.
+ * Existing bounded LOG slots count rejected admissions. Once selected, a
+ * record retains ownership through its fragments; no in-flight preemption. */
+static bool sensorarrayBleReceiveNext(sensorarrayBleTxDescriptor_t *desc)
 {
     if (s_ble.ctrlTxQueue && xQueueReceive(s_ble.ctrlTxQueue, desc, 0) == pdTRUE) {
         sensorarrayBleStatsIncrement(&s_ble.link.priorityDequeued);
         return true;
     }
-    if (*dataRun >= SENSORARRAY_BLE_DATA_SERVICE_BURST &&
-        s_ble.logTxQueue && xQueueReceive(s_ble.logTxQueue, desc, 0) == pdTRUE) {
-        *dataRun = 0u;
-        sensorarrayBleStatsIncrement(&s_ble.link.logDequeued);
-        return true;
-    }
+    if (sensorarrayBleReceiveProtected(desc)) return true;
     if (s_ble.txQueue && xQueueReceive(s_ble.txQueue, desc, 0) == pdTRUE) {
-        if (*dataRun < SENSORARRAY_BLE_DATA_SERVICE_BURST) { (*dataRun)++; }
         sensorarrayBleStatsIncrement(&s_ble.link.dataDequeued);
         return true;
     }
     if (s_ble.logTxQueue && xQueueReceive(s_ble.logTxQueue, desc, 0) == pdTRUE) {
-        *dataRun = 0u;
         sensorarrayBleStatsIncrement(&s_ble.link.logDequeued);
         return true;
     }
-    *dataRun = 0u;
     return false;
 }
 
@@ -1414,9 +1875,8 @@ static void sensorarrayBleTxTask(void *arg)
 {
     (void)arg;
     sensorarrayBleTxDescriptor_t desc;
-    uint32_t dataRun = 0u;
     for (;;) {
-        if (!sensorarrayBleReceiveNext(&desc, &dataRun)) {
+        if (!sensorarrayBleReceiveNext(&desc)) {
             /* An enqueue between the last queue check and this take leaves a
              * token. CTRL, DATA and LOG all wake this same owner immediately.
              * No work token is consumed by SAFE indication confirmation. */
@@ -1472,6 +1932,10 @@ static esp_err_t sensorarrayBleQueueTxDescriptor(sensorarrayBleTxDescriptor_t *d
 static void sensorarrayBleDrainTxQueues(void)
 {
     sensorarrayBleTxDescriptor_t desc;
+    while (sensorarrayBleReceiveProtected(&desc)) {
+        sensorarrayBleNoteDrop(desc.channel);
+        sensorarrayBleReleaseTxDescriptor(&desc);
+    }
     while (s_ble.ctrlTxQueue &&
            xQueueReceive(s_ble.ctrlTxQueue, &desc, 0) == pdTRUE) {
         sensorarrayBleNoteDrop(desc.channel);
@@ -1855,6 +2319,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.gattsIf = gattsIf;
         memcpy(s_ble.remote, param->connect.remote_bda, sizeof(s_ble.remote));
         sensorarrayBleResetLinkObservationLocked();
+        sensorarrayBleFrameFlowSyncLocked();
         portEXIT_CRITICAL(&s_bleMux);
         sensorarrayBleRequestLinkParameters();
         break;
@@ -1868,6 +2333,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
         s_ble.connectionGeneration = sensorarrayBleNextGeneration(s_ble.connectionGeneration);
         sensorarrayBleResetLinkObservationLocked();
         memset(s_ble.cccd, 0, sizeof(s_ble.cccd));
+        sensorarrayBleFrameFlowSyncLocked();
         if (s_ble.confirmWaitTask != NULL) {
             s_ble.confirmStatus = ESP_GATT_ERROR;
             s_ble.confirmPending = false;
@@ -1894,6 +2360,7 @@ static void sensorarrayBleGattCallback(esp_gatts_cb_event_t event,
                              ((uint16_t)param->write.value[1] << 8u);
             portENTER_CRITICAL(&s_bleMux);
             s_ble.cccd[channel] = value & SENSORARRAY_BLE_CCCD_SUPPORTED_MASK;
+            sensorarrayBleFrameFlowSyncLocked();
             portEXIT_CRITICAL(&s_bleMux);
         } else if (param->write.handle == s_ble.handles[BLE_IDX_CTRL_RX_VALUE]) {
             sensorarrayBleQueueControlCommand(param);
@@ -1965,19 +2432,74 @@ static esp_err_t sensorarrayBleStep(const char *stage, esp_err_t err)
     return err;
 }
 
+/* Separate from s_ble: a failed startup may already own a timer/task/SDK
+ * object. Never erase those references and retry creation in the same boot. */
+static bool s_bleInitAttempted;
+static esp_err_t s_bleInitResult = ESP_ERR_INVALID_STATE;
+
+static esp_err_t sensorarrayBleFinishInit(esp_err_t error)
+{
+    portENTER_CRITICAL(&s_bleMux);
+    s_bleInitResult = error;
+    if (error == ESP_OK) s_ble.initialized = true;
+    else s_ble.stats.initError = error;
+    portEXIT_CRITICAL(&s_bleMux);
+    return error;
+}
+
+/* New in this repair: one allocation, after the serialized init claim and
+ * before any worker/SDK can own a slot. This is not a DMA buffer. Fragment
+ * formatting still uses internal txPacketScratch; Bluedroid synchronously
+ * copies GATT values. The allocation is retained until reboot even if later
+ * initialization fails. Sticky init prevents live reset/reallocation, while
+ * slot reuse still requires the existing producer/worker/SDK-return fences. */
+static esp_err_t sensorarrayBleInitPayloadStorage(void)
+{
+    uint8_t *storage = heap_caps_malloc(SENSORARRAY_BLE_PAYLOAD_STORAGE_BYTES,
+                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!storage) {
+        return ESP_ERR_NO_MEM;
+    }
+    portENTER_CRITICAL(&s_bleMux);
+    s_ble.payloadStorage = storage;
+    size_t offset = 0u;
+    for (unsigned i = 0u; i < CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN; ++i) {
+        s_ble.dataSlots[i].data = storage + offset;
+        offset += SENSORARRAY_BLE_MESSAGE_VALUE_MAX;
+    }
+    for (unsigned i = 0u; i < SENSORARRAY_BLE_LOG_TX_SLOT_COUNT; ++i) {
+        s_ble.logSlots[i].data = storage + offset;
+        offset += SENSORARRAY_BLE_MESSAGE_VALUE_MAX;
+    }
+    for (unsigned i = 0u; i < SENSORARRAY_BLE_PROTECTED_SLOT_COUNT; ++i) {
+        s_ble.protectedSlots[i].data = storage + offset;
+        offset += SENSORARRAY_BLE_MESSAGE_VALUE_MAX;
+    }
+    portEXIT_CRITICAL(&s_bleMux);
+    return ESP_OK;
+}
+
 esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
 {
     if (!config || config->deviceName[0] == '\0') {
         return ESP_ERR_INVALID_ARG;
     }
-    if (s_ble.initialized) {
-        return ESP_OK;
+    portENTER_CRITICAL(&s_bleMux);
+    if (s_bleInitAttempted) {
+        esp_err_t result = s_bleInitResult;
+        portEXIT_CRITICAL(&s_bleMux);
+        return result;
     }
+    s_bleInitAttempted = true;
+    /* A concurrent caller observes in-progress, never a premature success. */
+    s_bleInitResult = ESP_ERR_INVALID_STATE;
+    portEXIT_CRITICAL(&s_bleMux);
     esp_err_t budgetErr = sensorarrayWorkBudgetInit();
     if (budgetErr != ESP_OK) {
         printf("WORKBUDGET,owner=ble_tx,err=0x%lx,fallback=bounded\n",
                (unsigned long)budgetErr);
     }
+    portENTER_CRITICAL(&s_bleMux);
     sensorarrayBleControlRxCallback_t controlCallback = s_ble.controlCallback;
     void *controlContext = s_ble.controlContext;
     memset(&s_ble, 0, sizeof(s_ble));
@@ -1990,6 +2512,23 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     s_ble.stats.ctrlTaskConfiguredBytes = CONFIG_SENSORARRAY_BLE_CTRL_TASK_STACK;
     s_ble.txMode = CONFIG_SENSORARRAY_BLE_TX_MODE_SAFE ?
         SENSORARRAY_BLE_TX_SAFE : SENSORARRAY_BLE_TX_FAST;
+    s_ble.guard.initError = ESP_ERR_INVALID_STATE;
+    portEXIT_CRITICAL(&s_bleMux);
+    esp_err_t storageError = sensorarrayBleInitPayloadStorage();
+    if (storageError != ESP_OK) {
+        portENTER_CRITICAL(&s_bleMux);
+        s_ble.guard.initError = storageError;
+        portEXIT_CRITICAL(&s_bleMux);
+        return sensorarrayBleFinishInit(storageError);
+    }
+    esp_err_t guardError = sensorarrayBleWatchdogInit();
+    portENTER_CRITICAL(&s_bleMux);
+    s_ble.guard.initError = guardError;
+    s_ble.guard.ready = guardError == ESP_OK;
+    portEXIT_CRITICAL(&s_bleMux);
+    if (guardError != ESP_OK) {
+        return sensorarrayBleFinishInit(guardError);
+    }
     s_ble.txQueue = xQueueCreateStatic(CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN,
                                        sizeof(sensorarrayBleTxDescriptor_t),
                                        s_ble.txQueueStorage,
@@ -2009,8 +2548,7 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
     s_ble.txWake = xSemaphoreCreateBinaryStatic(&s_ble.txWakeStorage);
     if (!s_ble.txQueue || !s_ble.logTxQueue || !s_ble.ctrlTxQueue ||
         !s_ble.ctrlRxQueue || !s_ble.txWake) {
-        s_ble.stats.initError = ESP_ERR_NO_MEM;
-        return ESP_ERR_NO_MEM;
+        return sensorarrayBleFinishInit(ESP_ERR_NO_MEM);
     }
     BaseType_t taskOk = xTaskCreatePinnedToCore(sensorarrayBleTxTask,
                                                 "bleTx",
@@ -2021,7 +2559,7 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
                                                 CONFIG_SENSORARRAY_BLE_TX_TASK_CORE);
     if (taskOk != pdPASS || !s_ble.txTask) {
         sensorarrayBleStatsSetInitError(ESP_ERR_NO_MEM);
-        return ESP_ERR_NO_MEM;
+        return sensorarrayBleFinishInit(ESP_ERR_NO_MEM);
     }
     s_ble.txTaskStarted = true;
     taskOk = xTaskCreatePinnedToCore(sensorarrayBleControlTask,
@@ -2033,7 +2571,7 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
                                      CONFIG_SENSORARRAY_BLE_CTRL_TASK_CORE);
     if (taskOk != pdPASS || !s_ble.controlTask) {
         sensorarrayBleStatsSetInitError(ESP_ERR_NO_MEM);
-        return ESP_ERR_NO_MEM;
+        return sensorarrayBleFinishInit(ESP_ERR_NO_MEM);
     }
     s_ble.controlTaskStarted = true;
     sensorarrayBleBuildAdvData();
@@ -2043,17 +2581,17 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
         err = ESP_OK;
     }
     if (sensorarrayBleStep("classic_release", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
 
     esp_bt_controller_config_t controller = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     err = esp_bt_controller_init(&controller);
     if (sensorarrayBleStep("controller_init", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (sensorarrayBleStep("controller_enable", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     portENTER_CRITICAL(&s_bleMux);
     s_ble.stats.controllerReady = true;
@@ -2061,11 +2599,11 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
 
     err = esp_bluedroid_init();
     if (sensorarrayBleStep("bluedroid_init", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     err = esp_bluedroid_enable();
     if (sensorarrayBleStep("bluedroid_enable", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     portENTER_CRITICAL(&s_bleMux);
     s_ble.stats.hostReady = true;
@@ -2073,15 +2611,15 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
 
     err = esp_ble_gap_register_callback(sensorarrayBleGapCallback);
     if (sensorarrayBleStep("gap_cb", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     err = esp_ble_gatts_register_callback(sensorarrayBleGattCallback);
     if (sensorarrayBleStep("gatts_cb", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     err = esp_ble_gatts_app_register(SENSORARRAY_BLE_APP_ID);
     if (sensorarrayBleStep("app_register", err) != ESP_OK) {
-        return err;
+        return sensorarrayBleFinishInit(err);
     }
     err = esp_ble_gatt_set_local_mtu(config->preferredMtu ? config->preferredMtu : 247u);
     if (err != ESP_OK) {
@@ -2104,8 +2642,7 @@ esp_err_t sensorarrayBleInit(const sensorarrayBleConfig_t *config)
                                                         ESP_BLE_GAP_PHY_1M_PREF_MASK);
         }
     }
-    s_ble.initialized = true;
-    return ESP_OK;
+    return sensorarrayBleFinishInit(ESP_OK);
 }
 
 static esp_err_t sensorarrayBleNotifyInternal(
@@ -2136,7 +2673,9 @@ static esp_err_t sensorarrayBleNotifyInternal(
     esp_err_t allocateErr = sensorarrayBleAllocateTxDescriptor(
         channel, length, crc, expectedConnectionGeneration, priority, &desc);
     if (allocateErr != ESP_OK) {
-        sensorarrayBleNoteDrop(channel);
+        /* Policy rejection already atomically counted its LOG drop. Returning
+         * ESP_OK here would falsely label it accepted in transport statistics. */
+        if (allocateErr != ESP_ERR_NOT_ALLOWED) { sensorarrayBleNoteDrop(channel); }
         return allocateErr;
     }
     uint8_t *slotData = sensorarrayBleDescriptorData(&desc);
@@ -2171,6 +2710,144 @@ esp_err_t sensorarrayBleNotifyForGeneration(
                                         length,
                                         expectedConnectionGeneration,
                                         channel == SENSORARRAY_BLE_CH_CTRL);
+}
+
+esp_err_t sensorarrayBleNotifyFrameForGeneration(
+    const sensorarrayBleFramePublication_t *publication, uint32_t expectedConnectionGeneration)
+{
+    if (!publication || !publication->fullData || !publication->normalData || !expectedConnectionGeneration ||
+        !publication->fullLength || !publication->normalLength ||
+        publication->fullLength > SENSORARRAY_BLE_MESSAGE_VALUE_MAX ||
+        publication->normalLength > SENSORARRAY_BLE_MESSAGE_VALUE_MAX) return ESP_ERR_INVALID_ARG;
+    sensorarrayBleTxDescriptor_t desc = {0};
+    sensorarrayBleDataSlot_t *slot = NULL;
+    portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleFrameFlowSyncLocked();
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    sensorarrayBleFrameFlow_t *flow = &s_ble.frameFlow;
+    if (!flow->active || !s_ble.txQueue || expectedConnectionGeneration != s_ble.connectionGeneration) {
+        if (!s_ble.guard.ready || s_ble.guard.quarantined) s_ble.guard.rejected++;
+        else if (expectedConnectionGeneration != s_ble.connectionGeneration) s_ble.stats.txConnectionStaleDrop++;
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(SENSORARRAY_BLE_CH_DATA);
+        return ESP_ERR_INVALID_STATE;
+    }
+    const sensorarrayBleFrameIdentity_t *identity = &publication->identity;
+    bool olderConfig = flow->identityKnown && sensorarrayBleFrameSameBoot(identity, &flow->identity) &&
+        identity->revision != flow->identity.revision &&
+        sensorarrayBleFrameSequenceBefore(identity->sequence, flow->identity.sequence);
+    bool obsolete = flow->floorKnown && sensorarrayBleFrameSameBoot(identity, &flow->floor) &&
+        (identity->sequence == flow->floor.sequence ||
+         sensorarrayBleFrameSequenceBefore(identity->sequence, flow->floor.sequence));
+    if (olderConfig || obsolete) {
+        flow->staleNormal++;
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(SENSORARRAY_BLE_CH_DATA);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!flow->identityKnown || !sensorarrayBleFrameSameConfig(identity, &flow->identity)) {
+        flow->identity = *identity; flow->identityKnown = true; flow->firstPending = true;
+        flow->fullCompleteKnown = false;
+        flow->periodicPending = false;
+        flow->periodicDueUs = 0u;
+        flow->periodicGeneration = sensorarrayBleNextGeneration(flow->periodicGeneration);
+        flow->maxCompleteGapUs = 0u;
+        flow->gapKnown = false;
+    } else if (sensorarrayBleFrameSequenceBefore(flow->identity.sequence, identity->sequence)) {
+        flow->identity.sequence = identity->sequence;
+    }
+    sensorarrayBleFramePeriodicLocked(nowUs);
+    uint8_t protection = 0u;
+    if (flow->firstPending && !sensorarrayBleFrameProtectedRepresentedLocked(SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG))
+        protection |= SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG;
+    if (flow->periodicPending && !sensorarrayBleFrameProtectedRepresentedLocked(SENSORARRAY_BLE_OUTPUT_PROTECT_PERIODIC))
+        protection |= SENSORARRAY_BLE_OUTPUT_PROTECT_PERIODIC;
+    sensorarrayBleFrameFlowObserveLocked(nowUs);
+    sensorarrayBleOutputEpoch_t epoch = {.sessionId=identity->sessionId,.bootId=identity->bootId,
+        .connectionGeneration=s_ble.connectionGeneration,.streamGeneration=flow->streamGeneration};
+    sensorarrayBleOutputFrameKey_t key = {.revision=identity->revision,.sequence=identity->sequence};
+    sensorarrayBleOutputTicket_t ticket = sensorarrayBleOutputScheduleDecide(&flow->schedule,nowUs,&epoch,&key,protection);
+    if (ticket.decision == SENSORARRAY_BLE_OUTPUT_SKIP_POLICY) {
+        flow->intentionalSkip++;
+        portEXIT_CRITICAL(&s_bleMux);
+        return ESP_ERR_NOT_ALLOWED;
+    }
+    if (ticket.decision == SENSORARRAY_BLE_OUTPUT_NO_STREAM) {
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(SENSORARRAY_BLE_CH_DATA);
+        return ESP_ERR_INVALID_STATE;
+    }
+    flow->counters.admissionAttempts++;
+    bool protectedFrame = ticket.decision == SENSORARRAY_BLE_OUTPUT_SEND_PROTECTED;
+    const uint8_t *source = protectedFrame ? publication->fullData : publication->normalData;
+    size_t length = protectedFrame ? publication->fullLength : publication->normalLength;
+    int index = -1;
+    if (protectedFrame) {
+        for (unsigned i=0u;i<SENSORARRAY_BLE_PROTECTED_SLOT_COUNT;i++)
+            if (s_ble.protectedPhase[i]==BLE_FRAME_FREE) { index=(int)i; break; }
+        if (index<0) for (unsigned i=0u;i<SENSORARRAY_BLE_PROTECTED_SLOT_COUNT;i++) {
+            if (s_ble.protectedPhase[i]!=BLE_FRAME_PENDING) continue;
+            bool sameFirst = (s_ble.protectedMeta[i].ticket.protectionFlags & SENSORARRAY_BLE_OUTPUT_PROTECT_FIRST_CONFIG) &&
+                sensorarrayBleFrameSameConfig(&s_ble.protectedMeta[i].identity,identity);
+            if (sameFirst) continue;
+            index=(int)i; flow->protectedSuperseded++;
+            s_ble.stats.dropped[SENSORARRAY_BLE_CH_DATA]++; s_ble.stats.messageDropped++;
+            break;
+        }
+        if (index>=0) slot=&s_ble.protectedSlots[index];
+    } else for (unsigned i=0u;i<CONFIG_SENSORARRAY_BLE_TX_QUEUE_LEN;i++)
+        if (!s_ble.dataSlots[i].inUse) { index=(int)i; slot=&s_ble.dataSlots[i]; break; }
+    if (!slot) {
+        flow->counters.capacityRejected++; s_ble.stats.txSlotAllocFail++;
+        if (protectedFrame) flow->protectedMissed++;
+        portEXIT_CRITICAL(&s_bleMux);
+        sensorarrayBleNoteDrop(SENSORARRAY_BLE_CH_DATA);
+        return ESP_ERR_NO_MEM;
+    }
+    slot->inUse=true; slot->generation=sensorarrayBleNextGeneration(slot->generation);
+    slot->channel=SENSORARRAY_BLE_CH_DATA; slot->length=(uint16_t)length; slot->crc=0u;
+    desc=(sensorarrayBleTxDescriptor_t){.slotIndex=(uint8_t)index,.protectedSlot=protectedFrame,.typedFrame=true,
+        .channel=SENSORARRAY_BLE_CH_DATA,.length=(uint16_t)length,.generation=slot->generation,
+        .connectionGeneration=s_ble.connectionGeneration,.streamGeneration=flow->streamGeneration,.queuedAtUs=nowUs};
+    sensorarrayBleFrameMeta_t meta={.identity=*identity,.ticket=ticket,.periodicGeneration=flow->periodicGeneration,
+        .completeBundle=protectedFrame || (publication->normalData==publication->fullData && publication->normalLength==publication->fullLength)};
+    if (protectedFrame) {
+        s_ble.protectedPhase[index]=BLE_FRAME_WRITING; s_ble.protectedDescriptors[index]=desc; s_ble.protectedMeta[index]=meta;
+    } else s_ble.dataFrameMeta[index]=meta;
+    sensorarrayBleUpdateSlotUseLocked();
+    portEXIT_CRITICAL(&s_bleMux);
+    /* No caller/preview pointer escapes. WRITING cannot be superseded, taken
+     * by the worker or reclaimed by disconnect while copying outside mux. */
+    uint32_t crc=sensorarrayBleCrc32(source,length);
+    memcpy(slot->data,source,length);
+    portENTER_CRITICAL(&s_bleMux);
+    sensorarrayBleFrameFlowSyncLocked();
+    bool current=slot->inUse && slot->generation==desc.generation &&
+        desc.connectionGeneration==s_ble.connectionGeneration &&
+        desc.streamGeneration==s_ble.frameFlow.streamGeneration && s_ble.frameFlow.active;
+    if (current) {
+        slot->crc=desc.crc=crc;
+        if (protectedFrame) {
+            s_ble.protectedDescriptors[index]=desc; s_ble.protectedPhase[index]=BLE_FRAME_PENDING;
+            s_ble.frameFlow.protectedQueued++; s_ble.stats.messageQueued++;
+        }
+    } else s_ble.stats.txConnectionStaleDrop++;
+    portEXIT_CRITICAL(&s_bleMux);
+    if (!current) {
+        sensorarrayBleReleaseTxDescriptor(&desc); sensorarrayBleNoteDrop(SENSORARRAY_BLE_CH_DATA);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (protectedFrame) { (void)xSemaphoreGive(s_ble.txWake); return ESP_OK; }
+    esp_err_t result=sensorarrayBleQueueTxDescriptor(&desc);
+    if (result!=ESP_OK) {
+        portENTER_CRITICAL(&s_bleMux);
+        if (desc.connectionGeneration==s_ble.connectionGeneration && desc.streamGeneration==s_ble.frameFlow.streamGeneration) {
+            if (result==ESP_ERR_TIMEOUT) s_ble.frameFlow.counters.capacityRejected++;
+            else s_ble.frameFlow.counters.otherFailures++;
+        }
+        portEXIT_CRITICAL(&s_bleMux);
+    }
+    return result;
 }
 
 esp_err_t sensorarrayBleNotifyLifecycleForGeneration(
@@ -2270,4 +2947,79 @@ void sensorarrayBleGetLinkSnapshot(sensorarrayBleLinkSnapshot_t *outSnapshot)
      * reading the kernel outside our mux avoids a lock-order dependency. */
     outSnapshot->txTaskPriority = txTask ? (uint32_t)uxTaskPriorityGet(txTask) : 0u;
     outSnapshot->ctrlTaskPriority = controlTask ? (uint32_t)uxTaskPriorityGet(controlTask) : 0u;
+}
+
+void sensorarrayBleGetGuardSnapshot(sensorarrayBleGuardSnapshot_t *outSnapshot)
+{
+    if (!outSnapshot) return;
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    portENTER_CRITICAL(&s_bleMux);
+    *outSnapshot = s_ble.guard;
+    outSnapshot->active = s_ble.link.sdkCallActive;
+    if (!outSnapshot->quarantined) {
+        outSnapshot->callId = s_ble.link.sdkCallCount;
+        outSnapshot->startUs = s_ble.link.sdkCallStartedUs;
+        outSnapshot->completionKnown = outSnapshot->callKnown && !outSnapshot->active;
+    }
+    outSnapshot->ageUs = outSnapshot->callKnown && nowUs >= outSnapshot->startUs ?
+        nowUs - outSnapshot->startUs : 0u;
+    outSnapshot->deadlineUs = SENSORARRAY_BLE_SEND_DEADLINE_US;
+    outSnapshot->pollUs = SENSORARRAY_BLE_SEND_POLL_US;
+    outSnapshot->restartRequired = outSnapshot->quarantined ||
+        (!outSnapshot->ready && outSnapshot->initError != ESP_OK);
+    portEXIT_CRITICAL(&s_bleMux);
+}
+
+void sensorarrayBleGetLogPolicySnapshot(sensorarrayBleLogPolicySnapshot_t *outSnapshot)
+{
+    if (!outSnapshot) { return; }
+    portENTER_CRITICAL(&s_bleMux);
+    bool dataActive = sensorarrayBleDataActiveLocked();
+    bool logSendable = s_ble.guard.ready && !s_ble.guard.quarantined &&
+                       s_ble.stats.gattReady && s_ble.stats.connected &&
+                       SENSORARRAY_BLE_CCCD_ALLOWS_MODE(s_ble.cccd[SENSORARRAY_BLE_CH_LOG],
+                                                       s_ble.txMode);
+    *outSnapshot = (sensorarrayBleLogPolicySnapshot_t){
+        .connectionGeneration = s_ble.connectionGeneration,
+        .connected = s_ble.stats.connected,
+        .txMode = s_ble.txMode,
+        .dataCccd = s_ble.cccd[SENSORARRAY_BLE_CH_DATA],
+        .dataActive = dataActive,
+        .ordinaryAllowed = logSendable && !dataActive,
+        .policyDrop = s_ble.stats.logPolicyDrop,
+        .droppedLog = s_ble.stats.dropped[SENSORARRAY_BLE_CH_LOG],
+    };
+    portEXIT_CRITICAL(&s_bleMux);
+}
+
+void sensorarrayBleGetFlowSnapshot(sensorarrayBleFlowSnapshot_t *outSnapshot)
+{
+    if (!outSnapshot) return;
+    portENTER_CRITICAL(&s_bleMux);
+    uint64_t nowUs = (uint64_t)esp_timer_get_time();
+    const sensorarrayBleFrameFlow_t *f = &s_ble.frameFlow;
+    const sensorarrayBleOutputScheduleSnapshot_t *p = &f->schedule.snapshot;
+    bool active = sensorarrayBleDataActiveLocked();
+    *outSnapshot = (sensorarrayBleFlowSnapshot_t){
+        .connectionGeneration=s_ble.connectionGeneration,.streamGeneration=f->streamGeneration,
+        .stage=!active ? SENSORARRAY_BLE_OUTPUT_INACTIVE :
+            (f->scheduleInitialized && p->active ? (uint8_t)p->mode : SENSORARRAY_BLE_OUTPUT_FULL),
+        .ordinaryRatePermille=f->scheduleInitialized && p->active ? p->ordinaryRatePermille : 1000u,
+        .capacityRejectedPermille=p->capacityRejectedPermille,.pressureWindows=p->pressureWindows,
+        .active=active,.evidenceKnown=active && p->active && p->evidenceKnown,
+        .serviceKnown=active && p->active && p->serviceKnown,
+        .localServiceMilliFps=p->localServiceMilliFps,.admissionAttempts=f->counters.admissionAttempts,
+        .capacityRejected=f->counters.capacityRejected,.intentionalSkip=p->policySkipped,
+        .probeSelected=p->probeSelected,.cleanEvidenceUs=p->cleanUs,
+        .protectedQueued=f->protectedQueued,.protectedComplete=f->protectedComplete,.protectedFailed=f->protectedFailed,
+        .protectedAdmissionMiss=f->protectedMissed,.protectedDeadlineMiss=f->protectedDeadlineMissed,
+        .protectedSuperseded=f->protectedSuperseded,.staleNormal=f->staleNormal,
+        .lastCompleteKnown=f->floorKnown,.lastCompleteAgeKnown=f->floorKnown && nowUs>=f->lastProtectedCompleteUs,
+        .gapKnown=f->gapKnown,
+        .firstPending=f->firstPending,.periodicPending=f->periodicPending,
+        .lastSequence=f->floor.sequence,.lastRevision=f->floor.revision,
+        .lastCompleteAgeUs=nowUs>=f->lastProtectedCompleteUs ? nowUs-f->lastProtectedCompleteUs : 0u,
+        .maxCompleteGapUs=f->maxCompleteGapUs,
+    };
+    portEXIT_CRITICAL(&s_bleMux);
 }

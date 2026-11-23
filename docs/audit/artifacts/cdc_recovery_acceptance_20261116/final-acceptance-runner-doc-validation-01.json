@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "source_freeze_unchanged": true,
+  "frozen_files": 15,
+  "documents": [
+    {
+      "path": "README.md",
+      "sha256": "5e3e441c75383759d0d1f056d1aeefedd17568c470e6bc741f73c23edb5e60b6",
+      "relative_links_checked": 468
+    },
+    {
+      "path": "docs/integration/firmware_host_contract.md",
+      "sha256": "7f224c5b85a295015f902a41ef2e9822f1226baa861c6110d3f4ec302653673b",
+      "relative_links_checked": 147
+    },
+    {
+      "path": "docs/audit/firmware_reliability_fix_report.md",
+      "sha256": "b05593cdbb1ce12f54f40f8a1dc45c681e399a5f3d643662fbf9b9180f22572a",
+      "relative_links_checked": 358
+    }
+  ],
+  "checks": [
+    "relative local links resolve",
+    "Still in test retained",
+    "frozen Python source hashes unchanged",
+    "git diff --check separately executed exit0"
+  ],
+  "hardware_actions": [],
+  "overall_acceptance": "NOT_ESTABLISHED"
+}

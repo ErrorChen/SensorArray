@@ -1,0 +1,87 @@
+{
+  "reviewer": "/root/ble_review",
+  "dateUtc": "2026-11-20T18:32:02.777599+00:00",
+  "scope": "Read-only independent re-review of standalone pure C scheduler after sparse recovery repair. BLE/transport integration not frozen and not reviewed. No hardware access; production source unchanged by reviewer.",
+  "reviewedSourceSha256": {
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.c": "51d78061bf1bc913df3602ceb14abe4b5aaa4672e234c0692bd68f8b5018f66b",
+    "components/sensorarrayBle/sensorarrayBleOutputSchedule.h": "4576c23f98b0505d19157b2e936df6b793ba7501c9bfd549ed0709ad59a278e3",
+    "tools/test_ble_output_schedule.py": "19c69a5f59b4060229d41d5105cbac79fdf8d2da36832bb15299b73b53f0dd7b",
+    "tests/host/test_ble_output_schedule.c": "ca62c4bfb187a6ea28e5a0e0305c149aa689d796a6c4164b4b9647c3860f2194"
+  },
+  "gate": "PASS_STANDALONE_MODULE_ONLY",
+  "blockingFindings": [],
+  "resolvedFinding": {
+    "priority": "P1",
+    "previousRecord": "ble-output-schedule-independent-review-01.json",
+    "cause": "Zero-attempt windows erased sparse successful recovery evidence, leaving 0/5% output indefinitely low.",
+    "repair": "Empty windows add no healthy duration and mark current evidence/service unknown. Previous real clean evidence can survive gaps for at most three seconds. Invalid/error/epoch/time-reset evidence clears it. At most one bounded ordinary probe per monotonic second and only when an actual complete frame is offered avoids a zero-output absorbing state. A probe is a selection counter, never completion evidence.",
+    "verifiedScenarios": [
+      {
+        "case": "same 120s input as original 0-rate protected due1s plus200ms local-service reproducer",
+        "offered": 100,
+        "wholeLocalCompleted": 100,
+        "finalOrdinaryRatePermille": 400,
+        "upSteps": 8,
+        "noEvidenceWindows": 20
+      },
+      {
+        "case": "same 1440 frame input as original 5% at approximately12FPS reproducer",
+        "wholeLocalCompleted": 439,
+        "finalOrdinaryRatePermille": 600,
+        "upSteps": 11,
+        "noEvidenceWindows": 0
+      }
+    ]
+  },
+  "executedTests": [
+    {
+      "record": "ble-output-schedule-independent-test-02.json",
+      "command": [
+        "python3",
+        "tools/test_ble_output_schedule.py"
+      ],
+      "exitCode": 0,
+      "groups": 8,
+      "variants": [
+        "optimized",
+        "address+undefined sanitizers"
+      ]
+    },
+    {
+      "record": "ble-output-schedule-sparse-recovery-probe-02.json",
+      "fixture": "ble-output-schedule-sparse-recovery-probe-02.c",
+      "variants": [
+        {
+          "name": "optimized",
+          "compileExitCode": 0,
+          "runExitCode": 0
+        },
+        {
+          "name": "asan_ubsan",
+          "compileExitCode": 0,
+          "runExitCode": 0
+        }
+      ],
+      "originalInputPreservation": "The two original event/input loops are unchanged. Only introduction, assertions expecting repaired behavior, and printed result labels were changed. Original01 failure source/log/metadata remain unmodified."
+    }
+  ],
+  "verifiedBoundaries": [
+    "Zero-attempt windows do not add cleanUs and cannot independently cause an up-step; evidence/serviceKnown are false for the current empty window.",
+    "Previous real clean evidence is retained across2.9s and expires across3.1s in the maintained regression.",
+    "120s all-rejected bounded probes do not upshift;120s no attempts/frames do not upshift and clear old clean evidence.",
+    "FULL1000permille selects every offered ordinary frame. No probe timer, SDK call, task wakeup, or capture control exists in this module.",
+    "Protected decision is made before ordinary credit/probe logic and preserves ordinary credit; protection never gets SKIP_POLICY while current stream is active.",
+    "probeSelected is separate and included in selectedOrdinary; header explicitly says actual ordinary output can exceed proportional rate because of bounded probes. Selection is not success.",
+    "Strict>20% local capacity pressure, three completed consecutive valid windows,5pp down-step and3s minimum spacing remain unchanged. Recovery requires accumulated10s of actual valid clean evidence windows, not10s idle or necessarily10s continuous wall time.",
+    "Completion still only returns a candidate for whole local success and exact current ticket/key/epoch; caller retains external obligations and payload ownership. No PC receipt is claimed."
+  ],
+  "remainingIntegrationRequirements": [
+    "Serialized state access; atomic same-epoch classified local counters.",
+    "Explicit distinction between ordinary policy skip, capacity rejection, other failure and whole local completion.",
+    "Protected pending/owned lifetime and ticket obligations must be reviewed after BLE integration is frozen.",
+    "These host-only synthetic local-counter tests do not establish weak-RF behavior or host-received complete-frame rate."
+  ],
+  "hardware": "NOT_RUN",
+  "weakRadioScenario": "NOT_RUN",
+  "rawEvidencePreserved": true
+}

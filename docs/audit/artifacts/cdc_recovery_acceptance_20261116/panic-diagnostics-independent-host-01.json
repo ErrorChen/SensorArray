@@ -1,0 +1,39 @@
+{
+  "timestamp_utc": "2026-11-21T00:52:07.815499+00:00",
+  "command": [
+    "python3",
+    "tools/test_panic_diagnostics.py"
+  ],
+  "exit_code": 0,
+  "source_before": {
+    "main/control/sensorarrayPanicDiagnostics.c": "670ccbd6e9ea8a25566cef9272b7f89c8a617ca211fa849af20decb0c6422c7c",
+    "main/control/sensorarrayPanicDiagnostics.h": "1c78f7b6016c3ae412f365b240b7b0adf45ece37ee90353cdf7aa7501ae5463a",
+    "main/main.c": "89755d266466048871a471ead10847fee995f8cafe7d18c1f5bbb3d58e153702",
+    "main/CMakeLists.txt": "66fac838ace4f351ff7e313ab16a1989e73ae0630babb87e32c1b9b0c2415b7b",
+    "tools/test_panic_diagnostics.py": "d0eb9abc5e0b5843936c817aa6fddda0949c835b0d3db5f90489027f1e3fd383",
+    "tests/host/test_panic_diagnostics.c": "0bb1a805dd2e7113353c8291c1f059535b55ea6f2d5e926e1f2a7a9d3a0ca62c",
+    "tests/host/test_recovery_control.c": "664a8ff966bd39c30117fde7d97555799d1ade45046759c7ee7e886a9b2964d4",
+    "tests/host/test_frontend_wait_integration.c": "0a651abb3a8554ff1564722293ff9d8149f6290981f3a90e184ef468155376f5"
+  },
+  "source_after": {
+    "main/control/sensorarrayPanicDiagnostics.c": "670ccbd6e9ea8a25566cef9272b7f89c8a617ca211fa849af20decb0c6422c7c",
+    "main/control/sensorarrayPanicDiagnostics.h": "1c78f7b6016c3ae412f365b240b7b0adf45ece37ee90353cdf7aa7501ae5463a",
+    "main/main.c": "89755d266466048871a471ead10847fee995f8cafe7d18c1f5bbb3d58e153702",
+    "main/CMakeLists.txt": "66fac838ace4f351ff7e313ab16a1989e73ae0630babb87e32c1b9b0c2415b7b",
+    "tools/test_panic_diagnostics.py": "d0eb9abc5e0b5843936c817aa6fddda0949c835b0d3db5f90489027f1e3fd383",
+    "tests/host/test_panic_diagnostics.c": "0bb1a805dd2e7113353c8291c1f059535b55ea6f2d5e926e1f2a7a9d3a0ca62c",
+    "tests/host/test_recovery_control.c": "664a8ff966bd39c30117fde7d97555799d1ade45046759c7ee7e886a9b2964d4",
+    "tests/host/test_frontend_wait_integration.c": "0a651abb3a8554ff1564722293ff9d8149f6290981f3a90e184ef468155376f5"
+  },
+  "source_matches_freeze": true,
+  "images_before": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "images_after": {
+    "build/SensorArray.elf": "6a91b6aa606ada32346f9d86ab6ad85df40187bdb567846f643262345ca3a94e",
+    "build/SensorArray.bin": "c2ed22c7e24ea0e82b152ee187f3e8e465aa4285b0cf4dcc675aa3b5011be60a"
+  },
+  "output": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/panic-diagnostics-independent-host-01.txt",
+  "output_sha256": "804a35dd728c37a0f35095424c282451281467f0fd8d51febc58875e99398952"
+}

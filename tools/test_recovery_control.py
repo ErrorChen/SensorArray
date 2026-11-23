@@ -2,6 +2,9 @@
 """Execute real recovery admission/cache and main recovery branches with synthetic hardware."""
 from pathlib import Path
 import os
+import hashlib
+import re
+from test_ble_pipeline import struct
 import subprocess
 import tempfile
 from test_main_config_commit import function
@@ -44,15 +47,26 @@ harness = harness.replace('/* PRODUCTION_FUNCTIONS */', '\n\n'.join(functions.va
 includes = '\n'.join('#include "' + str(ROOT / path) + '"' for path in [
     'core/measure/sensorarrayMeasurementMode.c', 'core/measure/sensorarrayRowModeProfile.c',
     'core/measure/sensorarrayConfigIdentity.c', 'core/transport/sensorarrayTransportGuaranteedText.c',
+    'core/transport/sensorarrayTransportPool.c',
+    'core/transport/sensorarrayTransportFrameMeta.c',
     'main/control/sensorarrayRecoveryControl.c', 'main/control/sensorarrayRestartControl.c',
     'components/sensorarrayWorkBudget/sensorarrayCpuOwner.c'])
 harness = harness.replace('/* PRODUCTION_MODULES */', includes)
 transport_source = (ROOT / 'core/transport/sensorarrayTransport.c').read_text()
 transport_functions = '\n\n'.join(function(transport_source, name) for name in [
+    'static void sensorarrayTransportSyncPoolStatsLocked(',
+    'static bool sensorarrayTransportAllocateDescriptor(',
+    'static bool sensorarrayTransportDescriptorCurrent(',
+    'static sensorarrayTransportPayloadSlot_t *sensorarrayTransportDescriptorSlot(',
+    'static bool sensorarrayTransportReleaseDescriptor(',
+    'static void sensorarrayTransportProtectionCount(',
+    'static bool sensorarrayTransportSupersedePendingProtected(',
+    'static esp_err_t sensorarrayTransportQueueFrameInternal(',
     'static esp_err_t sensorarrayTransportQueue(',
     'esp_err_t sensorarrayTransportPublishLifecycleObserved(',
     'static void sensorarrayTransportDrainGuaranteedText('])
 harness = harness.replace('/* PRODUCTION_TRANSPORT */', transport_functions)
+harness = harness.replace('/* PRODUCTION_TRANSPORT_CONSTANTS */', re.search(r'^#define SENSORARRAY_TRANSPORT_PROTECTED_DEADLINE_US .*$', transport_source, re.M)[0])
 
 with tempfile.TemporaryDirectory(prefix='sensorarray-recovery-control-') as temporary:
     tmp = Path(temporary); fake = tmp / 'fake'; (fake / 'freertos').mkdir(parents=True)
@@ -73,12 +87,14 @@ typedef pthread_mutex_t portMUX_TYPE;
 #include <stdbool.h>
 #define SENSORARRAY_TRANSPORT_TEXT_MAX 2304u
 esp_err_t sensorarrayTransportPublishLifecycleObserved(const char *data, size_t length, bool *outQueued);
-''')
+''' + '\n'.join(struct((ROOT/'core/transport/sensorarrayTransport.h').read_text(), name) for name in ('sensorarrayTransportStats_t','sensorarrayTransportProtectionStats_t')))
     unit = tmp / 'unit.c'; unit.write_text(harness)
     exe = tmp / 'test'
     cmd = [os.environ.get('CC', '/usr/bin/gcc'), '-std=c11', '-D_XOPEN_SOURCE=700', '-Wall', '-Wextra', '-Werror', '-pthread']
     for inc in [fake, ROOT/'tests/host/include', ROOT/'core/measure/include', ROOT/'core/config',
-                ROOT/'core/transport', ROOT/'main/control', ROOT/'components/sensorarrayWorkBudget/include']:
+                ROOT/'core/transport', ROOT/'main/control', ROOT/'components/sensorarrayWorkBudget/include', ROOT/'components/sensorarrayWifi/include']:
         cmd += ['-I', str(inc)]
     subprocess.run(cmd + [str(unit), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
+
+print('RECOVERY_CONTROL_SOURCE_SHA,transport=' + hashlib.sha256(transport_source.encode()).hexdigest() + ',fixture=' + hashlib.sha256((ROOT/'tests/host/test_recovery_control.c').read_bytes()).hexdigest())

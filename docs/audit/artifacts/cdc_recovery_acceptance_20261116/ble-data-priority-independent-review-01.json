@@ -1,0 +1,20 @@
+{
+  "status": "REVIEWED_NO_BLOCKING_P0_P1_IDENTIFIED",
+  "reviewer": "independent read-only ble_review agent",
+  "BLE_source_sha256": "e3303be49ab3c1f629b37958bf8ec6602b8c40362d280b5bd285654150e8899f",
+  "prior_frozen_sha256": "2889a6f29bd51dfaa88228c986c519ad7675680873d56a4230dcea434a1dcbfd",
+  "delta_verified": "Reviewer restored old ReceiveNext/dataRun/BURST code in memory and obtained exact prior hash; no other BLE change.",
+  "policy": "Reserved CTRL/lifecycle first, DATA if queued, ordinary diagnostic LOG only when DATA queue is empty. Selected record is not preempted.",
+  "tests": [
+    "100 sustained DATA selections with 2 ordinary LOG slots retained",
+    "Third ordinary LOG rejected with counted drop",
+    "CTRL and priority LOG lifecycle selected at steps20/60",
+    "After DATA stops, remaining DATA and LOG drain to zero slots",
+    "Existing CRC, receiver, ownership, SDKguard and workbudget regression retained"
+  ],
+  "limitations": [
+    "Ordinary LOG can remain queued during continuous DATA backlog; memory remains bounded.",
+    "Descriptor selection does not prove radio scheduling or zero DATA loss."
+  ],
+  "hardware_actions": []
+}
