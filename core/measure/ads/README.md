@@ -78,14 +78,18 @@ ADS REFOUT (Vref) -> TMUX1108 -> Rx -> TMUX1134 B -> Dn/AINn (Vnode)
 Rx = Rref * (Vref - Vnode) / (Vnode - Vss) - calibratedPathOffset
 ```
 
-`Vnode` 来自新鲜 ADC1 conversion；`Vss` 来自有 age 限制的 rail snapshot；
+`Vnode` 来自新鲜 ADC1 conversion。`Vss` 来自当前帧捕获的合法 rail 快照。用
+`RAILCFG` 输入的外部实测值在 RAM 中有效，帧龄单独报告。
 `Vref` 是校准的 REFOUT-to-AVSS span 所确定的矩阵激励，不等同于 AVDD；`Rref`
 来自 Kconfig/校准结构。近零分母、负值、overflow、short、open、range、unstable
 和 stale 各有独立错误。TMUX 的数据手册典型 Ron 不会直接作为“精确补偿”。
 
 `sensorarrayAdsMatrixCalibration_t` 带版本并支持 Rref、matrix reference span、
 全局/bank/per-cell path offset。setter 只在 SAFE/NONE 接受通过范围检查的数据。
-当前仓库没有把它写入 NVS；持久化校准仍未实现，避免引入无版本/无 CRC 格式。
+`CAL=SAVE` 将当前矩阵校准写入 NVS，记录包含 schema、板号、硬件版本与
+CRC32。`CAL=LOAD` 在 ADS engine 为 NONE 时验证并应用记录。启动时用同一
+加载与验证路径，结果由 `CALBOOT` 报告。外部供轨读数单独保存在 RAM 中。
+本轮夹具报告的 10 kΩ 单点比例仅用于离线交叉核对。 [主机契约](../../../docs/integration/firmware_host_contract.md)
 
 ### Automatic PGA
 

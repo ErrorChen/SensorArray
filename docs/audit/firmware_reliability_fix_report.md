@@ -1,5 +1,11 @@
 # SensorArray 固件可靠性修复报告
 
+## 32 工况正式 USB 与 BLE 验收 / 32-configuration USB and BLE screen
+
+修复提交 `f9a82f7`，实机 ELF `892f586b…`，session `0119031D7DEF4971`，boot 1。CAP、VOLT、RES 和逐行 C/V/R 循环四组，各 1–8 行，全部 32 项一次通过。每个正式窗口至少 120 秒，CAP8、RES8 各 122 秒。正式 USB 实收 85,284 帧，各窗口内部序号缺口合计 0。BLE 实收 85,228 帧，唯一缺口在 VOLT1，为 55/7,402（0.7430%）。观察器有独立的窗首和窗尾，用每个通路自己的序列计算缺口。32 次均回读确认恢复 CAP8，首个恢复命令到权威回读需 56.167–265.354 ms。23 个有可用分母的健康窗口中，4,189,038 次受检 ADS 读取有 0 次 CRC 拒绝，其余 9 项无该分母。
+
+All 32 configurations passed on the same instrument boot. The USB receiver observed zero interior sequence gaps. BLE's largest measured gap fraction was 0.7430%. Both receivers preserved scientific invalids, including the expected OPEN values of floating resistance inputs. Local FIFO submissions, SDK calls and host-complete frames have distinct counters and time windows. Some preparation phases contained older configuration gaps, which remain in the raw recordings. Per-configuration physical bus completion and unobserved memory metrics remain unknown. [逐项结果 / Case results](artifacts/cdc_recovery_acceptance_20261116/record-matrix-final.md) · [吞吐、任务、水位和恢复 / Performance](artifacts/cdc_recovery_acceptance_20261116/record-matrix-final-performance.md)
+
 ## USB CDC0 在短暂停读后的数据完整性 / Formal USB delivery after a short reader pause
 
 **证据与定位。** 旧 ELF `179f9183…` 的 VOLT2 自然窗口内，USB 的 77016 只留下 330 个原始字节与换行，77021–77026 整帧缺失。BLE 顺序完整。同期普通记录过期及部分写各增 1，DATA 拒绝增 6。三条主机通路的接收时间不能确定最初停顿发生在哪一层。随后同板在 VOLT2 人为暂停正式口应用读取 650 ms，USB 缺 12 帧，BLE 收齐 5,045 帧。该对照可重复触发传输缺口。[原始分析](artifacts/cdc_recovery_acceptance_20261116/bss-volt2-usb-stall-analysis-01/evidence.md) · [受控复现](artifacts/cdc_recovery_acceptance_20261116/bss-pause-volt2-01/bss-pause-volt2-01-volt2/bss-pause-volt2-01-volt2.gate.json)

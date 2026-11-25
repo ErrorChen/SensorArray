@@ -1,3 +1,68 @@
+<a id="record-matrix-final"></a>
+
+## 32 配置实测 / 32-configuration matrix
+
+**32/32 项通过正常 FULL 配置筛查。** 同一块板在完整 ELF `892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677`、session `0119031D7DEF4971`、boot `1` 上完成 CAP、VOLT、RES、MIXED 各 1–8 行。USB 实收 85,284 个完整帧，各窗口内部缺口合计 0。BLE 实收 85,228 个完整帧。最高缺口在 VOLT1，55 / (7,347 + 55) = **0.743042%**，低于 2.5% 门限。其他 31 项 BLE 内部缺口均为 0。
+
+**All 32 normal FULL case screens passed** on this ELF, session and boot. Each receiver uses its own first and last complete sequence in each window. USB received 85,284 complete frames with zero internal gaps. BLE received 85,228. VOLT1 accounted for all 55 missing BLE sequences and met the 2.5% criterion. All 32 cleanup queries confirmed CAP8. [原始矩阵记录 / Run index](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01.failfast.json) · [源码及构建身份 / Source and image identity](docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-01-source-identity.json)
+
+采集 FPS 按可信帧的序号进度和设备时戳跨度计算。USB、BLE FPS 分别按主机收到完整帧的时间计算。MIXED 使用 `CVRCVRCV`，每行含 8 个 D 通道。CAP8、RES8 的主机窗口各请求 122 秒，其余 30 项各请求 120 秒。 / Capture FPS uses sequence progression over device time. USB and BLE FPS use complete-frame receipt at each host receiver. MIXED uses the named row profile. CAP8 and RES8 each requested 122 host seconds, and the other 30 requested 120. [逐项筛查 / Case screens](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-final.md)
+
+| 模式 / Mode | 活动行 / Rows | 采集 / Capture FPS | USB 实收 / Host FPS | BLE 实收 / Host FPS | USB 完整帧 / Frames | BLE 完整帧 / Frames | BLE 缺帧 / Missing |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| CAP | 1 | 68.206 | 68.207 | 68.211 | 8,185 | 8,185 | 0 |
+| CAP | 2 | 40.243 | 40.243 | 40.243 | 4,829 | 4,829 | 0 |
+| CAP | 3 | 28.100 | 28.101 | 28.102 | 3,372 | 3,373 | 0 |
+| CAP | 4 | 21.867 | 21.868 | 21.869 | 2,624 | 2,624 | 0 |
+| CAP | 5 | 17.888 | 17.888 | 17.888 | 2,146 | 2,146 | 0 |
+| CAP | 6 | 15.137 | 15.138 | 15.138 | 1,817 | 1,817 | 0 |
+| CAP | 7 | 13.121 | 13.122 | 13.122 | 1,574 | 1,574 | 0 |
+| CAP | 8 | 11.575 | 11.577 | 11.576 | 1,413 | 1,413 | 0 |
+| VOLT | 1 | 61.673 | 61.681 | 61.230 | 7,402 | 7,347 | 55 |
+| VOLT | 2 | 43.094 | 43.098 | 43.094 | 5,171 | 5,171 | 0 |
+| VOLT | 3 | 33.713 | 33.715 | 33.715 | 4,046 | 4,045 | 0 |
+| VOLT | 4 | 27.695 | 27.695 | 27.694 | 3,322 | 3,322 | 0 |
+| VOLT | 5 | 22.203 | 22.206 | 22.207 | 2,665 | 2,664 | 0 |
+| VOLT | 6 | 19.165 | 19.178 | 19.177 | 2,300 | 2,300 | 0 |
+| VOLT | 7 | 16.794 | 16.797 | 16.796 | 2,016 | 2,016 | 0 |
+| VOLT | 8 | 14.793 | 14.793 | 14.794 | 1,775 | 1,775 | 0 |
+| RES | 1 | 46.054 | 46.055 | 46.056 | 5,526 | 5,527 | 0 |
+| RES | 2 | 28.908 | 28.909 | 28.911 | 3,469 | 3,469 | 0 |
+| RES | 3 | 20.832 | 20.835 | 20.834 | 2,500 | 2,500 | 0 |
+| RES | 4 | 16.253 | 16.252 | 16.252 | 1,950 | 1,950 | 0 |
+| RES | 5 | 13.265 | 13.272 | 13.273 | 1,592 | 1,592 | 0 |
+| RES | 6 | 11.140 | 11.147 | 11.147 | 1,337 | 1,337 | 0 |
+| RES | 7 | 9.586 | 9.588 | 9.588 | 1,150 | 1,150 | 0 |
+| RES | 8 | 8.243 | 8.252 | 8.252 | 1,007 | 1,007 | 0 |
+| MIXED | 1 | 43.497 | 43.499 | 43.500 | 5,220 | 5,220 | 0 |
+| MIXED | 2 | 20.902 | 20.905 | 20.905 | 2,509 | 2,509 | 0 |
+| MIXED | 3 | 7.610 | 7.611 | 7.611 | 914 | 913 | 0 |
+| MIXED | 4 | 7.066 | 7.068 | 7.067 | 848 | 848 | 0 |
+| MIXED | 5 | 6.221 | 6.222 | 6.222 | 747 | 747 | 0 |
+| MIXED | 6 | 5.494 | 5.496 | 5.496 | 660 | 660 | 0 |
+| MIXED | 7 | 5.208 | 5.210 | 5.210 | 625 | 625 | 0 |
+| MIXED | 8 | 4.774 | 4.775 | 4.775 | 573 | 573 | 0 |
+
+<details>
+<summary>无效点、ADC CRC、性能与恢复时间 / Invalid points, ADC CRC, performance and recovery timing</summary>
+
+| 模式 / Mode | USB 无效点 / Invalid points | BLE 无效点 / Invalid points | 有 ADC 分母的窗口 / Windows with checked reads | ADC CRC 拒绝 / 检查 · rejected / checked |
+|---|---:|---:|---:|---:|
+| CAP | 0 | 0 | 0 / 8 | — |
+| VOLT | 1,516 | 1,508 | 8 / 8 | 0 / 1,156,521 |
+| RES | 459,278 | 459,285 | 8 / 8 | 0 / 2,100,836 |
+| MIXED | 49,800 | 49,792 | 7 / 8 | 0 / 931,681 |
+
+两端实收完整帧仍保留无效点，USB / BLE 分别合计 510,594 / 510,585 个。RES 和 MIXED 表中的无效点均标为 OPEN。ADC CRC 在 23 个独立 ADSHEALTH 诊断窗内为 **0 / 4,189,038**，分母是已检查读取次数，包含重试。CAP1–8 和仅激活第一条 C 行的 MIXED1 缺少检查分母。
+
+Complete frames retain invalid points. All invalid RES and MIXED points in these windows were flagged OPEN. Across 23 bounded ADSHEALTH intervals, the ADC rejected zero of 4,189,038 checked reads, including retry attempts. CAP1–8 and MIXED1 have no checked-read denominator. [每项完整帧、缺口、ADC 与无效点 / Full case evidence](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-final.json)
+
+32 项从首个恢复命令到最终同 boot CAP8 CONFIG 回读的耗时范围为 **56.167–265.354 ms**。从采集结束计入结束查询，耗时范围为 **195.834–660.560 ms**。性能表列出固件 emit、USB DATA 提交、BLE 本地 DATA 与 SDK 接受、各角色 CPU、heap 和剩余栈。USB 物理总线完成次数、BLE 空口完成次数及本轮缺少 MEM? 样本的最大连续内存块均为 UNKNOWN。
+
+All 32 configurations recovered to CAP8. The measured range was **56.167–265.354 ms** from the first restore command and **195.834–660.560 ms** from the end of capture, including post-capture queries. The performance report gives firmware emit rates, USB and BLE submission counts, owner CPU, heap and stack observations, and the time bounds for each. Physical USB and BLE completion counts and the largest contiguous heap blocks remain unknown. [性能与恢复表 / Performance and recovery](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-final-performance.md) · [各层时间范围及原始观测 / Layer timings and evidence](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-final-performance.json)
+
+</details>
+
 ## 正式 USB 短暂停读回归 / Formal USB reader-pause regression
 
 ESP32-S3 实机在 VOLT 两行、USB 与 BLE 同时接收的条件下，分别测了旧固件及修复提交 `f9a82f7`。两次都在 120 秒窗口内暂停主机 CDC0 应用读取约 650 ms，BLE 观察器继续运行。下表中的缺帧按各自通路的完整帧序号计算，设备计数取本次窗口增量。
