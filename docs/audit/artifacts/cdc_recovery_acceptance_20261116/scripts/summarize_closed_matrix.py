@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import datetime, timezone
 import hashlib
 import json
+from math import isfinite
 from pathlib import Path
 import re
 
@@ -29,6 +30,13 @@ def read_record(path):
     return json.loads(raw), {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest()}
 
 
+def argument(argv, flag):
+    require(isinstance(argv, list) and argv.count(flag) == 1, 'missing or duplicate argument ' + flag)
+    index = argv.index(flag) + 1
+    require(index < len(argv) and isinstance(argv[index], str), 'missing value for ' + flag)
+    return argv[index]
+
+
 def sink_metrics(fps, counts, missing):
     received, lost = counts.get('ordered_integrity_valid_frames'), missing['count']
     denominator = received + lost if received is not None and lost is not None else None
@@ -44,10 +52,14 @@ def closed_metrics(directory, formal_path, summary, gate, summary_digest):
             authority['summary']['sha256'] == capture['files']['summary']['sha256'] == summary_digest and
             capture['label'] == formal_path.name.removesuffix('.summary.json'), 'gate/formal summary binding mismatch')
     require(summary['image_authority']['expected'] == gate['expected'], 'summary/gate image identity mismatch')
+    requested = summary['capture_requested_seconds']
+    require(capture['requested']['requested_seconds'] == requested and
+            capture['window']['requested_seconds_met'] is True, 'closed gate capture request mismatch')
     groups, ble = capture.get('configuration_groups', []), capture.get('ble', {})
     usb_counts, ble_counts = capture.get('capture_counts', {}), ble.get('capture_frame_counts', {})
     rates = groups[0]['rates'] if len(groups) == 1 else {}
-    stats = {'capture_seconds': summary['capture_seconds'], 'capture_fps': rates.get('capture_fps'),
+    stats = {'capture_requested_seconds': requested, 'capture_seconds': summary['capture_seconds'],
+             'device_span_seconds': rates.get('device_span_seconds'), 'capture_fps': rates.get('capture_fps'),
              'USB': sink_metrics(rates.get('host_complete_receive_fps'), usb_counts, missing_observations(usb_counts, groups)),
              'BLE': sink_metrics(ble.get('comparative_host_fps'), ble_counts,
                                  missing_observations(ble_counts, ble.get('configuration_groups', []))),
@@ -100,8 +112,15 @@ def read_case(matrix, prefix, mode, rows):
                    started_utc=command.get('started_utc'))
         argv = command['command']
         flags = ('--expected-elf', '--expected-session', '--expected-boot-id')
-        require(all(argv.count(flag) == 1 for flag in flags), 'missing or duplicate expected identity arguments')
-        row['requested_identity'] = ExpectedCaptureIdentity(*(argv[argv.index(flag)+1] for flag in flags)).output()
+        row['requested_identity'] = ExpectedCaptureIdentity(*(argument(argv, flag) for flag in flags)).output()
+        require(tuple(argument(argv, f) for f in ('--label', '--mode', '--rows')) == (label, mode, str(rows)),
+                'collector arguments disagree with case label, mode or rows')
+        # Commands made before the optional fixture margin could only request 120 seconds.
+        requested = command.get('capture_requested_seconds', 120)
+        allowed = (120, 122) if (mode, rows) in {('CAP', 8), ('RES', 8)} else (120,)
+        require(requested in allowed and float(argument(argv, '--capture-seconds')) == requested,
+                'unsupported or inconsistent command capture duration')
+        row['capture_requested_seconds'] = requested
         gate_path = local_file(directory / (label + '.gate.json'), directory)
         formal_path = local_file(directory / (label + '.summary.json'), directory)
         if command.get('child_pid') or 'child_termination_known' in command or formal_path.exists():
@@ -132,7 +151,13 @@ def read_case(matrix, prefix, mode, rows):
         digest = row['sources']['formal']['sha256']
         require(command['summary_sha256'] == digest, 'closed command/formal summary hash mismatch')
         require((summary['benchmark_kind'], summary['benchmark_mode'], summary['rows_requested'],
-                 summary['capture_requested_seconds']) == ('configuration', mode, rows, 120), 'wrong matrix case or duration')
+                 summary['capture_requested_seconds']) == ('configuration', mode, rows, requested),
+                'formal summary disagrees with case or capture request')
+        actual = summary['capture_seconds']
+        host_span = summary['capture_monotonic_end'] - summary['capture_monotonic_start']
+        require(summary['capture_duration_satisfied'] is True and isfinite(actual) and
+                actual >= requested and host_span >= requested and abs(host_span - actual) < 1e-6,
+                'formal host window does not verify the requested duration')
         row['expected'] = gate['expected']
         row['metrics'] = closed_metrics(directory, formal_path, summary, gate, digest)
     except (OSError, ValueError, TypeError, KeyError, IndexError) as error:

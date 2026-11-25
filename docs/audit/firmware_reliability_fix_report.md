@@ -1,5 +1,16 @@
 # SensorArray 固件可靠性修复报告
 
+## USB CDC0 在短暂停读后的数据完整性 / Formal USB delivery after a short reader pause
+
+**证据与定位。** 旧 ELF `179f9183…` 的 VOLT2 自然窗口内，USB 的 77016 只留下 330 个原始字节与换行，77021–77026 整帧缺失。BLE 顺序完整。同期普通记录过期及部分写各增 1，DATA 拒绝增 6。三条主机通路的接收时间不能确定最初停顿发生在哪一层。随后同板在 VOLT2 人为暂停正式口应用读取 650 ms，USB 缺 12 帧，BLE 收齐 5,045 帧。该对照可重复触发传输缺口。[原始分析](artifacts/cdc_recovery_acceptance_20261116/bss-volt2-usb-stall-analysis-01/evidence.md) · [受控复现](artifacts/cdc_recovery_acceptance_20261116/bss-pause-volt2-01/bss-pause-volt2-01-volt2/bss-pause-volt2-01-volt2.gate.json)
+
+**函数与修改。** `sensorarrayUsbOtgOwnerWrite` 以前只要求共享 FIFO 至少有一个空字节，已写前缀可随 DATA 的 250 ms 截止时间过期。`sensorarraySerialPublishSlot` 只有四个待发名额。提交 `f9a82f7` 要求 FIFO 先能容纳一条完整 DATA，并在初始化阶段一次性为积压记录和元数据分配 246,648 B PSRAM。控制和日志有单独队列，所有权临界段只访问内部 RAM。队满及整帧过期仍有计数，严重超载时保留控制查询和 BLE 服务。`USBQ?` 增加实际队列容量和有效期。[固件来源与配置](artifacts/cdc_recovery_acceptance_20261116/usb-record-01-source-identity.json) · [主机契约](../integration/firmware_host_contract.md)
+
+**测试与边界。** ESP-IDF v5.5.5 构建通过，80 个主机测试入口通过。同板新 ELF `892f586b…` 在同一停读实验下 USB/BLE 各收到 5,225 个连续完整帧，DATA 拒绝、过期、部分写均无增量，恢复 CAP8 已查询确认。完整帧内仍可有合法无效点。持续停读超过积压预算时，正式口仍可能出现序列缺口。[逐窗比较与统计分母](artifacts/cdc_recovery_acceptance_20261116/usb-record-pause-comparison-01/comparison.md) · [修复后实测](artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2/record-pause-volt2-01-volt2.gate.json) · [构建与测试](artifacts/cdc_recovery_acceptance_20261116/usb-record-01-validated-identity.json)
+
+On the earlier firmware a partial FIFO write could leave an expired prefix, and the four-record queue could reject subsequent frames. A controlled host application pause reproduced the USB loss while BLE remained contiguous. Commit `f9a82f7` admits whole DATA records to the FIFO and uses a bounded PSRAM queue for short interruptions. The same board delivered all 5,225 frames on both transports in the repeat experiment. Longer outages can still exhaust the queue. The original scheduling interruption and physical RF loss remain unlocalized.
+
+
 > **2026-11-25 · 原始32配置矩阵 / Original 32-configuration matrix — 9 PASS, 1 FAIL, 22 NOT_STARTED.** 在同一镜像、session 和 boot 上，CAP 1–8行及 VOLT 1行通过。VOLT 2行的 USB 缺7个完整帧，BLE 收齐5,050帧，矩阵随后停止。CAP 2行首次预检中止，第二次正式窗口通过。 / CAP1–8 and VOLT1 passed. The run stopped when USB missed seven complete VOLT2 frames. CAP2 passed after an observer preflight error. [矩阵及夹具 / Matrix and fixture](#matrix-bss-01-02) · [全部32项 / All 32 cases](artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.md)
 
 > 同一 boot 的600秒 VOLT1 正常 FULL 筛查通过，50次切换均有 USB 验证与匹配 BLE 帧，SHORT 收到117个完整快照。Wi-Fi UDP 上位机实收仍未测，夹具精度与整体验收待验证。 / The 600-second VOLT1 screen passed, all 50 transitions had USB verification and matching BLE frames, and SHORT delivered 117 complete snapshots. Host Wi-Fi UDP receipt, fixture accuracy and overall acceptance remain open. [三个独立窗口 / Three separate recordings](#bss-current-hil-20261125)
