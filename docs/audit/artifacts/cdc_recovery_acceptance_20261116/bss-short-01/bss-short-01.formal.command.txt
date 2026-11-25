@@ -1,0 +1,8 @@
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 20.002, "capture_seconds": 14.755, "requested_capture_seconds": 120.0, "rx_bytes": 230803, "capture_trailers": 173}
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 40.014, "capture_seconds": 34.767, "requested_capture_seconds": 120.0, "rx_bytes": 446219, "capture_trailers": 408}
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 60.033, "capture_seconds": 54.786, "requested_capture_seconds": 120.0, "rx_bytes": 662147, "capture_trailers": 643}
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 80.05, "capture_seconds": 74.803, "requested_capture_seconds": 120.0, "rx_bytes": 877563, "capture_trailers": 878}
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 100.073, "capture_seconds": 94.826, "requested_capture_seconds": 120.0, "rx_bytes": 1093491, "capture_trailers": 1113}
+{"type": "benchmark_progress", "label": "bss-short-01", "phase": "capture", "elapsed_seconds": 120.076, "capture_seconds": 114.829, "requested_capture_seconds": 120.0, "rx_bytes": 1308779, "capture_trailers": 1348}
+{"type": "benchmark_configuration_finished", "label": "bss-short-01", "summary_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-short-01/bss-short-01.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00014160198043}
+{"status": "COMPLETE", "completed": 1, "not_run": []}

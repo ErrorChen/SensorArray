@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/test_run_cdc_matrix_failfast.py"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 120.0,
+  "head": "9022cf3d5663bb0ed0cf54c3fa8a324b4a8aa97a",
+  "dirty_diff_sha256": "5df919a363e6a24a8f8f73cd61211a22a641b24aec74c583ea7e4e0f93e766bf",
+  "started_utc": "2026-11-25T05:53:56.780024+00:00",
+  "started_monotonic": 175430.23697184,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/matrix-start-case-host-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T05:53:57.250654+00:00",
+  "finished_monotonic": 175430.707610166,
+  "log_sha256": "ff737b0454a87fe3a319f40535cf9ee81f76ea13fee1c7b7241167adf5c0a2bc"
+}

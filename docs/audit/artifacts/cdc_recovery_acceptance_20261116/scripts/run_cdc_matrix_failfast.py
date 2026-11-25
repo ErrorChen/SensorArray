@@ -237,6 +237,8 @@ def main(argv=None):
     parser.add_argument('--ble-adapter', default='hci0')
     parser.add_argument('--stop-file', required=True, type=Path)
     parser.add_argument('--usb-serial', default='80B54ECDD9AC')
+    parser.add_argument('--start-case', choices=[f'{mode.lower()}{rows}' for mode, rows in PLAN],
+                        default='cap1', help='Start a fresh recording at this configuration. Earlier cases require their own evidence.')
     args = parser.parse_args(argv)
     try:
         expected = ExpectedCaptureIdentity(args.expected_elf, args.expected_session, args.expected_boot_id)
@@ -250,14 +252,17 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     # Check historical flat paths and new per-case directories before any port
     # opens. An existing attempt is never retried or overwritten.
-    for mode, rows in PLAN:
+    first = [f'{m.lower()}{r}' for m, r in PLAN].index(args.start_case)
+    selected = PLAN[first:]
+    for mode, rows in selected:
         stem = f'{args.label}-{mode.lower()}{rows}'
         if (out / stem).exists() or list(out.glob(stem + '.*')):
             parser.error('case output already exists; choose a new label')
     if args.stop_file.exists():
         parser.error('stop file already exists')
     result = {'status': 'INCOMPLETE', 'expected': expected.output(),
-              'plan': [{'mode': m, 'rows': r} for m, r in PLAN], 'results': [],
+              'plan': [{'mode': m, 'rows': r} for m, r in selected], 'results': [],
+              'excluded_from_this_run': [{'mode': m, 'rows': r} for m, r in PLAN[:first]],
               'automatic_retry': False, 'one_port_session': False,
               'capture_seconds_per_case': 120, 'mixed_profile': 'CVRCVRCV',
               'per_case_observers': 'independently_started_closed_joined_before_analysis',
@@ -266,7 +271,7 @@ def main(argv=None):
     index_path = out / (args.label + '.failfast.json')
     with index_path.open('x') as index:
         try:
-            for mode, rows in PLAN:
+            for mode, rows in selected:
                 if args.stop_file.exists():
                     result['error'] = 'operator_stop_requested'
                     break
@@ -330,15 +335,15 @@ def main(argv=None):
                 if item['error']:
                     result['error'] = item['error']
                     break
-            if len(result['results']) == 32 and not result.get('error'):
-                result['status'] = 'SCREENED_32_NOT_FINAL_ACCEPTANCE'
+            if len(result['results']) == len(selected) and not result.get('error'):
+                result['status'] = 'SCREENED_SELECTED_CASES' if first else 'SCREENED_32_NOT_FINAL_ACCEPTANCE'
         except (Exception, KeyboardInterrupt) as error:
             result['error'] = f'{type(error).__name__}:{error}'
         finally:
             result['not_started'] = result['plan'][len(result['results']):]
             json.dump(result, index, indent=2)
             index.write('\n')
-    return 0 if result['status'] == 'SCREENED_32_NOT_FINAL_ACCEPTANCE' else 1
+    return 0 if result['status'] in {'SCREENED_32_NOT_FINAL_ACCEPTANCE', 'SCREENED_SELECTED_CASES'} else 1
 
 
 if __name__ == '__main__':

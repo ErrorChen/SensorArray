@@ -1,0 +1,4 @@
+Starting independent BLE and debug observers
+Observers ready. Running bss-volt600-01. Formal output: /home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.formal.command.txt
+Collectors exited. Checking closed evidence.
+{"status": "PASS_CASE_SCREEN", "errors": [], "formal_summary": {"status": "CAPTURED", "error": null, "reset_observations": [], "safe_cap_recovery": "CAP8_QUERY_VERIFIED", "capture_seconds": 600.0001320439915, "file": {"path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.summary.json", "sha256": "361fc893642fac70560a603362a53634e525e8c893e1c4a0db92d06dc3a32db7", "stored_bytes": 1102465}}, "gate": {"path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.gate.json", "sha256": "757f6ac689fa451783bcd489adecbf49b68198079bebbbc98371bab94df381ab", "stored_bytes": 235496}}

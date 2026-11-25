@@ -259,6 +259,16 @@ class SuiteTests(unittest.TestCase):
                 self.assertNotIn('--suite', command)
             self.assertEqual(tuple(observed), runner.PLAN)
 
+    def test_selected_tail_does_not_claim_previous_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(directory) + ['--start-case', 'mixed8']
+            code, result, child, starter, closer, gate = self.run_main(args, self.finish_case)
+            self.assertEqual(code, 0)
+            self.assertEqual(result['status'], 'SCREENED_SELECTED_CASES')
+            self.assertEqual(len(result['excluded_from_this_run']), 31)
+            self.assertEqual(result['plan'], [{'mode': 'MIXED', 'rows': 8}])
+            self.assertEqual([op.call_count for op in (child, starter, closer, gate)], [1] * 4)
+
     def test_first_collector_error_stops_even_when_CAP_cleanup_succeeded(self):
         def failed(*args, **kwargs):
             value = self.finish_case(*args, **kwargs)

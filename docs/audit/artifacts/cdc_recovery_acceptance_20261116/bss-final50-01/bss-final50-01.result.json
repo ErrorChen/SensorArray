@@ -1,0 +1,125 @@
+{
+  "case": "final50",
+  "expected": {
+    "elfSha256": "179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d",
+    "session": "05DD194E2065ADB0",
+    "bootId": "2"
+  },
+  "status": "COMPLETE_50_USB_VERIFIED_OBSERVERS_CLOSED",
+  "errors": [],
+  "ready": {
+    "schema_version": 1,
+    "monotonic_ns": 175045413244282,
+    "address": "80:B5:4E:CD:D9:AE",
+    "all_channels_subscribed": [
+      "C",
+      "D",
+      "L"
+    ],
+    "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+    "mtu_reported_by_backend": 23,
+    "negotiated_mtu_verified": false
+  },
+  "formal_start": 175045.472668857,
+  "formal": {
+    "exit_code": 0,
+    "stop_reason": null,
+    "child_pid": 180270,
+    "child_termination_known": true,
+    "elapsed_seconds": 14.533573940978386,
+    "log_sha256": "e56c00fc7d7acd24acbdf28875f2e8106cb79172d7fba92df8d370fbb715bfa5"
+  },
+  "formal_end": 175060.006402962,
+  "observer_closure": [
+    {
+      "kind": "ble",
+      "pid": 180266,
+      "exit_code": 0,
+      "termination_known": true,
+      "cleanup_errors": [],
+      "log_sha256": "0940871207fd1b9d83eef46daefe5152efde1a6d52018ae10ca4b854f9fcffa5",
+      "command": [
+        "/tmp/sensorarray-ble-hil-venv/bin/python",
+        "tools/capture_benchmark_ble.py",
+        "--address",
+        "80:B5:4E:CD:D9:AE",
+        "--adapter",
+        "hci0",
+        "--output-directory",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01",
+        "--label",
+        "bss-final50-01",
+        "--duration",
+        "450",
+        "--stop-file",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.observers.stop"
+      ]
+    },
+    {
+      "kind": "debug",
+      "pid": 180267,
+      "exit_code": 0,
+      "termination_known": true,
+      "cleanup_errors": [],
+      "log_sha256": "87c893869410bdd2793c6626816792a0ed62f934a0d70beee4f2d19b4eae77c2",
+      "command": [
+        "/tmp/sensorarray-ble-hil-venv/bin/python",
+        "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_debug.py",
+        "--usb-serial",
+        "80B54ECDD9AC",
+        "--usb-pid",
+        "0x4042",
+        "--output-directory",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01",
+        "--label",
+        "bss-final50-01",
+        "--duration",
+        "450",
+        "--enumerate-seconds",
+        "30",
+        "--stop-file",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.observers.stop"
+      ]
+    }
+  ],
+  "ble_summary": {
+    "status": "RECORDED",
+    "error": null,
+    "stop_reason": "stop_file",
+    "file": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.ble.summary.json",
+      "sha256": "38639d3c82237f160ccb6d6266ab45e3be48408d1790600dd0f26c0f98fef723",
+      "stored_bytes": 2090
+    }
+  },
+  "debug_summary": {
+    "status": "STOPPED",
+    "faults": [],
+    "reset_observations": [],
+    "file": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.debug.summary.json",
+      "sha256": "a3b0a62b30a331ec64e0168e9c3f93dcb18c026228980f2081102726712e17f9",
+      "stored_bytes": 2756
+    }
+  },
+  "formal_summary": {
+    "status": "COMPLETE_50_IDENTITY_VERIFIED",
+    "error": null,
+    "cleanup_error": null,
+    "faults": [],
+    "reset_observations": [],
+    "safe_cap_recovery": "CAP8_QUERY_VERIFIED",
+    "verified_transitions": 50,
+    "file": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.summary.json",
+      "sha256": "c1b814f8c705efc03b395013742586e3de13f7ff25f8e8ec3ba07153e346cf4d",
+      "stored_bytes": 262831
+    }
+  },
+  "gate": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.gate.json",
+    "sha256": "909cb60a85956537cf497efa55f8565f4350791d5e38e7f521d587c1634fa146",
+    "stored_bytes": 21471
+  },
+  "gate_status": "COMPLETE_50_USB_VERIFIED_OBSERVERS_CLOSED"
+}

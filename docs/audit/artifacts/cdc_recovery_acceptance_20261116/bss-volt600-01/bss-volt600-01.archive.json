@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.events.jsonl",
+      "raw_bytes": 16104042,
+      "raw_sha256": "02ce088c7247321f9dea12a346a77cd4cd6db18e0ecaea98b9353a4872ec2702",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.events.jsonl.gz",
+      "gzip_bytes": 2049153,
+      "gzip_sha256": "1385229beca4ce5811d54600099269317c1041fb858fc701bb41904e91552c54",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.rx.bin",
+      "raw_bytes": 22457417,
+      "raw_sha256": "4c92d946c33cae85a4d925ea919669b1e715a2413768fe6004c31f9fd88154ae",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.rx.bin.gz",
+      "gzip_bytes": 1900547,
+      "gzip_sha256": "07a04f5930e380c784e803fd3b8c6ab977d460a95a01852d295855f662ef0958",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.ble.notifications.jsonl",
+      "raw_bytes": 49102112,
+      "raw_sha256": "9885b8206b0148078e66861ef3465e66ed20fe6c1405751c68bbddbb3fc15e4e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.ble.notifications.jsonl.gz",
+      "gzip_bytes": 4702675,
+      "gzip_sha256": "f18b4eafb5967f6146db6ea835125ae61eead235f5498332d3768b66efc329af",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.debug.events.jsonl",
+      "raw_bytes": 1572566,
+      "raw_sha256": "0043400f3d0ea744ea8a841c8c332a99b9389627ef969fd3ba14a01051947fac",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.debug.events.jsonl.gz",
+      "gzip_bytes": 261382,
+      "gzip_sha256": "456283942e91a2db5a672d5326caa68b4cc4513eb018dda841dc18cd9f2961ab",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.debug.rx.bin",
+      "raw_bytes": 1907461,
+      "raw_sha256": "fa5285d6f93d87fa1eee0ae04c4900bcdd7b4cb4efaea5c3194ffd088b8e454b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.debug.rx.bin.gz",
+      "gzip_bytes": 177226,
+      "gzip_sha256": "0beb2c68116793886f9048b63df2d4a7c690f4db512d27fadfbcb37b895e57bb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01-stability-volt1.summary.json",
+      "sha256": "361fc893642fac70560a603362a53634e525e8c893e1c4a0db92d06dc3a32db7",
+      "bytes": 1102465
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.ble.summary.json",
+      "sha256": "11a52052044d898ff9f0c3e2ca17e7d07dcf50231067c9f3fb957a98e81a2381",
+      "bytes": 2095
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.debug.summary.json",
+      "sha256": "cb6d97fa6d5ce9c4755cd40487db68b02f0255f5fe3664a94451329d90500ea8",
+      "bytes": 2793
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.gate.json",
+      "sha256": "757f6ac689fa451783bcd489adecbf49b68198079bebbbc98371bab94df381ab",
+      "bytes": 235496
+    }
+  ],
+  "file_count": 5,
+  "total_original_bytes": 91143598,
+  "total_gzip_bytes": 9090983,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}
