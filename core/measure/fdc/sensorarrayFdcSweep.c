@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -123,7 +124,8 @@ typedef struct {
     esp_err_t err;
 } sensorarrayFdcSweepDeviceRead4_t;
 
-static sensorarrayFdcCellCalibration_t gFdcCalibrationTable[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
+/* Task-owned calibration values; never passed to an ISR or DMA. */
+static EXT_RAM_BSS_ATTR sensorarrayFdcCellCalibration_t gFdcCalibrationTable[SENSORARRAY_MATRIX_ROWS][SENSORARRAY_MATRIX_COLS];
 static bool gFdcCalibrationTableInitialized = false;
 static volatile bool gFdcForceFullSweepAllPending = false;
 static volatile bool gFdcForceFullSweepPending = false;
