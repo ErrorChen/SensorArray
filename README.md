@@ -1,3 +1,18 @@
+## 正式 USB 短暂停读回归 / Formal USB reader-pause regression
+
+ESP32-S3 实机在 VOLT 两行、USB 与 BLE 同时接收的条件下，分别测了旧固件及修复提交 `f9a82f7`。两次都在 120 秒窗口内暂停主机 CDC0 应用读取约 650 ms，BLE 观察器继续运行。下表中的缺帧按各自通路的完整帧序号计算，设备计数取本次窗口增量。
+
+The same board ran VOLT on two rows with formal CDC0 and BLE receivers. Both 120-second windows included a 650 ms pause in the host application's CDC0 reads. The BLE observer kept recording. Sequence gaps below use complete frames at each receiver. The device columns show changes across each run.
+
+| 版本 / Image | USB 实收 / 缺口 · received / missing | BLE 实收 / 缺口 · received / missing | USB DATA 拒绝 / rejected | 普通过期 / normal expired | 部分写 / partial |
+|---|---:|---:|---:|---:|---:|
+| 旧 / Previous | 5,033 / 12 | 5,045 / 0 | 7 | 5 | 1 |
+| 修复 / Fixed | 5,225 / 0 | 5,225 / 0 | 0 | 0 | 0 |
+
+固件现在等 TinyUSB FIFO 有整帧空间才提交正式 DATA。PSRAM 能容纳 100 个待发记录和一个正在处理的记录，入队后最多保留 1 秒。CTRL 在记录边界优先，调试日志用另一 CDC 接口。长时间无人读取仍会产生有计数的缺口。两次窗口都查询确认恢复 CAP8。旧镜像的自然停顿和人为暂停有独立原始记录。
+
+The USB owner waits until the FIFO can accept the full science record. The PSRAM queue holds 100 waiting records plus one in service, with a one-second lifetime from enqueue. CTRL gets priority at record boundaries. Debug uses a separate CDC interface. A long reader outage can still cause counted drops. Both runs ended with queried CAP8 recovery. The original interruption and the controlled pauses have separate recordings. [自然停顿 / Original interruption](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt2-usb-stall-analysis-01/evidence.md) · [旧镜像 / Before](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-pause-volt2-01/bss-pause-volt2-01-volt2/bss-pause-volt2-01-volt2.gate.json) · [修复后 / After](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2/record-pause-volt2-01-volt2.gate.json) · [主机契约 / Host contract](docs/integration/firmware_host_contract.md)
+
 > **2026-11-25 · 原始32配置矩阵 / Original 32-configuration matrix — 9 PASS, 1 FAIL, 22 NOT_STARTED.** 在同一镜像、session 和 boot 上，CAP 1–8行及 VOLT 1行通过。VOLT 2行的 USB 缺7个完整帧，BLE 收齐5,050帧，矩阵随后停止。CAP 2行首次预检中止，第二次正式窗口通过。 / CAP1–8 and VOLT1 passed. The run stopped when USB missed seven complete VOLT2 frames. CAP2 passed after an observer preflight error. [矩阵及夹具 / Matrix and fixture](#matrix-bss-01-02) · [全部32项 / All 32 cases](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.md)
 
 > 同一 boot 的600秒 VOLT1 正常 FULL 筛查通过，50次切换均有 USB 验证与匹配 BLE 帧，SHORT 收到117个完整快照。Wi-Fi UDP 上位机实收仍未测，夹具精度与整体验收待验证。 / The 600-second VOLT1 screen passed, all 50 transitions had USB verification and matching BLE frames, and SHORT delivered 117 complete snapshots. Host Wi-Fi UDP receipt, fixture accuracy and overall acceptance remain open. [三个独立窗口 / Three separate recordings](#bss-current-recordings)

@@ -1,0 +1,292 @@
+{
+  "status": "SCREENED_SELECTED_CASES",
+  "expected": {
+    "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+    "session": "0119031D7DEF4971",
+    "bootId": "1"
+  },
+  "plan": [
+    {
+      "mode": "VOLT",
+      "rows": 2
+    }
+  ],
+  "results": [
+    {
+      "label": "record-pause-volt2-01-volt2",
+      "mode": "VOLT",
+      "rows": 2,
+      "command": [
+        "/tmp/sensorarray-ble-hil-venv/bin/python",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/capture_cdc_short_pause.py",
+        "--usb-serial",
+        "80B54ECDD9AC",
+        "--usb-pid",
+        "0x4042",
+        "--output-directory",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2",
+        "--label",
+        "record-pause-volt2-01-volt2",
+        "--mode",
+        "VOLT",
+        "--rows",
+        "2",
+        "--profile",
+        "CVRCVRCV",
+        "--capture-seconds",
+        "120",
+        "--rail-avdd-uv",
+        "3350000",
+        "--rail-avss-uv",
+        "-1795000",
+        "--rail-source-note",
+        "User DMM at ADS supply pins: AVDD 3.33-3.37 V, AVSS -1.795 +/-0.005 V; nominal RAM-only calibration, estimated noise under 10 mV, not precision acceptance",
+        "--expected-elf",
+        "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+        "--expected-session",
+        "0119031D7DEF4971",
+        "--expected-boot-id",
+        "1"
+      ],
+      "started_utc": "2026-11-25T06:31:49.126119+00:00",
+      "head": "f9a82f7a93e55f86064361579c8f721b8035d1de",
+      "dirty_diff_sha256": "5fe5587dd06107acd7ad5f2dc630e92a42b49d3f5ec042d4baf23dced8061616",
+      "status": "PASS_CASE_SCREEN",
+      "error": null,
+      "exit_code": 0,
+      "stop_reason": null,
+      "child_pid": 331122,
+      "child_termination_known": true,
+      "elapsed_seconds": 126.17234062199714,
+      "log_sha256": "8cc2c35a25eccf8277b5d37ef4a40308587d3804b65108ffedf4df6eeb8ae186",
+      "observer_closure": [
+        {
+          "kind": "ble",
+          "pid": 331038,
+          "exit_code": 0,
+          "termination_known": true,
+          "cleanup_errors": [],
+          "log_sha256": "0405edbe3a4552162ac25514ceb969b337fb8126b1805db3bd6a36e14844d514",
+          "command": [
+            "/tmp/sensorarray-ble-hil-venv/bin/python",
+            "/home/csc/esp/workspace/SensorArray/tools/capture_benchmark_ble.py",
+            "--address",
+            "80:B5:4E:CD:D9:AE",
+            "--adapter",
+            "hci0",
+            "--output-directory",
+            "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2",
+            "--label",
+            "record-pause-volt2-01-volt2",
+            "--duration",
+            "300",
+            "--stop-file",
+            "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2/record-pause-volt2-01-volt2.observers.stop"
+          ]
+        },
+        {
+          "kind": "debug",
+          "pid": 331039,
+          "exit_code": 0,
+          "termination_known": true,
+          "cleanup_errors": [],
+          "log_sha256": "9dc45f08e8c0817ad26956b7be2ede74676c61bf619329bcac7df5eab2374b70",
+          "command": [
+            "/tmp/sensorarray-ble-hil-venv/bin/python",
+            "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_debug.py",
+            "--usb-serial",
+            "80B54ECDD9AC",
+            "--usb-pid",
+            "0x4042",
+            "--output-directory",
+            "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2",
+            "--label",
+            "record-pause-volt2-01-volt2",
+            "--duration",
+            "300",
+            "--enumerate-seconds",
+            "30",
+            "--stop-file",
+            "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-pause-volt2-01/record-pause-volt2-01-volt2/record-pause-volt2-01-volt2.observers.stop"
+          ]
+        }
+      ],
+      "summary_sha256": "2f693da75d6632739eec41fdfb1bcfe3adf6f36d344b75632982afdd56493f87",
+      "gate_status": "PASS_CASE_SCREEN",
+      "science": {
+        "status": "PASS_NUMERIC_SCREEN",
+        "failures": [],
+        "unknown": [],
+        "received": 5225,
+        "missing": 0,
+        "expected_within_BLE_endpoints": 5225,
+        "missing_fraction": 0.0,
+        "normal_budget_fraction": 0.025,
+        "overall_acceptance": "NOT_ESTABLISHED",
+        "FULL_observation_coverage": {
+          "USB": {
+            "sufficient": true,
+            "first_complete_host_seconds": 5.559496609988855,
+            "last_complete_host_seconds": 125.53134474600665,
+            "window_start_seconds": 5.549022152990801,
+            "window_end_seconds": 125.54910781400395,
+            "device_span_seconds": 119.979119,
+            "requested_seconds": 120.0,
+            "capture_fps": 43.54090981448197,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          },
+          "BLE": {
+            "sufficient": true,
+            "first_complete_host_seconds": 177708.98067798,
+            "last_complete_host_seconds": 177828.9496556,
+            "window_start_seconds": 177708.957446527,
+            "window_end_seconds": 177828.957529547,
+            "device_span_seconds": 119.979119,
+            "requested_seconds": 120.0,
+            "capture_fps": 43.54090981448197,
+            "edge_allowance_seconds": 1.0,
+            "rule": "separate FULL observation sufficiency; not BLE delivery deadline or redefinition of endpoint gap metric"
+          }
+        },
+        "edge_or_unknown_fragment_diagnostics": {},
+        "complete_is_not_all_points_valid": true
+      }
+    }
+  ],
+  "excluded_from_this_run": [
+    {
+      "mode": "CAP",
+      "rows": 1
+    },
+    {
+      "mode": "CAP",
+      "rows": 2
+    },
+    {
+      "mode": "CAP",
+      "rows": 3
+    },
+    {
+      "mode": "CAP",
+      "rows": 4
+    },
+    {
+      "mode": "CAP",
+      "rows": 5
+    },
+    {
+      "mode": "CAP",
+      "rows": 6
+    },
+    {
+      "mode": "CAP",
+      "rows": 7
+    },
+    {
+      "mode": "CAP",
+      "rows": 8
+    },
+    {
+      "mode": "VOLT",
+      "rows": 1
+    },
+    {
+      "mode": "VOLT",
+      "rows": 3
+    },
+    {
+      "mode": "VOLT",
+      "rows": 4
+    },
+    {
+      "mode": "VOLT",
+      "rows": 5
+    },
+    {
+      "mode": "VOLT",
+      "rows": 6
+    },
+    {
+      "mode": "VOLT",
+      "rows": 7
+    },
+    {
+      "mode": "VOLT",
+      "rows": 8
+    },
+    {
+      "mode": "RES",
+      "rows": 1
+    },
+    {
+      "mode": "RES",
+      "rows": 2
+    },
+    {
+      "mode": "RES",
+      "rows": 3
+    },
+    {
+      "mode": "RES",
+      "rows": 4
+    },
+    {
+      "mode": "RES",
+      "rows": 5
+    },
+    {
+      "mode": "RES",
+      "rows": 6
+    },
+    {
+      "mode": "RES",
+      "rows": 7
+    },
+    {
+      "mode": "RES",
+      "rows": 8
+    },
+    {
+      "mode": "MIXED",
+      "rows": 1
+    },
+    {
+      "mode": "MIXED",
+      "rows": 2
+    },
+    {
+      "mode": "MIXED",
+      "rows": 3
+    },
+    {
+      "mode": "MIXED",
+      "rows": 4
+    },
+    {
+      "mode": "MIXED",
+      "rows": 5
+    },
+    {
+      "mode": "MIXED",
+      "rows": 6
+    },
+    {
+      "mode": "MIXED",
+      "rows": 7
+    },
+    {
+      "mode": "MIXED",
+      "rows": 8
+    }
+  ],
+  "formal_reader_pause_requested": true,
+  "automatic_retry": false,
+  "one_port_session": false,
+  "capture_seconds_per_case": 120,
+  "mixed_profile": "CVRCVRCV",
+  "per_case_observers": "independently_started_closed_joined_before_analysis",
+  "measurement_acceptance": "NOT_ESTABLISHED",
+  "source_sha256": "5ca660b5a188b1e88f0b9b80869023c7b031fe0fbfde69c90c59131fff47d612",
+  "not_started": []
+}
