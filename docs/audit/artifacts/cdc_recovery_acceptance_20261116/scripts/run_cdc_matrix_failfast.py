@@ -239,6 +239,10 @@ def main(argv=None):
     parser.add_argument('--usb-serial', default='80B54ECDD9AC')
     parser.add_argument('--start-case', choices=[f'{mode.lower()}{rows}' for mode, rows in PLAN],
                         default='cap1', help='Start a fresh recording at this configuration. Earlier cases require their own evidence.')
+    parser.add_argument('--end-case', choices=[f'{mode.lower()}{rows}' for mode, rows in PLAN],
+                        default='mixed8', help='Last configuration to record, inclusive.')
+    parser.add_argument('--pause-formal-reader', action='store_true',
+                        help='Inject one 650 ms application read pause in an isolated VOLT2 screening run.')
     args = parser.parse_args(argv)
     try:
         expected = ExpectedCaptureIdentity(args.expected_elf, args.expected_session, args.expected_boot_id)
@@ -252,8 +256,13 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     # Check historical flat paths and new per-case directories before any port
     # opens. An existing attempt is never retried or overwritten.
-    first = [f'{m.lower()}{r}' for m, r in PLAN].index(args.start_case)
-    selected = PLAN[first:]
+    names = [f'{m.lower()}{r}' for m, r in PLAN]
+    first, last = names.index(args.start_case), names.index(args.end_case)
+    if last < first:
+        parser.error('end-case precedes start-case')
+    selected = PLAN[first:last + 1]
+    if args.pause_formal_reader and selected != (('VOLT', 2),):
+        parser.error('the application read pause requires an isolated volt2 case')
     for mode, rows in selected:
         stem = f'{args.label}-{mode.lower()}{rows}'
         if (out / stem).exists() or list(out.glob(stem + '.*')):
@@ -262,7 +271,8 @@ def main(argv=None):
         parser.error('stop file already exists')
     result = {'status': 'INCOMPLETE', 'expected': expected.output(),
               'plan': [{'mode': m, 'rows': r} for m, r in selected], 'results': [],
-              'excluded_from_this_run': [{'mode': m, 'rows': r} for m, r in PLAN[:first]],
+              'excluded_from_this_run': [{'mode': m, 'rows': r} for m, r in PLAN[:first] + PLAN[last + 1:]],
+              'formal_reader_pause_requested': args.pause_formal_reader,
               'automatic_retry': False, 'one_port_session': False,
               'capture_seconds_per_case': 120, 'mixed_profile': 'CVRCVRCV',
               'per_case_observers': 'independently_started_closed_joined_before_analysis',
@@ -278,7 +288,8 @@ def main(argv=None):
                 label = f'{args.label}-{mode.lower()}{rows}'
                 directory = out / label
                 directory.mkdir()
-                command = [sys.executable, str(RUNNER), '--usb-serial', args.usb_serial,
+                capture = Path(__file__).with_name('capture_cdc_short_pause.py') if args.pause_formal_reader else RUNNER
+                command = [sys.executable, str(capture), '--usb-serial', args.usb_serial,
                            '--usb-pid', '0x4042', '--output-directory', str(directory), '--label', label,
                            '--mode', mode, '--rows', str(rows), '--profile', 'CVRCVRCV',
                            '--capture-seconds', '120', '--rail-avdd-uv', '3350000',
@@ -315,6 +326,8 @@ def main(argv=None):
                     try:
                         summary_path = directory / (label + '.summary.json')
                         summary = json.loads(summary_path.read_text())
+                        if args.pause_formal_reader and not summary.get('formal_reader_pause_verified'):
+                            raise ValueError('application_read_pause_missing_or_outside_window')
                         item['summary_sha256'] = hashlib.sha256(summary_path.read_bytes()).hexdigest()
                         error, _ = validate_case(summary, expected.elf_sha256, (expected.session, str(expected.boot_id)))
                         if error:
@@ -336,7 +349,7 @@ def main(argv=None):
                     result['error'] = item['error']
                     break
             if len(result['results']) == len(selected) and not result.get('error'):
-                result['status'] = 'SCREENED_SELECTED_CASES' if first else 'SCREENED_32_NOT_FINAL_ACCEPTANCE'
+                result['status'] = 'SCREENED_SELECTED_CASES' if selected != PLAN else 'SCREENED_32_NOT_FINAL_ACCEPTANCE'
         except (Exception, KeyboardInterrupt) as error:
             result['error'] = f'{type(error).__name__}:{error}'
         finally:

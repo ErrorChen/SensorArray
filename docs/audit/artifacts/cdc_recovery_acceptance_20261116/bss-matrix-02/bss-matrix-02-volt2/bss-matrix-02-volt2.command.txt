@@ -1,0 +1,8 @@
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 20.002, "capture_seconds": 14.608, "requested_capture_seconds": 120.0, "rx_bytes": 610030, "capture_trailers": 608}
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 40.008, "capture_seconds": 34.614, "requested_capture_seconds": 120.0, "rx_bytes": 1214344, "capture_trailers": 1451}
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 60.019, "capture_seconds": 54.625, "requested_capture_seconds": 120.0, "rx_bytes": 1817746, "capture_trailers": 2292}
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 80.029, "capture_seconds": 74.635, "requested_capture_seconds": 120.0, "rx_bytes": 2422574, "capture_trailers": 3135}
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 100.045, "capture_seconds": 94.651, "requested_capture_seconds": 120.0, "rx_bytes": 3027402, "capture_trailers": 3978}
+{"type": "benchmark_progress", "label": "bss-matrix-02-volt2", "phase": "capture", "elapsed_seconds": 120.055, "capture_seconds": 114.661, "requested_capture_seconds": 120.0, "rx_bytes": 3630221, "capture_trailers": 4818}
+{"type": "benchmark_configuration_finished", "label": "bss-matrix-02-volt2", "summary_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02/bss-matrix-02-volt2/bss-matrix-02-volt2.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00010656600352}
+{"status": "COMPLETE", "completed": 1, "not_run": []}

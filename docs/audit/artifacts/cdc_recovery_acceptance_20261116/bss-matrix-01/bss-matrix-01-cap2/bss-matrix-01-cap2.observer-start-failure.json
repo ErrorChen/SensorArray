@@ -1,0 +1,52 @@
+[
+  {
+    "kind": "ble",
+    "pid": 193650,
+    "exit_code": 1,
+    "termination_known": true,
+    "cleanup_errors": [],
+    "log_sha256": "23c6a2b723f605050eb9bb9fdffe2845a643d5124c8b0970c5f890a168336644",
+    "command": [
+      "/tmp/sensorarray-ble-hil-venv/bin/python",
+      "/home/csc/esp/workspace/SensorArray/tools/capture_benchmark_ble.py",
+      "--address",
+      "80:B5:4E:CD:D9:AE",
+      "--adapter",
+      "hci0",
+      "--output-directory",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2",
+      "--label",
+      "bss-matrix-01-cap2",
+      "--duration",
+      "300",
+      "--stop-file",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2/bss-matrix-01-cap2.observers.stop"
+    ]
+  },
+  {
+    "kind": "debug",
+    "pid": 193651,
+    "exit_code": 0,
+    "termination_known": true,
+    "cleanup_errors": [],
+    "log_sha256": "c6cea99e7243c2ce02b3912c30164ccdae1b7f0f5e138f9466fdaf99e1285101",
+    "command": [
+      "/tmp/sensorarray-ble-hil-venv/bin/python",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_debug.py",
+      "--usb-serial",
+      "80B54ECDD9AC",
+      "--usb-pid",
+      "0x4042",
+      "--output-directory",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2",
+      "--label",
+      "bss-matrix-01-cap2",
+      "--duration",
+      "300",
+      "--enumerate-seconds",
+      "30",
+      "--stop-file",
+      "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2/bss-matrix-01-cap2.observers.stop"
+    ]
+  }
+]

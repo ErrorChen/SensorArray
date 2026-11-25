@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "RECORDED",
+  "error": null,
+  "stop_reason": "stop_file",
+  "cleanup_errors": [],
+  "selected_device": {
+    "address": "80:B5:4E:CD:D9:AE",
+    "name": "CscArray_CDD9AD"
+  },
+  "address_requested": "80:B5:4E:CD:D9:AE",
+  "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+  "characteristics": {
+    "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+    "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+    "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+  },
+  "subscribed_channels": [
+    "C",
+    "D",
+    "L"
+  ],
+  "connected_monotonic_ns": 176087409355474,
+  "ready_monotonic_ns": 176087471297796,
+  "recording_end_monotonic_ns": 176213198019807,
+  "disconnected_monotonic_ns": 176215017795578,
+  "unexpected_disconnect": false,
+  "reconnect_attempted": false,
+  "notification_counts": {
+    "D": 3298,
+    "L": 4
+  },
+  "notification_payload_bytes": {
+    "D": 1477792,
+    "L": 552
+  },
+  "maximum_observed_notification_bytes": 484,
+  "first_notification_monotonic_ns": 176087525912856,
+  "last_notification_monotonic_ns": 176213147775754,
+  "mtu_reported_by_backend": 23,
+  "negotiated_mtu_verified": false,
+  "mtu_note": "Backend value may be 23 on BlueZ without proving negotiated MTU; unknown remains null.",
+  "application_commands_sent": 0,
+  "serial_opened": false,
+  "mode_or_rate_settings_written": false,
+  "recording_seconds": 125.726722011,
+  "elapsed_seconds": 128.05107805901207,
+  "measurement_acceptance": "NOT_EVALUATED",
+  "unconnected_windows": "NOT_RUN_not_zero_FPS",
+  "journal_cost": "base64 + buffered file write in callback; no frame duplication or fsync; host I/O can affect callback latency",
+  "journal_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02/bss-matrix-02-cap7/bss-matrix-02-cap7.ble.notifications.jsonl",
+  "journal_sha256": "98f523a8b2ef7e90aa78ad1b6f478faaed933617801de0d2211ab05a78f9e9f3",
+  "journal_bytes": 2707522,
+  "ready_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02/bss-matrix-02-cap7/bss-matrix-02-cap7.ble.ready.json"
+}

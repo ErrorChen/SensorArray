@@ -269,6 +269,23 @@ class SuiteTests(unittest.TestCase):
             self.assertEqual(result['plan'], [{'mode': 'MIXED', 'rows': 8}])
             self.assertEqual([op.call_count for op in (child, starter, closer, gate)], [1] * 4)
 
+    def test_targeted_range_cannot_be_reported_as_full_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(directory) + ['--end-case', 'cap1']
+            code, result, child, *_ = self.run_main(args, self.finish_case)
+            self.assertEqual((code, child.call_count), (0, 1))
+            self.assertEqual(result['status'], 'SCREENED_SELECTED_CASES')
+            self.assertEqual(len(result['excluded_from_this_run']), 31)
+
+    def test_reader_pause_requires_observation_in_measured_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(directory) + ['--start-case', 'volt2', '--end-case', 'volt2', '--pause-formal-reader']
+            code, result, child, _, _, gate = self.run_main(args, self.finish_case)
+            self.assertEqual((code, child.call_count), (1, 1))
+            self.assertIn('application_read_pause_missing', result['error'])
+            self.assertTrue(child.call_args.args[0][1].endswith('capture_cdc_short_pause.py'))
+            gate.assert_not_called()
+
     def test_first_collector_error_stops_even_when_CAP_cleanup_succeeded(self):
         def failed(*args, **kwargs):
             value = self.finish_case(*args, **kwargs)
