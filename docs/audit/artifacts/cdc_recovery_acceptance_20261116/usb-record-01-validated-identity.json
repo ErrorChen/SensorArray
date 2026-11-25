@@ -1,0 +1,20 @@
+{
+  "source_commit": "da68b407833011fa14834a1620c773f76e3567be",
+  "version": "da68b40-dirty",
+  "app_bytes": 1633552,
+  "bin_sha256": "6dc7304a0e6b71f943c76163a33233fd6a78ff7f40e4d1a0a9c237eb5d11a367",
+  "elf_sha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+  "host_entries": 80,
+  "all_exit_zero": true,
+  "production_inputs": 203,
+  "build_test_inputs_identical": true,
+  "build_manifest": "usb-record-01-build-manifest.json",
+  "tests_manifest": "usb-record-01-tests-manifest.json",
+  "image_archive": "usb-record-01-image-archive.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Whole-record formal CDC FIFO admission and bounded one-second PSRAM backlog with independent priority control and small-pool fallback",
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+  }
+}

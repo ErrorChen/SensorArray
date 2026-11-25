@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/tmp/sensorarray-ble-hil-venv/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "usb-record-state-01",
+    "--memfail"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 50.0,
+  "head": "f9a82f7a93e55f86064361579c8f721b8035d1de",
+  "dirty_diff_sha256": "5fe5587dd06107acd7ad5f2dc630e92a42b49d3f5ec042d4baf23dced8061616",
+  "started_utc": "2026-11-25T06:30:42.516751+00:00",
+  "started_monotonic": 177635.973709555,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-state-01-cmd-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T06:30:42.732246+00:00",
+  "finished_monotonic": 177636.189197579,
+  "log_sha256": "b153b0061c8c6c2f07fb0372482f74036817b25a6957949123ccca53b14d9f4e"
+}

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02-cap8-fixture-01/cap8.rx.bin",
+      "raw_bytes": 1259340,
+      "raw_sha256": "fa4c8f31d00cfb499dac5a21a8d103257bb7a1cbe53bbc1346f066c63c241e7d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02-cap8-fixture-01/cap8.rx.bin.gz",
+      "gzip_bytes": 157615,
+      "gzip_sha256": "1a60c231a2654e6026efc691204b60487cf4c59cef8d032086ca32e3eb581fd6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-ready-01.events.jsonl",
+      "raw_bytes": 42588,
+      "raw_sha256": "dae74cf959effcdac3294ba657190322daa4d50b6c0fecbd30e8988887ced8ee",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-ready-01.events.jsonl.gz",
+      "gzip_bytes": 8263,
+      "gzip_sha256": "27fc2b681528c822acb0a544ec0e8b3b77d3b57e1e7e633938b08a5a0a9d6882",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-ready-01.rx.bin",
+      "raw_bytes": 24995,
+      "raw_sha256": "761f47ff29d253e2417ae32746ea6a02cda508f3b8646250331ae19a431a5ba8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-ready-01.rx.bin.gz",
+      "gzip_bytes": 6600,
+      "gzip_sha256": "b2dc4902d9dd8963b11c1b887acce1e885b2fd800dd2e97ed96222d9573e5b0d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-rom-01.epoch0.rx.bin",
+      "raw_bytes": 9172,
+      "raw_sha256": "3652a68275b1d3a73c6603169dc789602ec80281e56d56260e83e49d1f009d8e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-rom-01.epoch0.rx.bin.gz",
+      "gzip_bytes": 2850,
+      "gzip_sha256": "f4440f2bbdc89dfff1273026d8a0f9116abbcb901c3b82714ae5e219508023c8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-rom-01.events.jsonl",
+      "raw_bytes": 20719,
+      "raw_sha256": "0c74445f71580e5bdcab0e152f614341b423d67d7d04a84f4b3e28ff2aae82b8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-rom-01.events.jsonl.gz",
+      "gzip_bytes": 4284,
+      "gzip_sha256": "e2f7711410d00208c2276e01c4576e7e1a8a9f33e08e653826d10b4d7227b089",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-state-01.events.jsonl",
+      "raw_bytes": 30046,
+      "raw_sha256": "54385bc10285182f023f9ed78c1fcb6c4f6e2e8cab4d293d43118a0df6d7c943",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-state-01.events.jsonl.gz",
+      "gzip_bytes": 6410,
+      "gzip_sha256": "df354edd9a78e9c9181d5546cbb57d23d69bde1294cc0a18ebe30a91e83943a4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-state-01.rx.bin",
+      "raw_bytes": 8958,
+      "raw_sha256": "10a9ef654f910dadc7b1c408b9f9b9ebfb50bec4debccb872237914fa4159ba5",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-state-01.rx.bin.gz",
+      "gzip_bytes": 2734,
+      "gzip_sha256": "ea96cb8ebc1085a7f69d5491be8f94df8b12aba51e9de6652a3fd2ed4558accb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [],
+  "file_count": 7,
+  "total_original_bytes": 1395818,
+  "total_gzip_bytes": 188756,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

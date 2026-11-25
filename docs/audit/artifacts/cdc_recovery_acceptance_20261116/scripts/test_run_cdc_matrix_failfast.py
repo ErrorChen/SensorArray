@@ -20,9 +20,10 @@ ELF = 'a' * 64
 BOOT = ('1234567890ABCDEF', '7')
 
 
-def good_summary():
+def good_summary(requested_seconds=120):
     return {
-        'status': 'CAPTURED', 'error': None, 'capture_seconds': 120.001,
+        'status': 'CAPTURED', 'error': None, 'capture_seconds': requested_seconds + .001,
+        'capture_requested_seconds': requested_seconds,
         'capture_duration_satisfied': True,
         'safe_cap_recovery': 'CAP8_QUERY_VERIFIED',
         'replies': {'BUILD?': {'elfSha256': ELF}},
@@ -218,7 +219,7 @@ class SuiteTests(unittest.TestCase):
             order.append(('close', stop.parent.name))
             return [{'exit_code': None if close_error else 0, 'cleanup_errors': [],
                      'termination_known': not close_error}]
-        def gate(summary, ble, debug, expected):
+        def gate(summary, ble, debug, expected, minimum_seconds):
             self.assertEqual(order[-1], ('close', summary.parent.name))
             self.assertEqual(expected.output(), {'elfSha256': ELF, 'session': BOOT[0], 'bootId': BOOT[1]})
             order.append(('gate', summary.parent.name))
@@ -235,7 +236,8 @@ class SuiteTests(unittest.TestCase):
     def finish_case(command, log_path, observers, stop_path, **kwargs):
         label = command[command.index('--label') + 1]
         directory = Path(command[command.index('--output-directory') + 1])
-        (directory / (label + '.summary.json')).write_text(json.dumps(good_summary()))
+        seconds = int(command[command.index('--capture-seconds') + 1])
+        (directory / (label + '.summary.json')).write_text(json.dumps(good_summary(seconds)))
         log_path.write_text('SYNTHETIC_WRAPPER_CHILD\n')
         return {'exit_code': 0, 'stop_reason': None, 'elapsed_seconds': .001,
                 'log_sha256': hashlib.sha256(log_path.read_bytes()).hexdigest()}
@@ -245,6 +247,9 @@ class SuiteTests(unittest.TestCase):
             code, result, child, starter, closer, gate = self.run_main(self.args(directory), self.finish_case)
             self.assertEqual(code, 0)
             self.assertEqual(result['status'], 'SCREENED_32_NOT_FINAL_ACCEPTANCE')
+            self.assertFalse(result['fixture_margin'])
+            self.assertEqual(result['capture_seconds_per_case'], 120)
+            self.assertTrue(all(case['capture_requested_seconds'] == 120 for case in result['plan']))
             self.assertFalse(result['not_started'])
             self.assertEqual([x.call_count for x in (child, starter, closer, gate)], [32] * 4)
             observed = []
@@ -259,6 +264,45 @@ class SuiteTests(unittest.TestCase):
                 self.assertNotIn('--suite', command)
             self.assertEqual(tuple(observed), runner.PLAN)
 
+    def test_fixture_margin_only_changes_cap8_and_res8_and_records_each_request(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, result, child, _, _, gate = self.run_main(
+                self.args(directory) + ['--fixture-margin'], self.finish_case)
+            self.assertEqual(code, 0)
+            self.assertTrue(result['fixture_margin'])
+            self.assertIsNone(result['capture_seconds_per_case'])
+            self.assertEqual(len(result['results']), 32)
+            for plan, case, collector_call, gate_call in zip(result['plan'], result['results'],
+                                                             child.call_args_list, gate.call_args_list, strict=True):
+                seconds = 122 if (case['mode'], case['rows']) in {('CAP', 8), ('RES', 8)} else 120
+                self.assertEqual(plan['capture_requested_seconds'], seconds)
+                self.assertEqual(case['capture_requested_seconds'], seconds)
+                command = collector_call.args[0]
+                self.assertEqual(command[command.index('--capture-seconds') + 1], str(seconds))
+                self.assertEqual(collector_call.kwargs['timeout'], seconds + 70)
+                self.assertEqual(gate_call.kwargs['minimum_seconds'], seconds)
+                label = case['label']
+                record = Path(directory) / label / (label + '.command.json')
+                self.assertEqual(json.loads(record.read_text())['capture_requested_seconds'], seconds)
+
+    def test_fixture_margin_rejects_short_or_misdeclared_host_window(self):
+        for modify in ({'capture_seconds': 121.999}, {'capture_requested_seconds': 120}):
+            with self.subTest(modify=modify), tempfile.TemporaryDirectory() as directory:
+                def record(*args, **kwargs):
+                    result = self.finish_case(*args, **kwargs)
+                    label = 'synthetic-suite-cap8'
+                    path = Path(directory) / label / (label + '.summary.json')
+                    summary = json.loads(path.read_text())
+                    summary.update(modify)
+                    path.write_text(json.dumps(summary))
+                    return result
+                args = self.args(directory) + ['--start-case', 'cap8', '--end-case', 'cap8', '--fixture-margin']
+                code, result, _, _, _, gate = self.run_main(args, record)
+                self.assertEqual(code, 1)
+                self.assertEqual(result['capture_seconds_per_case'], 122)
+                self.assertIn('duration_or_cleanup_unverified', result['error'])
+                gate.assert_not_called()
+
     def test_selected_tail_does_not_claim_previous_cases(self):
         with tempfile.TemporaryDirectory() as directory:
             args = self.args(directory) + ['--start-case', 'mixed8']
@@ -266,7 +310,7 @@ class SuiteTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(result['status'], 'SCREENED_SELECTED_CASES')
             self.assertEqual(len(result['excluded_from_this_run']), 31)
-            self.assertEqual(result['plan'], [{'mode': 'MIXED', 'rows': 8}])
+            self.assertEqual(result['plan'], [{'mode': 'MIXED', 'rows': 8, 'capture_requested_seconds': 120}])
             self.assertEqual([op.call_count for op in (child, starter, closer, gate)], [1] * 4)
 
     def test_targeted_range_cannot_be_reported_as_full_suite(self):

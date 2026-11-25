@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run 32 independent 120-second CDC configurations, stopping on first error.
+"""Run independent CDC configuration windows, stopping on the first error.
+
+Host windows default to 120 seconds. With --fixture-margin, CAP8 and RES8
+request 122 seconds. Fixture timing still uses the original device timestamps
+of the first and last accepted frames.
 
 The existing collector owns the port, capture and CAP8 cleanup. This wrapper
 does not read or flush USB, retry a failed case, reset, flash or save calibration.
@@ -55,10 +59,11 @@ def observer_problem(paths, identities=()):
     return None
 
 
-def validate_case(summary, expected_elf, previous_boot):
+def validate_case(summary, expected_elf, previous_boot, requested_seconds=120):
     if summary.get('status') != 'CAPTURED' or summary.get('error'):
         return 'collector_error', previous_boot
-    if (summary.get('capture_seconds', 0) < 120 or not summary.get('capture_duration_satisfied') or
+    if (summary.get('capture_requested_seconds', 120) != requested_seconds or
+            summary.get('capture_seconds', 0) < requested_seconds or not summary.get('capture_duration_satisfied') or
             summary.get('safe_cap_recovery') != 'CAP8_QUERY_VERIFIED'):
         return 'duration_or_cleanup_unverified', previous_boot
     if summary.get('replies', {}).get('BUILD?', {}).get('elfSha256') != expected_elf:
@@ -243,6 +248,8 @@ def main(argv=None):
                         default='mixed8', help='Last configuration to record, inclusive.')
     parser.add_argument('--pause-formal-reader', action='store_true',
                         help='Inject one 650 ms application read pause in an isolated VOLT2 screening run.')
+    parser.add_argument('--fixture-margin', action='store_true',
+                        help='Request 122 host seconds for CAP8 and RES8. All other cases request 120 seconds.')
     args = parser.parse_args(argv)
     try:
         expected = ExpectedCaptureIdentity(args.expected_elf, args.expected_session, args.expected_boot_id)
@@ -269,19 +276,27 @@ def main(argv=None):
             parser.error('case output already exists; choose a new label')
     if args.stop_file.exists():
         parser.error('stop file already exists')
+    plan = [{'mode': mode, 'rows': rows, 'capture_requested_seconds':
+             122 if args.fixture_margin and (mode, rows) in {('CAP', 8), ('RES', 8)} else 120}
+            for mode, rows in selected]
+    durations = {case['capture_requested_seconds'] for case in plan}
     result = {'status': 'INCOMPLETE', 'expected': expected.output(),
-              'plan': [{'mode': m, 'rows': r} for m, r in selected], 'results': [],
+              'plan': plan, 'results': [],
               'excluded_from_this_run': [{'mode': m, 'rows': r} for m, r in PLAN[:first] + PLAN[last + 1:]],
               'formal_reader_pause_requested': args.pause_formal_reader,
               'automatic_retry': False, 'one_port_session': False,
-              'capture_seconds_per_case': 120, 'mixed_profile': 'CVRCVRCV',
+              'fixture_margin': args.fixture_margin,
+              'capture_seconds_per_case': plan[0]['capture_requested_seconds'] if len(durations) == 1 else None,
+              'mixed_profile': 'CVRCVRCV',
               'per_case_observers': 'independently_started_closed_joined_before_analysis',
               'measurement_acceptance': 'NOT_ESTABLISHED',
               'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     index_path = out / (args.label + '.failfast.json')
     with index_path.open('x') as index:
         try:
-            for mode, rows in selected:
+            for case in plan:
+                mode, rows = case['mode'], case['rows']
+                seconds = case['capture_requested_seconds']
                 if args.stop_file.exists():
                     result['error'] = 'operator_stop_requested'
                     break
@@ -292,11 +307,11 @@ def main(argv=None):
                 command = [sys.executable, str(capture), '--usb-serial', args.usb_serial,
                            '--usb-pid', '0x4042', '--output-directory', str(directory), '--label', label,
                            '--mode', mode, '--rows', str(rows), '--profile', 'CVRCVRCV',
-                           '--capture-seconds', '120', '--rail-avdd-uv', '3350000',
+                           '--capture-seconds', str(seconds), '--rail-avdd-uv', '3350000',
                            '--rail-avss-uv', '-1795000', '--rail-source-note', RAIL_NOTE,
                            '--expected-elf', expected.elf_sha256, '--expected-session', expected.session,
                            '--expected-boot-id', str(expected.boot_id)]
-                item = {'label': label, 'mode': mode, 'rows': rows, 'command': command,
+                item = {'label': label, **case, 'command': command,
                         'started_utc': datetime.now(timezone.utc).isoformat(),
                         'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                         'dirty_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary'], cwd=ROOT)).hexdigest(),
@@ -307,7 +322,7 @@ def main(argv=None):
                     owners, stop, paths = start_observers(directory, label, args)
                     identities = [(o['process'].pid, o['identity']) for o in owners]
                     item.update(run_child(command, directory / (label + '.command.txt'), paths, args.stop_file,
-                                          observer_identities=identities))
+                                          observer_identities=identities, timeout=seconds + 70))
                     if item['exit_code'] != 0 or item['stop_reason']:
                         item['error'] = item['stop_reason'] or 'child_nonzero_exit'
                 except (Exception, KeyboardInterrupt) as error:
@@ -329,10 +344,10 @@ def main(argv=None):
                         if args.pause_formal_reader and not summary.get('formal_reader_pause_verified'):
                             raise ValueError('application_read_pause_missing_or_outside_window')
                         item['summary_sha256'] = hashlib.sha256(summary_path.read_bytes()).hexdigest()
-                        error, _ = validate_case(summary, expected.elf_sha256, (expected.session, str(expected.boot_id)))
+                        error, _ = validate_case(summary, expected.elf_sha256, (expected.session, str(expected.boot_id)), seconds)
                         if error:
                             raise ValueError(error)
-                        gate = qualify_closed_case(summary_path, paths[0], paths[1], expected)
+                        gate = qualify_closed_case(summary_path, paths[0], paths[1], expected, minimum_seconds=seconds)
                         with (directory / (label + '.gate.json')).open('x') as record:
                             json.dump(gate, record, indent=2)
                         item['gate_status'] = gate['status']

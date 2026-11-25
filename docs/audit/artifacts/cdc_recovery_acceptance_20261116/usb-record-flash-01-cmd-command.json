@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "usb-record-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 360.0,
+  "head": "da68b407833011fa14834a1620c773f76e3567be",
+  "dirty_diff_sha256": "2d134becf1a9dea0e6ff1375db576eb0e1ece147aced3ba1391ba65a4eb7649e",
+  "started_utc": "2026-11-25T06:30:13.664207+00:00",
+  "started_monotonic": 177607.121162517,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-flash-01-cmd-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T06:30:26.310525+00:00",
+  "finished_monotonic": 177619.767478229,
+  "log_sha256": "749aa8b78b8964c1d47f01642621838d6428afa8fc063fe2c54f9924eeb2a2f3"
+}

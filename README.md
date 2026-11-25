@@ -1,6 +1,8 @@
-> **2026-11-25 当前实录：600秒、50次切换与SHORT已闭合，整体验收尚未建立 / Current observations: 600-second, 50-transition and SHORT recordings closed; overall acceptance remains open.** 已推送源码修复`f8d8424`；[源码/镜像身份](docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-source-identity.json)将完整ELF`179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d`绑定到202个tracked生产输入及单列generated sdkconfig，镜像早于提交生成，`BUILD version=ad0f9ef-dirty`原样保留。新session`05DD194E2065ADB0`/boot2的[600秒](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-volt600-01/bss-volt600-01.gate.json)为`PASS_CASE_SCREEN`（BLE缺口182/36,767=0.495009%，只通过本case数值筛查）；[50切换](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-final50-01/bss-final50-01.gate.json)全部USB验证且每步均有匹配BLE帧；[SHORT](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-short-01/bss-short-01.gate.json)实收117个可信完整快照，116个相邻间隔最大1.035323秒。ADC无效点、BLE计数及CPU/heap限制见下方实测小节。AP08成功属于先前boot1；32配置矩阵正在运行，Wi-Fi UDP上位机实收及测量精度仍未建立。 / The pushed source fix is tied to this exact image without rewriting its original BUILD version. In the new boot, the 600-second run passes its case screen, all 50 transitions have USB verification and matching BLE frames, and SHORT delivers 117 complete snapshots. These scoped results are not overall or precision acceptance. The configuration matrix is in progress; actual host Wi-Fi UDP receipt remains untested.
+> **2026-11-25 · 原始32配置矩阵 / Original 32-configuration matrix — 9 PASS, 1 FAIL, 22 NOT_STARTED.** 在同一镜像、session 和 boot 上，CAP 1–8行及 VOLT 1行通过。VOLT 2行的 USB 缺7个完整帧，BLE 收齐5,050帧，矩阵随后停止。CAP 2行首次预检中止，第二次正式窗口通过。 / CAP1–8 and VOLT1 passed. The run stopped when USB missed seven complete VOLT2 frames. CAP2 passed after an observer preflight error. [矩阵及夹具 / Matrix and fixture](#matrix-bss-01-02) · [全部32项 / All 32 cases](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.md)
 
-> 以下旧镜像及旧阶段的NOT_RUN/失败结论保留为当时记录；当前状态以上段及本次实测小节为准，不跨ELF/session/boot拼接。 / Earlier NOT_RUN and failure statements retain their original image and stage scope; the current paragraph and measured-results section supersede their status, without combining identities across images or boots.
+> 同一 boot 的600秒 VOLT1 正常 FULL 筛查通过，50次切换均有 USB 验证与匹配 BLE 帧，SHORT 收到117个完整快照。Wi-Fi UDP 上位机实收仍未测，夹具精度与整体验收待验证。 / The 600-second VOLT1 screen passed, all 50 transitions had USB verification and matching BLE frames, and SHORT delivered 117 complete snapshots. Host Wi-Fi UDP receipt, fixture accuracy and overall acceptance remain open. [三个独立窗口 / Three separate recordings](#bss-current-recordings)
+
+> **历史记录 / Historical records.** 下方旧 ELF 及旧阶段的 FAIL 和 NOT_RUN 按各自镜像和启动周期保留。当前矩阵只合并 `bss-matrix-01` 与 `bss-matrix-02` 的同身份记录。 / Earlier FAIL and NOT_RUN entries describe the image and boot named in each record. The matrix above combines only the two named runs on their verified common identity.
 
 > **2026-11-25 AP08启动实录（boot1） / AP08 startup observation (boot1).** [wifi-bss-01构建](docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-validated-identity.json)与[READY核验](docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-ready-01.summary.json)绑定完整ELF`179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d`、session`00B44EE26D0A4A0F`/boot1/CAP8/READY1；80入口/构建通过、203生产输入一致。SDK外部BSS及8,704 B任务校准表合计迁移29,116 B，保留既有采集速率与缓冲容量。[AP08](docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.summary.json)的AP/AP/OFF/AP/OFF五请求全applied，首次AP53.432ms；最终同boot outputGate0/backend ready/quarantined0。internal free/largest前93,356/47,092 B、后29,008/20,468 B、min27,952 B；MEMFAIL0→0、incomplete0，无观察fault/reset，BLE observer正常关闭。**OFF只关输出gate，不证明radio断电；AP08当时未创建正式FPS或最终验收窗口。后续boot2的600秒、50切换及SHORT已闭合，见当前实测小节；UDP实收仍未测。** AP04/AP05的NO_MEM、AP06分配失败与AP07 panic历史保留。 / The exact image boots CAP8/READY1 and passes all 80 entries/build. Supported external BSS placement moves 29,116 bytes, including the task-owned calibration table, without reducing acquisition rate or buffer capacity. All five AP/AP/OFF/AP/OFF requests apply; the first AP completes in 53.432 ms while USB/BLE control coexists. The backend remains ready with the output gate closed, no observed allocation failure, fault or reset, and a clean BLE observer shutdown. OFF does not prove radio power-down. AP08 itself has no formal throughput or final-suite window. Later boot2 long-run, transition and SHORT recordings are closed below; UDP receipt remains untested and earlier failures remain preserved.
 
@@ -38,6 +40,8 @@ SensorArray is firmware for an 8×8 measurement matrix with **1–8 active S row
 
 仓库 / Repository: [ErrorChen/SensorArray](https://github.com/ErrorChen/SensorArray). 上位机兼容改动属于独立的 `ErrorChen/SensorArray_Software` 任务。 / Host compatibility changes belong to the separate `ErrorChen/SensorArray_Software` task.
 
+<a id="bss-current-recordings"></a>
+
 ## 2026-11-25 当前镜像实测 / Measurements on the current image
 
 [源码身份](docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-source-identity.json)：已推送`f8d8424492c855a402838737ee8718e32f5135d6`，运行ELF为`179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d`、BUILD version仍为`ad0f9ef-dirty`。以下三项均属于session`05DD194E2065ADB0`/boot2；AP08的boot1内存数值不填入本轮。 / The pushed source commit matches the archived production inputs. The binary predates that commit and retains its original BUILD version. All three recordings below share the stated new session/boot; AP08 memory samples belong to its earlier boot.
@@ -52,7 +56,48 @@ SensorArray is firmware for an 8×8 measurement matrix with **1–8 active S row
 
 600秒CPU只取得五个owner自身采样跨度内的runtime比例：BLE_TX **17.7208%**、TRANSPORT **6.9737%**、ASYNC_LOG **11.5892%**、SERIAL_TX **10.6899%**、SERIAL_CTRL **0.8002%**。BLE_CTRL前样本过时、WIFI_CTRL前样本不可用；**整机CPU、SDK CPU与blocked time均UNKNOWN**，不能把这些不同时窗比例相加当总CPU。STK50观测总free heap **8,288,768 B**、固件生命周期min **8,281,524 B**，包含可用PSRAM，不是internal/DMA余量；最大连续块未测。本窗最小剩余栈log/transport/bleTx/bleCtrl/serialCtrl为**12,492/3,100/2,084/5,196/1,652 B**。 / These are task runtime ratios over separate observation spans, not whole-device utilization. Total heap includes PSRAM; the lifetime minimum is not a window-only minimum, and no contiguous internal/DMA block measurement is available for this recording.
 
-三项正式录制均未观察到FAULT/RESET，600秒和50切换CAP8恢复均核验，SHORT还恢复原REL；这些结果不建立精度、零风险或整体PASS。600秒只通过正常FULL case筛查；50切换与SHORT不套用正常FULL的2.5%缺口预算。**32配置矩阵正在运行；Wi-Fi UDP上位机实收仍未测。** [详细审计](docs/audit/firmware_reliability_fix_report.md#bss-current-hil-20261125)。 / No FAULT/RESET is observed in these formal recordings, and the stated recovery queries succeed. The scoped evidence does not establish measurement precision or overall acceptance. Transition and SHORT sequence gaps use their own semantics; the normal FULL loss budget is not applied to them.
+三项正式录制均未观察到FAULT/RESET，600秒和50切换CAP8恢复均核验，SHORT还恢复原REL；这些结果不建立精度、零风险或整体PASS。600秒只通过正常FULL case筛查；50切换与SHORT不套用正常FULL的2.5%缺口预算。[详细审计](docs/audit/firmware_reliability_fix_report.md#bss-current-hil-20261125)。 / No FAULT/RESET is observed in these formal recordings, and the stated recovery queries succeed. The scoped evidence does not establish measurement precision or overall acceptance. Transition and SHORT sequence gaps use their own semantics; the normal FULL loss budget is not applied to them.
+
+<a id="matrix-bss-01-02"></a>
+
+### 原始32配置矩阵 / Original 32-configuration matrix
+
+两段记录使用相同 ELF `179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d`、session `05DD194E2065ADB0`、boot `2`。每个已运行配置有一个约120秒的正式 USB 与独立 BLE 观察窗口。下表列出10个闭合窗口。VOLT 3–8行、RES 1–8行、MIXED 1–8行共22项未启动。
+Both runs share the ELF, session and boot above. Ten configurations reached a formal USB and independent BLE window. The remaining 22 configurations were never started in these two runs. [完整矩阵 / Full matrix](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.md) · [逐次尝试与 CPU、heap、stack / Attempts and resource samples](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.json)
+
+| 模式 / Mode | 行 / Rows | 判定 / Result | 采集 / Capture FPS | USB FPS | BLE FPS | USB 完整 / 缺口 · complete / missing (%) | BLE 完整 / 缺口 · complete / missing (%) | ADC CRC 拒绝 / 检查 · rejected / checked | 无效点 / Invalid (USB / BLE) |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| CAP | 1 | PASS | 68.073 | 68.076 | 68.074 | 8,170 / 0 (0.0000%) | 8,169 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 2 | PASS¹ | 40.298 | 40.298 | 40.295 | 4,836 / 0 (0.0000%) | 4,835 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 3 | PASS | 28.137 | 28.135 | 28.136 | 3,376 / 0 (0.0000%) | 3,376 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 4 | PASS | 21.882 | 21.882 | 21.882 | 2,626 / 0 (0.0000%) | 2,626 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 5 | PASS | 17.893 | 17.894 | 17.893 | 2,147 / 0 (0.0000%) | 2,147 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 6 | PASS | 15.139 | 15.139 | 15.139 | 1,816 / 0 (0.0000%) | 1,816 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 7 | PASS | 13.128 | 13.130 | 13.129 | 1,576 / 0 (0.0000%) | 1,576 / 0 (0.0000%) | — | 0 / 0 |
+| CAP | 8 | PASS | 11.577 | 11.578 | 11.578 | 1,390 / 0 (0.0000%) | 1,390 / 0 (0.0000%) | — | 0 / 0 |
+| VOLT | 1 | PASS | 61.087 | 61.085 | 60.758 | 7,331 / 0 (0.0000%) | 7,290 / 43 (0.5864%) | 0 / 77,984 | 283 / 279 |
+| VOLT | 2 | **FAIL** | 42.086 | 42.032 | 42.090 | 5,043 / 7 (0.1386%) | 5,050 / 0 (0.0000%) | 0 / 107,060 | 0 / 0 |
+
+¹ CAP2 首次 BLE 观察器在就绪前关闭，未开始正式录制。第二段 CAP2 窗口通过。其余8个通过项各自首次即通过。USB 要求完整帧零缺口，正常 FULL 的 BLE 缺口预算为2.5%。分母为该接收端首末可信序号之间的实收与缺口之和。CAP 行的 ADC CRC 均无可用检查分母。VOLT 的 ADC 分母来自各自 ADSHEALTH 诊断窗。
+CAP2 first stopped before formal capture when its BLE observer closed before readiness. The second CAP2 attempt passed. USB requires zero gaps, and normal FULL BLE allows up to 2.5% missing within its observed sequence endpoints. ADC counts use checked reads in a separate diagnostic interval. A dash means no checked-read denominator was observed. [CAP2首次记录 / First CAP2 attempt](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2/bss-matrix-01-cap2.command.json) · [筛查明细 / Gate details](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.json)
+
+**VOLT2 FAIL.** 两端首末序号均为 76,513–81,562。USB 缺 77,016 和 77,021–77,026，BLE 收齐区间内的5,050帧。两端共有的5,043帧原始字节 SHA-256 全部相同。CAP8 恢复查询成功，USB 缺口使本次配置筛查失败。
+Both receivers observed the same endpoints. Seven sequences are missing on USB and present as complete frames on BLE. All 5,043 common frames have matching original wire bytes. The capture verifies a USB gap and the subsequent CAP8 recovery. The cause of the gap is unresolved by this window. [VOLT2原始判定 / Original VOLT2 gate](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02/bss-matrix-02-volt2/bss-matrix-02-volt2.gate.json)
+
+#### 参考夹具 / Reference fixture
+
+两个标称33 pF电容分别接在 S4D4、S5D5。表内 LC 均值包含背景电容，P05–P95 为实际样本分布。最后一列依次列出逐帧减去同排、同列、全部悬空单元中位数的三个差值均值。两个窗口均使用正式 USB 原始帧。
+The nominal capacitors are 33 pF. Mean LC includes the background capacitance. P05–P95 gives the observed sample spread. The three estimates subtract a predeclared median background on each paired frame. [CAP8夹具报告 / Matrix CAP8 fixture](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02-cap8-fixture-01/cap8.report.md) · [SHORT下的USB夹具报告 / SHORT USB fixture](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-short-01/bss-short-01.fixture-window.report.md)
+
+| 窗口 / Window | 点 / Cell | 有效 / 无效 · valid / invalid | LC均值 / Mean LC (pF) | P05–P95 (pF) | 差值均值，同排 / 同列 / 全部悬空 · mean difference, row / column / all (pF) |
+|---|---|---:|---:|---:|---:|
+| CAP8 | S4D4 | 1,390 / 0 | 92.431562 | 92.423831–92.441396 | 32.494354 / 13.438154 / 32.493448 |
+| CAP8 | S5D5 | 1,390 / 0 | 77.405972 | 77.397519–77.414335 | 17.468394 / 11.691997 / 17.467859 |
+| SHORT | S4D4 | 1,409 / 0 | 92.421321 | 92.411281–92.431356 | 32.508467 / 13.434103 / 32.507510 |
+| SHORT | S5D5 | 1,409 / 0 | 77.381926 | 77.372815–77.389611 | 17.468790 / 11.690489 / 17.468115 |
+
+60个悬空单元各自的时间中位数在矩阵 CAP8 为 57.092659–80.003703 pF，在 SHORT 为 57.070793–79.986162 pF。两处电容均缺同一单元卸载基线，精度状态为 `BASELINE_REQUIRED`。S1D1、S8D8 的标称10 kΩ电阻在这两段矩阵中没有 RES 窗口，阻值未测。
+Across 60 floating cells, the ranges above describe their individual time medians. Validating either capacitor requires an unloaded reading of that same cell. The two matrix runs contain no resistance measurement for either 10 kΩ reference. [CAP8字节核对 / CAP8 byte verification](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02-cap8-fixture-01/cap8.validation.json) · [SHORT字节核对 / SHORT byte verification](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-short-01/bss-short-01.fixture-window.validation.json)
 
 <a id="wifi-owner-v1"></a>
 

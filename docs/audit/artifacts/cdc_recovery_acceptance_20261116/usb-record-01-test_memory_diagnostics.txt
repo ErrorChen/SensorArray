@@ -1,0 +1,9 @@
+MEM max_bytes=394 capacity=512 synthetic_heaps=1
+PASS memory caps, allocation bracket, unknown states, readonly lock exclusion and bounds
+MEMFAIL_MAX,bytes=478,capacity=512,stateBytes=144
+MEMFAIL_CONCURRENT,writers=4,attempts=16000,recorded=15946,reads=1513,incomplete=1,first_preserved=1,torn=0
+MEMFAIL_PASS,actual_callback=1,groups=4,allocation_policy_unchanged=1,opaque_pointer=1,register_sticky=1,query_readonly=1,hardware=NOT_RUN
+MEMFAIL_MAX,bytes=478,capacity=512,stateBytes=144
+MEMFAIL_CONCURRENT,writers=4,attempts=16000,recorded=4220,reads=240,incomplete=1,first_preserved=1,torn=0
+MEMFAIL_PASS,actual_callback=1,groups=4,allocation_policy_unchanged=1,opaque_pointer=1,register_sticky=1,query_readonly=1,hardware=NOT_RUN
+MEMFAIL_BOOT_HOOKS,early_and_runtime=2,registration_before_network=1,production_injection_command=0

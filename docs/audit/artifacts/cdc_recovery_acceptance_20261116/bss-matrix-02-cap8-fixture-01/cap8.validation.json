@@ -1,0 +1,39 @@
+{
+  "status": "VERIFIED",
+  "scope": "Finalized matrix CAP8 formal USB byte selection and fixture report provenance",
+  "verified_utc": "2026-11-25T06:25:17.795989+00:00",
+  "gate": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02/bss-matrix-02-cap8/bss-matrix-02-cap8.gate.json",
+    "sha256": "8f7af1ca70987e75abff97787c7016de91a8e35e28cf686004420b830fef6230",
+    "status": "PASS_CASE_SCREEN",
+    "expected": {
+      "elfSha256": "179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d",
+      "session": "05DD194E2065ADB0",
+      "bootId": "2"
+    }
+  },
+  "manifest": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-02-cap8-fixture-01/cap8.selection.json",
+    "sha256": "327fbc9332b0beb17d8773f3c90a02d0a5f265146589d2e51baee0fe781eafe7"
+  },
+  "formal_summary_raw_events_match_gate": true,
+  "outputs_match_manifest": [
+    "fixture",
+    "metrics",
+    "proxy",
+    "raw",
+    "report",
+    "transport"
+  ],
+  "all_source_ranges_match_output_and_hash": true,
+  "selected_frames": 1390,
+  "selected_bytes": 1259340,
+  "first_sequence": 67031,
+  "last_sequence": 68420,
+  "frames_match_benchmark_and_collector": true,
+  "floating_cells": 60,
+  "paired_frames_per_method_per_reference": 1390,
+  "fixture_status": "REVIEW_REQUIRED",
+  "precision_status": "NOT_EVALUATED",
+  "calibration_written": false
+}

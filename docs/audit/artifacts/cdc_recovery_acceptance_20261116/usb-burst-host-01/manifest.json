@@ -1,0 +1,134 @@
+{
+  "created_utc": "2026-11-25T06:29:11.646534+00:00",
+  "scope": "host regression and source diff only; no hardware, git, or IDF build commands",
+  "baseline_tests_before_edits": [
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py"
+      ],
+      "observed_exit_code": 0
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "observed_exit_code": 0,
+      "scenarios": 74
+    }
+  ],
+  "post_change_tests": [
+    {
+      "command": [
+        "python3",
+        "tools/test_serial_io.py"
+      ],
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-burst-host-01/test_serial_io.txt",
+      "log_sha256": "71e7ad0be3c6c4cb47ce394fb23afc1295a73b16f13fb322499049c84ca97dfe"
+    },
+    {
+      "command": [
+        "python3",
+        "tools/test_usb_otg_owner.py"
+      ],
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "exit_code": 0,
+      "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-burst-host-01/test_usb_otg_owner.txt",
+      "log_sha256": "ee80c4025203191ad965becdb4677a24e3eb65139e8bdf6c28619e1cbcab0ef6"
+    }
+  ],
+  "changed_owned_files": [
+    {
+      "path": "components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h",
+      "before_sha256": "bf45fe9d2c15fd7976cae2ee0f75aeb8c721e7918b21775a9af54de41d56bef5",
+      "after_sha256": "d4af250be1c3fba9695ab36681c4480515ecc6733bcf540729dc5bbeb140931e"
+    },
+    {
+      "path": "components/sensorarrayUsbOtg/sensorarrayUsbOtg.c",
+      "before_sha256": "3fb2abd4c4353ffa64aa9f47e5a4708ed2de0b9a88dd0abdcaf3bf03e4b8e471",
+      "after_sha256": "95e3bcd7efcae70311d560d47fddc681597ee455aa4416d25ae5a4ff4778ff2a"
+    },
+    {
+      "path": "core/transport/sensorarraySerialIo.c",
+      "before_sha256": "58932c35807a95441f528d228302b4cfea81b6614fd89261e01bd007b57db6d5",
+      "after_sha256": "b983ca134d37175f81ddc894837d5def8cc1450c6b8b8deebe3b54df01307fb5"
+    },
+    {
+      "path": "core/transport/sensorarraySerialIo.h",
+      "before_sha256": "2d43ec21e8e837c67d65590e54d31d65b1b5076ae101dc808ea00171fe6888c1",
+      "after_sha256": "dba65373b14c56be93cd3cd5325fe36c5c02f6946053c33cf13bb006755306cd"
+    },
+    {
+      "path": "tests/host/test_serial_io.c",
+      "before_sha256": "4242a61e5b8c8f645a89ed9a9d792ee9c9d82f2da646c524f0f3afba2d956841",
+      "after_sha256": "400a44c7cbacf35a7151a299569719e4a12126641c6cd71da5a054515281ea01"
+    },
+    {
+      "path": "tests/host/test_serial_io_otg.c",
+      "before_sha256": "e6b9c00e4d55d4a4933bf529a86969716d46043f345d4f0d77a8dc5c01a2be7f",
+      "after_sha256": "2e417ca0b3b87230f85ca813f8eb4a8238fda156279e1f2581afacf1a7fa992d"
+    },
+    {
+      "path": "tests/host/test_serial_io_priority.c",
+      "before_sha256": "ff5f982335d64dd37d5634f5da0b56c81f85142e320310523faa905ca25e1509",
+      "after_sha256": "c5dd43ab6eb80304e53623c198765047e08e1e1391ebfd66a7fb49996006ea41"
+    },
+    {
+      "path": "tests/host/test_usb_otg_owner.c",
+      "before_sha256": "d016834388372b67dffd6a0cf0c4c72703a5555a739b9153ed642daa1ea218c9",
+      "after_sha256": "02680af683bb7a1aa62b23fe5ecd7ab3f20885327882bfff355d2cfd53e3a6eb"
+    },
+    {
+      "path": "tests/host/work_budget_stubs/sensorarrayUsbOtg.h",
+      "before_sha256": "d49adb9e9979b9dc61f59977ea704756b74b1cb5bdf01092e4aff536da57d7e2",
+      "after_sha256": "5617438f77d2c0947b45ae9a9339fdb532f6b907eb9449ad3359553960f91f9f"
+    },
+    {
+      "path": "tools/test_serial_io.py",
+      "before_sha256": "cb5c615d9d7a30d5df3da2468fd469445216e3366f9229ac6c770d0aac4a2f38",
+      "after_sha256": "fb89eed69645a78591af0e399e7210e3ab34bab819f72bcbd286e5b0afe7a00c"
+    },
+    {
+      "path": "tools/test_usb_otg_owner.py",
+      "before_sha256": "2df832bbbf1e4edef8d96864cfb06e3c8dbf741e367bfa6b6db89808098a9f6e",
+      "after_sha256": "966510dbf7d874fc992b1c3203dab81e4045939fdcc24fc6a46b21146fcba8ee"
+    }
+  ],
+  "production_frozen": true,
+  "design": {
+    "cdc_data_queue_records": 100,
+    "cdc_data_slots_including_owner": 101,
+    "cdc_data_lifetime_us": 1000000,
+    "large_pool_caps": "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT",
+    "large_payload_bytes": 244224,
+    "large_data_metadata_bytes": 2424,
+    "large_allocation_total_bytes": 246648,
+    "fallback_order": [
+      "large PSRAM",
+      "small PSRAM",
+      "small INTERNAL"
+    ],
+    "small_payload_bytes": 23040,
+    "small_data_queue_records": 4,
+    "small_data_slots_including_owner": 5,
+    "small_data_lifetime_us": 250000,
+    "ownership_bits": "110 internal bools; no PSRAM access under pool spinlock",
+    "control_and_log_capacity_unchanged": true,
+    "task_priorities_and_work_budgets_unchanged": true,
+    "cdc_data_write": "whole-record FIFO fit before copy; unexpected positive short copy is immediate counted driver error",
+    "fifo_capacity_regression": "actual tusb_config.h vs actual transport maximum compile-time assertion in owner host suite"
+  },
+  "limits": [
+    "622/800 ms producer/pause schedules are synthetic tests of actual production functions, not USB bus throughput or HIL proof.",
+    "One second/100-record buffering is finite; sustained overload or longer host pauses still produce counted rejection/expiry.",
+    "Complete FIFO acceptance is not PC receipt; existing USB gate remains required.",
+    "Current-image flash and HIL validation are owned by parent agent."
+  ]
+}
