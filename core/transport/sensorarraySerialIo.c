@@ -25,11 +25,15 @@
 #define SERIAL_IO_QUEUE_COUNT 4u
 #define SERIAL_IO_LOG_QUEUE_COUNT 4u
 #define SERIAL_IO_DATA_SLOT_COUNT 5u
+#define SERIAL_IO_CDC_DATA_QUEUE_COUNT 100u
+#define SERIAL_IO_CDC_DATA_SLOT_COUNT (SERIAL_IO_CDC_DATA_QUEUE_COUNT + 1u)
 #define SERIAL_IO_PRIORITY_SLOT_COUNT 4u
 #define SERIAL_IO_LOG_SLOT_COUNT 5u
-#define SERIAL_IO_LOG_FIRST_SLOT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_PRIORITY_SLOT_COUNT)
+#define SERIAL_IO_PRIORITY_FIRST_SLOT SERIAL_IO_CDC_DATA_SLOT_COUNT
+#define SERIAL_IO_LOG_FIRST_SLOT (SERIAL_IO_PRIORITY_FIRST_SLOT + SERIAL_IO_PRIORITY_SLOT_COUNT)
 #define SERIAL_IO_SLOT_COUNT (SERIAL_IO_LOG_FIRST_SLOT + SERIAL_IO_LOG_SLOT_COUNT)
 #define SERIAL_IO_NORMAL_SLOT_COUNT (SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT)
+#define SERIAL_IO_CDC_NORMAL_SLOT_COUNT (SERIAL_IO_CDC_DATA_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT)
 #define SERIAL_IO_DATA_BURST_MAX 4u
 /* Keep legacy USJ debug below the formal DATA path. The OTG owner shares
  * priority 7 with its producer and BLE; control remains at 8. Driver waits
@@ -42,26 +46,41 @@ enum { SERIAL_IO_DATA = 0, SERIAL_IO_PRIORITY, SERIAL_IO_LOG, SERIAL_IO_LANE_COU
  * instead of releasing a 64-byte prefix when a later chunk times out. */
 #define SERIAL_IO_DRIVER_TX_BYTES SENSORARRAY_TRANSPORT_TEXT_MAX
 #define SERIAL_IO_NORMAL_LIFETIME_US 250000u
+#define SERIAL_IO_CDC_DATA_LIFETIME_US 1000000u
 #define SERIAL_IO_PRIORITY_LIFETIME_US 1000000u
 #define SERIAL_IO_TICK_US ((uint64_t)portTICK_PERIOD_MS * 1000u)
+typedef struct {
+    int64_t enqueuedUs, deadlineUs;
+    uint32_t epoch;
+    uint16_t length;
+} sensorarraySerialSlot_t;
 #define SERIAL_IO_VFS_PATH "/dev/saout"
 #define SERIAL_IO_STDOUT_PATH SERIAL_IO_VFS_PATH "/out"
 #define SERIAL_IO_STDERR_PATH SERIAL_IO_VFS_PATH "/err"
 #define SERIAL_IO_VFS_DEVICE 0x5341u
 _Static_assert(sizeof(SERIAL_IO_VFS_PATH) - 1u <= ESP_VFS_PATH_MAX,
                "Serial output VFS path exceeds ESP-IDF's registration limit");
-/* Both DATA and LOG retain the original five slots/four queue entries
+/* LOG and fallback/legacy DATA retain five slots/four queue entries
  * independently. In particular, the four leading fault records (root cause,
  * rail, context and registers) keep their previous empty-queue admission.
  * Stdio assembles only in LOG slots, so an unfinished printf or diagnostic
  * burst cannot consume DATA capacity. Priority retains four smaller slots. */
 static char (*s_dataBytes)[SENSORARRAY_TRANSPORT_TEXT_MAX];
+/* The observed formal-USB delivery pause was 622 ms. One hundred queued
+ * records cover 1 s at the existing roughly 100 FPS maximum, plus the owner
+ * slot. Only CDC with a successful PSRAM allocation uses this bounded burst
+ * capacity; legacy/vendor and internal-memory fallback retain the small pool.
+ * FIFO/endpoint DMA storage remains in TinyUSB's internal static buffers. */
+static unsigned s_dataSlotCount = SERIAL_IO_DATA_SLOT_COUNT;
+static unsigned s_dataQueueCount = SERIAL_IO_QUEUE_COUNT;
+static uint32_t s_dataLifetimeUs = SERIAL_IO_NORMAL_LIFETIME_US;
 static uint8_t s_dataMemory; /* 0 unavailable, 1 internal, 2 PSRAM */
 static char s_priorityBytes[SERIAL_IO_PRIORITY_SLOT_COUNT][SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX];
-static uint16_t s_lengths[SERIAL_IO_SLOT_COUNT];
-static int64_t s_enqueuedUs[SERIAL_IO_SLOT_COUNT];
-static int64_t s_deadlineUs[SERIAL_IO_SLOT_COUNT];
-static uint32_t s_slotEpoch[SERIAL_IO_SLOT_COUNT];
+/* Only the expanded DATA metadata follows its CPU payload into PSRAM. The
+ * small DATA fallback and all CTRL/LOG metadata stay internal. No ISR, DMA,
+ * RTOS object, or lock uses these payload/metadata allocations. */
+static sensorarraySerialSlot_t s_smallSlots[SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_PRIORITY_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT];
+static sensorarraySerialSlot_t *s_dataSlots = s_smallSlots;
 static atomic_int s_otgInitResult = ATOMIC_VAR_INIT(ESP_ERR_INVALID_STATE);
 static atomic_bool s_otgInitDone;
 static bool s_driverOwned;
@@ -69,14 +88,23 @@ _Static_assert(SERIAL_IO_DRIVER_TX_BYTES >= SENSORARRAY_TRANSPORT_TEXT_MAX,
                "USB byte ring must admit one complete DATA record");
 _Static_assert(SERIAL_IO_DRIVER_TX_BYTES >= SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX,
                "USB byte ring must admit one complete priority record");
+_Static_assert(SERIAL_IO_SLOT_COUNT < UINT8_MAX, "Slot indices must fit the queue descriptor");
 static char *sensorarraySerialBytes(unsigned index)
 {
-    if (index < SERIAL_IO_DATA_SLOT_COUNT) { return s_dataBytes[index]; }
-    if (index < SERIAL_IO_LOG_FIRST_SLOT) { return s_priorityBytes[index - SERIAL_IO_DATA_SLOT_COUNT]; }
-    return s_dataBytes[SERIAL_IO_DATA_SLOT_COUNT + index - SERIAL_IO_LOG_FIRST_SLOT];
+    if (index < SERIAL_IO_PRIORITY_FIRST_SLOT) { return s_dataBytes[index]; }
+    if (index < SERIAL_IO_LOG_FIRST_SLOT) { return s_priorityBytes[index - SERIAL_IO_PRIORITY_FIRST_SLOT]; }
+    return s_dataBytes[s_dataSlotCount + index - SERIAL_IO_LOG_FIRST_SLOT];
+}
+static sensorarraySerialSlot_t *sensorarraySerialSlot(unsigned index)
+{
+    if (index < SERIAL_IO_PRIORITY_FIRST_SLOT) { return &s_dataSlots[index]; }
+    return &s_smallSlots[SERIAL_IO_DATA_SLOT_COUNT + index - SERIAL_IO_PRIORITY_FIRST_SLOT];
 }
 static StaticQueue_t s_queueStorage[SERIAL_IO_LANE_COUNT];
+static uint8_t s_dataQueueBytes[SERIAL_IO_CDC_DATA_QUEUE_COUNT * sizeof(uint8_t)];
 static uint8_t s_queueBytes[SERIAL_IO_LANE_COUNT][SERIAL_IO_QUEUE_COUNT * sizeof(uint8_t)];
+/* Ownership bits are internal: claiming/releasing under the pool spinlock
+ * never touches PSRAM. Metadata is filled after exclusive ownership transfers. */
 static bool s_inUse[SERIAL_IO_SLOT_COUNT];
 static portMUX_TYPE s_poolMux = portMUX_INITIALIZER_UNLOCKED;
 static QueueHandle_t s_queues[SERIAL_IO_LANE_COUNT];
@@ -107,8 +135,8 @@ static uint8_t sensorarraySerialClaimSlot(unsigned lane)
 {
     uint8_t index = UINT8_MAX;
     unsigned first = lane == SERIAL_IO_DATA ? 0u :
-        (lane == SERIAL_IO_PRIORITY ? SERIAL_IO_DATA_SLOT_COUNT : SERIAL_IO_LOG_FIRST_SLOT);
-    unsigned end = lane == SERIAL_IO_DATA ? SERIAL_IO_DATA_SLOT_COUNT :
+        (lane == SERIAL_IO_PRIORITY ? SERIAL_IO_PRIORITY_FIRST_SLOT : SERIAL_IO_LOG_FIRST_SLOT);
+    unsigned end = lane == SERIAL_IO_DATA ? s_dataSlotCount :
         (lane == SERIAL_IO_PRIORITY ? SERIAL_IO_LOG_FIRST_SLOT : SERIAL_IO_SLOT_COUNT);
     portENTER_CRITICAL(&s_poolMux);
     for (unsigned i = first; i < end; ++i) {
@@ -130,11 +158,12 @@ static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsi
     bool priority = lane == SERIAL_IO_PRIORITY;
     bool queued = false;
     if (index != UINT8_MAX) {
-        s_lengths[index] = (uint16_t)length;
-        s_slotEpoch[index] = sensorarrayUsbOtgEpoch();
-        s_enqueuedUs[index] = esp_timer_get_time();
-        s_deadlineUs[index] = s_enqueuedUs[index] +
-            (priority ? SERIAL_IO_PRIORITY_LIFETIME_US : SERIAL_IO_NORMAL_LIFETIME_US);
+        sensorarraySerialSlot(index)->length = (uint16_t)length;
+        sensorarraySerialSlot(index)->epoch = sensorarrayUsbOtgEpoch();
+        sensorarraySerialSlot(index)->enqueuedUs = esp_timer_get_time();
+        sensorarraySerialSlot(index)->deadlineUs = sensorarraySerialSlot(index)->enqueuedUs +
+            (priority ? SERIAL_IO_PRIORITY_LIFETIME_US :
+             lane == SERIAL_IO_DATA ? s_dataLifetimeUs : SERIAL_IO_NORMAL_LIFETIME_US);
         queued = xQueueSend(s_queues[lane], &index, 0) == pdTRUE;
         if (!queued) {
             sensorarraySerialReleaseSlot(index);
@@ -324,7 +353,7 @@ static void sensorarraySerialLegacyTxTask(void *arg)
                     offset[lane] = 0u;
                     drainProgress = true;
                 }
-                if (pending[lane] != UINT8_MAX && nowUs >= s_deadlineUs[pending[lane]]) {
+                if (pending[lane] != UINT8_MAX && nowUs >= sensorarraySerialSlot(pending[lane])->deadlineUs) {
                     portENTER_CRITICAL(&s_statsMux);
                     s_stats.timeout++;
                     s_stats.sinkDropped++;
@@ -367,10 +396,10 @@ static void sensorarraySerialLegacyTxTask(void *arg)
             }
             uint8_t index = pending[lane];
             const char *packetData = sensorarraySerialBytes(index);
-            size_t packetLength = s_lengths[index];
+            size_t packetLength = sensorarraySerialSlot(index)->length;
             nowUs = esp_timer_get_time();
-            if (nowUs >= s_deadlineUs[index]) { continue; }
-            uint64_t remainingUs = (uint64_t)(s_deadlineUs[index] - nowUs);
+            if (nowUs >= sensorarraySerialSlot(index)->deadlineUs) { continue; }
+            uint64_t remainingUs = (uint64_t)(sensorarraySerialSlot(index)->deadlineUs - nowUs);
             /* write_bytes can wait once for tx_mux and once for ring space.
              * Budget both waits from the original enqueue deadline. */
             TickType_t waitTicks = remainingUs >= 2u * SERIAL_IO_TICK_US ? 1u : 0u;
@@ -400,7 +429,7 @@ static void sensorarraySerialLegacyTxTask(void *arg)
                 sensorarraySerialTxCheckpoint();
                 continue;
             }
-            uint64_t ageUs = (uint64_t)(completedUs - s_enqueuedUs[index]);
+            uint64_t ageUs = (uint64_t)(completedUs - sensorarraySerialSlot(index)->enqueuedUs);
             portENTER_CRITICAL(&s_statsMux);
             s_stats.driverAcceptedBytes += (uint32_t)written;
             s_stats.lastTxUs = completedUs;
@@ -486,8 +515,8 @@ static void sensorarraySerialOtgTxTask(void *arg)
             uint8_t index = pending[lane];
             if (index == UINT8_MAX) { continue; }
             int64_t now = esp_timer_get_time();
-            bool stale = s_slotEpoch[index] != epoch;
-            if (stale || now >= s_deadlineUs[index]) {
+            bool stale = sensorarraySerialSlot(index)->epoch != epoch;
+            if (stale || now >= sensorarraySerialSlot(index)->deadlineUs) {
                 portENTER_CRITICAL(&s_statsMux);
                 s_stats.sinkDropped++;
                 s_stats.timeout += stale ? 0u : 1u;
@@ -510,16 +539,24 @@ static void sensorarraySerialOtgTxTask(void *arg)
                     pending[SERIAL_IO_PRIORITY] != UINT8_MAX && formalOwner != lane)) { continue; }
             }
             if (!sensorarrayUsbOtgOwnerCanWrite(lane)) { continue; }
-            size_t length = delimiter[wire] ? 1u : s_lengths[index] - offset[lane];
+            size_t length = delimiter[wire] ? 1u : sensorarraySerialSlot(index)->length - offset[lane];
             const char *data = delimiter[wire] ? "\n" : sensorarraySerialBytes(index) + offset[lane];
             int n = sensorarrayUsbOtgOwnerWrite(lane, data, length);
-            if (n < 0 || (size_t)n > length) {
+            bool unexpectedDataPrefix = sharedFormal && lane == SERIAL_IO_DATA && n > 0 && (size_t)n < length;
+            if (n < 0 || (size_t)n > length || unexpectedDataPrefix) {
                 /* Acceptance is unknown, including when offset is zero. Drop
                  * this CPU record; never retry an unknown prefix or report it
                  * submitted. The next record must begin after a delimiter. */
                 portENTER_CRITICAL(&s_statsMux);
                 s_stats.driverWriteError++; s_stats.sinkDropped++;
-                s_stats.partialWrite += offset[lane] ? 1u : 0u;
+                s_stats.partialWrite += offset[lane] || unexpectedDataPrefix ? 1u : 0u;
+                if (unexpectedDataPrefix) {
+                    /* A violated whole-record SDK contract is a counted
+                     * driver failure, never a prefix retained until expiry. */
+                    s_stats.driverShortWrite++;
+                    s_stats.driverAcceptedBytes += (uint32_t)n;
+                    s_stats.lastTxUs = now;
+                }
                 portEXIT_CRITICAL(&s_statsMux);
                 delimiter[wire] = true;
                 if (formalOwner == lane) { formalOwner = UINT8_MAX; }
@@ -530,7 +567,7 @@ static void sensorarraySerialOtgTxTask(void *arg)
             if (n == 0) { continue; }
             progress = true;
             if (sharedFormal && lane != SERIAL_IO_LOG) { formalServiced = true; }
-            uint64_t age = (uint64_t)(now - s_enqueuedUs[index]);
+            uint64_t age = (uint64_t)(now - sensorarraySerialSlot(index)->enqueuedUs);
             portENTER_CRITICAL(&s_statsMux);
             s_stats.driverAcceptedBytes += (uint32_t)n;
             s_stats.lastTxUs = now;
@@ -540,8 +577,8 @@ static void sensorarraySerialOtgTxTask(void *arg)
             if (delimiter[wire]) { delimiter[wire] = false; continue; }
             if (sharedFormal && lane != SERIAL_IO_LOG) { formalOwner = lane; }
             offset[lane] += (size_t)n;
-            if (offset[lane] == s_lengths[index]) {
-                delimiter[wire] = sensorarraySerialBytes(index)[s_lengths[index]-1] != '\n';
+            if (offset[lane] == sensorarraySerialSlot(index)->length) {
+                delimiter[wire] = sensorarraySerialBytes(index)[sensorarraySerialSlot(index)->length-1] != '\n';
                 if (formalOwner == lane) { formalOwner = UINT8_MAX; }
                 portENTER_CRITICAL(&s_statsMux);
                 if (lane == SERIAL_IO_PRIORITY) { s_stats.prioritySubmitted++; }
@@ -576,21 +613,39 @@ esp_err_t sensorarraySerialIoInit(void)
         }
         return ESP_OK;
     }
+    bool otg = sensorarrayUsbOtgEnabled();
+    bool cdc = otg && sensorarrayUsbOtgCdcEnabled();
     if (!s_dataBytes) {
         /* CPU-only payload: the driver copies each complete record into its own
          * internal ring buffer. Allocate once, outside every producer path. */
-        s_dataBytes = heap_caps_calloc(SERIAL_IO_NORMAL_SLOT_COUNT, sizeof(*s_dataBytes),
-                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (s_dataBytes) {
-            s_dataMemory = SENSORARRAY_SERIAL_MEMORY_PSRAM;
-        } else {
+        if (cdc) {
+            size_t metadataBytes = SERIAL_IO_CDC_DATA_SLOT_COUNT * sizeof(*s_dataSlots);
+            size_t payloadBytes = SERIAL_IO_CDC_NORMAL_SLOT_COUNT * sizeof(*s_dataBytes);
+            sensorarraySerialSlot_t *pool = heap_caps_calloc(1u, metadataBytes + payloadBytes,
+                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (pool) {
+                s_dataSlots = pool;
+                s_dataBytes = (char (*)[SENSORARRAY_TRANSPORT_TEXT_MAX])((uint8_t *)pool + metadataBytes);
+                s_dataSlotCount = SERIAL_IO_CDC_DATA_SLOT_COUNT;
+                s_dataQueueCount = SERIAL_IO_CDC_DATA_QUEUE_COUNT;
+                s_dataLifetimeUs = SERIAL_IO_CDC_DATA_LIFETIME_US;
+            }
+        }
+        if (!s_dataBytes) {
+            /* A fragmented or unavailable large PSRAM block must not consume
+             * equivalent internal RAM. Try the original small PSRAM pool
+             * before falling back to the same small internal allocation. */
+            s_dataBytes = heap_caps_calloc(SERIAL_IO_NORMAL_SLOT_COUNT, sizeof(*s_dataBytes),
+                                          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        }
+        if (s_dataBytes) { s_dataMemory = SENSORARRAY_SERIAL_MEMORY_PSRAM; }
+        else {
             s_dataBytes = heap_caps_calloc(SERIAL_IO_NORMAL_SLOT_COUNT, sizeof(*s_dataBytes),
                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
             if (s_dataBytes) { s_dataMemory = SENSORARRAY_SERIAL_MEMORY_INTERNAL; }
         }
         if (!s_dataBytes) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
     }
-    bool otg = sensorarrayUsbOtgEnabled();
     if (!otg && !usb_serial_jtag_is_driver_installed()) {
         usb_serial_jtag_driver_config_t config = {.tx_buffer_size = SERIAL_IO_DRIVER_TX_BYTES, .rx_buffer_size = 512};
         esp_err_t err = usb_serial_jtag_driver_install(&config);
@@ -606,9 +661,10 @@ esp_err_t sensorarraySerialIoInit(void)
          * bounded fallback preserves this independent control/TX service. */
         (void)sensorarrayWorkBudgetInit();
         for (unsigned i = 0; i < SERIAL_IO_LANE_COUNT; ++i) {
-            unsigned count = i == SERIAL_IO_LOG ? SERIAL_IO_LOG_QUEUE_COUNT : SERIAL_IO_QUEUE_COUNT;
+            unsigned count = i == SERIAL_IO_DATA ? s_dataQueueCount :
+                i == SERIAL_IO_LOG ? SERIAL_IO_LOG_QUEUE_COUNT : SERIAL_IO_QUEUE_COUNT;
             s_queues[i] = xQueueCreateStatic(count, sizeof(uint8_t),
-                                            s_queueBytes[i], &s_queueStorage[i]);
+                i == SERIAL_IO_DATA ? s_dataQueueBytes : s_queueBytes[i], &s_queueStorage[i]);
             if (!s_queues[i]) { return sensorarraySerialInitResult(ESP_ERR_NO_MEM); }
         }
         /* Backend selection is cached for this boot. Set priority only when
@@ -699,7 +755,9 @@ void sensorarraySerialIoGetStats(sensorarraySerialIoStats_t *outStats)
     portENTER_CRITICAL(&s_statsMux);
     *outStats = s_stats;
     portEXIT_CRITICAL(&s_statsMux);
-    outStats->normalBufferBytes = s_dataBytes ? SERIAL_IO_NORMAL_SLOT_COUNT * sizeof(*s_dataBytes) : 0u;
+    outStats->normalBufferBytes = s_dataBytes ? (s_dataSlotCount + SERIAL_IO_LOG_SLOT_COUNT) * sizeof(*s_dataBytes) : 0u;
+    outStats->dataQueueCapacity = s_dataQueueCount;
+    outStats->dataRecordLifetimeUs = s_dataLifetimeUs;
     outStats->driverTxBufferBytes = s_driverOwned ? SERIAL_IO_DRIVER_TX_BYTES : 0u;
     outStats->normalBufferMemory = s_dataMemory;
     outStats->taskStackConfiguredBytes = 4096u;

@@ -19,6 +19,8 @@
 #endif
 static int64_t nowUs;
 static unsigned allocationCalls, allocationsToFail, allocatedBuffers;
+static size_t allocationBytes[8];
+static uint32_t allocationCaps[8];
 static unsigned queueCreateCalls, queueFailureAt, taskFailures;
 static bool psramUnavailable;
 static int installCount, clearCount, writeBudget = -1, scenario, readCount;
@@ -51,11 +53,12 @@ static void (*txTask)(void *);
 static bool taskEntered;
 static jmp_buf taskExit;
 #ifdef SERIAL_IO_TEST_OTG_INIT
-static bool testOtgEnabled, runOtgOwnerOnDelay, otgOwnerYieldArmed;
+static bool testOtgEnabled, testCdcEnabled, runOtgOwnerOnDelay, otgOwnerYieldArmed;
 static esp_err_t testOtgInitResult;
 static unsigned otgInitCalls;
 static jmp_buf otgOwnerYield;
 bool sensorarrayUsbOtgEnabled(void) { return testOtgEnabled; }
+bool sensorarrayUsbOtgCdcEnabled(void) { return testCdcEnabled; }
 esp_err_t sensorarrayUsbOtgOwnerInit(void)
 { assert(testOtgEnabled && otgOwnerYieldArmed); otgInitCalls++; return testOtgInitResult; }
 void sensorarrayUsbOtgOwnerPoll(void)
@@ -119,6 +122,7 @@ static void initStdio(void)
 
 void *heap_caps_calloc(size_t count, size_t size, uint32_t caps)
 {
+    if (allocationCalls < 8u) { allocationBytes[allocationCalls] = count * size; allocationCaps[allocationCalls] = caps; }
     allocationCalls++;
     if (allocationsToFail) { allocationsToFail--; return NULL; }
     if (psramUnavailable && (caps & MALLOC_CAP_SPIRAM)) { return NULL; }
@@ -340,6 +344,19 @@ static esp_err_t sensorarrayTextProtocolBuildFrame(const sensorarrayFrame_t *fra
     memcpy(packet->data, encodedFrame, packet->length);
     return ESP_OK;
 }
+/* Ignore reserved CDC index holes when exercising the small legacy pool. */
+#ifdef SERIAL_IO_CDC_DATA_SLOT_COUNT
+static bool testSlotInUse(unsigned i)
+{ return s_inUse[i]; }
+static uint32_t testSlotEpoch(unsigned i)
+{ return i < s_dataSlotCount || i >= SERIAL_IO_PRIORITY_FIRST_SLOT ? sensorarraySerialSlot(i)->epoch : 0u; }
+#define TEST_SLOT_LENGTH(i) sensorarraySerialSlot(i)->length
+#else
+#define testSlotInUse(i) s_inUse[i]
+#define testSlotEpoch(i) s_slotEpoch[i]
+#define TEST_SLOT_LENGTH(i) s_lengths[i]
+#endif
+
 /* Actual legacy fallback function, extracted verbatim. The encoder stub
  * replays the existing real-encoder golden frame with verified CRC. */
 #include "frame_output_function.h"
@@ -437,6 +454,58 @@ int main(int argc, char **argv)
 #else
     const char *allocation = argc > 1 ? argv[1] : "psram";
 #ifdef SERIAL_IO_TEST_OTG_INIT
+#ifdef SERIAL_IO_CDC_DATA_SLOT_COUNT
+    if (strncmp(allocation, "cdc_", 4u) == 0) {
+        testOtgEnabled = testCdcEnabled = true; testOtgInitResult = ESP_OK;
+        runOtgOwnerOnDelay = true;
+        bool smallPsram = strcmp(allocation, "cdc_small_psram") == 0;
+        bool internal = strcmp(allocation, "cdc_internal") == 0;
+        bool noMem = strcmp(allocation, "cdc_no_mem") == 0;
+        bool retry = strcmp(allocation, "cdc_failed_retry") == 0;
+        bool queueRetry = strcmp(allocation, "cdc_queue_retry") == 0;
+        if (smallPsram) { allocationsToFail = 1u; }
+        if (internal) { psramUnavailable = true; }
+        if (noMem || retry) { allocationsToFail = 3u; }
+        if (queueRetry) { queueFailureAt = 2u; }
+        esp_err_t result = sensorarraySerialIoInit();
+        if (noMem || retry || queueRetry) {
+            assert(result == ESP_ERR_NO_MEM);
+            if (noMem || retry) {
+                assert(!s_dataBytes && s_dataSlots == s_smallSlots && s_dataSlotCount == SERIAL_IO_DATA_SLOT_COUNT);
+                assert(s_dataQueueCount == SERIAL_IO_QUEUE_COUNT && s_dataLifetimeUs == SERIAL_IO_NORMAL_LIFETIME_US);
+                assert(allocatedBuffers == 0u && !s_task);
+            }
+            if (noMem) { puts("SERIAL_CDC_POOL_PASS,case=cdc_no_mem,noLargeInternal=1,rangeSmall=1"); return 0; }
+            result = sensorarraySerialIoInit();
+        }
+        assert(result == ESP_OK && allocatedBuffers == 1u && !installed && !s_driverOwned);
+        bool large = !smallPsram && !internal;
+        unsigned dataCount = large ? SERIAL_IO_CDC_DATA_QUEUE_COUNT : SERIAL_IO_QUEUE_COUNT;
+        assert(s_dataSlotCount == dataCount + 1u && s_dataQueueCount == dataCount);
+        assert(s_queues[SERIAL_IO_DATA]->length == dataCount);
+        assert((s_dataSlots != s_smallSlots) == large);
+        assert(s_dataMemory == (internal ? SENSORARRAY_SERIAL_MEMORY_INTERNAL : SENSORARRAY_SERIAL_MEMORY_PSRAM));
+        for (unsigned i = 0; i < allocationCalls; ++i) {
+            if (allocationCaps[i] & MALLOC_CAP_INTERNAL) { assert(allocationBytes[i] == SERIAL_IO_NORMAL_SLOT_COUNT * SENSORARRAY_TRANSPORT_TEXT_MAX); }
+        }
+        for (unsigned i = 0; i < dataCount; ++i) { assert(sensorarraySerialIoQueueData("DATA\n", 5) == ESP_OK); }
+        assert(sensorarraySerialIoQueueData("FULL\n", 5) == ESP_ERR_TIMEOUT);
+        for (unsigned i = 0; i < SERIAL_IO_QUEUE_COUNT; ++i) {
+            assert(sensorarraySerialIoQueue("CTRL\n", 5, true) == ESP_OK);
+            assert(sensorarraySerialIoQueue("LOG\n", 4, false) == ESP_OK);
+        }
+        sensorarraySerialIoStats_t stats; sensorarraySerialIoGetStats(&stats);
+        assert(stats.dataQueueCapacity == dataCount && stats.dataRejected == 1u);
+        assert(stats.normalBufferBytes == (s_dataSlotCount + SERIAL_IO_LOG_SLOT_COUNT) * SENSORARRAY_TRANSPORT_TEXT_MAX);
+        assert(stats.dataRecordLifetimeUs == (large ? SERIAL_IO_CDC_DATA_LIFETIME_US : SERIAL_IO_NORMAL_LIFETIME_US));
+        unsigned calls = allocationCalls;
+        assert(sensorarraySerialIoInit() == ESP_OK && allocationCalls == calls);
+        printf("SERIAL_CDC_POOL_PASS,case=%s,dataQueue=%u,dataSlots=%u,payloadBytes=%u,metadataBytes=%zu,lifetimeUs=%u,noLargeInternal=1,ctrlLogIndependent=1,noHotAllocation=1\n",
+               allocation, dataCount, s_dataSlotCount, stats.normalBufferBytes,
+               large ? SERIAL_IO_CDC_DATA_SLOT_COUNT * sizeof(*s_dataSlots) : 0u, stats.dataRecordLifetimeUs);
+        return 0;
+    }
+#endif
     if (strncmp(allocation, "otg_", 4u) == 0) {
         bool neverScheduled = strcmp(allocation, "otg_timeout_repeated") == 0;
         testOtgEnabled = true;
@@ -714,7 +783,7 @@ int main(int argc, char **argv)
     assert(sensorarrayFrameOutputPrint(&frame) == ESP_ERR_INVALID_RESPONSE);
     encoderResult = ESP_OK;
     assert(sensorarrayFrameOutputPrint(&frame) == ESP_OK && s_queues[0]->count == 1);
-    assert(s_lengths[s_queues[0]->data[s_queues[0]->read % s_queues[0]->length]] == sizeof(encodedFrame) - 1);
+    assert(TEST_SLOT_LENGTH(s_queues[0]->data[s_queues[0]->read % s_queues[0]->length]) == sizeof(encodedFrame) - 1);
     drain(); assert(outputLength == sizeof(encodedFrame) - 1 && memcmp(output, encodedFrame, outputLength) == 0);
     for (unsigned i = 0; i < 4; ++i) { assert(sensorarraySerialIoQueueData("FILL\n", 5) == ESP_OK); }
     assert(sensorarrayFrameOutputPrint(&frame) == ESP_ERR_TIMEOUT);
@@ -845,7 +914,7 @@ int main(int argc, char **argv)
     assert(sensorarraySerialIoQueueData("NOHOST_DATA\n", 12) == ESP_OK);
     assert(sensorarraySerialIoQueue("NOHOST_CTRL\n", 12, true) == ESP_OK);
     drain(); assert(nowUs == SERIAL_IO_PRIORITY_LIFETIME_US && delayCalls > delaysBefore);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
 
     /* With DATA continuously replenished, LOG still gets a whole-record
      * service opportunity after at most four DATA completions. */
@@ -862,7 +931,7 @@ int main(int argc, char **argv)
     assert(logOne && logTwo && logTwo > logOne);
     assert((size_t)(logOne - output) <= SERIAL_IO_DATA_BURST_MAX * sizeof(refillPacket));
     assert((size_t)(logTwo - logOne - 8) <= SERIAL_IO_DATA_BURST_MAX * sizeof(refillPacket));
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
     sensorarraySerialIoGetStats(&stats); assert(stats.priorityExpired == 2);
 
     /* A prefix cancelled while nobody can read is still remembered when the
@@ -873,7 +942,7 @@ int main(int argc, char **argv)
     drain();
     assert(!injectControlOnIdle && outputLength == 80 + 1 + 15);
     assert(memcmp(output + 80, "\nIDLE_RECOVERED\n", 16) == 0);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
 
     /* Less than two ticks remaining cannot authorize even a single tick for
      * each of the driver's mutex and ring waits. No partial acceptance occurs. */
@@ -915,7 +984,7 @@ int main(int argc, char **argv)
     assert(refillNormalRemaining == 0 && outputLength == 40 * sizeof(refillPacket));
     assert(driverCalls == callsBefore + 40 && delayCalls >= delaysBefore + 1);
     for (unsigned i = 0; i < 40; ++i) { assert(memcmp(output + i * sizeof(refillPacket), refillPacket, sizeof(refillPacket)) == 0); }
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
 
     /* No CPU0 idle observation may return while an SDK task is busy. Shared
      * checkpoints still return after one tick, allowing the original packet
@@ -931,7 +1000,7 @@ int main(int argc, char **argv)
     assert(budgetAfter.idleGeneration == budgetBefore.idleGeneration);
     assert(nowUs >= SERIAL_IO_PRIORITY_LIFETIME_US && (uint64_t)nowUs <= SERIAL_IO_PRIORITY_LIFETIME_US + SERIAL_IO_TICK_US);
     assert(lastDriverAttemptUs < SERIAL_IO_PRIORITY_LIFETIME_US && outputLength == 0);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
     observeIdle = true;
 
     /* A zero-returning driver that does not actually block is also bounded by
@@ -942,7 +1011,7 @@ int main(int argc, char **argv)
     drain();
     assert(nowUs == SERIAL_IO_PRIORITY_LIFETIME_US && delayCalls >= delaysBefore + 100);
     assert(driverCalls <= callsBefore + 3200 && lastDriverAttemptUs < SERIAL_IO_PRIORITY_LIFETIME_US);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
 
     /* Fill all three actual queue capacities before the single wake. No producer
      * or notification occurs after that: expiry must drain every retained
@@ -965,7 +1034,7 @@ int main(int argc, char **argv)
         drain();
         sensorarraySerialIoGetStats(&burstAfter);
         unsigned retained = 0;
-        for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { retained += s_inUse[i] ? 1u : 0u; }
+        for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { retained += testSlotInUse(i) ? 1u : 0u; }
         if (s_queues[0]->count || s_queues[1]->count || s_queues[2]->count || retained) {
             fprintf(stderr, "SERIAL_EXPIRY_STRANDED,lanes=%u,nowUs=%lld,normalQueued=%u,priorityQueued=%u,retained=%u,normalExpiredDelta=%u,priorityExpiredDelta=%u,notifyDelta=%u\n",
                     lanes, (long long)nowUs, s_queues[0]->count, s_queues[1]->count, retained,
@@ -1001,7 +1070,7 @@ int main(int argc, char **argv)
     assert(burstAfter.partialWrite == burstBefore.partialWrite + 1);
     assert(burstAfter.prioritySubmitted == burstBefore.prioritySubmitted + 1);
     assert(s_queues[0]->count == 0 && s_queues[1]->count == 0);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!s_inUse[i]); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(!testSlotInUse(i)); }
     assert(allocationCalls == allocationsAfterInit); /* no hot path allocations */
 #ifdef SERIAL_IO_HAS_OTG_DISPATCH
     /* Current wrapper selects USJ; the new OTG epoch API must not fabricate a
@@ -1011,7 +1080,7 @@ int main(int argc, char **argv)
     assert(!sensorarrayUsbOtgEnabled());
     assert(sensorarraySerialIoReadWithEpoch(legacyRx, sizeof(legacyRx), &legacyEpoch) == 6);
     assert(legacyEpoch == 0u && memcmp(legacyRx, "MODE?\n", 6u) == 0);
-    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(s_slotEpoch[i] == 0u); }
+    for (unsigned i = 0; i < SERIAL_IO_SLOT_COUNT; ++i) { assert(testSlotEpoch(i) == 0u); }
 #endif
     printf("SERIAL_IO_PASS,allocation=%s,initOnce=1,noHotAlloc=1,priority=1,tickHz=100,noHostNormalUs=250000,noHostPriorityUs=1000000,rxIndependent=1,shortWriteResume=1,partialCancelBoundary=1,wholeLineDrop=1,twoStreams=1,concurrentIterations=32,oversizeResync=1,legacyFrameAtomic=1,usbFacadeClasses=1,dataLogIsolation=1,faultFirstFourPreserved=1,faultTailDrops=3,logSlots=5,logQueue=4,normalPayloadBytes=23040,logWeightedService=1,threeLanePrefix=1,threeLaneExpiryMasks=7,onePersistentAllocation=1,maxRecordAtomic=2304,queueAgeBound=1,unstartedDataPreempt=1,continuousProducerYields=1,sharedIdleAbsentBounded=1,brokenDriverBackoff=1,invalidDriverResult=1,noTxFileLock=1,expiryDrainsAllSlots=1,noFutureNotify=1,shortExpiryAdvancesSameLane=1,stdioBound=1,configBytes=%zu\n", allocation, sizeof(capturedConfig) - 1);
     return 0;

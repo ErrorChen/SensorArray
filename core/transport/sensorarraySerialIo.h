@@ -43,6 +43,8 @@ typedef struct {
     uint32_t taskStackMinBytes;
     uint32_t taskStackConfiguredBytes;
     uint32_t normalBufferBytes;
+    uint32_t dataQueueCapacity;
+    uint32_t dataRecordLifetimeUs;
     uint8_t normalBufferMemory;
     uint64_t driverAcceptedBytes;
     uint64_t rxBytes;

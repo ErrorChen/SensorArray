@@ -126,6 +126,8 @@ static void testUsbBoundaries(void)
     serialStats.dataRejected = serialStats.priorityRejected = serialStats.dataSubmitted = UINT32_MAX;
     serialStats.prioritySubmitted = serialStats.normalExpired = serialStats.priorityExpired = UINT32_MAX;
     serialStats.partialWrite = serialStats.maxQueueAgeUs = serialStats.taskStackMinBytes = UINT32_MAX;
+    serialStats.dataQueueCapacity = 100;
+    serialStats.dataRecordLifetimeUs = 1000000;
     serialStats.logRejected = serialStats.logSubmitted = serialStats.lineDropped = serialStats.lineOversize = UINT32_MAX;
     serialStats.discardBytes = UINT64_MAX;
     assertFormat(sensorarrayUsbControlHandle, "USB?", "backend=otg_bulk_v1");
@@ -142,6 +144,7 @@ static void testUsbBoundaries(void)
     cdcEnabled = true;
     assertFormat(sensorarrayUsbControlHandle, "USB?", "backend=otg_cdc_v1");
     assertFormat(sensorarrayUsbControlHandle, "USBQ?", "dCallbackBytes=unknown,cCallbackBytes=unknown");
+    assertFormat(sensorarrayUsbControlHandle, "USBQ?", "dQueueCap=100,dLifetimeUs=1000000\n");
     assertFormat(sensorarrayUsbControlHandle, "USBSTREAM?", "v=CDC,scope=otg_data,dataEvery=1,debug=cdc,control=shared_cdc");
     assert(sensorarrayUsbControlHandle("USBSTREAM=FULL", reply, sizeof(reply)) == ESP_ERR_NOT_SUPPORTED);
     assert(strstr(reply, "reason=legacy_usj_only,cdcData=always"));

@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 from analyze_firmware_benchmark import analyse_capture, analyse_directory
-from sensorarray_bulk_diagnostics import SCHEMAS
+from sensorarray_bulk_diagnostics import SCHEMAS, record_error
 from test_analyze_firmware_benchmark import RECORDED_STK50_COMPLETE, synthetic_perf
 from text_protocol import parse_fields
 
@@ -183,6 +183,15 @@ class BulkDiagnosticsTests(unittest.TestCase):
         aux = self.analyse()['bulk_diagnostics']
         self.assertFalse(aux['boot_continuity'])
         self.assertIsNone(aux['adc_crc']['rate'])
+
+    def test_USBQ_preserves_older_format_and_rejects_incomplete_queue_limits(self):
+        current = diagnostic('USBQ', dQueueCap=100, dLifetimeUs=1000000).decode().strip()
+        legacy = current[:current.index(',dQueueCap=')]
+        for line in (current, legacy):
+            self.assertIsNone(record_error('USBQ', line, parse_fields(line), None))
+        partial = current[:current.index(',dLifetimeUs=')]
+        self.assertEqual(record_error('USBQ', partial, parse_fields(partial), None),
+                         'INCOMPLETE_OR_UNRECOGNIZED_FIELD_LAYOUT')
 
     def test_actual_production_diagnostic_field_order_matches_strict_schema(self):
         paths = {'CONFIG': 'core/measure/sensorarrayConfigIdentity.c',

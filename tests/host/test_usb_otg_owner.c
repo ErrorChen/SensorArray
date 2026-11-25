@@ -218,8 +218,20 @@ static void endpointIndependence(void)
 {
     initialize();available[0]=0;
 #ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
+    _Static_assert(CFG_TUD_CDC_TX_BUFSIZE >= SENSORARRAY_TEST_MAX_DATA_RECORD,
+                   "CDC FIFO must hold the production maximum DATA record");
     assert(sensorarrayUsbOtgCdcEnabled());
     assert(!sensorarrayUsbOtgOwnerCanWrite(0)&&!sensorarrayUsbOtgOwnerCanWrite(1));
+    available[0] = 3u;
+    unsigned priorWritten = written[0];
+    assert(sensorarrayUsbOtgOwnerWrite(0, "DATA", 4u) == 0);
+    assert(written[0] == priorWritten && available[0] == 3u);
+    assert(sensorarrayUsbOtgOwnerWrite(1, "OK\n", 3u) == 3);
+    assert(written[0] == priorWritten + 3u);
+    available[0] = 4u;
+    assert(sensorarrayUsbOtgOwnerWrite(0, "DATA", 4u) == 4);
+    assert(written[0] == priorWritten + 7u);
+    available[0] = 0u;
     cdcConnected[1]=true;tud_cdc_line_state_cb(1,true,false);
     assert(sensorarrayUsbOtgOwnerCanWrite(2));assert(sensorarrayUsbOtgOwnerWrite(2,"DEBUG",5)==5);
     available[0]=8;cdcConnected[1]=false;tud_cdc_line_state_cb(1,false,false);
@@ -227,7 +239,7 @@ static void endpointIndependence(void)
     /* Formal DTR=0 still supports a host that reads without asserting DTR. */
     assert(sensorarrayUsbOtgOwnerWrite(0,"DATA",4)==4);
     assert(sensorarrayUsbOtgOwnerWrite(1,"CTRL",4)==4);
-    assert(written[0]==8&&written[1]==0&&s_stats.accepted[0]==4&&s_stats.accepted[1]==4);
+    assert(written[0]==15&&written[1]==0&&s_stats.accepted[0]==8&&s_stats.accepted[1]==7);
     assert(!sensorarrayUsbOtgOwnerCanWrite(0)&&!sensorarrayUsbOtgOwnerCanWrite(1));
 #else
     assert(!sensorarrayUsbOtgCdcEnabled());

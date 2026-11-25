@@ -49,13 +49,14 @@ esp_err_t sensorarrayUsbControlHandle(const char *command, char *response, size_
             snprintf(ctrlCallback, sizeof(ctrlCallback), "%llu", (unsigned long long)u.callbackBytes[1]);
         }
         n = snprintf(response, size,
-            "USBQ,dDrop=%lu,cDrop=%lu,dSubmit=%lu,cSubmit=%lu,expired=%lu,cExpired=%lu,partial=%lu,dBytes=%llu,cBytes=%llu,dCallbackBytes=%s,cCallbackBytes=%s,queueMaxUs=%lu,stackMinBytes=%lu,callbackResult=unknown\n",
+            "USBQ,dDrop=%lu,cDrop=%lu,dSubmit=%lu,cSubmit=%lu,expired=%lu,cExpired=%lu,partial=%lu,dBytes=%llu,cBytes=%llu,dCallbackBytes=%s,cCallbackBytes=%s,queueMaxUs=%lu,stackMinBytes=%lu,callbackResult=unknown,dQueueCap=%lu,dLifetimeUs=%lu\n",
             (unsigned long)s.dataRejected, (unsigned long)s.priorityRejected,
             (unsigned long)s.dataSubmitted, (unsigned long)s.prioritySubmitted,
             (unsigned long)s.normalExpired, (unsigned long)s.priorityExpired, (unsigned long)s.partialWrite,
             (unsigned long long)u.accepted[0], (unsigned long long)u.accepted[1],
             dataCallback, ctrlCallback,
-            (unsigned long)s.maxQueueAgeUs, (unsigned long)s.taskStackMinBytes);
+            (unsigned long)s.maxQueueAgeUs, (unsigned long)s.taskStackMinBytes,
+            (unsigned long)s.dataQueueCapacity, (unsigned long)s.dataRecordLifetimeUs);
     } else if (strcmp(command, "SERIAL?") == 0 && sensorarrayUsbOtgEnabled()) {
         sensorarrayUsbOtgStats_t u = {0}; sensorarrayUsbOtgGetStats(&u);
         sensorarraySerialIoStats_t s = {0}; sensorarraySerialIoGetStats(&s);

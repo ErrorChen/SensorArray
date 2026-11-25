@@ -11,6 +11,7 @@
 /* Full SerialIo initialization test runs exactly the owner init prefix, then
  * yields at its first Poll. This is synthetic dispatch, not a TinyUSB test. */
 bool sensorarrayUsbOtgEnabled(void);
+bool sensorarrayUsbOtgCdcEnabled(void);
 esp_err_t sensorarrayUsbOtgOwnerInit(void);
 void sensorarrayUsbOtgOwnerPoll(void);
 bool sensorarrayUsbOtgOwnerCanWrite(unsigned lane);
@@ -18,6 +19,7 @@ int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t length);
 int sensorarrayUsbOtgRead(void *buffer, size_t length, uint32_t *epoch);
 #else
 static inline bool sensorarrayUsbOtgEnabled(void) { return false; }
+static inline bool sensorarrayUsbOtgCdcEnabled(void) { return false; }
 static inline esp_err_t sensorarrayUsbOtgOwnerInit(void)
 { assert(false && "legacy regression entered OTG init"); return ESP_ERR_NOT_SUPPORTED; }
 static inline void sensorarrayUsbOtgOwnerPoll(void)
@@ -29,5 +31,4 @@ static inline int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, s
 static inline int sensorarrayUsbOtgRead(void *buffer, size_t length, uint32_t *epoch)
 { (void)buffer; (void)length; (void)epoch; assert(false && "legacy regression entered OTG read"); return -1; }
 #endif
-static inline bool sensorarrayUsbOtgCdcEnabled(void) { return false; }
 static inline uint32_t sensorarrayUsbOtgEpoch(void) { return 0u; }

@@ -20,7 +20,7 @@ from text_protocol import parse_fields
 SCHEMAS = {
     'CONFIG': 'session bootId rev boundary state mode rows profile err mgen mrid rgen rrid pgen prid mtermId mterm merr ptermId pterm perr rtermId rterm rerr',
     'USB': 'backend init err mounted suspended dma epoch resets mounts unmounts rxBytes rxDrop rxOver lastRxUs lastTxUs romAvailable quiesced pcReceipt dataDtr debugDtr',
-    'USBQ': 'dDrop cDrop dSubmit cSubmit expired cExpired partial dBytes cBytes dCallbackBytes cCallbackBytes queueMaxUs stackMinBytes callbackResult',
+    'USBQ': 'dDrop cDrop dSubmit cSubmit expired cExpired partial dBytes cBytes dCallbackBytes cCallbackBytes queueMaxUs stackMinBytes callbackResult dQueueCap dLifetimeUs',
     'BLELINK': 'gen connected mtu phyKnown txPhy rxPhy connKnown interval1250us latency timeout10ms phyReq connReq dleReq phyStatus connStatus dleStatus dleObserved dlePeerKnown dleTx dleRx stale',
     'BLETX': 'gen dDequeued lDequeued cDequeued dMaxAgeUs lMaxAgeUs cMaxAgeUs sdkActive sdkStartUs sdkEndUs sdkCalls sdkAccepted sdkErrors sdkMaxUs sdkLastErr txPrio ctrlPrio pcReceipt',
     'SCHED': 'initError registered idleKnown tickHz budgetTicks maxUnits graceUnits backstopTicks quantumTicks idleGen idleAgeTicks maxIdleGapTicks bt tr log ser bc sc wc',
@@ -41,7 +41,10 @@ TERMINAL_UNKNOWN = {'PERF': 'heapMin', 'ADSHEALTH': 'crcRetries', 'ADSSPI': 'fra
 TEXT_FIELDS = {'backend', 'pcReceipt', 'callbackResult', 'state', 'mode', 'profile',
                'mterm', 'pterm', 'rterm', 'session', 'sub', 'phy'}
 WORKERS = {'bt', 'tr', 'log', 'ser', 'bc', 'sc', 'wc'}
-LEGACY_LAYOUTS = {'USB': SCHEMAS['USB'].removesuffix(' dataDtr debugDtr')}
+LEGACY_LAYOUTS = {
+    'USB': SCHEMAS['USB'].removesuffix(' dataDtr debugDtr'),
+    'USBQ': SCHEMAS['USBQ'].removesuffix(' dQueueCap dLifetimeUs'),
+}
 
 
 def number(value):

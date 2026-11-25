@@ -319,6 +319,12 @@ int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t size)
     uint32_t n;
 #ifdef CONFIG_SENSORARRAY_USB_OTG_CDC
     uint8_t itf = lane == SENSORARRAY_USB_DEBUG ? 1u : 0u;
+    /* SerialIo is the sole FIFO writer. ISR completion queues an owner event;
+     * it cannot insert another record between this check and the FIFO copy.
+     * Wait for a complete DATA record's space, leaving smaller CTRL replies
+     * usable at record boundaries. Never create a DATA prefix that expires
+     * while the host stops reading. FIFO capacity and DMA buffers are fixed. */
+    if (lane == SENSORARRAY_USB_DATA && tud_cdc_n_write_available(itf) < size) { return 0; }
     n = tud_cdc_n_write(itf, data, (uint32_t)size);
     (void)tud_cdc_n_write_flush(itf);
 #else

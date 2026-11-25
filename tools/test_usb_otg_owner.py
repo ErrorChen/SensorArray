@@ -39,6 +39,8 @@ def main():
     descriptors = ROOT / "components/sensorarrayUsbOtg/sensorarrayUsbDescriptors.c"
     config = ROOT / "components/sensorarrayUsbOtg/include/tusb_config.h"
     header = ROOT / "components/sensorarrayUsbOtg/include/sensorarrayUsbOtg.h"
+    transport_header = ROOT / "core/transport/sensorarrayTransport.h"
+    maximum_data_record = int(re.search(r"^#define SENSORARRAY_TRANSPORT_TEXT_MAX\s+(\d+)u?", transport_header.read_text(), re.M)[1])
     with tempfile.TemporaryDirectory(prefix="sensorarray-usb-otg-host-") as directory:
         temp = Path(directory)
         tinyusb = ROOT / "managed_components/espressif__tinyusb"
@@ -90,6 +92,7 @@ def main():
             path.write_text('#include "common.h"\n')
         executable = temp / "owner_test"
         command = [os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
+                   f"-DSENSORARRAY_TEST_MAX_DATA_RECORD={maximum_data_record}u",
                    "-Wno-unused-parameter", "-I", str(temp), "-I", str(ROOT / "tests/host/usb_otg_stubs"),
                    "-I", str(tinyusb / "src"), str(ROOT / "tests/host/test_usb_otg_owner.c"),
                    "-o", str(executable)]
@@ -102,6 +105,8 @@ def main():
         print(json.dumps({"suite": "USB_OTG_OWNER", "result": "PASS",
                           "scenarios": (1 if args.scenario else len(SCENARIOS)) * len(backends), "backends": backends,
                           "source_sha256": hashes, "tinyusb": "0.21.0~1",
+                          "maximum_data_record": maximum_data_record,
+                          "data_record_capacity_guard": "CDC FIFO >= actual transport maximum; host compile-time assertion",
                           "hardware": "NOT_RUN", "model": "synthetic SDK/RTOS events; actual production C and TinyUSB descriptors"}))
 
 

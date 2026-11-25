@@ -46,12 +46,20 @@ static bool (*idleCallback)(void);
 static char dataStorage[SERIAL_IO_NORMAL_SLOT_COUNT][SENSORARRAY_TRANSPORT_TEXT_MAX];
 static char (*s_dataBytes)[SENSORARRAY_TRANSPORT_TEXT_MAX] = dataStorage;
 static char s_priorityBytes[SERIAL_IO_PRIORITY_SLOT_COUNT][SENSORARRAY_TRANSPORT_CTRL_TEXT_MAX];
+#ifdef SERIAL_IO_CDC_DATA_SLOT_COUNT
+static unsigned s_dataSlotCount = SERIAL_IO_DATA_SLOT_COUNT;
+static uint32_t s_dataLifetimeUs = SERIAL_IO_NORMAL_LIFETIME_US;
+static sensorarraySerialSlot_t s_smallSlots[SERIAL_IO_DATA_SLOT_COUNT + SERIAL_IO_PRIORITY_SLOT_COUNT + SERIAL_IO_LOG_SLOT_COUNT];
+static sensorarraySerialSlot_t *s_dataSlots = s_smallSlots;
+static bool s_inUse[SERIAL_IO_SLOT_COUNT];
+#else
 static uint16_t s_lengths[SERIAL_IO_SLOT_COUNT];
 static int64_t s_enqueuedUs[SERIAL_IO_SLOT_COUNT], s_deadlineUs[SERIAL_IO_SLOT_COUNT];
 #if SERIAL_TEST_HAS_EPOCH
 static uint32_t s_slotEpoch[SERIAL_IO_SLOT_COUNT];
 #endif
 static bool s_inUse[SERIAL_IO_SLOT_COUNT];
+#endif
 static portMUX_TYPE s_poolMux, s_statsMux;
 static StaticQueue_t queues[SERIAL_IO_LANE_COUNT];
 static QueueHandle_t s_queues[SERIAL_IO_LANE_COUNT];
@@ -216,7 +224,13 @@ static void controlTask(void)
 static void reset(unsigned serialPriority, uint64_t unavailableUntil, unsigned controlPriority)
 {
     memset(tasks, 0, sizeof(tasks)); memset(queues, 0, sizeof(queues));
-    memset(s_inUse, 0, sizeof(s_inUse)); memset(&s_stats, 0, sizeof(s_stats));
+
+#ifdef SERIAL_IO_CDC_DATA_SLOT_COUNT
+    memset(s_smallSlots, 0, sizeof(s_smallSlots)); memset(s_inUse, 0, sizeof(s_inUse));
+#else
+    memset(s_inUse, 0, sizeof(s_inUse));
+#endif
+ memset(&s_stats, 0, sizeof(s_stats));
     memset(s_workers, 0, sizeof(s_workers));
     s_initState = s_initTick = s_idleGeneration = s_idleTick = s_maxIdleGapTicks = 0u;
     s_initError = ESP_ERR_INVALID_STATE;
@@ -283,8 +297,13 @@ static void run(unsigned serialPriority, uint64_t unavailableUntil, unsigned con
     assert(bleWork > 0u && transportWork > 0u && idleVisits > 0u && snap.maxIdleGapTicks <= 6u);
     assert(s_stats.driverShortWrite == 0u && s_stats.driverWriteError == 0u && maxQueueCount <= 4u);
     unsigned dataRetained = 0u, controlRetained = 0u;
+    #ifdef SERIAL_IO_CDC_DATA_SLOT_COUNT
+    for (unsigned i=0u; i<s_dataSlotCount; i++) { dataRetained += s_inUse[i] ? 1u : 0u; }
+    for (unsigned i=SERIAL_IO_PRIORITY_FIRST_SLOT; i<SERIAL_IO_LOG_FIRST_SLOT; i++) { controlRetained += s_inUse[i] ? 1u : 0u; }
+#else
     for (unsigned i=0u; i<SERIAL_IO_DATA_SLOT_COUNT; i++) { dataRetained += s_inUse[i] ? 1u : 0u; }
     for (unsigned i=SERIAL_IO_DATA_SLOT_COUNT; i<SERIAL_IO_LOG_FIRST_SLOT; i++) { controlRetained += s_inUse[i] ? 1u : 0u; }
+#endif
     assert(sourceAccepted + s_stats.dataRejected == sourceFrames);
     assert(sourceAccepted == s_stats.dataSubmitted + s_stats.normalExpired + dataRetained);
     assert(controlAccepted + s_stats.priorityRejected == controlCommands);

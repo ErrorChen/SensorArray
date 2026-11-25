@@ -243,6 +243,9 @@ static struct _reent testGlobalReent;
     if "int sensorarraySerialIoReadWithEpoch(" in selected_source:
         for initialization in ["otg_init_error", "otg_init_no_mem", "otg_timeout_repeated"]:
             subprocess.run([str(exe), initialization], check=True)
+    if "SERIAL_IO_CDC_DATA_QUEUE_COUNT" in selected_source:
+        for allocation in ["cdc_psram", "cdc_small_psram", "cdc_internal", "cdc_no_mem", "cdc_failed_retry", "cdc_queue_retry"]:
+            subprocess.run([str(exe), allocation], check=True)
     # Only the scheduling dependency is synthetic: run the actual queue/slot/TX
     # bodies and WorkBudget. Existing tests above cover the full VFS/driver API.
     priority_dir = temp / "priority"
@@ -251,7 +254,7 @@ static struct _reent testGlobalReent;
     start = serial_source.index("#define SERIAL_IO_QUEUE_COUNT")
     end = serial_source.index("#define SERIAL_IO_VFS_PATH", start)
     constants = serial_source[start:end]
-    constants += f"\n#define SERIAL_TEST_HAS_EPOCH {int('s_slotEpoch[' in serial_source)}\n"
+    constants += f"\n#define SERIAL_TEST_HAS_EPOCH {int('s_slotEpoch[' in serial_source or 'sensorarraySerialSlot_t' in serial_source)}\n"
     priority_token = re.search(r'xTaskCreatePinnedToCore\(sensorarraySerialTxTask,\s*"serialTx",\s*4096,\s*NULL,\s*(\w+)', serial_source).group(1)
     if priority_token == "txPriority":
         selection = re.search(r"unsigned txPriority = otg \? (\w+) : (\w+);", serial_source)
@@ -292,6 +295,7 @@ static struct _reent testGlobalReent;
         f"#define SERIAL_TEST_LEGACY_TX {legacy_task}\n" +
         "\n".join(actual_function(serial_source, signature) for signature in (
         "static char *sensorarraySerialBytes(unsigned index)",
+            *(["static sensorarraySerialSlot_t *sensorarraySerialSlot(unsigned index)"] if "sensorarraySerialSlot_t" in serial_source else []),
         "static uint8_t sensorarraySerialClaimSlot(unsigned lane)",
         "static void sensorarraySerialReleaseSlot(uint8_t index)",
         "static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsigned lane)",
@@ -311,6 +315,7 @@ static struct _reent testGlobalReent;
     if "static void sensorarraySerialOtgTxTask(" in serial_source:
         (priority_dir / "serial_otg_source.h").write_text("\n".join(actual_function(serial_source, signature) for signature in (
             "static char *sensorarraySerialBytes(unsigned index)",
+            *(["static sensorarraySerialSlot_t *sensorarraySerialSlot(unsigned index)"] if "sensorarraySerialSlot_t" in serial_source else []),
             "static uint8_t sensorarraySerialClaimSlot(unsigned lane)",
             "static void sensorarraySerialReleaseSlot(uint8_t index)",
             "static esp_err_t sensorarraySerialPublishSlot(uint8_t index, size_t length, unsigned lane)",

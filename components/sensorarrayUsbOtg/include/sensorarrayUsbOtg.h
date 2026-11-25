@@ -23,6 +23,9 @@ esp_err_t sensorarrayUsbOtgOwnerInit(void);
 bool sensorarrayUsbOtgEnabled(void);
 bool sensorarrayUsbOtgCdcEnabled(void); /* 本轮新增: false for USJ fallback. */
 void sensorarrayUsbOtgOwnerPoll(void);
+/* Formal CDC DATA is copied only when its complete length fits the FIFO.
+ * Zero means retain the unstarted record. CTRL/debug/vendor preserve bounded
+ * partial-copy semantics; acceptance is still not host receipt. */
 int sensorarrayUsbOtgOwnerWrite(unsigned lane, const void *data, size_t length);
 bool sensorarrayUsbOtgOwnerCanWrite(unsigned lane);
 uint32_t sensorarrayUsbOtgEpoch(void);
