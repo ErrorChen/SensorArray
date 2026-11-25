@@ -251,6 +251,8 @@ def main():
     parser.add_argument('--label', action='append', help='Defaults to directory names. If supplied, provide one per directory.')
     parser.add_argument('--json', required=True, type=Path)
     parser.add_argument('--markdown', required=True, type=Path)
+    parser.add_argument('--performance', action='store_true',
+                        help='Export transport, CPU, memory and CAP8 recovery for each closed attempt.')
     args = parser.parse_args()
     matrices = [p.resolve() for p in args.directory]
     labels = args.label or [p.name for p in matrices]
@@ -300,7 +302,15 @@ def main():
               'cases': cases}
     if len(matrices) == 1:
         report.update(matrix=str(matrices[0]), label=labels[0])
-    bodies = [json.dumps(report, ensure_ascii=False, indent=2) + '\n', table(report)]
+    if args.performance:
+        from closed_matrix_performance import performance_report, performance_table
+        if len(identities) > 1:
+            parser.error('performance report requires one ELF, session and boot')
+        report = performance_report(report)
+        markdown = performance_table(report)
+    else:
+        markdown = table(report)
+    bodies = [json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n', markdown]
     created = []
     try:
         for path, body in zip(outputs, bodies):

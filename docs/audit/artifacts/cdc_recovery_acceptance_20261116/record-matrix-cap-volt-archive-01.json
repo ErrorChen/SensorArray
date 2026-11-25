@@ -1,0 +1,1298 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.ble.notifications.jsonl",
+      "raw_bytes": 6204135,
+      "raw_sha256": "0c98c86767068ce6d759658adafdbea79b501049ff04eb14448517e7f055abea",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.ble.notifications.jsonl.gz",
+      "gzip_bytes": 499794,
+      "gzip_sha256": "dc90e5371d0b6a81596c07c95245850d40f085af2f8aea6c4fe2b8e389de7121",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.debug.events.jsonl",
+      "raw_bytes": 392691,
+      "raw_sha256": "b6bb3b05c97c59b3d01e891fa18f00f21fb548adcc6b7a7f24bce724e3ccd9ac",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.debug.events.jsonl.gz",
+      "gzip_bytes": 67215,
+      "gzip_sha256": "aa356faa5a854c691e4c0a741dc593f598f3aa5a5f5d300d513e61c10f38e15c",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.debug.rx.bin",
+      "raw_bytes": 374077,
+      "raw_sha256": "070f46489976ac54c1dbf57acb1dd271093b2e3211c622d1f6f91bfc0c34e829",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.debug.rx.bin.gz",
+      "gzip_bytes": 40532,
+      "gzip_sha256": "d1496345d9036d78d440d609343230b1ee65f2710c063bae25fbcee2a2da2cf9",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.events.jsonl",
+      "raw_bytes": 2382569,
+      "raw_sha256": "4c4adf977670ec6dc996aded64dc4bffaa8855f615813e478efc24887ab8efcc",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.events.jsonl.gz",
+      "gzip_bytes": 323524,
+      "gzip_sha256": "c4b5dbaf0c701f3ed69616f97902dd82e2c8f3ee12c281616cc37a5253270ee4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.rx.bin",
+      "raw_bytes": 3283736,
+      "raw_sha256": "f2d026b8e3a26fc0a8bd41348743089676d345918fc50aec3161cd323cc44dea",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.rx.bin.gz",
+      "gzip_bytes": 296898,
+      "gzip_sha256": "0a1050548e5c7c5187e1220afa006dbf3de1fdbab54dea2d4ab82b67cc7cd9e6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.ble.notifications.jsonl",
+      "raw_bytes": 4212440,
+      "raw_sha256": "056e64da11e851c14d8150d5766ea9215369c8b8b21c02ac64375642f685dba2",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.ble.notifications.jsonl.gz",
+      "gzip_bytes": 367163,
+      "gzip_sha256": "6f2059aa7f0eec0934b26f789c1c27e1b79ca3df97e708ca3a850ef9c0a43102",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.debug.events.jsonl",
+      "raw_bytes": 269390,
+      "raw_sha256": "3021426acaeca4207e42500dc354bb3b8620fd15bc3933ba55cff84f27075d8a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.debug.events.jsonl.gz",
+      "gzip_bytes": 46611,
+      "gzip_sha256": "c6e31ffe6aa21afb0e791acf6e3341859e3130520a220b429c9e0ef2df73c898",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.debug.rx.bin",
+      "raw_bytes": 261779,
+      "raw_sha256": "0fa887770adbef3da3d3f6a03e762b520cfe0aa899e42021006ee51325846cc4",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.debug.rx.bin.gz",
+      "gzip_bytes": 28939,
+      "gzip_sha256": "a145bb6a60250d9bd204c6f49210cac7ec31d80583a6cda28e1879dfe429d58e",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.events.jsonl",
+      "raw_bytes": 1619338,
+      "raw_sha256": "410e530ac6ae5db1735c69dd9e5ed62daba9f891611894f9e54973a5a4537086",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.events.jsonl.gz",
+      "gzip_bytes": 229070,
+      "gzip_sha256": "3b5538237b744d3cf4c478921c809188a42f71f647d3701b17279f2608598b0a",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.rx.bin",
+      "raw_bytes": 2373787,
+      "raw_sha256": "34bf68e76a21410456953f876b160131b4eef68cc3f86f58d81d275d7453ee1a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.rx.bin.gz",
+      "gzip_bytes": 241228,
+      "gzip_sha256": "fbc2818c200bd9388610755fa91e97fc729ce0c4937861efab2892879dc6e4b1",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.ble.notifications.jsonl",
+      "raw_bytes": 4363018,
+      "raw_sha256": "62cf5241057dd7338ddafbc0d898ff90e4655c7ab2e83606f8f77632b3f6091d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.ble.notifications.jsonl.gz",
+      "gzip_bytes": 476173,
+      "gzip_sha256": "c6515a014f1bb3d6783a025772ba2390e763e97aa090c615cb19b8e27df84c3b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.debug.events.jsonl",
+      "raw_bytes": 197225,
+      "raw_sha256": "125ebc09238699e33f5788b6d2cf9662fc01a560f0f6683dfd56158bcced4c9a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.debug.events.jsonl.gz",
+      "gzip_bytes": 34958,
+      "gzip_sha256": "52196bf8b020782e6ca66e144e76d0cfa549319605f1bb0f2936e7e220ad5511",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.debug.rx.bin",
+      "raw_bytes": 213293,
+      "raw_sha256": "3b309124c258a0fb728939a37950da9612d5be7339e73b46c11c81d337429ad7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.debug.rx.bin.gz",
+      "gzip_bytes": 23817,
+      "gzip_sha256": "6b7fe139d3032f9532fc4adc31840c58f733678126816f84908ca81c0a99514c",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.events.jsonl",
+      "raw_bytes": 1510947,
+      "raw_sha256": "67187208f1cfdda038b9e388b0749f8eb69785cd85c12a0c4471311115595c75",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.events.jsonl.gz",
+      "gzip_bytes": 212800,
+      "gzip_sha256": "18c985ed4d021258ba0dae1b75190427c2c72c0de25d3968c5227f089b2f180b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.rx.bin",
+      "raw_bytes": 1938993,
+      "raw_sha256": "bd9906e3e24d798a9af09b2a2723353debf39a9d33d3c5aa07bc5cdb367c596d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.rx.bin.gz",
+      "gzip_bytes": 222632,
+      "gzip_sha256": "f256aaa13b0977e4ed66b62d8806c26e87e51b0205f2e4ae01c3db2a86e654ed",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.ble.notifications.jsonl",
+      "raw_bytes": 3681761,
+      "raw_sha256": "4a07fb86b47687cafc88fd4c08425c6cdcca36211600d03fd2f7262fdc7ec314",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.ble.notifications.jsonl.gz",
+      "gzip_bytes": 406191,
+      "gzip_sha256": "9e7e2d59385b85c9ad574d03c487134b81ae0966b11cd35ad1775800144fa95a",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.debug.events.jsonl",
+      "raw_bytes": 165052,
+      "raw_sha256": "f4144c9c986f65ff62fcb18589bb86e37dd466dca9369f371cc984935eaf3dad",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.debug.events.jsonl.gz",
+      "gzip_bytes": 29456,
+      "gzip_sha256": "966ba938c105c5c5994c7fd9a5a41ae3d975755d051737a33ced4b7b8285597b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.debug.rx.bin",
+      "raw_bytes": 188125,
+      "raw_sha256": "2613f6a0f738a9db1ae6c7a7473867cb0059e81b5a734dc98c765cbdb760c6b8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.debug.rx.bin.gz",
+      "gzip_bytes": 21239,
+      "gzip_sha256": "8a6bbbab6e5c6cc99daf042d913e7dfd7481a222bdbdd2646071454d376defb7",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.events.jsonl",
+      "raw_bytes": 1173673,
+      "raw_sha256": "c2c4f0773ecf35fd5f9e74239f92d952e18225b38bb88df49c4c979ea89d3cab",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.events.jsonl.gz",
+      "gzip_bytes": 172368,
+      "gzip_sha256": "3fbef3b935595293e43a874c89f11613912b4b359c90bfdb1c6d4b1d614c6a81",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.rx.bin",
+      "raw_bytes": 1731936,
+      "raw_sha256": "4b16835ffdcd3b2b5e921e5ec575e69a00f7244a419adb876e032aa64a1e5157",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.rx.bin.gz",
+      "gzip_bytes": 211317,
+      "gzip_sha256": "ee9466728975805b358e629956208d89e7b55070cfb26fafab1e825b68112dae",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.ble.notifications.jsonl",
+      "raw_bytes": 3239988,
+      "raw_sha256": "b88883a5793019fd0ab17e028c5050deffdfd4b5b1ff10e5cb428555b5900cb9",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.ble.notifications.jsonl.gz",
+      "gzip_bytes": 362000,
+      "gzip_sha256": "e201682d2ee9de373bb2b3f00a2a616680975687af54921bfd2351af48adb5e8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.debug.events.jsonl",
+      "raw_bytes": 169802,
+      "raw_sha256": "b3fdaaeaf7a9c53ab40effd03dcbf4192536bd85ab8105809a72248511812fdf",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.debug.events.jsonl.gz",
+      "gzip_bytes": 29771,
+      "gzip_sha256": "e9a3513bdd2d1c5f9d370ea25958f8cf7cee843cc1da9d6e2b8c1555d9e67a5b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.debug.rx.bin",
+      "raw_bytes": 171201,
+      "raw_sha256": "61c5d78ce7c9edc1082b11325356f0b929f7d99a043f3e0b3493073440a88e29",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.debug.rx.bin.gz",
+      "gzip_bytes": 19273,
+      "gzip_sha256": "a7beb31116014501c3322cba44896d4a7242fca7cb43298a365fec76c96335e4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.events.jsonl",
+      "raw_bytes": 1165406,
+      "raw_sha256": "0d7a1d7a3022f365d60b3b071c3c955eb379aa0041bba84ef78e7a8df40d1b48",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.events.jsonl.gz",
+      "gzip_bytes": 168761,
+      "gzip_sha256": "05c8fd4a90d19ac0221e6611d703a1ad965d2a9b92e84df42628527948f97580",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.rx.bin",
+      "raw_bytes": 1596518,
+      "raw_sha256": "29822423effb6a54480018589d0b7d78508386c39d84993654438a0b60739525",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.rx.bin.gz",
+      "gzip_bytes": 197190,
+      "gzip_sha256": "b8c8f2e6b5cff33783a855f0cfd954351875c9449df220e3d4a0776530a6e229",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.ble.notifications.jsonl",
+      "raw_bytes": 2925085,
+      "raw_sha256": "02572cf1a808d79181a0549fb82d231736dc100405227305753034f8d1cc7d27",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.ble.notifications.jsonl.gz",
+      "gzip_bytes": 338567,
+      "gzip_sha256": "1a6e336839b722616b76bed70deb9fe756ccb9bbe83969bd948ce0605c4c4cc2",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.debug.events.jsonl",
+      "raw_bytes": 140477,
+      "raw_sha256": "b0e2feefb921a3be7d2ae9988e6e3b8b753e9c9be3ad73e93b762ff893dc5307",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.debug.events.jsonl.gz",
+      "gzip_bytes": 25050,
+      "gzip_sha256": "aae58c646d1c4b882903c308e20ac512e38f9e7a64a9a59bf7f7de63843a27f0",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.debug.rx.bin",
+      "raw_bytes": 160463,
+      "raw_sha256": "8d7df95423cb38672b50da6d63d11f3fea68f906b48aec449f7e0d82a894f60d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.debug.rx.bin.gz",
+      "gzip_bytes": 18171,
+      "gzip_sha256": "88964958d6fe616d0bdebfeb4b35f5a251e8c96060fabf55df690f047ba34005",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.events.jsonl",
+      "raw_bytes": 918100,
+      "raw_sha256": "4a9d3ce7df5b995a9e70abe6687c4a5f840e72e184570661d369ec3cd9bf5b00",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.events.jsonl.gz",
+      "gzip_bytes": 139352,
+      "gzip_sha256": "8bf1d5c431c6f296e9bf265daa349d7d4917fa6f7f3efd795fd9cf881871b518",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.rx.bin",
+      "raw_bytes": 1497438,
+      "raw_sha256": "8cf48087b2620bef55632371e58cd515aedb7515ee2b487daacf530a036b6377",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.rx.bin.gz",
+      "gzip_bytes": 196011,
+      "gzip_sha256": "0e67815e66df7f0577aac5907617057b526a0754c92d4123d734d401bfd4864c",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.ble.notifications.jsonl",
+      "raw_bytes": 2707559,
+      "raw_sha256": "d38544869ddc3b0593f013cc70528be3971c4b0f4b7b8d7bbb290c54ac2bcc01",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.ble.notifications.jsonl.gz",
+      "gzip_bytes": 311696,
+      "gzip_sha256": "1baf1fd92bbc9a115dcec4b9efd657a73d7a6a4da496475e34f93d2126cbde7f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.debug.events.jsonl",
+      "raw_bytes": 132107,
+      "raw_sha256": "4ca2681340027871bc8cce8fc7e1bcc8b1008b8f3328c9a3edf34edee6f121f9",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.debug.events.jsonl.gz",
+      "gzip_bytes": 23767,
+      "gzip_sha256": "1f1025f355b9276f74bf58f1a62f8e7ff39d643595f064bd141018b73f258c48",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.debug.rx.bin",
+      "raw_bytes": 152445,
+      "raw_sha256": "63a753dd636854e925b80cb646bf0121790e6a1de96b6de86b48ea425cedd3bb",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.debug.rx.bin.gz",
+      "gzip_bytes": 17242,
+      "gzip_sha256": "7d37c2fe03c2b99dd9708828dcb3ec23a6bf350bf77c5da0d71751fddceee070",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.events.jsonl",
+      "raw_bytes": 905060,
+      "raw_sha256": "fef5905e49929769d5393443e27a146c4f3e4ff6fe67d23c11ed8bee439acf05",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.events.jsonl.gz",
+      "gzip_bytes": 136999,
+      "gzip_sha256": "ab923546fa9de9e96ee231d2be7e8570ed5bd30efbdeb65ac9ba818c5ff854ee",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.rx.bin",
+      "raw_bytes": 1430597,
+      "raw_sha256": "cbe8b48e87ce0c5b171b203bf8bc2320608ccdb1ae4edad98bdbb66cde3ececd",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.rx.bin.gz",
+      "gzip_bytes": 193842,
+      "gzip_sha256": "857ec01a9bf749c0538ffa1d8c651a8b8866aac472ef85a0e64d69faf150423d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.ble.notifications.jsonl",
+      "raw_bytes": 2570410,
+      "raw_sha256": "f1ca1b7ef10d57223c8890601035c8bda205b05bd8b9a89250492e65ddd3b097",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.ble.notifications.jsonl.gz",
+      "gzip_bytes": 308492,
+      "gzip_sha256": "613077fbbc6b2faf7b7142eed8ddf8bb1808b23d446b4c6860e5f2f491c7c2fb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.debug.events.jsonl",
+      "raw_bytes": 127144,
+      "raw_sha256": "aebff4df4e7116e7de5529bebe31130e8b5ef8a719dcefa904defc4b098a2ea3",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.debug.events.jsonl.gz",
+      "gzip_bytes": 22944,
+      "gzip_sha256": "5b45d7fb410fe2e2553fe9762866ad53029e6db17031c76e63a7517c066bed03",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.debug.rx.bin",
+      "raw_bytes": 149333,
+      "raw_sha256": "34db2b895a431f299919f4fd6825e2cd658be9dc49b34200536f429423edf22e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.debug.rx.bin.gz",
+      "gzip_bytes": 16683,
+      "gzip_sha256": "0005e6cc8afaa5f07f4ce23ad3f381b285d01ffd63665ba0088c88cbf4defecc",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.events.jsonl",
+      "raw_bytes": 874523,
+      "raw_sha256": "f5957688cc3e604bb8d6ea99b054a783933c611430dfb04424ee68e9955ae97f",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.events.jsonl.gz",
+      "gzip_bytes": 132906,
+      "gzip_sha256": "56a22d6e32a010e78fdd176dc7f3f2ca386b18f99feac1104929622897dee159",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.rx.bin",
+      "raw_bytes": 1394119,
+      "raw_sha256": "d64f37b61ce5e6e2c1e15f728a41b1599761beb50e78a8c5970fbd0c337e99ce",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.rx.bin.gz",
+      "gzip_bytes": 198854,
+      "gzip_sha256": "6f153beba1c32925ce9ab461f6dfedc12710986403eac6d542d4b2ec819f3a3c",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.ble.notifications.jsonl",
+      "raw_bytes": 10380851,
+      "raw_sha256": "f594c6bfe04bc21b9d69519b43e425894442e9bf1229211ac38d295121406a87",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.ble.notifications.jsonl.gz",
+      "gzip_bytes": 991557,
+      "gzip_sha256": "86876b03951f46e64f1d6034b74d6183c4de70217f309bc2ed3262cc155e724a",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.debug.events.jsonl",
+      "raw_bytes": 320327,
+      "raw_sha256": "894dc6f8b996afb8081c4460e252f705f9a566afd0b55b082b5a0c2a072bb436",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.debug.events.jsonl.gz",
+      "gzip_bytes": 55502,
+      "gzip_sha256": "37a3c0355d65b1d455eff77f12e394f57ca3845b37ce469c1382076330da6b48",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.debug.rx.bin",
+      "raw_bytes": 409897,
+      "raw_sha256": "afede176f0d6e91efa1a81f02ce3aa4e2510df12903b17e5d9114f494d5bf8ca",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.debug.rx.bin.gz",
+      "gzip_bytes": 40877,
+      "gzip_sha256": "98042048b76b0cf874c230273b9cbf526909db0ed9d697da612e85076b2bccdb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.events.jsonl",
+      "raw_bytes": 3228020,
+      "raw_sha256": "a03b82a580767d089ff8c5eedafd6d259c50e4b7343ffd70e35541d1d3480acf",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.events.jsonl.gz",
+      "gzip_bytes": 432931,
+      "gzip_sha256": "378d8fc1066e30f704379dd9b0187fda0efa915ca37112f3a013147a8ecb67f4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.rx.bin",
+      "raw_bytes": 4837964,
+      "raw_sha256": "a87e5302237fff0e584e33e6cf53949a832591ae56fd38879d9d3c3634bca162",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.rx.bin.gz",
+      "gzip_bytes": 408190,
+      "gzip_sha256": "2e54ba45b53df4a2619c535a6bb1631a4e6b48fa7ec6a6c2889d512490640bc2",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.ble.notifications.jsonl",
+      "raw_bytes": 7966320,
+      "raw_sha256": "f22eada7d87ef68d97c6e64488a583cdf15619343a788f639e1e2e88ea040dea",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.ble.notifications.jsonl.gz",
+      "gzip_bytes": 786823,
+      "gzip_sha256": "f41102cd10555d1be62a69f1ffaa5b452bb0799293343faafc278ba2ccc1dfe4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.debug.events.jsonl",
+      "raw_bytes": 238960,
+      "raw_sha256": "8d118d6a849772ac342a54a2910b282f9de5fcac117c819f672a6da5f8735682",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.debug.events.jsonl.gz",
+      "gzip_bytes": 41748,
+      "gzip_sha256": "1b08aa5394a69d0bd6f6e12dd5c0a877fbb40f75be0bc5d501b7623973de82e2",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.debug.rx.bin",
+      "raw_bytes": 318093,
+      "raw_sha256": "e9abc326019338a998162d4258e32c7c52c89509060a837d9a17559e38286583",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.debug.rx.bin.gz",
+      "gzip_bytes": 31440,
+      "gzip_sha256": "eb4fc74dfcb6d6e5875d60d975933fc33afae5abf71579b104c3cef4679eead9",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.events.jsonl",
+      "raw_bytes": 2232198,
+      "raw_sha256": "8e590dab0f7215044a1b5741134b7bbddf7c22b2686dac5f1bbc82e2a6821511",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.events.jsonl.gz",
+      "gzip_bytes": 308722,
+      "gzip_sha256": "c1d7b07ddf71c03aa93f571c3e1e90a6fb57ab67d7417b3f4ebf7a37f5399260",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.rx.bin",
+      "raw_bytes": 3888717,
+      "raw_sha256": "9dd8c64d4c3af013e7fc2d030063851a68955b58a1a4434b3175f3d36cb1d437",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.rx.bin.gz",
+      "gzip_bytes": 385992,
+      "gzip_sha256": "79ed28bd913342f3827f46fbb804abc76a467e8373e7bfedf86ed5c7961214ed",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.ble.notifications.jsonl",
+      "raw_bytes": 6743162,
+      "raw_sha256": "3798bcfe0b0e7d1d7591bb1cc29466adb88bfe5464b03160b0bff43872946d67",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.ble.notifications.jsonl.gz",
+      "gzip_bytes": 689058,
+      "gzip_sha256": "cda4079b584d04d53a250bbd42e3c3933fbc8883b5c5c74ae3ac3e5cd5a44def",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.debug.events.jsonl",
+      "raw_bytes": 201950,
+      "raw_sha256": "1a1882f1a2c98d79b1417fba430025b8be235645937c1a27d484daadf70ec1da",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.debug.events.jsonl.gz",
+      "gzip_bytes": 35494,
+      "gzip_sha256": "db096eea40e29b1fd67f5fccb4c498f9ff4c4b7a19516b6f1bb9fbc44d0199c8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.debug.rx.bin",
+      "raw_bytes": 271268,
+      "raw_sha256": "7a9c7067d98f9bd33466369cf34843a3242f105da55cb405ad109c1babdec2d0",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.debug.rx.bin.gz",
+      "gzip_bytes": 27482,
+      "gzip_sha256": "2647030373b5895f97fa65b3f2cffe4e8f10d8b4ccda133056820c442afe6f84",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.events.jsonl",
+      "raw_bytes": 1917030,
+      "raw_sha256": "d0b28a45a303147732df373ecf952d8c03786cd87d76aab69c362384ef1416a7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.events.jsonl.gz",
+      "gzip_bytes": 269219,
+      "gzip_sha256": "be777a26013930390d11884b6794bca17a13ec8a10b8c2b3ac491caef8985473",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.rx.bin",
+      "raw_bytes": 3449818,
+      "raw_sha256": "c0c2bbea8b5820c1321b11832dde90929461757cf719fe5502e95faf88d7adb7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.rx.bin.gz",
+      "gzip_bytes": 385681,
+      "gzip_sha256": "a2bc6b2e318dab1fce214094e39b3ef67b2fd3400f6b781b37b6554a6c054df6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.ble.notifications.jsonl",
+      "raw_bytes": 5957113,
+      "raw_sha256": "f8601100a7d573f1a131d613844d89a55d91177bd9810e5341638f7c1133a6f6",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.ble.notifications.jsonl.gz",
+      "gzip_bytes": 644341,
+      "gzip_sha256": "50f5e99286d041deef97e2f347d6c6382b828ed47689000c3ab5327a22e1a4ca",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.debug.events.jsonl",
+      "raw_bytes": 185508,
+      "raw_sha256": "0eb8316eb36fa7b05a92bbfeb899b1b5e434dfc863e102713fb923c4ded0a17d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.debug.events.jsonl.gz",
+      "gzip_bytes": 32697,
+      "gzip_sha256": "ba61d5729a5277a032bb70c8e525236b9ccfc0fec592301e624fbbb147ccebfc",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.debug.rx.bin",
+      "raw_bytes": 241571,
+      "raw_sha256": "d8bd670ed22e70eeabd662ffc7e0b69e88610a48ab20d41569615711c3963f4b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.debug.rx.bin.gz",
+      "gzip_bytes": 25403,
+      "gzip_sha256": "ee65c9d50ad1db7c6ddfa7e8b4d038222ee4bdd6bce006f1addc7c81e6b1cf35",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.events.jsonl",
+      "raw_bytes": 1785148,
+      "raw_sha256": "b4805e136141e30e574d4259506b934ca4f782d90ef27d5887f70623d5ba418c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.events.jsonl.gz",
+      "gzip_bytes": 249965,
+      "gzip_sha256": "115009a8fcdec69a31e2948033cd337ccab9da3be7af4896310cb1b966d62012",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.rx.bin",
+      "raw_bytes": 3148917,
+      "raw_sha256": "5c5da2159e2240a9baa31706d9b13c70cebb08e57de597a46e2146cb1b5ac4b7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.rx.bin.gz",
+      "gzip_bytes": 379763,
+      "gzip_sha256": "79a790688a03d732fe9cebb1933f4b024ffe207e0deea0665afd646814136ff3",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.ble.notifications.jsonl",
+      "raw_bytes": 5854325,
+      "raw_sha256": "c541dc9f6ef677aa05cf1a0f7a373524810478a47449c00b57a7fd7497767979",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.ble.notifications.jsonl.gz",
+      "gzip_bytes": 690114,
+      "gzip_sha256": "61dffcd427c52c5b99fec352b1dff7cf1b67249fe33c1d6214798b4176fee2f5",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.debug.events.jsonl",
+      "raw_bytes": 165204,
+      "raw_sha256": "69f19a232869aba734b8538c477e15a4ace4e61c38c026ca7239090607efefa6",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.debug.events.jsonl.gz",
+      "gzip_bytes": 29317,
+      "gzip_sha256": "1f8964e5d2c964699a6e92144ca6641943b4a8f37bfa747e4412185087fc2927",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.debug.rx.bin",
+      "raw_bytes": 214015,
+      "raw_sha256": "322b00197349faa8dc5633f5dabbd5ff6df874bd9a36571453034c635280d3b7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.debug.rx.bin.gz",
+      "gzip_bytes": 23239,
+      "gzip_sha256": "80eb1d83908fe1bbef8c0606b3841986ea840b6a0883a41f540671ce08c5659d",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.events.jsonl",
+      "raw_bytes": 1543971,
+      "raw_sha256": "ec7d04c89d73b12f75c77a5a759c3700b38d36783928e183a5948e072b368a5b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.events.jsonl.gz",
+      "gzip_bytes": 219938,
+      "gzip_sha256": "93c85c683f3182a7b5a55df04312842c9b54e2cc09457ec3d6a81f7d0b78325c",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.rx.bin",
+      "raw_bytes": 2798089,
+      "raw_sha256": "7c29e754cc39372eb45c34e5be2446439061335a82f56adbcab9430bf9965679",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.rx.bin.gz",
+      "gzip_bytes": 359160,
+      "gzip_sha256": "1917d84702e6afcd2d73f8c6e26dd36bb3c14c635e70a0b72941f5675cd715d1",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.ble.notifications.jsonl",
+      "raw_bytes": 5343168,
+      "raw_sha256": "8b56db394d5b4e997b8947c75af77ff2fc0cb98e4345c3ab719b096a9af2d2db",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.ble.notifications.jsonl.gz",
+      "gzip_bytes": 657196,
+      "gzip_sha256": "c59b48a55c010c143c67dc8aab1e7cfabab6745915ff82421f0f82688525b571",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.debug.events.jsonl",
+      "raw_bytes": 156771,
+      "raw_sha256": "a401be3bbfa38bacedccdaa73c1348938dfb4d98e016f0f8eefa601cde6b51ec",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.debug.events.jsonl.gz",
+      "gzip_bytes": 27747,
+      "gzip_sha256": "4b38d0fbe83eae8442b3d67afa829702f12ef692ff8137d18ac1093b5a5acdd4",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.debug.rx.bin",
+      "raw_bytes": 198035,
+      "raw_sha256": "cb4ebe9f2f70051efe614ee57da14621b6a135e4f0e5a4f0756ec0866882cde6",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.debug.rx.bin.gz",
+      "gzip_bytes": 22000,
+      "gzip_sha256": "4f4055f91994fb7ba55a2291539fa7d08afce16e736af822e61e3279c30ffd9f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.events.jsonl",
+      "raw_bytes": 1658193,
+      "raw_sha256": "e46f02490ae385f0637eaf0c0ff96fecaf7312a21ae425f5e294d128a861f43a",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.events.jsonl.gz",
+      "gzip_bytes": 234052,
+      "gzip_sha256": "a03d61ad1cb0dc889189958a557acebfb8eaca2fd849e0dd35c9cd684017f4a6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.rx.bin",
+      "raw_bytes": 2635234,
+      "raw_sha256": "eba5ff7395056656207badeac068613043cce26c25dd9494779efed0518ea2e5",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.rx.bin.gz",
+      "gzip_bytes": 352973,
+      "gzip_sha256": "f3094d0c66b65a92de362ede126288680ce9dbf2952fee9a67caeb057f0de9fc",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.ble.notifications.jsonl",
+      "raw_bytes": 4963916,
+      "raw_sha256": "6f7515f3dd58fabd97b665f2179887c3a5347a960e7a4c3ef2c35bffcb0bcef2",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.ble.notifications.jsonl.gz",
+      "gzip_bytes": 623859,
+      "gzip_sha256": "aa678ab96621218aef67ab8c5baec8d253571a2edcb57b4d8189953887af383f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.debug.events.jsonl",
+      "raw_bytes": 151146,
+      "raw_sha256": "05698317b12048ca982afbf7142ac8c7230dc84f9a0cd067ed3088916161e1a1",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.debug.events.jsonl.gz",
+      "gzip_bytes": 26739,
+      "gzip_sha256": "b0fe065d85ec0b4a86a7725f87f2eef25f6ea0d5c3dfc4b2fc1284f0b2dacfb0",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.debug.rx.bin",
+      "raw_bytes": 186432,
+      "raw_sha256": "888d66691c13931edeae74f272925d8e177c46cce93b7f5cfa5ef7d9a7cf5437",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.debug.rx.bin.gz",
+      "gzip_bytes": 21041,
+      "gzip_sha256": "ad8d4b6277b1e443802f227f2c197ff4bd4b221cbf30b1c8ab0206d2602ea73e",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.events.jsonl",
+      "raw_bytes": 1507502,
+      "raw_sha256": "9d9f5f8996117b7c3a16a25a378b3acff635a0974565e450d3573621f286827b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.events.jsonl.gz",
+      "gzip_bytes": 213552,
+      "gzip_sha256": "745443bd983d14da7e1b38bff00f4dbce0ffa1106ca796726499508d367e53dd",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.rx.bin",
+      "raw_bytes": 2518875,
+      "raw_sha256": "2967ec7403533bf29f4816c3ee22f303e3b4a5f491469268f405050ccaa4e4dd",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.rx.bin.gz",
+      "gzip_bytes": 350239,
+      "gzip_sha256": "99693a1594f092cde8bf1e5f4e96fbf979926d351433baf66260f439f5f77f3f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.ble.notifications.jsonl",
+      "raw_bytes": 4574359,
+      "raw_sha256": "69379182022dddbb48d3645ca14fb116edc8624b78bc2a221b61539c33559b79",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.ble.notifications.jsonl.gz",
+      "gzip_bytes": 578952,
+      "gzip_sha256": "b25c2e46305ff2f558848498ea5ed6619f6d08b14009b3ab22bb58ae7cbed586",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.debug.events.jsonl",
+      "raw_bytes": 152583,
+      "raw_sha256": "1cc941a40840d5c864bdef5a8108f28c0cd13e0d32e8216ef6a6cecfce62cbd7",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.debug.events.jsonl.gz",
+      "gzip_bytes": 26811,
+      "gzip_sha256": "22b9257e46c473db7a0e3d83ea5cc7c246eeb111f89b47f96fb0c03254d9deab",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.debug.rx.bin",
+      "raw_bytes": 176806,
+      "raw_sha256": "ca0fc29c739966530165f01ec8b8d0a39e5c15a70990826ef03a5b868d722608",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.debug.rx.bin.gz",
+      "gzip_bytes": 20100,
+      "gzip_sha256": "b92277ef1a1a7997e1b3db4ada34058e4d96f6c3427e6acb4ba25f3d39f25a39",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.events.jsonl",
+      "raw_bytes": 1539697,
+      "raw_sha256": "87595f653014376a79e747f54a10c77f892fe3ea7d0279480ca01cf8176e48a0",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.events.jsonl.gz",
+      "gzip_bytes": 217399,
+      "gzip_sha256": "48b53e910de4656a6ef8268fd8cc0fdd7605e017a441ffa4557e540b7736f839",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.rx.bin",
+      "raw_bytes": 2378511,
+      "raw_sha256": "f98eae6169a07d7f69f7d3ca6327ce8465c2035790b358a52a075299f9e9343b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.rx.bin.gz",
+      "gzip_bytes": 347397,
+      "gzip_sha256": "86a7754a3c628a5a190996c9d2c1fd5f5b1e7ca2b178d3543e6694bd6d63757b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.ble.summary.json",
+      "sha256": "56441edf8fc83ef75646e1b0f2b68adfa5ab0c524d65671e2fac1738e0f8886c",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.gate.json",
+      "sha256": "688c04390e55fbf0a60034ed43c69f3b1f2fccc13d3504aaa9f9934aca778e56",
+      "bytes": 238303
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.command.json",
+      "sha256": "319ab3110aac0f5a6d813c662b0ff6a4a0909d19fd2159088e9b2a385e1d8758",
+      "bytes": 5280
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.summary.json",
+      "sha256": "674295d61f3325beefac2740d2cfc1db4d6bf53af546295c56c3a3525a61f292",
+      "bytes": 397181
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap1/record-matrix-01-cap1.debug.summary.json",
+      "sha256": "f126c492bb18b2300dff0a56adc2c791d37038d81a74c0b67b17af0c4ad41ac8",
+      "bytes": 2806
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.command.json",
+      "sha256": "c67427643bce2062c1ff9aca6685324f3168a48f561d631789852da80d126fc3",
+      "bytes": 5278
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.ble.summary.json",
+      "sha256": "08c96ebd3b033f2f09827d900e3ae737efa361b3bdcd975f8630814b06fb5438",
+      "bytes": 2153
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.gate.json",
+      "sha256": "5539714df9b5af0329516da77017f642461aba05687d90218c705740b5ed6f7c",
+      "bytes": 238393
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.debug.summary.json",
+      "sha256": "999094fa8b63a48811bca6a5e258e43290d0208d482c1d757ca6bea546502b44",
+      "bytes": 2774
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap2/record-matrix-01-cap2.summary.json",
+      "sha256": "376547dae810a19a89fbe55cea30f1036b233b02dfb046b2ff85d1370e33c02f",
+      "bytes": 397940
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.summary.json",
+      "sha256": "52ff1e4e2040551d2b48bf9304cd9b878c77ed7c77030256cb70b2299104fe54",
+      "bytes": 398046
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.ble.summary.json",
+      "sha256": "d8721ba568757d30c75ba3f397b7fa13eeb51819f9b768091913dba74d9a8bfc",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.debug.summary.json",
+      "sha256": "6a4d5142617bd0ce821bd5779ec4f2da74619dd483f446ad4dfa1d5453331c81",
+      "bytes": 2764
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.gate.json",
+      "sha256": "9157f2ae7a1ee2707262ae38a7e719f28cbb19988a2729f720f58d6d38c36782",
+      "bytes": 238555
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap3/record-matrix-01-cap3.command.json",
+      "sha256": "907b1e0e3a69e499f1e0cd8814f5a685112449fdc9dbf825083b7a12279c6d39",
+      "bytes": 5230
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.gate.json",
+      "sha256": "0c46f3eea72cf2ffa8374375cd91f6d38fded24a7f8709ef1c2dc98a0d389c58",
+      "bytes": 238534
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.summary.json",
+      "sha256": "fe57e3acab551377be6c07f5dc78d0a798b19fc857f9c14cda4fec11816afe0e",
+      "bytes": 398231
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.ble.summary.json",
+      "sha256": "b7f6e484571f95f11127982c93201cf4988f0610a060d0f2a8050abdb612f704",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.command.json",
+      "sha256": "dee16383da772b71320920e6369e637a8f362d1906b2fa94a98fc08545ff7f6c",
+      "bytes": 5229
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap4/record-matrix-01-cap4.debug.summary.json",
+      "sha256": "a21f6ecde541c2c7fcc5b4bd1c401a17c88d2e47da43107f365ba665d480ade5",
+      "bytes": 2764
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.command.json",
+      "sha256": "78ba30d4a820faf5439bf3b4e3475f0c1bbb0106868f58aec5a6617ceb04ddd6",
+      "bytes": 5232
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.debug.summary.json",
+      "sha256": "a6aee7310c10df60afcabe963bbf63348c5be784c41c57b9bbb5ae1d40fd11c0",
+      "bytes": 2761
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.ble.summary.json",
+      "sha256": "374cabd5432c4cde15af800445d246968014a5708cf983175406adcf0cec33f5",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.gate.json",
+      "sha256": "ef163e1d1e8f86856845962927cc392735fce1f9770aa965e743598919d23797",
+      "bytes": 199298
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap5/record-matrix-01-cap5.summary.json",
+      "sha256": "e4625100969b7b4eacae6f1d34c471f4194a2a89a1ae3b0f487a8f675c644031",
+      "bytes": 398355
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.ble.summary.json",
+      "sha256": "e8dd04972a2306fb7fa9356fe23bc4727f25efd556b8c1a5a395c8565b0fc8e4",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.debug.summary.json",
+      "sha256": "3b8fa55265026e5e816bc4d336202a0a45b16cfe404ccbf36b2034586fa82a7d",
+      "bytes": 2762
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.summary.json",
+      "sha256": "7e396d4a3a1134127af438ca11bf6374d9f5eff3ff9b89987d36f2a20890fa33",
+      "bytes": 398635
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.command.json",
+      "sha256": "7b5af1c2df03cf8c2d888c1d76982d86bac06b2b192fbcce56dca7f5cda2c48d",
+      "bytes": 5231
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.gate.json",
+      "sha256": "227fa3b166a72934e2a6c27d506c9dd7aeb3583c781de4598e47c8c0faa097a8",
+      "bytes": 238753
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.command.json",
+      "sha256": "5b4651c769cf001307ffebcdf731842bccf5cdb7bbece6e35ab3c1eeb0be5660",
+      "bytes": 5229
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.gate.json",
+      "sha256": "cad341c43039e7464db26af3123b783df88a733b7ef2faf4d761a30b18ff23c6",
+      "bytes": 238741
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.debug.summary.json",
+      "sha256": "4aa28ab3de456d03e557a097cceca0d698b548b0332b2cd37cefe5e0365b9a4b",
+      "bytes": 2762
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.ble.summary.json",
+      "sha256": "ea4a48d43d4901e738a7cc1778fb4006603e5c28e28e4472100db5992f6ee22b",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap7/record-matrix-01-cap7.summary.json",
+      "sha256": "2dcb3d277e108343914c76fabdc1a9852138746ab1b85cb4c511a24fd849afc3",
+      "bytes": 398935
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.summary.json",
+      "sha256": "9aefaacda2141b6547edfaebe3a5b26f23909cc029527a61af588af0f15207a7",
+      "bytes": 398954
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.ble.summary.json",
+      "sha256": "bab6aada76584b3b6b716cdf1f7f6bf7a97770a0af2a5afd696fab215453ae55",
+      "bytes": 2155
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.command.json",
+      "sha256": "12e6f95788e4b05df827a0a28b68a2ff4368a8cc624c2bb1f5f30b867b3a55f7",
+      "bytes": 5230
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.debug.summary.json",
+      "sha256": "8a90d89ea4612f616ebb6a3ad2baa3f4b719c218c7301afd42abce5dcb4a68cf",
+      "bytes": 2762
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap8/record-matrix-01-cap8.gate.json",
+      "sha256": "be36f00381b61c350041f619a36870ffeeeaa177f07aa4ee55cceb74d3f7933f",
+      "bytes": 238753
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.summary.json",
+      "sha256": "82671dcc98ee02d1497c50f27ed26169a255e7f360276216688df58e6da8d998",
+      "bytes": 400137
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.ble.summary.json",
+      "sha256": "fa81a4b6ae49dac3b79fdd45e158d63547ad5d50586af9e5c475ca412352ae7d",
+      "bytes": 2161
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.command.json",
+      "sha256": "e9c790bcdcd366a4128d933789c047019fcb405b7003eb15e64598e5f6dc162f",
+      "bytes": 5256
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.debug.summary.json",
+      "sha256": "3ead298b0f5164ee30999ad370793bf87511a32ce3fbf7a3aa0587d286822b6e",
+      "bytes": 2873
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt1/record-matrix-01-volt1.gate.json",
+      "sha256": "f08c4a7568d70d06a606f7c3b28870451831b7500273e73064caceca00cebe99",
+      "bytes": 243732
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.gate.json",
+      "sha256": "c1c72695376594c53ba38ad6983116e69401ea5752cb70aaae1bc1a1e35951c3",
+      "bytes": 241084
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.command.json",
+      "sha256": "af53f8df84b1274a8a9395a0b16bc75ba8cade9a8ab2dafe288e1d6968161ba2",
+      "bytes": 5244
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.ble.summary.json",
+      "sha256": "be8bade897b6355362bfd7c679a83b7b78a7d039b0fe7bbbdbf26ed545fd1bd2",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.summary.json",
+      "sha256": "f943ee3bf716402e5981576e8e8d37750a72325cee96b518463a2242ad146781",
+      "bytes": 400296
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt2/record-matrix-01-volt2.debug.summary.json",
+      "sha256": "3f5ef2c29b968523c4323ae2b4bb2099d3c5aa9c42cda7bc82263c7f616a848b",
+      "bytes": 2871
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.debug.summary.json",
+      "sha256": "85f17e01d39e369140627de7adc3ec67b20b2f9d2b376d4b7dd7e0f320326447",
+      "bytes": 2846
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.gate.json",
+      "sha256": "5e40da1530a15983f7e45b52529ff0cf01529de641a7b23cd6c813efc4d63e70",
+      "bytes": 241250
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.summary.json",
+      "sha256": "6f3e4a061d0b50778a5ce777d8d1079c1de5b12e7790f150b5165654f905af31",
+      "bytes": 400362
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.command.json",
+      "sha256": "5ef55e2a4d444b894491f380f841948e8857c2427fc20988c14d40f966287ac3",
+      "bytes": 5313
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt3/record-matrix-01-volt3.ble.summary.json",
+      "sha256": "f93ae94dda9c12b71a9a9d4c4ac30dd89ff91ad29889da90d6215c3327a4e202",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.command.json",
+      "sha256": "6e8fb6ebc1acf3355f74782333b9d8154714e3ca4d6dcdd25110490f0473d099",
+      "bytes": 5241
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.gate.json",
+      "sha256": "792bdb53e63920f5e8d3e7ae92f31dff36331c39af71399c299b9807ba45c8a9",
+      "bytes": 240673
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.summary.json",
+      "sha256": "f2aa289d6601769f3e3fda38e42941e077df737e7497d796cd8cabdf71295978",
+      "bytes": 400401
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.debug.summary.json",
+      "sha256": "beb124ddbd0852b4473c67674c564c0a0f0a2a02b2b17bbbccd9567d9608182a",
+      "bytes": 2862
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt4/record-matrix-01-volt4.ble.summary.json",
+      "sha256": "f6fc9d1ccfb1043f29211073454f3550dcc5a121f37dd8cd176e85636f4744a9",
+      "bytes": 2158
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.ble.summary.json",
+      "sha256": "a13b6b82c3a6f887cb4f3f5b9c459813f241a98c907828aa38b7dd5ee1007ce8",
+      "bytes": 2158
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.gate.json",
+      "sha256": "96d2fe485f4d585c614dd22cd5275a313ff66eb15a72700b7f5927c0979c5da6",
+      "bytes": 240917
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.debug.summary.json",
+      "sha256": "30d1726a8392fb0240566eac9759e293a298b4ca18a6acbfe628ce4106790426",
+      "bytes": 2861
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.command.json",
+      "sha256": "55728c54850fb218ec9660f06010ef5d29be5d3e75110ae29b7b0b997a36713a",
+      "bytes": 5316
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt5/record-matrix-01-volt5.summary.json",
+      "sha256": "549aa9f501e45276151ef1a7e35254900d49b7bb01238d42f3e8f409abc59c88",
+      "bytes": 400469
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.gate.json",
+      "sha256": "859e3060addcf71d7e8a95a4114c08e9348e7272703d472e11a4a1b7997fb431",
+      "bytes": 241122
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.ble.summary.json",
+      "sha256": "0f285766d10b07c8e64926d4362f596aaa4031e065a1132a6be501756ada3878",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.summary.json",
+      "sha256": "5b9d0b2a718a4bd512ff546d87951651dac49428b0db219c5697dd3d41e92ae6",
+      "bytes": 400567
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.debug.summary.json",
+      "sha256": "a5634be6e10b25356a6e94c96989fea29b53253b52bc7de4845eb8312b5c0ff3",
+      "bytes": 2862
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt6/record-matrix-01-volt6.command.json",
+      "sha256": "553dfc0bdd0037018362eeb756ea995270d05f4d7b59f1cab7db922e71f687e9",
+      "bytes": 5241
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.summary.json",
+      "sha256": "12fefcdcbfc3ae0ac53778063b6b6d3da89f1cb292f706e908c090c8593c91ea",
+      "bytes": 400515
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.gate.json",
+      "sha256": "4d368acaf134cbd9af40819c58a09411a5c8b5d80901a217bed92059657177ca",
+      "bytes": 240717
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.command.json",
+      "sha256": "2aa00ad3ec70a6699b4803d37626341b46c44cecbef318115f18df64c39cb70f",
+      "bytes": 5241
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.ble.summary.json",
+      "sha256": "d152e202f72e00e03c05f57b9ca146e95826688a22fa24a3a9eb470a3413293f",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt7/record-matrix-01-volt7.debug.summary.json",
+      "sha256": "bd272dcd34963bf05d997c55a08147a1528ea9aa8967dce6b728e0cf46b77ef6",
+      "bytes": 2862
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.gate.json",
+      "sha256": "969b3f8400f1da90d7fca751445807ba3eb1d2895145b3b2bc8b13d19769d8b5",
+      "bytes": 241362
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.command.json",
+      "sha256": "5955b6fec29be5356c734b41889250ec4170fd509d159502a54d52464d99ed1c",
+      "bytes": 5316
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.ble.summary.json",
+      "sha256": "f06c30c6406d7ab28fe225ec8c78701d1931fe5cf64f1794ddd55791e763b163",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.summary.json",
+      "sha256": "11c5cf7ef393e4a54249b5e42fe5ae61c3d38d795f8df2698ceb7c4ef0cdb1f9",
+      "bytes": 400557
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-volt8/record-matrix-01-volt8.debug.summary.json",
+      "sha256": "bad85801f06ce2814c66f3b1bbe5114e3839fc587de2f367a4b92b1a6f1b8ad6",
+      "bytes": 2804
+    }
+  ],
+  "file_count": 80,
+  "total_original_bytes": 155405404,
+  "total_gzip_bytes": 18074206,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

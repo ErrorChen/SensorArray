@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "evidence_kind": "independent_recalculation_of_recorded_bytes_no_synthetic_raw",
+  "created_utc": "2026-11-25T07:10:42.088587+00:00",
+  "invocation": [
+    "/usr/bin/python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_voltage_frame_review.py",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt8-frame-review-01",
+    "--write-result"
+  ],
+  "validator_sha256": "9897af8623568eea0d77b1ed11f65d7ee5e63aa211b33a7746f8783b57092f1e",
+  "review_manifest_sha256": "a8999fa4a2afe23616a053473a4fc9fd7e658f6a24f60ed4090768302db65535",
+  "source_hashes": "all_match",
+  "output_hashes": "all_match",
+  "selected_ranges_round_trip": true,
+  "frame_count": 1775,
+  "point_values_and_Xhh_verified": 113600,
+  "CRC_independently_recomputed": true,
+  "adjacent_pairs_independently_recomputed": 1774,
+  "candidate_count": 0,
+  "all64_count": 0,
+  "diagnostic_lines_byte_verified": 668,
+  "hardware_actions": false
+}

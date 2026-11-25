@@ -1,0 +1,10 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.ble.ready.json", "schema_version": 1, "monotonic_ns": 178507208450601, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.550820651988033, "notifications": {"D": 606, "L": 2}, "payload_bytes": {"D": 248901, "L": 276}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.553428487997735, "notifications": {"D": 1212, "L": 2}, "payload_bytes": {"D": 497361, "L": 276}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.64878511297866, "notifications": {"D": 1820, "L": 2}, "payload_bytes": {"D": 746641, "L": 276}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 80.73868018499343, "notifications": {"D": 2428, "L": 2}, "payload_bytes": {"D": 995921, "L": 276}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 100.83253299098578, "notifications": {"D": 3036, "L": 2}, "payload_bytes": {"D": 1245201, "L": 276}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 120.92455833699205, "notifications": {"D": 3644, "L": 2}, "payload_bytes": {"D": 1494596, "L": 276}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 3804, "L": 4}, "journal_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-cap6/record-matrix-01-cap6.ble.notifications.jsonl", "journal_sha256": "02572cf1a808d79181a0549fb82d231736dc100405227305753034f8d1cc7d27"}

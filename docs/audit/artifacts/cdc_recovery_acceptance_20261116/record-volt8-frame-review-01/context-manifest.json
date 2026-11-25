@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-25T07:15:07.570947+00:00",
+  "invocation": [
+    "/usr/bin/python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_voltage_review_context.py",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt8-frame-review-01"
+  ],
+  "generator_sha256": "9b3a828d50bb1ea08d31c0f7447201cf14bc57627393ef688cf60c1bd0f1ea2a",
+  "inputs": {
+    "manifest.json": {
+      "bytes": 3737081,
+      "sha256": "a8999fa4a2afe23616a053473a4fc9fd7e658f6a24f60ed4090768302db65535"
+    },
+    "summary.json": {
+      "bytes": 58253,
+      "sha256": "8a4f7f202bdcd9ca5f9970ec248434ff3ff3f2fd811acf42ef3977915c542ea1"
+    },
+    "frames.jsonl": {
+      "bytes": 7996114,
+      "sha256": "67409f084e1f452609787ca952270c8c35c53e670b77ad424340f1f37ba005e2"
+    },
+    "adjacent-pairs.jsonl": {
+      "bytes": 1896865,
+      "sha256": "c5d9a791638d1e405b64bb090f9e0da3d0f1250d1a5c28e63506ad3e1b9470ba"
+    },
+    "diagnostics.jsonl": {
+      "bytes": 564229,
+      "sha256": "8ef3048538f06f661233233c7af894eb1e78e740d6e60d665045935b44a118f1"
+    },
+    "lag101.jsonl": {
+      "bytes": 525643,
+      "sha256": "e700406121b06cd06e45a809a573d5f1fb0f521be733569ccd34f8378d50c485"
+    },
+    "validation.json": {
+      "bytes": 978,
+      "sha256": "db4964d7cb13d3a52e71e5d2e3da054f54f66348b4a3f87325460d8f4e6e25a9"
+    }
+  },
+  "outputs": {
+    "local-context.json": {
+      "bytes": 21179,
+      "sha256": "c5f7f895f15b75f6108cd5a70aef228eaa2e052752fd6f7e8f9676ab583658ad"
+    },
+    "findings.md": {
+      "bytes": 4282,
+      "sha256": "0f023f1a6b3546b88b7da62a68b903756c4f5f42fc0a12652d6d8429b60deaa9"
+    }
+  },
+  "hardware_actions": false
+}
