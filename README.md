@@ -63,6 +63,14 @@ All 32 configurations recovered to CAP8. The measured range was **56.167–265.3
 
 </details>
 
+### 十分钟稳定性、切换与关键帧 / Stability, transitions and protected snapshots
+
+| 同一镜像、同一 boot / Same image and boot | 实机结果 / Measured result |
+|---|---|
+| VOLT1，600.000072 s | 采集 / capture 61.7392 FPS。USB 37,046 帧、内部缺口 0。BLE 36,652 帧、缺 395/37,047（1.0662%）。ADC CRC 0/394,895 次受检读取，独立计数跨度 599.1331 s。USB/BLE 各自保留 1,767/1,718 个无效点。 / All invalid point codes were retained. [Gate](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.gate.json) · [Metrics](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.metrics.json) |
+| 50 次模式切换 / Mode transitions | USB 验证 50/50 个 applied、对应配置和数据。每步的首个已验证 USB 帧在 BLE 也有收件。最慢一步从发起到闭合配置回读 342.5 ms。 / Both receivers observed every transition. The maximum step-to-closing-query interval was 342.5 ms. [逐步实录 / Per-step results](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.gate.json) |
+| SHORT 完整快照 / Protected full snapshots | CAP8 120.000279 s 中，BLE 收到 117 个真实完整快照，116 个相邻收件间隔最长 1.037481 s。结尾回读确认恢复 REL 和 CAP8。 / The receiver observed 117 complete snapshots. One second is the firmware scheduling target. The measured maximum host receipt interval was 1.037481 s. [快照窗口 / Snapshot window](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-short-01/record-short-01.gate.json) |
+
 ## 正式 USB 短暂停读回归 / Formal USB reader-pause regression
 
 ESP32-S3 实机在 VOLT 两行、USB 与 BLE 同时接收的条件下，分别测了旧固件及修复提交 `f9a82f7`。两次都在 120 秒窗口内暂停主机 CDC0 应用读取约 650 ms，BLE 观察器继续运行。下表中的缺帧按各自通路的完整帧序号计算，设备计数取本次窗口增量。

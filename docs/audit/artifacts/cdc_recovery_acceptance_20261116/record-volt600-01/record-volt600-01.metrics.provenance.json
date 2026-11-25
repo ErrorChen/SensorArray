@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "inputs": {
+    "result": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.result.json",
+      "stored_bytes": 4135,
+      "stored_sha256": "08655f6c217e435a6bb9865c32242161c0aade4ca93ece004b393ff2007510fe",
+      "gzip": false,
+      "raw_bytes": 4135,
+      "raw_sha256": "08655f6c217e435a6bb9865c32242161c0aade4ca93ece004b393ff2007510fe"
+    },
+    "gate": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.gate.json",
+      "stored_bytes": 237559,
+      "stored_sha256": "125e946c18fc85f672d7e8a51d70b4b4462bb6c9e79393eb416782c2618f9c51",
+      "gzip": false,
+      "raw_bytes": 237559,
+      "raw_sha256": "125e946c18fc85f672d7e8a51d70b4b4462bb6c9e79393eb416782c2618f9c51"
+    },
+    "formal_summary": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01-stability-volt1.summary.json",
+      "stored_bytes": 1120652,
+      "stored_sha256": "1d4085031fc75bcd85d3c1443ef76162f1e8535f702a04c4ea50cb1485a0226a",
+      "gzip": false,
+      "raw_bytes": 1120652,
+      "raw_sha256": "1d4085031fc75bcd85d3c1443ef76162f1e8535f702a04c4ea50cb1485a0226a"
+    },
+    "formal_raw": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01-stability-volt1.rx.bin",
+      "stored_bytes": 23517819,
+      "stored_sha256": "6048fd00d667a414b5424452e8f4039238ff2d61fae14d398a3cca7789bf51f8",
+      "gzip": false,
+      "raw_bytes": 23517819,
+      "raw_sha256": "6048fd00d667a414b5424452e8f4039238ff2d61fae14d398a3cca7789bf51f8"
+    },
+    "formal_events": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01-stability-volt1.events.jsonl",
+      "stored_bytes": 14017848,
+      "stored_sha256": "8650cd353af6c7d0092046995d26d23f5a46a9e2e3cb8f1872a573e13b82443d",
+      "gzip": false,
+      "raw_bytes": 14017848,
+      "raw_sha256": "8650cd353af6c7d0092046995d26d23f5a46a9e2e3cb8f1872a573e13b82443d"
+    },
+    "BLE_summary": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.ble.summary.json",
+      "stored_bytes": 2107,
+      "stored_sha256": "aebc764cbbff8b0cd20b6715756224cd5f546f11f71495d2bc96247f897aa807",
+      "gzip": false,
+      "raw_bytes": 2107,
+      "raw_sha256": "aebc764cbbff8b0cd20b6715756224cd5f546f11f71495d2bc96247f897aa807"
+    },
+    "BLE_journal": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.ble.notifications.jsonl",
+      "stored_bytes": 50427065,
+      "stored_sha256": "d90d526306c56c003e5ea0d39b40ca2c6c6c236355f0752686d298e05c848c6a",
+      "gzip": false,
+      "raw_bytes": 50427065,
+      "raw_sha256": "d90d526306c56c003e5ea0d39b40ca2c6c6c236355f0752686d298e05c848c6a"
+    },
+    "debug_summary": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.debug.summary.json",
+      "stored_bytes": 2809,
+      "stored_sha256": "945adf3f8417e9f8e92c9f385d8c8be846be114a6a7bea9dfe7ff15698426537",
+      "gzip": false,
+      "raw_bytes": 2809,
+      "raw_sha256": "945adf3f8417e9f8e92c9f385d8c8be846be114a6a7bea9dfe7ff15698426537"
+    },
+    "debug_raw": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.debug.rx.bin",
+      "stored_bytes": 1960255,
+      "stored_sha256": "fb8046a352ddf44bed0fc89b042dada9852f560ca9263c77b1566344155a7180",
+      "gzip": false,
+      "raw_bytes": 1960255,
+      "raw_sha256": "fb8046a352ddf44bed0fc89b042dada9852f560ca9263c77b1566344155a7180"
+    },
+    "debug_events": {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.debug.events.jsonl",
+      "stored_bytes": 1348937,
+      "stored_sha256": "d1dca3b1d23b282f3683b7c336b924e97c8c321af689693d834ef79066fe3e30",
+      "gzip": false,
+      "raw_bytes": 1348937,
+      "raw_sha256": "d1dca3b1d23b282f3683b7c336b924e97c8c321af689693d834ef79066fe3e30"
+    }
+  },
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.summarize.py",
+    "sha256": "2f5eae977ca782a9194e834b2484f0be1d60b2dde277dcc8538d85b73753d06e"
+  },
+  "existing_functions_used": [
+    "summarize_diagnostic_screen.capture_summary",
+    "analyze_cpu_owner.analyze_document",
+    "review_closed_voltage_frames.assert_closed",
+    "review_closed_voltage_frames.diagnostic_lines",
+    "sensorarray_bulk_diagnostics.record_error"
+  ],
+  "tool_sources": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/summarize_diagnostic_screen.py": "b8d633367e01f67c02b714c90bbeff0cee44db8dcb4f1064ff37738cab4611a4",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_cpu_owner.py": "e9d1c8ad8e1925d9bf752e1253dea5758040fb40c652349df3130431fdb9afcf",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/review_closed_voltage_frames.py": "49a80b1416bcc857b25e8bdfc7a149155b4251013fe7f00f53fb72daf884479c",
+    "/home/csc/esp/workspace/SensorArray/tools/sensorarray_bulk_diagnostics.py": "ea9caf9a1771359c3b1b4bea3c36f05173a0c81a45f5d1e2e3d82f768efdcf70"
+  },
+  "original_result_status": "PASS_CASE_SCREEN",
+  "original_gate_status": "PASS_CASE_SCREEN",
+  "formal_closure": {
+    "exit_code": 0,
+    "stop_reason": null,
+    "child_pid": 376619,
+    "child_termination_known": true,
+    "elapsed_seconds": 606.5275137779827,
+    "log_sha256": "1a5605a8bcb9057f9c9ba36991df654269099bc1f50014818ccbfdb9709d8e9c"
+  },
+  "observer_closure": [
+    {
+      "kind": "ble",
+      "pid": 376613,
+      "exit_code": 0,
+      "termination_known": true,
+      "cleanup_errors": [],
+      "log_sha256": "fd8c18d12343c1d38a6cb023c79a9c940ec6efac772df57fb17b6974755a1c0e",
+      "command": [
+        "/tmp/sensorarray-ble-hil-venv/bin/python",
+        "tools/capture_benchmark_ble.py",
+        "--address",
+        "80:B5:4E:CD:D9:AE",
+        "--adapter",
+        "hci0",
+        "--output-directory",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01",
+        "--label",
+        "record-volt600-01",
+        "--duration",
+        "780",
+        "--stop-file",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.observers.stop"
+      ]
+    },
+    {
+      "kind": "debug",
+      "pid": 376614,
+      "exit_code": 0,
+      "termination_known": true,
+      "cleanup_errors": [],
+      "log_sha256": "e0117a2eff7234ecb628b0b9157c893360c6eaba70fc95766858428d94b70b44",
+      "command": [
+        "/tmp/sensorarray-ble-hil-venv/bin/python",
+        "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/observe_cdc_debug.py",
+        "--usb-serial",
+        "80B54ECDD9AC",
+        "--usb-pid",
+        "0x4042",
+        "--output-directory",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01",
+        "--label",
+        "record-volt600-01",
+        "--duration",
+        "780",
+        "--enumerate-seconds",
+        "30",
+        "--stop-file",
+        "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.observers.stop"
+      ]
+    }
+  ],
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "method": "Reuse finalized gate analysis after exact summary/raw/events hashes; compute CPU from original formal reply bytes and health cadence from independent debug raw/events."
+}

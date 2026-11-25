@@ -1,0 +1,34 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.ble.ready.json", "schema_version": 1, "monotonic_ns": 182043815369194, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.511546810012078, "notifications": {"D": 2414, "L": 3}, "payload_bytes": {"D": 826547, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.579041276010685, "notifications": {"D": 4874, "L": 3}, "payload_bytes": {"D": 1667769, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.64126726301038, "notifications": {"D": 7328, "L": 3}, "payload_bytes": {"D": 2509608, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 80.70841405101237, "notifications": {"D": 9776, "L": 3}, "payload_bytes": {"D": 3350205, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 100.77823694099789, "notifications": {"D": 12231, "L": 3}, "payload_bytes": {"D": 4195018, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 120.84751990801306, "notifications": {"D": 14689, "L": 3}, "payload_bytes": {"D": 5041311, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 140.9086425449932, "notifications": {"D": 17128, "L": 3}, "payload_bytes": {"D": 5880854, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 160.9859040240117, "notifications": {"D": 19578, "L": 3}, "payload_bytes": {"D": 6724588, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 181.04573424399132, "notifications": {"D": 22028, "L": 3}, "payload_bytes": {"D": 7568292, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 201.11932469101157, "notifications": {"D": 24480, "L": 3}, "payload_bytes": {"D": 8412699, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 221.18749259400647, "notifications": {"D": 26933, "L": 3}, "payload_bytes": {"D": 9257571, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 241.26053897000384, "notifications": {"D": 29386, "L": 3}, "payload_bytes": {"D": 10102151, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 261.34349393998855, "notifications": {"D": 31836, "L": 3}, "payload_bytes": {"D": 10945934, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 281.40793400999974, "notifications": {"D": 34289, "L": 3}, "payload_bytes": {"D": 11790742, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 301.48953047400573, "notifications": {"D": 36746, "L": 3}, "payload_bytes": {"D": 12636667, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 321.55733957499615, "notifications": {"D": 39200, "L": 3}, "payload_bytes": {"D": 13481673, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 341.65117521598586, "notifications": {"D": 41655, "L": 3}, "payload_bytes": {"D": 14327277, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 361.71366672500153, "notifications": {"D": 44109, "L": 3}, "payload_bytes": {"D": 15172341, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 381.7866793219873, "notifications": {"D": 46561, "L": 3}, "payload_bytes": {"D": 16016689, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 401.85632691098726, "notifications": {"D": 49016, "L": 3}, "payload_bytes": {"D": 16861977, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 421.93062118900707, "notifications": {"D": 51464, "L": 3}, "payload_bytes": {"D": 17704969, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 442.00393281900324, "notifications": {"D": 53913, "L": 3}, "payload_bytes": {"D": 18548478, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 462.07403184400755, "notifications": {"D": 56374, "L": 3}, "payload_bytes": {"D": 19395860, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 482.14351611500024, "notifications": {"D": 58830, "L": 3}, "payload_bytes": {"D": 20241443, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 502.2096596189949, "notifications": {"D": 61292, "L": 3}, "payload_bytes": {"D": 21089097, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 522.2736843700113, "notifications": {"D": 63737, "L": 3}, "payload_bytes": {"D": 21931186, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 542.3435952189902, "notifications": {"D": 66182, "L": 3}, "payload_bytes": {"D": 22772784, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 562.4225062459882, "notifications": {"D": 68632, "L": 3}, "payload_bytes": {"D": 23616467, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 582.4925045669952, "notifications": {"D": 71080, "L": 3}, "payload_bytes": {"D": 24459463, "L": 431}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 602.5762449990143, "notifications": {"D": 73528, "L": 3}, "payload_bytes": {"D": 25302377, "L": 431}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 74041, "L": 5}, "journal_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.ble.notifications.jsonl", "journal_sha256": "d90d526306c56c003e5ea0d39b40ca2c6c6c236355f0752686d298e05c848c6a"}

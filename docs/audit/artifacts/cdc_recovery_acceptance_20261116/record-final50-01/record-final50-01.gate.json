@@ -1,0 +1,810 @@
+{
+  "status": "COMPLETE_50_USB_VERIFIED_OBSERVERS_CLOSED",
+  "verified_transitions": 50,
+  "cleanup_CONFIG": {
+    "session": "0119031D7DEF4971",
+    "bootId": "1",
+    "rev": "213",
+    "boundary": "135508",
+    "state": "CAPACITANCE",
+    "mode": "CAP",
+    "rows": "8",
+    "profile": "CCCCCCCC",
+    "err": "0x0",
+    "mgen": "129",
+    "mrid": "213",
+    "rgen": "69",
+    "rrid": "163",
+    "pgen": "145",
+    "prid": "213",
+    "mtermId": "213",
+    "mterm": "applied",
+    "merr": "0x0",
+    "ptermId": "213",
+    "pterm": "applied",
+    "perr": "0x0",
+    "rtermId": "163",
+    "rterm": "applied",
+    "rerr": "0x0"
+  },
+  "image_brackets": [
+    {
+      "purpose": "prepare",
+      "expected": {
+        "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+        "session": "0119031D7DEF4971",
+        "bootId": "1"
+      },
+      "BUILD": {
+        "idf": "v5.5.5",
+        "target": "esp32s3",
+        "project": "SensorArray",
+        "proto": "2",
+        "version": "da68b40-dirty",
+        "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677"
+      },
+      "CONFIG_opening": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "163",
+        "mgen": "87",
+        "mrid": "162",
+        "rgen": "69",
+        "rrid": "163",
+        "pgen": "95",
+        "prid": "162",
+        "boundary": "135069",
+        "state": "CAPACITANCE",
+        "mode": "CAP",
+        "rows": "8",
+        "profile": "CCCCCCCC",
+        "err": "0x0",
+        "mtermId": "162",
+        "mterm": "applied",
+        "merr": "0x0",
+        "ptermId": "162",
+        "pterm": "applied",
+        "perr": "0x0",
+        "rtermId": "163",
+        "rterm": "applied",
+        "rerr": "0x0"
+      },
+      "CONFIG_closing": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "163",
+        "mgen": "87",
+        "mrid": "162",
+        "rgen": "69",
+        "rrid": "163",
+        "pgen": "95",
+        "prid": "162",
+        "boundary": "135069",
+        "state": "CAPACITANCE",
+        "mode": "CAP",
+        "rows": "8",
+        "profile": "CCCCCCCC",
+        "err": "0x0",
+        "mtermId": "162",
+        "mterm": "applied",
+        "merr": "0x0",
+        "ptermId": "162",
+        "pterm": "applied",
+        "perr": "0x0",
+        "rtermId": "163",
+        "rterm": "applied",
+        "rerr": "0x0"
+      },
+      "verified": true,
+      "evidence_kind": "actual_CONFIG_BUILD_CONFIG_readonly_bracket",
+      "physical_safety": "NOT_ESTABLISHED_BY_IDENTITY"
+    },
+    {
+      "purpose": "cleanup",
+      "expected": {
+        "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+        "session": "0119031D7DEF4971",
+        "bootId": "1"
+      },
+      "BUILD": {
+        "idf": "v5.5.5",
+        "target": "esp32s3",
+        "project": "SensorArray",
+        "proto": "2",
+        "version": "da68b40-dirty",
+        "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677"
+      },
+      "CONFIG_opening": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "213",
+        "mgen": "129",
+        "mrid": "213",
+        "rgen": "69",
+        "rrid": "163",
+        "pgen": "145",
+        "prid": "213",
+        "boundary": "135508",
+        "state": "CAPACITANCE",
+        "mode": "CAP",
+        "rows": "8",
+        "profile": "CCCCCCCC",
+        "err": "0x0",
+        "mtermId": "213",
+        "mterm": "applied",
+        "merr": "0x0",
+        "ptermId": "213",
+        "pterm": "applied",
+        "perr": "0x0",
+        "rtermId": "163",
+        "rterm": "applied",
+        "rerr": "0x0"
+      },
+      "CONFIG_closing": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "213",
+        "mgen": "129",
+        "mrid": "213",
+        "rgen": "69",
+        "rrid": "163",
+        "pgen": "145",
+        "prid": "213",
+        "boundary": "135508",
+        "state": "CAPACITANCE",
+        "mode": "CAP",
+        "rows": "8",
+        "profile": "CCCCCCCC",
+        "err": "0x0",
+        "mtermId": "213",
+        "mterm": "applied",
+        "merr": "0x0",
+        "ptermId": "213",
+        "pterm": "applied",
+        "perr": "0x0",
+        "rtermId": "163",
+        "rterm": "applied",
+        "rerr": "0x0"
+      },
+      "verified": true,
+      "evidence_kind": "actual_CONFIG_BUILD_CONFIG_readonly_bracket",
+      "physical_safety": "NOT_ESTABLISHED_BY_IDENTITY"
+    }
+  ],
+  "BLE_journal": {
+    "source": {
+      "snapshot_open_monotonic_ns": 182695092177738,
+      "snapshot_open_wall_utc": "2026-11-25T07:55:01.635253+00:00",
+      "storage_mtime_ns_at_open": 1795593301562618129,
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.ble.notifications.jsonl",
+      "compression": "none",
+      "storage_bytes_at_open": 243809,
+      "uncompressed_prefix_bytes": 243809,
+      "uncompressed_prefix_sha256": "d654664b01ead216395bb9f2af6b2eb8fea0047c9ceb029d822e0946967e6984",
+      "file_grew_during_analysis": false
+    },
+    "schema_version": 1,
+    "schema_valid": true,
+    "counts": {
+      "metadata": 1,
+      "device_selected": 1,
+      "connected": 1,
+      "subscribed": 3,
+      "subscriptions_ready": 1,
+      "notification": 322,
+      "recording_end": 1,
+      "disconnected": 1
+    },
+    "metadata": [
+      {
+        "schema_version": 1,
+        "type": "metadata",
+        "monotonic_ns": 182678212792709,
+        "t_seconds": 0.000392702,
+        "collector": "capture_benchmark_ble",
+        "address_requested": "80:B5:4E:CD:D9:AE",
+        "name_requested": null,
+        "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+        "channels": {
+          "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+          "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+          "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+        },
+        "adapter": "hci0",
+        "application_commands_sent": 0,
+        "serial_opened": false,
+        "clock_origin": {
+          "kind": "time.monotonic_ns",
+          "origin_monotonic_ns": 182678212400007,
+          "wall_utc": "2026-11-25T07:54:44.755675+00:00",
+          "scope": "same_host_monotonic_clock_as_serial_runner",
+          "timestamp_semantics": "host_notification_callback_not_over_air"
+        },
+        "python": "3.12.3",
+        "system": "Linux",
+        "duration_total_ceiling_seconds": 450.0,
+        "buffering_max_bytes": 65536,
+        "flush_interval_seconds": 0.25
+      },
+      {
+        "schema_version": 1,
+        "type": "subscriptions_ready",
+        "monotonic_ns": 182678836407132,
+        "t_seconds": 0.624007125,
+        "address": "80:B5:4E:CD:D9:AE",
+        "all_channels_subscribed": [
+          "C",
+          "D",
+          "L"
+        ],
+        "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+        "mtu_reported_by_backend": 23,
+        "negotiated_mtu_verified": false
+      }
+    ],
+    "collector_summary_verification": {
+      "status": "MATCH",
+      "file": {
+        "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.ble.summary.json",
+        "bytes": 2103,
+        "sha256": "6a396abd1a9da2275d2150e6985b578d6b000732d5f03a1ac943394614752777"
+      },
+      "collector_status": "RECORDED",
+      "journal_sha256": "d654664b01ead216395bb9f2af6b2eb8fea0047c9ceb029d822e0946967e6984",
+      "journal_bytes": 243809
+    },
+    "recording_end_observed": true,
+    "all_fragment_counters_by_channel": {
+      "D": {
+        "ok": 103
+      },
+      "L": {},
+      "C": {}
+    },
+    "whole_journal_critical_records": {},
+    "ready_intervals_monotonic_ns": [
+      [
+        182678836407132,
+        182692643512276
+      ]
+    ],
+    "incomplete_fragment_meaning": "unobserved parts at an explicit disconnect/end/prefix boundary; never inferred from message-ID jumps",
+    "maximum_inflight_reassembly_messages": 4096
+  },
+  "BLE_transitions_with_matching_frames": 50,
+  "BLE_transition_receipts": [
+    {
+      "step": 1,
+      "mode": "VOLT",
+      "rev": "164",
+      "first_USB_sequence": 135410,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135410,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 2,
+      "mode": "CAP",
+      "rev": "165",
+      "first_USB_sequence": 135412,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135412,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 3,
+      "mode": "RES",
+      "rev": "166",
+      "first_USB_sequence": 135414,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135414,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 4,
+      "mode": "CAP",
+      "rev": "167",
+      "first_USB_sequence": 135416,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135416,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 5,
+      "mode": "MIXED",
+      "rev": "168",
+      "first_USB_sequence": 135418,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135418,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 6,
+      "mode": "CAP",
+      "rev": "169",
+      "first_USB_sequence": 135420,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135420,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 7,
+      "mode": "VOLT",
+      "rev": "170",
+      "first_USB_sequence": 135422,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135422,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 8,
+      "mode": "CAP",
+      "rev": "171",
+      "first_USB_sequence": 135424,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135424,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 9,
+      "mode": "RES",
+      "rev": "172",
+      "first_USB_sequence": 135426,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135426,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 10,
+      "mode": "CAP",
+      "rev": "173",
+      "first_USB_sequence": 135428,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135428,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 11,
+      "mode": "MIXED",
+      "rev": "174",
+      "first_USB_sequence": 135430,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135430,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 12,
+      "mode": "CAP",
+      "rev": "175",
+      "first_USB_sequence": 135432,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135432,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 13,
+      "mode": "VOLT",
+      "rev": "176",
+      "first_USB_sequence": 135434,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135434,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 14,
+      "mode": "CAP",
+      "rev": "177",
+      "first_USB_sequence": 135436,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135436,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 15,
+      "mode": "RES",
+      "rev": "178",
+      "first_USB_sequence": 135438,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135438,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 16,
+      "mode": "CAP",
+      "rev": "179",
+      "first_USB_sequence": 135440,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135440,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 17,
+      "mode": "MIXED",
+      "rev": "180",
+      "first_USB_sequence": 135442,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135442,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 18,
+      "mode": "CAP",
+      "rev": "181",
+      "first_USB_sequence": 135444,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135444,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 19,
+      "mode": "VOLT",
+      "rev": "182",
+      "first_USB_sequence": 135446,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135446,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 20,
+      "mode": "CAP",
+      "rev": "183",
+      "first_USB_sequence": 135448,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135448,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 21,
+      "mode": "RES",
+      "rev": "184",
+      "first_USB_sequence": 135450,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135450,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 22,
+      "mode": "CAP",
+      "rev": "185",
+      "first_USB_sequence": 135452,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135452,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 23,
+      "mode": "MIXED",
+      "rev": "186",
+      "first_USB_sequence": 135454,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135454,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 24,
+      "mode": "CAP",
+      "rev": "187",
+      "first_USB_sequence": 135456,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135456,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 25,
+      "mode": "VOLT",
+      "rev": "188",
+      "first_USB_sequence": 135458,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135458,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 26,
+      "mode": "CAP",
+      "rev": "189",
+      "first_USB_sequence": 135460,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135460,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 27,
+      "mode": "RES",
+      "rev": "190",
+      "first_USB_sequence": 135462,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135462,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 28,
+      "mode": "CAP",
+      "rev": "191",
+      "first_USB_sequence": 135464,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135464,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 29,
+      "mode": "MIXED",
+      "rev": "192",
+      "first_USB_sequence": 135466,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135466,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 30,
+      "mode": "CAP",
+      "rev": "193",
+      "first_USB_sequence": 135468,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135468,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 31,
+      "mode": "VOLT",
+      "rev": "194",
+      "first_USB_sequence": 135470,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135470,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 32,
+      "mode": "CAP",
+      "rev": "195",
+      "first_USB_sequence": 135472,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135472,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 33,
+      "mode": "RES",
+      "rev": "196",
+      "first_USB_sequence": 135474,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135474,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 34,
+      "mode": "CAP",
+      "rev": "197",
+      "first_USB_sequence": 135476,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135476,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 35,
+      "mode": "MIXED",
+      "rev": "198",
+      "first_USB_sequence": 135478,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135478,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 36,
+      "mode": "CAP",
+      "rev": "199",
+      "first_USB_sequence": 135480,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135480,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 37,
+      "mode": "VOLT",
+      "rev": "200",
+      "first_USB_sequence": 135482,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135482,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 38,
+      "mode": "CAP",
+      "rev": "201",
+      "first_USB_sequence": 135484,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135484,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 39,
+      "mode": "RES",
+      "rev": "202",
+      "first_USB_sequence": 135486,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135486,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 40,
+      "mode": "CAP",
+      "rev": "203",
+      "first_USB_sequence": 135488,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135488,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 41,
+      "mode": "MIXED",
+      "rev": "204",
+      "first_USB_sequence": 135490,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135490,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 42,
+      "mode": "CAP",
+      "rev": "205",
+      "first_USB_sequence": 135492,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135492,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 43,
+      "mode": "VOLT",
+      "rev": "206",
+      "first_USB_sequence": 135494,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135494,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 44,
+      "mode": "CAP",
+      "rev": "207",
+      "first_USB_sequence": 135496,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135496,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 45,
+      "mode": "RES",
+      "rev": "208",
+      "first_USB_sequence": 135498,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135498,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 46,
+      "mode": "CAP",
+      "rev": "209",
+      "first_USB_sequence": 135500,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135500,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 47,
+      "mode": "MIXED",
+      "rev": "210",
+      "first_USB_sequence": 135502,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135502,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 48,
+      "mode": "CAP",
+      "rev": "211",
+      "first_USB_sequence": 135504,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135504,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 49,
+      "mode": "VOLT",
+      "rev": "212",
+      "first_USB_sequence": 135506,
+      "BLE_frames": 2,
+      "first_BLE_sequence": 135506,
+      "first_USB_sequence_seen_on_BLE": true
+    },
+    {
+      "step": 50,
+      "mode": "CAP",
+      "rev": "213",
+      "first_USB_sequence": 135508,
+      "BLE_frames": 3,
+      "first_BLE_sequence": 135508,
+      "first_USB_sequence_seen_on_BLE": true
+    }
+  ],
+  "normal_FULL_loss_budget_applicable": false,
+  "BLE_capture_frame_counts": {
+    "trusted_complete_frames": 103,
+    "integrity_valid_frames": 103,
+    "ordered_integrity_valid_frames": 103,
+    "rejected_untrusted_frames": 0,
+    "complete_frames": 103,
+    "wire_contract_errors": 0,
+    "ascii_crc_errors": 0,
+    "identity_errors": 0,
+    "header_identity_missing": 0,
+    "header_identity_invalid": 0,
+    "trailer_identity_missing": 0,
+    "trailer_identity_invalid": 0,
+    "trailer_header_identity_mismatch": 0,
+    "header_config_identity_mismatch": 0,
+    "identity_value_mismatch": 0,
+    "observed_points": 6592,
+    "reported_valid_points": 5336,
+    "unit_errors": 0,
+    "usable_numeric_points": 5336,
+    "open_points": 1248,
+    "inconsistent_points": 0,
+    "invalid_points": 1256,
+    "not_fresh_points": 0,
+    "unacquired_points": 0,
+    "unknown_masks_points": 0,
+    "frames_with_invalid_points": 40,
+    "frames_with_partial_freshness": 0,
+    "frames_with_unacquired_points": 0,
+    "fully_valid_fresh_acquired_frames": 63
+  },
+  "BLE_fragment_integrity": {
+    "fully_contained_by_channel": {
+      "D": {
+        "ok": 103
+      },
+      "L": {},
+      "C": {}
+    },
+    "edge_or_unknown_by_channel": {
+      "D": {},
+      "L": {},
+      "C": {}
+    },
+    "meaning": "all observed envelope parts start and finish in this window; edge/unknown counters are retained, not counted as in-window frame loss"
+  },
+  "BLE_contained_data_diagnostics": {
+    "malformed_lines": 0
+  },
+  "expected": {
+    "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
+    "session": "0119031D7DEF4971",
+    "bootId": "1"
+  },
+  "debug": {
+    "summary": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.debug.summary.json",
+      "sha256": "3283f3faf5c82415957e78f89969178f0fdf56659e8a5f06d356d1484e1b2900",
+      "stored_bytes": 2788
+    },
+    "raw": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.debug.rx.bin",
+      "sha256": "0b5c944b82a8754cf2b3d98d07f03e23125ab71cf2651e5a425c56054994244c",
+      "stored_bytes": 66300
+    },
+    "events": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.debug.events.jsonl",
+      "sha256": "7b0ff8c164fe1ee70a0356a0a2173865d8022537a6257988ba9c93be096ab3ef",
+      "stored_bytes": 55468
+    }
+  },
+  "BLE_summary": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.ble.summary.json",
+    "sha256": "6a396abd1a9da2275d2150e6985b578d6b000732d5f03a1ac943394614752777",
+    "stored_bytes": 2103
+  },
+  "formal_summary": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.summary.json",
+    "sha256": "3c69dd6e514b919edbc16f790bfa656ca419f88314be06ed8f78932f0688d08c",
+    "stored_bytes": 266633
+  },
+  "overall_acceptance": "NOT_ESTABLISHED"
+}
