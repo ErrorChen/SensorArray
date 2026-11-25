@@ -1,0 +1,1680 @@
+{
+  "schema_version": 1,
+  "precision_acceptance": "NOT_EVALUATED",
+  "calibration_written": false,
+  "fixture_report_status": "REVIEW_REQUIRED",
+  "interval_semantics": "min/max and P05/P95 are observed sample spread, not accuracy bounds or confidence intervals; population stddev",
+  "floating_summary_semantics": "Distribution across per-cell time medians; never pool different cells into one target time series.",
+  "groups": [
+    {
+      "identity": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "116",
+        "mgen": "67",
+        "mrid": "116",
+        "rgen": "50",
+        "rrid": "115",
+        "pgen": "67",
+        "prid": "116",
+        "legacy_gen": "67",
+        "legacy_rid": "116"
+      },
+      "frame_type": "R",
+      "rows": 8,
+      "profile": "",
+      "frames": 1007,
+      "first_sequence": 83401,
+      "last_sequence": 84407,
+      "device_timestamp_span_seconds": 122.041209,
+      "fixture_screening": "WINDOW_SPAN_MET",
+      "matches_before_CONFIG": true,
+      "references": {
+        "S1D1": {
+          "mode": "RES",
+          "unit": "ohm",
+          "reference": {
+            "kind": "resistor",
+            "unit": "ohm",
+            "nominal": 10000.0,
+            "measured": null,
+            "reference_tolerance_abs": null,
+            "acceptance_abs": null
+          },
+          "statistics": {
+            "observed": 1007,
+            "invalid": 0,
+            "stale": 0,
+            "unacquired": 0,
+            "masks_unknown": 0,
+            "rejected_crc": 0,
+            "rejected_identity": 0,
+            "inconsistent": 0,
+            "unit_errors": 0,
+            "open_samples": 0,
+            "unexpected_res_values": 1007,
+            "reasons": {
+              "X00": 0
+            },
+            "samples": 1007,
+            "mean": 10164.972395233366,
+            "median": 10164.998,
+            "stddev": 1.7387562747596332,
+            "min": 10159.550000000001,
+            "max": 10171.083,
+            "range": 11.532999999999447
+          },
+          "accuracy": "NEEDS_LIMITS",
+          "delta_from_nominal": 164.97239523336611,
+          "delta_from_reference": 164.97239523336611,
+          "relative_error_percent": 1.649723952333661,
+          "data_quality": "READY",
+          "max_abs_error": 171.08300000000054,
+          "empirical_distribution": {
+            "samples": 1007,
+            "mean": 10164.972395233366,
+            "median": 10164.998,
+            "stddev": 1.7387562747596332,
+            "min": 10159.550000000001,
+            "max": 10171.083,
+            "range": 11.532999999999447,
+            "p05": 10162.038,
+            "p95": 10167.9862
+          }
+        },
+        "S8D8": {
+          "mode": "RES",
+          "unit": "ohm",
+          "reference": {
+            "kind": "resistor",
+            "unit": "ohm",
+            "nominal": 10000.0,
+            "measured": null,
+            "reference_tolerance_abs": null,
+            "acceptance_abs": null
+          },
+          "statistics": {
+            "observed": 1007,
+            "invalid": 0,
+            "stale": 0,
+            "unacquired": 0,
+            "masks_unknown": 0,
+            "rejected_crc": 0,
+            "rejected_identity": 0,
+            "inconsistent": 0,
+            "unit_errors": 0,
+            "open_samples": 0,
+            "unexpected_res_values": 1007,
+            "reasons": {
+              "X00": 0
+            },
+            "samples": 1007,
+            "mean": 10166.38977855015,
+            "median": 10166.429,
+            "stddev": 1.6266443791020042,
+            "min": 10160.526,
+            "max": 10171.652,
+            "range": 11.126000000000204
+          },
+          "accuracy": "NEEDS_LIMITS",
+          "delta_from_nominal": 166.38977855015037,
+          "delta_from_reference": 166.38977855015037,
+          "relative_error_percent": 1.6638977855015036,
+          "data_quality": "READY",
+          "max_abs_error": 171.65200000000004,
+          "empirical_distribution": {
+            "samples": 1007,
+            "mean": 10166.38977855015,
+            "median": 10166.429,
+            "stddev": 1.6266443791020042,
+            "min": 10160.526,
+            "max": 10171.652,
+            "range": 11.126000000000204,
+            "p05": 10163.794,
+            "p95": 10168.9782
+          }
+        },
+        "S4D4": {
+          "mode": "CAP",
+          "unit": "pF",
+          "reference": {
+            "kind": "capacitor",
+            "unit": "pF",
+            "nominal": 33.0,
+            "measured": null,
+            "reference_tolerance_abs": null,
+            "acceptance_abs": null
+          },
+          "statistics": {
+            "observed": 0,
+            "invalid": 0,
+            "stale": 0,
+            "unacquired": 0,
+            "masks_unknown": 0,
+            "rejected_crc": 0,
+            "rejected_identity": 0,
+            "inconsistent": 0,
+            "unit_errors": 0,
+            "open_samples": 0,
+            "unexpected_res_values": 0,
+            "reasons": {},
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null
+          },
+          "accuracy": "NOT_OBSERVED",
+          "delta_from_nominal": null,
+          "delta_from_reference": null,
+          "relative_error_percent": null,
+          "empirical_distribution": {
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null,
+            "p05": null,
+            "p95": null
+          }
+        },
+        "S5D5": {
+          "mode": "CAP",
+          "unit": "pF",
+          "reference": {
+            "kind": "capacitor",
+            "unit": "pF",
+            "nominal": 33.0,
+            "measured": null,
+            "reference_tolerance_abs": null,
+            "acceptance_abs": null
+          },
+          "statistics": {
+            "observed": 0,
+            "invalid": 0,
+            "stale": 0,
+            "unacquired": 0,
+            "masks_unknown": 0,
+            "rejected_crc": 0,
+            "rejected_identity": 0,
+            "inconsistent": 0,
+            "unit_errors": 0,
+            "open_samples": 0,
+            "unexpected_res_values": 0,
+            "reasons": {},
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null
+          },
+          "accuracy": "NOT_OBSERVED",
+          "delta_from_nominal": null,
+          "delta_from_reference": null,
+          "relative_error_percent": null,
+          "empirical_distribution": {
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null,
+            "p05": null,
+            "p95": null
+          }
+        }
+      },
+      "floating_cap_per_cell": {},
+      "floating_cap_time_medians_across_cells": {
+        "samples": 0,
+        "mean": null,
+        "median": null,
+        "stddev": null,
+        "min": null,
+        "max": null,
+        "range": null,
+        "p05": null,
+        "p95": null
+      },
+      "floating_res_pass": 60,
+      "floating_res_observed": 60
+    }
+  ],
+  "cap_proxy_summary": [
+    {
+      "identity": {
+        "session": "0119031D7DEF4971",
+        "bootId": "1",
+        "rev": "116",
+        "mgen": "67",
+        "mrid": "116",
+        "rgen": "50",
+        "rrid": "115",
+        "pgen": "67",
+        "prid": "116",
+        "legacy_gen": "67",
+        "legacy_rid": "116"
+      },
+      "identity_status": "consistent_frame_identity",
+      "frame_type": "R",
+      "rows": 8,
+      "profile": "",
+      "complete_frames": 1007,
+      "frame_rejection_counts_nonexclusive": {},
+      "first_sequence": 83401,
+      "last_sequence": 84407,
+      "first_timestamp_us": 3246867839,
+      "last_timestamp_us": 3368909048,
+      "trusted_frame_span_seconds": 122.041209,
+      "sequence_gaps": 0,
+      "missing_sequences": 0,
+      "duplicate_or_old_frames": 0,
+      "timestamp_regressions": 0,
+      "targets": {
+        "S4D4": {
+          "nominal_pf": 33.0,
+          "nominal_source": "user_nominal",
+          "precision_acceptance": "NOT_EVALUATED",
+          "target_usable_frames": 0,
+          "target_total_pf": {
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null,
+            "p05": null,
+            "p95": null
+          },
+          "target_rejection_counts_nonexclusive": {
+            "not_cap_mode": 1007,
+            "not_cap_units": 1007,
+            "invalid": 1007
+          },
+          "methods": {
+            "same_row_median": {
+              "donor_cells": [
+                "S4D1",
+                "S4D2",
+                "S4D3",
+                "S4D5",
+                "S4D6",
+                "S4D7",
+                "S4D8"
+              ],
+              "required_donor_count": 7,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S4D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "same_column_median": {
+              "donor_cells": [
+                "S1D4",
+                "S2D4",
+                "S3D4",
+                "S5D4",
+                "S6D4",
+                "S7D4",
+                "S8D4"
+              ],
+              "required_donor_count": 7,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S1D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "all_floating_median": {
+              "donor_cells": [
+                "S1D2",
+                "S1D3",
+                "S1D4",
+                "S1D5",
+                "S1D6",
+                "S1D7",
+                "S1D8",
+                "S2D1",
+                "S2D2",
+                "S2D3",
+                "S2D4",
+                "S2D5",
+                "S2D6",
+                "S2D7",
+                "S2D8",
+                "S3D1",
+                "S3D2",
+                "S3D3",
+                "S3D4",
+                "S3D5",
+                "S3D6",
+                "S3D7",
+                "S3D8",
+                "S4D1",
+                "S4D2",
+                "S4D3",
+                "S4D5",
+                "S4D6",
+                "S4D7",
+                "S4D8",
+                "S5D1",
+                "S5D2",
+                "S5D3",
+                "S5D4",
+                "S5D6",
+                "S5D7",
+                "S5D8",
+                "S6D1",
+                "S6D2",
+                "S6D3",
+                "S6D4",
+                "S6D5",
+                "S6D6",
+                "S6D7",
+                "S6D8",
+                "S7D1",
+                "S7D2",
+                "S7D3",
+                "S7D4",
+                "S7D5",
+                "S7D6",
+                "S7D7",
+                "S7D8",
+                "S8D1",
+                "S8D2",
+                "S8D3",
+                "S8D4",
+                "S8D5",
+                "S8D6",
+                "S8D7"
+              ],
+              "required_donor_count": 60,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S1D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            }
+          },
+          "cross_method_sensitivity": {
+            "all_methods_paired_count": 0,
+            "per_frame_estimate_range_pf": {
+              "samples": 0,
+              "mean": null,
+              "median": null,
+              "stddev": null,
+              "min": null,
+              "max": null,
+              "range": null,
+              "p05": null,
+              "p95": null
+            },
+            "pairwise_estimate_difference_pf": {
+              "same_row_median_minus_same_column_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "same_row_median_minus_all_floating_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "same_column_median_minus_all_floating_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "interpretation": "Descriptive model sensitivity, not traceable measurement uncertainty."
+          }
+        },
+        "S5D5": {
+          "nominal_pf": 33.0,
+          "nominal_source": "user_nominal",
+          "precision_acceptance": "NOT_EVALUATED",
+          "target_usable_frames": 0,
+          "target_total_pf": {
+            "samples": 0,
+            "mean": null,
+            "median": null,
+            "stddev": null,
+            "min": null,
+            "max": null,
+            "range": null,
+            "p05": null,
+            "p95": null
+          },
+          "target_rejection_counts_nonexclusive": {
+            "not_cap_mode": 1007,
+            "not_cap_units": 1007,
+            "invalid": 1007
+          },
+          "methods": {
+            "same_row_median": {
+              "donor_cells": [
+                "S5D1",
+                "S5D2",
+                "S5D3",
+                "S5D4",
+                "S5D6",
+                "S5D7",
+                "S5D8"
+              ],
+              "required_donor_count": 7,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S5D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "same_column_median": {
+              "donor_cells": [
+                "S1D5",
+                "S2D5",
+                "S3D5",
+                "S4D5",
+                "S6D5",
+                "S7D5",
+                "S8D5"
+              ],
+              "required_donor_count": 7,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S1D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "all_floating_median": {
+              "donor_cells": [
+                "S1D2",
+                "S1D3",
+                "S1D4",
+                "S1D5",
+                "S1D6",
+                "S1D7",
+                "S1D8",
+                "S2D1",
+                "S2D2",
+                "S2D3",
+                "S2D4",
+                "S2D5",
+                "S2D6",
+                "S2D7",
+                "S2D8",
+                "S3D1",
+                "S3D2",
+                "S3D3",
+                "S3D4",
+                "S3D5",
+                "S3D6",
+                "S3D7",
+                "S3D8",
+                "S4D1",
+                "S4D2",
+                "S4D3",
+                "S4D5",
+                "S4D6",
+                "S4D7",
+                "S4D8",
+                "S5D1",
+                "S5D2",
+                "S5D3",
+                "S5D4",
+                "S5D6",
+                "S5D7",
+                "S5D8",
+                "S6D1",
+                "S6D2",
+                "S6D3",
+                "S6D4",
+                "S6D5",
+                "S6D6",
+                "S6D7",
+                "S6D8",
+                "S7D1",
+                "S7D2",
+                "S7D3",
+                "S7D4",
+                "S7D5",
+                "S7D6",
+                "S7D7",
+                "S7D8",
+                "S8D1",
+                "S8D2",
+                "S8D3",
+                "S8D4",
+                "S8D5",
+                "S8D6",
+                "S8D7"
+              ],
+              "required_donor_count": 60,
+              "complete_frames_considered": 1007,
+              "valid_paired_count": 0,
+              "excluded_frame_count": 1007,
+              "rejection_counts_nonexclusive": {
+                "not_cap_mode": 1007,
+                "not_cap_units": 1007,
+                "invalid": 1007,
+                "incomplete_donor_set": 1007
+              },
+              "missing_donor_counts_nonexclusive": {
+                "S1D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S1D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S2D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S3D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S4D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S5D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S6D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S7D8": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D1": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D2": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D3": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D4": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D5": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D6": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                },
+                "S8D7": {
+                  "not_cap_mode": 1007,
+                  "not_cap_units": 1007,
+                  "invalid": 1007
+                }
+              },
+              "available_donor_count_in_trusted_frames": {
+                "samples": 1007,
+                "mean": 0.0,
+                "median": 0,
+                "stddev": 0.0,
+                "min": 0,
+                "max": 0,
+                "range": 0,
+                "p05": 0.0,
+                "p95": 0.0
+              },
+              "paired_target_total_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "target_minus_background_pf": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            }
+          },
+          "cross_method_sensitivity": {
+            "all_methods_paired_count": 0,
+            "per_frame_estimate_range_pf": {
+              "samples": 0,
+              "mean": null,
+              "median": null,
+              "stddev": null,
+              "min": null,
+              "max": null,
+              "range": null,
+              "p05": null,
+              "p95": null
+            },
+            "pairwise_estimate_difference_pf": {
+              "same_row_median_minus_same_column_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "same_row_median_minus_all_floating_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              },
+              "same_column_median_minus_all_floating_median": {
+                "samples": 0,
+                "mean": null,
+                "median": null,
+                "stddev": null,
+                "min": null,
+                "max": null,
+                "range": null,
+                "p05": null,
+                "p95": null
+              }
+            },
+            "interpretation": "Descriptive model sensitivity, not traceable measurement uncertainty."
+          }
+        }
+      }
+    }
+  ]
+}

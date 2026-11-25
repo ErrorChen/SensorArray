@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "RECORDED",
+  "error": null,
+  "stop_reason": "stop_file",
+  "cleanup_errors": [],
+  "selected_device": {
+    "address": "80:B5:4E:CD:D9:AE",
+    "name": "CscArray_CDD9AD"
+  },
+  "address_requested": "80:B5:4E:CD:D9:AE",
+  "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+  "characteristics": {
+    "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+    "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+    "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+  },
+  "subscribed_channels": [
+    "C",
+    "D",
+    "L"
+  ],
+  "connected_monotonic_ns": 179949519227280,
+  "ready_monotonic_ns": 179949581204793,
+  "recording_end_monotonic_ns": 180075672392626,
+  "disconnected_monotonic_ns": 180078019223722,
+  "unexpected_disconnect": false,
+  "reconnect_attempted": false,
+  "notification_counts": {
+    "D": 11559,
+    "L": 5
+  },
+  "notification_payload_bytes": {
+    "D": 3770826,
+    "L": 699
+  },
+  "maximum_observed_notification_bytes": 495,
+  "first_notification_monotonic_ns": 179949570289022,
+  "last_notification_monotonic_ns": 180075633015689,
+  "mtu_reported_by_backend": 23,
+  "negotiated_mtu_verified": false,
+  "mtu_note": "Backend value may be 23 on BlueZ without proving negotiated MTU; unknown remains null.",
+  "application_commands_sent": 0,
+  "serial_opened": false,
+  "mode_or_rate_settings_written": false,
+  "recording_seconds": 126.091187833,
+  "elapsed_seconds": 129.13848758800304,
+  "measurement_acceptance": "NOT_EVALUATED",
+  "unconnected_windows": "NOT_RUN_not_zero_FPS",
+  "journal_cost": "base64 + buffered file write in callback; no frame duplication or fsync; host I/O can affect callback latency",
+  "journal_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res1/record-matrix-01-res1.ble.notifications.jsonl",
+  "journal_sha256": "e4f03ff695677d12839ebf78ac9c7a9e069bbf90ab59a888e923a264982fa196",
+  "journal_bytes": 7590978,
+  "ready_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res1/record-matrix-01-res1.ble.ready.json"
+}

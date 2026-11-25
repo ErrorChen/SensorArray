@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-25T07:35:10.091538+00:00",
+  "invocation": [
+    "/usr/bin/python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-10k-reference-check-01/analyse.py"
+  ],
+  "inputs": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-10k-reference-check-01/analysis-plan.json": {
+      "stored_sha256": "c682665eddaaddd21df2a9ccfb52053efbaef30dde4a9ed19c691c2e8556e14c",
+      "stored_bytes": 1413,
+      "raw_sha256": "c682665eddaaddd21df2a9ccfb52053efbaef30dde4a9ed19c691c2e8556e14c",
+      "raw_bytes": 1413,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-fixture-res8-01/res8.selection.json": {
+      "stored_sha256": "3b2cb3e11d9084aa01ebf2f85d78408a686ab295f1c81860001ce45a7007619a",
+      "stored_bytes": 2145441,
+      "raw_sha256": "3b2cb3e11d9084aa01ebf2f85d78408a686ab295f1c81860001ce45a7007619a",
+      "raw_bytes": 2145441,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.rx.bin": {
+      "stored_sha256": "fe3c5bc360284ecc5b0658afbd61068f15ea7790e99135d942644d3263e0ca4b",
+      "stored_bytes": 1075049,
+      "raw_sha256": "fe3c5bc360284ecc5b0658afbd61068f15ea7790e99135d942644d3263e0ca4b",
+      "raw_bytes": 1075049,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.summary.json": {
+      "stored_sha256": "b70d68e30d884dd9811dd5af8a0fd2033b014c404a347e892a6805a0ea75a291",
+      "stored_bytes": 401379,
+      "raw_sha256": "b70d68e30d884dd9811dd5af8a0fd2033b014c404a347e892a6805a0ea75a291",
+      "raw_bytes": 401379,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.events.jsonl": {
+      "stored_sha256": "bf5749a1d277f3d1ee0fc2db0b460078bf58d12bf9e238393243d79ab2d64ecf",
+      "stored_bytes": 600663,
+      "raw_sha256": "bf5749a1d277f3d1ee0fc2db0b460078bf58d12bf9e238393243d79ab2d64ecf",
+      "raw_bytes": 600663,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.command.json": {
+      "stored_sha256": "37955df398dbfa8c427fa7b5655be2c8ef87bcce48662e735bd9ff1f51ad5a37",
+      "stored_bytes": 5229,
+      "raw_sha256": "37955df398dbfa8c427fa7b5655be2c8ef87bcce48662e735bd9ff1f51ad5a37",
+      "raw_bytes": 5229,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.gate.json": {
+      "stored_sha256": "08a99e1fd23273e9c8be2431781badb74b42ed135d0bc87f641ec3da1024d648",
+      "stored_bytes": 250033,
+      "raw_sha256": "08a99e1fd23273e9c8be2431781badb74b42ed135d0bc87f641ec3da1024d648",
+      "raw_bytes": 250033,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-fixture-res8-01/res8.rx.bin": {
+      "stored_sha256": "60daa503b743bada27f61a5be9f6178c21b2c05c01fbbd84be48cd54cfcfae2c",
+      "stored_bytes": 971933,
+      "raw_sha256": "60daa503b743bada27f61a5be9f6178c21b2c05c01fbbd84be48cd54cfcfae2c",
+      "raw_bytes": 971933,
+      "gzip": false
+    },
+    "/home/csc/esp/workspace/SensorArray/tests/fixtures/reference_10k_33pf.json": {
+      "stored_sha256": "712b727be9b5b5a32184e9d3700c469cfc9311bd4cf2f8fce0c278b2957f3e6f",
+      "stored_bytes": 1425,
+      "raw_sha256": "712b727be9b5b5a32184e9d3700c469cfc9311bd4cf2f8fce0c278b2957f3e6f",
+      "raw_bytes": 1425,
+      "gzip": false
+    }
+  },
+  "tools_and_production_sources": [
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-10k-reference-check-01/analyse.py",
+      "bytes": 20883,
+      "sha256": "fdf7efde6f715206c359602b8e96b521eead550bf0efcf0b82bc969ccba99364"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-10k-reference-check-01/analysis-plan.json",
+      "bytes": 1413,
+      "sha256": "c682665eddaaddd21df2a9ccfb52053efbaef30dde4a9ed19c691c2e8556e14c"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/tools/text_protocol.py",
+      "bytes": 34940,
+      "sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/tools/reference_fixture.py",
+      "bytes": 25331,
+      "sha256": "1f676e70c24e02415af8dbe777b9b34764ac16857d42776c19c2c0b82c2a44a9"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/tools/analyze_firmware_benchmark.py",
+      "bytes": 87907,
+      "sha256": "445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsMath.c",
+      "bytes": 15239,
+      "sha256": "46a35627b3e9bd9a5eeb1a4879907209022013d05dbadd43b917da0dde7ac515"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsMatrix.c",
+      "bytes": 105902,
+      "sha256": "deae68bb93505c1d0af1616b071fdbbde9109612cbb7b6ab699cdca2616fee89"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsMatrix.h",
+      "bytes": 4149,
+      "sha256": "c973db2f94be0efc34cb44948e2a4c554ee30212ed51c1044cc6d4021379e974"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/measure/ads/sensorarrayAdsGap.c",
+      "bytes": 139255,
+      "sha256": "69075d3a889c35cc9d2b902bfa8021a448312c84d82684965a451af2fadb6b97"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/config/sensorarrayCalibration.c",
+      "bytes": 14876,
+      "sha256": "fa4a6beb22bb2e9daa4d03ed1b035734fb908b1e8c269fe515ea6eb7a5d994df"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/core/config/sensorarrayCalibration.h",
+      "bytes": 3740,
+      "sha256": "6f8f5b65dea6d1a5751e30c34b4b145758063b599419c604738fa2bf4ce1ff75"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/main/main.c",
+      "bytes": 247967,
+      "sha256": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/main/kconfigs/Kconfig.runtime",
+      "bytes": 32431,
+      "sha256": "9672a758a8197b6ad7791383fa4d7544d3335c2085de72780402e76b5404d3b3"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/sdkconfig",
+      "bytes": 118080,
+      "sha256": "201d38e66b4966edc0bd7edff6a339de8d28595bd99aefa261e67038c5983fe3"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/datasheets/circuit_page3-3.png",
+      "bytes": 244386,
+      "sha256": "ce0b6b5a81232f5ca56ae222a724f2e57be894ca0d94d31420bef785100f745a"
+    },
+    {
+      "path": "/home/csc/esp/workspace/SensorArray/datasheets/circuit_page4-4.png",
+      "bytes": 194198,
+      "sha256": "c595f76d7a04e90186cb1a6924c14d15b444d51ff046703e6113fa0c6c5c6ebe"
+    }
+  ],
+  "coefficient_written_before_held_out_statistics": true,
+  "outputs": {
+    "coefficient.json": {
+      "bytes": 564,
+      "sha256": "b1f1b151dfbfad9ede947a4138015557ac449b929361aa0be4a7717319d1323f"
+    },
+    "frames.jsonl": {
+      "bytes": 1401299,
+      "sha256": "2db94f4ba9449313d40f35747bc3b1015fe5bbb89c35da60c3c0fbdca0dce3be"
+    },
+    "paired-values.jsonl": {
+      "bytes": 541929,
+      "sha256": "f7b43aca88c7e57da166c30f6cce5f528579f47084e65b3daf41e1d89e14a753"
+    },
+    "results.json": {
+      "bytes": 20228,
+      "sha256": "7002f1e849d7484a7b7472fdcb9479d474eddc97fe83fc62b0b4c824405f6a2a"
+    },
+    "report.md": {
+      "bytes": 3106,
+      "sha256": "c0422c7ac0e7f48ec8cb477a4a46605b70824d87fb01e57db5e862696404879f"
+    }
+  },
+  "source_selection_range_manifest": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-fixture-res8-01/res8.selection.json",
+  "original_raw_modified": false,
+  "hardware_actions": false
+}

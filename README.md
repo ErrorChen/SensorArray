@@ -21,6 +21,17 @@ The VOLT8 window used the RAM-only rail values derived from the meter readings n
 
 CAP8 的 122 秒主机窗口包含 121.983293 秒设备数据，USB/BLE 各 1,413 帧。S4D4、S5D5 的平均总电容是 92.536、77.425 pF。逐帧减去 60 个悬空点的中位数后分别为 32.573、17.462 pF。选用同列悬空点时分别为 13.445、11.716 pF。这些差异是归零估计对背景选择的敏感度。 / The 122-second CAP8 recording spans 121.983293 seconds on the device. Both receivers captured 1,413 frames. Mean total capacitance was 92.536 and 77.425 pF. Subtracting the median of the 60 floating cells per frame gave 32.573 and 17.462 pF. Column-local subtraction gave 13.445 and 11.716 pF. Absolute capacitor accuracy remains unknown without unloaded measurements of the same two cells. [实测与各归零口径 / Fixture measurements](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-fixture-cap8-01/cap8.report.md)
 
+RES8 在 122.041209 秒设备时间内采到 1,007 帧。S1D1 和 S8D8 每帧都有有限阻值，其余 60 个悬空点均报 OPEN。以下数值均为 Ω。
+
+| 夹具 / Fixture | 原始均值 / Raw mean | 原始范围 / Raw range | 相对 10 kΩ 标称 / Deviation from nominal |
+|---|---:|---:|---:|
+| S1D1 | 10,164.972 | 10,159.550–10,171.083 | +1.6497% |
+| S8D8 | 10,166.390 | 10,160.526–10,171.652 | +1.6639% |
+
+只用 S1D1 的原始均值计算比例 0.983770502386，固定后应用于 S8D8，得到均值 10,001.394 Ω，P05–P95 为 9,998.841–10,003.941 Ω。两点共用电源，但板上参考电阻和开关路径不同。该结果量化夹具在 10 kΩ 附近的一致性。设备与原始文件保留未经归一化的阻值。
+
+Both resistors had 1,007 finite readings. All 60 floating cells reported OPEN. Using S1D1 alone to set the scale factor gave a held-out S8D8 mean of 10,001.394 Ω (+0.01394% from nominal). The standards share the board rails and use different on-board divider resistors and switch paths. Absolute resistance accuracy and calibration at other resistances remain undetermined. The calculation ran offline and the firmware retained its original calibration. [原始夹具 / Raw fixture](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-fixture-res8-01/res8.review.md) · [归一化复算 / Held-out calculation](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-10k-reference-check-01/report.md)
+
 > **2026-11-25 · 原始32配置矩阵 / Original 32-configuration matrix — 9 PASS, 1 FAIL, 22 NOT_STARTED.** 在同一镜像、session 和 boot 上，CAP 1–8行及 VOLT 1行通过。VOLT 2行的 USB 缺7个完整帧，BLE 收齐5,050帧，矩阵随后停止。CAP 2行首次预检中止，第二次正式窗口通过。 / CAP1–8 and VOLT1 passed. The run stopped when USB missed seven complete VOLT2 frames. CAP2 passed after an observer preflight error. [矩阵及夹具 / Matrix and fixture](#matrix-bss-01-02) · [全部32项 / All 32 cases](docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-combined-01.md)
 
 > 同一 boot 的600秒 VOLT1 正常 FULL 筛查通过，50次切换均有 USB 验证与匹配 BLE 帧，SHORT 收到117个完整快照。Wi-Fi UDP 上位机实收仍未测，夹具精度与整体验收待验证。 / The 600-second VOLT1 screen passed, all 50 transitions had USB verification and matching BLE frames, and SHORT delivered 117 complete snapshots. Host Wi-Fi UDP receipt, fixture accuracy and overall acceptance remain open. [三个独立窗口 / Three separate recordings](#bss-current-recordings)

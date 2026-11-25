@@ -1,0 +1,60 @@
+{
+  "schema": "firmware_benchmark_v1",
+  "status": "COMPLETE",
+  "port": null,
+  "transport": "usb_cdc",
+  "usb_serial": "80B54ECDD9AC",
+  "one_port_session": true,
+  "plan": [
+    {
+      "label": "record-matrix-01-res8",
+      "mode": "RES",
+      "rows": 8,
+      "profile": "CVRCVRCV",
+      "seconds": 122.0,
+      "kind": "configuration"
+    }
+  ],
+  "results": [
+    {
+      "label": "record-matrix-01-res8",
+      "summary_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-res8/record-matrix-01-res8.summary.json",
+      "status": "CAPTURED",
+      "error": null,
+      "capture_seconds": 122.0001551839814
+    }
+  ],
+  "measurement_acceptance": "NOT_EVALUATED",
+  "automatic_retry": false,
+  "transport_metadata": {
+    "transport": "usb_cdc",
+    "capability": "usb_cdc_data_v1",
+    "path": "/dev/ttyACM0",
+    "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2",
+    "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.0",
+    "vid": 12346,
+    "pid": 16450,
+    "usb_serial": "80B54ECDD9AC",
+    "interface_number": 0,
+    "interface_class": 2,
+    "interface_subclass": 2,
+    "interface_protocol": 0,
+    "speed_mbps_reported_by_sysfs": "12",
+    "role": "formal_DATA_CTRL_shared_record_stream",
+    "debug_interface_used": false,
+    "libusb_used": false,
+    "modem_bit_ioctl": false,
+    "reset_requested": false,
+    "input_flushed": false,
+    "configuration_changed": false,
+    "ownership": "one_tty_reader_flock_TIOCEXCL",
+    "existing_readers": "unverified",
+    "baud_setting": 115200,
+    "baud_setting_is_not_USB_wire_rate": true,
+    "os_CDC_open_line_state": "OS_controlled_not_claimed_side_effect_free",
+    "tx_acceptance": "OS_tty_write_not_firmware_command_applied_or_PC_receipt"
+  },
+  "session_monotonic_start": 180861.607547908,
+  "session_monotonic_end": 180989.42570485,
+  "not_run": []
+}

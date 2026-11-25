@@ -1,0 +1,16 @@
+{
+  "method": "k = 10000 ohm / arithmetic_mean(all eligible recorded S1D1 ohms)",
+  "training_point": "S1D1",
+  "validation_point_used_in_fit": false,
+  "eligible_n": 1007,
+  "sum_original_milliohm": 10236127202,
+  "nominal_reference_ohm": 10000,
+  "reference_traceable_value": null,
+  "factor": {
+    "numerator": 5035000000,
+    "denominator": 5118063601,
+    "decimal": 0.9837705023861426
+  },
+  "training_sequence_value_sha256": "d6c0ba3c38d1dcee77e41051d3da198125ae1337701f1906e4c37c3e4f0d886f",
+  "normalization_only_not_physical_component_estimate": true
+}
