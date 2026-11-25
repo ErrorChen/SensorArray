@@ -1,0 +1,17 @@
+CAPS2? length=46
+WIFI? length=266
+WIFIGUARD? length=375
+WIFIREQ? length=134
+WIFIREQ?4294967295 length=143
+WIFIQ?D length=296
+WIFIQ?L length=296
+WIFIQ?C length=296
+CAPS2? length=46
+WIFI? length=310
+WIFIGUARD? length=483
+WIFIREQ? length=338
+WIFIREQ?4294967295 length=338
+WIFIQ?D length=408
+WIFIQ?L length=408
+WIFIQ?C length=408
+wifi_command actual formatter max=483 <=512; truncation/unknown/exact-ID/admission/terminal-noop PASS

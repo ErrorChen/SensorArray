@@ -1,0 +1,57 @@
+{
+  "scope": "offline_allocator_api_string_addresses_not_caller_addresses",
+  "elf_archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-02-SensorArray.elf.gz",
+  "archive_sha256": "4e50f93b2125f979fc0d19979cb8d60c873ab7d4d097b77b4cd05bbac509de1c",
+  "elf_sha256": "90f10fdaa5a0b859995caba70b1f1c65d3c7f9e19e85b39c81366e699c6e2736",
+  "method": "Read ELF32 little-endian section headers; search null-terminated exact function names in SHF_ALLOC SHT_PROGBITS sections. Verify a runtime function-name pointer by matching the same immutable ELF and these exact bytes.",
+  "strings": [
+    {
+      "address": "0x3c1506dc",
+      "string": "heap_caps_malloc",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202460
+    },
+    {
+      "address": "0x3c15064c",
+      "string": "heap_caps_calloc",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202316
+    },
+    {
+      "address": "0x3c150660",
+      "string": "heap_caps_realloc",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202336
+    },
+    {
+      "address": "0x3c15068c",
+      "string": "heap_caps_malloc_prefer",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202380
+    },
+    {
+      "address": "0x3c150674",
+      "string": "heap_caps_calloc_prefer",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202356
+    },
+    {
+      "address": "0x3c1506c0",
+      "string": "heap_caps_malloc_default",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202432
+    },
+    {
+      "address": "0x3c1506a4",
+      "string": "heap_caps_realloc_default",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202404
+    },
+    {
+      "address": "0x3c150634",
+      "string": "heap_caps_aligned_alloc",
+      "section": ".flash.rodata",
+      "elf_file_offset": 202292
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "source_commit": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "version": "ad0f9ef-dirty",
+  "app_bytes": 1632608,
+  "bin_sha256": "8bd3867dc8440f15de2e1952ba2c50a426c064c2e891d106b1634169a367676e",
+  "elf_sha256": "2fed45c22153b580aef27584107809d15cdabdd8afe6d6bd90cf6d5a282c07a7",
+  "host_entries": 80,
+  "all_exit_zero": true,
+  "production_inputs": 203,
+  "build_test_inputs_identical": true,
+  "build_manifest": "wifi-dma-headroom-01-build-manifest.json",
+  "tests_manifest": "wifi-dma-headroom-01-tests-manifest.json",
+  "image_archive": "wifi-dma-headroom-01-image-archive.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Use SDK flash placement for optional Wi-Fi IRAM optimization groups. Current map releases 18432 bytes of shared SRAM.",
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+  }
+}

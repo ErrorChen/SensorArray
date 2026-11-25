@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-coexist-01/dma-ble-01.ble.notifications.jsonl",
+      "raw_bytes": 540883,
+      "raw_sha256": "84b8f415207c5d6111b0041943e66b674993860df92f478b0ef8901273d5baec",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-coexist-01/dma-ble-01.ble.notifications.jsonl.gz",
+      "gzip_bytes": 72550,
+      "gzip_sha256": "f59f38babfafae407c35a80ec1e19e161a9da17e148d752f3d4454b1133c1650",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-coexist-02/heap-failure-ble-02.ble.notifications.jsonl",
+      "raw_bytes": 882883,
+      "raw_sha256": "ff8e0eed9c5df32e50d49b0f90a9d1d60c2ce0e5d7aaa360158ff87a6d8f329d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-coexist-02/heap-failure-ble-02.ble.notifications.jsonl.gz",
+      "gzip_bytes": 110126,
+      "gzip_sha256": "41b2ad33cc95a4b4b295c694a6e26a3591814f1973a9644ae3285b910c777322",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-coexist-01/wifi-bss-ble-01.ble.notifications.jsonl",
+      "raw_bytes": 904789,
+      "raw_sha256": "c9fef088afc32b967c26080ee6d39faaf1e6e2317bfa423282d93c779766975e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-coexist-01/wifi-bss-ble-01.ble.notifications.jsonl.gz",
+      "gzip_bytes": 118720,
+      "gzip_sha256": "1d71bd88829c4d84e154fc2728389c9530c425a342eb03a17d9f07b90fe6ea81",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-06/wifi-control-06.events.jsonl",
+      "raw_bytes": 25375,
+      "raw_sha256": "0a5ba4b2f6f309f5b010696c6289e6d5333ad49fffb1d45e46933168882821f8",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-06/wifi-control-06.events.jsonl.gz",
+      "gzip_bytes": 4814,
+      "gzip_sha256": "5ef367590dd7264ac9f892383117f2144d0fade496afb8641447d9d97219b004",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-06/wifi-control-06.rx.bin",
+      "raw_bytes": 13747,
+      "raw_sha256": "6608579a01f9e4ab1c309768d5ea2dd96787d9f84d05ca41103d17347b4c25b1",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-06/wifi-control-06.rx.bin.gz",
+      "gzip_bytes": 3078,
+      "gzip_sha256": "769bd20ac40a5c87b31400f14d9dc52929c9d490e9f2fe6691524fe7265bd976",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-07/wifi-control-07.events.jsonl",
+      "raw_bytes": 15637,
+      "raw_sha256": "a23ed16094d9cdb14e9f6170640e61f30d44d33d31f24049ca576b963b8e237d",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-07/wifi-control-07.events.jsonl.gz",
+      "gzip_bytes": 3435,
+      "gzip_sha256": "ad32941351fc1adc77e8365a961218c60901c9efd7a86ed54c3556ce701beadd",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-07/wifi-control-07.rx.bin",
+      "raw_bytes": 9697,
+      "raw_sha256": "3e2dd0201c0dd2868fb7b0c694cbbae4938c5eb0d18ad1ae6909a68bb7d45014",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-07/wifi-control-07.rx.bin.gz",
+      "gzip_bytes": 2558,
+      "gzip_sha256": "0f23a602d567881758ace27d35c347ff4f0b777ab26279c4c1816a9e9bf9c0f8",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.events.jsonl",
+      "raw_bytes": 31629,
+      "raw_sha256": "be67b1e1c4791374bacf139dff20f5a070198632e5e7092b2a237d1ef617d902",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.events.jsonl.gz",
+      "gzip_bytes": 5488,
+      "gzip_sha256": "921e8f14ea47bb0a55acff4fce38f634311125a551a0ce9cb437f5a2d5eda794",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.rx.bin",
+      "raw_bytes": 17252,
+      "raw_sha256": "2e98ad2315ddfbeee48ffd4f092d6e2ed168b508591ad6add93a4b7ad0a20b4e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.rx.bin.gz",
+      "gzip_bytes": 3365,
+      "gzip_sha256": "f955d2a2cc63afb8d706040efa0ef15326178a8f91738750be786fac650eba13",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-06/wifi-control-06.summary.json",
+      "sha256": "10008250b4ee92c54101bcdcde3755218750f337b914f5cd684f4cfb3fc3fd86",
+      "bytes": 21375
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-coexist-02/heap-failure-ble-02.ble.summary.json",
+      "sha256": "833c70d61194c5f7fe0159094511f1eb268d401864086dd6f7a646cf531717e7",
+      "bytes": 2045
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-ble-02-command.json",
+      "sha256": "39e1a2d7b8ffb9b45301197973489fb3faa894d7d3d9ba56d330aed175b60a2d",
+      "bytes": 1076
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-07/wifi-control-07.summary.json",
+      "sha256": "7c84805f983239d097b8a5b2b55476ac60e57b67f66fe6f3d65c61a1d81590f5",
+      "bytes": 10360
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-coexist-01/dma-ble-01.ble.summary.json",
+      "sha256": "1267d480ed70acd4bfa39f795f136a28e7f24b134ddc4ce2e87d9cc13d2f5d68",
+      "bytes": 2267
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-ble-01-command.json",
+      "sha256": "fc1092fcaccc9296a9c8affb431c18de7ca799e59835d6eb66480133e03f4667",
+      "bytes": 1040
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-08/wifi-control-08.summary.json",
+      "sha256": "18a4620f362a5030a35c2f0d7c45d31134155461e835d53c727348c4e3c319fa",
+      "bytes": 28102
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-coexist-01/wifi-bss-ble-01.ble.summary.json",
+      "sha256": "e9bae0b96a312e741f404e42e75747a8e400bcf220bbea7215c5c0490a7e0660",
+      "bytes": 2029
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-ble-01-command.json",
+      "sha256": "fa8abaac2ecdbaf6de2b7f9ec4204ae528a159f5a2a7eb17055311419fe06580",
+      "bytes": 1060
+    }
+  ],
+  "file_count": 9,
+  "total_original_bytes": 2441892,
+  "total_gzip_bytes": 324134,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}

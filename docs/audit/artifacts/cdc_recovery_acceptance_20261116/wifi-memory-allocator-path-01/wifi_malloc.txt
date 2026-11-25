@@ -1,0 +1,16 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+4037e1c8 <wifi_malloc>:
+4037e1c8:	004136        	entry	a1, 32
+4037e1cb:	02ad      	mov.n	a10, a2
+4037e1cd:	105225        	call8	4038e6f0 <malloc>
+4037e1d0:	0a2d      	mov.n	a2, a10
+4037e1d2:	f01d      	retw.n
+
+Disassembly of section .flash.text:

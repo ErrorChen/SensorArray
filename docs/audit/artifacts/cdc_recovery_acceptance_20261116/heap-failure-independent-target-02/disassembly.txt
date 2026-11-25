@@ -1,0 +1,612 @@
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40377508 <sensorarrayMemoryAllocationFailed>:
+40377508:	004136        	entry	a1, 32
+4037750b:	f490a1        	l32r	a10, 4037474c <_iram_text_start+0x348> (3fcae770 <s_allocationFailureMux>)
+4037750e:	00a0b2        	movi	a11, 0
+40377511:	0e8a65        	call8	40385db8 <xPortEnterCriticalTimeout>
+40377514:	00da56        	bnez	a10, 40377525 <sensorarrayMemoryAllocationFailed+0x1d>
+40377517:	f48e81        	l32r	a8, 40374750 <_iram_text_start+0x34c> (3fcae76c <s_allocationCaptureIncomplete>)
+4037751a:	01a092        	movi	a9, 1
+4037751d:	0020c0        	memw
+40377520:	0899      	s32i.n	a9, a8, 0
+40377522:	000f46        	j	40377563 <sensorarrayMemoryAllocationFailed+0x5b>
+40377525:	f48b81        	l32r	a8, 40374754 <_iram_text_start+0x350> (3fcae778 <s_allocationFailures>)
+40377528:	162892        	l32i	a9, a8, 88
+4037752b:	59dc      	bnez.n	a9, 40377544 <sensorarrayMemoryAllocationFailed+0x3c>
+4037752d:	186822        	s32i	a2, a8, 96
+40377530:	196832        	s32i	a3, a8, 100
+40377533:	1a6842        	s32i	a4, a8, 104
+40377536:	1b6822        	s32i	a2, a8, 108
+40377539:	1c6832        	s32i	a3, a8, 112
+4037753c:	1d6842        	s32i	a4, a8, 116
+4037753f:	000346        	j	40377550 <sensorarrayMemoryAllocationFailed+0x48>
+40377542:	220000        	orb	b0, b0, b0
+40377545:	1b68      	l32i.n	a6, a11, 4
+40377547:	1c6832        	s32i	a3, a8, 112
+4037754a:	1d6842        	s32i	a4, a8, 116
+4037754d:	070926        	beqi	a9, -1, 40377558 <sensorarrayMemoryAllocationFailed+0x50>
+40377550:	991b      	addi.n	a9, a9, 1
+40377552:	166892        	s32i	a9, a8, 88
+40377555:	000106        	j	4037755d <sensorarrayMemoryAllocationFailed+0x55>
+40377558:	190c      	movi.n	a9, 1
+4037755a:	5c4892        	s8i	a9, a8, 92
+4037755d:	f47ba1        	l32r	a10, 4037474c <_iram_text_start+0x348> (3fcae770 <s_allocationFailureMux>)
+40377560:	0e9a65        	call8	40385f08 <vPortExitCritical>
+40377563:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40385db8 <xPortEnterCriticalTimeout>:
+40385db8:	006136        	entry	a1, 48
+40385dbb:	006380        	rsil	a8, 3
+40385dbe:	036182        	s32i	a8, a1, 12
+40385dc1:	00e256        	bnez	a2, 40385dd3 <xPortEnterCriticalTimeout+0x1b>
+40385dc4:	bcbdd1        	l32r	a13, 403750b8 <_iram_text_start+0xcb4> (3c13864c <_flash_rodata_start+0x1852c>)
+40385dc7:	bcbdc1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385dca:	bcbda1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385dcd:	54a0b2        	movi	a11, 84
+40385dd0:	088225        	call8	4038e5f4 <__assert_func>
+40385dd3:	006350        	rsil	a5, 3
+40385dd6:	03eb70        	rsr.prid	a7
+40385dd9:	002292        	l32i	a9, a2, 0
+40385ddc:	259797        	bne	a7, a9, 40385e05 <xPortEnterCriticalTimeout+0x4d>
+40385ddf:	1298      	l32i.n	a9, a2, 4
+40385de1:	fda0b2        	movi	a11, 253
+40385de4:	a90b      	addi.n	a10, a9, -1
+40385de6:	0ebba7        	bgeu	a11, a10, 40385df8 <xPortEnterCriticalTimeout+0x40>
+40385de9:	bcb6d1        	l32r	a13, 403750c4 <_iram_text_start+0xcc0> (3c124ae8 <_flash_rodata_start+0x49c8>)
+40385dec:	bcb4c1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385def:	bcb4a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385df2:	6aa0b2        	movi	a11, 106
+40385df5:	087fe5        	call8	4038e5f4 <__assert_func>
+40385df8:	991b      	addi.n	a9, a9, 1
+40385dfa:	1299      	s32i.n	a9, a2, 4
+40385dfc:	13e650        	wsr.ps	a5
+40385dff:	002010        	rsync
+40385e02:	003346        	j	40385ed3 <xPortEnterCriticalTimeout+0x11b>
+40385e05:	bc1ab1        	l32r	a11, 40374e70 <_iram_text_start+0xa6c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385e08:	20c770        	or	a12, a7, a7
+40385e0b:	20a220        	or	a10, a2, a2
+40385e0e:	fb5225        	call8	40381330 <esp_cpu_compare_and_set>
+40385e11:	53bc      	beqz.n	a3, 40385e4a <xPortEnterCriticalTimeout+0x92>
+40385e13:	3afc      	bnez.n	a10, 40385e4a <xPortEnterCriticalTimeout+0x92>
+40385e15:	03ea40        	rsr.ccount	a4
+40385e18:	bc1661        	l32r	a6, 40374e70 <_iram_text_start+0xa6c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385e1b:	190326        	beqi	a3, -1, 40385e38 <xPortEnterCriticalTimeout+0x80>
+40385e1e:	07cd      	mov.n	a12, a7
+40385e20:	06bd      	mov.n	a11, a6
+40385e22:	20a220        	or	a10, a2, a2
+40385e25:	fb50a5        	call8	40381330 <esp_cpu_compare_and_set>
+40385e28:	0d5a56        	bnez	a10, 40385f01 <xPortEnterCriticalTimeout+0x149>
+40385e2b:	03ea90        	rsr.ccount	a9
+40385e2e:	c09940        	sub	a9, a9, a4
+40385e31:	e9b397        	bgeu	a3, a9, 40385e1e <xPortEnterCriticalTimeout+0x66>
+40385e34:	003106        	j	40385efc <xPortEnterCriticalTimeout+0x144>
+40385e37:	c77000        	ee.stf.64.xp	f7, f12, a0, a0
+40385e3a:	b66020        	ee.ldf.64.xp	f6, f11, a2, a0
+40385e3d:	a22020        	muluh	a2, a0, a2
+40385e40:	20          	.byte	0x20
+40385e41:	fb4ee5        	call8	40381330 <esp_cpu_compare_and_set>
+40385e44:	ff0a16        	beqz	a10, 40385e38 <xPortEnterCriticalTimeout+0x80>
+40385e47:	002d86        	j	40385f01 <xPortEnterCriticalTimeout+0x149>
+40385e4a:	002292        	l32i	a9, a2, 0
+40385e4d:	034a16        	beqz	a10, 40385e85 <xPortEnterCriticalTimeout+0xcd>
+40385e50:	0e1797        	beq	a7, a9, 40385e62 <xPortEnterCriticalTimeout+0xaa>
+40385e53:	bc9dd1        	l32r	a13, 403750c8 <_iram_text_start+0xcc4> (3c124b10 <_flash_rodata_start+0x49f0>)
+40385e56:	bc99c1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385e59:	bc99a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385e5c:	8da0b2        	movi	a11, 141
+40385e5f:	087965        	call8	4038e5f4 <__assert_func>
+40385e62:	1298      	l32i.n	a9, a2, 4
+40385e64:	d98c      	beqz.n	a9, 40385e75 <xPortEnterCriticalTimeout+0xbd>
+40385e66:	bc99d1        	l32r	a13, 403750cc <_iram_text_start+0xcc8> (3c124b30 <_flash_rodata_start+0x4a10>)
+40385e69:	bc94c1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385e6c:	bc95a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385e6f:	8ea0b2        	movi	a11, 142
+40385e72:	087825        	call8	4038e5f4 <__assert_func>
+40385e75:	190c      	movi.n	a9, 1
+40385e77:	1299      	s32i.n	a9, a2, 4
+40385e79:	13e650        	wsr.ps	a5
+40385e7c:	002010        	rsync
+40385e7f:	001406        	j	40385ed3 <xPortEnterCriticalTimeout+0x11b>
+40385e82:	000000        	ill
+40385e85:	bc92a1        	l32r	a10, 403750d0 <_iram_text_start+0xccc> (6666 <_rtc_slow_length+0x6476>)
+40385e88:	30a7a0        	xor	a10, a7, a10
+40385e8b:	171a97        	beq	a10, a9, 40385ea6 <xPortEnterCriticalTimeout+0xee>
+40385e8e:	bbf8a1        	l32r	a10, 40374e70 <_iram_text_start+0xa6c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385e91:	1119a7        	beq	a9, a10, 40385ea6 <xPortEnterCriticalTimeout+0xee>
+40385e94:	bc90d1        	l32r	a13, 403750d4 <_iram_text_start+0xcd0> (3c124b44 <_flash_rodata_start+0x4a24>)
+40385e97:	bc89c1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385e9a:	bc89a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385e9d:	91a0b2        	movi	a11, 145
+40385ea0:	201110        	or	a1, a1, a1
+40385ea3:	087525        	call8	4038e5f4 <__assert_func>
+40385ea6:	012282        	l32i	a8, a2, 4
+40385ea9:	fea092        	movi	a9, 254
+40385eac:	0eb987        	bgeu	a9, a8, 40385ebe <xPortEnterCriticalTimeout+0x106>
+40385eaf:	bc8ad1        	l32r	a13, 403750d8 <_iram_text_start+0xcd4> (3c124b88 <_flash_rodata_start+0x4a68>)
+40385eb2:	bc82c1        	l32r	a12, 403750bc <_iram_text_start+0xcb8> (3c15113c <__func__$2>)
+40385eb5:	bc82a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385eb8:	92a0b2        	movi	a11, 146
+40385ebb:	0873a5        	call8	4038e5f4 <__assert_func>
+40385ebe:	13e650        	wsr.ps	a5
+40385ec1:	002010        	rsync
+40385ec4:	0321a2        	l32i	a10, a1, 12
+40385ec7:	00a022        	movi	a2, 0
+40385eca:	bc7a81        	l32r	a8, 403750b4 <_iram_text_start+0xcb0> (40001c38 <_xtos_set_intlevel>)
+40385ecd:	0008e0        	callx8	a8
+40385ed0:	000c86        	j	40385f06 <xPortEnterCriticalTimeout+0x14e>
+40385ed3:	03eb80        	rsr.prid	a8
+40385ed6:	048d80        	extui	a8, a8, 13, 1
+40385ed9:	bc8091        	l32r	a9, 403750dc <_iram_text_start+0xcd8> (3fcb2560 <port_uxCriticalNesting>)
+40385edc:	11a8e0        	slli	a10, a8, 2
+40385edf:	a08890        	addx4	a8, a8, a9
+40385ee2:	0898      	l32i.n	a9, a8, 0
+40385ee4:	991b      	addi.n	a9, a9, 1
+40385ee6:	0899      	s32i.n	a9, a8, 0
+40385ee8:	041926        	beqi	a9, 1, 40385ef0 <xPortEnterCriticalTimeout+0x138>
+40385eeb:	120c      	movi.n	a2, 1
+40385eed:	000546        	j	40385f06 <xPortEnterCriticalTimeout+0x14e>
+40385ef0:	bc7c81        	l32r	a8, 403750e0 <_iram_text_start+0xcdc> (3fcb2558 <port_uxOldInterruptState>)
+40385ef3:	3198      	l32i.n	a9, a1, 12
+40385ef5:	88aa      	add.n	a8, a8, a10
+40385ef7:	0899      	s32i.n	a9, a8, 0
+40385ef9:	fffb86        	j	40385eeb <xPortEnterCriticalTimeout+0x133>
+40385efc:	0298      	l32i.n	a9, a2, 0
+40385efe:	ffe0c6        	j	40385e85 <xPortEnterCriticalTimeout+0xcd>
+40385f01:	0298      	l32i.n	a9, a2, 0
+40385f03:	ffd246        	j	40385e50 <xPortEnterCriticalTimeout+0x98>
+40385f06:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40385f08 <vPortExitCritical>:
+40385f08:	004136        	entry	a1, 32
+40385f0b:	00e256        	bnez	a2, 40385f1d <vPortExitCritical+0x15>
+40385f0e:	bc6ad1        	l32r	a13, 403750b8 <_iram_text_start+0xcb4> (3c13864c <_flash_rodata_start+0x1852c>)
+40385f11:	bc74c1        	l32r	a12, 403750e4 <_iram_text_start+0xce0> (3c151114 <__func__$0>)
+40385f14:	bc6ba1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385f17:	b5a0b2        	movi	a11, 181
+40385f1a:	086da5        	call8	4038e5f4 <__assert_func>
+40385f1d:	0063a0        	rsil	a10, 3
+40385f20:	03eb90        	rsr.prid	a9
+40385f23:	0288      	l32i.n	a8, a2, 0
+40385f25:	111987        	beq	a9, a8, 40385f3a <vPortExitCritical+0x32>
+40385f28:	bc70d1        	l32r	a13, 403750e8 <_iram_text_start+0xce4> (3c124b9c <_flash_rodata_start+0x4a7c>)
+40385f2b:	bc6ec1        	l32r	a12, 403750e4 <_iram_text_start+0xce0> (3c151114 <__func__$0>)
+40385f2e:	bc64a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385f31:	bea0b2        	movi	a11, 190
+40385f34:	201110        	or	a1, a1, a1
+40385f37:	086be5        	call8	4038e5f4 <__assert_func>
+40385f3a:	1288      	l32i.n	a8, a2, 4
+40385f3c:	880b      	addi.n	a8, a8, -1
+40385f3e:	1289      	s32i.n	a8, a2, 4
+40385f40:	98cc      	bnez.n	a8, 40385f4d <vPortExitCritical+0x45>
+40385f42:	bbcb81        	l32r	a8, 40374e70 <_iram_text_start+0xa6c> (b33fffff <_rtc_reserved_end+0x532fffff>)
+40385f45:	0289      	s32i.n	a8, a2, 0
+40385f47:	0005c6        	j	40385f62 <vPortExitCritical+0x5a>
+40385f4a:	000000        	ill
+40385f4d:	ffa092        	movi	a9, 255
+40385f50:	0eb987        	bgeu	a9, a8, 40385f62 <vPortExitCritical+0x5a>
+40385f53:	bc66d1        	l32r	a13, 403750ec <_iram_text_start+0xce8> (3c124bbc <_flash_rodata_start+0x4a9c>)
+40385f56:	bc63c1        	l32r	a12, 403750e4 <_iram_text_start+0xce0> (3c151114 <__func__$0>)
+40385f59:	bc59a1        	l32r	a10, 403750c0 <_iram_text_start+0xcbc> (3c124adc <_flash_rodata_start+0x49bc>)
+40385f5c:	c4a0b2        	movi	a11, 196
+40385f5f:	086965        	call8	4038e5f4 <__assert_func>
+40385f62:	13e6a0        	wsr.ps	a10
+40385f65:	002010        	rsync
+40385f68:	03eb80        	rsr.prid	a8
+40385f6b:	048d80        	extui	a8, a8, 13, 1
+40385f6e:	bc5b91        	l32r	a9, 403750dc <_iram_text_start+0xcd8> (3fcb2560 <port_uxCriticalNesting>)
+40385f71:	11a8e0        	slli	a10, a8, 2
+40385f74:	a08890        	addx4	a8, a8, a9
+40385f77:	0898      	l32i.n	a9, a8, 0
+40385f79:	1119e6        	bgei	a9, 1, 40385f8e <vPortExitCritical+0x86>
+40385f7c:	bc5dd1        	l32r	a13, 403750f0 <_iram_text_start+0xcec> (3c124bd0 <_flash_rodata_start+0x4ab0>)
+40385f7f:	bc5dc1        	l32r	a12, 403750f4 <_iram_text_start+0xcf0> (3c151128 <__func__$1>)
+40385f82:	bc44a1        	l32r	a10, 40375094 <_iram_text_start+0xc90> (3c124aaa <_flash_rodata_start+0x498a>)
+40385f85:	04a2b2        	movi	a11, 0x204
+40385f88:	201110        	or	a1, a1, a1
+40385f8b:	0866a5        	call8	4038e5f4 <__assert_func>
+40385f8e:	990b      	addi.n	a9, a9, -1
+40385f90:	0899      	s32i.n	a9, a8, 0
+40385f92:	b9cc      	bnez.n	a9, 40385fa1 <vPortExitCritical+0x99>
+40385f94:	bc5381        	l32r	a8, 403750e0 <_iram_text_start+0xcdc> (3fcb2558 <port_uxOldInterruptState>)
+40385f97:	88aa      	add.n	a8, a8, a10
+40385f99:	08a8      	l32i.n	a10, a8, 0
+40385f9b:	bc4681        	l32r	a8, 403750b4 <_iram_text_start+0xcb0> (40001c38 <_xtos_set_intlevel>)
+40385f9e:	0008e0        	callx8	a8
+40385fa1:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+40381330 <esp_cpu_compare_and_set>:
+40381330:	004136        	entry	a1, 32
+40381333:	cdc281        	l32r	a8, 40374a3c <_iram_text_start+0x638> (c4000000 <_rtc_reserved_end+0x63f00000>)
+40381336:	cc9ba1        	l32r	a10, 403745a4 <_iram_text_start+0x1a0> (1ffffff <_rtc_slow_length+0x1fffe0f>)
+40381339:	828a      	add.n	a8, a2, a8
+4038133b:	029d      	mov.n	a9, a2
+4038133d:	343a87        	bltu	a10, a8, 40381375 <esp_cpu_compare_and_set+0x45>
+40381340:	0063b0        	rsil	a11, 3
+40381343:	cdbfa1        	l32r	a10, 40374a40 <_iram_text_start+0x63c> (3fcadaa0 <external_ram_cas_lock>)
+40381346:	020c      	movi.n	a2, 0
+40381348:	180c      	movi.n	a8, 1
+4038134a:	130c20        	wsr.scompare1	a2
+4038134d:	00ea82        	s32c1i	a8, a10, 0
+40381350:	88dc      	bnez.n	a8, 4038136c <esp_cpu_compare_and_set+0x3c>
+40381352:	0020c0        	memw
+40381355:	09c8      	l32i.n	a12, a9, 0
+40381357:	c08c30        	sub	a8, a12, a3
+4038135a:	40f820        	nsau	a2, a8
+4038135d:	412520        	srli	a2, a2, 5
+40381360:	049c37        	bne	a12, a3, 40381368 <esp_cpu_compare_and_set+0x38>
+40381363:	0020c0        	memw
+40381366:	0949      	s32i.n	a4, a9, 0
+40381368:	080c      	movi.n	a8, 0
+4038136a:	0a89      	s32i.n	a8, a10, 0
+4038136c:	0020c0        	memw
+4038136f:	13e6b0        	wsr.ps	a11
+40381372:	000386        	j	40381384 <esp_cpu_compare_and_set+0x54>
+40381375:	130c30        	wsr.scompare1	a3
+40381378:	00e242        	s32c1i	a4, a2, 0
+4038137b:	c03340        	sub	a3, a3, a4
+4038137e:	40f320        	nsau	a2, a3
+40381381:	412520        	srli	a2, a2, 5
+40381384:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+403760e4 <heap_caps_alloc_failed>:
+403760e4:	004136        	entry	a1, 32
+403760e7:	f91b81        	l32r	a8, 40374554 <_iram_text_start+0x150> (3fcb21bc <alloc_failed_callback>)
+403760ea:	02ad      	mov.n	a10, a2
+403760ec:	0888      	l32i.n	a8, a8, 0
+403760ee:	03bd      	mov.n	a11, a3
+403760f0:	04cd      	mov.n	a12, a4
+403760f2:	002816        	beqz	a8, 403760f8 <heap_caps_alloc_failed+0x14>
+403760f5:	0008e0        	callx8	a8
+403760f8:	f01d      	retw.n
+
+Disassembly of section .flash.text:
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42004db4 <heap_caps_register_failed_alloc_callback>:
+42004db4:	004136        	entry	a1, 32
+42004db7:	028d      	mov.n	a8, a2
+42004db9:	828c      	beqz.n	a2, 42004dc5 <heap_caps_register_failed_alloc_callback+0x11>
+42004dbb:	edcf91        	l32r	a9, 420004f8 <_stext+0x4d8> (3fcb21bc <alloc_failed_callback>)
+42004dbe:	020c      	movi.n	a2, 0
+42004dc0:	0989      	s32i.n	a8, a9, 0
+42004dc2:	000086        	j	42004dc8 <heap_caps_register_failed_alloc_callback+0x14>
+42004dc5:	02a122        	movi	a2, 0x102
+42004dc8:	f01d      	retw.n
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+42015bcc <sensorarrayMemoryDiagnosticsFailureFormat>:
+42015bcc:	036136        	entry	a1, 0x1b0
+42015bcf:	a91681        	l32r	a8, 42000028 <_stext+0x8> (3fcb1f8c <__stack_chk_guard>)
+42015bd2:	027d      	mov.n	a7, a2
+42015bd4:	0020c0        	memw
+42015bd7:	0898      	l32i.n	a9, a8, 0
+42015bd9:	5ca182        	movi	a8, 0x15c
+42015bdc:	30c882        	addi	a8, a8, 48
+42015bdf:	681a      	add.n	a6, a8, a1
+42015be1:	0020c0        	memw
+42015be4:	0699      	s32i.n	a9, a6, 0
+42015be6:	40f280        	nsau	a8, a2
+42015be9:	418580        	srli	a8, a8, 5
+42015bec:	237216        	beqz	a2, 42015e27 <sensorarrayMemoryDiagnosticsFailureFormat+0x25b>
+42015bef:	150c      	movi.n	a5, 1
+42015bf1:	935830        	movnez	a5, a8, a3
+42015bf4:	22f556        	bnez	a5, 42015e27 <sensorarrayMemoryDiagnosticsFailureFormat+0x25b>
+42015bf7:	aed1a1        	l32r	a10, 4200173c <_stext+0x171c> (3fcae770 <s_allocationFailureMux>)
+42015bfa:	05bd      	mov.n	a11, a5
+42015bfc:	aa5c81        	l32r	a8, 4200056c <_stext+0x54c> (40385db8 <xPortEnterCriticalTimeout>)
+42015bff:	0008e0        	callx8	a8
+42015c02:	7acc      	bnez.n	a10, 42015c0d <sensorarrayMemoryDiagnosticsFailureFormat+0x41>
+42015c04:	0042a2        	s8i	a10, a2, 0
+42015c07:	07a122        	movi	a2, 0x107
+42015c0a:	0096c6        	j	42015e69 <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+42015c0d:	80a082        	movi	a8, 128
+42015c10:	218a      	add.n	a2, a1, a8
+42015c12:	aecbb1        	l32r	a11, 42001740 <_stext+0x1720> (3fcae778 <s_allocationFailures>)
+42015c15:	78a0c2        	movi	a12, 120
+42015c18:	02ad      	mov.n	a10, a2
+42015c1a:	a91381        	l32r	a8, 42000068 <_stext+0x48> (400011f4 <memcpy>)
+42015c1d:	0008e0        	callx8	a8
+42015c20:	aecd81        	l32r	a8, 42001754 <_stext+0x1734> (3fcae76c <s_allocationCaptureIncomplete>)
+42015c23:	aec6a1        	l32r	a10, 4200173c <_stext+0x171c> (3fcae770 <s_allocationFailureMux>)
+42015c26:	0020c0        	memw
+42015c29:	0888      	l32i.n	a8, a8, 0
+42015c2b:	166182        	s32i	a8, a1, 88
+42015c2e:	aa5081        	l32r	a8, 42000570 <_stext+0x550> (40385f08 <vPortExitCritical>)
+42015c31:	0008e0        	callx8	a8
+42015c34:	162242        	l32i	a4, a2, 88
+42015c37:	0b9416        	beqz	a4, 42015cf4 <sensorarrayMemoryDiagnosticsFailureFormat+0x128>
+42015c3a:	30c182        	addi	a8, a1, 48
+42015c3d:	1822e2        	l32i	a14, a2, 96
+42015c40:	aec6c1        	l32r	a12, 42001758 <_stext+0x1738> (3c12a5c4 <_flash_rodata_start+0xa4a4>)
+42015c43:	fca0a2        	movi	a10, 252
+42015c46:	05fd      	mov.n	a15, a5
+42015c48:	18a0b2        	movi	a11, 24
+42015c4b:	80aa80        	add	a10, a10, a8
+42015c4e:	abe381        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015c51:	0008e0        	callx8	a8
+42015c54:	1b22e2        	l32i	a14, a2, 108
+42015c57:	30c182        	addi	a8, a1, 48
+42015c5a:	aebfc1        	l32r	a12, 42001758 <_stext+0x1738> (3c12a5c4 <_flash_rodata_start+0xa4a4>)
+42015c5d:	14a1a2        	movi	a10, 0x114
+42015c60:	05fd      	mov.n	a15, a5
+42015c62:	8b1c      	movi.n	a11, 24
+42015c64:	aa8a      	add.n	a10, a10, a8
+42015c66:	abdd81        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015c69:	0008e0        	callx8	a8
+42015c6c:	cca082        	movi	a8, 204
+42015c6f:	30c882        	addi	a8, a8, 48
+42015c72:	1922d2        	l32i	a13, a2, 100
+42015c75:	aeb9c1        	l32r	a12, 4200175c <_stext+0x173c> (3c12b340 <_flash_rodata_start+0xb220>)
+42015c78:	10a0b2        	movi	a11, 16
+42015c7b:	80a810        	add	a10, a8, a1
+42015c7e:	abd781        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015c81:	0008e0        	callx8	a8
+42015c84:	dca082        	movi	a8, 220
+42015c87:	30c882        	addi	a8, a8, 48
+42015c8a:	1c22d2        	l32i	a13, a2, 112
+42015c8d:	aeb3c1        	l32r	a12, 4200175c <_stext+0x173c> (3c12b340 <_flash_rodata_start+0xb220>)
+42015c90:	80a810        	add	a10, a8, a1
+42015c93:	10a0b2        	movi	a11, 16
+42015c96:	abd181        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015c99:	0008e0        	callx8	a8
+42015c9c:	aead81        	l32r	a8, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015c9f:	1a22e2        	l32i	a14, a2, 104
+42015ca2:	156182        	s32i	a8, a1, 84
+42015ca5:	fe9c      	beqz.n	a14, 42015cc8 <sensorarrayMemoryDiagnosticsFailureFormat+0xfc>
+42015ca7:	30c182        	addi	a8, a1, 48
+42015caa:	aeadc1        	l32r	a12, 42001760 <_stext+0x1740> (3c12b348 <_flash_rodata_start+0xb228>)
+42015cad:	2ca1a2        	movi	a10, 0x12c
+42015cb0:	aa8a      	add.n	a10, a10, a8
+42015cb2:	05fd      	mov.n	a15, a5
+42015cb4:	18a0b2        	movi	a11, 24
+42015cb7:	abc981        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015cba:	0008e0        	callx8	a8
+42015cbd:	2ca182        	movi	a8, 0x12c
+42015cc0:	30c192        	addi	a9, a1, 48
+42015cc3:	889a      	add.n	a8, a8, a9
+42015cc5:	156182        	s32i	a8, a1, 84
+42015cc8:	080c      	movi.n	a8, 0
+42015cca:	818a      	add.n	a8, a1, a8
+42015ccc:	3d28e2        	l32i	a14, a8, 244
+42015ccf:	aea051        	l32r	a5, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015cd2:	3ebc      	beqz.n	a14, 42015d09 <sensorarrayMemoryDiagnosticsFailureFormat+0x13d>
+42015cd4:	30c182        	addi	a8, a1, 48
+42015cd7:	aea2c1        	l32r	a12, 42001760 <_stext+0x1740> (3c12b348 <_flash_rodata_start+0xb228>)
+42015cda:	44a1a2        	movi	a10, 0x144
+42015cdd:	aa8a      	add.n	a10, a10, a8
+42015cdf:	0f0c      	movi.n	a15, 0
+42015ce1:	8b1c      	movi.n	a11, 24
+42015ce3:	abbe81        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015ce6:	0008e0        	callx8	a8
+42015ce9:	44a152        	movi	a5, 0x144
+42015cec:	30c182        	addi	a8, a1, 48
+42015cef:	558a      	add.n	a5, a5, a8
+42015cf1:	000506        	j	42015d09 <sensorarrayMemoryDiagnosticsFailureFormat+0x13d>
+42015cf4:	ae9751        	l32r	a5, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015cf7:	156152        	s32i	a5, a1, 84
+42015cfa:	1f6152        	s32i	a5, a1, 124
+42015cfd:	1e6152        	s32i	a5, a1, 120
+42015d00:	1d6152        	s32i	a5, a1, 116
+42015d03:	1c6152        	s32i	a5, a1, 112
+42015d06:	000a06        	j	42015d32 <sensorarrayMemoryDiagnosticsFailureFormat+0x166>
+42015d09:	dca082        	movi	a8, 220
+42015d0c:	30c882        	addi	a8, a8, 48
+42015d0f:	881a      	add.n	a8, a8, a1
+42015d11:	1f6182        	s32i	a8, a1, 124
+42015d14:	cca082        	movi	a8, 204
+42015d17:	30c882        	addi	a8, a8, 48
+42015d1a:	881a      	add.n	a8, a8, a1
+42015d1c:	30c192        	addi	a9, a1, 48
+42015d1f:	1e6182        	s32i	a8, a1, 120
+42015d22:	14a182        	movi	a8, 0x114
+42015d25:	889a      	add.n	a8, a8, a9
+42015d27:	1d6182        	s32i	a8, a1, 116
+42015d2a:	fca082        	movi	a8, 252
+42015d2d:	889a      	add.n	a8, a8, a9
+42015d2f:	1c6182        	s32i	a8, a1, 112
+42015d32:	80a082        	movi	a8, 128
+42015d35:	218a      	add.n	a2, a1, a8
+42015d37:	500292        	l8ui	a9, a2, 80
+42015d3a:	0ef916        	beqz	a9, 42015e2d <sensorarrayMemoryDiagnosticsFailureFormat+0x261>
+42015d3d:	30c182        	addi	a8, a1, 48
+42015d40:	1522d2        	l32i	a13, a2, 84
+42015d43:	ae86c1        	l32r	a12, 4200175c <_stext+0x173c> (3c12b340 <_flash_rodata_start+0xb220>)
+42015d46:	eca0a2        	movi	a10, 236
+42015d49:	0b1c      	movi.n	a11, 16
+42015d4b:	80aa80        	add	a10, a10, a8
+42015d4e:	aba381        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015d51:	0008e0        	callx8	a8
+42015d54:	22a8      	l32i.n	a10, a2, 8
+42015d56:	02c8      	l32i.n	a12, a2, 0
+42015d58:	1a61a2        	s32i	a10, a1, 104
+42015d5b:	0c02a2        	l8ui	a10, a2, 12
+42015d5e:	12d8      	l32i.n	a13, a2, 4
+42015d60:	1b61a2        	s32i	a10, a1, 108
+42015d63:	4f02a2        	l8ui	a10, a2, 79
+42015d66:	0d0292        	l8ui	a9, a2, 13
+42015d69:	1761a2        	s32i	a10, a1, 92
+42015d6c:	500282        	l8ui	a8, a2, 80
+42015d6f:	ae78a1        	l32r	a10, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015d72:	b2eb      	addi.n	a11, a2, 14
+42015d74:	1861c2        	s32i	a12, a1, 96
+42015d77:	1961d2        	s32i	a13, a1, 100
+42015d7a:	83ba90        	moveqz	a11, a10, a9
+42015d7d:	489c      	beqz.n	a8, 42015d95 <sensorarrayMemoryDiagnosticsFailureFormat+0x1c9>
+42015d7f:	1522a2        	l32i	a10, a2, 84
+42015d82:	30c182        	addi	a8, a1, 48
+42015d85:	eca0d2        	movi	a13, 236
+42015d88:	40faa0        	nsau	a10, a10
+42015d8b:	dd8a      	add.n	a13, a13, a8
+42015d8d:	41a5a0        	srli	a10, a10, 5
+42015d90:	180c      	movi.n	a8, 1
+42015d92:	000246        	j	42015d9f <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+42015d95:	eca0d2        	movi	a13, 236
+42015d98:	30c192        	addi	a9, a1, 48
+42015d9b:	dd9a      	add.n	a13, a13, a9
+42015d9d:	08ad      	mov.n	a10, a8
+42015d9f:	090c      	movi.n	a9, 0
+42015da1:	c19a      	add.n	a12, a1, a9
+42015da3:	dc0cf2        	l8ui	a15, a12, 220
+42015da6:	362ce2        	l32i	a14, a12, 216
+42015da9:	4189      	s32i.n	a8, a1, 16
+42015dab:	172182        	l32i	a8, a1, 92
+42015dae:	1621c2        	l32i	a12, a1, 88
+42015db1:	3189      	s32i.n	a8, a1, 12
+42015db3:	1b2182        	l32i	a8, a1, 108
+42015db6:	090c      	movi.n	a9, 0
+42015db8:	1189      	s32i.n	a8, a1, 4
+42015dba:	1a2182        	l32i	a8, a1, 104
+42015dbd:	120c      	movi.n	a2, 1
+42015dbf:	0189      	s32i.n	a8, a1, 0
+42015dc1:	1f2182        	l32i	a8, a1, 124
+42015dc4:	8329c0        	moveqz	a2, a9, a12
+42015dc7:	f189      	s32i.n	a8, a1, 60
+42015dc9:	1d2182        	l32i	a8, a1, 116
+42015dcc:	1c0c      	movi.n	a12, 1
+42015dce:	e189      	s32i.n	a8, a1, 56
+42015dd0:	152182        	l32i	a8, a1, 84
+42015dd3:	939c40        	movnez	a9, a12, a4
+42015dd6:	d189      	s32i.n	a8, a1, 52
+42015dd8:	1e2182        	l32i	a8, a1, 120
+42015ddb:	91f9      	s32i.n	a15, a1, 36
+42015ddd:	c189      	s32i.n	a8, a1, 48
+42015ddf:	1c2182        	l32i	a8, a1, 112
+42015de2:	81e9      	s32i.n	a14, a1, 32
+42015de4:	ae60c1        	l32r	a12, 42001764 <_stext+0x1744> (3c12b350 <_flash_rodata_start+0xb230>)
+42015de7:	1821e2        	l32i	a14, a1, 96
+42015dea:	1921f2        	l32i	a15, a1, 100
+42015ded:	a129      	s32i.n	a2, a1, 40
+42015def:	51a9      	s32i.n	a10, a1, 20
+42015df1:	21b9      	s32i.n	a11, a1, 8
+42015df3:	7199      	s32i.n	a9, a1, 28
+42015df5:	61d9      	s32i.n	a13, a1, 24
+42015df7:	03bd      	mov.n	a11, a3
+42015df9:	20a770        	or	a10, a7, a7
+42015dfc:	106152        	s32i	a5, a1, 64
+42015dff:	0b6182        	s32i	a8, a1, 44
+42015e02:	ab7681        	l32r	a8, 42000bdc <_stext+0xbbc> (42107bcc <snprintf>)
+42015e05:	0008e0        	callx8	a8
+42015e08:	052fa0        	extui	a2, a10, 31, 1
+42015e0b:	00da96        	bltz	a10, 42015e1c <sensorarrayMemoryDiagnosticsFailureFormat+0x250>
+42015e0e:	62aa30        	saltu	a10, a10, a3
+42015e11:	aa0b      	addi.n	a10, a10, -1
+42015e13:	60a0a0        	neg	a10, a10
+42015e16:	74a0a0        	extui	a10, a10, 0, 8
+42015e19:	04ca16        	beqz	a10, 42015e69 <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+42015e1c:	080c      	movi.n	a8, 0
+42015e1e:	004782        	s8i	a8, a7, 0
+42015e21:	04a122        	movi	a2, 0x104
+42015e24:	001046        	j	42015e69 <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+42015e27:	02a122        	movi	a2, 0x102
+42015e2a:	000ec6        	j	42015e69 <sensorarrayMemoryDiagnosticsFailureFormat+0x29d>
+42015e2d:	22a8      	l32i.n	a10, a2, 8
+42015e2f:	12b8      	l32i.n	a11, a2, 4
+42015e31:	1a61a2        	s32i	a10, a1, 104
+42015e34:	0c02a2        	l8ui	a10, a2, 12
+42015e37:	0d0282        	l8ui	a8, a2, 13
+42015e3a:	1b61a2        	s32i	a10, a1, 108
+42015e3d:	02a8      	l32i.n	a10, a2, 0
+42015e3f:	1961b2        	s32i	a11, a1, 100
+42015e42:	1861a2        	s32i	a10, a1, 96
+42015e45:	089c      	beqz.n	a8, 42015e59 <sensorarrayMemoryDiagnosticsFailureFormat+0x28d>
+42015e47:	098d      	mov.n	a8, a9
+42015e49:	4f0292        	l8ui	a9, a2, 79
+42015e4c:	ae41d1        	l32r	a13, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015e4f:	176192        	s32i	a9, a1, 92
+42015e52:	b2eb      	addi.n	a11, a2, 14
+42015e54:	08ad      	mov.n	a10, a8
+42015e56:	ffd146        	j	42015d9f <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+42015e59:	ae3db1        	l32r	a11, 42001750 <_stext+0x1730> (3c12540c <_flash_rodata_start+0x52ec>)
+42015e5c:	4f0292        	l8ui	a9, a2, 79
+42015e5f:	0bdd      	mov.n	a13, a11
+42015e61:	176192        	s32i	a9, a1, 92
+42015e64:	08ad      	mov.n	a10, a8
+42015e66:	ffcd46        	j	42015d9f <sensorarrayMemoryDiagnosticsFailureFormat+0x1d3>
+42015e69:	a86f81        	l32r	a8, 42000028 <_stext+0x8> (3fcb1f8c <__stack_chk_guard>)
+42015e6c:	0020c0        	memw
+42015e6f:	0698      	l32i.n	a9, a6, 0
+42015e71:	0020c0        	memw
+42015e74:	002882        	l32i	a8, a8, 0
+42015e77:	051987        	beq	a9, a8, 42015e80 <sensorarrayMemoryDiagnosticsFailureFormat+0x2b4>
+42015e7a:	a87c81        	l32r	a8, 4200006c <_stext+0x4c> (40384eb0 <__stack_chk_fail>)
+42015e7d:	0008e0        	callx8	a8
+42015e80:	f01d      	retw.n
+
+CORRECTLY ALIGNED BASIC BLOCK: a padding byte before 0x40377544 makes a linear disassembly from the previous block misdecode the first store.
+
+
+/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.text:
+
+40377544 <sensorarrayMemoryAllocationFailed+0x3c>:
+40377544:	1b6822        	s32i	a2, a8, 108
+40377547:	1c6832        	s32i	a3, a8, 112
+4037754a:	1d6842        	s32i	a4, a8, 116
+4037754d:	070926        	beqi	a9, -1, 40377558 <sensorarrayMemoryAllocationFailed+0x50>

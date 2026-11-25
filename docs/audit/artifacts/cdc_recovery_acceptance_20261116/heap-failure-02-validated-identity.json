@@ -1,0 +1,20 @@
+{
+  "source_commit": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "version": "ad0f9ef",
+  "app_bytes": 1633440,
+  "bin_sha256": "846d29dea2dfaeee6e8692250b01318927e05eb25b089e42eb14594d43090a29",
+  "elf_sha256": "90f10fdaa5a0b859995caba70b1f1c65d3c7f9e19e85b39c81366e699c6e2736",
+  "host_entries": 80,
+  "all_exit_zero": true,
+  "production_inputs": 203,
+  "build_test_inputs_identical": true,
+  "build_manifest": "heap-failure-02-build-manifest.json",
+  "tests_manifest": "heap-failure-02-tests-manifest.json",
+  "image_archive": "heap-failure-02-image-archive.json",
+  "hardware_flashed_at_manifest_creation": false,
+  "change_scope": "Bounded boot-scoped failed allocation diagnostic with target-verified aligned atomic marker; source commit ad0f9ef",
+  "generator": {
+    "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/validate_build_outputs.py",
+    "sha256": "f0aa8469e50bfcc455562fa7287b27bb97ef874988e522ead291edca98a7a059"
+  }
+}

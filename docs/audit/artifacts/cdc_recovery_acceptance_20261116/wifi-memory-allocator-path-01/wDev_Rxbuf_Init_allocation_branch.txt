@@ -1,0 +1,23 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .flash.text:
+
+420e8dc1 <wDev_Rxbuf_Init+0x75>:
+420e8dc1:	744aa1        	l32r	a10, 420c5eec <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420e8dc4:	0a98      	l32i.n	a9, a10, 0
+420e8dc6:	06ad      	mov.n	a10, a6
+420e8dc8:	562992        	l32i	a9, a9, 0x158
+420e8dcb:	056182        	s32i	a8, a1, 20
+420e8dce:	0009e0        	callx8	a9
+420e8dd1:	5188      	l32i.n	a8, a1, 20
+420e8dd3:	1adc      	bnez.n	a10, 420e8de8 <wDev_Rxbuf_Init+0x9c>
+420e8dd5:	ffd7d1        	l32r	a13, 420e8d34 <wDev_Rxbuf_Deinit+0x68> (3c16206b <__chclass+0x3d2b>)
+420e8dd8:	2c0c      	movi.n	a12, 2
+420e8dda:	1b0c      	movi.n	a11, 1
+420e8ddc:	6a0c      	movi.n	a10, 6
+420e8dde:	201110        	or	a1, a1, a1
+420e8de1:	e41565        	call8	420ccf38 <wifi_log>
+420e8de4:	0023c6        	j	420e8e77 <wDev_Rxbuf_Init+0x12b>
+	...

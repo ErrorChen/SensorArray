@@ -1,0 +1,22 @@
+{
+  "command": [
+    "python3",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/probe_readonly_state.py",
+    "--label",
+    "resume-20261125-state-02",
+    "--ble-guard",
+    "--ble-log",
+    "--panic"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 45.0,
+  "head": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started_utc": "2026-11-25T05:21:01.711811+00:00",
+  "started_monotonic": 173455.168757197,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/resume-20261125-state-02-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T05:21:01.926246+00:00",
+  "finished_monotonic": 173455.383203766,
+  "log_sha256": "240f2b61d5df6ec0ebafb7443823b7dd29c491015d7fdb8ede62822d67d18897"
+}

@@ -1,0 +1,14 @@
+3fcb21bc l     O .dram0.bss	00000004 alloc_failed_callback
+403760e4 l     F .iram0.text	00000016 heap_caps_alloc_failed
+3fcae770 l     O .dram0.data	00000008 s_allocationFailureMux
+3fcae76c l     O .dram0.data	00000004 s_allocationCaptureIncomplete
+3fcae778 l     O .dram0.data	00000078 s_allocationFailures
+40377508 l     F .iram0.text	0000005d sensorarrayMemoryAllocationFailed
+40001c38 g       *ABS*	00000000 _xtos_set_intlevel
+42015bcc g     F .flash.text	000002b6 sensorarrayMemoryDiagnosticsFailureFormat
+40381330 g     F .iram0.text	00000056 esp_cpu_compare_and_set
+40385db8 g     F .iram0.text	00000150 xPortEnterCriticalTimeout
+42004db4 g     F .flash.text	00000016 heap_caps_register_failed_alloc_callback
+40385f08 g     F .iram0.text	0000009b vPortExitCritical
+3fcb2560 g     O .dram0.bss	00000008 port_uxCriticalNesting
+3fcb2558 g     O .dram0.bss	00000008 port_uxOldInterruptState

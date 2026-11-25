@@ -1,0 +1,87 @@
+esptool.py v4.12.0
+Serial port /dev/ttyACM0
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:b5:4e:cd:d9:ac
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00010000 to 0x0019efff...
+Compressed 1633440 bytes to 1055069...
+Writing at 0x00010000... (1 %)
+Writing at 0x0001cb10... (3 %)
+Writing at 0x0002b43b... (4 %)
+Writing at 0x00038d20... (6 %)
+Writing at 0x000450a5... (7 %)
+Writing at 0x0004d576... (9 %)
+Writing at 0x0005fd0c... (10 %)
+Writing at 0x00065bd0... (12 %)
+Writing at 0x0006ba35... (13 %)
+Writing at 0x0007113c... (15 %)
+Writing at 0x00076712... (16 %)
+Writing at 0x0007b854... (18 %)
+Writing at 0x000809c4... (20 %)
+Writing at 0x00085beb... (21 %)
+Writing at 0x0008b092... (23 %)
+Writing at 0x000900c6... (24 %)
+Writing at 0x0009503e... (26 %)
+Writing at 0x0009a0cf... (27 %)
+Writing at 0x0009f010... (29 %)
+Writing at 0x000a46ba... (30 %)
+Writing at 0x000a96cd... (32 %)
+Writing at 0x000aeb2a... (33 %)
+Writing at 0x000b3ee6... (35 %)
+Writing at 0x000b91d7... (36 %)
+Writing at 0x000bec8f... (38 %)
+Writing at 0x000c4bcb... (40 %)
+Writing at 0x000ca09d... (41 %)
+Writing at 0x000cfd92... (43 %)
+Writing at 0x000d5ad9... (44 %)
+Writing at 0x000db80c... (46 %)
+Writing at 0x000e1174... (47 %)
+Writing at 0x000e6ba1... (49 %)
+Writing at 0x000ec388... (50 %)
+Writing at 0x000f186b... (52 %)
+Writing at 0x000f75ce... (53 %)
+Writing at 0x000fcfc8... (55 %)
+Writing at 0x0010228e... (56 %)
+Writing at 0x001073a6... (58 %)
+Writing at 0x0010c653... (60 %)
+Writing at 0x001119e3... (61 %)
+Writing at 0x001173a4... (63 %)
+Writing at 0x0011caa8... (64 %)
+Writing at 0x00121e6d... (66 %)
+Writing at 0x0012725d... (67 %)
+Writing at 0x0012c3f2... (69 %)
+Writing at 0x001317c5... (70 %)
+Writing at 0x00136fce... (72 %)
+Writing at 0x0013c5dc... (73 %)
+Writing at 0x001419a6... (75 %)
+Writing at 0x00146e9e... (76 %)
+Writing at 0x0014cadb... (78 %)
+Writing at 0x00152121... (80 %)
+Writing at 0x00157337... (81 %)
+Writing at 0x0015c42b... (83 %)
+Writing at 0x00161c12... (84 %)
+Writing at 0x00167360... (86 %)
+Writing at 0x00170071... (87 %)
+Writing at 0x00175524... (89 %)
+Writing at 0x0017ad15... (90 %)
+Writing at 0x00180968... (92 %)
+Writing at 0x00185c89... (93 %)
+Writing at 0x0018b7af... (95 %)
+Writing at 0x001910dd... (96 %)
+Writing at 0x0019708f... (98 %)
+Writing at 0x0019c0d4... (100 %)
+Wrote 1633440 bytes (1055069 compressed) at 0x00010000 in 8.7 seconds (effective 1495.4 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Staying in bootloader.

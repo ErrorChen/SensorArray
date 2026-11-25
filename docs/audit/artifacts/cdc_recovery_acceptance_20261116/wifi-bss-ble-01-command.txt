@@ -1,0 +1,6 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-coexist-01/wifi-bss-ble-01.ble.ready.json", "schema_version": 1, "monotonic_ns": 174279557077170, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.817194400995504, "notifications": {"L": 1, "D": 330}, "payload_bytes": {"L": 42, "D": 155658}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.908304293989204, "notifications": {"L": 6, "D": 799}, "payload_bytes": {"L": 1439, "D": 377495}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"L": 6, "D": 1058}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-coexist-01/wifi-bss-ble-01.ble.notifications.jsonl", "journal_sha256": "c9fef088afc32b967c26080ee6d39faaf1e6e2317bfa423282d93c779766975e"}

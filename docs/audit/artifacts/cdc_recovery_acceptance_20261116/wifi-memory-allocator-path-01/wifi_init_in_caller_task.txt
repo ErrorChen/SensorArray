@@ -1,0 +1,76 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420d6e40 <wifi_init_in_caller_task>:
+420d6e40:	004136        	entry	a1, 32
+420d6e43:	ffeb31        	l32r	a3, 420d6df0 <esp_wifi_get_mode+0x30> (3fcef920 <g_intr_lock_mux>)
+420d6e46:	002382        	l32i	a8, a3, 0
+420d6e49:	00b816        	beqz	a8, 420d6e58 <wifi_init_in_caller_task+0x18>
+420d6e4c:	bc2731        	l32r	a3, 420c5ee8 <ieee80211_reg_netstack_buf_cb+0x10> (3fcef91c <g_wifi_global_lock>)
+420d6e4f:	0388      	l32i.n	a8, a3, 0
+420d6e51:	c8fc      	bnez.n	a8, 420d6e91 <wifi_init_in_caller_task+0x51>
+420d6e53:	0004c6        	j	420d6e6a <wifi_init_in_caller_task+0x2a>
+420d6e56:	810000        	src	a0, a0, a0
+420d6e59:	88bc25        	call8	4205fa1c <btm_acl_removed+0x5c>
+420d6e5c:	a808      	l32i.n	a0, a8, 40
+420d6e5e:	e088      	l32i.n	a8, a0, 56
+420d6e60:	000a      	add.n	a0, a0, a0
+420d6e62:	03a9      	s32i.n	a10, a3, 0
+420d6e64:	fe4a56        	bnez	a10, 420d6e4c <wifi_init_in_caller_task+0xc>
+420d6e67:	000746        	j	420d6e88 <wifi_init_in_caller_task+0x48>
+420d6e6a:	bc2081        	l32r	a8, 420c5eec <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420d6e6d:	0888      	l32i.n	a8, a8, 0
+420d6e6f:	1328a2        	l32i	a10, a8, 76
+420d6e72:	000ae0        	callx8	a10
+420d6e75:	03a9      	s32i.n	a10, a3, 0
+420d6e77:	6adc      	bnez.n	a10, 420d6e91 <wifi_init_in_caller_task+0x51>
+420d6e79:	1b0c      	movi.n	a11, 1
+420d6e7b:	fff0d1        	l32r	a13, 420d6e3c <wifi_deinit_in_caller_task+0x48> (3c161b34 <__chclass+0x37f4>)
+420d6e7e:	2c0c      	movi.n	a12, 2
+420d6e80:	0bad      	mov.n	a10, a11
+420d6e82:	201110        	or	a1, a1, a1
+420d6e85:	f60b25        	call8	420ccf38 <wifi_log>
+420d6e88:	01a122        	movi	a2, 0x101
+420d6e8b:	001346        	j	420d6edc <wifi_init_in_caller_task+0x9c>
+420d6e8e:	000000        	ill
+420d6e91:	c89631        	l32r	a3, 420c90ec <hostap_handle_timer+0x78> (3fcc8170 <mac_list_lock>)
+420d6e94:	0388      	l32i.n	a8, a3, 0
+420d6e96:	f88c      	beqz.n	a8, 420d6ea9 <wifi_init_in_caller_task+0x69>
+420d6e98:	02ad      	mov.n	a10, a2
+420d6e9a:	201110        	or	a1, a1, a1
+420d6e9d:	fdd9a5        	call8	420d4c38 <wifi_menuconfig_init>
+420d6ea0:	0a2d      	mov.n	a2, a10
+420d6ea2:	6afc      	bnez.n	a10, 420d6edc <wifi_init_in_caller_task+0x9c>
+420d6ea4:	000586        	j	420d6ebe <wifi_init_in_caller_task+0x7e>
+420d6ea7:	810000        	src	a0, a0, a0
+420d6eaa:	10          	.byte	0x10
+420d6eab:	88bc      	beqz.n	a8, 420d6ee7 <wifi_init_in_caller_task+0xa7>
+420d6ead:	a208      	l32i.n	a0, a2, 40
+420d6eaf:	1228      	l32i.n	a2, a2, 4
+420d6eb1:	000ae0        	callx8	a10
+420d6eb4:	03a9      	s32i.n	a10, a3, 0
+420d6eb6:	fdea56        	bnez	a10, 420d6e98 <wifi_init_in_caller_task+0x58>
+420d6eb9:	fff2c6        	j	420d6e88 <wifi_init_in_caller_task+0x48>
+420d6ebc:	100000        	and	a0, a0, a0
+420d6ebf:	652011        	l32r	a1, 420b0340 <lwip_netconn_do_writemore$isra$0+0x1ec> (9aa0238a <_rtc_reserved_end+0x3a90238a>)
+420d6ec2:	8d          	.byte	0x8d
+420d6ec3:	0a2d27        	blt	a13, a2, 420d6ed1 <wifi_init_in_caller_task+0x91>
+420d6ec6:	2adc      	bnez.n	a10, 420d6edc <wifi_init_in_caller_task+0x9c>
+420d6ec8:	201110        	or	a1, a1, a1
+420d6ecb:	0e1c25        	call8	420e508c <ic_create_wifi_task>
+420d6ece:	0a2d      	mov.n	a2, a10
+420d6ed0:	8acc      	bnez.n	a10, 420d6edc <wifi_init_in_caller_task+0x9c>
+420d6ed2:	201110        	or	a1, a1, a1
+420d6ed5:	ff1925        	call8	420d6068 <ieee80211_ioctl_init>
+420d6ed8:	0a2d      	mov.n	a2, a10
+420d6eda:	4a8c      	beqz.n	a10, 420d6ee2 <wifi_init_in_caller_task+0xa2>
+420d6edc:	201110        	or	a1, a1, a1
+420d6edf:	fff165        	call8	420d6df4 <wifi_deinit_in_caller_task>
+420d6ee2:	f01d      	retw.n

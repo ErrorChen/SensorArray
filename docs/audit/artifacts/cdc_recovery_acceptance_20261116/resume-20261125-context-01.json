@@ -1,0 +1,13 @@
+{
+  "head": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "tracked_dirty_at_resume": false,
+  "old_onboard_elf": "2f74130825f1b4c173cee27bf569bc4385bbdd26a7049adee3efe6e8b77c39e9",
+  "old_session": "55B0EC5D078FCD53",
+  "old_boot": "1",
+  "environment_note": "Temporary /tmp BLE virtualenv absent after resume; first probe not executed (interpreter FileNotFoundError), then native python read-only probe succeeded. Virtualenv recreated using the prior pinned bleak/dbus-fast/pyserial versions without admin/system install.",
+  "first_probe_hardware_started": false,
+  "inputs": {
+    "resume-20261125-state-02.summary.json": "240f2b61d5df6ec0ebafb7443823b7dd29c491015d7fdb8ede62822d67d18897",
+    "resume-20261125-ble-env-01-command.json": "e78fb2a5320b23c8870e58d8365f58480e498e119ec38905353c4c11a7031bf2"
+  }
+}

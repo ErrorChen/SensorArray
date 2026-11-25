@@ -1,0 +1,1 @@
+{"status": "NEW_USJ_EPOCH_OBSERVED_ROM_UNVERIFIED", "error": null, "summary": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-rom-01.summary.json"}

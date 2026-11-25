@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "wifi-bss-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 360.0,
+  "head": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "dirty_diff_sha256": "8dbccc6deb475ffe6211a9858039e539d5d6b201136bc14d45ccc57b4342e6f2",
+  "started_utc": "2026-11-25T05:34:17.671838+00:00",
+  "started_monotonic": 174251.128786457,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-flash-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T05:34:30.324452+00:00",
+  "finished_monotonic": 174263.781402866,
+  "log_sha256": "d5fce280d20620494a6176056c9f2b3d3e211b54a91eff73c94a46eda1a76fcb"
+}

@@ -1,0 +1,29 @@
+{
+  "scope": "immutable_generated_build_outputs_not_scientific_measurements",
+  "records": [
+    {
+      "build_path": "build/SensorArray.bin",
+      "raw_bytes": 1632848,
+      "raw_sha256": "8dd6988f30d684e42ab4e3a95cf9819f0db2c6bca79e99e0caa0008148081005",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-SensorArray.bin.gz",
+      "archive_sha256": "fff13a2fd771b4f928a57f88a2dac8cce7d7cfb3044d743167da30310f8d9f18",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.elf",
+      "raw_bytes": 16522996,
+      "raw_sha256": "179f9183e2c31b35c906c9b811bb2ca1cf4d16dbca43ee3a1c6c4371c0f56a2d",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-SensorArray.elf.gz",
+      "archive_sha256": "f4462d6ab738c26c9459452573be05a3fd548833542f140dc29ee17e5a1778f6",
+      "roundtrip_verified": true
+    },
+    {
+      "build_path": "build/SensorArray.map",
+      "raw_bytes": 11626453,
+      "raw_sha256": "24857b11a9b451afe566c2102c5ee7c742b8fbef338f224253d8ce098176700d",
+      "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-01-SensorArray.map.gz",
+      "archive_sha256": "fc28db8d2dcf9cfd9c7cba62f0211d27b9065da4f75e8d51d0c5d95064eb9310",
+      "roundtrip_verified": true
+    }
+  ]
+}

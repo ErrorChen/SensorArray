@@ -1,0 +1,151 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420e6708 <esf_buf_setup>:
+420e6708:	004136        	entry	a1, 32
+420e670b:	fff561        	l32r	a6, 420e66e0 <esf_buf_setdown+0x1c> (3fcaf65c <eb_txdesc_space>)
+420e670e:	90a0c2        	movi	a12, 144
+420e6711:	00a0b2        	movi	a11, 0
+420e6714:	20a660        	or	a10, a6, a6
+420e6717:	852881        	l32r	a8, 420c7bb8 <ieee80211_encap_amsdu+0x1cc> (400011e8 <memset>)
+420e671a:	0008e0        	callx8	a8
+420e671d:	ffef51        	l32r	a5, 420e66dc <esf_buf_setdown+0x18> (3fcc97bc <eb_space>)
+420e6720:	c0a0c2        	movi	a12, 192
+420e6723:	0b0c      	movi.n	a11, 0
+420e6725:	05ad      	mov.n	a10, a5
+420e6727:	852481        	l32r	a8, 420c7bb8 <ieee80211_encap_amsdu+0x1cc> (400011e8 <memset>)
+420e672a:	0008e0        	callx8	a8
+420e672d:	84ad41        	l32r	a4, 420c79e4 <ieee80211_amsdu_encap_check+0x64> (3fcc8108 <g_wifi_menuconfig>)
+420e6730:	0214e2        	l16ui	a14, a4, 4
+420e6733:	1ecc      	bnez.n	a14, 420e6738 <esf_buf_setup+0x30>
+420e6735:	40a0e2        	movi	a14, 64
+420e6738:	ffac31        	l32r	a3, 420e65e8 <esf_buf_recycle_default_handler+0x1c> (3fcad058 <g_eb_list_desc>)
+420e673b:	ffead1        	l32r	a13, 420e66e4 <esf_buf_setdown+0x20> (3c160b87 <__chclass+0x2847>)
+420e673e:	1b0c      	movi.n	a11, 1
+420e6740:	4e53e2        	s16i	a14, a3, 156
+420e6743:	3c0c      	movi.n	a12, 3
+420e6745:	6a0c      	movi.n	a10, 6
+420e6747:	201110        	or	a1, a1, a1
+420e674a:	e67ee5        	call8	420ccf38 <wifi_log>
+420e674d:	152472        	l32i	a7, a4, 84
+420e6750:	2c14b2        	l16ui	a11, a4, 88
+420e6753:	f7dc      	bnez.n	a7, 420e6776 <esf_buf_setup+0x6e>
+420e6755:	0bcc      	bnez.n	a11, 420e6759 <esf_buf_setup+0x51>
+420e6757:	ab0c      	movi.n	a11, 10
+420e6759:	5853b2        	s16i	a11, a3, 176
+420e675c:	f4a1c2        	movi	a12, 0x1f4
+420e675f:	08a0a2        	movi	a10, 8
+420e6762:	201110        	or	a1, a1, a1
+420e6765:	ffe8a5        	call8	420e65f0 <esf_buf_setup_static>
+420e6768:	0a7d      	mov.n	a7, a10
+420e676a:	103a56        	bnez	a10, 420e6871 <esf_buf_setup+0x169>
+420e676d:	5813e2        	l16ui	a14, a3, 176
+420e6770:	ffded1        	l32r	a13, 420e66e8 <esf_buf_setdown+0x24> (3c160b64 <__chclass+0x2824>)
+420e6773:	0002c6        	j	420e6782 <esf_buf_setup+0x7a>
+420e6776:	0bed      	mov.n	a14, a11
+420e6778:	0bcc      	bnez.n	a11, 420e677c <esf_buf_setup+0x74>
+420e677a:	ae0c      	movi.n	a14, 10
+420e677c:	ffdcd1        	l32r	a13, 420e66ec <esf_buf_setdown+0x28> (3c160b40 <__chclass+0x2800>)
+420e677f:	5853e2        	s16i	a14, a3, 176
+420e6782:	03a0c2        	movi	a12, 3
+420e6785:	01a0b2        	movi	a11, 1
+420e6788:	06a0a2        	movi	a10, 6
+420e678b:	201110        	or	a1, a1, a1
+420e678e:	e67aa5        	call8	420ccf38 <wifi_log>
+420e6791:	1e14e2        	l16ui	a14, a4, 60
+420e6794:	0ecc      	bnez.n	a14, 420e6798 <esf_buf_setup+0x90>
+420e6796:	0e2c      	movi.n	a14, 32
+420e6798:	ffd6d1        	l32r	a13, 420e66f0 <esf_buf_setdown+0x2c> (3c160b1b <__chclass+0x27db>)
+420e679b:	2653e2        	s16i	a14, a3, 76
+420e679e:	3c0c      	movi.n	a12, 3
+420e67a0:	1b0c      	movi.n	a11, 1
+420e67a2:	6a0c      	movi.n	a10, 6
+420e67a4:	201110        	or	a1, a1, a1
+420e67a7:	e67925        	call8	420ccf38 <wifi_log>
+420e67aa:	2478      	l32i.n	a7, a4, 8
+420e67ac:	87ec      	bnez.n	a7, 420e67d8 <esf_buf_setup+0xd0>
+420e67ae:	061472        	l16ui	a7, a4, 12
+420e67b1:	07cc      	bnez.n	a7, 420e67b5 <esf_buf_setup+0xad>
+420e67b3:	072c      	movi.n	a7, 32
+420e67b5:	125372        	s16i	a7, a3, 36
+420e67b8:	200372        	l8ui	a7, a3, 32
+420e67bb:	40a6c2        	movi	a12, 0x640
+420e67be:	c0cc70        	sub	a12, a12, a7
+420e67c1:	02bd      	mov.n	a11, a2
+420e67c3:	01a0a2        	movi	a10, 1
+420e67c6:	201110        	or	a1, a1, a1
+420e67c9:	ffe265        	call8	420e65f0 <esf_buf_setup_static>
+420e67cc:	ffcad1        	l32r	a13, 420e66f4 <esf_buf_setdown+0x30> (3c160afd <__chclass+0x27bd>)
+420e67cf:	0a7d      	mov.n	a7, a10
+420e67d1:	02ed      	mov.n	a14, a2
+420e67d3:	fa8c      	beqz.n	a10, 420e67e6 <esf_buf_setup+0xde>
+420e67d5:	002606        	j	420e6871 <esf_buf_setup+0x169>
+420e67d8:	0814e2        	l16ui	a14, a4, 16
+420e67db:	001e56        	bnez	a14, 420e67e0 <esf_buf_setup+0xd8>
+420e67de:	0e2c      	movi.n	a14, 32
+420e67e0:	ffc6d1        	l32r	a13, 420e66f8 <esf_buf_setdown+0x34> (3c160ade <__chclass+0x279e>)
+420e67e3:	1253e2        	s16i	a14, a3, 36
+420e67e6:	3c0c      	movi.n	a12, 3
+420e67e8:	01a0b2        	movi	a11, 1
+420e67eb:	06a0a2        	movi	a10, 6
+420e67ee:	201110        	or	a1, a1, a1
+420e67f1:	e67465        	call8	420ccf38 <wifi_log>
+420e67f4:	ffc481        	l32r	a8, 420e6704 <esf_buf_setdown+0x40> (40005964 <config_is_cache_tx_buf_enabled>)
+420e67f7:	0008e0        	callx8	a8
+420e67fa:	8aac      	beqz.n	a10, 420e6826 <esf_buf_setup+0x11e>
+420e67fc:	c00322        	l8ui	a2, a3, 192
+420e67ff:	0524b2        	l32i	a11, a4, 20
+420e6802:	40a6c2        	movi	a12, 0x640
+420e6805:	c0cc20        	sub	a12, a12, a2
+420e6808:	9a0c      	movi.n	a10, 9
+420e680a:	201110        	or	a1, a1, a1
+420e680d:	ffde25        	call8	420e65f0 <esf_buf_setup_static>
+420e6810:	0a7d      	mov.n	a7, a10
+420e6812:	05ba56        	bnez	a10, 420e6871 <esf_buf_setup+0x169>
+420e6815:	54e8      	l32i.n	a14, a4, 20
+420e6817:	ffb9d1        	l32r	a13, 420e66fc <esf_buf_setdown+0x38> (3c160ac1 <__chclass+0x2781>)
+420e681a:	3c0c      	movi.n	a12, 3
+420e681c:	1b0c      	movi.n	a11, 1
+420e681e:	6a0c      	movi.n	a10, 6
+420e6820:	201110        	or	a1, a1, a1
+420e6823:	e67165        	call8	420ccf38 <wifi_log>
+420e6826:	220c      	movi.n	a2, 2
+420e6828:	6c5322        	s16i	a2, a3, 216
+420e682b:	58a2c2        	movi	a12, 0x258
+420e682e:	2b0c      	movi.n	a11, 2
+420e6830:	aa0c      	movi.n	a10, 10
+420e6832:	201110        	or	a1, a1, a1
+420e6835:	ffdba5        	call8	420e65f0 <esf_buf_setup_static>
+420e6838:	0a7d      	mov.n	a7, a10
+420e683a:	3afc      	bnez.n	a10, 420e6871 <esf_buf_setup+0x169>
+420e683c:	ffb1d1        	l32r	a13, 420e6700 <esf_buf_setdown+0x3c> (3c160aa0 <__chclass+0x2760>)
+420e683f:	2e0c      	movi.n	a14, 2
+420e6841:	3c0c      	movi.n	a12, 3
+420e6843:	1b0c      	movi.n	a11, 1
+420e6845:	6a0c      	movi.n	a10, 6
+420e6847:	201110        	or	a1, a1, a1
+420e684a:	e66ee5        	call8	420ccf38 <wifi_log>
+420e684d:	072d      	mov.n	a2, a7
+420e684f:	540c      	movi.n	a4, 5
+420e6851:	362a      	add.n	a3, a6, a2
+420e6853:	0b6532        	s32i	a3, a5, 44
+420e6856:	1a4542        	s8i	a4, a5, 26
+420e6859:	20a550        	or	a10, a5, a5
+420e685c:	24c222        	addi	a2, a2, 36
+420e685f:	90a032        	movi	a3, 144
+420e6862:	fb2a81        	l32r	a8, 420e550c <ppCalTkipMic+0x114> (40390790 <esf_buf_recycle>)
+420e6865:	0008e0        	callx8	a8
+420e6868:	30c552        	addi	a5, a5, 48
+420e686b:	e29237        	bne	a2, a3, 420e6851 <esf_buf_setup+0x149>
+420e686e:	000146        	j	420e6877 <esf_buf_setup+0x16f>
+420e6871:	201110        	or	a1, a1, a1
+420e6874:	ffe4e5        	call8	420e66c4 <esf_buf_setdown>
+420e6877:	072d      	mov.n	a2, a7
+420e6879:	f01d      	retw.n

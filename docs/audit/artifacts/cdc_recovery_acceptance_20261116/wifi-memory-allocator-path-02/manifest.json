@@ -1,0 +1,49 @@
+{
+  "scope": "offline_AP07_panic_symbolization_not_allocator_failure_attribution",
+  "elf_sha256": "2fed45c22153b580aef27584107809d15cdabdd8afe6d6bd90cf6d5a282c07a7",
+  "archive": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-dma-headroom-01-SensorArray.elf.gz",
+  "archive_sha256": "b2fdb192046e27e40bd83764f72629d347c7c5cd463c87deced2ab3deb2ed696",
+  "commands": [
+    [
+      "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+      "-d",
+      "--disassemble=ieee80211_hostap_attach",
+      "/tmp/wifi-memory-trace-wifi-dma-headroom-01.elf"
+    ],
+    [
+      "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+      "-d",
+      "--disassemble=wifi_softap_start",
+      "/tmp/wifi-memory-trace-wifi-dma-headroom-01.elf"
+    ],
+    [
+      "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line",
+      "-f",
+      "-C",
+      "-e",
+      "/tmp/wifi-memory-trace-wifi-dma-headroom-01.elf",
+      "0x420c9c8d",
+      "0x420ca81e"
+    ]
+  ],
+  "panic_source": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-panic-01.summary.json",
+  "panic_source_sha256": "d26221b5606c1e312198013d10cc31020c3c19331eed267b6763c55162156ba3",
+  "raw_ra": "0x820ca821",
+  "normalized_return_pc": "0x420ca821",
+  "preceding_call_site": "0x420ca81e",
+  "evidence_limit": "AP07 has no post-attempt MEMFAIL; static beacon-allocation calls preceding a null-base load do not establish a measured allocator failure.",
+  "artifacts": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-allocator-path-02/ieee80211_hostap_attach.txt",
+      "sha256": "91b4bf3ca51b1d76cdbb4d5375f88771e0dbe8b3e4ea8ad48eeeb1eef9d2c727"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-allocator-path-02/symbolization.txt",
+      "sha256": "fd809e4ad9d29b0dde1a368309872c05dc3450431fd2b66fab25547b6220295b"
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-allocator-path-02/wifi_softap_start.txt",
+      "sha256": "8aa3aca64b3ae59b92258d8658561b9974f621e310acea18132716c3e2199aaf"
+    }
+  ]
+}

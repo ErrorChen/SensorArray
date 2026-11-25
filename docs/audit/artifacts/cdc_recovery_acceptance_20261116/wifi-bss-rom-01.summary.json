@@ -1,0 +1,210 @@
+{
+  "status": "NEW_USJ_EPOCH_OBSERVED_ROM_UNVERIFIED",
+  "expected": {
+    "elfSha256": "2fed45c22153b580aef27584107809d15cdabdd8afe6d6bd90cf6d5a282c07a7",
+    "session": "DC4763F0436668C0",
+    "bootId": "2"
+  },
+  "action_attempts": 1,
+  "ROM_execution": "UNVERIFIED",
+  "flash_written": false,
+  "modem_reset_requested": false,
+  "input_flushed": false,
+  "initial_inventory": [
+    {
+      "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2",
+      "sysfs_name": "3-2",
+      "vid": "303a",
+      "pid": "1001",
+      "busnum": 3,
+      "devnum": 11,
+      "serial_raw": "80:B5:4E:CD:D9:AC",
+      "serial": "80B54ECDD9AC",
+      "interfaces": [
+        {
+          "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.0",
+          "number": "00",
+          "class": "02",
+          "subclass": "02",
+          "protocol": "00"
+        },
+        {
+          "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.1",
+          "number": "01",
+          "class": "0a",
+          "subclass": "02",
+          "protocol": "00"
+        },
+        {
+          "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.2",
+          "number": "02",
+          "class": "ff",
+          "subclass": "ff",
+          "protocol": "01"
+        }
+      ],
+      "ttys": [
+        "/dev/ttyACM0"
+      ],
+      "speed_mbps_sysfs": "12"
+    }
+  ],
+  "replies": {
+    "CONFIG_open": {
+      "session": "DC4763F0436668C0",
+      "bootId": "2",
+      "rev": "1",
+      "boundary": "1",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "1",
+      "mrid": "0",
+      "rgen": "1",
+      "rrid": "0",
+      "pgen": "1",
+      "prid": "0",
+      "mtermId": "0",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "0",
+      "pterm": "none",
+      "perr": "0x0",
+      "rtermId": "0",
+      "rterm": "none",
+      "rerr": "0x0"
+    },
+    "BUILD?": {
+      "idf": "v5.5.5",
+      "target": "esp32s3",
+      "project": "SensorArray",
+      "proto": "2",
+      "version": "ad0f9ef-dirty",
+      "elfSha256": "2fed45c22153b580aef27584107809d15cdabdd8afe6d6bd90cf6d5a282c07a7"
+    },
+    "USB?": {
+      "backend": "serial_jtag",
+      "init": "0",
+      "err": "0x0",
+      "mounted": "0",
+      "suspended": "0",
+      "dma": "0",
+      "epoch": "0",
+      "resets": "0",
+      "mounts": "0",
+      "unmounts": "0",
+      "rxBytes": "0",
+      "rxDrop": "0",
+      "rxOver": "0",
+      "lastRxUs": "0",
+      "lastTxUs": "0",
+      "romAvailable": "1",
+      "quiesced": "0",
+      "pcReceipt": "unknown",
+      "dataDtr": "unknown",
+      "debugDtr": "unknown"
+    },
+    "RESTART?": {
+      "session": "DC4763F0436668C0",
+      "bootId": "2",
+      "busy": "0",
+      "phase": "none",
+      "pendingId": "0",
+      "pendingKnown": "0",
+      "pendingRev": "0",
+      "lastId": "0",
+      "last": "none",
+      "reason": "none",
+      "acceptedKnown": "0",
+      "acceptedRev": "0",
+      "resultKnown": "0",
+      "rev": "0",
+      "boundary": "0",
+      "originalError": "0x0",
+      "publishError": "0x0",
+      "terminalQueued": "0",
+      "serialQueued": "0",
+      "serialError": "0x0",
+      "netQueued": "0",
+      "netError": "0x0",
+      "target": "application"
+    },
+    "CONFIG_close": {
+      "session": "DC4763F0436668C0",
+      "bootId": "2",
+      "rev": "1",
+      "boundary": "1",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "1",
+      "mrid": "0",
+      "rgen": "1",
+      "rrid": "0",
+      "pgen": "1",
+      "prid": "0",
+      "mtermId": "0",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "0",
+      "pterm": "none",
+      "perr": "0x0",
+      "rtermId": "0",
+      "rterm": "none",
+      "rerr": "0x0"
+    }
+  },
+  "local_publication": {
+    "cmd": "RESTART",
+    "id": "1",
+    "state": "accepted",
+    "target": "rom_download"
+  },
+  "new_device": {
+    "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2",
+    "sysfs_name": "3-2",
+    "vid": "303a",
+    "pid": "1001",
+    "busnum": 3,
+    "devnum": 12,
+    "serial_raw": "80:B5:4E:CD:D9:AC",
+    "serial": "80B54ECDD9AC",
+    "interfaces": [
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.0",
+        "number": "00",
+        "class": "02",
+        "subclass": "02",
+        "protocol": "00"
+      },
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.1",
+        "number": "01",
+        "class": "0a",
+        "subclass": "02",
+        "protocol": "00"
+      },
+      {
+        "sysfs_path": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-2/3-2:1.2",
+        "number": "02",
+        "class": "ff",
+        "subclass": "ff",
+        "protocol": "01"
+      }
+    ],
+    "ttys": [
+      "/dev/ttyACM1"
+    ],
+    "speed_mbps_sysfs": "12"
+  },
+  "elapsed_seconds": 32.58566315099597,
+  "source_sha256": "62ef3c21b74a30711ad5da2ffde95e4b1d6018c5589795551992b25ffb0b5ba6",
+  "inputs": {
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-rom-01.rx.bin": "1700e5e09fe4c39101321340f3b3e7dfb0d15a9db6600f9c159fea5d254eee7b",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-bss-rom-01.events.jsonl": "49a4efe5e02eea178d2ae74dbb9e307f3fb8ece8625ca158a0e13bd4b1f133da"
+  }
+}

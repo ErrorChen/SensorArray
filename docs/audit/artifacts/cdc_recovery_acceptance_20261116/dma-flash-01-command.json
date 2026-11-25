@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/csc/.espressif/python_env/idf5.5_py3.12_env/bin/python",
+    "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/flash_app_usj.py",
+    "wifi-dma-headroom-01",
+    "--port",
+    "/dev/ttyACM0",
+    "--before",
+    "no_reset"
+  ],
+  "cwd": "/home/csc/esp/workspace/SensorArray",
+  "timeout_seconds": 360.0,
+  "head": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "dirty_diff_sha256": "e50436541f65ac273840d095e472e6fc1429194a6da24028ce7ad9466ec75ec3",
+  "started_utc": "2026-11-25T05:29:19.201408+00:00",
+  "started_monotonic": 173952.658354318,
+  "log": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-flash-01-command.txt",
+  "exit_code": 0,
+  "finished_utc": "2026-11-25T05:29:31.796897+00:00",
+  "finished_monotonic": 173965.253846966,
+  "log_sha256": "e62be78a75ce294d3b3a0382e7cb0e208c546b5dfc9f1e58512e58f52d67ada5"
+}

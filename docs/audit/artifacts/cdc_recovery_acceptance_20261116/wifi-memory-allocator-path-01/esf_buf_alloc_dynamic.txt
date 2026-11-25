@@ -1,0 +1,172 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+421195dc <esf_buf_alloc_dynamic>:
+421195dc:	006136        	entry	a1, 48
+421195df:	081252        	l16ui	a5, a2, 16
+421195e2:	080262        	l8ui	a6, a2, 8
+421195e5:	0c0272        	l8ui	a7, a2, 12
+421195e8:	050516        	beqz	a5, 4211963c <esf_buf_alloc_dynamic+0x60>
+421195eb:	943651        	l32r	a5, 420fe6c4 <mbedtls_base64_decode+0x18c> (3fcef940 <g_osi_funcs_p>)
+421195ee:	fda491        	l32r	a9, 42118c80 <ieee80211_post_hmac_tx+0x50> (3fcef91c <g_wifi_global_lock>)
+421195f1:	0588      	l32i.n	a8, a5, 0
+421195f3:	09a8      	l32i.n	a10, a9, 0
+421195f5:	152882        	l32i	a8, a8, 84
+421195f8:	1199      	s32i.n	a9, a1, 4
+421195fa:	0008e0        	callx8	a8
+421195fd:	071282        	l16ui	a8, a2, 14
+42119600:	0812c2        	l16ui	a12, a2, 16
+42119603:	05a8      	l32i.n	a10, a5, 0
+42119605:	3512b1        	l32r	a11, 420e6a50 <lmacEndRetryAMPDUFail+0x70> (3fcc98d0 <g_lmac_cnt>)
+42119608:	1198      	l32i.n	a9, a1, 4
+4211960a:	566a      	add.n	a5, a6, a6
+4211960c:	1438c7        	bltu	a8, a12, 42119624 <esf_buf_alloc_dynamic+0x48>
+4211960f:	556a      	add.n	a5, a5, a6
+42119611:	a055b0        	addx4	a5, a5, a11
+42119614:	051522        	l16ui	a2, a5, 10
+42119617:	221b      	addi.n	a2, a2, 1
+42119619:	055522        	s16i	a2, a5, 10
+4211961c:	162a22        	l32i	a2, a10, 88
+4211961f:	09a8      	l32i.n	a10, a9, 0
+42119621:	005306        	j	42119771 <esf_buf_alloc_dynamic+0x195>
+42119624:	556a      	add.n	a5, a5, a6
+42119626:	a055b0        	addx4	a5, a5, a11
+42119629:	881b      	addi.n	a8, a8, 1
+4211962b:	075282        	s16i	a8, a2, 14
+4211962e:	0588      	l32i.n	a8, a5, 0
+42119630:	881b      	addi.n	a8, a8, 1
+42119632:	0589      	s32i.n	a8, a5, 0
+42119634:	162a52        	l32i	a5, a10, 88
+42119637:	09a8      	l32i.n	a10, a9, 0
+42119639:	0005e0        	callx8	a5
+4211963c:	950c      	movi.n	a5, 9
+4211963e:	0e3567        	bltu	a5, a6, 42119650 <esf_buf_alloc_dynamic+0x74>
+42119641:	1c76f6        	bgeui	a6, 7, 42119661 <esf_buf_alloc_dynamic+0x85>
+42119644:	560b      	addi.n	a5, a6, -1
+42119646:	745050        	extui	a5, a5, 0, 8
+42119649:	2845f6        	bgeui	a5, 4, 42119675 <esf_buf_alloc_dynamic+0x99>
+4211964c:	0000c6        	j	42119653 <esf_buf_alloc_dynamic+0x77>
+4211964f:	966600        	ee.ldf.64.xp	f6, f9, a0, a6
+42119652:	1c5121        	l32r	a2, 420e0798 <scan_get_type+0x654> (74404095 <_rtc_reserved_end+0x14304095>)
+42119655:	c3a294        	ee.vld.128.ip	q1, a9, 0xfffffa20
+42119658:	055864        	ee.ldqa.u16.128.ip	a6, 0x580
+4211965b:	562552        	l32i	a5, a5, 0x158
+4211965e:	000286        	j	4211966c <esf_buf_alloc_dynamic+0x90>
+42119661:	941851        	l32r	a5, 420fe6c4 <mbedtls_base64_decode+0x18c> (3fcef940 <g_osi_funcs_p>)
+42119664:	64c3a2        	addi	a10, a3, 100
+42119667:	0558      	l32i.n	a5, a5, 0
+42119669:	5a2552        	l32i	a5, a5, 0x168
+4211966c:	aa7a      	add.n	a10, a10, a7
+4211966e:	0005e0        	callx8	a5
+42119671:	000206        	j	4211967d <esf_buf_alloc_dynamic+0xa1>
+42119674:	06ad00        	ee.ldf.64.xp	f10, f0, a0, a13
+42119677:	201110        	or	a1, a1, a1
+4211967a:	ccf125        	call8	420e658c <esf_buf_alloc_dynamic_default_handler>
+4211967d:	0a5d      	mov.n	a5, a10
+4211967f:	0a6a16        	beqz	a10, 42119729 <esf_buf_alloc_dynamic+0x14d>
+42119682:	60a0c2        	movi	a12, 96
+42119685:	0b0c      	movi.n	a11, 0
+42119687:	49af81        	l32r	a8, 420ebd44 <pp_timer_process+0x584> (400011e8 <memset>)
+4211968a:	0008e0        	callx8	a8
+4211968d:	3cc582        	addi	a8, a5, 60
+42119690:	30c5d2        	addi	a13, a5, 48
+42119693:	b589      	s32i.n	a8, a5, 44
+42119695:	60c582        	addi	a8, a5, 96
+42119698:	15d9      	s32i.n	a13, a5, 4
+4211969a:	4589      	s32i.n	a8, a5, 16
+4211969c:	07cd      	mov.n	a12, a7
+4211969e:	0b0c      	movi.n	a11, 0
+421196a0:	08ad      	mov.n	a10, a8
+421196a2:	01d9      	s32i.n	a13, a1, 0
+421196a4:	1159      	s32i.n	a5, a1, 4
+421196a6:	49a781        	l32r	a8, 420ebd44 <pp_timer_process+0x584> (400011e8 <memset>)
+421196a9:	0008e0        	callx8	a8
+421196ac:	1228      	l32i.n	a2, a2, 4
+421196ae:	01d8      	l32i.n	a13, a1, 0
+421196b0:	0a8d      	mov.n	a8, a10
+421196b2:	f529      	s32i.n	a2, a5, 60
+421196b4:	1a0c      	movi.n	a10, 1
+421196b6:	102522        	l32i	a2, a5, 64
+421196b9:	0655a2        	s16i	a10, a5, 12
+421196bc:	fa0c      	movi.n	a10, 15
+421196be:	2022a0        	or	a2, a2, a10
+421196c1:	ffc5c1        	l32r	a12, 421195d8 <ppRegressAmpdu+0x78> (ffb <_rtc_slow_length+0xe0b>)
+421196c4:	a87a      	add.n	a10, a8, a7
+421196c6:	106522        	s32i	a2, a5, 64
+421196c9:	25d9      	s32i.n	a13, a5, 8
+421196cb:	d5a9      	s32i.n	a10, a5, 52
+421196cd:	273a      	add.n	a2, a7, a3
+421196cf:	1198      	l32i.n	a9, a1, 4
+421196d1:	f4b030        	extui	a11, a3, 0, 16
+421196d4:	16bc27        	bgeu	a12, a2, 421196ee <esf_buf_alloc_dynamic+0x112>
+421196d7:	0020c0        	memw
+421196da:	c528      	l32i.n	a2, a5, 48
+421196dc:	f77c      	movi.n	a7, -1
+421196de:	117740        	slli	a7, a7, 12
+421196e1:	102270        	and	a2, a2, a7
+421196e4:	ffa372        	movi	a7, 0x3ff
+421196e7:	1177e0        	slli	a7, a7, 2
+421196ea:	000646        	j	42119707 <esf_buf_alloc_dynamic+0x12b>
+421196ed:	00          	.byte	00
+421196ee:	882a      	add.n	a8, a8, a2
+421196f0:	3d9621        	l32r	a2, 420e8d48 <wDev_Rxbuf_Deinit+0x7c> (deadbeef <_rtc_reserved_end+0x7e9dbeef>)
+421196f3:	7b7a      	add.n	a7, a11, a7
+421196f5:	0829      	s32i.n	a2, a8, 0
+421196f7:	0020c0        	memw
+421196fa:	c528      	l32i.n	a2, a5, 48
+421196fc:	f87c      	movi.n	a8, -1
+421196fe:	118840        	slli	a8, a8, 12
+42119701:	b47070        	extui	a7, a7, 0, 12
+42119704:	102280        	and	a2, a2, a8
+42119707:	202270        	or	a2, a2, a7
+4211970a:	0020c0        	memw
+4211970d:	c529      	s32i.n	a2, a5, 48
+4211970f:	0b55b2        	s16i	a11, a5, 22
+42119712:	1a4562        	s8i	a6, a5, 26
+42119715:	05d416        	beqz	a4, 42119776 <esf_buf_alloc_dynamic+0x19a>
+42119718:	03cd      	mov.n	a12, a3
+4211971a:	04bd      	mov.n	a11, a4
+4211971c:	1199      	s32i.n	a9, a1, 4
+4211971e:	498881        	l32r	a8, 420ebd40 <pp_timer_process+0x580> (400011f4 <memcpy>)
+42119721:	0008e0        	callx8	a8
+42119724:	1198      	l32i.n	a9, a1, 4
+42119726:	001306        	j	42119776 <esf_buf_alloc_dynamic+0x19a>
+42119729:	081232        	l16ui	a3, a2, 16
+4211972c:	090c      	movi.n	a9, 0
+4211972e:	441397        	beq	a3, a9, 42119776 <esf_buf_alloc_dynamic+0x19a>
+42119731:	93e471        	l32r	a7, 420fe6c4 <mbedtls_base64_decode+0x18c> (3fcef940 <g_osi_funcs_p>)
+42119734:	fd5341        	l32r	a4, 42118c80 <ieee80211_post_hmac_tx+0x50> (3fcef91c <g_wifi_global_lock>)
+42119737:	0738      	l32i.n	a3, a7, 0
+42119739:	04a8      	l32i.n	a10, a4, 0
+4211973b:	152332        	l32i	a3, a3, 84
+4211973e:	0003e0        	callx8	a3
+42119741:	071252        	l16ui	a5, a2, 14
+42119744:	34c381        	l32r	a8, 420e6a50 <lmacEndRetryAMPDUFail+0x70> (3fcc98d0 <g_lmac_cnt>)
+42119747:	366a      	add.n	a3, a6, a6
+42119749:	059c      	beqz.n	a5, 4211975d <esf_buf_alloc_dynamic+0x181>
+4211974b:	550b      	addi.n	a5, a5, -1
+4211974d:	075252        	s16i	a5, a2, 14
+42119750:	236a      	add.n	a2, a3, a6
+42119752:	a02280        	addx4	a2, a2, a8
+42119755:	0258      	l32i.n	a5, a2, 0
+42119757:	01c552        	addi	a5, a5, 1
+4211975a:	006252        	s32i	a5, a2, 0
+4211975d:	336a      	add.n	a3, a3, a6
+4211975f:	a03380        	addx4	a3, a3, a8
+42119762:	041322        	l16ui	a2, a3, 8
+42119765:	04a8      	l32i.n	a10, a4, 0
+42119767:	221b      	addi.n	a2, a2, 1
+42119769:	045322        	s16i	a2, a3, 8
+4211976c:	0728      	l32i.n	a2, a7, 0
+4211976e:	162222        	l32i	a2, a2, 88
+42119771:	0002e0        	callx8	a2
+42119774:	090c      	movi.n	a9, 0
+42119776:	092d      	mov.n	a2, a9
+42119778:	f01d      	retw.n

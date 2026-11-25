@@ -1,0 +1,5 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-coexist-01/dma-ble-01.ble.ready.json", "schema_version": 1, "monotonic_ns": 173987989047144, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.787784710992128, "notifications": {"D": 471}, "payload_bytes": {"D": 222393}}
+{"status": "ERROR", "error": "RuntimeError('BLE_disconnected_no_reconnect');cleanup_errors", "stop_reason": "runtime_disconnect", "notification_counts": {"D": 634}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/dma-coexist-01/dma-ble-01.ble.notifications.jsonl", "journal_sha256": "84b8f415207c5d6111b0041943e66b674993860df92f478b0ef8901273d5baec"}

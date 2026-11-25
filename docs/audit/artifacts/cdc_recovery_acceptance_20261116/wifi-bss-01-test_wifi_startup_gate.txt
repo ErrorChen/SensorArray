@@ -1,0 +1,1 @@
+WIFI_STARTUP_GATE_PASS,orders=2,concurrent=1000,failed_scan=1,hardware=NOT_RUN

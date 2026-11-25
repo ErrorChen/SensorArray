@@ -1,0 +1,195 @@
+
+/tmp/wifi-memory-trace-heap-failure-02.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420e8d4c <wDev_Rxbuf_Init>:
+420e8d4c:	008136        	entry	a1, 64
+420e8d4f:	746741        	l32r	a4, 420c5eec <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420e8d52:	90a220        	addx2	a10, a2, a2
+420e8d55:	002432        	l32i	a3, a4, 0
+420e8d58:	11aae0        	slli	a10, a10, 2
+420e8d5b:	592332        	l32i	a3, a3, 0x164
+420e8d5e:	f4a0a0        	extui	a10, a10, 0, 16
+420e8d61:	0003e0        	callx8	a3
+420e8d64:	e72931        	l32r	a3, 420e2a08 <pm_enable_disconnected_sleep_delay_timer+0x44> (3fcad410 <wDevCtrl>)
+420e8d67:	23a9      	s32i.n	a10, a3, 8
+420e8d69:	2adc      	bnez.n	a10, 420e8d7f <wDev_Rxbuf_Init+0x33>
+420e8d6b:	1c0c      	movi.n	a12, 1
+420e8d6d:	ffeed1        	l32r	a13, 420e8d28 <wDev_Rxbuf_Deinit+0x5c> (3c15f953 <__chclass+0x1613>)
+420e8d70:	02ed      	mov.n	a14, a2
+420e8d72:	0cbd      	mov.n	a11, a12
+420e8d74:	6a0c      	movi.n	a10, 6
+420e8d76:	201110        	or	a1, a1, a1
+420e8d79:	e41be5        	call8	420ccf38 <wifi_log>
+420e8d7c:	004e86        	j	420e8eba <wDev_Rxbuf_Init+0x16e>
+420e8d7f:	7b1951        	l32r	a5, 420c79e4 <ieee80211_amsdu_encap_check+0x64> (3fcc8108 <g_wifi_menuconfig>)
+420e8d82:	f11341        	l32r	a4, 420e51d0 <pp_default_event_handler+0x1c> (3fcef954 <pTxRx>)
+420e8d85:	6588      	l32i.n	a8, a5, 24
+420e8d87:	0478      	l32i.n	a7, a4, 0
+420e8d89:	488c      	beqz.n	a8, 420e8d91 <wDev_Rxbuf_Init+0x45>
+420e8d8b:	ffe881        	l32r	a8, 420e8d2c <wDev_Rxbuf_Deinit+0x60> (8a4 <_rtc_slow_length+0x6b4>)
+420e8d8e:	ee6782        	s32i	a8, a7, 0x3b8
+420e8d91:	ee27e2        	l32i	a14, a7, 0x3b8
+420e8d94:	ffe7d1        	l32r	a13, 420e8d30 <wDev_Rxbuf_Deinit+0x64> (3c160cb0 <__chclass+0x2970>)
+420e8d97:	3c0c      	movi.n	a12, 3
+420e8d99:	1b0c      	movi.n	a11, 1
+420e8d9b:	06a0a2        	movi	a10, 6
+420e8d9e:	201110        	or	a1, a1, a1
+420e8da1:	e41965        	call8	420ccf38 <wifi_log>
+420e8da4:	0448      	l32i.n	a4, a4, 0
+420e8da6:	f49020        	extui	a9, a2, 0, 16
+420e8da9:	ee2442        	l32i	a4, a4, 0x3b8
+420e8dac:	2388      	l32i.n	a8, a3, 8
+420e8dae:	444b      	addi.n	a4, a4, 4
+420e8db0:	f46040        	extui	a6, a4, 0, 16
+420e8db3:	4199      	s32i.n	a9, a1, 16
+420e8db5:	050c      	movi.n	a5, 0
+420e8db7:	017d      	mov.n	a7, a1
+420e8db9:	b44040        	extui	a4, a4, 0, 12
+420e8dbc:	002946        	j	420e8e65 <wDev_Rxbuf_Init+0x119>
+420e8dbf:	a10000        	sll	a0, a0
+420e8dc2:	744a      	add.n	a7, a4, a4
+420e8dc4:	0a98      	l32i.n	a9, a10, 0
+420e8dc6:	06ad      	mov.n	a10, a6
+420e8dc8:	562992        	l32i	a9, a9, 0x158
+420e8dcb:	056182        	s32i	a8, a1, 20
+420e8dce:	0009e0        	callx8	a9
+420e8dd1:	5188      	l32i.n	a8, a1, 20
+420e8dd3:	1adc      	bnez.n	a10, 420e8de8 <wDev_Rxbuf_Init+0x9c>
+420e8dd5:	ffd7d1        	l32r	a13, 420e8d34 <wDev_Rxbuf_Deinit+0x68> (3c16206b <__chclass+0x3d2b>)
+420e8dd8:	2c0c      	movi.n	a12, 2
+420e8dda:	1b0c      	movi.n	a11, 1
+420e8ddc:	6a0c      	movi.n	a10, 6
+420e8dde:	201110        	or	a1, a1, a1
+420e8de1:	e41565        	call8	420ccf38 <wifi_log>
+420e8de4:	0023c6        	j	420e8e77 <wDev_Rxbuf_Init+0x12b>
+420e8de7:	00          	.byte	00
+420e8de8:	0b0c      	movi.n	a11, 0
+420e8dea:	06cd      	mov.n	a12, a6
+420e8dec:	5189      	s32i.n	a8, a1, 20
+420e8dee:	7b7281        	l32r	a8, 420c7bb8 <ieee80211_encap_amsdu+0x1cc> (400011e8 <memset>)
+420e8df1:	0008e0        	callx8	a8
+420e8df4:	5188      	l32i.n	a8, a1, 20
+420e8df6:	770eb1        	l32r	a11, 420c6a30 <ieee80211_setup_robust_mgmtframe+0xb8> (ff000fff <_rtc_reserved_end+0x9ef00fff>)
+420e8df9:	0020c0        	memw
+420e8dfc:	0898      	l32i.n	a9, a8, 0
+420e8dfe:	18a9      	s32i.n	a10, a8, 4
+420e8e00:	fa7c      	movi.n	a10, -1
+420e8e02:	11aa40        	slli	a10, a10, 12
+420e8e05:	1099a0        	and	a9, a9, a10
+420e8e08:	209940        	or	a9, a9, a4
+420e8e0b:	0020c0        	memw
+420e8e0e:	0899      	s32i.n	a9, a8, 0
+420e8e10:	0020c0        	memw
+420e8e13:	0898      	l32i.n	a9, a8, 0
+420e8e15:	fa7c      	movi.n	a10, -1
+420e8e17:	01aa10        	slli	a10, a10, 31
+420e8e1a:	2099a0        	or	a9, a9, a10
+420e8e1d:	0020c0        	memw
+420e8e20:	0899      	s32i.n	a9, a8, 0
+420e8e22:	0020c0        	memw
+420e8e25:	08a8      	l32i.n	a10, a8, 0
+420e8e27:	0020c0        	memw
+420e8e2a:	0898      	l32i.n	a9, a8, 0
+420e8e2c:	b4a0a0        	extui	a10, a10, 0, 12
+420e8e2f:	11aa40        	slli	a10, a10, 12
+420e8e32:	1099b0        	and	a9, a9, a11
+420e8e35:	2099a0        	or	a9, a9, a10
+420e8e38:	0020c0        	memw
+420e8e3b:	0899      	s32i.n	a9, a8, 0
+420e8e3d:	0020c0        	memw
+420e8e40:	0898      	l32i.n	a9, a8, 0
+420e8e42:	ffbda1        	l32r	a10, 420e8d38 <wDev_Rxbuf_Deinit+0x6c> (bfffffff <_rtc_reserved_end+0x5fefffff>)
+420e8e45:	551b      	addi.n	a5, a5, 1
+420e8e47:	1099a0        	and	a9, a9, a10
+420e8e4a:	0020c0        	memw
+420e8e4d:	0899      	s32i.n	a9, a8, 0
+420e8e4f:	0020c0        	memw
+420e8e52:	0898      	l32i.n	a9, a8, 0
+420e8e54:	76f6a1        	l32r	a10, 420c6a2c <ieee80211_setup_robust_mgmtframe+0xb4> (dfffffff <_rtc_reserved_end+0x7fefffff>)
+420e8e57:	1099a0        	and	a9, a9, a10
+420e8e5a:	0020c0        	memw
+420e8e5d:	0899      	s32i.n	a9, a8, 0
+420e8e5f:	2789      	s32i.n	a8, a7, 8
+420e8e61:	087d      	mov.n	a7, a8
+420e8e63:	88cb      	addi.n	a8, a8, 12
+420e8e65:	4198      	l32i.n	a9, a1, 16
+420e8e67:	02a597        	bge	a5, a9, 420e8e6d <wDev_Rxbuf_Init+0x121>
+420e8e6a:	ffd4c6        	j	420e8dc1 <wDev_Rxbuf_Init+0x75>
+420e8e6d:	040c      	movi.n	a4, 0
+420e8e6f:	2749      	s32i.n	a4, a7, 8
+420e8e71:	2148      	l32i.n	a4, a1, 8
+420e8e73:	1379      	s32i.n	a7, a3, 4
+420e8e75:	0349      	s32i.n	a4, a3, 0
+420e8e77:	ffb1d1        	l32r	a13, 420e8d3c <wDev_Rxbuf_Deinit+0x70> (3c160c92 <__chclass+0x2952>)
+420e8e7a:	05ed      	mov.n	a14, a5
+420e8e7c:	3c0c      	movi.n	a12, 3
+420e8e7e:	1b0c      	movi.n	a11, 1
+420e8e80:	6a0c      	movi.n	a10, 6
+420e8e82:	201110        	or	a1, a1, a1
+420e8e85:	e40b25        	call8	420ccf38 <wifi_log>
+420e8e88:	7ad7a1        	l32r	a10, 420c79e4 <ieee80211_amsdu_encap_check+0x64> (3fcc8108 <g_wifi_menuconfig>)
+420e8e8b:	ffadd1        	l32r	a13, 420e8d40 <wDev_Rxbuf_Deinit+0x74> (3c160c73 <__chclass+0x2933>)
+420e8e8e:	1ae8      	l32i.n	a14, a10, 4
+420e8e90:	3c0c      	movi.n	a12, 3
+420e8e92:	1b0c      	movi.n	a11, 1
+420e8e94:	6a0c      	movi.n	a10, 6
+420e8e96:	201110        	or	a1, a1, a1
+420e8e99:	e409e5        	call8	420ccf38 <wifi_log>
+420e8e9c:	20b527        	bgeu	a5, a2, 420e8ec0 <wDev_Rxbuf_Init+0x174>
+420e8e9f:	1c0c      	movi.n	a12, 1
+420e8ea1:	ffa8d1        	l32r	a13, 420e8d44 <wDev_Rxbuf_Deinit+0x78> (3c15f927 <__chclass+0x15e7>)
+420e8ea4:	05fd      	mov.n	a15, a5
+420e8ea6:	02ed      	mov.n	a14, a2
+420e8ea8:	20bcc0        	or	a11, a12, a12
+420e8eab:	06a0a2        	movi	a10, 6
+420e8eae:	201110        	or	a1, a1, a1
+420e8eb1:	e40865        	call8	420ccf38 <wifi_log>
+420e8eb4:	201110        	or	a1, a1, a1
+420e8eb7:	ffe165        	call8	420e8ccc <wDev_Rxbuf_Deinit>
+420e8eba:	01a122        	movi	a2, 0x101
+420e8ebd:	001846        	j	420e8f22 <wDev_Rxbuf_Init+0x1d6>
+420e8ec0:	0328      	l32i.n	a2, a3, 0
+420e8ec2:	76db71        	l32r	a7, 420c6a30 <ieee80211_setup_robust_mgmtframe+0xb8> (ff000fff <_rtc_reserved_end+0x9ef00fff>)
+420e8ec5:	ffa061        	l32r	a6, 420e8d48 <wDev_Rxbuf_Deinit+0x7c> (deadbeef <_rtc_reserved_end+0x7e9dbeef>)
+420e8ec8:	001406        	j	420e8f1c <wDev_Rxbuf_Init+0x1d0>
+420e8ecb:	20c000        	or	a12, a0, a0
+420e8ece:	024800        	andb	b4, b8, b0
+420e8ed1:	f87c      	movi.n	a8, -1
+420e8ed3:	0020c0        	memw
+420e8ed6:	0258      	l32i.n	a5, a2, 0
+420e8ed8:	b44040        	extui	a4, a4, 0, 12
+420e8edb:	fcc442        	addi	a4, a4, -4
+420e8ede:	118840        	slli	a8, a8, 12
+420e8ee1:	105580        	and	a5, a5, a8
+420e8ee4:	b44040        	extui	a4, a4, 0, 12
+420e8ee7:	204540        	or	a4, a5, a4
+420e8eea:	0020c0        	memw
+420e8eed:	0249      	s32i.n	a4, a2, 0
+420e8eef:	0020c0        	memw
+420e8ef2:	0258      	l32i.n	a5, a2, 0
+420e8ef4:	0020c0        	memw
+420e8ef7:	0248      	l32i.n	a4, a2, 0
+420e8ef9:	b45050        	extui	a5, a5, 0, 12
+420e8efc:	115540        	slli	a5, a5, 12
+420e8eff:	104470        	and	a4, a4, a7
+420e8f02:	204450        	or	a4, a4, a5
+420e8f05:	0020c0        	memw
+420e8f08:	0249      	s32i.n	a4, a2, 0
+420e8f0a:	1248      	l32i.n	a4, a2, 4
+420e8f0c:	0469      	s32i.n	a6, a4, 0
+420e8f0e:	0020c0        	memw
+420e8f11:	0258      	l32i.n	a5, a2, 0
+420e8f13:	b45050        	extui	a5, a5, 0, 12
+420e8f16:	445a      	add.n	a4, a4, a5
+420e8f18:	0469      	s32i.n	a6, a4, 0
+420e8f1a:	2228      	l32i.n	a2, a2, 8
+420e8f1c:	fac256        	bnez	a2, 420e8ecc <wDev_Rxbuf_Init+0x180>
+420e8f1f:	304322        	s8i	a2, a3, 48
+420e8f22:	f01d      	retw.n

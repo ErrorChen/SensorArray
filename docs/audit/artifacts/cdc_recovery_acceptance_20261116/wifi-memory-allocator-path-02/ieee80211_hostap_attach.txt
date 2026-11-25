@@ -1,0 +1,164 @@
+
+/tmp/wifi-memory-trace-wifi-dma-headroom-01.elf:     file format elf32-xtensa-le
+
+
+Disassembly of section .iram0.vectors:
+
+Disassembly of section .iram0.text:
+
+Disassembly of section .flash.text:
+
+420c9b7c <ieee80211_hostap_attach>:
+420c9b7c:	00c136        	entry	a1, 96
+420c9b7f:	f32431        	l32r	a3, 420c6810 <ieee80211_send_setup+0xfc> (3fca8180 <g_wifi_nvs>)
+420c9b82:	5248      	l32i.n	a4, a2, 20
+420c9b84:	002362        	l32i	a6, a3, 0
+420c9b87:	3b2452        	l32i	a5, a4, 236
+420c9b8a:	201110        	or	a1, a1, a1
+420c9b8d:	fff9e5        	call8	420c9b2c <hostap_delete_ptk>
+420c9b90:	0338      	l32i.n	a3, a3, 0
+420c9b92:	03d332        	addmi	a3, a3, 0x300
+420c9b95:	f40332        	l8ui	a3, a3, 244
+420c9b98:	0553f6        	bgeui	a3, 5, 420c9ba1 <ieee80211_hostap_attach+0x25>
+420c9b9b:	7523b6        	bltui	a3, 2, 420c9c14 <ieee80211_hostap_attach+0x98>
+420c9b9e:	000206        	j	420c9baa <ieee80211_hostap_attach+0x2e>
+420c9ba1:	fac332        	addi	a3, a3, -6
+420c9ba4:	743030        	extui	a3, a3, 0, 8
+420c9ba7:	6923f6        	bgeui	a3, 2, 420c9c14 <ieee80211_hostap_attach+0x98>
+420c9baa:	f21a71        	l32r	a7, 420c6414 <coex_schm_init+0x64> (3fcc4924 <g_ic>)
+420c9bad:	5738      	l32i.n	a3, a7, 20
+420c9baf:	a39c      	beqz.n	a3, 420c9bcd <ieee80211_hostap_attach+0x51>
+420c9bb1:	292382        	l32i	a8, a3, 164
+420c9bb4:	091c      	movi.n	a9, 16
+420c9bb6:	208890        	or	a8, a8, a9
+420c9bb9:	296382        	s32i	a8, a3, 164
+420c9bbc:	3b2392        	l32i	a9, a3, 236
+420c9bbf:	380c      	movi.n	a8, 3
+420c9bc1:	a84382        	s8i	a8, a3, 168
+420c9bc4:	3988      	l32i.n	a8, a9, 12
+420c9bc6:	1a0c      	movi.n	a10, 1
+420c9bc8:	2088a0        	or	a8, a8, a10
+420c9bcb:	3989      	s32i.n	a8, a9, 12
+420c9bcd:	6d2772        	l32i	a7, a7, 0x1b4
+420c9bd0:	97dc      	bnez.n	a7, 420c9bed <ieee80211_hostap_attach+0x71>
+420c9bd2:	1c0c      	movi.n	a12, 1
+420c9bd4:	ffe3e1        	l32r	a14, 420c9b60 <hostap_delete_ptk+0x34> (3c165acf <__func__$15+0xd2b>)
+420c9bd7:	ffe3d1        	l32r	a13, 420c9b64 <hostap_delete_ptk+0x38> (3c16e587 <__chclass+0x297>)
+420c9bda:	cba1f2        	movi	a15, 0x1cb
+420c9bdd:	11bc50        	slli	a11, a12, 11
+420c9be0:	0cad      	mov.n	a10, a12
+420c9be2:	201110        	or	a1, a1, a1
+420c9be5:	0390e5        	call8	420cd4f4 <wifi_log>
+420c9be8:	ffff06        	j	420c9be8 <ieee80211_hostap_attach+0x6c>
+420c9beb:	820000        	mull	a0, a0, a0
+420c9bee:	23          	.byte	0x23
+420c9bef:	889c54        	ee.vld.h.64.ip	q1, a5, 224
+420c9bf2:	1c0c      	movi.n	a12, 1
+420c9bf4:	ffdbe1        	l32r	a14, 420c9b60 <hostap_delete_ptk+0x34> (3c165acf <__func__$15+0xd2b>)
+420c9bf7:	ffdcd1        	l32r	a13, 420c9b68 <hostap_delete_ptk+0x3c> (3c16e580 <__chclass+0x290>)
+420c9bfa:	cca1f2        	movi	a15, 0x1cc
+420c9bfd:	11bc50        	slli	a11, a12, 11
+420c9c00:	0cad      	mov.n	a10, a12
+420c9c02:	201110        	or	a1, a1, a1
+420c9c05:	038ee5        	call8	420cd4f4 <wifi_log>
+420c9c08:	ffff06        	j	420c9c08 <ieee80211_hostap_attach+0x8c>
+420c9c0b:	77a800        	ee.stf.64.xp	f10, f7, a0, a8
+420c9c0e:	000ae0        	callx8	a10
+420c9c11:	5463a2        	s32i	a10, a3, 0x150
+420c9c14:	34c1b2        	addi	a11, a1, 52
+420c9c17:	01a0a2        	movi	a10, 1
+420c9c1a:	f4fa81        	l32r	a8, 420c7004 <ieee80211_setup_robust_mgmtframe+0xbc> (40005ab4 <wifi_get_macaddr>)
+420c9c1d:	0008e0        	callx8	a8
+420c9c20:	30a1a2        	movi	a10, 0x130
+420c9c23:	80a4a0        	add	a10, a4, a10
+420c9c26:	201110        	or	a1, a1, a1
+420c9c29:	0337a5        	call8	420ccfa4 <ieee80211_gpsq_init>
+420c9c2c:	070c      	movi.n	a7, 0
+420c9c2e:	d65272        	s16i	a7, a2, 0x1ac
+420c9c31:	ffcea1        	l32r	a10, 420c9b6c <hostap_delete_ptk+0x40> (420c9574 <ieee80211_hostapd_beacon_txcb>)
+420c9c34:	520c      	movi.n	a2, 5
+420c9c36:	266422        	s32i	a2, a4, 152
+420c9c39:	0c0c      	movi.n	a12, 0
+420c9c3b:	04a0b2        	movi	a11, 4
+420c9c3e:	201110        	or	a1, a1, a1
+420c9c41:	1b3b65        	call8	420e4ff8 <ic_register_tx_cb>
+420c9c44:	ffcba1        	l32r	a10, 420c9b70 <hostap_delete_ptk+0x44> (420c9714 <ieee80211_hostapd_ps_txcb>)
+420c9c47:	0c0c      	movi.n	a12, 0
+420c9c49:	cb0c      	movi.n	a11, 12
+420c9c4b:	201110        	or	a1, a1, a1
+420c9c4e:	1b3aa5        	call8	420e4ff8 <ic_register_tx_cb>
+420c9c51:	fec341        	l32r	a4, 420c9760 <cipher_type_map_public_to_internal+0x18> (3fcc2fa4 <g_deauth_mac_list+0xc>)
+420c9c54:	fec431        	l32r	a3, 420c9764 <cipher_type_map_public_to_internal+0x1c> (3fcc2fb8 <g_beacon_eb>)
+420c9c57:	000422        	l8ui	a2, a4, 0
+420c9c5a:	054256        	bnez	a2, 420c9cb2 <ieee80211_hostap_attach+0x136>
+420c9c5d:	fedd21        	l32r	a2, 420c97d4 <ieee80211_free_beacon_eb+0x68> (3fcc2fb4 <g_beacon_idx>)
+420c9c60:	01bd      	mov.n	a11, a1
+420c9c62:	05ad      	mov.n	a10, a5
+420c9c64:	004272        	s8i	a7, a2, 0
+420c9c67:	201110        	or	a1, a1, a1
+420c9c6a:	ff44e5        	call8	420c90b8 <ieee80211_beacon_alloc>
+420c9c6d:	03a9      	s32i.n	a10, a3, 0
+420c9c6f:	170c      	movi.n	a7, 1
+420c9c71:	20a550        	or	a10, a5, a5
+420c9c74:	20b110        	or	a11, a1, a1
+420c9c77:	004272        	s8i	a7, a2, 0
+420c9c7a:	201110        	or	a1, a1, a1
+420c9c7d:	ff43a5        	call8	420c90b8 <ieee80211_beacon_alloc>
+420c9c80:	000222        	l8ui	a2, a2, 0
+420c9c83:	13a9      	s32i.n	a10, a3, 4
+420c9c85:	a02230        	addx4	a2, a2, a3
+420c9c88:	0228      	l32i.n	a2, a2, 0
+420c9c8a:	004472        	s8i	a7, a4, 0
+420c9c8d:	b258      	l32i.n	a5, a2, 44
+420c9c8f:	1228      	l32i.n	a2, a2, 4
+420c9c91:	0558      	l32i.n	a5, a5, 0
+420c9c93:	3148      	l32i.n	a4, a1, 12
+420c9c95:	1228      	l32i.n	a2, a2, 4
+420c9c97:	057527        	bbci	a5, 18, 420c9ca0 <ieee80211_hostap_attach+0x124>
+420c9c9a:	20c222        	addi	a2, a2, 32
+420c9c9d:	000086        	j	420c9ca3 <ieee80211_hostap_attach+0x127>
+420c9ca0:	18c222        	addi	a2, a2, 24
+420c9ca3:	c02420        	sub	a2, a4, a2
+420c9ca6:	da2642        	l32i	a4, a6, 0x368
+420c9ca9:	c02240        	sub	a2, a2, a4
+420c9cac:	fecd41        	l32r	a4, 420c97e0 <ieee80211_free_beacon_eb+0x74> (3fcc2fac <ap_rxcb+0x4>)
+420c9caf:	004422        	s8i	a2, a4, 0
+420c9cb2:	0328      	l32i.n	a2, a3, 0
+420c9cb4:	428c      	beqz.n	a2, 420c9cbc <ieee80211_hostap_attach+0x140>
+420c9cb6:	012322        	l32i	a2, a3, 4
+420c9cb9:	00f256        	bnez	a2, 420c9ccc <ieee80211_hostap_attach+0x150>
+420c9cbc:	ffaed1        	l32r	a13, 420c9b74 <hostap_delete_ptk+0x48> (3c17104e <__chclass+0x2d5e>)
+420c9cbf:	fec7b1        	l32r	a11, 420c97dc <ieee80211_free_beacon_eb+0x70> (20040 <_rtc_slow_length+0x1fe50>)
+420c9cc2:	2c0c      	movi.n	a12, 2
+420c9cc4:	1a0c      	movi.n	a10, 1
+420c9cc6:	201110        	or	a1, a1, a1
+420c9cc9:	0382a5        	call8	420cd4f4 <wifi_log>
+420c9ccc:	f1fc31        	l32r	a3, 420c64bc <ieee80211_reg_netstack_buf_cb+0x14> (3fcef940 <g_osi_funcs_p>)
+420c9ccf:	fe2621        	l32r	a2, 420c9568 <ieee80211_pm_tx_null_process+0x150> (3fcc2fc4 <g_beacon_eb+0xc>)
+420c9cd2:	0348      	l32i.n	a4, a3, 0
+420c9cd4:	02ad      	mov.n	a10, a2
+420c9cd6:	392442        	l32i	a4, a4, 228
+420c9cd9:	0004e0        	callx8	a4
+420c9cdc:	0348      	l32i.n	a4, a3, 0
+420c9cde:	02ad      	mov.n	a10, a2
+420c9ce0:	3a2442        	l32i	a4, a4, 232
+420c9ce3:	0004e0        	callx8	a4
+420c9ce6:	0348      	l32i.n	a4, a3, 0
+420c9ce8:	ffa4b1        	l32r	a11, 420c9b78 <hostap_delete_ptk+0x4c> (420c9628 <ieee80211_hostapd_beacon_txcb+0xb4>)
+420c9ceb:	3b2442        	l32i	a4, a4, 236
+420c9cee:	0c0c      	movi.n	a12, 0
+420c9cf0:	02ad      	mov.n	a10, a2
+420c9cf2:	0004e0        	callx8	a4
+420c9cf5:	201110        	or	a1, a1, a1
+420c9cf8:	1b58e5        	call8	420e5288 <ic_reset_tbtt>
+420c9cfb:	201110        	or	a1, a1, a1
+420c9cfe:	1b53e5        	call8	420e523c <ic_get_next_tbtt>
+420c9d01:	0338      	l32i.n	a3, a3, 0
+420c9d03:	fe1841        	l32r	a4, 420c9564 <ieee80211_pm_tx_null_process+0x14c> (3fcc2fb0 <ap_rxcb+0x8>)
+420c9d06:	382332        	l32i	a3, a3, 224
+420c9d09:	04a9      	s32i.n	a10, a4, 0
+420c9d0b:	0abd      	mov.n	a11, a10
+420c9d0d:	0c0c      	movi.n	a12, 0
+420c9d0f:	02ad      	mov.n	a10, a2
+420c9d11:	0003e0        	callx8	a3
+420c9d14:	f01d      	retw.n

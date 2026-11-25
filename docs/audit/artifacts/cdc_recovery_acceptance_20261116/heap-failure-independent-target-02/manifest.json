@@ -1,0 +1,128 @@
+{
+  "result": "PASS",
+  "P0P1Findings": [],
+  "head": "ad0f9efbd62f0565a01966cbc85da54677fa374d",
+  "idfHead": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+  "elfPath": "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf",
+  "elfSha256Before": "90f10fdaa5a0b859995caba70b1f1c65d3c7f9e19e85b39c81366e699c6e2736",
+  "elfSha256After": "90f10fdaa5a0b859995caba70b1f1c65d3c7f9e19e85b39c81366e699c6e2736",
+  "inspectedInputsSha256": {
+    "/home/csc/esp/workspace/SensorArray/main/control/sensorarrayMemoryDiagnostics.c": "b4417dd5409500b554140dce2120bbe8c110f76900df98dfb587f16c754b6e99",
+    "/home/csc/esp/workspace/SensorArray/main/control/sensorarrayMemoryDiagnostics.h": "fc77d0bed1ba883f6bc4f1210595b35c74f6cc99e1524430f5517bebe9595543",
+    "/home/csc/esp/workspace/SensorArray/main/main.c": "3d5dca1d7017b9a1d492b6e4454fadbfa2c92b9e107426e2c5ec9a903a73fa41",
+    "/home/csc/esp/workspace/SensorArray/tests/host/test_memory_failures.c": "b626f0bca5b954358b24bf70b8e20a6e0678ea48c3e50f3b1c2ed586ebf8d8a0",
+    "/home/csc/esp/workspace/SensorArray/tools/test_memory_diagnostics.py": "ff87465257e995e28e121860ca924a4418b8a115190db0fea5f3b6d501ebe512",
+    "/home/csc/esp/workspace/SensorArray/sdkconfig": "f1ba1ca0ff492eac452219161d985f4677e21684a86be09ea3468a7bd2da6c3a",
+    "/home/csc/esp/workspace/SensorArray/build/config/sdkconfig.h": "9c8b703d0898e3904de83fdee36583890a67bcbc0c577970530f62921a3156d1",
+    "/home/csc/esp/workspace/SensorArray/build/SensorArray.bin": "846d29dea2dfaeee6e8692250b01318927e05eb25b089e42eb14594d43090a29",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_hw_support/include/spinlock.h": "97673e8d7495c206bc4339c677c28912c5579bbf4d8e3f25ecbd929c286789fc",
+    "/home/csc/esp/esp-idf-v5.5.5/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c": "f7cfbbfe924f53c2c40801550d5a57867f58f76c68432efca97ae18fcec89ef8",
+    "/home/csc/esp/esp-idf-v5.5.5/components/esp_hw_support/cpu.c": "84f2586305063244c1a0fcddd6290b17b350dd3a63ad85efae79823859b8826e",
+    "/home/csc/esp/esp-idf-v5.5.5/components/heap/heap_caps.c": "a1ddc96cda0df2758552c611e409bde6358b8b18145470f928a33cb59628f2a1",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-02/host.txt": "506ee7ab9da58d4058ca7d84281c4abfbb18f6ed93bfef5f2a43d1ee688509e7",
+    "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/heap-failure-host-02/manifest.json": "95b1c680af39a97a45a8ea3423f4434c6be39118b14a32889357b4e1907c434c"
+  },
+  "commands": [
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayMemoryAllocationFailed",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=xPortEnterCriticalTimeout",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=vPortExitCritical",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=esp_cpu_compare_and_set",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=heap_caps_alloc_failed",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=heap_caps_register_failed_alloc_callback",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--disassemble=sensorarrayMemoryDiagnosticsFailureFormat",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-d",
+        "--start-address=0x40377544",
+        "--stop-address=0x40377550",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-t",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "/home/csc/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump",
+        "-h",
+        "/home/csc/esp/workspace/SensorArray/build/SensorArray.elf"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "artifactsSha256": {
+    "disassembly.txt": "6aae241abd0d64812e58addb5dd18e3f428cd59eb143f9c5d00087deb77751d2",
+    "review.txt": "4bb08ea05080bd1c70999fa7a04d7344432d10b16769b593bc689ef9b38ef940",
+    "sections.txt": "7d45bf97e2ccef5ecd6d1a3f50b70cd5a4ab58efd70611ba69c7ad64a692927f",
+    "symbols.txt": "2b8cbe4e93d91c7ca10adfcc3f47cfa7cf624cc45a22ee8b6635bdcc91428878"
+  },
+  "reviewLimits": [
+    "No hardware failure injection",
+    "Existing host evidence inspected, not rerun",
+    "ROM interrupt restore body not present in ELF",
+    "Valid SDK lock/context/internal-stack invariants required for cache-disabled path"
+  ]
+}
