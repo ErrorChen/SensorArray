@@ -1,1 +1,0 @@
-docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-01-protection-03.json

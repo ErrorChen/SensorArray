@@ -1,1 +1,0 @@
-{"status": "ROM_ENUMERATION_OBSERVED_NOT_FLASHER_VERIFIED", "error": null, "action_attempts": 1, "elapsed_seconds": 0.5276336620154325}

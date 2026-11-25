@@ -1,485 +1,103 @@
-# 构建、自动测试与 HIL 验证
+# 测试方法总表 / Test methods
 
-本轮指定的 S1D1/S8D8=10 kΩ、S4D4/S5D5=33 pF、其余悬空夹具，见
-[参考夹具验收](validation/reference_fixture_10k_33pf.md)。其精度判定不沿用旧宽松 HIL sanity 阈值。
+本页收录从单点板级调试到正式 USB/BLE 整机验收的方法。按目标选入口，并区分 host 回归、实录回放、实机 HIL 和外部仪器。结果与失败时间线在[迭代记录](history/README.md)。 / Select the method by the question it can answer. Host tests, recordings, live hardware and electrical instruments provide different evidence. See the history for measured outcomes.
 
-## 验证原则
+## 1. 构建、配置与无板回归 / Build, configuration and host regression
 
-以下项目必须分开报告：
-
-```text
-BUILD
-HOST / PROTOCOL TESTS
-SERIAL HIL
-BLE HIL
-CAP / RES / VOLT
-LONG-RUN
-STACK / HEAP / SLOT
-```
-
-build、boot log 或 BLE connect 不能替代端到端验收。缺少串口、硬件或 BLE adapter 时，写明 `NOT RUN` 与原因，不能写 PASS。
-
-## 状态模板与证据边界
-
-任何结论必须落在下列状态之一，不能用“大概通过”“与上次相同”代替：
-
-| Status | 含义 |
-| --- | --- |
-| `PASS` | 本次 freshly run 的 wire log / machine-readable summary 证明门槛全部满足 |
-| `FAIL` | 本次 run 触发失败门槛（CRC、reboot/panic、超时、缺帧等） |
-| `NOT RUN` | 未执行，写明原因（如无 BLE adapter） |
-| `BLOCKED` | 缺少前置条件或外部授权，无法在当前环境执行，写明原因 |
-| `NOT VERIFIED` | 没有同步外部标准/DMM 或未覆盖，不能宣称精度/范围已证明 |
-
-规则：
-
-- 当前硬件证明只来自本次 freshly run；历史 artifact 只保留在“历史实测结果”章节，不能转成当前 PASS。
-- Serial stage 必须在 `/dev/ttyACM0`（或 `--port` 指定端口）先完成；本轮最终验收门槛是当前已烧录 image 的连续 1200 秒（20 分钟）Serial HIL。只有该 stage 返回 PASS 后才启动 BLE，BLE 最终门槛为 600 秒（10 分钟）。120 秒仅用于 smoke/快速回归，不能替代本轮最终门槛。
-- 串口不可用或 serial stage 无法完成时，BLE 直接标 `BLOCKED`/`NOT RUN`，不启动 BLE stage。
-- 自动 HIL 未执行受控 reset 时，`RECOVER`/`RECOVER=0|1|2`/`RESTART` 的 reboot/recovery 验收保持 `BLOCKED`；只有显式受控 reset 与重启后恢复检查才能标 PASS/FAIL。
-- 没有同步 DMM/标准件时，VOLT/RES accuracy 一律 `NOT VERIFIED`，不能因 pipeline sanity 数字写成 PASS。
-
-## Clean build
-
-在 ESP-IDF 5.5.5 环境中：
-
-```powershell
-idf.py --version
-idf.py fullclean
-idf.py build
-```
-
-保存并报告：
-
-- build success/failure；
-- warning 数量和内容；
-- firmware binary size；
-- DRAM、IRAM、BSS；
-- 最终 `sdkconfig` 与 `build/config/sdkconfig.h` 中的 task stack 配置。
-
-不允许新增 format truncation、array bounds、unused static、type conversion 或 stack usage warning。
-
-## Host 与协议测试
-
-使用仓库虚拟环境：
-
-```powershell
-$python = ".\.venv\Scripts\python.exe"
-& $python -c "import ast, pathlib; [ast.parse(path.read_text(encoding='utf-8')) for path in pathlib.Path('tools').glob('*.py')]; print('PY_SYNTAX_CHECK,passed=1')"
-& $python tools\test_text_protocol.py
-& $python tools\test_measurement_logic.py
-& $python tools\check_command_docs.py
-& $python tools\check_no_legacy_config_usage.py
-& $python tools\audit_config_surface.py
-```
-
-当前测试职责：
-
-| Test | 覆盖 |
-| --- | --- |
-| `test_text_protocol.py` | CAP/V/R parse、frame CRC、`Xhh`、PGA、battery/ADS telemetry、1536-byte worst-size fixture |
-| `test_measurement_logic.py` | 编译并运行硬件无关 C tests：mode、rail/math、RES、PGA/cache、battery scheduler、route readback、congestion policy |
-| `check_command_docs.py` | 从四层 parser 提取 command literals，与 `command-reference.md` 比较 |
-| `check_no_legacy_config_usage.py` | 禁止业务源码重新引用已迁移配置名 |
-| `audit_config_surface.py` | Kconfig/default/usage surface audit |
-
-firmware boot 还会运行：
-
-- `MSELF`：measurement logic self-test；
-- `PSELF`：text builder、CRC 和最坏帧上限 self-test。
-
-## HIL 依赖
-
-HIL 工具为：
-
-```text
-tools/sensorarray_hil.py
-```
-
-安装 host-only 依赖：
-
-```powershell
-& $python -m pip install -r tools\requirements-hil.txt
-```
-
-Serial port 可由 `--port COMx` 或 `SENSORARRAY_SERIAL_PORT` 指定。不指定时工具只能列出候选，不应在多个设备间危险地自动选择。
-
-当前 circuit.pdf V1.0 没有 REF 到矩阵的独立隔离；`SAFE_RAIL_MONITOR` capability 为 unavailable，固件不会为了透明刷新而打开 INTREF。VOLT 需要有效的外部实测 AVDD/AVSS：在非 VOLT 状态发送 `RAILCFG` 并等待终态，或查询 `CONFIG?` 确认配置身份。外部校准不按帧龄自动失效，重启后需重新提供；内置 monitor 的 span 比例拆分仍是 estimated，不是两个独立实测电源轨。 内部 rail 开的对照组合在当前板型标 NOT_RUN；先用外部合法校准开展 battery 开/关对照。
-
-下面的命令是可重复验收入口，不代表文档提交者已经在当前设备上运行或取得 PASS。只有保留下来的 wire log、machine-readable summary 和测试报告才能作为执行证据。
-
-## Transport 验收顺序（Serial -> BLE）
-
-可执行契约入口是 `tools/validate_transports.py`。Ubuntu 下默认串口为 `/dev/ttyACM0`，可用 `--port` 覆盖；同一 flashed image 必须先完成 serial stage，serial 返回非零或超时时立即中止，不启动 BLE。BLE stage 至少 60 秒，并把同一个 `/dev/ttyACM0` 作为 reset/panic sidecar 传给 `receive_ble_text.py`（`--serial-port`）。
-
-串口不可用时（端口不存在、打开失败或 serial stage 超时/FAIL），serial stage 记录 `NOT RUN`/`FAIL`，BLE stage 记录 `BLOCKED`/`NOT RUN` 并立即中止；任何情况下都不允许跳过 serial stage 直接运行 BLE。
-
-时长规则：
-
-- `--serial-duration`：serial stage 秒数，默认 120；
-- `--ble-duration`：BLE stage 秒数，默认 60；小于 60 被拒绝；
-- `--duration`：legacy 兼容项，未给 stage-specific 参数时同时作为 serial/BLE/Wi-Fi duration；推荐改用独立参数。
-
-Linux/bash 可重复入口：
+从项目根目录、ESP-IDF 5.5.5 的环境执行。选择一个新的构建目录，可保留正在调试的 ELF。主机 C 回归需要 C 编译器；硬件工具的 Python 依赖见 requirements-hil.txt。 / Run at the repository root with the S3 environment active. A new build directory preserves any ELF being used to decode a device. Use a native C compiler for the stand-alone production-code regressions.
 
 ```bash
-set -o pipefail
-mkdir -p validation_artifacts
-# 同一已刷写 image、串口 /dev/ttyACM0、BLE adapter 已就绪
-python3 tools/test_text_protocol.py 2>&1 | tee validation_artifacts/transport_host_text.log
-python3 tools/test_validate_transports.py 2>&1 | tee validation_artifacts/transport_validate_host.log
-python3 tools/test_sensorarray_hil.py 2>&1 | tee validation_artifacts/transport_hil_host.log
-python3 tools/check_command_docs.py 2>&1 | tee validation_artifacts/transport_command_docs.log
-python3 tools/validate_transports.py \
-  --port /dev/ttyACM0 \
-  --ble \
-  --serial-duration 120 \
-  --ble-duration 60 2>&1 | tee validation_artifacts/transport_serial_ble.log
+idf.py --version
+idf.py -B /tmp/sensorarray-validation-build -D IDF_TARGET=esp32s3 build
+idf.py -B /tmp/sensorarray-validation-build size
+python3 tools/check_command_docs.py
+python3 tools/check_no_legacy_config_usage.py
+python3 tools/audit_config_surface.py
+for test in tools/test_*.py tools/hil/test_*.py; do
+    CC="$(command -v cc)" python3 "$test" || exit 1
+done
 ```
 
-Serial 成功门槛：serial stage 返回 0 后还必须看到 `SERIAL_DONE` summary，且 `lines` 与 frame count（`cap+volt+res`）> 0、`crc/bad/ascii/gap/missing` 均为 0；输出中出现 `ESP-ROM`、`rst:`、`RST,reason=`、`Guru Meditation`、`Stack canary`、`panic'ed`、`LoadProhibited`、`Watchdog` 任一标志即拒绝进入 BLE（`VAL,stage=serial,state=fail,reason=...`）。BLE 成功门槛：必须看到 `SER_SIDE,port=/dev/ttyACM0,...status=open` 与 `SER_SIDE_DONE,resets=0,lastError=none`，`BRX` 的 `ok > 0`（至少收到一个完整可解析消息/帧）、`crc=0`、`miss=0`，且存在 `BF` 行时 `cf/ms/dr` 均为 0；`BLE_TEST_SKIPPED` 或 `BLE_TEST_FAILED` 一律不算 PASS。
+`tools/test_*.py` 中既有直接运行的断言，也有编译并调用生产 C 的入口。保留各脚本的退出码，不能以单独运行 pytest 的收集数代替。/ Run each script as a program. Some compile and exercise the production C with controlled clocks, buses or queues. Retain the failing entry and exit status.
 
-`validate_transports.py` 会原样回显子进程输出，但不会自动保存 wire log；需要保留输出时使用上面的 `set -o pipefail` + `tee` 管道，并以管道退出码为准。完整 full-profile artifact（summary JSON、wire log）仍用 `sensorarray_hil.py --output-directory` 生成。
+| 问题 / Question | 重现方法与判据 / Method and interpretation |
+|---|---|
+| 配置/协议 / Configuration and wire | 运行 test_config_identity、test_text_protocol、test_transport_frame_metadata。检查 encoder 原始字节、header/K 的身份、CRC、1/8 行、极端长度以及丢终态/迟到数据。 / Replay the real encoder, malformed/truncated records and request orderings. Check identities within one session and one domain. |
+| FDC worker | 运行 test_fdc_worker_lifecycle、test_fdc_worker_runtime、test_frontend_wait_integration。延迟 JOB/ACK/RUN/DONE，模拟无返回 worker，核对 epoch、隔离及释放。 / Inject delays, stale completion and bus stalls, then assert bounded return and safe slot ownership. |
+| ADS CRC/健康 / ADC health | 运行 test_ads_matrix_diagnostics、test_ads_fault_fixtures、test_ads_driver_reliability、test_ads_crc_frame_flow 和 test_adc_read_provenance。按实际 engineFrameCount 检查 128/256/384/512 及非零入场计数，分别注入比较、读回、restore 失败。 / Inspect original error, stage/mask and whether a conversion started. Count bad ADC reads over checked operations separately from incomplete output frames. |
+| 模式/恢复 / Mode and recovery | test_main_config_commit、test_rowmodes_frame_metadata、test_recovery_control、test_restart_budget；注入跨 boot 和迟来的旧 epoch。 / Assert the first applicable boundary, identity snapshots and bounded retry/restart budget. |
+| 传输/内存 / Transport and memory | test_usb_cdc_capture、test_serial_io、test_protected_frame_pipeline、test_ble_watchdog、test_wifi_owner、test_memory_diagnostics。使消费者延迟、拒收和晚返回，检查终态优先、对象所有权及计数。 / Exercise late consumers, partial writes, starvation, DMA ownership and cached terminals. |
 
-BUILD、HOST/PROTOCOL TESTS、SERIAL HIL、BLE HIL 的证据都必须来自本次验证：不能拿历史 artifact 或旧 commit 的 PASS 替代当前 firmware 的 serial/BLE 验收。`validate_transports.py` 是可执行顺序契约；完整 full profile 仍需按下面的 `sensorarray_hil.py` 入口运行并单独报告。本文档不声明本次 HIL 已通过；未运行或无 BLE adapter 必须写 `NOT RUN`。
+## 2. FDC、ADS 与电源恢复 / Frontend qualification
 
-## Serial HIL
+| 方法 / Method | 施加条件、观测与限度 / Setup, observations and limits |
+|---|---|
+| S5D5 单点及矩阵 sweep | 对历史板级版本，逐项记录 FDC 时钟、DEGLITCH、HIGH_CURRENT_DRV、DRIVE_CURRENT_CH0、RCOUNT、锁定及 raw28；先单点再逐行。 / Sweep one input and then both four-channel devices. Retain valid/fresh masks, reference clock and settling conditions. |
+| I²C/SPI 扫速与三器件失联 | 记录启动前后 SPI?、两 FDC 的身份和实际时钟，逐档比较样本分母、CRC、读回失败。授权条件下断/复前端电，确认低速探测、全部缓存失效及启动重选。 / Compare achieved clock and error counts per candidate. On a controlled frontend power cycle observe loss, low-rate polling, new qualification and first fresh frame. |
+| ADS 末位及校验 | 同一板、同一配置比较短接差分输入下的标准 SPI、55 位 SPI+1 位 GPIO、连续/脉冲和重复读取。保存 status、原始字节、独立计算 CRC 与样本代数。 / Run the capability-advertised ADS timing diagnostic and read cached pages by request ID. Separate physical last-bit sampling from reconstructed bytes and repeated latch reads. Use a scope for electrical timing. |
+| Rail 与 battery 四组合 | 外部合规双轨下先测 battery 开/关；仅在硬件确有隔离时才测内部 rail 开的两组，否则记 NOT_RUN。每组先 120 s，再覆盖实际 engine 故障边界。 / Cross rail refresh and battery enable independently. Preserve raw ADC when available, frames, wall time, precision/health intervals, restoration and first valid sample. Distinguish instability from a missing rail reference. |
+| 电池转换与滞后 | 检查 AIN8、AINCOM 和实测双轨，记录三个原始样本、时间、spread、restore、lastGood 与重试。 / Validate divider conversion against simultaneous readings at VBAT, AIN8 and AINCOM. Use a controlled passive setup. A good restore and unavailable battery have separate outcomes. |
+| 硬件限值 | 对 HW01–HW06 核对实装 BOM、EN、负轨启动、跨域反灌、R54、USB 眼图及 VOLT 对负轨加载。 / Scope rail/EN and reference transients, and measure VOLT with known source impedance. Record bandwidth, probe reference, temperature and error budget. [硬件测点 / Limits and test points](hardware/reliability_revision_notes.md) |
 
-完整验收入口：
+## 3. 被动夹具 / Passive reference fixture
 
-```powershell
-& $python tools\sensorarray_hil.py serial `
-  --profile full `
-  --port COMx `
-  --output-directory validation_artifacts\serial_full
+S1D1、S8D8 各 10 kΩ；S4D4、S5D5 各 33 pF；其余 60 点悬空。ROWS=8 才覆盖四个参考件。RES 要求 fresh/acquired 和明确 OPEN（X0D），CAP 输出总 LC 电容。使用同点拆除电容的空载记录验证差分；若按现场条件借用其它悬空通道，用同行/同列/全悬空三种估算并标明代理基线。两个同标称件无法独立拟合增益和偏移。 / Use RES8, CAP8 and RCCCCCCR to exercise both standards and all open inputs. Compare both resistor paths separately, or fit one and report the held-out other. A floating-channel estimate is a practical background proxy. Without same-point unloaded data, traceable standards and acceptance limits, absolute capacitance accuracy remains unverified. VOLT has no voltage standard on this fixture.
+
+```bash
+python3 tools/reference_fixture.py --input "$CAPTURE" --provenance recorded --output "$NEW_REPORT"
+python3 tools/estimate_floating_cap_background.py --input "$CAPTURE" --output "$NEW_PROXY_REPORT"
+python3 tools/hil/analyse_closed_fixture_window.py --help
 ```
 
-必须覆盖：
+精度验收时在 reference_fixture 中显式给 `--baseline-input` 同点文件，容差来自所用标准件和实验预算。不能以其它端口代替这一参数。报告读数、离散度、缺失原因和覆盖区间。 / Supply a genuine same-point unloaded recording to the strict baseline option. Keep proxy estimates separate from strict results and retain invalid reason counts.
 
-```text
-TX?
-ST?
-BTX?
-WIFI?
-MODE?
-STATE?
-MODE=CAP
-MODE=RES
-MODE=VOLT
-MODE=CAP
+## 4. 32 种配置与稳定性 / 32 configurations, stability and recovery
+
+使用两路 CDC 和 BLE 的独立观察器。先由实际只读查询取得完整 ELF、session、boot ID，再确定 USB serial 和 BLE 地址。以下为 Bash，变量来自当前板，输出目录须是新运行目录。工具支持 `--print-plan` 只检查计划。 / Obtain current identity from the target, use unique output paths, and close both observers before qualifying each window. Supply measured signed rails together with their provenance if the board has no verified external rail configuration.
+
+```bash
+identity=(--expected-elf "$ELF" --expected-session "$SESSION" --expected-boot-id "$BOOT"
+          --usb-serial "$USB_SERIAL" --ble-address "$BLE_ADDRESS")
+python3 tools/hil/run_cdc_matrix_failfast.py "${identity[@]}" --fixture-margin \
+  --label matrix --output-directory "$RUN/matrix" --stop-file "$RUN/STOP"
+python3 tools/hil/run_final_observed_case.py final600 "${identity[@]}" --label stable --output-directory "$RUN/stable"
+python3 tools/hil/run_final_observed_case.py final50 "${identity[@]}" --label switches --output-directory "$RUN/switches"
+python3 tools/hil/run_final_observed_case.py short_v2 "${identity[@]}" --label short --output-directory "$RUN/short"
 ```
 
-每次 mode switch：
-
-1. 等 `MACK`；
-2. 等匹配 request ID 的 `MAPP`；
-3. 等目标 mode 的完整、CRC 正确 frame；
-4. 检查 generation/request ID；
-5. 至少收 10 帧；
-6. 禁止旧 mode/generation frame 被标为 fresh。
-
-快速回归持久测试至少 120 秒（2 分钟），并保持 ADS autorange、battery periodic、compact summary 和 8×8 输出开启；本轮最终 acceptance 仍必须使用 1200 秒 Serial 与 600 秒 BLE。所有阶段同时记录完整 frame 数。S1D1/S8D8 可用 `5 kΩ < value < 20 kΩ` 做宽松 pipeline sanity；其他 open cell 不要求固定数值。
-
-Serial observer 必须把以下任一新出现记录为 FAIL：
-
-```text
-ESP-ROM
-rst:
-RST,reason=
-Guru Meditation
-Stack canary
-panic'ed
-LoadProhibited
-Watchdog
-```
-
-## BLE HIL
-
-完整验收入口：
-
-```powershell
-[int]$railAvddUv = Read-Host "输入同步外部 DMM 实测 AVDD->GND（uV，正数）"
-[int]$railAvssUv = Read-Host "输入同步外部 DMM 实测 AVSS->GND（uV，负数）"
-if ($railAvddUv -le 0 -or $railAvssUv -ge 0) { throw "rail signs must be AVDD>0 and AVSS<0" }
-& $python tools\sensorarray_hil.py ble `
-  --profile full `
-  --serial-port COMx `
-  --rail-avdd-uv $railAvddUv `
-  --rail-avss-uv $railAvssUv `
-  --output-directory validation_artifacts\ble_full
-```
-
-BLE 测试期间 Serial observer 必须同时运行；BLE disconnect 本身不能区分客户端问题与设备 reboot。
-
-### Subscription matrix
-
-| Case | FF11 | FF20 | FF30 | 必须观察 |
-| --- | ---: | ---: | ---: | --- |
-| connected only | 0 | 0 | 0 | 1–2 分钟稳定；无 BLE DATA/LOG queue pressure |
-| CTRL only | 1 | 0 | 0 | FF10 query -> FF11 reply；无 DATA/LOG |
-| DATA only | 0 | 1 | 0 | 至少 1000 DATA message 或 2 分钟；无 LOG forwarding |
-| LOG only | 0 | 0 | 1 | SF50/TR50/ADS50 等；无 measurement DATA |
-| CTRL + DATA | 1 | 1 | 0 | ACK 与 DATA 并行，CTRL 不饥饿 |
-| CTRL + LOG | 1 | 0 | 1 | ACK 与 LOG 并行 |
-| DATA + LOG | 0 | 1 | 1 | 高流量组合，CRC/slot/drop 稳定 |
-| full | 1 | 1 | 1 | CTRL/DATA/LOG 同时工作 |
-
-每个分片 message 必须检查：
-
-- `(channel,messageId)`；
-- index/count 完整；
-- chunk length；
-- assembled total length；
-- envelope CRC32；
-- DATA 内部 `K` CRC32。
-
-### FAST / SAFE
-
-两种模式均测试：
-
-```text
-BTX=FAST
-BTX?
-BTX=SAFE
-BTX?
-BTX=FAST
-```
-
-FAST 使用 Notify bit；有 Indicate bit 时 SAFE 使用 Indicate confirmation，不能因 timeout 长期占用 slot。只有 Notify 的 Ubuntu/BlueZ 客户端使用有界 SAFE Notify fallback。
-
-在支持选择 CCCD 的客户端中，发送 `BTX=SAFE` 前应把 FF11 的 Indicate bit 打开；需要继续接收 DATA/LOG 时，FF20/FF30 也应先打开 Indicate。推荐三个 TX characteristic 都使用 `0x0003`。Ubuntu/BlueZ 的 Bleak 无法在 Notify/Indicate 并存时选择 Indicate，固件会为这种客户端启用 SAFE Notify fallback，ACK、DATA、LOG 仍应保持可验收。
-
-### Stress
-
-- full subscription 下循环 `CAP -> RES -> VOLT -> CAP` 20–50 次，每 mode 至少 5 帧；
-- FF20/FF30 subscribe/unsubscribe 尽可能达到 100 cycles；
-- connect/subscribe/query/data/disconnect 至少 30 cycles；
-- BLE + Serial observer + RES 至少 120 秒（2 分钟）；
-- RES 长跑每 30–60 秒发一次 `STATE?`，证明 CTRL 仍存活。
-
-## nRF Connect 最小手工验收
-
-1. Scan `CscArray_*`；
-2. Connect Service `0x00FF`；
-3. 请求 MTU 247（客户端支持时）；
-4. 为 `FF11`、`FF20`、`FF30` 同时开启 Notify 与 Indicate（CCCD `0x0003`，或在 UI 中分别点开两种订阅）；
-5. 写 `STATE?\n` 到 `FF10`，确认 `FF11` 收回复；
-6. 确认 `FF20` 持续 DATA、`FF30` 持续 LOG；
-7. 写 `BTX=SAFE\n`，确认 `FF11` 通过 Indicate（Linux/BlueZ fallback 时为 Notify）返回 `ACK,cmd=BTX,v=SAFE`；
-8. 写 `BTX?\n`，确认仍为 SAFE；再写 `BTX=FAST\n` 并确认 Notify 回复；
-9. disable `FF30`，确认 `FF20` 继续 DATA；re-enable `FF30`；
-10. 切 RES 并运行数分钟；
-11. 写 `MODE=VOLT\n`，等待自动 monitor 后的 `MACK`、`MAPP` 与 FF20 的完整 VOLT DATA；需要外部 DMM override 时才在 CAP/RES 下发送 `RAILCFG`；
-12. 写 `ROWMODES=CVVRRVVC\n`，等待 `RMACK`、`RMAPP`，并验证 `M/MR/K` 混合帧按 S 行重组；
-13. disconnect；
-14. reconnect，重新设置 CCCD 后重复 query/data。
-
-整个过程 Serial 不得出现 reboot/panic。
-
-nRF Connect 能验证人工 CCCD、命令与链路行为，但 raw fragment 计数不能替代自动 HIL 的重组、总长度和双层 CRC 校验。
-
-## Stack、heap 与 slot
-
-最坏测试至少包括：
-
-```text
-CAP  + Serial + BLE DATA/LOG
-RES  + Serial + BLE DATA/LOG
-VOLT + Serial + BLE DATA/LOG
-```
-
-报告真实 high-water，字段单位必须是 bytes：
-
-| Task | 验收目标 |
-| --- | ---: |
-| `sensorarrayLogTask` | minimum remaining >= 2048 bytes，优先目标 3072–4096 |
-| transport | 记录 minimum remaining |
-| USB sink | 记录 minimum remaining |
-| BLE TX | 记录 minimum remaining |
-| BLE CTRL | 记录 minimum remaining |
-| Serial CTRL | 记录 minimum remaining |
-
-同时报告：
-
-```text
-initial free heap
-minimum free heap
-after-warmup free heap
-final free heap
-transport slot high-water
-BLE slot high-water
-DATA/LOG queue drops
-BLE fragment errors / CRC mismatch
-stale descriptor / release mismatch
-```
-
-允许 BLE/FreeRTOS lazy allocation 带来一次性下降，不允许 free heap 随 frame count 持续下降。
-
-## 性能回归
-
-分别记录 CAP/RES/VOLT physical FPS 与 emitted FPS。与同硬件、同 rows、同日志配置的 baseline 比较；下降超过 5% 必须调查，不能通过关闭 8×8、battery、ADS50/AB50、autorange 或 FF30 规避。
-
-## 历史实测结果（不作为当前 HEAD 证据）
-
-> 本节所有条目均为此前 commit/日期留下的历史记录，provenance 指向当时的 flash image 与 validation artifact。当前 HEAD 的 BUILD/HOST/SERIAL/BLE 验收必须重新运行并保存本次 artifact；历史目录、旧 commit 的 PASS 与旧 wire log 不能作为当前 firmware 验收证据。
-
-本节只记录历史 artifact 已证明的范围。Targeted PASS 不替代 complete full profile，Bleak 自动化也不替代 nRF Connect 人工验收或外部 DMM 精度证据。
-
-### 2026-08-13 `/dev/ttyACM0` 重试（历史）
-
-- 固件刷写：PASS。ESP32-S3，应用镜像 SHA 校验通过，端口 `/dev/ttyACM0`。
-- Serial smoke：PASS。CAP/RES/VOLT/CAP 模式切换、MAPP、CRC 和启动检查通过。
-- 2 分钟持续采集：PASS。`serial_persistence_120s` 实测 2355 个 RES 完整帧，120.047 s，19.617 fps，CRC=0，sequence gap=0，运行期间 reset=0；S1D1=10043.711 Ω，S8D8=10041.236 Ω。
-- Serial full profile：NOT PASS（telemetry prerequisite）。板子启动时报告 `APP_LOG_INIT_FAIL,err=0x101`，async logger 因内部堆不足未创建，因此 full profile 缺少 `STK50`，不能宣称完整稳定性验收 PASS。该次采集本身未观察到 post-ready reset 或 CRC 错误。
-- 电池已断开：AIN8 浮动、长周期 PWM 或异常电压按 battery diagnostic invalid 处理，不作为矩阵采集失败。
-
-| 阶段 | Status | 实测范围 | Artifact |
-| --- | --- | --- | --- |
-| Serial full profile | **PASS** | CAP/RES/VOLT/CAP、RES 2000-frame long-run、Serial wire/reset/stack/heap | [`final_serial_full`](../validation_artifacts/final_serial_full/serial_hil_summary.json) |
-| Final-image Serial smoke | **PASS** | 最终 flash 上 6 query、CAP/RES/VOLT/CAP 各 10 帧、RES sanity、CRC/reset | [`final_serial_smoke_final_pass`](../validation_artifacts/final_serial_smoke_final_pass/serial_hil_summary.json) |
-| BLE targeted long-run + reconnect | **PASS** | RES 2000 complete DATA、30 reconnect、Serial sidecar、FAST bounded-loss telemetry | [`final_ble_longrun_reconnect_wwr`](../validation_artifacts/final_ble_longrun_reconnect_wwr/ble_hil_summary.json) |
-| nRF Connect 手工验收 | **NOT RUN** | 未执行人工 CCCD/客户端流程 | 无 |
-| BLE complete full profile | **PASS** | 完整 subscription matrix、FAST/SAFE、20-cycle mode、100-cycle subscribe、RES 2000-frame、30 reconnect | [`final_ble_full_pass5`](../validation_artifacts/final_ble_full_pass5/ble_hil_summary.json) |
-
-### Serial `final_serial_full`: PASS
-
-summary 的 `passed=true`，运行端口为 COM12，profile 为 `full`。RES long-run 实测：
-
-| 指标 | 实测值 |
-| --- | ---: |
-| 完整 RES frames | 2000 |
-| Duration | 1193.687 s |
-| Complete-frame rate | 1.675 fps |
-| S1D1 sanity | 10050.623 Ω |
-| S8D8 sanity | 10046.781 Ω |
-| Post-ready wire CRC / malformed / non-ASCII | 0 / 0 / 0 |
-| Unexpected reset/panic | 0 |
-
-Heap 在 warmup 后没有继续下降：
-
-| Initial free | Minimum free | Warmup free | Final free | Warmup -> final |
-| ---: | ---: | ---: | ---: | ---: |
-| 49500 B | 25596 B | 25612 B | 25612 B | 0 B |
-
-该 Serial run 的 stack high-water telemetry 单位均为 bytes：
-
-| Task | Configured stack | Minimum remaining |
-| --- | ---: | ---: |
-| `sensorarrayLogTask` | 12288 | 9344 |
-| transport | 6144 | 4020 |
-| USB sink | 6144 | 4228 |
-| BLE TX | 4096 | 3292 |
-| BLE CTRL | 6144 | 5236 |
-| Serial CTRL | 6144 | 2516 |
-
-此 run 使用 `ST=SER`，因此 transport/BLE slot high-water 均为 0；它们不是 BLE pool 压力证据。
-
-### BLE targeted `final_ble_longrun_reconnect_wwr`: PASS
-
-summary 的 `passed=true`，profile 字段为 `full`，但本 artifact 只执行 `longRun + reconnect` targeted phases；不能将它标成完整 BLE full-profile PASS。实测：
-
-| 指标 | 实测值 |
-| --- | ---: |
-| 完整 RES DATA frames | 2000 |
-| Duration | 108.219 s |
-| Complete-frame rate | 18.481 fps |
-| S1D1 sanity | 10050.655 Ω |
-| S8D8 sanity | 10046.588 Ω |
-| Reconnect cycles | 30 |
-| BLE wire CRC / malformed / non-ASCII | 0 / 0 / 0 |
-| Serial sidecar CRC / malformed / non-ASCII | 0 / 0 / 0 |
-| Unexpected reset/panic | 0 |
-
-FAST 保持 non-blocking，因此该 targeted window 允许有界 DATA loss，但不把不完整 message 当作完整 frame：host 观察到 4 个 stale incomplete fragment assemblies，同时仍完成并校验 2000 个 RES DATA messages。summary 还记录 `missing_frames=30`、`sequence_gaps=9`、window 结束时 `pendingBoundaryFragments=1`，firmware DATA drop delta 为 8；这些不是 CRC corruption。firmware `fe=0`、`dropC=0`、`ctrlExhaust=0`，CTRL 没有被 DATA/LOG 饿死。
-
-Reconnect 阶段结束时的 heap：
-
-| Initial free | Minimum free | Warmup free | Final free | Warmup -> final |
-| ---: | ---: | ---: | ---: | ---: |
-| 46332 B | 7340 B | 19084 B | 19084 B | 0 B |
-
-最终 reconnect telemetry 的 stack 与 slot high-water：
-
-| Task | Configured stack | Minimum remaining |
-| --- | ---: | ---: |
-| `sensorarrayLogTask` | 12288 | 9292 |
-| transport | 6144 | 4004 |
-| USB sink | 6144 | 4048 |
-| BLE TX | 4096 | 1948 |
-| BLE CTRL | 6144 | 2884 |
-| Serial CTRL | 6144 | 3108 |
-
-```text
-transport slot high-water = 3
-BLE slot high-water       = 7
-```
-
-### 精度证据边界
-
-上述两次 HIL 向 `RAILCFG` 提供的 split 为 `3341176,-1822460` µV；该 split 来自 onboard ADS supply monitor，用途仅为验证 mode/command、VOLT protocol 与 transport stability。它不是同步外部 DMM 测量，不能作为 VOLT absolute accuracy 或 rail calibration accuracy 证据。
-
-S1D1/S8D8 数字只证明当前约 10 kΩ 调试件落在宽松 pipeline sanity 范围；本轮没有同步 DMM/标准电阻对照，因此 resistance absolute accuracy 同样 **NOT VERIFIED**。nRF Connect 手工验收也 **NOT RUN**。
-
-### BLE complete `final_ble_full_pass5`：PASS
-
-该 artifact 来自最后一次 `fullclean`、build、flash 和 `verify_flash` 后的同一镜像，summary 为 `passed=true`，完整执行所有六个 phase：
-
-| Phase | 实测结果 |
-| --- | --- |
-| Subscription matrix | NONE 60.015 s；FF11 only；FF20 only 1000 DATA；FF30 only 4 LOG；FF11+20；FF11+30；FF20+30；FF11+20+30 全部 PASS |
-| TX modes | FAST/Notify → SAFE/Indicate（Linux/BlueZ 可为 Notify fallback）→ FAST/Notify，完成 DATA/LOG/CTRL，completed-fragment CRC error=0 |
-| Mode stress | 20 cycles、80 transitions、542 complete frames（CAP 265 / RES 142 / VOLT 135），stale=0、CRC/malformed/non-ASCII/regression=0 |
-| Subscribe stress | 100 cycles、200 subscription windows、200 unsubscribe quiet checks、grace notification=0 |
-| RES long-run | 2000 required frames，107.391 s，18.624 complete fps；S1D1=10050.302 Ω、S8D8=10046.572 Ω |
-| Reconnect | 30/30 cycles，1041 complete DATA frames；completed CRC error=0、stale=0、CTRL drop=0 |
-
-RES long-run 的完整 envelope 统计：CTRL/DATA/LOG message 为 `5/2001/80`，notification 为 `10/8005/360`；三通道的 CRC、missing、gap、dropped、duplicate、out-of-order、tiny-fragment error 均为 0。DATA 内层 frame CRC、Serial sidecar CRC/malformed/non-ASCII 均为 0；unexpected reset/panic 为 0。window 结束时有 1 个不足 5 秒的新鲜 boundary partial，未被当作完整 message，`staleFragments=0`。
-
-完整 run 的最坏 stack telemetry（单位 bytes）：
-
-| Task | Configured stack | Minimum remaining |
-| --- | ---: | ---: |
-| `sensorarrayLogTask` | 12288 | 9292 |
-| transport | 6144 | 3996 |
-| USB sink | 6144 | 4160 |
-| BLE TX | 4096 | 1960 |
-| BLE CTRL | 6144 | 2864 |
-| Serial CTRL | 6144 | 3116 |
-
-Heap 与 pool：
-
-```text
-initial free heap             = 46180 B
-minimum free heap             = 8400 B
-after BLE warmup free heap    = 18804 B
-final free heap               = 18804 B
-warmup -> final delta         = 0 B
-transport slot high-water     = 3 / 4
-BLE slot high-water           = 6 / 8
-transport queue drop DATA/LOG = 0 / 0
-transport alloc/stale/release = 0 / 0 / 0
-BLE stale/release/CRC/fragment= 0 / 0 / 0 / 0
-BLE lifecycle cancellation    = 13
-BLE channel drop DATA/LOG/CTRL= 25 / 1 / 0
-```
-
-FAST/non-blocking 设计允许在 unsubscribe/reconnect 或 BLE slot 满时有界丢弃，不能反向阻塞 acquisition。`lifecycle cancellation=13` 是 CCCD/连接 generation 在发送期间变化后主动取消旧 descriptor；它与 malformed fragment 分开统计。BLE slot alloc fail=12、DATA/LOG drop=25/1 均未造成 transport queue drop、CTRL drop、CRC corruption 或 frame regression。
-
-## 发布结果格式
-
-Serial 与 BLE 分开给结论，并使用统一状态模板：
-
-```text
-SERIAL PASS / FAIL / NOT RUN / BLOCKED
-BLE PASS / FAIL / NOT RUN / BLOCKED
-REBOOT / RECOVERY HIL PASS / FAIL / NOT RUN / BLOCKED
-ACCURACY VERIFIED / NOT VERIFIED
-```
-
-每个 PASS 都要附 frame/message 数、duration、CRC、reset count、mode cycles、stack minimum、heap 与 drop counters。没有 BLE adapter 时应写：
-
-```text
-BLE HIL NOT RUN: reason=host BLE adapter unavailable
-```
-
-历史章节的 PASS 不进入当前状态模板；当前结论只能来自本次 freshly run 的证据。未做受控 reset 时 reboot/recovery 写 `BLOCKED: reason=no controlled reset procedure`；没有同步 DMM/标准件时 accuracy 写 `NOT VERIFIED: reason=no synchronized DMM/standard`。这不影响继续完成 build、host tests、Serial HIL 与 BLE HIL 工具测试。
+| 工况 / Case | 窗口、动作与验收 / Window, stimulus and gates |
+|---|---|
+| CAP/VOLT/RES/MIXED × 1–8 | 每个配置 120 s，夹具余量模式 CAP8/RES8 为 122 s；MIXED 配置 CVRCVRCV，一活动行只采 C。起止独立检查板上时间及两主机观察器完整帧覆盖。 / Use 32 independent windows. Compare capture, emitted and receiver FPS, gaps, masks/OPEN, ADC checked reads, owner CPU, heap, stack and confirmed return to CAP8. |
+| VOLT1 / 600 s | 核对完整连续窗口、无非预期 boot/故障、USB/BLE 完整帧和诊断分母。 / Run ten uninterrupted minutes. Split cell/ADC errors from radio gaps and observer failures. |
+| 50 次切换 / 50 transitions | 检查 MODE/ROWS/ROWMODES 接受、相应终态、CONFIG 和两端首个完整目标帧；覆盖重复 CAP、ROWS-only、MIXED 与 CAP 恢复。 / Check terminal and first valid data independently. Exercise missing, late and stale terminals by host replay as well. |
+| SHORT / protected full | 以原始 B20 与完整 C/D/K 分开计数，独立验证配置边界首帧与周期帧、最大间隔和拥塞后的恢复。 / Endpoint full records satisfy the snapshot obligation. Use actual monotonic receipt time for maximum spacing. |
+| 丢包与弱信号 / Link budgets | 正常 FULL 预算以 missing/(received+missing) 计算，门槛 2.5%。弱链路分开测量 RSSI/条件、10%–20% 缺口及降普通帧率后的关键回复和周期全量。 / A normal-link run cannot qualify an attenuated link. Reassemble and CRC-check before counting; compare independent receiver endpoints within the same session. |
+
+## 5. USB、蓝牙、Wi-Fi 与恢复 / Interface-specific methods
+
+- **USB**：短停读用 `--start-case volt2 --end-case volt2 --pause-formal-reader` 注入 650 ms；长停读用 `capture_usb_unread.py`，BLE 独立观察且不发命令。分别记录设备准入、过期、驱动接受、两端科学 CRC 及恢复首个完整帧。用 VID/PID/interface/serial 确认调试/正式/ROM 枚举与重连。 / Inject a short reader stall, then a separate no-reader interval. Verify whole records, bounded memory and independent BLE progress. Observe ROM and application re-enumeration at the OS.
+- **BLE**：测试 FF11/FF20/FF30 全部八种订阅组合、FAST/SAFE、两种 CCCD 发送语义、实际 MTU 分片、30 次重连和 100 次订阅切换。nRF Connect 可人工写 FF10、检查 ACK、关闭/恢复 FF30。 / Exercise subscription gating and control under load, including notify-only fallback, indication, fragment sizes and session changes. Count complete messages after reassembly.
+- **Wi-Fi**：在同镜像/boot 上依次 AP/AP/OFF/AP/OFF，逐次匹配接受、WTERM、WIFIREQ、UDP 实收及 BLE/USB 共存。同步采集 MEM、MEMFAIL、PANIC、各 owner 的 CPU 与栈；另测 SDK 长阻塞和内存不足的隔离。 / Distinguish output gating, actual SDK return, physical radio and peer datagram receipt. Report unobserved stages independently.
+- **早期 Serial/JTAG**：`validate_transports.py --port PORT --ble --serial-duration 120 --ble-duration 60` 重现先串口后 BLE 的契约；历史长跑为 serial 1200 s、BLE 600 s。另用 `sensorarray_hil.py serial --profile smoke --port PORT --output-directory DIR`。 / Use that staged runner with a matching serial firmware and a reset-observer sidecar. The formal dual-CDC method above uses simultaneous independent endpoints.
+- **恢复与持久化 / Recovery and persistence**：匹配原始配置和授权后测试 RECOVER、RESTART、USBBOOT，记录原会话意图、实际枚举和新会话 READY；断电后的电源恢复另测。校准 save/load 的验证需独立授权和已备份设置。 / Separate query/terminal evidence from an actual boot, retained state and a verified restored configuration. Preserve the original calibration.
+
+## 6. 保存与判读 / Evidence and replay
+
+每次保存源码 HEAD、dirty diff/hash、IDF、ELF、板卡 ID、BUILD/PROTO/CONFIG、时钟和运行参数。采集文件使用新的输出来保留原始字节，不补齐截断帧。host 收到的完整帧以第一/末帧和设备时间跨度验证覆盖。实测、真实 encoder 合成、故障注入及未运行项须标明。提交回归只保留最小输入和来源清单，本地采集输出使用被忽略的 `validation_artifacts/`。 / Record raw bytes, clocks, image identity, exact command, return status, coverage and gaps. Archive independent lab evidence before removing temporary output. Label FAIL, UNKNOWN and NOT_RUN explicitly. Keep reproducible goldens, captured slices and provenance in version control.
+
+[主机测试和固定夹具 / Host tests and fixtures](../tests/README.md) · [运行工具 / Tool reference](../tools/README.md) · [正式验收入口 / Acceptance runners](../tools/hil/README.md)
+
+## 7. 早期实验检索 / Earlier experimental procedures
+
+以下为针对特定固件或设备的一次性实验。使用这些历史步骤时，先核对当时的接线、协议和构建身份。固定链接指向原脚本，避免把当时的板号、串口或烧录参数用于另一块板；当前固件的可移植入口在上文。 / These experiments depended on the hardware, packet formats and configuration present at the time. The pinned source describes the exact method and original inputs. Use the maintained collectors for a new board.
+
+| 方法族 / Method family | 原始入口与观察量 / Original procedure and observable |
+|---|---|
+| FDC 时钟、驱动强度与 DRDY / FDC sweeps | 对照 S5D5 单点、RCOUNT、DEGLITCH/drive 的锁定、幅度、等待时间；由单行扩展为双 worker 和 8 行。 / Reproduce single-cell and row-epoch sweeps with the corresponding firmware revision. [逐次提交 / Commit ledger](history/README.md) |
+| UART 接收与电池 / Serial and battery | smoke、持续采集、断开/恢复电池、工频/浮动、只读诊断、重连与 NVS 持久化。 / Run serial/HIL profiles, capture bytes separately from decoded values, and correlate the recorded battery evidence with restore results. [早期方法 / Original profiles](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/validation.md) |
+| 旧镜像基准与顺序 / Benchmark baselines | 区分单通路、BLE 旁路观察、失败重试与全矩阵独立窗口。 / Keep each retry as a distinct run with its own identity and duration. [全矩阵基准 / Original matrix baseline](https://github.com/ErrorChen/SensorArray/tree/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/artifacts/full_benchmark_20261113) |
+| 仪器背景、RC 建立与寄存器 / Analog and rail | 两条对地电源轨、样本时间、有效来源、首个恢复帧；保留热切换与四组合的不可执行条件。 / Match physical rail measurements, timing, recovery and fixture contact to the recorded window. [夹具对照 / Fixture campaign](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/reference_fixture_recheck_20261113.md) |
+| USB vendor bulk、CDC 与下载恢复 / USB variants | 分别测试 vendor/CDC 的端点选择、OS 访问权、原应用备份、ROM 交接、下载后恢复应用、重新枚举和无读者过期。 / Check actual OS identity and transport role at every handoff. Keep ROM recovery tests separate from firmware frame delivery. [接口实验 / Interface experiments](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/usb_otg_ble_priority_20261114.md) |
+| I²C 独立于 SPI 的启动验证 / Bus qualification | 分别报告两个 FDC 的 I²C 候选和 ADS 的 SPI 候选、实速和错误分母，并观察失电后重新出现。 / Measure actual divided clock and reject rates per frontend. [启动和恢复 / Startup qualification](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/frontend_startup_recovery_20261113.md) |
+| 性能归因 / Performance attribution | 对照旧/新 metadata parser、ROM CRC、优化级别、MTU/分片规划、普通 LOG/保护队列；询问 CPUOWNER、heap、栈和独立观察器。 / Change one candidate at a time, use the same fixture, preserve failed comparisons, and report queue and host counters over their own observation windows. [性能实验 / Load methods](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/load_reliability_fix_20261113.md) |
+| 压力、优先级与反例 / Negative controls | 回放过期帧、旧 DONE、短预览替代全帧、SDK 未返回、两帧假覆盖、采集器断开与查询间 revision 变化。 / Test event order, frame coverage, query consistency and actual observer closure before interpreting any threshold. [CDC/BLE 验收实验 / Acceptance methods](https://github.com/ErrorChen/SensorArray/blob/dc5a5adb4bd62677221d0a2ceb0acf15886165c7/docs/audit/cdc_recovery_acceptance_20261116.md) |

@@ -1,9 +1,0 @@
-{
-  "production_commit": "f9a82f7a93e55f86064361579c8f721b8035d1de",
-  "BUILD_version": "da68b40-dirty",
-  "elf": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677",
-  "tracked_production_inputs_matching_git_blobs": 202,
-  "generated_sdkconfig_sha256": "201d38e66b4966edc0bd7edff6a339de8d28595bd99aefa261e67038c5983fe3",
-  "build_manifest": "usb-record-01-build-manifest.json",
-  "note": "Build performed before committing the verified source. BUILD keeps that version string."
-}

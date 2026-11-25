@@ -25,7 +25,7 @@ from reference_fixture import (DEFAULT_FIXTURE, IDENTITY_FIELDS, _identity,
 from text_protocol import TextProtocolParser, parse_fields
 
 
-DEFAULT_DIRECTORY = Path(__file__).resolve().parents[1] / "docs/audit/artifacts/reference_fixture"
+DEFAULT_DIRECTORY = Path(__file__).resolve().parents[1] / "validation_artifacts/reference_fixture"
 USB_COUNTERS = ("sinkQueued", "sinkDropped", "priorityQueued", "driverAcceptedBytes",
                 "rxBytes", "partialWrite", "timeout", "driverDrained", "rxOversize")
 SPI_COUNTERS = ("crcTotal", "retryTotal")

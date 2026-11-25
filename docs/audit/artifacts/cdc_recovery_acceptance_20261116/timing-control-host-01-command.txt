@@ -1,1 +1,0 @@
-ADS_TIMING_CONTROL,passed=13,admission_subcases=10,maxState=380,maxTerminal=272,fixture=synthetic

@@ -19,7 +19,9 @@
         "diagnostic_records": 657,
         "rejected_diagnostic_records": 0
       },
-      "rejected_candidates": {}
+      "rejected_candidates": {},
+      "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin.gz",
+      "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
     }
   ],
   "frames": [
@@ -29,7 +31,9 @@
       "source": {
         "path": "docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin",
         "bytes": 9781771,
-        "sha256": "f849b63c2ab7335b3b3956d6ba380e85db74b38c3e7fb3e45cd767331f1e175f"
+        "sha256": "f849b63c2ab7335b3b3956d6ba380e85db74b38c3e7fb3e45cd767331f1e175f",
+        "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin.gz",
+        "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
       },
       "offset": 1254100,
       "end_offset": 1254693,
@@ -118,7 +122,9 @@
       "source": {
         "path": "docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin",
         "bytes": 9781771,
-        "sha256": "f849b63c2ab7335b3b3956d6ba380e85db74b38c3e7fb3e45cd767331f1e175f"
+        "sha256": "f849b63c2ab7335b3b3956d6ba380e85db74b38c3e7fb3e45cd767331f1e175f",
+        "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/boot_autotune_20261113/volt1-02.rx.bin.gz",
+        "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
       },
       "offset": 1254693,
       "end_offset": 1255291,

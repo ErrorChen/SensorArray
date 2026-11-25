@@ -1,7 +1,0 @@
-# Preserve recorded command/log bytes across platforms.
-*.txt -text
-*.log -text
-*.jsonl -text
-*.patch -text
-# ESP-IDF size emits padded lines; retain literal captured output.
-serial-lines-final-size.txt -whitespace

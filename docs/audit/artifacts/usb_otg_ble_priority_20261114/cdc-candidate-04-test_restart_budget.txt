@@ -1,6 +1,0 @@
-RST,reason=synthetic_poweron,code=0,boot=1,bootId=1,prevValid=0,prevKind=none,prevStage=none,prevErr=0x0,prevSeq=0,prevHeap=0,guard=normal,autoRestarts=0
-RST,reason=synthetic_software,code=1,boot=2,bootId=2,prevValid=1,prevKind=auto,prevStage=app_main,prevErr=0x0,prevSeq=0,prevHeap=123456,guard=normal,autoRestarts=1
-RST,reason=synthetic_software,code=1,boot=3,bootId=3,prevValid=1,prevKind=auto,prevStage=app_main,prevErr=0x0,prevSeq=0,prevHeap=123456,guard=normal,autoRestarts=2
-RST,reason=synthetic_software,code=1,boot=4,bootId=4,prevValid=1,prevKind=auto,prevStage=app_main,prevErr=0x0,prevSeq=0,prevHeap=123456,guard=normal,autoRestarts=3
-RST,reason=synthetic_poweron,code=0,boot=5,bootId=5,prevValid=1,prevKind=auto,prevStage=app_main,prevErr=0x0,prevSeq=0,prevHeap=123456,guard=normal,autoRestarts=0
-RESTART_BUDGET_PASS,productionFunctions=5,readyBlock=actual,frameCaller=actual,maxAuto=3,slowBootWindowReset=0,stableHealthyUs=120000000,minHealthyFrames=128,maxGapUs=30000000,stallAndSparseDoNotClear=1,failBreaksStreak=1,clockRollback=1,powerOnReset=1

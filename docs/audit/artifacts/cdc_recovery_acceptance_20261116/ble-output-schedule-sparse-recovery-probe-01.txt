@@ -1,2 +1,0 @@
-BUG_REPRODUCED,case=zero_rate_successful_1Hz_due_snapshots,seconds=120,offered=100,wholeLocalCompleted=100,capacityRejects=0,otherFailures=0,ratePermille=0,upSteps=0,noEvidenceWindows=20,cleanUs=4000000
-BUG_REPRODUCED,case=five_percent_12fps,offered=1440,wholeLocalCompleted=72,capacityRejects=0,otherFailures=0,ratePermille=50,upSteps=0,noEvidenceWindows=39,cleanUs=1083329

@@ -1,9 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 30725, "elapsed_seconds": 20.198915404005675}
-{"type": "CDC_debug_progress", "rx_bytes": 98664, "elapsed_seconds": 40.348927118000574}
-{"type": "CDC_debug_progress", "rx_bytes": 166089, "elapsed_seconds": 60.54071861199918}
-{"type": "CDC_debug_progress", "rx_bytes": 233652, "elapsed_seconds": 80.82590237801196}
-{"type": "CDC_debug_progress", "rx_bytes": 300030, "elapsed_seconds": 101.13758630401571}
-{"type": "CDC_debug_progress", "rx_bytes": 366233, "elapsed_seconds": 121.16240803201799}
-{"type": "CDC_debug_progress", "rx_bytes": 429664, "elapsed_seconds": 141.497650180012}
-{"type": "CDC_debug_progress", "rx_bytes": 452679, "elapsed_seconds": 161.56807752000168}
-{"status": "STOPPED", "error": null, "rx_bytes": 453246, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-unread-01/usb-unread-01-debug.debug.rx.bin"}

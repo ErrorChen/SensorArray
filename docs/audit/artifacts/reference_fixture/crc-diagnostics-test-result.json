@@ -1,8 +1,0 @@
-{
-  "command": [
-    "python3",
-    "tools/test_ads_matrix_diagnostics.py"
-  ],
-  "exit_code": 0,
-  "log": "docs/audit/artifacts/reference_fixture/test_ads_matrix_diagnostics-crc-final.txt"
-}

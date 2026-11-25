@@ -1,8 +1,0 @@
-idfSource=/home/csc/esp/esp-idf-v5.5.5/components/hal/esp32s3/include/hal/spi_ll.h
-idfSourceSha256=71441fc2867f57d4dd46ec468971fcf5c0b78108c22f2ab0a8660af340338fea
-$ gcc -std=gnu11 -Wall -Wextra -Werror docs/audit/artifacts/reference_fixture/ads_crc_timing_ab/idf_spi_divider_check.c -o /tmp/sensorarray_spi_divider_check
-compileExit=0
-ADS_SPI_DIVIDER,sourceHz=40000000,actualHz=2000000,highNs=125,lowNs=375,duty=64,passed=1
-ADS_SPI_DIVIDER,sourceHz=80000000,actualHz=2000000,highNs=125,lowNs=375,duty=64,passed=1
-ADS_SPI_DIVIDER,sourceHz=160000000,actualHz=2000000,highNs=125,lowNs=375,duty=64,passed=1
-exit=0

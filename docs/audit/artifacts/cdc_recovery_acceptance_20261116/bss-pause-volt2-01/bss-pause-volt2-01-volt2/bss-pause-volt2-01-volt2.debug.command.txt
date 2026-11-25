@@ -1,7 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 51982, "elapsed_seconds": 20.160283882985823}
-{"type": "CDC_debug_progress", "rx_bytes": 100708, "elapsed_seconds": 40.164726491988404}
-{"type": "CDC_debug_progress", "rx_bytes": 147705, "elapsed_seconds": 60.17443218600238}
-{"type": "CDC_debug_progress", "rx_bytes": 197183, "elapsed_seconds": 80.17966964800144}
-{"type": "CDC_debug_progress", "rx_bytes": 246149, "elapsed_seconds": 100.71135041298112}
-{"type": "CDC_debug_progress", "rx_bytes": 294924, "elapsed_seconds": 120.87462936999509}
-{"status": "STOPPED", "error": null, "rx_bytes": 311218, "raw_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-pause-volt2-01/bss-pause-volt2-01-volt2/bss-pause-volt2-01-volt2.debug.rx.bin"}

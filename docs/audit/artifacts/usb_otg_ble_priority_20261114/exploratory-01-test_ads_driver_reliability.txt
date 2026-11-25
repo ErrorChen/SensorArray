@@ -1,4 +1,0 @@
-ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic
-ADS_DRIVER_RELIABILITY_TESTS,passed=1,source=production_driver,fixture=synthetic
-ADS_SPI_TIMING_SELECTION,passed=1,esp32s3=0
-ADS_SPI_TIMING_SELECTION,passed=1,esp32s3=1

@@ -1,1 +1,0 @@
-{"status": "APPLICATION_RESTART_OBSERVED", "error": null, "action_attempts": 1, "elapsed_seconds": 3.484684950002702}

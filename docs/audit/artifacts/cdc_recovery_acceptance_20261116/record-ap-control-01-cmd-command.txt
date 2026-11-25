@@ -1,1 +1,0 @@
-{"status": "AP_AND_CONTROL_QUERY_OBSERVED", "error": null, "summary": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.summary.json"}

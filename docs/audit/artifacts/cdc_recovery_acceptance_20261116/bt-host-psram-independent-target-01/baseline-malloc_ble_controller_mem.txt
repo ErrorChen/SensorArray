@@ -1,9 +1,0 @@
-
-/tmp/bt-host-old-target-9he6p4sb/baseline.elf:     file format elf32-xtensa-le
-
-
-Disassembly of section .iram0.vectors:
-
-Disassembly of section .iram0.text:
-
-Disassembly of section .flash.text:

@@ -1,9 +1,0 @@
-50000004 l     O .rtc_noinit	00000004 s_recoveryMagic
-50000000 l     O .rtc_noinit	00000004 s_recoveryInverse
-403773b8 l     F .iram0.text	00000050 sensorarrayUsbEmergencyCoreReset
-3fcae348 l     O .dram0.data	00000004 s_hardwareMayOwnDma
-40377408 g     F .iram0.text	00000019 __wrap_esp_restart_noos
-4200b284 g     F .flash.text	00000028 sensorarrayUsbOtgRestart
-40382214 g     F .iram0.text	0000002a rtc_clk_slow_freq_get_hz
-4200b2ac g     F .flash.text	0000002c sensorarrayUsbOtgManualRestart
-40384b30 g     F .iram0.text	00000193 esp_restart_noos

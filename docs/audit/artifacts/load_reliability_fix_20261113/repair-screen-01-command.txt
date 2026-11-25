@@ -1,8 +1,0 @@
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 20.004, "capture_seconds": 14.224, "requested_capture_seconds": 120.0, "rx_bytes": 561353, "capture_trailers": 670}
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 40.004, "capture_seconds": 34.224, "requested_capture_seconds": 120.0, "rx_bytes": 1122412, "capture_trailers": 1596}
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 60.012, "capture_seconds": 54.232, "requested_capture_seconds": 120.0, "rx_bytes": 1689145, "capture_trailers": 2532}
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 80.026, "capture_seconds": 74.247, "requested_capture_seconds": 120.0, "rx_bytes": 2249720, "capture_trailers": 3457}
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 100.033, "capture_seconds": 94.254, "requested_capture_seconds": 120.0, "rx_bytes": 2813852, "capture_trailers": 4389}
-{"type": "benchmark_progress", "label": "repair-screen-01", "phase": "capture", "elapsed_seconds": 120.037, "capture_seconds": 114.258, "requested_capture_seconds": 120.0, "rx_bytes": 3378402, "capture_trailers": 5323}
-{"type": "benchmark_configuration_finished", "label": "repair-screen-01", "summary_file": "docs/audit/artifacts/load_reliability_fix_20261113/repair-screen-01.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00010319000285}
-{"status": "COMPLETE", "completed": 1, "not_run": []}

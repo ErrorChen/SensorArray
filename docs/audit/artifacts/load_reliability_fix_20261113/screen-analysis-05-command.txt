@@ -1,1 +1,0 @@
-{"output": "docs/audit/artifacts/load_reliability_fix_20261113/screen-analysis-05.json", "captures": 9, "configuration_statuses": {"NOT_RUN": 31, "RECORDED": 1}, "precision_acceptance": "NOT_EVALUATED"}

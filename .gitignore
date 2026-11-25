@@ -1,36 +1,37 @@
-# ESP-IDF build output
+# ESP-IDF build trees, tool downloads and workstation configuration
 build/
 build_*/
-validation_artifacts/
+/managed_components/
+/sdkconfig
+/sdkconfig.old
+/sdkconfig.*.old
+/.vscode/
+/.idea/
 *.map
 *.elf
 *.bin
 
-# Local sdkconfig (generated)
-sdkconfig
-sdkconfig.old
-sdkconfig.*.old
-# IDE
-.vscode/
-.idea/
-
-# Python cache
+# Local benchmark windows, host receipts, reports and observer state
+/validation_artifacts/
+/docs/audit/artifacts/
+/test-results/
+# Recognisable receiver outputs even when a custom output path is used
+*.events.jsonl
+*.events.jsonl.gz
+*.notifications.jsonl
+*.notifications.jsonl.gz
+*.rx.bin.gz
+*.observers.stop
+/.pytest_cache/
 __pycache__/
-*.pyc
-
-# OS
-.DS_Store
-Thumbs.db
-
+*.py[cod]
 *.log
 
-# Full benchmark originals remain local; verified lossless .gz archives are tracked.
-/docs/audit/artifacts/full_benchmark_20261113/*.events.jsonl
-/docs/audit/artifacts/full_benchmark_20261113/*.ble.notifications.jsonl
-/docs/audit/artifacts/load_reliability_fix_20261113/*.events.jsonl
-/docs/audit/artifacts/load_reliability_fix_20261113/*.ble.notifications.jsonl
+# Versioned golden and replay inputs include log and binary-format fixtures
+!/tests/fixtures/**/*.log
+!/tests/fixtures/**/*.bin
+!/tests/fixtures/**/*.gz
+!/tests/fixtures/**/*.jsonl
 
-# Reproducible managed components are pinned in dependencies.lock.
-managed_components/
-/docs/audit/artifacts/usb_otg_ble_priority_20261114/*.events.jsonl
-/docs/audit/artifacts/usb_otg_ble_priority_20261114/*.ble.notifications.jsonl
+.DS_Store
+Thumbs.db

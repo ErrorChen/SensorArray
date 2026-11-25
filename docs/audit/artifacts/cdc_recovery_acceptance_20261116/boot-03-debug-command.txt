@@ -1,4 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 19765, "elapsed_seconds": 20.73653352900874}
-{"type": "CDC_debug_progress", "rx_bytes": 38743, "elapsed_seconds": 41.543904902995564}
-{"type": "CDC_debug_progress", "rx_bytes": 57557, "elapsed_seconds": 61.916828058019746}
-{"status": "OBSERVED", "error": null, "rx_bytes": 75331, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03-debug.debug.rx.bin"}

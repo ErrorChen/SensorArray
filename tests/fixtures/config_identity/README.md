@@ -1,15 +1,12 @@
-# 合成协议回放夹具
+# 帧与配置金样 / Frame and configuration goldens
 
-本目录不是现场实录，不能当作 E1–E7 的硬件复现证据。
+`tests/host/test_config_identity.c` 用真正的 `sensorarrayTextProtocolBuildFrame` 生成 .frame，用 `sensorarrayConfigIdentityFormat` 生成 .config。运行 `python3 tools/test_config_identity.py` 会在临时目录生成并核对字节及 CRC。 / These are synthetic inputs passed through the production C encoders. Run the host wrapper from the repository root. Configuration text and measurement frames have distinct formats. 仅在有意修改协议金样时使用 `--update`。 Use `--update` to explicitly replace the synthetic expectations after validation.
 
-`*.frame` 是 `tests/host/test_config_identity.c` 使用真实固件 `sensorarrayTextProtocolBuildFrame()` 输出；`*.config` 使用真实 `sensorarrayConfigIdentityFormat()` 输出。运行 `python3 tools/test_config_identity.py` 会重新生成并独立验证 CRC。原始现场日志没有被改写或补全。
+| 输入 / Input | 应检验的行为 / Expected behavior |
+|---|---|
+| cap_before, volt_transition, cap_after, cap_reapplied | CAP→VOLT→CAP 及重新应用 CAP。C 的 legacy gen 来自行数域，mgen 跟踪模式。 / Recover a lost or late MAPP through CONFIG. Reject a delayed old terminal without relabeling pending frames. |
+| health_before_conversion | 前置健康故障，acquired=0。 / No point conversion was completed. |
+| *_1, *_8 | 四种布局的首行/全八行；比较 header、K 与 snapshot。 / Verify row and mode identities across all layouts. |
+| res_extreme, mixed_extreme | 极值与最大宽度 metadata 的消息尺寸及实际 CRC。 / Check size bounds and real CRC at the encoding extremes. |
 
-- `cap_before → volt_transition → cap_after → cap_reapplied`：CAP→VOLT→CAP、同一 CAP 新请求的连续配置；C legacy gen 始终来自 ROWS，explicit mgen 递增。
-- 丢失 MAPP：只投递 cap_after.frame，然后查询 cap_after.config。禁止将 cap_before.config 的身份盖到新帧。
-- 数据早于 MAPP：按上一顺序投递，查询匹配后解除 pending；Applied 不证明 PC 已收到过有效值。
-- 旧终态/旧 epoch 迟到：已经确认 cap_reapplied.config 后，再投递 cap_before 或 cap_after 帧/关联请求终态；不能倒退模式状态。
-- `health_before_conversion`：合成全帧 acquired=0 的健康前置失败。它并不是“64 次 ADC 转换失败”的实录。
-- `*_1`、`*_8`：CAP/VOLT/RES/mixed 的 1/8 行 encoder 黄金样本。
-- `res_extreme`、`mixed_extreme`：合法 12 位负 fixed value 和最大整数 metadata，分别 1844、2085 bytes，实际 CRC 正常。不是实际可施加的电压/电阻测试条件。
-
-脚本执行五类状态恢复对照断言，但不替代真实 Host UI 的集成/HIL 测试。
+[主机契约 / Host contract](../../../docs/integration/firmware_host_contract.md)

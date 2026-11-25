@@ -1,6 +1,0 @@
-VARIANT=optimized
-RECOVERY_CONFIRMED,case=zero_rate_successful_1Hz_due_snapshots,seconds=120,offered=100,wholeLocalCompleted=100,capacityRejects=0,otherFailures=0,ratePermille=400,upSteps=8,noEvidenceWindows=20,cleanUs=0
-RECOVERY_CONFIRMED,case=five_percent_12fps,offered=1440,wholeLocalCompleted=439,capacityRejects=0,otherFailures=0,ratePermille=600,upSteps=11,noEvidenceWindows=0,cleanUs=0
-VARIANT=asan_ubsan
-RECOVERY_CONFIRMED,case=zero_rate_successful_1Hz_due_snapshots,seconds=120,offered=100,wholeLocalCompleted=100,capacityRejects=0,otherFailures=0,ratePermille=400,upSteps=8,noEvidenceWindows=20,cleanUs=0
-RECOVERY_CONFIRMED,case=five_percent_12fps,offered=1440,wholeLocalCompleted=439,capacityRejects=0,otherFailures=0,ratePermille=600,upSteps=11,noEvidenceWindows=0,cleanUs=0

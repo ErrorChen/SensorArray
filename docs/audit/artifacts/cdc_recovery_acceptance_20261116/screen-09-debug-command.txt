@@ -1,8 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 58388, "elapsed_seconds": 20.14392179303104}
-{"type": "CDC_debug_progress", "rx_bytes": 201880, "elapsed_seconds": 40.270640834001824}
-{"type": "CDC_debug_progress", "rx_bytes": 345571, "elapsed_seconds": 60.491050812008325}
-{"type": "CDC_debug_progress", "rx_bytes": 487361, "elapsed_seconds": 80.65980372601189}
-{"type": "CDC_debug_progress", "rx_bytes": 631950, "elapsed_seconds": 100.84667165001156}
-{"type": "CDC_debug_progress", "rx_bytes": 776754, "elapsed_seconds": 121.06327484798385}
-{"type": "CDC_debug_progress", "rx_bytes": 913926, "elapsed_seconds": 141.07387372700032}
-{"status": "STOPPED", "error": null, "rx_bytes": 943839, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-debug.debug.rx.bin"}

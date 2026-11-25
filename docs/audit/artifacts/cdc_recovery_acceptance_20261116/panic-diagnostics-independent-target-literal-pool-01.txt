@@ -1,7 +1,0 @@
-
-/home/csc/esp/workspace/SensorArray/build/SensorArray.elf:     file format elf32-xtensa-le
-
-Contents of section .iram0.text:
- 40374748 5ce6ca3f 88000050 60e6ca3f 281ecb3f  \..?...P`..?(..?
- 40374758 241ecb3f ff7f0700 0000d03f 2083b8ed  $..?.......? ...
- 40374768 ceafbeac 31504153 10cd1142           ....1PAS...B    

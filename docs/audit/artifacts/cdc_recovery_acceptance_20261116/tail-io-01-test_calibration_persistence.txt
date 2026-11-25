@@ -1,1 +1,0 @@
-CALIBRATION_TESTS,passed=1,maxPayloadBytes=512,recordBytes=540

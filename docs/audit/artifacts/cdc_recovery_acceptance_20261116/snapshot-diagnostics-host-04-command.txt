@@ -1,6 +1,0 @@
-SNAPSRC? max_bytes=222
-SNAPNET? max_bytes=352
-PASS snapshot query bounds, per-layer stages, readonly counters, max u32 and truncation fence
-PROTO backend=usb_cdc_data_v1/usb_rom_handoff_v1 bytes=476 capacity=512
-PROTO backend=usb_vendor_bulk_v1/usb_rom_handoff_v1 bytes=479 capacity=512
-PROTO backend=serial_sink_v1/serial_classes_v1/usb_rom_handoff_v1 bytes=493 capacity=512

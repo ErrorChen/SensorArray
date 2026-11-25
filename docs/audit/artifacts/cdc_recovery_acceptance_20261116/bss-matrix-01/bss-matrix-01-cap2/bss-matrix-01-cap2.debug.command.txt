@@ -1,1 +1,0 @@
-{"status": "STOPPED", "error": null, "rx_bytes": 9087, "raw_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2/bss-matrix-01-cap2.debug.rx.bin"}

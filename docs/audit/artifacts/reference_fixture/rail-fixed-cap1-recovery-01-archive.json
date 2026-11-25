@@ -1,7 +1,0 @@
-{
-  "raw_file": "docs/audit/artifacts/reference_fixture/rail-fixed-cap1-recovery-01.rx.bin",
-  "raw_sha256": "f2cc2c865133e0715d5affa7d0589a9a41a0cd88536e6db7a52d3a84b563e8ae",
-  "gzip_file": "docs/audit/artifacts/reference_fixture/rail-fixed-cap1-recovery-01.rx.bin.gz",
-  "gzip_sha256": "9d2abcfa553907f6ce2cac3809c89a0dd45dd00d6f2bea454f22649f65e3b844",
-  "byte_equal": true
-}

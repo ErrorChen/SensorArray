@@ -1,33 +1,8 @@
-# 上位机兼容清单
+# 上位机接入 / Host integration
 
-## 必须支持
+1. 枚举真实接口，记录 PROTO、BUILD；查询 CONFIG 保存 boot/session/revision 和各配置域。 / Discover the actual transport and query protocol, image and atomic configuration identity.
+2. 原样保留接收字节和单调主机时间。重组 BLE 分片，检查长度、外层 CRC 和科学帧 CRC。 / Retain original bytes and monotonic receipt times. Validate both the message envelope and scientific frame.
+3. 按帧自身身份解析 row-major 数据、有效位及单位；按域关联命令的 ACK、终态与首帧。终态缺失时查询 CONFIG。 / Decode row order, units and masks from the frame. Match acknowledgements and terminals within their request domains and recover state through CONFIG.
+4. 把采集、发送和实收分层展示；展示 unknown、OPEN 和 SETTLING。 / Show independent acquisition and delivery rates, invalid reasons and unknown values.
 
-1. 通过 Serial、BLE `FF10` 或 Wi-Fi CTRL 发送同一组命令；
-2. BLE 通过 `FF11` 接 CTRL、`FF20` 接 DATA、`FF30` 接 LOG；
-3. 把 `MACK/RCMD/RACK` 视为 accepted，把 `MAPP/RAPP` 视为 applied；
-4. mode/rows 切换后按 `gen/rid` 丢弃旧数据；
-5. 解析 CAP `C/D/K` 与 VOLT/RES `V|R/D/P/K`；
-6. 按动态 `rows/cells/n` 处理最后不足 16 个值的 chunk；
-7. 验证 frame CRC；
-8. BLE 还要先验证 envelope length/CRC；
-9. 保留 `Xhh` 未知错误码，不能转换为 0；
-10. 把 PGA `00` 显示为 verified bypass；
-11. 明确使用 `unit/scale`，不能从数值范围猜测 pF/V/Ω；
-12. battery UI 同时显示 `valid/fresh/age/reason/restore`，不能只显示 mV 或推导 SOC。
-
-## 无 breaking change 的部分
-
-- BLE Service/characteristic UUID；
-- BLE `G,...` fragmentation envelope；
-- CAP `C/D/K` 基本 wire format；
-- UDP DATA/LOG/CTRL ports；
-- shared command handler；
-- non-blocking sink policy。
-
-## 参考实现
-
-- `tools/text_protocol.py`：CAP/V/R parser、CRC 与 BLE fragment reassembler；
-- `tools/test_text_protocol.py`：host protocol tests；
-- `tools/sensorarray_hil.py`：Serial/BLE HIL。
-
-完整规格见 [命令参考](command-reference.md)、[BLE 协议](ble-protocol.md) 和 [输出格式](output-format.md)。
+[完整字段契约 / Field contract](integration/firmware_host_contract.md) · [帧实例与 parser / Samples and parser](../tests/fixtures/config_identity/README.md) · [Python 工具 / Python tools](../tools/README.md)

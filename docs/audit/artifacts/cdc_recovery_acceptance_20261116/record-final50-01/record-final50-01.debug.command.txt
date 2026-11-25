@@ -1,1 +1,0 @@
-{"status": "STOPPED", "error": null, "rx_bytes": 66300, "raw_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.debug.rx.bin"}

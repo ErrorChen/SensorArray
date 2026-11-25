@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/csc/esp/workspace/SensorArray/tools/test_snapshot_diagnostics.py", line 133, in <module>
-    raise SystemExit(main())
-                     ^^^^^^
-  File "/home/csc/esp/workspace/SensorArray/tools/test_snapshot_diagnostics.py", line 32, in main
-    assert '/ble_flow_v1/ble_snapshot_v1/heap_v1,' in reply and reply.endswith(',adcCrc=crc8\n')
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError

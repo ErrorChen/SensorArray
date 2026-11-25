@@ -1,117 +1,55 @@
-# tmuxSwitch / TMUX GPIO Control Primitive Layer
+# TMUX 行与输入开关 / TMUX row and input switches
 
-## 目录 / Table of contents
+TMUX1108 用 A0–A2 从八行中选择一行。TMUX1134 的 SELA 管 D1–D4，SELB 管 D5–D8。在项目板上，SEL 高电平选 FDC，低电平选 ADS。逻辑 REF 对应 SW 低电平，释放 Q1；SW 高电平令 Q1 把 U5 公共端钳到 GND。U5 EN 由 R25 上拉。REFOUT 电压以 AVSS 为参考。安全切换、激励和建立时间由测量路由控制器协调。 / TMUX1108 address lines A0–A2 select one of eight rows. TMUX1134 SELA routes D1–D4, SELB routes D5–D8. On the project board a high SEL selects FDC and a low SEL selects ADS. Logical REF drives SW low and releases Q1. Driving SW high clamps the U5 common node to GND. R25 pulls U5 EN high. REFOUT is referenced to AVSS. The measurement route controller coordinates switching, excitation and settling. [接口 / Header](include/tmuxSwitch.h) · [引脚与极性 / Configuration](Kconfig) · [板级真值表 / Board profiles](../../core/board/sensorarrayBoardMap.c) · [调用者 / Route controller](../../core/measure/sensorarrayRouteController.c)
 
-- [中文说明 / Chinese documentation](#中文说明--chinese-documentation)
-- [Australian English documentation](#australian-english-documentation)
-- [Kconfig](#kconfig)
+上电先调用 `tmuxSwitchInit()`。由路由 owner 使用零基行号 0..7 对应 S1..S8。读命令缓存与 MCU 引脚观察值可用下例，`obs* = -1` 表示未接引脚。判断模拟导通需要物理测量。对 `esp_err_t` 检查 `ESP_OK`，未初始化、非法行或缺少必需参数分别见各调用。 / Initialise with `tmuxSwitchInit()`. The route owner uses zero-based rows 0..7 for S1..S8. Read commanded state and MCU-side pin observations as below. A pin observation of −1 denotes an unconfigured pin. Analogue conduction requires physical measurement. Check ESP_OK and handle invalid state or arguments at the call site.
 
-## 中文说明 / Chinese documentation
-
-### 职责
-
-`components/tmuxSwitch` 是 TMUX1108/TMUX1134 的 GPIO/control primitive layer。它负责初始化 GPIO、选择 TMUX1108 row index、设置 TMUX1108 SW source、设置 TMUX1134 SELA/SELB/EN 逻辑电平，并提供 MCU-side control/readback snapshot。
-
-它不知道：
-
-- 哪个 row index 在业务上叫 S1/S2。
-- 哪个 SELA/SELB 组合在板级语义上是 ADS 或 FDC。
-- 哪个 D-line 属于 primary/secondary FDC。
-- FDC frame 如何构建。
-- 何时需要 rescue 或 sweep。
-
-板级含义由 `core/board/sensorarrayBoardMap.c` 给出，测量策略由 `core/measure` 给出。
-
-### 真实 API
-
-| API | 作用 |
-|---|---|
-| `tmuxSwitchInit()` | Configure TMUX GPIO and initial software-commanded state. |
-| `tmux1108SelectRow()`, `tmuxSwitchSelectRow()` | Select row index `0..7`. Measurement/board layers map this to S1..S8. |
-| `tmux1108SelectRowBreakBeforeMake()` | Change only A0..A2 while the current source is verified REF; used by the RES-session fast row route on a board whose TMUX1108 EN is not MCU-controlled. |
-| `tmux1108GetRow()` | Return last software-commanded row index. |
-| `tmux1108SetSource()`, `tmuxSwitchSet1108Source()` | Select `TMUX1108_SOURCE_GND` or `TMUX1108_SOURCE_REF`. |
-| `tmux1108GetSource()` | Return last software-commanded SW source. |
-| `tmux1134SelectSelALevel()`, `tmux1134SelectSelBLevel()` | Drive raw SELA/SELB logic levels. |
-| `tmux1134SetEnLogicalState()`, `tmux1134GetEnLogicalState()` | Control/read logical EN state. |
-| `tmux1134SetSelAEnabled()`, `tmux1134SetSelBEnabled()` | Backward-compatible enabled wrappers using configured enabled levels. |
-| `tmux1134SetAllOff()`, `tmux1134SetAllOn()` | Convenience wrappers. |
-| `tmuxSwitchGetControlState()` | Capture last commanded state plus MCU GPIO observations. Observations do not prove analogue conduction. |
-
-### 状态结构
-
-`tmuxSwitchControlState_t` contains:
-
-- software-commanded state: `cmdRow`, `cmdSource`, `cmdSwLevel`, `cmdSelaLevel`, `cmdSelbLevel`, `cmdTmux1134EnLogicalOn`;
-- MCU-side observations: `obsA0Level`, `obsA1Level`, `obsA2Level`, `obsSwLevel`, `obsSelaLevel`, `obsSelbLevel`, `obsEnLevel`;
-- EN controllability and readback validity flags.
-
-### 层级关系
-
-```text
-core/board
-  defines SELA_ROUTE_ADS1263/FDC2214 -> raw GPIO level
-  defines board FDC SELB policy
-core/measure
-  decides route safety, settle delays, ADS/FDC mutual exclusion
-components/tmuxSwitch
-  only drives and observes GPIO-level control signals
+```c
+tmuxSwitchControlState_t pins;
+esp_err_t err = tmuxSwitchGetControlState(&pins);
+if (err == ESP_OK && pins.tmux1134EnControllable) {
+    /* pins.obsEnLevel is the MCU pin observation. */
+}
 ```
 
-当前板级 `CONFIG_TMUX1108_SW_REF_LEVEL=n` 表示 logical REF 对应 SW low，GND
-对应 SW high。电路图中 SW high 使外部 Q1 将 TMUX1108 common/REFOUT 节点拉到
-GND；SW low 释放该节点供 REFOUT 激励。因此 CAP/VOLT 使用 high/GND/no
-excitation，RES 使用 low/REF/excitation。这个关系只由 `core/board` 的显式 mode
-profile 消费，primitive layer 不从 high/low 自行决定业务模式。
+## [tmuxSwitch.c](tmuxSwitch.c)
 
-TMUX1134 的板级真值为 SEL=1 选 A/FDC、SEL=0 选 B/ADS；SELA 管 D1..D4，
-SELB 管 D5..D8。TMUX1134 支持 break-before-make，但 measurement layer 仍先撤销
-激励、切 route、等待配置的 settle，再允许 conversion。GPIO readback 只证明 MCU
-脚的观测值，不能替代模拟路径或示波器验证。
+### 接口与回调 / Interfaces and callbacks
 
-2026-08-06 原理图审查确认 TMUX1108 EN 网只有 R25 10 kΩ 上拉到 3V3，没有 MCU
-连接；SW 经 R46 驱动 Q1 2N7002，可把 U5 common/REFOUT clamp 到 GND。因此 RES
-session 快速换行不能声称执行 EN disable，而是使用器件地址切换的 BBM 特性并保留
-可配置 settle/readback；完整 Q1 clamp 序列仍是回退路径。
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `esp_err_t tmuxSwitchInit(void)` | 配置 GPIO 并设置初始源、行、SEL 和 EN。 / Configure GPIO and establish the initial source, row, SEL and EN settings. | [matrixEngineInit](../../core/matrixEngine/matrixEngine.c#L230) |
+| `esp_err_t tmux1108SelectRow(uint8_t row)` | 选择 0..7 行，若启用安全源切换则临时切源并恢复。 / Select row 0..7, temporarily changing and restoring source if configured. | [sensorarrayRouteControllerSelectRow](../../core/measure/sensorarrayRouteController.c#L759) |
+| `esp_err_t tmux1108SelectRowBreakBeforeMake(uint8_t row)` | 已选择 REF 的 RES 会话中只改 A0–A2 并执行切换延迟。 / With REF already selected in a RES session, update only A0–A2 and apply the switch delay. | [sensorarrayRouteControllerSelectRow](../../core/measure/sensorarrayRouteController.c#L759) |
+| `esp_err_t tmux1108GetRow(uint8_t *rowOut)` | 读取最后命令的零基行号到 rowOut。 / Copy the last commanded zero-based row into rowOut. | 公开入口 / Callable API |
+| `esp_err_t tmux1108SetSource(tmux1108Source_t source)` | 切换到 GND 或 REF 并记录命令状态。 / Command the GND or REF source and remember the selection. | [sensorarrayRouteApplyControlProfile](../../core/measure/sensorarrayRouteController.c#L325) |
+| `esp_err_t tmux1108GetSource(tmux1108Source_t *sourceOut)` | 读出最后命令的源选择。 / Copy the last commanded source selection to sourceOut. | [sensorarrayRouteControllerSelectRow](../../core/measure/sensorarrayRouteController.c#L759) |
+| `esp_err_t tmux1134SelectSelALevel(bool level)` | 写 SELA 原始逻辑电平，必要时使能可控 EN。 / Drive the raw SELA level, enabling a controllable EN if needed. | [tmux1134SetSelAEnabled](tmuxSwitch.c#L445) |
+| `esp_err_t tmux1134SelectSelBLevel(bool level)` | 写 SELB 原始逻辑电平，必要时使能可控 EN。 / Drive the raw SELB level, enabling a controllable EN if needed. | [tmux1134SetSelBEnabled](tmuxSwitch.c#L450) |
+| `esp_err_t tmux1134SetEnLogicalState(bool on)` | 按 EN 脚是否可控处理逻辑开关请求。 / Apply the requested logical enable according to EN pin availability. | [sensorarrayMeasurePrepareFdcMatrixPath](../../core/measure/sensorarrayMeasure.c#L517) |
+| `esp_err_t tmux1134GetEnLogicalState(bool *onOut)` | 返回已跟踪的逻辑 EN 状态。 / Copy tracked logical enable state into onOut. | 公开入口 / Callable API |
+| `esp_err_t tmux1134SetSelAEnabled(bool enabled)` | 按 SELA 配置极性实现逻辑 enabled。 / Drive SELA according to its configured enable polarity. | [tmuxSwitchSetSelAEnabled](tmuxSwitch.c#L562) |
+| `esp_err_t tmux1134SetSelBEnabled(bool enabled)` | 按 SELB 配置极性实现逻辑 enabled。 / Drive SELB according to its configured enable polarity. | [tmuxSwitchSetSelBEnabled](tmuxSwitch.c#L567) |
+| `esp_err_t tmux1134SetAllOff(void)` | 有可控 EN 则关 EN，否则驱动 SEL 到配置的关闭电平。 / Disable via EN when available, otherwise command the configured inactive SEL levels. | 公开入口 / Callable API |
+| `esp_err_t tmux1134SetAllOn(void)` | 驱动已配置选择脚为有效电平并启用可控 EN。 / Set configured selects active and enable a controllable EN. | 公开入口 / Callable API |
+| `esp_err_t tmuxSwitchGetControlState(tmuxSwitchControlState_t *outState)` | 在临界区内复制命令值、MCU 引脚值及 EN 有效标志。 / Snapshot commanded levels, MCU pin readings and EN validity under the critical section. | [sensorarrayBringupPrepareAdsRefPath](../../core/board/sensorarrayBringup.c#L920) |
+| `esp_err_t tmuxSwitchSelectRow(uint8_t row)` | 兼容入口，接受零基 row 并转交 TMUX1108 换行。 / Compatibility entry forwarding a zero-based row to TMUX1108 selection. | [matrixEngineSelectRowDefault](../../core/matrixEngine/matrixEngine.c#L41) |
+| `esp_err_t tmuxSwitchSetSelAEnabled(bool enabled)` | 兼容入口，按已配置极性驱动 SELA。 / Compatibility entry forwarding logical enable to SELA. | [matrixEngineSelectColGroupDefault](../../core/matrixEngine/matrixEngine.c#L50) |
+| `esp_err_t tmuxSwitchSetSelBEnabled(bool enabled)` | 兼容入口，按已配置极性驱动 SELB。 / Compatibility entry forwarding logical enable to SELB. | [matrixEngineSelectColGroupDefault](../../core/matrixEngine/matrixEngine.c#L50) |
+| `esp_err_t tmuxSwitchSet1108Source(tmux1108Source_t source)` | 兼容入口，转交 TMUX1108 的 GND/REF 选择。 / Compatibility entry forwarding the TMUX1108 logical source. | [matrixEngineDriveDefault](../../core/matrixEngine/matrixEngine.c#L77) |
 
-## Australian English documentation
+### 内部 / Internal
 
-### Responsibility
-
-`components/tmuxSwitch` is the GPIO/control primitive layer for TMUX1108 and TMUX1134. It initialises GPIO, selects a TMUX1108 row index, selects the TMUX1108 SW source, drives TMUX1134 SELA/SELB/EN logic levels, and captures MCU-side control/readback snapshots.
-
-It does not know business row names, ADS/FDC route meaning, D-line ownership, FDC frame building, or rescue policy. Board meaning comes from `core/board/sensorarrayBoardMap.c`; measurement policy comes from `core/measure`.
-
-### API groups
-
-- Initialisation: `tmuxSwitchInit()`.
-- TMUX1108 row/source: `tmux1108SelectRow()`, `tmuxSwitchSelectRow()`, `tmux1108SetSource()`, `tmuxSwitchSet1108Source()`.
-- TMUX1134 raw logic levels: `tmux1134SelectSelALevel()`, `tmux1134SelectSelBLevel()`, `tmux1134SetEnLogicalState()`.
-- Compatibility wrappers: `tmux1134SetSelAEnabled()`, `tmux1134SetSelBEnabled()`, `tmux1134SetAllOff()`, `tmux1134SetAllOn()`.
-- Diagnostics: `tmuxSwitchGetControlState()`.
-
-GPIO observations are MCU pin observations only. They are useful diagnostics but do not prove the external analogue path is conducting correctly.
-
-For this board, `CONFIG_TMUX1108_SW_REF_LEVEL=n` maps logical REF to physical
-low and GND to physical high. The external Q1 makes high a grounded/passive
-matrix state; low releases the REFOUT excitation path. The board map, not this
-component, assigns those levels to CAP/VOLT/RES. TMUX1134 SEL=1 selects the
-A/FDC branch and SEL=0 the B/ADS branch; SELA serves D1..D4 and SELB D5..D8.
-Measurement policy still removes excitation and waits for analogue settling
-around route changes even though the switch provides break-before-make.
-
-## Kconfig
-
-| Option | Default | Notes |
-|---|---:|---|
-| `CONFIG_TMUX1108_A0_GPIO`, `CONFIG_TMUX1108_A1_GPIO`, `CONFIG_TMUX1108_A2_GPIO` | `4`, `5`, `6` | TMUX1108 address pins. |
-| `CONFIG_TMUX1108_SW_GPIO` | `7` | TMUX1108 SW source select pin. |
-| `CONFIG_TMUX1108_SW_REF_LEVEL` | n | Current-board polarity: REF=low, GND=high. Change only with a reviewed board profile/schematic change. |
-| `CONFIG_TMUX1108_DEFAULT_SOURCE` | `0` | Default source, `0=GND`, `1=REF`. |
-| `CONFIG_TMUX1108_SWITCH_ROW_SAFE_MODE` | y | Optional safe row-switch policy in the primitive layer. |
-| `CONFIG_TMUX1108_SAFE_SOURCE` | `0` | Safe source when safe mode is enabled. |
-| `CONFIG_TMUX1108_SWITCH_DELAY_US` | `0` | Primitive switch delay. Measurement layer has separate FDC row settle timing. |
-| `CONFIG_TMUX1134_SEL1_GPIO`, `CONFIG_TMUX1134_SEL2_GPIO`, `CONFIG_TMUX1134_SEL3_GPIO`, `CONFIG_TMUX1134_SEL4_GPIO` | `1`, `2`, `-1`, `-1` | TMUX1134 SEL GPIOs. SEL1 is SELA, SEL2 is SELB. |
-| `CONFIG_TMUX1134_EN_GPIO` | `-1` | EN GPIO, or tied off when `-1`. |
-| `CONFIG_TMUX1134_DEFAULT_ALL_OFF`, `CONFIG_TMUX1134_DEFAULT_SELA_ENABLED`, `CONFIG_TMUX1134_DEFAULT_SELB_ENABLED` | n, n, n | Primitive default state options. |
-| `CONFIG_TMUX1134_SELA_ENABLED_LEVEL`, `CONFIG_TMUX1134_SELB_ENABLED_LEVEL`, `CONFIG_TMUX1134_EN_OFF_LEVEL` | `1`, `1`, `0` | Compatibility wrapper levels. Board route meaning is still defined in `core/board`. |
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `static tmux1108Source_t tmux1108SourceFromConfig(int value)` | 将配置值 0 或非零映射为 GND 或 REF。 / Map a zero/nonzero configuration setting to logical GND/REF. | [tmux1108SelectRow](tmuxSwitch.c#L255) |
+| `static void tmuxDelayUs(void)` | 执行 Kconfig 配置的切换微秒延迟。 / Wait the configured switching delay in microseconds. | [tmux1108SelectRow](tmuxSwitch.c#L255) |
+| `static int tmux1108SourceToLevel(tmux1108Source_t source)` | 按板上 SW_REF_LEVEL 极性把逻辑源换算成 GPIO 电平。 / Map a logical source to its GPIO level using SW_REF_LEVEL. | [tmux1108ApplySourceNoLock](tmuxSwitch.c#L58) |
+| `static void tmux1108ApplySourceNoLock(tmux1108Source_t source)` | 调用者持锁时将 source 写到 SW 引脚。 / Drive SW for source under the caller's lock. | [tmux1108SelectRow](tmuxSwitch.c#L255) |
+| `static void tmux1108ApplyRowNoLock(uint8_t row)` | 将零基行号的三位写到 A0–A2。 / Drive A0–A2 from the low three bits of the zero-based row. | [tmux1108SelectRow](tmuxSwitch.c#L255) |
+| `static bool tmux1134EnabledToSelLevel(bool enabled, int enabled_level)` | 根据 enabled_level 把逻辑开关转换为原始选择电平。 / Convert logical enable to a raw select level using the configured polarity. | [tmux1134SetSelAEnabled](tmuxSwitch.c#L445) |
+| `static void tmuxSetCachedSelLevelNoLock(int gpio, int level)` | 用 gpio 标识更新对应 SEL 的命令缓存。 / Update the commanded SEL level associated with gpio. | [tmux1134ApplySelNoLock](tmuxSwitch.c#L95) |
+| `static void tmux1134ApplySelNoLock(int gpio, bool level)` | 对已连接的选择脚写电平并更新命令缓存。 / Drive a configured select pin and update the commanded level. | [tmux1134SelectSelALevel](tmuxSwitch.c#L376) |
+| `static int tmuxReadGpioLevelNoLock(int gpio)` | 读取 MCU 端引脚，未配置时返回 −1。 / Return the MCU pin level, with −1 for an unconfigured GPIO. | [tmuxSwitchGetControlState](tmuxSwitch.c#L496) |
+| `static void tmux1134SetEnStateNoLock(bool on)` | 按有效极性操作可控 EN 并记录状态。 / Apply the configured EN polarity where controllable and update its state. | [tmux1134SelectSelALevel](tmuxSwitch.c#L376) |
+| `static esp_err_t tmuxValidateConfig(void)` | 核对必需及已启用可选 GPIO 的范围。 / Validate the required and enabled optional GPIO numbers. | [tmuxSwitchInit](tmuxSwitch.c#L151) |

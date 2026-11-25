@@ -16,5 +16,7 @@
       "length": 261
     }
   ],
-  "note": "No lines or CRC were repaired. The corrupt CONFIG remains corrupt. Host regression injects synthetic concurrent writes while replaying the separate complete CONFIG."
+  "note": "No lines or CRC were repaired. The corrupt CONFIG remains corrupt. Host regression injects synthetic concurrent writes while replaying the separate complete CONFIG.",
+  "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/reference_fixture/rail-fixed-switch50-01.rx.bin.gz",
+  "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
 }

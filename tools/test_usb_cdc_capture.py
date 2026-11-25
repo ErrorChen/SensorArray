@@ -23,7 +23,7 @@ from run_firmware_benchmark import BenchmarkOptions, configurations
 from text_protocol import TextProtocolParser
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGE = ROOT / 'docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts'
+STAGE = ROOT / 'tools/hil'
 sys.path.insert(0, str(STAGE))
 import capture_cdc_benchmark as stage
 import observe_cdc_debug as debug

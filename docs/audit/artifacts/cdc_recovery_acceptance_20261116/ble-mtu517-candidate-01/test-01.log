@@ -1,8 +1,0 @@
-BLECORRUPT,ch=D,mid=1,enqLen=5,deqLen=5,enqCrc=2AFB27FA,deqCrc=179B0E4A
-BLE_PRIORITY_PASS,groups=10,dataSlots=4,logSlots=2,ctrlSlots=2,stateBytes=16968,descriptorBytes=32,hardware=NOT_RUN
-SDK_CONNECTION_REQUEST,case=old_6_12_current12,callbackInterval=12,actualUpdateRequests=0
-SDK_CONNECTION_REQUEST,case=new_6_6_current12,path=L2CAP,actualIntervalStill=12
-BLE_SDK_CONNECTION_REQUEST_PASS,cases=8,actualSDKFunctions=2,hardware=NOT_RUN
-BLE_MTU_RECEIVER_ROUNDTRIP,actual_C_notifications=1,cases=16,hardware=NOT_RUN
-BLE_SDK_CONNECTION_SOURCE,path=/home/csc/esp/esp-idf-v5.5.5/components/bt/host/bluedroid/stack/l2cap/l2c_ble.c,sha256=6edd20732d5b3c9e4b7273b442902e09a26c150064ce6af835f7e0a7bdf07b7a
-BLE_PRIORITY_SOURCE,production_functions=40,hardware=NOT_RUN

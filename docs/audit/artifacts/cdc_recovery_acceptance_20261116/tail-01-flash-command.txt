@@ -1,1 +1,0 @@
-{"result": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/tail-01-flash-usj-result.json", "status": "FLASH_VERIFIED_WATCHDOG_REQUESTED_BOOT_UNVERIFIED", "flash_verified": true, "watchdog_requested": true, "app_boot_verified": false}

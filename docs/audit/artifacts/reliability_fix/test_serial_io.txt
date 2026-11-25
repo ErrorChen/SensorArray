@@ -1,3 +1,0 @@
-SERIAL_IO_PASS,allocation=psram,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1
-SERIAL_IO_PASS,allocation=internal,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1
-SERIAL_IO_PASS,allocation=failure_retry,initOnce=1,noHotAlloc=1,priority=1,noHostBoundUs=20000,rxIndependent=1,partialRecovery=1,vfsRejectAndResume=1

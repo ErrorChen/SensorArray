@@ -216,7 +216,7 @@ class BulkDiagnosticsTests(unittest.TestCase):
 
     def test_debug_archive_is_byte_verified_and_keeps_originals(self):
         path = self.write_debug()
-        script = ROOT / 'docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/archive_cdc_debug.py'
+        script = ROOT / 'tools/hil/archive_cdc_debug.py'
         spec = importlib.util.spec_from_file_location('archive_cdc_debug', script)
         archive = importlib.util.module_from_spec(spec); spec.loader.exec_module(archive)
         result = archive.archive(path, self.root / 'archive.json')
@@ -251,7 +251,7 @@ class BulkDiagnosticsTests(unittest.TestCase):
     def test_stage_CLI_emits_actual_independent_report_without_device_access(self):
         self.analyse()
         output = self.root / 'offline-report.json'
-        command = [sys.executable, str(ROOT / 'docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/analyze_bulk_stage.py'),
+        command = [sys.executable, str(ROOT / 'tools/hil/analyze_bulk_stage.py'),
                    '--directory', str(self.root), '--output', str(output), '--debug-summary', str(self.root / 'debug.debug.summary.json')]
         result = subprocess.run(command, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)

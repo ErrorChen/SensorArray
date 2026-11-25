@@ -1,1 +1,0 @@
-FDC_WORKER_RUNTIME_PASS,actualFunctions=worker+coordinator,iterations=56,asan=1,ubsan=1,scenarios=normal50;job_unconsumed;ack_delay;run_delay;done_lost;cancel_before_run;blocked_bus;mode_guard;stale_done

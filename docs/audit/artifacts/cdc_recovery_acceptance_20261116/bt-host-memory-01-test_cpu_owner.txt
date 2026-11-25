@@ -1,8 +1,0 @@
-CPUOWNER_BUDGET,enabled=0,roles=8,checkpoints=256,yields=8
-CPUOWNER_FORMAT,enabled=0,maxOwnerBytes=311,maxProtoBytes=510,capacity=512
-CPUOWNER_PASS,synthetic=1,productionModule=1,hardware=NOT_RUN
-CPUOWNER_BUDGET,enabled=1,roles=8,checkpoints=256,yields=8
-CPUOWNER_STORAGE,hostSlotBytes=64,hostTotalBytes=512,targetSize=NOT_RUN
-CPUOWNER_FORMAT,enabled=1,maxOwnerBytes=372,maxProtoBytes=510,capacity=512
-CPUOWNER_PASS,synthetic=1,productionModule=1,hardware=NOT_RUN
-CPUOWNER_CONFIG_GUARD,unsupported_kernels_or_clock=4,expected_compile_rejections=PASS

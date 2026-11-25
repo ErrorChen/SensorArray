@@ -1,5 +1,0 @@
-{
-  "source": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/recovery-candidate-01-build-manifest.json",
-  "copy": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reflash-build-manifest.json",
-  "sha256": "31b7c4337c55ce120c0e1d0e84acc663349ccb9f7a72c37570d8031a9d59df08"
-}

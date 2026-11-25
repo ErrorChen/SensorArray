@@ -1,1 +1,0 @@
-{"status": "COMPLETE_50_IDENTITY_VERIFIED", "verified_transitions": 50, "remaining_transitions": 0, "elapsed_seconds": 13.568625571002485, "safe_cap_recovery": "CAP8_QUERY_VERIFIED", "error": null, "cleanup_error": null, "summary_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.summary.json"}

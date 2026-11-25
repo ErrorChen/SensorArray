@@ -1,1 +1,0 @@
-{"status": "MEETS_REVISED_NORMAL_LINK_GAP_BUDGET_ONLY", "gap_percent": 0.37155669442664957, "BLELOG_query_window_seconds": 184.15309936000267, "policyDrop_delta": 354, "output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-17/screen-17-criteria-v2-supplement.json", "old_verdict_unchanged": true}

@@ -1,2 +1,0 @@
-{"type": "capture_progress", "phase": "boot_observation", "elapsed_seconds": 20.057, "rx_bytes": 19772, "capture_trailers": 0}
-{"status": "QUERIES_COMPLETE", "error": null, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/candidate-01-boot.rx.bin", "ctrl_raw_file": null, "elapsed_seconds": 25.051063949998934}

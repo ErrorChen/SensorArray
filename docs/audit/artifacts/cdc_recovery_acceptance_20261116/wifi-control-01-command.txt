@@ -1,1 +1,0 @@
-{"status": "ERROR", "error": "serial_eof_or_disconnected", "summary": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-control-01/wifi-control-01.summary.json"}

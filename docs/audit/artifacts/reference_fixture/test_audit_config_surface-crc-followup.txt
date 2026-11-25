@@ -1,9 +1,0 @@
-test_literals_comments_and_document_logs_are_not_macros (__main__.ConfigSurfaceTests.test_literals_comments_and_document_logs_are_not_macros) ... ok
-test_no_sdk_uses_only_exact_spiram_compatibility_name (__main__.ConfigSurfaceTests.test_no_sdk_uses_only_exact_spiram_compatibility_name) ... ok
-test_real_undefined_project_macro_still_fails_with_correct_line (__main__.ConfigSurfaceTests.test_real_undefined_project_macro_still_fails_with_correct_line) ... ok
-test_sdk_definitions_do_not_exempt_undefined_spiram_names (__main__.ConfigSurfaceTests.test_sdk_definitions_do_not_exempt_undefined_spiram_names) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.021s
-
-OK

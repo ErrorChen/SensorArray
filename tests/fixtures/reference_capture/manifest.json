@@ -8,7 +8,9 @@
     "length": 889,
     "sha256": "e785b8a50dc30e0583b88763c57afdce1a29bdc5b7971c09df8edd71eaef6c97",
     "sequence": 985,
-    "actual_parser_crc_ok": true
+    "actual_parser_crc_ok": true,
+    "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/reference_fixture/repaired-cap8-01.rx.bin.gz",
+    "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
   },
   {
     "file": "tests/fixtures/reference_capture/res8_first.recorded.txt",
@@ -19,7 +21,9 @@
     "length": 935,
     "sha256": "27f33bbbb9c0bcc769b7f2cf7bc1d755e4f02fccccda6af404ed6bb119396142",
     "sequence": 4218,
-    "actual_parser_crc_ok": true
+    "actual_parser_crc_ok": true,
+    "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/reference_fixture/repaired-res8-01.rx.bin.gz",
+    "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
   },
   {
     "file": "tests/fixtures/reference_capture/res8_crc_rejected.recorded.txt",
@@ -30,6 +34,8 @@
     "length": 926,
     "sha256": "5731d4ea9e5fe51d2bbe2a9a526771f2d698b04b66003978f8454d70c3014bf8",
     "sequence": 613,
-    "actual_parser_crc_ok": true
+    "actual_parser_crc_ok": true,
+    "archive_git_object": "dc5a5adb4bd62677221d0a2ceb0acf15886165c7:docs/audit/artifacts/reference_fixture/timing-res8-01.rx.bin.gz",
+    "archive_encoding": "gzip; digest and byte offsets refer to the uncompressed source"
   }
 ]

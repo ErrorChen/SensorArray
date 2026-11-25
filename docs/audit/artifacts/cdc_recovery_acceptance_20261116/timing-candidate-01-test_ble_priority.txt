@@ -1,3 +1,0 @@
-BLECORRUPT,ch=D,mid=1,enqLen=5,deqLen=5,enqCrc=2AFB27FA,deqCrc=179B0E4A
-BLE_PRIORITY_PASS,groups=7,dataSlots=4,logSlots=2,ctrlSlots=2,stateBytes=16952,descriptorBytes=32,hardware=NOT_RUN
-BLE_PRIORITY_SOURCE,production_functions=39,hardware=NOT_RUN

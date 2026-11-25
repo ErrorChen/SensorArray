@@ -1,0 +1,25 @@
+{
+  "criteria_id": "ble_transport_acceptance_20261121_v2",
+  "revision": 2,
+  "normal_link": {
+    "maximum_complete_frame_gap_fraction": 0.025,
+    "metric": "missing trusted complete sequence observations divided by received ordered trusted complete frames plus missing observations, within one boot and one configuration"
+  },
+  "weak_link": {
+    "tolerated_gap_fraction": [
+      0.1,
+      0.2
+    ],
+    "requires_separate_RF_evidence": true,
+    "weaker_link_action": "reduce routine BLE output independently of acquisition"
+  },
+  "priority": [
+    "critical control and lifecycle results",
+    "first complete frame after applied configuration",
+    "periodic complete snapshot"
+  ],
+  "complete_snapshot": "all active rows, including any explicitly invalid Xhh points",
+  "snapshot_period_seconds_default": 1,
+  "physical_receipt": "measure from independently closed host journals",
+  "adc_spi_crc": "Count separately from BLE host sequence gaps."
+}

@@ -1,7 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 136607, "elapsed_seconds": 20.00965010499931}
-{"type": "CDC_debug_progress", "rx_bytes": 274919, "elapsed_seconds": 40.054991694982164}
-{"type": "CDC_debug_progress", "rx_bytes": 413379, "elapsed_seconds": 60.0587966759922}
-{"type": "CDC_debug_progress", "rx_bytes": 551690, "elapsed_seconds": 80.09582153198426}
-{"type": "CDC_debug_progress", "rx_bytes": 690014, "elapsed_seconds": 100.09937859297497}
-{"type": "CDC_debug_progress", "rx_bytes": 828129, "elapsed_seconds": 120.13175900699571}
-{"status": "STOPPED", "error": null, "rx_bytes": 870584, "raw_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-mixed4/record-matrix-01-mixed4.debug.rx.bin"}

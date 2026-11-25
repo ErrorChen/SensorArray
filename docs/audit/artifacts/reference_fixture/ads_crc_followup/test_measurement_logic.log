@@ -1,4 +1,0 @@
-$ CC=/usr/bin/gcc python3 tools/test_measurement_logic.py
-MEASUREMENT_LOGIC_TESTS,passed=1
-
-exit_code=0

@@ -1,2 +1,0 @@
-WIFI_TRANSPORT_ISOLATION,actual_shared_bodies=9,queued_not_sent=PASS,CTRL512_deepcopy=PASS,lifecycle=PASS,blocked_SDK_USB_BLE_queries=PASS,deadline_poll=PASS,late_actual_send=PASS,hardware=NOT_RUN
-WIFI_SHARED_SOURCE_SHA256,19230526867193109c20fb56cbe04f2463f214916fe6b9ea8dffe7f9000d449d

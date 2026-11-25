@@ -1,1 +1,0 @@
-{"output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/stability-01/stability-01-analysis-01.json", "captures": 1, "configuration_statuses": {"NOT_RUN": 32}, "precision_acceptance": "NOT_EVALUATED"}

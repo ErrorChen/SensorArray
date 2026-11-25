@@ -1,3 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 21729, "elapsed_seconds": 20.267026840010658}
-{"type": "CDC_debug_progress", "rx_bytes": 40635, "elapsed_seconds": 40.628168473020196}
-{"status": "STOPPED", "error": null, "rx_bytes": 54939, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/transport-cpu-01-debug.debug.rx.bin"}

@@ -1,1 +1,0 @@
-{"status": "FAIL", "documents": 5, "local_links_checked": 1031, "errors": ["git diff --check failed"], "report": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-owner-doc-validation-01.json"}

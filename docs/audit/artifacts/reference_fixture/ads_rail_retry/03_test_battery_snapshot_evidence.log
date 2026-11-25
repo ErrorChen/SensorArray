@@ -1,4 +1,0 @@
-COMMAND python3 tools/test_battery_snapshot_evidence.py
-CC=/usr/bin/gcc
-EXIT 0
-BATTERY_SNAPSHOT_EVIDENCE,passed=9,compared_fields=14,source=production_admission_comparison_logging

@@ -1,14 +1,36 @@
 #!/usr/bin/env python3
 """Execute firmware identity/encoder regressions; generated fixtures are synthetic."""
 from pathlib import Path
-import os
+import argparse
 import subprocess
 import tempfile
 import zlib
 from test_rowmodes_ack_guard import findCompiler, writeFakeHeaders
 
 
+def compare_goldens(generated_dir, expected_dir, update):
+    generated = {p.name: p for p in generated_dir.iterdir()
+                 if p.suffix in (".frame", ".config")}
+    expected = {p.name: p for p in expected_dir.iterdir()
+                if p.suffix in (".frame", ".config")}
+    if not generated or expected.keys() - generated.keys():
+        raise AssertionError(f"missing encoder output: {sorted(expected.keys() - generated.keys())}")
+    if update:
+        for name, path in generated.items():
+            (expected_dir / name).write_bytes(path.read_bytes())
+        return
+    if generated.keys() != expected.keys():
+        raise AssertionError(f"unregistered encoder output: {sorted(generated.keys() - expected.keys())}")
+    for name, path in generated.items():
+        if path.read_bytes() != expected[name].read_bytes():
+            raise AssertionError(f"encoder output differs from the checked-in fixture: {name}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--update", action="store_true",
+                        help="replace checked-in synthetic goldens after validating new encoder output")
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     compiler, native = findCompiler()
     if not native:
@@ -34,8 +56,8 @@ def main():
             command.extend(["-I", str(include)])
         command += [str(p) for p in sources] + ["-lm", "-o", str(executable)]
         subprocess.run(command, check=True)
-        fixture_dir = root / "tests/fixtures/config_identity"
-        fixture_dir.mkdir(parents=True, exist_ok=True)
+        fixture_dir = temp / "generated"
+        fixture_dir.mkdir()
         result = subprocess.run([str(executable), str(fixture_dir)], check=False, text=True, capture_output=True)
         print(result.stdout, end="")
         print(result.stderr, end="")
@@ -78,6 +100,7 @@ def main():
         assert identity_matches(reapplied, state_reapplied)
         assert state_after["mtermId"] == after["mrid"] and state_after["mterm"] == "applied"
         print("CONFIG_RECOVERY_REPLAYS,passed=5,provenance=synthetic")
+        compare_goldens(fixture_dir, root / "tests/fixtures/config_identity", args.update)
     return 0
 
 if __name__ == "__main__":

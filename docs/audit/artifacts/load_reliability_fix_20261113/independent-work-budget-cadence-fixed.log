@@ -1,6 +1,0 @@
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=0,idleEvents=100,checkpoints=100,yields=0,delayCalls=0,synthetic_scheduler=1
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=1,idleEvents=0,checkpoints=20,yields=20,delayCalls=20,synthetic_scheduler=1
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=2,idleEvents=1,checkpoints=7,yields=6,delayCalls=6,synthetic_scheduler=1
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=3,idleEvents=1,checkpoints=1,yields=1,delayCalls=1,synthetic_scheduler=1
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=4,idleEvents=1,checkpoints=2,yields=1,delayCalls=1,synthetic_scheduler=1
-INDEPENDENT_CADENCE_FIXED_PASS,scenario=5,idleEvents=0,checkpoints=20,yields=20,delayCalls=20,synthetic_scheduler=1

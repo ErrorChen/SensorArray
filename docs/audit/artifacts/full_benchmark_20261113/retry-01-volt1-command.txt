@@ -1,4 +1,0 @@
-{"type": "benchmark_progress", "label": "retry-01-volt1", "phase": "before", "elapsed_seconds": 20.231, "capture_seconds": 0, "requested_capture_seconds": 120.0, "rx_bytes": 54090, "capture_trailers": 0}
-{"type": "benchmark_progress", "label": "retry-01-volt1", "phase": "capture", "elapsed_seconds": 40.51, "capture_seconds": 9.604, "requested_capture_seconds": 120.0, "rx_bytes": 87207, "capture_trailers": 15}
-{"type": "benchmark_configuration_finished", "label": "retry-01-volt1", "summary_file": "docs/audit/artifacts/full_benchmark_20261113/retry-01-volt1.summary.json", "status": "ERROR", "error": "firmware_fault_or_reset_during_capture;end_queries:readonly_query_failed:PERF?:attempts=1:reply_deadline_expired", "capture_seconds": 15.065057333995355}
-{"status": "ERROR", "completed": 1, "not_run": []}

@@ -1,11 +1,5 @@
-# Synthetic ADS fault replays
+# ADS 故障回放 / ADS fault replays
 
-These are synthetic contexts emitted by the **production** `sensorarrayAdsFaultFormat`, not E1–E7 field logs. Their timestamp, boot, sequence and register values are explicit fixture inputs. No truncated original line was repaired or replaced.
+这些是生产 `sensorarrayAdsFaultFormat` 产生的合成诊断。输入为显式 boot、seq、事务、寄存器和 stage；返回带长度上限的诊断行。调用 `python3 tools/test_ads_fault_fixtures.py` 会编译并比较所有预期字节。只有刻意更新协议金样时才加 `--update` 覆写合成文件。 / The host test supplies synthetic contexts to the production formatter/emitter. It checks pre-cleanup mode, first error, independent cleanup error, attempted/acquired flags and the 384-byte record bound. Use its update flag only to replace the versioned synthetic expectations.
 
-Regenerate with `python3 tools/test_ads_fault_fixtures.py --update`, then verify with `python3 tools/test_ads_fault_fixtures.py`. Both were actually executed successfully. The script compiles the C formatter and emitter with the host compiler, checks first-error/pre-cleanup mode preservation, separate cleanup error, per-record 384-byte bounds, attempted/acquired flags and exact fixture equality.
-
-These diagnostic text records have no ASCII measurement CRC. Measurement golden frames and actual encoder CRCs are separate under `tests/fixtures/config_identity`.
-
-`reg` is the register-cache index for stable health comparisons (POWER=0, INTERFACE=1, MODE0=2, MODE1=3, MODE2=4, INPMUX=5, REFMUX=6, OFCAL0..2=7..9, FSCAL0..2=10..12). For REGISTER_READ_UNSTABLE it is the physical register address of the first disagreeing byte. ROW_GPIO_COMPARE uses the selected row. OWNER_ACQUIRE expected/actual are owner enum values. This is diagnosis metadata and must be interpreted with `stage`.
-
-The eleventh replay, `matrix_crc.synthetic.log`, covers a rejected ADC data CRC before cleanup: mode/route remain RES, the original error remains 0x109 and cleanup error is separate. For MATRIX_CRC and other sample failures, `reg=255` means no register applies. MATRIX_CRC expected/actual are the computed/received CRC bytes, with mask FF; they do not describe an ADS register. The live ADSSPI/ADSSPIBYTES records identify the first rejected frame's S/D and wire bytes separately.
+十一个场景覆盖健康读、两个读取不一致、cache、POWER/REFMUX/MODE、RESET、row GPIO、owner、restore、转换 CRC。`reg` 对稳定配置比较使用 cache index，对读数不一致使用物理地址，MATRIX_CRC 的 255 表示无适用寄存器，expected/actual 为 CRC 字节。 / Interpret reg, mask and expected/actual in their stage. These diagnostic records have no science-frame CRC. [格式化器 / Formatter](../../../core/measure/ads/README.md)

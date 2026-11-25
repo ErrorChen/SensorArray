@@ -1,8 +1,0 @@
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 20.171, "capture_seconds": 14.522, "requested_capture_seconds": 120.0, "rx_bytes": 177632, "capture_trailers": 69}
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 40.251, "capture_seconds": 34.602, "requested_capture_seconds": 120.0, "rx_bytes": 329954, "capture_trailers": 165}
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 60.444, "capture_seconds": 54.795, "requested_capture_seconds": 120.0, "rx_bytes": 484208, "capture_trailers": 262}
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 80.559, "capture_seconds": 74.91, "requested_capture_seconds": 120.0, "rx_bytes": 636530, "capture_trailers": 358}
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 100.722, "capture_seconds": 95.073, "requested_capture_seconds": 120.0, "rx_bytes": 788980, "capture_trailers": 454}
-{"type": "benchmark_progress", "label": "record-matrix-01-mixed8", "phase": "capture", "elapsed_seconds": 120.921, "capture_seconds": 115.272, "requested_capture_seconds": 120.0, "rx_bytes": 941302, "capture_trailers": 550}
-{"type": "benchmark_configuration_finished", "label": "record-matrix-01-mixed8", "summary_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-matrix-01/record-matrix-01-mixed8/record-matrix-01-mixed8.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00010066098184}
-{"status": "COMPLETE", "completed": 1, "not_run": []}

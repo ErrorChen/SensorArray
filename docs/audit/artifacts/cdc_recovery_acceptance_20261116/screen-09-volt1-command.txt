@@ -1,8 +1,0 @@
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 20.005, "capture_seconds": 14.281, "requested_capture_seconds": 120.0, "rx_bytes": 710136, "capture_trailers": 828}
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 40.011, "capture_seconds": 34.288, "requested_capture_seconds": 120.0, "rx_bytes": 1405590, "capture_trailers": 1984}
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 60.017, "capture_seconds": 54.294, "requested_capture_seconds": 120.0, "rx_bytes": 2094264, "capture_trailers": 3128}
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 80.02, "capture_seconds": 74.297, "requested_capture_seconds": 120.0, "rx_bytes": 2786733, "capture_trailers": 4279}
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 100.026, "capture_seconds": 94.303, "requested_capture_seconds": 120.0, "rx_bytes": 3481617, "capture_trailers": 5434}
-{"type": "benchmark_progress", "label": "screen-09-volt1", "phase": "capture", "elapsed_seconds": 120.027, "capture_seconds": 114.303, "requested_capture_seconds": 120.0, "rx_bytes": 4177304, "capture_trailers": 6590}
-{"type": "benchmark_configuration_finished", "label": "screen-09-volt1", "summary_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/screen-09/screen-09-volt1.summary.json", "status": "CAPTURED", "error": null, "capture_seconds": 120.00006162101636}
-{"status": "COMPLETE", "completed": 1, "not_run": []}

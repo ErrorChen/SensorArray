@@ -1,4 +1,0 @@
-BLE_OUTPUT_SCHEDULE_PASS,groups=7,normal_full=1,pressure_windows=3,step_permille=50,down_hold_us=3000000,recover_clean_us=10000000,protection_external=1,peerLoss=unknown,RSSI=unknown,stateBytes=248,hardware=NOT_RUN
-BLE_OUTPUT_SCHEDULE_VARIANT,optimized=PASS
-BLE_OUTPUT_SCHEDULE_PASS,groups=7,normal_full=1,pressure_windows=3,step_permille=50,down_hold_us=3000000,recover_clean_us=10000000,protection_external=1,peerLoss=unknown,RSSI=unknown,stateBytes=248,hardware=NOT_RUN
-BLE_OUTPUT_SCHEDULE_VARIANT,asan_ubsan=PASS

@@ -1,1 +1,0 @@
-{"status": "QUERIES_COMPLETE", "error": null, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/ble-mtu517-link-01.rx.bin", "ctrl_raw_file": null, "elapsed_seconds": 3.0467097539803945}

@@ -1,1 +1,0 @@
-{"verified": 3, "indexed": 3, "skipped": [], "archive_errors": [], "index": "docs/audit/artifacts/load_reliability_fix_20261113/evidence-index-screen-01.json", "measurement_acceptance": "NOT_INFERRED"}

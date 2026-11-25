@@ -1,9 +1,0 @@
-/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
-  warnings.warn(
-{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-coexist-01/wifi-memory-ble-01.ble.ready.json", "schema_version": 1, "monotonic_ns": 155713700429181, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
-{"type": "BLE_PROGRESS", "elapsed_seconds": 20.772663120005745, "notifications": {"D": 470}, "payload_bytes": {"D": 222799}}
-{"type": "BLE_PROGRESS", "elapsed_seconds": 40.87062730398611, "notifications": {"D": 940}, "payload_bytes": {"D": 445814}}
-{"type": "BLE_PROGRESS", "elapsed_seconds": 60.96315129799768, "notifications": {"D": 1408, "L": 2}, "payload_bytes": {"D": 667880, "L": 567}}
-{"type": "BLE_PROGRESS", "elapsed_seconds": 81.05171302400413, "notifications": {"D": 1878, "L": 2}, "payload_bytes": {"D": 890895, "L": 567}}
-{"type": "BLE_PROGRESS", "elapsed_seconds": 101.14610814399202, "notifications": {"D": 2348, "L": 2}, "payload_bytes": {"D": 1114260, "L": 567}}
-{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 2690, "L": 2}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/wifi-memory-coexist-01/wifi-memory-ble-01.ble.notifications.jsonl", "journal_sha256": "faac0e447b0759317726e462af000caa6725aa5590764ee4f30a9837bd6b8bff"}

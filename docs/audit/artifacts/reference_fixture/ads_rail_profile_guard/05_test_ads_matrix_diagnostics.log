@@ -1,4 +1,0 @@
-COMMAND python3 tools/test_ads_matrix_diagnostics.py
-CC=/usr/bin/gcc
-EXIT 0
-ADS_MATRIX_DIAGNOSTICS,passed=1,maxRecordBytes=219,fixture=synthetic,producer=production_function

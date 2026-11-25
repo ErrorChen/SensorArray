@@ -1,1 +1,0 @@
-{"status": "ERROR", "error": "device_error:BUILD?:ERR,cmd=UNKNOWN,reason=unsupported", "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/boot-03.rx.bin", "ctrl_raw_file": null, "elapsed_seconds": 8.010826330981217}

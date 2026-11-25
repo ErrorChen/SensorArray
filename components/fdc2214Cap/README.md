@@ -1,129 +1,142 @@
-# fdc2214Cap / FDC2214 Chip-level I2C Driver
+# FDC2214 电容转换器 / FDC2214 capacitance converter
 
-## 目录 / Table of contents
+一个 FDC 句柄保存器件的 7 位 I²C 地址、传输回调、设备互斥锁和快速读取探测结果。板级代码分别为两颗芯片创建句柄，行协调器决定 INTB、STATUS 和 DATA 的读取顺序。芯片输出原始 raw28；频率、pF、夹具基线和矩阵位置由测量层解释。 / One FDC handle carries a 7-bit I²C address, bus callbacks, a device mutex and the proven fast-read mode. The board creates a handle for each chip. The row coordinator controls the order of INTB, STATUS and DATA. This driver returns raw28. The measurement layer interprets frequency, pF, fixture baseline and matrix coordinates. [接口 / Header](include/fdc2214Cap.h) · [板级调用 / Board setup](../../core/board/sensorarrayBringup.c) · [双芯片调度 / Dual-chip scheduling](../../core/measure/fdc/sensorarrayFdcRowEpoch.c)
 
-- [中文说明 / Chinese documentation](#中文说明--chinese-documentation)
-- [Australian English documentation](#australian-english-documentation)
-- [Kconfig](#kconfig)
-
-## 中文说明 / Chinese documentation
-
-### 职责
-
-`components/fdc2214Cap` 是 FDC2214/FDC2212 芯片级 I2C driver。它只知道寄存器、I2C 事务、设备 handle、通道配置、autoscan/single-channel mode、STATUS 解码和 raw28 读取。
-
-它不知道：
-
-- S1-S8 行。
-- D1-D8 的板级意义。
-- primary/secondary FDC 对应哪些 D-line。
-- TMUX1108/TMUX1134 路由。
-- ADS/FDC 互斥。
-- row epoch、boot sweep、rescue 策略。
-- 64-cell frame 格式。
-- `raw28 -> freqHz -> capTotalPf` 的矩阵级换算策略。
-
-这些属于 `core/board` 和 `core/measure`。
-
-### 主要类型
-
-| 类型 | 作用 |
-|---|---|
-| `Fdc2214CapDevice_t` | opaque device handle。 |
-| `Fdc2214CapBusConfig_t` | I2C address、user context、write/read callback、INT GPIO metadata。 |
-| `Fdc2214CapChannel_t` | `FDC2214_CH0` 到 `FDC2214_CH3`。 |
-| `Fdc2214CapChannelConfig_t` | `Rcount`、`SettleCount`、`Offset`、`ClockDividers`、`DriveCurrent`。 |
-| `Fdc2214CapConfigOptions_t` | CONFIG register builder input。 |
-| `Fdc2214CapStatus_t` | Decoded STATUS fields including DRDY, unread conversion and error flags。 |
-| `Fdc2214CapSample_t` | Single-channel raw28 sample with decoded status/config context。 |
-| `Fdc2214CapFastChannelSample_t` | Fast autoscan channel sample used by matrix path。 |
-| `Fdc2214CapI2cStats_t` | Driver I2C counters and timing. |
-
-### 真实 API
-
-| API | 作用 |
-|---|---|
-| `Fdc2214CapCreate()`, `Fdc2214CapDestroy()` | Create/destroy device handle and mutex. |
-| `Fdc2214CapReset()`, `Fdc2214CapReadId()` | Reset chip and read manufacturer/device IDs. |
-| `Fdc2214CapConfigureChannel()`, `Fdc2214CapConfigureChannelWriteOnly()`, `Fdc2214CapConfigureChannelWithResult()` | Write channel registers; variants trade readback/detail for runtime speed. |
-| `Fdc2214CapReadbackVerifyChannelConfig()`, `Fdc2214CapReadbackVerifyChannelConfigWithResult()` | Verify channel register configuration. |
-| `Fdc2214CapBuildConfig()`, `Fdc2214CapEnterSleep()`, `Fdc2214CapExitSleep()` | Build CONFIG and explicitly enter/exit sleep mode. |
-| `Fdc2214CapDecodeStatusRaw()`, `Fdc2214CapReadStatus()`, `Fdc2214CapClearStatus()` | STATUS decode, read and clear helpers. |
-| `Fdc2214CapReadCoreRegs()`, `Fdc2214CapReadDebugSnapshot()` | Diagnostic register snapshots. |
-| `Fdc2214CapSetSingleChannelMode()`, `Fdc2214CapSetAutoScanMode()`, `Fdc2214CapSetAutoScanModeWriteOnly()` | Configure conversion mode. |
-| `Fdc2214CapReadSample()`, `Fdc2214CapReadSampleRelaxed()`, `Fdc2214CapReadChannelRawWithStatus()` | Single-channel raw sample reads. |
-| `Fdc2214CapReadChannelsRaw()`, `Fdc2214CapReadAutoscan4RawFast()`, `Fdc2214CapReadChannelsDataRegsFast()`, `Fdc2214CapReadChannelsDataRegsOnlyFast()` | Multi-channel/autoscan raw reads. The `DataRegsOnly` variant never reads STATUS. |
-| `Fdc2214CapReadDataOrdered4()`, `Fdc2214CapReadDataBurst4()` | Ordered CH0-CH3 DATA read and runtime-selected probed block/ordered read. Both hold the device mutex once for the complete device-row DATA operation. |
-| `Fdc2214CapProbeDataBurst4()`, `Fdc2214CapDataBurstSupported()` | Compare ordered reads with a 16-byte candidate over multiple trials and expose the per-device decision. |
-| `Fdc2214CapReadRawRegisters()`, `Fdc2214CapWriteRawRegisters()` | Raw 16-bit register access. |
-| `Fdc2214CapResetI2cStats()`, `Fdc2214CapGetI2cStats()` | I2C profiling counters. |
-| `Fdc2214CapI2cTraceSetEnabled()`, `Fdc2214CapI2cTraceIsEnabled()`, `Fdc2214CapI2cTraceClear()`, `Fdc2214CapI2cTraceDump()` | Trace ring controls. |
-
-### 最小调用形状
+## 调用与数据有效性 / Calling and validity
 
 ```c
-Fdc2214CapBusConfig_t bus = {
-    .I2cAddress7 = 0x2B,
-    .UserCtx = (void *)boardSupportGetI2cCtx(),
-    .WriteRead = boardSupportI2cWriteRead,
-    .Write = boardSupportI2cWrite,
-    .IntGpio = -1,
-};
-
-Fdc2214CapDevice_t *dev = NULL;
-ESP_ERROR_CHECK(Fdc2214CapCreate(&bus, &dev));
-ESP_ERROR_CHECK(Fdc2214CapReset(dev));
-
-uint16_t manufacturerId = 0;
-uint16_t deviceId = 0;
-ESP_ERROR_CHECK(Fdc2214CapReadId(dev, &manufacturerId, &deviceId));
-
-Fdc2214CapChannelConfig_t cfg = {
-    .Rcount = 0x2089,
-    .SettleCount = 0x0080,
-    .Offset = 0x0000,
-    .ClockDividers = 0x2001,
-    .DriveCurrent = 0x7800,
-};
-ESP_ERROR_CHECK(Fdc2214CapConfigureChannel(dev, FDC2214_CH0, &cfg));
+esp_err_t read_identity(const Fdc2214CapBusConfig_t *bus,
+                        uint16_t *manufacturer, uint16_t *device)
+{
+    Fdc2214CapDevice_t *fdc = NULL;
+    esp_err_t err = Fdc2214CapCreate(bus, &fdc);
+    if (err != ESP_OK) return err;
+    err = Fdc2214CapReadId(fdc, manufacturer, device);
+    esp_err_t cleanup = Fdc2214CapDestroy(fdc);
+    return err == ESP_OK ? cleanup : err;
+}
 ```
 
-Drive-current values are normalised to the FDC2214 register mask before write. Use `0x7800` for the current project default; `0x7C00` includes bits outside the accepted drive-current field and will be masked by the driver.
+设备任务在确认新一行转换就绪后调用四通道 DATA 接口。`outSamples[0..3]` 对应 CH0..CH3。普通模式使用八个有序 DATA 字，探测通过后可分组读取。位于 DATA 中的 watchdog/幅值位以及 STATUS.UNREAD 分别描述各自状态。主动读 STATUS 会影响 INTB；等待和判断新行样本应沿用行协调器。 / Once the row coordinator establishes readiness, its worker uses the four-channel DATA interface. Slots 0..3 correspond to CH0..CH3. The baseline path reads eight ordered DATA registers. A proven grouped path may be selected. DATA watchdog/amplitude fields and STATUS.UNREAD carry their respective meanings. Reading STATUS can affect INTB. Let the coordinator determine row freshness.
 
-## Australian English documentation
+返回 `esp_err_t` 的接口以 `ESP_OK` 表示操作成功。样本还须检查 `valid`、`sampleStatus` 或 `errorMask`。设备锁默认上限 200 ms。板级配置提供实际总线和地址。驱动写入 DRIVE_CURRENT 时屏蔽保留位，项目的 0x7800 为寄存器编码。SLEEP_MODE_EN 为寄存器状态，SD 引脚由上层管理。 / ESP_OK indicates a successful operation. Also check valid, sampleStatus or errorMask for scientific samples. The device mutex defaults to 200 ms. The board supplies the actual bus and address. DRIVE_CURRENT masks reserved bits. The project value 0x7800 is a register encoding. SLEEP_MODE_EN operates on the register, while the board manages the SD pin. [构建选项 / Kconfig](Kconfig)
 
-### Responsibility
+| 参数或输出 / Argument or output | 使用约定 / Interpretation |
+|---|---|
+| `busConfig` | 提供 `I2cAddress7`、`UserCtx`、`Write` 和 `WriteRead`；按板级能力提供 `readReg16Sequence` 及 `maxSequenceRegs`。 / Supply the 7-bit address, opaque bus context and write/write-read callbacks. Provide the sequence callback and its register limit when the board supports it. |
+| `dev`, `ch`, `channelMask`, `outSampleCount` | dev 属于一颗芯片；ch 用 CH0..CH3。mask 位 i 选 CHi，输出按物理通道下标存放，长度按元素。 / dev denotes one chip. Use CH0..CH3. Mask bit i selects CHi. Output is indexed by hardware channel and capacity is measured in elements. |
+| `cfg`, `configWithoutSleep`, `configTemplate` | 通道配置使用寄存器编码。后两者提供完整 CONFIG 模板，驱动负责睡眠位及保留位。 / Channel settings use register encodings. The latter two arguments carry a CONFIG template with sleep/reserved bits handled by the driver. |
+| `trials`, `outResult` | 启动探测需非零试次。检查返回码、supported、所选模式及不一致次数。 / Probing requires a nonzero trial count. Check the return status, support flag, selected mode and mismatch counts. |
 
-`components/fdc2214Cap` is the chip-level I2C driver for FDC2214/FDC2212. It knows register addresses, I2C transactions, device handles, channel configuration, autoscan/single-channel modes, STATUS decoding, and raw28 reads.
+## [fdc2214Cap.c](fdc2214Cap.c)
 
-It does not know rows, D-line meaning, primary/secondary board ownership, TMUX routing, ADS/FDC mutual exclusion, row epochs, boot sweep, rescue policy, 64-cell frame layout, or matrix-level capacitance conversion. Those belong to `core/board` and `core/measure`.
+### 接口与回调 / Interfaces and callbacks
 
-### API groups
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `const char *Fdc2214CapDataReadModeName(FdcDataReadMode mode)` | 返回四种寄存器读取策略的诊断名称。 / Name the ordered or grouped-register read strategy. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `size_t Fdc2214CapDataReadModeRegsPerTransaction(FdcDataReadMode mode)` | 返回该模式每次事务读取的寄存器数 1、2、4 或 8。 / Return the number of registers per transaction for this mode, 1, 2, 4 or 8. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `size_t Fdc2214CapDataReadModeTransactionsPerRow(FdcDataReadMode mode)` | 返回单片四通道行读所需的事务数。 / Return how many transactions fetch all eight DATA registers for one chip row. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `FdcDataReadMode Fdc2214CapDataReadMode(const Fdc2214CapDevice_t *dev)` | 查询此器件的已选读取方式，空句柄返回 ordered8。 / Return the selected read mode for dev, defaulting to ordered8 for null. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `bool Fdc2214CapForceOrderedDataRead(Fdc2214CapDevice_t *dev)` | 将分组读回退为逐寄存器读并计数；返回策略是否发生变化。 / Fall back from grouped reads to ordered reads and count it. Return whether the selection changed. | [sensorarrayMeasureReadFdcMatrixFrameSnapshot](../../core/measure/sensorarrayMeasure.c#L2108) |
+| `uint16_t Fdc2214CapUnreadMaskForChannel(Fdc2214CapChannel_t ch)` | 返回指定通道的 STATUS 未读位掩码，无效通道返回零。 / Return the channel's STATUS unread mask or zero for an invalid channel. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapDecodeStatusRaw(uint16_t statusRaw, Fdc2214CapStatus_t* outStatus)` | 将一个已获取的 STATUS 字解码为就绪、故障与各通道未读标志。 / Decode a supplied STATUS word into ready, faults and per-channel unread flags. | [sensorarrayMeasureReadFdcSampleDiagWithReader](../../core/measure/fdc/sensorarrayFdcQuality.c#L55) |
+| `bool Fdc2214CapStatusHasAmplitudeFault(const Fdc2214CapStatus_t *status)` | 判断已解码状态的高或低振幅故障。 / Test the high and low amplitude alarms in decoded status. | [sensorarrayMeasureReadFdcSampleDiagWithReader](../../core/measure/fdc/sensorarrayFdcQuality.c#L55) |
+| `bool Fdc2214CapStatusHasWatchdogFault(const Fdc2214CapStatus_t *status)` | 检查已解码状态的 watchdog 报警。 / Test the watchdog fault in decoded status. | [sensorarrayMeasureReadFdcSampleDiagWithReader](../../core/measure/fdc/sensorarrayFdcQuality.c#L55) |
+| `bool Fdc2214CapStatusHasUnreadForChannel(const Fdc2214CapStatus_t *status, Fdc2214CapChannel_t ch)` | 查询已取到的状态中 ch 的未读位。 / Test ch's unread bit in existing decoded status. | [sensorarrayMeasureReadFdcSampleDiagWithReader](../../core/measure/fdc/sensorarrayFdcQuality.c#L55) |
+| `esp_err_t Fdc2214CapCreate(const Fdc2214CapBusConfig_t* busConfig, Fdc2214CapDevice_t** outDev)` | 复制板级总线回调和地址，为一颗 FDC 分配句柄与 mutex。 / Copy the board bus callbacks and address, then allocate a device handle and mutex. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapDestroy(Fdc2214CapDevice_t* dev)` | 在该器件停止被使用后释放句柄和 mutex。 / Release the device mutex and handle after its users have finished. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `void Fdc2214CapResetI2cStats(Fdc2214CapDevice_t* dev)` | 将此器件 I²C 累积统计归零。 / Clear per-device I²C statistics. | [sensorarraySweepFdcI2cClockUnderLoad](../../core/board/sensorarrayFrontendStartup.c#L488) |
+| `void Fdc2214CapGetI2cStats(Fdc2214CapDevice_t* dev, Fdc2214CapI2cStats_t* outStats)` | 将当前器件的 I²C 计数器复制到 outStats。 / Copy per-device I²C counters into outStats. | [sensorarraySweepFdcI2cClockUnderLoad](../../core/board/sensorarrayFrontendStartup.c#L488) |
+| `void Fdc2214CapI2cTraceSetEnabled(bool enabled)` | 切换芯片驱动共享的事务跟踪开关。 / Enable or disable the driver's shared transaction trace. | 公开入口 / Callable API |
+| `bool Fdc2214CapI2cTraceIsEnabled(void)` | 返回事务跟踪开关状态。 / Return whether transaction tracing is enabled. | [sensorarrayMeasureReadFdcMatrixFrameSnapshot](../../core/measure/sensorarrayMeasure.c#L2108) |
+| `void Fdc2214CapI2cTraceClear(void)` | 重置环形跟踪记录位置和序号。 / Reset the trace ring's position and sequence. | 公开入口 / Callable API |
+| `void Fdc2214CapI2cTraceDump(void)` | 向诊断输出按序打印当前保留的 I²C 事务。 / Print retained I²C trace records in ring order. | [sensorarrayMeasureReadFdcMatrixFrameSnapshot](../../core/measure/sensorarrayMeasure.c#L2108) |
+| `esp_err_t Fdc2214CapReset(Fdc2214CapDevice_t* dev)` | 向 RESET_DEV 写复位位并返回写结果。后续恢复时间由调用者处理。 / Write the device reset bit and return the write result. The caller handles subsequent recovery time. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapReadId(Fdc2214CapDevice_t* dev, uint16_t* manufacturerId, uint16_t* deviceId)` | 读取 MANUFACTURER_ID、DEVICE_ID 到输出变量。 / Read the manufacturer/device identity registers into the outputs. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `uint16_t Fdc2214CapBuildConfig(const Fdc2214CapConfigOptions_t* options)` | 将选项打包为合法 CONFIG 字并填入规定的保留位。 / Encode the supplied options into CONFIG including mandatory reserved bits. | [sensorarrayBringupFdcBuildFinalConfig](../../core/board/sensorarrayBringup.c#L438) |
+| `esp_err_t Fdc2214CapEnterSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)` | 以模板 CONFIG 置休眠位并验证。 / Set and verify SLEEP_MODE_EN using the supplied CONFIG template. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapEnterSleepWriteOnly(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)` | 写入带休眠位的 CONFIG 并返回写结果。 / Write CONFIG with sleep set and return the write result. | [sensorarrayMeasureFdcSetSleepMode](../../core/measure/fdc/sensorarrayFdcReady.c#L19) |
+| `esp_err_t Fdc2214CapExitSleep(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)` | 清休眠位，读回核验并满足唤醒等待。 / Clear and verify the sleep bit and allow wake-up time. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapExitSleepWriteOnly(Fdc2214CapDevice_t* dev, uint16_t configWithoutSleep)` | 清休眠位并满足唤醒等待，省去立即回读。 / Clear sleep and allow wake-up time without immediate readback. | [sensorarrayMeasureFdcSetSleepMode](../../core/measure/fdc/sensorarrayFdcReady.c#L19) |
+| `esp_err_t Fdc2214CapReadStatus(Fdc2214CapDevice_t* dev, Fdc2214CapStatus_t* outStatus)` | 读一次 STATUS 到结构体，可能消耗中断状态。 / Read and decode STATUS once. The access can affect interrupt state. | [sensorarrayBringupVerifyFdcActiveState](../../core/board/sensorarrayBringup.c#L550) |
+| `esp_err_t Fdc2214CapClearStatus(Fdc2214CapDevice_t* dev)` | 读取 STATUS 和各 DATA 寄存器以清除锁存故障。 / Read STATUS and DATA registers to clear latched status. | [sensorarrayMeasureFdcDeviceLevelResync](../../core/measure/fdc/sensorarrayFdcRowEpoch.c#L3) |
+| `esp_err_t Fdc2214CapReadCoreRegs(Fdc2214CapDevice_t* dev, Fdc2214CapCoreRegs_t* outRegs)` | 读取诊断用的核心寄存器组。 / Read core registers into the caller's diagnostic snapshot. | [sensorarrayBringupDumpFdcInitRegisters](../../core/board/sensorarrayBringup.c#L452) |
+| `esp_err_t Fdc2214CapReadClockDividers(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, uint16_t* outClockDividers)` | 取 ch 的 CLOCK_DIVIDERS 字。 / Read ch's clock divider register. | [sensorarrayBringupDumpFdcInitRegisters](../../core/board/sensorarrayBringup.c#L452) |
+| `esp_err_t Fdc2214CapWriteDriveCurrent(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, uint16_t driveCurrent)` | 写入归一化驱动电流到指定通道。 / Write the normalised drive-current word for ch. | [sensorarrayFdcSweepApplyDirectSafeLock](../../core/measure/fdc/sensorarrayFdcSweep.c#L1444) |
+| `esp_err_t Fdc2214CapReadDriveCurrent(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, uint16_t* outDriveCurrent)` | 读指定通道 DRIVE_CURRENT。 / Read the drive-current register for ch. | [sensorarrayFdcSweepReadKeyRegs](../../core/measure/fdc/sensorarrayFdcSweep.c#L880) |
+| `esp_err_t Fdc2214CapReadDebugSnapshot(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t dataChannel, Fdc2214CapDebugSnapshot_t* outSnapshot)` | 读取核心和通道配置、选定通道 DATA 及解码状态。 / Collect core and channel registers with the selected DATA channel and decoded status. | [Fdc2214CapReadSampleWithValidityMode](fdc2214Cap.c#L1736) |
+| `esp_err_t Fdc2214CapConfigureChannelWriteOnly(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, const Fdc2214CapChannelConfig_t* cfg)` | 写 ch 的 RCOUNT、SETTLECOUNT、OFFSET、CLOCK_DIVIDERS 和 DRIVE_CURRENT。 / Write ch's count, settle, offset, dividers and drive-current words without readback. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapConfigureChannelWithResult(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, const Fdc2214CapChannelConfig_t* cfg, Fdc2214CapChannelConfigResult_t* outResult, uint16_t* outDriveCurrentReadback)` | 写并验证 ch 配置，可输出非致命驱动电流差异和读回值。 / Configure and verify ch, exposing a non-fatal drive-current comparison and readback through the result outputs. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapConfigureChannel(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, const Fdc2214CapChannelConfig_t* cfg)` | 使用已验证路径配置 cfg 所指定的通道参数。 / Apply cfg to ch through the verified configuration path. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapReadbackVerifyChannelConfigWithResult(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, const Fdc2214CapChannelConfig_t* expectedCfg, Fdc2214CapChannelVerifyResult_t* outResult, uint16_t* outDriveCurrentReadback)` | 比对当前通道寄存器与 expectedCfg，提供结果类别和电流读回值。 / Compare current channel registers with expectedCfg and report result class and current readback. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapReadbackVerifyChannelConfig(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, const Fdc2214CapChannelConfig_t* expectedCfg)` | 核验 expectedCfg 指定的通道配置并返回错误。 / Verify expectedCfg against the channel and return the result. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapSetStatusConfig(Fdc2214CapDevice_t* dev, uint16_t statusConfig)` | 写入并验证归一化的 ERROR_CONFIG。 / Write and verify normalised ERROR_CONFIG. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapSetMuxConfig(Fdc2214CapDevice_t* dev, bool autoScan, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch)` | 由扫描开关、序列及去毛刺带宽构建并写入 MUX_CONFIG。 / Build and apply MUX_CONFIG from scan enable, sequence and deglitch bandwidth. | [sensorarrayBringupInitFdcDevice](../../core/board/sensorarrayBringup.c#L1073) |
+| `esp_err_t Fdc2214CapSetSingleChannelMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t activeCh)` | 关闭 autoscan，设置 CONFIG.ACTIVE_CHAN。 / Disable autoscan and select activeCh in CONFIG. | [sensorarrayBringupInitFdcSingleChannel](../../core/board/sensorarrayBringup.c#L1307) |
+| `esp_err_t Fdc2214CapSetAutoScanModeWriteOnly(Fdc2214CapDevice_t* dev, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch, uint16_t configTemplate, uint16_t* outConfig, uint16_t* outMuxConfig)` | 按 cfg 模板写入 MUX_CONFIG 和 CONFIG，可输出实际写入字。 / Write MUX_CONFIG and CONFIG from the template and optionally return the words applied. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapSetAutoScanMode(Fdc2214CapDevice_t* dev, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch)` | 配置并核验 round-robin 和 deglitch，开启自动扫描。 / Configure and verify autoscan round-robin sequence and deglitch bandwidth. | [sensorarrayFdcSweepRestoreAutoscan](../../core/measure/fdc/sensorarrayFdcSweep.c#L2190) |
+| `esp_err_t Fdc2214CapReadSample(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)` | 按严格有效性规则采集一个通道，检查 outSample 的状态。 / Acquire a channel with strict validity classification in outSample. | [matrixEngineReadCapRaw](../../core/matrixEngine/matrixEngine.c#L166) |
+| `esp_err_t Fdc2214CapReadSampleRelaxed(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)` | 调试时允许转换中且非零的基本可读样本，保留附加状态。 / Use relaxed bring-up validity for converting nonzero data and return the diagnostic status. | [sensorarrayMeasureReadFdcSampleDiagRelaxed](../../core/measure/fdc/sensorarrayFdcQuality.c#L199) |
+| `esp_err_t Fdc2214CapReadChannelRawWithStatus(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, Fdc2214CapSample_t* outSample)` | 调用严格单通道路径并输出 raw28 和状态。 / Use the strict single-channel read to return raw28 and status. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapProbeDataSequence4(Fdc2214CapDevice_t *dev, uint32_t trials, Fdc2214CapSequenceProbeResult_t *outResult)` | 校验固定寄存器及稳定 DATA 的分组读并测耗时，选择通过且最快的候选。 / Check grouped reads against fixed and stable DATA registers, timing candidates and selecting the fastest passing mode. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `esp_err_t Fdc2214CapProbeDataBurst4(Fdc2214CapDevice_t* dev, uint32_t trials, Fdc2214CapBurstProbeResult_t* outResult)` | 执行 trials 次 16 字节块和顺序读取比对，记录器件能否使用连续读。 / Compare contiguous and ordered reads across trials and record the per-chip burst decision. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `bool Fdc2214CapDataBurstSupported(const Fdc2214CapDevice_t* dev)` | 要求探测已完成且此器件通过连续读取验证。 / Return true after a successful contiguous-read probe on this chip. | [sensorarraySweepFdcI2cClockUnderLoad](../../core/board/sensorarrayFrontendStartup.c#L488) |
+| `esp_err_t Fdc2214CapReadDataOrdered4(Fdc2214CapDevice_t* dev, Fdc2214CapFastChannelSample_t outSamples[4])` | 按顺序读四通道的 DATA 寄存器对。 / Read the four channels' DATA register pairs in order. | [sensorarraySweepFdcI2cClockUnderLoad](../../core/board/sensorarrayFrontendStartup.c#L488) |
+| `esp_err_t Fdc2214CapReadDataBurst4(Fdc2214CapDevice_t* dev, Fdc2214CapFastChannelSample_t outSamples[4])` | 优先选已验证序列或块读，失败则回退为逐寄存器读取。 / Use a proven grouped or contiguous mode when available and fall back to ordered registers on failure. | [sensorarraySweepFdcI2cClockUnderLoad](../../core/board/sensorarrayFrontendStartup.c#L488) |
+| `esp_err_t Fdc2214CapReadChannelsDataRegsFast(Fdc2214CapDevice_t* dev, uint8_t channelMask, Fdc2214CapFastChannelSample_t* outSamples, size_t outSampleCount)` | 对 mask 选中的输出结合一次 STATUS 及 DATA 读数填写状态。 / Fill selected outputs using one STATUS read and the DATA words. | [Fdc2214CapReadAutoscan4RawFast](fdc2214Cap.c#L2543) |
+| `esp_err_t Fdc2214CapReadChannelsDataRegsOnlyFast(Fdc2214CapDevice_t* dev, uint8_t channelMask, Fdc2214CapFastChannelSample_t* outSamples, size_t outSampleCount)` | 以 DATA 填写输出，适用于行状态机已经判明新数据的路径。 / Use DATA alone for a row whose freshness was established by the caller. | [sensorarrayMeasureReadFdcAutoscan4chMasked](../../core/measure/fdc/sensorarrayFdcRead4.c#L82) |
+| `esp_err_t Fdc2214CapReadAutoscan4RawFast(Fdc2214CapDevice_t* dev, Fdc2214CapFastChannelSample_t outSamples[4])` | 对 CH0–CH3 使用带一次 STATUS 的快速多通道读取。 / Use the fast multi-channel path with one STATUS access for all four channels. | [sensorarrayFdcSweepReadDeviceChannels](../../core/measure/fdc/sensorarrayFdcSweep.c#L3378) |
+| `esp_err_t Fdc2214CapReadChannelsRaw(Fdc2214CapDevice_t* dev, uint8_t channelMask, Fdc2214CapChannelSample_t* outSamples, size_t outSampleCount)` | 按 channelMask 的低四位为选中的通道填写逐通道样本。 / Read selected channels into their channel-indexed output slots using mask bits 0–3. | 公开入口 / Callable API |
+| `esp_err_t Fdc2214CapReadRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)` | 从指定八位地址读一个 16 位寄存器。 / Read one 16-bit register at the specified 8-bit address. | [sensorarrayInitFdcDevice](../../core/board/sensorarrayFrontendStartup.c#L603) |
+| `esp_err_t Fdc2214CapWriteRawRegisters(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value)` | 将原始 16 位 value 写入寄存器 reg。 / Write a raw 16-bit value to reg. | [sensorarrayMeasureApplyFdcCachedRowConfig](../../core/measure/fdc/sensorarrayFdcCache.c#L229) |
+| `const char* Fdc2214CapSampleStatusName(Fdc2214CapSampleStatus_t status)` | 返回样本质量枚举的诊断名称。 / Return a diagnostic name for a sample-quality classification. | 公开入口 / Callable API |
 
-- Lifecycle: `Fdc2214CapCreate()`, `Fdc2214CapDestroy()`.
-- Identity/reset: `Fdc2214CapReset()`, `Fdc2214CapReadId()`.
-- Channel config: `Fdc2214CapConfigureChannel*()`, `Fdc2214CapReadbackVerifyChannelConfig*()`.
-- Conversion mode: `Fdc2214CapSetSingleChannelMode()`, `Fdc2214CapSetAutoScanMode*()`.
-- Sleep epoch support: `Fdc2214CapBuildConfig()`, `Fdc2214CapEnterSleep()`, `Fdc2214CapExitSleep()`.
-- Status and diagnostics: `Fdc2214CapReadStatus()`, `Fdc2214CapReadCoreRegs()`, `Fdc2214CapReadDebugSnapshot()`.
-- Data reads: `Fdc2214CapReadSample*()`, `Fdc2214CapReadChannelsRaw()`, `Fdc2214CapReadAutoscan4RawFast()`.
-- Raw registers: `Fdc2214CapReadRawRegisters()`, `Fdc2214CapWriteRawRegisters()`.
-- I2C diagnostics: `Fdc2214CapGetI2cStats()` and the `Fdc2214CapI2cTrace*()` functions.
+### 内部 / Internal
 
-The driver reports raw data and chip status. Frequency and pF conversion used by `MATRIXFDC_CAP` are measurement-layer responsibilities.
-
-`Fdc2214CapReadStatus()` and `Fdc2214CapDecodeStatusRaw()` perform one STATUS read/decode operation and contain no hidden ready-poll loop. The measurement layer decides whether a new INTB event can go directly to DATA or needs STATUS-confirmed fallback. `Fdc2214CapReadDataBurst4()` uses the 16-byte transaction only after `Fdc2214CapProbeDataBurst4()` obtains exact ordered/block matches; a runtime block I2C failure disables burst and retries ordered immediately.
-
-Drive-current writes are masked to the FDC2214 drive-current field. The SensorArray default is `0x7800`; avoid documenting or tuning with `0x7C00` because the extra bit is discarded before the register write.
-
-## Kconfig
-
-| Option | Default | Notes |
-|---|---:|---|
-| `CONFIG_FDC2214CAP_ENABLE` | y | Enables the component. |
-| `CONFIG_FDC2214CAP_LOG_LEVEL` | `3` | Component log level. |
-| `CONFIG_FDC2214CAP_MUTEX_TIMEOUT_MS` | `200` | Internal mutex lock timeout. |
-| `CONFIG_FDC2214CAP_LOW_LEVEL_I2C_TRACE` | n | Verbose per-transaction printf; keep off for normal matrix reads. |
-| `CONFIG_FDC2214CAP_RAW_I2C_TRACE` | n | Raw register trace for diagnostics. |
-| `CONFIG_FDC2214CAP_I2C_ADDR` | `0x2A` | Generic component default; the app uses primary/secondary project config instead. |
-| `CONFIG_FDC2214CAP_CHANNELS` | `4` | Current matrix expects CH0-CH3 on each FDC. |
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `static bool Fdc2214IsValidChannel(Fdc2214CapChannel_t ch)` | 检查通道在 CH0–CH3 范围内。 / Check that ch is in CH0–CH3. | [Fdc2214CapStatusHasUnreadForChannel](fdc2214Cap.c#L427) |
+| `static bool Fdc2214IsValidDeglitch(Fdc2214CapDeglitch_t deglitch)` | 校验 MUX_CONFIG 的去毛刺带宽枚举值。 / Check the supported MUX_CONFIG deglitch bandwidth codes. | [Fdc2214CapBuildMuxValue](fdc2214Cap.c#L436) |
+| `static bool Fdc2214IsValidRefClock(Fdc2214CapRefClockSource_t refClockSource)` | 校验内部或外部参考时钟选择。 / Accept the supported internal or external reference clock choice. | [Fdc2214CapBuildConfig](fdc2214Cap.c#L957) |
+| `static uint8_t Fdc2214RegForChannelStep1(uint8_t base, Fdc2214CapChannel_t ch)` | 求单寄存器通道组地址 base + ch。 / Return base + ch for per-channel registers spaced one address apart. | [Fdc2214CapReadClockDividers](fdc2214Cap.c#L1118) |
+| `static uint8_t Fdc2214RegForChannelStep2(uint8_t base, Fdc2214CapChannel_t ch)` | 求 DATA 对的地址 base + 2 × ch。 / Return base + 2 × ch for per-channel DATA register pairs. | [Fdc2214CapClearStatus](fdc2214Cap.c#L1066) |
+| `static void Fdc2214CapDelayUs(uint32_t delayUs)` | 按 delayUs 延迟当前调用。 / Delay the caller for the requested microsecond interval. | [Fdc2214CapExitSleep](fdc2214Cap.c#L1018) |
+| `static void Fdc2214CapTraceRecord(const char *op, uint8_t addr7, size_t txLen, size_t rxLen, uint64_t elapsedUs, esp_err_t err)` | 启用跟踪时记录设备地址、读写长度、耗时和结果到有界环。 / Record address, transfer sizes, duration and result in the bounded trace ring when enabled. | [Fdc2214CapWriteBytes](fdc2214Cap.c#L531) |
+| `static void Fdc2214CapAccumulateI2cStats(Fdc2214CapDevice_t *dev, bool readTransaction, size_t txLen, size_t rxLen, uint64_t elapsedUs, esp_err_t err)` | 按读写类型累积字节、耗时及 NACK、超时等错误计数。 / Accumulate per-device byte, duration and error counters for this transaction. | [Fdc2214CapWriteBytes](fdc2214Cap.c#L531) |
+| `static uint64_t Fdc2214CapElapsedUs(int64_t startUs)` | 由单调起始时间计算非负经过的微秒数。 / Return nonnegative elapsed microseconds since startUs. | [Fdc2214CapWriteBytes](fdc2214Cap.c#L531) |
+| `static uint16_t Fdc2214CapApplyConfigReservedBits(uint16_t configValue)` | 将 CONFIG 保留位写成芯片要求的位型。 / Insert required CONFIG reserved-bit values. | [Fdc2214CapBuildConfig](fdc2214Cap.c#L957) |
+| `static bool Fdc2214CapConfigReservedBitsValid(uint16_t configValue)` | 检查 CONFIG 中必须为一或零的保留位。 / Validate the required reserved bits of a CONFIG word. | [Fdc2214CapReadSampleWithValidityMode](fdc2214Cap.c#L1736) |
+| `static Fdc2214CapChannel_t Fdc2214CapActiveChannelFromConfig(uint16_t configValue)` | 解码 CONFIG.ACTIVE_CHAN。 / Extract ACTIVE_CHAN from CONFIG. | [Fdc2214CapConfigOptionsFromRaw](fdc2214Cap.c#L348) |
+| `static Fdc2214CapRefClockSource_t Fdc2214CapRefClockFromConfig(uint16_t configValue)` | 解码 CONFIG 中的内部或外部参考时钟选择。 / Decode the CONFIG reference clock selection. | [Fdc2214CapConfigOptionsFromRaw](fdc2214Cap.c#L348) |
+| `static Fdc2214CapConfigOptions_t Fdc2214CapConfigOptionsFromRaw(uint16_t configValue)` | 将 CONFIG 字展开为活动通道、休眠、时钟和驱动选项。 / Decode CONFIG into channel, sleep, reference clock and drive options. | [Fdc2214CapSetSingleChannelMode](fdc2214Cap.c#L1577) |
+| `static const char *Fdc2214CapRrSequenceName(uint8_t rrSequence)` | 供详细日志显示轮询序列覆盖的通道。 / Name the channels in a round-robin sequence for verbose logging. | [Fdc2214CapSetAutoScanMode](fdc2214Cap.c#L1668) |
+| `static esp_err_t Fdc2214CapBuildMuxValue(bool autoScan, uint8_t rrSequence, Fdc2214CapDeglitch_t deglitch, uint16_t* outMuxValue)` | 验证 autoScan、rrSequence 与 deglitch，构建 MUX_CONFIG。 / Validate scan mode, round-robin and deglitch settings and assemble MUX_CONFIG. | [Fdc2214CapSetMuxConfig](fdc2214Cap.c#L1560) |
+| `static esp_err_t Fdc2214CapNormalizeClockDividers(uint16_t rawClockDividers, uint16_t* outClockDividers)` | 清保留位，验证输入频率选择和参考分频字段。 / Clear reserved bits and check input selection and reference divider. | [Fdc2214CapConfigureChannelWriteOnly](fdc2214Cap.c#L1307) |
+| `static uint16_t Fdc2214CapNormalizeDriveCurrent(uint16_t rawDriveCurrent)` | 按有效驱动电流字段屏蔽多余位。 / Mask the drive-current register value to its writable field. | [Fdc2214CapWriteDriveCurrent](fdc2214Cap.c#L1131) |
+| `static void Fdc2214CapLogDriveCurrentNormalizedOnce(uint16_t original, uint16_t normalized)` | 首次观察到归一化修改时报告原值和写入值。 / Log original and normalised drive current once when they differ. | [Fdc2214CapConfigureChannelWriteOnly](fdc2214Cap.c#L1307) |
+| `static uint16_t Fdc2214CapNormalizeStatusConfig(uint16_t statusConfig)` | 屏蔽 ERROR_CONFIG 的保留位。 / Mask reserved bits from the status/error configuration. | [Fdc2214CapSetStatusConfig](fdc2214Cap.c#L1547) |
+| `static esp_err_t Fdc2214CapLock(Fdc2214CapDevice_t* dev)` | 按组件配置的有限等待时间取得设备 mutex。 / Acquire the device mutex with the configured finite wait. | [Fdc2214CapWriteBytes](fdc2214Cap.c#L531) |
+| `static void Fdc2214CapUnlock(Fdc2214CapDevice_t* dev)` | 释放设备 mutex。 / Release the device mutex. | [Fdc2214CapWriteBytes](fdc2214Cap.c#L531) |
+| `static esp_err_t Fdc2214CapWriteBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx, size_t txLen)` | 串行调用板级写回调并记录事务结果。 / Serialise a board write callback and record transfer statistics. | [Fdc2214CapWriteReg16](fdc2214Cap.c#L612) |
+| `static esp_err_t Fdc2214CapWriteReadBytesUnlocked(Fdc2214CapDevice_t* dev, const uint8_t* tx, size_t txLen, uint8_t* rx, size_t rxLen)` | 已持有锁时执行板级写后读，统计长度、耗时和错误。 / Perform and account for a board write/read while the device lock is held. | [Fdc2214CapWriteReadBytes](fdc2214Cap.c#L597) |
+| `static esp_err_t Fdc2214CapWriteReadBytes(Fdc2214CapDevice_t* dev, const uint8_t* tx, size_t txLen, uint8_t* rx, size_t rxLen)` | 加设备锁后对 tx、rx 缓冲执行写后读。 / Lock around the register-address write and data read into rx. | [Fdc2214CapReadReg16](fdc2214Cap.c#L626) |
+| `static esp_err_t Fdc2214CapWriteReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t value)` | 按寄存器地址和大端 16 位值写入器件。 / Write a register address followed by the big-endian 16-bit value. | [Fdc2214CapWriteReg16VerifyWithMask](fdc2214Cap.c#L739) |
+| `static esp_err_t Fdc2214CapReadReg16(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)` | 读指定寄存器并拼成主机端 16 位值。 / Read one register and assemble a host-order 16-bit value. | [Fdc2214CapReadReg16Verify](fdc2214Cap.c#L731) |
+| `static esp_err_t Fdc2214CapReadReg16Unlocked(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)` | 调用者持锁时执行 16 位读取并累积事务统计。 / Read a 16-bit word with transfer accounting while the caller holds the lock. | [Fdc2214CapReadDataOrderedRegisters](fdc2214Cap.c#L1983) |
+| `static esp_err_t Fdc2214CapReadReg16UnlockedUntimed(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)` | 调用者持锁时取 16 位字，留给外层做整组计时。 / Read a 16-bit register under the existing lock for an externally timed group. | [Fdc2214CapReadDataOrderedRegisters](fdc2214Cap.c#L1983) |
+| `static esp_err_t Fdc2214CapReadReg16SequenceUnlocked(Fdc2214CapDevice_t *dev, const uint8_t *regs, size_t regCount, uint16_t *outValues)` | 由总线序列回调读取 regCount 个寄存器，记录聚合事务。 / Use the bus sequence callback on regCount addresses and account for the grouped transaction. | [Fdc2214CapReadRegisterListSequenceUnlocked](fdc2214Cap.c#L2050) |
+| `static esp_err_t Fdc2214CapReadReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t* outValue)` | 读取 16 位寄存器并更新验证读计数。 / Fetch a word for verification and increment its verification-read counter. | [Fdc2214CapWriteReg16VerifyWithMask](fdc2214Cap.c#L739) |
+| `static esp_err_t Fdc2214CapWriteReg16VerifyWithMask(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t expectedValue, uint16_t compareMask, bool mismatchIsWarning, const char* regName, bool* outMaskedMatch, uint16_t* outReadbackValue)` | 写入、读回并按 compareMask 比较，可将指定差异作为告警输出。 / Write, read back and compare using compareMask, optionally exposing a mismatch as a warning. | [Fdc2214CapWriteReg16Verify](fdc2214Cap.c#L817) |
+| `static esp_err_t Fdc2214CapWriteReg16Verify(Fdc2214CapDevice_t* dev, uint8_t reg, uint16_t expectedValue)` | 写入并严格核对完整 16 位寄存器。 / Write and verify the complete 16-bit word. | [Fdc2214CapEnterSleep](fdc2214Cap.c#L997) |
+| `static esp_err_t Fdc2214CapReadSampleWithValidityMode(Fdc2214CapDevice_t* dev, Fdc2214CapChannel_t ch, bool relaxedValidity, Fdc2214CapSample_t* outSample)` | 读配置、状态及 DATA，对 outSample 采用严格或调试有效性规则。 / Read configuration, status and DATA and classify the sample with strict or relaxed validity. | [Fdc2214CapReadSample](fdc2214Cap.c#L1845) |
+| `static esp_err_t Fdc2214CapReadChannelsDataRegsFastImpl(Fdc2214CapDevice_t* dev, uint8_t channelMask, Fdc2214CapFastChannelSample_t* outSamples, size_t outSampleCount, bool readStatus)` | 按 mask 生成逐通道输出，用 readStatus 决定是否消费 STATUS。 / Map selected channels into outputs and use readStatus to control the STATUS access. | [Fdc2214CapReadChannelsDataRegsFast](fdc2214Cap.c#L2519) |
+| `static esp_err_t Fdc2214CapReadDataOrderedRegisters(Fdc2214CapDevice_t* dev, Fdc2214CapFastChannelSample_t outSamples[4])` | 持有设备锁一次，按 CH0–CH3 依次读取八个 DATA 字。 / Hold one device lock across ordered reads of all eight CH0–CH3 DATA words. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |
+| `static void Fdc2214CapDecodeDataRegisterValues(const uint16_t values[8], Fdc2214CapFastChannelSample_t outSamples[4])` | 将八个 DATA 字对组装为四份 raw28、MSB/LSB 和故障位。 / Decode eight register words into four raw28 samples with MSB/LSB and flags. | [Fdc2214CapReadDataOrderedRegistersSequence](fdc2214Cap.c#L2078) |
+| `static esp_err_t Fdc2214CapReadRegisterListSequenceUnlocked(Fdc2214CapDevice_t *dev, const uint8_t *regs, size_t regCount, size_t regsPerTransaction, uint16_t *outValues)` | 按 regsPerTransaction 分组读取 regs 到 outValues。 / Read regs into outValues in groups of regsPerTransaction under the existing lock. | [Fdc2214CapReadDataOrderedRegistersSequence](fdc2214Cap.c#L2078) |
+| `static esp_err_t Fdc2214CapReadDataOrderedRegistersSequence( Fdc2214CapDevice_t *dev, FdcDataReadMode mode, Fdc2214CapFastChannelSample_t outSamples[4])` | 一次加锁并用已选序列模式读取四通道 DATA。 / Lock once and use the selected sequential mode for the four-channel DATA read. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |
+| `static esp_err_t Fdc2214CapReadDataBlockCandidate(Fdc2214CapDevice_t* dev, Fdc2214CapFastChannelSample_t outSamples[4], bool probeRead)` | 从首个 DATA 地址连续读取 16 字节，可单独计入探测次数。 / Try a 16-byte contiguous DATA block, accounting separately for probe reads. | [Fdc2214CapProbeDataBurst4](fdc2214Cap.c#L2404) |
+| `static bool Fdc2214CapDataReadSamplesMatch( const Fdc2214CapFastChannelSample_t ordered[4], const Fdc2214CapFastChannelSample_t burst[4])` | 比较两种策略下四通道 DATA 的 MSB 与 LSB。 / Compare the two acquisitions' MSB/LSB words for all four channels. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |
+| `static esp_err_t Fdc2214CapReadRegisterListOrdered(Fdc2214CapDevice_t *dev, const uint8_t *regs, size_t regCount, uint16_t *outValues)` | 持锁按指定列表逐寄存器读取，保留首次错误。 / Take the lock and read the register list in order, retaining the first failure. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |
+| `static esp_err_t Fdc2214CapReadRegisterListSequence(Fdc2214CapDevice_t *dev, const uint8_t *regs, size_t regCount, FdcDataReadMode mode, uint16_t *outValues)` | 持锁，以 mode 指定的分组长度读取寄存器列表。 / Hold the lock and fetch the register list with the grouping specified by mode. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |
+| `static uint32_t Fdc2214CapRegisterListMismatchCount(const uint16_t *expected, const uint16_t *actual, size_t count)` | 计算两组 count 个 16 位字的不同项数。 / Count unequal register words across the two count-element arrays. | [Fdc2214CapProbeDataSequence4](fdc2214Cap.c#L2230) |

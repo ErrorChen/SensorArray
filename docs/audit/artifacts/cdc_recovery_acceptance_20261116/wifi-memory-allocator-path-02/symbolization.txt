@@ -1,4 +1,0 @@
-ieee80211_hostap_attach
-??:?
-wifi_softap_start
-??:?

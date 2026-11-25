@@ -1,1 +1,0 @@
-{"output": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/short-snapshots-01/short-snapshots-cpu-01.json", "paired_roles": [0, 1, 2, 3, 5], "unknown_roles": [4, 6], "status": "ANALYZED"}

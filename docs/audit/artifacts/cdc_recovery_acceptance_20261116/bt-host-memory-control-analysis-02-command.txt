@@ -1,1 +1,0 @@
-{"status": "BT_HOST_PSRAM_PREFERENCE_AP_MEMORY_BLOCKER_REMAINS", "AP_us": 34482, "BLE_terminals": "BOTH_REQUEST_TERMINALS_OBSERVED", "cross_image_intFree_difference": 5528, "inputs": 45}

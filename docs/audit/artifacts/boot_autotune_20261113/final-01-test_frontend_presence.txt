@@ -1,1 +1,0 @@
-FRONTEND_PRESENCE_TESTS,passed=10,source=complete_production_module,fixture=synthetic

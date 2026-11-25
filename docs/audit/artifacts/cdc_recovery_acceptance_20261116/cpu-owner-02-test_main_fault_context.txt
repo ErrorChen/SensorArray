@@ -1,7 +1,0 @@
-MFAULT,mode=RES,seq=4231,err=0x109,state=DEGRADED,route=SAFE_REQUESTED
-MFAULT,mode=VOLT,seq=4231,err=0x109,state=DEGRADED,route=SAFE_REQUESTED
-MFAULT,mode=MIXED,seq=4231,err=0x109,state=DEGRADED,route=SAFE_REQUESTED
-MFAULT,source=ADSCHK,id=1234,err=0x108,state=DEGRADED,route=SAFE_REQUESTED
-MFAULT,mode=RES,seq=4231,err=0xffffffffffffffff,state=DEGRADED,route=SAFE_REQUESTED
-MFAULT,mode=RES,seq=4231,err=0x109,state=DEGRADED,route=SAFE_REQUESTED
-MAIN_FAULT_CONTEXT,passed=10,source=production_functions_and_cleanup_branches

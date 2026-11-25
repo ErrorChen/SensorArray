@@ -1,116 +1,162 @@
-# ads126xAdc / ADS126x Chip-level SPI Driver
+# ADS126x 转换器 / ADS126x converter
 
-## 目录 / Table of contents
+该组件以一个句柄控制一颗 ADS1262/ADS1263。板级启动传入已创建的 SPI 设备、RESET/DRDY 引脚和读出策略。测量层负责矩阵路由、缓存、自动 PGA、输入建立和样本发布。ADS1262 只有 ADC1。 / One handle controls one ADS1262 or ADS1263. Board bring-up supplies the SPI device, RESET/DRDY pins and read policy. The measurement layer owns matrix routing, caches, auto-ranging, input settling and sample publication. ADS1262 has only ADC1. [接口 / Header](include/ads126xAdc.h) · [板级调用 / Bring-up](../../core/board/sensorarrayBringup.c) · [采集 / Acquisition](../../core/measure/ads/sensorarrayAdsMatrix.c)
 
-- [中文说明 / Chinese documentation](#中文说明--chinese-documentation)
-- [Australian English documentation](#australian-english-documentation)
-- [Kconfig](#kconfig)
+## 调用与错误 / Calling and errors
 
-## 中文说明 / Chinese documentation
+在采集任务中先初始化并配置句柄。下例检查自配置以来的新边沿。调用者在 `generation` 快照之前完成本点输入配置并按测量层策略建立输入。微秒使用单调时钟。CRC 剩余次数可与同一测点的其它读取共享。 / Initialise and configure the handle in task context. For the example below, apply the input configuration and its required settling policy before taking the generation snapshot. Times are monotonic microseconds. The CRC allowance may be shared across reads of the same cell.
 
-### 职责
-
-`components/ads126xAdc` 是 ADS1262/ADS1263 芯片级 SPI driver。它负责 SPI register read/write、ADC1/ADC2 conversion control、input mux、reference mux、POWER register policy、DRDY wait、raw ADC read 和 raw-to-microvolts conversion。
-
-它不知道：
-
-- D1-D8 D-line 的板级意义。
-- SELA/SELB/SW 路由含义。
-- 什么时候为了 FDC mode 关闭 ADS。
-- FDC matrix scan/rescue 策略。
-- SensorArray 64-cell frame 格式。
-
-CAP/VOLT/RES 下是否停止 conversion、开启 INTREF/VBIAS 以及选择哪个 REFMUX，
-都是 measurement-layer 的显式 board profile，不是 ADS driver 自己决定。矩阵
-激励 REF 也不是本 driver 的一个 bool。
-
-### 主要类型
-
-| 类型 | 作用 |
-|---|---|
-| `ads126xAdcConfig_t` | SPI handle、DRDY/RESET GPIO、device type、CRC、status byte、reference、PGA/data-rate defaults。 |
-| `ads126xAdcHandle_t` | Semi-opaque runtime handle with SPI buffers, mutex and chip settings. |
-| `ads126xDeviceType_t` | `ADS126X_DEVICE_AUTO`、`ADS126X_DEVICE_ADS1262`、`ADS126X_DEVICE_ADS1263`。 |
-| `ads126xCrcMode_t` | `ADS126X_CRC_OFF`、`ADS126X_CRC_CHECKSUM`、`ADS126X_CRC_CRC8`。 |
-
-### 真实 API
-
-| API | 作用 |
-|---|---|
-| `ads126xAdcInit()`, `ads126xAdcDeinit()` | Initialise/deinitialise the handle. |
-| `ads126xAdcHardwareReset()`, `ads126xAdcSendCommand()` | Reset and command helpers. |
-| `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()` | Raw register block access. |
-| `ads126xAdcGetIdRaw()`, `ads126xAdcReadPowerRegister()`, `ads126xAdcWritePowerRegister()` | Identity and POWER register access. |
-| `ads126xAdcClearResetFlag()` | Clear the POWER.RESET sticky bit and verify readback before normal conversions. |
-| `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()` | Internal reference and VBIAS control. |
-| `ads126xAdcConfigure()` | Core ADC configuration. |
-| `ads126xAdcSetRefMux()`, `ads126xAdcSetInputMux()` | Reference and input mux selection. |
-| `ads126xAdcSetPgaGain()`, `ads126xAdcSetPgaBypass()`, `ads126xAdcSetInputMuxVerified()` | Bounded write/readback for PGA, verified MODE2 bypass, and input-mux updates. |
-| `ads126xAdcBuildMode2()`, `ads126xAdcSetMode2Fast()`, `ads126xAdcSetMode2Verified()` | Reuse the driver MODE2 encoder for cached hot-path writes or explicit readback verification. |
-| `ads126xAdcSetInputMuxFast()` | Write a changed matrix INPMUX without unconditional per-cell readback; the measurement shadow decides when verification is required. |
-| `ads126xAdcReadCoreRegisters()` | Critical POWER/MODE2/INPMUX/REFMUX diagnostic/readback snapshot. |
-| `ads126xAdcReadAdc1RegisterSnapshot()`, `ads126xAdcRestoreAdc1RegisterSnapshot()` | Save/restore and fully verify POWER, INTERFACE, MODE0/1/2, INPMUX, REFMUX, OFCAL and FSCAL around battery/ADSCHK transactions. |
-| `ads126xAdcIsAdc1Running()`, `ads126xAdcIsAdc2Running()` | Report driver-tracked running state so an ADS1263 transaction can preserve ADC2 while ADS1262 remains ADC1-only. |
-| `ads126xAdcStatusByteHasAdc1NewData()`, `ads126xAdcStatusByteHasReferenceAlarm()`, `ads126xAdcStatusByteHasPgaAlarm()` | Decode fresh conversion, reference, and PGA absolute/differential status. |
-| `ads126xAdcReadSingleDiffUv()` | One differential ADC1 read with mux/settle/discard/final conversion. |
-| `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()` | ADC1 conversion control and readout. |
-| `ads126xAdcRawToMicrovolts()` | Raw ADC code to microvolts. |
-| `ads126xAdcSelfOffsetCal()`, `ads126xAdcSelfGainCal()`, `ads126xAdcSystemOffsetCal()`, `ads126xAdcSystemGainCal()`, `ads126xAdcSelfCal()` | Calibration commands. |
-| `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()` | ADC2 APIs, useful on ADS1263; ADS1262 use may return not supported. |
-
-### Mode safety boundary
-
-`sensorarrayRouteController` uses ADS driver APIs as part of CAP/VOLT/RES route safety:
-
-```text
-ads126xAdcStopAdc1()
-ads126xAdcStopAdc2() when ADS1263 support is compiled
-ads126xAdcApplyPowerPolicy() for the selected independent INTREF/VBIAS policy
-ads126xAdcSetRefMux() and critical-register readback
+```c
+esp_err_t read_next(ads126xAdcHandle_t *adc, int32_t *raw, uint8_t *status)
+{
+    esp_err_t err = ads126xAdcBeginTransaction(adc, 20000);
+    if (err != ESP_OK) return err;
+    uint32_t generation = ads126xAdcGetDrdyGeneration(adc);
+    uint8_t retries = 1;
+    ads126xAdcFreshReadReport_t report = {0};
+    err = ads126xAdcReadAdc1FreshChecked(adc, generation, 10000, &retries,
+                                         raw, status, &report);
+    ads126xAdcEndTransaction(adc);
+    return err;
+}
 ```
 
-The driver exposes chip operations. The measurement layer decides when they
-are required. VOLT/RES use ADC1, which is available on ADS1262 and ADS1263;
-ADC2 calls return an explicit unsupported result when the detected device lacks
-ADC2. Runtime `ADSBOOT` identity, not a compile-time label, is authoritative.
+`esp_err_t` 成功为 `ESP_OK`。调用者检查传输、超时、参数、CRC 和回读错误后才使用样本。事务预算涵盖加锁、入队、收回与重试。未收回的 DMA 描述符继续占有持久缓冲。易失寄存器、DRDY 边沿、配置代号、内部参考启动时间各有独立语义。内部参考实际开启后，原理图 C42 的 1 µF 条件需要至少 50 ms 的启动窗口；REFOUT 参考 AVSS。 / Use a sample only after ESP_OK. Check transport, timeout, argument, CRC and readback errors. The outer budget covers locking, queueing, reclaim and retries. Unreclaimed DMA retains its persistent buffers. Register comparisons, DRDY edges, configuration generation and reference-ready time each represent a different condition. An actual internal-reference start on the schematic's 1 µF C42 has a minimum 50 ms readiness window. REFOUT is referenced to AVSS.
 
-## Australian English documentation
+`CONFIG_ADS126X_SPI_CLOCK_HZ` 的组件默认值为 2 MHz，互斥期限默认 100 ms。速率请求与实测分频后频率分开查询。每个签名给出实际参数顺序及类型，`out*` 为输出，`Optional` 可空。 / Component defaults are a 2 MHz SPI clock and a 100 ms lock budget. Query the applied divided frequency separately from the request. Signatures give parameter order and types. Names beginning with out are destinations and Optional denotes nullable output. [构建选项 / Kconfig](Kconfig)
 
-### Responsibility
+| 参数或输出 / Argument or output | 使用约定 / Interpretation |
+|---|---|
+| `handle`, `cfg`, `forcedType` | 每颗芯片一个持久句柄。AUTO 从 ID 识别；可选跳过复位或初始化配置，供板级启动序列使用。 / Keep one handle per chip. AUTO identifies from ID. The board startup sequence can request skipping reset or initial configuration. |
+| `muxp`, `muxn`, `refmuxValue`, `dataRateDr` | 芯片寄存器通道/参考/速率编码，不是矩阵行列号。 / Chip input, reference and rate codes. Matrix coordinates are resolved by the board. |
+| `txLen`, `rxLen`, `frameLen`, `outReadUs` | 长度按字节；微秒字段记录物理读取阶段。完整读取报告分别给出 waitUs 与 readUs。 / Lengths are bytes. Read durations are microseconds for the read stage. The full report separates waitUs and readUs. |
+| `startGeneration`, `crcRetryBudget`, `report` | 调用时传 DRDY 边沿快照、可扣减的 CRC 重试预算和独立报告。firstError、terminalError 及 CRC 证据可分别查询。 / Pass the edge snapshot, mutable CRC retry allowance and report. Read firstError, terminalError and CRC evidence separately. |
+| `vrefMicrovolts`, `gain`, `rawCode` | 参考幅值用 µV，增益为线性倍数。使用当前已验证的物理标度，ADC1 的数据码为有符号 32 位，ADC2 为有符号 24 位。 / Reference magnitude is in µV and gain is linear. Use the verified physical scale. ADC1 uses signed 32-bit codes and ADC2 signed 24-bit codes. |
 
-`components/ads126xAdc` is the chip-level SPI driver for ADS1262/ADS1263. It owns SPI register access, conversion control, input and reference mux control, POWER register policy, DRDY waiting, raw reads, and raw-to-microvolts conversion.
+## [ads126xAdc.c](ads126xAdc.c)
 
-It does not know D-line mapping, SELA/SELB/SW route meaning, when ADS must be disabled for FDC, FDC matrix scan strategy, or SensorArray frame layout.
+### 接口与回调 / Interfaces and callbacks
 
-Stopping conversion and independently selecting INTREF, VBIAS and REFMUX for
-CAP/VOLT/RES are measurement-layer policies, not driver policies. Matrix
-excitation REF is a separate board route outside this component.
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `esp_err_t ads126xAdcBeginTransaction(ads126xAdcHandle_t *handle, uint32_t budgetUs)` | 用 budgetUs 建立本 owner 的相对事务期限，预算为零失败。 / Open the owner's transaction with a relative budget in microseconds. Reject zero. | [sensorarrayAdsGapRefreshRailAtBoundary](../../core/measure/ads/sensorarrayAdsGap.c#L1482) |
+| `esp_err_t ads126xAdcBeginTransactionUntil(ads126xAdcHandle_t *handle, uint64_t absoluteDeadlineUs)` | 登记绝对微秒期限，拒绝嵌套、过期或已隔离的句柄。 / Record an absolute microsecond deadline. Reject nested, expired or quarantined use. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `void ads126xAdcEndTransaction(ads126xAdcHandle_t *handle)` | 清除外层期限，由建立期限的 owner 配对调用。 / Clear the outer deadline when its owner finishes. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `uint16_t ads126xAdcSpiDutyCycleForClock(uint32_t clockHz)` | 返回 IDF 的占空比编码 128，即 50%。 / Return IDF duty encoding 128 for 50% at the requested clock. | [sensorarrayInitSpi](../../core/board/sensorarrayBringup.c#L316) |
+| `bool ads126xAdcTailDiagnosticAvailable(const ads126xAdcHandle_t *handle)` | 检查平台、专用 SPI 总线证据、引脚和持久缓冲是否支持尾位读取。 / Check platform, exclusive-bus evidence, pins and persistent storage for the tail-read path. | [sensorarrayAdsGapRunTimingProbeKind](../../core/measure/ads/sensorarrayAdsGap.c#L3044) |
+| `const char *ads126xAdcReadSourceName(uint8_t source)` | 将采样来源码转换为诊断标签。 / Return the diagnostic name of the acquisition source. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcSetAdc1ReadPolicy(ads126xAdcHandle_t *handle, ads126xAdcAdc1ReadPolicy_t policy)` | 在 ADC1 已停止时切换字节读取或必须采用 GPIO 尾位的策略。 / Select ordinary SPI bytes or required GPIO-tail acquisition while ADC1 is stopped. | [sensorarrayBringupInitAds](../../core/board/sensorarrayBringup.c#L801) |
+| `const char *ads126xAdcTailStageName(uint8_t stage)` | 将尾位操作阶段编码转换成日志短名。 / Map a tail-operation stage to its diagnostic name. | [sensorarrayAdsGapRefreshRailAtBoundary](../../core/measure/ads/sensorarrayAdsGap.c#L1482) |
+| `bool ads126xAdcIsQuarantined(const ads126xAdcHandle_t *handle)` | 检测隔离标志或尚未回收的描述符。 / Return true if the handle is quarantined or a transaction remains in flight. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcRequestSpiClockHz(ads126xAdcHandle_t *handle, uint32_t hz)` | 在锁内登记下一完整事务的速率请求，接受 1 kHz–8 MHz。 / Set the next complete transfer's clock request under the mutex, from 1 kHz to 8 MHz. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcGetSpiClockHz(ads126xAdcHandle_t *handle, uint32_t *requestedHz, uint32_t *actualHz)` | 由 IDF 读取实际分频后频率，填入 actualHz。 / Read the device's actual divided clock from IDF and write it in hertz. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcPredictDefaultSpiClockHz(uint32_t requestedHz, uint32_t *actualHz)` | 根据默认时钟源和 IDF 分频器预测可达到的频率。 / Calculate the achievable rate from the default source and IDF divider. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcInit(ads126xAdcHandle_t *handle, const ads126xAdcConfig_t *cfg)` | 以 cfg 的 SPI 器件、引脚和参数初始化零初始化句柄，识别芯片并配置 ADC。 / Initialise a zero-initialised handle with cfg's SPI device, pins and converter settings, then identify and configure the chip. | [sensorarrayBringupInitAds](../../core/board/sensorarrayBringup.c#L801) |
+| `esp_err_t ads126xAdcDeinit(ads126xAdcHandle_t *handle)` | 移除 DRDY 回调并释放锁和缓冲，未回收事务阻止释放。 / Remove the DRDY handler and release driver storage. An outstanding transfer prevents teardown. | [sensorarrayBringupInitAds](../../core/board/sensorarrayBringup.c#L801) |
+| `esp_err_t ads126xAdcHardwareReset(ads126xAdcHandle_t *handle)` | 对配置的低有效 RESET/PWDN 引脚发脉冲，并使接口证据失效。 / Pulse the configured active-low RESET/PWDN pin and invalidate interface evidence. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `esp_err_t ads126xAdcSendCommand(ads126xAdcHandle_t *handle, uint8_t cmd)` | 发送单字节操作码并在成功后更新运行或复位跟踪状态。 / Send one opcode and update tracked start/stop/reset state on success. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `esp_err_t ads126xAdcReadRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, uint8_t *data, size_t len)` | 从 startAddr 连读 len 个字节到 data，在允许的寄存器范围内使用保护字节。 / Read len consecutive bytes at startAddr into data, adding a guard byte where the register range permits. | [sensorarrayBringupProbeAdsPresence](../../core/board/sensorarrayBringup.c#L116) |
+| `esp_err_t ads126xAdcWriteRegisters(ads126xAdcHandle_t *handle, uint8_t startAddr, const uint8_t *data, size_t len)` | 一次片选下发送 WREG 和数据，更新物理配置代及相关 shadow。 / Write the register block under one chip select and update configuration generation and affected shadows. | [sensorarrayAdsWriteCalibration](../../core/measure/ads/sensorarrayAdsGap.c#L1004) |
+| `esp_err_t ads126xAdcGetIdRaw(ads126xAdcHandle_t *handle, uint8_t *idReg)` | 读取芯片 ID 寄存器的完整字节。 / Read the full device ID register into idReg. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `esp_err_t ads126xAdcReadPowerRegister(ads126xAdcHandle_t *handle, uint8_t *outPower)` | 读取 POWER 并据真实内部参考状态更新就绪时间。 / Read POWER and track the internal-reference ready time from its observed state. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `esp_err_t ads126xAdcWritePowerRegister(ads126xAdcHandle_t *handle, uint8_t power)` | 写完整 POWER 字节，经底层更新内部参考的跟踪。 / Write the POWER byte through the tracked register path. | [sensorarrayAdsRestoreBatteryCoreState](../../core/measure/ads/sensorarrayAdsGap.c#L445) |
+| `esp_err_t ads126xAdcClearResetFlag(ads126xAdcHandle_t *handle)` | 读取 POWER、清 RESET 粘滞位并读回验证。 / Read POWER, clear its sticky RESET bit, and verify by readback. | [sensorarrayBringupInitAds](../../core/board/sensorarrayBringup.c#L801) |
+| `esp_err_t ads126xAdcApplyPowerPolicy(ads126xAdcHandle_t *handle, bool updateInternalRef, bool enableInternalRef, bool updateVbias, bool enableVbias, uint8_t *outPowerBefore, uint8_t *outPowerAfter)` | 分别选择保持或更改 INTREF/VBIAS，可返回变更前后的 POWER，核验指定字段。 / Independently keep or change INTREF/VBIAS, optionally return before/after POWER, and verify requested fields. | [sensorarrayMeasureApplyRefPolicy](../../core/measure/sensorarrayMeasure.c#L278) |
+| `esp_err_t ads126xAdcSetInternalReference(ads126xAdcHandle_t *handle, bool enableInternalRef)` | 仅更改 INTREF，沿用 VBIAS。 / Change INTREF while preserving VBIAS. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `esp_err_t ads126xAdcConfigure(ads126xAdcHandle_t *handle, bool enableInternalRef, bool enableStatusByte, ads126xCrcMode_t crcMode, uint8_t pgaGain, uint8_t dataRateDr)` | 配置并验证 INTERFACE 与 MODE2，使用给定参考、状态、校验、增益和数据率策略。 / Program and verify INTERFACE and MODE2 for the supplied reference, status, integrity, gain and data-rate settings. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcSetRefMux(ads126xAdcHandle_t *handle, uint8_t refmuxValue)` | 只写 REFMUX 寄存器，量程标度由调用者另行设置。 / Write the REFMUX register. The caller supplies any associated voltage scale separately. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcSetRefMuxWithVref(ads126xAdcHandle_t *handle, uint8_t refmuxValue, uint32_t vrefMicrovolts)` | 写入并读回 REFMUX 成功后才提交 vrefMicrovolts。 / Verify the REFMUX write before committing vrefMicrovolts to the conversion scale. | [sensorarrayAdsRestoreBatteryCoreState](../../core/measure/ads/sensorarrayAdsGap.c#L445) |
+| `esp_err_t ads126xAdcSetInputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)` | 用 muxp、muxn 的低四位写正负输入。 / Pack the low nibbles of muxp and muxn into INPMUX. | [matrixEngineReadAdcUv](../../core/matrixEngine/matrixEngine.c#L130) |
+| `esp_err_t ads126xAdcSetInputMuxVerified(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)` | 写 INPMUX 并读回比较，失配返回 INVALID_RESPONSE。 / Write and compare INPMUX. A mismatch returns INVALID_RESPONSE. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `bool ads126xAdcPgaGainSupported(uint8_t gain)` | 检查线性 PGA 增益能否编码。 / Return whether the requested linear gain has a PGA register code. | 公开入口 / Callable API |
+| `bool ads126xAdcMode2PgaBypassed(uint8_t mode2)` | 解码 MODE2 的 BYPASS 位。 / Return the MODE2 bypass flag. | [sensorarrayAdsPopulateRestoredRegisterCache](../../core/measure/ads/sensorarrayAdsGap.c#L2811) |
+| `bool ads126xAdcMode2DecodePgaGain(uint8_t mode2, uint8_t *outGain)` | 读取 MODE2 的增益到 outGain，若已旁路或编码非法则返回 false。 / Decode MODE2 gain into outGain. Return false for bypass or an invalid encoding. | [sensorarrayAdsPopulateRestoredRegisterCache](../../core/measure/ads/sensorarrayAdsGap.c#L2811) |
+| `esp_err_t ads126xAdcSetPgaGain(ads126xAdcHandle_t *handle, uint8_t gain)` | 保留 MODE2 的其余字段，写入并回读目标增益。 / Preserve the other MODE2 fields while writing and verifying the requested gain. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSetPgaBypass(ads126xAdcHandle_t *handle, bool bypass)` | 写入并回读 MODE2 的 PGA 旁路位，同步有效增益。 / Write and verify the PGA bypass bit and update effective gain. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSetVbiasEnabled(ads126xAdcHandle_t *handle, bool enableVbias)` | 独立更改 VBIAS 并保持 INTREF。 / Change VBIAS while preserving INTREF. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcReadCoreRegisters(ads126xAdcHandle_t *handle, uint8_t *outPower, uint8_t *outInterface, uint8_t *outMode2, uint8_t *outInpmux, uint8_t *outRefmux)` | 获取 POWER、MODE2、INPMUX、REFMUX，可省略各输出指针。 / Read POWER, MODE2, INPMUX and REFMUX through optional destination pointers. | [sensorarrayBringupLogAdsCoreRegisters](../../core/board/sensorarrayBringup.c#L287) |
+| `esp_err_t ads126xAdcReadAdc1RegisterSnapshot( ads126xAdcHandle_t *handle, ads126xAdc1RegisterSnapshot_t *outSnapshot)` | 先读两次，有差异再读第三次，返回有掩码的一致快照或首个读错。 / Read twice and, on disagreement, a third time. Return the agreeing masked snapshot or the read error. | [sensorarrayAdsSpiProbeVerify](../../core/board/sensorarrayAdsSpiProbe.c#L62) |
+| `esp_err_t ads126xAdcRestoreAdc1RegisterSnapshot( ads126xAdcHandle_t *handle, const ads126xAdc1RegisterSnapshot_t *snapshot, uint32_t vrefMicrovolts, bool adc1WasRunning)` | 停 ADC1，重写、核验并同步快照和电压标度，等待参考就绪后按需启动。 / Stop ADC1, restore and verify the snapshot, sync the voltage scale, wait for reference readiness and optionally restart. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcReadSingleDiffUv(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn, bool start1EveryRead, uint32_t settleMs, uint8_t discardCount, int32_t *outRaw, int32_t *outUv, uint8_t *outStatus)` | 选择差分输入，按参数等待、重启和丢弃转换，再输出 raw 和/或 µV。 / Select a differential pair, apply the caller's settle/restart/discard settings and return raw code and/or µV. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcWaitReferenceReady(ads126xAdcHandle_t *handle)` | 仅等待当前参考启动窗口的剩余时间，受事务期限约束。 / Wait the remaining reference-startup interval within the active transaction deadline. | [sensorarrayAdsRestoreBatteryCoreState](../../core/measure/ads/sensorarrayAdsGap.c#L445) |
+| `esp_err_t ads126xAdcStartAdc1(ads126xAdcHandle_t *handle)` | 等待参考就绪，发 START1 并跟踪运行状态。 / Wait for the reference, issue START1 and track ADC1 running state. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcStopAdc1(ads126xAdcHandle_t *handle)` | 发 STOP1 并更新运行状态。 / Issue STOP1 and track the successful stop. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `bool ads126xAdcIsAdc1Running(const ads126xAdcHandle_t *handle)` | 返回驱动跟踪的 ADC1 运行位。 / Return the driver's tracked ADC1 running flag. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `esp_err_t ads126xAdcWaitDrdy(ads126xAdcHandle_t *handle, uint32_t timeoutMs)` | 在 timeoutMs 内等引脚变低，缺少引脚返回 NOT_SUPPORTED。 / Wait up to timeoutMs for a low DRDY pin. A missing pin yields NOT_SUPPORTED. | [ads126xAdcReadAdc1Raw](ads126xAdc.c#L2359) |
+| `esp_err_t ads126xAdcConfigureAdc1Mode(ads126xAdcHandle_t *handle, uint8_t mode0, uint8_t mode1)` | 写 MODE0/1、读回验证后更新滤波和工作模式。 / Write and verify MODE0/1 before updating mode/filter shadows. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `bool ads126xAdcBuildMode2(bool pgaBypassed, uint8_t gain, uint8_t dataRateDr, uint8_t *outMode2)` | 根据旁路、增益和速率码构造 MODE2，非法组合返回 false。 / Encode bypass, gain and data rate as MODE2. False denotes invalid inputs. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `esp_err_t ads126xAdcSetMode2Fast(ads126xAdcHandle_t *handle, uint8_t mode2)` | 写 MODE2 并更新 shadow，适用于已有缓存验证策略的调用者。 / Write MODE2 and update its shadow for a caller that manages verification. | [sensorarrayAdsRestoreBatteryCoreState](../../core/measure/ads/sensorarrayAdsGap.c#L445) |
+| `esp_err_t ads126xAdcSetMode2Verified(ads126xAdcHandle_t *handle, uint8_t mode2)` | 写 MODE2 并按实际回读核对。 / Write MODE2 and verify physical readback before accepting it. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcEnableDrdyNotification(ads126xAdcHandle_t *handle)` | 安装 DRDY GPIO 中断，使当前任务可通过代号和通知等待。 / Install the DRDY GPIO interrupt so the caller can wait using notifications and generation. | [sensorarrayAdsSpiProbeRun](../../core/board/sensorarrayAdsSpiProbe.c#L209) |
+| `void ads126xAdcClearDrdyNotifications(ads126xAdcHandle_t *handle)` | 清当前任务的通知计数，硬件边沿代号单独维护。 / Drain the calling task's notifications. Hardware edge generation is tracked separately. | [sensorarrayAdsRestoreBatteryCoreState](../../core/measure/ads/sensorarrayAdsGap.c#L445) |
+| `uint32_t ads126xAdcGetDrdyGeneration(const ads126xAdcHandle_t *handle)` | 读出当前 DRDY 边沿计数。 / Return the current DRDY edge counter. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcWaitDrdyNotificationUs(ads126xAdcHandle_t *handle, uint32_t timeoutUs)` | 在 timeoutUs 内等待引脚就绪或通知。 / Wait for DRDY level/notification within timeoutUs. | [ads126xAdcReadAdc2RawDma](ads126xAdc.c#L2645) |
+| `esp_err_t ads126xAdcWaitDrdyGenerationUs(ads126xAdcHandle_t *handle, uint32_t startGeneration, uint32_t timeoutUs, uint32_t *outGeneration)` | 等待不同于起始代和配置时边沿代的新 DRDY，逾期返回 TIMEOUT。 / Wait for a DRDY generation distinct from both the starting edge and the one at configuration. Return TIMEOUT on expiry. | [sensorarrayAdsReadFreshAdc1](../../core/measure/ads/sensorarrayAdsGap.c#L707) |
+| `bool ads126xAdcStatusByteHasAdc1NewData(const ads126xAdcHandle_t *handle, uint8_t statusByte)` | 检查 ADC1_NEW_DATA，未启用 STATUS 时按驱动约定处理。 / Interpret ADC1_NEW_DATA according to the handle's status-byte configuration. | [sensorarrayAdsReadFreshAdc1](../../core/measure/ads/sensorarrayAdsGap.c#L707) |
+| `bool ads126xAdcStatusByteHasReferenceAlarm(uint8_t statusByte)` | 检查 STATUS 的参考报警位。 / Test the reference alarm in STATUS. | 公开入口 / Callable API |
+| `bool ads126xAdcStatusByteHasPgaAlarm(uint8_t statusByte)` | 检查 PGA 高、低和差分报警的组合掩码。 / Test the combined high, low and differential PGA alarm mask. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSetInputMuxFast(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)` | 取两个通道编号的低四位，写入 INPMUX 并推进配置代。 / Write the low nibble of each mux input into INPMUX and advance the configuration generation. | [sensorarrayAdsReadDma](../../core/measure/ads/sensorarrayAdsGap.c#L1736) |
+| `esp_err_t ads126xAdcReadAdc1RawDma(ads126xAdcHandle_t *handle, uint32_t drdyTimeoutUs, int32_t *rawCode, uint8_t *statusByteOptional, uint32_t *outReadUs)` | 等 DRDY 后通过已选读取策略返回原始码，可选状态。 / Wait for DRDY then read a raw conversion and optional status with the selected policy. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcReadAdc1RawDmaReady(ads126xAdcHandle_t *handle, int32_t *rawCode, uint8_t *statusByteOptional, uint32_t *outReadUs)` | 读取已就绪的 ADC1，使用句柄现有策略。 / Read an already-ready ADC1 conversion through the handle's current policy. | [sensorarrayAdsReadFreshAdc1](../../core/measure/ads/sensorarrayAdsGap.c#L707) |
+| `esp_err_t ads126xAdcReadAdc1RawSpiDiagnostic(ads126xAdcHandle_t *handle, int32_t *rawCode, uint8_t *statusByte, uint32_t *outReadUs)` | 强制用普通 SPI 字节读取已就绪转换，供对照诊断。 / Force a conventional byte-SPI read of an already-ready conversion for diagnostics. | [sensorarrayAdsTimingRead](../../core/measure/ads/sensorarrayAdsTimingProbe.c#L118) |
+| `esp_err_t ads126xAdcReadAdc1FreshChecked(ads126xAdcHandle_t *handle, uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget, int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)` | 输出取得的新样本、状态和尝试报告，调用者提供共享 CRC 重试余额。 / Return a fresh sample, status and attempt report using the caller's shared CRC retry allowance. | [sensorarrayAdsSpiProbePass](../../core/board/sensorarrayAdsSpiProbe.c#L87) |
+| `esp_err_t ads126xAdcReadAdc1FreshSpiDiagnostic(ads126xAdcHandle_t *handle, uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget, int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report)` | 对指定新边沿强制字节 SPI 读取并输出诊断报告。 / Use byte SPI for a fresh-generation control acquisition and return the report. | [sensorarrayAdsTimingRead](../../core/measure/ads/sensorarrayAdsTimingProbe.c#L118) |
+| `esp_err_t ads126xAdcReadAdc1FreshTailDiagnostic(ads126xAdcHandle_t *handle, uint32_t startGeneration, uint32_t drdyTimeoutUs, int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report, ads126xAdcTailEvidence_t *tail)` | 对指定新边沿读尾位证据，只尝试一次。 / Acquire one fresh GPIO-tail diagnostic with physical evidence and no retry. | [sensorarrayAdsTimingRead](../../core/measure/ads/sensorarrayAdsTimingProbe.c#L118) |
+| `uint32_t ads126xAdcDataRateCodeToSps(uint8_t drCode)` | 将 DR 低四位映射到驱动使用的整数每秒采样数。 / Map the low four DR bits to the integer samples-per-second table. | [sensorarrayAdsReadBatteryTransaction](../../core/measure/ads/sensorarrayAdsGap.c#L1822) |
+| `uint32_t ads126xAdcExpectedConversionPeriodUs(uint8_t drCode)` | 根据驱动的 ADC1 速率表向上取整微秒周期。 / Return the rounded-up ADC1 period in microseconds from the rate table. | [sensorarrayAdsReadBatteryTransaction](../../core/measure/ads/sensorarrayAdsGap.c#L1822) |
+| `esp_err_t ads126xAdcReadAdc1Raw(ads126xAdcHandle_t *handle, int32_t *rawCode, uint8_t *statusByteOptional)` | 等 DRDY 并按当前策略解析原始码；若无外层事务，自建一次有界期限。 / Wait for DRDY and parse the sample with current policy, opening a bounded deadline if needed. | [sensorarrayBringupPrepareAdsRefPath](../../core/board/sensorarrayBringup.c#L920) |
+| `int32_t ads126xAdcRawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode)` | 按 raw × Vref /(gain × 2³¹) 求有符号 µV，配置无效时返回零。 / Scale signed code by Vref/(gain × 2³¹) to µV. An unusable handle or scale yields zero. | [matrixEngineReadAdcUv](../../core/matrixEngine/matrixEngine.c#L130) |
+| `esp_err_t ads126xAdcSelfOffsetCal(ads126xAdcHandle_t *handle)` | 发送 ADC1 自身零点校准命令 SFOCAL1。 / Issue ADC1 self-offset command SFOCAL1. | [ads126xAdcSelfCal](ads126xAdc.c#L2416) |
+| `esp_err_t ads126xAdcSelfGainCal(ads126xAdcHandle_t *handle)` | 发送 SYGCAL1，要求外部满量程输入。 / Issue system-gain command SYGCAL1, which requires an external full-scale input. | [ads126xAdcSelfCal](ads126xAdc.c#L2416) |
+| `esp_err_t ads126xAdcSystemOffsetCal(ads126xAdcHandle_t *handle)` | 对实际施加的系统零点输入发 SYOCAL1。 / Issue SYOCAL1 for the applied system zero input. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSystemGainCal(ads126xAdcHandle_t *handle)` | 对实际施加的满量程输入发 SYGCAL1。 / Issue SYGCAL1 for the applied system full-scale input. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSelfCal(ads126xAdcHandle_t *handle)` | 先自校零点，再系统增益校准，两步分别等待 DRDY，增益需外部满量程。 / Run self-offset then system gain with a DRDY wait after each. Supply a full-scale source for gain. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcReadCalibrationRegisters(ads126xAdcHandle_t *handle, uint8_t offsetCal[3], uint8_t fullScaleCal[3])` | 读 ADC1 的三个 OFCAL 和三个 FSCAL 原始字节。 / Read three bytes each of ADC1 offset and full-scale calibration. | [sensorarrayAdsBootCalibration](../../core/measure/ads/sensorarrayAdsGap.c#L1302) |
+| `uint8_t ads126xAdcGetDevId(const ads126xAdcHandle_t *handle)` | 从缓存 ID 取芯片型号字段，空句柄返回 0xFF。 / Extract the device field of the cached ID. A null handle yields 0xFF. | [sensorarrayAdsBootCalibration](../../core/measure/ads/sensorarrayAdsGap.c#L1302) |
+| `uint8_t ads126xAdcGetRevId(const ads126xAdcHandle_t *handle)` | 从缓存 ID 取低五位修订号，空句柄返回 0xFF。 / Extract the five-bit revision. A null handle yields 0xFF. | [sensorarrayAdsBootCalibration](../../core/measure/ads/sensorarrayAdsGap.c#L1302) |
+| `bool ads126xAdcHasAdc2(const ads126xAdcHandle_t *handle)` | 查询本构建及当前芯片能否使用 ADC2。 / Report whether this build and detected device support ADC2. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `esp_err_t ads126xAdcProbeAdc2(ads126xAdcHandle_t *handle, bool *outHasAdc2)` | 已知芯片按 ID 作答，未知型号在支持的构建中尝试启停并读取 ADC2。 / Answer from known identity, or try a bounded ADC2 start/read/stop for an unknown type when built. | [sensorarrayAdsBootCalibration](../../core/measure/ads/sensorarrayAdsGap.c#L1302) |
+| `esp_err_t ads126xAdcStartAdc2(ads126xAdcHandle_t *handle)` | 在支持的芯片上发 START2。 / Issue START2 on a supported device. | [sensorarrayAdsRestoreState](../../core/measure/ads/sensorarrayAdsGap.c#L1024) |
+| `esp_err_t ads126xAdcStopAdc2(ads126xAdcHandle_t *handle)` | 在支持的芯片上发 STOP2。 / Issue STOP2 on a supported device. | [sensorarrayAdsReadRailMonitorUv](../../core/measure/ads/sensorarrayAdsGap.c#L1139) |
+| `bool ads126xAdcIsAdc2Running(const ads126xAdcHandle_t *handle)` | 返回驱动跟踪的 ADC2 运行状态。 / Return the tracked ADC2 running state. | [sensorarrayAdsSaveState](../../core/measure/ads/sensorarrayAdsGap.c#L971) |
+| `esp_err_t ads126xAdcSetAdc2Config(ads126xAdcHandle_t *handle, uint8_t dataRate, uint8_t reference, uint8_t gain, uint32_t vrefMicrovolts)` | 设置 ADC2 速率、参考、增益和换算用参考 µV。 / Set ADC2 rate, reference, gain and reference voltage in µV for scaling. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSetAdc2InputMux(ads126xAdcHandle_t *handle, uint8_t muxp, uint8_t muxn)` | 选择 ADC2 正负模拟输入，各参数为 4 位通道编号。 / Set ADC2 positive and negative mux inputs from two 4-bit channel codes. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcReadAdc2Raw(ads126xAdcHandle_t *handle, int32_t *raw24, uint8_t *statusOptional)` | 通过 RDATA2 读取带就绪检查的 24 位样本。 / Read a 24-bit conversion via RDATA2 with a readiness check. | [ads126xAdcProbeAdc2](ads126xAdc.c#L2465) |
+| `esp_err_t ads126xAdcReadAdc2RawDma(ads126xAdcHandle_t *handle, uint32_t drdyTimeoutUs, int32_t *raw24, uint8_t *statusOptional, uint32_t *outReadUs)` | 按微秒预算等 DRDY 后经 DMA 读取 ADC2 样本。 / Wait for DRDY within the microsecond budget and perform the ADC2 DMA read. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcReadAdc2RawDmaReady(ads126xAdcHandle_t *handle, int32_t *raw24, uint8_t *statusOptional, uint32_t *outReadUs)` | 对已就绪 ADC2 发 RDATA2，经 DMA 取数并校验。 / Issue DMA RDATA2 and validate an already-ready ADC2 sample. | [ads126xAdcReadAdc2RawDma](ads126xAdc.c#L2645) |
+| `uint32_t ads126xAdcAdc2ExpectedConversionPeriodUs(uint8_t dataRate)` | 由速率码选择 10、100、400 或 800 SPS 并返回微秒周期。 / Return the microsecond period for the selected 10, 100, 400 or 800 SPS rate. | 公开入口 / Callable API |
+| `int32_t ads126xAdcAdc2RawToMicrovolts(const ads126xAdcHandle_t *handle, int32_t rawCode)` | 按有符号 24 位码、ADC2 增益和参考 µV 换算。 / Scale the signed 24-bit code with ADC2 gain and reference in µV. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcSystemOffsetCalAdc2(ads126xAdcHandle_t *handle)` | 在支持的芯片上发 SYOCAL2。 / Issue ADC2 system-offset command SYOCAL2 on supported hardware. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcReadAdc2CalibrationRegisters(ads126xAdcHandle_t *handle, uint8_t offsetCal[2], uint8_t fullScaleCal[2])` | 分别读取两个 ADC2 零点和两个满量程校准字节。 / Read two bytes each of ADC2 offset and full-scale calibration. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcHelperCreateSpiDevice(spi_device_handle_t *outDevice)` | 启用可选辅助构建时创建 SPI 总线和 ADS 设备，返回设备句柄。 / In a helper-enabled build, create the SPI bus/device and return the handle. | 公开入口 / Callable API |
+| `esp_err_t ads126xAdcHelperDestroySpiDevice(spi_device_handle_t device)` | 释放可选辅助入口创建的设备和总线。 / Release the device and bus created by the optional helper. | 公开入口 / Callable API |
 
-### API groups
+### 内部 / Internal
 
-- Lifecycle: `ads126xAdcInit()`, `ads126xAdcDeinit()`.
-- Register access: `ads126xAdcReadRegisters()`, `ads126xAdcWriteRegisters()`.
-- Power/reference: `ads126xAdcClearResetFlag()`, `ads126xAdcApplyPowerPolicy()`, `ads126xAdcSetInternalReference()`, `ads126xAdcSetVbiasEnabled()`, `ads126xAdcSetRefMux()`.
-- Verification/status: critical-register readback, verified PGA updates, and
-  status helpers for reference and PGA absolute/differential alarms.
-- Input/PGA selection: `ads126xAdcSetInputMux()`, `ads126xAdcSetPgaGain()`, and verified `ads126xAdcSetPgaBypass()`.
-- ADC1 conversion: `ads126xAdcStartAdc1()`, `ads126xAdcStopAdc1()`, `ads126xAdcWaitDrdy()`, `ads126xAdcReadAdc1Raw()`, `ads126xAdcReadSingleDiffUv()`.
-- ADC2 conversion: `ads126xAdcStartAdc2()`, `ads126xAdcStopAdc2()`, `ads126xAdcReadAdc2Raw()`.
-- Conversion helpers: `ads126xAdcRawToMicrovolts()`.
-- Calibration: self and system offset/gain calibration functions.
-
-## Kconfig
-
-| Option | Default | Notes |
-|---|---:|---|
-| `CONFIG_ADS126X_LOG_LEVEL` | `3` | Driver log level. |
-| `CONFIG_ADS126X_SPI_CLOCK_HZ` | `2000000` | SPI clock in Hz. |
-| `CONFIG_ADS126X_MUTEX_TIMEOUT_MS` | `100` | Finite maximum wait for the driver SPI mutex. |
-| `CONFIG_ADS126X_HAS_ADC2` | y | Builds ADC2 APIs. ADS1262 hardware does not provide ADC2. |
-| `CONFIG_ADS126X_HELPER_CREATE_SPI` | n | Optional helper SPI create/destroy functions for quick validation. |
-| `CONFIG_SENSORARRAY_SPI_USE_DMA` | y | Project SPI DMA option consumed by the ADS implementation. |
-| `CONFIG_SENSORARRAY_SPI_MAX_TRANSFER_BYTES` | `64` | SPI transfer buffer sizing. |
-
-The driver mutex uses a finite wait. It does not contain matrix coordinates,
-resistance math, autorange policy, or C/V/R frame formatting; those belong in
-`core/measure/ads`.
+| C 签名 / C signature | 行为与参数 / Behaviour and arguments | 调用举例 / Representative caller |
+|---|---|---|
+| `static esp_err_t ads126xAdcAllocSpiBuffers(ads126xAdcHandle_t *handle)` | 成对分配句柄持有的收发缓冲，DMA 内存不足时尝试普通内存。 / Allocate the handle's TX/RX pair, falling back to byte-addressable storage if DMA allocation fails. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `static bool ads126xAdcGainToCode(uint8_t gain, uint8_t *code)` | 将 1、2、4、8、16、32 倍增益编码到 code，非法值返回 false。 / Encode gain 1, 2, 4, 8, 16 or 32 in code. False means invalid input. | [ads126xAdcPgaGainSupported](ads126xAdc.c#L1441) |
+| `static ads126xDeviceType_t ads126xAdcDeviceFromId(uint8_t idReg, ads126xDeviceType_t forced)` | 强制型号优先，否则解码 ID 高位，未知返回 AUTO。 / Resolve a forced type first, otherwise decode the device ID. Unknown IDs yield AUTO. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `static bool ads126xAdcIsValidForcedType(ads126xDeviceType_t forcedType)` | 校验 forcedType 是 AUTO、ADS1262 或 ADS1263。 / Accept only AUTO, ADS1262 or ADS1263. | [ads126xAdcInit](ads126xAdc.c#L737) |
+| `static TickType_t ads126xAdcRemainingTicks(int64_t deadlineUs)` | 按单调时钟将剩余微秒向上取整为有限 RTOS tick，逾期返回零。 / Round remaining microseconds up to finite RTOS ticks. Return zero after the deadline. | [ads126xAdcSpiTransferLocked](ads126xAdc.c#L290) |
+| `static int64_t ads126xAdcOperationDeadline(const ads126xAdcHandle_t *handle, uint32_t budgetUs)` | 取本次 budgetUs 与调用者剩余期限的较早截止时刻。 / Return the earlier of the local budget end and the active outer deadline. | [ads126xAdcSpiTransferLocked](ads126xAdc.c#L290) |
+| `static const char *ads126xAdcPowerReqName(bool update, bool enable)` | 将更新标志和电平请求转换成 KEEP、ON 或 OFF。 / Render the update/enable request as KEEP, ON or OFF. | [ads126xAdcApplyPowerPolicy](ads126xAdc.c#L1193) |
+| `static uint8_t ads126xAdcChecksum(const uint8_t *data, size_t len)` | 对 len 字节累加 0x9B，返回低八位。 / Return the low byte of the data sum plus 0x9B. | [ads126xAdcParseAdc1Frame](ads126xAdc.c#L1072) |
+| `static uint8_t ads126xAdcCrc8(const uint8_t *data, size_t len)` | 按多项式 0x07 和初值零校验给定字节。 / Compute MSB-first CRC-8 over len bytes, polynomial 0x07 and initial value zero. | [ads126xAdcSpiTailDiagnostic](ads126xAdc.c#L454) |
+| `static esp_err_t ads126xAdcSpiTransferLocked(ads126xAdcHandle_t *handle, const uint8_t *tx, size_t txLen, uint8_t *rx, size_t rxLen)` | 在同一截止时间内加锁、排队和收回描述符，成功才复制接收字节。 / Lock, queue and reclaim one transfer under a shared deadline. Copy RX only after completion. | [ads126xAdcSendCommand](ads126xAdc.c#L954) |
+| `static bool ads126xAdcTailInterfaceReady(const ads126xAdcHandle_t *handle)` | 检查已验证的 INTERFACE=0x06 是否属于当前配置代。 / Require verified INTERFACE 0x06 for the current configuration generation. | [ads126xAdcSetAdc1ReadPolicy](ads126xAdc.c#L389) |
+| `static uint32_t ads126xAdcTailPackIo(const gpio_io_config_t *io)` | 将引脚的输入、输出、开漏及矩阵路由打包到证据字段。 / Pack GPIO enables, open-drain and routing observations into the evidence word. | [ads126xAdcSpiTailDiagnostic](ads126xAdc.c#L454) |
+| `static uint32_t ads126xAdcTailElapsed(uint64_t start)` | 返回距 start 的微秒数，超过 32 位时饱和。 / Return elapsed microseconds since start, saturating at UINT32_MAX. | [ads126xAdcSpiTailDiagnostic](ads126xAdc.c#L454) |
+| `static esp_err_t ads126xAdcSpiTailDiagnostic(ads126xAdcHandle_t *h, uint8_t frame[6], ads126xAdcTailEvidence_t *tail)` | 受控切换 SCLK，采样尾位，恢复并核对引脚配置，保留原始观测。 / Capture the last bit with controlled SCLK routing, restore and verify the pins, and retain physical observations. | [ads126xAdcReadAdc1ReadyWithPolicy](ads126xAdc.c#L2180) |
+| `static bool ads126xAdcIsAdc2Supported(const ads126xAdcHandle_t *handle)` | 仅构建支持且句柄识别为 ADS1263 时为真。 / Return true only when ADC2 support is built and the handle identifies an ADS1263. | [ads126xAdcHasAdc2](ads126xAdc.c#L2460) |
+| `static esp_err_t ads126xAdcSpiTransferDmaLocked(ads126xAdcHandle_t *handle, const uint8_t *tx, size_t txLen, uint8_t *rx, size_t rxLen)` | 要求 DMA 缓冲能力，再走共用的有界传输。 / Require DMA-capable storage before using the bounded shared transfer implementation. | [ads126xAdcReadAdc2RawDmaReady](ads126xAdc.c#L2667) |
+| `static esp_err_t ads126xAdcParseAdc1Frame(ads126xAdcHandle_t *handle, const uint8_t *frame, size_t frameLen, int32_t *rawCode, uint8_t *statusByteOptional)` | 按当前 STATUS 和校验格式验证长度及数据，返回有符号 32 位码并记录拒收证据。 / Check length and enabled integrity fields, decode a signed 32-bit word, and record rejected-frame evidence. | [ads126xAdcReadAdc1ReadyWithPolicy](ads126xAdc.c#L2180) |
+| `static void ads126xAdcDecodeAdc1RegisterSnapshot( const uint8_t registers[16], ads126xAdc1RegisterSnapshot_t *outSnapshot)` | 将起始于 ID 的 16 字节映射到寄存器及校准快照。 / Map the 16-byte block starting at ID into named register and calibration fields. | [ads126xAdcReadAdc1RegisterSnapshot](ads126xAdc.c#L1636) |
+| `static uint8_t ads126xAdcSnapshotMask(uint8_t reg)` | 按寄存器给出比较掩码，保留 POWER.RESET 作为证据。 / Return the register comparison mask, retaining POWER.RESET as evidence. | [ads126xAdcSnapshotBytesEqual](ads126xAdc.c#L1621) |
+| `static bool ads126xAdcSnapshotBytesEqual(const uint8_t first[16], const uint8_t second[16], ads126xAdcHandle_t *handle)` | 掩码比较两组 16 字节并记录首个不匹配寄存器。 / Compare two masked 16-byte blocks and record the first mismatch. | [ads126xAdcReadAdc1RegisterSnapshot](ads126xAdc.c#L1636) |
+| `static esp_err_t ads126xAdcNoteMode2(ads126xAdcHandle_t *handle, uint8_t mode2)` | 解码 MODE2 并更新已跟踪的 PGA、旁路和速率。 / Decode MODE2 into the tracked gain, bypass and data rate. | [ads126xAdcRestoreAdc1RegisterSnapshot](ads126xAdc.c#L1685) |
+| `static void IRAM_ATTR ads126xAdcDrdyIsr(void *arg)` | 在 DRDY 边沿递增代号并唤醒登记的等待任务。 / Advance generation on a DRDY edge and notify the registered waiter from ISR. | [ads126xAdcEnableDrdyNotification](ads126xAdc.c#L2011) |
+| `static esp_err_t ads126xAdcReadAdc1ReadyWithPolicy(ads126xAdcHandle_t *handle, ads126xAdcAdc1ReadPolicy_t policy, int32_t *rawCode, uint8_t *statusByteOptional, uint32_t *outReadUs, ads126xAdcTailEvidence_t *outTail)` | 对已就绪转换执行指定物理读取，校验格式并标记数据来源。 / Acquire an already-ready conversion using the specified physical policy, parse it and identify its source. | [ads126xAdcReadAdc1RawDmaReady](ads126xAdc.c#L2233) |
+| `static esp_err_t ads126xAdcReadAdc1FreshCheckedImpl(ads126xAdcHandle_t *handle, uint32_t startGeneration, uint32_t drdyTimeoutUs, uint8_t *crcRetryBudget, int32_t *rawCode, uint8_t *statusByte, ads126xAdcFreshReadReport_t *report, ads126xAdcTailEvidence_t *tail, bool forceSpiDiagnostic)` | 在同一配置代和截止期限内等新边沿，按 CRC 预算重试，保留首错与末错。 / Wait for a fresh edge within the same configuration and deadline, share the CRC retry budget, and retain first and terminal errors. | [ads126xAdcReadAdc1FreshChecked](ads126xAdc.c#L2316) |
+| `static esp_err_t ads126xAdcParseAdc2Frame(ads126xAdcHandle_t *handle, const uint8_t *frame, size_t frameLen, int32_t *raw24, uint8_t *statusOptional)` | 解码可选 STATUS 和有符号 24 位码，按配置校验数据字节。 / Decode optional status and sign-extend the 24-bit ADC2 word after the selected integrity check. | [ads126xAdcReadAdc2Raw](ads126xAdc.c#L2606) |

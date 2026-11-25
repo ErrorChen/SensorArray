@@ -16,7 +16,7 @@ import test_firmware_benchmark as benchmark_tests
 from test_firmware_benchmark_retry import QueryFirmware
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "docs/audit/artifacts/load_reliability_fix_20261113/scripts/capture_load_benchmark.py"
+SCRIPT = ROOT / "tools/hil/capture_load_benchmark.py"
 spec = importlib.util.spec_from_file_location("capture_load_benchmark", SCRIPT)
 load = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(load)

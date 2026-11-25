@@ -1,4 +1,0 @@
-ERR,mod=ads,code=rail_restore,ctx=power/refmux/inpmux/mode,act=gap_pause,seq=0,err=0x107
-ERR,mod=ads,code=rail_restore,ctx=power/refmux/inpmux/mode,act=gap_pause,seq=0,err=0x107
-ERR,mod=ads,code=rail_restore,ctx=power/refmux/inpmux/mode,act=gap_pause,seq=0,err=0x107
-ADS_RAIL_PROFILE_TESTS,passed=1,cases=27,source=production_functions,fixture=synthetic

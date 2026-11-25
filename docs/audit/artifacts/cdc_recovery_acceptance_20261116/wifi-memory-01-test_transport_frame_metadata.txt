@@ -1,4 +1,0 @@
-TRANSPORT_FRAME_METADATA_PASS,domains=rows;mode;profile;session,exact_fields=1,immutable=1
-TRANSPORT_FRAME_METADATA_DIFFERENTIAL_PASS,fixed=90,seeded=50000,fixtures=20,truncated=16786,total=66896,accepted=51663,rejected=15233,slotBytesCompared=168,preview=unchanged
-TRANSPORT_METADATA_BASELINE_SHA,sha256=3b6d1df8ceeeee99d312d543d5e6b0b7b70f054a4e033aefa0bf188479ea6fcf,git_history_required=0
-TRANSPORT_METADATA_WIRE_PASS,frames=20,crc=zlib_and_real_parser,bytes=unchanged

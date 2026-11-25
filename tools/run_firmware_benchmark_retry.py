@@ -10,8 +10,6 @@ setters are never replayed, and FPS, warmup and capture windows are unchanged.
 Use a new --label, for example:
   python3 tools/run_firmware_benchmark_retry.py --port /dev/ttyACM0 --output-directory OUT --label supplement-volt1-01 --mode VOLT --rows 1
 
-Motivation and exact raw offsets:
-docs/audit/artifacts/full_benchmark_20261113/volt123-transport-diagnosis-01.json
 The existing ERROR records remain authoritative evidence, not overwritten by
 supplemental measurements. A full-duration truncated-wire window is still a
 transport failure and must not be replaced by a favorable rerun.

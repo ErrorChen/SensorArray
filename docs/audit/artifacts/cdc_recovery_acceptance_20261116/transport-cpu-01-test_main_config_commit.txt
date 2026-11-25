@@ -1,1 +1,0 @@
-MAIN_CONFIG_COMMIT,passed=7,source=production_branches_with_hardware_stubs

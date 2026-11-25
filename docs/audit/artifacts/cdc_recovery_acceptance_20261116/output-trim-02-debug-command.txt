@@ -1,3 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 163737, "elapsed_seconds": 20.977926602005027}
-{"type": "CDC_debug_progress", "rx_bytes": 184523, "elapsed_seconds": 41.95966360101011}
-{"status": "OBSERVED", "error": null, "rx_bytes": 202502, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/output-trim-02-debug.debug.rx.bin"}

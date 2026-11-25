@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_bt_host_memory_01.py", line 106, in <module>
-    main()
-  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_bt_host_memory_01.py", line 60, in main
-    require(hashlib.sha256(read(collector)).hexdigest() == ap["source_sha256"], "AP_collector_source_changed_without_archive")
-  File "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_wifi_owner_panic_01.py", line 22, in require
-    raise ValueError(message)
-ValueError: AP_collector_source_changed_without_archive

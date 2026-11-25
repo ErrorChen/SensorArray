@@ -1,6 +1,0 @@
-before
-BLE_BATCH_REPLAY,bytes=548,fragments=3,checkpoints=3,yields=2,synthetic=1
-exit_code=1
-after
-BLE_BATCH_REPLAY,bytes=548,fragments=3,checkpoints=1,yields=0,synthetic=1
-exit_code=0

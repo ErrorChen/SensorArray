@@ -1,8 +1,0 @@
-{"status": "ERROR", "error": "BleakError('failed to discover services, device disconnected');cleanup_errors", "stop_reason": null, "notification_counts": {}, "journal_file": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/bss-matrix-01/bss-matrix-01-cap2/bss-matrix-01-cap2.ble.notifications.jsonl", "journal_sha256": "ca80b739ee532233f5cf6581dba43b6376329f1650e37b2630c86f68b8b1008b"}
-Future exception was never retrieved
-future: <Future finished exception=BrokenPipeError(32, 'Broken pipe')>
-Traceback (most recent call last):
-  File "/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/dbus_fast/aio/message_bus.py", line 118, in write_callback
-    self.offset += sock.send(self.buf[self.offset :])
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-BrokenPipeError: [Errno 32] Broken pipe

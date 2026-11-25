@@ -1,1 +1,0 @@
-BATTERY_FORMULA_TEST,pass=9,fail=0,rail=5100000,aincom=750000

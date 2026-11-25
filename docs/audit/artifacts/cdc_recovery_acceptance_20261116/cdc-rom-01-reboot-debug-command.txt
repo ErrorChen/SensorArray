@@ -1,4 +1,0 @@
-{"type": "CDC_debug_progress", "rx_bytes": 177404, "elapsed_seconds": 20.00444128399249}
-{"type": "CDC_debug_progress", "rx_bytes": 206486, "elapsed_seconds": 40.509618134994525}
-{"type": "CDC_debug_progress", "rx_bytes": 225894, "elapsed_seconds": 61.34781501098769}
-{"status": "STOPPED", "error": null, "rx_bytes": 228075, "raw_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/cdc-rom-01-reboot-debug.debug.rx.bin"}

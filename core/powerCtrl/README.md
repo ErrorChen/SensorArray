@@ -1,22 +1,22 @@
-# powerCtrl / 电源控制占位层
+# 电源引脚配置占位 / Reserved power-control pins
 
-## 中文说明
+组件为后续板卡的电源使能、充电状态与 power-good 预留配置。当前头文件与实现没有可调用函数。应用中的前端休眠、FDC SD 与参考控制由测量路由和板级组件实现。
 
-`core/powerCtrl` 当前是占位模块。`powerCtrl.h` 还没有稳定 public API，`powerCtrl.c` 只保留实现占位并明确不定义 `app_main()`。
+The component reserves configuration for future power enables, charger status and power-good pins. Its header and implementation expose no callable functions. Measurement routing and board code own frontend sleep, FDC SD and reference control in the application.
 
-Kconfig 中存在可选 GPIO：
+GPIO 选项默认 -1，表示该信号没有可由此组件驱动或采样的引脚。
 
-| Option | Default | Notes |
-|---|---:|---|
-| `CONFIG_POWER_MAIN_EN_GPIO` | `-1` | Main power enable GPIO, `-1` means always on or not controlled. |
-| `CONFIG_POWER_ANALOG_EN_GPIO` | `-1` | Analogue rails enable GPIO. |
-| `CONFIG_POWER_CHG_STAT_GPIO` | `-1` | Charger status GPIO. |
-| `CONFIG_POWER_PG_GPIO` | `-1` | Power-good GPIO. |
+All four GPIO settings default to -1, which leaves the corresponding signal without a pin to drive or sample through this component.
 
-当前 `main` 生命周期没有通过该模块控制 LM27762、TPS631000、BQ24074 或其它电源 IC。
+## 配置 / Configuration
 
-## Australian English Documentation
+| Kconfig | 引脚用途 / Signal |
+| --- | --- |
+| `POWER_MAIN_EN_GPIO` | 主电源使能 / Main supply enable |
+| `POWER_ANALOG_EN_GPIO` | 模拟供电使能 / Analogue supply enable |
+| `POWER_CHG_STAT_GPIO` | 充电状态 / Charger status |
+| `POWER_PG_GPIO` | 电源正常输入 / Power-good input |
 
-`core/powerCtrl` is currently a placeholder. `powerCtrl.h` has no stable public API yet, and `powerCtrl.c` only keeps an implementation placeholder and explicitly does not define `app_main()`.
+工程通过此组件的 [CMakeLists.txt](CMakeLists.txt) 引入 [Kconfig](Kconfig)。 [头文件 / Header](include/powerCtrl.h) · [实现 / Implementation](powerCtrl.c)
 
-The Kconfig GPIOs are reserved for later board power control. The current `main` lifecycle does not drive LM27762, TPS631000, BQ24074, or other power ICs through this module.
+The component build registers the settings listed above. There is no callable entry in the header or implementation.

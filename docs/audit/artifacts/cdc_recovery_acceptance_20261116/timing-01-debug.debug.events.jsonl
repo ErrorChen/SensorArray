@@ -1,3 +1,0 @@
-{"type": "opened", "t": 17.522211783973034, "monotonic": 313150.640656351, "source": "cdc_debug", "metadata": {"path": "/dev/ttyACM1", "sysfs_device": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1", "sysfs_interface": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/3-1:1.2", "vid": "303a", "pid": "4042", "usb_serial": "80B54ECDD9AC", "interface_number": 2, "interface_class": 2, "interface_subclass": 2, "interface_protocol": 0, "speed_mbps_reported_by_sysfs": "12"}, "commands_written": 0}
-{"type": "rx", "t": 17.644875729980413, "monotonic": 313150.763320297, "source": "cdc_debug", "offset": 0, "length": 109}
-{"type": "finished", "t": 90.23942278395407, "monotonic": 313223.357867351, "source": "cdc_debug", "status": "STOPPED", "error": null, "rx_bytes": 109}

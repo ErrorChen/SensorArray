@@ -1,1 +1,0 @@
-{"status": "CLOSED_UNREAD_HOLD_ANALYZED", "hold_seconds": 120.00036729499698, "BLE": {"received": 7821, "missing": 25, "expected_within_BLE_endpoints": 7846, "fraction": 0.003186336986999745, "scope": "same-identity trusted complete BLE endpoints only; no USB denominator or RF-loss attribution"}, "USB_PC_FPS": null, "ADC_checked_reads": 82372}

@@ -1,9 +1,0 @@
-{
-  "created_utc": "2026-11-16T07:52:58.250624+00:00",
-  "head": "167e0eaedcbed6216acd78d7be770c8f0be7a058",
-  "files": {
-    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/capture_bulk_benchmark.py": "67225969146ec2df0956f5898e3555c6f1a0e6e6cfd6a79c34c433a020063d91",
-    "docs/audit/artifacts/usb_otg_ble_priority_20261114/scripts/test_bulk_stage.py": "005b9a3b0809ee3be0ffb3d518fef5e8ffb94c01bfd01971d6a68c20a3f48635",
-    "tools/test_usb_cdc_capture.py": "74022d38a84ac164335aae5fd458dbd29f5657cc158fb459b70656f3f7bb894c"
-  }
-}

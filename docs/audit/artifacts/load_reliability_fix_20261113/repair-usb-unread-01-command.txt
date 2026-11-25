@@ -1,3 +1,0 @@
-{"type": "usb_unread_progress", "phase": "receive_before", "elapsed_seconds": 20.013, "rx_bytes": 833625, "application_read_suspended": false, "window_requested_seconds": 20, "window_elapsed_seconds": 14.605}
-{"type": "usb_unread_progress", "phase": "receive_after", "elapsed_seconds": 40.018, "rx_bytes": 1473754, "application_read_suspended": false, "window_requested_seconds": 20, "window_elapsed_seconds": 9.609}
-{"status": "CONTROL_RECOVERY_PASS", "error": null, "resume_control_verified": true, "safe_cap_recovery": "CAP8_QUERY_VERIFIED", "usb_restore": "VERIFIED_QUERY", "exit_code": 0}

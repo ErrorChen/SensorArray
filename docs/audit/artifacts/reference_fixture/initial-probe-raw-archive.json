@@ -1,9 +1,0 @@
-{
-  "provenance": "recorded_initial_device_probe_not_repaired_firmware",
-  "raw_file": "docs/audit/artifacts/reference_fixture/20261104T121111Z-probe.rx.bin",
-  "raw_bytes": 291714,
-  "raw_sha256": "e1eb7169d89736e3b025094304a2b53c1984f85e43ee68952e4f4a0d04932a90",
-  "gzip_file": "docs/audit/artifacts/reference_fixture/20261104T121111Z-probe.rx.bin.gz",
-  "gzip_sha256": "a4509d7b0e2481e0b14f5d40fa3f9ace16f2ebbb5608bf9109177fd7eb48a712",
-  "decompressed_byte_identical": true
-}

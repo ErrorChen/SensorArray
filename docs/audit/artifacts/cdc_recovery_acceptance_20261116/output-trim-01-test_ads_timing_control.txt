@@ -1,4 +1,0 @@
-ADS_TAIL_PROTO,maxBytes=465,capacity=512,backends=3
-ADS_TAIL_IO,maxBytes=324,capacity=512
-ADS_TIMING_CONTROL,passed=21,admission_subcases=10,maxState=483,maxTerminal=285,fixture=synthetic
-ADS_TIMING_STORAGE,allocations=1,caps=SPIRAM_8BIT,internal_fallback=0,heap_outside_lock=1,host_bytes=15216,alloc_failure_only_disables_diagnostic=1,reentrant_init_query_safe=1

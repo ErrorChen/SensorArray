@@ -1,1 +1,0 @@
-{"status": "PASS", "matrix_cases": 18, "guard_cases": 6, "full_tree_symbol_changes": {"FREERTOS_TASK_FUNCTION_WRAPPER": ["n", "y"]}, "target_build": false, "hardware": false, "reason": null}

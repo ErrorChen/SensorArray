@@ -1,6 +1,0 @@
-{"sysfs": {"idVendor": "303a", "idProduct": "1001", "serial": "80:B5:4E:CD:D9:AC", "devnum": "14"}, "flash_writes": 0}
-WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
-Connecting...
-{"mac": "80B54ECDD9AC", "force_before": 0, "force_after": 0, "strap": 35, "DTR": false, "RTS": false}
-Hard resetting with a watchdog...
-{"watchdog_reset_requested": true, "app_boot_verified": false}
