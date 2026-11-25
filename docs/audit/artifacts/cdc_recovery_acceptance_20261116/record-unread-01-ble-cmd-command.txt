@@ -1,0 +1,12 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.ready.json", "schema_version": 1, "monotonic_ns": 182860749946466, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.637011851009447, "notifications": {"D": 464}, "payload_bytes": {"D": 227592}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.72187558299629, "notifications": {"D": 2154, "L": 2}, "payload_bytes": {"D": 840502, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 60.797556606994476, "notifications": {"D": 4687, "L": 2}, "payload_bytes": {"D": 1718164, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 80.87631946700276, "notifications": {"D": 7218, "L": 2}, "payload_bytes": {"D": 2594780, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 100.94301016599638, "notifications": {"D": 9746, "L": 2}, "payload_bytes": {"D": 3470503, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 121.03048200401827, "notifications": {"D": 12278, "L": 2}, "payload_bytes": {"D": 4347655, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 141.11424964299658, "notifications": {"D": 14804, "L": 2}, "payload_bytes": {"D": 5222726, "L": 285}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 161.20269465900492, "notifications": {"D": 16151, "L": 4}, "payload_bytes": {"D": 5727176, "L": 570}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 16309, "L": 4}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.notifications.jsonl", "journal_sha256": "cc9da59341a7600dfb323b90bc842b981b503792b78a95cd227e8c34f0f42672"}

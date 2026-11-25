@@ -1,0 +1,1460 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-11-25T08:01:07.275576+00:00",
+  "status": "CLOSED_UNREAD_HOLD_ANALYZED",
+  "overall_acceptance": "NOT_ESTABLISHED",
+  "evidence_kind": "OFFLINE_ANALYSIS_OF_REAL_CLOSED_UNREAD_HOLD_AND_INDEPENDENT_OBSERVERS",
+  "inputs": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.summary.json",
+      "sha256": "0e207380d6235cb5582299517647587a1be5c807966244017086d4800ff987d3",
+      "stored_bytes": 51448
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.notifications.jsonl",
+      "sha256": "cc9da59341a7600dfb323b90bc842b981b503792b78a95cd227e8c34f0f42672",
+      "stored_bytes": 11344808
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.summary.json",
+      "sha256": "1d4c48248e6321e397d30f6d313eac7759028d4574659520de3bd47e4fbd9095",
+      "stored_bytes": 2728
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.summary.json",
+      "sha256": "d51e01c61dadcb999535f82ff122f4c0c6b43129b28d164518f1107a8a66351c",
+      "stored_bytes": 22280
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-01-validated-identity.json",
+      "sha256": "ee17b16effd97541b67aa7690384a8e9d4db0d21ac79a9ab2cfd691919384114",
+      "stored_bytes": 982
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.rx.bin",
+      "sha256": "75b850e8a37b3010f0f62d83649268659a518c415f0173ff0f49a6eb175cd38b",
+      "stored_bytes": 115278
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.events.jsonl",
+      "sha256": "71920003d39c7daa380e24796dfcdd8898925b619aab73f5f63acbfb691fee1c",
+      "stored_bytes": 104828
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.rx.bin",
+      "sha256": "3e7d43fc684f30c6c9184ea84f31a514a8bcc734343c6fba27cd2cc8f4cc5602",
+      "stored_bytes": 26151
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.events.jsonl",
+      "sha256": "70c2a3ba92c686fd93fb0b1bad5cd483738ad484205c9042e737706828d0cd8b",
+      "stored_bytes": 44229
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01-hold-cmd-command.json",
+      "sha256": "e603e4dfac446b600bca5504eb87771dcc307e2aae742b69354a2d9a2033471c",
+      "stored_bytes": 1194
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01-ble-cmd-command.json",
+      "sha256": "ef5b55372f51f52fc900afd47ebfa19afd78effa705be3c1563e33c5443714c3",
+      "stored_bytes": 1089
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01-debug-cmd-command.json",
+      "sha256": "3462694594189723c8d7c30d943635075eb1c668b1f6c0b956112b022174ac6c",
+      "stored_bytes": 1179
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01-cmd-command.json",
+      "sha256": "bab3d6336ef1a3296554be34b0857f83824343089bfd79c4c1ba84be8ba25b6f",
+      "stored_bytes": 874
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.summary.json",
+      "sha256": "603361331bfde1b84d51ca85f6a83847f5902b319cb2c8d2b43333211ae40af9",
+      "stored_bytes": 2039
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.rx.bin",
+      "sha256": "18c99569c8b66ee6749d82d31fafdb419992bdf8fef1b0da4f75a5dc2156a8a0",
+      "stored_bytes": 455756
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.events.jsonl",
+      "sha256": "943851748b9d3e683a43cfe947a6e521e9c45ba64d0db1c14d981e19cf3bb5a6",
+      "stored_bytes": 277274
+    }
+  ],
+  "analysis_sources": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/analyze_usb_unread.py",
+      "sha256": "3709c2caee483e1745130521f817370a6e30775b43352873174e1bde782c872f",
+      "stored_bytes": 29038
+    },
+    {
+      "path": "tools/analyze_firmware_benchmark.py",
+      "sha256": "445c5145e922e44df91f37294223d432544f4c91cdf187184643a8e5b54a8b81",
+      "stored_bytes": 87907
+    },
+    {
+      "path": "tools/sensorarray_bulk_diagnostics.py",
+      "sha256": "ea9caf9a1771359c3b1b4bea3c36f05173a0c81a45f5d1e2e3d82f768efdcf70",
+      "stored_bytes": 23185
+    },
+    {
+      "path": "tools/text_protocol.py",
+      "sha256": "67e3401d1a8254fc3424e14146293a5e40c76c7cbbe871f149b6d518a43c5a01",
+      "stored_bytes": 34940
+    }
+  ],
+  "running_image": {
+    "BUILD": {
+      "idf": "v5.5.5",
+      "target": "esp32s3",
+      "project": "SensorArray",
+      "proto": "2",
+      "version": "da68b40-dirty",
+      "elfSha256": "892f586bdb131e77614c1ca72723c9247159f9d3a7bf5b49917004383f252677"
+    },
+    "validated_identity": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/usb-record-01-validated-identity.json",
+      "sha256": "ee17b16effd97541b67aa7690384a8e9d4db0d21ac79a9ab2cfd691919384114",
+      "stored_bytes": 982
+    }
+  },
+  "configuration": {
+    "session": "0119031D7DEF4971",
+    "bootId": "1",
+    "rev": "219",
+    "boundary": "137815",
+    "state": "VOLTAGE",
+    "mode": "VOLT",
+    "rows": "1",
+    "profile": "VVVVVVVV",
+    "err": "0x0",
+    "mgen": "132",
+    "mrid": "219",
+    "rgen": "72",
+    "rrid": "218",
+    "pgen": "148",
+    "prid": "219",
+    "mtermId": "219",
+    "mterm": "applied",
+    "merr": "0x0",
+    "ptermId": "219",
+    "pterm": "applied",
+    "perr": "0x0",
+    "rtermId": "218",
+    "rterm": "applied",
+    "rerr": "0x0"
+  },
+  "hold": {
+    "started_monotonic": 182889.097277547,
+    "requested_seconds": 120.0,
+    "deadline_monotonic": 183009.097277547,
+    "raw_offset_before": 28092,
+    "read_calls_before": 182,
+    "write_calls_before": 25,
+    "status": "COMPLETE",
+    "FD_kept_open": true,
+    "finished_monotonic": 183009.097760848,
+    "actual_seconds": 120.00048330100253,
+    "raw_offset_after": 28092,
+    "read_calls": 0,
+    "write_calls": 0,
+    "forbidden_read_calls": 0,
+    "forbidden_write_calls": 0,
+    "USB_PC_receipt": "NOT_OBSERVED",
+    "USB_PC_FPS": null,
+    "kernel_buffering": "possible; later draining is not hold-time PC receipt",
+    "BLE_debug_evidence": "requires_independent_observers"
+  },
+  "hold_raw_and_event_consistency_verified": true,
+  "parser_adapter": "Existing analyse_ble_journal window interface receives the real hold monotonic bounds and expected CONFIG in memory. No capture summary or USB frame record is fabricated.",
+  "USB_PC_receipt": "NOT_OBSERVED",
+  "USB_PC_FPS": null,
+  "post_hold_drain_used_as_hold_receipt": false,
+  "ble": {
+    "status": "RECORDED",
+    "reason": null,
+    "requested_configuration_observed": true,
+    "observed_identity_subset_of_USB": null,
+    "alignment": {
+      "clock": "same_host_time.monotonic_ns",
+      "start_ns": 182889097277547,
+      "end_ns": 183009097760848,
+      "subscribed_coverage_seconds": 120.000483301,
+      "continuous_subscriptions": true
+    },
+    "counts": {
+      "notifications_D": 15125,
+      "notification_bytes_D": 5239763,
+      "logical_messages_D": 7562,
+      "malformed_lines": 0,
+      "boundary_straddling_frames_excluded": 1
+    },
+    "capture_frame_counts": {
+      "trusted_complete_frames": 7562,
+      "integrity_valid_frames": 7562,
+      "ordered_integrity_valid_frames": 7562,
+      "rejected_untrusted_frames": 0,
+      "complete_frames": 7562,
+      "wire_contract_errors": 0,
+      "ascii_crc_errors": 0,
+      "identity_errors": 0,
+      "header_identity_missing": 0,
+      "header_identity_invalid": 0,
+      "trailer_identity_missing": 0,
+      "trailer_identity_invalid": 0,
+      "trailer_header_identity_mismatch": 0,
+      "header_config_identity_mismatch": 0,
+      "identity_value_mismatch": 0,
+      "observed_points": 60496,
+      "reported_valid_points": 60304,
+      "unit_errors": 0,
+      "usable_numeric_points": 60304,
+      "open_points": 0,
+      "inconsistent_points": 0,
+      "invalid_points": 192,
+      "not_fresh_points": 0,
+      "unacquired_points": 0,
+      "unknown_masks_points": 0,
+      "frames_with_invalid_points": 192,
+      "frames_with_partial_freshness": 0,
+      "frames_with_unacquired_points": 0,
+      "fully_valid_fresh_acquired_frames": 7370,
+      "sequence_gaps": 11,
+      "missing_frames": 11
+    },
+    "capture_invalid_reasons": {
+      "X12": 192
+    },
+    "configuration_groups": [
+      {
+        "identity": {
+          "session": "0119031D7DEF4971",
+          "bootId": "1",
+          "rev": "219",
+          "mgen": "132",
+          "mrid": "219",
+          "rgen": "72",
+          "rrid": "218",
+          "pgen": "148",
+          "prid": "219",
+          "legacy_gen": "132",
+          "legacy_rid": "219"
+        },
+        "identity_status": "consistent_frame_identity",
+        "wire_tag": "V",
+        "rows": 1,
+        "profile": "",
+        "counts": {
+          "trusted_complete_frames": 7562,
+          "integrity_valid_frames": 7562,
+          "ordered_integrity_valid_frames": 7562,
+          "rejected_untrusted_frames": 0,
+          "complete_frames": 7562,
+          "wire_contract_errors": 0,
+          "ascii_crc_errors": 0,
+          "identity_errors": 0,
+          "header_identity_missing": 0,
+          "header_identity_invalid": 0,
+          "trailer_identity_missing": 0,
+          "trailer_identity_invalid": 0,
+          "trailer_header_identity_mismatch": 0,
+          "header_config_identity_mismatch": 0,
+          "identity_value_mismatch": 0,
+          "observed_points": 60496,
+          "reported_valid_points": 60304,
+          "unit_errors": 0,
+          "usable_numeric_points": 60304,
+          "open_points": 0,
+          "inconsistent_points": 0,
+          "invalid_points": 192,
+          "not_fresh_points": 0,
+          "unacquired_points": 0,
+          "unknown_masks_points": 0,
+          "frames_with_invalid_points": 192,
+          "frames_with_partial_freshness": 0,
+          "frames_with_unacquired_points": 0,
+          "fully_valid_fresh_acquired_frames": 7370,
+          "sequence_gaps": 11,
+          "missing_frames": 11
+        },
+        "invalid_reasons": {
+          "X12": 192
+        },
+        "wire_contract_error_reasons": {},
+        "counts_scope": "complete_frames is parsed framing only; trusted_complete_frames passes CRC, complete identity and the requested wire contract; point quality counts include only ordered trusted frames",
+        "rejected_frame_diagnostics": {
+          "reported_quality_counts": {},
+          "reported_invalid_reasons": {},
+          "missing_trailer_fields": {},
+          "invalid_trailer_fields": {},
+          "identity_mismatch_semantics": "Value mismatches are observed text disagreements, not proof of a device configuration change; truncated numeric tokens can still be syntactically valid.",
+          "examples": [],
+          "accepted_scientific_samples": false
+        },
+        "point_mode_counts": {
+          "VOLT": 60496
+        },
+        "host_complete_frame_intervals": {
+          "known": true,
+          "max_seconds": 0.03747311598272063,
+          "first_complete_host_seconds": 182889.112104793,
+          "last_complete_host_seconds": 183009.083500225,
+          "sample_pairs": 7561,
+          "candidate_pairs": 7561,
+          "ordered_complete_frames": 7562,
+          "unavailable_timestamps": 0,
+          "timestamp_regressions": 0,
+          "unknown_reasons": [],
+          "scope": "adjacent ordered CRC/identity/wire-contract-valid complete protocol frames within this identity group; invalid points retained; duplicates/old frames excluded",
+          "clock": "host receipt of the completing K line: USB RX chunk or BLE notification callback/reassembly, not device local completion or over-air arrival",
+          "time_coordinate": "USB collector-relative event seconds; BLE absolute host monotonic seconds; never compare these coordinates directly",
+          "limits": "No cross-identity/boot pairing; first/last receipt permit separate capture-edge coverage checks; equal timestamps can reflect one received chunk; no periodic-snapshot delivery guarantee is inferred"
+        },
+        "invalid_reasons_by_cell": {
+          "S1D2": {
+            "X12": 192
+          }
+        },
+        "invalid_points_per_frame": {
+          "0": 7370,
+          "1": 192
+        },
+        "sequence": {
+          "first": 137820,
+          "last": 145392,
+          "progress_including_missing": 7572,
+          "gap_examples": [
+            {
+              "after": 137878,
+              "before": 137880,
+              "missing": 1
+            },
+            {
+              "after": 139772,
+              "before": 139774,
+              "missing": 1
+            },
+            {
+              "after": 139897,
+              "before": 139899,
+              "missing": 1
+            },
+            {
+              "after": 140094,
+              "before": 140096,
+              "missing": 1
+            },
+            {
+              "after": 141279,
+              "before": 141281,
+              "missing": 1
+            },
+            {
+              "after": 141773,
+              "before": 141775,
+              "missing": 1
+            },
+            {
+              "after": 141790,
+              "before": 141792,
+              "missing": 1
+            },
+            {
+              "after": 142684,
+              "before": 142686,
+              "missing": 1
+            },
+            {
+              "after": 144568,
+              "before": 144570,
+              "missing": 1
+            },
+            {
+              "after": 144874,
+              "before": 144876,
+              "missing": 1
+            },
+            {
+              "after": 145192,
+              "before": 145194,
+              "missing": 1
+            }
+          ],
+          "missing_semantics": "missing CRC-and-identity-valid sequence observations; rejected complete frames can contribute, so do not add this count to CRC errors as independent losses",
+          "arithmetic": "u32 modulo; distance 0 or >=2^31 is duplicate/old; never across identity groups"
+        },
+        "rates": {
+          "device_span_seconds": 119.982066,
+          "host_receipt_span_seconds": 119.97139543201774,
+          "capture_fps": 63.109431704568244,
+          "host_complete_receive_fps": 63.023356298997705,
+          "host_parsed_frame_fps": 63.023356298997705,
+          "host_parsed_receipt_span_seconds": 119.97139543201774,
+          "capture_basis": "ordered CRC-and-identity-valid frame sequence progression / device timestamp span",
+          "host_basis": "(trusted complete frames - 1) / first-to-last trusted K receipt time; bad CRC, incomplete/mismatched identity and wire-contract failures excluded"
+        },
+        "bytes": {
+          "frame_wire_total": 4755300,
+          "frame_wire_average": 628.8415763025655,
+          "trusted_frame_wire_average": 628.8415763025655,
+          "trusted_data_payload_ascii_average": 93.8730494578154,
+          "data_payload_ascii_total": 709868,
+          "data_payload_ascii_average": 93.8730494578154,
+          "definition": "wire=header+data/PGA/row lines+K including newlines; payload=data/PGA/row lines; diagnostics excluded"
+        }
+      }
+    ],
+    "fragments_by_channel": {
+      "D": {
+        "ok": 7562,
+        "missing": 0,
+        "gap": 0,
+        "crc_fail": 0,
+        "dropped": 0,
+        "tiny": 0,
+        "duplicate": 0,
+        "out_of_order": 0
+      }
+    },
+    "USB_comparison": {
+      "status": "NOT_OBSERVED",
+      "reason": "formal_application_performed_no_hold_reads",
+      "USB_PC_FPS": null,
+      "post_hold_buffer_drain_used": false,
+      "scope": "full_capture_window"
+    },
+    "fragment_integrity": {
+      "fully_contained_by_channel": {
+        "D": {
+          "ok": 7562
+        },
+        "L": {},
+        "C": {}
+      },
+      "edge_or_unknown_by_channel": {
+        "D": {
+          "ok": 1
+        },
+        "L": {},
+        "C": {}
+      },
+      "meaning": "all observed envelope parts start and finish in this window; edge/unknown counters are retained, not counted as in-window frame loss"
+    },
+    "fully_contained_data_diagnostics": {
+      "malformed_lines": 0
+    },
+    "comparative_host_fps": 63.023356298997705,
+    "timestamp_semantics": "host notification callback completion, not over-air arrival or device send completion",
+    "partial_window_metrics": "Observed partial records are preserved, but comparative FPS is unavailable when the requested connection window is incomplete"
+  },
+  "ble_journal": {
+    "source": {
+      "snapshot_open_monotonic_ns": 183059203642368,
+      "snapshot_open_wall_utc": "2026-11-25T08:01:05.746720+00:00",
+      "storage_mtime_ns_at_open": 1795593636558550438,
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.notifications.jsonl",
+      "compression": "none",
+      "storage_bytes_at_open": 11344808,
+      "uncompressed_prefix_bytes": 11344808,
+      "uncompressed_prefix_sha256": "cc9da59341a7600dfb323b90bc842b981b503792b78a95cd227e8c34f0f42672",
+      "file_grew_during_analysis": false
+    },
+    "schema_version": 1,
+    "schema_valid": true,
+    "counts": {
+      "metadata": 1,
+      "device_selected": 1,
+      "connected": 1,
+      "subscribed": 3,
+      "notification": 16313,
+      "subscriptions_ready": 1,
+      "recording_end": 1,
+      "disconnected": 1
+    },
+    "metadata": [
+      {
+        "schema_version": 1,
+        "type": "metadata",
+        "monotonic_ns": 182860131991710,
+        "t_seconds": 0.000360731,
+        "collector": "capture_benchmark_ble",
+        "address_requested": "80:B5:4E:CD:D9:AE",
+        "name_requested": null,
+        "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+        "channels": {
+          "C": "0000ff11-0000-1000-8000-00805f9b34fb",
+          "D": "0000ff20-0000-1000-8000-00805f9b34fb",
+          "L": "0000ff30-0000-1000-8000-00805f9b34fb"
+        },
+        "adapter": "hci0",
+        "application_commands_sent": 0,
+        "serial_opened": false,
+        "clock_origin": {
+          "kind": "time.monotonic_ns",
+          "origin_monotonic_ns": 182860131630979,
+          "wall_utc": "2026-11-25T07:57:46.674891+00:00",
+          "scope": "same_host_monotonic_clock_as_serial_runner",
+          "timestamp_semantics": "host_notification_callback_not_over_air"
+        },
+        "python": "3.12.3",
+        "system": "Linux",
+        "duration_total_ceiling_seconds": 300.0,
+        "buffering_max_bytes": 65536,
+        "flush_interval_seconds": 0.25
+      },
+      {
+        "schema_version": 1,
+        "type": "subscriptions_ready",
+        "monotonic_ns": 182860749946466,
+        "t_seconds": 0.618315487,
+        "address": "80:B5:4E:CD:D9:AE",
+        "all_channels_subscribed": [
+          "C",
+          "D",
+          "L"
+        ],
+        "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb",
+        "mtu_reported_by_backend": 23,
+        "negotiated_mtu_verified": false
+      }
+    ],
+    "collector_summary_verification": {
+      "status": "MATCH",
+      "file": {
+        "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.summary.json",
+        "bytes": 2039,
+        "sha256": "603361331bfde1b84d51ca85f6a83847f5902b319cb2c8d2b43333211ae40af9"
+      },
+      "collector_status": "RECORDED",
+      "journal_sha256": "cc9da59341a7600dfb323b90bc842b981b503792b78a95cd227e8c34f0f42672",
+      "journal_bytes": 11344808
+    },
+    "recording_end_observed": true,
+    "all_fragment_counters_by_channel": {
+      "D": {
+        "ok": 8153
+      },
+      "L": {},
+      "C": {}
+    },
+    "whole_journal_critical_records": {},
+    "ready_intervals_monotonic_ns": [
+      [
+        182860749946466,
+        183028102282680
+      ]
+    ],
+    "incomplete_fragment_meaning": "unobserved parts at an explicit disconnect/end/prefix boundary; never inferred from message-ID jumps",
+    "maximum_inflight_reassembly_messages": 4096
+  },
+  "BLE_endpoint_gap": {
+    "received": 7562,
+    "missing": 11,
+    "expected_within_BLE_endpoints": 7573,
+    "fraction": 0.0014525287204542453,
+    "scope": "same-identity trusted complete BLE endpoints only; no USB denominator or RF-loss attribution"
+  },
+  "query_windows": {
+    "USB?": {
+      "status": "VERIFIED_ORIGINAL_QUERY_BRACKET",
+      "before": {
+        "line": "USB,backend=otg_cdc_v1,init=1,err=0x0,mounted=1,suspended=0,dma=1,epoch=2,resets=2,mounts=1,unmounts=0,rxBytes=57587,rxDrop=0,rxOver=0,lastRxUs=5269037170,lastTxUs=5269033414,romAvailable=1,quiesced=0,pcReceipt=unknown,dataDtr=1,debugDtr=1",
+        "received_monotonic": 182888.977707588,
+        "started_monotonic": 182888.971280538,
+        "finished_monotonic": 182888.977881523,
+        "fields": {
+          "backend": "otg_cdc_v1",
+          "init": "1",
+          "err": "0x0",
+          "mounted": "1",
+          "suspended": "0",
+          "dma": "1",
+          "epoch": "2",
+          "resets": "2",
+          "mounts": "1",
+          "unmounts": "0",
+          "rxBytes": "57587",
+          "rxDrop": "0",
+          "rxOver": "0",
+          "lastRxUs": "5269037170",
+          "lastTxUs": "5269033414",
+          "romAvailable": "1",
+          "quiesced": "0",
+          "pcReceipt": "unknown",
+          "dataDtr": "1",
+          "debugDtr": "1"
+        }
+      },
+      "after": {
+        "line": "USB,backend=otg_cdc_v1,init=1,err=0x0,mounted=1,suspended=0,dma=1,epoch=2,resets=2,mounts=1,unmounts=0,rxBytes=57700,rxDrop=0,rxOver=0,lastRxUs=5389353315,lastTxUs=5389349668,romAvailable=1,quiesced=0,pcReceipt=unknown,dataDtr=1,debugDtr=1",
+        "received_monotonic": 183009.329425444,
+        "started_monotonic": 183009.284914232,
+        "finished_monotonic": 183009.329570775,
+        "fields": {
+          "backend": "otg_cdc_v1",
+          "init": "1",
+          "err": "0x0",
+          "mounted": "1",
+          "suspended": "0",
+          "dma": "1",
+          "epoch": "2",
+          "resets": "2",
+          "mounts": "1",
+          "unmounts": "0",
+          "rxBytes": "57700",
+          "rxDrop": "0",
+          "rxOver": "0",
+          "lastRxUs": "5389353315",
+          "lastTxUs": "5389349668",
+          "romAvailable": "1",
+          "quiesced": "0",
+          "pcReceipt": "unknown",
+          "dataDtr": "1",
+          "debugDtr": "1"
+        }
+      },
+      "interval_seconds": {
+        "minimum": 120.30703270900995,
+        "maximum": 120.35829023699625
+      },
+      "counter_deltas": {
+        "resets": {
+          "before": 2,
+          "after": 2,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "mounts": {
+          "before": 1,
+          "after": 1,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "unmounts": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "rxBytes": {
+          "before": 57587,
+          "after": 57700,
+          "delta": 113,
+          "unknown_reason": null
+        },
+        "rxDrop": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "rxOver": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        }
+      },
+      "scope": "independent before/after query brackets, not exact hold endpoints; no PC delivery inferred"
+    },
+    "USBQ?": {
+      "status": "VERIFIED_ORIGINAL_QUERY_BRACKET",
+      "before": {
+        "line": "USBQ,dDrop=0,cDrop=0,dSubmit=134342,cSubmit=6687,expired=4456,cExpired=0,partial=22,dBytes=92318594,cBytes=1628477,dCallbackBytes=unknown,cCallbackBytes=unknown,queueMaxUs=997955,stackMinBytes=2380,callbackResult=unknown,dQueueCap=100,dLifetimeUs=1000000",
+        "received_monotonic": 182888.998602893,
+        "started_monotonic": 182888.97788951,
+        "finished_monotonic": 182888.99877432,
+        "fields": {
+          "dDrop": "0",
+          "cDrop": "0",
+          "dSubmit": "134342",
+          "cSubmit": "6687",
+          "expired": "4456",
+          "cExpired": "0",
+          "partial": "22",
+          "dBytes": "92318594",
+          "cBytes": "1628477",
+          "dCallbackBytes": "unknown",
+          "cCallbackBytes": "unknown",
+          "queueMaxUs": "997955",
+          "stackMinBytes": "2380",
+          "callbackResult": "unknown",
+          "dQueueCap": "100",
+          "dLifetimeUs": "1000000"
+        }
+      },
+      "after": {
+        "line": "USBQ,dDrop=0,cDrop=0,dSubmit=134407,cSubmit=6701,expired=11949,cExpired=0,partial=22,dBytes=92359448,cBytes=1631977,dCallbackBytes=unknown,cCallbackBytes=unknown,queueMaxUs=997955,stackMinBytes=2380,callbackResult=unknown,dQueueCap=100,dLifetimeUs=1000000",
+        "received_monotonic": 183009.388065463,
+        "started_monotonic": 183009.32957885,
+        "finished_monotonic": 183009.388214731,
+        "fields": {
+          "dDrop": "0",
+          "cDrop": "0",
+          "dSubmit": "134407",
+          "cSubmit": "6701",
+          "expired": "11949",
+          "cExpired": "0",
+          "partial": "22",
+          "dBytes": "92359448",
+          "cBytes": "1631977",
+          "dCallbackBytes": "unknown",
+          "cCallbackBytes": "unknown",
+          "queueMaxUs": "997955",
+          "stackMinBytes": "2380",
+          "callbackResult": "unknown",
+          "dQueueCap": "100",
+          "dLifetimeUs": "1000000"
+        }
+      },
+      "interval_seconds": {
+        "minimum": 120.3308045300073,
+        "maximum": 120.41032522101887
+      },
+      "counter_deltas": {
+        "dDrop": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "cDrop": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "dSubmit": {
+          "before": 134342,
+          "after": 134407,
+          "delta": 65,
+          "unknown_reason": null
+        },
+        "cSubmit": {
+          "before": 6687,
+          "after": 6701,
+          "delta": 14,
+          "unknown_reason": null
+        },
+        "expired": {
+          "before": 4456,
+          "after": 11949,
+          "delta": 7493,
+          "unknown_reason": null
+        },
+        "cExpired": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "partial": {
+          "before": 22,
+          "after": 22,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "dBytes": {
+          "before": 92318594,
+          "after": 92359448,
+          "delta": 40854,
+          "unknown_reason": null
+        },
+        "cBytes": {
+          "before": 1628477,
+          "after": 1631977,
+          "delta": 3500,
+          "unknown_reason": null
+        },
+        "dCallbackBytes": {
+          "before": "unknown",
+          "after": "unknown",
+          "delta": null,
+          "unknown_reason": "explicit_unknown"
+        },
+        "cCallbackBytes": {
+          "before": "unknown",
+          "after": "unknown",
+          "delta": null,
+          "unknown_reason": "explicit_unknown"
+        }
+      },
+      "scope": "independent before/after query brackets, not exact hold endpoints; no PC delivery inferred"
+    },
+    "BLEFLOW?": {
+      "status": "VERIFIED_ORIGINAL_QUERY_BRACKET",
+      "before": {
+        "line": "BLEFLOW,v=1,scope=local_output,counters=boot,gen=73,stream=73,active=1,stage=full,ratePm=1000,intentionalSkip=0,probeSelected=0,attempts=134072,capacityReject=378,evidence=1,rejectPm=0,pressureWindows=0,cleanUs=0,localServiceMilliFps=11573,probeUs=1000000,cleanTtlUs=3000000,peerLoss=unknown,rssi=unknown",
+        "received_monotonic": 182889.053265829,
+        "started_monotonic": 182889.041276836,
+        "finished_monotonic": 182889.053443735,
+        "fields": {
+          "v": "1",
+          "scope": "local_output",
+          "counters": "boot",
+          "gen": "73",
+          "stream": "73",
+          "active": "1",
+          "stage": "full",
+          "ratePm": "1000",
+          "intentionalSkip": "0",
+          "probeSelected": "0",
+          "attempts": "134072",
+          "capacityReject": "378",
+          "evidence": "1",
+          "rejectPm": "0",
+          "pressureWindows": "0",
+          "cleanUs": "0",
+          "localServiceMilliFps": "11573",
+          "probeUs": "1000000",
+          "cleanTtlUs": "3000000",
+          "peerLoss": "unknown",
+          "rssi": "unknown"
+        }
+      },
+      "after": {
+        "line": "BLEFLOW,v=1,scope=local_output,counters=boot,gen=73,stream=73,active=1,stage=full,ratePm=1000,intentionalSkip=0,probeSelected=0,attempts=141676,capacityReject=386,evidence=1,rejectPm=0,pressureWindows=0,cleanUs=0,localServiceMilliFps=62689,probeUs=1000000,cleanTtlUs=3000000,peerLoss=unknown,rssi=unknown",
+        "received_monotonic": 183009.658297336,
+        "started_monotonic": 183009.613563628,
+        "finished_monotonic": 183009.658538707,
+        "fields": {
+          "v": "1",
+          "scope": "local_output",
+          "counters": "boot",
+          "gen": "73",
+          "stream": "73",
+          "active": "1",
+          "stage": "full",
+          "ratePm": "1000",
+          "intentionalSkip": "0",
+          "probeSelected": "0",
+          "attempts": "141676",
+          "capacityReject": "386",
+          "evidence": "1",
+          "rejectPm": "0",
+          "pressureWindows": "0",
+          "cleanUs": "0",
+          "localServiceMilliFps": "62689",
+          "probeUs": "1000000",
+          "cleanTtlUs": "3000000",
+          "peerLoss": "unknown",
+          "rssi": "unknown"
+        }
+      },
+      "interval_seconds": {
+        "minimum": 120.56011989299441,
+        "maximum": 120.61726187099703
+      },
+      "counter_deltas": {
+        "attempts": {
+          "before": 134072,
+          "after": 141676,
+          "delta": 7604,
+          "unknown_reason": null
+        },
+        "capacityReject": {
+          "before": 378,
+          "after": 386,
+          "delta": 8,
+          "unknown_reason": null
+        },
+        "intentionalSkip": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "probeSelected": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        }
+      },
+      "scope": "independent before/after query brackets, not exact hold endpoints; no PC delivery inferred"
+    },
+    "BLESNAP?": {
+      "status": "VERIFIED_ORIGINAL_QUERY_BRACKET",
+      "before": {
+        "line": "BLESNAP,v=1,scope=local_complete,counters=boot,gen=73,stream=73,queued=372,localComplete=372,failed=0,admitMiss=0,deadlineMiss=0,superseded=0,staleNormal=0,known=1,lastSeq=137815,lastRev=219,lastCompleteAgeUs=80606,gapKnown=0,maxCompleteGapUs=unknown,firstPending=0,periodicPending=0,dueUs=1000000,pcReceipt=unknown",
+        "received_monotonic": 182889.069819396,
+        "started_monotonic": 182889.053453339,
+        "finished_monotonic": 182889.069976464,
+        "fields": {
+          "v": "1",
+          "scope": "local_complete",
+          "counters": "boot",
+          "gen": "73",
+          "stream": "73",
+          "queued": "372",
+          "localComplete": "372",
+          "failed": "0",
+          "admitMiss": "0",
+          "deadlineMiss": "0",
+          "superseded": "0",
+          "staleNormal": "0",
+          "known": "1",
+          "lastSeq": "137815",
+          "lastRev": "219",
+          "lastCompleteAgeUs": "80606",
+          "gapKnown": "0",
+          "maxCompleteGapUs": "unknown",
+          "firstPending": "0",
+          "periodicPending": "0",
+          "dueUs": "1000000",
+          "pcReceipt": "unknown"
+        }
+      },
+      "after": {
+        "line": "BLESNAP,v=1,scope=local_complete,counters=boot,gen=73,stream=73,queued=372,localComplete=372,failed=0,admitMiss=0,deadlineMiss=0,superseded=0,staleNormal=0,known=1,lastSeq=137815,lastRev=219,lastCompleteAgeUs=120690183,gapKnown=0,maxCompleteGapUs=unknown,firstPending=0,periodicPending=0,dueUs=1000000,pcReceipt=unknown",
+        "received_monotonic": 183009.734971209,
+        "started_monotonic": 183009.658549631,
+        "finished_monotonic": 183009.735150127,
+        "fields": {
+          "v": "1",
+          "scope": "local_complete",
+          "counters": "boot",
+          "gen": "73",
+          "stream": "73",
+          "queued": "372",
+          "localComplete": "372",
+          "failed": "0",
+          "admitMiss": "0",
+          "deadlineMiss": "0",
+          "superseded": "0",
+          "staleNormal": "0",
+          "known": "1",
+          "lastSeq": "137815",
+          "lastRev": "219",
+          "lastCompleteAgeUs": "120690183",
+          "gapKnown": "0",
+          "maxCompleteGapUs": "unknown",
+          "firstPending": "0",
+          "periodicPending": "0",
+          "dueUs": "1000000",
+          "pcReceipt": "unknown"
+        }
+      },
+      "interval_seconds": {
+        "minimum": 120.58857316701324,
+        "maximum": 120.68169678800041
+      },
+      "counter_deltas": {
+        "queued": {
+          "before": 372,
+          "after": 372,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "localComplete": {
+          "before": 372,
+          "after": 372,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "failed": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "admitMiss": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "deadlineMiss": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "superseded": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        },
+        "staleNormal": {
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "unknown_reason": null
+        }
+      },
+      "scope": "independent before/after query brackets, not exact hold endpoints; no PC delivery inferred"
+    }
+  },
+  "independent_debug": {
+    "source": "CDC",
+    "raw": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.rx.bin",
+      "bytes": 455756,
+      "uncompressed_sha256": "18c99569c8b66ee6749d82d31fafdb419992bdf8fef1b0da4f75a5dc2156a8a0"
+    },
+    "events": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.events.jsonl",
+      "rx_records": 2196,
+      "uncompressed_bytes": 277274,
+      "uncompressed_sha256": "943851748b9d3e683a43cfe947a6e521e9c45ba64d0db1c14d981e19cf3bb5a6",
+      "hash_scope": "computed_at_analysis; offsets_and_times_structurally_validated; collector_has_no_expected_event_hash"
+    },
+    "status": "VERIFIED_RECORDING",
+    "first_receipt_monotonic": 182861.428632951,
+    "last_receipt_monotonic": 183028.167159294,
+    "opened_monotonic": 182861.428537208,
+    "counts": {
+      "BATREG": 510,
+      "BATRAW": 169,
+      "SF50": 165,
+      "TR50": 165,
+      "OT50": 165,
+      "BL50": 165,
+      "I2C50": 165,
+      "STK50": 165,
+      "AB50": 165,
+      "W (5222851) BT_HCI: hcif disc complete: hdl 0x1": 1,
+      "R50": 12,
+      "T50": 12,
+      "ROW50": 12,
+      "FB50": 12,
+      "ignored_scientific_records": 1,
+      "H50": 2,
+      "E": 2,
+      "[ROUTE] request=ADS1263": 1,
+      "ADSHEALTH": 121,
+      "ADS50": 153,
+      "ADST50": 153,
+      "TXDROP": 1,
+      "[ROUTE] request=FDC2214": 1,
+      "PR": 2,
+      "PFU": 2,
+      "FDC_CACHE_APPLY": 2,
+      "CAWARN": 1
+    },
+    "rejected_records": {},
+    "counts_scope": "whole independent raw stream; fault/reset phases and selected counter endpoints use the capture window",
+    "rejected_examples": [],
+    "faults": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "resets": {
+      "counts_by_phase": {},
+      "examples": []
+    },
+    "heap": {
+      "observed_free_bytes": 8062440,
+      "firmware_lifetime_minimum_bytes": 8054852
+    },
+    "stack_minimum_remaining_bytes": {
+      "log": 12428,
+      "transport": 3028,
+      "bleTx": 2084,
+      "bleCtrl": 5196,
+      "serialCtrl": 1372
+    },
+    "hold_observer_coverage": "FULL_OBSERVER_WINDOW",
+    "boot_continuity_observed": true,
+    "absence_of_fault_text_proves_no_fault": false
+  },
+  "ADC_CRC": {
+    "health": {
+      "status": "OBSERVED",
+      "records_in_stream": 121,
+      "first": {
+        "source": "CDC",
+        "byte_offset": 37112,
+        "monotonic": 182889.17750183,
+        "phase": "capture",
+        "fields": {
+          "seq": "137827",
+          "engineFrameCount": "104064",
+          "modeEntryFrameCount": "104051",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "1138461",
+          "crcValidOdd": "3887473",
+          "crcErrors": "0",
+          "crcRetries": "0"
+        },
+        "unverified_terminal_field": "crcRetries"
+      },
+      "last": {
+        "source": "CDC",
+        "byte_offset": 428281,
+        "monotonic": 183008.834871053,
+        "phase": "capture",
+        "fields": {
+          "seq": "145379",
+          "engineFrameCount": "111616",
+          "modeEntryFrameCount": "104051",
+          "healthInterval": "64",
+          "healthReadbackDue": "1",
+          "precisionFrame": "1",
+          "err": "0x0",
+          "crcValidEven": "1178538",
+          "crcValidOdd": "3927292",
+          "crcErrors": "0",
+          "crcRetries": "0"
+        },
+        "unverified_terminal_field": "crcRetries"
+      },
+      "counters": {
+        "crcValidEven": {
+          "first": 1138461,
+          "last": 1178538,
+          "delta": 40077,
+          "unavailable": null
+        },
+        "crcValidOdd": {
+          "first": 3887473,
+          "last": 3927292,
+          "delta": 39819,
+          "unavailable": null
+        },
+        "crcErrors": {
+          "first": 0,
+          "last": 0,
+          "delta": 0,
+          "unavailable": null
+        }
+      },
+      "elapsed_seconds": 119.65736922298674,
+      "window": "first_last_diagnostic_receipts_inside_capture"
+    },
+    "valid_even_delta": 40077,
+    "valid_odd_delta": 39819,
+    "rejected_delta": 0,
+    "checked_attempts": 79896,
+    "rate": 0.0,
+    "scope": "first/last complete ADSHEALTH inside hold, not exact hold endpoints; checked reads, not scientific frames",
+    "crcRetries": "unknown_unverified_terminal_token",
+    "ADSSPI": {
+      "status": "NOT_OBSERVED",
+      "records_in_stream": 0,
+      "first": null,
+      "last": null,
+      "counters": {
+        "crcTotal": {
+          "first": null,
+          "last": null,
+          "delta": null,
+          "unavailable": "NOT_OBSERVED"
+        },
+        "retryTotal": {
+          "first": null,
+          "last": null,
+          "delta": null,
+          "unavailable": "NOT_OBSERVED"
+        }
+      },
+      "elapsed_seconds": null,
+      "window": "first_last_diagnostic_receipts_inside_capture"
+    }
+  },
+  "BLE_firmware": {
+    "status": "OBSERVED",
+    "records_in_stream": 165,
+    "first": {
+      "source": "CDC",
+      "byte_offset": 37632,
+      "monotonic": 182889.551514772,
+      "phase": "capture",
+      "fields": {
+        "conn": "1",
+        "sub": "111",
+        "mtu": "517",
+        "phy": "2/2",
+        "mode": "fast",
+        "mq": "133945",
+        "ms": "133939",
+        "md": "5751",
+        "sentD": "133720",
+        "sentL": "219",
+        "dropD": "381",
+        "dropL": "5370",
+        "dropC": "0",
+        "ctrlRetry": "0",
+        "ctrlExhaust": "0",
+        "fs": "260869",
+        "fe": "0",
+        "cg": "0",
+        "stale": "4",
+        "conf": "0",
+        "tiny": "0"
+      },
+      "unverified_terminal_field": "tiny"
+    },
+    "last": {
+      "source": "CDC",
+      "byte_offset": 426743,
+      "monotonic": 183008.417872833,
+      "phase": "capture",
+      "fields": {
+        "conn": "1",
+        "sub": "111",
+        "mtu": "517",
+        "phy": "2/2",
+        "mode": "fast",
+        "mq": "141435",
+        "ms": "141430",
+        "md": "6059",
+        "sentD": "141211",
+        "sentL": "219",
+        "dropD": "389",
+        "dropL": "5670",
+        "dropC": "0",
+        "ctrlRetry": "0",
+        "ctrlExhaust": "0",
+        "fs": "275850",
+        "fe": "0",
+        "cg": "0",
+        "stale": "4",
+        "conf": "0",
+        "tiny": "0"
+      },
+      "unverified_terminal_field": "tiny"
+    },
+    "counters": {
+      "mq": {
+        "first": 133945,
+        "last": 141435,
+        "delta": 7490,
+        "unavailable": null
+      },
+      "ms": {
+        "first": 133939,
+        "last": 141430,
+        "delta": 7491,
+        "unavailable": null
+      },
+      "md": {
+        "first": 5751,
+        "last": 6059,
+        "delta": 308,
+        "unavailable": null
+      },
+      "sentD": {
+        "first": 133720,
+        "last": 141211,
+        "delta": 7491,
+        "unavailable": null
+      },
+      "sentL": {
+        "first": 219,
+        "last": 219,
+        "delta": 0,
+        "unavailable": null
+      },
+      "dropD": {
+        "first": 381,
+        "last": 389,
+        "delta": 8,
+        "unavailable": null
+      },
+      "dropL": {
+        "first": 5370,
+        "last": 5670,
+        "delta": 300,
+        "unavailable": null
+      },
+      "dropC": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "ctrlRetry": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "ctrlExhaust": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "fs": {
+        "first": 260869,
+        "last": 275850,
+        "delta": 14981,
+        "unavailable": null
+      },
+      "fe": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "cg": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      },
+      "stale": {
+        "first": 4,
+        "last": 4,
+        "delta": 0,
+        "unavailable": null
+      },
+      "conf": {
+        "first": 0,
+        "last": 0,
+        "delta": 0,
+        "unavailable": null
+      }
+    },
+    "elapsed_seconds": 118.86635806100094,
+    "window": "first_last_diagnostic_receipts_inside_capture"
+  },
+  "post_hold": {
+    "collector_recovery": "CAP8_QUERY_VERIFIED",
+    "collector_CONFIG": {
+      "session": "0119031D7DEF4971",
+      "bootId": "1",
+      "rev": "221",
+      "boundary": "145445",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "133",
+      "mrid": "220",
+      "rgen": "73",
+      "rrid": "221",
+      "pgen": "149",
+      "prid": "220",
+      "mtermId": "220",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "220",
+      "pterm": "applied",
+      "perr": "0x0",
+      "rtermId": "221",
+      "rterm": "applied",
+      "rerr": "0x0"
+    },
+    "postquery": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.summary.json",
+      "sha256": "d51e01c61dadcb999535f82ff122f4c0c6b43129b28d164518f1107a8a66351c",
+      "stored_bytes": 22280
+    },
+    "CONFIG": {
+      "session": "0119031D7DEF4971",
+      "bootId": "1",
+      "rev": "221",
+      "boundary": "145445",
+      "state": "CAPACITANCE",
+      "mode": "CAP",
+      "rows": "8",
+      "profile": "CCCCCCCC",
+      "err": "0x0",
+      "mgen": "133",
+      "mrid": "220",
+      "rgen": "73",
+      "rrid": "221",
+      "pgen": "149",
+      "prid": "220",
+      "mtermId": "220",
+      "mterm": "applied",
+      "merr": "0x0",
+      "ptermId": "220",
+      "pterm": "applied",
+      "perr": "0x0",
+      "rtermId": "221",
+      "rterm": "applied",
+      "rerr": "0x0"
+    },
+    "MEM": {
+      "v": "1",
+      "readout": "sequential",
+      "unit": "bytes",
+      "intCaps": "internal8",
+      "intFree": "93756",
+      "intLargest": "47092",
+      "intMin": "87392",
+      "extFree": "7970640",
+      "extLargest": "7864308",
+      "scan": "created",
+      "scanStack": "16384",
+      "beforeFree": "105300",
+      "beforeLargest": "63476",
+      "afterFree": "87500",
+      "afterLargest": "47092",
+      "err": "0x0",
+      "sampleUs": "5428707545",
+      "poolReady": "1",
+      "poolErr": "0x0",
+      "poolInt": "1157",
+      "poolExt": "16135"
+    },
+    "BLEGUARD": {
+      "v": "1",
+      "scope": "send_observer",
+      "ready": "1",
+      "initErr": "0x0",
+      "quarantined": "0",
+      "reason": "none",
+      "callKnown": "1",
+      "callId": "276457",
+      "startUs": "5408143097",
+      "detectedUs": "0",
+      "ageUs": "20535076",
+      "deadlineUs": "500000",
+      "pollUs": "100000",
+      "active": "0",
+      "completionKnown": "1",
+      "restartRequired": "0",
+      "rejected": "0",
+      "recovery": "manual_restart",
+      "sdkCancelled": "0",
+      "pcReceipt": "unknown"
+    },
+    "closure": {
+      "kind": "readonly_probe_status_and_complete_original_query_trace",
+      "explicit_final_finished_event": false,
+      "verified_replies": 34,
+      "all_attempt_starts_after_hold": true,
+      "event_origin_monotonic_interval": [
+        183048.566006081,
+        183048.56602365698
+      ],
+      "limits": "Probe records query starts, relative events and final summary, without a final finished event; no such event is invented."
+    },
+    "raw": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.rx.bin",
+      "sha256": "3e7d43fc684f30c6c9184ea84f31a514a8bcc734343c6fba27cd2cc8f4cc5602",
+      "stored_bytes": 26151
+    },
+    "events": {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.events.jsonl",
+      "sha256": "70c2a3ba92c686fd93fb0b1bad5cd483738ad484205c9042e737706828d0cd8b",
+      "stored_bytes": 44229
+    }
+  },
+  "limitations": [
+    "Application unread hold keeps one formal CDC FD open; Linux may still buffer USB traffic. This is not cable removal, Windows re-enumeration or zero bus traffic.",
+    "Formal USB has no application receipt during hold; later buffered drain never becomes hold-time USB FPS.",
+    "Capture FPS is inferred from ordered BLE scientific device timestamps/sequences, not directly counted ADC conversions.",
+    "Whole protocol integrity preserves invalid/Xhh points; complete does not mean all points valid or precision calibrated.",
+    "Local queue expiry/rejection/submission and BLE PC sequence gaps are distinct windows; do not add or subtract them as disjoint losses.",
+    "No PC application ACK, cancellation guarantee or absolute one-second snapshot delivery is inferred.",
+    "Current-image long-run/full-matrix/weak-link/physical-unplug acceptance is not completed by this single stress observation."
+  ],
+  "hardware_actions": [],
+  "original_recordings_modified": false,
+  "production_source_modified": false
+}

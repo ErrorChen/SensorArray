@@ -71,6 +71,18 @@ All 32 configurations recovered to CAP8. The measured range was **56.167–265.3
 | 50 次模式切换 / Mode transitions | USB 验证 50/50 个 applied、对应配置和数据。每步的首个已验证 USB 帧在 BLE 也有收件。最慢一步从发起到闭合配置回读 342.5 ms。 / Both receivers observed every transition. The maximum step-to-closing-query interval was 342.5 ms. [逐步实录 / Per-step results](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final50-01/record-final50-01.gate.json) |
 | SHORT 完整快照 / Protected full snapshots | CAP8 120.000279 s 中，BLE 收到 117 个真实完整快照，116 个相邻收件间隔最长 1.037481 s。结尾回读确认恢复 REL 和 CAP8。 / The receiver observed 117 complete snapshots. One second is the firmware scheduling target. The measured maximum host receipt interval was 1.037481 s. [快照窗口 / Snapshot window](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-short-01/record-short-01.gate.json) |
 
+本版的矩阵和十分钟缺口统计只覆盖预先定义的正式窗口。原始文件也保留了打开接收器、切换测量配置时的旧帧。例如十分钟测试的准备阶段缺 146 个旧 CAP 序号。健康日志中 579 个预期周期槽实际收到 578 个，缺 `engineFrameCount=103488`。弱射频环境、三颗前端同时断电复电、Windows 枚举和同步模拟波形仍未实测。BLE 的降帧依据是本地排队压力，空口丢包率和 RSSI 未测。SPI 启动选速保留 2.5% CRC 容限；每个科学读数仍需通过其自身校验。
+
+Matrix and ten-minute sequence statistics cover the defined measurement windows. The original recordings also include configuration preparation. For example, the ten-minute recording contains a 146-sequence gap in older CAP traffic before its window. We observed 578 of 579 expected health log slots. The missing slot was engine frame 103488. Weak RF, simultaneous power cycling of the three front ends, Windows enumeration and simultaneous analog waveforms remain untested on this build. BLE pacing uses local queue pressure. Peer packet loss and RSSI remain unknown. SPI startup qualification keeps its 2.5% CRC threshold and each scientific read is checked. [健康周期与边界 / Health and window coverage](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-volt600-01/record-volt600-01.review.json)
+
+### 正式 USB 长时间停读与 Wi-Fi 共存 / Unread USB and Wi-Fi coexistence
+
+正式 CDC0 文件保持打开 120.000483 秒，应用读写次数为 0，起止原始文件偏移均为 28,092。主机在此期间的 USB FPS 未观测。前后 USBQ 查询之间 DATA 本地提交 65 条，普通记录过期 7,493 条，DATA 拒绝和部分写增量均为 0。BLE 在停读窗口内收到 7,562 个完整帧，端点间缺 11/7,573（0.1453%），其中保留 192 个无效点。ADC 诊断独立覆盖 119.657 秒，CRC 拒绝 0/79,896。恢复后同次启动确认 CAP8。
+
+During the 120-second application read pause, the USB file descriptor stayed open. The host made zero reads and writes. Its receive rate was unobserved. The bounded queue expired old records while BLE continued receiving full frames. The Linux kernel could still accept USB traffic. The post-test state probe verified CAP8. [停读原始分析 / Unread test](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01.analysis.json)
+
+同一镜像上 USB 发起 AP、AP、OFF、AP、OFF 五次请求，BLE 确实收到五条对应 WTERM，首次 AP 从接受到完成为 59.238 ms。内部可用内存从 93,108 B 到 28,744 B，最大连续块从 47,092 B 到 20,468 B，历史低水位 27,860 B，分配失败计数无增量。最终查询为 CAP8、Wi-Fi 输出 OFF。 / All five Wi-Fi requests reached applied terminals and were independently received over BLE. OFF is the queried output gate. UDP peer throughput and physical radio-off were unmeasured. [终态、堆与结束状态 / Verified terminals, heap and final state](docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-terminals-check.json)
+
 ## 正式 USB 短暂停读回归 / Formal USB reader-pause regression
 
 ESP32-S3 实机在 VOLT 两行、USB 与 BLE 同时接收的条件下，分别测了旧固件及修复提交 `f9a82f7`。两次都在 120 秒窗口内暂停主机 CDC0 应用读取约 650 ms，BLE 观察器继续运行。下表中的缺帧按各自通路的完整帧序号计算，设备计数取本次窗口增量。

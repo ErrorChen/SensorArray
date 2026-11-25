@@ -1,0 +1,6 @@
+/tmp/sensorarray-ble-hil-venv/lib/python3.12/site-packages/bleak/backends/bluezdbus/client.py:646: UserWarning: Using default MTU value. Call _acquire_mtu() or set _mtu_size first to avoid this warning.
+  warnings.warn(
+{"type": "BLE_READY", "ready_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.ready.json", "schema_version": 1, "monotonic_ns": 183080078802978, "address": "80:B5:4E:CD:D9:AE", "all_channels_subscribed": ["C", "D", "L"], "service_uuid": "000000ff-0000-1000-8000-00805f9b34fb", "mtu_reported_by_backend": 23, "negotiated_mtu_verified": false}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 20.69450116099324, "notifications": {"D": 464}, "payload_bytes": {"D": 227592}}
+{"type": "BLE_PROGRESS", "elapsed_seconds": 40.70482561000972, "notifications": {"D": 926, "L": 5}, "payload_bytes": {"D": 454203, "L": 1417}}
+{"status": "RECORDED", "error": null, "stop_reason": "stop_file", "notification_counts": {"D": 1012, "L": 5}, "journal_file": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.notifications.jsonl", "journal_sha256": "0866de74856022fdc50d860b1f97547afb5d037c3d6a118ec29edd3a367b3465"}

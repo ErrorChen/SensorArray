@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "files": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.notifications.jsonl",
+      "raw_bytes": 890288,
+      "raw_sha256": "0866de74856022fdc50d860b1f97547afb5d037c3d6a118ec29edd3a367b3465",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.notifications.jsonl.gz",
+      "gzip_bytes": 105472,
+      "gzip_sha256": "8c1c347d176cb2fdfadaa98f1d1a9cdf49dc061c63f8ec8e8a9c4b46a5a2ca67",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.events.jsonl",
+      "raw_bytes": 39272,
+      "raw_sha256": "93e9a59d74fd97d0c5eaa0bbce38b4fcc833523626b848f88436ebcdcef6f2fd",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.events.jsonl.gz",
+      "gzip_bytes": 6504,
+      "gzip_sha256": "439cc8b975d1f0536cc3fbfb88e2aeac40db6535179509bd901d3f02eb96521e",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.rx.bin",
+      "raw_bytes": 24883,
+      "raw_sha256": "7a005042350c2062b1ccd6d05db6ab96b23244d3985582fb38a349c93c708721",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.rx.bin.gz",
+      "gzip_bytes": 4590,
+      "gzip_sha256": "17efa91be62d027aa7ad441beabe5fac06fb126fc9db980f6aa976596fb1cfb2",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final-state-01.events.jsonl",
+      "raw_bytes": 43878,
+      "raw_sha256": "426eaf607ffcbc8f05fc7e334e94ebd6de83c3ce2b77a00b93d93f98115ccceb",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final-state-01.events.jsonl.gz",
+      "gzip_bytes": 8781,
+      "gzip_sha256": "c23cfad5ccf8c89490e00832e3aa402244357c739f74418c205f7f0b49f603d0",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final-state-01.rx.bin",
+      "raw_bytes": 26147,
+      "raw_sha256": "6b2263141bd89dfd7f45e2b68076115db4c0dd133d1540e936e440cc37995b9e",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-final-state-01.rx.bin.gz",
+      "gzip_bytes": 6326,
+      "gzip_sha256": "33e4cc695030e9827b82c11f92251099bac540a85b6815618f9b280482984d3b",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.notifications.jsonl",
+      "raw_bytes": 11344808,
+      "raw_sha256": "cc9da59341a7600dfb323b90bc842b981b503792b78a95cd227e8c34f0f42672",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.notifications.jsonl.gz",
+      "gzip_bytes": 1073209,
+      "gzip_sha256": "40a5204329ec9e6f16b0f7f2a84e3513217dbdc4b49b20c1d4e37df1c0f69cfb",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.events.jsonl",
+      "raw_bytes": 277274,
+      "raw_sha256": "943851748b9d3e683a43cfe947a6e521e9c45ba64d0db1c14d981e19cf3bb5a6",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.events.jsonl.gz",
+      "gzip_bytes": 49123,
+      "gzip_sha256": "72e59203ad56d42dd9f8bee520d5aac7706e370baad90549ce491792ecec02a9",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.rx.bin",
+      "raw_bytes": 455756,
+      "raw_sha256": "18c99569c8b66ee6749d82d31fafdb419992bdf8fef1b0da4f75a5dc2156a8a0",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.rx.bin.gz",
+      "gzip_bytes": 43688,
+      "gzip_sha256": "b16dc20d9c808cb7a7872d90595aacc6484a18ad09f64111d75b5359cdbcb6e7",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.events.jsonl",
+      "raw_bytes": 104828,
+      "raw_sha256": "71920003d39c7daa380e24796dfcdd8898925b619aab73f5f63acbfb691fee1c",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.events.jsonl.gz",
+      "gzip_bytes": 17621,
+      "gzip_sha256": "03a34eb1e174e7c8357dbee871759e98fc8a12f2dfb968321be90b7093032a2f",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.rx.bin",
+      "raw_bytes": 115278,
+      "raw_sha256": "75b850e8a37b3010f0f62d83649268659a518c415f0173ff0f49a6eb175cd38b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.rx.bin.gz",
+      "gzip_bytes": 15078,
+      "gzip_sha256": "ddf1faaed311bf54dece79fca407934d0c27be655b1ca0813cbaf29287916868",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.events.jsonl",
+      "raw_bytes": 44229,
+      "raw_sha256": "70c2a3ba92c686fd93fb0b1bad5cd483738ad484205c9042e737706828d0cd8b",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.events.jsonl.gz",
+      "gzip_bytes": 8784,
+      "gzip_sha256": "788af1adff1a99a4c3731a13b6d5aa212a8b3d55025ea2984832e2f548f587f6",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.rx.bin",
+      "raw_bytes": 26151,
+      "raw_sha256": "3e7d43fc684f30c6c9184ea84f31a514a8bcc734343c6fba27cd2cc8f4cc5602",
+      "gzip": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-post-01.rx.bin.gz",
+      "gzip_bytes": 6725,
+      "gzip_sha256": "77332708353aa1294545585602a18724ed0775e6a182bbab660e66f815315975",
+      "gzip_created": true,
+      "roundtrip_verified": true,
+      "original_retained": true
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.ready.json",
+      "sha256": "60d0975cb09bbdbeb5c8da1b0240d753fb4b113f230a7cfc4ef7a9226d0c7e13",
+      "bytes": 284
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-01.ble.summary.json",
+      "sha256": "d070039d9bee2c4d158403f54371b7ceed8378f596b80d18f0eb98a08d30b538",
+      "bytes": 2018
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-01/record-ap-ble-terminals-check.json",
+      "sha256": "d99a4ed736f23765fcf3b69198e5695142857560df284cd1ba1f5694c230f79a",
+      "bytes": 3305
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-ap-control-01/record-ap-control-01.summary.json",
+      "sha256": "04812ea078f3443590f2e77f77ff52fd5ec3e523cd45ba4f3a4f4f40f00b1fc8",
+      "bytes": 28407
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.ready.json",
+      "sha256": "6086cc02aafb09c637abfff5956174b281745c5f6955800f994a34e2320906af",
+      "bytes": 284
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-ble.ble.summary.json",
+      "sha256": "603361331bfde1b84d51ca85f6a83847f5902b319cb2c8d2b43333211ae40af9",
+      "bytes": 2039
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-debug.debug.summary.json",
+      "sha256": "1d4c48248e6321e397d30f6d313eac7759028d4574659520de3bd47e4fbd9095",
+      "bytes": 2728
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01-hold.summary.json",
+      "sha256": "0e207380d6235cb5582299517647587a1be5c807966244017086d4800ff987d3",
+      "bytes": 51448
+    },
+    {
+      "path": "docs/audit/artifacts/cdc_recovery_acceptance_20261116/record-unread-01/record-unread-01.analysis.json",
+      "sha256": "fb5e1444b4bf98f72e26db8e237ed0300775f19772c6336bdccb7e3a2842e497",
+      "bytes": 47631
+    }
+  ],
+  "file_count": 12,
+  "total_original_bytes": 13392792,
+  "total_gzip_bytes": 1345901,
+  "closure": "caller selected already closed recordings; no active device access",
+  "original_files_modified_or_deleted": false,
+  "hardware_actions": [],
+  "generator": {
+    "path": "/home/csc/esp/workspace/SensorArray/docs/audit/artifacts/cdc_recovery_acceptance_20261116/scripts/archive_closed_evidence.py",
+    "sha256": "69a8c56fd6f44bd882c7fdb4320a5be151dc36509f4d0640f7acfadd2dc57f6e"
+  }
+}
