@@ -1706,8 +1706,11 @@ static sensorarrayAdsJob_t sensorarrayAdsSelectJob(uint32_t frameSequence)
         return SENSORARRAY_ADS_JOB_NONE;
     }
     if (s_gapMode == SENSORARRAY_ADS_GAP_MODE_RAIL) {
-        return sensorarrayAdsInternalReferenceIsUnclamped() ?
-            SENSORARRAY_ADS_JOB_RAIL : SENSORARRAY_ADS_JOB_NONE;
+        return (s_railCalibration.source !=
+                    SENSORARRAY_ADS_RAIL_SOURCE_EXTERNAL_CALIBRATION &&
+                sensorarrayAdsInternalReferenceIsUnclamped())
+                   ? SENSORARRAY_ADS_JOB_RAIL
+                   : SENSORARRAY_ADS_JOB_NONE;
     }
     if (s_gapMode == SENSORARRAY_ADS_GAP_MODE_BAT) {
         return SENSORARRAY_ADS_JOB_NONE;
@@ -1881,8 +1884,10 @@ static esp_err_t sensorarrayAdsReadBatteryTransaction(sensorarrayState_t *state,
     }
     snapshotValid = true;
     sensorarrayAdsRailSplit_t batteryRail = {0};
-    if (!sensorarrayAdsGapCopyRailSplit(frameSequence,
-            CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES, &batteryRail)) {
+    uint32_t maximumAge = !sensorarrayBoardMapHasIsolatedRailMonitor()
+                              ? UINT32_MAX
+                              : (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
+    if (!sensorarrayAdsGapCopyRailSplit(frameSequence, maximumAge, &batteryRail)) {
         diag.reason = "rail_invalid";
         err = ESP_ERR_INVALID_STATE;
         /* No hardware has changed. Do not disturb CAP merely to discover an
@@ -2750,9 +2755,12 @@ size_t sensorarrayAdsGapFormatRail(char *buffer,
     sensorarrayAdsGapSnapshot_t snapshot = {0};
     sensorarrayAdsGapCopySnapshot(&snapshot, frameSequence);
     sensorarrayAdsRailSplit_t split = {0};
+    uint32_t maximumAge = !sensorarrayBoardMapHasIsolatedRailMonitor()
+                              ? UINT32_MAX
+                              : (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
     bool splitValid = sensorarrayAdsGapCopyRailSplit(
         frameSequence,
-        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
+        maximumAge,
         &split);
     int written = snprintf(buffer,
                            bufferSize,

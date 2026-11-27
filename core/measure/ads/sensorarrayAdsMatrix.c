@@ -1444,10 +1444,12 @@ static esp_err_t sensorarrayAdsMatrixGetRail(sensorarrayAdsMatrixEngine_t *engin
         engine->frameSequenceHint : (engine->frameCount + 1u);
     sensorarrayAdsGapSnapshot_t gap = {0};
     sensorarrayAdsGapCopySnapshot(&gap, sequence);
-    bool valid = sensorarrayAdsGapCopyRailSplit(
-        sequence,
-        (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
-        outRail);
+    uint32_t maximumAge =
+        (engine->mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE &&
+         !sensorarrayBoardMapHasIsolatedRailMonitor())
+            ? UINT32_MAX
+            : (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
+    bool valid = sensorarrayAdsGapCopyRailSplit(sequence, maximumAge, outRail);
     if (!valid) {
         /* A mixed segment is not a complete-frame boundary. Its caller
          * prepares rail before any group runs. VOLT must use a legal rail

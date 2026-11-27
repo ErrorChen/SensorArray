@@ -18,6 +18,7 @@ def main():
     branch = source[start:condition] + function(source, "    if (railError != ESP_OK) {")
     prefix = r'''
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -43,15 +44,16 @@ typedef struct {
 typedef struct { bool auxiliaryTransactionsAllowed; } sensorarrayScanPlan_t;
 typedef struct { uint8_t activeRows; struct { bool precisionFrame; } measurement;
     sensorarrayAdsGapSnapshot_t adsGap; } sensorarrayFrame_t;
-static bool validRail, refreshSucceeds, beginTransaction;
+static bool validRail, refreshSucceeds, beginTransaction, isolatedRailMonitor;
 static uint32_t railAge, receivedSequence;
 static unsigned refreshCalls,safeCalls,invalidCells,finishCalls;
 static esp_err_t refreshError,restoreError,safeError;
 static sensorarrayAdsTransactionEvidence_t transaction;
+static bool sensorarrayBoardMapHasIsolatedRailMonitor(void) { return isolatedRailMonitor; }
 static void sensorarrayAdsGapCopySnapshot(sensorarrayAdsGapSnapshot_t *out,uint32_t sequence)
 { receivedSequence=sequence; *out=(sensorarrayAdsGapSnapshot_t){.railAgeFrames=railAge,.railValid=validRail}; }
 static bool sensorarrayAdsGapCopyRailSplit(uint32_t sequence,uint32_t max,sensorarrayAdsRailSplit_t *out)
-{ receivedSequence=sequence; assert(max==100u); out->ageFrames=railAge;
+{ receivedSequence=sequence; assert(max==100u || max==UINT32_MAX); out->ageFrames=railAge;
   out->valid=validRail && railAge<=max; return out->valid; }
 static void sensorarrayAdsGapCopyTransactionEvidence(sensorarrayAdsTransactionEvidence_t *rail,void *battery,void *check)
 { assert(!battery && !check); *rail=transaction; }
@@ -76,7 +78,7 @@ static void sensorarrayAdsMatrixFinishFrame(sensorarrayFrame_t *frame,uint8_t ro
     wrapper = '\nstatic esp_err_t runBranch(sensorarrayAdsMatrixEngine_t *engine, sensorarrayFrame_t *frame, const sensorarrayScanPlan_t *plan) {\nint64_t frameStartUs=1000;\n' + branch + '\nreturn ESP_OK;\n}\n'
     suffix = r'''
 static sensorarrayAdsMatrixEngine_t reset(void) {
-    validRail=true;railAge=101u;refreshSucceeds=false;beginTransaction=true;
+    validRail=true;railAge=101u;refreshSucceeds=false;beginTransaction=true;isolatedRailMonitor=false;
     refreshCalls=safeCalls=invalidCells=finishCalls=0u;
     refreshError=ESP_ERR_INVALID_CRC;restoreError=safeError=ESP_OK;
     transaction=(sensorarrayAdsTransactionEvidence_t){.id=35u};
@@ -120,6 +122,14 @@ int main(void) {
     assert(safeCalls==1u && invalidCells==64u);
 
     engine=reset();engine.mode=SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;
+    assert(runBranch(&engine,&frame,&plan)==ESP_OK);
+    assert(refreshCalls==0u && safeCalls==0u && frame.adsGap.railAgeFrames==101u);
+
+    engine=reset();engine.mode=SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;validRail=false;
+    assert(runBranch(&engine,&frame,&plan)==ESP_ERR_INVALID_STATE);
+    assert(refreshCalls==0u);
+
+    engine=reset();engine.mode=SENSORARRAY_MEASUREMENT_MODE_VOLTAGE;isolatedRailMonitor=true;
     assert(runBranch(&engine,&frame,&plan)==ESP_ERR_INVALID_STATE);
     assert(refreshCalls==0u);
 

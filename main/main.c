@@ -1242,22 +1242,27 @@ static esp_err_t sensorarrayInitRuntime(sensorarrayAppContext_t *ctx)
     return ESP_OK;
 }
 
-static bool sensorarrayBuildAdsRailSplit(sensorarrayAppContext_t *ctx,
-                                         sensorarrayAdsRailSplit_t *outRail)
+static bool sensorarrayBuildAdsRailSplitForMode(
+    sensorarrayAppContext_t *ctx,
+    sensorarrayMeasurementMode_t targetMode,
+    sensorarrayAdsRailSplit_t *outRail)
 {
     if (!ctx || !outRail) {
         return false;
     }
     uint32_t nextSequence = ctx->hostFrameSequence + 1u;
-    if (sensorarrayAdsGapCopyRailSplit(
-            nextSequence,
-            (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
-            outRail)) {
+    uint32_t maximumAgeFrames =
+        (targetMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE &&
+         !sensorarrayBoardMapHasIsolatedRailMonitor())
+            ? UINT32_MAX
+            : (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
+    if (sensorarrayAdsGapCopyRailSplit(nextSequence, maximumAgeFrames, outRail)) {
         return true;
     }
     /* Mode application must not transiently release the clamp merely to
      * obtain a rail value. RES may measure it after its route owns the matrix;
-     * VOLT requires an explicit fresh calibration before acceptance. */
+     * VOLT on non-isolated hardware reuses any valid prior RES monitor or
+     * external calibration without age expiry. */
     return false;
 }
 
@@ -1282,7 +1287,8 @@ static esp_err_t sensorarrayRefreshVoltageRailIfNeeded(
     }
 
     sensorarrayAdsRailSplit_t rail = {0};
-    if (sensorarrayBuildAdsRailSplit(ctx, &rail)) {
+    if (sensorarrayBuildAdsRailSplitForMode(
+            ctx, SENSORARRAY_MEASUREMENT_MODE_VOLTAGE, &rail)) {
         return ESP_OK;
     }
 
@@ -1304,8 +1310,10 @@ static esp_err_t sensorarrayRefreshVoltageRailIfNeeded(
             &ctx->state, ctx->hostFrameSequence + 1u);
     }
     if (err == ESP_OK) {
-        err = sensorarrayBuildAdsRailSplit(ctx, &rail) ?
-            ESP_OK : ESP_ERR_INVALID_STATE;
+        err = sensorarrayBuildAdsRailSplitForMode(
+                  ctx, SENSORARRAY_MEASUREMENT_MODE_VOLTAGE, &rail)
+                  ? ESP_OK
+                  : ESP_ERR_INVALID_STATE;
     }
     uint64_t routeTransitionUs = 0u;
     if (err == ESP_OK) {
@@ -1457,10 +1465,14 @@ static esp_err_t sensorarrayApplyMeasurementMode(sensorarrayAppContext_t *ctx,
     sensorarrayAdsRailSplit_t rail = {0};
     const sensorarrayAdsRailSplit_t *railPtr = NULL;
     esp_err_t err = ESP_OK;
-    bool railAvailable = sensorarrayBuildAdsRailSplit(ctx, &rail);
+    bool railAvailable = sensorarrayBuildAdsRailSplitForMode(ctx, targetMode, &rail);
     if (targetMode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE && !railAvailable) {
         /* No transparent INTREF excursion is possible on circuit.pdf V1.0.
-         * RAILCFG supplies independent external AVDD/AVSS measurements. */
+         * RAILCFG or a prior valid RES monitor sample supplies AVDD/AVSS. */
+        if (!sensorarrayBoardMapHasIsolatedRailMonitor()) {
+            printf("RAIL_UNAVAILABLE,seq=%lu,capability=unavailable,reason=no_analog_isolation,action=external_calibration_required\n",
+                   (unsigned long)(ctx->hostFrameSequence + 1u));
+        }
         uint64_t railTransitionUs = 0u;
         err = sensorarrayRouteControllerEnterSafeRailMonitor(
             &ctx->routeController, &railTransitionUs);
@@ -1469,7 +1481,8 @@ static esp_err_t sensorarrayApplyMeasurementMode(sensorarrayAppContext_t *ctx,
                 &ctx->state, ctx->hostFrameSequence + 1u);
         }
         if (err == ESP_OK) {
-            railAvailable = sensorarrayBuildAdsRailSplit(ctx, &rail);
+            railAvailable = sensorarrayBuildAdsRailSplitForMode(
+                ctx, targetMode, &rail);
         }
         if (err == ESP_OK && (!railAvailable || !rail.valid)) {
             err = ESP_ERR_INVALID_STATE;

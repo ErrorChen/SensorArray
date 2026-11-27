@@ -225,8 +225,12 @@ esp_err_t sensorarrayMixedRowPrepareRailAtBoundary(
     sensorarrayAdsRailSplit_t rail = {0};
     uint32_t maximumAge = (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
     /* Schedule before expiry without extending validity or reusing a failed
-     * refresh as new evidence. External measured calibration ignores age. */
-    uint32_t prepareAge = maximumAge > 0u ? maximumAge - 1u : 0u;
+     * refresh as new evidence. On boards without an isolated rail monitor,
+     * passive C+V profiles hold any prior valid rail without frame-age expiry. */
+    uint32_t prepareAge =
+        (firstResistanceRow == 0u && !sensorarrayBoardMapHasIsolatedRailMonitor())
+            ? UINT32_MAX
+            : (maximumAge > 0u ? maximumAge - 1u : 0u);
     if (sensorarrayAdsGapCopyRailSplit(frameSequence, prepareAge, &rail)) {
         return ESP_OK;
     }
@@ -367,9 +371,12 @@ esp_err_t sensorarrayMixedRowEngineReadFrame(sensorarrayFdcMatrixEngine_t *fdcEn
         sensorarrayAdsRailSplit_t rail = {0};
         const sensorarrayAdsRailSplit_t *railPtr = NULL;
         if (mode == SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+            uint32_t maximumAge = !sensorarrayBoardMapHasIsolatedRailMonitor()
+                                      ? UINT32_MAX
+                                      : (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES;
             (void)sensorarrayAdsGapCopyRailSplit(
                 adsEngine->frameSequenceHint,
-                (uint32_t)CONFIG_SENSORARRAY_ADS_MATRIX_RAIL_MAX_AGE_FRAMES,
+                maximumAge,
                 &rail);
             railPtr = rail.valid ? &rail : NULL;
         }

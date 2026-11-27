@@ -72,6 +72,9 @@ esp_err_t sensorarrayRouteControllerApplyMode(sensorarrayRouteController_t *rout
         /* REF may only turn on after an intended RES row was selected. */
         assert(s_plan.rowModes[route->snapshot.row-1]==SENSORARRAY_MEASUREMENT_MODE_RESISTANCE);
     }
+    if(mode==SENSORARRAY_MEASUREMENT_MODE_VOLTAGE) {
+        assert(rail!=NULL && rail->valid);
+    }
     if(s_refreshCalls && s_capCalls==0 && s_adsCalls==0 &&
        mode==SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE && s_restoreError!=ESP_OK)return s_restoreError;
     route->snapshot.mode=mode;return ESP_OK;
@@ -140,6 +143,8 @@ int main(void)
     assert(run()==ESP_OK && s_refreshCalls==0);
     reset("CCCCCCVV");assert(run()==ESP_ERR_NOT_SUPPORTED);unacquired();
     assert(s_refreshCalls==0 && s_applyCalls==0 && s_selectCalls==0);
+    reset("CCCCCCVV");s_railAvailable=true;s_railAge=500;
+    assert(run()==ESP_OK && s_refreshCalls==0 && s_capCalls==1 && s_adsCalls==1 && s_sampledCells==64);
     reset("CCCCCCRR");s_refreshError=ESP_ERR_INVALID_CRC;
     assert(run()==ESP_ERR_INVALID_CRC);unacquired();
     assert(s_route.snapshot.mode==SENSORARRAY_MEASUREMENT_MODE_CAPACITANCE && s_route.snapshot.row==2);

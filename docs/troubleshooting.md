@@ -2,7 +2,8 @@
 
 | 症状 / Symptom | 核对与解释 / Evidence and interpretation |
 |---|---|
-| MFAULT，整帧无效 / Entire frame invalid | 按 session/seq 关联 ADSFAULTCTX/REG/TXN，先看 attempted/acquired、首错、cleanup、healthReadbackDue 和实际 engineFrameCount。0x108 在此 IDF 为 INVALID_RESPONSE；0x107 为 TIMEOUT。 / Inspect the first failing stage and counts before cleanup. A failure before conversion leaves no acquired cells. |
+| MFAULT，整帧无效 / Entire frame invalid | 按 session/seq 关联 ADSFAULTCTX/REG/TXN，先看 attempted/acquired、首错、cleanup、healthReadbackDue 和实际 engineFrameCount。0x108 在此 IDF 为 INVALID_RESPONSE；0x107 为 TIMEOUT；0x106 为 NOT_SUPPORTED。 / Inspect the first failing stage and counts before cleanup. A failure before conversion leaves no acquired cells. |
+| VOLT 报 `0x106` / `RAIL_UNAVAILABLE` | `railMonitor=unavailable` 板型无法在 VOLT 下透明自测轨压。若冷启动后直接切 `VOLT` 或无 R 行的 `C+V` 混合配置而此前从未运行 `RES` 也未发 `RAILCFG`，固件会输出 `RAIL_UNAVAILABLE` 并以 `0x106` 拒绝进入；先在 CAP/RES 下发 `RAILCFG`（或跑一次 `RES`）后再进 VOLT。注意 `ADSGAP=RAIL` 不会覆盖已下发的 `RAILCFG`。 / This board cannot run internal rail monitor while passive. If entering VOLT on a cold boot without prior `RES` or `RAILCFG`, apply `RAILCFG` outside VOLT (or run `RES` once) first. `ADSGAP=RAIL` preserves active `RAILCFG`. |
 | VOLT 台阶 / Common voltage step | 对齐逐点原始值、配置、rail 来源/事务、第一有效帧和墙钟。用有效外部双轨对照 battery 开/关。 / Align per-frame voltage against rail, battery, precision and health events. Preserve invalid/settling records. |
 | 某电阻 OPEN / Reference reads OPEN | 查 X0D、fresh/acquired、行列及夹具接触；独立查看 SPI/DRDY 故障。电容使用同点空载或标明背景代理。 / Inspect contact, physical position and fresh masks. Retain proxy-baseline uncertainty. |
 | 电池 unavailable / Battery unavailable | 分开查 rail_invalid、三样本 spread、restore 和 lastGoodKnown。恢复未知时查看隔离状态。 / Separate reference validity, sample stability and restore evidence. Use the actual last-good timestamp. |

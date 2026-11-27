@@ -30,6 +30,6 @@ STATE?
 RAIL?
 ```
 
-从 CONFIG 保存会话、boot、revision 和三组 gen/rid。使用该板 ADS 附近实测的 AVDD/AVSS，单位为带符号 µV。在 CAP/RES 通过 `RAILCFG=<avdd_uv>,<avss_uv>` 设置并核对 RAPP，然后才请求 VOLT。RAM 中的外部测量值需在复位后重新确认。对每次配置请求分别确认接受、终态及首个目标配置完整帧。 / Save the configuration identity. Use actual signed microvolt rail measurements for this board, apply them outside VOLT, and confirm the rail terminal before requesting VOLT. After each setter correlate the local acknowledgement, applied result and first complete frame independently.
+从 CONFIG 保存会话、boot、revision 和三组 gen/rid。进入 VOLT 有两种合法供轨路径：推荐在非 VOLT 状态下通过 `RAILCFG=<avdd_uv>,<avss_uv>` 写入该板 ADS 附近实测的 AVDD/AVSS（单位为带符号 µV）并核对 `RAPP`（冷启动免跑 RES 且精度最高）；或先运行一次 `MODE=RES` 采集内部 `monitor` 轨（随后 VOLT / 被动 C+V 混合模式 / `RAIL?` / `BAT` 会一直沿用该有效轨，不再因超过 100 帧报错 `0x106`）。RAM 中的外部测量值需在复位后重新确认。对每次配置请求分别确认接受、终态及首个目标配置完整帧。 / Save the configuration identity. Prepare VOLT rails outside VOLT either by applying signed microvolt DMM measurements with `RAILCFG=<avdd_uv>,<avss_uv>` and confirming `RAPP` (recommended for cold boot and highest accuracy), or by running `MODE=RES` once so VOLT, passive C+V mixed profiles, `RAIL?`, and `BAT` retain that valid monitor rail without 100-frame expiry. Re-confirm volatile RAM rail values after a reset. After each setter correlate the local acknowledgement, applied result and first complete frame independently.
 
 [命令参数 / Command reference](command-reference.md) · [主机契约 / Host contract](integration/firmware_host_contract.md) · [故障排查 / Troubleshooting](troubleshooting.md)
